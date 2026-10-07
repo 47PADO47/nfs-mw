@@ -35,7 +35,7 @@ against the install at `D:/Need For Speed Most Wanted Black Edition`.
 | [architecture.md](architecture.md) | `libs/` (engine-generic) vs `crates/` (MW), finding the install, the streamed city, graphics backends, Windows/Linux, testing, roadmap |
 | [rust-stack.md](rust-stack.md) | Crates used and planned, with versions and licenses; rejected options |
 | [licensing.md](licensing.md) | Project license, what each source license allows, unlicensed repos, the spec-first process |
-| [specs/](specs/README.md) | Behaviour specs written before implementing it from decompiled sources: [scenery visibility](specs/scenery-visibility.md), [scenery LOD](specs/scenery-lod.md) |
+| [specs/](specs/README.md) | Behaviour specs written before implementing it from decompiled sources: [scenery visibility](specs/scenery-visibility.md), [scenery LOD](specs/scenery-lod.md), [car assembly](specs/car-assembly.md) |
 | [provenance/](provenance/README.md) | Records for modules whose behaviour came from restricted sources |
 
 ### Research
@@ -58,7 +58,7 @@ against the install at `D:/Need For Speed Most Wanted Black Edition`.
 | [formats/maps.md](formats/maps.md) | The L2RA world: metadata chunks, streaming index, section families, scenery placement and rotation encoding | Verified; Rust readers |
 | [formats/world.md](formats/world.md) | World grid and road network, collision packs, bounds, triggers, emitters, sky, minimap | Partial (decomp only for several) |
 | [formats/attributes.md](formats/attributes.md) | AttribSys `VPAK` packs, vaults, exports, hash, the 57 classes | Layout verified |
-| [formats/cardata.md](formats/cardata.md) | Car types, parts database, presets, vinyls | Partial |
+| [formats/cardata.md](formats/cardata.md) | Car types, parts database, slot types, presets, light materials, solid markers, `ecar`, vinyls | Car tables verified; vinyls partial |
 | [formats/animation.md](formats/animation.md) | EAGL4 ELF objects, skeletons, banks, NIS cutscenes | Container verified; codecs open |
 | [formats/audio.md](formats/audio.md) | Sound banks, GIN engine loops, MPF/MUS music, speech, reverb, mix maps | Codecs known; some indexes open |
 | [formats/video.md](formats/video.md) | EA VP6 container and decoder options | Complete |

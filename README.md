@@ -3,12 +3,12 @@
 A Rust rewrite of **Need for Speed: Most Wanted** (2005, PC v1.3 / Black Edition) that reads all game
 data at runtime from **your own install**. This repository contains no game files and no decompiled code.
 
-**Status: milestone 2.**
+**Status: milestone 3 (in progress).**
 
 - **Install:** finds and checks your copy of the game.
 - **Data:** decodes the data containers (bChunk, JDLZ, HUFF) and reads cars, texture packs and the streamed
   city.
-- **Viewers:** shows any car, or lets you fly through Rockport while map tiles stream in around the camera.
+- **Viewers:** shows any car assembled from its stock parts, or lets you fly through Rockport while map tiles stream in around the camera.
   Both run on Vulkan, Direct3D 12 or OpenGL, on Windows and Linux.
 
 There's no driving yet; see the [roadmap](docs/architecture.md#roadmap).
@@ -30,7 +30,7 @@ config file, or the retail registry key ([details](docs/architecture.md#finding-
 |---|---|
 | `check-install` | Shows where the install was found, identifies `speed.exe`, checks required files |
 | `list-cars` | Lists car folders |
-| `view-car [CAR]` | Orbit view of a car: drag to rotate, scroll to zoom. Options: `--lod A..D`, `--all-parts` |
+| `view-car [CAR]` | A car assembled from its stock parts (wheels, brakes, paint) on a floor: drag to rotate, scroll to zoom. Options: `--lod A..E`, `--preset NAME` (a `PresetRides` car such as `CE_GTRSTREET`), `--all-parts` (every solid, unassembled) |
 | `view-world` | Fly through the city: WASD, Space/C, Shift, mouse to look (Esc frees the cursor, click to capture it again), scroll for speed. Options: `--at X,Y`, `--height`, `--heading`, `--pitch`, `--load-radius` |
 
 Options for both viewers:
@@ -44,7 +44,7 @@ Options for both viewers:
 
 | Path | Contents |
 |---|---|
-| [`libs/`](libs) | **Engine-generic libraries** for EA Black Box games (codecs, bChunk, TPK, solids, streaming, scenery, install discovery, renderer), each with a README, kept free of MW-specific code so they can be reused |
+| [`libs/`](libs) | **Engine-generic libraries** for EA Black Box games (codecs, bChunk, TPK, solids, streaming, scenery, AttribSys, car parts, install discovery, renderer), each with a README, kept free of MW-specific code so they can be reused |
 | [`crates/`](crates) | The game: `nfsmw-data` (how MW's files fit together) and `nfsmw` (the launcher and viewers) |
 | [`docs/`](docs/README.md) | File formats, prior art, architecture, licensing, behaviour specs |
 | [`tools/`](tools) | Python research tools: `chunkdump.py` dumps the bChunk tree of any data file |

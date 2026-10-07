@@ -18,10 +18,12 @@ scaled down.
 | Crate | Job | Version handling |
 |---|---|---|
 | [`ea-compress`](../libs/ea-compress) | JDLZ, HUFF, RAWW | self-describing headers |
+| [`blackbox-attrib`](../libs/blackbox-attrib) | AttribSys gameplay databases (`VPAK`, vaults, classes, collections, inheritance) | `layout/` per AttribSys generation (legacy = MW), detected per vault |
+| [`blackbox-carparts`](../libs/blackbox-carparts) | Car types, the parts database, slot types, presets, light materials | `layout::MOST_WANTED` (parts pack v6, 139 slots) passed by the caller |
 | [`blackbox-hash`](../libs/blackbox-hash) | `bStringHash` | — |
 | [`blackbox-chunk`](../libs/blackbox-chunk) | Zero-copy bChunk trees; chunk ids by domain | — |
 | [`blackbox-tpk`](../libs/blackbox-tpk) | Texture packs (plain and compressed forms), CPU decoding | `layout/` per TPK version (5 = MW) |
-| [`blackbox-solid`](../libs/blackbox-solid) | Solids: groups, every vertex buffer, indices | `layout/` per `SolidInfo` version (0x16 = MW) |
+| [`blackbox-solid`](../libs/blackbox-solid) | Solids: groups, every vertex buffer, indices, position markers | `layout/` per `SolidInfo` version (0x16 = MW) |
 | [`blackbox-streaming`](../libs/blackbox-streaming) | The track streaming index | `layout::MOST_WANTED` passed by the caller |
 | [`blackbox-scenery`](../libs/blackbox-scenery) | Scenery infos and instances; visibility rule | `layout::MOST_WANTED` passed by the caller |
 | [`blackbox-render`](../libs/blackbox-render) | Backend-neutral renderer (wgpu inside) | — |
@@ -32,8 +34,8 @@ scaled down.
 
 | Crate | Job |
 |---|---|
-| [`nfsmw-data`](../crates/nfsmw-data) | MW's `GameSpec`; car loading (part selection, texture sources); the world: streaming index, section parsing, a background section loader. Renderer-free. |
-| [`nfsmw`](../crates/nfsmw) | The binary: CLI (`commands/`), a generic viewer (`viewer/`: window, input, orbit and fly cameras, screenshots) and the scenes (`scenes/car.rs`, `scenes/world/`). |
+| [`nfsmw-data`](../crates/nfsmw-data) | MW's `GameSpec`; car assembly (stock and preset parts, wheel and brake placement, paint, texture swaps); the world: streaming index, section parsing, a background section loader. Renderer-free. |
+| [`nfsmw`](../crates/nfsmw) | The binary: CLI (`commands/`), a generic viewer (`viewer/`: window, input, orbit and fly cameras, screenshots) and the scenes (`scenes/car/`, `scenes/world/`). |
 | [`xtask`](../xtask) | `cargo xtask check` (leak check + file-size check), `install-hooks` |
 
 Rules that keep this structure working:
