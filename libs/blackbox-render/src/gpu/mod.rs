@@ -10,9 +10,7 @@ mod resources;
 mod slots;
 mod textures;
 
-use std::sync::Arc;
-
-use winit::window::Window;
+use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 use crate::{RenderError, RendererOptions};
 
@@ -35,15 +33,21 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    /// Create a renderer drawing into `window`.
+    /// Create a renderer drawing into `window`, which is `size` pixels (width, height) now.
     ///
-    /// `display` is the event loop's display handle (needed by OpenGL on Wayland/X11).
-    pub fn new(
-        window: Arc<Window>,
-        display: winit::event_loop::OwnedDisplayHandle,
+    /// `window` is anything with raw window and display handles, such as a winit window in an
+    /// `Arc`. `display` is the event loop's display handle (needed by OpenGL on Wayland/X11); pass
+    /// the window itself if there is nothing better.
+    pub fn new<W>(
+        window: W,
+        size: (u32, u32),
+        display: impl HasDisplayHandle + std::fmt::Debug + Send + Sync + 'static,
         options: RendererOptions,
-    ) -> Result<Self, RenderError> {
-        init::create(window, display, options)
+    ) -> Result<Self, RenderError>
+    where
+        W: HasWindowHandle + HasDisplayHandle + Send + Sync + 'static,
+    {
+        init::create(window, size, display, options)
     }
 
     /// "GPU name (backend)" for logs and the window title.

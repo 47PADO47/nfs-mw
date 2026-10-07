@@ -40,6 +40,7 @@ glam = { version = "0.34", features = ["bytemuck"] }
 log = "0.4"
 png = "0.18"
 pollster = "0.4"
+raw-window-handle = "0.6"
 serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"
 texture2ddecoder = "0.1"

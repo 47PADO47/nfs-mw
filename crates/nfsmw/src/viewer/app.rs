@@ -44,8 +44,9 @@ impl App {
             attrs.with_inner_size(winit::dpi::LogicalSize::new(1280.0, 720.0))
         };
         let window = Arc::new(event_loop.create_window(attrs).context("creating the window")?);
+        let size = window.inner_size().into();
         let options = RendererOptions { backend: self.settings.backend, vsync: self.settings.vsync };
-        let mut renderer = Renderer::new(window.clone(), event_loop.owned_display_handle(), options)?;
+        let mut renderer = Renderer::new(window.clone(), size, event_loop.owned_display_handle(), options)?;
         log::info!("renderer: {} (requested backend: {})", renderer.adapter_summary(), self.settings.backend);
         self.scene.init(&mut renderer)?;
 

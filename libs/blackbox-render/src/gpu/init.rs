@@ -1,8 +1,6 @@
 //! Instance, surface, adapter and device setup.
 
-use std::sync::Arc;
-
-use winit::window::Window;
+use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 use super::{Renderer, instances, pipelines, resources, slots::Slots};
 use crate::{Backend, PixelFormat, RenderError, RendererOptions, TextureDesc};
@@ -16,15 +14,19 @@ fn wgpu_backends(backend: Backend) -> wgpu::Backends {
     }
 }
 
-pub(super) fn create(
-    window: Arc<Window>,
-    display: winit::event_loop::OwnedDisplayHandle,
+pub(super) fn create<W>(
+    window: W,
+    size: (u32, u32),
+    display: impl HasDisplayHandle + std::fmt::Debug + Send + Sync + 'static,
     options: RendererOptions,
-) -> Result<Renderer, RenderError> {
+) -> Result<Renderer, RenderError>
+where
+    W: HasWindowHandle + HasDisplayHandle + Send + Sync + 'static,
+{
     let mut desc = wgpu::InstanceDescriptor::new_without_display_handle().with_display_handle(Box::new(display));
     desc.backends = wgpu_backends(options.backend);
     let instance = wgpu::Instance::new(desc);
-    let surface = instance.create_surface(window.clone()).map_err(|e| RenderError::Surface(e.to_string()))?;
+    let surface = instance.create_surface(window).map_err(|e| RenderError::Surface(e.to_string()))?;
 
     let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
         power_preference: wgpu::PowerPreference::HighPerformance,
@@ -46,9 +48,8 @@ pub(super) fn create(
     }))
     .map_err(|e| RenderError::Device(e.to_string()))?;
 
-    let size = window.inner_size();
     let mut config = surface
-        .get_default_config(&adapter, size.width.max(1), size.height.max(1))
+        .get_default_config(&adapter, size.0.max(1), size.1.max(1))
         .ok_or_else(|| RenderError::Surface("the surface is not supported by this adapter".into()))?;
     // The games' art is authored for a non-sRGB D3D9 pipeline: prefer a plain UNORM target.
     let caps = surface.get_capabilities(&adapter);
