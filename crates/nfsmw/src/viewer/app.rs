@@ -11,6 +11,7 @@ use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
 
+use super::limiter::FrameLimiter;
 use super::{Input, Scene, cursor, screenshot};
 use crate::cli::ViewArgs;
 
@@ -20,6 +21,7 @@ struct Running {
     last_frame: Instant,
     title_timer: Instant,
     frames: u32,
+    limiter: FrameLimiter,
 }
 
 struct App {
@@ -55,7 +57,8 @@ impl App {
         }
         window.request_redraw();
         let now = Instant::now();
-        self.running = Some(Running { window, renderer, last_frame: now, title_timer: now, frames: 0 });
+        let limiter = FrameLimiter::new(self.args.max_fps);
+        self.running = Some(Running { window, renderer, last_frame: now, title_timer: now, frames: 0, limiter });
         Ok(())
     }
 
@@ -80,6 +83,7 @@ impl App {
             ));
             (r.title_timer, r.frames) = (Instant::now(), 0);
         }
+        r.limiter.wait();
         r.window.request_redraw();
         Ok(())
     }

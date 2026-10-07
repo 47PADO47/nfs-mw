@@ -36,6 +36,7 @@ config file, or the retail registry key ([details](docs/architecture.md#finding-
 Options for both viewers:
 
 - `--backend auto|vulkan|dx12|gl` picks the graphics API ([details](docs/architecture.md#graphics-backends)).
+- `--max-fps 60` caps the frame rate (default `unlocked`; `--no-vsync` turns vsync off).
 - `--screenshot out.png` renders one frame and exits; add `--wait-for-load` in the world viewer.
 - Esc quits (in the world viewer, the first Esc frees the mouse).
 

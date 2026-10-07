@@ -5,12 +5,14 @@ mod app;
 pub mod camera;
 mod cursor;
 mod input;
+mod limiter;
 mod screenshot;
 
 use anyhow::Result;
 use blackbox_render::{FrameParams, Instance, Renderer};
 
 pub use input::Input;
+pub use limiter::MaxFps;
 
 use crate::cli::ViewArgs;
 
