@@ -12,7 +12,14 @@ pub const fn bstring_hash(name: &str) -> u32 {
 
 /// [`bstring_hash`] over raw bytes (names in the files are 8-bit, NUL-terminated).
 pub const fn bstring_hash_bytes(bytes: &[u8]) -> u32 {
-    let mut h: u32 = 0xFFFF_FFFF;
+    bstring_hash_continue(0xFFFF_FFFF, bytes)
+}
+
+/// Continue a [`bstring_hash`] from a previous value, as if `bytes` were appended to the
+/// hashed name: `bstring_hash_continue(bstring_hash("AB"), b"C") == bstring_hash("ABC")`.
+/// The engine builds names this way (car part model names, for example).
+pub const fn bstring_hash_continue(seed: u32, bytes: &[u8]) -> u32 {
+    let mut h = seed;
     let mut i = 0;
     while i < bytes.len() {
         h = h.wrapping_mul(33).wrapping_add(bytes[i] as u32);
@@ -34,6 +41,14 @@ mod tests {
     fn matches_reference_formula() {
         // Computed by hand from the formula: ((0xFFFFFFFF * 33) + 'A') mod 2^32.
         assert_eq!(bstring_hash("A"), 0xFFFF_FFFFu32.wrapping_mul(33).wrapping_add(0x41));
+    }
+
+    #[test]
+    fn continues() {
+        assert_eq!(
+            bstring_hash_continue(bstring_hash("BMWM3GTR_KIT00"), b"_BODY_A"),
+            bstring_hash("BMWM3GTR_KIT00_BODY_A")
+        );
     }
 
     #[test]
