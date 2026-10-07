@@ -9,7 +9,7 @@ mod partial;
 
 use blackbox_render::Backend;
 
-pub use partial::Partial;
+pub use partial::{Partial, parse_bool};
 
 use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;

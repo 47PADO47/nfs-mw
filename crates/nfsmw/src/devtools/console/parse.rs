@@ -1,0 +1,144 @@
+//! Turning a typed line into a [`Command`]. Pure text in, plain data out.
+
+/// A console command. Scene-specific ones (`car`, `freecam`…) are passed on by name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Command {
+    Help,
+    Clear,
+    Quit,
+    /// Show one setting, or all of them.
+    Get(Option<String>),
+    Set {
+        key: String,
+        value: String,
+    },
+    /// Resize the window to `width` × `height` pixels.
+    Resolution {
+        width: u32,
+        height: u32,
+    },
+    /// Not built in: offered to the scene.
+    Scene {
+        name: String,
+        args: Vec<String>,
+    },
+}
+
+/// Names of the built-in commands, for `help` and tab completion.
+pub const BUILT_IN: [(&str, &str); 7] = [
+    ("help", "list the commands"),
+    ("clear", "empty the console"),
+    ("quit", "close the game"),
+    ("get [setting]", "show a setting, or all"),
+    ("set <setting> <value>", "change a setting: fps, vsync, metrics"),
+    ("fps <number|unlocked>", "frame-rate cap (same as set fps)"),
+    ("resolution <width> <height>", "resize the window"),
+];
+
+/// Further shorthands for `set`: `vsync off` is `set vsync off`.
+const SET_SHORTHANDS: [&str; 3] = ["fps", "vsync", "metrics"];
+
+/// Parse one line. `Ok(None)` for an empty line.
+pub fn parse(line: &str) -> Result<Option<Command>, String> {
+    let mut words = line.split_whitespace();
+    let Some(name) = words.next() else { return Ok(None) };
+    let args: Vec<&str> = words.collect();
+    let name = name.to_ascii_lowercase();
+    let need = |n: usize, usage: &str| {
+        if args.len() == n { Ok(()) } else { Err(format!("usage: {usage}")) }
+    };
+    Ok(Some(match name.as_str() {
+        "help" | "?" => Command::Help,
+        "clear" | "cls" => Command::Clear,
+        "quit" | "exit" => Command::Quit,
+        "get" => match args.as_slice() {
+            [] => Command::Get(None),
+            [key] => Command::Get(Some((*key).to_owned())),
+            _ => return Err("usage: get [setting]".into()),
+        },
+        "set" => {
+            need(2, "set <setting> <value>")?;
+            Command::Set { key: args[0].to_ascii_lowercase(), value: args[1].to_owned() }
+        }
+        shorthand if SET_SHORTHANDS.contains(&shorthand) => {
+            need(1, &format!("{shorthand} <value>"))?;
+            Command::Set { key: shorthand.to_owned(), value: args[0].to_owned() }
+        }
+        "resolution" | "res" => {
+            let usage = "resolution <width> <height> (or WIDTHxHEIGHT)";
+            let (w, h) = match args.as_slice() {
+                [both] => both.split_once(['x', 'X']).ok_or_else(|| format!("usage: {usage}"))?,
+                [w, h] => (*w, *h),
+                _ => return Err(format!("usage: {usage}")),
+            };
+            let size = |s: &str| s.parse::<u32>().ok().filter(|n| (160..=16384).contains(n));
+            match (size(w), size(h)) {
+                (Some(width), Some(height)) => Command::Resolution { width, height },
+                _ => return Err("the width and height must be between 160 and 16384".into()),
+            }
+        }
+        _ => Command::Scene { name, args: args.iter().map(|a| (*a).to_owned()).collect() },
+    }))
+}
+
+/// The built-in and scene command names that start with `prefix`, for Tab.
+pub fn complete(prefix: &str, scene_commands: &[(&str, &str)]) -> Vec<String> {
+    let first = |usage: &str| usage.split_whitespace().next().unwrap_or("").to_owned();
+    let mut names: Vec<String> =
+        BUILT_IN.iter().map(|(u, _)| first(u)).chain(scene_commands.iter().map(|(u, _)| first(u))).collect();
+    names.retain(|n| n.starts_with(&prefix.to_ascii_lowercase()));
+    names.sort();
+    names.dedup();
+    names
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ok(line: &str) -> Command {
+        parse(line).unwrap().unwrap()
+    }
+
+    #[test]
+    fn built_ins() {
+        assert_eq!(parse("   ").unwrap(), None);
+        assert_eq!(ok("HELP"), Command::Help);
+        assert_eq!(ok("exit"), Command::Quit);
+        assert_eq!(ok("get"), Command::Get(None));
+        assert_eq!(ok("get fps"), Command::Get(Some("fps".into())));
+        assert_eq!(ok("set Vsync off"), Command::Set { key: "vsync".into(), value: "off".into() });
+    }
+
+    #[test]
+    fn shorthands_are_sets() {
+        assert_eq!(ok("fps 60"), Command::Set { key: "fps".into(), value: "60".into() });
+        assert_eq!(ok("metrics advanced"), Command::Set { key: "metrics".into(), value: "advanced".into() });
+        assert!(parse("fps").is_err());
+        assert!(parse("fps 1 2").is_err());
+    }
+
+    #[test]
+    fn resolution_forms() {
+        let want = Command::Resolution { width: 1920, height: 1080 };
+        assert_eq!(ok("resolution 1920 1080"), want);
+        assert_eq!(ok("res 1920x1080"), want);
+        assert!(parse("resolution 1920").is_err());
+        assert!(parse("resolution 10 10").is_err());
+        assert!(parse("resolution a b").is_err());
+    }
+
+    #[test]
+    fn unknown_commands_go_to_the_scene() {
+        assert_eq!(ok("car BMWM3GTR"), Command::Scene { name: "car".into(), args: vec!["BMWM3GTR".into()] });
+        assert_eq!(ok("FreeCam"), Command::Scene { name: "freecam".into(), args: vec![] });
+    }
+
+    #[test]
+    fn completion() {
+        let scene = [("car <folder>", "change the car"), ("cars", "list the cars")];
+        assert_eq!(complete("c", &scene), ["car", "cars", "clear"]);
+        assert_eq!(complete("re", &scene), ["resolution"]);
+        assert!(complete("zzz", &scene).is_empty());
+    }
+}

@@ -20,6 +20,13 @@ impl CarMaterials {
         Self { uploaded }
     }
 
+    /// Free the textures.
+    pub fn destroy(self, renderer: &mut Renderer) {
+        for (handle, _) in self.uploaded.into_values() {
+            renderer.destroy_texture(handle);
+        }
+    }
+
     /// The lookup for one placement (left brakes show the mirrored caliper).
     pub fn for_placement<'a>(&'a self, swaps: &'a TextureSwaps, left_brake: bool) -> Lookup<'a> {
         Lookup { materials: self, swaps, left_brake }

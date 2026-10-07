@@ -90,9 +90,23 @@ pub struct ViewArgs {
     /// Render one frame to this PNG file and exit instead of opening an interactive window.
     #[arg(long, value_name = "FILE.png")]
     pub screenshot: Option<PathBuf>,
+    /// Run a console command once the window is up (repeatable), e.g. --exec "fps 60" --exec "car PORSCHE911".
+    #[arg(long, value_name = "COMMAND")]
+    pub exec: Vec<String>,
+    /// Start with the developer console open.
+    #[arg(long, hide = true)]
+    pub open_console: bool,
 }
 
 impl ViewArgs {
+    pub fn run_options(&self) -> crate::app::RunOptions {
+        crate::app::RunOptions {
+            screenshot: self.screenshot.clone(),
+            exec: self.exec.clone(),
+            open_console: self.open_console,
+        }
+    }
+
     /// The command-line layer of the settings: the top layer, above the environment and the config file.
     pub fn settings_layer(&self) -> Partial {
         Partial {

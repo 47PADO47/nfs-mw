@@ -29,4 +29,12 @@ pub trait Scene {
     fn status(&self) -> Option<String> {
         None
     }
+    /// The scene's own console commands as `(name, usage)`, listed by `help`.
+    fn commands(&self) -> &'static [(&'static str, &'static str)] {
+        &[]
+    }
+    /// Run a console command. `None` means the scene has no such command.
+    fn command(&mut self, _renderer: &mut Renderer, _name: &str, _args: &[&str]) -> Option<Result<String, String>> {
+        None
+    }
 }

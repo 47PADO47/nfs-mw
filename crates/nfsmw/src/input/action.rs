@@ -21,12 +21,14 @@ pub enum Action {
     Zoom,
     /// Button: go faster.
     Boost,
-    /// Button: back out (release the mouse, then quit).
+    /// Button: back out (close the console, release the mouse, then quit).
     Cancel,
+    /// Button: open or close the developer console.
+    Console,
 }
 
 impl Action {
-    pub const ALL: [Action; 10] = [
+    pub const ALL: [Action; 11] = [
         Action::MoveForward,
         Action::MoveRight,
         Action::MoveUp,
@@ -37,7 +39,13 @@ impl Action {
         Action::Zoom,
         Action::Boost,
         Action::Cancel,
+        Action::Console,
     ];
+
+    /// Actions that still work while the UI has the keyboard.
+    pub(super) fn works_in_ui(self) -> bool {
+        matches!(self, Action::Cancel | Action::Console)
+    }
 
     pub(super) fn index(self) -> usize {
         self as usize
@@ -45,6 +53,9 @@ impl Action {
 
     /// Whether several devices adding up should still stay within -1..1.
     pub(super) fn is_bounded(self) -> bool {
-        matches!(self, Action::MoveForward | Action::MoveRight | Action::MoveUp | Action::Boost | Action::Cancel)
+        matches!(
+            self,
+            Action::MoveForward | Action::MoveRight | Action::MoveUp | Action::Boost | Action::Cancel | Action::Console
+        )
     }
 }

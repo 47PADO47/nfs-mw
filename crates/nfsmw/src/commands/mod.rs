@@ -24,9 +24,9 @@ pub fn run(cli: Cli) -> Result<()> {
             let options = nfsmw_data::car::LoadOptions { lod, all_parts, preset };
             let model = nfsmw_data::car::load(&dir, &car, &options)?;
             crate::app::run(
-                Box::new(CarScene::new(model, yaw)),
+                Box::new(CarScene::new(model, yaw).with_source(dir, options)),
                 &Settings::load(view.settings_layer()),
-                view.screenshot,
+                view.run_options(),
             )
         }
         Command::ViewWorld { at, height, heading, pitch, fog_distance, wait_for_load, view } => {
@@ -35,7 +35,7 @@ pub fn run(cli: Cli) -> Result<()> {
             crate::app::run(
                 Box::new(WorldScene::open(&dir, options)?),
                 &Settings::load(view.settings_layer()),
-                view.screenshot,
+                view.run_options(),
             )
         }
     }

@@ -9,13 +9,17 @@ use bevy_input::mouse::MouseButton;
 use bevy_window::{CursorGrabMode, CursorOptions, PrimaryWindow, Window};
 
 use super::host::Host;
-use crate::input::{Action, ActionState, MouseCapture};
+use crate::devtools::Console;
+use crate::input::{Action, ActionState, MouseCapture, UiFocus};
 
+#[allow(clippy::too_many_arguments)]
 pub fn update(
     host: NonSend<Host>,
     actions: Res<ActionState>,
     mouse: Res<ButtonInput<MouseButton>>,
     mut capture: ResMut<MouseCapture>,
+    mut focus: ResMut<UiFocus>,
+    mut console: ResMut<Console>,
     window: Single<(&Window, &mut CursorOptions), With<PrimaryWindow>>,
     mut was_focused: Local<bool>,
     mut exit: MessageWriter<AppExit>,
@@ -26,12 +30,14 @@ pub fn update(
     let (window, mut cursor) = window.into_inner();
     let uses_mouse = host.scene.captures_mouse();
     if actions.just_pressed(Action::Cancel) {
-        if capture.0 {
+        if console.open {
+            console.set_open(false, &mut capture, &mut focus);
+        } else if capture.0 {
             capture.0 = false;
         } else {
             exit.write(AppExit::Success);
         }
-    } else if uses_mouse && mouse.just_pressed(MouseButton::Left) {
+    } else if uses_mouse && !console.open && mouse.just_pressed(MouseButton::Left) {
         capture.0 = true;
     }
     if *was_focused && !window.focused {

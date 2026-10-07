@@ -15,6 +15,10 @@ use super::state::{ActionState, Bindings};
 #[derive(Resource, Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct MouseCapture(pub bool);
 
+/// The UI (the console) has the keyboard: game actions go quiet.
+#[derive(Resource, Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct UiFocus(pub bool);
+
 pub struct InputLayerPlugin;
 
 impl Plugin for InputLayerPlugin {
@@ -22,6 +26,7 @@ impl Plugin for InputLayerPlugin {
         app.init_resource::<Bindings>()
             .init_resource::<ActionState>()
             .init_resource::<MouseCapture>()
+            .init_resource::<UiFocus>()
             .add_systems(PreUpdate, update_actions.after(InputSystems));
     }
 }
@@ -37,6 +42,7 @@ fn update_actions(
     scroll: Res<AccumulatedMouseScroll>,
     pads: Query<&Gamepad>,
     capture: Res<MouseCapture>,
+    focus: Res<UiFocus>,
     time: Res<Time>,
     bindings: Res<Bindings>,
     mut state: ResMut<ActionState>,
@@ -64,5 +70,5 @@ fn update_actions(
             }
         }
     }
-    state.update(&bindings, &snapshot);
+    state.update(&bindings, &snapshot, focus.0);
 }

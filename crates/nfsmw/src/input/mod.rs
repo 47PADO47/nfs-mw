@@ -13,4 +13,4 @@ mod systems;
 
 pub use action::Action;
 pub use state::ActionState;
-pub use systems::{InputLayerPlugin, MouseCapture};
+pub use systems::{InputLayerPlugin, MouseCapture, UiFocus};

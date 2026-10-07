@@ -112,6 +112,7 @@ pub fn defaults() -> Vec<Binding> {
         Binding::new(Boost, key(KeyCode::ShiftLeft), 1.0),
         Binding::new(Boost, key(KeyCode::ShiftRight), 1.0),
         Binding::new(Cancel, key(KeyCode::Escape), 1.0),
+        Binding::new(Console, key(KeyCode::F12), 1.0),
         // Mouse.
         Binding::new(LookX, motion(false, Gate::Look), 1.0),
         Binding::new(LookY, motion(true, Gate::Look), 1.0),

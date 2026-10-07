@@ -32,7 +32,8 @@ impl ActionState {
     }
 
     /// Resolve every action from `snapshot`, remembering the previous frame for [`Self::just_pressed`].
-    pub fn update(&mut self, bindings: &Bindings, snapshot: &Snapshot) {
+    /// With `ui_focus` (typing in the console), only the actions that work in the UI stay live.
+    pub fn update(&mut self, bindings: &Bindings, snapshot: &Snapshot, ui_focus: bool) {
         self.before = self.now;
         self.now = [0.0; Action::ALL.len()];
         for b in &bindings.0 {
@@ -41,6 +42,9 @@ impl ActionState {
         for a in Action::ALL {
             if a.is_bounded() {
                 self.now[a.index()] = self.now[a.index()].clamp(-1.0, 1.0);
+            }
+            if ui_focus && !a.works_in_ui() {
+                self.now[a.index()] = 0.0;
             }
         }
     }
@@ -69,13 +73,13 @@ mod tests {
         let mut snap = Snapshot::default();
         snap.keys.insert(KeyCode::KeyW);
         snap.pad_axes.insert(GamepadAxis::LeftStickY, 1.0);
-        state.update(&Bindings::default(), &snap);
+        state.update(&Bindings::default(), &snap, false);
         assert_eq!(state.value(Action::MoveForward), 1.0);
 
         snap.keys.clear();
         snap.keys.insert(KeyCode::KeyS);
         snap.pad_axes.clear();
-        state.update(&Bindings::default(), &snap);
+        state.update(&Bindings::default(), &snap, false);
         assert_eq!(state.value(Action::MoveForward), -1.0);
     }
 
@@ -85,9 +89,9 @@ mod tests {
         let mut snap = Snapshot::default();
         snap.keys.insert(KeyCode::Escape);
         let bindings = Bindings::default();
-        state.update(&bindings, &snap);
+        state.update(&bindings, &snap, false);
         assert!(state.just_pressed(Action::Cancel));
-        state.update(&bindings, &snap);
+        state.update(&bindings, &snap, false);
         assert!(state.pressed(Action::Cancel) && !state.just_pressed(Action::Cancel));
     }
 
@@ -95,7 +99,19 @@ mod tests {
     fn scroll_is_not_clamped() {
         let mut state = ActionState::default();
         let snap = Snapshot { scroll: 7.0, ..Snapshot::default() };
-        state.update(&Bindings::default(), &snap);
+        state.update(&Bindings::default(), &snap, false);
         assert_eq!(state.value(Action::Zoom), 7.0);
+    }
+
+    #[test]
+    fn typing_in_the_ui_silences_the_game_but_not_cancel_or_console() {
+        let mut state = ActionState::default();
+        let mut snap = Snapshot::default();
+        snap.keys.extend([KeyCode::KeyW, KeyCode::Escape, KeyCode::F12]);
+        state.update(&Bindings::default(), &snap, true);
+        assert_eq!(state.value(Action::MoveForward), 0.0);
+        assert!(state.pressed(Action::Cancel) && state.pressed(Action::Console));
+        state.update(&Bindings::default(), &snap, false);
+        assert_eq!(state.value(Action::MoveForward), 1.0);
     }
 }

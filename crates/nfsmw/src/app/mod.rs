@@ -9,6 +9,7 @@ pub mod pacing;
 mod render;
 mod screenshot;
 
+pub use cursor::update as cursor_update;
 pub use host::Host;
 
 use std::path::PathBuf;
@@ -43,8 +44,20 @@ pub enum FrameSet {
     Draw,
 }
 
-/// Open a window and run `scene` until the user quits (or write `screenshot` and exit).
-pub fn run(scene: Box<dyn Scene>, settings: &Settings, screenshot: Option<PathBuf>) -> Result<()> {
+/// What to do besides showing the scene.
+#[derive(Default)]
+pub struct RunOptions {
+    /// Write a PNG and exit instead of opening an interactive window.
+    pub screenshot: Option<PathBuf>,
+    /// Console commands to run once the renderer is up (`--exec`).
+    pub exec: Vec<String>,
+    /// Start with the console open.
+    pub open_console: bool,
+}
+
+/// Open a window and run `scene` until the user quits (or write the screenshot and exit).
+pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> Result<()> {
+    let RunOptions { screenshot, exec, open_console } = options;
     let error = ErrorSlot(Arc::new(Mutex::new(None)));
     let mut window = Window { title: scene.title(), ..Window::default() };
     if screenshot.is_some() {
@@ -74,6 +87,7 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, screenshot: Option<PathBu
     .add_systems(Update, render::update_scene.in_set(FrameSet::SceneUpdate))
     .add_systems(Update, render::draw.in_set(FrameSet::Draw))
     .add_systems(Last, pacing::end_of_frame);
+    crate::devtools::start_console(&mut app, exec, open_console);
 
     match app.run() {
         AppExit::Success => error.take().map_or(Ok(()), Err),
