@@ -92,10 +92,9 @@ fn shading_for(solid_name: &str) -> Shading {
     if solid_name.starts_with("SKY") { Shading::Sky } else { Shading::Prelit }
 }
 
-/// Scenery we can't draw correctly yet:
-/// - `SKYDOME_XENON`: the next-gen sky dome, whose effect-19 / 44-byte vertex layout is not decoded;
-/// - `SKY_SPECULAR`: a sky layer textured `SKY_REFSKYSPECULARB`, apparently for reflections.
-const SKIPPED_MODELS: &[&str] = &["SKYDOME_XENON", "SKY_SPECULAR"];
+/// Scenery we can't draw correctly yet: `SKY_SPECULAR`, a sky layer textured
+/// `SKY_REFSKYSPECULARB` that darkens the whole dome in the player view (apparently for reflections).
+const SKIPPED_MODELS: &[&str] = &["SKY_SPECULAR"];
 
 /// Turn a section's scenery into placed meshes, dropping instances the player
 /// view excludes (`docs/specs/scenery-visibility.md`).
