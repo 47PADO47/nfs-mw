@@ -12,9 +12,19 @@ project is not affiliated with or endorsed by Electronic Arts.
 Third-party source code included in this repository
 -------------------------------------------------------------------------------
 
-None. All code in this repository was written for this project. When code is
-ported from a permissively licensed project, its copyright and license notice
-are kept in the ported file and the project is listed here.
+Except as listed below, all code in this repository was written for this
+project. When code is ported from a permissively licensed project, its
+copyright and license notice are kept in the ported file and the project is
+listed here.
+
+NFSTools/VaultLib — https://github.com/NFSTools/VaultLib — MIT
+  Copyright (c) 2019 NFS Tools & heyitsleo
+  Portions ported into libs/blackbox-attrib: the PtrN pointer fix-ups and the
+  reading of ClassLoadData, CollectionLoadData, DatabaseLoadData and of
+  Attrib::Array, StringKey, RefSpec and Blob values (VaultLib.Core,
+  VaultLib.LegacyBase). The MIT notice is kept at the top of
+  libs/blackbox-attrib/src/{vault/pointers.rs, class/load.rs,
+  collection/load.rs, database/types.rs, value/decode.rs}.
 
 Rust dependencies are fetched by Cargo and keep their own licenses; see
 Cargo.lock and `cargo deny check licenses`. Binary releases will include a
