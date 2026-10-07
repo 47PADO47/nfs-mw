@@ -30,6 +30,8 @@ pub struct Renderer {
     textures: slots::Slots<wgpu::BindGroup>,
     meshes: slots::Slots<meshes::GpuMesh>,
     instances: instances::InstanceBuffer,
+    /// Texture slot -> slot drawn in its place (animated textures).
+    redirects: std::collections::HashMap<usize, usize>,
 }
 
 impl Renderer {

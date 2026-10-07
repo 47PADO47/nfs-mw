@@ -84,7 +84,8 @@ impl Renderer {
                     pass.set_vertex_buffer(0, mesh.vertices.slice(..));
                     pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint16);
                     for d in mesh.draws.iter().filter(|d| d.blend == mode && d.shading == shading) {
-                        let texture = d.texture.and_then(|t| self.textures.get(t.0)).or(self.textures.get(0));
+                        let slot = d.texture.map(|t| self.redirects.get(&t.0).copied().unwrap_or(t.0));
+                        let texture = slot.and_then(|s| self.textures.get(s)).or(self.textures.get(0));
                         if let Some(texture) = texture {
                             pass.set_bind_group(1, texture, &[]);
                             pass.draw_indexed(

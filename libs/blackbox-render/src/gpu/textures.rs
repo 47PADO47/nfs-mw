@@ -64,6 +64,20 @@ impl Renderer {
     pub fn destroy_texture(&mut self, handle: TextureHandle) {
         if handle.0 != 0 {
             self.textures.remove(handle.0);
+            self.redirects.retain(|&from, &mut to| from != handle.0 && to != handle.0);
+        }
+    }
+
+    /// Draw `to` wherever `from` is used, until changed (`None` restores `from`).
+    /// Animated textures switch frames this way without touching meshes.
+    pub fn redirect_texture(&mut self, from: TextureHandle, to: Option<TextureHandle>) {
+        match to {
+            Some(to) if to != from => {
+                self.redirects.insert(from.0, to.0);
+            }
+            _ => {
+                self.redirects.remove(&from.0);
+            }
         }
     }
 }

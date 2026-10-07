@@ -83,6 +83,7 @@ pub(super) fn create(
         textures: Slots::new(),
         meshes: Slots::new(),
         instances,
+        redirects: Default::default(),
     };
     let white = [255u8; 4];
     renderer.create_texture(&TextureDesc {
