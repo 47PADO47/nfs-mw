@@ -3,6 +3,7 @@
 mod cli;
 mod commands;
 mod scenes;
+mod settings;
 mod viewer;
 
 use clap::Parser;

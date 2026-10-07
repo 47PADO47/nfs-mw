@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use blackbox_render::Backend;
 use clap::{Args, Parser, Subcommand};
 
+use crate::settings::Partial;
 use crate::viewer::MaxFps;
 
 #[derive(Parser)]
@@ -72,18 +73,26 @@ pub enum Command {
 /// Options shared by the viewers.
 #[derive(Args, Clone)]
 pub struct ViewArgs {
-    /// Graphics backend: auto, vulkan, dx12 or gl.
-    #[arg(long, default_value = "auto")]
-    pub backend: Backend,
-    /// Disable vsync.
+    /// Graphics backend: auto, vulkan, dx12 or gl [env NFSMW_BACKEND; default auto].
+    #[arg(long)]
+    pub backend: Option<Backend>,
+    /// Disable vsync [env NFSMW_VSYNC=off; config `vsync = false`].
     #[arg(long)]
     pub no_vsync: bool,
-    /// Frame-rate cap: a number such as 60, or `unlocked` (vsync still applies unless --no-vsync).
-    #[arg(long, value_name = "FPS|unlocked", default_value = "unlocked")]
-    pub max_fps: MaxFps,
+    /// Frame-rate cap: a number such as 60, or `unlocked` (vsync still applies unless --no-vsync)
+    /// [env NFSMW_MAX_FPS; default unlocked].
+    #[arg(long, value_name = "FPS|unlocked")]
+    pub max_fps: Option<MaxFps>,
     /// Render one frame to this PNG file and exit instead of opening an interactive window.
     #[arg(long, value_name = "FILE.png")]
     pub screenshot: Option<PathBuf>,
+}
+
+impl ViewArgs {
+    /// The command-line layer of the settings: the top layer, above the environment and the config file.
+    pub fn settings_layer(&self) -> Partial {
+        Partial { backend: self.backend, vsync: self.no_vsync.then_some(false), max_fps: self.max_fps }
+    }
 }
 
 fn parse_xy(s: &str) -> Result<[f32; 2], String> {

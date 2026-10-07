@@ -21,6 +21,7 @@ glam.workspace = true
 log.workspace = true
 nfsmw-data.workspace = true
 png.workspace = true
+toml.workspace = true
 winit.workspace = true
 
 [lints]

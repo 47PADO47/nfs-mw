@@ -65,6 +65,19 @@ The required files are checked, and `speed.exe` is hashed and identified (v1.3 =
 `GameDir` indexes the install once and resolves every path case-insensitively, so the same code works on
 Linux. `nfsmw check-install` shows what was found.
 
+## Settings
+
+Runtime options resolve in layers, highest first ([`crates/nfsmw/src/settings/`](../crates/nfsmw/src/settings)):
+
+1. the command line (`--backend`, `--no-vsync`, `--max-fps`);
+2. environment variables (`NFSMW_BACKEND`, `NFSMW_VSYNC`, `NFSMW_MAX_FPS`);
+3. the per-user config file (`backend`, `vsync`, `max_fps`; the same file as `game_dir`);
+4. the defaults (`auto`, vsync on, unlocked).
+
+Each key resolves on its own. A value that does not parse (in the environment or the file) is logged and
+skipped, so the next layer applies; a broken config file never stops the game from starting. The
+install directory has its own, longer lookup ([Finding the install](#finding-the-install)).
+
 ## The streamed city (`view-world`)
 
 ```

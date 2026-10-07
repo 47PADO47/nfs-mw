@@ -8,13 +8,15 @@ mod input;
 mod limiter;
 mod screenshot;
 
+use std::path::PathBuf;
+
 use anyhow::Result;
 use blackbox_render::{FrameParams, Instance, Renderer};
 
 pub use input::Input;
 pub use limiter::MaxFps;
 
-use crate::cli::ViewArgs;
+use crate::settings::Settings;
 
 pub trait Scene {
     fn title(&self) -> String;
@@ -39,7 +41,7 @@ pub trait Scene {
     }
 }
 
-/// Open a window and run `scene` until the user quits (or write a screenshot and exit).
-pub fn run(scene: Box<dyn Scene>, args: &ViewArgs) -> Result<()> {
-    app::run(scene, args)
+/// Open a window and run `scene` until the user quits (or write `screenshot` and exit).
+pub fn run(scene: Box<dyn Scene>, settings: &Settings, screenshot: Option<PathBuf>) -> Result<()> {
+    app::run(scene, settings, screenshot)
 }

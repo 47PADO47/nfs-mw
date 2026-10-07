@@ -1,5 +1,6 @@
 //! The winit application: window, renderer, event loop.
 
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -13,7 +14,7 @@ use winit::window::{Window, WindowId};
 
 use super::limiter::FrameLimiter;
 use super::{Input, Scene, cursor, screenshot};
-use crate::cli::ViewArgs;
+use crate::settings::Settings;
 
 struct Running {
     window: Arc<Window>,
@@ -26,7 +27,8 @@ struct Running {
 
 struct App {
     scene: Box<dyn Scene>,
-    args: ViewArgs,
+    settings: Settings,
+    screenshot: Option<PathBuf>,
     input: Input,
     running: Option<Running>,
     error: Option<anyhow::Error>,
@@ -35,19 +37,19 @@ struct App {
 impl App {
     fn start(&mut self, event_loop: &ActiveEventLoop) -> Result<()> {
         let mut attrs = Window::default_attributes().with_title(self.scene.title());
-        attrs = if self.args.screenshot.is_some() {
+        attrs = if self.screenshot.is_some() {
             let (w, h) = screenshot::SIZE;
             attrs.with_visible(false).with_inner_size(winit::dpi::PhysicalSize::new(w, h))
         } else {
             attrs.with_inner_size(winit::dpi::LogicalSize::new(1280.0, 720.0))
         };
         let window = Arc::new(event_loop.create_window(attrs).context("creating the window")?);
-        let options = RendererOptions { backend: self.args.backend, vsync: !self.args.no_vsync };
+        let options = RendererOptions { backend: self.settings.backend, vsync: self.settings.vsync };
         let mut renderer = Renderer::new(window.clone(), event_loop.owned_display_handle(), options)?;
-        log::info!("renderer: {} (requested backend: {})", renderer.adapter_summary(), self.args.backend);
+        log::info!("renderer: {} (requested backend: {})", renderer.adapter_summary(), self.settings.backend);
         self.scene.init(&mut renderer)?;
 
-        if let Some(path) = self.args.screenshot.clone() {
+        if let Some(path) = self.screenshot.clone() {
             screenshot::capture(self.scene.as_mut(), &mut renderer, &path)?;
             event_loop.exit();
             return Ok(());
@@ -57,7 +59,7 @@ impl App {
         }
         window.request_redraw();
         let now = Instant::now();
-        let limiter = FrameLimiter::new(self.args.max_fps);
+        let limiter = FrameLimiter::new(self.settings.max_fps);
         self.running = Some(Running { window, renderer, last_frame: now, title_timer: now, frames: 0, limiter });
         Ok(())
     }
@@ -162,9 +164,9 @@ impl ApplicationHandler for App {
     }
 }
 
-pub fn run(scene: Box<dyn Scene>, args: &ViewArgs) -> Result<()> {
+pub fn run(scene: Box<dyn Scene>, settings: &Settings, screenshot: Option<PathBuf>) -> Result<()> {
     let event_loop = EventLoop::new().context("creating the event loop")?;
-    let mut app = App { scene, args: args.clone(), input: Input::default(), running: None, error: None };
+    let mut app = App { scene, settings: *settings, screenshot, input: Input::default(), running: None, error: None };
     event_loop.run_app(&mut app).map_err(|e| anyhow!("event loop: {e}"))?;
     app.error.map_or(Ok(()), Err)
 }
