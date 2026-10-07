@@ -35,7 +35,7 @@ against the install at `D:/Need For Speed Most Wanted Black Edition`.
 | [architecture.md](architecture.md) | `libs/` (engine-generic) vs `crates/` (MW), finding the install, the streamed city, graphics backends (incl. the D3D11 plan), Windows/Linux, testing, roadmap |
 | [rust-stack.md](rust-stack.md) | Crates used and planned, with versions and licenses; rejected options |
 | [licensing.md](licensing.md) | Project license, what each source license allows, unlicensed repos, the spec-first process |
-| [specs/](specs/README.md) | Behaviour specs written before implementing it from decompiled sources: [scenery visibility](specs/scenery-visibility.md) |
+| [specs/](specs/README.md) | Behaviour specs written before implementing it from decompiled sources: [scenery visibility](specs/scenery-visibility.md), [scenery LOD](specs/scenery-lod.md) |
 | [provenance/](provenance/README.md) | Records for modules whose behaviour came from restricted sources |
 
 ### Research
@@ -105,5 +105,6 @@ against the install at `D:/Need For Speed Most Wanted Black Edition`.
 | FEngFont glyph format | [formats/frontend.md](formats/frontend.md) |
 | Save header bytes 0x08–0x33 | [formats/saves.md](formats/saves.md) |
 | How the `CarShader` paint, reflections and lighting work | the `fx_2_0` effects in `speed.exe` ([formats/shaders.md](formats/shaders.md)) |
-| How water surfaces (river, sea) are drawn: no water geometry is placed by the scenery we read | world effects / `SKY_*`, `RFL_*` solids, the decomp's `World/` |
+| Water animation and reflections (`ANM_WATERA_` frames, `SKY_POND_REFLECTION`) | `TextureAnimPack` `0xB0300100`, the effects in `speed.exe` |
+| The next-gen sky dome's 44-byte vertex format (effect 19) | `SKYDOME_XENON` in section Z0 |
 | What the subtractive / overbright blend types look like in the game | the effects in `speed.exe` |

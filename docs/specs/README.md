@@ -4,8 +4,9 @@ Plain-language specifications of game behaviour (physics, AI, pursuit, streaming
 before the Rust implementation. Required wherever the only source is decompiled code; see
 [licensing.md § Spec-first](../licensing.md#spec-first).
 
-None yet. The first planned ones are vehicle physics (`vehicle-physics.md`: chassis, suspension, tires,
-engine, transmission) and world streaming (`streaming.md`).
+Written so far: [scenery-visibility.md](scenery-visibility.md) (exclude flags) and
+[scenery-lod.md](scenery-lod.md) (level of detail). Planned: vehicle physics (`vehicle-physics.md`: chassis,
+suspension, tires, engine, transmission) and car assembly (`car-assembly.md`).
 
 ## Template
 
