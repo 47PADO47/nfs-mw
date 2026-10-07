@@ -47,6 +47,26 @@ pub struct VisibilityRules {
     pub player_view: u32,
 }
 
+/// Constants of the LOD choice (`docs/specs/scenery-lod.md`).
+#[derive(Debug, Clone)]
+pub struct LodRules {
+    /// Added to the info radius before projecting.
+    pub radius_pad: f32,
+    /// Below this projected size, skip without further work.
+    pub min_size: i32,
+    /// Instance flag that adds `boost` pixels.
+    pub boost_flag: u32,
+    pub boost: i32,
+    /// Minimum projected size to draw anything.
+    pub draw_threshold: i32,
+    /// Below this polygon count, the density test is skipped.
+    pub poly_threshold: u16,
+    pub density_floor: f32,
+    pub density_threshold: f32,
+    pub detailed_slot: usize,
+    pub coarse_slot: usize,
+}
+
 #[derive(Debug, Clone)]
 pub struct SceneryLayout {
     pub used_by: &'static str,
@@ -55,4 +75,5 @@ pub struct SceneryLayout {
     /// Offset of the u32 section number in `ScenerySectionHeader`.
     pub header_section_number: usize,
     pub visibility: VisibilityRules,
+    pub lod: LodRules,
 }

@@ -8,9 +8,11 @@ mod error;
 mod info;
 mod instance;
 pub mod layout;
+mod lod;
 mod section;
 
 pub use error::{Error, Result};
 pub use info::SceneryInfo;
 pub use instance::SceneryInstance;
+pub use lod::{LodModel, LodView};
 pub use section::{ScenerySection, read_scenery_sections};
