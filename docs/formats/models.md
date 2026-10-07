@@ -36,6 +36,11 @@ and frontend models. For the tag meanings, see [evidence tags](../README.md#evid
       └─ 00134C02 MeshVltMaterials ...              optional per-material name strings
 ```
 
+The decomp's `SpeedChunks.hpp` calls this family `SPEED_ESOLID_*` **[decomp]**. `00134900` is
+`SPEED_ESOLID_PC_PLATINFO`, and the PC mesh chunks `00134B01`–`00134B03` reuse the IDs it names
+`SPEED_ESOLID_XBOX_VERTEX_DATA` / `…_MESH_ENTRY_TABLE` / `…_MESH_ENTRY_DATA`. The display names above
+are kept in [`tools/bchunk_names.py`](../../tools/bchunk_names.py), with the decomp identifiers as comments.
+
 The BMW M3 GTR (`CARS/BMWM3GTR/GEOMETRY.BIN`, 1.6 MB) has 97 solids and 1,272 chunks in total. Vertex
 buffers are 71% of the bytes (1.15 MB).
 
@@ -93,11 +98,15 @@ exactly for every solid of the M3 GTR.
 | 0x00 | BoundsMin (vec3), BoundsMax (vec3) |
 | 0x18 | u8 texture slot indices: Diffuse, Normal, Height, Specular, Opacity (index into `SolidTextures`) |
 | 0x1D | u8 LightMaterialNumber |
-| 0x30 | u32 EffectId (shader: WorldShader, CarShader, GlossyWindow, WorldBoneShader, …) |
+| 0x30 | u32 EffectId (shader: WorldShader, CarShader, GlossyWindow, WorldBoneShader, …; the compiled effects are in `speed.exe`, see [shaders.md](shaders.md)) |
 | 0x38 | u32 Flags |
 | 0x3C | u32 NumVerts |
 | 0x40 | u32 NumTris |
-| 0x5C | u32 NumIndices |
+| 0x44 | u32 **FirstIndex**: where this group's indices start in `MeshPolygons` ✔ |
+| 0x5C | u32 NumIndices (= NumTris × 3 on the M3 GTR) ✔ |
+
+✔ On the M3 GTR the groups' `FirstIndex` values are 0, 48, 216, … with no gaps, and each group's
+indices fall in a contiguous vertex range that follows the previous group's. **[verified]**
 
 ## Vertices (`0x00134B01`)
 
@@ -113,8 +122,10 @@ The payload is aligned to 0x80. The format depends on the shading group's effect
 
 ## Indices (`0x00134B03`)
 
-`u16` triangle lists, aligned to 0x10. Each shading group takes `NumTris × 3` consecutive indices.
-**[community]**
+`u16` triangle lists, aligned to 0x10. Each shading group draws `NumIndices` indices starting at its
+`FirstIndex`. The indices are **absolute** into the solid's vertex buffer, not relative to the group.
+**[verified]**: every car in the install (100 cars, 15,781 solids) has exactly one vertex buffer and one
+index buffer per solid, and every group's indices are in range (`crates/nfsmw/tests/real_install.rs`).
 
 ## Naming conventions **[verified]**
 
@@ -131,5 +142,7 @@ were built with *NFS-CarToolkit by nfsu360* and store every `SolidPack` as a bar
 
 ## Reading models today
 
-[NFS-ModTools](https://github.com/NFSTools/NFS-ModTools) (C#) has a working MW reader
-(`Common/Geometry/MostWantedSolidReader.cs`) and exports to FBX with `AssetDumper`.
+- **This project:** [`crates/nfsmw-geometry`](../../crates/nfsmw-geometry) (Rust) reads solids, including
+  the compressed add-on ones, and `nfsmw view-car <CAR>` draws them.
+- [NFS-ModTools](https://github.com/NFSTools/NFS-ModTools) (C#, **no license**: read-only reference) has a
+  MW reader (`Common/Geometry/MostWantedSolidReader.cs`) and exports to FBX with `AssetDumper`.

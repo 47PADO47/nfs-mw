@@ -1,0 +1,68 @@
+nfs-mw — a Rust rewrite of Need for Speed: Most Wanted (2005, PC)
+Copyright (c) 2026 the nfs-mw contributors
+Licensed under MIT OR Apache-2.0 (see LICENSE-MIT and LICENSE-APACHE).
+
+This repository contains no game assets and no decompiled code. The game is read
+at runtime from the user's own installation.
+
+"Need for Speed" and "Most Wanted" are trademarks of Electronic Arts Inc. This
+project is not affiliated with or endorsed by Electronic Arts.
+
+-------------------------------------------------------------------------------
+Third-party source code included in this repository
+-------------------------------------------------------------------------------
+
+None. All code in this repository was written for this project. When code is
+ported from a permissively licensed project, its copyright and license notice
+are kept in the ported file and the project is listed here.
+
+Rust dependencies are fetched by Cargo and keep their own licenses; see
+Cargo.lock and `cargo deny check licenses`. Binary releases will include a
+generated third-party license file.
+
+-------------------------------------------------------------------------------
+References consulted during development
+-------------------------------------------------------------------------------
+
+These projects were read to learn file formats, data layouts and behaviour.
+Unless stated otherwise, nothing from them is vendored, linked or shipped, and
+no code was copied. Facts learned from them (offsets, layouts, IDs, names) are
+documented in docs/ with credit. Policy: docs/licensing.md.
+
+Decompilation and symbols
+  dbalatoni13/nfsmw — https://github.com/dbalatoni13/nfsmw — CC0-1.0
+    Chunk ID names (tools/bchunk_names.py), struct layouts (TextureInfo,
+    eStreamingEntry, TrackStreamingSection, AttribSys classes), PC 1.3 symbol
+    map. Read-only reference; behaviour is reimplemented spec-first.
+  Brawltendo/Most-Wanted-Vehicles-Decomp — no license — reference only.
+
+Format readers and tools
+  NFSTools/NFS-ModTools — https://github.com/NFSTools/NFS-ModTools — no license — reference only
+    (solid, scenery and TPK layouts).
+  NFSTools/VaultLib — https://github.com/NFSTools/VaultLib — MIT (AttribSys).
+  NFSTools/Attribulator — https://github.com/NFSTools/Attribulator — no license — reference only.
+  NFSTools/GlobalLib — https://github.com/NFSTools/GlobalLib — MIT (global files, JDLZ).
+  NFSTools/FEngLib — https://github.com/NFSTools/FEngLib — no license — reference only (FEng UI).
+  SpeedReflect/Nikki — https://github.com/SpeedReflect/Nikki — MIT (strings, collision, sun info).
+  SpeedReflect/Binary, NFSTools/Binary — GPL-3.0 — read only.
+  vgmstream — https://github.com/vgmstream/vgmstream — ISC-style (EA audio formats).
+  FFmpeg (libavformat/electronicarts.c, libavcodec/vp6.c) — LGPL-2.1+ — read only.
+  ruffle-rs/nihav-vp6 — https://github.com/ruffle-rs/nihav-vp6 — MIT (planned VP6 decoder).
+  x07x08/nfsmw-save-editor — https://github.com/x07x08/nfsmw-save-editor — Unlicense (save offsets).
+  EA Command & Conquer Generals source, EAC compression library — GPL-3.0 — read for
+    understanding the HUFF codec only; see docs/formats/huff.md.
+
+Engines, viewers and hook projects
+  magcius/noclip.website (src/NeedForSpeedMostWanted) — MIT, partly reverse-engineered — read only.
+  whoismept/OpenUG2 — MIT. bdrtr/PryHUB — Apache-2.0. OpenNFS/OpenNFS — MIT.
+  veritr1x/nfsmw-recomp — MIT (speed.exe v1.3 hash, loading-path notes).
+  berkayylmao/NFSPluginSDK — BSD-3-Clause. gaycoderprincess/nya-common-nfsmw — MPL-2.0.
+  ThirteenAG/WidescreenFixesPack — MIT (registry key, camera). rng-guy/NFSMWBartender — CC0-1.0.
+  MWisBest/OpenNFSTools — no license — reference only (install registry key).
+  yugecin/nfsu2-re — no license — reference only. MaxHwoy/hyperlinked — BSD-3-Clause.
+  TsyVM/MWEncyclopedia — no license — leads only (contains known errors).
+
+Project structure
+  vladtrc/iw4L — https://github.com/vladtrc/iw4L — Apache-2.0
+    Crate layering, install discovery and leak-check ideas. No code copied.
+  chasmlol/2010-rust-rewrite-mashup — Apache-2.0 (with vendored GPL-3.0 parts) — read only.

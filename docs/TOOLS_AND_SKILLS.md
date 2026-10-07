@@ -16,9 +16,8 @@ project, plus the Claude Code skills, agents, and MCP servers worth reaching for
 | [`tools/chunkdump.py`](../tools/chunkdump.py) | Dump the bChunk tree of MW data files. Handles whole-file JDLZ/RAWW decompression, then walks the `u32 id / u32 size / payload` chunk structure (bit 31 of `id` = container). Stdlib only, Python 3.10+. |
 | [`tools/bchunk_names.py`](../tools/bchunk_names.py) | Known bChunk ID → name map (sourced from the `dbalatoni13/nfsmw` decomp symbols, CC0). Used by `chunkdump.py`. |
 | [`tests/test_chunkdump.py`](../tests/test_chunkdump.py) | Unit tests over small synthetic files (no game data needed). Run: `python -m unittest discover tests`. |
-
-> `chunkdump.py` references `docs/formats/bchunk.md` for the format spec — create that
-> alongside this file if it doesn't exist yet.
+| [`crates/`](../crates) | The Rust rewrite: `nfsmw check-install / list-cars / view-car`. See [architecture.md](architecture.md). |
+| [`xtask/`](../xtask) | `cargo xtask leak-check` (no game data, binaries or decompiler output in the repo) and `cargo xtask install-hooks`. |
 
 **Run the dumper:**
 ```bash

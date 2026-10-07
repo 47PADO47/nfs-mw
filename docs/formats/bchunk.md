@@ -7,7 +7,7 @@ anyone parsing or rebuilding these files.
 
 - **Platform:** PC release — **little-endian** throughout. (The GameCube and Xbox 360 releases are big-endian PowerPC builds; the PS2 release is little-endian MIPS. Only PC is covered here.)
 - **Tested with:** Python 3.10+, standard library only.
-- **Chunk-ID names:** [`tools/bchunk_names.py`](../../tools/bchunk_names.py), sourced from the `dbalatoni13/nfsmw` decompilation (see [References](#references)).
+- **Chunk-ID names:** [`tools/bchunk_names.py`](../../tools/bchunk_names.py), sourced from the `dbalatoni13/nfsmw` decompilation: the engine's `BCHUNK_*` identifiers in `SpeedChunks.hpp`, plus community names from `symbols/bchunks.txt` where those are missing (see [References](#references)).
 
 ---
 
@@ -63,7 +63,7 @@ magic. Strip the wrapper, then parse the result as chunks.
 |---|---|---|
 | `JDLZ` | JDLZ-compressed (see §3) | Decompress to get the chunk stream. |
 | `RAWW` | Stored / uncompressed wrapper | Payload is `data[16 : 16+size]`, where `size = u32 @ 0x08`. |
-| `HUFF` | Huffman-compressed | **Not implemented.** |
+| `HUFF` | EA Huffman + run-length (stream type `0x30FB`); spec in [huff.md](huff.md). **Its size field at 0x0C excludes the 16-byte header**, unlike JDLZ | Implemented in [`nfsmw-compress`](../../crates/nfsmw-compress) (Rust); not in `chunkdump.py` |
 | `COMP` | (generic compressed) | **Not implemented.** |
 | *(none)* | Bare chunk stream | Parse directly. |
 
@@ -187,18 +187,26 @@ reproduces `GLOBAL/gameplay.bak` byte-for-byte from the JDLZ original `gameplay.
 
 ## 6. Common chunk IDs (selected)
 
-Full map in `tools/bchunk_names.py`. A few examples (container ids have bit 31 set):
+Full map in `tools/bchunk_names.py` (330 entries). Entries that `SpeedChunks.hpp` names carry the
+decomp identifier as a `# BCHUNK_...` comment. A few examples (container ids have bit 31 set):
 
-| id | name |
-|---|---|
-| `0x00000000` | Padding |
-| `0x00034026` | Smokeables |
-| `0x00034101` | ScenerySectionHeader |
-| `0x00034102` | SceneryInfos |
-| `0x00034103` | SceneryInstances |
-| `0x00034105` | SceneryTreeNodes |
+| id | name | decomp identifier | doc |
+|---|---|---|---|
+| `0x00000000` | Padding | — | §1 |
+| `0x80134000` | GeometryPack | `SPEED_ESOLID_LIST_CHUNKS` | [models.md](models.md) |
+| `0xB3300000` | TexturePack | `SPEED_TEXTURE_PACK_LIST_CHUNKS` | [textures.md](textures.md) |
+| `0x00034110` | TrackStreamingSections | `SPEED_TRACK_STREAMING_SECTION` | [maps.md](maps.md) |
+| `0x0003B800` | CarpWGrid (UWorld) | `CARP_WGRID` (code: `UPPLE_UWORLD`) | [world.md](world.md) |
+| `0x0003B801` | CarpWCollisionPack | `CARP_WCOLLISIONPACK` | [world.md](world.md) |
+| `0x00030203` | FEngPackage (FEngFiles) | `FENG_PACKAGE` | [frontend.md](frontend.md) |
+| `0x00039000` | Language (STRBlocks) | `LANGUAGE` | [text.md](text.md) |
+| `0x80037020` | AnimScene (NisScene) | `SPEED_ANIM_SCENE` | [animation.md](animation.md) |
 
-Where the community lists two names for one id (`"A / B"`), `bchunk_names.py` keeps both.
+Where two names are useful, the entry is `"Primary / Alias"` or `"Primary (Alias)"`. Several names
+from the older community list were guesses that the decomp corrects. For example, `0x0003B800` was
+"UppleUWorld" with an unknown purpose (it is the CARP world map tree), and `0x00039001` was "LangFont"
+(it is `LANGUAGE_HISTOGRAM`). Some PC chunks reuse IDs that the decomp names after another platform
+(`0x00134B01` = `SPEED_ESOLID_XBOX_VERTEX_DATA`).
 
 ---
 
@@ -228,16 +236,20 @@ Numbers accept `0x` prefixes. See also [`../TOOLS_AND_SKILLS.md`](../TOOLS_AND_S
 - **Little-endian only** here; a big-endian file (console) will mis-parse.
 - **Align, don't strip:** skip `0x11` padding by rounding the offset up to the alignment (§1), never by stripping `0x11` bytes.
 - **Inflated-blob offsets are blob-relative** — don't `--extract` by a global offset inside one.
-- **`HUFF`/`COMP` wrappers are unimplemented** — decompress them with another tool first.
+- **`HUFF`** is decoded by the Rust crate [`nfsmw-compress`](../../crates/nfsmw-compress) ([huff.md](huff.md)) but not by `chunkdump.py`; **`COMP`** is unimplemented and was not seen in this install.
 - A `VPAK` file is not a bChunk file (see §2).
-- **Not bChunk at all:** `SOUND/**` (EA audio), `MOVIES/*.vp6` (VP6 video), and the tiny
-  `GLOBAL/*MemoryFile.bin` files (a `MEMO` `0x53219999` chunk or no header).
+- **Not bChunk at all:** `SOUND/**` (EA audio, [audio.md](audio.md)), `MOVIES/*.vp6` (VP6 video,
+  [video.md](video.md)), `SUBTITLES/*` ([text.md](text.md)), `MEMCARD/*.loc` (`LOCH`), the `VPAK`
+  databases ([attributes.md](attributes.md)), and the tiny `GLOBAL/*MemoryFile.bin` files (a `MEMO`
+  `0x53219999` chunk or no header).
+- **`HUFF`** also appears *inside* one `0x00030210` compressed FEng package in `InGameB.bun`
+  ([frontend.md](frontend.md)).
 - `size` excludes the 8-byte header; off-by-8 mistakes are the most common parsing bug.
 
 ---
 
 ## References
 
-- bChunk IDs & names: `dbalatoni13/nfsmw` decompilation, `symbols/bchunks.txt`
-  (<https://github.com/dbalatoni13/nfsmw>, CC0-1.0).
+- bChunk IDs & names: `dbalatoni13/nfsmw` decompilation, `src/Speed/Indep/Src/Misc/SpeedChunks.hpp`
+  and `symbols/bchunks.txt` (<https://github.com/dbalatoni13/nfsmw>, CC0-1.0).
 - Reference parser/decompressor: [`tools/chunkdump.py`](../../tools/chunkdump.py).

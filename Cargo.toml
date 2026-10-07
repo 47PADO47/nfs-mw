@@ -1,0 +1,53 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "xtask"]
+default-members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[workspace.dependencies]
+# Internal crates
+nfsmw-hash = { path = "crates/nfsmw-hash" }
+nfsmw-compress = { path = "crates/nfsmw-compress" }
+nfsmw-bchunk = { path = "crates/nfsmw-bchunk" }
+nfsmw-geometry = { path = "crates/nfsmw-geometry" }
+nfsmw-texture = { path = "crates/nfsmw-texture" }
+nfsmw-install = { path = "crates/nfsmw-install" }
+nfsmw-render = { path = "crates/nfsmw-render" }
+
+# Third-party (see docs/rust-stack.md for why each was picked)
+anyhow = "1"
+bytemuck = { version = "1", features = ["derive"] }
+clap = { version = "4", features = ["derive"] }
+directories = "6"
+env_logger = "0.11"
+glam = { version = "0.34", features = ["bytemuck"] }
+log = "0.4"
+png = "0.18"
+pollster = "0.4"
+serde = { version = "1", features = ["derive"] }
+sha2 = "0.10"
+texture2ddecoder = "0.1"
+thiserror = "2"
+toml = "0.9"
+wgpu = "30"
+winit = "0.30"
+winreg = "0.56"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[profile.dev.package."*"]
+# Decompression and texture decoding are painfully slow unoptimised.
+opt-level = 2
+
+[profile.dev.package.nfsmw-compress]
+opt-level = 2

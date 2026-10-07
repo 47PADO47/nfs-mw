@@ -4,7 +4,7 @@ Prints the chunk tree of any MW `.BUN` / `.BIN` / `.LZC` file. It needs only Pyt
 standard library; nothing to install.
 
 - Removes whole-file `JDLZ` / `RAWW` wrappers automatically.
-- Names chunk IDs using [`tools/bchunk_names.py`](../../tools/bchunk_names.py) (216 known IDs from the
+- Names chunk IDs using [`tools/bchunk_names.py`](../../tools/bchunk_names.py) (330 known IDs from the
   decomp).
 - Recognizes bare JDLZ blobs (compressed add-on car geometry) and can decompress them (`--inflate`).
 - Recognizes `VPAK` attribute databases and says so instead of misparsing them.

@@ -1,0 +1,29 @@
+[package]
+name = "nfsmw"
+description = "Launcher for the NFS: Most Wanted Rust rewrite. Reads data from the user's own install."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+env_logger.workspace = true
+glam.workspace = true
+log.workspace = true
+nfsmw-compress.workspace = true
+nfsmw-geometry.workspace = true
+nfsmw-hash.workspace = true
+nfsmw-install.workspace = true
+nfsmw-render.workspace = true
+nfsmw-texture.workspace = true
+png.workspace = true
+winit.workspace = true
+
+[dev-dependencies]
+nfsmw-bchunk.workspace = true
+
+[lints]
+workspace = true

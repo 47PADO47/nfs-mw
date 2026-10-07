@@ -6,12 +6,13 @@ MW has a single open world, internally called **L2RA**. Its two main files are i
 |---|---|---|
 | `TRACKS/L2RA.BUN` | 1.4 MB | World **metadata**, loaded once: streaming index, visibility, AI paths, collision volumes, events, world animations |
 | `TRACKS/STREAML2RA.BUN` | 533 MB | World **content**: 720 sections of textures, geometry and scenery instances, streamed in and out while driving |
-| `TRACKS/L2RA/MINI_MAP_*.BIN` (267 files) | small | Minimap tiles: `CompTPKBlock` chunks with JDLZ-compressed texture data |
+| `TRACKS/L2RA/MINI_MAP_*.BIN` (267 files) | small | Minimap tiles: `CompTPKBlock` chunks, each a JDLZ-compressed one-tile TPK; see [world.md](world.md#minimap) |
 | `TRACKS/L2RA/TrackMaps.bin` | | Texture pack (map screen) |
-| `TRACKS/L2RA/TroughBoundary.bin` | | A single `0x00034190` chunk (not in the name table) **[unconfirmed]** |
+| `TRACKS/L2RA/TroughBoundary.bin` | | A single `0x00034190` chunk. Not in the decomp's chunk list; the nearest IDs are `Troughs` `0x80034180`–`WallClusters` `0x00034184` **[unconfirmed]** |
 
 Runtime code in the decomp: `src/Speed/Indep/Src/World/TrackStreamer.cpp`, `VisibleSection.cpp`,
-`Scenery.cpp`. For the tag meanings, see [evidence tags](../README.md#evidence-tags).
+`Scenery.cpp`. Collision, the road network, triggers, effects, sky and the minimap are covered in
+[world.md](world.md). For the tag meanings, see [evidence tags](../README.md#evidence-tags).
 
 ## L2RA.BUN: top-level chunks **[verified]**
 
@@ -24,13 +25,13 @@ Runtime code in the decomp: `src/Speed/Indep/Src/World/TrackStreamer.cpp`, `Visi
 | `80034147 TrackPathManager` → `0003414A TrackPathZones` | AI / navigation zones |
 | `00034146 TrackPositionMarkers` | Named positions in the world |
 | `0003414D TrackPathBarriers` | Road barriers |
-| `00034108 SceneryGroup`, `00034109 SceneryBarrierGroups` | Scenery groups that are toggled together (e.g. race barriers) |
+| `00034108 SceneryOverrideInfos`, `00034109 SceneryGroups` | Scenery override records and scenery groups that are toggled together (e.g. race barriers). Names from the decomp's `SpeedChunks.hpp`; older lists called them `SceneryGroup` / `SceneryBarrierGroups` |
 | `8003410B ModelHierarchyTree` → 133 × `0003410C ModelHierarchy` | Hierarchical (multi-part) models |
-| `0003B800 UppleUWorld` | 551 KB blob; name from the decomp's chunk list, purpose unconfirmed |
-| `8003B900 CollisionVolumes` → 405 × `0003B901 CollisionBody` | Collision bodies for props |
-| `8003B810 EventSystem` → 73 × `0003B811 EventHandler` | Scripted world events: `OBJECT_COLLISION`, `scaffold_crash_big`, `sfx_glass_shatter`, `onesupportdown` (the names suggest pursuit breakers) |
-| `00034250 GenericRegions / Weatherman` | Lighting/weather regions (`BLOOM_CP_21`, …) |
-| `8003B600 ParameterMaps` | 14 `ParameterMapLayer`s (purpose unconfirmed) |
+| `0003B800 CarpWGrid (UWorld)` | 551 KB **world map tree** (a `UGroup` tree): collision grid + **road network** for AI and traffic. Loaded by `WWorld::Loader`; see [world.md](world.md#world-map-tree-0x3b800-decomp--verified) |
+| `8003B900 BoundsPack` → 405 × `0003B901 CollisionBody / Bounds` | Collision bounds for props (`SPEED_BOUNDS_PACK`) |
+| `8003B810 CarpEventSequences` → 73 × `0003B811 CarpEventSequence` | Scripted world events: `OBJECT_COLLISION`, `scaffold_crash_big`, `sfx_glass_shatter`, `onesupportdown` (the names suggest pursuit breakers) |
+| `00034250 WeathermanPack` | Lighting/weather regions (`BLOOM_CP_21`, …); runtime `World/WeatherMan.cpp` |
+| `8003B600 ParameterMaps` | 14 `ParameterMapLayer`s: field types/offsets + 8/16-bit quad data; runtime `World/ParameterMaps.cpp`, purpose unconfirmed |
 | `000370xx`, `00E34010` | World animations, e.g. the tower cranes; see [animation.md](animation.md) |
 
 ## The streaming index **[decomp + verified]**
@@ -76,11 +77,11 @@ A typical city tile is a run of top-level chunks:
 B3300000 TexturePack                 one or more; the section's textures
 80134000 GeometryPack  × 6..9        the section's models (see models.md)
 80034100 ScenerySection × 2          placed instances of those models
-0003BC00 EmitterSystem               particle emitters
-80036000 EventTriggerPack            trigger volumes
-00034159 HeliSheetManager            helicopter (pursuit) data
-00034027 WorldBounds                 bounds / smokeable spawners
-0003B801 WCollisionAssets            collision assets for this tile
+0003BC00 EmitterLibrary              particle emitters
+80036000 EmTriggerPack               trigger volumes
+00034159 HeliSheet                   helicopter (pursuit) navigation data
+00034027 SmokeableSpawners           breakable / smokeable prop spawners
+0003B801 CarpWCollisionPack          static collision for this tile (see world.md)
 ```
 
 Totals for the whole stream: 259,934 chunks; 20,377 solids; 477 texture packs (244 MB of pixel data);
@@ -95,7 +96,7 @@ Totals for the whole stream: 259,934 chunks; 20,377 solids; 477 texture packs (2
 ├─ 00034103 SceneryInstances         64-byte records: where it goes
 ├─ 00034105 SceneryTreeNodes         spatial tree for culling
 ├─ 00034106 SceneryOverrideHooks
-└─ 00034107 PrecullerInfos
+└─ 00034107 SceneryPrecullerInfos
 ```
 
 **SceneryInfo** (72 B) **[community; sizes and keys verified]**:

@@ -1,2 +1,47 @@
+# WHITELIST. Everything is ignored unless re-included below, so game data,
+# dumps, build output and local config can never be committed by accident.
+# Adding a new kind of file? Add a narrow pattern here on purpose.
+# (`cargo xtask leak-check` and CI double-check what is tracked.)
+
+*
+!*/
+
+# Repository metadata and tooling config
+!/.gitignore
+!/.gitattributes
+!/.github/workflows/*.yml
+!/.githooks/pre-commit
+!/.cargo/config.toml
+!/.env.example
+!/deny.toml
+!/rustfmt.toml
+
+# Legal and top-level docs
+!/LICENSE-MIT
+!/LICENSE-APACHE
+!/NOTICE
+!/README.md
+!/CONTRIBUTING.md
+
+# Rust workspace
+!/Cargo.toml
+!/Cargo.lock
+!/crates/*/Cargo.toml
+!/crates/*/src/**/*.rs
+!/crates/*/src/**/*.wgsl
+!/crates/*/tests/*.rs
+!/xtask/Cargo.toml
+!/xtask/src/**/*.rs
+
+# Documentation (Markdown only)
+!/docs/**/*.md
+
+# Python research tools and their tests
+!/tools/*.py
+!/tests/*.py
+
+# Never, even if a pattern above matches.
+/target/
+.env
+.claude/
 __pycache__/
-*.pyc

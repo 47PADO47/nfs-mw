@@ -12,10 +12,10 @@ project. For the tag meanings, see [evidence tags](../README.md#evidence-tags).
 
 | Location | Chunks | What |
 |---|---|---|
-| `NIS/Scene_*_BundleB.bun` (87 files) | `NisScene`, `EAGLSkeletons` ×64, `EAGLAnimations` ×111, `EventHandler / NISScript`, plus textures and models | **NIS** cutscenes ("non-interactive sequences"): arrests (`ArrestF02`, `ArrestM04`, …), intros (`IntroNis01`, `IntroNisBL05`), endings, world-map scenes (`WMWaterTower`, …) |
-| `GLOBAL/InGameB.bun` (the same chunks are also in `Ingameb.lzc` and `INGAMEC.BUN`) | `AnimDirectory`, `EAGLSkeletons`, `EAGLAnimations`, `ICETracks` ×85, `ICEShakeTracks`, `IceCameraPart0` | In-game shared animations, plus **ICE** camera tracks (cinematic cameras) |
-| `TRACKS/L2RA.BUN` | `WorldAnimEntities` ×11, `WorldAnimTreeMarkers` ×11, `WorldAnimInstances`, `WorldAnimCtrl`, `EAGLAnimations` ×13 | Animated world objects, e.g. `ANM_TowerCraneArm_01_XO_TowerCraneArm_1b_01_q` |
-| `GLOBAL/GLOBALB.BUN` | `CarInfoAnimHookup`, `CarInfoAnimHideup` | Car animation hookup / hide tables (names from the decomp; contents unconfirmed) |
+| `NIS/Scene_*_BundleB.bun` (87 files) | `AnimScene (NisScene)`, `EAGLSkeletons` ×64, `EAGLAnimations` ×111, `CarpEventSequence` (59 files), plus textures and models | **NIS** cutscenes ("non-interactive sequences"): arrests (`ArrestF02`, `ArrestM04`, …), intros (`IntroNis01`, `IntroNisBL05`), endings, world-map scenes (`WMWaterTower`, …) |
+| `GLOBAL/InGameB.bun` (the same chunks are also in `Ingameb.lzc` and `INGAMEC.BUN`) | `AnimDirectory` (→ `AnimDirectorySceneLoadData`, `AnimDirectorySceneMappingData`), `EAGLSkeletons`, `EAGLAnimations`, `ICECameraGroup (ICETracks)` ×85, `ICEShakeTracks`, ICE camera packs `8003B200`–`8003B203` (decomp: NIS / FMV / MKR / replay cameras) | In-game shared animations, plus **ICE** camera tracks (cinematic cameras) |
+| `TRACKS/L2RA.BUN` | `WorldAnimEntities` ×11, `WorldAnimTreeMarkers` ×11, `WorldAnimInstances`, `WorldAnimInstanceEntry / WorldAnimCtrl`, `EAGLAnimations` ×13 | Animated world objects, e.g. `ANM_TowerCraneArm_01_XO_TowerCraneArm_1b_01_q` |
+| `GLOBAL/GLOBALB.BUN`, `GlobalB.lzc` | `CarPartAnimHookupTable` (`0x34608`), `CarPartAnimHideTable` (`0x34609`) | Car-part animation hookup / hide tables (decomp `SPEED_CARPART_ANIMHOOKUP_TABLE` / `ANIMHIDE_TABLE`; contents unconfirmed) |
 
 ## EAGL skeletons and animations are ELF object files **[verified]**
 
@@ -89,13 +89,20 @@ Mapping the `_q` / `_s` suffixes to specific codecs is **[unconfirmed]**.
 ## NIS scene chunk
 
 ```
-80037020 NisScene
-├─ 00037030 ?     152 B scene header; contains the scene name, e.g. "ArrestF02"
-└─ 00037040 ? ×N  152 B per scene actor/element (64 of 87 scenes have these)
+80037020 AnimScene (NisScene)
+├─ 00037030 AnimSceneHeaderData        152 B scene header; contains the scene name, e.g. "ArrestF02"
+└─ 00037040 AnimSceneEntityData ×N     152 B per scene actor/element (64 of 87 scenes have these)
 ```
 
-These two child IDs are not in the decomp's name table. The structs are presumably in
-`src/Speed/Indep/Src/Animation/AnimScene.hpp` / `AnimWorldScene.hpp`. **[unconfirmed]**
+The names come from the decomp's `src/Speed/Indep/Src/Misc/SpeedChunks.hpp`
+(`BCHUNK_SPEED_ANIM_SCENE_HEADER_DATA`, `BCHUNK_SPEED_ANIM_SCENE_ENTITY_DATA`) **[decomp]**. The list
+also defines `0x00037045` (entity clip data) and `0x00037047` (entity "ucap" data), which no MW PC
+NIS file uses **[verified]**. The structs are presumably in `src/Speed/Indep/Src/Animation/AnimScene.hpp`
+/ `AnimWorldScene.hpp` **[unconfirmed]**.
+
+`AnimDirectory` (`0x80037050`) in `InGameB.bun` has two children, `0x00037060`
+`AnimDirectorySceneLoadData` (18,440 B) and `0x00037070` `AnimDirectorySceneMappingData` (4,180 B)
+**[decomp names; sizes verified]**.
 
 ## Looking at it yourself
 
