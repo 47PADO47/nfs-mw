@@ -128,3 +128,34 @@ fn missing_or_truncated_tables_are_errors() {
     fix(&mut data, drivable_header + 4, 6);
     assert!(matches!(read_visible_sections(&data, &MOST_WANTED_VISIBLE), Err(Error::Truncated { .. })));
 }
+
+#[test]
+fn zone_at_a_point() {
+    let v = read_visible_sections(&sample(), &MOST_WANTED_VISIBLE).unwrap();
+    let zone = |x: f32, y: f32| v.drivable_at([x, y]).map(|d| d.section);
+    assert_eq!(zone(50.0, 50.0), Some(101));
+    assert_eq!(zone(150.0, 50.0), Some(102));
+    // The panorama boundary covers everything but is not a drivable section.
+    assert_eq!(zone(-200.0, -200.0), None);
+    // Just outside A1's left edge: within the tolerance, then not.
+    assert_eq!(zone(-0.05, 50.0), Some(101));
+    assert_eq!(zone(-1.0, 50.0), None);
+    // Nearest zone in the region, wherever the point is.
+    let closest = v.closest_drivable([50.0, 280.0], |s| v.in_region(s)).unwrap();
+    assert_eq!((closest.0.section, closest.1), (101, 180.0));
+    assert_eq!(v.closest_drivable([50.0, 280.0], |_| true).unwrap().0.section, 105);
+}
+
+#[test]
+fn load_and_draw_lists() {
+    let v = read_visible_sections(&sample(), &MOST_WANTED_VISIBLE).unwrap();
+    // No loading section: the zone's own list.
+    assert_eq!(v.sections_to_load(101), [101, 102, 141, 142, 190, 2201]);
+    assert_eq!(v.sections_to_draw(101), [101, 102, 141, 142, 190, 2201]);
+    // A loading section: both zones' lists, then the extras (a drivable extra brings its far section).
+    let load = [101, 102, 141, 142, 103, 143, 190, 104, 144];
+    assert_eq!(v.sections_to_load(102), load);
+    assert_eq!(v.sections_to_load(103), load);
+    assert_eq!(v.sections_to_draw(103), [103, 143]);
+    assert!(v.sections_to_draw(999).is_empty());
+}

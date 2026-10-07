@@ -2,15 +2,18 @@
 //! boundary), the sections each zone loads and draws, and loading sections.
 //! Layout: `docs/formats/maps.md`; behaviour: `docs/specs/visible-sections.md`.
 
+mod geometry;
 mod numbering;
 mod reader;
 mod records;
 #[cfg(test)]
 mod tests;
+mod zones;
 
 pub use numbering::Numbering;
 pub use reader::read_visible_sections;
 pub use records::{Boundary, DrivableSection, LoadingSection};
+pub use zones::BOUNDARY_TOLERANCE;
 
 /// Everything in a track's `VisibleSectionManager` chunk.
 #[derive(Debug, Clone, PartialEq)]
