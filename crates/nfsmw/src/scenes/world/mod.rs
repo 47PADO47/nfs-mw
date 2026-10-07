@@ -4,6 +4,7 @@ mod ground;
 mod residency;
 mod resident;
 mod visibility;
+mod zone;
 
 use anyhow::{Context, Result};
 use blackbox_render::{FrameParams, Instance, Renderer};
@@ -19,7 +20,8 @@ pub struct Options {
     pub height: f32,
     pub heading: f32,
     pub pitch: f32,
-    pub load_radius: f32,
+    /// Where the fog is complete, in metres.
+    pub fog_distance: f32,
     pub wait_for_load: bool,
 }
 
@@ -27,12 +29,13 @@ pub struct WorldScene {
     track: String,
     camera: FlyCamera,
     residency: Residency,
-    /// Start position, for `ready()`.
+    /// Start position, for the ground estimate.
     start: [f32; 2],
     /// Height above the ground to place the camera at once the start area has loaded.
     start_height: f32,
     grounded: bool,
     wait_for_load: bool,
+    fog_distance: f32,
     visible: Vec<Instance>,
     /// Seconds since the scene started, for texture animations.
     clock: f32,
@@ -57,19 +60,15 @@ impl WorldScene {
         Ok(Self {
             track: index.track.clone(),
             camera,
-            residency: Residency::new(index.sections, streamer, load_global_textures(dir)?, options.load_radius),
+            residency: Residency::new(index.sections, index.visible, streamer, load_global_textures(dir)?),
             start,
             start_height: options.height,
             grounded: false,
             wait_for_load: options.wait_for_load,
+            fog_distance: options.fog_distance,
             visible: Vec::new(),
             clock: 0.0,
         })
-    }
-
-    /// Where the fog is complete. The LOD rule decides what is drawn; fog only hides the streaming edge.
-    fn fog_end(&self) -> f32 {
-        self.residency.load_radius * 1.6
     }
 }
 
@@ -92,7 +91,7 @@ impl Scene for WorldScene {
         self.residency.update(renderer, p.x, p.y);
         self.clock += dt;
         self.residency.animate(renderer, self.clock);
-        if !self.grounded && self.residency.complete_at(self.start[0], self.start[1]) {
+        if !self.grounded && self.residency.complete() {
             self.grounded = true;
             let ground = ground::height_near(self.residency.placed(), self.start[0], self.start[1], 150.0);
             self.camera.position.z = ground.unwrap_or(0.0) + self.start_height;
@@ -102,7 +101,7 @@ impl Scene for WorldScene {
 
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
         let view_proj = self.camera.view_proj(aspect);
-        let fog_end = self.fog_end();
+        let fog_end = self.fog_distance;
         let camera = visibility::Camera {
             view_proj,
             position: self.camera.position.to_array(),
@@ -123,15 +122,15 @@ impl Scene for WorldScene {
     }
 
     fn ready(&self) -> bool {
-        let [x, y] = self.start;
-        if self.wait_for_load { self.grounded && self.residency.complete_at(x, y) } else { self.residency.counts().2 }
+        if self.wait_for_load { self.grounded && self.residency.complete() } else { self.residency.counts().2 }
     }
 
     fn status(&self) -> Option<String> {
         let (resident, loading, shared) = self.residency.counts();
         let p = self.camera.position;
+        let zone = self.residency.zone().unwrap_or_else(|| "-".into());
         Some(format!(
-            "{}tiles {resident} (+{loading} loading), {} drawn, at ({:.0}, {:.0}, {:.0})",
+            "{}zone {zone}, tiles {resident} (+{loading} loading), {} drawn, at ({:.0}, {:.0}, {:.0})",
             if shared { "" } else { "loading shared sets… " },
             self.visible.len(),
             p.x,

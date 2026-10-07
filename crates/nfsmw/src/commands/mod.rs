@@ -25,9 +25,9 @@ pub fn run(cli: Cli) -> Result<()> {
             let model = nfsmw_data::car::load(&dir, &car, &options)?;
             viewer::run(Box::new(CarScene::new(model, yaw)), &view)
         }
-        Command::ViewWorld { at, height, heading, pitch, load_radius, wait_for_load, view } => {
+        Command::ViewWorld { at, height, heading, pitch, fog_distance, wait_for_load, view } => {
             let dir = open_install(game_dir)?;
-            let options = crate::scenes::world::Options { at, height, heading, pitch, load_radius, wait_for_load };
+            let options = crate::scenes::world::Options { at, height, heading, pitch, fog_distance, wait_for_load };
             viewer::run(Box::new(WorldScene::open(&dir, options)?), &view)
         }
     }

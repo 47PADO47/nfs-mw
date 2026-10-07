@@ -58,10 +58,10 @@ pub enum Command {
         /// Initial pitch in degrees (negative looks down).
         #[arg(long, default_value_t = -20.0, allow_negative_numbers = true)]
         pitch: f32,
-        /// Load map tiles within this many metres of the camera.
-        #[arg(long, default_value_t = 700.0)]
-        load_radius: f32,
-        /// For --screenshot: wait until every tile in range has loaded before capturing.
+        /// Distance in metres at which the fog is complete (it starts at half of it).
+        #[arg(long, default_value_t = 3000.0)]
+        fog_distance: f32,
+        /// For --screenshot: wait until every tile of the camera's zone has loaded before capturing.
         #[arg(long)]
         wait_for_load: bool,
         #[command(flatten)]

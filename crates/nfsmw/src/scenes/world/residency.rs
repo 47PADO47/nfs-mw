@@ -1,24 +1,19 @@
-//! Which sections are loaded: the shared sets once, map tiles by distance.
+//! Which sections are loaded and drawn: the shared sets once, map tiles by the
+//! camera's zone (`docs/specs/visible-sections.md`).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use blackbox_render::Renderer;
-use blackbox_streaming::StreamingSection;
+use blackbox_streaming::{StreamingSection, VisibleSections};
 use nfsmw_data::world::{GlobalTextures, SectionData, Streamer, StreamerEvent};
 
 use super::resident::{Placed, SectionResources, place};
+use super::zone::Zones;
 
 /// Requests in flight at once.
 const MAX_IN_FLIGHT: usize = 8;
 /// Tiles uploaded per frame (uploads run on the render thread).
 const UPLOADS_PER_FRAME: usize = 2;
-/// Tiles at least this large are map-wide backdrops (the oceans, distant
-/// panoramas): 37 tiles, 8 MB in total. They stay loaded wherever the camera is.
-const ALWAYS_LOADED_RADIUS: f32 = 1000.0;
-
-fn always_loaded(section: &StreamingSection) -> bool {
-    section.is_spatial() && section.radius >= ALWAYS_LOADED_RADIUS
-}
 
 enum TileState {
     Requested,
@@ -38,18 +33,32 @@ pub struct Residency {
     shared_ready: bool,
     tiles: HashMap<usize, TileState>,
     arrived: Vec<SectionData>,
-    pub load_radius: f32,
+    zones: Zones,
+    /// Tiles the current zone loads, drawn ones first.
+    wanted: Vec<usize>,
+    /// Tiles the current zone draws.
+    drawn: HashSet<usize>,
+    /// Tiles the previous zone drew, still drawn until the current zone's tiles are all resident,
+    /// so crossing a zone border does not open holes while tiles load.
+    previous: HashSet<usize>,
     pub unresolved: usize,
 }
 
 impl Residency {
-    pub fn new(sections: Vec<StreamingSection>, streamer: Streamer, globals: GlobalTextures, load_radius: f32) -> Self {
+    pub fn new(
+        sections: Vec<StreamingSection>,
+        visible: VisibleSections,
+        streamer: Streamer,
+        globals: GlobalTextures,
+    ) -> Self {
+        // Every shared set stays loaded: V/X/Y hold models and textures only, Z0 the sky.
         let shared: Vec<usize> = (0..sections.len()).filter(|&i| !sections[i].is_spatial()).collect();
         for &i in &shared {
             streamer.request(i);
         }
         Self {
             shared_total: shared.len(),
+            zones: Zones::new(visible, &sections),
             sections,
             streamer,
             shared_pending: Vec::new(),
@@ -59,7 +68,9 @@ impl Residency {
             shared_ready: false,
             tiles: HashMap::new(),
             arrived: Vec::new(),
-            load_radius,
+            wanted: Vec::new(),
+            drawn: HashSet::new(),
+            previous: HashSet::new(),
             unresolved: 0,
         }
     }
@@ -71,9 +82,27 @@ impl Residency {
             self.finish_shared(renderer);
             return;
         }
+        if self.zones.update(x, y) {
+            self.switch_zone(x, y);
+        }
         self.upload_arrived(renderer);
-        self.unload_far(renderer, x, y);
-        self.request_near(x, y);
+        self.unload_unwanted(renderer);
+        self.request_wanted();
+    }
+
+    fn switch_zone(&mut self, x: f32, y: f32) {
+        self.previous = std::mem::replace(&mut self.drawn, self.zones.drawn());
+        self.wanted = self.zones.wanted();
+        // Nearest first within the drawn tiles, then within the rest.
+        let key = |i: usize| (!self.drawn.contains(&i), self.sections[i].distance_to(x, y));
+        self.wanted.sort_by(|&a, &b| {
+            let (ka, kb) = (key(a), key(b));
+            ka.0.cmp(&kb.0).then(ka.1.total_cmp(&kb.1))
+        });
+        // Requests the new zone doesn't need are dropped; they are ignored when they arrive.
+        let wanted: HashSet<usize> = self.wanted.iter().copied().collect();
+        self.tiles.retain(|i, s| wanted.contains(i) || matches!(s, TileState::Resident { .. }));
+        log::debug!("zone {:?}: {} tiles drawn, {} loaded", self.zones.name(), self.drawn.len(), self.wanted.len());
     }
 
     fn receive(&mut self) {
@@ -126,7 +155,7 @@ impl Residency {
         let take = self.arrived.len().min(UPLOADS_PER_FRAME);
         for data in self.arrived.drain(..take).collect::<Vec<_>>() {
             if !matches!(self.tiles.get(&data.index), Some(TileState::Requested)) {
-                continue; // unloaded while in flight
+                continue; // no longer wanted
             }
             let mut resources = SectionResources { anims: data.anims.clone(), ..Default::default() };
             resources.upload_textures(renderer, &data);
@@ -137,33 +166,35 @@ impl Residency {
         }
     }
 
-    fn unload_far(&mut self, renderer: &mut Renderer, x: f32, y: f32) {
-        let keep = self.load_radius * 1.25 + 50.0;
-        let far: Vec<usize> = self
-            .tiles
-            .keys()
-            .copied()
-            .filter(|&i| !always_loaded(&self.sections[i]) && self.sections[i].distance_to(x, y) > keep)
-            .collect();
-        for i in far {
+    /// Free the tiles the zone no longer needs, once everything it needs is resident (so the
+    /// old zone's tiles stay usable while the new ones load).
+    fn unload_unwanted(&mut self, renderer: &mut Renderer) {
+        if !self.wanted_resident() {
+            return;
+        }
+        self.previous.clear();
+        let wanted: HashSet<usize> = self.wanted.iter().copied().collect();
+        let unwanted: Vec<usize> = self.tiles.keys().copied().filter(|i| !wanted.contains(i)).collect();
+        for i in unwanted {
             if let Some(TileState::Resident { resources, .. }) = self.tiles.remove(&i) {
                 resources.release(renderer);
             }
         }
     }
 
-    fn request_near(&mut self, x: f32, y: f32) {
+    fn request_wanted(&mut self) {
         let in_flight = self.tiles.values().filter(|s| matches!(s, TileState::Requested)).count();
-        let mut wanted: Vec<(f32, usize)> = (0..self.sections.len())
-            .filter(|&i| self.sections[i].is_spatial() && !self.tiles.contains_key(&i))
-            .map(|i| (if always_loaded(&self.sections[i]) { 0.0 } else { self.sections[i].distance_to(x, y) }, i))
-            .filter(|&(d, _)| d <= self.load_radius)
-            .collect();
-        wanted.sort_by(|a, b| a.0.total_cmp(&b.0));
-        for (_, i) in wanted.into_iter().take(MAX_IN_FLIGHT.saturating_sub(in_flight)) {
+        let free = MAX_IN_FLIGHT.saturating_sub(in_flight);
+        let missing: Vec<usize> =
+            self.wanted.iter().copied().filter(|i| !self.tiles.contains_key(i)).take(free).collect();
+        for i in missing {
             self.tiles.insert(i, TileState::Requested);
             self.streamer.request(i);
         }
+    }
+
+    fn wanted_resident(&self) -> bool {
+        self.wanted.iter().all(|i| matches!(self.tiles.get(i), Some(TileState::Resident { .. })))
     }
 
     /// Advance every resident texture animation.
@@ -177,22 +208,25 @@ impl Residency {
         }
     }
 
-    /// Placed instances of every resident section.
+    /// Placed instances to draw: the shared sets' and those of the resident tiles the zone draws
+    /// (plus the previous zone's while the current one loads).
     pub fn placed(&self) -> impl Iterator<Item = &Placed> {
-        let tiles = self.tiles.values().flat_map(|s| match s {
+        let drawn = |i: &usize| self.drawn.contains(i) || self.previous.contains(i);
+        let tiles = self.tiles.iter().filter(move |(i, _)| drawn(i)).flat_map(|(_, s)| match s {
             TileState::Resident { placed, .. } => placed.as_slice(),
             TileState::Requested => &[],
         });
         self.shared_placed.iter().chain(tiles)
     }
 
-    /// Whether the shared sets and every tile within the load radius of (x, y) are resident.
-    pub fn complete_at(&self, x: f32, y: f32) -> bool {
-        self.shared_ready
-            && self.arrived.is_empty()
-            && (0..self.sections.len())
-                .filter(|&i| self.sections[i].is_spatial() && self.sections[i].distance_to(x, y) <= self.load_radius)
-                .all(|i| matches!(self.tiles.get(&i), Some(TileState::Resident { .. })))
+    /// Whether the shared sets and every tile the current zone needs are resident.
+    pub fn complete(&self) -> bool {
+        self.shared_ready && self.zones.name().is_some() && self.arrived.is_empty() && self.wanted_resident()
+    }
+
+    /// The current zone, e.g. `D14`.
+    pub fn zone(&self) -> Option<String> {
+        self.zones.name()
     }
 
     /// (resident tiles, loading tiles, shared sets ready).
