@@ -40,8 +40,8 @@ pub fn read_texture_anims(data: &[u8]) -> Vec<TextureAnim> {
             continue;
         };
         // Frames of all animations are stored back to back, in animation order.
-        let mut frames = entries.payload.chunks_exact(ENTRY_LEN).map(|e| u32_at(e, 0));
-        for a in anims.payload.chunks_exact(ANIM_LEN) {
+        let mut frames = entries.payload.as_chunks::<ENTRY_LEN>().0.iter().map(|e| u32_at(e, 0));
+        for a in anims.payload.as_chunks::<ANIM_LEN>().0 {
             let count = u32_at(a, 0x1C) as usize;
             let name_len = a[..24].iter().position(|&b| b == 0).unwrap_or(24);
             out.push(TextureAnim {
