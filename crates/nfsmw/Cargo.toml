@@ -13,6 +13,7 @@ blackbox-render.workspace = true
 blackbox-scene.workspace = true
 blackbox-scenery.workspace = true
 blackbox-streaming.workspace = true
+blackbox-tpk.workspace = true
 clap.workspace = true
 env_logger.workspace = true
 game-install.workspace = true

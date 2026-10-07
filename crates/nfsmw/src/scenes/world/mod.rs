@@ -9,7 +9,7 @@ use anyhow::{Context, Result};
 use blackbox_render::{FrameParams, Instance, Renderer};
 use game_install::GameDir;
 use glam::Vec3;
-use nfsmw_data::world::{DEFAULT_TRACK, Streamer, WorldIndex};
+use nfsmw_data::world::{DEFAULT_TRACK, Streamer, WorldIndex, load_global_textures};
 
 use crate::viewer::{Input, Scene, camera::FlyCamera};
 use residency::Residency;
@@ -55,7 +55,7 @@ impl WorldScene {
         Ok(Self {
             track: index.track.clone(),
             camera,
-            residency: Residency::new(index.sections, streamer, options.load_radius),
+            residency: Residency::new(index.sections, streamer, load_global_textures(dir)?, options.load_radius),
             start,
             start_height: options.height,
             grounded: false,

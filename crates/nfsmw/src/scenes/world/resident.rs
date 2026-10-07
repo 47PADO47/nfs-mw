@@ -24,7 +24,12 @@ pub struct SectionResources {
 
 impl SectionResources {
     pub fn upload_textures(&mut self, renderer: &mut Renderer, data: &SectionData) {
-        for t in &data.textures {
+        self.upload_texture_list(renderer, &data.textures);
+    }
+
+    /// Upload textures whose hash is not resident yet.
+    pub fn upload_texture_list(&mut self, renderer: &mut Renderer, textures: &[blackbox_tpk::Texture]) {
+        for t in textures {
             if self.materials.contains_key(&t.name_hash) {
                 continue;
             }
@@ -39,7 +44,7 @@ impl SectionResources {
         let lookup = |hash: u32| self.materials.get(&hash).or_else(|| fallback.materials.get(&hash)).copied();
         let mut meshes = Vec::new();
         for solid in &data.solids {
-            if let Some(mesh) = upload_solid(renderer, solid, &lookup, Shading::Prelit) {
+            if let Some(mesh) = upload_solid(renderer, solid, &lookup, shading_for(&solid.name)) {
                 meshes.push((solid.name_hash, mesh));
             }
         }
@@ -60,8 +65,19 @@ impl SectionResources {
     }
 }
 
-/// Turn a section's scenery into placed meshes. Sky domes are skipped: they
-/// need to follow the camera and stay out of the fog.
+/// Sky domes (`SKYDOME`, `SKYDOME_XENON`, `SKY_SPECULAR`) are world-space models
+/// around the whole map; they draw without fog.
+fn shading_for(solid_name: &str) -> Shading {
+    if solid_name.starts_with("SKY") { Shading::Sky } else { Shading::Prelit }
+}
+
+/// Scenery we can't draw correctly yet:
+/// - `SKYDOME_XENON`: the next-gen sky dome, whose effect-19 / 44-byte vertex layout is not decoded;
+/// - `SKY_SPECULAR`: a sky layer textured `SKY_REFSKYSPECULARB`, apparently for reflections.
+const SKIPPED_MODELS: &[&str] = &["SKYDOME_XENON", "SKY_SPECULAR"];
+
+/// Turn a section's scenery into placed meshes, dropping instances the player
+/// view excludes (`docs/specs/scenery-visibility.md`).
 pub fn place(data: &SectionData, own: &SectionResources, shared: &SectionResources) -> (Vec<Placed>, usize) {
     let mut placed = Vec::new();
     let mut unresolved = 0;
@@ -69,7 +85,7 @@ pub fn place(data: &SectionData, own: &SectionResources, shared: &SectionResourc
         for inst in &section.instances {
             let Some(info) = section.info_of(inst) else { continue };
             let rules = &blackbox_scenery::layout::MOST_WANTED.visibility;
-            if info.name.starts_with("SKYDOME") || !inst.visible_in(rules.player_view, rules) {
+            if !inst.visible_in(rules.player_view, rules) || SKIPPED_MODELS.contains(&info.name.as_str()) {
                 continue;
             }
             match info.best_solid().and_then(|key| own.mesh(key, shared)) {

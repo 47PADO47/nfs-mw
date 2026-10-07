@@ -24,6 +24,8 @@ pub struct Residency {
     shared_total: usize,
     /// Shared sets wait here until all have arrived: their textures and models cross-reference.
     shared_pending: Vec<SectionData>,
+    /// Textures from the global packs, uploaded with the shared sets.
+    global_textures: Vec<blackbox_tpk::Texture>,
     pub shared: SectionResources,
     pub shared_placed: Vec<Placed>,
     shared_ready: bool,
@@ -34,7 +36,12 @@ pub struct Residency {
 }
 
 impl Residency {
-    pub fn new(sections: Vec<StreamingSection>, streamer: Streamer, load_radius: f32) -> Self {
+    pub fn new(
+        sections: Vec<StreamingSection>,
+        streamer: Streamer,
+        global_textures: Vec<blackbox_tpk::Texture>,
+        load_radius: f32,
+    ) -> Self {
         let shared: Vec<usize> = (0..sections.len()).filter(|&i| !sections[i].is_spatial()).collect();
         for &i in &shared {
             streamer.request(i);
@@ -44,6 +51,7 @@ impl Residency {
             sections,
             streamer,
             shared_pending: Vec::new(),
+            global_textures,
             shared: SectionResources::default(),
             shared_placed: Vec::new(),
             shared_ready: false,
@@ -94,6 +102,7 @@ impl Residency {
         for data in &pending {
             shared.upload_textures(renderer, data);
         }
+        shared.upload_texture_list(renderer, &std::mem::take(&mut self.global_textures));
         let empty = SectionResources::default();
         for data in &pending {
             shared.upload_meshes(renderer, data, &empty);
