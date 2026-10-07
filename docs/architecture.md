@@ -79,23 +79,30 @@ TRACKS/STREAML2RA.BUN ─► loader threads (nfsmw-data::world::Streamer)
 - **Resolution:** a tile's instances use the tile's own models first, then the shared sets. Measured on the
   whole stream, that resolves 77,722 of 77,776 tile instances; none needs another tile
   ([maps.md](formats/maps.md#scenery-placing-models-in-the-world)).
+- **Map-wide tiles:** the 37 tiles with a radius over 1 km (the ocean planes, distant panoramas; 8 MB) are
+  always resident.
 - **Visibility:** instances hidden by their exclude flags (race barriers, animated props) are dropped when
   placed ([specs/scenery-visibility.md](specs/scenery-visibility.md)). Each frame the remaining instances are
-  culled by distance and frustum (using their stored world boxes), sorted by mesh and drawn instanced.
+  frustum-culled using their stored world boxes. Then the game's LOD rule picks slot 0 or slot 2, or nothing
+  under 17 px, which is also the real draw distance ([specs/scenery-lod.md](specs/scenery-lod.md)).
+  Finally the instances are sorted by mesh and drawn instanced.
+- **Sky:** the `SKYDOME` scenery model, textured from `GLOBAL/InGameA.bun`, drawn with the fog-free sky
+  shading. Depth is reverse-Z with an infinite far plane, so the 9.7 km dome is never clipped.
 - **Shading:** world geometry is pre-lit (vertex colour × 2, no sun); blending follows each texture's
-  `AlphaBlendType` ([textures.md](formats/textures.md#alpha)). Linear fog hides the streaming edge.
+  `AlphaBlendType` ([textures.md](formats/textures.md#alpha)). Linear fog from 0.8× to 1.6× the load radius
+  (default 700 m) hides the streaming edge.
 - **Camera:** free-fly (WASD, Space/C, Shift, right-drag to look, scroll for speed). It starts above the
   centre of the city, or at `--at X,Y`, at `--height` metres above the ground; the ground is estimated from
   the scenery boxes until collision is loaded.
 
 Known gaps, for later milestones:
 
-- **Not drawn yet:** water surfaces (the river and sea show the sky colour), the sky dome, which needs to
-  follow the camera, cars and traffic, and the world animations (cranes, the airliner).
+- **Not drawn yet:** the next-gen sky dome (`SKYDOME_XENON`, undecoded 44-byte vertices), water animation
+  and reflections, cars and traffic, and the world animations (cranes, the airliner).
 - **Approximations:**
-  - always the most detailed LOD;
+  - the LOD pixel scale assumes a 480-line reference screen;
   - no scenery overrides, so race barriers are never shown;
-  - placeholder lighting instead of the game's `fx` effects.
+  - placeholder lighting instead of the game's `fx` effects and time of day.
 
 ## Graphics backends
 
@@ -160,7 +167,7 @@ render one frame off-screen. Use them to check rendering changes and backends wi
 |---|---|---|
 | 1 | Workspace, guards, install discovery, bChunk/JDLZ/HUFF, solids, TPK, car viewer on Vulkan/DX12/GL | done |
 | 2 | Generic `libs/` split; the streamed city: index, sections, scenery, background loading, instanced rendering, culling, fly camera | **done** |
-| 3 | Water, sky dome, LODs, scenery overrides; AttribSys reader; car assembly from the parts DB (wheels, kits, paint); the game's lighting | next |
+| 3 | Sky dome, LODs, water, map-wide tiles; AttribSys reader; car assembly from the parts DB (wheels, kits, paint) | **in progress** (sky, LODs, water done) |
 | 4 | Vehicle physics, spec-first (`docs/specs/vehicle-physics.md`); world collision (`CarpWCollisionPack`); drive a car | |
 | 5 | Audio (EA-XA, EA-XAS engine loops, MicroTalk speech), VP6 movies, FEng menus | |
 | 6 | AI racers, traffic, pursuit; career data | |

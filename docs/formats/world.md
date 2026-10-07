@@ -82,9 +82,37 @@ blob holds `WCollisionInstance` / `WCollisionObject` records (both derived from 
   `SKY_POND_REFLECTION`, … **[verified]**.
 - `World/SkyRender.cpp` looks them up by `bStringHash` and draws them with `skyshader` / `IDI_SKYBOX_FX`
   ([shaders.md](shaders.md)) **[decomp]**. `FRONTEND/PLATFORMS/NextGenSky.BIN` is a `GeometryPack`.
+- **The sky domes are ordinary scenery** **[verified]**. Scenery infos `SKYDOME` (349 instances across
+  the tiles) and `SKYDOME_XENON` (25) place world-space models (flag `0x200`, at the origin) about 19.4 km
+  across, spanning z −1,148 to 5,545. They don't follow the camera. Their textures come from
+  `InGameA.bun` (`SKY_MIDDAY_A_CAP_A`, `SKY_MIDDAY_A_CLOUDS_A`; the Xenon dome uses
+  `SKY_NEXGEN_CLOUDS_A`).
+  - `SKYDOME` uses effect 0 with 36-byte vertices and white vertex colours; drawn pre-lit and unfogged,
+    it gives the overcast midday sky.
+  - `SKYDOME_XENON` uses effect 19, the only 44-byte vertex format in the stream, which is not decoded
+    yet; read as the 36-byte layout, its colours are garbage.
+  - `SKY_SPECULAR` (textured `SKY_REFSKYSPECULARB`) looks like a layer for reflections. Drawing it in
+    the player view darkens the whole dome **[unconfirmed]**.
 - Lighting/TOD data: AttribSys `timeofdaylighting` (13 fields, 8 collections), `visuallook`,
   `visuallookeffect`, `visuallooktransition`, `visualrgbtweaker`; plus `SunInfos`
   ([attributes.md](attributes.md)). Rain: `world`, `CARSFX_Rain`, `RainDropShader`.
+
+## Water
+
+**[verified]** Water surfaces are ordinary world-space terrain solids textured with the animated
+`ANM_WATERA_` texture (frames `ANM_WATERA_000`–`013`), which uses alpha usage 2 and blend 0, so it draws
+opaque. 39 solids use water textures:
+
+| Solid (info) | Tile | Extent |
+|---|---|---|
+| `TRN_Ocean_A` | R89 (radius 6,464 m) | x 1,373…10,032, y −9,268…1,470, z = 0 |
+| `TRN_Ocean_B` | R88 (radius 4,739 m) | x 3,186…9,911, y 616…8,847, z = 0 |
+| `TRN_CP_CR_Water_A_01`, `TRN_CP_BD_Pond_A_01`, park ponds | D16, O17, … | local |
+
+Breakwaters (`TRNS_WATERBREAK_A/B`) are blended overlays (blend 1). The oceans live in two of the 37
+**map-wide tiles** (radius over 1 km, 8 MB in total, also the distant panoramas). A streamer that loads tiles
+by distance must keep those loaded, or the sea disappears. Animating the water (cycling the 14 frames,
+`TextureAnimPack` `0xB0300100`) and its reflections are not implemented.
 
 ## Particles
 

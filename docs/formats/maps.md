@@ -127,6 +127,12 @@ this way reproduces the instance's stored world box. On the 59,529 instances wit
 this convention fits better than the transposed one 45,838 times, the reverse 4,124 times, and ties the
 rest. The remaining error is about 0.14 m of box padding.
 
+**World-space instances** **[verified]**: 10,911 instances have exclude flag `0x200`. All of them sit at
+the origin with an identity rotation: their geometry is already in world coordinates (terrain, roads,
+`*_DEINST` props, the sky domes). For them, the info's `Radius` is the distance from the origin to the far
+side of the geometry (ratio 1.00 at the median), so the LOD rule's sphere around the origin always contains
+them ([../specs/scenery-lod.md](../specs/scenery-lod.md)).
+
 Payload alignment: `SceneryInfos` is not aligned; `SceneryInstances` is aligned to 0x10. **In the stream, the
 instances chunk comes before the infos chunk** inside each `ScenerySection`. A one-pass reader must not
 resolve instances as it meets them. **[verified]**
