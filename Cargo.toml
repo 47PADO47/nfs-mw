@@ -9,7 +9,7 @@ default-members = ["libs/*", "crates/*"]
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.95"
 license = "MIT OR Apache-2.0"
 publish = false
 
@@ -31,6 +31,15 @@ game-install = { path = "libs/game-install" }
 nfsmw-data = { path = "crates/nfsmw-data" }
 
 # Third-party (see docs/rust-stack.md for why each was picked)
+# Bevy: the ECS shell only, no renderer (docs/decisions/0001-bevy.md). Pinned to the 0.20 release candidate.
+bevy_a11y = "=0.20.0-rc.2"
+bevy_app = "=0.20.0-rc.2"
+bevy_ecs = "=0.20.0-rc.2"
+bevy_gilrs = "=0.20.0-rc.2"
+bevy_input = "=0.20.0-rc.2"
+bevy_time = "=0.20.0-rc.2"
+bevy_window = "=0.20.0-rc.2"
+bevy_winit = "=0.20.0-rc.2"
 anyhow = "1"
 bytemuck = { version = "1", features = ["derive"] }
 clap = { version = "4", features = ["derive"] }
@@ -47,7 +56,6 @@ texture2ddecoder = "0.1"
 thiserror = "2"
 toml = "0.9"
 wgpu = "30"
-winit = "0.30"
 winreg = "0.56"
 
 [workspace.lints.rust]

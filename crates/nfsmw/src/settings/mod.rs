@@ -11,10 +11,10 @@ use blackbox_render::Backend;
 
 pub use partial::Partial;
 
-use crate::viewer::MaxFps;
+use crate::app::pacing::MaxFps;
 
 /// The resolved settings.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(bevy_ecs::resource::Resource, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Settings {
     pub backend: Backend,
     pub vsync: bool,

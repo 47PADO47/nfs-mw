@@ -1,29 +1,19 @@
-//! A window that runs one [`Scene`]: input, camera, streaming and drawing are
-//! the scene's job; the viewer owns the window, the renderer and the loop.
+//! What a viewer scene is, and the cameras scenes share. The window, loop and renderer belong to
+//! [`crate::app`]; input arrives as actions ([`crate::input`]).
 
-mod app;
 pub mod camera;
-mod cursor;
-mod input;
-mod limiter;
-mod screenshot;
-
-use std::path::PathBuf;
 
 use anyhow::Result;
 use blackbox_render::{FrameParams, Instance, Renderer};
 
-pub use input::Input;
-pub use limiter::MaxFps;
-
-use crate::settings::Settings;
+use crate::input::ActionState;
 
 pub trait Scene {
     fn title(&self) -> String;
     /// Upload the initial resources.
     fn init(&mut self, renderer: &mut Renderer) -> Result<()>;
     /// Advance by `dt` seconds: camera, streaming, uploads.
-    fn update(&mut self, renderer: &mut Renderer, input: &Input, dt: f32);
+    fn update(&mut self, renderer: &mut Renderer, input: &ActionState, dt: f32);
     /// The frame to draw. Instances of the same mesh should be adjacent.
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]);
     /// For screenshots: whether everything the first view needs has loaded.
@@ -39,9 +29,4 @@ pub trait Scene {
     fn status(&self) -> Option<String> {
         None
     }
-}
-
-/// Open a window and run `scene` until the user quits (or write `screenshot` and exit).
-pub fn run(scene: Box<dyn Scene>, settings: &Settings, screenshot: Option<PathBuf>) -> Result<()> {
-    app::run(scene, settings, screenshot)
 }

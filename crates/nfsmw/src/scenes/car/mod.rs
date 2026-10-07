@@ -11,7 +11,8 @@ use blackbox_scene::{Aabb, upload_solid};
 use glam::{Mat4, Vec3};
 use nfsmw_data::car::CarModel;
 
-use crate::viewer::{Input, Scene, camera::OrbitCamera};
+use crate::input::ActionState;
+use crate::viewer::{Scene, camera::OrbitCamera};
 use materials::CarMaterials;
 
 pub struct CarScene {
@@ -78,7 +79,7 @@ impl Scene for CarScene {
         Ok(())
     }
 
-    fn update(&mut self, _renderer: &mut Renderer, input: &Input, _dt: f32) {
+    fn update(&mut self, _renderer: &mut Renderer, input: &ActionState, _dt: f32) {
         self.camera.update(input);
     }
 

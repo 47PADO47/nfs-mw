@@ -9,7 +9,7 @@ use std::str::FromStr;
 use toml::{Table, Value};
 
 use super::partial::Partial;
-use crate::viewer::MaxFps;
+use crate::app::pacing::MaxFps;
 
 /// Read the layer from `path`. A missing file is an empty layer; a broken one is reported and ignored.
 pub fn read(path: &Path) -> Partial {

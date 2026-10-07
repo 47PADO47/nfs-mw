@@ -3,7 +3,7 @@
 use std::str::FromStr;
 
 use super::partial::{Partial, parse_bool};
-use crate::viewer::MaxFps;
+use crate::app::pacing::MaxFps;
 
 pub const BACKEND: &str = "NFSMW_BACKEND";
 pub const VSYNC: &str = "NFSMW_VSYNC";

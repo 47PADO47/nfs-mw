@@ -12,7 +12,8 @@ use game_install::GameDir;
 use glam::Vec3;
 use nfsmw_data::world::{DEFAULT_TRACK, Streamer, WorldIndex, load_global_textures};
 
-use crate::viewer::{Input, Scene, camera::FlyCamera};
+use crate::input::ActionState;
+use crate::viewer::{Scene, camera::FlyCamera};
 use residency::Residency;
 
 pub struct Options {
@@ -85,7 +86,7 @@ impl Scene for WorldScene {
         Ok(())
     }
 
-    fn update(&mut self, renderer: &mut Renderer, input: &Input, dt: f32) {
+    fn update(&mut self, renderer: &mut Renderer, input: &ActionState, dt: f32) {
         self.camera.update(input, dt);
         let p = self.camera.position;
         self.residency.update(renderer, p.x, p.y);

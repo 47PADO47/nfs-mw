@@ -1,7 +1,9 @@
 //! `nfsmw`: entry point of the NFS: Most Wanted rewrite.
 
+mod app;
 mod cli;
 mod commands;
+mod input;
 mod scenes;
 mod settings;
 mod viewer;

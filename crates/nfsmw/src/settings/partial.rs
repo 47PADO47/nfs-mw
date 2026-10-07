@@ -2,7 +2,7 @@
 
 use blackbox_render::Backend;
 
-use crate::viewer::MaxFps;
+use crate::app::pacing::MaxFps;
 
 /// The settings one source (command line, environment, config file) sets. Unset fields fall
 /// through to the next layer.

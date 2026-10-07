@@ -1,8 +1,13 @@
-//! Frame-rate cap (`--max-fps`).
+//! Frame-rate cap (`--max-fps`) and the once-a-second window title.
 
 use std::fmt;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
+
+use bevy_ecs::prelude::*;
+use bevy_window::{PrimaryWindow, Window};
+
+use super::host::Host;
 
 /// A frame-rate cap: a number of frames per second, or `unlocked`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -59,6 +64,21 @@ impl FrameLimiter {
             std::thread::sleep(left);
         }
     }
+}
+
+/// Last system of the frame: refresh the title every second, then sleep to the frame-rate cap.
+pub fn end_of_frame(mut host: NonSendMut<Host>, mut window: Single<&mut Window, With<PrimaryWindow>>) {
+    let host = &mut *host;
+    let Some(renderer) = host.renderer.as_ref() else { return };
+    let elapsed = host.title_timer.elapsed().as_secs_f32();
+    if elapsed >= 1.0 {
+        let status = host.scene.status().map(|s| format!(" - {s}")).unwrap_or_default();
+        let fps = host.frames as f32 / elapsed;
+        log::debug!("{fps:.1} fps");
+        window.title = format!("{} - {} - {fps:.0} fps{status}", host.scene.title(), renderer.adapter_summary());
+        (host.title_timer, host.frames) = (Instant::now(), 0);
+    }
+    host.limiter.wait();
 }
 
 #[cfg(test)]

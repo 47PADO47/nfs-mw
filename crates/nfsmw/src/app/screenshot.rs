@@ -6,14 +6,15 @@ use std::time::{Duration, Instant};
 use anyhow::{Context, Result};
 use blackbox_render::Renderer;
 
-use super::{Input, Scene};
+use crate::input::ActionState;
+use crate::viewer::Scene;
 
 pub const SIZE: (u32, u32) = (1280, 720);
 /// How long to wait for a scene to report [`Scene::ready`].
 const READY_TIMEOUT: Duration = Duration::from_secs(300);
 
 pub fn capture(scene: &mut dyn Scene, renderer: &mut Renderer, path: &Path) -> Result<()> {
-    let input = Input::default();
+    let input = ActionState::default();
     let start = Instant::now();
     // Let the scene stream until its first view is complete.
     loop {

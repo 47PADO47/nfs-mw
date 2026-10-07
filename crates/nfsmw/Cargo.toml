@@ -9,6 +9,14 @@ publish.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+bevy_a11y.workspace = true
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+bevy_gilrs.workspace = true
+bevy_input.workspace = true
+bevy_time.workspace = true
+bevy_window.workspace = true
+bevy_winit.workspace = true
 blackbox-render.workspace = true
 blackbox-scene.workspace = true
 blackbox-scenery.workspace = true
@@ -22,7 +30,6 @@ log.workspace = true
 nfsmw-data.workspace = true
 png.workspace = true
 toml.workspace = true
-winit.workspace = true
 
 [lints]
 workspace = true

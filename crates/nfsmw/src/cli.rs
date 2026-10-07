@@ -5,8 +5,8 @@ use std::path::PathBuf;
 use blackbox_render::Backend;
 use clap::{Args, Parser, Subcommand};
 
+use crate::app::pacing::MaxFps;
 use crate::settings::Partial;
-use crate::viewer::MaxFps;
 
 #[derive(Parser)]
 #[command(version, about = "NFS: Most Wanted rewrite (reads data from your own install)")]

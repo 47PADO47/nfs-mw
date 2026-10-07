@@ -3,7 +3,7 @@
 use glam::{Mat4, Vec3};
 
 use super::{direction, view_proj};
-use crate::viewer::Input;
+use crate::input::{Action, ActionState};
 
 pub struct OrbitCamera {
     pub target: Vec3,
@@ -13,13 +13,10 @@ pub struct OrbitCamera {
 }
 
 impl OrbitCamera {
-    pub fn update(&mut self, input: &Input) {
-        if input.left_button() || input.right_button() {
-            let (dx, dy) = input.mouse_delta();
-            self.yaw -= dx * 0.008;
-            self.pitch = (self.pitch + dy * 0.008).clamp(-1.5, 1.5);
-        }
-        self.distance = (self.distance * 0.9f32.powf(input.scroll())).max(0.1);
+    pub fn update(&mut self, input: &ActionState) {
+        self.yaw -= input.value(Action::OrbitX) * 0.008;
+        self.pitch = (self.pitch + input.value(Action::OrbitY) * 0.008).clamp(-1.5, 1.5);
+        self.distance = (self.distance * 0.9f32.powf(input.value(Action::Zoom))).max(0.1);
     }
 
     pub fn eye(&self) -> Vec3 {
