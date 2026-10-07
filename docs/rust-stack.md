@@ -40,7 +40,7 @@ Written in-house because no crate exists: **JDLZ** and **HUFF** ([`ea-compress`]
 
 | Option | Why not |
 |---|---|
-| Bevy | Too opinionated for a faithful port of an engine with its own loop and streaming; breaking changes every release. iw4L uses only its ECS. |
+| Bevy's renderer | Would replace the working reverse-Z, pre-lit, instanced renderer. The ECS, input and app crates are proposed separately in [decisions/0001-bevy.md](decisions/0001-bevy.md). |
 | FFmpeg bindings (VP6, EA audio) | LGPL; heavy runtime DLLs. nihav-vp6 + our own demuxer cover MW's videos. |
 | NihAV upstream | AGPL-3.0. Only the MIT VP6 subset (relicensed for Ruffle) is usable. |
 | vgmstream through FFI | Its EALayer3 path needs mpg123 (LGPL); MW doesn't use EALayer3 anyway, and the decoders we need are small to port. |
