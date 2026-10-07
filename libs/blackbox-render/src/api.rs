@@ -6,8 +6,6 @@ use crate::Backend;
 
 #[derive(Debug, thiserror::Error)]
 pub enum RenderError {
-    #[error("{0}")]
-    BackendUnavailable(String),
     #[error("could not create a rendering surface: {0}")]
     Surface(String),
     #[error("no suitable GPU adapter for {backend}: {detail}")]

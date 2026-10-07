@@ -35,8 +35,7 @@ config file, or the retail registry key ([details](docs/architecture.md#finding-
 
 Options for both viewers:
 
-- `--backend auto|vulkan|dx12|dx11|gl` picks the graphics API. `dx11` is accepted but not implemented yet,
-  because wgpu has no Direct3D 11 backend ([plan](docs/architecture.md#graphics-backends)).
+- `--backend auto|vulkan|dx12|gl` picks the graphics API ([details](docs/architecture.md#graphics-backends)).
 - `--screenshot out.png` renders one frame and exits; add `--wait-for-load` in the world viewer.
 - Esc quits.
 

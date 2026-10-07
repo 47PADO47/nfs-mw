@@ -11,21 +11,18 @@ pub enum Backend {
     Vulkan,
     /// Windows only.
     Dx12,
-    /// Windows only. Not implemented yet (needs a renderer outside wgpu).
-    Dx11,
     /// OpenGL (GLES 3 / desktop GL), the fallback for old GPUs.
     Gl,
 }
 
 impl Backend {
-    pub const ALL: [Backend; 5] = [Backend::Auto, Backend::Vulkan, Backend::Dx12, Backend::Dx11, Backend::Gl];
+    pub const ALL: [Backend; 4] = [Backend::Auto, Backend::Vulkan, Backend::Dx12, Backend::Gl];
 
     pub fn name(self) -> &'static str {
         match self {
             Self::Auto => "auto",
             Self::Vulkan => "vulkan",
             Self::Dx12 => "dx12",
-            Self::Dx11 => "dx11",
             Self::Gl => "gl",
         }
     }
@@ -38,7 +35,7 @@ impl fmt::Display for Backend {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-#[error("unknown graphics backend {0:?} (expected one of: auto, vulkan, dx12, dx11, gl)")]
+#[error("unknown graphics backend {0:?} (expected one of: auto, vulkan, dx12, gl)")]
 pub struct ParseBackendError(String);
 
 impl FromStr for Backend {
@@ -49,7 +46,6 @@ impl FromStr for Backend {
             "auto" => Ok(Self::Auto),
             "vulkan" | "vk" => Ok(Self::Vulkan),
             "dx12" | "d3d12" => Ok(Self::Dx12),
-            "dx11" | "d3d11" => Ok(Self::Dx11),
             "gl" | "opengl" | "gles" => Ok(Self::Gl),
             _ => Err(ParseBackendError(s.to_owned())),
         }
@@ -67,5 +63,6 @@ mod tests {
         }
         assert_eq!("D3D12".parse::<Backend>().unwrap(), Backend::Dx12);
         assert!("metal2".parse::<Backend>().is_err());
+        assert!("dx11".parse::<Backend>().is_err());
     }
 }

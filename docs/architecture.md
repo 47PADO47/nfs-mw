@@ -39,8 +39,8 @@ scaled down.
 Rules that keep this structure working:
 
 - **Format crates take `&[u8]` and never open files.** Only `game-install` touches the install.
-- **The renderer has no game knowledge**, and its API has no wgpu types, so a second implementation
-  (Direct3D 11) can sit behind it.
+- **The renderer has no game knowledge**, and its API has no wgpu types, so the implementation behind it
+  can change (for example to Bevy's renderer) without touching callers.
 - **Files stay small:** no source or doc file over 500 lines (`cargo xtask size-check`). Split by domain
   into folders and modules, with one struct or concern per file.
 - **Game rules will live in their own pure crates** (physics, AI), built spec-first ([licensing.md](licensing.md#spec-first)).
@@ -106,7 +106,7 @@ Known gaps, for later milestones:
 
 ## Graphics backends
 
-Select with `--backend <auto|vulkan|dx12|dx11|gl>`:
+Select with `--backend <auto|vulkan|dx12|gl>`:
 
 | Backend | Windows | Linux | Implementation | Status |
 |---|---|---|---|---|
@@ -114,17 +114,9 @@ Select with `--backend <auto|vulkan|dx12|dx11|gl>`:
 | `vulkan` | ✔ | ✔ | wgpu | working |
 | `dx12` | ✔ | — | wgpu | working |
 | `gl` | ✔ (WGL) | ✔ (EGL, X11/Wayland) | wgpu | working |
-| `dx11` | ✔ | — | **not implemented** | planned |
 
-**Why Direct3D 11 is separate.** wgpu removed its D3D11 backend in 2023, and v30 has none. The plan:
-
-- a `blackbox-render-d3d11` library on the [`windows`](https://crates.io/crates/windows) crate (MIT OR
-  Apache-2.0), implementing the same API;
-- the same `scene.wgsl`, translated to HLSL SM 5.0 at build time with [naga](https://crates.io/crates/naga)
-  and compiled with `D3DCompile`;
-- `--backend dx11` dispatching to it on Windows.
-
-This is best done once the renderer API has settled, so it is implemented once.
+Direct3D 11 is not offered: wgpu removed its D3D11 backend in 2023. Direct3D 12 and Vulkan cover the same
+hardware on Windows 10 and later, and OpenGL covers older GPUs.
 
 ## Multi-platform
 

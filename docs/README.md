@@ -32,7 +32,7 @@ against the install at `D:/Need For Speed Most Wanted Black Edition`.
 
 | Doc | What it covers |
 |---|---|
-| [architecture.md](architecture.md) | `libs/` (engine-generic) vs `crates/` (MW), finding the install, the streamed city, graphics backends (incl. the D3D11 plan), Windows/Linux, testing, roadmap |
+| [architecture.md](architecture.md) | `libs/` (engine-generic) vs `crates/` (MW), finding the install, the streamed city, graphics backends, Windows/Linux, testing, roadmap |
 | [rust-stack.md](rust-stack.md) | Crates used and planned, with versions and licenses; rejected options |
 | [licensing.md](licensing.md) | Project license, what each source license allows, unlicensed repos, the spec-first process |
 | [specs/](specs/README.md) | Behaviour specs written before implementing it from decompiled sources: [scenery visibility](specs/scenery-visibility.md), [scenery LOD](specs/scenery-lod.md) |

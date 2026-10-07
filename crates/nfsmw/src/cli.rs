@@ -67,7 +67,7 @@ pub enum Command {
 /// Options shared by the viewers.
 #[derive(Args, Clone)]
 pub struct ViewArgs {
-    /// Graphics backend: auto, vulkan, dx12, dx11 (not implemented yet) or gl.
+    /// Graphics backend: auto, vulkan, dx12 or gl.
     #[arg(long, default_value = "auto")]
     pub backend: Backend,
     /// Disable vsync.

@@ -7,20 +7,13 @@ use winit::window::Window;
 use super::{Renderer, instances, pipelines, resources, slots::Slots};
 use crate::{Backend, PixelFormat, RenderError, RendererOptions, TextureDesc};
 
-fn wgpu_backends(backend: Backend) -> Result<wgpu::Backends, RenderError> {
-    Ok(match backend {
+fn wgpu_backends(backend: Backend) -> wgpu::Backends {
+    match backend {
         Backend::Auto => wgpu::Backends::PRIMARY | wgpu::Backends::GL,
         Backend::Vulkan => wgpu::Backends::VULKAN,
         Backend::Dx12 => wgpu::Backends::DX12,
         Backend::Gl => wgpu::Backends::GL,
-        Backend::Dx11 => {
-            return Err(RenderError::BackendUnavailable(
-                "the Direct3D 11 backend is not implemented yet: wgpu has no D3D11 backend, so it needs its \
-                 own renderer (planned, see docs/architecture.md). Use --backend dx12, vulkan or gl."
-                    .into(),
-            ));
-        }
-    })
+    }
 }
 
 pub(super) fn create(
@@ -29,7 +22,7 @@ pub(super) fn create(
     options: RendererOptions,
 ) -> Result<Renderer, RenderError> {
     let mut desc = wgpu::InstanceDescriptor::new_without_display_handle().with_display_handle(Box::new(display));
-    desc.backends = wgpu_backends(options.backend)?;
+    desc.backends = wgpu_backends(options.backend);
     let instance = wgpu::Instance::new(desc);
     let surface = instance.create_surface(window.clone()).map_err(|e| RenderError::Surface(e.to_string()))?;
 

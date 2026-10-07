@@ -2,9 +2,8 @@
 //!
 //! The public API is backend-neutral: callers hand over meshes (the games'
 //! common 36-byte vertex), textures and per-frame instance lists, and never see
-//! a `wgpu` type. Today everything runs on `wgpu`, which gives Vulkan,
-//! Direct3D 12 and OpenGL. Direct3D 11 is accepted by [`Backend`] but needs its
-//! own implementation, because wgpu dropped its D3D11 backend.
+//! a `wgpu` type. Everything runs on `wgpu`, which gives Vulkan, Direct3D 12
+//! and OpenGL.
 //!
 //! Layout:
 //! - [`api`](crate::api): the types callers use;
