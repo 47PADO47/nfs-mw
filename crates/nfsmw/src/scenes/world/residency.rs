@@ -12,6 +12,13 @@ use super::resident::{Placed, SectionResources, place};
 const MAX_IN_FLIGHT: usize = 8;
 /// Tiles uploaded per frame (uploads run on the render thread).
 const UPLOADS_PER_FRAME: usize = 2;
+/// Tiles at least this large are map-wide backdrops (the oceans, distant
+/// panoramas): 37 tiles, 8 MB in total. They stay loaded wherever the camera is.
+const ALWAYS_LOADED_RADIUS: f32 = 1000.0;
+
+fn always_loaded(section: &StreamingSection) -> bool {
+    section.is_spatial() && section.radius >= ALWAYS_LOADED_RADIUS
+}
 
 enum TileState {
     Requested,
@@ -134,8 +141,12 @@ impl Residency {
 
     fn unload_far(&mut self, renderer: &mut Renderer, x: f32, y: f32) {
         let keep = self.load_radius * 1.25 + 50.0;
-        let far: Vec<usize> =
-            self.tiles.keys().copied().filter(|&i| self.sections[i].distance_to(x, y) > keep).collect();
+        let far: Vec<usize> = self
+            .tiles
+            .keys()
+            .copied()
+            .filter(|&i| !always_loaded(&self.sections[i]) && self.sections[i].distance_to(x, y) > keep)
+            .collect();
         for i in far {
             if let Some(TileState::Resident { resources, .. }) = self.tiles.remove(&i) {
                 resources.release(renderer);
@@ -147,7 +158,7 @@ impl Residency {
         let in_flight = self.tiles.values().filter(|s| matches!(s, TileState::Requested)).count();
         let mut wanted: Vec<(f32, usize)> = (0..self.sections.len())
             .filter(|&i| self.sections[i].is_spatial() && !self.tiles.contains_key(&i))
-            .map(|i| (self.sections[i].distance_to(x, y), i))
+            .map(|i| (if always_loaded(&self.sections[i]) { 0.0 } else { self.sections[i].distance_to(x, y) }, i))
             .filter(|&(d, _)| d <= self.load_radius)
             .collect();
         wanted.sort_by(|a, b| a.0.total_cmp(&b.0));
