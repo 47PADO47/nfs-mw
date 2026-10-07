@@ -56,18 +56,92 @@ checked against all 720 records in this install.
 | 0x34 | u32 | Checksum | |
 | 0x38… | | timestamps, priorities, `pMemory`, `pDiscBundle`, LoadedSize | runtime, zero on disk |
 
-### Section families **[verified layout; purpose of V/X/Y/Z is unconfirmed]**
+### Section families **[verified]**
 
 | Letters | Count | Total size | Has position | Content |
 |---|---|---|---|---|
 | A–T (no K, N) | 605 | ~375 MB | yes | City tiles: textures + geometry + scenery + collision + events |
 | V | 54 | 18.9 MB | no | Geometry + textures |
-| X | 22 | 19.4 MB | no | Geometry only (`X0` is 18.7 MB) |
-| Y | 38 | 118.7 MB | no | Textures only |
-| Z | 1 | 1.3 KB | no | Scenery only |
+| X | 22 | 19.4 MB | no | Geometry only (`X0` is 18.7 MB); the decomp calls X/U "library" sections |
+| Y | 38 | 118.7 MB | no | Textures only; the decomp calls Y/W "texture" sections |
+| Z | 1 | 1.3 KB | no | Scenery only: the sky domes and the airliner |
 
-The spatial tiles probably stream by distance (Centre/Radius). V/X/Y/Z are probably shared sets loaded
-alongside them, such as shared textures. **[unconfirmed]**
+Of the shared sets, only `Z0` places scenery; V/X/Y only hold models and textures that tile scenery uses.
+
+**The number inside a letter** says what a tile is. The split point is the `LODOffset` in
+`VisibleSectionManagerInfo` (below), 40 in MW **[verified + decomp]**:
+
+| Number | Count | What it is |
+|---|---|---|
+| 1–39 | 90 | Close-up detail of a **drivable section** (only where it is split off) |
+| 41–79 | 435 | Section *n*'s geometry seen from further away (= *n* + 40); where *n* has no own tile, it is the whole of *n* |
+| 80–89 | 34 | Non-drivable scenery (tree lines along highways, `C81`'s petrol station); `R86`–`R89` are panoramas |
+| 90–99 | 46 | **Panoramas**: low-detail backdrops (`PAN_Island_*`, `PAN_Mountains_*`, `Panorama_TC_City`), radius 1–6.5 km |
+
+Tiles are **not streamed by distance**: which ones are loaded and drawn comes from the visible-section
+tables below ([../specs/visible-sections.md](../specs/visible-sections.md)). Panoramas in particular sit in
+the middle of the map (`C99`'s `Panorama_TC_City` covers x −309…1783, y −1145…938) and are only drawn from
+the zones that list them.
+
+## Visible sections: zones **[decomp layout, verified on all records]**
+
+`80034150 VisibleSectionManager` in `L2RA.BUN` divides the map into 2D **zones** (one per drivable
+section) and lists, per zone, the sections to load and draw. Children:
+
+| Chunk | Size | Content |
+|---|---|---|
+| `00034151 VisibleSectionManagerInfo` | 808 B | `i32 LODOffset` (40), then `DrivableSectionsInRegion`: `i32 count` (373) + `i16[400]` section numbers |
+| `00034152 VisibleSectionBoundaries` | 52,876 B | 515 variable-size boundary polygons |
+| `00034155 LoadingSections` | 2,964 B | 39 × 0x4C loading groups |
+| `00034153 DrivableScenerySections` | 46,904 B | 435 variable-size visible lists |
+
+Records start with an 8-byte list node (two pointers, `0x0000000B` on disk), and payloads start right
+after the chunk header (no alignment padding). All fields are little-endian.
+
+**VisibleSectionBoundary**, `0x24 + 8 × NumPoints` bytes:
+
+| Offset | Type | Field |
+|---|---|---|
+| 0x08 | i16 | SectionNumber |
+| 0x0A | i8 | NumPoints (≤ 16) |
+| 0x0B | i8 | PanoramaBoundary (1 on 49 boundaries) |
+| 0x0C | f32 ×2 | BBoxMin (x, y) |
+| 0x14 | f32 ×2 | BBoxMax |
+| 0x1C | f32 ×2 | Centre |
+| 0x24 | f32 ×2 × NumPoints | Points, a closed polygon |
+
+435 boundaries belong to drivable sections (numbers 1–39); they **never overlap** (checked on a 20 m grid
+over the whole map: every point is in at most one, 79 % of the bounding rectangle is covered). The other
+80 belong to non-drivable sections (80–99).
+
+**DrivableScenerySection**, `0x14 + 2 × MaxVisibleSections` bytes:
+
+| Offset | Type | Field |
+|---|---|---|
+| 0x08 | u32 | pBoundary (runtime, 0 on disk) |
+| 0x0C | i16 | SectionNumber |
+| 0x0E | i8 | MostVisibleSections |
+| 0x0F | i8 | MaxVisibleSections (record capacity) |
+| 0x10 | i16 | NumVisibleSections (2–68 in MW) |
+| 0x12 | i16 × Max | VisibleSections, sorted; then 2 bytes of padding |
+
+Lists name drivable (*n*), far (*n* + 40), non-drivable and panorama tiles and the V/X/Y sets around the
+zone; 5,533 of the 16,265 entries name a section that is not in the stream (a drivable number whose
+content lives in its *n* + 40 tile). Every drivable section has a boundary and a *n* + 40 tile. Four
+panoramas are in **no** list and are never drawn: `A91`, `A94`, `C99`, `O93`.
+
+The 66 drivable sections **not** in `DrivableSectionsInRegion` are exactly the ones whose list holds 2–20
+entries, mostly just themselves and *n* + 40 (`T14`: `T14 T54 V43`): zones a car never reaches. The
+decomp never reads the region list at runtime **[verified; purpose unconfirmed]**.
+
+**LoadingSection**, 0x4C bytes: `char[15] Name` at 0x08 (`CP1`…, `CT1`…, `TC1`…), `i8 DefaultFlag` at
+0x17, `i16 NumDrivableSections` at 0x18, `i16[16] DrivableSections` at 0x1A, `i16 NumExtraSections` at
+0x3A, `i16[8] ExtraSections` at 0x3C. They group neighbouring zones that load as one, plus extra tiles
+(often panoramas: `CP14` adds `O90`, `D56`, `V56`).
+
+**VisibleSectionOverlays** (`00034158`, top level): `char[40] Name` at 0x08, `i32 NumEntries` at 0x30,
+then 6-byte entries `{i8 AddRemove, i8 pad, i16 DrivableSection, i16 Section}` at 0x34. MW has `FlyBy`
+(500 entries) and `E3Demo` (empty); they edit visible lists while active.
 
 ## A streamed section's contents **[verified]**
 

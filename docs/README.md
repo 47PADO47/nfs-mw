@@ -35,7 +35,7 @@ against the install at `D:/Need For Speed Most Wanted Black Edition`.
 | [architecture.md](architecture.md) | `libs/` (engine-generic) vs `crates/` (MW), finding the install, the streamed city, graphics backends, Windows/Linux, testing, roadmap |
 | [rust-stack.md](rust-stack.md) | Crates used and planned, with versions and licenses; rejected options |
 | [licensing.md](licensing.md) | Project license, what each source license allows, unlicensed repos, the spec-first process |
-| [specs/](specs/README.md) | Behaviour specs written before implementing it from decompiled sources: [scenery visibility](specs/scenery-visibility.md), [scenery LOD](specs/scenery-lod.md), [car assembly](specs/car-assembly.md) |
+| [specs/](specs/README.md) | Behaviour specs written before implementing it from decompiled sources: [scenery visibility](specs/scenery-visibility.md), [scenery LOD](specs/scenery-lod.md), [visible sections](specs/visible-sections.md), [car assembly](specs/car-assembly.md) |
 | [provenance/](provenance/README.md) | Records for modules whose behaviour came from restricted sources |
 
 ### Research
@@ -97,7 +97,6 @@ against the install at `D:/Need For Speed Most Wanted Black Edition`.
 | Question | Where to look |
 |---|---|
 | Meaning of `PermSize` in `TrackStreamingSection` | `World/TrackStreamer.cpp` in the decomp |
-| Purpose of the non-spatial V / X / Y / Z section families | `World/TrackStreamer.cpp` |
 | `TroughBoundary.bin` chunk `0x00034190` (not in the decomp's chunk list) | — |
 | EAGL bank header and channel layouts | `EAGL4Anim/*` in the decomp |
 | Where a compressed palettized texture keeps its palette | no example in car packs; check world/frontend streams |
