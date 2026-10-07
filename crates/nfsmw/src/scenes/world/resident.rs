@@ -28,6 +28,8 @@ pub struct Placed {
 pub struct SectionResources {
     pub materials: HashMap<u32, (TextureHandle, BlendMode)>,
     pub meshes: HashMap<u32, (MeshHandle, LodModel)>,
+    /// Animated textures defined here; frames may live here or in the shared sets.
+    pub anims: Vec<blackbox_tpk::TextureAnim>,
 }
 
 impl SectionResources {
@@ -58,6 +60,16 @@ impl SectionResources {
             }
         }
         self.meshes.extend(meshes);
+    }
+
+    /// Show each animation's current frame (`seconds` since the scene started).
+    pub fn animate(&self, renderer: &mut Renderer, seconds: f32, fallback: &SectionResources) {
+        let texture = |hash: u32| self.materials.get(&hash).or_else(|| fallback.materials.get(&hash)).map(|m| m.0);
+        for anim in &self.anims {
+            if let (Some(base), Some(frame)) = (texture(anim.name_hash), anim.frame_at(seconds).and_then(texture)) {
+                renderer.redirect_texture(base, Some(frame));
+            }
+        }
     }
 
     pub fn mesh(&self, hash: u32, fallback: &SectionResources) -> Option<(MeshHandle, LodModel)> {

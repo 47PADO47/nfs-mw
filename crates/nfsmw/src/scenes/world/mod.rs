@@ -34,6 +34,8 @@ pub struct WorldScene {
     grounded: bool,
     wait_for_load: bool,
     visible: Vec<Instance>,
+    /// Seconds since the scene started, for texture animations.
+    clock: f32,
 }
 
 const CLEAR: [f32; 3] = [0.55, 0.63, 0.72];
@@ -61,6 +63,7 @@ impl WorldScene {
             grounded: false,
             wait_for_load: options.wait_for_load,
             visible: Vec::new(),
+            clock: 0.0,
         })
     }
 
@@ -83,6 +86,8 @@ impl Scene for WorldScene {
         self.camera.update(input, dt);
         let p = self.camera.position;
         self.residency.update(renderer, p.x, p.y);
+        self.clock += dt;
+        self.residency.animate(renderer, self.clock);
         if !self.grounded && self.residency.complete_at(self.start[0], self.start[1]) {
             self.grounded = true;
             let ground = ground::height_near(self.residency.placed(), self.start[0], self.start[1], 150.0);

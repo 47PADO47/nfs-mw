@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use blackbox_render::Renderer;
 use blackbox_streaming::StreamingSection;
-use nfsmw_data::world::{SectionData, Streamer, StreamerEvent};
+use nfsmw_data::world::{GlobalTextures, SectionData, Streamer, StreamerEvent};
 
 use super::resident::{Placed, SectionResources, place};
 
@@ -32,7 +32,7 @@ pub struct Residency {
     /// Shared sets wait here until all have arrived: their textures and models cross-reference.
     shared_pending: Vec<SectionData>,
     /// Textures from the global packs, uploaded with the shared sets.
-    global_textures: Vec<blackbox_tpk::Texture>,
+    globals: GlobalTextures,
     pub shared: SectionResources,
     pub shared_placed: Vec<Placed>,
     shared_ready: bool,
@@ -43,12 +43,7 @@ pub struct Residency {
 }
 
 impl Residency {
-    pub fn new(
-        sections: Vec<StreamingSection>,
-        streamer: Streamer,
-        global_textures: Vec<blackbox_tpk::Texture>,
-        load_radius: f32,
-    ) -> Self {
+    pub fn new(sections: Vec<StreamingSection>, streamer: Streamer, globals: GlobalTextures, load_radius: f32) -> Self {
         let shared: Vec<usize> = (0..sections.len()).filter(|&i| !sections[i].is_spatial()).collect();
         for &i in &shared {
             streamer.request(i);
@@ -58,7 +53,7 @@ impl Residency {
             sections,
             streamer,
             shared_pending: Vec::new(),
-            global_textures,
+            globals,
             shared: SectionResources::default(),
             shared_placed: Vec::new(),
             shared_ready: false,
@@ -109,7 +104,10 @@ impl Residency {
         for data in &pending {
             shared.upload_textures(renderer, data);
         }
-        shared.upload_texture_list(renderer, &std::mem::take(&mut self.global_textures));
+        let globals = std::mem::take(&mut self.globals);
+        shared.upload_texture_list(renderer, &globals.textures);
+        shared.anims.extend(globals.anims);
+        shared.anims.extend(pending.iter().flat_map(|d| d.anims.iter().cloned()));
         let empty = SectionResources::default();
         for data in &pending {
             shared.upload_meshes(renderer, data, &empty);
@@ -130,7 +128,7 @@ impl Residency {
             if !matches!(self.tiles.get(&data.index), Some(TileState::Requested)) {
                 continue; // unloaded while in flight
             }
-            let mut resources = SectionResources::default();
+            let mut resources = SectionResources { anims: data.anims.clone(), ..Default::default() };
             resources.upload_textures(renderer, &data);
             resources.upload_meshes(renderer, &data, &self.shared);
             let (placed, unresolved) = place(&data, &resources, &self.shared);
@@ -165,6 +163,17 @@ impl Residency {
         for (_, i) in wanted.into_iter().take(MAX_IN_FLIGHT.saturating_sub(in_flight)) {
             self.tiles.insert(i, TileState::Requested);
             self.streamer.request(i);
+        }
+    }
+
+    /// Advance every resident texture animation.
+    pub fn animate(&self, renderer: &mut Renderer, seconds: f32) {
+        let empty = SectionResources::default();
+        self.shared.animate(renderer, seconds, &empty);
+        for tile in self.tiles.values() {
+            if let TileState::Resident { resources, .. } = tile {
+                resources.animate(renderer, seconds, &self.shared);
+            }
         }
     }
 
