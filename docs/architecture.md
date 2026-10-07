@@ -246,7 +246,7 @@ render one frame off-screen. Use them to check rendering changes and backends wi
 | 5 | Vehicle physics, spec-first (`docs/specs/vehicle-physics.md`); world collision (`CarpWCollisionPack`); drive a car | |
 | 6 | Audio (EA-XA, EA-XAS engine loops, MicroTalk speech), VP6 movies, FEng menus, in-game settings menu | |
 | 7 | AI racers, traffic, pursuit, races; career data; console commands to spawn AI | |
-| 8 | Graphics: the car shader and lighting rig, post-processing, upscaling (FSR; DLSS where the backend allows it), ReShade compatibility | |
+| 8 | Graphics: the car shader and lighting rig, post-processing, upscaling (FSR; DLSS where the backend allows it), ReShade compatibility, Bevy Solari | |
 | 9 | LAN multiplayer; scripting API for mods | |
 | 10 | Discord Rich Presence | |
 
