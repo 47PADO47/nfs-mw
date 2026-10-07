@@ -7,8 +7,11 @@ before the Rust implementation. Required wherever the only source is decompiled 
 Written so far: [scenery-visibility.md](scenery-visibility.md) (exclude flags),
 [scenery-lod.md](scenery-lod.md) (level of detail), [visible-sections.md](visible-sections.md) (which world
 sections are loaded and drawn) and [car-assembly.md](car-assembly.md) (stock parts, wheels, brakes, paint,
-texture swaps, the car shader). Planned: vehicle physics (`vehicle-physics.md`: chassis, suspension, tires,
-engine, transmission).
+texture swaps, the car shader) and vehicle physics: [vehicle-engine-drivetrain.md](vehicle-engine-drivetrain.md),
+[vehicle-input-induction-brakes.md](vehicle-input-induction-brakes.md),
+[vehicle-suspension-tires.md](vehicle-suspension-tires.md),
+[vehicle-steering-assists-aero.md](vehicle-steering-assists-aero.md) and
+[vehicle-rigid-body.md](vehicle-rigid-body.md).
 
 ## Template
 
