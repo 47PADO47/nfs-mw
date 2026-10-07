@@ -4,22 +4,30 @@ use std::collections::HashMap;
 
 use blackbox_render::{BlendMode, MeshHandle, Renderer, Shading, TextureHandle};
 use blackbox_scene::{Aabb, blend_mode, upload_solid, upload_texture};
+use blackbox_scenery::LodModel;
 use glam::Mat4;
 use nfsmw_data::world::SectionData;
 
-/// One placed copy of a mesh.
+/// One placed scenery object: up to four LOD meshes, chosen per frame
+/// (`docs/specs/scenery-lod.md`).
 pub struct Placed {
-    pub mesh: MeshHandle,
+    pub lods: [Option<MeshHandle>; 4],
+    /// The slot-0 solid's polygon count and density, for the LOD choice.
+    pub detailed: Option<LodModel>,
     pub transform: Mat4,
     /// World-space bounds (from the scenery instance).
     pub bounds: Aabb,
+    pub position: [f32; 3],
+    /// `SceneryInfo::radius`.
+    pub radius: f32,
+    pub flags: u32,
 }
 
 /// Textures and meshes of a section, by name hash.
 #[derive(Default)]
 pub struct SectionResources {
     pub materials: HashMap<u32, (TextureHandle, BlendMode)>,
-    pub meshes: HashMap<u32, MeshHandle>,
+    pub meshes: HashMap<u32, (MeshHandle, LodModel)>,
 }
 
 impl SectionResources {
@@ -45,18 +53,19 @@ impl SectionResources {
         let mut meshes = Vec::new();
         for solid in &data.solids {
             if let Some(mesh) = upload_solid(renderer, solid, &lookup, shading_for(&solid.name)) {
-                meshes.push((solid.name_hash, mesh));
+                let lod = LodModel { num_polys: solid.num_polys, density: solid.density };
+                meshes.push((solid.name_hash, (mesh, lod)));
             }
         }
         self.meshes.extend(meshes);
     }
 
-    pub fn mesh(&self, hash: u32, fallback: &SectionResources) -> Option<MeshHandle> {
+    pub fn mesh(&self, hash: u32, fallback: &SectionResources) -> Option<(MeshHandle, LodModel)> {
         self.meshes.get(&hash).or_else(|| fallback.meshes.get(&hash)).copied()
     }
 
     pub fn release(self, renderer: &mut Renderer) {
-        for mesh in self.meshes.into_values() {
+        for (mesh, _) in self.meshes.into_values() {
             renderer.destroy_mesh(mesh);
         }
         for (texture, _) in self.materials.into_values() {
@@ -88,14 +97,21 @@ pub fn place(data: &SectionData, own: &SectionResources, shared: &SectionResourc
             if !inst.visible_in(rules.player_view, rules) || SKIPPED_MODELS.contains(&info.name.as_str()) {
                 continue;
             }
-            match info.best_solid().and_then(|key| own.mesh(key, shared)) {
-                Some(mesh) => placed.push(Placed {
-                    mesh,
-                    transform: Mat4::from_cols_array_2d(&inst.matrix_columns()),
-                    bounds: Aabb::new(inst.bbox_min, inst.bbox_max),
-                }),
-                None => unresolved += 1,
+            let resolved: Vec<_> =
+                info.solid_keys.iter().map(|&k| (k != 0).then(|| own.mesh(k, shared)).flatten()).collect();
+            if resolved.iter().all(Option::is_none) {
+                unresolved += 1;
+                continue;
             }
+            placed.push(Placed {
+                lods: std::array::from_fn(|i| resolved.get(i).copied().flatten().map(|(m, _)| m)),
+                detailed: resolved.first().copied().flatten().map(|(_, lod)| lod),
+                transform: Mat4::from_cols_array_2d(&inst.matrix_columns()),
+                bounds: Aabb::new(inst.bbox_min, inst.bbox_max),
+                position: inst.position,
+                radius: info.radius,
+                flags: inst.exclude_flags,
+            });
         }
     }
     (placed, unresolved)

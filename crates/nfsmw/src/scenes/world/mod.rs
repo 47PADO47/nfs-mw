@@ -93,7 +93,14 @@ impl Scene for WorldScene {
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
         let view_proj = self.camera.view_proj(aspect);
         let distance = self.draw_distance();
-        visibility::collect(self.residency.placed(), &view_proj, self.camera.position, distance, &mut self.visible);
+        let camera = visibility::Camera {
+            view_proj,
+            position: self.camera.position.to_array(),
+            forward: self.camera.forward().to_array(),
+            fov_y_radians: FlyCamera::FOV_Y_DEGREES.to_radians(),
+        };
+        let rules = &blackbox_scenery::layout::MOST_WANTED.lod;
+        visibility::collect(self.residency.placed(), &camera, rules, &mut self.visible);
         let params = FrameParams {
             view_proj,
             camera_position: self.camera.position,

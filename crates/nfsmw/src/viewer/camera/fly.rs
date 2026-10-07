@@ -17,6 +17,8 @@ pub struct FlyCamera {
 }
 
 impl FlyCamera {
+    pub const FOV_Y_DEGREES: f32 = 70.0;
+
     pub fn forward(&self) -> Vec3 {
         direction(self.yaw, self.pitch)
     }
@@ -40,6 +42,6 @@ impl FlyCamera {
     }
 
     pub fn view_proj(&self, aspect: f32) -> Mat4 {
-        view_proj(self.position, self.position + self.forward(), 70.0, aspect, 0.5)
+        view_proj(self.position, self.position + self.forward(), Self::FOV_Y_DEGREES, aspect, 0.5)
     }
 }
