@@ -35,6 +35,17 @@
 - **CI** runs `cargo xtask check`, then fmt, clippy (`-D warnings`), tests on Windows and Linux, and
   `cargo deny check licenses`.
 
+## Commits
+
+- **Small commits, one logical change each:** a library, a feature, a fix, a doc update. Don't bundle a
+  milestone into one commit.
+- **[Conventional Commits](https://www.conventionalcommits.org/):** `type(scope): summary`, imperative and
+  lower case, for example `feat(blackbox-attrib): read VPAK vaults`, `fix(world): blend SHD_ overlays`,
+  `docs(formats): document scenery rotation`. Types: `feat`, `fix`, `refactor`, `perf`, `test`, `docs`,
+  `build`, `ci`, `chore`, `style`. The scope is the crate (`blackbox-tpk`, `nfsmw-data`, `nfsmw`) or the
+  area (`formats`, `specs`, `xtask`, `ci`). Use the body for the why.
+- Every commit passes `cargo xtask check` (the pre-commit hook runs it) and builds.
+
 ## Workflow
 
 ```sh
