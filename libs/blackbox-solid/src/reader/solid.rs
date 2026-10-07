@@ -37,6 +37,8 @@ pub fn read_solid(pack: Chunk<'_>) -> Result<Solid> {
         bounds_min: vec3_at(info, l.bounds_min),
         bounds_max: vec3_at(info, l.bounds_max),
         transform,
+        num_polys: u16_at(info, l.num_polys),
+        density: f32_at(info, l.density),
         texture_hashes: hash_list(ids::SOLID_TEXTURES),
         light_material_hashes: hash_list(ids::SOLID_LIGHT_MATERIALS),
         vertex_buffers: Vec::new(),

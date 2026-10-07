@@ -14,6 +14,8 @@ pub const V16: SolidLayout = SolidLayout {
         bounds_min: 0x20,
         bounds_max: 0x30,
         transform: 0x40,
+        num_polys: 0x14,
+        density: 0x9C,
         name: 0xA0,
     },
     group: GroupLayout {

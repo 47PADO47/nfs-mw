@@ -17,6 +17,10 @@ pub struct InfoLayout {
     pub bounds_min: usize,
     pub bounds_max: usize,
     pub transform: usize,
+    /// `i16` polygon count.
+    pub num_polys: usize,
+    /// `f32` polygon density, used by scenery LOD selection.
+    pub density: usize,
     /// NUL-terminated name.
     pub name: usize,
 }

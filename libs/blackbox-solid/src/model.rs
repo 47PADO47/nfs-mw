@@ -64,6 +64,10 @@ pub struct Solid {
     pub bounds_max: [f32; 3],
     /// Pivot matrix, row-major as stored.
     pub transform: [f32; 16],
+    /// Polygon count from the header (0 in car files; use the shading groups there).
+    pub num_polys: u16,
+    /// Polygon density from the header; scenery LOD selection uses it.
+    pub density: f32,
     /// bStringHash of each texture the solid uses.
     pub texture_hashes: Vec<u32>,
     pub light_material_hashes: Vec<u32>,
