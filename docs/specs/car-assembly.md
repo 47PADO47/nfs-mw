@@ -81,8 +81,9 @@ A part's model table gives one name per LOD `A`–`E` [decomp; verified on 13,08
 - **Plain** table: the entry is already the solid's `bStringHash`, or `0xFFFFFFFF` for "no model at this
   LOD".
 - **Templated** table: build the hash incrementally (`bStringHash` continues from a previous hash):
-  start from a base hash chosen by the part's selector (0 → `0xFFFFFFFF`, i.e. empty; 1 → the car type
-  name; 2 → the part's `BRAND_NAME` attribute), then append the table's middle string (if any), the
+  start from a base hash chosen by the part's selector (0 → `0xFFFFFFFF`, i.e. empty; 1 → the part's own
+  type name, which for car parts is the car type name; 2 → the part's `BRAND_NAME` attribute, which already
+  holds a hash), then append the table's middle string (if any), the
   entry's string, and `_A`…`_E`. Example: `BMWM3GTR` + `_KIT00` + `_BODY` + `_A` =
   `BMWM3GTR_KIT00_BODY_A`; aftermarket rims: `BBS` + `_STYLE01_18_25` + `_A`.
 - If no loaded solid has that hash, the slot simply draws nothing at that LOD. Many stock parts name
@@ -105,7 +106,8 @@ Decal models always use LOD A; interior and driver have their own ranges. A view
 
 Wheel positions come **only from AttribSys** (`ecar` collection keyed by the lower-case base model name,
 e.g. `bmwm3gtr`, with inheritance through parents up to `default`). No solid carries a wheel marker
-[verified: census of every car `GEOMETRY.BIN`]. Inputs per car:
+[verified: census of every car `GEOMETRY.BIN`]. One car type, `BMWM3`, has no `ecar` collection (no
+gameplay vehicle uses it) and so no wheel placement [verified]. Inputs per car:
 
 | `ecar` field | Use |
 |---|---|
@@ -212,7 +214,8 @@ verified]:
 | `BRAKELIGHT_LEFT/RIGHT/CENTRE`, `BRAKELIGHT_GLASS_*` | `<CAR>_KIT00_BRAKELIGHT_OFF`, `…_GLASS_OFF` (`_ON` while braking) |
 | `DUMMY_DECAL1…6`, `DUMMY_NUMBER_LEFT/RIGHT`, 26 `*_DECAL` names (`HOOD_DECAL`, `LEFT_DOOR_DECAL`, …) | `DEFAULTALPHA` (32×32 DXT3, alpha 0) |
 | `<CAR>_TIRE` | itself; `TRAFFIC_TIRE` for traffic cars |
-| `WINDOW_*`, `REAR_DEFROSTER` | themselves (damaged: `WINDOW_DAMAGE0`) |
+| `WINDOW_FRONT`, `WINDOW_REAR`, `WINDOW_{LEFT,RIGHT}_{FRONT,REAR}` | `WINDOW_FRONT` while undamaged, `WINDOW_DAMAGE0` when damaged [decomp] |
+| `REAR_DEFROSTER` | itself (damaged: `WINDOW_DAMAGE0`) |
 | `CARBONFIBRE` skin set | only for carbon hoods (`CARBONFIBRE` attribute) |
 
 ## 7. Paint
