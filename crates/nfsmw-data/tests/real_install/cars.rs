@@ -41,9 +41,71 @@ fn bmw_m3_gtr_matches_documented_numbers() {
 
 #[test]
 #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
-fn car_loader_finds_most_textures() {
+fn bmw_m3_gtr_assembles() {
+    use nfsmw_data::car::{LoadOptions, slot};
     let Some(dir) = install() else { return };
-    let car = nfsmw_data::car::load(&dir, "BMWM3GTR", 'A', false).unwrap();
-    assert_eq!(car.solids.len(), 25);
+    let options = LoadOptions { lod: 'A', all_parts: false, preset: None };
+    let car = nfsmw_data::car::load(&dir, "BMWM3GTR", &options).unwrap();
+    assert_eq!(car.car_type.as_deref(), Some("BMWM3GTR"));
+    // docs/specs/car-assembly.md §7: stock paint METAL_L1_COLOR02, #4F4F4F.
+    let paint = car.paint.as_ref().unwrap();
+    assert_eq!((paint.name.as_str(), paint.hex().as_str()), ("METAL_L1_COLOR02", "#4F4F4F"));
+    // Four wheels (the front tyre solid at every corner) and four brakes.
+    let wheel = blackbox_hash::bstring_hash("BMWM3GTR_KIT00_FRONT_TIRE_A");
+    let wheels: Vec<_> = car.placements.iter().filter(|p| p.solid == wheel).collect();
+    assert_eq!(wheels.len(), 4);
+    let brakes = car.placements.iter().filter(|p| p.slot == slot::FRONT_BRAKE || p.slot == slot::REAR_BRAKE);
+    assert_eq!(brakes.count(), 4);
+    // Nothing hidden in the front end is placed.
+    let names: Vec<&str> = car.placements.iter().map(|p| car.solids[&p.solid].name.as_str()).collect();
+    assert!(names.iter().all(|n| !n.contains("DAMAGE0") && !n.contains("DRIVER") && !n.contains("DECAL")), "{names:?}");
+    assert!(names.contains(&"BMWM3GTR_KIT00_BODY_A") && names.contains(&"BMWM3GTR_BASE_A"));
+    assert!((car.floor_height - 0.095).abs() < 1e-3, "{}", car.floor_height);
     assert!(car.textures.len() >= 15, "{} textures", car.textures.len());
+}
+
+/// docs/specs/car-assembly.md §1: the stock rule reproduces the CE_GTRSTREET preset exactly.
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn stock_m3_gtr_matches_its_preset() {
+    use blackbox_carparts::PresetRide;
+    use nfsmw_data::car::{CarTables, stock_parts};
+    let Some(dir) = install() else { return };
+    let t = CarTables::load(&dir).unwrap();
+    let car = t.car_type_for_folder("BMWM3GTR").unwrap();
+    let stock = stock_parts(&t, car);
+    let preset = t.preset("CE_GTRSTREET").unwrap();
+    let mut listed = 0;
+    for (slot, &hash) in preset.parts.iter().enumerate() {
+        if hash == PresetRide::STOCK {
+            continue;
+        }
+        let ours = stock[slot].map_or(PresetRide::EMPTY, |p| p.name_hash);
+        assert_eq!(ours, hash, "slot {slot} ({})", nfsmw_data::car::LAYOUT.slots[slot].name);
+        listed += usize::from(hash != PresetRide::EMPTY);
+    }
+    assert_eq!(listed, 81);
+}
+
+/// Every car type assembles with its wheels placed.
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn every_car_type_assembles() {
+    use nfsmw_data::car::{CarTables, LoadOptions, slot};
+    let Some(dir) = install() else { return };
+    let t = CarTables::load(&dir).unwrap();
+    let options = LoadOptions { lod: 'A', all_parts: false, preset: None };
+    let mut without_wheels = Vec::new();
+    for folder in nfsmw_data::car::list(&dir) {
+        if t.car_type_for_folder(&folder).is_none() {
+            continue;
+        }
+        let car = nfsmw_data::car::load(&dir, &folder, &options).unwrap_or_else(|e| panic!("{folder}: {e:#}"));
+        if car.placements.iter().filter(|p| p.slot == slot::FRONT_WHEEL || p.slot == slot::REAR_WHEEL).count() != 4 {
+            without_wheels.push(folder);
+        }
+    }
+    // COPHELI has no wheels; BMWM3 has no ecar record (no gameplay vehicle uses it).
+    without_wheels.sort();
+    assert_eq!(without_wheels, ["BMWM3", "COPHELI"]);
 }

@@ -1302,6 +1302,7 @@ name = "nfsmw-data"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "blackbox-attrib",
  "blackbox-carparts",
  "blackbox-hash",
  "blackbox-scenery",
@@ -1310,6 +1311,7 @@ dependencies = [
  "blackbox-tpk",
  "ea-compress",
  "game-install",
+ "glam",
  "log",
 ]
 
