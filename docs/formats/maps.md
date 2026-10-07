@@ -226,7 +226,8 @@ stay loaded while tiles stream independently.
 
 So, to rebuild the map:
 
-1. For each section, load its `GeometryPack`s into a `hash → solid` table.
+1. Pick the sections from the camera's zone ([../specs/visible-sections.md](../specs/visible-sections.md)), plus
+   the shared sets. For each, load its `GeometryPack`s into a `hash → solid` table.
 2. For each `SceneryInstance`, take `SceneryInfos[SceneryInfoNumber]`.
 3. Skip instances the player view excludes ([../specs/scenery-visibility.md](../specs/scenery-visibility.md)).
 4. Use the first non-zero `SolidMeshKey` (the highest LOD) to find the model, looking in the tile first and

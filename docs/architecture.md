@@ -68,7 +68,8 @@ Linux. `nfsmw check-install` shows what was found.
 ## The streamed city (`view-world`)
 
 ```
-TRACKS/L2RA.BUN ──► blackbox-streaming: 720 sections (605 map tiles, 115 shared sets)
+TRACKS/L2RA.BUN ──► blackbox-streaming: 720 sections (605 map tiles, 115 shared sets),
+                    435 zones with their visible lists
 TRACKS/STREAML2RA.BUN ─► loader threads (nfsmw-data::world::Streamer)
                           read a section's byte range → blackbox-solid / -tpk / -scenery
                         ─► render thread (scenes/world/residency.rs)
@@ -77,14 +78,23 @@ TRACKS/STREAML2RA.BUN ─► loader threads (nfsmw-data::world::Streamer)
 
 - **Shared sets (V/X/Y/Z) load once, at startup**, all together, because their models and textures refer to
   each other (2,734 models, 2,111 textures).
-- **Map tiles stream by distance.** Tiles within `--load-radius` (default 450 m) of the camera are requested
-  nearest first, at most 8 in flight, on 2–6 worker threads. Up to 2 tiles are uploaded per frame. Tiles
-  beyond 1.25 × radius + 50 m are released (GPU meshes and textures freed).
+- **Map tiles stream by zone, as in the game** ([specs/visible-sections.md](specs/visible-sections.md)).
+  The map is split into 435 2D zones (one per drivable section). The camera's zone names the tiles to
+  load (its loading section's union of visible lists, or its own list) and the tiles to draw (its own
+  visible list); nothing else is drawn, even when loaded. Tiles are requested drawn ones first, nearest
+  first, at most 8 in flight, on 2–6 worker threads; up to 2 are uploaded per frame. When the zone
+  changes, the previous zone's tiles stay drawn until the new zone's tiles are resident; then the tiles
+  it no longer needs are released (GPU meshes and textures freed).
+- **Free camera:** the 66 zones outside the region's drivable list are places a car never reaches, with
+  almost empty lists; over them, and off the map, the camera keeps its last zone. It starts in the
+  region zone nearest to the start point. The status line shows the zone (`zone D14`).
 - **Resolution:** a tile's instances use the tile's own models first, then the shared sets. Measured on the
   whole stream, that resolves 77,722 of 77,776 tile instances; none needs another tile
   ([maps.md](formats/maps.md#scenery-placing-models-in-the-world)).
-- **Map-wide tiles:** the 37 tiles with a radius over 1 km (the ocean planes, distant panoramas; 8 MB) are
-  always resident.
+- **Panoramas** (tiles 90–99: islands, mountains, low-detail city cards, the oceans `R88`/`R89`) are
+  only drawn from the zones that list them. They sit in the middle of the map: drawn from anywhere else
+  (as the old distance-based loading did) they stand across roads and over the real buildings
+  ([maps.md](formats/maps.md#section-families-verified)).
 - **Visibility:** instances hidden by their exclude flags (race barriers, animated props) are dropped when
   placed ([specs/scenery-visibility.md](specs/scenery-visibility.md)). Each frame the remaining instances are
   frustum-culled using their stored world boxes. Then the game's LOD rule picks slot 0 or slot 2, or nothing
@@ -93,8 +103,8 @@ TRACKS/STREAML2RA.BUN ─► loader threads (nfsmw-data::world::Streamer)
 - **Sky:** the `SKYDOME` and `SKYDOME_XENON` scenery models, textured from `GLOBAL/InGameA.bun`, drawn
   with the fog-free sky shading. Texture animations (water, signals) advance every frame. Depth is reverse-Z with an infinite far plane, so the 9.7 km dome is never clipped.
 - **Shading:** world geometry is pre-lit (vertex colour × 2, no sun); blending follows each texture's
-  `AlphaBlendType` ([textures.md](formats/textures.md#alpha)). Linear fog from 0.8× to 1.6× the load radius
-  (default 700 m) hides the streaming edge.
+  `AlphaBlendType` ([textures.md](formats/textures.md#alpha)). Linear fog from half of `--fog-distance` to
+  all of it (default 3 km); placeholder until the game's fog is known.
 - **Camera:** free-fly (WASD, Space/C, Shift, right-drag to look, scroll for speed). It starts above the
   centre of the city, or at `--at X,Y`, at `--height` metres above the ground; the ground is estimated from
   the scenery boxes until collision is loaded.
@@ -103,9 +113,14 @@ Known gaps, for later milestones:
 
 - **Not drawn yet:** `SKY_SPECULAR`, water reflections, cars and traffic, and the world animations
   (cranes, the airliner).
+- **High above the streets** the city has holes and buildings without ground: the zone lists only hold
+  what can be seen from the road, as in the game.
 - **Approximations:**
   - the LOD pixel scale assumes a 480-line reference screen;
-  - no scenery overrides, so race barriers are never shown;
+  - no scenery overrides, so race barriers are never shown (and the garage-door group the game enables
+    at load time stays hidden);
+  - no zone prediction from the car's velocity, no visible-section overlays (`FlyBy`), and every V/X/Y
+    set stays loaded instead of streaming with the zones;
   - placeholder lighting instead of the game's `fx` effects and time of day.
 
 ## Graphics backends
@@ -150,7 +165,9 @@ The real-install tests check:
 - the BMW M3 GTR matches [models.md](formats/models.md);
 - the car and global texture packs decode;
 - all 720 world sections parse (20,377 solids, 3,644 textures, 77,783 scenery instances), and tile scenery
-  resolves.
+  resolves;
+- the visible-section tables parse (515 boundaries, 435 zones, 39 loading sections), zones never overlap,
+  and only the panoramas `A91`, `A94`, `C99`, `O93` are in no zone's list.
 
 The whole stream parses in under a second in release builds.
 

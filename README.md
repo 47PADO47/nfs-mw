@@ -8,7 +8,8 @@ data at runtime from **your own install**. This repository contains no game file
 - **Install:** finds and checks your copy of the game.
 - **Data:** decodes the data containers (bChunk, JDLZ, HUFF) and reads cars, texture packs and the streamed
   city.
-- **Viewers:** shows any car assembled from its stock parts, or lets you fly through Rockport while map tiles stream in around the camera.
+- **Viewers:** shows any car assembled from its stock parts, or lets you fly through Rockport while map tiles
+  stream in zone by zone, as in the game.
   Both run on Vulkan, Direct3D 12 or OpenGL, on Windows and Linux.
 
 There's no driving yet; see the [roadmap](docs/architecture.md#roadmap).
@@ -31,7 +32,7 @@ config file, or the retail registry key ([details](docs/architecture.md#finding-
 | `check-install` | Shows where the install was found, identifies `speed.exe`, checks required files |
 | `list-cars` | Lists car folders |
 | `view-car [CAR]` | A car assembled from its stock parts (wheels, brakes, paint) on a floor: drag to rotate, scroll to zoom. Options: `--lod A..E`, `--preset NAME` (a `PresetRides` car such as `CE_GTRSTREET`), `--all-parts` (every solid, unassembled) |
-| `view-world` | Fly through the city: WASD, Space/C, Shift, mouse to look (Esc frees the cursor, click to capture it again), scroll for speed. Options: `--at X,Y`, `--height`, `--heading`, `--pitch`, `--load-radius` |
+| `view-world` | Fly through the city: WASD, Space/C, Shift, mouse to look (Esc frees the cursor, click to capture it again), scroll for speed. Options: `--at X,Y`, `--height`, `--heading`, `--pitch`, `--fog-distance` |
 
 Options for both viewers:
 
