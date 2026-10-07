@@ -1,7 +1,7 @@
-//! The streaming index of a track.
+//! The streaming index of a track, and its zones.
 
 use anyhow::{Context, Result};
-use blackbox_streaming::StreamingSection;
+use blackbox_streaming::{StreamingSection, VisibleSections};
 use game_install::GameDir;
 
 use crate::read_unwrapped;
@@ -9,6 +9,8 @@ use crate::read_unwrapped;
 pub struct WorldIndex {
     pub track: String,
     pub sections: Vec<StreamingSection>,
+    /// Zones and what each one loads and draws (`docs/specs/visible-sections.md`).
+    pub visible: VisibleSections,
     /// Install-relative path of the stream file.
     pub stream_file: String,
 }
@@ -19,13 +21,17 @@ impl WorldIndex {
         let meta = read_unwrapped(dir, &meta_file)?;
         let sections = blackbox_streaming::read_sections(&meta, &blackbox_streaming::layout::MOST_WANTED)
             .with_context(|| format!("reading the streaming index in {meta_file}"))?;
+        let visible =
+            blackbox_streaming::read_visible_sections(&meta, &blackbox_streaming::layout::MOST_WANTED_VISIBLE)
+                .with_context(|| format!("reading the visible sections in {meta_file}"))?;
         log::info!(
-            "{track}: {} sections ({} map tiles, {} shared)",
+            "{track}: {} sections ({} map tiles, {} shared), {} zones",
             sections.len(),
             sections.iter().filter(|s| s.is_spatial()).count(),
-            sections.iter().filter(|s| !s.is_spatial()).count()
+            sections.iter().filter(|s| !s.is_spatial()).count(),
+            visible.drivable.len()
         );
-        Ok(Self { track: track.to_owned(), sections, stream_file: format!("TRACKS/STREAM{track}.BUN") })
+        Ok(Self { track: track.to_owned(), sections, visible, stream_file: format!("TRACKS/STREAM{track}.BUN") })
     }
 
     /// Indices of the shared (non-spatial) sections.
@@ -47,5 +53,10 @@ impl WorldIndex {
 
     pub fn by_name(&self, name: &str) -> Option<usize> {
         self.sections.iter().position(|s| s.name.eq_ignore_ascii_case(name))
+    }
+
+    /// The index of the section with this number, if the stream has one.
+    pub fn by_number(&self, number: i16) -> Option<usize> {
+        self.sections.iter().position(|s| s.number == number)
     }
 }

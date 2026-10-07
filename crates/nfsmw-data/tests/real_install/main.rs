@@ -11,6 +11,7 @@ mod carparts;
 mod cars;
 mod textures;
 mod world;
+mod zones;
 
 use game_install::GameDir;
 use nfsmw_data::game::SPEC;
