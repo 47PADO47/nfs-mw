@@ -12,6 +12,7 @@ use blackbox_render::Backend;
 pub use partial::Partial;
 
 use crate::app::pacing::MaxFps;
+use crate::devtools::ShowMetrics;
 
 /// The resolved settings.
 #[derive(bevy_ecs::resource::Resource, Debug, Clone, Copy, PartialEq, Eq)]
@@ -19,6 +20,7 @@ pub struct Settings {
     pub backend: Backend,
     pub vsync: bool,
     pub max_fps: MaxFps,
+    pub show_metrics: ShowMetrics,
 }
 
 impl From<Partial> for Settings {
@@ -28,6 +30,7 @@ impl From<Partial> for Settings {
             backend: p.backend.unwrap_or_default(),
             vsync: p.vsync.unwrap_or(true),
             max_fps: p.max_fps.unwrap_or_default(),
+            show_metrics: p.show_metrics.unwrap_or_default(),
         }
     }
 }

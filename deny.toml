@@ -22,6 +22,12 @@ allow = [
 ]
 confidence-threshold = 0.9
 
+# egui's bundled UI fonts (Hack, Ubuntu-Light, Noto Emoji, emoji-icon-font). Embedding is allowed by
+# the SIL OFL 1.1 and the Ubuntu Font Licence as long as their notices ship with the binary; see NOTICE.
+exceptions = [
+    { allow = ["OFL-1.1", "Ubuntu-font-1.0"], crate = "epaint_default_fonts" },
+]
+
 [bans]
 multiple-versions = "allow"
 wildcards = "deny"

@@ -3,6 +3,8 @@
 mod app;
 mod cli;
 mod commands;
+mod devtools;
+mod gui;
 mod input;
 mod scenes;
 mod settings;

@@ -9,23 +9,39 @@ pub mod pacing;
 mod render;
 mod screenshot;
 
+pub use host::Host;
+
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use anyhow::{Result, anyhow};
 use bevy_a11y::AccessibilityPlugin;
 use bevy_app::{App, AppExit, Last, TaskPoolPlugin, Update};
-use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_gilrs::GilrsPlugin;
 use bevy_input::InputPlugin;
 use bevy_time::TimePlugin;
 use bevy_window::{Window, WindowPlugin, WindowResolution};
 use bevy_winit::WinitPlugin;
 
+use crate::devtools::DevToolsPlugin;
+use crate::gui::GuiPlugin;
 use crate::input::InputLayerPlugin;
 use crate::settings::Settings;
 use crate::viewer::Scene;
-use host::{ErrorSlot, Host};
+use host::ErrorSlot;
+
+/// The order of a frame's work in `Update`.
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FrameSet {
+    /// Create the renderer, handle the cursor, follow the window size.
+    Prepare,
+    SceneUpdate,
+    /// Build the UI (overlay, console).
+    Ui,
+    /// Hand the frame to the renderer.
+    Draw,
+}
 
 /// Open a window and run `scene` until the user quits (or write `screenshot` and exit).
 pub fn run(scene: Box<dyn Scene>, settings: &Settings, screenshot: Option<PathBuf>) -> Result<()> {
@@ -47,14 +63,16 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, screenshot: Option<PathBu
         WinitPlugin::default(),
         GilrsPlugin,
         InputLayerPlugin,
+        GuiPlugin,
+        DevToolsPlugin,
     ))
     .insert_resource(*settings)
     .insert_resource(error.clone())
     .insert_non_send(Host::new(scene, settings, screenshot))
-    .add_systems(
-        Update,
-        (render::create_renderer, cursor::update, render::resize, render::update_scene, render::draw).chain(),
-    )
+    .configure_sets(Update, (FrameSet::Prepare, FrameSet::SceneUpdate, FrameSet::Ui, FrameSet::Draw).chain())
+    .add_systems(Update, (render::create_renderer, cursor::update, render::resize).chain().in_set(FrameSet::Prepare))
+    .add_systems(Update, render::update_scene.in_set(FrameSet::SceneUpdate))
+    .add_systems(Update, render::draw.in_set(FrameSet::Draw))
     .add_systems(Last, pacing::end_of_frame);
 
     match app.run() {

@@ -10,6 +10,7 @@ use toml::{Table, Value};
 
 use super::partial::Partial;
 use crate::app::pacing::MaxFps;
+use crate::devtools::ShowMetrics;
 
 /// Read the layer from `path`. A missing file is an empty layer; a broken one is reported and ignored.
 pub fn read(path: &Path) -> Partial {
@@ -39,6 +40,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
             Value::Integer(n) => MaxFps::from_str(&n.to_string()),
             other => MaxFps::from_str(text_of(other)?),
         }),
+        show_metrics: field(&table, origin, "show_metrics", |v| ShowMetrics::from_str(text_of(v)?)),
     }
 }
 

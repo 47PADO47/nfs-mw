@@ -12,13 +12,16 @@ use blackbox_render::{Renderer, RendererOptions};
 
 use super::host::{ErrorSlot, Host};
 use super::screenshot;
+use crate::gui::UiOutput;
 use crate::input::{ActionState, MouseCapture};
 use crate::settings::Settings;
 
 /// Longest step a scene is asked to advance by, so a stall does not throw the camera across the map.
 const MAX_STEP: f32 = 0.1;
+/// Frames a screenshot run lets the UI and the metrics settle for before capturing.
+const SCREENSHOT_SETTLE_FRAMES: u32 = 3;
 
-/// Create the renderer as soon as the window has a native handle. Screenshot mode captures here and quits.
+/// Create the renderer as soon as the window has a native handle.
 #[allow(clippy::too_many_arguments)]
 pub fn create_renderer(
     mut host: NonSendMut<Host>,
@@ -36,20 +39,12 @@ pub fn create_renderer(
     let size = (win.physical_width(), win.physical_height());
     let options = RendererOptions { backend: settings.backend, vsync: settings.vsync };
     match start(&mut host, raw, size, &display, options) {
-        Ok(Started::Running) => capture.0 = host.scene.captures_mouse(),
-        Ok(Started::ScreenshotWritten) => {
-            exit.write(AppExit::Success);
-        }
+        Ok(()) => capture.0 = host.scene.captures_mouse() && host.screenshot.is_none(),
         Err(e) => {
             errors.set(e);
             exit.write(AppExit::error());
         }
     }
-}
-
-enum Started {
-    Running,
-    ScreenshotWritten,
 }
 
 #[allow(unsafe_code)]
@@ -59,20 +54,19 @@ fn start(
     size: (u32, u32),
     display: &DisplayHandleWrapper,
     options: RendererOptions,
-) -> anyhow::Result<Started> {
+) -> anyhow::Result<()> {
     // SAFETY: this runs in a system that takes `NonSendMut`, so it is on the main thread, which is
     // what `get_handle` requires.
     let handle = unsafe { raw.get_handle() };
     let mut renderer = Renderer::new(handle, size, display.0.clone(), options)?;
     log::info!("renderer: {} (requested backend: {})", renderer.adapter_summary(), options.backend);
     host.scene.init(&mut renderer)?;
-    host.size = size;
-    if let Some(path) = host.screenshot.clone() {
-        screenshot::capture(host.scene.as_mut(), &mut renderer, &path)?;
-        return Ok(Started::ScreenshotWritten);
+    if host.screenshot.is_some() {
+        screenshot::wait_ready(host.scene.as_mut(), &mut renderer);
     }
+    host.size = size;
     host.renderer = Some(renderer);
-    Ok(Started::Running)
+    Ok(())
 }
 
 /// Follow the window's size.
@@ -93,15 +87,42 @@ pub fn update_scene(mut host: NonSendMut<Host>, actions: Res<ActionState>, time:
     host.scene.update(renderer, &actions, time.delta_secs().min(MAX_STEP));
 }
 
-pub fn draw(mut host: NonSendMut<Host>, errors: Res<ErrorSlot>, mut exit: MessageWriter<AppExit>) {
+/// Draw the scene and the UI over it, or (screenshot runs) capture it once the UI has settled.
+pub fn draw(
+    mut host: NonSendMut<Host>,
+    mut ui: ResMut<UiOutput>,
+    errors: Res<ErrorSlot>,
+    mut exit: MessageWriter<AppExit>,
+) {
     let host = &mut *host;
     let Some(renderer) = host.renderer.as_mut() else { return };
+    for patch in ui.patches.drain(..) {
+        renderer.update_ui_texture(&patch.as_patch());
+    }
+    if let Some(layer) = ui.layer.take() {
+        renderer.set_ui_layer(layer);
+    }
+    for id in ui.freed.drain(..) {
+        renderer.free_ui_texture(id);
+    }
+
     let (params, instances) = host.scene.frame(renderer.aspect_ratio());
-    match renderer.render(&params, instances) {
-        Ok(_) => host.frames += 1,
-        Err(e) => {
-            errors.set(e.into());
-            exit.write(AppExit::error());
+    let result = if let Some(path) = &host.screenshot {
+        host.frames += 1;
+        if host.frames < SCREENSHOT_SETTLE_FRAMES {
+            return;
         }
+        screenshot::capture(renderer, &params, instances, path).map(|()| {
+            if let Some(status) = host.scene.status() {
+                println!("{status}");
+            }
+            exit.write(AppExit::Success);
+        })
+    } else {
+        renderer.render(&params, instances).map(|_| host.frames += 1).map_err(Into::into)
+    };
+    if let Err(e) = result {
+        errors.set(e);
+        exit.write(AppExit::error());
     }
 }

@@ -1,10 +1,10 @@
-//! `--screenshot`: render one frame off-screen and write it as PNG.
+//! `--screenshot`: wait for the scene to load, then render one frame off-screen and write it as PNG.
 
 use std::path::Path;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
-use blackbox_render::Renderer;
+use blackbox_render::{FrameParams, Instance, Renderer};
 
 use crate::input::ActionState;
 use crate::viewer::Scene;
@@ -13,7 +13,8 @@ pub const SIZE: (u32, u32) = (1280, 720);
 /// How long to wait for a scene to report [`Scene::ready`].
 const READY_TIMEOUT: Duration = Duration::from_secs(300);
 
-pub fn capture(scene: &mut dyn Scene, renderer: &mut Renderer, path: &Path) -> Result<()> {
+/// Let the scene stream until its first view is complete (or give up after [`READY_TIMEOUT`]).
+pub fn wait_ready(scene: &mut dyn Scene, renderer: &mut Renderer) {
     let input = ActionState::default();
     let start = Instant::now();
     // Let the scene stream until its first view is complete.
@@ -27,14 +28,14 @@ pub fn capture(scene: &mut dyn Scene, renderer: &mut Renderer, path: &Path) -> R
     if !scene.ready() {
         log::warn!("scene not fully loaded after {READY_TIMEOUT:?}; capturing anyway");
     }
+}
+
+/// Render `instances` (and the UI layer) off-screen and write the PNG.
+pub fn capture(renderer: &mut Renderer, params: &FrameParams, instances: &[Instance], path: &Path) -> Result<()> {
     let (w, h) = SIZE;
-    let (params, instances) = scene.frame(w as f32 / h as f32);
-    let pixels = renderer.capture(w, h, &params, instances)?;
+    let pixels = renderer.capture(w, h, params, instances)?;
     save_png(path, w, h, &pixels)?;
-    println!("wrote {} ({:.1}s)", path.display(), start.elapsed().as_secs_f32());
-    if let Some(status) = scene.status() {
-        println!("{status}");
-    }
+    println!("wrote {}", path.display());
     Ok(())
 }
 

@@ -4,10 +4,12 @@ use std::str::FromStr;
 
 use super::partial::{Partial, parse_bool};
 use crate::app::pacing::MaxFps;
+use crate::devtools::ShowMetrics;
 
 pub const BACKEND: &str = "NFSMW_BACKEND";
 pub const VSYNC: &str = "NFSMW_VSYNC";
 pub const MAX_FPS: &str = "NFSMW_MAX_FPS";
+pub const SHOW_METRICS: &str = "NFSMW_SHOW_METRICS";
 
 /// Read the layer through `get`, so tests need not touch the process environment. A value that
 /// does not parse is reported and ignored.
@@ -16,6 +18,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         backend: value(&get, BACKEND, |s| s.parse().map_err(|e| format!("{e}"))),
         vsync: value(&get, VSYNC, parse_bool),
         max_fps: value(&get, MAX_FPS, MaxFps::from_str),
+        show_metrics: value(&get, SHOW_METRICS, ShowMetrics::from_str),
     }
 }
 
@@ -45,7 +48,8 @@ mod tests {
 
     #[test]
     fn reads_every_setting() {
-        let p = layer(&[(BACKEND, "dx12"), (VSYNC, "off"), (MAX_FPS, "60")]);
+        let p = layer(&[(BACKEND, "dx12"), (VSYNC, "off"), (MAX_FPS, "60"), (SHOW_METRICS, "advanced")]);
+        assert_eq!(p.show_metrics, Some(ShowMetrics::Advanced));
         assert_eq!(p.backend, Some(Backend::Dx12));
         assert_eq!(p.vsync, Some(false));
         assert_eq!(p.max_fps, Some("60".parse::<MaxFps>().unwrap()));

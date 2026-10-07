@@ -23,6 +23,7 @@ blackbox-scenery.workspace = true
 blackbox-streaming.workspace = true
 blackbox-tpk.workspace = true
 clap.workspace = true
+egui.workspace = true
 env_logger.workspace = true
 game-install.workspace = true
 glam.workspace = true

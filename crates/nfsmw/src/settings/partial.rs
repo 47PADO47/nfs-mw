@@ -3,6 +3,7 @@
 use blackbox_render::Backend;
 
 use crate::app::pacing::MaxFps;
+use crate::devtools::ShowMetrics;
 
 /// The settings one source (command line, environment, config file) sets. Unset fields fall
 /// through to the next layer.
@@ -11,6 +12,7 @@ pub struct Partial {
     pub backend: Option<Backend>,
     pub vsync: Option<bool>,
     pub max_fps: Option<MaxFps>,
+    pub show_metrics: Option<ShowMetrics>,
 }
 
 impl Partial {
@@ -20,6 +22,7 @@ impl Partial {
             backend: self.backend.or(lower.backend),
             vsync: self.vsync.or(lower.vsync),
             max_fps: self.max_fps.or(lower.max_fps),
+            show_metrics: self.show_metrics.or(lower.show_metrics),
         }
     }
 }
@@ -40,7 +43,7 @@ mod tests {
     #[test]
     fn upper_layer_wins_and_gaps_fall_through() {
         let cli = Partial { backend: Some(Backend::Gl), ..Partial::default() };
-        let file = Partial { backend: Some(Backend::Vulkan), vsync: Some(false), max_fps: None };
+        let file = Partial { backend: Some(Backend::Vulkan), vsync: Some(false), ..Partial::default() };
         let merged = cli.or(file);
         assert_eq!(merged.backend, Some(Backend::Gl));
         assert_eq!(merged.vsync, Some(false));

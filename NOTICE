@@ -26,6 +26,15 @@ NFSTools/VaultLib — https://github.com/NFSTools/VaultLib — MIT
   libs/blackbox-attrib/src/{vault/pointers.rs, class/load.rs,
   collection/load.rs, database/types.rs, value/decode.rs}.
 
+Fonts embedded in the binary through egui (crate epaint_default_fonts), used by the
+developer console and the performance overlay:
+  Hack Regular        — MIT (Hack and Bitstream Vera licences)
+  Ubuntu-Light        — Ubuntu Font Licence 1.0
+  Noto Emoji          — SIL Open Font License 1.1
+  emoji-icon-font     — MIT
+The licence texts are in the epaint_default_fonts crate (fonts/*.txt) and are
+included in the generated third-party licence file of binary releases.
+
 Rust dependencies are fetched by Cargo and keep their own licenses; see
 Cargo.lock and `cargo deny check licenses`. Binary releases will include a
 generated third-party license file.

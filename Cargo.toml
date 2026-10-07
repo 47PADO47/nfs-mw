@@ -44,6 +44,7 @@ anyhow = "1"
 bytemuck = { version = "1", features = ["derive"] }
 clap = { version = "4", features = ["derive"] }
 directories = "6"
+egui = "0.36"
 env_logger = "0.11"
 glam = { version = "0.34", features = ["bytemuck"] }
 log = "0.4"
