@@ -166,9 +166,28 @@ render one frame off-screen. Use them to check rendering changes and backends wi
 | Milestone | Content | Status |
 |---|---|---|
 | 1 | Workspace, guards, install discovery, bChunk/JDLZ/HUFF, solids, TPK, car viewer on Vulkan/DX12/GL | done |
-| 2 | Generic `libs/` split; the streamed city: index, sections, scenery, background loading, instanced rendering, culling, fly camera | **done** |
-| 3 | Sky dome, LODs, water, map-wide tiles; AttribSys reader; car assembly from the parts DB (wheels, kits, paint) | **in progress** (sky, LODs, water done) |
-| 4 | Vehicle physics, spec-first (`docs/specs/vehicle-physics.md`); world collision (`CarpWCollisionPack`); drive a car | |
-| 5 | Audio (EA-XA, EA-XAS engine loops, MicroTalk speech), VP6 movies, FEng menus | |
-| 6 | AI racers, traffic, pursuit; career data | |
-| — | Direct3D 11 backend | planned |
+| 2 | Generic `libs/` split; the streamed city: index, sections, scenery, background loading, instanced rendering, culling, fly camera | done |
+| 3 | Sky dome, LODs, water, map-wide tiles; AttribSys reader; car assembly from the parts DB (stock parts, wheels, brakes, paint). Playtest fixes: misplaced and floating scenery, mouse look without holding a button, `--max-fps`, clearer config-file path | **in progress** |
+| 4 | Engine foundation: decide on Bevy (ECS, events, UI) in an ADR and migrate the viewers if adopted; layered settings (command line > environment > per-user config file > defaults, with a settings menu in 6); input layer with controller support; developer console (F12: log view, commands such as change car, toggle free camera, change settings); performance overlay (`--show-metrics off\|basic\|advanced`) | |
+| 5 | Vehicle physics, spec-first (`docs/specs/vehicle-physics.md`); world collision (`CarpWCollisionPack`); drive a car | |
+| 6 | Audio (EA-XA, EA-XAS engine loops, MicroTalk speech), VP6 movies, FEng menus, in-game settings menu | |
+| 7 | AI racers, traffic, pursuit, races; career data; console commands to spawn AI | |
+| 8 | Graphics: the car shader and lighting rig, post-processing, upscaling (FSR; DLSS where the backend allows it), ReShade compatibility | |
+| 9 | LAN multiplayer; scripting API for mods | |
+| 10 | Discord Rich Presence | |
+
+Why this order:
+
+- **Bevy before gameplay (4).** Physics, AI, races and menus are all game objects, systems and events. Choosing the
+  engine structure afterwards would mean writing them twice. The `libs/` readers stay engine-agnostic either
+  way: only `blackbox-render` and the viewers would be bridged into Bevy. Bevy renders through wgpu, so the
+  Vulkan / Direct3D 12 / OpenGL choice stays.
+- **Settings, input, console and metrics with the foundation (4).** Every later milestone adds options,
+  controls and debug commands, so they need a home first. The settings *menu* needs the front-end UI, so it
+  arrives with the menus (6).
+- **Graphics extras late (8).** DLSS needs NVIDIA's SDK (its own license, not MIT/Apache, so it would be an
+  optional feature the user enables) and a backend that exposes it. Upscalers and ReShade want a finished
+  renderer: ReShade reads the depth buffer, which is reverse-Z here, so ReShade's reversed-depth setting has to
+  be documented.
+- **Multiplayer and scripting (9)** need stable game state to sync and expose. **Discord Rich Presence (10)**
+  is the last item on purpose.
