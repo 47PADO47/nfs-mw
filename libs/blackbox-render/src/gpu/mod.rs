@@ -72,6 +72,12 @@ impl Renderer {
         self.depth = resources::create_depth(&self.device, width, height);
     }
 
+    /// Turn vertical sync on or off without recreating the renderer.
+    pub fn set_vsync(&mut self, vsync: bool) {
+        self.config.present_mode = if vsync { wgpu::PresentMode::AutoVsync } else { wgpu::PresentMode::AutoNoVsync };
+        self.surface.configure(&self.device, &self.config);
+    }
+
     pub fn aspect_ratio(&self) -> f32 {
         self.config.width as f32 / self.config.height.max(1) as f32
     }
