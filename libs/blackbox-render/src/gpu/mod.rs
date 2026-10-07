@@ -9,6 +9,7 @@ mod pipelines;
 mod resources;
 mod slots;
 mod textures;
+mod ui;
 
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
@@ -28,6 +29,7 @@ pub struct Renderer {
     textures: slots::Slots<wgpu::BindGroup>,
     meshes: slots::Slots<meshes::GpuMesh>,
     instances: instances::InstanceBuffer,
+    ui: ui::Ui,
     /// Texture slot -> slot drawn in its place (animated textures).
     redirects: std::collections::HashMap<usize, usize>,
 }

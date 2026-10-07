@@ -24,6 +24,7 @@ impl Renderer {
         let view = surface_texture.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("frame") });
         self.encode_scene(&mut encoder, &view, None, frame, instances);
+        self.encode_ui(&mut encoder, &view, (self.config.width, self.config.height));
         self.queue.submit([encoder.finish()]);
         self.queue.present(surface_texture);
         Ok(true)

@@ -2,6 +2,6 @@
 
 Backend-neutral renderer for EA Black Box game reimplementations: meshes in the games' common 36-byte vertex
 format, DXT or RGBA textures, instanced draws, opaque/alpha-test/blend/additive passes, lit or pre-lit
-shading, distance fog, off-screen capture. Runs on wgpu (Vulkan, Direct3D 12, OpenGL; Metal on macOS).
+shading, distance fog, a 2D UI layer (textured, clipped, premultiplied-alpha triangles for consoles, overlays and menus), off-screen capture. Runs on wgpu (Vulkan, Direct3D 12, OpenGL; Metal on macOS).
 
 License: MIT OR Apache-2.0.

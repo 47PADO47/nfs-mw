@@ -35,6 +35,7 @@ impl Renderer {
         let mut encoder =
             self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("capture") });
         self.encode_scene(&mut encoder, &view, Some(&depth), frame, instances);
+        self.encode_ui(&mut encoder, &view, (width, height));
         encoder.copy_texture_to_buffer(
             target.as_image_copy(),
             wgpu::TexelCopyBufferInfo {

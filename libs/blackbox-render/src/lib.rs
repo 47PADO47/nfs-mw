@@ -8,11 +8,13 @@
 //! Layout:
 //! - [`api`](crate::api): the types callers use;
 //! - [`backend`](crate::Backend): the user-selectable graphics backend;
+//! - [`ui`](crate::UiLayer): the 2D layer drawn over the scene (consoles, overlays, menus);
 //! - `gpu/`: the wgpu implementation (device setup, resources, pipelines, frames).
 
 mod api;
 mod backend;
 mod gpu;
+mod ui;
 
 pub use api::{
     BlendMode, DrawRange, FrameParams, Instance, MeshDesc, MeshHandle, PixelFormat, RenderError, RendererOptions,
@@ -20,3 +22,4 @@ pub use api::{
 };
 pub use backend::{Backend, ParseBackendError};
 pub use gpu::Renderer;
+pub use ui::{UiLayer, UiMesh, UiTextureId, UiTexturePatch, UiVertex};

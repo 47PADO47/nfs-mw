@@ -63,6 +63,7 @@ where
     let pipelines = pipelines::Pipelines::new(&device, config.format, &shared);
     let depth = resources::create_depth(&device, config.width, config.height);
     let instances = instances::InstanceBuffer::new(&device);
+    let ui = super::ui::Ui::new(&device, config.format, &shared);
 
     let mut renderer = Renderer {
         surface,
@@ -77,6 +78,7 @@ where
         textures: Slots::new(),
         meshes: Slots::new(),
         instances,
+        ui,
         redirects: Default::default(),
     };
     let white = [255u8; 4];
