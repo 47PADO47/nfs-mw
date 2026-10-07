@@ -201,7 +201,8 @@ hardware on Windows 10 and later, and OpenGL covers older GPUs.
 
 - **Targets:** Windows (x86_64-pc-windows-msvc) and Linux (x86_64-unknown-linux-gnu). CI builds and tests
   both ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)).
-- **No system libraries at build time.** winit (inside `bevy_winit`) and wgpu load X11, Wayland, Vulkan and EGL dynamically.
+- **One system package at build time, on Linux: `libudev-dev` (and `pkg-config`)**, which gamepad support (gilrs) links against.
+  winit (inside `bevy_winit`) and wgpu load X11, Wayland, Vulkan and EGL dynamically, so those need nothing to build.
 - **Linux installs:** point `--game-dir`, `.env` or the config file at the game folder (for example in a
   Wine prefix). There is no registry lookup on Linux.
 - **Endianness:** every reader decodes explicitly with `from_le_bytes`.
