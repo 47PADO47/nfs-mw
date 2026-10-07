@@ -3,6 +3,7 @@
 
 mod app;
 pub mod camera;
+mod cursor;
 mod input;
 mod screenshot;
 
@@ -24,6 +25,11 @@ pub trait Scene {
     /// For screenshots: whether everything the first view needs has loaded.
     fn ready(&self) -> bool {
         true
+    }
+    /// Mouse look: hide and hold the cursor so mouse motion always turns the camera.
+    /// Esc releases the cursor and a click captures it again.
+    fn captures_mouse(&self) -> bool {
+        false
     }
     /// Extra text for the window title (streaming progress, counts).
     fn status(&self) -> Option<String> {

@@ -74,6 +74,10 @@ impl WorldScene {
 }
 
 impl Scene for WorldScene {
+    fn captures_mouse(&self) -> bool {
+        true
+    }
+
     fn title(&self) -> String {
         format!("nfsmw — {}", self.track)
     }

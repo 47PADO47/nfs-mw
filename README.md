@@ -31,13 +31,13 @@ config file, or the retail registry key ([details](docs/architecture.md#finding-
 | `check-install` | Shows where the install was found, identifies `speed.exe`, checks required files |
 | `list-cars` | Lists car folders |
 | `view-car [CAR]` | Orbit view of a car: drag to rotate, scroll to zoom. Options: `--lod A..D`, `--all-parts` |
-| `view-world` | Fly through the city: WASD, Space/C, Shift, hold the right mouse button to look, scroll for speed. Options: `--at X,Y`, `--height`, `--heading`, `--pitch`, `--load-radius` |
+| `view-world` | Fly through the city: WASD, Space/C, Shift, mouse to look (Esc frees the cursor, click to capture it again), scroll for speed. Options: `--at X,Y`, `--height`, `--heading`, `--pitch`, `--load-radius` |
 
 Options for both viewers:
 
 - `--backend auto|vulkan|dx12|gl` picks the graphics API ([details](docs/architecture.md#graphics-backends)).
 - `--screenshot out.png` renders one frame and exits; add `--wait-for-load` in the world viewer.
-- Esc quits.
+- Esc quits (in the world viewer, the first Esc frees the mouse).
 
 ## Repository
 

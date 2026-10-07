@@ -6,12 +6,12 @@ use std::time::Instant;
 use anyhow::{Context, Result, anyhow};
 use blackbox_render::{Renderer, RendererOptions};
 use winit::application::ApplicationHandler;
-use winit::event::{DeviceEvent, DeviceId, ElementState, WindowEvent};
+use winit::event::{DeviceEvent, DeviceId, ElementState, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
 
-use super::{Input, Scene, screenshot};
+use super::{Input, Scene, cursor, screenshot};
 use crate::cli::ViewArgs;
 
 struct Running {
@@ -50,6 +50,9 @@ impl App {
             event_loop.exit();
             return Ok(());
         }
+        if self.scene.captures_mouse() {
+            self.input.set_captured(cursor::set_captured(&window, true));
+        }
         window.request_redraw();
         let now = Instant::now();
         self.running = Some(Running { window, renderer, last_frame: now, title_timer: now, frames: 0 });
@@ -81,6 +84,16 @@ impl App {
         Ok(())
     }
 
+    /// Capture or release the cursor, if the scene uses mouse look.
+    fn capture_mouse(&mut self, captured: bool) {
+        if let Some(r) = &self.running
+            && self.scene.captures_mouse()
+            && captured != self.input.mouse_captured()
+        {
+            self.input.set_captured(cursor::set_captured(&r.window, captured));
+        }
+    }
+
     fn fail(&mut self, event_loop: &ActiveEventLoop, e: anyhow::Error) {
         self.error = Some(e);
         event_loop.exit();
@@ -103,14 +116,27 @@ impl ApplicationHandler for App {
             WindowEvent::KeyboardInput { event, .. } => {
                 if let PhysicalKey::Code(code) = event.physical_key {
                     if code == KeyCode::Escape && event.state == ElementState::Pressed {
-                        event_loop.exit();
+                        // The first Esc frees a captured mouse, the next one quits.
+                        if self.input.mouse_captured() {
+                            self.capture_mouse(false);
+                        } else {
+                            event_loop.exit();
+                        }
                     }
                     self.input.on_key(code, event.state);
                 }
             }
-            WindowEvent::MouseInput { state, button, .. } => self.input.on_button(button, state),
+            WindowEvent::MouseInput { state, button, .. } => {
+                if button == MouseButton::Left && state == ElementState::Pressed {
+                    self.capture_mouse(true);
+                }
+                self.input.on_button(button, state);
+            }
             WindowEvent::MouseWheel { delta, .. } => self.input.on_scroll(delta),
-            WindowEvent::Focused(false) => self.input.release_all(),
+            WindowEvent::Focused(false) => {
+                self.input.release_all();
+                self.capture_mouse(false);
+            }
             WindowEvent::Resized(size) => {
                 if let Some(r) = self.running.as_mut() {
                     r.renderer.resize(size.width, size.height);

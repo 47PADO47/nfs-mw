@@ -10,6 +10,8 @@ pub struct Input {
     keys: HashSet<KeyCode>,
     left: bool,
     right: bool,
+    /// The cursor is captured for mouse look.
+    captured: bool,
     /// Raw mouse motion since the last frame.
     mouse_delta: (f32, f32),
     /// Scroll since the last frame, in lines.
@@ -27,6 +29,11 @@ impl Input {
 
     pub fn right_button(&self) -> bool {
         self.right
+    }
+
+    /// Whether mouse motion should turn the camera without a button held.
+    pub fn mouse_captured(&self) -> bool {
+        self.captured
     }
 
     pub fn mouse_delta(&self) -> (f32, f32) {
@@ -51,6 +58,10 @@ impl Input {
             MouseButton::Right => self.right = pressed,
             _ => {}
         }
+    }
+
+    pub(super) fn set_captured(&mut self, captured: bool) {
+        self.captured = captured;
     }
 
     pub(super) fn on_motion(&mut self, dx: f64, dy: f64) {

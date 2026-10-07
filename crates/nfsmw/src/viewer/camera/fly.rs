@@ -1,5 +1,5 @@
 //! Free-fly camera: WASD to move, Space/C (or E/Q) up and down, Shift faster,
-//! hold the right mouse button to look around, scroll to change speed.
+//! mouse to look around (captured cursor, or hold the right button), scroll to change speed.
 
 use glam::{Mat4, Vec3};
 use winit::keyboard::KeyCode;
@@ -24,7 +24,7 @@ impl FlyCamera {
     }
 
     pub fn update(&mut self, input: &Input, dt: f32) {
-        if input.right_button() {
+        if input.mouse_captured() || input.right_button() {
             let (dx, dy) = input.mouse_delta();
             self.yaw -= dx * 0.003;
             self.pitch = (self.pitch - dy * 0.003).clamp(-1.55, 1.55);

@@ -39,7 +39,7 @@ pub enum Command {
         #[command(flatten)]
         view: ViewArgs,
     },
-    /// Fly through the city (WASD + mouse; hold right button to look; Shift = fast; Esc to quit).
+    /// Fly through the city (WASD + mouse to look; Shift = fast; Esc frees the mouse, again to quit).
     ViewWorld {
         /// Start position on the map as X,Y (default: the centre of the city).
         #[arg(long, value_name = "X,Y", value_parser = parse_xy, allow_hyphen_values = true)]
