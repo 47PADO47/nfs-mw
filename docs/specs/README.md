@@ -5,9 +5,10 @@ before the Rust implementation. Required wherever the only source is decompiled 
 [licensing.md § Spec-first](../licensing.md#spec-first).
 
 Written so far: [scenery-visibility.md](scenery-visibility.md) (exclude flags),
-[scenery-lod.md](scenery-lod.md) (level of detail) and [car-assembly.md](car-assembly.md) (stock parts,
-wheels, brakes, paint, texture swaps, the car shader). Planned: vehicle physics (`vehicle-physics.md`:
-chassis, suspension, tires, engine, transmission).
+[scenery-lod.md](scenery-lod.md) (level of detail), [visible-sections.md](visible-sections.md) (which world
+sections are loaded and drawn) and [car-assembly.md](car-assembly.md) (stock parts, wheels, brakes, paint,
+texture swaps, the car shader). Planned: vehicle physics (`vehicle-physics.md`: chassis, suspension, tires,
+engine, transmission).
 
 ## Template
 
