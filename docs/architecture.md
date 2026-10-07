@@ -35,7 +35,7 @@ scaled down.
 | Crate | Job |
 |---|---|
 | [`nfsmw-data`](../crates/nfsmw-data) | MW's `GameSpec`; car assembly (stock and preset parts, wheel and brake placement, paint, texture swaps); the world: streaming index, section parsing, a background section loader. Renderer-free. |
-| [`nfsmw`](../crates/nfsmw) | The binary: CLI (`commands/`), a generic viewer (`viewer/`: window, input, orbit and fly cameras, screenshots) and the scenes (`scenes/car/`, `scenes/world/`). |
+| [`nfsmw`](../crates/nfsmw) | The binary: CLI (`commands/`), layered `settings/`, the Bevy `app/` (window, loop, render bridge, cursor, pacing, screenshots), the `input/` action layer, the `viewer/` cameras and `Scene` trait, and the scenes (`scenes/car/`, `scenes/world/`). |
 | [`xtask`](../xtask) | `cargo xtask check` (leak check + file-size check), `install-hooks` |
 
 Rules that keep this structure working:
@@ -64,6 +64,27 @@ names come from MW's `GameSpec` ([`nfsmw-data/src/game.rs`](../crates/nfsmw-data
 The required files are checked, and `speed.exe` is hashed and identified (v1.3 = `80774c2e…1d253c`).
 `GameDir` indexes the install once and resolves every path case-insensitively, so the same code works on
 Linux. `nfsmw check-install` shows what was found.
+
+## The application shell
+
+`nfsmw` is a Bevy app ([decision](decisions/0001-bevy.md)): `bevy_app` and `bevy_ecs` for the schedule and
+resources, `bevy_winit` for the window and loop, `bevy_input` and `bevy_gilrs` for devices. Bevy's renderer
+is not used: `blackbox-render` draws the frame, from one system, in `app/render.rs` (the render bridge).
+
+```
+bevy_winit window ─► PreUpdate: input/ resolves devices into actions (ActionState)
+                  ─► Update:    create renderer ─ cursor ─ resize ─ scene.update ─ draw
+                  ─► Last:      title (once a second) and the --max-fps limiter
+```
+
+- **Input layer** (`input/`): game code reads `ActionState` (`MoveForward`, `LookX`, `Boost`, `Cancel`…),
+  never a key code. The `Bindings` resource maps keyboard, mouse and gamepad inputs to actions, with a stick
+  dead zone and per-second scaling for sticks; rebinding will replace that resource. Default pad layout:
+  left stick moves, right stick looks (and orbits), A/B go up/down, stick-click or right bumper boosts,
+  D-pad up/down zooms, Start backs out.
+- **Cursor:** mouse-look scenes capture the cursor; the first Esc (or Start) releases it, the next quits.
+- **Errors** from systems (no GPU, a failed present) are stored and returned from `main`; the app exits with
+  an error code.
 
 ## Settings
 
@@ -154,7 +175,7 @@ hardware on Windows 10 and later, and OpenGL covers older GPUs.
 
 - **Targets:** Windows (x86_64-pc-windows-msvc) and Linux (x86_64-unknown-linux-gnu). CI builds and tests
   both ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)).
-- **No system libraries at build time.** winit and wgpu load X11, Wayland, Vulkan and EGL dynamically.
+- **No system libraries at build time.** winit (inside `bevy_winit`) and wgpu load X11, Wayland, Vulkan and EGL dynamically.
 - **Linux installs:** point `--game-dir`, `.env` or the config file at the game folder (for example in a
   Wine prefix). There is no registry lookup on Linux.
 - **Endianness:** every reader decodes explicitly with `from_le_bytes`.
