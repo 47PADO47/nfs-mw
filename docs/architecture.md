@@ -1,66 +1,101 @@
 # Architecture
 
 The Rust rewrite reads every asset from the user's own install at runtime and ships no game data. This
-page describes the crate layout, how the install is found, the graphics backends, multi-platform
-support and testing. The structure follows [vladtrc/iw4L](https://github.com/vladtrc/iw4L) (see
-[research.md § 8](research.md#8-reference-projects-for-the-rust-rewrite)), scaled down.
+page covers how the workspace is split, how the install is found, how the city streams, the graphics
+backends, multi-platform support and testing. The structure follows
+[vladtrc/iw4L](https://github.com/vladtrc/iw4L) ([research.md § 8](research.md#8-reference-projects-for-the-rust-rewrite)),
+scaled down.
 
-## Crates
+## Two halves: `libs/` and `crates/`
 
-```
-                       nfsmw  (launcher binary: CLI, window, camera)
-                 ┌───────┼──────────────┬──────────────┐
-           nfsmw-install  nfsmw-render   nfsmw-geometry  nfsmw-texture
-           (only crate     (wgpu; no      └──────┬──────────┘
-            that reads     game knowledge)     nfsmw-bchunk   nfsmw-compress   nfsmw-hash
-            game files)
-```
-
-| Crate | Job | Reads files? |
+| Folder | What goes there | Rule |
 |---|---|---|
-| [`nfsmw-hash`](../crates/nfsmw-hash) | `bStringHash` | no |
-| [`nfsmw-compress`](../crates/nfsmw-compress) | JDLZ, HUFF, RAWW wrappers ([bchunk.md](formats/bchunk.md), [huff.md](formats/huff.md)) | no |
-| [`nfsmw-bchunk`](../crates/nfsmw-bchunk) | Zero-copy bChunk tree over a byte slice; alignment; bare JDLZ blobs | no |
-| [`nfsmw-geometry`](../crates/nfsmw-geometry) | Solids: header, shading groups, vertices, indices ([models.md](formats/models.md)) | no |
-| [`nfsmw-texture`](../crates/nfsmw-texture) | TPK packs, both forms; CPU decode to RGBA8 ([textures.md](formats/textures.md)) | no |
-| [`nfsmw-install`](../crates/nfsmw-install) | Finding, validating and indexing the install; case-insensitive reads | **yes, the only one** |
-| [`nfsmw-render`](../crates/nfsmw-render) | Renderer behind a backend-neutral API (meshes, textures, draw ranges) | no |
-| [`nfsmw`](../crates/nfsmw) | The binary: `check-install`, `list-cars`, `view-car` | through `nfsmw-install` |
-| [`xtask`](../xtask) | `cargo xtask leak-check`, `cargo xtask install-hooks` | repo files only |
+| [`libs/`](../libs) | Everything that also works for other EA Black Box games (Underground 2, Carbon, …) or other reimplementations: codecs, container and format readers, install discovery, the renderer | **No NFS:MW-specific code or defaults.** Game differences go into per-version / per-game layout tables, chosen from the data or passed in by the caller. Each lib has its own README and can move to a shared utilities repo unchanged. |
+| [`crates/`](../crates) | NFS: Most Wanted itself: which files the game uses, how they fit together, the launcher and viewers | May depend on `libs/`; never the other way round. |
+
+### Libraries
+
+| Crate | Job | Version handling |
+|---|---|---|
+| [`ea-compress`](../libs/ea-compress) | JDLZ, HUFF, RAWW | self-describing headers |
+| [`blackbox-hash`](../libs/blackbox-hash) | `bStringHash` | — |
+| [`blackbox-chunk`](../libs/blackbox-chunk) | Zero-copy bChunk trees; chunk ids by domain | — |
+| [`blackbox-tpk`](../libs/blackbox-tpk) | Texture packs (plain and compressed forms), CPU decoding | `layout/` per TPK version (5 = MW) |
+| [`blackbox-solid`](../libs/blackbox-solid) | Solids: groups, every vertex buffer, indices | `layout/` per `SolidInfo` version (0x16 = MW) |
+| [`blackbox-streaming`](../libs/blackbox-streaming) | The track streaming index | `layout::MOST_WANTED` passed by the caller |
+| [`blackbox-scenery`](../libs/blackbox-scenery) | Scenery infos and instances; visibility rule | `layout::MOST_WANTED` passed by the caller |
+| [`blackbox-render`](../libs/blackbox-render) | Backend-neutral renderer (wgpu inside) | — |
+| [`blackbox-scene`](../libs/blackbox-scene) | Uploading solids and textures to the renderer; boxes; frustum culling | — |
+| [`game-install`](../libs/game-install) | Finding, validating and reading an install, case-insensitively | driven by a `GameSpec` |
+
+### Game crates
+
+| Crate | Job |
+|---|---|
+| [`nfsmw-data`](../crates/nfsmw-data) | MW's `GameSpec`; car loading (part selection, texture sources); the world: streaming index, section parsing, a background section loader. Renderer-free. |
+| [`nfsmw`](../crates/nfsmw) | The binary: CLI (`commands/`), a generic viewer (`viewer/`: window, input, orbit and fly cameras, screenshots) and the scenes (`scenes/car.rs`, `scenes/world/`). |
+| [`xtask`](../xtask) | `cargo xtask check` (leak check + file-size check), `install-hooks` |
 
 Rules that keep this structure working:
 
-- **Format crates take `&[u8]` and never open files.** They can be tested on synthetic bytes and fuzzed.
-- **Only `nfsmw-install` touches the install.** It is the single place that handles paths, case and
-  platform differences.
-- **`nfsmw-render` has no game knowledge, and its API has no wgpu types.** A second implementation (for
-  example Direct3D 11) can slot in behind the same API.
-- **Game rules will live in their own pure crates** (physics, AI, pursuit). They will have no rendering or
-  windowing dependencies and will be built spec-first ([licensing.md](licensing.md#spec-first)).
+- **Format crates take `&[u8]` and never open files.** Only `game-install` touches the install.
+- **The renderer has no game knowledge**, and its API has no wgpu types, so a second implementation
+  (Direct3D 11) can sit behind it.
+- **Files stay small:** no source or doc file over 500 lines (`cargo xtask size-check`). Split by domain
+  into folders and modules, with one struct or concern per file.
+- **Game rules will live in their own pure crates** (physics, AI), built spec-first ([licensing.md](licensing.md#spec-first)).
 
 ## Finding the install
 
-[`nfsmw-install`](../crates/nfsmw-install/src/discover.rs) looks in this order and uses the first hit:
+[`game-install`](../libs/game-install/src/discover/mod.rs) looks in this order and uses the first hit; the
+names come from MW's `GameSpec` ([`nfsmw-data/src/game.rs`](../crates/nfsmw-data/src/game.rs)):
 
-1. `--game-dir <PATH>` on the command line;
-2. the `NFSMW_GAME_DIR` environment variable;
-3. `NFSMW_GAME_DIR=<PATH>` in a `.env` file in the working directory or next to the executable (copy
-   [`.env.example`](../.env.example); `.env` is never committed);
-4. `game_dir = "<PATH>"` in the per-user config file: `%APPDATA%\nfsmw\config\config.toml` on Windows,
-   `~/.config/nfsmw/config.toml` on Linux;
-5. on Windows, `HKLM` (then `HKCU`) `\SOFTWARE\EA GAMES\Need for Speed Most Wanted`, value `Install Dir`,
-   read from the 32-bit registry view. This is the retail installer's key. Repacks often don't write it.
+1. `--game-dir <PATH>`;
+2. `NFSMW_GAME_DIR`;
+3. `NFSMW_GAME_DIR=<PATH>` in a `.env` file in the working directory or next to the executable;
+4. `game_dir = "<PATH>"` in the per-user config file (`%APPDATA%\nfsmw\config\config.toml` /
+   `~/.config/nfsmw/config.toml`);
+5. on Windows, `HKLM` / `HKCU` `\SOFTWARE\EA GAMES\Need for Speed Most Wanted` → `Install Dir` (32-bit view).
 
-**Validation.** The required files are listed in `REQUIRED_FILES`. `speed.exe` is hashed and compared
-with known builds (PC v1.3 = `80774c2e…1d253c`). The exe is not needed yet: later it will be needed for the
-shaders embedded in it.
+The required files are checked, and `speed.exe` is hashed and identified (v1.3 = `80774c2e…1d253c`).
+`GameDir` indexes the install once and resolves every path case-insensitively, so the same code works on
+Linux. `nfsmw check-install` shows what was found.
 
-**Case-insensitive access.** The game was written for Windows and refers to files in any case, and the
-shipped names mix cases (`GlobalB.lzc`, `GLOBALA.BUN`). `GameDir` indexes the install once
-(about 2,000 files) and resolves every lookup through a lower-cased key, so the same code works on Linux's
-case-sensitive filesystems.
+## The streamed city (`view-world`)
 
-Run `nfsmw check-install` to see what was found and why.
+```
+TRACKS/L2RA.BUN ──► blackbox-streaming: 720 sections (605 map tiles, 115 shared sets)
+TRACKS/STREAML2RA.BUN ─► loader threads (nfsmw-data::world::Streamer)
+                          read a section's byte range → blackbox-solid / -tpk / -scenery
+                        ─► render thread (scenes/world/residency.rs)
+                          upload textures → meshes → place instances
+```
+
+- **Shared sets (V/X/Y/Z) load once, at startup**, all together, because their models and textures refer to
+  each other (2,734 models, 2,111 textures).
+- **Map tiles stream by distance.** Tiles within `--load-radius` (default 450 m) of the camera are requested
+  nearest first, at most 8 in flight, on 2–6 worker threads. Up to 2 tiles are uploaded per frame. Tiles
+  beyond 1.25 × radius + 50 m are released (GPU meshes and textures freed).
+- **Resolution:** a tile's instances use the tile's own models first, then the shared sets. Measured on the
+  whole stream, that resolves 77,722 of 77,776 tile instances; none needs another tile
+  ([maps.md](formats/maps.md#scenery-placing-models-in-the-world)).
+- **Visibility:** instances hidden by their exclude flags (race barriers, animated props) are dropped when
+  placed ([specs/scenery-visibility.md](specs/scenery-visibility.md)). Each frame the remaining instances are
+  culled by distance and frustum (using their stored world boxes), sorted by mesh and drawn instanced.
+- **Shading:** world geometry is pre-lit (vertex colour × 2, no sun); blending follows each texture's
+  `AlphaBlendType` ([textures.md](formats/textures.md#alpha)). Linear fog hides the streaming edge.
+- **Camera:** free-fly (WASD, Space/C, Shift, right-drag to look, scroll for speed). It starts above the
+  centre of the city, or at `--at X,Y`, at `--height` metres above the ground; the ground is estimated from
+  the scenery boxes until collision is loaded.
+
+Known gaps, for later milestones:
+
+- **Not drawn yet:** water surfaces (the river and sea show the sky colour), the sky dome, which needs to
+  follow the camera, cars and traffic, and the world animations (cranes, the airliner).
+- **Approximations:**
+  - always the most detailed LOD;
+  - no scenery overrides, so race barriers are never shown;
+  - placeholder lighting instead of the game's `fx` effects.
 
 ## Graphics backends
 
@@ -74,63 +109,59 @@ Select with `--backend <auto|vulkan|dx12|dx11|gl>`:
 | `gl` | ✔ (WGL) | ✔ (EGL, X11/Wayland) | wgpu | working |
 | `dx11` | ✔ | — | **not implemented** | planned |
 
-All four working combinations render the same image of the BMW M3 GTR on the development machine
-(RTX 4070 SUPER).
+**Why Direct3D 11 is separate.** wgpu removed its D3D11 backend in 2023, and v30 has none. The plan:
 
-**Why Direct3D 11 is separate.** wgpu removed its D3D11 backend in 2023 and v30 (the version used here)
-has none. Supporting D3D11 therefore needs its own implementation of the `nfsmw-render` API. The plan:
+- a `blackbox-render-d3d11` library on the [`windows`](https://crates.io/crates/windows) crate (MIT OR
+  Apache-2.0), implementing the same API;
+- the same `scene.wgsl`, translated to HLSL SM 5.0 at build time with [naga](https://crates.io/crates/naga)
+  and compiled with `D3DCompile`;
+- `--backend dx11` dispatching to it on Windows.
 
-- a `nfsmw-render-d3d11` crate on the [`windows`](https://crates.io/crates/windows) crate (MIT OR
-  Apache-2.0), implementing the same `create_texture` / `create_mesh` / `render` API;
-- shaders kept in one place: the WGSL is translated to HLSL (SM 5.0) at build time with
-  [naga](https://crates.io/crates/naga), which wgpu already uses, and compiled with `D3DCompile`;
-- the `dx11` option dispatching to it on Windows, and erroring elsewhere as it does today.
-
-This is worth doing once the renderer API has settled (after world rendering), so it is implemented
-once, against the final API.
+This is best done once the renderer API has settled, so it is implemented once.
 
 ## Multi-platform
 
 - **Targets:** Windows (x86_64-pc-windows-msvc) and Linux (x86_64-unknown-linux-gnu). CI builds and tests
   both ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)).
-- **No system libraries needed at build time.** winit and wgpu load X11, Wayland, Vulkan and EGL
-  dynamically. Linux needs a Vulkan or GL driver at runtime.
-- **Linux installs:** point `--game-dir`, `.env` or the config file at the game folder, for example inside
-  a Wine prefix (`~/.wine/drive_c/Program Files (x86)/EA GAMES/Need for Speed Most Wanted`). There is no
-  registry lookup on Linux.
-- **Endianness:** PC data is little-endian; every reader decodes explicitly with `from_le_bytes`, so
-  big-endian hosts would also work.
+- **No system libraries at build time.** winit and wgpu load X11, Wayland, Vulkan and EGL dynamically.
+- **Linux installs:** point `--game-dir`, `.env` or the config file at the game folder (for example in a
+  Wine prefix). There is no registry lookup on Linux.
+- **Endianness:** every reader decodes explicitly with `from_le_bytes`.
 
 ## Testing
 
 | Kind | Where | Needs the game | Runs in CI |
 |---|---|---|---|
-| Unit tests on synthetic bytes | `#[cfg(test)]` in every crate | no | yes |
-| Real-install tests | [`crates/nfsmw/tests/real_install.rs`](../crates/nfsmw/tests/real_install.rs) (`#[ignore]`) | yes | no |
-| Leak check | `cargo xtask leak-check` | no | yes, first job |
+| Unit tests on synthetic bytes | `#[cfg(test)]` / `tests` modules in every crate | no | yes |
+| Real-install tests | [`crates/nfsmw-data/tests/real_install/`](../crates/nfsmw-data/tests/real_install) (`#[ignore]`) | yes | no |
+| Leak + size checks | `cargo xtask check` | no | yes, first job |
 | Python tool tests | [`tests/`](../tests) | no | yes |
 
-Run the real-install tests with:
-
 ```sh
-NFSMW_GAME_DIR="D:/Need For Speed Most Wanted Black Edition" cargo test -p nfsmw -- --ignored
+NFSMW_GAME_DIR="D:/Need For Speed Most Wanted Black Edition" cargo test --release -p nfsmw-data -- --ignored
 ```
 
-They currently check that all 100 cars (15,781 solids) parse with every index in range, that the BMW
-M3 GTR matches the numbers in [models.md](formats/models.md), and that the texture packs in `CARS/`,
-`GLOBAL/` and `FRONTEND/` decode.
+The real-install tests check:
 
-`nfsmw view-car <CAR> --screenshot out.png` renders one frame off-screen. Use it to check rendering
-changes and backends without a visible window.
+- all 100 cars (15,781 solids) parse, with every index in range;
+- the BMW M3 GTR matches [models.md](formats/models.md);
+- the car and global texture packs decode;
+- all 720 world sections parse (20,377 solids, 3,644 textures, 77,783 scenery instances), and tile scenery
+  resolves.
+
+The whole stream parses in under a second in release builds.
+
+`nfsmw view-car … --screenshot out.png` and `nfsmw view-world … --wait-for-load --screenshot out.png`
+render one frame off-screen. Use them to check rendering changes and backends without a window.
 
 ## Roadmap
 
 | Milestone | Content | Status |
 |---|---|---|
-| 1 | Workspace, guards, install discovery, bChunk/JDLZ/HUFF, solids, TPK, car viewer on Vulkan/DX12/GL | **done** |
-| 2 | World: L2RA streaming sections, scenery placement, a free-fly camera through the city | next |
-| 3 | AttribSys reader; car assembly from the parts DB (wheels, kits, paint); the game's lighting model | |
-| 4 | Vehicle physics, spec-first (`docs/specs/vehicle-physics.md`); drive a car on the world collision | |
+| 1 | Workspace, guards, install discovery, bChunk/JDLZ/HUFF, solids, TPK, car viewer on Vulkan/DX12/GL | done |
+| 2 | Generic `libs/` split; the streamed city: index, sections, scenery, background loading, instanced rendering, culling, fly camera | **done** |
+| 3 | Water, sky dome, LODs, scenery overrides; AttribSys reader; car assembly from the parts DB (wheels, kits, paint); the game's lighting | next |
+| 4 | Vehicle physics, spec-first (`docs/specs/vehicle-physics.md`); world collision (`CarpWCollisionPack`); drive a car | |
 | 5 | Audio (EA-XA, EA-XAS engine loops, MicroTalk speech), VP6 movies, FEng menus | |
 | 6 | AI racers, traffic, pursuit; career data | |
-| — | Direct3D 11 backend (see above) | planned |
+| — | Direct3D 11 backend | planned |

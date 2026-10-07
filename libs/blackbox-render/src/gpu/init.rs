@@ -1,0 +1,96 @@
+//! Instance, surface, adapter and device setup.
+
+use std::sync::Arc;
+
+use winit::window::Window;
+
+use super::{Renderer, instances, pipelines, resources, slots::Slots};
+use crate::{Backend, PixelFormat, RenderError, RendererOptions, TextureDesc};
+
+fn wgpu_backends(backend: Backend) -> Result<wgpu::Backends, RenderError> {
+    Ok(match backend {
+        Backend::Auto => wgpu::Backends::PRIMARY | wgpu::Backends::GL,
+        Backend::Vulkan => wgpu::Backends::VULKAN,
+        Backend::Dx12 => wgpu::Backends::DX12,
+        Backend::Gl => wgpu::Backends::GL,
+        Backend::Dx11 => {
+            return Err(RenderError::BackendUnavailable(
+                "the Direct3D 11 backend is not implemented yet: wgpu has no D3D11 backend, so it needs its \
+                 own renderer (planned, see docs/architecture.md). Use --backend dx12, vulkan or gl."
+                    .into(),
+            ));
+        }
+    })
+}
+
+pub(super) fn create(
+    window: Arc<Window>,
+    display: winit::event_loop::OwnedDisplayHandle,
+    options: RendererOptions,
+) -> Result<Renderer, RenderError> {
+    let mut desc = wgpu::InstanceDescriptor::new_without_display_handle().with_display_handle(Box::new(display));
+    desc.backends = wgpu_backends(options.backend)?;
+    let instance = wgpu::Instance::new(desc);
+    let surface = instance.create_surface(window.clone()).map_err(|e| RenderError::Surface(e.to_string()))?;
+
+    let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+        power_preference: wgpu::PowerPreference::HighPerformance,
+        force_fallback_adapter: false,
+        compatible_surface: Some(&surface),
+        apply_limit_buckets: false,
+    }))
+    .map_err(|e| RenderError::NoAdapter { backend: options.backend, detail: e.to_string() })?;
+    let adapter_info = adapter.get_info();
+    log::info!("GPU: {} ({:?}, driver {})", adapter_info.name, adapter_info.backend, adapter_info.driver);
+
+    let supports_bc = adapter.features().contains(wgpu::Features::TEXTURE_COMPRESSION_BC);
+    let required_features = if supports_bc { wgpu::Features::TEXTURE_COMPRESSION_BC } else { wgpu::Features::empty() };
+    let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+        label: Some("blackbox-render device"),
+        required_features,
+        required_limits: wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits()),
+        ..Default::default()
+    }))
+    .map_err(|e| RenderError::Device(e.to_string()))?;
+
+    let size = window.inner_size();
+    let mut config = surface
+        .get_default_config(&adapter, size.width.max(1), size.height.max(1))
+        .ok_or_else(|| RenderError::Surface("the surface is not supported by this adapter".into()))?;
+    // The games' art is authored for a non-sRGB D3D9 pipeline: prefer a plain UNORM target.
+    let caps = surface.get_capabilities(&adapter);
+    if let Some(f) = caps.formats.iter().copied().find(|f| !f.is_srgb()) {
+        config.format = f;
+    }
+    config.present_mode = if options.vsync { wgpu::PresentMode::AutoVsync } else { wgpu::PresentMode::AutoNoVsync };
+    surface.configure(&device, &config);
+
+    let shared = resources::Shared::new(&device);
+    let pipelines = pipelines::Pipelines::new(&device, config.format, &shared);
+    let depth = resources::create_depth(&device, config.width, config.height);
+    let instances = instances::InstanceBuffer::new(&device);
+
+    let mut renderer = Renderer {
+        surface,
+        device,
+        queue,
+        config,
+        adapter_info,
+        supports_bc,
+        depth,
+        shared,
+        pipelines,
+        textures: Slots::new(),
+        meshes: Slots::new(),
+        instances,
+    };
+    let white = [255u8; 4];
+    renderer.create_texture(&TextureDesc {
+        label: "white",
+        width: 1,
+        height: 1,
+        format: PixelFormat::Rgba8,
+        mips: vec![&white],
+    });
+    Ok(renderer)
+}

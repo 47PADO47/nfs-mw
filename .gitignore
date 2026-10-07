@@ -23,13 +23,18 @@
 !/README.md
 !/CONTRIBUTING.md
 
-# Rust workspace
+# Rust workspace: engine-generic libraries (libs/) and the game (crates/)
 !/Cargo.toml
 !/Cargo.lock
+!/libs/*/Cargo.toml
+!/libs/*/README.md
+!/libs/*/src/**/*.rs
+!/libs/*/src/**/*.wgsl
+!/libs/*/tests/**/*.rs
 !/crates/*/Cargo.toml
 !/crates/*/src/**/*.rs
 !/crates/*/src/**/*.wgsl
-!/crates/*/tests/*.rs
+!/crates/*/tests/**/*.rs
 !/xtask/Cargo.toml
 !/xtask/src/**/*.rs
 
@@ -37,7 +42,7 @@
 !/docs/**/*.md
 
 # Python research tools and their tests
-!/tools/*.py
+!/tools/**/*.py
 !/tests/*.py
 
 # Never, even if a pattern above matches.

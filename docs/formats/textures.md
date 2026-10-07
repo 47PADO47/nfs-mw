@@ -128,9 +128,37 @@ Formats counted in the plain packs (`ImageCompressionType`, D3DFORMAT, count):
 | 0x80 | P8 | 2 |
 
 Mip levels follow the base level back to back; each DXT level is `ceil(w/4) × ceil(h/4) × (8 or 16)`
-bytes. Reader: [`crates/nfsmw-texture`](../../crates/nfsmw-texture).
+bytes. Reader: [`libs/blackbox-tpk`](../../libs/blackbox-tpk).
 
 The decomp's `SpeedChunks.hpp` names the TPK children `SPEED_TEXTURE_PACK_HEADER` (`33310001`),
 `…_INDEX_TABLE` (`…02`, the keys), `…_STREAM_TABLE` (`…03`), `…_INFO_TABLE` (`…04`), `…_PLAT_INFO_TABLE`
 (`…05`) and `SPEED_TEXTURE_VRAM_DATA_HEADER` / `…_TABLE`
 (`33320001` / `…02`) **[decomp]**.
+
+## Alpha
+
+How a texture's alpha is drawn, as implemented in `blackbox-scene::blend_mode`. Field names are from the
+decomp's `TextureInfo`; the interpretation is **[verified]** on the PC world and cars by rendering it.
+
+| `AlphaBlendType` (0x56) | Meaning (`TEXBLEND_*`) | Drawn as |
+|---|---|---|
+| 0 | SRCCOPY | opaque; cut out at alpha 0.5 if `AlphaUsageType` (0x55) is 1 (punch-through) |
+| 1 | BLEND | alpha-blended after opaque geometry |
+| 2 | ADDITIVE | additive (lights, glows) |
+| 3, 4 | SUBTRACTIVE, OVERBRIGHT | approximated as blended **[unconfirmed]** |
+
+Notes:
+
+- **"Modulated" alpha (`AlphaUsageType` 2) does not mean transparent.** On copy-mode textures it is a mask
+  for another effect. Road and brick textures average 15–30% alpha with a maximum around 60%, which matches
+  a specular or reflection mask. They must draw opaque.
+- **`SHD_` textures are shadow overlays.** Their colour is a flat dark purple (32, 4, 32) and their alpha is
+  the shadow strength. They are blend-mode textures on separate `SHD_…` solids laid over roads and terrain;
+  drawing them opaque turns every road black.
+- **`ApplyAlphaSorting` (0x54) marks blended textures the engine depth-sorts** (some glass, leaf cards).
+  It is not set on the shadow overlays.
+
+In the world stream, 774 road textures (`SHD_CP_BE_ROAD_A_02A`, …) use usage 2 / blend 1; 1,388
+architecture textures use usage 0 / blend 0; and the tree foliage (`ORG_*`) uses usage 1 / blend 0 with
+DXT3 or DXT5.
+

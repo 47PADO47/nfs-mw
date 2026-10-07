@@ -1,0 +1,17 @@
+[package]
+name = "blackbox-tpk"
+description = "Reader for TPK texture packs from EA Black Box games (version-aware; NFS:MW v5 supported)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+blackbox-chunk.workspace = true
+ea-compress.workspace = true
+texture2ddecoder.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

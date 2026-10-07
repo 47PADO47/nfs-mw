@@ -120,12 +120,32 @@ The payload is aligned to 0x80. The format depends on the shading group's effect
 
 ✔ For all 97 M3 GTR solids, the sum of `NumVerts × 36` equals the vertex buffer size exactly.
 
+### Several vertex buffers per solid **[verified]**
+
+A solid has **one `MeshVertexBuffer` chunk per run of consecutive shading groups with the same effect id**.
+The groups of a run share that buffer in order, so group *k* of a run starts after the vertices of groups
+0…k−1. Each buffer's stride follows from its size and its run's vertex count.
+
+Checked on every solid of the install: all 15,781 car solids have one run (one effect) and one buffer. Of
+the 20,377 world solids, 15,102 have one buffer and the rest have 2–10, and the rule holds for all of them.
+Strides seen by effect id:
+
+| Effect id | Stride | Runs |
+|---|---|---|
+| 0 | 36 | 16,515 |
+| 1 | 60 | 3,868 |
+| 3 | 60 | 6,340 |
+| 5 | 36 | 2,474 |
+| 6 | 36 | 1,006 |
+| 19 | 44 | 1 |
+
 ## Indices (`0x00134B03`)
 
 `u16` triangle lists, aligned to 0x10. Each shading group draws `NumIndices` indices starting at its
-`FirstIndex`. The indices are **absolute** into the solid's vertex buffer, not relative to the group.
-**[verified]**: every car in the install (100 cars, 15,781 solids) has exactly one vertex buffer and one
-index buffer per solid, and every group's indices are in range (`crates/nfsmw/tests/real_install.rs`).
+`FirstIndex`. The indices are relative to the start of the group's **vertex buffer** (above), not to the
+group. With a single buffer they are absolute.
+**[verified]**: every car (100 cars, 15,781 solids) and every world solid (20,377) has its group indices in
+range once each group's base vertex is applied (`crates/nfsmw-data/tests/real_install/`).
 
 ## Naming conventions **[verified]**
 
@@ -142,7 +162,7 @@ were built with *NFS-CarToolkit by nfsu360* and store every `SolidPack` as a bar
 
 ## Reading models today
 
-- **This project:** [`crates/nfsmw-geometry`](../../crates/nfsmw-geometry) (Rust) reads solids, including
+- **This project:** [`libs/blackbox-solid`](../../libs/blackbox-solid) (Rust) reads solids, including
   the compressed add-on ones, and `nfsmw view-car <CAR>` draws them.
 - [NFS-ModTools](https://github.com/NFSTools/NFS-ModTools) (C#, **no license**: read-only reference) has a
   MW reader (`Common/Geometry/MostWantedSolidReader.cs`) and exports to FBX with `AssetDumper`.

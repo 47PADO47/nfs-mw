@@ -63,7 +63,7 @@ magic. Strip the wrapper, then parse the result as chunks.
 |---|---|---|
 | `JDLZ` | JDLZ-compressed (see §3) | Decompress to get the chunk stream. |
 | `RAWW` | Stored / uncompressed wrapper | Payload is `data[16 : 16+size]`, where `size = u32 @ 0x08`. |
-| `HUFF` | EA Huffman + run-length (stream type `0x30FB`); spec in [huff.md](huff.md). **Its size field at 0x0C excludes the 16-byte header**, unlike JDLZ | Implemented in [`nfsmw-compress`](../../crates/nfsmw-compress) (Rust); not in `chunkdump.py` |
+| `HUFF` | EA Huffman + run-length (stream type `0x30FB`); spec in [huff.md](huff.md). **Its size field at 0x0C excludes the 16-byte header**, unlike JDLZ | Implemented in [`ea-compress`](../../libs/ea-compress) (Rust); not in `chunkdump.py` |
 | `COMP` | (generic compressed) | **Not implemented.** |
 | *(none)* | Bare chunk stream | Parse directly. |
 
@@ -236,7 +236,7 @@ Numbers accept `0x` prefixes. See also [`../TOOLS_AND_SKILLS.md`](../TOOLS_AND_S
 - **Little-endian only** here; a big-endian file (console) will mis-parse.
 - **Align, don't strip:** skip `0x11` padding by rounding the offset up to the alignment (§1), never by stripping `0x11` bytes.
 - **Inflated-blob offsets are blob-relative** — don't `--extract` by a global offset inside one.
-- **`HUFF`** is decoded by the Rust crate [`nfsmw-compress`](../../crates/nfsmw-compress) ([huff.md](huff.md)) but not by `chunkdump.py`; **`COMP`** is unimplemented and was not seen in this install.
+- **`HUFF`** is decoded by the Rust crate [`ea-compress`](../../libs/ea-compress) ([huff.md](huff.md)) but not by `chunkdump.py`; **`COMP`** is unimplemented and was not seen in this install.
 - A `VPAK` file is not a bChunk file (see §2).
 - **Not bChunk at all:** `SOUND/**` (EA audio, [audio.md](audio.md)), `MOVIES/*.vp6` (VP6 video,
   [video.md](video.md)), `SUBTITLES/*` ([text.md](text.md)), `MEMCARD/*.loc` (`LOCH`), the `VPAK`

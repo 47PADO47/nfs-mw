@@ -17,7 +17,7 @@ audio parameters, effects. It is not bChunk data. A file is a **`VPAK`** pack of
 | `GLOBAL/gameplay.bin` | 2,097,088 | **272** (`10_2_1_sprint`, `11_4_1_tollbooth`, `race_bin_*`, `challenge_*`, `gpcore`, `escape_the_cops`, …) | 6,293 collections of class `gameplay`: race events, Blacklist race bins, challenges, milestones |
 | `GLOBAL/gameplay.lzc` | 2,097,104 | 272 | the same pack in a `RAWW` wrapper (16-byte header, see [bchunk.md](bchunk.md)); `gameplay.lzc.bak` is the original JDLZ |
 
-`gameplay.bin` also contains 253 `HUFF`-compressed blobs ([huff.md](huff.md)); all decode with `nfsmw-compress` **[verified]**. Which vault data they hold is **[unconfirmed]**.
+`gameplay.bin` also contains 253 `HUFF`-compressed blobs ([huff.md](huff.md)); all decode with `ea-compress` **[verified]**. Which vault data they hold is **[unconfirmed]**.
 | `GLOBAL/FE_ATTRIB.bin` | 111,008 | 1 (`frontend`) | 446 collections of class `frontend` |
 
 `*.bak` files are mod-tool backups. Class definitions exist only in `attributes.bin`; the other packs

@@ -1,0 +1,16 @@
+[package]
+name = "blackbox-solid"
+description = "Reader for solids (models) in GeometryPack chunks of EA Black Box games (version-aware; NFS:MW 0x16 supported)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+blackbox-chunk.workspace = true
+ea-compress.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

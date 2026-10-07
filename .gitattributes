@@ -1,2 +1,3 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Normalise text files to LF in the repository and the working tree
+# (the pre-commit hook is a shell script and must stay LF everywhere).
+* text=auto eol=lf

@@ -3,9 +3,15 @@
 A Rust rewrite of **Need for Speed: Most Wanted** (2005, PC v1.3 / Black Edition) that reads all game
 data at runtime from **your own install**. This repository contains no game files and no decompiled code.
 
-**Status: milestone 1.** It finds and checks the install, decodes the data containers (bChunk, JDLZ,
-HUFF), reads car models and texture packs, and shows any car in a window on Vulkan, Direct3D 12 or OpenGL.
-It runs on Windows and Linux. No driving yet; see the [roadmap](docs/architecture.md#roadmap).
+**Status: milestone 2.**
+
+- **Install:** finds and checks your copy of the game.
+- **Data:** decodes the data containers (bChunk, JDLZ, HUFF) and reads cars, texture packs and the streamed
+  city.
+- **Viewers:** shows any car, or lets you fly through Rockport while map tiles stream in around the camera.
+  Both run on Vulkan, Direct3D 12 or OpenGL, on Windows and Linux.
+
+There's no driving yet; see the [roadmap](docs/architecture.md#roadmap).
 
 ## Quick start
 
@@ -13,31 +19,36 @@ You need Rust (stable) and an installed copy of the game.
 
 ```sh
 cargo run --release -p nfsmw -- --game-dir "D:/Need For Speed Most Wanted Black Edition" check-install
-cargo run --release -p nfsmw -- view-car BMWM3GTR
+cargo run --release -p nfsmw -- view-world
 cargo run --release -p nfsmw -- view-car BMWM3GTR --backend dx12
 ```
 
-The install is found from `--game-dir`, `$NFSMW_GAME_DIR`, a `.env` file (copy `.env.example`), the
-per-user config file, or the retail registry key. Details:
-[docs/architecture.md](docs/architecture.md#finding-the-install).
+The install is found from `--game-dir`, `$NFSMW_GAME_DIR`, a `.env` file (copy `.env.example`), the per-user
+config file, or the retail registry key ([details](docs/architecture.md#finding-the-install)).
 
 | Command | What it does |
 |---|---|
 | `check-install` | Shows where the install was found, identifies `speed.exe`, checks required files |
 | `list-cars` | Lists car folders |
-| `view-car [CAR]` | Orbit view of a car (drag to rotate, scroll to zoom, Esc to quit). Options: `--backend auto\|vulkan\|dx12\|dx11\|gl`, `--lod A..D`, `--all-parts`, `--screenshot out.png` |
+| `view-car [CAR]` | Orbit view of a car: drag to rotate, scroll to zoom. Options: `--lod A..D`, `--all-parts` |
+| `view-world` | Fly through the city: WASD, Space/C, Shift, hold the right mouse button to look, scroll for speed. Options: `--at X,Y`, `--height`, `--heading`, `--pitch`, `--load-radius` |
 
-`dx11` is accepted but not implemented yet: wgpu has no Direct3D 11 backend, so it needs its own
-renderer ([plan](docs/architecture.md#graphics-backends)).
+Options for both viewers:
+
+- `--backend auto|vulkan|dx12|dx11|gl` picks the graphics API. `dx11` is accepted but not implemented yet,
+  because wgpu has no Direct3D 11 backend ([plan](docs/architecture.md#graphics-backends)).
+- `--screenshot out.png` renders one frame and exits; add `--wait-for-load` in the world viewer.
+- Esc quits.
 
 ## Repository
 
 | Path | Contents |
 |---|---|
-| [`crates/`](crates) | The Rust workspace ([architecture](docs/architecture.md)) |
-| [`docs/`](docs/README.md) | File formats, prior art, architecture, licensing |
+| [`libs/`](libs) | **Engine-generic libraries** for EA Black Box games (codecs, bChunk, TPK, solids, streaming, scenery, install discovery, renderer), each with a README, kept free of MW-specific code so they can be reused |
+| [`crates/`](crates) | The game: `nfsmw-data` (how MW's files fit together) and `nfsmw` (the launcher and viewers) |
+| [`docs/`](docs/README.md) | File formats, prior art, architecture, licensing, behaviour specs |
 | [`tools/`](tools) | Python research tools: `chunkdump.py` dumps the bChunk tree of any data file |
-| [`xtask/`](xtask) | `cargo xtask leak-check` / `install-hooks` |
+| [`xtask/`](xtask) | `cargo xtask check` (leak and file-size checks), `install-hooks` |
 
 ## Credits and license
 

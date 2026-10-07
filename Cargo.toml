@@ -1,7 +1,10 @@
 [workspace]
 resolver = "3"
-members = ["crates/*", "xtask"]
-default-members = ["crates/*"]
+# libs/   engine-generic libraries (EA Black Box formats, codecs, install discovery, rendering).
+#         No NFS:MW-specific code: they are meant to move to a shared utilities monorepo.
+# crates/ the NFS:MW game itself.
+members = ["libs/*", "crates/*", "xtask"]
+default-members = ["libs/*", "crates/*"]
 
 [workspace.package]
 version = "0.1.0"
@@ -11,14 +14,19 @@ license = "MIT OR Apache-2.0"
 publish = false
 
 [workspace.dependencies]
-# Internal crates
-nfsmw-hash = { path = "crates/nfsmw-hash" }
-nfsmw-compress = { path = "crates/nfsmw-compress" }
-nfsmw-bchunk = { path = "crates/nfsmw-bchunk" }
-nfsmw-geometry = { path = "crates/nfsmw-geometry" }
-nfsmw-texture = { path = "crates/nfsmw-texture" }
-nfsmw-install = { path = "crates/nfsmw-install" }
-nfsmw-render = { path = "crates/nfsmw-render" }
+# Engine-generic libraries (libs/)
+blackbox-chunk = { path = "libs/blackbox-chunk" }
+blackbox-hash = { path = "libs/blackbox-hash" }
+blackbox-render = { path = "libs/blackbox-render" }
+blackbox-scene = { path = "libs/blackbox-scene" }
+blackbox-scenery = { path = "libs/blackbox-scenery" }
+blackbox-solid = { path = "libs/blackbox-solid" }
+blackbox-streaming = { path = "libs/blackbox-streaming" }
+blackbox-tpk = { path = "libs/blackbox-tpk" }
+ea-compress = { path = "libs/ea-compress" }
+game-install = { path = "libs/game-install" }
+# NFS:MW (crates/)
+nfsmw-data = { path = "crates/nfsmw-data" }
 
 # Third-party (see docs/rust-stack.md for why each was picked)
 anyhow = "1"
@@ -49,5 +57,3 @@ all = { level = "warn", priority = -1 }
 # Decompression and texture decoding are painfully slow unoptimised.
 opt-level = 2
 
-[profile.dev.package.nfsmw-compress]
-opt-level = 2

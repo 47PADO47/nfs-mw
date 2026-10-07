@@ -9,12 +9,12 @@ env:
 
 jobs:
   leak-check:
-    # Refuses game data, binaries and decompiler output. Runs before anything else.
+    # Refuses game data, binaries, decompiler output and files over 500 lines. Runs first.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo xtask leak-check
+      - run: cargo xtask check
 
   build:
     needs: leak-check

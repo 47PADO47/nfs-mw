@@ -108,9 +108,28 @@ Totals for the whole stream: 259,934 chunks; 20,377 solids; 477 texture packs (2
 | 0x28 | u32[4] mesh pointers (runtime) |
 | 0x38 | f32 Radius, u32 MeshChecksum, u32 HierarchyNameHash, u32 HierarchyPointer |
 
-**SceneryInstance** (64 B) **[community; size verified]**: BBoxMin (vec3), BBoxMax (vec3), u32
-ExcludeFlags, i16 PrecullerInfoIndex, i16 LightingContextNumber, Position (vec3), packed 3×3 rotation
-(9 × i16), i16 SceneryInfoNumber (index into this section's `SceneryInfos`).
+**SceneryInstance** (64 B) **[community; layout verified]**:
+
+| Offset | Field |
+|---|---|
+| 0x00 | BBoxMin (vec3), **world space** |
+| 0x0C | BBoxMax (vec3) |
+| 0x18 | u32 ExcludeFlags: which views draw it ([../specs/scenery-visibility.md](../specs/scenery-visibility.md)) |
+| 0x1C | i16 PrecullerInfoIndex, i16 LightingContextNumber |
+| 0x20 | Position (vec3) |
+| 0x2C | 3×3 rotation, 9 × i16, **÷ 8192**, row-major |
+| 0x3E | i16 SceneryInfoNumber (index into this section's `SceneryInfos`) |
+
+**The rotation** **[verified]**: rows are the object's x, y and z axes in world space, so
+`world = x·row0 + y·row1 + z·row2 + Position` (the D3D row-vector convention). Rows can include scale
+(row lengths 0.09–3.0) and mirroring (determinant −1). Evidence: transforming each solid's local bounds
+this way reproduces the instance's stored world box. On the 59,529 instances with a non-identity rotation,
+this convention fits better than the transposed one 45,838 times, the reverse 4,124 times, and ties the
+rest. The remaining error is about 0.14 m of box padding.
+
+Payload alignment: `SceneryInfos` is not aligned; `SceneryInstances` is aligned to 0x10. **In the stream, the
+instances chunk comes before the infos chunk** inside each `ScenerySection`. A one-pass reader must not
+resolve instances as it meets them. **[verified]**
 
 Checked across all 947 scenery sections:
 
@@ -119,15 +138,25 @@ Checked across all 947 scenery sections:
 - **40,574 of 40,679 (99.7%)** SolidMeshKeys match the hash of a solid somewhere in the stream. The rest
   presumably point at shared models in the global files.
 
+**Where an instance's model lives** **[verified, whole stream]**: of the 77,776 instances in map tiles,
+17,759 use a solid from their own tile, 59,963 use one from the shared V/X/Y/Z sections, **none** uses
+another tile, and 54 resolve nowhere. Textures behave the same way: tile solids find 1,461 texture
+references in their own tile and 21,844 in the shared sets, and 426 are missing. So the shared sets can
+stay loaded while tiles stream independently.
+
 So, to rebuild the map:
 
 1. For each section, load its `GeometryPack`s into a `hash → solid` table.
 2. For each `SceneryInstance`, take `SceneryInfos[SceneryInfoNumber]`.
-3. Use `SolidMeshKey[0]` (the highest LOD) to find the model, then place it with the instance's
-   rotation and position.
+3. Skip instances the player view excludes ([../specs/scenery-visibility.md](../specs/scenery-visibility.md)).
+4. Use the first non-zero `SolidMeshKey` (the highest LOD) to find the model, looking in the tile first and
+   then in the shared sets. Place it with the instance's rotation and position.
 
-[NFS-ModTools](https://github.com/NFSTools/NFS-ModTools) (`Common/Scenery/MostWantedScenery.cs`)
-already does this.
+This is implemented in [`blackbox-streaming`](../../libs/blackbox-streaming),
+[`blackbox-scenery`](../../libs/blackbox-scenery) and `nfsmw view-world`
+([../architecture.md](../architecture.md#the-streamed-city-view-world)).
+[NFS-ModTools](https://github.com/NFSTools/NFS-ModTools) (`Common/Scenery/MostWantedScenery.cs`, no
+license) has a C# reader.
 
 ## Inspecting it yourself
 

@@ -1,4 +1,4 @@
 #!/bin/sh
 # Installed by `cargo xtask install-hooks` (sets core.hooksPath to .githooks).
-# Refuses commits that would add game data, binaries or decompiler output.
-exec cargo xtask leak-check --staged
+# Refuses commits that would add game data, binaries, decompiler output or files over 500 lines.
+exec cargo xtask check --staged

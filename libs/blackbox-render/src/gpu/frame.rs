@@ -1,0 +1,102 @@
+//! Drawing a frame: globals, instance upload, the three blend passes.
+
+use super::Renderer;
+use super::pipelines::{BLEND_ORDER, SHADINGS};
+use super::resources::Globals;
+use crate::{FrameParams, Instance, RenderError};
+
+impl Renderer {
+    /// Draw `instances` and present. Returns `Ok(false)` when the frame was skipped
+    /// (window minimised or the surface had to be reconfigured).
+    ///
+    /// Instances of the same mesh should be adjacent: each run becomes one instanced draw per range.
+    pub fn render(&mut self, frame: &FrameParams, instances: &[Instance]) -> Result<bool, RenderError> {
+        let surface_texture = match self.surface.get_current_texture() {
+            wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
+            wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => return Ok(false),
+            wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
+                self.surface.configure(&self.device, &self.config);
+                return Ok(false);
+            }
+            #[allow(unreachable_patterns)]
+            other => return Err(RenderError::Surface(format!("{other:?}"))),
+        };
+        let view = surface_texture.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("frame") });
+        self.encode_scene(&mut encoder, &view, None, frame, instances);
+        self.queue.submit([encoder.finish()]);
+        self.queue.present(surface_texture);
+        Ok(true)
+    }
+
+    /// Record the scene into `target`. `depth` defaults to the window's depth buffer.
+    pub(super) fn encode_scene(
+        &mut self,
+        encoder: &mut wgpu::CommandEncoder,
+        target: &wgpu::TextureView,
+        depth: Option<&wgpu::TextureView>,
+        frame: &FrameParams,
+        instances: &[Instance],
+    ) {
+        let [r, g, b] = frame.clear_color;
+        let globals = Globals {
+            view_proj: frame.view_proj.to_cols_array_2d(),
+            camera_pos: frame.camera_position.extend(1.0).to_array(),
+            light_dir: frame.light_dir.normalize_or_zero().extend(0.0).to_array(),
+            fog_color: [r, g, b, 1.0],
+            fog_range: [frame.fog_start, frame.fog_end, 0.0, 0.0],
+        };
+        self.queue.write_buffer(&self.shared.globals, 0, bytemuck::bytes_of(&globals));
+        let matrices: Vec<[f32; 16]> = instances.iter().map(|i| i.transform.to_cols_array()).collect();
+        self.instances.upload(&self.device, &self.queue, &matrices);
+
+        let depth = depth.unwrap_or(&self.depth);
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("scene"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: target,
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color { r: r.into(), g: g.into(), b: b.into(), a: 1.0 }),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: depth,
+                depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(1.0), store: wgpu::StoreOp::Store }),
+                stencil_ops: None,
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+        pass.set_bind_group(0, &self.shared.globals_bind_group, &[]);
+        pass.set_vertex_buffer(1, self.instances.buffer.slice(..));
+
+        for (mode, shading) in BLEND_ORDER.iter().flat_map(|&b| SHADINGS.iter().map(move |&s| (b, s))) {
+            pass.set_pipeline(self.pipelines.get(mode, shading));
+            let mut start = 0;
+            while start < instances.len() {
+                let mesh_handle = instances[start].mesh;
+                let end = start + instances[start..].iter().take_while(|i| i.mesh == mesh_handle).count();
+                if let Some(mesh) = self.meshes.get(mesh_handle.0) {
+                    pass.set_vertex_buffer(0, mesh.vertices.slice(..));
+                    pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint16);
+                    for d in mesh.draws.iter().filter(|d| d.blend == mode && d.shading == shading) {
+                        let texture = d.texture.and_then(|t| self.textures.get(t.0)).or(self.textures.get(0));
+                        if let Some(texture) = texture {
+                            pass.set_bind_group(1, texture, &[]);
+                            pass.draw_indexed(
+                                d.first_index..d.first_index + d.index_count,
+                                d.base_vertex,
+                                start as u32..end as u32,
+                            );
+                        }
+                    }
+                }
+                start = end;
+            }
+        }
+    }
+}

@@ -32,10 +32,10 @@ against the install at `D:/Need For Speed Most Wanted Black Edition`.
 
 | Doc | What it covers |
 |---|---|
-| [architecture.md](architecture.md) | Crates, finding the install, graphics backends (incl. the D3D11 plan), Windows/Linux, testing, roadmap |
+| [architecture.md](architecture.md) | `libs/` (engine-generic) vs `crates/` (MW), finding the install, the streamed city, graphics backends (incl. the D3D11 plan), Windows/Linux, testing, roadmap |
 | [rust-stack.md](rust-stack.md) | Crates used and planned, with versions and licenses; rejected options |
 | [licensing.md](licensing.md) | Project license, what each source license allows, unlicensed repos, the spec-first process |
-| [specs/](specs/README.md) | Behaviour specs written before implementing physics, AI, … (none yet) |
+| [specs/](specs/README.md) | Behaviour specs written before implementing it from decompiled sources: [scenery visibility](specs/scenery-visibility.md) |
 | [provenance/](provenance/README.md) | Records for modules whose behaviour came from restricted sources |
 
 ### Research
@@ -53,9 +53,9 @@ against the install at `D:/Need For Speed Most Wanted Black Edition`.
 |---|---|---|
 | [formats/bchunk.md](formats/bchunk.md) | bChunk container, padding, JDLZ/RAWW/HUFF wrappers, bare JDLZ blobs | Complete |
 | [formats/huff.md](formats/huff.md) | EA HUFF codec (`0x30FB`): bit stream, numbers, canonical code, run-length clue | Complete; all 10,813 blobs decode |
-| [formats/models.md](formats/models.md) | Solids: chunk tree, header, shading groups, vertex formats, indices, LODs, compressed add-on cars | Verified; Rust reader |
-| [formats/textures.md](formats/textures.md) | TPK: both pack forms, streaming entries, `TextureInfo`, platform record, pixel formats | Verified; Rust reader |
-| [formats/maps.md](formats/maps.md) | The L2RA world: metadata chunks, streaming index, section families, scenery placement | Verified layouts |
+| [formats/models.md](formats/models.md) | Solids: chunk tree, header, shading groups, vertex buffers per effect run, indices, LODs, compressed add-on cars | Verified; Rust reader |
+| [formats/textures.md](formats/textures.md) | TPK: both pack forms, streaming entries, `TextureInfo`, platform record, pixel formats, alpha / blend modes | Verified; Rust reader |
+| [formats/maps.md](formats/maps.md) | The L2RA world: metadata chunks, streaming index, section families, scenery placement and rotation encoding | Verified; Rust readers |
 | [formats/world.md](formats/world.md) | World grid and road network, collision packs, bounds, triggers, emitters, sky, minimap | Partial (decomp only for several) |
 | [formats/attributes.md](formats/attributes.md) | AttribSys `VPAK` packs, vaults, exports, hash, the 57 classes | Layout verified |
 | [formats/cardata.md](formats/cardata.md) | Car types, parts database, presets, vinyls | Partial |
@@ -69,7 +69,8 @@ against the install at `D:/Need For Speed Most Wanted Black Edition`.
 
 ## Project tools
 
-- **Rust:** `nfsmw check-install | list-cars | view-car` (see the [root README](../README.md)).
+- **Rust:** `nfsmw check-install | list-cars | view-car | view-world` (see the [root README](../README.md)).
+  The engine-generic libraries are in [`libs/`](../libs), each with its own README.
 - [`tools/chunkdump.py`](../tools/chunkdump.py) dumps the bChunk tree of a data file (JDLZ/RAWW aware).
 - [`tools/bchunk_names.py`](../tools/bchunk_names.py) maps 330 known chunk IDs to names.
 - [`tests/`](../tests) has the Python tests (`python -m unittest discover tests`).
@@ -104,3 +105,5 @@ against the install at `D:/Need For Speed Most Wanted Black Edition`.
 | FEngFont glyph format | [formats/frontend.md](formats/frontend.md) |
 | Save header bytes 0x08–0x33 | [formats/saves.md](formats/saves.md) |
 | How the `CarShader` paint, reflections and lighting work | the `fx_2_0` effects in `speed.exe` ([formats/shaders.md](formats/shaders.md)) |
+| How water surfaces (river, sea) are drawn: no water geometry is placed by the scenery we read | world effects / `SKY_*`, `RFL_*` solids, the decomp's `World/` |
+| What the subtractive / overbright blend types look like in the game | the effects in `speed.exe` |

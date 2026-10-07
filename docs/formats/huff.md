@@ -6,8 +6,8 @@ stream in the format of EA's in-house compression library: stream type **`0x30FB
 runlength"**, by Frank Barchard at EA Canada. Related types from the same library are RefPack
 (`0x10FB`) and BTree (`0x46FB`).
 
-This spec describes what [`crates/nfsmw-compress/src/huff.rs`](../../crates/nfsmw-compress/src/huff.rs)
-implements (`nfsmw_compress::huff_decompress`). Every HUFF blob in the PC v1.3 install decodes with
+This spec describes what [`libs/ea-compress/src/huff/`](../../libs/ea-compress/src/huff/mod.rs)
+implements (`ea_compress::huff_decompress`). Every HUFF blob in the PC v1.3 install decodes with
 it (§10).
 
 - **Platform:** PC. The wrapper header is little-endian. The stream is read as an MSB-first bit
@@ -54,7 +54,7 @@ Texture blobs are found through the 24-byte `eStreamingEntry` records described 
 offset  size  field              value / notes
 0x00    u8[4] magic              "HUFF"
 0x04    u8    version            0x01
-0x05    u8    header_size        0x10 (nfsmw-compress's `Header` calls this byte `flags`)
+0x05    u8    header_size        0x10 (ea-compress's `Header` calls this byte `flags`)
 0x06    u16   flags              0
 0x08    u32   decompressed_size  size of the output
 0x0C    u32   compressed_size    size of the EA stream, NOT including this 16-byte header
@@ -282,7 +282,7 @@ the rest.
 Results of a scratch harness (not in the repo). It walked `CARS/**/*.BIN`, `GLOBAL/*`,
 `TRACKS/STREAML2RA.BUN`, `FRONTEND/**` and `NIS/**`, found every `0x33310003` record (including
 inside JDLZ-wrapped files and payloads), and decompressed each blob with
-`nfsmw_compress::{huff_decompress, jdlz_decompress}`. Success means `out.len() ==
+`ea_compress::{huff_decompress, jdlz_decompress}`. Success means `out.len() ==
 uncompressed_size` **and** the trailer hash equals `name_hash`. **[verified]**
 
 | Set | HUFF ok / fail | JDLZ ok / fail |
@@ -299,7 +299,7 @@ uncompressed_size` **and** the trailer hash equals `name_hash`. **[verified]**
   Composite, 32-bit and delta types: none.
 - **Speed:** 81 MB of HUFF input → 2,822 MB of output in 0.6 s, release build. Most of the output
   comes from runs.
-- **In-repo check:** `NFSMW_GAME_DIR=<install> cargo test -p nfsmw-compress -- --ignored` runs
+- **In-repo check:** `NFSMW_GAME_DIR=<install> cargo test -p ea-compress -- --ignored` runs
   `real_install_bmw_m3_gtr_textures`, the same check on `CARS/BMWM3GTR/TEXTURES.BIN` (3 HUFF
   textures). Synthetic unit tests in `huff.rs` cover every type variant, run and number widths,
   escapes, codes longer than the lookup table, and the corrupt-stream errors.

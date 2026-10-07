@@ -1,0 +1,15 @@
+[package]
+name = "blackbox-scenery"
+description = "Reader for scenery sections (model placements) in EA Black Box game worlds."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+blackbox-chunk.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

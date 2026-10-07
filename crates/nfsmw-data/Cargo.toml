@@ -1,0 +1,24 @@
+[package]
+name = "nfsmw-data"
+description = "NFS: Most Wanted data assembly: the game's install spec, cars, and the streamed world (L2RA)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+blackbox-scenery.workspace = true
+blackbox-solid.workspace = true
+blackbox-streaming.workspace = true
+blackbox-tpk.workspace = true
+ea-compress.workspace = true
+game-install.workspace = true
+log.workspace = true
+
+[dev-dependencies]
+blackbox-hash.workspace = true
+
+[lints]
+workspace = true

@@ -20,14 +20,14 @@ Which crates the rewrite uses or plans to use, and why. Versions and licenses we
 | png | 0.18 | MIT OR Apache-2.0 | `--screenshot` |
 | thiserror, anyhow, log, env_logger, pollster | — | MIT OR Apache-2.0 | Errors, logging, blocking on wgpu futures |
 
-Written in-house because no crate exists: **JDLZ** and **HUFF** ([`nfsmw-compress`](../crates/nfsmw-compress)),
+Written in-house because no crate exists: **JDLZ** and **HUFF** ([`ea-compress`](../libs/ea-compress)),
 **bChunk** parsing, the **TPK** and **solid** readers.
 
 ## Planned
 
 | Need | Choice | License | Notes |
 |---|---|---|---|
-| Memory-map the 533 MB `STREAML2RA.BUN` | memmap2 | MIT OR Apache-2.0 | Needs `unsafe`; confined to `nfsmw-install` |
+| Memory-map the 533 MB `STREAML2RA.BUN` | memmap2 | MIT OR Apache-2.0 | Needs `unsafe`; confined to `game-install` |
 | EAGL4 animation ELF objects | object | Apache-2.0 OR MIT | ELF32 sections, symbols, relocations |
 | Collision queries (wheel raycasts, trimesh) | parry3d | Apache-2.0 | parry 0.31 pins glam 0.33 through glamx; align glam versions when adding it |
 | Audio output and mixing | kira (on cpal) | MIT OR Apache-2.0 | Its `Sound` trait fits a custom granular engine-sound synth |

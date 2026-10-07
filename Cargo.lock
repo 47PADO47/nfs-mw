@@ -209,6 +209,76 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ded4057c258ba199e2d26386d3af3780957ecaee6c4ef4041c6b4b8b97c0b06"
 
 [[package]]
+name = "blackbox-chunk"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "blackbox-hash"
+version = "0.1.0"
+
+[[package]]
+name = "blackbox-render"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "glam",
+ "log",
+ "pollster",
+ "thiserror 2.0.21",
+ "wgpu",
+ "winit",
+]
+
+[[package]]
+name = "blackbox-scene"
+version = "0.1.0"
+dependencies = [
+ "blackbox-render",
+ "blackbox-solid",
+ "blackbox-tpk",
+ "glam",
+ "log",
+]
+
+[[package]]
+name = "blackbox-scenery"
+version = "0.1.0"
+dependencies = [
+ "blackbox-chunk",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "blackbox-solid"
+version = "0.1.0"
+dependencies = [
+ "blackbox-chunk",
+ "ea-compress",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "blackbox-streaming"
+version = "0.1.0"
+dependencies = [
+ "blackbox-chunk",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "blackbox-tpk"
+version = "0.1.0"
+dependencies = [
+ "blackbox-chunk",
+ "ea-compress",
+ "texture2ddecoder",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "block-buffer"
 version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -588,6 +658,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d8b14ccef22fc6f5a8f4d7d768562a182c04ce9a3b3157b91390b52ddfdf1a76"
 
 [[package]]
+name = "ea-compress"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "env_filter"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -707,6 +784,19 @@ dependencies = [
  "futures-task",
  "pin-project-lite",
  "slab",
+]
+
+[[package]]
+name = "game-install"
+version = "0.1.0"
+dependencies = [
+ "directories",
+ "log",
+ "serde",
+ "sha2",
+ "thiserror 2.0.21",
+ "toml",
+ "winreg",
 ]
 
 [[package]]
@@ -1175,82 +1265,33 @@ name = "nfsmw"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "blackbox-render",
+ "blackbox-scene",
+ "blackbox-scenery",
+ "blackbox-streaming",
  "clap",
  "env_logger",
+ "game-install",
  "glam",
  "log",
- "nfsmw-bchunk",
- "nfsmw-compress",
- "nfsmw-geometry",
- "nfsmw-hash",
- "nfsmw-install",
- "nfsmw-render",
- "nfsmw-texture",
+ "nfsmw-data",
  "png",
  "winit",
 ]
 
 [[package]]
-name = "nfsmw-bchunk"
+name = "nfsmw-data"
 version = "0.1.0"
 dependencies = [
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "nfsmw-compress"
-version = "0.1.0"
-dependencies = [
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "nfsmw-geometry"
-version = "0.1.0"
-dependencies = [
- "nfsmw-bchunk",
- "nfsmw-compress",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "nfsmw-hash"
-version = "0.1.0"
-
-[[package]]
-name = "nfsmw-install"
-version = "0.1.0"
-dependencies = [
- "directories",
+ "anyhow",
+ "blackbox-hash",
+ "blackbox-scenery",
+ "blackbox-solid",
+ "blackbox-streaming",
+ "blackbox-tpk",
+ "ea-compress",
+ "game-install",
  "log",
- "serde",
- "sha2",
- "thiserror 2.0.21",
- "toml",
- "winreg",
-]
-
-[[package]]
-name = "nfsmw-render"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "glam",
- "log",
- "pollster",
- "thiserror 2.0.21",
- "wgpu",
- "winit",
-]
-
-[[package]]
-name = "nfsmw-texture"
-version = "0.1.0"
-dependencies = [
- "nfsmw-bchunk",
- "nfsmw-compress",
- "texture2ddecoder",
- "thiserror 2.0.21",
 ]
 
 [[package]]
