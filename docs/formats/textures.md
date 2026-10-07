@@ -162,3 +162,23 @@ In the world stream, 774 road textures (`SHD_CP_BE_ROAD_A_02A`, …) use usage 2
 architecture textures use usage 0 / blend 0; and the tree foliage (`ORG_*`) uses usage 1 / blend 0 with
 DXT3 or DXT5.
 
+## Animated textures
+
+`B0300100 TextureAnimPack` chunks (top level, next to texture packs in streamed sections and global
+files) make one texture cycle through others **[verified]**:
+
+| Child | Record | Fields |
+|---|---|---|
+| `30300101` | 16 B header | u32 animation count, then zero |
+| `30300102` | 0x34 B `TextureAnim` per animation | char[24] name, u32 name hash (the first frame's texture), i32 frame count, i32 frames per second, i32 time base, then runtime pointers and state |
+| `30300103` | 16 B per frame | u32 texture name hash, then runtime pointers; all animations' frames back to back, in animation order |
+
+Field names are from the decomp's `TextureAnim` / `TextureAnimEntry` **[decomp]**. The stream has 6
+animations (29 frames) and the global packs have 2. For example, `ANM_WATERA_` has 14 frames
+(`ANM_WATERA_` then `ANM_WATERA_001`…`013`) at 17 fps; others include `ANM_BILLBOARDLITES_A_LL` and
+`SGN_SIGNAL_CROSS_`.
+
+Models reference the first frame's texture. At draw time the engine substitutes frame
+`(time × fps) mod count`. The Rust viewer does the same with `Renderer::redirect_texture`
+(`blackbox-tpk::read_texture_anims`).
+
