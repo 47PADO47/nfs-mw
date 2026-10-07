@@ -4,6 +4,8 @@
 
 // Set per pipeline: pre-lit world geometry (vertex colour x 2, no sun) vs lit models.
 override PRELIT: bool = false;
+// Off for the sky, which sits beyond the fog.
+override FOG: bool = true;
 
 struct Globals {
     view_proj: mat4x4<f32>,
@@ -64,7 +66,10 @@ fn shade(in: VsOut) -> vec4<f32> {
         lit = base.rgb * (0.35 + 0.65 * diffuse_light + back_light);
     }
     let distance = length(in.world - globals.camera_pos.xyz);
-    let fog = clamp((distance - globals.fog_range.x) / max(globals.fog_range.y - globals.fog_range.x, 0.001), 0.0, 1.0);
+    var fog = clamp((distance - globals.fog_range.x) / max(globals.fog_range.y - globals.fog_range.x, 0.001), 0.0, 1.0);
+    if !FOG {
+        fog = 0.0;
+    }
     return vec4<f32>(mix(lit, globals.fog_color.rgb, fog), base.a);
 }
 

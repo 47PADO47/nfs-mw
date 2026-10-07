@@ -28,6 +28,6 @@ impl OrbitCamera {
 
     pub fn view_proj(&self, aspect: f32) -> Mat4 {
         let near = (self.distance * 0.01).max(0.01);
-        view_proj(self.eye(), self.target, 55.0, aspect, near, self.distance * 10.0)
+        view_proj(self.eye(), self.target, 55.0, aspect, near)
     }
 }

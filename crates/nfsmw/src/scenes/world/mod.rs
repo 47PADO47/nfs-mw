@@ -50,7 +50,6 @@ impl WorldScene {
             yaw: options.heading.to_radians(),
             pitch: options.pitch.to_radians(),
             speed: 40.0,
-            far: options.load_radius * 2.0,
         };
         log::info!("camera starts at ({:.0}, {:.0}), {:.0} m above the ground", start[0], start[1], options.height);
         Ok(Self {

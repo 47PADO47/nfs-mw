@@ -8,9 +8,10 @@ pub use orbit::OrbitCamera;
 
 use glam::{Mat4, Vec3};
 
-/// View-projection for wgpu's clip space (Y up, depth in [0, 1]).
-pub fn view_proj(eye: Vec3, target: Vec3, fov_y_degrees: f32, aspect: f32, near: f32, far: f32) -> Mat4 {
-    glam::camera::rh::proj::directx::perspective(fov_y_degrees.to_radians(), aspect, near, far)
+/// View-projection for wgpu's clip space (Y up) with reverse Z and no far plane,
+/// as `blackbox-render` expects.
+pub fn view_proj(eye: Vec3, target: Vec3, fov_y_degrees: f32, aspect: f32, near: f32) -> Mat4 {
+    glam::camera::rh::proj::directx::perspective_infinite_reverse(fov_y_degrees.to_radians(), aspect, near)
         * glam::camera::rh::view::look_at_mat4(eye, target, Vec3::Z)
 }
 

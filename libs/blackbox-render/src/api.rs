@@ -87,6 +87,8 @@ pub enum Shading {
     /// Texture × vertex colour × 2, no dynamic light: pre-lit world geometry, whose
     /// vertex colours use 0x80 for full brightness.
     Prelit,
+    /// Like [`Shading::Prelit`] but never fogged: sky domes, which sit beyond the fog.
+    Sky,
 }
 
 /// One draw call: a range of the mesh's indices with one texture.
@@ -121,6 +123,8 @@ pub struct Instance {
 /// Per-frame scene parameters.
 #[derive(Debug, Clone, Copy)]
 pub struct FrameParams {
+    /// World to clip space with **reverse Z** (depth 1 at the near plane, 0 at the
+    /// far plane or infinity), e.g. `glam::camera::rh::proj::directx::perspective_infinite_reverse`.
     pub view_proj: Mat4,
     pub camera_position: Vec3,
     /// Direction the light travels (world space).

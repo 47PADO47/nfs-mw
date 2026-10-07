@@ -1,4 +1,5 @@
-//! View-frustum culling for depth-[0, 1] clip spaces (wgpu, D3D).
+//! View-frustum culling for depth-[0, 1] clip spaces (wgpu, D3D), with normal or
+//! reverse Z (the six planes are the same; with an infinite far plane one is never hit).
 
 use glam::{Mat4, Vec3, Vec4};
 
@@ -52,5 +53,17 @@ mod tests {
         assert!(!f.intersects(&at(0.0, -10.0)));
         assert!(!f.intersects(&at(50.0, 10.0)));
         assert!(!f.intersects(&at(0.0, 200.0)));
+    }
+
+    #[test]
+    fn works_with_reverse_infinite_z() {
+        let proj = glam::camera::rh::proj::directx::perspective_infinite_reverse(1.0, 1.0, 0.1);
+        let view = glam::camera::rh::view::look_at_mat4(Vec3::ZERO, Vec3::new(0.0, 1.0, 0.0), Vec3::Z);
+        let f = Frustum::from_view_proj(&(proj * view));
+        let at = |x: f32, y: f32| Aabb::new([x - 0.5, y - 0.5, -0.5], [x + 0.5, y + 0.5, 0.5]);
+        assert!(f.intersects(&at(0.0, 10.0)));
+        assert!(f.intersects(&at(0.0, 50_000.0)));
+        assert!(!f.intersects(&at(0.0, -10.0)));
+        assert!(!f.intersects(&at(500.0, 10.0)));
     }
 }

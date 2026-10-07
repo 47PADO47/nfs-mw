@@ -7,7 +7,7 @@ use crate::{BlendMode, Shading, Vertex};
 /// Draw order: opaque and alpha-tested first, blended last.
 pub(super) const BLEND_ORDER: [BlendMode; 4] =
     [BlendMode::Opaque, BlendMode::AlphaTest, BlendMode::AlphaBlend, BlendMode::Additive];
-pub(super) const SHADINGS: [Shading; 2] = [Shading::Lit, Shading::Prelit];
+pub(super) const SHADINGS: [Shading; 3] = [Shading::Lit, Shading::Prelit, Shading::Sky];
 
 pub(super) struct Pipelines {
     /// Indexed by `index(blend, shading)`.
@@ -57,7 +57,9 @@ impl Pipelines {
                 BlendMode::Additive => ("fs_blend", Some(ADDITIVE), false),
             };
             let label = format!("{blend_mode:?} {shading:?}");
-            let constants = [("PRELIT", f64::from(u8::from(shading == Shading::Prelit)))];
+            let prelit = matches!(shading, Shading::Prelit | Shading::Sky);
+            let constants =
+                [("PRELIT", f64::from(u8::from(prelit))), ("FOG", f64::from(u8::from(shading != Shading::Sky)))];
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(&label),
                 layout: Some(&layout),
@@ -76,7 +78,8 @@ impl Pipelines {
                 depth_stencil: Some(wgpu::DepthStencilState {
                     format: DEPTH_FORMAT,
                     depth_write_enabled: Some(depth_write),
-                    depth_compare: Some(wgpu::CompareFunction::LessEqual),
+                    // Reverse Z: near = 1, far = 0.
+                    depth_compare: Some(wgpu::CompareFunction::GreaterEqual),
                     stencil: Default::default(),
                     bias: Default::default(),
                 }),

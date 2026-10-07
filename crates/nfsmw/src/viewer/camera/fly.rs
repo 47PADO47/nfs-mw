@@ -14,7 +14,6 @@ pub struct FlyCamera {
     pub pitch: f32,
     /// Metres per second.
     pub speed: f32,
-    pub far: f32,
 }
 
 impl FlyCamera {
@@ -41,6 +40,6 @@ impl FlyCamera {
     }
 
     pub fn view_proj(&self, aspect: f32) -> Mat4 {
-        view_proj(self.position, self.position + self.forward(), 70.0, aspect, 0.5, self.far)
+        view_proj(self.position, self.position + self.forward(), 70.0, aspect, 0.5)
     }
 }
