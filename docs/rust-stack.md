@@ -18,6 +18,7 @@ Which crates the rewrite uses or plans to use, and why. Versions and licenses we
 | sha2 | 0.10 | MIT OR Apache-2.0 | Identifying `speed.exe` |
 | clap | 4 | MIT OR Apache-2.0 | Command line |
 | png | 0.18 | MIT OR Apache-2.0 | `--screenshot` |
+| egui | 0.36 | MIT OR Apache-2.0 | Developer UI (metrics overlay, console). Only the context, layout and tessellation are used; `gui/` hands its output to `blackbox-render`'s UI layer. Its bundled fonts (Hack, Ubuntu-Light, Noto Emoji, emoji-icon-font) are OFL-1.1 and Ubuntu Font Licence: `deny.toml` has an exception and `NOTICE` lists them |
 | thiserror, anyhow, log, env_logger, pollster | — | MIT OR Apache-2.0 | Errors, logging, blocking on wgpu futures |
 
 Written in-house because no crate exists: **JDLZ** and **HUFF** ([`ea-compress`](../libs/ea-compress)),
@@ -33,7 +34,6 @@ Written in-house because no crate exists: **JDLZ** and **HUFF** ([`ea-compress`]
 | Audio output and mixing | kira (on cpal) | MIT OR Apache-2.0 | Its `Sound` trait fits a custom granular engine-sound synth |
 | EA-XA, EA-XAS, MicroTalk decoders | port from vgmstream | ISC-style | Keep vgmstream's notice in each ported file |
 | VP6 video | nihav-vp6 (git, ruffle-rs) | MIT | Plus our own MVhd/MV0K/MV0F demuxer |
-| Debug UI | egui | MIT OR Apache-2.0 | |
 | Third-party notices | cargo-about | MIT OR Apache-2.0 | Generated from `Cargo.lock` for releases |
 
 ## Rejected

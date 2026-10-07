@@ -86,14 +86,28 @@ bevy_winit window ─► PreUpdate: input/ resolves devices into actions (Action
 - **Errors** from systems (no GPU, a failed present) are stored and returned from `main`; the app exits with
   an error code.
 
+## Developer tools
+
+- **UI layer.** `blackbox-render` draws a 2D layer over the scene: textured, clipped, premultiplied-alpha
+  triangles (`UiLayer`, `UiTexturePatch`). It knows nothing about egui; the front-end menus of milestone 6
+  will use the same layer.
+- **egui host** (`gui/`): turns Bevy keyboard, mouse and wheel messages into egui events and egui's output
+  into that layer. The panels only see an `egui::Context`.
+- **Metrics** (`devtools/`): `Metrics` is plain data (240 frame times, GPU name, mesh and texture counts).
+  `--show-metrics basic` draws fps and frame time; `advanced` adds the 1% low, worst frame, a frame-time graph
+  with a 60 fps line, resource counts and the scene status.
+- **Order of a frame:** `Prepare` (renderer, cursor, size) → `SceneUpdate` → `Ui` (egui pass) → `Draw`
+  (the bridge uploads texture patches, sets the layer, renders). `--screenshot` runs a few frames first so
+  the overlay is in the picture.
+
 ## Settings
 
 Runtime options resolve in layers, highest first ([`crates/nfsmw/src/settings/`](../crates/nfsmw/src/settings)):
 
-1. the command line (`--backend`, `--no-vsync`, `--max-fps`);
-2. environment variables (`NFSMW_BACKEND`, `NFSMW_VSYNC`, `NFSMW_MAX_FPS`);
-3. the per-user config file (`backend`, `vsync`, `max_fps`; the same file as `game_dir`);
-4. the defaults (`auto`, vsync on, unlocked).
+1. the command line (`--backend`, `--no-vsync`, `--max-fps`, `--show-metrics`);
+2. environment variables (`NFSMW_BACKEND`, `NFSMW_VSYNC`, `NFSMW_MAX_FPS`, `NFSMW_SHOW_METRICS`);
+3. the per-user config file (`backend`, `vsync`, `max_fps`, `show_metrics`; the same file as `game_dir`);
+4. the defaults (`auto`, vsync on, unlocked, overlay off).
 
 Each key resolves on its own. A value that does not parse (in the environment or the file) is logged and
 skipped, so the next layer applies; a broken config file never stops the game from starting. The
