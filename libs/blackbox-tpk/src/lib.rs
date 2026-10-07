@@ -13,6 +13,7 @@
 //! version 5 (NFS: Most Wanted, PC). Other versions fail with
 //! [`Error::UnsupportedVersion`] until their layout is added.
 
+mod anim;
 mod decode;
 mod error;
 mod format;
@@ -24,6 +25,7 @@ mod texture;
 #[cfg(test)]
 mod tests;
 
+pub use anim::{TextureAnim, read_texture_anims};
 pub use decode::{decode_rgba8, mip_level_size};
 pub use error::{Error, Result};
 pub use format::{AlphaUsage, PixelFormat};
