@@ -86,8 +86,8 @@ TRACKS/STREAML2RA.BUN ─► loader threads (nfsmw-data::world::Streamer)
   frustum-culled using their stored world boxes. Then the game's LOD rule picks slot 0 or slot 2, or nothing
   under 17 px, which is also the real draw distance ([specs/scenery-lod.md](specs/scenery-lod.md)).
   Finally the instances are sorted by mesh and drawn instanced.
-- **Sky:** the `SKYDOME` scenery model, textured from `GLOBAL/InGameA.bun`, drawn with the fog-free sky
-  shading. Depth is reverse-Z with an infinite far plane, so the 9.7 km dome is never clipped.
+- **Sky:** the `SKYDOME` and `SKYDOME_XENON` scenery models, textured from `GLOBAL/InGameA.bun`, drawn
+  with the fog-free sky shading. Texture animations (water, signals) advance every frame. Depth is reverse-Z with an infinite far plane, so the 9.7 km dome is never clipped.
 - **Shading:** world geometry is pre-lit (vertex colour × 2, no sun); blending follows each texture's
   `AlphaBlendType` ([textures.md](formats/textures.md#alpha)). Linear fog from 0.8× to 1.6× the load radius
   (default 700 m) hides the streaming edge.
@@ -97,8 +97,8 @@ TRACKS/STREAML2RA.BUN ─► loader threads (nfsmw-data::world::Streamer)
 
 Known gaps, for later milestones:
 
-- **Not drawn yet:** the next-gen sky dome (`SKYDOME_XENON`, undecoded 44-byte vertices), water animation
-  and reflections, cars and traffic, and the world animations (cranes, the airliner).
+- **Not drawn yet:** `SKY_SPECULAR`, water reflections, cars and traffic, and the world animations
+  (cranes, the airliner).
 - **Approximations:**
   - the LOD pixel scale assumes a 480-line reference screen;
   - no scenery overrides, so race barriers are never shown;

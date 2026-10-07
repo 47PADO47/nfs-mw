@@ -89,8 +89,8 @@ blob holds `WCollisionInstance` / `WCollisionObject` records (both derived from 
   `SKY_NEXGEN_CLOUDS_A`).
   - `SKYDOME` uses effect 0 with 36-byte vertices and white vertex colours; drawn pre-lit and unfogged,
     it gives the overcast midday sky.
-  - `SKYDOME_XENON` uses effect 19, the only 44-byte vertex format in the stream, which is not decoded
-    yet; read as the 36-byte layout, its colours are garbage.
+  - `SKYDOME_XENON` uses effect 19, the only 44-byte vertex format in the stream: the common 36 bytes
+    (white vertex colour) plus a second UV pair at 36. It draws the detailed next-gen clouds.
   - `SKY_SPECULAR` (textured `SKY_REFSKYSPECULARB`) looks like a layer for reflections. Drawing it in
     the player view darkens the whole dome **[unconfirmed]**.
 - Lighting/TOD data: AttribSys `timeofdaylighting` (13 fields, 8 collections), `visuallook`,

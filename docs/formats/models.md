@@ -137,7 +137,7 @@ Strides seen by effect id:
 | 3 | 60 | 6,340 |
 | 5 | 36 | 2,474 |
 | 6 | 36 | 1,006 |
-| 19 | 44 | 1 |
+| 19 | 44 | 1 (`SKYDOME_XENON`: the common 36 bytes + a second UV pair) |
 
 ## Indices (`0x00134B03`)
 

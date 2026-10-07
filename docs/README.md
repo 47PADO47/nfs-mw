@@ -106,5 +106,4 @@ against the install at `D:/Need For Speed Most Wanted Black Edition`.
 | Save header bytes 0x08–0x33 | [formats/saves.md](formats/saves.md) |
 | How the `CarShader` paint, reflections and lighting work | the `fx_2_0` effects in `speed.exe` ([formats/shaders.md](formats/shaders.md)) |
 | Water animation and reflections (`ANM_WATERA_` frames, `SKY_POND_REFLECTION`) | `TextureAnimPack` `0xB0300100`, the effects in `speed.exe` |
-| The next-gen sky dome's 44-byte vertex format (effect 19) | `SKYDOME_XENON` in section Z0 |
 | What the subtractive / overbright blend types look like in the game | the effects in `speed.exe` |
