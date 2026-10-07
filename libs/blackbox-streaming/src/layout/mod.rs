@@ -1,8 +1,11 @@
-//! `TrackStreamingSection` record layouts per game.
+//! Record layouts per game: the `TrackStreamingSection` index and the
+//! `VisibleSectionManager` tables.
 
 mod most_wanted;
+mod visible;
 
-pub use most_wanted::MOST_WANTED;
+pub use most_wanted::{MOST_WANTED, MOST_WANTED_VISIBLE};
+pub use visible::{BoundaryLayout, DrivableLayout, InfoLayout, LoadingLayout, VisibleLayout};
 
 /// Field offsets inside one record.
 #[derive(Debug, Clone)]
