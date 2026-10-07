@@ -10,6 +10,10 @@ pub fn check(explicit: Option<&Path>) -> Result<()> {
     let found = game_install::discover(&SPEC, explicit)?;
     println!("install:     {}", found.path.display());
     println!("found via:   {}", found.source);
+    if let Some(config) = game_install::config_file_path(&SPEC) {
+        let state = if config.exists() { "" } else { " (not created)" };
+        println!("config file: {}{state}", config.display());
+    }
     let dir = GameDir::open(&found.path)?;
     println!("files:       {}", dir.file_count());
     let v = dir.validate(&SPEC);

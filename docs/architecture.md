@@ -53,8 +53,10 @@ names come from MW's `GameSpec` ([`nfsmw-data/src/game.rs`](../crates/nfsmw-data
 1. `--game-dir <PATH>`;
 2. `NFSMW_GAME_DIR`;
 3. `NFSMW_GAME_DIR=<PATH>` in a `.env` file in the working directory or next to the executable;
-4. `game_dir = "<PATH>"` in the per-user config file (`%APPDATA%\nfsmw\config\config.toml` /
-   `~/.config/nfsmw/config.toml`);
+4. `game_dir = "<PATH>"` in the per-user config file. Its location depends on the platform, and
+   `nfsmw check-install` prints it:
+   - Windows: `%APPDATA%\nfsmw\config\config.toml`, i.e. `C:\Users\<you>\AppData\Roaming\nfsmw\config\config.toml`;
+   - Linux: `$XDG_CONFIG_HOME/nfsmw/config.toml`, usually `~/.config/nfsmw/config.toml`;
 5. on Windows, `HKLM` / `HKCU` `\SOFTWARE\EA GAMES\Need for Speed Most Wanted` → `Install Dir` (32-bit view).
 
 The required files are checked, and `speed.exe` is hashed and identified (v1.3 = `80774c2e…1d253c`).
