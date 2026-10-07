@@ -54,6 +54,16 @@ pub(super) fn vertex_buffer(count: u32, stride: usize, x0: f32) -> Vec<u8> {
 
 /// A file holding one GeometryPack with one solid.
 pub(super) fn solid_file(name: &str, groups: &[Group], vertex_buffers: &[Vec<u8>]) -> Vec<u8> {
+    solid_file_with_markers(name, groups, vertex_buffers, &[])
+}
+
+/// Like [`solid_file`], with position markers given as (name hash, translation).
+pub(super) fn solid_file_with_markers(
+    name: &str,
+    groups: &[Group],
+    vertex_buffers: &[Vec<u8>],
+    markers: &[(u32, [f32; 3])],
+) -> Vec<u8> {
     let mut info = vec![0u8; 0xA0];
     info[0x0C] = 0x16;
     info[0x10..0x14].copy_from_slice(&bstring_hash(name).to_le_bytes());
@@ -72,6 +82,9 @@ pub(super) fn solid_file(name: &str, groups: &[Group], vertex_buffers: &[Vec<u8>
     let mut body = Vec::new();
     push_aligned(&mut body, 16, ids::SOLID_INFO, 0x10, &info);
     push_aligned(&mut body, 16, ids::SOLID_TEXTURES, 1, &[0xAA, 0, 0, 0, 0, 0, 0, 0]);
+    if !markers.is_empty() {
+        push_aligned(&mut body, 16, ids::SOLID_MARKERS, 0x10, &marker_records(markers));
+    }
     let mesh_at = 16 + body.len() + 8;
     let mut mesh = Vec::new();
     push_aligned(&mut mesh, mesh_at, ids::MESH_SHADING_GROUPS, 0x10, &records);
@@ -81,4 +94,20 @@ pub(super) fn solid_file(name: &str, groups: &[Group], vertex_buffers: &[Vec<u8>
     }
     body.extend_from_slice(&chunk(ids::MESH_INFO_CONTAINER, &mesh));
     chunk(ids::GEOMETRY_PACK, &chunk(ids::SOLID_PACK, &body))
+}
+
+fn marker_records(markers: &[(u32, [f32; 3])]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for (hash, t) in markers {
+        let mut r = vec![0u8; 0x50];
+        r[0..4].copy_from_slice(&hash.to_le_bytes());
+        // Identity rotation, then the translation row.
+        for (i, v) in
+            [1.0f32, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, t[0], t[1], t[2], 1.0].iter().enumerate()
+        {
+            r[0x10 + i * 4..0x14 + i * 4].copy_from_slice(&v.to_le_bytes());
+        }
+        out.extend(r);
+    }
+    out
 }

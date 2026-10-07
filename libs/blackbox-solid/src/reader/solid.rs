@@ -3,8 +3,9 @@
 use blackbox_chunk::{Chunk, ids};
 
 use crate::bytes::{cstr, f32_at, u16_at, u32_at, vec3_at};
+use crate::layout::MarkerLayout;
 use crate::layout::{self, VERSION_OFFSET};
-use crate::{Error, Result, Solid};
+use crate::{Error, PositionMarker, Result, Solid};
 
 /// Parse one `SolidPack` (`0x80134010`) chunk.
 pub fn read_solid(pack: Chunk<'_>) -> Result<Solid> {
@@ -41,6 +42,7 @@ pub fn read_solid(pack: Chunk<'_>) -> Result<Solid> {
         density: f32_at(info, l.density),
         texture_hashes: hash_list(ids::SOLID_TEXTURES),
         light_material_hashes: hash_list(ids::SOLID_LIGHT_MATERIALS),
+        markers: pack.child(ids::SOLID_MARKERS).map(|c| read_markers(c, &layout.marker)).unwrap_or_default(),
         vertex_buffers: Vec::new(),
         vertices: Vec::new(),
         indices: Vec::new(),
@@ -50,4 +52,18 @@ pub fn read_solid(pack: Chunk<'_>) -> Result<Solid> {
         super::mesh::read_mesh(mesh, layout, &mut solid).map_err(err)?;
     }
     Ok(solid)
+}
+
+/// `SolidMarkers`: fixed-size records after the alignment padding.
+fn read_markers(chunk: Chunk<'_>, l: &MarkerLayout) -> Vec<PositionMarker> {
+    chunk
+        .aligned_payload(l.align)
+        .chunks_exact(l.len)
+        .map(|r| PositionMarker {
+            name_hash: u32_at(r, l.name_hash),
+            int_param: u32_at(r, l.int_param) as i32,
+            float_params: [f32_at(r, l.float_params), f32_at(r, l.float_params + 4)],
+            matrix: std::array::from_fn(|i| f32_at(r, l.matrix + i * 4)),
+        })
+        .collect()
 }

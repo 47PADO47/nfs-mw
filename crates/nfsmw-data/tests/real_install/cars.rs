@@ -30,6 +30,13 @@ fn bmw_m3_gtr_matches_documented_numbers() {
     assert!(solids.iter().all(|s| s.vertex_buffers.len() == 1 && s.vertex_buffers[0].stride == 36));
     let base = solids.iter().find(|s| s.name == "BMWM3GTR_BASE_A").unwrap();
     assert_eq!((base.groups.len(), base.vertices.len(), base.indices.len()), (7, 345, 1062));
+    // docs/formats/cardata.md (SolidMarkers): the wheel carries the brake depth, the base the lights.
+    let wheel = solids.iter().find(|s| s.name == "BMWM3GTR_KIT00_FRONT_TIRE_A").unwrap();
+    let brake = wheel.marker(blackbox_hash::bstring_hash("FRONT_BRAKE")).expect("FRONT_BRAKE marker");
+    assert!((brake.translation()[1] - 0.046).abs() < 1e-3, "{:?}", brake.translation());
+    let headlight = base.marker(blackbox_hash::bstring_hash("LEFT_HEADLIGHT")).expect("LEFT_HEADLIGHT marker");
+    let [x, y, z] = headlight.translation();
+    assert!((x - 2.162).abs() < 1e-2 && (y - 0.581).abs() < 1e-2 && (z - 0.473).abs() < 1e-2, "{x} {y} {z}");
 }
 
 #[test]

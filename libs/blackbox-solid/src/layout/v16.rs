@@ -1,7 +1,7 @@
 //! `SolidInfo` version 0x16: NFS: Most Wanted (PC). Verified on 15,781 car
 //! solids and 20,377 world solids of the PC v1.3 install (`docs/formats/models.md`).
 
-use super::{GroupLayout, InfoLayout, SolidLayout};
+use super::{GroupLayout, InfoLayout, MarkerLayout, SolidLayout};
 
 pub const V16: SolidLayout = SolidLayout {
     version: 0x16,
@@ -30,6 +30,7 @@ pub const V16: SolidLayout = SolidLayout {
         first_index: 0x44,
         num_indices: 0x5C,
     },
+    marker: MarkerLayout { len: 0x50, align: 0x10, name_hash: 0x00, int_param: 0x04, float_params: 0x08, matrix: 0x10 },
     groups_align: 0x10,
     indices_align: 0x10,
     vertices_align: 0x80,

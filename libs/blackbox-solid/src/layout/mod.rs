@@ -41,6 +41,20 @@ pub struct GroupLayout {
     pub num_indices: usize,
 }
 
+/// Field offsets inside one position-marker record (`SolidMarkers`).
+#[derive(Debug, Clone)]
+pub struct MarkerLayout {
+    pub len: usize,
+    /// Alignment of the chunk payload.
+    pub align: usize,
+    pub name_hash: usize,
+    pub int_param: usize,
+    /// Two `f32`s.
+    pub float_params: usize,
+    /// 16 `f32`s, row-major.
+    pub matrix: usize,
+}
+
 /// Everything version-specific about a solid.
 #[derive(Debug, Clone)]
 pub struct SolidLayout {
@@ -50,6 +64,7 @@ pub struct SolidLayout {
     pub used_by: &'static str,
     pub info: InfoLayout,
     pub group: GroupLayout,
+    pub marker: MarkerLayout,
     pub groups_align: usize,
     pub indices_align: usize,
     pub vertices_align: usize,

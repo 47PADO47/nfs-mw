@@ -1,6 +1,6 @@
 mod builder;
 
-use builder::{Group, bstring_hash, solid_file, vertex_buffer};
+use builder::{Group, bstring_hash, solid_file, solid_file_with_markers, vertex_buffer};
 
 use crate::{Error, layout, read_solids};
 
@@ -63,4 +63,20 @@ fn unknown_version_is_reported() {
     let info = info.next_multiple_of(0x10);
     file[info + layout::VERSION_OFFSET] = 0x19;
     assert!(matches!(read_solids(&file), Err(Error::UnsupportedVersion { version: 0x19, .. })));
+}
+
+#[test]
+fn position_markers() {
+    let brake = bstring_hash("FRONT_BRAKE");
+    let file = solid_file_with_markers(
+        "WHEEL",
+        &[Group { effect: 0, vertices: 3, indices: vec![0, 1, 2] }],
+        &[vertex_buffer(3, 36, 0.0)],
+        &[(brake, [0.0, 0.046, 0.0]), (7, [1.0, 2.0, 3.0])],
+    );
+    let s = &read_solids(&file).unwrap()[0];
+    assert_eq!(s.markers.len(), 2);
+    assert_eq!(s.marker(brake).unwrap().translation(), [0.0, 0.046, 0.0]);
+    assert_eq!(s.markers[1].translation(), [1.0, 2.0, 3.0]);
+    assert!(s.marker(1).is_none());
 }

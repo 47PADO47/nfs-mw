@@ -27,7 +27,7 @@ and frontend models. For the tag meanings, see [evidence tags](../README.md#evid
    ├─ 00134012 SolidTextures                        texture name hashes (bStringHash) used by this solid
    ├─ 00134013 SolidShaders (LightMaterials)        light material hashes
    ├─ 00134017/18/19 MeshNormalSmoother / SmoothVertices / SmoothVertexPlats   (some car parts)
-   ├─ 0013401A SolidMarkers                         position markers (some solids)
+   ├─ 0013401A SolidMarkers                         position markers (some solids; layout in cardata.md)
    └─ 80134100 MeshInfoContainer
       ├─ 00134900 MeshInfoHeader (SolidMeshDescriptor)
       ├─ 00134B02 MeshShaderInfos (ShadingGroups)   one 104-byte record per material

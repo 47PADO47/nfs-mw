@@ -54,6 +54,24 @@ impl ShadingGroup {
     }
 }
 
+/// A named point attached to a solid (`ePositionMarker`): where lights, exhausts,
+/// spoilers or brakes go.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PositionMarker {
+    /// bStringHash of the marker name, e.g. `FRONT_BRAKE`.
+    pub name_hash: u32,
+    pub int_param: i32,
+    pub float_params: [f32; 2],
+    /// Row-major: rows are the x, y, z axes, then the translation.
+    pub matrix: [f32; 16],
+}
+
+impl PositionMarker {
+    pub fn translation(&self) -> [f32; 3] {
+        [self.matrix[12], self.matrix[13], self.matrix[14]]
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Solid {
     pub name: String,
@@ -71,9 +89,18 @@ pub struct Solid {
     /// bStringHash of each texture the solid uses.
     pub texture_hashes: Vec<u32>,
     pub light_material_hashes: Vec<u32>,
+    /// Position markers (the header's marker count is 0 on disk; this is read from the chunk).
+    pub markers: Vec<PositionMarker>,
     pub vertex_buffers: Vec<VertexBuffer>,
     /// Every vertex buffer decoded and concatenated, in buffer order.
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u16>,
     pub groups: Vec<ShadingGroup>,
+}
+
+impl Solid {
+    /// The first marker named by `name_hash`.
+    pub fn marker(&self, name_hash: u32) -> Option<&PositionMarker> {
+        self.markers.iter().find(|m| m.name_hash == name_hash)
+    }
 }
