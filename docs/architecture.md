@@ -96,6 +96,18 @@ bevy_winit window ─► PreUpdate: input/ resolves devices into actions (Action
 - **Metrics** (`devtools/`): `Metrics` is plain data (240 frame times, GPU name, mesh and texture counts).
   `--show-metrics basic` draws fps and frame time; `advanced` adds the 1% low, worst frame, a frame-time graph
   with a 60 fps line, resource counts and the scene status.
+- **Console** (F12; Esc or F12 closes it): the log (the last 1,000 lines, coloured by level, kept by a
+  logger that wraps `env_logger`) above a command line with history (Up/Down) and Tab completion. The
+  keyboard belongs to the console while it is open: game actions go quiet and the mouse is released
+  (and recaptured on close). Typed lines are parsed into a `Command` (plain data, unit-tested) and run by
+  one system, so the console never touches the renderer itself.
+  - Built in: `help`, `clear`, `quit`, `get [setting]`, `set <setting> <value>` (`fps`, `vsync`, `metrics`),
+    the shorthands `fps 60` / `vsync off` / `metrics advanced`, and `resolution <w> <h>`. Changes last for
+    the run; the config file is not written.
+  - The car viewer adds `car <folder>`, `cars` and `freecam` (orbit ↔ free camera). Scenes offer commands
+    through `Scene::commands` and `Scene::command`; "spawn AI" arrives with milestone 7.
+  - `--exec "<command>"` (repeatable) runs commands at startup, like Quake's `+exec`; `--open-console`
+    (hidden) starts with the console open, which is how the screenshots in bug reports show it.
 - **Order of a frame:** `Prepare` (renderer, cursor, size) → `SceneUpdate` → `Ui` (egui pass) → `Draw`
   (the bridge uploads texture patches, sets the layer, renders). `--screenshot` runs a few frames first so
   the overlay is in the picture.
