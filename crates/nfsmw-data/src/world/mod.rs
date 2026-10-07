@@ -12,7 +12,7 @@ mod index;
 mod section;
 mod streamer;
 
-pub use globals::{GLOBAL_TEXTURE_FILES, load_global_textures};
+pub use globals::{GLOBAL_TEXTURE_FILES, GlobalTextures, load_global_textures};
 pub use index::WorldIndex;
 pub use section::{SectionData, load_section, parse_section};
 pub use streamer::{Streamer, StreamerEvent};

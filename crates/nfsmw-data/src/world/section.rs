@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 use blackbox_scenery::ScenerySection;
 use blackbox_solid::Solid;
 use blackbox_streaming::StreamingSection;
-use blackbox_tpk::Texture;
+use blackbox_tpk::{Texture, TextureAnim};
 
 /// Everything a section contributes to the world.
 pub struct SectionData {
@@ -14,6 +14,8 @@ pub struct SectionData {
     pub index: usize,
     pub solids: Vec<Solid>,
     pub textures: Vec<Texture>,
+    /// Animated textures (water, signals) defined in this section.
+    pub anims: Vec<TextureAnim>,
     pub scenery: Vec<ScenerySection>,
 }
 
@@ -30,7 +32,8 @@ pub fn parse_section(index: usize, bytes: &[u8]) -> Result<SectionData> {
     }
     let scenery =
         blackbox_scenery::read_scenery_sections(bytes, &blackbox_scenery::layout::MOST_WANTED).context("scenery")?;
-    Ok(SectionData { index, solids, textures, scenery })
+    let anims = blackbox_tpk::read_texture_anims(bytes);
+    Ok(SectionData { index, solids, textures, anims, scenery })
 }
 
 /// Read and parse one section from the open stream file.
