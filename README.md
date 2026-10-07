@@ -3,7 +3,7 @@
 A Rust rewrite of **Need for Speed: Most Wanted** (2005, PC v1.3 / Black Edition) that reads all game
 data at runtime from **your own install**. This repository contains no game files and no decompiled code.
 
-**Status: milestone 3 (in progress).**
+**Status: milestone 3 done; milestone 4 (engine foundation) next.**
 
 - **Install:** finds and checks your copy of the game.
 - **Data:** decodes the data containers (bChunk, JDLZ, HUFF) and reads cars, texture packs and the streamed
