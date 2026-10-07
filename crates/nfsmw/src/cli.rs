@@ -54,7 +54,7 @@ pub enum Command {
         #[arg(long, default_value_t = -20.0, allow_negative_numbers = true)]
         pitch: f32,
         /// Load map tiles within this many metres of the camera.
-        #[arg(long, default_value_t = 450.0)]
+        #[arg(long, default_value_t = 700.0)]
         load_radius: f32,
         /// For --screenshot: wait until every tile in range has loaded before capturing.
         #[arg(long)]

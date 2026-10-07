@@ -64,8 +64,9 @@ impl WorldScene {
         })
     }
 
-    fn draw_distance(&self) -> f32 {
-        self.residency.load_radius * 1.4
+    /// Where the fog is complete. The LOD rule decides what is drawn; fog only hides the streaming edge.
+    fn fog_end(&self) -> f32 {
+        self.residency.load_radius * 1.6
     }
 }
 
@@ -92,7 +93,7 @@ impl Scene for WorldScene {
 
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
         let view_proj = self.camera.view_proj(aspect);
-        let distance = self.draw_distance();
+        let fog_end = self.fog_end();
         let camera = visibility::Camera {
             view_proj,
             position: self.camera.position.to_array(),
@@ -106,8 +107,8 @@ impl Scene for WorldScene {
             camera_position: self.camera.position,
             light_dir: Vec3::new(-0.35, -0.45, -1.0),
             clear_color: CLEAR,
-            fog_start: distance * 0.45,
-            fog_end: distance,
+            fog_start: fog_end * 0.5,
+            fog_end,
         };
         (params, &self.visible)
     }
