@@ -24,17 +24,20 @@ pub enum Command {
     CheckInstall,
     /// List the cars in the install.
     ListCars,
-    /// Show a car model (drag to orbit, scroll to zoom, Esc to quit).
+    /// Show a car assembled from its stock parts (drag to orbit, scroll to zoom, Esc to quit).
     ViewCar {
         /// Car folder name under CARS/, e.g. BMWM3GTR.
         #[arg(default_value = "BMWM3GTR")]
         car: String,
-        /// Level of detail to show (A = highest ... D = lowest).
+        /// Level of detail to show (A = highest ... E = lowest).
         #[arg(long, default_value = "A")]
         lod: char,
-        /// Show every part of the LOD (decals, damaged parts, every body kit), not just the stock car.
+        /// Show every solid of the LOD at the origin (decals, damage, every kit) instead of the assembled car.
         #[arg(long)]
         all_parts: bool,
+        /// Build a preset car from the game's PresetRides (e.g. CE_GTRSTREET) instead of the stock car.
+        #[arg(long, value_name = "NAME")]
+        preset: Option<String>,
         /// Camera yaw in degrees.
         #[arg(long, default_value_t = 35.0, allow_negative_numbers = true)]
         yaw: f32,

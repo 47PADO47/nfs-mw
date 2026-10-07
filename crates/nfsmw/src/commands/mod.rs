@@ -19,9 +19,10 @@ pub fn run(cli: Cli) -> Result<()> {
             }
             Ok(())
         }
-        Command::ViewCar { car, lod, all_parts, yaw, view } => {
+        Command::ViewCar { car, lod, all_parts, preset, yaw, view } => {
             let dir = open_install(game_dir)?;
-            let model = nfsmw_data::car::load(&dir, &car, lod.to_ascii_uppercase(), all_parts)?;
+            let options = nfsmw_data::car::LoadOptions { lod, all_parts, preset };
+            let model = nfsmw_data::car::load(&dir, &car, &options)?;
             viewer::run(Box::new(CarScene::new(model, yaw)), &view)
         }
         Command::ViewWorld { at, height, heading, pitch, load_radius, wait_for_load, view } => {
