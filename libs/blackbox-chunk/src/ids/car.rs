@@ -1,0 +1,14 @@
+//! Car tables: `docs/formats/cardata.md`.
+
+pub const CAR_TYPE_INFOS: u32 = 0x0003_4600;
+pub const CAR_PART_PACK: u32 = 0x8003_4602;
+pub const CAR_PART_HEADER: u32 = 0x0003_4603;
+pub const CAR_PART_PARTS_TABLE: u32 = 0x0003_4604;
+pub const CAR_PART_ATTRIBUTES_TABLE: u32 = 0x0003_4605;
+pub const CAR_PART_STRING_TABLE: u32 = 0x0003_4606;
+pub const CAR_PART_SLOT_TYPES: u32 = 0x0003_4607;
+pub const CAR_PART_MODEL_TABLE: u32 = 0x0003_460A;
+pub const CAR_PART_TYPE_NAME_TABLE: u32 = 0x0003_460B;
+pub const CAR_PART_ATTRIBUTE_LISTS: u32 = 0x0003_460C;
+pub const PRESET_RIDES: u32 = 0x0003_0220;
+pub const LIGHT_MATERIALS: u32 = 0x0013_5200;

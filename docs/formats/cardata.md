@@ -101,7 +101,9 @@ so treat it as an opaque id. Selectors: 11,950 × 1, 966 × 0, 164 × 2 (afterma
 8,330 at 0, the rest 1–7.
 
 **Attribute (8 B).** u32 name hash (`bStringHash` of the attribute name), u32 value read as u32, i32,
-f32 or string offset (× 4) depending on the attribute. Attributes are shared between parts (only 1,870
+f32 or string offset (× 4) depending on the attribute. Name-valued attributes (`BRAND_NAME`,
+`LIGHT_MATERIAL_NAME`) hold the name's `bStringHash`, not a string offset **[verified: `METAL_L1_COLOR02` →
+`bStringHash("METPAINTSILVER")`; all 164 rim model names resolve through `BRAND_NAME`]**. Attributes are shared between parts (only 1,870
 distinct). Names seen: `LANGUAGEHASH` 377, `CV` 368, `TEXTURE_NAME` 249, `NAME` 224, `TEXTURE` 155,
 `BRAND_NAME` 113, `RED`/`GREEN`/`BLUE` ~80 each, `LIGHT_MATERIAL_NAME` 74, `SPEECHCOLOUR` 16,
 `KITNUMBER` 7, `INNER_RADIUS`, `OUTER_RADIUS`, `SPOKE_COUNT`, `GLOSS`, `REMAP`, `NUMCOLOURS`,

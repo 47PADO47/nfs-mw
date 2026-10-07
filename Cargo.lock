@@ -217,6 +217,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "blackbox-carparts"
+version = "0.1.0"
+dependencies = [
+ "blackbox-chunk",
+ "blackbox-hash",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "blackbox-chunk"
 version = "0.1.0"
 dependencies = [
@@ -1293,6 +1302,7 @@ name = "nfsmw-data"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "blackbox-carparts",
  "blackbox-hash",
  "blackbox-scenery",
  "blackbox-solid",

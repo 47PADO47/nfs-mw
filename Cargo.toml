@@ -16,6 +16,7 @@ publish = false
 [workspace.dependencies]
 # Engine-generic libraries (libs/)
 blackbox-attrib = { path = "libs/blackbox-attrib" }
+blackbox-carparts = { path = "libs/blackbox-carparts" }
 blackbox-chunk = { path = "libs/blackbox-chunk" }
 blackbox-hash = { path = "libs/blackbox-hash" }
 blackbox-render = { path = "libs/blackbox-render" }
