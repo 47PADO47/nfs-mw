@@ -7,6 +7,12 @@ use blackbox_solid::Solid;
 /// Unknown textures draw white and opaque.
 pub trait MaterialLookup {
     fn material(&self, texture_hash: u32) -> Option<(TextureHandle, BlendMode)>;
+
+    /// Whether groups with this texture are drawn at all (placeholders that stand for
+    /// "nothing", such as an unset decal, are not).
+    fn draws(&self, _texture_hash: u32) -> bool {
+        true
+    }
 }
 
 impl<F: Fn(u32) -> Option<(TextureHandle, BlendMode)>> MaterialLookup for F {
@@ -25,6 +31,7 @@ pub fn solid_mesh(solid: &Solid, materials: &impl MaterialLookup, shading: Shadi
     let draws = solid
         .groups
         .iter()
+        .filter(|g| g.diffuse_texture(solid).is_none_or(|h| materials.draws(h)))
         .map(|g| {
             let material = g.diffuse_texture(solid).and_then(|h| materials.material(h));
             DrawRange {
