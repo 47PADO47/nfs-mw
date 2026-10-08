@@ -9,6 +9,7 @@
 
 mod carparts;
 mod cars;
+mod compare;
 mod ginsu;
 mod handling;
 mod physics;
