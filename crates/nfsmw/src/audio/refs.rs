@@ -33,10 +33,10 @@ pub fn resolve(car: &CarSound, sound: SoundRef) -> Option<BankRef> {
     match sound {
         SoundRef::GearClunk { up } => at(SHIFTING_DIR, &car.shift.bank, if up { 1 } else { 2 }, Group::Sfx),
         SoundRef::BrakeMash => at(SHIFTING_DIR, &car.shift.bank, 3, Group::Sfx),
-        // The sweetener bank holds short engine noises; 0 is the longer "pssh" of letting go, 1 the shorter
-        // one of taking up (unconfirmed, see the doc).
+        // `CAR_SWTN` plays bank sound `id + 1` (verified by running its module, docs/specs/engine-sound-aems.md §4):
+        // id 0 is the 73 ms sound 1, id 1 the 147 ms sound 2.
         SoundRef::Sweetener(kind) => {
-            at(ENGINE_DIR, engine.sweet_banks.first()?, if kind.sample() == 0 { 10 } else { 8 }, Group::Engine)
+            at(ENGINE_DIR, engine.sweet_banks.first()?, usize::from(kind.sample()) + 1, Group::Engine)
         }
         SoundRef::ReverseWhine => at(ENGINE_DIR, engine.sweet_banks.get(1)?, 1, Group::Engine),
         SoundRef::TurboSpool => at(TURBO_DIR, &car.turbo.as_ref()?.bank, 1, Group::Engine),
