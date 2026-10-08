@@ -19,4 +19,4 @@ pub use fields::Fields;
 pub use powertrain::{engine, induction, nos, transmission};
 pub use running_gear::{brakes, tires};
 pub use spec::{CarPhysics, car_physics};
-pub use surface::SurfaceTable;
+pub use surface::{SurfaceAudio, SurfaceTable};

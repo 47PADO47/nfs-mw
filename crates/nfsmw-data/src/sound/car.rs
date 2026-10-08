@@ -5,7 +5,10 @@ use anyhow::{Context, Result};
 use blackbox_attrib::{CollectionRef, Database, Value};
 
 use super::fields::{Fields, upgrade_spec};
-use super::{AccelTransition, ENGINE_DIR, EngineSound, GlobalBanks, SHIFTING_DIR, ShiftSound, TURBO_DIR, TurboSound};
+use super::{
+    AccelTransition, CollisionSounds, ENGINE_DIR, EngineSound, GlobalBanks, SHIFTING_DIR, ShiftSound, TURBO_DIR,
+    TurboSound,
+};
 
 /// The player's installed upgrade levels (`engine_current`, ... in the original: save-game values).
 /// 0 is stock; the cap of each class is its `*_upgrades` count in `pvehicle`.
@@ -29,6 +32,8 @@ pub struct CarSound {
     /// Which entry of `pvehicle.engineaudio` was chosen (see [`audio_engine_level`]).
     pub engine_level: usize,
     pub banks: GlobalBanks,
+    /// The collision and scrape sounds the car's `pvehicle` links.
+    pub collision: CollisionSounds,
 }
 
 impl CarSound {
@@ -79,7 +84,16 @@ pub fn car_sound(db: &Database, type_name: &str, upgrades: SoundUpgrades) -> Res
     let turbo_at = upgrade_entry(&levels(&turbo_sets), pvehicle.i32("induction_upgrades"), upgrades.induction);
     let turbo = turbo_sets.get(turbo_at).and_then(|(c, _)| TurboSound::read(Fields(*c)));
 
-    Ok(CarSound { car: name, engine, shift, turbo, accel_transition, engine_level, banks: GlobalBanks::read(db) })
+    Ok(CarSound {
+        car: name,
+        engine,
+        shift,
+        turbo,
+        accel_transition,
+        engine_level,
+        banks: GlobalBanks::read(db),
+        collision: CollisionSounds::read(db, type_name),
+    })
 }
 
 /// Which entry of a car's `engineaudio` array plays, from the engine upgrades the car has (`num_upgrades`,

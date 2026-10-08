@@ -9,18 +9,22 @@
 mod accel;
 mod banks;
 mod car;
+mod collision;
 mod engine;
 mod fields;
 mod load;
 mod shift;
+mod stitch;
 mod turbo;
 
 pub use accel::AccelTransition;
 pub use banks::GlobalBanks;
 pub use car::{CarSound, SoundUpgrades, audio_engine_level, car_sound, upgrade_entry};
+pub use collision::{CollisionSounds, EventKind, ImpactSound};
 pub use engine::{DecelWindow, EngineGroup, EngineMix, EngineSound, MixLevels};
 pub use load::{EngineLoops, load_loop};
 pub use shift::{ShiftSound, ShiftStage, Wobble};
+pub use stitch::{Stitch, StitchPiece, collision_stitches};
 pub use turbo::TurboSound;
 
 /// Install folder of the `.gin` loops, the engine banks and the sweetener banks.

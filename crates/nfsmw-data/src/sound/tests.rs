@@ -183,6 +183,7 @@ fn a_cars_files_are_listed_with_their_folders() {
         accel_transition: AccelTransition::default(),
         engine_level: 0,
         banks: GlobalBanks { skids: vec!["SKID_BIG_MB.abk".into()], nitrous: vec!["Nitrous_00_MB.abk".into()] },
+        collision: CollisionSounds::default(),
     };
     assert_eq!(
         car.files(),

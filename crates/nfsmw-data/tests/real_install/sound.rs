@@ -135,3 +135,34 @@ fn the_gin_tables_agree_with_the_engine_ranges() {
     }
     assert!(checked >= 120, "only {checked} loops checked");
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn collision_sounds_and_stitches_resolve() {
+    use nfsmw_data::car::physics::SurfaceTable;
+    use nfsmw_data::sound::{EventKind, collision_stitches};
+
+    let Some((dir, db)) = attributes() else { return };
+    let car = car_sound(&db, "BMWM3GTR", SoundUpgrades::default()).unwrap();
+    let default = SurfaceTable::hash_of("default");
+    let wall = car.collision.pick(EventKind::HitWorld, default, default, true).expect("a wall hit sound");
+    assert_eq!(wall.name, "carhitwall");
+    assert!(wall.levels.iter().filter(|l| !l.is_empty()).count() >= 2);
+    let grass = car.collision.pick(EventKind::HitGround, SurfaceTable::hash_of("grass"), default, false).unwrap();
+    assert_eq!(grass.name, "carhitgrass");
+
+    let ingame = nfsmw_data::read_unwrapped(&dir, "GLOBAL/InGameB.bun").unwrap();
+    let stitches = collision_stitches(&ingame);
+    assert_eq!(stitches.len(), 608);
+    let bank_bytes = dir.read("SOUND/IG_GLOBAL/Stich_Collision_MB.abk").unwrap();
+    let bank = ea_audio::abk::Bank::parse(&bank_bytes).unwrap();
+    for id in wall.levels.iter().flatten() {
+        let stitch = &stitches[*id as usize];
+        assert!(!stitch.pieces.is_empty());
+        assert!(stitch.pieces.iter().all(|p| bank.sound(p.sample as usize + 1).is_some()), "stitch {id}");
+    }
+
+    let surfaces = SurfaceTable::from_database(&db);
+    assert_eq!(surfaces.audio(SurfaceTable::hash_of("asphalt")).road_loop, 5);
+    assert_eq!(surfaces.audio(SurfaceTable::hash_of("grass")).skid_type, 1);
+}
