@@ -54,7 +54,7 @@ pub struct Powertrain {
     pub(super) throttle: f32,
     pub(super) shift_points: ShiftPoints,
     pub(super) peak_torque_rpm: f32,
-    peak_torque_nm: f32,
+    pub(super) peak_torque_nm: f32,
     pub induction: Induction,
     pub nos: Nos,
     pub(super) prev_rpm_diff: f32,

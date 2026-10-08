@@ -9,6 +9,8 @@ use crate::math::{graph, rad_to_rpm, ramp};
 
 const CLUTCH_STIFFNESS: f32 = 20.0;
 const CLUTCH_LIMITER: f32 = 300.0;
+/// Largest clutch torque as a multiple of the peak engine torque.
+const CLUTCH_CAPACITY: f32 = 1.0;
 /// Clutch play table: `(1000 * net torque, factor)`.
 const CLUTCH_PLAY: [(f32, f32); 5] = [(-10.0, 1.0), (-7.5, 0.96), (-3.5, 0.925), (-0.3, 0.875), (-0.05, 0.0)];
 
@@ -96,7 +98,11 @@ impl Powertrain {
                     {
                         stiffness *= 0.5;
                     }
-                    let clutch_t = d * stiffness * self.clutch.factor();
+                    // A clutch can only carry so much: about the peak engine torque.
+                    // (The original has no cap; the uncapped spring dumps the flywheel into the wheels in
+                    // a spike that makes the car lurch after every shift.)
+                    let capacity = CLUTCH_CAPACITY * self.peak_torque_nm;
+                    let clutch_t = (d * stiffness * self.clutch.factor()).clamp(-capacity, capacity);
                     drive_t += clutch_t;
                     road_t -= clutch_t * wheels_ratio;
                 }
