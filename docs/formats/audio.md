@@ -42,6 +42,13 @@ I parsed every stream header in the install (header tag meanings from vgmstream)
 No EALayer3, EA-MP3, `SNR`/`SNS` or other newer EA formats occur. `.abk` banks use the mono and stereo
 EA-XA flavours, picked by platform/version defaults.
 
+Decoding results **[verified with `libs/ea-audio`]**: every bank sound, music stream, cut-scene stream, cop-speech
+stream and `.gin` file decodes to its header's sample count. EA-XA output equals FFmpeg's `adpcm_ea_r3` (music) and
+`adpcm_ea_r2` (cut scenes) sample for sample. EA-XA frame headers use coefficient indexes 0 to 3 only, and 61-byte PCM
+frames (`0xEE`) are rare (about 0.02 % of cut-scene frames). Cop speech is mastered at full scale: 99 % of the streams
+touch +/-32768, in runs of at most 8 samples. In a bank, each channel's data is followed by 4 zero bytes and
+every sound starts at an offset that is 4 modulo 16 from the `BNKl`.
+
 ## `SCHl` stream layout **[community; tags verified]**
 
 A stream is a run of blocks, each `char[4] tag, u32 size (LE, header included), payload`:

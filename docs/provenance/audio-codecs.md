@@ -20,11 +20,20 @@
   vgmstream or utkdec routine closely keep the ISC notice (and, for MicroTalk, the public-domain credit) at the top:
   `libs/ea-audio/src/codec/{xa,xas}.rs` and `libs/ea-audio/src/codec/microtalk/*.rs`. Container parsers
   (`schl`, `abk`, `mus`, `big`) are written from the layouts documented here.
-- **Checked against the game by:** `#[ignore]` tests in `libs/ea-audio/tests/` that read the install through
-  `NFSMW_GAME_DIR`: every sound of the 301 banks decodes to its declared sample count (2,577), every stream of
-  `MW_Music.mus` (3,257), `copspeech.big` (13,562) and `NISAudio.big` (142) decodes to the header's sample count,
-  no sample clips in more than a tiny fraction of samples, and all 160 `.gin` files decode to
-  their declared sample count. No decoded audio is committed. Exact figures are in the crate README.
+- **Checked against the game by:**
+  - EA-XA: output compared sample for sample with FFmpeg (`adpcm_ea_r3` on the first music stream, `adpcm_ea_r2`
+    on a mono and a stereo cut-scene stream); zero differences. FFmpeg was only run as a black box on scratch
+    copies outside the repository.
+  - `#[ignore]` tests in `libs/ea-audio/tests/real_install.rs` read the install through `NFSMW_GAME_DIR`: 301 banks
+    list and decode 2,577 sounds (the sample tables reference exactly these), 3,257 music streams (203.9 min, stored
+    durations within 2 ms of the decoded lengths), 13,562 MicroTalk streams in `copspeech.big`, 142 streams in
+    `NISAudio.big`, and 160 `.gin` files. Every stream decodes to its header's sample count; none is noise-like;
+    clipping is under 0.1 % except in the cop speech (0.1 %, runs of at most 8 samples, speech mastered at full
+    scale). No decoded audio is committed or written by the tests.
+  - Bank layout cross-checks: each stereo sound's second channel starts exactly 4 zero bytes after the first
+    channel's last frame (40 of 40); EA-XA coefficient indexes stay below 4 in all bank, cut-scene and the first 400
+    music streams.
+  - MicroTalk has no second implementation available, so it rests on the port plus the checks above.
 - **Known differences from the original:**
   - EA-XAS and MicroTalk use float arithmetic in the original decoders; the Rust code uses `f32`, so rounding of
     a sample can differ by one LSB from other implementations.
