@@ -315,8 +315,10 @@ Besides the volumes above (as attenuations `vol - 32767`, so 0 = full), the `CAR
 **Ginsu synth's own current pitch x 120** (`m_GinsuRPM` feedback, §4 of the Ginsu spec) when Ginsu is active;
 `TORQUE = EngTorque * 10.24` (0 to 1024); `MAX_RPM` = the redline-sample volume (`AEMSVol * vol_factor *
 RedLineSampFactor`, times the mixer output); `PITCH_OFFSET` (`PitchMultiplier * 16383 - 16383`); `ROTATION`
-(an exhaust-view angle value) and `AZIMUTH`. `Master_Vol` (22300 to 32000 in the data) is the engine control's
-own mixer input 2.
+(an exhaust-view angle value) and `AZIMUTH`. `Master_Vol` (22300 to 32000 in the data) is not used by any code: the
+engine control only publishes it as its mixer input 2 (controller 4), and the player-car map reads it as the
+scale of the sample-layer and Ginsu levels of the engine object (slots 1 and 2), see
+[car-sound-mixer.md](car-sound-mixer.md).
 The gear-whine bank `CAR_WHINE_00.abk` and the `CAR_TRANNY.abk` loop are separate Csis objects (effects
 spec §6).
 
@@ -365,16 +367,16 @@ the redline (RPM below 9800 or a shift starts) `EngFactor` returns to 1 over `50
 bank's redline sample takes over at 85 %. A "redlining" edge also stores `previousDeltaRPM = output / 2`
 for the mixer input described in effects spec §6.
 
-## 8. Dynamic-mixer outputs (not specified)
+## 8. Dynamic-mixer outputs
 
 The `dmix` values above (volume, pitch, low-pass frequency, azimuth, per sound object) come from EA's
-dynamic mixer, driven by `SOUND/MIXMAPS/*.mxb` and the shapes in `NFSMixShape` (equal-power curves, dB
-tables). The map contents and the code that evaluates them (`NFSMixMap`, 2000 lines) are out of scope. What
-is known: the inputs the engine publishes (physics control): speed in mph scaled x1092 (0 to 32767),
-x546, x328, x234 (four ranges), `(10000 - PhysicsRPM) * 3.64` clamped to 0..32767 (input 4, the pitch
-curve input: maximum at idle, 0 at 10000), accelerating flag, wheels-on-ground x 32767, camera view
-(0 for bumper, 4000 for hood, 32767 otherwise). The Rust implementation uses unity volume and pitch
-(`dmix_vol = 32767`, `PitchMultiplier = 1`) and applies its own distance attenuation until the maps are read.
+dynamic mixer, driven by `SOUND/MIXMAPS/*.mxb`. The evaluator is specified in
+[dynamic-mixer.md](dynamic-mixer.md) and the inputs the engine and the other car sounds publish (physics: speed
+in mph scaled x1092 (0 to 32767), x546, x328, x234, `(10000 - PhysicsRPM) * 3.64` clamped, accelerating flag,
+wheels-on-ground x 32767, camera view; the engine control: the upgrade level, the compression bump and
+`Master_Vol`; the hybrid motor's two levels) are in [car-sound-mixer.md](car-sound-mixer.md), with the slots
+read: for the engine, slot 2 is `dmix` of the Ginsu loops, slot 4 `PitchMultiplier * 4096` and slot 5 the
+low-pass (not applied). In the maps the `PhysicsRPM` input is not read, so the engine pitch stays 1.
 
 ## Constants
 
@@ -401,7 +403,7 @@ engine volume LFO none; Ginsu latency 60 ms; redline threshold 9800, factors 0.1
   rate. Which rate did the PC build use (30, 60)? **[decision]** The Rust game uses a fixed 60 Hz, see the last section.
 - **Q2** Single or dual mode in the PC build (§1). The decomp builds only single for the player. **[decision]** Dual.
 - **Q3** The `Ginsu_ACL_Neg_L_RPM` slip (§5.3). **[decision]** Keep the constant.
-- **Q4** `SNDvol` scale (linear or dB) and the dynamic-mixer curves for volume, pitch and low-pass (§5.5, §8).
+- **Q4** `SNDvol` scale (linear or dB) (§5.5). The dynamic-mixer curves are answered by the evaluator spec.
 - **Q5** AEMS layer: how the bank turns `RPM` and `TORQUE` into samples (needs the `.abk` AEMS tables and
   the `.csi`); not needed while the Ginsu layer carries the engine.
 

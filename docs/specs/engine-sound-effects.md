@@ -252,10 +252,11 @@ linkage records) **[decomp]**.
 ## 9. Road noise and wind noise
 
 Two more continuous car sounds, read from `CARSFX_RoadNoise` and `CARSFX_WindNoise` **[decomp]**. Their final
-levels also pass the mixer maps, which are not specified (unity here).
+levels are these generated volumes times the mixer map's levels ([car-sound-mixer.md](car-sound-mixer.md)).
 
 **Road noise** (one loop per side, left = wheels 0 and 3, right = wheels 1 and 2; the loop sample is the
-`simsurface` field `Aud_Roadnoise_LOOP` of that side's surface, 0 = none). With `speed` in mph and
+`simsurface` field `Aud_Roadnoise_LOOP` of that side's surface, the loop enum with 0 = gravel, see
+[car-sound-mixer.md](car-sound-mixer.md) §3). With `speed` in mph and
 `slip_l`, `slip_r` the length of the summed `(forward, lateral)` physics slip of the grounded wheels of a side,
 `traction_l` / `traction_r` the mean absolute traction usage of the side's two wheels:
 
@@ -325,10 +326,13 @@ Implemented in `libs/blackbox-carsound` (`EffectsMixer`) and `crates/nfsmw/src/a
   `InGameB.bun` (Q3 answered, see [audio.md](../formats/audio.md#sound-stitches)); `StreamSweetner` is read nowhere.
 - **Landings** play the `OnBottomOut` collection of the surface under the car.
 - **Loops** (turbo, nitrous, tires, road, wind, scrape, reverse) keep one voice each; a change of volume or pitch
-  is smoothed over 60 ms and a stop fades over 120 ms. The road noise gain (0.35) and wind gain (0.4) are set
-  without a listening test, as the mixer maps are unspecified (Q2).
+  is smoothed over 60 ms and a stop fades over 120 ms.
+- **Mixer levels.** Every command's volume and pitch is multiplied by the level the mixer map gives that sound
+  (Q2 answered: [dynamic-mixer.md](dynamic-mixer.md), [car-sound-mixer.md](car-sound-mixer.md)); the engine's
+  pitch multiplier is the map's engine pitch slot. Collisions keep their own levels. Without the map the road
+  noise plays at 0.35 and the wind at 0.4 and the rest at the generated volume.
 - **Telemetry the physics lacks:** a blown tire (never), the nitrous tank empty flag (set when the nitrous key is
-  held on an empty tank), `pre_race` and the dynamic mixer's pitch multiplier.
+  held on an empty tank) and `pre_race`.
 
 ## How to check it
 
@@ -344,7 +348,7 @@ Implemented in `libs/blackbox-carsound` (`EffectsMixer`) and `crates/nfsmw/src/a
 
 - **Q1** Which sample each Csis id picks, and how `PSI`, `RPM` and `rotation` shape them, is data inside the `.abk` and
   `.csi` files; not decoded (the Rust code picks by bank order, section 11).
-- **Q2** The mixer maps (volumes, pitch, low-pass per slot).
+- **Q2** *(answered)* The mixer maps: [dynamic-mixer.md](dynamic-mixer.md); the filter and azimuth slots are not applied.
 - **Q3** *(answered in part)* The stitch tables in `InGameB.bun` are read ([audio.md](../formats/audio.md#sound-stitches)); what
   the second piece field does is not known.
 - **Q4** Whether the PC build changes any constant here (timings were tuned for the console builds).

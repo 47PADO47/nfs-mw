@@ -85,19 +85,46 @@ The road noise loop of a side is the surface's `Aud_Roadnoise_LOOP` as the enum 
 loop, not "none"** (the loose surfaces play the gravel loop), and the sound in `ROADNOISE_00_MB.abk` is
 `loop + 1` (formats/audio.md). Only the value -1 (no loop) plays nothing.
 
-## 4. Decisions
+## 4. Values at a steady speed
 
-- **Makeup gain.** The slots are relative: the engine's Ginsu volume reads about 0.33 (-9.6 dB) at cruise. How
+The slots the evaluator reads from `MAPOUTPUT.mxb` with the inputs of §2 (a level car on asphalt, the chase camera,
+half throttle at 4000 PhysicsRPM, nothing else going on, after one second); gains, 1 = full scale
+**[computed with the Rust evaluator, `audio::mixer::tests::cruising_levels_follow_the_map`]**:
+
+| Speed (m/s) | Engine Ginsu | Road, asphalt | Road, gravel | Wind (left+right)/2 | Gear clunk up | Sweetener (disengage) | Turbo spool | Nitrous | Skid forward | Skid side |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 0 | 0.41 | 0.31 | 0.06 | 0.022 | 0.22 | 0.26 | 0.15 | 0.23 | 0.46 | 0.24 |
+| 13.4 | 0.41 | 0.16 | 0.06 | 0.023 | 0.22 | 0.26 | 0.15 | 0.23 | 0.97 | 0.50 |
+| 26.8 | 0.41 | 0.022 | 0.06 | 0.031 | 0.22 | 0.26 | 0.15 | 0.23 | 0.97 | 0.50 |
+| 44.7 | 0.41 | 0.022 | 0.06 | 0.078 | 0.22 | 0.26 | 0.15 | 0.23 | 0.97 | 0.50 |
+| 67.0 | 0.41 | 0.022 | 0.06 | 0.196 | 0.22 | 0.26 | 0.15 | 0.23 | 0.97 | 0.50 |
+
+Reading them: the road noise is ducked hard with speed (a control cuts it by 23 dB between standstill and 60 mph),
+the wind rises with speed, so the two cross over; the engine is steady near 0.4. The skid levels are the map's with no slip published (the skid sound itself is
+silent then); they step up once the car moves. The road level times the generated volume (which rises to 0.86 by
+60 mph) gives a road noise that peaks around 15 to 30 mph.
+
+## 5. Decisions
+
+- **Makeup gain.** The slots are relative: the engine's Ginsu volume reads about 0.41 (-7.8 dB) at cruise. How
   loud the original's 0 dB is, is the sound system's business (`SNDvol` 127), unknown here. All slot levels
-  are multiplied by 3, so that the engine stays as loud as it was before the maps were read; relative levels are
-  the data's.
-- **Camera and positions.** The audio layer does not know the camera. The chase camera is taken to be 7 m behind the
-  car on its axis: distance to the car 0, to the camera 700 cm, azimuth 0, for every object; the wind sources
-  circle the car at `(1 - v/40) * 65` m (`v` in m/s, 2 to 40) at the angle `1280 + 12288 * v/40` (of 65536) to the
-  left (azimuth `65535 - angle`) and right (`angle`).
+  are multiplied by 2.25, so that the engine peaks as it did before the maps were read (0.92 in the scripted
+  drive of `audio::car::tests`); the relative levels are the data's. A scaled effect volume stops at 1.
+- **Camera and positions.** The audio layer does not know the camera. The chase camera is taken to sit behind
+  the car on its axis at 5.6 m at rest and 7 m from 60 m/s (the chase camera's own distance): distance to the car
+  0, to the camera that, azimuth 0, for the car objects; the rear object 2 m behind, the wheels 0.9 m to each side,
+  the wind sources circling the car at `(1 - v/40) * 65` m (`v` in m/s, 2 to 40, not below 3 m) at the angle
+  `1280 + 12288 * v/40` (of 65536) to the left (azimuth: the complement of the angle) and right.
 - **Low-pass, azimuth, reverb slots** are not applied (no filter, no panning from azimuth, no reverb).
 - **Tunnel, rain, weather wind, whoosh, truck:** not produced; all their inputs read 0.
-- **Collisions** keep the effects mixer's levels (the state-7 map entries are per-event and need the hit's position).
+- **Wind** plays one loop (bank sound 1) at the mean of the left and right levels times the speed ratio; the
+  rumble level (slot 4) and the two other wind loops of the original's `FX_WIND` are not played.
+- **Collisions** keep the effects mixer's levels (the state-7 map entries are per-event and need the hit's position);
+  a landing (bottom-out) takes the object 13 level.
+- **Skid axles.** The rear axle's loop takes the "back" level (slot 6), the front axle's the forward or sideways
+  one by its component; which axle the original's "back" volume belongs to is a guess.
+- **Without the map** (`SOUND/MIXMAPS/MAPOUTPUT.mxb` unreadable) every effect plays at its generated volume,
+  the road at 0.35 and the wind at 0.4 as before.
 
 ## How to check it
 
