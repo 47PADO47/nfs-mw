@@ -181,6 +181,36 @@ fn fixed_step_runs_produce_identical_geometry() {
 }
 
 #[test]
+fn high_quality_is_deterministic_bounded_and_switches_without_erasing_marks() {
+    use crate::settings::SmokeQuality;
+    let run = || {
+        let mut effects = TireEffects::default();
+        effects.set_quality(SmokeQuality::High);
+        for _ in 0..180 {
+            effects.step([Some(contact(0.0)); 4], Vec3::ZERO, FIXED_STEP);
+        }
+        effects
+    };
+    let mut high = run();
+    assert!(high.smoke.len() > 300 && high.smoke.len() <= MAX_HIGH_PARTICLES);
+    assert_eq!(vertices(&mut high), vertices(&mut run()));
+    assert!(high.build(Vec3::ZERO, Vec3::X).detailed_particles);
+    for _ in 0..100 {
+        high.smoke.emit(0, Some(contact(0.0)), Vec3::ZERO, 1.0);
+    }
+    assert_eq!(high.smoke.len(), MAX_HIGH_PARTICLES);
+    let mark_count = high.marks.len();
+    high.set_quality(SmokeQuality::High);
+    assert_eq!(high.smoke.len(), MAX_HIGH_PARTICLES, "reapplying settings must retain current smoke");
+    high.set_quality(SmokeQuality::Standard);
+    assert_eq!(high.smoke.len(), 0);
+    assert_eq!(high.marks.len(), mark_count);
+    assert!(!high.build(Vec3::ZERO, Vec3::X).detailed_particles);
+    high.step([Some(contact(0.0)); 4], Vec3::ZERO, FIXED_STEP);
+    assert_eq!(high.smoke.len(), 0, "quality switches reset fractional emission");
+}
+
+#[test]
 fn physics_outputs_drive_burnout_emission_and_quiet_rolling() {
     let ground = FlatGround::new(0.0);
     let mut car = Vehicle::new(VehicleSpec::example());

@@ -9,6 +9,9 @@ mod meshes;
 mod pipelines;
 mod resources;
 mod slots;
+#[cfg(test)]
+mod soft_particle_tests;
+mod soft_particles;
 mod textures;
 mod ui;
 

@@ -28,7 +28,7 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 15] = [
+pub const BUILT_IN: [(&str, &str); 16] = [
     ("help", "list the commands"),
     ("clear", "empty the console"),
     ("quit", "close the game"),
@@ -40,6 +40,7 @@ pub const BUILT_IN: [(&str, &str); 15] = [
     ("monitor <current|primary|index>", "select a monitor, indices start at zero"),
     ("window", "show the actual window size, mode, DPI and focus"),
     ("monitors", "list available monitors and their indices"),
+    ("smoke_quality <standard|high>", "change tire smoke presentation quality"),
     ("volume <0-100>", "master volume (same as set volume)"),
     ("sound [bank [index]]", "list the sounds of a bank (IG_GLOBAL/Siren_MB.abk) or play one"),
     ("engine <car> [percent] | off", "hold a car's engine sound at a share of its RPM range"),
@@ -47,8 +48,8 @@ pub const BUILT_IN: [(&str, &str); 15] = [
 ];
 
 /// Further shorthands for `set`: `vsync off` is `set vsync off`.
-const SET_SHORTHANDS: [&str; 8] =
-    ["fps", "vsync", "metrics", "volume", "window_mode", "monitor", "tire_smoke", "skid_marks"];
+const SET_SHORTHANDS: [&str; 9] =
+    ["fps", "vsync", "metrics", "volume", "window_mode", "monitor", "tire_smoke", "skid_marks", "smoke_quality"];
 
 /// Parse one line. `Ok(None)` for an empty line.
 pub fn parse(line: &str) -> Result<Option<Command>, String> {

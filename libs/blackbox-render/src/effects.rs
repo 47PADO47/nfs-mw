@@ -11,6 +11,8 @@ pub struct EffectVertex {
     pub position: [f32; 3],
     pub color: [u8; 4],
     pub uv: [f32; 2],
+    /// Procedural particle age in seconds and stable variation seed.
+    pub detail: [f32; 2],
 }
 
 #[derive(Debug, Default)]
@@ -19,6 +21,10 @@ pub struct EffectLayer {
     pub surfaces: Vec<EffectVertex>,
     /// Soft circular billboards, in back-to-front order.
     pub particles: Vec<EffectVertex>,
+    /// Enable evolving procedural density and depth-softened intersections for particles.
+    pub detailed_particles: bool,
+    /// Distance in world units over which an intersecting particle fades.
+    pub soft_distance: f32,
 }
 
 impl EffectLayer {
@@ -29,9 +35,14 @@ impl EffectLayer {
 
     /// Append a quad, with corners in perimeter order and UVs from (0,0) to (1,1).
     pub fn quad(out: &mut Vec<EffectVertex>, corners: [Vec3; 4], color: [u8; 4]) {
+        Self::particle_quad(out, corners, color, [0.0; 2]);
+    }
+
+    /// Append a particle quad with identical age/seed on each vertex.
+    pub fn particle_quad(out: &mut Vec<EffectVertex>, corners: [Vec3; 4], color: [u8; 4], detail: [f32; 2]) {
         let uv = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]];
         for i in [0, 1, 2, 0, 2, 3] {
-            out.push(EffectVertex { position: corners[i].to_array(), color, uv: uv[i] });
+            out.push(EffectVertex { position: corners[i].to_array(), color, uv: uv[i], detail });
         }
     }
 }

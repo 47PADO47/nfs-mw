@@ -190,6 +190,9 @@ pub struct ViewArgs {
     /// Disable tire smoke.
     #[arg(long)]
     pub no_tire_smoke: bool,
+    /// Smoke presentation: standard or high [env NFSMW_SMOKE_QUALITY; config `smoke_quality`; default standard].
+    #[arg(long, value_name = "standard|high")]
+    pub smoke_quality: Option<crate::settings::SmokeQuality>,
     /// Enable skid marks [env NFSMW_SKID_MARKS; config `skid_marks`; default on].
     #[arg(long, conflicts_with = "no_skid_marks")]
     pub skid_marks: bool,
@@ -228,6 +231,7 @@ impl ViewArgs {
             master_volume: self.volume,
             hud: if self.no_hud { Some(false) } else { self.hud.then_some(true) },
             tire_smoke: switch(self.tire_smoke, self.no_tire_smoke),
+            smoke_quality: self.smoke_quality,
             skid_marks: switch(self.skid_marks, self.no_skid_marks),
             ..Partial::default()
         }

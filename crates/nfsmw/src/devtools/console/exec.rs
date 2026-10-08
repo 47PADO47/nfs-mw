@@ -69,16 +69,7 @@ fn run(
         Command::Get(Some(key)) => settings_cmd::get(settings, &key),
         Command::Window => Ok(WindowModes::status(window)),
         Command::Monitors => Ok(modes.monitors.clone()),
-        Command::Set { key, value } => {
-            if host.screenshot.is_some() && matches!(key.as_str(), "window_mode" | "monitor" | "resolution") {
-                return Err("screenshot runs keep a hidden window at their fixed resolution".into());
-            }
-            let text = settings_cmd::set(settings, &key, &value)?;
-            if matches!(key.as_str(), "tire_smoke" | "skid_marks") {
-                host.set_tire_effects(settings.tire_smoke, settings.skid_marks);
-            }
-            Ok(text)
-        }
+        Command::Set { key, value } => set_live(settings, host, &key, &value),
         Command::Resolution { width, height } => {
             if host.screenshot.is_some() {
                 return Err("screenshot runs keep a hidden window at their fixed resolution".into());
@@ -99,6 +90,21 @@ fn run(
     }
 }
 
+/// Apply console settings immediately, so later commands in the same frame see their scene effects.
+pub(super) fn set_live(settings: &mut Settings, host: &mut Host, key: &str, value: &str) -> Result<String, String> {
+    if host.screenshot.is_some() && matches!(key, "window_mode" | "monitor" | "resolution") {
+        return Err("screenshot runs keep a hidden window at their fixed resolution".into());
+    }
+    let text = settings_cmd::set(settings, key, value)?;
+    if matches!(key, "tire_smoke" | "skid_marks") {
+        host.set_tire_effects(settings.tire_smoke, settings.skid_marks);
+    }
+    if key == "smoke_quality" {
+        host.set_smoke_quality(settings.smoke_quality);
+    }
+    Ok(text)
+}
+
 fn help(scene: &[(&str, &str)]) -> String {
     let width = BUILT_IN.iter().chain(scene).map(|(usage, _)| usage.len()).max().unwrap_or(0);
     BUILT_IN
@@ -111,6 +117,9 @@ fn help(scene: &[(&str, &str)]) -> String {
 
 /// Push changed settings into the parts that hold them: the frame limiter and the swapchain.
 pub fn sync_settings(settings: Res<Settings>, mut host: NonSendMut<Host>, mut applied: Local<Option<Settings>>) {
+    if applied.as_ref().is_none_or(|before| before.smoke_quality != settings.smoke_quality) {
+        host.set_smoke_quality(settings.smoke_quality);
+    }
     if applied
         .as_ref()
         .is_none_or(|before| before.tire_smoke != settings.tire_smoke || before.skid_marks != settings.skid_marks)

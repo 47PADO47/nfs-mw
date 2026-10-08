@@ -38,6 +38,8 @@ use host::ErrorSlot;
 pub enum FrameSet {
     /// Create the renderer, handle the cursor, follow the window size.
     Prepare,
+    /// Apply console commands and live settings before scene simulation.
+    Commands,
     /// The front end: menus, pause, switching scenes.
     Frontend,
     SceneUpdate,
@@ -100,7 +102,15 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
     .insert_non_send(Host::new(scene, settings, screenshot))
     .configure_sets(
         Update,
-        (FrameSet::Prepare, FrameSet::Frontend, FrameSet::SceneUpdate, FrameSet::Ui, FrameSet::Hud, FrameSet::Draw)
+        (
+            FrameSet::Prepare,
+            FrameSet::Commands,
+            FrameSet::Frontend,
+            FrameSet::SceneUpdate,
+            FrameSet::Ui,
+            FrameSet::Hud,
+            FrameSet::Draw,
+        )
             .chain(),
     )
     .add_systems(

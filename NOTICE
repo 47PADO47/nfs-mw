@@ -110,3 +110,8 @@ Project structure
   vladtrc/iw4L — https://github.com/vladtrc/iw4L — Apache-2.0
     Crate layering, install discovery and leak-check ideas. No code copied.
   chasmlol/2010-rust-rewrite-mashup — Apache-2.0 (with vendored GPL-3.0 parts) — read only.
+
+Rendering concepts
+  NVIDIA GPU Gems 3, chapter 23.4, soft particles — reference only.
+    https://developer.nvidia.com/gpugems/gpugems3/part-iv-image-effects/chapter-23-high-speed-screen-particles
+    Depth-based intersection fading concept; no shader or source code copied.

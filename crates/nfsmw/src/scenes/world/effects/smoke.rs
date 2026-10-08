@@ -2,10 +2,11 @@
 
 use std::collections::VecDeque;
 
+use crate::settings::SmokeQuality;
 use blackbox_render::{EffectLayer, EffectVertex};
 use glam::Vec3;
 
-use super::{Contact, MAX_PARTICLES};
+use super::{Contact, MAX_HIGH_PARTICLES, MAX_PARTICLES};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Particle {
@@ -15,9 +16,11 @@ struct Particle {
     age: f32,
     life: f32,
     opacity: f32,
+    seed: f32,
 }
 
 pub(super) struct Smoke {
+    pub quality: SmokeQuality,
     particles: VecDeque<Particle>,
     emission: [f32; 4],
     pub emitted: u64,
@@ -27,6 +30,7 @@ pub(super) struct Smoke {
 impl Default for Smoke {
     fn default() -> Self {
         Self {
+            quality: SmokeQuality::Standard,
             particles: VecDeque::with_capacity(MAX_PARTICLES),
             emission: [0.0; 4],
             emitted: 0,
@@ -36,6 +40,20 @@ impl Default for Smoke {
 }
 
 impl Smoke {
+    pub fn set_quality(&mut self, quality: SmokeQuality) {
+        if self.quality == quality {
+            return;
+        }
+        self.quality = quality;
+        self.clear();
+    }
+
+    pub fn limit(&self) -> usize {
+        match self.quality {
+            SmokeQuality::Standard => MAX_PARTICLES,
+            SmokeQuality::High => MAX_HIGH_PARTICLES,
+        }
+    }
     pub fn len(&self) -> usize {
         self.particles.len()
     }
@@ -66,23 +84,26 @@ impl Smoke {
             self.emission[wheel] = 0.0;
             return;
         };
-        self.emission[wheel] += c.smoke * 35.0 * dt;
+        let detailed = self.quality == SmokeQuality::High;
+        let rate = if detailed { 70.0 } else { 35.0 };
+        self.emission[wheel] += c.smoke * rate * dt;
         while self.emission[wheel] >= 1.0 {
             self.emission[wheel] -= 1.0;
             let n = self.emitted as f32;
             let vary = (n * 2.399_963).sin();
             let side = c.forward.cross(c.normal).normalize_or_zero();
             let velocity = velocity * 0.08 + side * (vary * 0.45) + Vec3::Z * (0.65 + vary.abs() * 0.35);
-            if self.particles.len() == MAX_PARTICLES {
+            if self.particles.len() == self.limit() {
                 self.particles.pop_front();
             }
             self.particles.push_back(Particle {
                 position: c.point + c.normal * 0.12,
                 velocity,
-                size: 0.30 + vary.abs() * 0.14,
+                size: if detailed { 0.22 + vary.abs() * 0.12 } else { 0.30 + vary.abs() * 0.14 },
                 age: 0.0,
                 life: 1.4 + vary.abs() * 0.6,
-                opacity: 0.36 * c.smoke,
+                opacity: if detailed { 0.55 * c.smoke } else { 0.36 * c.smoke },
+                seed: n * 2.399_963,
             });
             self.emitted += 1;
         }
@@ -102,9 +123,11 @@ impl Smoke {
             let scale = p.size + p.age * 0.52;
             let fade_in = (p.age / 0.10).min(1.0);
             let alpha = p.opacity * fade_in * (1.0 - p.age / p.life).powi(2);
-            let (r, u) = (right * scale, up * scale);
+            let angle = if self.quality == SmokeQuality::High { p.seed + p.age * 0.3 } else { 0.0 };
+            let (sin, cos) = angle.sin_cos();
+            let (r, u) = ((right * cos + up * sin) * scale, (up * cos - right * sin) * scale);
             let corners = [p.position - r - u, p.position + r - u, p.position + r + u, p.position - r + u];
-            EffectLayer::quad(out, corners, [172, 174, 177, (alpha * 255.0) as u8]);
+            EffectLayer::particle_quad(out, corners, [172, 174, 177, (alpha * 255.0) as u8], [p.age, p.seed]);
         }
     }
 }

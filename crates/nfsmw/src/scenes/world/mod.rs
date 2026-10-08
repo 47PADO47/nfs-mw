@@ -83,6 +83,7 @@ pub struct WorldScene {
     /// Car physics data, road grips and the gameplay database.
     physics: PhysicsData,
     tire_effects: [bool; 2],
+    smoke_quality: crate::settings::SmokeQuality,
 }
 
 /// Leaving the free camera more than this far (metres) from the car brings the car to the camera.
@@ -154,6 +155,7 @@ impl WorldScene {
             drive: None,
             physics,
             tire_effects: [true; 2],
+            smoke_quality: crate::settings::SmokeQuality::Standard,
         })
     }
 
@@ -202,6 +204,7 @@ impl WorldScene {
         self.last_car = name;
         if let Some(drive) = self.drive.as_mut() {
             drive.effects.set_enabled(self.tire_effects[0], self.tire_effects[1]);
+            drive.effects.set_quality(self.smoke_quality);
         }
         self.view = View::Chase;
         Ok(())
@@ -345,6 +348,13 @@ impl Scene for WorldScene {
 
     fn refresh_effects(&mut self, renderer: &mut Renderer) {
         self.upload_effects(renderer);
+    }
+
+    fn set_smoke_quality(&mut self, quality: crate::settings::SmokeQuality) {
+        self.smoke_quality = quality;
+        if let Some(drive) = self.drive.as_mut() {
+            drive.effects.set_quality(quality);
+        }
     }
 
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {

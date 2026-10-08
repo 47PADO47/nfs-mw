@@ -17,6 +17,7 @@ use marks::Marks;
 use smoke::Smoke;
 
 pub const MAX_PARTICLES: usize = 512;
+pub const MAX_HIGH_PARTICLES: usize = 1536;
 pub const MAX_MARKS: usize = 2048;
 
 pub struct TireEffects {
@@ -33,6 +34,9 @@ impl Default for TireEffects {
 }
 
 impl TireEffects {
+    pub fn set_quality(&mut self, quality: crate::settings::SmokeQuality) {
+        self.smoke.set_quality(quality);
+    }
     pub fn set_enabled(&mut self, smoke: bool, marks: bool) {
         self.enabled = [smoke, marks];
         if !smoke {
@@ -84,6 +88,8 @@ impl TireEffects {
 
     pub fn build(&mut self, camera: Vec3, forward: Vec3) -> &EffectLayer {
         self.layer.clear();
+        self.layer.detailed_particles = self.smoke.quality == crate::settings::SmokeQuality::High;
+        self.layer.soft_distance = 0.3;
         self.marks.geometry(&mut self.layer.surfaces);
         self.smoke.geometry(camera, forward, &mut self.layer.particles);
         &self.layer
@@ -91,10 +97,11 @@ impl TireEffects {
 
     pub fn status(&self) -> String {
         format!(
-            "smoke {}: {}/{} live, oldest {:.2}s, {} emitted; marks {}: {}/{} quads, oldest {:.2}s, {} created",
+            "smoke {} ({}): {}/{} live, oldest {:.2}s, {} emitted; marks {}: {}/{} quads, oldest {:.2}s, {} created",
             self.enabled[0],
+            self.smoke.quality,
             self.smoke.len(),
-            MAX_PARTICLES,
+            self.smoke.limit(),
             self.smoke.oldest(),
             self.smoke.emitted,
             self.enabled[1],

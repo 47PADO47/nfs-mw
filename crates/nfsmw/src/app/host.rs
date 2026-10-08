@@ -8,7 +8,7 @@ use bevy_ecs::resource::Resource;
 use blackbox_render::Renderer;
 
 use super::pacing::FrameLimiter;
-use crate::settings::Settings;
+use crate::settings::{Settings, SmokeQuality};
 use crate::viewer::Scene;
 
 pub struct Host {
@@ -28,11 +28,13 @@ pub struct Host {
     /// A screenshot run waits while this is set (a scripted menu is still running).
     pub hold_capture: bool,
     tire_effects: [bool; 2],
+    smoke_quality: SmokeQuality,
 }
 
 impl Host {
     pub fn new(mut scene: Box<dyn Scene>, settings: &Settings, screenshot: Option<PathBuf>) -> Self {
         scene.set_tire_effects(settings.tire_smoke, settings.skid_marks);
+        scene.set_smoke_quality(settings.smoke_quality);
         Self {
             scene,
             screenshot,
@@ -45,6 +47,7 @@ impl Host {
             flow_driven: false,
             hold_capture: false,
             tire_effects: [settings.tire_smoke, settings.skid_marks],
+            smoke_quality: settings.smoke_quality,
         }
     }
 
@@ -52,6 +55,7 @@ impl Host {
     /// the time to load.
     pub fn replace_scene(&mut self, mut scene: Box<dyn Scene>) -> anyhow::Result<()> {
         scene.set_tire_effects(self.tire_effects[0], self.tire_effects[1]);
+        scene.set_smoke_quality(self.smoke_quality);
         let renderer = self.renderer.as_mut().ok_or_else(|| anyhow::anyhow!("the renderer is not ready"))?;
         scene.init(renderer)?;
         if self.screenshot.is_some() {
@@ -64,6 +68,11 @@ impl Host {
     pub fn set_tire_effects(&mut self, smoke: bool, marks: bool) {
         self.tire_effects = [smoke, marks];
         self.scene.set_tire_effects(smoke, marks);
+    }
+
+    pub fn set_smoke_quality(&mut self, quality: SmokeQuality) {
+        self.smoke_quality = quality;
+        self.scene.set_smoke_quality(quality);
     }
 }
 

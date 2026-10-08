@@ -3,7 +3,7 @@
 use std::str::FromStr;
 
 use super::partial::{Partial, Percent, parse_bool};
-use super::{Monitor, Resolution, WindowMode};
+use super::{Monitor, Resolution, SmokeQuality, WindowMode};
 use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
 
@@ -20,6 +20,7 @@ pub const SFX_VOLUME: &str = "NFSMW_SFX_VOLUME";
 pub const ENGINE_VOLUME: &str = "NFSMW_ENGINE_VOLUME";
 pub const HUD: &str = "NFSMW_HUD";
 pub const TIRE_SMOKE: &str = "NFSMW_TIRE_SMOKE";
+pub const SMOKE_QUALITY: &str = "NFSMW_SMOKE_QUALITY";
 pub const SKID_MARKS: &str = "NFSMW_SKID_MARKS";
 
 /// Read the layer through `get`, so tests need not touch the process environment. A value that
@@ -39,6 +40,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         engine_volume: value(&get, ENGINE_VOLUME, Percent::from_str),
         hud: value(&get, HUD, parse_bool),
         tire_smoke: value(&get, TIRE_SMOKE, parse_bool),
+        smoke_quality: value(&get, SMOKE_QUALITY, SmokeQuality::from_str),
         skid_marks: value(&get, SKID_MARKS, parse_bool),
     }
 }

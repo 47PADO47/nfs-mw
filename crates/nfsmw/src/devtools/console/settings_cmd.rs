@@ -8,7 +8,7 @@ use crate::devtools::ShowMetrics;
 use crate::settings::{Percent, Settings, parse_bool};
 
 /// Settings the console can show.
-const KEYS: [&str; 14] = [
+const KEYS: [&str; 15] = [
     "backend",
     "vsync",
     "fps",
@@ -22,6 +22,7 @@ const KEYS: [&str; 14] = [
     "engine_volume",
     "hud",
     "tire_smoke",
+    "smoke_quality",
     "skid_marks",
 ];
 
@@ -41,6 +42,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "engine_volume" => settings.engine_volume.to_string(),
         "hud" => on_off(settings.hud).to_owned(),
         "tire_smoke" => on_off(settings.tire_smoke).to_owned(),
+        "smoke_quality" => settings.smoke_quality.to_string(),
         "skid_marks" => on_off(settings.skid_marks).to_owned(),
         other => return Err(unknown(other)),
     };
@@ -67,6 +69,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "engine_volume" => settings.engine_volume = Percent::from_str(value)?,
         "hud" => settings.hud = parse_bool(value)?,
         "tire_smoke" => settings.tire_smoke = parse_bool(value)?,
+        "smoke_quality" => settings.smoke_quality = value.parse()?,
         "skid_marks" => settings.skid_marks = parse_bool(value)?,
         "backend" => return Err("the graphics backend cannot change while running; restart with --backend".into()),
         other => return Err(unknown(other)),

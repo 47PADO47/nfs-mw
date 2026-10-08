@@ -61,9 +61,6 @@ fn start(
     let mut renderer = Renderer::new(handle, size, display.0.clone(), options)?;
     log::info!("renderer: {} (requested backend: {})", renderer.adapter_summary(), options.backend);
     host.scene.init(&mut renderer)?;
-    if host.screenshot.is_some() {
-        screenshot::wait_ready(host.scene.as_mut(), &mut renderer);
-    }
     host.size = size;
     host.renderer = Some(renderer);
     Ok(())
@@ -84,6 +81,10 @@ pub fn resize(mut host: NonSendMut<Host>, window: Single<&Window, With<PrimaryWi
 pub fn update_scene(mut host: NonSendMut<Host>, actions: Res<ActionState>, time: Res<Time>) {
     let host = &mut *host;
     let Some(renderer) = host.renderer.as_mut() else { return };
+    // Startup console settings have run in Commands before a screenshot's scripted simulation.
+    if host.screenshot.is_some() && host.frames == 0 {
+        screenshot::wait_ready(host.scene.as_mut(), renderer);
+    }
     host.scene.update(renderer, &actions, time.delta_secs().min(MAX_STEP));
 }
 
