@@ -6,6 +6,7 @@ mod assemble;
 mod ecar;
 mod paint;
 mod parts;
+pub mod physics;
 mod stock;
 mod swaps;
 mod tables;

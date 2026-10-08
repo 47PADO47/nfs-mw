@@ -18,6 +18,7 @@ blackbox-scenery.workspace = true
 blackbox-solid.workspace = true
 blackbox-streaming.workspace = true
 blackbox-tpk.workspace = true
+blackbox-vehicle.workspace = true
 ea-compress.workspace = true
 game-install.workspace = true
 glam.workspace = true

@@ -2708,6 +2708,7 @@ dependencies = [
  "blackbox-solid",
  "blackbox-streaming",
  "blackbox-tpk",
+ "blackbox-vehicle",
  "ea-compress",
  "game-install",
  "glam 0.34.1",
