@@ -14,7 +14,7 @@ For the tag meanings, see [evidence tags](../README.md#evidence-tags).
 | Slot types | `GlobalB.lzc` → `00034607 CarPartTypeNameTable (SlotTypes)` | 1,272 B = **139 × 8** default pairs + **10 × 16** overrides |
 | Animation hookup / hide | `00034608`, `00034609` | 140 B, 256 B |
 | Preset cars | `GlobalB.lzc` → `00030220 PresetRides` | 53,792 B = **82 × 0x290** |
-| Car collision bounds | `GlobalB.lzc` → `8003B900 BoundsPack` | 86 bounds (see [world.md](world.md)) |
+| Car collision bounds | `GlobalB.lzc` → `8003B900 BoundsPack` | 86 bounds (see [collision.md](collision.md)) |
 | Light materials (car shading) | `GlobalB.lzc` → 156 × `00135200 LightMaterials` | 168 B each |
 | Models | `CARS/<CAR>/GEOMETRY.BIN` (100) + shared `CARS/WHEELS`, `BRAKES`, `PLATES`, `ROOF`, `SPOILER*` | `GeometryPack`, see [models.md](models.md) |
 | Textures | `CARS/<CAR>/TEXTURES.BIN` (93 + 7 empty), `CARS/TEXTURES.BIN` (930 shared, incl. `DUMMY_SKIN1…8`) | TPK, see [textures.md](textures.md) |

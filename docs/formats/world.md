@@ -10,8 +10,8 @@ which now takes them from the decomp's `SpeedChunks.hpp`. For the tag meanings, 
 | Chunk | Where (count) **[verified]** | What | Best reference |
 |---|---|---|---|
 | `0003B800 CarpWGrid (UWorld)` | `L2RA.BUN` (1 × 551,432 B) | World "map" tree: collision grid + **road network** | decomp `World/Common/WWorld.cpp`, `WGrid.cpp`, `WRoadNetwork.cpp` (144 KB), `WRoadElem.h`; noclip reads path vertices |
-| `0003B801 CarpWCollisionPack` | `STREAML2RA.BUN` (390, 5.8 MB) | Static world collision per section | decomp `WCollisionPack.cpp`, `WCollisionAssets.cpp`, `WCollisionMgr.cpp`, `WCollision.h` |
-| `8003B900 BoundsPack` → `0003B901 CollisionBody / Bounds` | `L2RA.BUN` (405), `GlobalB.lzc` (86) | Prop bounds (L2RA) / car bounds (GlobalB) | Nikki `Collision` (car bounds, MIT) |
+| `0003B801 CarpWCollisionPack` | `STREAML2RA.BUN` (390, 5.8 MB) | Static world collision per section | [collision.md](collision.md) |
+| `8003B900 BoundsPack` → `0003B901 CollisionBody / Bounds` | `L2RA.BUN` (405), `GlobalB.lzc` (86) | Prop bounds (L2RA) / car bounds (GlobalB) | [collision.md](collision.md); Nikki `Collision` (car bounds, MIT) |
 | `8003B810 CarpEventSequences` → `0003B811` | `L2RA.BUN` (73) | Scripted world events (pursuit breakers, …) | decomp `Libs/Support/Miscellaneous/CARP.h` |
 | `80036000 EmTriggerPack` (`36001` header, `36002` tree, `36003` triggers) | stream (415) | Trigger volumes per section | decomp `World/EventManager.cpp` |
 | `80034147 TrackPathManager` → `0003414A TrackPathZones`; `0003414D TrackPathBarriers` | `L2RA.BUN` | AI / navigation zones and barriers | decomp `World/TrackPath.cpp` |
@@ -47,19 +47,9 @@ the vertex list only, to snap its camera to roads.
 
 ## Collision packs (`0x3B801`) **[decomp + verified]**
 
-The payload starts (16-byte aligned) with `bChunkCarpHeader` (`bWare/Inc/bChunk.hpp`):
-
-| Offset | Field |
-|---|---|
-| 0x00 | i32 CrpSize: size of the CARP blob that follows |
-| 0x04 | i32 SectionNumber: the streaming section, e.g. 101 = `A1` ([maps.md](maps.md#the-streaming-index-decomp--verified)) |
-| 0x08 | i32 Flags (1 = resolved/relocated in memory) |
-| 0x0C | ptr LastAddress (relocation base) |
-
-All 390 packs are size-consistent and carry 390 distinct section numbers **[verified]**. The CARP
-blob holds `WCollisionInstance` / `WCollisionObject` records (both derived from `CARP::CollisionInstance` /
-`CARP::CollisionObject`, 0x40 / 0x70 B), with barriers, strips and packed vertices (`WCollision.h`).
-`WCollisionMgr.cpp` does the queries. **[decomp]**
+One `CARP` blob per streaming section with the instances, triangle strips and barriers that make the
+static world solid; the collision grid in the `0x3B800` tree finds them. Layouts, the car and prop
+bounds, surface types and the query rules are in [collision.md](collision.md).
 
 ## Minimap
 
