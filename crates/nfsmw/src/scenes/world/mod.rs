@@ -21,7 +21,7 @@ use nfsmw_data::world::{DEFAULT_TRACK, PropCatalog, Streamer, WorldIndex, load_g
 
 use crate::input::{Action, ActionState};
 use crate::viewer::{Scene, camera::FlyCamera};
-use drive::{CarRig, Drive, DriveScript, SpawnRequest};
+use drive::{CarRig, Drive, DriveScript, MarkerMeshes, SpawnRequest};
 use residency::Residency;
 
 pub struct Options {
@@ -81,6 +81,10 @@ pub struct WorldScene {
     last_car: String,
     /// Car physics data, road grips and the gameplay database.
     physics: PhysicsData,
+    /// `debug collisions` is on: the car's contact points are drawn.
+    markers_on: bool,
+    /// The meshes of the contact markers, uploaded the first time they are asked for.
+    marker_meshes: Option<MarkerMeshes>,
 }
 
 /// Leaving the free camera more than this far (metres) from the car brings the car to the camera.
@@ -151,6 +155,8 @@ impl WorldScene {
             pending_car,
             drive: None,
             physics,
+            markers_on: false,
+            marker_meshes: None,
         })
     }
 
@@ -204,6 +210,7 @@ impl WorldScene {
     /// Put a waiting car on the road once the area around it has loaded, then run its physics.
     fn update_drive(&mut self, input: &ActionState, dt: f32) {
         let (Some(drive), physics) = (self.drive.as_mut(), &self.physics) else { return };
+        drive.set_markers(self.markers_on);
         if let Some(request) = drive.waiting_for_road()
             && self.residency.complete()
         {
@@ -349,6 +356,9 @@ impl Scene for WorldScene {
         visibility::collect(self.residency.placed(), &camera, rules, self.residency.props(), &mut self.visible);
         if let Some(drive) = &self.drive {
             drive.instances(&mut self.visible);
+            if let (true, Some(meshes)) = (self.markers_on, &self.marker_meshes) {
+                drive.marker_instances(meshes, &mut self.visible);
+            }
         }
         let params = FrameParams {
             view_proj,
@@ -376,8 +386,15 @@ impl Scene for WorldScene {
             _ => self.camera.position,
         };
         let zone = self.residency.zone().unwrap_or_else(|| "-".into());
+        let markers = match (&self.drive, self.markers_on) {
+            (Some(drive), true) => {
+                let (walls, tyres) = drive.marker_counts();
+                format!(", {walls} contacts, {tyres} tyre rays")
+            }
+            _ => String::new(),
+        };
         Some(format!(
-            "{}zone {zone}, tiles {resident} (+{loading} loading), {} drawn, {} props ({} knocked over), at ({:.0}, {:.0}, {:.0})",
+            "{}zone {zone}, tiles {resident} (+{loading} loading), {} drawn, {} props ({} knocked over), at ({:.0}, {:.0}, {:.0}){markers}",
             if shared { "" } else { "loading shared sets… " },
             self.visible.len(),
             self.residency.props().len(),

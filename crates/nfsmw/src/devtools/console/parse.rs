@@ -30,7 +30,7 @@ pub const BUILT_IN: [(&str, &str); 11] = [
     ("clear", "empty the console"),
     ("quit", "close the game"),
     ("get [setting]", "show a setting, or all"),
-    ("set <setting> <value>", "change a setting: fps, vsync, metrics"),
+    ("set <setting> <value>", "change a setting: fps, vsync, metrics, readout, hud, volumes"),
     ("fps <number|unlocked>", "frame-rate cap (same as set fps)"),
     ("resolution <width> <height>", "resize the window"),
     ("volume <0-100>", "master volume (same as set volume)"),
@@ -40,7 +40,7 @@ pub const BUILT_IN: [(&str, &str); 11] = [
 ];
 
 /// Further shorthands for `set`: `vsync off` is `set vsync off`.
-const SET_SHORTHANDS: [&str; 4] = ["fps", "vsync", "metrics", "volume"];
+const SET_SHORTHANDS: [&str; 5] = ["fps", "vsync", "metrics", "readout", "volume"];
 
 /// Parse one line. `Ok(None)` for an empty line.
 pub fn parse(line: &str) -> Result<Option<Command>, String> {
@@ -118,6 +118,7 @@ mod tests {
     fn shorthands_are_sets() {
         assert_eq!(ok("fps 60"), Command::Set { key: "fps".into(), value: "60".into() });
         assert_eq!(ok("metrics advanced"), Command::Set { key: "metrics".into(), value: "advanced".into() });
+        assert_eq!(ok("readout full"), Command::Set { key: "readout".into(), value: "full".into() });
         assert!(parse("fps").is_err());
         assert!(parse("fps 1 2").is_err());
     }

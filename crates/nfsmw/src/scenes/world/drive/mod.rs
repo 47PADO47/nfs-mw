@@ -3,6 +3,7 @@
 //! the car appears; this module owns everything about the car itself.
 
 mod clock;
+mod debug;
 mod fall;
 mod ground;
 mod input;
@@ -22,6 +23,7 @@ use super::space;
 use crate::input::ActionState;
 use crate::viewer::camera::{ChaseCamera, Followed};
 use clock::FixedClock;
+pub use debug::{ContactMarkers, LEGEND as MARKER_LEGEND, MarkerMeshes};
 use fall::FallWatch;
 use ground::WorldGround;
 pub use input::DriveInput;
@@ -78,6 +80,8 @@ pub struct Drive {
     fall: FallWatch,
     /// Step count at the last road check.
     last_check: u32,
+    /// The contact points of `debug collisions`.
+    markers: ContactMarkers,
 }
 
 impl Drive {
@@ -111,6 +115,7 @@ impl Drive {
             last_good: None,
             fall: FallWatch::default(),
             last_check: 0,
+            markers: ContactMarkers::default(),
         }
     }
 
@@ -243,6 +248,7 @@ impl Drive {
             }
             want_reset |= input.reset;
             let impact = sim.step(&input, &ground, Some((collision, &*props)));
+            self.markers.record(&impact.contacts, sim.tyre_hits());
             for &(id, mass) in &impact.knocked {
                 log::info!("knocked over a {mass:.0} kg prop ({} knocked over now)", props.knocked_count() + 1);
                 props.knock(id);
@@ -340,6 +346,21 @@ impl Drive {
 
     pub fn camera(&self) -> &ChaseCamera {
         &self.chase
+    }
+
+    /// Turns the contact markers of `debug collisions` on or off.
+    pub fn set_markers(&mut self, on: bool) {
+        self.markers.set_enabled(on);
+    }
+
+    /// How many contact markers are on screen: (wall and prop contacts, tyre hits).
+    pub fn marker_counts(&self) -> (usize, usize) {
+        self.markers.counts()
+    }
+
+    /// Append the instances of the contact markers.
+    pub fn marker_instances(&self, meshes: &MarkerMeshes, out: &mut Vec<blackbox_render::Instance>) {
+        self.markers.instances(meshes, out);
     }
 
     /// Append the car's instances.

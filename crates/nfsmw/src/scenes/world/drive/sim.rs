@@ -162,6 +162,12 @@ impl CarSim {
         })
     }
 
+    /// Where each tyre's ray met the road in the last step and the surface normal there (physics space), for
+    /// the `debug collisions` view.
+    pub fn tyre_hits(&self) -> impl Iterator<Item = (Vec3, Vec3)> + '_ {
+        (0..4).filter_map(|i| self.vehicle.wheel_ground_hit(i))
+    }
+
     /// The `simsurface` hash under the front left wheel, for the sounds of a landing.
     pub fn surface_tag(&self) -> Option<u32> {
         self.vehicle.wheel_surface_tag(PHYSICS_WHEEL[0])
