@@ -100,5 +100,6 @@ impl Renderer {
                 start = end;
             }
         }
+        self.effects.draw(&mut pass);
     }
 }

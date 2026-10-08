@@ -64,6 +64,7 @@ where
     let depth = resources::create_depth(&device, config.width, config.height);
     let instances = instances::InstanceBuffer::new(&device);
     let ui = super::ui::Ui::new(&device, config.format, &shared);
+    let effects = super::effects::Effects::new(&device, config.format, &shared);
 
     let mut renderer = Renderer {
         surface,
@@ -78,6 +79,7 @@ where
         textures: Slots::new(),
         meshes: Slots::new(),
         instances,
+        effects,
         ui,
         redirects: Default::default(),
     };

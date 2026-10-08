@@ -46,6 +46,8 @@ Options for both viewers:
   fullscreen. `--monitor primary|current|INDEX` and `--resolution native|WIDTHxHEIGHT` select
   the display and size ([window settings](docs/window-modes.md)).
 - `--screenshot out.png` renders one frame and exits; add `--wait-for-load` in the world viewer.
+- Driving draws tire smoke and skid marks from the vehicle's contact outputs. Use
+  `--no-tire-smoke` or `--no-skid-marks` to disable them ([controls and testing](docs/tire-effects.md)).
 - Esc quits (in the world viewer, the first Esc frees the mouse).
 
 ## In-game console

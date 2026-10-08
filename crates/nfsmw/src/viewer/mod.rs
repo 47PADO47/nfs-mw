@@ -56,6 +56,8 @@ pub trait Scene {
     fn paused(&self) -> bool {
         false
     }
+    /// Apply the independently layered tire-visual settings. Scenes without tires ignore them.
+    fn set_tire_effects(&mut self, _smoke: bool, _skid_marks: bool) {}
     /// A picture to show over the window this frame, if any.
     fn fullscreen(&mut self) -> Option<Fullscreen> {
         None

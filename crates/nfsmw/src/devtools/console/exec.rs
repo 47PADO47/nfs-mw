@@ -73,7 +73,11 @@ fn run(
             if host.screenshot.is_some() && matches!(key.as_str(), "window_mode" | "monitor" | "resolution") {
                 return Err("screenshot runs keep a hidden window at their fixed resolution".into());
             }
-            settings_cmd::set(settings, &key, &value)
+            let text = settings_cmd::set(settings, &key, &value)?;
+            if matches!(key.as_str(), "tire_smoke" | "skid_marks") {
+                host.scene.set_tire_effects(settings.tire_smoke, settings.skid_marks);
+            }
+            Ok(text)
         }
         Command::Resolution { width, height } => {
             if host.screenshot.is_some() {
@@ -107,6 +111,12 @@ fn help(scene: &[(&str, &str)]) -> String {
 
 /// Push changed settings into the parts that hold them: the frame limiter and the swapchain.
 pub fn sync_settings(settings: Res<Settings>, mut host: NonSendMut<Host>, mut applied: Local<Option<Settings>>) {
+    if applied
+        .as_ref()
+        .is_none_or(|before| before.tire_smoke != settings.tire_smoke || before.skid_marks != settings.skid_marks)
+    {
+        host.scene.set_tire_effects(settings.tire_smoke, settings.skid_marks);
+    }
     let Some(before) = applied.replace(*settings) else { return };
     if before == *settings {
         return;

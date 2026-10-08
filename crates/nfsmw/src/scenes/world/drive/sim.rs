@@ -14,6 +14,7 @@ use nfsmw_data::car::physics::{CarPhysics, SurfaceTable, WallSpec};
 use super::input::DriveInput;
 use super::rig::CarPose;
 use super::walls::{self, Impact};
+use crate::scenes::world::effects::{self, Contact};
 use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::space;
@@ -154,6 +155,20 @@ impl CarSim {
     /// The `simsurface` hash under the front left wheel, for the sounds of a landing.
     pub fn surface_tag(&self) -> Option<u32> {
         self.vehicle.wheel_surface_tag(PHYSICS_WHEEL[0])
+    }
+
+    /// Grounded tire visuals, in physics wheel order, using the existing skid/smoke intensities.
+    pub fn tire_contacts(&self, collision: &CollisionWorld) -> [Option<Contact>; 4] {
+        std::array::from_fn(|i| {
+            let wheel = self.vehicle.wheel(i);
+            let (sin, cos) = wheel.steer_angle.sin_cos();
+            let forward = self.vehicle.rotation() * Vec3::new(sin, 0.0, cos);
+            effects::project(wheel, forward, collision)
+        })
+    }
+
+    pub fn effect_velocity(&self) -> Vec3 {
+        space::to_render(self.vehicle.linear_velocity().to_array())
     }
 
     /// The dot product of the car's up vector with the world's.

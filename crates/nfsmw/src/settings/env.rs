@@ -19,6 +19,8 @@ pub const MUSIC_VOLUME: &str = "NFSMW_MUSIC_VOLUME";
 pub const SFX_VOLUME: &str = "NFSMW_SFX_VOLUME";
 pub const ENGINE_VOLUME: &str = "NFSMW_ENGINE_VOLUME";
 pub const HUD: &str = "NFSMW_HUD";
+pub const TIRE_SMOKE: &str = "NFSMW_TIRE_SMOKE";
+pub const SKID_MARKS: &str = "NFSMW_SKID_MARKS";
 
 /// Read the layer through `get`, so tests need not touch the process environment. A value that
 /// does not parse is reported and ignored.
@@ -36,6 +38,8 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         sfx_volume: value(&get, SFX_VOLUME, Percent::from_str),
         engine_volume: value(&get, ENGINE_VOLUME, Percent::from_str),
         hud: value(&get, HUD, parse_bool),
+        tire_smoke: value(&get, TIRE_SMOKE, parse_bool),
+        skid_marks: value(&get, SKID_MARKS, parse_bool),
     }
 }
 

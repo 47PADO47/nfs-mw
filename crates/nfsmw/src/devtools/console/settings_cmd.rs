@@ -8,7 +8,7 @@ use crate::devtools::ShowMetrics;
 use crate::settings::{Percent, Settings, parse_bool};
 
 /// Settings the console can show.
-const KEYS: [&str; 12] = [
+const KEYS: [&str; 14] = [
     "backend",
     "vsync",
     "fps",
@@ -21,6 +21,8 @@ const KEYS: [&str; 12] = [
     "sfx_volume",
     "engine_volume",
     "hud",
+    "tire_smoke",
+    "skid_marks",
 ];
 
 /// The text for `get <key>`, or an error naming the valid keys.
@@ -38,6 +40,8 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "sfx_volume" => settings.sfx_volume.to_string(),
         "engine_volume" => settings.engine_volume.to_string(),
         "hud" => on_off(settings.hud).to_owned(),
+        "tire_smoke" => on_off(settings.tire_smoke).to_owned(),
+        "skid_marks" => on_off(settings.skid_marks).to_owned(),
         other => return Err(unknown(other)),
     };
     Ok(format!("{key} = {value}"))
@@ -62,6 +66,8 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "sfx_volume" => settings.sfx_volume = Percent::from_str(value)?,
         "engine_volume" => settings.engine_volume = Percent::from_str(value)?,
         "hud" => settings.hud = parse_bool(value)?,
+        "tire_smoke" => settings.tire_smoke = parse_bool(value)?,
+        "skid_marks" => settings.skid_marks = parse_bool(value)?,
         "backend" => return Err("the graphics backend cannot change while running; restart with --backend".into()),
         other => return Err(unknown(other)),
     }

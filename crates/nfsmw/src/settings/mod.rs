@@ -6,6 +6,8 @@
 mod env;
 mod file;
 mod partial;
+#[cfg(test)]
+mod tire_tests;
 mod window;
 mod write;
 
@@ -34,6 +36,10 @@ pub struct Settings {
     pub engine_volume: Percent,
     /// Draw the in-game HUD while driving (the free camera never shows it).
     pub hud: bool,
+    /// Draw smoke from the driven car's loaded tire contacts.
+    pub tire_smoke: bool,
+    /// Draw bounded, ground-following tire marks.
+    pub skid_marks: bool,
 }
 
 impl From<Partial> for Settings {
@@ -52,6 +58,8 @@ impl From<Partial> for Settings {
             sfx_volume: p.sfx_volume.unwrap_or(Percent(90)),
             engine_volume: p.engine_volume.unwrap_or(Percent(90)),
             hud: p.hud.unwrap_or(true),
+            tire_smoke: p.tire_smoke.unwrap_or(true),
+            skid_marks: p.skid_marks.unwrap_or(true),
         }
     }
 }

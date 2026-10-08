@@ -6,6 +6,8 @@
 mod exec;
 mod parse;
 mod settings_cmd;
+#[cfg(test)]
+mod tire_sync_tests;
 mod view;
 
 use bevy_app::{App, Update};

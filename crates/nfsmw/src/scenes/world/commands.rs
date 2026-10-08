@@ -14,6 +14,7 @@ pub(super) const LIST: &[(&str, &str)] = &[
     ("freecam", "switch between the chase camera and the free camera"),
     ("pos", "show where the camera or the car is"),
     ("props [radius]", "list the props with collision near the car or camera (default 30 m)"),
+    ("tire-effects [status|clear|smoke on/off|marks on/off]", "tire visual controls and bounded resource counts"),
 ];
 
 pub(super) fn run(
@@ -31,9 +32,21 @@ pub(super) fn run(
         "garage" if args.is_empty() => Ok(nfsmw_data::car::list(&scene.dir).join("  ")),
         "pos" if args.is_empty() => Ok(pos(scene)),
         "props" => props(scene, args),
+        "tire-effects" => tire_effects(scene, renderer, args),
         "reset" | "freecam" | "pos" | "garage" => Err(format!("usage: {name}")),
         _ => return None,
     })
+}
+
+fn tire_effects(scene: &mut WorldScene, renderer: &mut Renderer, args: &[&str]) -> Result<String, String> {
+    let drive = scene.drive.as_mut().ok_or("not driving (use the drive command)")?;
+    let result = drive.effects.command(args)?;
+    if let [effect @ ("smoke" | "marks"), value @ ("on" | "off")] = args {
+        scene.tire_effects[usize::from(*effect == "marks")] = *value == "on";
+    }
+    scene.upload_effects(renderer);
+    let capacity = renderer.effect_capacities();
+    Ok(format!("{result}; GPU capacity {} surface / {} particle vertices", capacity[0], capacity[1]))
 }
 
 fn drive(scene: &mut WorldScene, renderer: &mut Renderer, args: &[&str]) -> Result<String, String> {
