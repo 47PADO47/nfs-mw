@@ -94,9 +94,12 @@ bevy_winit window ─► PreUpdate: input/ resolves devices into actions (Action
   D-pad up/down zooms, Start backs out.
 - **Driving actions:** `Throttle` and `Brake` (0..1, so a pad's analog triggers are real pedals), `Steer` (-1..1),
   `Handbrake`, `ShiftUp`, `ShiftDown`, `Nos`, `ResetCar` and `ToggleCamera`. Keyboard: W/S or Up/Down pedals, A/D
-  or Left/Right steer, Space handbrake, Shift/Ctrl change gear, N nitrous, R reset, F camera. Pad: right and
-  left trigger pedals, left stick steers, A handbrake, X nitrous, bumpers change gear, Back resets, Y toggles
-  the camera. Like all bindings they are untested on a real controller.
+  or Left/Right steer, Space handbrake, E/Q (or Shift/Ctrl) shift up/down, N nitrous, R reset, F camera. Pad: right
+  and left trigger pedals, left stick steers, A handbrake, X nitrous, right/left bumper shift up/down, Back resets,
+  Y toggles the camera. Like all bindings they are untested on a real controller. A steering wheel appears as a
+  gamepad; its shift paddles are buttons the platform often has no name for, so `paddle_up` / `paddle_down` (config
+  file, `NFSMW_PADDLE_UP` / `_DOWN`) bind their codes to the shift actions, and the log prints the code of each
+  unnamed button when it is pressed. Wheel axes and pedals are not mapped, and no wheel was tried.
 - **Cursor:** mouse-look scenes capture the cursor; the first Esc (or Start) releases it, the next quits.
 - **Errors** from systems (no GPU, a failed present) are stored and returned from `main`; the app exits with
   an error code.
@@ -116,7 +119,7 @@ bevy_winit window ─► PreUpdate: input/ resolves devices into actions (Action
   keyboard belongs to the console while it is open: game actions go quiet and the mouse is released
   (and recaptured on close). Typed lines are parsed into a `Command` (plain data, unit-tested) and run by
   one system, so the console never touches the renderer itself.
-  - Built in: `help`, `clear`, `quit`, `get [setting]`, `set <setting> <value>` (`fps`, `vsync`, `metrics`),
+  - Built in: `help`, `clear`, `quit`, `get [setting]`, `set <setting> <value>` (`fps`, `vsync`, `metrics`, `transmission`),
     the shorthands `fps 60` / `vsync off` / `metrics advanced`, and `resolution <w> <h>`. Changes last for
     the run; the config file is not written.
   - The car viewer adds `car <folder>`, `garage` and `freecam` (orbit ↔ free camera). The world viewer adds
@@ -139,6 +142,8 @@ Runtime options resolve in layers, highest first ([`crates/nfsmw/src/settings/`]
 3. the per-user config file (`backend`, `vsync`, `max_fps`, `show_metrics`; the same file as `game_dir`);
 4. the defaults (`auto`, vsync on, unlocked, overlay off).
 
+Gameplay keys: `hud`, `transmission` (`--transmission automatic|manual`, `NFSMW_TRANSMISSION`; automatic by default,
+as in the original) and the wheel's `paddle_up` / `paddle_down` button codes (config file and environment only).
 Each key resolves on its own. A value that does not parse (in the environment or the file) is logged and
 skipped, so the next layer applies; a broken config file never stops the game from starting. The
 install directory has its own, longer lookup ([Finding the install](#finding-the-install)).
@@ -248,6 +253,13 @@ CarPose (render axes) ─► CarRig (assembled car, wheels posed: steer, spin, s
 - **Chase camera.** It keeps a smoothed offset from the car (no lag at speed), backs off and widens its view
   up to 60 m/s (7 m, 68 degrees) and no further, and an obstacle shortens its reach quickly but lets it grow
   back slowly, never below 2.8 m from the car.
+- **Gears.** The `transmission` setting (the Gameplay options row, `--transmission`, console `set transmission
+  manual`) says who changes gear ([spec](specs/vehicle-manual-shifting.md)). Automatic shifts by itself and the shift
+  keys are sport shifts. In manual nothing shifts by itself, down from first is neutral, the limiter holds the revs at
+  the red line in every gear, a downshift into an over-rev is taken (the wheels are pulled down to the new gear's
+  red-line speed, a hard engine braking), the buttons do nothing in reverse and braking to a stop still engages
+  reverse. A shift or reset press that arrives in a frame with no 60 Hz physics step waits for the next step. The
+  setting reaches the car through `Scene::set_transmission`.
 - **Console:** `drive [car]`, `reset`, `tp <x> <y>`, `goto <x> <y> [height]`, `freecam`, `pos`, `props [radius]`
   and `garage` (every car for now; later the player's own). `--drive-script "3:throttle=1;1:steer=0.5,throttle=0.6;0.1:reset"`
   (hidden option) drives with a script: keys `throttle`, `brake`, `steer`, `handbrake`, `nos`, `up`, `down`,
@@ -432,7 +444,7 @@ render one frame off-screen. Use them to check rendering changes and backends wi
 | 2 | Generic `libs/` split; the streamed city: index, sections, scenery, background loading, instanced rendering, culling, fly camera | done |
 | 3 | Sky dome, LODs, water, panoramas; zone-based streaming (visible sections); AttribSys reader; car assembly from the parts DB (stock parts, wheels, brakes, paint). Playtest fixes: misplaced and floating scenery, mouse look without holding a button, `--max-fps`, clearer config-file path | done |
 | 4 | Engine foundation: decide on Bevy (ECS, events, UI) in an ADR and migrate the viewers if adopted; layered settings (command line > environment > per-user config file > defaults, with a settings menu in 6); input layer with controller support; developer console (F12: log view, commands such as change car, toggle free camera, change settings); performance overlay (`--show-metrics off\|basic\|advanced`). Decided: Bevy as the shell with our renderer ([ADR 0001](decisions/0001-bevy.md)), full Bevy renderer revisited in 8 | done |
-| 5 | Vehicle physics, spec-first (`docs/specs/vehicle-*.md`); world collision (`CarpWCollisionPack`); drive a car with the original HUD: read the FEng HUD packages (`HUD_*.fng` in `InGameB.bun`) and draw them with the UI layer; steering wheel controller support (wheel axes, pedals, shifters) on the input layer from 4 |  in progress: `blackbox-vehicle`, the collision reader, input actions, `view-world --drive` (placing, chase camera, walls, props, reset and fall recovery, scripted runs) are in; the original HUD, steering wheel support and calibration against the original are open, and so are manual shifting (Q/E, pad bumpers, wheel paddles and clutch, with a transmission setting; `request_shift` already holds the logic), a `debug collisions` console command that draws the contact points, and a minimal readout level next to the original HUD (like the metrics levels) ([Driving](#driving-view-world---drive)) |
+| 5 | Vehicle physics, spec-first (`docs/specs/vehicle-*.md`); world collision (`CarpWCollisionPack`); drive a car with the original HUD: read the FEng HUD packages (`HUD_*.fng` in `InGameB.bun`) and draw them with the UI layer; steering wheel controller support (wheel axes, pedals, shifters) on the input layer from 4 |  in progress: `blackbox-vehicle`, the collision reader, input actions, `view-world --drive` (placing, chase camera, walls, props, reset and fall recovery, scripted runs) and manual shifting (Q/E, pad bumpers and wheel paddle buttons, with a transmission setting and an options row) are in; the original HUD, the steering wheel's axes and pedals (a wheel is untested) and calibration against the original are open, and so are a `debug collisions` console command that draws the contact points, and a minimal readout level next to the original HUD (like the metrics levels) ([Driving](#driving-view-world---drive)) |
 | 6 | Audio (EA-XA, EA-XAS engine loops, MicroTalk speech), VP6 movies, FEng menus (the same FEng runtime as the HUD), in-game settings menu | in progress: the codecs, banks, music and movie decoders, Ginsu synthesis, the car sound data, the engine and effects mixers, the dynamic mixer maps, the sample (AEMS) layer of the engine and the sputters, the output device, the driven car's engine and effects, a movie player and the radio (licensed songs, gapless, play lists; not yet heard by a human) are in, and so are the front end (boot movies, title screen, main menu, option screens for audio, video and gameplay, the pause menu, free roam) and the settings written to the config file; speech and the interactive music are open, and so is a playtest report that the engine sounds muted at the rev limiter on some cars (FXX Evo) which the mixers do not reproduce; `RUST_LOG=nfsmw::audio=debug` logs the limiter ([Sound](#sound), [The front end](#the-front-end)) |
 | 7 | AI racers, traffic, pursuit, races; career data; console commands to spawn AI | |
 | 8 | Graphics: the car shader and lighting rig, tire smoke and skid marks (`blackbox-vehicle` already reports per-wheel `skid` and `smoke`; this draws them), exhaust flames (backfire on lift-off, driven by the sputters of the sample layer), post-processing, upscaling (FSR; DLSS where the backend allows it), ReShade compatibility, Bevy Solari | |

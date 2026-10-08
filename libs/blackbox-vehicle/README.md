@@ -57,7 +57,7 @@ println!("{:.1} m/s in gear {}", car.forward_speed(), car.gear());
 | `suspension` | `ChassisSpec`, wheel `Geometry`, centre of gravity, the ground probe, compression, spring, damper and anti-roll force |
 | `steering` | speed-sensitive angle and rate, counter-steer, post-collision limit, `ackermann` |
 | `aero` | drag (doubled off the throttle) and linear downforce |
-| `input` | `InputState` to `Controls`: dead zone, automatic reverse, idle auto-brake, handbrake priority, shift requests |
+| `input` | `InputState` to `Controls`: dead zone, automatic reverse, idle auto-brake, handbrake priority, shift requests (`ControlConfig::automatic = false` is manual shifting: nothing shifts by itself, see `docs/specs/vehicle-manual-shifting.md`) |
 | `ground` | the `Ground` trait, `GroundHit`, `SurfaceGrip`, and `FlatGround`, `SlopedGround`, `NoGround` |
 | `vehicle` | `Vehicle`, `VehicleSpec`, `Tunings`, `WheelState`; `VehicleSpec::example()` is a plausible rear-drive saloon for tests, not any game car |
 

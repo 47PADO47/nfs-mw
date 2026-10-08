@@ -135,7 +135,9 @@ The speed limiter (ECU) still tapers the throttle in the gears above neutral.
   race). Drag events do not exist yet, so only the setting decides.
 - **Keys.** The original's bindings come from controller config data that was not read. Defaults chosen here: keyboard
   Q shifts down and E shifts up (Shift and Ctrl keep working), pad left bumper down and right bumper up, steering
-  wheel paddles as the same two actions. In the free camera Q and E still move the camera down and up, and on the
+  wheel paddles as the same two actions through the config keys `paddle_up` and `paddle_down` (the codes of the
+  gamepad buttons a wheel's paddles arrive as; the log prints the code of an unnamed button when it is pressed).
+  Not tried on a wheel. In the free camera Q and E still move the camera down and up, and on the
   main menu Q quits; those contexts do not drive.
 - **Edge presses are latched.** The original queues shift actions; the rewrite's fixed 60 Hz step runs fewer times
   than frames above 60 fps, so a press is held until a physics step consumes it, and one step takes at most one
