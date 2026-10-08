@@ -17,9 +17,11 @@ pub mod drivetrain;
 pub mod engine;
 pub mod ground;
 pub mod induction;
+pub mod input;
 pub mod math;
 pub mod nos;
 pub mod rigid_body;
+pub mod steering;
 pub mod suspension;
 pub mod tires;
 
