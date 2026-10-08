@@ -122,9 +122,13 @@ pub struct ViewArgs {
     /// Master volume, 0 to 100 [env NFSMW_MASTER_VOLUME; config `master_volume`; default 80].
     #[arg(long, value_name = "0-100")]
     pub volume: Option<crate::settings::Percent>,
-    /// Show the in-game HUD (always on while driving).
+    /// Show the in-game HUD in any viewer (while driving it is on unless the `hud` setting is off)
+    /// [env NFSMW_HUD; config `hud`].
     #[arg(long)]
     pub hud: bool,
+    /// Hide the in-game HUD even while driving.
+    #[arg(long, conflicts_with = "hud")]
+    pub no_hud: bool,
     /// Numbers for a HUD that has no car behind it: "speed_kmh,rpm,max_rpm,gear" (for reference screenshots).
     #[arg(long, hide = true, value_name = "SPEED,RPM,MAX_RPM,GEAR", value_parser = parse_hud_demo, allow_hyphen_values = true)]
     pub hud_demo: Option<crate::hud::HudState>,
@@ -151,6 +155,7 @@ impl ViewArgs {
             max_fps: self.max_fps,
             show_metrics: self.show_metrics,
             master_volume: self.volume,
+            hud: if self.no_hud { Some(false) } else { self.hud.then_some(true) },
             ..Partial::default()
         }
     }

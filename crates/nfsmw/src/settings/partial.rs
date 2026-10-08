@@ -49,6 +49,7 @@ pub struct Partial {
     pub music_volume: Option<Percent>,
     pub sfx_volume: Option<Percent>,
     pub engine_volume: Option<Percent>,
+    pub hud: Option<bool>,
 }
 
 impl Partial {
@@ -63,6 +64,7 @@ impl Partial {
             music_volume: self.music_volume.or(lower.music_volume),
             sfx_volume: self.sfx_volume.or(lower.sfx_volume),
             engine_volume: self.engine_volume.or(lower.engine_volume),
+            hud: self.hud.or(lower.hud),
         }
     }
 }

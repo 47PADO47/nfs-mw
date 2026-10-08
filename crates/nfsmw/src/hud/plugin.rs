@@ -13,6 +13,7 @@ use super::present::{BlackboxPresenter, Screen};
 use super::state::HudState;
 use crate::app::{FrameSet, Host};
 use crate::gui::UiOutput;
+use crate::settings::Settings;
 
 /// Longest step the HUD clock takes, so a stall does not skip animations.
 const MAX_STEP: f32 = 0.1;
@@ -64,11 +65,12 @@ fn sync(host: NonSend<Host>, mut state: ResMut<HudState>) {
 fn present(
     mut hud: ResMut<Hud>,
     state: Res<HudState>,
+    settings: Res<Settings>,
     time: Res<Time>,
     window: Single<&Window, With<PrimaryWindow>>,
     mut out: ResMut<UiOutput>,
 ) {
-    if !state.visible {
+    if !state.visible || !settings.hud {
         return;
     }
     let hud = &mut *hud;

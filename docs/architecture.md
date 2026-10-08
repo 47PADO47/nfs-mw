@@ -266,7 +266,8 @@ one presenter (`hud/present/blackbox.rs`) that draws the tree through the UI lay
 its state with `Scene::hud_state`; nothing else knows FEng.
 
 - `--hud` shows it in any viewer (idle numbers; `--hud-demo SPEED,RPM,MAX_RPM,GEAR` for reference shots), and it is
-  always on while driving. `--screenshot` captures it.
+  on while driving unless the `hud` setting is off (`hud = false` in the config file, `NFSMW_HUD=off`, `--no-hud`,
+  console `set hud off`). The free camera never shows it. `--screenshot` captures it.
 - Only the speedometer and the tachometer are shown. The rest of the package (radar, pursuit bars, race timers)
   needs game state that arrives with the race and pursuit milestones; the runtime already runs their scripts.
 - Gaps: wide screens scale the 480-unit height without the package's widescreen messages; the redline mask is not

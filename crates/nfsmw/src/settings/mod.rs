@@ -25,6 +25,8 @@ pub struct Settings {
     pub music_volume: Percent,
     pub sfx_volume: Percent,
     pub engine_volume: Percent,
+    /// Draw the in-game HUD while driving (the free camera never shows it).
+    pub hud: bool,
 }
 
 impl From<Partial> for Settings {
@@ -39,6 +41,7 @@ impl From<Partial> for Settings {
             music_volume: p.music_volume.unwrap_or(Percent(60)),
             sfx_volume: p.sfx_volume.unwrap_or(Percent(90)),
             engine_volume: p.engine_volume.unwrap_or(Percent(90)),
+            hud: p.hud.unwrap_or(true),
         }
     }
 }

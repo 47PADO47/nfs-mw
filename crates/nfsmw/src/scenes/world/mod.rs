@@ -389,6 +389,9 @@ impl Scene for WorldScene {
     }
 
     fn hud_state(&self) -> Option<crate::hud::HudState> {
+        if self.view == View::Fly {
+            return Some(crate::hud::HudState { visible: false, ..Default::default() });
+        }
         self.drive.as_ref()?.hud_state()
     }
 

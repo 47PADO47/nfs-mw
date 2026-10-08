@@ -45,6 +45,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         music_volume: field(&table, origin, "music_volume", percent),
         sfx_volume: field(&table, origin, "sfx_volume", percent),
         engine_volume: field(&table, origin, "engine_volume", percent),
+        hud: field(&table, origin, "hud", |v| v.as_bool().ok_or_else(|| "expected true or false".to_owned())),
     }
 }
 
@@ -89,6 +90,28 @@ mod tests {
             (Some(Percent(70)), Some(Percent(25)), Some(Percent(40)))
         );
         assert_eq!(p.engine_volume, None);
+    }
+
+    #[test]
+    fn reads_the_hud_switch() {
+        assert_eq!(
+            parse(
+                "hud = false
+",
+                "test"
+            )
+            .hud,
+            Some(false)
+        );
+        assert_eq!(
+            parse(
+                "hud = 'maybe'
+",
+                "test"
+            )
+            .hud,
+            None
+        );
     }
 
     #[test]
