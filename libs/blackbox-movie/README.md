@@ -39,8 +39,9 @@ while let Some(packet) = demuxer.next_packet()? {
 - `YuvFrame::to_rgba` converts with BT.601 studio-range coefficients (about 3 ms for a 1024x512 frame on one
   core). A GPU player can instead upload the Y, U and V planes as three textures.
 - Audio: the `SCHl` payload and each `AudioPacket::data` are in the form the EA-XA stereo decoder of
-  `libs/ea-audio` expects. This crate does not decode audio. TODO: wire the decoder in behind an optional
-  feature once `ea-audio` has a committed EA-XA stream decoder.
+  `libs/ea-audio` expects. This crate does not decode audio: parse `audio_header()` with
+  `ea_audio::schl::header::parse` and feed each `AudioPacket::data` to an `ea_audio::schl::StreamDecoder` (the game
+  does, in `crates/nfsmw/src/movie/player.rs`).
 
 Format: `docs/formats/video.md`. Real-install checks: `NFSMW_GAME_DIR=... cargo test --release -p
 blackbox-movie -- --ignored --nocapture`.

@@ -76,6 +76,10 @@ portrait upright after the flip. Black is luma 16, so the picture is studio rang
 for RGB). Speed on one core of the dev machine, release build: 164 frames/s decode alone and 116
 frames/s with the RGBA conversion on `blacklist_01` (a high-bitrate movie), against 29.97 needed.
 
+Shown on screen: the 1024 × 512 picture carries a black letterbox (the film is about 2.4:1 inside it), and the
+Rust player shows it at 16:9 over the whole window, centred. The display aspect is not stored anywhere that has
+been found **[unconfirmed: 2:1 square pixels looks stretched, 16:9 looks natural on faces]**.
+
 ### Audio
 
 `SCHl` has a 32-byte payload, identical in structure in all 32 files **[verified]**:

@@ -7,9 +7,8 @@
 //! given time. Audio packets are passed through undecoded.
 //! Format notes: `docs/formats/video.md`.
 //!
-//! TODO: decode the audio (EA-XA stereo, `GSTR` header version 3) by handing
-//! [`Demuxer::audio_header`] and each [`AudioPacket`] to `libs/ea-audio`, behind an optional feature,
-//! once that crate has a committed EA-XA stream decoder.
+//! The audio (EA-XA stereo, `GSTR` header) is decoded by `libs/ea-audio`: hand it [`Demuxer::audio_header`]
+//! and each [`AudioPacket`].
 
 mod demux;
 mod error;
