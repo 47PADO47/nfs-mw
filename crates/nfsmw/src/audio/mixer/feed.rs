@@ -32,6 +32,8 @@ pub struct Frame<'a> {
     pub effects: EffectSignals,
     /// `engineaudio.Master_Vol` of the car's sound set.
     pub master_volume: u32,
+    /// The spark chatter is sounding (its module reported a volume the last tick).
+    pub sparks: bool,
 }
 
 /// A 16-bit angle of the original for `radians` counter-clockwise of straight ahead: the angle itself to the
@@ -94,6 +96,8 @@ pub fn publish(m: &mut Mixer, f: &Frame<'_>) {
         m.set_input(player_object_input(object, index), value);
     };
     object_input(m, object::SHIFT, 7, flag(engine.shift_state == ShiftState::UpDisengage));
+    object_input(m, object::SPARKS, 0, flag(f.sparks));
+    object_input(m, object::SPARKS, 2, flag(f.sparks));
     object_input(m, object::NITROUS, 1, flag(input.nos_active));
     object_input(m, object::NITROUS, 2, flag(input.nos_empty));
     let skids = f.effects;

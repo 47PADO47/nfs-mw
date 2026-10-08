@@ -37,6 +37,7 @@ pub mod controller {
 
 /// Output slots (indices into an object's output block).
 pub mod slot {
+    pub const ENGINE_SAMPLES: usize = 1;
     pub const ENGINE_GINSU: usize = 2;
     pub const ENGINE_PITCH: usize = 4;
     pub const CLUNK_UP: usize = 1;
@@ -53,6 +54,7 @@ pub mod slot {
     pub const NITROUS: usize = 1;
     pub const PURGE: usize = 2;
     pub const NITROUS_PITCH: usize = 3;
+    pub const SPARKS: usize = 1;
     pub const SKID_FORWARD: usize = 5;
     pub const SKID_BACK: usize = 6;
     pub const SKID_SIDE: usize = 7;

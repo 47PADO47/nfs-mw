@@ -9,6 +9,7 @@ use kira::sound::static_sound::StaticSoundHandle;
 use nfsmw_data::sound::{CarSound, EventKind};
 
 use super::LoopMix;
+use super::aems::{AemsLayer, Feed, KiraSampler};
 use super::mixer::{CarMixer, Frame, Levels, scale_command};
 use super::tuning::tuning;
 use super::{Audio, EngineHandle, EngineMix};
@@ -50,6 +51,8 @@ pub(super) struct CarAudio {
     mixer: Option<CarMixer>,
     /// What the mixer said in the last frame.
     pub levels: Levels,
+    /// The sample layer (engine samples and sputters); `None` when the banks could not be run.
+    aems: Option<AemsLayer>,
     /// `engineaudio.Master_Vol`.
     master_volume: u32,
     handle: EngineHandle,
@@ -102,9 +105,18 @@ impl Audio {
         commands.clear();
         let landing = car.effects.update(dt, &input, &out, &mut commands);
         if let Some(mixer) = car.mixer.as_mut() {
-            let frame =
-                Frame { input: &input, engine: &out, effects: car.effects.signals(), master_volume: car.master_volume };
+            let sparks = car.aems.as_ref().is_some_and(AemsLayer::sparks);
+            let frame = Frame {
+                input: &input,
+                engine: &out,
+                effects: car.effects.signals(),
+                master_volume: car.master_volume,
+                sparks,
+            };
             car.levels = mixer.update(dt, &frame);
+        }
+        if let Some(layer) = car.aems.as_mut() {
+            layer.update(&mut KiraSampler(self), dt, &Feed { engine: &out, levels: &car.levels });
         }
         for event in &state.events {
             self.play_impact(&mut car, event);
@@ -137,8 +149,10 @@ impl Audio {
         let mixer = CarMixer::load(&self.dir, dual)
             .map_err(|e| log::warn!("no mixer map, the effects play at their generated levels: {e}"))
             .ok();
+        let aems = AemsLayer::load(self, &loaded.sound).map_err(|e| log::warn!("no sample layer for {name}: {e}")).ok();
         Ok(CarAudio {
             levels: Levels::unmixed(),
+            aems,
             mixer,
             master_volume: loaded.sound.engine.master_volume,
             car: name.to_owned(),

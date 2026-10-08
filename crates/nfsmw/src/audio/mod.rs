@@ -4,6 +4,7 @@
 //! cache of the sounds read from the install's banks. Without a usable device it still exists and every
 //! call fails with a message, so the game runs silent instead of stopping.
 
+mod aems;
 mod car;
 pub mod commands;
 mod engine;

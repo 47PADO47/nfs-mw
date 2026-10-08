@@ -7,11 +7,17 @@ use super::ids::{object, player_object, slot};
 /// The slot levels are relative; how loud the original's full scale is, is the sound system's business. All
 /// gains are multiplied by this so the engine (about -9.6 dB in the map) stays as loud as it was before the maps
 /// were read.
-pub const MAKEUP: f32 = 2.25;
+pub const MAKEUP: f32 = 1.5;
 
 /// Gains (1 = unchanged; the makeup is included) and pitch ratios for the sounds of the car.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Levels {
+    /// What the makeup multiplies the voices of the sample layer and the sputters by (1 without a map).
+    pub makeup: f32,
+    /// The map's own factor for the engine's sample layer and for the spark chatter, 0 to 1 (no makeup): they go
+    /// into the parameters of the sample-layer modules.
+    pub engine_samples: f32,
+    pub sparks: f32,
     pub engine_volume: f32,
     pub engine_pitch: f32,
     pub clunk_up: f32,
@@ -44,6 +50,9 @@ impl Levels {
     /// guesses used before the maps were read.
     pub fn unmixed() -> Self {
         Self {
+            makeup: 1.0,
+            engine_samples: 1.0,
+            sparks: 1.0,
             engine_volume: 1.0,
             engine_pitch: 1.0,
             clunk_up: 1.0,
@@ -73,7 +82,8 @@ impl Levels {
 
     /// The levels the mixer computed in its last frame.
     pub fn read(m: &Mixer, dual: bool) -> Self {
-        let gain = |obj: u8, slot: usize| m.volume(player_object(obj), slot).unwrap_or(0.0) * MAKEUP;
+        let raw = |obj: u8, slot: usize| m.volume(player_object(obj), slot).unwrap_or(0.0);
+        let gain = |obj: u8, slot: usize| raw(obj, slot) * MAKEUP;
         let pitch = |obj: u8, slot: usize| m.pitch(player_object(obj), slot).unwrap_or(1.0);
         let engine = if dual { object::ENGINE_DUAL } else { object::ENGINE_SINGLE };
         let mut road = [0.0; 9];
@@ -82,6 +92,9 @@ impl Levels {
         }
         let wind = (gain(object::WIND, slot::WIND_LEFT) + gain(object::WIND, slot::WIND_RIGHT)) / 2.0;
         Self {
+            makeup: MAKEUP,
+            engine_samples: raw(engine, slot::ENGINE_SAMPLES).min(1.0),
+            sparks: raw(object::SPARKS, slot::SPARKS).min(1.0),
             engine_volume: gain(engine, slot::ENGINE_GINSU),
             engine_pitch: pitch(engine, slot::ENGINE_PITCH),
             clunk_up: gain(object::SHIFT, slot::CLUNK_UP),

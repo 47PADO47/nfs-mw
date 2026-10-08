@@ -2849,6 +2849,7 @@ dependencies = [
  "bevy_time",
  "bevy_window",
  "bevy_winit",
+ "blackbox-aems",
  "blackbox-attrib",
  "blackbox-carsound",
  "blackbox-chunk",

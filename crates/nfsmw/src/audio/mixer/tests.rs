@@ -36,7 +36,7 @@ fn the_four_real_maps_parse_and_evaluate_without_nonsense() {
 }
 
 fn frame_at<'a>(input: &'a CarInput, engine: &'a EngineOutput) -> Frame<'a> {
-    Frame { input, engine, effects: EffectSignals::default(), master_volume: 25_500 }
+    Frame { input, engine, effects: EffectSignals::default(), master_volume: 25_500, sparks: false }
 }
 
 /// Levels of the car at a steady speed on asphalt after a second of it.
@@ -92,7 +92,7 @@ fn cruising_levels_follow_the_map() {
         assert!(l.road.iter().all(|v| v.is_finite() && *v >= 0.0), "{speed} m/s: {:?}", l.road);
     }
     // The engine reads the same near its centre of range at any speed: the map ducks it, never silences it.
-    assert!(rows.iter().all(|(_, l)| l.engine_volume > 0.3 && l.engine_volume < 2.0), "{rows:?}");
+    assert!(rows.iter().all(|(_, l)| l.engine_volume > 0.2 && l.engine_volume < 2.0), "{rows:?}");
     // The wind grows with speed.
     assert!(rows[4].1.wind > rows[1].1.wind, "{} {}", rows[4].1.wind, rows[1].1.wind);
     // The unmixed levels are the ones used when the map cannot be read.
@@ -114,7 +114,8 @@ fn master_vol_scales_the_engine_level() {
         let mut mixer = CarMixer::load(&dir, true).unwrap();
         let input = CarInput { speed: 20.0, ..CarInput::default() };
         let engine = EngineOutput { physics_rpm: 4000.0, ..EngineOutput::default() };
-        let frame = Frame { input: &input, engine: &engine, effects: EffectSignals::default(), master_volume };
+        let frame =
+            Frame { input: &input, engine: &engine, effects: EffectSignals::default(), master_volume, sparks: false };
         (0..60).map(|_| mixer.update(1.0 / 60.0, &frame)).last().unwrap().engine_volume
     };
     let (quiet, loud) = (level(22_300), level(32_000));

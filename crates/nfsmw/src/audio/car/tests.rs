@@ -7,6 +7,7 @@ use kira::sound::SoundData;
 
 use super::*;
 use crate::audio::LoopMix;
+use crate::audio::aems::soft::{Soft, SoftSampler};
 use crate::audio::{EngineVoice, Volumes};
 
 const RATE: f64 = 48_000.0;
@@ -59,8 +60,8 @@ fn write_wav(path: &std::path::Path, samples: &[f32]) {
     std::fs::write(path, wav).unwrap();
 }
 
-/// Renders a drive of the M3 GTR (idle, a pull with two shifts, a lift) through the mixer and the engine
-/// voice, as the game does, and checks the level and that the sound moves with the revs. With
+/// Renders a drive of the M3 GTR (idle, a pull with two shifts, a lift) through the mixer, the engine voice and
+/// the sample layer, as the game does, and checks the level and that the sound moves with the revs. With
 /// `NFSMW_ENGINE_WAV` set the sound is written there to listen to.
 #[test]
 fn a_scripted_drive_sounds_like_an_engine() {
@@ -72,6 +73,8 @@ fn a_scripted_drive_sounds_like_an_engine() {
     let info = kira::info::MockInfoBuilder::new().build();
     let per_tick = (RATE / 60.0) as usize;
     let mut dynamic = crate::audio::mixer::CarMixer::load(&audio.dir, true).expect("the mixer map loads");
+    let mut layer = AemsLayer::load(&mut audio, &car.sound).expect("the sample layer loads");
+    let (mut soft, mut layer_out) = (Soft::default(), Vec::new());
     let mut gain = 1.0;
     let (mut out, mut shifts) = (Vec::new(), 0);
     for i in 0..(14.0 * 60.0) as usize {
@@ -96,11 +99,21 @@ fn a_scripted_drive_sounds_like_an_engine() {
             engine: &o,
             effects: Default::default(),
             master_volume: car.sound.engine.master_volume,
+            sparks: layer.sparks(),
         };
-        gain = dynamic.update(TICK, &frame).engine_volume;
+        let levels = dynamic.update(TICK, &frame);
+        gain = levels.engine_volume;
+        layer.update(
+            &mut SoftSampler { audio: &mut audio, mix: &mut soft },
+            TICK,
+            &Feed { engine: &o, levels: &levels },
+        );
         let mut block = vec![Frame::ZERO; per_tick];
         sound.process(&mut block, 1.0 / RATE, &info);
-        out.extend(block.iter().map(|f| f.left));
+        let mut samples = vec![0.0; per_tick];
+        soft.render(&mut samples);
+        layer_out.extend(samples.iter().copied());
+        out.extend(block.iter().zip(&samples).map(|(f, s)| f.left + s));
     }
     if let Some(path) = std::env::var_os("NFSMW_ENGINE_WAV") {
         write_wav(std::path::Path::new(&path), &out);
@@ -110,8 +123,9 @@ fn a_scripted_drive_sounds_like_an_engine() {
         (part.iter().map(|s| s * s).sum::<f32>() / part.len() as f32).sqrt()
     };
     let peak = out.iter().fold(0.0f32, |m, s| m.max(s.abs()));
+    let layer_peak = layer_out.iter().fold(0.0f32, |m, s| m.max(s.abs()));
     eprintln!(
-        "peak {peak:.3}; rms idle {:.4}, pull {:.4}, high revs {:.4}, lift {:.4}; {shifts} gear clunks",
+        "peak {peak:.3} (sample layer alone {layer_peak:.3}); rms idle {:.4}, pull {:.4}, high revs {:.4}, lift {:.4}; {shifts} gear clunks",
         rms(0.5, 2.0),
         rms(2.5, 5.0),
         rms(4.0, 5.0),
