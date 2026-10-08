@@ -17,6 +17,7 @@ publish = false
 # Engine-generic libraries (libs/)
 blackbox-attrib = { path = "libs/blackbox-attrib" }
 blackbox-carparts = { path = "libs/blackbox-carparts" }
+blackbox-carsound = { path = "libs/blackbox-carsound" }
 blackbox-chunk = { path = "libs/blackbox-chunk" }
 blackbox-collision = { path = "libs/blackbox-collision" }
 blackbox-feng = { path = "libs/blackbox-feng" }
@@ -54,6 +55,7 @@ directories = "6"
 egui = "0.36"
 env_logger = "0.11"
 glam = { version = "0.34", features = ["bytemuck"] }
+kira = { version = "0.12", default-features = false, features = ["cpal"] }
 log = "0.4"
 png = "0.18"
 pollster = "0.4"
