@@ -15,7 +15,9 @@ texture swaps, the car shader) and vehicle physics: [vehicle-engine-drivetrain.m
 engine mix), [engine-sound-ginsu.md](engine-sound-ginsu.md) (the granular synthesiser) and
 [engine-sound-effects.md](engine-sound-effects.md) (shifting, turbo, nitrous, skids, collisions); the
 dynamic mixer: [dynamic-mixer.md](dynamic-mixer.md) (evaluating a mixer map) and
-[car-sound-mixer.md](car-sound-mixer.md) (what the car sound publishes and reads).
+[car-sound-mixer.md](car-sound-mixer.md) (what the car sound publishes and reads); AEMS: [aems.md](aems.md)
+(running a module of a sound bank) and [engine-sound-aems.md](engine-sound-aems.md) (the engine's sample layer,
+the sputters, the sweeteners).
 
 ## Template
 
