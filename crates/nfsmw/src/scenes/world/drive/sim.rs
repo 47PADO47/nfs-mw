@@ -28,6 +28,10 @@ pub struct Telemetry {
     pub gear: i32,
     /// Nitrous tank, 0..1.
     pub nos: f32,
+    /// The nitrous is burning (held, in gear, on the throttle, fast enough), not just asked for.
+    pub nos_burning: bool,
+    /// The car has a nitrous system.
+    pub has_nos: bool,
     pub wheels_on_ground: usize,
     /// The engine's red line, rpm: the end of the tachometer scale.
     pub red_line: f32,
@@ -192,6 +196,8 @@ impl CarSim {
             rpm: v.rpm(),
             gear: v.gear() as i32 - 1,
             nos: v.nos_level(),
+            nos_burning: v.nos_burning(),
+            has_nos: v.has_nos(),
             wheels_on_ground: v.wheels_on_ground(),
             red_line: v.powertrain().engine_spec().red_line,
             idle: v.powertrain().engine_spec().idle,

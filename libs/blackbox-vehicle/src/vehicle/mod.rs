@@ -251,6 +251,16 @@ impl Vehicle {
         self.powertrain.nos.capacity
     }
 
+    /// The nitrous is burning right now: the button is held and the gear, throttle and speed let it.
+    pub fn nos_burning(&self) -> bool {
+        self.powertrain.nos.boost > 1.0
+    }
+
+    /// The car has a nitrous system at all.
+    pub fn has_nos(&self) -> bool {
+        self.powertrain.has_nos()
+    }
+
     /// Turbo gauge (psi, negative in vacuum).
     pub fn boost_psi(&self) -> f32 {
         self.powertrain.induction.psi

@@ -217,3 +217,20 @@ fn driving_off_a_ledge_is_survivable() {
     assert_eq!(v.wheels_on_ground(), 0);
     assert!(v.position().y < -10.0, "should be falling: y = {}", v.position().y);
 }
+
+#[test]
+fn the_nitrous_burns_only_when_the_button_does_something() {
+    // Held while standing: too slow, nothing burns, the sound must stay quiet.
+    let mut v = parked();
+    let nos = InputState { throttle: 1.0, nos: true, ..Default::default() };
+    run(&mut v, &nos, 0.2);
+    assert!(v.has_nos() && !v.nos_burning(), "burning at {} m/s", v.forward_speed());
+    // Fast enough and on the throttle: it burns and the tank drains.
+    run(&mut v, &throttle(), 3.0);
+    let tank = v.nos_level();
+    run(&mut v, &nos, 0.5);
+    assert!(v.nos_burning() && v.nos_level() < tank);
+    // Off the throttle it stops at once, the button still held.
+    run(&mut v, &InputState { nos: true, ..Default::default() }, 0.2);
+    assert!(!v.nos_burning());
+}

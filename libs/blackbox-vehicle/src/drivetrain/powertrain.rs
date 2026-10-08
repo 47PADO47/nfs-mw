@@ -129,6 +129,11 @@ impl Powertrain {
         self.drive_torque = 0.0;
     }
 
+    /// The car has a nitrous system (a tank and a boost).
+    pub fn has_nos(&self) -> bool {
+        self.nos_spec.present()
+    }
+
     pub fn engine_spec(&self) -> &EngineSpec {
         &self.engine
     }

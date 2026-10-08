@@ -96,8 +96,10 @@ impl SoundFeed {
             // The transmission numbers reverse 0, neutral 1, first 2.
             gear: t.gear + 1,
             speed: t.speed_mps.abs(),
-            nos_active: self.nos_pressed && t.nos > 0.0,
-            nos_empty: self.nos_pressed && t.nos <= 0.0,
+            // The loop follows the burn, not the button: a press that does nothing (too slow, no throttle, in
+            // neutral, no nitrous) stays quiet.
+            nos_active: t.nos_burning,
+            nos_empty: self.nos_pressed && t.has_nos && t.nos <= 0.0,
             wheels: self.wheels,
             up_dot: self.up_dot,
             ..Default::default()
