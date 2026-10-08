@@ -174,8 +174,9 @@ pub struct ViewArgs {
     /// Hide the in-game HUD even while driving.
     #[arg(long, conflicts_with = "hud")]
     pub no_hud: bool,
-    /// Numbers for a HUD that has no car behind it: "speed_kmh,rpm,max_rpm,gear" (for reference screenshots).
-    #[arg(long, hide = true, value_name = "SPEED,RPM,MAX_RPM,GEAR", value_parser = parse_hud_demo, allow_hyphen_values = true)]
+    /// Numbers for a HUD that has no car behind it: "speed_kmh,rpm,max_rpm,gear[,nos_percent[,boost_psi]]" (for
+    /// reference screenshots; a nitrous or boost value shows that gauge).
+    #[arg(long, hide = true, value_name = "SPEED,RPM,MAX_RPM,GEAR[,NOS[,PSI]]", value_parser = parse_hud_demo, allow_hyphen_values = true)]
     pub hud_demo: Option<crate::hud::HudState>,
 }
 
@@ -210,16 +211,28 @@ impl ViewArgs {
 fn parse_hud_demo(s: &str) -> Result<crate::hud::HudState, String> {
     let n: Vec<f32> =
         s.split(',').map(|v| v.trim().parse::<f32>().map_err(|e| e.to_string())).collect::<Result<_, _>>()?;
-    let [speed, rpm, max_rpm, gear] = n[..] else { return Err("expected SPEED,RPM,MAX_RPM,GEAR".into()) };
+    let [speed, rpm, max_rpm, gear, rest @ ..] = &n[..] else { return Err(HUD_DEMO_FORMAT.into()) };
+    let (speed, rpm, max_rpm, gear) = (*speed, *rpm, *max_rpm, *gear);
+    if rest.len() > 2 {
+        return Err(HUD_DEMO_FORMAT.into());
+    }
+    let red_line = max_rpm - 500.0;
     Ok(crate::hud::HudState {
         speed: speed / 3.6,
         rpm,
         max_rpm,
+        red_line,
         gear: gear as i32,
-        shift_light: rpm > 0.93 * max_rpm,
+        shift_light: rpm > red_line,
+        has_nos: !rest.is_empty(),
+        nos: rest.first().map_or(0.0, |p| p / 100.0),
+        has_turbo: rest.len() > 1,
+        boost_psi: rest.get(1).copied().unwrap_or(0.0),
         ..Default::default()
     })
 }
+
+const HUD_DEMO_FORMAT: &str = "expected SPEED,RPM,MAX_RPM,GEAR[,NOS_PERCENT[,BOOST_PSI]]";
 
 fn parse_xy(s: &str) -> Result<[f32; 2], String> {
     let (x, y) = s.split_once(',').ok_or("expected X,Y")?;
@@ -230,6 +243,19 @@ fn parse_xy(s: &str) -> Result<[f32; 2], String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_hud_demo_takes_optional_gauges() {
+        let plain = parse_hud_demo("100,4000,8000,3").unwrap();
+        assert!(!plain.has_nos && !plain.has_turbo);
+        assert!((plain.speed - 100.0 / 3.6).abs() < 1e-4);
+        let nos = parse_hud_demo("100,4000,8000,3,60").unwrap();
+        assert!(nos.has_nos && !nos.has_turbo && (nos.nos - 0.6).abs() < 1e-6);
+        let both = parse_hud_demo("100,4000,8000,3,60,-5").unwrap();
+        assert!(both.has_turbo && both.boost_psi == -5.0);
+        assert!(parse_hud_demo("100,4000,8000").is_err());
+        assert!(parse_hud_demo("1,2,3,4,5,6,7").is_err());
+    }
 
     #[test]
     fn xy() {

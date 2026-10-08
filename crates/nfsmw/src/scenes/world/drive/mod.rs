@@ -356,9 +356,15 @@ impl Drive {
         Some(crate::hud::HudState {
             speed: t.speed_mps.abs(),
             rpm: t.rpm,
-            max_rpm: if t.red_line > 0.0 { t.red_line } else { 8000.0 },
+            max_rpm: t.max_rpm,
+            red_line: t.red_line,
             gear: t.gear,
-            shift_light: t.red_line > 0.0 && t.rpm >= 0.95 * t.red_line,
+            shifting: t.shifting,
+            shift_light: t.shift_up,
+            has_nos: t.has_nos,
+            nos: t.nos,
+            has_turbo: t.has_induction,
+            boost_psi: t.boost_psi,
             ..Default::default()
         })
     }

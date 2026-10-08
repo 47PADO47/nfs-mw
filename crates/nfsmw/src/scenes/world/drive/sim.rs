@@ -6,6 +6,7 @@
 //! the car model has 2 rear right, 3 rear left.
 
 use blackbox_collision::CollisionWorld;
+use blackbox_vehicle::induction::InductionKind;
 use blackbox_vehicle::{FIXED_STEP, Ground, InputState, Vehicle};
 use glam::{Mat3, Quat, Vec3};
 use nfsmw_data::car::WheelPose;
@@ -33,10 +34,20 @@ pub struct Telemetry {
     /// The car has a nitrous system.
     pub has_nos: bool,
     pub wheels_on_ground: usize,
-    /// The engine's red line, rpm: the end of the tachometer scale.
+    /// The engine's red line, rpm.
     pub red_line: f32,
+    /// The engine's `MAX_RPM`: it picks the tachometer's scale.
+    pub max_rpm: f32,
     /// The engine's idle speed, rpm.
     pub idle: f32,
+    /// A gear change is in progress.
+    pub shifting: bool,
+    /// The gearbox wants the next gear (the shift light).
+    pub shift_up: bool,
+    /// The car has forced induction (a turbo or a supercharger).
+    pub has_induction: bool,
+    /// The boost gauge, psi.
+    pub boost_psi: f32,
 }
 
 /// Wheel spin (m/s) the tire sound ignores: the dead zone is a fifth of it.
@@ -200,7 +211,12 @@ impl CarSim {
             has_nos: v.has_nos(),
             wheels_on_ground: v.wheels_on_ground(),
             red_line: v.powertrain().engine_spec().red_line,
+            max_rpm: v.powertrain().engine_spec().max_rpm,
             idle: v.powertrain().engine_spec().idle,
+            shifting: v.powertrain().shifting(),
+            shift_up: v.powertrain().shift_up_wish(),
+            has_induction: v.spec().induction.kind() != InductionKind::None,
+            boost_psi: v.boost_psi(),
         }
     }
 }

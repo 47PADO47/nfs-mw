@@ -18,6 +18,11 @@ The game side is `crates/nfsmw/src/hud/`.
   - Probes of the user's own install (210 distinct packages, five fonts, the HUD texture packs): the facts marked
     **[verified]** in the format document. The probe programs are not part of the repository.
 - **Implemented:** 2026-10-08, from the specs only (the decompiled code was not open while writing).
+- **HUD gauges (2026-10-08, second pass):** section 8 of the runtime spec was extended from `Frontend/HUD/{FEPkg_Hud,
+  FeTachometer,FeSpeedometer,FeNitrousGauge,FeTurboMeter,FeShiftUpdater,FeHudElement}` and
+  `Physics/Behaviors/EngineRacer` (the shift potential): the tachometer scale and red-zone table, the nitrous bar and
+  icon, the turbo dial, the gear dimming and the integer speed digits. Then `crates/nfsmw/src/hud/` was written from
+  that section, without the decompiled code open.
 - **Checked against the game by:** unit tests on synthetic packages, and `#[ignore]` tests that load
   `HUD_SingleRace.fng` and the fonts from an install. Not compared with a capture of the original HUD yet.
 - **Known differences from the original:**
