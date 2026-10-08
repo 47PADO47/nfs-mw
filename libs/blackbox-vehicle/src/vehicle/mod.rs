@@ -292,6 +292,12 @@ impl Vehicle {
         }
     }
 
+    /// The [`ground::SurfaceGrip::tag`](crate::ground::SurfaceGrip::tag) of the surface under wheel `i`
+    /// (same order as [`wheel`](Self::wheel)); `None` for a wheel with no ground within reach.
+    pub fn wheel_surface_tag(&self, i: usize) -> Option<u32> {
+        self.contacts.get(i).copied().flatten().map(|c| c.surface.tag)
+    }
+
     /// Reports a hard hit (impulse in N s) that the caller resolved itself: limits steering for a moment
     /// and keeps the sleep damping off for this step.
     pub fn notify_collision(&mut self, impulse: f32) {

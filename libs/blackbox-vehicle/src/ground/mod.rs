@@ -12,11 +12,14 @@ pub struct SurfaceGrip {
     pub drive: f32,
     /// Multiplies the rolling friction of a spinning wheel.
     pub rolling: f32,
+    /// An opaque id the caller gives the surface; the vehicle reports it back for each wheel
+    /// ([`crate::Vehicle::wheel_surface_tag`]) so the caller can tell what a tire rolls on (sounds, marks).
+    pub tag: u32,
 }
 
 impl SurfaceGrip {
     /// Dry tarmac: all multipliers 1.
-    pub const DEFAULT: Self = Self { lateral: 1.0, drive: 1.0, rolling: 1.0 };
+    pub const DEFAULT: Self = Self { lateral: 1.0, drive: 1.0, rolling: 1.0, tag: 0 };
 }
 
 impl Default for SurfaceGrip {

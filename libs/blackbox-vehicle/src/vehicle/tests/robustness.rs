@@ -175,7 +175,7 @@ impl Ground for Rolling {
                 return Some(GroundHit {
                     distance: t,
                     normal: n,
-                    surface: SurfaceGrip { lateral: grip, drive: grip, rolling: 1.0 },
+                    surface: SurfaceGrip { lateral: grip, drive: grip, rolling: 1.0, tag: 0 },
                 });
             }
             prev = gap;
