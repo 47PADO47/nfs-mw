@@ -21,6 +21,7 @@ blackbox-chunk = { path = "libs/blackbox-chunk" }
 blackbox-collision = { path = "libs/blackbox-collision" }
 blackbox-feng = { path = "libs/blackbox-feng" }
 blackbox-hash = { path = "libs/blackbox-hash" }
+blackbox-movie = { path = "libs/blackbox-movie" }
 blackbox-render = { path = "libs/blackbox-render" }
 blackbox-scene = { path = "libs/blackbox-scene" }
 blackbox-scenery = { path = "libs/blackbox-scenery" }

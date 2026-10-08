@@ -1030,6 +1030,13 @@ name = "blackbox-hash"
 version = "0.1.0"
 
 [[package]]
+name = "blackbox-movie"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "blackbox-render"
 version = "0.1.0"
 dependencies = [
