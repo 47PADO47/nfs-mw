@@ -11,12 +11,15 @@
 //! Modules: [`math`], [`rigid_body`], [`engine`], [`drivetrain`], [`induction`], [`nos`], [`brakes`],
 //! [`tires`], [`suspension`], [`steering`], [`aero`], [`input`], [`ground`], [`vehicle`].
 
+pub mod brakes;
 pub mod drivetrain;
 pub mod engine;
+pub mod ground;
 pub mod induction;
 pub mod math;
 pub mod nos;
 pub mod rigid_body;
+pub mod tires;
 
 /// The fixed simulation step, in seconds.
 pub const FIXED_STEP: f32 = 1.0 / 60.0;
