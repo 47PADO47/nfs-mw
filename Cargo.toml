@@ -31,6 +31,7 @@ blackbox-streaming = { path = "libs/blackbox-streaming" }
 blackbox-text = { path = "libs/blackbox-text" }
 blackbox-tpk = { path = "libs/blackbox-tpk" }
 blackbox-vehicle = { path = "libs/blackbox-vehicle" }
+ea-audio = { path = "libs/ea-audio" }
 ea-compress = { path = "libs/ea-compress" }
 game-install = { path = "libs/game-install" }
 # NFS:MW (crates/)
