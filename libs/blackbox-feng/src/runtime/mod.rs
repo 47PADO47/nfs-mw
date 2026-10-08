@@ -9,6 +9,7 @@ mod nav;
 mod state;
 mod update;
 
+pub use bind::StringInfo;
 pub use input::{PadState, pad};
 pub use messages::{Outgoing, PackageCommandKind};
 pub use state::{INIT_SCRIPT, ObjState};

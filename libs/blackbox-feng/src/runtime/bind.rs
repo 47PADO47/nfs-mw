@@ -86,6 +86,29 @@ impl Runtime {
         Some(self.object(o)?.data.size())
     }
 
+    /// What a string object shows and how it is set: the resolved text, the font key, the justification, the
+    /// leading, the maximum width and the object's scale.
+    pub fn string_info(&self, o: ObjectRef) -> Option<StringInfo> {
+        let p = self.running(o.package)?;
+        let (def, state) = (p.def.objects.get(o.index)?, p.objects.get(o.index)?);
+        let s = def.string.as_ref()?;
+        let text = match (&state.text, def.flags & 2 == 0 && state.label != 0) {
+            (Some(t), _) => t.clone(),
+            (None, true) => self.resolve_label(state.label).unwrap_or_else(|| s.text.clone()),
+            (None, false) => s.text.clone(),
+        };
+        let font = def.resource.and_then(|r| p.def.resources.get(r)).map_or(0, |r| r.handle);
+        let size = state.data.size();
+        Some(StringInfo {
+            text,
+            font,
+            justification: s.justification,
+            leading: s.leading,
+            max_width: s.max_width,
+            scale: (size.x, size.y),
+        })
+    }
+
     /// The first object whose name hashes from `name` (any case).
     pub fn find_name(&self, package: super::PackageId, name: &str) -> Option<ObjectRef> {
         self.find(package, crate::hash::fe_hash_upper(name))
@@ -123,4 +146,15 @@ impl Runtime {
     pub fn script_of(&self, o: ObjectRef) -> Option<u32> {
         self.current_script_id(o.package, o.index)
     }
+}
+
+/// See [`Runtime::string_info`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct StringInfo {
+    pub text: String,
+    pub font: u32,
+    pub justification: u32,
+    pub leading: i32,
+    pub max_width: i32,
+    pub scale: (f32, f32),
 }

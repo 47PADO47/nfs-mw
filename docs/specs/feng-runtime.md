@@ -121,11 +121,13 @@ package list.
 - A package has a **current button** (initially none). Setting it queues two messages for the old button
   (`0x55d1e635`, "lose focus", to the object and to sound) and two for the new one (`0xabc08912`,
   "gain focus").
-- The host feeds input as messages: the pad events are mapped by the game to message ids (accept, back,
-  directions…) and delivered to the current button. In this runtime the host calls `send_to_focus(package,
-  message id)`; the button's responses then run (typically set a script, post a message to the game).
-- Navigation between buttons is expressed by the packages' own responses (set active button), so the runtime
-  needs no geometry.
+- The host feeds input as a pad mask each frame (`set_pad_mask`); the engine turns it into the pad messages
+  (accept, back, directions with repeat, …) and delivers them to the current button or the package, as
+  [feng-input.md](feng-input.md) describes. `send_to_focus(package, message id)` is still there for hosts that
+  map the input themselves.
+- **Navigation between buttons is the engine's:** a direction moves the focus to the best button by geometry
+  unless the button has the *do not navigate* flag or its response says so (feng-input.md section 3). A package
+  can also set the current button itself (script event `SET_CURRENT_BUTTON`, response `0x100`).
 
 ## 6. Drawing
 
@@ -169,7 +171,7 @@ The runtime is plain data in and out; it knows nothing about rendering or the ga
 - **Read (tree out):** a retained flat tree of nodes with id, parent, kind (group, image with texture and UV,
   text with the label or text, font and justification), local transform, size, colour, alpha, visibility,
   z-order, and the computed world transform, accumulated colour and draw order.
-- **Input:** `set_focus`, `send_to_focus`.
+- **Input:** `set_pad_mask`, `set_control`, `set_focus`, `send_to_focus`, `post_to_package`.
 
 ## 8. The in-game HUD (`HUD_SingleRace.fng`)
 

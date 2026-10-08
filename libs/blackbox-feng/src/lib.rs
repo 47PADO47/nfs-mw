@@ -14,5 +14,5 @@ pub use error::{Error, Result};
 pub use font::Font;
 pub use hash::{fe_hash_upper, resource_handle};
 pub use package::Package;
-pub use runtime::{ObjectRef, Outgoing, PackageCommandKind, PackageId, Runtime};
+pub use runtime::{ObjectRef, Outgoing, PackageCommandKind, PackageId, Runtime, StringInfo};
 pub use tree::{NodeKind, UiNode, UiTree};
