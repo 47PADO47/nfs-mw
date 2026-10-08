@@ -114,20 +114,56 @@ library, partly decompiled in `src/Speed/Indep/Libs/snd/9/` (`saems.c`, `sbanki.
 | Offset | Type | Field (names from the decomp's `GinsuSynthData`) |
 |---|---|---|
 | 0x00 | char[4] | `Gnsu` |
-| 0x04 | char[4] | `"20\0\0"` (version; the loader checks `ver[0] == '2'`) **[decomp]** |
-| 0x08 | f32 | min frequency |
-| 0x0C | f32 | max frequency |
-| 0x10 | u32 | segCount |
-| 0x14 | u32 | cycleCount |
-| 0x18 | u32 | sampleCount |
-| 0x1C | u32 | sampleRate |
-| 0x20 | u32[segCount+1] | frequency → sample positions |
-| … | u32[cycleCount+1] | cycle → sample positions |
+| 0x04 | char[2] | `"20"`: version 2 (the loader checks `ver[0] == '2'`) **[decomp]** |
+| 0x06 | u16 | flags, 0 in every PC file; the console loader sets it to 1 after byte-swapping the tables **[decomp]** |
+| 0x08 | f32 | `min_frequency` |
+| 0x0C | f32 | `max_frequency` |
+| 0x10 | u32 | `seg_count` (50 in all 160 files) |
+| 0x14 | u32 | `cycle_count` (18 to 265) |
+| 0x18 | u32 | `sample_count` (9,932 to 223,531) |
+| 0x1C | u32 | `sample_rate` (32,000 x103, 24,000 x41, 36,000 x14, 34,000, 20,000) |
+| 0x20 | u32[seg_count + 1] | `freq_pos`: the sample at which the recording's pitch equals `min + (max - min) * i / seg_count` |
+| … | u32[cycle_count + 1] | `cycle_pos`: the first sample of each pitch cycle; the last entry is the last sample |
 | … | | EA-XAS v0 data, mono: 0x13 bytes per 32 samples |
 
-Check: in all 160 files the data size equals `ceil(sampleCount/32) × 0x13`. The synthesis (picking and
-cross-fading grains by target frequency) is in the decomp's `EAXSound/Ginsu/ginsusynth.cpp`
-**[decomp]**. File names: `GIN_<CAR>_<variant>.gin`, e.g. `GIN_240SX_Decel.gin`, `GIN_300ZX_DCL.gin`.
+Checks, all 160 files **[verified]**: the data size equals `ceil(sample_count / 32) x 0x13`; `cycle_pos[0] = 0`,
+`cycle_pos[cycle_count] = sample_count - 1` and `cycle_pos` is strictly increasing; every `freq_pos` entry is
+below `sample_count`; `freq_pos` is non-decreasing in the 85 accelerate files (`GIN_<CAR>*.gin`: a recording of
+a rev up) and non-increasing in the 75 decelerate files (`..._DCL.gin`, `GIN_240SX_Decel.gin`, ...: a rev
+down); `min_frequency` is 1,031 to 6,065 and `max_frequency` 2,011 to 9,241. The frequency unit is chosen so
+that a cycle is `sample_rate * 120 / frequency` samples long (median error 3.3 % over the 51 knots of a file).
+The EA-XAS blocks are independent (each carries its two history samples), so any sample can be decoded alone.
+
+The synthesis (picking and cross-fading whole pitch cycles by target frequency) is specified in
+[specs/engine-sound-ginsu.md](../specs/engine-sound-ginsu.md) from the decomp's `EAXSound/Ginsu/ginsusynth.cpp`
+**[decomp]**. File names: `GIN_<CAR>_<variant>.gin`, e.g. `GIN_240SX_Decel.gin`, `GIN_300ZX_DCL.gin`,
+`GIN_TVR_Cerbera.gin`. 129 of the 160 files are named by an `engineaudio` collection; 31 belong to cut cars
+(`GIN_BMW_450i*`, `GIN_Porsche_Cayenne*`, `GIN_TVR_Chimaera*`, ...).
+
+### Tuning classes
+
+Which `.gin`, bank and tuning a car uses is AttribSys data in `GLOBAL/ATTRIBUTES.BIN`; the rules that use it
+are in [specs/engine-sound.md](../specs/engine-sound.md) and [specs/engine-sound-effects.md](../specs/engine-sound-effects.md).
+Counts are for the PC install **[verified]**; field names and meanings are from the decomp's generated headers
+**[decomp]**.
+
+| Class (collections, fields) | What it holds |
+|---|---|
+| `pvehicle` (121, 66) | per car: `engineaudio[ ]` (RefSpecs, one per audio upgrade level), `ShiftSND[ ]` and `TurboSND[ ]` (`UpgradeSpecs` = `{RefSpec Item, u8 Level}`, 16 bytes), `TrafficEngType`, `TruckSndFX`, `OnHit*` / `OnScrape*` / `OnBottomOut` audio-event links |
+| `engineaudio` (70: `default` + 69 sets, 40) | `Filename_GinsuAccel`, `Filename_GinsuDecel` (StringKey), `BankName_mainRAM` (`CAR_nn_ENG_MB_EE.abk`), `BankName_auxRAM[ ]` (`..._SPU.abk`), `SweetBank[ ]` (`SWTN_CAR_nn_MB.abk`, `CAR_WHINE_00.abk`), `acceltrans` (RefSpec), `CarID` (`nn`), `EngType` (0 V4, 1 V6, 2 V8), `Priority`, `MaybeV8`, `Tranny`, `MinRPM`, `MaxRPM`, `PhysicsRPM_Map` (Bezier y values), `Master_Vol`; mix levels `AEMSMix_S_RPM` / `_L_RPM`, `GINSUMix_S_RPM` / `_L_RPM`, `DECEL_AEMSMix_*`, `DECEL_GINSUMix_*`, `Ginsu_ACL_Neg_S_RPM` / `_L_RPM`, thresholds `AccelDeltaRPMThreshold` (75 to 150), `DecelDeltaRPMThreshold`; volumes `AEMSVol`, `DECEL_AEMSVol`, `GINSUAccelVol`, `GinsuDecelVol` (0 to 32767), `Vol_ShiftSweets`, `Vol_Sputters`; the decel window `GINSU_Decel_MinRPM`, `GINSU_Decel_MaxRPM`, `GINSU_DECEL_FADE_IN`, `GINSU_DECEL_FADE_OUT`; `GINSU_LowPassCutoff`; `DecelPitchOffset` (0 in all data) |
+| `acceltrans` (28, 5) | `AccelFromIdle_PEAK_T`, `_RESUME_T`, `_INTERUPT_T` (ms), `_PEAK_RPM`, `_PEAK_VOL` |
+| `shiftpattern` (25, 24) | `BankName` (`SOUND/SHIFTING/GEAR_{SML,MED,LRG,BIG}_{Base,Lev1..3}.abk`), sound delays and volumes, the up-shift curves (`Up_DisengageFall[ ]`, `Up_Engage`, with Bezier matrices), the down-shift stage times and RPMs, the post-shift LFO |
+| `turbosfx` (18, 6) | `BankName` (`SOUND/TURBO/TURBO_*.abk`), `Vol_Spool`, `ChargeTime`, `Leak_Rate`, `Vol_Blowoff1`, `Vol_Blowoff2` |
+| `audiosystem` (9, 20) | `mostwanted`: bank lists `AEMS_SkidBanks`, `AEMS_NOSBanks`, `AEMS_StitchBanks`, `AEMS_MiscBanks`, `AEMS_RNBanks`, `AEMS_WNBanks`, `AEMS_EnvBanks`, `AEMS_FEBanks`, `EvtSys` (`.csi` list); the others hold the speech paths of each language |
+| `audioimpact` (131, 7), `audioscrape` (7, 2) | collision sounds: `STITCH_LEVEL_0..3`, `Volumes`, `StreamSweetner`, `DESCRIPTION[ ]`; scrape `CSIS_EFFECT` |
+
+Bezier fields (`PhysicsRPM_Map`, `Up_Engage_Curve`, `Up_DisengageFall_Curve`) are `Attrib::Types::Matrix`
+values: four rows `(x, y, 0, 0)` of `f32` are the control points. `stShiftPair` is `{i16 RPM, i16 Time}`.
+Example, `pvehicle/bmwm3gtr` -> `engineaudio/tvr_cerb` (accelerate `GIN_TVR_Cerbera.gin`, decelerate
+`GIN_TVR_Cerbera_DCL.gin`, bank `CAR_66_ENG_MB_EE.abk`, `MinRPM` 1500, `MaxRPM` 7784) and
+`shiftpattern/0x6EB87040` (bank `GEAR_MED_Lev3.abk`). Bank contents: `CAR_66_ENG_MB_EE.abk` has 8 sounds
+(112 KB), the `_SPU` twin 7, `SWTN_CAR_66_MB.abk` 12, a `SKID_*` bank 5, `Nitrous_00_MB.abk` 3,
+`Stich_Collision_MB.abk` 171 **[verified]** (sound counts from the `BNKl` header, dummy entry excluded).
 
 ## Interactive music: `MW_Music.mpf` + `.mus` **[community; checked against the files]**
 
