@@ -152,8 +152,15 @@ The runtime emits a list of drawable nodes; the host draws them. Rules **[decomp
   [formats/frontend.md](../formats/frontend.md#fonts-fengfont-decomp--verified). The text of a string whose
   "not localized" flag is clear and whose label hash is known comes from the language table; otherwise the
   object's own text is shown.
-- **Multi images** use texture 1 as a mask with a rotation about a UV pivot (the tachometer redline). A first
-  implementation may draw them without the mask.
+- **Multi images** use texture 1 as a mask. The object data ends with a pivot (`x`, `y`, fractions of the
+  texture) and a rotation `z` in degrees, which the game sets to fill a gauge (`FEngSetMultiImageRot`: the
+  nitrous bar, the redline, the heat and engine temperature meters). The mask's coordinates are rotated about
+  the pivot (with the pivot at the centre, a point `P` of the picture samples the mask at
+  `c + R(P - c)`, `R = [[cos, sin], [-sin, cos]]`, `c` the centre of the mask, all in pixels); the picture is
+  drawn where the mask is. **[inferred]** The textures of the HUD's gauges settle the blend: the mask is a half
+  ring in its alpha channel (black colour) and the picture is the same half ring, so the picture's alpha times
+  the mask's alpha leaves an arc that shrinks as the rotation goes from 0 to 180 degrees, which is what a
+  gauge needs. The original's blend is in platform code that is not in the decompilation.
 - **Clip regions** are not used (the engine's clip path is empty).
 
 ## 7. The host interface

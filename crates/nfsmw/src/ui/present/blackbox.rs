@@ -1,22 +1,42 @@
 //! The presenter for `blackbox-render`: quads and glyphs of the tree as premultiplied UI meshes, and the
 //! textures they need as UI texture patches.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use blackbox_feng::{NodeKind, UiNode, UiTree, font::TextStyle};
 use blackbox_render::{UiLayer, UiMesh, UiTextureId, UiVertex};
 use glam::{Vec3, Vec4};
 
-use super::Screen;
+use super::{Screen, mask};
 use crate::gui::{OwnedPatch, UiOutput};
 use crate::ui::UiAssets;
+use crate::ui::assets::Image;
 
 /// UI texture ids of the HUD carry this bit so they never meet egui's small ones.
 const HUD_TEXTURE_BIT: u64 = 1 << 62;
+/// Ids of masked multi images (one slot each, rewritten when the mask turns) carry this bit too.
+const MASKED_TEXTURE_BIT: u64 = 1 << 61;
+/// Mask rotations are rebuilt at this resolution, in steps per degree.
+const MASK_STEPS_PER_DEGREE: f32 = 4.0;
+
+/// A multi image drawn through its mask: which textures, and the rotation the slot's pixels were built for.
+#[derive(Hash, PartialEq, Eq, Clone, Copy)]
+struct MaskedKey {
+    guid: u32,
+    base: u32,
+    mask: u32,
+}
+
+struct MaskedSlot {
+    id: UiTextureId,
+    /// The rotation (in `MASK_STEPS_PER_DEGREE` steps) and pivot the pixels in the slot were built for.
+    built: Option<(i32, [u32; 2])>,
+}
 
 #[derive(Default)]
 pub struct BlackboxPresenter {
     uploaded: HashSet<u32>,
+    masked: HashMap<MaskedKey, MaskedSlot>,
 }
 
 fn id_of(hash: u32) -> UiTextureId {
@@ -28,6 +48,22 @@ fn vertex_colour(c: [u8; 4], additive: bool) -> [u8; 4] {
     let a = c[3] as u32;
     let p = |v: u8| ((v as u32 * a + 127) / 255) as u8;
     [p(c[0]), p(c[1]), p(c[2]), if additive { 0 } else { c[3] }]
+}
+
+/// Queues a texture for upload: premultiplied alpha, and zero alpha for an additive texture (its colour is added).
+fn send(id: UiTextureId, image: Image, out: &mut UiOutput) {
+    let mut rgba = image.rgba;
+    for px in rgba.as_chunks_mut::<4>().0 {
+        if image.blend == 2 {
+            px[3] = 0;
+            continue;
+        }
+        let a = px[3] as u32;
+        for c in &mut px[..3] {
+            *c = ((*c as u32 * a + 127) / 255) as u8;
+        }
+    }
+    out.patches.push(OwnedPatch { id, offset: None, size: [image.width, image.height], rgba });
 }
 
 struct MeshBuilder {
@@ -72,8 +108,12 @@ impl BlackboxPresenter {
         for &i in &tree.draw_order {
             let node = &tree.nodes[i];
             match &node.kind {
-                NodeKind::Image { texture, uv, .. } => {
-                    self.image(node, *texture, *uv, assets, out, &mut builder, scale, origin);
+                NodeKind::Image { texture, uv, mask, mask_rotation } => {
+                    let drawn = match mask {
+                        Some(mask) => self.masked(node, (*texture, *mask), *mask_rotation, assets, out),
+                        None => self.ensure(*texture, assets, out),
+                    };
+                    self.image(node, drawn, *uv, &mut builder, scale, origin);
                 }
                 NodeKind::Text { font, justification, leading, max_width } => {
                     let style = TextStyle { justification: *justification, leading: *leading, max_width: *max_width };
@@ -97,35 +137,54 @@ impl BlackboxPresenter {
             return Some((id_of(resolved), additive));
         }
         let image = assets.image(resolved)?;
-        let mut rgba = image.rgba;
-        for px in rgba.as_chunks_mut::<4>().0 {
-            if image.blend == 2 {
-                px[3] = 0;
-            } else {
-                let a = px[3] as u32;
-                for c in &mut px[..3] {
-                    *c = ((*c as u32 * a + 127) / 255) as u8;
-                }
-            }
-        }
-        out.patches.push(OwnedPatch { id: id_of(resolved), offset: None, size: [image.width, image.height], rgba });
+        send(id_of(resolved), image, out);
         self.uploaded.insert(resolved);
         Some((id_of(resolved), additive))
     }
 
-    #[allow(clippy::too_many_arguments)]
+    /// The texture of a multi image: the picture through its mask, rebuilt into the node's own slot when the
+    /// mask has turned. Without the mask texture the picture is drawn whole.
+    fn masked(
+        &mut self,
+        node: &UiNode,
+        (texture, mask): (u32, u32),
+        rotation: [f32; 3],
+        assets: &UiAssets,
+        out: &mut UiOutput,
+    ) -> Option<(UiTextureId, bool)> {
+        let (base, mask) = (assets.resolve(texture), assets.resolve(mask));
+        let additive = assets.texture(base).is_some_and(|t| t.alpha_blend == 2);
+        let key = MaskedKey { guid: node.guid, base, mask };
+        let next_slot = self.masked.len() as u64;
+        let slot = self.masked.entry(key).or_insert_with(|| MaskedSlot {
+            id: UiTextureId(HUD_TEXTURE_BIT | MASKED_TEXTURE_BIT | next_slot),
+            built: None,
+        });
+        let step = (rotation[2] * MASK_STEPS_PER_DEGREE).round() as i32;
+        let state = (step, [rotation[0].to_bits(), rotation[1].to_bits()]);
+        if slot.built == Some(state) {
+            return Some((slot.id, additive));
+        }
+        let (Some(picture), Some(mask_image)) = (assets.image(base), assets.image(mask)) else {
+            return self.ensure(texture, assets, out);
+        };
+        let degrees = step as f32 / MASK_STEPS_PER_DEGREE;
+        let composed = mask::compose(&picture, &mask_image, [rotation[0], rotation[1]], degrees);
+        slot.built = Some(state);
+        send(slot.id, composed, out);
+        Some((slot.id, additive))
+    }
+
     fn image(
         &mut self,
         node: &UiNode,
-        texture: u32,
+        drawn: Option<(UiTextureId, bool)>,
         uv: [f32; 4],
-        assets: &UiAssets,
-        out: &mut UiOutput,
         builder: &mut MeshBuilder,
         scale: f32,
         origin: [f32; 2],
     ) {
-        let Some((id, additive)) = self.ensure(texture, assets, out) else { return };
+        let Some((id, additive)) = drawn else { return };
         let corner = |x: f32, y: f32| (node.world * Vec4::new(x, y, 0.0, 1.0)).truncate();
         let corners = [corner(-0.5, -0.5), corner(0.5, -0.5), corner(0.5, 0.5), corner(-0.5, 0.5)];
         let uvs = [[uv[0], uv[1]], [uv[2], uv[1]], [uv[2], uv[3]], [uv[0], uv[3]]];

@@ -22,7 +22,7 @@ The game side is `crates/nfsmw/src/hud/`.
   `HUD_SingleRace.fng` and the fonts from an install. Not compared with a capture of the original HUD yet.
 - **Known differences from the original:**
   - Package commands (switch, push, pop) are reported to the host instead of executed; the host owns the package list.
-  - Multi images draw without the mask.
+  - Multi images draw through their mask as the product of alphas (inferred from the gauge textures, see the runtime spec).
   - List boxes, code list boxes, movies and the mouse are not implemented (none occur in the HUD, no list type
     occurs in any package).
   - The tick rate (960 per second) is inferred, not read.
