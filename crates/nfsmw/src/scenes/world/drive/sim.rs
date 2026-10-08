@@ -93,6 +93,11 @@ impl CarSim {
         false
     }
 
+    /// Whether the gearbox shifts by itself (the transmission setting).
+    pub fn set_automatic(&mut self, automatic: bool) {
+        self.vehicle.config.automatic = automatic;
+    }
+
     /// One physics step. `world` is the collision the body's walls are tested against (the ground is
     /// `ground`); without it the car only meets the road.
     pub fn step(

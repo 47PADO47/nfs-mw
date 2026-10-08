@@ -388,6 +388,12 @@ impl Scene for WorldScene {
         ))
     }
 
+    fn set_transmission(&mut self, transmission: crate::settings::Transmission) {
+        if let Some(drive) = self.drive.as_mut() {
+            drive.set_transmission(transmission);
+        }
+    }
+
     fn hud_state(&self) -> Option<crate::hud::HudState> {
         if self.view == View::Fly {
             return Some(crate::hud::HudState { visible: false, ..Default::default() });

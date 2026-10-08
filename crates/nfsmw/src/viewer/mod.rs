@@ -43,6 +43,9 @@ pub trait Scene {
     fn hud(&self) -> Option<String> {
         None
     }
+    /// Who changes gear (the transmission setting), told every frame before `update`; a scene without a car
+    /// ignores it.
+    fn set_transmission(&mut self, _transmission: crate::settings::Transmission) {}
     /// What the in-game HUD shows this frame; `None` hides it.
     fn hud_state(&self) -> Option<crate::hud::HudState> {
         None

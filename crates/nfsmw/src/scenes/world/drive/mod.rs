@@ -20,11 +20,13 @@ use super::props::PropWorld;
 use super::road::{self, Spawn};
 use super::space;
 use crate::input::ActionState;
+use crate::settings::Transmission;
 use crate::viewer::camera::{ChaseCamera, Followed};
 use clock::FixedClock;
 use fall::FallWatch;
 use ground::WorldGround;
 pub use input::DriveInput;
+use input::Presses;
 pub use rig::{CarPose, CarRig};
 pub use script::DriveScript;
 use sim::{CarSim, Telemetry};
@@ -78,6 +80,10 @@ pub struct Drive {
     fall: FallWatch,
     /// Step count at the last road check.
     last_check: u32,
+    /// Button presses that have not met a physics step yet.
+    presses: Presses,
+    /// Who changes gear.
+    transmission: Transmission,
 }
 
 impl Drive {
@@ -111,7 +117,14 @@ impl Drive {
             last_good: None,
             fall: FallWatch::default(),
             last_check: 0,
+            presses: Presses::default(),
+            transmission: Transmission::default(),
         }
+    }
+
+    /// Who changes gear from now on (the transmission setting).
+    pub fn set_transmission(&mut self, transmission: Transmission) {
+        self.transmission = transmission;
     }
 
     /// The map position residency should follow, if the car is not on the road yet.
@@ -229,18 +242,25 @@ impl Drive {
         let steps = if batch { SCRIPT_STEPS_PER_UPDATE } else { self.clock.advance(dt) };
         let Some(sim) = self.sim.as_mut() else { return };
         let player = DriveInput::from_actions(actions);
+        if self.script.is_none() {
+            self.presses.note(&player);
+        }
+        sim.set_automatic(self.transmission.is_automatic());
         let ground = WorldGround { collision, surfaces };
         let mut want_reset = false;
         for n in 0..steps {
-            let mut input = player;
-            if let Some(run) = self.script.as_mut() {
-                input = run.script.input_at(run.time);
-                if !run.script.finished(run.time) || !batch {
-                    run.time += clock::STEP;
+            let input = match self.script.as_mut() {
+                Some(run) => {
+                    let input = run.script.input_at(run.time);
+                    if !run.script.finished(run.time) || !batch {
+                        run.time += clock::STEP;
+                    }
+                    input
                 }
-            } else if n > 0 {
-                input = input.held();
-            }
+                // The presses that came in since the last step belong to the first step of this frame.
+                None if n == 0 => self.presses.take_into(player),
+                None => player.held(),
+            };
             want_reset |= input.reset;
             let impact = sim.step(&input, &ground, Some((collision, &*props)));
             for &(id, mass) in &impact.knocked {

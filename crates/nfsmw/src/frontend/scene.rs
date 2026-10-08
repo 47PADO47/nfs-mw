@@ -104,6 +104,10 @@ impl Scene for Pausable {
         self.inner.hud()
     }
 
+    fn set_transmission(&mut self, transmission: crate::settings::Transmission) {
+        self.inner.set_transmission(transmission);
+    }
+
     fn hud_state(&self) -> Option<crate::hud::HudState> {
         if self.paused.get() {
             return Some(crate::hud::HudState { visible: false, ..Default::default() });

@@ -8,7 +8,7 @@ use bevy_ecs::resource::Resource;
 use blackbox_render::Renderer;
 
 use super::pacing::FrameLimiter;
-use crate::settings::Settings;
+use crate::settings::{Settings, Transmission};
 use crate::viewer::Scene;
 
 pub struct Host {
@@ -27,6 +27,8 @@ pub struct Host {
     pub flow_driven: bool,
     /// A screenshot run waits while this is set (a scripted menu is still running).
     pub hold_capture: bool,
+    /// The transmission setting as of the last frame, given to every scene that is put in the window.
+    pub transmission: Transmission,
 }
 
 impl Host {
@@ -42,6 +44,7 @@ impl Host {
             cancel_handled: false,
             flow_driven: false,
             hold_capture: false,
+            transmission: settings.transmission,
         }
     }
 
@@ -50,6 +53,7 @@ impl Host {
     pub fn replace_scene(&mut self, mut scene: Box<dyn Scene>) -> anyhow::Result<()> {
         let renderer = self.renderer.as_mut().ok_or_else(|| anyhow::anyhow!("the renderer is not ready"))?;
         scene.init(renderer)?;
+        scene.set_transmission(self.transmission);
         if self.screenshot.is_some() {
             super::screenshot::wait_ready(scene.as_mut(), renderer);
         }
