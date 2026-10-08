@@ -7,6 +7,7 @@
 
 mod action;
 mod bindings;
+mod describe;
 mod snapshot;
 mod state;
 mod systems;

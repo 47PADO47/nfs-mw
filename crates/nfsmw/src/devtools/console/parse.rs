@@ -9,6 +9,8 @@ pub enum Command {
     /// Actual window mode, size, position and focus (as opposed to requested preferences).
     Window,
     Monitors,
+    /// Every key, button and stick binding.
+    Keys,
     /// Show one setting, or all of them.
     Get(Option<String>),
     Set {
@@ -28,7 +30,7 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 16] = [
+pub const BUILT_IN: [(&str, &str); 17] = [
     ("help", "list the commands"),
     ("clear", "empty the console"),
     ("quit", "close the game"),
@@ -40,6 +42,7 @@ pub const BUILT_IN: [(&str, &str); 16] = [
     ("monitor <current|primary|index>", "select a monitor, indices start at zero"),
     ("window", "show the actual window size, mode, DPI and focus"),
     ("monitors", "list available monitors and their indices"),
+    ("keys", "list every key, button and stick binding"),
     ("smoke_quality <standard|high>", "change tire smoke presentation quality"),
     ("volume <0-100>", "master volume (same as set volume)"),
     ("sound [bank [index]]", "list the sounds of a bank (IG_GLOBAL/Siren_MB.abk) or play one"),
@@ -76,6 +79,7 @@ pub fn parse(line: &str) -> Result<Option<Command>, String> {
         "quit" | "exit" => Command::Quit,
         "window" => Command::Window,
         "monitors" => Command::Monitors,
+        "keys" | "bindings" | "controls" => Command::Keys,
         "get" => match args.as_slice() {
             [] => Command::Get(None),
             [key] => Command::Get(Some((*key).to_owned())),
@@ -170,6 +174,13 @@ mod tests {
         assert_eq!(ok("monitor primary"), Command::Set { key: "monitor".into(), value: "primary".into() });
         assert_eq!(ok("window"), Command::Window);
         assert_eq!(ok("monitors"), Command::Monitors);
+    }
+
+    #[test]
+    fn keys_has_three_names() {
+        for name in ["keys", "bindings", "CONTROLS"] {
+            assert_eq!(ok(name), Command::Keys);
+        }
     }
 
     #[test]

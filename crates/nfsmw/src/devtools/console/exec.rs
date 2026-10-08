@@ -11,6 +11,7 @@ use crate::app::pacing::FrameLimiter;
 use crate::app::window::WindowModes;
 use crate::audio::Audio;
 use crate::devtools::logbuf;
+use crate::input::Bindings;
 use crate::settings::Settings;
 
 /// Run the lines typed since last frame and print what they say.
@@ -20,7 +21,7 @@ pub fn execute(
     mut host: NonSendMut<Host>,
     mut audio: Option<NonSendMut<Audio>>,
     mut window: Single<&mut Window, With<PrimaryWindow>>,
-    modes: Res<WindowModes>,
+    (modes, bindings): (Res<WindowModes>, Res<Bindings>),
     mut exit: MessageWriter<AppExit>,
 ) {
     let host = &mut *host;
@@ -33,6 +34,7 @@ pub fn execute(
         logbuf::input(&format!("> {line}"));
         let result = match parse::parse(&line) {
             Ok(None) => continue,
+            Ok(Some(Command::Keys)) => Ok(bindings.describe()),
             Ok(Some(command)) => {
                 run(command, &mut settings, host, audio.as_deref_mut(), &mut window, &modes, &mut exit)
             }
@@ -69,6 +71,7 @@ fn run(
         Command::Get(Some(key)) => settings_cmd::get(settings, &key),
         Command::Window => Ok(WindowModes::status(window)),
         Command::Monitors => Ok(modes.monitors.clone()),
+        Command::Keys => Err("keys is answered by the console before commands run".into()),
         Command::Set { key, value } => set_live(settings, host, &key, &value),
         Command::Resolution { width, height } => {
             if host.screenshot.is_some() {
