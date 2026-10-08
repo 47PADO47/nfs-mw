@@ -58,6 +58,51 @@ pub enum Command {
     },
     /// List the movies in the install.
     ListMovies,
+    /// Play: the boot movies, the title screen, the main menu, free roam (Esc or Start pauses) and the settings.
+    Play {
+        /// Start at the main menu instead of the boot movies and the title screen.
+        #[arg(long)]
+        skip_boot: bool,
+        /// Start driving at once (free roam with the stock car).
+        #[arg(long, conflicts_with = "skip_boot")]
+        drive: bool,
+        /// A scripted pad for tests and screenshots, e.g. "wait 1;right;accept" (replaces the input and the clock).
+        #[arg(long, hide = true, value_name = "SCRIPT")]
+        ui_script: Option<String>,
+        #[command(flatten)]
+        view: ViewArgs,
+    },
+    /// Show one FEng screen on its own: `nfsmw view-screen MainMenu.fng --screenshot out.png`.
+    ViewScreen {
+        /// File name of the screen, in any case.
+        name: String,
+        /// Show it as the pause menu does (the in-game look of the option screens).
+        #[arg(long)]
+        pause: bool,
+        /// For Pause_Main.fng and MainMenu_Sub.fng: the option categories.
+        #[arg(long)]
+        options: bool,
+        /// For the option screens: audio, video or gameplay.
+        #[arg(long, default_value = "audio")]
+        category: String,
+        /// A scripted pad for tests and screenshots (see play); with --screenshot the default is "wait 2".
+        #[arg(long, value_name = "SCRIPT")]
+        ui_script: Option<String>,
+        #[command(flatten)]
+        view: ViewArgs,
+    },
+    /// List the FEng screens (menus, in-game screens) in the install.
+    ListScreens,
+    /// Search the English language table: text containing FILTER, or one label as 0xHASH.
+    Strings {
+        /// Part of the text, or 0xHASH.
+        filter: String,
+    },
+    /// Print the objects, scripts and message responses of one FEng screen: `nfsmw dump-screen MainMenu.fng`.
+    DumpScreen {
+        /// File name of the screen, in any case.
+        name: String,
+    },
     /// Fly through the city (WASD + mouse to look; Shift = fast; Esc frees the mouse, again to quit).
     ViewWorld {
         /// Start position on the map as X,Y (default: the centre of the city).
@@ -144,6 +189,7 @@ impl ViewArgs {
             hud: (self.hud || hud_default || self.hud_demo.is_some()).then(|| dir.clone()),
             hud_demo: self.hud_demo.clone(),
             audio: (!self.no_sound && self.screenshot.is_none()).then(|| dir.clone()),
+            frontend: None,
         }
     }
 

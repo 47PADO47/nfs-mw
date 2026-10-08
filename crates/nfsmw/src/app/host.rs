@@ -21,6 +21,12 @@ pub struct Host {
     pub limiter: FrameLimiter,
     pub title_timer: Instant,
     pub frames: u32,
+    /// The front end uses Escape (pause, back), so Escape does not release the mouse or quit.
+    pub cancel_handled: bool,
+    /// The front end decides when a scene is over (a finished movie is not the end of the program).
+    pub flow_driven: bool,
+    /// A screenshot run waits while this is set (a scripted menu is still running).
+    pub hold_capture: bool,
 }
 
 impl Host {
@@ -33,7 +39,22 @@ impl Host {
             limiter: FrameLimiter::new(settings.max_fps),
             title_timer: Instant::now(),
             frames: 0,
+            cancel_handled: false,
+            flow_driven: false,
+            hold_capture: false,
         }
+    }
+
+    /// Puts another scene in the window: it is initialised with the renderer, and in a screenshot run it is given
+    /// the time to load.
+    pub fn replace_scene(&mut self, mut scene: Box<dyn Scene>) -> anyhow::Result<()> {
+        let renderer = self.renderer.as_mut().ok_or_else(|| anyhow::anyhow!("the renderer is not ready"))?;
+        scene.init(renderer)?;
+        if self.screenshot.is_some() {
+            super::screenshot::wait_ready(scene.as_mut(), renderer);
+        }
+        self.scene = scene;
+        Ok(())
     }
 }
 

@@ -139,7 +139,45 @@ pub fn defaults() -> Vec<Binding> {
     ]
     .into_iter()
     .chain(driving())
+    .chain(menus())
     .collect()
+}
+
+/// Menus: the arrows or WASD and the pad's D-pad or left stick move, Enter or Space accepts, Esc goes back,
+/// P or the pad's Start is Start, Q quits from the main menu.
+fn menus() -> Vec<Binding> {
+    use Action::*;
+    let key = Source::Key;
+    let button = Source::PadButton;
+    let stick = Source::PadAxis;
+    vec![
+        Binding::new(MenuUp, key(KeyCode::ArrowUp), 1.0),
+        Binding::new(MenuUp, key(KeyCode::KeyW), 1.0),
+        Binding::new(MenuUp, button(GamepadButton::DPadUp), 1.0),
+        Binding::new(MenuUp, stick(GamepadAxis::LeftStickY), 1.0),
+        Binding::new(MenuDown, key(KeyCode::ArrowDown), 1.0),
+        Binding::new(MenuDown, key(KeyCode::KeyS), 1.0),
+        Binding::new(MenuDown, button(GamepadButton::DPadDown), 1.0),
+        Binding::new(MenuDown, stick(GamepadAxis::LeftStickY), -1.0),
+        Binding::new(MenuLeft, key(KeyCode::ArrowLeft), 1.0),
+        Binding::new(MenuLeft, key(KeyCode::KeyA), 1.0),
+        Binding::new(MenuLeft, button(GamepadButton::DPadLeft), 1.0),
+        Binding::new(MenuLeft, stick(GamepadAxis::LeftStickX), -1.0),
+        Binding::new(MenuRight, key(KeyCode::ArrowRight), 1.0),
+        Binding::new(MenuRight, key(KeyCode::KeyD), 1.0),
+        Binding::new(MenuRight, button(GamepadButton::DPadRight), 1.0),
+        Binding::new(MenuRight, stick(GamepadAxis::LeftStickX), 1.0),
+        Binding::new(MenuAccept, key(KeyCode::Enter), 1.0),
+        Binding::new(MenuAccept, key(KeyCode::NumpadEnter), 1.0),
+        Binding::new(MenuAccept, key(KeyCode::Space), 1.0),
+        Binding::new(MenuAccept, button(GamepadButton::South), 1.0),
+        Binding::new(MenuBack, key(KeyCode::Escape), 1.0),
+        Binding::new(MenuBack, key(KeyCode::Backspace), 1.0),
+        Binding::new(MenuBack, button(GamepadButton::East), 1.0),
+        Binding::new(MenuStart, key(KeyCode::KeyP), 1.0),
+        Binding::new(MenuStart, button(GamepadButton::Start), 1.0),
+        Binding::new(MenuQuit, key(KeyCode::KeyQ), 1.0),
+    ]
 }
 
 /// Driving: W/S or the arrows for the pedals, A/D or the arrows to steer, Space for the handbrake,

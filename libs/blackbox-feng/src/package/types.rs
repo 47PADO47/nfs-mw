@@ -34,6 +34,16 @@ impl ObjectKind {
     }
 }
 
+/// Engine bits of [`ObjectDef::flags`].
+pub mod flags {
+    /// The object takes pad focus.
+    pub const IS_BUTTON: u32 = 1 << 28;
+    /// A button the focus never moves to.
+    pub const IGNORE_BUTTON: u32 = 1 << 26;
+    /// The focus does not move away from this button by geometry.
+    pub const DONT_NAVIGATE: u32 = 1 << 19;
+}
+
 /// What a resource request names.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ResourceKind {

@@ -37,6 +37,8 @@ use host::ErrorSlot;
 pub enum FrameSet {
     /// Create the renderer, handle the cursor, follow the window size.
     Prepare,
+    /// The front end: menus, pause, switching scenes.
+    Frontend,
     SceneUpdate,
     /// Build the UI (overlay, console).
     Ui,
@@ -61,11 +63,13 @@ pub struct RunOptions {
     pub hud_demo: Option<crate::hud::HudState>,
     /// Open the sound device and play the scene's sound, reading banks from this install.
     pub audio: Option<game_install::GameDir>,
+    /// Run the front end (menus, game flow) on top of the scene.
+    pub frontend: Option<crate::frontend::FrontendPlugin>,
 }
 
 /// Open a window and run `scene` until the user quits (or write the screenshot and exit).
 pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> Result<()> {
-    let RunOptions { screenshot, exec, open_console, hud, hud_demo, audio } = options;
+    let RunOptions { screenshot, exec, open_console, hud, hud_demo, audio, frontend } = options;
     let error = ErrorSlot(Arc::new(Mutex::new(None)));
     let mut window = Window { title: scene.title(), ..Window::default() };
     if screenshot.is_some() {
@@ -92,7 +96,8 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
     .insert_non_send(Host::new(scene, settings, screenshot))
     .configure_sets(
         Update,
-        (FrameSet::Prepare, FrameSet::SceneUpdate, FrameSet::Ui, FrameSet::Hud, FrameSet::Draw).chain(),
+        (FrameSet::Prepare, FrameSet::Frontend, FrameSet::SceneUpdate, FrameSet::Ui, FrameSet::Hud, FrameSet::Draw)
+            .chain(),
     )
     .add_systems(Update, (render::create_renderer, cursor::update, render::resize).chain().in_set(FrameSet::Prepare))
     .add_systems(Update, render::update_scene.in_set(FrameSet::SceneUpdate))
@@ -105,6 +110,9 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
         app.add_plugins(crate::audio::AudioPlugin { dir });
     }
     app.add_plugins(crate::movie::FullscreenPlugin);
+    if let Some(plugin) = frontend {
+        app.add_plugins(plugin);
+    }
     crate::devtools::start_console(&mut app, exec, open_console);
 
     match app.run() {

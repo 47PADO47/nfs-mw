@@ -12,6 +12,7 @@ mod fx;
 mod mixer;
 mod pcm;
 mod plugin;
+mod radio;
 mod refs;
 mod tuning;
 mod volume;
@@ -30,6 +31,8 @@ use nfsmw_data::sound::{CarSound, EngineLoops, SoundUpgrades};
 pub use car::{CarEvent, CarSoundState};
 pub use engine::{EngineHandle, EngineMix, EngineVoice, LoopMix};
 pub use plugin::AudioPlugin;
+#[allow(unused_imports)] // for the HUD, which does not draw the song yet
+pub use radio::NowPlaying;
 pub use volume::{Group, Volumes};
 
 struct Output {
@@ -55,6 +58,8 @@ pub struct Audio {
     car: Option<car::CarAudio>,
     /// The collision stitches of `InGameB.bun`, once read.
     stitches: Option<Arc<Vec<nfsmw_data::sound::Stitch>>>,
+    /// The radio, loaded when first needed.
+    radio: radio::RadioSlot,
     /// Bank sounds that could not be loaded, so each is reported once.
     missing: HashSet<(String, usize)>,
     /// The car whose sound could not be loaded, so the failure is not repeated every frame.
@@ -95,6 +100,7 @@ impl Audio {
             test_engine: None,
             car: None,
             stitches: None,
+            radio: radio::RadioSlot::default(),
             missing: HashSet::new(),
             failed: None,
         };

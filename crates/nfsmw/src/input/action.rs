@@ -43,10 +43,23 @@ pub enum Action {
     ResetCar,
     /// Button: switch between the chase camera and the free camera.
     ToggleCamera,
+    /// Menu button: the focus moves up.
+    MenuUp,
+    MenuDown,
+    MenuLeft,
+    MenuRight,
+    /// Menu button: accept.
+    MenuAccept,
+    /// Menu button: back.
+    MenuBack,
+    /// Menu button: start (pauses the game while driving, resumes from the pause menu).
+    MenuStart,
+    /// Menu hot key: quit from the main menu.
+    MenuQuit,
 }
 
 impl Action {
-    pub const ALL: [Action; 20] = [
+    pub const ALL: [Action; 28] = [
         Action::MoveForward,
         Action::MoveRight,
         Action::MoveUp,
@@ -67,6 +80,14 @@ impl Action {
         Action::Nos,
         Action::ResetCar,
         Action::ToggleCamera,
+        Action::MenuUp,
+        Action::MenuDown,
+        Action::MenuLeft,
+        Action::MenuRight,
+        Action::MenuAccept,
+        Action::MenuBack,
+        Action::MenuStart,
+        Action::MenuQuit,
     ];
 
     /// Actions that still work while the UI has the keyboard.

@@ -95,6 +95,12 @@ impl Runtime {
         self.queue(message, None, package, target);
     }
 
+    /// Posts a message to one package only: its package responses and the objects its `Targ` table lists for
+    /// the message (what the game does with `QueuePackageMessage`).
+    pub fn post_to_package(&mut self, package: PackageId, message: u32) {
+        self.queue(message, None, package, Target::ThisPackage);
+    }
+
     /// Runs the queue until it is empty. Responses can queue more messages; a limit stops loops.
     pub(super) fn process_queue(&mut self) {
         let mut budget = 10_000;

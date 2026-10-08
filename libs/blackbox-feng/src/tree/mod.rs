@@ -40,6 +40,9 @@ pub struct UiNode {
     /// The text of a string node, resolved: the host text, else the language table, else the stored text.
     pub text: Option<String>,
     pub local_position: Vec3,
+    /// Where the object position lands on the screen (the parent context applied to it): what button
+    /// navigation measures.
+    pub position: Vec3,
     pub local_pivot: Vec3,
     pub local_rotation: Quat,
     pub size: Vec3,
@@ -136,6 +139,7 @@ impl Runtime {
                 kind,
                 text,
                 local_position: pos,
+                position: ctx.transform_point3(pos),
                 local_pivot: pivot,
                 local_rotation: rot,
                 size,

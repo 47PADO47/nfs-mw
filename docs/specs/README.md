@@ -17,7 +17,10 @@ engine mix), [engine-sound-ginsu.md](engine-sound-ginsu.md) (the granular synthe
 dynamic mixer: [dynamic-mixer.md](dynamic-mixer.md) (evaluating a mixer map) and
 [car-sound-mixer.md](car-sound-mixer.md) (what the car sound publishes and reads); AEMS: [aems.md](aems.md)
 (running a module of a sound bank) and [engine-sound-aems.md](engine-sound-aems.md) (the engine's sample layer,
-the sputters, the sweeteners).
+the sputters, the sweeteners); the radio: [music-graph.md](music-graph.md) (the PathFinder graph of `MW_Music.mpf`,
+the song events and the play lists); the user interface: [feng-runtime.md](feng-runtime.md) (scripts, messages,
+drawing), [feng-input.md](feng-input.md) (pad messages, focus, navigation) and [frontend-menus.md](frontend-menus.md)
+(the screens, the option rows, the game flow).
 
 ## Template
 

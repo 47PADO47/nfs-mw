@@ -3,7 +3,7 @@
 
 use blackbox_feng::{ObjectRef, PackageId, Runtime, fe_hash_upper};
 
-use super::assets::{fill_texture, needle_texture, tach_face_texture};
+use super::skin::{fill_texture, needle_texture, tach_face_texture};
 use super::state::HudState;
 
 /// The script an object plays when its condition is on, and the one it rests in.

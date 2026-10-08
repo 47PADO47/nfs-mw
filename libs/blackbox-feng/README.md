@@ -16,6 +16,11 @@ of drawable nodes. **No rendering, no windowing, no Bevy, no wgpu:** a host draw
   `set_alpha`, `set_colour`, `set_texture`, `run_script`), posts messages, takes the messages that leave
   (`take_outgoing`: to the game, to sound, package commands) and reads `Runtime::tree`: per node the kind,
   resolved text, transform, accumulated colour, depth and the far-to-near `draw_order`.
+- **Input:** the host sets the pad mask each frame (`set_pad_mask`, bits in `runtime::pad`) and the engine turns it
+  into the messages a package expects (`BUTTON_PRESSED` for accept, `PAD_*` with the original repeat times,
+  released and held messages) and moves the focus between buttons by geometry (`ids` has the message ids,
+  `set_control` says which package listens). More setters for screens that lay themselves out (`set_position_xy`,
+  `set_size_xy`, `set_uv`, `set_colour_rgba`, `string_info`), and `post_to_package`.
 
 ```rust
 let package = blackbox_feng::Package::parse(chunk_payload)?;
@@ -34,11 +39,12 @@ Coordinates are the FEng screen: 640 x 480, origin at the centre, y down, depth 
 never opens files. Texture and font resources are named by handle (`resource_handle`); the host maps them to its
 own textures.
 
-Specs: [formats/frontend.md](../../docs/formats/frontend.md), [specs/feng-runtime.md](../../docs/specs/feng-runtime.md);
-provenance: [provenance/feng.md](../../docs/provenance/feng.md). Tests: synthetic packages always; the `#[ignore]`d
+Specs: [formats/frontend.md](../../docs/formats/frontend.md), [specs/feng-runtime.md](../../docs/specs/feng-runtime.md),
+[specs/feng-input.md](../../docs/specs/feng-input.md); provenance: [provenance/feng.md](../../docs/provenance/feng.md),
+[provenance/frontend-menus.md](../../docs/provenance/frontend-menus.md). Tests: synthetic packages always; the `#[ignore]`d
 ones read an install (`NFSMW_GAME_DIR`) and parse every package and font of it.
 
-Not implemented: list boxes, movies, the mouse, the multi-image mask (the tree carries it), package commands
+Not implemented: list boxes, movies, the mouse, wrapping navigation, the multi-image mask (the tree carries it), package commands
 (reported to the host), clip regions (the game does not use them).
 
 License: MIT OR Apache-2.0.

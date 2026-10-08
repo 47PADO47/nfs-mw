@@ -1,28 +1,26 @@
-//! What the HUD reads from the install: the package, the fonts, the textures and the language strings.
+//! What the FEng screens read from the install besides their packages: the fonts, the textures and the language
+//! strings. Shared by the HUD and the menus.
 
 use std::collections::HashMap;
 
-use anyhow::{Result, bail};
+use anyhow::Result;
 use blackbox_chunk::find_all;
+use blackbox_feng::package::ResourceKind;
 use blackbox_feng::{Font, Package, fe_hash_upper};
 use blackbox_text::StringTable;
 use blackbox_tpk::{Texture, decode_rgba8, read_texture_packs};
 use game_install::GameDir;
 use nfsmw_data::read_unwrapped;
 
-const FENG_PACKAGE: u32 = 0x0003_0203;
-const FENG_COMPRESSED: u32 = 0x0003_0210;
 const FENG_FONT: u32 = 0x0003_0201;
 
-/// The package that is the in-game HUD.
-pub const HUD_PACKAGE: &str = "HUD_SingleRace.fng";
-
-/// Texture packs the HUD draws from, first match wins.
-const TEXTURE_FILES: [&str; 7] = [
+/// Texture packs the screens draw from, first match wins.
+const TEXTURE_FILES: [&str; 8] = [
     "GLOBAL/HUDTEXRACE.BIN",
     "GLOBAL/GLOBALA.BUN",
     "GLOBAL/InGameA.bun",
     "GLOBAL/GlobalB.lzc",
+    "FRONTEND/FrontB.lzc",
     "GLOBAL/HUDS_Custom_00.bin",
     "LANGUAGES/LanguageTextures.bin",
     "GLOBAL/INGAMEC.BUN",
@@ -31,7 +29,7 @@ const TEXTURE_FILES: [&str; 7] = [
 /// Files with fonts.
 const FONT_FILES: [&str; 3] = ["GLOBAL/GLOBALA.BUN", "GLOBAL/InGameB.bun", "FRONTEND/FrontB.lzc"];
 
-/// Textures the package names but the game swaps in at run time: `(resource name, texture in the packs)`.
+/// Textures the packages name but the game swaps in at run time: `(resource name, texture in the packs)`.
 const ALIASES: [(&str, &str); 6] = [
     ("TAC_FILL_00", "TACH_FILL_00"),
     ("RPM_NEEDLE", "TACH_NEEDLE_00"),
@@ -40,11 +38,6 @@ const ALIASES: [(&str, &str); 6] = [
     ("3RDPERSON_8000LINES", "8000_LINES_00"),
     ("7500_LINES_00", "7000_LINES_00"),
 ];
-
-/// A font and where its texture is.
-pub struct FontAsset {
-    pub font: Font,
-}
 
 /// A decoded texture, straight (not premultiplied) RGBA.
 pub struct Image {
@@ -55,25 +48,22 @@ pub struct Image {
     pub blend: u8,
 }
 
-pub struct HudAssets {
-    pub package: Package,
-    fonts: HashMap<u32, FontAsset>,
+pub struct UiAssets {
+    fonts: HashMap<u32, Font>,
     textures: HashMap<u32, Texture>,
     aliases: HashMap<u32, u32>,
     pub strings: Option<StringTable>,
 }
 
-impl HudAssets {
+impl UiAssets {
     pub fn load(dir: &GameDir) -> Result<Self> {
-        let package = find_hud_package(dir)?;
-
         let mut fonts = HashMap::new();
         for rel in FONT_FILES {
             let Ok(data) = read_unwrapped(dir, rel) else { continue };
             for chunk in find_all(&data, FENG_FONT) {
                 match Font::parse(chunk.payload) {
                     Ok(font) => {
-                        fonts.entry(font.hash).or_insert(FontAsset { font });
+                        fonts.entry(font.hash).or_insert(font);
                     }
                     Err(e) => log::warn!("{rel}: a font does not parse: {e}"),
                 }
@@ -98,24 +88,15 @@ impl HudAssets {
             .and_then(|d| StringTable::from_file(&d).map_err(|e| log::warn!("English.bin: {e}")).ok());
 
         let aliases = ALIASES.iter().map(|(a, b)| (fe_hash_upper(a), fe_hash_upper(b))).collect();
-        let assets = Self { package, fonts, textures, aliases, strings };
-        let missing: Vec<String> = assets.missing_resources().into_iter().map(String::from).collect();
-        log::info!(
-            "HUD: {} objects, {} fonts, {} textures, {} resources without a texture",
-            assets.package.objects.len(),
-            assets.fonts.len(),
-            assets.textures.len(),
-            missing.len()
-        );
-        log::debug!("HUD resources without a texture or font: {missing:?}");
+        let assets = Self { fonts, textures, aliases, strings };
+        log::info!("UI: {} fonts, {} textures", assets.fonts.len(), assets.textures.len());
         Ok(assets)
     }
 
     /// Names of the package resources with no texture or font (they draw nothing).
-    pub fn missing_resources(&self) -> Vec<&str> {
+    pub fn missing_resources<'a>(&self, package: &'a Package) -> Vec<&'a str> {
         let basepoly = fe_hash_upper("BASEPOLY");
-        use blackbox_feng::package::ResourceKind;
-        self.package
+        package
             .resources
             .iter()
             .filter(|r| match r.kind {
@@ -127,7 +108,7 @@ impl HudAssets {
     }
 
     pub fn font(&self, hash: u32) -> Option<&Font> {
-        self.fonts.get(&hash).map(|f| &f.font)
+        self.fonts.get(&hash)
     }
 
     /// The raw texture for a key, following the run-time swaps.
@@ -154,41 +135,4 @@ impl HudAssets {
     pub fn texture_size(&self, hash: u32) -> Option<(u32, u32)> {
         self.texture(hash).map(|t| (t.width, t.height)).or((hash == fe_hash_upper("BASEPOLY")).then_some((2, 2)))
     }
-}
-
-fn find_hud_package(dir: &GameDir) -> Result<Package> {
-    for rel in ["GLOBAL/InGameB.bun", "GLOBAL/INGAMEC.BUN"] {
-        let data = read_unwrapped(dir, rel)?;
-        for chunk in find_all(&data, FENG_PACKAGE) {
-            if let Ok(p) = Package::parse(chunk.payload)
-                && p.name.eq_ignore_ascii_case(HUD_PACKAGE)
-            {
-                return Ok(p);
-            }
-        }
-        for chunk in find_all(&data, FENG_COMPRESSED) {
-            if let Ok((_, p)) = Package::parse_compressed(chunk.payload)
-                && p.name.eq_ignore_ascii_case(HUD_PACKAGE)
-            {
-                return Ok(p);
-            }
-        }
-    }
-    bail!("the install has no {HUD_PACKAGE}")
-}
-
-/// The tachometer face texture for a scale ending at `max_rpm`: `7000_LINES_NN` … `10000_LINES_NN`.
-pub fn tach_face_texture(max_rpm: f32, skin: u8) -> u32 {
-    let n = ((max_rpm / 1000.0).ceil() as i32 * 1000).clamp(7000, 10000);
-    fe_hash_upper(&format!("{n}_LINES_{skin:02}"))
-}
-
-/// The needle texture of a skin.
-pub fn needle_texture(skin: u8) -> u32 {
-    fe_hash_upper(&format!("TACH_NEEDLE_{skin:02}"))
-}
-
-/// The tachometer fill texture of a skin.
-pub fn fill_texture(skin: u8) -> u32 {
-    fe_hash_upper(&format!("TACH_FILL_{skin:02}"))
 }
