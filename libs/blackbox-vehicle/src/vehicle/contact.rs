@@ -26,7 +26,8 @@ impl Vehicle {
         let rot = self.body.rotation();
         let pos = self.body.position;
         let half = self.body.dimension() + self.body.spec().collision_box_pad;
-        let mut contacts: Vec<CornerContact> = Vec::with_capacity(8);
+        let mut contacts = [const { None::<CornerContact> }; 8];
+        let mut count = 0;
         for sx in [-1.0, 1.0] {
             for sy in [-1.0, 1.0] {
                 for sz in [-1.0, 1.0] {
@@ -37,17 +38,22 @@ impl Vehicle {
                     let normal = if hit.normal.y < 0.0 { -hit.normal } else { hit.normal };
                     let depth = (CORNER_LIFT - hit.distance) * normal.y;
                     if depth > 1e-4 && depth.is_finite() {
-                        contacts.push(CornerContact { point, normal, depth });
+                        contacts[count] = Some(CornerContact { point, normal, depth });
+                        count += 1;
                     }
                 }
             }
         }
-        if contacts.is_empty() {
+        if count == 0 {
             return 0;
         }
-        contacts.sort_by(|a, b| b.depth.total_cmp(&a.depth));
-        let spec = self.body.spec().clone();
-        for c in &contacts {
+        let contacts = &mut contacts[..count];
+        contacts.sort_by(|a, b| {
+            let depth = |c: &Option<CornerContact>| c.as_ref().map_or(0.0, |c| c.depth);
+            depth(b).total_cmp(&depth(a))
+        });
+        let spec = *self.body.spec();
+        for c in contacts.iter().flatten() {
             let n = c.normal;
             let e = Vec3::new(n.dot(rot.x_axis), n.dot(rot.y_axis), n.dot(rot.z_axis)) * spec.ground_elasticity;
             let plane = PlaneContact {
@@ -61,8 +67,9 @@ impl Vehicle {
                 break;
             }
         }
-        let deepest = &contacts[0];
-        self.body.position += deepest.normal * deepest.depth;
-        contacts.len()
+        if let Some(deepest) = &contacts[0] {
+            self.body.position += deepest.normal * deepest.depth;
+        }
+        count
     }
 }

@@ -1,7 +1,7 @@
 use glam::Vec3;
 
 /// Rigid-body parameters (the attribute class `rigidbodyspecs` plus the vehicle's mass data).
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct RigidBodySpec {
     /// Gravity in m/s^2, signed: about -9.81 for a normal world. Added as `gravity * mass` to the y force.
     pub gravity: f32,

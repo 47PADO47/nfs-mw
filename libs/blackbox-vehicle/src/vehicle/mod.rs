@@ -74,7 +74,7 @@ impl Vehicle {
                 front: axle == 0,
             }
         });
-        let body = RigidBody::new(spec.mass, spec.dimension, spec.tensor_scale, spec.body.clone());
+        let body = RigidBody::new(spec.mass, spec.dimension, spec.tensor_scale, spec.body);
         let powertrain = Powertrain::new(
             spec.engine.clone(),
             spec.transmission.clone(),
@@ -133,8 +133,8 @@ impl Vehicle {
     }
 
     /// Puts the car on the ground below `(x, z)`, facing `yaw` radians about the up axis (0 = +z), with
-    /// the springs at their unloaded length. Returns false if there is no ground within 100 m below
-    /// 50 m above the origin height `top`.
+    /// the springs at their unloaded length. The ground is searched for from height `top` down to 100 m
+    /// below it; returns false if there is none.
     pub fn place_on_ground(&mut self, ground: &dyn Ground, x: f32, z: f32, top: f32, yaw: f32) -> bool {
         let Some(hit) = ground.hit(Vec3::new(x, top, z), Vec3::NEG_Y, 100.0) else { return false };
         let y = top - hit.distance;

@@ -60,7 +60,7 @@ impl ShiftPoints {
         rpm: f32,
         throttle: f32,
     ) -> ShiftPotential {
-        if gear >= self.up.len() || gear < GEAR_FIRST {
+        if gear >= self.up.len() || gear < GEAR_FIRST || self.up[gear] <= 0.0 {
             return ShiftPotential::None;
         }
         let up = self.up[gear];

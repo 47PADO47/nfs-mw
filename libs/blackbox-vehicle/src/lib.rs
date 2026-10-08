@@ -8,8 +8,27 @@
 //! Physics space is x right, y up, z forward, metres, kilograms, seconds, radians. Wheel order is
 //! 0 front left, 1 front right, 2 rear left, 3 rear right.
 //!
-//! Modules: [`math`], [`rigid_body`], [`engine`], [`drivetrain`], [`induction`], [`nos`], [`brakes`],
-//! [`tires`], [`suspension`], [`steering`], [`aero`], [`input`], [`ground`], [`vehicle`].
+//! Modules, one domain each: [`math`], [`rigid_body`] (integration, inertia, drag, sleep, contact
+//! impulses), [`engine`] (torque curve, clutch), [`drivetrain`] (gearbox, differentials, the torque
+//! loop), [`induction`] and [`nos`], [`brakes`], [`tires`] (slip, load sensitivity, friction ellipse),
+//! [`suspension`] (springs, dampers, anti-roll, travel), [`steering`] (speed-sensitive limits,
+//! Ackermann), [`aero`], [`input`] (pedals and stick to controls), [`ground`] (the ray-cast trait) and
+//! [`vehicle`] (the assembly).
+//!
+//! ```
+//! use blackbox_vehicle::{FIXED_STEP, FlatGround, InputState, Vehicle, VehicleSpec};
+//! use glam::Vec3;
+//!
+//! let ground = FlatGround::new(0.0);
+//! let mut car = Vehicle::new(VehicleSpec::example());
+//! car.place_on_ground(&ground, 0.0, 0.0, 5.0, 0.0);
+//! let input = InputState { throttle: 1.0, ..Default::default() };
+//! for _ in 0..600 {
+//!     car.step(FIXED_STEP, &input, &ground);
+//! }
+//! assert!(car.forward_speed() > 15.0);
+//! assert!(car.position().distance(Vec3::ZERO) > 20.0);
+//! ```
 
 pub mod aero;
 pub mod brakes;

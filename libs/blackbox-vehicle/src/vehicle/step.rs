@@ -118,11 +118,12 @@ impl Vehicle {
         let trans = &self.spec.transmission;
         let (front, rear) = (trans.front_driven(), trans.rear_driven());
         let dir = if self.powertrain.gear() == GEAR_REVERSE { -1.0 } else { 1.0 };
-        let driven: Vec<usize> = (0..4).filter(|i| if *i < 2 { front } else { rear }).collect();
-        let drive_slip = if driven.is_empty() {
+        let is_driven = |i: usize| if i < 2 { front } else { rear };
+        let count = (0..4).filter(|&i| is_driven(i)).count();
+        let drive_slip = if count == 0 {
             0.0
         } else {
-            driven.iter().map(|&i| self.tires[i].slip).sum::<f32>() / driven.len() as f32 * dir
+            (0..4).filter(|&i| is_driven(i)).map(|i| self.tires[i].slip).sum::<f32>() / count as f32 * dir
         };
         let max_wheel_slip = self.tires.iter().map(|t| t.slip.abs()).fold(0.0, f32::max);
         let mut av: [f32; 4] = std::array::from_fn(|i| self.tires[i].av);
