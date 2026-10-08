@@ -9,6 +9,7 @@ use std::str::FromStr;
 use toml::{Table, Value};
 
 use super::partial::{Partial, Percent};
+use super::{Monitor, Resolution, WindowMode};
 use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
 
@@ -41,6 +42,12 @@ pub fn parse(text: &str, origin: &str) -> Partial {
             other => MaxFps::from_str(text_of(other)?),
         }),
         show_metrics: field(&table, origin, "show_metrics", |v| ShowMetrics::from_str(text_of(v)?)),
+        window_mode: field(&table, origin, "window_mode", |v| WindowMode::from_str(text_of(v)?)),
+        monitor: field(&table, origin, "monitor", |v| match v {
+            Value::Integer(n) => Monitor::from_str(&n.to_string()),
+            other => Monitor::from_str(text_of(other)?),
+        }),
+        resolution: field(&table, origin, "resolution", |v| Resolution::from_str(text_of(v)?)),
         master_volume: field(&table, origin, "master_volume", percent),
         music_volume: field(&table, origin, "music_volume", percent),
         sfx_volume: field(&table, origin, "sfx_volume", percent),

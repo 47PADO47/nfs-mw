@@ -8,6 +8,7 @@ mod host;
 pub mod pacing;
 mod render;
 mod screenshot;
+pub mod window;
 
 pub use cursor::update as cursor_update;
 pub use host::Host;
@@ -75,6 +76,8 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
     if screenshot.is_some() {
         let (w, h) = screenshot::SIZE;
         window.visible = false;
+        window.focused = false;
+        window.position = bevy_window::WindowPosition::At([-32768, -32768].into());
         window.resolution = WindowResolution::new(w, h).with_scale_factor_override(1.0);
     }
 
@@ -92,6 +95,7 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
         DevToolsPlugin,
     ))
     .insert_resource(*settings)
+    .insert_resource(window::WindowModes::new(screenshot.is_some()))
     .insert_resource(error.clone())
     .insert_non_send(Host::new(scene, settings, screenshot))
     .configure_sets(
@@ -99,7 +103,12 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
         (FrameSet::Prepare, FrameSet::Frontend, FrameSet::SceneUpdate, FrameSet::Ui, FrameSet::Hud, FrameSet::Draw)
             .chain(),
     )
-    .add_systems(Update, (render::create_renderer, cursor::update, render::resize).chain().in_set(FrameSet::Prepare))
+    .add_systems(
+        Update,
+        (window::shortcut, window::update, render::create_renderer, cursor::update, render::resize)
+            .chain()
+            .in_set(FrameSet::Prepare),
+    )
     .add_systems(Update, render::update_scene.in_set(FrameSet::SceneUpdate))
     .add_systems(Update, render::draw.in_set(FrameSet::Draw))
     .add_systems(Last, pacing::end_of_frame);

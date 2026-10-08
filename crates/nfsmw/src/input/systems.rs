@@ -48,7 +48,9 @@ fn update_actions(
     mut state: ResMut<ActionState>,
 ) {
     let mut snapshot = Snapshot {
-        keys: keys.get_pressed().copied().collect(),
+        // Keep a complete down/up pulse visible for one action frame, even when the key is no
+        // longer held by the time this system runs (console/camera/gear shortcuts need the edge).
+        keys: keys.get_pressed().chain(keys.get_just_pressed()).copied().collect(),
         buttons: buttons.get_pressed().copied().collect(),
         mouse_delta: (motion.delta.x, motion.delta.y),
         scroll: match scroll.unit {
@@ -77,4 +79,76 @@ fn update_actions(
         }
     }
     state.update(&bindings, &snapshot, focus.0);
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy_input::keyboard::{Key, KeyboardInput};
+    use bevy_input::{ButtonState, InputPlugin};
+
+    use super::*;
+    use crate::input::Action;
+
+    fn app() -> App {
+        let mut app = App::new();
+        app.add_plugins((InputPlugin, InputLayerPlugin)).init_resource::<Time>();
+        app
+    }
+
+    fn key(app: &mut App, key_code: KeyCode, state: ButtonState) {
+        app.world_mut().write_message(KeyboardInput {
+            key_code,
+            logical_key: Key::Enter,
+            state,
+            text: None,
+            repeat: false,
+            window: Entity::PLACEHOLDER,
+        });
+    }
+
+    #[test]
+    fn fast_keyboard_taps_reach_switch_actions_for_one_frame() {
+        for (key_code, action) in [(KeyCode::F12, Action::Console), (KeyCode::KeyF, Action::ToggleCamera)] {
+            let mut app = app();
+            key(&mut app, key_code, ButtonState::Pressed);
+            key(&mut app, key_code, ButtonState::Released);
+            app.update();
+            assert!(app.world().resource::<ActionState>().just_pressed(action));
+            assert!(!app.world().resource::<ButtonInput<KeyCode>>().pressed(key_code));
+            app.update();
+            let actions = app.world().resource::<ActionState>();
+            assert!(!actions.pressed(action));
+            assert!(!actions.just_pressed(action));
+        }
+    }
+
+    #[test]
+    fn held_keyboard_controls_keep_their_previous_response() {
+        let mut app = app();
+        key(&mut app, KeyCode::KeyW, ButtonState::Pressed);
+        app.update();
+        assert_eq!(app.world().resource::<ActionState>().value(Action::Throttle), 1.0);
+        assert!(app.world().resource::<ActionState>().just_pressed(Action::Throttle));
+        app.update();
+        assert_eq!(app.world().resource::<ActionState>().value(Action::Throttle), 1.0);
+        assert!(!app.world().resource::<ActionState>().just_pressed(Action::Throttle));
+        key(&mut app, KeyCode::KeyW, ButtonState::Released);
+        app.update();
+        assert_eq!(app.world().resource::<ActionState>().value(Action::Throttle), 0.0);
+    }
+
+    #[test]
+    fn ui_focus_suppresses_game_controls_even_for_fast_taps() {
+        let mut app = app();
+        app.world_mut().resource_mut::<UiFocus>().0 = true;
+        for key_code in [KeyCode::F12, KeyCode::KeyF, KeyCode::KeyW] {
+            key(&mut app, key_code, ButtonState::Pressed);
+            key(&mut app, key_code, ButtonState::Released);
+        }
+        app.update();
+        let actions = app.world().resource::<ActionState>();
+        assert!(actions.just_pressed(Action::Console));
+        assert!(!actions.pressed(Action::ToggleCamera));
+        assert_eq!(actions.value(Action::Throttle), 0.0);
+    }
 }

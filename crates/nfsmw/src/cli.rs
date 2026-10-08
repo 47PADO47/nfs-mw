@@ -7,7 +7,7 @@ use clap::{Args, Parser, Subcommand};
 
 use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
-use crate::settings::Partial;
+use crate::settings::{Monitor, Partial, Resolution, WindowMode};
 
 #[derive(Parser)]
 #[command(version, about = "NFS: Most Wanted rewrite (reads data from your own install)")]
@@ -152,6 +152,16 @@ pub struct ViewArgs {
     /// Performance overlay: off, basic or advanced [env NFSMW_SHOW_METRICS; default off].
     #[arg(long, value_name = "off|basic|advanced")]
     pub show_metrics: Option<ShowMetrics>,
+    /// Window mode: windowed, borderless or exclusive [env NFSMW_WINDOW_MODE; default windowed].
+    #[arg(long, value_name = "MODE")]
+    pub window_mode: Option<WindowMode>,
+    /// Monitor: current, primary or a zero-based index [env NFSMW_MONITOR; default current].
+    #[arg(long, value_name = "MONITOR")]
+    pub monitor: Option<Monitor>,
+    /// Physical resolution: WIDTHxHEIGHT or native [env NFSMW_RESOLUTION; default native].
+    /// Borderless uses the desktop size; screenshots keep their fixed size.
+    #[arg(long, value_name = "WIDTHxHEIGHT|native")]
+    pub resolution: Option<Resolution>,
     /// Render one frame to this PNG file and exit instead of opening an interactive window.
     #[arg(long, value_name = "FILE.png")]
     pub screenshot: Option<PathBuf>,
@@ -200,6 +210,9 @@ impl ViewArgs {
             vsync: self.no_vsync.then_some(false),
             max_fps: self.max_fps,
             show_metrics: self.show_metrics,
+            window_mode: self.window_mode,
+            monitor: self.monitor,
+            resolution: self.resolution,
             master_volume: self.volume,
             hud: if self.no_hud { Some(false) } else { self.hud.then_some(true) },
             ..Partial::default()
@@ -241,5 +254,26 @@ mod tests {
     fn cli_is_consistent() {
         use clap::CommandFactory;
         Cli::command().debug_assert();
+    }
+
+    #[test]
+    fn window_options_reach_the_cli_settings_layer() {
+        let cli = Cli::try_parse_from([
+            "nfsmw",
+            "view-car",
+            "--window-mode",
+            "exclusive",
+            "--monitor",
+            "1",
+            "--resolution",
+            "1920x1080",
+        ])
+        .unwrap();
+        let Command::ViewCar { view, .. } = cli.command else { panic!("wrong command") };
+        let layer = view.settings_layer();
+        assert_eq!(layer.window_mode, Some(WindowMode::Exclusive));
+        assert_eq!(layer.monitor, Some(Monitor::Index(1)));
+        assert_eq!(layer.resolution, Some(Resolution::pixels(1920, 1080).unwrap()));
+        assert!(Cli::try_parse_from(["nfsmw", "view-car", "--resolution", "0x0"]).is_err());
     }
 }

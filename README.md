@@ -42,6 +42,9 @@ Options for both viewers:
 
 - `--backend auto|vulkan|dx12|gl` picks the graphics API ([details](docs/architecture.md#graphics-backends)).
 - `--max-fps 60` caps the frame rate (default `unlocked`; `--no-vsync` turns vsync off).
+- `--window-mode windowed|borderless|exclusive` chooses the window mode; Alt+Enter toggles
+  fullscreen. `--monitor primary|current|INDEX` and `--resolution native|WIDTHxHEIGHT` select
+  the display and size ([window settings](docs/window-modes.md)).
 - `--screenshot out.png` renders one frame and exits; add `--wait-for-load` in the world viewer.
 - Esc quits (in the world viewer, the first Esc frees the mouse).
 
