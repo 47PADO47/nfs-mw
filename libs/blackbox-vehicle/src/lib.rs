@@ -12,6 +12,7 @@
 //! [`tires`], [`suspension`], [`steering`], [`aero`], [`input`], [`ground`], [`vehicle`].
 
 pub mod math;
+pub mod rigid_body;
 
 /// The fixed simulation step, in seconds.
 pub const FIXED_STEP: f32 = 1.0 / 60.0;
