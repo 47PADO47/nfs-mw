@@ -18,6 +18,7 @@ publish = false
 blackbox-attrib = { path = "libs/blackbox-attrib" }
 blackbox-carparts = { path = "libs/blackbox-carparts" }
 blackbox-chunk = { path = "libs/blackbox-chunk" }
+blackbox-collision = { path = "libs/blackbox-collision" }
 blackbox-hash = { path = "libs/blackbox-hash" }
 blackbox-render = { path = "libs/blackbox-render" }
 blackbox-scene = { path = "libs/blackbox-scene" }
