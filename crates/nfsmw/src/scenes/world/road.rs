@@ -43,8 +43,15 @@ pub fn probe(collision: &CollisionWorld, x: f32, y: f32, top_z: f32) -> Option<S
     Some(Surface { height: hit.point[1], road: ROAD_SURFACES.contains(&hit.surface_hash) && hit.normal[1] > FLAT })
 }
 
-/// The nearest road to `near` (map x, y), searched outwards in rings, with the heading it runs in and
-/// a position centred between its edges. `probe` looks at one map point.
+/// A road shorter than this (a parking lot, a driveway) is only used when nothing longer is near.
+const STREET_RUN: f32 = 40.0;
+/// Candidates closer than this to one already tried are skipped, and at most this many are tried.
+const CANDIDATE_GAP: f32 = 12.0;
+const MAX_CANDIDATES: usize = 40;
+
+/// The nearest street to `near` (map x, y), searched outwards in rings, with the heading it runs in and
+/// a position centred between its edges. Short stretches of road (car parks) are used only when no
+/// street is found. `probe` looks at one map point.
 pub fn find(near: [f32; 2], probe: impl Fn(f32, f32) -> Option<Surface>) -> Option<Spawn> {
     let ring_points = |radius: f32| {
         let n = if radius == 0.0 { 1 } else { ((std::f32::consts::TAU * radius) / SEARCH_STEP).ceil() as usize };
@@ -53,20 +60,34 @@ pub fn find(near: [f32; 2], probe: impl Fn(f32, f32) -> Option<Surface>) -> Opti
             [near[0] + radius * a.cos(), near[1] + radius * a.sin()]
         })
     };
+    let mut tried: Vec<[f32; 2]> = Vec::new();
+    let mut best: Option<(f32, Spawn)> = None;
     let mut radius = 0.0;
-    while radius <= SEARCH_RADIUS {
+    while radius <= SEARCH_RADIUS && tried.len() < MAX_CANDIDATES {
         for [x, y] in ring_points(radius) {
-            if let Some(Surface { road: true, .. }) = probe(x, y) {
-                return Some(settle([x, y], &probe));
+            if !matches!(probe(x, y), Some(Surface { road: true, .. })) {
+                continue;
+            }
+            if tried.iter().any(|t| (t[0] - x).hypot(t[1] - y) < CANDIDATE_GAP) {
+                continue;
+            }
+            tried.push([x, y]);
+            let (spawn, run) = settle([x, y], &probe);
+            if run >= STREET_RUN {
+                return Some(spawn);
+            }
+            if best.is_none_or(|(r, _)| run > r) {
+                best = Some((run, spawn));
             }
         }
         radius += SEARCH_STEP;
     }
-    None
+    best.map(|(_, spawn)| spawn)
 }
 
-/// Heading along the longest run of road from `at`, and a spot centred across it.
-fn settle(at: [f32; 2], probe: &impl Fn(f32, f32) -> Option<Surface>) -> Spawn {
+/// Heading along the longest run of road from `at` (and that run's length), and a spot centred
+/// across it.
+fn settle(at: [f32; 2], probe: &impl Fn(f32, f32) -> Option<Surface>) -> (Spawn, f32) {
     let run = |from: [f32; 2], heading: f32, limit: f32| {
         let (dx, dy) = (heading.cos(), heading.sin());
         let mut last = probe(from[0], from[1]).map_or(f32::NAN, |s| s.height);
@@ -80,10 +101,10 @@ fn settle(at: [f32; 2], probe: &impl Fn(f32, f32) -> Option<Surface>) -> Spawn {
         }
         d - RUN_STEP
     };
-    let heading = (0..HEADINGS)
+    let (heading, longest) = (0..HEADINGS)
         .map(|i| std::f32::consts::TAU * i as f32 / HEADINGS as f32)
-        .max_by(|&a, &b| run(at, a, RUN_LENGTH).total_cmp(&run(at, b, RUN_LENGTH)))
-        .unwrap_or(0.0);
+        .map(|h| (h, run(at, h, RUN_LENGTH)))
+        .fold((0.0, -1.0), |best, c| if c.1 > best.1 { c } else { best });
     // Centre across the road: half the difference of the free widths to the left and the right.
     let left = heading + std::f32::consts::FRAC_PI_2;
     let to_left = run(at, left, HALF_WIDTH_PROBE);
@@ -91,7 +112,7 @@ fn settle(at: [f32; 2], probe: &impl Fn(f32, f32) -> Option<Surface>) -> Spawn {
     let shift = (to_left - to_right) * 0.5;
     let centre = [at[0] + left.cos() * shift, at[1] + left.sin() * shift];
     let height = probe(centre[0], centre[1]).or_else(|| probe(at[0], at[1])).map_or(0.0, |s| s.height);
-    Spawn { position: Vec3::new(centre[0], centre[1], height), heading }
+    (Spawn { position: Vec3::new(centre[0], centre[1], height), heading }, longest)
 }
 
 #[cfg(test)]
@@ -118,6 +139,21 @@ mod tests {
         let spawn = find([0.0, 103.0], strip).unwrap();
         assert!((spawn.position.y - 100.0).abs() < 1.5);
         assert!(spawn.position.x.abs() < 1.0, "does not wander along the road");
+    }
+
+    #[test]
+    fn a_street_beats_a_nearer_car_park() {
+        // A 20 m square car park at the origin, and a street along y = 60.
+        let world = |x: f32, y: f32| {
+            let lot = x.abs() <= 10.0 && y.abs() <= 10.0;
+            let street = (y - 60.0).abs() <= 5.0;
+            Some(Surface { height: 0.0, road: lot || street })
+        };
+        let spawn = find([0.0, 0.0], world).unwrap();
+        assert!((spawn.position.y - 60.0).abs() < 2.0, "chose y = {}", spawn.position.y);
+        // With no street in reach the car park will do.
+        let lot_only = |x: f32, y: f32| Some(Surface { height: 0.0, road: x.abs() <= 10.0 && y.abs() <= 10.0 });
+        assert!(find([0.0, 0.0], lot_only).is_some());
     }
 
     #[test]
