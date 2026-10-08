@@ -343,6 +343,10 @@ impl Scene for WorldScene {
         }
     }
 
+    fn refresh_effects(&mut self, renderer: &mut Renderer) {
+        self.upload_effects(renderer);
+    }
+
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
         let chase = self.drive.as_ref().filter(|_| self.view == View::Chase);
         let (view_proj, position, forward, fov_degrees) = match chase {

@@ -27,6 +27,7 @@ pub struct Host {
     pub flow_driven: bool,
     /// A screenshot run waits while this is set (a scripted menu is still running).
     pub hold_capture: bool,
+    tire_effects: [bool; 2],
 }
 
 impl Host {
@@ -43,12 +44,14 @@ impl Host {
             cancel_handled: false,
             flow_driven: false,
             hold_capture: false,
+            tire_effects: [settings.tire_smoke, settings.skid_marks],
         }
     }
 
     /// Puts another scene in the window: it is initialised with the renderer, and in a screenshot run it is given
     /// the time to load.
     pub fn replace_scene(&mut self, mut scene: Box<dyn Scene>) -> anyhow::Result<()> {
+        scene.set_tire_effects(self.tire_effects[0], self.tire_effects[1]);
         let renderer = self.renderer.as_mut().ok_or_else(|| anyhow::anyhow!("the renderer is not ready"))?;
         scene.init(renderer)?;
         if self.screenshot.is_some() {
@@ -56,6 +59,11 @@ impl Host {
         }
         self.scene = scene;
         Ok(())
+    }
+
+    pub fn set_tire_effects(&mut self, smoke: bool, marks: bool) {
+        self.tire_effects = [smoke, marks];
+        self.scene.set_tire_effects(smoke, marks);
     }
 }
 

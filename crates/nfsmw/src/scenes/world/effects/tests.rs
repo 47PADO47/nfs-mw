@@ -114,7 +114,7 @@ fn lift_teleport_respawn_section_and_sharp_normal_changes_break_tracks() {
     sample(&mut effects, Some(Contact { section: 9, normal: Vec3::Y, ..contact(1000.9) }));
     assert_eq!(effects.marks.len(), 7);
     let geometry = vertices(&mut effects).0;
-    for quad in geometry.chunks_exact(6) {
+    for quad in geometry.as_chunks::<6>().0 {
         let points: Vec<_> = quad.iter().map(|v| Vec3::from_array(v.position)).collect();
         assert!(points.iter().all(|a| points.iter().all(|b| a.distance(*b) < 0.6)), "track bridged a gap");
     }

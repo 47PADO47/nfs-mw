@@ -10,6 +10,10 @@ new design, described in [the spec](specs/tire-effects.md); no original game tex
 Both effects default on. Settings resolve independently: CLI, environment, per-user TOML,
 then defaults, just like vsync and HUD settings.
 
+Video options in the main menu and pause menu include Tire Smoke and Skid Marks.
+Changing either applies it to the driving scene, including while paused. Leaving
+the settings screen saves the choice through the existing config writer.
+
 | Effect | Config key | Environment | CLI overrides |
 |---|---|---|---|
 | Smoke | `tire_smoke = true` | `NFSMW_TIRE_SMOKE=on` or `off` | `--tire-smoke` / `--no-tire-smoke` |

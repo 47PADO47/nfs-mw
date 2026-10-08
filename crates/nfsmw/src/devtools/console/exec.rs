@@ -75,7 +75,7 @@ fn run(
             }
             let text = settings_cmd::set(settings, &key, &value)?;
             if matches!(key.as_str(), "tire_smoke" | "skid_marks") {
-                host.scene.set_tire_effects(settings.tire_smoke, settings.skid_marks);
+                host.set_tire_effects(settings.tire_smoke, settings.skid_marks);
             }
             Ok(text)
         }
@@ -115,7 +115,7 @@ pub fn sync_settings(settings: Res<Settings>, mut host: NonSendMut<Host>, mut ap
         .as_ref()
         .is_none_or(|before| before.tire_smoke != settings.tire_smoke || before.skid_marks != settings.skid_marks)
     {
-        host.scene.set_tire_effects(settings.tire_smoke, settings.skid_marks);
+        host.set_tire_effects(settings.tire_smoke, settings.skid_marks);
     }
     let Some(before) = applied.replace(*settings) else { return };
     if before == *settings {
