@@ -12,6 +12,7 @@ mod cars;
 mod compare;
 mod ginsu;
 mod handling;
+mod music;
 mod physics;
 mod sound;
 mod textures;

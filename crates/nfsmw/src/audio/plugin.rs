@@ -45,7 +45,9 @@ fn sync_volumes(settings: Res<Settings>, mut audio: NonSendMut<Audio>) {
 
 /// The scene's car plays its engine.
 fn drive_car(mut host: NonSendMut<Host>, time: Res<Time>, mut audio: NonSendMut<Audio>) {
-    audio.drive_car(host.scene.car_sound().as_ref(), time.delta_secs());
+    let car = host.scene.car_sound();
+    audio.drive_car(car.as_ref(), time.delta_secs());
+    audio.update_radio(car.is_some());
     if let Some(clip) = host.scene.take_clip()
         && let Err(e) = audio.play(super::Group::Music, super::pcm::sound(&clip))
     {
