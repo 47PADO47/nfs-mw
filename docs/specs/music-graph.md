@@ -143,15 +143,18 @@ songs and the authoring of the last bars as ordinary consecutive streams argue a
 ## 6. The play lists (EA Trax) [inferred, from the decomp and the exe]
 
 The song data are the collections of the AttribSys class `music`: `Artist`, `SongName`, `Album` (strings),
-`PathEvent` (`u32`) and `Defplay` (a string). The **song list** is the `PFMapping` array of the `audiosystem`
+`PathEvent` (`u32`) and `DefPlay` (a string). The **song list** is the `PFMapping` array of the `audiosystem`
 collection that the field `LicensedMusic` of `audiosystem/0x7E4B0ED2` names: 26 `music` collections, in that
 order. (The class has a 27th, `default`, a template that is not in the list.) The song's index in the list
 is its bit number everywhere below. Order, titles and defaults [confirmed-by-data]: see the song table in
 [../provenance/music-graph.md](../provenance/music-graph.md#song-table).
 
-**Playability.** `Defplay` `FE` plays in the front end only, `IG` in the game only, `AL` in both; anything
-else (the empty string of "Nine Thou" and "Shapeshifter") plays nowhere until the player enables it in the
-jukebox. Two play lists are built from it, front end (list 0) and in game (list 1): a mask `TraxMask` with one
+**Playability.** `DefPlay` `FE` plays in the front end only, `IG` in the game only, `AL` in both; anything
+else plays nowhere until the player enables it in the jukebox (no song has such a value in this install:
+8 are `FE`, 16 are `IG` and 2, "Nine Thou" and "Shapeshifter", are `AL`; an earlier note read those two as
+empty by mistake). So the front-end list holds 10 songs and the in-game list 18.
+
+Two play lists are built from it, front end (list 0) and in game (list 1): a mask `TraxMask` with one
 bit per song, the count of enabled songs, and `PlayBits`, the songs not played yet in this round (at first
 equal to `TraxMask`). The jukebox screen (user choice of songs) and the profile are not in scope: the defaults
 apply.

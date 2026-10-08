@@ -38,13 +38,12 @@
 
 ## Song table
 
-Order of the `PFMapping` array (the bit number of a song); `Defplay` is `FE` (menus), `IG` (in game) or empty
-(off); "start" is the song's first node, "streams" the length of its chain, "secs" the sum of the stored
+Order of the `PFMapping` array (the bit number of a song); `DefPlay` is `FE` (menus), `IG` (in game) or `AL` (both); "start" is the song's first node, "streams" the length of its chain, "secs" the sum of the stored
 stream durations. Reproduced by an independent script and by the real-install test.
 
-| # | Artist and title | Defplay | Start | Streams | Secs |
+| # | Artist and title | DefPlay | Start | Streams | Secs |
 |---|---|---|---|---|---|
-| 0 | Styles Of Beyond, Nine Thou | | 2771 | 54 | 232.8 |
+| 0 | Styles Of Beyond, Nine Thou | AL | 2771 | 54 | 232.8 |
 | 1 | T.I. Presents The P$$C, Do Ya Thang | FE | 2625 | 83 | 251.3 |
 | 2 | Rock, I Am Rock | FE | 2176 | 54 | 230.7 |
 | 3 | Suni Clay, In A Hood Near You | FE | 2560 | 58 | 255.2 |
@@ -52,7 +51,7 @@ stream durations. Reproduced by an independent script and by the real-install te
 | 5 | Juvenile, Sets Go Up | FE | 2830 | 87 | 224.8 |
 | 6 | Hush, Fired Up | FE | 1490 | 66 | 204.3 |
 | 7 | DJ Spooky and Dave Lombardo, B-Side Wins Again | FE | 1605 | 106 | 278.7 |
-| 8 | Celldweller feat. Styles Of Beyond, Shapeshifter | | 2713 | 51 | 205.3 |
+| 8 | Celldweller feat. Styles Of Beyond, Shapeshifter | AL | 2713 | 51 | 205.3 |
 | 9 | Lupe Fiasco, Tilted | FE | 1797 | 80 | 215.7 |
 | 10 | Ils, Feed The Addiction | IG | 3101 | 69 | 245.0 |
 | 11 | Celldweller, One Good Reason | IG | 1999 | 164 | 259.7 |

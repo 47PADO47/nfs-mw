@@ -265,7 +265,7 @@ following the first transition of every node from there to the end node gives th
 of the `.mus`, with the last bars repeated in most songs) that add up to the song's length. Sections: 1 to 4 pursuit music, 5 the songs and the
 start-screen music, 6 ambience. The meaning of a few flag bits and of 26 condition properties is unknown.
 
-The AttribSys class `music` (5 fields: `Artist`, `SongName`, `Album`, `PathEvent`, `Defplay`; 27 collections, one a
+The AttribSys class `music` (5 fields: `Artist`, `SongName`, `Album`, `PathEvent`, `DefPlay`; 27 collections, one a
 template) lists the songs; the `PFMapping` array of the `audiosystem` collection that `LicensedMusic` of
 `audiosystem/0x7E4B0ED2` names is the song order ([attributes.md](attributes.md)). The game side is EA's
 PathFinder 5.01.04 driven by `EAXSound/sfxctl/SFXCTL_Pathfinder5.cpp` and `SFXObj_Pathfinder.cpp` **[decomp]**.
