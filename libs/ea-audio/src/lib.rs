@@ -22,10 +22,12 @@
 //! Format notes and evidence: `docs/specs/audio-containers.md` and `docs/formats/audio.md`.
 
 pub mod abk;
+pub mod big;
 mod bytes;
 pub mod codec;
 mod error;
 pub mod gin;
+pub mod mus;
 mod pcm;
 pub mod schl;
 mod source;
