@@ -7,7 +7,7 @@ use blackbox_vehicle::nos::NosSpec;
 
 use super::bounds::CarBounds;
 use super::fields::Fields;
-use super::{aero, body, brakes, chassis, engine, induction, nos, tires, transmission};
+use super::{WallSpec, aero, body, brakes, chassis, engine, induction, nos, tires, transmission};
 
 /// A car ready for the physics: its spec and where the collision box sits in the car's own space.
 #[derive(Debug, Clone)]
@@ -15,6 +15,8 @@ pub struct CarPhysics {
     pub spec: VehicleSpec,
     /// The collision box and where its centre is relative to the car model's origin (physics axes).
     pub bounds: CarBounds,
+    /// How the car reacts to walls.
+    pub walls: WallSpec,
 }
 
 /// The physics of car type `type_name` (e.g. `BMWM3GTR`), read from `db` (`attributes.bin`).
@@ -28,6 +30,7 @@ pub fn car_physics(db: &Database, type_name: &str, bounds: CarBounds) -> Result<
         pvehicle.follow(field).map(Fields).with_context(|| format!("{name}: the {field} link is missing"))
     };
     let body = body(Fields(pvehicle));
+    let walls = body.walls;
     let chassis_fields = link("chassis")?;
     let spec = VehicleSpec {
         mass: body.mass,
@@ -43,7 +46,7 @@ pub fn car_physics(db: &Database, type_name: &str, bounds: CarBounds) -> Result<
         nos: first_nitrous(db, Fields(pvehicle)),
         aero: aero(chassis_fields),
     };
-    Ok(CarPhysics { spec, bounds })
+    Ok(CarPhysics { spec, bounds, walls })
 }
 
 /// The first nitrous level of the car that has a tank (the stock level when it has one).

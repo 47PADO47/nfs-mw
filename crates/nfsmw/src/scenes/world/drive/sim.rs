@@ -5,13 +5,15 @@
 //! y left, z up. The library numbers the wheels 0 front left, 1 front right, 2 rear left, 3 rear right;
 //! the car model has 2 rear right, 3 rear left.
 
+use blackbox_collision::CollisionWorld;
 use blackbox_vehicle::{FIXED_STEP, Ground, InputState, Vehicle};
 use glam::{Mat3, Quat, Vec3};
 use nfsmw_data::car::WheelPose;
-use nfsmw_data::car::physics::CarPhysics;
+use nfsmw_data::car::physics::{CarPhysics, WallSpec};
 
 use super::input::DriveInput;
 use super::rig::CarPose;
+use super::walls;
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::space;
 
@@ -41,6 +43,7 @@ pub struct CarSim {
     rest_height: [f32; 4],
     /// Roll angle of each wheel, in model wheel order.
     spin: [f32; 4],
+    walls: WallSpec,
 }
 
 /// A vector from physics space to render space axes: `(x, y, z) -> (z, -x, y)`.
@@ -52,7 +55,13 @@ impl CarSim {
     /// `rest_height` is the height of each wheel's centre above the car model's origin when the car
     /// stands still, in the model's wheel order (the static wheel placement).
     pub fn new(physics: CarPhysics, rest_height: [f32; 4]) -> Self {
-        Self { vehicle: Vehicle::new(physics.spec), pivot: physics.bounds.pivot, rest_height, spin: [0.0; 4] }
+        Self {
+            vehicle: Vehicle::new(physics.spec),
+            pivot: physics.bounds.pivot,
+            rest_height,
+            spin: [0.0; 4],
+            walls: physics.walls,
+        }
     }
 
     /// Put the car on the road at `spawn`, standing still. False when `ground` has nothing there.
@@ -68,7 +77,9 @@ impl CarSim {
         false
     }
 
-    pub fn step(&mut self, input: &DriveInput, ground: &dyn Ground) {
+    /// One physics step. `world` is the collision the body's walls are tested against (the ground is
+    /// `ground`); without it the car only meets the road.
+    pub fn step(&mut self, input: &DriveInput, ground: &dyn Ground, world: Option<&CollisionWorld>) {
         let input = InputState {
             throttle: input.throttle,
             brake: input.brake,
@@ -79,6 +90,9 @@ impl CarSim {
             shift_down: input.shift_down,
         };
         self.vehicle.step(FIXED_STEP, &input, ground);
+        if let Some(world) = world {
+            walls::resolve(&mut self.vehicle, &walls::world_cast(world), &self.walls);
+        }
         for (spin, &physics) in self.spin.iter_mut().zip(&PHYSICS_WHEEL) {
             *spin += self.vehicle.wheel(physics).angular_velocity * FIXED_STEP;
         }
@@ -135,7 +149,7 @@ mod tests {
     fn sim() -> CarSim {
         let spec = VehicleSpec::example();
         let bounds = CarBounds { half_dimensions: spec.dimension, pivot: Vec3::new(0.0, spec.dimension.y, 0.1) };
-        CarSim::new(CarPhysics { spec, bounds }, [0.2; 4])
+        CarSim::new(CarPhysics { spec, bounds, walls: WallSpec::default() }, [0.2; 4])
     }
 
     fn spawn_at(heading: f32) -> Spawn {
@@ -144,7 +158,7 @@ mod tests {
 
     fn drive(sim: &mut CarSim, ground: &dyn Ground, input: DriveInput, seconds: f32) {
         for _ in 0..(seconds * 60.0) as usize {
-            sim.step(&input, ground);
+            sim.step(&input, ground, None);
         }
     }
 

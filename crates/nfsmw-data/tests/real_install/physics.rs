@@ -175,3 +175,14 @@ fn cars_assemble_into_vehicle_specs() {
         assert!(s.chassis.front_axle < s.dimension.z + 0.3 && rear > -s.dimension.z - 0.3, "{car}: {:?}", s.chassis);
     }
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn walls_have_friction_and_bounce() {
+    let Some(dir) = install() else { return };
+    let data = physics::PhysicsData::load(&dir).unwrap();
+    let w = data.car("BMWM3GTR").unwrap().walls;
+    assert!(w.friction[0] > 0.0 && w.friction[0] <= 1.5 && w.friction[1] <= w.friction[0] + 1e-6, "{w:?}");
+    assert!(w.elasticity.max_element() <= 1.0 && w.elasticity.min_element() >= 0.0, "{w:?}");
+    assert!(w.moment_scale.min_element() >= 1.0, "{w:?}");
+}

@@ -8,6 +8,7 @@ mod input;
 mod rig;
 mod script;
 mod sim;
+mod walls;
 
 use blackbox_collision::CollisionWorld;
 use glam::Vec3;
@@ -236,7 +237,7 @@ impl Drive {
             } else if n > 0 {
                 input = input.held();
             }
-            sim.step(&input, &ground);
+            sim.step(&input, &ground, Some(collision));
             self.previous = self.current;
             self.current = sim.pose();
             self.telemetry = sim.telemetry();

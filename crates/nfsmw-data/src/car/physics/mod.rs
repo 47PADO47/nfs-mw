@@ -11,7 +11,7 @@ mod running_gear;
 mod spec;
 mod surface;
 
-pub use body::{BodyData, body, rigid_body_spec};
+pub use body::{BodyData, WallSpec, body, rigid_body_spec, wall_spec};
 pub use bounds::{CarBounds, car_bounds, read_car_bounds};
 pub use chassis::{aero, chassis};
 pub use data::PhysicsData;
