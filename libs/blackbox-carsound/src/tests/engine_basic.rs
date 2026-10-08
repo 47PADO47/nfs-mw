@@ -138,15 +138,18 @@ fn the_tachometer_shows_the_physics_before_the_race_and_the_audio_after_it() {
     let out = other.update(TICK_SECONDS, &pre);
     assert!((out.visual_rpm_fraction - 0.9).abs() > 0.3, "the gauge is the audio value: {}", out.visual_rpm_fraction);
 
-    // After the countdown the gauge follows the audio: through an up shift it glides from the RPM at the
-    // shift down to the new physics value instead of jumping.
+    // After the countdown the gauge blends from the physics value to the audio value over 0.7 s (spec §4.4):
+    // it starts at the physics reading, never leaves 0..1 and settles on the new physics value after the shift.
     let mut m = mixer();
     hold(&mut m, 2.0, CarInput { pre_race: true, ..input(0.9, 1.0, 2) });
     let racing = CarInput { pre_race: false, ..input(0.6, 1.0, 3) };
     let outs = run(&mut m, 90, |_| racing);
-    assert!(outs[0].visual_rpm_fraction > 0.8, "starts high: {}", outs[0].visual_rpm_fraction);
-    let mid = outs[20].visual_rpm_fraction;
-    assert!(mid < outs[0].visual_rpm_fraction && mid > 0.6, "gliding: {mid}");
+    assert!(
+        (outs[0].visual_rpm_fraction - 0.6).abs() < 0.03,
+        "starts at the physics value: {}",
+        outs[0].visual_rpm_fraction
+    );
+    assert!(outs.iter().all(|o| (0.0..=1.0).contains(&o.visual_rpm_fraction)));
     assert!((outs[89].visual_rpm_fraction - 0.6).abs() < 0.03, "{}", outs[89].visual_rpm_fraction);
 }
 

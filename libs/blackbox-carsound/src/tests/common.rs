@@ -3,7 +3,7 @@
 
 use crate::{
     AccelTransition, CarInput, CarSoundTuning, DecelWindow, EngineMix, EngineMode, EngineOutput, EngineTuning,
-    MixLevels, ShiftStage, ShiftTuning, TICK_SECONDS, TurboTuning, Wobble,
+    MixLevels, ShiftStage, ShiftTuning, TICK_SECONDS, Wobble,
 };
 
 pub fn levels(steady: f32, large: f32) -> MixLevels {
@@ -80,16 +80,6 @@ pub fn tuning() -> CarSoundTuning {
         },
         turbo: None,
         ..CarSoundTuning::default()
-    }
-}
-
-pub fn turbo_tuning() -> TurboTuning {
-    TurboTuning {
-        spool_volume: 10000,
-        charge_time: 15.0,
-        leak_rate: 0.5,
-        blowoff_volume: [20000, 24000],
-        blowoff_seconds: 1.0,
     }
 }
 
