@@ -22,6 +22,6 @@ pub use api::{
     Shading, TextureDesc, TextureHandle, Vertex,
 };
 pub use backend::{Backend, ParseBackendError};
-pub use effects::{EffectLayer, EffectVertex};
+pub use effects::{DEFAULT_SOFT_DISTANCE, EffectLayer, EffectVertex};
 pub use gpu::Renderer;
 pub use ui::{UiLayer, UiMesh, UiTextureId, UiTexturePatch, UiVertex};

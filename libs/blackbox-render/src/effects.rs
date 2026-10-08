@@ -15,7 +15,10 @@ pub struct EffectVertex {
     pub detail: [f32; 2],
 }
 
-#[derive(Debug, Default)]
+/// World-unit distance over which an intersecting particle fades, unless the layer says otherwise.
+pub const DEFAULT_SOFT_DISTANCE: f32 = 0.3;
+
+#[derive(Debug)]
 pub struct EffectLayer {
     /// Surface overlays with feathered edges and a subtle longitudinal pattern.
     pub surfaces: Vec<EffectVertex>,
@@ -25,6 +28,17 @@ pub struct EffectLayer {
     pub detailed_particles: bool,
     /// Distance in world units over which an intersecting particle fades.
     pub soft_distance: f32,
+}
+
+impl Default for EffectLayer {
+    fn default() -> Self {
+        Self {
+            surfaces: Vec::new(),
+            particles: Vec::new(),
+            detailed_particles: false,
+            soft_distance: DEFAULT_SOFT_DISTANCE,
+        }
+    }
 }
 
 impl EffectLayer {
@@ -44,5 +58,17 @@ impl EffectLayer {
         for i in [0, 1, 2, 0, 2, 3] {
             out.push(EffectVertex { position: corners[i].to_array(), color, uv: uv[i], detail });
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_new_layer_fades_intersections_over_the_default_distance() {
+        let layer = EffectLayer::default();
+        assert_eq!(layer.soft_distance, DEFAULT_SOFT_DISTANCE);
+        assert!(!layer.detailed_particles);
     }
 }

@@ -6,7 +6,7 @@ use super::{
     resources::{self, Globals, Shared},
     soft_particles::SoftParticles,
 };
-use crate::EffectLayer;
+use crate::{DEFAULT_SOFT_DISTANCE, EffectLayer};
 
 #[test]
 #[ignore = "needs a Vulkan GPU"]
@@ -126,7 +126,7 @@ fn sample(
             multiview_mask: None,
         });
     }
-    soft.prepare(device, queue, &depth, projection.inverse(), 0.3);
+    soft.prepare(device, queue, &depth, projection.inverse(), DEFAULT_SOFT_DISTANCE);
     {
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("test soft particle"),

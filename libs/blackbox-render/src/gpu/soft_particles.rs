@@ -1,7 +1,7 @@
 //! Depth-aware procedural particles. Algorithm spec: docs/specs/high-quality-smoke.md.
 
 use super::{effects::ATTRIBUTES, resources::Shared};
-use crate::EffectVertex;
+use crate::{DEFAULT_SOFT_DISTANCE, EffectVertex};
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -99,7 +99,7 @@ impl SoftParticles {
         inverse: glam::Mat4,
         distance: f32,
     ) {
-        let distance = if distance.is_finite() { distance.max(0.001) } else { 0.3 };
+        let distance = if distance.is_finite() { distance.max(0.001) } else { DEFAULT_SOFT_DISTANCE };
         let parameters = Parameters { inverse_view_proj: inverse.to_cols_array_2d(), fade: [distance, 0.0, 0.0, 0.0] };
         queue.write_buffer(&self.parameters, 0, bytemuck::bytes_of(&parameters));
         if self.binding.as_ref().is_some_and(|(view, _)| view == depth) {

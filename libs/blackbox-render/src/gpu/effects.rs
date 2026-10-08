@@ -3,7 +3,7 @@
 use super::Renderer;
 use super::resources::{DEPTH_FORMAT, Shared};
 use super::soft_particles::SoftParticles;
-use crate::{EffectLayer, EffectVertex};
+use crate::{DEFAULT_SOFT_DISTANCE, EffectLayer, EffectVertex};
 
 pub(super) const ATTRIBUTES: [wgpu::VertexAttribute; 4] =
     wgpu::vertex_attr_array![0 => Float32x3, 1 => Unorm8x4, 2 => Float32x2, 3 => Float32x2];
@@ -106,7 +106,7 @@ impl Effects {
             pipelines,
             soft: SoftParticles::new(device, format, shared),
             detailed: false,
-            soft_distance: 0.3,
+            soft_distance: DEFAULT_SOFT_DISTANCE,
         }
     }
 
