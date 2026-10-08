@@ -50,4 +50,4 @@ pub const FIXED_STEP: f32 = 1.0 / 60.0;
 
 pub use ground::{FlatGround, Ground, GroundHit, NoGround, SurfaceGrip};
 pub use input::{ControlConfig, InputState};
-pub use vehicle::{Tunings, Vehicle, VehicleSpec, WheelState};
+pub use vehicle::{SKID_RANGE, SMOKE_RANGE, Tunings, Vehicle, VehicleSpec, WheelState};

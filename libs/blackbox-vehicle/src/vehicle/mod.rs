@@ -14,13 +14,14 @@ mod wheels;
 mod tests;
 
 pub use spec::{Tunings, VehicleSpec};
-pub use state::WheelState;
+pub use state::{SKID_RANGE, SMOKE_RANGE, WheelState};
 
 use glam::{Mat3, Quat, Vec3};
 
 use crate::drivetrain::Powertrain;
 use crate::ground::Ground;
 use crate::input::{ControlConfig, Controls};
+use crate::math::ramp;
 use crate::rigid_body::{BodyState, RigidBody};
 use crate::steering::{Steering, WheelAngles};
 use crate::suspension::{Corner, Geometry, WheelContact};
@@ -265,13 +266,15 @@ impl Vehicle {
         };
         let tire = &self.tires[i];
         let radius = self.params[i].radius;
+        let on_ground = self.loaded[i];
+        let slide_speed = if on_ground { tire.slip.hypot(tire.lateral_speed) } else { 0.0 };
         WheelState {
             position: self.patch_positions[i],
             radius,
             steer_angle: steer,
             angular_velocity: tire.display_av(radius),
             compression: self.corners[i].compression,
-            on_ground: self.loaded[i],
+            on_ground,
             load: tire.load,
             slip: tire.slip,
             slip_angle: tire.slip_angle * std::f32::consts::TAU,
@@ -279,6 +282,9 @@ impl Vehicle {
             locked: tire.brake_locked,
             lateral_force: tire.lateral_force,
             longitudinal_force: tire.longitudinal_force,
+            slide_speed,
+            skid: if on_ground { ramp(slide_speed, SKID_RANGE.0, SKID_RANGE.1) } else { 0.0 },
+            smoke: if on_ground { ramp(slide_speed, SMOKE_RANGE.0, SMOKE_RANGE.1) } else { 0.0 },
         }
     }
 

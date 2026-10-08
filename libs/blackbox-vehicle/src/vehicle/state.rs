@@ -25,4 +25,18 @@ pub struct WheelState {
     pub locked: bool,
     pub lateral_force: f32,
     pub longitudinal_force: f32,
+    /// Speed (m/s) at which the contact patch slides over the road, combining wheel spin and sideways
+    /// motion; 0 for a wheel in the air.
+    pub slide_speed: f32,
+    /// 0..1: how hard the tire is scrubbing the road. A renderer lays skid marks where this is above a
+    /// small threshold, with opacity following it.
+    pub skid: f32,
+    /// 0..1: tire smoke. Rises later than skid marks and is strongest for burnouts, locked wheels and
+    /// drifts.
+    pub smoke: f32,
 }
+
+/// Slide speed (m/s) where skid marks start and where they are fully dark.
+pub const SKID_RANGE: (f32, f32) = (2.0, 5.0);
+/// Slide speed (m/s) where smoke starts and where it is densest.
+pub const SMOKE_RANGE: (f32, f32) = (3.5, 9.0);
