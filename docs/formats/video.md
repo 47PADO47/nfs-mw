@@ -69,6 +69,13 @@ partition follows, then macroblock rows and columns (32, 64 in the first frame) 
 is no alpha plane. Decoding needs the previous frame and the golden (last key) frame, so playback
 starts at a key frame.
 
+Decoded with nihav-vp6, **[verified on all 45,435 frames]**: every frame decodes to 1024 × 512 YUV 4:2:0.
+The rows come out **bottom to top** (plain VP6 as opposed to Flash's VP6F; FFmpeg flips it too
+**[community]**), so a player reverses them; seen on `blacklist_01` frame 200, which shows the Razor
+portrait upright after the flip. Black is luma 16, so the picture is studio range (BT.601 coefficients
+for RGB). Speed on one core of the dev machine, release build: 164 frames/s decode alone and 116
+frames/s with the RGBA conversion on `blacklist_01` (a high-bitrate movie), against 29.97 needed.
+
 ### Audio
 
 `SCHl` has a 32-byte payload, identical in structure in all 32 files **[verified]**:
