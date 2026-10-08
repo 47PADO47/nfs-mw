@@ -5,10 +5,10 @@ use std::str::FromStr;
 
 use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
-use crate::settings::{Settings, parse_bool};
+use crate::settings::{Percent, Settings, parse_bool};
 
 /// Settings the console can show.
-const KEYS: [&str; 4] = ["backend", "vsync", "fps", "metrics"];
+const KEYS: [&str; 8] = ["backend", "vsync", "fps", "metrics", "volume", "music_volume", "sfx_volume", "engine_volume"];
 
 /// The text for `get <key>`, or an error naming the valid keys.
 pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
@@ -17,6 +17,10 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "vsync" => on_off(settings.vsync).to_owned(),
         "fps" | "max_fps" => settings.max_fps.to_string(),
         "metrics" | "show_metrics" => settings.show_metrics.to_string(),
+        "volume" | "master_volume" => settings.master_volume.to_string(),
+        "music_volume" => settings.music_volume.to_string(),
+        "sfx_volume" => settings.sfx_volume.to_string(),
+        "engine_volume" => settings.engine_volume.to_string(),
         other => return Err(unknown(other)),
     };
     Ok(format!("{key} = {value}"))
@@ -33,6 +37,10 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "vsync" => settings.vsync = parse_bool(value)?,
         "fps" | "max_fps" => settings.max_fps = MaxFps::from_str(value)?,
         "metrics" | "show_metrics" => settings.show_metrics = ShowMetrics::from_str(value)?,
+        "volume" | "master_volume" => settings.master_volume = Percent::from_str(value)?,
+        "music_volume" => settings.music_volume = Percent::from_str(value)?,
+        "sfx_volume" => settings.sfx_volume = Percent::from_str(value)?,
+        "engine_volume" => settings.engine_volume = Percent::from_str(value)?,
         "backend" => return Err("the graphics backend cannot change while running; restart with --backend".into()),
         other => return Err(unknown(other)),
     }
@@ -73,7 +81,8 @@ mod tests {
         assert!(set(&mut s, "fps", "fast").is_err());
         assert!(set(&mut s, "vsync", "maybe").is_err());
         assert!(set(&mut s, "backend", "gl").unwrap_err().contains("restart"));
-        assert!(set(&mut s, "volume", "11").unwrap_err().contains("unknown setting"));
+        assert!(set(&mut s, "volume", "loud").is_err());
+        assert!(set(&mut s, "bass", "11").unwrap_err().contains("unknown setting"));
         assert_eq!(s, defaults());
     }
 

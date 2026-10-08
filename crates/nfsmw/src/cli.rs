@@ -104,6 +104,12 @@ pub struct ViewArgs {
     /// Start with the developer console open.
     #[arg(long, hide = true)]
     pub open_console: bool,
+    /// Play no sound (no output device is opened).
+    #[arg(long)]
+    pub no_sound: bool,
+    /// Master volume, 0 to 100 [env NFSMW_MASTER_VOLUME; config `master_volume`; default 80].
+    #[arg(long, value_name = "0-100")]
+    pub volume: Option<crate::settings::Percent>,
     /// Show the in-game HUD (always on while driving).
     #[arg(long)]
     pub hud: bool,
@@ -121,6 +127,7 @@ impl ViewArgs {
             open_console: self.open_console,
             hud: (self.hud || hud_default || self.hud_demo.is_some()).then(|| dir.clone()),
             hud_demo: self.hud_demo.clone(),
+            audio: (!self.no_sound && self.screenshot.is_none()).then(|| dir.clone()),
         }
     }
 
@@ -131,6 +138,8 @@ impl ViewArgs {
             vsync: self.no_vsync.then_some(false),
             max_fps: self.max_fps,
             show_metrics: self.show_metrics,
+            master_volume: self.volume,
+            ..Partial::default()
         }
     }
 }

@@ -25,7 +25,7 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 7] = [
+pub const BUILT_IN: [(&str, &str); 9] = [
     ("help", "list the commands"),
     ("clear", "empty the console"),
     ("quit", "close the game"),
@@ -33,10 +33,12 @@ pub const BUILT_IN: [(&str, &str); 7] = [
     ("set <setting> <value>", "change a setting: fps, vsync, metrics"),
     ("fps <number|unlocked>", "frame-rate cap (same as set fps)"),
     ("resolution <width> <height>", "resize the window"),
+    ("volume <0-100>", "master volume (same as set volume)"),
+    ("sound [bank [index]]", "list the sounds of a bank (IG_GLOBAL/Siren_MB.abk) or play one"),
 ];
 
 /// Further shorthands for `set`: `vsync off` is `set vsync off`.
-const SET_SHORTHANDS: [&str; 3] = ["fps", "vsync", "metrics"];
+const SET_SHORTHANDS: [&str; 4] = ["fps", "vsync", "metrics", "volume"];
 
 /// Parse one line. `Ok(None)` for an empty line.
 pub fn parse(line: &str) -> Result<Option<Command>, String> {
@@ -139,6 +141,7 @@ mod tests {
         let scene = [("car <folder>", "change the car"), ("cars", "list the cars")];
         assert_eq!(complete("c", &scene), ["car", "cars", "clear"]);
         assert_eq!(complete("re", &scene), ["resolution"]);
+        assert_eq!(complete("vo", &scene), ["volume"]);
         assert!(complete("zzz", &scene).is_empty());
     }
 }

@@ -8,6 +8,7 @@ use super::parse::{self, BUILT_IN, Command};
 use super::{Console, settings_cmd};
 use crate::app::Host;
 use crate::app::pacing::FrameLimiter;
+use crate::audio::Audio;
 use crate::devtools::logbuf;
 use crate::settings::Settings;
 
@@ -16,6 +17,7 @@ pub fn execute(
     mut console: ResMut<Console>,
     mut settings: ResMut<Settings>,
     mut host: NonSendMut<Host>,
+    mut audio: Option<NonSendMut<Audio>>,
     mut window: Single<&mut Window, With<PrimaryWindow>>,
     mut exit: MessageWriter<AppExit>,
 ) {
@@ -29,7 +31,7 @@ pub fn execute(
         logbuf::input(&format!("> {line}"));
         let result = match parse::parse(&line) {
             Ok(None) => continue,
-            Ok(Some(command)) => run(command, &mut settings, host, &mut window, &mut exit),
+            Ok(Some(command)) => run(command, &mut settings, host, audio.as_deref_mut(), &mut window, &mut exit),
             Err(e) => Err(e),
         };
         match result {
@@ -44,6 +46,7 @@ fn run(
     command: Command,
     settings: &mut Settings,
     host: &mut Host,
+    audio: Option<&mut Audio>,
     window: &mut Window,
     exit: &mut MessageWriter<AppExit>,
 ) -> Result<String, String> {
@@ -63,6 +66,10 @@ fn run(
         Command::Resolution { width, height } => {
             window.resolution.set_physical_resolution(width, height);
             Ok(format!("window {width}x{height}"))
+        }
+        Command::Scene { name, args } if crate::audio::commands::handles(&name) => {
+            let args: Vec<&str> = args.iter().map(String::as_str).collect();
+            crate::audio::commands::run(audio, &name, &args)
         }
         Command::Scene { name, args } => {
             let renderer = host.renderer.as_mut().ok_or("the renderer is not ready")?;
