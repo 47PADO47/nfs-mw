@@ -16,6 +16,8 @@ const ESRB_ICON: u32 = 0x43D4_1F73;
 /// The group that shows the prompt, and its label: `Press START`.
 const PROMPT: u32 = 0xC4DF_3FF2;
 const PRESS_START: u32 = 0x9B58_0A55;
+/// `CURRENT_GEN_WIDESCREEN`: the game sends it to the widescreen package, which shows its wide art on it.
+const WIDESCREEN: u32 = 0xCB83_5EE3;
 
 #[derive(Default)]
 pub struct Splash {
@@ -28,6 +30,9 @@ impl ScreenLogic for Splash {
             cx.hide(hidden, true);
         }
         cx.label_group(PROMPT, PRESS_START);
+        if cx.name.to_ascii_lowercase().starts_with("ws_") {
+            cx.rt.post_to_package(cx.package, WIDESCREEN);
+        }
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {

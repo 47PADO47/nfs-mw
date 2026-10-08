@@ -48,7 +48,10 @@ pub enum Stage {
     Paused,
 }
 
-use super::ids::screen::{MAIN_MENU, PAUSE_MENU, SPLASH};
+use super::ids::screen::{MAIN_MENU, PAUSE_MENU, SPLASH, SPLASH_WIDE};
+
+/// Windows wider than this (width over height) get the widescreen title screen; 4:3 is 1.33.
+const WIDE_ASPECT: f32 = 1.4;
 
 #[derive(Resource)]
 pub struct Frontend {
@@ -145,7 +148,9 @@ impl Frontend {
             }
             Boot::Splash => {
                 self.replace_scene(host, Box::new(MenuScene));
-                let commands = self.screens.open(SPLASH, Args::default(), true, env);
+                // Like the original (`eIsWidescreen`): the wide package for any window wider than 4:3.
+                let wide = host.renderer.as_ref().is_none_or(|r| r.aspect_ratio() > WIDE_ASPECT);
+                let commands = self.screens.open(if wide { SPLASH_WIDE } else { SPLASH }, Args::default(), true, env);
                 self.apply(commands, host, env);
             }
         }
