@@ -154,7 +154,10 @@ fn print_the_gauge_cluster() {
     if install().is_none() {
         return;
     }
-    let hud = packages_in("GLOBAL/InGameB.bun").into_iter().find(|p| p.name.eq_ignore_ascii_case("HUD_SingleRace.fng")).unwrap();
+    let hud = packages_in("GLOBAL/InGameB.bun")
+        .into_iter()
+        .find(|p| p.name.eq_ignore_ascii_case("HUD_SingleRace.fng"))
+        .unwrap();
     let mut rt = blackbox_feng::Runtime::new();
     let id = rt.load(hud);
     for _ in 0..10 {
