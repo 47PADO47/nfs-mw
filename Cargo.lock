@@ -1078,6 +1078,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "blackbox-vehicle"
+version = "0.1.0"
+dependencies = [
+ "glam 0.34.1",
+]
+
+[[package]]
 name = "blake3"
 version = "1.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2670,6 +2677,7 @@ dependencies = [
  "bevy_time",
  "bevy_window",
  "bevy_winit",
+ "blackbox-collision",
  "blackbox-render",
  "blackbox-scene",
  "blackbox-scenery",
@@ -2693,6 +2701,8 @@ dependencies = [
  "anyhow",
  "blackbox-attrib",
  "blackbox-carparts",
+ "blackbox-chunk",
+ "blackbox-collision",
  "blackbox-hash",
  "blackbox-scenery",
  "blackbox-solid",

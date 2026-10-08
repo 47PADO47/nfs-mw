@@ -26,6 +26,7 @@ blackbox-scenery = { path = "libs/blackbox-scenery" }
 blackbox-solid = { path = "libs/blackbox-solid" }
 blackbox-streaming = { path = "libs/blackbox-streaming" }
 blackbox-tpk = { path = "libs/blackbox-tpk" }
+blackbox-vehicle = { path = "libs/blackbox-vehicle" }
 ea-compress = { path = "libs/ea-compress" }
 game-install = { path = "libs/game-install" }
 # NFS:MW (crates/)
