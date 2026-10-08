@@ -56,10 +56,12 @@ pub enum Action {
     MenuStart,
     /// Menu hot key: quit from the main menu.
     MenuQuit,
+    /// Button: a click, which skips a boot movie and continues from the title screen.
+    Click,
 }
 
 impl Action {
-    pub const ALL: [Action; 28] = [
+    pub const ALL: [Action; 29] = [
         Action::MoveForward,
         Action::MoveRight,
         Action::MoveUp,
@@ -88,6 +90,7 @@ impl Action {
         Action::MenuBack,
         Action::MenuStart,
         Action::MenuQuit,
+        Action::Click,
     ];
 
     /// Actions that still work while the UI has the keyboard.

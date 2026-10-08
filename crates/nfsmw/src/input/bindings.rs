@@ -37,6 +37,7 @@ pub enum Source {
         gate: Gate,
     },
     Scroll,
+    MouseButton(MouseButton),
     PadAxis(GamepadAxis),
     PadButton(GamepadButton),
     /// An analog trigger: 0 released, 1 fully pulled (a pad without analog triggers reports 0 or 1).
@@ -77,6 +78,7 @@ impl Binding {
             }
             Source::MouseMotion { .. } => 0.0,
             Source::Scroll => s.scroll,
+            Source::MouseButton(b) => f32::from(u8::from(s.buttons.contains(&b))),
             Source::PadAxis(a) => deadzone(s.pad_axis(a)),
             Source::PadButton(b) => f32::from(u8::from(s.pad_buttons.contains(&b))),
             Source::PadTrigger(b) => s.pad_triggers.get(&b).copied().unwrap_or_else(|| s.pad_button_value(b)),
@@ -177,6 +179,7 @@ fn menus() -> Vec<Binding> {
         Binding::new(MenuStart, key(KeyCode::KeyP), 1.0),
         Binding::new(MenuStart, button(GamepadButton::Start), 1.0),
         Binding::new(MenuQuit, key(KeyCode::KeyQ), 1.0),
+        Binding::new(Click, Source::MouseButton(MouseButton::Left), 1.0),
     ]
 }
 

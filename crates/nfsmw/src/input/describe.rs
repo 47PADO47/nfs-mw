@@ -4,6 +4,7 @@
 
 use bevy_input::gamepad::{GamepadAxis, GamepadButton};
 use bevy_input::keyboard::KeyCode;
+use bevy_input::mouse::MouseButton;
 
 use super::Action;
 use super::bindings::{Binding, Gate, Source};
@@ -33,7 +34,9 @@ fn section(action: Action) -> Section {
     match action {
         Throttle | Brake | Steer | Handbrake | ShiftUp | ShiftDown | Nos | ResetCar | ToggleCamera => Section::Driving,
         MoveForward | MoveRight | MoveUp | LookX | LookY | OrbitX | OrbitY | Zoom | Boost => Section::FreeCamera,
-        MenuUp | MenuDown | MenuLeft | MenuRight | MenuAccept | MenuBack | MenuStart | MenuQuit => Section::Menus,
+        MenuUp | MenuDown | MenuLeft | MenuRight | MenuAccept | MenuBack | MenuStart | MenuQuit | Click => {
+            Section::Menus
+        }
         Cancel | Console => Section::General,
     }
 }
@@ -70,6 +73,7 @@ fn labels(action: Action) -> (&'static str, &'static str) {
         MenuBack => ("Menu back", ""),
         MenuStart => ("Start (pause, resume)", ""),
         MenuQuit => ("Quit from the main menu", ""),
+        Click => ("Skip a movie, continue at the title screen", ""),
     }
 }
 
@@ -90,6 +94,15 @@ fn key_name(key: KeyCode) -> String {
         }
     }
     name
+}
+
+fn mouse_button_name(button: MouseButton) -> String {
+    match button {
+        MouseButton::Left => "Left click".to_owned(),
+        MouseButton::Right => "Right click".to_owned(),
+        MouseButton::Middle => "Middle click".to_owned(),
+        other => format!("Mouse {other:?}"),
+    }
 }
 
 fn button_name(button: GamepadButton) -> String {
@@ -146,7 +159,7 @@ fn analog_name(source: Source, positive: bool) -> String {
             };
             format!("Mouse {direction} ({when})")
         }
-        Source::Key(_) | Source::PadButton(_) | Source::PadTrigger(_) => String::new(),
+        Source::Key(_) | Source::MouseButton(_) | Source::PadButton(_) | Source::PadTrigger(_) => String::new(),
     }
 }
 
@@ -160,6 +173,7 @@ fn input_for(binding: &Binding, negative: bool) -> Option<String> {
     let pushes_negative = binding.scale < 0.0;
     match binding.source {
         Source::Key(key) => (negative == pushes_negative).then(|| key_name(key)),
+        Source::MouseButton(button) => (negative == pushes_negative).then(|| mouse_button_name(button)),
         Source::PadButton(button) => (negative == pushes_negative).then(|| button_name(button)),
         Source::PadTrigger(button) => (negative == pushes_negative).then(|| button_name(button)),
         analog => {

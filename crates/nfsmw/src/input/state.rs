@@ -181,6 +181,18 @@ mod tests {
     }
 
     #[test]
+    fn a_left_click_is_the_click_action() {
+        let mut state = ActionState::default();
+        let mut snap = Snapshot::default();
+        state.update(&Bindings::default(), &snap, false);
+        assert!(!state.pressed(Action::Click));
+        snap.buttons.insert(bevy_input::mouse::MouseButton::Left);
+        state.update(&Bindings::default(), &snap, false);
+        assert!(state.just_pressed(Action::Click));
+        assert!(!state.pressed(Action::MenuAccept), "a click does not accept in the menus");
+    }
+
+    #[test]
     fn gear_keys_are_single_shots() {
         let mut state = ActionState::default();
         let mut snap = Snapshot::default();
