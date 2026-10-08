@@ -1015,6 +1015,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "blackbox-feng"
+version = "0.1.0"
+dependencies = [
+ "blackbox-chunk",
+ "blackbox-hash",
+ "ea-compress",
+ "glam 0.34.1",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "blackbox-hash"
 version = "0.1.0"
 

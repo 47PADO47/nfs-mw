@@ -1,0 +1,20 @@
+[package]
+name = "blackbox-feng"
+description = "Reader and runtime for the FEng user-interface packages and fonts of EA Black Box games: scripts, messages, a retained UI tree. No rendering."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+blackbox-hash.workspace = true
+ea-compress.workspace = true
+glam.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+blackbox-chunk.workspace = true
+
+[lints]
+workspace = true

@@ -19,12 +19,14 @@ blackbox-attrib = { path = "libs/blackbox-attrib" }
 blackbox-carparts = { path = "libs/blackbox-carparts" }
 blackbox-chunk = { path = "libs/blackbox-chunk" }
 blackbox-collision = { path = "libs/blackbox-collision" }
+blackbox-feng = { path = "libs/blackbox-feng" }
 blackbox-hash = { path = "libs/blackbox-hash" }
 blackbox-render = { path = "libs/blackbox-render" }
 blackbox-scene = { path = "libs/blackbox-scene" }
 blackbox-scenery = { path = "libs/blackbox-scenery" }
 blackbox-solid = { path = "libs/blackbox-solid" }
 blackbox-streaming = { path = "libs/blackbox-streaming" }
+blackbox-text = { path = "libs/blackbox-text" }
 blackbox-tpk = { path = "libs/blackbox-tpk" }
 blackbox-vehicle = { path = "libs/blackbox-vehicle" }
 ea-compress = { path = "libs/ea-compress" }
