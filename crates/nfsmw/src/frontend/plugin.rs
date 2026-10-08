@@ -79,6 +79,7 @@ fn update(
     let console_had_it = console.open || fe.console_was_open;
     fe.console_was_open = console.open;
     host.cancel_handled = !console.open;
+    host.flow_driven = true;
 
     // A script replaces the input and the clock.
     let scripted = fe.script.as_mut().and_then(UiScript::next_mask);

@@ -129,6 +129,7 @@ impl Frontend {
             return;
         };
         self.stage = Stage::Boot(step);
+        log::info!("boot: {step:?}");
         match step {
             Boot::Movie { name, .. } => {
                 let scene = crate::movie::MovieScene::open(&self.dir, name, 0.0);
@@ -152,6 +153,7 @@ impl Frontend {
 
     /// The main menu over the empty backdrop.
     pub(super) fn show_menu(&mut self, host: &mut Host, env: &mut Env) {
+        log::info!("main menu");
         self.latch = true;
         self.paused.set(false);
         self.screens.clear();
@@ -190,6 +192,7 @@ impl Frontend {
 
     /// Opens the pause menu over the frozen game.
     pub(super) fn pause(&mut self, host: &mut Host, env: &mut Env) {
+        log::info!("paused");
         self.latch = true;
         self.paused.set(true);
         self.stage = Stage::Paused;

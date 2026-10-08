@@ -23,6 +23,8 @@ pub struct Host {
     pub frames: u32,
     /// The front end uses Escape (pause, back), so Escape does not release the mouse or quit.
     pub cancel_handled: bool,
+    /// The front end decides when a scene is over (a finished movie is not the end of the program).
+    pub flow_driven: bool,
     /// A screenshot run waits while this is set (a scripted menu is still running).
     pub hold_capture: bool,
 }
@@ -38,6 +40,7 @@ impl Host {
             title_timer: Instant::now(),
             frames: 0,
             cancel_handled: false,
+            flow_driven: false,
             hold_capture: false,
         }
     }
