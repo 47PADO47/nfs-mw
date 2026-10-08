@@ -1,10 +1,10 @@
 //! Console commands that deal with sound.
 
-use super::{Audio, Group};
+use super::{Audio, EngineMix, Group};
 
 /// Whether `name` is one of the commands of this module.
 pub fn handles(name: &str) -> bool {
-    matches!(name, "sound")
+    matches!(name, "sound" | "engine")
 }
 
 /// Run a sound command. `audio` is `None` when the game was started without sound.
@@ -12,6 +12,7 @@ pub fn run(audio: Option<&mut Audio>, name: &str, args: &[&str]) -> Result<Strin
     let audio = audio.ok_or("sound is off (started with --no-sound or taking a screenshot)")?;
     match name {
         "sound" => sound(audio, args),
+        "engine" => engine(audio, args),
         other => Err(format!("unknown sound command {other:?}")),
     }
 }
@@ -34,5 +35,34 @@ fn sound(audio: &mut Audio, args: &[&str]) -> Result<String, String> {
             Ok(format!("playing {bank} #{index} ({seconds:.2} s){status}"))
         }
         _ => Err("usage: sound [bank [index]]".into()),
+    }
+}
+
+/// `engine <car> [percent]` holds a car's engine loops at a fraction of its RPM range; `engine off` stops it.
+fn engine(audio: &mut Audio, args: &[&str]) -> Result<String, String> {
+    match args {
+        ["off"] => Ok(match audio.test_engine.take() {
+            Some((_, sound)) => format!("engine {} stopped", sound.engine.name),
+            None => "no engine is playing".to_owned(),
+        }),
+        [car, rest @ ..] if rest.len() <= 1 => {
+            let percent: f32 = match rest {
+                [p] => p.trim_end_matches('%').parse().map_err(|_| format!("{p:?} is not a percentage"))?,
+                _ => 50.0,
+            };
+            let engine = audio.load_car_engine(car)?;
+            let sound_rpm = 1000.0 + 9000.0 * engine.sound.engine.remap_rpm(percent / 100.0);
+            let mix = EngineMix {
+                frequency: engine.sound.engine.ginsu_frequency(sound_rpm),
+                accel_volume: 1.0,
+                ..EngineMix::default()
+            };
+            let name = engine.sound.engine.name.clone();
+            let handle = audio.start_engine(super::EngineVoice { start: mix, ..engine.voice })?;
+            handle.set(mix);
+            audio.test_engine = Some((handle, engine.sound));
+            Ok(format!("engine {name} at {percent:.0}% of its range ({:.0}); engine off stops it", mix.frequency))
+        }
+        _ => Err("usage: engine <car> [percent] | engine off".into()),
     }
 }

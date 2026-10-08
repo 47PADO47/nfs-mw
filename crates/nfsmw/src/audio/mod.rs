@@ -4,21 +4,26 @@
 //! cache of the sounds read from the install's banks. Without a usable device it still exists and every
 //! call fails with a message, so the game runs silent instead of stopping.
 
+mod car;
 pub mod commands;
 mod engine;
 mod pcm;
 mod plugin;
+mod tuning;
 mod volume;
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use blackbox_attrib::Database;
 use ea_audio::abk::Bank;
 use game_install::GameDir;
 use kira::sound::static_sound::{StaticSoundData, StaticSoundHandle};
 use kira::track::{TrackBuilder, TrackHandle};
 use kira::{AudioManager, AudioManagerSettings, DefaultBackend, Tween};
+use nfsmw_data::sound::{CarSound, EngineLoops, SoundUpgrades};
 
+pub use car::CarSoundState;
 pub use engine::{EngineHandle, EngineMix, EngineVoice};
 pub use plugin::AudioPlugin;
 pub use volume::{Group, Volumes};
@@ -38,6 +43,20 @@ pub struct Audio {
     banks: HashMap<String, Arc<Vec<u8>>>,
     /// Decoded bank sounds by (bank path, index).
     sounds: HashMap<(String, usize), StaticSoundData>,
+    /// The gameplay database, read when a car's sound is first needed.
+    database: Option<Arc<Database>>,
+    /// The engine the `engine` console command plays, with the car it belongs to.
+    pub test_engine: Option<(EngineHandle, CarSound)>,
+    /// The engine of the car being driven.
+    car: Option<car::CarAudio>,
+    /// The car whose sound could not be loaded, so the failure is not repeated every frame.
+    failed: Option<String>,
+}
+
+/// A car's engine voice and the data that maps its RPM to the loops' frequency.
+pub struct CarEngine {
+    pub voice: EngineVoice,
+    pub sound: CarSound,
 }
 
 impl Audio {
@@ -51,7 +70,17 @@ impl Audio {
                 None
             }
         };
-        let mut audio = Self { output, dir, volumes, banks: HashMap::new(), sounds: HashMap::new() };
+        let mut audio = Self {
+            output,
+            dir,
+            volumes,
+            banks: HashMap::new(),
+            sounds: HashMap::new(),
+            database: None,
+            test_engine: None,
+            car: None,
+            failed: None,
+        };
         audio.set_volumes(volumes);
         audio
     }
@@ -122,8 +151,28 @@ impl Audio {
         track.play(data).map_err(|e| e.to_string())
     }
 
+    fn database(&mut self) -> Result<Arc<Database>, String> {
+        if let Some(db) = &self.database {
+            return Ok(db.clone());
+        }
+        let bytes = self.dir.read("GLOBAL/ATTRIBUTES.BIN").map_err(|e| format!("ATTRIBUTES.BIN: {e:#}"))?;
+        let db = Arc::new(Database::open(&bytes).map_err(|e| format!("ATTRIBUTES.BIN: {e}"))?);
+        self.database = Some(db.clone());
+        Ok(db)
+    }
+
+    /// The engine sound of car type `car` (`BMWM3GTR`) at stock levels: its Ginsu loops, decoded.
+    pub fn load_car_engine(&mut self, car: &str) -> Result<CarEngine, String> {
+        let db = self.database()?;
+        let set =
+            nfsmw_data::sound::car_sound(&db, car, SoundUpgrades::default()).map_err(|e| format!("{car}: {e:#}"))?;
+        let loops = EngineLoops::load(&self.dir, &set.engine).map_err(|e| format!("{car}: {e:#}"))?;
+        let accel = loops.accel.ok_or_else(|| format!("{car} has no Ginsu engine loop"))?;
+        let voice = EngineVoice { accel, decel: loops.decel, start: EngineMix::default() };
+        Ok(CarEngine { voice, sound: set })
+    }
+
     /// Start an engine voice; drop the handle to stop it.
-    #[expect(dead_code, reason = "the car sound wiring uses it")]
     pub fn start_engine(&mut self, voice: EngineVoice) -> Result<EngineHandle, String> {
         self.output()?.engine.play(voice).map_err(|e| e.to_string())
     }
