@@ -101,5 +101,7 @@ impl Renderer {
             }
         }
         self.effects.draw(&mut pass);
+        drop(pass);
+        self.effects.draw_soft((&self.device, &self.queue), encoder, (target, depth), &self.shared, frame);
     }
 }

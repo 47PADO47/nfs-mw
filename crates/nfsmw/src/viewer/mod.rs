@@ -60,6 +60,8 @@ pub trait Scene {
     fn set_tire_effects(&mut self, _smoke: bool, _skid_marks: bool) {}
     /// Refresh changed visual-effect buffers without advancing a paused scene.
     fn refresh_effects(&mut self, _renderer: &mut Renderer) {}
+    /// Apply the optional smoke presentation quality. Scenes without tires ignore it.
+    fn set_smoke_quality(&mut self, _quality: crate::settings::SmokeQuality) {}
     /// A picture to show over the window this frame, if any.
     fn fullscreen(&mut self) -> Option<Fullscreen> {
         None

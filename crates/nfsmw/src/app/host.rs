@@ -33,6 +33,7 @@ pub struct Host {
 impl Host {
     pub fn new(mut scene: Box<dyn Scene>, settings: &Settings, screenshot: Option<PathBuf>) -> Self {
         scene.set_tire_effects(settings.tire_smoke, settings.skid_marks);
+        scene.set_smoke_quality(settings.smoke_quality);
         Self {
             scene,
             screenshot,

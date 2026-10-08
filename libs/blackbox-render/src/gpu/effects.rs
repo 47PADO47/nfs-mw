@@ -2,9 +2,11 @@
 
 use super::Renderer;
 use super::resources::{DEPTH_FORMAT, Shared};
+use super::soft_particles::SoftParticles;
 use crate::{EffectLayer, EffectVertex};
 
-const ATTRIBUTES: [wgpu::VertexAttribute; 3] = wgpu::vertex_attr_array![0 => Float32x3, 1 => Unorm8x4, 2 => Float32x2];
+pub(super) const ATTRIBUTES: [wgpu::VertexAttribute; 4] =
+    wgpu::vertex_attr_array![0 => Float32x3, 1 => Unorm8x4, 2 => Float32x2, 3 => Float32x2];
 
 struct Batch {
     buffer: wgpu::Buffer,
@@ -41,6 +43,9 @@ impl Batch {
 pub(super) struct Effects {
     batches: [Batch; 2],
     pipelines: [wgpu::RenderPipeline; 2],
+    soft: SoftParticles,
+    detailed: bool,
+    soft_distance: f32,
 }
 
 impl Effects {
@@ -96,12 +101,18 @@ impl Effects {
                 cache: None,
             })
         });
-        Self { batches: std::array::from_fn(|_| Batch::new(device)), pipelines }
+        Self {
+            batches: std::array::from_fn(|_| Batch::new(device)),
+            pipelines,
+            soft: SoftParticles::new(device, format, shared),
+            detailed: false,
+            soft_distance: 0.3,
+        }
     }
 
     pub(super) fn draw(&self, pass: &mut wgpu::RenderPass<'_>) {
-        for (batch, pipeline) in self.batches.iter().zip(&self.pipelines) {
-            if batch.count == 0 {
+        for (i, (batch, pipeline)) in self.batches.iter().zip(&self.pipelines).enumerate() {
+            if batch.count == 0 || (i == 1 && self.detailed) {
                 continue;
             }
             pass.set_pipeline(pipeline);
@@ -109,11 +120,46 @@ impl Effects {
             pass.draw(0..batch.count, 0..1);
         }
     }
+
+    pub(super) fn draw_soft(
+        &mut self,
+        gpu: (&wgpu::Device, &wgpu::Queue),
+        encoder: &mut wgpu::CommandEncoder,
+        views: (&wgpu::TextureView, &wgpu::TextureView),
+        shared: &Shared,
+        frame: &crate::FrameParams,
+    ) {
+        if !self.detailed || self.batches[1].count == 0 {
+            return;
+        }
+        let (device, queue) = gpu;
+        let (target, depth) = views;
+        self.soft.prepare(device, queue, depth, frame.view_proj.inverse(), self.soft_distance);
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("soft particles"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: target,
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+        self.soft.bind(&mut pass, shared);
+        let batch = &self.batches[1];
+        pass.set_vertex_buffer(0, batch.buffer.slice(..));
+        pass.draw(0..batch.count, 0..1);
+    }
 }
 
 impl Renderer {
     /// Replace the world effects drawn in every following scene/capture, until replaced again.
     pub fn set_effects(&mut self, layer: &EffectLayer) {
+        self.effects.detailed = layer.detailed_particles;
+        self.effects.soft_distance = layer.soft_distance;
         for (batch, vertices) in self.effects.batches.iter_mut().zip([&layer.surfaces, &layer.particles]) {
             batch.upload(&self.device, &self.queue, vertices);
         }

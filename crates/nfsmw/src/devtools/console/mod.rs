@@ -7,6 +7,8 @@ mod exec;
 mod parse;
 mod settings_cmd;
 #[cfg(test)]
+mod smoke_quality_sync_tests;
+#[cfg(test)]
 mod tire_sync_tests;
 mod view;
 
@@ -68,7 +70,7 @@ pub fn build(app: &mut App) {
         Update,
         (
             toggle.in_set(FrameSet::Prepare).before(crate::app::cursor_update),
-            (exec::execute, exec::sync_settings).chain().in_set(FrameSet::Ui).before(super::run_ui),
+            (exec::execute, exec::sync_settings).chain().in_set(FrameSet::Commands),
         ),
     );
 }
