@@ -91,7 +91,8 @@ bevy_winit window ─► PreUpdate: input/ resolves devices into actions (Action
   never a key code. The `Bindings` resource maps keyboard, mouse and gamepad inputs to actions, with a stick
   dead zone and per-second scaling for sticks; rebinding will replace that resource. Default pad layout:
   left stick moves, right stick looks (and orbits), A/B go up/down, stick-click or right bumper boosts,
-  D-pad up/down zooms, Start backs out.
+  D-pad up/down zooms, Start backs out. A key tapped and released within one frame still counts as held for
+  that frame, so switch actions (console, camera) cannot miss a quick tap.
 - **Driving actions:** `Throttle` and `Brake` (0..1, so a pad's analog triggers are real pedals), `Steer` (-1..1),
   `Handbrake`, `ShiftUp`, `ShiftDown`, `Nos`, `ResetCar` and `ToggleCamera`. Keyboard: W/S or Up/Down pedals, A/D
   or Left/Right steer, Space handbrake, Shift/Ctrl change gear, N nitrous, R reset, F camera. Pad: right and
@@ -115,7 +116,9 @@ bevy_winit window ─► PreUpdate: input/ resolves devices into actions (Action
   logger that wraps `env_logger`) above a command line with history (Up/Down) and Tab completion. The
   keyboard belongs to the console while it is open: game actions go quiet and the mouse is released
   (and recaptured on close). Typed lines are parsed into a `Command` (plain data, unit-tested) and run by
-  one system, so the console never touches the renderer itself.
+  one system, so the console never touches the renderer itself. Commands run in their own `FrameSet::Commands`,
+  after `Prepare` and before the front end and the scene update, so a startup `--exec` setting is in place
+  before a screenshot's scripted simulation starts.
   - Built in: `help`, `clear`, `quit`, `get [setting]`, `set <setting> <value>` (`fps`, `vsync`, `metrics`),
     the shorthands `fps 60` / `vsync off` / `metrics advanced`, and `resolution <w> <h>`. Changes last for
     the run; the config file is not written.
