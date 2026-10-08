@@ -41,6 +41,23 @@ Options for both viewers:
 - `--screenshot out.png` renders one frame and exits; add `--wait-for-load` in the world viewer.
 - Esc quits (in the world viewer, the first Esc frees the mouse).
 
+## In-game console
+
+Press **F12** to open the developer console (Esc or F12 closes it). The console shows the log
+(coloured by level) above a command line with history (Up/Down) and Tab completion. While the
+console is open, game input is paused and the mouse is released. Type `help` for a list of commands.
+
+## Settings
+
+The per-user config file lives at:
+
+- **Windows:** `%APPDATA%\nfsmw\config\config.toml`
+- **Linux:** `$XDG_CONFIG_HOME/nfsmw/config.toml` (usually `~/.config/nfsmw/config.toml`)
+
+Run `nfsmw check-install` to see the exact path on your system. The file uses [TOML](https://toml.io)
+and lets you set the game directory, graphics backend, frame-rate cap, and other options without
+passing CLI flags every time.
+
 ## Repository
 
 | Path | Contents |
@@ -50,6 +67,11 @@ Options for both viewers:
 | [`docs/`](docs/README.md) | File formats, prior art, architecture, licensing, behaviour specs |
 | [`tools/`](tools) | Python research tools: `chunkdump.py` dumps the bChunk tree of any data file |
 | [`xtask/`](xtask) | `cargo xtask check` (leak and file-size checks), `install-hooks` |
+
+## Development
+
+See [docs/development.md](docs/development.md) for the full setup guide (required tools,
+first-time setup, CI, reverse-engineering toolchain).
 
 ## Credits and license
 
