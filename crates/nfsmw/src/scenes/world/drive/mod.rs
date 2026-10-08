@@ -341,6 +341,20 @@ impl Drive {
         }
     }
 
+    /// What the in-game HUD shows; `None` while there is no car yet.
+    pub fn hud_state(&self) -> Option<crate::hud::HudState> {
+        self.sim.as_ref()?;
+        let t = &self.telemetry;
+        Some(crate::hud::HudState {
+            speed: t.speed_mps.abs(),
+            rpm: t.rpm,
+            max_rpm: if t.red_line > 0.0 { t.red_line } else { 8000.0 },
+            gear: t.gear,
+            shift_light: t.red_line > 0.0 && t.rpm >= 0.95 * t.red_line,
+            ..Default::default()
+        })
+    }
+
     /// The readout lines.
     pub fn hud(&self) -> String {
         if self.sim.is_none() || self.request.is_some() {

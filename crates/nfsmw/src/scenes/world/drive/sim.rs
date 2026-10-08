@@ -29,6 +29,8 @@ pub struct Telemetry {
     /// Nitrous tank, 0..1.
     pub nos: f32,
     pub wheels_on_ground: usize,
+    /// The engine's red line, rpm: the end of the tachometer scale.
+    pub red_line: f32,
 }
 
 /// Library wheel index of each model wheel.
@@ -147,6 +149,7 @@ impl CarSim {
             gear: v.gear() as i32 - 1,
             nos: v.nos_level(),
             wheels_on_ground: v.wheels_on_ground(),
+            red_line: v.powertrain().engine_spec().red_line,
         }
     }
 }

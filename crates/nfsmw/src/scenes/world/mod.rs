@@ -387,6 +387,10 @@ impl Scene for WorldScene {
         ))
     }
 
+    fn hud_state(&self) -> Option<crate::hud::HudState> {
+        self.drive.as_ref()?.hud_state()
+    }
+
     fn hud(&self) -> Option<String> {
         let drive = self.drive.as_ref()?;
         Some(match self.view {
