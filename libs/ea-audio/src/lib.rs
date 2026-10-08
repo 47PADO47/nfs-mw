@@ -21,9 +21,12 @@
 //!
 //! Format notes and evidence: `docs/specs/audio-containers.md` and `docs/formats/audio.md`.
 
+mod bytes;
 pub mod codec;
 mod error;
+pub mod gin;
 mod pcm;
+pub mod schl;
 mod source;
 
 #[cfg(test)]
@@ -32,3 +35,14 @@ mod tests;
 pub use error::{Error, Result};
 pub use pcm::Pcm;
 pub use source::{ReadAt, read_array, read_vec};
+
+/// Decode a stream or engine-loop file held in memory, picking the container from its magic: `SCHl` or `Gnsu`.
+/// Banks (`ABKC`) hold many sounds; open them with [`abk::Bank`].
+pub fn decode(data: &[u8]) -> Result<Pcm> {
+    match data.get(..4) {
+        Some(b"SCHl") => schl::decode_stream(data),
+        Some(b"Gnsu") | Some(b"Octn") => gin::decode(data),
+        Some(b"ABKC") => Err(Error::Unsupported("a sound bank holds many sounds: use abk::Bank")),
+        _ => Err(Error::BadMagic { expected: "SCHl or Gnsu" }),
+    }
+}
