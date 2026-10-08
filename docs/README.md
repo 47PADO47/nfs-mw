@@ -62,7 +62,8 @@ against the install at `D:/Need For Speed Most Wanted Black Edition`.
 | [formats/attributes.md](formats/attributes.md) | AttribSys `VPAK` packs, vaults, exports, hash, the 57 classes | Layout verified |
 | [formats/cardata.md](formats/cardata.md) | Car types, parts database, slot types, presets, light materials, solid markers, `ecar`, vinyls | Car tables verified; vinyls partial |
 | [formats/animation.md](formats/animation.md) | EAGL4 ELF objects, skeletons, banks, NIS cutscenes | Container verified; codecs open |
-| [formats/audio.md](formats/audio.md) | Sound banks, GIN engine loops, MPF/MUS music, speech, reverb, mix maps | Codecs known; some indexes open |
+| [formats/audio.md](formats/audio.md) | Sound banks, GIN engine loops, MPF/MUS music, speech, reverb | Codecs known; some indexes open |
+| [formats/mixmap.md](formats/mixmap.md) | Dynamic-mixer maps (`MIXMAPS/*.mxb`): states, controls, events, 3D controls, channels, presets | Verified; Rust reader |
 | [formats/video.md](formats/video.md) | EA VP6 container and decoder options | Complete |
 | [formats/frontend.md](formats/frontend.md) | FEng UI packages, compressed packages, fonts | Packages known; font glyphs open |
 | [formats/text.md](formats/text.md) | Language string blocks, labels, subtitles, memory-card locale files | Mostly verified |

@@ -13,7 +13,9 @@ texture swaps, the car shader) and vehicle physics: [vehicle-engine-drivetrain.m
 [vehicle-steering-assists-aero.md](vehicle-steering-assists-aero.md) and
 [vehicle-rigid-body.md](vehicle-rigid-body.md) (and [vehicle-calibration.md](vehicle-calibration.md), the model checked against the running game); car sound: [engine-sound.md](engine-sound.md) (files, telemetry,
 engine mix), [engine-sound-ginsu.md](engine-sound-ginsu.md) (the granular synthesiser) and
-[engine-sound-effects.md](engine-sound-effects.md) (shifting, turbo, nitrous, skids, collisions).
+[engine-sound-effects.md](engine-sound-effects.md) (shifting, turbo, nitrous, skids, collisions); the
+dynamic mixer: [dynamic-mixer.md](dynamic-mixer.md) (evaluating a mixer map) and
+[car-sound-mixer.md](car-sound-mixer.md) (what the car sound publishes and reads).
 
 ## Template
 

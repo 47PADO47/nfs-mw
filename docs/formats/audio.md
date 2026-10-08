@@ -19,7 +19,7 @@ reverb) is only in the [decomp](https://github.com/dbalatoni13/nfsmw). For the t
 | `STREAMS/` | `NISAudio.big` (184,221,440 B), `.idx`, `.evt`, `.csi` | same as `SPEECH/` | Cut-scene (NIS) audio |
 | `EVT_SYS/` | 7 `.csi` (64–348 B) | `MOIR` | Event-system descriptors (`MAIN_AEMS`, `ENGINES_AEMS2`, `ENVIRO_AEMS`, …) |
 | `FXEDIT/` | 15 `.fx` (160–336 B) | `FX` `0B 00` | Reverb presets (`City_Dense`, `Alley`, `Garage`, `Simple_Tunnel`, …) |
-| `MIXMAPS/` | 4 `.mxb` (9,996 B) + 4 `.dyn` (43 KB) | `00 00 00 00 0D 00 00 00 10 00 00 00 FF FF FF FF` | Dynamic-mixer maps |
+| `MIXMAPS/` | 4 `.mxb` (9,996 B) + 4 `.dyn` (43 KB) | `00 00 00 00 0D 00 00 00 10 00 00 00 FF FF FF FF` | Dynamic-mixer maps ([mixmap.md](mixmap.md)) |
 | `NISREVDATA/` | 29 `.bin` | none | Engine-RPM curves for cut-scenes |
 
 Also in bChunk files: `GLOBAL/InGameB.bun` holds 3 × `8003B500 SndStichBundle`, with 720
@@ -213,13 +213,15 @@ points (`BNKl` entry numbers, from 1) **[unconfirmed except where noted]**:
 | `TURBO/TURBO_*.abk` (5) | 1 spool loop, 2 blow-off 1, 3 and 4 blow-offs 2 and 3, 5 another loop (unused) |
 | `NOS/Nitrous_00_MB.abk` (3) | 1 loop (2.4 s), 2 (0.55 s, unused), 3 purge (1.4 s) |
 | `SKIDS/SKID_BIG_MB.abk` (5 loops) | 1 and 2 on asphalt (squeal, burnout), 3 and 4 on loose surfaces; 5 unused |
-| `IG_GLOBAL/ROADNOISE_00_MB.abk` (15) | 1 to 7 are the road loops, numbered by `Aud_Roadnoise_LOOP` **[verified by the count]**; 8 to 15 are transition sounds (unused) |
+| `IG_GLOBAL/ROADNOISE_00_MB.abk` (15) | 1 to 7 are the road loops: sound `Aud_Roadnoise_LOOP + 1` (the loop enum starts at 0, gravel; **[decomp enum + data semantics]**, see below); 8 to 15 are transition sounds (unused) |
 | `IG_GLOBAL/WIND_00_MB.abk` (5) | 1 to 4 wind loops (28,000 Hz), 5 (12,000 Hz); only 1 is played |
 | `IG_GLOBAL/FX_MAIN_MEM_MB.abk` (4) | four 3 to 5 s loops, used for the scrapes: ground, wall, car |
 
 `simsurface` has `Aud_Skid_Type` (0 asphalt, concrete and the like; 1 grass, dirt, sand, gravel, snow, mud, golf) and
-`Aud_Roadnoise_LOOP` (0 none for the loose surfaces, 1 concrete, stone, wood and roof tiles, 2 cobble, 3 water and
-railroad, 5 everything else including asphalt, 6 a blown tire) **[verified]**.
+`Aud_Roadnoise_LOOP` (the decomp's `FXROADNOISE_LOOP`: 0 gravel, for the loose surfaces; 1 sidewalk, for concrete, stone,
+wood and roof tiles; 2 cobblestone; 3 deep water, for water and railroad; 4 wet road; 5 and 6 asphalt, 5 for everything
+else including asphalt and 6 for a blown tire; 7 metal; 8 stitch loop; -1 none) **[verified values; names decomp]**. The
+earlier reading "0 = none" was wrong: 0 is the gravel loop and the loop sound is `value + 1`.
 
 ## Interactive music: `MW_Music.mpf` + `.mus` **[community; checked against the files]**
 
@@ -273,10 +275,9 @@ byte layout is undocumented.
 
 ## `MIXMAPS/`
 
-`MAPOUTPUT{,DRG,2CR,2DR}.mxb` are loaded from hard-coded paths in
-`EAXSound/Dynamic_Mixer/NFSMixMap.cpp` (76 KB of decompiled code) **[decomp]**. The `.dyn` twins share
-the header and contain strings such as `------MapTitle----`. They may be an authoring version and are
-not referenced in the decomp. **[unconfirmed]**
+`MAPOUTPUT{,DRG,2CR,2DR}.mxb` hold the dynamic mixer's maps; the layout is in [mixmap.md](mixmap.md), read by
+`blackbox-mixmap`. The `.dyn` twins share the header and contain strings such as `------MapTitle----`; they look
+like the authoring version and nothing reads them. **[verified]**
 
 ## `NISREVDATA/*.bin` **[decomp + verified]**
 
