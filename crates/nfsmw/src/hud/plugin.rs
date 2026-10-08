@@ -68,6 +68,7 @@ fn sync(host: NonSend<Host>, mut state: ResMut<HudState>) {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn present(
     mut hud: ResMut<Hud>,
     state: Res<HudState>,

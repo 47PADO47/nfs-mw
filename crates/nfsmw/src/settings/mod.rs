@@ -6,10 +6,12 @@
 mod env;
 mod file;
 mod partial;
+mod write;
 
 use blackbox_render::Backend;
 
 pub use partial::{Partial, Percent, parse_bool};
+pub use write::write as write_file;
 
 use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
@@ -47,6 +49,18 @@ impl From<Partial> for Settings {
 }
 
 impl Settings {
+    /// The per-user config file (it may not exist yet).
+    pub fn config_path() -> Option<std::path::PathBuf> {
+        game_install::config_file_path(&nfsmw_data::game::SPEC)
+    }
+
+    /// Writes the settings a layer sets to the config file, keeping its other keys.
+    pub fn save(changes: &Partial) -> anyhow::Result<std::path::PathBuf> {
+        let path = Self::config_path().ok_or_else(|| anyhow::anyhow!("there is no per-user config folder"))?;
+        write_file(&path, changes)?;
+        Ok(path)
+    }
+
     /// Resolve the settings: `cli` over the process environment over the config file over the defaults.
     pub fn load(cli: Partial) -> Self {
         let env = env::read(|name| std::env::var(name).ok());

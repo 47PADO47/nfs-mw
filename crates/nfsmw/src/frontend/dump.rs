@@ -53,13 +53,15 @@ fn tree(p: &Package, index: usize, depth: usize, out: &mut String) {
         let events: Vec<String> =
             s.events.iter().map(|e| format!("{:#x}->{:#x}@{}", e.message, e.target, e.time)).collect();
         let chain = s.chain.map_or(String::new(), |c| format!(" chain {c:#x}"));
+        let tracks: Vec<String> =
+            s.tracks.iter().map(|t| format!("{}:{:?}:{:?}:{}", t.offset, t.param, t.interp, t.keys.len())).collect();
         let _ = writeln!(
             out,
-            "{pad}  script {:#010x} len {} end {}{chain} tracks {} events [{}]",
+            "{pad}  script {:#010x} len {} end {}{chain} tracks [{}] events [{}]",
             s.id,
             s.length,
             s.end_behaviour(),
-            s.tracks.len(),
+            tracks.join(" "),
             events.join(" ")
         );
     }
@@ -77,7 +79,12 @@ fn line(p: &Package, o: &ObjectDef) -> String {
     let pos = o.data.position();
     let size = o.data.size();
     let resource = o.resource.and_then(|r| p.resources.get(r)).map_or(String::new(), |r| format!(" [{}]", r.name));
-    let text = o.string.as_ref().map_or(String::new(), |s| format!(" {:?} label {:#x}", s.text, s.label));
+    let text = o.string.as_ref().map_or(String::new(), |s| {
+        format!(
+            " {:?} label {:#x} just {:#x} lead {} maxw {}",
+            s.text, s.label, s.justification, s.leading, s.max_width
+        )
+    });
     let button = if o.flags & BUTTON != 0 { " BUTTON" } else { "" };
     format!(
         "{:?} guid {:#x} name {:#010x} flags {:#x}{button} pos ({:.0},{:.0},{:.0}) size ({:.0},{:.0}) alpha {}{resource}{text}",

@@ -12,6 +12,29 @@ use super::host::Host;
 use crate::devtools::Console;
 use crate::input::{Action, ActionState, MouseCapture, UiFocus};
 
+/// Escape: close the console; else leave it to the front end if that uses Escape (pause, back); else release the
+/// mouse; else quit.
+fn on_cancel(
+    host: &Host,
+    console: &mut Console,
+    capture: &mut MouseCapture,
+    focus: &mut UiFocus,
+    exit: &mut MessageWriter<AppExit>,
+) {
+    if console.open {
+        console.set_open(false, capture, focus);
+        return;
+    }
+    if host.cancel_handled {
+        return;
+    }
+    if capture.0 {
+        capture.0 = false;
+        return;
+    }
+    exit.write(AppExit::Success);
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn update(
     host: NonSend<Host>,
@@ -30,13 +53,7 @@ pub fn update(
     let (window, mut cursor) = window.into_inner();
     let uses_mouse = host.scene.captures_mouse();
     if actions.just_pressed(Action::Cancel) {
-        if console.open {
-            console.set_open(false, &mut capture, &mut focus);
-        } else if capture.0 {
-            capture.0 = false;
-        } else {
-            exit.write(AppExit::Success);
-        }
+        on_cancel(&host, &mut console, &mut capture, &mut focus, &mut exit);
     } else if uses_mouse && !console.open && mouse.just_pressed(MouseButton::Left) {
         capture.0 = true;
     }
