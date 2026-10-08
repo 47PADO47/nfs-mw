@@ -31,5 +31,6 @@ pub fn aero(c: Fields<'_>) -> AeroSpec {
         drag_coefficient: c.f32("DRAG_COEFFICIENT"),
         aero_coefficient: c.f32("AERO_COEFFICIENT"),
         aero_cg: c.f32("AERO_CG"),
+        ..AeroSpec::default()
     }
 }

@@ -1,7 +1,7 @@
 use super::*;
 
 fn spec() -> AeroSpec {
-    AeroSpec { drag_coefficient: 0.4, aero_coefficient: 0.005, aero_cg: 50.0 }
+    AeroSpec { drag_coefficient: 0.4, aero_coefficient: 0.005, aero_cg: 50.0, ..AeroSpec::default() }
 }
 
 fn input(v: Vec3) -> AeroInput {
@@ -65,4 +65,14 @@ fn tuning_scales_both_forces() {
     let tuned = forces(&spec(), &i, 1.3, -1.3);
     assert!((tuned.drag.z / base.drag.z - 1.25).abs() < 1e-4);
     assert!((tuned.downforce.y / base.downforce.y - 1.25).abs() < 1e-4);
+}
+
+#[test]
+fn an_airborne_car_keeps_only_a_small_share_of_its_downforce() {
+    let mut i = input(Vec3::new(0.0, 0.0, 50.0));
+    let grounded = forces(&spec(), &i, 1.3, -1.3);
+    i.any_wheel_on_ground = false;
+    i.ground_effect = 0.0;
+    let flying = forces(&spec(), &i, 1.3, -1.3);
+    assert!((flying.downforce.y / grounded.downforce.y - DEFAULT_AIRBORNE_SCALE).abs() < 1e-4);
 }

@@ -3,7 +3,7 @@
 use glam::{Mat3, Vec3};
 
 /// Aerodynamic parameters (from the attribute class `chassis`).
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug)]
 pub struct AeroSpec {
     /// Speed-proportional drag coefficient: the drag force is `coefficient * speed * velocity`, so it grows
     /// with the square of the speed. 0 disables drag.
@@ -13,7 +13,20 @@ pub struct AeroSpec {
     pub aero_coefficient: f32,
     /// Where the downforce acts, in percent of the wheelbase from the rear axle toward the front.
     pub aero_cg: f32,
+    /// Share of the downforce that stays while no wheel touches the ground. The original keeps 0.8, which
+    /// at jump speeds pulls the car down several times harder than gravity; a smaller value lets a car
+    /// float over a crest. This is a tuning of this library, not game data.
+    pub airborne_scale: f32,
 }
+
+impl Default for AeroSpec {
+    fn default() -> Self {
+        Self { drag_coefficient: 0.0, aero_coefficient: 0.0, aero_cg: 0.0, airborne_scale: DEFAULT_AIRBORNE_SCALE }
+    }
+}
+
+/// The default [`AeroSpec::airborne_scale`].
+pub const DEFAULT_AIRBORNE_SCALE: f32 = 0.1;
 
 /// Inputs of the aerodynamic forces.
 #[derive(Clone, Copy, Debug)]
@@ -68,7 +81,7 @@ pub fn forces(spec: &AeroSpec, i: &AeroInput, front_z: f32, rear_z: f32) -> Aero
         let forwardness = move_dir.dot(forward).max(0.0).sqrt().max(0.4);
         let mut downforce = upness * forwardness * speed * 2.0 * spec.aero_coefficient * 1000.0;
         if !i.any_wheel_on_ground {
-            downforce *= 0.8;
+            downforce *= spec.airborne_scale;
         }
         downforce *= 1.0 + 0.25 * tuning;
         out.downforce = -up * downforce;

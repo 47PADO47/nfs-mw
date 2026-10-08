@@ -79,7 +79,7 @@ impl VehicleSpec {
                 recharge_min_speed: 20.0,
                 recharge_max_speed: 100.0,
             },
-            aero: AeroSpec { drag_coefficient: 0.35, aero_coefficient: 0.003, aero_cg: 50.0 },
+            aero: AeroSpec { drag_coefficient: 0.35, aero_coefficient: 0.003, aero_cg: 50.0, ..AeroSpec::default() },
         }
     }
 }
