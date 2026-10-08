@@ -1092,6 +1092,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "blackbox-particles"
+version = "0.1.0"
+dependencies = [
+ "glam 0.34.1",
+]
+
+[[package]]
 name = "blackbox-render"
 version = "0.1.0"
 dependencies = [
