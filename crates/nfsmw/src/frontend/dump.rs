@@ -86,8 +86,9 @@ fn line(p: &Package, o: &ObjectDef) -> String {
         )
     });
     let button = if o.flags & BUTTON != 0 { " BUTTON" } else { "" };
+    let extra = extras(o);
     format!(
-        "{:?} guid {:#x} name {:#010x} flags {:#x}{button} pos ({:.0},{:.0},{:.0}) size ({:.0},{:.0}) alpha {}{resource}{text}",
+        "{:?} guid {:#x} name {:#010x} flags {:#x}{button} pos ({:.0},{:.0},{:.0}) size ({:.0},{:.0}) alpha {}{resource}{text}{extra}",
         o.kind,
         o.guid,
         o.name_hash,
@@ -99,6 +100,39 @@ fn line(p: &Package, o: &ObjectDef) -> String {
         size.y,
         o.data.alpha()
     )
+}
+
+/// Details that matter when a host drives an object: a pivot or rotation that is set, the UV rectangle of an
+/// image that is not the whole texture, and the three textures, flags, UV rectangles and mask pivot of a multi image.
+fn extras(o: &ObjectDef) -> String {
+    let mut out = String::new();
+    let pivot = o.data.pivot();
+    if pivot.length_squared() > 0.0 {
+        let _ = write!(out, " pivot ({:.1},{:.1},{:.1})", pivot.x, pivot.y, pivot.z);
+    }
+    let (axis, angle) = o.data.rotation().to_axis_angle();
+    if angle.abs() > 1e-4 {
+        let _ = write!(out, " rot {:.1}deg about ({:.2},{:.2},{:.2})", angle.to_degrees(), axis.x, axis.y, axis.z);
+    }
+    let uv = o.data.uv();
+    if o.kind.is_image() && uv != [0.0, 0.0, 1.0, 1.0] {
+        let _ = write!(out, " uv ({:.4},{:.4})-({:.4},{:.4})", uv[0], uv[1], uv[2], uv[3]);
+    }
+    let Some(m) = o.multi else { return out };
+    let f = |i: usize| o.data.f32_at(i);
+    let _ = write!(out, " multi tex {:x?} flags {:x?}", m.textures, m.flags);
+    for t in 0..3 {
+        let _ = write!(
+            out,
+            " uv{t} ({:.4},{:.4})-({:.4},{:.4})",
+            f(21 + t * 2),
+            f(22 + t * 2),
+            f(27 + t * 2),
+            f(28 + t * 2)
+        );
+    }
+    let _ = write!(out, " pivotrot ({:.3},{:.3},{:.1})", f(33), f(34), f(35));
+    out
 }
 
 /// The language table lines (`hash text`) whose text contains `filter` (any case), or `0xHASH` for one label.
