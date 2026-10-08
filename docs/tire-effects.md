@@ -29,7 +29,8 @@ and their `on` counterparts read or change the same settings. Changes last for t
 puffs and depth-softened car/road/wall intersections immediately. `smoke_quality standard`
 returns to the default. Changing quality clears smoke while retaining marks. The high
 mode adds rendering work and does not simulate particle collisions or volumetric lighting.
-Current main has no graphics settings menu; these existing configuration paths are used.
+Smoke Quality in the main and pause menus' Video options selects Standard or High
+and saves the selection when leaving the settings screen.
 
 ## Lifetime and limits
 

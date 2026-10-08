@@ -60,6 +60,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.skid_marks {
         put("skid_marks", Value::Boolean(v));
     }
+    if let Some(v) = changes.smoke_quality {
+        put("smoke_quality", Value::String(v.to_string()));
+    }
     toml::to_string(&table).context("serializing the config file")
 }
 
@@ -88,7 +91,12 @@ mod tests {
 
     #[test]
     fn tire_toggles_round_trip() {
-        let changes = Partial { tire_smoke: Some(false), skid_marks: Some(true), ..Partial::default() };
+        let changes = Partial {
+            tire_smoke: Some(false),
+            skid_marks: Some(true),
+            smoke_quality: Some(crate::settings::SmokeQuality::High),
+            ..Partial::default()
+        };
         assert_eq!(file::parse(&merge("", &changes).unwrap(), "test"), changes);
     }
 

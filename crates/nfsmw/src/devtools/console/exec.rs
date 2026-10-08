@@ -97,10 +97,10 @@ pub(super) fn set_live(settings: &mut Settings, host: &mut Host, key: &str, valu
     }
     let text = settings_cmd::set(settings, key, value)?;
     if matches!(key, "tire_smoke" | "skid_marks") {
-        host.scene.set_tire_effects(settings.tire_smoke, settings.skid_marks);
+        host.set_tire_effects(settings.tire_smoke, settings.skid_marks);
     }
     if key == "smoke_quality" {
-        host.scene.set_smoke_quality(settings.smoke_quality);
+        host.set_smoke_quality(settings.smoke_quality);
     }
     Ok(text)
 }
@@ -118,7 +118,7 @@ fn help(scene: &[(&str, &str)]) -> String {
 /// Push changed settings into the parts that hold them: the frame limiter and the swapchain.
 pub fn sync_settings(settings: Res<Settings>, mut host: NonSendMut<Host>, mut applied: Local<Option<Settings>>) {
     if applied.as_ref().is_none_or(|before| before.smoke_quality != settings.smoke_quality) {
-        host.scene.set_smoke_quality(settings.smoke_quality);
+        host.set_smoke_quality(settings.smoke_quality);
     }
     if applied
         .as_ref()

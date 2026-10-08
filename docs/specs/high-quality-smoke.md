@@ -21,8 +21,11 @@ with geometry or simulate volumetric smoke.
 
 Engine inputs stay generic: procedural particle detail, per-particle age/seed,
 and a world-unit soft intersection distance. Game quality configuration remains
-in the application layer. Select through existing settings, CLI and F12 console;
-there is no graphics menu in current main to extend.
+in the application layer. Select through settings, CLI and F12 console, and the
+Video options in the main and pause menus now merged into main. The menu saves
+the selection through the existing config writer. A new driving scene inherits
+the current quality; changing it while paused refreshes the visual buffers
+without advancing the frozen vehicle simulation.
 
 Reference for the soft-particle concept only: NVIDIA GPU Gems 3, chapter 23,
 section 23.4, https://developer.nvidia.com/gpugems/gpugems3/part-iv-image-effects/chapter-23-high-speed-screen-particles.

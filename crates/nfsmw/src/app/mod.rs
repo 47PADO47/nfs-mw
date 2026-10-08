@@ -102,7 +102,15 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
     .insert_non_send(Host::new(scene, settings, screenshot))
     .configure_sets(
         Update,
-        (FrameSet::Prepare, FrameSet::Commands, FrameSet::Frontend, FrameSet::SceneUpdate, FrameSet::Ui, FrameSet::Hud, FrameSet::Draw)
+        (
+            FrameSet::Prepare,
+            FrameSet::Commands,
+            FrameSet::Frontend,
+            FrameSet::SceneUpdate,
+            FrameSet::Ui,
+            FrameSet::Hud,
+            FrameSet::Draw,
+        )
             .chain(),
     )
     .add_systems(

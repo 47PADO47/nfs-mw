@@ -134,6 +134,11 @@ impl Scene for Pausable {
         self.effects_dirty = true;
     }
 
+    fn set_smoke_quality(&mut self, quality: crate::settings::SmokeQuality) {
+        self.inner.set_smoke_quality(quality);
+        self.effects_dirty = true;
+    }
+
     fn fullscreen(&mut self) -> Option<Fullscreen> {
         self.inner.fullscreen()
     }
@@ -168,5 +173,48 @@ mod tests {
         assert!(scene.paused());
         assert!(scene.car_sound().is_none(), "the car is silent while paused");
         assert!(!MenuScene.paused(), "the menus are not a game");
+    }
+
+    #[test]
+    fn replacement_driving_scene_inherits_live_effect_settings_through_pause_wrapper() {
+        use crate::app::Host;
+        use crate::settings::{Partial, Settings, SmokeQuality};
+        use std::sync::Mutex;
+
+        #[derive(Default)]
+        struct Seen {
+            tires: [bool; 2],
+            quality: Option<SmokeQuality>,
+        }
+        struct Observed(Arc<Mutex<Seen>>);
+        impl Scene for Observed {
+            fn title(&self) -> String {
+                String::new()
+            }
+            fn init(&mut self, _: &mut Renderer) -> Result<()> {
+                Ok(())
+            }
+            fn update(&mut self, _: &mut Renderer, _: &ActionState, _: f32) {}
+            fn frame(&mut self, _: f32) -> (FrameParams, &[Instance]) {
+                unreachable!()
+            }
+            fn set_tire_effects(&mut self, smoke: bool, marks: bool) {
+                self.0.lock().unwrap().tires = [smoke, marks];
+            }
+            fn set_smoke_quality(&mut self, quality: SmokeQuality) {
+                self.0.lock().unwrap().quality = Some(quality);
+            }
+        }
+        let settings = Settings::from(Partial::default());
+        let mut host = Host::new(Box::new(MenuScene), &settings, None);
+        host.set_tire_effects(false, true);
+        host.set_smoke_quality(SmokeQuality::High);
+        let seen = Arc::new(Mutex::new(Seen::default()));
+        let scene = Pausable::new(Box::new(Observed(seen.clone())), PauseFlag::default());
+        // Preferences must reach the incoming scene before renderer init and screenshot settling.
+        assert!(host.replace_scene(Box::new(scene)).is_err(), "this test has no renderer");
+        let seen = seen.lock().unwrap();
+        assert_eq!(seen.tires, [false, true]);
+        assert_eq!(seen.quality, Some(SmokeQuality::High));
     }
 }

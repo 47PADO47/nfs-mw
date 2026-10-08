@@ -10,3 +10,9 @@ License: MIT OR Apache-2.0.
 and soft alpha billboards. Effects draw after the scene and before UI; they do not write depth.
 The caller owns lifetimes, budgets and particle ordering. Surface overlays have reverse-Z
 polygon bias; both analytic masks are procedural and require no asset textures.
+
+Detailed particles optionally use per-vertex age and seed for evolving procedural density,
+and a world-unit intersection distance to fade against the completed opaque scene depth.
+Their separate pass samples depth without attaching it, handles reverse-Z occlusion and
+uses the capture target's depth during off-screen renders. These remain generic renderer
+inputs; the application chooses presentation quality and emission budgets.

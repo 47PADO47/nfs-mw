@@ -196,3 +196,33 @@ fn the_title_screen_waits_five_seconds_for_a_press() {
     h.wait(0.2);
     assert!(h.said(&Command::NextBootStep), "{:?}", h.commands);
 }
+
+#[test]
+fn main_and_pause_video_options_change_and_save_display_and_tire_settings() {
+    use crate::settings::{SmokeQuality, WindowMode};
+    for (name, pause) in [(screen::OPTIONS, false), (screen::PAUSE_OPTIONS, true)] {
+        let args = Args { pause, category: Category::Video, ..Args::default() };
+        let Some(mut h) = Harness::open(name, args) else { return };
+        h.wait(1.0);
+        for _ in 0..3 {
+            h.press(pad::DOWN);
+        }
+        h.press(pad::RIGHT);
+        assert_eq!(h.settings.window_mode, WindowMode::Borderless);
+        h.press(pad::DOWN);
+        h.press(pad::RIGHT);
+        h.press(pad::DOWN);
+        h.press(pad::RIGHT);
+        assert!(!h.settings.tire_smoke && !h.settings.skid_marks);
+        h.press(pad::DOWN);
+        h.press(pad::RIGHT);
+        assert_eq!(h.settings.smoke_quality, SmokeQuality::High);
+        h.press(pad::BACK);
+        h.wait(1.5);
+        assert!(h.said(&Command::SaveSettings), "{name}: {:?}", h.commands);
+        assert_eq!(h.changed.window_mode, Some(WindowMode::Borderless));
+        assert_eq!(h.changed.tire_smoke, Some(false));
+        assert_eq!(h.changed.skid_marks, Some(false));
+        assert_eq!(h.changed.smoke_quality, Some(SmokeQuality::High));
+    }
+}

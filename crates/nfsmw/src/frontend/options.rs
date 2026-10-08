@@ -7,7 +7,7 @@ use super::ids::{LABEL_OFF, LABEL_ON};
 use super::logic::Category;
 use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
-use crate::settings::{Partial, Percent, Settings, WindowMode};
+use crate::settings::{Partial, Percent, Settings, SmokeQuality, WindowMode};
 
 /// A setting a row edits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -23,6 +23,7 @@ pub enum Setting {
     WindowMode,
     TireSmoke,
     SkidMarks,
+    SmokeQuality,
 }
 
 /// What a row's title shows.
@@ -74,6 +75,7 @@ pub fn rows(category: Category) -> Vec<Row> {
             row(Setting::WindowMode, Title::Text("Window Mode")),
             row(Setting::TireSmoke, Title::Text("Tire Smoke")),
             row(Setting::SkidMarks, Title::Text("Skid Marks")),
+            row(Setting::SmokeQuality, Title::Text("Smoke Quality")),
         ],
         Category::Gameplay => vec![row(Setting::Hud, Title::Label(0xAC14_8579))],
     }
@@ -112,6 +114,13 @@ impl Setting {
             Setting::Hud => on_off(s.hud),
             Setting::TireSmoke => on_off(s.tire_smoke),
             Setting::SkidMarks => on_off(s.skid_marks),
+            Setting::SmokeQuality => Data::Text(
+                match s.smoke_quality {
+                    SmokeQuality::Standard => "Standard",
+                    SmokeQuality::High => "High",
+                }
+                .to_owned(),
+            ),
             Setting::WindowMode => Data::Text(
                 match s.window_mode {
                     WindowMode::Windowed => "Windowed",
@@ -191,6 +200,13 @@ impl Setting {
                 s.window_mode = WINDOW_MODES[cycle(at, WINDOW_MODES.len(), forward)];
                 changed.window_mode = Some(s.window_mode);
             }
+            Setting::SmokeQuality => {
+                s.smoke_quality = match s.smoke_quality {
+                    SmokeQuality::Standard => SmokeQuality::High,
+                    SmokeQuality::High => SmokeQuality::Standard,
+                };
+                changed.smoke_quality = Some(s.smoke_quality);
+            }
         }
         before != *s
     }
@@ -255,7 +271,7 @@ mod tests {
     #[test]
     fn every_category_has_rows() {
         assert_eq!(rows(Category::Audio).len(), 4);
-        assert_eq!(rows(Category::Video).len(), 6);
+        assert_eq!(rows(Category::Video).len(), 7);
         assert_eq!(rows(Category::Gameplay).len(), 1);
     }
 
@@ -281,5 +297,15 @@ mod tests {
         Setting::SkidMarks.step(&mut s, &mut changes, false);
         assert_eq!((s.skid_marks, changes.skid_marks), (false, Some(false)));
         assert_eq!(Setting::TireSmoke.data(&s), Data::Label(LABEL_OFF));
+    }
+
+    #[test]
+    fn smoke_quality_cycles_and_records_only_its_selection() {
+        let (mut s, mut changes) = (defaults(), Partial::default());
+        Setting::SmokeQuality.step(&mut s, &mut changes, true);
+        assert_eq!(Setting::SmokeQuality.data(&s), Data::Text("High".into()));
+        assert_eq!(changes, Partial { smoke_quality: Some(SmokeQuality::High), ..Partial::default() });
+        Setting::SmokeQuality.step(&mut s, &mut changes, false);
+        assert_eq!(Setting::SmokeQuality.data(&s), Data::Text("Standard".into()));
     }
 }
