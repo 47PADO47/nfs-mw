@@ -8,6 +8,8 @@ use crate::tuning::SkidTuning;
 /// Smoothing per tick of the sideways component and of the load (spec: 500 and 3000 of 32767).
 const SIDE_STEP: f32 = 500.0 / 32767.0;
 const LOAD_STEP: f32 = 3000.0 / 32767.0;
+/// How much one component must exceed the other before the loop swaps.
+const SWAP_MARGIN: f32 = 0.1;
 /// The loop stops below this volume.
 const AUDIBLE: f32 = 0.01;
 
@@ -63,7 +65,13 @@ impl SkidFx {
             };
             axle.surface = grounded.iter().map(skid_surface).max().unwrap_or(0);
             let strongest = axle.forward.max(axle.side);
-            axle.sideways = axle.side >= axle.forward;
+            // The squeal and the burnout loop swap only when the other clearly takes over, so a wheel between
+            // them does not restart the loop every frame.
+            axle.sideways = if axle.sideways {
+                axle.side + SWAP_MARGIN >= axle.forward
+            } else {
+                axle.side > axle.forward + SWAP_MARGIN
+            };
             axle.volume = if grounded.is_empty() { 0.0 } else { strongest * (0.3 + 0.7 * load) };
             axle.pitch = 0.9 + 0.2 * strongest;
         }
