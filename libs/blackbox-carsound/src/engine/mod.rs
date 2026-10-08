@@ -123,6 +123,8 @@ pub struct EngineOutput {
     pub eng_rpm: f32,
     pub eng_torque: f32,
     pub physics_rpm: f32,
+    /// `PhysicsTRQ`: the throttle in percent, slewed (what the spark chatter reads as torque).
+    pub physics_torque: f32,
     /// The throttle in percent.
     pub throttle: f32,
     pub accelerating: bool,
@@ -235,6 +237,7 @@ impl EngineCore {
             eng_rpm: self.ctl.rpm,
             eng_torque: self.ctl.torque,
             physics_rpm: self.physics.rpm,
+            physics_torque: self.physics.torque,
             throttle: self.physics.throttle,
             accelerating: self.physics.accelerating,
             redlining: self.ctl.redlining,
