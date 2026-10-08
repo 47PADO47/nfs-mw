@@ -16,6 +16,10 @@ pub(super) const LIST: &[(&str, &str)] = &[
     ("pos", "show where the camera or the car is"),
     ("props [radius]", "list the props with collision near the car or camera (default 30 m)"),
     ("tire-effects [status|clear|smoke on/off|marks on/off]", "tire visual controls and bounded resource counts"),
+    (
+        "exhaust-flames [status|on|off|engine <level>]",
+        "the tail-pipe flames: nitrous and gear-change blow-off; the engine upgrade level",
+    ),
     ("debug collisions [on|off]", "draw the car's contact points: wall hits, tyre rays, props (no argument: toggle)"),
 ];
 
@@ -35,6 +39,7 @@ pub(super) fn run(
         "pos" if args.is_empty() => Ok(pos(scene)),
         "props" => props(scene, args),
         "tire-effects" => tire_effects(scene, renderer, args),
+        "exhaust-flames" => exhaust_flames(scene, args),
         "debug" => debug(scene, renderer, args),
         "reset" | "freecam" | "pos" | "garage" => Err(format!("usage: {name}")),
         _ => return None,
@@ -50,6 +55,11 @@ fn tire_effects(scene: &mut WorldScene, renderer: &mut Renderer, args: &[&str]) 
     scene.upload_effects(renderer);
     let capacity = renderer.effect_capacities();
     Ok(format!("{result}; GPU capacity {} surface / {} particle vertices", capacity[0], capacity[1]))
+}
+
+fn exhaust_flames(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
+    let drive = scene.drive.as_mut().ok_or("not driving (use the drive command)")?;
+    drive.effects.flames.command(args)
 }
 
 fn drive(scene: &mut WorldScene, renderer: &mut Renderer, args: &[&str]) -> Result<String, String> {

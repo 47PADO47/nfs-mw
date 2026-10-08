@@ -25,6 +25,7 @@ blackbox-collision.workspace = true
 blackbox-feng.workspace = true
 blackbox-mixmap.workspace = true
 blackbox-movie.workspace = true
+blackbox-particles.workspace = true
 blackbox-ginsu.workspace = true
 blackbox-render.workspace = true
 blackbox-scene.workspace = true

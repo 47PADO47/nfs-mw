@@ -2865,6 +2865,7 @@ dependencies = [
  "blackbox-ginsu",
  "blackbox-mixmap",
  "blackbox-movie",
+ "blackbox-particles",
  "blackbox-render",
  "blackbox-scene",
  "blackbox-scenery",
