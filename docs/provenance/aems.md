@@ -12,7 +12,8 @@ sweeteners).
   saemstimupdt.c,sndcmn.h}`; `src/Speed/Indep/Src/EAXSound/CARSFX/CARSFX_{Engine,SparkChatter,Shifting}.cpp`,
   `SND_GEN/ENGINES_AEMS2.h`, `UG/NFSUG_CarsSFXLoadData.cpp`. Read for understanding only; no code copied. The PC
   `speed.exe` was disassembled (a local, untracked copy of the user's own install) for the function table of the
-  node numbers: functions 0 to 3, 7, 11, 15, 28 and 31 were read to confirm the numbering and the node layouts;
+  node numbers: functions 0 to 3, 7, 11, 14 to 16, 21, 28, 29, 31 and 35 were read to confirm the numbering, the node
+  layouts and that float results are rounded to nearest (`fistp`) where the GameCube sources truncate;
   nothing from it is in the repository beyond the facts in the specs.
 - **Install probes (no game data copied):** all 301 `.abk` banks were walked: headers, modules, the code of every
   module decoded with a throwaway disassembler (capstone) to find the (small) instruction set, and every module
@@ -27,4 +28,6 @@ sweeteners).
   - The random generator and the sine table of the sound system are not in the sources and are replaced.
   - The update period is the fixed 60 Hz tick instead of the sound system's variable timer.
   - Nodes the install never uses (global variables, function nodes, set-global) are not implemented.
-  - The GameCube build was read; the PC build was confirmed for the numbered functions only.
+  - The GameCube build was read; the PC build was confirmed for the numbered functions only (the float rounding
+    differs from the sources: nearest, not truncated).
+  - A class controller's object is the host's: the interpreter only reports the create, feed and release calls.

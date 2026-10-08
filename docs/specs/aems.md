@@ -55,33 +55,37 @@ code stores it where it is read.
 | 17 | mux | var | count u8 +0; word +4 selects `k` (1 to count), the output is the word at +4 + 4k; else 0 |
 | 18 | demux | 0x14 | count u8 +0, previous select i16 +2, select +4, value +8, outputs from +0xC: clears the previous output, writes `value` to output `select` (1 to count), returns output 1 |
 | 19, 20 | min, max | var | count u8 +0, inputs from +4 |
-| 21 | scale | var | count u8 +0, `1/scale` f32 +4, inputs from +8: product of the inputs (as float) times `1/scale`, truncated |
+| 21 | scale | var | count u8 +0, `1/scale` f32 +4, inputs from +8: product of the inputs (as float) times `1/scale`, rounded |
 | 22 | add | var | count u8 +0, inputs from +4: their sum |
 | 23 to 26 | subtract, multiply, divide, modulo | 8 | `a` +0, `b` +4: `a - b`, `a * b`, `a / b` and `a % b` (0 if `b` is 0) |
 | 27 | player | var | §5 |
-| 28 | oscillator | 0x10 | waveform u8 +0 (0 sine, 1 square, 2 saw, else triangle), phase f32 +4 (0 to 1), period (ms) +8, amplitude +0xC. If `period <= 0` return 0. `phase` first loses whole cycles; output (sine: `sin(2 pi phase) * amplitude`; square: amplitude from phase 0.5, else 0; saw: `phase * amplitude`; triangle: up to 0.5 then down) is truncated; then `phase += T / period` |
-| 29 | ramp | 0x1C | `current` f32 +0, `delta` f32 +4, previous target +8, previous duration +0xC, duration +0x10, scale +0x14, target +0x18. If `target == current` return the target. When the target or duration changed: duration <= 0 jumps to the target, else `delta = (target - current) * T / duration / 4096`. Then `current += delta * scale`, clamped to the target in the direction of travel; returns `current` truncated |
+| 28 | oscillator | 0x10 | waveform u8 +0 (0 sine, 1 square, 2 saw, else triangle), phase f32 +4 (0 to 1), period (ms) +8, amplitude +0xC. If `period <= 0` return 0. `phase` first loses whole cycles; output (sine: `sin(2 pi phase) * amplitude`; square: amplitude from phase 0.5, else 0; saw: `phase * amplitude`; triangle: up to 0.5 then down) is rounded; then `phase += T / period` |
+| 29 | ramp | 0x1C | `current` f32 +0, `delta` f32 +4, previous target +8, previous duration +0xC, duration +0x10, scale +0x14, target +0x18. If `target == current` return the target. When the target or duration changed: duration <= 0 jumps to the target, else `delta = (target - current) * T / duration / 4096`. Then `current += delta * scale`, clamped to the target in the direction of travel; returns `current` rounded |
 | 30 | add, capped | var | count u8 +0, max +4, inputs from +8: `min(sum, max)` |
 | 31 | subtract, floored | 0xC | min +0, `a` +4, `b` +8: `max(a - b, min)` |
 | 32 | multiply, capped | 0xC | max +0, `a` +4, `b` +8: `min(a * b, max)` |
 | 33, 34 | min2, max2 | 8 | of `a` +0 and `b` +4 |
-| 35 | scale2 | 0xC | `1/scale` f32 +0, `a` +4, `b` +8: `trunc(a * b * (1/scale))` in float |
+| 35 | scale2 | 0xC | `1/scale` f32 +0, `a` +4, `b` +8: `round(a * b * (1/scale))` in float |
 | 36 | add2 | 8 | `a + b` |
 | 37 | function | | a Csis function's arguments (not used) |
 | 38 | class controller | var | §6 |
 | 39 | set global variable | | (not used) |
 
-"Truncated" is toward zero (`ftoifast`). The oscillator's sine is the sound system's own table (`iSNDsin`, not in
-the sources): this implementation computes it. The random generator (`iSNDrandom`) is not in the sources either; any uniform generator will do, this one is
-a seeded xorshift so that equal runs give equal sound.
+**Float to integer** **[verified]**: the decompiled sources say "truncate" (`ftoifast`), but the PC functions of
+the scale (21), scale2 (35), envelope (14), table (15), oscillator (28) and delay-line (16) nodes end in a plain
+`fistp`, which rounds to nearest, ties to even (the FPU's default mode). "Rounded" below means that; this
+implementation does the same (`round_ties_even`). Only the table's interpolation index is a floor (the PC
+subtracts 0.5 before `fistp`). The oscillator's sine is the sound system's own table (`iSNDsin`, not in the
+sources): this implementation computes it. The random generator (`iSNDrandom`) is not in the sources either; any
+uniform generator will do, this one is a seeded xorshift so that equal runs give equal sound.
 
 ## 3. Table
 
 `ptable` (+0) points at `{u8 entry size, u8, u16 count, i32 min, i32 max, f32 resolution, entries}` (entries from
 +0x10; sizes 1 and 2 are signed). The node holds `previous input` (+4), `output` (+8) and `input` (+0xC). When
 the input differs from the previous one: `i = clamp(input, min, max) - min`; with resolution 1 the output is
-`entry[i]`; otherwise `x = i * resolution`, `a = trunc(x)`, `b = min(a + 1, count - 1)` and the output is
-`trunc(entry[a] + (x - a) * (entry[b] - entry[a]))`. The output is held while the input does not change.
+`entry[i]`; otherwise `x = i * resolution`, `a = floor(x)`, `b = min(a + 1, count - 1)` and the output is
+`round(entry[a] + (x - a) * (entry[b] - entry[a]))`. The output is held while the input does not change.
 
 ## 4. Envelope
 
@@ -96,7 +100,7 @@ a segment: `remaining = duration`, `delta = (target - output) / duration * T`.
   target, the next segment is programmed, and after the last the output becomes 0; otherwise `output += delta`.
 - otherwise, unless the control is 2, the output is 0.
 
-Then previous = control; the node returns the output truncated.
+Then previous = control; the node returns the output rounded.
 
 ## 5. Player
 
@@ -117,7 +121,8 @@ Each tick, with `c = clamp(playcontrol, 0, 2)`:
 - If `c` is 1 and a sound plays: every input whose value differs from its previous one is applied to the voice
   (pitch, volume, ...) and remembered; if the voice has ended the outputs are cleared and the node returns 0, else
   it returns 1 and, with outputs, the elapsed time and (unless the sound is a sustained loop) the time left.
-- Otherwise it returns `c`.
+- Otherwise (`c` is 0 or 2) it returns `c` if the player holds a sound and 0 if it does not (a stopped or
+  never-started player reports 0, a paused one 2).
 
 A sound that ends by itself leaves the play control at 1; the graph restarts it by taking the control to 0 and
 back to 1. The game side of this (voices, banks) is the host's: a host starts, stops, pauses, resumes and updates

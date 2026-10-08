@@ -1010,6 +1010,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "blackbox-aems"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "blackbox-attrib"
 version = "0.1.0"
 dependencies = [
