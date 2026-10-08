@@ -1,4 +1,4 @@
-//! The car viewer's console commands: `car`, `cars` and `freecam`.
+//! The car viewer's console commands: `car`, `garage` and `freecam`.
 
 use blackbox_render::Renderer;
 
@@ -6,8 +6,8 @@ use super::CarScene;
 use crate::viewer::camera::FlyCamera;
 
 pub(super) const LIST: &[(&str, &str)] = &[
-    ("car <folder>", "show another car (cars lists the folders)"),
-    ("cars", "list the cars in the install"),
+    ("car <folder>", "show another car (garage lists the folders)"),
+    ("garage", "list your cars (for now every car in the install; use car <folder> to show one)"),
     ("freecam", "switch between the orbit and the free camera"),
 ];
 
@@ -21,7 +21,7 @@ pub(super) fn run(
     args: &[&str],
 ) -> Option<Result<String, String>> {
     Some(match (name, args) {
-        ("cars", []) => list(scene),
+        ("garage", []) => list(scene),
         ("car", [folder]) => switch(scene, renderer, folder),
         ("car", _) => Err("usage: car <folder>".into()),
         ("freecam", []) => Ok(toggle_free(scene)),
@@ -38,7 +38,7 @@ fn switch(scene: &mut CarScene, renderer: &mut Renderer, folder: &str) -> Result
     let source = scene.source.as_ref().ok_or("this viewer cannot load other cars")?;
     let cars = nfsmw_data::car::list(&source.dir);
     let found = nfsmw_data::car::pick_folder(&cars, folder)
-        .ok_or_else(|| format!("no car {folder:?}, or several start with it (cars lists them)"))?;
+        .ok_or_else(|| format!("no car {folder:?}, or several start with it (garage lists them)"))?;
     let model = nfsmw_data::car::load(&source.dir, found, &source.options).map_err(|e| format!("{e:#}"))?;
     scene.replace_model(renderer, model);
     Ok(format!("showing {found}"))

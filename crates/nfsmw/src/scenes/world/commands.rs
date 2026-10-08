@@ -10,6 +10,7 @@ pub(super) const LIST: &[(&str, &str)] = &[
     ("reset", "put the car back on the nearest road, facing the same way"),
     ("tp <x> <y>", "put the car on the road nearest to the map position"),
     ("goto <x> <y> [height]", "fly the free camera to a map position"),
+    ("garage", "list your cars (for now every car in the install; use drive <car> to get into one)"),
     ("freecam", "switch between the chase camera and the free camera"),
     ("pos", "show where the camera or the car is"),
 ];
@@ -26,8 +27,9 @@ pub(super) fn run(
         "tp" => tp(scene, args),
         "goto" => goto(scene, args),
         "freecam" if args.is_empty() => Ok(scene.toggle_view().to_owned()),
+        "garage" if args.is_empty() => Ok(nfsmw_data::car::list(&scene.dir).join("  ")),
         "pos" if args.is_empty() => Ok(pos(scene)),
-        "reset" | "freecam" | "pos" => Err(format!("usage: {name}")),
+        "reset" | "freecam" | "pos" | "garage" => Err(format!("usage: {name}")),
         _ => return None,
     })
 }

@@ -82,6 +82,9 @@ pub struct WorldScene {
     physics: Option<PhysicsData>,
 }
 
+/// Leaving the free camera more than this far (metres) from the car brings the car to the camera.
+const FLOWN_AWAY: f32 = 25.0;
+
 const CLEAR: [f32; 3] = [0.55, 0.63, 0.72];
 /// The car `drive` picks when none was named.
 pub const DEFAULT_CAR: &str = "BMWM3GTR";
@@ -189,7 +192,8 @@ impl WorldScene {
                 drive.respawn_near([x, y], None);
             }
             None => {
-                let request = SpawnRequest { near: [self.camera.position.x, self.camera.position.y], heading: None };
+                let request =
+                    SpawnRequest { near: [self.camera.position.x, self.camera.position.y], heading: None, exact: None };
                 self.drive = Some(Drive::new(name.clone(), rig, physics, request, script));
             }
         }
@@ -204,28 +208,37 @@ impl WorldScene {
         if let Some(request) = drive.waiting_for_road()
             && self.residency.complete()
         {
+            let collision = self.residency.collision();
+            let surfaces = &physics.surfaces;
             let estimate = ground::height_near(self.residency.placed(), request.near[0], request.near[1], 150.0);
             let top = estimate.unwrap_or(0.0) + 40.0;
-            let collision = self.residency.collision();
-            match road::find(request.near, |x, y| road::probe(collision, x, y, top)) {
-                Some(spawn) => {
+            let found = match request.exact {
+                Some(spawn) if drive.spawn(spawn, collision, surfaces) => Some(spawn),
+                _ => road::find(request.near, |x, y| road::probe(collision, x, y, top)).filter(|&spawn| {
+                    // `spawn` consumed the request when it failed above; ask again only on success.
+                    drive.spawn(spawn, collision, surfaces)
+                }),
+            };
+            match found {
+                Some(spawn) => log::info!(
+                    "{} on the road at ({:.0}, {:.0}, {:.1}), heading {:.0} degrees",
+                    drive.car_name,
+                    spawn.position.x,
+                    spawn.position.y,
+                    spawn.position.z,
+                    spawn.heading.to_degrees()
+                ),
+                // No road in reach: the last place the car stood on one, if there is any.
+                None if drive.last_good().is_some_and(|good| drive.spawn(good, collision, surfaces)) => {
                     log::info!(
-                        "{} on the road at ({:.0}, {:.0}, {:.1}), heading {:.0} degrees",
-                        drive.car_name,
-                        spawn.position.x,
-                        spawn.position.y,
-                        spawn.position.z,
-                        spawn.heading.to_degrees()
+                        "no road near ({:.0}, {:.0}); the car is back where it last was on a road",
+                        request.near[0],
+                        request.near[1]
                     );
-                    if !drive.spawn(spawn, collision, &physics.surfaces) {
-                        log::warn!("no ground under the spawn point; switching to the free camera");
-                        drive.cancel_request();
-                        self.view = View::Fly;
-                    }
                 }
                 None => {
                     log::warn!(
-                        "no road within 400 m of ({:.0}, {:.0}); switching to the free camera",
+                        "no road within 400 m of ({:.0}, {:.0}) and none to go back to; switching to the free camera",
                         request.near[0],
                         request.near[1]
                     );
@@ -243,7 +256,7 @@ impl WorldScene {
 
     /// Switch between the chase camera and the free camera (the car waits while you fly).
     fn toggle_view(&mut self) -> &'static str {
-        let Some(drive) = self.drive.as_ref() else { return "not driving (use the drive command)" };
+        let Some(drive) = self.drive.as_mut() else { return "not driving (use the drive command)" };
         match self.view {
             View::Chase => {
                 let camera = drive.camera();
@@ -255,6 +268,13 @@ impl WorldScene {
                 "free camera (the car waits); F or `freecam` to go back"
             }
             View::Fly => {
+                // Back in the car: if the camera has been flown away from it, the car joins the
+                // street nearest to where the camera is, facing the way the camera looks.
+                let cam = self.camera.position;
+                let at = drive.position();
+                if (cam.x - at.x).hypot(cam.y - at.y) > FLOWN_AWAY {
+                    drive.respawn_near([cam.x, cam.y], Some(self.camera.yaw));
+                }
                 self.view = View::Chase;
                 "chase camera"
             }

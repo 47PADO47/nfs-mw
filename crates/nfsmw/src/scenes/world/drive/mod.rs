@@ -13,7 +13,7 @@ use blackbox_collision::CollisionWorld;
 use glam::Vec3;
 use nfsmw_data::car::physics::{CarPhysics, SurfaceTable};
 
-use super::road::Spawn;
+use super::road::{self, Spawn};
 use super::space;
 use crate::input::ActionState;
 use crate::viewer::camera::{ChaseCamera, Followed};
@@ -40,7 +40,18 @@ pub struct SpawnRequest {
     pub near: [f32; 2],
     /// Heading in radians from +X to prefer, when the car should keep facing the same way.
     pub heading: Option<f32>,
+    /// Put the car exactly here (a place it was known to be on the road) instead of searching.
+    pub exact: Option<Spawn>,
 }
+
+/// Seconds between the checks that remember the last place the car was on the road.
+const GOOD_SPOT_STEPS: u32 = 30;
+/// A car with no wheel down and nothing within this many metres below it has fallen off the map.
+const FALL_PROBE: f32 = 30.0;
+/// ...for this many physics steps in a row.
+const FALL_STEPS: u32 = 45;
+/// ...or when it is this far under the last road it was on.
+const FALL_BELOW_ROAD: f32 = 80.0;
 
 pub struct Drive {
     pub car_name: String,
@@ -59,6 +70,12 @@ pub struct Drive {
     batch_run: bool,
     /// Physics steps run since the car was last placed, for the once-a-second trace of a scripted run.
     steps: u32,
+    /// The last place the car stood on a road with its wheels down: `reset` and falling off the map
+    /// bring it back here when no road is near.
+    last_good: Option<Spawn>,
+    fall_steps: u32,
+    /// Step count at the last road check.
+    last_check: u32,
 }
 
 impl Drive {
@@ -88,6 +105,9 @@ impl Drive {
             script: script.map(|script| ScriptRun { script, time: 0.0 }),
             batch_run: false,
             steps: 0,
+            last_good: None,
+            fall_steps: 0,
+            last_check: 0,
         }
     }
 
@@ -98,7 +118,20 @@ impl Drive {
 
     /// Ask for the car to be put on the road nearest `near`, keeping `heading` if given.
     pub fn respawn_near(&mut self, near: [f32; 2], heading: Option<f32>) {
-        self.request = Some(SpawnRequest { near, heading });
+        self.request = Some(SpawnRequest { near, heading, exact: None });
+    }
+
+    /// The last place the car was on a road.
+    pub fn last_good(&self) -> Option<Spawn> {
+        self.last_good
+    }
+
+    /// Put the car back where it last stood on a road, if it ever did.
+    pub fn restore_last_good(&mut self) -> bool {
+        let Some(good) = self.last_good else { return false };
+        self.request =
+            Some(SpawnRequest { near: [good.position.x, good.position.y], heading: None, exact: Some(good) });
+        true
     }
 
     /// Give up waiting for a road (none was found).
@@ -109,9 +142,10 @@ impl Drive {
     /// Put the car on `spawn`, standing still. False when `ground` has no road there.
     pub fn spawn(&mut self, spawn: Spawn, collision: &CollisionWorld, surfaces: &SurfaceTable) -> bool {
         let ground = WorldGround { collision, surfaces };
-        let spawn = match self.request.take().and_then(|r| r.heading) {
+        let request = self.request.take();
+        let spawn = match request {
             // Keep facing the way the car did: the road runs both ways.
-            Some(h) if (spawn.heading - h).cos() < 0.0 => {
+            Some(SpawnRequest { heading: Some(h), exact: None, .. }) if (spawn.heading - h).cos() < 0.0 => {
                 Spawn { heading: spawn.heading + std::f32::consts::PI, ..spawn }
             }
             _ => spawn,
@@ -127,6 +161,9 @@ impl Drive {
         self.clock.reset();
         self.chase.snap();
         self.steps = 0;
+        self.fall_steps = 0;
+        self.last_check = 0;
+        self.last_good = Some(spawn);
         true
     }
 
@@ -143,7 +180,7 @@ impl Drive {
         self.car_name = name;
         if self.sim.take().is_some() {
             let at = self.current.position;
-            self.request = Some(SpawnRequest { near: [at.x, at.y], heading: Some(self.heading()) });
+            self.request = Some(SpawnRequest { near: [at.x, at.y], heading: Some(self.heading()), exact: None });
         }
     }
 
@@ -222,10 +259,49 @@ impl Drive {
                 );
             }
         }
-        if !sim.is_finite() {
+        let finite = sim.is_finite();
+        let wheels_down = self.telemetry.wheels_on_ground;
+        let position = self.current.position;
+        // Remember the last road the car stood on, and notice when it has fallen off the map.
+        if wheels_down >= 3 && self.steps.saturating_sub(self.last_check) >= GOOD_SPOT_STEPS {
+            self.last_check = self.steps;
+            if let Some(road::Surface { height, road: true }) =
+                road::probe(collision, position.x, position.y, position.z + 1.5)
+                && (height - position.z).abs() < 1.5
+            {
+                self.last_good =
+                    Some(Spawn { position: Vec3::new(position.x, position.y, height), heading: self.heading() });
+            }
+        }
+        if wheels_down == 0 && steps > 0 {
+            let [px, py, pz] = space::to_physics(position);
+            let nothing_below = collision.ground(px, pz, py, py - FALL_PROBE).is_none();
+            self.fall_steps = if nothing_below { self.fall_steps + steps } else { 0 };
+        } else if wheels_down > 0 {
+            self.fall_steps = 0;
+        }
+        let under_the_road = self.last_good.is_some_and(|g| position.z < g.position.z - FALL_BELOW_ROAD);
+        if self.fall_steps >= FALL_STEPS || under_the_road {
+            log::warn!(
+                "the car fell off the map at ({:.0}, {:.0}, {:.0}); putting it back on the road",
+                position.x,
+                position.y,
+                position.z
+            );
+            if !self.restore_last_good() {
+                self.respawn_near([position.x, position.y], None);
+            }
+            self.fall_steps = 0;
+        }
+        if !finite {
             log::error!("the car's state is not finite; putting it back on the road");
-            self.request =
-                Some(SpawnRequest { near: [self.previous.position.x, self.previous.position.y], heading: None });
+            if !self.restore_last_good() {
+                self.request = Some(SpawnRequest {
+                    near: [self.previous.position.x, self.previous.position.y],
+                    heading: None,
+                    exact: None,
+                });
+            }
         }
     }
 
