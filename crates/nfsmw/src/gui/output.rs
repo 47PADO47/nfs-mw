@@ -35,7 +35,7 @@ fn texture_id(id: egui::TextureId) -> UiTextureId {
     }
 }
 
-pub(super) fn convert(ctx: &egui::Context, full: egui::FullOutput, out: &mut UiOutput) {
+pub(super) fn convert(ctx: &egui::Context, mut full: egui::FullOutput, out: &mut UiOutput) {
     for (id, deltas) in &full.textures_delta.set {
         for delta in deltas {
             let ImageData::Color(image) = &delta.image;
@@ -49,6 +49,8 @@ pub(super) fn convert(ctx: &egui::Context, full: egui::FullOutput, out: &mut UiO
         }
     }
     out.freed.extend(full.textures_delta.free.iter().map(|id| texture_id(*id)));
+    // Handled: epaint asserts (debug builds) that a delta is not dropped with work left in it.
+    full.textures_delta.clear();
 
     let pixels_per_point = full.pixels_per_point;
     let meshes = ctx
