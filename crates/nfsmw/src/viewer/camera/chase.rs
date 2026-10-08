@@ -6,24 +6,30 @@ use glam::{Mat4, Vec3};
 use super::{direction, view_proj};
 
 /// Distance behind the car at rest and at [`FAST`], metres.
-const NEAR: f32 = 5.8;
-const FAR: f32 = 8.8;
+const NEAR: f32 = 5.6;
+const FAR: f32 = 7.0;
 /// Height above the car at rest and at speed, metres.
 const LOW: f32 = 1.9;
-const HIGH: f32 = 2.5;
+const HIGH: f32 = 2.2;
 /// Field of view at rest and at speed, degrees.
 const FOV_SLOW: f32 = 60.0;
-const FOV_FAST: f32 = 78.0;
-/// The speed (m/s) at which the camera is fully backed off and widened (about 250 km/h).
-const FAST: f32 = 70.0;
-/// How quickly the heading and the position catch up, per second.
+const FOV_FAST: f32 = 68.0;
+/// The speed (m/s) at which the camera is fully backed off and widened (about 215 km/h); faster
+/// does not go further.
+const FAST: f32 = 60.0;
+/// How quickly the heading and the offset from the car catch up, per second.
 const TURN_RATE: f32 = 4.0;
-const FOLLOW_RATE: f32 = 14.0;
+const FOLLOW_RATE: f32 = 10.0;
+/// How quickly the camera is pushed in by an obstacle, and how slowly it comes back out, per second.
+const PUSH_IN_RATE: f32 = 9.0;
+const PULL_OUT_RATE: f32 = 1.5;
 /// Where the camera looks: above the car's origin, and ahead of it by this much per m/s.
 const LOOK_HEIGHT: f32 = 1.1;
-const LOOK_AHEAD: f32 = 0.05;
+const LOOK_AHEAD: f32 = 0.04;
 /// Keep this far from walls and the ground.
-const CLEARANCE: f32 = 0.35;
+const CLEARANCE: f32 = 0.4;
+/// The camera never comes closer to the car than this because of an obstacle.
+const MIN_DISTANCE: f32 = 2.8;
 
 pub struct ChaseCamera {
     pub position: Vec3,
@@ -31,6 +37,10 @@ pub struct ChaseCamera {
     /// Heading the camera looks along, radians from +X.
     yaw: f32,
     fov_degrees: f32,
+    /// Where the camera wants to be relative to the car's look point, before obstacles.
+    offset: Vec3,
+    /// How much of that offset an obstacle leaves, 0..1: shrinks fast, recovers slowly.
+    reach: f32,
     placed: bool,
 }
 
@@ -46,7 +56,15 @@ pub struct Followed {
 
 impl Default for ChaseCamera {
     fn default() -> Self {
-        Self { position: Vec3::ZERO, target: Vec3::X, yaw: 0.0, fov_degrees: FOV_SLOW, placed: false }
+        Self {
+            position: Vec3::ZERO,
+            target: Vec3::X,
+            yaw: 0.0,
+            fov_degrees: FOV_SLOW,
+            offset: Vec3::ZERO,
+            reach: 1.0,
+            placed: false,
+        }
     }
 }
 
@@ -74,8 +92,12 @@ impl ChaseCamera {
 
     /// Follow `car` for `dt` seconds. `blocked(from, to)` says how far along the segment (0..1) the
     /// first obstacle is, if any.
+    ///
+    /// The camera keeps a smoothed offset from the car, so it does not lag behind at speed; an
+    /// obstacle between them shortens that offset quickly, but it grows back slowly, so passing a
+    /// post or a rail never makes the camera jump in and out.
     pub fn update(&mut self, car: Followed, dt: f32, blocked: impl Fn(Vec3, Vec3) -> Option<f32>) {
-        let speed01 = (car.speed / FAST).clamp(0.0, 1.0);
+        let speed01 = (car.speed.abs() / FAST).clamp(0.0, 1.0);
         let look = car.position + Vec3::Z * LOOK_HEIGHT;
         if !self.placed {
             self.yaw = car.heading;
@@ -84,23 +106,20 @@ impl ChaseCamera {
         }
         let behind = -direction(self.yaw, 0.0);
         let distance = NEAR + (FAR - NEAR) * speed01;
-        let desired = look + behind * distance + Vec3::Z * (LOW + (HIGH - LOW) * speed01 - LOOK_HEIGHT);
-        self.position = if self.placed { self.position.lerp(desired, approach(FOLLOW_RATE, dt)) } else { desired };
+        let wanted = behind * distance + Vec3::Z * (LOW + (HIGH - LOW) * speed01 - LOOK_HEIGHT);
+        self.offset = if self.placed { self.offset.lerp(wanted, approach(FOLLOW_RATE, dt)) } else { wanted };
+
+        let length = self.offset.length();
+        let allowed = match blocked(look, look + self.offset) {
+            Some(t) if length > 0.0 => ((t * length - CLEARANCE).max(MIN_DISTANCE.min(length)) / length).min(1.0),
+            _ => 1.0,
+        };
+        let rate = if allowed < self.reach { PUSH_IN_RATE } else { PULL_OUT_RATE };
+        self.reach = if self.placed { self.reach + (allowed - self.reach) * approach(rate, dt) } else { allowed };
         self.placed = true;
+        self.position = look + self.offset * self.reach;
 
-        // Pushed in by walls and buildings between the car and the camera, and kept above the road.
-        let length = (self.position - look).length();
-        if let Some(t) = blocked(look, self.position)
-            && length > 0.0
-        {
-            let kept = (t * length - CLEARANCE).max(1.5);
-            self.position = look + (self.position - look) / length * kept;
-        }
-        if let Some(t) = blocked(self.position + Vec3::Z * 2.0, self.position - Vec3::Z * CLEARANCE) {
-            self.position.z = self.position.z + 2.0 - t * (2.0 + CLEARANCE) + CLEARANCE;
-        }
-
-        self.target = look + direction(car.heading, 0.0) * (car.speed * LOOK_AHEAD);
+        self.target = look + direction(car.heading, 0.0) * (car.speed.max(0.0) * LOOK_AHEAD);
         self.fov_degrees = FOV_SLOW + (FOV_FAST - FOV_SLOW) * speed01;
     }
 
@@ -121,6 +140,9 @@ mod tests {
         None
     }
 
+    /// The camera's horizontal distance behind the car at full speed.
+    const FAR_AT_FAST: f32 = FAR;
+
     #[test]
     fn starts_behind_the_car() {
         let mut cam = ChaseCamera::default();
@@ -139,11 +161,11 @@ mod tests {
         cam.update(car(std::f32::consts::FRAC_PI_2, 0.0), 1.0 / 60.0, open);
         assert!(cam.position.y - 50.0 < 1.0);
         for _ in 0..600 {
-            cam.update(car(std::f32::consts::FRAC_PI_2, 70.0), 1.0 / 60.0, open);
+            cam.update(car(std::f32::consts::FRAC_PI_2, 60.0), 1.0 / 60.0, open);
         }
         // Now it is behind the car (at lower y), further back, with a wider view.
-        assert!(cam.position.y < 50.0 - 7.0 && (cam.position.x - 100.0).abs() < 0.5, "{:?}", cam.position);
-        assert!((cam.position - Vec3::new(100.0, 50.0, 10.0)).length() > rest + 2.0);
+        assert!(cam.position.y < 50.0 - 6.5 && (cam.position.x - 100.0).abs() < 0.5, "{:?}", cam.position);
+        assert!((cam.position - Vec3::new(100.0, 50.0, 10.0)).length() > rest + 1.0);
         assert!((cam.fov_degrees() - FOV_FAST).abs() < 1e-3);
     }
 
@@ -164,7 +186,56 @@ mod tests {
         let wall = |from: Vec3, to: Vec3| (from.z > 5.0 && (to - from).length() > 4.0).then_some(0.5);
         cam.update(car(0.0, 0.0), 1.0 / 60.0, wall);
         let d = (cam.position - Vec3::new(100.0, 50.0, 11.1)).length();
-        assert!((1.5..4.0).contains(&d), "{d}");
+        assert!((MIN_DISTANCE - 0.1..4.0).contains(&d), "{d}");
+    }
+
+    #[test]
+    fn speed_stops_widening_the_view_and_backing_off() {
+        let run = |speed: f32| {
+            let mut cam = ChaseCamera::default();
+            for _ in 0..300 {
+                cam.update(car(0.0, speed), 1.0 / 60.0, open);
+            }
+            ((cam.position - Vec3::new(100.0, 50.0, 10.0)).length(), cam.fov_degrees())
+        };
+        let (d_fast, fov_fast) = run(FAST);
+        let (d_faster, fov_faster) = run(FAST * 3.0);
+        assert!((d_fast - d_faster).abs() < 1e-3 && (fov_fast - fov_faster).abs() < 1e-3);
+        assert!(d_fast < 8.5 && fov_fast <= 70.0, "{d_fast} m, {fov_fast} degrees");
+    }
+
+    #[test]
+    fn the_camera_does_not_lag_behind_a_fast_car() {
+        let mut cam = ChaseCamera::default();
+        let mut x = 0.0;
+        for _ in 0..300 {
+            x += 60.0 / 60.0;
+            let c = Followed { position: Vec3::new(x, 0.0, 10.0), heading: 0.0, speed: 60.0 };
+            cam.update(c, 1.0 / 60.0, open);
+        }
+        let gap = x - cam.position.x;
+        assert!((gap - FAR_AT_FAST).abs() < 0.3, "{gap} m behind at full speed");
+    }
+
+    #[test]
+    fn a_passing_post_does_not_make_the_camera_jump() {
+        let mut cam = ChaseCamera::default();
+        for _ in 0..120 {
+            cam.update(car(0.0, 10.0), 1.0 / 60.0, open);
+        }
+        let free = (cam.position - Vec3::new(100.0, 50.0, 10.0)).length();
+        // A post stands in the way for three frames, very near the car.
+        let mut steps = vec![];
+        for frame in 0..180 {
+            let post = (60..63).contains(&frame);
+            cam.update(car(0.0, 10.0), 1.0 / 60.0, |_, _| post.then_some(0.2));
+            steps.push((cam.position - Vec3::new(100.0, 50.0, 10.0)).length());
+        }
+        let jump = steps.windows(2).map(|w| (w[1] - w[0]).abs()).fold(0.0, f32::max);
+        assert!(jump < 0.6, "the camera moved {jump} m in one frame");
+        assert!(steps.iter().all(|&d| d >= MIN_DISTANCE - 1e-3), "never closer than the minimum");
+        // It comes back out gently, not at once.
+        assert!(steps[65] < free && steps[179] > steps[70]);
     }
 
     #[test]
