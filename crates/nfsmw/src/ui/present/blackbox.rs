@@ -108,7 +108,7 @@ impl BlackboxPresenter {
         for &i in &tree.draw_order {
             let node = &tree.nodes[i];
             match &node.kind {
-                NodeKind::Image { texture, uv, mask, mask_rotation } => {
+                NodeKind::Image { texture, uv, mask, mask_rotation, .. } => {
                     let drawn = match mask {
                         Some(mask) => self.masked(node, (*texture, *mask), *mask_rotation, assets, out),
                         None => self.ensure(*texture, assets, out),
