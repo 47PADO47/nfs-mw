@@ -8,7 +8,8 @@ use blackbox_feng::{PackageId, Runtime};
 use game_install::GameDir;
 
 use super::bind::HudBinding;
-use super::state::HudState;
+use super::minimap::MinimapBinding;
+use super::state::{HudState, MapPosition};
 use crate::app::{FrameSet, Host};
 use crate::gui::UiOutput;
 use crate::settings::Settings;
@@ -53,7 +54,8 @@ impl Plugin for HudPlugin {
             runtime.set_string_resolver(move |label| strings.get(label));
         }
         let package = runtime.load(package);
-        let binding = HudBinding::new(&mut runtime, package);
+        let minimap = MinimapBinding::open_city(&runtime, package, &self.dir, &assets);
+        let binding = HudBinding::new(&mut runtime, package).with_minimap(minimap);
         app.insert_resource(Hud { runtime, package, binding })
             .insert_resource(self.initial.clone())
             .add_systems(Update, sync.in_set(FrameSet::SceneUpdate))
@@ -62,10 +64,13 @@ impl Plugin for HudPlugin {
 }
 
 /// Take the state the scene wants shown. A scene without telemetry leaves the idle HUD (`--hud` in a viewer).
-fn sync(host: NonSend<Host>, mut state: ResMut<HudState>) {
+/// The minimap setting decides whether the scene's map position is shown and how the picture is turned.
+fn sync(host: NonSend<Host>, settings: Res<Settings>, mut state: ResMut<HudState>) {
     if let Some(s) = host.scene.hud_state() {
         *state = s;
     }
+    let orientation = settings.minimap.orientation();
+    state.minimap = state.minimap.zip(orientation).map(|(at, orientation)| MapPosition { orientation, ..at });
 }
 
 #[allow(clippy::too_many_arguments)]

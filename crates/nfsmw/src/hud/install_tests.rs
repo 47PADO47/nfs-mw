@@ -4,7 +4,8 @@ use blackbox_feng::{Runtime, fe_hash_upper};
 use game_install::GameDir;
 
 use super::bind::HudBinding;
-use crate::ui::Catalog;
+use super::minimap::MinimapBinding;
+use crate::ui::{Catalog, UiAssets};
 
 #[test]
 #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
@@ -38,4 +39,22 @@ fn the_single_race_hud_has_the_objects_the_binding_drives() {
     }
     // Binding every object works.
     let _ = HudBinding::new(&mut rt, id);
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_minimap_finds_its_objects_and_its_tiles_in_the_install() {
+    let root = std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR");
+    let dir = GameDir::open(std::path::PathBuf::from(root)).unwrap();
+    let catalog = Catalog::load(&dir, &["GLOBAL/InGameB.bun", "GLOBAL/INGAMEC.BUN"]);
+    let package = catalog.find("HUD_SingleRace.fng").expect("HUD_SingleRace.fng").clone();
+    let mut rt = Runtime::new();
+    let id = rt.load(package);
+    let assets = UiAssets::load(&dir).unwrap();
+    assert!(MinimapBinding::open_city(&rt, id, &dir, &assets).is_some());
+    // The textures the pieces' mask and the arrow are drawn with.
+    for name in ["MINIMAP_MASK", "MINIMAP_ICON_CAR", "MINIMAP_BACKING_COLOR", "MINI_MAP_CHOP0", "MINI_MAP_CHOP63"] {
+        assert!(assets.texture(fe_hash_upper(name)).is_some(), "{name} is missing");
+    }
+    assert!(rt.find(id, fe_hash_upper("TRACKMAPTARGETRING")).is_some());
 }
