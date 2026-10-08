@@ -54,6 +54,17 @@ impl SoundFeed {
         let default = SurfaceTable::hash_of("default");
         if impact.impulse > IMPULSE_MIN && self.steps.saturating_sub(self.last_hit) >= HIT_GAP {
             self.last_hit = self.steps;
+            if let Some((at, info)) = impact.deepest {
+                // Where the car hit what, so a wall that should not be there can be found in the data.
+                let p = crate::scenes::world::space::to_render(at.to_array());
+                log::debug!(
+                    "wall hit {:.0} N s at render ({:.1}, {:.1}, {:.1}): {info:?}",
+                    impact.impulse,
+                    p.x,
+                    p.y,
+                    p.z
+                );
+            }
             self.events.push(CarEvent {
                 kind: EventKind::HitWorld,
                 surface: default,

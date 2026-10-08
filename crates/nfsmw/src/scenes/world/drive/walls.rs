@@ -7,7 +7,7 @@
 //! pushed out and reacts through the rigid body's impulse routine with the car's wall friction and
 //! restitution.
 
-use blackbox_collision::{CollisionWorld, RayOptions};
+use blackbox_collision::{BARRIER_TWO_SIDED, CollisionWorld, GROUP_EXCLUSION, HitKind, RayOptions};
 use blackbox_vehicle::Vehicle;
 use blackbox_vehicle::rigid_body::{ContactParams, PlaneContact};
 use glam::{Mat3, Vec3};
@@ -22,6 +22,16 @@ const FLOOR_NORMAL: f32 = 0.7;
 /// Hits deeper than this are ignored (a wall we are already far inside is not one we just hit).
 const MAX_DEPTH: f32 = 1.5;
 
+/// Where a wall contact came from in the collision data, for the log.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HitInfo {
+    pub barrier: bool,
+    /// The `simsurface` hash.
+    pub surface: u32,
+    pub section: u32,
+    pub instance: usize,
+}
+
 /// A probe point sticking into a wall.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct WallContact {
@@ -33,6 +43,8 @@ pub struct WallContact {
     pub depth: f32,
     /// The prop this is, if it is one (its id, and its mass when it is a light one).
     pub prop: Option<(u32, Option<f32>)>,
+    /// The collision data it is, unless it is a prop.
+    pub info: Option<HitInfo>,
 }
 
 /// The probe points on the body's outline at mid-height, in the body frame: the four corners and the
@@ -56,15 +68,32 @@ pub struct Hit {
     pub point: Vec3,
     pub normal: Vec3,
     pub prop: Option<(u32, Option<f32>)>,
+    pub info: Option<HitInfo>,
 }
 
 pub type Cast<'a> = &'a dyn Fn(Vec3, Vec3) -> Option<Hit>;
 
 /// Ray casts against the resident collision packs: faces and barriers.
+///
+/// Scenery-group geometry is left out: the original excludes it for vehicles (the road blocks and gates of
+/// races and pursuits, which are off in free roam), and it is 18 % of all the barriers, many of them
+/// across open road. A barrier is a wall from its front side only unless it is marked two-sided; a ray that
+/// reaches it from behind passes (`docs/formats/collision.md`, "Query semantics" 6).
 pub fn world_cast(collision: &CollisionWorld) -> impl Fn(Vec3, Vec3) -> Option<Hit> + '_ {
+    let options = RayOptions { exclude: u32::from(GROUP_EXCLUSION), ..RayOptions::default() };
     move |from, to| {
-        let hit = collision.ray_cast(from.to_array(), to.to_array(), &RayOptions::default())?;
-        Some(Hit { point: Vec3::from(hit.point), normal: Vec3::from(hit.normal), prop: None })
+        let hit = collision.ray_cast(from.to_array(), to.to_array(), &options)?;
+        let one_sided = hit.kind == HitKind::Barrier && hit.surface_flags & BARRIER_TWO_SIDED == 0;
+        if one_sided && !hit.front_facing {
+            return None;
+        }
+        let info = HitInfo {
+            barrier: hit.kind == HitKind::Barrier,
+            surface: hit.surface_hash,
+            section: hit.section,
+            instance: hit.instance,
+        };
+        Some(Hit { point: Vec3::from(hit.point), normal: Vec3::from(hit.normal), prop: None, info: Some(info) })
     }
 }
 
@@ -89,7 +118,13 @@ pub fn world_props(props: &PropWorld) -> impl Fn(Vec3, Mat3, Vec3) -> Vec<WallCo
                 // Where the car's box touches: its extreme point towards the prop.
                 let reach =
                     (0..3).map(|i| half[i] * [rot.x_axis, rot.y_axis, rot.z_axis][i].dot(normal).abs()).sum::<f32>();
-                WallContact { point: centre - normal * reach, normal, depth: o.depth, prop: Some((o.id, mass)) }
+                WallContact {
+                    point: centre - normal * reach,
+                    normal,
+                    depth: o.depth,
+                    prop: Some((o.id, mass)),
+                    info: None,
+                }
             })
             .collect()
     }
@@ -112,6 +147,7 @@ pub fn find(cast: Cast<'_>, props: PropQuery<'_>, position: Vec3, rot: Mat3, hal
                 normal: hit.normal,
                 depth,
                 prop: hit.prop,
+                info: hit.info,
             })
         })
         .collect();
@@ -131,6 +167,8 @@ pub struct Impact {
     pub rigid: usize,
     /// The deepest contact is on the car's front or back rather than its side.
     pub front: bool,
+    /// Where the deepest contact is (physics space) and what it is.
+    pub deepest: Option<(Vec3, Option<HitInfo>)>,
 }
 
 fn is_light(c: &WallContact) -> bool {
@@ -159,6 +197,7 @@ pub fn resolve(vehicle: &mut Vehicle, cast: Cast<'_>, props: PropQuery<'_>, wall
     let rigid: Vec<&WallContact> = contacts.iter().filter(|c| !is_light(c)).collect();
     let Some(deepest) = rigid.first().map(|c| **c) else { return impact };
     impact.rigid = rigid.len();
+    impact.deepest = Some((deepest.point, deepest.info));
     impact.front = deepest.normal.dot(rot.z_axis).abs() > deepest.normal.dot(rot.x_axis).abs();
     for c in &rigid {
         let n = c.normal;
@@ -198,7 +237,7 @@ mod tests {
         move |from, to| {
             let crosses = from.z < wall_z && to.z >= wall_z;
             let t = (wall_z - from.z) / (to.z - from.z);
-            crosses.then(|| Hit { point: from + (to - from) * t, normal: Vec3::NEG_Z, prop: None })
+            crosses.then(|| Hit { point: from + (to - from) * t, normal: Vec3::NEG_Z, prop: None, info: None })
         }
     }
 
@@ -221,7 +260,8 @@ mod tests {
 
     #[test]
     fn floors_are_not_walls() {
-        let floor = |from: Vec3, to: Vec3| Some(Hit { point: from.lerp(to, 0.5), normal: Vec3::Y, prop: None });
+        let floor =
+            |from: Vec3, to: Vec3| Some(Hit { point: from.lerp(to, 0.5), normal: Vec3::Y, prop: None, info: None });
         assert!(find(&floor, &no_props, Vec3::ZERO, Mat3::IDENTITY, Vec3::ONE).is_empty());
     }
 
@@ -261,6 +301,7 @@ mod tests {
                     normal: Vec3::NEG_Z,
                     depth,
                     prop: Some((7, mass)),
+                    info: None,
                 }]
             } else {
                 vec![]

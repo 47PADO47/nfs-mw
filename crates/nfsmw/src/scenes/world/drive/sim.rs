@@ -62,6 +62,11 @@ impl CarSim {
     /// `rest_height` is the height of each wheel's centre above the car model's origin when the car
     /// stands still, in the model's wheel order (the static wheel placement).
     pub fn new(physics: CarPhysics, rest_height: [f32; 4]) -> Self {
+        log::debug!(
+            "body: half dimensions {:?}, centre {:?} above the model origin",
+            physics.spec.dimension,
+            physics.bounds.pivot
+        );
         Self {
             vehicle: Vehicle::new(physics.spec),
             pivot: physics.bounds.pivot,

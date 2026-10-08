@@ -400,10 +400,11 @@ impl Drive {
 
 /// How far (0..1) along `from`-`to` (render space) the first wall or surface is.
 fn blocked(collision: &CollisionWorld, from: Vec3, to: Vec3) -> Option<f32> {
-    let hit = collision.ray_cast(
-        space::to_physics(from),
-        space::to_physics(to),
-        &blackbox_collision::RayOptions::default(),
-    )?;
+    // Scenery-group geometry (road blocks that are off in free roam) does not stop the camera either.
+    let options = blackbox_collision::RayOptions {
+        exclude: u32::from(blackbox_collision::GROUP_EXCLUSION),
+        ..blackbox_collision::RayOptions::default()
+    };
+    let hit = collision.ray_cast(space::to_physics(from), space::to_physics(to), &options)?;
     Some(hit.t)
 }

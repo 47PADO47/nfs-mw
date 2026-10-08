@@ -131,3 +131,44 @@ fn prop_bounds_sit_where_their_scenery_is() {
     assert!(far * 20 < checked, "{far} of {checked} prop boxes are not where their scenery is");
     assert!(light > 1000 && rigid > 1000);
 }
+
+/// The scenery-group barriers (road blocks that are off in free roam) are 18 % of all barriers: a vehicle's
+/// ray goes through them once the group mask is set, and still stops at the others.
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn group_barriers_are_left_out_of_vehicle_queries() {
+    use blackbox_collision::{CollisionWorld, GROUP_EXCLUSION, HitKind, RayOptions};
+
+    let Some(dir) = install() else { return };
+    let index = nfsmw_data::world::WorldIndex::open(&dir, "L2RA").unwrap();
+    let packs = blackbox_collision::read_collision_packs(&dir.read("TRACKS/STREAML2RA.BUN").unwrap()).unwrap();
+    let mut world = CollisionWorld::new(index.collision_grid.clone());
+    for pack in packs.iter().cloned() {
+        world.insert(pack);
+    }
+    let everything = RayOptions::default();
+    let vehicle = RayOptions { exclude: u32::from(GROUP_EXCLUSION), ..everything };
+    let (mut grouped_hits, mut passed, mut checked) = (0, 0, 0);
+    for pack in &packs {
+        for (i, inst) in pack.instances.iter().enumerate().filter(|(_, inst)| inst.group != 0) {
+            let Some(bar) = pack.article_of(i).and_then(|a| a.barriers.first()) else { continue };
+            // A segment across the middle of the barrier, a metre either side of it.
+            let (a, b) = (inst.to_world(bar.p0), inst.to_world(bar.p1));
+            let mid = [(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0, (a[2] + b[2]) / 2.0];
+            let n = bar.normal();
+            let n = inst.dir_to_world(n);
+            let from = [mid[0] + n[0], mid[1], mid[2] + n[2]];
+            let to = [mid[0] - n[0], mid[1], mid[2] - n[2]];
+            checked += 1;
+            let Some(hit) = world.ray_cast(from, to, &everything) else { continue };
+            if hit.kind != HitKind::Barrier || hit.section != pack.section || hit.instance != i {
+                continue;
+            }
+            grouped_hits += 1;
+            let after = world.ray_cast(from, to, &vehicle);
+            passed += usize::from(after.is_none_or(|h| h.section != pack.section || h.instance != i));
+        }
+    }
+    assert!(checked > 500 && grouped_hits > 300, "{checked} checked, {grouped_hits} hit");
+    assert_eq!(passed, grouped_hits, "every grouped barrier is passable with the vehicle mask");
+}
