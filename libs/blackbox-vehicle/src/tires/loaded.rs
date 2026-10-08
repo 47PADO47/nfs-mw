@@ -89,35 +89,31 @@ impl Tire {
         };
         self.brake_locked = locked;
 
-        // Gripping or sliding, by last step's traction.
-        let (mut fx, mut fy);
-        if self.traction < 1.0 || locked {
-            fx = ground_friction * slip;
-            fy = -ground_friction * lat;
-            if body_mph < 1.0 && dyn_grip > 0.1 {
-                fx /= dyn_grip;
-                fy /= dyn_grip;
-            }
-            if !locked {
-                let limit = total_torque.abs() / r;
-                fx = fx.clamp(-limit, limit);
-            }
+        // Sliding forces: full kinetic friction along the slip direction.
+        let (mut slide_x, mut slide_y) = (ground_friction * slip, -ground_friction * lat);
+        if body_mph < 1.0 && dyn_grip > 0.1 {
+            slide_x /= dyn_grip;
+            slide_y /= dyn_grip;
+        }
+        if !locked {
+            let limit = total_torque.abs() / r;
+            slide_x = slide_x.clamp(-limit, limit);
+        }
+        // Gripping forces: the whole torque goes to the road, the lateral force follows the slip angle.
+        let curve = lateral_force(load, self.slip_angle, p.grip_scale, self.grip_boost);
+        let grip_y = if lat > 0.0 {
+            -curve
+        } else if lat < 0.0 {
+            curve
         } else {
-            fx = total_torque / r;
-            let curve = lateral_force(load, self.slip_angle, p.grip_scale, self.grip_boost);
-            fy = if lat > 0.0 {
-                -curve
-            } else if lat < 0.0 {
-                curve
-            } else {
-                0.0
-            };
-        }
-
-        fy *= self.lateral_boost;
-        if self.traction >= 1.0 && !locked {
-            fx += (self.angular_acc * r - fwd_acc) * WHEEL_INERTIA / r;
-        }
+            0.0
+        };
+        let grip_x = total_torque / r + (self.angular_acc * r - fwd_acc) * WHEEL_INERTIA / r;
+        // The original picks one branch by last step's traction, which makes a tire at its limit flip
+        // between the two every step. Blending by that traction settles on the friction limit instead.
+        let w = if locked { 0.0 } else { self.traction.clamp(0.0, 1.0) };
+        let mut fx = w * grip_x + (1.0 - w) * slide_x;
+        let mut fy = (w * grip_y + (1.0 - w) * slide_y) * self.lateral_boost;
 
         // Friction ellipse: the driven axis is longer while power is applied.
         let stretched = total_torque * fwd > 0.0 && !locked;

@@ -24,6 +24,11 @@ pub mod rigid_body;
 pub mod steering;
 pub mod suspension;
 pub mod tires;
+pub mod vehicle;
 
 /// The fixed simulation step, in seconds.
 pub const FIXED_STEP: f32 = 1.0 / 60.0;
+
+pub use ground::{FlatGround, Ground, GroundHit, NoGround, SurfaceGrip};
+pub use input::{ControlConfig, InputState};
+pub use vehicle::{Tunings, Vehicle, VehicleSpec, WheelState};

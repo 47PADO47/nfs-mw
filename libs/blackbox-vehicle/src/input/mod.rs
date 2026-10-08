@@ -3,7 +3,7 @@
 //! `docs/specs/vehicle-input-induction-brakes.md`.
 
 use crate::drivetrain::GEAR_REVERSE;
-use crate::math::ramp;
+use crate::math::{finite_or, ramp};
 use crate::steering::SteeringDevice;
 
 /// What the player (or an AI) asks for in one step.
@@ -83,7 +83,7 @@ pub struct InputContext {
 }
 
 fn snap(v: f32, dead_zone: f32) -> f32 {
-    let v = v.clamp(0.0, 1.0);
+    let v = finite_or(v, 0.0).clamp(0.0, 1.0);
     if v > 1.0 - dead_zone {
         1.0
     } else if v < dead_zone {
@@ -100,14 +100,15 @@ pub fn shape(input: &InputState, config: &ControlConfig, ctx: &InputContext) -> 
             gas: 0.0,
             brake: 1.0,
             handbrake: 1.0,
-            steering: input.steer.clamp(-1.0, 1.0),
+            steering: finite_or(input.steer, 0.0).clamp(-1.0, 1.0),
             nos: false,
             gear_request: None,
         };
     }
     let mut gas = snap(input.throttle, config.dead_zone);
     let mut brake = snap(input.brake, config.dead_zone);
-    let handbrake = input.handbrake.clamp(0.0, 1.0);
+    let handbrake = finite_or(input.handbrake, 0.0).clamp(0.0, 1.0);
+    let steer = finite_or(input.steer, 0.0).clamp(-1.0, 1.0);
     let raw_gas = gas;
     let raw_brake = brake;
     let v = ctx.forward_speed;
@@ -151,7 +152,7 @@ pub fn shape(input: &InputState, config: &ControlConfig, ctx: &InputContext) -> 
             gear_request = Some(GearRequest::Shift(dir));
         }
     }
-    Controls { gas, brake, handbrake, steering: input.steer.clamp(-1.0, 1.0), nos: input.nos, gear_request }
+    Controls { gas, brake, handbrake, steering: steer, nos: input.nos, gear_request }
 }
 
 #[cfg(test)]
