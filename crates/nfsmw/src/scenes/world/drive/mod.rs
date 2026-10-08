@@ -9,6 +9,7 @@ mod input;
 mod rig;
 mod script;
 mod sim;
+mod sound;
 mod walls;
 
 use blackbox_collision::CollisionWorld;
@@ -27,6 +28,7 @@ pub use input::DriveInput;
 pub use rig::{CarPose, CarRig};
 pub use script::DriveScript;
 use sim::{CarSim, Telemetry};
+use sound::SoundFeed;
 
 /// Physics steps run per scene update while a script drives a screenshot run (which has no frame time).
 const SCRIPT_STEPS_PER_UPDATE: u32 = 6;
@@ -62,8 +64,8 @@ pub struct Drive {
     previous: CarPose,
     current: CarPose,
     telemetry: Telemetry,
-    /// The throttle and brake of the latest physics step, for the engine sound.
-    pedals: (f32, f32),
+    /// What the car sound hears of the drive.
+    sound: SoundFeed,
     chase: ChaseCamera,
     script: Option<ScriptRun>,
     /// A screenshot run drove the script in batches: once it ends the car stays where it stopped.
@@ -101,7 +103,7 @@ impl Drive {
             previous: pose,
             current: pose,
             telemetry: Telemetry::default(),
-            pedals: (0.0, 0.0),
+            sound: SoundFeed::default(),
             chase: ChaseCamera::default(),
             script: script.map(|script| ScriptRun { script, time: 0.0 }),
             batch_run: false,
@@ -241,14 +243,14 @@ impl Drive {
             }
             want_reset |= input.reset;
             let impact = sim.step(&input, &ground, Some((collision, &*props)));
-            for (id, mass) in impact.knocked {
+            for &(id, mass) in &impact.knocked {
                 log::info!("knocked over a {mass:.0} kg prop ({} knocked over now)", props.knocked_count() + 1);
                 props.knock(id);
             }
             self.previous = self.current;
             self.current = sim.pose();
             self.telemetry = sim.telemetry();
-            self.pedals = (input.throttle, input.brake);
+            self.sound.after_step(sim, surfaces, &impact, &input, self.telemetry.speed_mps);
             self.steps += 1;
             if self.script.is_some() && self.steps.is_multiple_of(60) {
                 let (p, t) = (self.current.position, &self.telemetry);
@@ -361,23 +363,10 @@ impl Drive {
         })
     }
 
-    /// What the engine sound needs of the car; `None` while there is no car yet.
-    pub fn car_sound(&self) -> Option<crate::audio::CarSoundState> {
+    /// What the car sound needs of the drive; `None` while there is no car yet.
+    pub fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
         self.sim.as_ref()?;
-        let t = &self.telemetry;
-        let span = t.red_line - t.idle;
-        Some(crate::audio::CarSoundState {
-            car: self.car_name.clone(),
-            input: blackbox_carsound::CarInput {
-                rpm_pct: if span > 0.0 { ((t.rpm - t.idle) / span).clamp(0.0, 1.0) } else { 0.0 },
-                throttle: self.pedals.0,
-                brake: self.pedals.1,
-                // The transmission numbers reverse 0, neutral 1, first 2.
-                gear: t.gear + 1,
-                speed: t.speed_mps.abs(),
-                ..Default::default()
-            },
-        })
+        Some(self.sound.state(&self.car_name, &self.telemetry))
     }
 
     /// The readout lines.

@@ -127,6 +127,10 @@ pub struct Impact {
     pub impulse: f32,
     /// Light props the car ran into, with their masses: the caller knocks them over.
     pub knocked: Vec<(u32, f32)>,
+    /// How many rigid contacts the car has with the world this step (touching, not only hitting).
+    pub rigid: usize,
+    /// The deepest contact is on the car's front or back rather than its side.
+    pub front: bool,
 }
 
 fn is_light(c: &WallContact) -> bool {
@@ -154,6 +158,8 @@ pub fn resolve(vehicle: &mut Vehicle, cast: Cast<'_>, props: PropQuery<'_>, wall
 
     let rigid: Vec<&WallContact> = contacts.iter().filter(|c| !is_light(c)).collect();
     let Some(deepest) = rigid.first().map(|c| **c) else { return impact };
+    impact.rigid = rigid.len();
+    impact.front = deepest.normal.dot(rot.z_axis).abs() > deepest.normal.dot(rot.x_axis).abs();
     for c in &rigid {
         let n = c.normal;
         let e = Vec3::new(n.dot(rot.x_axis), n.dot(rot.y_axis), n.dot(rot.z_axis)) * walls.elasticity;

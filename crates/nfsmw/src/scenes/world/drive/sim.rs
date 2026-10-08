@@ -9,7 +9,7 @@ use blackbox_collision::CollisionWorld;
 use blackbox_vehicle::{FIXED_STEP, Ground, InputState, Vehicle};
 use glam::{Mat3, Quat, Vec3};
 use nfsmw_data::car::WheelPose;
-use nfsmw_data::car::physics::{CarPhysics, WallSpec};
+use nfsmw_data::car::physics::{CarPhysics, SurfaceTable, WallSpec};
 
 use super::input::DriveInput;
 use super::rig::CarPose;
@@ -35,6 +35,8 @@ pub struct Telemetry {
     pub idle: f32,
 }
 
+/// Wheel spin (m/s) the tire sound ignores: the dead zone is a fifth of it.
+const SLIP_TOLERANCE: f32 = 0.5;
 /// Library wheel index of each model wheel.
 const PHYSICS_WHEEL: [usize; 4] = [0, 1, 3, 2];
 /// Suspension travel shown on a wheel is limited to this, metres: a wheel in the air does not fly off.
@@ -113,6 +115,41 @@ impl CarSim {
             *spin += self.vehicle.wheel(physics).angular_velocity * FIXED_STEP;
         }
         impact
+    }
+
+    /// The wheels as the car sound reads them, in the model's wheel order (front left, front right, rear
+    /// right, rear left).
+    pub fn wheel_sounds(&self, surfaces: &SurfaceTable) -> [blackbox_carsound::WheelInput; 4] {
+        let v = &self.vehicle;
+        std::array::from_fn(|i| {
+            let w = v.wheel(PHYSICS_WHEEL[i]);
+            let audio = v.wheel_surface_tag(PHYSICS_WHEEL[i]).map(|tag| surfaces.audio(tag)).unwrap_or_default();
+            // The tire reports how fast the patch slides over the road and how much of that is wheel spin; the
+            // rest is sideways.
+            let sideways = (w.slide_speed * w.slide_speed - w.slip * w.slip).max(0.0).sqrt();
+            blackbox_carsound::WheelInput {
+                on_ground: w.on_ground,
+                slip: w.slip,
+                tolerated_slip: SLIP_TOLERANCE,
+                skid: sideways,
+                load: w.load,
+                compression: w.compression,
+                traction_usage: 1.0 - w.traction,
+                skid_surface: audio.skid_type,
+                road_noise_loop: audio.road_loop,
+                blown: false,
+            }
+        })
+    }
+
+    /// The `simsurface` hash under the front left wheel, for the sounds of a landing.
+    pub fn surface_tag(&self) -> Option<u32> {
+        self.vehicle.wheel_surface_tag(PHYSICS_WHEEL[0])
+    }
+
+    /// The dot product of the car's up vector with the world's.
+    pub fn up_dot(&self) -> f32 {
+        self.vehicle.rotation().y_axis.y
     }
 
     /// Whether the state is usable (no NaN or runaway values).

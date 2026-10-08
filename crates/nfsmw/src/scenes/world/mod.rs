@@ -392,8 +392,8 @@ impl Scene for WorldScene {
         self.drive.as_ref()?.hud_state()
     }
 
-    fn car_sound(&self) -> Option<crate::audio::CarSoundState> {
-        self.drive.as_ref()?.car_sound()
+    fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
+        self.drive.as_mut()?.car_sound()
     }
 
     fn hud(&self) -> Option<String> {
