@@ -1,5 +1,10 @@
 # Window modes
 
+The main-menu and pause-menu Video options include Window Mode. Left/right
+cycles Windowed, Borderless and Exclusive; leaving the settings screen saves
+the selection through the existing per-user config writer. Monitor selection
+and explicit resolutions remain available through config, CLI and the console.
+
 The application supports `windowed` (default), `borderless` (the monitor's desktop size) and
 `exclusive` (a video mode advertised by the selected monitor). This is a new application feature;
 it does not claim to reproduce the original game's window-management code. It uses the existing

@@ -7,7 +7,7 @@ use super::ids::{LABEL_OFF, LABEL_ON};
 use super::logic::Category;
 use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
-use crate::settings::{Partial, Percent, Settings};
+use crate::settings::{Partial, Percent, Settings, WindowMode};
 
 /// A setting a row edits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -20,6 +20,7 @@ pub enum Setting {
     MaxFps,
     Metrics,
     Hud,
+    WindowMode,
 }
 
 /// What a row's title shows.
@@ -68,6 +69,7 @@ pub fn rows(category: Category) -> Vec<Row> {
             row(Setting::Vsync, Title::Label(0x6CEB_9CB6)),
             row(Setting::MaxFps, Title::Text("Frame Limit")),
             row(Setting::Metrics, Title::Text("Performance Overlay")),
+            row(Setting::WindowMode, Title::Text("Window Mode")),
         ],
         Category::Gameplay => vec![row(Setting::Hud, Title::Label(0xAC14_8579))],
     }
@@ -76,6 +78,7 @@ pub fn rows(category: Category) -> Vec<Row> {
 /// Frame limits the row cycles through.
 const FRAME_LIMITS: [&str; 6] = ["unlocked", "30", "60", "120", "144", "240"];
 const METRICS: [ShowMetrics; 3] = [ShowMetrics::Off, ShowMetrics::Basic, ShowMetrics::Advanced];
+const WINDOW_MODES: [WindowMode; 3] = [WindowMode::Windowed, WindowMode::Borderless, WindowMode::Exclusive];
 /// A slider press moves the volume by this many percent.
 const VOLUME_STEP: u8 = 10;
 
@@ -103,6 +106,14 @@ impl Setting {
         match self {
             Setting::Vsync => on_off(s.vsync),
             Setting::Hud => on_off(s.hud),
+            Setting::WindowMode => Data::Text(
+                match s.window_mode {
+                    WindowMode::Windowed => "Windowed",
+                    WindowMode::Borderless => "Borderless",
+                    WindowMode::Exclusive => "Exclusive",
+                }
+                .to_owned(),
+            ),
             Setting::MaxFps => Data::Text(match s.max_fps.to_string().as_str() {
                 "unlocked" => "Unlocked".to_owned(),
                 fps => format!("{fps} FPS"),
@@ -160,6 +171,11 @@ impl Setting {
                 let at = METRICS.iter().position(|m| *m == s.show_metrics).unwrap_or(0);
                 s.show_metrics = METRICS[cycle(at, METRICS.len(), forward)];
                 changed.show_metrics = Some(s.show_metrics);
+            }
+            Setting::WindowMode => {
+                let at = WINDOW_MODES.iter().position(|m| *m == s.window_mode).unwrap_or(0);
+                s.window_mode = WINDOW_MODES[cycle(at, WINDOW_MODES.len(), forward)];
+                changed.window_mode = Some(s.window_mode);
             }
         }
         before != *s
@@ -225,7 +241,20 @@ mod tests {
     #[test]
     fn every_category_has_rows() {
         assert_eq!(rows(Category::Audio).len(), 4);
-        assert_eq!(rows(Category::Video).len(), 3);
+        assert_eq!(rows(Category::Video).len(), 4);
         assert_eq!(rows(Category::Gameplay).len(), 1);
+    }
+
+    #[test]
+    fn video_window_mode_cycles_both_directions_and_records_the_selection() {
+        let (mut s, mut changes) = (defaults(), Partial::default());
+        Setting::WindowMode.step(&mut s, &mut changes, true);
+        assert_eq!((s.window_mode, changes.window_mode), (WindowMode::Borderless, Some(WindowMode::Borderless)));
+        Setting::WindowMode.step(&mut s, &mut changes, true);
+        assert_eq!(Setting::WindowMode.data(&s), Data::Text("Exclusive".into()));
+        Setting::WindowMode.step(&mut s, &mut changes, true);
+        assert_eq!(s.window_mode, WindowMode::Windowed);
+        Setting::WindowMode.step(&mut s, &mut changes, false);
+        assert_eq!(s.window_mode, WindowMode::Exclusive);
     }
 }

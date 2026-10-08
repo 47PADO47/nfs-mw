@@ -133,8 +133,9 @@ fn the_video_rows_change_vsync_and_the_hud_row_the_hud() {
     h.press(pad::DOWN);
     h.press(pad::RIGHT);
     assert_eq!(h.settings.max_fps.to_string(), "30");
-    h.press(pad::DOWN);
-    h.press(pad::DOWN);
+    for _ in 1..super::options::rows(Category::Video).len() {
+        h.press(pad::DOWN);
+    }
     h.press(pad::RIGHT);
     assert!(h.settings.vsync, "the selection wrapped to the first row: vsync is back on");
     let args = Args { category: Category::Gameplay, ..Args::default() };
