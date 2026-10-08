@@ -3,6 +3,7 @@
 mod commands;
 mod drive;
 mod ground;
+mod props;
 mod residency;
 mod resident;
 mod road;
@@ -16,7 +17,7 @@ use game_install::GameDir;
 use glam::Vec3;
 use nfsmw_data::car::CarModel;
 use nfsmw_data::car::physics::{CarPhysics, PhysicsData};
-use nfsmw_data::world::{DEFAULT_TRACK, Streamer, WorldIndex, load_global_textures};
+use nfsmw_data::world::{DEFAULT_TRACK, PropCatalog, Streamer, WorldIndex, load_global_textures};
 
 use crate::input::{Action, ActionState};
 use crate::viewer::{Scene, camera::FlyCamera};
@@ -78,8 +79,8 @@ pub struct WorldScene {
     drive: Option<Drive>,
     /// The car last driven, for `drive` without a name.
     last_car: String,
-    /// Car physics data and road grips, read when the first car is started.
-    physics: Option<PhysicsData>,
+    /// Car physics data, road grips and the gameplay database.
+    physics: PhysicsData,
 }
 
 /// Leaving the free camera more than this far (metres) from the car brings the car to the camera.
@@ -103,6 +104,9 @@ fn load_car(dir: &GameDir, name: &str) -> Result<(String, CarModel)> {
 impl WorldScene {
     pub fn open(dir: &GameDir, options: Options) -> Result<Self> {
         let index = WorldIndex::open(dir, DEFAULT_TRACK)?;
+        let physics = PhysicsData::load(dir)?;
+        let props = PropCatalog::new(index.prop_bounds.clone(), physics.database());
+        log::info!("{} props have collision bounds", props.len());
         let stream = dir.resolve(&index.stream_file).with_context(|| format!("{} is missing", index.stream_file))?;
         let threads = std::thread::available_parallelism().map_or(4, |n| n.get().clamp(2, 6));
         let streamer = Streamer::spawn(stream.to_path_buf(), index.sections.clone(), threads);
@@ -132,6 +136,7 @@ impl WorldScene {
                 streamer,
                 load_global_textures(dir)?,
                 index.collision_grid,
+                props,
             ),
             start,
             start_height: options.height,
@@ -145,7 +150,7 @@ impl WorldScene {
             last_car: pending_car.as_ref().map_or_else(|| DEFAULT_CAR.to_owned(), |c| c.name.clone()),
             pending_car,
             drive: None,
-            physics: None,
+            physics,
         })
     }
 
@@ -166,13 +171,7 @@ impl WorldScene {
     /// The physics of the car `model` was assembled as.
     fn physics_of(&mut self, model: &CarModel) -> Result<CarPhysics> {
         let type_name = model.car_type.as_deref().context("this car is not in the car tables, so it has no physics")?;
-        let data = match self.physics.take() {
-            Some(data) => data,
-            None => PhysicsData::load(&self.dir)?,
-        };
-        let physics = data.car(type_name);
-        self.physics = Some(data);
-        physics
+        self.physics.car(type_name)
     }
 
     /// Start (or restart) driving `model` from the camera's place.
@@ -204,7 +203,7 @@ impl WorldScene {
 
     /// Put a waiting car on the road once the area around it has loaded, then run its physics.
     fn update_drive(&mut self, input: &ActionState, dt: f32) {
-        let (Some(drive), Some(physics)) = (self.drive.as_mut(), self.physics.as_ref()) else { return };
+        let (Some(drive), physics) = (self.drive.as_mut(), &self.physics) else { return };
         if let Some(request) = drive.waiting_for_road()
             && self.residency.complete()
         {
@@ -249,7 +248,9 @@ impl WorldScene {
             }
         }
         if self.view == View::Chase {
-            drive.step(self.residency.collision(), &physics.surfaces, input, dt, self.residency.complete());
+            let loaded = self.residency.complete();
+            let (collision, props) = self.residency.world_parts();
+            drive.step(collision, props, &physics.surfaces, input, dt, loaded);
             drive.follow(self.residency.collision(), dt);
         }
     }
@@ -305,6 +306,7 @@ impl Scene for WorldScene {
         let [x, y] = self.focus();
         self.residency.update(renderer, x, y);
         self.clock += dt;
+        self.residency.world_parts().1.tick(dt);
         self.residency.animate(renderer, self.clock);
         if self.view == View::Fly {
             self.camera.update(input, dt);
@@ -343,7 +345,7 @@ impl Scene for WorldScene {
             fov_y_radians: fov_degrees.to_radians(),
         };
         let rules = &blackbox_scenery::layout::MOST_WANTED.lod;
-        visibility::collect(self.residency.placed(), &camera, rules, &mut self.visible);
+        visibility::collect(self.residency.placed(), &camera, rules, self.residency.props(), &mut self.visible);
         if let Some(drive) = &self.drive {
             drive.instances(&mut self.visible);
         }
@@ -374,9 +376,11 @@ impl Scene for WorldScene {
         };
         let zone = self.residency.zone().unwrap_or_else(|| "-".into());
         Some(format!(
-            "{}zone {zone}, tiles {resident} (+{loading} loading), {} drawn, at ({:.0}, {:.0}, {:.0})",
+            "{}zone {zone}, tiles {resident} (+{loading} loading), {} drawn, {} props ({} knocked over), at ({:.0}, {:.0}, {:.0})",
             if shared { "" } else { "loading shared sets… " },
             self.visible.len(),
+            self.residency.props().len(),
+            self.residency.props().knocked_count(),
             p.x,
             p.y,
             p.z

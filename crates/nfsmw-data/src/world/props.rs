@@ -43,6 +43,8 @@ pub enum PropKind {
 /// The collision of one kind of scenery object.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PropShape {
+    /// The scenery name it was found for.
+    pub name: String,
     pub boxes: Vec<LocalBox>,
     pub kind: PropKind,
 }
@@ -153,7 +155,7 @@ impl PropCatalog {
             } else {
                 PropKind::Rigid
             };
-            Arc::new(PropShape { boxes, kind })
+            Arc::new(PropShape { name: name.to_owned(), boxes, kind })
         });
         let shape = shape.filter(|s| !s.boxes.is_empty());
         self.cache.borrow_mut().insert(name.to_owned(), shape.clone());

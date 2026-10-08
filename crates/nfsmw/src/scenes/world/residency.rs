@@ -6,8 +6,9 @@ use std::collections::{HashMap, HashSet};
 use blackbox_collision::{CollisionWorld, Grid};
 use blackbox_render::Renderer;
 use blackbox_streaming::{StreamingSection, VisibleSections};
-use nfsmw_data::world::{GlobalTextures, SectionData, Streamer, StreamerEvent};
+use nfsmw_data::world::{GlobalTextures, PropCatalog, SectionData, Streamer, StreamerEvent};
 
+use super::props::PropWorld;
 use super::resident::{Placed, SectionResources, place};
 use super::zone::Zones;
 
@@ -50,6 +51,9 @@ pub struct Residency {
     pub unresolved: usize,
     /// The collision of the resident tiles; physics queries run on it (`docs/formats/collision.md`).
     collision: CollisionWorld,
+    /// The props of the resident tiles, and which of them are knocked over.
+    props: PropWorld,
+    catalog: PropCatalog,
 }
 
 impl Residency {
@@ -59,6 +63,7 @@ impl Residency {
         streamer: Streamer,
         globals: GlobalTextures,
         collision_grid: Option<Grid>,
+        catalog: PropCatalog,
     ) -> Self {
         // Every shared set stays loaded: V/X/Y hold models and textures only, Z0 the sky.
         let shared: Vec<usize> = (0..sections.len()).filter(|&i| !sections[i].is_spatial()).collect();
@@ -82,6 +87,8 @@ impl Residency {
             previous: HashSet::new(),
             unresolved: 0,
             collision: CollisionWorld::new(collision_grid),
+            props: PropWorld::default(),
+            catalog,
         }
     }
 
@@ -155,10 +162,11 @@ impl Residency {
             shared.upload_meshes(renderer, data, &empty);
         }
         for data in &pending {
-            let (placed, unresolved) = place(data, &shared, &empty);
+            let (placed, unresolved) = place(data, &shared, &empty, &self.catalog);
             self.shared_placed.extend(placed);
             self.unresolved += unresolved;
         }
+        self.props.add_tile(usize::MAX, &mut self.shared_placed);
         log::info!("shared sets resident: {} models, {} textures", shared.meshes.len(), shared.materials.len());
         self.shared = shared;
         self.shared_ready = true;
@@ -173,7 +181,8 @@ impl Residency {
             let mut resources = SectionResources { anims: data.anims.clone(), ..Default::default() };
             resources.upload_textures(renderer, &data);
             resources.upload_meshes(renderer, &data, &self.shared);
-            let (placed, unresolved) = place(&data, &resources, &self.shared);
+            let (mut placed, unresolved) = place(&data, &resources, &self.shared, &self.catalog);
+            self.props.add_tile(data.index, &mut placed);
             self.unresolved += unresolved;
             let packs = data.collision.iter().map(|p| p.section).collect();
             for pack in data.collision {
@@ -195,6 +204,7 @@ impl Residency {
         for i in unwanted {
             if let Some(TileState::Resident { resources, packs, .. }) = self.tiles.remove(&i) {
                 resources.release(renderer);
+                self.props.remove_tile(i);
                 for section in packs {
                     self.collision.remove(section);
                 }
@@ -247,6 +257,16 @@ impl Residency {
     /// The collision of the tiles that are resident now.
     pub fn collision(&self) -> &CollisionWorld {
         &self.collision
+    }
+
+    /// The props of the resident tiles.
+    pub fn props(&self) -> &PropWorld {
+        &self.props
+    }
+
+    /// Collision and props together, the props mutable (cars knock them over).
+    pub fn world_parts(&mut self) -> (&CollisionWorld, &mut PropWorld) {
+        (&self.collision, &mut self.props)
     }
 
     /// The current zone, e.g. `D14`.

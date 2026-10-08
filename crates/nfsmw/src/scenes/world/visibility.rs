@@ -8,6 +8,7 @@ use blackbox_scenery::LodView;
 use blackbox_scenery::layout::LodRules;
 use glam::Mat4;
 
+use super::props::PropWorld;
 use super::resident::Placed;
 
 /// Screen height the LOD thresholds are tuned for (`docs/specs/scenery-lod.md`).
@@ -24,6 +25,7 @@ pub fn collect<'a>(
     placed: impl Iterator<Item = &'a Placed>,
     camera: &Camera,
     rules: &LodRules,
+    props: &PropWorld,
     out: &mut Vec<Instance>,
 ) {
     let frustum = Frustum::from_view_proj(&camera.view_proj);
@@ -33,7 +35,7 @@ pub fn collect<'a>(
         pixel_scale: LodView::pixel_scale_for(camera.fov_y_radians, REFERENCE_HEIGHT),
     };
     out.clear();
-    out.extend(placed.filter(|p| frustum.intersects(&p.bounds)).filter_map(|p| {
+    out.extend(placed.filter(|p| frustum.intersects(&p.bounds) && !props.hidden(p.prop_id)).filter_map(|p| {
         let slots = p.lods.map(|m| m.is_some());
         let slot = rules.choose(&view, p.position, p.radius, p.flags, slots, p.detailed)?;
         Some(Instance { mesh: p.lods[slot]?, transform: p.transform })

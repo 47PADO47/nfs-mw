@@ -13,6 +13,7 @@ pub(super) const LIST: &[(&str, &str)] = &[
     ("garage", "list your cars (for now every car in the install; use drive <car> to get into one)"),
     ("freecam", "switch between the chase camera and the free camera"),
     ("pos", "show where the camera or the car is"),
+    ("props [radius]", "list the props with collision near the car or camera (default 30 m)"),
 ];
 
 pub(super) fn run(
@@ -29,6 +30,7 @@ pub(super) fn run(
         "freecam" if args.is_empty() => Ok(scene.toggle_view().to_owned()),
         "garage" if args.is_empty() => Ok(nfsmw_data::car::list(&scene.dir).join("  ")),
         "pos" if args.is_empty() => Ok(pos(scene)),
+        "props" => props(scene, args),
         "reset" | "freecam" | "pos" | "garage" => Err(format!("usage: {name}")),
         _ => return None,
     })
@@ -98,4 +100,34 @@ fn pos(scene: &WorldScene) -> String {
     };
     let zone = scene.residency.zone().unwrap_or_else(|| "-".into());
     format!("{what} at ({:.1}, {:.1}, {:.1}), zone {zone}", p.x, p.y, p.z)
+}
+
+fn props(scene: &WorldScene, args: &[&str]) -> Result<String, String> {
+    let radius = match args {
+        [] => 30.0,
+        [r] => r.parse::<f32>().map_err(|_| format!("{r:?} is not a number (usage: props [radius])"))?,
+        _ => return Err("usage: props [radius]".into()),
+    };
+    let [x, y] = scene.focus();
+    let found = scene.residency.props().near(Vec3::new(x, y, 0.0), radius);
+    let mut lines: Vec<String> = found
+        .iter()
+        .take(25)
+        .map(|(name, kind, p, d)| {
+            let kind = match kind {
+                nfsmw_data::world::PropKind::Rigid => "rigid".to_owned(),
+                nfsmw_data::world::PropKind::Light { mass } => format!("light, {mass:.0} kg"),
+            };
+            format!("{name} ({kind}) at ({:.0}, {:.0}, {:.0}), {d:.0} m", p.x, p.y, p.z)
+        })
+        .collect();
+    lines.push(format!(
+        "{} props within {radius:.0} m, {} knocked over in all",
+        found.len(),
+        scene.residency.props().knocked_count()
+    ));
+    Ok(lines.join(
+        "
+",
+    ))
 }

@@ -14,6 +14,7 @@ use blackbox_collision::CollisionWorld;
 use glam::Vec3;
 use nfsmw_data::car::physics::{CarPhysics, SurfaceTable};
 
+use super::props::PropWorld;
 use super::road::{self, Spawn};
 use super::space;
 use crate::input::ActionState;
@@ -207,6 +208,7 @@ impl Drive {
     pub fn step(
         &mut self,
         collision: &CollisionWorld,
+        props: &mut PropWorld,
         surfaces: &SurfaceTable,
         actions: &ActionState,
         dt: f32,
@@ -237,7 +239,11 @@ impl Drive {
             } else if n > 0 {
                 input = input.held();
             }
-            sim.step(&input, &ground, Some(collision));
+            let impact = sim.step(&input, &ground, Some((collision, &*props)));
+            for (id, mass) in impact.knocked {
+                log::info!("knocked over a {mass:.0} kg prop ({} knocked over now)", props.knocked_count() + 1);
+                props.knock(id);
+            }
             self.previous = self.current;
             self.current = sim.pose();
             self.telemetry = sim.telemetry();

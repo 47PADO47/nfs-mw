@@ -13,7 +13,8 @@ use nfsmw_data::car::physics::{CarPhysics, WallSpec};
 
 use super::input::DriveInput;
 use super::rig::CarPose;
-use super::walls;
+use super::walls::{self, Impact};
+use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::space;
 
@@ -79,7 +80,12 @@ impl CarSim {
 
     /// One physics step. `world` is the collision the body's walls are tested against (the ground is
     /// `ground`); without it the car only meets the road.
-    pub fn step(&mut self, input: &DriveInput, ground: &dyn Ground, world: Option<&CollisionWorld>) {
+    pub fn step(
+        &mut self,
+        input: &DriveInput,
+        ground: &dyn Ground,
+        world: Option<(&CollisionWorld, &PropWorld)>,
+    ) -> Impact {
         let input = InputState {
             throttle: input.throttle,
             brake: input.brake,
@@ -90,12 +96,19 @@ impl CarSim {
             shift_down: input.shift_down,
         };
         self.vehicle.step(FIXED_STEP, &input, ground);
-        if let Some(world) = world {
-            walls::resolve(&mut self.vehicle, &walls::world_cast(world), &self.walls);
-        }
+        let impact = match world {
+            Some((collision, props)) => walls::resolve(
+                &mut self.vehicle,
+                &walls::world_cast(collision),
+                &walls::world_props(props),
+                &self.walls,
+            ),
+            None => Impact::default(),
+        };
         for (spin, &physics) in self.spin.iter_mut().zip(&PHYSICS_WHEEL) {
             *spin += self.vehicle.wheel(physics).angular_velocity * FIXED_STEP;
         }
+        impact
     }
 
     /// Whether the state is usable (no NaN or runaway values).
@@ -158,7 +171,7 @@ mod tests {
 
     fn drive(sim: &mut CarSim, ground: &dyn Ground, input: DriveInput, seconds: f32) {
         for _ in 0..(seconds * 60.0) as usize {
-            sim.step(&input, ground, None);
+            let _ = sim.step(&input, ground, None);
         }
     }
 
