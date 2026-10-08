@@ -212,24 +212,33 @@ impl Frontend {
         for command in commands {
             match command {
                 Command::StartFreeRoam => self.start_free_roam(host),
-                Command::Resume => self.resume(),
-                Command::QuitToMenu => self.show_menu(host, env),
-                Command::QuitGame => self.quit = true,
+                Command::Resume => {
+                    self.save_settings(env.changed);
+                    self.resume();
+                }
+                Command::QuitToMenu => {
+                    self.save_settings(env.changed);
+                    self.show_menu(host, env);
+                }
+                Command::QuitGame => {
+                    self.save_settings(env.changed);
+                    self.quit = true;
+                }
                 Command::NextBootStep => self.next_boot(host, env),
-                Command::SaveSettings => self.save_settings(),
+                Command::SaveSettings => self.save_settings(env.changed),
                 Command::Switch(..) | Command::Push(..) | Command::Pop => {}
             }
         }
     }
 
-    fn save_settings(&mut self) {
-        if !self.save || self.changed == Partial::default() {
+    fn save_settings(&self, changed: &mut Partial) {
+        if !self.save || *changed == Partial::default() {
             return;
         }
-        match Settings::save(&self.changed) {
+        match Settings::save(changed) {
             Ok(path) => {
                 log::info!("settings saved to {}", path.display());
-                self.changed = Partial::default();
+                *changed = Partial::default();
             }
             Err(e) => log::warn!("the settings could not be saved: {e:#}"),
         }
