@@ -5,6 +5,38 @@ use blackbox_render::Backend;
 use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
 
+/// A volume setting in percent, 0 to 100.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Percent(pub u8);
+
+impl Percent {
+    /// As a linear amplitude, 0 to 1.
+    pub fn amplitude(self) -> f32 {
+        f32::from(self.0) / 100.0
+    }
+}
+
+impl std::str::FromStr for Percent {
+    type Err = String;
+
+    /// `70`, `70%` or `0.7`.
+    fn from_str(s: &str) -> Result<Self, String> {
+        let text = s.trim().trim_end_matches('%');
+        let value: f32 = text.parse().map_err(|_| format!("expected a volume from 0 to 100, got {s:?}"))?;
+        let percent = if text.contains('.') && value <= 1.0 { value * 100.0 } else { value };
+        if !(0.0..=100.0).contains(&percent) {
+            return Err(format!("a volume is 0 to 100, got {s:?}"));
+        }
+        Ok(Percent(percent.round() as u8))
+    }
+}
+
+impl std::fmt::Display for Percent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// The settings one source (command line, environment, config file) sets. Unset fields fall
 /// through to the next layer.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -13,6 +45,10 @@ pub struct Partial {
     pub vsync: Option<bool>,
     pub max_fps: Option<MaxFps>,
     pub show_metrics: Option<ShowMetrics>,
+    pub master_volume: Option<Percent>,
+    pub music_volume: Option<Percent>,
+    pub sfx_volume: Option<Percent>,
+    pub engine_volume: Option<Percent>,
 }
 
 impl Partial {
@@ -23,6 +59,10 @@ impl Partial {
             vsync: self.vsync.or(lower.vsync),
             max_fps: self.max_fps.or(lower.max_fps),
             show_metrics: self.show_metrics.or(lower.show_metrics),
+            master_volume: self.master_volume.or(lower.master_volume),
+            music_volume: self.music_volume.or(lower.music_volume),
+            sfx_volume: self.sfx_volume.or(lower.sfx_volume),
+            engine_volume: self.engine_volume.or(lower.engine_volume),
         }
     }
 }
@@ -48,6 +88,16 @@ mod tests {
         assert_eq!(merged.backend, Some(Backend::Gl));
         assert_eq!(merged.vsync, Some(false));
         assert_eq!(merged.max_fps, None);
+    }
+
+    #[test]
+    fn volumes_read_percent_or_fraction() {
+        assert_eq!("70".parse(), Ok(Percent(70)));
+        assert_eq!("70%".parse(), Ok(Percent(70)));
+        assert_eq!("0.5".parse(), Ok(Percent(50)));
+        assert_eq!("1".parse(), Ok(Percent(1)));
+        assert!("101".parse::<Percent>().is_err());
+        assert!("loud".parse::<Percent>().is_err());
     }
 
     #[test]

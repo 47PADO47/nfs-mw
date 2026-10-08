@@ -8,7 +8,7 @@ use std::str::FromStr;
 
 use toml::{Table, Value};
 
-use super::partial::Partial;
+use super::partial::{Partial, Percent};
 use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
 
@@ -41,12 +41,25 @@ pub fn parse(text: &str, origin: &str) -> Partial {
             other => MaxFps::from_str(text_of(other)?),
         }),
         show_metrics: field(&table, origin, "show_metrics", |v| ShowMetrics::from_str(text_of(v)?)),
+        master_volume: field(&table, origin, "master_volume", percent),
+        music_volume: field(&table, origin, "music_volume", percent),
+        sfx_volume: field(&table, origin, "sfx_volume", percent),
+        engine_volume: field(&table, origin, "engine_volume", percent),
     }
 }
 
 /// Read `key` through `convert`; a value of the wrong kind is reported and ignored.
 fn field<T>(table: &Table, origin: &str, key: &str, convert: impl Fn(&Value) -> Result<T, String>) -> Option<T> {
     convert(table.get(key)?).map_err(|e| log::warn!("{origin}: ignoring `{key}`: {e}")).ok()
+}
+
+/// A volume written as a number (`70`, `0.7`) or a string (`"70%"`).
+fn percent(v: &Value) -> Result<Percent, String> {
+    match v {
+        Value::Integer(n) => Percent::from_str(&n.to_string()),
+        Value::Float(f) => Percent::from_str(&format!("{f:?}")),
+        other => Percent::from_str(text_of(other)?),
+    }
 }
 
 fn text_of(v: &Value) -> Result<&str, String> {
@@ -66,6 +79,16 @@ mod tests {
         assert_eq!(p.vsync, Some(false));
         assert_eq!(p.max_fps, Some(MaxFps::from_str("144").unwrap()));
         assert_eq!(parse("max_fps = 'unlocked'", "test").max_fps, Some(MaxFps::default()));
+    }
+
+    #[test]
+    fn reads_volumes_as_numbers_or_text() {
+        let p = parse("master_volume = 70\nmusic_volume = 0.25\nsfx_volume = '40%'\nengine_volume = 300\n", "test");
+        assert_eq!(
+            (p.master_volume, p.music_volume, p.sfx_volume),
+            (Some(Percent(70)), Some(Percent(25)), Some(Percent(40)))
+        );
+        assert_eq!(p.engine_volume, None);
     }
 
     #[test]

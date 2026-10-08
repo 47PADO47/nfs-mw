@@ -9,7 +9,7 @@ mod partial;
 
 use blackbox_render::Backend;
 
-pub use partial::{Partial, parse_bool};
+pub use partial::{Partial, Percent, parse_bool};
 
 use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
@@ -21,6 +21,10 @@ pub struct Settings {
     pub vsync: bool,
     pub max_fps: MaxFps,
     pub show_metrics: ShowMetrics,
+    pub master_volume: Percent,
+    pub music_volume: Percent,
+    pub sfx_volume: Percent,
+    pub engine_volume: Percent,
 }
 
 impl From<Partial> for Settings {
@@ -31,6 +35,10 @@ impl From<Partial> for Settings {
             vsync: p.vsync.unwrap_or(true),
             max_fps: p.max_fps.unwrap_or_default(),
             show_metrics: p.show_metrics.unwrap_or_default(),
+            master_volume: p.master_volume.unwrap_or(Percent(80)),
+            music_volume: p.music_volume.unwrap_or(Percent(60)),
+            sfx_volume: p.sfx_volume.unwrap_or(Percent(90)),
+            engine_volume: p.engine_volume.unwrap_or(Percent(90)),
         }
     }
 }
