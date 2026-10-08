@@ -35,6 +35,12 @@
   - The jukebox (user-chosen songs), the profile's play state and the "EA Trax" option are not modelled; the
     defaults apply. Shuffle is a player setting.
   - No song-change chyron is drawn (the player only exposes artist and title).
+  - Events are never executed: the chain of a song is the linear walk, which plays the repeated and ending-variant
+    streams of its last bars (the biggest open point; see the spec).
+  - The streams are resampled from 36 kHz to the device rate with linear interpolation; the original's hardware
+    path is not known.
+  - The radio is a game-side decision of this project in two places: it stops when driving ends, and `radio next`
+    works outside the game (the original has a front end where the same thing happens).
 
 ## Song table
 

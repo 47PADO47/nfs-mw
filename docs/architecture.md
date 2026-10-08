@@ -29,7 +29,7 @@ scaled down.
 | [`blackbox-collision`](../libs/blackbox-collision) | World collision packs, the collision grid, car and prop bounds, a ray-cast query | — (one layout so far) |
 | [`blackbox-feng`](../libs/blackbox-feng) | FEng user-interface packages and fonts: reader, script and message runtime, a retained `UiTree`; no rendering | — (one format version) |
 | [`blackbox-text`](../libs/blackbox-text) | Language string tables (`LANGUAGES/*.bin`) | — |
-| [`ea-audio`](../libs/ea-audio) | EA audio: SCHl streams, ABK sound banks, MPF/MUS music, `.big` speech, `.gin` engine loops; EA-XA, EA-XAS and MicroTalk decoders | self-describing headers |
+| [`ea-audio`](../libs/ea-audio) | EA audio: SCHl streams, ABK sound banks, MPF/MUS music and its node graph, `.big` speech, `.gin` engine loops; EA-XA, EA-XAS and MicroTalk decoders | self-describing headers |
 | [`blackbox-ginsu`](../libs/blackbox-ginsu) | The Ginsu granular engine-sound synthesiser and the tables of a `.gin` file | — |
 | [`blackbox-carsound`](../libs/blackbox-carsound) | Car sound controllers: telemetry in, engine mix out, on a fixed 60 Hz tick | — (tuning passed by the caller) |
 | [`blackbox-movie`](../libs/blackbox-movie) | EA VP6 movies (`.vp6`): demuxer and video decoder (the MIT `nihav-vp6`); no audio yet | — |
@@ -301,9 +301,21 @@ database.
   `Scene::take_clip`), decodes the video against a clock and shows the frames through `Scene::fullscreen`, which a
   small plugin turns into a letterboxed UI quad (`FrameSet::Hud`). The scene ends when picture and sound do. A
   movie is not yet started by the game flow, and the video follows the frame clock, not the audio clock.
-- **Not done:** the radio (the PathFinder graph of `MW_Music.mpf` is not decoded, so no song can be played),
-  speech, the sample (AEMS) layer of the engine and the sputters, the mixer maps (so the levels of the effects
-  are guesses).
+- **The radio.** `audio/radio/`: licensed songs from `MW_Music.mus`, played through the music group.
+  `ea-audio::mus::graph` reads the PathFinder graph of `MW_Music.mpf` (nodes, routers, events; spec
+  [music-graph.md](specs/music-graph.md)); a song's start event gives its first node, and following the graph to its
+  end gives the chain of streams (39 to 164 per song) that `ChainReader` decodes as one gapless run. A decoder
+  thread reads the chain from the file with positioned reads and a custom `kira` sound plays the blocks (linear
+  resampling to the device, a fade-out when it is stopped), so no song is held in memory. `nfsmw-data`'s `music`
+  reads the 26 songs (artist, title, event, `DefPlay`); `Playlist` picks the next one by the original's rules
+  (front-end and in-game lists, ordered or shuffled without replacement). The radio starts when a car is driven,
+  starts the next song when one ends and stops when driving ends; `music_volume` and `master_volume` apply and
+  `--no-sound` turns it off. Console: `radio` (status), `radio next`, `radio on|off`, `radio list`, `radio play <n>`,
+  `radio shuffle|ordered`. The song on the air is `Audio::now_playing()` (artist, title, album, elapsed) for the HUD,
+  which does not draw it yet. The pursuit and ambience music (the same graph, driven by game state) and the jukebox
+  are not done, and nobody has listened to the result: how the original ends a song is inferred (see the spec).
+- **Not done:** speech, the sample (AEMS) layer of the engine and the sputters, the mixer maps (so the levels of the
+  effects are guesses), the interactive music and the radio's HUD display.
 
 ## Graphics backends
 
@@ -366,7 +378,7 @@ render one frame off-screen. Use them to check rendering changes and backends wi
 | 3 | Sky dome, LODs, water, panoramas; zone-based streaming (visible sections); AttribSys reader; car assembly from the parts DB (stock parts, wheels, brakes, paint). Playtest fixes: misplaced and floating scenery, mouse look without holding a button, `--max-fps`, clearer config-file path | done |
 | 4 | Engine foundation: decide on Bevy (ECS, events, UI) in an ADR and migrate the viewers if adopted; layered settings (command line > environment > per-user config file > defaults, with a settings menu in 6); input layer with controller support; developer console (F12: log view, commands such as change car, toggle free camera, change settings); performance overlay (`--show-metrics off\|basic\|advanced`). Decided: Bevy as the shell with our renderer ([ADR 0001](decisions/0001-bevy.md)), full Bevy renderer revisited in 8 | done |
 | 5 | Vehicle physics, spec-first (`docs/specs/vehicle-*.md`); world collision (`CarpWCollisionPack`); drive a car with the original HUD: read the FEng HUD packages (`HUD_*.fng` in `InGameB.bun`) and draw them with the UI layer; steering wheel controller support (wheel axes, pedals, shifters) on the input layer from 4 |  in progress: `blackbox-vehicle`, the collision reader, input actions, `view-world --drive` (placing, chase camera, walls, props, reset and fall recovery, scripted runs) are in; the original HUD, steering wheel support and calibration against the original are open ([Driving](#driving-view-world---drive)) |
-| 6 | Audio (EA-XA, EA-XAS engine loops, MicroTalk speech), VP6 movies, FEng menus (the same FEng runtime as the HUD), in-game settings menu | in progress: the codecs, banks, music and movie decoders, Ginsu synthesis, the car sound data, the engine and effects mixers, the output device, the driven car's engine and effects and a movie player are in; radio, speech and the menus are open ([Sound](#sound)) |
+| 6 | Audio (EA-XA, EA-XAS engine loops, MicroTalk speech), VP6 movies, FEng menus (the same FEng runtime as the HUD), in-game settings menu | in progress: the codecs, banks, music and movie decoders, Ginsu synthesis, the car sound data, the engine and effects mixers, the output device, the driven car's engine and effects, a movie player and the radio (licensed songs, gapless, play lists; not yet heard by a human) are in; speech, the interactive music and the menus are open ([Sound](#sound)) |
 | 7 | AI racers, traffic, pursuit, races; career data; console commands to spawn AI | |
 | 8 | Graphics: the car shader and lighting rig, tire smoke and skid marks (`blackbox-vehicle` already reports per-wheel `skid` and `smoke`; this draws them), post-processing, upscaling (FSR; DLSS where the backend allows it), ReShade compatibility, Bevy Solari | |
 | 9 | Discord Rich Presence | |

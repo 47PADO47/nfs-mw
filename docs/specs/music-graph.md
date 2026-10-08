@@ -211,8 +211,9 @@ no event in the file [confirmed-by-data].
 
 ## 9. Decisions of the Rust implementation
 
-- The reader is in `ea-audio::mus::graph`; the chain walker follows the first transition and applies routers
-  but never runs events (section 5). A chain is a list of `(node, stream, duration)`.
+- The reader is in `ea-audio::mus::graph`; the chain walker follows the transition for a constant control value
+  and applies routers but never runs events (section 5). A chain is a list of `(node, stream, start, duration)`;
+  `ea-audio::mus::ChainReader` decodes it as one run of samples.
 - The player decodes one stream at a time, from the `.mus` file with positioned reads, and queues the next
   stream's samples before the current one is exhausted so the join is sample-exact (**[guess]**: the original
   hands streams to the hardware in the same way; the join was not heard).
