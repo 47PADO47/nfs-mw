@@ -5,6 +5,7 @@
 mod error;
 pub mod font;
 mod hash;
+pub mod ids;
 pub mod package;
 pub mod runtime;
 pub mod tree;

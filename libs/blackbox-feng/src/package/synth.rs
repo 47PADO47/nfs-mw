@@ -32,6 +32,7 @@ pub struct Obj {
     pub name: u32,
     pub parent: u32,
     pub resource: u32,
+    pub flags: u32,
     pub colour: [i32; 4],
     pub position: [f32; 3],
     pub size: [f32; 3],
@@ -49,6 +50,7 @@ impl Obj {
             name,
             parent: 0,
             resource: 0xFFFF,
+            flags: 0,
             colour: [255, 255, 255, 255],
             position: [0.0; 3],
             size: [1.0; 3],
@@ -90,7 +92,7 @@ impl Obj {
         let mut objd = Vec::new();
         objd.extend(tag(b"Ot", &u32s(&[self.kind])));
         objd.extend(tag(b"Oh", &u32s(&[self.name])));
-        objd.extend(tag(b"OP", &u32s(&[self.guid, self.name, 0, self.resource])));
+        objd.extend(tag(b"OP", &u32s(&[self.guid, self.name, self.flags, self.resource])));
         if self.parent != 0 {
             objd.extend(tag(b"PA", &u32s(&[self.parent])));
         }
