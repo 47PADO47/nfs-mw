@@ -1079,6 +1079,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "blackbox-text"
+version = "0.1.0"
+dependencies = [
+ "blackbox-chunk",
+ "blackbox-hash",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "blackbox-tpk"
 version = "0.1.0"
 dependencies = [
