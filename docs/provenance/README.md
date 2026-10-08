@@ -25,6 +25,7 @@ a record. Process: [licensing.md § Spec-first](../licensing.md#spec-first).
 | [Dynamic mixer](dynamic-mixer.md) | [specs/dynamic-mixer.md](../specs/dynamic-mixer.md), [specs/car-sound-mixer.md](../specs/car-sound-mixer.md), [formats/mixmap.md](../formats/mixmap.md) | dbalatoni13/nfsmw `EAXSound/Dynamic_Mixer/*`, `SndBase.cpp`, `EAXSound.cpp`, `sfxctl/*`, `CARSFX/*` (decompiled, CC0) |
 | [AEMS module banks](aems.md) | [specs/aems.md](../specs/aems.md), [specs/engine-sound-aems.md](../specs/engine-sound-aems.md), [formats/aems.md](../formats/aems.md) | dbalatoni13/nfsmw `Libs/snd/9/*`, `EAXSound/CARSFX/*`, `SND_GEN/ENGINES_AEMS2.h` (decompiled, CC0); `speed.exe` disassembled locally for the function numbering |
 | [Music graph and radio](music-graph.md) | [specs/music-graph.md](../specs/music-graph.md) | `speed.exe` PathFinder and EA Trax code (disassembly); dbalatoni13/nfsmw `SFXObj_Pathfinder.cpp`, `FEDatabase.cpp`, `FEManager.cpp` (decompiled, CC0) |
+| [Exhaust flames](exhaust-flames.md) | [specs/exhaust-flames.md](../specs/exhaust-flames.md) | dbalatoni13/nfsmw `World/CarRenderConn.cpp`, `VehicleRenderConn.cpp`, `CarRender.cpp`, `Ecstasy/EmitterSystem.cpp`, `Physics/Behaviors/DrawCar.cpp`, AttribSys class headers (decompiled, CC0) |
 
 ## Template
 
