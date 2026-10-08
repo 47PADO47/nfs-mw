@@ -9,6 +9,7 @@ use kira::sound::static_sound::StaticSoundHandle;
 use nfsmw_data::sound::{CarSound, EventKind};
 
 use super::LoopMix;
+use super::mixer::{CarMixer, Frame, Levels, scale_command};
 use super::tuning::tuning;
 use super::{Audio, EngineHandle, EngineMix};
 
@@ -45,6 +46,12 @@ pub(super) struct CarAudio {
     pub sound: CarSound,
     engine: EngineMixer,
     pub effects: EffectsMixer,
+    /// The dynamic mixer; `None` when the map could not be read.
+    mixer: Option<CarMixer>,
+    /// What the mixer said in the last frame.
+    pub levels: Levels,
+    /// `engineaudio.Master_Vol`.
+    master_volume: u32,
     handle: EngineHandle,
     /// The loops that are playing, with the sound each plays.
     pub loops: HashMap<LoopId, (SoundRef, StaticSoundHandle)>,
@@ -74,23 +81,31 @@ impl Audio {
             }
         }
         let Some(mut car) = self.car.take() else { return };
-        let out = car.engine.update(dt, &state.input);
+        // The map's pitch for the engine (one frame old) is the dynamic mixer's pitch multiplier.
+        let input = CarInput { pitch_multiplier: car.levels.engine_pitch, ..state.input };
+        let out = car.engine.update(dt, &input);
+        let gain = car.levels.engine_volume;
         car.handle.set(EngineMix {
             accel: LoopMix {
                 frequency: out.accel_loop.frequency,
-                volume: out.accel_volume,
+                volume: out.accel_volume * gain,
                 pitch: out.accel_loop.playback_rate,
             },
             decel: LoopMix {
                 frequency: out.decel_loop.frequency,
-                volume: out.decel_volume,
+                volume: out.decel_volume * gain,
                 pitch: out.decel_loop.playback_rate,
             },
         });
         car.effects.scrape(state.scrape);
         let mut commands = std::mem::take(&mut car.commands);
         commands.clear();
-        let landing = car.effects.update(dt, &state.input, &out, &mut commands);
+        let landing = car.effects.update(dt, &input, &out, &mut commands);
+        if let Some(mixer) = car.mixer.as_mut() {
+            let frame =
+                Frame { input: &input, engine: &out, effects: car.effects.signals(), master_volume: car.master_volume };
+            car.levels = mixer.update(dt, &frame);
+        }
         for event in &state.events {
             self.play_impact(&mut car, event);
         }
@@ -104,8 +119,9 @@ impl Audio {
             };
             self.play_impact(&mut car, &event);
         }
+        let levels = car.levels;
         for command in commands.drain(..) {
-            self.apply(&mut car, command);
+            self.apply(&mut car, scale_command(&levels, command));
         }
         car.commands = commands;
         self.car = Some(car);
@@ -117,7 +133,14 @@ impl Audio {
         let silent = EngineMix::shared(loaded.sound.engine.min_rpm, 1.0, 0.0, 0.0);
         let handle = self.start_engine(super::EngineVoice { start: silent, ..loaded.voice })?;
         log::info!("engine sound: {} ({})", loaded.sound.engine.name, loaded.sound.engine.accel_loop);
+        let dual = !loaded.sound.engine.decel_loop.is_empty();
+        let mixer = CarMixer::load(&self.dir, dual)
+            .map_err(|e| log::warn!("no mixer map, the effects play at their generated levels: {e}"))
+            .ok();
         Ok(CarAudio {
+            levels: Levels::unmixed(),
+            mixer,
+            master_volume: loaded.sound.engine.master_volume,
             car: name.to_owned(),
             engine: EngineMixer::new(&tuning),
             effects: EffectsMixer::new(&tuning),

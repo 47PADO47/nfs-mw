@@ -8,7 +8,7 @@ use blackbox_carsound::{ImpactRequest, SoundCommand, SoundRef};
 use kira::sound::static_sound::StaticSoundData;
 use kira::{PlaybackRate, StartTime, Tween};
 use nfsmw_data::car::physics::SurfaceTable;
-use nfsmw_data::sound::{Stitch, collision_stitches};
+use nfsmw_data::sound::{EventKind, Stitch, collision_stitches};
 
 use super::car::{CarAudio, CarEvent};
 use super::refs::{self, COLLISION_BANK};
@@ -121,7 +121,8 @@ impl Audio {
         for piece in &stitch.pieces {
             let index = usize::from(piece.sample) + 1;
             let Ok(data) = self.bank_sound(COLLISION_BANK, index) else { continue };
-            let volume = (stitch.volume * piece.volume * play.volume).clamp(0.0, 1.0);
+            let level = if event.kind == EventKind::BottomOut { car.levels.landing } else { 1.0 };
+            let volume = (stitch.volume * piece.volume * play.volume * level).clamp(0.0, 1.0);
             let rate = f64::from(data.sample_rate.max(1));
             let data =
                 data.volume(decibels(volume)).start_time(StartTime::Delayed(Duration::from_secs_f64(start.max(0.0))));

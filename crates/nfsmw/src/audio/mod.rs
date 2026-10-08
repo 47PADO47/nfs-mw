@@ -8,6 +8,7 @@ mod car;
 pub mod commands;
 mod engine;
 mod fx;
+mod mixer;
 mod pcm;
 mod plugin;
 mod refs;

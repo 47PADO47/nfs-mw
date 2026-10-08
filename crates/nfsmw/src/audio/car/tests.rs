@@ -71,6 +71,8 @@ fn a_scripted_drive_sounds_like_an_engine() {
     let (mut sound, handle) = EngineVoice { start: silent, ..car.voice }.into_sound().unwrap();
     let info = kira::info::MockInfoBuilder::new().build();
     let per_tick = (RATE / 60.0) as usize;
+    let mut dynamic = crate::audio::mixer::CarMixer::load(&audio.dir, true).expect("the mixer map loads");
+    let mut gain = 1.0;
     let (mut out, mut shifts) = (Vec::new(), 0);
     for i in 0..(14.0 * 60.0) as usize {
         let (rpm_pct, throttle, gear) = script(i as f32 * TICK);
@@ -80,15 +82,22 @@ fn a_scripted_drive_sounds_like_an_engine() {
         handle.set(EngineMix {
             accel: LoopMix {
                 frequency: o.accel_loop.frequency,
-                volume: o.accel_volume,
+                volume: o.accel_volume * gain,
                 pitch: o.accel_loop.playback_rate,
             },
             decel: LoopMix {
                 frequency: o.decel_loop.frequency,
-                volume: o.decel_volume,
+                volume: o.decel_volume * gain,
                 pitch: o.decel_loop.playback_rate,
             },
         });
+        let frame = crate::audio::mixer::Frame {
+            input: &input,
+            engine: &o,
+            effects: Default::default(),
+            master_volume: car.sound.engine.master_volume,
+        };
+        gain = dynamic.update(TICK, &frame).engine_volume;
         let mut block = vec![Frame::ZERO; per_tick];
         sound.process(&mut block, 1.0 / RATE, &info);
         out.extend(block.iter().map(|f| f.left));

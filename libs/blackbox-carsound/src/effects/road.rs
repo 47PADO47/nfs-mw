@@ -1,14 +1,11 @@
 //! Road noise (a loop per side of the car) and wind noise. Spec §9.
 //!
-//! The mixer maps that scale these in the original are not specified; the gains below are a decision
-//! (`docs/specs/engine-sound-effects.md` §10).
+//! The levels the mixer map gives them are the game's business (`docs/specs/car-sound-mixer.md`): the volumes
+//! here are the generated ones, 0 to 1.
 
 use super::{LoopId, SoundCommand, SoundRef};
 use crate::input::{CarInput, NO_ROAD_NOISE, WheelInput};
 
-/// Gain of the road noise and the wind noise relative to a full-scale loop.
-const ROAD_GAIN: f32 = 0.35;
-const WIND_GAIN: f32 = 0.4;
 /// Below this speed (m/s) the wind is silent; the wind speed is clamped to 40 m/s.
 const WIND_FLOOR: f32 = 2.0;
 const WIND_TOP: f32 = 40.0;
@@ -98,7 +95,7 @@ impl RoadFx {
             out.push(SoundCommand::SetLoop {
                 id,
                 sound: SoundRef::RoadNoise(loop_id),
-                volume: volume * ROAD_GAIN,
+                volume,
                 // The data's pitch is on a 4096 = 1 scale around the speed-dependent value; as a ratio it
                 // runs from 0.75 to 1.5 over the speed range.
                 pitch: (pitch / 3000.0).clamp(0.5, 2.0),
@@ -126,7 +123,7 @@ impl WindFx {
         out.push(SoundCommand::SetLoop {
             id: LoopId::Wind,
             sound: SoundRef::Wind,
-            volume: ratio * WIND_GAIN,
+            volume: ratio,
             pitch: 0.8 + 0.4 * ratio,
         });
     }
