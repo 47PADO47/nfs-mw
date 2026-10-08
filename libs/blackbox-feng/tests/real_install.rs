@@ -80,3 +80,42 @@ fn the_single_race_hud_has_its_objects() {
     let needle = &hud.objects[hud.find_by_hash(blackbox_feng::fe_hash_upper("3rdPersonNeedle")).unwrap()];
     assert_eq!(needle.kind, blackbox_feng::package::ObjectKind::Image);
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_game_fonts_parse_and_lay_out_text() {
+    if install().is_none() {
+        return;
+    }
+    let mut names = Vec::new();
+    for rel in [
+        "LANGUAGES/English.bin",
+        "FRONTEND/FrontB.lzc",
+        "GLOBAL/InGameB.bun",
+        "GLOBAL/GLOBALA.BUN",
+        "GLOBAL/GlobalB.lzc",
+        "GLOBAL/InGameA.bun",
+        "GLOBAL/INGAMEC.BUN",
+    ] {
+        let data = read(rel);
+        for c in find_all(&data, 0x0003_0201) {
+            let f = blackbox_feng::Font::parse(c.payload).unwrap();
+            println!(
+                "{rel}: {} / {}: {} glyphs, ascent {} descent {}, v{}",
+                f.name,
+                f.texture_name,
+                f.glyphs().len(),
+                f.ascent,
+                f.descent,
+                f.version
+            );
+            names.push(f);
+        }
+    }
+    let body = names.iter().find(|f| f.name.eq_ignore_ascii_case("font_mw_body")).expect("font_mw_body");
+    let a = body.glyph(b'A' as u16).unwrap();
+    assert_eq!((a.width, a.height, a.u, a.v, a.advance_x), (15, 14, 118, 64, 13));
+    let layout = body.layout("100 KM/H", blackbox_feng::font::TextStyle::default(), (256, 256));
+    assert_eq!(layout.quads.len(), 8);
+    assert!(layout.width > 40.0 && layout.width < 200.0, "{}", layout.width);
+}

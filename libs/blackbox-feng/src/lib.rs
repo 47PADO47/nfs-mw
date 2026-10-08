@@ -3,9 +3,11 @@
 //! Specs: `docs/formats/frontend.md`, `docs/specs/feng-runtime.md`.
 
 mod error;
+pub mod font;
 mod hash;
 pub mod package;
 
 pub use error::{Error, Result};
+pub use font::Font;
 pub use hash::{fe_hash_upper, resource_handle};
 pub use package::Package;
