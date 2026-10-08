@@ -3,6 +3,7 @@
 mod basics;
 mod driving;
 mod feel;
+mod manual;
 mod robustness;
 
 use glam::{Quat, Vec3};

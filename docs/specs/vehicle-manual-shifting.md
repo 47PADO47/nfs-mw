@@ -140,6 +140,10 @@ The speed limiter (ECU) still tapers the throttle in the gears above neutral.
 - **Edge presses are latched.** The original queues shift actions; the rewrite's fixed 60 Hz step runs fewer times
   than frames above 60 fps, so a press is held until a physics step consumes it, and one step takes at most one
   request (the last wins), as in the original.
+- **Held on the limiter in a low gear** (the example car in first, full throttle, no shift), the speed overshoots the
+  gear's red-line speed by about 4% within four seconds and then creeps up by a few percent per ten seconds. The
+  tire port's wheel-spin reaction term keeps pushing while the limiter pins the wheels each tick; in the top gear and
+  above 40 mph the car settles within 1% of its red-line speed. Not investigated against the original.
 - **Known difference.** An auto-reverse gear request in the same step cancels a shift request (the original runs
   both, shift first); the order only matters in the step the car stops.
 

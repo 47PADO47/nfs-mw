@@ -187,6 +187,43 @@ fn rev_limiter_holds_the_engine_in_neutral() {
 }
 
 #[test]
+fn a_manual_box_never_shifts_on_its_own() {
+    let mut d = Dyno::new();
+    d.automatic = false;
+    for _ in 0..(60 * 20) {
+        d.step(1.0);
+        assert_eq!(d.pt.gear(), GEAR_FIRST);
+    }
+    // Neutral is not left either.
+    assert!(d.pt.shift(GEAR_NEUTRAL));
+    for _ in 0..120 {
+        d.step(0.0);
+    }
+    assert_eq!(d.pt.gear(), GEAR_NEUTRAL);
+}
+
+#[test]
+fn manual_requests_shift_directly_and_automatic_ones_are_sport_shifts() {
+    let mut p = powertrain();
+    p.request_shift(1, false);
+    assert_eq!(p.gear(), GEAR_FIRST + 1);
+    p.request_shift(1, false);
+    assert_eq!(p.gear(), GEAR_FIRST + 2, "a manual request is taken while the last shift still runs");
+    p.request_shift(-1, false);
+    p.request_shift(-1, false);
+    p.request_shift(-1, false);
+    assert_eq!(p.gear(), GEAR_NEUTRAL, "down from first is neutral");
+    p.request_shift(-1, false);
+    assert_eq!(p.gear(), GEAR_NEUTRAL);
+
+    let mut a = powertrain();
+    a.request_shift(1, true);
+    assert_eq!(a.gear(), GEAR_FIRST + 1, "a sport shift is taken when the box has no other wish");
+    a.request_shift(1, true);
+    assert_eq!(a.gear(), GEAR_FIRST + 1, "but not while the last shift still runs");
+}
+
+#[test]
 fn speed_limiter_tapers_the_throttle() {
     let mut e = engine();
     e.speed_limiter = [60.0, 10.0];
