@@ -18,5 +18,9 @@ nihav_core = { workspace = true, optional = true }
 nihav_duck = { workspace = true, optional = true }
 thiserror.workspace = true
 
+[[test]]
+name = "real_install"
+required-features = ["vp6"]
+
 [lints]
 workspace = true
