@@ -317,12 +317,14 @@ impl Drive {
         self.previous.lerp(&self.current, self.clock.alpha())
     }
 
-    /// Move the chase camera.
-    pub fn follow(&mut self, collision: &CollisionWorld, dt: f32) {
+    /// Move the chase camera; `look` is the player's look input (the right stick or the mouse), which
+    /// orbits the camera round the car.
+    pub fn follow(&mut self, collision: &CollisionWorld, look: (f32, f32), dt: f32) {
         if dt == 0.0 {
             // A screenshot run has no frame time: put the camera where it belongs at once.
             self.chase.snap();
         }
+        self.chase.look(look.0, look.1, dt);
         let pose = self.pose();
         let forward = pose.rotation * Vec3::X;
         let followed =

@@ -251,7 +251,7 @@ impl WorldScene {
             let loaded = self.residency.complete();
             let (collision, props) = self.residency.world_parts();
             drive.step(collision, props, &physics.surfaces, input, dt, loaded);
-            drive.follow(self.residency.collision(), dt);
+            drive.follow(self.residency.collision(), (input.value(Action::LookX), input.value(Action::LookY)), dt);
         }
     }
 
@@ -285,7 +285,8 @@ impl WorldScene {
 
 impl Scene for WorldScene {
     fn captures_mouse(&self) -> bool {
-        self.view == View::Fly
+        // The mouse looks round the car too, on the chase camera.
+        true
     }
 
     fn title(&self) -> String {

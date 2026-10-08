@@ -26,6 +26,14 @@ const PULL_OUT_RATE: f32 = 1.5;
 /// Where the camera looks: above the car's origin, and ahead of it by this much per m/s.
 const LOOK_HEIGHT: f32 = 1.1;
 const LOOK_AHEAD: f32 = 0.04;
+/// Radians of orbit per unit of look input (mouse pixels, or stick pixels per second times seconds).
+const LOOK_SENSITIVITY: f32 = 0.003;
+/// How high above the car's level the camera may be orbited, and how far below it, radians.
+const LOOK_MAX_ELEVATION: f32 = 1.2;
+const LOOK_MIN_ELEVATION: f32 = -0.15;
+/// Seconds without look input before the camera swings back behind the car, and how quickly, per second.
+const RECENTRE_AFTER: f32 = 1.2;
+const RECENTRE_RATE: f32 = 3.0;
 /// Keep this far from walls and the ground.
 const CLEARANCE: f32 = 0.4;
 /// The camera never comes closer to the car than this because of an obstacle.
@@ -42,6 +50,11 @@ pub struct ChaseCamera {
     /// How much of that offset an obstacle leaves, 0..1: shrinks fast, recovers slowly.
     reach: f32,
     placed: bool,
+    /// How far the player has orbited the camera round the car and up from behind it, radians.
+    orbit_yaw: f32,
+    orbit_elevation: f32,
+    /// Seconds since the last look input.
+    idle: f32,
 }
 
 /// The car as the camera needs to know it.
@@ -64,6 +77,9 @@ impl Default for ChaseCamera {
             offset: Vec3::ZERO,
             reach: 1.0,
             placed: false,
+            orbit_yaw: 0.0,
+            orbit_elevation: 0.0,
+            idle: 0.0,
         }
     }
 }
@@ -88,6 +104,34 @@ impl ChaseCamera {
     /// Jump to the car (after a teleport) instead of swinging round to it.
     pub fn snap(&mut self) {
         self.placed = false;
+        self.orbit_yaw = 0.0;
+        self.orbit_elevation = 0.0;
+    }
+
+    /// Orbit the camera round the car by the player's look input (`x` turns it to the right of the
+    /// view, `y` is positive downwards, both in the units of the fly camera's mouse look).
+    /// With no input for a while the camera swings back behind the car.
+    pub fn look(&mut self, x: f32, y: f32, dt: f32) {
+        if x != 0.0 || y != 0.0 {
+            self.idle = 0.0;
+            self.orbit_yaw = wrap(self.orbit_yaw - x * LOOK_SENSITIVITY);
+            self.orbit_elevation =
+                (self.orbit_elevation + y * LOOK_SENSITIVITY).clamp(LOOK_MIN_ELEVATION, LOOK_MAX_ELEVATION);
+            return;
+        }
+        self.idle += dt;
+        if self.idle < RECENTRE_AFTER {
+            return;
+        }
+        let back = approach(RECENTRE_RATE, dt);
+        self.orbit_yaw -= self.orbit_yaw * back;
+        self.orbit_elevation -= self.orbit_elevation * back;
+    }
+
+    /// Whether the player has the camera turned away from behind the car.
+    #[cfg(test)]
+    fn orbited(&self) -> bool {
+        self.orbit_yaw.abs() > 0.02 || self.orbit_elevation.abs() > 0.02
     }
 
     /// Follow `car` for `dt` seconds. `blocked(from, to)` says how far along the segment (0..1) the
@@ -104,9 +148,11 @@ impl ChaseCamera {
         } else {
             self.yaw += wrap(car.heading - self.yaw) * approach(TURN_RATE, dt);
         }
-        let behind = -direction(self.yaw, 0.0);
+        let behind = -direction(self.yaw + self.orbit_yaw, 0.0);
         let distance = NEAR + (FAR - NEAR) * speed01;
-        let wanted = behind * distance + Vec3::Z * (LOW + (HIGH - LOW) * speed01 - LOOK_HEIGHT);
+        let (up, flat) = self.orbit_elevation.sin_cos();
+        let wanted =
+            behind * (distance * flat) + Vec3::Z * (LOW + (HIGH - LOW) * speed01 - LOOK_HEIGHT + distance * up);
         self.offset = if self.placed { self.offset.lerp(wanted, approach(FOLLOW_RATE, dt)) } else { wanted };
 
         let length = self.offset.length();
@@ -119,7 +165,9 @@ impl ChaseCamera {
         self.placed = true;
         self.position = look + self.offset * self.reach;
 
-        self.target = look + direction(car.heading, 0.0) * (car.speed.max(0.0) * LOOK_AHEAD);
+        // Looking round the car, the camera keeps its eyes on the car rather than on the road ahead.
+        let ahead = 1.0 - (self.orbit_yaw.abs() / 0.5).min(1.0);
+        self.target = look + direction(car.heading, 0.0) * (car.speed.max(0.0) * LOOK_AHEAD * ahead);
         self.fov_degrees = FOV_SLOW + (FOV_FAST - FOV_SLOW) * speed01;
     }
 
@@ -236,6 +284,42 @@ mod tests {
         assert!(steps.iter().all(|&d| d >= MIN_DISTANCE - 1e-3), "never closer than the minimum");
         // It comes back out gently, not at once.
         assert!(steps[65] < free && steps[179] > steps[70]);
+    }
+
+    #[test]
+    fn look_input_orbits_the_camera_and_it_swings_back() {
+        let mut cam = ChaseCamera::default();
+        let settle = |cam: &mut ChaseCamera, frames: usize| {
+            for _ in 0..frames {
+                cam.look(0.0, 0.0, 1.0 / 60.0);
+                cam.update(car(0.0, 0.0), 1.0 / 60.0, open);
+            }
+        };
+        settle(&mut cam, 120);
+        // Mouse right by 520 pixels: a quarter turn or so about the car, to its left side.
+        cam.look(520.0, 0.0, 1.0 / 60.0);
+        settle(&mut cam, 2);
+        assert!(cam.orbited());
+        settle(&mut cam, 60);
+        let rel = cam.position - Vec3::new(100.0, 50.0, 10.0);
+        assert!(rel.x.abs() < rel.y.abs(), "now beside the car: {rel:?}");
+        // Idle: after a few seconds it is behind the car again.
+        settle(&mut cam, 600);
+        assert!(!cam.orbited());
+        assert!(cam.position.x < 100.0 - 5.0 && (cam.position.y - 50.0).abs() < 0.3, "{:?}", cam.position);
+    }
+
+    #[test]
+    fn looking_down_lifts_the_camera_and_is_limited() {
+        let mut cam = ChaseCamera::default();
+        cam.update(car(0.0, 0.0), 1.0 / 60.0, open);
+        let low = cam.position.z;
+        cam.look(0.0, 10_000.0, 1.0 / 60.0);
+        for _ in 0..120 {
+            cam.update(car(0.0, 0.0), 1.0 / 60.0, open);
+        }
+        assert!(cam.position.z > low + 3.0, "{} -> {}", low, cam.position.z);
+        assert!(cam.position.z < 10.0 + 1.1 + (LOW - LOOK_HEIGHT) + NEAR, "capped: {}", cam.position.z);
     }
 
     #[test]
