@@ -2,8 +2,8 @@
 
 use std::str::FromStr;
 
-use super::Transmission;
 use super::partial::{Partial, Percent, parse_bool};
+use super::{MinimapMode, Transmission};
 use super::{Monitor, Resolution, SmokeQuality, WindowMode};
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
@@ -25,6 +25,7 @@ pub const TIRE_SMOKE: &str = "NFSMW_TIRE_SMOKE";
 pub const SMOKE_QUALITY: &str = "NFSMW_SMOKE_QUALITY";
 pub const SKID_MARKS: &str = "NFSMW_SKID_MARKS";
 pub const TRANSMISSION: &str = "NFSMW_TRANSMISSION";
+pub const MINIMAP: &str = "NFSMW_MINIMAP";
 pub const PADDLE_UP: &str = "NFSMW_PADDLE_UP";
 pub const PADDLE_DOWN: &str = "NFSMW_PADDLE_DOWN";
 
@@ -49,6 +50,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         smoke_quality: value(&get, SMOKE_QUALITY, SmokeQuality::from_str),
         skid_marks: value(&get, SKID_MARKS, parse_bool),
         transmission: value(&get, TRANSMISSION, Transmission::from_str),
+        minimap: value(&get, MINIMAP, MinimapMode::from_str),
         paddle_up: value(&get, PADDLE_UP, |s| s.trim().parse::<u32>().map_err(|e| e.to_string())),
         paddle_down: value(&get, PADDLE_DOWN, |s| s.trim().parse::<u32>().map_err(|e| e.to_string())),
     }
@@ -106,6 +108,13 @@ mod tests {
         assert_eq!(layer(&[(TRANSMISSION, "sport")]).transmission, None);
         let p = layer(&[(PADDLE_UP, "12"), (PADDLE_DOWN, "left")]);
         assert_eq!((p.paddle_up, p.paddle_down), (Some(12), None));
+    }
+
+    #[test]
+    fn reads_the_minimap_mode() {
+        assert_eq!(layer(&[(MINIMAP, "rotating")]).minimap, Some(MinimapMode::Rotating));
+        assert_eq!(layer(&[(MINIMAP, "off")]).minimap, Some(MinimapMode::Off));
+        assert_eq!(layer(&[(MINIMAP, "zoomed")]).minimap, None);
     }
 
     #[test]

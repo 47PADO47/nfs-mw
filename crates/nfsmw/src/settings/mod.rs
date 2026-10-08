@@ -5,6 +5,7 @@
 
 mod env;
 mod file;
+mod minimap;
 mod partial;
 mod smoke_quality;
 #[cfg(test)]
@@ -17,6 +18,7 @@ mod write;
 
 use blackbox_render::Backend;
 
+pub use minimap::MinimapMode;
 pub use partial::{Partial, Percent, parse_bool};
 pub use smoke_quality::SmokeQuality;
 pub use transmission::Transmission;
@@ -52,6 +54,8 @@ pub struct Settings {
     pub skid_marks: bool,
     /// Who changes gear: the box (default) or the player.
     pub transmission: Transmission,
+    /// How the HUD's minimap is shown: fixed (default), rotating or off.
+    pub minimap: MinimapMode,
     /// Gamepad button codes of a steering wheel's shift paddles (`GamepadButton::Other`), if the player gave them.
     pub paddle_up: Option<u32>,
     pub paddle_down: Option<u32>,
@@ -78,6 +82,7 @@ impl From<Partial> for Settings {
             smoke_quality: p.smoke_quality.unwrap_or_default(),
             skid_marks: p.skid_marks.unwrap_or(true),
             transmission: p.transmission.unwrap_or_default(),
+            minimap: p.minimap.unwrap_or_default(),
             paddle_up: p.paddle_up,
             paddle_down: p.paddle_down,
         }
@@ -115,6 +120,7 @@ mod tests {
         let s = Settings::from(Partial::default());
         assert_eq!((s.backend, s.vsync, s.max_fps), (Backend::Auto, true, MaxFps::default()));
         assert_eq!(s.transmission, Transmission::Automatic, "automatic, as in the original");
+        assert_eq!(s.minimap, MinimapMode::Fixed, "fixed, the original's free roam mode");
     }
 
     #[test]
