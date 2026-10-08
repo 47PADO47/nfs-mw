@@ -136,6 +136,15 @@ music can leave the song seamlessly; when nothing asks for it every event does n
 to its end node. A branch action whose bit 24 of `w2` is clear (all of these, and the song start) may be
 queued for the next node boundary instead of executed at once [guess]; the action with the bit set and
 node `0xFFFF` clears what is queued. The Rust walker follows the linear path and never executes events.
+The streams of the tail are not ordinary bars: many start at full level and end in near silence (the last
+bars of "Blinded In Chains" are streams of 13, 6, 5, 3 and 3 s that each fade out; the last stream of "Nine
+Thou" and of "Let's Move" ends in exact zeros and is played two or three times). They look like ending
+variants, which the events would choose between when the game asks for a hand-over, laid out one after the
+other in the file. Played in file order, the totals come to the album lengths of the three songs whose length
+the author remembers (Decadence 3:53.0 against 3:53, Blood And Thunder 3:46.2 against 3:47, You'll Be Under My
+Wheels 4:01.2 against 4:02) and they would be 4 to 23 s short without the repeated and variant streams
+[inferred; the lengths are from memory]. So the Rust player plays the whole chain.
+
 **This is the biggest open point of the spec**: if the original really took `0xD2E818`'s branch, the last
 bars would not play and the song would never reach its end node. The agreement of the lengths with the real
 songs and the authoring of the last bars as ordinary consecutive streams argue against it.
@@ -171,7 +180,10 @@ driving. Music volume 0 or the EA Trax option off means no licensed music.
   cleared, so the same song never plays twice in a row at a round boundary.
 - No enabled song: nothing plays licensed music (the game falls back to ambience, out of scope).
 
-A shuffle therefore plays every enabled song once before any repeats ("shuffle without replacement").
+A shuffle therefore draws without replacement: the first round plays every enabled song once, and a song
+repeats only after the rest of its round. Because the song that ends a round is left out of the next one, the
+second round has one song fewer, and so on; a song is never played twice in a row (with two or more enabled), and
+every song turns up within 2N picks [confirmed by the Rust tests of the rule, inferred from the original's code].
 
 ## 7. Playing and skipping [inferred]
 
