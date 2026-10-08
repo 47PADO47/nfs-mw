@@ -84,7 +84,7 @@ impl ShiftPoints {
     pub fn downshift_target(&self, trans: &TransmissionSpec, gear: usize, rpm: f32) -> usize {
         let mut new = gear.saturating_sub(1).max(GEAR_FIRST);
         while new > GEAR_FIRST {
-            let predicted = rpm * trans.ratio(gear) / trans.ratio(new).max(1e-6);
+            let predicted = rpm * trans.ratio(new) / trans.ratio(gear).max(1e-6);
             if predicted < self.down[new] {
                 new -= 1;
             } else {

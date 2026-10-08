@@ -46,6 +46,20 @@ fn shift_points_are_ordered_and_in_range() {
 }
 
 #[test]
+fn downshift_drops_one_gear_at_a_time() {
+    let p = powertrain();
+    let sp = p.shift_points();
+    let t = trans();
+    for g in (GEAR_FIRST + 2)..=p.top_gear() {
+        // The engine just below the gear's downshift point: the next lower gear is the target.
+        let rpm = sp.down[g] - 10.0;
+        assert_eq!(sp.downshift_target(&t, g, rpm), g - 1, "from gear {g} at {rpm} rpm");
+    }
+    // Far below every downshift point the box may skip gears, but never past first.
+    assert_eq!(sp.downshift_target(&t, p.top_gear(), 1.0), GEAR_FIRST);
+}
+
+#[test]
 fn speedometer_formula() {
     let p = powertrain();
     // At the red line in first gear the wheel turns at redline / (ratio) rpm.
