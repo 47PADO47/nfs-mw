@@ -18,6 +18,14 @@ fn take<const N: usize>(data: &[u8], at: usize) -> Result<[u8; N]> {
     Ok(out)
 }
 
+pub fn u8_at(data: &[u8], at: usize) -> Result<u8> {
+    data.get(at).copied().ok_or(Error::Truncated { offset: at as u64, needed: 1 })
+}
+
+pub fn u16_le(data: &[u8], at: usize) -> Result<u16> {
+    Ok(u16::from_le_bytes(take(data, at)?))
+}
+
 pub fn u32_le(data: &[u8], at: usize) -> Result<u32> {
     Ok(u32::from_le_bytes(take(data, at)?))
 }

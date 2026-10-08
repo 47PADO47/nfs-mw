@@ -21,6 +21,7 @@
 //!
 //! Format notes and evidence: `docs/specs/audio-containers.md` and `docs/formats/audio.md`.
 
+pub mod abk;
 mod bytes;
 pub mod codec;
 mod error;
