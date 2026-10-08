@@ -21,6 +21,8 @@ the game is on the [roadmap](docs/architecture.md#roadmap).
 You need Rust (stable) and an installed copy of the game.
 
 ```sh
+cargo run --release -p nfsmw                 # the game: boot movies, menus, free roam (same as `play`)
+cargo run --release -p nfsmw -- --help       # every command and example
 cargo run --release -p nfsmw -- --game-dir "D:/Need For Speed Most Wanted Black Edition" check-install
 cargo run --release -p nfsmw -- view-world
 cargo run --release -p nfsmw -- view-car BMWM3GTR --backend dx12
@@ -32,11 +34,12 @@ config file, or the retail registry key ([details](docs/architecture.md#finding-
 | Command | What it does |
 |---|---|
 | `check-install` | Shows where the install was found, identifies `speed.exe`, checks required files |
+| `keys` | Lists every key, button and stick binding (the console command `keys` shows the live ones) |
 | `list-cars` | Lists car folders |
-| `play` | The game flow: boot movies, title screen, main menu (arrows or WASD, Enter, Esc; pad: D-pad, A, B), free roam, pause menu (Esc or Start) with the audio, video and gameplay settings. `--skip-boot`, `--drive` (straight to free roam) |
+| `play` (no command does the same) | The game flow: boot movies, title screen, main menu (arrows or WASD, Enter, Esc; pad: D-pad, A, B), free roam, pause menu (Esc or Start) with the audio, video and gameplay settings. `--skip-boot`, `--drive` (straight to free roam) |
 | `view-screen NAME` | One of the install's menu screens on its own (`list-screens` lists them, `dump-screen NAME` prints one): `--category audio\|video\|gameplay`, `--pause`, `--options` |
 | `view-car [CAR]` | A car assembled from its stock parts (wheels, brakes, paint) on a floor: drag to rotate, scroll to zoom. Options: `--lod A..E`, `--preset NAME` (a `PresetRides` car such as `CE_GTRSTREET`), `--all-parts` (every solid, unassembled) |
-| `view-world` | Fly through the city: WASD, Space/C, Shift, mouse to look (Esc frees the cursor, click to capture it again), scroll for speed. Options: `--at X,Y`, `--height`, `--heading`, `--pitch`, `--fog-distance`, and `--drive [CAR]` to drive instead (W/S, A/D, Space handbrake, Shift/Ctrl gears, N nitrous, R reset, F free camera; pad: triggers, left stick) |
+| `view-world` | Fly through the city: WASD, Space/C, Shift, mouse to look (Esc frees the cursor, click to capture it again), scroll for speed. Options: `--at X,Y`, `--height`, `--heading`, `--pitch`, `--fog-distance`, and `--drive [CAR]` to drive instead (W/S, A/D, Space handbrake, E/Q gears, Left Shift nitrous, R reset, F free camera; pad: triggers, left stick) |
 
 Options for both viewers:
 

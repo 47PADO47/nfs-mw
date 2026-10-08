@@ -9,21 +9,43 @@ use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
 use crate::settings::{Monitor, Partial, Resolution, WindowMode};
 
+const AFTER_HELP: &str = "With no command the game starts as `play` does: the boot movies, the title screen,
+the main menu, then free roam in your car. Give options to `play`
+(`nfsmw play --window-mode borderless --transmission manual`) or set them in the config file.
+
+Examples:
+  nfsmw                                  start the game
+  nfsmw play --skip-boot                 start at the main menu
+  nfsmw play --drive                     start driving at once
+  nfsmw view-car BMWM3GTR                look at a car
+  nfsmw view-world --drive SKYLINEZT     drive through the city
+  nfsmw keys                             list every key, button and stick binding
+
+Settings: command line > environment (NFSMW_*) > config file > defaults. In the game, F12 opens a console (`help`).";
+
 #[derive(Parser)]
-#[command(version, about = "NFS: Most Wanted rewrite (reads data from your own install)")]
+#[command(
+    version,
+    about = "NFS: Most Wanted rewrite (reads data from your own install)",
+    after_help = AFTER_HELP
+)]
 pub struct Cli {
     /// Install directory (overrides $NFSMW_GAME_DIR, .env, the config file and the registry).
     #[arg(long, global = true, value_name = "PATH")]
     pub game_dir: Option<PathBuf>,
 
+    /// What to run; the game itself (`play`) when left out.
     #[command(subcommand)]
-    pub command: Command,
+    pub command: Option<Command>,
 }
 
 #[derive(Subcommand)]
 pub enum Command {
     /// Find the install and check that it is usable.
     CheckInstall,
+    /// List every key, button and stick binding.
+    #[command(visible_alias = "bindings")]
+    Keys,
     /// List the cars in the install.
     ListCars,
     /// Show a car assembled from its stock parts (drag to orbit, scroll to zoom, Esc to quit).
@@ -58,7 +80,8 @@ pub enum Command {
     },
     /// List the movies in the install.
     ListMovies,
-    /// Play: the boot movies, the title screen, the main menu, free roam (Esc or Start pauses) and the settings.
+    /// Play (the default with no command): the boot movies, the title screen, the main menu, free roam (Esc or
+    /// Start pauses) and the settings.
     Play {
         /// Start at the main menu instead of the boot movies and the title screen.
         #[arg(long)]
@@ -124,8 +147,8 @@ pub enum Command {
         #[arg(long)]
         wait_for_load: bool,
         /// Drive a car instead of flying: a car folder or unique prefix (default BMWM3GTR). The car
-        /// is put on the road nearest to --at (WASD or arrows, Space handbrake, Shift/Ctrl gears, N
-        /// nitrous, R reset, F free camera).
+        /// is put on the road nearest to --at (WASD or arrows, Space handbrake, E/Q gears, Left Shift
+        /// nitrous, R reset, F free camera; `nfsmw keys` lists them all).
         #[arg(long, value_name = "CAR", num_args = 0..=1, default_missing_value = "BMWM3GTR")]
         drive: Option<String>,
         /// With --drive: a scripted driver, e.g. "3:throttle=1;2:throttle=1,steer=0.4;1:brake=1".
@@ -134,6 +157,14 @@ pub enum Command {
         #[command(flatten)]
         view: ViewArgs,
     },
+}
+
+impl Command {
+    /// What running `nfsmw` with no command does: `play` with every option left to the settings.
+    pub fn play() -> Self {
+        let Some(play) = Cli::parse_from(["nfsmw", "play"]).command else { unreachable!("play is a command") };
+        play
+    }
 }
 
 /// Options shared by the viewers.
@@ -318,6 +349,28 @@ mod tests {
     }
 
     #[test]
+    fn no_command_starts_the_game() {
+        let bare = Cli::try_parse_from(["nfsmw"]).unwrap();
+        assert!(bare.command.is_none());
+        let cli = Cli::try_parse_from(["nfsmw", "--game-dir", "X"]).unwrap();
+        assert!(cli.command.is_none() && cli.game_dir.is_some());
+        assert!(Cli::try_parse_from(["nfsmw", "--game-dir", "X", "view-car"]).is_ok());
+        assert!(Cli::try_parse_from(["nfsmw", "--no-sound"]).is_err(), "viewer options belong to a command");
+    }
+
+    #[test]
+    fn help_and_keys_are_commands() {
+        use clap::error::ErrorKind;
+        for flag in ["-h", "--help"] {
+            let err = Cli::try_parse_from(["nfsmw", flag]).err().expect("help ends parsing");
+            assert_eq!(err.kind(), ErrorKind::DisplayHelp);
+            assert!(err.to_string().contains("Examples:"), "the help carries the examples");
+        }
+        assert!(matches!(Cli::try_parse_from(["nfsmw", "keys"]).unwrap().command, Some(Command::Keys)));
+        assert!(matches!(Cli::try_parse_from(["nfsmw", "bindings"]).unwrap().command, Some(Command::Keys)));
+    }
+
+    #[test]
     fn window_options_reach_the_cli_settings_layer() {
         let cli = Cli::try_parse_from([
             "nfsmw",
@@ -330,7 +383,7 @@ mod tests {
             "1920x1080",
         ])
         .unwrap();
-        let Command::ViewCar { view, .. } = cli.command else { panic!("wrong command") };
+        let Some(Command::ViewCar { view, .. }) = cli.command else { panic!("wrong command") };
         let layer = view.settings_layer();
         assert_eq!(layer.window_mode, Some(WindowMode::Exclusive));
         assert_eq!(layer.monitor, Some(Monitor::Index(1)));

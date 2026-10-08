@@ -6,8 +6,9 @@ use anyhow::Result;
 use nfsmw_data::game::open_install;
 
 use crate::cli::{Cli, Command};
+use crate::input::Bindings;
 use crate::scenes::{car::CarScene, world::WorldScene};
-use crate::settings::Settings;
+use crate::settings::{Partial, Settings};
 
 /// Runs the window with the front end on top of an empty backdrop.
 fn run_front_end(
@@ -24,8 +25,15 @@ fn run_front_end(
 
 pub fn run(cli: Cli) -> Result<()> {
     let game_dir = cli.game_dir.as_deref();
-    match cli.command {
+    // No command at all: the game, as `play` starts it.
+    let command = cli.command.unwrap_or_else(Command::play);
+    match command {
         Command::CheckInstall => install::check(game_dir),
+        Command::Keys => {
+            let s = Settings::load(Partial::default());
+            print!("{}", Bindings::with_paddles(s.paddle_up, s.paddle_down).describe());
+            Ok(())
+        }
         Command::ListCars => {
             for car in nfsmw_data::car::list(&open_install(game_dir)?) {
                 println!("{car}");
