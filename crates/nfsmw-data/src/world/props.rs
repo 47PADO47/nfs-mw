@@ -111,6 +111,43 @@ pub fn smackable_class(name: &str) -> &'static str {
     }
 }
 
+/// Words in the names of street signs (`XS_` objects): signs bend or break away when a car hits them.
+const SIGN_WORDS: [&str; 17] = [
+    "warn",
+    "speed",
+    "stop",
+    "donot",
+    "noexit",
+    "nopark",
+    "nomotor",
+    "yeild",
+    "yield",
+    "railway",
+    "roadclosed",
+    "chevr",
+    "caution",
+    "construction",
+    "weightlimit",
+    "signalahead",
+    "trafahead",
+];
+
+/// The `smackable` class of a scenery object that gives way when hit, if it is one. `XO_` objects are the
+/// loose ones; street signs (`XS_`, except the big stalls and buildings, poles and bumpers) and picket and
+/// chain-link fences give way too. Everything else (walls, buildings, poles) is rigid.
+pub fn loose_class(name: &str) -> Option<&'static str> {
+    let lower = name.to_ascii_lowercase();
+    let has = |words: &[&str]| words.iter().any(|w| lower.contains(w));
+    match () {
+        _ if name.starts_with("XO_") => Some(smackable_class(name)),
+        _ if name.starts_with("XS_") && has(&["gate", "scaffold"]) => None,
+        _ if name.starts_with("XS_") && has(&SIGN_WORDS) => Some("largesign"),
+        _ if name.starts_with("XW_") && has(&["picket"]) => Some("picket_fence"),
+        _ if name.starts_with("XW_") && has(&["chainfence"]) => Some("chlink_fnc"),
+        _ => None,
+    }
+}
+
 /// Every prop the track has bounds for.
 pub struct PropCatalog {
     sets: HashMap<u32, Arc<BoundsSet>>,
@@ -139,21 +176,17 @@ impl PropCatalog {
         std::iter::once("").chain(NAME_ENDINGS).find_map(|ending| self.sets.get(&vlt_hash(&format!("{name}{ending}"))))
     }
 
-    /// The collision of the scenery object `name`, if it has any. Objects whose names start with `XO_`
-    /// are the loose ones; everything else (walls, fences, buildings) is rigid.
+    /// The collision of the scenery object `name`, if it has any. The loose objects are found by
+    /// [`loose_class`]; everything else (walls, buildings, poles) is rigid.
     pub fn shape(&self, name: &str) -> Option<Arc<PropShape>> {
         if let Some(known) = self.cache.borrow().get(name) {
             return known.clone();
         }
         let shape = self.find_set(name).map(|set| {
             let boxes = boxes(set);
-            let kind = if name.starts_with("XO_") {
-                match self.masses.get(smackable_class(name)).copied() {
-                    Some(mass) if mass <= LIGHT_MASS => PropKind::Light { mass },
-                    _ => PropKind::Rigid,
-                }
-            } else {
-                PropKind::Rigid
+            let kind = match loose_class(name).and_then(|class| self.masses.get(class)).copied() {
+                Some(mass) if mass <= LIGHT_MASS => PropKind::Light { mass },
+                _ => PropKind::Rigid,
             };
             Arc::new(PropShape { name: name.to_owned(), boxes, kind })
         });
@@ -238,6 +271,26 @@ mod tests {
         let only_root =
             BoundsSet { name_hash: 1, nodes: vec![node(bounds_flags::BOX, [0.0; 3], [1.0; 3])], point_clouds: vec![] };
         assert_eq!(boxes(&only_root).len(), 1);
+    }
+
+    #[test]
+    fn street_signs_and_picket_fences_give_way_but_poles_and_stalls_do_not() {
+        assert_eq!(loose_class("XS_WarnCrossStreet_1b_0"), Some("largesign"));
+        assert_eq!(loose_class("XS_StopSignB_1b_00"), Some("largesign"));
+        assert_eq!(loose_class("XS_Speed35_1b_00"), Some("largesign"));
+        assert_eq!(loose_class("XS_ChevrCnrA_1_00"), Some("largesign"));
+        assert_eq!(loose_class("XW_FratPicket_1b_00"), Some("picket_fence"));
+        assert_eq!(loose_class("XW_ChainFenceD8M_1b_CK_"), Some("chlink_fnc"));
+        assert_eq!(loose_class("XO_TrafficConeA_1b_00"), Some("cone"));
+        for rigid in [
+            "XS_MedianPole_1b_00",
+            "XS_OrangeBumper_1b_00",
+            "XS_Market_1b_CK_00",
+            "XS_DoNotEnterGateB_1a_0",
+            "XW_PrisonWallD01_1b_00",
+        ] {
+            assert_eq!(loose_class(rigid), None, "{rigid}");
+        }
     }
 
     #[test]

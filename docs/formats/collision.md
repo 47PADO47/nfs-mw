@@ -323,7 +323,9 @@ benches, poles, signs, fences). How they are found and used, measured with throw
   100 kg, bench 100, hydrant 50, trash can 100, crash barrel 700, dumpster 200, traffic light 200, foundation 100,000)
   and `NO_CAR_EFFECT`, but which scenery object uses which collection is **not** in any file read so far (it is
   probably in code or in track data we have not found). The Rust side guesses the kind from the name
-  (`smackable_class`) for `XO_` objects and treats up to 150 kg as light; `XW_` and `XB_` scenery is rigid.
+  (`loose_class`) and treats up to 150 kg as light: `XO_` objects by their name, street signs (`XS_Warn*`,
+  `Speed*`, `Stop*`, `DoNot*`, `No*`, `Chevr*`... as `largesign`, 100 kg) and picket and chain-link fences. Poles,
+  stalls, `XW_` walls and `XB_` buildings are rigid. [guess: matches how the signs fell over in play]
 - **Barriers are in the packs.** Of the guard rails (`XW_Guardrail*`, 834 instances), concrete and metal barriers
   (`XW_BarrConc*`, `XW_BarrMet*`, 2,798), `XW_BarrRails*`, iron rails, fences and chains, 98% to 100% have a
   barrier or steep face of the world collision packs within 1.5 m at 0.5 m height. They only seemed missing because
