@@ -97,8 +97,8 @@ The `SA` block (little-endian):
 String objects add tags `Sb` buffer length, `St` UTF-16LE text, `Sj` justification, `Sl` leading,
 `Sw` maximum width and `SH` label hash. Images have `If` flags (unused by the renderer). Multi images have
 `M1`–`M3` texture hashes and `Ma`–`Mc` flags (0 or 1 in the HUD). Object flags seen: `0x40000000`
-(affect all scripts) and 0; the low bits are for the game: bit 0 invisible, bit 1 "text is not localized",
-bit 3 hidden on the PC **[decomp]**. `OP`'s 4th word is the resource index (`0xFFFF` = none; groups carry 0).
+(affect all scripts) and 0; the low 16 bits are for the game: bit 1 "text is not localized", bit 3 "not drawn on
+the PC" (`RenderObject` skips it) **[decomp]**. `OP`'s 4th word is the resource index (`0xFFFF` = none; groups carry 0).
 
 **Justification** (`Sj`, `FEString.h` **[decomp]**): 1 horizontally centred, 2 right, 4 vertically
 centred, 8 vertically bottom, 0x10 word wrap. Values seen in the HUD: 0, 1, 2, 5, 0x11 **[verified]**.

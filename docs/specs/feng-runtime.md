@@ -30,7 +30,8 @@ Each object keeps the block `SA` as live state: colour (blue, green, red, alpha)
 too (rotation of a needle, alpha of a warning). Besides the block an object has:
 
 - identity: GUID, name hash, parent GUID (0 = top level), resource index, type;
-- `Flags`; bit 0 = invisible. Invisible objects, and everything below an invisible group, are not drawn;
+- `Flags` (game bits): bit 1 = text not localized, bit 3 = not drawn on the PC. Objects are hidden by alpha 0
+  (the `HIDE` script) or by the host; everything below a hidden group is hidden too;
 - a **current script** (initially `INIT`, time 0) and its clock;
 - strings: the text (UTF-16), the label hash, the justification, leading, maximum width and the font;
 - images: the texture handle (resource hash) and the UV rectangle; multi images: three texture hashes.
@@ -130,14 +131,18 @@ package list.
 
 The runtime emits a list of drawable nodes; the host draws them. Rules **[decomp]**:
 
-- **Order:** ascending `(pivot.z + position.z)` plus the same of the ancestors, stable, with depth-first list
-  order breaking ties. Objects whose summed z is `<= 0` are skipped. An object with alpha 0 is skipped; for a
-  group, its whole subtree is.
+- **Order:** the sort key is `z = (parent context * (pivot + position)).z`, the object depth after its
+  ancestors; objects with `z <= 0` are skipped. The sorter orders ascending, and the packages only make sense
+  drawn **farthest first** (the tachometer face has z 200 and the needle z 10): so larger z is drawn first,
+  and the depth-first list order breaks ties (a later object draws over an earlier one). An object with alpha
+  0 is skipped; for a group, its whole subtree is. An object whose flags have bit 3 set (`0x8`) is not drawn on
+  the PC.
 - **Transform:** an image is the unit square (−0.5..0.5). `world = parent * T(position) * T(pivot) *
-  R(rotation) * T(−pivot) * S(size)`. A negative size mirrors. A group's context is the same product for
-  the group (its scale included) times its parent's. UVs are used as stored.
+  R(rotation) * T(−pivot) * S(size)`. A negative size mirrors. A group's context is the same product without
+  the scale (`RenderGroup` builds it from the rotation, pivot and position only), times its parent's. UVs are
+  used as stored.
 - **Colour:** the object's colour times the colours of its ancestors, per channel `(a * b + 128) >> 8` on
-  0..255 values. The vertex colour divided by 255 modulates the texture. The blend mode comes from the
+  0..255 values (this runtime uses `a * (b + 1) / 256`, which keeps 255 exact). The vertex colour divided by 255 modulates the texture. The blend mode comes from the
   texture (`AlphaBlendType`: 1 blend, 2 additive).
 - **Strings:** glyph quads placed around the string origin. Horizontal origin: left 0, centre −width / 2,
   right −width; vertical: centre −height / 2, bottom −height. A maximum width (`Sw`) squeezes the line

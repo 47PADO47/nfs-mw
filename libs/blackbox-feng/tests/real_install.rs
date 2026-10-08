@@ -119,3 +119,31 @@ fn the_game_fonts_parse_and_lay_out_text() {
     assert_eq!(layout.quads.len(), 8);
     assert!(layout.width > 40.0 && layout.width < 200.0, "{}", layout.width);
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_single_race_hud_runs_and_builds_a_tree() {
+    if install().is_none() {
+        return;
+    }
+    let hud = packages_in("GLOBAL/InGameB.bun")
+        .into_iter()
+        .find(|p| p.name.eq_ignore_ascii_case("HUD_SingleRace.fng"))
+        .unwrap();
+    let mut rt = blackbox_feng::Runtime::new();
+    let id = rt.load(hud);
+    for _ in 0..120 {
+        rt.update(1.0 / 60.0);
+    }
+    let out = rt.take_outgoing();
+    println!("messages to the game after 2 s: {}", out.len());
+    let tree = rt.tree(id);
+    assert_eq!(tree.nodes.len(), 372);
+    let drawn = tree.draw_order.len();
+    println!("{drawn} drawable nodes");
+    assert!(drawn > 0 && drawn < 372);
+    let cluster = tree.nodes.iter().find(|n| n.name_hash == blackbox_feng::fe_hash_upper("GaugeCluster")).unwrap();
+    // The gauge cluster sits at the bottom right of the 640 x 480 screen (origin at the centre).
+    let p = cluster.world.w_axis;
+    println!("GaugeCluster at {p:?}");
+}
