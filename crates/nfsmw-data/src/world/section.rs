@@ -3,6 +3,7 @@
 use std::io::{Read, Seek, SeekFrom};
 
 use anyhow::{Context, Result};
+use blackbox_collision::CollisionPack;
 use blackbox_scenery::ScenerySection;
 use blackbox_solid::Solid;
 use blackbox_streaming::StreamingSection;
@@ -17,6 +18,8 @@ pub struct SectionData {
     /// Animated textures (water, signals) defined in this section.
     pub anims: Vec<TextureAnim>,
     pub scenery: Vec<ScenerySection>,
+    /// The section's static collision (`docs/formats/collision.md`); map tiles have one.
+    pub collision: Vec<CollisionPack>,
 }
 
 /// Parse a section's bytes. Sections start 0x800-aligned in the stream file, so
@@ -33,7 +36,8 @@ pub fn parse_section(index: usize, bytes: &[u8]) -> Result<SectionData> {
     let scenery =
         blackbox_scenery::read_scenery_sections(bytes, &blackbox_scenery::layout::MOST_WANTED).context("scenery")?;
     let anims = blackbox_tpk::read_texture_anims(bytes);
-    Ok(SectionData { index, solids, textures, anims, scenery })
+    let collision = blackbox_collision::read_collision_packs(bytes).context("collision")?;
+    Ok(SectionData { index, solids, textures, anims, scenery, collision })
 }
 
 /// Read and parse one section from the open stream file.

@@ -11,6 +11,8 @@ pub struct WorldIndex {
     pub sections: Vec<StreamingSection>,
     /// Zones and what each one loads and draws (`docs/specs/visible-sections.md`).
     pub visible: VisibleSections,
+    /// Which collision instances touch each map cell (`docs/formats/collision.md`).
+    pub collision_grid: Option<blackbox_collision::Grid>,
     /// Install-relative path of the stream file.
     pub stream_file: String,
 }
@@ -24,6 +26,8 @@ impl WorldIndex {
         let visible =
             blackbox_streaming::read_visible_sections(&meta, &blackbox_streaming::layout::MOST_WANTED_VISIBLE)
                 .with_context(|| format!("reading the visible sections in {meta_file}"))?;
+        let collision_grid = blackbox_collision::Grid::read(&meta)
+            .with_context(|| format!("reading the collision grid in {meta_file}"))?;
         log::info!(
             "{track}: {} sections ({} map tiles, {} shared), {} zones",
             sections.len(),
@@ -31,7 +35,13 @@ impl WorldIndex {
             sections.iter().filter(|s| !s.is_spatial()).count(),
             visible.drivable.len()
         );
-        Ok(Self { track: track.to_owned(), sections, visible, stream_file: format!("TRACKS/STREAM{track}.BUN") })
+        Ok(Self {
+            track: track.to_owned(),
+            sections,
+            visible,
+            collision_grid,
+            stream_file: format!("TRACKS/STREAM{track}.BUN"),
+        })
     }
 
     /// Indices of the shared (non-spatial) sections.

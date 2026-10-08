@@ -60,3 +60,25 @@ fn every_world_section_parses_and_scenery_resolves() {
     eprintln!("tile instances: {resolved} resolved, {missing} not");
     assert!(missing * 1000 < resolved, "too many unresolved instances: {missing}");
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR); reads the whole 533 MB stream"]
+fn collision_packs_come_with_map_tiles() {
+    let Some(dir) = install() else { return };
+    let index = WorldIndex::open(&dir, DEFAULT_TRACK).unwrap();
+    assert!(index.collision_grid.is_some(), "the track file has a collision grid");
+    let mut file = dir.open_file(&index.stream_file).unwrap();
+    // A tile carries the pack of the collision section it covers. The two numberings differ
+    // (tile A41 holds pack 101; some tiles hold a pack of their own number), so only the totals are checked.
+    let mut packs = HashSet::new();
+    for (i, section) in index.sections.iter().enumerate() {
+        let data = load_section(&mut file, i, section).unwrap();
+        for pack in &data.collision {
+            assert!(packs.insert(pack.section), "pack {} is in two sections", pack.section);
+        }
+        if !section.is_spatial() {
+            assert!(data.collision.is_empty(), "{}", section.name);
+        }
+    }
+    assert_eq!(packs.len(), 390);
+}
