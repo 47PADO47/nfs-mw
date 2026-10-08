@@ -130,3 +130,29 @@ fn all_songs_play_to_their_length() {
         println!("song {n:2} {:.1} s {} - {}", played, song.artist, song.title);
     }
 }
+
+/// Through the real mixer: `radio next` starts a song on the music track and the audio thread consumes it at the
+/// device's pace. Passes without checking anything when there is no sound device.
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR) and plays for two seconds on the default output"]
+fn the_music_track_plays_a_song_in_real_time() {
+    let Some(dir) = install() else { return };
+    let mut audio = crate::audio::Audio::new(dir, crate::audio::Volumes::default());
+    if !audio.available() {
+        println!("no sound device: nothing checked");
+        return;
+    }
+    let started = super::super::command(&mut audio, &["next"]).unwrap();
+    println!("{started}");
+    let begin = std::time::Instant::now();
+    while begin.elapsed().as_secs_f32() < 2.0 {
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        audio.update_radio(false);
+    }
+    let now = audio.now_playing().expect("a song is on the air").clone();
+    println!("{} at {:.2} s of {:.1} s", now.label(), now.elapsed_secs, now.length_secs);
+    assert!((now.elapsed_secs - 2.0).abs() < 0.6, "the device played {} s in 2 s", now.elapsed_secs);
+    println!("{}", super::super::command(&mut audio, &[]).unwrap());
+    super::super::command(&mut audio, &["off"]).unwrap();
+    assert!(audio.now_playing().is_none());
+}
