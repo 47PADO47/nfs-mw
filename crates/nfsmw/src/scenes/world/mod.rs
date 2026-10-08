@@ -3,6 +3,7 @@
 mod ground;
 mod residency;
 mod resident;
+mod space;
 mod visibility;
 mod zone;
 
@@ -61,7 +62,13 @@ impl WorldScene {
         Ok(Self {
             track: index.track.clone(),
             camera,
-            residency: Residency::new(index.sections, index.visible, streamer, load_global_textures(dir)?),
+            residency: Residency::new(
+                index.sections,
+                index.visible,
+                streamer,
+                load_global_textures(dir)?,
+                index.collision_grid,
+            ),
             start,
             start_height: options.height,
             grounded: false,
@@ -94,9 +101,15 @@ impl Scene for WorldScene {
         self.residency.animate(renderer, self.clock);
         if !self.grounded && self.residency.complete() {
             self.grounded = true;
-            let ground = ground::height_near(self.residency.placed(), self.start[0], self.start[1], 150.0);
-            self.camera.position.z = ground.unwrap_or(0.0) + self.start_height;
-            log::info!("ground near the start: {ground:?}; camera at z = {:.0}", self.camera.position.z);
+            let estimate = ground::height_near(self.residency.placed(), self.start[0], self.start[1], 150.0);
+            // The collision surface just under the estimate is the real road; the estimate is only a guess.
+            let top = estimate.unwrap_or(0.0) + 30.0;
+            let road = space::ground_below(self.residency.collision(), self.start[0], self.start[1], top, top - 120.0);
+            self.camera.position.z = road.or(estimate).unwrap_or(0.0) + self.start_height;
+            log::info!(
+                "ground near the start: scenery estimate {estimate:?}, collision {road:?}; camera at z = {:.0}",
+                self.camera.position.z
+            );
         }
     }
 

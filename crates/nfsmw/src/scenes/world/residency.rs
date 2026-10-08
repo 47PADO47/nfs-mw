@@ -3,6 +3,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use blackbox_collision::{CollisionWorld, Grid};
 use blackbox_render::Renderer;
 use blackbox_streaming::{StreamingSection, VisibleSections};
 use nfsmw_data::world::{GlobalTextures, SectionData, Streamer, StreamerEvent};
@@ -17,7 +18,12 @@ const UPLOADS_PER_FRAME: usize = 2;
 
 enum TileState {
     Requested,
-    Resident { resources: SectionResources, placed: Vec<Placed> },
+    Resident {
+        resources: SectionResources,
+        placed: Vec<Placed>,
+        /// Sections of the collision packs this tile put into the collision world.
+        packs: Vec<u32>,
+    },
 }
 
 pub struct Residency {
@@ -42,6 +48,8 @@ pub struct Residency {
     /// so crossing a zone border does not open holes while tiles load.
     previous: HashSet<usize>,
     pub unresolved: usize,
+    /// The collision of the resident tiles; physics queries run on it (`docs/formats/collision.md`).
+    collision: CollisionWorld,
 }
 
 impl Residency {
@@ -50,6 +58,7 @@ impl Residency {
         visible: VisibleSections,
         streamer: Streamer,
         globals: GlobalTextures,
+        collision_grid: Option<Grid>,
     ) -> Self {
         // Every shared set stays loaded: V/X/Y hold models and textures only, Z0 the sky.
         let shared: Vec<usize> = (0..sections.len()).filter(|&i| !sections[i].is_spatial()).collect();
@@ -72,6 +81,7 @@ impl Residency {
             drawn: HashSet::new(),
             previous: HashSet::new(),
             unresolved: 0,
+            collision: CollisionWorld::new(collision_grid),
         }
     }
 
@@ -115,7 +125,10 @@ impl Residency {
                 StreamerEvent::Failed { index, error } => {
                     log::error!("section {}: {error}", self.sections[index].name);
                     if self.sections[index].is_spatial() {
-                        self.tiles.insert(index, TileState::Resident { resources: Default::default(), placed: vec![] });
+                        self.tiles.insert(
+                            index,
+                            TileState::Resident { resources: Default::default(), placed: vec![], packs: vec![] },
+                        );
                     } else {
                         self.shared_total -= 1;
                     }
@@ -162,7 +175,11 @@ impl Residency {
             resources.upload_meshes(renderer, &data, &self.shared);
             let (placed, unresolved) = place(&data, &resources, &self.shared);
             self.unresolved += unresolved;
-            self.tiles.insert(data.index, TileState::Resident { resources, placed });
+            let packs = data.collision.iter().map(|p| p.section).collect();
+            for pack in data.collision {
+                self.collision.insert(pack);
+            }
+            self.tiles.insert(data.index, TileState::Resident { resources, placed, packs });
         }
     }
 
@@ -176,8 +193,11 @@ impl Residency {
         let wanted: HashSet<usize> = self.wanted.iter().copied().collect();
         let unwanted: Vec<usize> = self.tiles.keys().copied().filter(|i| !wanted.contains(i)).collect();
         for i in unwanted {
-            if let Some(TileState::Resident { resources, .. }) = self.tiles.remove(&i) {
+            if let Some(TileState::Resident { resources, packs, .. }) = self.tiles.remove(&i) {
                 resources.release(renderer);
+                for section in packs {
+                    self.collision.remove(section);
+                }
             }
         }
     }
@@ -222,6 +242,11 @@ impl Residency {
     /// Whether the shared sets and every tile the current zone needs are resident.
     pub fn complete(&self) -> bool {
         self.shared_ready && self.zones.name().is_some() && self.arrived.is_empty() && self.wanted_resident()
+    }
+
+    /// The collision of the tiles that are resident now.
+    pub fn collision(&self) -> &CollisionWorld {
+        &self.collision
     }
 
     /// The current zone, e.g. `D14`.
