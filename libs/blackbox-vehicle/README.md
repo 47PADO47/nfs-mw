@@ -132,7 +132,20 @@ Each is a deliberate choice where the spec was ambiguous, or where a literal rea
     pass with the body's own friction (no per-surface multiplier, no 16 sub-steps, no AI skip rule).
 13. **Sleep:** a car with any wheel on the ground never sleeps (as in the spec); a car resting on its roof
     can. A sleeping car wakes on throttle or handbrake.
-14. **Gear ratios** are used as magnitudes; shift points are not computed for more than 10 gear entries.
+14. **Airborne downforce.** The original keeps 0.8 of the downforce in the air; with real aero coefficients
+    that pulls a car down about twice as hard as gravity at jump speeds. `AeroSpec::airborne_scale` (default
+    0.1) lets a car float over a crest. A tuning of this library, not game data.
+15. **Clutch torque is capped** at the peak engine torque while it slips. The uncapped spring dumped the
+    flywheel into the wheels after every shift (a 12 kN m spike and a two-step oscillation).
+16. **Gear ratios** are used as magnitudes; shift points are not computed for more than 10 gear entries.
+
+## Tire marks and smoke
+
+`WheelState` carries `slide_speed` (m/s the contact patch slides over the road, from wheel spin and sideways
+motion), `skid` (0..1, tire-mark darkness; starts at 2 m/s and is full at 5) and `smoke` (0..1, starts at
+3.5 m/s and is densest at 9). Both are 0 for a wheel in the air. A renderer lays marks along the patch
+positions while `skid` is above a small threshold; drawing them is a later milestone. The ranges
+(`SKID_RANGE`, `SMOKE_RANGE`) are guesses to tune by eye.
 
 ## Not implemented
 
