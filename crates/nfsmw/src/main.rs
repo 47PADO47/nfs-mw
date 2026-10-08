@@ -1,6 +1,7 @@
 //! `nfsmw`: entry point of the NFS: Most Wanted rewrite.
 
 mod app;
+mod audio;
 mod cli;
 mod commands;
 mod devtools;

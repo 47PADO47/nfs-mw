@@ -59,11 +59,13 @@ pub struct RunOptions {
     pub hud: Option<game_install::GameDir>,
     /// Numbers the HUD shows until the scene supplies its own (`--hud-demo`).
     pub hud_demo: Option<crate::hud::HudState>,
+    /// Open the sound device and play the scene's sound, reading banks from this install.
+    pub audio: Option<game_install::GameDir>,
 }
 
 /// Open a window and run `scene` until the user quits (or write the screenshot and exit).
 pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> Result<()> {
-    let RunOptions { screenshot, exec, open_console, hud, hud_demo } = options;
+    let RunOptions { screenshot, exec, open_console, hud, hud_demo, audio } = options;
     let error = ErrorSlot(Arc::new(Mutex::new(None)));
     let mut window = Window { title: scene.title(), ..Window::default() };
     if screenshot.is_some() {
@@ -98,6 +100,9 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
     .add_systems(Last, pacing::end_of_frame);
     if let Some(dir) = hud {
         app.add_plugins(crate::hud::HudPlugin { dir, initial: hud_demo.unwrap_or_default() });
+    }
+    if let Some(dir) = audio {
+        app.add_plugins(crate::audio::AudioPlugin { dir });
     }
     crate::devtools::start_console(&mut app, exec, open_console);
 
