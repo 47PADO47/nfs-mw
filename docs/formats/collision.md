@@ -298,9 +298,38 @@ mesh-vs-ground nodes (the M3 GTR: 16 points, `z ∈ ±2.2`, `y ∈ 0.06…0.6`).
 **Keys**: car sets are keyed by `vlt_hash(CarTypeName)` (upper case, e.g. `BMWM3GTR`) ✔ for all 86; 86 of the
 91 car types have bounds (`BMWM3`, `TRUENO`, `LEVIN`, `TRUENOCP`, `TRUENOID` have none). Car axes: x
 width, y up, z length; the M3 GTR root box has half dimensions `(0.938, 0.621, 2.271)` m and pivot
-`(0.004, 0.621, 0.162)`. Prop sets are keyed by an object name hash **[unconfirmed which names]**. Node
+`(0.004, 0.621, 0.162)`. Prop sets are keyed by `vlt_hash` of a scenery object's name ([Props](#props)). Node
 surfaces: cars use `carbody` (633 nodes), 0 (336), `metal` (72), `glass` (10), `wood` (10), `stone` (5);
 props use 0 (1,249), `metal` (524), `wood` (351), `stone` (9), `glass` (8).
+
+## Props **[verified on the install]**
+
+The 405 prop sets in `TRACKS/L2RA.BUN` are the collision of loose and standing scenery (cones, bins,
+benches, poles, signs, fences). How they are found and used, measured with throwaway probes:
+
+- **Key.** `vlt_hash` (Jenkins lookup2, initval `0xABCDEF00`) of the scenery object's name **in its own case**, the
+  name in the scenery info (`XO_TrafficConeA_1b_00`). 190 of the 405 sets match a name exactly. The info
+  stores 23 characters, so 2,785 of the 4,103 names are cut; the key is the full name. Appending one of a few
+  endings (`0`, `00`, `_DE`, `_DE0`, `1`, `A`) to a cut name finds 44 more sets, 234 in all (227 are used by
+  scenery; the other sets belong to names we cannot reconstruct). `PropCatalog::shape` does this.
+- **Axes.** The set is in the bounds space of cars (x width, y up, z length, left-handed); the scenery model
+  is x forward, y left, z up. A box centre `(x, y, z)` is `(z, -x, y)` in model space, half dimensions
+  `(hx, hy, hz)` are `(hz, hx, hy)`, and rotations are conjugated by that reflection. Checked: 97.7% of the 26,522
+  boxes of the 12,229 matched instances have their centre inside the instance's own scenery box (enlarged by
+  1.5 m) after placing them with the instance matrix.
+- **Which nodes.** Nodes with the "primitive vs world" flag (`0x2`); a set without one uses its root.
+- **Rigid or light.** Nothing in the bounds says it. The attribute class `smackable` (181 collections named by kind of
+  object: `cone`, `crate`, `bench`, `firehydrant`, `dumpster`, `crsh_barrel`, `largemetalobject`, ...) has `MASS` (cone
+  100 kg, bench 100, hydrant 50, trash can 100, crash barrel 700, dumpster 200, traffic light 200, foundation 100,000)
+  and `NO_CAR_EFFECT`, but which scenery object uses which collection is **not** in any file read so far (it is
+  probably in code or in track data we have not found). The Rust side guesses the kind from the name
+  (`smackable_class`) for `XO_` objects and treats up to 150 kg as light; `XW_` and `XB_` scenery is rigid.
+- **Barriers are in the packs.** Of the guard rails (`XW_Guardrail*`, 834 instances), concrete and metal barriers
+  (`XW_BarrConc*`, `XW_BarrMet*`, 2,798), `XW_BarrRails*`, iron rails, fences and chains, 98% to 100% have a
+  barrier or steep face of the world collision packs within 1.5 m at 0.5 m height. They only seemed missing because
+  nothing used the packs' barriers for cars.
+- **Not found:** the `FlyBy`/animated props, trigger-driven objects (`EmTriggerPack`), and the sets whose names are
+  unknown.
 
 ## Query semantics
 
