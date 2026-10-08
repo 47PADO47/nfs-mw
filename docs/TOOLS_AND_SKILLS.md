@@ -4,7 +4,7 @@ Reference for the reverse-engineering and modding toolchain available to this
 project, plus the Claude Code skills, agents, and MCP servers worth reaching for.
 
 - **Project:** Need for Speed: Most Wanted (2005) data-format RE (`.BUN`/`.BIN`/`.LZC` bChunk trees; JDLZ/RAWW compression).
-- **Host:** Windows 10, `C:\Users\PADO\github\nfs-mw`.
+- **Host:** Windows 10.
 - **Last updated:** 2026-10-07.
 
 ---
@@ -33,10 +33,10 @@ python tools/chunkdump.py <file.BUN|.BIN|.LZC>
 | **Ghidra** | 12.1.4 → `D:\retoolkit\decompilers\ghidra_12.1.4_PUBLIC` (runs on JDK 25 via `JAVA_HOME_OVERRIDE` in its `support\launch.properties`). Old 10.1.3 at `D:\retoolkit\decompilers\ghidra`. | Disassembly, decompilation, headless analysis/export of binaries. |
 | **JDK** | 25 → `C:\Program Files\Eclipse Adoptium\jdk-25.0.4.101-hotspot` (also JDK 17). | Runs Ghidra 12 (needs 21+) and Gradle/Java builds. |
 | **MSVC** | `cl.exe` 19.51 (VS Build Tools 2026) → `C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools`. Not on PATH; load via `VC\Auxiliary\Build\vcvars64.bat`. | Compile/validate reconstructed C/C++. |
-| **Python** | 3.14.6 (system, `C:\Python314`). User-site scripts in `C:\Users\PADO\AppData\Roaming\Python\Python314\Scripts`. | Project scripts, ReAgent, Ghidra export bridge. |
-| **uv / uvx** | `C:\Users\PADO\.local\bin` (on PATH). | Fast Python env/runner; drives the Ghidra MCP bridge and HCLI. |
-| **ReAgent** | `auto-re-agent` 0.4.0 (`re-agent`, `ghidra-bridge` CLIs). Demo project: `C:\Users\PADO\github\reagent-demo`. | AI-assisted binary→C/C++ reconstruction with a bounded validation pipeline. See §3. |
-| **Ghidra MCP** | `bethington/ghidra-mcp` v7.0.0 → `C:\Users\PADO\github\ghidra-mcp` (built w/ Gradle+JDK25, deployed into Ghidra, bridge `.venv` via uv). | Exposes 209 Ghidra tools to Claude over MCP. See §4. |
+| **Python** | 3.14.6 (system, `C:\Python314`). | Project scripts, ReAgent, Ghidra export bridge. |
+| **uv / uvx** | On PATH. | Fast Python env/runner; drives the Ghidra MCP bridge and HCLI. |
+| **ReAgent** | `auto-re-agent` 0.4.0 (`re-agent`, `ghidra-bridge` CLIs). | AI-assisted binary→C/C++ reconstruction with a bounded validation pipeline. See §3. |
+| **Ghidra MCP** | `bethington/ghidra-mcp` v7.0.0 (built w/ Gradle+JDK25, deployed into Ghidra, bridge `.venv` via uv). | Exposes 209 Ghidra tools to Claude over MCP. See §4. |
 
 > **Ghidra headless on this box:** `analyzeHeadless` needs the project dir to pre-exist,
 > and the `ghidra-bridge export` step needs `pyghidra` + `JAVA_HOME=…jdk-25…`.
@@ -88,7 +88,7 @@ the inverted reconstruction correctly failed: `{"candidate":7,"case":[1,13],"ref
 Registered with Claude Code at **user scope** (all projects):
 ```bash
 claude mcp add -s user ghidra-mcp --env GHIDRA_MCP_URL=http://127.0.0.1:8089 -- \
-  "C:\Users\PADO\.local\bin\uv.exe" run --directory "C:\Users\PADO\github\ghidra-mcp" bridge-mcp-ghidra --transport stdio
+  uv run --directory /path/to/ghidra-mcp bridge-mcp-ghidra --transport stdio
 ```
 Tools appear as `mcp__ghidra-mcp__*` (209 of them: decompile, rename, structs, xrefs, strings, etc.).
 
