@@ -7,7 +7,7 @@ use super::ids::{LABEL_OFF, LABEL_ON};
 use super::logic::Category;
 use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
-use crate::settings::{Partial, Percent, Settings, SmokeQuality, WindowMode};
+use crate::settings::{Partial, Percent, Settings, SmokeQuality, Transmission, WindowMode};
 
 /// A setting a row edits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -24,6 +24,7 @@ pub enum Setting {
     TireSmoke,
     SkidMarks,
     SmokeQuality,
+    Transmission,
 }
 
 /// What a row's title shows.
@@ -77,9 +78,19 @@ pub fn rows(category: Category) -> Vec<Row> {
             row(Setting::SkidMarks, Title::Text("Skid Marks")),
             row(Setting::SmokeQuality, Title::Text("Smoke Quality")),
         ],
-        Category::Gameplay => vec![row(Setting::Hud, Title::Label(0xAC14_8579))],
+        Category::Gameplay => {
+            vec![
+                row(Setting::Hud, Title::Label(0xAC14_8579)),
+                row(Setting::Transmission, Title::Label(LABEL_TRANSMISSION)),
+            ]
+        }
     }
 }
+
+/// The original's Transmission row: its title and the two values (docs/specs/vehicle-manual-shifting.md, section 1).
+const LABEL_TRANSMISSION: u32 = 0xD314_07E7;
+const LABEL_AUTOMATIC: u32 = 0x8CD5_32A0;
+const LABEL_MANUAL: u32 = 0x317D_3005;
 
 /// Frame limits the row cycles through.
 const FRAME_LIMITS: [&str; 6] = ["unlocked", "30", "60", "120", "144", "240"];
@@ -129,6 +140,10 @@ impl Setting {
                 }
                 .to_owned(),
             ),
+            Setting::Transmission => Data::Label(match s.transmission {
+                Transmission::Automatic => LABEL_AUTOMATIC,
+                Transmission::Manual => LABEL_MANUAL,
+            }),
             Setting::MaxFps => Data::Text(match s.max_fps.to_string().as_str() {
                 "unlocked" => "Unlocked".to_owned(),
                 fps => format!("{fps} FPS"),
@@ -181,6 +196,10 @@ impl Setting {
             Setting::SkidMarks => {
                 s.skid_marks = !s.skid_marks;
                 changed.skid_marks = Some(s.skid_marks);
+            }
+            Setting::Transmission => {
+                s.transmission = s.transmission.other();
+                changed.transmission = Some(s.transmission);
             }
             Setting::MaxFps => {
                 let at = FRAME_LIMITS.iter().position(|l| MaxFps::from_str(l).is_ok_and(|m| m == s.max_fps));
@@ -263,6 +282,13 @@ mod tests {
         Setting::MaxFps.step(&mut s, &mut c, false);
         assert_eq!(Setting::MaxFps.data(&s), Data::Text("240 FPS".into()), "left from unlocked wraps to the last");
 
+        assert_eq!(Setting::Transmission.data(&s), Data::Label(LABEL_AUTOMATIC));
+        Setting::Transmission.step(&mut s, &mut c, true);
+        assert_eq!((s.transmission, c.transmission), (Transmission::Manual, Some(Transmission::Manual)));
+        assert_eq!(Setting::Transmission.data(&s), Data::Label(LABEL_MANUAL));
+        Setting::Transmission.step(&mut s, &mut c, false);
+        assert_eq!(s.transmission, Transmission::Automatic, "left and right both toggle, as in the original");
+
         Setting::Metrics.step(&mut s, &mut c, true);
         assert_eq!(s.show_metrics, ShowMetrics::Basic);
         assert_eq!(c.show_metrics, Some(ShowMetrics::Basic));
@@ -272,7 +298,7 @@ mod tests {
     fn every_category_has_rows() {
         assert_eq!(rows(Category::Audio).len(), 4);
         assert_eq!(rows(Category::Video).len(), 7);
-        assert_eq!(rows(Category::Gameplay).len(), 1);
+        assert_eq!(rows(Category::Gameplay).len(), 2);
     }
 
     #[test]

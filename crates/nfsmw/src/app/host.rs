@@ -8,7 +8,7 @@ use bevy_ecs::resource::Resource;
 use blackbox_render::Renderer;
 
 use super::pacing::FrameLimiter;
-use crate::settings::{Settings, SmokeQuality};
+use crate::settings::{Settings, SmokeQuality, Transmission};
 use crate::viewer::Scene;
 
 pub struct Host {
@@ -29,6 +29,8 @@ pub struct Host {
     pub hold_capture: bool,
     tire_effects: [bool; 2],
     smoke_quality: SmokeQuality,
+    /// The transmission setting as of the last frame, given to every scene that is put in the window.
+    pub transmission: Transmission,
 }
 
 impl Host {
@@ -48,6 +50,7 @@ impl Host {
             hold_capture: false,
             tire_effects: [settings.tire_smoke, settings.skid_marks],
             smoke_quality: settings.smoke_quality,
+            transmission: settings.transmission,
         }
     }
 
@@ -58,6 +61,7 @@ impl Host {
         scene.set_smoke_quality(self.smoke_quality);
         let renderer = self.renderer.as_mut().ok_or_else(|| anyhow::anyhow!("the renderer is not ready"))?;
         scene.init(renderer)?;
+        scene.set_transmission(self.transmission);
         if self.screenshot.is_some() {
             super::screenshot::wait_ready(scene.as_mut(), renderer);
         }

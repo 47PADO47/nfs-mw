@@ -2,6 +2,7 @@
 
 use std::str::FromStr;
 
+use super::Transmission;
 use super::partial::{Partial, Percent, parse_bool};
 use super::{Monitor, Resolution, SmokeQuality, WindowMode};
 use crate::app::pacing::MaxFps;
@@ -22,6 +23,9 @@ pub const HUD: &str = "NFSMW_HUD";
 pub const TIRE_SMOKE: &str = "NFSMW_TIRE_SMOKE";
 pub const SMOKE_QUALITY: &str = "NFSMW_SMOKE_QUALITY";
 pub const SKID_MARKS: &str = "NFSMW_SKID_MARKS";
+pub const TRANSMISSION: &str = "NFSMW_TRANSMISSION";
+pub const PADDLE_UP: &str = "NFSMW_PADDLE_UP";
+pub const PADDLE_DOWN: &str = "NFSMW_PADDLE_DOWN";
 
 /// Read the layer through `get`, so tests need not touch the process environment. A value that
 /// does not parse is reported and ignored.
@@ -42,6 +46,9 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         tire_smoke: value(&get, TIRE_SMOKE, parse_bool),
         smoke_quality: value(&get, SMOKE_QUALITY, SmokeQuality::from_str),
         skid_marks: value(&get, SKID_MARKS, parse_bool),
+        transmission: value(&get, TRANSMISSION, Transmission::from_str),
+        paddle_up: value(&get, PADDLE_UP, |s| s.trim().parse::<u32>().map_err(|e| e.to_string())),
+        paddle_down: value(&get, PADDLE_DOWN, |s| s.trim().parse::<u32>().map_err(|e| e.to_string())),
     }
 }
 
@@ -83,6 +90,14 @@ mod tests {
         let p = layer(&[(MASTER_VOLUME, "50"), (MUSIC_VOLUME, "20%"), (SFX_VOLUME, "loud")]);
         assert_eq!((p.master_volume, p.music_volume), (Some(Percent(50)), Some(Percent(20))));
         assert_eq!((p.sfx_volume, p.engine_volume), (None, None));
+    }
+
+    #[test]
+    fn reads_the_transmission() {
+        assert_eq!(layer(&[(TRANSMISSION, "manual")]).transmission, Some(Transmission::Manual));
+        assert_eq!(layer(&[(TRANSMISSION, "sport")]).transmission, None);
+        let p = layer(&[(PADDLE_UP, "12"), (PADDLE_DOWN, "left")]);
+        assert_eq!((p.paddle_up, p.paddle_down), (Some(12), None));
     }
 
     #[test]

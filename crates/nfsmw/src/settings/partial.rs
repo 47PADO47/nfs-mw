@@ -2,7 +2,7 @@
 
 use blackbox_render::Backend;
 
-use super::{Monitor, Resolution, SmokeQuality, WindowMode};
+use super::{Monitor, Resolution, SmokeQuality, Transmission, WindowMode};
 use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
 
@@ -57,6 +57,9 @@ pub struct Partial {
     pub tire_smoke: Option<bool>,
     pub smoke_quality: Option<SmokeQuality>,
     pub skid_marks: Option<bool>,
+    pub transmission: Option<Transmission>,
+    pub paddle_up: Option<u32>,
+    pub paddle_down: Option<u32>,
 }
 
 impl Partial {
@@ -78,6 +81,9 @@ impl Partial {
             tire_smoke: self.tire_smoke.or(lower.tire_smoke),
             smoke_quality: self.smoke_quality.or(lower.smoke_quality),
             skid_marks: self.skid_marks.or(lower.skid_marks),
+            transmission: self.transmission.or(lower.transmission),
+            paddle_up: self.paddle_up.or(lower.paddle_up),
+            paddle_down: self.paddle_down.or(lower.paddle_down),
         }
     }
 }

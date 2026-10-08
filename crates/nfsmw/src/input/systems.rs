@@ -1,5 +1,7 @@
 //! The Bevy side of the input layer: reads `bevy_input` and resolves the actions.
 
+use std::collections::HashSet;
+
 use bevy_app::{App, Plugin, PreUpdate};
 use bevy_ecs::prelude::*;
 use bevy_input::gamepad::{Gamepad, GamepadButton, GamepadInput};
@@ -46,6 +48,7 @@ fn update_actions(
     time: Res<Time>,
     bindings: Res<Bindings>,
     mut state: ResMut<ActionState>,
+    mut held: Local<HashSet<GamepadButton>>,
 ) {
     let mut snapshot = Snapshot {
         // Keep a complete down/up pulse visible for one action frame, even when the key is no
@@ -78,7 +81,27 @@ fn update_actions(
             }
         }
     }
+    for code in newly_pressed_unnamed(&snapshot.pad_buttons, &held) {
+        log::info!(
+            "gamepad button {code} pressed (a button without a name: `paddle_up = {code}` or `paddle_down = {code}` in the config file binds it to a gear shift)"
+        );
+    }
+    *held = snapshot.pad_buttons.clone();
     state.update(&bindings, &snapshot, focus.0);
+}
+
+/// The codes of the buttons the platform has no name for that went down since `before`, in order.
+fn newly_pressed_unnamed(now: &HashSet<GamepadButton>, before: &HashSet<GamepadButton>) -> Vec<u32> {
+    let mut codes: Vec<u32> = now
+        .iter()
+        .filter(|b| !before.contains(b))
+        .filter_map(|b| match b {
+            GamepadButton::Other(code) => Some(*code),
+            _ => None,
+        })
+        .collect();
+    codes.sort_unstable();
+    codes
 }
 
 #[cfg(test)]
@@ -150,5 +173,14 @@ mod tests {
         assert!(actions.just_pressed(Action::Console));
         assert!(!actions.pressed(Action::ToggleCamera));
         assert_eq!(actions.value(Action::Throttle), 0.0);
+    }
+
+    #[test]
+    fn only_new_unnamed_buttons_are_reported() {
+        let held: HashSet<_> = [GamepadButton::Other(3), GamepadButton::South].into();
+        let now: HashSet<_> =
+            [GamepadButton::Other(3), GamepadButton::Other(9), GamepadButton::Other(4), GamepadButton::East].into();
+        assert_eq!(newly_pressed_unnamed(&now, &held), vec![4, 9]);
+        assert!(newly_pressed_unnamed(&held, &held).is_empty());
     }
 }

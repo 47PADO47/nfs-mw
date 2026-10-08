@@ -28,7 +28,7 @@ use bevy_winit::WinitPlugin;
 
 use crate::devtools::DevToolsPlugin;
 use crate::gui::GuiPlugin;
-use crate::input::InputLayerPlugin;
+use crate::input::{Bindings, InputLayerPlugin};
 use crate::settings::Settings;
 use crate::viewer::Scene;
 use host::ErrorSlot;
@@ -98,6 +98,7 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
     ))
     .insert_resource(*settings)
     .insert_resource(window::WindowModes::new(screenshot.is_some()))
+    .insert_resource(Bindings::with_paddles(settings.paddle_up, settings.paddle_down))
     .insert_resource(error.clone())
     .insert_non_send(Host::new(scene, settings, screenshot))
     .configure_sets(

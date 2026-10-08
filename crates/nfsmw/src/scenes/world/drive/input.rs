@@ -41,9 +41,49 @@ impl DriveInput {
     }
 }
 
+/// Button presses that wait for a physics step. The physics runs at a fixed 60 Hz, so a frame at a higher rate
+/// sometimes runs no step at all; a press that came in such a frame must not be lost (the original queues its
+/// shift actions the same way).
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct Presses {
+    shift_up: bool,
+    shift_down: bool,
+    reset: bool,
+}
+
+impl Presses {
+    /// Remembers the presses of this frame's input.
+    pub fn note(&mut self, input: &DriveInput) {
+        self.shift_up |= input.shift_up;
+        self.shift_down |= input.shift_down;
+        self.reset |= input.reset;
+    }
+
+    /// `input` with the waiting presses in place of its own, which are now consumed.
+    pub fn take_into(&mut self, input: DriveInput) -> DriveInput {
+        let waiting = std::mem::take(self);
+        DriveInput { shift_up: waiting.shift_up, shift_down: waiting.shift_down, reset: waiting.reset, ..input }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_press_waits_for_the_next_step() {
+        let mut presses = Presses::default();
+        let pressed = DriveInput { shift_up: true, reset: true, ..DriveInput::default() };
+        // A frame with no physics step: the press is noted and nothing consumes it.
+        presses.note(&pressed);
+        // The next frame has no press of its own but a step.
+        let later = DriveInput { throttle: 0.5, ..DriveInput::default() };
+        presses.note(&later);
+        let step = presses.take_into(later);
+        assert!(step.shift_up && step.reset && !step.shift_down);
+        assert_eq!(step.throttle, 0.5);
+        assert!(!presses.take_into(later).shift_up, "a press is taken once");
+    }
 
     #[test]
     fn shift_requests_fire_once_per_frame() {

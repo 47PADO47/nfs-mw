@@ -9,6 +9,7 @@ Written so far: [scenery-visibility.md](scenery-visibility.md) (exclude flags),
 sections are loaded and drawn) and [car-assembly.md](car-assembly.md) (stock parts, wheels, brakes, paint,
 texture swaps, the car shader) and vehicle physics: [vehicle-engine-drivetrain.md](vehicle-engine-drivetrain.md),
 [vehicle-input-induction-brakes.md](vehicle-input-induction-brakes.md),
+[vehicle-manual-shifting.md](vehicle-manual-shifting.md) (the transmission setting, manual mode, the limiter),
 [vehicle-suspension-tires.md](vehicle-suspension-tires.md),
 [vehicle-steering-assists-aero.md](vehicle-steering-assists-aero.md) and
 [vehicle-rigid-body.md](vehicle-rigid-body.md) (and [vehicle-calibration.md](vehicle-calibration.md), the model checked against the running game); car sound: [engine-sound.md](engine-sound.md) (files, telemetry,

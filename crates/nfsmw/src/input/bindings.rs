@@ -181,8 +181,9 @@ fn menus() -> Vec<Binding> {
 }
 
 /// Driving: W/S or the arrows for the pedals, A/D or the arrows to steer, Space for the handbrake,
-/// Shift/Ctrl to change gear, N for nitrous, R to reset the car, F to toggle the camera.
-/// On a pad the triggers are the pedals, the left stick steers, the bumpers change gear.
+/// E/Q (or Shift/Ctrl) to shift up/down, N for nitrous, R to reset the car, F to toggle the camera.
+/// On a pad the triggers are the pedals, the left stick steers, the right/left bumper shifts up/down.
+/// A wheel's paddles are extra buttons: see [`paddles`].
 fn driving() -> Vec<Binding> {
     use Action::*;
     let key = Source::Key;
@@ -197,6 +198,8 @@ fn driving() -> Vec<Binding> {
         Binding::new(Steer, key(KeyCode::KeyA), -1.0),
         Binding::new(Steer, key(KeyCode::ArrowLeft), -1.0),
         Binding::new(Handbrake, key(KeyCode::Space), 1.0),
+        Binding::new(ShiftUp, key(KeyCode::KeyE), 1.0),
+        Binding::new(ShiftDown, key(KeyCode::KeyQ), 1.0),
         Binding::new(ShiftUp, key(KeyCode::ShiftLeft), 1.0),
         Binding::new(ShiftUp, key(KeyCode::ShiftRight), 1.0),
         Binding::new(ShiftDown, key(KeyCode::ControlLeft), 1.0),
@@ -216,9 +219,31 @@ fn driving() -> Vec<Binding> {
     ]
 }
 
+/// The shift paddles of a steering wheel. A wheel shows up as a gamepad; the buttons the platform has no name for
+/// arrive as `GamepadButton::Other(code)` with a code that depends on the device, so the player gives the codes
+/// (the input layer logs the code of every unnamed button when it is pressed). A wheel whose paddles the platform
+/// maps to the bumpers needs nothing: those are bound already.
+pub fn paddles(up: Option<u32>, down: Option<u32>) -> Vec<Binding> {
+    let bind = |action, code: u32| Binding::new(action, Source::PadButton(GamepadButton::Other(code)), 1.0);
+    up.map(|code| bind(Action::ShiftUp, code))
+        .into_iter()
+        .chain(down.map(|code| bind(Action::ShiftDown, code)))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn paddles_bind_the_codes_given_and_nothing_else() {
+        assert!(paddles(None, None).is_empty());
+        let p = paddles(Some(7), Some(9));
+        assert_eq!(p.len(), 2);
+        assert_eq!((p[0].action, p[0].source), (Action::ShiftUp, Source::PadButton(GamepadButton::Other(7))));
+        assert_eq!((p[1].action, p[1].source), (Action::ShiftDown, Source::PadButton(GamepadButton::Other(9))));
+        assert_eq!(paddles(None, Some(1)).len(), 1);
+    }
 
     #[test]
     fn deadzone_rescales() {

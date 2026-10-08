@@ -11,6 +11,7 @@ mod smoke_quality;
 mod smoke_quality_tests;
 #[cfg(test)]
 mod tire_tests;
+mod transmission;
 mod window;
 mod write;
 
@@ -18,6 +19,7 @@ use blackbox_render::Backend;
 
 pub use partial::{Partial, Percent, parse_bool};
 pub use smoke_quality::SmokeQuality;
+pub use transmission::Transmission;
 pub use window::{Monitor, Resolution, WindowMode};
 pub use write::write as write_file;
 
@@ -46,6 +48,11 @@ pub struct Settings {
     pub smoke_quality: SmokeQuality,
     /// Draw bounded, ground-following tire marks.
     pub skid_marks: bool,
+    /// Who changes gear: the box (default) or the player.
+    pub transmission: Transmission,
+    /// Gamepad button codes of a steering wheel's shift paddles (`GamepadButton::Other`), if the player gave them.
+    pub paddle_up: Option<u32>,
+    pub paddle_down: Option<u32>,
 }
 
 impl From<Partial> for Settings {
@@ -67,6 +74,9 @@ impl From<Partial> for Settings {
             tire_smoke: p.tire_smoke.unwrap_or(true),
             smoke_quality: p.smoke_quality.unwrap_or_default(),
             skid_marks: p.skid_marks.unwrap_or(true),
+            transmission: p.transmission.unwrap_or_default(),
+            paddle_up: p.paddle_up,
+            paddle_down: p.paddle_down,
         }
     }
 }
@@ -101,6 +111,7 @@ mod tests {
     fn defaults() {
         let s = Settings::from(Partial::default());
         assert_eq!((s.backend, s.vsync, s.max_fps), (Backend::Auto, true, MaxFps::default()));
+        assert_eq!(s.transmission, Transmission::Automatic, "automatic, as in the original");
     }
 
     #[test]

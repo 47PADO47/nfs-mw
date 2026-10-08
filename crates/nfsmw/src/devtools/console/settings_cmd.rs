@@ -5,10 +5,10 @@ use std::str::FromStr;
 
 use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
-use crate::settings::{Percent, Settings, parse_bool};
+use crate::settings::{Percent, Settings, Transmission, parse_bool};
 
 /// Settings the console can show.
-const KEYS: [&str; 15] = [
+const KEYS: [&str; 16] = [
     "backend",
     "vsync",
     "fps",
@@ -24,6 +24,7 @@ const KEYS: [&str; 15] = [
     "tire_smoke",
     "smoke_quality",
     "skid_marks",
+    "transmission",
 ];
 
 /// The text for `get <key>`, or an error naming the valid keys.
@@ -44,6 +45,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "tire_smoke" => on_off(settings.tire_smoke).to_owned(),
         "smoke_quality" => settings.smoke_quality.to_string(),
         "skid_marks" => on_off(settings.skid_marks).to_owned(),
+        "transmission" => settings.transmission.to_string(),
         other => return Err(unknown(other)),
     };
     Ok(format!("{key} = {value}"))
@@ -71,6 +73,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "tire_smoke" => settings.tire_smoke = parse_bool(value)?,
         "smoke_quality" => settings.smoke_quality = value.parse()?,
         "skid_marks" => settings.skid_marks = parse_bool(value)?,
+        "transmission" => settings.transmission = Transmission::from_str(value)?,
         "backend" => return Err("the graphics backend cannot change while running; restart with --backend".into()),
         other => return Err(unknown(other)),
     }
@@ -116,6 +119,16 @@ mod tests {
         assert!(set(&mut s, "monitor", "-1").is_err());
         assert!(set(&mut s, "resolution", "0x0").is_err());
         assert_eq!(s, before);
+    }
+
+    #[test]
+    fn the_transmission_is_set_by_name() {
+        let mut s = defaults();
+        assert_eq!(get(&s, "transmission").unwrap(), "transmission = automatic");
+        assert_eq!(set(&mut s, "transmission", "manual").unwrap(), "transmission = manual");
+        assert_eq!(s.transmission, Transmission::Manual);
+        assert!(set(&mut s, "transmission", "sport").is_err());
+        assert_eq!(s.transmission, Transmission::Manual);
     }
 
     #[test]

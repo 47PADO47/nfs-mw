@@ -145,6 +145,12 @@ fn the_video_rows_change_vsync_and_the_hud_row_the_hud() {
     h.press(pad::LEFT);
     assert!(!h.settings.hud);
     assert_eq!(h.changed.hud, Some(false));
+    // The second gameplay row is the transmission: automatic until toggled.
+    assert_eq!(h.settings.transmission, crate::settings::Transmission::Automatic);
+    h.press(pad::DOWN);
+    h.press(pad::RIGHT);
+    assert_eq!(h.settings.transmission, crate::settings::Transmission::Manual);
+    assert_eq!(h.changed.transmission, Some(crate::settings::Transmission::Manual));
 }
 
 #[test]

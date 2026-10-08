@@ -184,6 +184,7 @@ screens, labels and behaviour where a label exists:
 | Video | Frame Limit | none in the language table, plain text | `max_fps` (Unlocked, 30, 60, 120, 144, 240) |
 | Video | Performance Overlay | none, plain text | `show_metrics` (Off, Basic, Advanced) |
 | Gameplay | Gauges | `0xAC148579` | `hud` (On / Off) |
+| Gameplay | Transmission | `0xD31407E7` | `transmission` (Auto `0x8CD532A0` / Manual `0x317D3005`; left and right both toggle) |
 
 Changes apply at once. The config file layer is written when the screen is left (accept or back), when the pause
 menu is closed and when the game is left: only the keys that were changed, so `game_dir` and unknown keys stay.

@@ -8,6 +8,7 @@ use std::str::FromStr;
 
 use toml::{Table, Value};
 
+use super::Transmission;
 use super::partial::{Partial, Percent};
 use super::{Monitor, Resolution, SmokeQuality, WindowMode};
 use crate::app::pacing::MaxFps;
@@ -56,6 +57,9 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         tire_smoke: field(&table, origin, "tire_smoke", boolean),
         smoke_quality: field(&table, origin, "smoke_quality", |v| SmokeQuality::from_str(text_of(v)?)),
         skid_marks: field(&table, origin, "skid_marks", boolean),
+        transmission: field(&table, origin, "transmission", |v| Transmission::from_str(text_of(v)?)),
+        paddle_up: field(&table, origin, "paddle_up", button_code),
+        paddle_down: field(&table, origin, "paddle_down", button_code),
     }
 }
 
@@ -75,6 +79,12 @@ fn percent(v: &Value) -> Result<Percent, String> {
         Value::Float(f) => Percent::from_str(&format!("{f:?}")),
         other => Percent::from_str(text_of(other)?),
     }
+}
+
+/// A gamepad button code: a whole number from 0 up.
+fn button_code(v: &Value) -> Result<u32, String> {
+    let n = v.as_integer().ok_or_else(|| "expected a button code".to_owned())?;
+    u32::try_from(n).map_err(|_| format!("{n} is not a button code"))
 }
 
 fn text_of(v: &Value) -> Result<&str, String> {
@@ -126,6 +136,19 @@ mod tests {
             .hud,
             None
         );
+    }
+
+    #[test]
+    fn reads_the_transmission() {
+        assert_eq!(parse("transmission = 'manual'", "test").transmission, Some(Transmission::Manual));
+        assert_eq!(parse("transmission = 'automatic'", "test").transmission, Some(Transmission::Automatic));
+        assert_eq!(parse("transmission = 3", "test").transmission, None);
+        let p = parse(
+            "paddle_up = 7
+paddle_down = -1",
+            "test",
+        );
+        assert_eq!((p.paddle_up, p.paddle_down), (Some(7), None));
     }
 
     #[test]

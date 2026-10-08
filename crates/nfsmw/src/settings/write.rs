@@ -63,6 +63,15 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.smoke_quality {
         put("smoke_quality", Value::String(v.to_string()));
     }
+    if let Some(v) = changes.transmission {
+        put("transmission", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.paddle_up {
+        put("paddle_up", Value::Integer(i64::from(v)));
+    }
+    if let Some(v) = changes.paddle_down {
+        put("paddle_down", Value::Integer(i64::from(v)));
+    }
     toml::to_string(&table).context("serializing the config file")
 }
 
@@ -137,6 +146,9 @@ mod tests {
             sfx_volume: Some(Percent(30)),
             engine_volume: Some(Percent(40)),
             hud: Some(false),
+            transmission: Some(crate::settings::Transmission::Manual),
+            paddle_up: Some(5),
+            paddle_down: Some(6),
             ..Partial::default()
         };
         let text = merge("", &changes).unwrap();

@@ -199,6 +199,10 @@ pub struct ViewArgs {
     /// Disable skid marks.
     #[arg(long)]
     pub no_skid_marks: bool,
+    /// Who changes gear: automatic or manual (Q/E, the bumpers or the wheel paddles shift)
+    /// [env NFSMW_TRANSMISSION; config `transmission`; default automatic].
+    #[arg(long, value_name = "automatic|manual")]
+    pub transmission: Option<crate::settings::Transmission>,
     /// Numbers for a HUD that has no car behind it: "speed_kmh,rpm,max_rpm,gear" (for reference screenshots).
     #[arg(long, hide = true, value_name = "SPEED,RPM,MAX_RPM,GEAR", value_parser = parse_hud_demo, allow_hyphen_values = true)]
     pub hud_demo: Option<crate::hud::HudState>,
@@ -233,6 +237,7 @@ impl ViewArgs {
             tire_smoke: switch(self.tire_smoke, self.no_tire_smoke),
             smoke_quality: self.smoke_quality,
             skid_marks: switch(self.skid_marks, self.no_skid_marks),
+            transmission: self.transmission,
             ..Partial::default()
         }
     }

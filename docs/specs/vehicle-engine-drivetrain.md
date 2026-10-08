@@ -453,10 +453,10 @@ max_w`).
 
 ### 7.5 Manual and tiptronic
 
-Manual shifting (drag races and a menu option): the player's shift request calls `shift(gear + 1/-1)`
-directly. In automatic mode the shift buttons call "sport shift": accepted when the gear differs, is above
-neutral, not already shifting, and the request does not contradict the current potential (no upshift while
-the box wants to downshift and vice-versa); it sets the 1.25 s hold above [decomp].
+Manual shifting (drag races and a menu option): the player's shift request calls `shift(gear + 1/-1)` directly,
+and nothing else changes gear ([vehicle-manual-shifting.md](vehicle-manual-shifting.md): limiter, neutral, over-revs).
+In automatic mode the shift buttons call "sport shift": accepted when the gear differs, is above neutral, not already
+shifting, and the request does not contradict the current potential; it sets the 1.25 s hold above [decomp].
 
 ### 7.6 Teleport / respawn
 
