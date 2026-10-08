@@ -5,6 +5,8 @@ mod big;
 pub mod build;
 mod codec;
 mod gin;
+mod graph;
+mod graph_build;
 mod header;
 mod mus;
 mod stream;

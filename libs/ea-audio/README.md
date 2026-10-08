@@ -7,7 +7,7 @@ Carbon, …): bytes in, 16-bit PCM out. No game knowledge, no file access, no au
 |---|---|
 | `schl` | `SCHl` / `SCCl` / `SCDl` / `SCEl` block streams with the `PT` and `GSTR` header tags (channels, rate, sample count, loop, codec, per-channel offsets) |
 | `abk` | `ABKC` sound banks: module / player / sample tables and the embedded `BNKl` sound list |
-| `mus` | the `xDFP` v5 music map (`.mpf`): tracks and the stream table (offset, duration) for a `.mus` file |
+| `mus` | the `xDFP` v5 music map (`.mpf`): tracks and the stream table (offset, duration) for a `.mus` file; `mus::graph`, its PathFinder node graph (nodes, transitions, routers, events) and the walker that turns a track into a chain of streams |
 | `big` | finding the streams inside `.big` containers |
 | `gin` | the EA-XAS audio inside granular engine-loop files (`Gnsu`) |
 | `codec` | EA-XA (revisions 1 and 2, mono and stereo flavours), EA-XAS v0, EA MicroTalk 10:1 (UTK) |
@@ -27,6 +27,12 @@ let mpf = ea_audio::mus::Mpf::parse(&mpf_bytes)?;
 let mut reader = mpf.open(&mus_source, 42)?;  // stream 42
 let mut pcm = Vec::new();
 while let Some(frames) = reader.next_chunk(&mut pcm)? { /* feed the audio device */ }
+
+// The node graph: which streams a song plays, one after the other.
+let graph = ea_audio::mus::graph::Graph::parse(&mpf_bytes)?;
+let start = graph.song_start(event_id).unwrap();       // node of a song's event (24 bits compared)
+let chain = mpf.chain(&graph, start, 0)?;              // segments: node, stream, start_ms, duration_ms
+for seg in &chain.segments { /* open stream seg.stream, queue it after the previous one */ }
 
 // A .big container: find the streams, decode any of them.
 for entry in ea_audio::big::scan(&big_source)? {
@@ -51,6 +57,7 @@ The decoder never loops: `Pcm::loop_range` holds the loop points in frames (end 
 | `SPEECH/copspeech.big` | 13,562 MicroTalk streams (177 stereo), 24,000 Hz | all decode; speech is mastered at full scale and touches the rails in runs of at most 8 samples |
 | `STREAMS/NISAudio.big` | 142 streams (up to 6 channels), 44,100 Hz | all decode |
 | `ENGINE/*.gin` | 160 files | all decode; frame boundaries are as smooth as frame interiors |
+| `PFDATA/MW_Music.mpf` graph | 3,681 nodes, 70 events, 123 routers | `cargo test -p ea-audio --test real_graph -- --ignored`: every audio node names an existing stream, all 26 song events resolve to chains of the expected stream counts and lengths |
 
 EA-XA output is identical, sample for sample, to FFmpeg's `adpcm_ea_r3` / `adpcm_ea_r2` on music and cut-scene
 streams. MicroTalk has no second implementation to compare with here; it is checked for smoothness, clipping and
