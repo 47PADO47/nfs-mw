@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::package::{ObjectData, ObjectKind, Package, Script};
+use crate::package::{ObjectData, ObjectKind, Package, Script, flags};
 
 /// The live state of one object.
 #[derive(Clone, Debug)]
@@ -35,6 +35,13 @@ pub struct Running {
     pub order: Vec<usize>,
     pub current_button: Option<usize>,
     pub input_enabled: bool,
+    /// Objects flagged as buttons, in file order.
+    pub buttons: Vec<usize>,
+    /// The package takes pad input.
+    pub control: bool,
+    pub start_equals_accept: bool,
+    /// The button each pad bit was pressed on, for the release message.
+    pub pressed_on: [Option<usize>; 19],
 }
 
 impl Running {
@@ -81,7 +88,26 @@ impl Running {
                 }
             })
             .collect();
-        Self { def, objects, by_guid, by_name, order, current_button: None, input_enabled: true }
+        let buttons = def
+            .objects
+            .iter()
+            .enumerate()
+            .filter(|(_, o)| o.flags & flags::IS_BUTTON != 0 && o.flags & flags::IGNORE_BUTTON == 0)
+            .map(|(i, _)| i)
+            .collect();
+        Self {
+            def,
+            objects,
+            by_guid,
+            by_name,
+            order,
+            current_button: None,
+            input_enabled: true,
+            buttons,
+            control: true,
+            start_equals_accept: false,
+            pressed_on: [None; 19],
+        }
     }
 }
 

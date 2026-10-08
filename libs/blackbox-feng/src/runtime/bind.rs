@@ -45,6 +45,75 @@ impl Runtime {
         }
     }
 
+    /// Sets the x and y of the position, keeping the depth.
+    pub fn set_position_xy(&mut self, o: ObjectRef, x: f32, y: f32) {
+        if let Some(s) = self.state_mut(o) {
+            let z = s.data.position().z;
+            s.data.set_position(Vec3::new(x, y, z));
+        }
+    }
+
+    /// Sets the width and height of an image or the scale of a string, keeping the depth.
+    pub fn set_size_xy(&mut self, o: ObjectRef, width: f32, height: f32) {
+        if let Some(s) = self.state_mut(o) {
+            s.data.set_f32(word::SIZE, width);
+            s.data.set_f32(word::SIZE + 1, height);
+        }
+    }
+
+    /// Sets the texture rectangle `[u0, v0, u1, v1]` of an image.
+    pub fn set_uv(&mut self, o: ObjectRef, uv: [f32; 4]) {
+        if let Some(s) = self.state_mut(o) {
+            for (i, v) in uv.into_iter().enumerate() {
+                s.data.set_f32(word::UV + i, v);
+            }
+        }
+    }
+
+    /// Sets the colour and alpha (red, green, blue, alpha) of the object.
+    pub fn set_colour_rgba(&mut self, o: ObjectRef, rgba: [u8; 4]) {
+        self.set_colour(o, [rgba[0], rgba[1], rgba[2]]);
+        self.set_alpha(o, rgba[3]);
+    }
+
+    /// The position of the object relative to its parent.
+    pub fn position(&self, o: ObjectRef) -> Option<Vec3> {
+        Some(self.object(o)?.data.position())
+    }
+
+    /// The size of the object.
+    pub fn size(&self, o: ObjectRef) -> Option<Vec3> {
+        Some(self.object(o)?.data.size())
+    }
+
+    /// What a string object shows and how it is set: the resolved text, the font key, the justification, the
+    /// leading, the maximum width and the object's scale.
+    pub fn string_info(&self, o: ObjectRef) -> Option<StringInfo> {
+        let p = self.running(o.package)?;
+        let (def, state) = (p.def.objects.get(o.index)?, p.objects.get(o.index)?);
+        let s = def.string.as_ref()?;
+        let text = match (&state.text, def.flags & 2 == 0 && state.label != 0) {
+            (Some(t), _) => t.clone(),
+            (None, true) => self.resolve_label(state.label).unwrap_or_else(|| s.text.clone()),
+            (None, false) => s.text.clone(),
+        };
+        let font = def.resource.and_then(|r| p.def.resources.get(r)).map_or(0, |r| r.handle);
+        let size = state.data.size();
+        Some(StringInfo {
+            text,
+            font,
+            justification: s.justification,
+            leading: s.leading,
+            max_width: s.max_width,
+            scale: (size.x, size.y),
+        })
+    }
+
+    /// The first object whose name hashes from `name` (any case).
+    pub fn find_name(&self, package: super::PackageId, name: &str) -> Option<ObjectRef> {
+        self.find(package, crate::hash::fe_hash_upper(name))
+    }
+
     /// Sets the alpha (0..255) of the object.
     pub fn set_alpha(&mut self, o: ObjectRef, alpha: u8) {
         if let Some(s) = self.state_mut(o) {
@@ -77,4 +146,15 @@ impl Runtime {
     pub fn script_of(&self, o: ObjectRef) -> Option<u32> {
         self.current_script_id(o.package, o.index)
     }
+}
+
+/// See [`Runtime::string_info`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct StringInfo {
+    pub text: String,
+    pub font: u32,
+    pub justification: u32,
+    pub leading: i32,
+    pub max_width: i32,
+    pub scale: (f32, f32),
 }

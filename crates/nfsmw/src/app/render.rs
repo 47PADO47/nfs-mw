@@ -109,7 +109,7 @@ pub fn draw(
     let (params, instances) = host.scene.frame(renderer.aspect_ratio());
     let result = if let Some(path) = &host.screenshot {
         host.frames += 1;
-        if host.frames < SCREENSHOT_SETTLE_FRAMES {
+        if host.frames < SCREENSHOT_SETTLE_FRAMES || host.hold_capture {
             return;
         }
         screenshot::capture(renderer, &params, instances, path).map(|()| {

@@ -43,7 +43,7 @@ scaled down.
 | Crate | Job |
 |---|---|
 | [`nfsmw-data`](../crates/nfsmw-data) | MW's `GameSpec`; car assembly (stock and preset parts, wheel and brake placement, paint, texture swaps); the world: streaming index, section parsing, a background section loader. Renderer-free. |
-| [`nfsmw`](../crates/nfsmw) | The binary: CLI (`commands/`), layered `settings/`, the Bevy `app/` (window, loop, render bridge, cursor, pacing, screenshots), the `input/` action layer, the `hud/` (the in-game HUD), the `audio/` (sound output), the `viewer/` cameras and `Scene` trait, and the scenes (`scenes/car/`, `scenes/world/`). |
+| [`nfsmw`](../crates/nfsmw) | The binary: CLI (`commands/`), layered `settings/`, the Bevy `app/` (window, loop, render bridge, cursor, pacing, screenshots), the `input/` action layer, the `ui/` (the shared FEng host layer: packages, assets, presenter), the `hud/` (the in-game HUD), the `frontend/` (menus and the game flow), the `audio/` (sound output), the `viewer/` cameras and `Scene` trait, and the scenes (`scenes/car/`, `scenes/world/`). |
 | [`xtask`](../xtask) | `cargo xtask check` (leak check + file-size check), `install-hooks` |
 
 Rules that keep this structure working:
@@ -260,10 +260,11 @@ been tried on real hardware, and calibration of the handling against the origina
 
 The in-game HUD is the original package `HUD_SingleRace.fng` run by `blackbox-feng`
 ([decision](decisions/0002-ui-presentation.md), [runtime spec](specs/feng-runtime.md)). `hud/` in the binary has a
-plain `HudState` resource (speed, rpm, gear, shift light), the loader for the package, fonts, textures and strings,
-the binding that copies the state into named FEng objects (digits, units, gear, needle, shift light), and exactly
-one presenter (`hud/present/blackbox.rs`) that draws the tree through the UI layer, under egui. A scene supplies
-its state with `Scene::hud_state`; nothing else knows FEng.
+plain `HudState` resource (speed, rpm, gear, shift light) and the binding that copies the state into named FEng
+objects (digits, units, gear, needle, shift light). The shared `ui/` loads the packages by name (`Catalog`) and
+the fonts, textures and strings once (`UiAssets`), and has exactly one presenter (`ui/present/blackbox.rs`) that
+draws the tree through the UI layer, under egui. A scene supplies its state with `Scene::hud_state`; nothing else
+knows FEng.
 
 - `--hud` shows it in any viewer (idle numbers; `--hud-demo SPEED,RPM,MAX_RPM,GEAR` for reference shots), and it is
   on while driving unless the `hud` setting is off (`hud = false` in the config file, `NFSMW_HUD=off`, `--no-hud`,
@@ -272,6 +273,38 @@ its state with `Scene::hud_state`; nothing else knows FEng.
   needs game state that arrives with the race and pursuit milestones; the runtime already runs their scripts.
 - Gaps: wide screens scale the 480-unit height without the package's widescreen messages; the redline mask is not
   drawn; the custom tachometer skins other than 00 are not loaded.
+
+## The front end
+
+The menus are the install's own FEng screens run by the same runtime and drawn by the same presenter
+([decision](decisions/0002-ui-presentation.md), [input spec](specs/feng-input.md),
+[menus spec](specs/frontend-menus.md)). `frontend/` has three layers:
+
+- **Screens.** `Screens` keeps the stack of loaded packages and one `Runtime`; the pad mask goes in, the messages
+  a package sends to the game come out and are handed to the screen's `ScreenLogic`, which is what the original's
+  screen classes are: `IconMenu` (the main menu, the option categories, the pause menu: an icon scroller with the
+  original geometry), `WidgetMenu` (the option rows: titles, data strings, sliders), `Splash`. A screen with no
+  logic of its own runs as its package says. `options.rs` maps rows to settings.
+- **Flow.** `Frontend` (a Bevy resource, driven in `FrameSet::Frontend`) decides what the window shows: the boot
+  movies (`ealogo`, `psa` through the movie scene), the title screen, the main menu over an empty backdrop,
+  free roam (the world scene, wrapped in `Pausable` so Escape or Start freezes it under the pause menu) and the
+  way back. Career and Quick Race both start free roam: there is no career yet.
+- **Input.** The `Menu*` actions of the input layer (arrows or WASD or the D-pad, Enter or Space or A, Escape or B,
+  Start or P, Q on the main menu) become a pad mask for the runtime, which sends the engine's messages and moves the
+  focus by geometry. `--ui-script` replaces input and clock for screenshots and tests.
+
+Settings: the option rows change `Settings` (the resource the console edits, so volumes, vsync, the frame cap, the
+overlay and the HUD apply at once) and record the change; the config file layer is written when a screen is left
+(`settings/write.rs` keeps `game_dir` and unknown keys).
+
+`nfsmw play` runs the whole flow (`--skip-boot`, `--drive`); `nfsmw view-screen NAME` shows one screen
+(`--category`, `--pause`, `--options`, `--ui-script`, `--screenshot`); `list-screens`, `dump-screen NAME` and
+`strings TEXT|0xHASH` read the install's screens and language table.
+
+- Gaps: the screens besides these (career, quick race, customisation, online, dialogs, the keyboard) are not run; no
+  confirmation dialogs (changes apply at once and stay); no mouse; no 3D backdrop behind the menus; the
+  widescreen title screen is not used; the attract movie and its timeout are not played; the sounds the
+  screens send are ignored; the original's player, controller and credits categories are not shown.
 
 ## Sound
 
@@ -300,8 +333,8 @@ database.
 - **Movies.** `nfsmw play-movie <name> [--start SECONDS]` and `list-movies`: `movie/` demuxes the file with
   `blackbox-movie`, decodes the sound up front with `ea-audio` (handed to the audio system through
   `Scene::take_clip`), decodes the video against a clock and shows the frames through `Scene::fullscreen`, which a
-  small plugin turns into a letterboxed UI quad (`FrameSet::Hud`). The scene ends when picture and sound do. A
-  movie is not yet started by the game flow, and the video follows the frame clock, not the audio clock.
+  small plugin turns into a letterboxed UI quad (`FrameSet::Hud`). The scene ends when picture and sound do. The
+  boot flow plays `ealogo` and `psa` before the title screen; the video follows the frame clock, not the audio clock.
 - **The radio.** `audio/radio/`: licensed songs from `MW_Music.mus`, played through the music group.
   `ea-audio::mus::graph` reads the PathFinder graph of `MW_Music.mpf` (nodes, routers, events; spec
   [music-graph.md](specs/music-graph.md)); a song's start event gives its first node, and following the graph to its
@@ -379,7 +412,7 @@ render one frame off-screen. Use them to check rendering changes and backends wi
 | 3 | Sky dome, LODs, water, panoramas; zone-based streaming (visible sections); AttribSys reader; car assembly from the parts DB (stock parts, wheels, brakes, paint). Playtest fixes: misplaced and floating scenery, mouse look without holding a button, `--max-fps`, clearer config-file path | done |
 | 4 | Engine foundation: decide on Bevy (ECS, events, UI) in an ADR and migrate the viewers if adopted; layered settings (command line > environment > per-user config file > defaults, with a settings menu in 6); input layer with controller support; developer console (F12: log view, commands such as change car, toggle free camera, change settings); performance overlay (`--show-metrics off\|basic\|advanced`). Decided: Bevy as the shell with our renderer ([ADR 0001](decisions/0001-bevy.md)), full Bevy renderer revisited in 8 | done |
 | 5 | Vehicle physics, spec-first (`docs/specs/vehicle-*.md`); world collision (`CarpWCollisionPack`); drive a car with the original HUD: read the FEng HUD packages (`HUD_*.fng` in `InGameB.bun`) and draw them with the UI layer; steering wheel controller support (wheel axes, pedals, shifters) on the input layer from 4 |  in progress: `blackbox-vehicle`, the collision reader, input actions, `view-world --drive` (placing, chase camera, walls, props, reset and fall recovery, scripted runs) are in; the original HUD, steering wheel support and calibration against the original are open ([Driving](#driving-view-world---drive)) |
-| 6 | Audio (EA-XA, EA-XAS engine loops, MicroTalk speech), VP6 movies, FEng menus (the same FEng runtime as the HUD), in-game settings menu | in progress: the codecs, banks, music and movie decoders, Ginsu synthesis, the car sound data, the engine and effects mixers, the output device, the driven car's engine and effects, a movie player and the radio (licensed songs, gapless, play lists; not yet heard by a human) are in; speech, the interactive music and the menus are open ([Sound](#sound)) |
+| 6 | Audio (EA-XA, EA-XAS engine loops, MicroTalk speech), VP6 movies, FEng menus (the same FEng runtime as the HUD), in-game settings menu | in progress: the codecs, banks, music and movie decoders, Ginsu synthesis, the car sound data, the engine and effects mixers, the output device, the driven car's engine and effects, a movie player and the radio (licensed songs, gapless, play lists; not yet heard by a human) are in, and so are the front end (boot movies, title screen, main menu, option screens for audio, video and gameplay, the pause menu, free roam) and the settings written to the config file; speech and the interactive music are open ([Sound](#sound), [The front end](#the-front-end)) |
 | 7 | AI racers, traffic, pursuit, races; career data; console commands to spawn AI | |
 | 8 | Graphics: the car shader and lighting rig, tire smoke and skid marks (`blackbox-vehicle` already reports per-wheel `skid` and `smoke`; this draws them), post-processing, upscaling (FSR; DLSS where the backend allows it), ReShade compatibility, Bevy Solari | |
 | 9 | Discord Rich Presence | |

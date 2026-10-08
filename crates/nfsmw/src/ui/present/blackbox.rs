@@ -9,7 +9,7 @@ use glam::{Vec3, Vec4};
 
 use super::Screen;
 use crate::gui::{OwnedPatch, UiOutput};
-use crate::hud::assets::HudAssets;
+use crate::ui::UiAssets;
 
 /// UI texture ids of the HUD carry this bit so they never meet egui's small ones.
 const HUD_TEXTURE_BIT: u64 = 1 << 62;
@@ -65,7 +65,7 @@ impl MeshBuilder {
 impl BlackboxPresenter {
     /// Builds the HUD meshes for `tree` and prepends them to the frame's UI layer (egui's panels stay on top);
     /// uploads the textures it has not uploaded yet.
-    pub fn present(&mut self, tree: &UiTree, assets: &HudAssets, screen: Screen, out: &mut UiOutput) {
+    pub fn present(&mut self, tree: &UiTree, assets: &UiAssets, screen: Screen, out: &mut UiOutput) {
         let origin = [screen.width * 0.5, screen.height * 0.5];
         let scale = screen.scale();
         let mut builder = MeshBuilder { meshes: Vec::new(), clip: [0.0, 0.0, screen.width, screen.height] };
@@ -90,7 +90,7 @@ impl BlackboxPresenter {
     }
 
     /// Makes sure a texture is on the GPU side; returns its UI id and whether it is additive.
-    fn ensure(&mut self, key: u32, assets: &HudAssets, out: &mut UiOutput) -> Option<(UiTextureId, bool)> {
+    fn ensure(&mut self, key: u32, assets: &UiAssets, out: &mut UiOutput) -> Option<(UiTextureId, bool)> {
         let resolved = assets.resolve(key);
         let additive = assets.texture(resolved).is_some_and(|t| t.alpha_blend == 2);
         if self.uploaded.contains(&resolved) {
@@ -119,7 +119,7 @@ impl BlackboxPresenter {
         node: &UiNode,
         texture: u32,
         uv: [f32; 4],
-        assets: &HudAssets,
+        assets: &UiAssets,
         out: &mut UiOutput,
         builder: &mut MeshBuilder,
         scale: f32,
@@ -138,7 +138,7 @@ impl BlackboxPresenter {
         node: &UiNode,
         font_key: u32,
         style: TextStyle,
-        assets: &HudAssets,
+        assets: &UiAssets,
         out: &mut UiOutput,
         builder: &mut MeshBuilder,
         scale: f32,

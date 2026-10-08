@@ -12,7 +12,9 @@ data at runtime from **your own install**. This repository contains no game file
   stream in zone by zone, as in the game.
   Both run on Vulkan, Direct3D 12 or OpenGL, on Windows and Linux.
 
-You can drive a car through the city (`view-world --drive`); the rest of the game is on the [roadmap](docs/architecture.md#roadmap).
+You can drive a car through the city (`view-world --drive`), or start from the menus (`play`: the original boot
+movies, title screen and main menu, then free roam, with the pause menu and the settings screens on Esc); the rest of
+the game is on the [roadmap](docs/architecture.md#roadmap).
 
 ## Quick start
 
@@ -31,6 +33,8 @@ config file, or the retail registry key ([details](docs/architecture.md#finding-
 |---|---|
 | `check-install` | Shows where the install was found, identifies `speed.exe`, checks required files |
 | `list-cars` | Lists car folders |
+| `play` | The game flow: boot movies, title screen, main menu (arrows or WASD, Enter, Esc; pad: D-pad, A, B), free roam, pause menu (Esc or Start) with the audio, video and gameplay settings. `--skip-boot`, `--drive` (straight to free roam) |
+| `view-screen NAME` | One of the install's menu screens on its own (`list-screens` lists them, `dump-screen NAME` prints one): `--category audio\|video\|gameplay`, `--pause`, `--options` |
 | `view-car [CAR]` | A car assembled from its stock parts (wheels, brakes, paint) on a floor: drag to rotate, scroll to zoom. Options: `--lod A..E`, `--preset NAME` (a `PresetRides` car such as `CE_GTRSTREET`), `--all-parts` (every solid, unassembled) |
 | `view-world` | Fly through the city: WASD, Space/C, Shift, mouse to look (Esc frees the cursor, click to capture it again), scroll for speed. Options: `--at X,Y`, `--height`, `--heading`, `--pitch`, `--fog-distance`, and `--drive [CAR]` to drive instead (W/S, A/D, Space handbrake, Shift/Ctrl gears, N nitrous, R reset, F free camera; pad: triggers, left stick) |
 

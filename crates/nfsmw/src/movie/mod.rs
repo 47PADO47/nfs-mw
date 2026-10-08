@@ -149,7 +149,10 @@ fn present(
     mut exit: MessageWriter<AppExit>,
 ) {
     if host.scene.finished() {
-        exit.write(AppExit::Success);
+        // With the front end the flow moves on to the next scene; without it the program is over.
+        if !host.flow_driven {
+            exit.write(AppExit::Success);
+        }
         return;
     }
     let Some(picture) = host.scene.fullscreen() else { return };

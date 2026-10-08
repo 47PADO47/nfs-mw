@@ -2,11 +2,15 @@
 //! Spec: `docs/specs/feng-runtime.md`.
 
 mod bind;
+mod input;
 mod interp;
 mod messages;
+mod nav;
 mod state;
 mod update;
 
+pub use bind::StringInfo;
+pub use input::{PadState, pad};
 pub use messages::{Outgoing, PackageCommandKind};
 pub use state::{INIT_SCRIPT, ObjState};
 
@@ -43,6 +47,8 @@ pub struct Runtime {
     outgoing: Vec<Outgoing>,
     remainder: f32,
     resolver: Option<StringResolver>,
+    pad: PadState,
+    pad_next: u32,
 }
 
 impl Default for Runtime {
@@ -60,6 +66,8 @@ impl Runtime {
             outgoing: Vec::new(),
             remainder: 0.0,
             resolver: None,
+            pad: PadState::default(),
+            pad_next: 0,
         }
     }
 
@@ -123,6 +131,7 @@ impl Runtime {
         let ticks = exact.floor();
         self.remainder = exact - ticks;
         let ticks = ticks.min(i32::MAX as f32 / 2.0) as i32;
+        self.process_pads(ticks.max(0) as u32);
         for id in self.ids() {
             self.update_package(id, ticks);
         }
@@ -166,3 +175,6 @@ impl Runtime {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod input_tests;

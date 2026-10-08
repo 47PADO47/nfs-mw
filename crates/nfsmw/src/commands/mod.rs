@@ -9,6 +9,19 @@ use crate::cli::{Cli, Command};
 use crate::scenes::{car::CarScene, world::WorldScene};
 use crate::settings::Settings;
 
+/// Runs the window with the front end on top of an empty backdrop.
+fn run_front_end(
+    dir: &game_install::GameDir,
+    start: crate::frontend::Start,
+    script: Option<&str>,
+    view: &crate::cli::ViewArgs,
+) -> Result<()> {
+    let script = script.map(crate::frontend::UiScript::parse).transpose().map_err(anyhow::Error::msg)?;
+    let mut options = view.run_options(dir, true);
+    options.frontend = Some(crate::frontend::FrontendPlugin { dir: dir.clone(), start, script });
+    crate::app::run(Box::new(crate::frontend::MenuScene), &Settings::load(view.settings_layer()), options)
+}
+
 pub fn run(cli: Cli) -> Result<()> {
     let game_dir = cli.game_dir.as_deref();
     match cli.command {
@@ -24,6 +37,49 @@ pub fn run(cli: Cli) -> Result<()> {
                 println!("{movie}");
             }
             Ok(())
+        }
+        Command::ListScreens => {
+            let catalog = crate::ui::Catalog::load(&open_install(game_dir)?, &crate::ui::SCREEN_FILES);
+            print!("{}", crate::frontend::dump::list(&catalog));
+            Ok(())
+        }
+        Command::Strings { filter } => {
+            let dir = open_install(game_dir)?;
+            let data = nfsmw_data::read_unwrapped(&dir, "LANGUAGES/English.bin")?;
+            let table = blackbox_text::StringTable::from_file(&data)?;
+            print!("{}", crate::frontend::dump::strings(&table, &filter));
+            Ok(())
+        }
+        Command::DumpScreen { name } => {
+            let catalog = crate::ui::Catalog::load(&open_install(game_dir)?, &crate::ui::SCREEN_FILES);
+            let package =
+                catalog.find(&name).ok_or_else(|| anyhow::anyhow!("no screen {name:?} (try list-screens)"))?;
+            print!("{}", crate::frontend::dump::dump(package));
+            Ok(())
+        }
+        Command::Play { skip_boot, drive, ui_script, view } => {
+            let dir = open_install(game_dir)?;
+            let start = match (drive, skip_boot || ui_script.is_some()) {
+                (true, _) => crate::frontend::Start::Drive,
+                (false, true) => crate::frontend::Start::Menu,
+                (false, false) => crate::frontend::Start::Boot,
+            };
+            run_front_end(&dir, start, ui_script.as_deref(), &view)
+        }
+        Command::ViewScreen { name, pause, options, category, ui_script, view } => {
+            let dir = open_install(game_dir)?;
+            let category = match category.to_ascii_lowercase().as_str() {
+                "audio" => crate::frontend::Category::Audio,
+                "video" => crate::frontend::Category::Video,
+                "gameplay" => crate::frontend::Category::Gameplay,
+                other => anyhow::bail!("unknown category {other:?} (audio, video, gameplay)"),
+            };
+            if crate::ui::Catalog::load(&dir, &crate::ui::SCREEN_FILES).find(&name).is_none() {
+                anyhow::bail!("no screen {name:?} in the install (try list-screens)");
+            }
+            let start = crate::frontend::Start::Screen(name, crate::frontend::Args { pause, options, category });
+            let settle = view.screenshot.is_some().then_some("wait 2");
+            run_front_end(&dir, start, ui_script.as_deref().or(settle), &view)
         }
         Command::PlayMovie { name, start, view } => {
             let dir = open_install(game_dir)?;
