@@ -320,8 +320,11 @@ Curves (6 values at x = 0, 2, 4, 6, 8, 10; slip angle in degrees on the left):
 Shape: roughly linear in load at small x, saturating by 3 to 6 kN of corrected load (a "load
 sensitivity" in which doubling the load gives less than double the force), rising with slip angle toward
 a plateau near 12 degrees and beyond. The whole expression is multiplied by `lateral_boost` afterwards
-(§ 3.4). In the PC build the final multiplication uses an extra, copy-protected multiplier whose value is
-not in the source (open question 2); the numbers above are the GameCube build.
+(§ 3.4). The PC build multiplies by one more value, an integer read through a pointer (a copy-protection
+flag in the decompilation). **Read from the running PC v1.3 game it is 1** and the scale constant next to it is
+2500.0 (= 2.5 * 1000), so the PC numbers are the GameCube numbers above (open question 2, resolved) [install,
+Cheat Engine: `ComputeLateralForce` at 0x68E090 of `speed.exe`; curve rows at 0x8F89E0.., 360.0 at 0x890960,
+0.5 at 0x8933D4, 0.001 at 0x890D60, 0.8 at 0x89119C, 2500.0 at 0x8AB228].
 
 ### 3.4 Loaded tire update (`UpdateLoaded`) [decomp]
 
@@ -451,9 +454,9 @@ the tire code; `STICK` is kept in the wheel record but unused here (open questio
 1. **Wheel side/order.** Physics arms put index 2 at -x and 3 at +x with x = right (so 2 = rear left),
    while [car-assembly.md](car-assembly.md) lists 2 = rear right. One of the two naming/sign readings is
    wrong, or `TireOffsets` is mapped to physics indices with a swap. Needs a runtime check.
-2. **PC lateral force.** The PC build multiplies the lateral curve by a copy-protected variable; the
-   GameCube numbers (grip factor 2.5, cornering scale 1000) are what § 3.3 gives. PC tuning may differ;
-   calibrate against a skidpad measurement.
+2. **PC lateral force.** Resolved: the extra multiplier is the integer 1, the scale is 2500.0, the curve table
+   in `speed.exe` equals § 3.3. Whatever makes the car feel different from the original is elsewhere (loads,
+   `GRIP_SCALE`/`STATIC_GRIP` values, slip angle, boosts); calibrate against a skidpad measurement.
 3. **Ground probe.** `WWorldPos` (surface query, cached polygon, smoothing flag, the meaning of
    `normal.w` and how tolerance is used) was not read.
 4. **`dimension`.** Whether it is half-extent (assumed) or full size; `arm.y = -dim.y` and `dim.y*2` as
