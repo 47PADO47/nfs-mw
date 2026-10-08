@@ -330,6 +330,15 @@ benches, poles, signs, fences). How they are found and used, measured with throw
   (`XW_BarrConc*`, `XW_BarrMet*`, 2,798), `XW_BarrRails*`, iron rails, fences and chains, 98% to 100% have a
   barrier or steep face of the world collision packs within 1.5 m at 0.5 m height. They only seemed missing because
   nothing used the packs' barriers for cars.
+- **Group barriers are not for free roam.** 891 instances carry a scenery group number; their 8,345 barriers
+  (18 % of all) lie on both sides of open road (asphalt on both sides of the wall for 80 % of them, against a few
+  per cent of the other barriers): road blocks and gates of races and pursuits. The original puts `0xC0` in their
+  flags and a vehicle's query mask excludes them while the group is off; with them in, the car met walls across
+  empty road. The Rust car casts exclude `GROUP_EXCLUSION` **[verified on the data; the mask value is a decision]**.
+- **Barriers are one-sided for vehicles.** Walking 3 m to each side of the 37,000 one-sided barriers, asphalt or
+  concrete is in front (the side the normal `(dz, 0, -dx)` points to) far more often than behind: the front is the
+  drivable side. `Hit::front_facing` tells which side a ray came from, and the car's wall probes ignore a
+  one-sided barrier hit from behind (flag `0x10` makes it two-sided) **[decomp + verified on the data]**.
 - **Not found:** the `FlyBy`/animated props, trigger-driven objects (`EmTriggerPack`), and the sets whose names are
   unknown.
 
