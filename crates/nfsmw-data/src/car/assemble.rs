@@ -10,7 +10,7 @@ use glam::Mat4;
 use super::ecar::WheelSetup;
 use super::stock::{Slots, kit_number};
 use super::tables::{CarTables, slot};
-use super::wheels::{self, WheelModel};
+use super::wheels::{self, Corner, WheelModel};
 
 /// One solid drawn at a transform in car space.
 #[derive(Debug, Clone, PartialEq)]
@@ -22,6 +22,9 @@ pub struct Placement {
     pub left_brake: bool,
     /// The slot it came from.
     pub slot: usize,
+    /// The wheel (0 = front left, 1 = front right, 2 = rear right, 3 = rear left) a wheel or brake
+    /// belongs to; `None` for the rest of the car.
+    pub corner: Option<usize>,
 }
 
 /// Whether a model slot is drawn in the front end, where it isn't placed specially.
@@ -44,7 +47,7 @@ pub fn assemble(
     solids: &HashMap<u32, Solid>,
     setup: Option<&WheelSetup>,
     lod: usize,
-) -> Vec<Placement> {
+) -> (Vec<Placement>, Option<[Corner; 4]>) {
     let model = |part: &Option<Part>| part.and_then(|p| t.parts.model_hash(&p, lod)).filter(|h| solids.contains_key(h));
     let base = model(&slots[slot::BASE]).and_then(|h| solids.get(&h));
     let mut out = Vec::new();
@@ -63,11 +66,11 @@ pub fn assemble(
             _ => Some(Mat4::IDENTITY),
         };
         if let Some(transform) = transform {
-            out.push(Placement { solid: hash, transform, left_brake: false, slot: s });
+            out.push(Placement { solid: hash, transform, left_brake: false, slot: s, corner: None });
         }
     }
 
-    let (Some(setup), Some(wheel)) = (setup, model(&slots[slot::FRONT_WHEEL])) else { return out };
+    let (Some(setup), Some(wheel)) = (setup, model(&slots[slot::FRONT_WHEEL])) else { return (out, None) };
     let wheel_solid = &solids[&wheel];
     let marker_y = |name: &str| wheel_solid.marker(bstring_hash(name)).map(|m| m.translation()[1]);
     let front_marker = marker_y("FRONT_BRAKE").unwrap_or(0.0);
@@ -78,15 +81,28 @@ pub fn assemble(
     let front_brake = model(&slots[slot::FRONT_BRAKE]);
     let brakes = [front_brake, model(&slots[slot::REAR_BRAKE]).or(front_brake)];
 
-    for (i, corner) in wheels::place(setup, kit, size, markers, lod <= 1).into_iter().enumerate() {
+    let corners = wheels::place(setup, kit, size, markers, lod <= 1);
+    for (i, corner) in corners.iter().enumerate() {
         let wheel_slot = if i < 2 { slot::FRONT_WHEEL } else { slot::REAR_WHEEL };
-        out.push(Placement { solid: wheel, transform: corner.wheel, left_brake: false, slot: wheel_slot });
+        out.push(Placement {
+            solid: wheel,
+            transform: corner.wheel,
+            left_brake: false,
+            slot: wheel_slot,
+            corner: Some(i),
+        });
         if let Some(brake) = brakes[usize::from(i >= 2)] {
             let brake_slot = if i < 2 { slot::FRONT_BRAKE } else { slot::REAR_BRAKE };
-            out.push(Placement { solid: brake, transform: corner.brake, left_brake: corner.left, slot: brake_slot });
+            out.push(Placement {
+                solid: brake,
+                transform: corner.brake,
+                left_brake: corner.left,
+                slot: brake_slot,
+                corner: Some(i),
+            });
         }
     }
-    out
+    (out, Some(corners))
 }
 
 /// A marker's matrix as a transform (stored row-major for row vectors, i.e. the transpose of

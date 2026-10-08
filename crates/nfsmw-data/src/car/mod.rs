@@ -28,6 +28,7 @@ pub use parts::is_stock_part;
 pub use stock::{Slots, preset_parts, stock_parts};
 pub use swaps::TextureSwaps;
 pub use tables::{CarTables, LAYOUT, slot};
+pub use wheels::{Corner, WheelModel, WheelPose};
 
 use crate::read_unwrapped;
 
@@ -46,6 +47,9 @@ pub struct CarModel {
     pub paint: Option<Paint>,
     /// Height of the car origin above the floor (tyres resting on it), 0 when unknown.
     pub floor_height: f32,
+    /// The four wheel and brake mounts, to pose a moving car; with the `ecar` wheel record.
+    pub corners: Option<[Corner; 4]>,
+    pub wheel_setup: Option<WheelSetup>,
 }
 
 #[derive(Debug, Clone)]
@@ -102,7 +106,7 @@ pub fn load(dir: &GameDir, car: &str, options: &LoadOptions) -> Result<CarModel>
     if setup.is_none() {
         log::warn!("{car}: no ecar record for {}; wheels are not placed", car_type.base_model_name);
     }
-    let placements = assemble::assemble(t, &slots, &pool, setup.as_ref(), lod);
+    let (placements, corners) = assemble::assemble(t, &slots, &pool, setup.as_ref(), lod);
     let used: HashSet<u32> = placements.iter().map(|p| p.solid).collect();
     pool.retain(|h, _| used.contains(h));
 
@@ -133,6 +137,8 @@ pub fn load(dir: &GameDir, car: &str, options: &LoadOptions) -> Result<CarModel>
         swaps,
         paint,
         floor_height: setup.as_ref().map_or(0.0, wheels::floor_height),
+        corners,
+        wheel_setup: setup,
     })
 }
 
@@ -169,7 +175,7 @@ fn unassembled(dir: &GameDir, car: &str, solids: Vec<Solid>, options: &LoadOptio
     let swaps = TextureSwaps::default();
     let placements = solids
         .keys()
-        .map(|&solid| Placement { solid, transform: Mat4::IDENTITY, left_brake: false, slot: usize::MAX })
+        .map(|&solid| Placement { solid, transform: Mat4::IDENTITY, left_brake: false, slot: usize::MAX, corner: None })
         .collect();
     let textures = textures::load(dir, car, &wanted_textures(&solids, &swaps))?;
     Ok(CarModel {
@@ -181,5 +187,7 @@ fn unassembled(dir: &GameDir, car: &str, solids: Vec<Solid>, options: &LoadOptio
         swaps,
         paint: None,
         floor_height: 0.0,
+        corners: None,
+        wheel_setup: None,
     })
 }

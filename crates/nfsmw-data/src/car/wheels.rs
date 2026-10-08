@@ -37,6 +37,49 @@ pub struct Corner {
     pub brake: Mat4,
     /// Left side (wheels 0 and 3): its brake is mirrored and uses the left caliper texture.
     pub left: bool,
+    rig: Rig,
+}
+
+/// The pieces `wheel` and `brake` are made of, so a moving car can pose them.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Rig {
+    /// Axle centre and camber, car space.
+    base: Mat4,
+    /// Side flip and the move onto the wheel's axle pivot, before the size scale.
+    wheel_pre: Mat4,
+    wheel_scale: Mat4,
+    /// The brake's mirror and its depth on the axle.
+    brake_local: Mat4,
+    centre: Vec3,
+    /// The wheel mesh is turned round (not mirrored) on this side, so it spins the other way.
+    spin_reversed: bool,
+}
+
+/// How a corner moves while driving.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct WheelPose {
+    /// Steering angle in radians, positive turning left.
+    pub steer: f32,
+    /// Roll angle in radians, increasing as the car drives forward.
+    pub spin: f32,
+    /// Suspension travel, metres: positive lifts the wheel above its rest position.
+    pub travel: f32,
+}
+
+impl Corner {
+    /// The wheel and brake transforms (car space) with the given steering, spin and travel.
+    /// The brake steers and moves with the wheel but does not spin.
+    pub fn posed(&self, pose: WheelPose) -> (Mat4, Mat4) {
+        let rig = &self.rig;
+        let lift = Mat4::from_translation(Vec3::Z * pose.travel);
+        let steer = Mat4::from_translation(rig.centre)
+            * Mat4::from_rotation_z(pose.steer)
+            * Mat4::from_translation(-rig.centre);
+        let spin = Mat4::from_rotation_y(if rig.spin_reversed { -pose.spin } else { pose.spin });
+        let wheel = lift * steer * rig.base * rig.wheel_pre * spin * rig.wheel_scale;
+        let brake = lift * steer * rig.base * rig.brake_local;
+        (wheel, brake)
+    }
 }
 
 /// The four corners. `kit` is the body's kit number, `brake_marker_y` the wheel solid's
@@ -67,13 +110,19 @@ pub fn place(setup: &WheelSetup, kit: usize, model: WheelModel, brake_marker_y: 
             (true, false) => Mat4::from_rotation_z(std::f32::consts::PI),
             (true, true) => Mat4::from_scale(Vec3::new(1.0, -1.0, 1.0)),
         };
-        let wheel = corner
-            * side
-            * Mat4::from_translation(Vec3::new(0.0, -pivot, 0.0))
-            * Mat4::from_scale(Vec3::new(rs, ws, rs));
+        let wheel_pre = side * Mat4::from_translation(Vec3::new(0.0, -pivot, 0.0));
+        let wheel_scale = Mat4::from_scale(Vec3::new(rs, ws, rs));
         let mirror = if left { Mat4::from_scale(Vec3::new(1.0, -1.0, 1.0)) } else { Mat4::IDENTITY };
-        let brake = corner * mirror * Mat4::from_translation(Vec3::new(0.0, brake_marker_y[end] * ws - pivot, 0.0));
-        Corner { wheel, brake, left }
+        let brake_local = mirror * Mat4::from_translation(Vec3::new(0.0, brake_marker_y[end] * ws - pivot, 0.0));
+        let rig = Rig {
+            base: corner,
+            wheel_pre,
+            wheel_scale,
+            brake_local,
+            centre: Vec3::new(x, axle_y, z - amount * CAMBER_PUSH_DOWN_PER_UNIT),
+            spin_reversed: left && setup.spoke_count >= 0,
+        };
+        Corner { wheel: corner * wheel_pre * wheel_scale, brake: corner * brake_local, left, rig }
     })
 }
 
@@ -144,6 +193,48 @@ mod tests {
             let top = c.wheel.transform_point3(Vec3::new(0.0, MODEL.width * 0.5, MODEL.radius));
             let bottom = c.wheel.transform_point3(Vec3::new(0.0, MODEL.width * 0.5, -MODEL.radius));
             assert!(top.y.abs() < bottom.y.abs(), "wheel {i}");
+        }
+    }
+
+    #[test]
+    fn rest_pose_is_the_static_placement() {
+        let mirrored = WheelSetup { spoke_count: -5, ..m3() };
+        for c in
+            place(&m3(), 0, MODEL, [0.046, 0.046], true).into_iter().chain(place(&mirrored, 0, MODEL, [0.0; 2], true))
+        {
+            let (wheel, brake) = c.posed(WheelPose::default());
+            assert!(wheel.abs_diff_eq(c.wheel, 1e-6) && brake.abs_diff_eq(c.brake, 1e-6));
+        }
+    }
+
+    #[test]
+    fn wheels_roll_forward_steer_and_lift() {
+        let mirrored = WheelSetup { spoke_count: -5, ..m3() };
+        let corners: Vec<Corner> = place(&m3(), 0, MODEL, [0.0; 2], false)
+            .into_iter()
+            .chain(place(&mirrored, 0, MODEL, [0.0; 2], false))
+            .collect();
+        for (i, c) in corners.iter().enumerate() {
+            // A point on top of the tyre moves forward (+x) as the wheel rolls, on both sides.
+            let top = Vec3::new(0.0, MODEL.width * 0.5, MODEL.radius);
+            let before = c.posed(WheelPose::default()).0.transform_point3(top);
+            let after = c.posed(WheelPose { spin: 0.1, ..WheelPose::default() }).0.transform_point3(top);
+            assert!(after.x > before.x + 0.01, "wheel {i} rolls the wrong way");
+            // The centre of the axle does not move with the spin.
+            let centre = |p: WheelPose| c.posed(p).0.transform_point3(Vec3::new(0.0, MODEL.width * 0.5, 0.0));
+            assert!(
+                centre(WheelPose::default()).abs_diff_eq(centre(WheelPose { spin: 1.3, ..Default::default() }), 1e-4)
+            );
+            // Steering left swings the front of the tyre to the left (+y); travel lifts.
+            // (turned-round left wheels have their mesh x axis pointing backwards)
+            let front =
+                Vec3::new(if c.rig.spin_reversed { -MODEL.radius } else { MODEL.radius }, MODEL.width * 0.5, 0.0);
+            let steered = c.posed(WheelPose { steer: 0.2, ..Default::default() }).0.transform_point3(front);
+            let straight = c.posed(WheelPose::default()).0.transform_point3(front);
+            assert!(steered.y > straight.y + 0.01, "wheel {i} steers the wrong way");
+            let up = c.posed(WheelPose { travel: 0.05, ..Default::default() });
+            assert!((up.0.transform_point3(top).z - before.z - 0.05).abs() < 1e-5);
+            assert!((up.1.transform_point3(Vec3::ZERO).z - c.brake.transform_point3(Vec3::ZERO).z - 0.05).abs() < 1e-5);
         }
     }
 
