@@ -13,21 +13,39 @@ use kira::sound::{Sound, SoundData};
 /// Samples a synthesiser renders at once.
 const CHUNK: usize = 256;
 
-/// What the engine should sound like right now, from the sound mix controller.
+/// What one loop should sound like right now.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct EngineMix {
-    /// Target frequency in the loops' units (engine "RPM").
+pub struct LoopMix {
+    /// Target frequency in the loop's units (engine "RPM"), not below the loop's own lowest frequency when the
+    /// controller knows it; a request outside the recording's range is clamped by the synthesiser.
     pub frequency: f32,
-    /// Linear volume of the accelerate and the decelerate loop.
-    pub accel_volume: f32,
-    pub decel_volume: f32,
+    /// Linear volume.
+    pub volume: f32,
     /// Playback rate multiplier (1 = natural).
     pub pitch: f32,
 }
 
-impl Default for EngineMix {
+impl Default for LoopMix {
     fn default() -> Self {
-        Self { frequency: 0.0, accel_volume: 0.0, decel_volume: 0.0, pitch: 1.0 }
+        Self { frequency: 0.0, volume: 0.0, pitch: 1.0 }
+    }
+}
+
+/// What the engine should sound like right now, from the sound mix controller: one drive per loop. The
+/// controller decides how they relate (the original hands both loops the same frequency and pitch).
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct EngineMix {
+    pub accel: LoopMix,
+    pub decel: LoopMix,
+}
+
+impl EngineMix {
+    /// Both loops at one frequency and pitch, with their own volumes.
+    pub fn shared(frequency: f32, pitch: f32, accel_volume: f32, decel_volume: f32) -> Self {
+        Self {
+            accel: LoopMix { frequency, volume: accel_volume, pitch },
+            decel: LoopMix { frequency, volume: decel_volume, pitch },
+        }
     }
 }
 
@@ -45,11 +63,36 @@ impl Cell {
     }
 }
 
-struct Control {
+struct LoopControl {
     frequency: Cell,
-    accel_volume: Cell,
-    decel_volume: Cell,
+    volume: Cell,
     pitch: Cell,
+}
+
+impl LoopControl {
+    fn new(mix: LoopMix) -> Self {
+        Self { frequency: Cell::new(mix.frequency), volume: Cell::new(mix.volume), pitch: Cell::new(mix.pitch) }
+    }
+
+    fn set(&self, mix: LoopMix) {
+        self.frequency.set(mix.frequency);
+        self.volume.set(mix.volume);
+        self.pitch.set(mix.pitch);
+    }
+
+    /// The values to render with, each finite and in range.
+    fn read(&self) -> LoopMix {
+        LoopMix {
+            frequency: clean(self.frequency.get(), 0.0, 100_000.0),
+            volume: clean(self.volume.get(), 0.0, 4.0),
+            pitch: clean(self.pitch.get(), 0.05, 8.0),
+        }
+    }
+}
+
+struct Control {
+    accel: LoopControl,
+    decel: LoopControl,
     closed: AtomicBool,
 }
 
@@ -58,11 +101,8 @@ pub struct EngineHandle(Arc<Control>);
 
 impl EngineHandle {
     pub fn set(&self, mix: EngineMix) {
-        let c = &self.0;
-        c.frequency.set(mix.frequency);
-        c.accel_volume.set(mix.accel_volume);
-        c.decel_volume.set(mix.decel_volume);
-        c.pitch.set(mix.pitch);
+        self.0.accel.set(mix.accel);
+        self.0.decel.set(mix.decel);
     }
 }
 
@@ -85,15 +125,12 @@ impl SoundData for EngineVoice {
 
     fn into_sound(self) -> Result<(Box<dyn Sound>, Self::Handle), Self::Error> {
         let control = Arc::new(Control {
-            frequency: Cell::new(self.start.frequency),
-            accel_volume: Cell::new(self.start.accel_volume),
-            decel_volume: Cell::new(self.start.decel_volume),
-            pitch: Cell::new(self.start.pitch),
+            accel: LoopControl::new(self.start.accel),
+            decel: LoopControl::new(self.start.decel),
             closed: AtomicBool::new(false),
         });
-        let start = self.start.frequency;
-        let accel = Stream::new(self.accel, start)?;
-        let decel = self.decel.map(|d| Stream::new(d, start)).transpose()?;
+        let accel = Stream::new(self.accel, self.start.accel.frequency)?;
+        let decel = self.decel.map(|d| Stream::new(d, self.start.decel.frequency)).transpose()?;
         Ok((Box::new(EngineSound { control: control.clone(), accel, decel }), EngineHandle(control)))
     }
 }
@@ -101,7 +138,6 @@ impl SoundData for EngineVoice {
 /// One loop's synthesiser and the linear resampler that brings it to the device rate.
 struct Stream {
     synth: GinsuSynth,
-    data: Arc<GinsuData>,
     rate: f64,
     buffer: [f32; CHUNK],
     index: usize,
@@ -114,14 +150,13 @@ impl Stream {
     fn new(data: Arc<GinsuData>, start: f32) -> Result<Self, blackbox_ginsu::Error> {
         let synth = GinsuSynth::new(data.clone(), start.max(data.tables().min_frequency()))?;
         let rate = f64::from(data.tables().sample_rate());
-        Ok(Self { synth, data, rate, buffer: [0.0; CHUNK], index: CHUNK, previous: 0.0, next: 0.0, position: 0.0 })
+        Ok(Self { synth, rate, buffer: [0.0; CHUNK], index: CHUNK, previous: 0.0, next: 0.0, position: 0.0 })
     }
 
     /// The next output sample at `dt` seconds per output frame.
-    fn sample(&mut self, frequency: f32, volume: f32, pitch: f32, dt: f64) -> f32 {
-        // A request below the loop's lowest frequency plays the lowest one at a lower rate.
-        let (frequency, ratio) = self.data.tables().clamp_frequency(frequency);
-        self.position += self.rate * f64::from(ratio * pitch) * dt;
+    fn sample(&mut self, drive: LoopMix, dt: f64) -> f32 {
+        let LoopMix { frequency, volume, pitch } = drive;
+        self.position += self.rate * f64::from(pitch) * dt;
         while self.position >= 1.0 {
             self.position -= 1.0;
             self.previous = self.next;
@@ -149,14 +184,11 @@ fn clean(v: f32, lo: f32, hi: f32) -> f32 {
 
 impl Sound for EngineSound {
     fn process(&mut self, out: &mut [Frame], dt: f64, _info: &Info) {
-        let c = &self.control;
-        let frequency = clean(c.frequency.get(), 0.0, 100_000.0);
-        let (accel, decel) = (clean(c.accel_volume.get(), 0.0, 4.0), clean(c.decel_volume.get(), 0.0, 4.0));
-        let pitch = clean(c.pitch.get(), 0.05, 8.0);
+        let (accel, decel) = (self.control.accel.read(), self.control.decel.read());
         for frame in out.iter_mut() {
-            let mut sample = self.accel.sample(frequency, accel, pitch, dt);
+            let mut sample = self.accel.sample(accel, dt);
             if let Some(decel_stream) = &mut self.decel {
-                sample += decel_stream.sample(frequency, decel, pitch, dt);
+                sample += decel_stream.sample(decel, dt);
             }
             *frame = Frame::from_mono(sample);
         }
@@ -221,7 +253,7 @@ mod tests {
     }
 
     fn mix(hz: f32, pitch: f32) -> EngineMix {
-        EngineMix { frequency: hz * 120.0, accel_volume: 1.0, decel_volume: 0.0, pitch }
+        EngineMix::shared(hz * 120.0, pitch, 1.0, 0.0)
     }
 
     #[test]
@@ -244,11 +276,43 @@ mod tests {
     }
 
     #[test]
+    fn each_loop_follows_its_own_drive() {
+        let d = data();
+        let drive = |accel_hz: f32, decel_hz: f32, accel_vol: f32, decel_vol: f32| EngineMix {
+            accel: LoopMix { frequency: accel_hz * 120.0, volume: accel_vol, pitch: 1.0 },
+            decel: LoopMix { frequency: decel_hz * 120.0, volume: decel_vol, pitch: 1.0 },
+        };
+        // Only the decelerate loop is audible: its pitch is the one asked of it, not the accelerate loop's.
+        let voice = EngineVoice { accel: d.clone(), decel: Some(d.clone()), start: EngineMix::default() };
+        let samples = render(voice, &[(drive(150.0, 350.0, 0.0, 1.0), 48_000)], 48_000.0);
+        let measured = rising_zero_crossings_hz(&samples[24_000..], 48_000.0);
+        assert!((measured - 350.0).abs() < 35.0, "heard {measured:.1} Hz");
+        // And the accelerate loop alone plays its own.
+        let voice = EngineVoice { accel: d.clone(), decel: Some(d), start: EngineMix::default() };
+        let samples = render(voice, &[(drive(150.0, 350.0, 1.0, 0.0), 48_000)], 48_000.0);
+        let measured = rising_zero_crossings_hz(&samples[24_000..], 48_000.0);
+        assert!((measured - 150.0).abs() < 15.0, "heard {measured:.1} Hz");
+    }
+
+    #[test]
+    fn a_loop_pitch_is_its_own() {
+        let d = data();
+        let mix = EngineMix {
+            accel: LoopMix { frequency: 200.0 * 120.0, volume: 0.0, pitch: 1.0 },
+            decel: LoopMix { frequency: 200.0 * 120.0, volume: 1.0, pitch: 1.5 },
+        };
+        let voice = EngineVoice { accel: d.clone(), decel: Some(d), start: EngineMix::default() };
+        let samples = render(voice, &[(mix, 48_000)], 48_000.0);
+        let measured = rising_zero_crossings_hz(&samples[24_000..], 48_000.0);
+        assert!((measured - 300.0).abs() < 30.0, "heard {measured:.1} Hz");
+    }
+
+    #[test]
     fn zero_volume_is_silence_and_bad_numbers_do_not_poison_the_output() {
         let d = data();
         let voice = EngineVoice { accel: d.clone(), decel: Some(d), start: EngineMix::default() };
-        let quiet = EngineMix { accel_volume: 0.0, ..mix(200.0, 1.0) };
-        let bad = EngineMix { frequency: f32::NAN, accel_volume: f32::INFINITY, decel_volume: -3.0, pitch: f32::NAN };
+        let quiet = EngineMix::shared(200.0 * 120.0, 1.0, 0.0, 0.0);
+        let bad = EngineMix::shared(f32::NAN, f32::NAN, f32::INFINITY, -3.0);
         let out = render(voice, &[(quiet, 8_000), (bad, 8_000)], 48_000.0);
         assert!(out[2_000..8_000].iter().all(|s| s.abs() < 1e-3), "silent at zero volume");
         assert!(out.iter().all(|s| s.is_finite() && s.abs() <= 8.0));

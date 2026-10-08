@@ -109,16 +109,15 @@ fn single_mode_never_uses_the_decelerate_loop() {
 }
 
 #[test]
-fn loops_below_their_minimum_play_at_the_minimum_with_the_ratio_as_playback_rate() {
+fn loops_below_the_accelerate_loops_minimum_play_at_it_with_the_ratio_as_playback_rate() {
     let mut t = tuning();
     t.engine.accel_loop_min_frequency = 1800.0;
-    t.engine.decel_loop_min_frequency = 0.0;
     let mut m = EngineMixer::new(&t);
     let out = *hold(&mut m, 1.0, CarInput { pitch_multiplier: 2.0, ..input(0.0, 0.0, 1) }).last().unwrap();
     assert_eq!(out.accel_loop.frequency, 1800.0);
     assert!((out.accel_loop.playback_rate - 1500.0 / 1800.0 * 2.0).abs() < 1e-3);
-    assert_eq!(out.decel_loop.frequency, out.ginsu_frequency);
-    assert!((out.decel_loop.playback_rate - 2.0).abs() < 1e-6);
+    // The decelerate loop gets the accelerate loop's values, as in the original.
+    assert_eq!(out.decel_loop, out.accel_loop);
     assert_eq!(out.playback_rate, out.accel_loop.playback_rate);
 }
 

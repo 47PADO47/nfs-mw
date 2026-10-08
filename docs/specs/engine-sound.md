@@ -337,7 +337,10 @@ ginsu_rpm = synth.current_pitch() * pitch1 * 120          # fed back to the AEMS
 
 `PitchMultiplier = dmix_pitch / 4096` (the dynamic mixer's pitch output, §8). On detach the object sets the
 loops' volume to 0; they keep running silently while attached. Both loops of the dual mode get the same `freq`
-and playback rate.
+and playback rate, and both are derived **once, from the accelerate loop's `min_frequency`** (the decelerate
+loop's own minimum is never read) **[decomp]**: the decelerate synthesiser clamps the frequency to its own
+range internally, so where its recording starts above the accelerate loop's (the M3 GTR set: 2019 against
+1239.5) it plays at its lowest spot at natural speed, without the sub-minimum pitch ratio.
 
 `GinsuLPFVal` is 24000 to 25000 (fully open) normally and falls with the camera distance: the engine control
 computes `m_DistanceFltr = 725 + 0.7103 * Q15(curve(distance))`, clamped to 0 to 32767, where the curve is the
@@ -427,9 +430,10 @@ decompiled code was consulted again only to settle these points.
   of the attack) is never read anywhere in the sources, so it is not applied; only its RPM and torque act.
 - **Distance low-pass:** treated as open. The output low-pass is the blended cutoff (25000 accelerate, `GINSU_LowPassCutoff`
   decelerate, smoothed by 6000 per tick) and the caller may lower it by distance.
-- **Pitch:** the mixer's pitch multiplier is an input (default 1). If the tuning gives a loop's `min_frequency`, the
-  output frequency is clamped to it and `playback_rate` carries `ginsu_freq / min_frequency` (§6); with no minimum
-  given the ratio is 1.
+- **Pitch:** the mixer's pitch multiplier is an input (default 1). If the tuning gives the accelerate loop's
+  `min_frequency`, the output frequency is clamped to it and `playback_rate` carries `ginsu_freq / min_frequency`
+  (§6); with no minimum given the ratio is 1. The decelerate loop's drive (`EngineOutput::decel_loop`) is a copy of
+  the accelerate loop's, as in the original; the game hands each loop its own drive to the voice.
 - **Compression bump:** length `25 + rand(100)` ms, height `25 + rand(75)` RPM, gap `60 + rand(150)` ticks, from a
   seeded generator so equal inputs give equal outputs.
 - **Tachometer before the race:** the caller says whether the race has started (`pre_race`); when it flips to

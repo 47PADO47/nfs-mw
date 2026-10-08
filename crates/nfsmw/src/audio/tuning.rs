@@ -4,10 +4,12 @@
 use blackbox_carsound as cs;
 use nfsmw_data::sound::{self as data, CarSound};
 
-/// The engine mixer's tuning for `sound`. The local player's car gets the RPM remap and the clutch model.
-pub fn tuning(sound: &CarSound) -> cs::CarSoundTuning {
+/// The engine mixer's tuning for `sound`, whose accelerate loop starts at `accel_min_frequency` (the `.gin`
+/// file's lowest frequency; below it the loops play at it and the playback rate carries the ratio). The local
+/// player's car gets the RPM remap and the clutch model.
+pub fn tuning(sound: &CarSound, accel_min_frequency: f32) -> cs::CarSoundTuning {
     cs::CarSoundTuning {
-        engine: engine(&sound.engine),
+        engine: cs::EngineTuning { accel_loop_min_frequency: accel_min_frequency, ..engine(&sound.engine) },
         shift: shift(&sound.shift),
         accel_transition: accel(&sound.accel_transition),
         ..cs::CarSoundTuning::default()
@@ -47,9 +49,7 @@ fn engine(e: &data::EngineSound) -> cs::EngineTuning {
         low_pass_cutoff: e.low_pass_cutoff,
         shift_sweet_volume: e.shift_sweet_volume,
         sputter_volume: e.sputter_volume,
-        // The voice clamps each loop to its own lowest frequency.
         accel_loop_min_frequency: 0.0,
-        decel_loop_min_frequency: 0.0,
         redline_enabled: true,
     }
 }

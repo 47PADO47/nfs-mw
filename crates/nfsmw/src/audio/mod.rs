@@ -26,7 +26,7 @@ use kira::{AudioManager, AudioManagerSettings, DefaultBackend, Tween};
 use nfsmw_data::sound::{CarSound, EngineLoops, SoundUpgrades};
 
 pub use car::{CarEvent, CarSoundState};
-pub use engine::{EngineHandle, EngineMix, EngineVoice};
+pub use engine::{EngineHandle, EngineMix, EngineVoice, LoopMix};
 pub use plugin::AudioPlugin;
 pub use volume::{Group, Volumes};
 
@@ -63,6 +63,13 @@ pub struct Audio {
 pub struct CarEngine {
     pub voice: EngineVoice,
     pub sound: CarSound,
+}
+
+impl CarEngine {
+    /// The lowest frequency of the accelerate loop, in the loop's units.
+    pub fn accel_min_frequency(&self) -> f32 {
+        self.voice.accel.tables().min_frequency()
+    }
 }
 
 impl Audio {

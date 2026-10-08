@@ -207,11 +207,13 @@ impl EngineCore {
         let mix = &self.mix.output;
         let tuning = &self.tuning;
         let accel_loop = LoopDrive::new(mix.ginsu_frequency, tuning.accel_loop_min_frequency, self.pitch_multiplier);
+        // The original derives the frequency and the playback ratio once, from the accelerate loop's lowest
+        // frequency, and hands the same two values to the decelerate loop (spec: engine-sound.md §6).
         EngineOutput {
             ginsu_frequency: mix.ginsu_frequency,
             playback_rate: accel_loop.playback_rate,
             accel_loop,
-            decel_loop: LoopDrive::new(mix.ginsu_frequency, tuning.decel_loop_min_frequency, self.pitch_multiplier),
+            decel_loop: accel_loop,
             accel_volume: q15_gain(mix.accel_volume),
             decel_volume: q15_gain(mix.decel_volume),
             aems_volume: q15_gain(mix.aems_volume),

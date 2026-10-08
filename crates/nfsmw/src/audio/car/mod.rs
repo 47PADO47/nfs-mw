@@ -8,6 +8,7 @@ use blackbox_carsound::{CarInput, EffectsMixer, EngineMixer, LoopId, ScrapeKind,
 use kira::sound::static_sound::StaticSoundHandle;
 use nfsmw_data::sound::{CarSound, EventKind};
 
+use super::LoopMix;
 use super::tuning::tuning;
 use super::{Audio, EngineHandle, EngineMix};
 
@@ -75,10 +76,16 @@ impl Audio {
         let Some(mut car) = self.car.take() else { return };
         let out = car.engine.update(dt, &state.input);
         car.handle.set(EngineMix {
-            frequency: out.ginsu_frequency,
-            accel_volume: out.accel_volume,
-            decel_volume: out.decel_volume,
-            pitch: state.input.pitch_multiplier,
+            accel: LoopMix {
+                frequency: out.accel_loop.frequency,
+                volume: out.accel_volume,
+                pitch: out.accel_loop.playback_rate,
+            },
+            decel: LoopMix {
+                frequency: out.decel_loop.frequency,
+                volume: out.decel_volume,
+                pitch: out.decel_loop.playback_rate,
+            },
         });
         car.effects.scrape(state.scrape);
         let mut commands = std::mem::take(&mut car.commands);
@@ -106,8 +113,8 @@ impl Audio {
 
     fn start_car(&mut self, name: &str) -> Result<CarAudio, String> {
         let loaded = self.load_car_engine(name)?;
-        let tuning = tuning(&loaded.sound);
-        let silent = EngineMix { frequency: loaded.sound.engine.min_rpm, ..EngineMix::default() };
+        let tuning = tuning(&loaded.sound, loaded.accel_min_frequency());
+        let silent = EngineMix::shared(loaded.sound.engine.min_rpm, 1.0, 0.0, 0.0);
         let handle = self.start_engine(super::EngineVoice { start: silent, ..loaded.voice })?;
         log::info!("engine sound: {} ({})", loaded.sound.engine.name, loaded.sound.engine.accel_loop);
         Ok(CarAudio {

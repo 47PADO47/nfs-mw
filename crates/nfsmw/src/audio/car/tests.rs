@@ -6,6 +6,7 @@ use kira::Frame;
 use kira::sound::SoundData;
 
 use super::*;
+use crate::audio::LoopMix;
 use crate::audio::{EngineVoice, Volumes};
 
 const RATE: f64 = 48_000.0;
@@ -22,7 +23,7 @@ fn audio() -> Option<Audio> {
 fn a_real_car_revs_up_and_is_audible() {
     let Some(mut audio) = audio() else { return };
     let car = audio.load_car_engine("BMWM3GTR").unwrap();
-    let mut mixer = EngineMixer::new(&tuning(&car.sound));
+    let mut mixer = EngineMixer::new(&tuning(&car.sound, car.accel_min_frequency()));
     let at = |rpm_pct: f32, throttle: f32| CarInput { rpm_pct, throttle, gear: GEAR_FIRST, ..CarInput::default() };
     let idle = (0..120).map(|_| mixer.update(TICK, &at(0.0, 0.0))).last().unwrap();
     let revving = (0..240).map(|_| mixer.update(TICK, &at(0.8, 1.0))).last().unwrap();
@@ -65,8 +66,8 @@ fn write_wav(path: &std::path::Path, samples: &[f32]) {
 fn a_scripted_drive_sounds_like_an_engine() {
     let Some(mut audio) = audio() else { return };
     let car = audio.load_car_engine("BMWM3GTR").unwrap();
-    let mut mixer = EngineMixer::new(&tuning(&car.sound));
-    let silent = EngineMix { frequency: car.sound.engine.min_rpm, ..EngineMix::default() };
+    let mut mixer = EngineMixer::new(&tuning(&car.sound, car.accel_min_frequency()));
+    let silent = EngineMix::shared(car.sound.engine.min_rpm, 1.0, 0.0, 0.0);
     let (mut sound, handle) = EngineVoice { start: silent, ..car.voice }.into_sound().unwrap();
     let info = kira::info::MockInfoBuilder::new().build();
     let per_tick = (RATE / 60.0) as usize;
@@ -77,10 +78,16 @@ fn a_scripted_drive_sounds_like_an_engine() {
         let o = mixer.update(TICK, &input);
         shifts += usize::from(o.events.gear_clunk.is_some());
         handle.set(EngineMix {
-            frequency: o.ginsu_frequency,
-            accel_volume: o.accel_volume,
-            decel_volume: o.decel_volume,
-            pitch: 1.0,
+            accel: LoopMix {
+                frequency: o.accel_loop.frequency,
+                volume: o.accel_volume,
+                pitch: o.accel_loop.playback_rate,
+            },
+            decel: LoopMix {
+                frequency: o.decel_loop.frequency,
+                volume: o.decel_volume,
+                pitch: o.decel_loop.playback_rate,
+            },
         });
         let mut block = vec![Frame::ZERO; per_tick];
         sound.process(&mut block, 1.0 / RATE, &info);

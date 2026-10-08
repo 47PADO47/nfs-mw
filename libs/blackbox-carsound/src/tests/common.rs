@@ -34,7 +34,6 @@ pub fn engine_tuning() -> EngineTuning {
         shift_sweet_volume: 20000,
         sputter_volume: 0,
         accel_loop_min_frequency: 0.0,
-        decel_loop_min_frequency: 0.0,
         redline_enabled: true,
     }
 }

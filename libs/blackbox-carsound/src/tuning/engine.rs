@@ -94,10 +94,10 @@ pub struct EngineTuning {
     pub shift_sweet_volume: i32,
     /// `Vol_Sputters`: level of the backfire, 0 to 32767 (carried for the game; no sound is made here).
     pub sputter_volume: i32,
-    /// Lowest frequency of the accelerate and decelerate `.gin` files (their `min_frequency`); 0 when unknown.
-    /// Below it the loop plays at its minimum and the playback rate carries the ratio (spec §6).
+    /// Lowest frequency of the accelerate `.gin` file (its `min_frequency`); 0 when unknown. Below it the loops
+    /// play at that minimum and the playback rate carries the ratio (spec §6). The decelerate loop gets the
+    /// same two values: the original takes them from the accelerate loop only.
     pub accel_loop_min_frequency: f32,
-    pub decel_loop_min_frequency: f32,
     /// Duck the engine at the limiter (not for AI racers).
     pub redline_enabled: bool,
 }
@@ -115,7 +115,6 @@ impl Default for EngineTuning {
             shift_sweet_volume: 0,
             sputter_volume: 0,
             accel_loop_min_frequency: 0.0,
-            decel_loop_min_frequency: 0.0,
             redline_enabled: true,
         }
     }

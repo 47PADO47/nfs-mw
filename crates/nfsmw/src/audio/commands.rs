@@ -52,16 +52,13 @@ fn engine(audio: &mut Audio, args: &[&str]) -> Result<String, String> {
             };
             let engine = audio.load_car_engine(car)?;
             let sound_rpm = 1000.0 + 9000.0 * engine.sound.engine.remap_rpm(percent / 100.0);
-            let mix = EngineMix {
-                frequency: engine.sound.engine.ginsu_frequency(sound_rpm),
-                accel_volume: 1.0,
-                ..EngineMix::default()
-            };
+            let frequency = engine.sound.engine.ginsu_frequency(sound_rpm);
+            let mix = EngineMix::shared(frequency, 1.0, 1.0, 0.0);
             let name = engine.sound.engine.name.clone();
             let handle = audio.start_engine(super::EngineVoice { start: mix, ..engine.voice })?;
             handle.set(mix);
             audio.test_engine = Some((handle, engine.sound));
-            Ok(format!("engine {name} at {percent:.0}% of its range ({:.0}); engine off stops it", mix.frequency))
+            Ok(format!("engine {name} at {percent:.0}% of its range ({:.0}); engine off stops it", frequency))
         }
         _ => Err("usage: engine <car> [percent] | engine off".into()),
     }
