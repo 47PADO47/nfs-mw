@@ -45,6 +45,15 @@ later, the `sound` module of [`crates/nfsmw-data`](../../crates/nfsmw-data) (a c
   - The AEMS sample layer is not reimplemented (its sample selection is bank data, spec question Q5).
   - Expected: the GameCube build was read, so values and some behaviours of the PC build may differ.
 
+## Install probing for the effects (2026-10-08)
+
+Not from the decompilation: the stitch table layout, the order of the sounds in the effect banks, the
+collision link records and the `simsurface` audio fields were read off the install with throwaway probes
+(counts, durations, loop points and cross-checks such as "every piece id is a sound of the bank"; the
+real-install tests `collision_sounds_and_stitches_resolve` and `every_effect_resolves_to_a_sound_in_its_bank` keep
+the checkable parts). The meaning of the second and third piece field and the choice of sound per effect
+are reasoned from the data and marked unconfirmed in [audio.md](../formats/audio.md).
+
 ## Open questions
 
 Tracked for the implementer; see "Open questions" at the end of each spec: update rate of the control code

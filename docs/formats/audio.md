@@ -24,7 +24,7 @@ reverb) is only in the [decomp](https://github.com/dbalatoni13/nfsmw). For the t
 
 Also in bChunk files: `GLOBAL/InGameB.bun` holds 3 × `8003B500 SndStichBundle`, with 720
 `0003B502 SndStichData` + 720 `0003B503 SndSampleRef` chunks **[verified]**. The decomp names them
-`SND_STICHBUNDLE` / `SND_STICHDATA` / `SND_SAMPLEREF` **[decomp]**. Their layout is undocumented.
+`SND_STICHBUNDLE` / `SND_STICHDATA` / `SND_SAMPLEREF` **[decomp]**. Layout: [Sound stitches](#sound-stitches).
 
 ## Codecs actually used on PC **[verified]**
 
@@ -171,6 +171,55 @@ Example, `pvehicle/bmwm3gtr` -> `engineaudio/tvr_cerb` (accelerate `GIN_TVR_Cerb
 `shiftpattern/0x6EB87040` (bank `GEAR_MED_Lev3.abk`). Bank contents: `CAR_66_ENG_MB_EE.abk` has 8 sounds
 (112 KB), the `_SPU` twin 7, `SWTN_CAR_66_MB.abk` 12, a `SKID_*` bank 5, `Nitrous_00_MB.abk` 3,
 `Stich_Collision_MB.abk` 171 **[verified]** (sound counts from the `BNKl` header, dummy entry excluded).
+
+## Sound stitches
+
+A collision sound is not one sample: the `audioimpact` lists (`STITCH_LEVEL_n`) hold ids of a *stitch*, a short
+chain of pieces of `IG_GLOBAL/Stich_Collision_MB.abk`. `GLOBAL/InGameB.bun` has three bundles (8003B500) of
+608, 90 and 22 stitches; the first is the collision one (its piece ids run 0 to 170 for the bank's 171
+sounds, the other two refer to the static and whoosh banks). Each stitch is a `0003B502` record and a
+`0003B503` record, in the same order (the order is the id) **[verified on the bytes]**:
+
+| Chunk | Layout |
+|---|---|
+| `0003B502` (20 B) | `u32` hash (a name), `u16` volume (`0x7FFF` = full), `u16` id (equals the position), `u32` piece count, 8 bytes not understood |
+| `0003B503` (16 B per piece) | `u16` sample (the bank's sound counted from **0**: `BNKl` entry = sample + 1), `u16` volume (`0x3FFF` is typical), `u16` A, `u16` B, 8 bytes not understood |
+
+**[unconfirmed]** reading of the piece fields: A is the number of samples after which the next piece starts
+(2,700 to 4,600 at 36,000 Hz, which is 75 to 130 ms, shorter than the 0.1 to 0.5 s pieces, so they overlap);
+B (0 to 100) is a delay or random range and is not used. The Rust reader plays the pieces in order with the
+cumulative A as start times.
+
+How the car picks the stitch: `pvehicle` lists `OnHitGround`, `OnHitWorld`, `OnHitObject`, `OnBottomOut`,
+`OnScrapeGround`, `OnScrapeWorld`, `OnScrapeObject`, `OnBottomScrape` as arrays of 32-byte records
+`{u32 selector class, u32 selector key, u32 0, u32 wrapper class, u32 wrapper key, u32 0, f32, f32}`. The selector
+is a `simsurface` (or `carbody` for car-to-car) the link applies to, with `default` as the fallback; the wrapper
+(class `0xEBCEE74C`, collections `carhitwall`, `carhitgrass`, `carscrapepavement`, ...) holds the references to the
+`audioimpact` / `audioscrape` collections itself: the first (in the layout) for a hit on the car's side and
+others for a front hit (`DESCRIPTION` has `FRONT` or `SIDE`). The two floats look like a speed range
+(1 and 5, 1 and 30, 0 and 1) and are not used **[verified: names and structure; floats unconfirmed]**.
+
+## Which bank sound
+
+The engine specs name the sounds by Csis ids (`FX_SHIFTING_01` sample 0, ...); the `.csi` files that map an id to a
+bank sound are not decoded, so the Rust code picks by the order in the banks, checked on durations and loop
+points (`BNKl` entry numbers, from 1) **[unconfirmed except where noted]**:
+
+| Bank | Sounds |
+|---|---|
+| `SHIFTING/GEAR_*.abk` | 1 up shift (0.57 s), 2 down shift (0.68 s), 3 brake mash (0.34 s; the small banks have it, the big ones 2 sounds) |
+| `ENGINE/SWTN_CAR_nn_MB.abk` (12) | 1 to 7 short pops (0.01 to 0.08 s, the sputters), 8 to 12 longer (0.14 to 0.36 s): 10 is used for sweetener 0 and 8 for sweetener 1 |
+| `ENGINE/CAR_WHINE_00.abk` | the reverse whine loop |
+| `TURBO/TURBO_*.abk` (5) | 1 spool loop, 2 blow-off 1, 3 and 4 blow-offs 2 and 3, 5 another loop (unused) |
+| `NOS/Nitrous_00_MB.abk` (3) | 1 loop (2.4 s), 2 (0.55 s, unused), 3 purge (1.4 s) |
+| `SKIDS/SKID_BIG_MB.abk` (5 loops) | 1 and 2 on asphalt (squeal, burnout), 3 and 4 on loose surfaces; 5 unused |
+| `IG_GLOBAL/ROADNOISE_00_MB.abk` (15) | 1 to 7 are the road loops, numbered by `Aud_Roadnoise_LOOP` **[verified by the count]**; 8 to 15 are transition sounds (unused) |
+| `IG_GLOBAL/WIND_00_MB.abk` (5) | 1 to 4 wind loops (28,000 Hz), 5 (12,000 Hz); only 1 is played |
+| `IG_GLOBAL/FX_MAIN_MEM_MB.abk` (4) | four 3 to 5 s loops, used for the scrapes: ground, wall, car |
+
+`simsurface` has `Aud_Skid_Type` (0 asphalt, concrete and the like; 1 grass, dirt, sand, gravel, snow, mud, golf) and
+`Aud_Roadnoise_LOOP` (0 none for the loose surfaces, 1 concrete, stone, wood and roof tiles, 2 cobble, 3 water and
+railroad, 5 everything else including asphalt, 6 a blown tire) **[verified]**.
 
 ## Interactive music: `MW_Music.mpf` + `.mus` **[community; checked against the files]**
 

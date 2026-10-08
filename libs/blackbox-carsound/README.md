@@ -14,8 +14,11 @@ and its banks.
   times and runs them on a fixed 60 Hz tick (`TICK_HZ`), at most `MAX_TICKS_PER_UPDATE` per call.
 - **Written from the specs** `docs/specs/engine-sound.md` and `docs/specs/engine-sound-effects.md`, not from the
   decompilation (`docs/provenance/engine-sound.md`).
-- **Not done yet:** the skid, road and wind noise, nitrous, turbo and collision controllers (specified in
-  `engine-sound-effects.md`; their tuning structs exist, their controllers do not), and the sample (AEMS) layer.
+- **Effects.** [`EffectsMixer`] covers the sounds around the engine: shift clunks and sweeteners, the brake mash, the
+  reverse whine, the turbo spool and blow-off, nitrous and its purge, a tire loop per axle, road noise per side,
+  wind, landings, and which sample a collision plays (`impact`) and its scrape loop. It returns `SoundCommand`s
+  naming a `SoundRef` (the effect, not the file); the game picks the bank sound.
+- **Not done yet:** the sample (AEMS) layer of the engine and the sputters; the mixer maps that scale the levels.
 
 ```rust
 use blackbox_carsound::{CarInput, CarSoundTuning, EngineMixer};

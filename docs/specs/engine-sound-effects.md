@@ -308,6 +308,28 @@ the end of [engine-sound.md](engine-sound.md)):
 - **Landing.** As §8; the `Z force` of a wheel is its `compression`.
 - **Random choices** (blow-off sample, compression bump) come from a seeded xorshift generator.
 
+## 11. What the Rust game does with it
+
+Implemented in `libs/blackbox-carsound` (`EffectsMixer`) and `crates/nfsmw/src/audio/` (the bank lookup in
+`refs.rs`, the voices in `fx.rs`). Where this differs from the text above:
+
+- **Not played:** the moment streams of an impact (`StreamSweetner`), the `FX_SKID` wet level and pitch outputs
+  of the mixer maps, the transmission loop, the sputters (`CAR_Sputter` needs the sample layer), the weather wind,
+  road noise transition samples, and the pitch boost of a blown tire.
+- **Which bank sound** each effect plays is listed in [audio.md](../formats/audio.md#which-bank-sound). Q1 is
+  answered by the order and the durations in the banks, not by the `.csi` files, and the choices marked
+  unconfirmed there are guesses.
+- **Collisions.** The physics gives the hit's impulse (wall hits: 30,000 N s is full volume, below 800 N s is
+  silent, hits closer than 0.2 s are one), the front or side of the car, and the light props it knocks over (a
+  `HitWorld` of 0.15 to 0.6 by mass). A scrape is a wall rubbed at more than 3 m/s. The stitch is looked up in
+  `InGameB.bun` (Q3 answered, see [audio.md](../formats/audio.md#sound-stitches)); `StreamSweetner` is read nowhere.
+- **Landings** play the `OnBottomOut` collection of the surface under the car.
+- **Loops** (turbo, nitrous, tires, road, wind, scrape, reverse) keep one voice each; a change of volume or pitch
+  is smoothed over 60 ms and a stop fades over 120 ms. The road noise gain (0.35) and wind gain (0.4) are set
+  without a listening test, as the mixer maps are unspecified (Q2).
+- **Telemetry the physics lacks:** a blown tire (never), the nitrous tank empty flag (set when the nitrous key is
+  held on an empty tank), `pre_race` and the dynamic mixer's pitch multiplier.
+
 ## How to check it
 
 - **Shifting:** record `EngRPM` over a 2nd to 3rd shift at 8000 RPM in the PC game (a debugger on the RPM
@@ -321,7 +343,8 @@ the end of [engine-sound.md](engine-sound.md)):
 ## Open questions
 
 - **Q1** Which sample each Csis id picks, and how `PSI`, `RPM` and `rotation` shape them, is data inside the `.abk` and
-  `.csi` files; not decoded.
+  `.csi` files; not decoded (the Rust code picks by bank order, section 11).
 - **Q2** The mixer maps (volumes, pitch, low-pass per slot).
-- **Q3** The stitch tables (`InGameB.bun`) that map `STITCH_LEVEL_*` ids to bank sounds.
+- **Q3** *(answered in part)* The stitch tables in `InGameB.bun` are read ([audio.md](../formats/audio.md#sound-stitches)); what
+  the second piece field does is not known.
 - **Q4** Whether the PC build changes any constant here (timings were tuned for the console builds).
