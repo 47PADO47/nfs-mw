@@ -8,11 +8,13 @@ mod demux;
 mod error;
 mod header;
 mod packet;
+mod timing;
 
 pub use demux::Demuxer;
 pub use error::MovieError;
 pub use header::{MVHD_PAYLOAD_LEN, MovieHeader, VP6_FOURCC};
 pub use packet::{AudioPacket, Packet, VideoPacket};
+pub use timing::{Timeline, Update};
 
 #[cfg(test)]
 mod tests;
