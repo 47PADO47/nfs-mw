@@ -47,5 +47,7 @@ synthetic rev-up (a sine whose frequency rises, cut at whole turns): steady pitc
 and at several sample rates, a glide that follows a rising target, no clicks at the joins (largest step below
 1.5 times the sine's own), bit-identical output for equal call sequences and for any block size at a steady
 target, volume ramps, the end of the recording, nonsense inputs (NaN, infinity, negative gain, empty blocks).
+The real engine loops of an install are tested in `crates/nfsmw-data/tests/real_install/ginsu.rs` (ignored; it
+needs a game install and `ea-audio` for the EA-XAS decoding).
 
 License: MIT OR Apache-2.0.

@@ -31,8 +31,10 @@ later, the `sound` module of [`crates/nfsmw-data`](../../crates/nfsmw-data) (a c
 - **Implemented:** `blackbox-ginsu` 2026-10-08, from the specs only (the decompiled code was not open while
   writing). The `sound` module of `nfsmw-data` follows the same rule.
 - **Checked against the game by:** synthetic sine and cycle tests for the library (pitch, joins, determinism);
-  an `#[ignore]` test that decodes real `.gin` files and measures the synthesised pitch once `ea-audio` decodes
-  EA-XAS. Nothing yet compared with the running game; "How to check it" in each spec lists what to measure.
+  `#[ignore]` tests in `crates/nfsmw-data/tests/real_install/` that resolve every car's sound set against the
+  install (all named files exist, at stock and fully upgraded) and decode real `.gin` files (via `ea-audio`),
+  play them through the synthesiser and measure the period against the file's tables. Nothing yet compared
+  with the running game's audio; "How to check it" in each spec lists what to measure.
 - **Known differences from the original:**
   - No priming silence, no hardware packet queue: packets are built on demand to fill any block size.
   - Reads outside the recording give silence (the original left stale buffer contents).

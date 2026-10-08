@@ -201,3 +201,9 @@ independent synths with the same `freq` (they do not stay in phase).
 - Determinism: same data, same call sequence, bit-identical output.
 - Compare against the PC game's engine at a fixed RPM (recording of the process's `SNDPKTPLAY_submit`
   buffers, if hookable) **[unconfirmed]**.
+
+Done on the install with the Rust implementation (`crates/nfsmw-data/tests/real_install/ginsu.rs`,
+**[verified]** for the BMWM3GTR loops and 13 other engines): at 25, 50 and 75 % of each file's range the output
+repeats at the table's cycle length (within 3 %, autocorrelation above 0.8), the reported frequency is within 8 %
+of the request, and a 4 s pull through the range has no level jump above a factor of 3 between 50 ms windows.
+That checks the synthesis against the file's own tables; it does not compare with the original's audio.
