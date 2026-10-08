@@ -15,3 +15,10 @@ pub const VISIBLE_SECTION_MANAGER_INFO: u32 = 0x0003_4151;
 pub const VISIBLE_SECTION_BOUNDARIES: u32 = 0x0003_4152;
 pub const DRIVABLE_SCENERY_SECTIONS: u32 = 0x0003_4153;
 pub const LOADING_SECTIONS: u32 = 0x0003_4155;
+/// `CarpWGrid` (`UWorld`): the world map tree: collision grid and road network.
+pub const CARP_WGRID: u32 = 0x0003_B800;
+/// `CarpWCollisionPack`: one section's static collision (`CARP` blob).
+pub const CARP_WCOLLISION_PACK: u32 = 0x0003_B801;
+/// `BoundsPack`: container of collision bounds (cars in `GlobalB.lzc`, props in the world file).
+pub const BOUNDS_PACK: u32 = 0x8003_B900;
+pub const BOUNDS: u32 = 0x0003_B901;
