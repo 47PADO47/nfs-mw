@@ -8,6 +8,7 @@ use super::metrics::{HISTORY, Metrics, ShowMetrics};
 const GRAPH_MAX_MS: f32 = 33.3;
 
 pub fn show(ctx: &egui::Context, level: ShowMetrics, m: &Metrics) {
+    readout(ctx, m);
     if level == ShowMetrics::Off {
         return;
     }
@@ -34,6 +35,29 @@ pub fn show(ctx: &egui::Context, level: ShowMetrics, m: &Metrics) {
                 if !m.status.is_empty() {
                     ui.label(RichText::new(&m.status).monospace().weak());
                 }
+            }
+        });
+}
+
+/// The scene's own readout (speed, rpm and gear when driving), bottom left.
+fn readout(ctx: &egui::Context, m: &Metrics) {
+    if m.hud.is_empty() {
+        return;
+    }
+    egui::Window::new("readout")
+        .fade_in(false)
+        .title_bar(false)
+        .resizable(false)
+        .movable(false)
+        .interactable(false)
+        .anchor(Align2::LEFT_BOTTOM, vec2(8.0, -8.0))
+        .frame(Frame::window(&ctx.global_style()).fill(Color32::from_black_alpha(170)))
+        .show(ctx, |ui| {
+            for line in m.hud.lines() {
+                ui.add(
+                    egui::Label::new(RichText::new(line).monospace().size(18.0).strong())
+                        .wrap_mode(egui::TextWrapMode::Extend),
+                );
             }
         });
 }

@@ -62,6 +62,8 @@ pub struct Metrics {
     pub meshes: usize,
     pub textures: usize,
     pub status: String,
+    /// The scene's readout (see `Scene::hud`).
+    pub hud: String,
 }
 
 impl Metrics {
@@ -112,6 +114,7 @@ pub fn collect(mut metrics: ResMut<Metrics>, time: Res<Time<Real>>, host: NonSen
         metrics.adapter = renderer.adapter_summary();
     }
     metrics.status = host.scene.status().unwrap_or_default();
+    metrics.hud = host.scene.hud().unwrap_or_default();
 }
 
 #[cfg(test)]

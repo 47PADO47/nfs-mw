@@ -29,6 +29,11 @@ pub trait Scene {
     fn status(&self) -> Option<String> {
         None
     }
+    /// Lines for the in-game readout (speed, rpm, gear while driving), drawn bottom left whatever
+    /// the metrics level is. The real HUD replaces it later.
+    fn hud(&self) -> Option<String> {
+        None
+    }
     /// The scene's own console commands as `(name, usage)`, listed by `help`.
     fn commands(&self) -> &'static [(&'static str, &'static str)] {
         &[]
