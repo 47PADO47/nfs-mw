@@ -2,7 +2,7 @@
 
 mod commands;
 mod floor;
-mod materials;
+pub(crate) mod materials;
 
 use std::collections::HashMap;
 

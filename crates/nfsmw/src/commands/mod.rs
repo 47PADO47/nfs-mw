@@ -29,9 +29,11 @@ pub fn run(cli: Cli) -> Result<()> {
                 view.run_options(),
             )
         }
-        Command::ViewWorld { at, height, heading, pitch, fog_distance, wait_for_load, view } => {
+        Command::ViewWorld { at, height, heading, pitch, fog_distance, wait_for_load, drive, drive_script, view } => {
             let dir = open_install(game_dir)?;
-            let options = crate::scenes::world::Options { at, height, heading, pitch, fog_distance, wait_for_load };
+            let drive = drive.map(|car| crate::scenes::world::DriveOptions { car, script: drive_script });
+            let options =
+                crate::scenes::world::Options { at, height, heading, pitch, fog_distance, wait_for_load, drive };
             crate::app::run(
                 Box::new(WorldScene::open(&dir, options)?),
                 &Settings::load(view.settings_layer()),

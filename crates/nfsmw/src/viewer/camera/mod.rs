@@ -1,8 +1,10 @@
 //! Cameras. The games' worlds are Z-up.
 
+mod chase;
 mod fly;
 mod orbit;
 
+pub use chase::{ChaseCamera, Followed};
 pub use fly::FlyCamera;
 pub use orbit::OrbitCamera;
 

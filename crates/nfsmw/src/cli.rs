@@ -66,6 +66,14 @@ pub enum Command {
         /// For --screenshot: wait until every tile of the camera's zone has loaded before capturing.
         #[arg(long)]
         wait_for_load: bool,
+        /// Drive a car instead of flying: a car folder or unique prefix (default BMWM3GTR). The car
+        /// is put on the road nearest to --at (WASD or arrows, Space handbrake, Shift/Ctrl gears, N
+        /// nitrous, R reset, F free camera).
+        #[arg(long, value_name = "CAR", num_args = 0..=1, default_missing_value = "BMWM3GTR")]
+        drive: Option<String>,
+        /// With --drive: a scripted driver, e.g. "3:throttle=1;2:throttle=1,steer=0.4;1:brake=1".
+        #[arg(long, value_name = "SCRIPT", hide = true, requires = "drive")]
+        drive_script: Option<String>,
         #[command(flatten)]
         view: ViewArgs,
     },

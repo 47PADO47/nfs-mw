@@ -27,6 +27,13 @@ pub struct Placement {
     pub corner: Option<usize>,
 }
 
+impl Placement {
+    /// A brake disc and caliper (as opposed to a wheel or a body part).
+    pub fn is_brake(&self) -> bool {
+        self.slot == slot::FRONT_BRAKE || self.slot == slot::REAR_BRAKE
+    }
+}
+
 /// Whether a model slot is drawn in the front end, where it isn't placed specially.
 fn drawn_in_body_frame(s: usize, slots: &Slots) -> bool {
     match s {
