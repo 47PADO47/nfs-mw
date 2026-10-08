@@ -7,12 +7,14 @@
 mod car;
 pub mod commands;
 mod engine;
+mod fx;
 mod pcm;
 mod plugin;
+mod refs;
 mod tuning;
 mod volume;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use blackbox_attrib::Database;
@@ -23,7 +25,7 @@ use kira::track::{TrackBuilder, TrackHandle};
 use kira::{AudioManager, AudioManagerSettings, DefaultBackend, Tween};
 use nfsmw_data::sound::{CarSound, EngineLoops, SoundUpgrades};
 
-pub use car::CarSoundState;
+pub use car::{CarEvent, CarSoundState};
 pub use engine::{EngineHandle, EngineMix, EngineVoice};
 pub use plugin::AudioPlugin;
 pub use volume::{Group, Volumes};
@@ -49,6 +51,10 @@ pub struct Audio {
     pub test_engine: Option<(EngineHandle, CarSound)>,
     /// The engine of the car being driven.
     car: Option<car::CarAudio>,
+    /// The collision stitches of `InGameB.bun`, once read.
+    stitches: Option<Arc<Vec<nfsmw_data::sound::Stitch>>>,
+    /// Bank sounds that could not be loaded, so each is reported once.
+    missing: HashSet<(String, usize)>,
     /// The car whose sound could not be loaded, so the failure is not repeated every frame.
     failed: Option<String>,
 }
@@ -79,6 +85,8 @@ impl Audio {
             database: None,
             test_engine: None,
             car: None,
+            stitches: None,
+            missing: HashSet::new(),
             failed: None,
         };
         audio.set_volumes(volumes);

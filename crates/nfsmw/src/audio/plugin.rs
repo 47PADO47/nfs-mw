@@ -44,6 +44,6 @@ fn sync_volumes(settings: Res<Settings>, mut audio: NonSendMut<Audio>) {
 }
 
 /// The scene's car plays its engine.
-fn drive_car(host: NonSend<Host>, time: Res<Time>, mut audio: NonSendMut<Audio>) {
+fn drive_car(mut host: NonSendMut<Host>, time: Res<Time>, mut audio: NonSendMut<Audio>) {
     audio.drive_car(host.scene.car_sound().as_ref(), time.delta_secs());
 }
