@@ -79,17 +79,24 @@ impl ShiftPoints {
         }
     }
 
-    /// The gear to drop to: step down while the predicted rpm in that gear is still below its own
-    /// downshift point.
-    pub fn downshift_target(&self, trans: &TransmissionSpec, gear: usize, rpm: f32) -> usize {
+    /// The gear to drop to: step down while the shift wish for that gear at the predicted rpm is still a
+    /// downshift. The wish is the same one that started the shift, so it includes the throttle: coasting
+    /// lowers every gear's downshift point and the box drops one gear at a time instead of skipping.
+    pub fn downshift_target(
+        &self,
+        engine: &EngineSpec,
+        trans: &TransmissionSpec,
+        gear: usize,
+        rpm: f32,
+        throttle: f32,
+    ) -> usize {
+        let predicted = |new: usize| rpm * trans.ratio(new) / trans.ratio(gear).max(1e-6);
         let mut new = gear.saturating_sub(1).max(GEAR_FIRST);
         while new > GEAR_FIRST {
-            let predicted = rpm * trans.ratio(new) / trans.ratio(gear).max(1e-6);
-            if predicted < self.down[new] {
-                new -= 1;
-            } else {
-                break;
+            if self.potential(engine, trans, new, predicted(new), throttle) != ShiftPotential::Down {
+                return new;
             }
+            new -= 1;
         }
         new
     }

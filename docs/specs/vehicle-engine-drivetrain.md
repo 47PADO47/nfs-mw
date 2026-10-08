@@ -430,9 +430,9 @@ potential(gear, rpm = rpm of omega_trans):
 
 Then, from that potential:
 
-- `DOWN`: pick the target gear by stepping down while the predicted RPM in that gear would still be below that
-  gear's own downshift point: `rpm_in_new = rpm * ratio[new]/ratio[cur]` (a lower gear has the larger ratio; the
-  other way round every downshift falls to first). Shift to it (automatic flag).
+- `DOWN`: step down while the full potential above (throttle and coast included, not the raw table: a lift-off in
+  sixth fell to third) of that gear at `rpm * ratio[new]/ratio[cur]` is still `DOWN` (a lower gear has the larger
+  ratio; reversed, every downshift falls to first) [decomp: `EngineRacer::AutoShift`]. Shift to it (automatic flag).
 - `UP`: only if all four wheels are on the ground with wheel slip below 4; shift one gear up.
 
 ### 7.4 Speedometer and top speed

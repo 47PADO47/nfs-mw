@@ -49,14 +49,31 @@ fn shift_points_are_ordered_and_in_range() {
 fn downshift_drops_one_gear_at_a_time() {
     let p = powertrain();
     let sp = p.shift_points();
-    let t = trans();
+    let (e, t) = (engine(), trans());
     for g in (GEAR_FIRST + 2)..=p.top_gear() {
         // The engine just below the gear's downshift point: the next lower gear is the target.
         let rpm = sp.down[g] - 10.0;
-        assert_eq!(sp.downshift_target(&t, g, rpm), g - 1, "from gear {g} at {rpm} rpm");
+        assert_eq!(sp.downshift_target(&e, &t, g, rpm, 1.0), g - 1, "from gear {g} at {rpm} rpm");
     }
     // Far below every downshift point the box may skip gears, but never past first.
-    assert_eq!(sp.downshift_target(&t, p.top_gear(), 1.0), GEAR_FIRST);
+    assert_eq!(sp.downshift_target(&e, &t, p.top_gear(), 1.0, 1.0), GEAR_FIRST);
+}
+
+#[test]
+fn coasting_downshifts_one_gear_at_a_time() {
+    let p = powertrain();
+    let sp = p.shift_points();
+    let (e, t) = (engine(), trans());
+    for g in (GEAR_FIRST + 2)..=p.top_gear() {
+        // Off the throttle the downshift point is lower; the wish that fires there must not skip a gear
+        // because the next gear down would be above its own (also lowered) point.
+        let mut rpm = sp.down[g];
+        while sp.potential(&e, &t, g, rpm, 0.0) == ShiftPotential::Down {
+            rpm -= 5.0;
+        }
+        rpm += 5.0;
+        assert_eq!(sp.downshift_target(&e, &t, g, rpm, 0.0), g - 1, "from gear {g} at {rpm} rpm");
+    }
 }
 
 #[test]

@@ -361,7 +361,8 @@ impl Powertrain {
         let rpm = rad_to_rpm(self.omega_trans);
         match self.shift_points.potential(&self.engine, &self.trans, self.gear, rpm, self.throttle) {
             ShiftPotential::Down => {
-                let target = self.shift_points.downshift_target(&self.trans, self.gear, rpm);
+                let target =
+                    self.shift_points.downshift_target(&self.engine, &self.trans, self.gear, rpm, self.throttle);
                 self.shift(target);
             }
             ShiftPotential::Up => {
