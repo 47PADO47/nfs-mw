@@ -2,7 +2,7 @@
 
 use bevy_app::{App, Plugin, PreUpdate};
 use bevy_ecs::prelude::*;
-use bevy_input::gamepad::{Gamepad, GamepadInput};
+use bevy_input::gamepad::{Gamepad, GamepadButton, GamepadInput};
 use bevy_input::keyboard::KeyCode;
 use bevy_input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll, MouseButton, MouseScrollUnit};
 use bevy_input::{ButtonInput, InputSystems};
@@ -61,6 +61,12 @@ fn update_actions(
     };
     for pad in &pads {
         snapshot.pad_buttons.extend(pad.get_pressed().copied());
+        for button in [GamepadButton::LeftTrigger2, GamepadButton::RightTrigger2] {
+            if let Some(value) = pad.get(button) {
+                let entry = snapshot.pad_triggers.entry(button).or_insert(0.0);
+                *entry = entry.max(value);
+            }
+        }
         for input in pad.get_analog_axes() {
             let GamepadInput::Axis(axis) = *input else { continue };
             let value = pad.get(axis).unwrap_or(0.0);

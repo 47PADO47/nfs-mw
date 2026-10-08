@@ -39,6 +39,8 @@ pub enum Source {
     Scroll,
     PadAxis(GamepadAxis),
     PadButton(GamepadButton),
+    /// An analog trigger: 0 released, 1 fully pulled (a pad without analog triggers reports 0 or 1).
+    PadTrigger(GamepadButton),
 }
 
 /// `source` adds `scale` (× the seconds of the frame, if `per_second`) to `action`.
@@ -77,6 +79,7 @@ impl Binding {
             Source::Scroll => s.scroll,
             Source::PadAxis(a) => deadzone(s.pad_axis(a)),
             Source::PadButton(b) => f32::from(u8::from(s.pad_buttons.contains(&b))),
+            Source::PadTrigger(b) => s.pad_triggers.get(&b).copied().unwrap_or_else(|| s.pad_button_value(b)),
         };
         raw * self.scale * if self.per_second { s.dt } else { 1.0 }
     }
@@ -133,6 +136,45 @@ pub fn defaults() -> Vec<Binding> {
         Binding::per_second(OrbitY, pad(GamepadAxis::RightStickY), -STICK_LOOK_PIXELS),
         Binding::per_second(Zoom, button(GamepadButton::DPadUp), BUTTON_ZOOM_LINES),
         Binding::per_second(Zoom, button(GamepadButton::DPadDown), -BUTTON_ZOOM_LINES),
+    ]
+    .into_iter()
+    .chain(driving())
+    .collect()
+}
+
+/// Driving: W/S or the arrows for the pedals, A/D or the arrows to steer, Space for the handbrake,
+/// Shift/Ctrl to change gear, N for nitrous, R to reset the car, F to toggle the camera.
+/// On a pad the triggers are the pedals, the left stick steers, the bumpers change gear.
+fn driving() -> Vec<Binding> {
+    use Action::*;
+    let key = Source::Key;
+    let button = Source::PadButton;
+    vec![
+        Binding::new(Throttle, key(KeyCode::KeyW), 1.0),
+        Binding::new(Throttle, key(KeyCode::ArrowUp), 1.0),
+        Binding::new(Brake, key(KeyCode::KeyS), 1.0),
+        Binding::new(Brake, key(KeyCode::ArrowDown), 1.0),
+        Binding::new(Steer, key(KeyCode::KeyD), 1.0),
+        Binding::new(Steer, key(KeyCode::ArrowRight), 1.0),
+        Binding::new(Steer, key(KeyCode::KeyA), -1.0),
+        Binding::new(Steer, key(KeyCode::ArrowLeft), -1.0),
+        Binding::new(Handbrake, key(KeyCode::Space), 1.0),
+        Binding::new(ShiftUp, key(KeyCode::ShiftLeft), 1.0),
+        Binding::new(ShiftUp, key(KeyCode::ShiftRight), 1.0),
+        Binding::new(ShiftDown, key(KeyCode::ControlLeft), 1.0),
+        Binding::new(ShiftDown, key(KeyCode::ControlRight), 1.0),
+        Binding::new(Nos, key(KeyCode::KeyN), 1.0),
+        Binding::new(ResetCar, key(KeyCode::KeyR), 1.0),
+        Binding::new(ToggleCamera, key(KeyCode::KeyF), 1.0),
+        Binding::new(Throttle, Source::PadTrigger(GamepadButton::RightTrigger2), 1.0),
+        Binding::new(Brake, Source::PadTrigger(GamepadButton::LeftTrigger2), 1.0),
+        Binding::new(Steer, Source::PadAxis(GamepadAxis::LeftStickX), 1.0),
+        Binding::new(Handbrake, button(GamepadButton::South), 1.0),
+        Binding::new(Nos, button(GamepadButton::West), 1.0),
+        Binding::new(ShiftUp, button(GamepadButton::RightTrigger), 1.0),
+        Binding::new(ShiftDown, button(GamepadButton::LeftTrigger), 1.0),
+        Binding::new(ResetCar, button(GamepadButton::Select), 1.0),
+        Binding::new(ToggleCamera, button(GamepadButton::North), 1.0),
     ]
 }
 

@@ -19,6 +19,8 @@ pub struct Snapshot {
     /// Analog axes, -1..1, from all connected gamepads (the largest value per axis).
     pub pad_axes: HashMap<GamepadAxis, f32>,
     pub pad_buttons: HashSet<GamepadButton>,
+    /// Analog pull of the buttons that report one (the triggers), 0..1; the largest per button.
+    pub pad_triggers: HashMap<GamepadButton, f32>,
     /// The cursor is captured for mouse look.
     pub mouse_captured: bool,
     /// Seconds since the last frame.
@@ -28,5 +30,10 @@ pub struct Snapshot {
 impl Snapshot {
     pub(super) fn pad_axis(&self, axis: GamepadAxis) -> f32 {
         self.pad_axes.get(&axis).copied().unwrap_or(0.0)
+    }
+
+    /// 1 when the button is held, else 0.
+    pub(super) fn pad_button_value(&self, button: GamepadButton) -> f32 {
+        f32::from(u8::from(self.pad_buttons.contains(&button)))
     }
 }

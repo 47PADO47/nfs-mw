@@ -62,7 +62,7 @@ impl Default for Bindings {
 
 #[cfg(test)]
 mod tests {
-    use bevy_input::gamepad::GamepadAxis;
+    use bevy_input::gamepad::{GamepadAxis, GamepadButton};
     use bevy_input::keyboard::KeyCode;
 
     use super::*;
@@ -113,5 +113,89 @@ mod tests {
         assert!(state.pressed(Action::Cancel) && state.pressed(Action::Console));
         state.update(&Bindings::default(), &snap, false);
         assert_eq!(state.value(Action::MoveForward), 1.0);
+    }
+
+    #[test]
+    fn keyboard_drives() {
+        let mut state = ActionState::default();
+        let mut snap = Snapshot::default();
+        snap.keys.extend([KeyCode::KeyW, KeyCode::KeyA, KeyCode::Space, KeyCode::KeyN]);
+        state.update(&Bindings::default(), &snap, false);
+        assert_eq!(state.value(Action::Throttle), 1.0);
+        assert_eq!(state.value(Action::Brake), 0.0);
+        assert_eq!(state.value(Action::Steer), -1.0);
+        assert!(state.pressed(Action::Handbrake) && state.pressed(Action::Nos));
+
+        // Both steering keys cancel; the arrows work like the letters and do not double up.
+        snap.keys.extend([KeyCode::KeyD, KeyCode::ArrowLeft]);
+        state.update(&Bindings::default(), &snap, false);
+        assert_eq!(state.value(Action::Steer), -1.0);
+        snap.keys.insert(KeyCode::ArrowRight);
+        state.update(&Bindings::default(), &snap, false);
+        assert_eq!(state.value(Action::Steer), 0.0);
+    }
+
+    #[test]
+    fn gear_keys_are_single_shots() {
+        let mut state = ActionState::default();
+        let mut snap = Snapshot::default();
+        snap.keys.insert(KeyCode::ShiftLeft);
+        let bindings = Bindings::default();
+        state.update(&bindings, &snap, false);
+        assert!(state.just_pressed(Action::ShiftUp));
+        state.update(&bindings, &snap, false);
+        assert!(!state.just_pressed(Action::ShiftUp));
+        snap.keys.clear();
+        snap.keys.insert(KeyCode::ControlLeft);
+        state.update(&bindings, &snap, false);
+        assert!(state.just_pressed(Action::ShiftDown));
+    }
+
+    #[test]
+    fn gamepad_triggers_are_analog_pedals() {
+        let mut state = ActionState::default();
+        let mut snap = Snapshot::default();
+        snap.pad_triggers.insert(GamepadButton::RightTrigger2, 0.4);
+        snap.pad_triggers.insert(GamepadButton::LeftTrigger2, 1.0);
+        snap.pad_axes.insert(GamepadAxis::LeftStickX, -1.0);
+        state.update(&Bindings::default(), &snap, false);
+        assert!((state.value(Action::Throttle) - 0.4).abs() < 1e-6);
+        assert_eq!(state.value(Action::Brake), 1.0);
+        assert!((state.value(Action::Steer) + 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn digital_triggers_still_work() {
+        // A pad that reports the trigger only as a pressed button.
+        let mut state = ActionState::default();
+        let mut snap = Snapshot::default();
+        snap.pad_buttons.insert(GamepadButton::RightTrigger2);
+        state.update(&Bindings::default(), &snap, false);
+        assert_eq!(state.value(Action::Throttle), 1.0);
+    }
+
+    #[test]
+    fn a_gentle_stick_push_steers_gently() {
+        let mut state = ActionState::default();
+        let mut snap = Snapshot::default();
+        snap.pad_axes.insert(GamepadAxis::LeftStickX, 0.1);
+        state.update(&Bindings::default(), &snap, false);
+        assert_eq!(state.value(Action::Steer), 0.0, "inside the dead zone");
+        snap.pad_axes.insert(GamepadAxis::LeftStickX, 0.6);
+        state.update(&Bindings::default(), &snap, false);
+        let steer = state.value(Action::Steer);
+        assert!(steer > 0.0 && steer < 0.6);
+    }
+
+    #[test]
+    fn driving_goes_quiet_while_typing() {
+        let mut state = ActionState::default();
+        let mut snap = Snapshot::default();
+        snap.keys.extend([KeyCode::KeyW, KeyCode::KeyR, KeyCode::KeyF]);
+        state.update(&Bindings::default(), &snap, true);
+        assert!(!state.pressed(Action::Throttle) && !state.pressed(Action::ResetCar));
+        assert!(!state.pressed(Action::ToggleCamera));
+        state.update(&Bindings::default(), &snap, false);
+        assert!(state.pressed(Action::ResetCar) && state.pressed(Action::ToggleCamera));
     }
 }

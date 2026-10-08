@@ -25,10 +25,28 @@ pub enum Action {
     Cancel,
     /// Button: open or close the developer console.
     Console,
+    /// Driving, 0..1: accelerator.
+    Throttle,
+    /// Driving, 0..1: brake, which becomes reverse once the car stands still.
+    Brake,
+    /// Driving axis, -1..1: right is positive.
+    Steer,
+    /// Driving button: handbrake.
+    Handbrake,
+    /// Driving button: shift up one gear.
+    ShiftUp,
+    /// Driving button: shift down one gear.
+    ShiftDown,
+    /// Driving button: nitrous oxide.
+    Nos,
+    /// Driving button: put the car back on the road.
+    ResetCar,
+    /// Button: switch between the chase camera and the free camera.
+    ToggleCamera,
 }
 
 impl Action {
-    pub const ALL: [Action; 11] = [
+    pub const ALL: [Action; 20] = [
         Action::MoveForward,
         Action::MoveRight,
         Action::MoveUp,
@@ -40,6 +58,15 @@ impl Action {
         Action::Boost,
         Action::Cancel,
         Action::Console,
+        Action::Throttle,
+        Action::Brake,
+        Action::Steer,
+        Action::Handbrake,
+        Action::ShiftUp,
+        Action::ShiftDown,
+        Action::Nos,
+        Action::ResetCar,
+        Action::ToggleCamera,
     ];
 
     /// Actions that still work while the UI has the keyboard.
@@ -53,9 +80,6 @@ impl Action {
 
     /// Whether several devices adding up should still stay within -1..1.
     pub(super) fn is_bounded(self) -> bool {
-        matches!(
-            self,
-            Action::MoveForward | Action::MoveRight | Action::MoveUp | Action::Boost | Action::Cancel | Action::Console
-        )
+        !matches!(self, Action::LookX | Action::LookY | Action::OrbitX | Action::OrbitY | Action::Zoom)
     }
 }
