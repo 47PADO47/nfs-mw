@@ -156,3 +156,22 @@ fn the_m3_gtr_chassis_is_a_sports_car_chassis() {
     let aero = physics::aero(link(&db, "bmwm3gtr", "chassis"));
     assert!(aero.drag_coefficient > 0.0, "{aero:?}");
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn cars_assemble_into_vehicle_specs() {
+    let Some(dir) = install() else { return };
+    let data = physics::PhysicsData::load(&dir).unwrap();
+    for car in ["BMWM3GTR", "PORSCHE911", "CORVETTE", "CAMARO", "MUSTANGGT"] {
+        let Ok(p) = data.car(car) else { continue };
+        let s = &p.spec;
+        assert!((900.0..2500.0).contains(&s.mass), "{car}: {} kg", s.mass);
+        assert!(s.engine.red_line > 5000.0 && s.engine.torque.len() >= 2, "{car}");
+        assert!(s.transmission.top_gear() >= 5, "{car}: {} gear ids", s.transmission.gear_ratio.len());
+        assert!(s.nos.present(), "{car}: a nitrous level is picked");
+        assert!(s.dimension.z > 1.9, "{car}: {:?}", s.dimension);
+        // The wheels hang inside the body: the axles are within its length.
+        let rear = s.chassis.front_axle - s.chassis.wheel_base;
+        assert!(s.chassis.front_axle < s.dimension.z + 0.3 && rear > -s.dimension.z - 0.3, "{car}: {:?}", s.chassis);
+    }
+}

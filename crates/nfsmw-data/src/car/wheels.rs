@@ -67,6 +67,11 @@ pub struct WheelPose {
 }
 
 impl Corner {
+    /// The wheel's centre in car space at rest (camber included, no steering or travel).
+    pub fn centre(&self) -> Vec3 {
+        self.rig.centre
+    }
+
     /// The wheel and brake transforms (car space) with the given steering, spin and travel.
     /// The brake steers and moves with the wheel but does not spin.
     pub fn posed(&self, pose: WheelPose) -> (Mat4, Mat4) {
