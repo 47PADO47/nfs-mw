@@ -53,3 +53,19 @@ fn every_car_has_a_sane_engine_and_gearbox() {
     }
     assert!(checked >= 50, "only {checked} cars checked");
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn car_bounds_are_a_car_sized_box() {
+    let Some(dir) = install() else { return };
+    let sets = physics::read_car_bounds(&dir).unwrap();
+    assert_eq!(sets.len(), 86);
+    // docs/formats/collision.md: the M3 GTR's root box.
+    let m3 = physics::car_bounds(&sets, "BMWM3GTR").unwrap();
+    assert!((m3.half_dimensions - glam::Vec3::new(0.938, 0.621, 2.271)).abs().max_element() < 1e-3, "{m3:?}");
+    for car in ["PORSCHE911", "CORVETTE", "CAMARO", "LANDROVER"] {
+        let Ok(b) = physics::car_bounds(&sets, car) else { continue };
+        let h = b.half_dimensions;
+        assert!((0.7..1.3).contains(&h.x) && (0.4..1.2).contains(&h.y) && (1.9..3.4).contains(&h.z), "{car}: {h}");
+    }
+}
