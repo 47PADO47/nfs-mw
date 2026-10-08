@@ -3,6 +3,7 @@
 //! the car appears; this module owns everything about the car itself.
 
 mod clock;
+mod ground;
 mod input;
 mod rig;
 mod script;
@@ -10,12 +11,14 @@ mod sim;
 
 use blackbox_collision::CollisionWorld;
 use glam::Vec3;
+use nfsmw_data::car::physics::{CarPhysics, SurfaceTable};
 
 use super::road::Spawn;
 use super::space;
 use crate::input::ActionState;
 use crate::viewer::camera::{ChaseCamera, Followed};
 use clock::FixedClock;
+use ground::WorldGround;
 pub use input::DriveInput;
 pub use rig::{CarPose, CarRig};
 pub use script::DriveScript;
@@ -42,6 +45,7 @@ pub struct SpawnRequest {
 pub struct Drive {
     pub car_name: String,
     rig: CarRig,
+    physics: CarPhysics,
     sim: Option<CarSim>,
     /// Set while the car waits for a road: the physics does not run.
     request: Option<SpawnRequest>,
@@ -53,10 +57,18 @@ pub struct Drive {
     script: Option<ScriptRun>,
     /// A screenshot run drove the script in batches: once it ends the car stays where it stopped.
     batch_run: bool,
+    /// Physics steps run since the car was last placed, for the once-a-second trace of a scripted run.
+    steps: u32,
 }
 
 impl Drive {
-    pub fn new(car_name: String, rig: CarRig, request: SpawnRequest, script: Option<DriveScript>) -> Self {
+    pub fn new(
+        car_name: String,
+        rig: CarRig,
+        physics: CarPhysics,
+        request: SpawnRequest,
+        script: Option<DriveScript>,
+    ) -> Self {
         let pose = CarPose {
             position: Vec3::ZERO,
             rotation: glam::Quat::IDENTITY,
@@ -65,6 +77,7 @@ impl Drive {
         Self {
             car_name,
             rig,
+            physics,
             sim: None,
             request: Some(request),
             clock: FixedClock::default(),
@@ -74,6 +87,7 @@ impl Drive {
             chase: ChaseCamera::default(),
             script: script.map(|script| ScriptRun { script, time: 0.0 }),
             batch_run: false,
+            steps: 0,
         }
     }
 
@@ -92,8 +106,9 @@ impl Drive {
         self.request = None;
     }
 
-    /// Put the car on `spawn`, standing still.
-    pub fn spawn(&mut self, spawn: Spawn) {
+    /// Put the car on `spawn`, standing still. False when `ground` has no road there.
+    pub fn spawn(&mut self, spawn: Spawn, collision: &CollisionWorld, surfaces: &SurfaceTable) -> bool {
+        let ground = WorldGround { collision, surfaces };
         let spawn = match self.request.take().and_then(|r| r.heading) {
             // Keep facing the way the car did: the road runs both ways.
             Some(h) if (spawn.heading - h).cos() < 0.0 => {
@@ -101,24 +116,35 @@ impl Drive {
             }
             _ => spawn,
         };
-        match &mut self.sim {
-            Some(sim) => sim.place(spawn),
-            None => self.sim = Some(CarSim::new(spawn)),
+        let rest = self.rig.rest_heights();
+        let sim = self.sim.get_or_insert_with(|| CarSim::new(self.physics.clone(), rest));
+        if !sim.place(&ground, spawn) {
+            return false;
         }
-        let pose = self.sim.as_ref().map(CarSim::pose).unwrap_or(self.current);
+        let pose = sim.pose();
         (self.previous, self.current) = (pose, pose);
+        self.telemetry = sim.telemetry();
         self.clock.reset();
         self.chase.snap();
+        self.steps = 0;
+        true
     }
 
     /// Swap the car model; the car is put back on the road where it stands.
-    pub fn set_car(&mut self, renderer: &mut blackbox_render::Renderer, name: String, rig: CarRig) {
+    pub fn set_car(
+        &mut self,
+        renderer: &mut blackbox_render::Renderer,
+        name: String,
+        rig: CarRig,
+        physics: CarPhysics,
+    ) {
         std::mem::replace(&mut self.rig, rig).release(renderer);
+        self.physics = physics;
         self.car_name = name;
-        let at = self.current.position;
-        let heading = self.heading();
-        self.sim = None;
-        self.request = Some(SpawnRequest { near: [at.x, at.y], heading: Some(heading) });
+        if self.sim.take().is_some() {
+            let at = self.current.position;
+            self.request = Some(SpawnRequest { near: [at.x, at.y], heading: Some(self.heading()) });
+        }
     }
 
     /// Heading of the car, radians from +X.
@@ -140,7 +166,14 @@ impl Drive {
     /// run: it steps a fixed batch instead, and stops when the script ends).
     /// A batch run also waits until the map around the car (`loaded`) has streamed in, so the car
     /// never outruns its road.
-    pub fn step(&mut self, collision: &CollisionWorld, actions: &ActionState, dt: f32, loaded: bool) {
+    pub fn step(
+        &mut self,
+        collision: &CollisionWorld,
+        surfaces: &SurfaceTable,
+        actions: &ActionState,
+        dt: f32,
+        loaded: bool,
+    ) {
         if self.request.is_some() {
             return;
         }
@@ -155,7 +188,7 @@ impl Drive {
         let steps = if batch { SCRIPT_STEPS_PER_UPDATE } else { self.clock.advance(dt) };
         let Some(sim) = self.sim.as_mut() else { return };
         let player = DriveInput::from_actions(actions);
-        let _ = collision;
+        let ground = WorldGround { collision, surfaces };
         for n in 0..steps {
             let mut input = player;
             if let Some(run) = self.script.as_mut() {
@@ -166,12 +199,30 @@ impl Drive {
             } else if n > 0 {
                 input = input.held();
             }
-            sim.step(&input);
+            sim.step(&input, &ground);
             self.previous = self.current;
             self.current = sim.pose();
             self.telemetry = sim.telemetry();
+            self.steps += 1;
+            if self.script.is_some() && self.steps.is_multiple_of(60) {
+                let (p, t) = (self.current.position, &self.telemetry);
+                log::info!(
+                    "t={:>5.1}s  {:>6.1} km/h  {:>5.0} rpm  gear {}  at ({:.1}, {:.1}, {:.2})  {} on ground  throttle {:.1} brake {:.1} steer {:+.2}",
+                    self.steps as f32 / 60.0,
+                    t.speed_mps * 3.6,
+                    t.rpm,
+                    t.gear,
+                    p.x,
+                    p.y,
+                    p.z,
+                    t.wheels_on_ground,
+                    input.throttle,
+                    input.brake,
+                    input.steer
+                );
+            }
         }
-        if !self.current.position.is_finite() || !self.current.rotation.is_finite() {
+        if !sim.is_finite() {
             log::error!("the car's state is not finite; putting it back on the road");
             self.request =
                 Some(SpawnRequest { near: [self.previous.position.x, self.previous.position.y], heading: None });
@@ -218,13 +269,14 @@ impl Drive {
             0 => "N".to_owned(),
             g => g.to_string(),
         };
+        let nos = if t.nos > 0.0 { format!("  nos {:.0}%", t.nos * 100.0) } else { String::new() };
         let p = self.current.position;
         let script = self
             .script
             .as_ref()
             .map_or(String::new(), |s| format!("  script {:.1}/{:.1} s", s.time, s.script.duration()));
         format!(
-            "{:>4.0} km/h  {:>5.0} rpm  gear {gear}\n{} at ({:.0}, {:.0}, {:.1}){script}",
+            "{:>4.0} km/h  {:>5.0} rpm  gear {gear}{nos}\n{} at ({:.0}, {:.0}, {:.1}){script}",
             t.speed_mps * 3.6,
             t.rpm,
             self.car_name,

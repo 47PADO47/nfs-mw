@@ -2683,6 +2683,7 @@ dependencies = [
  "blackbox-scenery",
  "blackbox-streaming",
  "blackbox-tpk",
+ "blackbox-vehicle",
  "clap",
  "egui",
  "env_logger",

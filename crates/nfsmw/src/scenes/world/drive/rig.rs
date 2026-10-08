@@ -79,6 +79,14 @@ impl CarRig {
         self.materials.destroy(renderer);
     }
 
+    /// Height of each wheel's centre above the model's origin at rest (the model's wheel order).
+    pub fn rest_heights(&self) -> [f32; 4] {
+        match &self.model.corners {
+            Some(corners) => std::array::from_fn(|i| corners[i].centre().z),
+            None => [0.0; 4],
+        }
+    }
+
     /// Append the car's instances for `pose`.
     pub fn instances(&self, pose: &CarPose, out: &mut Vec<Instance>) {
         let world = pose.transform();

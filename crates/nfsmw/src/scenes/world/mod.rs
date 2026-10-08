@@ -15,6 +15,7 @@ use blackbox_render::{FrameParams, Instance, Renderer};
 use game_install::GameDir;
 use glam::Vec3;
 use nfsmw_data::car::CarModel;
+use nfsmw_data::car::physics::{CarPhysics, PhysicsData};
 use nfsmw_data::world::{DEFAULT_TRACK, Streamer, WorldIndex, load_global_textures};
 
 use crate::input::{Action, ActionState};
@@ -77,6 +78,8 @@ pub struct WorldScene {
     drive: Option<Drive>,
     /// The car last driven, for `drive` without a name.
     last_car: String,
+    /// Car physics data and road grips, read when the first car is started.
+    physics: Option<PhysicsData>,
 }
 
 const CLEAR: [f32; 3] = [0.55, 0.63, 0.72];
@@ -139,6 +142,7 @@ impl WorldScene {
             last_car: pending_car.as_ref().map_or_else(|| DEFAULT_CAR.to_owned(), |c| c.name.clone()),
             pending_car,
             drive: None,
+            physics: None,
         })
     }
 
@@ -156,27 +160,47 @@ impl WorldScene {
         }
     }
 
+    /// The physics of the car `model` was assembled as.
+    fn physics_of(&mut self, model: &CarModel) -> Result<CarPhysics> {
+        let type_name = model.car_type.as_deref().context("this car is not in the car tables, so it has no physics")?;
+        let data = match self.physics.take() {
+            Some(data) => data,
+            None => PhysicsData::load(&self.dir)?,
+        };
+        let physics = data.car(type_name);
+        self.physics = Some(data);
+        physics
+    }
+
     /// Start (or restart) driving `model` from the camera's place.
-    fn start_driving(&mut self, renderer: &mut Renderer, name: String, model: CarModel, script: Option<DriveScript>) {
+    fn start_driving(
+        &mut self,
+        renderer: &mut Renderer,
+        name: String,
+        model: CarModel,
+        script: Option<DriveScript>,
+    ) -> Result<()> {
+        let physics = self.physics_of(&model)?;
         let rig = CarRig::upload(renderer, model);
         let [x, y] = self.focus();
         match self.drive.as_mut() {
             Some(drive) => {
-                drive.set_car(renderer, name.clone(), rig);
+                drive.set_car(renderer, name.clone(), rig, physics);
                 drive.respawn_near([x, y], None);
             }
             None => {
                 let request = SpawnRequest { near: [self.camera.position.x, self.camera.position.y], heading: None };
-                self.drive = Some(Drive::new(name.clone(), rig, request, script));
+                self.drive = Some(Drive::new(name.clone(), rig, physics, request, script));
             }
         }
         self.last_car = name;
         self.view = View::Chase;
+        Ok(())
     }
 
     /// Put a waiting car on the road once the area around it has loaded, then run its physics.
     fn update_drive(&mut self, input: &ActionState, dt: f32) {
-        let Some(drive) = self.drive.as_mut() else { return };
+        let (Some(drive), Some(physics)) = (self.drive.as_mut(), self.physics.as_ref()) else { return };
         if let Some(request) = drive.waiting_for_road()
             && self.residency.complete()
         {
@@ -193,7 +217,11 @@ impl WorldScene {
                         spawn.position.z,
                         spawn.heading.to_degrees()
                     );
-                    drive.spawn(spawn);
+                    if !drive.spawn(spawn, collision, &physics.surfaces) {
+                        log::warn!("no ground under the spawn point; switching to the free camera");
+                        drive.cancel_request();
+                        self.view = View::Fly;
+                    }
                 }
                 None => {
                     log::warn!(
@@ -208,7 +236,7 @@ impl WorldScene {
             }
         }
         if self.view == View::Chase {
-            drive.step(self.residency.collision(), input, dt, self.residency.complete());
+            drive.step(self.residency.collision(), &physics.surfaces, input, dt, self.residency.complete());
             drive.follow(self.residency.collision(), dt);
         }
     }
@@ -245,7 +273,7 @@ impl Scene for WorldScene {
 
     fn init(&mut self, renderer: &mut Renderer) -> Result<()> {
         if let Some(PendingCar { name, model, script }) = self.pending_car.take() {
-            self.start_driving(renderer, name, model, script);
+            self.start_driving(renderer, name, model, script)?;
         }
         Ok(())
     }

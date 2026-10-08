@@ -23,6 +23,7 @@ blackbox-scene.workspace = true
 blackbox-scenery.workspace = true
 blackbox-streaming.workspace = true
 blackbox-tpk.workspace = true
+blackbox-vehicle.workspace = true
 clap.workspace = true
 egui.workspace = true
 env_logger.workspace = true

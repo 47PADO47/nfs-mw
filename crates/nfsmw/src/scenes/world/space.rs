@@ -10,6 +10,11 @@ pub fn to_physics(p: Vec3) -> [f32; 3] {
     [-p.y, p.z, p.x]
 }
 
+/// Physics space to render space.
+pub fn to_render(p: [f32; 3]) -> Vec3 {
+    Vec3::new(p[2], -p[0], p[1])
+}
+
 /// The first surface below `(x, y, from_z)` (render space) down to `to_z`, as a height.
 pub fn ground_below(collision: &CollisionWorld, x: f32, y: f32, from_z: f32, to_z: f32) -> Option<f32> {
     let [px, _, pz] = to_physics(Vec3::new(x, y, 0.0));
@@ -22,6 +27,8 @@ mod tests {
 
     #[test]
     fn spaces_convert_axis_by_axis() {
+        let p = Vec3::new(322.3, 2516.3, 166.9);
+        assert_eq!(to_render(to_physics(p)), p);
         // Forward (+x in the world) is +z in physics, up stays up.
         assert_eq!(to_physics(Vec3::X), [0.0, 0.0, 1.0]);
         assert_eq!(to_physics(Vec3::Z), [0.0, 1.0, 0.0]);

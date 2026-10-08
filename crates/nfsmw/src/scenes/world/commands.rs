@@ -3,7 +3,7 @@
 use blackbox_render::Renderer;
 use glam::Vec3;
 
-use super::{DEFAULT_CAR, View, WorldScene, load_car};
+use super::{View, WorldScene, load_car};
 
 pub(super) const LIST: &[(&str, &str)] = &[
     ("drive [car]", "get into a car (a car folder or unique prefix); no name: the last one"),
@@ -38,9 +38,8 @@ fn drive(scene: &mut WorldScene, renderer: &mut Renderer, args: &[&str]) -> Resu
         [name] => (*name).to_owned(),
         _ => return Err("usage: drive [car]".into()),
     };
-    let _ = DEFAULT_CAR;
     let (folder, model) = load_car(&scene.dir, &wanted).map_err(|e| format!("{e:#}"))?;
-    scene.start_driving(renderer, folder.clone(), model, None);
+    scene.start_driving(renderer, folder.clone(), model, None).map_err(|e| format!("{e:#}"))?;
     Ok(format!("driving {folder}"))
 }
 
