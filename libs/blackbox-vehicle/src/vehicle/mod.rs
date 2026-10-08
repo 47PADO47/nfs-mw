@@ -308,6 +308,13 @@ impl Vehicle {
         self.contacts.get(i).copied().flatten().map(|c| c.surface.tag)
     }
 
+    /// Where wheel `i`'s ground ray met the road in the last step and the surface normal there (a debug aid);
+    /// `None` for a wheel with no ground within reach.
+    pub fn wheel_ground_hit(&self, i: usize) -> Option<(Vec3, Vec3)> {
+        let contact = self.contacts.get(i).copied().flatten()?;
+        Some((contact.point, contact.normal))
+    }
+
     /// Reports a hard hit (impulse in N s) that the caller resolved itself: limits steering for a moment
     /// and keeps the sleep damping off for this step.
     pub fn notify_collision(&mut self, impulse: f32) {
