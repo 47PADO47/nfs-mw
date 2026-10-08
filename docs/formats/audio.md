@@ -62,6 +62,18 @@ value. `0xFC`/`0xFD`/`0xFE` are bare markers, and `0xFF` ends the header.
 | `0xA0` | codec2 (absent = platform default; 4 = MicroTalk 10:1) |
 | `0x8A`, `0x8C`, … | padding / flags |
 
+Per-file tag sets in the install **[verified]**: `copspeech.big` 32-byte headers with tags `06 80 84 85 A0`
+(+ `82` for the 177 stereo streams); `NISAudio.big` `05 06 80 84 85` (+ `82` for 114 multichannel streams);
+`MW_Music.mus` `06 80 82 84 85` (GSTR, version 3, 36,000 Hz). Bank sounds: `06 13 80 85 88 8A` (+ `82 89`
+for stereo, `84` rate, `86 87 1A` loop). In every stream the sum of the `SCDl` sample counts equals tag `0x85`.
+
+`SCCl` holds the number of `SCDl` blocks (`GSTR`: big-endian; PC: little-endian) **[verified]**.
+`SCDl` payload: `u32 samples, u32 channel_offset[ch], data` with channel data at `block + 0x0C + 4*ch +
+offset`; values are big-endian in `GSTR` streams and little-endian in `PT` streams, the block size is always
+little-endian. `MW_Music.mus` example: `SCDl` with 7,224 samples, offsets `0, 0xFA8`, EA-XA frames (15 bytes, or
+a 61-byte PCM frame starting `0xEE`). MicroTalk channel data starts with one flag byte (1 in the first block, 0
+after) **[verified]**. The decoding rules are in [specs/audio-containers.md](../specs/audio-containers.md).
+
 ## `ABKC` + `BNKl` sound banks **[community; offsets verified]**
 
 | Offset | Field | Notes |
@@ -76,11 +88,25 @@ value. `0xFC`/`0xFD`/`0xFE` are bare markers, and `0xFF` ends the header.
 offsets, **each relative to its own table slot**, pointing at `PT` headers. Entry value 0 marks a
 dummy entry. Totals: 2,878 entries = 301 dummies (always entry 0) + 2,577 sounds. **[verified]**
 
-The bank also stores sample tables with a type per sound (RAM / streamed / streamed-looped), the
-module/player tables, and the AEMS ("audio event") logic that picks sounds at runtime. vgmstream walks
-these tables only far enough to list the sounds. The runtime is EA's SND9 library, partly decompiled
-in `src/Speed/Indep/Libs/snd/9/` (`saems.c`, `sbanki.h`, …) **[decomp]**. The `_EE` / `_SPU` file
-pairs probably match the bank memory types in the decomp's `eSNDDATATYPE`
+### Module, player and sample tables **[community; verified on all 301 banks]**
+
+```
+0x1C  module table; module = 0x3C bytes + 4*(players + class controllers) of u32 player offsets
+      +0x24 u8 players, +0x27 u8 class controllers, +0x2C u32 module data offset, +0x3C u32 player_offset[]
+player (module data + player_offset): +0x04 u32 offset of its sample table
+sample table: u32 count, then 12-byte entries { u8 type, u8 priority, u16 0, u32 index, u32 loop offset }
+```
+
+In all 301 banks every entry has type 0 (RAM) and `index` selects a `BNKl` entry; entries whose type and index are
+both 0 are dummies. Across a bank, the non-dummy entries of the distinct sample tables (306 tables, 1-3 modules
+and 1-13 players per module; several players share a table) reference every non-dummy `BNKl` entry exactly once,
+so the tables only group sounds, they do not add any. The total is 2,577 sounds. Types 1 and 2 (streamed from a
+companion `.ast`) do not occur. A bank sound's `PT` header offsets (`0x88`, `0x89`) are relative to the start of
+the `BNKl`, and the data is mono EA-XA per channel (stereo sounds have two offsets).
+
+The AEMS ("audio event") logic that picks sounds at runtime is not in these tables. The runtime is EA's SND9
+library, partly decompiled in `src/Speed/Indep/Libs/snd/9/` (`saems.c`, `sbanki.h`, …) **[decomp]**. The `_EE` /
+`_SPU` file pairs probably match the bank memory types in the decomp's `eSNDDATATYPE`
 (`SDT_AEMS_MAINMEM`, `SDT_AEMS_SYNCSPU`, …), i.e. PS2 EE vs SPU2 RAM. **[unconfirmed]**
 
 ## `Gnsu` granular engine sounds (`.gin`) **[verified on all 160 files]**
@@ -114,7 +140,11 @@ cross-fading grains by target frequency) is in the decomp's `EAXSound/Ginsu/gins
 | 0x34 | u32 samples table (8 B per stream: offset/0x80 or bank index, duration in ms) | 0x1AE0C |
 | 0x38 | u32 end of samples table | 0x213D4 → (0x213D4 − 0x1AE0C) / 8 = **3,257 streams**, the same as the `SCHl` count in `.mus` **[verified]** |
 
-The track entry stores a big-endian checksum at +0x08. Its value `FA CE A5 8C` (at `.mpf` 0x1AE00) is
+The file has one track (`0x0D` = 1) with 7 sections, 70 events, 123 routers, 5 variables and 3,681 nodes. The
+track entry at `0x1ADF8` is `{u32 first sample = 0, u16 sub-bank count = 0, …, u32 BE checksum at +0x08}`. All 3,257
+sample-table offsets point at a `SCHl` in `.mus`, are strictly ascending (first stream at 0x100, last at
+523,893,120) and no stream overlaps the next. The stored duration equals `samples * 1000 / 36000` within 1 ms for
+every stream; the total is 203.9 minutes. **[verified]** The track entry stores a big-endian checksum at +0x08. Its value `FA CE A5 8C` (at `.mpf` 0x1AE00) is
 also the first 4 bytes of `MW_Music.mus` **[verified]**. In `.mus`, streams start at 0x100 and sample
 offsets are multiplied by 0x80. The node graph (which segment follows which, driven by pursuit
 intensity) belongs to EA's PathFinder 5.01.04, decompiled in `src/Speed/Indep/Libs/path/5.01.04/` and
@@ -123,7 +153,10 @@ The AttribSys class `music` (5 fields, 27 collections) lists tracks ([attributes
 
 ## Speech and NIS streams (`.big` / `.idx` / `.evt` / `.csi`)
 
-- `.big` is a plain concatenation of `SCHl` streams (counts above) **[verified]**.
+- `.big` holds `SCHl` streams (counts above), each starting on a `0x100` boundary, with the
+  gap after a stream's `SCEl` zero-filled **[verified]**. Between groups of streams there are non-stream tables
+  of unknown layout (579 in `copspeech.big`, 4 in `NISAudio.big`, which are the same counts as the `.idx` entry
+  counts), so a stream scan walks `SCHl`..`SCEl`, then advances in `0x100` steps to the next `SCHl`.
 - `.idx` starts `u32 1, u32 count`: 0x243 = 579 for copspeech, 4 for NISAudio. `.evt` starts
   `03 12 3C 07`. `.csi` starts `MOIR 00 02 00 01`. **Layouts undocumented. [verified bytes only]**
 - Decomp: the speech system is `src/Speed/Indep/Src/Speech/` (`SoundAI`, `PursuitFlow`,

@@ -26,6 +26,19 @@ NFSTools/VaultLib — https://github.com/NFSTools/VaultLib — MIT
   libs/blackbox-attrib/src/{vault/pointers.rs, class/load.rs,
   collection/load.rs, database/types.rs, value/decode.rs}.
 
+vgmstream — https://github.com/vgmstream/vgmstream — ISC-style licence
+  Copyright (c) 2008-2025 Adam Gashlin, Fastelbja, Ronny Elfert, bnnm,
+  Christopher Snowhill, NicknineTheEagle, bxaimc, Thealexbarney, CyberBotX,
+  EdnessP, et al.
+  Portions ported into libs/ea-audio: the EA-XA, EA-XAS and EA MicroTalk decoders
+  (src/coding/ea_xa_decoder.c, ea_xas_decoder.c, ea_mt_decoder.c, libs/utkdec.c) and
+  the layouts read by src/meta/ea_schl*.c. The notice is kept at the top of
+  libs/ea-audio/src/codec/{xa.rs, xas.rs, microtalk/*.rs}.
+
+daddesio/utkencode — https://github.com/daddesio/utkencode — Unlicense (public domain)
+  Original of the MicroTalk (UTK) decoder that vgmstream's utkdec.c derives from.
+  Credited in libs/ea-audio/src/codec/microtalk/.
+
 Fonts embedded in the binary through egui (crate epaint_default_fonts), used by the
 developer console and the performance overlay:
   Hack Regular        — MIT (Hack and Bitstream Vera licences)
