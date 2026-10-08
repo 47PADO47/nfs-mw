@@ -98,6 +98,22 @@ impl GameDir {
         self.resolve(rel).ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, format!("{rel} is not in the install")))
     }
 
+    /// Names (original case) of the files directly in `rel`, sorted.
+    pub fn files_in(&self, rel: &str) -> Vec<String> {
+        let prefix = {
+            let k = key(rel);
+            if k.is_empty() { k } else { format!("{k}/") }
+        };
+        let mut out: Vec<String> = self
+            .files
+            .iter()
+            .filter(|(k, _)| k.strip_prefix(&prefix).is_some_and(|rest| !rest.contains('/')))
+            .filter_map(|(_, real)| Some(real.file_name()?.to_string_lossy().into_owned()))
+            .collect();
+        out.sort_unstable_by_key(|s| s.to_ascii_lowercase());
+        out
+    }
+
     /// Names (original case) of the immediate subdirectories of `rel`.
     pub fn subdirectories(&self, rel: &str) -> Vec<String> {
         let prefix = {
@@ -150,6 +166,16 @@ mod tests {
         assert_eq!(dir.read_range("GLOBAL/GLOBALB.LZC", 0, 1).unwrap(), b"x");
         assert!(dir.read_range("GLOBAL/GLOBALB.LZC", 0, 2).is_err());
         assert!(!dir.exists("GLOBAL/missing.bin"));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn files_in_lists_a_folder_without_its_subfolders() {
+        let root = temp_tree("files");
+        std::fs::write(root.join("Cars/Readme.txt"), b"z").unwrap();
+        let dir = GameDir::open(&root).unwrap();
+        assert_eq!(dir.files_in("cars"), ["Readme.txt"]);
+        assert_eq!(dir.files_in("CARS/bmwm3gtr"), ["GEOMETRY.BIN"]);
         std::fs::remove_dir_all(root).unwrap();
     }
 
