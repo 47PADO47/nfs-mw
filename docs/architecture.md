@@ -95,7 +95,7 @@ bevy_winit window ─► PreUpdate: input/ resolves devices into actions (Action
   that frame, so switch actions (console, camera) cannot miss a quick tap.
 - **Driving actions:** `Throttle` and `Brake` (0..1, so a pad's analog triggers are real pedals), `Steer` (-1..1),
   `Handbrake`, `ShiftUp`, `ShiftDown`, `Nos`, `ResetCar` and `ToggleCamera`. Keyboard: W/S or Up/Down pedals, A/D
-  or Left/Right steer, Space handbrake, E/Q (or Shift/Ctrl) shift up/down, N nitrous, R reset, F camera. Pad: right
+  or Left/Right steer, Space handbrake, E/Q (or Right Shift/Ctrl) shift up/down, Left Shift nitrous, R reset, F camera. Pad: right
   and left trigger pedals, left stick steers, A handbrake, X nitrous, right/left bumper shift up/down, Back resets,
   Y toggles the camera. Like all bindings they are untested on a real controller. A steering wheel appears as a
   gamepad; its shift paddles are buttons the platform often has no name for, so `paddle_up` / `paddle_down` (config

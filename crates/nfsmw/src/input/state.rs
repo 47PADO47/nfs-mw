@@ -128,7 +128,7 @@ mod tests {
     fn keyboard_drives() {
         let mut state = ActionState::default();
         let mut snap = Snapshot::default();
-        snap.keys.extend([KeyCode::KeyW, KeyCode::KeyA, KeyCode::Space, KeyCode::KeyN]);
+        snap.keys.extend([KeyCode::KeyW, KeyCode::KeyA, KeyCode::Space, KeyCode::ShiftLeft]);
         state.update(&Bindings::default(), &snap, false);
         assert_eq!(state.value(Action::Throttle), 1.0);
         assert_eq!(state.value(Action::Brake), 0.0);
@@ -184,7 +184,7 @@ mod tests {
     fn gear_keys_are_single_shots() {
         let mut state = ActionState::default();
         let mut snap = Snapshot::default();
-        snap.keys.insert(KeyCode::ShiftLeft);
+        snap.keys.insert(KeyCode::ShiftRight);
         let bindings = Bindings::default();
         state.update(&bindings, &snap, false);
         assert!(state.just_pressed(Action::ShiftUp));

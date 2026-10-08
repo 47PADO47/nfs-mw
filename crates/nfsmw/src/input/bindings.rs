@@ -181,7 +181,7 @@ fn menus() -> Vec<Binding> {
 }
 
 /// Driving: W/S or the arrows for the pedals, A/D or the arrows to steer, Space for the handbrake,
-/// E/Q (or Shift/Ctrl) to shift up/down, N for nitrous, R to reset the car, F to toggle the camera.
+/// E/Q (or Right Shift/Ctrl) to shift up/down, Left Shift for nitrous, R to reset the car, F to toggle the camera.
 /// On a pad the triggers are the pedals, the left stick steers, the right/left bumper shifts up/down.
 /// A wheel's paddles are extra buttons: see [`paddles`].
 fn driving() -> Vec<Binding> {
@@ -200,11 +200,10 @@ fn driving() -> Vec<Binding> {
         Binding::new(Handbrake, key(KeyCode::Space), 1.0),
         Binding::new(ShiftUp, key(KeyCode::KeyE), 1.0),
         Binding::new(ShiftDown, key(KeyCode::KeyQ), 1.0),
-        Binding::new(ShiftUp, key(KeyCode::ShiftLeft), 1.0),
         Binding::new(ShiftUp, key(KeyCode::ShiftRight), 1.0),
         Binding::new(ShiftDown, key(KeyCode::ControlLeft), 1.0),
         Binding::new(ShiftDown, key(KeyCode::ControlRight), 1.0),
-        Binding::new(Nos, key(KeyCode::KeyN), 1.0),
+        Binding::new(Nos, key(KeyCode::ShiftLeft), 1.0),
         Binding::new(ResetCar, key(KeyCode::KeyR), 1.0),
         Binding::new(ToggleCamera, key(KeyCode::KeyF), 1.0),
         Binding::new(Throttle, Source::PadTrigger(GamepadButton::RightTrigger2), 1.0),
