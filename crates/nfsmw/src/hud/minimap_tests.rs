@@ -135,11 +135,10 @@ fn the_group_scrolls_and_the_mask_window_follows() {
     close(group.local_position.y, GROUP_AT[1] - 32.0);
     close(group.local_pivot.x, 32.0);
     close(group.local_pivot.y, 32.0);
-    for i in 0..4 {
+    for (i, w) in WINDOWS.iter().enumerate() {
         let NodeKind::Image { mask_uv, .. } = node(&rt, id, &format!("TRACK_MAP{}", i + 1)).kind else {
             panic!("not an image")
         };
-        let w = WINDOWS[i];
         for (got, want) in mask_uv.iter().zip([w[0] - 0.25, w[1] - 0.25, w[2] - 0.25, w[3] - 0.25]) {
             close(*got, want);
         }
