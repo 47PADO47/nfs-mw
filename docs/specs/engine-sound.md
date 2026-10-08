@@ -395,9 +395,44 @@ engine volume LFO none; Ginsu latency 60 ms; redline threshold 9800, factors 0.1
 
 - **Q1** Update rate: the sound update runs once per rendered frame with the frame time `t`; the per-update
   constants (volume slew 7000, averaging windows, clutch, delta thresholds) are only meaningful at a fixed
-  rate. Which rate did the PC build use (30, 60)?
-- **Q2** Single or dual mode in the PC build (§1). The decomp builds only single for the player.
-- **Q3** The `Ginsu_ACL_Neg_L_RPM` slip (§5.3).
+  rate. Which rate did the PC build use (30, 60)? **[decision]** The Rust game uses a fixed 60 Hz, see the last section.
+- **Q2** Single or dual mode in the PC build (§1). The decomp builds only single for the player. **[decision]** Dual.
+- **Q3** The `Ginsu_ACL_Neg_L_RPM` slip (§5.3). **[decision]** Keep the constant.
 - **Q4** `SNDvol` scale (linear or dB) and the dynamic-mixer curves for volume, pitch and low-pass (§5.5, §8).
 - **Q5** AEMS layer: how the bank turns `RPM` and `TORQUE` into samples (needs the `.abk` AEMS tables and
   the `.csi`); not needed while the Ginsu layer carries the engine.
+
+## Decisions for the Rust implementation
+
+Where the sources above leave a choice, `libs/blackbox-carsound` does the following **[decision]**. The
+decompiled code was consulted again only to settle these points.
+
+- **Q1, update rate:** the controllers run on a fixed 60 Hz tick. The caller passes real frame times; the mixer
+  accumulates them, runs whole ticks (at most 10 per call, the excess time is dropped so a stall cannot cause a
+  burst) and returns the last tick's output. All per-update constants (7000 slew, 0.2 smoothing, 4-update
+  averages, clutch steps, the delta thresholds) apply per tick as written. Times in ms use the tick time.
+- **Q2, mode:** dual mode is the default (`EngineMode::Dual`); single mode is kept for completeness.
+- **Q3, `Ginsu_ACL_Neg_L_RPM`:** the constant of the shipped code is kept: the accelerate loop's level off the
+  throttle is `Ginsu_ACL_Neg_S_RPM`. The data were tuned against that behaviour.
+- **Single mode smoothing:** the shipped code passes the new mix as both arguments of the smoothing call, so single
+  mode does not smooth the mix. The Rust single mode smooths like dual mode (0.2 per tick); the volume slew
+  still applies.
+- **Order inside a tick:** physics (gear, throttle, `PhysicsRPM`, `PhysicsTRQ`), shifting, accelerate transition,
+  engine (clutch, LFOs, compression, `EngRPM`, `EngTorque`, volume factor, redline), hybrid motor (`AvgDeltaRPM`,
+  mix, volumes, redline scaling), then the cruising compression trigger. A shift or transition therefore acts on
+  the same tick it is detected.
+- **Gear changes:** the previous gear starts equal to the first gear seen, so a car spawned in gear 3 does not
+  "shift" on its first tick. `RPM_AtShift` is the `EngRPM` of the tick before the gear change.
+- **Accelerate-transition volume pulse:** `m_InterpEngVol` (the 0 to `AccelFromIdle_PEAK_VOL` ramp and the 0.8 pulse
+  of the attack) is never read anywhere in the sources, so it is not applied; only its RPM and torque act.
+- **Distance low-pass:** treated as open. The output low-pass is the blended cutoff (25000 accelerate, `GINSU_LowPassCutoff`
+  decelerate, smoothed by 6000 per tick) and the caller may lower it by distance.
+- **Pitch:** the mixer's pitch multiplier is an input (default 1). If the tuning gives a loop's `min_frequency`, the
+  output frequency is clamped to it and `playback_rate` carries `ginsu_freq / min_frequency` (§6); with no minimum
+  given the ratio is 1.
+- **Compression bump:** length `25 + rand(100)` ms, height `25 + rand(75)` RPM, gap `60 + rand(150)` ticks, from a
+  seeded generator so equal inputs give equal outputs.
+- **Tachometer before the race:** the caller says whether the race has started (`pre_race`); when it flips to
+  false the 0.7 s blend of §4.4 runs.
+- **Volumes:** the three loop volumes and the redline volume are returned as `value / 32767` clamped to 0..1, the
+  7-bit `SNDvol` being treated as linear (Q4).

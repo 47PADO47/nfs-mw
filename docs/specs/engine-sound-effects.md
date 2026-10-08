@@ -249,6 +249,65 @@ linkage records) **[decomp]**.
   the volume is one of `{13000, 15000, 24000, 32767}` by `clamp(intensity >> 5, 0, 3)`.
   A bottom-out message from the physics plays a stitch sample chosen by intensity at mixer 1.
 
+## 9. Road noise and wind noise
+
+Two more continuous car sounds, read from `CARSFX_RoadNoise` and `CARSFX_WindNoise` **[decomp]**. Their final
+levels also pass the mixer maps, which are not specified (unity here).
+
+**Road noise** (one loop per side, left = wheels 0 and 3, right = wheels 1 and 2; the loop sample is the
+`simsurface` field `Aud_Roadnoise_LOOP` of that side's surface, 0 = none). With `speed` in mph and
+`slip_l`, `slip_r` the length of the summed `(forward, lateral)` physics slip of the grounded wheels of a side,
+`traction_l` / `traction_r` the mean absolute traction usage of the side's two wheels:
+
+```
+base   = graph(speed): (0, 0) (60, 28000) (100, 32500) (150, 24500) (175, 18000)        # Q15, linear between points
+vol_L  = base * (1 + min(slip_l * 0.01, 0.15)) * (1 + min(traction_l * 0.1, 0.1))
+vol_R  = base * (1 + min(slip_r * 0.01, 0.15)) * 1.1
+vol    = min(vol, 32000);  0 while the side has no wheel on the ground
+pitch0 = 1500 + 3000 * clamp(speed / 100, 0, 1)
+pitch_L = min(pitch0 * (1 + min(slip_l * 0.01, 0.2)) * (1 + min(traction_l * 0.15, 0.15)), 6000)   # R alike, with its own slip/traction
+```
+
+The pitch is on the same 4096 = 1.0 scale as the other pitch values. The right side's traction term is absent in
+the volume (only the left uses it), which looks like an oversight; it is kept. A change of surface starts the
+new loop and plays a short transition sample (`Aud_RoadNoise_TransON/OFF`), a punctured or blown tire plays a
+transition too. Dirt and gravel add a secondary noise flag.
+
+**Wind noise.** `v` = speed in m/s clamped to 2 .. 40: `ratio = v / 40`, `volume = ratio * 32767` (the weight of
+all three wind layers), `intensity = ratio * 1040` (crossfade weight handed to `FX_WIND`). Two wind sources circle
+the car at a radius `(1 - ratio) * 65` m (not less than the car's bounding sphere) at an angle of
+`1280 + ratio * 12288` (of 65536) to the left and right of the heading; that is spatial placement for the game.
+A separate weather wind is scaled `1 -> 0.25` from 0 to 70 mph.
+
+## 10. Decisions for the Rust implementation
+
+`libs/blackbox-carsound` makes these choices where the sources leave one **[decision]** (the engine ones are at
+the end of [engine-sound.md](engine-sound.md)):
+
+- **Commands.** Everything audible is returned as plain commands: `Play` (fire and forget), `PlayVoice` +
+  `SetVoice` + `Stop` (a one-shot the game keeps a handle of, for the blow-off ramp) and `SetLoop` + `Stop` (a
+  looped voice, updated each call). Volumes are linear 0..1, pitch is a playback ratio (1 = unchanged), pan -1..1.
+  The game resolves a `SoundRef` to a bank sound; volumes of one-shots already include the tuning level.
+- **Sweetener RPM.** The accelerate and engine-off sweeteners read `RPM_AtShift`, which is stale (the last
+  shift's) in the sources. The Rust code uses the `PhysicsRPM` at the moment instead.
+- **Reverse whine.** Volume is the audio RPM fraction (the original divides the sound-scale RPM by the physics
+  maximum, which exceeds 1); the pitch rises with it.
+- **Transmission loop** (`CAR_TRANNY`) is not produced: its response to `magnitude` is bank data.
+- **Turbo.** The spool duck rearms when the charge drops below the limit (the original compares with the full
+  `ChargeTime`, which re-arms the duck every other update when the RPM scale is below 1). The blow-off sample
+  ends after `TurboTuning::blowoff_seconds` (the game fills it with the decoded length). The spool loop's pitch
+  follows `0.8 + 0.4 * spool` (the bank derives its own from `PSI`).
+- **Nitrous.** The pitch boost of §5 scales `1 + 0.08 * boost` on the loop.
+- **Skids.** The slip normalisation and the `fwd`, `side`, `load` smoothing of §7 are kept. The loop volume of an
+  axle is `max(fwd, side) * (0.3 + 0.7 * wheel_load)` (all 0..1), the pitch `0.9 + 0.2 * max(fwd, side)`, and
+  the voice stops below 0.01. The surface is the highest `Aud_Skid_Type` of the grounded wheels (a blown tire
+  uses the tuning's blown-tire surface).
+- **Collisions.** The game turns physics events into `CollisionEvent`s (with the `audioimpact` data it looked up);
+  the lib picks the level, the sample counter, the volume class and the moment-stream sweetener. A scrape is
+  a per-kind magnitude each call (0 = ended) that fades out over 0.25 s.
+- **Landing.** As §8; the `Z force` of a wheel is its `compression`.
+- **Random choices** (blow-off sample, compression bump) come from a seeded xorshift generator.
+
 ## How to check it
 
 - **Shifting:** record `EngRPM` over a 2nd to 3rd shift at 8000 RPM in the PC game (a debugger on the RPM
