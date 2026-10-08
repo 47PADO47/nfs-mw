@@ -1,0 +1,13 @@
+[package]
+name = "blackbox-carsound"
+description = "Deterministic car sound controllers of EA Black Box games: telemetry in, engine mix and sound commands out."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true
