@@ -109,7 +109,7 @@ pub struct EngineOutput {
     /// Linear volumes, 0 to 1.
     pub accel_volume: f32,
     pub decel_volume: f32,
-    /// Volume of the sample (AEMS) layer, which is not rendered yet.
+    /// Volume of the sample (AEMS) layer, before the mixer map's own factor (the game plays that layer).
     pub aems_volume: f32,
     /// Volume of the sample layer's redline sound.
     pub redline_sample_volume: f32,

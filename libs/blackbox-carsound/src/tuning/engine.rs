@@ -92,7 +92,7 @@ pub struct EngineTuning {
     pub low_pass_cutoff: u32,
     /// `Vol_ShiftSweets`: level of the shift sweeteners, 0 to 32767.
     pub shift_sweet_volume: i32,
-    /// `Vol_Sputters`: level of the backfire, 0 to 32767 (carried for the game; no sound is made here).
+    /// `Vol_Sputters`: level of the backfire, 0 to 32767 (carried for the game, which feeds it to the sputter module).
     pub sputter_volume: i32,
     /// Lowest frequency of the accelerate `.gin` file (its `min_frequency`); 0 when unknown. Below it the loops
     /// play at that minimum and the playback rate carries the ratio (spec §6). The decelerate loop gets the
