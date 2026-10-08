@@ -11,6 +11,7 @@ mod carparts;
 mod cars;
 mod handling;
 mod physics;
+mod sound;
 mod textures;
 mod world;
 mod zones;
