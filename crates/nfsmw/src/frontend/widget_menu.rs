@@ -253,8 +253,8 @@ impl ScreenLogic for WidgetMenu {
     fn start(&mut self, cx: &mut Cx) {
         self.find_rows(cx);
         // The original screens that do not apply: the defaults button and the unused parts.
-        for hidden in [DEFAULTS_HINT, SCROLL_ARROW_1, SCROLL_ARROW_2] {
-            cx.hide(hidden, true);
+        for hidden in DEFAULTS_HINT.iter().chain(&[SCROLL_ARROW_1, SCROLL_ARROW_2]) {
+            cx.hide(*hidden, true);
         }
         let title = match (self.args.category, self.args.pause) {
             (super::logic::Category::Audio, false) => 0x3932_C2E4,
@@ -299,7 +299,8 @@ impl ScreenLogic for WidgetMenu {
     }
 }
 
-/// The hint for the defaults button, and the arrows of the player screen's list, which this logic does not use.
-const DEFAULTS_HINT: u32 = 0xD646_3100;
+/// The hint for the defaults button (a group in one package, strings and an icon in the others), and the arrows of
+/// the player screen's list, which this logic does not use.
+const DEFAULTS_HINT: [u32; 5] = [0xD646_3100, 0x28B8_FD2F, 0x2C42_0D64, 0x3FD8_A341, 0xD9A2_2505];
 const SCROLL_ARROW_1: u32 = 0x4449_69FD;
 const SCROLL_ARROW_2: u32 = 0x4449_69FE;

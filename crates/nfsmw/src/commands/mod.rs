@@ -74,6 +74,9 @@ pub fn run(cli: Cli) -> Result<()> {
                 "gameplay" => crate::frontend::Category::Gameplay,
                 other => anyhow::bail!("unknown category {other:?} (audio, video, gameplay)"),
             };
+            if crate::ui::Catalog::load(&dir, &crate::ui::SCREEN_FILES).find(&name).is_none() {
+                anyhow::bail!("no screen {name:?} in the install (try list-screens)");
+            }
             let start = crate::frontend::Start::Screen(name, crate::frontend::Args { pause, options, category });
             let settle = view.screenshot.is_some().then_some("wait 2");
             run_front_end(&dir, start, ui_script.as_deref().or(settle), &view)
