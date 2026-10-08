@@ -100,8 +100,8 @@ impl Scene for Pausable {
         self.inner.status()
     }
 
-    fn hud(&self) -> Option<String> {
-        self.inner.hud()
+    fn readout(&self, level: crate::devtools::ShowReadout) -> Option<String> {
+        self.inner.readout(level)
     }
 
     fn hud_state(&self) -> Option<crate::hud::HudState> {

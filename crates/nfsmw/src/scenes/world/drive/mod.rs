@@ -375,10 +375,14 @@ impl Drive {
         Some(self.sound.state(&self.car_name, &self.telemetry))
     }
 
-    /// The readout lines.
-    pub fn hud(&self) -> String {
+    /// The readout lines at this level: one for `Minimal`, the numbers of the HUD and the run for `Full`.
+    pub fn readout(&self, level: crate::devtools::ShowReadout) -> String {
         if self.sim.is_none() || self.request.is_some() {
             return format!("{}: looking for a road...", self.car_name);
+        }
+        let p = self.current.position;
+        if level == crate::devtools::ShowReadout::Minimal {
+            return format!("{} at ({:.0}, {:.0}, {:.1})", self.car_name, p.x, p.y, p.z);
         }
         let t = &self.telemetry;
         let gear = match t.gear {
@@ -387,7 +391,6 @@ impl Drive {
             g => g.to_string(),
         };
         let nos = if t.nos > 0.0 { format!("  nos {:.0}%", t.nos * 100.0) } else { String::new() };
-        let p = self.current.position;
         let script = self
             .script
             .as_ref()

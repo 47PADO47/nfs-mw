@@ -3,7 +3,7 @@
 use blackbox_render::Backend;
 
 use crate::app::pacing::MaxFps;
-use crate::devtools::ShowMetrics;
+use crate::devtools::{ShowMetrics, ShowReadout};
 
 /// A volume setting in percent, 0 to 100.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,6 +45,7 @@ pub struct Partial {
     pub vsync: Option<bool>,
     pub max_fps: Option<MaxFps>,
     pub show_metrics: Option<ShowMetrics>,
+    pub show_readout: Option<ShowReadout>,
     pub master_volume: Option<Percent>,
     pub music_volume: Option<Percent>,
     pub sfx_volume: Option<Percent>,
@@ -60,6 +61,7 @@ impl Partial {
             vsync: self.vsync.or(lower.vsync),
             max_fps: self.max_fps.or(lower.max_fps),
             show_metrics: self.show_metrics.or(lower.show_metrics),
+            show_readout: self.show_readout.or(lower.show_readout),
             master_volume: self.master_volume.or(lower.master_volume),
             music_volume: self.music_volume.or(lower.music_volume),
             sfx_volume: self.sfx_volume.or(lower.sfx_volume),

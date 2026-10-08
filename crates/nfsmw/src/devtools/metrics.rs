@@ -7,6 +7,7 @@ use std::str::FromStr;
 use bevy_ecs::prelude::*;
 use bevy_time::{Real, Time};
 
+use super::ShowReadout;
 use crate::app::Host;
 
 /// How much the performance overlay shows (`--show-metrics`).
@@ -62,7 +63,7 @@ pub struct Metrics {
     pub meshes: usize,
     pub textures: usize,
     pub status: String,
-    /// The scene's readout (see `Scene::hud`).
+    /// The scene's readout (see `Scene::readout`).
     pub hud: String,
 }
 
@@ -106,7 +107,12 @@ impl Metrics {
 }
 
 /// Last system of the frame: record this frame's time and refresh the renderer's counts.
-pub fn collect(mut metrics: ResMut<Metrics>, time: Res<Time<Real>>, host: NonSend<Host>) {
+pub fn collect(
+    mut metrics: ResMut<Metrics>,
+    time: Res<Time<Real>>,
+    host: NonSend<Host>,
+    settings: Res<crate::settings::Settings>,
+) {
     metrics.push(time.delta_secs());
     let Some(renderer) = host.renderer.as_ref() else { return };
     (metrics.meshes, metrics.textures) = renderer.resource_counts();
@@ -114,7 +120,10 @@ pub fn collect(mut metrics: ResMut<Metrics>, time: Res<Time<Real>>, host: NonSen
         metrics.adapter = renderer.adapter_summary();
     }
     metrics.status = host.scene.status().unwrap_or_default();
-    metrics.hud = host.scene.hud().unwrap_or_default();
+    metrics.hud = match settings.show_readout {
+        ShowReadout::Off => String::new(),
+        level => host.scene.readout(level).unwrap_or_default(),
+    };
 }
 
 #[cfg(test)]

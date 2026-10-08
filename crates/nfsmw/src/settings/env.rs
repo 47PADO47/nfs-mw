@@ -4,12 +4,13 @@ use std::str::FromStr;
 
 use super::partial::{Partial, Percent, parse_bool};
 use crate::app::pacing::MaxFps;
-use crate::devtools::ShowMetrics;
+use crate::devtools::{ShowMetrics, ShowReadout};
 
 pub const BACKEND: &str = "NFSMW_BACKEND";
 pub const VSYNC: &str = "NFSMW_VSYNC";
 pub const MAX_FPS: &str = "NFSMW_MAX_FPS";
 pub const SHOW_METRICS: &str = "NFSMW_SHOW_METRICS";
+pub const SHOW_READOUT: &str = "NFSMW_SHOW_READOUT";
 pub const MASTER_VOLUME: &str = "NFSMW_MASTER_VOLUME";
 pub const MUSIC_VOLUME: &str = "NFSMW_MUSIC_VOLUME";
 pub const SFX_VOLUME: &str = "NFSMW_SFX_VOLUME";
@@ -24,6 +25,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         vsync: value(&get, VSYNC, parse_bool),
         max_fps: value(&get, MAX_FPS, MaxFps::from_str),
         show_metrics: value(&get, SHOW_METRICS, ShowMetrics::from_str),
+        show_readout: value(&get, SHOW_READOUT, ShowReadout::from_str),
         master_volume: value(&get, MASTER_VOLUME, Percent::from_str),
         music_volume: value(&get, MUSIC_VOLUME, Percent::from_str),
         sfx_volume: value(&get, SFX_VOLUME, Percent::from_str),
@@ -63,6 +65,12 @@ mod tests {
         assert_eq!(p.backend, Some(Backend::Dx12));
         assert_eq!(p.vsync, Some(false));
         assert_eq!(p.max_fps, Some("60".parse::<MaxFps>().unwrap()));
+    }
+
+    #[test]
+    fn reads_the_readout_level() {
+        assert_eq!(layer(&[(SHOW_READOUT, "full")]).show_readout, Some(ShowReadout::Full));
+        assert_eq!(layer(&[(SHOW_READOUT, "loud")]).show_readout, None);
     }
 
     #[test]

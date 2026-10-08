@@ -38,9 +38,10 @@ pub trait Scene {
     fn status(&self) -> Option<String> {
         None
     }
-    /// Lines for the in-game readout (speed, rpm, gear while driving), drawn bottom left whatever
-    /// the metrics level is. The real HUD replaces it later.
-    fn hud(&self) -> Option<String> {
+    /// Lines for the scene's debug readout, drawn bottom left whatever the metrics level is: `level` says how
+    /// much (the original HUD already shows speed, rpm and gear, so `Minimal` is one line that adds to it).
+    /// Not called at `Off`.
+    fn readout(&self, _level: crate::devtools::ShowReadout) -> Option<String> {
         None
     }
     /// What the in-game HUD shows this frame; `None` hides it.

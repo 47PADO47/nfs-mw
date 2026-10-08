@@ -116,7 +116,7 @@ bevy_winit window ─► PreUpdate: input/ resolves devices into actions (Action
   keyboard belongs to the console while it is open: game actions go quiet and the mouse is released
   (and recaptured on close). Typed lines are parsed into a `Command` (plain data, unit-tested) and run by
   one system, so the console never touches the renderer itself.
-  - Built in: `help`, `clear`, `quit`, `get [setting]`, `set <setting> <value>` (`fps`, `vsync`, `metrics`),
+  - Built in: `help`, `clear`, `quit`, `get [setting]`, `set <setting> <value>` (`fps`, `vsync`, `metrics`, `readout`),
     the shorthands `fps 60` / `vsync off` / `metrics advanced`, and `resolution <w> <h>`. Changes last for
     the run; the config file is not written.
   - The car viewer adds `car <folder>`, `garage` and `freecam` (orbit ↔ free camera). The world viewer adds
@@ -124,8 +124,11 @@ bevy_winit window ─► PreUpdate: input/ resolves devices into actions (Action
     Scenes offer commands through `Scene::commands` and `Scene::command`; "spawn AI" arrives with milestone 7.
   - `--exec "<command>"` (repeatable) runs commands at startup, like Quake's `+exec`; `--open-console`
     (hidden) starts with the console open, which is how the screenshots in bug reports show it.
-- **Scene readout:** `Scene::hud` gives a few lines (speed, rpm and gear while driving) that the overlay draws
-  bottom left whatever the metrics level is.
+- **Scene readout:** `Scene::readout(level)` gives the scene's debug lines, which the overlay draws bottom left
+  whatever the metrics level is. `--show-readout <off|minimal|full>` (env `NFSMW_SHOW_READOUT`, config
+  `show_readout`, console `set readout full`) chooses how much. The original HUD already shows speed, rpm, gear and
+  nitrous, so the default `minimal` is one line that adds to it (the car and where it is; "free camera" in the free
+  camera); `full` is the old two-line readout (speed, rpm, gear, nitrous, a scripted run) for when the HUD is off.
 - **Order of a frame:** `Prepare` (renderer, cursor, size) → `SceneUpdate` → `Ui` (egui pass) → `Draw`
   (the bridge uploads texture patches, sets the layer, renders). `--screenshot` runs a few frames first so
   the overlay is in the picture.
@@ -134,10 +137,12 @@ bevy_winit window ─► PreUpdate: input/ resolves devices into actions (Action
 
 Runtime options resolve in layers, highest first ([`crates/nfsmw/src/settings/`](../crates/nfsmw/src/settings)):
 
-1. the command line (`--backend`, `--no-vsync`, `--max-fps`, `--show-metrics`);
-2. environment variables (`NFSMW_BACKEND`, `NFSMW_VSYNC`, `NFSMW_MAX_FPS`, `NFSMW_SHOW_METRICS`);
-3. the per-user config file (`backend`, `vsync`, `max_fps`, `show_metrics`; the same file as `game_dir`);
-4. the defaults (`auto`, vsync on, unlocked, overlay off).
+1. the command line (`--backend`, `--no-vsync`, `--max-fps`, `--show-metrics`, `--show-readout`);
+2. environment variables (`NFSMW_BACKEND`, `NFSMW_VSYNC`, `NFSMW_MAX_FPS`, `NFSMW_SHOW_METRICS`,
+   `NFSMW_SHOW_READOUT`);
+3. the per-user config file (`backend`, `vsync`, `max_fps`, `show_metrics`, `show_readout`; the same file as
+   `game_dir`);
+4. the defaults (`auto`, vsync on, unlocked, overlay off, readout minimal).
 
 Each key resolves on its own. A value that does not parse (in the environment or the file) is logged and
 skipped, so the next layer applies; a broken config file never stops the game from starting. The

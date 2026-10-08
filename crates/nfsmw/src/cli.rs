@@ -6,7 +6,7 @@ use blackbox_render::Backend;
 use clap::{Args, Parser, Subcommand};
 
 use crate::app::pacing::MaxFps;
-use crate::devtools::ShowMetrics;
+use crate::devtools::{ShowMetrics, ShowReadout};
 use crate::settings::Partial;
 
 #[derive(Parser)]
@@ -152,6 +152,10 @@ pub struct ViewArgs {
     /// Performance overlay: off, basic or advanced [env NFSMW_SHOW_METRICS; default off].
     #[arg(long, value_name = "off|basic|advanced")]
     pub show_metrics: Option<ShowMetrics>,
+    /// The scene's debug readout, bottom left: off, minimal (one line next to the original HUD) or full
+    /// [env NFSMW_SHOW_READOUT; config `show_readout`; default minimal].
+    #[arg(long, value_name = "off|minimal|full")]
+    pub show_readout: Option<ShowReadout>,
     /// Render one frame to this PNG file and exit instead of opening an interactive window.
     #[arg(long, value_name = "FILE.png")]
     pub screenshot: Option<PathBuf>,
@@ -201,6 +205,7 @@ impl ViewArgs {
             vsync: self.no_vsync.then_some(false),
             max_fps: self.max_fps,
             show_metrics: self.show_metrics,
+            show_readout: self.show_readout,
             master_volume: self.volume,
             hud: if self.no_hud { Some(false) } else { self.hud.then_some(true) },
             ..Partial::default()

@@ -399,11 +399,12 @@ impl Scene for WorldScene {
         self.drive.as_mut()?.car_sound()
     }
 
-    fn hud(&self) -> Option<String> {
+    fn readout(&self, level: crate::devtools::ShowReadout) -> Option<String> {
         let drive = self.drive.as_ref()?;
+        let lines = drive.readout(level);
         Some(match self.view {
-            View::Chase => drive.hud(),
-            View::Fly => format!("free camera, the car waits (F to return)\n{}", drive.hud()),
+            View::Chase => lines,
+            View::Fly => format!("free camera, the car waits (F to return)\n{lines}"),
         })
     }
 

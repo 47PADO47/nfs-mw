@@ -30,6 +30,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.show_metrics {
         put("show_metrics", Value::String(v.to_string()));
     }
+    if let Some(v) = changes.show_readout {
+        put("show_readout", Value::String(v.to_string()));
+    }
     if let Some(v) = changes.master_volume {
         put("master_volume", Value::Integer(i64::from(v.0)));
     }
@@ -68,7 +71,7 @@ mod tests {
 
     use super::*;
     use crate::app::pacing::MaxFps;
-    use crate::devtools::ShowMetrics;
+    use crate::devtools::{ShowMetrics, ShowReadout};
     use crate::settings::{Percent, file};
 
     #[test]
@@ -89,6 +92,7 @@ mod tests {
             vsync: Some(false),
             max_fps: Some(MaxFps::from_str("120").unwrap()),
             show_metrics: Some(ShowMetrics::Advanced),
+            show_readout: Some(ShowReadout::Full),
             master_volume: Some(Percent(10)),
             music_volume: Some(Percent(20)),
             sfx_volume: Some(Percent(30)),

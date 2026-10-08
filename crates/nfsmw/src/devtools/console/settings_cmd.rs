@@ -4,12 +4,12 @@
 use std::str::FromStr;
 
 use crate::app::pacing::MaxFps;
-use crate::devtools::ShowMetrics;
+use crate::devtools::{ShowMetrics, ShowReadout};
 use crate::settings::{Percent, Settings, parse_bool};
 
 /// Settings the console can show.
-const KEYS: [&str; 9] =
-    ["backend", "vsync", "fps", "metrics", "volume", "music_volume", "sfx_volume", "engine_volume", "hud"];
+const KEYS: [&str; 10] =
+    ["backend", "vsync", "fps", "metrics", "readout", "volume", "music_volume", "sfx_volume", "engine_volume", "hud"];
 
 /// The text for `get <key>`, or an error naming the valid keys.
 pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
@@ -18,6 +18,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "vsync" => on_off(settings.vsync).to_owned(),
         "fps" | "max_fps" => settings.max_fps.to_string(),
         "metrics" | "show_metrics" => settings.show_metrics.to_string(),
+        "readout" | "show_readout" => settings.show_readout.to_string(),
         "volume" | "master_volume" => settings.master_volume.to_string(),
         "music_volume" => settings.music_volume.to_string(),
         "sfx_volume" => settings.sfx_volume.to_string(),
@@ -39,6 +40,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "vsync" => settings.vsync = parse_bool(value)?,
         "fps" | "max_fps" => settings.max_fps = MaxFps::from_str(value)?,
         "metrics" | "show_metrics" => settings.show_metrics = ShowMetrics::from_str(value)?,
+        "readout" | "show_readout" => settings.show_readout = ShowReadout::from_str(value)?,
         "volume" | "master_volume" => settings.master_volume = Percent::from_str(value)?,
         "music_volume" => settings.music_volume = Percent::from_str(value)?,
         "sfx_volume" => settings.sfx_volume = Percent::from_str(value)?,
@@ -73,8 +75,10 @@ mod tests {
         assert_eq!(set(&mut s, "fps", "60").unwrap(), "fps = 60");
         assert_eq!(set(&mut s, "vsync", "off").unwrap(), "vsync = off");
         assert_eq!(set(&mut s, "metrics", "advanced").unwrap(), "metrics = advanced");
+        assert_eq!(set(&mut s, "readout", "full").unwrap(), "readout = full");
         assert!(!s.vsync);
         assert_eq!(s.show_metrics, ShowMetrics::Advanced);
+        assert_eq!(s.show_readout, ShowReadout::Full);
         assert_eq!(set(&mut s, "fps", "unlocked").unwrap(), "fps = unlocked");
     }
 

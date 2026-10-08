@@ -14,7 +14,7 @@ pub use partial::{Partial, Percent, parse_bool};
 pub use write::write as write_file;
 
 use crate::app::pacing::MaxFps;
-use crate::devtools::ShowMetrics;
+use crate::devtools::{ShowMetrics, ShowReadout};
 
 /// The resolved settings.
 #[derive(bevy_ecs::resource::Resource, Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,6 +23,8 @@ pub struct Settings {
     pub vsync: bool,
     pub max_fps: MaxFps,
     pub show_metrics: ShowMetrics,
+    /// How much of the scene's debug readout is drawn next to the original HUD.
+    pub show_readout: ShowReadout,
     pub master_volume: Percent,
     pub music_volume: Percent,
     pub sfx_volume: Percent,
@@ -39,6 +41,7 @@ impl From<Partial> for Settings {
             vsync: p.vsync.unwrap_or(true),
             max_fps: p.max_fps.unwrap_or_default(),
             show_metrics: p.show_metrics.unwrap_or_default(),
+            show_readout: p.show_readout.unwrap_or_default(),
             master_volume: p.master_volume.unwrap_or(Percent(80)),
             music_volume: p.music_volume.unwrap_or(Percent(60)),
             sfx_volume: p.sfx_volume.unwrap_or(Percent(90)),
