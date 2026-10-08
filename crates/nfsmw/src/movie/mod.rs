@@ -13,15 +13,30 @@ use glam::{Mat4, Vec3};
 use crate::app::{FrameSet, Host};
 use crate::gui::{OwnedPatch, UiOutput};
 use crate::input::ActionState;
-use crate::viewer::{Fullscreen, Scene};
+use crate::viewer::{Fit, Fullscreen, Scene};
 use player::{Movie, Step};
 
 /// Texture id of the movie picture; egui's are small numbers and the HUD's have a high bit.
 const PICTURE: UiTextureId = UiTextureId(0x4D4F_5649_4500);
 
-/// The movies are 1024 x 512 pictures with black bars of a wide screen squeezed into them; shown at 16:9
-/// (guess from the faces: at 2:1 they look stretched).
-const DISPLAY_ASPECT: f32 = 16.0 / 9.0;
+/// The film movies are 1024 x 512 pictures with the black bars of a wide screen baked into them: every frame of every
+/// movie but the EA logo has black outside rows 64 up to 448 (measured over the first 500 frames of each movie).
+const FILM_ROWS: [f32; 2] = [64.0, 448.0];
+const PICTURE_ROWS: f32 = 512.0;
+/// The widescreen packages show a movie in a 900 x 480 object; the logo, which has no bars, keeps that shape.
+const LOGO_ASPECT: f32 = 900.0 / 480.0;
+
+/// What to show of a movie file's frames and how: the film without its baked-in bars, stretched over the window.
+fn framing(file: &str, size: [u32; 2]) -> ([f32; 4], Fit) {
+    let whole = [0.0, 0.0, 1.0, 1.0];
+    if file.to_ascii_lowercase().starts_with("ealogo") {
+        return (whole, Fit::Contain(LOGO_ASPECT));
+    }
+    if size[1] != PICTURE_ROWS as u32 {
+        return (whole, Fit::Contain(size[0] as f32 / size[1] as f32));
+    }
+    ([0.0, FILM_ROWS[0] / PICTURE_ROWS, 1.0, FILM_ROWS[1] / PICTURE_ROWS], Fit::Fill)
+}
 
 /// The movie named `name` (`ealogo`, `blacklist_03`, or the full file name), by prefix and any case.
 fn find(dir: &GameDir, name: &str) -> Result<String> {
@@ -121,7 +136,9 @@ impl Scene for MovieScene {
             return None;
         }
         self.shown = true;
-        Some(Fullscreen { size: self.movie.size(), aspect: DISPLAY_ASPECT, rgba })
+        let size = self.movie.size();
+        let (view, fit) = framing(&self.name, size);
+        Some(Fullscreen { size, view, fit, rgba })
     }
 
     fn take_clip(&mut self) -> Option<ea_audio::Pcm> {
@@ -160,12 +177,16 @@ fn present(
         out.patches.push(OwnedPatch { id: PICTURE, offset: None, size: picture.size, rgba });
     }
     let (w, h) = (window.width(), window.height());
-    let aspect = picture.aspect;
-    let (width, height) = if w / h > aspect { (h * aspect, h) } else { (w, w / aspect) };
+    let (width, height) = match picture.fit {
+        Fit::Fill => (w, h),
+        Fit::Contain(aspect) if w / h > aspect => (h * aspect, h),
+        Fit::Contain(aspect) => (w, w / aspect),
+    };
     let (x0, y0) = ((w - width) * 0.5, (h - height) * 0.5);
+    let [u0, v0, u1, v1] = picture.view;
     let corner = |dx: f32, dy: f32| UiVertex {
         position: [x0 + dx * width, y0 + dy * height],
-        uv: [dx, dy],
+        uv: [u0 + dx * (u1 - u0), v0 + dy * (v1 - v0)],
         color_rgba: [255; 4],
     };
     let mesh = UiMesh {
@@ -182,6 +203,15 @@ fn present(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn films_lose_their_baked_bars_and_fill_the_window_but_the_logo_keeps_its_shape() {
+        let (view, fit) = framing("psa_english_ntsc.vp6", [1024, 512]);
+        assert_eq!((view, fit), ([0.0, 0.125, 1.0, 0.875], Fit::Fill));
+        assert_eq!(framing("EALOGO_english_ntsc.vp6", [1024, 512]), ([0.0, 0.0, 1.0, 1.0], Fit::Contain(LOGO_ASPECT)));
+        let (view, fit) = framing("odd.vp6", [640, 480]);
+        assert_eq!((view, fit), ([0.0, 0.0, 1.0, 1.0], Fit::Contain(640.0 / 480.0)));
+    }
 
     /// With the install (`NFSMW_GAME_DIR`): a movie opens, its sound is as long as its picture, stepping the clock
     /// shows every frame once in order and ends; a name that is a prefix of several movies is refused.

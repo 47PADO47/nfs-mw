@@ -76,9 +76,13 @@ portrait upright after the flip. Black is luma 16, so the picture is studio rang
 for RGB). Speed on one core of the dev machine, release build: 164 frames/s decode alone and 116
 frames/s with the RGBA conversion on `blacklist_01` (a high-bitrate movie), against 29.97 needed.
 
-Shown on screen: the 1024 × 512 picture carries a black letterbox (the film is about 2.4:1 inside it), and the
-Rust player shows it at 16:9 over the whole window, centred. The display aspect is not stored anywhere that has
-been found **[unconfirmed: 2:1 square pixels looks stretched, 16:9 looks natural on faces]**.
+Shown on screen: the 1024 × 512 picture carries a black letterbox (the film is about 2.4:1 inside it): over the
+first 500 frames of all 32 movies the picture is only ever non-black in rows 64 up to 448, **except `ealogo`**, whose
+canvas is all picture **[measured]**. The widescreen FEng packages put a movie in a 900 × 480 object (so the original
+shows the baked bars). The Rust player crops rows 64..448 of every movie but the logo and stretches them over the
+whole window, so no band is left at any window shape (at 16:9 the film is then about 40 % taller than at its own
+shape); the logo keeps 900:480 with black around it, which cannot be seen on its black canvas. The display aspect is
+not stored anywhere that has been found.
 
 ### Audio
 
