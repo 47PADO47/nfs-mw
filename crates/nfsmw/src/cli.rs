@@ -58,6 +58,18 @@ pub enum Command {
     },
     /// List the movies in the install.
     ListMovies,
+    /// List the FEng screens (menus, in-game screens) in the install.
+    ListScreens,
+    /// Search the English language table: text containing FILTER, or one label as 0xHASH.
+    Strings {
+        /// Part of the text, or 0xHASH.
+        filter: String,
+    },
+    /// Print the objects, scripts and message responses of one FEng screen: `nfsmw dump-screen MainMenu.fng`.
+    DumpScreen {
+        /// File name of the screen, in any case.
+        name: String,
+    },
     /// Fly through the city (WASD + mouse to look; Shift = fast; Esc frees the mouse, again to quit).
     ViewWorld {
         /// Start position on the map as X,Y (default: the centre of the city).

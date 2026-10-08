@@ -25,6 +25,25 @@ pub fn run(cli: Cli) -> Result<()> {
             }
             Ok(())
         }
+        Command::ListScreens => {
+            let catalog = crate::ui::Catalog::load(&open_install(game_dir)?, &crate::ui::SCREEN_FILES);
+            print!("{}", crate::frontend::dump::list(&catalog));
+            Ok(())
+        }
+        Command::Strings { filter } => {
+            let dir = open_install(game_dir)?;
+            let data = nfsmw_data::read_unwrapped(&dir, "LANGUAGES/English.bin")?;
+            let table = blackbox_text::StringTable::from_file(&data)?;
+            print!("{}", crate::frontend::dump::strings(&table, &filter));
+            Ok(())
+        }
+        Command::DumpScreen { name } => {
+            let catalog = crate::ui::Catalog::load(&open_install(game_dir)?, &crate::ui::SCREEN_FILES);
+            let package =
+                catalog.find(&name).ok_or_else(|| anyhow::anyhow!("no screen {name:?} (try list-screens)"))?;
+            print!("{}", crate::frontend::dump::dump(package));
+            Ok(())
+        }
         Command::PlayMovie { name, start, view } => {
             let dir = open_install(game_dir)?;
             let scene = crate::movie::MovieScene::open(&dir, &name, f64::from(start))?;
