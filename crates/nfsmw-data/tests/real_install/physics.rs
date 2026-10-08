@@ -1,7 +1,7 @@
 //! A car's physics data reads into the vehicle library's parameter structs with sane values.
 
 use blackbox_attrib::Database;
-use nfsmw_data::car::physics::{self, Fields};
+use nfsmw_data::car::physics::{self, Fields, SurfaceTable};
 
 use crate::install;
 
@@ -56,6 +56,22 @@ fn every_car_has_a_sane_engine_and_gearbox() {
 
 #[test]
 #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn road_surfaces_have_grip() {
+    let Some(db) = attributes() else { return };
+    let table = SurfaceTable::from_database(&db);
+    assert_eq!(table.len(), 47);
+    let asphalt = table.grip(SurfaceTable::hash_of("asphalt"));
+    assert!(asphalt.lateral > 0.5 && asphalt.drive > 0.5, "{asphalt:?}");
+    let grass = table.grip(SurfaceTable::hash_of("grass"));
+    assert!(
+        grass.lateral < asphalt.lateral && grass.rolling > asphalt.rolling,
+        "grass {grass:?} vs asphalt {asphalt:?}"
+    );
+    assert!(!table.knows(0), "no surface is hash 0: it reads as `unknown`");
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
 fn car_bounds_are_a_car_sized_box() {
     let Some(dir) = install() else { return };
     let sets = physics::read_car_bounds(&dir).unwrap();
@@ -68,4 +84,56 @@ fn car_bounds_are_a_car_sized_box() {
         let h = b.half_dimensions;
         assert!((0.7..1.3).contains(&h.x) && (0.4..1.2).contains(&h.y) && (1.9..3.4).contains(&h.z), "{car}: {h}");
     }
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_m3_gtr_brakes_and_tires_match_the_data() {
+    let Some(db) = attributes() else { return };
+    let tires = physics::tires(link(&db, "bmwm3gtr", "tires"));
+    assert_eq!(tires.rim_size, [19.0, 19.0], "docs/formats/attributes.md");
+    // 19 inch rims with a low sidewall: a 0.32 to 0.36 m rolling radius.
+    for axle in 0..2 {
+        let r = tires.radius(axle);
+        assert!((0.30..0.38).contains(&r), "axle {axle}: radius {r}");
+        assert!(tires.static_grip[axle] > 0.5 && tires.static_grip[axle] < 2.5, "{:?}", tires.static_grip);
+        assert!(tires.dynamic_grip[axle] <= tires.static_grip[axle] + 1e-6);
+    }
+    let brakes = physics::brakes(link(&db, "bmwm3gtr", "brakes"));
+    assert!(brakes.brakes.iter().all(|&b| b > 100.0), "{brakes:?}");
+    assert!(brakes.ebrake > 0.0);
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_m3_gtr_body_has_its_mass_and_a_normal_gravity() {
+    let Some(db) = attributes() else { return };
+    let pvehicle = Fields(db.collection("pvehicle", "bmwm3gtr").unwrap());
+    let body = physics::body(pvehicle);
+    assert_eq!(body.mass, 1350.0, "docs/formats/attributes.md");
+    assert_eq!(body.tensor_scale, glam::Vec3::new(1.0, 2.0, 1.0));
+    assert!((-10.0..-9.5).contains(&body.spec.gravity), "gravity {}", body.spec.gravity);
+    assert!(
+        body.spec.ground_friction[0] > 0.0 && body.spec.ground_friction[0] <= 1.5,
+        "{:?}",
+        body.spec.ground_friction
+    );
+    assert!(body.spec.sleep_velocity > 0.0);
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn every_car_has_a_plausible_mass() {
+    let Some(db) = attributes() else { return };
+    let mut checked = 0;
+    for car in db.collections_of("pvehicle") {
+        let Some(name) = car.name() else { continue };
+        if car.follow("engine").is_none() || physics::engine(Fields(car.follow("engine").unwrap())).torque.len() < 2 {
+            continue;
+        }
+        let body = physics::body(Fields(car));
+        assert!((700.0..12000.0).contains(&body.mass), "{name}: {} kg", body.mass);
+        checked += 1;
+    }
+    assert!(checked >= 50);
 }
