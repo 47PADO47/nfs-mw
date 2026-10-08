@@ -13,7 +13,7 @@ of drawable nodes. **No rendering, no windowing, no Bevy, no wgpu:** a host draw
   step, linear and move-to interpolation, once / loop / ping-pong / chained scripts, events that become
   messages, response lists with if / else / end-if, buttons with focus messages.
 - The host binds values by object name hash (`set_text`, `set_label`, `set_hidden`, `set_rotation_z`,
-  `set_alpha`, `set_colour`, `set_texture`, `run_script`), posts messages, takes the messages that leave
+  `set_alpha`, `set_colour`, `set_texture`, `set_mask_rotation`, `run_script`), posts messages, takes the messages that leave
   (`take_outgoing`: to the game, to sound, package commands) and reads `Runtime::tree`: per node the kind,
   resolved text, transform, accumulated colour, depth and the far-to-near `draw_order`.
 - **Input:** the host sets the pad mask each frame (`set_pad_mask`, bits in `runtime::pad`) and the engine turns it

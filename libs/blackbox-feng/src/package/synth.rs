@@ -38,6 +38,8 @@ pub struct Obj {
     pub size: [f32; 3],
     pub text: Option<String>,
     pub label: u32,
+    /// First extra texture of a multi image (the mask); a multi image has the rotation block in its data.
+    pub mask: u32,
     pub scripts: Vec<Vec<u8>>,
     pub responses: Vec<u8>,
 }
@@ -56,6 +58,7 @@ impl Obj {
             size: [1.0; 3],
             text: None,
             label: 0,
+            mask: 0,
             scripts: Vec::new(),
             responses: Vec::new(),
         }
@@ -68,6 +71,14 @@ impl Obj {
     pub fn image(guid: u32, name: u32) -> Self {
         let mut o = Self::new(1, guid, name);
         o.size = [10.0, 10.0, 1.0];
+        o
+    }
+
+    /// A multi image (type 12) with `mask` as its second texture.
+    pub fn multi(guid: u32, name: u32, mask: u32) -> Self {
+        let mut o = Self::new(12, guid, name);
+        o.size = [10.0, 10.0, 1.0];
+        o.mask = mask;
         o
     }
 
@@ -86,8 +97,14 @@ impl Obj {
         sa.extend(f32s(&self.position));
         sa.extend(f32s(&[0.0, 0.0, 0.0, 1.0]));
         sa.extend(f32s(&self.size));
-        if self.kind == 1 {
+        if self.kind == 1 || self.kind == 12 {
             sa.extend(f32s(&[0.0, 0.0, 1.0, 1.0]));
+        }
+        if self.kind == 12 {
+            // Upper-left and lower-right UVs of the three textures, then the mask pivot and rotation.
+            sa.extend(f32s(&[0.0; 6]));
+            sa.extend(f32s(&[1.0; 6]));
+            sa.extend(f32s(&[0.5, 0.5, 0.0]));
         }
         let mut objd = Vec::new();
         objd.extend(tag(b"Ot", &u32s(&[self.kind])));
@@ -97,6 +114,9 @@ impl Obj {
             objd.extend(tag(b"PA", &u32s(&[self.parent])));
         }
         objd.extend(tag(b"SA", &sa));
+        if self.kind == 12 {
+            objd.extend(tag(b"M1", &u32s(&[self.mask])));
+        }
         if let Some(text) = &self.text {
             let utf16: Vec<u8> = text.encode_utf16().chain([0]).flat_map(u16::to_le_bytes).collect();
             objd.extend(tag(b"St", &utf16));

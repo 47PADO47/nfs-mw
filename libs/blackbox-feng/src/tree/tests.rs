@@ -125,3 +125,19 @@ fn hidden_objects_and_pc_hidden_flags_do_not_draw() {
     rt.set_hidden(o, true);
     assert_eq!(rt.tree(id).draw_order, vec![1]);
 }
+
+#[test]
+fn multi_images_carry_their_mask_and_the_host_can_turn_it() {
+    let mut multi = Obj::multi(1, fe_hash_upper("Bar"), 0xABCD);
+    multi.position = [0.0, 0.0, 1.0];
+    let plain = Obj::image(2, fe_hash_upper("Plain"));
+    let (mut rt, id) = build(&[multi, plain], &[]);
+    let bar = rt.find(id, fe_hash_upper("Bar")).unwrap();
+    let NodeKind::Image { mask, mask_rotation, .. } = rt.tree(id).nodes[0].kind.clone() else { panic!("not an image") };
+    assert_eq!((mask, mask_rotation), (Some(0xABCD), [0.5, 0.5, 0.0]));
+    rt.set_mask_rotation(bar, 123.5);
+    let NodeKind::Image { mask_rotation, .. } = rt.tree(id).nodes[0].kind.clone() else { panic!("not an image") };
+    assert_eq!(mask_rotation, [0.5, 0.5, 123.5]);
+    let NodeKind::Image { mask, .. } = rt.tree(id).nodes[1].kind.clone() else { panic!("not an image") };
+    assert_eq!(mask, None, "a plain image has no mask");
+}

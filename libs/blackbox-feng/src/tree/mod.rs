@@ -3,7 +3,7 @@
 
 use glam::{Mat4, Quat, Vec3};
 
-use crate::package::{ObjectKind, ResourceKind};
+use crate::package::{ObjectKind, ResourceKind, word};
 use crate::runtime::{PackageId, Runtime};
 
 /// What a node draws.
@@ -11,11 +11,14 @@ use crate::runtime::{PackageId, Runtime};
 pub enum NodeKind {
     Group,
     /// A textured quad: the unit square scaled by the size, textured with `texture` (a key in the texture
-    /// packs; 0 = none) over the UV rectangle `[u0, v0, u1, v1]`. `mask` is the second texture of a multi image.
+    /// packs; 0 = none) over the UV rectangle `[u0, v0, u1, v1]`. `mask` is the second texture of a multi image;
+    /// `mask_rotation` is its pivot (`x`, `y`, fractions of the texture) and rotation (degrees), which the game
+    /// changes to fill a gauge (`[0.5, 0.5, 0.0]` for any other image).
     Image {
         texture: u32,
         uv: [f32; 4],
         mask: Option<u32>,
+        mask_rotation: [f32; 3],
     },
     /// A string. `font` is the font key (the resource handle of its `.ffn`).
     Text {
@@ -119,6 +122,13 @@ impl Runtime {
                     texture: state.texture.or_else(|| resource.map(|r| r.handle)).unwrap_or(0),
                     uv: data.uv(),
                     mask: def_obj.multi.and_then(|m| (m.textures[0] != 0).then_some(m.textures[0])),
+                    mask_rotation: match def_obj.multi {
+                        Some(_) => {
+                            let at = |i: usize| data.f32_at(word::MULTI_PIVOT_ROT + i);
+                            [at(0), at(1), at(2)]
+                        }
+                        None => [0.5, 0.5, 0.0],
+                    },
                 },
                 _ => NodeKind::Other,
             };
