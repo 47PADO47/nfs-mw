@@ -13,6 +13,7 @@ mod compare;
 mod ginsu;
 mod handling;
 mod manual;
+mod minimap;
 mod music;
 mod physics;
 mod sound;
