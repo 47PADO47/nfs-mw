@@ -6,11 +6,13 @@
 mod env;
 mod file;
 mod partial;
+mod transmission;
 mod write;
 
 use blackbox_render::Backend;
 
 pub use partial::{Partial, Percent, parse_bool};
+pub use transmission::Transmission;
 pub use write::write as write_file;
 
 use crate::app::pacing::MaxFps;
@@ -29,6 +31,8 @@ pub struct Settings {
     pub engine_volume: Percent,
     /// Draw the in-game HUD while driving (the free camera never shows it).
     pub hud: bool,
+    /// Who changes gear: the box (default) or the player.
+    pub transmission: Transmission,
 }
 
 impl From<Partial> for Settings {
@@ -44,6 +48,7 @@ impl From<Partial> for Settings {
             sfx_volume: p.sfx_volume.unwrap_or(Percent(90)),
             engine_volume: p.engine_volume.unwrap_or(Percent(90)),
             hud: p.hud.unwrap_or(true),
+            transmission: p.transmission.unwrap_or_default(),
         }
     }
 }
@@ -78,6 +83,7 @@ mod tests {
     fn defaults() {
         let s = Settings::from(Partial::default());
         assert_eq!((s.backend, s.vsync, s.max_fps), (Backend::Auto, true, MaxFps::default()));
+        assert_eq!(s.transmission, Transmission::Automatic, "automatic, as in the original");
     }
 
     #[test]

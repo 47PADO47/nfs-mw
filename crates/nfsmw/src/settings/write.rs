@@ -45,6 +45,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.hud {
         put("hud", Value::Boolean(v));
     }
+    if let Some(v) = changes.transmission {
+        put("transmission", Value::String(v.to_string()));
+    }
     toml::to_string(&table).context("serializing the config file")
 }
 
@@ -94,6 +97,7 @@ mod tests {
             sfx_volume: Some(Percent(30)),
             engine_volume: Some(Percent(40)),
             hud: Some(false),
+            transmission: Some(crate::settings::Transmission::Manual),
             ..Partial::default()
         };
         let text = merge("", &changes).unwrap();

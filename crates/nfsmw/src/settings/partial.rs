@@ -2,6 +2,7 @@
 
 use blackbox_render::Backend;
 
+use super::Transmission;
 use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
 
@@ -50,6 +51,7 @@ pub struct Partial {
     pub sfx_volume: Option<Percent>,
     pub engine_volume: Option<Percent>,
     pub hud: Option<bool>,
+    pub transmission: Option<Transmission>,
 }
 
 impl Partial {
@@ -65,6 +67,7 @@ impl Partial {
             sfx_volume: self.sfx_volume.or(lower.sfx_volume),
             engine_volume: self.engine_volume.or(lower.engine_volume),
             hud: self.hud.or(lower.hud),
+            transmission: self.transmission.or(lower.transmission),
         }
     }
 }

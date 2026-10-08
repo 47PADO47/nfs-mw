@@ -174,6 +174,10 @@ pub struct ViewArgs {
     /// Hide the in-game HUD even while driving.
     #[arg(long, conflicts_with = "hud")]
     pub no_hud: bool,
+    /// Who changes gear: automatic or manual (Q/E, the bumpers or the wheel paddles shift)
+    /// [env NFSMW_TRANSMISSION; config `transmission`; default automatic].
+    #[arg(long, value_name = "automatic|manual")]
+    pub transmission: Option<crate::settings::Transmission>,
     /// Numbers for a HUD that has no car behind it: "speed_kmh,rpm,max_rpm,gear" (for reference screenshots).
     #[arg(long, hide = true, value_name = "SPEED,RPM,MAX_RPM,GEAR", value_parser = parse_hud_demo, allow_hyphen_values = true)]
     pub hud_demo: Option<crate::hud::HudState>,
@@ -202,6 +206,7 @@ impl ViewArgs {
             show_metrics: self.show_metrics,
             master_volume: self.volume,
             hud: if self.no_hud { Some(false) } else { self.hud.then_some(true) },
+            transmission: self.transmission,
             ..Partial::default()
         }
     }

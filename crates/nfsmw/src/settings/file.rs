@@ -8,6 +8,7 @@ use std::str::FromStr;
 
 use toml::{Table, Value};
 
+use super::Transmission;
 use super::partial::{Partial, Percent};
 use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
@@ -46,6 +47,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         sfx_volume: field(&table, origin, "sfx_volume", percent),
         engine_volume: field(&table, origin, "engine_volume", percent),
         hud: field(&table, origin, "hud", |v| v.as_bool().ok_or_else(|| "expected true or false".to_owned())),
+        transmission: field(&table, origin, "transmission", |v| Transmission::from_str(text_of(v)?)),
     }
 }
 
@@ -112,6 +114,13 @@ mod tests {
             .hud,
             None
         );
+    }
+
+    #[test]
+    fn reads_the_transmission() {
+        assert_eq!(parse("transmission = 'manual'", "test").transmission, Some(Transmission::Manual));
+        assert_eq!(parse("transmission = 'automatic'", "test").transmission, Some(Transmission::Automatic));
+        assert_eq!(parse("transmission = 3", "test").transmission, None);
     }
 
     #[test]
