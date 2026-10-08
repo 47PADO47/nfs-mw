@@ -11,7 +11,9 @@ texture swaps, the car shader) and vehicle physics: [vehicle-engine-drivetrain.m
 [vehicle-input-induction-brakes.md](vehicle-input-induction-brakes.md),
 [vehicle-suspension-tires.md](vehicle-suspension-tires.md),
 [vehicle-steering-assists-aero.md](vehicle-steering-assists-aero.md) and
-[vehicle-rigid-body.md](vehicle-rigid-body.md).
+[vehicle-rigid-body.md](vehicle-rigid-body.md); car sound: [engine-sound.md](engine-sound.md) (files, telemetry,
+engine mix), [engine-sound-ginsu.md](engine-sound-ginsu.md) (the granular synthesiser) and
+[engine-sound-effects.md](engine-sound-effects.md) (shifting, turbo, nitrous, skids, collisions).
 
 ## Template
 
