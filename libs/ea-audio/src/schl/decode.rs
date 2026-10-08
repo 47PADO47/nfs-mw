@@ -60,23 +60,10 @@ impl StreamDecoder {
         if count > max_samples {
             return Err(Error::Corrupt("block claims more samples than its data can hold"));
         }
-        let mut decoded: Vec<Vec<i16>> = Vec::with_capacity(ch);
-        let revision = if self.header.pcm_blocks { Revision::V2 } else { Revision::V1 };
-        if self.header.codec == Codec::EaXaStereo {
-            decoded = self.decode_stereo(payload, starts[0], count)?;
-        } else {
-            for (c, &start) in starts.iter().enumerate() {
-                let data = slice(payload, start, payload.len().saturating_sub(start))?;
-                let mut samples = Vec::with_capacity(count);
-                match &mut self.channels[c] {
-                    Channel::Xa(state) => {
-                        state.decode_run(data, revision, count, &mut samples)?;
-                    }
-                    Channel::MicroTalk(decoder) => decoder.decode_channel(data, count, &mut samples)?,
-                }
-                decoded.push(samples);
-            }
-        }
+        let decoded = match self.header.codec {
+            Codec::EaXaStereo => self.decode_stereo(payload, starts[0], count)?,
+            _ => self.decode_channels(payload, &starts, count)?,
+        };
         out.reserve(count * ch);
         for i in 0..count {
             for channel in &decoded {
@@ -84,6 +71,24 @@ impl StreamDecoder {
             }
         }
         Ok(count)
+    }
+
+    /// Decode every channel of a block independently (everything except the stereo flavour).
+    fn decode_channels(&mut self, payload: &[u8], starts: &[usize], count: usize) -> Result<Vec<Vec<i16>>> {
+        let revision = if self.header.pcm_blocks { Revision::V2 } else { Revision::V1 };
+        let mut decoded = Vec::with_capacity(starts.len());
+        for (channel, &start) in self.channels.iter_mut().zip(starts) {
+            let data = slice(payload, start, payload.len().saturating_sub(start))?;
+            let mut samples = Vec::with_capacity(count);
+            match channel {
+                Channel::Xa(state) => {
+                    state.decode_run(data, revision, count, &mut samples)?;
+                }
+                Channel::MicroTalk(decoder) => decoder.decode_channel(data, count, &mut samples)?,
+            }
+            decoded.push(samples);
+        }
+        Ok(decoded)
     }
 
     /// Byte offset inside the payload at which each channel's data starts.
