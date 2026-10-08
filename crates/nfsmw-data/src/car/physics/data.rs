@@ -25,6 +25,11 @@ impl PhysicsData {
         Ok(Self { db, bounds, surfaces })
     }
 
+    /// The gameplay database (`attributes.bin`).
+    pub fn database(&self) -> &Database {
+        &self.db
+    }
+
     /// The physics of car type `type_name` (e.g. `BMWM3GTR`).
     pub fn car(&self, type_name: &str) -> Result<CarPhysics> {
         let bounds = car_bounds(&self.bounds, type_name)?;

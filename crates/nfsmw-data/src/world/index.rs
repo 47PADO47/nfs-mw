@@ -13,6 +13,8 @@ pub struct WorldIndex {
     pub visible: VisibleSections,
     /// Which collision instances touch each map cell (`docs/formats/collision.md`).
     pub collision_grid: Option<blackbox_collision::Grid>,
+    /// The bounds of the props (cones, bins, poles...), keyed by an object name hash.
+    pub prop_bounds: Vec<blackbox_collision::BoundsSet>,
     /// Install-relative path of the stream file.
     pub stream_file: String,
 }
@@ -28,6 +30,8 @@ impl WorldIndex {
                 .with_context(|| format!("reading the visible sections in {meta_file}"))?;
         let collision_grid = blackbox_collision::Grid::read(&meta)
             .with_context(|| format!("reading the collision grid in {meta_file}"))?;
+        let prop_bounds = blackbox_collision::read_bounds_sets(&meta)
+            .map_err(|e| anyhow::anyhow!("reading the prop bounds in {meta_file}: {e}"))?;
         log::info!(
             "{track}: {} sections ({} map tiles, {} shared), {} zones",
             sections.len(),
@@ -40,6 +44,7 @@ impl WorldIndex {
             sections,
             visible,
             collision_grid,
+            prop_bounds,
             stream_file: format!("TRACKS/STREAM{track}.BUN"),
         })
     }

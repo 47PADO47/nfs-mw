@@ -82,3 +82,52 @@ fn collision_packs_come_with_map_tiles() {
     }
     assert_eq!(packs.len(), 390);
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR); reads the whole 533 MB stream"]
+fn prop_bounds_sit_where_their_scenery_is() {
+    use blackbox_attrib::Database;
+    use glam::{Mat4, Vec3};
+    use nfsmw_data::world::{PropCatalog, PropKind};
+
+    let Some(dir) = install() else { return };
+    let index = WorldIndex::open(&dir, DEFAULT_TRACK).unwrap();
+    assert_eq!(index.prop_bounds.len(), 405);
+    let db = Database::open(&dir.read("GLOBAL/ATTRIBUTES.BIN").unwrap()).unwrap();
+    let catalog = PropCatalog::new(index.prop_bounds.clone(), &db);
+    let mut file = dir.open_file(&index.stream_file).unwrap();
+
+    let (mut checked, mut matched_names, mut far) = (0, std::collections::HashSet::new(), 0);
+    let (mut light, mut rigid) = (0, 0);
+    for (i, section) in index.sections.iter().enumerate() {
+        let data = load_section(&mut file, i, section).unwrap();
+        for sec in &data.scenery {
+            for inst in &sec.instances {
+                let Some(info) = sec.info_of(inst) else { continue };
+                let Some(shape) = catalog.shape(&info.name) else { continue };
+                matched_names.insert(info.name.clone());
+                match shape.kind {
+                    PropKind::Light { .. } => light += 1,
+                    PropKind::Rigid => rigid += 1,
+                }
+                let m = Mat4::from_cols_array_2d(&inst.matrix_columns());
+                // The prop's box centre in the world must lie within the instance's own box, enlarged a little.
+                let (lo, hi) = (Vec3::from(inst.bbox_min) - 1.5, Vec3::from(inst.bbox_max) + 1.5);
+                for b in &shape.boxes {
+                    let c = m.transform_point3(b.centre);
+                    checked += 1;
+                    if c.cmplt(lo).any() || c.cmpgt(hi).any() {
+                        far += 1;
+                    }
+                }
+            }
+        }
+    }
+    eprintln!(
+        "{} named props, {checked} boxes checked, {far} outside their scenery; {light} light and {rigid} rigid instances",
+        matched_names.len()
+    );
+    assert!(matched_names.len() >= 200, "{} props matched", matched_names.len());
+    assert!(far * 20 < checked, "{far} of {checked} prop boxes are not where their scenery is");
+    assert!(light > 1000 && rigid > 1000);
+}
