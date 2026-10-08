@@ -1,4 +1,4 @@
-//! Presenting the HUD: turning the FEng tree into something drawn.
+//! Presenting an FEng screen: turning the FEng tree into something drawn.
 //!
 //! There is exactly one presenter, [`blackbox`], which makes meshes for `blackbox-render`'s UI layer. A
 //! presenter takes the tree and the assets and writes into the frame's [`UiOutput`](crate::gui::UiOutput);

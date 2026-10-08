@@ -5,12 +5,14 @@ mod audio;
 mod cli;
 mod commands;
 mod devtools;
+mod frontend;
 mod gui;
 mod hud;
 mod input;
 mod movie;
 mod scenes;
 mod settings;
+mod ui;
 mod viewer;
 
 use clap::Parser;

@@ -18,17 +18,18 @@ Three layers with one direction of dependency, and **exactly one presenter**.
    image with texture and UV, text with the resolved string and font), its transform, accumulated colour, depth
    and the order to draw in. It also has the host interface: bind values by object name (text, visibility,
    rotation, texture, script), post messages, take the messages the UI sends out, move the focus.
-2. **`crates/nfsmw/src/hud/`**: plain data and glue. `HudState` is a plain resource (speed, rpm, gear, shift
-   light, units). `assets` loads the package, fonts, textures and strings from the install. `bind` copies
-   `HudState` into the runtime using the names the game uses. The plugin runs them each frame.
-3. **`hud/present/blackbox.rs`**: the single presenter. It turns the `UiTree` into premultiplied meshes for
+2. **`crates/nfsmw/src/ui/`, `hud/` and `frontend/`**: plain data and glue. `ui/` is shared: the packages of the
+   install by name (`Catalog`), the fonts, textures and strings (`UiAssets`) and the presenter. `HudState` (in
+   `hud/`) is a plain resource (speed, rpm, gear, shift light, units); `bind` copies it into the runtime using the
+   names the game uses. `frontend/` runs the menu screens (milestone 6). The plugins run them each frame.
+3. **`ui/present/blackbox.rs`**: the single presenter. It turns the `UiTree` into premultiplied meshes for
    `blackbox-render`'s UI layer and uploads the textures it needs as UI texture patches. It runs after the egui
    pass and puts the HUD under egui's panels (console, metrics).
 
 Rules that keep it replaceable:
 
 - Game code (scenes, physics, input) knows `HudState` only. A scene returns it from `Scene::hud_state`. Nothing
-  outside `hud/` names FEng or the presenter.
+  outside `hud/`, `ui/` and `frontend/` names FEng or the presenter.
 - The presenter has a small surface: tree, assets, screen size, in; meshes and texture patches, out. A Bevy UI
   presenter (`bevy_ui` nodes, or sprites) replaces `present/blackbox.rs` and leaves the rest alone.
 - The tree carries everything a presenter needs (world matrix, colour, depth, order), so a presenter does not

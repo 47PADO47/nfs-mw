@@ -7,16 +7,19 @@ use bevy_window::{PrimaryWindow, Window};
 use blackbox_feng::{PackageId, Runtime};
 use game_install::GameDir;
 
-use super::assets::HudAssets;
 use super::bind::HudBinding;
-use super::present::{BlackboxPresenter, Screen};
 use super::state::HudState;
 use crate::app::{FrameSet, Host};
 use crate::gui::UiOutput;
-use crate::settings::Settings;
+use crate::ui::present::Screen;
+use crate::ui::{Catalog, Presenter, SharedAssets};
 
 /// Longest step the HUD clock takes, so a stall does not skip animations.
 const MAX_STEP: f32 = 0.1;
+
+/// The package that is the in-game HUD, and the files that hold it.
+const HUD_PACKAGE: &str = "HUD_SingleRace.fng";
+const HUD_FILES: [&str; 2] = ["GLOBAL/InGameB.bun", "GLOBAL/INGAMEC.BUN"];
 
 pub struct HudPlugin {
     pub dir: GameDir,
@@ -29,26 +32,28 @@ struct Hud {
     runtime: Runtime,
     package: PackageId,
     binding: HudBinding,
-    assets: HudAssets,
-    presenter: BlackboxPresenter,
 }
 
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
-        let assets = match HudAssets::load(&self.dir) {
-            Ok(a) => a,
-            Err(e) => {
-                log::warn!("the HUD is off: {e:#}");
-                return;
-            }
+        let Some(assets) = crate::ui::ensure(app, &self.dir) else { return };
+        let catalog = Catalog::load(&self.dir, &HUD_FILES);
+        let Some(package) = catalog.find(HUD_PACKAGE).cloned() else {
+            log::warn!("the HUD is off: the install has no {HUD_PACKAGE}");
+            return;
         };
+        log::info!(
+            "HUD: {} objects, {} resources without a texture",
+            package.objects.len(),
+            assets.missing_resources(&package).len()
+        );
         let mut runtime = Runtime::new();
         if let Some(strings) = assets.strings.clone() {
             runtime.set_string_resolver(move |label| strings.get(label));
         }
-        let package = runtime.load(assets.package.clone());
+        let package = runtime.load(package);
         let binding = HudBinding::new(&mut runtime, package);
-        app.insert_resource(Hud { runtime, package, binding, assets, presenter: BlackboxPresenter::default() })
+        app.insert_resource(Hud { runtime, package, binding })
             .insert_resource(self.initial.clone())
             .add_systems(Update, sync.in_set(FrameSet::SceneUpdate))
             .add_systems(Update, present.in_set(FrameSet::Hud));
@@ -65,12 +70,13 @@ fn sync(host: NonSend<Host>, mut state: ResMut<HudState>) {
 fn present(
     mut hud: ResMut<Hud>,
     state: Res<HudState>,
-    settings: Res<Settings>,
     time: Res<Time>,
+    assets: Res<SharedAssets>,
+    mut presenter: ResMut<Presenter>,
     window: Single<&Window, With<PrimaryWindow>>,
     mut out: ResMut<UiOutput>,
 ) {
-    if !state.visible || !settings.hud {
+    if !state.visible {
         return;
     }
     let hud = &mut *hud;
@@ -79,5 +85,5 @@ fn present(
     let _ = hud.runtime.take_outgoing();
     let tree = hud.runtime.tree(hud.package);
     let screen = Screen { width: window.width(), height: window.height(), pixels_per_point: window.scale_factor() };
-    hud.presenter.present(&tree, &hud.assets, screen, &mut out);
+    presenter.0.present(&tree, &assets.0, screen, &mut out);
 }
