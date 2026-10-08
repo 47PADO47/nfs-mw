@@ -6,6 +6,7 @@
 //! [`SoundCommand`]s) that the game maps to its banks and to the Ginsu synthesiser (`blackbox-ginsu`).
 
 mod avg;
+mod effects;
 mod engine;
 mod input;
 mod interp;
@@ -16,6 +17,7 @@ mod tuning;
 #[cfg(test)]
 mod tests;
 
+pub use effects::{EffectsMixer, ImpactPlay, ImpactRequest, Landing, LoopId, ScrapeKind, SoundCommand, SoundRef};
 pub use engine::{
     EngineEvents, EngineMixer, EngineOutput, LoopDrive, MAX_TICKS_PER_UPDATE, ShiftDirection, ShiftState, TICK_HZ,
     TICK_SECONDS,

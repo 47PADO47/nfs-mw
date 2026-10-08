@@ -94,7 +94,38 @@ impl Default for CarInput {
     }
 }
 
+impl WheelInput {
+    /// The wheel with every non-finite number read as zero.
+    pub(crate) fn sanitized(&self) -> Self {
+        let f = crate::math::finite;
+        Self {
+            slip: f(self.slip),
+            tolerated_slip: f(self.tolerated_slip),
+            skid: f(self.skid),
+            load: f(self.load),
+            compression: f(self.compression),
+            traction_usage: f(self.traction_usage),
+            ..*self
+        }
+    }
+}
+
 impl CarInput {
+    /// The telemetry with every non-finite number read as zero (the vertical axis as level).
+    pub(crate) fn sanitized(&self) -> Self {
+        let f = crate::math::finite;
+        Self {
+            rpm_pct: f(self.rpm_pct),
+            throttle: f(self.throttle),
+            brake: f(self.brake),
+            speed: f(self.speed),
+            wheels: self.wheels.map(|w| w.sanitized()),
+            up_dot: if self.up_dot.is_finite() { self.up_dot } else { 1.0 },
+            pitch_multiplier: f(self.pitch_multiplier),
+            ..*self
+        }
+    }
+
     /// Number of wheels on the ground.
     pub fn wheels_on_ground(&self) -> usize {
         self.wheels.iter().filter(|w| w.on_ground).count()
