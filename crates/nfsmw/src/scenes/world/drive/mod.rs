@@ -3,6 +3,7 @@
 //! the car appears; this module owns everything about the car itself.
 
 mod clock;
+mod fall;
 mod ground;
 mod input;
 mod rig;
@@ -20,6 +21,7 @@ use super::space;
 use crate::input::ActionState;
 use crate::viewer::camera::{ChaseCamera, Followed};
 use clock::FixedClock;
+use fall::FallWatch;
 use ground::WorldGround;
 pub use input::DriveInput;
 pub use rig::{CarPose, CarRig};
@@ -48,12 +50,6 @@ pub struct SpawnRequest {
 
 /// Seconds between the checks that remember the last place the car was on the road.
 const GOOD_SPOT_STEPS: u32 = 30;
-/// A car with no wheel down and nothing within this many metres below it has fallen off the map.
-const FALL_PROBE: f32 = 30.0;
-/// ...for this many physics steps in a row.
-const FALL_STEPS: u32 = 45;
-/// ...or when it is this far under the last road it was on.
-const FALL_BELOW_ROAD: f32 = 80.0;
 
 pub struct Drive {
     pub car_name: String,
@@ -75,7 +71,7 @@ pub struct Drive {
     /// The last place the car stood on a road with its wheels down: `reset` and falling off the map
     /// bring it back here when no road is near.
     last_good: Option<Spawn>,
-    fall_steps: u32,
+    fall: FallWatch,
     /// Step count at the last road check.
     last_check: u32,
 }
@@ -108,7 +104,7 @@ impl Drive {
             batch_run: false,
             steps: 0,
             last_good: None,
-            fall_steps: 0,
+            fall: FallWatch::default(),
             last_check: 0,
         }
     }
@@ -163,7 +159,7 @@ impl Drive {
         self.clock.reset();
         self.chase.snap();
         self.steps = 0;
-        self.fall_steps = 0;
+        self.fall.reset();
         self.last_check = 0;
         self.last_good = Some(spawn);
         true
@@ -229,6 +225,7 @@ impl Drive {
         let Some(sim) = self.sim.as_mut() else { return };
         let player = DriveInput::from_actions(actions);
         let ground = WorldGround { collision, surfaces };
+        let mut want_reset = false;
         for n in 0..steps {
             let mut input = player;
             if let Some(run) = self.script.as_mut() {
@@ -239,6 +236,7 @@ impl Drive {
             } else if n > 0 {
                 input = input.held();
             }
+            want_reset |= input.reset;
             let impact = sim.step(&input, &ground, Some((collision, &*props)));
             for (id, mass) in impact.knocked {
                 log::info!("knocked over a {mass:.0} kg prop ({} knocked over now)", props.knocked_count() + 1);
@@ -267,6 +265,12 @@ impl Drive {
             }
         }
         let finite = sim.is_finite();
+        if want_reset {
+            let at = self.current.position;
+            let heading = self.heading();
+            log::info!("reset at ({:.0}, {:.0}, {:.0})", at.x, at.y, at.z);
+            self.respawn_near([at.x, at.y], Some(heading));
+        }
         let wheels_down = self.telemetry.wheels_on_ground;
         let position = self.current.position;
         // Remember the last road the car stood on, and notice when it has fallen off the map.
@@ -280,15 +284,12 @@ impl Drive {
                     Some(Spawn { position: Vec3::new(position.x, position.y, height), heading: self.heading() });
             }
         }
-        if wheels_down == 0 && steps > 0 {
+        let last_height = self.last_good.map(|g| g.position.z);
+        let nothing_below = || {
             let [px, py, pz] = space::to_physics(position);
-            let nothing_below = collision.ground(px, pz, py, py - FALL_PROBE).is_none();
-            self.fall_steps = if nothing_below { self.fall_steps + steps } else { 0 };
-        } else if wheels_down > 0 {
-            self.fall_steps = 0;
-        }
-        let under_the_road = self.last_good.is_some_and(|g| position.z < g.position.z - FALL_BELOW_ROAD);
-        if self.fall_steps >= FALL_STEPS || under_the_road {
+            collision.ground(px, pz, py, py - fall::PROBE).is_none()
+        };
+        if self.fall.update(wheels_down, steps, position.z, last_height, nothing_below) {
             log::warn!(
                 "the car fell off the map at ({:.0}, {:.0}, {:.0}); putting it back on the road",
                 position.x,
@@ -298,7 +299,6 @@ impl Drive {
             if !self.restore_last_good() {
                 self.respawn_near([position.x, position.y], None);
             }
-            self.fall_steps = 0;
         }
         if !finite {
             log::error!("the car's state is not finite; putting it back on the road");

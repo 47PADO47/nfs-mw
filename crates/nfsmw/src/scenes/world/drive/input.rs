@@ -16,6 +16,8 @@ pub struct DriveInput {
     /// Shift requests; true for the one step after the button went down.
     pub shift_up: bool,
     pub shift_down: bool,
+    /// The reset button went down: put the car back on the nearest road.
+    pub reset: bool,
 }
 
 impl DriveInput {
@@ -28,13 +30,14 @@ impl DriveInput {
             nos: actions.pressed(Action::Nos),
             shift_up: actions.just_pressed(Action::ShiftUp),
             shift_down: actions.just_pressed(Action::ShiftDown),
+            reset: actions.just_pressed(Action::ResetCar),
         }
     }
 
     /// The same input with the one-shot shift requests cleared, for the second and later physics
     /// steps of a frame.
     pub fn held(self) -> Self {
-        Self { shift_up: false, shift_down: false, ..self }
+        Self { shift_up: false, shift_down: false, reset: false, ..self }
     }
 }
 
