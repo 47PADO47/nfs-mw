@@ -246,3 +246,11 @@ fn physics_outputs_drive_burnout_emission_and_quiet_rolling() {
     assert_eq!(effects.smoke.len(), 0);
     assert_eq!(effects.marks.len(), 0);
 }
+
+#[test]
+fn a_huge_frame_cannot_owe_more_puffs_than_the_buffer_holds() {
+    let mut effects = TireEffects::default();
+    effects.smoke.emit(0, Some(contact(0.0)), Vec3::ZERO, 1.0e9);
+    assert_eq!(effects.smoke.len(), MAX_PARTICLES);
+    assert_eq!(effects.smoke.emitted, MAX_PARTICLES as u64);
+}

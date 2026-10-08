@@ -89,7 +89,6 @@ impl TireEffects {
     pub fn build(&mut self, camera: Vec3, forward: Vec3) -> &EffectLayer {
         self.layer.clear();
         self.layer.detailed_particles = self.smoke.quality == crate::settings::SmokeQuality::High;
-        self.layer.soft_distance = 0.3;
         self.marks.geometry(&mut self.layer.surfaces);
         self.smoke.geometry(camera, forward, &mut self.layer.particles);
         &self.layer

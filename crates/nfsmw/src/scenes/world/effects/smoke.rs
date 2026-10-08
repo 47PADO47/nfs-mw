@@ -46,6 +46,9 @@ impl Smoke {
         }
         self.quality = quality;
         self.clear();
+        let limit = self.limit();
+        self.particles.reserve(limit);
+        self.order.reserve(limit);
     }
 
     pub fn limit(&self) -> usize {
@@ -86,7 +89,8 @@ impl Smoke {
         };
         let detailed = self.quality == SmokeQuality::High;
         let rate = if detailed { 70.0 } else { 35.0 };
-        self.emission[wheel] += c.smoke * rate * dt;
+        // A long frame cannot owe more puffs than the buffer holds.
+        self.emission[wheel] = (self.emission[wheel] + c.smoke * rate * dt).min(self.limit() as f32);
         while self.emission[wheel] >= 1.0 {
             self.emission[wheel] -= 1.0;
             let n = self.emitted as f32;
