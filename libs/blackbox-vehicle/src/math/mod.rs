@@ -52,6 +52,11 @@ pub fn graph(points: &[(f32, f32)], x: f32) -> f32 {
     last.1
 }
 
+/// Clamps `x` to `-limit..=limit`; a NaN or infinite value becomes 0.
+pub fn clamp_signed(x: f32, limit: f32) -> f32 {
+    if x.is_finite() { x.clamp(-limit, limit) } else { 0.0 }
+}
+
 /// Replaces non-finite values (NaN, infinities) by `fallback`. Used on outputs that feed back into state.
 pub fn finite_or(x: f32, fallback: f32) -> f32 {
     if x.is_finite() { x } else { fallback }
