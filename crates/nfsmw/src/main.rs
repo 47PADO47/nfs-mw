@@ -5,6 +5,7 @@ mod cli;
 mod commands;
 mod devtools;
 mod gui;
+mod hud;
 mod input;
 mod scenes;
 mod settings;

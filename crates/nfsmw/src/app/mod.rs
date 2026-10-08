@@ -40,6 +40,8 @@ pub enum FrameSet {
     SceneUpdate,
     /// Build the UI (overlay, console).
     Ui,
+    /// The HUD goes under the UI layer.
+    Hud,
     /// Hand the frame to the renderer.
     Draw,
 }
@@ -53,11 +55,15 @@ pub struct RunOptions {
     pub exec: Vec<String>,
     /// Start with the console open.
     pub open_console: bool,
+    /// Show the in-game HUD, reading its data from this install.
+    pub hud: Option<game_install::GameDir>,
+    /// Numbers the HUD shows until the scene supplies its own (`--hud-demo`).
+    pub hud_demo: Option<crate::hud::HudState>,
 }
 
 /// Open a window and run `scene` until the user quits (or write the screenshot and exit).
 pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> Result<()> {
-    let RunOptions { screenshot, exec, open_console } = options;
+    let RunOptions { screenshot, exec, open_console, hud, hud_demo } = options;
     let error = ErrorSlot(Arc::new(Mutex::new(None)));
     let mut window = Window { title: scene.title(), ..Window::default() };
     if screenshot.is_some() {
@@ -82,11 +88,17 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
     .insert_resource(*settings)
     .insert_resource(error.clone())
     .insert_non_send(Host::new(scene, settings, screenshot))
-    .configure_sets(Update, (FrameSet::Prepare, FrameSet::SceneUpdate, FrameSet::Ui, FrameSet::Draw).chain())
+    .configure_sets(
+        Update,
+        (FrameSet::Prepare, FrameSet::SceneUpdate, FrameSet::Ui, FrameSet::Hud, FrameSet::Draw).chain(),
+    )
     .add_systems(Update, (render::create_renderer, cursor::update, render::resize).chain().in_set(FrameSet::Prepare))
     .add_systems(Update, render::update_scene.in_set(FrameSet::SceneUpdate))
     .add_systems(Update, render::draw.in_set(FrameSet::Draw))
     .add_systems(Last, pacing::end_of_frame);
+    if let Some(dir) = hud {
+        app.add_plugins(crate::hud::HudPlugin { dir, initial: hud_demo.unwrap_or_default() });
+    }
     crate::devtools::start_console(&mut app, exec, open_console);
 
     match app.run() {

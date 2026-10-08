@@ -13,7 +13,7 @@ use bevy_ecs::prelude::*;
 use bevy_input::InputSystems;
 
 pub use input::GuiInput;
-pub use output::UiOutput;
+pub use output::{OwnedPatch, UiOutput};
 
 /// The egui context, shared by every panel.
 #[derive(Resource, Clone, Default)]

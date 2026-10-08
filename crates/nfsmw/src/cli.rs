@@ -104,14 +104,23 @@ pub struct ViewArgs {
     /// Start with the developer console open.
     #[arg(long, hide = true)]
     pub open_console: bool,
+    /// Show the in-game HUD (always on while driving).
+    #[arg(long)]
+    pub hud: bool,
+    /// Numbers for a HUD that has no car behind it: "speed_kmh,rpm,max_rpm,gear" (for reference screenshots).
+    #[arg(long, hide = true, value_name = "SPEED,RPM,MAX_RPM,GEAR", value_parser = parse_hud_demo, allow_hyphen_values = true)]
+    pub hud_demo: Option<crate::hud::HudState>,
 }
 
 impl ViewArgs {
-    pub fn run_options(&self) -> crate::app::RunOptions {
+    /// `hud_default` turns the HUD on without `--hud` (driving).
+    pub fn run_options(&self, dir: &game_install::GameDir, hud_default: bool) -> crate::app::RunOptions {
         crate::app::RunOptions {
             screenshot: self.screenshot.clone(),
             exec: self.exec.clone(),
             open_console: self.open_console,
+            hud: (self.hud || hud_default || self.hud_demo.is_some()).then(|| dir.clone()),
+            hud_demo: self.hud_demo.clone(),
         }
     }
 
@@ -124,6 +133,20 @@ impl ViewArgs {
             show_metrics: self.show_metrics,
         }
     }
+}
+
+fn parse_hud_demo(s: &str) -> Result<crate::hud::HudState, String> {
+    let n: Vec<f32> =
+        s.split(',').map(|v| v.trim().parse::<f32>().map_err(|e| e.to_string())).collect::<Result<_, _>>()?;
+    let [speed, rpm, max_rpm, gear] = n[..] else { return Err("expected SPEED,RPM,MAX_RPM,GEAR".into()) };
+    Ok(crate::hud::HudState {
+        speed: speed / 3.6,
+        rpm,
+        max_rpm,
+        gear: gear as i32,
+        shift_light: rpm > 0.93 * max_rpm,
+        ..Default::default()
+    })
 }
 
 fn parse_xy(s: &str) -> Result<[f32; 2], String> {

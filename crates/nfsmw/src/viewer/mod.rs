@@ -34,6 +34,10 @@ pub trait Scene {
     fn hud(&self) -> Option<String> {
         None
     }
+    /// What the in-game HUD shows this frame; `None` hides it.
+    fn hud_state(&self) -> Option<crate::hud::HudState> {
+        None
+    }
     /// The scene's own console commands as `(name, usage)`, listed by `help`.
     fn commands(&self) -> &'static [(&'static str, &'static str)] {
         &[]
