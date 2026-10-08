@@ -11,6 +11,7 @@
 //! Modules: [`math`], [`rigid_body`], [`engine`], [`drivetrain`], [`induction`], [`nos`], [`brakes`],
 //! [`tires`], [`suspension`], [`steering`], [`aero`], [`input`], [`ground`], [`vehicle`].
 
+pub mod aero;
 pub mod brakes;
 pub mod drivetrain;
 pub mod engine;
@@ -19,6 +20,7 @@ pub mod induction;
 pub mod math;
 pub mod nos;
 pub mod rigid_body;
+pub mod suspension;
 pub mod tires;
 
 /// The fixed simulation step, in seconds.
