@@ -47,7 +47,8 @@ fn sync_volumes(settings: Res<Settings>, mut audio: NonSendMut<Audio>) {
 fn drive_car(mut host: NonSendMut<Host>, time: Res<Time>, mut audio: NonSendMut<Audio>) {
     let car = host.scene.car_sound();
     audio.drive_car(car.as_ref(), time.delta_secs());
-    audio.update_radio(car.is_some());
+    // The pause menu freezes the car (no sound) but the game goes on, and so does the radio.
+    audio.update_radio(car.is_some() || host.scene.paused());
     if let Some(clip) = host.scene.take_clip()
         && let Err(e) = audio.play(super::Group::Music, super::pcm::sound(&clip))
     {

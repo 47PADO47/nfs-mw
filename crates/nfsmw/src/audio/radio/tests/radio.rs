@@ -187,7 +187,12 @@ fn no_music_volume_means_no_music() {
     assert_eq!((title(&radio), opened.load(Ordering::Relaxed)), (None, 0));
     radio.update(true, true, &mut mixer);
     assert!(title(&radio).is_some());
+    // Turned to zero while a song plays: the song goes on (silent) so the slider can be moved back without losing it.
     radio.update(true, false, &mut mixer);
+    assert_eq!(title(&radio), Some("B"));
+    assert_eq!(opened.load(Ordering::Relaxed), 1);
+    // Driving ends (quit to the main menu): now it stops, muted or not.
+    radio.update(false, false, &mut mixer);
     assert_eq!(title(&radio), None);
 }
 

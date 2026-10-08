@@ -342,9 +342,13 @@ database.
   thread reads the chain from the file with positioned reads and a custom `kira` sound plays the blocks (linear
   resampling to the device, a fade-out when it is stopped), so no song is held in memory. `nfsmw-data`'s `music`
   reads the 26 songs (artist, title, event, `DefPlay`); `Playlist` picks the next one by the original's rules
-  (front-end and in-game lists, ordered or shuffled without replacement). The radio starts when a car is driven,
-  starts the next song when one ends and stops when driving ends; `music_volume` and `master_volume` apply and
-  `--no-sound` turns it off. Console: `radio` (status), `radio next`, `radio on|off`, `radio list`, `radio play <n>`,
+  (front-end and in-game lists, ordered or shuffled without replacement). The radio plays while a game is on:
+  it starts when free roam begins (the scene has a car), goes on under the pause menu (`Scene::paused`; the car
+  falls silent, the game does not) and stops when the scene is left (quit to the main menu), so the menus have no
+  music yet. It starts the next song when one ends. `music_volume` and `master_volume` are read from the settings
+  every frame, so the pause menu's audio rows change the song on the air at once; a music volume of zero silences
+  the song without dropping it, and a new song only starts when the music is audible. `--no-sound` turns the
+  radio off. Console: `radio` (status), `radio next`, `radio on|off`, `radio list`, `radio play <n>`,
   `radio shuffle|ordered`. The song on the air is `Audio::now_playing()` (artist, title, album, elapsed) for the HUD,
   which does not draw it yet. The pursuit and ambience music (the same graph, driven by game state) and the jukebox
   are not done, and nobody has listened to the result: how the original ends a song is inferred (see the spec).

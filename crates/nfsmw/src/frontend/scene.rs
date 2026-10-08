@@ -118,6 +118,10 @@ impl Scene for Pausable {
         self.inner.car_sound()
     }
 
+    fn paused(&self) -> bool {
+        self.paused.get()
+    }
+
     fn fullscreen(&mut self) -> Option<Fullscreen> {
         self.inner.fullscreen()
     }
@@ -136,5 +140,21 @@ impl Scene for Pausable {
 
     fn command(&mut self, renderer: &mut Renderer, name: &str, args: &[&str]) -> Option<Result<String, String>> {
         self.inner.command(renderer, name, args)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_paused_game_is_still_a_game_for_the_radio() {
+        let flag = PauseFlag::default();
+        let mut scene = Pausable::new(Box::new(MenuScene), flag.clone());
+        assert!(!scene.paused());
+        flag.set(true);
+        assert!(scene.paused());
+        assert!(scene.car_sound().is_none(), "the car is silent while paused");
+        assert!(!MenuScene.paused(), "the menus are not a game");
     }
 }

@@ -51,6 +51,11 @@ pub trait Scene {
     fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
         None
     }
+    /// The game is on but frozen (the pause menu is up): there is no car sound, yet the game is still being
+    /// played, so the radio goes on.
+    fn paused(&self) -> bool {
+        false
+    }
     /// A picture to show over the window this frame, if any.
     fn fullscreen(&mut self) -> Option<Fullscreen> {
         None

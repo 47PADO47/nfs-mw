@@ -31,7 +31,7 @@ use stream::StreamData;
 /// Which play list is in use.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Context {
-    /// The menus (no front end exists yet; `radio next` outside the game uses it).
+    /// The menus (the front end does not start the radio yet; `radio next` outside the game uses it).
     FrontEnd,
     /// Driving.
     InGame,
@@ -160,9 +160,11 @@ impl Radio {
         Ok(Some(n))
     }
 
-    /// Once per frame: tell the radio whether the game is being driven and whether music can be heard. It starts
-    /// the next song when driving begins and when a song ends, and stops when driving ends (unless the player
-    /// started it by hand).
+    /// Once per frame: tell the radio whether the game is being played (driving, or paused in the game) and
+    /// whether music can be heard. It starts the next song when the game begins and when a song ends, and stops
+    /// when the game ends (unless the player started it by hand). A song on the air goes on when the music volume
+    /// is turned to zero (it is silent, not skipped), so moving the slider does not lose it; only a new song waits
+    /// for the music to be audible.
     pub fn update(&mut self, driving: bool, audible: bool, music: &mut impl Player) {
         if driving != self.driving {
             self.driving = driving;
@@ -172,10 +174,10 @@ impl Radio {
         if self.playing.as_ref().is_some_and(|p| p.handle.finished()) {
             self.stop();
         }
-        if !(self.enabled && audible && (driving || self.manual)) {
+        if !(self.enabled && (driving || self.manual)) {
             return self.stop();
         }
-        if self.playing.is_none() && self.broken.is_none() {
+        if self.playing.is_none() && audible && self.broken.is_none() {
             let started = self.start_next(music);
             if let Err(e) = started {
                 log::warn!("radio: {e}");
