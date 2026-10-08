@@ -100,7 +100,7 @@ impl Renderer {
                 start = end;
             }
         }
-        self.effects.draw(&mut pass);
+        self.effects.draw(&mut pass, &self.textures, &self.redirects);
         drop(pass);
         self.effects.draw_soft((&self.device, &self.queue), encoder, (target, depth), &self.shared, frame);
     }

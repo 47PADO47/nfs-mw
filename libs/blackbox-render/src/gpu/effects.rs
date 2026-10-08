@@ -2,20 +2,22 @@
 
 use super::Renderer;
 use super::resources::{DEPTH_FORMAT, Shared};
+use super::slots::Slots;
 use super::soft_particles::SoftParticles;
+use super::sprites::Sprites;
 use crate::{DEFAULT_SOFT_DISTANCE, EffectLayer, EffectVertex};
 
 pub(super) const ATTRIBUTES: [wgpu::VertexAttribute; 4] =
     wgpu::vertex_attr_array![0 => Float32x3, 1 => Unorm8x4, 2 => Float32x2, 3 => Float32x2];
 
-struct Batch {
-    buffer: wgpu::Buffer,
-    capacity: usize,
+pub(super) struct Batch {
+    pub(super) buffer: wgpu::Buffer,
+    pub(super) capacity: usize,
     count: u32,
 }
 
 impl Batch {
-    fn new(device: &wgpu::Device) -> Self {
+    pub(super) fn new(device: &wgpu::Device) -> Self {
         Self { buffer: Self::allocate(device, 1), capacity: 1, count: 0 }
     }
 
@@ -28,7 +30,7 @@ impl Batch {
         })
     }
 
-    fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, vertices: &[EffectVertex]) {
+    pub(super) fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, vertices: &[EffectVertex]) {
         self.count = vertices.len() as u32;
         if vertices.len() > self.capacity {
             self.capacity = vertices.len().next_power_of_two();
@@ -44,6 +46,7 @@ pub(super) struct Effects {
     batches: [Batch; 2],
     pipelines: [wgpu::RenderPipeline; 2],
     soft: SoftParticles,
+    pub(super) sprites: Sprites,
     detailed: bool,
     soft_distance: f32,
 }
@@ -105,12 +108,18 @@ impl Effects {
             batches: std::array::from_fn(|_| Batch::new(device)),
             pipelines,
             soft: SoftParticles::new(device, format, shared),
+            sprites: Sprites::new(device, format, shared),
             detailed: false,
             soft_distance: DEFAULT_SOFT_DISTANCE,
         }
     }
 
-    pub(super) fn draw(&self, pass: &mut wgpu::RenderPass<'_>) {
+    pub(super) fn draw(
+        &self,
+        pass: &mut wgpu::RenderPass<'_>,
+        textures: &Slots<wgpu::BindGroup>,
+        redirects: &std::collections::HashMap<usize, usize>,
+    ) {
         for (i, (batch, pipeline)) in self.batches.iter().zip(&self.pipelines).enumerate() {
             if batch.count == 0 || (i == 1 && self.detailed) {
                 continue;
@@ -119,6 +128,7 @@ impl Effects {
             pass.set_vertex_buffer(0, batch.buffer.slice(..));
             pass.draw(0..batch.count, 0..1);
         }
+        self.sprites.draw(pass, textures, redirects);
     }
 
     pub(super) fn draw_soft(
@@ -163,6 +173,7 @@ impl Renderer {
         for (batch, vertices) in self.effects.batches.iter_mut().zip([&layer.surfaces, &layer.particles]) {
             batch.upload(&self.device, &self.queue, vertices);
         }
+        self.effects.sprites.set(&self.device, &self.queue, layer);
     }
 
     /// Allocated capacities in vertices (surface, particle); counts may fall to zero while reused.
