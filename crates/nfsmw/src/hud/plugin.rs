@@ -11,6 +11,7 @@ use super::bind::HudBinding;
 use super::state::HudState;
 use crate::app::{FrameSet, Host};
 use crate::gui::UiOutput;
+use crate::settings::Settings;
 use crate::ui::present::Screen;
 use crate::ui::{Catalog, Presenter, SharedAssets};
 
@@ -70,13 +71,14 @@ fn sync(host: NonSend<Host>, mut state: ResMut<HudState>) {
 fn present(
     mut hud: ResMut<Hud>,
     state: Res<HudState>,
+    settings: Res<Settings>,
     time: Res<Time>,
     assets: Res<SharedAssets>,
     mut presenter: ResMut<Presenter>,
     window: Single<&Window, With<PrimaryWindow>>,
     mut out: ResMut<UiOutput>,
 ) {
-    if !state.visible {
+    if !state.visible || !settings.hud {
         return;
     }
     let hud = &mut *hud;
