@@ -9,6 +9,7 @@
 
 mod carparts;
 mod cars;
+mod handling;
 mod physics;
 mod textures;
 mod world;
