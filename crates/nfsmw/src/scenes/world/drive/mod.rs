@@ -10,12 +10,14 @@ mod rig;
 mod script;
 mod sim;
 mod sound;
+mod visual_tires;
 mod walls;
 
 use blackbox_collision::CollisionWorld;
 use glam::Vec3;
 use nfsmw_data::car::physics::{CarPhysics, SurfaceTable};
 
+use super::effects::TireEffects;
 use super::props::PropWorld;
 use super::road::{self, Spawn};
 use super::space;
@@ -55,6 +57,7 @@ const GOOD_SPOT_STEPS: u32 = 30;
 
 pub struct Drive {
     pub car_name: String,
+    pub effects: TireEffects,
     rig: CarRig,
     physics: CarPhysics,
     sim: Option<CarSim>,
@@ -95,6 +98,7 @@ impl Drive {
         };
         Self {
             car_name,
+            effects: TireEffects::default(),
             rig,
             physics,
             sim: None,
@@ -121,6 +125,7 @@ impl Drive {
 
     /// Ask for the car to be put on the road nearest `near`, keeping `heading` if given.
     pub fn respawn_near(&mut self, near: [f32; 2], heading: Option<f32>) {
+        self.effects.disconnect();
         self.request = Some(SpawnRequest { near, heading, exact: None });
     }
 
@@ -132,6 +137,7 @@ impl Drive {
     /// Put the car back where it last stood on a road, if it ever did.
     pub fn restore_last_good(&mut self) -> bool {
         let Some(good) = self.last_good else { return false };
+        self.effects.disconnect();
         self.request =
             Some(SpawnRequest { near: [good.position.x, good.position.y], heading: None, exact: Some(good) });
         true
@@ -155,9 +161,11 @@ impl Drive {
         };
         let rest = self.rig.rest_heights();
         let sim = self.sim.get_or_insert_with(|| CarSim::new(self.physics.clone(), rest));
+        sim.set_visual_tires(self.rig.visual_tires());
         if !sim.place(&ground, spawn) {
             return false;
         }
+        self.effects.disconnect();
         let pose = sim.pose();
         (self.previous, self.current) = (pose, pose);
         self.telemetry = sim.telemetry();
@@ -180,6 +188,7 @@ impl Drive {
     ) {
         std::mem::replace(&mut self.rig, rig).release(renderer);
         self.physics = physics;
+        self.effects.clear();
         self.car_name = name;
         if self.sim.take().is_some() {
             let at = self.current.position;
@@ -202,6 +211,14 @@ impl Drive {
         self.script.as_ref().is_none_or(|s| s.script.finished(s.time))
     }
 
+    /// Age parked/waiting effects without emitting. Completed screenshot batches stay deterministic.
+    pub fn age_effects(&mut self, dt: f32) {
+        self.effects.disconnect();
+        if !self.batch_run {
+            self.effects.age(dt);
+        }
+    }
+
     /// Run the physics for `dt` seconds of frame time (`dt == 0` with a script means a screenshot
     /// run: it steps a fixed batch instead, and stops when the script ends).
     /// A batch run also waits until the map around the car (`loaded`) has streamed in, so the car
@@ -216,9 +233,11 @@ impl Drive {
         loaded: bool,
     ) {
         if self.request.is_some() {
+            self.age_effects(dt);
             return;
         }
         if self.sim.is_none() {
+            self.age_effects(dt);
             return;
         }
         let batch = dt == 0.0 && self.script.as_ref().is_some_and(|s| !s.script.finished(s.time));
@@ -243,6 +262,7 @@ impl Drive {
             }
             want_reset |= input.reset;
             let impact = sim.step(&input, &ground, Some((collision, &*props)));
+            self.effects.step(sim.tire_contacts(collision), sim.effect_velocity(), clock::STEP);
             for &(id, mass) in &impact.knocked {
                 log::info!("knocked over a {mass:.0} kg prop ({} knocked over now)", props.knocked_count() + 1);
                 props.knock(id);
@@ -253,6 +273,7 @@ impl Drive {
             self.sound.after_step(sim, surfaces, &impact, &input, self.telemetry.speed_mps);
             self.steps += 1;
             if self.script.is_some() && self.steps.is_multiple_of(60) {
+                log::info!("tire effects: {}", self.effects.status());
                 let (p, t) = (self.current.position, &self.telemetry);
                 log::info!(
                     "t={:>5.1}s  {:>6.1} km/h  {:>5.0} rpm  gear {}  at ({:.1}, {:.1}, {:.2})  {} on ground  throttle {:.1} brake {:.1} steer {:+.2}",
@@ -269,6 +290,9 @@ impl Drive {
                     input.steer
                 );
             }
+        }
+        if batch && self.script.as_ref().is_none_or(|s| s.script.finished(s.time)) {
+            log::info!("tire effects at script end: {}", self.effects.status());
         }
         let finite = sim.is_finite();
         if want_reset {

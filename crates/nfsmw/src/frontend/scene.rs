@@ -61,11 +61,12 @@ impl PauseFlag {
 pub struct Pausable {
     inner: Box<dyn Scene>,
     paused: PauseFlag,
+    effects_dirty: bool,
 }
 
 impl Pausable {
     pub fn new(inner: Box<dyn Scene>, paused: PauseFlag) -> Self {
-        Self { inner, paused }
+        Self { inner, paused, effects_dirty: false }
     }
 }
 
@@ -79,9 +80,15 @@ impl Scene for Pausable {
     }
 
     fn update(&mut self, renderer: &mut Renderer, input: &ActionState, dt: f32) {
-        if !self.paused.get() {
-            self.inner.update(renderer, input, dt);
+        if self.paused.get() {
+            if self.effects_dirty {
+                self.inner.refresh_effects(renderer);
+                self.effects_dirty = false;
+            }
+            return;
         }
+        self.inner.update(renderer, input, dt);
+        self.effects_dirty = false;
     }
 
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
@@ -120,6 +127,11 @@ impl Scene for Pausable {
 
     fn paused(&self) -> bool {
         self.paused.get()
+    }
+
+    fn set_tire_effects(&mut self, smoke: bool, marks: bool) {
+        self.inner.set_tire_effects(smoke, marks);
+        self.effects_dirty = true;
     }
 
     fn fullscreen(&mut self) -> Option<Fullscreen> {

@@ -87,6 +87,10 @@ impl CarRig {
         }
     }
 
+    pub(super) fn visual_tires(&self) -> Option<[super::visual_tires::VisualTire; 4]> {
+        super::visual_tires::from_model(&self.model)
+    }
+
     /// Append the car's instances for `pose`.
     pub fn instances(&self, pose: &CarPose, out: &mut Vec<Instance>) {
         let world = pose.transform();

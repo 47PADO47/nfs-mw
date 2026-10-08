@@ -1,6 +1,7 @@
 //! The wgpu implementation of the renderer (Vulkan, Direct3D 12, OpenGL).
 
 mod capture;
+mod effects;
 mod frame;
 mod init;
 mod instances;
@@ -29,6 +30,7 @@ pub struct Renderer {
     textures: slots::Slots<wgpu::BindGroup>,
     meshes: slots::Slots<meshes::GpuMesh>,
     instances: instances::InstanceBuffer,
+    effects: effects::Effects,
     ui: ui::Ui,
     /// Texture slot -> slot drawn in its place (animated textures).
     redirects: std::collections::HashMap<usize, usize>,

@@ -53,12 +53,18 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         sfx_volume: field(&table, origin, "sfx_volume", percent),
         engine_volume: field(&table, origin, "engine_volume", percent),
         hud: field(&table, origin, "hud", |v| v.as_bool().ok_or_else(|| "expected true or false".to_owned())),
+        tire_smoke: field(&table, origin, "tire_smoke", boolean),
+        skid_marks: field(&table, origin, "skid_marks", boolean),
     }
 }
 
 /// Read `key` through `convert`; a value of the wrong kind is reported and ignored.
 fn field<T>(table: &Table, origin: &str, key: &str, convert: impl Fn(&Value) -> Result<T, String>) -> Option<T> {
     convert(table.get(key)?).map_err(|e| log::warn!("{origin}: ignoring `{key}`: {e}")).ok()
+}
+
+fn boolean(v: &Value) -> Result<bool, String> {
+    v.as_bool().ok_or_else(|| "expected true or false".to_owned())
 }
 
 /// A volume written as a number (`70`, `0.7`) or a string (`"70%"`).

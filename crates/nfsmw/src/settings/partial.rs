@@ -54,6 +54,8 @@ pub struct Partial {
     pub sfx_volume: Option<Percent>,
     pub engine_volume: Option<Percent>,
     pub hud: Option<bool>,
+    pub tire_smoke: Option<bool>,
+    pub skid_marks: Option<bool>,
 }
 
 impl Partial {
@@ -72,6 +74,8 @@ impl Partial {
             sfx_volume: self.sfx_volume.or(lower.sfx_volume),
             engine_volume: self.engine_volume.or(lower.engine_volume),
             hud: self.hud.or(lower.hud),
+            tire_smoke: self.tire_smoke.or(lower.tire_smoke),
+            skid_marks: self.skid_marks.or(lower.skid_marks),
         }
     }
 }

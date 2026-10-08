@@ -21,6 +21,8 @@ pub enum Setting {
     Metrics,
     Hud,
     WindowMode,
+    TireSmoke,
+    SkidMarks,
 }
 
 /// What a row's title shows.
@@ -70,6 +72,8 @@ pub fn rows(category: Category) -> Vec<Row> {
             row(Setting::MaxFps, Title::Text("Frame Limit")),
             row(Setting::Metrics, Title::Text("Performance Overlay")),
             row(Setting::WindowMode, Title::Text("Window Mode")),
+            row(Setting::TireSmoke, Title::Text("Tire Smoke")),
+            row(Setting::SkidMarks, Title::Text("Skid Marks")),
         ],
         Category::Gameplay => vec![row(Setting::Hud, Title::Label(0xAC14_8579))],
     }
@@ -106,6 +110,8 @@ impl Setting {
         match self {
             Setting::Vsync => on_off(s.vsync),
             Setting::Hud => on_off(s.hud),
+            Setting::TireSmoke => on_off(s.tire_smoke),
+            Setting::SkidMarks => on_off(s.skid_marks),
             Setting::WindowMode => Data::Text(
                 match s.window_mode {
                     WindowMode::Windowed => "Windowed",
@@ -158,6 +164,14 @@ impl Setting {
             Setting::Hud => {
                 s.hud = !s.hud;
                 changed.hud = Some(s.hud);
+            }
+            Setting::TireSmoke => {
+                s.tire_smoke = !s.tire_smoke;
+                changed.tire_smoke = Some(s.tire_smoke);
+            }
+            Setting::SkidMarks => {
+                s.skid_marks = !s.skid_marks;
+                changed.skid_marks = Some(s.skid_marks);
             }
             Setting::MaxFps => {
                 let at = FRAME_LIMITS.iter().position(|l| MaxFps::from_str(l).is_ok_and(|m| m == s.max_fps));
@@ -241,7 +255,7 @@ mod tests {
     #[test]
     fn every_category_has_rows() {
         assert_eq!(rows(Category::Audio).len(), 4);
-        assert_eq!(rows(Category::Video).len(), 4);
+        assert_eq!(rows(Category::Video).len(), 6);
         assert_eq!(rows(Category::Gameplay).len(), 1);
     }
 
@@ -256,5 +270,16 @@ mod tests {
         assert_eq!(s.window_mode, WindowMode::Windowed);
         Setting::WindowMode.step(&mut s, &mut changes, false);
         assert_eq!(s.window_mode, WindowMode::Exclusive);
+    }
+
+    #[test]
+    fn video_tire_toggles_record_independent_changes() {
+        let (mut s, mut changes) = (defaults(), Partial::default());
+        Setting::TireSmoke.step(&mut s, &mut changes, true);
+        assert_eq!((s.tire_smoke, changes.tire_smoke), (false, Some(false)));
+        assert!(s.skid_marks);
+        Setting::SkidMarks.step(&mut s, &mut changes, false);
+        assert_eq!((s.skid_marks, changes.skid_marks), (false, Some(false)));
+        assert_eq!(Setting::TireSmoke.data(&s), Data::Label(LABEL_OFF));
     }
 }

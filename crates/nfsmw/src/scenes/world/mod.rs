@@ -2,6 +2,7 @@
 
 mod commands;
 mod drive;
+mod effects;
 mod ground;
 mod props;
 mod residency;
@@ -81,6 +82,7 @@ pub struct WorldScene {
     last_car: String,
     /// Car physics data, road grips and the gameplay database.
     physics: PhysicsData,
+    tire_effects: [bool; 2],
 }
 
 /// Leaving the free camera more than this far (metres) from the car brings the car to the camera.
@@ -151,6 +153,7 @@ impl WorldScene {
             pending_car,
             drive: None,
             physics,
+            tire_effects: [true; 2],
         })
     }
 
@@ -197,6 +200,9 @@ impl WorldScene {
             }
         }
         self.last_car = name;
+        if let Some(drive) = self.drive.as_mut() {
+            drive.effects.set_enabled(self.tire_effects[0], self.tire_effects[1]);
+        }
         self.view = View::Chase;
         Ok(())
     }
@@ -252,7 +258,9 @@ impl WorldScene {
             let (collision, props) = self.residency.world_parts();
             drive.step(collision, props, &physics.surfaces, input, dt, loaded);
             drive.follow(self.residency.collision(), (input.value(Action::LookX), input.value(Action::LookY)), dt);
+            return;
         }
+        drive.age_effects(dt);
     }
 
     /// Switch between the chase camera and the free camera (the car waits while you fly).
@@ -325,6 +333,18 @@ impl Scene for WorldScene {
                 self.camera.position.z
             );
         }
+        self.upload_effects(renderer);
+    }
+
+    fn set_tire_effects(&mut self, smoke: bool, skid_marks: bool) {
+        self.tire_effects = [smoke, skid_marks];
+        if let Some(drive) = self.drive.as_mut() {
+            drive.effects.set_enabled(smoke, skid_marks);
+        }
+    }
+
+    fn refresh_effects(&mut self, renderer: &mut Renderer) {
+        self.upload_effects(renderer);
     }
 
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {

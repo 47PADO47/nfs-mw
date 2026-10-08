@@ -260,7 +260,13 @@ CarPose (render axes) ─► CarRig (assembled car, wheels posed: steer, spin, s
   `reset`. With `--screenshot` the script runs in batches, waits for the map around the car to load and the
   picture is taken when it ends; the run logs one line per second (speed, rpm, gear, position, wheels down).
 
-Known gaps: the car shader, tire smoke and skid marks (milestone 8), car-versus-car and traffic, damage,
+The driven car's fixed steps also feed its existing per-wheel smoke/skid intensities to
+`scenes/world/effects/`. Short collision projections anchor procedural marks to resident ground;
+camera-facing smoke and grounded strips use `blackbox-render::EffectLayer`, depth-tested after
+scene geometry and before the UI. CPU histories and reused GPU buffers have hard budgets.
+See [tire-effects.md](tire-effects.md) for controls and [the spec](specs/tire-effects.md) for the design.
+
+Known gaps: the car shader, car-versus-car and traffic, damage,
 one-sided barriers (a barrier blocks from both sides), the original's wall steering, a controller that has
 been tried on real hardware, and calibration of the handling against the original.
 

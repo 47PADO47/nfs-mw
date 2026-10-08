@@ -24,6 +24,9 @@ drawing), [feng-input.md](feng-input.md) (pad messages, focus, navigation) and [
 
 ## Template
 
+[Tire effects](tire-effects.md) describes this rewrite's procedural smoke and grounded marks,
+consuming the vehicle's existing intensities. Its appearance and lifetime are new design choices.
+
 ```markdown
 # <topic>
 

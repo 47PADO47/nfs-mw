@@ -184,6 +184,18 @@ pub struct ViewArgs {
     /// Hide the in-game HUD even while driving.
     #[arg(long, conflicts_with = "hud")]
     pub no_hud: bool,
+    /// Enable tire smoke [env NFSMW_TIRE_SMOKE; config `tire_smoke`; default on].
+    #[arg(long, conflicts_with = "no_tire_smoke")]
+    pub tire_smoke: bool,
+    /// Disable tire smoke.
+    #[arg(long)]
+    pub no_tire_smoke: bool,
+    /// Enable skid marks [env NFSMW_SKID_MARKS; config `skid_marks`; default on].
+    #[arg(long, conflicts_with = "no_skid_marks")]
+    pub skid_marks: bool,
+    /// Disable skid marks.
+    #[arg(long)]
+    pub no_skid_marks: bool,
     /// Numbers for a HUD that has no car behind it: "speed_kmh,rpm,max_rpm,gear" (for reference screenshots).
     #[arg(long, hide = true, value_name = "SPEED,RPM,MAX_RPM,GEAR", value_parser = parse_hud_demo, allow_hyphen_values = true)]
     pub hud_demo: Option<crate::hud::HudState>,
@@ -215,9 +227,18 @@ impl ViewArgs {
             resolution: self.resolution,
             master_volume: self.volume,
             hud: if self.no_hud { Some(false) } else { self.hud.then_some(true) },
+            tire_smoke: switch(self.tire_smoke, self.no_tire_smoke),
+            skid_marks: switch(self.skid_marks, self.no_skid_marks),
             ..Partial::default()
         }
     }
+}
+
+fn switch(on: bool, off: bool) -> Option<bool> {
+    if off {
+        return Some(false);
+    }
+    on.then_some(true)
 }
 
 fn parse_hud_demo(s: &str) -> Result<crate::hud::HudState, String> {

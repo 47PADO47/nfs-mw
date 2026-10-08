@@ -28,6 +28,8 @@ a record. Process: [licensing.md § Spec-first](../licensing.md#spec-first).
 
 ## Template
 
+[Tire effects](tire-effects.md) records the existing source inputs and the new procedural visual design.
+
 ```markdown
 # <crate or module>
 

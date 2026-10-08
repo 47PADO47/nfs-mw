@@ -47,7 +47,8 @@ pub const BUILT_IN: [(&str, &str); 15] = [
 ];
 
 /// Further shorthands for `set`: `vsync off` is `set vsync off`.
-const SET_SHORTHANDS: [&str; 6] = ["fps", "vsync", "metrics", "volume", "window_mode", "monitor"];
+const SET_SHORTHANDS: [&str; 8] =
+    ["fps", "vsync", "metrics", "volume", "window_mode", "monitor", "tire_smoke", "skid_marks"];
 
 /// Parse one line. `Ok(None)` for an empty line.
 pub fn parse(line: &str) -> Result<Option<Command>, String> {
@@ -72,6 +73,13 @@ pub fn parse(line: &str) -> Result<Option<Command>, String> {
         "set" => {
             need(2, "set <setting> <value>")?;
             Command::Set { key: args[0].to_ascii_lowercase(), value: args[1].to_owned() }
+        }
+        "tire-effects" if matches!(args.as_slice(), ["smoke" | "marks", _]) => {
+            let key = match args[0] {
+                "smoke" => "tire_smoke",
+                _ => "skid_marks",
+            };
+            Command::Set { key: key.to_owned(), value: args[1].to_owned() }
         }
         shorthand if SET_SHORTHANDS.contains(&shorthand) => {
             need(1, &format!("{shorthand} <value>"))?;

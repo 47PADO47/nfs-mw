@@ -54,6 +54,12 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.hud {
         put("hud", Value::Boolean(v));
     }
+    if let Some(v) = changes.tire_smoke {
+        put("tire_smoke", Value::Boolean(v));
+    }
+    if let Some(v) = changes.skid_marks {
+        put("skid_marks", Value::Boolean(v));
+    }
     toml::to_string(&table).context("serializing the config file")
 }
 
@@ -79,6 +85,12 @@ mod tests {
     use crate::app::pacing::MaxFps;
     use crate::devtools::ShowMetrics;
     use crate::settings::{Percent, file};
+
+    #[test]
+    fn tire_toggles_round_trip() {
+        let changes = Partial { tire_smoke: Some(false), skid_marks: Some(true), ..Partial::default() };
+        assert_eq!(file::parse(&merge("", &changes).unwrap(), "test"), changes);
+    }
 
     #[test]
     fn display_settings_round_trip_without_dropping_other_keys() {
