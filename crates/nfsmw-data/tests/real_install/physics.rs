@@ -137,3 +137,22 @@ fn every_car_has_a_plausible_mass() {
     }
     assert!(checked >= 50);
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_m3_gtr_chassis_is_a_sports_car_chassis() {
+    let Some(db) = attributes() else { return };
+    let c = physics::chassis(link(&db, "bmwm3gtr", "chassis"));
+    // docs/formats/attributes.md: wheel base 2.725 m, 54 % of the weight on the front axle.
+    assert_eq!((c.wheel_base, c.front_weight_bias), (2.725, 54.0));
+    for axle in 0..2 {
+        assert!((100.0..2000.0).contains(&c.spring_stiffness[axle]), "spring {:?}", c.spring_stiffness);
+        assert!(c.shock_stiffness[axle] > 0.0 && c.shock_ext_stiffness[axle] > 0.0, "{c:?}");
+        assert!((1.2..2.2).contains(&c.track_width[axle]), "track {:?}", c.track_width);
+        assert!((1.0..12.0).contains(&c.ride_height[axle]), "ride {:?}", c.ride_height);
+        assert!((1.0..12.0).contains(&c.travel[axle]), "travel {:?}", c.travel);
+    }
+    assert!((0.0..2.0).contains(&c.front_axle) && c.front_axle < c.wheel_base);
+    let aero = physics::aero(link(&db, "bmwm3gtr", "chassis"));
+    assert!(aero.drag_coefficient > 0.0, "{aero:?}");
+}
