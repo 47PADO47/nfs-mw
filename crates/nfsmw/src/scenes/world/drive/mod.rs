@@ -19,7 +19,7 @@ use blackbox_collision::CollisionWorld;
 use glam::Vec3;
 use nfsmw_data::car::physics::{CarPhysics, SurfaceTable};
 
-use super::effects::TireEffects;
+use super::effects::{CarState, TireEffects};
 use super::props::PropWorld;
 use super::road::{self, Spawn};
 use super::space;
@@ -303,6 +303,13 @@ impl Drive {
             self.previous = self.current;
             self.current = sim.pose();
             self.telemetry = sim.telemetry();
+            let car = CarState {
+                to_world: self.current.transform(),
+                velocity: sim.effect_velocity(),
+                gear: self.telemetry.gear,
+                nitrous: self.telemetry.nos_burning,
+            };
+            self.effects.flames.step(clock::STEP, &car);
             self.sound.after_step(sim, surfaces, &impact, &input, self.telemetry.speed_mps);
             self.steps += 1;
             if self.script.is_some() && self.steps.is_multiple_of(60) {

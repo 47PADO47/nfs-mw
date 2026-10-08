@@ -24,6 +24,7 @@ use nfsmw_data::world::{DEFAULT_TRACK, PropCatalog, Streamer, WorldIndex, load_g
 use crate::input::{Action, ActionState};
 use crate::viewer::{Scene, camera::FlyCamera};
 use drive::{CarRig, Drive, DriveScript, MarkerMeshes, SpawnRequest};
+use effects::ExhaustFlames;
 use residency::Residency;
 
 pub struct Options {
@@ -203,6 +204,7 @@ impl WorldScene {
             self.physics.database(),
             model.car_type.as_deref().unwrap_or(&name),
         );
+        let flames = ExhaustFlames::load(renderer, &self.dir, self.physics.database(), &model);
         let rig = CarRig::upload(renderer, model);
         let [x, y] = self.focus();
         match self.drive.as_mut() {
@@ -222,6 +224,8 @@ impl WorldScene {
             drive.effects.set_quality(self.smoke_quality);
             drive.vehicle_effects.set_enabled(self.vehicle_effects[0], self.vehicle_effects[1]);
             drive.vehicle_effects.set_style(self.spark_style);
+            drive.effects.flames.release(renderer);
+            drive.effects.flames = flames;
         }
         self.view = View::Chase;
         Ok(())

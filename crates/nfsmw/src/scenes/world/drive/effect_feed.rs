@@ -11,6 +11,7 @@ impl Drive {
         self.vehicle_effects.disconnect();
         if !self.batch_run {
             self.effects.age(dt);
+            self.effects.flames.age(dt);
             self.vehicle_effects.age(dt);
         }
     }

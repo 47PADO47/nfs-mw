@@ -1,6 +1,7 @@
 //! The tire visual layer, consuming existing physics intensities (spec: tire-effects.md).
 
 mod contacts;
+mod exhaust;
 #[cfg(test)]
 mod ground_tests;
 mod marks;
@@ -13,6 +14,7 @@ use blackbox_render::EffectLayer;
 use glam::Vec3;
 
 pub use contacts::{Contact, project};
+pub use exhaust::{CarState, ExhaustFlames};
 use marks::Marks;
 use smoke::Smoke;
 
@@ -25,11 +27,19 @@ pub struct TireEffects {
     marks: Marks,
     enabled: [bool; 2],
     layer: EffectLayer,
+    /// The flames at the tail pipes.
+    pub flames: ExhaustFlames,
 }
 
 impl Default for TireEffects {
     fn default() -> Self {
-        Self { smoke: Smoke::default(), marks: Marks::default(), enabled: [true; 2], layer: EffectLayer::default() }
+        Self {
+            smoke: Smoke::default(),
+            marks: Marks::default(),
+            enabled: [true; 2],
+            layer: EffectLayer::default(),
+            flames: ExhaustFlames::default(),
+        }
     }
 }
 
@@ -51,12 +61,14 @@ impl TireEffects {
         self.smoke.clear();
         self.marks.clear();
         self.layer.clear();
+        self.flames.clear();
     }
 
     /// Break track continuity on respawn or while the physics is parked; old marks may remain.
     pub fn disconnect(&mut self) {
         self.marks.disconnect();
         self.smoke.disconnect();
+        self.flames.disconnect();
     }
 
     pub fn age(&mut self, dt: f32) {
@@ -91,6 +103,7 @@ impl TireEffects {
         self.layer.detailed_particles = self.smoke.quality == crate::settings::SmokeQuality::High;
         self.marks.geometry(&mut self.layer.surfaces);
         self.smoke.geometry(camera, forward, &mut self.layer.particles);
+        self.flames.geometry(camera, forward, &mut self.layer);
         &mut self.layer
     }
 

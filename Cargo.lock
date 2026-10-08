@@ -2878,6 +2878,7 @@ dependencies = [
  "blackbox-minimap",
  "blackbox-mixmap",
  "blackbox-movie",
+ "blackbox-particles",
  "blackbox-render",
  "blackbox-scene",
  "blackbox-scenery",
