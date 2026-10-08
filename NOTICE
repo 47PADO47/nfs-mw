@@ -48,6 +48,16 @@ developer console and the performance overlay:
 The licence texts are in the epaint_default_fonts crate (fonts/*.txt) and are
 included in the generated third-party licence file of binary releases.
 
+VP6 video decoder, linked as a git dependency of libs/blackbox-movie (not vendored):
+  ruffle-rs/nihav-vp6 — https://github.com/ruffle-rs/nihav-vp6 — MIT
+    Copyright (c) 2021 Kostya Shishkov
+    The VP5/VP6 decoder of the NihAV project, which its author relicensed under the MIT
+    License for the Ruffle project (COPYING in the repository; see also
+    https://codecs.multimedia.cx/nihav-relicensed-code/). The crates nihav_core,
+    nihav_codec_support and nihav_duck declare no license field, so deny.toml clarifies
+    them. Pinned to commit 12d0bdf10a85641dc2de3d6900c747894431ed77. Only this subset is
+    MIT: the rest of NihAV is AGPL-3.0 and is not used.
+
 Rust dependencies are fetched by Cargo and keep their own licenses; see
 Cargo.lock and `cargo deny check licenses`. Binary releases will include a
 generated third-party license file.
@@ -78,8 +88,10 @@ Format readers and tools
   SpeedReflect/Nikki — https://github.com/SpeedReflect/Nikki — MIT (strings, collision, sun info).
   SpeedReflect/Binary, NFSTools/Binary — GPL-3.0 — read only.
   vgmstream — https://github.com/vgmstream/vgmstream — ISC-style (EA audio formats).
-  FFmpeg (libavformat/electronicarts.c, libavcodec/vp6.c) — LGPL-2.1+ — read only.
-  ruffle-rs/nihav-vp6 — https://github.com/ruffle-rs/nihav-vp6 — MIT (planned VP6 decoder).
+  FFmpeg (libavformat/electronicarts.c, libavcodec/vp6.c) — LGPL-2.1+ — read only (movie
+    container facts: docs/provenance/video.md).
+  ruffle-rs/nihav-vp6 — https://github.com/ruffle-rs/nihav-vp6 — MIT (VP6 decoder, used as a
+    dependency; see above).
   x07x08/nfsmw-save-editor — https://github.com/x07x08/nfsmw-save-editor — Unlicense (save offsets).
   EA Command & Conquer Generals source, EAC compression library — GPL-3.0 — read for
     understanding the HUFF codec only; see docs/formats/huff.md.

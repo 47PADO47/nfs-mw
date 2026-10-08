@@ -7,7 +7,15 @@ rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 
+[features]
+default = ["vp6"]
+# VP6 frame decoding through the MIT-licensed NihAV subset. Without it only the demuxer and the
+# timeline are built.
+vp6 = ["dep:nihav_core", "dep:nihav_duck"]
+
 [dependencies]
+nihav_core = { workspace = true, optional = true }
+nihav_duck = { workspace = true, optional = true }
 thiserror.workspace = true
 
 [lints]

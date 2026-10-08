@@ -28,6 +28,25 @@ exceptions = [
     { allow = ["OFL-1.1", "Ubuntu-font-1.0"], crate = "epaint_default_fonts" },
 ]
 
+# The VP6 decoder of NihAV that ruffle-rs split out (https://github.com/ruffle-rs/nihav-vp6): its author
+# relicensed this subset under MIT for Ruffle (COPYING at the repo root, one directory above each crate),
+# but the manifests have no `license` field, so the license is stated here. Pinned in Cargo.toml.
+# The hash is the CRC-32 of COPYING at that commit.
+[[licenses.clarify]]
+crate = "nihav_core"
+expression = "MIT"
+license-files = [{ path = "../COPYING", hash = 0x1973988d }]
+
+[[licenses.clarify]]
+crate = "nihav_codec_support"
+expression = "MIT"
+license-files = [{ path = "../COPYING", hash = 0x1973988d }]
+
+[[licenses.clarify]]
+crate = "nihav_duck"
+expression = "MIT"
+license-files = [{ path = "../COPYING", hash = 0x1973988d }]
+
 [bans]
 multiple-versions = "allow"
 wildcards = "deny"
@@ -36,3 +55,5 @@ allow-wildcard-paths = true
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
+# The VP6 decoder (see the clarifications above); not on crates.io.
+allow-git = ["https://github.com/ruffle-rs/nihav-vp6"]

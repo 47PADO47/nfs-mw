@@ -20,9 +20,10 @@ Which crates the rewrite uses or plans to use, and why. Versions and licenses we
 | png | 0.18 | MIT OR Apache-2.0 | `--screenshot` |
 | egui | 0.36 | MIT OR Apache-2.0 | Developer UI (metrics overlay, console). Only the context, layout and tessellation are used; `gui/` hands its output to `blackbox-render`'s UI layer. Its bundled fonts (Hack, Ubuntu-Light, Noto Emoji, emoji-icon-font) are OFL-1.1 and Ubuntu Font Licence: `deny.toml` has an exception and `NOTICE` lists them |
 | thiserror, anyhow, log, env_logger, pollster | — | MIT OR Apache-2.0 | Errors, logging, blocking on wgpu futures |
+| nihav_core, nihav_duck (+ nihav_codec_support) | 0.1.0, git `ruffle-rs/nihav-vp6` @ `12d0bdf` | MIT (repo `COPYING`; no `license` field in the manifests) | VP6 video decoding in [`blackbox-movie`](../libs/blackbox-movie), behind its default `vp6` feature. `deny.toml` allows the git source and clarifies the license |
 
 Written in-house because no crate exists: **JDLZ** and **HUFF** ([`ea-compress`](../libs/ea-compress)),
-**bChunk** parsing, the **TPK** and **solid** readers.
+**bChunk** parsing, the **TPK** and **solid** readers, and the **movie container** demuxer and timeline ([`blackbox-movie`](../libs/blackbox-movie)).
 
 ## Planned
 
@@ -33,7 +34,6 @@ Written in-house because no crate exists: **JDLZ** and **HUFF** ([`ea-compress`]
 | Collision queries (wheel raycasts, trimesh) | parry3d | Apache-2.0 | parry 0.31 pins glam 0.33 through glamx; align glam versions when adding it |
 | Audio output and mixing | kira (on cpal) | MIT OR Apache-2.0 | Its `Sound` trait fits a custom granular engine-sound synth |
 | EA-XA, EA-XAS, MicroTalk decoders | port from vgmstream | ISC-style | Keep vgmstream's notice in each ported file |
-| VP6 video | nihav-vp6 (git, ruffle-rs) | MIT | Plus our own MVhd/MV0K/MV0F demuxer |
 | Third-party notices | cargo-about | MIT OR Apache-2.0 | Generated from `Cargo.lock` for releases |
 
 ## Rejected

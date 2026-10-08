@@ -63,6 +63,10 @@ thiserror = "2"
 toml = "0.9"
 wgpu = "30"
 winreg = "0.56"
+# VP6 video: the VP5/VP6 subset of NihAV that Ruffle split out and kindly had relicensed to MIT by its
+# author (COPYING in the repo). Pinned to a commit; not on crates.io. deny.toml lists the repo.
+nihav_core = { git = "https://github.com/ruffle-rs/nihav-vp6", rev = "12d0bdf10a85641dc2de3d6900c747894431ed77" }
+nihav_duck = { git = "https://github.com/ruffle-rs/nihav-vp6", rev = "12d0bdf10a85641dc2de3d6900c747894431ed77" }
 
 [workspace.lints.rust]
 unsafe_code = "deny"

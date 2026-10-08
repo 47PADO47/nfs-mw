@@ -1033,6 +1033,8 @@ version = "0.1.0"
 name = "blackbox-movie"
 version = "0.1.0"
 dependencies = [
+ "nihav_core",
+ "nihav_duck",
  "thiserror 2.0.21",
 ]
 
@@ -2744,6 +2746,28 @@ dependencies = [
  "game-install",
  "glam 0.34.1",
  "log",
+]
+
+[[package]]
+name = "nihav_codec_support"
+version = "0.1.0"
+source = "git+https://github.com/ruffle-rs/nihav-vp6?rev=12d0bdf10a85641dc2de3d6900c747894431ed77#12d0bdf10a85641dc2de3d6900c747894431ed77"
+dependencies = [
+ "nihav_core",
+]
+
+[[package]]
+name = "nihav_core"
+version = "0.1.0"
+source = "git+https://github.com/ruffle-rs/nihav-vp6?rev=12d0bdf10a85641dc2de3d6900c747894431ed77#12d0bdf10a85641dc2de3d6900c747894431ed77"
+
+[[package]]
+name = "nihav_duck"
+version = "0.1.0"
+source = "git+https://github.com/ruffle-rs/nihav-vp6?rev=12d0bdf10a85641dc2de3d6900c747894431ed77#12d0bdf10a85641dc2de3d6900c747894431ed77"
+dependencies = [
+ "nihav_codec_support",
+ "nihav_core",
 ]
 
 [[package]]
