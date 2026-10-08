@@ -1,7 +1,8 @@
 # Vehicle engine, drivetrain, brakes and driver input
 
-Modules: not yet implemented. Planned home: a vehicle-physics crate (engine, transmission, induction, NOS,
-brakes, input shaping) fed by an AttribSys reader for the classes below.
+Modules: [`libs/blackbox-vehicle`](../../libs/blackbox-vehicle): `engine`, `drivetrain` (gearbox, differentials,
+torque loop, `Powertrain`), `induction`, `nos`, `brakes`, `input`, and the steering shaping in `steering`.
+Filled from AttribSys by `nfsmw-data`.
 
 - **Spec:** [docs/specs/vehicle-engine-drivetrain.md](../specs/vehicle-engine-drivetrain.md) (engine,
   clutch, torque loop, drivetrain split, gearbox) and
@@ -16,11 +17,23 @@ brakes, input shaping) fed by an AttribSys reader for the classes below.
   `Misc/Table.cpp`, `Tools/Inc/ConversionUtil.hpp`. Read for understanding only; no code copied. The field
   names and the unit conversion factors are facts. The tweak constants and tables quoted in the spec are
   tuning numbers recorded as data, not code.
-- **Implemented:** not yet. To be done from the specs only, with the decompiled code closed.
+- **Implemented:** 2026-10-08, from the specs only (the decompiled code was not open while writing). Engine
+  torque curve, engine braking, inertia, clutch, the torque loop, shift points, automatic and sport shifting,
+  speedometer and limiter, centre and axle differentials, drive-torque split, induction, nitrous, brake
+  torques and commands, input shaping and steering. Not implemented: perfect launch, drag shift quality,
+  engine heat, sabotage, staging, the catch-up cheats and forced stops.
 - **Checked against the game by:** nothing yet. The specs are [decomp] only; "How to check it" in each spec
   lists what to measure on the PC build.
-- **Known differences from the original:** none yet. Expected: the GameCube build was read, so values and
-  some behaviours of the PC build may differ (see questions).
+- **Known differences from the original:**
+  - The speed limiter tapers the throttle from the unclamped speedometer (the spec clamps it to the limit,
+    which would make the taper unreachable).
+  - Gear ratios are used as magnitudes; shift points are not computed for more than 10 gear entries.
+  - The steering range coefficient uses the `[1, 1.05, 1.1, 1.2, 1.3, 1.4]` table of the chassis spec rather
+    than the `[1, 1, 1.1, 1.2, 1.25, 1.35]` one listed here, and the input remap uses the "medium" set here
+    rather than the milder one in the chassis spec.
+  - The pedal dead zone defaults to 0.05 (Q4 has no value).
+  - Peak torque (Q2) is found by scanning the curve with the full induction boost, as the spec suggests.
+  - Expected: the GameCube build was read, so values and some behaviours of the PC build may differ.
 
 ## Open questions
 

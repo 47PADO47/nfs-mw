@@ -27,6 +27,7 @@ scaled down.
 | [`blackbox-streaming`](../libs/blackbox-streaming) | The track streaming index | `layout::MOST_WANTED` passed by the caller |
 | [`blackbox-scenery`](../libs/blackbox-scenery) | Scenery infos and instances; visibility rule | `layout::MOST_WANTED` passed by the caller |
 | [`blackbox-collision`](../libs/blackbox-collision) | World collision packs, the collision grid, car and prop bounds, a ray-cast query | — (one layout so far) |
+| [`blackbox-vehicle`](../libs/blackbox-vehicle) | Deterministic fixed-step vehicle physics: rigid body, engine and gearbox, suspension, tires, steering, aero; driven by plain parameter structs and a `Ground` ray-cast trait | — (parameters passed by the caller) |
 | [`blackbox-render`](../libs/blackbox-render) | Backend-neutral renderer (wgpu inside) | — |
 | [`blackbox-scene`](../libs/blackbox-scene) | Uploading solids and textures to the renderer; boxes; frustum culling | — |
 | [`game-install`](../libs/game-install) | Finding, validating and reading an install, case-insensitively | driven by a `GameSpec` |
@@ -46,7 +47,7 @@ Rules that keep this structure working:
   can change (for example to Bevy's renderer) without touching callers.
 - **Files stay small:** no source or doc file over 500 lines (`cargo xtask size-check`). Split by domain
   into folders and modules, with one struct or concern per file.
-- **Game rules will live in their own pure crates** (physics, AI), built spec-first ([licensing.md](licensing.md#spec-first)).
+- **Game rules live in their own pure crates** (physics in `blackbox-vehicle`, AI to come), built spec-first ([licensing.md](licensing.md#spec-first)). `blackbox-vehicle` takes no I/O and no collision dependency: the game fills its parameter structs from AttribSys and gives it a `Ground` over the collision world.
 
 ## Finding the install
 

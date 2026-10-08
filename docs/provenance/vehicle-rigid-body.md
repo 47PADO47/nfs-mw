@@ -1,7 +1,8 @@
 # Vehicle rigid body
 
-Modules: none yet. Planned home: an engine-generic rigid-body/collision library under `libs/` plus the
-vehicle glue in the game crate (see the code-organisation rules).
+Modules: [`libs/blackbox-vehicle`](../../libs/blackbox-vehicle): `rigid_body` (integration, inertia, drag,
+sleep, a plane-contact impulse) and the ground-contact glue in `vehicle`. Walls, props and car-versus-car are
+left to the caller, who uses `RigidBody::react_plane` with the collision library.
 
 - **Spec:** [docs/specs/vehicle-rigid-body.md](../specs/vehicle-rigid-body.md).
 - **Sources read for the spec:** dbalatoni13/nfsmw (CC0, decompiled), `src/Speed/Indep/Src/`:
@@ -17,9 +18,18 @@ vehicle glue in the game crate (see the code-organisation rules).
   parameters and `SetVehicleOnGround` are empty or stripped in the decompilation. The spec marks those
   parts **[unconfirmed]** and gives a textbook rule; the implementation must be tuned against measurements
   of the running game, not against more decompiled code.
-- **Implemented:** not yet. Record the date, and that the code was written from the spec only
-  (decompiled code not open), when the first module lands.
+- **Implemented:** 2026-10-08, from the spec only (decompiled code not open). Fixed-step semi-implicit
+  integration with forces applied one step late, rotation about the centre of gravity, box inertia and
+  `SetMass`, quadratic linear and angular drag, the speed clamps, sleep and waking, the ground contact of the
+  box corners with a textbook impulse and Coulomb friction. Not implemented: barriers and world objects,
+  car-versus-car and `ModifyCollision`, the collision reaction records, invulnerability, reset-to-road.
 - **Checked against the game by:** pending. The spec's "How to check it" lists the measurements (settling
   and sleep, wall rebound and head-on yaw damping, mass-ratio push-out in car-vs-car, reset timing).
-- **Known differences from the original:** none recorded yet. Expected: the solver internals above, and the
-  source of the car's collision half-dimensions, are reconstructed rather than read.
+- **Known differences from the original:**
+  - The impulse solver is the textbook rule (the original is not in the sources): one normal impulse with
+    restitution, then Coulomb friction that sticks or slides; no 16 sub-steps.
+  - Ground contact casts the eight corners of the body box from 0.3 m above and pushes out along the deepest
+    normal; no speed-dependent tolerance, no mesh points, no per-surface friction multiplier, no AI skip rule.
+  - A car with any wheel on the ground never sleeps (as specified); the vehicle wakes a sleeping body on
+    throttle or handbrake.
+  - The source of the car collision half-dimensions is the caller choice (`VehicleSpec::dimension`).
