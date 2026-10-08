@@ -228,6 +228,12 @@ pub struct ViewArgs {
     /// Smoke presentation: standard or high [env NFSMW_SMOKE_QUALITY; config `smoke_quality`; default standard].
     #[arg(long, value_name = "standard|high")]
     pub smoke_quality: Option<crate::settings::SmokeQuality>,
+    /// Turn the radio off [env NFSMW_RADIO=off; config `radio = false`; default on].
+    #[arg(long, conflicts_with = "radio")]
+    pub no_radio: bool,
+    /// Turn the radio on (it is on unless the config file or environment turn it off).
+    #[arg(long)]
+    pub radio: bool,
     /// Enable skid marks [env NFSMW_SKID_MARKS; config `skid_marks`; default on].
     #[arg(long, conflicts_with = "no_skid_marks")]
     pub skid_marks: bool,
@@ -273,6 +279,7 @@ impl ViewArgs {
             hud: if self.no_hud { Some(false) } else { self.hud.then_some(true) },
             tire_smoke: switch(self.tire_smoke, self.no_tire_smoke),
             smoke_quality: self.smoke_quality,
+            radio: switch(self.radio, self.no_radio),
             skid_marks: switch(self.skid_marks, self.no_skid_marks),
             transmission: self.transmission,
             ..Partial::default()

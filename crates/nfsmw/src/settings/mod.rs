@@ -46,6 +46,8 @@ pub struct Settings {
     pub hud: bool,
     /// Draw smoke from the driven car's loaded tire contacts.
     pub tire_smoke: bool,
+    /// Play the radio while driving (the `radio` console command still works when it is off).
+    pub radio: bool,
     /// Optional smoke presentation quality; standard retains the default cost and look.
     pub smoke_quality: SmokeQuality,
     /// Draw bounded, ground-following tire marks.
@@ -75,6 +77,7 @@ impl From<Partial> for Settings {
             engine_volume: p.engine_volume.unwrap_or(Percent(90)),
             hud: p.hud.unwrap_or(true),
             tire_smoke: p.tire_smoke.unwrap_or(true),
+            radio: p.radio.unwrap_or(true),
             smoke_quality: p.smoke_quality.unwrap_or_default(),
             skid_marks: p.skid_marks.unwrap_or(true),
             transmission: p.transmission.unwrap_or_default(),

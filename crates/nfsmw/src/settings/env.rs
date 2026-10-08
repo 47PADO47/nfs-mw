@@ -22,6 +22,7 @@ pub const SFX_VOLUME: &str = "NFSMW_SFX_VOLUME";
 pub const ENGINE_VOLUME: &str = "NFSMW_ENGINE_VOLUME";
 pub const HUD: &str = "NFSMW_HUD";
 pub const TIRE_SMOKE: &str = "NFSMW_TIRE_SMOKE";
+pub const RADIO: &str = "NFSMW_RADIO";
 pub const SMOKE_QUALITY: &str = "NFSMW_SMOKE_QUALITY";
 pub const SKID_MARKS: &str = "NFSMW_SKID_MARKS";
 pub const TRANSMISSION: &str = "NFSMW_TRANSMISSION";
@@ -46,6 +47,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         engine_volume: value(&get, ENGINE_VOLUME, Percent::from_str),
         hud: value(&get, HUD, parse_bool),
         tire_smoke: value(&get, TIRE_SMOKE, parse_bool),
+        radio: value(&get, RADIO, parse_bool),
         smoke_quality: value(&get, SMOKE_QUALITY, SmokeQuality::from_str),
         skid_marks: value(&get, SKID_MARKS, parse_bool),
         transmission: value(&get, TRANSMISSION, Transmission::from_str),

@@ -146,7 +146,7 @@ Runtime options resolve in layers, highest first ([`crates/nfsmw/src/settings/`]
 1. the command line (`--backend`, `--no-vsync`, `--max-fps`, `--show-metrics`, `--show-readout`);
 2. environment variables (`NFSMW_BACKEND`, `NFSMW_VSYNC`, `NFSMW_MAX_FPS`, `NFSMW_SHOW_METRICS`,
    `NFSMW_SHOW_READOUT`);
-3. the per-user config file (`backend`, `vsync`, `max_fps`, `show_metrics`, `show_readout`; the same file as
+3. the per-user config file (`backend`, `vsync`, `max_fps`, `show_metrics`, `show_readout`, `radio`; the same file as
    `game_dir`);
 4. the defaults (`auto`, vsync on, unlocked, overlay off, readout minimal).
 

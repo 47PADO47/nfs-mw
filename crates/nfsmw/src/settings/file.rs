@@ -56,6 +56,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         engine_volume: field(&table, origin, "engine_volume", percent),
         hud: field(&table, origin, "hud", |v| v.as_bool().ok_or_else(|| "expected true or false".to_owned())),
         tire_smoke: field(&table, origin, "tire_smoke", boolean),
+        radio: field(&table, origin, "radio", boolean),
         smoke_quality: field(&table, origin, "smoke_quality", |v| SmokeQuality::from_str(text_of(v)?)),
         skid_marks: field(&table, origin, "skid_marks", boolean),
         transmission: field(&table, origin, "transmission", |v| Transmission::from_str(text_of(v)?)),

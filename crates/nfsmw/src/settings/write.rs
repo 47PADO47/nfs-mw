@@ -60,6 +60,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.tire_smoke {
         put("tire_smoke", Value::Boolean(v));
     }
+    if let Some(v) = changes.radio {
+        put("radio", Value::Boolean(v));
+    }
     if let Some(v) = changes.skid_marks {
         put("skid_marks", Value::Boolean(v));
     }
@@ -150,6 +153,7 @@ mod tests {
             sfx_volume: Some(Percent(30)),
             engine_volume: Some(Percent(40)),
             hud: Some(false),
+            radio: Some(false),
             transmission: Some(crate::settings::Transmission::Manual),
             paddle_up: Some(5),
             paddle_down: Some(6),
