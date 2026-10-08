@@ -48,8 +48,18 @@ pub const BUILT_IN: [(&str, &str); 16] = [
 ];
 
 /// Further shorthands for `set`: `vsync off` is `set vsync off`.
-const SET_SHORTHANDS: [&str; 9] =
-    ["fps", "vsync", "metrics", "volume", "window_mode", "monitor", "tire_smoke", "skid_marks", "smoke_quality"];
+const SET_SHORTHANDS: [&str; 10] = [
+    "fps",
+    "vsync",
+    "metrics",
+    "volume",
+    "readout",
+    "window_mode",
+    "monitor",
+    "tire_smoke",
+    "skid_marks",
+    "smoke_quality",
+];
 
 /// Parse one line. `Ok(None)` for an empty line.
 pub fn parse(line: &str) -> Result<Option<Command>, String> {
@@ -139,6 +149,7 @@ mod tests {
     fn shorthands_are_sets() {
         assert_eq!(ok("fps 60"), Command::Set { key: "fps".into(), value: "60".into() });
         assert_eq!(ok("metrics advanced"), Command::Set { key: "metrics".into(), value: "advanced".into() });
+        assert_eq!(ok("readout full"), Command::Set { key: "readout".into(), value: "full".into() });
         assert!(parse("fps").is_err());
         assert!(parse("fps 1 2").is_err());
     }

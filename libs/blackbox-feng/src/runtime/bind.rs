@@ -39,6 +39,14 @@ impl Runtime {
         }
     }
 
+    /// Sets the rotation of a multi image's mask about its pivot, in degrees (a gauge that fills: the nitrous
+    /// bar, the redline). Other objects ignore it.
+    pub fn set_mask_rotation(&mut self, o: ObjectRef, degrees: f32) {
+        if let Some(s) = self.state_mut(o) {
+            s.data.set_f32(word::MULTI_PIVOT_ROT + 2, degrees);
+        }
+    }
+
     pub fn set_position(&mut self, o: ObjectRef, position: Vec3) {
         if let Some(s) = self.state_mut(o) {
             s.data.set_position(position);

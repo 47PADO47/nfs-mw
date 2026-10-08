@@ -152,8 +152,15 @@ The runtime emits a list of drawable nodes; the host draws them. Rules **[decomp
   [formats/frontend.md](../formats/frontend.md#fonts-fengfont-decomp--verified). The text of a string whose
   "not localized" flag is clear and whose label hash is known comes from the language table; otherwise the
   object's own text is shown.
-- **Multi images** use texture 1 as a mask with a rotation about a UV pivot (the tachometer redline). A first
-  implementation may draw them without the mask.
+- **Multi images** use texture 1 as a mask. The object data ends with a pivot (`x`, `y`, fractions of the
+  texture) and a rotation `z` in degrees, which the game sets to fill a gauge (`FEngSetMultiImageRot`: the
+  nitrous bar, the redline, the heat and engine temperature meters). The mask's coordinates are rotated about
+  the pivot (with the pivot at the centre, a point `P` of the picture samples the mask at
+  `c + R(P - c)`, `R = [[cos, sin], [-sin, cos]]`, `c` the centre of the mask, all in pixels); the picture is
+  drawn where the mask is. **[inferred]** The textures of the HUD's gauges settle the blend: the mask is a half
+  ring in its alpha channel (black colour) and the picture is the same half ring, so the picture's alpha times
+  the mask's alpha leaves an arc that shrinks as the rotation goes from 0 to 180 degrees, which is what a
+  gauge needs. The original's blend is in platform code that is not in the decompilation.
 - **Clip regions** are not used (the engine's clip path is empty).
 
 ## 7. The host interface
@@ -175,19 +182,51 @@ The runtime is plain data in and out; it knows nothing about rendering or the ga
 
 ## 8. The in-game HUD (`HUD_SingleRace.fng`)
 
-372 objects, 69 resources; the gauge cluster is at the bottom right. The game finds objects by name hash:
+372 objects, 69 resources; the gauge cluster is at the bottom right. The game finds objects by name hash and
+switches each element on by a feature mask (`FEngHud::DetermineHudFeatures`: the gauges setting turns on the
+speedometer, the tachometer, the nitrous gauge and, with a turbo, the turbo gauge):
 
 | Object (name) | What the game does with it |
 |---|---|
 | `SpeedometerGroup` (0x941fff09) | shown by the speedometer feature (mask `0x8000000`) |
-| `SPEED_DIGIT_1` … `_3` | printf digits of the speed; a leading zero hides the digit |
+| `SPEED_DIGIT_1` … `_3` | printf `%d` of the integer parts of the speed (truncated, not rounded); a leading zero hides the digit |
 | `3rdPersonSpeedUnits` | string with label `0x8569a25f` (KM/H) or `0x8569ab44` (MPH) |
 | `GaugeCluster` (0x5164d4ea) | the group of the tachometer features (mask `0x2`) |
-| `3rdPersonNeedle` | image rotated about z by `66 + 228 * (rpm / max rpm)` degrees, rpm fraction clamped to 0..1 |
-| `3rdPersonGear` | string `1`…`8`, `R`, `N` |
-| `Shift_light` | script `GREEN` (0x02DDC8F0) when the shift point is reached, `INIT` otherwise |
-| `TAC_Lines_7500` (0x309878bc) | its texture swapped to the tachometer face `<N>_LINES_<skin>` |
-| `RPM_REDLINE` (0xcdfce1b0) | multi image with the redline mask rotated to the red line |
+| `3rdPersonNeedle` | image rotated about z by `66 + 228 * clamp(rpm / scale)` degrees (below) |
+| `3rdPersonGear` | string `1`…`8`, `R`, `N`; black, alpha `0x88` while a gear change is in progress, `0xFF` otherwise |
+| `Shift_light` | script `GREEN` (0x02DDC8F0) when the shift potential is above 1 (up, good, perfect, miss), `INIT` otherwise |
+| `TAC_Lines_7500` (0x309878bc) | its texture swapped to the tachometer face `<scale>_LINES_<skin>` |
+| `RPM_REDLINE` (0xcdfce1b0) | multi image whose mask is turned to the red zone (table below) |
+| nitrous group (0x87c38e97), icon (0x27ddf583), bar (0xedfb6d37) | shown with the nitrous feature (`0x800`); the bar is a multi image whose mask is turned to `175 - 175 * nos` degrees (`nos` 0..1, full = 0) |
+| `TURBO_GROUP`, `3rdperson_TurboDial` | shown with the turbo feature (`0x20000`); the dial turns to `-(-45 + 90 * (psi + 20) / 40)` degrees |
+
+**Scale.** The engine's `MAX_RPM` picks the face and the sweep: below 7000 the 7000 face, below 8000 the 8000 face,
+below 9000 the 9000 face, else 10000 (`ChooseMaxRpmTextureNumber`, so an engine with `MAX_RPM` 8000 has the 9000
+face). The needle's fraction is `rpm / scale`.
+
+**Red zone.** The mask of `RPM_REDLINE` is turned to an angle chosen by the `MAX_RPM` band and the red line (the
+bigger the angle, the shorter the red zone); the first row whose red line is reached applies:
+
+| `MAX_RPM` below | red line from, angle | | | | else |
+|---|---|---|---|---|---|
+| 7000 | 6500: 164.5 | 6000: 149.5 | 5500: 131.5 | | 113.5 |
+| 8000 | 7500: 165 | 7000: 152 | 6500: 138 | 6000: 123 | 110 |
+| 9000 | 8500: 166 | 8000: 154 | 7500: 140.5 | 7000: 127 | 115 |
+| above | 9500: 167 | 9000: 156 | 8500: 145 | 8000: 134 | 123 |
+
+**Nitrous icon.** Each update the game tells the gauge the tank level: at 0 or below the icon plays `INIT`; below
+the previous level (draining) it plays `0x77031C70`; otherwise `0x03826A28`.
+
+**Shift potential.** For a car on the automatic gearbox the potential is "up" when the engine speed matched to the
+wheels has reached the gear's shift-up point and there is a higher gear (`FindShiftPotential`), and it is cleared
+while the clutch is not engaged. **[inferred]** The tachometer is also told whether the car has traction and
+zeroes the potential for a frame after a gear change; the build does neither (the callers are not in the
+decompilation).
+
+**Not driven yet** (hidden): the radar and its detector, the pursuit, heat, busted and cost-to-state boards, the
+milestone and race boards, the countdown, the infractions, the minimap and speed breaker meter, and the engine
+temperature gauge of the drag HUD. They need the race and pursuit state of milestone 7, or (the minimap) a map
+projection that is not written up.
 
 Messages: `WIDESCREENMODE` 0x62ED04EC, `NORMAL_MODE` 0x53EC068C, `FADEIN` 0xBCC00F05, `FADEOUT` 0x54C20A66.
 The HUD also has package responses that fade parts in and out; the runtime runs them as any other.

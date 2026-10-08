@@ -9,6 +9,8 @@ pub const PROBE_LIFT: f32 = 0.5;
 /// What the ground probe of one wheel found.
 #[derive(Clone, Copy, Debug)]
 pub struct WheelContact {
+    /// Where the ray met the ground.
+    pub point: Vec3,
     pub normal: Vec3,
     /// Metres the contact point is below the surface, measured along the normal (negative = above it).
     pub penetration: f32,
@@ -22,6 +24,7 @@ pub fn probe(ground: &dyn Ground, point: Vec3, tolerance: f32) -> Option<WheelCo
         return None;
     }
     Some(WheelContact {
+        point: point + Vec3::Y * (PROBE_LIFT - hit.distance),
         normal: hit.normal,
         penetration: (PROBE_LIFT - hit.distance) * hit.normal.y,
         surface: hit.surface,

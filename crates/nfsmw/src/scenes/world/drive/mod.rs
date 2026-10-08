@@ -3,6 +3,7 @@
 //! the car appears; this module owns everything about the car itself.
 
 mod clock;
+mod debug;
 mod fall;
 mod ground;
 mod input;
@@ -25,6 +26,7 @@ use crate::input::ActionState;
 use crate::settings::Transmission;
 use crate::viewer::camera::{ChaseCamera, Followed};
 use clock::FixedClock;
+pub use debug::{ContactMarkers, LEGEND as MARKER_LEGEND, MarkerMeshes};
 use fall::FallWatch;
 use ground::WorldGround;
 pub use input::DriveInput;
@@ -87,6 +89,8 @@ pub struct Drive {
     presses: Presses,
     /// Who changes gear.
     transmission: Transmission,
+    /// The contact points of `debug collisions`.
+    markers: ContactMarkers,
 }
 
 impl Drive {
@@ -123,6 +127,7 @@ impl Drive {
             last_check: 0,
             presses: Presses::default(),
             transmission: Transmission::default(),
+            markers: ContactMarkers::default(),
         }
     }
 
@@ -283,6 +288,7 @@ impl Drive {
             want_reset |= input.reset;
             let impact = sim.step(&input, &ground, Some((collision, &*props)));
             self.effects.step(sim.tire_contacts(collision), sim.effect_velocity(), clock::STEP);
+            self.markers.record(&impact.contacts, sim.tyre_hits());
             for &(id, mass) in &impact.knocked {
                 log::info!("knocked over a {mass:.0} kg prop ({} knocked over now)", props.knocked_count() + 1);
                 props.knock(id);
@@ -386,6 +392,21 @@ impl Drive {
         &self.chase
     }
 
+    /// Turns the contact markers of `debug collisions` on or off.
+    pub fn set_markers(&mut self, on: bool) {
+        self.markers.set_enabled(on);
+    }
+
+    /// How many contact markers are on screen: (wall and prop contacts, tyre hits).
+    pub fn marker_counts(&self) -> (usize, usize) {
+        self.markers.counts()
+    }
+
+    /// Append the instances of the contact markers.
+    pub fn marker_instances(&self, meshes: &MarkerMeshes, out: &mut Vec<blackbox_render::Instance>) {
+        self.markers.instances(meshes, out);
+    }
+
     /// Append the car's instances.
     pub fn instances(&self, out: &mut Vec<blackbox_render::Instance>) {
         if self.sim.is_some() {
@@ -400,9 +421,15 @@ impl Drive {
         Some(crate::hud::HudState {
             speed: t.speed_mps.abs(),
             rpm: t.rpm,
-            max_rpm: if t.red_line > 0.0 { t.red_line } else { 8000.0 },
+            max_rpm: t.max_rpm,
+            red_line: t.red_line,
             gear: t.gear,
-            shift_light: t.red_line > 0.0 && t.rpm >= 0.95 * t.red_line,
+            shifting: t.shifting,
+            shift_light: t.shift_up,
+            has_nos: t.has_nos,
+            nos: t.nos,
+            has_turbo: t.has_induction,
+            boost_psi: t.boost_psi,
             ..Default::default()
         })
     }
@@ -413,10 +440,14 @@ impl Drive {
         Some(self.sound.state(&self.car_name, &self.telemetry))
     }
 
-    /// The readout lines.
-    pub fn hud(&self) -> String {
+    /// The readout lines at this level: one for `Minimal`, the numbers of the HUD and the run for `Full`.
+    pub fn readout(&self, level: crate::devtools::ShowReadout) -> String {
         if self.sim.is_none() || self.request.is_some() {
             return format!("{}: looking for a road...", self.car_name);
+        }
+        let p = self.current.position;
+        if level == crate::devtools::ShowReadout::Minimal {
+            return format!("{} at ({:.0}, {:.0}, {:.1})", self.car_name, p.x, p.y, p.z);
         }
         let t = &self.telemetry;
         let gear = match t.gear {
@@ -425,7 +456,6 @@ impl Drive {
             g => g.to_string(),
         };
         let nos = if t.nos > 0.0 { format!("  nos {:.0}%", t.nos * 100.0) } else { String::new() };
-        let p = self.current.position;
         let script = self
             .script
             .as_ref()

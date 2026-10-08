@@ -6,7 +6,7 @@ use super::Transmission;
 use super::partial::{Partial, Percent, parse_bool};
 use super::{Monitor, Resolution, SmokeQuality, WindowMode};
 use crate::app::pacing::MaxFps;
-use crate::devtools::ShowMetrics;
+use crate::devtools::{ShowMetrics, ShowReadout};
 
 pub const BACKEND: &str = "NFSMW_BACKEND";
 pub const VSYNC: &str = "NFSMW_VSYNC";
@@ -15,6 +15,7 @@ pub const SHOW_METRICS: &str = "NFSMW_SHOW_METRICS";
 pub const WINDOW_MODE: &str = "NFSMW_WINDOW_MODE";
 pub const MONITOR: &str = "NFSMW_MONITOR";
 pub const RESOLUTION: &str = "NFSMW_RESOLUTION";
+pub const SHOW_READOUT: &str = "NFSMW_SHOW_READOUT";
 pub const MASTER_VOLUME: &str = "NFSMW_MASTER_VOLUME";
 pub const MUSIC_VOLUME: &str = "NFSMW_MUSIC_VOLUME";
 pub const SFX_VOLUME: &str = "NFSMW_SFX_VOLUME";
@@ -38,6 +39,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         window_mode: value(&get, WINDOW_MODE, WindowMode::from_str),
         monitor: value(&get, MONITOR, Monitor::from_str),
         resolution: value(&get, RESOLUTION, Resolution::from_str),
+        show_readout: value(&get, SHOW_READOUT, ShowReadout::from_str),
         master_volume: value(&get, MASTER_VOLUME, Percent::from_str),
         music_volume: value(&get, MUSIC_VOLUME, Percent::from_str),
         sfx_volume: value(&get, SFX_VOLUME, Percent::from_str),
@@ -83,6 +85,12 @@ mod tests {
         assert_eq!(p.backend, Some(Backend::Dx12));
         assert_eq!(p.vsync, Some(false));
         assert_eq!(p.max_fps, Some("60".parse::<MaxFps>().unwrap()));
+    }
+
+    #[test]
+    fn reads_the_readout_level() {
+        assert_eq!(layer(&[(SHOW_READOUT, "full")]).show_readout, Some(ShowReadout::Full));
+        assert_eq!(layer(&[(SHOW_READOUT, "loud")]).show_readout, None);
     }
 
     #[test]

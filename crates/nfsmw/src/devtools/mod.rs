@@ -5,6 +5,7 @@ mod console;
 mod logbuf;
 mod metrics;
 mod overlay;
+mod readout;
 
 use bevy_app::{App, Last, Plugin, Update};
 use bevy_ecs::prelude::*;
@@ -16,6 +17,7 @@ use crate::settings::Settings;
 pub use logbuf::install as install_logging;
 use metrics::Metrics;
 pub use metrics::ShowMetrics;
+pub use readout::ShowReadout;
 
 pub use console::{Console, start as start_console};
 

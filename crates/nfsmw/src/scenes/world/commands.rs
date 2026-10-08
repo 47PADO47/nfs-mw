@@ -1,8 +1,9 @@
-//! The world viewer's console commands: `drive`, `reset`, `tp`, `goto`, `freecam` and `pos`.
+//! The world viewer's console commands: `drive`, `reset`, `tp`, `goto`, `freecam`, `pos`, `props` and `debug`.
 
 use blackbox_render::Renderer;
 use glam::Vec3;
 
+use super::drive::{self, MarkerMeshes};
 use super::{View, WorldScene, load_car};
 
 pub(super) const LIST: &[(&str, &str)] = &[
@@ -15,6 +16,7 @@ pub(super) const LIST: &[(&str, &str)] = &[
     ("pos", "show where the camera or the car is"),
     ("props [radius]", "list the props with collision near the car or camera (default 30 m)"),
     ("tire-effects [status|clear|smoke on/off|marks on/off]", "tire visual controls and bounded resource counts"),
+    ("debug collisions [on|off]", "draw the car's contact points: wall hits, tyre rays, props (no argument: toggle)"),
 ];
 
 pub(super) fn run(
@@ -33,6 +35,7 @@ pub(super) fn run(
         "pos" if args.is_empty() => Ok(pos(scene)),
         "props" => props(scene, args),
         "tire-effects" => tire_effects(scene, renderer, args),
+        "debug" => debug(scene, renderer, args),
         "reset" | "freecam" | "pos" | "garage" => Err(format!("usage: {name}")),
         _ => return None,
     })
@@ -104,6 +107,23 @@ fn goto(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
     scene.start_height = height;
     scene.grounded = false;
     Ok(format!("flying to ({x:.0}, {y:.0}), {height:.0} m above the ground"))
+}
+
+/// `debug collisions [on|off]`: the contact points of the car drawn in the world.
+fn debug(scene: &mut WorldScene, renderer: &mut Renderer, args: &[&str]) -> Result<String, String> {
+    const USAGE: &str = "usage: debug collisions [on|off]";
+    let on = match args {
+        ["collisions"] => !scene.markers_on,
+        ["collisions", state] => crate::settings::parse_bool(state).map_err(|e| format!("{e} ({USAGE})"))?,
+        _ => return Err(USAGE.into()),
+    };
+    scene.markers_on = on;
+    if !on {
+        return Ok("collision markers off".into());
+    }
+    // The meshes stay on the GPU once uploaded: switching on again costs nothing.
+    scene.marker_meshes.get_or_insert_with(|| MarkerMeshes::upload(renderer));
+    Ok(format!("collision markers on ({})", drive::MARKER_LEGEND))
 }
 
 fn pos(scene: &WorldScene) -> String {

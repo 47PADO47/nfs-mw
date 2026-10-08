@@ -24,7 +24,7 @@ pub use window::{Monitor, Resolution, WindowMode};
 pub use write::write as write_file;
 
 use crate::app::pacing::MaxFps;
-use crate::devtools::ShowMetrics;
+use crate::devtools::{ShowMetrics, ShowReadout};
 
 /// The resolved settings.
 #[derive(bevy_ecs::resource::Resource, Debug, Clone, Copy, PartialEq, Eq)]
@@ -36,6 +36,8 @@ pub struct Settings {
     pub window_mode: WindowMode,
     pub monitor: Monitor,
     pub resolution: Resolution,
+    /// How much of the scene's debug readout is drawn next to the original HUD.
+    pub show_readout: ShowReadout,
     pub master_volume: Percent,
     pub music_volume: Percent,
     pub sfx_volume: Percent,
@@ -66,6 +68,7 @@ impl From<Partial> for Settings {
             window_mode: p.window_mode.unwrap_or_default(),
             monitor: p.monitor.unwrap_or_default(),
             resolution: p.resolution.unwrap_or_default(),
+            show_readout: p.show_readout.unwrap_or_default(),
             master_volume: p.master_volume.unwrap_or(Percent(80)),
             music_volume: p.music_volume.unwrap_or(Percent(60)),
             sfx_volume: p.sfx_volume.unwrap_or(Percent(90)),

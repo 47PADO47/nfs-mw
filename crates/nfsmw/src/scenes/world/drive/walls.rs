@@ -32,6 +32,27 @@ pub struct HitInfo {
     pub instance: usize,
 }
 
+/// What a wall contact is, for drawing it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContactKind {
+    /// A barrier of the collision packs (guard rails, concrete barriers, fences).
+    Barrier,
+    /// A steep face of the packs.
+    Face,
+    /// A rigid prop.
+    PropRigid,
+    /// A light prop the car pushes aside.
+    PropLight,
+}
+
+/// Where the car met something this step, as the debug view draws it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ContactPoint {
+    pub point: Vec3,
+    pub normal: Vec3,
+    pub kind: ContactKind,
+}
+
 /// A probe point sticking into a wall.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct WallContact {
@@ -169,6 +190,20 @@ pub struct Impact {
     pub front: bool,
     /// Where the deepest contact is (physics space) and what it is.
     pub deepest: Option<(Vec3, Option<HitInfo>)>,
+    /// Every contact of the step (physics space), deepest first: what `debug collisions` draws.
+    pub contacts: Vec<ContactPoint>,
+}
+
+impl From<&WallContact> for ContactPoint {
+    fn from(c: &WallContact) -> Self {
+        let kind = match (c.prop, c.info) {
+            (Some((_, Some(_))), _) => ContactKind::PropLight,
+            (Some((_, None)), _) => ContactKind::PropRigid,
+            (None, Some(HitInfo { barrier: true, .. })) => ContactKind::Barrier,
+            (None, _) => ContactKind::Face,
+        };
+        Self { point: c.point, normal: c.normal, kind }
+    }
 }
 
 fn is_light(c: &WallContact) -> bool {
@@ -182,7 +217,7 @@ pub fn resolve(vehicle: &mut Vehicle, cast: Cast<'_>, props: PropQuery<'_>, wall
     let half = body.dimension() + body.spec().collision_box_pad;
     let (position, rot, car_mass) = (body.position, body.rotation(), body.mass());
     let contacts = find(cast, props, position, rot, half);
-    let mut impact = Impact::default();
+    let mut impact = Impact { contacts: contacts.iter().map(ContactPoint::from).collect(), ..Impact::default() };
 
     for c in contacts.iter().filter(|c| is_light(c)) {
         if let Some((id, Some(mass))) = c.prop
@@ -282,6 +317,26 @@ mod tests {
         assert!(hit > 1000.0, "an impulse was felt: {hit}");
         assert!(worst_front < wall_z + 0.5, "the nose went {} m into the wall", worst_front - wall_z);
         assert!(v.forward_speed() < 8.0, "still going {} m/s after ten seconds against a wall", v.forward_speed());
+    }
+
+    #[test]
+    fn every_contact_of_the_step_is_reported_with_its_kind() {
+        let mut v = car();
+        let impact = resolve(&mut v, &wall(2.0), &no_props, &WallSpec::default());
+        // Three probes poke through the plane; with no collision data behind it the wall is a face.
+        assert_eq!(impact.contacts.len(), 3);
+        assert!(impact.contacts.iter().all(|c| c.kind == ContactKind::Face && c.normal == Vec3::NEG_Z));
+        let barrier = WallContact {
+            point: Vec3::ZERO,
+            normal: Vec3::X,
+            depth: 0.1,
+            prop: None,
+            info: Some(HitInfo { barrier: true, surface: 0, section: 0, instance: 0 }),
+        };
+        let prop = |mass| WallContact { prop: Some((1, mass)), info: None, ..barrier };
+        assert_eq!(ContactPoint::from(&barrier).kind, ContactKind::Barrier);
+        assert_eq!(ContactPoint::from(&prop(None)).kind, ContactKind::PropRigid);
+        assert_eq!(ContactPoint::from(&prop(Some(80.0))).kind, ContactKind::PropLight);
     }
 
     #[test]

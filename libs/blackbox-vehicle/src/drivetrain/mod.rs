@@ -4,6 +4,7 @@
 mod diff;
 mod gearbox;
 mod powertrain;
+mod shift_light;
 mod spec;
 mod split;
 mod torque_loop;

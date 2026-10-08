@@ -4,7 +4,7 @@ use blackbox_render::Backend;
 
 use super::{Monitor, Resolution, SmokeQuality, Transmission, WindowMode};
 use crate::app::pacing::MaxFps;
-use crate::devtools::ShowMetrics;
+use crate::devtools::{ShowMetrics, ShowReadout};
 
 /// A volume setting in percent, 0 to 100.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -49,6 +49,7 @@ pub struct Partial {
     pub window_mode: Option<WindowMode>,
     pub monitor: Option<Monitor>,
     pub resolution: Option<Resolution>,
+    pub show_readout: Option<ShowReadout>,
     pub master_volume: Option<Percent>,
     pub music_volume: Option<Percent>,
     pub sfx_volume: Option<Percent>,
@@ -73,6 +74,7 @@ impl Partial {
             window_mode: self.window_mode.or(lower.window_mode),
             monitor: self.monitor.or(lower.monitor),
             resolution: self.resolution.or(lower.resolution),
+            show_readout: self.show_readout.or(lower.show_readout),
             master_volume: self.master_volume.or(lower.master_volume),
             music_volume: self.music_volume.or(lower.music_volume),
             sfx_volume: self.sfx_volume.or(lower.sfx_volume),

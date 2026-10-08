@@ -5,6 +5,11 @@
 //! names FEng or the presenter, so the presentation can change (docs/decisions/0002-ui-presentation.md).
 
 mod bind;
+#[cfg(test)]
+mod bind_tests;
+mod elements;
+#[cfg(test)]
+mod install_tests;
 mod plugin;
 mod skin;
 mod state;

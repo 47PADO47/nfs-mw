@@ -4,15 +4,16 @@
 use std::str::FromStr;
 
 use crate::app::pacing::MaxFps;
-use crate::devtools::ShowMetrics;
+use crate::devtools::{ShowMetrics, ShowReadout};
 use crate::settings::{Percent, Settings, Transmission, parse_bool};
 
 /// Settings the console can show.
-const KEYS: [&str; 16] = [
+const KEYS: [&str; 17] = [
     "backend",
     "vsync",
     "fps",
     "metrics",
+    "readout",
     "window_mode",
     "monitor",
     "resolution",
@@ -37,6 +38,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "window_mode" => settings.window_mode.to_string(),
         "monitor" => settings.monitor.to_string(),
         "resolution" => settings.resolution.to_string(),
+        "readout" | "show_readout" => settings.show_readout.to_string(),
         "volume" | "master_volume" => settings.master_volume.to_string(),
         "music_volume" => settings.music_volume.to_string(),
         "sfx_volume" => settings.sfx_volume.to_string(),
@@ -65,6 +67,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "window_mode" => settings.window_mode = value.parse()?,
         "monitor" => settings.monitor = value.parse()?,
         "resolution" => settings.resolution = value.parse()?,
+        "readout" | "show_readout" => settings.show_readout = ShowReadout::from_str(value)?,
         "volume" | "master_volume" => settings.master_volume = Percent::from_str(value)?,
         "music_volume" => settings.music_volume = Percent::from_str(value)?,
         "sfx_volume" => settings.sfx_volume = Percent::from_str(value)?,
@@ -103,8 +106,10 @@ mod tests {
         assert_eq!(set(&mut s, "fps", "60").unwrap(), "fps = 60");
         assert_eq!(set(&mut s, "vsync", "off").unwrap(), "vsync = off");
         assert_eq!(set(&mut s, "metrics", "advanced").unwrap(), "metrics = advanced");
+        assert_eq!(set(&mut s, "readout", "full").unwrap(), "readout = full");
         assert!(!s.vsync);
         assert_eq!(s.show_metrics, ShowMetrics::Advanced);
+        assert_eq!(s.show_readout, ShowReadout::Full);
         assert_eq!(set(&mut s, "fps", "unlocked").unwrap(), "fps = unlocked");
     }
 

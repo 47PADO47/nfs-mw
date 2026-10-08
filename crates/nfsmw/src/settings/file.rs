@@ -12,7 +12,7 @@ use super::Transmission;
 use super::partial::{Partial, Percent};
 use super::{Monitor, Resolution, SmokeQuality, WindowMode};
 use crate::app::pacing::MaxFps;
-use crate::devtools::ShowMetrics;
+use crate::devtools::{ShowMetrics, ShowReadout};
 
 /// Read the layer from `path`. A missing file is an empty layer; a broken one is reported and ignored.
 pub fn read(path: &Path) -> Partial {
@@ -49,6 +49,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
             other => Monitor::from_str(text_of(other)?),
         }),
         resolution: field(&table, origin, "resolution", |v| Resolution::from_str(text_of(v)?)),
+        show_readout: field(&table, origin, "show_readout", |v| ShowReadout::from_str(text_of(v)?)),
         master_volume: field(&table, origin, "master_volume", percent),
         music_volume: field(&table, origin, "music_volume", percent),
         sfx_volume: field(&table, origin, "sfx_volume", percent),
@@ -114,6 +115,12 @@ mod tests {
             (Some(Percent(70)), Some(Percent(25)), Some(Percent(40)))
         );
         assert_eq!(p.engine_volume, None);
+    }
+
+    #[test]
+    fn reads_the_readout_level() {
+        assert_eq!(parse("show_readout = 'off'", "test").show_readout, Some(ShowReadout::Off));
+        assert_eq!(parse("show_readout = 3", "test").show_readout, None);
     }
 
     #[test]

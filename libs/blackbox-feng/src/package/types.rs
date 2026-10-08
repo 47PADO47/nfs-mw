@@ -79,6 +79,8 @@ pub mod word {
     pub const ROTATION: usize = 10;
     pub const SIZE: usize = 14;
     pub const UV: usize = 17;
+    /// Multi images: the mask's pivot (x, y, as fractions of the texture) and its rotation in degrees (z).
+    pub const MULTI_PIVOT_ROT: usize = 33;
 }
 
 impl ObjectData {

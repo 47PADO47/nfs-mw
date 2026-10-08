@@ -85,3 +85,19 @@ fn the_roll_axis_stays_level_at_rest() {
     let right = v.wheel(1).compression;
     assert!((left - right).abs() < 5e-4);
 }
+
+#[test]
+fn each_wheel_reports_where_its_ray_hit_the_road() {
+    let v = parked();
+    for i in 0..4 {
+        let (point, normal) = v.wheel_ground_hit(i).expect("a wheel on the ground has a hit");
+        assert!(point.y.abs() < 0.02, "wheel {i} hit at height {}", point.y);
+        assert!(normal.y > 0.999, "{normal:?}");
+        let wheel = v.wheel(i).position;
+        assert!((point.x - wheel.x).abs() < 0.05 && (point.z - wheel.z).abs() < 0.05, "under the contact patch");
+    }
+    let mut airborne = Vehicle::new(VehicleSpec::example());
+    airborne.place(Vec3::new(0.0, 50.0, 0.0), identity());
+    airborne.step(FIXED_STEP, &InputState::default(), &NoGround);
+    assert!(airborne.wheel_ground_hit(0).is_none());
+}

@@ -6,6 +6,7 @@
 //! (see `docs/decisions/0002-ui-presentation.md`).
 
 pub mod blackbox;
+mod mask;
 
 pub use blackbox::BlackboxPresenter;
 
