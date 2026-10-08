@@ -472,6 +472,11 @@ the tire code; `STICK` is kept in the wheel record but unused here (open questio
 10. **Speed-break, nitrous, perfect launch** values come from other systems; stubs are safe for a first
     version.
 
+## Checked against the running original
+
+The tire, load and steering model was compared with a capture of the running PC game: see
+[vehicle-calibration.md](vehicle-calibration.md).
+
 ## How to check it
 
 1. **Static ride:** drop a stock car on flat ground in free-run: each wheel's final compression `c` should

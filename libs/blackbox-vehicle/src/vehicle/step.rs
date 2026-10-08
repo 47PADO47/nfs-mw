@@ -111,7 +111,9 @@ impl Vehicle {
             device: self.config.steering_device,
             rear_slip_deg: [self.tires[2].slip_angle * 360.0, self.tires[3].slip_angle * 360.0],
         });
-        self.wheel_angles = ackermann(angle, self.spec.chassis.wheel_base, self.spec.chassis.track_width[0]);
+        self.wheel_angles = self
+            .forced_wheel_angles
+            .unwrap_or_else(|| ackermann(angle, self.spec.chassis.wheel_base, self.spec.chassis.track_width[0]));
     }
 
     fn run_powertrain(&mut self, dt: f32, speed: f32) {

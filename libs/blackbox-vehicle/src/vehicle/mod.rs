@@ -36,6 +36,9 @@ pub struct Vehicle {
     pub tunings: Tunings,
     /// How raw input is interpreted (dead zone, automatic gearbox, steering device).
     pub config: ControlConfig,
+    /// Calibration hook: hold the front wheels at these angles instead of steering (a replay of a
+    /// recorded drive). `None` in play.
+    pub forced_wheel_angles: Option<crate::steering::WheelAngles>,
     /// Engine blown or car destroyed: gas 0, brakes on.
     pub disabled: bool,
     body: RigidBody,
@@ -86,6 +89,7 @@ impl Vehicle {
         Self {
             tunings: Tunings::default(),
             config: ControlConfig::default(),
+            forced_wheel_angles: None,
             disabled: false,
             body,
             geometry,
