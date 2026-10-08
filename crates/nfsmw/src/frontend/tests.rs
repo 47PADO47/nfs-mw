@@ -70,11 +70,29 @@ fn the_main_menu_starts_free_roam_from_career_and_quick_race() {
 
     let mut h = Harness::open(screen::MAIN_MENU, Args::default()).unwrap();
     h.wait(1.0);
-    // The challenge series are not there: right goes from Career to Quick Race.
+    // Career, Challenge Series, Quick Race: the challenge series is browsable but not there yet.
+    h.press(pad::RIGHT);
     h.press(pad::RIGHT);
     h.press(pad::ACCEPT);
     h.wait(1.5);
     assert!(h.said(&Command::StartFreeRoam), "quick race: {:?}", h.commands);
+}
+
+#[test]
+fn every_icon_of_the_main_menu_can_be_selected_but_only_the_working_ones_do_anything() {
+    let Some(mut h) = Harness::open(screen::MAIN_MENU, Args::default()) else { return };
+    h.wait(1.0);
+    h.press(pad::RIGHT);
+    h.press(pad::ACCEPT);
+    h.wait(1.5);
+    assert!(h.commands.is_empty(), "the challenge series do nothing yet: {:?}", h.commands);
+    assert_eq!(h.screens.top(), Some(screen::MAIN_MENU));
+    for _ in 0..3 {
+        h.press(pad::RIGHT);
+    }
+    h.press(pad::ACCEPT);
+    h.wait(1.5);
+    assert_eq!(h.screens.top(), Some(screen::MAIN_MENU_SUB), "four steps right is Options");
 }
 
 #[test]

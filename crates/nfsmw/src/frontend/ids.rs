@@ -5,6 +5,8 @@
 /// File names of the screens the front end moves between.
 pub mod screen {
     pub const SPLASH: &str = "MW_LS_Splash.fng";
+    /// The title screen for windows wider than 4:3.
+    pub const SPLASH_WIDE: &str = "WS_MW_LS_Splash.fng";
     pub const MAIN_MENU: &str = "MainMenu.fng";
     pub const MAIN_MENU_SUB: &str = "MainMenu_Sub.fng";
     pub const OPTIONS: &str = "Options.fng";
@@ -21,6 +23,8 @@ pub const END_PAD_RIGHT: u32 = 0xB9B1_7747;
 /// The `Quit` button of the main menu answers a mouse click with this message.
 pub const QUIT_CLICKED: u32 = 0x6279_9A4C;
 pub const MOUSE_LEFT_RELEASED: u32 = 0x7EAB_CA56;
+/// The package answers it by switching its buttons back on (a press switches them off while the screen leaves).
+pub const INPUT_ENABLE: u32 = 0x8CB8_1F09;
 
 // Scripts.
 pub const SCRIPT_HIGHLIGHT: u32 = 0x249D_B7B7;

@@ -57,7 +57,9 @@ ends* (an empty option with the texture `END_OF_SCROLLER`) before the first and 
 slots 1..n hold `2 + options + 2` icons. Option `i` is given the image `OPTION_i`, the texture of the option (the
 image's texture is swapped, `FEngSetTextureHash`), and an x offset: the offsets add up as
 `offset(i+1) = offset(i) + width(i) + spacing`, spacing -5, widths from the package (64). The first real option
-is selected. The centre `(cx, cy)` is the centre of `ICON_SCROLL_REGION`, which is then hidden.
+is selected. The decomp takes the centre `(cx, cy)` from `ICON_SCROLL_REGION`, which is then hidden. **Ours:** the
+position of `OPTION_MASTER` instead: the cursor brackets sit on it, and the region is 17 units to the left of it in
+`MainMenu.fng` (7 in `MainMenu_Sub.fng`), which left the selected icon off-centre in its brackets.
 
 **Every tick [decomp].** The scroll value moves towards `-offset(selected)` over 0.2 s with a cubic ease. For
 each icon, with `x = cx + scroll + offset`:
@@ -74,7 +76,8 @@ colour = idle colour * scale + fade colour * (1 - scale)      (white 0xFFFFFFFF 
 ```
 
 **Messages [decomp].** `PAD_LEFT` / `PAD_RIGHT` select the previous / next option that is not greyed out
-(no wrap), then refresh the header: the label of the option is set on `ICON_TITLE` and its shadow, and at the first
+(no wrap; **ours:** every icon can be selected, the ones without a screen yet (the challenge series, My Cars) are
+greyed and do nothing on accept, except that the package's input lock is released again with `0x8CB81F09`), then refresh the header: the label of the option is set on `ICON_TITLE` and its shadow, and at the first
 or last option the package gets `END_PAD_LEFT` (`0xD7118934`) / `END_PAD_RIGHT` (`0xB9B17747`) (the arrows
 fade). `BUTTON_PRESSED` on the selected icon stores the press and posts `LEAVE_SCREEN`; the pause menu has no
 leave message, so its icons run the event handler's `FORWARD` script themselves (the same 600 ticks, ending in
@@ -199,9 +202,10 @@ A movie screen shows its movie as an FEng movie object (the object whose name ha
 package sends `INIT_COMPLETE` about five seconds after it appears (the text fades in meanwhile); then
 `PAD_ACCEPT` / `PAD_START` go on. The game hides the high-definition group, the mouse hints and a console licence
 line, and gives the prompt group the label `0x9B580A55` ("Press START"). The original starts the attract movie
-after 30 s without input; this rewrite does not. The widescreen variant (`WS_MW_LS_Splash.fng`) needs a message the
-game sends when the screen is wide (`CURRENT_GEN_WIDESCREEN`) and is not used: the 4:3 title screen is shown with
-black bars. The memory-card screens between splash and main menu (`MC_Main_GC.fng`) do not apply on the PC.
+after 30 s without input; this rewrite does not. The original opens the widescreen package (`WS_MW_LS_Splash.fng`) when the screen is wide and queues
+`CURRENT_GEN_WIDESCREEN` (`bStringHash`, `0xCB835EE3`) to it, which fades its 900 x 480 art in. This rewrite does the
+same for any window wider than 1.4:1 (the 4:3 package is for the rest), so the art fills the window instead of leaving
+bars at its sides. A mouse click counts as accept on the boot movies and the title screen. The memory-card screens between splash and main menu (`MC_Main_GC.fng`) do not apply on the PC.
 
 **Free roam [decomp, ours].** The career starts in free roam in the original; this rewrite has no career, so
 Career and Quick Race both start free roam with the stock car.
