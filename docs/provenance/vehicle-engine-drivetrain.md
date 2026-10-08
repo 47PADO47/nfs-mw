@@ -8,6 +8,13 @@ Filled from AttribSys by `nfsmw-data`.
   clutch, torque loop, drivetrain split, gearbox) and
   [docs/specs/vehicle-input-induction-brakes.md](../specs/vehicle-input-induction-brakes.md) (induction,
   nitrous, brakes, driver input, special cases). Split in two to stay under 500 lines per file.
+  [docs/specs/vehicle-manual-shifting.md](../specs/vehicle-manual-shifting.md) adds the transmission setting and
+  what manual mode changes (2026-10-08).
+- **Read for the manual-shifting spec** (decompiled, CC0, understanding only): `EngineRacer.cpp` (`DoShifting`,
+  `AutoShift`, `SportShift`, `OnGearChange`, `DoGearChange`, the limits at the end of the torque loop),
+  `PInput.cpp`/`PInput.h` (`DoShifting`, `IsAutomaticShift`, `DoAutoReverse`), `World/RaceParameters.hpp`,
+  `Frontend/Database/FEDatabase.cpp`, `Frontend/MenuScreens/Safehouse/options/uiOptionWidgets.cpp` and
+  `quickrace/uiQRCarSelect.cpp`. The label hashes and the 0/1 values of the setting are facts.
 - **Sources read for the spec:** dbalatoni13/nfsmw (https://github.com/dbalatoni13/nfsmw, CC0-1.0,
   decompiled; GameCube build): `src/Speed/Indep/Src/Physics/Behaviors/EngineRacer.cpp`,
   `Physics/PhysicsInfo.cpp`, `Physics/Behaviors/PInput.cpp`, `Physics/Behaviors/SuspensionRacer.cpp` (drive
