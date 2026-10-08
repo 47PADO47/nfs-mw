@@ -5,11 +5,13 @@
 //! - [`game`]: the install spec (registry key, required files, known builds);
 //! - [`car`]: one car's solids and textures;
 //! - [`world`]: the streamed city (`TRACKS/L2RA.BUN` + `STREAML2RA.BUN`).
+//! - [`music`]: the licensed songs of the radio, from the attribute database;
 //! - [`sound`]: a car's engine sound set (`.gin` loops, banks and mix tuning) from the attribute database.
 
 pub mod car;
 mod files;
 pub mod game;
+pub mod music;
 pub mod sound;
 pub mod world;
 
