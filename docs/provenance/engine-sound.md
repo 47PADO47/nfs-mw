@@ -42,7 +42,8 @@ later, the `sound` module of [`crates/nfsmw-data`](../../crates/nfsmw-data) (a c
     mixer's pitch multiplier are applied by the caller or by an optional output gain (the original used the
     sound system's per-voice volume and `SNDpitchmult`).
   - Mixer curves (`MIXMAPS/*.mxb`) are not read: unity volume and pitch until they are.
-  - The AEMS sample layer is not reimplemented (its sample selection is bank data, spec question Q5).
+  - The AEMS sample layer is not part of this library: the modules are run by `blackbox-aems` and the game plays
+    them (provenance/aems.md); this library only produces the volumes and the torque they are fed.
   - Expected: the GameCube build was read, so values and some behaviours of the PC build may differ.
 
 ## Install probing for the effects (2026-10-08)

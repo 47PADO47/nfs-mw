@@ -208,7 +208,8 @@ points (`BNKl` entry numbers, from 1) **[unconfirmed except where noted]**:
 | Bank | Sounds |
 |---|---|
 | `SHIFTING/GEAR_*.abk` | 1 up shift (0.57 s), 2 down shift (0.68 s), 3 brake mash (0.34 s; the small banks have it, the big ones 2 sounds) |
-| `ENGINE/SWTN_CAR_nn_MB.abk` (12) | 1 to 7 short pops (0.01 to 0.08 s, the sputters), 8 to 12 longer (0.14 to 0.36 s): 10 is used for sweetener 0 and 8 for sweetener 1 |
+| `ENGINE/SWTN_CAR_nn_MB.abk` (12) | `CAR_SWTN` plays sound `id + 1`: 1 for sweetener 0 (73 ms) and 2 for sweetener 1 (147 ms) **[verified by running the module]**; the `CAR_Sputter` module picks its pops from all twelve (8 ms to 0.37 s) by RPM and torque ([engine-sound-aems.md](../specs/engine-sound-aems.md)) |
+| `ENGINE/CAR_nn_ENG_MB_EE.abk` (8) | the engine's sample layer: eight loops over the whole sound (14,776 to 26,604 samples), picked and cross-faded by the `CAR` module ([engine-sound-aems.md](../specs/engine-sound-aems.md)) |
 | `ENGINE/CAR_WHINE_00.abk` | the reverse whine loop |
 | `TURBO/TURBO_*.abk` (5) | 1 spool loop, 2 blow-off 1, 3 and 4 blow-offs 2 and 3, 5 another loop (unused) |
 | `NOS/Nitrous_00_MB.abk` (3) | 1 loop (2.4 s), 2 (0.55 s, unused), 3 purge (1.4 s) |

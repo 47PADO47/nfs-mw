@@ -404,8 +404,9 @@ engine volume LFO none; Ginsu latency 60 ms; redline threshold 9800, factors 0.1
 - **Q2** Single or dual mode in the PC build (§1). The decomp builds only single for the player. **[decision]** Dual.
 - **Q3** The `Ginsu_ACL_Neg_L_RPM` slip (§5.3). **[decision]** Keep the constant.
 - **Q4** `SNDvol` scale (linear or dB) (§5.5). The dynamic-mixer curves are answered by the evaluator spec.
-- **Q5** AEMS layer: how the bank turns `RPM` and `TORQUE` into samples (needs the `.abk` AEMS tables and
-  the `.csi`); not needed while the Ginsu layer carries the engine.
+- **Q5** AEMS layer: how the bank turns `RPM` and `TORQUE` into samples. **[answered]** The bank holds the logic as
+  dataflow modules, not tables: [aems.md](aems.md) runs them and [engine-sound-aems.md](engine-sound-aems.md) lists
+  what is fed and what they do; the layer is played.
 
 ## Decisions for the Rust implementation
 

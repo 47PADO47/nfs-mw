@@ -32,6 +32,8 @@ scaled down.
 | [`ea-audio`](../libs/ea-audio) | EA audio: SCHl streams, ABK sound banks, MPF/MUS music, `.big` speech, `.gin` engine loops; EA-XA, EA-XAS and MicroTalk decoders | self-describing headers |
 | [`blackbox-ginsu`](../libs/blackbox-ginsu) | The Ginsu granular engine-sound synthesiser and the tables of a `.gin` file | — |
 | [`blackbox-carsound`](../libs/blackbox-carsound) | Car sound controllers: telemetry in, engine mix out, on a fixed 60 Hz tick | — (tuning passed by the caller) |
+| [`blackbox-mixmap`](../libs/blackbox-mixmap) | The sound system's dynamic mixer: `MIXMAPS/*.mxb` parser and a deterministic evaluator (published values in, per-object volume, pitch and filter slots out) | — (one format version) |
+| [`blackbox-aems`](../libs/blackbox-aems) | AEMS module banks inside `.abk` files: a reader and an interpreter of the event-sound graphs (which samples play, how loud and how high); voices and objects are a `Host` trait the caller implements | — (one format version) |
 | [`blackbox-movie`](../libs/blackbox-movie) | EA VP6 movies (`.vp6`): demuxer and video decoder (the MIT `nihav-vp6`); no audio yet | — |
 | [`blackbox-vehicle`](../libs/blackbox-vehicle) | Deterministic fixed-step vehicle physics: rigid body, engine and gearbox, suspension, tires, steering, aero; driven by plain parameter structs and a `Ground` ray-cast trait | — (parameters passed by the caller) |
 | [`blackbox-render`](../libs/blackbox-render) | Backend-neutral renderer (wgpu inside) | — |
@@ -294,6 +296,20 @@ database.
   collision stitch: the `audioimpact` collection the car's `pvehicle` links for the kind of hit and the surface,
   the level by the hit's size, and the pieces from `InGameB.bun` one after the other. The wheels' surfaces come
   from the vehicle library (`SurfaceGrip::tag`) and `simsurface`'s `Aud_Skid_Type` and `Aud_Roadnoise_LOOP`.
+- **The mixer.** `audio/mixer/` publishes the car's state to the original's dynamic mixer (`MAPOUTPUT.mxb`, read by
+  `blackbox-mixmap`: the physics, engine and hybrid-motor controllers, the 3D positions, the shift, nitrous and skid
+  objects) and reads back, per frame, the levels of each sound: the engine's Ginsu and sample layers and pitch, the
+  clunks, sweeteners, turbo, nitrous, skids, road noise per surface, wind and landings (`Levels`). They multiply the
+  generated volumes (`scale_command`); `MAKEUP` (1.5) stands for the unknown full scale of the original's volumes.
+  `engineaudio.Master_Vol` is a mixer input of the engine controller. The wind and road noise are placed by the
+  chase-camera distance, which is a guess.
+- **The sample layer.** `audio/aems/` runs two modules of the AEMS banks with `blackbox-aems` on a 60 Hz tick: the
+  engine's `CAR` module (eight looped samples that cross-fade over the Ginsu frequency and the torque, and the
+  redline sample) and the sweetener bank's `CAR_Sputter` (the pops when the throttle lifts, whose output volume
+  feeds the spark-chatter input of the map). Their voices are bank sounds played through `kira` in the engine
+  group (`KiraSampler`); the tests mix the same voices in software and write them to a WAV. Parameters:
+  `audio/aems/params.rs`, from `docs/specs/engine-sound-aems.md`. The shift sweeteners are the module's bank
+  sounds 1 and 2 played directly (what the `CAR_SWTN` module does).
 - **Console.** `sound [bank [index]]` lists or plays a bank sound; `engine <car> [percent] | off` holds an engine
   at a share of its RPM range; `volume` shows and sets the volumes. `RUST_LOG=nfsmw::audio=debug` logs the loops
   and hits that start.
@@ -303,8 +319,10 @@ database.
   small plugin turns into a letterboxed UI quad (`FrameSet::Hud`). The scene ends when picture and sound do. A
   movie is not yet started by the game flow, and the video follows the frame clock, not the audio clock.
 - **Not done:** the radio (the PathFinder graph of `MW_Music.mpf` is not decoded, so no song can be played),
-  speech, the sample (AEMS) layer of the engine and the sputters, the mixer maps (so the levels of the effects
-  are guesses).
+  speech, the AEMS gear whine and transmission loop (their modules run the same way; the sounds are still the
+  guesses of the effects spec), the mixer's reverb, low-pass and azimuth outputs, Doppler, and a comparison of the
+  engine's levels with the running original (the absolute level, `MAKEUP`, and the chase-camera distances are
+  guesses).
 
 ## Graphics backends
 
@@ -367,7 +385,7 @@ render one frame off-screen. Use them to check rendering changes and backends wi
 | 3 | Sky dome, LODs, water, panoramas; zone-based streaming (visible sections); AttribSys reader; car assembly from the parts DB (stock parts, wheels, brakes, paint). Playtest fixes: misplaced and floating scenery, mouse look without holding a button, `--max-fps`, clearer config-file path | done |
 | 4 | Engine foundation: decide on Bevy (ECS, events, UI) in an ADR and migrate the viewers if adopted; layered settings (command line > environment > per-user config file > defaults, with a settings menu in 6); input layer with controller support; developer console (F12: log view, commands such as change car, toggle free camera, change settings); performance overlay (`--show-metrics off\|basic\|advanced`). Decided: Bevy as the shell with our renderer ([ADR 0001](decisions/0001-bevy.md)), full Bevy renderer revisited in 8 | done |
 | 5 | Vehicle physics, spec-first (`docs/specs/vehicle-*.md`); world collision (`CarpWCollisionPack`); drive a car with the original HUD: read the FEng HUD packages (`HUD_*.fng` in `InGameB.bun`) and draw them with the UI layer; steering wheel controller support (wheel axes, pedals, shifters) on the input layer from 4 |  in progress: `blackbox-vehicle`, the collision reader, input actions, `view-world --drive` (placing, chase camera, walls, props, reset and fall recovery, scripted runs) are in; the original HUD, steering wheel support and calibration against the original are open ([Driving](#driving-view-world---drive)) |
-| 6 | Audio (EA-XA, EA-XAS engine loops, MicroTalk speech), VP6 movies, FEng menus (the same FEng runtime as the HUD), in-game settings menu | in progress: the codecs, banks, music and movie decoders, Ginsu synthesis, the car sound data, the engine and effects mixers, the output device, the driven car's engine and effects and a movie player are in; radio, speech and the menus are open ([Sound](#sound)) |
+| 6 | Audio (EA-XA, EA-XAS engine loops, MicroTalk speech), VP6 movies, FEng menus (the same FEng runtime as the HUD), in-game settings menu | in progress: the codecs, banks, music and movie decoders, Ginsu synthesis, the car sound data, the engine and effects mixers, the dynamic mixer maps, the sample (AEMS) layer of the engine and the sputters, the output device, the driven car's engine and effects and a movie player are in; radio, speech and the menus are open ([Sound](#sound)) |
 | 7 | AI racers, traffic, pursuit, races; career data; console commands to spawn AI | |
 | 8 | Graphics: the car shader and lighting rig, tire smoke and skid marks (`blackbox-vehicle` already reports per-wheel `skid` and `smoke`; this draws them), post-processing, upscaling (FSR; DLSS where the backend allows it), ReShade compatibility, Bevy Solari | |
 | 9 | Discord Rich Presence | |

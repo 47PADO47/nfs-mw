@@ -104,7 +104,8 @@ amplitudes are tuned for it. The torque LFO is unused (0) **[decomp]**.
 | transmission loop | the engine object, when `engineaudio.Tranny` and the car is the player's | `CAR_TRANNY.abk`, `CAR_TRANNY`: `magnitude = speed (m/s) * 15`, `Single_Shot = 1` while a shift runs | mixer volume (input 3) |
 
 The sweeteners of a car are in its own bank, which holds 12 sounds for `SWTN_CAR_66_MB.abk` **[verified]**
-(the sample ids 0 and 1 are the `CAR_SWTN` Csis ids; which bank sound they pick is in the bank's AEMS tables).
+(the sample ids 0 and 1 are the `CAR_SWTN` Csis ids; running the module shows it plays bank sound `id + 1`,
+[engine-sound-aems.md](engine-sound-aems.md) §4).
 
 ## 2. Accelerate transitions
 
@@ -315,8 +316,10 @@ Implemented in `libs/blackbox-carsound` (`EffectsMixer`) and `crates/nfsmw/src/a
 `refs.rs`, the voices in `fx.rs`). Where this differs from the text above:
 
 - **Not played:** the moment streams of an impact (`StreamSweetner`), the `FX_SKID` wet level and pitch outputs
-  of the mixer maps, the transmission loop, the sputters (`CAR_Sputter` needs the sample layer), the weather wind,
-  road noise transition samples, and the pitch boost of a blown tire.
+  of the mixer maps, the transmission loop, the weather wind, road noise transition samples, and the pitch boost
+  of a blown tire. The sputters are played by the `CAR_Sputter` module (`crates/nfsmw/src/audio/aems/`,
+  [engine-sound-aems.md](engine-sound-aems.md) §5), with the tuner car's forced pop (`Force_Trigger`) left out;
+  the sweeteners play bank sounds `id + 1` of the car's sweetener bank directly.
 - **Which bank sound** each effect plays is listed in [audio.md](../formats/audio.md#which-bank-sound). Q1 is
   answered by the order and the durations in the banks, not by the `.csi` files, and the choices marked
   unconfirmed there are guesses.

@@ -54,7 +54,7 @@ Values are Q15 unless stated; an input never set reads 0. `(c, i)` = controller 
 | skids `(7,0)` and `(7,2)` | forward component (effects spec §7) |
 | skids `(7,1)`, `(7,3)` | sideways component (smoothed 500), load (smoothed 3000) |
 | road noise `(8,0)` | 32767 for a frame when a side's loop changes |
-| spark chatter `(6,0)`, `(6,2)` | blip volume, 32767 while it is nonzero (not produced) |
+| spark chatter `(6,0)`, `(6,2)` | blip volume, 32767 while the sputter module's output object reports a volume (`audio/aems`) |
 | bottom-out `(13,1..3)` | landing flag, bottom-out flag, landing intensity times 256 (not produced) |
 | main `(0,0..5)` | the volume sliders as `(1 - level) * 32767`: 0 at full volume; the game's own volume groups do the scaling, so all 0 |
 
@@ -108,8 +108,10 @@ silent then); they step up once the car moves. The road level times the generate
 
 - **Makeup gain.** The slots are relative: the engine's Ginsu volume reads about 0.41 (-7.8 dB) at cruise. How
   loud the original's 0 dB is, is the sound system's business (`SNDvol` 127), unknown here. All slot levels
-  are multiplied by 2.25, so that the engine peaks as it did before the maps were read (0.92 in the scripted
-  drive of `audio::car::tests`); the relative levels are the data's. A scaled effect volume stops at 1.
+  are multiplied by 1.5 (2.25 before the engine's sample layer was played), so that the whole engine, Ginsu
+  loops and sample layer together, peaks near full scale (0.95 in the scripted drive of `audio::car::tests`, the
+  sample layer alone 0.66); the relative levels are the data's. A scaled effect volume stops at 1. The table
+  above lists the slots without the makeup.
 - **Camera and positions.** The audio layer does not know the camera. The chase camera is taken to sit behind
   the car on its axis at 5.6 m at rest and 7 m from 60 m/s (the chase camera's own distance): distance to the car
   0, to the camera that, azimuth 0, for the car objects; the rear object 2 m behind, the wheels 0.9 m to each side,

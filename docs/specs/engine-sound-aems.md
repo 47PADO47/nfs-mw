@@ -88,19 +88,35 @@ Run on the M3's `CAR_66_ENG_MB_EE.abk` with the parameters of §3 (everything el
 
 ## 5. Decisions for the Rust game **[decision]**
 
-- The sample layer (one instance of the engine module) runs on the engine mix's 60 Hz tick with the parameters
-  of §3; each player is one `kira` voice of the bank sound its entry names, looping over the sound's own loop
-  points; volume = input / 32767 (times the map makeup of car-sound-mixer.md), playback rate = input / 4096.
+Implemented in `crates/nfsmw/src/audio/aems/` (`params.rs` builds the parameters of §3; `host.rs` is the `blackbox-aems`
+host that plays the voices; `kira_out.rs` plays them through `kira`).
+
+- The sample layer (one instance of the engine module) and the sputter (one instance of `CAR_Sputter`) run on a
+  fixed 60 Hz tick (at most four per frame) with the parameters of §3; each player is one `kira` voice of the bank
+  sound its entry names, in the engine group, looping over the sound's own loop points (a sound without any is a
+  one-shot: the sputter's pops); volume = input / 32767 times the map makeup of car-sound-mixer.md §5, playback
+  rate = input / 4096, changes smoothed over 33 ms.
 - `RPM` is the Ginsu target frequency, not the synthesiser's lagging current pitch: the audio thread keeps the
   synthesiser, and the difference is the 60 ms of its latency.
+- `dmix1` is the map's raw sample-layer level (engine slot 1), `Vol_Sputters` scales the sputter's slot 1 of the
+  spark-chatter object; both without the makeup, which is applied to the voices.
 - The `AZIMUTH`, reverb, low-pass and dry inputs of the players are not applied.
-- A sputter instance is created with the engine and fed every update; a sweetener creates an instance that is
-  stepped until it ends. The sputter's `CAR_SputOutput` volume is not used.
+- The sputter's `CAR_SputOutput` volume goes back to the map as the spark-chatter object's inputs 0 and 2
+  (32767 while it is nonzero, car-sound-mixer.md §2). `Force_Trigger` stays 0 (the tuner car's backfire is not
+  produced); the car id is a constant.
+- **No `CAR_SWTN` instance.** Section 4 showed the module plays bank sound `id + 1` at pitch 4096 and volume `VOL`
+  and ends with it, so the sweeteners keep the effects mixer's one-shots, now of those sounds (`refs.rs`).
 - The whine and transmission loop stay as before (guessed sounds, effects spec §6); their modules run the same
   way when someone wants them.
 
 ## How to check it
 
-Play the M3 through the pull of `audio::car::tests` with and without the sample layer: the layer adds the
-low-rev body (off-throttle loops) and the throttle loops. Compare against the game with the engine class values
-logged. Not done.
+`audio::aems::tests` (needs `NFSMW_GAME_DIR`) drives the M3 through the scripted drive of `audio::car::tests` (idle,
+a pull to the redline, two lifts, a coast) with the real mixer map and mixes the layer's voices in software. Measured
+with makeup 1.5: the layer alone peaks at 0.66 (rms 0.11 at idle, 0.21 on the pull, 0.12 on the lift), up to four
+engine voices and one sputter voice sound at once, the idle voices are loops that keep playing, and the sputter
+reports a volume in 37 ticks. With the Ginsu loops the whole engine peaks at 0.95 (`audio::car::tests`;
+`NFSMW_AEMS_WAV` and `NFSMW_ENGINE_WAV` write the layer alone and the sum to a WAV). At 4000 RPM under full torque
+four players sound (volumes 449, 715, 10430 and 24720 of 32767); the earlier Python prototype, which truncated floats
+where the PC rounds to nearest, also had a fifth at 171. The gain stage is [decision]: compare it with the running
+game, with the engine class values logged. Not done.
