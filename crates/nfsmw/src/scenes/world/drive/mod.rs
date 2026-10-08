@@ -10,6 +10,7 @@ mod rig;
 mod script;
 mod sim;
 mod sound;
+mod visual_tires;
 mod walls;
 
 use blackbox_collision::CollisionWorld;
@@ -160,6 +161,7 @@ impl Drive {
         };
         let rest = self.rig.rest_heights();
         let sim = self.sim.get_or_insert_with(|| CarSim::new(self.physics.clone(), rest));
+        sim.set_visual_tires(self.rig.visual_tires());
         if !sim.place(&ground, spawn) {
             return false;
         }

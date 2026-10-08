@@ -56,6 +56,7 @@ pub struct CarSim {
     /// Roll angle of each wheel, in model wheel order.
     spin: [f32; 4],
     walls: WallSpec,
+    visual_tires: Option<[super::visual_tires::VisualTire; 4]>,
 }
 
 /// A vector from physics space to render space axes: `(x, y, z) -> (z, -x, y)`.
@@ -78,7 +79,12 @@ impl CarSim {
             rest_height,
             spin: [0.0; 4],
             walls: physics.walls,
+            visual_tires: None,
         }
+    }
+
+    pub(super) fn set_visual_tires(&mut self, tires: Option<[super::visual_tires::VisualTire; 4]>) {
+        self.visual_tires = tires;
     }
 
     /// Put the car on the road at `spawn`, standing still. False when `ground` has nothing there.
@@ -159,11 +165,22 @@ impl CarSim {
 
     /// Grounded tire visuals, in physics wheel order, using the existing skid/smoke intensities.
     pub fn tire_contacts(&self, collision: &CollisionWorld) -> [Option<Contact>; 4] {
+        let pose = self.pose();
         std::array::from_fn(|i| {
-            let wheel = self.vehicle.wheel(i);
+            let mut wheel = self.vehicle.wheel(i);
             let (sin, cos) = wheel.steer_angle.sin_cos();
             let forward = self.vehicle.rotation() * Vec3::new(sin, 0.0, cos);
-            effects::project(wheel, forward, collision)
+            // The rear-wheel permutation is its own inverse: physics order -> model order.
+            let visual = self.visual_tires.map(|tires| tires[PHYSICS_WHEEL[i]]);
+            if let Some(tire) = visual {
+                let point = pose.transform().transform_point3(tire.point(pose.wheels[PHYSICS_WHEEL[i]]));
+                wheel.position = Vec3::from_array(space::to_physics(point));
+            }
+            let mut contact = effects::project(wheel, forward, collision)?;
+            if let Some(tire) = visual {
+                contact.width = tire.width;
+            }
+            Some(contact)
         })
     }
 

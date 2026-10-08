@@ -7,7 +7,6 @@ use glam::Vec3;
 
 use super::{Contact, MAX_MARKS};
 
-const HALF_WIDTH: f32 = 0.12;
 const OFFSET: f32 = 0.012;
 const MIN_DISTANCE: f32 = 0.18;
 const MAX_DISTANCE: f32 = 3.0;
@@ -20,6 +19,7 @@ struct Mark {
     opacity: f32,
     age: f32,
     id: u64,
+    stationary: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -41,7 +41,7 @@ impl Default for Marks {
 }
 
 fn edge(c: Contact) -> [Vec3; 2] {
-    let side = c.forward.cross(c.normal).normalize_or_zero() * HALF_WIDTH;
+    let side = c.forward.cross(c.normal).normalize_or_zero() * (c.width * 0.5);
     let point = c.point + c.normal * OFFSET;
     [point - side, point + side]
 }
@@ -80,7 +80,7 @@ impl Marks {
         }
     }
 
-    fn push(&mut self, corners: [Vec3; 4], contact: Contact) -> u64 {
+    fn push(&mut self, corners: [Vec3; 4], contact: Contact, stationary: bool) -> u64 {
         if self.marks.len() == MAX_MARKS {
             self.marks.pop_front();
         }
@@ -91,14 +91,13 @@ impl Marks {
             opacity: contact.skid * 0.65,
             age: 0.0,
             id: self.created,
+            stationary,
         });
         self.created
     }
 
     fn stamp(&mut self, c: Contact) -> u64 {
-        let [left, right] = edge(c);
-        let along = c.forward * MIN_DISTANCE * 0.5;
-        self.push([left - along, right - along, right + along, left + along], c)
+        self.push(stamp_corners(c), c, true)
     }
 
     pub fn sample(&mut self, wheel: usize, contact: Option<Contact>) {
@@ -118,6 +117,9 @@ impl Marks {
         };
         if a.contact.point.distance(c.point) < MIN_DISTANCE {
             if let Some(stamp) = self.marks.iter_mut().rev().find(|m| m.id == a.stamp) {
+                if stamp.stationary {
+                    stamp.corners = stamp_corners(c);
+                }
                 stamp.opacity = stamp.opacity.max(c.skid * 0.65);
                 stamp.age = 0.0;
                 return;
@@ -128,7 +130,7 @@ impl Marks {
         }
         let [al, ar] = edge(a.contact);
         let [bl, br] = edge(c);
-        let stamp = self.push([al, ar, br, bl], c);
+        let stamp = self.push([al, ar, br, bl], c, false);
         self.anchors[wheel] = Some(Anchor { contact: c, stamp });
     }
 
@@ -138,4 +140,10 @@ impl Marks {
             EffectLayer::quad(out, mark.corners, [16, 14, 12, (mark.opacity * fade * 255.0) as u8]);
         }
     }
+}
+
+fn stamp_corners(c: Contact) -> [Vec3; 4] {
+    let [left, right] = edge(c);
+    let along = c.forward * MIN_DISTANCE * 0.5;
+    [left - along, right - along, right + along, left + along]
 }

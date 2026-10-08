@@ -5,7 +5,15 @@ use glam::Vec3;
 use super::*;
 
 fn contact(x: f32) -> Contact {
-    Contact { point: Vec3::new(x, 0.0, 5.0), normal: Vec3::Z, forward: Vec3::X, section: 7, skid: 1.0, smoke: 1.0 }
+    Contact {
+        point: Vec3::new(x, 0.0, 5.0),
+        normal: Vec3::Z,
+        forward: Vec3::X,
+        section: 7,
+        skid: 1.0,
+        smoke: 1.0,
+        width: 0.24,
+    }
 }
 
 fn vertices(effects: &mut TireEffects) -> (Vec<EffectVertex>, Vec<EffectVertex>) {
@@ -69,6 +77,26 @@ fn moving_skids_follow_each_contact_normal_and_fade() {
     assert!(faded.iter().zip(initial).all(|(after, before)| after.color[3] < before.color[3]));
     effects.age(4.0);
     assert_eq!(effects.marks.len(), 0);
+}
+
+#[test]
+fn stationary_stamp_follows_small_movements_steering_and_tread_width() {
+    let mut effects = TireEffects::default();
+    effects.step([Some(contact(0.0)), None, None, None], Vec3::ZERO, FIXED_STEP);
+    let c = Contact { point: Vec3::new(0.1, 0.05, 5.0), forward: Vec3::Y, width: 0.3, ..contact(0.0) };
+    effects.step([Some(c), None, None, None], Vec3::ZERO, FIXED_STEP);
+    let geometry = vertices(&mut effects).0;
+    assert_eq!(geometry.len(), 6);
+    let p = |i: usize| Vec3::from_array(geometry[i].position);
+    assert!(((p(0) + p(2)) * 0.5 - (c.point + Vec3::Z * 0.012)).length() < 1e-5);
+    assert!((p(0).distance(p(1)) - c.width).abs() < 1e-5);
+    assert!((p(1).distance(p(2)) - 0.18).abs() < 1e-5);
+    // Sampling remains relative to the initial point, so small steps eventually form a strip.
+    effects.step([Some(Contact { point: Vec3::new(0.2, 0.05, 5.0), ..c }), None, None, None], Vec3::X, FIXED_STEP);
+    let strip = vertices(&mut effects).0[6..].to_vec();
+    assert_eq!(strip.len(), 6);
+    effects.step([Some(Contact { point: Vec3::new(0.25, 0.05, 5.0), ..c }), None, None, None], Vec3::X, FIXED_STEP);
+    assert_eq!(&vertices(&mut effects).0[6..], strip, "finished strips must not move with the tire");
 }
 
 #[test]

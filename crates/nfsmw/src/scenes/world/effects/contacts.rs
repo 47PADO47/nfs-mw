@@ -14,6 +14,8 @@ pub struct Contact {
     pub section: u32,
     pub skid: f32,
     pub smoke: f32,
+    /// Displayed tread width; the physics-only fallback keeps the original visual width.
+    pub width: f32,
 }
 
 /// `forward` is the steered wheel direction in physics space.
@@ -42,5 +44,6 @@ pub fn project(wheel: WheelState, forward: Vec3, collision: &CollisionWorld) -> 
         section: hit.section,
         skid: wheel.skid.clamp(0.0, 1.0),
         smoke: wheel.smoke.clamp(0.0, 1.0),
+        width: 0.24,
     })
 }
