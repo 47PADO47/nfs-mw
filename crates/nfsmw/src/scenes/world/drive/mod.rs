@@ -62,6 +62,8 @@ pub struct Drive {
     previous: CarPose,
     current: CarPose,
     telemetry: Telemetry,
+    /// The throttle and brake of the latest physics step, for the engine sound.
+    pedals: (f32, f32),
     chase: ChaseCamera,
     script: Option<ScriptRun>,
     /// A screenshot run drove the script in batches: once it ends the car stays where it stopped.
@@ -99,6 +101,7 @@ impl Drive {
             previous: pose,
             current: pose,
             telemetry: Telemetry::default(),
+            pedals: (0.0, 0.0),
             chase: ChaseCamera::default(),
             script: script.map(|script| ScriptRun { script, time: 0.0 }),
             batch_run: false,
@@ -245,6 +248,7 @@ impl Drive {
             self.previous = self.current;
             self.current = sim.pose();
             self.telemetry = sim.telemetry();
+            self.pedals = (input.throttle, input.brake);
             self.steps += 1;
             if self.script.is_some() && self.steps.is_multiple_of(60) {
                 let (p, t) = (self.current.position, &self.telemetry);
@@ -354,6 +358,25 @@ impl Drive {
             gear: t.gear,
             shift_light: t.red_line > 0.0 && t.rpm >= 0.95 * t.red_line,
             ..Default::default()
+        })
+    }
+
+    /// What the engine sound needs of the car; `None` while there is no car yet.
+    pub fn car_sound(&self) -> Option<crate::audio::CarSoundState> {
+        self.sim.as_ref()?;
+        let t = &self.telemetry;
+        let span = t.red_line - t.idle;
+        Some(crate::audio::CarSoundState {
+            car: self.car_name.clone(),
+            input: blackbox_carsound::CarInput {
+                rpm_pct: if span > 0.0 { ((t.rpm - t.idle) / span).clamp(0.0, 1.0) } else { 0.0 },
+                throttle: self.pedals.0,
+                brake: self.pedals.1,
+                // The transmission numbers reverse 0, neutral 1, first 2.
+                gear: t.gear + 1,
+                speed: t.speed_mps.abs(),
+                ..Default::default()
+            },
         })
     }
 

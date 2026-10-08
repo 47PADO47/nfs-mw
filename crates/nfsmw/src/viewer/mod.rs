@@ -38,6 +38,10 @@ pub trait Scene {
     fn hud_state(&self) -> Option<crate::hud::HudState> {
         None
     }
+    /// The car being driven, for the engine sound; `None` is silence.
+    fn car_sound(&self) -> Option<crate::audio::CarSoundState> {
+        None
+    }
     /// The scene's own console commands as `(name, usage)`, listed by `help`.
     fn commands(&self) -> &'static [(&'static str, &'static str)] {
         &[]

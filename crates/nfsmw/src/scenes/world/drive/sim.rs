@@ -31,6 +31,8 @@ pub struct Telemetry {
     pub wheels_on_ground: usize,
     /// The engine's red line, rpm: the end of the tachometer scale.
     pub red_line: f32,
+    /// The engine's idle speed, rpm.
+    pub idle: f32,
 }
 
 /// Library wheel index of each model wheel.
@@ -150,6 +152,7 @@ impl CarSim {
             nos: v.nos_level(),
             wheels_on_ground: v.wheels_on_ground(),
             red_line: v.powertrain().engine_spec().red_line,
+            idle: v.powertrain().engine_spec().idle,
         }
     }
 }

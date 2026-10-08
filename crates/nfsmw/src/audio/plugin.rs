@@ -2,10 +2,12 @@
 
 use bevy_app::{App, Plugin, Update};
 use bevy_ecs::prelude::*;
+use bevy_time::Time;
 use game_install::GameDir;
 
 use super::{Audio, Volumes};
 use crate::app::FrameSet;
+use crate::app::Host;
 use crate::settings::Settings;
 
 pub struct AudioPlugin {
@@ -26,7 +28,7 @@ impl Plugin for AudioPlugin {
     fn build(&self, app: &mut App) {
         let volumes = app.world().get_resource::<Settings>().map(volumes_of).unwrap_or_default();
         app.insert_non_send(Audio::new(self.dir.clone(), volumes))
-            .add_systems(Update, sync_volumes.in_set(FrameSet::Prepare));
+            .add_systems(Update, (sync_volumes.in_set(FrameSet::Prepare), drive_car.in_set(FrameSet::Ui)));
     }
 }
 
@@ -39,4 +41,9 @@ fn sync_volumes(settings: Res<Settings>, mut audio: NonSendMut<Audio>) {
     if audio.volumes() != wanted {
         audio.set_volumes(wanted);
     }
+}
+
+/// The scene's car plays its engine.
+fn drive_car(host: NonSend<Host>, time: Res<Time>, mut audio: NonSendMut<Audio>) {
+    audio.drive_car(host.scene.car_sound().as_ref(), time.delta_secs());
 }
