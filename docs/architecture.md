@@ -104,8 +104,8 @@ bevy_winit window ─► PreUpdate: input/ resolves devices into actions (Action
 ## Developer tools
 
 - **UI layer.** `blackbox-render` draws a 2D layer over the scene: textured, clipped, premultiplied-alpha
-  triangles (`UiLayer`, `UiTexturePatch`). It knows nothing about egui; the front-end menus of milestone 6
-  will use the same layer.
+  triangles (`UiLayer`, `UiTexturePatch`). It knows nothing about egui; the HUD and the front-end menus
+  draw through the same layer.
 - **egui host** (`gui/`): turns Bevy keyboard, mouse and wheel messages into egui events and egui's output
   into that layer. The panels only see an `egui::Context`.
 - **Metrics** (`devtools/`): `Metrics` is plain data (240 frame times, GPU name, mesh and texture counts).
@@ -120,7 +120,7 @@ bevy_winit window ─► PreUpdate: input/ resolves devices into actions (Action
     the shorthands `fps 60` / `vsync off` / `metrics advanced`, and `resolution <w> <h>`. Changes last for
     the run; the config file is not written.
   - The car viewer adds `car <folder>`, `garage` and `freecam` (orbit ↔ free camera). The world viewer adds
-    `drive`, `reset`, `tp`, `goto`, `freecam`, `pos`, `props` and `garage` ([Driving](#driving-view-world---drive)).
+    `drive`, `reset`, `tp`, `goto`, `freecam`, `pos`, `props`, `debug collisions` and `garage` ([Driving](#driving-view-world---drive)).
     Scenes offer commands through `Scene::commands` and `Scene::command`; "spawn AI" arrives with milestone 7.
   - `--exec "<command>"` (repeatable) runs commands at startup, like Quake's `+exec`; `--open-console`
     (hidden) starts with the console open, which is how the screenshots in bug reports show it.
@@ -218,8 +218,8 @@ Known gaps, for later milestones:
 `nfsmw view-world --drive [CAR] [--at X,Y]` puts a car (default `BMWM3GTR`; a folder or a unique
 prefix) on the street nearest to the start and follows it with a chase camera. Keys and pad are listed
 under [the application shell](#the-application-shell); `F` (or `freecam`) swaps to the free camera, which
-parks the car. The readout in the corner shows speed, rpm, gear and nitrous; the original FEng HUD replaces
-it later in milestone 5. It lives in [`scenes/world/drive/`](../crates/nfsmw/src/scenes/world/drive):
+parks the car. The original FEng HUD ([The HUD](#the-hud)) shows speed, rpm, gear and the gauges; the readout in the
+corner is a debug aid with levels ([Developer tools](#developer-tools)). It lives in [`scenes/world/drive/`](../crates/nfsmw/src/scenes/world/drive):
 
 ```
 input (actions or --drive-script) ─► DriveInput ─► 60 Hz fixed step (accumulator, interpolated for drawing)
@@ -247,39 +247,60 @@ CarPose (render axes) ─► CarRig (assembled car, wheels posed: steer, spin, s
   brings the car to the street nearest the camera.
 - **Walls and props.** Barriers and steep faces of the collision packs (guard rails, concrete barriers,
   fences: 45,815 barriers) are met by eight probes on the body's outline; props are tested with a box overlap.
+  A barrier is a wall from its front side only (the drivable side) unless it is flagged two-sided; the 8,345
+  barriers of scenery groups (the road blocks and gates of races, off in free roam) are left out of the probes, the
+  tyre rays and the chase camera, and faces flagged "not ground" are skipped by the tyre rays.
   Rigid contacts react with `WALL_FRICTION`, `WALL_ELASTICITY` and `WORLD_MOMENT_SCALE`. A light prop (see
   [collision.md](formats/collision.md#props)) costs the car `m_car / (m_car + m_prop)` of its speed, disappears
   and comes back after six seconds.
 - **Chase camera.** It keeps a smoothed offset from the car (no lag at speed), backs off and widens its view
   up to 60 m/s (7 m, 68 degrees) and no further, and an obstacle shortens its reach quickly but lets it grow
   back slowly, never below 2.8 m from the car.
-- **Console:** `drive [car]`, `reset`, `tp <x> <y>`, `goto <x> <y> [height]`, `freecam`, `pos`, `props [radius]`
-  and `garage` (every car for now; later the player's own). `--drive-script "3:throttle=1;1:steer=0.5,throttle=0.6;0.1:reset"`
+- **Contact markers.** `debug collisions [on|off]` (no argument: toggle) draws what the car touches, as a cube at
+  the point and a stick along the normal: red for a barrier, orange for a steep face, magenta for a rigid prop,
+  yellow for a light prop, green for where each tyre's ray met the road. Wall and prop contacts stay for half a
+  second (they are recorded whether or not they are drawn); the scene status line counts them. A wall the car
+  cannot see (the playtest report of walls on leaves, curbs and sidewalks) shows up as a marker with nothing
+  visible behind it.
+- **Console:** `drive [car]`, `reset`, `tp <x> <y>`, `goto <x> <y> [height]`, `freecam`, `pos`, `props [radius]`,
+  `debug collisions` and `garage` (every car for now; later the player's own). `--drive-script "3:throttle=1;1:steer=0.5,throttle=0.6;0.1:reset"`
   (hidden option) drives with a script: keys `throttle`, `brake`, `steer`, `handbrake`, `nos`, `up`, `down`,
   `reset`. With `--screenshot` the script runs in batches, waits for the map around the car to load and the
   picture is taken when it ends; the run logs one line per second (speed, rpm, gear, position, wheels down).
 
-Known gaps: the car shader, tire smoke and skid marks (milestone 8), car-versus-car and traffic, damage,
-one-sided barriers (a barrier blocks from both sides), the original's wall steering, a controller that has
-been tried on real hardware, and calibration of the handling against the original.
+Known gaps: the car shader, tire smoke and skid marks (milestone 8), car-versus-car and traffic, damage, the
+original's wall steering, a controller that has been tried on real hardware, steering wheel support, the invisible
+walls a playtest found on leaves, curbs and sidewalks (not identified: no prop is called a leaf and the data holds
+almost no low steep geometry; `debug collisions` is the tool to find one), and calibration of the handling against
+the original.
 
 ## The HUD
 
 The in-game HUD is the original package `HUD_SingleRace.fng` run by `blackbox-feng`
-([decision](decisions/0002-ui-presentation.md), [runtime spec](specs/feng-runtime.md)). `hud/` in the binary has a
-plain `HudState` resource (speed, rpm, gear, shift light) and the binding that copies the state into named FEng
-objects (digits, units, gear, needle, shift light). The shared `ui/` loads the packages by name (`Catalog`) and
-the fonts, textures and strings once (`UiAssets`), and has exactly one presenter (`ui/present/blackbox.rs`) that
-draws the tree through the UI layer, under egui. A scene supplies its state with `Scene::hud_state`; nothing else
-knows FEng.
+([decision](decisions/0002-ui-presentation.md), [runtime spec](specs/feng-runtime.md), section 8 for the rules of each
+element). `hud/` in the binary has a plain `HudState` resource (speed, rpm, the engine's `MAX_RPM` and red line, gear,
+shifting, shift light, nitrous, boost) and the binding that copies the state into named FEng objects. The shared `ui/`
+loads the packages by name (`Catalog`) and the fonts, textures and strings once (`UiAssets`), and has exactly one
+presenter (`ui/present/blackbox.rs`) that draws the tree through the UI layer, under egui; it draws a multi image
+through its mask by composing the picture with the rotated mask into one texture slot. A scene supplies its state
+with `Scene::hud_state`; nothing else knows FEng.
 
-- `--hud` shows it in any viewer (idle numbers; `--hud-demo SPEED,RPM,MAX_RPM,GEAR` for reference shots), and it is
-  on while driving unless the `hud` setting is off (`hud = false` in the config file, `NFSMW_HUD=off`, `--no-hud`,
-  console `set hud off`). The free camera never shows it. `--screenshot` captures it.
-- Only the speedometer and the tachometer are shown. The rest of the package (radar, pursuit bars, race timers)
-  needs game state that arrives with the race and pursuit milestones; the runtime already runs their scripts.
-- Gaps: wide screens scale the 480-unit height without the package's widescreen messages; the redline mask is not
-  drawn; the custom tachometer skins other than 00 are not loaded.
+- `--hud` shows it in any viewer (idle numbers; `--hud-demo SPEED,RPM,MAX_RPM,GEAR[,NOS_PERCENT[,BOOST_PSI]]` for
+  reference shots), and it is on while driving unless the `hud` setting is off (`hud = false` in the config file,
+  `NFSMW_HUD=off`, `--no-hud`, console `set hud off`). The free camera never shows it. `--screenshot` captures it.
+- **Shown, from game state:** the speedometer (whole units, cut off; km/h); the tachometer (the face and the end of the
+  needle's sweep from `MAX_RPM`, the red zone mask turned by the original's table, the gear digit that dims while a gear
+  change is in progress, the shift light lit by the gearbox's shift-up wish); the nitrous gauge (bar mask and icon
+  scripts) for a car with a nitrous system; the turbo dial for a car with forced induction.
+- **Hidden:** the elements that need the race and pursuit state of milestone 7 (radar detector, pursuit, heat, busted,
+  cost-to-state, milestone and race boards, countdown, infractions, speed breaker meter, the wrong-way sign, online
+  fields); the engine temperature gauge (drag HUD only); the minimap, which needs the track's map textures
+  (`TRACKS/L2RA/MINI_MAP*.BIN`), the map origin and scale of the track info and the original's zoom rule, none of
+  which is written up. The runtime still runs their scripts.
+- **Gaps:** wide screens scale the 480-unit height without the package's widescreen messages; the custom tachometer
+  skins other than 00 are not loaded; the original also zeroes the shift light for a frame after a gear change and
+  when the wheels lack traction (not in the decompilation, not done); the mask blend of multi images is inferred from
+  the gauge textures; the HUD has not been compared with a capture of the original.
 
 ## The front end
 
@@ -437,7 +458,7 @@ render one frame off-screen. Use them to check rendering changes and backends wi
 | 2 | Generic `libs/` split; the streamed city: index, sections, scenery, background loading, instanced rendering, culling, fly camera | done |
 | 3 | Sky dome, LODs, water, panoramas; zone-based streaming (visible sections); AttribSys reader; car assembly from the parts DB (stock parts, wheels, brakes, paint). Playtest fixes: misplaced and floating scenery, mouse look without holding a button, `--max-fps`, clearer config-file path | done |
 | 4 | Engine foundation: decide on Bevy (ECS, events, UI) in an ADR and migrate the viewers if adopted; layered settings (command line > environment > per-user config file > defaults, with a settings menu in 6); input layer with controller support; developer console (F12: log view, commands such as change car, toggle free camera, change settings); performance overlay (`--show-metrics off\|basic\|advanced`). Decided: Bevy as the shell with our renderer ([ADR 0001](decisions/0001-bevy.md)), full Bevy renderer revisited in 8 | done |
-| 5 | Vehicle physics, spec-first (`docs/specs/vehicle-*.md`); world collision (`CarpWCollisionPack`); drive a car with the original HUD: read the FEng HUD packages (`HUD_*.fng` in `InGameB.bun`) and draw them with the UI layer; steering wheel controller support (wheel axes, pedals, shifters) on the input layer from 4 |  in progress: `blackbox-vehicle`, the collision reader, input actions, `view-world --drive` (placing, chase camera, walls, props, reset and fall recovery, scripted runs) are in; the original HUD, steering wheel support and calibration against the original are open, and so are manual shifting (Q/E, pad bumpers, wheel paddles and clutch, with a transmission setting; `request_shift` already holds the logic), a `debug collisions` console command that draws the contact points, and a minimal readout level next to the original HUD (like the metrics levels) ([Driving](#driving-view-world---drive)) |
+| 5 | Vehicle physics, spec-first (`docs/specs/vehicle-*.md`); world collision (`CarpWCollisionPack`); drive a car with the original HUD: read the FEng HUD packages (`HUD_*.fng` in `InGameB.bun`) and draw them with the UI layer; steering wheel controller support (wheel axes, pedals, shifters) on the input layer from 4 |  in progress: `blackbox-vehicle`, the collision reader, input actions, `view-world --drive` (placing, chase camera, one-sided walls, props, reset and fall recovery, scripted runs), the original HUD (speedometer, tachometer with its red zone and shift light, gear, nitrous bar, turbo dial; the rest of the package waits for the race and pursuit state of milestone 7, the minimap for its map projection), the `--show-readout` levels and the `debug collisions` command are in; steering wheel support (wheel axes, pedals, shifters), a controller tried on real hardware and calibration against the original are open, and so is manual shifting (Q/E, pad bumpers, wheel paddles and clutch, with a transmission setting; `request_shift` already holds the logic) ([Driving](#driving-view-world---drive), [The HUD](#the-hud)) |
 | 6 | Audio (EA-XA, EA-XAS engine loops, MicroTalk speech), VP6 movies, FEng menus (the same FEng runtime as the HUD), in-game settings menu | in progress: the codecs, banks, music and movie decoders, Ginsu synthesis, the car sound data, the engine and effects mixers, the dynamic mixer maps, the sample (AEMS) layer of the engine and the sputters, the output device, the driven car's engine and effects, a movie player and the radio (licensed songs, gapless, play lists; not yet heard by a human) are in, and so are the front end (boot movies, title screen, main menu, option screens for audio, video and gameplay, the pause menu, free roam) and the settings written to the config file; speech and the interactive music are open, and so is a playtest report that the engine sounds muted at the rev limiter on some cars (FXX Evo) which the mixers do not reproduce; `RUST_LOG=nfsmw::audio=debug` logs the limiter ([Sound](#sound), [The front end](#the-front-end)) |
 | 7 | AI racers, traffic, pursuit, races; career data; console commands to spawn AI | |
 | 8 | Graphics: the car shader and lighting rig, tire smoke and skid marks (`blackbox-vehicle` already reports per-wheel `skid` and `smoke`; this draws them), exhaust flames (backfire on lift-off, driven by the sputters of the sample layer), post-processing, upscaling (FSR; DLSS where the backend allows it), ReShade compatibility, Bevy Solari | |
