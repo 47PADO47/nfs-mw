@@ -54,7 +54,7 @@ bounds, surface types and the query rules are in [collision.md](collision.md).
 ## Minimap
 
 `TRACKS/L2RA/` has 269 files: 267 `MINI_MAP*.BIN`, `TrackMaps.bin`, `TroughBoundary.bin`
-**[verified]**.
+**[verified]**. The tile grid, the calibration and the HUD objects are written up in [minimap.md](minimap.md).
 
 - `MINI_MAP.BIN` is 64 `0003A100 CompTPKBlock` chunks. Each payload is a bare **JDLZ** blob that
   decompresses to a **17,152-byte `TexturePack`** (one tile) **[verified]**.
