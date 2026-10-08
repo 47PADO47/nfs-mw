@@ -67,6 +67,19 @@ pub fn list(dir: &GameDir) -> Vec<String> {
     dir.subdirectories("CARS").into_iter().filter(|car| dir.exists(&format!("CARS/{car}/GEOMETRY.BIN"))).collect()
 }
 
+/// The folder named `wanted`, ignoring case; failing that, the only folder that starts with it.
+pub fn pick_folder<'a>(cars: &'a [String], wanted: &str) -> Option<&'a str> {
+    if let Some(exact) = cars.iter().find(|c| c.eq_ignore_ascii_case(wanted)) {
+        return Some(exact);
+    }
+    let lower = wanted.to_ascii_lowercase();
+    let mut starts = cars.iter().filter(|c| c.to_ascii_lowercase().starts_with(&lower));
+    match (starts.next(), starts.next()) {
+        (Some(only), None) => Some(only),
+        _ => None,
+    }
+}
+
 /// Shared part folders (aftermarket wheels, brakes, spoilers, roof scoops, plates).
 fn is_shared_part_folder(name: &str) -> bool {
     ["WHEELS", "BRAKES", "PLATES", "ROOF"].contains(&name) || name.starts_with("SPOILER")
@@ -190,4 +203,22 @@ fn unassembled(dir: &GameDir, car: &str, solids: Vec<Solid>, options: &LoadOptio
         corners: None,
         wheel_setup: None,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cars() -> Vec<String> {
+        ["BMWM3", "BMWM3GTR", "CARRERAGT", "CAMARO", "CORVETTE"].iter().map(|s| (*s).to_owned()).collect()
+    }
+
+    #[test]
+    fn exact_beats_prefix_and_prefix_must_be_unique() {
+        let cars = cars();
+        assert_eq!(pick_folder(&cars, "bmwm3"), Some("BMWM3"), "exact match even though BMWM3GTR also starts with it");
+        assert_eq!(pick_folder(&cars, "carr"), Some("CARRERAGT"));
+        assert_eq!(pick_folder(&cars, "ca"), None, "camaro and carreragt");
+        assert_eq!(pick_folder(&cars, "zzz"), None);
+    }
 }
