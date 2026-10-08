@@ -137,6 +137,59 @@ fn a_scripted_drive_sounds_like_an_engine() {
     assert!(rms(2.5, 5.0) > rms(0.5, 2.0) * 0.5, "the pull is not quieter than half the idle");
 }
 
+/// A car shifted by hand (the real physics, gears changed on request) makes the shift sounds: one clunk for each
+/// upshift and one for each downshift taken at revs, none when nothing shifts, and neutral and first from standing
+/// are silent. The mixer hears the gear number the vehicle reports, as in the game (`SoundFeed`).
+#[test]
+fn a_hand_shifted_drive_plays_the_shift_sounds() {
+    use blackbox_vehicle::{FIXED_STEP, FlatGround, InputState, Vehicle};
+    use nfsmw_data::car::physics::PhysicsData;
+
+    let Some(mut audio) = audio() else { return };
+    let car = audio.load_car_engine("BMWM3GTR").unwrap();
+    let mut mixer = EngineMixer::new(&tuning(&car.sound, car.accel_min_frequency()));
+    let mut vehicle = Vehicle::new(PhysicsData::load(&audio.dir).unwrap().car("BMWM3GTR").unwrap().spec);
+    vehicle.config.automatic = false;
+    let ground = FlatGround::new(0.0);
+    assert!(vehicle.place_on_ground(&ground, 0.0, 0.0, 5.0, 0.0));
+    let (red, idle) = (vehicle.spec().engine.red_line, vehicle.spec().engine.idle);
+
+    let (mut gear_changes, mut clunks) = (Vec::new(), Vec::new());
+    let mut previous = vehicle.gear();
+    for i in 0..(16.0 * 60.0) as usize {
+        let t = i as f32 * FIXED_STEP;
+        // Pull away, shift up at 90% of the red line to third, lift and drop to second at 10 s.
+        let up = vehicle.rpm() > 0.9 * red && vehicle.gear() < 4 && t < 10.0 && !vehicle.powertrain().shifting();
+        let down = i == 10 * 60;
+        let throttle = if t < 10.0 { 1.0 } else { 0.0 };
+        vehicle.step(
+            FIXED_STEP,
+            &InputState { throttle, shift_up: up, shift_down: down, ..Default::default() },
+            &ground,
+        );
+        if vehicle.gear() != previous {
+            gear_changes.push((previous, vehicle.gear()));
+            previous = vehicle.gear();
+        }
+        let span = red - idle;
+        let input = CarInput {
+            rpm_pct: ((vehicle.rpm() - idle) / span).clamp(0.0, 1.0),
+            throttle,
+            gear: vehicle.gear() as i32,
+            speed: vehicle.forward_speed().abs(),
+            ..CarInput::default()
+        };
+        clunks.extend(mixer.update(TICK, &input).events.gear_clunk);
+    }
+    let ups = gear_changes.iter().filter(|(from, to)| to > from).count();
+    assert!(ups >= 2, "the pull should take at least two upshifts: {gear_changes:?}");
+    assert_eq!(gear_changes.last().map(|g| g.1), Some(vehicle.gear()));
+    let up_clunks = clunks.iter().filter(|d| **d == blackbox_carsound::ShiftDirection::Up).count();
+    assert_eq!(up_clunks, ups, "one clunk per upshift: {gear_changes:?} against {clunks:?}");
+    let downs = gear_changes.iter().filter(|(from, to)| to < from).count();
+    assert!(clunks.len() <= ups + downs, "no clunk without a shift: {clunks:?}");
+}
+
 /// Every effect of a car with a turbo and one without resolves to a sound its bank really has.
 #[test]
 fn every_effect_resolves_to_a_sound_in_its_bank() {
