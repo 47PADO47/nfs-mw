@@ -8,7 +8,7 @@ use crate::devtools::{ShowMetrics, ShowReadout};
 use crate::settings::{Percent, Settings, Transmission, parse_bool};
 
 /// Settings the console can show.
-const KEYS: [&str; 17] = [
+const KEYS: [&str; 18] = [
     "backend",
     "vsync",
     "fps",
@@ -23,6 +23,7 @@ const KEYS: [&str; 17] = [
     "engine_volume",
     "hud",
     "tire_smoke",
+    "radio",
     "smoke_quality",
     "skid_marks",
     "transmission",
@@ -45,6 +46,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "engine_volume" => settings.engine_volume.to_string(),
         "hud" => on_off(settings.hud).to_owned(),
         "tire_smoke" => on_off(settings.tire_smoke).to_owned(),
+        "radio" => on_off(settings.radio).to_owned(),
         "smoke_quality" => settings.smoke_quality.to_string(),
         "skid_marks" => on_off(settings.skid_marks).to_owned(),
         "transmission" => settings.transmission.to_string(),
@@ -59,7 +61,11 @@ pub fn get_all(settings: &Settings) -> String {
 }
 
 /// Change a setting. The message says what happened.
+/// An empty `value` is a `set` without one: a switch flips, anything else answers with its usage.
 pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, String> {
+    if value.is_empty() {
+        return set_without_value(settings, key);
+    }
     match key {
         "vsync" => settings.vsync = parse_bool(value)?,
         "fps" | "max_fps" => settings.max_fps = MaxFps::from_str(value)?,
@@ -74,6 +80,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "engine_volume" => settings.engine_volume = Percent::from_str(value)?,
         "hud" => settings.hud = parse_bool(value)?,
         "tire_smoke" => settings.tire_smoke = parse_bool(value)?,
+        "radio" => settings.radio = parse_bool(value)?,
         "smoke_quality" => settings.smoke_quality = value.parse()?,
         "skid_marks" => settings.skid_marks = parse_bool(value)?,
         "transmission" => settings.transmission = Transmission::from_str(value)?,
@@ -81,6 +88,48 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         other => return Err(unknown(other)),
     }
     get(settings, key)
+}
+
+/// The on/off settings, which `set <key>` flips.
+fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
+    match key {
+        "vsync" => Some(&mut settings.vsync),
+        "hud" => Some(&mut settings.hud),
+        "tire_smoke" => Some(&mut settings.tire_smoke),
+        "skid_marks" => Some(&mut settings.skid_marks),
+        "radio" => Some(&mut settings.radio),
+        _ => None,
+    }
+}
+
+/// What a setting accepts, for the usage line.
+fn syntax(key: &str) -> Option<&'static str> {
+    Some(match key {
+        "fps" | "max_fps" => "<unlocked|number>",
+        "metrics" | "show_metrics" => "<off|basic|advanced>",
+        "readout" | "show_readout" => "<off|minimal|full>",
+        "window_mode" => "<windowed|borderless|exclusive>",
+        "monitor" => "<current|primary|index>",
+        "resolution" => "<WIDTHxHEIGHT|native>",
+        "volume" | "master_volume" | "music_volume" | "sfx_volume" | "engine_volume" => "<0-100>",
+        "smoke_quality" => "<standard|high>",
+        "transmission" => "<automatic|manual>",
+        _ => return None,
+    })
+}
+
+fn set_without_value(settings: &mut Settings, key: &str) -> Result<String, String> {
+    if let Some(flag) = switch(settings, key) {
+        *flag = !*flag;
+        return get(settings, key);
+    }
+    if key == "backend" {
+        return Err("the graphics backend cannot change while running; restart with --backend".into());
+    }
+    let Some(syntax) = syntax(key) else { return Err(unknown(key)) };
+    let now = get(settings, key)?;
+    let now = now.split_once(" = ").map_or(now.as_str(), |(_, value)| value);
+    Err(format!("usage: set {key} {syntax} (now {now})"))
 }
 
 fn on_off(on: bool) -> &'static str {
@@ -134,6 +183,31 @@ mod tests {
         assert_eq!(s.transmission, Transmission::Manual);
         assert!(set(&mut s, "transmission", "sport").is_err());
         assert_eq!(s.transmission, Transmission::Manual);
+    }
+
+    #[test]
+    fn set_without_a_value_flips_a_switch_and_explains_anything_else() {
+        let mut s = defaults();
+        assert_eq!(set(&mut s, "vsync", "").unwrap(), "vsync = off");
+        assert_eq!(set(&mut s, "vsync", "").unwrap(), "vsync = on");
+        assert_eq!(set(&mut s, "radio", "").unwrap(), "radio = off");
+        assert!(!s.radio);
+        let before = s;
+        assert_eq!(set(&mut s, "fps", "").unwrap_err(), "usage: set fps <unlocked|number> (now unlocked)");
+        assert_eq!(set(&mut s, "metrics", "").unwrap_err(), "usage: set metrics <off|basic|advanced> (now off)");
+        assert!(set(&mut s, "volume", "").unwrap_err().starts_with("usage: set volume <0-100> (now 80)"));
+        assert!(set(&mut s, "backend", "").unwrap_err().contains("restart"));
+        assert!(set(&mut s, "bass", "").unwrap_err().contains("unknown setting"));
+        assert_eq!(s, before);
+    }
+
+    #[test]
+    fn every_setting_has_a_switch_or_a_syntax() {
+        let mut s = defaults();
+        for key in KEYS.into_iter().filter(|k| *k != "backend") {
+            let answer = set(&mut s, key, "");
+            assert!(answer.is_ok() || answer.unwrap_err().starts_with("usage: set "), "{key}");
+        }
     }
 
     #[test]
