@@ -8,6 +8,8 @@
 mod chain;
 pub mod graph;
 mod mpf;
+mod play;
 
 pub use chain::{Chain, Segment};
 pub use mpf::{Mpf, MusStream, Track};
+pub use play::ChainReader;

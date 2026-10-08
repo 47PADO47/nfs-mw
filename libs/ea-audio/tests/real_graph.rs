@@ -2,8 +2,9 @@
 //!
 //! Run with `NFSMW_GAME_DIR=... cargo test -p ea-audio --test real_graph -- --ignored --nocapture`.
 
+use ea_audio::ReadAt;
 use ea_audio::mus::graph::{Graph, NodeKind, WalkEnd};
-use ea_audio::mus::{Chain, Mpf};
+use ea_audio::mus::{Chain, ChainReader, Mpf};
 use std::path::PathBuf;
 
 /// The 26 licensed songs, as the order of the game's song list gives them: low 24 bits of the song's event id,
@@ -114,4 +115,67 @@ fn the_songs_do_not_share_streams() {
             );
         }
     }
+}
+
+/// A file read with positioned reads, so nothing is loaded up front.
+struct FileSource(std::fs::File, u64);
+
+impl ReadAt for FileSource {
+    fn len(&self) -> u64 {
+        self.1
+    }
+
+    fn read_at(&self, offset: u64, buf: &mut [u8]) -> usize {
+        let mut done = 0;
+        while done < buf.len() {
+            #[cfg(windows)]
+            let n = std::os::windows::fs::FileExt::seek_read(&self.0, &mut buf[done..], offset + done as u64);
+            #[cfg(unix)]
+            let n = std::os::unix::fs::FileExt::read_at(&self.0, &mut buf[done..], offset + done as u64);
+            match n {
+                Ok(0) | Err(_) => break,
+                Ok(n) => done += n,
+            }
+        }
+        done
+    }
+}
+
+/// Streams every song through a `ChainReader`: the decoded length matches the stored one, and the join between
+/// two streams is as quiet as the fades inside the music (every stream fades to silence at both ends).
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR); slow without --release"]
+fn all_26_songs_stream_gaplessly() {
+    let Some((mpf, graph)) = load() else { return };
+    let mus = PathBuf::from(std::env::var_os("NFSMW_GAME_DIR").unwrap()).join("SOUND/PFDATA/MW_Music.mus");
+    let file = std::fs::File::open(mus).unwrap();
+    let len = file.metadata().unwrap().len();
+    let source = FileSource(file, len);
+    let mut worst_join = 0i32;
+    for (n, &(event, ..)) in SONGS.iter().enumerate() {
+        let chain = mpf.song_chain(&graph, event, 0).unwrap();
+        let mut reader = ChainReader::new(&mpf, &source, &chain).unwrap();
+        assert_eq!((reader.sample_rate(), reader.channels()), (36000, 2), "song {n}");
+        let channels = usize::from(reader.channels());
+        let (mut frames, mut previous_segment) = (0usize, 0usize);
+        let (mut out, mut last): (Vec<i16>, Vec<i16>) = (Vec::new(), vec![0; channels]);
+        while let Some(count) = reader.next_chunk(&mut out).unwrap() {
+            assert_eq!(out.len(), count * channels);
+            frames += count;
+            if reader.segment_index() != previous_segment {
+                // First frame of a new stream against the last frame of the one before.
+                let step = (0..channels).map(|c| (i32::from(out[c]) - i32::from(last[c])).abs()).max().unwrap();
+                worst_join = worst_join.max(step);
+                previous_segment = reader.segment_index();
+            }
+            last = out[out.len() - channels..].to_vec();
+            out.clear();
+        }
+        let secs = frames as f64 / 36000.0;
+        let expected = chain.total_secs();
+        assert!((secs - expected).abs() < 0.002 * chain.segments.len() as f64, "song {n}: {secs} s vs {expected} s");
+        println!("song {n:2}: {secs:.1} s streamed");
+    }
+    println!("largest step across a join: {worst_join}");
+    assert!(worst_join < 2000, "a join jumps by {worst_join}");
 }

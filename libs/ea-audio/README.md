@@ -32,7 +32,9 @@ while let Some(frames) = reader.next_chunk(&mut pcm)? { /* feed the audio device
 let graph = ea_audio::mus::graph::Graph::parse(&mpf_bytes)?;
 let start = graph.song_start(event_id).unwrap();       // node of a song's event (24 bits compared)
 let chain = mpf.chain(&graph, start, 0)?;              // segments: node, stream, start_ms, duration_ms
-for seg in &chain.segments { /* open stream seg.stream, queue it after the previous one */ }
+// ChainReader decodes the whole chain as one gapless run, a block at a time from a ReadAt source:
+let mut reader = ea_audio::mus::ChainReader::new(&mpf, &mus_source, &chain)?;
+while let Some(frames) = reader.next_chunk(&mut pcm)? { /* feed the audio device */ }
 
 // A .big container: find the streams, decode any of them.
 for entry in ea_audio::big::scan(&big_source)? {
@@ -57,7 +59,7 @@ The decoder never loops: `Pcm::loop_range` holds the loop points in frames (end 
 | `SPEECH/copspeech.big` | 13,562 MicroTalk streams (177 stereo), 24,000 Hz | all decode; speech is mastered at full scale and touches the rails in runs of at most 8 samples |
 | `STREAMS/NISAudio.big` | 142 streams (up to 6 channels), 44,100 Hz | all decode |
 | `ENGINE/*.gin` | 160 files | all decode; frame boundaries are as smooth as frame interiors |
-| `PFDATA/MW_Music.mpf` graph | 3,681 nodes, 70 events, 123 routers | `cargo test -p ea-audio --test real_graph -- --ignored`: every audio node names an existing stream, all 26 song events resolve to chains of the expected stream counts and lengths |
+| `PFDATA/MW_Music.mpf` graph | 3,681 nodes, 70 events, 123 routers | `cargo test -p ea-audio --test real_graph -- --ignored`: every audio node names an existing stream, all 26 song events resolve to chains of the expected stream counts and lengths, and stream gaplessly (largest step at a join: 96 of 32,768) |
 
 EA-XA output is identical, sample for sample, to FFmpeg's `adpcm_ea_r3` / `adpcm_ea_r2` on music and cut-scene
 streams. MicroTalk has no second implementation to compare with here; it is checked for smoothness, clipping and
