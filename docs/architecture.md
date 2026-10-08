@@ -332,9 +332,13 @@ render one frame off-screen. Use them to check rendering changes and backends wi
 | 6 | Audio (EA-XA, EA-XAS engine loops, MicroTalk speech), VP6 movies, FEng menus (the same FEng runtime as the HUD), in-game settings menu | |
 | 7 | AI racers, traffic, pursuit, races; career data; console commands to spawn AI | |
 | 8 | Graphics: the car shader and lighting rig, tire smoke and skid marks (`blackbox-vehicle` already reports per-wheel `skid` and `smoke`; this draws them), post-processing, upscaling (FSR; DLSS where the backend allows it), ReShade compatibility, Bevy Solari | |
-| 9 | LAN multiplayer; scripting API for mods | |
-| 10 | Discord Rich Presence | |
-| 11 | Drift mode: a handling variant with more controlled sliding at lower speeds (its own tire and assist tuning in `blackbox-vehicle`; the original's burnout and drift assists are not modelled yet) | |
+| 9 | Discord Rich Presence | |
+| 10 | Lan multiplayer | |
+| 11 | Online multiplayer | |
+| 12 | scripting API for mods | |
+| 13 | Websocket/server/something for telemetry/api info on player career etc | |
+| 14 | Drift mode: a handling variant with more controlled sliding at lower speeds (its own tire and assist tuning in `blackbox-vehicle`, the original has burnout and drift assists that are not modelled yet) | |
+
 
 Why this order:
 
