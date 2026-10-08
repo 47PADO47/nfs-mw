@@ -60,6 +60,8 @@ fn barrier_blocks_horizontally_within_its_height() {
     // Coming from the other side flips the normal.
     let back = w.ray_cast([110.0, 6.0, 200.0], [90.0, 6.0, 200.0], &opts).unwrap();
     assert_eq!(back.normal, [1.0, 0.0, 0.0]);
+    // Only one of the two sides is the barrier's front.
+    assert_ne!(hit.front_facing, back.front_facing);
     // Barriers can be switched off.
     let faces_only = RayOptions { barriers: false, ..opts };
     assert!(w.ray_cast([90.0, 6.0, 200.0], [110.0, 6.0, 200.0], &faces_only).is_none());

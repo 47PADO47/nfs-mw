@@ -45,6 +45,9 @@ pub struct Hit {
     /// World-space unit normal, on the side of the segment's start.
     pub normal: Vec3,
     pub kind: HitKind,
+    /// The segment started on the side the surface's own normal points to. For a barrier that is its front:
+    /// the side a vehicle is blocked from unless [`crate::BARRIER_TWO_SIDED`] is set in `surface_flags`.
+    pub front_facing: bool,
     /// Surface type hash from the article's table (`simsurface` key), 0 when unknown.
     pub surface_hash: u32,
     pub surface_index: u8,
@@ -153,7 +156,8 @@ pub(crate) fn cast_instance(
     let point = inst.to_world(lerp(la, lb, c.t));
     // Orient the normal towards the start of the segment.
     let mut normal = inst.dir_to_world(c.normal);
-    if dot(normal, sub(a, point)) < 0.0 {
+    let front_facing = dot(normal, sub(a, point)) >= 0.0;
+    if !front_facing {
         normal = scale(normal, -1.0);
     }
     Some(Hit {
@@ -161,6 +165,7 @@ pub(crate) fn cast_instance(
         point,
         normal,
         kind: c.kind,
+        front_facing,
         surface_hash: article.surface_hash(c.surface).unwrap_or(0),
         surface_index: c.surface,
         surface_flags: c.flags,
