@@ -261,8 +261,8 @@ to 0x178C0 exactly. A **router** entry is a `u32` `key << 16 | value` that repla
 `key`. An **event** is 20 header bytes (`id24` and the action count in the top byte at +12) and 12-byte actions
 `{mask, w1, w2}`; opcode = bits 8-14 of `w1` (18 opcodes), `BRANCHTO` is 4 with the node in the low 16 bits of
 `w2`. Each of the 26 songs has an event of two actions: stop everything, then branch to the song's first node;
-following the first transition of every node from there to the end node gives the song's streams, which are
-consecutive in the `.mus` and add up to the real track length. Sections: 1 to 4 pursuit music, 5 the songs and the
+following the first transition of every node from there to the end node gives the song's streams (a gapless run
+of the `.mus`, with the last bars repeated in most songs) that add up to the song's length. Sections: 1 to 4 pursuit music, 5 the songs and the
 start-screen music, 6 ambience. The meaning of a few flag bits and of 26 condition properties is unknown.
 
 The AttribSys class `music` (5 fields: `Artist`, `SongName`, `Album`, `PathEvent`, `Defplay`; 27 collections, one a

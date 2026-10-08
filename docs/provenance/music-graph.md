@@ -26,8 +26,8 @@
     list rules (ordered, shuffle without replacement, refill without an immediate repeat).
   - `#[ignore]`d tests on the install (`NFSMW_GAME_DIR`): the file parses (3,681 nodes, 70 events, 123
     routers, 5 variables, node table ending at the event table), all 26 song events resolve to chains with the
-    stream counts and lengths of the table below, the chains' streams are consecutive and every chain
-    streams and decodes without NaN or a jump at a join.
+    stream counts and lengths of the table below, the distinct streams of each chain form a gapless run and no stream is in two songs; and a whole-song
+    decode of the chains (streamed, no NaN, no jump at a join; see the radio tests).
   - **Nothing has been listened to, and the original was not traced while it played.** Which streams the
     original really reads, in which order, and when it queues the next one are inferred.
 - **Known differences from the original:**

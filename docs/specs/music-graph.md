@@ -78,8 +78,8 @@ The player keeps a control value `v`, 0 to 127. When a node ends (or a branch ju
 5. An audio node starts streaming stream `id - 1`.
 
 Songs have one transition per node covering the whole range 0 to 127, so the control value does not matter
-for them [confirmed-by-data], and routers do not occur on the nodes of a song chain that was walked
-(**[inferred]**: the walker applies routers anyway).
+for them, and no node of a song's chain has a router [confirmed-by-data for all 26 songs; the walker applies
+routers anyway].
 
 ## 4. Events [confirmed-by-data for the layout, inferred for the opcodes]
 
@@ -107,15 +107,38 @@ The start screen's music is event 0 (`0x02C53FC7`, the same shape).
 
 `music` collection `PathEvent` (a `u32`) -> the event with the same low 24 bits -> action 1's node -> follow
 the first transition of each node (through group heads and fire-event nodes) until the end node. The audio
-nodes met on the way, in order, are the song's **chain**: each plays one stream, one after the other. The
-stream indexes of a chain are consecutive in the `.mus` file. All 26 songs resolve; their chains hold 39 to
-164 streams and add up to the lengths of the real tracks (for example 6:13.9 for Blinded In Chains, 3:53.0 for
-Decadence, 3:24.3 for Fired Up). A chain is therefore the song cut into bars (about 2 to 6 s each); the
-original plays them as one continuous song because the next stream is queued before the current one ends.
+nodes met on the way, in order, are the song's **chain**: each plays one stream, one after the other. All 26
+songs resolve; their chains hold 39 to 164 audio nodes and add up to 177.6 to 428.8 s (for example 6:13.9 for
+Blinded In Chains, 3:53.0 for Decadence, 3:24.3 for Fired Up), which agrees with the lengths of the released
+tracks where known (**[inferred]**: the real lengths were not looked up for all 26). The streams of
+a chain are the song cut into bars of about 1 to 13 s; the original plays them as one continuous song because
+the next stream is queued before the current one ends.
 
-Fire-event nodes inside a chain were not interpreted when this was checked. The events they name (ids
-0x6E7282, 0xE391AF, 0xD2E818, 0x641F27, 0x22E859) exist in the file; whether they change the flow of a song
-(for example a skip of a stream) is **[inferred]** to be no: the chain lengths match the real songs.
+**The distinct streams of a chain are one gapless run of the `.mus` file** [confirmed-by-data], and no stream
+belongs to two songs. But 24 of the 26 chains play some stream more than once near their end (the last bar
+three times in "Nine Thou", for instance; "One Good Reason" ends with five streams in a shuffled order), so
+the chain is not simply "stream n, n+1, ...".
+
+**The ending of a song** [confirmed-by-data for the structure, inferred for the meaning]. Fire-event nodes occur
+in a song only in its last 2 to 11 audio nodes, every one of which is followed by one, in this order for all 26
+songs: one `0x641F27`, then `k` times `0xD2E818`, then `k` times `0x6E7282` (k from 1 to 5), and the last
+`0x6E7282` is followed by the end node. What the events are:
+
+| Event | Actions | Meaning |
+|---|---|---|
+| `0x641F27` | stop-flush, game callback 1 | the game ignores callback 1 [inferred] |
+| `0xD2E818` | stop-flush, BRANCHTO a group head (an idle group that loops a 300 ms stream for ever) | "go quiet" [inferred] |
+| `0x6E7282` | stop-flush, then "if property 1 is 1 / 2 / 3 / 4 then BRANCHTO the head of pursuit set 1 / 2 / 3 / 4" | the song hands over to the pursuit music [inferred] |
+
+The same `0x6E7282` is the event the game sends to start the pursuit music (section 8). The reading that fits
+the data: the ending of a song is a row of exit points where, if the game state asks for it (a pursuit), the
+music can leave the song seamlessly; when nothing asks for it every event does nothing and the chain plays
+to its end node. A branch action whose bit 24 of `w2` is clear (all of these, and the song start) may be
+queued for the next node boundary instead of executed at once [guess]; the action with the bit set and
+node `0xFFFF` clears what is queued. The Rust walker follows the linear path and never executes events.
+**This is the biggest open point of the spec**: if the original really took `0xD2E818`'s branch, the last
+bars would not play and the song would never reach its end node. The agreement of the lengths with the real
+songs and the authoring of the last bars as ordinary consecutive streams argue against it.
 
 ## 6. The play lists (EA Trax) [inferred, from the decomp and the exe]
 
