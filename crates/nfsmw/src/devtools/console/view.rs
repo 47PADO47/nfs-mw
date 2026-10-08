@@ -161,6 +161,7 @@ mod tests {
 
     #[test]
     fn tab_completes_a_unique_name_and_the_common_prefix() {
+        let _guard = logbuf::TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let mut c = Console { input: "res".into(), ..Console::default() };
         tab_complete(&mut c);
         assert_eq!(c.input, "resolution ");

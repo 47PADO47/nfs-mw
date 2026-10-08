@@ -36,6 +36,10 @@ struct Buffer {
 
 static BUFFER: OnceLock<Mutex<Buffer>> = OnceLock::new();
 
+/// Tests that read the shared buffer hold this, so one test's output is not another's.
+#[cfg(test)]
+pub(crate) static TEST_LOCK: Mutex<()> = Mutex::new(());
+
 fn buffer() -> std::sync::MutexGuard<'static, Buffer> {
     BUFFER.get_or_init(Mutex::default).lock().unwrap_or_else(|e| e.into_inner())
 }
@@ -111,6 +115,7 @@ mod tests {
 
     #[test]
     fn output_splits_lines_and_the_buffer_is_bounded() {
+        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear();
         output("one\ntwo");
         let kept = lines();
