@@ -8,6 +8,15 @@ use blackbox_render::{FrameParams, Instance, Renderer};
 
 use crate::input::ActionState;
 
+/// A picture a scene wants over the whole window, letterboxed (a movie frame).
+pub struct Fullscreen {
+    pub size: [u32; 2],
+    /// Width over height on screen (a movie's pixels are not square).
+    pub aspect: f32,
+    /// A new frame to upload (RGBA8, `size`); `None` keeps the one on screen.
+    pub rgba: Option<Vec<u8>>,
+}
+
 pub trait Scene {
     fn title(&self) -> String;
     /// Upload the initial resources.
@@ -41,6 +50,18 @@ pub trait Scene {
     /// The car being driven, for the engine sound; `None` is silence.
     fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
         None
+    }
+    /// A picture to show over the window this frame, if any.
+    fn fullscreen(&mut self) -> Option<Fullscreen> {
+        None
+    }
+    /// Sound the scene wants played once, handed over when asked (the audio of a movie).
+    fn take_clip(&mut self) -> Option<ea_audio::Pcm> {
+        None
+    }
+    /// The scene is over: the app quits.
+    fn finished(&self) -> bool {
+        false
     }
     /// The scene's own console commands as `(name, usage)`, listed by `help`.
     fn commands(&self) -> &'static [(&'static str, &'static str)] {

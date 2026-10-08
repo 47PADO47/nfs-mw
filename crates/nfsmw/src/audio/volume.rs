@@ -4,7 +4,6 @@ use kira::Decibels;
 
 /// Which mixer group a sound plays in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[expect(dead_code, reason = "the music wiring uses the music group")]
 pub enum Group {
     Sfx,
     Music,

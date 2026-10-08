@@ -2841,6 +2841,7 @@ dependencies = [
  "blackbox-collision",
  "blackbox-feng",
  "blackbox-ginsu",
+ "blackbox-movie",
  "blackbox-render",
  "blackbox-scene",
  "blackbox-scenery",

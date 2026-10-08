@@ -46,6 +46,18 @@ pub enum Command {
         #[command(flatten)]
         view: ViewArgs,
     },
+    /// Play a movie from MOVIES/ full screen (Esc quits): `nfsmw play-movie ealogo`.
+    PlayMovie {
+        /// Movie name or a unique start of it, e.g. ealogo or blacklist_03.
+        name: String,
+        /// Start this many seconds in (the video before it is decoded and dropped; the sound still starts at 0).
+        #[arg(long, default_value_t = 0.0)]
+        start: f32,
+        #[command(flatten)]
+        view: ViewArgs,
+    },
+    /// List the movies in the install.
+    ListMovies,
     /// Fly through the city (WASD + mouse to look; Shift = fast; Esc frees the mouse, again to quit).
     ViewWorld {
         /// Start position on the map as X,Y (default: the centre of the city).

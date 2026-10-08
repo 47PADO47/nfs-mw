@@ -8,6 +8,7 @@ mod devtools;
 mod gui;
 mod hud;
 mod input;
+mod movie;
 mod scenes;
 mod settings;
 mod viewer;

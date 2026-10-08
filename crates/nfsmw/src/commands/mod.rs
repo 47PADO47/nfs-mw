@@ -19,6 +19,18 @@ pub fn run(cli: Cli) -> Result<()> {
             }
             Ok(())
         }
+        Command::ListMovies => {
+            for movie in crate::movie::list(&open_install(game_dir)?) {
+                println!("{movie}");
+            }
+            Ok(())
+        }
+        Command::PlayMovie { name, start, view } => {
+            let dir = open_install(game_dir)?;
+            let scene = crate::movie::MovieScene::open(&dir, &name, f64::from(start))?;
+            let run_options = view.run_options(&dir, false);
+            crate::app::run(Box::new(scene), &Settings::load(view.settings_layer()), run_options)
+        }
         Command::ViewCar { car, lod, all_parts, preset, yaw, view } => {
             let dir = open_install(game_dir)?;
             let options = nfsmw_data::car::LoadOptions { lod, all_parts, preset };

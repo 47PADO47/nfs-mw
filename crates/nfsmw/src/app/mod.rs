@@ -104,6 +104,7 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
     if let Some(dir) = audio {
         app.add_plugins(crate::audio::AudioPlugin { dir });
     }
+    app.add_plugins(crate::movie::FullscreenPlugin);
     crate::devtools::start_console(&mut app, exec, open_console);
 
     match app.run() {
