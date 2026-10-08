@@ -3,8 +3,10 @@
 //! effects mixer into the shift, turbo, tire, road and collision sounds.
 
 use std::collections::HashMap;
+use std::time::Duration;
 
 use blackbox_carsound::{CarInput, EffectsMixer, EngineMixer, LoopId, ScrapeKind, SoundCommand, SoundRef};
+use kira::Tween;
 use kira::sound::static_sound::StaticSoundHandle;
 use nfsmw_data::sound::{CarSound, EventKind};
 
@@ -56,9 +58,22 @@ pub(super) struct CarAudio {
     /// `engineaudio.Master_Vol`.
     master_volume: u32,
     handle: EngineHandle,
+    /// The engine was at the limiter in the last frame (for the log).
+    redlining: bool,
     /// The loops that are playing, with the sound each plays.
     pub loops: HashMap<LoopId, (SoundRef, StaticSoundHandle)>,
     commands: Vec<SoundCommand>,
+}
+
+impl Drop for CarAudio {
+    /// A kira handle that is dropped leaves its sound playing, so the loops (skids, road, wind, nitrous) are
+    /// stopped here: otherwise they play on after the car is changed or gone.
+    fn drop(&mut self) {
+        let fade = Tween { duration: Duration::from_millis(120), ..Tween::default() };
+        for (_, (_, mut handle)) in self.loops.drain() {
+            handle.stop(fade);
+        }
+    }
 }
 
 impl Audio {
@@ -88,6 +103,16 @@ impl Audio {
         let input = CarInput { pitch_multiplier: car.levels.engine_pitch, ..state.input };
         let out = car.engine.update(dt, &input);
         let gain = car.levels.engine_volume;
+        if out.redlining != car.redlining {
+            car.redlining = out.redlining;
+            log::debug!(
+                "{}: the limiter {}: engine loops {:.2}, sample layer {:.2}, gain {gain:.2}",
+                car.car,
+                if out.redlining { "starts" } else { "ends" },
+                out.accel_volume,
+                out.redline_sample_volume
+            );
+        }
         car.handle.set(EngineMix {
             accel: LoopMix {
                 frequency: out.accel_loop.frequency,
@@ -160,6 +185,7 @@ impl Audio {
             effects: EffectsMixer::new(&tuning),
             sound: loaded.sound,
             handle,
+            redlining: false,
             loops: HashMap::new(),
             commands: Vec::new(),
         })
