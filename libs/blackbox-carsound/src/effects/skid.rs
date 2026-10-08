@@ -17,6 +17,8 @@ const AUDIBLE: f32 = 0.01;
 #[derive(Debug, Clone, Copy, Default)]
 struct Axle {
     forward: f32,
+    /// The sideways slip before smoothing.
+    raw_side: f32,
     side: f32,
     load: f32,
     surface: u8,
@@ -30,7 +32,13 @@ struct Axle {
 pub(crate) struct SkidFx {
     tuning: SkidTuning,
     axles: [Axle; 2],
+    /// The mixer inputs: sideways slip and load (Q15), smoothed.
+    side_signal: f32,
+    load_signal: f32,
 }
+
+/// A full-scale slip as the mixer input: 1023 shifted left by 5.
+const SIGNAL_FULL: f32 = 1023.0 * 32.0;
 
 /// The normalised forward and sideways slip and the load of one wheel, each 0 to 1.
 fn wheel_levels(w: &WheelInput) -> (f32, f32, f32) {
@@ -43,7 +51,7 @@ fn wheel_levels(w: &WheelInput) -> (f32, f32, f32) {
 
 impl SkidFx {
     pub fn new(tuning: SkidTuning) -> Self {
-        Self { tuning, axles: [Axle::default(); 2] }
+        Self { tuning, axles: [Axle::default(); 2], side_signal: 0.0, load_signal: 0.0 }
     }
 
     pub fn tick(&mut self, input: &CarInput) {
@@ -58,6 +66,7 @@ impl SkidFx {
             let (forward, side, load) = sum(wheel_levels);
             let (forward, side, load) = (forward / n, side / n, load / n);
             axle.forward = forward;
+            axle.raw_side = side;
             axle.side = slew(axle.side, side, SIDE_STEP);
             axle.load = slew(axle.load, load.max(forward).max(side), LOAD_STEP);
             let skid_surface = |w: &&WheelInput| {
@@ -75,6 +84,16 @@ impl SkidFx {
             axle.volume = if grounded.is_empty() { 0.0 } else { strongest * (0.3 + 0.7 * load) };
             axle.pitch = 0.9 + 0.2 * strongest;
         }
+        let forward = self.axles.iter().map(|a| a.forward).fold(0.0, f32::max) * SIGNAL_FULL;
+        let side = self.axles.iter().map(|a| a.raw_side).fold(0.0, f32::max) * SIGNAL_FULL;
+        self.side_signal = slew(self.side_signal, side, 500.0);
+        self.load_signal = slew(self.load_signal, forward.max(side), 3000.0);
+    }
+
+    /// `(forward, sideways, load)` as the mixer inputs, Q15.
+    pub fn signals(&self) -> (f32, f32, f32) {
+        let forward = self.axles.iter().map(|a| a.forward).fold(0.0, f32::max) * SIGNAL_FULL;
+        (forward, self.side_signal, self.load_signal)
     }
 
     pub fn emit(&mut self, out: &mut Vec<SoundCommand>) {

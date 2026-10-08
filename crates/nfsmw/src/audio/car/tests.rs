@@ -1,6 +1,6 @@
 //! Against the install: the real data drives the mixers (needs `NFSMW_GAME_DIR`; passes without checking otherwise).
 
-use blackbox_carsound::GEAR_FIRST;
+use blackbox_carsound::{GEAR_FIRST, SweetenerKind};
 use game_install::GameDir;
 use kira::Frame;
 use kira::sound::SoundData;
@@ -123,8 +123,8 @@ fn every_effect_resolves_to_a_sound_in_its_bank() {
     let mut effects = vec![
         SoundRef::GearClunk { up: true },
         SoundRef::GearClunk { up: false },
-        SoundRef::Sweetener(0),
-        SoundRef::Sweetener(1),
+        SoundRef::Sweetener(SweetenerKind::Disengage),
+        SoundRef::Sweetener(SweetenerKind::Engage),
         SoundRef::ReverseWhine,
         SoundRef::Nitrous,
         SoundRef::Purge,
@@ -133,7 +133,7 @@ fn every_effect_resolves_to_a_sound_in_its_bank() {
         SoundRef::Scrape(ScrapeKind::Wall),
         SoundRef::Scrape(ScrapeKind::Car),
     ];
-    effects.extend((1..=6).map(SoundRef::RoadNoise));
+    effects.extend((0..=6).map(SoundRef::RoadNoise));
     for surface in 0..=1 {
         effects.extend([true, false].map(|sideways| SoundRef::Skid { surface, sideways }));
     }

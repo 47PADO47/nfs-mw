@@ -17,12 +17,15 @@ mod tuning;
 #[cfg(test)]
 mod tests;
 
-pub use effects::{EffectsMixer, ImpactPlay, ImpactRequest, Landing, LoopId, ScrapeKind, SoundCommand, SoundRef};
+pub use effects::{
+    EffectSignals, EffectsMixer, ImpactPlay, ImpactRequest, Landing, LoopId, ScrapeKind, SoundCommand, SoundRef,
+    SweetenerKind,
+};
 pub use engine::{
     EngineEvents, EngineMixer, EngineOutput, LoopDrive, MAX_TICKS_PER_UPDATE, ShiftDirection, ShiftState, TICK_HZ,
     TICK_SECONDS,
 };
-pub use input::{CarInput, GEAR_FIRST, GEAR_NEUTRAL, GEAR_REVERSE, WheelInput};
+pub use input::{CarInput, GEAR_FIRST, GEAR_NEUTRAL, GEAR_REVERSE, NO_ROAD_NOISE, WheelInput};
 pub use tuning::{
     AccelTransition, CarSoundTuning, CollisionTuning, DecelWindow, EngineMix, EngineMode, EngineTuning, MixLevels,
     NitrousTuning, ShiftStage, ShiftTuning, SkidTuning, TurboTuning, Wobble,

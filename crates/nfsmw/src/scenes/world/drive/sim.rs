@@ -128,7 +128,7 @@ impl CarSim {
         let v = &self.vehicle;
         std::array::from_fn(|i| {
             let w = v.wheel(PHYSICS_WHEEL[i]);
-            let audio = v.wheel_surface_tag(PHYSICS_WHEEL[i]).map(|tag| surfaces.audio(tag)).unwrap_or_default();
+            let audio = v.wheel_surface_tag(PHYSICS_WHEEL[i]).map(|tag| surfaces.audio(tag));
             // The tire reports how fast the patch slides over the road and how much of that is wheel spin; the
             // rest is sideways.
             let sideways = (w.slide_speed * w.slide_speed - w.slip * w.slip).max(0.0).sqrt();
@@ -140,8 +140,8 @@ impl CarSim {
                 load: w.load,
                 compression: w.compression,
                 traction_usage: 1.0 - w.traction,
-                skid_surface: audio.skid_type,
-                road_noise_loop: audio.road_loop,
+                skid_surface: audio.map_or(0, |a| a.skid_type),
+                road_noise_loop: audio.map_or(blackbox_carsound::NO_ROAD_NOISE, |a| a.road_loop),
                 blown: false,
             }
         })

@@ -62,6 +62,8 @@ pub struct EngineEvents {
     pub accel_sweetener: bool,
     /// The throttle was released at high RPM.
     pub engine_off_sweetener: bool,
+    /// A compression bump of the audio RPM started (the engine control publishes it to the mixer).
+    pub compression_bump: bool,
 }
 
 impl EngineEvents {
@@ -72,6 +74,7 @@ impl EngineEvents {
         self.engage_sweetener |= other.engage_sweetener;
         self.accel_sweetener |= other.accel_sweetener;
         self.engine_off_sweetener |= other.engine_off_sweetener;
+        self.compression_bump |= other.compression_bump;
     }
 }
 
@@ -129,6 +132,10 @@ pub struct EngineOutput {
     pub rpm_at_shift: f32,
     /// Happenings since the previous [`EngineMixer::update`] call.
     pub events: EngineEvents,
+    /// The hybrid motor's mixer inputs (Q15, 0 to 32767): 1 after seconds of steady cruising above 30 mph, and
+    /// how fast the RPM changes against the accelerate threshold.
+    pub steady_signal: f32,
+    pub change_signal: f32,
 }
 
 /// What the controllers of one tick share.
@@ -142,6 +149,8 @@ pub(crate) struct TickContext<'a> {
     pub eng_torque: f32,
     pub is_local_player: bool,
     pub pre_race: bool,
+    /// At least one wheel touches the ground.
+    pub grounded: bool,
 }
 
 /// The engine controllers of one car, ticked at the fixed rate.
@@ -194,12 +203,14 @@ impl EngineCore {
             eng_torque: self.ctl.torque,
             is_local_player: self.is_local_player,
             pre_race: input.pre_race,
+            grounded: input.wheels_on_ground() > 0,
         };
         self.shifting.update(&ctx, &self.shift_tuning, events);
         self.accel.update(&ctx, self.shifting.active(), &self.accel_tuning, events);
         self.ctl.update(&ctx, &self.shifting, &self.accel, &self.tuning, &mut self.rng);
         self.mix.update(&ctx, &self.ctl, &self.shifting, &self.accel, &self.tuning);
-        self.mix.update_cruise(&ctx, &mut self.ctl, &mut self.rng);
+        self.mix.update_cruise(&ctx, &mut self.ctl, &self.shifting, &self.tuning, &mut self.rng);
+        events.compression_bump |= self.ctl.bump_started;
     }
 
     /// The output of the latest tick, with `events` as its events.
@@ -230,6 +241,8 @@ impl EngineCore {
             shift_state: self.shifting.state,
             rpm_at_shift: self.shifting.rpm_at_shift,
             events,
+            steady_signal: self.mix.signals().0,
+            change_signal: self.mix.signals().1,
         }
     }
 }

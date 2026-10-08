@@ -73,6 +73,8 @@ pub(super) struct EngineCtl {
     pub visual_fraction: f32,
     /// Set by the hybrid motor to start a compression bump.
     pub play_compression: bool,
+    /// A compression bump started on the latest tick (the engine control publishes it to the mixer).
+    pub bump_started: bool,
     torque_avg: RunningAverage<3>,
     visual_avg: RunningAverage<2>,
     clutch_on: bool,
@@ -100,6 +102,7 @@ impl EngineCtl {
             samp_factor: Interp::holding(0.0),
             visual_fraction: 0.0,
             play_compression: false,
+            bump_started: false,
             torque_avg: RunningAverage::flushed(0.0),
             visual_avg: RunningAverage::flushed(1000.0),
             clutch_on: false,
@@ -158,10 +161,12 @@ impl EngineCtl {
 
     fn update_bump(&mut self, dt: f32, rng: &mut Rng) {
         self.bump.elapsed += dt;
+        self.bump_started = false;
         if !self.play_compression {
             return;
         }
         self.play_compression = false;
+        self.bump_started = true;
         self.bump =
             Bump { height: 25.0 + rng.below(75) as f32, seconds: (25 + rng.below(100)) as f32 / 1000.0, elapsed: 0.0 };
     }

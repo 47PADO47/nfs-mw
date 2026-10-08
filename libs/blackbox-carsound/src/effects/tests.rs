@@ -205,7 +205,10 @@ fn road_noise_follows_the_surface_and_speed_and_stops_in_the_air() {
     let airborne = CarInput { wheels: [WheelInput { on_ground: false, ..wheel(0.0, 0.0, 0.0) }; 4], ..driving(35.0) };
     let commands = rig.run(0.2, airborne);
     assert_eq!((stops(&commands, LoopId::Road(0)), stops(&commands, LoopId::Road(1))), (1, 1));
-    let grass = CarInput { wheels: [WheelInput { road_noise_loop: 0, ..wheel(0.0, 0.0, 6000.0) }; 4], ..driving(35.0) };
+    let grass = CarInput {
+        wheels: [WheelInput { road_noise_loop: crate::NO_ROAD_NOISE, ..wheel(0.0, 0.0, 6000.0) }; 4],
+        ..driving(35.0)
+    };
     assert!(rig.run(0.2, grass).iter().all(|c| !matches!(c, SoundCommand::SetLoop { id: LoopId::Road(_), .. })));
 }
 

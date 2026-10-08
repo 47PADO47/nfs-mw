@@ -5,6 +5,9 @@ pub const GEAR_REVERSE: i32 = 0;
 pub const GEAR_NEUTRAL: i32 = 1;
 pub const GEAR_FIRST: i32 = 2;
 
+/// `WheelInput::road_noise_loop` of a surface with no road noise loop.
+pub const NO_ROAD_NOISE: u8 = 255;
+
 /// One wheel. The wheel order everywhere is front left, front right, rear right, rear left.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct WheelInput {
@@ -24,7 +27,8 @@ pub struct WheelInput {
     pub traction_usage: f32,
     /// `Aud_Skid_Type` of the surface under the tire.
     pub skid_surface: u8,
-    /// `Aud_Roadnoise_LOOP` of the surface under the tire (0 = none).
+    /// `Aud_Roadnoise_LOOP` of the surface under the tire: the loop enum of the original (0 gravel, 1 sidewalk,
+    /// 2 cobblestone, 3 deep water, 4 wet road, 5 and 6 asphalt, 7 metal, 8 stitch loop), or [`NO_ROAD_NOISE`].
     pub road_noise_loop: u8,
     /// The tire is blown.
     pub blown: bool,
@@ -41,7 +45,7 @@ impl Default for WheelInput {
             compression: 0.0,
             traction_usage: 0.0,
             skid_surface: 0,
-            road_noise_loop: 0,
+            road_noise_loop: NO_ROAD_NOISE,
             blown: false,
         }
     }

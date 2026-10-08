@@ -35,8 +35,8 @@ pub fn resolve(car: &CarSound, sound: SoundRef) -> Option<BankRef> {
         SoundRef::BrakeMash => at(SHIFTING_DIR, &car.shift.bank, 3, Group::Sfx),
         // The sweetener bank holds short engine noises; 0 is the longer "pssh" of letting go, 1 the shorter
         // one of taking up (unconfirmed, see the doc).
-        SoundRef::Sweetener(n) => {
-            at(ENGINE_DIR, engine.sweet_banks.first()?, if n == 0 { 10 } else { 8 }, Group::Engine)
+        SoundRef::Sweetener(kind) => {
+            at(ENGINE_DIR, engine.sweet_banks.first()?, if kind.sample() == 0 { 10 } else { 8 }, Group::Engine)
         }
         SoundRef::ReverseWhine => at(ENGINE_DIR, engine.sweet_banks.get(1)?, 1, Group::Engine),
         SoundRef::TurboSpool => at(TURBO_DIR, &car.turbo.as_ref()?.bank, 1, Group::Engine),
@@ -48,8 +48,9 @@ pub fn resolve(car: &CarSound, sound: SoundRef) -> Option<BankRef> {
             let pair = usize::from(surface.min(1)) * 2;
             at(SKIDS_DIR, car.banks.skid_bank()?, 1 + pair + usize::from(!sideways), Group::Sfx)
         }
+        // The loops are sounds 1 to 7 for the loop values 0 to 6; metal and the stitch loop have none.
         SoundRef::RoadNoise(n) => {
-            Some(BankRef { bank: ROAD_NOISE_BANK.into(), index: usize::from(n), group: Group::Sfx })
+            (n <= 6).then(|| BankRef { bank: ROAD_NOISE_BANK.into(), index: usize::from(n) + 1, group: Group::Sfx })
         }
         SoundRef::Wind => Some(BankRef { bank: WIND_BANK.into(), index: 1, group: Group::Sfx }),
         SoundRef::Scrape(kind) => {

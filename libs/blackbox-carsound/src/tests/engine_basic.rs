@@ -165,6 +165,33 @@ fn compression_bumps_appear_in_steady_cruising_only() {
 }
 
 #[test]
+fn the_steady_cruise_signal_rises_after_three_seconds_and_falls_slowly() {
+    let mut m = mixer();
+    let cruise = CarInput { speed: 30.0, ..input(0.5, 0.2, 5) };
+    let outs = hold(&mut m, 8.0, cruise);
+    assert_eq!(outs[100].steady_signal, 0.0, "not before 3 s");
+    let end = outs.last().unwrap().steady_signal;
+    assert_eq!(end, 32767.0, "rises 983 per tick to full: {end}");
+    // Back to a standstill: it falls by 196 per tick, so 60 ticks later it is still well up.
+    let after = hold(&mut m, 1.0, CarInput { speed: 5.0, ..input(0.5, 0.2, 5) });
+    let last = after.last().unwrap().steady_signal;
+    assert!((last - (32767.0 - 60.0 * 196.0)).abs() < 400.0, "{last}");
+    assert!(outs.iter().chain(after.iter()).any(|o| o.events.compression_bump), "a bump was announced");
+}
+
+#[test]
+fn the_change_signal_follows_how_fast_the_rpm_moves() {
+    let mut m = mixer();
+    let steady = hold(&mut m, 1.0, input(0.4, 0.2, 4));
+    assert_eq!(steady.last().unwrap().change_signal, 0.0);
+    // A quick rev: the physics RPM climbs, the signal follows by at most 3000 a tick toward its target.
+    let revving = run(&mut m, 40, |i| input(0.4 + i as f32 * 0.01, 1.0, 4));
+    let top = revving.iter().map(|o| o.change_signal).fold(0.0, f32::max);
+    assert!(top > 6000.0, "{top}");
+    assert!(revving.windows(2).all(|w| (w[1].change_signal - w[0].change_signal).abs() <= 3000.0 + 1.0));
+}
+
+#[test]
 fn equal_inputs_give_bit_identical_outputs() {
     let script =
         |i: usize| input(((i as f32) * 0.013).sin().abs(), ((i as f32) * 0.031).cos().abs(), 2 + (i / 90) as i32 % 4);

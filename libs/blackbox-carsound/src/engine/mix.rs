@@ -6,7 +6,7 @@ use super::rpm::EngineCtl;
 use super::shifting::Shifting;
 use super::{ShiftState, TickContext};
 use crate::avg::RunningAverage;
-use crate::math::{finite, lerp, ramp, slew};
+use crate::math::{finite, lerp, ramp, slew, slew_asym};
 use crate::rng::Rng;
 use crate::tuning::{EngineMode, EngineTuning};
 
@@ -22,6 +22,11 @@ const MIX_STEP: f32 = 0.2;
 const CUTOFF_STEP: f32 = 6000.0;
 /// Cutoff of the accelerate loop: fully open.
 const OPEN_CUTOFF: f32 = 25000.0;
+/// Smoothing of the hybrid motor's two mixer inputs per tick (Q15): the steady-cruise flag rises by 983 and falls by
+/// 196, the RPM-change level moves by 3000.
+const STEADY_RISE: f32 = 983.0;
+const STEADY_FALL: f32 = 196.0;
+const CHANGE_STEP: f32 = 3000.0;
 /// Speed (mph) and RPM change that count as steady cruising, and how long it must last (seconds).
 const STEADY_SPEED_MPH: f32 = 30.0;
 const STEADY_DELTA_RPM: f32 = 30.0;
@@ -64,6 +69,10 @@ pub(super) struct HybridMix {
     volumes: Volumes,
     steady_since: f32,
     bump_countdown: u32,
+    /// The two mixer inputs the hybrid motor publishes (Q15) and the value held from the start of a redline.
+    steady_signal: f32,
+    change_signal: f32,
+    held_change: f32,
     pub output: MixOutput,
 }
 
@@ -76,6 +85,9 @@ impl HybridMix {
             volumes: Volumes::default(),
             steady_since: 0.0,
             bump_countdown: 0,
+            steady_signal: 0.0,
+            change_signal: 0.0,
+            held_change: 0.0,
             output: MixOutput::default(),
         }
     }
@@ -225,21 +237,59 @@ impl HybridMix {
         self.output.low_pass_hz = self.levels.cutoff;
     }
 
-    /// Starts a compression bump now and then while the car cruises at a steady RPM above 30 mph.
-    pub fn update_cruise(&mut self, ctx: &TickContext<'_>, eng: &mut EngineCtl, rng: &mut Rng) {
+    /// Starts a compression bump now and then while the car cruises at a steady RPM above 30 mph, and
+    /// publishes the hybrid motor's two mixer inputs (spec: engine-sound-effects.md §6).
+    pub fn update_cruise(
+        &mut self,
+        ctx: &TickContext<'_>,
+        eng: &mut EngineCtl,
+        shift: &Shifting,
+        tuning: &EngineTuning,
+        rng: &mut Rng,
+    ) {
         let steady = ctx.speed_mph > STEADY_SPEED_MPH && self.avg_delta.value().abs() < STEADY_DELTA_RPM;
         if !steady {
             self.steady_since = ctx.now;
-            return;
         }
-        if ctx.now <= self.steady_since + STEADY_SECONDS {
-            return;
+        let output_on = steady && ctx.now > self.steady_since + STEADY_SECONDS;
+        if output_on {
+            if self.bump_countdown == 0 {
+                self.bump_countdown = 60 + rng.below(150);
+                eng.play_compression = true;
+            }
+            self.bump_countdown -= 1;
         }
-        if self.bump_countdown == 0 {
-            self.bump_countdown = 60 + rng.below(150);
-            eng.play_compression = true;
+        let target = if output_on { 32767.0 } else { 0.0 };
+        self.steady_signal = slew_asym(self.steady_signal, target, STEADY_RISE, STEADY_FALL);
+        self.update_change_signal(ctx, eng, shift, tuning);
+    }
+
+    /// The input that follows how fast the RPM changes: held at half from the instant the redline starts, and
+    /// unchanged while shifting or with no wheel on the ground.
+    fn update_change_signal(
+        &mut self,
+        ctx: &TickContext<'_>,
+        eng: &EngineCtl,
+        shift: &Shifting,
+        tuning: &EngineTuning,
+    ) {
+        let threshold = tuning.mix.accel_delta_threshold;
+        let fraction = threshold_fraction(self.avg_delta.last().abs(), threshold);
+        let output = slew(self.change_signal, fraction * 32767.0, CHANGE_STEP);
+        if !eng.was_redlining && eng.redlining {
+            self.held_change = (output / 2.0).trunc();
         }
-        self.bump_countdown -= 1;
+        if !shift.active() && ctx.grounded {
+            self.change_signal = output;
+        }
+        if eng.redlining {
+            self.change_signal = self.held_change;
+        }
+    }
+
+    /// `(steady cruise, RPM change)`, Q15.
+    pub fn signals(&self) -> (f32, f32) {
+        (self.steady_signal, self.change_signal)
     }
 }
 

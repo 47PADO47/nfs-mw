@@ -6,6 +6,7 @@ use crate::math::finite;
 pub(crate) struct RunningAverage<const N: usize> {
     slots: [f32; N],
     next: usize,
+    last: f32,
 }
 
 impl<const N: usize> Default for RunningAverage<N> {
@@ -17,7 +18,7 @@ impl<const N: usize> Default for RunningAverage<N> {
 impl<const N: usize> RunningAverage<N> {
     /// All slots hold `value`.
     pub fn flushed(value: f32) -> Self {
-        Self { slots: [value; N], next: 0 }
+        Self { slots: [value; N], next: 0, last: value }
     }
 
     /// Fills every slot with `value`.
@@ -30,6 +31,12 @@ impl<const N: usize> RunningAverage<N> {
         let value = finite(value);
         self.slots[self.next] = value;
         self.next = (self.next + 1) % N;
+        self.last = value;
+    }
+
+    /// The value recorded last.
+    pub fn last(&self) -> f32 {
+        self.last
     }
 
     pub fn value(&self) -> f32 {

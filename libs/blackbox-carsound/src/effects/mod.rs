@@ -37,8 +37,8 @@ pub enum SoundRef {
     },
     /// The brake mash (`FX_SHIFTING_01` sample 2).
     BrakeMash,
-    /// A shift sweetener (`CAR_SWTN` sample 0 or 1).
-    Sweetener(u8),
+    /// A shift sweetener (`CAR_SWTN` sample 0 or 1, see [`SweetenerKind::sample`]).
+    Sweetener(SweetenerKind),
     ReverseWhine,
     /// The turbo or supercharger whine loop (`FX_TURBO_01` id 0).
     TurboSpool,
@@ -51,10 +51,46 @@ pub enum SoundRef {
         surface: u8,
         sideways: bool,
     },
-    /// A road noise loop: the surface's `Aud_Roadnoise_LOOP` (1 and up).
+    /// A road noise loop: the surface's `Aud_Roadnoise_LOOP` (0 gravel, 1 sidewalk, ...).
     RoadNoise(u8),
     Wind,
     Scrape(ScrapeKind),
+}
+
+/// Which moment a sweetener belongs to; each has its own level in the mixer map.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SweetenerKind {
+    /// The start of an up shift.
+    Disengage,
+    /// The up shift's engage stage.
+    Engage,
+    /// The start of a throttle stab's attack.
+    Accelerate,
+    /// The throttle released at high RPM.
+    EngineOff,
+}
+
+impl SweetenerKind {
+    /// The `CAR_SWTN` sample id: 0 for the disengage and engine-off ones, 1 for the others.
+    pub fn sample(self) -> u8 {
+        match self {
+            SweetenerKind::Disengage | SweetenerKind::EngineOff => 0,
+            SweetenerKind::Engage | SweetenerKind::Accelerate => 1,
+        }
+    }
+}
+
+/// Values the effects keep that the mixer map reads (Q15 unless noted).
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct EffectSignals {
+    /// The strongest forward tire slip of the axles, 0 to 32736.
+    pub skid_forward: f32,
+    /// The strongest sideways slip, smoothed by 500 a tick.
+    pub skid_side: f32,
+    /// The larger of the two, smoothed by 3000 a tick.
+    pub skid_load: f32,
+    /// A side's road noise loop changed on this update.
+    pub road_changed: bool,
 }
 
 /// A voice the game keeps between updates, so `SetLoop` changes it and `StopLoop` ends it.
@@ -172,6 +208,12 @@ impl EffectsMixer {
             volume: rpm,
             pitch: 0.8 + 0.4 * rpm,
         });
+    }
+
+    /// The values the mixer map reads.
+    pub fn signals(&self) -> EffectSignals {
+        let (skid_forward, skid_side, skid_load) = self.skids.signals();
+        EffectSignals { skid_forward, skid_side, skid_load, road_changed: self.road.changed() }
     }
 
     /// A hit: the level and sample to play, if any (spec §8). Call once per physics event.

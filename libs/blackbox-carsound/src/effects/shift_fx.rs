@@ -1,6 +1,6 @@
 //! Shift clunks, sweeteners and the brake mash. Spec: `docs/specs/engine-sound-effects.md` §1.6.
 
-use super::{SoundCommand, SoundRef};
+use super::{SoundCommand, SoundRef, SweetenerKind};
 use crate::engine::{EngineOutput, ShiftDirection, TICK_SECONDS};
 use crate::input::CarInput;
 use crate::math::{q15_gain, ramp};
@@ -54,23 +54,23 @@ impl ShiftFx {
             out.push(SoundCommand::Play { sound: SoundRef::GearClunk { up }, volume: base * level, pitch: 1.0 });
         }
         let rpm = engine.physics_rpm;
-        let sweetener = |id: u8, rpm: f32, out: &mut Vec<SoundCommand>| {
+        let sweetener = |kind: SweetenerKind, rpm: f32, out: &mut Vec<SoundCommand>| {
             let volume = self.sweetener_volume(rpm);
             if volume > 0.0 {
-                out.push(SoundCommand::Play { sound: SoundRef::Sweetener(id), volume, pitch: 1.0 });
+                out.push(SoundCommand::Play { sound: SoundRef::Sweetener(kind), volume, pitch: 1.0 });
             }
         };
         if events.disengage_sweetener && rpm >= SWEETENER_RPM {
-            sweetener(0, rpm, out);
+            sweetener(SweetenerKind::Disengage, rpm, out);
         }
         if events.engage_sweetener && engine.rpm_at_shift >= SWEETENER_RPM {
-            sweetener(1, engine.rpm_at_shift, out);
+            sweetener(SweetenerKind::Engage, engine.rpm_at_shift, out);
         }
         if events.accel_sweetener {
-            sweetener(1, rpm, out);
+            sweetener(SweetenerKind::Accelerate, rpm, out);
         }
         if events.engine_off_sweetener {
-            sweetener(0, rpm, out);
+            sweetener(SweetenerKind::EngineOff, rpm, out);
         }
     }
 

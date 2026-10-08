@@ -4,7 +4,7 @@
 //! (`docs/specs/engine-sound-effects.md` §10).
 
 use super::{LoopId, SoundCommand, SoundRef};
-use crate::input::{CarInput, WheelInput};
+use crate::input::{CarInput, NO_ROAD_NOISE, WheelInput};
 
 /// Gain of the road noise and the wind noise relative to a full-scale loop.
 const ROAD_GAIN: f32 = 0.35;
@@ -34,6 +34,8 @@ fn road_graph(mph: f32) -> f32 {
 #[derive(Debug, Clone, Copy, Default)]
 struct Side {
     playing: bool,
+    /// The loop of the last update.
+    loop_id: u8,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -42,6 +44,8 @@ pub(crate) struct RoadFx {
     /// Slip (forward, sideways) and traction use per side from the latest tick.
     slip: [f32; 2],
     traction: [f32; 2],
+    /// A side's loop changed on the latest `emit`.
+    changed: bool,
 }
 
 /// The wheels of a side: left is front left and rear left (indices 0 and 3), right the other two.
@@ -64,20 +68,27 @@ impl RoadFx {
         }
     }
 
+    /// Whether a side's loop changed on the latest [`emit`](Self::emit).
+    pub fn changed(&self) -> bool {
+        self.changed
+    }
+
     pub fn emit(&mut self, input: &CarInput, out: &mut Vec<SoundCommand>) {
+        self.changed = false;
         let mph = input.speed_mph();
         let base = road_graph(mph);
         let pitch0 = 1500.0 + 3000.0 * (mph / 100.0).clamp(0.0, 1.0);
         for side in 0..2 {
             let id = LoopId::Road(side as u8);
             let grounded = side_wheels(input, side).into_iter().find(|w| w.on_ground);
-            let loop_id = grounded.map_or(0, |w| w.road_noise_loop);
+            let loop_id = grounded.map_or(NO_ROAD_NOISE, |w| w.road_noise_loop);
+            self.changed |= std::mem::replace(&mut self.sides[side].loop_id, loop_id) != loop_id;
             let (slip, traction) = (self.slip[side], self.traction[side]);
             // Only the left side's volume has the traction term (kept from the original).
             let traction_gain = if side == 0 { 1.0 + (traction * 0.1).min(0.1) } else { 1.1 };
             let volume = (base * (1.0 + (slip * 0.01).min(0.15)) * traction_gain).min(32000.0) / 32767.0;
             let pitch = (pitch0 * (1.0 + (slip * 0.01).min(0.2)) * (1.0 + (traction * 0.15).min(0.15))).min(6000.0);
-            if loop_id == 0 || volume <= 0.0 {
+            if loop_id == NO_ROAD_NOISE || volume <= 0.0 {
                 if std::mem::take(&mut self.sides[side].playing) {
                     out.push(SoundCommand::StopLoop(id));
                 }
