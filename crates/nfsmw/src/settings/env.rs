@@ -17,6 +17,8 @@ pub const SFX_VOLUME: &str = "NFSMW_SFX_VOLUME";
 pub const ENGINE_VOLUME: &str = "NFSMW_ENGINE_VOLUME";
 pub const HUD: &str = "NFSMW_HUD";
 pub const TRANSMISSION: &str = "NFSMW_TRANSMISSION";
+pub const PADDLE_UP: &str = "NFSMW_PADDLE_UP";
+pub const PADDLE_DOWN: &str = "NFSMW_PADDLE_DOWN";
 
 /// Read the layer through `get`, so tests need not touch the process environment. A value that
 /// does not parse is reported and ignored.
@@ -32,6 +34,8 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         engine_volume: value(&get, ENGINE_VOLUME, Percent::from_str),
         hud: value(&get, HUD, parse_bool),
         transmission: value(&get, TRANSMISSION, Transmission::from_str),
+        paddle_up: value(&get, PADDLE_UP, |s| s.trim().parse::<u32>().map_err(|e| e.to_string())),
+        paddle_down: value(&get, PADDLE_DOWN, |s| s.trim().parse::<u32>().map_err(|e| e.to_string())),
     }
 }
 
@@ -79,6 +83,8 @@ mod tests {
     fn reads_the_transmission() {
         assert_eq!(layer(&[(TRANSMISSION, "manual")]).transmission, Some(Transmission::Manual));
         assert_eq!(layer(&[(TRANSMISSION, "sport")]).transmission, None);
+        let p = layer(&[(PADDLE_UP, "12"), (PADDLE_DOWN, "left")]);
+        assert_eq!((p.paddle_up, p.paddle_down), (Some(12), None));
     }
 
     #[test]

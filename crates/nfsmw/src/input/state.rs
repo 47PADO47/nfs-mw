@@ -60,6 +60,15 @@ impl Default for Bindings {
     }
 }
 
+impl Bindings {
+    /// The defaults plus a wheel's shift paddles, given as the codes of their gamepad buttons.
+    pub fn with_paddles(up: Option<u32>, down: Option<u32>) -> Self {
+        let mut all = bindings::defaults();
+        all.extend(bindings::paddles(up, down));
+        Self(all)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use bevy_input::gamepad::{GamepadAxis, GamepadButton};
@@ -133,6 +142,42 @@ mod tests {
         snap.keys.insert(KeyCode::ArrowRight);
         state.update(&Bindings::default(), &snap, false);
         assert_eq!(state.value(Action::Steer), 0.0);
+    }
+
+    #[test]
+    fn q_and_e_shift_and_the_bumpers_too() {
+        let bindings = Bindings::default();
+        for (key, action) in [(KeyCode::KeyE, Action::ShiftUp), (KeyCode::KeyQ, Action::ShiftDown)] {
+            let mut state = ActionState::default();
+            let mut snap = Snapshot::default();
+            snap.keys.insert(key);
+            state.update(&bindings, &snap, false);
+            assert!(state.just_pressed(action), "{key:?}");
+            let other = if action == Action::ShiftUp { Action::ShiftDown } else { Action::ShiftUp };
+            assert!(!state.pressed(other));
+        }
+        for (button, action) in
+            [(GamepadButton::RightTrigger, Action::ShiftUp), (GamepadButton::LeftTrigger, Action::ShiftDown)]
+        {
+            let mut state = ActionState::default();
+            let mut snap = Snapshot::default();
+            snap.pad_buttons.insert(button);
+            state.update(&bindings, &snap, false);
+            assert!(state.just_pressed(action), "{button:?}");
+        }
+    }
+
+    #[test]
+    fn wheel_paddles_shift_once_their_codes_are_given() {
+        let mut bindings = Bindings::default();
+        let mut snap = Snapshot::default();
+        snap.pad_buttons.insert(GamepadButton::Other(12));
+        let mut state = ActionState::default();
+        state.update(&bindings, &snap, false);
+        assert!(!state.pressed(Action::ShiftUp), "an unknown button does nothing by itself");
+        bindings.0.extend(bindings::paddles(Some(12), None));
+        state.update(&bindings, &snap, false);
+        assert!(state.pressed(Action::ShiftUp));
     }
 
     #[test]

@@ -33,6 +33,9 @@ pub struct Settings {
     pub hud: bool,
     /// Who changes gear: the box (default) or the player.
     pub transmission: Transmission,
+    /// Gamepad button codes of a steering wheel's shift paddles (`GamepadButton::Other`), if the player gave them.
+    pub paddle_up: Option<u32>,
+    pub paddle_down: Option<u32>,
 }
 
 impl From<Partial> for Settings {
@@ -49,6 +52,8 @@ impl From<Partial> for Settings {
             engine_volume: p.engine_volume.unwrap_or(Percent(90)),
             hud: p.hud.unwrap_or(true),
             transmission: p.transmission.unwrap_or_default(),
+            paddle_up: p.paddle_up,
+            paddle_down: p.paddle_down,
         }
     }
 }

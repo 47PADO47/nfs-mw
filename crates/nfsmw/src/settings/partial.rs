@@ -52,6 +52,8 @@ pub struct Partial {
     pub engine_volume: Option<Percent>,
     pub hud: Option<bool>,
     pub transmission: Option<Transmission>,
+    pub paddle_up: Option<u32>,
+    pub paddle_down: Option<u32>,
 }
 
 impl Partial {
@@ -68,6 +70,8 @@ impl Partial {
             engine_volume: self.engine_volume.or(lower.engine_volume),
             hud: self.hud.or(lower.hud),
             transmission: self.transmission.or(lower.transmission),
+            paddle_up: self.paddle_up.or(lower.paddle_up),
+            paddle_down: self.paddle_down.or(lower.paddle_down),
         }
     }
 }
