@@ -6,11 +6,13 @@
 mod env;
 mod file;
 mod partial;
+mod window;
 mod write;
 
 use blackbox_render::Backend;
 
 pub use partial::{Partial, Percent, parse_bool};
+pub use window::{Monitor, Resolution, WindowMode};
 pub use write::write as write_file;
 
 use crate::app::pacing::MaxFps;
@@ -23,6 +25,9 @@ pub struct Settings {
     pub vsync: bool,
     pub max_fps: MaxFps,
     pub show_metrics: ShowMetrics,
+    pub window_mode: WindowMode,
+    pub monitor: Monitor,
+    pub resolution: Resolution,
     pub master_volume: Percent,
     pub music_volume: Percent,
     pub sfx_volume: Percent,
@@ -39,6 +44,9 @@ impl From<Partial> for Settings {
             vsync: p.vsync.unwrap_or(true),
             max_fps: p.max_fps.unwrap_or_default(),
             show_metrics: p.show_metrics.unwrap_or_default(),
+            window_mode: p.window_mode.unwrap_or_default(),
+            monitor: p.monitor.unwrap_or_default(),
+            resolution: p.resolution.unwrap_or_default(),
             master_volume: p.master_volume.unwrap_or(Percent(80)),
             music_volume: p.music_volume.unwrap_or(Percent(60)),
             sfx_volume: p.sfx_volume.unwrap_or(Percent(90)),
@@ -89,5 +97,24 @@ mod tests {
         assert!(!s.vsync, "command line");
         assert_eq!(s.backend, Backend::Gl, "environment over file");
         assert_eq!(s.max_fps, "90".parse().unwrap(), "file over default");
+    }
+
+    #[test]
+    fn window_layers_resolve_independently_and_bad_values_fall_through() {
+        let cli = Partial { window_mode: Some(WindowMode::Exclusive), ..Partial::default() };
+        let env = env::read(|n| match n {
+            env::WINDOW_MODE => Some("borderless".into()),
+            env::MONITOR => Some("1".into()),
+            env::RESOLUTION => Some("bad size".into()),
+            _ => None,
+        });
+        let file = file::parse("window_mode = 'windowed'\nmonitor = 'primary'\nresolution = '1920x1080'", "test");
+        let s: Settings = cli.or(env).or(file).into();
+        assert_eq!(s.window_mode, WindowMode::Exclusive);
+        assert_eq!(s.monitor, Monitor::Index(1));
+        assert_eq!(s.resolution, Resolution::pixels(1920, 1080).unwrap());
+        let bad = file::parse("window_mode = 'bad'\nmonitor = -1\nresolution = '0x0'", "test");
+        assert_eq!(bad, Partial::default());
+        assert_eq!(file::parse("monitor = 0", "test").monitor, Some(Monitor::Index(0)));
     }
 }

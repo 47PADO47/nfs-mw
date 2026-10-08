@@ -30,6 +30,15 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.show_metrics {
         put("show_metrics", Value::String(v.to_string()));
     }
+    if let Some(v) = changes.window_mode {
+        put("window_mode", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.monitor {
+        put("monitor", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.resolution {
+        put("resolution", Value::String(v.to_string()));
+    }
     if let Some(v) = changes.master_volume {
         put("master_volume", Value::Integer(i64::from(v.0)));
     }
@@ -70,6 +79,20 @@ mod tests {
     use crate::app::pacing::MaxFps;
     use crate::devtools::ShowMetrics;
     use crate::settings::{Percent, file};
+
+    #[test]
+    fn display_settings_round_trip_without_dropping_other_keys() {
+        use crate::settings::{Monitor, Resolution, WindowMode};
+        let changes = Partial {
+            window_mode: Some(WindowMode::Exclusive),
+            monitor: Some(Monitor::Index(2)),
+            resolution: Some(Resolution::pixels(1920, 1080).unwrap()),
+            ..Partial::default()
+        };
+        let text = merge("future_option = 3", &changes).unwrap();
+        assert_eq!(file::parse(&text, "test"), changes);
+        assert!(text.contains("future_option = 3"));
+    }
 
     #[test]
     fn keeps_game_dir_and_unknown_keys_and_replaces_the_changed_ones() {

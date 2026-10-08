@@ -2,6 +2,7 @@
 
 use blackbox_render::Backend;
 
+use super::{Monitor, Resolution, WindowMode};
 use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
 
@@ -45,6 +46,9 @@ pub struct Partial {
     pub vsync: Option<bool>,
     pub max_fps: Option<MaxFps>,
     pub show_metrics: Option<ShowMetrics>,
+    pub window_mode: Option<WindowMode>,
+    pub monitor: Option<Monitor>,
+    pub resolution: Option<Resolution>,
     pub master_volume: Option<Percent>,
     pub music_volume: Option<Percent>,
     pub sfx_volume: Option<Percent>,
@@ -60,6 +64,9 @@ impl Partial {
             vsync: self.vsync.or(lower.vsync),
             max_fps: self.max_fps.or(lower.max_fps),
             show_metrics: self.show_metrics.or(lower.show_metrics),
+            window_mode: self.window_mode.or(lower.window_mode),
+            monitor: self.monitor.or(lower.monitor),
+            resolution: self.resolution.or(lower.resolution),
             master_volume: self.master_volume.or(lower.master_volume),
             music_volume: self.music_volume.or(lower.music_volume),
             sfx_volume: self.sfx_volume.or(lower.sfx_volume),

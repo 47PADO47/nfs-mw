@@ -6,6 +6,9 @@ pub enum Command {
     Help,
     Clear,
     Quit,
+    /// Actual window mode, size, position and focus (as opposed to requested preferences).
+    Window,
+    Monitors,
     /// Show one setting, or all of them.
     Get(Option<String>),
     Set {
@@ -25,14 +28,18 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 11] = [
+pub const BUILT_IN: [(&str, &str); 15] = [
     ("help", "list the commands"),
     ("clear", "empty the console"),
     ("quit", "close the game"),
     ("get [setting]", "show a setting, or all"),
-    ("set <setting> <value>", "change a setting: fps, vsync, metrics"),
+    ("set <setting> <value>", "change a setting (get lists the keys)"),
     ("fps <number|unlocked>", "frame-rate cap (same as set fps)"),
-    ("resolution <width> <height>", "resize the window"),
+    ("resolution <width> <height>|native", "window size or exclusive video mode (also WIDTHxHEIGHT)"),
+    ("window_mode <windowed|borderless|exclusive>", "change the window mode (Alt+Enter toggles fullscreen)"),
+    ("monitor <current|primary|index>", "select a monitor, indices start at zero"),
+    ("window", "show the actual window size, mode, DPI and focus"),
+    ("monitors", "list available monitors and their indices"),
     ("volume <0-100>", "master volume (same as set volume)"),
     ("sound [bank [index]]", "list the sounds of a bank (IG_GLOBAL/Siren_MB.abk) or play one"),
     ("engine <car> [percent] | off", "hold a car's engine sound at a share of its RPM range"),
@@ -40,7 +47,7 @@ pub const BUILT_IN: [(&str, &str); 11] = [
 ];
 
 /// Further shorthands for `set`: `vsync off` is `set vsync off`.
-const SET_SHORTHANDS: [&str; 4] = ["fps", "vsync", "metrics", "volume"];
+const SET_SHORTHANDS: [&str; 6] = ["fps", "vsync", "metrics", "volume", "window_mode", "monitor"];
 
 /// Parse one line. `Ok(None)` for an empty line.
 pub fn parse(line: &str) -> Result<Option<Command>, String> {
@@ -55,6 +62,8 @@ pub fn parse(line: &str) -> Result<Option<Command>, String> {
         "help" | "?" => Command::Help,
         "clear" | "cls" => Command::Clear,
         "quit" | "exit" => Command::Quit,
+        "window" => Command::Window,
+        "monitors" => Command::Monitors,
         "get" => match args.as_slice() {
             [] => Command::Get(None),
             [key] => Command::Get(Some((*key).to_owned())),
@@ -70,6 +79,9 @@ pub fn parse(line: &str) -> Result<Option<Command>, String> {
         }
         "resolution" | "res" => {
             let usage = "resolution <width> <height> (or WIDTHxHEIGHT)";
+            if args.as_slice() == ["native"] {
+                return Ok(Some(Command::Set { key: "resolution".into(), value: "native".into() }));
+            }
             let (w, h) = match args.as_slice() {
                 [both] => both.split_once(['x', 'X']).ok_or_else(|| format!("usage: {usage}"))?,
                 [w, h] => (*w, *h),
@@ -130,6 +142,14 @@ mod tests {
         assert!(parse("resolution 1920").is_err());
         assert!(parse("resolution 10 10").is_err());
         assert!(parse("resolution a b").is_err());
+        assert_eq!(ok("resolution native"), Command::Set { key: "resolution".into(), value: "native".into() });
+        assert_eq!(
+            ok("window_mode borderless"),
+            Command::Set { key: "window_mode".into(), value: "borderless".into() }
+        );
+        assert_eq!(ok("monitor primary"), Command::Set { key: "monitor".into(), value: "primary".into() });
+        assert_eq!(ok("window"), Command::Window);
+        assert_eq!(ok("monitors"), Command::Monitors);
     }
 
     #[test]

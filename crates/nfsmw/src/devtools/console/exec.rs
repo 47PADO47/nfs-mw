@@ -8,6 +8,7 @@ use super::parse::{self, BUILT_IN, Command};
 use super::{Console, settings_cmd};
 use crate::app::Host;
 use crate::app::pacing::FrameLimiter;
+use crate::app::window::WindowModes;
 use crate::audio::Audio;
 use crate::devtools::logbuf;
 use crate::settings::Settings;
@@ -19,6 +20,7 @@ pub fn execute(
     mut host: NonSendMut<Host>,
     mut audio: Option<NonSendMut<Audio>>,
     mut window: Single<&mut Window, With<PrimaryWindow>>,
+    modes: Res<WindowModes>,
     mut exit: MessageWriter<AppExit>,
 ) {
     let host = &mut *host;
@@ -31,7 +33,9 @@ pub fn execute(
         logbuf::input(&format!("> {line}"));
         let result = match parse::parse(&line) {
             Ok(None) => continue,
-            Ok(Some(command)) => run(command, &mut settings, host, audio.as_deref_mut(), &mut window, &mut exit),
+            Ok(Some(command)) => {
+                run(command, &mut settings, host, audio.as_deref_mut(), &mut window, &modes, &mut exit)
+            }
             Err(e) => Err(e),
         };
         match result {
@@ -48,6 +52,7 @@ fn run(
     host: &mut Host,
     audio: Option<&mut Audio>,
     window: &mut Window,
+    modes: &WindowModes,
     exit: &mut MessageWriter<AppExit>,
 ) -> Result<String, String> {
     match command {
@@ -62,10 +67,19 @@ fn run(
         }
         Command::Get(None) => Ok(settings_cmd::get_all(settings)),
         Command::Get(Some(key)) => settings_cmd::get(settings, &key),
-        Command::Set { key, value } => settings_cmd::set(settings, &key, &value),
+        Command::Window => Ok(WindowModes::status(window)),
+        Command::Monitors => Ok(modes.monitors.clone()),
+        Command::Set { key, value } => {
+            if host.screenshot.is_some() && matches!(key.as_str(), "window_mode" | "monitor" | "resolution") {
+                return Err("screenshot runs keep a hidden window at their fixed resolution".into());
+            }
+            settings_cmd::set(settings, &key, &value)
+        }
         Command::Resolution { width, height } => {
-            window.resolution.set_physical_resolution(width, height);
-            Ok(format!("window {width}x{height}"))
+            if host.screenshot.is_some() {
+                return Err("screenshot runs keep a hidden window at their fixed resolution".into());
+            }
+            settings_cmd::set(settings, "resolution", &format!("{width}x{height}"))
         }
         Command::Scene { name, args } if crate::audio::commands::handles(&name) => {
             let args: Vec<&str> = args.iter().map(String::as_str).collect();

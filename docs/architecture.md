@@ -143,6 +143,12 @@ Each key resolves on its own. A value that does not parse (in the environment or
 skipped, so the next layer applies; a broken config file never stops the game from starting. The
 install directory has its own, longer lookup ([Finding the install](#finding-the-install)).
 
+Window mode, monitor and resolution use the same layers (`window_mode`, `monitor`, `resolution`;
+`NFSMW_WINDOW_MODE`, `NFSMW_MONITOR`, `NFSMW_RESOLUTION`; `--window-mode`, `--monitor`,
+`--resolution`). Alt+Enter and console commands switch during a run. Bevy owns monitor selection,
+DPI and mode changes; the render bridge follows the surface size. See [window-modes.md](window-modes.md)
+for restoration, exclusive-mode fallback and the fixed hidden screenshot window.
+
 ## The streamed city (`view-world`)
 
 ```

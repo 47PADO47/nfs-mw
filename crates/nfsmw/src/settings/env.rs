@@ -3,6 +3,7 @@
 use std::str::FromStr;
 
 use super::partial::{Partial, Percent, parse_bool};
+use super::{Monitor, Resolution, WindowMode};
 use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
 
@@ -10,6 +11,9 @@ pub const BACKEND: &str = "NFSMW_BACKEND";
 pub const VSYNC: &str = "NFSMW_VSYNC";
 pub const MAX_FPS: &str = "NFSMW_MAX_FPS";
 pub const SHOW_METRICS: &str = "NFSMW_SHOW_METRICS";
+pub const WINDOW_MODE: &str = "NFSMW_WINDOW_MODE";
+pub const MONITOR: &str = "NFSMW_MONITOR";
+pub const RESOLUTION: &str = "NFSMW_RESOLUTION";
 pub const MASTER_VOLUME: &str = "NFSMW_MASTER_VOLUME";
 pub const MUSIC_VOLUME: &str = "NFSMW_MUSIC_VOLUME";
 pub const SFX_VOLUME: &str = "NFSMW_SFX_VOLUME";
@@ -24,6 +28,9 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         vsync: value(&get, VSYNC, parse_bool),
         max_fps: value(&get, MAX_FPS, MaxFps::from_str),
         show_metrics: value(&get, SHOW_METRICS, ShowMetrics::from_str),
+        window_mode: value(&get, WINDOW_MODE, WindowMode::from_str),
+        monitor: value(&get, MONITOR, Monitor::from_str),
+        resolution: value(&get, RESOLUTION, Resolution::from_str),
         master_volume: value(&get, MASTER_VOLUME, Percent::from_str),
         music_volume: value(&get, MUSIC_VOLUME, Percent::from_str),
         sfx_volume: value(&get, SFX_VOLUME, Percent::from_str),
