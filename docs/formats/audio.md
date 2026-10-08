@@ -236,12 +236,39 @@ The file has one track (`0x0D` = 1) with 7 sections, 70 events, 123 routers, 5 v
 track entry at `0x1ADF8` is `{u32 first sample = 0, u16 sub-bank count = 0, …, u32 BE checksum at +0x08}`. All 3,257
 sample-table offsets point at a `SCHl` in `.mus`, are strictly ascending (first stream at 0x100, last at
 523,893,120) and no stream overlaps the next. The stored duration equals `samples * 1000 / 36000` within 1 ms for
-every stream; the total is 203.9 minutes. **[verified]** The track entry stores a big-endian checksum at +0x08. Its value `FA CE A5 8C` (at `.mpf` 0x1AE00) is
-also the first 4 bytes of `MW_Music.mus` **[verified]**. In `.mus`, streams start at 0x100 and sample
-offsets are multiplied by 0x80. The node graph (which segment follows which, driven by pursuit
-intensity) belongs to EA's PathFinder 5.01.04, decompiled in `src/Speed/Indep/Libs/path/5.01.04/` and
-driven by `EAXSound/sfxctl/SFXCTL_Pathfinder5.cpp` **[decomp]**. vgmstream only extracts the samples.
-The AttribSys class `music` (5 fields, 27 collections) lists tracks ([attributes.md](attributes.md)).
+every stream; the total is 203.9 minutes. **[verified]** The track entry stores a big-endian checksum at +0x08. Its
+value `FA CE A5 8C` (at `.mpf` 0x1AE00) is also the first 4 bytes of `MW_Music.mus` **[verified]**. In `.mus`,
+streams start at 0x100 and sample offsets are multiplied by 0x80.
+
+### The node graph (PathFinder) **[verified on the bytes; behaviour in [specs/music-graph.md](../specs/music-graph.md)]**
+
+The rest of the header (all `u8` counts at 0x0C to 0x11 and the `u16` node count at 0x12, then `u32` offsets):
+
+| Offset | Field |
+|---|---|
+| 0x0C / 0x0D / 0x0E / 0x0F / 0x10 / 0x11 | project index 0 / tracks 1 / sections 7 / events 70 / routers 123 / variables 5 |
+| 0x12 | `u16` nodes: 3,681 |
+| 0x14 | node offset table, `u16` each, value `* 4` = byte offset (0x48) |
+| 0x1C | event offset table, `u16` each, value `* 4` (0x178C0); events at 0x1794C |
+| 0x24 | variable table (0x1A8AC): 5 x 20 bytes, a 16-byte name (`rapsheet`, `pursuitid`, `partnode`, `newnode`, `ambstate`) and a `u32` initial value |
+| 0x28 | router offset table (0x1A910): 124 `u32`, indexes in `u32` units; router data from 0x1AB00 |
+
+A **node** is `16 + 4 * n` bytes: `d0` (bits 0-15 id = stream index + 1, or 0 group head / 0xFFFF end / 0xFFFD fire
+event; bits 21-26 section), `d1` (bits 0-11 router, 12-16 transition count `n`, 20-23 beats, 24-31 bars), `d2`
+(bits 0-15 the group head), `d3` (the event id of a fire-event node) and `n` transitions `{i8 lo, i8 hi, i16
+target}` over a 0 to 127 control value. 3,326 audio nodes, 89 heads, 89 ends and 177 fire-event nodes fill 0x1D0C
+to 0x178C0 exactly. A **router** entry is a `u32` `key << 16 | value` that replaces a chosen target equal to
+`key`. An **event** is 20 header bytes (`id24` and the action count in the top byte at +12) and 12-byte actions
+`{mask, w1, w2}`; opcode = bits 8-14 of `w1` (18 opcodes), `BRANCHTO` is 4 with the node in the low 16 bits of
+`w2`. Each of the 26 songs has an event of two actions: stop everything, then branch to the song's first node;
+following the first transition of every node from there to the end node gives the song's streams, which are
+consecutive in the `.mus` and add up to the real track length. Sections: 1 to 4 pursuit music, 5 the songs and the
+start-screen music, 6 ambience. The meaning of a few flag bits and of 26 condition properties is unknown.
+
+The AttribSys class `music` (5 fields: `Artist`, `SongName`, `Album`, `PathEvent`, `Defplay`; 27 collections, one a
+template) lists the songs; the `PFMapping` array of the `audiosystem` collection that `LicensedMusic` of
+`audiosystem/0x7E4B0ED2` names is the song order ([attributes.md](attributes.md)). The game side is EA's
+PathFinder 5.01.04 driven by `EAXSound/sfxctl/SFXCTL_Pathfinder5.cpp` and `SFXObj_Pathfinder.cpp` **[decomp]**.
 
 ## Speech and NIS streams (`.big` / `.idx` / `.evt` / `.csi`)
 
