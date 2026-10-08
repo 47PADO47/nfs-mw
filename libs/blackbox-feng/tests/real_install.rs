@@ -147,3 +147,43 @@ fn the_single_race_hud_runs_and_builds_a_tree() {
     let p = cluster.world.w_axis;
     println!("GaugeCluster at {p:?}");
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR); prints the gauge cluster"]
+fn print_the_gauge_cluster() {
+    if install().is_none() {
+        return;
+    }
+    let hud = packages_in("GLOBAL/InGameB.bun").into_iter().find(|p| p.name.eq_ignore_ascii_case("HUD_SingleRace.fng")).unwrap();
+    let mut rt = blackbox_feng::Runtime::new();
+    let id = rt.load(hud);
+    for _ in 0..10 {
+        rt.update(1.0 / 60.0);
+    }
+    let tree = rt.tree(id);
+    let cluster = tree.nodes.iter().position(|n| n.name_hash == blackbox_feng::fe_hash_upper("GaugeCluster")).unwrap();
+    for (i, n) in tree.nodes.iter().enumerate() {
+        let mut p = n.parent;
+        let mut inside = i == cluster;
+        while let Some(q) = p {
+            if q == cluster {
+                inside = true;
+            }
+            p = tree.nodes[q].parent;
+        }
+        if inside {
+            println!(
+                "{i:3} {:08x} guid {:x} vis {} z {:7.1} col {:?} wcol {:?} at {:?} {:?} {:?}",
+                n.name_hash,
+                n.guid,
+                n.visible,
+                n.z,
+                n.colour,
+                n.world_colour,
+                n.world.w_axis.truncate(),
+                n.kind,
+                n.text
+            );
+        }
+    }
+}
