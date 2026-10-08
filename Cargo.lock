@@ -1026,6 +1026,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "blackbox-ginsu"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "blackbox-hash"
 version = "0.1.0"
 

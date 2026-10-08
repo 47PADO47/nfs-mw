@@ -20,6 +20,7 @@ blackbox-carparts = { path = "libs/blackbox-carparts" }
 blackbox-chunk = { path = "libs/blackbox-chunk" }
 blackbox-collision = { path = "libs/blackbox-collision" }
 blackbox-feng = { path = "libs/blackbox-feng" }
+blackbox-ginsu = { path = "libs/blackbox-ginsu" }
 blackbox-hash = { path = "libs/blackbox-hash" }
 blackbox-movie = { path = "libs/blackbox-movie" }
 blackbox-render = { path = "libs/blackbox-render" }
