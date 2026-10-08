@@ -25,7 +25,7 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 10] = [
+pub const BUILT_IN: [(&str, &str); 11] = [
     ("help", "list the commands"),
     ("clear", "empty the console"),
     ("quit", "close the game"),
@@ -36,6 +36,7 @@ pub const BUILT_IN: [(&str, &str); 10] = [
     ("volume <0-100>", "master volume (same as set volume)"),
     ("sound [bank [index]]", "list the sounds of a bank (IG_GLOBAL/Siren_MB.abk) or play one"),
     ("engine <car> [percent] | off", "hold a car's engine sound at a share of its RPM range"),
+    ("radio [list|next|play <n>|on|off|shuffle|ordered]", "the radio: show what plays, skip, switch it"),
 ];
 
 /// Further shorthands for `set`: `vsync off` is `set vsync off`.
