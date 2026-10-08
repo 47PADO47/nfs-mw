@@ -27,6 +27,8 @@ scaled down.
 | [`blackbox-streaming`](../libs/blackbox-streaming) | The track streaming index | `layout::MOST_WANTED` passed by the caller |
 | [`blackbox-scenery`](../libs/blackbox-scenery) | Scenery infos and instances; visibility rule | `layout::MOST_WANTED` passed by the caller |
 | [`blackbox-collision`](../libs/blackbox-collision) | World collision packs, the collision grid, car and prop bounds, a ray-cast query | — (one layout so far) |
+| [`blackbox-feng`](../libs/blackbox-feng) | FEng user-interface packages and fonts: reader, script and message runtime, a retained `UiTree`; no rendering | — (one format version) |
+| [`blackbox-text`](../libs/blackbox-text) | Language string tables (`LANGUAGES/*.bin`) | — |
 | [`blackbox-vehicle`](../libs/blackbox-vehicle) | Deterministic fixed-step vehicle physics: rigid body, engine and gearbox, suspension, tires, steering, aero; driven by plain parameter structs and a `Ground` ray-cast trait | — (parameters passed by the caller) |
 | [`blackbox-render`](../libs/blackbox-render) | Backend-neutral renderer (wgpu inside) | — |
 | [`blackbox-scene`](../libs/blackbox-scene) | Uploading solids and textures to the renderer; boxes; frustum culling | — |
@@ -37,7 +39,7 @@ scaled down.
 | Crate | Job |
 |---|---|
 | [`nfsmw-data`](../crates/nfsmw-data) | MW's `GameSpec`; car assembly (stock and preset parts, wheel and brake placement, paint, texture swaps); the world: streaming index, section parsing, a background section loader. Renderer-free. |
-| [`nfsmw`](../crates/nfsmw) | The binary: CLI (`commands/`), layered `settings/`, the Bevy `app/` (window, loop, render bridge, cursor, pacing, screenshots), the `input/` action layer, the `viewer/` cameras and `Scene` trait, and the scenes (`scenes/car/`, `scenes/world/`). |
+| [`nfsmw`](../crates/nfsmw) | The binary: CLI (`commands/`), layered `settings/`, the Bevy `app/` (window, loop, render bridge, cursor, pacing, screenshots), the `input/` action layer, the `hud/` (the in-game HUD), the `viewer/` cameras and `Scene` trait, and the scenes (`scenes/car/`, `scenes/world/`). |
 | [`xtask`](../xtask) | `cargo xtask check` (leak check + file-size check), `install-hooks` |
 
 Rules that keep this structure working:
@@ -249,6 +251,22 @@ CarPose (render axes) ─► CarRig (assembled car, wheels posed: steer, spin, s
 Known gaps: the car shader, tire smoke and skid marks (milestone 8), car-versus-car and traffic, damage,
 one-sided barriers (a barrier blocks from both sides), the original's wall steering, a controller that has
 been tried on real hardware, and calibration of the handling against the original.
+
+## The HUD
+
+The in-game HUD is the original package `HUD_SingleRace.fng` run by `blackbox-feng`
+([decision](decisions/0002-ui-presentation.md), [runtime spec](specs/feng-runtime.md)). `hud/` in the binary has a
+plain `HudState` resource (speed, rpm, gear, shift light), the loader for the package, fonts, textures and strings,
+the binding that copies the state into named FEng objects (digits, units, gear, needle, shift light), and exactly
+one presenter (`hud/present/blackbox.rs`) that draws the tree through the UI layer, under egui. A scene supplies
+its state with `Scene::hud_state`; nothing else knows FEng.
+
+- `--hud` shows it in any viewer (idle numbers; `--hud-demo SPEED,RPM,MAX_RPM,GEAR` for reference shots), and it is
+  always on while driving. `--screenshot` captures it.
+- Only the speedometer and the tachometer are shown. The rest of the package (radar, pursuit bars, race timers)
+  needs game state that arrives with the race and pursuit milestones; the runtime already runs their scripts.
+- Gaps: wide screens scale the 480-unit height without the package's widescreen messages; the redline mask is not
+  drawn; the custom tachometer skins other than 00 are not loaded.
 
 ## Graphics backends
 
