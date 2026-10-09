@@ -46,10 +46,10 @@ fn toggles_flip_and_cycle_and_record_the_change() {
 }
 #[test]
 fn every_category_has_rows() {
-    assert_eq!(rows(Category::Audio).len(), 5);
-    assert_eq!(rows(Category::Video).len(), 18);
-    assert_eq!(rows(Category::Gameplay).len(), 5);
-    assert_eq!(rows(Category::Controls).len(), 8);
+    assert_eq!(rows(Category::Audio, &crate::settings::test_caps::native()).len(), 5);
+    assert_eq!(rows(Category::Video, &crate::settings::test_caps::native()).len(), 19);
+    assert_eq!(rows(Category::Gameplay, &crate::settings::test_caps::native()).len(), 5);
+    assert_eq!(rows(Category::Controls, &crate::settings::test_caps::native()).len(), 8);
 }
 #[test]
 fn the_speech_volume_row_is_a_slider_that_records_its_change() {

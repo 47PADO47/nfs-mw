@@ -50,6 +50,11 @@ fn asked(key: &str, settings: &Settings, caps: &Capabilities) -> Option<Asked> {
     })
 }
 
+/// Whether the renderer can run the value `settings` has at `key`. Keys that are not capability-limited always can.
+pub fn is_offered(key: &str, settings: &Settings, caps: &Capabilities) -> bool {
+    asked(key, settings, caps).is_none_or(|a| a.possible)
+}
+
 /// Whether `settings`, just changed at `key`, ask the renderer for something it cannot do. The error text names
 /// the value, the renderer and what it offers.
 pub fn check(key: &str, settings: &Settings, caps: &Capabilities) -> Result<(), String> {

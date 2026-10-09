@@ -8,12 +8,15 @@ use super::ids::{LABEL_OFF, LABEL_ON};
 use super::input_options::InputSetting;
 use super::logic::Category;
 use super::post_options::PostSetting;
+use super::renderer_options::RendererSetting;
 use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
+use crate::settings::availability;
 use crate::settings::{
     HudLayout, MinimapMode, Partial, Percent, RadioHudStyle, RenderScale, Settings, SmokeQuality, Transmission,
     UpscaleMode, WindowMode,
 };
+use blackbox_gfx::Capabilities;
 
 /// A setting a row edits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -38,6 +41,7 @@ pub enum Setting {
     Input(InputSetting),
     Post(PostSetting),
     Graphics(GraphicsSetting),
+    Renderer(RendererSetting),
     HudLayout,
     RadioHud,
     Minimap,
@@ -79,8 +83,11 @@ const fn row(setting: Setting, title: Title) -> Row {
     Row { setting, title }
 }
 
-/// The rows of a category.
-pub fn rows(category: Category) -> Vec<Row> {
+/// The rows of a category on a renderer with these capabilities. A row the renderer cannot do (ray tracing, the
+/// temporal upscalers' quality mode) is left out: an option row has no greyed-out state.
+pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
+    let renderer_row = |setting: RendererSetting| row(Setting::Renderer(setting), setting.title());
+    let offered = |setting: RendererSetting| setting.shown(caps).then(|| renderer_row(setting));
     match category {
         Category::Audio => vec![
             row(Setting::MasterVolume, Title::Label(0x2678_2C3E)),
@@ -105,8 +112,11 @@ pub fn rows(category: Category) -> Vec<Row> {
             row(Setting::UpscaleSharpness, Title::Text("Upscale Sharpness")),
         ]
         .into_iter()
+        .chain(offered(RendererSetting::UpscaleQuality))
         .chain(PostSetting::ALL.into_iter().map(|setting| row(Setting::Post(setting), setting.title())))
+        .chain(offered(RendererSetting::RayTracing))
         .chain(GraphicsSetting::ALL.into_iter().map(|setting| row(Setting::Graphics(setting), setting.title())))
+        .chain(offered(RendererSetting::Renderer))
         .collect(),
         Category::Gameplay => vec![
             row(Setting::Hud, Title::Label(0xAC14_8579)),
@@ -140,6 +150,8 @@ const UPSCALERS: [UpscaleMode; 6] = [
 ];
 const METRICS: [ShowMetrics; 3] = [ShowMetrics::Off, ShowMetrics::Basic, ShowMetrics::Advanced];
 const WINDOW_MODES: [WindowMode; 3] = [WindowMode::Windowed, WindowMode::Borderless, WindowMode::Exclusive];
+/// The most values any row cycles through; `advance` gives up after that many steps.
+const MAX_VALUES: usize = 8;
 /// A slider press moves the volume by this many percent.
 const VOLUME_STEP: u8 = 10;
 
@@ -180,6 +192,7 @@ impl Setting {
             Setting::Input(setting) => setting.data(s),
             Setting::Post(setting) => setting.data(s),
             Setting::Graphics(setting) => setting.data(s),
+            Setting::Renderer(setting) => setting.data(s),
             Setting::HudLayout => Data::Text(
                 match s.hud_layout {
                     HudLayout::Pc => "PC",
@@ -258,6 +271,42 @@ impl Setting {
         }
     }
 
+    /// What the data string shows on a renderer with these capabilities: the value it actually runs, so a stored
+    /// `taa` reads FXAA on a renderer that has no TAA.
+    pub fn data_in(self, s: &Settings, caps: &Capabilities) -> Data {
+        self.data(&s.effective(caps))
+    }
+
+    /// The config key of a setting a renderer may not be able to run.
+    fn key(self) -> Option<&'static str> {
+        match self {
+            Setting::Upscaler => Some("upscaler"),
+            Setting::Post(PostSetting::Aa) => Some("post_aa"),
+            Setting::Post(PostSetting::Tonemap) => Some("post_tonemap"),
+            Setting::Post(PostSetting::Bloom) => Some("post_bloom"),
+            Setting::Renderer(RendererSetting::RayTracing) => Some("ray_tracing"),
+            _ => None,
+        }
+    }
+
+    /// Whether the renderer can run the setting's current value.
+    pub fn offered(self, s: &Settings, caps: &Capabilities) -> bool {
+        self.key().is_none_or(|key| availability::is_offered(key, s, caps))
+    }
+
+    /// [`step`](Self::step), skipping the values the renderer cannot run, so a toggle only cycles through what
+    /// works. A stored value the renderer cannot run (set for another renderer) moves to the next one it can.
+    pub fn advance(self, s: &mut Settings, changed: &mut Partial, forward: bool, caps: &Capabilities) -> bool {
+        let before = *s;
+        for _ in 0..MAX_VALUES {
+            self.step(s, changed, forward);
+            if self.offered(s, caps) {
+                break;
+            }
+        }
+        before != *s
+    }
+
     /// Moves the setting one step (`forward`: right, else left) and records the change for the config file.
     /// Returns whether the value changed (a slider at its end does not).
     pub fn step(self, s: &mut Settings, changed: &mut Partial, forward: bool) -> bool {
@@ -279,13 +328,16 @@ impl Setting {
         if let Setting::Graphics(setting) = self {
             return setting.step(s, changed, forward);
         }
+        if let Setting::Renderer(setting) = self {
+            return setting.step(s, changed, forward);
+        }
         if !self.enabled(s) {
             return false;
         }
         let before = *s;
         match self {
-            Setting::Input(_) | Setting::Post(_) | Setting::Graphics(_) => {
-                unreachable!("input, post and graphics settings are handled above")
+            Setting::Input(_) | Setting::Post(_) | Setting::Graphics(_) | Setting::Renderer(_) => {
+                unreachable!("input, post, graphics and renderer settings are handled above")
             }
             Setting::HudLayout => {
                 let layouts = [HudLayout::Pc, HudLayout::Classic, HudLayout::Xbox360];

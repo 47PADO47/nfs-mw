@@ -65,7 +65,7 @@ impl WidgetMenu {
         let on_screen = if args.pause { ROWS_ON_SCREEN_PAUSED } else { ROWS_ON_SCREEN };
         Self {
             args,
-            rows: options::rows(args.category),
+            rows: Vec::new(),
             objects: Vec::new(),
             layout: None,
             selected: 0,
@@ -163,7 +163,7 @@ impl WidgetMenu {
         match control {
             Control::Toggle => {
                 let Some(data) = r.data else { return };
-                match row.setting.data(cx.settings) {
+                match row.setting.data_in(cx.settings, &cx.caps) {
                     Data::Label(label) => cx.rt.set_label(data, label),
                     Data::Text(text) => cx.rt.set_text(data, text),
                 }
@@ -267,7 +267,7 @@ impl WidgetMenu {
         if self.leaving {
             return;
         }
-        row.setting.step(cx.settings, cx.changed, forward);
+        row.setting.advance(cx.settings, cx.changed, forward, &cx.caps);
         self.draw_visible(cx);
     }
 
@@ -296,6 +296,7 @@ const CURSOR: u32 = 0x0674_5352;
 
 impl ScreenLogic for WidgetMenu {
     fn start(&mut self, cx: &mut Cx) {
+        self.rows = options::rows(self.args.category, &cx.caps);
         self.find_rows(cx);
         // Packages supply reusable screen slots, not one object for every logical setting.
         self.on_screen = self.on_screen.min(self.objects.len());
@@ -405,6 +406,7 @@ mod tests {
                 assets: &assets,
                 settings: &mut settings,
                 changed: &mut changed,
+                caps: crate::settings::test_caps::native(),
                 commands: &mut commands,
                 memory: &mut memory,
                 name,

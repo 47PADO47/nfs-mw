@@ -3,6 +3,7 @@
 //! (docs/specs/frontend-menus.md, section 1).
 
 use blackbox_feng::{ObjectRef, PackageId, Runtime, fe_hash_upper};
+use blackbox_gfx::Capabilities;
 use glam::Vec2;
 
 use crate::settings::{Partial, Settings};
@@ -53,10 +54,12 @@ pub enum Command {
     NextBootStep,
 }
 
-/// The settings, and the part of them the menus changed since they were last saved.
+/// The settings, the part of them the menus changed since they were last saved, and what the renderer can do
+/// (the option rows follow it).
 pub struct Env<'a> {
     pub settings: &'a mut Settings,
     pub changed: &'a mut Partial,
+    pub caps: Capabilities,
 }
 
 /// What a screen can touch while it handles a message.
@@ -67,6 +70,8 @@ pub struct Cx<'a> {
     pub settings: &'a mut Settings,
     /// Settings the menus changed; the front end writes them to the config file.
     pub changed: &'a mut Partial,
+    /// What the renderer can do: the option screens show only rows and values it offers.
+    pub caps: Capabilities,
     pub commands: &'a mut Vec<Command>,
     /// The option index the screen last left on, per screen name.
     pub memory: &'a mut std::collections::HashMap<String, usize>,

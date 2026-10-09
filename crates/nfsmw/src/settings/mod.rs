@@ -13,6 +13,7 @@ mod car_shading_tests;
 mod controls;
 #[cfg(test)]
 mod controls_tests;
+mod effective;
 mod env;
 #[cfg(test)]
 mod exhaust_flames_tests;

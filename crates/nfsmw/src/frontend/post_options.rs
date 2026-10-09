@@ -67,7 +67,7 @@ impl PostSetting {
     }
 }
 
-fn pick<T: Copy + PartialEq>(all: &[T], current: T, forward: bool) -> T {
+pub(super) fn pick<T: Copy + PartialEq>(all: &[T], current: T, forward: bool) -> T {
     let at = all.iter().position(|v| *v == current).unwrap_or(0);
     let next = if forward { (at + 1) % all.len() } else { (at + all.len() - 1) % all.len() };
     all[next]

@@ -70,6 +70,7 @@ impl Screens {
             assets: &self.assets,
             settings: env.settings,
             changed: env.changed,
+            caps: env.caps,
             commands: &mut commands,
             memory: &mut self.memory,
             name: &file_name,
@@ -128,16 +129,18 @@ impl Screens {
     fn deliver(&mut self, package: PackageId, message: u32, env: &mut Env, out: &mut Vec<Command>) {
         let Self { runtime, assets, stack, memory, .. } = self;
         let Some(screen) = stack.iter_mut().find(|s| s.id == package) else { return };
-        let (settings, changed) = (&mut *env.settings, &mut *env.changed);
-        let mut cx = Cx { rt: runtime, package, assets, settings, changed, commands: out, memory, name: &screen.name };
+        let (settings, changed, caps) = (&mut *env.settings, &mut *env.changed, env.caps);
+        let name = &screen.name;
+        let mut cx = Cx { rt: runtime, package, assets, settings, changed, caps, commands: out, memory, name };
         screen.logic.message(&mut cx, message);
     }
 
     fn deliver_tick(&mut self, package: PackageId, dt: f32, env: &mut Env, out: &mut Vec<Command>) {
         let Self { runtime, assets, stack, memory, .. } = self;
         let Some(screen) = stack.iter_mut().find(|s| s.id == package) else { return };
-        let (settings, changed) = (&mut *env.settings, &mut *env.changed);
-        let mut cx = Cx { rt: runtime, package, assets, settings, changed, commands: out, memory, name: &screen.name };
+        let (settings, changed, caps) = (&mut *env.settings, &mut *env.changed, env.caps);
+        let name = &screen.name;
+        let mut cx = Cx { rt: runtime, package, assets, settings, changed, caps, commands: out, memory, name };
         screen.logic.tick(&mut cx, dt);
     }
 

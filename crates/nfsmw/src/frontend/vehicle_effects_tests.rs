@@ -6,7 +6,7 @@ use crate::settings::{Partial, Settings, SmokeQuality};
 #[test]
 fn optional_vehicle_effect_rows_cycle_stock_and_experimental_independently() {
     use crate::settings::SparkStyle::{OriginalPc, RestoredExperimental};
-    let rows = rows(Category::Video);
+    let rows = rows(Category::Video, &crate::settings::test_caps::native());
     assert_eq!(rows[7].title, Title::Text("Collision Sparks"));
     assert_eq!(rows[8].title, Title::Text("Speed Trails (Experimental)"));
     let initial = Settings::from(Partial {
@@ -89,7 +89,8 @@ fn vehicle_effects_main_and_pause_video_rows_show_toggle_and_save() {
             ..Partial::default()
         });
         let (mut settings, mut changes) = (initial, Partial::default());
-        let mut env = Env { settings: &mut settings, changed: &mut changes };
+        let mut env =
+            Env { settings: &mut settings, changed: &mut changes, caps: crate::settings::test_caps::native() };
         screens.open(name, Args { pause, category: Category::Video, ..Args::default() }, true, &mut env);
         run(&mut screens, &mut env, 0, 60);
         for _ in 0..7 {

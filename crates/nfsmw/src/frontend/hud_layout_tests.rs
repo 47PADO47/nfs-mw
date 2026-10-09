@@ -4,7 +4,7 @@ use crate::settings::{HudLayout, Partial, Settings};
 
 #[test]
 fn hud_layout_row_follows_transmission_and_keeps_the_hud_enabled() {
-    let rows = rows(Category::Gameplay);
+    let rows = rows(Category::Gameplay, &crate::settings::test_caps::native());
     let index = rows.iter().position(|row| row.setting == Setting::Transmission).unwrap() + 1;
     assert_eq!(rows[index].setting, Setting::HudLayout);
     assert_eq!(rows[index].title, Title::Text("HUD Layout"));
@@ -53,7 +53,8 @@ fn hud_layout_main_and_pause_rows_show_cycle_and_request_saving() {
         let catalog = Catalog::load(&dir, &SCREEN_FILES);
         let mut screens = Screens::new(catalog, assets.clone());
         let (mut settings, mut changes) = (Settings::from(Partial::default()), Partial::default());
-        let mut env = Env { settings: &mut settings, changed: &mut changes };
+        let mut env =
+            Env { settings: &mut settings, changed: &mut changes, caps: crate::settings::test_caps::native() };
         screens.open(name, Args { pause, category: Category::Gameplay, ..Args::default() }, true, &mut env);
         run(&mut screens, &mut env, 0, 60);
         for _ in 0..2 {

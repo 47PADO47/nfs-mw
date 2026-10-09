@@ -69,13 +69,11 @@ fn update(
     input: Res<InputPresentation>,
 ) {
     let (fe, host) = (&mut *fe, &mut *host);
-    if host.renderer.is_none() {
-        return;
-    }
+    let Some(caps) = host.renderer.as_ref().map(|r| *r.capabilities()) else { return };
     let mut changed = std::mem::take(&mut fe.changed);
     // The screens work on a copy so the resource is only marked as changed when a setting really changed.
     let mut current = *settings;
-    let mut env = Env { settings: &mut current, changed: &mut changed };
+    let mut env = Env { settings: &mut current, changed: &mut changed, caps };
     fe.begin(host, &mut env);
 
     // Escape belongs to the front end unless the console had it (it closes the console on the same press).

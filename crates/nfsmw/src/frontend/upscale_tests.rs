@@ -8,7 +8,7 @@ fn defaults() -> Settings {
 
 #[test]
 fn the_video_screen_lists_the_upscaling_rows_after_the_existing_ones() {
-    let rows = rows(Category::Video);
+    let rows = rows(Category::Video, &crate::settings::test_caps::native());
     let titles: Vec<_> = rows.iter().map(|r| r.title).collect();
     let first = titles.iter().position(|t| *t == Title::Text("Render Scale")).expect("render scale row");
     assert_eq!(
