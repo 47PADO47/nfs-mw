@@ -53,7 +53,11 @@ fn startup_and_changed_quality_reach_the_scene_without_reapplying_unchanged_valu
 fn console_shorthand_and_live_setter_forward_quality_before_the_next_frame() {
     let seen = Arc::new(Mutex::new(Vec::new()));
     let mut settings = Settings::from(Partial::default());
-    let mut host = Host::new(Box::new(ObservedScene(seen.clone())), &settings, Some("unused.png".into()));
+    let mut host = Host::new(
+        Box::new(ObservedScene(seen.clone())),
+        &settings,
+        Some(crate::app::Plan::new("unused.png".into(), 0.0, 1, 0.0)),
+    );
     let Some(parse::Command::Set { key, value }) = parse::parse("smoke_quality high").unwrap() else {
         panic!("expected setting")
     };

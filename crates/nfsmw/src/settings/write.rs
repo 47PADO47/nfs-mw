@@ -117,6 +117,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.hud_layout {
         put("hud_layout", Value::String(v.to_string()));
     }
+    if let Some(v) = changes.radio_hud {
+        put("radio_hud", Value::String(v.to_string()));
+    }
     if let Some(v) = changes.paddle_up {
         put("paddle_up", Value::Integer(i64::from(v)));
     }

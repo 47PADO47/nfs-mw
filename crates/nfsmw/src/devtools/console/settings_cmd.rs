@@ -5,10 +5,10 @@ use std::str::FromStr;
 
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
-use crate::settings::{HudLayout, MinimapMode, Percent, Settings, Transmission, parse_bool};
+use crate::settings::{HudLayout, MinimapMode, Percent, RadioHudStyle, Settings, Transmission, parse_bool};
 
 /// Settings the console can show.
-const KEYS: [&str; 35] = [
+const KEYS: [&str; 36] = [
     "deadzone_mode",
     "steering_deadzone",
     "camera_deadzone",
@@ -42,6 +42,7 @@ const KEYS: [&str; 35] = [
     "transmission",
     "minimap",
     "hud_layout",
+    "radio_hud",
     "manual_clutch",
     "h_shifter",
 ];
@@ -82,6 +83,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "transmission" => settings.transmission.to_string(),
         "minimap" => settings.minimap.to_string(),
         "hud_layout" | "hud-layout" => settings.hud_layout.to_string(),
+        "radio_hud" | "radio-hud" => settings.radio_hud.to_string(),
         "manual_clutch" => on_off(settings.manual_clutch).to_owned(),
         "h_shifter" => on_off(settings.h_shifter).to_owned(),
         other => return Err(unknown(other)),
@@ -133,6 +135,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "transmission" => settings.transmission = Transmission::from_str(value)?,
         "minimap" => settings.minimap = MinimapMode::from_str(value)?,
         "hud_layout" | "hud-layout" => settings.hud_layout = HudLayout::from_str(value)?,
+        "radio_hud" | "radio-hud" => settings.radio_hud = RadioHudStyle::from_str(value)?,
         "manual_clutch" => settings.manual_clutch = parse_bool(value)?,
         "h_shifter" => settings.h_shifter = parse_bool(value)?,
         "backend" => return Err("the graphics backend cannot change while running; restart with --backend".into()),
@@ -177,6 +180,7 @@ fn syntax(key: &str) -> Option<&'static str> {
         "transmission" => "<automatic|manual>",
         "minimap" => "<fixed|rotating|off>",
         "hud_layout" | "hud-layout" => "<pc|classic|xbox360>",
+        "radio_hud" | "radio-hud" => "<ea_trax|custom>",
         _ => return None,
     })
 }

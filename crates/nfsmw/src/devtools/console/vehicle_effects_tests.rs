@@ -81,7 +81,11 @@ fn vehicle_effects_parsed_commands_apply_immediately_and_invalid_input_is_atomic
     let seen = Arc::new(Mutex::new(Seen::default()));
     let initial = Settings::from(Partial { hud: Some(false), tire_smoke: Some(false), ..Partial::default() });
     let mut settings = initial;
-    let mut host = Host::new(Box::new(ObservedScene(seen.clone())), &settings, Some("unused.png".into()));
+    let mut host = Host::new(
+        Box::new(ObservedScene(seen.clone())),
+        &settings,
+        Some(crate::app::Plan::new("unused.png".into(), 0.0, 1, 0.0)),
+    );
     for (line, expected) in [
         ("collision_sparks on", [true, false]),
         ("set speed_trails on", [true, true]),

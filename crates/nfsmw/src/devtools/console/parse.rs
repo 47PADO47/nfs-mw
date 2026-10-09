@@ -70,7 +70,7 @@ pub const BUILT_IN: [(&str, &str); 29] = [
 ];
 
 /// Further shorthands for `set`: `vsync off` is `set vsync off`.
-const SET_SHORTHANDS: [&str; 16] = [
+const SET_SHORTHANDS: [&str; 18] = [
     "fps",
     "vsync",
     "metrics",
@@ -87,6 +87,8 @@ const SET_SHORTHANDS: [&str; 16] = [
     "smoke_quality",
     "hud_layout",
     "hud-layout",
+    "radio_hud",
+    "radio-hud",
 ];
 
 /// Parse one line. `Ok(None)` for an empty line.

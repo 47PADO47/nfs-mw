@@ -9,7 +9,7 @@ use std::str::FromStr;
 use toml::{Table, Value};
 
 use super::partial::{Partial, Percent};
-use super::{Deadzone, HudLayout, MinimapMode, Sensitivity, Transmission};
+use super::{Deadzone, HudLayout, MinimapMode, RadioHudStyle, Sensitivity, Transmission};
 use super::{Monitor, Resolution, SmokeQuality, WindowMode};
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
@@ -87,6 +87,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         transmission: field(&table, origin, "transmission", |v| Transmission::from_str(text_of(v)?)),
         minimap: field(&table, origin, "minimap", |v| MinimapMode::from_str(text_of(v)?)),
         hud_layout: field(&table, origin, "hud_layout", |v| HudLayout::from_str(text_of(v)?)),
+        radio_hud: field(&table, origin, "radio_hud", |v| RadioHudStyle::from_str(text_of(v)?)),
         paddle_up: field(&table, origin, "paddle_up", button_code),
         paddle_down: field(&table, origin, "paddle_down", button_code),
         manual_clutch: field(&table, origin, "manual_clutch", boolean),

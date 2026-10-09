@@ -1,5 +1,5 @@
-//! The radio's card on the HUD: the song on the air (title, artist and album, the time) for a few seconds when it
-//! changes, is paused or is resumed. The original shows the song the same way when it starts (a "chyron", spec
+//! The radio's card on the HUD (the `custom` radio HUD, see `settings::RadioHudStyle`): the song on the air (title,
+//! artist and album, the time) for a few seconds when it changes, is paused or is resumed. The original shows the song the same way when it starts (a "chyron", spec
 //! `docs/specs/music-graph.md` section 7); the package has no object for it, so the card is drawn as text.
 //!
 //! [`RadioHud`] is plain data (what to show and for how long); [`placement`] puts it where the HUD layout setting
@@ -91,6 +91,16 @@ impl RadioHud {
         }
         self.age += dt.max(0.0);
         self.card = Some(Card::of(now));
+    }
+
+    /// The song on the air, whether or not its card is up.
+    pub fn song(&self) -> Option<&Card> {
+        self.card.as_ref()
+    }
+
+    /// The serial of the announcement shown last (see `NowPlaying::serial`).
+    pub fn serial(&self) -> Option<u32> {
+        self.seen
     }
 
     /// The card to draw, while it is up.

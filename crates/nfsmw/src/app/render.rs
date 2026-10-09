@@ -3,6 +3,8 @@
 //! Moving to Bevy's own renderer (docs/decisions/0001-bevy.md, option B) replaces this file and the
 //! implementation behind `blackbox-render`'s API, not the game code.
 
+use std::time::Instant;
+
 use bevy_app::AppExit;
 use bevy_ecs::prelude::*;
 use bevy_time::Time;
@@ -114,16 +116,20 @@ pub fn draw(
     }
 
     let (params, instances) = host.scene.frame(renderer.aspect_ratio());
-    let result = if let Some(path) = &host.screenshot {
+    let result = if let Some(plan) = host.screenshot.as_mut() {
         host.frames += 1;
         if host.frames < SCREENSHOT_SETTLE_FRAMES || host.hold_capture {
             return;
         }
-        screenshot::capture(renderer, &params, instances, host.size, path).map(|()| {
+        let Some(path) = plan.due(Instant::now()) else { return };
+        let last = plan.finished();
+        screenshot::capture(renderer, &params, instances, host.size, &path).map(|()| {
             if let Some(status) = host.scene.status() {
                 println!("{status}");
             }
-            exit.write(AppExit::Success);
+            if last {
+                exit.write(AppExit::Success);
+            }
         })
     } else {
         renderer.render(&params, instances).map(|_| host.frames += 1).map_err(Into::into)

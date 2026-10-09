@@ -9,11 +9,13 @@ use game_install::GameDir;
 
 use super::bind::HudBinding;
 use super::minimap::MinimapBinding;
+use super::radio::RadioHud;
 use super::state::{HudState, MapPosition};
+use super::trax::{self, TraxBinding};
 use super::viewport::HudViewport;
 use crate::app::{FrameSet, Host};
 use crate::gui::UiOutput;
-use crate::settings::Settings;
+use crate::settings::{RadioHudStyle, Settings};
 use crate::ui::present::Screen;
 use crate::ui::{Catalog, Presenter, SharedAssets};
 
@@ -36,6 +38,8 @@ struct Hud {
     package: PackageId,
     binding: HudBinding,
     viewport: HudViewport,
+    /// The original EA Trax chyron, when the install has it.
+    trax: Option<TraxBinding>,
 }
 
 impl Plugin for HudPlugin {
@@ -60,7 +64,8 @@ impl Plugin for HudPlugin {
         let minimap = MinimapBinding::open_city(&runtime, package, &self.dir, &assets);
         let binding = HudBinding::new(&mut runtime, package).with_minimap(minimap);
         let viewport = HudViewport::new(&runtime.tree(package));
-        app.insert_resource(Hud { runtime, package, binding, viewport })
+        let trax = trax::load(&self.dir, &mut runtime);
+        app.insert_resource(Hud { runtime, package, binding, viewport, trax })
             .insert_resource(self.initial.clone())
             .add_systems(Update, sync.in_set(FrameSet::SceneUpdate))
             .add_systems(Update, present.in_set(FrameSet::Hud));
@@ -81,6 +86,7 @@ fn sync(host: NonSend<Host>, settings: Res<Settings>, mut state: ResMut<HudState
 fn present(
     mut hud: ResMut<Hud>,
     state: Res<HudState>,
+    radio: Res<RadioHud>,
     settings: Res<Settings>,
     time: Res<Time>,
     assets: Res<SharedAssets>,
@@ -92,11 +98,26 @@ fn present(
         return;
     }
     let hud = &mut *hud;
+    let ea_trax = settings.radio_hud == RadioHudStyle::EaTrax;
     hud.binding.apply(&mut hud.runtime, &state);
+    if let Some(trax) = hud.trax.as_mut() {
+        let song = ea_trax.then(|| radio.song().zip(radio.serial())).flatten();
+        trax.apply(&mut hud.runtime, song);
+    }
     hud.runtime.update(time.delta_secs().min(MAX_STEP));
+    if let Some(trax) = hud.trax.as_ref() {
+        trax.keep_text(&mut hud.runtime);
+    }
     let _ = hud.runtime.take_outgoing();
-    let mut tree = hud.runtime.tree(hud.package);
     let screen = Screen { width: window.width(), height: window.height(), pixels_per_point: window.scale_factor() };
+    // The presenter puts each call's meshes in front of the ones of the calls before it, so the chyron is drawn
+    // first and the HUD after it: the chyron then sits on top of the gauges.
+    if let (true, Some(trax)) = (ea_trax, hud.trax.as_ref()) {
+        let mut chyron = hud.runtime.tree(trax.package());
+        trax.place(&mut chyron, screen, settings.hud_layout);
+        presenter.0.present(&chyron, &assets.0, screen, &mut out);
+    }
+    let mut tree = hud.runtime.tree(hud.package);
     hud.viewport.apply(&mut tree, screen, settings.hud_layout);
     presenter.0.present(&tree, &assets.0, screen, &mut out);
 }

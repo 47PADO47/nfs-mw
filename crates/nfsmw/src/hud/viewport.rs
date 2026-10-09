@@ -27,6 +27,11 @@ impl HudViewport {
         Self { sides }
     }
 
+    /// A viewport that moves every node of `tree` as the HUD's left side moves (a package that is all on the left).
+    pub fn all_left(tree: &UiTree) -> Self {
+        Self { sides: vec![-1; tree.nodes.len()] }
+    }
+
     /// Applies a preset to a fresh runtime tree. Menus never pass through this viewport.
     pub fn apply(&self, tree: &mut UiTree, screen: Screen, layout: HudLayout) {
         let (scale, offset) = parameters(screen, layout);
