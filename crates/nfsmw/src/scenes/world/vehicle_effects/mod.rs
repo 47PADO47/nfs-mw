@@ -4,6 +4,7 @@ mod body;
 mod geometry;
 mod particle;
 mod sparks;
+mod sweep;
 #[cfg(test)]
 mod tests;
 mod trails;

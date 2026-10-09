@@ -177,23 +177,17 @@ impl Sparks {
     }
 
     pub fn bounce(&mut self, world: &blackbox_collision::CollisionWorld, dt: f32) {
-        use blackbox_collision::{BARRIER_TWO_SIDED, GROUP_EXCLUSION, HitKind, RayOptions};
-        let opts = RayOptions { exclude: u32::from(GROUP_EXCLUSION), ..RayOptions::default() };
         for p in &mut self.particles {
             if p.bounces >= 4 || p.age == 0.0 {
                 continue;
             }
-            let Some(hit) = world.ray_cast_filtered(
-                space::to_physics(p.previous),
-                space::to_physics(p.position(p.age)),
-                &opts,
-                |h| h.kind != HitKind::Barrier || h.front_facing || h.surface_flags & BARRIER_TWO_SIDED != 0,
+            let Some(hit) = super::sweep::world_hit(
+                world,
+                Vec3::from(space::to_physics(p.previous)),
+                Vec3::from(space::to_physics(p.position(p.age))),
             ) else {
                 continue;
             };
-            if hit.t > 1.0 {
-                continue;
-            }
             p.bounce(hit.t, space::to_render(hit.point), space::to_render(hit.normal), dt);
         }
     }

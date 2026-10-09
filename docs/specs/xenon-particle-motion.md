@@ -108,7 +108,10 @@ whole result by byte elasticity/255. Defaults for the two spark profiles are
 against resident world faces and barriers, use the hit fraction for substep
 motion, preserve remaining lifetime, and limit bounces to bound query cost.
 Its collision implementation is independent of the reference's predicted
-collision-time routine. Moving props and car-particle collisions remain out
+collision-time routine. Use the existing nearest-ray API with at most four
+candidate crossings, skipping the back of one-sided barriers. Fractions come
+from the original physical segment, so a lengthened short ray cannot hit beyond
+this step. Moving props and car-particle collisions remain out
 of scope. Birth positions should stay on the outgoing side of the source
 contact plane to avoid a wide emitter spawning inside its wall.
 
