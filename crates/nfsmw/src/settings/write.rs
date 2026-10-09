@@ -45,6 +45,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.backend {
         put("backend", Value::String(v.to_string()));
     }
+    if let Some(v) = changes.renderer {
+        put("renderer", Value::String(v.to_string()));
+    }
     if let Some(v) = changes.vsync {
         put("vsync", Value::Boolean(v));
     }

@@ -34,7 +34,7 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 34] = [
+pub const BUILT_IN: [(&str, &str); 35] = [
     ("bind <action> <input>", "replace one device family's action assignments; keys lists action names"),
     ("addbind <action> <input>", "add another physical input to an action"),
     ("unbind <action> [keyboard|mouse|gamepad|all]", "remove action assignments"),
@@ -46,6 +46,7 @@ pub const BUILT_IN: [(&str, &str); 34] = [
     ("get [setting]", "show a setting, or all"),
     ("set <setting> <value>", "change a setting (get lists the keys)"),
     ("fps <number|unlocked>", "frame-rate cap (same as set fps)"),
+    ("renderer <blackbox|bevy>", "choose the renderer (applies after restart)"),
     ("resolution <width> <height>|native", "window size or exclusive video mode (also WIDTHxHEIGHT)"),
     ("window_mode <windowed|borderless|exclusive>", "change the window mode (Alt+Enter toggles fullscreen)"),
     ("monitor <current|primary|index>", "select a monitor, indices start at zero"),
@@ -75,8 +76,9 @@ pub const BUILT_IN: [(&str, &str); 34] = [
 ];
 
 /// Further shorthands for `set`: `vsync off` is `set vsync off`.
-const SET_SHORTHANDS: [&str; 23] = [
+const SET_SHORTHANDS: [&str; 24] = [
     "fps",
+    "renderer",
     "vsync",
     "metrics",
     "volume",
@@ -249,7 +251,7 @@ mod tests {
     fn completion() {
         let scene = [("car <folder>", "change the car"), ("cars", "list the cars")];
         assert_eq!(complete("c", &scene), ["car", "car_shading", "cars", "clear", "collision_sparks"]);
-        assert_eq!(complete("re", &scene), ["resolution"]);
+        assert_eq!(complete("re", &scene), ["renderer", "resolution"]);
         assert_eq!(complete("vo", &scene), ["volume"]);
         assert!(complete("zzz", &scene).is_empty());
     }

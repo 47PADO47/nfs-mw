@@ -6,12 +6,12 @@ use std::str::FromStr;
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
 use crate::settings::{
-    HudLayout, MinimapMode, Percent, PostAa, PostBloom, PostTonemap, RadioHudStyle, RenderScale, Settings,
-    Transmission, parse_bool,
+    HudLayout, MinimapMode, Percent, PostAa, PostBloom, PostTonemap, RadioHudStyle, RenderScale, RendererKind,
+    Settings, Transmission, parse_bool,
 };
 
 /// Settings the console can show.
-const KEYS: [&str; 44] = [
+const KEYS: [&str; 45] = [
     "deadzone_mode",
     "steering_deadzone",
     "camera_deadzone",
@@ -21,6 +21,7 @@ const KEYS: [&str; 44] = [
     "mouse_sensitivity",
     "invert_camera_y",
     "backend",
+    "renderer",
     "vsync",
     "fps",
     "metrics",
@@ -70,6 +71,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "mouse_sensitivity" => settings.controls.mouse_sensitivity.to_string(),
         "invert_camera_y" => on_off(settings.controls.invert_camera_y).to_owned(),
         "backend" => settings.backend.to_string(),
+        "renderer" => settings.renderer.to_string(),
         "vsync" => on_off(settings.vsync).to_owned(),
         "fps" | "max_fps" => settings.max_fps.to_string(),
         "metrics" | "show_metrics" => settings.show_metrics.to_string(),
@@ -130,6 +132,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "camera_sensitivity" => settings.controls.camera_sensitivity = value.parse()?,
         "mouse_sensitivity" => settings.controls.mouse_sensitivity = value.parse()?,
         "invert_camera_y" => settings.controls.invert_camera_y = parse_bool(value)?,
+        "renderer" => settings.renderer = RendererKind::from_str(value)?,
         "vsync" => settings.vsync = parse_bool(value)?,
         "fps" | "max_fps" => settings.max_fps = MaxFps::from_str(value)?,
         "metrics" | "show_metrics" => settings.show_metrics = ShowMetrics::from_str(value)?,
@@ -169,7 +172,11 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         other => return Err(unknown(other)),
     }
     settings.settle_preset();
-    get(settings, key)
+    let text = get(settings, key)?;
+    if key == "renderer" {
+        return Ok(format!("{text} (applies after restart)"));
+    }
+    Ok(text)
 }
 
 /// The on/off settings, which `set <key>` flips.
@@ -200,6 +207,7 @@ fn syntax(key: &str) -> Option<&'static str> {
         "metrics" | "show_metrics" => "<off|basic|advanced>",
         "readout" | "show_readout" => "<off|minimal|full>",
         "window_mode" => "<windowed|borderless|exclusive>",
+        "renderer" => "<blackbox|bevy>",
         "monitor" => "<current|primary|index>",
         "resolution" => "<WIDTHxHEIGHT|native>",
         "volume" | "master_volume" | "music_volume" | "sfx_volume" | "engine_volume" | "speech_volume" => "<0-100>",
@@ -333,6 +341,19 @@ mod tests {
             let answer = set(&mut s, key, "");
             assert!(answer.is_ok() || answer.unwrap_err().starts_with("usage: set "), "{key}");
         }
+    }
+
+    #[test]
+    fn the_renderer_is_set_by_name_and_applies_after_a_restart() {
+        let mut s = defaults();
+        assert_eq!(get(&s, "renderer").unwrap(), "renderer = blackbox");
+        assert_eq!(set(&mut s, "renderer", "bevy").unwrap(), "renderer = bevy (applies after restart)");
+        assert_eq!(s.renderer, RendererKind::Bevy);
+        assert_eq!(get(&s, "renderer").unwrap(), "renderer = bevy");
+        let before = s;
+        assert!(set(&mut s, "renderer", "wgpu").unwrap_err().contains("expected blackbox or bevy"));
+        assert_eq!(s, before);
+        assert_eq!(set(&mut s, "renderer", "").unwrap_err(), "usage: set renderer <blackbox|bevy> (now bevy)");
     }
 
     #[test]

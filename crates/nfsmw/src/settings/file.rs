@@ -10,7 +10,10 @@ use toml::{Table, Value};
 
 use super::partial::{Partial, Percent};
 use super::{CarShading, Deadzone, GraphicsPreset, HudLayout, MinimapMode, RadioHudStyle, Sensitivity, Transmission};
-use super::{Monitor, PostAa, PostBloom, PostTonemap, RenderScale, Resolution, SmokeQuality, UpscaleMode, WindowMode};
+use super::{
+    Monitor, PostAa, PostBloom, PostTonemap, RenderScale, RendererKind, Resolution, SmokeQuality, UpscaleMode,
+    WindowMode,
+};
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
 
@@ -57,6 +60,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         }),
         invert_camera_y: field(&table, origin, "invert_camera_y", boolean),
         backend: field(&table, origin, "backend", |v| text_of(v)?.parse().map_err(|e| format!("{e}"))),
+        renderer: field(&table, origin, "renderer", |v| RendererKind::from_str(text_of(v)?)),
         vsync: field(&table, origin, "vsync", |v| v.as_bool().ok_or_else(|| "expected true or false".to_owned())),
         max_fps: field(&table, origin, "max_fps", |v| match v {
             Value::Integer(n) => MaxFps::from_str(&n.to_string()),

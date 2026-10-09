@@ -4,7 +4,8 @@ use blackbox_gfx::GraphicsApi;
 
 use super::{
     CarShading, Deadzone, GraphicsPreset, HudLayout, MinimapMode, Monitor, PostAa, PostBloom, PostTonemap,
-    RadioHudStyle, RenderScale, Resolution, Sensitivity, SmokeQuality, Transmission, UpscaleMode, WindowMode,
+    RadioHudStyle, RenderScale, RendererKind, Resolution, Sensitivity, SmokeQuality, Transmission, UpscaleMode,
+    WindowMode,
 };
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
@@ -54,6 +55,7 @@ pub struct Partial {
     pub mouse_sensitivity: Option<Sensitivity>,
     pub invert_camera_y: Option<bool>,
     pub backend: Option<GraphicsApi>,
+    pub renderer: Option<RendererKind>,
     pub vsync: Option<bool>,
     pub max_fps: Option<MaxFps>,
     pub show_metrics: Option<ShowMetrics>,
@@ -107,6 +109,7 @@ impl Partial {
             mouse_sensitivity: self.mouse_sensitivity.or(lower.mouse_sensitivity),
             invert_camera_y: self.invert_camera_y.or(lower.invert_camera_y),
             backend: self.backend.or(lower.backend),
+            renderer: self.renderer.or(lower.renderer),
             vsync: self.vsync.or(lower.vsync),
             max_fps: self.max_fps.or(lower.max_fps),
             show_metrics: self.show_metrics.or(lower.show_metrics),

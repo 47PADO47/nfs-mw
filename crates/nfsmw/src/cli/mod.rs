@@ -175,6 +175,10 @@ pub struct ViewArgs {
     /// Graphics backend: auto, vulkan, dx12 or gl [env NFSMW_BACKEND; default auto].
     #[arg(long)]
     pub backend: Option<GraphicsApi>,
+    /// Which renderer draws: blackbox (the native one) or bevy; it applies on the next start, and a build or PC
+    /// without the bevy renderer uses blackbox [env NFSMW_RENDERER; config `renderer`; default blackbox].
+    #[arg(long, value_name = "blackbox|bevy")]
+    pub renderer: Option<crate::settings::RendererKind>,
     /// Disable vsync [env NFSMW_VSYNC=off; config `vsync = false`].
     #[arg(long)]
     pub no_vsync: bool,
@@ -345,6 +349,7 @@ impl ViewArgs {
     pub fn settings_layer(&self) -> Partial {
         Partial {
             backend: self.backend,
+            renderer: self.renderer,
             vsync: self.no_vsync.then_some(false),
             max_fps: self.max_fps,
             show_metrics: self.show_metrics,

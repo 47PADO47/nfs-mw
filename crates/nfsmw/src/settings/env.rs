@@ -4,11 +4,15 @@ use std::str::FromStr;
 
 use super::partial::{Partial, Percent, parse_bool};
 use super::{CarShading, Deadzone, GraphicsPreset, HudLayout, MinimapMode, RadioHudStyle, Sensitivity, Transmission};
-use super::{Monitor, PostAa, PostBloom, PostTonemap, RenderScale, Resolution, SmokeQuality, UpscaleMode, WindowMode};
+use super::{
+    Monitor, PostAa, PostBloom, PostTonemap, RenderScale, RendererKind, Resolution, SmokeQuality, UpscaleMode,
+    WindowMode,
+};
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
 
 pub const BACKEND: &str = "NFSMW_BACKEND";
+pub const RENDERER: &str = "NFSMW_RENDERER";
 pub const VSYNC: &str = "NFSMW_VSYNC";
 pub const MAX_FPS: &str = "NFSMW_MAX_FPS";
 pub const SHOW_METRICS: &str = "NFSMW_SHOW_METRICS";
@@ -61,6 +65,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         mouse_sensitivity: value(&get, "NFSMW_MOUSE_SENSITIVITY", Sensitivity::from_str),
         invert_camera_y: value(&get, "NFSMW_INVERT_CAMERA_Y", parse_bool),
         backend: value(&get, BACKEND, |s| s.parse().map_err(|e| format!("{e}"))),
+        renderer: value(&get, RENDERER, RendererKind::from_str),
         vsync: value(&get, VSYNC, parse_bool),
         max_fps: value(&get, MAX_FPS, MaxFps::from_str),
         show_metrics: value(&get, SHOW_METRICS, ShowMetrics::from_str),

@@ -31,6 +31,9 @@ mod post;
 #[cfg(test)]
 mod post_tests;
 mod radio_hud;
+mod renderer;
+#[cfg(test)]
+mod renderer_tests;
 mod smoke_quality;
 #[cfg(test)]
 mod smoke_quality_tests;
@@ -59,6 +62,7 @@ pub use minimap::MinimapMode;
 pub use partial::{Partial, Percent, parse_bool};
 pub use post::{PostAa, PostBloom, PostTonemap, post_effects};
 pub use radio_hud::RadioHudStyle;
+pub use renderer::RendererKind;
 pub use smoke_quality::SmokeQuality;
 pub use spark_style::SparkStyle;
 pub use transmission::Transmission;
@@ -75,6 +79,8 @@ use crate::devtools::{ShowMetrics, ShowReadout};
 pub struct Settings {
     pub controls: Controls,
     pub backend: GraphicsApi,
+    /// Who draws: the native `blackbox` renderer (default) or `bevy`; applies after a restart.
+    pub renderer: RendererKind,
     pub vsync: bool,
     pub max_fps: MaxFps,
     pub show_metrics: ShowMetrics,
@@ -157,6 +163,7 @@ impl From<Partial> for Settings {
                 invert_camera_y: p.invert_camera_y.unwrap_or(Controls::default().invert_camera_y),
             },
             backend: p.backend.unwrap_or_default(),
+            renderer: p.renderer.unwrap_or_default(),
             vsync: p.vsync.unwrap_or(true),
             max_fps: p.max_fps.unwrap_or_default(),
             show_metrics: p.show_metrics.unwrap_or_default(),
