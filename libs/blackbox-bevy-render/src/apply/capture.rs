@@ -5,6 +5,7 @@
 //! queued; Bevy answers one or two frames later through an observer, which unpads the rows and files the
 //! picture where `poll_capture` looks.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use bevy_asset::{Assets, Handle};
@@ -33,6 +34,8 @@ pub struct ActiveCapture {
     pub image: Handle<Image>,
     pub frames: u32,
     pub requested: bool,
+    /// Set by the readback observer once the result is filed (the caller may take it before the next frame).
+    pub done: Arc<AtomicBool>,
     pub data: FrameData,
 }
 
@@ -49,7 +52,7 @@ pub fn begin(
     let image = images.add(target);
     let bundle = camera::bundle(&data.frame, RenderTarget::Image(image.clone().into()), settings);
     let camera = commands.spawn(bundle).id();
-    ActiveCapture { id, camera, image, frames: 0, requested: false, data }
+    ActiveCapture { id, camera, image, frames: 0, requested: false, done: Arc::default(), data }
 }
 
 /// One more frame of an active capture. Returns `true` once its result was filed and its camera removed.
@@ -59,7 +62,7 @@ pub fn advance(
     shared: &Arc<Mutex<Shared>>,
     size: [u32; 2],
 ) -> bool {
-    if lock(shared).finished.contains_key(&active.id.raw()) {
+    if active.done.load(Ordering::Acquire) {
         commands.entity(active.camera).despawn();
         return true;
     }
@@ -68,10 +71,11 @@ pub fn advance(
         return false;
     }
     active.requested = true;
-    let (shared, id) = (shared.clone(), active.id);
-    commands.spawn(ReadbackOnce::texture(active.image.clone())).observe(move |done: On<ReadbackComplete>| {
-        let result = unpad(&done.data, size);
+    let (shared, id, done) = (shared.clone(), active.id, active.done.clone());
+    commands.spawn(ReadbackOnce::texture(active.image.clone())).observe(move |read: On<ReadbackComplete>| {
+        let result = unpad(&read.data, size);
         lock(&shared).finished.insert(id.raw(), result);
+        done.store(true, Ordering::Release);
     });
     false
 }

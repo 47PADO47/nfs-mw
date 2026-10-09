@@ -22,13 +22,47 @@ use crate::material::Params;
 use crate::ops::{BlackboxBridge, FrameData};
 use state::ScreenCamera;
 
+/// Time spent in [`apply`], logged at debug level every [`REPORT_EVERY`] frames.
+#[derive(Default)]
+pub struct ApplyTimer {
+    frames: u32,
+    total: std::time::Duration,
+}
+
+const REPORT_EVERY: u32 = 300;
+
 pub fn apply(
+    mut timer: bevy_ecs::system::Local<ApplyTimer>,
     bridge: Res<BlackboxBridge>,
     mut state: ResMut<WorldState>,
     mut stores: Stores,
     mut commands: Commands,
     mut placed: instances::PlacedQuery,
     mut windows: Query<&mut Window, With<PrimaryWindow>>,
+) {
+    let started = std::time::Instant::now();
+    apply_queue(&bridge, &mut state, &mut stores, &mut commands, &mut placed, &mut windows);
+    timer.total += started.elapsed();
+    timer.frames += 1;
+    if timer.frames < REPORT_EVERY {
+        return;
+    }
+    let (objects, entities) = instances::counts(&state);
+    log::debug!(
+        "bevy renderer: apply {:.3} ms per frame; {objects} objects, {entities} entities, {} materials",
+        timer.total.as_secs_f64() * 1000.0 / f64::from(timer.frames),
+        state.materials.by_key.len()
+    );
+    *timer = ApplyTimer::default();
+}
+
+fn apply_queue(
+    bridge: &BlackboxBridge,
+    state: &mut WorldState,
+    stores: &mut Stores,
+    commands: &mut Commands,
+    placed: &mut instances::PlacedQuery,
+    windows: &mut Query<&mut Window, With<PrimaryWindow>>,
 ) {
     let (ops, frame, request, settings, surface) = {
         let mut shared = bridge.lock();
@@ -39,27 +73,27 @@ pub fn apply(
         (std::mem::take(&mut shared.ops), shared.frame.take(), request, shared.settings, shared.surface)
     };
     for op in ops {
-        assets::apply_op(&mut state, &mut stores, op);
+        assets::apply_op(state, stores, op);
     }
 
     if let Some(request) = request {
-        state.capture = Some(capture::begin(&mut commands, &mut stores.images, request, &settings));
+        state.capture = Some(capture::begin(commands, &mut stores.images, request, &settings));
     }
 
     // A running capture decides what the world shows until it is done.
     if let Some(mut active) = state.capture.take() {
         let data = active.data.clone();
-        draw(&mut state, &mut stores, &mut commands, &mut placed, &data);
-        camera::follow(&mut commands, active.camera, &data.frame, &settings);
-        let size = capture_size(&stores, &active);
-        let done = capture::advance(&mut commands, &mut active, &bridge.share(), size);
+        draw(state, stores, commands, placed, &data);
+        camera::follow(commands, active.camera, &data.frame, &settings);
+        let size = capture_size(stores, &active);
+        let done = capture::advance(commands, &mut active, &bridge.share(), size);
         state.capture = (!done).then_some(active);
         return;
     }
 
     let Some(data) = frame else { return };
-    draw(&mut state, &mut stores, &mut commands, &mut placed, &data);
-    drive_screen(&mut state, &mut commands, &mut windows, &data, &settings, surface);
+    draw(state, stores, commands, placed, &data);
+    drive_screen(state, commands, windows, &data, &settings, surface);
 }
 
 /// Bring the materials and the pool up to date with a frame.

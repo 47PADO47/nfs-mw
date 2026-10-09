@@ -18,6 +18,8 @@ pub mod ops;
 mod parity_tests;
 pub mod plugin;
 pub mod probe;
+#[cfg(test)]
+mod stress_tests;
 pub mod texture;
 
 pub use facade::BevyBackend;

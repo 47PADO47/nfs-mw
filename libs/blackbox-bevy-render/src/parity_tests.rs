@@ -93,6 +93,21 @@ fn check(scene: SceneId) {
     tolerance.check(&diff).unwrap_or_else(|e| panic!("{}: {e}", scene.name()));
 }
 
+/// Captures one after another on one renderer must all complete (the caller takes a result the moment it is
+/// filed, which must not hide it from the capture that is waiting for it) and draw the same picture.
+#[test]
+#[ignore = "needs a GPU"]
+fn captures_in_a_row_complete_and_agree() {
+    let _gpu = serial();
+    let Some(mut bevy) = bevy(SIZE) else { return };
+    let first = capture_scene(&mut bevy, SceneId::Grid, SIZE).expect("first capture");
+    let second = capture_scene(&mut bevy, SceneId::Grid, SIZE).expect("second capture");
+    let other = capture_scene(&mut bevy, SceneId::AlphaCards, SIZE).expect("a different scene");
+    let same = compare(&first, &second, &Mask::all()).unwrap();
+    assert!(same.max == 0, "{same}");
+    assert!(compare(&first, &other, &Mask::all()).unwrap().mean > 1.0, "a different scene looks different");
+}
+
 #[test]
 #[ignore = "needs a GPU"]
 fn the_grid_matches_native() {
