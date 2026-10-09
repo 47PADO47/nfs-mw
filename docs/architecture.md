@@ -89,7 +89,9 @@ bevy_winit window ─► PreUpdate: input/ resolves devices into actions (Action
 
 - **Input layer** (`input/`): game code reads `ActionState` (`MoveForward`, `LookX`, `Boost`, `Cancel`…),
   never a key code. The `Bindings` resource maps keyboard, mouse and gamepad inputs to actions, with a stick
-  dead zone and per-second scaling for sticks; rebinding will replace that resource. Default pad layout:
+  independent response settings and per-second scaling for sticks; saved overrides and live console rebinding
+  replace that resource ([controller settings](controller-settings.md)). Analog Bevy filtering is neutralized
+  on connection so the action layer applies deadzones once; digital button hysteresis is retained. Default pad layout:
   left stick moves, right stick looks (and orbits), A/B go up/down, stick-click or right bumper boosts,
   D-pad up/down zooms, Start backs out. A key tapped and released within one frame still counts as held for
   that frame, so switch actions (console, camera) cannot miss a quick tap.

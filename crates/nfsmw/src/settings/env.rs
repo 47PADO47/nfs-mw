@@ -2,8 +2,8 @@
 
 use std::str::FromStr;
 
-use super::Transmission;
 use super::partial::{Partial, Percent, parse_bool};
+use super::{Deadzone, Sensitivity, Transmission};
 use super::{Monitor, Resolution, SmokeQuality, WindowMode};
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
@@ -35,6 +35,14 @@ pub const PADDLE_DOWN: &str = "NFSMW_PADDLE_DOWN";
 /// does not parse is reported and ignored.
 pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
     Partial {
+        deadzone_mode: value(&get, "NFSMW_DEADZONE_MODE", super::DeadzoneMode::from_str),
+        steering_deadzone: value(&get, "NFSMW_STEERING_DEADZONE", Deadzone::from_str),
+        camera_deadzone: value(&get, "NFSMW_CAMERA_DEADZONE", Deadzone::from_str),
+        trigger_deadzone: value(&get, "NFSMW_TRIGGER_DEADZONE", Deadzone::from_str),
+        steering_sensitivity: value(&get, "NFSMW_STEERING_SENSITIVITY", Sensitivity::from_str),
+        camera_sensitivity: value(&get, "NFSMW_CAMERA_SENSITIVITY", Sensitivity::from_str),
+        mouse_sensitivity: value(&get, "NFSMW_MOUSE_SENSITIVITY", Sensitivity::from_str),
+        invert_camera_y: value(&get, "NFSMW_INVERT_CAMERA_Y", parse_bool),
         backend: value(&get, BACKEND, |s| s.parse().map_err(|e| format!("{e}"))),
         vsync: value(&get, VSYNC, parse_bool),
         max_fps: value(&get, MAX_FPS, MaxFps::from_str),

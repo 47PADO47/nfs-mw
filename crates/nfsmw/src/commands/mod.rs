@@ -31,7 +31,7 @@ pub fn run(cli: Cli) -> Result<()> {
         Command::CheckInstall => install::check(game_dir),
         Command::Keys => {
             let s = Settings::load(Partial::default());
-            print!("{}", Bindings::with_paddles(s.paddle_up, s.paddle_down).describe());
+            print!("{}", Bindings::load(&s).describe());
             Ok(())
         }
         Command::ListCars => {

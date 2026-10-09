@@ -19,3 +19,17 @@ Module: `blackbox-collision` (`CollisionWorld::ray_cast`, `Grid`, the pack and b
   cells that the segment touches, not the game's 100-cell cut-off. Scenery-group enabling is a flag on the
   query (`skip_groups`), not the game's runtime group table. The ground-height point query (spec §5)
   is not implemented; `CollisionWorld::ground` is a vertical segment cast.
+
+## Vehicle eligibility correction
+
+- **Spec:** [vehicle-wall-probes.md](../specs/vehicle-wall-probes.md).
+- **Sources:** existing collision and rigid-body specs above, the rewrite's query implementation, and
+  read-only measurements of the installed collision packs. No additional decompiled source was read.
+- **Implemented:** 2026-10-09. A generic predicate rejects candidates before nearest-hit selection;
+  vehicle probes use it for one-sided barriers and shallow faces in either normal orientation.
+- **Checked:** deterministic synthetic layered candidates and ignored real-grid track queries. A private
+  read-only probe found four road-height cases among 709 tested barrier segments where an ineligible
+  rear-facing barrier hid a farther eligible front-facing barrier. The track contains 242,647 shallow
+  faces out of 243,429 triangles, so the normal-orientation distinction matters to surface classification.
+- **Limit:** these query defects do not identify the reported leaf/curb/sidewalk location. Full swept
+  primitive contacts and side-by-side comparison with the original remain outstanding.

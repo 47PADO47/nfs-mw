@@ -250,3 +250,42 @@ fn main_and_pause_video_options_change_and_save_display_and_tire_settings() {
         assert_eq!(h.changed.smoke_quality, Some(SmokeQuality::High));
     }
 }
+
+#[test]
+fn expanded_gameplay_options_scroll_every_response_row_with_visible_values() {
+    use super::options::{Data, Title, rows};
+    for (name, pause, visible) in [(screen::OPTIONS, false, 9), (screen::PAUSE_OPTIONS, true, 10)] {
+        let args = Args { pause, category: Category::Gameplay, ..Args::default() };
+        let Some(mut h) = Harness::open(name, args) else { return };
+        h.wait(1.0);
+        let rows = rows(Category::Gameplay);
+        for (index, row) in rows.iter().enumerate() {
+            let slot = index.min(visible - 1) + 1;
+            let tree = h.screens.trees().pop().unwrap();
+            if let Title::Text(title) = row.title {
+                let hash = blackbox_feng::fe_hash_upper(&format!("OPTION_NAME_{slot}"));
+                let node =
+                    tree.nodes.iter().find(|node| node.name_hash == hash && node.visible).expect("visible option name");
+                assert_eq!(node.text.as_deref(), Some(title), "{name}, row {index}");
+            }
+            if let Data::Text(value) = row.setting.data(&h.settings) {
+                let hash = blackbox_feng::fe_hash_upper(&format!("OPTION_DATA_{slot}"));
+                let node = tree
+                    .nodes
+                    .iter()
+                    .find(|node| node.name_hash == hash && node.visible)
+                    .expect("visible option value");
+                assert_eq!(node.text.as_deref(), Some(value.as_str()), "{name}, row {index}");
+            }
+            h.press(pad::DOWN);
+        }
+        // Wrapped to the first row, then up reaches the last row with the same reusable slots.
+        h.press(pad::UP);
+        h.press(pad::RIGHT);
+        assert!(h.settings.controls.invert_camera_y);
+        h.press(pad::BACK);
+        h.wait(1.5);
+        assert!(h.said(&Command::SaveSettings));
+        assert_eq!(h.changed.invert_camera_y, Some(true));
+    }
+}

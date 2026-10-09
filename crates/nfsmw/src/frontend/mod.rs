@@ -7,6 +7,7 @@ mod factory;
 mod flow;
 mod icon_menu;
 mod ids;
+pub(crate) mod input_options;
 mod logic;
 mod options;
 mod plugin;

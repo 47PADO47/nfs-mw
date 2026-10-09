@@ -1,5 +1,5 @@
-//! Against a real NFS: Most Wanted install (set `NFSMW_GAME_DIR`). Expected numbers are the ones
-//! in `docs/formats/collision.md`.
+//! Against a real install (set `NFSMW_GAME_DIR`). Track totals are the reference measurements in
+//! `docs/formats/collision.md`; car bounds validate structure and required geometry across asset sets.
 
 use std::collections::HashSet;
 
@@ -12,7 +12,8 @@ use crate::{
 fn game_file(path: &str) -> Option<Vec<u8>> {
     let dir = std::env::var_os("NFSMW_GAME_DIR")?;
     let path = std::path::Path::new(&dir).join(path);
-    Some(std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display())))
+    let raw = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    Some(ea_compress::unwrap(&raw).unwrap_or_else(|e| panic!("{}: {e}", path.display())).into_owned())
 }
 
 fn packs() -> Option<Vec<CollisionPack>> {
@@ -116,10 +117,23 @@ fn real_install_grid_and_ray_casts() {
 fn real_install_bounds() {
     let Some(file) = game_file("GLOBAL/GlobalB.lzc") else { return };
     let cars = read_bounds_sets(&file).expect("car bounds");
-    assert_eq!(cars.len(), 86);
-    assert_eq!(cars.iter().map(|s| s.nodes.len()).sum::<usize>(), 1066);
-    assert_eq!(cars.iter().map(|s| s.point_clouds.len()).sum::<usize>(), 97);
+    // The documented reference has 86 sets; another installed asset set has 83. Collection totals
+    // are not a format invariant. Validate every tree and cloud reference, plus the BMW below.
+    eprintln!(
+        "car bounds: {} sets, {} nodes, {} point clouds",
+        cars.len(),
+        cars.iter().map(|s| s.nodes.len()).sum::<usize>(),
+        cars.iter().map(|s| s.point_clouds.len()).sum::<usize>()
+    );
+    assert_eq!(cars.iter().map(|s| s.name_hash).collect::<HashSet<_>>().len(), cars.len());
     assert!(cars.iter().all(BoundsSet::is_tree));
+    for set in &cars {
+        for node in &set.nodes {
+            if let Some(index) = node.point_cloud {
+                assert!(usize::from(index) < set.point_clouds.len(), "cloud reference for {}", set.name_hash);
+            }
+        }
+    }
 
     // Car bounds are keyed by the AttribSys hash of the car type name.
     let m3 = crate::find_bounds(&cars, vlt_hash("BMWM3GTR")).expect("BMWM3GTR");

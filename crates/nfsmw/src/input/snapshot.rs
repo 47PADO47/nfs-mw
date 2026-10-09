@@ -10,6 +10,7 @@ use bevy_input::mouse::MouseButton;
 /// resolving code has no Bevy system parameters and can be tested directly.
 #[derive(Debug, Default, Clone)]
 pub struct Snapshot {
+    pub controls: crate::settings::Controls,
     pub keys: HashSet<KeyCode>,
     pub buttons: HashSet<MouseButton>,
     /// Mouse motion since the last frame, in pixels.
