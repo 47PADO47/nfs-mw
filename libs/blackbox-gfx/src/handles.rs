@@ -45,10 +45,20 @@ impl GlossyMaterialHandle {
     pub const ANY: Self = Self(usize::MAX);
 }
 
-raw_handle!(
-    /// Names a UI texture. Unlike the other handles the *caller* picks the number.
-    UiTextureId(u64)
-);
+/// Names a UI texture. Unlike the other handles the *caller* picks the number.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct UiTextureId(pub u64);
+
+impl UiTextureId {
+    /// Same as constructing it directly; here so every handle has the same pair of methods.
+    pub const fn from_raw(raw: u64) -> Self {
+        Self(raw)
+    }
+
+    pub const fn raw(self) -> u64 {
+        self.0
+    }
+}
 
 raw_handle!(
     /// A screenshot or capture that was requested and can be polled for.

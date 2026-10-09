@@ -1,6 +1,6 @@
 //! Upscaling settings: how the scene drawn at a reduced render scale is brought back to the output size.
 
-use crate::render_scale::{DEFAULT_RENDER_SCALE, clamp_render_scale};
+use super::render_scale::{DEFAULT_RENDER_SCALE, clamp_render_scale};
 
 /// The filter that stretches the scene to the output when it is drawn below the output size
 /// (a render scale under 1.0). At a render scale of 1.0 or more no upscaler runs and the scene is
@@ -31,7 +31,7 @@ pub fn clamp_upscale_sharpness(sharpness: f32) -> f32 {
 
 /// The RCAS attenuation in stops (halvings of the sharpening) for a sharpness, or `None` when the
 /// sharpness is zero and the pass is skipped. AMD's reference value is 0.2 stops (a sharpness of 0.9).
-pub(crate) fn rcas_stops(sharpness: f32) -> Option<f32> {
+pub fn rcas_stops(sharpness: f32) -> Option<f32> {
     let sharpness = clamp_upscale_sharpness(sharpness);
     if sharpness <= 0.0 {
         return None;
@@ -40,13 +40,13 @@ pub(crate) fn rcas_stops(sharpness: f32) -> Option<f32> {
 }
 
 /// Whether the FSR 1 passes run: the upscaler is chosen and the scene is drawn below the output size.
-pub(crate) fn fsr1_active(upscaler: Upscaler, render_scale: f32) -> bool {
+pub fn fsr1_active(upscaler: Upscaler, render_scale: f32) -> bool {
     upscaler == Upscaler::Fsr1 && clamp_render_scale(render_scale) < DEFAULT_RENDER_SCALE
 }
 
 /// The texture LOD bias that keeps texture detail matched to the output size when the scene is drawn at
 /// `render_scale`: `log2(scale)` below 1.0 (so 0.5 gives -1.0, one mip sharper), 0.0 at or above it.
-/// Pass it to [`Renderer::set_texture_lod_bias`](crate::Renderer::set_texture_lod_bias) while upscaling.
+/// Pass it to the renderer's texture LOD bias while upscaling.
 ///
 /// A spatial upscaler has no history to accumulate samples over, so this is the plain match of texel
 /// density to the output and does not add the extra -1 that temporal upscalers use.
@@ -58,7 +58,7 @@ pub fn suggested_texture_lod_bias(render_scale: f32) -> f32 {
     scale.log2()
 }
 
-/// Smallest and largest texture LOD bias [`Renderer::set_texture_lod_bias`](crate::Renderer::set_texture_lod_bias) accepts.
+/// Smallest and largest texture LOD bias a renderer accepts.
 pub const MIN_TEXTURE_LOD_BIAS: f32 = -4.0;
 pub const MAX_TEXTURE_LOD_BIAS: f32 = 4.0;
 

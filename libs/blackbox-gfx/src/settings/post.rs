@@ -1,4 +1,4 @@
-//! Which post-process effects run and how strong they are. Pure data: the GPU side is in `gpu/post/`.
+//! Which post-process effects run and how strong they are. Pure data: the passes themselves belong to the renderer.
 
 /// How the HDR scene image is mapped to the displayable range.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
