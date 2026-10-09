@@ -1,6 +1,6 @@
 # Plan: swappable renderers (native Black Box and Bevy) behind one interface
 
-*Planning document for the nfs-mw workspace. Retrieved and checked 2026-10-09. Base: the milestone-8 stack tip `docs/m8-reshade` (cb74ba4) plus the low-end layer `feat/m8-low-end-options` (local branch, 111db46, with uncommitted `car_shading` work in its worktree). This plan replaces the part of ADR 0003 that says "keep only `blackbox-render`". ADR 0004 records that change (outline in §9).*
+*Planning document for the nfs-mw workspace. Retrieved and checked 2026-10-09. Base: the milestone-8 stack tip `docs/m8-reshade` plus the low-end layer `feat/m8-low-end-options`. This plan replaces the part of ADR 0003 that says "keep only `blackbox-render`". ADR 0004 records that change (outline in §9).*
 
 The decision this plan supports is [ADR 0004](../../decisions/0004-swappable-renderers.md) (proposed). The plan is
 split over several files to respect the 500-line limit; section numbers (`§N`) are the plan's own and keep
@@ -8,6 +8,7 @@ their meaning across files.
 
 | Sections | File | Covers |
 |---|---|---|
+| status | [status.md](status.md) | **Current state of every PR, changes from the plan, the PR 8 verdict and the handoff for the PRs still to build (read this first)** |
 | 0 | this file | Summary of the recommendation and the facts that shape the plan |
 | 1, 2 | [interface.md](interface.md) | The `blackbox-gfx` interface crate (trait, capabilities, data-model changes, runtime and compile-time selection) and what moves where |
 | 3 | [bevy-backend.md](bevy-backend.md) | The `blackbox-bevy-render` backend: façade and op queue, rendering Black Box assets, ray tracing |
