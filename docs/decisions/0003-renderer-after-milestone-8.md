@@ -3,6 +3,9 @@
 - **Status:** proposed (2026-10-09), for the project owner to accept. Answers the question
   [0001](0001-bevy.md) left open ("decide on B in milestone 8"). The owner has already agreed (2026-10-09) to move
   Bevy Solari out of milestone 8; bundling the DLSS library in releases is deferred.
+  **Partly superseded by [0004](0004-swappable-renderers.md)** (proposed, 2026-10-09): its decision to keep only
+  `blackbox-render`, and its rows for DLSS, temporal upscalers and Bevy Solari, are replaced by two renderers
+  behind one interface. The facts and the ReShade section below still stand.
 - **Milestone:** 8 (graphics).
 
 ## Question
