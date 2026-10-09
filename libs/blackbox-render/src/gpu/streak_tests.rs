@@ -167,10 +167,11 @@ fn check(backend: wgpu::Backends) {
     let front = gpu.sample(&layer, 0.6, 64, no_fog);
     let center = front.center();
     eprintln!("{backend:?}: additive streak center {center:?}");
-    assert!((53..=59).contains(&center[0]), "RGB must use source alpha plus the original destination");
+    assert!((24..=28).contains(&center[0]), "RGB must use source alpha and the narrow tail mask plus the destination");
     assert_eq!(&center[1..], &BACKGROUND[1..], "a red streak must preserve other channels and opaque alpha");
     assert_eq!(front.at(55, 32), BACKGROUND, "the analytic cross-section feathers to transparent");
     assert!(front.at(32, 8)[0] < center[0], "the longitudinal tail fades");
+    assert!(front.at(32, 55)[0] > center[0] + 20, "the light is concentrated at the tip");
 
     layer.clear();
     quad(&mut layer.streaks, 0.2, [80, 0, 0, 128]);
@@ -181,7 +182,7 @@ fn check(backend: wgpu::Backends) {
     quad(&mut layer.streaks, 0.8, [80, 0, 0, 128]);
     quad(&mut layer.streaks, 0.2, [0, 0, 100, 128]);
     let overlap = gpu.sample(&layer, 0.0, 64, no_fog).center();
-    assert!(overlap[2] > BACKGROUND[2] + 40, "additive overlap must include the farther streak");
+    assert!(overlap[2] > BACKGROUND[2] + 4, "additive overlap must include the farther streak");
     let reversed: Vec<_> = layer.streaks[6..].iter().chain(&layer.streaks[..6]).copied().collect();
     layer.streaks = reversed;
     let reverse = gpu.sample(&layer, 0.0, 64, no_fog).center();
@@ -199,7 +200,7 @@ fn check(backend: wgpu::Backends) {
         "fully fogged light must not brighten fog"
     );
     let partial_fog = gpu.sample(&layer, 0.0, 64, [0.0, 1.6]).center();
-    assert!(partial_fog[0] > BACKGROUND[0] && partial_fog[0] < center[0] - 10, "fog must reduce emitted light");
+    assert!(partial_fog[0] > BACKGROUND[0] && partial_fog[0] < center[0], "fog must reduce emitted light");
 
     let mut particles = EffectLayer::default();
     quad(&mut particles.particles, 0.8, [0, 0, 100, 255]);
@@ -216,4 +217,12 @@ fn check(backend: wgpu::Backends) {
         BACKGROUND,
         "clearing must not leave stale GPU streaks"
     );
+    quad(&mut particles.glows, 0.8, [80, 0, 0, 128]);
+    let glow = gpu.sample(&particles, 0.6, 64, no_fog).center();
+    assert!(glow[0] > BACKGROUND[0] + 30, "glow has an additive bright core");
+    assert_eq!(&glow[1..], &BACKGROUND[1..]);
+    assert_eq!(gpu.sample(&particles, 0.9, 64, no_fog).center(), BACKGROUND, "glows stay behind opaque geometry");
+    assert_eq!(gpu.sample(&particles, 0.0, 64, [0.0, 0.1]).center(), BACKGROUND, "glows cannot brighten fog");
+    particles.clear();
+    assert_eq!(gpu.sample(&particles, 0.0, 64, no_fog).center(), BACKGROUND);
 }

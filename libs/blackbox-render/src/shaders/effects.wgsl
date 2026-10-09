@@ -50,13 +50,23 @@ fn fs_particle(in: VsOut) -> @location(0) vec4<f32> {
 @fragment
 fn fs_streak(in: VsOut) -> @location(0) vec4<f32> {
     let along = clamp(in.uv.y, 0.0, 1.0);
-    let taper = mix(1.0, 0.1, smoothstep(0.0, 1.0, along));
-    let across = abs(in.uv.x * 2.0 - 1.0) / taper;
-    let soft_edge = 1.0 - smoothstep(0.15, 1.0, across);
-    let ends = smoothstep(0.0, 0.08, along) * (1.0 - smoothstep(0.75, 1.0, along));
-    let mask = soft_edge * soft_edge * ends;
+    let across = in.uv.x * 2.0 - 1.0;
+    // Narrow luminous core with a dim continuous tail; mean energy stays near one tenth.
+    let mask = exp(-8.0 * across * across - 3.0 * along) * (1.0 - smoothstep(0.85, 1.0, along));
     let distance = length(in.world - globals.camera_pos.xyz);
     let fog = clamp((distance - globals.fog_range.x) / max(globals.fog_range.y - globals.fog_range.x, 0.001), 0.0, 1.0);
     // Additive light disappears into fog; blending toward the fog colour would emit luminous fog.
+    return vec4<f32>(in.color.rgb * (1.0 - fog), in.color.a * mask);
+}
+
+@fragment
+fn fs_glow(in: VsOut) -> @location(0) vec4<f32> {
+    let p = in.uv * 2.0 - 1.0;
+    let radius = dot(p, p);
+    let edge = 1.0 - smoothstep(0.0, 1.0, radius);
+    let core = exp(-radius * 12.0);
+    let mask = edge * edge * (0.25 + 0.75 * core);
+    let distance = length(in.world - globals.camera_pos.xyz);
+    let fog = clamp((distance - globals.fog_range.x) / max(globals.fog_range.y - globals.fog_range.x, 0.001), 0.0, 1.0);
     return vec4<f32>(in.color.rgb * (1.0 - fog), in.color.a * mask);
 }

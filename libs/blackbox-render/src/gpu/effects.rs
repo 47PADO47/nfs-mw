@@ -41,8 +41,8 @@ impl Batch {
 }
 
 pub(super) struct Effects {
-    batches: [Batch; 3],
-    pipelines: [wgpu::RenderPipeline; 3],
+    batches: [Batch; 4],
+    pipelines: [wgpu::RenderPipeline; 4],
     soft: SoftParticles,
     detailed: bool,
     soft_distance: f32,
@@ -60,13 +60,13 @@ impl Effects {
             immediate_size: 0,
         });
         let pipelines = std::array::from_fn(|i| {
-            let entry = ["fs_surface", "fs_particle", "fs_streak"][i];
+            let entry = ["fs_surface", "fs_particle", "fs_streak", "fs_glow"][i];
             let bias = match i {
                 0 => wgpu::DepthBiasState { constant: 2, slope_scale: 1.0, clamp: 0.0 },
                 _ => wgpu::DepthBiasState::default(),
             };
             let blend = match i {
-                2 => wgpu::BlendState {
+                2 | 3 => wgpu::BlendState {
                     color: wgpu::BlendComponent {
                         src_factor: wgpu::BlendFactor::SrcAlpha,
                         dst_factor: wgpu::BlendFactor::One,
@@ -124,7 +124,9 @@ impl Effects {
     pub(super) fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, layer: &EffectLayer) {
         self.detailed = layer.detailed_particles;
         self.soft_distance = layer.soft_distance;
-        for (batch, vertices) in self.batches.iter_mut().zip([&layer.surfaces, &layer.particles, &layer.streaks]) {
+        for (batch, vertices) in
+            self.batches.iter_mut().zip([&layer.surfaces, &layer.particles, &layer.streaks, &layer.glows])
+        {
             batch.upload(device, queue, vertices);
         }
     }
