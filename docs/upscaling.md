@@ -14,14 +14,21 @@ setting.
 | Render scale | `render_scale = 67` | `NFSMW_RENDER_SCALE=67` | `--render-scale 67` | `100` |
 | Upscaler | `upscaler = "fsr1"` | `NFSMW_UPSCALER=fsr1` | `--upscaler fsr1` | `fsr1` |
 | Upscale sharpness | `upscale_sharpness = 80` | `NFSMW_UPSCALE_SHARPNESS=80` | `--upscale-sharpness 80` | `80` |
+| Upscale quality | `upscale_quality = "quality"` | `NFSMW_UPSCALE_QUALITY=quality` | `--upscale-quality quality` | `quality` |
 
 - **Render scale** is the scene's width and height as a percent of the window's, 50 to 200. `67`,
   `67%` and `0.67` all mean the same.
-- **Upscaler** is `fsr1`, `bilinear` or `off`.
+- **Upscaler** is `fsr1`, `bilinear` or `off` on the native renderer. `fsr3`, `fsr4` and `dlss` are temporal
+  upscalers that only the Bevy renderer will have; the native renderer runs them as `fsr1` (`dlss`, `fsr4` fall
+  back through `fsr3`) and logs the downgrade. See [renderers.md](renderers.md).
+- **Upscale quality** is `auto`, `native`, `quality`, `balanced`, `performance` or `ultra_performance`. It only
+  matters for the temporal upscalers, whose render size it sets (100, 67, 59, 50 and 33 %; `auto` is `quality`);
+  `render_scale` is then ignored. So `dlss` at `quality` on the native renderer is `fsr1` at 67 %.
 - **Upscale sharpness** is 0 to 100. It only affects `fsr1`; 0 turns its sharpening pass off.
 
 Video options in the main menu and the pause menu have rows for Render Scale (presets 50, 59, 67,
-77, 85, 100, 125, 150 and 200 %), Upscaler and Upscale Sharpness. Changes apply at once and are
+77, 85, 100, 125, 150 and 200 %), Upscaler and Upscale Sharpness (plus Upscale Quality on a renderer
+with temporal upscalers). The Upscaler row cycles only what the running renderer can do. Changes apply at once and are
 saved when you leave the settings screen. In the F12 console, `get render_scale`,
 `set render_scale 67`, `set upscaler bilinear` and `set upscale_sharpness 50` read or change the
 same settings for the run. `--screenshot` captures the final, upscaled image.
@@ -78,7 +85,8 @@ softer than AMD's reference value.
 
 `blackbox-render` exposes `Renderer::set_render_scale`, `set_upscaler(Upscaler::{Bilinear, Fsr1})`,
 `set_upscale_sharpness(0.0..=1.0)` and `set_texture_lod_bias`, with `suggested_texture_lod_bias(scale)`
-for the matching bias. `crates/nfsmw/src/app/upscale.rs` maps the settings onto them. See the
+for the matching bias. `crates/nfsmw/src/settings/graphics.rs` builds the request from the settings and `app/graphics.rs`
+sends it through `RenderBackend::apply_graphics`. See the
 `blackbox-render` README for the post chain.
 
 ### Seams for DLSS and other temporal upscalers (not implemented)

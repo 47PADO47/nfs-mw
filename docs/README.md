@@ -32,14 +32,15 @@ against the install at `D:/Need For Speed Most Wanted Black Edition`.
 
 | Doc | What it covers |
 |---|---|
+| [renderers.md](renderers.md) | The `renderer` setting (native Black Box or Bevy), what each can do, every graphics key with its CLI, environment and TOML names, restart rules, the `gfx` console command |
 | [low-end.md](low-end.md) | Weak GPUs and laptops: what each graphics setting costs, the low, medium and high presets, a low-end config and how to read the performance overlay |
-| [post-processing.md](post-processing.md) | Optional tone mapping, bloom and FXAA: settings, menu rows, what each does and how to compare them |
+| [post-processing.md](post-processing.md) | Optional tone mapping, bloom and anti-aliasing (FXAA; SMAA and TAA on the Bevy renderer): settings, menu rows, what each does and how to compare them |
 | [vehicle-effects.md](vehicle-effects.md) | Original PC sparks, experimental restored sparks and wind trails using base-game assets |
 | [architecture.md](architecture.md) | `libs/` (engine-generic) vs `crates/` (MW), finding the install, the streamed city, graphics backends, Windows/Linux, roadmap |
 | [testing.md](testing.md) | the kinds of tests, the real-install tests and how to run them |
 | [window-modes.md](window-modes.md) | Windowed, borderless and exclusive fullscreen, display selection, resolution and runtime switching |
 | [hud-layout.md](hud-layout.md) | PC widescreen, centered and Xbox-scaled HUD presets |
-| [upscaling.md](upscaling.md) | Render scale, bilinear and FSR 1 upscaling, ReShade limits, seams for DLSS |
+| [upscaling.md](upscaling.md) | Render scale, bilinear and FSR 1 upscaling, the temporal upscalers and their quality modes, ReShade limits, seams for DLSS |
 | [reshade.md](reshade.md) | Using ReShade or vkBasalt: backends, the reverse-Z depth settings, render scale limits |
 | [tire-effects.md](tire-effects.md) | Tire smoke, ground-following marks, runtime controls and reproducible driving checks |
 | [vehicle-effects.md](vehicle-effects.md) | Optional collision sparks and high-speed wind trails using stock-install definitions |

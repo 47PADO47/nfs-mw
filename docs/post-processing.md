@@ -9,7 +9,7 @@ The design is in [the spec](specs/post-processing.md).
 |---|---|---|---|---|
 | Tone mapping | `post_tonemap` | `NFSMW_POST_TONEMAP` | `--post-tonemap` | `off`, `aces` |
 | Bloom | `post_bloom` | `NFSMW_POST_BLOOM` | `--post-bloom` | `off`, `low`, `medium`, `high` |
-| Anti-aliasing | `post_aa` | `NFSMW_POST_AA` | `--post-aa` | `off`, `fxaa` |
+| Anti-aliasing | `post_aa` | `NFSMW_POST_AA` | `--post-aa` | `off`, `fxaa`, `smaa`, `taa` |
 
 Settings resolve like every other setting: command line, then environment, then the per-user config
 file, then the default. A value that does not parse is ignored (with a warning) and the next layer
@@ -19,6 +19,10 @@ Video options in the main menu and the pause menu end with Tone Mapping, Bloom a
 (left and right cycle the values). The change shows at once and is saved when you leave the settings
 screen. In the F12 console, `get post_bloom`, `set post_bloom high` and the shorthand `post_bloom high`
 (likewise `post_tonemap`, `post_aa`) read and change the same settings for the run; they are not saved.
+
+`smaa` and `taa` only exist on the Bevy renderer ([renderers.md](renderers.md)); the native renderer runs
+either as `fxaa` and logs the downgrade, and `set post_aa taa` in the console is refused there with the list
+of what it offers (`off, fxaa`). The Anti-Aliasing menu row cycles only the values the renderer can run.
 
 ## What each effect does
 
