@@ -127,6 +127,8 @@ impl Scene for Pausable {
 
     fn set_wheel_options(&mut self, wheel: crate::settings::WheelOptions) {
         self.inner.set_wheel_options(wheel);
+    fn set_traffic(&mut self, cars: u32, cop_share: crate::settings::Percent) {
+        self.inner.set_traffic(cars, cop_share);
     }
 
     fn hud_state(&self) -> Option<crate::hud::HudState> {

@@ -92,6 +92,7 @@ fn finish(
     host.graphics.apply(renderer.as_mut(), settings);
     host.scene.init(renderer.as_mut())?;
     host.scene.set_transmission(host.transmission);
+    host.scene.set_traffic(host.traffic.0, host.traffic.1);
     host.scene.set_camera_mode(host.camera_mode);
     host.scene.set_wheel_options(host.wheel);
     host.size = size;
@@ -126,6 +127,8 @@ pub fn update_scene(
     host.transmission = settings.transmission;
     host.camera_mode = settings.camera_mode;
     host.scene.set_transmission(settings.transmission);
+    host.traffic = (settings.traffic, settings.cop_share);
+    host.scene.set_traffic(settings.traffic, settings.cop_share);
     host.scene.set_camera_mode(settings.camera_mode);
     host.wheel = settings.wheel_options();
     host.scene.set_wheel_options(host.wheel);

@@ -33,6 +33,8 @@ pub const RADIO: &str = "NFSMW_RADIO";
 pub const SKIP_INTRO: &str = "NFSMW_SKIP_INTRO";
 pub const GRAPHICS_PRESET: &str = "NFSMW_GRAPHICS_PRESET";
 pub const CAR_SHADING: &str = "NFSMW_CAR_SHADING";
+pub const TRAFFIC: &str = "NFSMW_TRAFFIC";
+pub const COP_SHARE: &str = "NFSMW_COP_SHARE";
 pub const SMOKE_QUALITY: &str = "NFSMW_SMOKE_QUALITY";
 pub const SKID_MARKS: &str = "NFSMW_SKID_MARKS";
 pub const COLLISION_SPARKS: &str = "NFSMW_COLLISION_SPARKS";
@@ -93,6 +95,8 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         skip_intro: value(&get, SKIP_INTRO, parse_bool),
         graphics_preset: value(&get, GRAPHICS_PRESET, GraphicsPreset::from_str),
         car_shading: value(&get, CAR_SHADING, CarShading::from_str),
+        traffic: value(&get, TRAFFIC, |s| s.trim().parse::<u32>().map_err(|e| e.to_string())),
+        cop_share: value(&get, COP_SHARE, Percent::from_str),
         smoke_quality: value(&get, SMOKE_QUALITY, SmokeQuality::from_str),
         skid_marks: value(&get, SKID_MARKS, parse_bool),
         collision_sparks: value(&get, COLLISION_SPARKS, parse_bool),

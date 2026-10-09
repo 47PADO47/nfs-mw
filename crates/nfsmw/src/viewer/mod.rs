@@ -66,6 +66,9 @@ pub trait Scene {
     /// A steering wheel's optional controls (the clutch pedal, the H-shifter), told every frame before `update`; a
     /// scene without a car ignores it.
     fn set_wheel_options(&mut self, _wheel: crate::settings::WheelOptions) {}
+    /// How many computer-driven cars to keep around the player and what share of them are cops, told every
+    /// frame before `update`; a scene without roads ignores it.
+    fn set_traffic(&mut self, _cars: u32, _cop_share: crate::settings::Percent) {}
     /// What the in-game HUD shows this frame; `None` hides it.
     fn hud_state(&self) -> Option<crate::hud::HudState> {
         None
