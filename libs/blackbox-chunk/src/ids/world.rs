@@ -17,6 +17,10 @@ pub const DRIVABLE_SCENERY_SECTIONS: u32 = 0x0003_4153;
 pub const LOADING_SECTIONS: u32 = 0x0003_4155;
 /// `TrackInfos`: the track table (`docs/formats/minimap.md` has the fields the minimap reads).
 pub const TRACK_INFOS: u32 = 0x0003_4201;
+/// `TrackPathManager`: container of the track path zones and barriers (`docs/formats/road-network.md`).
+pub const TRACK_PATH_MANAGER: u32 = 0x8003_4147;
+/// `TrackPathZones`: the polygons that tag areas of the track (traffic patterns, tunnels, no-spawn...).
+pub const TRACK_PATH_ZONES: u32 = 0x0003_414A;
 /// `CarpWGrid` (`UWorld`): the world map tree: collision grid and road network.
 pub const CARP_WGRID: u32 = 0x0003_B800;
 /// `CarpWCollisionPack`: one section's static collision (`CARP` blob).
