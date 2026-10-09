@@ -2,7 +2,7 @@
 //! (`docs/specs/scenery-lod.md`, which also acts as the draw distance), then
 //! sorting by mesh so the renderer can instance repeated models.
 
-use blackbox_render::Instance;
+use blackbox_gfx::Instance;
 use blackbox_scene::Frustum;
 use blackbox_scenery::LodView;
 use blackbox_scenery::layout::LodRules;
@@ -38,7 +38,7 @@ pub fn collect<'a>(
     out.extend(placed.filter(|p| frustum.intersects(&p.bounds) && !props.hidden(p.prop_id)).filter_map(|p| {
         let slots = p.lods.map(|m| m.is_some());
         let slot = rules.choose(&view, p.position, p.radius, p.flags, slots, p.detailed)?;
-        Some(Instance::new(p.lods[slot]?, p.transform))
+        Some(Instance::keyed(p.lods[slot]?, p.transform, p.key))
     }));
     out.sort_unstable_by_key(|i| i.mesh);
 }

@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use blackbox_render::{BlendMode, MeshHandle, Renderer, Shading, TextureHandle};
+use blackbox_gfx::{BlendMode, InstanceKey, MeshHandle, RenderBackend, Shading, TextureHandle};
 use blackbox_scene::{Aabb, blend_mode, upload_solid, upload_texture};
 use blackbox_scenery::LodModel;
 use glam::Mat4;
@@ -26,6 +26,8 @@ pub struct Placed {
     pub prop: Option<Arc<PropShape>>,
     /// The id the prop world gave it (0 until the tile is registered).
     pub prop_id: u32,
+    /// Its name for the renderer, from the tile and its place in the tile's list (see [`super::keys`]).
+    pub key: InstanceKey,
 }
 
 #[cfg(test)]
@@ -43,6 +45,7 @@ impl Placed {
             flags: 0,
             prop: Some(shape),
             prop_id: 0,
+            key: InstanceKey::TRANSIENT,
         }
     }
 }
@@ -57,12 +60,12 @@ pub struct SectionResources {
 }
 
 impl SectionResources {
-    pub fn upload_textures(&mut self, renderer: &mut Renderer, data: &SectionData) {
+    pub fn upload_textures(&mut self, renderer: &mut dyn RenderBackend, data: &SectionData) {
         self.upload_texture_list(renderer, &data.textures);
     }
 
     /// Upload textures whose hash is not resident yet.
-    pub fn upload_texture_list(&mut self, renderer: &mut Renderer, textures: &[blackbox_tpk::Texture]) {
+    pub fn upload_texture_list(&mut self, renderer: &mut dyn RenderBackend, textures: &[blackbox_tpk::Texture]) {
         for t in textures {
             if self.materials.contains_key(&t.name_hash) {
                 continue;
@@ -74,7 +77,7 @@ impl SectionResources {
     }
 
     /// Upload solids, resolving textures here first and then in `fallback` (the shared sets).
-    pub fn upload_meshes(&mut self, renderer: &mut Renderer, data: &SectionData, fallback: &SectionResources) {
+    pub fn upload_meshes(&mut self, renderer: &mut dyn RenderBackend, data: &SectionData, fallback: &SectionResources) {
         let lookup = |hash: u32| self.materials.get(&hash).or_else(|| fallback.materials.get(&hash)).copied();
         let mut meshes = Vec::new();
         for solid in &data.solids {
@@ -87,7 +90,7 @@ impl SectionResources {
     }
 
     /// Show each animation's current frame (`seconds` since the scene started).
-    pub fn animate(&self, renderer: &mut Renderer, seconds: f32, fallback: &SectionResources) {
+    pub fn animate(&self, renderer: &mut dyn RenderBackend, seconds: f32, fallback: &SectionResources) {
         let texture = |hash: u32| self.materials.get(&hash).or_else(|| fallback.materials.get(&hash)).map(|m| m.0);
         for anim in &self.anims {
             if let (Some(base), Some(frame)) = (texture(anim.name_hash), anim.frame_at(seconds).and_then(texture)) {
@@ -100,7 +103,7 @@ impl SectionResources {
         self.meshes.get(&hash).or_else(|| fallback.meshes.get(&hash)).copied()
     }
 
-    pub fn release(self, renderer: &mut Renderer) {
+    pub fn release(self, renderer: &mut dyn RenderBackend) {
         for (mesh, _) in self.meshes.into_values() {
             renderer.destroy_mesh(mesh);
         }
@@ -153,6 +156,7 @@ pub fn place(
                 flags: inst.exclude_flags,
                 prop: props.shape(&info.name),
                 prop_id: 0,
+                key: InstanceKey::TRANSIENT,
             });
         }
     }

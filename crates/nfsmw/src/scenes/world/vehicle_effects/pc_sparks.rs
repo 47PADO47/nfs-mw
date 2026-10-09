@@ -2,7 +2,7 @@
 
 use super::super::{drive::VisualContact, space};
 use super::{pc_emitter::PcSource, pc_particle::PcParticle};
-use blackbox_render::{BlendMode, EffectVertex, TextureHandle, TexturedEffect};
+use blackbox_gfx::{BlendMode, EffectVertex, TextureHandle, TexturedEffect};
 use glam::{Quat, Vec3};
 use nfsmw_data::vehicle_effects::{CollisionEffects, PcSparkLink};
 use std::collections::HashMap;

@@ -2,7 +2,7 @@
 
 use std::collections::VecDeque;
 
-use blackbox_render::{EffectLayer, EffectVertex};
+use blackbox_gfx::{EffectLayer, EffectVertex};
 use glam::Vec3;
 
 use super::{Contact, MAX_MARKS};

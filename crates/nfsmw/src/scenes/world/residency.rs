@@ -4,10 +4,11 @@
 use std::collections::{HashMap, HashSet};
 
 use blackbox_collision::{CollisionWorld, Grid};
-use blackbox_render::Renderer;
+use blackbox_gfx::RenderBackend;
 use blackbox_streaming::{StreamingSection, VisibleSections};
 use nfsmw_data::world::{GlobalTextures, PropCatalog, SectionData, Streamer, StreamerEvent};
 
+use super::keys;
 use super::props::PropWorld;
 use super::resident::{Placed, SectionResources, place};
 use super::zone::Zones;
@@ -93,7 +94,7 @@ impl Residency {
     }
 
     /// Request, upload and drop sections for a camera at map position (x, y).
-    pub fn update(&mut self, renderer: &mut Renderer, x: f32, y: f32) {
+    pub fn update(&mut self, renderer: &mut dyn RenderBackend, x: f32, y: f32) {
         self.receive();
         if !self.shared_ready {
             self.finish_shared(renderer);
@@ -144,7 +145,7 @@ impl Residency {
         }
     }
 
-    fn finish_shared(&mut self, renderer: &mut Renderer) {
+    fn finish_shared(&mut self, renderer: &mut dyn RenderBackend) {
         if self.shared_pending.len() < self.shared_total {
             return;
         }
@@ -166,13 +167,16 @@ impl Residency {
             self.shared_placed.extend(placed);
             self.unresolved += unresolved;
         }
+        for (index, placed) in self.shared_placed.iter_mut().enumerate() {
+            placed.key = keys::shared(index);
+        }
         self.props.add_tile(usize::MAX, &mut self.shared_placed);
         log::info!("shared sets resident: {} models, {} textures", shared.meshes.len(), shared.materials.len());
         self.shared = shared;
         self.shared_ready = true;
     }
 
-    fn upload_arrived(&mut self, renderer: &mut Renderer) {
+    fn upload_arrived(&mut self, renderer: &mut dyn RenderBackend) {
         let take = self.arrived.len().min(UPLOADS_PER_FRAME);
         for data in self.arrived.drain(..take).collect::<Vec<_>>() {
             if !matches!(self.tiles.get(&data.index), Some(TileState::Requested)) {
@@ -182,6 +186,9 @@ impl Residency {
             resources.upload_textures(renderer, &data);
             resources.upload_meshes(renderer, &data, &self.shared);
             let (mut placed, unresolved) = place(&data, &resources, &self.shared, &self.catalog);
+            for (index, object) in placed.iter_mut().enumerate() {
+                object.key = keys::tile(data.index, index);
+            }
             self.props.add_tile(data.index, &mut placed);
             self.unresolved += unresolved;
             let packs = data.collision.iter().map(|p| p.section).collect();
@@ -194,7 +201,7 @@ impl Residency {
 
     /// Free the tiles the zone no longer needs, once everything it needs is resident (so the
     /// old zone's tiles stay usable while the new ones load).
-    fn unload_unwanted(&mut self, renderer: &mut Renderer) {
+    fn unload_unwanted(&mut self, renderer: &mut dyn RenderBackend) {
         if !self.wanted_resident() {
             return;
         }
@@ -228,7 +235,7 @@ impl Residency {
     }
 
     /// Advance every resident texture animation.
-    pub fn animate(&self, renderer: &mut Renderer, seconds: f32) {
+    pub fn animate(&self, renderer: &mut dyn RenderBackend, seconds: f32) {
         let empty = SectionResources::default();
         self.shared.animate(renderer, seconds, &empty);
         for tile in self.tiles.values() {

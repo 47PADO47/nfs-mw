@@ -1,8 +1,9 @@
 //! Reading a car's flames from the install: the pipes, the particle group and its textures.
 
 use blackbox_attrib::Database;
+use blackbox_gfx::RenderBackend;
 use blackbox_particles::Emitter;
-use blackbox_render::{BlendMode, Renderer};
+use blackbox_render::BlendMode;
 use game_install::GameDir;
 use nfsmw_data::car::CarModel;
 use nfsmw_data::car::exhaust::{ADDITIVE_BLEND, ExhaustFx, particle_textures};
@@ -13,7 +14,7 @@ use super::{Active, EMITTER_LIMIT, ExhaustFlames, Lane, MAX_PIPES, SpriteTexture
 impl ExhaustFlames {
     /// Load the flames of `model` if the setting is on and they are not loaded: its pipes, particle group and
     /// textures, uploaded to `renderer`. A car without pipes or data gets none (nothing is drawn).
-    pub fn load(&mut self, renderer: &mut Renderer, dir: &GameDir, db: &Database, model: &CarModel) {
+    pub fn load(&mut self, renderer: &mut dyn RenderBackend, dir: &GameDir, db: &Database, model: &CarModel) {
         if !self.wants_load() {
             return;
         }
@@ -24,7 +25,7 @@ impl ExhaustFlames {
     }
 }
 
-fn read(renderer: &mut Renderer, dir: &GameDir, db: &Database, model: &CarModel) -> Option<Active> {
+fn read(renderer: &mut dyn RenderBackend, dir: &GameDir, db: &Database, model: &CarModel) -> Option<Active> {
     let Some(fx) = ExhaustFx::read(db, model) else {
         log::info!("{}: no ecar record, so no exhaust effects", model.name);
         return None;

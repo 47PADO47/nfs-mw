@@ -5,6 +5,7 @@ mod drive;
 mod effects;
 mod exhaust;
 mod ground;
+mod keys;
 mod props;
 mod residency;
 mod resident;
@@ -26,7 +27,8 @@ use nfsmw_data::car::physics::PhysicsData;
 use nfsmw_data::world::{DEFAULT_TRACK, PropCatalog, Streamer, WorldIndex, load_global_textures};
 
 use crate::input::{Action, ActionState};
-use crate::viewer::{Scene, camera::FlyCamera};
+use crate::viewer::Scene;
+use crate::viewer::camera::{CameraCut, FlyCamera};
 use drive::{Drive, DriveScript, MarkerMeshes};
 use residency::Residency;
 
@@ -97,6 +99,8 @@ pub struct WorldScene {
     markers_on: bool,
     /// The meshes of the contact markers, uploaded the first time they are asked for.
     marker_meshes: Option<MarkerMeshes>,
+    /// The free camera jumped (a new scene, the camera toggle, `goto`, the start settling on the ground).
+    cut: CameraCut,
 }
 
 /// Leaving the free camera more than this far (metres) from the car brings the car to the camera.
@@ -176,6 +180,7 @@ impl WorldScene {
             car_shading: crate::settings::CarShading::default(),
             markers_on: false,
             marker_meshes: None,
+            cut: CameraCut::default(),
         })
     }
 
@@ -253,6 +258,7 @@ impl WorldScene {
     /// Switch between the chase camera and the free camera (the car waits while you fly).
     fn toggle_view(&mut self) -> &'static str {
         let Some(drive) = self.drive.as_mut() else { return "not driving (use the drive command)" };
+        self.cut.arm();
         match self.view {
             View::Chase => {
                 let camera = drive.camera();
@@ -318,6 +324,7 @@ impl Scene for WorldScene {
             let top = estimate.unwrap_or(0.0) + 30.0;
             let road = space::ground_below(self.residency.collision(), self.start[0], self.start[1], top, top - 120.0);
             self.camera.position.z = road.or(estimate).unwrap_or(0.0) + self.start_height;
+            self.cut.arm();
             log::info!(
                 "ground near the start: scenery estimate {estimate:?}, collision {road:?}; camera at z = {:.0}",
                 self.camera.position.z
@@ -402,6 +409,8 @@ impl Scene for WorldScene {
                 drive.marker_instances(meshes, &mut self.visible);
             }
         }
+        let drive_cut = self.drive.as_mut().is_some_and(|drive| drive.take_camera_cut());
+        let camera_cut = self.cut.take() | drive_cut;
         let params = FrameParams {
             view,
             projection,
@@ -409,7 +418,7 @@ impl Scene for WorldScene {
             light_dir: sun::DIRECTION,
             clear_color: CLEAR,
             fog: Some(Fog { start: fog_end * 0.5, end: fog_end }),
-            camera_cut: false,
+            camera_cut,
         };
         (params, &self.visible)
     }

@@ -6,7 +6,7 @@
 //! contacts stay for a short while, so a hit that lasted one step can still be seen; the tyre hits are the latest.
 //! The contacts are kept whether or not they are drawn, so switching the view on shows what just happened.
 
-use blackbox_render::{BlendMode, DrawRange, Instance, MeshDesc, MeshHandle, Renderer, Shading, Vertex};
+use blackbox_gfx::{BlendMode, DrawRange, Instance, MeshDesc, MeshHandle, RenderBackend, Shading, Vertex};
 use glam::{Mat4, Vec3};
 
 use super::walls::{ContactKind, ContactPoint};
@@ -72,12 +72,12 @@ pub struct MarkerMeshes {
 }
 
 impl MarkerMeshes {
-    pub fn upload(renderer: &mut Renderer) -> Self {
+    pub fn upload(renderer: &mut dyn RenderBackend) -> Self {
         Self { meshes: KINDS.map(|kind| upload_box(renderer, kind)) }
     }
 }
 
-fn upload_box(renderer: &mut Renderer, kind: MarkerKind) -> MeshHandle {
+fn upload_box(renderer: &mut dyn RenderBackend, kind: MarkerKind) -> MeshHandle {
     let colour = kind.colour();
     let mut vertices = Vec::new();
     let mut indices: Vec<u16> = Vec::new();

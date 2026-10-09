@@ -1,4 +1,4 @@
-use blackbox_render::EffectVertex;
+use blackbox_gfx::EffectVertex;
 use blackbox_vehicle::{FIXED_STEP, FlatGround, InputState, Vehicle, VehicleSpec};
 use glam::Vec3;
 

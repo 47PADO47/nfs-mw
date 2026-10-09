@@ -9,7 +9,7 @@ mod smoke;
 mod tests;
 mod world;
 
-use blackbox_render::EffectLayer;
+use blackbox_gfx::EffectLayer;
 use glam::Vec3;
 
 pub use contacts::{Contact, project};

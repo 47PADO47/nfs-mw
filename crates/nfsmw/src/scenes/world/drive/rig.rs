@@ -2,12 +2,13 @@
 
 use std::collections::HashMap;
 
-use blackbox_render::{Instance, MeshHandle, Renderer, Shading};
+use blackbox_gfx::{Instance, MeshHandle, RenderBackend, Shading};
 use blackbox_scene::upload_solid;
 use glam::{Mat4, Quat, Vec3};
 use nfsmw_data::car::{CarModel, WheelPose};
 
 use crate::scenes::car::materials::CarMaterials;
+use crate::scenes::world::keys;
 use crate::settings::CarShading;
 
 /// Where the car is and how its wheels sit, in the world.
@@ -47,6 +48,8 @@ struct Part {
 }
 
 pub struct CarRig {
+    /// Which car this is, for the instance keys.
+    car: u32,
     model: CarModel,
     /// Sorted by mesh, as the renderer wants instances of one mesh together.
     parts: Vec<Part>,
@@ -57,13 +60,19 @@ pub struct CarRig {
 
 impl CarRig {
     /// Upload `model` with `shading`, lit by a sun in direction `to_sun` from the car.
-    pub fn upload(renderer: &mut Renderer, model: CarModel, shading: CarShading, to_sun: Vec3) -> Self {
+    pub fn upload(
+        renderer: &mut dyn RenderBackend,
+        car: u32,
+        model: CarModel,
+        shading: CarShading,
+        to_sun: Vec3,
+    ) -> Self {
         let (parts, meshes, materials) = upload_parts(renderer, &model, shading, to_sun);
-        Self { model, parts, meshes, materials, shading }
+        Self { car, model, parts, meshes, materials, shading }
     }
 
     /// Upload the car again with `shading` when it differs from the one it has.
-    pub fn reshade(&mut self, renderer: &mut Renderer, shading: CarShading, to_sun: Vec3) {
+    pub fn reshade(&mut self, renderer: &mut dyn RenderBackend, shading: CarShading, to_sun: Vec3) {
         if shading == self.shading {
             return;
         }
@@ -80,7 +89,7 @@ impl CarRig {
         &self.model
     }
 
-    pub fn release(self, renderer: &mut Renderer) {
+    pub fn release(self, renderer: &mut dyn RenderBackend) {
         for mesh in self.meshes {
             renderer.destroy_mesh(mesh);
         }
@@ -113,14 +122,14 @@ impl CarRig {
                 }
                 _ => placement.transform,
             };
-            out.push(Instance::new(part.mesh, world * local));
+            out.push(Instance::keyed(part.mesh, world * local, keys::car_part(self.car, part.placement)));
         }
     }
 }
 
 impl super::Drive {
     /// Draw the car with `shading` from now on (it is uploaded again when that changes).
-    pub fn set_car_shading(&mut self, renderer: &mut Renderer, shading: CarShading, to_sun: Vec3) {
+    pub fn set_car_shading(&mut self, renderer: &mut dyn RenderBackend, shading: CarShading, to_sun: Vec3) {
         self.rig.reshade(renderer, shading, to_sun);
     }
 }
@@ -128,7 +137,7 @@ impl super::Drive {
 /// Upload the placed solids of `model` with `shading`: the parts sorted by mesh (the renderer wants instances
 /// of one mesh together), every mesh uploaded and the car's materials.
 fn upload_parts(
-    renderer: &mut Renderer,
+    renderer: &mut dyn RenderBackend,
     model: &CarModel,
     shading: CarShading,
     to_sun: Vec3,
