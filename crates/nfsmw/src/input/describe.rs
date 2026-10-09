@@ -216,6 +216,9 @@ impl Bindings {
         for (keys, what) in FIXED_KEYS {
             text.push_str(&format!("  {keys:<width$}  {what}\n"));
         }
+        text.push_str("Action names for bind/addbind/unbind:\n  ");
+        text.push_str(&Action::ALL.map(Action::name).join(", "));
+        text.push('\n');
         text
     }
 }

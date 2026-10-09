@@ -8,8 +8,8 @@ use std::str::FromStr;
 
 use toml::{Table, Value};
 
-use super::Transmission;
 use super::partial::{Partial, Percent};
+use super::{Deadzone, Sensitivity, Transmission};
 use super::{Monitor, Resolution, SmokeQuality, WindowMode};
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
@@ -36,6 +36,26 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         }
     };
     Partial {
+        deadzone_mode: field(&table, origin, "deadzone_mode", |v| super::DeadzoneMode::from_str(text_of(v)?)),
+        steering_deadzone: field(&table, origin, "steering_deadzone", |v| {
+            Deadzone::from_str(&v.as_str().map(str::to_owned).unwrap_or_else(|| v.to_string()))
+        }),
+        camera_deadzone: field(&table, origin, "camera_deadzone", |v| {
+            Deadzone::from_str(&v.as_str().map(str::to_owned).unwrap_or_else(|| v.to_string()))
+        }),
+        trigger_deadzone: field(&table, origin, "trigger_deadzone", |v| {
+            Deadzone::from_str(&v.as_str().map(str::to_owned).unwrap_or_else(|| v.to_string()))
+        }),
+        steering_sensitivity: field(&table, origin, "steering_sensitivity", |v| {
+            Sensitivity::from_str(&v.as_str().map(str::to_owned).unwrap_or_else(|| v.to_string()))
+        }),
+        camera_sensitivity: field(&table, origin, "camera_sensitivity", |v| {
+            Sensitivity::from_str(&v.as_str().map(str::to_owned).unwrap_or_else(|| v.to_string()))
+        }),
+        mouse_sensitivity: field(&table, origin, "mouse_sensitivity", |v| {
+            Sensitivity::from_str(&v.as_str().map(str::to_owned).unwrap_or_else(|| v.to_string()))
+        }),
+        invert_camera_y: field(&table, origin, "invert_camera_y", boolean),
         backend: field(&table, origin, "backend", |v| text_of(v)?.parse().map_err(|e| format!("{e}"))),
         vsync: field(&table, origin, "vsync", |v| v.as_bool().ok_or_else(|| "expected true or false".to_owned())),
         max_fps: field(&table, origin, "max_fps", |v| match v {

@@ -2,7 +2,7 @@
 
 use blackbox_render::Backend;
 
-use super::{Monitor, Resolution, SmokeQuality, Transmission, WindowMode};
+use super::{Deadzone, Monitor, Resolution, Sensitivity, SmokeQuality, Transmission, WindowMode};
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
 
@@ -42,6 +42,14 @@ impl std::fmt::Display for Percent {
 /// through to the next layer.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Partial {
+    pub deadzone_mode: Option<super::DeadzoneMode>,
+    pub steering_deadzone: Option<Deadzone>,
+    pub camera_deadzone: Option<Deadzone>,
+    pub trigger_deadzone: Option<Deadzone>,
+    pub steering_sensitivity: Option<Sensitivity>,
+    pub camera_sensitivity: Option<Sensitivity>,
+    pub mouse_sensitivity: Option<Sensitivity>,
+    pub invert_camera_y: Option<bool>,
     pub backend: Option<Backend>,
     pub vsync: Option<bool>,
     pub max_fps: Option<MaxFps>,
@@ -71,6 +79,14 @@ impl Partial {
     /// This layer, with `lower` filling the fields it leaves unset.
     pub fn or(self, lower: Partial) -> Partial {
         Partial {
+            deadzone_mode: self.deadzone_mode.or(lower.deadzone_mode),
+            steering_deadzone: self.steering_deadzone.or(lower.steering_deadzone),
+            camera_deadzone: self.camera_deadzone.or(lower.camera_deadzone),
+            trigger_deadzone: self.trigger_deadzone.or(lower.trigger_deadzone),
+            steering_sensitivity: self.steering_sensitivity.or(lower.steering_sensitivity),
+            camera_sensitivity: self.camera_sensitivity.or(lower.camera_sensitivity),
+            mouse_sensitivity: self.mouse_sensitivity.or(lower.mouse_sensitivity),
+            invert_camera_y: self.invert_camera_y.or(lower.invert_camera_y),
             backend: self.backend.or(lower.backend),
             vsync: self.vsync.or(lower.vsync),
             max_fps: self.max_fps.or(lower.max_fps),

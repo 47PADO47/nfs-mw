@@ -3,6 +3,9 @@
 //! Each source produces a [`Partial`]; [`Settings::load`] merges them. The in-game settings menu
 //! (milestone 6) and the developer console write the config file layer.
 
+mod controls;
+#[cfg(test)]
+mod controls_tests;
 mod env;
 mod file;
 mod partial;
@@ -20,6 +23,7 @@ mod write;
 
 use blackbox_render::Backend;
 
+pub use controls::{Controls, Deadzone, DeadzoneMode, Sensitivity};
 pub use partial::{Partial, Percent, parse_bool};
 pub use smoke_quality::SmokeQuality;
 pub use spark_style::SparkStyle;
@@ -33,6 +37,7 @@ use crate::devtools::{ShowMetrics, ShowReadout};
 /// The resolved settings.
 #[derive(bevy_ecs::resource::Resource, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Settings {
+    pub controls: Controls,
     pub backend: Backend,
     pub vsync: bool,
     pub max_fps: MaxFps,
@@ -72,6 +77,16 @@ impl From<Partial> for Settings {
     /// Fill what no layer set with the defaults.
     fn from(p: Partial) -> Self {
         Self {
+            controls: Controls {
+                deadzone_mode: p.deadzone_mode.unwrap_or_default(),
+                steering_deadzone: p.steering_deadzone.unwrap_or(Controls::default().steering_deadzone),
+                camera_deadzone: p.camera_deadzone.unwrap_or(Controls::default().camera_deadzone),
+                trigger_deadzone: p.trigger_deadzone.unwrap_or(Controls::default().trigger_deadzone),
+                steering_sensitivity: p.steering_sensitivity.unwrap_or(Controls::default().steering_sensitivity),
+                camera_sensitivity: p.camera_sensitivity.unwrap_or(Controls::default().camera_sensitivity),
+                mouse_sensitivity: p.mouse_sensitivity.unwrap_or(Controls::default().mouse_sensitivity),
+                invert_camera_y: p.invert_camera_y.unwrap_or(Controls::default().invert_camera_y),
+            },
             backend: p.backend.unwrap_or_default(),
             vsync: p.vsync.unwrap_or(true),
             max_fps: p.max_fps.unwrap_or_default(),

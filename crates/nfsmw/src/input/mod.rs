@@ -7,8 +7,14 @@
 
 mod action;
 mod bindings;
+pub mod commands;
+#[cfg(test)]
+mod config_tests;
 mod describe;
+mod device_settings;
+mod remap;
 mod snapshot;
+mod source;
 mod state;
 mod systems;
 

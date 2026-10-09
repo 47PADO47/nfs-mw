@@ -70,6 +70,10 @@ Run `nfsmw check-install` to see the exact path on your system. The file uses [T
 and lets you set the game directory, graphics backend, frame-rate cap, and other options without
 passing CLI flags every time.
 
+The Gameplay menu includes independent stick/trigger deadzones, sensitivity and camera inversion.
+Keyboard, mouse and gamepad assignments can be changed and saved through the console or config file
+([controller settings](docs/controller-settings.md)).
+
 ## Repository
 
 | Path | Contents |

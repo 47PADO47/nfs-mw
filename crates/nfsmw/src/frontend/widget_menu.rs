@@ -99,10 +99,10 @@ impl WidgetMenu {
         [Some(r.name), r.data, r.left, r.right, r.base, r.fill].into_iter().flatten()
     }
 
-    /// Puts the row `index` in screen slot `slot`: the title right-aligned against the title column, the data
+    /// Places screen slot `slot`: the title right-aligned against the title column, the data
     /// centred in the data column, the arrows at its ends, the slider under its middle.
-    fn place(&self, cx: &mut Cx, index: usize, slot: usize) {
-        let (Some(layout), Some(r)) = (&self.layout, self.objects.get(index)) else { return };
+    fn place(&self, cx: &mut Cx, slot: usize) {
+        let (Some(layout), Some(r)) = (&self.layout, self.objects.get(slot)) else { return };
         let top = layout.title.y + slot as f32 * layout.title_size.y;
         let middle = top + layout.title_size.y * 0.5;
         // Each string sits in its column by its own justification (the title right aligned, the data centred).
@@ -126,22 +126,22 @@ impl WidgetMenu {
     /// Shows the rows in view and hides the rest, positions them and refreshes their values.
     fn layout_rows(&mut self, cx: &mut Cx) {
         let (first, last) = (self.top, (self.top + self.on_screen).min(self.rows.len()));
-        for index in 0..self.objects.len() {
-            let visible = index >= first && index < last;
-            for o in Self::each_object(&self.objects[index]) {
+        for slot in 0..self.objects.len() {
+            let visible = slot < last - first;
+            for o in Self::each_object(&self.objects[slot]) {
                 cx.rt.set_hidden(o, !visible);
             }
             if visible {
-                self.place(cx, index, index - first);
-                self.draw_row(cx, index);
+                self.place(cx, slot);
+                self.draw_row(cx, first + slot, slot);
             }
         }
         self.mark_selection(cx);
     }
 
     /// Writes the title, the value and the slider of a row from the settings.
-    fn draw_row(&self, cx: &mut Cx, index: usize) {
-        let (Some(row), Some(r)) = (self.rows.get(index), self.objects.get(index)) else { return };
+    fn draw_row(&self, cx: &mut Cx, index: usize, slot: usize) {
+        let (Some(row), Some(r)) = (self.rows.get(index), self.objects.get(slot)) else { return };
         match row.title {
             Title::Label(label) => cx.rt.set_label(r.name, label),
             Title::Text(text) => cx.rt.set_text(r.name, text),
@@ -184,14 +184,15 @@ impl WidgetMenu {
 
     /// The package focus and the highlight scripts of the data and the slider follow the selection.
     fn mark_selection(&self, cx: &mut Cx) {
-        for (index, r) in self.objects.iter().enumerate() {
-            let on = index == self.selected;
+        let selected_slot = self.selected.saturating_sub(self.top);
+        for (slot, r) in self.objects.iter().enumerate() {
+            let on = slot == selected_slot;
             let script = if on { ids::SCRIPT_HIGHLIGHT } else { ids::SCRIPT_UNHIGHLIGHT };
             for o in [r.data, r.base, r.fill].into_iter().flatten() {
                 cx.rt.run_script(o, script);
             }
         }
-        if let Some(r) = self.objects.get(self.selected) {
+        if let Some(r) = self.objects.get(selected_slot) {
             cx.rt.set_focus(cx.package, r.guid);
         }
         let slot = self.selected.saturating_sub(self.top) + 1;
@@ -217,7 +218,7 @@ impl WidgetMenu {
     /// Selects the previous or next row, wrapping round, and scrolls the list when it must.
     fn move_selection(&mut self, cx: &mut Cx, forward: bool) {
         let n = self.rows.len();
-        if n == 0 || self.leaving {
+        if n == 0 || self.on_screen == 0 || self.leaving {
             return;
         }
         self.selected = if forward { (self.selected + 1) % n } else { (self.selected + n - 1) % n };
@@ -237,7 +238,7 @@ impl WidgetMenu {
             return;
         }
         row.setting.step(cx.settings, cx.changed, forward);
-        self.draw_row(cx, self.selected);
+        self.draw_row(cx, self.selected, self.selected.saturating_sub(self.top));
     }
 
     fn leave(&mut self, cx: &mut Cx) {
@@ -266,6 +267,8 @@ const CURSOR: u32 = 0x0674_5352;
 impl ScreenLogic for WidgetMenu {
     fn start(&mut self, cx: &mut Cx) {
         self.find_rows(cx);
+        // Packages supply reusable screen slots, not one object for every logical setting.
+        self.on_screen = self.on_screen.min(self.objects.len());
         // The original screens that do not apply: the defaults button and the unused parts.
         for hidden in DEFAULTS_HINT.iter().chain(&[SCROLL_ARROW_1, SCROLL_ARROW_2]) {
             cx.hide(*hidden, true);
@@ -302,10 +305,11 @@ impl ScreenLogic for WidgetMenu {
     fn tick(&mut self, cx: &mut Cx, _dt: f32) {
         let (first, last) = (self.top, (self.top + self.on_screen).min(self.rows.len()));
         for index in first..last {
-            self.place(cx, index, index - first);
+            let slot = index - first;
+            self.place(cx, slot);
             if let Some(row) = self.rows.get(index)
                 && let Control::Slider(percent) = row.setting.control(cx.settings)
-                && let Some(r) = self.objects.get(index)
+                && let Some(r) = self.objects.get(slot)
             {
                 self.draw_slider(cx, r, f32::from(percent) / 100.0);
             }
