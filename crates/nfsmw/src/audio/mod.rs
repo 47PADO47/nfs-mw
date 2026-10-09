@@ -66,6 +66,8 @@ pub struct Audio {
     missing: HashSet<(String, usize)>,
     /// The car whose sound could not be loaded, so the failure is not repeated every frame.
     failed: Option<String>,
+    /// The scene's soundtrack that is playing, kept so it can be stopped when the scene goes.
+    music: Option<StaticSoundHandle>,
 }
 
 /// A car's engine voice and the data that maps its RPM to the loops' frequency.
@@ -106,6 +108,7 @@ impl Audio {
             radio_wanted: true,
             missing: HashSet::new(),
             failed: None,
+            music: None,
         };
         audio.set_volumes(volumes);
         audio
@@ -175,6 +178,20 @@ impl Audio {
             Group::Engine => &mut out.engine,
         };
         track.play(data).map_err(|e| e.to_string())
+    }
+
+    /// Plays a scene's soundtrack in the music group, in place of the one playing.
+    pub fn play_music(&mut self, data: StaticSoundData) -> Result<(), String> {
+        self.stop_music();
+        let handle = self.play(Group::Music, data)?;
+        self.music = Some(handle);
+        Ok(())
+    }
+
+    /// Stops the soundtrack, if one is playing.
+    pub fn stop_music(&mut self) {
+        let Some(mut handle) = self.music.take() else { return };
+        handle.stop(Tween::default());
     }
 
     fn database(&mut self) -> Result<Arc<Database>, String> {

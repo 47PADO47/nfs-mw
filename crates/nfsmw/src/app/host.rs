@@ -13,6 +13,8 @@ use crate::viewer::Scene;
 
 pub struct Host {
     pub scene: Box<dyn Scene>,
+    /// Counts the scenes put in the window, so a scene's sound can be stopped when it goes.
+    pub scene_changes: u32,
     pub screenshot: Option<PathBuf>,
     /// Created once the window exists.
     pub renderer: Option<Renderer>,
@@ -43,6 +45,7 @@ impl Host {
         scene.set_spark_style(settings.spark_style);
         Self {
             scene,
+            scene_changes: 0,
             screenshot,
             renderer: None,
             size: (0, 0),
@@ -74,6 +77,7 @@ impl Host {
             super::screenshot::wait_ready(scene.as_mut(), renderer);
         }
         self.scene = scene;
+        self.scene_changes += 1;
         Ok(())
     }
 
