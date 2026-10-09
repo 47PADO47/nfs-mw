@@ -19,6 +19,7 @@ pub fn for_action(bindings: &Bindings, action: Action, device: InputDevice) -> P
     match binding.source {
         Source::PadButton(button) | Source::PadTrigger(button) => button_prompt(button),
         Source::PadAxis(axis) => axis_prompt(axis, binding.scale > 0.0),
+        Source::PedalAxis { axis, .. } => Prompt::Key(format!("Pedal {axis:?}")),
         Source::Key(key) => Prompt::Key(key_name(key)),
         Source::MouseButton(button) => Prompt::Key(format!("Mouse {button:?}")),
         Source::Scroll => Prompt::Key("Wheel".into()),

@@ -440,6 +440,10 @@ impl Scene for WorldScene {
         }
     }
 
+    fn set_wheel_options(&mut self, wheel: crate::settings::WheelOptions) {
+        self.drive.iter_mut().for_each(|drive| drive.set_wheel_options(wheel));
+    }
+
     fn hud_state(&self) -> Option<crate::hud::HudState> {
         if self.view == View::Fly {
             return Some(crate::hud::HudState { visible: false, ..Default::default() });

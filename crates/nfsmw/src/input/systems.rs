@@ -1,10 +1,10 @@
 //! The Bevy side of the input layer: reads `bevy_input` and resolves the actions.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use bevy_app::{App, Plugin, PreUpdate};
 use bevy_ecs::prelude::*;
-use bevy_input::gamepad::{Gamepad, GamepadButton, GamepadInput};
+use bevy_input::gamepad::{Gamepad, GamepadAxis, GamepadButton, GamepadInput};
 use bevy_input::keyboard::KeyCode;
 use bevy_input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll, MouseButton, MouseScrollUnit};
 use bevy_input::{ButtonInput, InputSystems};
@@ -54,6 +54,7 @@ fn update_actions(
     mut state: ResMut<ActionState>,
     mut presentation: ResMut<InputPresentation>,
     mut held: Local<HashSet<GamepadButton>>,
+    mut logged_axes: Local<HashMap<GamepadAxis, f32>>,
 ) {
     presentation.sample_pads(&pads, &bindings);
     let key_activity = keys.get_just_pressed().any(|key| {
@@ -108,6 +109,11 @@ fn update_actions(
             "gamepad button {code} pressed (a button without a name: `paddle_up = {code}` or `paddle_down = {code}` in the config file binds it to a gear shift)"
         );
     }
+    for (axis, value) in moved_wheel_axes(&snapshot.pad_axes, &mut logged_axes) {
+        log::info!(
+            "gamepad axis {axis:?} is at {value:.2} (a steering wheel's pedal: `bind throttle pedal:{axis:?}`, or `pedal_inv:{axis:?}` when it reads high while released; the brake and the clutch the same way)"
+        );
+    }
     *held = snapshot.pad_buttons.clone();
     state.update(&bindings, &snapshot, focus.0);
 }
@@ -124,6 +130,29 @@ fn newly_pressed_unnamed(now: &HashSet<GamepadButton>, before: &HashSet<GamepadB
         .collect();
     codes.sort_unstable();
     codes
+}
+
+/// The axes that are not a stick (a wheel's pedals arrive as these) which were first seen, or moved by half the
+/// travel since they were last reported, in name order. `logged` remembers what was reported.
+fn moved_wheel_axes(
+    now: &HashMap<GamepadAxis, f32>,
+    logged: &mut HashMap<GamepadAxis, f32>,
+) -> Vec<(GamepadAxis, f32)> {
+    let is_stick = |axis: &GamepadAxis| {
+        matches!(
+            axis,
+            GamepadAxis::LeftStickX | GamepadAxis::LeftStickY | GamepadAxis::RightStickX | GamepadAxis::RightStickY
+        )
+    };
+    let mut moved: Vec<(GamepadAxis, f32)> = now
+        .iter()
+        .filter(|(axis, value)| !is_stick(axis) && value.is_finite())
+        .filter(|(axis, value)| logged.get(*axis).is_none_or(|before| (**value - before).abs() >= 0.5))
+        .map(|(axis, value)| (*axis, *value))
+        .collect();
+    moved.sort_by_key(|(axis, _)| format!("{axis:?}"));
+    logged.extend(moved.iter().copied());
+    moved
 }
 
 #[cfg(test)]
@@ -233,6 +262,21 @@ mod tests {
         assert!(actions.just_pressed(Action::Console));
         assert!(!actions.pressed(Action::ToggleCamera));
         assert_eq!(actions.value(Action::Throttle), 0.0);
+    }
+
+    #[test]
+    fn pedal_axes_are_reported_on_first_sight_and_on_big_moves_only() {
+        let other = GamepadAxis::Other(3);
+        let mut logged = HashMap::new();
+        let mut now: HashMap<_, _> = [(GamepadAxis::LeftStickX, 1.0), (other, -1.0)].into();
+        assert_eq!(moved_wheel_axes(&now, &mut logged), vec![(other, -1.0)], "sticks are not reported");
+        assert!(moved_wheel_axes(&now, &mut logged).is_empty(), "nothing moved");
+        now.insert(other, -0.8);
+        assert!(moved_wheel_axes(&now, &mut logged).is_empty(), "a small move is not reported");
+        now.insert(other, 0.1);
+        assert_eq!(moved_wheel_axes(&now, &mut logged), vec![(other, 0.1)]);
+        now.insert(other, f32::NAN);
+        assert!(moved_wheel_axes(&now, &mut logged).is_empty());
     }
 
     #[test]

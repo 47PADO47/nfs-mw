@@ -22,6 +22,12 @@ pub struct InputState {
     /// Shift request edges: set for one step to shift up or down by one gear.
     pub shift_up: bool,
     pub shift_down: bool,
+    /// A gear asked for by number (`GEAR_REVERSE` 0, `GEAR_NEUTRAL` 1, `GEAR_FIRST` 2, ...): a wheel's H-pattern
+    /// shifter or a gear key. Only a manual gearbox listens, and it wins over the shift edges and the automatic
+    /// reverse. The rewrite's own control, not the original's (spec `vehicle-manual-shifting.md`, section 6).
+    pub gear_select: Option<usize>,
+    /// Clutch pedal travel, 0 (released) to 1 (fully pressed). Read only when `ControlConfig::manual_clutch` is on.
+    pub clutch: f32,
 }
 
 /// How raw input is interpreted.
@@ -36,6 +42,12 @@ pub struct ControlConfig {
     /// The gearbox shifts by itself.
     pub automatic: bool,
     pub steering_device: SteeringDevice,
+    /// A clutch pedal exists: while it is pressed the clutch stays open. Off by default, as in the original, whose
+    /// clutch is automatic.
+    pub manual_clutch: bool,
+    /// The driver has a gear selector that holds a gear (an H-pattern shifter): with a manual gearbox the brake pedal
+    /// never picks reverse and the pedals are never swapped, the selector decides.
+    pub h_shifter: bool,
 }
 
 impl Default for ControlConfig {
@@ -46,6 +58,8 @@ impl Default for ControlConfig {
             auto_brake: true,
             automatic: true,
             steering_device: SteeringDevice::Pad,
+            manual_clutch: false,
+            h_shifter: false,
         }
     }
 }
@@ -59,6 +73,8 @@ pub enum GearRequest {
     First,
     /// Shift by one gear (+1 up, -1 down).
     Shift(i32),
+    /// Engage this gear id directly (reverse only while crawling: the powertrain refuses it at speed).
+    Select(usize),
 }
 
 /// The shaped controls the chassis and engine use.
@@ -70,6 +86,8 @@ pub struct Controls {
     pub steering: f32,
     pub nos: bool,
     pub gear_request: Option<GearRequest>,
+    /// The clutch pedal, 0..1; `None` when there is no pedal (`ControlConfig::manual_clutch` off).
+    pub clutch: Option<f32>,
 }
 
 /// State the shaping needs from the car.
@@ -103,6 +121,7 @@ pub fn shape(input: &InputState, config: &ControlConfig, ctx: &InputContext) -> 
             steering: finite_or(input.steer, 0.0).clamp(-1.0, 1.0),
             nos: false,
             gear_request: None,
+            clutch: None,
         };
     }
     let mut gas = snap(input.throttle, config.dead_zone);
@@ -112,10 +131,16 @@ pub fn shape(input: &InputState, config: &ControlConfig, ctx: &InputContext) -> 
     let raw_gas = gas;
     let raw_brake = brake;
     let v = ctx.forward_speed;
-    let mut gear_request = None;
+    // A gear asked for by number belongs to a manual gearbox; the automatic one picks its own.
+    let mut gear_request = input.gear_select.filter(|_| !config.automatic).map(GearRequest::Select);
+    let explicit = gear_request.is_some();
+    // A selector that holds a gear (the H-pattern shifter) is the driver's own reverse: no pedal tricks.
+    let auto_reverse = config.auto_reverse && !(config.h_shifter && !config.automatic);
 
-    if config.auto_reverse {
-        if ctx.gear != GEAR_REVERSE {
+    if auto_reverse {
+        if explicit {
+            // The request stands; the automatic reverse waits.
+        } else if ctx.gear != GEAR_REVERSE {
             if v < 2.5 && raw_brake > 0.0 && raw_gas == 0.0 {
                 gear_request = Some(GearRequest::Reverse);
             }
@@ -125,6 +150,7 @@ pub fn shape(input: &InputState, config: &ControlConfig, ctx: &InputContext) -> 
         let reversing = match gear_request {
             Some(GearRequest::Reverse) => true,
             Some(GearRequest::First) => false,
+            Some(GearRequest::Select(gear)) => gear == GEAR_REVERSE,
             _ => ctx.gear == GEAR_REVERSE,
         };
         if reversing {
@@ -152,7 +178,8 @@ pub fn shape(input: &InputState, config: &ControlConfig, ctx: &InputContext) -> 
             gear_request = Some(GearRequest::Shift(dir));
         }
     }
-    Controls { gas, brake, handbrake, steering: steer, nos: input.nos, gear_request }
+    let clutch = config.manual_clutch.then(|| finite_or(input.clutch, 0.0).clamp(0.0, 1.0));
+    Controls { gas, brake, handbrake, steering: steer, nos: input.nos, gear_request, clutch }
 }
 
 #[cfg(test)]

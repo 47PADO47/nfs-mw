@@ -44,6 +44,11 @@ impl Clutch {
         }
     }
 
+    /// Opens the clutch from any state, also while it is re-engaging: a pedal pressed by the driver.
+    pub fn hold_open(&mut self) {
+        self.state = ClutchState::Disengaged;
+    }
+
     /// Only acts from `Disengaged`; engages at once when `time <= 0`.
     pub fn engage(&mut self, time: f32) {
         if self.state == ClutchState::Disengaged {
@@ -93,6 +98,19 @@ mod tests {
         assert!((c.factor() - 0.625).abs() < 1e-6);
         c.update(0.2);
         assert!(c.is_engaged());
+    }
+
+    #[test]
+    fn hold_open_also_stops_a_re_engage() {
+        let mut c = Clutch::default();
+        c.disengage();
+        c.engage(0.25);
+        c.hold_open();
+        assert_eq!(c.state, ClutchState::Disengaged);
+        c.update(1.0);
+        assert_eq!(c.state, ClutchState::Disengaged, "the timer is gone with the engage");
+        c.engage(0.25);
+        assert_eq!(c.state, ClutchState::Engaging);
     }
 
     #[test]

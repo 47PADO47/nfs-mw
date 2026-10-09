@@ -120,6 +120,12 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.paddle_down {
         put("paddle_down", Value::Integer(i64::from(v)));
     }
+    if let Some(v) = changes.manual_clutch {
+        put("manual_clutch", Value::Boolean(v));
+    }
+    if let Some(v) = changes.h_shifter {
+        put("h_shifter", Value::Boolean(v));
+    }
     toml::to_string(&table).context("serializing the config file")
 }
 
@@ -200,6 +206,8 @@ mod tests {
             minimap: Some(crate::settings::MinimapMode::Rotating),
             paddle_up: Some(5),
             paddle_down: Some(6),
+            manual_clutch: Some(true),
+            h_shifter: Some(true),
             ..Partial::default()
         };
         let text = merge("", &changes).unwrap();

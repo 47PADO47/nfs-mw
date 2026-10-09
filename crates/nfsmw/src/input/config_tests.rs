@@ -247,3 +247,49 @@ fn raw_axis_bounds_and_xtended_style_rebindings_are_safe_under_ui_focus() {
     state.update(&bindings, &s, true);
     assert_eq!(state.value(Action::Nos), 0.0);
 }
+
+#[test]
+fn wheel_pedal_axes_parse_round_trip_and_drive_the_actions() {
+    let throttle = source::parse(Action::Throttle, "pedal:Other(2)").unwrap();
+    assert_eq!(source::encode(&throttle), "pedal:Other(2)");
+    let brake = source::parse(Action::Brake, "pedal_inv:Other(5)").unwrap();
+    assert_eq!(source::encode(&brake), "pedal_inv:Other(5)");
+    assert_eq!(source::parse(Action::Brake, &source::encode(&brake)).unwrap(), brake);
+    assert!(source::parse(Action::Brake, "pedal:Nope").is_err());
+
+    let mut bindings = Bindings::default();
+    bindings.bind(Action::Throttle, "pedal:Other(2)", false).unwrap();
+    bindings.bind(Action::Brake, "pedal_inv:Other(5)", false).unwrap();
+    bindings.bind(Action::Clutch, "pedal_inv:RightZ", false).unwrap();
+    let mut s = Snapshot::default();
+    s.pad_axes.insert(GamepadAxis::Other(2), 0.0);
+    s.pad_axes.insert(GamepadAxis::Other(5), 1.0);
+    s.pad_axes.insert(GamepadAxis::RightZ, -1.0);
+    close(value(&bindings, &s, Action::Throttle), 0.5);
+    close(value(&bindings, &s, Action::Brake), 0.0);
+    close(value(&bindings, &s, Action::Clutch), 1.0);
+    s.pad_axes.insert(GamepadAxis::Other(5), -1.0);
+    close(value(&bindings, &s, Action::Brake), 1.0);
+    assert!(bindings.describe().contains("Pad pedal axis Other(2)"));
+}
+
+#[test]
+fn gear_and_clutch_bindings_come_from_the_config_file() {
+    let defaults = Bindings::default();
+    for action in [Action::GearReverse, Action::GearNeutral, Action::Gear1, Action::Gear7] {
+        assert!(!defaults.0.iter().any(|b| b.action == action), "{} has no default", action.name());
+    }
+    let mut bindings = Bindings::default();
+    bindings.apply_config(
+        "[bindings]\ngear_1 = ['button:Other(20)']\ngear_reverse = ['button:Other(26)']\nclutch = ['pedal_inv:Other(3)']",
+        "test",
+    );
+    let mut s = Snapshot::default();
+    s.pad_buttons.insert(GamepadButton::Other(20));
+    assert_eq!(value(&bindings, &s, Action::Gear1), 1.0);
+    assert_eq!(value(&bindings, &s, Action::Gear2), 0.0);
+    assert_eq!(value(&bindings, &s, Action::GearReverse), 0.0);
+    s.keys.insert(KeyCode::KeyZ);
+    assert_eq!(value(&bindings, &s, Action::Clutch), 0.0, "the config replaced the default Z key");
+    assert_eq!(value(&Bindings::default(), &s, Action::Clutch), 1.0, "Z is the default clutch key");
+}

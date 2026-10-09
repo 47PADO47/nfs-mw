@@ -94,7 +94,7 @@ The limiter is part of the torque loop and is the same in every gear and in manu
 
 - The engine's own speed is clamped to `[idle, red line]` after each integration. It cannot stall: at the lowest it
   runs at idle, whatever the gear and the road speed. There is no stall rule, and there is no manual clutch pedal
-  (`MANUAL_CLUTCH` is in the enum but nothing reads it).
+  (`MANUAL_CLUTCH` is in the enum but nothing reads it; the rewrite's optional pedal is in section 6).
 - The transmission-side speed `omega_trans = idle + wheels * ratio * (red - idle) / red` is what the engine would
   turn at if locked to the wheels. When it exceeds the red line: a positive drive torque is **cut to zero**,
   `omega_trans` is set to the red line and **the driven wheels are set to the speed that gives the red line in the
@@ -139,6 +139,18 @@ The speed limiter (ECU) still tapers the throttle in the gears above neutral.
   gamepad buttons a wheel's paddles arrive as; the log prints the code of an unnamed button when it is pressed).
   Not tried on a wheel. In the free camera Q and E still move the camera down and up, and on the
   main menu Q quits; those contexts do not drive.
+- **Gears by number.** The actions `gear_reverse`, `gear_neutral` and `gear_1` to `gear_7` (no default bindings; wheels
+  and keys are bound by the player) ask for a gear id directly, skipping gears and leaving reverse, which the shift
+  buttons cannot. Only a manual box listens. Reverse is refused above 2.5 m/s, as a real box refuses it. A gear key
+  asks once when it goes down (latched like the shift presses). With the `h_shifter` setting the buttons are a
+  selector that holds a gear: the gear whose button is held is asked for every step, no button is neutral (not
+  while the console has the keyboard), and the automatic reverse is off, so braking to a stop never picks reverse and
+  the pedals are never swapped. A direct request wins over a shift edge and over the automatic reverse in its step.
+- **Clutch pedal (optional).** The `manual_clutch` setting (off by default; the original has no clutch pedal) makes the
+  `clutch` action (0..1, default key Z; wheel pedals through `pedal:` or `pedal_inv:` sources) hold the clutch open
+  while it is pressed past 10%: the engine free-revs, nothing drives the wheels, and the car coasts. Released, the
+  gear's own engage rule of section 5 applies again. There is no partial slip, no stalling (section 4) and no grinding:
+  shifts never need the pedal. It also works with the automatic box. With the setting off the action is ignored.
 - **Edge presses are latched.** The original queues shift actions; the rewrite's fixed 60 Hz step runs fewer times
   than frames above 60 fps, so a press is held until a physics step consumes it, and one step takes at most one
   request (the last wins), as in the original.
@@ -160,3 +172,6 @@ In the original (PC build), with Transmission set to Manual in the Gameplay opti
 4. Stop in third with the brake: expect reverse once the car is nearly stopped, then first on the gas.
 5. Press the shift button twice within one shift delay: both shifts should happen.
 6. Switch to Automatic: the same button presses do the sport shift of section 7.5.
+
+The wheel controls of section 6 have no original to compare with. They are checked by synthetic tests only; a real
+wheel (axis codes, pedal direction, paddles, an H-shifter, a clutch pedal) has not been tried.

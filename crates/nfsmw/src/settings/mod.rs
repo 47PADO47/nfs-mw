@@ -24,6 +24,7 @@ mod tire_tests;
 mod transmission;
 #[cfg(test)]
 mod vehicle_effects_tests;
+mod wheel;
 mod window;
 mod write;
 
@@ -36,6 +37,7 @@ pub use partial::{Partial, Percent, parse_bool};
 pub use smoke_quality::SmokeQuality;
 pub use spark_style::SparkStyle;
 pub use transmission::Transmission;
+pub use wheel::WheelOptions;
 pub use window::{Monitor, Resolution, WindowMode};
 pub use write::write as write_file;
 
@@ -85,6 +87,10 @@ pub struct Settings {
     /// Gamepad button codes of a steering wheel's shift paddles (`GamepadButton::Other`), if the player gave them.
     pub paddle_up: Option<u32>,
     pub paddle_down: Option<u32>,
+    /// A clutch pedal is bound (the `clutch` action): while it is pressed the clutch stays open. Off by default.
+    pub manual_clutch: bool,
+    /// A gear selector that holds a gear (an H-pattern shifter) is bound to the `gear_*` actions. Off by default.
+    pub h_shifter: bool,
 }
 
 impl From<Partial> for Settings {
@@ -127,11 +133,18 @@ impl From<Partial> for Settings {
             hud_layout: p.hud_layout.unwrap_or_default(),
             paddle_up: p.paddle_up,
             paddle_down: p.paddle_down,
+            manual_clutch: p.manual_clutch.unwrap_or(false),
+            h_shifter: p.h_shifter.unwrap_or(false),
         }
     }
 }
 
 impl Settings {
+    /// What a steering wheel's extra controls are switched on.
+    pub fn wheel_options(&self) -> WheelOptions {
+        WheelOptions { manual_clutch: self.manual_clutch, h_shifter: self.h_shifter }
+    }
+
     /// The per-user config file (it may not exist yet).
     pub fn config_path() -> Option<std::path::PathBuf> {
         game_install::config_file_path(&nfsmw_data::game::SPEC)
@@ -163,6 +176,8 @@ mod tests {
         assert_eq!((s.backend, s.vsync, s.max_fps), (Backend::Auto, true, MaxFps::default()));
         assert_eq!(s.transmission, Transmission::Automatic, "automatic, as in the original");
         assert_eq!(s.minimap, MinimapMode::Fixed, "fixed, the original's free roam mode");
+        assert_eq!(s.wheel_options(), WheelOptions::default(), "no clutch pedal and no H-shifter unless asked for");
+        assert_eq!((s.paddle_up, s.paddle_down), (None, None));
     }
 
     #[test]

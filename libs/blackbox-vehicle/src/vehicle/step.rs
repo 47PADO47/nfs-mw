@@ -92,6 +92,9 @@ impl Vehicle {
                 self.powertrain.shift(GEAR_FIRST);
             }
             Some(GearRequest::Shift(dir)) => self.powertrain.request_shift(dir, self.config.automatic),
+            Some(GearRequest::Select(gear)) => {
+                self.powertrain.select_gear(gear, forward_speed);
+            }
             None => {}
         }
         self.controls = controls;
@@ -143,6 +146,7 @@ impl Vehicle {
             max_wheel_slip,
             induction_tuning: self.tunings.induction,
             nos_tuning: self.tunings.nos,
+            clutch_pedal: self.controls.clutch,
         });
         for (t, a) in self.tires.iter_mut().zip(av) {
             t.av = a;

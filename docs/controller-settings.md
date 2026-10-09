@@ -49,6 +49,42 @@ steer = ["key:KeyD", "key:KeyA:-1", "axis:LeftStickX"]
 nos = ["key:ShiftLeft", "button:East"] # Xbox B
 ```
 
+## Steering wheel
+
+A wheel shows up as a gamepad. Button and axis codes depend on the device, so nothing is bound by default except a
+clutch key. The log (`info`) prints the code of each unnamed button the first time it goes down and of each non-stick
+axis when it is first seen or moves by half its travel; press a button or move a pedal and read the name.
+
+| Source | Meaning |
+|---|---|
+| `axis:LeftStickX` | the wheel itself, -1 to 1; the steering deadzone and sensitivity apply to `steer` |
+| `pedal:Other(2)` | a full-range pedal axis, -1 released to +1 pressed, read as 0 to 1 |
+| `pedal_inv:Other(2)` | the same for a pedal that reads +1 while released (common on Linux) |
+| `trigger:Other(7)` | a pedal reported as an analog button |
+| `button:Other(20)` | paddles, gear buttons, a clutch button |
+
+A pedal axis that has not reported yet counts as released. The trigger deadzone applies to pedals. Example:
+
+```toml
+manual_clutch = true   # reads the clutch action; off by default
+h_shifter = true       # gear_* actions hold a gear; off by default
+paddle_up = 5          # shortcut for shift_up = ["button:Other(5)"]
+
+[bindings]
+steer = ["axis:LeftStickX"]
+throttle = ["pedal_inv:Other(2)"]
+brake = ["pedal_inv:Other(1)"]
+clutch = ["pedal_inv:Other(0)"]
+gear_1 = ["button:Other(20)"]    # gear_neutral, gear_reverse, gear_2 ... gear_7 the same way
+gear_reverse = ["button:Other(26)"]
+```
+
+`manual_clutch` and `h_shifter` (also `NFSMW_MANUAL_CLUTCH`, `NFSMW_H_SHIFTER` and `set manual_clutch on`) only matter
+with a manual transmission for the gears; the clutch works with either. Without `h_shifter` a gear button asks for its
+gear once when pressed. With it, the gear whose button is held is kept and no button means neutral; the brake pedal
+then never selects reverse. The hardware layouts are not verified: see
+[the specification](specs/controller-settings.md#steering-wheel).
+
 An omitted action keeps its default assignments. An empty array unbinds the action. Invalid entries
 produce a warning and keep that action's defaults. Response environment variables use the upper-case
 key with `NFSMW_`, for example `NFSMW_STEERING_DEADZONE=4`. Environment values override saved settings.

@@ -78,6 +78,8 @@ pub struct Partial {
     pub hud_layout: Option<HudLayout>,
     pub paddle_up: Option<u32>,
     pub paddle_down: Option<u32>,
+    pub manual_clutch: Option<bool>,
+    pub h_shifter: Option<bool>,
 }
 
 impl Partial {
@@ -118,6 +120,8 @@ impl Partial {
             hud_layout: self.hud_layout.or(lower.hud_layout),
             paddle_up: self.paddle_up.or(lower.paddle_up),
             paddle_down: self.paddle_down.or(lower.paddle_down),
+            manual_clutch: self.manual_clutch.or(lower.manual_clutch),
+            h_shifter: self.h_shifter.or(lower.h_shifter),
         }
     }
 }
