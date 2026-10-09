@@ -1,9 +1,6 @@
 //! The post-processing settings: tone mapping, bloom and anti-aliasing (docs/post-processing.md).
 //! Each is independent and every default is off, which keeps the image exactly as it was.
 
-use std::fmt;
-use std::str::FromStr;
-
 use blackbox_gfx::{Antialiasing, PostSettings, Tonemap};
 
 use super::Settings;
@@ -67,29 +64,6 @@ pub fn post_effects(settings: &Settings) -> PostSettings {
         },
         ..PostSettings::default()
     }
-}
-
-macro_rules! names {
-    ($ty:ty, $expected:literal, [$(($variant:path, $name:literal)),+ $(,)?]) => {
-        impl FromStr for $ty {
-            type Err = String;
-
-            fn from_str(s: &str) -> Result<Self, String> {
-                match s {
-                    $($name => Ok($variant),)+
-                    _ => Err(format!("expected {}, got {s:?}", $expected)),
-                }
-            }
-        }
-
-        impl fmt::Display for $ty {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str(match self {
-                    $($variant => $name,)+
-                })
-            }
-        }
-    };
 }
 
 names!(PostTonemap, "off or aces", [(Self::Off, "off"), (Self::Aces, "aces")]);

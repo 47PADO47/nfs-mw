@@ -3,6 +3,9 @@
 //! Each source produces a [`Partial`]; [`Settings::load`] merges them. The in-game settings menu
 //! (milestone 6) and the developer console write the config file layer.
 
+#[macro_use]
+mod names;
+
 mod car_shading;
 #[cfg(test)]
 mod car_shading_tests;
