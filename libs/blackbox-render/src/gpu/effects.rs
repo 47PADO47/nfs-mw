@@ -64,7 +64,7 @@ impl Effects {
         });
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("world effects"),
-            bind_group_layouts: &[Some(&shared.globals_layout)],
+            bind_group_layouts: &[Some(&shared.bindings.globals_layout)],
             immediate_size: 0,
         });
         let mut effects = Self {

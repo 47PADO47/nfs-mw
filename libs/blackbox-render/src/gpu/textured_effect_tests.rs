@@ -38,10 +38,10 @@ fn check(backend: wgpu::Backends) {
     let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
     let group = gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("synthetic particle atlas"),
-        layout: &gpu.shared.texture_layout,
+        layout: &gpu.shared.bindings.texture_layout,
         entries: &[
             wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&view) },
-            wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&gpu.shared.sampler) },
+            wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&gpu.shared.bindings.sampler) },
         ],
     });
     let handle = TextureHandle::from_raw(gpu.textures.insert(group));

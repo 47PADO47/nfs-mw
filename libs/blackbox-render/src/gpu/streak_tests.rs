@@ -58,7 +58,7 @@ impl Gpu {
             fog_color: [0.3, 0.6, 0.9, 1.0],
             fog_range: [fog[0], fog[1], 0.0, 0.0],
         };
-        self.queue.write_buffer(&self.shared.globals, 0, bytemuck::bytes_of(&globals));
+        self.queue.write_buffer(&self.shared.bindings.globals, 0, bytemuck::bytes_of(&globals));
         self.effects.upload(&self.device, &self.queue, layer);
         let size = wgpu::Extent3d { width, height: width, depth_or_array_layers: 1 };
         let target = self.device.create_texture(&wgpu::TextureDescriptor {
@@ -100,7 +100,7 @@ impl Gpu {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            pass.set_bind_group(0, &self.shared.globals_bind_group, &[]);
+            pass.set_bind_group(0, &self.shared.bindings.globals_bind_group, &[]);
             self.effects.draw(&mut pass);
             self.effects.textured.draw(&mut pass, &self.textures);
         }

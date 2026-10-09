@@ -43,7 +43,7 @@ fn check(backend: wgpu::Backends) {
         fog_color: [0.0; 4],
         fog_range: [f32::MAX, f32::MAX, 0.0, 0.0],
     };
-    queue.write_buffer(&shared.globals, 0, bytemuck::bytes_of(&globals));
+    queue.write_buffer(&shared.bindings.globals, 0, bytemuck::bytes_of(&globals));
     let mut soft = SoftParticles::new(&device, wgpu::TextureFormat::Rgba8Unorm, &shared);
     let mut vertices = Vec::new();
     EffectLayer::particle_quad(

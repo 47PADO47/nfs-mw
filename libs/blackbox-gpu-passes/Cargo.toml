@@ -1,0 +1,27 @@
+[package]
+name = "blackbox-gpu-passes"
+description = "Reusable wgpu passes for EA Black Box renderers: the UI layer, world effects, soft particles, a fullscreen filter and FSR 1. Plain wgpu inputs, so any render loop can call them."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+# Helpers for GPU tests in this crate and in the crates that call it (a serial lock, a headless device).
+test-support = ["dep:pollster"]
+
+[dependencies]
+blackbox-gfx.workspace = true
+bytemuck.workspace = true
+glam.workspace = true
+pollster = { workspace = true, optional = true }
+wgpu.workspace = true
+
+[dev-dependencies]
+# Validates the WGSL sources without a GPU.
+naga.workspace = true
+pollster.workspace = true
+
+[lints]
+workspace = true

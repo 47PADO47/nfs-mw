@@ -44,7 +44,7 @@ impl Ui {
         });
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("ui"),
-            bind_group_layouts: &[Some(&shared.globals_layout), Some(&shared.texture_layout)],
+            bind_group_layouts: &[Some(&shared.bindings.globals_layout), Some(&shared.bindings.texture_layout)],
             immediate_size: 0,
         });
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -84,7 +84,7 @@ impl Ui {
         });
         let globals_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("ui globals"),
-            layout: &shared.globals_layout,
+            layout: &shared.bindings.globals_layout,
             entries: &[wgpu::BindGroupEntry { binding: 0, resource: globals.as_entire_binding() }],
         });
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
@@ -165,7 +165,7 @@ impl Renderer {
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("ui texture"),
-            layout: &self.shared.texture_layout,
+            layout: &self.shared.bindings.texture_layout,
             entries: &[
                 wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&view) },
                 wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&self.ui.sampler) },

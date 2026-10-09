@@ -59,7 +59,7 @@ impl SoftParticles {
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("soft particles"),
-            bind_group_layouts: &[Some(&shared.globals_layout), Some(&layout)],
+            bind_group_layouts: &[Some(&shared.bindings.globals_layout), Some(&layout)],
             immediate_size: 0,
         });
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -139,7 +139,7 @@ impl SoftParticles {
         if let Some(pipeline) = self.pipelines.get(&self.format) {
             pass.set_pipeline(pipeline);
         }
-        pass.set_bind_group(0, &shared.globals_bind_group, &[]);
+        pass.set_bind_group(0, &shared.bindings.globals_bind_group, &[]);
         pass.set_bind_group(1, &self.binding.as_ref().expect("prepared soft particle depth").1, &[]);
     }
 }

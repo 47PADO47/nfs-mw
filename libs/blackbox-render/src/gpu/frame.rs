@@ -79,7 +79,7 @@ impl Renderer {
             fog_color: [r, g, b, 1.0],
             fog_range: [fog_start, fog_end, self.upscale.texture_lod_bias, 0.0],
         };
-        self.queue.write_buffer(&self.shared.globals, 0, bytemuck::bytes_of(&globals));
+        self.queue.write_buffer(&self.shared.bindings.globals, 0, bytemuck::bytes_of(&globals));
         let matrices: Vec<[f32; 16]> = instances.iter().map(|i| i.transform.to_cols_array()).collect();
         self.instances.upload(&self.device, &self.queue, &matrices);
 
@@ -109,7 +109,7 @@ impl Renderer {
             occlusion_query_set: None,
             multiview_mask: None,
         });
-        pass.set_bind_group(0, &self.shared.globals_bind_group, &[]);
+        pass.set_bind_group(0, &self.shared.bindings.globals_bind_group, &[]);
         pass.set_vertex_buffer(1, self.instances.buffer.slice(..));
 
         for (mode, shading) in BLEND_ORDER.iter().flat_map(|&b| SHADINGS.iter().map(move |&s| (b, s))) {

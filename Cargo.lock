@@ -1091,6 +1091,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "blackbox-gpu-passes"
+version = "0.1.0"
+dependencies = [
+ "blackbox-gfx",
+ "bytemuck",
+ "glam 0.34.1",
+ "naga",
+ "pollster",
+ "wgpu",
+]
+
+[[package]]
 name = "blackbox-hash"
 version = "0.1.0"
 
@@ -1133,6 +1145,7 @@ version = "0.1.0"
 dependencies = [
  "blackbox-gfx",
  "blackbox-gfx-testkit",
+ "blackbox-gpu-passes",
  "bytemuck",
  "glam 0.34.1",
  "log",

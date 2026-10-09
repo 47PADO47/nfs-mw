@@ -26,7 +26,7 @@ impl TexturedEffects {
         });
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("textured world effects"),
-            bind_group_layouts: &[Some(&shared.globals_layout), Some(&shared.texture_layout)],
+            bind_group_layouts: &[Some(&shared.bindings.globals_layout), Some(&shared.bindings.texture_layout)],
             immediate_size: 0,
         });
         let mut effects = Self { shader, layout, pipelines: HashMap::new(), format, batches: Vec::new(), count: 0 };

@@ -61,15 +61,15 @@ impl Pipelines {
         });
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("scene"),
-            bind_group_layouts: &[Some(&shared.globals_layout), Some(&shared.texture_layout)],
+            bind_group_layouts: &[Some(&shared.bindings.globals_layout), Some(&shared.bindings.texture_layout)],
             immediate_size: 0,
         });
         let mut pipelines = Self {
             scene: Module { shader, layout },
             glossy: None,
             glossy_layouts: shared.glossy.clone(),
-            globals_layout: shared.globals_layout.clone(),
-            texture_layout: shared.texture_layout.clone(),
+            globals_layout: shared.bindings.globals_layout.clone(),
+            texture_layout: shared.bindings.texture_layout.clone(),
             sets: HashMap::new(),
             format,
         };
