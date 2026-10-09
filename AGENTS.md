@@ -22,6 +22,7 @@ Start here before writing any code:
   on `libs/`, never the reverse.
 - **No file over 500 lines** (source or docs). Split by domain into folders and modules, one
   struct or concern per file. `cargo xtask size-check` enforces it.
+- **`libs/` stays Bevy-free, with one exception:** Bevy-based renderer backend crates are allowed in `libs/` as optional leaf crates that nothing else depends on ([ADR 0004](docs/decisions/0004-swappable-renderers.md)).
 - **Format crates take `&[u8]`** and never open files. Only `game-install` touches the
   install.
 - **No NFS:MW-specific names, paths or defaults in `libs/`.** Game differences go into

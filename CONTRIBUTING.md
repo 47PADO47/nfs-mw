@@ -20,6 +20,7 @@
   names, paths or defaults there. Put game differences in per-version layout tables
   (`layout/v5.rs`, `layout/most_wanted.rs`) chosen from the data or passed in by the caller. Each lib keeps a
   README. The goal is that `libs/` can move to a shared utilities repo unchanged.
+- **`libs/` stays Bevy-free, with one exception:** Bevy-based renderer backend crates are allowed in `libs/` as optional leaf crates that nothing else depends on ([ADR 0004](docs/decisions/0004-swappable-renderers.md)).
 - **NFS:MW-specific code goes in [`crates/`](crates)**, which depends on `libs/`, never the reverse.
 - **No file over 500 lines** (source or docs). Split by domain into folders and modules, one struct or
   concern per file; tests can live in a `tests/` module folder. `cargo xtask size-check` enforces it.
