@@ -126,7 +126,7 @@ pattern each resolves to match its §3.
 ## Not implemented yet
 
 - **Traffic:** stop signs, priority at junctions, horns and drive-by sounds, `collisionreactions` records, the
-  scripted drag-race  traffic and the drag pattern, pool reuse of cars, parked cars.
+  scripted drag-race traffic and the drag pattern, pool reuse of cars, parked cars.
 - **Patrol cops:** a patrol cop does not start a pursuit when it sees you (no infractions, heat or sight yet) and
   never reacts to the player. Use `pursuit <heat>` to start a chase by hand.
 - **Racers:** the race action's nitrous, skill and rubber banding, race routes and checkpoints, staging,
@@ -135,6 +135,16 @@ pattern each resolves to match its §3.
   tactics, roadblocks and spike strips, support cars, helicopters, speech, the HUD values, bounty.
 - **Simulation level of detail** for far cars, and a test of the original's behaviour in the running game: the
   spec constants are from the decompilation and have not been measured against the PC build.
+
+## Known issues
+
+- At busy junctions cars (semis among them) can jam for a long time: nothing gives way to cross or turning
+  traffic, and cars enter a junction on green even when its exit is full. Jammed cars far from you are removed
+  after 20 s standing; a semi jam near a junction was seen at (490, 185) in the `cityhighway` pattern and has not
+  been separated from the general jam.
+- Trailers can release early about 240 m from the player, probably because the collision data is only partly
+  streamed that far out.
+- The traffic lights are plain markers beside the road, not the map's own signal scenery.
 
 ## Deliberate differences
 

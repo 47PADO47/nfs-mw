@@ -26,7 +26,6 @@ use std::rc::Rc;
 use blackbox_collision::CollisionWorld;
 use blackbox_render::Instance;
 use blackbox_roads::{Body, RoadNetwork, SegmentIndex, SignalController, SplitMix};
-use glam::Vec3;
 use nfsmw_data::car::physics::{CarPhysics, SurfaceTable};
 
 use super::drive::{CarRig, FixedClock, STEP};
