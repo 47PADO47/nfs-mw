@@ -59,7 +59,7 @@ were resolved through the database, rather than inferred from a collection name.
 Private measurement output is not a contribution artifact. The spec records
 only measured scalar/reference facts and original behavior in our own words.
 
-## Confirmed, inferred and unconfirmed
+## Initial evidence checkpoint
 
 - **Verified data:** ordinary spark/debris groups; attached extra spark-line
   effects; contrail emitter graph; selected colors/lifetime/raw tuning;
@@ -161,3 +161,28 @@ original mask coordinates. A single refreshed contact glow accompanies moving
 scrapes. These are independent host improvements, not native mesh collision or
 dynamic illumination. Colour tuning remains authored; the original's overall
 grading is outside this effect contribution.
+
+## Revision validation
+
+The revised combined build passed 1059 workspace tests; the isolated main-based
+VFX branch passed 966. Both passed formatting, warning-denied Clippy and repository
+leak/size checks. On the main-based branch, the installed BMW effect-reader test
+and both main/pause-menu tests passed against unmodified and restoration-mod
+assets. Four explicit GPU tests passed: streak/glow blending, depth and fog, and
+the existing soft-smoke depth/resize checks on both DX12 and Vulkan.
+
+Nine captures from the revised combined release covered impact, held-wall expiry,
+sustained scraping, high-speed trails, reset and disabled effects across the two
+asset sets/backends. The held-wall case retained 80 cumulative spark emissions,
+with zero live particles by four seconds and no continuing stationary emission.
+Disabled impact/speed runs kept both emission counts at zero. Three further
+captures from the separately compiled main-based release exercised impact,
+scraping and speed trails using unmodified assets.
+
+Visual inspection confirmed long exterior streaks and a contact-local scrape glow.
+Synthetic tests verify rotated/pivoted car-box exclusion, preserved mask coordinates,
+glow expiry, bounded one-sided-barrier skipping and original-segment hit fractions.
+The supplied comparison screenshots use different cars, motion, camera placement
+and overall grading. They guide the presentation corrections but do not establish
+controlled native pixel parity. The collision box is a conservative mesh
+approximation, and transparent effects remain outside global sorting.
