@@ -18,7 +18,7 @@ const AHEAD: f32 = 200.0;
 const SPREAD: f32 = 50.0;
 /// The wedge ahead the point is chosen in: plus or minus this many radians (45 degrees).
 const WEDGE: f32 = std::f32::consts::FRAC_PI_4;
-/// No new car closer than this to another one.
+/// No new car closer than this to another one; a trailer adds half its length to the distance, on either side.
 const MIN_GAP: f32 = 20.0;
 /// How far ahead of the car the cursor starts.
 const START_LOOK_AHEAD: f32 = 30.0;
@@ -69,7 +69,12 @@ impl TrafficWorld {
         {
             return false;
         }
-        if self.cars.iter().any(|c| c.physics_position().distance(nav.position) < MIN_GAP) {
+        let length = model.trailer.as_ref().map_or(0.0, |t| 2.0 * t.physics.spec.dimension.z);
+        if self
+            .cars
+            .iter()
+            .any(|c| c.physics_position().distance(nav.position) < MIN_GAP + 0.5 * (length + c.trailer_length()))
+        {
             return false;
         }
         let render = space::to_render(nav.position.to_array());
@@ -86,7 +91,9 @@ impl TrafficWorld {
         };
         let car = AiCar::place(model, Role::Traffic, nav, spawn, start, &WorldGround { collision, surfaces });
         let Some(car) = car else { return false };
-        log::info!("traffic: {} at ({:.0}, {:.0}), {} m ahead", car.name, render.x, render.y, distance as i32);
+        let towing =
+            car.trailer().map_or(String::new(), |t| format!(" with a {:.1} m trailer", 2.0 * t.half_dimensions().z));
+        log::info!("traffic: {}{towing} at ({:.0}, {:.0}), {} m ahead", car.name, render.x, render.y, distance as i32);
         self.cars.push(car);
         true
     }

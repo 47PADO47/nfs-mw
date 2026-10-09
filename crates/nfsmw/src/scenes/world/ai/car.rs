@@ -12,10 +12,13 @@ use super::TrafficModel;
 use super::cop::{self, CopState, Target};
 use super::stop::{self, Lights};
 use super::traffic::{self, Cruise, THINK_STEPS};
+use super::trailer::{Brakes, TrailerCar};
 use crate::scenes::world::drive::{CarPose, CarRig, CarSim, DriveInput, STEP, WorldGround};
 use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::space;
+
+mod towing;
 
 /// What a car is for.
 pub enum Role {
@@ -29,7 +32,8 @@ pub struct Ctx<'a, R> {
     pub net: &'a RoadNetwork,
     pub index: &'a SegmentIndex,
     pub rng: &'a mut R,
-    /// Every computer-driven car, with whether it is a cop, and which of them is this car.
+    /// Every computer-driven car (a semi with its trailer hitched is one long body), with whether it is a cop,
+    /// and which of them is this car; the trailers that came loose follow after the cars.
     pub bodies: &'a [(Body, bool)],
     pub me: usize,
     pub player: Option<Body>,
@@ -86,6 +90,8 @@ pub struct AiCar {
     pub name: String,
     rig: Rc<CarRig>,
     sim: CarSim,
+    /// The trailer of a semi tractor, hitched or loose.
+    trailer: Option<TrailerCar>,
     driver: Driver,
     pub role: Role,
     nav: RoadNav,
@@ -139,12 +145,17 @@ impl AiCar {
         if !sim.place_moving(ground, spawn, start.speed) {
             return None;
         }
+        let trailer = match &model.trailer {
+            Some(trailer) => Some(TrailerCar::place(trailer, &sim, spawn, start.speed, ground)?),
+            None => None,
+        };
         let pose = sim.pose();
         let radius = physics.spec.dimension.length();
         Some(Self {
             name,
             rig,
             sim,
+            trailer,
             driver: Driver::new(
                 match role {
                     Role::Traffic => ControllerKind::Simple,
@@ -184,10 +195,6 @@ impl AiCar {
 
     pub fn pose(&self, alpha: f32) -> CarPose {
         self.previous.lerp(&self.current, alpha)
-    }
-
-    pub fn rig(&self) -> &CarRig {
-        &self.rig
     }
 
     pub fn is_finite(&self) -> bool {
@@ -305,6 +312,10 @@ impl AiCar {
         for &(id, _) in &impact.knocked {
             props.knock(id);
         }
+        if let Some(trailer) = self.trailer.as_mut() {
+            let brakes = Brakes { brake: self.controls.brake, handbrake: self.controls.handbrake > 0.5 };
+            trailer.step(&mut self.sim, brakes, collision, props, surfaces);
+        }
         self.previous = self.current;
         self.current = self.sim.pose();
         self.steps += 1;
@@ -397,11 +408,6 @@ impl AiCar {
                 self.speed = think.speed;
             }
         }
-    }
-
-    /// The car's physics, for hits between cars.
-    pub(super) fn sim_mut(&mut self) -> &mut CarSim {
-        &mut self.sim
     }
 
     /// A hit with impulse `impulse` (N s). A hard one shocks the car; one with the player's car also starts an
