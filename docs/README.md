@@ -39,6 +39,7 @@ against the install at `D:/Need For Speed Most Wanted Black Edition`.
 | [hud-layout.md](hud-layout.md) | PC widescreen, centered and Xbox-scaled HUD presets |
 | [tire-effects.md](tire-effects.md) | Tire smoke, ground-following marks, runtime controls and reproducible driving checks |
 | [vehicle-effects.md](vehicle-effects.md) | Optional collision sparks and high-speed wind trails using stock-install definitions |
+| [exhaust-flames.md](exhaust-flames.md) | Tail-pipe flames for nitrous, gear changes and lift-off sputter pops: the `exhaust_flames` setting, console, budgets and checks |
 | [controller-settings.md](controller-settings.md) | Independent response options and saved keyboard, mouse and gamepad rebinding |
 | [rust-stack.md](rust-stack.md) | Crates used and planned, with versions and licenses; rejected options |
 | [decisions/](decisions/0001-bevy.md) | Architecture decision records: [0001 Bevy as the game framework](decisions/0001-bevy.md) (proposed) |

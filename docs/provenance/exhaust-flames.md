@@ -16,7 +16,7 @@
     change of forward gear. The curve basis `hermite_basis` and the platform particle blend state are not in the
     sources either (inferred, see the spec).
   - The lift-off backfire (a short flame at each sputter pop while off the throttle), the `exhaust_flames`
-    setting, the particle budgets and the loading only while the setting is on are the rewrite's own design
+    setting, the 4x alpha gain of the additive particles, the particle budgets and the loading only while the setting is on are the rewrite's own design
     (spec section 8); the original ties no visual to the sputters.
   - The installed engine upgrade level is a console setting (default 0), not career data.
   - Only the player's car; the miss-shift smoke (drag races), distance culling and the global particle caps are

@@ -267,8 +267,8 @@ frame the notice waits for the next physics step. The tuner car's forced backfir
 (engine-sound-aems.md section 5).
 
 Without sound (`--no-sound`, no output device, screenshot runs, no sputter bank in the car's set) there are no
-notices and so no lift-off backfire; nitrous and the blow-off do not depend on the sound. `exhaust-flames pop`
-raises one notice by hand, which is how the backfire is screenshot.
+notices and so no lift-off backfire; nitrous and the blow-off do not depend on the sound. `exhaust-flames pop` and the `pop` key of a
+`--drive-script` raise one notice by hand, which is how the backfire is screenshot.
 
 ### 8.4 Budgets
 
@@ -282,9 +282,18 @@ raises one notice by hand, which is how the backfire is screenshot.
 - Emitters with no particles and not flaming are not stepped.
 - The flames are drawn depth-tested without depth writes and are not part of the tire or collision effect budgets.
 
-### 8.5 Checks
+### 8.5 Brightness
+
+The emitter data gives the fire an alpha of 40 to 60 of 255, and the platform blend state is not in the sources
+(section 6). Drawn as `src * alpha + dst` the flame is nearly invisible against a lit road in a screenshot of the
+rewrite (tried). The rewrite therefore multiplies the alpha of **additive** particles by `ADDITIVE_GAIN` (4,
+clamped at 255); alpha-blended ones are untouched. This is a host enhancement to be tuned against the running
+original, not a reading of it.
+
+### 8.6 Checks
 
 `exhaust-flames` (F12) prints the pipes, the engine level, the live particles and the state; `exhaust-flames engine
-<n>` sets the level and `exhaust-flames pop` fakes one sputter notice. A scripted run screenshots the nitrous:
-`nfsmw view-world --drive --drive-script "3:throttle=1;1.5:throttle=1,nos=1" --screenshot nos.png` (the script ends
-while the nitrous burns), and `--exec "exhaust-flames pop"` after a throttle script shows the backfire.
+<n>` sets the level and `exhaust-flames pop` fakes one sputter notice. A scripted run screenshots the flames at the
+end of its script: the nitrous with a last segment `nos=1` (the car must be moving: it burns only in gear, on the
+throttle and above a minimum speed), the backfire with a last, very short segment `0.05:pop` (a scripted run has
+no sound, so the key stands for the notice).
