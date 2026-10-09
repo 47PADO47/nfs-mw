@@ -9,12 +9,15 @@
 //! - [`api`](crate::api): the types callers use;
 //! - [`backend`](crate::Backend): the user-selectable graphics backend;
 //! - [`ui`](crate::UiLayer): the 2D layer drawn over the scene (consoles, overlays, menus);
-//! - `gpu/`: the wgpu implementation (device setup, resources, pipelines, frames).
+//! - [`render_scale`](crate::scaled_size): the internal render size relative to the surface;
+//! - `gpu/`: the wgpu implementation (device setup, resources, pipelines, the offscreen HDR
+//!   targets, the post-process chain, frames).
 
 mod api;
 mod backend;
 mod effects;
 mod gpu;
+mod render_scale;
 mod ui;
 
 pub use api::{
@@ -24,4 +27,5 @@ pub use api::{
 pub use backend::{Backend, ParseBackendError};
 pub use effects::{DEFAULT_SOFT_DISTANCE, EffectLayer, EffectVertex, TexturedEffect};
 pub use gpu::Renderer;
+pub use render_scale::{DEFAULT_RENDER_SCALE, MAX_RENDER_SCALE, MIN_RENDER_SCALE, clamp_render_scale, scaled_size};
 pub use ui::{UiLayer, UiMesh, UiTextureId, UiTexturePatch, UiVertex};
