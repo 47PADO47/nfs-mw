@@ -8,7 +8,7 @@ use crate::devtools::{ShowMetrics, ShowReadout};
 use crate::settings::{HudLayout, MinimapMode, Percent, Settings, Transmission, parse_bool};
 
 /// Settings the console can show.
-const KEYS: [&str; 31] = [
+const KEYS: [&str; 33] = [
     "deadzone_mode",
     "steering_deadzone",
     "camera_deadzone",
@@ -40,6 +40,8 @@ const KEYS: [&str; 31] = [
     "transmission",
     "minimap",
     "hud_layout",
+    "manual_clutch",
+    "h_shifter",
 ];
 
 /// The text for `get <key>`, or an error naming the valid keys.
@@ -76,6 +78,8 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "transmission" => settings.transmission.to_string(),
         "minimap" => settings.minimap.to_string(),
         "hud_layout" | "hud-layout" => settings.hud_layout.to_string(),
+        "manual_clutch" => on_off(settings.manual_clutch).to_owned(),
+        "h_shifter" => on_off(settings.h_shifter).to_owned(),
         other => return Err(unknown(other)),
     };
     Ok(format!("{key} = {value}"))
@@ -123,6 +127,8 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "transmission" => settings.transmission = Transmission::from_str(value)?,
         "minimap" => settings.minimap = MinimapMode::from_str(value)?,
         "hud_layout" | "hud-layout" => settings.hud_layout = HudLayout::from_str(value)?,
+        "manual_clutch" => settings.manual_clutch = parse_bool(value)?,
+        "h_shifter" => settings.h_shifter = parse_bool(value)?,
         "backend" => return Err("the graphics backend cannot change while running; restart with --backend".into()),
         other => return Err(unknown(other)),
     }
@@ -140,6 +146,8 @@ fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
         "collision_sparks" => Some(&mut settings.collision_sparks),
         "speed_trails" => Some(&mut settings.speed_trails),
         "radio" => Some(&mut settings.radio),
+        "manual_clutch" => Some(&mut settings.manual_clutch),
+        "h_shifter" => Some(&mut settings.h_shifter),
         _ => None,
     }
 }
@@ -231,6 +239,19 @@ mod tests {
         assert_eq!(s.transmission, Transmission::Manual);
         assert!(set(&mut s, "transmission", "sport").is_err());
         assert_eq!(s.transmission, Transmission::Manual);
+    }
+
+    #[test]
+    fn the_wheel_switches_start_off_and_can_be_set_or_flipped() {
+        let mut s = defaults();
+        assert_eq!(get(&s, "manual_clutch").unwrap(), "manual_clutch = off");
+        assert_eq!(get(&s, "h_shifter").unwrap(), "h_shifter = off");
+        assert_eq!(set(&mut s, "manual_clutch", "on").unwrap(), "manual_clutch = on");
+        assert_eq!(set(&mut s, "h_shifter", "").unwrap(), "h_shifter = on");
+        assert!(s.wheel_options().manual_clutch && s.wheel_options().h_shifter);
+        assert!(set(&mut s, "manual_clutch", "pedal").is_err());
+        assert!(s.manual_clutch, "a bad value leaves the setting alone");
+        assert!(get_all(&s).contains("h_shifter = on"));
     }
 
     #[test]

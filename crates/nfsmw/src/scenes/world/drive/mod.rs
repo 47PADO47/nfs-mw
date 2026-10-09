@@ -25,7 +25,7 @@ use super::road::{self, Spawn};
 use super::space;
 use super::vehicle_effects::VehicleEffects;
 use crate::input::ActionState;
-use crate::settings::Transmission;
+use crate::settings::{Transmission, WheelOptions};
 use crate::viewer::camera::{ChaseCamera, Followed};
 use clock::FixedClock;
 pub use debug::{ContactMarkers, LEGEND as MARKER_LEGEND, MarkerMeshes};
@@ -95,6 +95,8 @@ pub struct Drive {
     presses: Presses,
     /// Who changes gear.
     transmission: Transmission,
+    /// The wheel's clutch pedal and H-shifter switches.
+    wheel: WheelOptions,
     /// The contact points of `debug collisions`.
     markers: ContactMarkers,
 }
@@ -135,13 +137,9 @@ impl Drive {
             last_check: 0,
             presses: Presses::default(),
             transmission: Transmission::default(),
+            wheel: WheelOptions::default(),
             markers: ContactMarkers::default(),
         }
-    }
-
-    /// Who changes gear from now on (the transmission setting).
-    pub fn set_transmission(&mut self, transmission: Transmission) {
-        self.transmission = transmission;
     }
 
     /// The map position residency should follow, if the car is not on the road yet.
@@ -270,11 +268,12 @@ impl Drive {
         }
         let steps = if batch { SCRIPT_STEPS_PER_UPDATE } else { self.clock.advance(dt) };
         let Some(sim) = self.sim.as_mut() else { return };
-        let player = DriveInput::from_actions(actions);
+        let player = DriveInput::from_actions(actions, self.wheel);
         if self.script.is_none() {
             self.presses.note(&player);
         }
         sim.set_automatic(self.transmission.is_automatic());
+        sim.set_wheel_options(self.wheel);
         let ground = WorldGround { collision, surfaces };
         let mut want_reset = false;
         for n in 0..steps {

@@ -10,16 +10,44 @@ use super::snapshot::Snapshot;
 const PRESSED: f32 = 0.5;
 
 /// What game code reads. Resolved once per frame from the [`Bindings`] and the device state.
-#[derive(Resource, Debug, Default, Clone)]
+#[derive(Resource, Debug, Clone)]
 pub struct ActionState {
     now: [f32; Action::ALL.len()],
     before: [f32; Action::ALL.len()],
+    /// The UI had the keyboard when the actions were last resolved, so every game action reads as released.
+    typing: bool,
+}
+
+impl Default for ActionState {
+    fn default() -> Self {
+        Self { now: [0.0; Action::ALL.len()], before: [0.0; Action::ALL.len()], typing: false }
+    }
 }
 
 impl ActionState {
+    /// Resolve the actions from the keys held and the analog button pulls, for tests of code that reads actions.
+    #[cfg(test)]
+    pub fn update_for_test(
+        &mut self,
+        bindings: &Bindings,
+        keys: &[bevy_input::keyboard::KeyCode],
+        triggers: &[(bevy_input::gamepad::GamepadButton, f32)],
+        ui_focus: bool,
+    ) {
+        let mut snapshot = Snapshot::default();
+        snapshot.keys.extend(keys.iter().copied());
+        snapshot.pad_triggers.extend(triggers.iter().copied());
+        self.update(bindings, &snapshot, ui_focus);
+    }
+
     /// The action's value: a signed amount for axes, 0 or 1 for buttons.
     pub fn value(&self, action: Action) -> f32 {
         self.now[action.index()]
+    }
+
+    /// The UI (the console) has the keyboard: the game actions read as released, which is not the player letting go.
+    pub fn typing(&self) -> bool {
+        self.typing
     }
 
     pub fn pressed(&self, action: Action) -> bool {
@@ -35,6 +63,7 @@ impl ActionState {
     /// With `ui_focus` (typing in the console), only the actions that work in the UI stay live.
     pub fn update(&mut self, bindings: &Bindings, snapshot: &Snapshot, ui_focus: bool) {
         self.before = self.now;
+        self.typing = ui_focus;
         self.now = [0.0; Action::ALL.len()];
         for b in &bindings.0 {
             self.now[b.action.index()] += b.value(snapshot);

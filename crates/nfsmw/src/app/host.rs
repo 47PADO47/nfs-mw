@@ -8,7 +8,7 @@ use bevy_ecs::resource::Resource;
 use blackbox_render::Renderer;
 
 use super::pacing::FrameLimiter;
-use crate::settings::{Settings, SmokeQuality, Transmission};
+use crate::settings::{Settings, SmokeQuality, Transmission, WheelOptions};
 use crate::viewer::Scene;
 
 pub struct Host {
@@ -35,6 +35,8 @@ pub struct Host {
     spark_style: crate::settings::SparkStyle,
     /// The transmission setting as of the last frame, given to every scene that is put in the window.
     pub transmission: Transmission,
+    /// The wheel switches as of the last frame, given to every scene that is put in the window.
+    pub wheel: WheelOptions,
 }
 
 impl Host {
@@ -60,6 +62,7 @@ impl Host {
             vehicle_effects: [settings.collision_sparks, settings.speed_trails],
             spark_style: settings.spark_style,
             transmission: settings.transmission,
+            wheel: settings.wheel_options(),
         }
     }
 
@@ -73,6 +76,7 @@ impl Host {
         let renderer = self.renderer.as_mut().ok_or_else(|| anyhow::anyhow!("the renderer is not ready"))?;
         scene.init(renderer)?;
         scene.set_transmission(self.transmission);
+        scene.set_wheel_options(self.wheel);
         if self.screenshot.is_some() {
             super::screenshot::wait_ready(scene.as_mut(), renderer);
         }

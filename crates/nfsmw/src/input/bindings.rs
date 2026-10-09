@@ -42,6 +42,13 @@ pub enum Source {
     PadButton(GamepadButton),
     /// An analog trigger: 0 released, 1 fully pulled (a pad without analog triggers reports 0 or 1).
     PadTrigger(GamepadButton),
+    /// A pedal reported as a full-range axis, as a steering wheel's pedals often are: -1 at one end of the travel and
+    /// +1 at the other. `inverted` is for a pedal that reads +1 when released. Read as 0 (released) to 1 (pressed);
+    /// until the axis has reported once the pedal counts as released.
+    PedalAxis {
+        axis: GamepadAxis,
+        inverted: bool,
+    },
 }
 
 /// `source` adds `scale` (× the seconds of the frame, if `per_second`) to `action`.
@@ -78,6 +85,10 @@ impl Binding {
             Source::MouseButton(b) => f32::from(u8::from(s.buttons.contains(&b))),
             Source::PadAxis(a) => self.axis_response(s.pad_axis(a), s),
             Source::PadButton(b) => f32::from(u8::from(s.pad_buttons.contains(&b))),
+            Source::PedalAxis { axis, inverted } => s.controls.trigger_deadzone.apply_mode(
+                s.pad_axes.get(&axis).map_or(0.0, |raw| pedal_travel(*raw, inverted)),
+                s.controls.deadzone_mode,
+            ),
             Source::PadTrigger(b) => s.controls.trigger_deadzone.apply_mode(
                 s.pad_triggers.get(&b).copied().unwrap_or_else(|| s.pad_button_value(b)).max(0.0),
                 s.controls.deadzone_mode,
@@ -107,6 +118,15 @@ impl Binding {
         }
         deadzone(raw)
     }
+}
+
+/// Travel of a pedal on a full-range axis: 0 released, 1 pressed.
+fn pedal_travel(raw: f32, inverted: bool) -> f32 {
+    if !raw.is_finite() {
+        return 0.0;
+    }
+    let raw = raw.clamp(-1.0, 1.0);
+    (if inverted { 1.0 - raw } else { 1.0 + raw }) / 2.0
 }
 
 /// Rescale so the output still reaches 1 at full deflection.
@@ -208,7 +228,8 @@ fn menus() -> Vec<Binding> {
 /// Driving: W/S or the arrows for the pedals, A/D or the arrows to steer, Space for the handbrake,
 /// E/Q (or Right Shift/Ctrl) to shift up/down, Left Shift for nitrous, R to reset the car, F to toggle the camera.
 /// On a pad the triggers are the pedals, the left stick steers, the right/left bumper shifts up/down.
-/// A wheel's paddles are extra buttons: see [`paddles`].
+/// A wheel's paddles are extra buttons: see [`paddles`]. Its axes, pedals, clutch and H-shifter gears have no
+/// default: the codes depend on the device, so they come from the `[bindings]` table or the console.
 fn driving() -> Vec<Binding> {
     use Action::*;
     let key = Source::Key;
@@ -228,6 +249,7 @@ fn driving() -> Vec<Binding> {
         Binding::new(ShiftUp, key(KeyCode::ShiftRight), 1.0),
         Binding::new(ShiftDown, key(KeyCode::ControlLeft), 1.0),
         Binding::new(ShiftDown, key(KeyCode::ControlRight), 1.0),
+        Binding::new(Clutch, key(KeyCode::KeyZ), 1.0),
         Binding::new(Nos, key(KeyCode::ShiftLeft), 1.0),
         Binding::new(ResetCar, key(KeyCode::KeyR), 1.0),
         Binding::new(ToggleCamera, key(KeyCode::KeyF), 1.0),
@@ -267,6 +289,34 @@ mod tests {
         assert_eq!((p[0].action, p[0].source), (Action::ShiftUp, Source::PadButton(GamepadButton::Other(7))));
         assert_eq!((p[1].action, p[1].source), (Action::ShiftDown, Source::PadButton(GamepadButton::Other(9))));
         assert_eq!(paddles(None, Some(1)).len(), 1);
+    }
+
+    #[test]
+    fn a_full_range_pedal_axis_reads_zero_released_and_one_pressed() {
+        for (raw, inverted, expect) in [
+            (-1.0, false, 0.0),
+            (0.0, false, 0.5),
+            (1.0, false, 1.0),
+            (1.0, true, 0.0),
+            (-1.0, true, 1.0),
+            (0.5, true, 0.25),
+        ] {
+            assert!((pedal_travel(raw, inverted) - expect).abs() < 1e-6, "{raw} {inverted}");
+        }
+        assert_eq!(pedal_travel(f32::NAN, false), 0.0);
+        assert_eq!(pedal_travel(7.0, false), 1.0, "out-of-range input is clamped");
+    }
+
+    #[test]
+    fn a_pedal_axis_that_has_not_reported_counts_as_released() {
+        let axis = GamepadAxis::Other(2);
+        let throttle = Binding::new(Action::Throttle, Source::PedalAxis { axis, inverted: false }, 1.0);
+        let mut s = Snapshot::default();
+        assert_eq!(throttle.value(&s), 0.0, "an unplugged wheel does not floor the car");
+        s.pad_axes.insert(axis, 0.0);
+        assert!((throttle.value(&s) - 0.5).abs() < 1e-6);
+        s.pad_axes.insert(axis, 1.0);
+        assert!((throttle.value(&s) - 1.0).abs() < 1e-6);
     }
 
     #[test]

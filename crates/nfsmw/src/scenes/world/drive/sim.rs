@@ -116,6 +116,12 @@ impl CarSim {
         self.vehicle.config.automatic = automatic;
     }
 
+    /// The wheel's optional controls: the clutch pedal and the gear selector that holds a gear.
+    pub fn set_wheel_options(&mut self, options: crate::settings::WheelOptions) {
+        self.vehicle.config.manual_clutch = options.manual_clutch;
+        self.vehicle.config.h_shifter = options.h_shifter;
+    }
+
     /// One physics step. `world` is the collision the body's walls are tested against (the ground is
     /// `ground`); without it the car only meets the road.
     pub fn step(
@@ -132,6 +138,8 @@ impl CarSim {
             nos: input.nos,
             shift_up: input.shift_up,
             shift_down: input.shift_down,
+            gear_select: input.gear_select,
+            clutch: input.clutch,
         };
         self.vehicle.step(FIXED_STEP, &input, ground);
         let impact = match world {
