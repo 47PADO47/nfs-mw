@@ -1076,6 +1076,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "blackbox-gfx-testkit"
+version = "0.1.0"
+dependencies = [
+ "blackbox-gfx",
+ "glam 0.34.1",
+]
+
+[[package]]
 name = "blackbox-ginsu"
 version = "0.1.0"
 dependencies = [
