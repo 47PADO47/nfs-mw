@@ -5,6 +5,14 @@
 
 use glam::Vec3;
 
+/// A caller-ordered batch of textured world particles. Textures are owned by the caller.
+#[derive(Debug)]
+pub struct TexturedEffect {
+    pub texture: crate::TextureHandle,
+    pub blend: crate::BlendMode,
+    pub vertices: Vec<EffectVertex>,
+}
+
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct EffectVertex {
@@ -29,6 +37,7 @@ pub struct EffectLayer {
     pub streaks: Vec<EffectVertex>,
     /// Additive circular glow billboards, using the same unit-quad UV coordinates.
     pub glows: Vec<EffectVertex>,
+    pub textured: Vec<TexturedEffect>,
     /// Enable evolving procedural density and depth-softened intersections for particles.
     pub detailed_particles: bool,
     /// Distance in world units over which an intersecting particle fades.
@@ -42,6 +51,7 @@ impl Default for EffectLayer {
             particles: Vec::new(),
             streaks: Vec::new(),
             glows: Vec::new(),
+            textured: Vec::new(),
             detailed_particles: false,
             soft_distance: DEFAULT_SOFT_DISTANCE,
         }
@@ -54,6 +64,7 @@ impl EffectLayer {
         self.particles.clear();
         self.streaks.clear();
         self.glows.clear();
+        self.textured.clear();
     }
 
     /// Append a quad, with corners in perimeter order and UVs from (0,0) to (1,1).

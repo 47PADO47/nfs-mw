@@ -8,14 +8,14 @@ use crate::{DEFAULT_SOFT_DISTANCE, EffectLayer, EffectVertex};
 pub(super) const ATTRIBUTES: [wgpu::VertexAttribute; 4] =
     wgpu::vertex_attr_array![0 => Float32x3, 1 => Unorm8x4, 2 => Float32x2, 3 => Float32x2];
 
-struct Batch {
-    buffer: wgpu::Buffer,
+pub(super) struct Batch {
+    pub(super) buffer: wgpu::Buffer,
     capacity: usize,
-    count: u32,
+    pub(super) count: u32,
 }
 
 impl Batch {
-    fn new(device: &wgpu::Device) -> Self {
+    pub(super) fn new(device: &wgpu::Device) -> Self {
         Self { buffer: Self::allocate(device, 1), capacity: 1, count: 0 }
     }
 
@@ -28,7 +28,7 @@ impl Batch {
         })
     }
 
-    fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, vertices: &[EffectVertex]) {
+    pub(super) fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, vertices: &[EffectVertex]) {
         self.count = vertices.len() as u32;
         if vertices.len() > self.capacity {
             self.capacity = vertices.len().next_power_of_two();
@@ -46,6 +46,7 @@ pub(super) struct Effects {
     soft: SoftParticles,
     detailed: bool,
     soft_distance: f32,
+    pub(super) textured: super::textured_effects::TexturedEffects,
 }
 
 impl Effects {
@@ -118,12 +119,14 @@ impl Effects {
             soft: SoftParticles::new(device, format, shared),
             detailed: false,
             soft_distance: DEFAULT_SOFT_DISTANCE,
+            textured: super::textured_effects::TexturedEffects::new(device, format, shared),
         }
     }
 
     pub(super) fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, layer: &EffectLayer) {
         self.detailed = layer.detailed_particles;
         self.soft_distance = layer.soft_distance;
+        self.textured.upload(device, queue, &layer.textured);
         for (batch, vertices) in
             self.batches.iter_mut().zip([&layer.surfaces, &layer.particles, &layer.streaks, &layer.glows])
         {

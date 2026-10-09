@@ -7,6 +7,8 @@ use super::resources::{self, Globals, Shared};
 use crate::{EffectLayer, EffectVertex};
 
 const BACKGROUND: [u8; 4] = [16, 24, 32, 255];
+#[path = "textured_effect_tests.rs"]
+mod textured;
 
 #[test]
 #[ignore = "needs a Vulkan GPU"]
@@ -26,6 +28,7 @@ struct Gpu {
     queue: wgpu::Queue,
     shared: Shared,
     effects: Effects,
+    textures: super::slots::Slots<wgpu::BindGroup>,
 }
 
 impl Gpu {
@@ -43,7 +46,7 @@ impl Gpu {
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default())).unwrap();
         let shared = Shared::new(&device);
         let effects = Effects::new(&device, wgpu::TextureFormat::Rgba8Unorm, &shared);
-        Self { device, queue, shared, effects }
+        Self { device, queue, shared, effects, textures: super::slots::Slots::new() }
     }
 
     fn sample(&mut self, layer: &EffectLayer, depth: f32, width: u32, fog: [f32; 2]) -> Pixels {
@@ -99,6 +102,7 @@ impl Gpu {
             });
             pass.set_bind_group(0, &self.shared.globals_bind_group, &[]);
             self.effects.draw(&mut pass);
+            self.effects.textured.draw(&mut pass, &self.textures);
         }
         let row = (width * 4).next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
         let readback = self.device.create_buffer(&wgpu::BufferDescriptor {

@@ -5,13 +5,15 @@
 #[allow(dead_code)]
 mod fixture;
 mod links;
+mod pc;
 mod style;
 #[cfg(test)]
 mod synthetic;
 #[cfg(test)]
 mod tests;
 
-pub use links::{CollisionEffects, SparkLink};
+pub use links::{CollisionEffects, PcSparkLink, SparkLink};
+pub use pc::{PC_EMITTERS, PcEmitter};
 pub use style::EmitterStyle;
 
 use blackbox_attrib::{CollectionRef, Database, Value, vlt_hash};

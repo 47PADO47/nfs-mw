@@ -116,3 +116,28 @@ fn installed_bmw_visual_channels_resolve_supported_runtime_styles_and_exclude_wo
     assert_eq!(data.trail, EmitterStyle::read(db.collection("fuelcell_emitter", "trail3").unwrap()));
     assert!(data.trail.is_some());
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn installed_pc_collision_profiles_and_their_textures_resolve_without_mod_assets() {
+    let path = std::env::var_os(crate::game::SPEC.env_var).expect("set NFSMW_GAME_DIR");
+    let dir = game_install::GameDir::open(std::path::PathBuf::from(path)).unwrap();
+    let db = Database::open(&dir.read("GLOBAL/ATTRIBUTES.BIN").unwrap()).unwrap();
+    let textures = crate::world::load_global_textures(&dir).unwrap();
+    for car in ["bmwm3gtr", "cobaltss"] {
+        let data = VisualEffectsData::read(&db, car);
+        let hit = data.collision.pc_hit(vlt_hash("default")).unwrap();
+        let scrape = data.collision.pc_scrape(vlt_hash("default")).unwrap();
+        assert_eq!(hit.emitters.iter().flatten().count(), 3);
+        assert_eq!(scrape.emitters.iter().flatten().count(), 4);
+        assert!(scrape.emitters.iter().flatten().any(|e| e.grid == 2 && e.fps == 20));
+        for e in hit.emitters.iter().chain(&scrape.emitters).flatten() {
+            let texture =
+                textures.textures.iter().find(|t| t.name_hash == e.texture).expect("ordinary PC sprite in base assets");
+            assert_eq!(texture.alpha_blend, 2);
+            assert!(blackbox_tpk::decode_rgba8(texture).is_some());
+        }
+        let wood = data.collision.pc_hit(vlt_hash("wood")).unwrap();
+        assert!(wood.emitters.iter().flatten().all(|e| !hit.emitters.iter().flatten().any(|spark| spark.key == e.key)));
+    }
+}

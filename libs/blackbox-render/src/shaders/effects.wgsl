@@ -7,6 +7,8 @@ struct Globals {
     fog_range: vec4<f32>,
 };
 @group(0) @binding(0) var<uniform> globals: Globals;
+@group(1) @binding(0) var particle_texture: texture_2d<f32>;
+@group(1) @binding(1) var particle_sampler: sampler;
 
 struct VsOut {
     @builtin(position) clip: vec4<f32>,
@@ -69,4 +71,20 @@ fn fs_glow(in: VsOut) -> @location(0) vec4<f32> {
     let distance = length(in.world - globals.camera_pos.xyz);
     let fog = clamp((distance - globals.fog_range.x) / max(globals.fog_range.y - globals.fog_range.x, 0.001), 0.0, 1.0);
     return vec4<f32>(in.color.rgb * (1.0 - fog), in.color.a * mask);
+}
+
+@fragment
+fn fs_textured(in: VsOut) -> @location(0) vec4<f32> {
+    let texel = textureSample(particle_texture, particle_sampler, in.uv);
+    let distance = length(in.world - globals.camera_pos.xyz);
+    let fog = clamp((distance - globals.fog_range.x) / max(globals.fog_range.y - globals.fog_range.x, 0.001), 0.0, 1.0);
+    return vec4<f32>(texel.rgb * in.color.rgb * (1.0 - fog), texel.a * in.color.a);
+}
+
+@fragment
+fn fs_textured_alpha(in: VsOut) -> @location(0) vec4<f32> {
+    let texel = textureSample(particle_texture, particle_sampler, in.uv);
+    let distance = length(in.world - globals.camera_pos.xyz);
+    let fog = clamp((distance - globals.fog_range.x) / max(globals.fog_range.y - globals.fog_range.x, 0.001), 0.0, 1.0);
+    return vec4<f32>(mix(texel.rgb * in.color.rgb, globals.fog_color.rgb, fog), texel.a * in.color.a);
 }

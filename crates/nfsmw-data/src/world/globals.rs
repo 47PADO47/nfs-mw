@@ -8,7 +8,7 @@ use game_install::GameDir;
 use crate::read_unwrapped;
 
 /// Searched in order; a texture already found is not replaced.
-pub const GLOBAL_TEXTURE_FILES: &[&str] = &["GLOBAL/INGAMEA.BUN", "GLOBAL/GLOBALB.LZC"];
+pub const GLOBAL_TEXTURE_FILES: &[&str] = &["GLOBAL/INGAMEA.BUN", "GLOBAL/GLOBALB.LZC", "GLOBAL/INGAMEB.BUN"];
 
 /// Textures and texture animations from the global packs.
 #[derive(Default)]
