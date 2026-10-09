@@ -146,8 +146,9 @@ Rust library has this function ready and tested; nothing calls it yet.
 
 `AdjustForWidescreen(true)` (the game calls it when the HUD changes to a wide aspect ratio) moves the whole
 minimap 120 units to the left: the pieces' x, the arrow's x and the blip centre by -120 (and sets `MinimapPivotX`
-to -120, `MinimapDispX` to -0.9375), `false` moves it back. In this rewrite the HUD is not widescreen aware yet
-([architecture.md](../architecture.md#the-hud)); the minimap stays where the 4:3 layout puts it.
+to -120, `MinimapDispX` to -0.9375), `false` moves it back. The rewrite's
+[HUD viewport](hud-viewport.md) applies the equivalent translation after rotation,
+keeping the pieces, arrow and backing aligned without changing their runtime pivots.
 
 ## What is not known or not done
 

@@ -16,6 +16,9 @@ mod minimap_tests;
 mod plugin;
 mod skin;
 mod state;
+mod viewport;
+#[cfg(test)]
+mod viewport_tests;
 
 pub use plugin::HudPlugin;
 pub use state::{HudState, MapPosition};

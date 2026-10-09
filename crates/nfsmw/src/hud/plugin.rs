@@ -10,6 +10,7 @@ use game_install::GameDir;
 use super::bind::HudBinding;
 use super::minimap::MinimapBinding;
 use super::state::{HudState, MapPosition};
+use super::viewport::HudViewport;
 use crate::app::{FrameSet, Host};
 use crate::gui::UiOutput;
 use crate::settings::Settings;
@@ -34,6 +35,7 @@ struct Hud {
     runtime: Runtime,
     package: PackageId,
     binding: HudBinding,
+    viewport: HudViewport,
 }
 
 impl Plugin for HudPlugin {
@@ -56,7 +58,8 @@ impl Plugin for HudPlugin {
         let package = runtime.load(package);
         let minimap = MinimapBinding::open_city(&runtime, package, &self.dir, &assets);
         let binding = HudBinding::new(&mut runtime, package).with_minimap(minimap);
-        app.insert_resource(Hud { runtime, package, binding })
+        let viewport = HudViewport::new(&runtime.tree(package));
+        app.insert_resource(Hud { runtime, package, binding, viewport })
             .insert_resource(self.initial.clone())
             .add_systems(Update, sync.in_set(FrameSet::SceneUpdate))
             .add_systems(Update, present.in_set(FrameSet::Hud));
@@ -91,7 +94,8 @@ fn present(
     hud.binding.apply(&mut hud.runtime, &state);
     hud.runtime.update(time.delta_secs().min(MAX_STEP));
     let _ = hud.runtime.take_outgoing();
-    let tree = hud.runtime.tree(hud.package);
+    let mut tree = hud.runtime.tree(hud.package);
     let screen = Screen { width: window.width(), height: window.height(), pixels_per_point: window.scale_factor() };
+    hud.viewport.apply(&mut tree, screen, settings.hud_layout);
     presenter.0.present(&tree, &assets.0, screen, &mut out);
 }

@@ -3,7 +3,7 @@
 use std::str::FromStr;
 
 use super::partial::{Partial, Percent, parse_bool};
-use super::{MinimapMode, Transmission};
+use super::{HudLayout, MinimapMode, Transmission};
 use super::{Monitor, Resolution, SmokeQuality, WindowMode};
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
@@ -26,6 +26,7 @@ pub const SMOKE_QUALITY: &str = "NFSMW_SMOKE_QUALITY";
 pub const SKID_MARKS: &str = "NFSMW_SKID_MARKS";
 pub const TRANSMISSION: &str = "NFSMW_TRANSMISSION";
 pub const MINIMAP: &str = "NFSMW_MINIMAP";
+pub const HUD_LAYOUT: &str = "NFSMW_HUD_LAYOUT";
 pub const PADDLE_UP: &str = "NFSMW_PADDLE_UP";
 pub const PADDLE_DOWN: &str = "NFSMW_PADDLE_DOWN";
 
@@ -51,6 +52,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         skid_marks: value(&get, SKID_MARKS, parse_bool),
         transmission: value(&get, TRANSMISSION, Transmission::from_str),
         minimap: value(&get, MINIMAP, MinimapMode::from_str),
+        hud_layout: value(&get, HUD_LAYOUT, HudLayout::from_str),
         paddle_up: value(&get, PADDLE_UP, |s| s.trim().parse::<u32>().map_err(|e| e.to_string())),
         paddle_down: value(&get, PADDLE_DOWN, |s| s.trim().parse::<u32>().map_err(|e| e.to_string())),
     }

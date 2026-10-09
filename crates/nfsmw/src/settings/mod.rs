@@ -5,6 +5,9 @@
 
 mod env;
 mod file;
+mod hud_layout;
+#[cfg(test)]
+mod hud_layout_tests;
 mod minimap;
 mod partial;
 mod smoke_quality;
@@ -18,6 +21,7 @@ mod write;
 
 use blackbox_render::Backend;
 
+pub use hud_layout::HudLayout;
 pub use minimap::MinimapMode;
 pub use partial::{Partial, Percent, parse_bool};
 pub use smoke_quality::SmokeQuality;
@@ -56,6 +60,8 @@ pub struct Settings {
     pub transmission: Transmission,
     /// How the HUD's minimap is shown: fixed (default), rotating or off.
     pub minimap: MinimapMode,
+    /// Placement and scale of the in-game HUD.
+    pub hud_layout: HudLayout,
     /// Gamepad button codes of a steering wheel's shift paddles (`GamepadButton::Other`), if the player gave them.
     pub paddle_up: Option<u32>,
     pub paddle_down: Option<u32>,
@@ -83,6 +89,7 @@ impl From<Partial> for Settings {
             skid_marks: p.skid_marks.unwrap_or(true),
             transmission: p.transmission.unwrap_or_default(),
             minimap: p.minimap.unwrap_or_default(),
+            hud_layout: p.hud_layout.unwrap_or_default(),
             paddle_up: p.paddle_up,
             paddle_down: p.paddle_down,
         }

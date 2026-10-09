@@ -7,7 +7,7 @@ use super::ids::{LABEL_OFF, LABEL_ON};
 use super::logic::Category;
 use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
-use crate::settings::{Partial, Percent, Settings, SmokeQuality, Transmission, WindowMode};
+use crate::settings::{HudLayout, Partial, Percent, Settings, SmokeQuality, Transmission, WindowMode};
 
 /// A setting a row edits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -25,6 +25,7 @@ pub enum Setting {
     SkidMarks,
     SmokeQuality,
     Transmission,
+    HudLayout,
 }
 
 /// What a row's title shows.
@@ -82,6 +83,7 @@ pub fn rows(category: Category) -> Vec<Row> {
             vec![
                 row(Setting::Hud, Title::Label(0xAC14_8579)),
                 row(Setting::Transmission, Title::Label(LABEL_TRANSMISSION)),
+                row(Setting::HudLayout, Title::Text("HUD Layout")),
             ]
         }
     }
@@ -121,6 +123,14 @@ impl Setting {
     /// What the data string shows for a toggle.
     pub fn data(self, s: &Settings) -> Data {
         match self {
+            Setting::HudLayout => Data::Text(
+                match s.hud_layout {
+                    HudLayout::Pc => "PC",
+                    HudLayout::Classic => "Centered",
+                    HudLayout::Xbox360 => "Xbox 360",
+                }
+                .to_owned(),
+            ),
             Setting::Vsync => on_off(s.vsync),
             Setting::Hud => on_off(s.hud),
             Setting::TireSmoke => on_off(s.tire_smoke),
@@ -165,6 +175,12 @@ impl Setting {
     pub fn step(self, s: &mut Settings, changed: &mut Partial, forward: bool) -> bool {
         let before = *s;
         match self {
+            Setting::HudLayout => {
+                let layouts = [HudLayout::Pc, HudLayout::Classic, HudLayout::Xbox360];
+                let at = layouts.iter().position(|layout| *layout == s.hud_layout).unwrap_or(0);
+                s.hud_layout = layouts[cycle(at, layouts.len(), forward)];
+                changed.hud_layout = Some(s.hud_layout);
+            }
             Setting::MasterVolume => {
                 s.master_volume = nudge(s.master_volume, forward);
                 changed.master_volume = Some(s.master_volume);
@@ -298,7 +314,7 @@ mod tests {
     fn every_category_has_rows() {
         assert_eq!(rows(Category::Audio).len(), 4);
         assert_eq!(rows(Category::Video).len(), 7);
-        assert_eq!(rows(Category::Gameplay).len(), 2);
+        assert_eq!(rows(Category::Gameplay).len(), 3);
     }
 
     #[test]
