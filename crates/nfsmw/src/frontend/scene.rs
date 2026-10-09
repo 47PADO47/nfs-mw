@@ -153,6 +153,15 @@ impl Scene for Pausable {
         self.effects_dirty = true;
     }
 
+    fn set_exhaust_flames(&mut self, on: bool) {
+        self.inner.set_exhaust_flames(on);
+        self.effects_dirty = true;
+    }
+
+    fn note_sputters(&mut self, pops: u32) {
+        self.inner.note_sputters(pops);
+    }
+
     fn fullscreen(&mut self) -> Option<Fullscreen> {
         self.inner.fullscreen()
     }

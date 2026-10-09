@@ -1,5 +1,5 @@
-//! When the tail pipes flame (docs/specs/exhaust-flames.md, section 2): the nitrous, and the blow-off after a gear
-//! change of an engine that allows it.
+//! When the tail pipes flame (docs/specs/exhaust-flames.md, sections 2 and 8.3): the nitrous, the blow-off after a
+//! gear change of an engine that allows it, and the backfire at a sputter pop while off the throttle.
 
 /// Speed (m/s) below which a gear change does not flame.
 pub const MIN_SHIFT_SPEED: f32 = 10.0;
@@ -77,9 +77,56 @@ impl ShiftEvent {
     }
 }
 
-/// Whether the pipes flame this step: the nitrous burning, or a running shift event on an engine that allows it.
-pub fn pipes_flame(nitrous: bool, blowoff: bool, shift: &ShiftEvent) -> bool {
-    nitrous || (blowoff && shift.active())
+/// Seconds a flame lasts after a sputter pop, and how strongly the emitters spawn meanwhile.
+pub const BACKFIRE_SECONDS: f32 = 0.06;
+pub const BACKFIRE_INTENSITY: f32 = 0.5;
+/// Throttle below which the driver is off the pedal, so that a pop is a lift-off backfire.
+pub const LIFT_OFF_THROTTLE: f32 = 0.15;
+
+/// The flame a sputter pop leaves: it runs a short time and a new pop restarts it.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct Backfire {
+    left: f32,
+}
+
+impl Backfire {
+    /// Note the pops of this step: they start the flame when the driver is off the throttle in a forward gear.
+    pub fn pops(&mut self, pops: u32, throttle: f32, gear: i32) {
+        if pops == 0 || throttle >= LIFT_OFF_THROTTLE || !is_forward(gear) {
+            return;
+        }
+        self.start();
+    }
+
+    /// Light the flame whatever the driver does (the console's `pop`).
+    pub fn start(&mut self) {
+        self.left = BACKFIRE_SECONDS;
+    }
+
+    pub fn active(&self) -> bool {
+        self.left > 0.0
+    }
+
+    /// Run the flame's clock after the step it was used in.
+    pub fn advance(&mut self, dt: f32) {
+        self.left = (self.left - dt).max(0.0);
+    }
+
+    pub fn reset(&mut self) {
+        *self = Self::default();
+    }
+}
+
+/// How strongly the pipes spawn this step, 0 for quiet: full for the nitrous or a running shift event on an engine
+/// that allows it, [`BACKFIRE_INTENSITY`] for a backfire alone.
+pub fn flame_intensity(nitrous: bool, blowoff: bool, shift: &ShiftEvent, backfire: &Backfire) -> f32 {
+    if nitrous || (blowoff && shift.active()) {
+        return 1.0;
+    }
+    match backfire.active() {
+        true => BACKFIRE_INTENSITY,
+        false => 0.0,
+    }
 }
 
 #[cfg(test)]
@@ -169,13 +216,50 @@ mod tests {
 
     #[test]
     fn the_nitrous_flames_regardless_and_the_blow_off_needs_the_flag_and_an_event() {
-        let mut shift = ShiftEvent::default();
-        assert!(!pipes_flame(false, true, &shift));
-        assert!(pipes_flame(true, false, &shift));
+        let (mut shift, back) = (ShiftEvent::default(), Backfire::default());
+        assert_eq!(flame_intensity(false, true, &shift, &back), 0.0);
+        assert_eq!(flame_intensity(true, false, &shift, &back), 1.0);
         shift.note_gear(2);
         shift.note_gear(3);
         shift.advance(STEP, 3, 40.0, RACER);
-        assert!(pipes_flame(false, true, &shift));
-        assert!(!pipes_flame(false, false, &shift));
+        assert_eq!(flame_intensity(false, true, &shift, &back), 1.0);
+        assert_eq!(flame_intensity(false, false, &shift, &back), 0.0);
+    }
+
+    #[test]
+    fn a_pop_off_the_throttle_in_a_forward_gear_backfires_for_a_short_time() {
+        let mut back = Backfire::default();
+        back.pops(0, 0.0, 3);
+        assert!(!back.active(), "no pop, no flame");
+        back.pops(1, 0.0, 3);
+        let mut steps = 0;
+        while back.active() {
+            steps += 1;
+            back.advance(STEP);
+        }
+        // 0.06 s at 60 Hz: the flame is used in four steps.
+        assert_eq!(steps, 4);
+        assert_eq!(flame_intensity(false, false, &ShiftEvent::default(), &Backfire { left: 0.05 }), BACKFIRE_INTENSITY);
+    }
+
+    #[test]
+    fn a_pop_under_power_in_reverse_or_in_neutral_does_not_backfire() {
+        for (throttle, gear) in [(LIFT_OFF_THROTTLE, 3), (1.0, 3), (0.0, 0), (0.0, -1)] {
+            let mut back = Backfire::default();
+            back.pops(5, throttle, gear);
+            assert!(!back.active(), "throttle {throttle}, gear {gear}");
+        }
+    }
+
+    #[test]
+    fn a_new_pop_restarts_the_flame_and_the_stronger_triggers_win() {
+        let mut back = Backfire::default();
+        back.start();
+        back.advance(0.05);
+        back.pops(1, 0.0, 2);
+        assert_eq!(back, Backfire { left: BACKFIRE_SECONDS });
+        assert_eq!(flame_intensity(true, false, &ShiftEvent::default(), &back), 1.0, "the nitrous is stronger");
+        back.reset();
+        assert!(!back.active());
     }
 }

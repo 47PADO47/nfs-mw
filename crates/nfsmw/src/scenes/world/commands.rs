@@ -18,8 +18,8 @@ pub(super) const LIST: &[(&str, &str)] = &[
     ("tire-effects [status|clear|smoke on/off|marks on/off]", "tire visual controls and bounded resource counts"),
     ("vehicle-effects [status|clear]", "collision spark and speed-trail resource counts"),
     (
-        "exhaust-flames [status|on|off|engine <level>]",
-        "the tail-pipe flames: nitrous and gear-change blow-off; the engine upgrade level",
+        "exhaust-flames [status|engine <level>|pop]",
+        "the tail-pipe flames (setting exhaust_flames): status, the engine upgrade level, fake a sputter backfire",
     ),
     ("debug collisions [on|off]", "draw the car's contact points: wall hits, tyre rays, props (no argument: toggle)"),
 ];
@@ -73,7 +73,7 @@ fn tire_effects(scene: &mut WorldScene, renderer: &mut Renderer, args: &[&str]) 
 
 fn exhaust_flames(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
     let drive = scene.drive.as_mut().ok_or("not driving (use the drive command)")?;
-    drive.effects.flames.command(args)
+    drive.flames.command(args)
 }
 
 fn drive(scene: &mut WorldScene, renderer: &mut Renderer, args: &[&str]) -> Result<String, String> {

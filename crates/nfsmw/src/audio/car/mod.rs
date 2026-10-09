@@ -171,6 +171,11 @@ impl Audio {
         self.car = Some(car);
     }
 
+    /// The pops of the car's sputter since the last call (0 without a car, a sample layer or sputters).
+    pub fn take_sputter_pops(&mut self) -> u32 {
+        self.car.as_mut().and_then(|car| car.aems.as_mut()).map_or(0, AemsLayer::take_pops)
+    }
+
     fn start_car(&mut self, name: &str) -> Result<CarAudio, String> {
         let loaded = self.load_car_engine(name)?;
         let tuning = tuning(&loaded.sound, loaded.accel_min_frequency());

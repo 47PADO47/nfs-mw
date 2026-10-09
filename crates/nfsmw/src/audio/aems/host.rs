@@ -44,6 +44,15 @@ pub struct Voices {
     reported: Vec<u32>,
     /// A requested voice could not be decoded or started. The engine cannot promise a limiter replacement.
     pub(super) failed: bool,
+    /// Voices the module has started since [`Voices::take_started`] (for the sputter, its pops).
+    started: u32,
+}
+
+impl Voices {
+    /// The voices started since the last call.
+    pub fn take_started(&mut self) -> u32 {
+        std::mem::take(&mut self.started)
+    }
 }
 
 /// A module's host for one update: its voices over a sampler.
@@ -95,6 +104,7 @@ impl Host for PartHost<'_> {
             self.voices.slots.resize_with(player + 1, || None);
         }
         self.voices.slots[player] = Some(voice);
+        self.voices.started = self.voices.started.saturating_add(1);
         true
     }
 

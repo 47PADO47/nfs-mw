@@ -3,12 +3,14 @@
 mod commands;
 mod drive;
 mod effects;
+mod exhaust;
 mod ground;
 mod props;
 mod residency;
 mod resident;
 mod road;
 mod space;
+mod start;
 mod vehicle_effects;
 mod visibility;
 mod zone;
@@ -18,13 +20,12 @@ use blackbox_render::{FrameParams, Instance, Renderer};
 use game_install::GameDir;
 use glam::Vec3;
 use nfsmw_data::car::CarModel;
-use nfsmw_data::car::physics::{CarPhysics, PhysicsData};
+use nfsmw_data::car::physics::PhysicsData;
 use nfsmw_data::world::{DEFAULT_TRACK, PropCatalog, Streamer, WorldIndex, load_global_textures};
 
 use crate::input::{Action, ActionState};
 use crate::viewer::{Scene, camera::FlyCamera};
-use drive::{CarRig, Drive, DriveScript, MarkerMeshes, SpawnRequest};
-use effects::ExhaustFlames;
+use drive::{Drive, DriveScript, MarkerMeshes};
 use residency::Residency;
 
 pub struct Options {
@@ -86,6 +87,7 @@ pub struct WorldScene {
     physics: PhysicsData,
     tire_effects: [bool; 2],
     vehicle_effects: [bool; 2],
+    exhaust_flames: bool,
     spark_style: crate::settings::SparkStyle,
     smoke_quality: crate::settings::SmokeQuality,
     /// `debug collisions` is on: the car's contact points are drawn.
@@ -164,6 +166,7 @@ impl WorldScene {
             physics,
             tire_effects: [true; 2],
             vehicle_effects: [false; 2],
+            exhaust_flames: false,
             spark_style: crate::settings::SparkStyle::OriginalPc,
             smoke_quality: crate::settings::SmokeQuality::Standard,
             markers_on: false,
@@ -183,52 +186,6 @@ impl WorldScene {
             },
             _ => [self.camera.position.x, self.camera.position.y],
         }
-    }
-
-    /// The physics of the car `model` was assembled as.
-    fn physics_of(&mut self, model: &CarModel) -> Result<CarPhysics> {
-        let type_name = model.car_type.as_deref().context("this car is not in the car tables, so it has no physics")?;
-        self.physics.car(type_name)
-    }
-
-    /// Start (or restart) driving `model` from the camera's place.
-    fn start_driving(
-        &mut self,
-        renderer: &mut Renderer,
-        name: String,
-        model: CarModel,
-        script: Option<DriveScript>,
-    ) -> Result<()> {
-        let physics = self.physics_of(&model)?;
-        let visuals = nfsmw_data::vehicle_effects::VisualEffectsData::read(
-            self.physics.database(),
-            model.car_type.as_deref().unwrap_or(&name),
-        );
-        let flames = ExhaustFlames::load(renderer, &self.dir, self.physics.database(), &model);
-        let rig = CarRig::upload(renderer, model);
-        let [x, y] = self.focus();
-        match self.drive.as_mut() {
-            Some(drive) => {
-                drive.set_car(renderer, name.clone(), rig, physics, visuals);
-                drive.respawn_near([x, y], None);
-            }
-            None => {
-                let request =
-                    SpawnRequest { near: [self.camera.position.x, self.camera.position.y], heading: None, exact: None };
-                self.drive = Some(Drive::new(name.clone(), rig, physics, request, script, visuals));
-            }
-        }
-        self.last_car = name;
-        if let Some(drive) = self.drive.as_mut() {
-            drive.effects.set_enabled(self.tire_effects[0], self.tire_effects[1]);
-            drive.effects.set_quality(self.smoke_quality);
-            drive.vehicle_effects.set_enabled(self.vehicle_effects[0], self.vehicle_effects[1]);
-            drive.vehicle_effects.set_style(self.spark_style);
-            drive.effects.flames.release(renderer);
-            drive.effects.flames = flames;
-        }
-        self.view = View::Chase;
-        Ok(())
     }
 
     /// Put a waiting car on the road once the area around it has loaded, then run its physics.
@@ -383,6 +340,19 @@ impl Scene for WorldScene {
         self.vehicle_effects = [sparks, trails];
         if let Some(drive) = self.drive.as_mut() {
             drive.vehicle_effects.set_enabled(sparks, trails);
+        }
+    }
+
+    fn set_exhaust_flames(&mut self, on: bool) {
+        self.exhaust_flames = on;
+        if let Some(drive) = self.drive.as_mut() {
+            drive.flames.set_enabled(on);
+        }
+    }
+
+    fn note_sputters(&mut self, pops: u32) {
+        if let Some(drive) = self.drive.as_mut() {
+            drive.flames.note_pops(pops);
         }
     }
 
