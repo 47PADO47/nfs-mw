@@ -32,6 +32,7 @@ against the install at `D:/Need For Speed Most Wanted Black Edition`.
 
 | Doc | What it covers |
 |---|---|
+| [vehicle-effects.md](vehicle-effects.md) | Original PC sparks, experimental restored sparks and wind trails using base-game assets |
 | [architecture.md](architecture.md) | `libs/` (engine-generic) vs `crates/` (MW), finding the install, the streamed city, graphics backends, Windows/Linux, roadmap |
 | [testing.md](testing.md) | the kinds of tests, the real-install tests and how to run them |
 | [window-modes.md](window-modes.md) | Windowed, borderless and exclusive fullscreen, display selection, resolution and runtime switching |

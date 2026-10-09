@@ -186,3 +186,44 @@ The supplied comparison screenshots use different cars, motion, camera placement
 and overall grading. They guide the presentation corrections but do not establish
 controlled native pixel parity. The collision box is a conservative mesh
 approximation, and transparent effects remain outside global sorting.
+
+## Original PC mode
+
+The [PC particle specification](../specs/pc-collision-particles.md) was written
+before implementing ordinary textured collision particles. The same pinned CC0
+reference supplied `Ecstasy/EmitterSystem.cpp`, generated `emitterdata.h`,
+`WorldConn.cpp` and `bMatrix.cpp`. Read-only PC executable inspection corroborated
+the ordinary spawn, update, clock, billboard and animation paths. Reference code,
+disassembly, decompiler output and inspection tools remain private.
+
+The PC path is separate from the restoration: runtime ordinary emitter groups,
+their original spark/glow textures and animated contact sprite, cubic controls,
+integer lifetime ticks, float motion, interval clocks and intensity/count rules.
+`GLOBAL/INGAMEB.BUN` supplies the textures through the existing install loader.
+It does not add procedural streaks, bounces or oriented-car-box clipping. Source
+credits above also apply to this specification; no original code or asset is shipped.
+
+The UI labels this baseline Original PC and the restoration Restored
+(Experimental). Speed Trails is separately marked experimental. Both effects
+remain opt-in. Original-PC pixel parity still depends on the port's camera,
+lighting, postprocessing, collision inputs and fixed 60 Hz effect updates.
+Live motion inheritance, ground-body scraping, prop debris and globally sorted
+transparent particles remain unsupported. The restoration is not verified Xbox
+output. Screenshot grading differences are not corrected by retinting particles.
+
+The final stock-mode revision passed 1066 workspace tests in the combined build
+and 989 on the independent main-based VFX branch, plus formatting, warning-denied
+Clippy and leak/size checks. Explicit installed tests passed on both unmodified
+and restoration-mod assets: BMW/Cobalt ordinary profiles and textures, stock vs
+restored isolation, mode changes, disable/reset, and main/pause option cycles and
+saving. Startup and paused-scene forwarding have regression coverage.
+
+Six GPU tests passed across DX12 and Vulkan: textured sprite color/alpha and UV
+selection, additive depth/fog/no-depth-write/clear behavior, restored streak/glow
+presentation and existing soft-smoke depth/resize behavior. Packaged rewrite
+captures using unmodified assets showed ordinary sprite sparks and contact glow,
+moving scrape emission, and no live sparks at four seconds during a stationary
+wall hold. The same impact/scrape routes rendered with restoration-mod assets on
+Vulkan; experimental scrape/trails and an explicit disabled run also completed.
+These checks establish functioning stock-profile rendering, not a controlled
+original-executable pixel match. Private captures, logs and tools are excluded.
