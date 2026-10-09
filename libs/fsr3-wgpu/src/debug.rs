@@ -1,6 +1,6 @@
 //! Read access to the internal images, for debug overlays and tests.
 
-use wgpu::Texture;
+use wgpu::{Buffer, Texture};
 
 use crate::{context::Fsr3Context, resources::Resources};
 
@@ -14,6 +14,8 @@ pub enum DebugTexture {
     DilatedDepth,
     /// `R32Float` at render size: the farthest depth of each 3x3 block, in metres.
     FarthestDepth,
+    /// `R32Float` at half render size: the mean of each 2x2 block of the farthest depth, in metres.
+    FarthestDepthMip1,
     /// `Rgba16Float` at render size: reactive, disocclusion, shading change and accumulation.
     ReactiveMasks,
     /// `R32Float` at half render size: the shading change estimate.
@@ -38,6 +40,7 @@ impl Fsr3Context {
             DebugTexture::DilatedMotionVectors => &r.dilated_motion_vectors,
             DebugTexture::DilatedDepth => &r.dilated_depth,
             DebugTexture::FarthestDepth => &r.farthest_depth,
+            DebugTexture::FarthestDepthMip1 => &r.farthest_depth_mip1,
             DebugTexture::ReactiveMasks => &r.reactive_masks,
             DebugTexture::ShadingChange => &r.shading_change,
             DebugTexture::LumaInstability => &r.luma_instability,
@@ -46,5 +49,11 @@ impl Fsr3Context {
             DebugTexture::History => r.history.current(last),
         };
         Some(view.texture())
+    }
+
+    /// The frame info buffer of the last dispatch: four `f32`s, the exposure, the smoothed average log
+    /// luma, the average luma and a zero. `COPY_SRC`.
+    pub fn debug_frame_info(&self) -> Option<&Buffer> {
+        self.resources().map(|r| &r.frame_info)
     }
 }

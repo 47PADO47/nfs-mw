@@ -18,7 +18,7 @@ struct Scene {
     gain: f32,
     motion_gain: f32,
     mv_offset: vec2<f32>,
-    pad: vec2<f32>,
+    mv_scale: vec2<f32>,
 }
 @group(0) @binding(0) var<uniform> scene: Scene;
 
@@ -115,7 +115,7 @@ fn fs_scene(@builtin(position) pos: vec4<f32>) -> Out {
     let unjittered = pos.xy - scene.jitter;
     let ratio = scene.display_size / scene.render_size;
     let hit = eval(unjittered * ratio);
-    let motion = -hit.velocity / ratio * scene.motion_gain + scene.mv_offset;
+    let motion = (-hit.velocity / ratio * scene.motion_gain + scene.mv_offset) / scene.mv_scale;
     return Out(vec4<f32>(hit.color, 1.0), vec4<f32>(motion, 0.0, 0.0), encode_depth(hit.z));
 }
 

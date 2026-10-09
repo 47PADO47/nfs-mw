@@ -3,7 +3,8 @@
 
 use bytemuck::{Pod, Zeroable};
 use fsr3_wgpu::{
-    DebugTexture, DepthConvention, Fsr3Config, Fsr3Context, Fsr3Inputs, Fsr3Outputs, MOTION_VECTOR_SCALE_PIXELS, jitter,
+    DebugTexture, DepthConvention, Fsr3Config, Fsr3Context, Fsr3Inputs, Fsr3Outputs, MOTION_VECTOR_SCALE_PIXELS,
+    jitter, motion_vector_scale_ndc,
 };
 use glam::{UVec2, Vec2};
 use wgpu::util::DeviceExt;
@@ -79,7 +80,7 @@ struct SceneUniform {
     gain: f32,
     motion_gain: f32,
     mv_offset: [f32; 2],
-    pad: [f32; 2],
+    mv_scale: [f32; 2],
 }
 
 /// The scene renderer and an upscaler on one device.
@@ -102,6 +103,8 @@ pub struct Rig {
     pub transparency: Option<f32>,
     /// Scales the motion vectors the scene writes: 1 is correct, 0 pretends nothing moves.
     pub motion_gain: f32,
+    /// Writes the motion vectors in normalised device coordinates instead of render pixels.
+    pub ndc_motion_vectors: bool,
     /// Writes jittered motion vectors: the true vectors plus the previous minus the current jitter.
     pub jittered_motion_vectors: bool,
     previous_jitter: Vec2,
@@ -173,6 +176,7 @@ impl Rig {
             reactive: None,
             transparency: None,
             motion_gain: 1.0,
+            ndc_motion_vectors: false,
             jittered_motion_vectors: false,
             previous_jitter: Vec2::ZERO,
             targets,
@@ -215,6 +219,11 @@ impl Rig {
         (self.render, self.display) = (render, display);
     }
 
+    /// The pixels per motion vector unit the scene's vectors need.
+    fn motion_vector_scale(&self) -> Vec2 {
+        if self.ndc_motion_vectors { motion_vector_scale_ndc(self.render) } else { MOTION_VECTOR_SCALE_PIXELS }
+    }
+
     fn depth_mode(&self) -> f32 {
         match (self.depth.inverted, self.depth.infinite) {
             (false, false) => 0.0,
@@ -239,7 +248,7 @@ impl Rig {
             gain: p.gain,
             motion_gain: self.motion_gain,
             mv_offset: mv_offset.to_array(),
-            pad: [0.0; 2],
+            mv_scale: self.motion_vector_scale().to_array(),
         };
         self.gpu.queue.write_buffer(&self.uniform, 0, bytemuck::bytes_of(&uniform));
     }
@@ -316,7 +325,7 @@ impl Rig {
             transparency_and_composition: transparency.as_ref(),
             render_size: self.render,
             jitter,
-            motion_vector_scale: MOTION_VECTOR_SCALE_PIXELS,
+            motion_vector_scale: self.motion_vector_scale(),
             delta_time: 1.0 / 60.0,
             pre_exposure: self.pre_exposure,
             sharpness: self.sharpness,

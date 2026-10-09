@@ -154,3 +154,13 @@ fn jittered_motion_vectors_are_cancelled_when_the_layout_says_so() {
     assert!(cancelled.mean() > plain.mean() - 1.0, "{} vs {}", cancelled.mean(), plain.mean());
     assert!(cancelled.mean() > uncancelled.mean() + 1.0, "{} vs {}", cancelled.mean(), uncancelled.mean());
 }
+
+#[test]
+#[ignore = "needs a GPU"]
+fn motion_vectors_in_normalised_device_coordinates_work_with_their_scale() {
+    let depth = DepthConvention::REVERSE_INFINITE;
+    let pixels = run(config(depth), Kind::Checker, VELOCITY, |_| {});
+    let ndc = run(config(depth), Kind::Checker, VELOCITY, |rig| rig.ndc_motion_vectors = true);
+    eprintln!("pixels {:.2} dB, ndc {:.2} dB", pixels.mean(), ndc.mean());
+    assert!((ndc.mean() - pixels.mean()).abs() < 0.3, "{} vs {}", ndc.mean(), pixels.mean());
+}

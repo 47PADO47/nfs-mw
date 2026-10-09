@@ -37,6 +37,23 @@ impl Gpu {
         Self { device, queue, name }
     }
 
+    /// Reads the first `size` bytes of a `COPY_SRC` buffer back.
+    pub fn read_buffer(&self, buffer: &wgpu::Buffer, size: u64) -> Vec<u8> {
+        let readback = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("readback"),
+            size,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+        encoder.copy_buffer_to_buffer(buffer, 0, &readback, 0, size);
+        self.queue.submit([encoder.finish()]);
+        let slice = readback.slice(..);
+        slice.map_async(wgpu::MapMode::Read, |_| {});
+        self.device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        slice.get_mapped_range().unwrap().to_vec()
+    }
+
     /// Reads an `Rgba32Float` texture back.
     pub fn read_rgba32f(&self, texture: &wgpu::Texture, size: UVec2) -> Vec<[f32; 4]> {
         let bytes = self.read_bytes(texture, size, 16);
