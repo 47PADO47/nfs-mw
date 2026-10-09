@@ -83,7 +83,7 @@ Before describing a renderer as matching the original, perform the controlled
 checks in the spec and record the selected PC/console/restoration preset.
 An emitter's name does not substitute for a live visual comparison.
 
-## Implementation validation
+## Initial implementation validation (superseded motion)
 
 On 2026-10-09, the combined playable build passed 1048 workspace tests, formatting,
 warning-denied Clippy and the leak/size guards. The independent main-based PR also
@@ -121,3 +121,43 @@ sliding and speed routes independently of the other gameplay contributions.
 Visual inspection confirms working presentation in the rewrite. It does not
 establish an original-PC/Xenon pixel comparison, native size/count calibration,
 particle bounce, transparent-particle sorting or a frame-rate improvement.
+
+## Restored motion revision
+
+The later [motion specification](../specs/xenon-particle-motion.md) was written
+before replacing the initial approximation. The same pinned restoration source
+was used only as a behavioral reference. A private x86 sandbox executed its
+spawn routine with controlled uniform inputs, identity transforms and stubbed
+collision queries. The numeric measurements in the spec cover velocity,
+gravity, lifetime, opacity, count and dimension encoding. This is stronger
+evidence for those conversions than visual tuning, but does not establish
+native rendering, emitter transform hierarchy or actual Xbox appearance.
+
+The revised host reads the full supported runtime emitter profiles and uses
+their body-relative volumes, multiplicative velocity variation, negative world
+velocity inheritance, parabola coefficients and time-based lengths. Spark
+dispatch retains the two authored populations; wind brightness increases
+without changing dispatch density. Swept world collision applies the restoration's
+elasticity defaults, with independent host lifetime and bounded query handling.
+Camera-facing width, distributed wind births, particle head glows and a short
+contact flash are documented host enhancements. Procedural masks remain a
+replacement for the restoration's texture atlas. No proprietary asset or
+reconstructed code is included in this revision.
+
+Further read-only inspection of `World/WorldConn.cpp` at the credited decomp
+revision established the owner's current linear-velocity inheritance and the
+different one-shot/continuing emitter frames. The contact bridge's pre-response
+point velocity remains the eligibility input. Read-only atlas inspection showed
+that the restored texture carries an opaque RGB light mask with a compact bright
+end; the earlier broad procedural mask incorrectly filled the segment with light.
+The revised shader uses an independently authored compact kernel. Original atlas
+pixels and private inspection tools remain excluded from the contribution.
+An experimental shorter spark exposure was discarded after comparison screenshots
+showed long streaks in the restoration. The revised presentation retains authored
+time intervals and a narrow procedural core with an exponential tail. Spark-only
+geometry exclusion uses the active car's collision bounds at its interpolated
+render pose, including its pivot and rotation. The surviving pieces retain the
+original mask coordinates. A single refreshed contact glow accompanies moving
+scrapes. These are independent host improvements, not native mesh collision or
+dynamic illumination. Colour tuning remains authored; the original's overall
+grading is outside this effect contribution.

@@ -1,6 +1,9 @@
 # Vehicle visual effects
 
 Research checkpoint, 2026-10-09. This specification precedes implementation.
+The later [restored particle-motion specification](xenon-particle-motion.md)
+supersedes the initial motion, size, count, fade and rear-volume approximations
+below. This file retains the original research checkpoint and contact scope.
 The proposed collision sparks and speed trails are optional, default off.
 Those defaults preserve the current host presentation. Ordinary collision sparks
 exist in PC effect data; the optional elongated Xenon spark streaks and wind

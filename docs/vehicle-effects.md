@@ -12,20 +12,26 @@ active sliding contact emits continuously. Stationary wall overlaps do not
 create continuing sparks. Wood effect groups and unknown prop materials do not
 fall back to metal sparks. Ground-body scraping and prop debris are not covered.
 
-Speed Trails are the faint wind contrails behind a forward-moving car above
-44 m/s (158.4 km/h). Their density increases up to twice that speed. They are
+Speed Trails are the faint wind contrails around a car moving above
+44 m/s (158.4 km/h). Their brightness increases up to twice that speed. They are
 visible with the chase camera; entering free camera disconnects them. Slowing
-down stops new trails and lets existing ones fade. NOS does not bypass the
+down stops new trails and lets existing particles expire. NOS does not bypass the
 threshold in this preset. These are separate from taillight trails and flames.
 
 The base game's attribute definitions supply the supported spark and contrail
-colors and lifetimes. Streak geometry, particle motion, spacing, brightness,
-fade and rear-body volume placement are new procedural presentation. They are
-informed by the Xenon effects research, without claiming a pixel-matched
-recreation. Native size encoding, bounce, ordinary particles/glow and exhaust
-effects remain future work.
+colors, count, volume, velocity inheritance, gravity and dimensions. The numeric
+recipe follows the Xenon restoration: two spark populations, curved motion,
+time-based streak length, constant lifetime opacity, and wind around the full
+body transform. Sparks bounce against resident world geometry. Camera-facing
+width, uniform birth spacing, spark head glows and contact glows are
+host enhancements. The procedural mask replaces the mod's texture atlas.
+Spark geometry excludes the car's oriented collision-box interior at the drawn
+pose, preserving its original mask coordinates outside. This limits body
+intersections; the box is a conservative approximation to the actual car mesh.
+Native emitter transform details, ordinary debris and exhaust remain incomplete;
+this does not claim a pixel-matched Xbox recreation or dynamic wall lighting.
 
-At most 768 sparks and 256 trail particles are retained. They use reused GPU
+At most 2048 sparks and 256 trail particles are retained. They use reused GPU
 buffers, additive RGB blending and opaque-depth testing before the HUD, without
 writing depth. They age while the car is parked and clear on disable or reset.
 Pausing freezes simulation; changing options refreshes the paused buffers.
@@ -44,6 +50,7 @@ Menu choices save; console choices last for the run. CLI > environment > file >
 defaults is the usual priority.
 
 The research inventory and evidence limits are in
-[specs/vehicle-visual-effects.md](specs/vehicle-visual-effects.md), with source
+[specs/vehicle-visual-effects.md](specs/vehicle-visual-effects.md), with
+motion conversions in [specs/xenon-particle-motion.md](specs/xenon-particle-motion.md), and source
 credits and comparison records in
 [provenance/vehicle-visual-effects.md](provenance/vehicle-visual-effects.md).
