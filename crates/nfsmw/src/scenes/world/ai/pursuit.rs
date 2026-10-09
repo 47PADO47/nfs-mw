@@ -10,6 +10,7 @@ use nfsmw_data::pursuit::HeatRow;
 
 use super::car::{AiCar, Role, Start};
 use super::cop::{CopCar, CopState};
+use super::traffic::Cruise;
 use super::{Focus, TrafficModel, TrafficWorld};
 use crate::scenes::world::drive::WorldGround;
 use crate::scenes::world::road::Spawn;
@@ -76,6 +77,7 @@ impl TrafficWorld {
     }
 
     pub fn add_cop_model(&mut self, model: CopModel) {
+        self.known.insert(model.model.name.to_ascii_lowercase());
         self.cop_models.push(model);
     }
 
@@ -172,7 +174,12 @@ impl TrafficWorld {
         nav.half_width = model.model.physics.spec.dimension.x;
         nav.enable_trail(&self.network);
         let state = CopState::new(model.car, player, START_SPEED);
-        let start = Start { stagger: (rng.next_f32() * 8.0) as u32, speed: START_SPEED };
+        let start = Start {
+            stagger: (rng.next_f32() * 8.0) as u32,
+            speed: START_SPEED,
+            cruise: Cruise::default(),
+            patrol: false,
+        };
         let Some(car) = AiCar::place(
             &model.model,
             Role::Cop(Box::new(state)),
