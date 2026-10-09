@@ -118,6 +118,13 @@ impl CarRig {
     }
 }
 
+impl super::Drive {
+    /// Draw the car with `shading` from now on (it is uploaded again when that changes).
+    pub fn set_car_shading(&mut self, renderer: &mut Renderer, shading: CarShading, to_sun: Vec3) {
+        self.rig.reshade(renderer, shading, to_sun);
+    }
+}
+
 /// Upload the placed solids of `model` with `shading`: the parts sorted by mesh (the renderer wants instances
 /// of one mesh together), every mesh uploaded and the car's materials.
 fn upload_parts(
