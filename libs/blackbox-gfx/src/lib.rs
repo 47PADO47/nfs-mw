@@ -5,6 +5,11 @@
 //! the user's graphics options with the pure rule that maps them onto what is available.
 
 pub mod api;
+pub mod backend;
+#[cfg(test)]
+mod backend_tests;
+pub mod caps;
+pub mod capture;
 pub mod effects;
 pub mod error;
 pub mod frame;
@@ -12,13 +17,20 @@ pub mod handles;
 pub mod material;
 pub mod mesh;
 pub mod settings;
+pub mod stats;
 pub mod texture;
 pub mod ui;
 
 pub use api::{GraphicsApi, ParseGraphicsApiError};
+pub use backend::RenderBackend;
+pub use caps::{
+    AaSet, Capabilities, Denoiser, Downgrade, EnumSet, Note, Resolved, RestartSet, RtSupport, SetMember, Setting,
+    TonemapSet, UpscalerSet, resolve,
+};
+pub use capture::RgbaImage;
 pub use effects::{DEFAULT_SOFT_DISTANCE, EffectLayer, EffectVertex, TexturedEffect};
 pub use error::RenderError;
-pub use frame::{FrameParams, Instance};
+pub use frame::{FrameParams, FrameStatus, Instance};
 pub use handles::{CaptureId, GlossyMaterialHandle, MeshHandle, TextureHandle, UiTextureId};
 pub use material::{DirectionalLight, Environment, GlossyMaterial, LightingRig, SkyGradient};
 pub use mesh::{BlendMode, DrawRange, MeshDesc, Shading, Vertex};
@@ -29,6 +41,7 @@ pub use settings::{
     clamp_render_scale, clamp_texture_lod_bias, clamp_upscale_sharpness, fsr1_active, rcas_stops, scaled_size,
     suggested_temporal_texture_lod_bias, suggested_texture_lod_bias,
 };
+pub use stats::{BackendInfo, RenderStats};
 pub use texture::{PixelFormat, TextureDesc};
 pub use ui::{UiLayer, UiMesh, UiTexturePatch, UiVertex};
 

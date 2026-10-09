@@ -8,6 +8,15 @@ use glam::{Mat4, Vec3};
 
 use crate::MeshHandle;
 
+/// What happened to a frame handed to `render`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FrameStatus {
+    /// The frame was drawn and presented.
+    Presented,
+    /// Nothing was drawn: the window is minimised or hidden, or the surface had to be reconfigured.
+    Skipped,
+}
+
 /// One placed copy of a mesh.
 #[derive(Debug, Clone, Copy)]
 pub struct Instance {
