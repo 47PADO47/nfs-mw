@@ -98,7 +98,7 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
     ))
     .insert_resource(*settings)
     .insert_resource(window::WindowModes::new(screenshot.is_some()))
-    .insert_resource(Bindings::with_paddles(settings.paddle_up, settings.paddle_down))
+    .insert_resource(Bindings::load(settings))
     .insert_resource(error.clone())
     .insert_non_send(Host::new(scene, settings, screenshot))
     .configure_sets(

@@ -8,7 +8,15 @@ use crate::devtools::{ShowMetrics, ShowReadout};
 use crate::settings::{Percent, Settings, Transmission, parse_bool};
 
 /// Settings the console can show.
-const KEYS: [&str; 18] = [
+const KEYS: [&str; 26] = [
+    "deadzone_mode",
+    "steering_deadzone",
+    "camera_deadzone",
+    "trigger_deadzone",
+    "steering_sensitivity",
+    "camera_sensitivity",
+    "mouse_sensitivity",
+    "invert_camera_y",
     "backend",
     "vsync",
     "fps",
@@ -32,6 +40,14 @@ const KEYS: [&str; 18] = [
 /// The text for `get <key>`, or an error naming the valid keys.
 pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
     let value = match key {
+        "deadzone_mode" => settings.controls.deadzone_mode.to_string(),
+        "steering_deadzone" => settings.controls.steering_deadzone.to_string(),
+        "camera_deadzone" => settings.controls.camera_deadzone.to_string(),
+        "trigger_deadzone" => settings.controls.trigger_deadzone.to_string(),
+        "steering_sensitivity" => settings.controls.steering_sensitivity.to_string(),
+        "camera_sensitivity" => settings.controls.camera_sensitivity.to_string(),
+        "mouse_sensitivity" => settings.controls.mouse_sensitivity.to_string(),
+        "invert_camera_y" => on_off(settings.controls.invert_camera_y).to_owned(),
         "backend" => settings.backend.to_string(),
         "vsync" => on_off(settings.vsync).to_owned(),
         "fps" | "max_fps" => settings.max_fps.to_string(),
@@ -67,6 +83,14 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         return set_without_value(settings, key);
     }
     match key {
+        "deadzone_mode" => settings.controls.deadzone_mode = value.parse()?,
+        "steering_deadzone" => settings.controls.steering_deadzone = value.parse()?,
+        "camera_deadzone" => settings.controls.camera_deadzone = value.parse()?,
+        "trigger_deadzone" => settings.controls.trigger_deadzone = value.parse()?,
+        "steering_sensitivity" => settings.controls.steering_sensitivity = value.parse()?,
+        "camera_sensitivity" => settings.controls.camera_sensitivity = value.parse()?,
+        "mouse_sensitivity" => settings.controls.mouse_sensitivity = value.parse()?,
+        "invert_camera_y" => settings.controls.invert_camera_y = parse_bool(value)?,
         "vsync" => settings.vsync = parse_bool(value)?,
         "fps" | "max_fps" => settings.max_fps = MaxFps::from_str(value)?,
         "metrics" | "show_metrics" => settings.show_metrics = ShowMetrics::from_str(value)?,
@@ -94,6 +118,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
 fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
     match key {
         "vsync" => Some(&mut settings.vsync),
+        "invert_camera_y" => Some(&mut settings.controls.invert_camera_y),
         "hud" => Some(&mut settings.hud),
         "tire_smoke" => Some(&mut settings.tire_smoke),
         "skid_marks" => Some(&mut settings.skid_marks),
@@ -105,6 +130,9 @@ fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
 /// What a setting accepts, for the usage line.
 fn syntax(key: &str) -> Option<&'static str> {
     Some(match key {
+        "deadzone_mode" => "<rescaled|cutoff>",
+        "steering_deadzone" | "camera_deadzone" | "trigger_deadzone" => "<0-95>",
+        "steering_sensitivity" | "camera_sensitivity" | "mouse_sensitivity" => "<1-400>",
         "fps" | "max_fps" => "<unlocked|number>",
         "metrics" | "show_metrics" => "<off|basic|advanced>",
         "readout" | "show_readout" => "<off|minimal|full>",
@@ -226,5 +254,20 @@ mod tests {
         let text = get_all(&defaults());
         assert_eq!(text.lines().count(), KEYS.len());
         assert!(text.contains("vsync = on"));
+    }
+
+    #[test]
+    fn control_changes_are_validated_and_invalid_edit_is_atomic() {
+        let mut s = defaults();
+        set(&mut s, "steering_deadzone", "10").unwrap();
+        set(&mut s, "camera_sensitivity", "200").unwrap();
+        set(&mut s, "invert_camera_y", "").unwrap();
+        assert_eq!(get(&s, "steering_deadzone").unwrap(), "steering_deadzone = 10");
+        assert_eq!(get(&s, "camera_sensitivity").unwrap(), "camera_sensitivity = 200");
+        assert!(s.controls.invert_camera_y);
+        let before = s;
+        assert!(set(&mut s, "trigger_deadzone", "100").is_err());
+        assert!(set(&mut s, "mouse_sensitivity", "0").is_err());
+        assert_eq!(s, before);
     }
 }

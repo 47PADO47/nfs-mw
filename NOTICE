@@ -111,6 +111,10 @@ Project structure
     Crate layering, install discovery and leak-check ideas. No code copied.
   chasmlol/2010-rust-rewrite-mashup — Apache-2.0 (with vendored GPL-3.0 parts) — read only.
 
+Input references
+  xan1242/NFS-XtendedInput — https://github.com/xan1242/NFS-XtendedInput — MIT.
+    Reference for configurable per-axis cutoff deadzones and controller mappings. No code copied.
+
 Rendering concepts
   NVIDIA GPU Gems 3, chapter 23.4, soft particles — reference only.
     https://developer.nvidia.com/gpugems/gpugems3/part-iv-image-effects/chapter-23-high-speed-screen-particles

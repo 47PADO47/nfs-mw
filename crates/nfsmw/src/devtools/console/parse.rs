@@ -11,6 +11,10 @@ pub enum Command {
     Monitors,
     /// Every key, button and stick binding.
     Keys,
+    Bindings {
+        name: String,
+        args: Vec<String>,
+    },
     /// Show one setting, or all of them.
     Get(Option<String>),
     Set {
@@ -30,7 +34,12 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 17] = [
+pub const BUILT_IN: [(&str, &str); 22] = [
+    ("bind <action> <input>", "replace one device family's action assignments; keys lists action names"),
+    ("addbind <action> <input>", "add another physical input to an action"),
+    ("unbind <action> [keyboard|mouse|gamepad|all]", "remove action assignments"),
+    ("bind-reset [action]", "restore default assignments for one action or all"),
+    ("bind-save", "save the live assignments to the config file"),
     ("help", "list the commands"),
     ("clear", "empty the console"),
     ("quit", "close the game"),
@@ -70,6 +79,9 @@ pub fn parse(line: &str) -> Result<Option<Command>, String> {
     let Some(name) = words.next() else { return Ok(None) };
     let args: Vec<&str> = words.collect();
     let name = name.to_ascii_lowercase();
+    if matches!(name.as_str(), "bind" | "addbind" | "unbind" | "bind-reset" | "bind-save") {
+        return Ok(Some(Command::Bindings { name, args: args.iter().map(|a| (*a).to_owned()).collect() }));
+    }
     Ok(Some(match name.as_str() {
         "help" | "?" => Command::Help,
         "clear" | "cls" => Command::Clear,
