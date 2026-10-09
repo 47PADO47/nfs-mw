@@ -200,6 +200,8 @@ screens, labels and behaviour where a label exists:
 | Gameplay | Gauges | `0xAC148579` | `hud` (On / Off) |
 | Gameplay | Transmission | `0xD31407E7` | `transmission` (Auto `0x8CD532A0` / Manual `0x317D3005`; left and right both toggle) |
 
+A row can be disabled by its setting's `enabled` rule (`frontend/options.rs`). A disabled row stays selectable and shows its value dimmed (alpha 110), but left and right do nothing and nothing is saved. Frame Limit is disabled while Vsync is on.
+
 Changes apply at once. The config file layer is written when the screen is left (accept or back), when the pause
 menu is closed and when the game is left: only the keys that were changed, so `game_dir` and unknown keys stay.
 
