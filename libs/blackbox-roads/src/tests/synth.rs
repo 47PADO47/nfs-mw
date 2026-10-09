@@ -41,3 +41,15 @@ pub fn straight_road() -> RoadNetwork {
         roads: vec![Road { scale: 1.0, speech_id: 0 }],
     }
 }
+
+/// Two 100 m segments in a row along +z (a chain node at z = 100) and a third one branching to +x
+/// from a junction at z = 200 is not needed here: the chain is enough to test following.
+pub fn chain_road() -> RoadNetwork {
+    let node = |z: f32, segments: Vec<u16>| RoadNode { position: Vec3::new(0.0, 0.0, z), profile: 0, segments };
+    RoadNetwork {
+        nodes: vec![node(0.0, vec![0]), node(100.0, vec![0, 1]), node(200.0, vec![1])],
+        segments: vec![segment([0, 1], 100.0, 0), segment([1, 2], 100.0, 0)],
+        profiles: vec![two_way_profile()],
+        roads: vec![Road { scale: 1.0, speech_id: 0 }],
+    }
+}
