@@ -1107,6 +1107,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "blackbox-roads"
+version = "0.1.0"
+dependencies = [
+ "blackbox-chunk",
+ "blackbox-collision",
+ "ea-compress",
+ "glam 0.34.1",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "blackbox-scene"
 version = "0.1.0"
 dependencies = [

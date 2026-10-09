@@ -1,0 +1,21 @@
+[package]
+name = "blackbox-roads"
+description = "Reader and navigator for the road network (lanes, segments, junctions) of EA Black Box games."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+blackbox-chunk.workspace = true
+blackbox-collision.workspace = true
+glam.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+# Install-backed tests must unwrap compressed files before parsing chunks.
+ea-compress.workspace = true
+
+[lints]
+workspace = true

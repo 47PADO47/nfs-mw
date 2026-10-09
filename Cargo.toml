@@ -27,6 +27,7 @@ blackbox-hash = { path = "libs/blackbox-hash" }
 blackbox-mixmap = { path = "libs/blackbox-mixmap" }
 blackbox-movie = { path = "libs/blackbox-movie" }
 blackbox-render = { path = "libs/blackbox-render" }
+blackbox-roads = { path = "libs/blackbox-roads" }
 blackbox-scene = { path = "libs/blackbox-scene" }
 blackbox-scenery = { path = "libs/blackbox-scenery" }
 blackbox-solid = { path = "libs/blackbox-solid" }
