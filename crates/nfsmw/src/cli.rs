@@ -247,6 +247,13 @@ pub struct ViewArgs {
     /// [env NFSMW_COP_SHARE; config `cop_share`; default 5, one in twenty].
     #[arg(long, value_name = "0-100")]
     pub cop_share: Option<crate::settings::Percent>,
+    /// Make the traffic stop at red lights at junctions (a rewrite extension: the original has no lights)
+    /// [env NFSMW_TRAFFIC_LIGHTS; config `traffic_lights`; default on].
+    #[arg(long, conflicts_with = "no_traffic_lights")]
+    pub traffic_lights: bool,
+    /// Traffic ignores junctions, as in the original game.
+    #[arg(long)]
+    pub no_traffic_lights: bool,
     /// Enable skid marks [env NFSMW_SKID_MARKS; config `skid_marks`; default on].
     #[arg(long, conflicts_with = "no_skid_marks")]
     pub skid_marks: bool,
@@ -295,6 +302,7 @@ impl ViewArgs {
             radio: switch(self.radio, self.no_radio),
             traffic: if self.no_traffic { Some(0) } else { self.traffic },
             cop_share: self.cop_share,
+            traffic_lights: switch(self.traffic_lights, self.no_traffic_lights),
             skid_marks: switch(self.skid_marks, self.no_skid_marks),
             transmission: self.transmission,
             ..Partial::default()
@@ -411,5 +419,20 @@ mod tests {
         assert_eq!(layer.monitor, Some(Monitor::Index(1)));
         assert_eq!(layer.resolution, Some(Resolution::pixels(1920, 1080).unwrap()));
         assert!(Cli::try_parse_from(["nfsmw", "view-car", "--resolution", "0x0"]).is_err());
+    }
+
+    #[test]
+    fn the_traffic_light_switches_reach_the_cli_settings_layer() {
+        let layer = |flags: &[&str]| {
+            let args = ["nfsmw", "view-car"].into_iter().chain(flags.iter().copied());
+            let Some(Command::ViewCar { view, .. }) = Cli::try_parse_from(args).unwrap().command else {
+                panic!("wrong command")
+            };
+            view.settings_layer().traffic_lights
+        };
+        assert_eq!(layer(&[]), None);
+        assert_eq!(layer(&["--traffic-lights"]), Some(true));
+        assert_eq!(layer(&["--no-traffic-lights"]), Some(false));
+        assert!(Cli::try_parse_from(["nfsmw", "view-car", "--traffic-lights", "--no-traffic-lights"]).is_err());
     }
 }

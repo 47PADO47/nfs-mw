@@ -8,7 +8,7 @@ use crate::devtools::{ShowMetrics, ShowReadout};
 use crate::settings::{Percent, Settings, Transmission, parse_bool};
 
 /// Settings the console can show.
-const KEYS: [&str; 28] = [
+const KEYS: [&str; 29] = [
     "deadzone_mode",
     "steering_deadzone",
     "camera_deadzone",
@@ -34,6 +34,7 @@ const KEYS: [&str; 28] = [
     "radio",
     "traffic",
     "cop_share",
+    "traffic_lights",
     "smoke_quality",
     "skid_marks",
     "transmission",
@@ -67,6 +68,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "radio" => on_off(settings.radio).to_owned(),
         "traffic" => settings.traffic.to_string(),
         "cop_share" => settings.cop_share.to_string(),
+        "traffic_lights" => on_off(settings.traffic_lights).to_owned(),
         "smoke_quality" => settings.smoke_quality.to_string(),
         "skid_marks" => on_off(settings.skid_marks).to_owned(),
         "transmission" => settings.transmission.to_string(),
@@ -113,6 +115,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
             settings.traffic = value.trim().parse().map_err(|_| format!("expected a number of cars, got {value:?}"))?
         }
         "cop_share" => settings.cop_share = Percent::from_str(value)?,
+        "traffic_lights" => settings.traffic_lights = parse_bool(value)?,
         "smoke_quality" => settings.smoke_quality = value.parse()?,
         "skid_marks" => settings.skid_marks = parse_bool(value)?,
         "transmission" => settings.transmission = Transmission::from_str(value)?,
@@ -131,6 +134,7 @@ fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
         "tire_smoke" => Some(&mut settings.tire_smoke),
         "skid_marks" => Some(&mut settings.skid_marks),
         "radio" => Some(&mut settings.radio),
+        "traffic_lights" => Some(&mut settings.traffic_lights),
         _ => None,
     }
 }
@@ -257,6 +261,17 @@ mod tests {
         assert!(set(&mut s, "volume", "loud").is_err());
         assert!(set(&mut s, "bass", "11").unwrap_err().contains("unknown setting"));
         assert_eq!(s, defaults());
+    }
+
+    #[test]
+    fn the_traffic_lights_can_be_read_set_and_flipped() {
+        let mut s = defaults();
+        assert_eq!(get(&s, "traffic_lights").unwrap(), "traffic_lights = on");
+        assert_eq!(set(&mut s, "traffic_lights", "off").unwrap(), "traffic_lights = off");
+        assert!(!s.traffic_lights);
+        assert_eq!(set(&mut s, "traffic_lights", "").unwrap(), "traffic_lights = on");
+        assert!(set(&mut s, "traffic_lights", "red").is_err());
+        assert!(s.traffic_lights);
     }
 
     #[test]

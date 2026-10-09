@@ -34,6 +34,9 @@ use crate::devtools::{ShowMetrics, ShowReadout};
 pub const DEFAULT_TRAFFIC: u32 = 10;
 /// The default share of those cars that are patrol cops: 5 percent, one in twenty.
 pub const DEFAULT_COP_SHARE: Percent = Percent(5);
+/// Whether traffic stops at red lights by default. The original game has no traffic lights: this is a rewrite
+/// extension, on because it was asked for.
+pub const DEFAULT_TRAFFIC_LIGHTS: bool = true;
 
 /// The resolved settings.
 #[derive(bevy_ecs::resource::Resource, Debug, Clone, Copy, PartialEq, Eq)]
@@ -62,6 +65,8 @@ pub struct Settings {
     pub traffic: u32,
     /// Of those cars, the share that are patrol cops, in percent.
     pub cop_share: Percent,
+    /// Whether the traffic obeys traffic lights at junctions (a rewrite extension: the original has none).
+    pub traffic_lights: bool,
     /// Optional smoke presentation quality; standard retains the default cost and look.
     pub smoke_quality: SmokeQuality,
     /// Draw bounded, ground-following tire marks.
@@ -104,6 +109,7 @@ impl From<Partial> for Settings {
             radio: p.radio.unwrap_or(true),
             traffic: p.traffic.unwrap_or(DEFAULT_TRAFFIC),
             cop_share: p.cop_share.unwrap_or(DEFAULT_COP_SHARE),
+            traffic_lights: p.traffic_lights.unwrap_or(DEFAULT_TRAFFIC_LIGHTS),
             smoke_quality: p.smoke_quality.unwrap_or_default(),
             skid_marks: p.skid_marks.unwrap_or(true),
             transmission: p.transmission.unwrap_or_default(),
@@ -182,6 +188,19 @@ mod tests {
         assert_eq!((s.traffic, s.cop_share), (DEFAULT_TRAFFIC, DEFAULT_COP_SHARE));
         assert!(s.traffic > 0);
         assert_eq!(DEFAULT_COP_SHARE, Percent(5), "5 percent is one in twenty");
+    }
+
+    #[test]
+    fn traffic_lights_are_on_by_default_and_come_from_every_layer() {
+        assert!(Settings::from(Partial::default()).traffic_lights);
+        const { assert!(DEFAULT_TRAFFIC_LIGHTS) };
+        let cli = Partial { traffic_lights: Some(false), ..Partial::default() };
+        let env = env::read(|n| (n == env::TRAFFIC_LIGHTS).then(|| "on".to_owned()));
+        let file = file::parse("traffic_lights = false\n", "test");
+        assert!(!Settings::from(cli.or(env).or(file)).traffic_lights, "the command line wins");
+        assert!(Settings::from(Partial::default().or(env).or(file)).traffic_lights, "the environment over the file");
+        assert!(!Settings::from(Partial::default().or(file)).traffic_lights);
+        assert_eq!(file::parse("traffic_lights = 3", "test").traffic_lights, None);
     }
 
     #[test]
