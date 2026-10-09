@@ -27,6 +27,7 @@ impl RoadNav {
             forward: Vec3::Z,
             curvature: 0.0,
             line: crate::Bezier::line(Vec3::ZERO, Vec3::Z),
+            trail: None,
         }
     }
 

@@ -2,6 +2,7 @@
 //! Spec: `docs/specs/ai-road-network.md` (§2–§4).
 
 mod advance;
+mod cookies;
 mod direction;
 mod init;
 mod lane_type;
@@ -11,7 +12,7 @@ mod traffic_lanes;
 
 use glam::Vec3;
 
-use crate::{Bezier, NodeInd, SegmentFilter};
+use crate::{Bezier, NodeInd, SegmentFilter, Trail};
 
 pub use lane_type::LaneType;
 pub use random::{RandomSource, SplitMix};
@@ -49,6 +50,8 @@ pub struct RoadNav {
     /// Planar curvature at the cursor, positive when turning right.
     pub curvature: f32,
     line: Bezier,
+    /// The look-ahead trail, when the car steers by one.
+    trail: Option<Trail>,
 }
 
 impl RoadNav {

@@ -51,12 +51,18 @@ pub fn centre_line(net: &RoadNetwork, segment: u16, node_ind: NodeInd) -> Bezier
 /// The curve of the lane `lane` (index into the travel-frame profile) of `segment`. A lane index beyond
 /// the zones of one end is clamped to that end's last zone.
 pub fn lane_line(net: &RoadNetwork, segment: u16, node_ind: NodeInd, lane: usize) -> Bezier {
+    lane_line_shifted(net, segment, node_ind, lane, 0.0)
+}
+
+/// The lane line moved `delta` metres to the right of travel (to the left when negative): the bounds of
+/// the corridor round a lane.
+pub fn lane_line_shifted(net: &RoadNetwork, segment: u16, node_ind: NodeInd, lane: usize, delta: f32) -> Bezier {
     let centre = centre_line(net, segment, node_ind);
     let offset_at = |heading_end: bool| {
         let profile = travel_profile(net, segment, node_ind, heading_end);
         match profile.zones.is_empty() {
             true => 0.0,
-            false => profile.signed_offset(lane.min(profile.zones.len() - 1)),
+            false => profile.signed_offset(lane.min(profile.zones.len() - 1)) + delta,
         }
     };
     let [p0, p1, p2, p3] = centre.points;
