@@ -2,9 +2,8 @@
 
 use naga::valid::{Capabilities, ValidationFlags, Validator};
 
-const SHADERS: [(&str, &str); 4] = [
+const SHADERS: [(&str, &str); 3] = [
     ("scene", include_str!("shaders/scene.wgsl")),
-    ("effects", include_str!("shaders/effects.wgsl")),
     ("resolve", include_str!("shaders/resolve.wgsl")),
     ("fsr1", include_str!("shaders/fsr1.wgsl")),
 ];

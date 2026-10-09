@@ -24,7 +24,6 @@ mod streak_tests;
 mod targets;
 #[cfg(test)]
 mod test_support;
-mod textured_effects;
 mod textures;
 mod ui;
 mod upscale;

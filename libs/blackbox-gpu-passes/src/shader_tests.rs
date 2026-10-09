@@ -2,8 +2,11 @@
 
 use naga::valid::{Capabilities, ValidationFlags, Validator};
 
-const SHADERS: [(&str, &str); 2] =
-    [("ui", include_str!("shaders/ui.wgsl")), ("soft_particles", include_str!("shaders/soft_particles.wgsl"))];
+const SHADERS: [(&str, &str); 3] = [
+    ("ui", include_str!("shaders/ui.wgsl")),
+    ("effects", crate::EFFECTS_WGSL),
+    ("soft_particles", include_str!("shaders/soft_particles.wgsl")),
+];
 
 fn entry_points(name: &str) -> Vec<String> {
     let source = SHADERS.iter().find(|(n, _)| *n == name).expect("known shader").1;
@@ -32,5 +35,9 @@ fn every_shader_parses_and_validates() {
 #[test]
 fn the_passes_find_their_entry_points() {
     assert_entries("ui", &["vs_main", "fs_main"]);
+    assert_entries(
+        "effects",
+        &["vs_main", "fs_surface", "fs_particle", "fs_streak", "fs_glow", "fs_textured", "fs_textured_alpha"],
+    );
     assert_entries("soft_particles", &["vs_main", "fs_main"]);
 }

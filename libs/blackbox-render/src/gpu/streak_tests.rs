@@ -102,7 +102,7 @@ impl Gpu {
             });
             pass.set_bind_group(0, &self.shared.bindings.globals_bind_group, &[]);
             self.effects.draw(&mut pass);
-            self.effects.textured.draw(&mut pass, &self.textures);
+            self.effects.textured.draw(&mut pass, |t| self.textures.get(t.raw()));
         }
         let row = (width * 4).next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
         let readback = self.device.create_buffer(&wgpu::BufferDescriptor {

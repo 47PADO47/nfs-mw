@@ -2,13 +2,14 @@
 
 use std::collections::HashMap;
 
-use super::effects::{ATTRIBUTES, Batch};
-use super::resources::{DEPTH_FORMAT, Shared};
-use super::slots::Slots;
-use super::targets::write_mask;
-use crate::{BlendMode, EffectVertex, TextureHandle, TexturedEffect};
+use blackbox_gfx::{BlendMode, EffectVertex, TextureHandle, TexturedEffect};
 
-pub(super) struct TexturedEffects {
+use crate::batch::Batch;
+use crate::world::{DEPTH_FORMAT, EFFECT_VERTEX_ATTRIBUTES, WorldBindings, write_mask};
+
+/// Textured world particles: one batch per [`TexturedEffect`], depth-tested against the scene depth
+/// (reverse-Z, no depth writes), drawn with the texture bind group the caller keeps for each handle.
+pub struct TexturedEffects {
     shader: wgpu::ShaderModule,
     layout: wgpu::PipelineLayout,
     /// Per target format, built the first time the effects are drawn into it.
@@ -19,14 +20,14 @@ pub(super) struct TexturedEffects {
 }
 
 impl TexturedEffects {
-    pub(super) fn new(device: &wgpu::Device, format: wgpu::TextureFormat, shared: &Shared) -> Self {
+    pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat, bindings: &WorldBindings) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("textured world effects"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/effects.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(crate::EFFECTS_WGSL.into()),
         });
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("textured world effects"),
-            bind_group_layouts: &[Some(&shared.bindings.globals_layout), Some(&shared.bindings.texture_layout)],
+            bind_group_layouts: &[Some(&bindings.globals_layout), Some(&bindings.texture_layout)],
             immediate_size: 0,
         });
         let mut effects = Self { shader, layout, pipelines: HashMap::new(), format, batches: Vec::new(), count: 0 };
@@ -35,7 +36,7 @@ impl TexturedEffects {
     }
 
     /// Draw into `format` from now on, building its pipelines the first time.
-    pub(super) fn use_format(&mut self, device: &wgpu::Device, format: wgpu::TextureFormat) {
+    pub fn use_format(&mut self, device: &wgpu::Device, format: wgpu::TextureFormat) {
         self.format = format;
         if !self.pipelines.contains_key(&format) {
             let pipelines = self.build(device, format);
@@ -66,7 +67,7 @@ impl TexturedEffects {
                     buffers: &[Some(wgpu::VertexBufferLayout {
                         array_stride: std::mem::size_of::<EffectVertex>() as u64,
                         step_mode: wgpu::VertexStepMode::Vertex,
-                        attributes: &ATTRIBUTES,
+                        attributes: &EFFECT_VERTEX_ATTRIBUTES,
                     })],
                 },
                 primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
@@ -94,7 +95,8 @@ impl TexturedEffects {
         })
     }
 
-    pub(super) fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, layers: &[TexturedEffect]) {
+    /// Replace the batches with `layers`, one per textured effect (reusing the buffers).
+    pub fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, layers: &[TexturedEffect]) {
         self.count = layers.len();
         for (i, layer) in layers.iter().enumerate() {
             if i == self.batches.len() {
@@ -107,17 +109,24 @@ impl TexturedEffects {
         }
     }
 
-    pub(super) fn draw(&self, pass: &mut wgpu::RenderPass<'_>, textures: &Slots<wgpu::BindGroup>) {
+    /// Draw every batch whose texture `texture` can resolve. Bind group 0 (the globals) must already be
+    /// set on `pass`; group 1 is set here to the bind group `texture` returns, which must have been made
+    /// with [`WorldBindings::texture_layout`]. A handle it cannot resolve is skipped.
+    pub fn draw<'t>(
+        &self,
+        pass: &mut wgpu::RenderPass<'_>,
+        texture: impl Fn(TextureHandle) -> Option<&'t wgpu::BindGroup>,
+    ) {
         let Some(pipelines) = self.pipelines.get(&self.format) else { return };
-        for (batch, texture, blend) in self.batches.iter().take(self.count) {
-            if batch.count == 0 {
+        for (batch, handle, blend) in self.batches.iter().take(self.count) {
+            if batch.count() == 0 {
                 continue;
             }
-            let Some(texture) = textures.get(texture.raw()) else { continue };
+            let Some(texture) = texture(*handle) else { continue };
             pass.set_pipeline(&pipelines[usize::from(*blend == BlendMode::Additive)]);
             pass.set_bind_group(1, texture, &[]);
-            pass.set_vertex_buffer(0, batch.buffer.slice(..));
-            pass.draw(0..batch.count, 0..1);
+            pass.set_vertex_buffer(0, batch.buffer().slice(..));
+            pass.draw(0..batch.count(), 0..1);
         }
     }
 }
