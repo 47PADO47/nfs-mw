@@ -1,5 +1,6 @@
 //! The streamed city: a free-fly camera, or a car to drive with a chase camera.
 
+mod ai;
 mod commands;
 mod drive;
 mod effects;
@@ -78,6 +79,8 @@ pub struct WorldScene {
     view: View,
     pending_car: Option<PendingCar>,
     drive: Option<Drive>,
+    /// Computer-driven cars, when the track has a road network.
+    traffic: Option<ai::TrafficWorld>,
     /// The car last driven, for `drive` without a name.
     last_car: String,
     /// Car physics data, road grips and the gameplay database.
@@ -112,6 +115,7 @@ impl WorldScene {
     pub fn open(dir: &GameDir, options: Options) -> Result<Self> {
         let index = WorldIndex::open(dir, DEFAULT_TRACK)?;
         let physics = PhysicsData::load(dir)?;
+        let traffic = index.road_network.clone().map(ai::TrafficWorld::new);
         let props = PropCatalog::new(index.prop_bounds.clone(), physics.database());
         log::info!("{} props have collision bounds", props.len());
         let stream = dir.resolve(&index.stream_file).with_context(|| format!("{} is missing", index.stream_file))?;
@@ -157,6 +161,7 @@ impl WorldScene {
             last_car: pending_car.as_ref().map_or_else(|| DEFAULT_CAR.to_owned(), |c| c.name.clone()),
             pending_car,
             drive: None,
+            traffic,
             physics,
             tire_effects: [true; 2],
             smoke_quality: crate::settings::SmokeQuality::Standard,
@@ -331,6 +336,7 @@ impl Scene for WorldScene {
             self.camera.update(input, dt);
         }
         self.update_drive(input, dt);
+        self.update_traffic(dt);
         if !self.grounded && self.residency.complete() {
             self.grounded = true;
             let estimate = ground::height_near(self.residency.placed(), self.start[0], self.start[1], 150.0);
@@ -384,6 +390,9 @@ impl Scene for WorldScene {
         };
         let rules = &blackbox_scenery::layout::MOST_WANTED.lod;
         visibility::collect(self.residency.placed(), &camera, rules, self.residency.props(), &mut self.visible);
+        if let Some(traffic) = &self.traffic {
+            traffic.instances(&mut self.visible);
+        }
         if let Some(drive) = &self.drive {
             drive.instances(&mut self.visible);
             if let (true, Some(meshes)) = (self.markers_on, &self.marker_meshes) {
@@ -402,6 +411,9 @@ impl Scene for WorldScene {
     }
 
     fn ready(&self) -> bool {
+        if self.traffic.as_ref().is_some_and(|t| !t.settled()) {
+            return false;
+        }
         match &self.drive {
             Some(drive) => self.residency.complete() && drive.waiting_for_road().is_none() && drive.script_finished(),
             None if self.wait_for_load => self.grounded && self.residency.complete(),

@@ -3,7 +3,8 @@
 use blackbox_render::Renderer;
 use glam::Vec3;
 
-use super::drive::{self, MarkerMeshes};
+use super::ai;
+use super::drive::{self, CarRig, MarkerMeshes};
 use super::{View, WorldScene, load_car};
 
 pub(super) const LIST: &[(&str, &str)] = &[
@@ -15,6 +16,10 @@ pub(super) const LIST: &[(&str, &str)] = &[
     ("freecam", "switch between the chase camera and the free camera"),
     ("pos", "show where the camera or the car is"),
     ("props [radius]", "list the props with collision near the car or camera (default 30 m)"),
+    (
+        "traffic <count>|off|status|warmup <s>",
+        "keep <count> computer-driven cars on the road around you; off removes them; warmup: a screenshot run simulates <s> seconds first",
+    ),
     ("tire-effects [status|clear|smoke on/off|marks on/off]", "tire visual controls and bounded resource counts"),
     ("debug collisions [on|off]", "draw the car's contact points: wall hits, tyre rays, props (no argument: toggle)"),
 ];
@@ -34,11 +39,79 @@ pub(super) fn run(
         "garage" if args.is_empty() => Ok(nfsmw_data::car::list(&scene.dir).join("  ")),
         "pos" if args.is_empty() => Ok(pos(scene)),
         "props" => props(scene, args),
+        "traffic" => traffic(scene, renderer, args),
         "tire-effects" => tire_effects(scene, renderer, args),
         "debug" => debug(scene, renderer, args),
         "reset" | "freecam" | "pos" | "garage" => Err(format!("usage: {name}")),
         _ => return None,
     })
+}
+
+/// The cars traffic is made of, by folder name; the ones missing from the install are skipped.
+const TRAFFIC_CARS: &[&str] =
+    &["TRAFFICCOUP", "TRAF4DSEDA", "TRAF4DSEDC", "TRAFHA", "TRAFCOURT", "TRAFPICKUPA", "TRAFMINIVAN", "TRAFNEWS"];
+
+fn load_traffic_models(scene: &mut WorldScene, renderer: &mut Renderer) -> Result<usize, String> {
+    let mut loaded = 0;
+    for name in TRAFFIC_CARS {
+        let (folder, model) = match load_car(&scene.dir, name) {
+            Ok(car) => car,
+            Err(e) => {
+                log::warn!("traffic car {name}: {e:#}");
+                continue;
+            }
+        };
+        let physics = match scene.physics_of(&model) {
+            Ok(physics) => physics,
+            Err(e) => {
+                log::warn!("traffic car {folder} has no physics: {e:#}");
+                continue;
+            }
+        };
+        let rig = std::rc::Rc::new(CarRig::upload(renderer, model));
+        let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
+        traffic.add_model(ai::TrafficModel { name: folder, rig, physics });
+        loaded += 1;
+    }
+    match loaded {
+        0 => Err("no traffic car could be loaded (see the log)".into()),
+        n => Ok(n),
+    }
+}
+
+fn traffic(scene: &mut WorldScene, renderer: &mut Renderer, args: &[&str]) -> Result<String, String> {
+    const USAGE: &str = "usage: traffic <count>|off|status|warmup <seconds>";
+    let focus = scene.traffic_focus();
+    if scene.traffic.is_none() {
+        return Err("this track has no road network".into());
+    }
+    match args {
+        ["off"] => {
+            if let Some(traffic) = scene.traffic.as_mut() {
+                traffic.clear(renderer);
+            }
+            Ok("traffic removed".into())
+        }
+        ["warmup", seconds] => {
+            let seconds: f32 = seconds.parse().map_err(|_| format!("{seconds:?} is not a number ({USAGE})"))?;
+            scene.traffic.as_mut().ok_or(USAGE)?.set_warmup(seconds);
+            Ok(format!("a screenshot run simulates {seconds} s of traffic first"))
+        }
+        ["status"] => {
+            let traffic = scene.traffic.as_ref().ok_or(USAGE)?;
+            Ok(format!("models: {}\n{}", traffic.model_names().join(" "), traffic.status(focus)))
+        }
+        [count] => {
+            let count: usize = count.parse().map_err(|_| format!("{count:?} is not a number ({USAGE})"))?;
+            if !scene.traffic.as_ref().is_some_and(|t| t.has_models()) {
+                load_traffic_models(scene, renderer)?;
+            }
+            let traffic = scene.traffic.as_mut().ok_or(USAGE)?;
+            traffic.set_target(count);
+            Ok(format!("keeping {count} cars on the road around you ({} models)", traffic.model_names().len()))
+        }
+        _ => Err(USAGE.into()),
+    }
 }
 
 fn tire_effects(scene: &mut WorldScene, renderer: &mut Renderer, args: &[&str]) -> Result<String, String> {
