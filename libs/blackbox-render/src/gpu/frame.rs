@@ -1,11 +1,11 @@
-//! Drawing a frame: the scene into the offscreen HDR image, the post-process chain into the
-//! surface, then the UI over it.
+//! Drawing a frame: the scene straight into the surface, or into an offscreen image that the
+//! post-process chain then writes to the surface, then the UI over it.
 
 use super::Renderer;
 use super::pipelines::{BLEND_ORDER, SHADINGS};
 use super::post::PassContext;
 use super::resources::Globals;
-use super::targets::FrameTargets;
+use super::targets::SceneTargets;
 use crate::{FrameParams, Instance, RenderError, Shading};
 
 impl Renderer {
@@ -26,7 +26,7 @@ impl Renderer {
         };
         let view = surface_texture.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("frame") });
-        self.encode_scene(&mut encoder, None, frame, instances);
+        self.encode_scene(&mut encoder, None, &view, frame, instances);
         self.encode_post(&mut encoder, None, &view, self.surface_size());
         self.encode_ui(&mut encoder, &view, self.surface_size());
         self.queue.submit([encoder.finish()]);
@@ -35,24 +35,26 @@ impl Renderer {
     }
 
     /// Record the post-process chain: the scene image of `targets` (default: the window's) to `output`,
-    /// which is `size` pixels in the surface format.
+    /// which is `size` pixels in the surface format. A scene drawn straight into `output` has no chain.
     pub(super) fn encode_post(
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
-        targets: Option<&FrameTargets>,
+        targets: Option<&SceneTargets>,
         output: &wgpu::TextureView,
         size: (u32, u32),
     ) {
-        let scene = targets.unwrap_or(&self.targets);
+        let Some(scene) = targets.unwrap_or(&self.targets).offscreen() else { return };
         let ctx = PassContext { device: &self.device, queue: &self.queue, scene, output_size: size };
         self.post.encode(&ctx, encoder, (output, self.config.format));
     }
 
-    /// Record the scene into the colour and depth of `targets` (default: the window's).
+    /// Record the scene into the colour and depth of `targets` (default: the window's): the offscreen
+    /// image, or `output` itself when the targets are direct.
     pub(super) fn encode_scene(
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
-        targets: Option<&FrameTargets>,
+        targets: Option<&SceneTargets>,
+        output: &wgpu::TextureView,
         frame: &FrameParams,
         instances: &[Instance],
     ) {
@@ -69,7 +71,11 @@ impl Renderer {
         self.instances.upload(&self.device, &self.queue, &matrices);
 
         let targets = targets.unwrap_or(&self.targets);
-        let (target, depth) = (&targets.color_view, &targets.depth_view);
+        let target = targets.offscreen().map_or(output, |offscreen| &offscreen.color_view);
+        let depth = targets.depth_view();
+        let format = targets.color_format();
+        self.pipelines.use_format(&self.device, format, self.glossy.is_some());
+        self.effects.use_format(&self.device, format);
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("scene"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -94,9 +100,17 @@ impl Renderer {
         pass.set_vertex_buffer(1, self.instances.buffer.slice(..));
 
         for (mode, shading) in BLEND_ORDER.iter().flat_map(|&b| SHADINGS.iter().map(move |&s| (b, s))) {
-            pass.set_pipeline(self.pipelines.get(mode, shading));
-            if matches!(shading, Shading::Glossy(_)) {
-                self.glossy.bind_scene(&mut pass);
+            let Some(pipeline) = self.pipelines.get(mode, shading) else { continue };
+            pass.set_pipeline(pipeline);
+            let glossy = match shading {
+                Shading::Glossy(_) => match &self.glossy {
+                    Some(glossy) => Some(glossy),
+                    None => continue,
+                },
+                _ => None,
+            };
+            if let Some(glossy) = glossy {
+                glossy.bind_scene(&mut pass);
             }
             let mut start = 0;
             while start < instances.len() {
@@ -106,8 +120,8 @@ impl Renderer {
                     pass.set_vertex_buffer(0, mesh.vertices.slice(..));
                     pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint16);
                     for d in mesh.draws.iter().filter(|d| d.blend == mode && d.shading.same_pipeline(shading)) {
-                        if let Shading::Glossy(material) = d.shading
-                            && !self.glossy.bind_material(&mut pass, material)
+                        if let (Shading::Glossy(material), Some(glossy)) = (d.shading, glossy)
+                            && !glossy.bind_material(&mut pass, material)
                         {
                             continue;
                         }

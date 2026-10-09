@@ -23,7 +23,7 @@ fn build(device: &wgpu::Device, settings: &PostSettings) -> Vec<Box<dyn PostPass
 impl PostChain {
     /// Replace the effect passes at the front of the chain with those `settings` ask for. Returns
     /// whether anything changed. Other passes and the resolve pass stay.
-    pub(super) fn set_effects(&mut self, device: &wgpu::Device, settings: PostSettings) -> bool {
+    pub(in crate::gpu) fn set_effects(&mut self, device: &wgpu::Device, settings: PostSettings) -> bool {
         let settings = settings.sanitized();
         if settings == self.settings {
             return false;
@@ -36,7 +36,7 @@ impl PostChain {
         true
     }
 
-    pub(super) fn effect_settings(&self) -> PostSettings {
+    pub(in crate::gpu) fn effect_settings(&self) -> PostSettings {
         self.settings
     }
 }
@@ -47,7 +47,9 @@ impl Renderer {
     /// affected. The default [`PostSettings`] runs none, so the frame is the plain clamped scene.
     /// Values are clamped into their ranges; setting the current value again does nothing.
     pub fn set_post_effects(&mut self, settings: PostSettings) {
-        self.post.set_effects(&self.device, settings);
+        if self.post.set_effects(&self.device, settings) {
+            self.refresh_targets();
+        }
     }
 
     /// The post-process settings in effect (after clamping).

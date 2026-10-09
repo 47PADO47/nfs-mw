@@ -1,12 +1,19 @@
 //! Textured world particles, depth-tested with reusable per-batch vertex buffers.
 
+use std::collections::HashMap;
+
 use super::effects::{ATTRIBUTES, Batch};
 use super::resources::{DEPTH_FORMAT, Shared};
 use super::slots::Slots;
+use super::targets::write_mask;
 use crate::{BlendMode, EffectVertex, TextureHandle, TexturedEffect};
 
 pub(super) struct TexturedEffects {
-    pipelines: [wgpu::RenderPipeline; 2],
+    shader: wgpu::ShaderModule,
+    layout: wgpu::PipelineLayout,
+    /// Per target format, built the first time the effects are drawn into it.
+    pipelines: HashMap<wgpu::TextureFormat, [wgpu::RenderPipeline; 2]>,
+    format: wgpu::TextureFormat,
     batches: Vec<(Batch, TextureHandle, BlendMode)>,
     count: usize,
 }
@@ -22,7 +29,22 @@ impl TexturedEffects {
             bind_group_layouts: &[Some(&shared.globals_layout), Some(&shared.texture_layout)],
             immediate_size: 0,
         });
-        let pipelines = std::array::from_fn(|i| {
+        let mut effects = Self { shader, layout, pipelines: HashMap::new(), format, batches: Vec::new(), count: 0 };
+        effects.use_format(device, format);
+        effects
+    }
+
+    /// Draw into `format` from now on, building its pipelines the first time.
+    pub(super) fn use_format(&mut self, device: &wgpu::Device, format: wgpu::TextureFormat) {
+        self.format = format;
+        if !self.pipelines.contains_key(&format) {
+            let pipelines = self.build(device, format);
+            self.pipelines.insert(format, pipelines);
+        }
+    }
+
+    fn build(&self, device: &wgpu::Device, format: wgpu::TextureFormat) -> [wgpu::RenderPipeline; 2] {
+        std::array::from_fn(|i| {
             let blend = match i {
                 0 => wgpu::BlendState::ALPHA_BLENDING,
                 _ => wgpu::BlendState {
@@ -36,9 +58,9 @@ impl TexturedEffects {
             };
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some("textured world effects"),
-                layout: Some(&layout),
+                layout: Some(&self.layout),
                 vertex: wgpu::VertexState {
-                    module: &shader,
+                    module: &self.shader,
                     entry_point: Some("vs_main"),
                     compilation_options: Default::default(),
                     buffers: &[Some(wgpu::VertexBufferLayout {
@@ -57,20 +79,19 @@ impl TexturedEffects {
                 }),
                 multisample: Default::default(),
                 fragment: Some(wgpu::FragmentState {
-                    module: &shader,
+                    module: &self.shader,
                     entry_point: Some(["fs_textured_alpha", "fs_textured"][i]),
                     compilation_options: Default::default(),
                     targets: &[Some(wgpu::ColorTargetState {
                         format,
                         blend: Some(blend),
-                        write_mask: wgpu::ColorWrites::ALL,
+                        write_mask: write_mask(format),
                     })],
                 }),
                 multiview_mask: None,
                 cache: None,
             })
-        });
-        Self { pipelines, batches: Vec::new(), count: 0 }
+        })
     }
 
     pub(super) fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, layers: &[TexturedEffect]) {
@@ -87,12 +108,13 @@ impl TexturedEffects {
     }
 
     pub(super) fn draw(&self, pass: &mut wgpu::RenderPass<'_>, textures: &Slots<wgpu::BindGroup>) {
+        let Some(pipelines) = self.pipelines.get(&self.format) else { return };
         for (batch, texture, blend) in self.batches.iter().take(self.count) {
             if batch.count == 0 {
                 continue;
             }
             let Some(texture) = textures.get(texture.0) else { continue };
-            pass.set_pipeline(&self.pipelines[usize::from(*blend == BlendMode::Additive)]);
+            pass.set_pipeline(&pipelines[usize::from(*blend == BlendMode::Additive)]);
             pass.set_bind_group(1, texture, &[]);
             pass.set_vertex_buffer(0, batch.buffer.slice(..));
             pass.draw(0..batch.count, 0..1);
