@@ -31,6 +31,9 @@ mod post;
 #[cfg(test)]
 mod post_tests;
 mod radio_hud;
+mod ray_tracing;
+#[cfg(test)]
+mod ray_tracing_tests;
 mod renderer;
 #[cfg(test)]
 mod renderer_tests;
@@ -44,6 +47,9 @@ pub(crate) mod test_caps;
 mod tire_tests;
 mod transmission;
 mod upscale;
+mod upscale_quality;
+#[cfg(test)]
+mod upscale_quality_tests;
 #[cfg(test)]
 mod upscale_tests;
 #[cfg(test)]
@@ -62,11 +68,13 @@ pub use minimap::MinimapMode;
 pub use partial::{Partial, Percent, parse_bool};
 pub use post::{PostAa, PostBloom, PostTonemap, post_effects};
 pub use radio_hud::RadioHudStyle;
+pub use ray_tracing::RayTracingLevel;
 pub use renderer::RendererKind;
 pub use smoke_quality::SmokeQuality;
 pub use spark_style::SparkStyle;
 pub use transmission::Transmission;
 pub use upscale::{RenderScale, UpscaleMode};
+pub use upscale_quality::UpscaleQuality;
 pub use wheel::WheelOptions;
 pub use window::{Monitor, Resolution, WindowMode};
 pub use write::write as write_file;
@@ -135,6 +143,10 @@ pub struct Settings {
     pub upscaler: UpscaleMode,
     /// FSR 1 sharpening, 0 to 100 percent.
     pub upscale_sharpness: Percent,
+    /// How far a temporal upscaler (fsr3, fsr4, dlss) renders below the output size.
+    pub upscale_quality: UpscaleQuality,
+    /// Ray-traced lighting (bevy renderer only); off to on needs a restart.
+    pub ray_tracing: RayTracingLevel,
     /// Gamepad button codes of a steering wheel's shift paddles (`GamepadButton::Other`), if the player gave them.
     pub paddle_up: Option<u32>,
     pub paddle_down: Option<u32>,
@@ -197,6 +209,8 @@ impl From<Partial> for Settings {
             render_scale: p.render_scale.unwrap_or_default(),
             upscaler: p.upscaler.unwrap_or_default(),
             upscale_sharpness: p.upscale_sharpness.unwrap_or(Percent(80)),
+            upscale_quality: p.upscale_quality.unwrap_or_default(),
+            ray_tracing: p.ray_tracing.unwrap_or_default(),
             paddle_up: p.paddle_up,
             paddle_down: p.paddle_down,
             manual_clutch: p.manual_clutch.unwrap_or(false),

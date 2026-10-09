@@ -7,6 +7,7 @@ use super::{
     RadioHudStyle, RenderScale, RendererKind, Resolution, Sensitivity, SmokeQuality, Transmission, UpscaleMode,
     WindowMode,
 };
+use super::{RayTracingLevel, UpscaleQuality};
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
 
@@ -90,6 +91,8 @@ pub struct Partial {
     pub render_scale: Option<RenderScale>,
     pub upscaler: Option<UpscaleMode>,
     pub upscale_sharpness: Option<Percent>,
+    pub upscale_quality: Option<UpscaleQuality>,
+    pub ray_tracing: Option<RayTracingLevel>,
     pub paddle_up: Option<u32>,
     pub paddle_down: Option<u32>,
     pub manual_clutch: Option<bool>,
@@ -144,6 +147,8 @@ impl Partial {
             render_scale: self.render_scale.or(lower.render_scale),
             upscaler: self.upscaler.or(lower.upscaler),
             upscale_sharpness: self.upscale_sharpness.or(lower.upscale_sharpness),
+            upscale_quality: self.upscale_quality.or(lower.upscale_quality),
+            ray_tracing: self.ray_tracing.or(lower.ray_tracing),
             paddle_up: self.paddle_up.or(lower.paddle_up),
             paddle_down: self.paddle_down.or(lower.paddle_down),
             manual_clutch: self.manual_clutch.or(lower.manual_clutch),

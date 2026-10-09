@@ -147,6 +147,12 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.upscale_sharpness {
         put("upscale_sharpness", Value::Integer(i64::from(v.0)));
     }
+    if let Some(v) = changes.upscale_quality {
+        put("upscale_quality", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.ray_tracing {
+        put("ray_tracing", Value::String(v.to_string()));
+    }
     if let Some(v) = changes.paddle_up {
         put("paddle_up", Value::Integer(i64::from(v)));
     }

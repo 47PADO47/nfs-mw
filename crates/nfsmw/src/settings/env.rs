@@ -5,8 +5,8 @@ use std::str::FromStr;
 use super::partial::{Partial, Percent, parse_bool};
 use super::{CarShading, Deadzone, GraphicsPreset, HudLayout, MinimapMode, RadioHudStyle, Sensitivity, Transmission};
 use super::{
-    Monitor, PostAa, PostBloom, PostTonemap, RenderScale, RendererKind, Resolution, SmokeQuality, UpscaleMode,
-    WindowMode,
+    Monitor, PostAa, PostBloom, PostTonemap, RayTracingLevel, RenderScale, RendererKind, Resolution, SmokeQuality,
+    UpscaleMode, UpscaleQuality, WindowMode,
 };
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
@@ -47,6 +47,8 @@ pub const POST_AA: &str = "NFSMW_POST_AA";
 pub const RENDER_SCALE: &str = "NFSMW_RENDER_SCALE";
 pub const UPSCALER: &str = "NFSMW_UPSCALER";
 pub const UPSCALE_SHARPNESS: &str = "NFSMW_UPSCALE_SHARPNESS";
+pub const UPSCALE_QUALITY: &str = "NFSMW_UPSCALE_QUALITY";
+pub const RAY_TRACING: &str = "NFSMW_RAY_TRACING";
 pub const PADDLE_UP: &str = "NFSMW_PADDLE_UP";
 pub const PADDLE_DOWN: &str = "NFSMW_PADDLE_DOWN";
 pub const MANUAL_CLUTCH: &str = "NFSMW_MANUAL_CLUTCH";
@@ -100,6 +102,8 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         render_scale: value(&get, RENDER_SCALE, RenderScale::from_str),
         upscaler: value(&get, UPSCALER, UpscaleMode::from_str),
         upscale_sharpness: value(&get, UPSCALE_SHARPNESS, Percent::from_str),
+        upscale_quality: value(&get, UPSCALE_QUALITY, UpscaleQuality::from_str),
+        ray_tracing: value(&get, RAY_TRACING, RayTracingLevel::from_str),
         paddle_up: value(&get, PADDLE_UP, |s| s.trim().parse::<u32>().map_err(|e| e.to_string())),
         paddle_down: value(&get, PADDLE_DOWN, |s| s.trim().parse::<u32>().map_err(|e| e.to_string())),
         manual_clutch: value(&get, MANUAL_CLUTCH, parse_bool),

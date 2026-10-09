@@ -11,8 +11,8 @@ use toml::{Table, Value};
 use super::partial::{Partial, Percent};
 use super::{CarShading, Deadzone, GraphicsPreset, HudLayout, MinimapMode, RadioHudStyle, Sensitivity, Transmission};
 use super::{
-    Monitor, PostAa, PostBloom, PostTonemap, RenderScale, RendererKind, Resolution, SmokeQuality, UpscaleMode,
-    WindowMode,
+    Monitor, PostAa, PostBloom, PostTonemap, RayTracingLevel, RenderScale, RendererKind, Resolution, SmokeQuality,
+    UpscaleMode, UpscaleQuality, WindowMode,
 };
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
@@ -105,6 +105,8 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         }),
         upscaler: field(&table, origin, "upscaler", |v| UpscaleMode::from_str(text_of(v)?)),
         upscale_sharpness: field(&table, origin, "upscale_sharpness", percent),
+        upscale_quality: field(&table, origin, "upscale_quality", |v| UpscaleQuality::from_str(text_of(v)?)),
+        ray_tracing: field(&table, origin, "ray_tracing", |v| RayTracingLevel::from_str(text_of(v)?)),
         paddle_up: field(&table, origin, "paddle_up", button_code),
         paddle_down: field(&table, origin, "paddle_down", button_code),
         manual_clutch: field(&table, origin, "manual_clutch", boolean),

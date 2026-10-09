@@ -11,7 +11,7 @@ use crate::settings::{
 };
 
 /// Settings the console can show.
-const KEYS: [&str; 45] = [
+const KEYS: [&str; 47] = [
     "deadzone_mode",
     "steering_deadzone",
     "camera_deadzone",
@@ -57,6 +57,8 @@ const KEYS: [&str; 45] = [
     "render_scale",
     "upscaler",
     "upscale_sharpness",
+    "upscale_quality",
+    "ray_tracing",
 ];
 
 /// The text for `get <key>`, or an error naming the valid keys.
@@ -107,6 +109,8 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "render_scale" => settings.render_scale.to_string(),
         "upscaler" => settings.upscaler.to_string(),
         "upscale_sharpness" => settings.upscale_sharpness.to_string(),
+        "upscale_quality" => settings.upscale_quality.to_string(),
+        "ray_tracing" => settings.ray_tracing.to_string(),
         other => return Err(unknown(other)),
     };
     Ok(format!("{key} = {value}"))
@@ -168,6 +172,8 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "render_scale" => settings.render_scale = RenderScale::from_str(value)?,
         "upscaler" => settings.upscaler = value.parse()?,
         "upscale_sharpness" => settings.upscale_sharpness = Percent::from_str(value)?,
+        "upscale_quality" => settings.upscale_quality = value.parse()?,
+        "ray_tracing" => settings.ray_tracing = value.parse()?,
         "backend" => return Err("the graphics backend cannot change while running; restart with --backend".into()),
         other => return Err(unknown(other)),
     }
@@ -225,6 +231,8 @@ fn syntax(key: &str) -> Option<&'static str> {
         "render_scale" => "<50-200>",
         "upscaler" => "<off|bilinear|fsr1|fsr3|fsr4|dlss>",
         "upscale_sharpness" => "<0-100>",
+        "upscale_quality" => "<auto|native|quality|balanced|performance|ultra_performance>",
+        "ray_tracing" => "<off|low|medium|high>",
         _ => return None,
     })
 }
@@ -354,6 +362,23 @@ mod tests {
         assert!(set(&mut s, "renderer", "wgpu").unwrap_err().contains("expected blackbox or bevy"));
         assert_eq!(s, before);
         assert_eq!(set(&mut s, "renderer", "").unwrap_err(), "usage: set renderer <blackbox|bevy> (now bevy)");
+    }
+
+    #[test]
+    fn upscale_quality_and_ray_tracing_are_set_by_name_and_validated() {
+        let mut s = defaults();
+        assert_eq!(get(&s, "upscale_quality").unwrap(), "upscale_quality = quality");
+        assert_eq!(get(&s, "ray_tracing").unwrap(), "ray_tracing = off");
+        assert_eq!(set(&mut s, "upscale_quality", "ultra_performance").unwrap(), "upscale_quality = ultra_performance");
+        assert_eq!(set(&mut s, "ray_tracing", "high").unwrap(), "ray_tracing = high");
+        let before = s;
+        assert!(set(&mut s, "upscale_quality", "extreme").unwrap_err().contains("expected auto, native"));
+        assert!(set(&mut s, "ray_tracing", "path").unwrap_err().contains("expected off, low, medium or high"));
+        assert_eq!(s, before);
+        assert_eq!(
+            set(&mut s, "ray_tracing", "").unwrap_err(),
+            "usage: set ray_tracing <off|low|medium|high> (now high)"
+        );
     }
 
     #[test]

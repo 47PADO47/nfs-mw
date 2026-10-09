@@ -275,6 +275,15 @@ pub struct ViewArgs {
     /// FSR 1 sharpening, 0 (off) to 100 [env NFSMW_UPSCALE_SHARPNESS; config `upscale_sharpness`; default 80].
     #[arg(long, value_name = "0-100")]
     pub upscale_sharpness: Option<crate::settings::Percent>,
+    /// How far a temporal upscaler (fsr3, fsr4, dlss) renders below the output: auto, native, quality (67 %),
+    /// balanced, performance or ultra_performance [env NFSMW_UPSCALE_QUALITY; config `upscale_quality`;
+    /// default quality].
+    #[arg(long, value_name = "auto|native|quality|balanced|performance|ultra_performance")]
+    pub upscale_quality: Option<crate::settings::UpscaleQuality>,
+    /// Ray-traced lighting: off, low, medium or high; only the bevy renderer on a GPU with ray queries has it,
+    /// and switching it on or off needs a restart [env NFSMW_RAY_TRACING; config `ray_tracing`; default off].
+    #[arg(long, value_name = "off|low|medium|high")]
+    pub ray_tracing: Option<crate::settings::RayTracingLevel>,
     /// Turn the radio off [env NFSMW_RADIO=off; config `radio = false`; default on].
     #[arg(long, conflicts_with = "radio")]
     pub no_radio: bool,
@@ -380,6 +389,8 @@ impl ViewArgs {
             render_scale: self.render_scale,
             upscaler: self.upscaler,
             upscale_sharpness: self.upscale_sharpness,
+            upscale_quality: self.upscale_quality,
+            ray_tracing: self.ray_tracing,
             ..Partial::default()
         }
     }

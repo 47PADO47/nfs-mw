@@ -34,7 +34,7 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 35] = [
+pub const BUILT_IN: [(&str, &str); 37] = [
     ("bind <action> <input>", "replace one device family's action assignments; keys lists action names"),
     ("addbind <action> <input>", "add another physical input to an action"),
     ("unbind <action> [keyboard|mouse|gamepad|all]", "remove action assignments"),
@@ -59,6 +59,11 @@ pub const BUILT_IN: [(&str, &str); 35] = [
     ("hud-layout <pc|classic|xbox360>", "change HUD placement and scale"),
     ("post_tonemap <off|aces>", "filmic tone mapping (darkens the image)"),
     ("post_bloom <off|low|medium|high>", "glow around bright areas"),
+    (
+        "upscale_quality <auto|native|quality|balanced|performance|ultra_performance>",
+        "render size of the temporal upscalers",
+    ),
+    ("ray_tracing <off|low|medium|high>", "ray-traced lighting (bevy renderer; off to on needs a restart)"),
     ("post_aa <off|fxaa|smaa|taa>", "anti-aliasing of the 3D scene (smaa, taa: bevy renderer)"),
     ("collision_sparks <on|off>", "change collision sparks"),
     ("spark_style <original-pc|restored-experimental>", "select stock or experimental collision particles"),
@@ -76,7 +81,7 @@ pub const BUILT_IN: [(&str, &str); 35] = [
 ];
 
 /// Further shorthands for `set`: `vsync off` is `set vsync off`.
-const SET_SHORTHANDS: [&str; 24] = [
+const SET_SHORTHANDS: [&str; 26] = [
     "fps",
     "renderer",
     "vsync",
@@ -101,6 +106,8 @@ const SET_SHORTHANDS: [&str; 24] = [
     "post_tonemap",
     "post_bloom",
     "post_aa",
+    "upscale_quality",
+    "ray_tracing",
 ];
 
 /// Parse one line. `Ok(None)` for an empty line.

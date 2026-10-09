@@ -15,6 +15,8 @@ impl Settings {
             upscaler: self.upscaler.upscaler(),
             render_scale: self.render_scale.factor(),
             upscale_sharpness: self.upscale_sharpness.amplitude(),
+            upscale_quality: self.upscale_quality.mode(),
+            ray_tracing: self.ray_tracing.level(),
             ..GraphicsSettings::default()
         }
     }
