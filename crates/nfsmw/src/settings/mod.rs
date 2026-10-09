@@ -7,6 +7,8 @@ mod controls;
 #[cfg(test)]
 mod controls_tests;
 mod env;
+#[cfg(test)]
+mod exhaust_flames_tests;
 mod file;
 mod hud_layout;
 #[cfg(test)]
@@ -72,6 +74,8 @@ pub struct Settings {
     pub spark_style: SparkStyle,
     /// Experimental wind trails at high speed.
     pub speed_trails: bool,
+    /// Flames at the tail pipes: nitrous, gear-change blow-off and lift-off backfire. Nothing is loaded when off.
+    pub exhaust_flames: bool,
     /// Who changes gear: the box (default) or the player.
     pub transmission: Transmission,
     /// How the HUD's minimap is shown: fixed (default), rotating or off.
@@ -117,6 +121,7 @@ impl From<Partial> for Settings {
             collision_sparks: p.collision_sparks.unwrap_or(false),
             spark_style: p.spark_style.unwrap_or_default(),
             speed_trails: p.speed_trails.unwrap_or(false),
+            exhaust_flames: p.exhaust_flames.unwrap_or(true),
             transmission: p.transmission.unwrap_or_default(),
             minimap: p.minimap.unwrap_or_default(),
             hud_layout: p.hud_layout.unwrap_or_default(),

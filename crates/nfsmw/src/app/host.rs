@@ -33,6 +33,7 @@ pub struct Host {
     smoke_quality: SmokeQuality,
     vehicle_effects: [bool; 2],
     spark_style: crate::settings::SparkStyle,
+    exhaust_flames: bool,
     /// The transmission setting as of the last frame, given to every scene that is put in the window.
     pub transmission: Transmission,
 }
@@ -43,6 +44,7 @@ impl Host {
         scene.set_smoke_quality(settings.smoke_quality);
         scene.set_vehicle_effects(settings.collision_sparks, settings.speed_trails);
         scene.set_spark_style(settings.spark_style);
+        scene.set_exhaust_flames(settings.exhaust_flames);
         Self {
             scene,
             scene_changes: 0,
@@ -59,6 +61,7 @@ impl Host {
             smoke_quality: settings.smoke_quality,
             vehicle_effects: [settings.collision_sparks, settings.speed_trails],
             spark_style: settings.spark_style,
+            exhaust_flames: settings.exhaust_flames,
             transmission: settings.transmission,
         }
     }
@@ -70,6 +73,7 @@ impl Host {
         scene.set_smoke_quality(self.smoke_quality);
         scene.set_vehicle_effects(self.vehicle_effects[0], self.vehicle_effects[1]);
         scene.set_spark_style(self.spark_style);
+        scene.set_exhaust_flames(self.exhaust_flames);
         let renderer = self.renderer.as_mut().ok_or_else(|| anyhow::anyhow!("the renderer is not ready"))?;
         scene.init(renderer)?;
         scene.set_transmission(self.transmission);
@@ -94,6 +98,11 @@ impl Host {
     pub fn set_spark_style(&mut self, style: crate::settings::SparkStyle) {
         self.spark_style = style;
         self.scene.set_spark_style(style);
+    }
+
+    pub fn set_exhaust_flames(&mut self, on: bool) {
+        self.exhaust_flames = on;
+        self.scene.set_exhaust_flames(on);
     }
 
     pub fn set_vehicle_effects(&mut self, sparks: bool, trails: bool) {
