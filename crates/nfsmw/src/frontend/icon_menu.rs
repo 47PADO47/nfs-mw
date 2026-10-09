@@ -288,6 +288,13 @@ impl IconMenu {
 
 impl ScreenLogic for IconMenu {
     fn start(&mut self, cx: &mut Cx) {
+        // Pause's glow INIT retains its idle colour; the event handler starts its entrance fade later.
+        // Keep it transparent until that fade takes over, just like the incoming icons and brackets.
+        if self.pause()
+            && let Some(glow) = cx.object(ids::ICON_SELECTION_GLOW)
+        {
+            cx.rt.set_alpha(glow, 0);
+        }
         // The cursor brackets sit on the stand-in icon (`OPTION_MASTER`), so that is where the selected icon goes:
         // the region's own position is up to 17 units off it (MainMenu.fng), which left the icon out of its brackets.
         let region = cx.named("ICON_SCROLL_REGION");

@@ -12,6 +12,9 @@ D-pad and left-stick menu navigation. Existing driving bindings and saved respon
   including pause menus entering, leaving and returning from a category. Icons and text fit inside
   that rectangle and share its animation **[verified files/runtime, layout policy ours]**.
   The title hint inherits the authored prompt position and fade so it clears the copyright text.
+- Newly loaded packages evaluate their entrance pose before presentation. The pause selection glow starts
+  transparent until the package's entrance event starts its fade; its idle `INIT` colour must not flash
+  while the icons are still hidden **[ours, verified files/runtime]**.
 - Keyboard and custom-input keycaps are drawn as outlined, translucent widgets. Their text is centred
   using the installed font's glyph bounds; neither opaque rectangular badges nor mod key textures are used.
 - Prompt device changes on meaningful input, not every poll. Neutral controllers, stick drift, releases,

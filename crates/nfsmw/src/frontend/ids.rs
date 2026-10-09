@@ -39,6 +39,7 @@ pub const PAUSE_HEADER: u32 = 0x8634_04B5;
 /// The object whose scripts time the leave animation (its name is only known as a hash).
 pub const EVENT_HANDLER: u32 = 0x47FF_4E7C;
 pub const OPTION_MASTER: u32 = 0xB046_69E3;
+pub const ICON_SELECTION_GLOW: u32 = 0x5FBB_A846;
 pub const ICON_TITLE: u32 = 0x5E7B_09C9;
 pub const ICON_TITLE_SHADOW: u32 = 0x0DFB_7A2E;
 pub const TITLE_GROUP: u32 = 0xB71B_576D;

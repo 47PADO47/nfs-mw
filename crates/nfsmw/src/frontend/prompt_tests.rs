@@ -20,6 +20,55 @@ fn assets() -> UiAssets {
     UiAssets::load(&dir).unwrap()
 }
 
+fn assert_entrance(h: &Harness, group: u32) {
+    let raw = h.screens.trees().pop().unwrap();
+    let root = raw.nodes.iter().find(|n| n.name_hash == group).unwrap();
+    assert_eq!(root.world_colour[3], 0, "incoming footer must start at its entrance pose");
+    if h.screens.top() == Some(screen::PAUSE_MENU) {
+        let glow = raw.nodes.iter().find(|n| n.name_hash == super::super::ids::ICON_SELECTION_GLOW).unwrap();
+        assert_eq!(glow.world_colour[3], 0, "selection glow must not flash before its entrance fade");
+    }
+    for device in [InputDevice::Xbox, InputDevice::Keyboard] {
+        let shown = h.screens.presented_trees(&Bindings::default(), device).pop().unwrap();
+        assert!(shown.nodes[raw.nodes.len()..].iter().all(|n| !n.visible));
+    }
+}
+
+#[test]
+#[ignore = "requires installed menu packages; set NFSMW_GAME_DIR"]
+fn incoming_screens_never_present_the_stored_end_pose() {
+    for (name, pause, group, _) in FOOTERS {
+        let mut h = Harness::open(name, Args { pause, category: Category::Gameplay, ..Args::default() }).unwrap();
+        assert_entrance(&h, group);
+        if name == screen::PAUSE_MENU {
+            h.wait(1.0);
+            let tree = h.screens.trees().pop().unwrap();
+            let glow = tree.nodes.iter().find(|n| n.name_hash == super::super::ids::ICON_SELECTION_GLOW).unwrap();
+            assert!(glow.visible && glow.world_colour[3] > 0, "authored glow animation must still run");
+        }
+    }
+    for (menu, rows, pause, menu_group, rows_group) in [
+        (screen::MAIN_MENU_SUB, screen::OPTIONS, false, 0x17B1_F254, 0x84BC_F2B5),
+        (screen::PAUSE_MENU, screen::PAUSE_OPTIONS, true, 0x2FE7_4244, 0xB3A6_9E89),
+    ] {
+        let mut h = Harness::open(menu, Args { pause, options: true, ..Args::default() }).unwrap();
+        h.wait(1.0);
+        for (button, target, group) in [(pad::ACCEPT, rows, rows_group), (pad::BACK, menu, menu_group)] {
+            h.run(button, 1);
+            for _ in 0..180 {
+                h.run(0, 1);
+                if h.screens.top() == Some(target) {
+                    break;
+                }
+            }
+            assert_eq!(h.screens.top(), Some(target));
+            // Inspect the switch frame itself, before advancing the incoming screen at all.
+            assert_entrance(&h, group);
+            h.wait(1.0);
+        }
+    }
+}
+
 fn assert_footer(raw: &UiTree, shown: &UiTree, group: u32, background: u32, assets: &UiAssets) {
     let root = raw.nodes.iter().find(|n| n.name_hash == group).unwrap();
     let bar = raw.nodes.iter().find(|n| n.parent == Some(root.index) && n.name_hash == background).unwrap();

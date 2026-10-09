@@ -22,6 +22,10 @@ buttons, and the rules that turn objects into a draw list. The on-disk layouts a
   second, so 960 ticks per second** (`FADEIN` is 600 ticks, 0.625 s) **[inferred]**. The runtime takes a time
   step in seconds and converts.
 - A package is updated once per frame, objects in list order, children of a group after the group itself.
+- **Presentation initialization [ours]:** loading a package evaluates its `INIT` scripts with zero elapsed
+  ticks before returning a drawable tree, including their immediate chain targets. This prevents a newly
+  switched screen from briefly showing its stored end pose before its entrance animation. Other packages,
+  pad input and the global clock are unchanged; queued initialization events are processed on the next update.
 
 ## 2. Object state
 
