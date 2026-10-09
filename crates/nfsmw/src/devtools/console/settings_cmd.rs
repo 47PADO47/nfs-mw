@@ -11,7 +11,7 @@ use crate::settings::{
 };
 
 /// Settings the console can show.
-const KEYS: [&str; 43] = [
+const KEYS: [&str; 44] = [
     "deadzone_mode",
     "steering_deadzone",
     "camera_deadzone",
@@ -36,6 +36,7 @@ const KEYS: [&str; 43] = [
     "hud",
     "tire_smoke",
     "radio",
+    "graphics_preset",
     "car_shading",
     "smoke_quality",
     "skid_marks",
@@ -84,6 +85,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "hud" => on_off(settings.hud).to_owned(),
         "tire_smoke" => on_off(settings.tire_smoke).to_owned(),
         "radio" => on_off(settings.radio).to_owned(),
+        "graphics_preset" => settings.graphics_preset.to_string(),
         "car_shading" => settings.car_shading.to_string(),
         "smoke_quality" => settings.smoke_quality.to_string(),
         "skid_marks" => on_off(settings.skid_marks).to_owned(),
@@ -143,6 +145,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "hud" => settings.hud = parse_bool(value)?,
         "tire_smoke" => settings.tire_smoke = parse_bool(value)?,
         "radio" => settings.radio = parse_bool(value)?,
+        "graphics_preset" => settings.apply_preset(value.parse()?),
         "car_shading" => settings.car_shading = value.parse()?,
         "smoke_quality" => settings.smoke_quality = value.parse()?,
         "skid_marks" => settings.skid_marks = parse_bool(value)?,
@@ -165,6 +168,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "backend" => return Err("the graphics backend cannot change while running; restart with --backend".into()),
         other => return Err(unknown(other)),
     }
+    settings.settle_preset();
     get(settings, key)
 }
 
@@ -199,6 +203,7 @@ fn syntax(key: &str) -> Option<&'static str> {
         "monitor" => "<current|primary|index>",
         "resolution" => "<WIDTHxHEIGHT|native>",
         "volume" | "master_volume" | "music_volume" | "sfx_volume" | "engine_volume" | "speech_volume" => "<0-100>",
+        "graphics_preset" => "<custom|low|medium|high>",
         "car_shading" => "<simple|glossy>",
         "smoke_quality" => "<standard|high>",
         "spark_style" => "<original-pc|restored-experimental>",
@@ -355,6 +360,25 @@ mod tests {
         assert!(set(&mut s, "upscale_sharpness", "101").is_err());
         assert_eq!(s, before);
         assert_eq!(set(&mut s, "render_scale", "").unwrap_err(), "usage: set render_scale <50-200> (now 67)");
+    }
+
+    #[test]
+    fn a_preset_sets_its_keys_and_changing_one_makes_it_custom() {
+        let mut s = defaults();
+        assert_eq!(get(&s, "graphics_preset").unwrap(), "graphics_preset = custom");
+        assert_eq!(set(&mut s, "graphics_preset", "low").unwrap(), "graphics_preset = low");
+        assert_eq!(get(&s, "car_shading").unwrap(), "car_shading = simple");
+        assert_eq!(get(&s, "render_scale").unwrap(), "render_scale = 75");
+        assert_eq!(get(&s, "upscaler").unwrap(), "upscaler = bilinear");
+        assert_eq!(set(&mut s, "post_bloom", "low").unwrap(), "post_bloom = low");
+        assert_eq!(get(&s, "graphics_preset").unwrap(), "graphics_preset = custom");
+        assert_eq!(get(&s, "car_shading").unwrap(), "car_shading = simple", "the rest stays");
+        assert!(set(&mut s, "graphics_preset", "ultra").is_err());
+        assert_eq!(
+            set(&mut s, "graphics_preset", "").unwrap_err(),
+            "usage: set graphics_preset <custom|low|medium|high> (now custom)"
+        );
+        assert_eq!(set(&mut s, "car_shading", "glossy").unwrap(), "car_shading = glossy");
     }
 
     #[test]

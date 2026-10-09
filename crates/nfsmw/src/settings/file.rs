@@ -9,7 +9,7 @@ use std::str::FromStr;
 use toml::{Table, Value};
 
 use super::partial::{Partial, Percent};
-use super::{CarShading, Deadzone, HudLayout, MinimapMode, RadioHudStyle, Sensitivity, Transmission};
+use super::{CarShading, Deadzone, GraphicsPreset, HudLayout, MinimapMode, RadioHudStyle, Sensitivity, Transmission};
 use super::{Monitor, PostAa, PostBloom, PostTonemap, RenderScale, Resolution, SmokeQuality, UpscaleMode, WindowMode};
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
@@ -79,6 +79,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         tire_smoke: field(&table, origin, "tire_smoke", boolean),
         radio: field(&table, origin, "radio", boolean),
         skip_intro: field(&table, origin, "skip_intro", boolean),
+        graphics_preset: field(&table, origin, "graphics_preset", |v| GraphicsPreset::from_str(text_of(v)?)),
         car_shading: field(&table, origin, "car_shading", |v| CarShading::from_str(text_of(v)?)),
         smoke_quality: field(&table, origin, "smoke_quality", |v| SmokeQuality::from_str(text_of(v)?)),
         skid_marks: field(&table, origin, "skid_marks", boolean),

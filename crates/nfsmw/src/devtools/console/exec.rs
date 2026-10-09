@@ -109,6 +109,12 @@ pub(super) fn set_live(settings: &mut Settings, host: &mut Host, key: &str, valu
     if key == "car_shading" {
         host.set_car_shading(settings.car_shading);
     }
+    if key == "graphics_preset" {
+        host.set_tire_effects(settings.tire_smoke, settings.skid_marks);
+        host.set_smoke_quality(settings.smoke_quality);
+        host.set_vehicle_effects(settings.collision_sparks, settings.speed_trails);
+        host.set_car_shading(settings.car_shading);
+    }
     if key == "smoke_quality" {
         host.set_smoke_quality(settings.smoke_quality);
     }

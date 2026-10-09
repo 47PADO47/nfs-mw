@@ -248,6 +248,10 @@ pub struct ViewArgs {
     /// Disable tire smoke.
     #[arg(long)]
     pub no_tire_smoke: bool,
+    /// A named set of graphics settings: custom (none; the default), low, medium or high. Any setting given
+    /// on its own, in any layer, wins over the preset [env NFSMW_GRAPHICS_PRESET; config `graphics_preset`].
+    #[arg(long, value_name = "custom|low|medium|high")]
+    pub graphics_preset: Option<crate::settings::GraphicsPreset>,
     /// Car shading: glossy (three lights, sun highlight, reflections) or simple (one light; the cheap path)
     /// [env NFSMW_CAR_SHADING; config `car_shading`; default glossy].
     #[arg(long, value_name = "simple|glossy")]
@@ -353,6 +357,7 @@ impl ViewArgs {
             hud_layout: self.hud_layout,
             radio_hud: self.radio_hud,
             tire_smoke: switch(self.tire_smoke, self.no_tire_smoke),
+            graphics_preset: self.graphics_preset,
             car_shading: self.car_shading,
             smoke_quality: self.smoke_quality,
             radio: switch(self.radio, self.no_radio),

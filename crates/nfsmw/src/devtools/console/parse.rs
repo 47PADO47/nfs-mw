@@ -34,7 +34,7 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 33] = [
+pub const BUILT_IN: [(&str, &str); 34] = [
     ("bind <action> <input>", "replace one device family's action assignments; keys lists action names"),
     ("addbind <action> <input>", "add another physical input to an action"),
     ("unbind <action> [keyboard|mouse|gamepad|all]", "remove action assignments"),
@@ -52,6 +52,7 @@ pub const BUILT_IN: [(&str, &str); 33] = [
     ("window", "show the actual window size, mode, DPI and focus"),
     ("monitors", "list available monitors and their indices"),
     ("keys", "list every key, button and stick binding"),
+    ("graphics_preset <custom|low|medium|high>", "set the graphics settings a preset stands for"),
     ("car_shading <simple|glossy>", "car shading: glossy or the cheap single-light look"),
     ("smoke_quality <standard|high>", "change tire smoke presentation quality"),
     ("hud-layout <pc|classic|xbox360>", "change HUD placement and scale"),
@@ -74,7 +75,7 @@ pub const BUILT_IN: [(&str, &str); 33] = [
 ];
 
 /// Further shorthands for `set`: `vsync off` is `set vsync off`.
-const SET_SHORTHANDS: [&str; 22] = [
+const SET_SHORTHANDS: [&str; 23] = [
     "fps",
     "vsync",
     "metrics",
@@ -90,6 +91,7 @@ const SET_SHORTHANDS: [&str; 22] = [
     "exhaust_flames",
     "smoke_quality",
     "car_shading",
+    "graphics_preset",
     "hud_layout",
     "hud-layout",
     "radio_hud",

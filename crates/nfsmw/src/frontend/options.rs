@@ -251,6 +251,15 @@ impl Setting {
     /// Moves the setting one step (`forward`: right, else left) and records the change for the config file.
     /// Returns whether the value changed (a slider at its end does not).
     pub fn step(self, s: &mut Settings, changed: &mut Partial, forward: bool) -> bool {
+        let moved = self.step_value(s, changed, forward);
+        // Changing one setting a preset covers leaves the preset behind: the row then reads Custom.
+        if s.settle_preset() {
+            changed.graphics_preset = Some(crate::settings::GraphicsPreset::Custom);
+        }
+        moved
+    }
+
+    fn step_value(self, s: &mut Settings, changed: &mut Partial, forward: bool) -> bool {
         if let Setting::Input(setting) = self {
             return setting.step(s, changed, forward);
         }
@@ -471,7 +480,7 @@ mod tests {
     #[test]
     fn every_category_has_rows() {
         assert_eq!(rows(Category::Audio).len(), 5);
-        assert_eq!(rows(Category::Video).len(), 17);
+        assert_eq!(rows(Category::Video).len(), 18);
         assert_eq!(rows(Category::Gameplay).len(), 5);
         assert_eq!(rows(Category::Controls).len(), 8);
     }

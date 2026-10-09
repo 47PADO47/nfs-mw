@@ -13,6 +13,9 @@ mod env;
 #[cfg(test)]
 mod exhaust_flames_tests;
 mod file;
+mod graphics_preset;
+#[cfg(test)]
+mod graphics_preset_tests;
 mod hud_layout;
 #[cfg(test)]
 mod hud_layout_tests;
@@ -42,6 +45,7 @@ use blackbox_render::Backend;
 
 pub use car_shading::CarShading;
 pub use controls::{Controls, Deadzone, DeadzoneMode, Sensitivity};
+pub use graphics_preset::GraphicsPreset;
 pub use hud_layout::HudLayout;
 pub use minimap::MinimapMode;
 pub use partial::{Partial, Percent, parse_bool};
@@ -85,6 +89,8 @@ pub struct Settings {
     pub radio: bool,
     /// Start at the main menu instead of the boot movies and the title screen (the `--skip-boot` flag).
     pub skip_intro: bool,
+    /// The preset the settings it covers still match, else `Custom` (see [`GraphicsPreset`]).
+    pub graphics_preset: GraphicsPreset,
     /// How cars are shaded: glossy (default) or the single-light shading of everything else.
     pub car_shading: CarShading,
     /// Optional smoke presentation quality; standard retains the default cost and look.
@@ -127,7 +133,11 @@ pub struct Settings {
 impl From<Partial> for Settings {
     /// Fill what no layer set with the defaults.
     fn from(p: Partial) -> Self {
-        Self {
+        // A preset fills what no layer set: command line > environment > config file > preset > defaults.
+        let requested = p.graphics_preset.unwrap_or_default();
+        let p = p.or(requested.layer());
+        let mut settings = Self {
+            graphics_preset: requested,
             controls: Controls {
                 deadzone_mode: p.deadzone_mode.unwrap_or_default(),
                 steering_deadzone: p.steering_deadzone.unwrap_or(Controls::default().steering_deadzone),
@@ -176,7 +186,9 @@ impl From<Partial> for Settings {
             paddle_down: p.paddle_down,
             manual_clutch: p.manual_clutch.unwrap_or(false),
             h_shifter: p.h_shifter.unwrap_or(false),
-        }
+        };
+        settings.settle_preset();
+        settings
     }
 }
 
