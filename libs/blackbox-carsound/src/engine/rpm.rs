@@ -69,6 +69,7 @@ pub(super) struct EngineCtl {
     pub was_redlining: bool,
     pub eng_factor: Interp,
     pub samp_factor: Interp,
+    sample_takeover: bool,
     /// The tachometer value as a fraction of the gauge.
     pub visual_fraction: f32,
     /// Set by the hybrid motor to start a compression bump.
@@ -100,6 +101,7 @@ impl EngineCtl {
             was_redlining: false,
             eng_factor: Interp::holding(1.0),
             samp_factor: Interp::holding(0.0),
+            sample_takeover: false,
             visual_fraction: 0.0,
             play_compression: false,
             bump_started: false,
@@ -131,6 +133,7 @@ impl EngineCtl {
         accel: &AccelTrans,
         tuning: &EngineTuning,
         rng: &mut Rng,
+        redline_sample_available: bool,
     ) {
         self.clutch_on = ctx.is_local_player && !accel.active() && self.rpm <= CLUTCH_RPM_THRESHOLD;
         self.update_lfo(ctx.dt, shift);
@@ -138,7 +141,7 @@ impl EngineCtl {
         self.update_rpm(ctx, shift, accel);
         self.update_torque(ctx.physics, shift, accel);
         self.update_volume(shift);
-        self.update_redline(ctx, shift, tuning);
+        self.update_redline(ctx, shift, tuning, redline_sample_available);
     }
 
     fn update_lfo(&mut self, dt: f32, shift: &Shifting) {
@@ -247,35 +250,48 @@ impl EngineCtl {
         self.volume = finite(volume + self.vol_lfo);
     }
 
-    fn update_redline(&mut self, ctx: &TickContext<'_>, shift: &Shifting, tuning: &EngineTuning) {
+    fn update_redline(
+        &mut self,
+        ctx: &TickContext<'_>,
+        shift: &Shifting,
+        tuning: &EngineTuning,
+        sample_available: bool,
+    ) {
         self.was_redlining = self.redlining;
         if !tuning.redline_enabled {
             return;
         }
         if !self.redlining && !shift.active() && self.rpm > REDLINE_RPM {
-            self.begin_redline((ctx.physics.gear as f32).clamp(1.0, 5.0));
-        } else if self.redlining && (self.rpm < REDLINE_RPM || shift.active()) {
-            self.end_redline();
+            self.redlining = true;
+            self.bounce_up = true;
+            self.visual_offset = 0.0;
         }
+        if self.redlining && (self.rpm < REDLINE_RPM || shift.active()) {
+            self.redlining = false;
+        }
+        let takeover = self.redlining && sample_available;
+        if takeover && !self.sample_takeover {
+            self.begin_takeover((ctx.physics.gear as f32).clamp(1.0, 5.0));
+        }
+        if !takeover && self.sample_takeover {
+            self.end_takeover();
+        }
+        self.sample_takeover = takeover;
         self.eng_factor.update(ctx.dt);
         self.samp_factor.update(ctx.dt);
     }
 
     /// The engine ducks to 15 % and the sample takes over at 85 %; both fades are longer in higher gears.
-    fn begin_redline(&mut self, gear_scale: f32) {
-        self.redlining = true;
+    fn begin_takeover(&mut self, gear_scale: f32) {
         let eng = self.eng_factor.value();
         let samp = self.samp_factor.value();
         let duck_ms = (ENGINE_FADE_OUT_MS * eng * gear_scale).trunc();
         let raise_ms = (SAMPLE_FADE_IN_MS * (1.0 - samp) * gear_scale).trunc();
         self.eng_factor.begin(eng, 1.0 - REDLINE_MIX, duck_ms, Curve::Linear);
         self.samp_factor.begin(samp, REDLINE_MIX, raise_ms, Curve::Linear);
-        self.bounce_up = true;
-        self.visual_offset = 0.0;
     }
 
-    fn end_redline(&mut self) {
-        self.redlining = false;
+    fn end_takeover(&mut self) {
         let eng = self.eng_factor.value();
         let samp = self.samp_factor.value();
         self.eng_factor.begin(eng, 1.0, (ENGINE_FADE_IN_MS * (1.0 - eng)).trunc(), Curve::Linear);

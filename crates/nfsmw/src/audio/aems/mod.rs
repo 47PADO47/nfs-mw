@@ -5,6 +5,8 @@
 
 mod host;
 mod kira_out;
+#[cfg(test)]
+mod limiter_tests;
 mod params;
 #[cfg(test)]
 pub(super) mod soft;
@@ -104,6 +106,12 @@ impl AemsLayer {
     pub fn sparks(&self) -> bool {
         let object = self.sputter.as_ref().and_then(|p| p.voices.object.as_ref());
         object.and_then(|params| params.first()).is_some_and(|&volume| volume != 0)
+    }
+
+    /// Whether the engine sample module and every requested voice are usable. A missing or failed engine
+    /// cannot replace the Ginsu loops at the limiter; a failed sputter does not affect that replacement.
+    pub fn engine_available(&self) -> bool {
+        self.engine.as_ref().is_some_and(|p| !p.instance.is_destroyed() && !p.voices.failed)
     }
 
     /// The number of voices playing: the engine's, then the sputter's.

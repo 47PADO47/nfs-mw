@@ -18,7 +18,12 @@ and its banks.
   reverse whine, the turbo spool and blow-off, nitrous and its purge, a tire loop per axle, road noise per side,
   wind, landings, and which sample a collision plays (`impact`) and its scrape loop. It returns `SoundCommand`s
   naming a `SoundRef` (the effect, not the file); the game picks the bank sound.
-- **Not done yet:** the sample (AEMS) layer of the engine and the sputters; the mixer maps that scale the levels.
+- **Limiter fallback.** The host calls `EngineMixer::set_redline_sample_available(false)` when the sample
+  layer cannot replace the engine at the limiter. The surviving loops keep their normal level; losing a
+  replacement during redlining uses the normal release fade. The tachometer still bounces. A usable layer
+  retains the original 15% engine / 85% sample takeover.
+- **Host responsibilities:** running the sample (AEMS) layer and sputters, applying mixer-map levels and
+  playing the generated sounds. This library only produces their control values.
 
 ```rust
 use blackbox_carsound::{CarInput, CarSoundTuning, EngineMixer};
