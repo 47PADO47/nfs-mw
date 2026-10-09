@@ -1,11 +1,15 @@
 //! The `graphics_preset` setting: one switch that stands for a set of the individual cost settings
 //! (docs/low-end.md). A preset is the layer *below* every explicit setting and above the built-in defaults, so
 //! the order is command line > environment > config file > preset > defaults, per key.
+//!
+//! A preset is a set of *requests*. What a renderer actually runs is decided afterwards by its capabilities
+//! (`blackbox_gfx::resolve`), so `ultra` on the native renderer is `high`: the temporal anti-aliasing and the ray
+//! tracing it asks for fall back with a logged downgrade (docs/renderers.md).
 
-use std::fmt;
-use std::str::FromStr;
-
-use super::{CarShading, Partial, PostAa, PostBloom, PostTonemap, RenderScale, Settings, SmokeQuality, UpscaleMode};
+use super::{
+    CarShading, Partial, PostAa, PostBloom, PostTonemap, RayTracingLevel, RenderScale, Settings, SmokeQuality,
+    UpscaleMode,
+};
 
 /// A named set of graphics settings.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -19,49 +23,62 @@ pub enum GraphicsPreset {
     Medium,
     /// FXAA, a little bloom, high-quality smoke and collision sparks.
     High,
+    /// `high` plus temporal anti-aliasing and medium ray tracing, for the Bevy renderer on a strong GPU. The
+    /// native renderer has neither, so there it is `high`.
+    Ultra,
 }
 
+names!(
+    GraphicsPreset,
+    "custom, low, medium, high or ultra",
+    [
+        (Self::Custom, "custom"),
+        (Self::Low, "low"),
+        (Self::Medium, "medium"),
+        (Self::High, "high"),
+        (Self::Ultra, "ultra")
+    ]
+);
+
 impl GraphicsPreset {
-    /// The settings this preset stands for. `Custom` sets none. Every preset sets the same keys, so
+    pub const ALL: [Self; 5] = [Self::Custom, Self::Low, Self::Medium, Self::High, Self::Ultra];
+
+    /// The settings this preset stands for. `Custom` sets none. Every other preset sets the same keys, so
     /// switching between presets in a menu never leaves a value of the previous one behind.
     pub fn layer(self) -> Partial {
-        let (shading, bloom, aa, scale, upscaler, smoke, sparks) = match self {
-            Self::Custom => return Partial::default(),
-            Self::Low => (
-                CarShading::Simple,
-                PostBloom::Off,
-                PostAa::Off,
-                75,
-                UpscaleMode::Bilinear,
-                SmokeQuality::Standard,
-                false,
-            ),
-            Self::Medium => (
-                CarShading::Glossy,
-                PostBloom::Off,
-                PostAa::Fxaa,
-                100,
-                UpscaleMode::Fsr1,
-                SmokeQuality::Standard,
-                false,
-            ),
-            Self::High => {
-                (CarShading::Glossy, PostBloom::Low, PostAa::Fxaa, 100, UpscaleMode::Fsr1, SmokeQuality::High, true)
-            }
-        };
-        Partial {
-            car_shading: Some(shading),
+        let medium = Partial {
+            car_shading: Some(CarShading::Glossy),
             post_tonemap: Some(PostTonemap::Off),
-            post_bloom: Some(bloom),
-            post_aa: Some(aa),
-            render_scale: RenderScale::new(scale),
-            upscaler: Some(upscaler),
+            post_bloom: Some(PostBloom::Off),
+            post_aa: Some(PostAa::Fxaa),
+            render_scale: RenderScale::new(100),
+            upscaler: Some(UpscaleMode::Fsr1),
+            ray_tracing: Some(RayTracingLevel::Off),
             tire_smoke: Some(true),
             skid_marks: Some(true),
-            smoke_quality: Some(smoke),
-            collision_sparks: Some(sparks),
+            smoke_quality: Some(SmokeQuality::Standard),
+            collision_sparks: Some(false),
             speed_trails: Some(false),
             ..Partial::default()
+        };
+        let high = Partial {
+            post_bloom: Some(PostBloom::Low),
+            smoke_quality: Some(SmokeQuality::High),
+            collision_sparks: Some(true),
+            ..medium
+        };
+        match self {
+            Self::Custom => Partial::default(),
+            Self::Low => Partial {
+                car_shading: Some(CarShading::Simple),
+                post_aa: Some(PostAa::Off),
+                render_scale: RenderScale::new(75),
+                upscaler: Some(UpscaleMode::Bilinear),
+                ..medium
+            },
+            Self::Medium => medium,
+            Self::High => high,
+            Self::Ultra => Partial { post_aa: Some(PostAa::Taa), ray_tracing: Some(RayTracingLevel::Medium), ..high },
         }
     }
 }
@@ -76,6 +93,7 @@ impl Settings {
             post_aa: Some(self.post_aa),
             render_scale: Some(self.render_scale),
             upscaler: Some(self.upscaler),
+            ray_tracing: Some(self.ray_tracing),
             tire_smoke: Some(self.tire_smoke),
             skid_marks: Some(self.skid_marks),
             smoke_quality: Some(self.smoke_quality),
@@ -96,6 +114,7 @@ impl Settings {
         self.post_aa = l.post_aa.unwrap_or(self.post_aa);
         self.render_scale = l.render_scale.unwrap_or(self.render_scale);
         self.upscaler = l.upscaler.unwrap_or(self.upscaler);
+        self.ray_tracing = l.ray_tracing.unwrap_or(self.ray_tracing);
         self.tire_smoke = l.tire_smoke.unwrap_or(self.tire_smoke);
         self.skid_marks = l.skid_marks.unwrap_or(self.skid_marks);
         self.smoke_quality = l.smoke_quality.unwrap_or(self.smoke_quality);
@@ -111,30 +130,5 @@ impl Settings {
         }
         self.graphics_preset = GraphicsPreset::Custom;
         true
-    }
-}
-
-impl FromStr for GraphicsPreset {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, String> {
-        match s {
-            "custom" => Ok(Self::Custom),
-            "low" => Ok(Self::Low),
-            "medium" => Ok(Self::Medium),
-            "high" => Ok(Self::High),
-            _ => Err(format!("expected custom, low, medium or high, got {s:?}")),
-        }
-    }
-}
-
-impl fmt::Display for GraphicsPreset {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Custom => "custom",
-            Self::Low => "low",
-            Self::Medium => "medium",
-            Self::High => "high",
-        })
     }
 }

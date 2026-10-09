@@ -252,9 +252,10 @@ pub struct ViewArgs {
     /// Disable tire smoke.
     #[arg(long)]
     pub no_tire_smoke: bool,
-    /// A named set of graphics settings: custom (none; the default), low, medium or high. Any setting given
-    /// on its own, in any layer, wins over the preset [env NFSMW_GRAPHICS_PRESET; config `graphics_preset`].
-    #[arg(long, value_name = "custom|low|medium|high")]
+    /// A named set of graphics settings: custom (none; the default), low, medium, high or ultra (high plus taa and
+    /// ray tracing, which only the bevy renderer has). Any setting given on its own, in any layer, wins over
+    /// the preset [env NFSMW_GRAPHICS_PRESET; config `graphics_preset`].
+    #[arg(long, value_name = "custom|low|medium|high|ultra")]
     pub graphics_preset: Option<crate::settings::GraphicsPreset>,
     /// Car shading: glossy (three lights, sun highlight, reflections) or simple (one light; the cheap path)
     /// [env NFSMW_CAR_SHADING; config `car_shading`; default glossy].

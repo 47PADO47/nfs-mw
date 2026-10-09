@@ -25,11 +25,12 @@ fn names_round_trip_strictly() {
         ("low", GraphicsPreset::Low),
         ("medium", GraphicsPreset::Medium),
         ("high", GraphicsPreset::High),
+        ("ultra", GraphicsPreset::Ultra),
     ] {
         assert_eq!(text.parse::<GraphicsPreset>().unwrap(), p);
         assert_eq!(p.to_string(), text);
     }
-    for text in ["ultra", "Low", " low", "", "1"] {
+    for text in ["extreme", "Low", " low", "", "1", "ULTRA"] {
         assert!(text.parse::<GraphicsPreset>().is_err(), "{text:?}");
     }
 }
@@ -66,9 +67,10 @@ fn every_preset_sets_the_same_keys() {
             l.smoke_quality.is_some(),
             l.collision_sparks.is_some(),
             l.speed_trails.is_some(),
+            l.ray_tracing.is_some(),
         ]
     };
-    for p in [GraphicsPreset::Low, GraphicsPreset::Medium, GraphicsPreset::High] {
+    for p in [GraphicsPreset::Low, GraphicsPreset::Medium, GraphicsPreset::High, GraphicsPreset::Ultra] {
         assert!(keys(p).iter().all(|set| *set), "{p}");
         assert_eq!(Settings::from(preset(p)).preset_keys(), p.layer(), "{p} reads back as itself");
     }
@@ -96,13 +98,13 @@ fn the_preset_itself_resolves_cli_then_environment_then_file() {
     assert_eq!(settings(Partial::default(), Partial::default(), file).graphics_preset, GraphicsPreset::High);
     assert_eq!(settings(Partial::default(), env, file).graphics_preset, GraphicsPreset::Medium);
     assert_eq!(settings(preset(GraphicsPreset::Low), env, file).graphics_preset, GraphicsPreset::Low);
-    let bad = env::read(|name| (name == env::GRAPHICS_PRESET).then(|| "ultra".to_owned()));
+    let bad = env::read(|name| (name == env::GRAPHICS_PRESET).then(|| "extreme".to_owned()));
     assert_eq!(
         settings(Partial::default(), bad, file).graphics_preset,
         GraphicsPreset::High,
         "bad values fall through"
     );
-    for text in ["graphics_preset = 'ultra'", "graphics_preset = 2"] {
+    for text in ["graphics_preset = 'extreme'", "graphics_preset = 2"] {
         assert_eq!(file::parse(text, "test").graphics_preset, None);
     }
 }
@@ -149,5 +151,39 @@ fn the_command_line_takes_a_preset() {
     assert_eq!(parse(&["--graphics-preset", "low"]).graphics_preset, Some(GraphicsPreset::Low));
     let s = Settings::from(parse(&["--graphics-preset", "low", "--render-scale", "100"]));
     assert_eq!((s.render_scale.percent(), s.car_shading), (100, CarShading::Simple));
-    assert!(Cli::try_parse_from(["nfsmw", "view-world", "--graphics-preset", "ultra"]).is_err());
+    assert_eq!(parse(&["--graphics-preset", "ultra"]).graphics_preset, Some(GraphicsPreset::Ultra));
+    assert!(Cli::try_parse_from(["nfsmw", "view-world", "--graphics-preset", "extreme"]).is_err());
+}
+
+#[test]
+fn ultra_is_high_plus_temporal_anti_aliasing_and_ray_tracing() {
+    let (high, ultra) = (Settings::from(preset(GraphicsPreset::High)), Settings::from(preset(GraphicsPreset::Ultra)));
+    assert_eq!(ultra.graphics_preset, GraphicsPreset::Ultra);
+    assert_eq!((ultra.post_aa, ultra.ray_tracing), (PostAa::Taa, RayTracingLevel::Medium));
+    assert_eq!((high.post_aa, high.ray_tracing), (PostAa::Fxaa, RayTracingLevel::Off));
+    let same = |s: &Settings| (s.car_shading, s.post_bloom, s.post_tonemap, s.smoke_quality, s.collision_sparks);
+    assert_eq!(same(&high), same(&ultra));
+    assert_eq!((ultra.upscaler, ultra.render_scale.percent()), (UpscaleMode::Fsr1, 100), "no temporal upscaler");
+}
+
+#[test]
+fn a_preset_resolves_per_renderer_and_ultra_is_high_on_the_native_one() {
+    use blackbox_gfx::{Antialiasing, RayTracing, Setting, resolve};
+    let effective = |p: GraphicsPreset, caps| resolve(&Settings::from(preset(p)).graphics(), &caps);
+    for p in [GraphicsPreset::Low, GraphicsPreset::Medium, GraphicsPreset::High] {
+        assert!(effective(p, test_caps::native()).is_exact(), "{p} is plain on the native renderer");
+        assert!(effective(p, test_caps::full()).is_exact(), "{p}");
+    }
+    let low = effective(GraphicsPreset::Low, test_caps::native()).effective;
+    assert_eq!((low.render_scale, low.post.antialiasing), (0.75, Antialiasing::Off));
+
+    let native = effective(GraphicsPreset::Ultra, test_caps::native());
+    let high = effective(GraphicsPreset::High, test_caps::native());
+    assert_eq!(native.effective, high.effective, "ultra is high where the features are missing");
+    assert!(native.downgrade_of(Setting::Antialiasing).is_some() && native.downgrade_of(Setting::RayTracing).is_some());
+    assert_eq!(native.downgrades.len(), 2, "{:?}", native.downgrades);
+
+    let full = effective(GraphicsPreset::Ultra, test_caps::full());
+    assert!(full.is_exact(), "{:?}", full.downgrades);
+    assert_eq!((full.effective.post.antialiasing, full.effective.ray_tracing), (Antialiasing::Taa, RayTracing::Medium));
 }

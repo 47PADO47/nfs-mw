@@ -217,7 +217,7 @@ fn syntax(key: &str) -> Option<&'static str> {
         "monitor" => "<current|primary|index>",
         "resolution" => "<WIDTHxHEIGHT|native>",
         "volume" | "master_volume" | "music_volume" | "sfx_volume" | "engine_volume" | "speech_volume" => "<0-100>",
-        "graphics_preset" => "<custom|low|medium|high>",
+        "graphics_preset" => "<custom|low|medium|high|ultra>",
         "car_shading" => "<simple|glossy>",
         "smoke_quality" => "<standard|high>",
         "spark_style" => "<original-pc|restored-experimental>",
@@ -419,10 +419,10 @@ mod tests {
         assert_eq!(set(&mut s, "post_bloom", "low").unwrap(), "post_bloom = low");
         assert_eq!(get(&s, "graphics_preset").unwrap(), "graphics_preset = custom");
         assert_eq!(get(&s, "car_shading").unwrap(), "car_shading = simple", "the rest stays");
-        assert!(set(&mut s, "graphics_preset", "ultra").is_err());
+        assert!(set(&mut s, "graphics_preset", "extreme").is_err());
         assert_eq!(
             set(&mut s, "graphics_preset", "").unwrap_err(),
-            "usage: set graphics_preset <custom|low|medium|high> (now custom)"
+            "usage: set graphics_preset <custom|low|medium|high|ultra> (now custom)"
         );
         assert_eq!(set(&mut s, "car_shading", "glossy").unwrap(), "car_shading = glossy");
     }

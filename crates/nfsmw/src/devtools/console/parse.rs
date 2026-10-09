@@ -53,7 +53,7 @@ pub const BUILT_IN: [(&str, &str); 37] = [
     ("window", "show the actual window size, mode, DPI and focus"),
     ("monitors", "list available monitors and their indices"),
     ("keys", "list every key, button and stick binding"),
-    ("graphics_preset <custom|low|medium|high>", "set the graphics settings a preset stands for"),
+    ("graphics_preset <custom|low|medium|high|ultra>", "set the graphics settings a preset stands for"),
     ("car_shading <simple|glossy>", "car shading: glossy or the cheap single-light look"),
     ("smoke_quality <standard|high>", "change tire smoke presentation quality"),
     ("hud-layout <pc|classic|xbox360>", "change HUD placement and scale"),
