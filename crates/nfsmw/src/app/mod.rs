@@ -13,10 +13,12 @@ mod render;
 mod screenshot;
 #[cfg(test)]
 pub use screenshot::Plan;
+pub(crate) mod test_backend;
 pub mod window;
 
 pub use cursor::update as cursor_update;
 pub use host::Host;
+pub use render::select::BEVY_COMPILED;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
