@@ -18,6 +18,7 @@ mod physics;
 mod pursuit;
 mod sound;
 mod textures;
+mod traffic;
 mod world;
 mod zones;
 
