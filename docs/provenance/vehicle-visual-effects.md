@@ -212,7 +212,7 @@ transparent particles remain unsupported. The restoration is not verified Xbox
 output. Screenshot grading differences are not corrected by retinting particles.
 
 The final stock-mode revision passed 1066 workspace tests in the combined build
-and 989 on the independent main-based VFX branch, plus formatting, warning-denied
+and 1011 on the independent main-based VFX branch, plus formatting, warning-denied
 Clippy and leak/size checks. Explicit installed tests passed on both unmodified
 and restoration-mod assets: BMW/Cobalt ordinary profiles and textures, stock vs
 restored isolation, mode changes, disable/reset, and main/pause option cycles and
