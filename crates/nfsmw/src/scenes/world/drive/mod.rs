@@ -2,6 +2,7 @@
 //! camera and the scripted driver. The world scene owns the streaming and decides when and where
 //! the car appears; this module owns everything about the car itself.
 
+mod access;
 mod clock;
 mod debug;
 mod fall;

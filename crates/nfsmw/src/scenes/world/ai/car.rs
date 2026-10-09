@@ -23,6 +23,23 @@ pub struct Start {
     pub speed: f32,
 }
 
+/// How a crash with the player went for a traffic car.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Accident {
+    None,
+    /// No pedals and full lock, for this many more thinks.
+    InProgress(u32),
+    /// Braking to a halt with the wheels still turned.
+    Over,
+}
+
+/// Thinks an accident lasts (the original counts thinks where it probably meant seconds).
+const ACCIDENT_THINKS: u32 = 3;
+/// A hit shorter than this change of speed (m/s) does not shock the car, and the level falls over this long.
+const SHOCK_MIN_SPEED_CHANGE: f32 = 2.0;
+const SHOCK_FORCE: f32 = 10.0;
+const SHOCK_TIME: f32 = 3.0;
+
 /// Below this speed (m/s) a car counts as standing still.
 const IDLE_SPEED: f32 = 0.5;
 
@@ -52,6 +69,9 @@ pub struct AiCar {
     idle: f32,
     /// Seconds with no wheel on the ground.
     airborne: f32,
+    /// 0..1: hit hard enough to lose control for a moment.
+    shock: f32,
+    accident: Accident,
 }
 
 impl AiCar {
@@ -91,6 +111,8 @@ impl AiCar {
             blocked: false,
             idle: 0.0,
             airborne: 0.0,
+            shock: 0.0,
+            accident: Accident::None,
         })
     }
 
@@ -156,10 +178,21 @@ impl AiCar {
         if (self.steps + self.stagger).is_multiple_of(THINK_STEPS) {
             self.think(net, rng, bodies);
         }
-        let view = self.sim.driver_view();
+        let mut view = self.sim.driver_view();
+        view.in_shock = self.shock > 0.0;
+        self.shock = (self.shock - STEP / SHOCK_TIME).max(0.0);
         let request = DriveRequest { target: self.target, speed: self.speed, flags: DriveFlags::SIMPLE };
         let clock = self.steps as f32 * STEP;
         self.controls = self.driver.step(&view, &request, STEP, clock);
+        match self.accident {
+            Accident::None => {}
+            Accident::InProgress(_) => {
+                self.controls = AiControls { steer: 1.0, ..AiControls::default() };
+            }
+            Accident::Over => {
+                self.controls = AiControls { brake: 1.0, steer: 1.0, ..AiControls::default() };
+            }
+        }
         match self.controls.gear {
             Some(GearRequest::Reverse) => self.sim.shift_reverse(),
             Some(GearRequest::First) => self.sim.shift_first(),
@@ -206,6 +239,12 @@ impl AiCar {
 
     /// The traffic think: keep the cursor ahead of the car, steer past other cars and pick a speed.
     fn think(&mut self, net: &RoadNetwork, rng: &mut impl RandomSource, (bodies, me): (&[Body], usize)) {
+        if let Accident::InProgress(left) = self.accident {
+            self.accident = match left {
+                0 | 1 => Accident::Over,
+                n => Accident::InProgress(n - 1),
+            };
+        }
         let view = self.sim.driver_view();
         let state = traffic::CarState {
             body: self.body(),
@@ -218,6 +257,26 @@ impl AiCar {
         self.target = think.target;
         self.speed = think.speed;
         self.blocked = think.blocked;
+    }
+
+    /// The car's physics, for hits between cars.
+    pub(super) fn sim_mut(&mut self) -> &mut CarSim {
+        &mut self.sim
+    }
+
+    /// A hit with impulse `impulse` (N s). A hard one shocks the car; one with the player's car also starts an
+    /// accident (the car stops thinking about the road).
+    pub(super) fn on_hit(&mut self, impulse: f32, by_player: bool) {
+        let speed_change = impulse / self.mass.max(1.0);
+        if speed_change > SHOCK_MIN_SPEED_CHANGE {
+            self.shock = self.shock.max((speed_change / SHOCK_FORCE).min(1.0));
+        }
+        if by_player {
+            log::info!("traffic: {} was hit by the player (impulse {impulse:.0} N s)", self.name);
+        }
+        if by_player && self.accident == Accident::None {
+            self.accident = Accident::InProgress(ACCIDENT_THINKS);
+        }
     }
 
     /// Where the car is in physics space and which way it faces, for the spawner's spacing test.
