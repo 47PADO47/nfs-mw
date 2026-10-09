@@ -5,14 +5,14 @@ use bevy_ecs::prelude::*;
 use bevy_window::{PrimaryWindow, Window};
 
 use super::parse::{self, BUILT_IN, Command};
-use super::{Console, availability, gfx_cmd, settings_cmd};
+use super::{Console, gfx_cmd, settings_cmd};
 use crate::app::Host;
 use crate::app::pacing::FrameLimiter;
 use crate::app::window::WindowModes;
 use crate::audio::Audio;
 use crate::devtools::logbuf;
 use crate::input::Bindings;
-use crate::settings::{RendererKind, Settings};
+use crate::settings::{RendererKind, Settings, availability};
 
 /// Run the lines typed since last frame and print what they say.
 pub fn execute(

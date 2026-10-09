@@ -6,6 +6,7 @@
 #[macro_use]
 mod names;
 
+pub mod availability;
 mod car_shading;
 #[cfg(test)]
 mod car_shading_tests;

@@ -1,11 +1,12 @@
-//! Capability-aware validation of `set`: a value the running renderer cannot do is refused, with what it can do.
+//! What the running renderer offers of each graphics setting, for the console (`set` refuses what it cannot do)
+//! and the menus (rows cycle only through what it can run).
 //!
 //! A value stored in the config file for a renderer you do not run now is left alone (the player may switch
-//! renderer later); this only guards what is changed while the game runs.
+//! renderer later); only what is changed while the game runs is checked.
 
-use blackbox_gfx::{Antialiasing, Capabilities, GraphicsSettings, Setting, Tonemap, Upscaler};
+use blackbox_gfx::{Antialiasing, Capabilities, GraphicsSettings, RayTracing, Setting, Tonemap, Upscaler};
 
-use crate::settings::Settings;
+use super::Settings;
 
 /// What a setting asks for, whether the renderer can do it, and the values it can do.
 struct Asked {
@@ -41,7 +42,7 @@ fn asked(key: &str, settings: &Settings, caps: &Capabilities) -> Option<Asked> {
             value: g.ray_tracing.name().to_owned(),
             possible: !g.ray_tracing.is_on() || caps.ray_tracing.is_available(),
             available: match caps.ray_tracing.is_available() {
-                true => blackbox_gfx::RayTracing::ALL.iter().map(|r| r.name()).collect(),
+                true => RayTracing::ALL.iter().map(|r| r.name()).collect(),
                 false => vec!["off"],
             },
         },
@@ -77,58 +78,76 @@ pub fn needs_restart(caps: &Capabilities, before: &GraphicsSettings, after: &Gra
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::devtools::console::settings_cmd;
-    use crate::settings::{Partial, test_caps};
+    use crate::settings::Partial;
+    use crate::settings::{PostAa, PostBloom, PostTonemap, RayTracingLevel, UpscaleMode, test_caps};
 
-    fn set(settings: &mut Settings, caps: &Capabilities, key: &str, value: &str) -> Result<String, String> {
-        let before = *settings;
-        let text = settings_cmd::set(settings, key, value)?;
-        if let Err(e) = check(key, settings, caps) {
-            *settings = before;
-            return Err(e);
-        }
-        Ok(text)
+    fn settings() -> Settings {
+        Settings::from(Partial::default())
     }
 
     #[test]
     fn an_upscaler_the_native_renderer_lacks_is_refused_with_what_it_has() {
-        let (mut s, caps) = (Settings::from(Partial::default()), test_caps::native());
-        let before = s;
+        let caps = test_caps::native();
+        let s = Settings { upscaler: UpscaleMode::Dlss, ..settings() };
         assert_eq!(
-            set(&mut s, &caps, "upscaler", "dlss").unwrap_err(),
+            check("upscaler", &s, &caps).unwrap_err(),
             "dlss is not available with the blackbox renderer (available: off, bilinear, fsr1)"
         );
-        assert_eq!(s, before, "the value is unchanged");
-        assert!(set(&mut s, &caps, "upscaler", "bilinear").is_ok());
+        let ok = Settings { upscaler: UpscaleMode::Bilinear, ..s };
+        assert!(check("upscaler", &ok, &caps).is_ok());
     }
 
     #[test]
     fn the_other_native_limits_are_refused_the_same_way() {
-        let (mut s, caps) = (Settings::from(Partial::default()), test_caps::native());
-        let before = s;
-        for (key, value, error) in [
-            ("post_aa", "taa", "taa is not available with the blackbox renderer (available: off, fxaa)"),
-            ("post_aa", "smaa", "smaa is not available with the blackbox renderer (available: off, fxaa)"),
-            ("ray_tracing", "low", "low is not available with the blackbox renderer (available: off)"),
-            ("upscaler", "fsr4", "fsr4 is not available with the blackbox renderer (available: off, bilinear, fsr1)"),
+        let caps = test_caps::native();
+        let taa = Settings { post_aa: PostAa::Taa, ..settings() };
+        let smaa = Settings { post_aa: PostAa::Smaa, ..settings() };
+        let rt = Settings { ray_tracing: RayTracingLevel::Low, ..settings() };
+        let fsr4 = Settings { upscaler: UpscaleMode::Fsr4, ..settings() };
+        for (key, s, error) in [
+            ("post_aa", taa, "taa is not available with the blackbox renderer (available: off, fxaa)"),
+            ("post_aa", smaa, "smaa is not available with the blackbox renderer (available: off, fxaa)"),
+            ("ray_tracing", rt, "low is not available with the blackbox renderer (available: off)"),
+            ("upscaler", fsr4, "fsr4 is not available with the blackbox renderer (available: off, bilinear, fsr1)"),
         ] {
-            assert_eq!(set(&mut s, &caps, key, value).unwrap_err(), error);
+            assert_eq!(check(key, &s, &caps).unwrap_err(), error);
         }
-        assert_eq!(s, before);
-        for (key, value) in
-            [("post_aa", "fxaa"), ("post_bloom", "high"), ("post_tonemap", "aces"), ("ray_tracing", "off")]
-        {
-            assert!(set(&mut s, &caps, key, value).is_ok(), "{key} {value}");
+        let fine = Settings {
+            post_aa: PostAa::Fxaa,
+            post_bloom: PostBloom::High,
+            post_tonemap: PostTonemap::Aces,
+            ..settings()
+        };
+        for key in ["post_aa", "post_bloom", "post_tonemap", "ray_tracing"] {
+            assert!(check(key, &fine, &caps).is_ok(), "{key}");
         }
     }
 
     #[test]
+    fn a_renderer_without_bloom_or_tone_mapping_refuses_them() {
+        let caps = blackbox_gfx::Capabilities::baseline("tiny", blackbox_gfx::GraphicsApi::Gl);
+        let s = Settings { post_bloom: PostBloom::Low, post_tonemap: PostTonemap::Aces, ..settings() };
+        assert_eq!(
+            check("post_bloom", &s, &caps).unwrap_err(),
+            "low is not available with the tiny renderer (available: off)"
+        );
+        assert_eq!(
+            check("post_tonemap", &s, &caps).unwrap_err(),
+            "aces is not available with the tiny renderer (available: off)"
+        );
+    }
+
+    #[test]
     fn a_full_renderer_accepts_everything_and_other_keys_are_never_refused() {
-        let (mut s, caps) = (Settings::from(Partial::default()), test_caps::full());
-        for (key, value) in
-            [("upscaler", "dlss"), ("post_aa", "taa"), ("ray_tracing", "high"), ("upscale_quality", "balanced")]
-        {
-            assert!(set(&mut s, &caps, key, value).is_ok(), "{key} {value}");
+        let caps = test_caps::full();
+        let s = Settings {
+            upscaler: UpscaleMode::Dlss,
+            post_aa: PostAa::Taa,
+            ray_tracing: RayTracingLevel::High,
+            ..settings()
+        };
+        for key in ["upscaler", "post_aa", "ray_tracing", "upscale_quality"] {
+            assert!(check(key, &s, &caps).is_ok(), "{key}");
         }
         let native = test_caps::native();
         assert!(check("upscale_quality", &s, &native).is_ok(), "only used by the temporal upscalers, never refused");
