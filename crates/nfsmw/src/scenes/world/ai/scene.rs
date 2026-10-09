@@ -41,5 +41,7 @@ impl WorldScene {
         let Some(traffic) = self.traffic.as_mut() else { return };
         let (collision, props) = self.residency.world_parts();
         traffic.update(dt, focus, loaded, collision, props, &self.physics.surfaces);
+        let player = self.drive.as_mut().and_then(|drive| drive.sim_mut());
+        traffic.collide(player);
     }
 }

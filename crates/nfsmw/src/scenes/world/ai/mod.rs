@@ -12,9 +12,10 @@ use std::rc::Rc;
 use blackbox_collision::CollisionWorld;
 use blackbox_render::{Instance, Renderer};
 use blackbox_roads::{Body, RoadNetwork, SegmentIndex, SplitMix};
+use glam::Vec3;
 use nfsmw_data::car::physics::{CarPhysics, SurfaceTable};
 
-use super::drive::{CarRig, FixedClock, STEP};
+use super::drive::{CarRig, CarSim, FixedClock, STEP};
 use super::props::PropWorld;
 use car::AiCar;
 
@@ -155,6 +156,30 @@ impl TrafficWorld {
         if (batch || self.spawn_timer >= SPAWN_PERIOD) && self.cars.len() < self.target {
             self.spawn_timer = 0.0;
             self.spawn_one(focus, collision, surfaces);
+        }
+    }
+
+    /// Lets the cars hit each other and the player's car (`player`).
+    pub fn collide(&mut self, mut player: Option<&mut CarSim>) {
+        const NEAR: f32 = 8.0;
+        for i in 0..self.cars.len() {
+            let (head, tail) = self.cars.split_at_mut(i + 1);
+            let car = &mut head[i];
+            if let Some(player) = player.as_deref_mut()
+                && car.physics_position().distance(Vec3::from(player.collision_box().centre.to_array())) < NEAR
+                && let Some(hit) = player.collide_with(car.sim_mut())
+            {
+                car.on_hit(hit.impulse, true);
+            }
+            for other in tail {
+                if car.physics_position().distance(other.physics_position()) >= NEAR {
+                    continue;
+                }
+                if let Some(hit) = car.sim_mut().collide_with(other.sim_mut()) {
+                    car.on_hit(hit.impulse, false);
+                    other.on_hit(hit.impulse, false);
+                }
+            }
         }
     }
 
