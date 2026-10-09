@@ -13,6 +13,7 @@ mod files;
 pub mod game;
 pub mod music;
 pub mod sound;
+pub mod vehicle_effects;
 pub mod world;
 
 pub use files::read_unwrapped;
