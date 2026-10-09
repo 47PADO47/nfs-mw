@@ -79,7 +79,7 @@ impl Allocator<'_> {
             sample_count: 1,
             dimension: TextureDimension::D2,
             format,
-            usage: TextureUsages::TEXTURE_BINDING | TextureUsages::STORAGE_BINDING,
+            usage: TextureUsages::TEXTURE_BINDING | TextureUsages::STORAGE_BINDING | TextureUsages::COPY_SRC,
             view_formats: &[],
         });
         texture.create_view(&TextureViewDescriptor::default())

@@ -63,6 +63,15 @@ impl Fsr3Context {
         })
     }
 
+    pub(crate) fn resources(&self) -> Option<&Resources> {
+        self.resources.as_ref()
+    }
+
+    /// Frames dispatched since the resources were created.
+    pub(crate) fn frames_dispatched(&self) -> u64 {
+        self.frame
+    }
+
     /// The configuration the context was created with.
     pub fn config(&self) -> &Fsr3Config {
         &self.config
@@ -98,8 +107,8 @@ impl Fsr3Context {
             self.resources = Some(Resources::new(device, inputs.render_size, outputs.size));
             self.frame = 0;
         }
-        let frame = self.state.begin(&self.config, inputs, outputs.size, resized)?;
-        let reset = frame.reset || self.force_reset;
+        let frame = self.state.begin(&self.config, inputs, outputs.size, resized, self.force_reset)?;
+        let reset = frame.reset;
         self.force_reset = false;
 
         let uniform = &self.uniforms[self.uniform_index];

@@ -13,6 +13,7 @@
 mod config;
 mod constants;
 mod context;
+mod debug;
 mod error;
 mod inputs;
 pub mod jitter;
@@ -25,6 +26,7 @@ pub mod shaders;
 pub use config::{DepthConvention, Fsr3Config, MotionVectorLayout, Tuning};
 pub use constants::{CONSTANTS_SIZE, Constants, device_to_view_depth, view_depth};
 pub use context::Fsr3Context;
+pub use debug::DebugTexture;
 pub use error::Fsr3Error;
 pub use inputs::{Fsr3Inputs, Fsr3Outputs, MOTION_VECTOR_SCALE_PIXELS, motion_vector_scale_ndc};
 pub use quality::{QualityMode, mip_bias, render_size_for_ratio};

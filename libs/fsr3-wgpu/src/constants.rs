@@ -73,16 +73,18 @@ pub(crate) struct Frame {
 }
 
 impl FrameState {
-    /// Works out this frame's constants. `resized` is true when the GPU resources were just recreated.
+    /// Works out this frame's constants. `resized` is true when the GPU resources were just recreated and
+    /// `forced` when the application asked to drop the history outside the inputs.
     pub fn begin(
         &mut self,
         config: &Fsr3Config,
         inputs: &Fsr3Inputs<'_>,
         output_size: UVec2,
         resized: bool,
+        forced: bool,
     ) -> Result<Frame, Fsr3Error> {
         let render = inputs.render_size;
-        let reset = inputs.reset || resized || !self.has_previous;
+        let reset = inputs.reset || resized || forced || !self.has_previous;
         let device_to_view =
             device_to_view_depth(config.depth, inputs.camera_near, inputs.camera_far, inputs.camera_fov_y, render)?;
         let previous_render = if reset { render } else { self.previous_render };
@@ -95,8 +97,10 @@ impl FrameState {
 
         let mv_target = if config.motion_vectors.display_resolution { output_size } else { render };
         let mv_target_f = Vec2::new(mv_target.x as f32, mv_target.y as f32);
+        // The jitter is in render pixels, so it is divided by the render size (AMD divides by the size of
+        // the motion vectors, which is only right when they are at the render resolution).
         let cancellation = if config.motion_vectors.jittered {
-            let c = (self.jitter_cancel_previous - inputs.jitter) / mv_target_f;
+            let c = (self.jitter_cancel_previous - inputs.jitter) / Vec2::new(render.x as f32, render.y as f32);
             self.jitter_cancel_previous = inputs.jitter;
             c
         } else {
