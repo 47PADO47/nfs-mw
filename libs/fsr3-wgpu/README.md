@@ -5,8 +5,8 @@ renders nothing itself: the application renders a jittered frame at a lower reso
 motion vectors, and the upscaler accumulates those frames into an image at the output resolution. Only
 the upscaler is ported, not frame generation.
 
-It runs on every wgpu backend with compute shaders (tested on Vulkan; DX12 and Metal are expected to work
-and are not tested yet), in 32-bit floats, **without subgroup operations**, within wgpu's default limits
+It runs on every wgpu backend with compute shaders (tested on Vulkan, on an Intel Iris Xe and on lavapipe;
+DX12 and Metal are expected to work and are not tested yet), in 32-bit floats, **without subgroup operations**, within wgpu's default limits
 (4 storage textures per stage, 8 storage buffers). It depends only on `wgpu`, `glam`, `bytemuck` and
 `thiserror`: no Bevy, no renderer of this repository, nothing game-specific.
 
@@ -174,7 +174,10 @@ reference and compare in PSNR: a static scene converges (35.4 dB after 64 frames
 conventions (and fewer with a wrong convention), vectors at output resolution and jittered vectors,
 reset (a reset frame equals a fresh context), resizing, masks, auto exposure, an exposure texture and a
 pre-exposure change, the three output formats, extreme inputs without NaN or infinity, odd sizes, and
-full HD. They are `#[ignore]` and run within wgpu's default limits. On an Intel Iris Xe (Vulkan),
+full HD. Other tests feed plain numbers and compare single passes with a CPU model of AMD's formulas
+(the dilated depth and vectors, the farthest depth, the luma, the auto exposure and its smoothing, the
+shading change of a brightness change, the accumulation ramp). They are `#[ignore]` and run within
+wgpu's default limits. On an Intel Iris Xe (Vulkan),
 1920x1080 at Quality takes about 6.9 ms per frame including a trivial scene. Lavapipe gives the same
 numbers to within 0.1 dB (`FSR3_TEST_FALLBACK=1`, and `VK_LOADER_DRIVERS_SELECT='*lvp*'` if the loader
 filters drivers).
