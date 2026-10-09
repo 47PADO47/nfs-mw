@@ -8,14 +8,14 @@ use crate::{DEFAULT_SOFT_DISTANCE, EffectLayer, EffectVertex};
 pub(super) const ATTRIBUTES: [wgpu::VertexAttribute; 4] =
     wgpu::vertex_attr_array![0 => Float32x3, 1 => Unorm8x4, 2 => Float32x2, 3 => Float32x2];
 
-struct Batch {
-    buffer: wgpu::Buffer,
+pub(super) struct Batch {
+    pub(super) buffer: wgpu::Buffer,
     capacity: usize,
-    count: u32,
+    pub(super) count: u32,
 }
 
 impl Batch {
-    fn new(device: &wgpu::Device) -> Self {
+    pub(super) fn new(device: &wgpu::Device) -> Self {
         Self { buffer: Self::allocate(device, 1), capacity: 1, count: 0 }
     }
 
@@ -28,7 +28,7 @@ impl Batch {
         })
     }
 
-    fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, vertices: &[EffectVertex]) {
+    pub(super) fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, vertices: &[EffectVertex]) {
         self.count = vertices.len() as u32;
         if vertices.len() > self.capacity {
             self.capacity = vertices.len().next_power_of_two();
@@ -41,11 +41,12 @@ impl Batch {
 }
 
 pub(super) struct Effects {
-    batches: [Batch; 2],
-    pipelines: [wgpu::RenderPipeline; 2],
+    batches: [Batch; 4],
+    pipelines: [wgpu::RenderPipeline; 4],
     soft: SoftParticles,
     detailed: bool,
     soft_distance: f32,
+    pub(super) textured: super::textured_effects::TexturedEffects,
 }
 
 impl Effects {
@@ -60,10 +61,21 @@ impl Effects {
             immediate_size: 0,
         });
         let pipelines = std::array::from_fn(|i| {
-            let entry = ["fs_surface", "fs_particle"][i];
+            let entry = ["fs_surface", "fs_particle", "fs_streak", "fs_glow"][i];
             let bias = match i {
                 0 => wgpu::DepthBiasState { constant: 2, slope_scale: 1.0, clamp: 0.0 },
                 _ => wgpu::DepthBiasState::default(),
+            };
+            let blend = match i {
+                2 | 3 => wgpu::BlendState {
+                    color: wgpu::BlendComponent {
+                        src_factor: wgpu::BlendFactor::SrcAlpha,
+                        dst_factor: wgpu::BlendFactor::One,
+                        operation: wgpu::BlendOperation::Add,
+                    },
+                    alpha: wgpu::BlendComponent::OVER,
+                },
+                _ => wgpu::BlendState::ALPHA_BLENDING,
             };
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(entry),
@@ -93,7 +105,7 @@ impl Effects {
                     compilation_options: Default::default(),
                     targets: &[Some(wgpu::ColorTargetState {
                         format,
-                        blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                        blend: Some(blend),
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
                 }),
@@ -107,6 +119,18 @@ impl Effects {
             soft: SoftParticles::new(device, format, shared),
             detailed: false,
             soft_distance: DEFAULT_SOFT_DISTANCE,
+            textured: super::textured_effects::TexturedEffects::new(device, format, shared),
+        }
+    }
+
+    pub(super) fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, layer: &EffectLayer) {
+        self.detailed = layer.detailed_particles;
+        self.soft_distance = layer.soft_distance;
+        self.textured.upload(device, queue, &layer.textured);
+        for (batch, vertices) in
+            self.batches.iter_mut().zip([&layer.surfaces, &layer.particles, &layer.streaks, &layer.glows])
+        {
+            batch.upload(device, queue, vertices);
         }
     }
 
@@ -158,15 +182,16 @@ impl Effects {
 impl Renderer {
     /// Replace the world effects drawn in every following scene/capture, until replaced again.
     pub fn set_effects(&mut self, layer: &EffectLayer) {
-        self.effects.detailed = layer.detailed_particles;
-        self.effects.soft_distance = layer.soft_distance;
-        for (batch, vertices) in self.effects.batches.iter_mut().zip([&layer.surfaces, &layer.particles]) {
-            batch.upload(&self.device, &self.queue, vertices);
-        }
+        self.effects.upload(&self.device, &self.queue, layer);
     }
 
     /// Allocated capacities in vertices (surface, particle); counts may fall to zero while reused.
     pub fn effect_capacities(&self) -> [usize; 2] {
-        self.effects.batches.each_ref().map(|b| b.capacity)
+        [self.effects.batches[0].capacity, self.effects.batches[1].capacity]
+    }
+
+    /// Allocated additive-streak capacity in vertices; retained when the streak layer is cleared.
+    pub fn streak_capacity(&self) -> usize {
+        self.effects.batches[2].capacity
     }
 }

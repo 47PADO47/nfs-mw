@@ -25,6 +25,9 @@ pub const TIRE_SMOKE: &str = "NFSMW_TIRE_SMOKE";
 pub const RADIO: &str = "NFSMW_RADIO";
 pub const SMOKE_QUALITY: &str = "NFSMW_SMOKE_QUALITY";
 pub const SKID_MARKS: &str = "NFSMW_SKID_MARKS";
+pub const COLLISION_SPARKS: &str = "NFSMW_COLLISION_SPARKS";
+pub const SPARK_STYLE: &str = "NFSMW_SPARK_STYLE";
+pub const SPEED_TRAILS: &str = "NFSMW_SPEED_TRAILS";
 pub const TRANSMISSION: &str = "NFSMW_TRANSMISSION";
 pub const PADDLE_UP: &str = "NFSMW_PADDLE_UP";
 pub const PADDLE_DOWN: &str = "NFSMW_PADDLE_DOWN";
@@ -58,6 +61,9 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         radio: value(&get, RADIO, parse_bool),
         smoke_quality: value(&get, SMOKE_QUALITY, SmokeQuality::from_str),
         skid_marks: value(&get, SKID_MARKS, parse_bool),
+        collision_sparks: value(&get, COLLISION_SPARKS, parse_bool),
+        spark_style: value(&get, SPARK_STYLE, super::SparkStyle::from_str),
+        speed_trails: value(&get, SPEED_TRAILS, parse_bool),
         transmission: value(&get, TRANSMISSION, Transmission::from_str),
         paddle_up: value(&get, PADDLE_UP, |s| s.trim().parse::<u32>().map_err(|e| e.to_string())),
         paddle_down: value(&get, PADDLE_DOWN, |s| s.trim().parse::<u32>().map_err(|e| e.to_string())),

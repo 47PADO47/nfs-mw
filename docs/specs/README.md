@@ -23,6 +23,9 @@ the song events and the play lists); the user interface: [feng-runtime.md](feng-
 drawing), [feng-input.md](feng-input.md) (pad messages, focus, navigation) and [frontend-menus.md](frontend-menus.md)
 (the screens, the option rows, the game flow).
 
+[Original PC collision particles](pc-collision-particles.md) specifies ordinary
+textured sparks and contact glow separately from the experimental restoration.
+
 [Controller settings](controller-settings.md) specifies rewrite response options and saved rebinding.
 
 ## Template

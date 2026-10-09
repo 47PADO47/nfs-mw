@@ -24,6 +24,8 @@ pub enum Setting {
     WindowMode,
     TireSmoke,
     SkidMarks,
+    CollisionSparks,
+    SpeedTrails,
     SmokeQuality,
     Transmission,
     Input(InputSetting),
@@ -79,6 +81,8 @@ pub fn rows(category: Category) -> Vec<Row> {
             row(Setting::TireSmoke, Title::Text("Tire Smoke")),
             row(Setting::SkidMarks, Title::Text("Skid Marks")),
             row(Setting::SmokeQuality, Title::Text("Smoke Quality")),
+            row(Setting::CollisionSparks, Title::Text("Collision Sparks")),
+            row(Setting::SpeedTrails, Title::Text("Speed Trails (Experimental)")),
         ],
         Category::Gameplay => {
             let mut rows = vec![
@@ -130,6 +134,9 @@ impl Setting {
             Setting::Hud => on_off(s.hud),
             Setting::TireSmoke => on_off(s.tire_smoke),
             Setting::SkidMarks => on_off(s.skid_marks),
+            Setting::CollisionSparks if !s.collision_sparks => on_off(false),
+            Setting::CollisionSparks => Data::Text(s.spark_style.label().into()),
+            Setting::SpeedTrails => on_off(s.speed_trails),
             Setting::SmokeQuality => Data::Text(
                 match s.smoke_quality {
                     SmokeQuality::Standard => "Standard",
@@ -205,6 +212,25 @@ impl Setting {
             Setting::SkidMarks => {
                 s.skid_marks = !s.skid_marks;
                 changed.skid_marks = Some(s.skid_marks);
+            }
+            Setting::CollisionSparks => {
+                let at = match (s.collision_sparks, s.spark_style) {
+                    (false, _) => 0,
+                    (true, crate::settings::SparkStyle::OriginalPc) => 1,
+                    (true, crate::settings::SparkStyle::RestoredExperimental) => 2,
+                };
+                let next = cycle(at, 3, forward);
+                s.collision_sparks = next != 0;
+                s.spark_style = match next {
+                    2 => crate::settings::SparkStyle::RestoredExperimental,
+                    _ => crate::settings::SparkStyle::OriginalPc,
+                };
+                changed.collision_sparks = Some(s.collision_sparks);
+                changed.spark_style = Some(s.spark_style);
+            }
+            Setting::SpeedTrails => {
+                s.speed_trails = !s.speed_trails;
+                changed.speed_trails = Some(s.speed_trails);
             }
             Setting::Transmission => {
                 s.transmission = s.transmission.other();
@@ -306,7 +332,7 @@ mod tests {
     #[test]
     fn every_category_has_rows() {
         assert_eq!(rows(Category::Audio).len(), 4);
-        assert_eq!(rows(Category::Video).len(), 7);
+        assert_eq!(rows(Category::Video).len(), 9);
         assert_eq!(rows(Category::Gameplay).len(), 10);
     }
 

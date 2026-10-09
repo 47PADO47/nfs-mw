@@ -1,5 +1,12 @@
 # blackbox-render
 
+`EffectLayer` supports depth-tested surface overlays, circular particles and additive
+streak triangles and additive radial glows. Streak UV x spans the width and UV y runs head to tail; the analytic
+mask concentrates energy at the tip and dims the tail. Streaks use source-alpha additive RGB, no depth
+writes or bias, and fade toward black in fog. Callers own geometry, lifetimes and
+budgets; the renderer reuses vertex buffers. `streak_capacity()` reports allocation.
+Glows use a soft radial mask with a brighter core and the same depth and fog rules.
+
 Backend-neutral renderer for EA Black Box game reimplementations: meshes in the games' common 36-byte vertex
 format, DXT or RGBA textures, instanced draws, opaque/alpha-test/blend/additive passes, lit or pre-lit
 shading, distance fog, a 2D UI layer (textured, clipped, premultiplied-alpha triangles for consoles, overlays and menus), off-screen capture. Runs on wgpu (Vulkan, Direct3D 12, OpenGL; Metal on macOS).

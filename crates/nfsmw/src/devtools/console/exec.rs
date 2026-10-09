@@ -109,6 +109,12 @@ pub(super) fn set_live(settings: &mut Settings, host: &mut Host, key: &str, valu
     if key == "smoke_quality" {
         host.set_smoke_quality(settings.smoke_quality);
     }
+    if matches!(key, "collision_sparks" | "speed_trails") {
+        host.set_vehicle_effects(settings.collision_sparks, settings.speed_trails);
+    }
+    if key == "spark_style" {
+        host.set_spark_style(settings.spark_style);
+    }
     Ok(text)
 }
 
@@ -124,6 +130,14 @@ fn help(scene: &[(&str, &str)]) -> String {
 
 /// Push changed settings into the parts that hold them: the frame limiter and the swapchain.
 pub fn sync_settings(settings: Res<Settings>, mut host: NonSendMut<Host>, mut applied: Local<Option<Settings>>) {
+    if applied.as_ref().is_none_or(|before| before.spark_style != settings.spark_style) {
+        host.set_spark_style(settings.spark_style);
+    }
+    if applied.as_ref().is_none_or(|before| {
+        before.collision_sparks != settings.collision_sparks || before.speed_trails != settings.speed_trails
+    }) {
+        host.set_vehicle_effects(settings.collision_sparks, settings.speed_trails);
+    }
     if applied.as_ref().is_none_or(|before| before.smoke_quality != settings.smoke_quality) {
         host.set_smoke_quality(settings.smoke_quality);
     }
