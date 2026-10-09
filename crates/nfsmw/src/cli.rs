@@ -107,7 +107,7 @@ pub enum Command {
         /// For Pause_Main.fng and MainMenu_Sub.fng: the option categories.
         #[arg(long)]
         options: bool,
-        /// For the option screens: audio, video or gameplay.
+        /// For the option screens: audio, video, gameplay or controls.
         #[arg(long, default_value = "audio")]
         category: String,
         /// A scripted pad for tests and screenshots (see play); with --screenshot the default is "wait 2".
@@ -263,6 +263,12 @@ pub struct ViewArgs {
     /// Disable high-speed wind trails.
     #[arg(long)]
     pub no_speed_trails: bool,
+    /// Enable the tail-pipe flames [env NFSMW_EXHAUST_FLAMES; config `exhaust_flames`; default on].
+    #[arg(long, conflicts_with = "no_exhaust_flames")]
+    pub exhaust_flames: bool,
+    /// Disable the tail-pipe flames (nothing of them is loaded).
+    #[arg(long)]
+    pub no_exhaust_flames: bool,
     /// Who changes gear: automatic or manual (Q/E, the bumpers or the wheel paddles shift)
     /// [env NFSMW_TRANSMISSION; config `transmission`; default automatic].
     #[arg(long, value_name = "automatic|manual")]
@@ -309,6 +315,7 @@ impl ViewArgs {
             collision_sparks: switch(self.collision_sparks, self.no_collision_sparks),
             spark_style: self.spark_style,
             speed_trails: switch(self.speed_trails, self.no_speed_trails),
+            exhaust_flames: switch(self.exhaust_flames, self.no_exhaust_flames),
             transmission: self.transmission,
             ..Partial::default()
         }

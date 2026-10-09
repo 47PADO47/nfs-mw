@@ -8,7 +8,7 @@ use crate::devtools::{ShowMetrics, ShowReadout};
 use crate::settings::{HudLayout, MinimapMode, Percent, Settings, Transmission, parse_bool};
 
 /// Settings the console can show.
-const KEYS: [&str; 33] = [
+const KEYS: [&str; 34] = [
     "deadzone_mode",
     "steering_deadzone",
     "camera_deadzone",
@@ -37,6 +37,7 @@ const KEYS: [&str; 33] = [
     "collision_sparks",
     "spark_style",
     "speed_trails",
+    "exhaust_flames",
     "transmission",
     "minimap",
     "hud_layout",
@@ -75,6 +76,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "collision_sparks" => on_off(settings.collision_sparks).to_owned(),
         "spark_style" => settings.spark_style.to_string(),
         "speed_trails" => on_off(settings.speed_trails).to_owned(),
+        "exhaust_flames" => on_off(settings.exhaust_flames).to_owned(),
         "transmission" => settings.transmission.to_string(),
         "minimap" => settings.minimap.to_string(),
         "hud_layout" | "hud-layout" => settings.hud_layout.to_string(),
@@ -124,6 +126,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "collision_sparks" => settings.collision_sparks = parse_bool(value)?,
         "spark_style" => settings.spark_style = value.parse()?,
         "speed_trails" => settings.speed_trails = parse_bool(value)?,
+        "exhaust_flames" => settings.exhaust_flames = parse_bool(value)?,
         "transmission" => settings.transmission = Transmission::from_str(value)?,
         "minimap" => settings.minimap = MinimapMode::from_str(value)?,
         "hud_layout" | "hud-layout" => settings.hud_layout = HudLayout::from_str(value)?,
@@ -145,6 +148,7 @@ fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
         "skid_marks" => Some(&mut settings.skid_marks),
         "collision_sparks" => Some(&mut settings.collision_sparks),
         "speed_trails" => Some(&mut settings.speed_trails),
+        "exhaust_flames" => Some(&mut settings.exhaust_flames),
         "radio" => Some(&mut settings.radio),
         "manual_clutch" => Some(&mut settings.manual_clutch),
         "h_shifter" => Some(&mut settings.h_shifter),

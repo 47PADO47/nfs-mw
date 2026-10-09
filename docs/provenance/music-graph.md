@@ -31,7 +31,9 @@
   - **Nothing has been listened to, and the original was not traced while it played.** Which streams the
     original really reads, in which order, and when it queues the next one are inferred.
 - **Known differences from the original:**
-  - Pursuit, ambience and the other event opcodes are not interpreted; only the song events are.
+  - Ambience and the event opcodes are not interpreted; only the song events are. The pursuit sets are played by
+    walking the graph with a live control value, without running events (see
+    [interactive-music.md](../specs/interactive-music.md)).
   - The jukebox (user-chosen songs), the profile's play state and the "EA Trax" option are not modelled; the
     defaults apply. Shuffle is a player setting.
   - No song-change chyron is drawn (the player only exposes artist and title).

@@ -28,6 +28,7 @@ pub const SKID_MARKS: &str = "NFSMW_SKID_MARKS";
 pub const COLLISION_SPARKS: &str = "NFSMW_COLLISION_SPARKS";
 pub const SPARK_STYLE: &str = "NFSMW_SPARK_STYLE";
 pub const SPEED_TRAILS: &str = "NFSMW_SPEED_TRAILS";
+pub const EXHAUST_FLAMES: &str = "NFSMW_EXHAUST_FLAMES";
 pub const TRANSMISSION: &str = "NFSMW_TRANSMISSION";
 pub const MINIMAP: &str = "NFSMW_MINIMAP";
 pub const HUD_LAYOUT: &str = "NFSMW_HUD_LAYOUT";
@@ -68,6 +69,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         collision_sparks: value(&get, COLLISION_SPARKS, parse_bool),
         spark_style: value(&get, SPARK_STYLE, super::SparkStyle::from_str),
         speed_trails: value(&get, SPEED_TRAILS, parse_bool),
+        exhaust_flames: value(&get, EXHAUST_FLAMES, parse_bool),
         transmission: value(&get, TRANSMISSION, Transmission::from_str),
         minimap: value(&get, MINIMAP, MinimapMode::from_str),
         hud_layout: value(&get, HUD_LAYOUT, HudLayout::from_str),

@@ -12,6 +12,7 @@ use bevy_time::Time;
 
 use super::snapshot::Snapshot;
 use super::state::{ActionState, Bindings};
+use super::{Action, InputPresentation, bindings::Source};
 
 /// Whether the cursor is captured for mouse look. The window code sets it; the input layer reads it.
 #[derive(Resource, Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -29,6 +30,7 @@ impl Plugin for InputLayerPlugin {
             .init_resource::<ActionState>()
             .init_resource::<MouseCapture>()
             .init_resource::<UiFocus>()
+            .init_resource::<InputPresentation>()
             .add_observer(super::device_settings::configure_added_gamepad)
             .add_systems(PreUpdate, update_actions.after(InputSystems));
     }
@@ -43,16 +45,31 @@ fn update_actions(
     buttons: Res<ButtonInput<MouseButton>>,
     motion: Res<AccumulatedMouseMotion>,
     scroll: Res<AccumulatedMouseScroll>,
-    pads: Query<&Gamepad>,
+    pads: Query<(Entity, &Gamepad)>,
     capture: Res<MouseCapture>,
     focus: Res<UiFocus>,
     time: Res<Time>,
     bindings: Res<Bindings>,
     settings: Option<Res<crate::settings::Settings>>,
     mut state: ResMut<ActionState>,
+    mut presentation: ResMut<InputPresentation>,
     mut held: Local<HashSet<GamepadButton>>,
     mut logged_axes: Local<HashMap<GamepadAxis, f32>>,
 ) {
+    presentation.sample_pads(&pads, &bindings);
+    let key_activity = keys.get_just_pressed().any(|key| {
+        bindings
+            .0
+            .iter()
+            .any(|b| b.scale != 0.0 && b.action != Action::Console && matches!(b.source, Source::Key(v) if v == *key))
+    });
+    if key_activity
+        || buttons.get_just_pressed().next().is_some()
+        || motion.delta.length_squared() > 4.0
+        || scroll.delta.length_squared() > 0.0
+    {
+        presentation.keyboard_activity();
+    }
     let mut snapshot = Snapshot {
         controls: settings.as_deref().map_or_else(crate::settings::Controls::default, |s| s.controls),
         // Keep a complete down/up pulse visible for one action frame, even when the key is no
@@ -68,8 +85,8 @@ fn update_actions(
         dt: time.delta_secs(),
         ..Snapshot::default()
     };
-    for pad in &pads {
-        snapshot.pad_buttons.extend(pad.get_pressed().copied());
+    for (_, pad) in pads.iter().filter(|(e, _)| Some(*e) == presentation.active_pad) {
+        snapshot.pad_buttons.extend(pad.get_pressed().chain(pad.get_just_pressed()).copied());
         // Bevy's analog store also contains buttons, including nonstandard wheel pedals.
         for input in pad.get_analog_axes() {
             let value = pad.get(*input).unwrap_or(0.0);

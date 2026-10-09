@@ -6,12 +6,14 @@
 //! behaviour: `docs/specs/music-graph.md`.
 //!
 //! [`Graph::walk`] follows a song from its first node to its end; [`Mpf::chain`](super::Mpf::chain) adds the
-//! streams and their lengths.
+//! streams and their lengths. [`Cursor`] follows a track node by node while the control value changes.
 
+mod cursor;
 mod event;
 mod node;
 mod walk;
 
+pub use cursor::{Advance, Cursor};
 pub use event::{Action, Event, OP_BRANCH_TO};
 pub use node::{Node, NodeKind, Transition};
 pub use walk::{Walk, WalkEnd};

@@ -1104,6 +1104,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "blackbox-particles"
+version = "0.1.0"
+dependencies = [
+ "glam 0.34.1",
+]
+
+[[package]]
 name = "blackbox-render"
 version = "0.1.0"
 dependencies = [
@@ -2871,6 +2878,7 @@ dependencies = [
  "blackbox-minimap",
  "blackbox-mixmap",
  "blackbox-movie",
+ "blackbox-particles",
  "blackbox-render",
  "blackbox-scene",
  "blackbox-scenery",
@@ -2905,6 +2913,7 @@ dependencies = [
  "blackbox-ginsu",
  "blackbox-hash",
  "blackbox-minimap",
+ "blackbox-particles",
  "blackbox-scenery",
  "blackbox-solid",
  "blackbox-streaming",

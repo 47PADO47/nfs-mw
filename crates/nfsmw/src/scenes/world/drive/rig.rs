@@ -72,6 +72,11 @@ impl CarRig {
         Self { model, parts, meshes, materials }
     }
 
+    /// The model the rig was uploaded from.
+    pub fn model(&self) -> &CarModel {
+        &self.model
+    }
+
     pub fn release(self, renderer: &mut Renderer) {
         for mesh in self.meshes {
             renderer.destroy_mesh(mesh);

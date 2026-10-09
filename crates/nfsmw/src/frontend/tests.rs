@@ -14,6 +14,131 @@ use crate::ui::{Catalog, SCREEN_FILES, UiAssets};
 
 const FRAME: f32 = 1.0 / 60.0;
 
+#[path = "prompt_tests.rs"]
+mod prompt_tests;
+
+#[path = "icon_transition_tests.rs"]
+mod icon_transition_tests;
+
+#[test]
+fn authored_right_arrow_mirrors_and_cursor_brackets_pulse() {
+    use glam::Vec3;
+    let Some(mut h) = Harness::open(screen::MAIN_MENU, Args::default()) else { return };
+    h.wait(1.0);
+    let tree = h.screens.trees().pop().unwrap();
+    let right = tree.nodes.iter().find(|n| n.name_hash == 0xFCD5_B255).unwrap();
+    assert!(right.world.transform_vector3(Vec3::X).x < 0.0);
+    let width = |tree: &blackbox_feng::UiTree| {
+        let cursor = tree.nodes.iter().find(|n| n.name_hash == 0x557F_EADD).unwrap();
+        cursor.world.transform_vector3(Vec3::X).length()
+    };
+    let first = width(&tree);
+    h.wait(0.35);
+    assert!((width(&h.screens.trees().pop().unwrap()) - first).abs() > 0.01);
+}
+
+#[test]
+fn every_option_category_has_current_prompts_and_no_legacy_duplicates() {
+    use crate::input::{Bindings, InputDevice};
+    use crate::ui::input_icons::{ATLAS, Glyph};
+    use blackbox_feng::NodeKind;
+    for (name, pause) in [(screen::OPTIONS, false), (screen::PAUSE_OPTIONS, true)] {
+        for category in [Category::Audio, Category::Video, Category::Gameplay, Category::Controls] {
+            let Some(mut h) = Harness::open(name, Args { pause, category, ..Args::default() }) else { return };
+            h.wait(1.0);
+            let mut bindings = Bindings::default();
+            bindings.bind(crate::input::Action::MenuBack, "button:West", false).unwrap();
+            let tree = h.screens.presented_trees(&bindings, InputDevice::Xbox).pop().unwrap();
+            let hints: Vec<_> = tree.draw_order.iter().map(|i| &tree.nodes[*i]).collect();
+            assert!(hints.iter().any(|n| n.text.as_deref() == Some("Done")));
+            assert!(
+                hints
+                    .iter()
+                    .any(|n| matches!(n.kind, NodeKind::Image { texture: ATLAS, uv, .. } if uv == Glyph::X.uv()))
+            );
+            assert!(
+                !hints
+                    .iter()
+                    .any(|n| n.text.as_deref().is_some_and(|s| matches!(s.trim(), "Accept" | "Back" | "Defaults")))
+            );
+            let tree = h.screens.presented_trees(&bindings, InputDevice::Keyboard).pop().unwrap();
+            assert!(
+                !tree.draw_order.iter().any(|i| matches!(tree.nodes[*i].kind, NodeKind::Image { texture: ATLAS, .. }))
+            );
+        }
+    }
+}
+
+#[test]
+fn start_in_frontend_categories_cannot_resume_an_absent_driving_scene() {
+    let Some(mut h) = Harness::open(screen::MAIN_MENU_SUB, Args { options: true, ..Args::default() }) else { return };
+    h.wait(1.0);
+    h.press(pad::START);
+    h.wait(1.5);
+    assert!(!h.said(&Command::Resume));
+    assert_eq!(h.screens.top(), Some(screen::MAIN_MENU_SUB));
+}
+
+#[test]
+fn title_prompts_follow_the_authored_position_and_fade_above_the_copyright() {
+    use crate::input::{Bindings, InputDevice};
+    use glam::Vec3;
+    for name in [screen::SPLASH, screen::SPLASH_WIDE] {
+        let Some(mut h) = Harness::open(name, Args::default()) else { return };
+        h.wait(6.0);
+        let native = h.screens.trees().pop().unwrap();
+        let anchor = native.nodes.iter().find(|n| n.name_hash == 0xC4DF_3FF2).unwrap();
+        let copyright = native.nodes.iter().find(|n| n.name_hash == 0x5B9D_88B9).unwrap();
+        let tree = h.screens.presented_trees(&Bindings::default(), InputDevice::Xbox).pop().unwrap();
+        let hint = tree.nodes[native.nodes.len()..]
+            .iter()
+            .find(|n| matches!(n.kind, blackbox_feng::NodeKind::Image { .. }))
+            .unwrap();
+        let y = hint.world.transform_point3(Vec3::ZERO).y;
+        assert!((y - anchor.world.transform_point3(Vec3::ZERO).y).abs() < 0.01);
+        assert_eq!(hint.world_colour[3], anchor.world_colour[3]);
+        assert!((y - copyright.world.transform_point3(Vec3::ZERO).y).abs() > 20.0);
+    }
+}
+
+#[test]
+fn controls_category_opens_changes_saves_and_restores_its_selection() {
+    for (menu, rows, pause) in
+        [(screen::MAIN_MENU_SUB, screen::OPTIONS, false), (screen::PAUSE_MENU, screen::PAUSE_OPTIONS, true)]
+    {
+        let Some(mut h) = Harness::open(menu, Args { options: true, pause, ..Args::default() }) else { return };
+        h.wait(1.0);
+        for _ in 0..3 {
+            h.press(pad::RIGHT);
+        }
+        h.wait(0.5);
+        let selected_title = |h: &Harness| {
+            h.screens.trees().iter().any(|tree| {
+                tree.nodes
+                    .iter()
+                    .any(|n| n.name_hash == super::ids::ICON_TITLE && n.text.as_deref() == Some("Controls"))
+            })
+        };
+        assert!(selected_title(&h), "{menu}: fourth category must be Controls");
+        // Hold A through the switch. The next screen must not accept the same gesture again.
+        h.run(pad::ACCEPT, 120);
+        h.run(0, 3);
+        h.wait(1.5);
+        assert_eq!(h.screens.top(), Some(rows));
+        h.wait(1.0);
+        h.press(pad::RIGHT);
+        assert!(h.changed.deadzone_mode.is_some(), "{menu}: {:?}", h.changed);
+        h.press(pad::BACK);
+        h.wait(1.5);
+        assert!(h.said(&Command::SaveSettings));
+        assert_eq!(h.screens.top(), Some(menu));
+        assert!(selected_title(&h), "{menu}: return must keep Controls selected");
+        h.press(pad::LEFT);
+        h.wait(0.5);
+        assert!(!selected_title(&h), "{menu}: leaving Controls must restore the language label");
+    }
+}
+
 struct Harness {
     screens: Screens,
     settings: Settings,
@@ -252,13 +377,13 @@ fn main_and_pause_video_options_change_and_save_display_and_tire_settings() {
 }
 
 #[test]
-fn expanded_gameplay_options_scroll_every_response_row_with_visible_values() {
+fn controls_options_show_every_response_row_with_visible_values() {
     use super::options::{Data, Title, rows};
     for (name, pause, visible) in [(screen::OPTIONS, false, 9), (screen::PAUSE_OPTIONS, true, 10)] {
-        let args = Args { pause, category: Category::Gameplay, ..Args::default() };
+        let args = Args { pause, category: Category::Controls, ..Args::default() };
         let Some(mut h) = Harness::open(name, args) else { return };
         h.wait(1.0);
-        let rows = rows(Category::Gameplay);
+        let rows = rows(Category::Controls);
         for (index, row) in rows.iter().enumerate() {
             let slot = index.min(visible - 1) + 1;
             let tree = h.screens.trees().pop().unwrap();
@@ -296,8 +421,13 @@ fn main_and_pause_minimap_options_apply_and_request_a_save() {
         let args = Args { pause, category: Category::Gameplay, ..Args::default() };
         let Some(mut h) = Harness::open(name, args) else { return };
         h.wait(1.0);
-        h.press(pad::DOWN);
-        h.press(pad::DOWN);
+        let row = super::options::rows(Category::Gameplay)
+            .iter()
+            .position(|r| r.setting == super::options::Setting::Minimap)
+            .unwrap();
+        for _ in 0..row {
+            h.press(pad::DOWN);
+        }
         h.press(pad::RIGHT);
         assert_eq!(h.settings.minimap, crate::settings::MinimapMode::Rotating);
         assert_eq!(h.changed.minimap, Some(crate::settings::MinimapMode::Rotating));

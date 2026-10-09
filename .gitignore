@@ -48,6 +48,10 @@
 !/tools/**/*.py
 !/tests/*.py
 
+# Reviewed, independently licensed controller prompts (no game textures).
+!/assets/input-prompts/kenney-xbox.png
+!/assets/input-prompts/*.md
+
 # Never, even if a pattern above matches.
 /target/
 .env

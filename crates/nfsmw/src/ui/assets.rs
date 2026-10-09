@@ -52,6 +52,7 @@ pub struct UiAssets {
     fonts: HashMap<u32, Font>,
     textures: HashMap<u32, Texture>,
     aliases: HashMap<u32, u32>,
+    input_atlas: Image,
     pub strings: Option<StringTable>,
 }
 
@@ -98,7 +99,7 @@ impl UiAssets {
             .and_then(|d| StringTable::from_file(&d).map_err(|e| log::warn!("English.bin: {e}")).ok());
 
         let aliases = ALIASES.iter().map(|(a, b)| (fe_hash_upper(a), fe_hash_upper(b))).collect();
-        let assets = Self { fonts, textures, aliases, strings };
+        let assets = Self { fonts, textures, aliases, strings, input_atlas: super::input_icons::load()? };
         log::info!("UI: {} fonts, {} textures", assets.fonts.len(), assets.textures.len());
         Ok(assets)
     }
@@ -133,6 +134,14 @@ impl UiAssets {
 
     /// Decodes a texture to RGBA. `BASEPOLY` (a plain coloured polygon, not in any pack) is white.
     pub fn image(&self, hash: u32) -> Option<Image> {
+        if hash == super::input_icons::ATLAS {
+            return Some(Image {
+                width: self.input_atlas.width,
+                height: self.input_atlas.height,
+                rgba: self.input_atlas.rgba.clone(),
+                blend: 1,
+            });
+        }
         if hash == fe_hash_upper("BASEPOLY") {
             return Some(Image { width: 2, height: 2, rgba: vec![255; 16], blend: 1 });
         }
@@ -146,3 +155,7 @@ impl UiAssets {
         self.texture(hash).map(|t| (t.width, t.height)).or((hash == fe_hash_upper("BASEPOLY")).then_some((2, 2)))
     }
 }
+
+#[cfg(test)]
+#[path = "assets_tests.rs"]
+mod tests;

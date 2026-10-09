@@ -12,6 +12,7 @@ mod rig;
 mod script;
 mod sim;
 mod sound;
+mod trace;
 mod visual_tires;
 mod walls;
 
@@ -20,6 +21,7 @@ use glam::Vec3;
 use nfsmw_data::car::physics::{CarPhysics, SurfaceTable};
 
 use super::effects::TireEffects;
+use super::exhaust::ExhaustFlames;
 use super::props::PropWorld;
 use super::road::{self, Spawn};
 use super::space;
@@ -68,6 +70,7 @@ pub struct Drive {
     pub car_name: String,
     pub effects: TireEffects,
     pub vehicle_effects: VehicleEffects,
+    pub flames: ExhaustFlames,
     rig: CarRig,
     physics: CarPhysics,
     sim: Option<CarSim>,
@@ -119,6 +122,7 @@ impl Drive {
             car_name,
             effects: TireEffects::default(),
             vehicle_effects: VehicleEffects::new(visuals),
+            flames: ExhaustFlames::default(),
             rig,
             physics,
             sim: None,
@@ -149,8 +153,7 @@ impl Drive {
 
     /// Ask for the car to be put on the road nearest `near`, keeping `heading` if given.
     pub fn respawn_near(&mut self, near: [f32; 2], heading: Option<f32>) {
-        self.effects.disconnect();
-        self.vehicle_effects.clear();
+        self.reset_effects();
         self.request = Some(SpawnRequest { near, heading, exact: None });
     }
 
@@ -162,8 +165,7 @@ impl Drive {
     /// Put the car back where it last stood on a road, if it ever did.
     pub fn restore_last_good(&mut self) -> bool {
         let Some(good) = self.last_good else { return false };
-        self.effects.disconnect();
-        self.vehicle_effects.clear();
+        self.reset_effects();
         self.request =
             Some(SpawnRequest { near: [good.position.x, good.position.y], heading: None, exact: Some(good) });
         true
@@ -191,11 +193,10 @@ impl Drive {
         if !sim.place(&ground, spawn) {
             return false;
         }
-        self.effects.disconnect();
-        let pose = sim.pose();
-        self.vehicle_effects.clear();
+        let (pose, telemetry) = (sim.pose(), sim.telemetry());
+        self.reset_effects();
         (self.previous, self.current) = (pose, pose);
-        self.telemetry = sim.telemetry();
+        self.telemetry = telemetry;
         self.clock.reset();
         self.chase.snap();
         self.steps = 0;
@@ -216,6 +217,7 @@ impl Drive {
     ) {
         std::mem::replace(&mut self.rig, rig).release(renderer);
         self.vehicle_effects = VehicleEffects::new(visuals);
+        self.flames.unload();
         self.physics = physics;
         self.effects.clear();
         self.car_name = name;
@@ -290,6 +292,9 @@ impl Drive {
                 None => player.held(),
             };
             want_reset |= input.reset;
+            if input.pop {
+                self.flames.pop();
+            }
             let impact = sim.step(&input, &ground, Some((collision, &*props)));
             self.effects.step(sim.tire_contacts(collision), sim.effect_velocity(), clock::STEP);
             self.vehicle_effects.step(&impact.visuals, sim.pose(), sim.effect_velocity(), clock::STEP);
@@ -302,25 +307,16 @@ impl Drive {
             self.previous = self.current;
             self.current = sim.pose();
             self.telemetry = sim.telemetry();
+            let car = effect_feed::car_state(&self.current, &self.telemetry, sim.effect_velocity(), input.throttle);
+            self.flames.step(clock::STEP, &car);
             self.sound.after_step(sim, surfaces, &impact, &input, self.telemetry.speed_mps);
             self.steps += 1;
             if self.script.is_some() && self.steps.is_multiple_of(60) {
-                log::info!("tire effects: {}", self.effects.status());
-                log::info!("vehicle effects: {}", self.vehicle_effects.status());
-                let (p, t) = (self.current.position, &self.telemetry);
-                log::info!(
-                    "t={:>5.1}s  {:>6.1} km/h  {:>5.0} rpm  gear {}  at ({:.1}, {:.1}, {:.2})  {} on ground  throttle {:.1} brake {:.1} steer {:+.2}",
-                    self.steps as f32 / 60.0,
-                    t.speed_mps * 3.6,
-                    t.rpm,
-                    t.gear,
-                    p.x,
-                    p.y,
-                    p.z,
-                    t.wheels_on_ground,
-                    input.throttle,
-                    input.brake,
-                    input.steer
+                trace::log(
+                    self.steps,
+                    (&self.effects, &self.vehicle_effects, &self.flames),
+                    (&self.current, &self.telemetry),
+                    &input,
                 );
             }
         }

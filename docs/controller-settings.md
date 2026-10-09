@@ -1,6 +1,13 @@
 # Controller response and rebinding
 
-Open **Options > Gameplay** from the main menu or pause menu. The response rows apply immediately;
+Xbox prompts use bundled [Kenney CC0 icons](https://kenney.nl/assets/input-prompts); base PC assets work.
+Use A to accept, B to go back, D-pad or left stick to navigate, and Menu/Start to pause or resume.
+View/Back quits from the main menu. Prompts follow saved and live rebinding and switch on meaningful
+keyboard, mouse or controller input. Console hotkeys and idle sticks do not switch the displayed device.
+Disconnecting the active controller pauses driving. Menu stick engagement is 55%, release is 35%; this
+is independent of steering/camera deadzones. See [UI policy and references](specs/controller-ui.md).
+
+Open **Options > Controls** from the main menu or pause menu. The response rows apply immediately;
 backing out saves the changed settings. Deadzones move in 5 percent steps and sensitivities in 25 percent
 steps. The config file and console accept finer integer percentages.
 
@@ -101,7 +108,7 @@ bind-save
 `bind` replaces that action's assignments from the same device family (keyboard, mouse or gamepad).
 `addbind` appends an assignment. `unbind <action>` removes all assignments; an optional family narrows it.
 `bind-reset` restores all defaults, or just the named action. These edits apply immediately and remain
-session-only until **bind-save**. Console `set` edits also last for the session; use the Gameplay menu
+session-only until **bind-save**. Console `set` edits also last for the session; use the Controls menu
 or config file to persist response settings. Saving bindings preserves other settings and unknown keys;
 comments and formatting are rewritten by the TOML serializer.
 

@@ -280,13 +280,20 @@ impl ScreenLogic for WidgetMenu {
             (super::logic::Category::Audio, true) => 0xB142_6DFA,
             (super::logic::Category::Video, true) => 0xD94E_A03F,
             (super::logic::Category::Gameplay, true) => 0x3936_D9F8,
+            (super::logic::Category::Controls, _) => 0,
         };
         cx.label_group(ids::HEADER_TEXT, title);
+        if self.args.category == super::logic::Category::Controls {
+            cx.text_group(ids::HEADER_TEXT, "Controls");
+        }
         self.layout_rows(cx);
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {
         match message {
+            // Package INIT scripts can focus the original footer button after start().
+            // Restore our first setting row once those scripts have completed.
+            ids::INIT_COMPLETE => self.mark_selection(cx),
             PAD_UP => self.move_selection(cx, false),
             PAD_DOWN => self.move_selection(cx, true),
             PAD_LEFT => self.change(cx, false),

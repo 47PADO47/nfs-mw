@@ -26,6 +26,7 @@ pub enum Setting {
     SkidMarks,
     CollisionSparks,
     SpeedTrails,
+    ExhaustFlames,
     SmokeQuality,
     Transmission,
     Input(InputSetting),
@@ -85,16 +86,16 @@ pub fn rows(category: Category) -> Vec<Row> {
             row(Setting::SmokeQuality, Title::Text("Smoke Quality")),
             row(Setting::CollisionSparks, Title::Text("Collision Sparks")),
             row(Setting::SpeedTrails, Title::Text("Speed Trails (Experimental)")),
+            row(Setting::ExhaustFlames, Title::Text("Exhaust Flames")),
         ],
-        Category::Gameplay => {
-            let mut rows = vec![
-                row(Setting::Hud, Title::Label(0xAC14_8579)),
-                row(Setting::Transmission, Title::Label(LABEL_TRANSMISSION)),
-                row(Setting::HudLayout, Title::Text("HUD Layout")),
-                row(Setting::Minimap, Title::Text("Minimap")),
-            ];
-            rows.extend(InputSetting::ALL.into_iter().map(|setting| row(Setting::Input(setting), setting.title())));
-            rows
+        Category::Gameplay => vec![
+            row(Setting::Hud, Title::Label(0xAC14_8579)),
+            row(Setting::Transmission, Title::Label(LABEL_TRANSMISSION)),
+            row(Setting::HudLayout, Title::Text("HUD Layout")),
+            row(Setting::Minimap, Title::Text("Minimap")),
+        ],
+        Category::Controls => {
+            InputSetting::ALL.into_iter().map(|setting| row(Setting::Input(setting), setting.title())).collect()
         }
     }
 }
@@ -157,6 +158,7 @@ impl Setting {
             Setting::CollisionSparks if !s.collision_sparks => on_off(false),
             Setting::CollisionSparks => Data::Text(s.spark_style.label().into()),
             Setting::SpeedTrails => on_off(s.speed_trails),
+            Setting::ExhaustFlames => on_off(s.exhaust_flames),
             Setting::SmokeQuality => Data::Text(
                 match s.smoke_quality {
                     SmokeQuality::Standard => "Standard",
@@ -264,6 +266,10 @@ impl Setting {
                 s.speed_trails = !s.speed_trails;
                 changed.speed_trails = Some(s.speed_trails);
             }
+            Setting::ExhaustFlames => {
+                s.exhaust_flames = !s.exhaust_flames;
+                changed.exhaust_flames = Some(s.exhaust_flames);
+            }
             Setting::Transmission => {
                 s.transmission = s.transmission.other();
                 changed.transmission = Some(s.transmission);
@@ -364,8 +370,9 @@ mod tests {
     #[test]
     fn every_category_has_rows() {
         assert_eq!(rows(Category::Audio).len(), 4);
-        assert_eq!(rows(Category::Video).len(), 9);
-        assert_eq!(rows(Category::Gameplay).len(), 12);
+        assert_eq!(rows(Category::Video).len(), 10);
+        assert_eq!(rows(Category::Gameplay).len(), 4);
+        assert_eq!(rows(Category::Controls).len(), 8);
     }
 
     #[test]

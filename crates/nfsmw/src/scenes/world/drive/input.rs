@@ -39,6 +39,8 @@ pub struct DriveInput {
     pub clutch: f32,
     /// The reset button went down: put the car back on the nearest road.
     pub reset: bool,
+    /// A scripted sputter pop for the exhaust flames (`pop` in a `--drive-script`; no key does it).
+    pub pop: bool,
 }
 
 /// The actions that ask for a gear by number, with the gear id each one means.
@@ -81,13 +83,14 @@ impl DriveInput {
             gear_select: selected_gear(actions, wheel.h_shifter),
             clutch: actions.value(Action::Clutch).clamp(0.0, 1.0),
             reset: actions.just_pressed(Action::ResetCar),
+            pop: false,
         }
     }
 
     /// The same input with the one-shot shift requests cleared, for the second and later physics
     /// steps of a frame.
     pub fn held(self) -> Self {
-        Self { shift_up: false, shift_down: false, gear_select: None, reset: false, ..self }
+        Self { shift_up: false, shift_down: false, gear_select: None, reset: false, pop: false, ..self }
     }
 }
 

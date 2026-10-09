@@ -78,6 +78,10 @@ pub trait Scene {
     /// Apply optional collision sparks and high-speed wind trails.
     fn set_vehicle_effects(&mut self, _sparks: bool, _trails: bool) {}
     fn set_spark_style(&mut self, _style: crate::settings::SparkStyle) {}
+    /// Show the flames at the car's tail pipes (the `exhaust_flames` setting). Scenes without a car ignore it.
+    fn set_exhaust_flames(&mut self, _on: bool) {}
+    /// The sound's sputter module started `pops` pops since the last call (the lift-off backfire follows them).
+    fn note_sputters(&mut self, _pops: u32) {}
     /// Refresh changed visual-effect buffers without advancing a paused scene.
     fn refresh_effects(&mut self, _renderer: &mut Renderer) {}
     /// Apply the optional smoke presentation quality. Scenes without tires ignore it.

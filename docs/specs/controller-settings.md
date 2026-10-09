@@ -22,7 +22,7 @@ percentage alone with a rescaled curve does not produce the same response.
   to the stick; mouse sensitivity applies to mouse motion. Menu navigation keeps its existing threshold.
 - Stick camera motion is integrated per second. Mouse deltas are already per frame and are never multiplied
   by the frame duration. Inversion is applied exactly once after the existing source direction convention.
-- Config file, environment, console and the Gameplay menu share the same validated types. Invalid values
+- Config file, environment, console and the Controls menu share the same validated types. Invalid values
   leave the lower layer or current value intact. Menu edits persist through the existing settings writer.
 - Expanded lists reuse the package's visible row objects while scrolling, so every response option retains
   its title, value, focus and edit controls in both the main-menu and pause-menu layouts.

@@ -221,6 +221,7 @@ fn menus() -> Vec<Binding> {
         Binding::new(MenuStart, key(KeyCode::KeyP), 1.0),
         Binding::new(MenuStart, button(GamepadButton::Start), 1.0),
         Binding::new(MenuQuit, key(KeyCode::KeyQ), 1.0),
+        Binding::new(MenuQuit, button(GamepadButton::Select), 1.0),
         Binding::new(Click, Source::MouseButton(MouseButton::Left), 1.0),
     ]
 }
