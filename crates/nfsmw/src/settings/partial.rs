@@ -3,8 +3,8 @@
 use blackbox_render::Backend;
 
 use super::{
-    Deadzone, HudLayout, MinimapMode, Monitor, RadioHudStyle, Resolution, Sensitivity, SmokeQuality, Transmission,
-    WindowMode,
+    Deadzone, HudLayout, MinimapMode, Monitor, PostAa, PostBloom, PostTonemap, RadioHudStyle, Resolution, Sensitivity,
+    SmokeQuality, Transmission, WindowMode,
 };
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
@@ -80,6 +80,9 @@ pub struct Partial {
     pub minimap: Option<MinimapMode>,
     pub hud_layout: Option<HudLayout>,
     pub radio_hud: Option<RadioHudStyle>,
+    pub post_tonemap: Option<PostTonemap>,
+    pub post_bloom: Option<PostBloom>,
+    pub post_aa: Option<PostAa>,
     pub paddle_up: Option<u32>,
     pub paddle_down: Option<u32>,
     pub manual_clutch: Option<bool>,
@@ -125,6 +128,9 @@ impl Partial {
             minimap: self.minimap.or(lower.minimap),
             hud_layout: self.hud_layout.or(lower.hud_layout),
             radio_hud: self.radio_hud.or(lower.radio_hud),
+            post_tonemap: self.post_tonemap.or(lower.post_tonemap),
+            post_bloom: self.post_bloom.or(lower.post_bloom),
+            post_aa: self.post_aa.or(lower.post_aa),
             paddle_up: self.paddle_up.or(lower.paddle_up),
             paddle_down: self.paddle_down.or(lower.paddle_down),
             manual_clutch: self.manual_clutch.or(lower.manual_clutch),

@@ -15,6 +15,9 @@ mod hud_layout;
 mod hud_layout_tests;
 mod minimap;
 mod partial;
+mod post;
+#[cfg(test)]
+mod post_tests;
 mod radio_hud;
 mod smoke_quality;
 #[cfg(test)]
@@ -35,6 +38,7 @@ pub use controls::{Controls, Deadzone, DeadzoneMode, Sensitivity};
 pub use hud_layout::HudLayout;
 pub use minimap::MinimapMode;
 pub use partial::{Partial, Percent, parse_bool};
+pub use post::{PostAa, PostBloom, PostTonemap, post_effects};
 pub use radio_hud::RadioHudStyle;
 pub use smoke_quality::SmokeQuality;
 pub use spark_style::SparkStyle;
@@ -92,6 +96,10 @@ pub struct Settings {
     pub hud_layout: HudLayout,
     /// How the radio announces the song on the HUD: the original EA Trax chyron or the rewrite's card.
     pub radio_hud: RadioHudStyle,
+    /// Post-processing, all off by default: the tone-mapping curve, bloom strength and anti-aliasing.
+    pub post_tonemap: PostTonemap,
+    pub post_bloom: PostBloom,
+    pub post_aa: PostAa,
     /// Gamepad button codes of a steering wheel's shift paddles (`GamepadButton::Other`), if the player gave them.
     pub paddle_up: Option<u32>,
     pub paddle_down: Option<u32>,
@@ -142,6 +150,9 @@ impl From<Partial> for Settings {
             minimap: p.minimap.unwrap_or_default(),
             hud_layout: p.hud_layout.unwrap_or_default(),
             radio_hud: p.radio_hud.unwrap_or_default(),
+            post_tonemap: p.post_tonemap.unwrap_or_default(),
+            post_bloom: p.post_bloom.unwrap_or_default(),
+            post_aa: p.post_aa.unwrap_or_default(),
             paddle_up: p.paddle_up,
             paddle_down: p.paddle_down,
             manual_clutch: p.manual_clutch.unwrap_or(false),

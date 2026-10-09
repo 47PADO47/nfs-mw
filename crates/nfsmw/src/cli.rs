@@ -284,6 +284,15 @@ pub struct ViewArgs {
     /// Disable the tail-pipe flames (nothing of them is loaded).
     #[arg(long)]
     pub no_exhaust_flames: bool,
+    /// Tone-mapping curve: off or aces [env NFSMW_POST_TONEMAP; config `post_tonemap`; default off].
+    #[arg(long, value_name = "off|aces")]
+    pub post_tonemap: Option<crate::settings::PostTonemap>,
+    /// Bloom around bright areas: off, low, medium or high [env NFSMW_POST_BLOOM; config `post_bloom`; default off].
+    #[arg(long, value_name = "off|low|medium|high")]
+    pub post_bloom: Option<crate::settings::PostBloom>,
+    /// Anti-aliasing of the 3D scene: off or fxaa [env NFSMW_POST_AA; config `post_aa`; default off].
+    #[arg(long, value_name = "off|fxaa")]
+    pub post_aa: Option<crate::settings::PostAa>,
     /// Who changes gear: automatic or manual (Q/E, the bumpers or the wheel paddles shift)
     /// [env NFSMW_TRANSMISSION; config `transmission`; default automatic].
     #[arg(long, value_name = "automatic|manual")]
@@ -337,6 +346,9 @@ impl ViewArgs {
             speed_trails: switch(self.speed_trails, self.no_speed_trails),
             exhaust_flames: switch(self.exhaust_flames, self.no_exhaust_flames),
             transmission: self.transmission,
+            post_tonemap: self.post_tonemap,
+            post_bloom: self.post_bloom,
+            post_aa: self.post_aa,
             ..Partial::default()
         }
     }

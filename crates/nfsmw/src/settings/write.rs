@@ -120,6 +120,15 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.radio_hud {
         put("radio_hud", Value::String(v.to_string()));
     }
+    if let Some(v) = changes.post_tonemap {
+        put("post_tonemap", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.post_bloom {
+        put("post_bloom", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.post_aa {
+        put("post_aa", Value::String(v.to_string()));
+    }
     if let Some(v) = changes.paddle_up {
         put("paddle_up", Value::Integer(i64::from(v)));
     }
