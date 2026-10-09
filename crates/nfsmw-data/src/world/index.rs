@@ -13,6 +13,8 @@ pub struct WorldIndex {
     pub visible: VisibleSections,
     /// Which collision instances touch each map cell (`docs/formats/collision.md`).
     pub collision_grid: Option<blackbox_collision::Grid>,
+    /// The lanes and junctions AI cars drive on (`docs/formats/road-network.md`).
+    pub road_network: Option<blackbox_roads::RoadNetwork>,
     /// The bounds of the props (cones, bins, poles...), keyed by an object name hash.
     pub prop_bounds: Vec<blackbox_collision::BoundsSet>,
     /// Install-relative path of the stream file.
@@ -30,6 +32,8 @@ impl WorldIndex {
                 .with_context(|| format!("reading the visible sections in {meta_file}"))?;
         let collision_grid = blackbox_collision::Grid::read(&meta)
             .with_context(|| format!("reading the collision grid in {meta_file}"))?;
+        let road_network = blackbox_roads::RoadNetwork::read(&meta)
+            .map_err(|e| anyhow::anyhow!("reading the road network in {meta_file}: {e}"))?;
         let prop_bounds = blackbox_collision::read_bounds_sets(&meta)
             .map_err(|e| anyhow::anyhow!("reading the prop bounds in {meta_file}: {e}"))?;
         log::info!(
@@ -44,6 +48,7 @@ impl WorldIndex {
             sections,
             visible,
             collision_grid,
+            road_network,
             prop_bounds,
             stream_file: format!("TRACKS/STREAM{track}.BUN"),
         })

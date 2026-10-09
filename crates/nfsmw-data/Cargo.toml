@@ -18,6 +18,7 @@ blackbox-gfx.workspace = true
 blackbox-hash.workspace = true
 blackbox-minimap.workspace = true
 blackbox-particles.workspace = true
+blackbox-roads.workspace = true
 blackbox-scenery.workspace = true
 blackbox-solid.workspace = true
 blackbox-streaming.workspace = true
