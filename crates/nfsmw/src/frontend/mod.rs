@@ -18,6 +18,8 @@ mod splash;
 mod widget_menu;
 
 #[cfg(test)]
+mod hud_layout_tests;
+#[cfg(test)]
 mod tests;
 
 pub use flow::Start;

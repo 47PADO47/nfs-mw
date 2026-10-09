@@ -327,7 +327,10 @@ with `Scene::hud_state`; nothing else knows FEng.
 - **Hidden:** the elements that need the race and pursuit state of milestone 7 (radar detector, pursuit, heat, busted,
   cost-to-state, milestone and race boards, countdown, infractions, speed breaker meter, the wrong-way sign, online
   fields); the engine temperature gauge (drag HUD only). The runtime still runs their scripts.
-- **Gaps:** wide screens scale the 480-unit height without the package's widescreen messages; the custom tachometer
+- **HUD layout:** Gameplay's [HUD Layout](hud-layout.md) chooses PC wide placement, centered 4:3 or the Xbox
+  addon's 92% wide scale. A HUD-only viewport shifts the map and all gauge descendants together after their
+  rotations; resizing and live preset changes leave package state untouched ([spec](specs/hud-viewport.md)).
+- **Gaps:** the custom tachometer
   skins other than 00 are not loaded; the original also zeroes the shift light for a frame after a gear change and
   when the wheels lack traction (not in the decompilation, not done); the mask blend of multi images is inferred from
   the gauge textures; the HUD has not been compared with a capture of the original.

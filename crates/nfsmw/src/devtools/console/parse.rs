@@ -28,7 +28,7 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 16] = [
+pub const BUILT_IN: [(&str, &str); 17] = [
     ("help", "list the commands"),
     ("clear", "empty the console"),
     ("quit", "close the game"),
@@ -41,6 +41,7 @@ pub const BUILT_IN: [(&str, &str); 16] = [
     ("window", "show the actual window size, mode, DPI and focus"),
     ("monitors", "list available monitors and their indices"),
     ("smoke_quality <standard|high>", "change tire smoke presentation quality"),
+    ("hud-layout <pc|classic|xbox360>", "change HUD placement and scale"),
     ("volume <0-100>", "master volume (same as set volume)"),
     ("sound [bank [index]]", "list the sounds of a bank (IG_GLOBAL/Siren_MB.abk) or play one"),
     ("engine <car> [percent] | off", "hold a car's engine sound at a share of its RPM range"),
@@ -48,7 +49,7 @@ pub const BUILT_IN: [(&str, &str); 16] = [
 ];
 
 /// Further shorthands for `set`: `vsync off` is `set vsync off`.
-const SET_SHORTHANDS: [&str; 10] = [
+const SET_SHORTHANDS: [&str; 12] = [
     "fps",
     "vsync",
     "metrics",
@@ -59,6 +60,8 @@ const SET_SHORTHANDS: [&str; 10] = [
     "tire_smoke",
     "skid_marks",
     "smoke_quality",
+    "hud_layout",
+    "hud-layout",
 ];
 
 /// Parse one line. `Ok(None)` for an empty line.

@@ -5,10 +5,10 @@ use std::str::FromStr;
 
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
-use crate::settings::{MinimapMode, Percent, Settings, Transmission, parse_bool};
+use crate::settings::{HudLayout, MinimapMode, Percent, Settings, Transmission, parse_bool};
 
 /// Settings the console can show.
-const KEYS: [&str; 18] = [
+const KEYS: [&str; 19] = [
     "backend",
     "vsync",
     "fps",
@@ -27,6 +27,7 @@ const KEYS: [&str; 18] = [
     "skid_marks",
     "transmission",
     "minimap",
+    "hud_layout",
 ];
 
 /// The text for `get <key>`, or an error naming the valid keys.
@@ -50,6 +51,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "skid_marks" => on_off(settings.skid_marks).to_owned(),
         "transmission" => settings.transmission.to_string(),
         "minimap" => settings.minimap.to_string(),
+        "hud_layout" | "hud-layout" => settings.hud_layout.to_string(),
         other => return Err(unknown(other)),
     };
     Ok(format!("{key} = {value}"))
@@ -62,6 +64,9 @@ pub fn get_all(settings: &Settings) -> String {
 
 /// Change a setting. The message says what happened.
 pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, String> {
+    if value.is_empty() && matches!(key, "hud_layout" | "hud-layout") {
+        return Err(format!("usage: set {key} <pc|classic|xbox360> (now {})", settings.hud_layout));
+    }
     match key {
         "vsync" => settings.vsync = parse_bool(value)?,
         "fps" | "max_fps" => settings.max_fps = MaxFps::from_str(value)?,
@@ -80,6 +85,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "skid_marks" => settings.skid_marks = parse_bool(value)?,
         "transmission" => settings.transmission = Transmission::from_str(value)?,
         "minimap" => settings.minimap = MinimapMode::from_str(value)?,
+        "hud_layout" | "hud-layout" => settings.hud_layout = HudLayout::from_str(value)?,
         "backend" => return Err("the graphics backend cannot change while running; restart with --backend".into()),
         other => return Err(unknown(other)),
     }

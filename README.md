@@ -67,6 +67,9 @@ Run `nfsmw check-install` to see the exact path on your system. The file uses [T
 and lets you set the game directory, graphics backend, frame-rate cap, and other options without
 passing CLI flags every time.
 
+Gameplay also offers [HUD Layout](docs/hud-layout.md): PC widescreen placement,
+the earlier centered layout, or the Xbox addon's 92% wide scale.
+
 ## Repository
 
 | Path | Contents |

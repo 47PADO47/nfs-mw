@@ -30,7 +30,8 @@
   - No blips; the placement rule is implemented in the library and not called.
   - Tile numbers outside 0..63 draw nothing; in-range row-overlap tiles at the left/right edges still load.
   - The car model's origin stands in for the rigid body's position.
-  - No widescreen shift (the HUD as a whole is not widescreen aware yet).
+  - The [HUD viewport](hud-viewport.md) reproduces the native 16:9 shift and offers
+    centered and Xbox-scaled presets; other wide aspects use a documented host extension.
 
 ## Local gameplay polish
 
