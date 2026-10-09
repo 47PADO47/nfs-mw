@@ -210,9 +210,10 @@ menu is closed and when the game is left: only the keys that were changed, so `g
 when the splash times out, not in the normal order), `MW_LS_Splash.fng` (the title screen), then `MainMenu.fng`.
 A movie screen shows its movie as an FEng movie object (the object whose name hash is `0x58BCF5B6` /
 `0x72CF9F38`), tells the game `0xC3960EB9` when it ends, and the game switches to the next boot screen. The
-package sends `INIT_COMPLETE` about five seconds after it appears (the text fades in meanwhile); then
-`PAD_ACCEPT` / `PAD_START` go on. The game hides the high-definition group, the mouse hints and a console licence
-line, and gives the prompt group the label `0x9B580A55` ("Press START"). The original starts the attract movie
+package fades its text in; the game hides the high-definition group, the mouse hints, a console licence line and
+the prompt group at start-up, and gives the prompt group the label `0x9B580A55` ("Press START"). This rewrite shows
+the prompt one second after the screen appears and accepts `PAD_ACCEPT` / `PAD_START` from that moment on, without
+waiting for `INIT_COMPLETE` (the original waited about five seconds; a deliberate difference). The original starts the attract movie
 after 30 s without input; this rewrite does not. The original opens the widescreen package (`WS_MW_LS_Splash.fng`) when the screen is wide and queues
 `CURRENT_GEN_WIDESCREEN` (`bStringHash`, `0xCB835EE3`) to it, which fades its 900 x 480 art in. This rewrite does the
 same for any window wider than 1.4:1 (the 4:3 package is for the rest), so the art fills the window instead of leaving

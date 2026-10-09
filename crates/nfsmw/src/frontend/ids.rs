@@ -18,7 +18,6 @@ pub mod screen {
 pub const LEAVE_SCREEN: u32 = 0x587C_018B;
 pub const EXIT_STARTED: u32 = 0x8437_8BEF;
 pub const EXIT_COMPLETE: u32 = 0xE1FD_E1D1;
-pub const INIT_COMPLETE: u32 = 0x35F8_620B;
 pub const END_PAD_LEFT: u32 = 0xD711_8934;
 pub const END_PAD_RIGHT: u32 = 0xB9B1_7747;
 /// The `Quit` button of the main menu answers a mouse click with this message.
@@ -67,7 +66,6 @@ mod tests {
             (LEAVE_SCREEN, "LEAVE_SCREEN"),
             (EXIT_STARTED, "EXIT_STARTED"),
             (EXIT_COMPLETE, "EXIT_COMPLETE"),
-            (INIT_COMPLETE, "INIT_COMPLETE"),
             (END_PAD_LEFT, "END_PAD_LEFT"),
             (END_PAD_RIGHT, "END_PAD_RIGHT"),
             (MOUSE_LEFT_RELEASED, "MOUSE_LEFT_RELEASED"),
