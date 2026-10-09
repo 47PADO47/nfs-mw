@@ -7,7 +7,9 @@ use blackbox_vehicle::nos::NosSpec;
 
 use super::bounds::CarBounds;
 use super::fields::Fields;
-use super::{WallSpec, aero, body, brakes, chassis, engine, induction, nos, tires, transmission};
+use super::{
+    WallSpec, aero, body, brakes, chassis, engine, induction, no_engine, no_transmission, nos, tires, transmission,
+};
 
 /// A car ready for the physics: its spec and where the collision box sits in the car's own space.
 #[derive(Debug, Clone)]
@@ -40,8 +42,9 @@ pub fn car_physics(db: &Database, type_name: &str, bounds: CarBounds) -> Result<
         chassis: chassis(chassis_fields),
         tires: tires(link("tires")?),
         brakes: brakes(link("brakes")?),
-        engine: engine(link("engine")?),
-        transmission: transmission(link("transmission")?),
+        // A trailer has no engine and no gearbox: a body that only rolls and brakes.
+        engine: pvehicle.follow("engine").map_or_else(no_engine, |c| engine(Fields(c))),
+        transmission: pvehicle.follow("transmission").map_or_else(no_transmission, |c| transmission(Fields(c))),
         // Cars without an induction link (the traffic cars) are naturally aspirated.
         induction: pvehicle.follow("induction").map(Fields).map(induction).unwrap_or_default(),
         nos: first_nitrous(db, Fields(pvehicle)),
