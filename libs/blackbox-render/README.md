@@ -13,6 +13,9 @@ shading, distance fog, a 2D UI layer (textured, clipped, premultiplied-alpha tri
 
 License: MIT OR Apache-2.0.
 
+The renderer-neutral types (meshes, textures, frame parameters, effect and UI layers, post and upscale settings,
+the graphics API enum) live in [`blackbox-gfx`](../blackbox-gfx) and are re-exported from this crate.
+
 `EffectLayer` uploads reusable world-space triangle batches for depth-tested surface overlays
 and soft alpha billboards. Effects draw after the scene and before UI; they do not write depth.
 The caller owns lifetimes, budgets and particle ordering. Surface overlays have reverse-Z

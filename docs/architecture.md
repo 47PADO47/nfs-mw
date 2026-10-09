@@ -38,7 +38,8 @@ scaled down.
 | [`blackbox-movie`](../libs/blackbox-movie) | EA VP6 movies (`.vp6`): demuxer and video decoder (the MIT `nihav-vp6`); no audio yet | — |
 | [`blackbox-particles`](../libs/blackbox-particles) | Particle emitters: spawn and update rules (cone spray, drag, gravity, keyed size, angle and colour curves) as a deterministic simulation that yields sprites | — |
 | [`blackbox-vehicle`](../libs/blackbox-vehicle) | Deterministic fixed-step vehicle physics: rigid body, engine and gearbox, suspension, tires, steering, aero; driven by plain parameter structs and a `Ground` ray-cast trait | — (parameters passed by the caller) |
-| [`blackbox-render`](../libs/blackbox-render) | Backend-neutral renderer (wgpu inside) | — |
+| [`blackbox-gfx`](../libs/blackbox-gfx) | The renderer-neutral graphics interface: shared types, the `RenderBackend` trait, capabilities, graphics settings and the pure `resolve` | — |
+| [`blackbox-render`](../libs/blackbox-render) | Backend-neutral renderer (wgpu inside); implements the `blackbox-gfx` types | — |
 | [`blackbox-scene`](../libs/blackbox-scene) | Uploading solids and textures to the renderer; boxes; frustum culling | — |
 | [`game-install`](../libs/game-install) | Finding, validating and reading an install, case-insensitively | driven by a `GameSpec` |
 
