@@ -3,6 +3,7 @@
 //! Spec: `docs/formats/road-network.md`, `docs/specs/ai-road-network.md`.
 //!
 //! - [`RoadNetwork`]: nodes, segments, profiles and roads of the `RNgp` group in the world metadata.
+//! - [`TrackZones`]: the typed polygons of the track path manager (traffic patterns, tunnels...).
 //!
 //! Coordinates are the game's physics space: x right, y up, z forward, metres. This crate never
 //! touches the filesystem: it takes bytes.
@@ -21,6 +22,7 @@ mod profile;
 mod road;
 mod segment;
 mod trail;
+mod zones;
 
 #[cfg(test)]
 mod tests;
@@ -42,3 +44,4 @@ pub use trail::{
     Avoidable, CAPACITY as TRAIL_CAPACITY, CUT, CUT_BEHIND, Cookie, DEFAULT_GAP, Occlusion, Trail, trail_curvature,
     update_occluded_position,
 };
+pub use zones::{TrackZone, TrackZones, from_zone_space, to_zone_space};
