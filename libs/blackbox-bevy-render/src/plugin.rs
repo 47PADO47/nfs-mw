@@ -71,15 +71,12 @@ impl Plugin for BlackboxBevyRenderPlugin {
             CorePipelinePlugin,
             bevy_anti_alias::AntiAliasPlugin,
         ));
+        // Before the material plugin: it starts loading the shader when it is built.
+        crate::material::load_shaders(app);
         app.add_plugins((
-            PbrPlugin {
-                prepass_enabled: false,
-                add_default_deferred_lighting_plugin: false,
-                ..PbrPlugin::default()
-            },
+            PbrPlugin { prepass_enabled: false, add_default_deferred_lighting_plugin: false, ..PbrPlugin::default() },
             MaterialPlugin::<BlackboxMaterial>::default(),
         ));
-        crate::material::load_shaders(app);
         app.init_resource::<BlackboxBridge>().init_resource::<WorldState>().add_systems(
             PostUpdate,
             apply::apply

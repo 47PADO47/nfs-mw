@@ -10,8 +10,8 @@ use bevy_camera::visibility::{NoFrustumCulling, Visibility};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::system::{Commands, Query};
 use bevy_math::Affine3A;
-use bevy_pbr::MeshMaterial3d;
 use bevy_mesh::Mesh3d;
+use bevy_pbr::MeshMaterial3d;
 use bevy_transform::components::GlobalTransform;
 use blackbox_gfx::Instance;
 
@@ -93,11 +93,8 @@ fn spawn(
 ) {
     let mesh = instance.mesh.raw();
     let transform = global_transform(instance.transform);
-    let ranges: Vec<_> = state.meshes[&mesh]
-        .ranges
-        .iter()
-        .map(|r| (r.mesh.clone(), r.texture, r.blend, r.shading))
-        .collect();
+    let ranges: Vec<_> =
+        state.meshes[&mesh].ranges.iter().map(|r| (r.mesh.clone(), r.texture, r.blend, r.shading)).collect();
     let mut entities: Vec<Entity> = Vec::with_capacity(ranges.len());
     for (bevy_mesh, texture, blend, shading) in ranges {
         let material = material_for(state, stores, texture, blend, shading);

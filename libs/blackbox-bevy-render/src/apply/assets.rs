@@ -1,8 +1,8 @@
 //! Textures, meshes and materials: turning the queue's resource ops into Bevy assets.
 
 use bevy_asset::{Assets, Handle};
-use bevy_ecs::system::SystemParam;
 use bevy_ecs::system::ResMut;
+use bevy_ecs::system::SystemParam;
 use bevy_image::Image;
 use bevy_mesh::Mesh;
 

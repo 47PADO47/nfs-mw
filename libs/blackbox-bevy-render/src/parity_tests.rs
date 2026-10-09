@@ -6,7 +6,7 @@
 
 use std::path::Path;
 
-use blackbox_gfx::{GraphicsApi, RenderBackend, RgbaImage};
+use blackbox_gfx::{GraphicsApi, RgbaImage};
 use blackbox_gfx_testkit::{ImageDiff, Mask, SceneId, capture_scene, compare};
 use blackbox_gpu_passes::test_support::serial;
 use blackbox_render::{Renderer, RendererOptions};
@@ -20,11 +20,7 @@ fn fallback() -> bool {
 }
 
 fn native(size: [u32; 2]) -> Option<Renderer> {
-    let options = RendererOptions {
-        backend: GraphicsApi::Vulkan,
-        vsync: false,
-        force_fallback_adapter: fallback(),
-    };
+    let options = RendererOptions { backend: GraphicsApi::Vulkan, vsync: false, force_fallback_adapter: fallback() };
     match Renderer::headless((size[0], size[1]), options) {
         Ok(renderer) => Some(renderer),
         Err(e) => {
@@ -35,6 +31,10 @@ fn native(size: [u32; 2]) -> Option<Renderer> {
 }
 
 fn bevy(size: [u32; 2]) -> Option<HeadlessBevy> {
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .with_test_writer()
+        .try_init();
     match HeadlessBevy::new(size, GraphicsApi::Vulkan, fallback()) {
         Ok(renderer) => Some(renderer),
         Err(e) => {
@@ -83,7 +83,13 @@ fn check(scene: SceneId) {
     let _gpu = serial();
     let Some(diff) = compare_scene(scene, SIZE) else { return };
     let tolerance = scene.fidelity().tolerance();
-    eprintln!("{}: {diff} (tolerance max {}, mean {}, p99 {})", scene.name(), tolerance.max, tolerance.mean, tolerance.p99);
+    eprintln!(
+        "{}: {diff} (tolerance max {}, mean {}, p99 {})",
+        scene.name(),
+        tolerance.max,
+        tolerance.mean,
+        tolerance.p99
+    );
     tolerance.check(&diff).unwrap_or_else(|e| panic!("{}: {e}", scene.name()));
 }
 
@@ -109,4 +115,16 @@ fn the_sky_dome_matches_native() {
 #[ignore = "needs a GPU"]
 fn the_depth_probe_matches_native() {
     check(SceneId::DepthProbe);
+}
+
+/// Blending and additive layers blend in linear space on Bevy (an sRGB target) and in gamma space natively, and
+/// Bevy sorts transparent draws by distance where the native renderer keeps submission order. The numbers are
+/// reported, not asserted: they are the documented gap (docs/bevy-backend.md).
+#[test]
+#[ignore = "needs a GPU"]
+fn the_blend_stack_difference_is_reported() {
+    let _gpu = serial();
+    let Some(diff) = compare_scene(SceneId::BlendStack, SIZE) else { return };
+    let tolerance = SceneId::BlendStack.fidelity().tolerance();
+    eprintln!("blend_stack: {diff} (plan tolerance: mean {}, p99 {})", tolerance.mean, tolerance.p99);
 }

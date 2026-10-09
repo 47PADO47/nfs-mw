@@ -123,7 +123,11 @@ pub struct BlackboxMaterial {
 
 /// `src * alpha + dest`, like the native additive pipeline.
 const ADDITIVE: BlendState = BlendState {
-    color: BlendComponent { src_factor: BlendFactor::SrcAlpha, dst_factor: BlendFactor::One, operation: BlendOperation::Add },
+    color: BlendComponent {
+        src_factor: BlendFactor::SrcAlpha,
+        dst_factor: BlendFactor::One,
+        operation: BlendOperation::Add,
+    },
     alpha: BlendComponent::OVER,
 };
 
