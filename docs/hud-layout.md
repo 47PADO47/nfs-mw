@@ -2,7 +2,8 @@
 
 Options > Gameplay > **HUD Layout** changes placement immediately and saves it
 when leaving the options screen. It affects the in-game HUD, including the map,
-arrow, tachometer, speed digits, nitrous and turbo. Menus keep their own layout.
+arrow, tachometer, speed digits, nitrous and turbo, and the radio card (artist, title, time), which sits at the
+left edge of the HUD: it moves out and scales like the map. Menus keep their own layout.
 
 | Choice | Behavior |
 |---|---|
