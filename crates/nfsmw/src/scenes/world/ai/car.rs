@@ -4,16 +4,35 @@ use std::rc::Rc;
 
 use blackbox_collision::CollisionWorld;
 use blackbox_driver::{AiControls, ControllerKind, DriveFlags, DriveRequest, Driver, GearRequest};
-use blackbox_roads::{Body, RandomSource, RoadNav, RoadNetwork};
+use blackbox_roads::{Body, RandomSource, RoadNav, RoadNetwork, SegmentIndex};
 use glam::{Vec2, Vec3};
 use nfsmw_data::car::physics::SurfaceTable;
 
 use super::TrafficModel;
+use super::cop::{self, CopState, Target};
 use super::traffic::{self, THINK_STEPS};
 use crate::scenes::world::drive::{CarPose, CarRig, CarSim, DriveInput, STEP, WorldGround};
 use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::space;
+
+/// What a car is for.
+pub enum Role {
+    Traffic,
+    /// A cop chasing the player.
+    Cop(Box<CopState>),
+}
+
+/// The world a car thinks in.
+pub struct Ctx<'a, R> {
+    pub net: &'a RoadNetwork,
+    pub index: &'a SegmentIndex,
+    pub rng: &'a mut R,
+    /// Every computer-driven car, with whether it is a cop, and which of them is this car.
+    pub bodies: &'a [(Body, bool)],
+    pub me: usize,
+    pub player: Option<Body>,
+}
 
 /// How a new car begins: when its first think comes and how fast it rolls.
 #[derive(Debug, Clone, Copy)]
@@ -40,14 +59,28 @@ const SHOCK_MIN_SPEED_CHANGE: f32 = 2.0;
 const SHOCK_FORCE: f32 = 10.0;
 const SHOCK_TIME: f32 = 3.0;
 
+/// A cop stuck against something backs up for this long (s) asking for this speed (m/s).
+const RECOVERY_SECONDS: f32 = 2.0;
+const RECOVERY_SPEED: f32 = 15.0;
 /// Below this speed (m/s) a car counts as standing still.
 const IDLE_SPEED: f32 = 0.5;
+
+/// Selects the gear a driver asked for.
+fn shift(sim: &mut CarSim, gear: Option<GearRequest>) {
+    match gear {
+        Some(GearRequest::Reverse) => sim.shift_reverse(),
+        Some(GearRequest::First) => sim.shift_first(),
+        Some(GearRequest::Neutral) => sim.shift_neutral(),
+        None => {}
+    }
+}
 
 pub struct AiCar {
     pub name: String,
     rig: Rc<CarRig>,
     sim: CarSim,
     driver: Driver,
+    pub role: Role,
     nav: RoadNav,
     previous: CarPose,
     current: CarPose,
@@ -79,6 +112,7 @@ impl AiCar {
     /// `None` when the ground is missing.
     pub fn place(
         model: &TrafficModel,
+        role: Role,
         nav: RoadNav,
         spawn: Spawn,
         start: Start,
@@ -96,7 +130,14 @@ impl AiCar {
             name,
             rig,
             sim,
-            driver: Driver::new(ControllerKind::Simple, false),
+            driver: Driver::new(
+                match role {
+                    Role::Traffic => ControllerKind::Simple,
+                    Role::Cop(_) => ControllerKind::Pid,
+                },
+                false,
+            ),
+            role,
             target: nav.position,
             nav,
             previous: pose,
@@ -151,7 +192,8 @@ impl AiCar {
     /// A line about what the car is doing, for the `traffic status` command.
     pub fn debug(&self) -> String {
         format!(
-            "segment {} lane {} t {:.2}{}{}, wants {:.1} m/s",
+            "{} segment {} lane {} t {:.2}{}{}, wants {:.1} m/s",
+            if self.is_cop() { "cop" } else { "traffic" },
             self.nav.segment,
             self.nav.lane,
             self.nav.t,
@@ -165,23 +207,35 @@ impl AiCar {
         self.controls
     }
 
+    pub fn is_cop(&self) -> bool {
+        matches!(self.role, Role::Cop(_))
+    }
+
     /// One physics step: think when it is this car's turn, then drive.
-    pub fn step(
+    pub fn step<R: RandomSource>(
         &mut self,
-        net: &RoadNetwork,
-        rng: &mut impl RandomSource,
-        bodies: (&[Body], usize),
+        ctx: &mut Ctx<'_, R>,
         collision: &CollisionWorld,
         props: &mut PropWorld,
         surfaces: &SurfaceTable,
     ) {
-        if (self.steps + self.stagger).is_multiple_of(THINK_STEPS) {
-            self.think(net, rng, bodies);
+        let think_steps = match self.role {
+            Role::Traffic => THINK_STEPS,
+            Role::Cop(_) => cop::THINK_STEPS,
+        };
+        if (self.steps + self.stagger).is_multiple_of(think_steps) {
+            self.think(ctx);
         }
         let mut view = self.sim.driver_view();
         view.in_shock = self.shock > 0.0;
         self.shock = (self.shock - STEP / SHOCK_TIME).max(0.0);
-        let request = DriveRequest { target: self.target, speed: self.speed, flags: DriveFlags::SIMPLE };
+        let reversing = self.driver.reverse_override_left() > 0.0;
+        let flags = match (&self.role, reversing) {
+            (Role::Cop(_), false) => DriveFlags::FULL,
+            _ => DriveFlags::SIMPLE,
+        };
+        let wanted = if reversing { RECOVERY_SPEED } else { self.speed };
+        let request = DriveRequest { target: self.target, speed: wanted, flags };
         let clock = self.steps as f32 * STEP;
         self.controls = self.driver.step(&view, &request, STEP, clock);
         match self.accident {
@@ -193,12 +247,7 @@ impl AiCar {
                 self.controls = AiControls { brake: 1.0, steer: 1.0, ..AiControls::default() };
             }
         }
-        match self.controls.gear {
-            Some(GearRequest::Reverse) => self.sim.shift_reverse(),
-            Some(GearRequest::First) => self.sim.shift_first(),
-            Some(GearRequest::Neutral) => self.sim.shift_neutral(),
-            None => {}
-        }
+        shift(&mut self.sim, self.controls.gear);
         let input = DriveInput {
             throttle: self.controls.gas,
             brake: self.controls.brake,
@@ -237,14 +286,8 @@ impl AiCar {
         }
     }
 
-    /// The traffic think: keep the cursor ahead of the car, steer past other cars and pick a speed.
-    fn think(&mut self, net: &RoadNetwork, rng: &mut impl RandomSource, (bodies, me): (&[Body], usize)) {
-        if let Accident::InProgress(left) = self.accident {
-            self.accident = match left {
-                0 | 1 => Accident::Over,
-                n => Accident::InProgress(n - 1),
-            };
-        }
+    /// The think of the car's role: traffic follows its lane, a cop chases the player.
+    fn think<R: RandomSource>(&mut self, ctx: &mut Ctx<'_, R>) {
         let view = self.sim.driver_view();
         let state = traffic::CarState {
             body: self.body(),
@@ -252,11 +295,57 @@ impl AiCar {
             radius: self.radius,
             mass: self.mass,
         };
-        let others: Vec<Body> = bodies.iter().enumerate().filter(|&(i, _)| i != me).map(|(_, b)| *b).collect();
-        let think = traffic::think(net, &mut self.nav, &state, &others, self.blocked, rng);
-        self.target = think.target;
-        self.speed = think.speed;
-        self.blocked = think.blocked;
+        match &mut self.role {
+            Role::Traffic => {
+                if let Accident::InProgress(left) = self.accident {
+                    self.accident = match left {
+                        0 | 1 => Accident::Over,
+                        n => Accident::InProgress(n - 1),
+                    };
+                }
+                let mut others: Vec<Body> =
+                    ctx.bodies.iter().enumerate().filter(|&(i, _)| i != ctx.me).map(|(_, b)| b.0).collect();
+                others.extend(ctx.player);
+                let think = traffic::think(ctx.net, &mut self.nav, &state, &others, self.blocked, ctx.rng);
+                self.target = think.target;
+                self.speed = think.speed;
+                self.blocked = think.blocked;
+            }
+            Role::Cop(cop) => {
+                let Some(player) = ctx.player else {
+                    self.speed = 0.0;
+                    return;
+                };
+                let traffic: Vec<Body> = ctx
+                    .bodies
+                    .iter()
+                    .enumerate()
+                    .filter(|&(i, (_, is_cop))| i != ctx.me && !is_cop)
+                    .map(|(_, b)| b.0)
+                    .collect();
+                let pressing = self.controls.gas >= 0.5;
+                let stuck = cop.stuck.update(
+                    cop::THINK_PERIOD,
+                    pressing,
+                    self.driver.reverse_override_left() > 0.0,
+                    false,
+                    state.body.position,
+                );
+                if stuck {
+                    log::info!("cop: {} is stuck, reversing", self.name);
+                    let gear = self.driver.start_reverse_override(RECOVERY_SECONDS, view.gear_is_reverse);
+                    let at = state.body.position;
+                    let forward = Vec3::new(state.body.forward.x, 0.0, state.body.forward.y);
+                    if self.nav.init_at_point(ctx.net, ctx.index, at, forward, false) {
+                        self.nav.enable_trail(ctx.net);
+                    }
+                    shift(&mut self.sim, Some(gear));
+                }
+                let think = cop.think(ctx, &mut self.nav, &state, &Target { body: player }, &traffic);
+                self.target = think.target;
+                self.speed = think.speed;
+            }
+        }
     }
 
     /// The car's physics, for hits between cars.
