@@ -72,6 +72,31 @@ audio behaviours are the `Traffic` variants. All numbers below are **[verified]*
   trailer tips over (up-vector y below 0.75), when their up vectors diverge (dot below 0.8) or when either is on fewer
   than two wheels for more than 2 s. A hitched trailer is not an obstacle for its own tractor and the tractor does
   not collide with it.
+- **Which trailer, which model [verified].** The `Trailer` field of the tractor's `pvehicle` names the trailer's
+  `pvehicle`: `semia` pulls `trailera`, `semib` `trailerb`, `semicmt` `trailercmt`, `semicon` `trailercon`,
+  `semicrate` `trailercrate`, `semilog` `trailerlog`; plain `semi` has none. Only `CARS/SEMI` exists as a tractor
+  folder (the six variants inherit from `semi` and have no collision bounds or car-table entry of their own, so
+  they use the model and box of `semi`), and each trailer has its own folder (`TRAILERA` ... `TRAILERLOG`). The
+  tractor's box is 2.59 x 2.66 x 7.28 m; the trailers' boxes are 2.7 to 2.9 m wide and 11.1 to 13.7 m long.
+  A trailer `pvehicle` has a chassis, tires and brakes but **no engine and no transmission**: it is a body that
+  only rolls and brakes. Its axles are a tandem at the back of its box (front axle 2.8 m, rear axle 4.3 m behind
+  the box centre, which leaves its centre of gravity over the axles: front weight bias 50 %).
+- **The 5th wheel point [decision].** Neither the sources nor the data say where the joint sits (the tractor
+  class only creates the trailer and holds the two together). This rewrite puts the hitch at the middle of the
+  back edge of the tractor's collision box and the kingpin at the middle of the front edge of the trailer's box
+  (so the two boxes touch end to end), both 1.2 m (about four feet, the height of a real 5th wheel plate)
+  above the bottom of their own box so the trailer rides level. The joint is a ball joint: the trailer yaws,
+  pitches and rolls freely about the kingpin, held there by impulses with a Baumgarte correction of 0.2 per step,
+  four passes per 60 Hz step (`BallJoint` in `blackbox-vehicle`). The original's joint model (hinge, limits,
+  spring) is not known; a ball joint plus the release rules below reproduces what the description of the rules
+  says.
+- **Spawning and removal.** The trailer is placed behind the tractor on the same heading with the same speed, with
+  its kingpin on the hitch, and is removed with it. A tractor whose test says "invalid" is kept while its trailer
+  is valid (section 8 of the spawning spec) and a trailer that has come loose and is invalid is removed on its own.
+  For the other cars a hitched tractor and trailer count as one long body (nose to tail) in the avoidable list.
+  After the joint is released the trailer is a free body: it brakes fully (a trailer's spring brakes apply
+  when its air line breaks), collides with everything including its former tractor, and is not part of the
+  tractor's body any more.
 - Sound / render ids carried by the data: `HornType` 5, 6 (a few cars) or 11 (trucks, semis), `TrafficEngType` 0
   (cars), 2 (vans, pickups, wagons, trucks `trafcemtr` `trafdmptr`), 8 (`trafgarb`, `traffire`), `WooshType` 9 (cars,
   vans) or 6 (trucks, semis, ambulance) **[verified]**. See [ai-traffic-world.md](ai-traffic-world.md#3-horns-engine-and-drive-by-sounds).

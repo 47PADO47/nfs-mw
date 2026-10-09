@@ -52,6 +52,13 @@ Headless: `--exec "traffic 24" --exec "traffic warmup 25" --screenshot out.png`.
   pattern zone under the player (`TrackPathZones` type 9). Models load on demand, one per frame.
 - **Patrol cops** are cop cars of the heat 1 wave that drive like traffic at the search-mode speeds of the install
   (50/71 mph) and take bends at 1.6 g. Each new car is a patrol cop with the probability `cop_share`.
+- **Semis pull trailers.** The `cityhighway` and `collegehighway` patterns bring the semi tractors (`semib`,
+  `semicrate`, `semilog`, `semicon`). A tractor loads with the trailer its `pvehicle` names (`trailerb`, ...) and the
+  two spawn, drive and are removed together. The trailer is its own car (no engine; it takes the tractor's brake and
+  handbrake) held to the tractor by a ball joint at the 5th wheel, which lets go when either body tips over, when the
+  two fold apart or when either is off the ground for 2 s ([ai-traffic](specs/ai-traffic.md) §2). The two do not
+  collide with each other while hitched, other cars avoid them as one long body, and a trailer that comes loose
+  brakes and stays as a free body. Where the 5th wheel is, is this rewrite's own decision (see below).
 - **Cars are removed** when they are far away (350 m), when nobody has seen them for the density's off-screen
   time and they are beyond its off-screen distance (4 s and 40 m at full density, as in the original), when they
   fell off the map, or when they stand stuck away from you.
@@ -113,13 +120,13 @@ pattern each resolves to match its §3.
 | Patrol cops among the traffic | done (they cruise; see below) |
 | Pursuit: wave per heat level from the data, spawn ring, path to the player, pursuit-mode speed | basic |
 | Car against car | done (box impulse) |
+| Semi tractors with trailers (ball joint, release rules, hitched pair spawns and goes together) | done |
 | Measured car performance for matching cops to the player's car | done |
 
 ## Not implemented yet
 
-- **Traffic:** stop signs, priority at junctions, trailers and the tractor joint (the semi patterns are skipped
-  until trailers exist), horns and drive-by sounds, `collisionreactions` records, the scripted drag-race
-  traffic and the drag pattern, pool reuse of cars, parked cars.
+- **Traffic:** stop signs, priority at junctions, horns and drive-by sounds, `collisionreactions` records, the
+  scripted drag-race  traffic and the drag pattern, pool reuse of cars, parked cars.
 - **Patrol cops:** a patrol cop does not start a pursuit when it sees you (no infractions, heat or sight yet) and
   never reacts to the player. Use `pursuit <heat>` to start a chase by hand.
 - **Racers:** the race action's nitrous, skill and rubber banding, race routes and checkpoints, staging,
@@ -145,4 +152,8 @@ pattern each resolves to match its §3.
   this rewrite's reading.
 - **Car against car** uses a textbook impulse (the original's solver is not in the sources) between the
   collision boxes, once per frame.
+- **The 5th wheel is a ball joint at a derived point.** The install does not say where the tractor and the trailer
+  meet: the hitch is at the back edge of the tractor's collision box and the kingpin at the front edge of the
+  trailer's, both 1.2 m above the bottom of their box, and the joint is a ball joint solved with impulses (`BallJoint`
+  in `blackbox-vehicle`). The release rules are the original's ([ai-traffic](specs/ai-traffic.md) §2).
 - **Performance table** is measured by driving the car flat out (the estimator is not in the sources).
