@@ -426,7 +426,14 @@ impl Drive {
     pub fn hud_state(&self) -> Option<crate::hud::HudState> {
         self.sim.as_ref()?;
         let t = &self.telemetry;
+        let pose = self.pose();
+        let forward = pose.rotation * Vec3::X;
         Some(crate::hud::HudState {
+            minimap: Some(crate::hud::MapPosition {
+                position: [pose.position.x, pose.position.y],
+                heading: [forward.x, forward.y],
+                orientation: blackbox_minimap::Orientation::North,
+            }),
             speed: t.speed_mps.abs(),
             rpm: t.rpm,
             max_rpm: t.max_rpm,

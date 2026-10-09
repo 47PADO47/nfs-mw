@@ -9,7 +9,7 @@ use std::str::FromStr;
 use toml::{Table, Value};
 
 use super::partial::{Partial, Percent};
-use super::{Deadzone, Sensitivity, Transmission};
+use super::{Deadzone, HudLayout, MinimapMode, Sensitivity, Transmission};
 use super::{Monitor, Resolution, SmokeQuality, WindowMode};
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
@@ -83,6 +83,8 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         spark_style: field(&table, origin, "spark_style", |v| super::SparkStyle::from_str(text_of(v)?)),
         speed_trails: field(&table, origin, "speed_trails", boolean),
         transmission: field(&table, origin, "transmission", |v| Transmission::from_str(text_of(v)?)),
+        minimap: field(&table, origin, "minimap", |v| MinimapMode::from_str(text_of(v)?)),
+        hud_layout: field(&table, origin, "hud_layout", |v| HudLayout::from_str(text_of(v)?)),
         paddle_up: field(&table, origin, "paddle_up", button_code),
         paddle_down: field(&table, origin, "paddle_down", button_code),
     }
@@ -167,6 +169,13 @@ mod tests {
             .hud,
             None
         );
+    }
+
+    #[test]
+    fn reads_the_minimap_mode() {
+        assert_eq!(parse("minimap = 'rotating'", "test").minimap, Some(MinimapMode::Rotating));
+        assert_eq!(parse("minimap = 'off'", "test").minimap, Some(MinimapMode::Off));
+        assert_eq!(parse("minimap = true", "test").minimap, None);
     }
 
     #[test]

@@ -105,6 +105,12 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.transmission {
         put("transmission", Value::String(v.to_string()));
     }
+    if let Some(v) = changes.minimap {
+        put("minimap", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.hud_layout {
+        put("hud_layout", Value::String(v.to_string()));
+    }
     if let Some(v) = changes.paddle_up {
         put("paddle_up", Value::Integer(i64::from(v)));
     }
@@ -188,6 +194,7 @@ mod tests {
             hud: Some(false),
             radio: Some(false),
             transmission: Some(crate::settings::Transmission::Manual),
+            minimap: Some(crate::settings::MinimapMode::Rotating),
             paddle_up: Some(5),
             paddle_down: Some(6),
             ..Partial::default()

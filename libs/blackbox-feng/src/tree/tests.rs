@@ -141,3 +141,39 @@ fn multi_images_carry_their_mask_and_the_host_can_turn_it() {
     let NodeKind::Image { mask, .. } = rt.tree(id).nodes[1].kind.clone() else { panic!("not an image") };
     assert_eq!(mask, None, "a plain image has no mask");
 }
+
+#[test]
+fn a_group_turns_about_the_pivot_the_host_sets() {
+    let mut group = Obj::group(1, fe_hash_upper("G"));
+    group.position = [100.0, 50.0, 1.0];
+    let mut at_pivot = Obj::image(2, fe_hash_upper("AtPivot"));
+    at_pivot.parent = 1;
+    at_pivot.position = [20.0, 0.0, 1.0];
+    let mut beside = Obj::image(3, fe_hash_upper("Beside"));
+    beside.parent = 1;
+    beside.position = [20.0, 10.0, 1.0];
+    let (mut rt, id) = build(&[group, at_pivot, beside], &[]);
+    let g = rt.find(id, fe_hash_upper("G")).unwrap();
+    rt.set_pivot_xy(g, 20.0, 0.0);
+    rt.set_rotation_z(g, 90f32.to_radians());
+    let t = rt.tree(id);
+    // The pivot is the one point of the group that stays where `position + pivot` puts it.
+    let (a, b) = (t.nodes[1].position, t.nodes[2].position);
+    assert!((a - Vec3::new(120.0, 50.0, 2.0)).length() < 1e-3, "{a:?}");
+    // A positive rotation turns clockwise on the screen (y down): 10 units below the pivot lands to its left.
+    assert!((b - Vec3::new(110.0, 50.0, 2.0)).length() < 1e-3, "{b:?}");
+}
+
+#[test]
+fn the_host_moves_the_window_of_the_mask() {
+    let multi = Obj::multi(1, fe_hash_upper("Piece"), 0xABCD);
+    let (mut rt, id) = build(&[multi], &[]);
+    let piece = rt.find(id, fe_hash_upper("Piece")).unwrap();
+    let mask_uv = |rt: &Runtime| match rt.tree(id).nodes[0].kind.clone() {
+        NodeKind::Image { mask_uv, .. } => mask_uv,
+        _ => panic!("not an image"),
+    };
+    assert_eq!(mask_uv(&rt), [0.0, 0.0, 1.0, 1.0]);
+    rt.set_mask_uv(piece, [-0.75, -0.25, 0.25, 0.75]);
+    assert_eq!(mask_uv(&rt), [-0.75, -0.25, 0.25, 0.75]);
+}

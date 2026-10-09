@@ -4,6 +4,8 @@
 //! parsed into [`parse::Command`]s and run by [`exec`]; [`view`] is the thin egui panel over all of it.
 
 mod exec;
+#[cfg(test)]
+mod hud_layout_tests;
 mod parse;
 mod settings_cmd;
 #[cfg(test)]

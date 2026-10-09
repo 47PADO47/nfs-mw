@@ -1,4 +1,16 @@
 use bevy_ecs::prelude::Resource;
+use blackbox_minimap::Orientation;
+
+/// Where the car is, for the minimap (`docs/specs/hud-minimap.md`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MapPosition {
+    /// The car's place in the world, metres (render space: x forward, y left).
+    pub position: [f32; 2],
+    /// The direction the car points in, in the same space (any length).
+    pub heading: [f32; 2],
+    /// North up (the fixed minimap) or the heading up (the rotating one).
+    pub orientation: Orientation,
+}
 
 /// What the in-game HUD shows, as plain numbers. The scene fills it every frame; nothing here knows how
 /// the HUD is built or drawn.
@@ -32,6 +44,8 @@ pub struct HudState {
     pub has_turbo: bool,
     /// Boost gauge, psi (negative in vacuum).
     pub boost_psi: f32,
+    /// The minimap shows this place; `None` hides it (a scene that has no map position).
+    pub minimap: Option<MapPosition>,
 }
 
 impl Default for HudState {
@@ -51,6 +65,7 @@ impl Default for HudState {
             nos: 0.0,
             has_turbo: false,
             boost_psi: 0.0,
+            minimap: None,
         }
     }
 }

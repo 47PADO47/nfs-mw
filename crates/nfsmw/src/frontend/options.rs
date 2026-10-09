@@ -8,7 +8,7 @@ use super::input_options::InputSetting;
 use super::logic::Category;
 use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
-use crate::settings::{Partial, Percent, Settings, SmokeQuality, Transmission, WindowMode};
+use crate::settings::{HudLayout, MinimapMode, Partial, Percent, Settings, SmokeQuality, Transmission, WindowMode};
 
 /// A setting a row edits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -29,6 +29,8 @@ pub enum Setting {
     SmokeQuality,
     Transmission,
     Input(InputSetting),
+    HudLayout,
+    Minimap,
 }
 
 /// What a row's title shows.
@@ -88,6 +90,8 @@ pub fn rows(category: Category) -> Vec<Row> {
             let mut rows = vec![
                 row(Setting::Hud, Title::Label(0xAC14_8579)),
                 row(Setting::Transmission, Title::Label(LABEL_TRANSMISSION)),
+                row(Setting::HudLayout, Title::Text("HUD Layout")),
+                row(Setting::Minimap, Title::Text("Minimap")),
             ];
             rows.extend(InputSetting::ALL.into_iter().map(|setting| row(Setting::Input(setting), setting.title())));
             rows
@@ -130,6 +134,22 @@ impl Setting {
     pub fn data(self, s: &Settings) -> Data {
         match self {
             Setting::Input(setting) => setting.data(s),
+            Setting::HudLayout => Data::Text(
+                match s.hud_layout {
+                    HudLayout::Pc => "PC",
+                    HudLayout::Classic => "Centered",
+                    HudLayout::Xbox360 => "Xbox 360",
+                }
+                .to_owned(),
+            ),
+            Setting::Minimap => Data::Text(
+                match s.minimap {
+                    MinimapMode::Fixed => "Fixed",
+                    MinimapMode::Rotating => "Rotating",
+                    MinimapMode::Off => "Off",
+                }
+                .into(),
+            ),
             Setting::Vsync => on_off(s.vsync),
             Setting::Hud => on_off(s.hud),
             Setting::TireSmoke => on_off(s.tire_smoke),
@@ -181,6 +201,18 @@ impl Setting {
         let before = *s;
         match self {
             Setting::Input(_) => unreachable!("input settings are handled above"),
+            Setting::HudLayout => {
+                let layouts = [HudLayout::Pc, HudLayout::Classic, HudLayout::Xbox360];
+                let at = layouts.iter().position(|layout| *layout == s.hud_layout).unwrap_or(0);
+                s.hud_layout = layouts[cycle(at, layouts.len(), forward)];
+                changed.hud_layout = Some(s.hud_layout);
+            }
+            Setting::Minimap => {
+                let modes = [MinimapMode::Fixed, MinimapMode::Rotating, MinimapMode::Off];
+                let at = modes.iter().position(|m| *m == s.minimap).unwrap_or(0);
+                s.minimap = modes[cycle(at, modes.len(), forward)];
+                changed.minimap = Some(s.minimap);
+            }
             Setting::MasterVolume => {
                 s.master_volume = nudge(s.master_volume, forward);
                 changed.master_volume = Some(s.master_volume);
@@ -333,7 +365,7 @@ mod tests {
     fn every_category_has_rows() {
         assert_eq!(rows(Category::Audio).len(), 4);
         assert_eq!(rows(Category::Video).len(), 9);
-        assert_eq!(rows(Category::Gameplay).len(), 10);
+        assert_eq!(rows(Category::Gameplay).len(), 12);
     }
 
     #[test]
@@ -368,5 +400,16 @@ mod tests {
         assert_eq!(changes, Partial { smoke_quality: Some(SmokeQuality::High), ..Partial::default() });
         Setting::SmokeQuality.step(&mut s, &mut changes, false);
         assert_eq!(Setting::SmokeQuality.data(&s), Data::Text("Standard".into()));
+    }
+
+    #[test]
+    fn minimap_menu_cycles_both_directions_and_records_the_selection() {
+        let (mut s, mut changes) = (defaults(), Partial::default());
+        for mode in [MinimapMode::Rotating, MinimapMode::Off, MinimapMode::Fixed] {
+            assert!(Setting::Minimap.step(&mut s, &mut changes, true));
+            assert_eq!((s.minimap, changes.minimap), (mode, Some(mode)));
+        }
+        assert!(Setting::Minimap.step(&mut s, &mut changes, false));
+        assert_eq!(s.minimap, MinimapMode::Off);
     }
 }

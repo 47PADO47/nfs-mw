@@ -6,7 +6,7 @@ MW has a single open world, internally called **L2RA**. Its two main files are i
 |---|---|---|
 | `TRACKS/L2RA.BUN` | 1.4 MB | World **metadata**, loaded once: streaming index, visibility, AI paths, collision volumes, events, world animations |
 | `TRACKS/STREAML2RA.BUN` | 533 MB | World **content**: 720 sections of textures, geometry and scenery instances, streamed in and out while driving |
-| `TRACKS/L2RA/MINI_MAP_*.BIN` (267 files) | small | Minimap tiles: `CompTPKBlock` chunks, each a JDLZ-compressed one-tile TPK; see [world.md](world.md#minimap) |
+| `TRACKS/L2RA/MINI_MAP_*.BIN` (267 files) | small | Minimap tiles: `CompTPKBlock` chunks, each a JDLZ-compressed one-tile TPK; see [minimap.md](minimap.md) |
 | `TRACKS/L2RA/TrackMaps.bin` | | Texture pack (map screen) |
 | `TRACKS/L2RA/TroughBoundary.bin` | | A single `0x00034190` chunk. Not in the decomp's chunk list; the nearest IDs are `Troughs` `0x80034180`–`WallClusters` `0x00034184` **[unconfirmed]** |
 

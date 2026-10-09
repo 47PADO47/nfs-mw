@@ -8,6 +8,10 @@ mod controls;
 mod controls_tests;
 mod env;
 mod file;
+mod hud_layout;
+#[cfg(test)]
+mod hud_layout_tests;
+mod minimap;
 mod partial;
 mod smoke_quality;
 #[cfg(test)]
@@ -24,6 +28,8 @@ mod write;
 use blackbox_render::Backend;
 
 pub use controls::{Controls, Deadzone, DeadzoneMode, Sensitivity};
+pub use hud_layout::HudLayout;
+pub use minimap::MinimapMode;
 pub use partial::{Partial, Percent, parse_bool};
 pub use smoke_quality::SmokeQuality;
 pub use spark_style::SparkStyle;
@@ -68,6 +74,10 @@ pub struct Settings {
     pub speed_trails: bool,
     /// Who changes gear: the box (default) or the player.
     pub transmission: Transmission,
+    /// How the HUD's minimap is shown: fixed (default), rotating or off.
+    pub minimap: MinimapMode,
+    /// Placement and scale of the in-game HUD.
+    pub hud_layout: HudLayout,
     /// Gamepad button codes of a steering wheel's shift paddles (`GamepadButton::Other`), if the player gave them.
     pub paddle_up: Option<u32>,
     pub paddle_down: Option<u32>,
@@ -108,6 +118,8 @@ impl From<Partial> for Settings {
             spark_style: p.spark_style.unwrap_or_default(),
             speed_trails: p.speed_trails.unwrap_or(false),
             transmission: p.transmission.unwrap_or_default(),
+            minimap: p.minimap.unwrap_or_default(),
+            hud_layout: p.hud_layout.unwrap_or_default(),
             paddle_up: p.paddle_up,
             paddle_down: p.paddle_down,
         }
@@ -145,6 +157,7 @@ mod tests {
         let s = Settings::from(Partial::default());
         assert_eq!((s.backend, s.vsync, s.max_fps), (Backend::Auto, true, MaxFps::default()));
         assert_eq!(s.transmission, Transmission::Automatic, "automatic, as in the original");
+        assert_eq!(s.minimap, MinimapMode::Fixed, "fixed, the original's free roam mode");
     }
 
     #[test]

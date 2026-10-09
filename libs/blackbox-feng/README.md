@@ -20,7 +20,7 @@ of drawable nodes. **No rendering, no windowing, no Bevy, no wgpu:** a host draw
   into the messages a package expects (`BUTTON_PRESSED` for accept, `PAD_*` with the original repeat times,
   released and held messages) and moves the focus between buttons by geometry (`ids` has the message ids,
   `set_control` says which package listens). More setters for screens that lay themselves out (`set_position_xy`,
-  `set_size_xy`, `set_uv`, `set_colour_rgba`, `string_info`), and `post_to_package`.
+  `set_size_xy`, `set_uv`, `set_pivot_xy`, `set_mask_uv`, `set_colour_rgba`, `string_info`), and `post_to_package`.
 
 ```rust
 let package = blackbox_feng::Package::parse(chunk_payload)?;

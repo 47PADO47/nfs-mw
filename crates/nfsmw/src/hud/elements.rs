@@ -1,9 +1,12 @@
 //! Which parts of the HUD package are shown. The package holds every element of the in-game HUD; the game turns
 //! each on or off by feature. Here an element is on when the state it shows exists in this build: the speedometer
 //! and the tachometer always, the nitrous and turbo gauges when the car has the hardware. The rest of the package
-//! (radar, pursuit bars, race timers, the minimap) needs state that arrives with later milestones and stays hidden.
+//! (radar, pursuit bars, race timers) needs state that arrives with later milestones and stays hidden; the minimap
+//! shows when the scene has a map position for it.
 
 use blackbox_feng::{ObjectRef, PackageId, Runtime, fe_hash_upper};
+
+use super::minimap::{ARROW, BACKING, GROUP};
 
 /// The speedometer group and the group of the tachometer (needle, face, gear, shift light, redline).
 const SPEEDOMETER: [u32; 1] = [0x941f_ff09];
@@ -20,8 +23,10 @@ pub struct Layout {
     tachometer: Vec<usize>,
     nitrous: Vec<usize>,
     turbo: Vec<usize>,
-    /// What the hidden flags were last set for: (nitrous, turbo).
-    applied: Option<(bool, bool)>,
+    /// The group of the minimap's pieces, its backing disc and the player's arrow.
+    minimap: Vec<usize>,
+    /// What the hidden flags were last set for: (nitrous, turbo, minimap).
+    applied: Option<(bool, bool, bool)>,
 }
 
 impl Layout {
@@ -44,17 +49,18 @@ impl Layout {
             tachometer: find(&TACHOMETER),
             nitrous: find(&NITROUS),
             turbo: find(&[fe_hash_upper("TURBO_GROUP")]),
+            minimap: find(&[fe_hash_upper(GROUP), fe_hash_upper(BACKING), fe_hash_upper(ARROW)]),
             applied: None,
         }
     }
 
     /// Shows the speedometer, the tachometer and the gauges asked for, and hides everything else in the package.
     /// Nothing happens while the request is the one already applied.
-    pub fn update(&mut self, rt: &mut Runtime, nitrous: bool, turbo: bool) {
-        if self.applied == Some((nitrous, turbo)) {
+    pub fn update(&mut self, rt: &mut Runtime, nitrous: bool, turbo: bool, minimap: bool) {
+        if self.applied == Some((nitrous, turbo, minimap)) {
             return;
         }
-        self.applied = Some((nitrous, turbo));
+        self.applied = Some((nitrous, turbo, minimap));
         let mut shown = vec![false; self.parent.len()];
         let mut roots: Vec<usize> = self.speedometer.iter().chain(&self.tachometer).copied().collect();
         if nitrous {
@@ -62,6 +68,9 @@ impl Layout {
         }
         if turbo {
             roots.extend(&self.turbo);
+        }
+        if minimap {
+            roots.extend(&self.minimap);
         }
         for root in roots {
             // The root's ancestors have to show for it to show; everything under it shows with it.

@@ -101,7 +101,12 @@ Engines, viewers and hook projects
   whoismept/OpenUG2 — MIT. bdrtr/PryHUB — Apache-2.0. OpenNFS/OpenNFS — MIT.
   veritr1x/nfsmw-recomp — MIT (speed.exe v1.3 hash, loading-path notes).
   berkayylmao/NFSPluginSDK — BSD-3-Clause. gaycoderprincess/nya-common-nfsmw — MPL-2.0.
-  ThirteenAG/WidescreenFixesPack — MIT (registry key, camera). rng-guy/NFSMWBartender — CC0-1.0.
+  ThirteenAG/WidescreenFixesPack — MIT (registry key, camera, aspect-aware HUD placement).
+    https://github.com/ThirteenAG/WidescreenFixesPack — reference only; no code copied.
+  rng-guy/NFSMWBartender — CC0-1.0.
+  Xbox 360 Stuff Pack — https://nfsmods.xyz/mod/1200 — reference only.
+    elaymm4 and ToruTheRedFox; installed configuration and binary corroborate
+    the widescreen 0.92 UI scale used by the optional HUD preset. No addon code copied.
   Lovro Pleše (xan1242), NFSMW_XenonEffects — MIT.
     https://github.com/xan1242/NFSMW_XenonEffects — behavior and configuration reference only.
     No source or textures copied; procedural spark and contrail presentation is new.

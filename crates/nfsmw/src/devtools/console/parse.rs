@@ -34,7 +34,7 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 25] = [
+pub const BUILT_IN: [(&str, &str); 26] = [
     ("bind <action> <input>", "replace one device family's action assignments; keys lists action names"),
     ("addbind <action> <input>", "add another physical input to an action"),
     ("unbind <action> [keyboard|mouse|gamepad|all]", "remove action assignments"),
@@ -53,6 +53,7 @@ pub const BUILT_IN: [(&str, &str); 25] = [
     ("monitors", "list available monitors and their indices"),
     ("keys", "list every key, button and stick binding"),
     ("smoke_quality <standard|high>", "change tire smoke presentation quality"),
+    ("hud-layout <pc|classic|xbox360>", "change HUD placement and scale"),
     ("collision_sparks <on|off>", "change collision sparks"),
     ("spark_style <original-pc|restored-experimental>", "select stock or experimental collision particles"),
     ("speed_trails <on|off>", "change experimental high-speed wind trails"),
@@ -63,7 +64,7 @@ pub const BUILT_IN: [(&str, &str); 25] = [
 ];
 
 /// Further shorthands for `set`: `vsync off` is `set vsync off`.
-const SET_SHORTHANDS: [&str; 13] = [
+const SET_SHORTHANDS: [&str; 15] = [
     "fps",
     "vsync",
     "metrics",
@@ -77,6 +78,8 @@ const SET_SHORTHANDS: [&str; 13] = [
     "spark_style",
     "speed_trails",
     "smoke_quality",
+    "hud_layout",
+    "hud-layout",
 ];
 
 /// Parse one line. `Ok(None)` for an empty line.

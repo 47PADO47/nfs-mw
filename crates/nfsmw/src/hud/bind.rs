@@ -4,6 +4,7 @@
 use blackbox_feng::{ObjectRef, PackageId, Runtime, fe_hash_upper};
 
 use super::elements::Layout;
+use super::minimap::MinimapBinding;
 use super::skin::{fill_texture, needle_texture, tach_face_texture};
 use super::state::{HudState, redline_rotation};
 
@@ -41,6 +42,8 @@ pub struct HudBinding {
     nos_icon: Option<ObjectRef>,
     nos_bar: Option<ObjectRef>,
     turbo_needle: Option<ObjectRef>,
+    /// The minimap, once the host has given it a map (see [`HudBinding::with_minimap`]).
+    minimap: Option<MinimapBinding>,
     shift_on: bool,
     last_nos: f32,
     /// What the face, needle and redline were last set for: skin, scale, red line.
@@ -78,17 +81,29 @@ impl HudBinding {
             nos_icon: rt.find(package, 0x27DD_F583),
             nos_bar: rt.find(package, 0xEDFB_6D37),
             turbo_needle: find(rt, package, "3rdperson_TurboDial"),
+            minimap: None,
             shift_on: false,
             last_nos: 0.0,
             applied_face: None,
         };
-        b.layout.update(rt, false, false);
+        b.layout.update(rt, false, false, false);
         b
+    }
+
+    /// Gives the HUD a minimap (built from the package's objects and the map's calibration). Without one the
+    /// minimap objects stay hidden.
+    pub fn with_minimap(mut self, minimap: Option<MinimapBinding>) -> Self {
+        self.minimap = minimap;
+        self
     }
 
     /// Pushes the state into the objects. Call before `Runtime::update`.
     pub fn apply(&mut self, rt: &mut Runtime, s: &HudState) {
-        self.layout.update(rt, s.has_nos, s.has_turbo);
+        let map = s.minimap.zip(self.minimap.as_ref());
+        self.layout.update(rt, s.has_nos, s.has_turbo, map.is_some());
+        if let Some((at, minimap)) = map {
+            minimap.apply(rt, s, &at);
+        }
         self.speedometer(rt, s);
         self.tachometer(rt, s);
         if s.has_nos {
