@@ -89,16 +89,17 @@ fn compute_minimum_difference(current: array<f32, 5>, previous: array<f32, 5>) -
             let sa = s0[min(a, 4)];
             let sb = s1[min(b, 4)];
             var diff = sa - sb;
-            if abs(diff) > FP16_MIN {
-                diff = sign(diff) * (1.0 - min_divided_by_max(sa, sb, 0.0));
-                if abs(diff) < abs(min_diff) {
-                    min_diff = diff;
-                }
-                a += i32(sa < sb);
-                b += i32(s0[min(a, 4)] >= sb);
-            } else {
+            if !(abs(diff) > FP16_MIN) {
+                // Equal values end the search.
                 min_diff = FP16_MAX;
+                continue;
             }
+            diff = sign(diff) * (1.0 - min_divided_by_max(sa, sb, 0.0));
+            if abs(diff) < abs(min_diff) {
+                min_diff = diff;
+            }
+            a += i32(sa < sb);
+            b += i32(s0[min(a, 4)] >= sb);
         }
     }
     return min_diff * f32(min_diff < (FP16_MAX - 1.0));

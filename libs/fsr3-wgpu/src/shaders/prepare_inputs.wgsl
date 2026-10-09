@@ -94,6 +94,23 @@ struct DepthExtents {
     farthest: f32,
 }
 
+// Whether depth `a` is nearer to the camera than `b`.
+fn is_nearer(a: f32, b: f32) -> bool {
+    if INVERTED_DEPTH {
+        return a > b;
+    }
+    return a < b;
+}
+
+// The depth farther from the camera. AMD takes this from a sample that is nearer than the nearest so far:
+// reverse depth keeps the smaller value, standard depth the larger one.
+fn farther_of(a: f32, b: f32) -> f32 {
+    if INVERTED_DEPTH {
+        return min(a, b);
+    }
+    return max(a, b);
+}
+
 fn find_depth_extents(pos: vec2<i32>) -> DepthExtents {
     var offsets = array<vec2<i32>, 9>(
         vec2<i32>(0, 0), vec2<i32>(1, 0), vec2<i32>(0, 1), vec2<i32>(0, -1), vec2<i32>(-1, 0),
@@ -107,19 +124,12 @@ fn find_depth_extents(pos: vec2<i32>) -> DepthExtents {
             continue;
         }
         let depth = load_depth(sample_pos);
-        if INVERTED_DEPTH {
-            if depth > extents.nearest {
-                extents.farthest = min(extents.farthest, depth);
-                extents.nearest_coord = sample_pos;
-                extents.nearest = depth;
-            }
-        } else {
-            if depth < extents.nearest {
-                extents.farthest = max(extents.farthest, depth);
-                extents.nearest_coord = sample_pos;
-                extents.nearest = depth;
-            }
+        if !is_nearer(depth, extents.nearest) {
+            continue;
         }
+        extents.farthest = farther_of(extents.farthest, depth);
+        extents.nearest_coord = sample_pos;
+        extents.nearest = depth;
     }
     return extents;
 }

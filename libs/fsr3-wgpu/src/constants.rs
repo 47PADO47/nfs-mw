@@ -99,23 +99,18 @@ impl FrameState {
         let mv_target_f = Vec2::new(mv_target.x as f32, mv_target.y as f32);
         // The jitter is in render pixels, so it is divided by the render size (AMD divides by the size of
         // the motion vectors, which is only right when they are at the render resolution).
-        let cancellation = if config.motion_vectors.jittered {
-            let c = (self.jitter_cancel_previous - inputs.jitter) / Vec2::new(render.x as f32, render.y as f32);
+        let jitter_difference = self.jitter_cancel_previous - inputs.jitter;
+        let cancellation = jitter_difference / Vec2::new(render.x as f32, render.y as f32);
+        let cancellation = if config.motion_vectors.jittered { cancellation } else { Vec2::ZERO };
+        if config.motion_vectors.jittered {
             self.jitter_cancel_previous = inputs.jitter;
-            c
-        } else {
-            Vec2::ZERO
-        };
+        }
 
         // The jitter cycle length follows the ratio, changing by one phase per frame.
         let target_phases = jitter::phase_count(render.x, output_size.x) as f32;
-        if reset || self.jitter_phase_count == 0.0 {
-            self.jitter_phase_count = target_phases;
-        } else if target_phases > self.jitter_phase_count {
-            self.jitter_phase_count += 1.0;
-        } else if target_phases < self.jitter_phase_count {
-            self.jitter_phase_count -= 1.0;
-        }
+        let step = (target_phases - self.jitter_phase_count).clamp(-1.0, 1.0);
+        let restart = reset || self.jitter_phase_count == 0.0;
+        self.jitter_phase_count = if restart { target_phases } else { self.jitter_phase_count + step };
 
         self.frame_index = if reset { 0.0 } else { self.frame_index + 1.0 };
         let aspect = render.x as f32 / render.y as f32;

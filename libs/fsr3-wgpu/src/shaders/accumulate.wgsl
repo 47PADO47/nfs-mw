@@ -278,19 +278,13 @@ fn compute_upsampled_color_and_weight(p: Params, base_history_weight: f32) -> Up
             let curve_bias = -2.3;
             let box_sample_weight = exp(curve_bias * dot(src_sample_offset, src_sample_offset)) * on_screen;
             let weighted = color * box_sample_weight;
-            if index == 0 {
-                rbox.aabb_min = color;
-                rbox.aabb_max = color;
-                rbox.center = weighted;
-                box_vec = color * weighted;
-                box_weight = box_sample_weight;
-            } else {
-                rbox.aabb_min = min(rbox.aabb_min, color);
-                rbox.aabb_max = max(rbox.aabb_max, color);
-                rbox.center += weighted;
-                box_vec += color * weighted;
-                box_weight += box_sample_weight;
-            }
+            // The first sample starts the sums; the others add to them.
+            let keep = f32(index != 0);
+            rbox.aabb_min = select(color, min(rbox.aabb_min, color), index != 0);
+            rbox.aabb_max = select(color, max(rbox.aabb_max, color), index != 0);
+            rbox.center = rbox.center * keep + weighted;
+            box_vec = box_vec * keep + color * weighted;
+            box_weight = box_weight * keep + box_sample_weight;
         }
     }
     // Variance box: the weighted mean and standard deviation.

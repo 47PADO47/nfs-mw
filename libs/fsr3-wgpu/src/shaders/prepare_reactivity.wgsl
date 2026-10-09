@@ -160,10 +160,10 @@ fn compute_thin_feature_confidence(pos: vec2<i32>) -> f32 {
         let difference = abs(samples[i] - samples[0]) / luma_range;
         if difference < threshold {
             pattern_mask |= 1u << u32(i);
-        } else {
-            dissimilar_min = min(dissimilar_min, samples[i]);
-            dissimilar_max = max(dissimilar_max, samples[i]);
+            continue;
         }
+        dissimilar_min = min(dissimilar_min, samples[i]);
+        dissimilar_max = max(dissimilar_max, samples[i]);
     }
     let is_ridge = samples[0] > dissimilar_max || samples[0] < dissimilar_min;
     if !is_ridge {
