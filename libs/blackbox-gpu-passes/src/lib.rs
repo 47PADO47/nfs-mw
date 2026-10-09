@@ -11,6 +11,12 @@ mod batch;
 mod effects;
 #[cfg(test)]
 mod effects_tests;
+mod filter;
+#[cfg(test)]
+mod filter_tests;
+mod fsr1;
+#[cfg(test)]
+mod fsr1_tests;
 #[cfg(test)]
 mod shader_tests;
 #[cfg(test)]
@@ -32,6 +38,8 @@ pub use batch::Batch;
 pub const EFFECTS_WGSL: &str = include_str!("shaders/effects.wgsl");
 
 pub use effects::{Effects, SoftDraw};
+pub use filter::{Blend, Draw, Filter, POST_COMMON_WGSL, Params, filter_source};
+pub use fsr1::{FSR1_EASU, FSR1_RCAS, Fsr1Io, Fsr1Pass, Fsr1Stage, RcasScale, fsr1_passes};
 pub use soft_particles::SoftParticles;
 pub use textured_effects::TexturedEffects;
 pub use ui::{UiPass, UiTextureError};

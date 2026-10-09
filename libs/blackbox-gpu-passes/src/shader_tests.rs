@@ -2,10 +2,11 @@
 
 use naga::valid::{Capabilities, ValidationFlags, Validator};
 
-const SHADERS: [(&str, &str); 3] = [
+const SHADERS: [(&str, &str); 4] = [
     ("ui", include_str!("shaders/ui.wgsl")),
     ("effects", crate::EFFECTS_WGSL),
     ("soft_particles", include_str!("shaders/soft_particles.wgsl")),
+    ("fsr1", include_str!("shaders/fsr1.wgsl")),
 ];
 
 fn entry_points(name: &str) -> Vec<String> {
@@ -40,4 +41,18 @@ fn the_passes_find_their_entry_points() {
         &["vs_main", "fs_surface", "fs_particle", "fs_streak", "fs_glow", "fs_textured", "fs_textured_alpha"],
     );
     assert_entries("soft_particles", &["vs_main", "fs_main"]);
+    assert_entries("fsr1", &["vs_main", "fs_easu", "fs_rcas"]);
+}
+
+#[test]
+fn fsr1_keeps_the_licence_notice() {
+    let source = SHADERS.iter().find(|(n, _)| *n == "fsr1").unwrap().1;
+    for needle in [
+        "Copyright (c) 2021 Advanced Micro Devices, Inc.",
+        "Copyright (c) 2014 Michal Drobot",
+        "Permission is hereby granted, free of charge",
+        "THE SOFTWARE IS PROVIDED \"AS IS\"",
+    ] {
+        assert!(source.contains(needle), "the notice stays in the file: {needle}");
+    }
 }

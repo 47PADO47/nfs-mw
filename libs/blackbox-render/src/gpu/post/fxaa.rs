@@ -1,6 +1,6 @@
 //! The FXAA pass (`shaders/fxaa.wgsl`): one fullscreen draw at the size of its input.
 
-use super::filter::{Blend, Draw, FXAA_WGSL, Filter, Params};
+use super::filter::{Blend, Draw, Filter, Params, fxaa_wgsl};
 use super::{PassContext, PassIo, PostPass};
 
 /// Edges with less local luma contrast than this share of the brightest neighbour are left alone.
@@ -21,7 +21,7 @@ pub(super) struct FxaaPass {
 
 impl FxaaPass {
     pub(super) fn new(device: &wgpu::Device) -> Self {
-        Self { filter: Filter::new(device, "fxaa", FXAA_WGSL) }
+        Self { filter: Filter::new(device, "fxaa", &fxaa_wgsl()) }
     }
 }
 

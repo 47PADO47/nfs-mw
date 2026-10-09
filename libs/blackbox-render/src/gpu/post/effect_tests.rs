@@ -2,7 +2,7 @@
 //! tests on a real backend (ignored without a GPU).
 
 use super::bloom::{self, mip_sizes};
-use super::filter::{BLOOM_WGSL, FXAA_WGSL, Params, TONEMAP_WGSL};
+use super::filter::{Params, bloom_wgsl, fxaa_wgsl, tonemap_wgsl};
 use super::tonemap::aces;
 use super::{PassContext, PassIo, PostChain, PostPass, fxaa};
 use crate::gpu::targets::{FrameTargets, HDR_FORMAT};
@@ -23,10 +23,11 @@ fn validate(name: &str, source: &str) -> wgpu::naga::Module {
 
 #[test]
 fn the_effect_shaders_validate_and_expose_their_entry_points() {
+    let (tonemap, fxaa, bloom) = (tonemap_wgsl(), fxaa_wgsl(), bloom_wgsl());
     for (name, source, entries) in [
-        ("tonemap", TONEMAP_WGSL, &["vs_main", "fs_main"][..]),
-        ("fxaa", FXAA_WGSL, &["vs_main", "fs_main"][..]),
-        ("bloom", BLOOM_WGSL, &["vs_main", "fs_prefilter", "fs_down", "fs_up", "fs_composite"][..]),
+        ("tonemap", &tonemap, &["vs_main", "fs_main"][..]),
+        ("fxaa", &fxaa, &["vs_main", "fs_main"][..]),
+        ("bloom", &bloom, &["vs_main", "fs_prefilter", "fs_down", "fs_up", "fs_composite"][..]),
     ] {
         let module = validate(name, source);
         for entry in entries {
@@ -39,7 +40,8 @@ fn the_effect_shaders_validate_and_expose_their_entry_points() {
 #[test]
 fn every_effect_shader_binds_the_shared_filter_layout() {
     use wgpu::naga::{AddressSpace, ResourceBinding};
-    for (name, source) in [("tonemap", TONEMAP_WGSL), ("fxaa", FXAA_WGSL), ("bloom", BLOOM_WGSL)] {
+    let (tonemap, fxaa, bloom) = (tonemap_wgsl(), fxaa_wgsl(), bloom_wgsl());
+    for (name, source) in [("tonemap", &tonemap), ("fxaa", &fxaa), ("bloom", &bloom)] {
         let module = validate(name, source);
         let mut bindings: Vec<(u32, u32)> = module
             .global_variables

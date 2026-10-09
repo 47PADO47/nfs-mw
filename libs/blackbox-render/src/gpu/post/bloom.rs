@@ -1,7 +1,7 @@
 //! The bloom pass (`shaders/bloom.wgsl`): bright areas go down a chain of half-size images and back
 //! up, and the result is added to the scene.
 
-use super::filter::{BLOOM_WGSL, Blend, Draw, Filter, Params};
+use super::filter::{Blend, Draw, Filter, Params, bloom_wgsl};
 use super::{PassContext, PassIo, PostPass};
 use crate::PostSettings;
 
@@ -81,7 +81,7 @@ pub(super) struct BloomPass {
 
 impl BloomPass {
     pub(super) fn new(device: &wgpu::Device, settings: &PostSettings) -> Self {
-        Self { filter: Filter::new(device, "bloom", BLOOM_WGSL), params: params(settings), chain: None }
+        Self { filter: Filter::new(device, "bloom", &bloom_wgsl()), params: params(settings), chain: None }
     }
 }
 

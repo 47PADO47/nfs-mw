@@ -37,7 +37,8 @@ impl Gpu {
         Self { device, queue }
     }
 
-    /// A `size` x `size` `Rgba8Unorm` image to render into and read back with [`Self::finish`].
+    /// A `size` x `size` `Rgba8Unorm` image to render into (or fill with `Queue::write_texture`), sample, and
+    /// read back with [`Self::finish`].
     pub fn target(&self, size: u32) -> wgpu::Texture {
         self.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("test target"),
@@ -48,7 +49,8 @@ impl Gpu {
             format: wgpu::TextureFormat::Rgba8Unorm,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                 | wgpu::TextureUsages::TEXTURE_BINDING
-                | wgpu::TextureUsages::COPY_SRC,
+                | wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         })
     }
