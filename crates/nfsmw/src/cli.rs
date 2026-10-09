@@ -43,6 +43,8 @@ pub struct Cli {
 pub enum Command {
     /// Find the install and check that it is usable.
     CheckInstall,
+    /// First-run setup: asks for the install folder and window mode, then saves them to the config file.
+    Setup,
     /// List every key, button and stick binding.
     #[command(visible_alias = "bindings")]
     Keys,
