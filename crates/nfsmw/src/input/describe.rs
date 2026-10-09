@@ -37,7 +37,7 @@ fn section(action: Action) -> Section {
         MenuUp | MenuDown | MenuLeft | MenuRight | MenuAccept | MenuBack | MenuStart | MenuQuit | Click => {
             Section::Menus
         }
-        Cancel | Console => Section::General,
+        Cancel | Console | RadioToggle | RadioNext | RadioPrevious => Section::General,
     }
 }
 
@@ -74,6 +74,9 @@ fn labels(action: Action) -> (&'static str, &'static str) {
         MenuStart => ("Start (pause, resume)", ""),
         MenuQuit => ("Quit from the main menu", ""),
         Click => ("Skip a movie, continue at the title screen", ""),
+        RadioToggle => ("Radio: pause / resume", ""),
+        RadioNext => ("Radio: next song", ""),
+        RadioPrevious => ("Radio: previous song", ""),
     }
 }
 
@@ -265,6 +268,14 @@ mod tests {
         }
         assert!(row(&text, "Shift up (manual transmission)").contains("Pad button 7"));
         assert!(text.contains("Alt+Enter"));
+    }
+
+    #[test]
+    fn the_radio_keys_are_listed() {
+        let text = Bindings::default().describe();
+        assert_eq!(row(&text, "Radio: pause / resume"), "M, MediaPlayPause, Pad right stick click");
+        assert_eq!(row(&text, "Radio: next song"), "Period, MediaTrackNext, Pad D-pad right");
+        assert_eq!(row(&text, "Radio: previous song"), "Comma, MediaTrackPrevious, Pad D-pad left");
     }
 
     #[test]

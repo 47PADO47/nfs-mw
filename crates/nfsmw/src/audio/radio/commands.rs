@@ -6,7 +6,7 @@ use super::{Context, Player, Radio};
 use crate::audio::Audio;
 
 /// Usage line for `help`.
-pub const USAGE: &str = "radio [status|list|next|play <n>|on|off|shuffle|ordered]";
+pub const USAGE: &str = "radio [status|list|next|prev|pause|resume|toggle|play <n>|on|off|shuffle|ordered]";
 
 /// Run `radio <args>`.
 pub fn command(audio: &mut Audio, args: &[&str]) -> Result<String, String> {
@@ -36,6 +36,16 @@ pub fn command(audio: &mut Audio, args: &[&str]) -> Result<String, String> {
             let music = music.ok_or_else(no_device)?;
             radio.skip(music).map(|title| format!("radio: {title}"))
         }
+        ["previous"] | ["prev"] | ["back"] => {
+            let music = music.ok_or_else(no_device)?;
+            radio.previous(music).map(|title| format!("radio: {title}"))
+        }
+        ["pause"] => radio.pause().map(|m| format!("radio {m}")),
+        ["resume"] => radio.resume().map(|m| format!("radio {m}")),
+        ["toggle"] => {
+            let music = music.ok_or_else(no_device)?;
+            radio.toggle(music).map(|m| format!("radio {m}"))
+        }
         ["play", n] => {
             let music = music.ok_or_else(no_device)?;
             let n: usize = n.parse().map_err(|_| format!("{n:?} is not a song number (radio list)"))?;
@@ -56,12 +66,16 @@ impl Radio {
         self.enabled = true;
         self.stop();
         self.start(n, music)?;
+        self.record(n);
         Ok(format!("radio: {}", self.songs[n].title))
     }
 
     pub(super) fn status(&self, device: bool) -> String {
         let state = match (&self.now, self.enabled) {
             (_, false) => "off".to_owned(),
+            (Some(now), true) if self.paused => {
+                format!("paused on {} ({} of {})", now.label(), clock(now.elapsed_secs), clock(now.length_secs))
+            }
             (Some(now), true) => {
                 format!("playing {} ({} of {})", now.label(), clock(now.elapsed_secs), clock(now.length_secs))
             }

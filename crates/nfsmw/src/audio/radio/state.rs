@@ -16,10 +16,14 @@ pub struct NowPlaying {
     pub elapsed_secs: f32,
     /// Length of the song (the sum of the stored stream lengths).
     pub length_secs: f32,
+    /// The song is held (the radio is paused).
+    pub paused: bool,
+    /// Changes whenever the radio has something new to announce: a song starts, it is paused or resumed.
+    pub serial: u32,
 }
 
 impl NowPlaying {
-    pub(super) fn new(index: usize, song: &Song, length_secs: f32) -> Self {
+    pub(super) fn new(index: usize, song: &Song, length_secs: f32, serial: u32) -> Self {
         Self {
             song: index,
             artist: song.artist.clone(),
@@ -27,7 +31,14 @@ impl NowPlaying {
             album: song.album.clone(),
             elapsed_secs: 0.0,
             length_secs,
+            paused: false,
+            serial,
         }
+    }
+
+    /// `m:ss of m:ss`, for the HUD.
+    pub fn progress(&self) -> String {
+        format!("{} / {}", clock(self.elapsed_secs), clock(self.length_secs))
     }
 
     /// `artist - title`.

@@ -164,7 +164,28 @@ pub fn defaults() -> Vec<Binding> {
     .into_iter()
     .chain(driving())
     .chain(menus())
+    .chain(radio())
     .collect()
+}
+
+/// The radio: M pauses and resumes, `.` is the next song and `,` the previous one (the media keys do the same). On a
+/// pad the right stick's click pauses and resumes, the D-pad's right and left are next and previous. The game
+/// ignores them in the pause menu, which uses the D-pad itself.
+fn radio() -> Vec<Binding> {
+    use Action::*;
+    let key = Source::Key;
+    let button = Source::PadButton;
+    vec![
+        Binding::new(RadioToggle, key(KeyCode::KeyM), 1.0),
+        Binding::new(RadioToggle, key(KeyCode::MediaPlayPause), 1.0),
+        Binding::new(RadioToggle, button(GamepadButton::RightThumb), 1.0),
+        Binding::new(RadioNext, key(KeyCode::Period), 1.0),
+        Binding::new(RadioNext, key(KeyCode::MediaTrackNext), 1.0),
+        Binding::new(RadioNext, button(GamepadButton::DPadRight), 1.0),
+        Binding::new(RadioPrevious, key(KeyCode::Comma), 1.0),
+        Binding::new(RadioPrevious, key(KeyCode::MediaTrackPrevious), 1.0),
+        Binding::new(RadioPrevious, button(GamepadButton::DPadLeft), 1.0),
+    ]
 }
 
 /// Menus: the arrows or WASD and the pad's D-pad or left stick move, Enter or Space accepts, Esc goes back,

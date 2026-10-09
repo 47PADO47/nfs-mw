@@ -58,6 +58,12 @@ pub enum Action {
     MenuQuit,
     /// Button: a click, which skips a boot movie and continues from the title screen.
     Click,
+    /// Radio button: pause the song, or resume it.
+    RadioToggle,
+    /// Radio button: the next song.
+    RadioNext,
+    /// Radio button: the previous song.
+    RadioPrevious,
 }
 
 impl Action {
@@ -92,6 +98,9 @@ impl Action {
             "menu_start",
             "menu_quit",
             "click",
+            "radio_toggle",
+            "radio_next",
+            "radio_previous",
         ];
         NAMES[self.index()]
     }
@@ -103,7 +112,7 @@ impl Action {
             .find(|a| a.name() == name)
             .ok_or_else(|| format!("unknown action {name:?}; use keys to list actions"))
     }
-    pub const ALL: [Action; 29] = [
+    pub const ALL: [Action; 32] = [
         Action::MoveForward,
         Action::MoveRight,
         Action::MoveUp,
@@ -133,6 +142,9 @@ impl Action {
         Action::MenuStart,
         Action::MenuQuit,
         Action::Click,
+        Action::RadioToggle,
+        Action::RadioNext,
+        Action::RadioPrevious,
     ];
 
     /// Actions that still work while the UI has the keyboard.
