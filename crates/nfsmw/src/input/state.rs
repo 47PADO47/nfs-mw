@@ -37,6 +37,14 @@ impl ActionState {
         self.before = self.now;
         self.now = [0.0; Action::ALL.len()];
         for b in &bindings.0 {
+            if matches!(b.action, Action::MenuUp | Action::MenuDown | Action::MenuLeft | Action::MenuRight)
+                && let super::bindings::Source::PadAxis(axis) = b.source
+            {
+                let threshold = if self.before[b.action.index()] > PRESSED { 0.35 } else { 0.55 };
+                self.now[b.action.index()] +=
+                    f32::from(u8::from(snapshot.pad_axes.get(&axis).copied().unwrap_or(0.0) * b.scale >= threshold));
+                continue;
+            }
             self.now[b.action.index()] += b.value(snapshot);
         }
         for a in Action::ALL {

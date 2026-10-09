@@ -96,8 +96,7 @@ fn below_linkage_minimum_scrapes_are_silent_and_contact_flashes_expire() {
 
 #[test]
 fn inheritance_uses_current_owner_velocity_while_contact_velocity_gates_the_impact() {
-    let mut particles = Sparks::default();
-    particles.owner_velocity = Vec3::Y * 6.0;
+    let mut particles = Sparks { owner_velocity: Vec3::Y * 6.0, ..Sparks::default() };
     particles.emit_selected(
         &[contact(Vec3::Z * 100.0, 10.0)],
         |_, _| Some(SparkLink { inherit_velocity: 0.5, ..link() }),

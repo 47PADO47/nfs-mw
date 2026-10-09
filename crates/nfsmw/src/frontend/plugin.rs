@@ -14,7 +14,7 @@ use super::script::{self, UiScript};
 use crate::app::{FrameSet, Host};
 use crate::devtools::Console;
 use crate::gui::UiOutput;
-use crate::input::{Action, ActionState, MouseCapture};
+use crate::input::{Action, ActionState, Bindings, InputPresentation, MouseCapture};
 use crate::settings::Settings;
 use crate::ui::present::Screen;
 use crate::ui::{Catalog, Presenter, SCREEN_FILES, SharedAssets};
@@ -66,6 +66,7 @@ fn update(
     console: Res<Console>,
     mut capture: ResMut<MouseCapture>,
     mut exit: MessageWriter<AppExit>,
+    input: Res<InputPresentation>,
 ) {
     let (fe, host) = (&mut *fe, &mut *host);
     if host.renderer.is_none() {
@@ -112,8 +113,11 @@ fn update(
         }
         Stage::Playing => {
             let scripted_start = mask & pad::START != 0 && fe.last_mask & pad::START == 0;
-            let pause = !console_had_it
-                && (actions.just_pressed(Action::Cancel) || actions.just_pressed(Action::MenuStart) || scripted_start);
+            let pause = input.disconnected
+                || (!console_had_it
+                    && (actions.just_pressed(Action::Cancel)
+                        || actions.just_pressed(Action::MenuStart)
+                        || scripted_start));
             if pause {
                 capture.0 = false;
                 fe.pause(host, &mut env);
@@ -144,10 +148,13 @@ fn present(
     mut presenter: ResMut<Presenter>,
     window: Single<&Window, With<PrimaryWindow>>,
     mut out: ResMut<UiOutput>,
+    bindings: Res<Bindings>,
+    input: Res<InputPresentation>,
 ) {
     let screen = Screen { width: window.width(), height: window.height(), pixels_per_point: window.scale_factor() };
     // The presenter puts what it draws below what is already there, so the top screen goes first.
-    for tree in fe.screens.trees().iter().rev() {
+    let device = fe.script.as_ref().and_then(|s| s.device).unwrap_or(input.device);
+    for tree in fe.screens.presented_trees(&bindings, device).iter().rev() {
         presenter.0.present(tree, &assets.0, screen, &mut out);
     }
 }

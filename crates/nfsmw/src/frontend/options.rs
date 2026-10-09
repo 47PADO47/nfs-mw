@@ -88,15 +88,14 @@ pub fn rows(category: Category) -> Vec<Row> {
             row(Setting::SpeedTrails, Title::Text("Speed Trails (Experimental)")),
             row(Setting::ExhaustFlames, Title::Text("Exhaust Flames")),
         ],
-        Category::Gameplay => {
-            let mut rows = vec![
-                row(Setting::Hud, Title::Label(0xAC14_8579)),
-                row(Setting::Transmission, Title::Label(LABEL_TRANSMISSION)),
-                row(Setting::HudLayout, Title::Text("HUD Layout")),
-                row(Setting::Minimap, Title::Text("Minimap")),
-            ];
-            rows.extend(InputSetting::ALL.into_iter().map(|setting| row(Setting::Input(setting), setting.title())));
-            rows
+        Category::Gameplay => vec![
+            row(Setting::Hud, Title::Label(0xAC14_8579)),
+            row(Setting::Transmission, Title::Label(LABEL_TRANSMISSION)),
+            row(Setting::HudLayout, Title::Text("HUD Layout")),
+            row(Setting::Minimap, Title::Text("Minimap")),
+        ],
+        Category::Controls => {
+            InputSetting::ALL.into_iter().map(|setting| row(Setting::Input(setting), setting.title())).collect()
         }
     }
 }
@@ -372,7 +371,8 @@ mod tests {
     fn every_category_has_rows() {
         assert_eq!(rows(Category::Audio).len(), 4);
         assert_eq!(rows(Category::Video).len(), 10);
-        assert_eq!(rows(Category::Gameplay).len(), 12);
+        assert_eq!(rows(Category::Gameplay).len(), 4);
+        assert_eq!(rows(Category::Controls).len(), 8);
     }
 
     #[test]

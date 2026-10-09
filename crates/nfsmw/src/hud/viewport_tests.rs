@@ -21,8 +21,12 @@ fn object(kind: ObjectKind, guid: u32, hash: u32, parent: Option<u32>, at: [f32;
     words[8] = at[1].to_bits();
     words[9] = 100.0f32.to_bits();
     words[13] = 1.0f32.to_bits();
-    words[14] = 128.0f32.to_bits();
-    words[15] = 128.0f32.to_bits();
+    let size: f32 = match kind {
+        ObjectKind::Group => 1.0,
+        _ => 128.0,
+    };
+    words[14] = size.to_bits();
+    words[15] = size.to_bits();
     ObjectDef {
         kind,
         guid,

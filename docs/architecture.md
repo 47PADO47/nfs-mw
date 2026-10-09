@@ -95,8 +95,8 @@ bevy_winit window ─► PreUpdate: input/ resolves devices into actions (Action
   replace that resource ([controller settings](controller-settings.md)). Analog Bevy filtering is neutralized
   on connection so the action layer applies deadzones once; digital button hysteresis is retained. Default pad layout:
   left stick moves, right stick looks (and orbits), A/B go up/down, stick-click or right bumper boosts,
-  D-pad up/down zooms, Start backs out. A key tapped and released within one frame still counts as held for
-  that frame, so switch actions (console, camera) cannot miss a quick tap.
+  D-pad up/down zooms, Start backs out. Keyboard and gamepad taps survive for one action frame.
+  `InputPresentation` selects the active pad and prompt device ([menu policy](specs/controller-ui.md)).
 - **Driving actions:** `Throttle` and `Brake` (0..1, so a pad's analog triggers are real pedals), `Steer` (-1..1),
   `Handbrake`, `ShiftUp`, `ShiftDown`, `Nos`, `ResetCar` and `ToggleCamera`. Keyboard: W/S or Up/Down pedals, A/D
   or Left/Right steer, Space handbrake, E/Q (or Right Shift/Ctrl) shift up/down, Left Shift nitrous, R reset, F camera. Pad: right

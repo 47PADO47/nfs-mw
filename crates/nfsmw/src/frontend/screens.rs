@@ -22,6 +22,8 @@ pub struct Screens {
     assets: Arc<UiAssets>,
     stack: Vec<Screen>,
     memory: HashMap<String, usize>,
+    /// A screen gaining control waits for release before accepting a new gesture.
+    await_release: bool,
 }
 
 impl Screens {
@@ -29,7 +31,7 @@ impl Screens {
         let mut runtime = Runtime::new();
         let strings = assets.clone();
         runtime.set_string_resolver(move |label| strings.strings.as_ref()?.get(label));
-        Self { runtime, catalog, assets, stack: Vec::new(), memory: HashMap::new() }
+        Self { runtime, catalog, assets, stack: Vec::new(), memory: HashMap::new(), await_release: false }
     }
 
     /// The file name of the screen on top.
@@ -74,6 +76,7 @@ impl Screens {
         };
         logic.start(&mut cx);
         self.stack.push(Screen { id, name: file_name, logic });
+        self.await_release = true;
         self.give_control();
         commands
     }
@@ -83,6 +86,7 @@ impl Screens {
         if let Some(old) = self.stack.pop() {
             self.runtime.unload(old.id);
         }
+        self.await_release = true;
         self.give_control();
     }
 
@@ -90,14 +94,21 @@ impl Screens {
     fn give_control(&mut self) {
         let top = self.stack.last().map(|s| s.id);
         for s in &self.stack {
-            self.runtime.set_control(s.id, Some(s.id) == top);
+            self.runtime.set_control(s.id, !self.await_release && Some(s.id) == top);
         }
     }
 
     /// Advances the runtime by `dt` seconds with the pad `mask`, hands the screens what their packages sent, and
     /// returns what the screens ask for that is not about the stack itself.
     pub fn update(&mut self, dt: f32, mask: u32, env: &mut Env) -> Vec<Command> {
-        self.runtime.set_pad_mask(mask);
+        if self.await_release && mask == 0 {
+            self.await_release = false;
+            self.give_control();
+        }
+        self.runtime.set_pad_mask(match self.await_release {
+            true => 0,
+            false => mask,
+        });
         self.runtime.update(dt);
         let mut commands = Vec::new();
         for out in self.runtime.take_outgoing() {
@@ -151,6 +162,14 @@ impl Screens {
     /// The trees to draw, lowest screen first.
     pub fn trees(&self) -> Vec<UiTree> {
         self.stack.iter().map(|s| self.runtime.tree(s.id)).collect()
+    }
+
+    pub fn presented_trees(&self, bindings: &crate::input::Bindings, device: crate::input::InputDevice) -> Vec<UiTree> {
+        let mut trees = self.trees();
+        for (tree, screen) in trees.iter_mut().zip(&self.stack) {
+            super::prompts::decorate(tree, &screen.name, bindings, device, &self.assets);
+        }
+        trees
     }
 
     /// Posts a message straight to an object of the top screen (a mouse click, a hot key).

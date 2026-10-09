@@ -4,7 +4,9 @@
 
 mod assets;
 mod catalog;
+pub(crate) mod input_icons;
 pub mod present;
+pub(crate) mod prompts;
 mod shared;
 mod text;
 

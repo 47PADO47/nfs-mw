@@ -47,6 +47,11 @@ fn has_exe_address(line: &str) -> bool {
 }
 
 fn check_file(path: &str, bytes: &[u8]) -> Vec<String> {
+    // The sole media exception is this reviewed CC0 atlas, pinned byte-for-byte.
+    // Updating the asset requires reviewing its source/licence and fingerprint here.
+    if path == "assets/input-prompts/kenney-xbox.png" && asset_fingerprint(bytes) == 0xda7a_10ea_8ad2_ea78 {
+        return Vec::new();
+    }
     let mut problems = Vec::new();
     let name = path.rsplit('/').next().unwrap_or(path);
     let ext = name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase());
@@ -86,6 +91,10 @@ fn check_file(path: &str, bytes: &[u8]) -> Vec<String> {
     problems
 }
 
+fn asset_fingerprint(bytes: &[u8]) -> u64 {
+    bytes.iter().fold(0xcbf2_9ce4_8422_2325, |hash, b| (hash ^ u64::from(*b)).wrapping_mul(0x100_0000_01b3))
+}
+
 pub fn run(staged: bool) -> Result<bool, String> {
     let files = git::files_to_check(staged)?;
     let mut clean = true;
@@ -105,6 +114,16 @@ pub fn run(staged: bool) -> Result<bool, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_the_reviewed_kenney_atlas_is_a_media_exception() {
+        let data = include_bytes!("../../assets/input-prompts/kenney-xbox.png");
+        assert!(check_file("assets/input-prompts/kenney-xbox.png", data).is_empty());
+        assert!(!check_file("assets/input-prompts/capture.png", data).is_empty());
+        let mut altered = data.to_vec();
+        altered[100] ^= 1;
+        assert!(!check_file("assets/input-prompts/kenney-xbox.png", &altered).is_empty());
+    }
 
     #[test]
     fn decompiler_names() {
