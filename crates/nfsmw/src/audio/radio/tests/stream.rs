@@ -112,3 +112,42 @@ fn a_dropped_sender_with_no_blocks_ends_at_once() {
     assert!(sound.finished() && handle.finished());
     assert_eq!(handle.position_secs(), 0.0);
 }
+
+#[test]
+fn a_paused_stream_is_silent_keeps_its_place_and_goes_on_when_resumed() {
+    let (tx, mut sound, handle) = open(1000);
+    for _ in 0..50 {
+        tx.send(vec![Frame::new(0.5, 0.5); 100]).unwrap();
+    }
+    render(sound.as_mut(), 200, 1000.0);
+    handle.set_paused(true);
+    let fading = render(sound.as_mut(), 100, 1000.0);
+    // About 50 ms to silence, falling every frame; then nothing, and the stream does not move.
+    assert!(fading.windows(2).take(40).all(|w| w[1].left < w[0].left));
+    assert!(fading[60..].iter().all(|f| *f == Frame::ZERO));
+    let held = handle.position_secs();
+    assert!((held - 0.25).abs() < 0.01, "{held}");
+    assert!(render(sound.as_mut(), 500, 1000.0).iter().all(|f| *f == Frame::ZERO));
+    assert_eq!(handle.position_secs(), held);
+    assert!(!sound.finished() && !handle.finished());
+
+    handle.set_paused(false);
+    let back = render(sound.as_mut(), 100, 1000.0);
+    assert!(back[0].left > 0.0 && back[0].left < 0.1, "fades in from silence: {}", back[0].left);
+    assert!((back[99].left - 0.5).abs() < 1e-6);
+    assert!(handle.position_secs() > held);
+    drop(tx);
+}
+
+#[test]
+fn a_paused_stream_still_ends_when_its_handle_is_dropped() {
+    let (tx, mut sound, handle) = open(1000);
+    tx.send(vec![Frame::new(0.5, 0.5); 1000]).unwrap();
+    render(sound.as_mut(), 100, 1000.0);
+    handle.set_paused(true);
+    render(sound.as_mut(), 200, 1000.0);
+    drop(handle);
+    render(sound.as_mut(), 200, 1000.0);
+    assert!(sound.finished());
+    drop(tx);
+}

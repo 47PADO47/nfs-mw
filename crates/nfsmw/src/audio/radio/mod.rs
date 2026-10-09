@@ -8,8 +8,10 @@
 
 mod backend;
 mod commands;
+mod controls;
 pub(in crate::audio) mod feeder;
 mod glue;
+pub mod input;
 mod playlist;
 mod state;
 pub(in crate::audio) mod stream;
@@ -22,6 +24,7 @@ use nfsmw_data::music::Song;
 
 pub use backend::{Backend, Files, Player};
 pub use commands::command;
+pub use controls::Control;
 pub use glue::RadioSlot;
 pub use playlist::{Mode, Playlist, Random};
 pub use state::NowPlaying;
@@ -65,6 +68,14 @@ pub struct Radio {
     /// Started by the player outside the game: plays on until `radio off` or driving starts.
     manual: bool,
     playing: Option<Playing>,
+    /// The song on the air is held (paused); cleared whenever it stops.
+    paused: bool,
+    /// The songs played this session, oldest first, so `previous` can go back and `next` forward again.
+    history: Vec<usize>,
+    /// How many entries of `history` are behind and including the song on the air; the next one is `history[cursor]`.
+    cursor: usize,
+    /// Counts what the HUD should announce (a song starting, a pause, a resume).
+    serial: u32,
     /// Why songs stopped starting (cleared by the next command), so the failure is not retried every frame.
     broken: Option<String>,
     /// The song on the air, for the HUD.
@@ -93,6 +104,10 @@ impl Radio {
             driving: false,
             manual: false,
             playing: None,
+            paused: false,
+            history: Vec::new(),
+            cursor: 0,
+            serial: 0,
             broken: None,
             now: None,
         }
@@ -129,6 +144,7 @@ impl Radio {
     /// Stop the song on the air (it fades out over a few milliseconds).
     pub fn stop(&mut self) {
         self.playing = None;
+        self.paused = false;
         self.now = None;
     }
 
@@ -145,18 +161,27 @@ impl Radio {
             chain.segments.len(),
             chain.total_secs()
         );
-        self.now = Some(NowPlaying::new(n, song, chain.total_secs() as f32));
+        self.serial = self.serial.wrapping_add(1);
+        self.now = Some(NowPlaying::new(n, song, chain.total_secs() as f32, self.serial));
+        self.paused = false;
         self.playing = Some(Playing { handle });
         Ok(())
     }
 
-    /// Start the song the play list names next. `None` when no song may play in this context.
+    /// Start the next song: the one after the song on the air in the history when the player went back, else the
+    /// one the play list names. `None` when no song may play in this context.
     pub fn start_next(&mut self, music: &mut impl Player) -> Result<Option<usize>, String> {
+        if let Some(&n) = self.history.get(self.cursor) {
+            self.start(n, music)?;
+            self.cursor += 1;
+            return Ok(Some(n));
+        }
         let list = self.context().index();
         let mode = self.mode;
         let random = &mut self.random;
         let Some(n) = self.lists[list].next(mode, &mut |count| random.below(count)) else { return Ok(None) };
         self.start(n, music)?;
+        self.record(n);
         Ok(Some(n))
     }
 
@@ -169,6 +194,8 @@ impl Radio {
         if driving != self.driving {
             self.driving = driving;
             self.manual = false;
+            self.history.clear();
+            self.cursor = 0;
             self.stop();
         }
         if self.playing.as_ref().is_some_and(|p| p.handle.finished()) {

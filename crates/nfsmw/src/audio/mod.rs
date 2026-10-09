@@ -34,7 +34,6 @@ pub use car::{CarEvent, CarSoundState};
 pub use engine::{EngineHandle, EngineMix, EngineVoice, LoopMix};
 pub use interactive::MusicInput;
 pub use plugin::AudioPlugin;
-#[allow(unused_imports)] // for the HUD, which does not draw the song yet
 pub use radio::NowPlaying;
 pub use volume::{Group, Volumes};
 

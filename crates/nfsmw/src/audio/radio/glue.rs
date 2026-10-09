@@ -2,7 +2,7 @@
 
 use kira::track::TrackHandle;
 
-use super::{NowPlaying, Radio};
+use super::{Control, NowPlaying, Radio};
 use crate::audio::Audio;
 
 /// The radio of an [`Audio`]: not loaded yet, failed to load, or ready.
@@ -81,8 +81,14 @@ impl Audio {
         }
     }
 
-    /// The song on the air, for the HUD (which does not draw it yet).
-    #[allow(dead_code)]
+    /// A player's request to the radio (pause, next, previous). Returns what happened, for the log.
+    pub fn radio_control(&mut self, control: Control) -> Result<String, String> {
+        let (radio, music) = self.radio_and_music()?;
+        let music = music.ok_or_else(|| "there is no sound device".to_owned())?;
+        radio.apply(control, music)
+    }
+
+    /// The song on the air, for the HUD.
     pub fn now_playing(&self) -> Option<&NowPlaying> {
         match &self.radio {
             RadioSlot::Ready(radio) => radio.now.as_ref(),

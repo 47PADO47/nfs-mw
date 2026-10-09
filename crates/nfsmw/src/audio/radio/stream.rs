@@ -19,12 +19,16 @@ pub type Block = Vec<Frame>;
 
 /// How long the fade-out of a stopped sound lasts, in seconds.
 const FADE_OUT: f32 = 0.08;
+/// How long the level takes to fall to silence when the sound is paused (and to come back), in seconds.
+const PAUSE_FADE: f32 = 0.05;
 
 /// What the audio thread and the game thread share.
 #[derive(Default)]
 struct Shared {
     /// Asked by the game thread: fade out and finish.
     stop: AtomicBool,
+    /// Asked by the game thread: hold the stream where it is (silent) until this is cleared.
+    pause: AtomicBool,
     /// Set by the audio thread once every block has been played.
     ended: AtomicBool,
     /// Frames of the stream played so far.
@@ -48,6 +52,11 @@ impl StreamHandle {
     /// Seconds of the stream played so far.
     pub fn position_secs(&self) -> f32 {
         self.shared.played.load(Ordering::Relaxed) as f32 / self.sample_rate.max(1) as f32
+    }
+
+    /// Hold the stream where it is, or let it go on. A held stream is silent and does not use up its blocks.
+    pub fn set_paused(&self, paused: bool) {
+        self.shared.pause.store(paused, Ordering::Relaxed);
     }
 
     /// How often playback ran dry because the decoder was late.
@@ -85,6 +94,7 @@ impl SoundData for StreamData {
             next: Frame::ZERO,
             position: 1.0,
             gain: 1.0,
+            level: 1.0,
             drained: false,
         };
         Ok((Box::new(sound), handle))
@@ -102,6 +112,8 @@ struct StreamSound {
     /// Fractional source position between `previous` and `next`; at 1 or more a new frame is needed.
     position: f64,
     gain: f32,
+    /// The level of the pause fade: 1 when playing, 0 when paused and faded out.
+    level: f32,
     /// The sender is gone and every block is used.
     drained: bool,
 }
@@ -137,9 +149,16 @@ impl Sound for StreamSound {
         let step = self.rate * dt;
         let stopping = self.shared.stop.load(Ordering::Relaxed);
         let fade = if stopping { dt as f32 / FADE_OUT } else { 0.0 };
+        // A stopped sound fades out even when it was paused, so it can end.
+        let paused = self.shared.pause.load(Ordering::Relaxed) && !stopping;
+        let pause_step = dt as f32 / PAUSE_FADE;
         for frame in out.iter_mut() {
             *frame = Frame::ZERO;
             if self.shared.ended.load(Ordering::Relaxed) {
+                continue;
+            }
+            self.level = if paused { (self.level - pause_step).max(0.0) } else { (self.level + pause_step).min(1.0) };
+            if paused && self.level <= 0.0 {
                 continue;
             }
             self.position += step;
@@ -162,7 +181,8 @@ impl Sound for StreamSound {
             let t = self.position as f32;
             let left = self.previous.left + (self.next.left - self.previous.left) * t;
             let right = self.previous.right + (self.next.right - self.previous.right) * t;
-            *frame = Frame::new(left * self.gain, right * self.gain);
+            let volume = self.gain * self.level;
+            *frame = Frame::new(left * volume, right * volume);
             if self.gain <= 0.0 {
                 self.shared.ended.store(true, Ordering::Relaxed);
             }

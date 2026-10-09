@@ -59,7 +59,7 @@ fn side(tree: &UiTree, mut index: usize) -> i8 {
 }
 
 /// Stock 16:9 placement; other aspect ratios interpolate/extend it without stretching.
-fn parameters(screen: Screen, layout: HudLayout) -> (f32, f32) {
+pub(super) fn parameters(screen: Screen, layout: HudLayout) -> (f32, f32) {
     if layout == HudLayout::Classic || !screen.width.is_finite() || !screen.height.is_finite() {
         return (1.0, 0.0);
     }

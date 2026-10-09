@@ -29,7 +29,11 @@ impl Plugin for AudioPlugin {
         let volumes = app.world().get_resource::<Settings>().map(volumes_of).unwrap_or_default();
         app.init_resource::<MusicInput>().insert_non_send(Audio::new(self.dir.clone(), volumes)).add_systems(
             Update,
-            ((sync_volumes, sync_radio).in_set(FrameSet::Prepare), drive_car.in_set(FrameSet::Ui)),
+            (
+                (sync_volumes, sync_radio).in_set(FrameSet::Prepare),
+                super::radio::input::radio_input.in_set(FrameSet::Ui),
+                drive_car.in_set(FrameSet::Ui),
+            ),
         );
         super::speech::add_systems(app);
     }

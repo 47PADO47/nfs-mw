@@ -123,6 +123,12 @@ Sources use `kind:name[:scale[:per_second]]`:
 Scales must be finite, nonzero and within ±10000. Mouse motion already contains the frame's delta;
 `per_second` is only valid for key/button/axis/trigger sources. Each action supports up to 32 assignments.
 
+The radio has three button actions, bound like any other: `radio_toggle` (pause and resume; M, the media
+play/pause key, pad right stick click), `radio_next` (`.`, media next, pad D-pad right) and `radio_previous`
+(`,`, media previous, pad D-pad left). They work while driving and are ignored in the pause menu, which uses the
+D-pad itself. A press of `radio_previous` within 3 s of a song's start goes back to the song before; later it
+starts the song again. The console `radio` command does the same without keys (`radio prev|pause|resume|toggle`).
+
 The existing 0.75 press / 0.65 release hysteresis for digital gamepad buttons remains separate from
 analog trigger and stick response. See [the controller specification](specs/controller-settings.md)
 for implementation boundaries and verification.

@@ -43,6 +43,8 @@ fn run_ui(
     settings: Res<Settings>,
     metrics: Res<Metrics>,
     mut console: ResMut<Console>,
+    hud: Option<Res<crate::hud::HudState>>,
+    radio: Option<Res<crate::hud::RadioHud>>,
 ) {
     let (width, height) = (window.width(), window.height());
     let raw = egui::RawInput {
@@ -56,6 +58,14 @@ fn run_ui(
         ..Default::default()
     };
     gui.frame(raw, window.scale_factor(), &mut out, |ctx| {
+        // The radio's card belongs to the HUD: it shows when the HUD does, and is placed by the HUD layout.
+        if let (Some(radio), Some(hud)) = (&radio, &hud)
+            && hud.visible
+            && settings.hud
+        {
+            let screen = crate::ui::present::Screen { width, height, pixels_per_point: window.scale_factor() };
+            crate::hud::show_radio(ctx, radio, screen, settings.hud_layout);
+        }
         overlay::show(ctx, settings.show_metrics, &metrics);
         console::show(ctx, &mut console);
     });

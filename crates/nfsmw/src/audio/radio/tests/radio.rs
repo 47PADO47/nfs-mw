@@ -14,7 +14,7 @@ use nfsmw_data::music::{Playability, Song};
 
 use super::super::feeder::Started;
 use super::super::stream::{StreamData, StreamHandle};
-use super::super::{Backend, Mode, Player, Radio};
+use super::super::{Backend, Control, Mode, Player, Radio};
 
 const RATE: u32 = 1000;
 /// Frames in every fake song, so it lasts one second.
@@ -274,4 +274,186 @@ fn the_status_says_what_is_on() {
     assert!(status.contains("front-end 2 songs, in-game 3 songs"), "{status}");
     radio.set_enabled(false);
     assert!(radio.status(false).starts_with("radio off (no sound device)"));
+}
+
+fn paused(radio: &Radio) -> bool {
+    radio.now.as_ref().is_some_and(|n| n.paused)
+}
+
+#[test]
+fn pausing_holds_the_song_and_resuming_lets_it_end_in_its_own_time() {
+    let (mut radio, mut mixer, _) = radio();
+    radio.update(true, true, &mut mixer);
+    mixer.run(300);
+    radio.update(true, true, &mut mixer);
+    let announced = radio.now.as_ref().unwrap().serial;
+    assert_eq!(radio.pause().unwrap(), "paused");
+    assert!(paused(&radio) && radio.now.as_ref().unwrap().serial != announced, "the HUD is told");
+    assert!(radio.status(true).starts_with("radio paused on Artist - B"));
+    // Far longer than the song: a paused song neither ends nor moves on.
+    for _ in 0..4 {
+        mixer.run(500);
+        radio.update(true, true, &mut mixer);
+    }
+    assert_eq!(title(&radio), Some("B"));
+    let held = radio.now.as_ref().unwrap().elapsed_secs;
+    assert!((held - 0.35).abs() < 0.02, "{held}");
+    assert_eq!(radio.resume().unwrap(), "resumed");
+    assert!(!paused(&radio));
+    mixer.run(300);
+    radio.update(true, true, &mut mixer);
+    assert_eq!(title(&radio), Some("B"), "about 0.35 s of the song are left");
+    mixer.run(700);
+    radio.update(true, true, &mut mixer);
+    assert_eq!(title(&radio), Some("C"));
+}
+
+#[test]
+fn pause_and_resume_say_when_they_cannot_do_anything() {
+    let (mut radio, mut mixer, _) = radio();
+    assert!(radio.pause().is_err() && radio.resume().is_err(), "nothing is on the air");
+    radio.update(true, true, &mut mixer);
+    assert_eq!(radio.resume().unwrap(), "is not paused");
+    radio.pause().unwrap();
+    let serial = radio.now.as_ref().unwrap().serial;
+    assert_eq!(radio.pause().unwrap(), "is already paused");
+    assert_eq!(radio.now.as_ref().unwrap().serial, serial, "no second announcement");
+    radio.set_enabled(false);
+    assert!(radio.pause().is_err() && radio.toggle(&mut mixer).is_err());
+    radio.set_enabled(true);
+    assert!(!paused(&radio), "switching the radio off lets go of the pause");
+}
+
+#[test]
+fn toggle_starts_a_song_pauses_it_and_resumes_it() {
+    let (mut radio, mut mixer, _) = radio();
+    assert_eq!(radio.toggle(&mut mixer).unwrap(), "playing A", "nothing on the air: start a song, even in the menus");
+    assert_eq!(radio.toggle(&mut mixer).unwrap(), "paused");
+    assert!(paused(&radio));
+    assert_eq!(radio.toggle(&mut mixer).unwrap(), "resumed");
+    assert!(!paused(&radio) && title(&radio) == Some("A"));
+}
+
+#[test]
+fn skipping_or_going_back_while_paused_plays_the_new_song() {
+    let (mut radio, mut mixer, _) = radio();
+    radio.update(true, true, &mut mixer);
+    radio.pause().unwrap();
+    assert_eq!(radio.skip(&mut mixer).unwrap(), "C");
+    assert!(!paused(&radio));
+    mixer.run(200);
+    radio.update(true, true, &mut mixer);
+    assert!(radio.now.as_ref().unwrap().elapsed_secs > 0.1, "the new song is playing");
+    radio.pause().unwrap();
+    assert_eq!(radio.previous(&mut mixer).unwrap(), "B");
+    assert!(!paused(&radio));
+}
+
+#[test]
+fn leaving_the_game_forgets_the_pause_and_the_history() {
+    let (mut radio, mut mixer, _) = radio();
+    radio.update(true, true, &mut mixer);
+    radio.skip(&mut mixer).unwrap();
+    radio.pause().unwrap();
+    radio.update(false, true, &mut mixer);
+    assert!(title(&radio).is_none() && !paused(&radio));
+    radio.update(true, true, &mut mixer);
+    assert!(title(&radio).is_some() && !paused(&radio));
+    // The history began again with this song: going back has nowhere to go, so the song starts over.
+    let now = title(&radio).unwrap().to_owned();
+    assert_eq!(radio.previous(&mut mixer).unwrap(), now);
+}
+
+#[test]
+fn previous_goes_back_through_the_songs_and_next_goes_forward_through_them_again() {
+    let (mut radio, mut mixer, _) = radio();
+    radio.update(true, true, &mut mixer);
+    assert_eq!(radio.skip(&mut mixer).unwrap(), "C");
+    assert_eq!(radio.skip(&mut mixer).unwrap(), "D");
+    assert_eq!(radio.previous(&mut mixer).unwrap(), "C");
+    assert_eq!(radio.previous(&mut mixer).unwrap(), "B");
+    // Nothing before the first song: it starts over.
+    assert_eq!(radio.previous(&mut mixer).unwrap(), "B");
+    // Forward again through what was played, then on by the play list (which starts a new round after D).
+    assert_eq!(radio.skip(&mut mixer).unwrap(), "C");
+    assert_eq!(radio.skip(&mut mixer).unwrap(), "D");
+    assert_eq!(radio.skip(&mut mixer).unwrap(), "B");
+    assert_eq!(radio.previous(&mut mixer).unwrap(), "D");
+}
+
+#[test]
+fn a_song_that_ends_while_the_player_is_back_in_the_history_goes_on_through_the_history() {
+    let (mut radio, mut mixer, _) = radio();
+    radio.update(true, true, &mut mixer);
+    radio.skip(&mut mixer).unwrap();
+    radio.skip(&mut mixer).unwrap();
+    radio.previous(&mut mixer).unwrap();
+    radio.previous(&mut mixer).unwrap();
+    assert_eq!(title(&radio), Some("B"));
+    mixer.run(LENGTH + 100);
+    radio.update(true, true, &mut mixer);
+    assert_eq!(title(&radio), Some("C"));
+}
+
+#[test]
+fn previous_restarts_a_song_that_has_played_for_a_while() {
+    let (mut radio, mut mixer, opened) = radio();
+    radio.update(true, true, &mut mixer);
+    radio.skip(&mut mixer).unwrap();
+    assert_eq!(opened.load(Ordering::Relaxed), 2);
+    // Four seconds into C: previous starts C again instead of going back to B.
+    radio.now.as_mut().unwrap().elapsed_secs = 4.0;
+    assert_eq!(radio.previous(&mut mixer).unwrap(), "C");
+    assert_eq!(opened.load(Ordering::Relaxed), 3);
+    assert_eq!(radio.now.as_ref().unwrap().elapsed_secs, 0.0);
+    // Pressed again at once, it goes back.
+    assert_eq!(radio.previous(&mut mixer).unwrap(), "B");
+}
+
+#[test]
+fn previous_needs_the_radio_on_and_a_song_to_have_played() {
+    let (mut radio, mut mixer, opened) = radio();
+    assert!(radio.previous(&mut mixer).is_err());
+    assert_eq!(opened.load(Ordering::Relaxed), 0);
+    radio.update(true, true, &mut mixer);
+    radio.set_enabled(false);
+    assert!(radio.previous(&mut mixer).is_err());
+}
+
+#[test]
+fn a_chosen_song_is_part_of_the_history_and_cuts_off_what_the_player_went_back_over() {
+    let (mut radio, mut mixer, _) = radio();
+    radio.update(true, true, &mut mixer);
+    radio.skip(&mut mixer).unwrap();
+    radio.skip(&mut mixer).unwrap();
+    radio.previous(&mut mixer).unwrap();
+    radio.play_now(3, &mut mixer).unwrap();
+    assert_eq!(radio.history, [1, 2, 3]);
+    assert_eq!(radio.previous(&mut mixer).unwrap(), "C");
+    assert_eq!(radio.skip(&mut mixer).unwrap(), "D");
+}
+
+#[test]
+fn the_history_is_bounded() {
+    let (mut radio, mut mixer, _) = radio();
+    radio.update(true, true, &mut mixer);
+    for _ in 0..100 {
+        radio.skip(&mut mixer).unwrap();
+    }
+    assert_eq!(radio.history.len(), 32);
+    assert_eq!(radio.cursor, 32);
+    for _ in 0..100 {
+        radio.previous(&mut mixer).unwrap();
+    }
+    assert_eq!(radio.cursor, 1);
+}
+
+#[test]
+fn apply_maps_the_controls_to_the_radio_and_tells_the_player() {
+    let (mut radio, mut mixer, _) = radio();
+    radio.update(true, true, &mut mixer);
+    assert_eq!(radio.apply(Control::Next, &mut mixer).unwrap(), "next: C");
+    assert_eq!(radio.apply(Control::Previous, &mut mixer).unwrap(), "previous: B");
+    assert_eq!(radio.apply(Control::Toggle, &mut mixer).unwrap(), "paused");
+    assert_eq!(radio.apply(Control::Toggle, &mut mixer).unwrap(), "resumed");
 }
