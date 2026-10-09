@@ -27,6 +27,7 @@ drawing), [feng-input.md](feng-input.md) (pad messages, focus, navigation) and [
 textured sparks and contact glow separately from the experimental restoration.
 
 [Controller settings](controller-settings.md) specifies rewrite response options and saved rebinding.
+[Controller UI](controller-ui.md) specifies device ownership, live binding prompts and menu rendering corrections.
 
 ## Template
 

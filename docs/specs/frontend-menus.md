@@ -91,6 +91,16 @@ The package leaves a stand-in icon (`OPTION_MASTER`, the image at the cursor) th
 it positions the icons itself every frame: the package's scripts also write colours and sizes, so the host writes
 its values after the update.
 
+**Row transitions [decomp, verified].** The scroller grows in over nine 60 Hz frames, with a linear factor from
+zero to one. The package sends `EXIT_STARTED` (`0x84378BEF`) when its leave script starts; the scroller then
+shrinks out over nine frames and remains at zero until the screen switches. Multiply the geometric scale above
+by this factor before setting size and colour, keeping each icon centred at `(x', cy)`. This applies to every
+slot, including book ends; it does not replace the navigation ease or the package's header/footer animations.
+The event and its timing were verified in the main, category and pause packages; the nine-frame duration comes
+from the reference scroller. **Ours:** use elapsed seconds at the same 0.15 s duration, and preserve the current
+factor if exit interrupts entrance or repeats, avoiding a jump back to full size. The embedded Controls icon
+uses the same slot animation as the installed icons.
+
 ### 2.1 Main menu entries [decomp]
 
 Entries this rewrite cannot do yet (Challenge Series, My Cars, the profile manager) are greyed out (alpha 150, never

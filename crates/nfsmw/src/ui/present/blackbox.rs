@@ -65,19 +65,14 @@ fn vertex_colour(c: [u8; 4], additive: bool) -> [u8; 4] {
 }
 
 /// Queues a texture for upload: premultiplied alpha, and zero alpha for an additive texture (its colour is added).
-fn send(id: UiTextureId, image: Image, out: &mut UiOutput) {
-    let mut rgba = image.rgba;
-    for px in rgba.as_chunks_mut::<4>().0 {
-        if image.blend == 2 {
+fn send(id: UiTextureId, mut image: Image, out: &mut UiOutput) {
+    mask::premultiply(&mut image);
+    if image.blend == 2 {
+        for px in image.rgba.as_chunks_mut::<4>().0 {
             px[3] = 0;
-            continue;
-        }
-        let a = px[3] as u32;
-        for c in &mut px[..3] {
-            *c = ((*c as u32 * a + 127) / 255) as u8;
         }
     }
-    out.patches.push(OwnedPatch { id, offset: None, size: [image.width, image.height], rgba });
+    out.patches.push(OwnedPatch { id, offset: None, size: [image.width, image.height], rgba: image.rgba });
 }
 
 struct MeshBuilder {
@@ -205,11 +200,8 @@ impl BlackboxPresenter {
             return self.ensure(texture, assets, out);
         };
         let degrees = step as f32 / MASK_STEPS_PER_DEGREE;
-        let mut composed = mask::compose(picture, mask_image, [rotation[0], rotation[1]], degrees, window);
-        if additive {
-            // An additive picture adds its colour: where the mask hides it the colour has to go too.
-            mask::premultiply(&mut composed);
-        }
+        // Composition retains straight RGB; upload applies the combined picture/mask coverage once.
+        let composed = mask::compose(picture, mask_image, [rotation[0], rotation[1]], degrees, window);
         if let Some(slot) = self.masked.get_mut(&key) {
             slot.built = Some(built);
         }
@@ -269,6 +261,19 @@ impl BlackboxPresenter {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn additive_upload_preserves_texture_and_mask_coverage() {
+        let mut out = UiOutput::default();
+        let image = Image {
+            width: 3,
+            height: 1,
+            rgba: vec![255, 255, 255, 0, 240, 120, 60, 128, 255, 255, 255, 255],
+            blend: 2,
+        };
+        send(UiTextureId(7), image, &mut out);
+        assert_eq!(out.patches[0].rgba, [0, 0, 0, 0, 120, 60, 30, 0, 255, 255, 255, 0]);
+    }
 
     #[test]
     fn colours_premultiply_and_additive_drops_alpha() {

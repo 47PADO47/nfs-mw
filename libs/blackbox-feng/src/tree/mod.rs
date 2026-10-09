@@ -57,7 +57,7 @@ pub struct UiNode {
     /// The colour multiplied through the ancestors.
     pub world_colour: [u8; 4],
     /// Where the unit quad (or the string origin) lands on the 640 x 480 screen with its origin at the centre:
-    /// parent context, position, pivot, rotation and, for leaves, size.
+    /// parent context, position, pivot, rotation and size (including scaled groups).
     pub world: Mat4,
     /// The sort depth: larger is farther.
     pub z: f32,
@@ -105,8 +105,7 @@ impl Runtime {
             let (pos, pivot, rot, size) = (data.position(), data.pivot(), data.rotation(), data.size());
             let placed =
                 ctx * Mat4::from_translation(pos + pivot) * Mat4::from_quat(rot) * Mat4::from_translation(-pivot);
-            let is_group = def_obj.kind == ObjectKind::Group;
-            let world = if is_group { placed } else { placed * Mat4::from_scale(size) };
+            let world = placed * Mat4::from_scale(size);
             let colour = data.colour_rgba();
             let world_colour = mul_colour(ctx_colour, colour);
             let z = ctx.transform_point3(pivot + pos).z;

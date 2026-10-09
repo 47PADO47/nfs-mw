@@ -107,7 +107,7 @@ pub enum Command {
         /// For Pause_Main.fng and MainMenu_Sub.fng: the option categories.
         #[arg(long)]
         options: bool,
-        /// For the option screens: audio, video or gameplay.
+        /// For the option screens: audio, video, gameplay or controls.
         #[arg(long, default_value = "audio")]
         category: String,
         /// A scripted pad for tests and screenshots (see play); with --screenshot the default is "wait 2".
