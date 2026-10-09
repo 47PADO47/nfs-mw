@@ -1,7 +1,8 @@
 # 0003 — The renderer after milestone 8: keep ours or adopt Bevy's
 
 - **Status:** proposed (2026-10-09), for the project owner to accept. Answers the question
-  [0001](0001-bevy.md) left open ("decide on B in milestone 8").
+  [0001](0001-bevy.md) left open ("decide on B in milestone 8"). The owner has already agreed (2026-10-09) to move
+  Bevy Solari out of milestone 8; bundling the DLSS library in releases is deferred.
 - **Milestone:** 8 (graphics).
 
 ## Question
