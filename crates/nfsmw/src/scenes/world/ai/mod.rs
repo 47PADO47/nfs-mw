@@ -3,6 +3,9 @@
 //! Specs: `docs/specs/ai-traffic.md`, `docs/specs/ai-traffic-spawning.md`.
 
 mod car;
+mod commands;
+mod cop;
+mod pursuit;
 mod scene;
 mod spawn;
 mod traffic;
@@ -17,7 +20,10 @@ use nfsmw_data::car::physics::{CarPhysics, SurfaceTable};
 
 use super::drive::{CarRig, CarSim, FixedClock, STEP};
 use super::props::PropWorld;
-use car::AiCar;
+use car::{AiCar, Ctx};
+pub(super) use commands::{pursuit_command, traffic_command};
+pub use cop::CopCar;
+pub use pursuit::{CopModel, Pursuit};
 
 /// Cars farther than this from the player (metres) are removed.
 const DESPAWN_DISTANCE: f32 = 350.0;
@@ -55,6 +61,8 @@ pub struct TrafficWorld {
     network: RoadNetwork,
     index: SegmentIndex,
     models: Vec<TrafficModel>,
+    cop_models: Vec<CopModel>,
+    pursuit: Option<Pursuit>,
     cars: Vec<AiCar>,
     rng: SplitMix,
     clock: FixedClock,
@@ -63,6 +71,8 @@ pub struct TrafficWorld {
     spawn_timer: f32,
     /// Seconds of simulation a screenshot run still has to run in batches (it has no frame time).
     warmup_left: f32,
+    /// Simulated seconds since the last debug status line.
+    log_timer: f32,
 }
 
 impl TrafficWorld {
@@ -72,12 +82,15 @@ impl TrafficWorld {
             network,
             index,
             models: Vec::new(),
+            cop_models: Vec::new(),
+            pursuit: None,
             cars: Vec::new(),
             rng: SplitMix(0x6E66_736D_7721),
             clock: FixedClock::default(),
             target: 0,
             spawn_timer: 0.0,
             warmup_left: 0.0,
+            log_timer: 0.0,
         }
     }
 
@@ -96,7 +109,7 @@ impl TrafficWorld {
     /// Asks a screenshot run to simulate `seconds` before it captures.
     pub fn set_warmup(&mut self, seconds: f32) {
         // Nothing to simulate without cars to simulate them.
-        self.warmup_left = if self.target > 0 && self.has_models() { seconds } else { 0.0 };
+        self.warmup_left = if (self.target > 0 && self.has_models()) || self.pursuit.is_some() { seconds } else { 0.0 };
     }
 
     /// Whether a screenshot run may capture: the warm-up is over.
@@ -119,7 +132,7 @@ impl TrafficWorld {
         props: &mut PropWorld,
         surfaces: &SurfaceTable,
     ) {
-        if !loaded || (self.cars.is_empty() && self.target == 0) {
+        if !loaded || (self.cars.is_empty() && self.target == 0 && self.pursuit.is_none()) {
             return;
         }
         // A screenshot run has no frame time: it simulates its warm-up in batches.
@@ -133,12 +146,29 @@ impl TrafficWorld {
             false => self.clock.advance(dt),
         };
         for _ in 0..steps {
-            // Every car as the others' trails see it: the traffic, then the player.
-            let mut bodies: Vec<Body> = self.cars.iter().map(AiCar::body).collect();
-            bodies.extend(focus.body);
-            for (i, car) in self.cars.iter_mut().enumerate() {
-                car.step(&self.network, &mut self.rng, (&bodies, i), collision, props, surfaces);
+            // Every car as the others' trails see it, with whether it is a cop.
+            let bodies: Vec<(Body, bool)> = self.cars.iter().map(|c| (c.body(), c.is_cop())).collect();
+            for (me, car) in self.cars.iter_mut().enumerate() {
+                let mut ctx = Ctx {
+                    net: &self.network,
+                    index: &self.index,
+                    rng: &mut self.rng,
+                    bodies: &bodies,
+                    me,
+                    player: focus.body,
+                };
+                car.step(&mut ctx, collision, props, surfaces);
             }
+        }
+        let simulated = match batch {
+            true => steps as f32 * STEP,
+            false => dt,
+        };
+        self.update_pursuit(simulated, focus, collision, surfaces);
+        self.log_timer += simulated;
+        if self.log_timer >= 5.0 && log::log_enabled!(log::Level::Debug) {
+            self.log_timer = 0.0;
+            log::debug!("traffic status: {}", self.status(focus));
         }
         if finishing {
             log::info!("traffic after the screenshot warm-up: {}", self.status(focus));
@@ -204,7 +234,7 @@ impl TrafficWorld {
 
     /// One line per car for the `traffic status` command.
     pub fn status(&self, focus: Focus) -> String {
-        let mut lines = vec![format!("{} of {} cars", self.cars.len(), self.target)];
+        let mut lines = vec![format!("{} of {} cars; {}", self.cars.len(), self.target, self.pursuit_status())];
         for car in self.cars.iter().take(12) {
             let p = car.position();
             let c = car.controls();

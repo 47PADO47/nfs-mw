@@ -4,7 +4,7 @@ use blackbox_gfx::RenderBackend;
 use glam::Vec3;
 
 use super::ai;
-use super::drive::{self, CarRig, MarkerMeshes};
+use super::drive::{self, MarkerMeshes};
 use super::{View, WorldScene, load_car};
 
 pub(super) const LIST: &[(&str, &str)] = &[
@@ -44,7 +44,8 @@ pub(super) fn run(
         "garage" if args.is_empty() => Ok(nfsmw_data::car::list(&scene.dir).join("  ")),
         "pos" if args.is_empty() => Ok(pos(scene)),
         "props" => props(scene, args),
-        "traffic" => traffic(scene, renderer, args),
+        "traffic" => ai::traffic_command(scene, renderer, args),
+        "pursuit" => ai::pursuit_command(scene, renderer, args),
         "tire-effects" => tire_effects(scene, renderer, args),
         "vehicle-effects" => vehicle_effects(scene, renderer, args),
         "exhaust-flames" => exhaust_flames(scene, args),

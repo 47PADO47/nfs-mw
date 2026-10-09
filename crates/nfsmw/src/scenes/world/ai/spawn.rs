@@ -6,7 +6,7 @@ use blackbox_roads::{LaneType, NavKind, RandomSource, RoadNav, SegmentFilter};
 use glam::Vec3;
 use nfsmw_data::car::physics::SurfaceTable;
 
-use super::car::{AiCar, Start};
+use super::car::{AiCar, Role, Start};
 use super::{Focus, TrafficWorld};
 use crate::scenes::world::drive::WorldGround;
 use crate::scenes::world::road::Spawn;
@@ -63,7 +63,7 @@ impl TrafficWorld {
         let stagger = (rng.next_f32() * 10.0) as u32;
         let start_speed = START_SPEED_FACTOR * super::traffic::STREET_SPEED;
         let start = Start { stagger, speed: start_speed };
-        let car = AiCar::place(model, nav, spawn, start, &WorldGround { collision, surfaces });
+        let car = AiCar::place(model, Role::Traffic, nav, spawn, start, &WorldGround { collision, surfaces });
         let Some(car) = car else { return false };
         log::info!("traffic: {} at ({:.0}, {:.0}), {} m ahead", car.name, render.x, render.y, distance as i32);
         self.cars.push(car);
