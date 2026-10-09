@@ -56,13 +56,18 @@ fn sync_radio(settings: Res<Settings>, mut audio: NonSendMut<Audio>, mut applied
 }
 
 /// The scene's car plays its engine.
-fn drive_car(mut host: NonSendMut<Host>, time: Res<Time>, mut audio: NonSendMut<Audio>) {
+fn drive_car(mut host: NonSendMut<Host>, time: Res<Time>, mut audio: NonSendMut<Audio>, mut seen: Local<u32>) {
+    // A scene that went away takes its soundtrack with it, even when the next one has none.
+    if *seen != host.scene_changes {
+        *seen = host.scene_changes;
+        audio.stop_music();
+    }
     let car = host.scene.car_sound();
     audio.drive_car(car.as_ref(), time.delta_secs());
     // The pause menu freezes the car (no sound) but the game goes on, and so does the radio.
     audio.update_radio(car.is_some() || host.scene.paused());
     if let Some(clip) = host.scene.take_clip()
-        && let Err(e) = audio.play(super::Group::Music, super::pcm::sound(&clip))
+        && let Err(e) = audio.play_music(super::pcm::sound(&clip))
     {
         log::warn!("the scene's sound: {e}");
     }
