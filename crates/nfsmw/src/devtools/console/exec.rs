@@ -177,11 +177,7 @@ pub fn sync_settings(settings: Res<Settings>, mut host: NonSendMut<Host>, mut ap
     {
         renderer.set_vsync(settings.vsync);
     }
-    if crate::app::upscale::differs(&before, &settings)
-        && let Some(renderer) = host.renderer.as_mut()
-    {
-        crate::app::upscale::apply(renderer.as_mut(), &settings);
-    }
+    host.apply_graphics(&settings);
 }
 
 #[cfg(test)]

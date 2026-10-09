@@ -17,7 +17,6 @@ use bevy_winit::DisplayHandleWrapper;
 
 use super::host::{ErrorSlot, Host};
 use super::screenshot;
-use super::upscale;
 use crate::gui::UiOutput;
 use crate::input::{ActionState, MouseCapture};
 use crate::settings::{RendererKind, Settings};
@@ -65,7 +64,7 @@ fn start(
     };
     let info = renderer.info();
     log::info!("renderer: {} on {} (requested backend: {})", info.renderer, info.summary(), settings.backend);
-    upscale::apply(renderer.as_mut(), settings);
+    host.graphics.apply(renderer.as_mut(), settings);
     host.scene.init(renderer.as_mut())?;
     host.scene.set_transmission(host.transmission);
     host.scene.set_wheel_options(host.wheel);

@@ -6,14 +6,13 @@
 //! `render/native.rs` is the only file that names the native `blackbox-render` crate.
 
 mod cursor;
+mod graphics;
 mod host;
 pub mod pacing;
-mod post;
 mod render;
 mod screenshot;
 #[cfg(test)]
 pub use screenshot::Plan;
-pub mod upscale;
 pub mod window;
 
 pub use cursor::update as cursor_update;
@@ -150,7 +149,7 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
             .in_set(FrameSet::Prepare),
     )
     .add_systems(Update, render::update_scene.in_set(FrameSet::SceneUpdate))
-    .add_systems(Update, post::apply.in_set(FrameSet::Draw).before(render::draw))
+    .add_systems(Update, graphics::apply.in_set(FrameSet::Draw).before(render::draw))
     .add_systems(Update, render::draw.in_set(FrameSet::Draw))
     .add_systems(Last, pacing::end_of_frame);
     if let Some(dir) = hud {

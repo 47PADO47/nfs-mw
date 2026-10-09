@@ -7,6 +7,7 @@ use std::time::Instant;
 use bevy_ecs::resource::Resource;
 use blackbox_gfx::{CaptureId, RenderBackend};
 
+use super::graphics::Applied;
 use super::pacing::FrameLimiter;
 use crate::settings::{CarShading, Settings, SmokeQuality, Transmission, WheelOptions};
 use crate::viewer::Scene;
@@ -18,7 +19,9 @@ pub struct Host {
     pub screenshot: Option<super::screenshot::Plan>,
     /// Created once the window exists; the app only knows the trait, the factory is in [`super::render`].
     pub renderer: Option<Box<dyn RenderBackend>>,
-    /// A screenshot the renderer is still working on: its id, the file it is written to and whether it is the last of its plan.
+    /// The graphics request the renderer has and what it made of it (downgrades, notes).
+    pub graphics: Applied,
+    /// A screenshot the renderer is still working on: its id, its file and whether it is the last of its plan.
     pub pending_capture: Option<(CaptureId, PathBuf, bool)>,
     /// The window size the renderer was last resized to.
     pub size: (u32, u32),
@@ -56,6 +59,7 @@ impl Host {
             scene_changes: 0,
             screenshot,
             renderer: None,
+            graphics: Applied::default(),
             pending_capture: None,
             size: (0, 0),
             limiter: FrameLimiter::new(settings.max_fps),
@@ -94,6 +98,12 @@ impl Host {
         self.scene = scene;
         self.scene_changes += 1;
         Ok(())
+    }
+
+    /// Give the renderer the graphics settings (once per change).
+    pub fn apply_graphics(&mut self, settings: &Settings) {
+        let Some(renderer) = self.renderer.as_mut() else { return };
+        self.graphics.apply(renderer.as_mut(), settings);
     }
 
     pub fn set_tire_effects(&mut self, smoke: bool, marks: bool) {
