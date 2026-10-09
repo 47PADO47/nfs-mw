@@ -4,7 +4,8 @@ use glam::{EulerRot, Mat4, Quat, Vec3};
 
 use crate::{Curve, EmitterSpec, Rng};
 
-/// The most live particles one emitter holds; a spawn that would exceed it is skipped.
+/// The most live particles one emitter holds (its limit can be set lower); a spawn that would exceed it is
+/// skipped.
 pub const MAX_PARTICLES: usize = 1024;
 
 /// Longest life a particle may be given, seconds.
@@ -77,6 +78,8 @@ pub struct Emitter {
     owed: f32,
     rng: Rng,
     enabled: bool,
+    /// Live particles allowed; a spawn past it is skipped.
+    limit: usize,
 }
 
 impl Emitter {
@@ -92,7 +95,24 @@ impl Emitter {
             owed: 0.0,
             rng: Rng::new(seed),
             enabled: true,
+            limit: MAX_PARTICLES,
         }
+    }
+
+    /// Cap the live particles at `limit` (at least 1, at most [`MAX_PARTICLES`]) and reserve their storage, so
+    /// that stepping never allocates. Particles alive beyond a lowered limit are left to die.
+    pub fn set_limit(&mut self, limit: usize) {
+        self.limit = limit.clamp(1, MAX_PARTICLES);
+        self.particles.reserve_exact(self.limit.saturating_sub(self.particles.len()));
+    }
+
+    pub fn limit(&self) -> usize {
+        self.limit
+    }
+
+    /// Particles the storage holds without growing.
+    pub fn capacity(&self) -> usize {
+        self.particles.capacity()
     }
 
     pub fn spec(&self) -> &EmitterSpec {
@@ -159,7 +179,7 @@ impl Emitter {
             }
         }
         for _ in 0..count {
-            if self.particles.len() >= MAX_PARTICLES {
+            if self.particles.len() >= self.limit {
                 return;
             }
             let particle = self.birth(frame);

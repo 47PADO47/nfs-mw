@@ -184,3 +184,36 @@ fn a_sprite_turns_about_the_view_direction() {
     assert!((straight[0] - Vec3::new(0.0, -1.0, -1.0)).length() < 1e-5);
     assert!((corners[0] - straight[0]).length() > 1.0);
 }
+
+#[test]
+fn a_lowered_limit_caps_the_particles_and_stepping_does_not_allocate() {
+    let mut emitter = Emitter::new(EmitterSpec { rate: 100_000.0, life: 30.0, ..spec() }, 1);
+    emitter.set_limit(40);
+    assert_eq!(emitter.limit(), 40);
+    let reserved = emitter.capacity();
+    assert!(reserved >= 40);
+    run(&mut emitter, 30, &Frame::default());
+    assert_eq!(emitter.len(), 40);
+    assert_eq!(emitter.capacity(), reserved, "the storage reserved by the limit is enough");
+}
+
+#[test]
+fn the_limit_stays_between_one_and_the_hard_cap() {
+    let mut emitter = Emitter::new(spec(), 1);
+    emitter.set_limit(0);
+    assert_eq!(emitter.limit(), 1);
+    emitter.set_limit(usize::MAX);
+    assert_eq!(emitter.limit(), MAX_PARTICLES);
+}
+
+#[test]
+fn particles_beyond_a_lowered_limit_are_left_to_die() {
+    let mut emitter = Emitter::new(EmitterSpec { rate: 6_000.0, life: 0.2, ..spec() }, 1);
+    run(&mut emitter, 10, &Frame::default());
+    let before = emitter.len();
+    emitter.set_limit(5);
+    assert_eq!(emitter.len(), before, "none are removed at once");
+    emitter.set_enabled(false);
+    run(&mut emitter, 30, &Frame::default());
+    assert!(emitter.is_empty());
+}
