@@ -10,6 +10,11 @@ pub struct Calibration {
 }
 
 impl Calibration {
+    /// Whether world coordinates can be projected without an invalid scale or non-finite origin.
+    pub fn is_valid(&self) -> bool {
+        self.width.is_finite() && self.width > 0.0 && self.origin.iter().all(|v| v.is_finite())
+    }
+
     /// A world position `(x, y)` on the picture in units of its width: `(0, 0)` is the top left corner, `(1, 1)`
     /// the bottom right, so +x is to the right and +y up the picture.
     pub fn to_map(&self, world: [f32; 2]) -> [f32; 2] {
@@ -36,6 +41,17 @@ mod tests {
         assert!((bottom_left[0]).abs() < 1e-6 && (bottom_left[1] - 1.0).abs() < 1e-6, "{bottom_left:?}");
         let top_right = CITY.to_map([-1224.8894 + 6659.332, -1591.1449 + 6659.332]);
         assert!((top_right[0] - 1.0).abs() < 1e-5 && top_right[1].abs() < 1e-5, "{top_right:?}");
+    }
+
+    #[test]
+    fn a_calibration_needs_a_finite_origin_and_positive_finite_width() {
+        assert!(CITY.is_valid());
+        for width in [0.0, -1.0, f32::INFINITY, f32::NAN] {
+            assert!(!Calibration { width, ..CITY }.is_valid());
+        }
+        for origin in [[f32::NAN, 0.0], [0.0, f32::NEG_INFINITY]] {
+            assert!(!Calibration { origin, ..CITY }.is_valid());
+        }
     }
 
     #[test]

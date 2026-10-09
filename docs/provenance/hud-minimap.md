@@ -2,7 +2,7 @@
 
 - **Spec:** [docs/specs/hud-minimap.md](../specs/hud-minimap.md) (behaviour), [docs/formats/minimap.md](../formats/minimap.md) (data).
 - **Modules:** `libs/blackbox-minimap` (tiles, projection, view placement, blip placement), the minimap reader in
-  `crates/nfsmw-data/src/track_info.rs`, `crates/nfsmw/src/hud/minimap.rs` (the binding to the HUD package), and the
+  `crates/nfsmw-data/src/minimap.rs`, `crates/nfsmw/src/hud/minimap.rs` (the binding to the HUD package), and the
   multi image mask rectangles in `libs/blackbox-feng` and `crates/nfsmw/src/ui/present/`.
 - **Sources read for the spec:**
   - [dbalatoni13/nfsmw](https://github.com/dbalatoni13/nfsmw) (CC0-1.0, decompiled), `src/Speed/Indep/Src/`:
@@ -28,7 +28,44 @@
 - **Known differences from the original:**
   - Always the full `MINI_MAP` file, not the career-dependent `Unlock_1` / `Unlock_2` pictures.
   - No blips; the placement rule is implemented in the library and not called.
-  - Tile numbers outside 0..63 draw nothing (the original reads a wrapped or out-of-range tile).
+  - Tile numbers outside 0..63 draw nothing; in-range row-overlap tiles at the left/right edges still load.
   - The car model's origin stands in for the rigid body's position.
   - The [HUD viewport](hud-viewport.md) reproduces the native 16:9 shift and offers
     centered and Xbox-scaled presets; other wide aspects use a documented host extension.
+
+## Local gameplay polish
+
+- Non-finite/zero-width calibration, incomplete minimap objects or missing/unreadable masks keep the map hidden
+  instead of sending invalid transforms or drawing unmasked square tiles. These are host validation rules.
+- Landmark tests cross tile and half-tile selection boundaries in fixed and rotating mode, checking the actual
+  HUD piece transforms against the world-to-map projection. A real-install test exercises all tiles and checks
+  that stationary frames do not upload pixels and movement reuses a bounded set of texture slots.
+- The optional hidden `--screenshot-size WIDTHxHEIGHT` creates a real off-screen render target for display-size
+  checks. The default remains 1280x720; it does not change saved window preferences.
+- A modded install's map failed at the first HUFF tile because the initial reader assumed every tile was JDLZ.
+  The block reader now detects wrappers individually with the existing `ea-compress` codecs; measured counts
+  are in the format document. No compression implementation or replacement texture data was copied.
+
+## CPU mask optimisation and checks (2026-10-09)
+
+Sliding unrotated masks factor bilinear sample indices and weights by axis, so they are computed once per
+column/row and empty rows skip sampling. Rotated masks reuse the horizontal coordinate for every row. Texture
+resolution, channel arithmetic and rounding are unchanged. An exact RGBA regression compares the previous
+compositor with the optimised path at source sizes 2, 4, 31, 128 and 512, with a non-square mask, different
+pivots, zero and nonzero rotations, and partial/flipped sampling windows. A stitched four-tile raster check
+also verifies that scrolling the mask leaves no tile seam. Empty masks produce transparent pixels.
+
+The ignored real-install presenter check runs 512 frames spanning all 64 map tiles, moving scroll windows and
+both orientations. On the local machine, an optimised release build measured:
+
+| Install assets | Previous CPU time/frame | Optimised CPU time/frame | Texture bytes/frame |
+|---|---|---|---|
+| Original 128-pixel tiles | 0.542 ms | 0.230 ms | 243,712 |
+| Replacement 512-pixel road tiles and small blank tiles | 7.556 ms | 3.078 ms | 3,686,403 |
+
+These measure the HUD presenter and its generated texture payloads, not game FPS or GPU time. Both runs keep
+five masked texture slots and 67 decoded images after visiting the full map; stationary frames upload no
+repeated pixels. Native 1920x1080, 2560x1440 and 3840x2160 render targets and both DX12/Vulkan were inspected.
+The 4K and 1080p original-map captures keep the same logical geometry (after normalising only for comparison,
+mean RGB difference below 0.36 on the map region). Replacement maps now render too; the modded install's
+separate font-atlas/HUD-digit corruption remains outside this work.

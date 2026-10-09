@@ -116,7 +116,7 @@ pub fn draw(
         if host.frames < SCREENSHOT_SETTLE_FRAMES || host.hold_capture {
             return;
         }
-        screenshot::capture(renderer, &params, instances, path).map(|()| {
+        screenshot::capture(renderer, &params, instances, host.size, path).map(|()| {
             if let Some(status) = host.scene.status() {
                 println!("{status}");
             }
