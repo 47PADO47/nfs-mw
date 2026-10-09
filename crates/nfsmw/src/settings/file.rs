@@ -10,7 +10,7 @@ use toml::{Table, Value};
 
 use super::partial::{Partial, Percent};
 use super::{Deadzone, HudLayout, MinimapMode, RadioHudStyle, Sensitivity, Transmission};
-use super::{Monitor, PostAa, PostBloom, PostTonemap, Resolution, SmokeQuality, WindowMode};
+use super::{Monitor, PostAa, PostBloom, PostTonemap, RenderScale, Resolution, SmokeQuality, UpscaleMode, WindowMode};
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
 
@@ -92,6 +92,13 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         post_tonemap: field(&table, origin, "post_tonemap", |v| PostTonemap::from_str(text_of(v)?)),
         post_bloom: field(&table, origin, "post_bloom", |v| PostBloom::from_str(text_of(v)?)),
         post_aa: field(&table, origin, "post_aa", |v| PostAa::from_str(text_of(v)?)),
+        render_scale: field(&table, origin, "render_scale", |v| match v {
+            Value::Integer(n) => RenderScale::from_str(&n.to_string()),
+            Value::Float(f) => RenderScale::from_str(&format!("{f:?}")),
+            other => RenderScale::from_str(text_of(other)?),
+        }),
+        upscaler: field(&table, origin, "upscaler", |v| UpscaleMode::from_str(text_of(v)?)),
+        upscale_sharpness: field(&table, origin, "upscale_sharpness", percent),
         paddle_up: field(&table, origin, "paddle_up", button_code),
         paddle_down: field(&table, origin, "paddle_down", button_code),
         manual_clutch: field(&table, origin, "manual_clutch", boolean),

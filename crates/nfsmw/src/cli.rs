@@ -251,6 +251,17 @@ pub struct ViewArgs {
     /// Smoke presentation: standard or high [env NFSMW_SMOKE_QUALITY; config `smoke_quality`; default standard].
     #[arg(long, value_name = "standard|high")]
     pub smoke_quality: Option<crate::settings::SmokeQuality>,
+    /// Draw the 3D scene at this percent of the output size per axis, 50 to 200 [env NFSMW_RENDER_SCALE;
+    /// config `render_scale`; default 100]. Below 100 the scene is scaled up with --upscaler; the HUD stays sharp.
+    #[arg(long, value_name = "50-200")]
+    pub render_scale: Option<crate::settings::RenderScale>,
+    /// How a render scale below 100 is scaled up: fsr1 (FidelityFX Super Resolution 1), bilinear, or off (the
+    /// render scale is ignored) [env NFSMW_UPSCALER; config `upscaler`; default fsr1].
+    #[arg(long, value_name = "off|bilinear|fsr1")]
+    pub upscaler: Option<crate::settings::UpscaleMode>,
+    /// FSR 1 sharpening, 0 (off) to 100 [env NFSMW_UPSCALE_SHARPNESS; config `upscale_sharpness`; default 80].
+    #[arg(long, value_name = "0-100")]
+    pub upscale_sharpness: Option<crate::settings::Percent>,
     /// Turn the radio off [env NFSMW_RADIO=off; config `radio = false`; default on].
     #[arg(long, conflicts_with = "radio")]
     pub no_radio: bool,
@@ -349,6 +360,9 @@ impl ViewArgs {
             post_tonemap: self.post_tonemap,
             post_bloom: self.post_bloom,
             post_aa: self.post_aa,
+            render_scale: self.render_scale,
+            upscaler: self.upscaler,
+            upscale_sharpness: self.upscale_sharpness,
             ..Partial::default()
         }
     }
