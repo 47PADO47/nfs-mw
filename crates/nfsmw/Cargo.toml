@@ -50,5 +50,10 @@ raw-window-handle.workspace = true
 serde.workspace = true
 toml.workspace = true
 
+[features]
+# The optional Bevy renderer (docs/renderers.md). The backend crate does not exist yet, so the feature only
+# marks a build that is meant to have it; the default build never has it.
+renderer-bevy = []
+
 [lints]
 workspace = true

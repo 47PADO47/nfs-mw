@@ -5,6 +5,7 @@
 //! code (docs/decisions/0001-bevy.md, docs/decisions/0004-swappable-renderers.md).
 
 mod native;
+pub mod select;
 
 use std::time::Instant;
 
@@ -19,7 +20,7 @@ use super::screenshot;
 use super::upscale;
 use crate::gui::UiOutput;
 use crate::input::{ActionState, MouseCapture};
-use crate::settings::Settings;
+use crate::settings::{RendererKind, Settings};
 
 /// Longest step a scene is asked to advance by, so a stall does not throw the camera across the map.
 const MAX_STEP: f32 = 0.1;
@@ -58,8 +59,12 @@ fn start(
     display: &DisplayHandleWrapper,
     settings: &Settings,
 ) -> anyhow::Result<()> {
-    let mut renderer = native::create(raw, size, display, settings)?;
-    log::info!("renderer: {} (requested backend: {})", renderer.info().summary(), settings.backend);
+    let mut renderer = match select::choose(settings.renderer) {
+        RendererKind::Blackbox => native::create(raw, size, display, settings)?,
+        RendererKind::Bevy => anyhow::bail!("the bevy renderer is not part of this build"),
+    };
+    let info = renderer.info();
+    log::info!("renderer: {} on {} (requested backend: {})", info.renderer, info.summary(), settings.backend);
     upscale::apply(renderer.as_mut(), settings);
     host.scene.init(renderer.as_mut())?;
     host.scene.set_transmission(host.transmission);
