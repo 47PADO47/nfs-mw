@@ -55,6 +55,32 @@ real-install tests `collision_sounds_and_stitches_resolve` and `every_effect_res
 the checkable parts). The meaning of the second and third piece field and the choice of sound per effect
 are reasoned from the data and marked unconfirmed in [audio.md](../formats/audio.md).
 
+## Limiter fallback and sustained-output checks (2026-10-09)
+
+The unavailable-sample decision in [engine-sound.md](../specs/engine-sound.md#decisions-for-the-rust-implementation)
+was implemented from the existing specs and inspection of the Rust host; no additional decompiled code
+was consulted. Previously a missing or failed `CAR` layer still ducked the surviving Ginsu loops to 15%,
+although no redline sample could replace them. The caller now reports layer availability; the controller
+preserves the tachometer state and releases the duck with the original release fade when takeover fails.
+Successful bank playback retains the original thresholds, gains and fades.
+
+`audio::aems::limiter_tests` is an ignored install-backed check of the complete engine path: actual Ginsu
+recordings and resampling, the dynamic mixer and the `CAR` bank graph, rendered to software PCM. It holds
+full RPM for eight seconds and measures the settled limiter and recovery, separately for the loops and
+sample layer. BMWM3GTR, PUNTO, MUSTANGGT, CORVETTE, CARRERAGT and LANCEREVO8 passed on two local installs:
+limiter RMS 0.130 to 0.208, with no silent 800-sample blocks. For the BMW, a missing layer retains loop RMS
+0.0711; an injected bank-recording failure at limiter onset retains total RMS 0.1738 and loop RMS 0.0711.
+Destroying the engine module two seconds into redlining also retains loop RMS 0.0711. Every block after
+warmup is checked for finite, non-silent output through the transitions as well as the steady states.
+Synthetic tests cover decoder/backend errors and unavailable recordings, loss/restoration fades and
+unchanged tachometer behavior. A local comparison against the preceding Rust controller matched 72,000
+complete output records across single/dual mode, player/AI and 30/60/144 Hz updates.
+
+These checks establish continuous software output and preservation of the preceding Rust behavior,
+not audible parity with the original game or an audio-device capture. The FXX Evo-specific report is still
+unconfirmed; no such mod was identified in the local test data. `NFSMW_LIMITER_CARS` selects a comma-separated
+car list for checking another user's install without changing the test.
+
 ## Open questions
 
 Tracked for the implementer; see "Open questions" at the end of each spec: update rate of the control code

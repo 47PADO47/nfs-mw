@@ -108,6 +108,12 @@ host that plays the voices; `kira_out.rs` plays them through `kira`).
   and ends with it, so the sweeteners keep the effects mixer's one-shots, now of those sounds (`refs.rs`).
 - The whine and transmission loop stay as before (guessed sounds, effects spec §6); their modules run the same
   way when someone wants them.
+- The layer reports whether its `CAR` module remains usable. A destroyed module, interpreter error or
+  requested sample
+  that cannot be decoded or started (including an empty recording or zero sample rate) makes it unavailable
+  for limiter takeover. Failure of the separate sputter module does not disable the engine. The car then
+  keeps the Ginsu loops at their normal level, with the release fade described in engine-sound.md. This
+  fallback changes only incomplete/unsupported audio paths, not healthy original banks.
 
 ## How to check it
 
@@ -120,3 +126,8 @@ reports a volume in 37 ticks. With the Ginsu loops the whole engine peaks at 0.9
 four players sound (volumes 449, 715, 10430 and 24720 of 32767); the earlier Python prototype, which truncated floats
 where the PC rounds to nearest, also had a fifth at 171. The gain stage is [decision]: compare it with the running
 game, with the engine class values logged. Not done.
+
+`cargo test -p nfsmw audio::aems::limiter_tests -- --ignored --nocapture` with `NFSMW_GAME_DIR` set checks
+an eight-second sustained limiter and recovery on six cars. It also checks the BMW with no sample layer,
+an injected missing bank recording at limiter onset and a destroyed engine module while redlining.
+The checks render the complete engine to software PCM; they do not require listening or an output device.

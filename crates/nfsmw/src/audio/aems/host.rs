@@ -42,6 +42,8 @@ pub struct Voices {
     pub object: Option<Vec<i32>>,
     /// Sounds that could not be loaded, so each is reported once.
     reported: Vec<u32>,
+    /// A requested voice could not be decoded or started. The engine cannot promise a limiter replacement.
+    pub(super) failed: bool,
 }
 
 /// A module's host for one update: its voices over a sampler.
@@ -67,11 +69,13 @@ fn rate(inputs: &PlayerInputs) -> f32 {
 impl Host for PartHost<'_> {
     fn play(&mut self, player: usize, entry: &SampleEntry, inputs: &PlayerInputs) -> bool {
         if entry.kind != 0 {
+            self.voices.failed = true;
             return false;
         }
         let data = match self.sampler.sound(self.bank, entry.index as usize) {
             Ok(data) => data,
             Err(e) => {
+                self.voices.failed = true;
                 if !self.voices.reported.contains(&entry.index) {
                     self.voices.reported.push(entry.index);
                     log::warn!("sample layer: {e}");
@@ -79,7 +83,14 @@ impl Host for PartHost<'_> {
                 return false;
             }
         };
-        let Some(voice) = self.sampler.start(data, self.gain(inputs), rate(inputs)) else { return false };
+        if data.frames.is_empty() || data.sample_rate == 0 {
+            self.voices.failed = true;
+            return false;
+        }
+        let Some(voice) = self.sampler.start(data, self.gain(inputs), rate(inputs)) else {
+            self.voices.failed = true;
+            return false;
+        };
         if self.voices.slots.len() <= player {
             self.voices.slots.resize_with(player + 1, || None);
         }
@@ -135,3 +146,6 @@ impl Host for PartHost<'_> {
         i32::from(self.voices.object.is_some())
     }
 }
+
+#[cfg(test)]
+mod tests;
