@@ -5,8 +5,8 @@ the current linear, rescaled 15 percent stick deadzone; this document does not c
 calibrated against the original game. No restricted source was used for these options.
 
 The optional cutoff response is informed by [xan1242/NFS-XtendedInput](https://github.com/xan1242/NFS-XtendedInput)
-(MIT, `src/Main.hpp`, per-axis deadzone handling); no source code was copied. The inspected E: install sets
-both stick cutoffs to 10 percent. The plugin leaves values outside the cutoff unchanged, so matching its
+(MIT, `src/Main.hpp`, per-axis deadzone handling); no source code was copied.
+The plugin leaves values outside the cutoff unchanged, so matching its
 percentage alone with a rescaled curve does not produce the same response.
 
 ## Response settings
