@@ -5,44 +5,16 @@
 #[allow(dead_code)]
 mod fixture;
 mod links;
+mod style;
 #[cfg(test)]
 mod synthetic;
 #[cfg(test)]
 mod tests;
 
 pub use links::{CollisionEffects, SparkLink};
+pub use style::EmitterStyle;
 
 use blackbox_attrib::{CollectionRef, Database, Value, vlt_hash};
-
-/// Runtime color and lifetime of a supported fuelcell emitter; no game tuning is embedded here.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct EmitterStyle {
-    pub color: [f32; 4],
-    pub life: f32,
-    pub life_variance: f32,
-}
-
-impl EmitterStyle {
-    fn read(emitter: CollectionRef<'_>) -> Option<Self> {
-        Self::validated(
-            emitter.get("Colour1")?.as_vector4()?,
-            emitter.get_f32("Life")?,
-            emitter.get_f32("LifeVariance")?,
-        )
-    }
-
-    fn validated(color: [f32; 4], life: f32, life_variance: f32) -> Option<Self> {
-        if color.iter().any(|v| !v.is_finite() || !(0.0..=1.0).contains(v))
-            || !life.is_finite()
-            || life <= 0.0
-            || !life_variance.is_finite()
-            || !(0.0..=life).contains(&life_variance)
-        {
-            return None;
-        }
-        Some(Self { color, life, life_variance })
-    }
-}
 
 #[derive(Debug, Clone, Default)]
 pub struct VisualEffectsData {

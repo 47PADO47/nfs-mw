@@ -29,7 +29,6 @@ use crate::settings::Transmission;
 use crate::viewer::camera::{ChaseCamera, Followed};
 use clock::FixedClock;
 pub use debug::{ContactMarkers, LEGEND as MARKER_LEGEND, MarkerMeshes};
-use effect_feed::vehicle_effects;
 use fall::FallWatch;
 use ground::WorldGround;
 pub use input::DriveInput;
@@ -117,7 +116,7 @@ impl Drive {
         Self {
             car_name,
             effects: TireEffects::default(),
-            vehicle_effects: vehicle_effects(visuals, &physics),
+            vehicle_effects: VehicleEffects::new(visuals),
             rig,
             physics,
             sim: None,
@@ -218,7 +217,7 @@ impl Drive {
         visuals: nfsmw_data::vehicle_effects::VisualEffectsData,
     ) {
         std::mem::replace(&mut self.rig, rig).release(renderer);
-        self.vehicle_effects = vehicle_effects(visuals, &physics);
+        self.vehicle_effects = VehicleEffects::new(visuals);
         self.physics = physics;
         self.effects.clear();
         self.car_name = name;
@@ -295,6 +294,7 @@ impl Drive {
             let impact = sim.step(&input, &ground, Some((collision, &*props)));
             self.effects.step(sim.tire_contacts(collision), sim.effect_velocity(), clock::STEP);
             self.vehicle_effects.step(&impact.visuals, sim.pose(), sim.effect_velocity(), clock::STEP);
+            self.vehicle_effects.bounce(collision, clock::STEP);
             self.markers.record(&impact.contacts, sim.tyre_hits());
             for &(id, mass) in &impact.knocked {
                 log::info!("knocked over a {mass:.0} kg prop ({} knocked over now)", props.knocked_count() + 1);

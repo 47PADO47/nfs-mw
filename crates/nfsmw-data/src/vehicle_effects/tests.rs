@@ -11,15 +11,32 @@ fn an_empty_database_and_unknown_car_are_empty() {
 #[test]
 fn nonfinite_and_invalid_lifetime_or_color_are_rejected() {
     let color = [0.6, 0.7, 0.8, 0.1];
-    assert!(EmitterStyle::validated(color, 0.25, 0.25).is_some());
+    let profile = EmitterStyle { color, life: 0.25, life_variance: 0.25, ..EmitterStyle::default() };
+    assert!(profile.validated().is_some());
     for life in [0.0, -1.0, f32::NAN, f32::INFINITY] {
-        assert!(EmitterStyle::validated(color, life, 0.0).is_none());
+        assert!(EmitterStyle { life, ..profile }.validated().is_none());
     }
-    for variance in [-0.01, 0.3, f32::NAN, f32::INFINITY] {
-        assert!(EmitterStyle::validated(color, 0.25, variance).is_none());
+    for variance in [-0.01, 1.0, f32::NAN, f32::INFINITY] {
+        assert!(EmitterStyle { life_variance: variance, ..profile }.validated().is_none());
     }
     for value in [-0.01, 1.01, f32::NAN, f32::INFINITY] {
-        assert!(EmitterStyle::validated([value, 0.0, 0.0, 1.0], 1.0, 0.0).is_none());
+        assert!(EmitterStyle { color: [value, 0.0, 0.0, 1.0], ..profile }.validated().is_none());
+    }
+}
+
+#[test]
+fn invalid_motion_volume_and_size_cannot_enter_the_particle_simulation() {
+    let profile = EmitterStyle { color: [1.0; 4], life: 1.0, ..EmitterStyle::default() };
+    for invalid in [
+        EmitterStyle { velocity: [f32::NAN, 0.0, 0.0], ..profile },
+        EmitterStyle { inherit: [0.0, f32::INFINITY, 0.0], ..profile },
+        EmitterStyle { extent: [-1.0, 0.0, 0.0], ..profile },
+        EmitterStyle { gravity: f32::INFINITY, ..profile },
+        EmitterStyle { count: 1e6, ..profile },
+        EmitterStyle { height: -1.0, ..profile },
+        EmitterStyle { length_delta: f32::NAN, ..profile },
+    ] {
+        assert!(invalid.validated().is_none());
     }
 }
 
@@ -32,7 +49,10 @@ fn runtime_graph_resolves_parent_links_and_explicit_unsupported_material_blocks_
     let data = VisualEffectsData::read(&db, "SYNTHETIC_CAR");
     let hit = data.collision.hit(vlt_hash("asphalt")).unwrap();
     assert_eq!((hit.min, hit.max), (1.0, 30.0));
-    assert_eq!(hit.styles[0].unwrap(), EmitterStyle { color: [0.1, 0.2, 0.3, 0.4], life: 2.0, life_variance: 0.1 });
+    assert_eq!(
+        hit.styles[0].unwrap(),
+        EmitterStyle { color: [0.1, 0.2, 0.3, 0.4], life: 2.0, life_variance: 0.1, ..EmitterStyle::default() }
+    );
     assert_eq!(hit.styles[1], hit.styles[0]);
     assert_eq!(data.collision.scrape(vlt_hash("default")).unwrap().min, 5.0);
     assert_eq!(data.trail, hit.styles[0]);

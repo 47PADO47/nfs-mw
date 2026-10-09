@@ -77,17 +77,32 @@ pub fn database(bad: &str) -> Database {
     };
     let link = |name| (name, link_type, 32, true);
     let group = ("emittergroup", REF, 12, false);
+    let inherit = ("InheritVelocity", FLOAT, 4, false);
     let emitters = ("Emitters", REF, 12, true);
     let xenon = ("XenonEffect", REF, 12, true);
     let ng = ("NGEmitter", REF, 12, true);
     let style = [("Colour1", VECTOR, 16, false), ("Life", FLOAT, 4, false), ("LifeVariance", FLOAT, 4, false)];
+    let motion = [
+        ("VolumeCenter", VECTOR, 16, false),
+        ("VolumeExtent", VECTOR, 16, false),
+        ("VelocityStart", VECTOR, 16, false),
+        ("VelocityDelta", VECTOR, 16, false),
+        ("VelocityInherit", VECTOR, 16, false),
+        ("GravityStart", FLOAT, 4, false),
+        ("GravityDelta", FLOAT, 4, false),
+        ("NumParticles", FLOAT, 4, false),
+        ("NumParticlesVariance", FLOAT, 4, false),
+        ("LengthStart", FLOAT, 4, false),
+        ("LengthDelta", FLOAT, 4, false),
+        ("HeightStart", FLOAT, 4, false),
+    ];
     class(&mut b, "pvehicle", &[link("OnHitWorld"), link("OnScrapeWorld")]);
     class(&mut b, "simsurface", &[]);
-    class(&mut b, "effects", &[group]);
+    class(&mut b, "effects", &[group, inherit]);
     class(&mut b, "emittergroup", &[emitters]);
     class(&mut b, "emitterdata", &[xenon]);
     class(&mut b, "fuelcell_effect", &[ng]);
-    class(&mut b, "fuelcell_emitter", &style);
+    class(&mut b, "fuelcell_emitter", &[style.as_slice(), motion.as_slice()].concat());
     for (name, parent) in [
         ("default", None),
         ("null", None),
@@ -120,7 +135,13 @@ pub fn database(bad: &str) -> Database {
         "group" => "effects",
         _ => "emittergroup",
     };
-    collection(&mut b, "effects", "spark", None, &[(group, reference(group_class, "spark_group"))]);
+    collection(
+        &mut b,
+        "effects",
+        "spark",
+        None,
+        &[(group, reference(group_class, "spark_group")), (inherit, 1.0_f32.to_le_bytes().to_vec())],
+    );
     collection(&mut b, "effects", "unsupported", None, &[(group, reference("emittergroup", "empty"))]);
     let emitter_class = match bad {
         "emitter" => "fuelcell_emitter",
@@ -178,17 +199,19 @@ pub fn database(bad: &str) -> Database {
         _ => 0.1,
     };
     for name in ["emsprk_line1", "emsprk_line2", "trail3"] {
-        collection(
-            &mut b,
-            "fuelcell_emitter",
-            name,
-            None,
-            &[
-                (style[0], color.iter().flat_map(|v| v.to_le_bytes()).collect()),
-                (style[1], life.to_le_bytes().to_vec()),
-                (style[2], variance.to_le_bytes().to_vec()),
-            ],
-        );
+        let mut fields = vec![
+            (style[0], color.iter().flat_map(|v| v.to_le_bytes()).collect()),
+            (style[1], life.to_le_bytes().to_vec()),
+            (style[2], variance.to_le_bytes().to_vec()),
+        ];
+        for field in motion {
+            let bytes = match field.1 {
+                VECTOR => [0.0_f32; 4].iter().flat_map(|v| v.to_le_bytes()).collect(),
+                _ => 0.0_f32.to_le_bytes().to_vec(),
+            };
+            fields.push((field, bytes));
+        }
+        collection(&mut b, "fuelcell_emitter", name, None, &fields);
     }
     Database::open(&pack(&[b.finish()])).unwrap()
 }

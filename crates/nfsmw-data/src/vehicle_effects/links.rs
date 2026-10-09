@@ -9,6 +9,7 @@ pub struct SparkLink {
     pub min: f32,
     pub max: f32,
     pub styles: [Option<EmitterStyle>; 2],
+    pub inherit_velocity: f32,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -91,11 +92,16 @@ impl Record {
         {
             return None;
         }
-        let styles = sparks(db, db.resolve(self.effect)?);
+        let wrapper = db.resolve(self.effect)?;
+        let inherit_velocity = wrapper.get_f32("InheritVelocity")?;
+        if !inherit_velocity.is_finite() || !(0.0..=10.0).contains(&inherit_velocity) {
+            return None;
+        }
+        let styles = sparks(db, wrapper);
         if styles.iter().all(Option::is_none) {
             return None;
         }
-        Some(SparkLink { min: self.min, max: self.max, styles })
+        Some(SparkLink { min: self.min, max: self.max, styles, inherit_velocity })
     }
 }
 

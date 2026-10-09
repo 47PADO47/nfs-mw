@@ -1,6 +1,8 @@
 //! Optional vehicle streaks, implemented from docs/specs/vehicle-visual-effects.md.
 
+mod body;
 mod geometry;
+mod particle;
 mod sparks;
 #[cfg(test)]
 mod tests;
@@ -14,7 +16,7 @@ use super::drive::{CarPose, VisualContact};
 use sparks::Sparks;
 use trails::Trails;
 
-pub const MAX_SPARKS: usize = 768;
+pub const MAX_SPARKS: usize = 2048;
 pub const MAX_TRAILS: usize = 256;
 
 pub struct VehicleEffects {
@@ -22,13 +24,16 @@ pub struct VehicleEffects {
     sparks: Sparks,
     trails: Trails,
     enabled: [bool; 2],
-    rear: Vec3,
-    half: Vec3,
+    body: Option<body::BodyClip>,
 }
 
 impl VehicleEffects {
-    pub fn new(data: VisualEffectsData, rear: Vec3, half: Vec3) -> Self {
-        Self { data, sparks: Sparks::default(), trails: Trails::default(), enabled: [false; 2], rear, half }
+    pub fn new(data: VisualEffectsData) -> Self {
+        Self { data, sparks: Sparks::default(), trails: Trails::default(), enabled: [false; 2], body: None }
+    }
+
+    pub fn set_body(&mut self, pose: CarPose, bounds: nfsmw_data::car::physics::CarBounds) {
+        self.body = body::BodyClip::new(pose, bounds);
     }
 
     pub fn set_enabled(&mut self, sparks: bool, trails: bool) {
@@ -61,23 +66,36 @@ impl VehicleEffects {
     }
 
     pub fn step(&mut self, contacts: &[VisualContact], pose: CarPose, velocity: Vec3, dt: f32) {
-        if !dt.is_finite() || dt <= 0.0 || !velocity.is_finite() || !pose.position.is_finite() {
+        if !dt.is_finite()
+            || dt <= 0.0
+            || !velocity.is_finite()
+            || !pose.position.is_finite()
+            || !pose.rotation.is_normalized()
+        {
             return;
         }
         self.age(dt);
         if self.enabled[0] {
-            self.sparks.emit(contacts, &self.data.collision, dt);
+            self.sparks.emit(contacts, &self.data.collision, velocity, dt);
         }
         if self.enabled[1] {
-            self.trails.emit(self.data.trail, pose, velocity, self.rear, self.half, dt);
+            self.trails.emit(self.data.trail, pose, velocity, dt);
         }
     }
 
+    pub fn bounce(&mut self, world: &blackbox_collision::CollisionWorld, dt: f32) {
+        self.sparks.bounce(world, dt);
+    }
+
     pub fn geometry(&self, camera: Vec3, forward: Vec3, show_trails: bool, out: &mut Vec<EffectVertex>) {
-        self.sparks.geometry(camera, forward, out);
+        self.sparks.geometry(camera, forward, self.body, out);
         if show_trails {
             self.trails.geometry(camera, forward, out);
         }
+    }
+
+    pub fn glows(&self, camera: Vec3, forward: Vec3, out: &mut Vec<EffectVertex>) {
+        self.sparks.glows(camera, forward, self.body, out);
     }
 
     pub fn status(&self) -> String {

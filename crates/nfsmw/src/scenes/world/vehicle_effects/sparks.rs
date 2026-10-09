@@ -1,34 +1,44 @@
 use std::collections::VecDeque;
 
 use blackbox_render::EffectVertex;
-use glam::Vec3;
+use glam::{Quat, Vec3};
 use nfsmw_data::vehicle_effects::{CollisionEffects, SparkLink};
 
 use super::super::{drive::VisualContact, space};
+use super::body::BodyClip;
+use super::particle::{Particle, count};
 use super::{MAX_SPARKS, geometry};
 
 #[cfg(test)]
 #[path = "spark_tests.rs"]
 mod tests;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct Particle {
-    point: Vec3,
-    velocity: Vec3,
-    age: f32,
-    life: f32,
-    color: [f32; 4],
-}
-
 pub(super) struct Sparks {
     particles: VecDeque<Particle>,
+    flashes: VecDeque<Flash>,
+    scrape_flash: Option<Flash>,
+    owner_velocity: Vec3,
     carry: f32,
     pub emitted: u64,
 }
 
+struct Flash {
+    point: Vec3,
+    strength: f32,
+    color: [f32; 4],
+    age: f32,
+}
+
 impl Default for Sparks {
     fn default() -> Self {
-        Self { particles: VecDeque::with_capacity(MAX_SPARKS), carry: 0.0, emitted: 0 }
+        Self {
+            particles: VecDeque::with_capacity(MAX_SPARKS),
+            flashes: VecDeque::with_capacity(16),
+            scrape_flash: None,
+            owner_velocity: Vec3::ZERO,
+            carry: 0.0,
+            emitted: 0,
+        }
     }
 }
 
@@ -38,6 +48,8 @@ impl Sparks {
     }
     pub fn clear(&mut self) {
         self.particles.clear();
+        self.flashes.clear();
+        self.scrape_flash = None;
         self.disconnect();
     }
     pub fn disconnect(&mut self) {
@@ -45,15 +57,20 @@ impl Sparks {
     }
 
     pub fn age(&mut self, dt: f32) {
-        for p in &mut self.particles {
-            p.age += dt;
-            p.point += p.velocity * dt + Vec3::NEG_Z * (4.905 * dt * dt);
-            p.velocity += Vec3::NEG_Z * (9.81 * dt);
+        self.particles.iter_mut().for_each(|p| p.age(dt));
+        self.particles.retain(Particle::alive);
+        self.flashes.iter_mut().for_each(|f| f.age += dt);
+        self.flashes.retain(|f| f.age < 0.12);
+        if let Some(flash) = &mut self.scrape_flash {
+            flash.age += dt;
+            if flash.age >= 0.12 {
+                self.scrape_flash = None;
+            }
         }
-        self.particles.retain(|p| p.age < p.life && p.point.is_finite());
     }
 
-    pub fn emit(&mut self, contacts: &[VisualContact], data: &CollisionEffects, dt: f32) {
+    pub fn emit(&mut self, contacts: &[VisualContact], data: &CollisionEffects, velocity: Vec3, dt: f32) {
+        self.owner_velocity = velocity;
         self.emit_selected(
             contacts,
             |surface, hit| match hit {
@@ -91,6 +108,7 @@ impl Sparks {
             if sliding > 1.0
                 && normal_speed <= 0.1
                 && let Some(link) = pick(surface, false)
+                && sliding >= link.min
             {
                 let strength = intensity(link, sliding, true);
                 if strength > scrape.map_or(0.0, |(_, _, s)| s) {
@@ -99,57 +117,118 @@ impl Sparks {
             }
         }
         if let Some((c, link, strength)) = hit {
-            self.spawn(c, link, (strength * 48.0).ceil().min(48.0) as usize);
+            self.spawn(c, link, 1, true);
+            if let Some(style) = link.styles.into_iter().flatten().next() {
+                if self.flashes.len() == 16 {
+                    self.flashes.pop_front();
+                }
+                self.flashes.push_back(Flash {
+                    point: space::to_render(c.point.to_array()) + space::to_render(c.normal.to_array()) * 0.04,
+                    strength,
+                    color: style.color,
+                    age: 0.0,
+                });
+            }
+            self.disconnect();
+            return;
         }
         let Some((c, link, strength)) = scrape else {
             self.disconnect();
             return;
         };
-        // Host rate policy: one strongest active contact; no backlog after contact is lost.
-        self.carry = (self.carry + strength * 160.0 * dt).min(24.0);
-        let count = self.carry.floor() as usize;
-        self.carry -= count as f32;
-        self.spawn(c, link, count);
-    }
-
-    fn spawn(&mut self, c: &VisualContact, link: SparkLink, count: usize) {
-        let normal = space::to_render(c.normal.to_array());
-        let velocity = space::to_render(c.velocity.to_array());
-        let tangent = velocity - normal * velocity.dot(normal);
-        let side = normal.cross(Vec3::Z).normalize_or(Vec3::X);
-        let Some(first) = link.styles.into_iter().flatten().next() else { return };
-        let second = link.styles.into_iter().flatten().nth(1).unwrap_or(first);
-        for _ in 0..count {
-            let style = match self.emitted.is_multiple_of(2) {
-                true => first,
-                false => second,
-            };
-            let n = self.emitted;
-            let variation = geometry::noise(n, 0.0).abs();
-            let life = (style.life + geometry::noise(n, 1.1) * style.life_variance).clamp(0.05, 1.5);
-            if self.particles.len() == MAX_SPARKS {
-                self.particles.pop_front();
-            }
-            self.particles.push_back(Particle {
-                point: space::to_render(c.point.to_array()) + normal * 0.03,
-                velocity: tangent * 0.15
-                    + normal * (1.2 + variation * 2.0)
-                    + Vec3::Z * (1.0 + variation * 2.5)
-                    + side * geometry::noise(n, 2.0) * 2.0,
-                age: 0.0,
-                life,
+        // The restoration forces spark intensity to one; weak scrapes do not reduce density.
+        self.carry = (self.carry + 60.0 * dt).min(4.0);
+        let dispatches = self.carry.floor() as usize;
+        self.carry -= dispatches as f32;
+        self.spawn(c, link, dispatches, false);
+        if let Some(style) = link.styles.into_iter().flatten().next() {
+            self.scrape_flash = Some(Flash {
+                point: space::to_render(c.point.to_array()) + space::to_render(c.normal.to_array()) * 0.04,
+                strength: 0.35 + 0.65 * strength,
                 color: style.color,
+                age: 0.0,
             });
-            self.emitted += 1;
         }
     }
 
-    pub fn geometry(&self, camera: Vec3, forward: Vec3, out: &mut Vec<EffectVertex>) {
+    fn spawn(&mut self, c: &VisualContact, link: SparkLink, dispatches: usize, hit: bool) {
+        let normal = space::to_render(c.normal.to_array());
+        let velocity = self.owner_velocity * link.inherit_velocity;
+        let origin = space::to_render(c.point.to_array());
+        let local_axis = match hit {
+            true => Vec3::Z,
+            false => Vec3::Y,
+        };
+        let rotation = Quat::from_rotation_arc(local_axis, normal);
+        for (index, style) in link.styles.into_iter().enumerate() {
+            let Some(style) = style else { continue };
+            for _ in 0..count(style, 1.0) * dispatches {
+                let mut p = Particle::spawn(style, origin, rotation, velocity, self.emitted, 1.0);
+                p.origin += normal * (0.02 - (p.origin - origin).dot(normal)).max(0.0);
+                p.previous = p.origin;
+                p.elasticity = [160.0, 120.0][index] / 255.0;
+                if self.particles.len() == MAX_SPARKS {
+                    self.particles.pop_front();
+                }
+                self.particles.push_back(p);
+                self.emitted += 1;
+            }
+        }
+    }
+
+    pub fn bounce(&mut self, world: &blackbox_collision::CollisionWorld, dt: f32) {
+        use blackbox_collision::{BARRIER_TWO_SIDED, GROUP_EXCLUSION, HitKind, RayOptions};
+        let opts = RayOptions { exclude: u32::from(GROUP_EXCLUSION), ..RayOptions::default() };
+        for p in &mut self.particles {
+            if p.bounces >= 4 || p.age == 0.0 {
+                continue;
+            }
+            let Some(hit) = world.ray_cast_filtered(
+                space::to_physics(p.previous),
+                space::to_physics(p.position(p.age)),
+                &opts,
+                |h| h.kind != HitKind::Barrier || h.front_facing || h.surface_flags & BARRIER_TWO_SIDED != 0,
+            ) else {
+                continue;
+            };
+            if hit.t > 1.0 {
+                continue;
+            }
+            p.bounce(hit.t, space::to_render(hit.point), space::to_render(hit.normal), dt);
+        }
+    }
+
+    pub fn geometry(&self, camera: Vec3, forward: Vec3, body: Option<BodyClip>, out: &mut Vec<EffectVertex>) {
         for p in &self.particles {
-            let length = (0.12 + p.velocity.length() * 0.025).clamp(0.12, 0.65);
-            let tail = p.point - p.velocity.normalize_or(Vec3::Z) * length;
-            let fade = (1.0 - p.age / p.life).powi(2);
-            geometry::streak(out, p.point, tail, 0.016, geometry::color(p.color, fade), camera, forward);
+            let head = p.position(p.age + p.duration);
+            let tail = p.position(p.age);
+            let ranges = body.map_or([[0.0, 1.0], [1.0, 1.0]], |b| b.outside(head, tail));
+            for range in ranges {
+                geometry::streak_range(
+                    out,
+                    head,
+                    tail,
+                    p.width * 0.5,
+                    geometry::color(p.color, 1.0),
+                    camera,
+                    forward,
+                    range,
+                );
+            }
+        }
+    }
+
+    pub fn glows(&self, camera: Vec3, forward: Vec3, body: Option<BodyClip>, out: &mut Vec<EffectVertex>) {
+        for p in &self.particles {
+            let head = p.position(p.age + p.duration);
+            if body.is_some_and(|b| b.contains(head)) {
+                continue;
+            }
+            geometry::glow(out, head, p.width, geometry::color(p.color, 0.3), camera, forward);
+        }
+        for f in self.flashes.iter().chain(self.scrape_flash.iter()) {
+            let fade = (1.0 - f.age / 0.12).powi(2) * f.strength;
+            geometry::glow(out, f.point, 0.2 + 0.4 * f.strength, geometry::color(f.color, fade), camera, forward);
         }
     }
 }
