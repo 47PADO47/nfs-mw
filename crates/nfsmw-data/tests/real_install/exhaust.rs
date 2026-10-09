@@ -11,7 +11,7 @@ use crate::install;
 fn effects(car: &str) -> Option<ExhaustFx> {
     let dir = install()?;
     let db = Database::open(&dir.read("GLOBAL/ATTRIBUTES.BIN").unwrap()).expect("attributes.bin");
-    let model = load(&dir, car, &LoadOptions { lod: 'A', all_parts: false, preset: None }).unwrap();
+    let model = load(&dir, car, &LoadOptions { lod: 'A', all_parts: false, preset: None }).ok()?;
     ExhaustFx::read(&db, &model)
 }
 
