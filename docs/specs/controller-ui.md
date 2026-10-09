@@ -19,6 +19,8 @@ D-pad and left-stick menu navigation. Existing driving bindings and saved respon
   using the installed font's glyph bounds; neither opaque rectangular badges nor mod key textures are used.
 - Prompt device changes on meaningful input, not every poll. Neutral controllers, stick drift, releases,
   and console hotkeys must not overwrite keyboard prompts. A connected controller can be the initial device.
+  Analog ownership requires outward deflection or a direction reversal; recentering cannot steal ownership
+  from the keyboard or another controller, while a fresh outward gesture after partial release can.
 - One active gamepad supplies actions. Another controller takes over on deliberate input; axes from
   different controllers are not combined. Losing the active controller pauses driving and clears its input.
 - Down/up pulses within one input frame remain visible for one action frame. Menu direction hysteresis

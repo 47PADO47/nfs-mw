@@ -58,9 +58,12 @@ impl InputPresentation {
                 };
                 // Compare with the last meaningful position, not the preceding sample: deliberate
                 // slow movement must take ownership too, while small held-stick noise stays quiet.
-                let moved = bound && value.abs() >= threshold && (value - *anchor).abs() >= 0.15;
+                let reversed = value * *anchor < 0.0;
+                let moved = bound && value.abs() >= threshold && (reversed || value.abs() - anchor.abs() >= 0.15);
                 analog |= moved;
-                if moved || value.abs() <= threshold * 0.5 {
+                // Inward travel is a release, not new activity. Follow it so a later outward gesture
+                // can take ownership without requiring the stick to return all the way to zero.
+                if moved || value.abs() < anchor.abs() || value.abs() <= threshold * 0.5 {
                     *anchor = value;
                 }
             }

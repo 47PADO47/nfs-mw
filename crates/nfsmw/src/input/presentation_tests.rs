@@ -157,3 +157,44 @@ fn slow_deliberate_stick_movement_switches_devices_without_held_noise_flicker() 
     }
     assert_eq!(app.world().resource::<InputPresentation>().device, InputDevice::Xbox);
 }
+
+#[test]
+fn recentering_a_held_stick_does_not_replace_keyboard_prompts() {
+    let mut app = app();
+    let pad = connect(&mut app);
+    axis(&mut app, pad, 1.0);
+    app.update();
+    key(&mut app, KeyCode::Enter);
+    app.update();
+    for amount in [0.7, 0.6, 0.4, 0.0] {
+        axis(&mut app, pad, amount);
+        app.update();
+        assert_eq!(app.world().resource::<InputPresentation>().device, InputDevice::Keyboard, "release {amount}");
+    }
+    axis(&mut app, pad, -0.7);
+    app.update();
+    assert_eq!(app.world().resource::<InputPresentation>().device, InputDevice::Xbox);
+}
+
+#[test]
+fn a_releasing_controller_cannot_steal_ownership_but_new_deflection_can() {
+    let mut app = app();
+    let first = connect(&mut app);
+    let second = connect(&mut app);
+    axis(&mut app, first, 1.0);
+    app.update();
+    axis(&mut app, second, -0.8);
+    app.update();
+    for amount in [0.7, 0.6] {
+        axis(&mut app, first, amount);
+        app.update();
+        assert_eq!(app.world().resource::<InputPresentation>().active_pad, Some(second), "release {amount}");
+    }
+    // A fresh outward movement after partial release can take over without returning to zero first.
+    axis(&mut app, first, 0.9);
+    app.update();
+    assert_eq!(app.world().resource::<InputPresentation>().active_pad, Some(first));
+    axis(&mut app, second, 0.7);
+    app.update();
+    assert_eq!(app.world().resource::<InputPresentation>().active_pad, Some(second), "a direction reversal is input");
+}
