@@ -1,10 +1,11 @@
-//! `--screenshot`: wait for the scene to load, then render one frame off-screen and write it as PNG.
+//! `--screenshot`: wait for the scene to load, then ask the renderer for one off-screen frame and write it
+//! as PNG once it is ready.
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
-use blackbox_render::{FrameParams, Instance, Renderer};
+use blackbox_gfx::{CaptureId, FrameParams, Instance, RenderBackend};
 
 use crate::input::ActionState;
 use crate::viewer::Scene;
@@ -14,7 +15,7 @@ pub const SIZE: (u32, u32) = (1280, 720);
 const READY_TIMEOUT: Duration = Duration::from_secs(300);
 
 /// Let the scene stream until its first view is complete (or give up after [`READY_TIMEOUT`]).
-pub fn wait_ready(scene: &mut dyn Scene, renderer: &mut Renderer) {
+pub fn wait_ready(scene: &mut dyn Scene, renderer: &mut dyn RenderBackend) {
     let input = ActionState::default();
     let start = Instant::now();
     // Let the scene stream until its first view is complete.
@@ -30,18 +31,24 @@ pub fn wait_ready(scene: &mut dyn Scene, renderer: &mut Renderer) {
     }
 }
 
-/// Render `instances` (and the UI layer) off-screen and write the PNG.
-pub fn capture(
-    renderer: &mut Renderer,
+/// Ask for `instances` (and the UI layer) to be rendered off-screen at `size`.
+pub fn request(
+    renderer: &mut dyn RenderBackend,
     params: &FrameParams,
     instances: &[Instance],
-    (w, h): (u32, u32),
-    path: &Path,
-) -> Result<()> {
-    let pixels = renderer.capture(w, h, params, instances)?;
-    save_png(path, w, h, &pixels)?;
+    size: (u32, u32),
+) -> Result<CaptureId> {
+    Ok(renderer.request_capture([size.0, size.1], params, instances)?)
+}
+
+/// Check on a requested capture: once the image is ready, write the PNG and return `true`. A renderer may take
+/// a few frames, so this is called every frame until it is done.
+pub fn poll(renderer: &mut dyn RenderBackend, id: CaptureId, path: &Path) -> Result<bool> {
+    let Some(image) = renderer.poll_capture(id) else { return Ok(false) };
+    let image = image?;
+    save_png(path, image.width, image.height, &image.rgba)?;
     println!("wrote {}", path.display());
-    Ok(())
+    Ok(true)
 }
 
 fn save_png(path: &Path, width: u32, height: u32, rgba: &[u8]) -> Result<()> {

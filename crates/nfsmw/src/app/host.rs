@@ -1,10 +1,11 @@
 //! State the app's systems share. It is `NonSend`: the renderer and the scene stay on the main thread.
 
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use bevy_ecs::resource::Resource;
-use blackbox_render::Renderer;
+use blackbox_gfx::{CaptureId, RenderBackend};
 
 use super::pacing::FrameLimiter;
 use crate::settings::{CarShading, Settings, SmokeQuality, Transmission, WheelOptions};
@@ -15,8 +16,10 @@ pub struct Host {
     /// Counts the scenes put in the window, so a scene's sound can be stopped when it goes.
     pub scene_changes: u32,
     pub screenshot: Option<super::screenshot::Plan>,
-    /// Created once the window exists.
-    pub renderer: Option<Renderer>,
+    /// Created once the window exists; the app only knows the trait, the factory is in [`super::render`].
+    pub renderer: Option<Box<dyn RenderBackend>>,
+    /// A screenshot the renderer is still working on: its id, the file it is written to and whether it is the last of its plan.
+    pub pending_capture: Option<(CaptureId, PathBuf, bool)>,
     /// The window size the renderer was last resized to.
     pub size: (u32, u32),
     pub limiter: FrameLimiter,
@@ -53,6 +56,7 @@ impl Host {
             scene_changes: 0,
             screenshot,
             renderer: None,
+            pending_capture: None,
             size: (0, 0),
             limiter: FrameLimiter::new(settings.max_fps),
             title_timer: Instant::now(),
@@ -81,11 +85,11 @@ impl Host {
         scene.set_spark_style(self.spark_style);
         scene.set_exhaust_flames(self.exhaust_flames);
         let renderer = self.renderer.as_mut().ok_or_else(|| anyhow::anyhow!("the renderer is not ready"))?;
-        scene.init(renderer)?;
+        scene.init(renderer.as_mut())?;
         scene.set_transmission(self.transmission);
         scene.set_wheel_options(self.wheel);
         if self.screenshot.is_some() {
-            super::screenshot::wait_ready(scene.as_mut(), renderer);
+            super::screenshot::wait_ready(scene.as_mut(), renderer.as_mut());
         }
         self.scene = scene;
         self.scene_changes += 1;
