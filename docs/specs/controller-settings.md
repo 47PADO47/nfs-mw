@@ -50,6 +50,21 @@ rebinding while another device remains assigned, signed axes, suppression while 
 tap edges and persistence round trips. Runtime captures check the original Gameplay menu and live console.
 Hardware controller validation remains a distinct claim and requires an actual connected-device exercise.
 
+## Steering wheel
+
+**[ours]**; the original's wheel handling was not read. Wheel axes are `Source::PedalAxis { axis, inverted }`
+(`pedal:` and `pedal_inv:` in text): `(1 + raw) / 2`, or `(1 - raw) / 2` inverted, so a pedal at either end of an
+axis gives 0 to 1. Non-finite input is 0 and an axis that has not reported counts as released, so an unplugged or
+silent wheel never floors the car. The trigger deadzone applies. The steering wheel itself is an ordinary axis and
+takes the steering deadzone and sensitivity (a wheel usually wants the deadzone near 0).
+
+Actions added: `gear_reverse`, `gear_neutral`, `gear_1` to `gear_7` (no defaults) and `clutch` (default key Z).
+`manual_clutch` and `h_shifter` are off by default, are layered like the other settings (config, environment,
+console) and reach the car through `Scene::set_wheel_options`. Their physics is in
+[vehicle-manual-shifting.md](vehicle-manual-shifting.md), section 6. The input layer logs unnamed buttons and non-stick
+axes so the player can find codes. Tests are synthetic (parsing, round trips, conversion, latching, physics); no real
+wheel, H-shifter or clutch pedal was available.
+
 ## Backend filtering
 
 Inspected the Cargo.lock-pinned `bevy_input` and `bevy_gilrs` 0.20.0-rc.2 sources (`src/gamepad.rs`,
