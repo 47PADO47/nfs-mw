@@ -10,7 +10,7 @@ use std::collections::HashMap;
 
 use glam::Vec3;
 
-use crate::{Bezier, NodeInd, RoadNetwork, centre_line};
+use crate::{Bezier, NodeInd, RoadNetwork, centre_line, travel_profile, zone};
 
 /// Metres before the junction node, measured along the approaching segment, where a stopping car waits.
 pub const STOP_LINE_DISTANCE: f32 = 8.0;
@@ -30,6 +30,8 @@ pub const OFFSET_PER_JUNCTION: f32 = 5.3;
 pub const PHASE_ALIGNMENT: f32 = 0.707;
 /// The phases a junction cycles through.
 pub const PHASES: usize = 2;
+/// The distance (metres) from the centre line to the kerb assumed for a road without a traffic lane on its right.
+pub const DEFAULT_KERB: f32 = 4.0;
 /// Pieces the approach curve is cut into to find the stop line.
 const STOP_LINE_SAMPLES: usize = 32;
 
@@ -84,6 +86,9 @@ pub struct Approach {
     pub heading: Vec3,
     /// Which phase (0 or 1) has the green light.
     pub phase: usize,
+    /// Metres from the centre line to the outer edge of the right-most traffic lane in the direction of travel:
+    /// where a signal post stands.
+    pub kerb: f32,
 }
 
 /// A group of nodes joined by decision segments.
@@ -219,9 +224,18 @@ fn approaches_at(net: &RoadNetwork, node: u16, junction: usize) -> Vec<Approach>
             continue;
         }
         let (stop_position, heading) = stop_line(&centre_line(net, s, node_ind), STOP_LINE_DISTANCE);
-        found.push(Approach { junction, segment: s, node, node_ind, stop_position, heading, phase: 0 });
+        let kerb = kerb_offset(net, s, node_ind);
+        found.push(Approach { junction, segment: s, node, node_ind, stop_position, heading, phase: 0, kerb });
     }
     found
+}
+
+/// Metres from the centre line to the outer edge of the right-most traffic lane at the junction end of the
+/// segment, read in the direction of travel towards it.
+fn kerb_offset(net: &RoadNetwork, segment: u16, node_ind: NodeInd) -> f32 {
+    let profile = travel_profile(net, segment, node_ind, true);
+    let outermost = profile.lanes_of(zone::TRAFFIC, true).pop();
+    outermost.map_or(DEFAULT_KERB, |i| profile.signed_offset(i) + profile.zones[i].width / 2.0)
 }
 
 /// The point `metres` before the end of `curve` (measured along it) and the horizontal direction of travel

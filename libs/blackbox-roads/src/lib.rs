@@ -42,8 +42,8 @@ pub use profile::{RoadProfile, Zone, zone};
 pub use road::Road;
 pub use segment::{RoadSegment, flags};
 pub use signal::{
-    ALL_RED_TIME, AMBER_TIME, Approach, GREEN_TIME, Junction, Light, MIN_SIGNAL_APPROACHES, OFFSET_PER_JUNCTION,
-    PHASE_ALIGNMENT, PHASES, STOP_LINE_DISTANCE, SignalController, Timing,
+    ALL_RED_TIME, AMBER_TIME, Approach, DEFAULT_KERB, GREEN_TIME, Junction, Light, MIN_SIGNAL_APPROACHES,
+    OFFSET_PER_JUNCTION, PHASE_ALIGNMENT, PHASES, STOP_LINE_DISTANCE, SignalController, Timing,
 };
 pub use trail::Body;
 pub use trail::{

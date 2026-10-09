@@ -63,6 +63,8 @@ fn the_stop_line_is_before_the_node_along_the_approach() {
     assert!(west.heading.distance(Vec3::X) < 1e-3, "{:?}", west.heading);
     let expected = Vec3::new(-NODE_RADIUS - STOP_LINE_DISTANCE, 0.0, 0.0);
     assert!(west.stop_position.distance(expected) < 0.5, "{:?}", west.stop_position);
+    // The right-most traffic lane of the test profile is centred 6 m out and 4 m wide.
+    assert!((west.kerb - 8.0).abs() < 1e-4, "{}", west.kerb);
     let north = &controller.approaches()[controller.approach_at(3).expect("north")];
     assert!(north.heading.distance(Vec3::NEG_Z) < 1e-3);
 }
