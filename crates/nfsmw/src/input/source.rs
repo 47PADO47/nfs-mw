@@ -24,7 +24,7 @@ pub fn family(source: Source) -> Family {
     match source {
         Source::Key(_) => Family::Keyboard,
         Source::MouseMotion { .. } | Source::Scroll | Source::MouseButton(_) => Family::Mouse,
-        Source::PadAxis(_) | Source::PadButton(_) | Source::PadTrigger(_) => Family::Gamepad,
+        Source::PadAxis(_) | Source::PadButton(_) | Source::PadTrigger(_) | Source::PedalAxis { .. } => Family::Gamepad,
     }
 }
 
@@ -78,6 +78,8 @@ pub fn parse(action: Action, text: &str) -> Result<Binding, String> {
         "button" => Source::PadButton(button(parts[1])?),
         "trigger" => Source::PadTrigger(button(parts[1])?),
         "axis" => Source::PadAxis(decode::<GamepadAxis>(parts[1])?),
+        "pedal" => Source::PedalAxis { axis: decode::<GamepadAxis>(parts[1])?, inverted: false },
+        "pedal_inv" => Source::PedalAxis { axis: decode::<GamepadAxis>(parts[1])?, inverted: true },
         "mouse" => match parts[1] {
             "scroll" => Source::Scroll,
             "look_x" => Source::MouseMotion { y: false, gate: Gate::Look },
@@ -86,7 +88,7 @@ pub fn parse(action: Action, text: &str) -> Result<Binding, String> {
             "orbit_y" => Source::MouseMotion { y: true, gate: Gate::Drag },
             name => Source::MouseButton(decode::<MouseButton>(name)?),
         },
-        _ => return Err("input kind is key, button, trigger, axis or mouse".into()),
+        _ => return Err("input kind is key, button, trigger, axis, pedal, pedal_inv or mouse".into()),
     };
     let scale: f32 = parts.get(2).map_or(Ok(1.0), |s| s.parse().map_err(|_| "invalid input scale".to_owned()))?;
     if !scale.is_finite() || scale.abs() > 10000.0 || scale == 0.0 {
@@ -109,6 +111,8 @@ pub fn encode(binding: &Binding) -> String {
         Source::PadButton(b) => format!("button:{b:?}"),
         Source::PadTrigger(b) => format!("trigger:{b:?}"),
         Source::PadAxis(a) => format!("axis:{a:?}"),
+        Source::PedalAxis { axis, inverted: false } => format!("pedal:{axis:?}"),
+        Source::PedalAxis { axis, inverted: true } => format!("pedal_inv:{axis:?}"),
         Source::MouseButton(b) => format!("mouse:{b:?}"),
         Source::Scroll => "mouse:scroll".into(),
         Source::MouseMotion { y, gate } => {

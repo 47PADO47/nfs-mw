@@ -91,6 +91,16 @@ The package leaves a stand-in icon (`OPTION_MASTER`, the image at the cursor) th
 it positions the icons itself every frame: the package's scripts also write colours and sizes, so the host writes
 its values after the update.
 
+**Row transitions [decomp, verified].** The scroller grows in over nine 60 Hz frames, with a linear factor from
+zero to one. The package sends `EXIT_STARTED` (`0x84378BEF`) when its leave script starts; the scroller then
+shrinks out over nine frames and remains at zero until the screen switches. Multiply the geometric scale above
+by this factor before setting size and colour, keeping each icon centred at `(x', cy)`. This applies to every
+slot, including book ends; it does not replace the navigation ease or the package's header/footer animations.
+The event and its timing were verified in the main, category and pause packages; the nine-frame duration comes
+from the reference scroller. **Ours:** use elapsed seconds at the same 0.15 s duration, and preserve the current
+factor if exit interrupts entrance or repeats, avoiding a jump back to full size. The embedded Controls icon
+uses the same slot animation as the installed icons.
+
 ### 2.1 Main menu entries [decomp]
 
 Entries this rewrite cannot do yet (Challenge Series, My Cars, the profile manager) are greyed out (alpha 150, never
@@ -183,6 +193,7 @@ screens, labels and behaviour where a label exists:
 | Audio | Sound Effects Volume | `0xFD487543` | `sfx_volume` |
 | Audio | Engine Volume | `0xA2B1F888` | `engine_volume` |
 | Audio | Menu Music Volume | `0x418E681D` | `music_volume` |
+| Audio | Speech Volume | `0x9E5FB82A` | `speech_volume` |
 | Video | Vsync | `0x6CEB9CB6` | `vsync` (On / Off) |
 | Video | Frame Limit | none in the language table, plain text | `max_fps` (Unlocked, 30, 60, 120, 144, 240) |
 | Video | Performance Overlay | none, plain text | `show_metrics` (Off, Basic, Advanced) |

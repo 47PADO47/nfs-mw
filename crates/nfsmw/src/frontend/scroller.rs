@@ -7,8 +7,36 @@ pub const WIDTH: f32 = 350.0;
 pub const SPACING: f32 = -5.0;
 /// Seconds the scroll takes to reach a new selection.
 pub const SCROLL_SECONDS: f32 = 0.2;
-/// Frames the icons take to fade in, at 60 frames per second.
+/// Frames the icons take to grow in or shrink out, at 60 frames per second.
 pub const FADE_FRAMES: f32 = 9.0;
+
+/// The whole row's transition, multiplied into each icon's navigation scale and colour.
+/// A new row enters from zero; an exiting row stays at zero until the package is replaced.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Fade {
+    value: f32,
+    leaving: bool,
+}
+
+impl Fade {
+    pub fn value(&self) -> f32 {
+        self.value
+    }
+
+    /// Preserve the current size when entrance is interrupted or the exit event repeats.
+    pub fn leave(&mut self) {
+        self.leaving = true;
+    }
+
+    pub fn update(&mut self, dt: f32) {
+        let step = dt.max(0.0) * 60.0 / FADE_FRAMES;
+        if self.leaving {
+            self.value = (self.value - step).max(0.0);
+            return;
+        }
+        self.value = (self.value + step).min(1.0);
+    }
+}
 
 /// 1 near the centre, falling linearly to 0 at the ends of the scroller, 0 outside it.
 pub fn scale(x: f32, center: f32, scroll_size: f32) -> f32 {
@@ -80,6 +108,49 @@ impl Scroll {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_row_enters_and_leaves_in_the_same_time_at_different_frame_rates() {
+        for fps in [30, 60, 120] {
+            let mut fade = Fade::default();
+            assert_eq!(fade.value(), 0.0);
+            for _ in 0..fps / 10 {
+                fade.update(1.0 / fps as f32);
+            }
+            assert!((fade.value() - 2.0 / 3.0).abs() < 1e-5);
+            fade.update(0.05);
+            assert!((fade.value() - 1.0).abs() < 1e-5);
+            fade.update(1.0);
+            assert_eq!(fade.value(), 1.0);
+            fade.leave();
+            for _ in 0..fps / 10 {
+                fade.update(1.0 / fps as f32);
+            }
+            assert!((fade.value() - 1.0 / 3.0).abs() < 1e-5);
+            fade.update(0.06);
+            assert_eq!(fade.value(), 0.0);
+            fade.update(1.0);
+            assert_eq!(fade.value(), 0.0, "the hidden row must not reappear before the package switches");
+        }
+    }
+
+    #[test]
+    fn interrupted_and_repeated_exit_does_not_pop_the_icons_back_to_full_size() {
+        let mut fade = Fade::default();
+        fade.update(0.05);
+        let entering = fade.value();
+        fade.leave();
+        assert_eq!(fade.value(), entering);
+        fade.update(1.0 / 60.0);
+        let leaving = fade.value();
+        assert!(leaving < entering);
+        fade.leave();
+        assert_eq!(fade.value(), leaving);
+        fade.update(0.2);
+        fade.leave();
+        fade.update(1.0);
+        assert_eq!(fade.value(), 0.0);
+    }
 
     #[test]
     fn the_centre_is_full_size_and_the_ends_vanish() {

@@ -4,6 +4,7 @@
 
 mod assemble;
 mod ecar;
+pub mod exhaust;
 mod paint;
 mod parts;
 pub mod physics;

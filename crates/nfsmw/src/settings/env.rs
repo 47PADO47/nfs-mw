@@ -20,6 +20,7 @@ pub const MASTER_VOLUME: &str = "NFSMW_MASTER_VOLUME";
 pub const MUSIC_VOLUME: &str = "NFSMW_MUSIC_VOLUME";
 pub const SFX_VOLUME: &str = "NFSMW_SFX_VOLUME";
 pub const ENGINE_VOLUME: &str = "NFSMW_ENGINE_VOLUME";
+pub const SPEECH_VOLUME: &str = "NFSMW_SPEECH_VOLUME";
 pub const HUD: &str = "NFSMW_HUD";
 pub const TIRE_SMOKE: &str = "NFSMW_TIRE_SMOKE";
 pub const RADIO: &str = "NFSMW_RADIO";
@@ -28,11 +29,14 @@ pub const SKID_MARKS: &str = "NFSMW_SKID_MARKS";
 pub const COLLISION_SPARKS: &str = "NFSMW_COLLISION_SPARKS";
 pub const SPARK_STYLE: &str = "NFSMW_SPARK_STYLE";
 pub const SPEED_TRAILS: &str = "NFSMW_SPEED_TRAILS";
+pub const EXHAUST_FLAMES: &str = "NFSMW_EXHAUST_FLAMES";
 pub const TRANSMISSION: &str = "NFSMW_TRANSMISSION";
 pub const MINIMAP: &str = "NFSMW_MINIMAP";
 pub const HUD_LAYOUT: &str = "NFSMW_HUD_LAYOUT";
 pub const PADDLE_UP: &str = "NFSMW_PADDLE_UP";
 pub const PADDLE_DOWN: &str = "NFSMW_PADDLE_DOWN";
+pub const MANUAL_CLUTCH: &str = "NFSMW_MANUAL_CLUTCH";
+pub const H_SHIFTER: &str = "NFSMW_H_SHIFTER";
 
 /// Read the layer through `get`, so tests need not touch the process environment. A value that
 /// does not parse is reported and ignored.
@@ -58,6 +62,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         music_volume: value(&get, MUSIC_VOLUME, Percent::from_str),
         sfx_volume: value(&get, SFX_VOLUME, Percent::from_str),
         engine_volume: value(&get, ENGINE_VOLUME, Percent::from_str),
+        speech_volume: value(&get, SPEECH_VOLUME, Percent::from_str),
         hud: value(&get, HUD, parse_bool),
         tire_smoke: value(&get, TIRE_SMOKE, parse_bool),
         radio: value(&get, RADIO, parse_bool),
@@ -66,11 +71,14 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         collision_sparks: value(&get, COLLISION_SPARKS, parse_bool),
         spark_style: value(&get, SPARK_STYLE, super::SparkStyle::from_str),
         speed_trails: value(&get, SPEED_TRAILS, parse_bool),
+        exhaust_flames: value(&get, EXHAUST_FLAMES, parse_bool),
         transmission: value(&get, TRANSMISSION, Transmission::from_str),
         minimap: value(&get, MINIMAP, MinimapMode::from_str),
         hud_layout: value(&get, HUD_LAYOUT, HudLayout::from_str),
         paddle_up: value(&get, PADDLE_UP, |s| s.trim().parse::<u32>().map_err(|e| e.to_string())),
         paddle_down: value(&get, PADDLE_DOWN, |s| s.trim().parse::<u32>().map_err(|e| e.to_string())),
+        manual_clutch: value(&get, MANUAL_CLUTCH, parse_bool),
+        h_shifter: value(&get, H_SHIFTER, parse_bool),
     }
 }
 
@@ -118,6 +126,8 @@ mod tests {
         let p = layer(&[(MASTER_VOLUME, "50"), (MUSIC_VOLUME, "20%"), (SFX_VOLUME, "loud")]);
         assert_eq!((p.master_volume, p.music_volume), (Some(Percent(50)), Some(Percent(20))));
         assert_eq!((p.sfx_volume, p.engine_volume), (None, None));
+        assert_eq!(layer(&[(SPEECH_VOLUME, "35")]).speech_volume, Some(Percent(35)));
+        assert_eq!(p.speech_volume, None);
     }
 
     #[test]
@@ -126,6 +136,14 @@ mod tests {
         assert_eq!(layer(&[(TRANSMISSION, "sport")]).transmission, None);
         let p = layer(&[(PADDLE_UP, "12"), (PADDLE_DOWN, "left")]);
         assert_eq!((p.paddle_up, p.paddle_down), (Some(12), None));
+    }
+
+    #[test]
+    fn reads_the_wheel_switches() {
+        let p = layer(&[(MANUAL_CLUTCH, "on"), (H_SHIFTER, "0")]);
+        assert_eq!((p.manual_clutch, p.h_shifter), (Some(true), Some(false)));
+        let bad = layer(&[(MANUAL_CLUTCH, "pedal")]);
+        assert_eq!(bad.manual_clutch, None);
     }
 
     #[test]

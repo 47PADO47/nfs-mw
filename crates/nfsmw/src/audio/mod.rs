@@ -9,11 +9,13 @@ mod car;
 pub mod commands;
 mod engine;
 mod fx;
+mod interactive;
 mod mixer;
 mod pcm;
 mod plugin;
 mod radio;
 mod refs;
+mod speech;
 mod tuning;
 mod volume;
 
@@ -30,6 +32,7 @@ use nfsmw_data::sound::{CarSound, EngineLoops, SoundUpgrades};
 
 pub use car::{CarEvent, CarSoundState};
 pub use engine::{EngineHandle, EngineMix, EngineVoice, LoopMix};
+pub use interactive::MusicInput;
 pub use plugin::AudioPlugin;
 pub use radio::NowPlaying;
 pub use volume::{Group, Volumes};
@@ -61,6 +64,10 @@ pub struct Audio {
     radio: radio::RadioSlot,
     /// Whether the settings let the radio play (the `radio` console command can still start it).
     radio_wanted: bool,
+    /// The police dispatch's speech, loaded when first needed.
+    speech: speech::SpeechSlot,
+    /// The pursuit music, which takes the songs' place while a chase is on.
+    interactive: interactive::Interactive,
     /// Bank sounds that could not be loaded, so each is reported once.
     missing: HashSet<(String, usize)>,
     /// The car whose sound could not be loaded, so the failure is not repeated every frame.
@@ -105,6 +112,8 @@ impl Audio {
             stitches: None,
             radio: radio::RadioSlot::default(),
             radio_wanted: true,
+            speech: speech::SpeechSlot::default(),
+            interactive: interactive::Interactive::default(),
             missing: HashSet::new(),
             failed: None,
             music: None,

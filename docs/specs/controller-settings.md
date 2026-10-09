@@ -22,7 +22,7 @@ percentage alone with a rescaled curve does not produce the same response.
   to the stick; mouse sensitivity applies to mouse motion. Menu navigation keeps its existing threshold.
 - Stick camera motion is integrated per second. Mouse deltas are already per frame and are never multiplied
   by the frame duration. Inversion is applied exactly once after the existing source direction convention.
-- Config file, environment, console and the Gameplay menu share the same validated types. Invalid values
+- Config file, environment, console and the Controls menu share the same validated types. Invalid values
   leave the lower layer or current value intact. Menu edits persist through the existing settings writer.
 - Expanded lists reuse the package's visible row objects while scrolling, so every response option retains
   its title, value, focus and edit controls in both the main-menu and pause-menu layouts.
@@ -49,6 +49,21 @@ invalid/non-finite values, analog triggers, inversion, per-frame mouse versus pe
 rebinding while another device remains assigned, signed axes, suppression while the console is focused,
 tap edges and persistence round trips. Runtime captures check the original Gameplay menu and live console.
 Hardware controller validation remains a distinct claim and requires an actual connected-device exercise.
+
+## Steering wheel
+
+**[ours]**; the original's wheel handling was not read. Wheel axes are `Source::PedalAxis { axis, inverted }`
+(`pedal:` and `pedal_inv:` in text): `(1 + raw) / 2`, or `(1 - raw) / 2` inverted, so a pedal at either end of an
+axis gives 0 to 1. Non-finite input is 0 and an axis that has not reported counts as released, so an unplugged or
+silent wheel never floors the car. The trigger deadzone applies. The steering wheel itself is an ordinary axis and
+takes the steering deadzone and sensitivity (a wheel usually wants the deadzone near 0).
+
+Actions added: `gear_reverse`, `gear_neutral`, `gear_1` to `gear_7` (no defaults) and `clutch` (default key Z).
+`manual_clutch` and `h_shifter` are off by default, are layered like the other settings (config, environment,
+console) and reach the car through `Scene::set_wheel_options`. Their physics is in
+[vehicle-manual-shifting.md](vehicle-manual-shifting.md), section 6. The input layer logs unnamed buttons and non-stick
+axes so the player can find codes. Tests are synthetic (parsing, round trips, conversion, latching, physics); no real
+wheel, H-shifter or clutch pedal was available.
 
 ## Backend filtering
 

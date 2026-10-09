@@ -5,6 +5,7 @@ mod driving;
 mod feel;
 mod manual;
 mod robustness;
+mod wheel;
 
 use glam::{Quat, Vec3};
 

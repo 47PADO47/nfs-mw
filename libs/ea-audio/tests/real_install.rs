@@ -2,7 +2,7 @@
 //!
 //! Run with `cargo test --release -p ea-audio -- --ignored --nocapture`. Nothing decoded is written anywhere.
 
-use ea_audio::{Pcm, ReadAt, abk, big, gin, mus};
+use ea_audio::{Pcm, ReadAt, abk, big, gin, mus, speech};
 use std::fs::File;
 use std::path::{Path, PathBuf};
 
@@ -187,6 +187,27 @@ fn check_big(file: &str, expected_streams: usize, expected_rate_set: &[u32], cli
 fn copspeech_has_13562_microtalk_streams() {
     // Radio speech is mastered at full scale: nearly every stream touches the rails in runs of at most a few samples.
     check_big("SPEECH/copspeech.big", 13562, &[24000], 5);
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn copspeech_index_places_every_take_on_a_stream() {
+    let Some(dir) = sound_dir() else { return };
+    let source = FileSource::open(&dir.join("SPEECH/copspeech.big"));
+    let idx = speech::SpeechIndex::parse(&std::fs::read(dir.join("SPEECH/copspeech.idx")).unwrap()).unwrap();
+    assert_eq!(idx.banks().len(), 579);
+    assert_eq!(idx.take_count(), 13562);
+    let starts: std::collections::HashSet<u64> = big::scan(&source).unwrap().iter().map(|e| e.offset).collect();
+    for (n, bank) in idx.banks().iter().enumerate() {
+        assert_eq!(bank.number as usize, n);
+        for take in 0..bank.header.takes() {
+            let at = bank.take_offset(take).unwrap();
+            assert!(starts.contains(&at), "bank {n} take {take} at {at:#x} is not a stream");
+        }
+    }
+    // A take decodes to speech at the codec's rate.
+    let pcm = idx.banks()[2].decode(&source, 0).unwrap();
+    assert_eq!(pcm.sample_rate, 24000);
 }
 
 #[test]

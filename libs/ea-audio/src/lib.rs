@@ -7,6 +7,7 @@
 //! - [`mus`]: the interactive-music map (`.mpf`) that locates streams in the `.mus` file.
 //! - [`big`]: scanning `.big` containers that hold many streams.
 //! - [`gin`]: the audio inside granular engine loops.
+//! - [`speech`]: the `.idx` index of a speech `.big` (banks of takes per phrase and speaker).
 //! - [`codec`]: EA-XA, EA-XAS and MicroTalk.
 //! - [`ReadAt`]: random access for sources too large to load, such as the 533 MB music file.
 //!
@@ -31,6 +32,7 @@ pub mod mus;
 mod pcm;
 pub mod schl;
 mod source;
+pub mod speech;
 
 #[cfg(test)]
 mod tests;

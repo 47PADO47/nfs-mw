@@ -78,6 +78,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.engine_volume {
         put("engine_volume", Value::Integer(i64::from(v.0)));
     }
+    if let Some(v) = changes.speech_volume {
+        put("speech_volume", Value::Integer(i64::from(v.0)));
+    }
     if let Some(v) = changes.hud {
         put("hud", Value::Boolean(v));
     }
@@ -99,6 +102,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.speed_trails {
         put("speed_trails", Value::Boolean(v));
     }
+    if let Some(v) = changes.exhaust_flames {
+        put("exhaust_flames", Value::Boolean(v));
+    }
     if let Some(v) = changes.smoke_quality {
         put("smoke_quality", Value::String(v.to_string()));
     }
@@ -116,6 +122,12 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     }
     if let Some(v) = changes.paddle_down {
         put("paddle_down", Value::Integer(i64::from(v)));
+    }
+    if let Some(v) = changes.manual_clutch {
+        put("manual_clutch", Value::Boolean(v));
+    }
+    if let Some(v) = changes.h_shifter {
+        put("h_shifter", Value::Boolean(v));
     }
     toml::to_string(&table).context("serializing the config file")
 }
@@ -191,12 +203,15 @@ mod tests {
             music_volume: Some(Percent(20)),
             sfx_volume: Some(Percent(30)),
             engine_volume: Some(Percent(40)),
+            speech_volume: Some(Percent(50)),
             hud: Some(false),
             radio: Some(false),
             transmission: Some(crate::settings::Transmission::Manual),
             minimap: Some(crate::settings::MinimapMode::Rotating),
             paddle_up: Some(5),
             paddle_down: Some(6),
+            manual_clutch: Some(true),
+            h_shifter: Some(true),
             ..Partial::default()
         };
         let text = merge("", &changes).unwrap();

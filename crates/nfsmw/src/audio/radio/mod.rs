@@ -9,12 +9,12 @@
 mod backend;
 mod commands;
 mod controls;
-mod feeder;
+pub(in crate::audio) mod feeder;
 mod glue;
 pub mod input;
 mod playlist;
 mod state;
-mod stream;
+pub(in crate::audio) mod stream;
 #[cfg(test)]
 mod tests;
 

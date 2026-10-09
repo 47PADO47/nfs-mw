@@ -1,4 +1,4 @@
-//! Gameplay response rows; kept separate from the original option categories.
+//! Controls response rows; kept separate from the original option categories.
 
 use super::options::{Data, Title};
 use crate::settings::{DeadzoneMode, Partial, Settings};

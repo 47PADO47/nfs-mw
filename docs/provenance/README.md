@@ -26,6 +26,8 @@ a record. Process: [licensing.md § Spec-first](../licensing.md#spec-first).
 | [AEMS module banks](aems.md) | [specs/aems.md](../specs/aems.md), [specs/engine-sound-aems.md](../specs/engine-sound-aems.md), [formats/aems.md](../formats/aems.md) | dbalatoni13/nfsmw `Libs/snd/9/*`, `EAXSound/CARSFX/*`, `SND_GEN/ENGINES_AEMS2.h` (decompiled, CC0); `speed.exe` disassembled locally for the function numbering |
 | [HUD minimap](hud-minimap.md) | [specs/hud-minimap.md](../specs/hud-minimap.md), [formats/minimap.md](../formats/minimap.md) | dbalatoni13/nfsmw `Frontend/HUD/FeMinimap*.cpp`, `FeHudElement.cpp`, `FEPkg_Hud.cpp`, `World/TrackInfo.hpp` (decompiled, CC0); `speed.exe` 1.3 disassembled locally to confirm the formulas and read the globals |
 | [Music graph and radio](music-graph.md) | [specs/music-graph.md](../specs/music-graph.md) | `speed.exe` PathFinder and EA Trax code (disassembly); dbalatoni13/nfsmw `SFXObj_Pathfinder.cpp`, `FEDatabase.cpp`, `FEManager.cpp` (decompiled, CC0) |
+| [Speech](speech.md) | [specs/speech.md](../specs/speech.md), [formats/audio.md](../formats/audio.md) | dbalatoni13/nfsmw `EAXSound/Stream/Speech*.cpp`, `GameSpeech.cpp`, `SND_GEN/COPSPEECH.cpp`, AttribSys class `speech` (decompiled, CC0); header-only SPCH and CSIS |
+| [Exhaust flames](exhaust-flames.md) | [specs/exhaust-flames.md](../specs/exhaust-flames.md) | dbalatoni13/nfsmw `World/CarRenderConn.cpp`, `VehicleRenderConn.cpp`, `CarRender.cpp`, `Ecstasy/EmitterSystem.cpp`, `Physics/Behaviors/DrawCar.cpp`, AttribSys class headers (decompiled, CC0) |
 
 ## Template
 

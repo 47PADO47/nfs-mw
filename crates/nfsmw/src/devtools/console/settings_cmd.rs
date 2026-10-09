@@ -8,7 +8,7 @@ use crate::devtools::{ShowMetrics, ShowReadout};
 use crate::settings::{HudLayout, MinimapMode, Percent, Settings, Transmission, parse_bool};
 
 /// Settings the console can show.
-const KEYS: [&str; 31] = [
+const KEYS: [&str; 35] = [
     "deadzone_mode",
     "steering_deadzone",
     "camera_deadzone",
@@ -29,6 +29,7 @@ const KEYS: [&str; 31] = [
     "music_volume",
     "sfx_volume",
     "engine_volume",
+    "speech_volume",
     "hud",
     "tire_smoke",
     "radio",
@@ -37,9 +38,12 @@ const KEYS: [&str; 31] = [
     "collision_sparks",
     "spark_style",
     "speed_trails",
+    "exhaust_flames",
     "transmission",
     "minimap",
     "hud_layout",
+    "manual_clutch",
+    "h_shifter",
 ];
 
 /// The text for `get <key>`, or an error naming the valid keys.
@@ -65,6 +69,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "music_volume" => settings.music_volume.to_string(),
         "sfx_volume" => settings.sfx_volume.to_string(),
         "engine_volume" => settings.engine_volume.to_string(),
+        "speech_volume" => settings.speech_volume.to_string(),
         "hud" => on_off(settings.hud).to_owned(),
         "tire_smoke" => on_off(settings.tire_smoke).to_owned(),
         "radio" => on_off(settings.radio).to_owned(),
@@ -73,9 +78,12 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "collision_sparks" => on_off(settings.collision_sparks).to_owned(),
         "spark_style" => settings.spark_style.to_string(),
         "speed_trails" => on_off(settings.speed_trails).to_owned(),
+        "exhaust_flames" => on_off(settings.exhaust_flames).to_owned(),
         "transmission" => settings.transmission.to_string(),
         "minimap" => settings.minimap.to_string(),
         "hud_layout" | "hud-layout" => settings.hud_layout.to_string(),
+        "manual_clutch" => on_off(settings.manual_clutch).to_owned(),
+        "h_shifter" => on_off(settings.h_shifter).to_owned(),
         other => return Err(unknown(other)),
     };
     Ok(format!("{key} = {value}"))
@@ -112,6 +120,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "music_volume" => settings.music_volume = Percent::from_str(value)?,
         "sfx_volume" => settings.sfx_volume = Percent::from_str(value)?,
         "engine_volume" => settings.engine_volume = Percent::from_str(value)?,
+        "speech_volume" => settings.speech_volume = Percent::from_str(value)?,
         "hud" => settings.hud = parse_bool(value)?,
         "tire_smoke" => settings.tire_smoke = parse_bool(value)?,
         "radio" => settings.radio = parse_bool(value)?,
@@ -120,9 +129,12 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "collision_sparks" => settings.collision_sparks = parse_bool(value)?,
         "spark_style" => settings.spark_style = value.parse()?,
         "speed_trails" => settings.speed_trails = parse_bool(value)?,
+        "exhaust_flames" => settings.exhaust_flames = parse_bool(value)?,
         "transmission" => settings.transmission = Transmission::from_str(value)?,
         "minimap" => settings.minimap = MinimapMode::from_str(value)?,
         "hud_layout" | "hud-layout" => settings.hud_layout = HudLayout::from_str(value)?,
+        "manual_clutch" => settings.manual_clutch = parse_bool(value)?,
+        "h_shifter" => settings.h_shifter = parse_bool(value)?,
         "backend" => return Err("the graphics backend cannot change while running; restart with --backend".into()),
         other => return Err(unknown(other)),
     }
@@ -139,7 +151,10 @@ fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
         "skid_marks" => Some(&mut settings.skid_marks),
         "collision_sparks" => Some(&mut settings.collision_sparks),
         "speed_trails" => Some(&mut settings.speed_trails),
+        "exhaust_flames" => Some(&mut settings.exhaust_flames),
         "radio" => Some(&mut settings.radio),
+        "manual_clutch" => Some(&mut settings.manual_clutch),
+        "h_shifter" => Some(&mut settings.h_shifter),
         _ => None,
     }
 }
@@ -156,7 +171,7 @@ fn syntax(key: &str) -> Option<&'static str> {
         "window_mode" => "<windowed|borderless|exclusive>",
         "monitor" => "<current|primary|index>",
         "resolution" => "<WIDTHxHEIGHT|native>",
-        "volume" | "master_volume" | "music_volume" | "sfx_volume" | "engine_volume" => "<0-100>",
+        "volume" | "master_volume" | "music_volume" | "sfx_volume" | "engine_volume" | "speech_volume" => "<0-100>",
         "smoke_quality" => "<standard|high>",
         "spark_style" => "<original-pc|restored-experimental>",
         "transmission" => "<automatic|manual>",
@@ -224,6 +239,15 @@ mod tests {
     }
 
     #[test]
+    fn the_speech_volume_is_set_like_the_other_volumes() {
+        let mut s = defaults();
+        assert_eq!(set(&mut s, "speech_volume", "35").unwrap(), "speech_volume = 35");
+        assert_eq!(s.speech_volume.0, 35);
+        assert_eq!(get(&s, "speech_volume").unwrap(), "speech_volume = 35");
+        assert!(set(&mut s, "speech_volume", "").unwrap_err().starts_with("usage: set speech_volume <0-100>"));
+    }
+
+    #[test]
     fn the_transmission_is_set_by_name() {
         let mut s = defaults();
         assert_eq!(get(&s, "transmission").unwrap(), "transmission = automatic");
@@ -231,6 +255,19 @@ mod tests {
         assert_eq!(s.transmission, Transmission::Manual);
         assert!(set(&mut s, "transmission", "sport").is_err());
         assert_eq!(s.transmission, Transmission::Manual);
+    }
+
+    #[test]
+    fn the_wheel_switches_start_off_and_can_be_set_or_flipped() {
+        let mut s = defaults();
+        assert_eq!(get(&s, "manual_clutch").unwrap(), "manual_clutch = off");
+        assert_eq!(get(&s, "h_shifter").unwrap(), "h_shifter = off");
+        assert_eq!(set(&mut s, "manual_clutch", "on").unwrap(), "manual_clutch = on");
+        assert_eq!(set(&mut s, "h_shifter", "").unwrap(), "h_shifter = on");
+        assert!(s.wheel_options().manual_clutch && s.wheel_options().h_shifter);
+        assert!(set(&mut s, "manual_clutch", "pedal").is_err());
+        assert!(s.manual_clutch, "a bad value leaves the setting alone");
+        assert!(get_all(&s).contains("h_shifter = on"));
     }
 
     #[test]

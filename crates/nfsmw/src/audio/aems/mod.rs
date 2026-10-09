@@ -108,6 +108,11 @@ impl AemsLayer {
         object.and_then(|params| params.first()).is_some_and(|&volume| volume != 0)
     }
 
+    /// The pops the sputter has played since the last call: each is a voice its module started.
+    pub fn take_pops(&mut self) -> u32 {
+        self.sputter.as_mut().map_or(0, |p| p.voices.take_started())
+    }
+
     /// Whether the engine sample module and every requested voice are usable. A missing or failed engine
     /// cannot replace the Ginsu loops at the limiter; a failed sputter does not affect that replacement.
     pub fn engine_available(&self) -> bool {
