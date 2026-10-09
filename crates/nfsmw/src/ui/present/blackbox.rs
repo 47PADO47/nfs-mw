@@ -1,6 +1,7 @@
 //! The presenter for `blackbox-render`: quads and glyphs of the tree as premultiplied UI meshes, and the
 //! textures they need as UI texture patches.
 
+use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 
 use blackbox_feng::{NodeKind, UiNode, UiTree, font::TextStyle};
@@ -19,24 +20,37 @@ const MASKED_TEXTURE_BIT: u64 = 1 << 61;
 /// Mask rotations are rebuilt at this resolution, in steps per degree.
 const MASK_STEPS_PER_DEGREE: f32 = 4.0;
 
-/// A multi image drawn through its mask: which textures, and the rotation the slot's pixels were built for.
+/// A multi image drawn through its mask: the slot is the object's (and its mask's), whatever picture it shows.
 #[derive(Hash, PartialEq, Eq, Clone, Copy)]
 struct MaskedKey {
     guid: u32,
-    base: u32,
     mask: u32,
+}
+
+/// What the pixels of a slot were built from.
+#[derive(PartialEq, Clone, Copy)]
+struct Built {
+    /// The picture, as the texture that supplied it.
+    base: u32,
+    /// The rotation in `MASK_STEPS_PER_DEGREE` steps.
+    step: i32,
+    /// The bits of the mask's pivot and of its window.
+    pivot: [u32; 2],
+    window: [u32; 4],
 }
 
 struct MaskedSlot {
     id: UiTextureId,
-    /// The rotation (in `MASK_STEPS_PER_DEGREE` steps) and pivot the pixels in the slot were built for.
-    built: Option<(i32, [u32; 2])>,
+    built: Option<Built>,
 }
 
 #[derive(Default)]
 pub struct BlackboxPresenter {
     uploaded: HashSet<u32>,
     masked: HashMap<MaskedKey, MaskedSlot>,
+    /// Pictures and masks decoded for composing, by the texture that supplied them (the minimap composes four
+    /// of them every frame).
+    decoded: HashMap<u32, Image>,
 }
 
 fn id_of(hash: u32) -> UiTextureId {
@@ -99,6 +113,11 @@ impl MeshBuilder {
 }
 
 impl BlackboxPresenter {
+    #[cfg(test)]
+    pub(crate) fn cache_sizes(&self) -> (usize, usize, usize) {
+        (self.uploaded.len(), self.masked.len(), self.decoded.len())
+    }
+
     /// Builds the HUD meshes for `tree` and prepends them to the frame's UI layer (egui's panels stay on top);
     /// uploads the textures it has not uploaded yet.
     pub fn present(&mut self, tree: &UiTree, assets: &UiAssets, screen: Screen, out: &mut UiOutput) {
@@ -108,9 +127,9 @@ impl BlackboxPresenter {
         for &i in &tree.draw_order {
             let node = &tree.nodes[i];
             match &node.kind {
-                NodeKind::Image { texture, uv, mask, mask_rotation } => {
+                NodeKind::Image { texture, uv, mask, mask_rotation, mask_uv } => {
                     let drawn = match mask {
-                        Some(mask) => self.masked(node, (*texture, *mask), *mask_rotation, assets, out),
+                        Some(mask) => self.masked(node, (*texture, *mask), *mask_rotation, *mask_uv, assets, out),
                         None => self.ensure(*texture, assets, out),
                     };
                     self.image(node, drawn, *uv, &mut builder, scale, origin);
@@ -142,37 +161,60 @@ impl BlackboxPresenter {
         Some((id_of(resolved), additive))
     }
 
+    /// A texture decoded for composing, kept for the next frame.
+    fn decode(&mut self, key: u32, assets: &UiAssets) -> Option<&Image> {
+        match self.decoded.entry(key) {
+            Entry::Occupied(e) => Some(e.into_mut()),
+            Entry::Vacant(e) => Some(e.insert(assets.image(key)?)),
+        }
+    }
+
     /// The texture of a multi image: the picture through its mask, rebuilt into the node's own slot when the
-    /// mask has turned. Without the mask texture the picture is drawn whole.
+    /// mask has turned or its window has moved. Without the mask texture the picture is drawn whole.
     fn masked(
         &mut self,
         node: &UiNode,
         (texture, mask): (u32, u32),
         rotation: [f32; 3],
+        window: [f32; 4],
         assets: &UiAssets,
         out: &mut UiOutput,
     ) -> Option<(UiTextureId, bool)> {
         let (base, mask) = (assets.resolve(texture), assets.resolve(mask));
         let additive = assets.texture(base).is_some_and(|t| t.alpha_blend == 2);
-        let key = MaskedKey { guid: node.guid, base, mask };
+        let key = MaskedKey { guid: node.guid, mask };
         let next_slot = self.masked.len() as u64;
         let slot = self.masked.entry(key).or_insert_with(|| MaskedSlot {
             id: UiTextureId(HUD_TEXTURE_BIT | MASKED_TEXTURE_BIT | next_slot),
             built: None,
         });
         let step = (rotation[2] * MASK_STEPS_PER_DEGREE).round() as i32;
-        let state = (step, [rotation[0].to_bits(), rotation[1].to_bits()]);
-        if slot.built == Some(state) {
-            return Some((slot.id, additive));
+        let built = Built {
+            base,
+            step,
+            pivot: [rotation[0].to_bits(), rotation[1].to_bits()],
+            window: window.map(f32::to_bits),
+        };
+        let id = slot.id;
+        if slot.built == Some(built) {
+            return Some((id, additive));
         }
-        let (Some(picture), Some(mask_image)) = (assets.image(base), assets.image(mask)) else {
+        self.decode(base, assets);
+        self.decode(mask, assets);
+        let (Some(picture), Some(mask_image)) = (self.decoded.get(&base), self.decoded.get(&mask)) else {
             return self.ensure(texture, assets, out);
         };
         let degrees = step as f32 / MASK_STEPS_PER_DEGREE;
-        let composed = mask::compose(&picture, &mask_image, [rotation[0], rotation[1]], degrees);
-        slot.built = Some(state);
-        send(slot.id, composed, out);
-        Some((slot.id, additive))
+        let mut composed = mask::compose(picture, mask_image, [rotation[0], rotation[1]], degrees, window);
+        if additive {
+            // An additive picture adds its colour: where the mask hides it the colour has to go too.
+            mask::premultiply(&mut composed);
+        }
+        if let Some(slot) = self.masked.get_mut(&key) {
+            slot.built = Some(built);
+        }
+        send(id, composed, out);
+        Some((id, additive))
     }
 
     fn image(

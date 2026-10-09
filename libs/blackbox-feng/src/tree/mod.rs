@@ -13,12 +13,15 @@ pub enum NodeKind {
     /// A textured quad: the unit square scaled by the size, textured with `texture` (a key in the texture
     /// packs; 0 = none) over the UV rectangle `[u0, v0, u1, v1]`. `mask` is the second texture of a multi image;
     /// `mask_rotation` is its pivot (`x`, `y`, fractions of the texture) and rotation (degrees), which the game
-    /// changes to fill a gauge (`[0.5, 0.5, 0.0]` for any other image).
+    /// changes to fill a gauge (`[0.5, 0.5, 0.0]` for any other image). `mask_uv` is the part of the mask texture
+    /// that covers the image, `[u0, v0, u1, v1]`: the whole texture for a gauge, a window that moves for the
+    /// minimap (the unit square for any other image).
     Image {
         texture: u32,
         uv: [f32; 4],
         mask: Option<u32>,
         mask_rotation: [f32; 3],
+        mask_uv: [f32; 4],
     },
     /// A string. `font` is the font key (the resource handle of its `.ffn`).
     Text {
@@ -128,6 +131,10 @@ impl Runtime {
                             [at(0), at(1), at(2)]
                         }
                         None => [0.5, 0.5, 0.0],
+                    },
+                    mask_uv: match def_obj.multi {
+                        Some(_) => data.multi_uv(0),
+                        None => [0.0, 0.0, 1.0, 1.0],
                     },
                 },
                 _ => NodeKind::Other,

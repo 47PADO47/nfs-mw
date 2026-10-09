@@ -10,9 +10,15 @@ mod bind_tests;
 mod elements;
 #[cfg(test)]
 mod install_tests;
+mod minimap;
+#[cfg(test)]
+mod minimap_tests;
 mod plugin;
 mod skin;
 mod state;
+mod viewport;
+#[cfg(test)]
+mod viewport_tests;
 
 pub use plugin::HudPlugin;
-pub use state::HudState;
+pub use state::{HudState, MapPosition};

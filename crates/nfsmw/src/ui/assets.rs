@@ -83,6 +83,16 @@ impl UiAssets {
             }
         }
 
+        // The minimap's tiles are textures too: the HUD swaps them into its pieces by name.
+        match nfsmw_data::minimap::read_tiles(dir, nfsmw_data::minimap::FULL_MAP) {
+            Ok(tiles) => {
+                for t in tiles.tiles {
+                    textures.entry(t.name_hash).or_insert(t);
+                }
+            }
+            Err(e) => log::warn!("the minimap tiles do not read: {e:#}"),
+        }
+
         let strings = read_unwrapped(dir, "LANGUAGES/English.bin")
             .ok()
             .and_then(|d| StringTable::from_file(&d).map_err(|e| log::warn!("English.bin: {e}")).ok());

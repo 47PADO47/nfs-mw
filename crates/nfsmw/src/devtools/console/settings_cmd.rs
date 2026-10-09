@@ -5,10 +5,10 @@ use std::str::FromStr;
 
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
-use crate::settings::{Percent, Settings, Transmission, parse_bool};
+use crate::settings::{HudLayout, MinimapMode, Percent, Settings, Transmission, parse_bool};
 
 /// Settings the console can show.
-const KEYS: [&str; 26] = [
+const KEYS: [&str; 28] = [
     "deadzone_mode",
     "steering_deadzone",
     "camera_deadzone",
@@ -35,6 +35,8 @@ const KEYS: [&str; 26] = [
     "smoke_quality",
     "skid_marks",
     "transmission",
+    "minimap",
+    "hud_layout",
 ];
 
 /// The text for `get <key>`, or an error naming the valid keys.
@@ -66,6 +68,8 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "smoke_quality" => settings.smoke_quality.to_string(),
         "skid_marks" => on_off(settings.skid_marks).to_owned(),
         "transmission" => settings.transmission.to_string(),
+        "minimap" => settings.minimap.to_string(),
+        "hud_layout" | "hud-layout" => settings.hud_layout.to_string(),
         other => return Err(unknown(other)),
     };
     Ok(format!("{key} = {value}"))
@@ -108,6 +112,8 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "smoke_quality" => settings.smoke_quality = value.parse()?,
         "skid_marks" => settings.skid_marks = parse_bool(value)?,
         "transmission" => settings.transmission = Transmission::from_str(value)?,
+        "minimap" => settings.minimap = MinimapMode::from_str(value)?,
+        "hud_layout" | "hud-layout" => settings.hud_layout = HudLayout::from_str(value)?,
         "backend" => return Err("the graphics backend cannot change while running; restart with --backend".into()),
         other => return Err(unknown(other)),
     }
@@ -142,6 +148,8 @@ fn syntax(key: &str) -> Option<&'static str> {
         "volume" | "master_volume" | "music_volume" | "sfx_volume" | "engine_volume" => "<0-100>",
         "smoke_quality" => "<standard|high>",
         "transmission" => "<automatic|manual>",
+        "minimap" => "<fixed|rotating|off>",
+        "hud_layout" | "hud-layout" => "<pc|classic|xbox360>",
         _ => return None,
     })
 }
@@ -236,6 +244,16 @@ mod tests {
             let answer = set(&mut s, key, "");
             assert!(answer.is_ok() || answer.unwrap_err().starts_with("usage: set "), "{key}");
         }
+    }
+
+    #[test]
+    fn the_minimap_mode_is_set_by_name() {
+        let mut s = defaults();
+        assert_eq!(get(&s, "minimap").unwrap(), "minimap = fixed");
+        assert_eq!(set(&mut s, "minimap", "rotating").unwrap(), "minimap = rotating");
+        assert_eq!(s.minimap, MinimapMode::Rotating);
+        assert!(set(&mut s, "minimap", "zoomed").is_err());
+        assert_eq!(s.minimap, MinimapMode::Rotating);
     }
 
     #[test]

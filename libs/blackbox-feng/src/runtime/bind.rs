@@ -53,6 +53,22 @@ impl Runtime {
         }
     }
 
+    /// Sets the x and y of the pivot (the point a rotation turns about), keeping its z.
+    pub fn set_pivot_xy(&mut self, o: ObjectRef, x: f32, y: f32) {
+        if let Some(s) = self.state_mut(o) {
+            let z = s.data.pivot().z;
+            s.data.set_pivot(Vec3::new(x, y, z));
+        }
+    }
+
+    /// Sets the texture rectangle `[u0, v0, u1, v1]` of a multi image's mask (its first extra texture), which the
+    /// tree reports as `mask_uv`. Other objects ignore it.
+    pub fn set_mask_uv(&mut self, o: ObjectRef, uv: [f32; 4]) {
+        if let Some(s) = self.state_mut(o) {
+            s.data.set_multi_uv(0, uv);
+        }
+    }
+
     /// Sets the x and y of the position, keeping the depth.
     pub fn set_position_xy(&mut self, o: ObjectRef, x: f32, y: f32) {
         if let Some(s) = self.state_mut(o) {

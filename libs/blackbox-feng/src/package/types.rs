@@ -79,6 +79,10 @@ pub mod word {
     pub const ROTATION: usize = 10;
     pub const SIZE: usize = 14;
     pub const UV: usize = 17;
+    /// Multi images: the texture rectangle of each of the three textures, as three upper-left corners (u, v) from
+    /// here, then three lower-right corners from `MULTI_BOTTOM_RIGHT`.
+    pub const MULTI_TOP_LEFT: usize = 21;
+    pub const MULTI_BOTTOM_RIGHT: usize = 27;
     /// Multi images: the mask's pivot (x, y, as fractions of the texture) and its rotation in degrees (z).
     pub const MULTI_PIVOT_ROT: usize = 33;
 }
@@ -153,6 +157,32 @@ impl ObjectData {
     pub fn set_position(&mut self, p: Vec3) {
         for (i, v) in [p.x, p.y, p.z].into_iter().enumerate() {
             self.set_f32(word::POSITION + i, v);
+        }
+    }
+
+    pub fn set_pivot(&mut self, p: Vec3) {
+        for (i, v) in [p.x, p.y, p.z].into_iter().enumerate() {
+            self.set_f32(word::PIVOT + i, v);
+        }
+    }
+
+    /// The texture rectangle `[u0, v0, u1, v1]` of one of a multi image's three textures (0 is its mask); the unit
+    /// square if the data has none.
+    pub fn multi_uv(&self, slot: usize) -> [f32; 4] {
+        let (tl, br) = (word::MULTI_TOP_LEFT + slot * 2, word::MULTI_BOTTOM_RIGHT + slot * 2);
+        if slot >= 3 || self.words.len() < br + 2 {
+            return [0.0, 0.0, 1.0, 1.0];
+        }
+        [self.f32_at(tl), self.f32_at(tl + 1), self.f32_at(br), self.f32_at(br + 1)]
+    }
+
+    pub fn set_multi_uv(&mut self, slot: usize, uv: [f32; 4]) {
+        if slot >= 3 {
+            return;
+        }
+        let (tl, br) = (word::MULTI_TOP_LEFT + slot * 2, word::MULTI_BOTTOM_RIGHT + slot * 2);
+        for (i, v) in [(tl, uv[0]), (tl + 1, uv[1]), (br, uv[2]), (br + 1, uv[3])] {
+            self.set_f32(i, v);
         }
     }
 

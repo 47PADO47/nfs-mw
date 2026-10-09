@@ -8,7 +8,9 @@ use blackbox_feng::{PackageId, Runtime};
 use game_install::GameDir;
 
 use super::bind::HudBinding;
-use super::state::HudState;
+use super::minimap::MinimapBinding;
+use super::state::{HudState, MapPosition};
+use super::viewport::HudViewport;
 use crate::app::{FrameSet, Host};
 use crate::gui::UiOutput;
 use crate::settings::Settings;
@@ -33,6 +35,7 @@ struct Hud {
     runtime: Runtime,
     package: PackageId,
     binding: HudBinding,
+    viewport: HudViewport,
 }
 
 impl Plugin for HudPlugin {
@@ -53,8 +56,10 @@ impl Plugin for HudPlugin {
             runtime.set_string_resolver(move |label| strings.get(label));
         }
         let package = runtime.load(package);
-        let binding = HudBinding::new(&mut runtime, package);
-        app.insert_resource(Hud { runtime, package, binding })
+        let minimap = MinimapBinding::open_city(&runtime, package, &self.dir, &assets);
+        let binding = HudBinding::new(&mut runtime, package).with_minimap(minimap);
+        let viewport = HudViewport::new(&runtime.tree(package));
+        app.insert_resource(Hud { runtime, package, binding, viewport })
             .insert_resource(self.initial.clone())
             .add_systems(Update, sync.in_set(FrameSet::SceneUpdate))
             .add_systems(Update, present.in_set(FrameSet::Hud));
@@ -62,10 +67,13 @@ impl Plugin for HudPlugin {
 }
 
 /// Take the state the scene wants shown. A scene without telemetry leaves the idle HUD (`--hud` in a viewer).
-fn sync(host: NonSend<Host>, mut state: ResMut<HudState>) {
+/// The minimap setting decides whether the scene's map position is shown and how the picture is turned.
+fn sync(host: NonSend<Host>, settings: Res<Settings>, mut state: ResMut<HudState>) {
     if let Some(s) = host.scene.hud_state() {
         *state = s;
     }
+    let orientation = settings.minimap.orientation();
+    state.minimap = state.minimap.zip(orientation).map(|(at, orientation)| MapPosition { orientation, ..at });
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -86,7 +94,8 @@ fn present(
     hud.binding.apply(&mut hud.runtime, &state);
     hud.runtime.update(time.delta_secs().min(MAX_STEP));
     let _ = hud.runtime.take_outgoing();
-    let tree = hud.runtime.tree(hud.package);
+    let mut tree = hud.runtime.tree(hud.package);
     let screen = Screen { width: window.width(), height: window.height(), pixels_per_point: window.scale_factor() };
+    hud.viewport.apply(&mut tree, screen, settings.hud_layout);
     presenter.0.present(&tree, &assets.0, screen, &mut out);
 }

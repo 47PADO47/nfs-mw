@@ -160,7 +160,10 @@ The runtime emits a list of drawable nodes; the host draws them. Rules **[decomp
   drawn where the mask is. **[inferred]** The textures of the HUD's gauges settle the blend: the mask is a half
   ring in its alpha channel (black colour) and the picture is the same half ring, so the picture's alpha times
   the mask's alpha leaves an arc that shrinks as the rotation goes from 0 to 180 degrees, which is what a
-  gauge needs. The original's blend is in platform code that is not in the decompilation.
+  gauge needs. The original's blend is in platform code that is not in the decompilation. The mask also has a texture
+  rectangle (the object's UVs for texture 1, the unit square for a gauge): the minimap's pieces move it so a disc
+  stays still on the screen while the picture scrolls under it ([hud-minimap.md](hud-minimap.md)); where the
+  rectangle leaves the mask texture the mask is 0.
 - **Clip regions** are not used (the engine's clip path is empty).
 
 ## 7. The host interface
@@ -224,9 +227,9 @@ zeroes the potential for a frame after a gear change; the build does neither (th
 decompilation).
 
 **Not driven yet** (hidden): the radar and its detector, the pursuit, heat, busted and cost-to-state boards, the
-milestone and race boards, the countdown, the infractions, the minimap and speed breaker meter, and the engine
-temperature gauge of the drag HUD. They need the race and pursuit state of milestone 7, or (the minimap) a map
-projection that is not written up.
+milestone and race boards, the countdown, the infractions, the speed breaker meter, and the engine temperature
+gauge of the drag HUD. They need the race and pursuit state of milestone 7. The minimap has its own spec,
+[hud-minimap.md](hud-minimap.md).
 
 Messages: `WIDESCREENMODE` 0x62ED04EC, `NORMAL_MODE` 0x53EC068C, `FADEIN` 0xBCC00F05, `FADEOUT` 0x54C20A66.
 The HUD also has package responses that fade parts in and out; the runtime runs them as any other.

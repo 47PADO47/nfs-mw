@@ -1078,6 +1078,16 @@ name = "blackbox-hash"
 version = "0.1.0"
 
 [[package]]
+name = "blackbox-minimap"
+version = "0.1.0"
+dependencies = [
+ "blackbox-chunk",
+ "blackbox-tpk",
+ "ea-compress",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "blackbox-mixmap"
 version = "0.1.0"
 dependencies = [
@@ -2858,6 +2868,7 @@ dependencies = [
  "blackbox-collision",
  "blackbox-feng",
  "blackbox-ginsu",
+ "blackbox-minimap",
  "blackbox-mixmap",
  "blackbox-movie",
  "blackbox-render",
@@ -2893,6 +2904,7 @@ dependencies = [
  "blackbox-collision",
  "blackbox-ginsu",
  "blackbox-hash",
+ "blackbox-minimap",
  "blackbox-scenery",
  "blackbox-solid",
  "blackbox-streaming",

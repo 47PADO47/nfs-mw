@@ -86,6 +86,8 @@ passing CLI flags every time.
 The Gameplay menu includes independent stick/trigger deadzones, sensitivity and camera inversion.
 Keyboard, mouse and gamepad assignments can be changed and saved through the console or config file
 ([controller settings](docs/controller-settings.md)).
+Gameplay also offers [HUD Layout](docs/hud-layout.md): PC widescreen placement,
+the earlier centered layout, or the Xbox addon's 92% wide scale.
 
 ## Repository
 
