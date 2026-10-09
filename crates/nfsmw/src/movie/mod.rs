@@ -6,8 +6,7 @@ use anyhow::{Result, bail};
 use bevy_app::{AppExit, Plugin, Update};
 use bevy_ecs::prelude::*;
 use bevy_window::{PrimaryWindow, Window};
-use blackbox_gfx::{FrameParams, Instance, Projection, UiLayer, UiMesh, UiTextureId, UiVertex};
-use blackbox_render::Renderer;
+use blackbox_gfx::{FrameParams, Instance, Projection, RenderBackend, UiLayer, UiMesh, UiTextureId, UiVertex};
 use game_install::GameDir;
 use glam::{Mat4, Vec3};
 
@@ -102,11 +101,11 @@ impl Scene for MovieScene {
         format!("nfsmw — {}", self.name)
     }
 
-    fn init(&mut self, _renderer: &mut Renderer) -> Result<()> {
+    fn init(&mut self, _renderer: &mut dyn RenderBackend) -> Result<()> {
         Ok(())
     }
 
-    fn update(&mut self, _renderer: &mut Renderer, _input: &ActionState, dt: f32) {
+    fn update(&mut self, _renderer: &mut dyn RenderBackend, _input: &ActionState, dt: f32) {
         self.elapsed += f64::from(dt);
         match self.movie.step(f64::from(dt)) {
             Ok(Step::Frame) => self.frame = Some(self.movie.rgba().to_vec()),

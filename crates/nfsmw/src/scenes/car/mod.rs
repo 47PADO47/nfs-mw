@@ -10,7 +10,6 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use blackbox_gfx::{FrameParams, Instance, InstanceKey, MeshHandle, RenderBackend, Shading};
-use blackbox_render::Renderer;
 use blackbox_scene::{Aabb, upload_solid};
 use game_install::GameDir;
 use glam::{Mat4, Vec3};
@@ -168,7 +167,7 @@ impl Scene for CarScene {
         self.free.is_some()
     }
 
-    fn init(&mut self, renderer: &mut Renderer) -> Result<()> {
+    fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
         self.upload(renderer);
         Ok(())
     }
@@ -177,7 +176,7 @@ impl Scene for CarScene {
         self.wanted_shading = shading;
     }
 
-    fn update(&mut self, renderer: &mut Renderer, input: &ActionState, dt: f32) {
+    fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
         if self.wanted_shading != self.shading {
             self.release(renderer);
             self.upload(renderer);
@@ -209,7 +208,12 @@ impl Scene for CarScene {
         commands::LIST
     }
 
-    fn command(&mut self, renderer: &mut Renderer, name: &str, args: &[&str]) -> Option<Result<String, String>> {
+    fn command(
+        &mut self,
+        renderer: &mut dyn RenderBackend,
+        name: &str,
+        args: &[&str],
+    ) -> Option<Result<String, String>> {
         commands::run(self, renderer, name, args)
     }
 }

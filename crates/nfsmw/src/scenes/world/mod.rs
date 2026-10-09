@@ -19,7 +19,7 @@ mod zone;
 
 use anyhow::{Context, Result};
 use blackbox_gfx::Fog;
-use blackbox_render::{FrameParams, Instance, Renderer};
+use blackbox_gfx::{FrameParams, Instance, RenderBackend};
 use game_install::GameDir;
 use glam::Vec3;
 use nfsmw_data::car::CarModel;
@@ -294,14 +294,14 @@ impl Scene for WorldScene {
         format!("nfsmw — {}", self.track)
     }
 
-    fn init(&mut self, renderer: &mut Renderer) -> Result<()> {
+    fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
         if let Some(PendingCar { name, model, script }) = self.pending_car.take() {
             self.start_driving(renderer, name, model, script)?;
         }
         Ok(())
     }
 
-    fn update(&mut self, renderer: &mut Renderer, input: &ActionState, dt: f32) {
+    fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
         if let Some(drive) = self.drive.as_mut() {
             drive.set_car_shading(renderer, self.car_shading, sun::to_sun());
         }
@@ -340,7 +340,7 @@ impl Scene for WorldScene {
         }
     }
 
-    fn refresh_effects(&mut self, renderer: &mut Renderer) {
+    fn refresh_effects(&mut self, renderer: &mut dyn RenderBackend) {
         self.upload_effects(renderer);
     }
 
@@ -493,7 +493,12 @@ impl Scene for WorldScene {
         commands::LIST
     }
 
-    fn command(&mut self, renderer: &mut Renderer, name: &str, args: &[&str]) -> Option<Result<String, String>> {
+    fn command(
+        &mut self,
+        renderer: &mut dyn RenderBackend,
+        name: &str,
+        args: &[&str],
+    ) -> Option<Result<String, String>> {
         commands::run(self, renderer, name, args)
     }
 }

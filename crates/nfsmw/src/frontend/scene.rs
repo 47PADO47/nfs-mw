@@ -5,8 +5,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::Result;
-use blackbox_gfx::{FrameParams, Instance, Projection};
-use blackbox_render::Renderer;
+use blackbox_gfx::{FrameParams, Instance, Projection, RenderBackend};
 use glam::{Mat4, Vec3};
 
 use crate::input::ActionState;
@@ -20,11 +19,11 @@ impl Scene for MenuScene {
         "nfsmw".to_owned()
     }
 
-    fn init(&mut self, _renderer: &mut Renderer) -> Result<()> {
+    fn init(&mut self, _renderer: &mut dyn RenderBackend) -> Result<()> {
         Ok(())
     }
 
-    fn update(&mut self, _renderer: &mut Renderer, _input: &ActionState, _dt: f32) {}
+    fn update(&mut self, _renderer: &mut dyn RenderBackend, _input: &ActionState, _dt: f32) {}
 
     fn hud_state(&self) -> Option<crate::hud::HudState> {
         Some(crate::hud::HudState { visible: false, ..Default::default() })
@@ -78,11 +77,11 @@ impl Scene for Pausable {
         self.inner.title()
     }
 
-    fn init(&mut self, renderer: &mut Renderer) -> Result<()> {
+    fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
         self.inner.init(renderer)
     }
 
-    fn update(&mut self, renderer: &mut Renderer, input: &ActionState, dt: f32) {
+    fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
         if self.paused.get() {
             if self.effects_dirty {
                 self.inner.refresh_effects(renderer);
@@ -189,7 +188,12 @@ impl Scene for Pausable {
         self.inner.commands()
     }
 
-    fn command(&mut self, renderer: &mut Renderer, name: &str, args: &[&str]) -> Option<Result<String, String>> {
+    fn command(
+        &mut self,
+        renderer: &mut dyn RenderBackend,
+        name: &str,
+        args: &[&str],
+    ) -> Option<Result<String, String>> {
         self.inner.command(renderer, name, args)
     }
 }
@@ -228,10 +232,10 @@ mod tests {
             fn title(&self) -> String {
                 String::new()
             }
-            fn init(&mut self, _: &mut Renderer) -> Result<()> {
+            fn init(&mut self, _: &mut dyn RenderBackend) -> Result<()> {
                 Ok(())
             }
-            fn update(&mut self, _: &mut Renderer, _: &ActionState, _: f32) {}
+            fn update(&mut self, _: &mut dyn RenderBackend, _: &ActionState, _: f32) {}
             fn frame(&mut self, _: f32) -> (FrameParams, &[Instance]) {
                 unreachable!()
             }
@@ -279,10 +283,10 @@ mod tests {
             fn title(&self) -> String {
                 String::new()
             }
-            fn init(&mut self, _: &mut Renderer) -> Result<()> {
+            fn init(&mut self, _: &mut dyn RenderBackend) -> Result<()> {
                 Ok(())
             }
-            fn update(&mut self, _: &mut Renderer, _: &ActionState, _: f32) {
+            fn update(&mut self, _: &mut dyn RenderBackend, _: &ActionState, _: f32) {
                 panic!("a paused scene must not advance");
             }
             fn frame(&mut self, _: f32) -> (FrameParams, &[Instance]) {
