@@ -17,6 +17,7 @@ mod plugin;
 mod radio;
 mod skin;
 mod state;
+mod trax;
 mod viewport;
 #[cfg(test)]
 mod viewport_tests;
