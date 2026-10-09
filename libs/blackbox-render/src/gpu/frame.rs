@@ -2,6 +2,7 @@
 //! post-process chain then writes to the surface, then the UI over it.
 
 use super::Renderer;
+use super::output::Output;
 use super::pipelines::{BLEND_ORDER, SHADINGS};
 use super::post::PassContext;
 use super::resources::Globals;
@@ -10,27 +11,38 @@ use crate::{FrameParams, Instance, RenderError, Shading};
 
 impl Renderer {
     /// Draw `instances` and present. Returns `Ok(false)` when the frame was skipped
-    /// (window minimised or the surface had to be reconfigured).
+    /// (window minimised or the surface had to be reconfigured). A headless renderer draws into its
+    /// output texture and always returns `Ok(true)`.
     ///
     /// Instances of the same mesh should be adjacent: each run becomes one instanced draw per range.
     pub fn render(&mut self, frame: &FrameParams, instances: &[Instance]) -> Result<bool, RenderError> {
-        let surface_texture = match self.surface.get_current_texture() {
-            wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
-            wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => return Ok(false),
-            wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
-                self.surface.configure(&self.device, &self.config);
-                return Ok(false);
+        let (surface_texture, view) = match &self.output {
+            Output::Window { surface, config } => {
+                let texture = match surface.get_current_texture() {
+                    wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
+                    wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => return Ok(false),
+                    wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
+                        surface.configure(&self.device, config);
+                        return Ok(false);
+                    }
+                    #[allow(unreachable_patterns)]
+                    other => return Err(RenderError::Surface(format!("{other:?}"))),
+                };
+                let view = texture.texture.create_view(&wgpu::TextureViewDescriptor::default());
+                (Some(texture), view)
             }
-            #[allow(unreachable_patterns)]
-            other => return Err(RenderError::Surface(format!("{other:?}"))),
+            Output::Texture { texture, .. } => (None, texture.create_view(&wgpu::TextureViewDescriptor::default())),
         };
-        let view = surface_texture.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("frame") });
         self.encode_scene(&mut encoder, None, &view, frame, instances);
         self.encode_post(&mut encoder, None, &view, self.surface_size());
         self.encode_ui(&mut encoder, &view, self.surface_size());
         self.queue.submit([encoder.finish()]);
-        self.queue.present(surface_texture);
+        match surface_texture {
+            Some(t) => self.queue.present(t),
+            // Nothing presents a headless frame, so let the device retire finished work itself.
+            None => drop(self.device.poll(wgpu::PollType::Poll)),
+        }
         Ok(true)
     }
 
@@ -45,7 +57,7 @@ impl Renderer {
     ) {
         let Some(scene) = targets.unwrap_or(&self.targets).offscreen() else { return };
         let ctx = PassContext { device: &self.device, queue: &self.queue, scene, output_size: size };
-        self.post.encode(&ctx, encoder, (output, self.config.format));
+        self.post.encode(&ctx, encoder, (output, self.output.format()));
     }
 
     /// Record the scene into the colour and depth of `targets` (default: the window's): the offscreen

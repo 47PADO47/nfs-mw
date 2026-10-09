@@ -14,6 +14,7 @@
 //! - `gpu/`: the wgpu implementation (device setup, resources, pipelines, the scene targets (the
 //!   surface itself, or an offscreen image), the post-process chain, frames).
 
+mod caps;
 mod gpu;
 mod options;
 #[cfg(test)]

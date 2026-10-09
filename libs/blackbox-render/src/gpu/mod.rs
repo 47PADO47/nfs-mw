@@ -9,6 +9,7 @@ mod instances;
 #[cfg(test)]
 mod lean_tests;
 mod meshes;
+mod output;
 mod pipelines;
 mod post;
 mod resources;
@@ -30,12 +31,18 @@ use crate::{RenderError, RendererOptions, clamp_render_scale, scaled_size};
 use targets::{HDR_FORMAT, SceneInputs, SceneTargets};
 
 pub struct Renderer {
-    surface: wgpu::Surface<'static>,
+    output: output::Output,
     device: wgpu::Device,
     queue: wgpu::Queue,
-    config: wgpu::SurfaceConfiguration,
     adapter_info: wgpu::AdapterInfo,
     supports_bc: bool,
+    /// Who this renderer is and what it can run, for the [`RenderBackend`](blackbox_gfx::RenderBackend) impl.
+    info: blackbox_gfx::BackendInfo,
+    caps: blackbox_gfx::Capabilities,
+    /// The effective settings as last returned by `apply_graphics`.
+    graphics: blackbox_gfx::GraphicsSettings,
+    /// Finished captures nobody has polled for yet.
+    captures: capture::Captures,
     /// What the scene is drawn into: the surface itself, or an offscreen image at the internal render size.
     targets: SceneTargets,
     /// The format of the offscreen image when a pass needs HDR: `Rgba16Float`, or the surface format.
@@ -75,6 +82,16 @@ impl Renderer {
         init::create(window, size, display, options)
     }
 
+    /// Create a renderer with no window or surface: frames are drawn into an off-screen texture of `size`
+    /// pixels (width, height), so tests and tools run on a machine without a display. Everything but
+    /// presenting works as in [`Self::new`]: [`Self::render`] draws into that texture and
+    /// [`Self::capture`] (or `request_capture`) reads a frame back. The texture's format is
+    /// `Rgba8Unorm`. Set [`RendererOptions::force_fallback_adapter`] to pick a software adapter such
+    /// as lavapipe.
+    pub fn headless(size: (u32, u32), options: RendererOptions) -> Result<Self, RenderError> {
+        init::create_headless(size, options)
+    }
+
     /// "GPU name (backend)" for logs and the window title.
     pub fn adapter_summary(&self) -> String {
         format!("{} ({:?})", self.adapter_info.name, self.adapter_info.backend)
@@ -91,9 +108,7 @@ impl Renderer {
         if width == 0 || height == 0 {
             return;
         }
-        self.config.width = width;
-        self.config.height = height;
-        self.surface.configure(&self.device, &self.config);
+        self.output.resize(&self.device, (width, height));
         self.refresh_targets();
     }
 
@@ -121,7 +136,7 @@ impl Renderer {
 
     /// The size (width, height) of the surface the frame is presented to.
     pub fn surface_size(&self) -> (u32, u32) {
-        (self.config.width, self.config.height)
+        self.output.size()
     }
 
     /// Whether the scene is drawn in a 16-bit float HDR format. Only bloom and tone mapping ask for it;
@@ -150,7 +165,7 @@ impl Renderer {
             render: scaled_size(output, self.render_scale),
             passes: self.post.has_passes(),
             hdr: self.post.effect_settings().needs_hdr(),
-            surface_format: self.config.format,
+            surface_format: self.output.format(),
             hdr_format: self.hdr_format,
         })
     }
@@ -170,12 +185,12 @@ impl Renderer {
 
     /// Turn vertical sync on or off without recreating the renderer.
     pub fn set_vsync(&mut self, vsync: bool) {
-        self.config.present_mode = if vsync { wgpu::PresentMode::AutoVsync } else { wgpu::PresentMode::AutoNoVsync };
-        self.surface.configure(&self.device, &self.config);
+        self.output.set_vsync(&self.device, vsync);
     }
 
     pub fn aspect_ratio(&self) -> f32 {
-        self.config.width as f32 / self.config.height.max(1) as f32
+        let (width, height) = self.output.size();
+        width as f32 / height.max(1) as f32
     }
 
     /// Live meshes and textures (for stats overlays and leak checks).

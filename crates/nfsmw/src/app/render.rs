@@ -40,7 +40,7 @@ pub fn create_renderer(
     }
     let (raw, win) = *window;
     let size = (win.physical_width(), win.physical_height());
-    let options = RendererOptions { backend: settings.backend, vsync: settings.vsync };
+    let options = RendererOptions { backend: settings.backend, vsync: settings.vsync, ..RendererOptions::default() };
     match start(&mut host, raw, size, &display, options, &settings) {
         Ok(()) => capture.0 = host.scene.captures_mouse() && host.screenshot.is_none(),
         Err(e) => {
