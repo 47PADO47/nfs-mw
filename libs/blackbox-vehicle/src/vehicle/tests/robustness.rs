@@ -25,6 +25,8 @@ impl Rng {
             nos: self.next() < 0.3,
             shift_up: self.next() < 0.02,
             shift_down: self.next() < 0.02,
+            gear_select: None,
+            clutch: 0.0,
         }
     }
 }

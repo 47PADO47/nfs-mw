@@ -7,6 +7,10 @@ use crate::nos::{Nos, NosInput, NosSpec};
 
 /// Seconds a manual shift in automatic mode holds the automatic logic off.
 const SPORT_HOLD: f32 = 1.25;
+/// A clutch pedal pressed further than this holds the clutch open.
+const CLUTCH_PEDAL_BITE: f32 = 0.1;
+/// Reverse is only taken at or below this road speed (m/s), as the automatic reverse does.
+const REVERSE_SPEED: f32 = 2.5;
 
 /// Inputs of one powertrain step.
 pub struct TickInput<'a> {
@@ -31,6 +35,8 @@ pub struct TickInput<'a> {
     /// Tuning sliders in [-1, 1].
     pub induction_tuning: f32,
     pub nos_tuning: f32,
+    /// The driver's clutch pedal, 0 released to 1 pressed; `None` when the car has no pedal.
+    pub clutch_pedal: Option<f32>,
 }
 
 /// Engine, clutch, gearbox, induction and nitrous as one unit: turns the pedal into drive torque at the
@@ -256,6 +262,17 @@ impl Powertrain {
         }
     }
 
+    /// Direct gear choice by id (`GEAR_REVERSE`, `GEAR_NEUTRAL`, `GEAR_FIRST`, ...), as a gear selector or a gear key
+    /// asks for it. Unlike [`Self::request_shift`] it can skip gears and leave reverse. A gearbox cannot be thrown
+    /// into reverse while rolling forward, so that is refused above `REVERSE_SPEED` (`forward_speed` in m/s).
+    /// Returns whether the gear changed.
+    pub fn select_gear(&mut self, gear: usize, forward_speed: f32) -> bool {
+        if gear == GEAR_REVERSE && forward_speed > REVERSE_SPEED {
+            return false;
+        }
+        self.shift(gear)
+    }
+
     /// Teleport or respawn at road speed `v` (m/s, negative = backwards): picks a gear and a matching rpm.
     pub fn match_speed(&mut self, v: f32) {
         self.reset();
@@ -334,7 +351,7 @@ impl Powertrain {
         if i.automatic {
             self.auto_shift(i, dt);
         }
-        self.command_clutch();
+        self.command_clutch(i.clutch_pedal);
 
         let mut ctx = super::torque_loop::LoopCtx {
             dt,
@@ -379,7 +396,13 @@ impl Powertrain {
         }
     }
 
-    fn command_clutch(&mut self) {
+    fn command_clutch(&mut self, pedal: Option<f32>) {
+        // The driver's pedal wins: pressed, the clutch stays open (the engine free-revs, nothing drives the
+        // wheels); released, the gear's own engage rule below takes over again.
+        if pedal.is_some_and(|p| p > CLUTCH_PEDAL_BITE) {
+            self.clutch.hold_open();
+            return;
+        }
         let idle = self.engine.idle_rad();
         match self.gear {
             GEAR_NEUTRAL => self.clutch.disengage(),
