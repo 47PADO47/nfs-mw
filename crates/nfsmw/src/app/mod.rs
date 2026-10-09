@@ -8,6 +8,8 @@ mod host;
 pub mod pacing;
 mod render;
 mod screenshot;
+#[cfg(test)]
+pub use screenshot::Plan;
 pub mod window;
 
 pub use cursor::update as cursor_update;

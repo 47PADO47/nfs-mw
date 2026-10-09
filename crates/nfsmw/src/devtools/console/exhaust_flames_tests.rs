@@ -49,7 +49,11 @@ fn the_scene_gets_the_setting_at_startup_and_after_each_change_only() {
 fn the_console_gets_sets_and_flips_the_setting_at_once() {
     let seen = Arc::new(Mutex::new(Vec::new()));
     let mut settings = Settings::from(Partial::default());
-    let mut host = Host::new(Box::new(ObservedScene(seen.clone())), &settings, Some("unused.png".into()));
+    let mut host = Host::new(
+        Box::new(ObservedScene(seen.clone())),
+        &settings,
+        Some(crate::app::Plan::new("unused.png".into(), 0.0, 1, 0.0)),
+    );
     assert_eq!(settings_cmd::get(&settings, "exhaust_flames").unwrap(), "exhaust_flames = on");
     for (line, expected) in [("exhaust_flames off", false), ("set exhaust_flames on", true), ("exhaust_flames", false)]
     {
