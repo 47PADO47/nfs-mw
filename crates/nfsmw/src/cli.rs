@@ -240,6 +240,18 @@ pub struct ViewArgs {
     /// Disable skid marks.
     #[arg(long)]
     pub no_skid_marks: bool,
+    /// Enable optional impact/scrape sparks [env NFSMW_COLLISION_SPARKS; default off].
+    #[arg(long, conflicts_with = "no_collision_sparks")]
+    pub collision_sparks: bool,
+    /// Disable impact/scrape sparks.
+    #[arg(long)]
+    pub no_collision_sparks: bool,
+    /// Enable optional high-speed wind trails [env NFSMW_SPEED_TRAILS; default off].
+    #[arg(long, conflicts_with = "no_speed_trails")]
+    pub speed_trails: bool,
+    /// Disable high-speed wind trails.
+    #[arg(long)]
+    pub no_speed_trails: bool,
     /// Who changes gear: automatic or manual (Q/E, the bumpers or the wheel paddles shift)
     /// [env NFSMW_TRANSMISSION; config `transmission`; default automatic].
     #[arg(long, value_name = "automatic|manual")]
@@ -281,6 +293,8 @@ impl ViewArgs {
             smoke_quality: self.smoke_quality,
             radio: switch(self.radio, self.no_radio),
             skid_marks: switch(self.skid_marks, self.no_skid_marks),
+            collision_sparks: switch(self.collision_sparks, self.no_collision_sparks),
+            speed_trails: switch(self.speed_trails, self.no_speed_trails),
             transmission: self.transmission,
             ..Partial::default()
         }

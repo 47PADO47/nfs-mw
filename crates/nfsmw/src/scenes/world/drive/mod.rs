@@ -4,6 +4,7 @@
 
 mod clock;
 mod debug;
+mod effect_feed;
 mod fall;
 mod ground;
 mod input;
@@ -22,11 +23,13 @@ use super::effects::TireEffects;
 use super::props::PropWorld;
 use super::road::{self, Spawn};
 use super::space;
+use super::vehicle_effects::VehicleEffects;
 use crate::input::ActionState;
 use crate::settings::Transmission;
 use crate::viewer::camera::{ChaseCamera, Followed};
 use clock::FixedClock;
 pub use debug::{ContactMarkers, LEGEND as MARKER_LEGEND, MarkerMeshes};
+use effect_feed::vehicle_effects;
 use fall::FallWatch;
 use ground::WorldGround;
 pub use input::DriveInput;
@@ -35,6 +38,9 @@ pub use rig::{CarPose, CarRig};
 pub use script::DriveScript;
 use sim::{CarSim, Telemetry};
 use sound::SoundFeed;
+#[cfg(test)]
+pub(super) use walls::ContactKind;
+pub(super) use walls::VisualContact;
 
 /// Physics steps run per scene update while a script drives a screenshot run (which has no frame time).
 const SCRIPT_STEPS_PER_UPDATE: u32 = 6;
@@ -62,6 +68,7 @@ const GOOD_SPOT_STEPS: u32 = 30;
 pub struct Drive {
     pub car_name: String,
     pub effects: TireEffects,
+    pub vehicle_effects: VehicleEffects,
     rig: CarRig,
     physics: CarPhysics,
     sim: Option<CarSim>,
@@ -100,6 +107,7 @@ impl Drive {
         physics: CarPhysics,
         request: SpawnRequest,
         script: Option<DriveScript>,
+        visuals: nfsmw_data::vehicle_effects::VisualEffectsData,
     ) -> Self {
         let pose = CarPose {
             position: Vec3::ZERO,
@@ -109,6 +117,7 @@ impl Drive {
         Self {
             car_name,
             effects: TireEffects::default(),
+            vehicle_effects: vehicle_effects(visuals, &physics),
             rig,
             physics,
             sim: None,
@@ -144,6 +153,7 @@ impl Drive {
     /// Ask for the car to be put on the road nearest `near`, keeping `heading` if given.
     pub fn respawn_near(&mut self, near: [f32; 2], heading: Option<f32>) {
         self.effects.disconnect();
+        self.vehicle_effects.clear();
         self.request = Some(SpawnRequest { near, heading, exact: None });
     }
 
@@ -156,6 +166,7 @@ impl Drive {
     pub fn restore_last_good(&mut self) -> bool {
         let Some(good) = self.last_good else { return false };
         self.effects.disconnect();
+        self.vehicle_effects.clear();
         self.request =
             Some(SpawnRequest { near: [good.position.x, good.position.y], heading: None, exact: Some(good) });
         true
@@ -185,6 +196,7 @@ impl Drive {
         }
         self.effects.disconnect();
         let pose = sim.pose();
+        self.vehicle_effects.clear();
         (self.previous, self.current) = (pose, pose);
         self.telemetry = sim.telemetry();
         self.clock.reset();
@@ -203,8 +215,10 @@ impl Drive {
         name: String,
         rig: CarRig,
         physics: CarPhysics,
+        visuals: nfsmw_data::vehicle_effects::VisualEffectsData,
     ) {
         std::mem::replace(&mut self.rig, rig).release(renderer);
+        self.vehicle_effects = vehicle_effects(visuals, &physics);
         self.physics = physics;
         self.effects.clear();
         self.car_name = name;
@@ -227,14 +241,6 @@ impl Drive {
     /// Whether the script (if any) has run out.
     pub fn script_finished(&self) -> bool {
         self.script.as_ref().is_none_or(|s| s.script.finished(s.time))
-    }
-
-    /// Age parked/waiting effects without emitting. Completed screenshot batches stay deterministic.
-    pub fn age_effects(&mut self, dt: f32) {
-        self.effects.disconnect();
-        if !self.batch_run {
-            self.effects.age(dt);
-        }
     }
 
     /// Run the physics for `dt` seconds of frame time (`dt == 0` with a script means a screenshot
@@ -288,6 +294,7 @@ impl Drive {
             want_reset |= input.reset;
             let impact = sim.step(&input, &ground, Some((collision, &*props)));
             self.effects.step(sim.tire_contacts(collision), sim.effect_velocity(), clock::STEP);
+            self.vehicle_effects.step(&impact.visuals, sim.pose(), sim.effect_velocity(), clock::STEP);
             self.markers.record(&impact.contacts, sim.tyre_hits());
             for &(id, mass) in &impact.knocked {
                 log::info!("knocked over a {mass:.0} kg prop ({} knocked over now)", props.knocked_count() + 1);
@@ -300,6 +307,7 @@ impl Drive {
             self.steps += 1;
             if self.script.is_some() && self.steps.is_multiple_of(60) {
                 log::info!("tire effects: {}", self.effects.status());
+                log::info!("vehicle effects: {}", self.vehicle_effects.status());
                 let (p, t) = (self.current.position, &self.telemetry);
                 log::info!(
                     "t={:>5.1}s  {:>6.1} km/h  {:>5.0} rpm  gear {}  at ({:.1}, {:.1}, {:.2})  {} on ground  throttle {:.1} brake {:.1} steer {:+.2}",

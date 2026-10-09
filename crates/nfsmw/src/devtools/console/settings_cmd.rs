@@ -8,7 +8,7 @@ use crate::devtools::{ShowMetrics, ShowReadout};
 use crate::settings::{Percent, Settings, Transmission, parse_bool};
 
 /// Settings the console can show.
-const KEYS: [&str; 18] = [
+const KEYS: [&str; 20] = [
     "backend",
     "vsync",
     "fps",
@@ -26,6 +26,8 @@ const KEYS: [&str; 18] = [
     "radio",
     "smoke_quality",
     "skid_marks",
+    "collision_sparks",
+    "speed_trails",
     "transmission",
 ];
 
@@ -49,6 +51,8 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "radio" => on_off(settings.radio).to_owned(),
         "smoke_quality" => settings.smoke_quality.to_string(),
         "skid_marks" => on_off(settings.skid_marks).to_owned(),
+        "collision_sparks" => on_off(settings.collision_sparks).to_owned(),
+        "speed_trails" => on_off(settings.speed_trails).to_owned(),
         "transmission" => settings.transmission.to_string(),
         other => return Err(unknown(other)),
     };
@@ -83,6 +87,8 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "radio" => settings.radio = parse_bool(value)?,
         "smoke_quality" => settings.smoke_quality = value.parse()?,
         "skid_marks" => settings.skid_marks = parse_bool(value)?,
+        "collision_sparks" => settings.collision_sparks = parse_bool(value)?,
+        "speed_trails" => settings.speed_trails = parse_bool(value)?,
         "transmission" => settings.transmission = Transmission::from_str(value)?,
         "backend" => return Err("the graphics backend cannot change while running; restart with --backend".into()),
         other => return Err(unknown(other)),
@@ -97,6 +103,8 @@ fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
         "hud" => Some(&mut settings.hud),
         "tire_smoke" => Some(&mut settings.tire_smoke),
         "skid_marks" => Some(&mut settings.skid_marks),
+        "collision_sparks" => Some(&mut settings.collision_sparks),
+        "speed_trails" => Some(&mut settings.speed_trails),
         "radio" => Some(&mut settings.radio),
         _ => None,
     }

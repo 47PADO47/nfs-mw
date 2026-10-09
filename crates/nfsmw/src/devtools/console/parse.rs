@@ -30,7 +30,7 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 17] = [
+pub const BUILT_IN: [(&str, &str); 19] = [
     ("help", "list the commands"),
     ("clear", "empty the console"),
     ("quit", "close the game"),
@@ -44,6 +44,8 @@ pub const BUILT_IN: [(&str, &str); 17] = [
     ("monitors", "list available monitors and their indices"),
     ("keys", "list every key, button and stick binding"),
     ("smoke_quality <standard|high>", "change tire smoke presentation quality"),
+    ("collision_sparks <on|off>", "change optional impact and scrape streaks"),
+    ("speed_trails <on|off>", "change optional high-speed wind trails"),
     ("volume <0-100>", "master volume (same as set volume)"),
     ("sound [bank [index]]", "list the sounds of a bank (IG_GLOBAL/Siren_MB.abk) or play one"),
     ("engine <car> [percent] | off", "hold a car's engine sound at a share of its RPM range"),
@@ -51,7 +53,7 @@ pub const BUILT_IN: [(&str, &str); 17] = [
 ];
 
 /// Further shorthands for `set`: `vsync off` is `set vsync off`.
-const SET_SHORTHANDS: [&str; 10] = [
+const SET_SHORTHANDS: [&str; 12] = [
     "fps",
     "vsync",
     "metrics",
@@ -61,6 +63,8 @@ const SET_SHORTHANDS: [&str; 10] = [
     "monitor",
     "tire_smoke",
     "skid_marks",
+    "collision_sparks",
+    "speed_trails",
     "smoke_quality",
 ];
 
@@ -208,7 +212,7 @@ mod tests {
     #[test]
     fn completion() {
         let scene = [("car <folder>", "change the car"), ("cars", "list the cars")];
-        assert_eq!(complete("c", &scene), ["car", "cars", "clear"]);
+        assert_eq!(complete("c", &scene), ["car", "cars", "clear", "collision_sparks"]);
         assert_eq!(complete("re", &scene), ["resolution"]);
         assert_eq!(complete("vo", &scene), ["volume"]);
         assert!(complete("zzz", &scene).is_empty());

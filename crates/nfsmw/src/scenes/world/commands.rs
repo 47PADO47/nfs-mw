@@ -16,6 +16,7 @@ pub(super) const LIST: &[(&str, &str)] = &[
     ("pos", "show where the camera or the car is"),
     ("props [radius]", "list the props with collision near the car or camera (default 30 m)"),
     ("tire-effects [status|clear|smoke on/off|marks on/off]", "tire visual controls and bounded resource counts"),
+    ("vehicle-effects [status|clear]", "collision spark and speed-trail resource counts"),
     ("debug collisions [on|off]", "draw the car's contact points: wall hits, tyre rays, props (no argument: toggle)"),
 ];
 
@@ -35,10 +36,23 @@ pub(super) fn run(
         "pos" if args.is_empty() => Ok(pos(scene)),
         "props" => props(scene, args),
         "tire-effects" => tire_effects(scene, renderer, args),
+        "vehicle-effects" => vehicle_effects(scene, renderer, args),
         "debug" => debug(scene, renderer, args),
         "reset" | "freecam" | "pos" | "garage" => Err(format!("usage: {name}")),
         _ => return None,
     })
+}
+
+fn vehicle_effects(scene: &mut WorldScene, renderer: &mut Renderer, args: &[&str]) -> Result<String, String> {
+    let drive = scene.drive.as_mut().ok_or("not driving (use the drive command)")?;
+    match args {
+        [] | ["status"] => return Ok(drive.vehicle_effects.status()),
+        ["clear"] => drive.vehicle_effects.clear(),
+        _ => return Err("usage: vehicle-effects [status|clear]".into()),
+    }
+    let result = drive.vehicle_effects.status();
+    scene.upload_effects(renderer);
+    Ok(result)
 }
 
 fn tire_effects(scene: &mut WorldScene, renderer: &mut Renderer, args: &[&str]) -> Result<String, String> {

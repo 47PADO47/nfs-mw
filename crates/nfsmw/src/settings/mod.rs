@@ -12,6 +12,8 @@ mod smoke_quality_tests;
 #[cfg(test)]
 mod tire_tests;
 mod transmission;
+#[cfg(test)]
+mod vehicle_effects_tests;
 mod window;
 mod write;
 
@@ -52,6 +54,10 @@ pub struct Settings {
     pub smoke_quality: SmokeQuality,
     /// Draw bounded, ground-following tire marks.
     pub skid_marks: bool,
+    /// Optional Xenon-style impact and scrape sparks.
+    pub collision_sparks: bool,
+    /// Optional wind trails behind the car at high forward speed.
+    pub speed_trails: bool,
     /// Who changes gear: the box (default) or the player.
     pub transmission: Transmission,
     /// Gamepad button codes of a steering wheel's shift paddles (`GamepadButton::Other`), if the player gave them.
@@ -80,6 +86,8 @@ impl From<Partial> for Settings {
             radio: p.radio.unwrap_or(true),
             smoke_quality: p.smoke_quality.unwrap_or_default(),
             skid_marks: p.skid_marks.unwrap_or(true),
+            collision_sparks: p.collision_sparks.unwrap_or(false),
+            speed_trails: p.speed_trails.unwrap_or(false),
             transmission: p.transmission.unwrap_or_default(),
             paddle_up: p.paddle_up,
             paddle_down: p.paddle_down,

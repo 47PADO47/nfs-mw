@@ -15,6 +15,8 @@ impl WorldScene {
             View::Chase => (drive.camera().position, drive.camera().forward()),
             View::Fly => (self.camera.position, self.camera.forward()),
         };
-        renderer.set_effects(drive.effects.build(position, forward));
+        let layer = drive.effects.build(position, forward);
+        drive.vehicle_effects.geometry(position, forward, matches!(self.view, View::Chase), &mut layer.streaks);
+        renderer.set_effects(layer);
     }
 }

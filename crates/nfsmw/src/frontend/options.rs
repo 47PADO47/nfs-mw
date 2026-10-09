@@ -23,6 +23,8 @@ pub enum Setting {
     WindowMode,
     TireSmoke,
     SkidMarks,
+    CollisionSparks,
+    SpeedTrails,
     SmokeQuality,
     Transmission,
 }
@@ -77,6 +79,8 @@ pub fn rows(category: Category) -> Vec<Row> {
             row(Setting::TireSmoke, Title::Text("Tire Smoke")),
             row(Setting::SkidMarks, Title::Text("Skid Marks")),
             row(Setting::SmokeQuality, Title::Text("Smoke Quality")),
+            row(Setting::CollisionSparks, Title::Text("Collision Sparks")),
+            row(Setting::SpeedTrails, Title::Text("Speed Trails")),
         ],
         Category::Gameplay => {
             vec![
@@ -125,6 +129,8 @@ impl Setting {
             Setting::Hud => on_off(s.hud),
             Setting::TireSmoke => on_off(s.tire_smoke),
             Setting::SkidMarks => on_off(s.skid_marks),
+            Setting::CollisionSparks => on_off(s.collision_sparks),
+            Setting::SpeedTrails => on_off(s.speed_trails),
             Setting::SmokeQuality => Data::Text(
                 match s.smoke_quality {
                     SmokeQuality::Standard => "Standard",
@@ -196,6 +202,14 @@ impl Setting {
             Setting::SkidMarks => {
                 s.skid_marks = !s.skid_marks;
                 changed.skid_marks = Some(s.skid_marks);
+            }
+            Setting::CollisionSparks => {
+                s.collision_sparks = !s.collision_sparks;
+                changed.collision_sparks = Some(s.collision_sparks);
+            }
+            Setting::SpeedTrails => {
+                s.speed_trails = !s.speed_trails;
+                changed.speed_trails = Some(s.speed_trails);
             }
             Setting::Transmission => {
                 s.transmission = s.transmission.other();
@@ -297,7 +311,7 @@ mod tests {
     #[test]
     fn every_category_has_rows() {
         assert_eq!(rows(Category::Audio).len(), 4);
-        assert_eq!(rows(Category::Video).len(), 7);
+        assert_eq!(rows(Category::Video).len(), 9);
         assert_eq!(rows(Category::Gameplay).len(), 2);
     }
 

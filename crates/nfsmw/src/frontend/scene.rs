@@ -143,6 +143,11 @@ impl Scene for Pausable {
         self.effects_dirty = true;
     }
 
+    fn set_vehicle_effects(&mut self, sparks: bool, trails: bool) {
+        self.inner.set_vehicle_effects(sparks, trails);
+        self.effects_dirty = true;
+    }
+
     fn fullscreen(&mut self) -> Option<Fullscreen> {
         self.inner.fullscreen()
     }
@@ -189,6 +194,7 @@ mod tests {
         struct Seen {
             tires: [bool; 2],
             quality: Option<SmokeQuality>,
+            vehicle: [bool; 2],
         }
         struct Observed(Arc<Mutex<Seen>>);
         impl Scene for Observed {
@@ -208,11 +214,15 @@ mod tests {
             fn set_smoke_quality(&mut self, quality: SmokeQuality) {
                 self.0.lock().unwrap().quality = Some(quality);
             }
+            fn set_vehicle_effects(&mut self, sparks: bool, trails: bool) {
+                self.0.lock().unwrap().vehicle = [sparks, trails];
+            }
         }
         let settings = Settings::from(Partial::default());
         let mut host = Host::new(Box::new(MenuScene), &settings, None);
         host.set_tire_effects(false, true);
         host.set_smoke_quality(SmokeQuality::High);
+        host.set_vehicle_effects(true, false);
         let seen = Arc::new(Mutex::new(Seen::default()));
         let scene = Pausable::new(Box::new(Observed(seen.clone())), PauseFlag::default());
         // Preferences must reach the incoming scene before renderer init and screenshot settling.
@@ -220,5 +230,42 @@ mod tests {
         let seen = seen.lock().unwrap();
         assert_eq!(seen.tires, [false, true]);
         assert_eq!(seen.quality, Some(SmokeQuality::High));
+        assert_eq!(seen.vehicle, [true, false]);
+    }
+
+    #[test]
+    fn paused_vehicle_effect_changes_forward_and_mark_buffers_for_refresh() {
+        use std::sync::Mutex;
+
+        struct Observed(Arc<Mutex<Vec<[bool; 2]>>>);
+        impl Scene for Observed {
+            fn title(&self) -> String {
+                String::new()
+            }
+            fn init(&mut self, _: &mut Renderer) -> Result<()> {
+                Ok(())
+            }
+            fn update(&mut self, _: &mut Renderer, _: &ActionState, _: f32) {
+                panic!("a paused scene must not advance");
+            }
+            fn frame(&mut self, _: f32) -> (FrameParams, &[Instance]) {
+                unreachable!()
+            }
+            fn set_vehicle_effects(&mut self, sparks: bool, trails: bool) {
+                self.0.lock().unwrap().push([sparks, trails]);
+            }
+        }
+        let flag = PauseFlag::default();
+        flag.set(true);
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let mut scene = Pausable::new(Box::new(Observed(seen.clone())), flag);
+        assert!(!scene.effects_dirty);
+        scene.set_vehicle_effects(true, false);
+        assert!(scene.effects_dirty, "the next paused frame must refresh the effect buffers");
+        assert!(scene.paused());
+        assert!(!scene.hud_state().unwrap().visible);
+        scene.set_vehicle_effects(false, false);
+        assert_eq!(*seen.lock().unwrap(), vec![[true, false], [false, false]]);
+        assert!(scene.effects_dirty, "disabling also needs a refresh of frozen buffers");
     }
 }

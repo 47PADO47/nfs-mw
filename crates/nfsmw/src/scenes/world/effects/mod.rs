@@ -86,12 +86,12 @@ impl TireEffects {
         self.marks.retain_sections(loaded);
     }
 
-    pub fn build(&mut self, camera: Vec3, forward: Vec3) -> &EffectLayer {
+    pub fn build(&mut self, camera: Vec3, forward: Vec3) -> &mut EffectLayer {
         self.layer.clear();
         self.layer.detailed_particles = self.smoke.quality == crate::settings::SmokeQuality::High;
         self.marks.geometry(&mut self.layer.surfaces);
         self.smoke.geometry(camera, forward, &mut self.layer.particles);
-        &self.layer
+        &mut self.layer
     }
 
     pub fn status(&self) -> String {

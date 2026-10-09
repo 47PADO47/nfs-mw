@@ -10,6 +10,8 @@ mod settings_cmd;
 mod smoke_quality_sync_tests;
 #[cfg(test)]
 mod tire_sync_tests;
+#[cfg(test)]
+mod vehicle_effects_tests;
 mod view;
 
 use bevy_app::{App, Update};
