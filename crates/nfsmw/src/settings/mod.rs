@@ -74,7 +74,7 @@ pub struct Settings {
     pub spark_style: SparkStyle,
     /// Experimental wind trails at high speed.
     pub speed_trails: bool,
-    /// Flames at the tail pipes: nitrous, gear-change blow-off and lift-off backfire. Nothing is loaded when off.
+    /// Flames at the tail pipes: gear-change blow-off and lift-off backfire. Nothing is loaded when off.
     pub exhaust_flames: bool,
     /// Who changes gear: the box (default) or the player.
     pub transmission: Transmission,

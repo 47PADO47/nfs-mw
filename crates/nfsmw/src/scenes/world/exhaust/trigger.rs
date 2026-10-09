@@ -1,5 +1,6 @@
-//! When the tail pipes flame (docs/specs/exhaust-flames.md, sections 2 and 8.3): the nitrous, the blow-off after a
-//! gear change of an engine that allows it, and the backfire at a sputter pop while off the throttle.
+//! When the tail pipes flame (docs/specs/exhaust-flames.md, sections 2 and 8.3): the blow-off after a gear change
+//! of an engine that allows it, and the backfire at a sputter pop while off the throttle. The nitrous does not
+//! flame: its effect in the original differs and is not built yet.
 
 /// Speed (m/s) below which a gear change does not flame.
 pub const MIN_SHIFT_SPEED: f32 = 10.0;
@@ -117,10 +118,10 @@ impl Backfire {
     }
 }
 
-/// How strongly the pipes spawn this step, 0 for quiet: full for the nitrous or a running shift event on an engine
-/// that allows it, [`BACKFIRE_INTENSITY`] for a backfire alone.
-pub fn flame_intensity(nitrous: bool, blowoff: bool, shift: &ShiftEvent, backfire: &Backfire) -> f32 {
-    if nitrous || (blowoff && shift.active()) {
+/// How strongly the pipes spawn this step, 0 for quiet: full for a running shift event on an engine that allows
+/// it, [`BACKFIRE_INTENSITY`] for a backfire alone.
+pub fn flame_intensity(blowoff: bool, shift: &ShiftEvent, backfire: &Backfire) -> f32 {
+    if blowoff && shift.active() {
         return 1.0;
     }
     match backfire.active() {
@@ -215,15 +216,14 @@ mod tests {
     }
 
     #[test]
-    fn the_nitrous_flames_regardless_and_the_blow_off_needs_the_flag_and_an_event() {
+    fn the_blow_off_needs_the_flag_and_an_event() {
         let (mut shift, back) = (ShiftEvent::default(), Backfire::default());
-        assert_eq!(flame_intensity(false, true, &shift, &back), 0.0);
-        assert_eq!(flame_intensity(true, false, &shift, &back), 1.0);
+        assert_eq!(flame_intensity(true, &shift, &back), 0.0);
         shift.note_gear(2);
         shift.note_gear(3);
         shift.advance(STEP, 3, 40.0, RACER);
-        assert_eq!(flame_intensity(false, true, &shift, &back), 1.0);
-        assert_eq!(flame_intensity(false, false, &shift, &back), 0.0);
+        assert_eq!(flame_intensity(true, &shift, &back), 1.0);
+        assert_eq!(flame_intensity(false, &shift, &back), 0.0);
     }
 
     #[test]
@@ -239,7 +239,7 @@ mod tests {
         }
         // 0.06 s at 60 Hz: the flame is used in four steps.
         assert_eq!(steps, 4);
-        assert_eq!(flame_intensity(false, false, &ShiftEvent::default(), &Backfire { left: 0.05 }), BACKFIRE_INTENSITY);
+        assert_eq!(flame_intensity(false, &ShiftEvent::default(), &Backfire { left: 0.05 }), BACKFIRE_INTENSITY);
     }
 
     #[test]
@@ -258,7 +258,7 @@ mod tests {
         back.advance(0.05);
         back.pops(1, 0.0, 2);
         assert_eq!(back, Backfire { left: BACKFIRE_SECONDS });
-        assert_eq!(flame_intensity(true, false, &ShiftEvent::default(), &back), 1.0, "the nitrous is stronger");
+        assert_eq!(flame_intensity(false, &ShiftEvent::default(), &back), BACKFIRE_INTENSITY);
         back.reset();
         assert!(!back.active());
     }

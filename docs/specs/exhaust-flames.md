@@ -1,4 +1,4 @@
-# Exhaust flames (nitrous and gear-change blow-off)
+# Exhaust flames (gear-change blow-off and lift-off backfire)
 
 What the original shows at the tail pipes: when, where, with which particles. It covers the three "pipe effects"
 of the car renderer (nitrous, gear change on an upgraded engine, miss-shift) and the particle emitter system that
@@ -228,7 +228,7 @@ Everything in this section is the rewrite's own design **[decision]** unless it 
   gears (or into one) counts as an up-shift or down-shift event.
 - The career's installed engine level does not exist yet: it defaults to **0** and the console command
   `exhaust-flames engine <n>` sets it, so cars with upgradable engines show the shift flame only after
-  `exhaust-flames engine 1` (or higher). The nitrous flames at any level.
+  `exhaust-flames engine 1` (or higher).
 - The miss-shift smoke (drag races) is not drawn; there are no drag races yet.
 
 ### 8.2 The setting
@@ -251,7 +251,8 @@ Everything in this section is the rewrite's own design **[decision]** unless it 
 
 A pipe flames, in this order of strength, when:
 
-1. **The nitrous is burning** (the physics' `nos_burning`): the group at full intensity (section 2).
+1. **The nitrous is not flamed.** The original's nitrous effect differs from the one used here; it is left for later
+   and the group is not played while the nitrous burns.
 2. **A gear-change blow-off runs** on an engine that allows it: the group at full intensity (section 2).
 3. **A sputter pops while the driver is off the throttle** (the *lift-off backfire*): the group at intensity 0.5 for
    `BACKFIRE_SECONDS` (0.06 s, about the life of one fire particle) after each pop.
@@ -267,7 +268,7 @@ frame the notice waits for the next physics step. The tuner car's forced backfir
 (engine-sound-aems.md section 5).
 
 Without sound (`--no-sound`, no output device, screenshot runs, no sputter bank in the car's set) there are no
-notices and so no lift-off backfire; nitrous and the blow-off do not depend on the sound. `exhaust-flames pop` and the `pop` key of a
+notices and so no lift-off backfire; the blow-off does not depend on the sound. `exhaust-flames pop` and the `pop` key of a
 `--drive-script` raise one notice by hand, which is how the backfire is screenshot.
 
 ### 8.4 Budgets
@@ -294,6 +295,5 @@ original, not a reading of it.
 
 `exhaust-flames` (F12) prints the pipes, the engine level, the live particles and the state; `exhaust-flames engine
 <n>` sets the level and `exhaust-flames pop` fakes one sputter notice. A scripted run screenshots the flames at the
-end of its script: the nitrous with a last segment `nos=1` (the car must be moving: it burns only in gear, on the
-throttle and above a minimum speed), the backfire with a last, very short segment `0.05:pop` (a scripted run has
+end of its script: the backfire with a last, very short segment `0.05:pop` (a scripted run has
 no sound, so the key stands for the notice).

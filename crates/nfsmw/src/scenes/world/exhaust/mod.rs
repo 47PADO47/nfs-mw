@@ -1,4 +1,4 @@
-//! Flames at the tail pipes: the nitrous, the blow-off after a gear change and the backfire at a sputter pop
+//! Flames at the tail pipes: the blow-off after a gear change and the backfire at a sputter pop
 //! (spec: exhaust-flames.md, sections 2 and 8).
 //!
 //! The car's `ecar` record names a particle group; its emitters (read from the install) are run at every pipe
@@ -32,8 +32,6 @@ pub struct CarState {
     pub velocity: Vec3,
     /// -1 reverse, 0 neutral, 1 and up forward.
     pub gear: i32,
-    /// The nitrous is burning.
-    pub nitrous: bool,
     /// The throttle pedal, 0 to 1.
     pub throttle: f32,
 }
@@ -115,7 +113,7 @@ impl Active {
             self.backfire.start();
         }
         let blowoff = blowoff_allowed(engine_level, self.engine_upgrades);
-        self.intensity = flame_intensity(car.nitrous, blowoff, &self.shift, &self.backfire);
+        self.intensity = flame_intensity(blowoff, &self.shift, &self.backfire);
         self.backfire.advance(dt);
         if self.intensity == 0.0 && self.live == 0 {
             return;

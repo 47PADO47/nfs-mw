@@ -38,19 +38,18 @@ fn active(fx: &ExhaustFlames) -> &Active {
     fx.active().expect("loaded")
 }
 
-fn car(gear: i32, nitrous: bool) -> CarState {
+fn car(gear: i32) -> CarState {
     CarState {
         to_world: Mat4::from_translation(Vec3::new(100.0, 0.0, 0.0)),
         velocity: Vec3::new(40.0, 0.0, 0.0),
         gear,
-        nitrous,
         throttle: 1.0,
     }
 }
 
 /// Coasting in `gear`: off the throttle.
 fn lifting(gear: i32) -> CarState {
-    CarState { throttle: 0.0, ..car(gear, false) }
+    CarState { throttle: 0.0, ..car(gear) }
 }
 
 fn run(flames: &mut ExhaustFlames, steps: usize, car: &CarState) {
@@ -62,23 +61,31 @@ fn run(flames: &mut ExhaustFlames, steps: usize, car: &CarState) {
 #[test]
 fn nothing_flames_by_itself() {
     let mut fx = flames(0);
-    run(&mut fx, 60, &car(3, false));
+    run(&mut fx, 60, &car(3));
     assert_eq!(fx.live(), 0);
 }
 
 #[test]
-fn the_nitrous_flames_while_it_burns_and_the_particles_die_after() {
+fn a_sustained_pop_keeps_the_pipes_flaming_and_they_die_after() {
     let mut fx = flames(3);
-    run(&mut fx, 30, &car(3, true));
+    burn(&mut fx, 30);
     assert!(fx.live() > 0);
-    run(&mut fx, 30, &car(3, false));
+    run(&mut fx, 30, &car(3));
     assert_eq!(fx.live(), 0, "the flame dies with its short particles");
+}
+
+/// Keep the pipes flaming for `steps` steps with the console's pop (a backfire each step).
+fn burn(fx: &mut ExhaustFlames, steps: usize) {
+    for _ in 0..steps {
+        fx.pop();
+        fx.step(STEP, &car(3));
+    }
 }
 
 #[test]
 fn particles_are_born_at_the_pipes_and_shot_backwards() {
     let mut fx = flames(0);
-    run(&mut fx, 3, &car(3, true));
+    burn(&mut fx, 3);
     let sprites: Vec<_> = active(&fx).lanes[0].emitters.iter().flat_map(|e| e.sprites()).collect();
     assert!(!sprites.is_empty());
     // The car is at x = 100 and the pipes 2 m behind its origin; live motion is off in this spec, so the
@@ -92,31 +99,31 @@ fn particles_are_born_at_the_pipes_and_shot_backwards() {
 fn a_gear_change_flames_only_where_the_engine_allows_it() {
     // A car that cannot be upgraded flames at a shift from the start.
     let mut open = flames(0);
-    run(&mut open, 5, &car(3, false));
-    run(&mut open, 3, &car(4, false));
+    run(&mut open, 5, &car(3));
+    run(&mut open, 3, &car(4));
     assert!(open.live() > 0);
 
     // A stock engine of an upgradable car does not.
     let mut stock = flames(3);
-    run(&mut stock, 5, &car(3, false));
-    run(&mut stock, 3, &car(4, false));
+    run(&mut stock, 5, &car(3));
+    run(&mut stock, 3, &car(4));
     assert_eq!(stock.live(), 0);
 
     // After an engine upgrade it does.
     stock.command(&["engine", "1"]).unwrap();
-    run(&mut stock, 5, &car(4, false));
-    run(&mut stock, 3, &car(5, false));
+    run(&mut stock, 5, &car(4));
+    run(&mut stock, 3, &car(5));
     assert!(stock.live() > 0);
 }
 
 #[test]
 fn the_shift_flame_stops_after_the_pitch_time() {
     let mut fx = flames(0);
-    run(&mut fx, 5, &car(3, false));
-    run(&mut fx, 1, &car(4, false));
+    run(&mut fx, 5, &car(3));
+    run(&mut fx, 1, &car(4));
     let mut flaming = 0;
     for _ in 0..60 {
-        fx.step(STEP, &car(4, false));
+        fx.step(STEP, &car(4));
         flaming += usize::from(active(&fx).intensity > 0.0);
     }
     // 0.28 s at 60 Hz: 16 steps with the event running, the first of them the step of the change.
@@ -125,9 +132,9 @@ fn the_shift_flame_stops_after_the_pitch_time() {
 
 #[test]
 fn a_slow_shift_does_not_flame() {
-    let slow = CarState { velocity: Vec3::new(5.0, 0.0, 0.0), ..car(2, false) };
+    let slow = CarState { velocity: Vec3::new(5.0, 0.0, 0.0), ..car(2) };
     let mut fx = flames(0);
-    run(&mut fx, 5, &car(1, false));
+    run(&mut fx, 5, &car(1));
     run(&mut fx, 3, &slow);
     assert_eq!(fx.live(), 0);
 }
@@ -154,7 +161,7 @@ fn a_sputter_pop_off_the_throttle_makes_a_short_weaker_flame() {
 fn a_pop_with_the_foot_down_or_without_the_setting_makes_no_flame() {
     let mut fx = flames(3);
     fx.note_pops(3);
-    run(&mut fx, 3, &car(3, false));
+    run(&mut fx, 3, &car(3));
     assert_eq!(fx.live(), 0, "under power the shift rule alone decides");
 
     let mut off = ExhaustFlames::default();
@@ -167,7 +174,7 @@ fn a_pop_with_the_foot_down_or_without_the_setting_makes_no_flame() {
 fn the_pops_of_one_step_are_used_once() {
     let mut fx = flames(3);
     fx.note_pops(1);
-    fx.step(STEP, &car(3, false));
+    fx.step(STEP, &car(3));
     assert_eq!(fx.pops, 0);
     fx.step(STEP, &lifting(3));
     assert_eq!(fx.live(), 0, "the pop under power is gone; it does not wait for the lift-off");
@@ -177,7 +184,7 @@ fn the_pops_of_one_step_are_used_once() {
 fn the_console_pop_backfires_whatever_the_throttle_does() {
     let mut fx = flames(3);
     fx.command(&["pop"]).unwrap();
-    fx.step(STEP, &car(3, false));
+    fx.step(STEP, &car(3));
     assert!(fx.live() > 0);
     assert!(ExhaustFlames::default().command(&["pop"]).is_err(), "off: nothing to pop");
 }
@@ -185,7 +192,7 @@ fn the_console_pop_backfires_whatever_the_throttle_does() {
 #[test]
 fn a_quiet_car_does_no_emitter_work() {
     let mut fx = flames(3);
-    run(&mut fx, 10, &car(3, false));
+    run(&mut fx, 10, &car(3));
     assert!(active(&fx).lanes.iter().flat_map(|l| &l.emitters).all(|e| e.enabled()));
     // No emitter was stepped or switched: they are still in their initial state with no storage touched.
     assert_eq!(active(&fx).intensity, 0.0);
@@ -200,7 +207,7 @@ fn each_emitter_is_capped_and_its_storage_reserved_up_front() {
     active.lanes = vec![lane(&heavy, 0, 2, 0)];
     let reserved: Vec<usize> = active.lanes[0].emitters.iter().map(|e| e.capacity()).collect();
     assert!(reserved.iter().all(|&c| c >= EMITTER_LIMIT));
-    run(&mut fx, 20, &car(3, true));
+    burn(&mut fx, 20);
     assert_eq!(fx.live(), 2 * EMITTER_LIMIT);
     let after: Vec<usize> = active_lanes(&fx).iter().map(|e| e.capacity()).collect();
     assert_eq!(after, reserved, "stepping never grew the storage");
@@ -213,7 +220,7 @@ fn active_lanes(fx: &ExhaustFlames) -> Vec<&blackbox_particles::Emitter> {
 #[test]
 fn quads_are_built_per_lane_far_to_near_and_reuse_their_buffer() {
     let mut fx = flames(0);
-    run(&mut fx, 10, &car(3, true));
+    burn(&mut fx, 10);
     let State::Ready(a) = &mut fx.state else { unreachable!() };
     for lane in 0..2 {
         assert!(a.quads(lane, Vec3::new(90.0, 0.0, 1.0), Vec3::X));
@@ -235,13 +242,13 @@ fn quads_are_built_per_lane_far_to_near_and_reuse_their_buffer() {
 #[test]
 fn aging_lets_the_flames_die_without_new_ones_and_clear_empties_them() {
     let mut fx = flames(0);
-    run(&mut fx, 30, &car(3, true));
+    burn(&mut fx, 30);
     assert!(fx.live() > 0);
     for _ in 0..20 {
         fx.age(STEP);
     }
     assert_eq!(fx.live(), 0);
-    run(&mut fx, 10, &car(3, true));
+    burn(&mut fx, 10);
     fx.clear();
     assert_eq!(fx.live(), 0);
     assert_eq!(active(&fx).intensity, 0.0);
@@ -288,7 +295,7 @@ fn only_the_additive_lane_is_brightened() {
     let mut fx = flames(0);
     let State::Ready(active) = &mut fx.state else { unreachable!() };
     active.lanes = vec![lane(&faint, 0, 2, 0), lane(&faint, 1, 2, 1)];
-    run(&mut fx, 6, &car(3, true));
+    burn(&mut fx, 6);
     let State::Ready(a) = &mut fx.state else { unreachable!() };
     let alpha = |a: &mut Active, lane: usize| {
         assert!(a.quads(lane, Vec3::new(90.0, 0.0, 1.0), Vec3::X));
