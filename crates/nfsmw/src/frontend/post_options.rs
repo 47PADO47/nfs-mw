@@ -37,6 +37,8 @@ impl PostSetting {
                 Self::Aa => match s.post_aa {
                     PostAa::Off => "Off",
                     PostAa::Fxaa => "FXAA",
+                    PostAa::Smaa => "SMAA",
+                    PostAa::Taa => "TAA",
                 },
             }
             .to_owned(),
@@ -57,7 +59,7 @@ impl PostSetting {
                 changed.post_bloom = Some(s.post_bloom);
             }
             Self::Aa => {
-                s.post_aa = pick(&[PostAa::Off, PostAa::Fxaa], s.post_aa, forward);
+                s.post_aa = pick(&[PostAa::Off, PostAa::Fxaa, PostAa::Smaa, PostAa::Taa], s.post_aa, forward);
                 changed.post_aa = Some(s.post_aa);
             }
         }
@@ -91,7 +93,7 @@ mod tests {
         let mut changed = Partial::default();
         PostSetting::Tonemap.step(&mut s, &mut changed, true);
         assert_eq!((s.post_tonemap, PostSetting::Tonemap.data(&s)), (PostTonemap::Aces, Data::Text("ACES".into())));
-        PostSetting::Aa.step(&mut s, &mut changed, false);
+        PostSetting::Aa.step(&mut s, &mut changed, true);
         assert_eq!((s.post_aa, PostSetting::Aa.data(&s)), (PostAa::Fxaa, Data::Text("FXAA".into())));
         assert_eq!(
             changed,

@@ -313,8 +313,9 @@ pub struct ViewArgs {
     /// Bloom around bright areas: off, low, medium or high [env NFSMW_POST_BLOOM; config `post_bloom`; default off].
     #[arg(long, value_name = "off|low|medium|high")]
     pub post_bloom: Option<crate::settings::PostBloom>,
-    /// Anti-aliasing of the 3D scene: off or fxaa [env NFSMW_POST_AA; config `post_aa`; default off].
-    #[arg(long, value_name = "off|fxaa")]
+    /// Anti-aliasing of the 3D scene: off, fxaa, smaa or taa; smaa and taa need the bevy renderer and run as fxaa
+    /// without it [env NFSMW_POST_AA; config `post_aa`; default off].
+    #[arg(long, value_name = "off|fxaa|smaa|taa")]
     pub post_aa: Option<crate::settings::PostAa>,
     /// Who changes gear: automatic or manual (Q/E, the bumpers or the wheel paddles shift)
     /// [env NFSMW_TRANSMISSION; config `transmission`; default automatic].

@@ -59,7 +59,7 @@ pub const BUILT_IN: [(&str, &str); 35] = [
     ("hud-layout <pc|classic|xbox360>", "change HUD placement and scale"),
     ("post_tonemap <off|aces>", "filmic tone mapping (darkens the image)"),
     ("post_bloom <off|low|medium|high>", "glow around bright areas"),
-    ("post_aa <off|fxaa>", "anti-aliasing of the 3D scene"),
+    ("post_aa <off|fxaa|smaa|taa>", "anti-aliasing of the 3D scene (smaa, taa: bevy renderer)"),
     ("collision_sparks <on|off>", "change collision sparks"),
     ("spark_style <original-pc|restored-experimental>", "select stock or experimental collision particles"),
     ("speed_trails <on|off>", "change experimental high-speed wind trails"),

@@ -221,7 +221,7 @@ fn syntax(key: &str) -> Option<&'static str> {
         "radio_hud" | "radio-hud" => "<ea_trax|custom>",
         "post_tonemap" => "<off|aces>",
         "post_bloom" => "<off|low|medium|high>",
-        "post_aa" => "<off|fxaa>",
+        "post_aa" => "<off|fxaa|smaa|taa>",
         "render_scale" => "<50-200>",
         "upscaler" => "<off|bilinear|fsr1>",
         "upscale_sharpness" => "<0-100>",

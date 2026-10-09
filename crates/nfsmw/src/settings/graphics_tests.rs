@@ -1,6 +1,6 @@
 //! `Settings::graphics()`: from the settings to the renderer's request, and what the renderers make of it.
 
-use blackbox_gfx::{Upscaler, resolve};
+use blackbox_gfx::{Antialiasing, GraphicsSettings, Setting, Upscaler, resolve};
 
 use super::*;
 
@@ -33,4 +33,21 @@ fn off_draws_at_the_output_size_whatever_the_render_scale() {
     let resolved = resolve(&asked, &test_caps::native());
     assert_eq!((resolved.effective.upscaler, resolved.effective.render_scale), (Upscaler::Off, 1.0));
     assert_eq!(resolved.downgrades.len(), 1, "{:?}", resolved.downgrades);
+}
+
+fn with_aa(aa: PostAa) -> GraphicsSettings {
+    Settings::from(Partial { post_aa: Some(aa), ..Partial::default() }).graphics()
+}
+
+#[test]
+fn smaa_and_taa_are_requests_the_native_renderer_runs_as_fxaa() {
+    for (aa, wanted) in [(PostAa::Smaa, Antialiasing::Smaa), (PostAa::Taa, Antialiasing::Taa)] {
+        let asked = with_aa(aa);
+        assert_eq!(asked.post.antialiasing, wanted);
+        let native = resolve(&asked, &test_caps::native());
+        assert_eq!(native.effective.post.antialiasing, Antialiasing::Fxaa);
+        let downgrade = native.downgrade_of(Setting::Antialiasing).expect("a logged downgrade");
+        assert_eq!((downgrade.requested.as_str(), downgrade.effective.as_str()), (wanted.name(), "fxaa"));
+        assert!(resolve(&asked, &test_caps::full()).is_exact(), "a full renderer runs {aa}");
+    }
 }

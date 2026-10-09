@@ -30,12 +30,15 @@ pub enum PostBloom {
     High,
 }
 
-/// The `post_aa` setting: anti-aliasing of the 3D scene (the HUD and menus are never touched).
+/// The `post_aa` setting: anti-aliasing of the 3D scene (the HUD and menus are never touched). `smaa` and `taa`
+/// only exist on the Bevy renderer; the native one runs them as `fxaa` (docs/renderers.md).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum PostAa {
     #[default]
     Off,
     Fxaa,
+    Smaa,
+    Taa,
 }
 
 impl PostBloom {
@@ -61,6 +64,8 @@ pub fn post_effects(settings: &Settings) -> PostSettings {
         antialiasing: match settings.post_aa {
             PostAa::Off => Antialiasing::Off,
             PostAa::Fxaa => Antialiasing::Fxaa,
+            PostAa::Smaa => Antialiasing::Smaa,
+            PostAa::Taa => Antialiasing::Taa,
         },
         ..PostSettings::default()
     }
@@ -72,4 +77,8 @@ names!(
     "off, low, medium or high",
     [(Self::Off, "off"), (Self::Low, "low"), (Self::Medium, "medium"), (Self::High, "high")]
 );
-names!(PostAa, "off or fxaa", [(Self::Off, "off"), (Self::Fxaa, "fxaa")]);
+names!(
+    PostAa,
+    "off, fxaa, smaa or taa",
+    [(Self::Off, "off"), (Self::Fxaa, "fxaa"), (Self::Smaa, "smaa"), (Self::Taa, "taa")]
+);

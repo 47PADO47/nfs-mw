@@ -28,7 +28,7 @@ fn names_round_trip_and_anything_else_is_rejected() {
     for text in ["off", "low", "medium", "high"] {
         assert_eq!(text.parse::<PostBloom>().unwrap().to_string(), text);
     }
-    for text in ["off", "fxaa"] {
+    for text in ["off", "fxaa", "smaa", "taa"] {
         assert_eq!(text.parse::<PostAa>().unwrap().to_string(), text);
     }
     for text in ["", "ACES", " aces", "on", "reinhard", "1"] {
@@ -37,7 +37,7 @@ fn names_round_trip_and_anything_else_is_rejected() {
     for text in ["ultra", "HIGH", "on", "0.5"] {
         assert!(text.parse::<PostBloom>().is_err(), "{text:?}");
     }
-    for text in ["smaa", "FXAA", "taa", "on"] {
+    for text in ["msaa", "FXAA", "TAA", "on", " taa"] {
         assert!(text.parse::<PostAa>().is_err(), "{text:?}");
     }
 }
@@ -71,7 +71,7 @@ fn layers_resolve_in_order_independently_and_bad_values_fall_through() {
     let file = file::parse("post_tonemap = 'aces'\npost_bloom = 'low'\npost_aa = 'fxaa'", "test");
     let environment = env::read(|key| match key {
         env::POST_BLOOM => Some("high".into()),
-        env::POST_AA => Some("smaa".into()),
+        env::POST_AA => Some("msaa".into()),
         _ => None,
     });
     let resolved = Settings::from(environment.or(file));
@@ -84,7 +84,7 @@ fn layers_resolve_in_order_independently_and_bad_values_fall_through() {
         (resolved.post_tonemap, resolved.post_bloom, resolved.post_aa),
         (PostTonemap::Off, PostBloom::Medium, PostAa::Fxaa)
     );
-    for text in ["post_tonemap = 'reinhard'", "post_tonemap = true", "post_bloom = 3", "post_aa = 'taa'"] {
+    for text in ["post_tonemap = 'reinhard'", "post_tonemap = true", "post_bloom = 3", "post_aa = 'msaa'"] {
         assert_eq!(file::parse(text, "test"), Partial::default(), "{text}");
     }
 }
@@ -94,7 +94,9 @@ fn the_command_line_is_optional_and_strict() {
     assert_eq!(view_layer(&[]).post_aa, None);
     assert_eq!(view_layer(&["--post-aa", "fxaa"]).post_aa, Some(PostAa::Fxaa));
     assert_eq!(view_layer(&["--post-aa", "off"]).post_aa, Some(PostAa::Off));
-    for flags in [["--post-aa", "smaa"], ["--post-bloom", "ultra"], ["--post-tonemap", "ACES"]] {
+    assert_eq!(view_layer(&["--post-aa", "taa"]).post_aa, Some(PostAa::Taa));
+    assert_eq!(view_layer(&["--post-aa", "smaa"]).post_aa, Some(PostAa::Smaa));
+    for flags in [["--post-aa", "msaa"], ["--post-bloom", "ultra"], ["--post-tonemap", "ACES"]] {
         assert!(Cli::try_parse_from(["nfsmw", "view-world", flags[0], flags[1]]).is_err(), "{flags:?}");
     }
 }
