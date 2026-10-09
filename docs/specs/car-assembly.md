@@ -271,8 +271,49 @@ alpha = tex.a * diff.a                           paint: GLOSS/255 (consumer of t
 The light material maps to the constants as `…Min = MinScale × (MinR, MinG, MinB[, MinA])` and
 `…Range = MaxScale × Max… − …Min` (the min is the grazing value, the max the facing value)
 [unconfirmed: the constant setup code is not decompiled; the names and the plausible Fresnel-like values
-support it]. `MetallicScale` and `SpecularHotSpot` are not read by this shader. The light rig
-(`ShaperLights*`, 3 lights) is not in any data file read so far [unconfirmed].
+support it]. `MetallicScale` and `SpecularHotSpot` are not read by this shader. The alpha ramps
+(`DiffuseMinA`/`MaxA`) are used as they are, without a scale.
+
+### Where the inputs come from
+
+| Input | Source | Status |
+|---|---|---|
+| `DiffuseMin/Range`, `SpecularMin/Range/Power`, `EnvmapMin/Range/Power` | the `LightMaterials` chunk of each shading group's light material (`ShadingGroup.light_material` indexes the solid's `light_material_hashes`) | [verified] all 156 materials read; M3 GTR groups use 21 of them |
+| `CARSKIN` | not a `LightMaterials` entry: hash `0xD6D6080A` is named by every body group and swapped for the paint part's `LIGHT_MATERIAL_NAME` (§7) | [verified] |
+| `WINDSHIELD` | stays as is; the window-tint part's own material swap (§7) is not applied | approximation |
+| Unlisted hash | a plain default material (diffuse 1, specular 0.2, env 0.1) | [guess] |
+| Light rig | `eShaperLightRig`: a name hash and **four** `eShaperLight` entries of {mode, theta, phi, red, green, blue, scale}, mode = world space, camera space, sun direction, opposite sun direction or world position; named rigs exist for the car lot, safehouse, back room, shop, in-game cars, … [decomp] | the shader reads three of them |
+| Rig values | **not in any file of the install**: no `ShaperLightRig` chunk (`0x0003B650`) exists in any `.bun`, `.lzc` or `.bin` (all scanned, inflated) [verified]; angle units and the values are in the executable only [unconfirmed] | chosen, see below |
+| Environment | the game renders a cube map of the surroundings (`g_CarEnvironmentMapEnable`, [shaders.md](../formats/shaders.md)); no static cube map for cars was found in `CARS/` or `GLOBAL/` | procedural sky |
+
+### What is implemented
+
+`Shading::Glossy` in `blackbox-render` (`shaders/glossy.wgsl`) draws every car group:
+
+- the §8 maths per pixel, in world space (the lights are given in world space instead of being
+  rotated into each model's space; the result is the same), with `sh = 1` (no shadow map) and the
+  reflection looked up with the world-space reflection vector, not a view-space one;
+- the highlight is the sun mirrored about the normal against the view vector, and is zero when the
+  normal faces away from the sun (`step(0, N·L₀)`; the sign convention of the original `reflect` call
+  is not known) [guess];
+- the alpha is `tex.a × DiffuseAlpha` only when blending; the alpha test and opaque draws ignore the
+  diffuse alpha (a windshield at 0.4 would vanish under the test);
+- the paint texture's alpha (gloss) is not read; the flat paint texture is opaque;
+- fog as the other shadings; no tone mapping, so sums above 1 are clamped by the target.
+
+Game side (`scenes/car/`): `shading.rs` turns each `LightMaterial` into a `GlossyMaterial`
+(min/range as above); `materials.rs` creates one renderer material per light material of the car and
+the `CARSKIN` swap; the floor keeps the placeholder shading.
+
+**Rig defaults** [guess, not game values]: key light = the scene's sun (viewer: from (0.4, 0.3, 1);
+world: from (0.35, 0.45, 1)), colour (0.95, 0.92, 0.84); fill 150° around the sun's azimuth at 25°
+elevation, colour (0.38, 0.43, 0.52); back light −110° at 35°, colour (0.30, 0.32, 0.38); ambient 0.
+**Sky** [guess]: zenith (0.30, 0.48, 0.78), horizon (0.78, 0.84, 0.90), ground (0.22, 0.23, 0.25),
+64×64 faces, blended by height (zenith over `z^0.6`, ground over 0.35 below the horizon).
+
+Still approximate: the rig values and the sky (above), the reflection of the car's own surroundings
+(the game renders them), shadows, per-vertex evaluation of the facing ramps (the game evaluates them
+per vertex; here per pixel), window tints, rim and caliper paint swaps, and the gloss in the skin's alpha.
 
 ## Constants
 
