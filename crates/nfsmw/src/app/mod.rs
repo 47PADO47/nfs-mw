@@ -58,6 +58,12 @@ pub struct RunOptions {
     pub screenshot: Option<PathBuf>,
     /// Physical off-screen target size; `None` preserves the default screenshot dimensions.
     pub screenshot_size: Option<[u32; 2]>,
+    /// Seconds to wait after the scene is ready before the first capture.
+    pub screenshot_delay: f32,
+    /// How many captures to take (numbered files when more than one).
+    pub screenshot_count: u32,
+    /// Seconds between captures.
+    pub screenshot_interval: f32,
     /// Console commands to run once the renderer is up (`--exec`).
     pub exec: Vec<String>,
     /// Start with the console open.
@@ -74,7 +80,22 @@ pub struct RunOptions {
 
 /// Open a window and run `scene` until the user quits (or write the screenshot and exit).
 pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> Result<()> {
-    let RunOptions { screenshot, screenshot_size, exec, open_console, hud, hud_demo, audio, frontend } = options;
+    let RunOptions {
+        screenshot,
+        screenshot_size,
+        screenshot_delay,
+        screenshot_count,
+        screenshot_interval,
+        exec,
+        open_console,
+        hud,
+        hud_demo,
+        audio,
+        frontend,
+    } = options;
+    let plan = screenshot
+        .clone()
+        .map(|path| screenshot::Plan::new(path, screenshot_delay, screenshot_count, screenshot_interval));
     let error = ErrorSlot(Arc::new(Mutex::new(None)));
     let mut window = Window { title: scene.title(), ..Window::default() };
     if screenshot.is_some() {
@@ -102,7 +123,7 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
     .insert_resource(window::WindowModes::new(screenshot.is_some()))
     .insert_resource(Bindings::load(settings))
     .insert_resource(error.clone())
-    .insert_non_send(Host::new(scene, settings, screenshot))
+    .insert_non_send(Host::new(scene, settings, plan))
     .configure_sets(
         Update,
         (

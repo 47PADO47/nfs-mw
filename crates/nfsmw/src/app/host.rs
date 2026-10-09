@@ -1,6 +1,5 @@
 //! State the app's systems share. It is `NonSend`: the renderer and the scene stay on the main thread.
 
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
@@ -15,7 +14,7 @@ pub struct Host {
     pub scene: Box<dyn Scene>,
     /// Counts the scenes put in the window, so a scene's sound can be stopped when it goes.
     pub scene_changes: u32,
-    pub screenshot: Option<PathBuf>,
+    pub screenshot: Option<super::screenshot::Plan>,
     /// Created once the window exists.
     pub renderer: Option<Renderer>,
     /// The window size the renderer was last resized to.
@@ -41,7 +40,7 @@ pub struct Host {
 }
 
 impl Host {
-    pub fn new(mut scene: Box<dyn Scene>, settings: &Settings, screenshot: Option<PathBuf>) -> Self {
+    pub fn new(mut scene: Box<dyn Scene>, settings: &Settings, screenshot: Option<super::screenshot::Plan>) -> Self {
         scene.set_tire_effects(settings.tire_smoke, settings.skid_marks);
         scene.set_smoke_quality(settings.smoke_quality);
         scene.set_vehicle_effects(settings.collision_sparks, settings.speed_trails);
