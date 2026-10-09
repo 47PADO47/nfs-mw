@@ -8,7 +8,11 @@
 //! touches the filesystem: it takes bytes.
 
 mod bytes;
+mod curve;
 mod error;
+mod index;
+mod lane;
+mod locate;
 mod network;
 mod node;
 mod profile;
@@ -18,7 +22,11 @@ mod segment;
 #[cfg(test)]
 mod tests;
 
+pub use curve::{Bezier, MIN_CHORD};
 pub use error::{Error, Result};
+pub use index::SegmentIndex;
+pub use lane::{NodeInd, centre_line, lane_line, right_of, travel_profile};
+pub use locate::{Located, SEARCH_RADIUS, SegmentFilter, closest_segment};
 pub use network::RoadNetwork;
 pub use node::RoadNode;
 pub use profile::{RoadProfile, Zone, zone};
