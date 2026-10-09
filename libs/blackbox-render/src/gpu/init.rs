@@ -2,8 +2,8 @@
 
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
-use super::{Renderer, instances, pipelines, resources, slots::Slots};
-use crate::{Backend, PixelFormat, RenderError, RendererOptions, TextureDesc};
+use super::{Renderer, instances, pipelines, post, resources, slots::Slots, targets};
+use crate::{Backend, DEFAULT_RENDER_SCALE, PixelFormat, RenderError, RendererOptions, TextureDesc};
 
 fn wgpu_backends(backend: Backend) -> wgpu::Backends {
     match backend {
@@ -60,11 +60,15 @@ where
     surface.configure(&device, &config);
 
     let shared = resources::Shared::new(&device);
-    let pipelines = pipelines::Pipelines::new(&device, config.format, &shared);
-    let depth = resources::create_depth(&device, config.width, config.height);
+    // The scene and the world effects draw into an offscreen HDR image; only the UI draws straight
+    // into the surface.
+    let scene_format = targets::pick_color_format(&adapter, config.format);
+    let pipelines = pipelines::Pipelines::new(&device, scene_format, &shared);
+    let targets = targets::FrameTargets::new(&device, scene_format, (config.width, config.height));
+    let post = post::PostChain::new(&device);
     let instances = instances::InstanceBuffer::new(&device);
     let ui = super::ui::Ui::new(&device, config.format, &shared);
-    let effects = super::effects::Effects::new(&device, config.format, &shared);
+    let effects = super::effects::Effects::new(&device, scene_format, &shared);
 
     let mut renderer = Renderer {
         surface,
@@ -73,7 +77,9 @@ where
         config,
         adapter_info,
         supports_bc,
-        depth,
+        targets,
+        post,
+        render_scale: DEFAULT_RENDER_SCALE,
         shared,
         pipelines,
         textures: Slots::new(),

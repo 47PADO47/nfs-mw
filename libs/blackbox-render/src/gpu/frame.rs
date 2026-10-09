@@ -1,8 +1,11 @@
-//! Drawing a frame: globals, instance upload, the three blend passes.
+//! Drawing a frame: the scene into the offscreen HDR image, the post-process chain into the
+//! surface, then the UI over it.
 
 use super::Renderer;
 use super::pipelines::{BLEND_ORDER, SHADINGS};
+use super::post::PassContext;
 use super::resources::Globals;
+use super::targets::FrameTargets;
 use crate::{FrameParams, Instance, RenderError};
 
 impl Renderer {
@@ -23,19 +26,33 @@ impl Renderer {
         };
         let view = surface_texture.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("frame") });
-        self.encode_scene(&mut encoder, &view, None, frame, instances);
-        self.encode_ui(&mut encoder, &view, (self.config.width, self.config.height));
+        self.encode_scene(&mut encoder, None, frame, instances);
+        self.encode_post(&mut encoder, None, &view, self.surface_size());
+        self.encode_ui(&mut encoder, &view, self.surface_size());
         self.queue.submit([encoder.finish()]);
         self.queue.present(surface_texture);
         Ok(true)
     }
 
-    /// Record the scene into `target`. `depth` defaults to the window's depth buffer.
+    /// Record the post-process chain: the scene image of `targets` (default: the window's) to `output`,
+    /// which is `size` pixels in the surface format.
+    pub(super) fn encode_post(
+        &mut self,
+        encoder: &mut wgpu::CommandEncoder,
+        targets: Option<&FrameTargets>,
+        output: &wgpu::TextureView,
+        size: (u32, u32),
+    ) {
+        let scene = targets.unwrap_or(&self.targets);
+        let ctx = PassContext { device: &self.device, queue: &self.queue, scene, output_size: size };
+        self.post.encode(&ctx, encoder, (output, self.config.format));
+    }
+
+    /// Record the scene into the colour and depth of `targets` (default: the window's).
     pub(super) fn encode_scene(
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
-        target: &wgpu::TextureView,
-        depth: Option<&wgpu::TextureView>,
+        targets: Option<&FrameTargets>,
         frame: &FrameParams,
         instances: &[Instance],
     ) {
@@ -51,7 +68,8 @@ impl Renderer {
         let matrices: Vec<[f32; 16]> = instances.iter().map(|i| i.transform.to_cols_array()).collect();
         self.instances.upload(&self.device, &self.queue, &matrices);
 
-        let depth = depth.unwrap_or(&self.depth);
+        let targets = targets.unwrap_or(&self.targets);
+        let (target, depth) = (&targets.color_view, &targets.depth_view);
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("scene"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
