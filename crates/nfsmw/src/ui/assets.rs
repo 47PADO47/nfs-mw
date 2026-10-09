@@ -48,23 +48,6 @@ pub struct Image {
     pub blend: u8,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    #[ignore = "requires an unmodified base PC install; set NFSMW_GAME_DIR"]
-    fn stock_selection_glow_has_alpha_coverage_despite_white_rgb() {
-        let path = std::env::var("NFSMW_GAME_DIR").expect("set NFSMW_GAME_DIR to an unmodified base PC install");
-        let dir = GameDir::open(path).unwrap();
-        let assets = UiAssets::load(&dir).unwrap();
-        let t = assets.texture(fe_hash_upper("IconSelection_Glow")).unwrap();
-        assert_eq!(t.alpha_blend, 2);
-        let image = assets.image(t.name_hash).unwrap();
-        assert_eq!(&image.rgba[..4], &[255, 255, 255, 0]);
-        assert!(image.rgba.as_chunks::<4>().0.iter().any(|p| p[3] > 0));
-    }
-}
-
 pub struct UiAssets {
     fonts: HashMap<u32, Font>,
     textures: HashMap<u32, Texture>,
@@ -172,3 +155,7 @@ impl UiAssets {
         self.texture(hash).map(|t| (t.width, t.height)).or((hash == fe_hash_upper("BASEPOLY")).then_some((2, 2)))
     }
 }
+
+#[cfg(test)]
+#[path = "assets_tests.rs"]
+mod tests;

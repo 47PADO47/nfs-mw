@@ -156,6 +156,8 @@ The runtime emits a list of drawable nodes; the host draws them. Rules **[decomp
   the texture alpha, then set output alpha to zero for the premultiplied compositor **[ours]**.
   `IconSelection_Glow` is a DXT3 additive texture with white RGB in transparent texels **[verified files]**;
   discarding its alpha without multiplication draws the entire rectangle.
+  Mask composition retains straight RGB and combines picture/mask alpha; upload applies that coverage
+  exactly once for both alpha-blended and additive images **[ours, synthetic full-presenter regression]**.
 - **Strings:** glyph quads placed around the string origin. Horizontal origin: left 0, centre −width / 2,
   right −width; vertical: centre −height / 2, bottom −height. A maximum width (`Sw`) squeezes the line
   horizontally unless word wrap is set. Leading is `Sl` times the font's leading scale. Fonts and glyphs:

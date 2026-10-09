@@ -101,8 +101,7 @@ fn compose_unrotated(
     }
 }
 
-/// Multiplies the colour of every pixel by its alpha (for a picture that is added to the screen: what the mask
-/// hides must add nothing).
+/// Converts straight RGB to premultiplied colour, retaining alpha until upload chooses the blend encoding.
 pub fn premultiply(image: &mut Image) {
     for px in image.rgba.as_chunks_mut::<4>().0 {
         let a = u32::from(px[3]);
@@ -280,12 +279,12 @@ mod tests {
         let mut mask = image(64, |_, _| true);
         mask.height = 61;
         mask.rgba.truncate((mask.width * mask.height * 4) as usize);
-        for (i, p) in mask.rgba.chunks_exact_mut(4).enumerate() {
+        for (i, p) in mask.rgba.as_chunks_mut::<4>().0.iter_mut().enumerate() {
             p[3] = ((i * 37) % 256) as u8;
         }
         for size in [2, 4, 31, 128, 512] {
             let mut base = image(size, |_, _| true);
-            for (i, p) in base.rgba.chunks_exact_mut(4).enumerate() {
+            for (i, p) in base.rgba.as_chunks_mut::<4>().0.iter_mut().enumerate() {
                 p[3] = ((i * 53) % 256) as u8;
             }
             for degrees in [0.0, -0.0, 33.25, -90.0, 180.0] {
@@ -310,7 +309,7 @@ mod tests {
         assert!(compose(&empty, &base, [0.5, 0.5], 0.0, WHOLE).rgba.is_empty());
         for degrees in [0.0, 33.0] {
             let out = compose(&base, &empty, [0.5, 0.5], degrees, WHOLE);
-            assert!(out.rgba.chunks_exact(4).all(|pixel| pixel[3] == 0));
+            assert!(out.rgba.as_chunks::<4>().0.iter().all(|pixel| pixel[3] == 0));
         }
     }
 }
