@@ -64,3 +64,31 @@ pub fn heat_row(db: &Database, heat: u32) -> Option<HeatRow> {
         time_between_cop_spawns: row.get_f32("TimeBetweenCopSpawn").unwrap_or(5.0),
     })
 }
+
+/// The `aivehicle` numbers of a car that limit how fast an AI drives it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AiVehicle {
+    /// `MAXIMUM_AI_SPEED`, km/h.
+    pub max_speed_kmh: f32,
+    pub acceleration_multiplier: f32,
+    pub top_speed_multiplier: f32,
+}
+
+impl Default for AiVehicle {
+    fn default() -> Self {
+        Self { max_speed_kmh: 200.0, acceleration_multiplier: 1.0, top_speed_multiplier: 1.0 }
+    }
+}
+
+/// The `aivehicle` record of the `pvehicle` named `car` (lower case); the defaults when it has none.
+pub fn ai_vehicle(db: &Database, car: &str) -> AiVehicle {
+    let defaults = AiVehicle::default();
+    let Some(record) = db.collection("pvehicle", &car.to_ascii_lowercase()).and_then(|p| p.follow("aivehicle")) else {
+        return defaults;
+    };
+    AiVehicle {
+        max_speed_kmh: record.get_f32("MAXIMUM_AI_SPEED").unwrap_or(defaults.max_speed_kmh),
+        acceleration_multiplier: record.get_f32("AccelerationMultiplier").unwrap_or(1.0),
+        top_speed_multiplier: record.get_f32("TopSpeedMultiplier").unwrap_or(1.0),
+    }
+}
