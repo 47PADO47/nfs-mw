@@ -130,7 +130,14 @@ const LABEL_MANUAL: u32 = 0x317D_3005;
 const FRAME_LIMITS: [&str; 6] = ["unlocked", "30", "60", "120", "144", "240"];
 /// Render scales (percent) the row cycles through: FSR 1's quality modes and a few supersampling steps.
 const RENDER_SCALES: [u16; 9] = [50, 59, 67, 77, 85, 100, 125, 150, 200];
-const UPSCALERS: [UpscaleMode; 3] = [UpscaleMode::Off, UpscaleMode::Bilinear, UpscaleMode::Fsr1];
+const UPSCALERS: [UpscaleMode; 6] = [
+    UpscaleMode::Off,
+    UpscaleMode::Bilinear,
+    UpscaleMode::Fsr1,
+    UpscaleMode::Fsr3,
+    UpscaleMode::Fsr4,
+    UpscaleMode::Dlss,
+];
 const METRICS: [ShowMetrics; 3] = [ShowMetrics::Off, ShowMetrics::Basic, ShowMetrics::Advanced];
 const WINDOW_MODES: [WindowMode; 3] = [WindowMode::Windowed, WindowMode::Borderless, WindowMode::Exclusive];
 /// A slider press moves the volume by this many percent.
@@ -202,6 +209,9 @@ impl Setting {
                     UpscaleMode::Off => "Off",
                     UpscaleMode::Bilinear => "Bilinear",
                     UpscaleMode::Fsr1 => "FSR 1",
+                    UpscaleMode::Fsr3 => "FSR 3",
+                    UpscaleMode::Fsr4 => "FSR 4",
+                    UpscaleMode::Dlss => "DLSS",
                 }
                 .to_owned(),
             ),

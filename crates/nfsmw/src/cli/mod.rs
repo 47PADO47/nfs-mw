@@ -267,9 +267,10 @@ pub struct ViewArgs {
     /// config `render_scale`; default 100]. Below 100 the scene is scaled up with --upscaler; the HUD stays sharp.
     #[arg(long, value_name = "50-200")]
     pub render_scale: Option<crate::settings::RenderScale>,
-    /// How a render scale below 100 is scaled up: fsr1 (FidelityFX Super Resolution 1), bilinear, or off (the
-    /// render scale is ignored) [env NFSMW_UPSCALER; config `upscaler`; default fsr1].
-    #[arg(long, value_name = "off|bilinear|fsr1")]
+    /// How the scene is scaled up: fsr1 (FidelityFX Super Resolution 1), bilinear, or off (the render scale is
+    /// ignored); fsr3, fsr4 and dlss are temporal upscalers of the bevy renderer and run as fsr1 without it
+    /// [env NFSMW_UPSCALER; config `upscaler`; default fsr1].
+    #[arg(long, value_name = "off|bilinear|fsr1|fsr3|fsr4|dlss")]
     pub upscaler: Option<crate::settings::UpscaleMode>,
     /// FSR 1 sharpening, 0 (off) to 100 [env NFSMW_UPSCALE_SHARPNESS; config `upscale_sharpness`; default 80].
     #[arg(long, value_name = "0-100")]

@@ -55,15 +55,21 @@ fn a_scale_between_presets_moves_to_the_next_preset_in_that_direction() {
 fn the_upscaler_row_cycles_both_ways_and_records_only_itself() {
     let (mut s, mut c) = (defaults(), Partial::default());
     assert_eq!(Setting::Upscaler.data(&s), Data::Text("FSR 1".into()));
-    Setting::Upscaler.step(&mut s, &mut c, true);
-    assert_eq!(s.upscaler, UpscaleMode::Off, "right from the last wraps to the first");
-    assert_eq!(Setting::Upscaler.data(&s), Data::Text("Off".into()));
-    assert_eq!(c, Partial { upscaler: Some(UpscaleMode::Off), ..Partial::default() });
-    Setting::Upscaler.step(&mut s, &mut c, true);
-    assert_eq!(Setting::Upscaler.data(&s), Data::Text("Bilinear".into()));
+    for name in ["FSR 3", "FSR 4", "DLSS", "Off", "Bilinear"] {
+        Setting::Upscaler.step(&mut s, &mut c, true);
+        assert_eq!(Setting::Upscaler.data(&s), Data::Text(name.into()));
+    }
+    assert_eq!(s.upscaler, UpscaleMode::Bilinear, "right from the last wraps to the first");
+    assert_eq!(c, Partial { upscaler: Some(UpscaleMode::Bilinear), ..Partial::default() });
     Setting::Upscaler.step(&mut s, &mut c, false);
     Setting::Upscaler.step(&mut s, &mut c, false);
-    assert_eq!(s.upscaler, UpscaleMode::Fsr1);
+    Setting::Upscaler.step(&mut s, &mut c, false);
+    Setting::Upscaler.step(&mut s, &mut c, false);
+    Setting::Upscaler.step(&mut s, &mut c, false);
+    Setting::Upscaler.step(&mut s, &mut c, false);
+    assert_eq!(s.upscaler, UpscaleMode::Bilinear, "six values make a full turn");
+    Setting::Upscaler.step(&mut s, &mut c, false);
+    assert_eq!(s.upscaler, UpscaleMode::Off);
 }
 
 #[test]

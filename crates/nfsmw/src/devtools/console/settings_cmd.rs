@@ -223,7 +223,7 @@ fn syntax(key: &str) -> Option<&'static str> {
         "post_bloom" => "<off|low|medium|high>",
         "post_aa" => "<off|fxaa|smaa|taa>",
         "render_scale" => "<50-200>",
-        "upscaler" => "<off|bilinear|fsr1>",
+        "upscaler" => "<off|bilinear|fsr1|fsr3|fsr4|dlss>",
         "upscale_sharpness" => "<0-100>",
         _ => return None,
     })
@@ -377,7 +377,7 @@ mod tests {
         assert_eq!(set(&mut s, "upscale_sharpness", "25").unwrap(), "upscale_sharpness = 25");
         let before = s;
         assert!(set(&mut s, "render_scale", "10").is_err());
-        assert!(set(&mut s, "upscaler", "dlss").is_err());
+        assert!(set(&mut s, "upscaler", "xess").is_err());
         assert!(set(&mut s, "upscale_sharpness", "101").is_err());
         assert_eq!(s, before);
         assert_eq!(set(&mut s, "render_scale", "").unwrap_err(), "usage: set render_scale <50-200> (now 67)");

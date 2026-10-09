@@ -51,3 +51,26 @@ fn smaa_and_taa_are_requests_the_native_renderer_runs_as_fxaa() {
         assert!(resolve(&asked, &test_caps::full()).is_exact(), "a full renderer runs {aa}");
     }
 }
+
+#[test]
+fn dlss_at_quality_on_the_native_renderer_is_fsr1_at_two_thirds_with_a_downgrade() {
+    let asked = settings(100, UpscaleMode::Dlss).graphics();
+    assert_eq!((asked.upscaler, asked.render_scale), (Upscaler::Dlss, 1.0));
+    let native = resolve(&asked, &test_caps::native());
+    assert_eq!(native.effective.upscaler, Upscaler::Fsr1);
+    assert!((native.effective.render_scale - 0.67).abs() < 0.005, "{}", native.effective.render_scale);
+    let downgrade = native.downgrade_of(Setting::Upscaler).expect("a logged downgrade");
+    assert_eq!((downgrade.requested.as_str(), downgrade.effective.as_str()), ("dlss", "fsr1"));
+    assert!(downgrade.reason.contains("blackbox"), "{}", downgrade.reason);
+    let full = resolve(&asked, &test_caps::full());
+    assert!(full.is_exact(), "{:?}", full.downgrades);
+    assert_eq!(full.effective.upscaler, Upscaler::Dlss);
+}
+
+#[test]
+fn fsr3_and_fsr4_fall_back_along_the_chain_on_a_renderer_that_lacks_them() {
+    for mode in [UpscaleMode::Fsr3, UpscaleMode::Fsr4] {
+        let native = resolve(&settings(100, mode).graphics(), &test_caps::native());
+        assert_eq!(native.effective.upscaler, Upscaler::Fsr1, "{mode}");
+    }
+}

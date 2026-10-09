@@ -29,17 +29,28 @@ fn render_scale_reads_percent_or_factor_and_rejects_out_of_range() {
 
 #[test]
 fn upscaler_has_a_strict_round_trip() {
-    for (text, mode) in [("off", UpscaleMode::Off), ("bilinear", UpscaleMode::Bilinear), ("fsr1", UpscaleMode::Fsr1)] {
+    for (text, mode) in [
+        ("off", UpscaleMode::Off),
+        ("bilinear", UpscaleMode::Bilinear),
+        ("fsr1", UpscaleMode::Fsr1),
+        ("fsr3", UpscaleMode::Fsr3),
+        ("fsr4", UpscaleMode::Fsr4),
+        ("dlss", UpscaleMode::Dlss),
+    ] {
         assert_eq!(text.parse::<UpscaleMode>().unwrap(), mode);
         assert_eq!(mode.to_string(), text);
     }
-    assert_eq!("FSR".parse::<UpscaleMode>().unwrap(), UpscaleMode::Fsr1);
-    for text in ["fsr2", "dlss", "on", "", "1"] {
+    assert_eq!("FSR".parse::<UpscaleMode>().unwrap(), UpscaleMode::Fsr1, "a bare fsr is fsr 1");
+    assert_eq!(" FSR-3 ".parse::<UpscaleMode>().unwrap(), UpscaleMode::Fsr3);
+    for text in ["fsr2", "xess", "on", "", "1", "dlss4"] {
         assert!(text.parse::<UpscaleMode>().is_err(), "{text:?}");
     }
     assert_eq!(UpscaleMode::Off.upscaler(), Upscaler::Off);
     assert_eq!(UpscaleMode::Bilinear.upscaler(), Upscaler::Bilinear);
     assert_eq!(UpscaleMode::Fsr1.upscaler(), Upscaler::Fsr1);
+    assert_eq!(UpscaleMode::Fsr3.upscaler(), Upscaler::Fsr3);
+    assert_eq!(UpscaleMode::Fsr4.upscaler(), Upscaler::Fsr4);
+    assert_eq!(UpscaleMode::Dlss.upscaler(), Upscaler::Dlss);
 }
 
 #[test]
@@ -60,7 +71,7 @@ fn layers_resolve_in_order_and_bad_values_fall_through() {
     let cli = Partial { render_scale: RenderScale::new(200), ..Partial::default() };
     assert_eq!(Settings::from(cli.or(env).or(file)).render_scale.percent(), 200, "command line over environment");
     for text in
-        ["render_scale = 10", "render_scale = true", "upscaler = 3", "upscaler = 'dlss'", "upscale_sharpness = 300"]
+        ["render_scale = 10", "render_scale = true", "upscaler = 3", "upscaler = 'xess'", "upscale_sharpness = 300"]
     {
         let p = file::parse(text, "test");
         assert_eq!((p.render_scale, p.upscaler, p.upscale_sharpness), (None, None, None), "{text}");
@@ -92,7 +103,7 @@ fn cli_flags_are_strict_and_set_the_top_layer() {
     assert_eq!(layer.render_scale.map(RenderScale::percent), Some(67));
     assert_eq!(layer.upscaler, Some(UpscaleMode::Bilinear));
     assert_eq!(layer.upscale_sharpness, Some(Percent(10)));
-    for flags in [["--render-scale", "10"], ["--upscaler", "dlss"], ["--upscale-sharpness", "101"]] {
+    for flags in [["--render-scale", "10"], ["--upscaler", "xess"], ["--upscale-sharpness", "101"]] {
         assert!(Cli::try_parse_from(["nfsmw", "view-world"].into_iter().chain(flags)).is_err(), "{flags:?}");
     }
 }
