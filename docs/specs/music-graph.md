@@ -15,7 +15,8 @@ song, and the "EA Trax" play lists that choose the next one. Companion of
   behaviour below marked [inferred] or [guess] should be checked with one when it can be had.
 - **Scope.** Licensed songs, the start-screen music and the way the player moves from one song to the next.
   The interactive pursuit music and the ambience (sections 1 to 4 and 6, section 7) use the same graph but
-  react to game state; only a note on them is made in section 8. They are out of scope of this spec.
+  react to game state; only a note on them is made in section 8. They are out of scope of this spec; the pursuit
+  sets are specified in [interactive-music.md](interactive-music.md).
 
 All integers are little-endian. "Node" means a record of the node table; node numbers are indexes into it.
 

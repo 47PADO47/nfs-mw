@@ -421,17 +421,17 @@ database.
   thread reads the chain from the file with positioned reads and a custom `kira` sound plays the blocks (linear
   resampling to the device, a fade-out when it is stopped), so no song is held in memory. `nfsmw-data`'s `music`
   reads the 26 songs (artist, title, event, `DefPlay`); `Playlist` picks the next one by the original's rules
-  (front-end and in-game lists, ordered or shuffled without replacement). The radio plays while a game is on:
-  it starts when free roam begins (the scene has a car), goes on under the pause menu (`Scene::paused`; the car
-  falls silent, the game does not) and stops when the scene is left (quit to the main menu), so the menus have no
-  music yet. It starts the next song when one ends. `music_volume` and `master_volume` are read from the settings
-  every frame, so the pause menu's audio rows change the song on the air at once; a music volume of zero silences
-  the song without dropping it, and a new song only starts when the music is audible. `--no-sound` turns the
-  radio off. Console: `radio` (status), `radio next`, `radio on|off`, `radio list`, `radio play <n>`,
-  `radio shuffle|ordered`. The song on the air is `Audio::now_playing()` (artist, title, album, elapsed) for the HUD,
-  which does not draw it yet. The pursuit and ambience music (the same graph, driven by game state) and the jukebox
-  are not done, and nobody has listened to the result: how the original ends a song is inferred (see the spec).
-- **Not done:** speech, the interactive music, the radio's HUD display, the mixer's reverb, low-pass and azimuth
+  (front-end and in-game lists, ordered or shuffled without replacement). The radio plays while a game is on: it
+  starts with free roam, goes on under the pause menu (`Scene::paused`) and stops when the scene is left, so the menus
+  have no music yet. It starts the next song when one ends. The volumes are read from the settings every frame (a
+  music volume of zero silences the song without dropping it; a new song starts only when the music is audible).
+  `--no-sound` turns the radio off. Console: `radio [list|next|play <n>|on|off|shuffle|ordered]`.
+  `Audio::now_playing()` feeds the HUD (not drawn yet). No jukebox; unheard, and how a song ends is inferred.
+- **The pursuit music.** `audio/interactive/`: the four pursuit sets of the graph, steered by a control value. A
+  `MusicInput` resource (hooks for milestone 7, or the `music` console command) says which set and how tense; a
+  director and conductor play it on its own child track (`graph::Cursor` walks the bars), cross-fade sets and keep
+  the songs off for the chase and 40 s after. Map events are not run; unheard ([spec](specs/interactive-music.md)).
+- **Not done:** speech, the ambience music, the radio's HUD display, the mixer's reverb, low-pass and azimuth
   outputs, Doppler, and a comparison of the engine's levels with the running original (the absolute level,
   `MAKEUP`, and the chase-camera distances are guesses).
 
@@ -472,7 +472,7 @@ Unit tests, real-install tests and the guard rails are described in [testing.md]
 | 3 | Sky dome, LODs, water, panoramas; zone-based streaming (visible sections); AttribSys reader; car assembly from the parts DB (stock parts, wheels, brakes, paint). Playtest fixes: misplaced and floating scenery, mouse look without holding a button, `--max-fps`, clearer config-file path | done |
 | 4 | Engine foundation: decide on Bevy (ECS, events, UI) in an ADR and migrate the viewers if adopted; layered settings (command line > environment > per-user config file > defaults, with a settings menu in 6); input layer with controller support; developer console (F12: log view, commands such as change car, toggle free camera, change settings); performance overlay (`--show-metrics off\|basic\|advanced`). Decided: Bevy as the shell with our renderer ([ADR 0001](decisions/0001-bevy.md)), full Bevy renderer revisited in 8 | done |
 | 5 | Vehicle physics, spec-first (`docs/specs/vehicle-*.md`); world collision (`CarpWCollisionPack`); drive a car with the original HUD: read the FEng HUD packages (`HUD_*.fng` in `InGameB.bun`) and draw them with the UI layer; steering wheel controller support (wheel axes, pedals, shifters) on the input layer from 4 |  in progress: `blackbox-vehicle`, the collision reader, input actions, `view-world --drive` (placing, chase camera, one-sided walls, props, reset and fall recovery, scripted runs), manual shifting (Q/E, pad bumpers and wheel paddle buttons, with a transmission setting and an options row), the original HUD (speedometer, tachometer with its red zone and shift light, gear, nitrous bar, turbo dial, minimap; the rest of the package waits for the race and pursuit state of milestone 7), the `--show-readout` levels and the `debug collisions` command are in; steering wheel support (wheel axes and pedals; a wheel is untested) is open; controller testing on real hardware and calibration against the original are done ([Driving](#driving-view-world---drive), [The HUD](#the-hud)) |
-| 6 | Audio (EA-XA, EA-XAS engine loops, MicroTalk speech), VP6 movies, FEng menus (the same FEng runtime as the HUD), in-game settings menu | in progress: the codecs, banks, music and movie decoders, Ginsu synthesis, the car sound data, the engine and effects mixers, the dynamic mixer maps, the sample (AEMS) layer of the engine and the sputters, the output device, the driven car's engine and effects, a movie player and the radio (licensed songs, gapless, play lists; not yet heard by a human) are in, and so are the front end (boot movies, title screen, main menu, option screens for audio, video and gameplay, the pause menu, free roam) and the settings written to the config file; speech and the interactive music are open, and so is the playtest report that the engine sounds muted at the rev limiter was fixed by [PR 5](https://github.com/47PADO47/nfs-mw/pull/5); `RUST_LOG=nfsmw::audio=debug` logs the limiter ([Sound](#sound), [The front end](#the-front-end)) |
+| 6 | Audio (EA-XA, EA-XAS engine loops, MicroTalk speech), VP6 movies, FEng menus (the same FEng runtime as the HUD), in-game settings menu | in progress: the codecs, banks, music and movie decoders, Ginsu synthesis, the car sound data, the engine and effects mixers, the dynamic mixer maps, the sample (AEMS) layer of the engine and the sputters, the output device, the driven car's engine and effects, a movie player and the radio (licensed songs, gapless, play lists; not yet heard by a human) are in, and so are the front end (boot movies, title screen, main menu, option screens for audio, video and gameplay, the pause menu, free roam) and the settings written to the config file; speech and the ambience music are open, the pursuit music (four sets steered by game state, the hooks waiting for milestone 7; not yet heard) is in, and so is the playtest report that the engine sounds muted at the rev limiter was fixed by [PR 5](https://github.com/47PADO47/nfs-mw/pull/5); `RUST_LOG=nfsmw::audio=debug` logs the limiter ([Sound](#sound), [The front end](#the-front-end)) |
 | 7 | AI racers, traffic, pursuit, races; career data; console commands to spawn AI | |
 | 8 | Graphics: the car shader and lighting rig, tire smoke and skid marks (`blackbox-vehicle` already reports per-wheel `skid` and `smoke`; this draws them), exhaust flames (backfire on lift-off, driven by the sputters of the sample layer), post-processing, upscaling (FSR; DLSS where the backend allows it), ReShade compatibility, Bevy Solari | |
 | 9 | Discord Rich Presence | |
