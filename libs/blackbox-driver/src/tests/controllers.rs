@@ -173,3 +173,73 @@ fn a_reverse_override_runs_out_and_returns_to_first() {
     assert_eq!(gear, Some(GearRequest::First));
     assert_eq!(driver.reverse_override_left(), 0.0);
 }
+
+mod speed {
+    use glam::Vec2;
+
+    use crate::*;
+
+    fn limits() -> CarLimits {
+        CarLimits {
+            top_speed: 80.0,
+            start_grip: 1.0,
+            end_grip: 1.3,
+            top_speed_multiplier: 1.0,
+            acceleration_multiplier: 1.0,
+        }
+    }
+
+    #[test]
+    fn a_straight_road_allows_the_top_speed_and_a_tight_bend_far_less() {
+        assert!((speed_limit_for(0.0, 1.0, 0.002, 80.0) - 80.0).abs() < 1e-3);
+        let bend = speed_limit_for(1.0 / 25.0, 1.0, 0.002, 80.0);
+        // A 25 m radius at about 1 g of grip holds only a modest speed.
+        assert!((8.0..20.0).contains(&bend), "{bend}");
+        assert!(speed_limit_for(1.0 / 100.0, 1.0, 0.002, 80.0) > bend);
+    }
+
+    #[test]
+    fn skilled_drivers_corner_faster() {
+        let l = limits();
+        let slow = potential_speed(&l, 0.02, 0.0, None);
+        let fast = potential_speed(&l, 0.02, 1.0, None);
+        assert!(fast > slow * 1.1, "{slow} {fast}");
+    }
+
+    #[test]
+    fn the_governor_follows_the_acceleration_not_the_potential() {
+        let mut g = SpeedGovernor::begin(0.0);
+        let (mut speed, mut asked) = (0.0f32, Vec::new());
+        for i in 0..120 {
+            let wanted = g.update(speed, 60.0, 8.0, 0.5, 1.0 / 30.0);
+            // A car that accelerates at 6 m/s^2 towards the request.
+            speed += ((wanted - speed) * 4.0).clamp(-8.0, 6.0) / 30.0;
+            if i % 30 == 29 {
+                asked.push(wanted);
+            }
+        }
+        assert!(asked[0] < 25.0, "the request does not leap to the top: {asked:?}");
+        assert!(asked[3] > asked[0] + 10.0, "{asked:?}");
+        assert!(g.speed_limit <= 60.0);
+    }
+
+    #[test]
+    fn a_cop_far_behind_its_target_may_use_all_its_speed_and_near_it_follows_the_target() {
+        let base = PursuitContext {
+            distant: 70.0,
+            offset: Vec2::new(0.0, -300.0),
+            seek_dir: Vec2::Y,
+            target_speed: 20.0,
+            forward: Vec2::Y,
+            steer_dir: Vec2::Y,
+            target_steer_dir: Vec2::Y,
+            race_running: false,
+            jerk: false,
+        };
+        assert!((base.max_cop_speed() - 70.0).abs() < 1.0, "{}", base.max_cop_speed());
+        let near = PursuitContext { offset: Vec2::new(0.0, -20.0), ..base };
+        assert!(near.max_cop_speed() < 70.0, "{}", near.max_cop_speed());
+        let l = limits();
+        assert!(potential_speed(&l, 0.0, 0.5, Some(&near)) <= near.max_cop_speed());
+    }
+}
