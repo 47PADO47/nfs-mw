@@ -205,6 +205,15 @@ pub struct ViewArgs {
     /// Physical render target for a screenshot (default 1280x720); independent of window preferences.
     #[arg(long, hide = true, requires = "screenshot", value_name = "WIDTHxHEIGHT", value_parser = parse_screenshot_size)]
     pub screenshot_size: Option<[u32; 2]>,
+    /// For --screenshot: seconds to wait after the scene is ready before the first capture [default 0].
+    #[arg(long, requires = "screenshot", value_name = "SECS")]
+    pub screenshot_delay: Option<f32>,
+    /// For --screenshot: how many captures to take; more than one numbers the files (out-1.png, out-2.png, ...) [default 1].
+    #[arg(long, requires = "screenshot", value_name = "N")]
+    pub screenshot_count: Option<u32>,
+    /// For --screenshot with --screenshot-count: seconds between captures [default 1].
+    #[arg(long, requires = "screenshot", value_name = "SECS")]
+    pub screenshot_interval: Option<f32>,
     /// Run a console command once the window is up (repeatable), e.g. --exec "fps 60" --exec "car PORSCHE911".
     #[arg(long, value_name = "COMMAND")]
     pub exec: Vec<String>,
@@ -217,6 +226,9 @@ pub struct ViewArgs {
     /// Master volume, 0 to 100 [env NFSMW_MASTER_VOLUME; config `master_volume`; default 80].
     #[arg(long, value_name = "0-100")]
     pub volume: Option<crate::settings::Percent>,
+    /// Mute all audio: everything keeps playing (the radio and the songs too), silently.
+    #[arg(long, conflicts_with = "no_sound")]
+    pub muted: bool,
     /// Show the in-game HUD in any viewer (while driving it is on unless the `hud` setting is off)
     /// [env NFSMW_HUD; config `hud`].
     #[arg(long)]
@@ -227,6 +239,9 @@ pub struct ViewArgs {
     /// HUD placement: pc, classic (centered) or xbox360 [env NFSMW_HUD_LAYOUT; default pc].
     #[arg(long, value_name = "pc|classic|xbox360")]
     pub hud_layout: Option<crate::settings::HudLayout>,
+    /// How the radio announces songs on the HUD: ea_trax (the original chyron) or custom [env NFSMW_RADIO_HUD; default ea_trax].
+    #[arg(long, value_name = "ea_trax|custom")]
+    pub radio_hud: Option<crate::settings::RadioHudStyle>,
     /// Enable tire smoke [env NFSMW_TIRE_SMOKE; config `tire_smoke`; default on].
     #[arg(long, conflicts_with = "no_tire_smoke")]
     pub tire_smoke: bool,
@@ -285,11 +300,15 @@ impl ViewArgs {
         crate::app::RunOptions {
             screenshot: self.screenshot.clone(),
             screenshot_size: self.screenshot_size,
+            screenshot_delay: self.screenshot_delay.unwrap_or(0.0),
+            screenshot_count: self.screenshot_count.unwrap_or(1),
+            screenshot_interval: self.screenshot_interval.unwrap_or(1.0),
             exec: self.exec.clone(),
             open_console: self.open_console,
             hud: (self.hud || hud_default || self.hud_demo.is_some()).then(|| dir.clone()),
             hud_demo: self.hud_demo.clone(),
-            audio: (!self.no_sound && self.screenshot.is_none()).then(|| dir.clone()),
+            // A screenshot run has no sound unless the radio is asked for: the radio's songs drive the chyron.
+            audio: (!self.no_sound && (self.screenshot.is_none() || self.radio)).then(|| dir.clone()),
             frontend: None,
         }
     }
@@ -305,9 +324,10 @@ impl ViewArgs {
             monitor: self.monitor,
             resolution: self.resolution,
             show_readout: self.show_readout,
-            master_volume: self.volume,
+            master_volume: if self.muted { Some(crate::settings::Percent(0)) } else { self.volume },
             hud: if self.no_hud { Some(false) } else { self.hud.then_some(true) },
             hud_layout: self.hud_layout,
+            radio_hud: self.radio_hud,
             tire_smoke: switch(self.tire_smoke, self.no_tire_smoke),
             smoke_quality: self.smoke_quality,
             radio: switch(self.radio, self.no_radio),
