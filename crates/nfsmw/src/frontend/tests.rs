@@ -17,6 +17,9 @@ const FRAME: f32 = 1.0 / 60.0;
 #[path = "prompt_tests.rs"]
 mod prompt_tests;
 
+#[path = "icon_transition_tests.rs"]
+mod icon_transition_tests;
+
 #[test]
 fn authored_right_arrow_mirrors_and_cursor_brackets_pulse() {
     use glam::Vec3;

@@ -7,7 +7,7 @@ use glam::Vec2;
 
 use super::ids::{self, screen};
 use super::logic::{Args, Category, Command, Cx, ScreenLogic};
-use super::scroller::{self, Scroll};
+use super::scroller::{self, Fade, Scroll};
 use blackbox_feng::ids::{BUTTON_PRESSED, PAD_BACK, PAD_LEFT, PAD_RIGHT, PAD_START};
 
 /// Which icon menu a package is.
@@ -106,8 +106,7 @@ pub struct IconMenu {
     scroll: Scroll,
     center: Vec2,
     colours: (u32, u32),
-    /// Frames since the screen appeared, for the fade in.
-    age: f32,
+    fade: Fade,
     reacts: bool,
     pending: Option<Pending>,
 }
@@ -124,7 +123,7 @@ impl IconMenu {
             scroll: Scroll::default(),
             center: Vec2::ZERO,
             colours,
-            age: 0.0,
+            fade: Fade::default(),
             reacts: true,
             pending: None,
         }
@@ -245,7 +244,7 @@ impl IconMenu {
     /// Writes where each icon is, how big and how opaque, from the scroll value and the clock.
     fn place(&self, cx: &mut Cx) {
         let scroll = self.scroll.value();
-        let fade = (self.age / scroller::FADE_FRAMES).min(1.0);
+        let fade = self.fade.value();
         let half = scroller::WIDTH * 0.5;
         for slot in &self.slots {
             let x = self.center.x + scroll + slot.offset;
@@ -373,6 +372,7 @@ impl ScreenLogic for IconMenu {
                     self.leave_by_script(cx, Pending::Start);
                 }
             }
+            ids::EXIT_STARTED => self.fade.leave(),
             ids::EXIT_COMPLETE => {
                 if let Some(pending) = self.pending.take() {
                     self.act(cx, pending);
@@ -387,7 +387,7 @@ impl ScreenLogic for IconMenu {
             return;
         }
         self.scroll.update(dt);
-        self.age += dt * 60.0;
+        self.fade.update(dt);
         self.place(cx);
     }
 }

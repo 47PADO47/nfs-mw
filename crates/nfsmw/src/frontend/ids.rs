@@ -16,6 +16,7 @@ pub mod screen {
 
 // Messages.
 pub const LEAVE_SCREEN: u32 = 0x587C_018B;
+pub const EXIT_STARTED: u32 = 0x8437_8BEF;
 pub const EXIT_COMPLETE: u32 = 0xE1FD_E1D1;
 pub const INIT_COMPLETE: u32 = 0x35F8_620B;
 pub const END_PAD_LEFT: u32 = 0xD711_8934;
@@ -64,6 +65,7 @@ mod tests {
     fn names_hash_to_their_ids() {
         for (id, name) in [
             (LEAVE_SCREEN, "LEAVE_SCREEN"),
+            (EXIT_STARTED, "EXIT_STARTED"),
             (EXIT_COMPLETE, "EXIT_COMPLETE"),
             (INIT_COMPLETE, "INIT_COMPLETE"),
             (END_PAD_LEFT, "END_PAD_LEFT"),
