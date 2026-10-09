@@ -78,6 +78,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.engine_volume {
         put("engine_volume", Value::Integer(i64::from(v.0)));
     }
+    if let Some(v) = changes.speech_volume {
+        put("speech_volume", Value::Integer(i64::from(v.0)));
+    }
     if let Some(v) = changes.hud {
         put("hud", Value::Boolean(v));
     }
@@ -200,6 +203,7 @@ mod tests {
             music_volume: Some(Percent(20)),
             sfx_volume: Some(Percent(30)),
             engine_volume: Some(Percent(40)),
+            speech_volume: Some(Percent(50)),
             hud: Some(false),
             radio: Some(false),
             transmission: Some(crate::settings::Transmission::Manual),

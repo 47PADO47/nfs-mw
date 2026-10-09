@@ -20,6 +20,7 @@ pub const MASTER_VOLUME: &str = "NFSMW_MASTER_VOLUME";
 pub const MUSIC_VOLUME: &str = "NFSMW_MUSIC_VOLUME";
 pub const SFX_VOLUME: &str = "NFSMW_SFX_VOLUME";
 pub const ENGINE_VOLUME: &str = "NFSMW_ENGINE_VOLUME";
+pub const SPEECH_VOLUME: &str = "NFSMW_SPEECH_VOLUME";
 pub const HUD: &str = "NFSMW_HUD";
 pub const TIRE_SMOKE: &str = "NFSMW_TIRE_SMOKE";
 pub const RADIO: &str = "NFSMW_RADIO";
@@ -61,6 +62,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         music_volume: value(&get, MUSIC_VOLUME, Percent::from_str),
         sfx_volume: value(&get, SFX_VOLUME, Percent::from_str),
         engine_volume: value(&get, ENGINE_VOLUME, Percent::from_str),
+        speech_volume: value(&get, SPEECH_VOLUME, Percent::from_str),
         hud: value(&get, HUD, parse_bool),
         tire_smoke: value(&get, TIRE_SMOKE, parse_bool),
         radio: value(&get, RADIO, parse_bool),
@@ -124,6 +126,8 @@ mod tests {
         let p = layer(&[(MASTER_VOLUME, "50"), (MUSIC_VOLUME, "20%"), (SFX_VOLUME, "loud")]);
         assert_eq!((p.master_volume, p.music_volume), (Some(Percent(50)), Some(Percent(20))));
         assert_eq!((p.sfx_volume, p.engine_volume), (None, None));
+        assert_eq!(layer(&[(SPEECH_VOLUME, "35")]).speech_volume, Some(Percent(35)));
+        assert_eq!(p.speech_volume, None);
     }
 
     #[test]

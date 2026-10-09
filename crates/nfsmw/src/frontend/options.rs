@@ -17,6 +17,7 @@ pub enum Setting {
     SfxVolume,
     EngineVolume,
     MusicVolume,
+    SpeechVolume,
     Vsync,
     MaxFps,
     Metrics,
@@ -75,6 +76,7 @@ pub fn rows(category: Category) -> Vec<Row> {
             row(Setting::SfxVolume, Title::Label(0xFD48_7543)),
             row(Setting::EngineVolume, Title::Label(0xA2B1_F888)),
             row(Setting::MusicVolume, Title::Label(0x418E_681D)),
+            row(Setting::SpeechVolume, Title::Label(0x9E5F_B82A)),
         ],
         Category::Video => vec![
             row(Setting::Vsync, Title::Label(0x6CEB_9CB6)),
@@ -122,6 +124,7 @@ fn percent_of(s: &Settings, setting: Setting) -> Option<Percent> {
         Setting::SfxVolume => s.sfx_volume,
         Setting::EngineVolume => s.engine_volume,
         Setting::MusicVolume => s.music_volume,
+        Setting::SpeechVolume => s.speech_volume,
         _ => return None,
     })
 }
@@ -230,6 +233,10 @@ impl Setting {
             Setting::MusicVolume => {
                 s.music_volume = nudge(s.music_volume, forward);
                 changed.music_volume = Some(s.music_volume);
+            }
+            Setting::SpeechVolume => {
+                s.speech_volume = nudge(s.speech_volume, forward);
+                changed.speech_volume = Some(s.speech_volume);
             }
             Setting::Vsync => {
                 s.vsync = !s.vsync;
@@ -369,10 +376,19 @@ mod tests {
 
     #[test]
     fn every_category_has_rows() {
-        assert_eq!(rows(Category::Audio).len(), 4);
+        assert_eq!(rows(Category::Audio).len(), 5);
         assert_eq!(rows(Category::Video).len(), 10);
         assert_eq!(rows(Category::Gameplay).len(), 4);
         assert_eq!(rows(Category::Controls).len(), 8);
+    }
+
+    #[test]
+    fn the_speech_volume_row_is_a_slider_that_records_its_change() {
+        let (mut s, mut changes) = (defaults(), Partial::default());
+        assert_eq!(Setting::SpeechVolume.control(&s), Control::Slider(s.speech_volume.0));
+        Setting::SpeechVolume.step(&mut s, &mut changes, false);
+        assert_eq!(s.speech_volume.0, 80);
+        assert_eq!(changes, Partial { speech_volume: Some(s.speech_volume), ..Partial::default() });
     }
 
     #[test]

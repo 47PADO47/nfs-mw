@@ -279,12 +279,60 @@ PathFinder 5.01.04 driven by `EAXSound/sfxctl/SFXCTL_Pathfinder5.cpp` and `SFXOb
   gap after a stream's `SCEl` zero-filled **[verified]**. Between groups of streams there are non-stream tables
   of unknown layout (579 in `copspeech.big`, 4 in `NISAudio.big`, which are the same counts as the `.idx` entry
   counts), so a stream scan walks `SCHl`..`SCEl`, then advances in `0x100` steps to the next `SCHl`.
-- `.idx` starts `u32 1, u32 count`: 0x243 = 579 for copspeech, 4 for NISAudio. `.evt` starts
-  `03 12 3C 07`. `.csi` starts `MOIR 00 02 00 01`. **Layouts undocumented. [verified bytes only]**
 - Decomp: the speech system is `src/Speed/Indep/Src/Speech/` (`SoundAI`, `PursuitFlow`,
   `RoadblockFlow`, `SpeechCache`, …). It sits on EA's SPCH library (`Libs/spch/dev/include/spch/spch.h`,
   header only, version comment 3.20.5), with generated tables in `EAXSound/SND_GEN/COPSPEECH.cpp` and
   `NISAudio.cpp`. AttribSys classes `speech` (28 fields, 133 collections) and `speechtune`. **[decomp]**
+  Behaviour: [specs/speech.md](../specs/speech.md).
+
+### `.idx`: the banks **[verified on `copspeech.idx`, read by `ea-audio::speech`]**
+
+```
+u32 type_count (1)   u32 banks_per_type[19]   u32 count (579 = 0x243)
+count × { u32 key; u32 header_size; u32 header_pos; u32 take_pos }     // from 0x58, 16 bytes each
+bank headers, back to back from 0x2488                                   // header_pos is a position in this file
+```
+
+`key` is `type << 24 | number`; the type is 1 and the numbers count up from 0. `take_pos` is where the bank's first
+stream starts in the `.big`. The decomp's `LoadSpeechBank` looks the key up in this table **[decomp]**.
+
+A bank header is the SPCH bank header, which the library reads itself; this is what the takes need:
+
+| Offset | Size | Meaning |
+|---|---|---|
+| 0 | u16 LE | event number: the phrase the bank's takes say (152 distinct values, 8 to 430) |
+| 2 | u16 LE | speaker: 1 to 9, or `0xFFFF` for any (the cop voices; the game's per-speaker volumes are numbered the same) |
+| 4 | u8 | `flags`, 0 to 3: the table entries are `2 + flags` bytes |
+| 5 | u8 | number of takes `n` (1 to 211) |
+| 6 | 8 | the count again (u16 LE), the bank's length in `0x100` units (u16 LE), 4 zero bytes |
+| 14 | `(n-1) * (2 + flags)` | for each take after the first, `flags` bytes of unknown meaning and then its start as a **big-endian** u16 in `0x100` units from `take_pos` |
+| after | rest | 0 to 122 bytes, mostly `0x70` and `0xFF`: unknown |
+
+Check: all 579 headers parse, the sum of the take counts is 13,562 (the number of streams in the `.big`), and every
+take start lies on a stream start. Banks per phrase: 1 to 9 (one per voice that recorded it, more for variants).
+
+### `.evt`: the event database **[verified bytes; sentence rules not decoded]**
+
+```
+03 12 3C 07   u32 0x1DF8 (unknown)   u32 0   u32 0xC14705FD (a hash)   u32 139   u16 100   u16 500
+139 × u16: record position / 4, ascending, from 0x18
+139 records, 4-byte aligned, from 0x130; the file ends at 0x3CBB
+```
+
+Each record starts with a u16 event number (all 139 distinct, 57 to 263), then `C8 00 F4 01` (200 and 500, the same
+in the records read), a u16 of 1 or 2, `00 64 00`, a u8 count (0 to 5) and blocks that start `39 64 <u16 length>`.
+Inside the blocks, 4-byte groups `<u16 event> 01 01` or `<u16 event> 00 00` name other events (phrases) and are
+followed by parameter tests such as `03 00 00 00 | 02 FF FF 00`. Example: event 57 (`acknowledge`) names 216; 216
+names 417, which is a phrase with banks. These are the sentences. All the event numbers of the `speech` class
+(130 of the 139) are records here; 28 records have banks of their own with the same number. The 9 records
+without a collection (81, 82, 120, 144, 197, 211, 242, 255, 256) are never requested directly.
+Nothing reads the parameter tests yet.
+
+### `.csi`: the CSIS interface list **[verified bytes]**
+
+`copspeech.csi` (5,136 B): `MOIR 00 02 00 01`, then `8B 00` = 139 interfaces, then tables. The names and 16-bit ids of the
+139 interfaces (`Setup_Spotter` is `0x5BA7, 0x17C9`) are in the decomp's `COPSPEECH.cpp` **[decomp]**; the parameter
+types (`Type_position_Right_Side = 1`, bit flags) are in `COPSPEECH.hpp`. The file's own layout is not decoded.
 
 ## `EVT_SYS/*.csi` (`MOIR`)
 

@@ -20,7 +20,8 @@ dynamic mixer: [dynamic-mixer.md](dynamic-mixer.md) (evaluating a mixer map) and
 (running a module of a sound bank) and [engine-sound-aems.md](engine-sound-aems.md) (the engine's sample layer,
 the sputters, the sweeteners); the radio: [music-graph.md](music-graph.md) (the PathFinder graph of `MW_Music.mpf`,
 the song events and the play lists) and [interactive-music.md](interactive-music.md) (the pursuit sets, the game state that
-drives them, the cross-fades); [exhaust-flames.md](exhaust-flames.md) (the tail-pipe particle effects for nitrous and gear changes); the HUD minimap: [hud-minimap.md](hud-minimap.md) (the projection, the tiles around the player, the turning, the missing speed zoom); the user interface: [feng-runtime.md](feng-runtime.md) (scripts, messages,
+drives them, the cross-fades); speech: [speech.md](speech.md) (the dispatch queue, when a line may be said,
+the recordings); [exhaust-flames.md](exhaust-flames.md) (the tail-pipe particle effects for nitrous and gear changes); the HUD minimap: [hud-minimap.md](hud-minimap.md) (the projection, the tiles around the player, the turning, the missing speed zoom); the user interface: [feng-runtime.md](feng-runtime.md) (scripts, messages,
 drawing), [feng-input.md](feng-input.md) (pad messages, focus, navigation) and [frontend-menus.md](frontend-menus.md)
 (the screens, the option rows, the game flow).
 

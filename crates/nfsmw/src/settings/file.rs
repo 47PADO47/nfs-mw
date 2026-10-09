@@ -74,6 +74,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         music_volume: field(&table, origin, "music_volume", percent),
         sfx_volume: field(&table, origin, "sfx_volume", percent),
         engine_volume: field(&table, origin, "engine_volume", percent),
+        speech_volume: field(&table, origin, "speech_volume", percent),
         hud: field(&table, origin, "hud", |v| v.as_bool().ok_or_else(|| "expected true or false".to_owned())),
         tire_smoke: field(&table, origin, "tire_smoke", boolean),
         radio: field(&table, origin, "radio", boolean),
@@ -144,6 +145,7 @@ mod tests {
             (Some(Percent(70)), Some(Percent(25)), Some(Percent(40)))
         );
         assert_eq!(p.engine_volume, None);
+        assert_eq!(parse("speech_volume = 60\n", "test").speech_volume, Some(Percent(60)));
     }
 
     #[test]
