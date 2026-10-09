@@ -8,7 +8,12 @@ D-pad and left-stick menu navigation. Existing driving bindings and saved respon
   no console or mod texture is distributed. Keyboard keys and unsupported custom inputs have text fallbacks.
 - Only implemented actions are offered: Continue on the title screen, Accept/Back on icon menus,
   Select/Adjust/Done on settings, and Quit on the main menu. A prompt stays available in every option category.
+- Prompt rows use the authored footer rectangle, transform, visibility and fade for each screen,
+  including pause menus entering, leaving and returning from a category. Icons and text fit inside
+  that rectangle and share its animation **[verified files/runtime, layout policy ours]**.
   The title hint inherits the authored prompt position and fade so it clears the copyright text.
+- Keyboard and custom-input keycaps are drawn as outlined, translucent widgets. Their text is centred
+  using the installed font's glyph bounds; neither opaque rectangular badges nor mod key textures are used.
 - Prompt device changes on meaningful input, not every poll. Neutral controllers, stick drift, releases,
   and console hotkeys must not overwrite keyboard prompts. A connected controller can be the initial device.
 - One active gamepad supplies actions. Another controller takes over on deliberate input; axes from

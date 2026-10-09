@@ -14,6 +14,9 @@ use crate::ui::{Catalog, SCREEN_FILES, UiAssets};
 
 const FRAME: f32 = 1.0 / 60.0;
 
+#[path = "prompt_tests.rs"]
+mod prompt_tests;
+
 #[test]
 fn authored_right_arrow_mirrors_and_cursor_brackets_pulse() {
     use glam::Vec3;
@@ -84,7 +87,10 @@ fn title_prompts_follow_the_authored_position_and_fade_above_the_copyright() {
         let anchor = native.nodes.iter().find(|n| n.name_hash == 0xC4DF_3FF2).unwrap();
         let copyright = native.nodes.iter().find(|n| n.name_hash == 0x5B9D_88B9).unwrap();
         let tree = h.screens.presented_trees(&Bindings::default(), InputDevice::Xbox).pop().unwrap();
-        let hint = tree.nodes.iter().find(|n| n.text.as_deref() == Some("Continue")).unwrap();
+        let hint = tree.nodes[native.nodes.len()..]
+            .iter()
+            .find(|n| matches!(n.kind, blackbox_feng::NodeKind::Image { .. }))
+            .unwrap();
         let y = hint.world.transform_point3(Vec3::ZERO).y;
         assert!((y - anchor.world.transform_point3(Vec3::ZERO).y).abs() < 0.01);
         assert_eq!(hint.world_colour[3], anchor.world_colour[3]);

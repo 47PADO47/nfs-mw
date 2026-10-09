@@ -11,6 +11,7 @@ pub(crate) mod input_options;
 mod logic;
 mod options;
 mod plugin;
+mod prompt_layout;
 mod prompts;
 mod scene;
 mod screens;
