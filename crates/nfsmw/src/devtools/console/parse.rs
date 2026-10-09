@@ -57,6 +57,7 @@ pub const BUILT_IN: [(&str, &str); 27] = [
     ("collision_sparks <on|off>", "change collision sparks"),
     ("spark_style <original-pc|restored-experimental>", "select stock or experimental collision particles"),
     ("speed_trails <on|off>", "change experimental high-speed wind trails"),
+    ("exhaust_flames <on|off>", "change the tail-pipe flames (shift blow-off, lift-off backfire)"),
     ("volume <0-100>", "master volume (same as set volume)"),
     ("sound [bank [index]]", "list the sounds of a bank (IG_GLOBAL/Siren_MB.abk) or play one"),
     ("engine <car> [percent] | off", "hold a car's engine sound at a share of its RPM range"),
@@ -65,7 +66,7 @@ pub const BUILT_IN: [(&str, &str); 27] = [
 ];
 
 /// Further shorthands for `set`: `vsync off` is `set vsync off`.
-const SET_SHORTHANDS: [&str; 15] = [
+const SET_SHORTHANDS: [&str; 16] = [
     "fps",
     "vsync",
     "metrics",
@@ -78,6 +79,7 @@ const SET_SHORTHANDS: [&str; 15] = [
     "collision_sparks",
     "spark_style",
     "speed_trails",
+    "exhaust_flames",
     "smoke_quality",
     "hud_layout",
     "hud-layout",

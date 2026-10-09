@@ -36,6 +36,7 @@ scaled down.
 | [`blackbox-mixmap`](../libs/blackbox-mixmap) | The sound system's dynamic mixer: `MIXMAPS/*.mxb` parser and a deterministic evaluator (published values in, per-object volume, pitch and filter slots out) | — (one format version) |
 | [`blackbox-aems`](../libs/blackbox-aems) | AEMS module banks inside `.abk` files: a reader and an interpreter of the event-sound graphs (which samples play, how loud and how high); voices and objects are a `Host` trait the caller implements | — (one format version) |
 | [`blackbox-movie`](../libs/blackbox-movie) | EA VP6 movies (`.vp6`): demuxer and video decoder (the MIT `nihav-vp6`); no audio yet | — |
+| [`blackbox-particles`](../libs/blackbox-particles) | Particle emitters: spawn and update rules (cone spray, drag, gravity, keyed size, angle and colour curves) as a deterministic simulation that yields sprites | — |
 | [`blackbox-vehicle`](../libs/blackbox-vehicle) | Deterministic fixed-step vehicle physics: rigid body, engine and gearbox, suspension, tires, steering, aero; driven by plain parameter structs and a `Ground` ray-cast trait | — (parameters passed by the caller) |
 | [`blackbox-render`](../libs/blackbox-render) | Backend-neutral renderer (wgpu inside) | — |
 | [`blackbox-scene`](../libs/blackbox-scene) | Uploading solids and textures to the renderer; boxes; frustum culling | — |
@@ -94,8 +95,8 @@ bevy_winit window ─► PreUpdate: input/ resolves devices into actions (Action
   replace that resource ([controller settings](controller-settings.md)). Analog Bevy filtering is neutralized
   on connection so the action layer applies deadzones once; digital button hysteresis is retained. Default pad layout:
   left stick moves, right stick looks (and orbits), A/B go up/down, stick-click or right bumper boosts,
-  D-pad up/down zooms, Start backs out. A key tapped and released within one frame still counts as held for
-  that frame, so switch actions (console, camera) cannot miss a quick tap.
+  D-pad up/down zooms, Start backs out. Keyboard and gamepad taps survive for one action frame.
+  `InputPresentation` selects the active pad and prompt device ([menu policy](specs/controller-ui.md)).
 - **Driving actions:** `Throttle` and `Brake` (0..1, so a pad's analog triggers are real pedals), `Steer` (-1..1),
   `Handbrake`, `ShiftUp`, `ShiftDown`, `Nos`, `ResetCar` and `ToggleCamera`. Keyboard: W/S or Up/Down pedals, A/D
   or Left/Right steer, Space handbrake, E/Q (or Right Shift/Ctrl) shift up/down, Left Shift nitrous, R reset, F camera. Pad: right
@@ -474,14 +475,13 @@ Unit tests, real-install tests and the guard rails are described in [testing.md]
 | 5 | Vehicle physics, spec-first (`docs/specs/vehicle-*.md`); world collision (`CarpWCollisionPack`); drive a car with the original HUD: read the FEng HUD packages (`HUD_*.fng` in `InGameB.bun`) and draw them with the UI layer; steering wheel controller support (wheel axes, pedals, shifters) on the input layer from 4 |  in progress: `blackbox-vehicle`, the collision reader, input actions, `view-world --drive` (placing, chase camera, one-sided walls, props, reset and fall recovery, scripted runs), manual shifting (Q/E, pad bumpers and wheel paddle buttons, with a transmission setting and an options row), the original HUD (speedometer, tachometer with its red zone and shift light, gear, nitrous bar, turbo dial, minimap; the rest of the package waits for the race and pursuit state of milestone 7), the `--show-readout` levels and the `debug collisions` command are in; steering wheel support (wheel axes and pedals; a wheel is untested) is open; controller testing on real hardware and calibration against the original are done ([Driving](#driving-view-world---drive), [The HUD](#the-hud)) |
 | 6 | Audio (EA-XA, EA-XAS engine loops, MicroTalk speech), VP6 movies, FEng menus (the same FEng runtime as the HUD), in-game settings menu | in progress: the codecs, banks, music and movie decoders, Ginsu synthesis, the car sound data, the engine and effects mixers, the dynamic mixer maps, the sample (AEMS) layer of the engine and the sputters, the output device, the driven car's engine and effects, a movie player and the radio (licensed songs, gapless, play lists; not yet heard by a human) are in, and so are the front end (boot movies, title screen, main menu, option screens for audio, video and gameplay, the pause menu, free roam) and the settings written to the config file; speech and the ambience music are open, the pursuit music (four sets steered by game state, the hooks waiting for milestone 7; not yet heard) is in, and so is the playtest report that the engine sounds muted at the rev limiter was fixed by [PR 5](https://github.com/47PADO47/nfs-mw/pull/5); `RUST_LOG=nfsmw::audio=debug` logs the limiter ([Sound](#sound), [The front end](#the-front-end)) |
 | 7 | AI racers, traffic, pursuit, races; career data; console commands to spawn AI | |
-| 8 | Graphics: the car shader and lighting rig, tire smoke and skid marks (`blackbox-vehicle` already reports per-wheel `skid` and `smoke`; this draws them), exhaust flames (backfire on lift-off, driven by the sputters of the sample layer), post-processing, upscaling (FSR; DLSS where the backend allows it), ReShade compatibility, Bevy Solari | |
+| 8 | Graphics: the car shader and lighting rig, tire smoke and skid marks (`blackbox-vehicle` already reports per-wheel `skid` and `smoke`; this draws them), exhaust flames (nitrous, gear-change blow-off and a lift-off backfire on the sputter pops; [guide](exhaust-flames.md), [spec](specs/exhaust-flames.md)), post-processing, upscaling (FSR; DLSS where the backend allows it), ReShade compatibility, Bevy Solari | |
 | 9 | Discord Rich Presence | |
 | 10 | Lan multiplayer | |
 | 11 | Online multiplayer | |
 | 12 | scripting API for mods | |
 | 13 | Websocket/server/something for telemetry/api info on player career etc | |
 | 14 | Drift mode: a handling variant with more controlled sliding at lower speeds (its own tire and assist tuning in `blackbox-vehicle`, the original has burnout and drift assists that are not modelled yet) | |
-
 
 Why this order:
 

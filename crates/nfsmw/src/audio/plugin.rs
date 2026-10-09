@@ -70,6 +70,11 @@ fn drive_car(
     }
     let car = host.scene.car_sound();
     audio.drive_car(car.as_ref(), time.delta_secs());
+    // The sputter pops of this frame reach the scene, which lights the tail pipes for them.
+    let pops = audio.take_sputter_pops();
+    if pops > 0 {
+        host.scene.note_sputters(pops);
+    }
     // The pause menu freezes the car (no sound) but the game goes on, and so does the radio.
     let driving = car.is_some() || host.scene.paused();
     // The pursuit music takes the songs' place while a chase is on and for a while after it.

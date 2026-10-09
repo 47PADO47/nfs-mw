@@ -22,6 +22,10 @@ buttons, and the rules that turn objects into a draw list. The on-disk layouts a
   second, so 960 ticks per second** (`FADEIN` is 600 ticks, 0.625 s) **[inferred]**. The runtime takes a time
   step in seconds and converts.
 - A package is updated once per frame, objects in list order, children of a group after the group itself.
+- **Presentation initialization [ours]:** loading a package evaluates its `INIT` scripts with zero elapsed
+  ticks before returning a drawable tree, including their immediate chain targets. This prevents a newly
+  switched screen from briefly showing its stored end pose before its entrance animation. Other packages,
+  pad input and the global clock are unchanged; queued initialization events are processed on the next update.
 
 ## 2. Object state
 
@@ -140,12 +144,20 @@ The runtime emits a list of drawable nodes; the host draws them. Rules **[decomp
   0 is skipped; for a group, its whole subtree is. An object whose flags have bit 3 set (`0x8`) is not drawn on
   the PC.
 - **Transform:** an image is the unit square (−0.5..0.5). `world = parent * T(position) * T(pivot) *
-  R(rotation) * T(−pivot) * S(size)`. A negative size mirrors. A group's context is the same product without
-  the scale (`RenderGroup` builds it from the rotation, pivot and position only), times its parent's. UVs are
-  used as stored.
+  R(rotation) * T(−pivot) * S(size)`. A negative size mirrors. Groups and leaves use the same product.
+  Correction (2026-10-09): the current reference's
+  `GenerateRenderContext` calls `MakeRenderMatrix`, including `S(size)` for groups too **[decomp]**.
+  MainMenu's right-arrow group has x size -1 and its cursor groups animate their sizes **[verified files]**;
+  ignoring group size loses both mirroring and pulsing.
+  UVs are used as stored.
 - **Colour:** the object's colour times the colours of its ancestors, per channel `(a * b + 128) >> 8` on
   0..255 values (this runtime uses `a * (b + 1) / 256`, which keeps 255 exact). The vertex colour divided by 255 modulates the texture. The blend mode comes from the
-  texture (`AlphaBlendType`: 1 blend, 2 additive).
+  texture (`AlphaBlendType`: 1 blend, 2 additive). Additive uploads must first multiply RGB by
+  the texture alpha, then set output alpha to zero for the premultiplied compositor **[ours]**.
+  `IconSelection_Glow` is a DXT3 additive texture with white RGB in transparent texels **[verified files]**;
+  discarding its alpha without multiplication draws the entire rectangle.
+  Mask composition retains straight RGB and combines picture/mask alpha; upload applies that coverage
+  exactly once for both alpha-blended and additive images **[ours, synthetic full-presenter regression]**.
 - **Strings:** glyph quads placed around the string origin. Horizontal origin: left 0, centre −width / 2,
   right −width; vertical: centre −height / 2, bottom −height. A maximum width (`Sw`) squeezes the line
   horizontally unless word wrap is set. Leading is `Sl` times the font's leading scale. Fonts and glyphs:

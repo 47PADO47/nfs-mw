@@ -11,6 +11,8 @@ pub(crate) mod input_options;
 mod logic;
 mod options;
 mod plugin;
+mod prompt_layout;
+mod prompts;
 mod scene;
 mod screens;
 mod script;
@@ -18,6 +20,8 @@ mod scroller;
 mod splash;
 mod widget_menu;
 
+#[cfg(test)]
+mod exhaust_flames_tests;
 #[cfg(test)]
 mod hud_layout_tests;
 #[cfg(test)]

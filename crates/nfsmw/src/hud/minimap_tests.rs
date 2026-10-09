@@ -25,6 +25,11 @@ fn object(kind: ObjectKind, guid: u32, name: &str, parent: Option<u32>, at: [f32
     words[7] = at[0].to_bits();
     words[8] = at[1].to_bits();
     words[10 + 3] = 1.0f32.to_bits();
+    // Groups inherit children in local units, so their authored scale is one.
+    if kind == ObjectKind::Group {
+        words[14] = 1.0f32.to_bits();
+        words[15] = 1.0f32.to_bits();
+    }
     ObjectDef {
         kind,
         guid,
