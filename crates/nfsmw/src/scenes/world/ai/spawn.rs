@@ -56,8 +56,10 @@ impl TrafficWorld {
         let render = space::to_render(nav.position.to_array());
         let facing = space::to_render(nav.forward.to_array());
         let spawn = Spawn { position: render, heading: facing.y.atan2(facing.x) };
-        nav.advance(&self.network, START_LOOK_AHEAD, Vec3::ZERO, rng);
         let model = &self.models[rng.index(self.models.len())];
+        nav.half_width = model.physics.spec.dimension.x;
+        nav.enable_trail(&self.network);
+        nav.advance_with_lookahead(&self.network, START_LOOK_AHEAD, Vec3::ZERO, START_LOOK_AHEAD, rng);
         let stagger = (rng.next_f32() * 10.0) as u32;
         let start_speed = START_SPEED_FACTOR * super::traffic::STREET_SPEED;
         let start = Start { stagger, speed: start_speed };

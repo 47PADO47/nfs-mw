@@ -151,6 +151,11 @@ impl CarSim {
         }
     }
 
+    /// The body's velocity in physics space.
+    pub fn velocity(&self) -> Vec3 {
+        self.vehicle.linear_velocity()
+    }
+
     pub fn shift_reverse(&mut self) {
         self.vehicle.shift_to(GEAR_REVERSE);
     }
