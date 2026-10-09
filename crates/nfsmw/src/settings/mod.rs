@@ -30,6 +30,11 @@ pub use write::write as write_file;
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
 
+/// Computer-driven cars kept on the road by default (the original keeps fewer than 10 vehicles active).
+pub const DEFAULT_TRAFFIC: u32 = 10;
+/// The default share of those cars that are patrol cops: 5 percent, one in twenty.
+pub const DEFAULT_COP_SHARE: Percent = Percent(5);
+
 /// The resolved settings.
 #[derive(bevy_ecs::resource::Resource, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Settings {
@@ -53,6 +58,10 @@ pub struct Settings {
     pub tire_smoke: bool,
     /// Play the radio while driving (the `radio` console command still works when it is off).
     pub radio: bool,
+    /// How many computer-driven cars the world keeps on the road around you (0 turns traffic off).
+    pub traffic: u32,
+    /// Of those cars, the share that are patrol cops, in percent.
+    pub cop_share: Percent,
     /// Optional smoke presentation quality; standard retains the default cost and look.
     pub smoke_quality: SmokeQuality,
     /// Draw bounded, ground-following tire marks.
@@ -93,6 +102,8 @@ impl From<Partial> for Settings {
             hud: p.hud.unwrap_or(true),
             tire_smoke: p.tire_smoke.unwrap_or(true),
             radio: p.radio.unwrap_or(true),
+            traffic: p.traffic.unwrap_or(DEFAULT_TRAFFIC),
+            cop_share: p.cop_share.unwrap_or(DEFAULT_COP_SHARE),
             smoke_quality: p.smoke_quality.unwrap_or_default(),
             skid_marks: p.skid_marks.unwrap_or(true),
             transmission: p.transmission.unwrap_or_default(),

@@ -87,6 +87,12 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.radio {
         put("radio", Value::Boolean(v));
     }
+    if let Some(v) = changes.traffic {
+        put("traffic", Value::Integer(i64::from(v)));
+    }
+    if let Some(v) = changes.cop_share {
+        put("cop_share", Value::Integer(i64::from(v.0)));
+    }
     if let Some(v) = changes.skid_marks {
         put("skid_marks", Value::Boolean(v));
     }

@@ -8,7 +8,7 @@ use crate::devtools::{ShowMetrics, ShowReadout};
 use crate::settings::{Percent, Settings, Transmission, parse_bool};
 
 /// Settings the console can show.
-const KEYS: [&str; 26] = [
+const KEYS: [&str; 28] = [
     "deadzone_mode",
     "steering_deadzone",
     "camera_deadzone",
@@ -32,6 +32,8 @@ const KEYS: [&str; 26] = [
     "hud",
     "tire_smoke",
     "radio",
+    "traffic",
+    "cop_share",
     "smoke_quality",
     "skid_marks",
     "transmission",
@@ -63,6 +65,8 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "hud" => on_off(settings.hud).to_owned(),
         "tire_smoke" => on_off(settings.tire_smoke).to_owned(),
         "radio" => on_off(settings.radio).to_owned(),
+        "traffic" => settings.traffic.to_string(),
+        "cop_share" => settings.cop_share.to_string(),
         "smoke_quality" => settings.smoke_quality.to_string(),
         "skid_marks" => on_off(settings.skid_marks).to_owned(),
         "transmission" => settings.transmission.to_string(),
@@ -105,6 +109,10 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "hud" => settings.hud = parse_bool(value)?,
         "tire_smoke" => settings.tire_smoke = parse_bool(value)?,
         "radio" => settings.radio = parse_bool(value)?,
+        "traffic" => {
+            settings.traffic = value.trim().parse().map_err(|_| format!("expected a number of cars, got {value:?}"))?
+        }
+        "cop_share" => settings.cop_share = Percent::from_str(value)?,
         "smoke_quality" => settings.smoke_quality = value.parse()?,
         "skid_marks" => settings.skid_marks = parse_bool(value)?,
         "transmission" => settings.transmission = Transmission::from_str(value)?,
@@ -142,6 +150,8 @@ fn syntax(key: &str) -> Option<&'static str> {
         "volume" | "master_volume" | "music_volume" | "sfx_volume" | "engine_volume" => "<0-100>",
         "smoke_quality" => "<standard|high>",
         "transmission" => "<automatic|manual>",
+        "traffic" => "<cars, 0 = off>",
+        "cop_share" => "<0-100>",
         _ => return None,
     })
 }

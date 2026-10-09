@@ -77,6 +77,8 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         hud: field(&table, origin, "hud", |v| v.as_bool().ok_or_else(|| "expected true or false".to_owned())),
         tire_smoke: field(&table, origin, "tire_smoke", boolean),
         radio: field(&table, origin, "radio", boolean),
+        traffic: field(&table, origin, "traffic", count),
+        cop_share: field(&table, origin, "cop_share", percent),
         smoke_quality: field(&table, origin, "smoke_quality", |v| SmokeQuality::from_str(text_of(v)?)),
         skid_marks: field(&table, origin, "skid_marks", boolean),
         transmission: field(&table, origin, "transmission", |v| Transmission::from_str(text_of(v)?)),
@@ -101,6 +103,12 @@ fn percent(v: &Value) -> Result<Percent, String> {
         Value::Float(f) => Percent::from_str(&format!("{f:?}")),
         other => Percent::from_str(text_of(other)?),
     }
+}
+
+/// A count of cars: a whole number from 0 up.
+fn count(v: &Value) -> Result<u32, String> {
+    let n = v.as_integer().ok_or_else(|| "expected a number of cars".to_owned())?;
+    u32::try_from(n).map_err(|_| format!("{n} is not a number of cars"))
 }
 
 /// A gamepad button code: a whole number from 0 up.

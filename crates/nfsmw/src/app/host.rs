@@ -31,6 +31,8 @@ pub struct Host {
     smoke_quality: SmokeQuality,
     /// The transmission setting as of the last frame, given to every scene that is put in the window.
     pub transmission: Transmission,
+    /// The traffic settings as of the last frame, given to every scene that is put in the window.
+    pub traffic: (u32, crate::settings::Percent),
 }
 
 impl Host {
@@ -51,6 +53,7 @@ impl Host {
             tire_effects: [settings.tire_smoke, settings.skid_marks],
             smoke_quality: settings.smoke_quality,
             transmission: settings.transmission,
+            traffic: (settings.traffic, settings.cop_share),
         }
     }
 
@@ -62,6 +65,7 @@ impl Host {
         let renderer = self.renderer.as_mut().ok_or_else(|| anyhow::anyhow!("the renderer is not ready"))?;
         scene.init(renderer)?;
         scene.set_transmission(self.transmission);
+        scene.set_traffic(self.traffic.0, self.traffic.1);
         if self.screenshot.is_some() {
             super::screenshot::wait_ready(scene.as_mut(), renderer);
         }

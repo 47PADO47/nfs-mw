@@ -57,6 +57,9 @@ pub trait Scene {
     /// Who changes gear (the transmission setting), told every frame before `update`; a scene without a car
     /// ignores it.
     fn set_transmission(&mut self, _transmission: crate::settings::Transmission) {}
+    /// How many computer-driven cars to keep around the player and what share of them are cops, told every
+    /// frame before `update`; a scene without roads ignores it.
+    fn set_traffic(&mut self, _cars: u32, _cop_share: crate::settings::Percent) {}
     /// What the in-game HUD shows this frame; `None` hides it.
     fn hud_state(&self) -> Option<crate::hud::HudState> {
         None

@@ -236,6 +236,17 @@ pub struct ViewArgs {
     /// Turn the radio on (it is on unless the config file or environment turn it off).
     #[arg(long)]
     pub radio: bool,
+    /// Computer-driven cars kept on the road around you; 0 turns traffic off
+    /// [env NFSMW_TRAFFIC; config `traffic`; default 10].
+    #[arg(long, value_name = "CARS")]
+    pub traffic: Option<u32>,
+    /// Turn traffic off (the same as `--traffic 0`).
+    #[arg(long, conflicts_with = "traffic")]
+    pub no_traffic: bool,
+    /// Share of the traffic that are patrol cops, 0 to 100 percent
+    /// [env NFSMW_COP_SHARE; config `cop_share`; default 5, one in twenty].
+    #[arg(long, value_name = "0-100")]
+    pub cop_share: Option<crate::settings::Percent>,
     /// Enable skid marks [env NFSMW_SKID_MARKS; config `skid_marks`; default on].
     #[arg(long, conflicts_with = "no_skid_marks")]
     pub skid_marks: bool,
@@ -282,6 +293,8 @@ impl ViewArgs {
             tire_smoke: switch(self.tire_smoke, self.no_tire_smoke),
             smoke_quality: self.smoke_quality,
             radio: switch(self.radio, self.no_radio),
+            traffic: if self.no_traffic { Some(0) } else { self.traffic },
+            cop_share: self.cop_share,
             skid_marks: switch(self.skid_marks, self.no_skid_marks),
             transmission: self.transmission,
             ..Partial::default()
