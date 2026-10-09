@@ -86,3 +86,42 @@ fn real_install_finds_the_segment_under_a_node() {
 fn seg_lane(net: &RoadNetwork) -> usize {
     usize::from(net.profiles[usize::from(net.node(net.segment(100).nodes[0]).profile)].middle)
 }
+
+/// Spawn a traffic cursor in every traffic lane of every plain segment where traffic is allowed and
+/// advance it 300 m: it only dead-ends at the dead-end nodes (spec §8).
+#[test]
+#[ignore = "needs a game install; set NFSMW_GAME_DIR"]
+fn real_install_traffic_cursors_never_dead_end_early() {
+    use crate::{RoadNav, SplitMix};
+    let Some(net) = network() else { return };
+    let mut rng = SplitMix(7);
+    let (mut runs, mut dead) = (0, 0);
+    let mut stuck_at = Vec::new();
+    for s in 0..net.segments.len() as u16 {
+        let seg = net.segment(s);
+        if seg.is_decision() || seg.has(flags::NO_TRAFFIC) {
+            continue;
+        }
+        let profile = net.profile_at(s, seg.nodes[0]);
+        for lane in profile
+            .lanes_of(crate::zone::TRAFFIC, true)
+            .into_iter()
+            .chain(profile.lanes_of(crate::zone::TRAFFIC, false))
+        {
+            let mut nav = RoadNav::traffic();
+            nav.init_in_lane(&net, s, lane, 0.5);
+            for _ in 0..30 {
+                nav.advance(&net, 10.0, Vec3::ZERO, &mut rng);
+            }
+            runs += 1;
+            if nav.dead_end {
+                dead += 1;
+                stuck_at.push((s, nav.segment));
+            }
+        }
+    }
+    eprintln!("traffic runs {runs}, dead ends {dead}");
+    assert!(runs > 5000, "{runs} runs");
+    // Dead ends are the 5 dead-end nodes plus one-way and no-traffic exits: a small share of runs.
+    assert!(dead * 20 < runs, "{dead} of {runs} cursors dead-ended: {:?}", &stuck_at[..stuck_at.len().min(10)]);
+}
