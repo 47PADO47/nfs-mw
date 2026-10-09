@@ -31,7 +31,8 @@ inputs; the application chooses presentation quality and emission budgets.
 
 `Renderer` implements [`blackbox_gfx::RenderBackend`](../blackbox-gfx), so a scene can take
 `&mut dyn RenderBackend` and run on any renderer. The inherent methods stay (the trait methods forward to
-them) until the callers have moved to the trait.
+them). The game and `blackbox-scene` only use the trait; `nfsmw`'s `app/render/native.rs` is the one place
+that names this crate.
 
 - `capabilities()` is fixed for the renderer: anti-aliasing `{Off, Fxaa}`, upscalers `{Off, Bilinear, Fsr1}`,
   every tone map, bloom, no ray tracing, a render scale of 0.25 to 2.0 and nothing that needs a restart.
