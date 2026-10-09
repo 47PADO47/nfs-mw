@@ -21,6 +21,8 @@ mod splash;
 mod widget_menu;
 
 #[cfg(test)]
+mod disabled_rows_tests;
+#[cfg(test)]
 mod exhaust_flames_tests;
 #[cfg(test)]
 mod hud_layout_tests;

@@ -138,6 +138,16 @@ impl Setting {
         percent_of(s, self).map_or(Control::Toggle, |p| Control::Slider(p.0))
     }
 
+    /// Whether the row can be changed now. A disabled row still shows its value, dimmed, and ignores left and right.
+    /// The row stays selectable so the whole list can be browsed, as the greyed-out icons are.
+    pub fn enabled(self, s: &Settings) -> bool {
+        match self {
+            // With vsync on the display paces the frames, so the limiter is greyed out.
+            Setting::MaxFps => !s.vsync,
+            _ => true,
+        }
+    }
+
     /// What the data string shows for a toggle.
     pub fn data(self, s: &Settings) -> Data {
         match self {
@@ -213,6 +223,9 @@ impl Setting {
     pub fn step(self, s: &mut Settings, changed: &mut Partial, forward: bool) -> bool {
         if let Setting::Input(setting) = self {
             return setting.step(s, changed, forward);
+        }
+        if !self.enabled(s) {
+            return false;
         }
         let before = *s;
         match self {
