@@ -8,11 +8,11 @@
 
 mod backend;
 mod commands;
-mod feeder;
+pub(in crate::audio) mod feeder;
 mod glue;
 mod playlist;
 mod state;
-mod stream;
+pub(in crate::audio) mod stream;
 #[cfg(test)]
 mod tests;
 

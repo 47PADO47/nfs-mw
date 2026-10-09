@@ -106,11 +106,12 @@ struct Dyno {
     radius: f32,
     mass: f32,
     automatic: bool,
+    clutch_pedal: Option<f32>,
 }
 
 impl Dyno {
     fn new() -> Self {
-        Self { pt: powertrain(), v: 0.0, av: [0.0; 4], radius: 0.33, mass: 1500.0, automatic: true }
+        Self { pt: powertrain(), v: 0.0, av: [0.0; 4], radius: 0.33, mass: 1500.0, automatic: true, clutch_pedal: None }
     }
 
     fn step(&mut self, gas: f32) {
@@ -129,6 +130,7 @@ impl Dyno {
             max_wheel_slip: 0.0,
             induction_tuning: 0.0,
             nos_tuning: 0.0,
+            clutch_pedal: self.clutch_pedal,
         };
         let torque = self.pt.tick(&mut input);
         let drag = 0.4 * self.v * self.v + 150.0;
@@ -221,6 +223,56 @@ fn manual_requests_shift_directly_and_automatic_ones_are_sport_shifts() {
     assert_eq!(a.gear(), GEAR_FIRST + 1, "a sport shift is taken when the box has no other wish");
     a.request_shift(1, true);
     assert_eq!(a.gear(), GEAR_FIRST + 1, "but not while the last shift still runs");
+}
+
+#[test]
+fn select_gear_skips_gears_and_leaves_reverse() {
+    let mut p = powertrain();
+    assert!(p.select_gear(GEAR_FIRST + 3, 5.0));
+    assert_eq!(p.gear(), GEAR_FIRST + 3, "a direct choice can skip gears");
+    assert!(!p.select_gear(GEAR_FIRST + 3, 5.0), "the same gear is not a change");
+    assert!(!p.select_gear(99, 5.0), "there is no such gear");
+    assert!(p.select_gear(GEAR_NEUTRAL, 5.0));
+    assert!(!p.select_gear(GEAR_REVERSE, 20.0), "reverse is refused while rolling forward");
+    assert_eq!(p.gear(), GEAR_NEUTRAL);
+    assert!(p.select_gear(GEAR_REVERSE, 0.5));
+    assert_eq!(p.gear(), GEAR_REVERSE);
+    assert!(p.select_gear(GEAR_FIRST + 1, -3.0), "and reverse is left for any gear, also while backing up");
+    assert_eq!(p.gear(), GEAR_FIRST + 1);
+}
+
+#[test]
+fn a_pressed_clutch_pedal_keeps_the_drive_off_the_wheels() {
+    let mut d = Dyno::new();
+    d.automatic = false;
+    d.clutch_pedal = Some(1.0);
+    for _ in 0..180 {
+        d.step(1.0);
+    }
+    assert!(d.v < 0.5, "nothing drives the wheels: {} m/s", d.v);
+    assert!(d.pt.rpm() > 6000.0, "the engine revs freely: {}", d.pt.rpm());
+    d.clutch_pedal = Some(0.0);
+    for _ in 0..180 {
+        d.step(1.0);
+    }
+    assert!(d.v > 3.0, "released, the clutch bites and the car moves: {} m/s", d.v);
+}
+
+#[test]
+fn without_a_pedal_or_with_it_released_the_clutch_is_the_automatic_one() {
+    let run = |pedal: Option<f32>| {
+        let mut d = Dyno::new();
+        d.automatic = false;
+        d.clutch_pedal = pedal;
+        for _ in 0..180 {
+            d.step(1.0);
+        }
+        d.v
+    };
+    let none = run(None);
+    assert!(none > 3.0, "{none}");
+    assert_eq!(run(Some(0.0)), none, "a released pedal changes nothing");
+    assert_eq!(run(Some(0.05)), none, "and neither does the first sliver of travel");
 }
 
 #[test]

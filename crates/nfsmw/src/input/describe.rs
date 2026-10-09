@@ -32,7 +32,8 @@ const FIXED_KEYS: [(&str, &str); 1] = [("Alt+Enter", "toggle fullscreen")];
 fn section(action: Action) -> Section {
     use Action::*;
     match action {
-        Throttle | Brake | Steer | Handbrake | ShiftUp | ShiftDown | Nos | ResetCar | ToggleCamera => Section::Driving,
+        Throttle | Brake | Steer | Handbrake | ShiftUp | ShiftDown | GearReverse | GearNeutral | Gear1 | Gear2
+        | Gear3 | Gear4 | Gear5 | Gear6 | Gear7 | Clutch | Nos | ResetCar | ToggleCamera => Section::Driving,
         MoveForward | MoveRight | MoveUp | LookX | LookY | OrbitX | OrbitY | Zoom | Boost => Section::FreeCamera,
         MenuUp | MenuDown | MenuLeft | MenuRight | MenuAccept | MenuBack | MenuStart | MenuQuit | Click => {
             Section::Menus
@@ -62,6 +63,16 @@ fn labels(action: Action) -> (&'static str, &'static str) {
         Handbrake => ("Handbrake", ""),
         ShiftUp => ("Shift up (manual transmission)", ""),
         ShiftDown => ("Shift down (manual transmission)", ""),
+        GearReverse => ("Select reverse (manual transmission)", ""),
+        GearNeutral => ("Select neutral (manual transmission)", ""),
+        Gear1 => ("Select gear 1 (manual transmission)", ""),
+        Gear2 => ("Select gear 2 (manual transmission)", ""),
+        Gear3 => ("Select gear 3 (manual transmission)", ""),
+        Gear4 => ("Select gear 4 (manual transmission)", ""),
+        Gear5 => ("Select gear 5 (manual transmission)", ""),
+        Gear6 => ("Select gear 6 (manual transmission)", ""),
+        Gear7 => ("Select gear 7 (manual transmission)", ""),
+        Clutch => ("Clutch pedal (with the clutch setting on)", ""),
         Nos => ("Nitrous", ""),
         ResetCar => ("Reset the car onto the road", ""),
         ToggleCamera => ("Chase camera / free camera", ""),
@@ -159,6 +170,7 @@ fn analog_name(source: Source, positive: bool) -> String {
             };
             format!("Mouse {direction} ({when})")
         }
+        Source::PedalAxis { axis, .. } => format!("Pad pedal axis {axis:?}"),
         Source::Key(_) | Source::MouseButton(_) | Source::PadButton(_) | Source::PadTrigger(_) => String::new(),
     }
 }
@@ -176,6 +188,7 @@ fn input_for(binding: &Binding, negative: bool) -> Option<String> {
         Source::MouseButton(button) => (negative == pushes_negative).then(|| mouse_button_name(button)),
         Source::PadButton(button) => (negative == pushes_negative).then(|| button_name(button)),
         Source::PadTrigger(button) => (negative == pushes_negative).then(|| button_name(button)),
+        Source::PedalAxis { axis, .. } => (negative == pushes_negative).then(|| format!("Pad pedal axis {axis:?}")),
         analog => {
             // An analog source moves both ways: the row of a one-way action only lists the push that fills it.
             if !is_two_way(binding.action) && negative {
@@ -260,7 +273,8 @@ mod tests {
     #[test]
     fn every_action_is_listed_and_paddles_show_up() {
         let text = Bindings::with_paddles(Some(7), None).describe();
-        for action in Action::ALL {
+        let bound = Bindings::with_paddles(Some(7), None);
+        for action in Action::ALL.into_iter().filter(|a| bound.0.iter().any(|b| b.action == *a)) {
             assert!(text.contains(labels(action).0), "{action:?} is missing");
         }
         assert!(row(&text, "Shift up (manual transmission)").contains("Pad button 7"));

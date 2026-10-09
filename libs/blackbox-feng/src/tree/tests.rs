@@ -17,10 +17,10 @@ fn corner(n: &UiNode, x: f32, y: f32) -> Vec3 {
 }
 
 #[test]
-fn nested_transforms_compose_and_groups_do_not_scale() {
+fn nested_transforms_include_group_scale() {
     let mut group = Obj::group(1, fe_hash_upper("G"));
     group.position = [100.0, 50.0, 10.0];
-    group.size = [5.0, 5.0, 5.0];
+    group.size = [-2.0, 3.0, 1.0];
     let mut image = Obj::image(2, fe_hash_upper("I"));
     image.parent = 1;
     image.position = [10.0, 20.0, 5.0];
@@ -31,8 +31,8 @@ fn nested_transforms_compose_and_groups_do_not_scale() {
     let n = &t.nodes[1];
     assert_eq!(n.parent, Some(0));
     // The unit quad corners land at position + parent offset +- size / 2.
-    assert_eq!(corner(n, -0.5, -0.5), Vec3::new(110.0 - 20.0, 70.0 - 10.0, 15.0));
-    assert_eq!(corner(n, 0.5, 0.5), Vec3::new(110.0 + 20.0, 70.0 + 10.0, 15.0));
+    assert_eq!(corner(n, -0.5, -0.5), Vec3::new(120.0, 80.0, 15.0));
+    assert_eq!(corner(n, 0.5, 0.5), Vec3::new(40.0, 140.0, 15.0));
     assert_eq!(n.z, 15.0);
 }
 

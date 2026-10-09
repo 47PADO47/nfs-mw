@@ -36,6 +36,7 @@ scaled down.
 | [`blackbox-mixmap`](../libs/blackbox-mixmap) | The sound system's dynamic mixer: `MIXMAPS/*.mxb` parser and a deterministic evaluator (published values in, per-object volume, pitch and filter slots out) | — (one format version) |
 | [`blackbox-aems`](../libs/blackbox-aems) | AEMS module banks inside `.abk` files: a reader and an interpreter of the event-sound graphs (which samples play, how loud and how high); voices and objects are a `Host` trait the caller implements | — (one format version) |
 | [`blackbox-movie`](../libs/blackbox-movie) | EA VP6 movies (`.vp6`): demuxer and video decoder (the MIT `nihav-vp6`); no audio yet | — |
+| [`blackbox-particles`](../libs/blackbox-particles) | Particle emitters: spawn and update rules (cone spray, drag, gravity, keyed size, angle and colour curves) as a deterministic simulation that yields sprites | — |
 | [`blackbox-vehicle`](../libs/blackbox-vehicle) | Deterministic fixed-step vehicle physics: rigid body, engine and gearbox, suspension, tires, steering, aero; driven by plain parameter structs and a `Ground` ray-cast trait | — (parameters passed by the caller) |
 | [`blackbox-render`](../libs/blackbox-render) | Backend-neutral renderer (wgpu inside) | — |
 | [`blackbox-scene`](../libs/blackbox-scene) | Uploading solids and textures to the renderer; boxes; frustum culling | — |
@@ -94,16 +95,16 @@ bevy_winit window ─► PreUpdate: input/ resolves devices into actions (Action
   replace that resource ([controller settings](controller-settings.md)). Analog Bevy filtering is neutralized
   on connection so the action layer applies deadzones once; digital button hysteresis is retained. Default pad layout:
   left stick moves, right stick looks (and orbits), A/B go up/down, stick-click or right bumper boosts,
-  D-pad up/down zooms, Start backs out. A key tapped and released within one frame still counts as held for
-  that frame, so switch actions (console, camera) cannot miss a quick tap.
+  D-pad up/down zooms, Start backs out. Keyboard and gamepad taps survive for one action frame.
+  `InputPresentation` selects the active pad and prompt device ([menu policy](specs/controller-ui.md)).
 - **Driving actions:** `Throttle` and `Brake` (0..1, so a pad's analog triggers are real pedals), `Steer` (-1..1),
   `Handbrake`, `ShiftUp`, `ShiftDown`, `Nos`, `ResetCar` and `ToggleCamera`. Keyboard: W/S or Up/Down pedals, A/D
   or Left/Right steer, Space handbrake, E/Q (or Right Shift/Ctrl) shift up/down, Left Shift nitrous, R reset, F camera. Pad: right
   and left trigger pedals, left stick steers, A handbrake, X nitrous, right/left bumper shift up/down, Back resets,
-  Y toggles the camera. Like all bindings they are untested on a real controller. A steering wheel appears as a
-  gamepad; its shift paddles are buttons the platform often has no name for, so `paddle_up` / `paddle_down` (config
-  file, `NFSMW_PADDLE_UP` / `_DOWN`) bind their codes to the shift actions, and the log prints the code of each
-  unnamed button when it is pressed. Wheel axes and pedals are not mapped, and no wheel was tried.
+  Y toggles the camera. Like all bindings they are untested on a real controller. A wheel appears as a gamepad with
+  device-specific codes, which the log prints on first use. `paddle_up` / `paddle_down`, `pedal:` / `pedal_inv:`
+  full-range pedal axes, `gear_*` actions (H-shifter) and an optional `clutch` pedal cover it
+  ([controls](controller-settings.md)); only synthetic tests ran, no real wheel was tried.
 - **Cursor:** mouse-look scenes capture the cursor; the first Esc (or Start) releases it, the next quits.
 - **Errors** from systems (no GPU, a failed present) are stored and returned from `main`; the app exits with
   an error code.
@@ -154,8 +155,8 @@ Runtime options resolve in layers, highest first ([`crates/nfsmw/src/settings/`]
 4. the defaults (`auto`, vsync on, unlocked, overlay off, readout minimal).
 
 Gameplay keys: `hud`, `transmission` (`--transmission automatic|manual`, `NFSMW_TRANSMISSION`; automatic by default,
-as in the original) and the wheel's `paddle_up` / `paddle_down` button codes (config file and environment only).
-Each key resolves on its own. A value that does not parse (in the environment or the file) is logged and
+as in the original), the wheel's `paddle_up` / `paddle_down` codes and off-by-default `manual_clutch` / `h_shifter`
+(config file, `NFSMW_MANUAL_CLUTCH` / `NFSMW_H_SHIFTER`, console `set`). Each key resolves on its own. A value that does not parse (in the environment or the file) is logged and
 skipped, so the next layer applies; a broken config file never stops the game from starting. The
 install directory has its own, longer lookup ([Finding the install](#finding-the-install)).
 
@@ -419,20 +420,19 @@ is `ea-audio`, engine synthesis is `blackbox-ginsu`, and the mix controller is `
   thread reads the chain from the file with positioned reads and a custom `kira` sound plays the blocks (linear
   resampling to the device, a fade-out when it is stopped), so no song is held in memory. `nfsmw-data`'s `music`
   reads the 26 songs (artist, title, event, `DefPlay`); `Playlist` picks the next one by the original's rules
-  (front-end and in-game lists, ordered or shuffled without replacement). The radio plays while a game is on:
-  it starts when free roam begins (the scene has a car), goes on under the pause menu (`Scene::paused`; the car
-  falls silent, the game does not) and stops when the scene is left (quit to the main menu), so the menus have no
-  music yet. It starts the next song when one ends. `music_volume` and `master_volume` are read from the settings
-  every frame, so the pause menu's audio rows change the song on the air at once; a music volume of zero silences
-  the song without dropping it, and a new song only starts when the music is audible. `--no-sound` turns the
-  radio off. Console: `radio` (status), `radio next`, `radio on|off`, `radio list`, `radio play <n>`,
-  `radio shuffle|ordered`. The song on the air is `Audio::now_playing()` (artist, title, album, elapsed) for the HUD,
-  which does not draw it yet. The pursuit and ambience music (the same graph, driven by game state) and the jukebox
-  are not done, and nobody has listened to the result: how the original ends a song is inferred (see the spec).
+  (front-end and in-game lists, ordered or shuffled without replacement). The radio plays while a game is on: it
+  starts with free roam, goes on under the pause menu (`Scene::paused`) and stops when the scene is left, so the menus
+  have no music yet. It starts the next song when one ends. The volumes are read from the settings every frame (a
+  music volume of zero silences the song without dropping it; a new song starts only when the music is audible).
+  `--no-sound` turns the radio off. Console: `radio [list|next|play <n>|on|off|shuffle|ordered]`.
+  `Audio::now_playing()` feeds the HUD (not drawn yet). No jukebox; unheard, and how a song ends is inferred.
+- **The pursuit music.** `audio/interactive/`: the four pursuit sets of the graph, steered by a control value. A
+  `MusicInput` resource (hooks for milestone 7, or the `music` console command) says which set and how tense; a
+  director and conductor play it on its own child track (`graph::Cursor` walks the bars), cross-fade sets, keep the
+  songs off for the chase and 40 s after. Map events are not run; unheard ([spec](specs/interactive-music.md)).
 - **Speech.** `audio/speech/`: a `Dispatcher` (the queue and its rules) and the takes of `copspeech.big`, on a track
-  of their own (`speech_volume`). Only the 28 events with banks of their own can be said and nothing asks for speech
-  yet, since there is no pursuit (console: `speech say|play <event>`). Spec [speech.md](specs/speech.md); not listened to.
-- **Not done:** speech sentences and triggers, the interactive music, the radio's HUD display, the mixer's reverb, low-pass and azimuth
+  of their own (`speech_volume`). Only the 28 events with banks of their own can be said; nothing asks for speech yet (console: `speech say|play <event>`). Spec [speech.md](specs/speech.md); not listened to.
+- **Not done:** speech sentences and triggers, the ambience music, the radio's HUD display, the mixer's reverb, low-pass and azimuth
   outputs, Doppler, and a comparison of the engine's levels with the running original (the absolute level,
   `MAKEUP`, and the chase-camera distances are guesses).
 
@@ -472,10 +472,10 @@ Unit tests, real-install tests and the guard rails are described in [testing.md]
 | 2 | Generic `libs/` split; the streamed city: index, sections, scenery, background loading, instanced rendering, culling, fly camera | done |
 | 3 | Sky dome, LODs, water, panoramas; zone-based streaming (visible sections); AttribSys reader; car assembly from the parts DB (stock parts, wheels, brakes, paint). Playtest fixes: misplaced and floating scenery, mouse look without holding a button, `--max-fps`, clearer config-file path | done |
 | 4 | Engine foundation: decide on Bevy (ECS, events, UI) in an ADR and migrate the viewers if adopted; layered settings (command line > environment > per-user config file > defaults, with a settings menu in 6); input layer with controller support; developer console (F12: log view, commands such as change car, toggle free camera, change settings); performance overlay (`--show-metrics off\|basic\|advanced`). Decided: Bevy as the shell with our renderer ([ADR 0001](decisions/0001-bevy.md)), full Bevy renderer revisited in 8 | done |
-| 5 | Vehicle physics, spec-first (`docs/specs/vehicle-*.md`); world collision (`CarpWCollisionPack`); drive a car with the original HUD: read the FEng HUD packages (`HUD_*.fng` in `InGameB.bun`) and draw them with the UI layer; steering wheel controller support (wheel axes, pedals, shifters) on the input layer from 4 |  in progress: `blackbox-vehicle`, the collision reader, input actions, `view-world --drive` (placing, chase camera, one-sided walls, props, reset and fall recovery, scripted runs), manual shifting (Q/E, pad bumpers and wheel paddle buttons, with a transmission setting and an options row), the original HUD (speedometer, tachometer with its red zone and shift light, gear, nitrous bar, turbo dial, minimap; the rest of the package waits for the race and pursuit state of milestone 7), the `--show-readout` levels and the `debug collisions` command are in; steering wheel support (wheel axes and pedals; a wheel is untested) is open; controller testing on real hardware and calibration against the original are done ([Driving](#driving-view-world---drive), [The HUD](#the-hud)) |
-| 6 | Audio (EA-XA, EA-XAS engine loops, MicroTalk speech), VP6 movies, FEng menus (the same FEng runtime as the HUD), in-game settings menu | in progress: the codecs, banks, music and movie decoders, Ginsu synthesis, the car sound data, the engine and effects mixers, the dynamic mixer maps, the sample (AEMS) layer of the engine and the sputters, the output device, the driven car's engine and effects, a movie player and the radio (licensed songs, gapless, play lists; not yet heard by a human) are in, and so are the front end (boot movies, title screen, main menu, option screens for audio, video and gameplay, the pause menu, free roam) and the settings written to the config file; speech (the queue and the 28 phrases with banks of their own; no sentences, no triggers) is in, the interactive music is open, and so is the playtest report that the engine sounds muted at the rev limiter was fixed by [PR 5](https://github.com/47PADO47/nfs-mw/pull/5); `RUST_LOG=nfsmw::audio=debug` logs the limiter ([Sound](#sound), [The front end](#the-front-end)) |
+| 5 | Vehicle physics, spec-first (`docs/specs/vehicle-*.md`); world collision (`CarpWCollisionPack`); drive a car with the original HUD: read the FEng HUD packages (`HUD_*.fng` in `InGameB.bun`) and draw them with the UI layer; steering wheel controller support (wheel axes, pedals, shifters) on the input layer from 4 |  in progress: `blackbox-vehicle`, the collision reader, input actions, `view-world --drive` (placing, chase camera, one-sided walls, props, reset and fall recovery, scripted runs), manual shifting (Q/E, pad bumpers and wheel paddle buttons, with a transmission setting and an options row), the original HUD (speedometer, tachometer with its red zone and shift light, gear, nitrous bar, turbo dial, minimap; the rest of the package waits for the race and pursuit state of milestone 7), the `--show-readout` levels and the `debug collisions` command are in; steering wheel support (pedal axes, paddles, direct gears for an H-shifter and an optional clutch pedal are in; hardware testing on a real wheel is open); controller testing on real hardware and calibration against the original are done ([Driving](#driving-view-world---drive), [The HUD](#the-hud)) |
+| 6 | Audio (EA-XA, EA-XAS engine loops, MicroTalk speech), VP6 movies, FEng menus (the same FEng runtime as the HUD), in-game settings menu | in progress: the codecs, banks, music and movie decoders, Ginsu synthesis, the car sound data, the engine and effects mixers, the dynamic mixer maps, the sample (AEMS) layer of the engine and the sputters, the output device, the driven car's engine and effects, a movie player and the radio (licensed songs, gapless, play lists; not yet heard by a human) are in, and so are the front end (boot movies, title screen, main menu, option screens for audio, video and gameplay, the pause menu, free roam) and the settings written to the config file; speech (the queue and the 28 phrases with banks of their own; no sentences, no triggers) is in, the pursuit music (four sets steered by game state, the hooks waiting for milestone 7; not yet heard) is in, and the ambience music is open; and so is the playtest report that the engine sounds muted at the rev limiter was fixed by [PR 5](https://github.com/47PADO47/nfs-mw/pull/5); `RUST_LOG=nfsmw::audio=debug` logs the limiter ([Sound](#sound), [The front end](#the-front-end)) |
 | 7 | AI racers, traffic, pursuit, races; career data; console commands to spawn AI | |
-| 8 | Graphics: the car shader and lighting rig, tire smoke and skid marks (`blackbox-vehicle` already reports per-wheel `skid` and `smoke`; this draws them), exhaust flames (backfire on lift-off, driven by the sputters of the sample layer), post-processing, upscaling (FSR; DLSS where the backend allows it), ReShade compatibility, Bevy Solari | |
+| 8 | Graphics: the car shader and lighting rig, tire smoke and skid marks (`blackbox-vehicle` already reports per-wheel `skid` and `smoke`; this draws them), exhaust flames (nitrous, gear-change blow-off and a lift-off backfire on the sputter pops; [guide](exhaust-flames.md), [spec](specs/exhaust-flames.md)), post-processing, upscaling (FSR; DLSS where the backend allows it), ReShade compatibility, Bevy Solari | |
 | 9 | Discord Rich Presence | |
 | 10 | Lan multiplayer | |
 | 11 | Online multiplayer | |

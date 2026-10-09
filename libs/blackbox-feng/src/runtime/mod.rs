@@ -77,11 +77,13 @@ impl Runtime {
         self.resolver = Some(Arc::new(f));
     }
 
-    /// Starts running a package: every object begins in its `INIT` script at time 0.
+    /// Starts running a package and evaluates its `INIT` scripts with zero elapsed ticks, so its first tree
+    /// already has the entrance pose. Initialization messages remain queued until the next update.
     pub fn load(&mut self, package: Package) -> PackageId {
         let id = PackageId(self.next_id);
         self.next_id += 1;
         self.packages.push((id, Running::new(Arc::new(package))));
+        self.update_package(id, 0);
         id
     }
 

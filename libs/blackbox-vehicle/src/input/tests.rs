@@ -1,5 +1,5 @@
 use super::*;
-use crate::drivetrain::{GEAR_FIRST, GEAR_REVERSE};
+use crate::drivetrain::{GEAR_FIRST, GEAR_NEUTRAL, GEAR_REVERSE};
 
 fn ctx(speed: f32, gear: usize) -> InputContext {
     InputContext { forward_speed: speed, gear, disabled: false }
@@ -91,4 +91,65 @@ fn without_auto_reverse_the_pedals_stay_put() {
 fn steering_is_passed_through_clamped() {
     let c = shape(&InputState { steer: 3.0, ..Default::default() }, &cfg(), &ctx(0.0, GEAR_FIRST));
     assert_eq!(c.steering, 1.0);
+}
+
+fn manual_cfg() -> ControlConfig {
+    ControlConfig { automatic: false, ..cfg() }
+}
+
+#[test]
+fn a_gear_by_number_is_a_request_for_a_manual_box_only() {
+    let i = InputState { gear_select: Some(GEAR_FIRST + 2), throttle: 1.0, ..Default::default() };
+    assert_eq!(
+        shape(&i, &manual_cfg(), &ctx(10.0, GEAR_FIRST)).gear_request,
+        Some(GearRequest::Select(GEAR_FIRST + 2))
+    );
+    assert_eq!(shape(&i, &cfg(), &ctx(10.0, GEAR_FIRST)).gear_request, None, "the automatic box picks its own");
+}
+
+#[test]
+fn a_gear_by_number_wins_over_the_shift_edges_and_the_automatic_reverse() {
+    let i = InputState { gear_select: Some(GEAR_FIRST + 1), shift_down: true, brake: 1.0, ..Default::default() };
+    let c = shape(&i, &manual_cfg(), &ctx(0.5, GEAR_FIRST));
+    assert_eq!(c.gear_request, Some(GearRequest::Select(GEAR_FIRST + 1)));
+    assert_eq!((c.gas, c.brake), (0.0, 1.0), "braking at a standstill did not turn into reverse");
+}
+
+#[test]
+fn selecting_reverse_swaps_the_pedals_like_the_automatic_reverse_does() {
+    let i = InputState { gear_select: Some(GEAR_REVERSE), brake: 1.0, ..Default::default() };
+    let c = shape(&i, &manual_cfg(), &ctx(0.0, GEAR_NEUTRAL));
+    assert_eq!(c.gear_request, Some(GearRequest::Select(GEAR_REVERSE)));
+    assert_eq!((c.gas, c.brake), (1.0, 0.0));
+}
+
+#[test]
+fn an_h_shifter_leaves_reverse_and_the_pedals_to_the_driver() {
+    let config = ControlConfig { h_shifter: true, ..manual_cfg() };
+    // Braking to a standstill does not engage reverse.
+    let braking = InputState { brake: 1.0, ..Default::default() };
+    let c = shape(&braking, &config, &ctx(0.0, GEAR_FIRST));
+    assert_eq!((c.gear_request, c.gas, c.brake), (None, 0.0, 1.0));
+    // In reverse the gas pedal is still the gas pedal, and the gear is not given up.
+    let gas = InputState { throttle: 1.0, ..Default::default() };
+    let c = shape(&gas, &config, &ctx(-1.0, GEAR_REVERSE));
+    assert_eq!((c.gear_request, c.gas, c.brake), (None, 1.0, 0.0));
+    // With an automatic box the flag changes nothing: the brake pedal still finds reverse.
+    let automatic = ControlConfig { h_shifter: true, ..cfg() };
+    assert_eq!(shape(&braking, &automatic, &ctx(0.0, GEAR_FIRST)).gear_request, Some(GearRequest::Reverse));
+}
+
+#[test]
+fn the_clutch_pedal_exists_only_when_configured() {
+    let pressed = InputState { clutch: 0.8, ..Default::default() };
+    assert_eq!(shape(&pressed, &cfg(), &ctx(10.0, GEAR_FIRST)).clutch, None);
+    let config = ControlConfig { manual_clutch: true, ..cfg() };
+    assert_eq!(shape(&pressed, &config, &ctx(10.0, GEAR_FIRST)).clutch, Some(0.8));
+    let wild = InputState { clutch: f32::NAN, ..Default::default() };
+    assert_eq!(shape(&wild, &config, &ctx(10.0, GEAR_FIRST)).clutch, Some(0.0));
+    let over = InputState { clutch: 4.0, ..Default::default() };
+    assert_eq!(shape(&over, &config, &ctx(10.0, GEAR_FIRST)).clutch, Some(1.0));
+    let mut disabled = ctx(10.0, GEAR_FIRST);
+    disabled.disabled = true;
+    assert_eq!(shape(&pressed, &config, &disabled).clutch, None);
 }

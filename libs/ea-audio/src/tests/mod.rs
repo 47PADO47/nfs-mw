@@ -4,6 +4,7 @@ mod abk;
 mod big;
 pub mod build;
 mod codec;
+mod cursor;
 mod gin;
 mod graph;
 mod graph_build;

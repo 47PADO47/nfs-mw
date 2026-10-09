@@ -73,11 +73,14 @@ pub struct Partial {
     pub collision_sparks: Option<bool>,
     pub spark_style: Option<super::SparkStyle>,
     pub speed_trails: Option<bool>,
+    pub exhaust_flames: Option<bool>,
     pub transmission: Option<Transmission>,
     pub minimap: Option<MinimapMode>,
     pub hud_layout: Option<HudLayout>,
     pub paddle_up: Option<u32>,
     pub paddle_down: Option<u32>,
+    pub manual_clutch: Option<bool>,
+    pub h_shifter: Option<bool>,
 }
 
 impl Partial {
@@ -113,11 +116,14 @@ impl Partial {
             collision_sparks: self.collision_sparks.or(lower.collision_sparks),
             spark_style: self.spark_style.or(lower.spark_style),
             speed_trails: self.speed_trails.or(lower.speed_trails),
+            exhaust_flames: self.exhaust_flames.or(lower.exhaust_flames),
             transmission: self.transmission.or(lower.transmission),
             minimap: self.minimap.or(lower.minimap),
             hud_layout: self.hud_layout.or(lower.hud_layout),
             paddle_up: self.paddle_up.or(lower.paddle_up),
             paddle_down: self.paddle_down.or(lower.paddle_down),
+            manual_clutch: self.manual_clutch.or(lower.manual_clutch),
+            h_shifter: self.h_shifter.or(lower.h_shifter),
         }
     }
 }

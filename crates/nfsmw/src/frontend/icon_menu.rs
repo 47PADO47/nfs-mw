@@ -7,7 +7,7 @@ use glam::Vec2;
 
 use super::ids::{self, screen};
 use super::logic::{Args, Category, Command, Cx, ScreenLogic};
-use super::scroller::{self, Scroll};
+use super::scroller::{self, Fade, Scroll};
 use blackbox_feng::ids::{BUTTON_PRESSED, PAD_BACK, PAD_LEFT, PAD_RIGHT, PAD_START};
 
 /// Which icon menu a package is.
@@ -62,6 +62,7 @@ fn icons(kind: Kind) -> Vec<Icon> {
             icon(Id::Category(Category::Audio), 0xF37A_F144, 0xE76C_D783, true),
             icon(Id::Category(Category::Video), 0x8A00_6328, 0xE8E2_4508, true),
             icon(Id::Category(Category::Gameplay), 0x4DF9_8FB2, 0xD0CF_6EE1, true),
+            icon(Id::Category(Category::Controls), crate::ui::input_icons::ATLAS, 0, true),
         ],
         Kind::Pause => vec![
             icon(Id::Resume, 0x12BB_5EA2, 0x01BD_185C, true),
@@ -105,8 +106,7 @@ pub struct IconMenu {
     scroll: Scroll,
     center: Vec2,
     colours: (u32, u32),
-    /// Frames since the screen appeared, for the fade in.
-    age: f32,
+    fade: Fade,
     reacts: bool,
     pending: Option<Pending>,
 }
@@ -123,7 +123,7 @@ impl IconMenu {
             scroll: Scroll::default(),
             center: Vec2::ZERO,
             colours,
-            age: 0.0,
+            fade: Fade::default(),
             reacts: true,
             pending: None,
         }
@@ -166,6 +166,10 @@ impl IconMenu {
         let name = self.icons[i].name;
         for hash in [ids::ICON_TITLE, ids::ICON_TITLE_SHADOW] {
             if let Some(o) = cx.object(hash) {
+                if self.icons[i].id == Id::Category(Category::Controls) {
+                    cx.rt.set_text(o, "Controls");
+                    continue;
+                }
                 cx.label(o, name);
             }
         }
@@ -240,7 +244,7 @@ impl IconMenu {
     /// Writes where each icon is, how big and how opaque, from the scroll value and the clock.
     fn place(&self, cx: &mut Cx) {
         let scroll = self.scroll.value();
-        let fade = (self.age / scroller::FADE_FRAMES).min(1.0);
+        let fade = self.fade.value();
         let half = scroller::WIDTH * 0.5;
         for slot in &self.slots {
             let x = self.center.x + scroll + slot.offset;
@@ -272,6 +276,9 @@ impl IconMenu {
             let guid = cx.rt.package(cx.package).map_or(0, |p| p.objects[obj.index].guid);
             let texture = icon.map_or(ids::END_OF_SCROLLER, |i| self.icons[i].texture);
             cx.rt.set_texture(obj, texture);
+            if icon.is_some_and(|i| self.icons[i].id == Id::Category(Category::Controls)) {
+                cx.rt.set_uv(obj, crate::ui::input_icons::Glyph::Controller.uv());
+            }
             self.slots.push(Slot { obj, guid, size, offset, icon });
             offset += size.x + scroller::SPACING;
         }
@@ -280,6 +287,13 @@ impl IconMenu {
 
 impl ScreenLogic for IconMenu {
     fn start(&mut self, cx: &mut Cx) {
+        // Pause's glow INIT retains its idle colour; the event handler starts its entrance fade later.
+        // Keep it transparent until that fade takes over, just like the incoming icons and brackets.
+        if self.pause()
+            && let Some(glow) = cx.object(ids::ICON_SELECTION_GLOW)
+        {
+            cx.rt.set_alpha(glow, 0);
+        }
         // The cursor brackets sit on the stand-in icon (`OPTION_MASTER`), so that is where the selected icon goes:
         // the region's own position is up to 17 units off it (MainMenu.fng), which left the icon out of its brackets.
         let region = cx.named("ICON_SCROLL_REGION");
@@ -354,10 +368,11 @@ impl ScreenLogic for IconMenu {
                 Kind::Categories { pause: true } | Kind::Pause => self.leave_by_script(cx, Pending::Back),
             },
             PAD_START => {
-                if self.kind != Kind::Main {
+                if self.pause() {
                     self.leave_by_script(cx, Pending::Start);
                 }
             }
+            ids::EXIT_STARTED => self.fade.leave(),
             ids::EXIT_COMPLETE => {
                 if let Some(pending) = self.pending.take() {
                     self.act(cx, pending);
@@ -372,7 +387,7 @@ impl ScreenLogic for IconMenu {
             return;
         }
         self.scroll.update(dt);
-        self.age += dt * 60.0;
+        self.fade.update(dt);
         self.place(cx);
     }
 }
@@ -398,7 +413,7 @@ mod tests {
         let main = icons(Kind::Main);
         assert_eq!(main.len(), 5);
         assert!(main[0].enabled && !main[1].enabled, "career works, the challenge series do not exist yet");
-        assert_eq!(icons(Kind::Categories { pause: false }).len(), 3);
+        assert_eq!(icons(Kind::Categories { pause: false }).len(), 4);
         assert_eq!(icons(Kind::Pause)[0].name, 0x01BD_185C, "Resume Free Roam");
     }
 

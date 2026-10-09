@@ -16,6 +16,7 @@ pub mod screen {
 
 // Messages.
 pub const LEAVE_SCREEN: u32 = 0x587C_018B;
+pub const EXIT_STARTED: u32 = 0x8437_8BEF;
 pub const EXIT_COMPLETE: u32 = 0xE1FD_E1D1;
 pub const INIT_COMPLETE: u32 = 0x35F8_620B;
 pub const END_PAD_LEFT: u32 = 0xD711_8934;
@@ -39,6 +40,7 @@ pub const PAUSE_HEADER: u32 = 0x8634_04B5;
 /// The object whose scripts time the leave animation (its name is only known as a hash).
 pub const EVENT_HANDLER: u32 = 0x47FF_4E7C;
 pub const OPTION_MASTER: u32 = 0xB046_69E3;
+pub const ICON_SELECTION_GLOW: u32 = 0x5FBB_A846;
 pub const ICON_TITLE: u32 = 0x5E7B_09C9;
 pub const ICON_TITLE_SHADOW: u32 = 0x0DFB_7A2E;
 pub const TITLE_GROUP: u32 = 0xB71B_576D;
@@ -63,6 +65,7 @@ mod tests {
     fn names_hash_to_their_ids() {
         for (id, name) in [
             (LEAVE_SCREEN, "LEAVE_SCREEN"),
+            (EXIT_STARTED, "EXIT_STARTED"),
             (EXIT_COMPLETE, "EXIT_COMPLETE"),
             (INIT_COMPLETE, "INIT_COMPLETE"),
             (END_PAD_LEFT, "END_PAD_LEFT"),

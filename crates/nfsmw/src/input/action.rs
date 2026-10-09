@@ -37,6 +37,20 @@ pub enum Action {
     ShiftUp,
     /// Driving button: shift down one gear.
     ShiftDown,
+    /// Driving button: select reverse (a gear selector's reverse slot or a gear key).
+    GearReverse,
+    /// Driving button: select neutral.
+    GearNeutral,
+    /// Driving buttons: select that gear by number (an H-pattern shifter or gear keys).
+    Gear1,
+    Gear2,
+    Gear3,
+    Gear4,
+    Gear5,
+    Gear6,
+    Gear7,
+    /// Driving, 0..1: clutch pedal (read only with the `clutch` setting on).
+    Clutch,
     /// Driving button: nitrous oxide.
     Nos,
     /// Driving button: put the car back on the road.
@@ -80,6 +94,16 @@ impl Action {
             "handbrake",
             "shift_up",
             "shift_down",
+            "gear_reverse",
+            "gear_neutral",
+            "gear_1",
+            "gear_2",
+            "gear_3",
+            "gear_4",
+            "gear_5",
+            "gear_6",
+            "gear_7",
+            "clutch",
             "nos",
             "reset_car",
             "toggle_camera",
@@ -103,7 +127,7 @@ impl Action {
             .find(|a| a.name() == name)
             .ok_or_else(|| format!("unknown action {name:?}; use keys to list actions"))
     }
-    pub const ALL: [Action; 29] = [
+    pub const ALL: [Action; 39] = [
         Action::MoveForward,
         Action::MoveRight,
         Action::MoveUp,
@@ -121,6 +145,16 @@ impl Action {
         Action::Handbrake,
         Action::ShiftUp,
         Action::ShiftDown,
+        Action::GearReverse,
+        Action::GearNeutral,
+        Action::Gear1,
+        Action::Gear2,
+        Action::Gear3,
+        Action::Gear4,
+        Action::Gear5,
+        Action::Gear6,
+        Action::Gear7,
+        Action::Clutch,
         Action::Nos,
         Action::ResetCar,
         Action::ToggleCamera,

@@ -82,7 +82,8 @@ pub fn run(cli: Cli) -> Result<()> {
                 "audio" => crate::frontend::Category::Audio,
                 "video" => crate::frontend::Category::Video,
                 "gameplay" => crate::frontend::Category::Gameplay,
-                other => anyhow::bail!("unknown category {other:?} (audio, video, gameplay)"),
+                "controls" => crate::frontend::Category::Controls,
+                other => anyhow::bail!("unknown category {other:?} (audio, video, gameplay, controls)"),
             };
             if crate::ui::Catalog::load(&dir, &crate::ui::SCREEN_FILES).find(&name).is_none() {
                 anyhow::bail!("no screen {name:?} in the install (try list-screens)");

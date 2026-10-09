@@ -10,6 +10,7 @@
 mod carparts;
 mod cars;
 mod compare;
+mod exhaust;
 mod ginsu;
 mod handling;
 mod manual;

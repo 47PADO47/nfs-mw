@@ -5,7 +5,7 @@ use bevy_ecs::prelude::*;
 use bevy_time::Time;
 use game_install::GameDir;
 
-use super::{Audio, Volumes};
+use super::{Audio, MusicInput, Volumes};
 use crate::app::FrameSet;
 use crate::app::Host;
 use crate::settings::Settings;
@@ -27,7 +27,7 @@ pub fn volumes_of(settings: &Settings) -> Volumes {
 impl Plugin for AudioPlugin {
     fn build(&self, app: &mut App) {
         let volumes = app.world().get_resource::<Settings>().map(volumes_of).unwrap_or_default();
-        app.insert_non_send(Audio::new(self.dir.clone(), volumes)).add_systems(
+        app.init_resource::<MusicInput>().insert_non_send(Audio::new(self.dir.clone(), volumes)).add_systems(
             Update,
             ((sync_volumes, sync_radio).in_set(FrameSet::Prepare), drive_car.in_set(FrameSet::Ui)),
         );
@@ -57,7 +57,13 @@ fn sync_radio(settings: Res<Settings>, mut audio: NonSendMut<Audio>, mut applied
 }
 
 /// The scene's car plays its engine.
-fn drive_car(mut host: NonSendMut<Host>, time: Res<Time>, mut audio: NonSendMut<Audio>, mut seen: Local<u32>) {
+fn drive_car(
+    mut host: NonSendMut<Host>,
+    time: Res<Time>,
+    music: Res<MusicInput>,
+    mut audio: NonSendMut<Audio>,
+    mut seen: Local<u32>,
+) {
     // A scene that went away takes its soundtrack with it, even when the next one has none.
     if *seen != host.scene_changes {
         *seen = host.scene_changes;
@@ -65,8 +71,16 @@ fn drive_car(mut host: NonSendMut<Host>, time: Res<Time>, mut audio: NonSendMut<
     }
     let car = host.scene.car_sound();
     audio.drive_car(car.as_ref(), time.delta_secs());
+    // The sputter pops of this frame reach the scene, which lights the tail pipes for them.
+    let pops = audio.take_sputter_pops();
+    if pops > 0 {
+        host.scene.note_sputters(pops);
+    }
     // The pause menu freezes the car (no sound) but the game goes on, and so does the radio.
-    audio.update_radio(car.is_some() || host.scene.paused());
+    let driving = car.is_some() || host.scene.paused();
+    // The pursuit music takes the songs' place while a chase is on and for a while after it.
+    let songs_free = audio.update_interactive(&music.state(), driving, time.delta_secs());
+    audio.update_radio(driving && songs_free);
     if let Some(clip) = host.scene.take_clip()
         && let Err(e) = audio.play_music(super::pcm::sound(&clip))
     {

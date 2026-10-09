@@ -65,13 +65,49 @@ fn alpha(rt: &Runtime, o: ObjectRef) -> i32 {
 }
 
 #[test]
-fn init_scripts_apply_on_the_first_update() {
+fn init_scripts_apply_before_the_first_tree_is_presented() {
     let (mut rt, id) = load(&fading_image());
     let panel = rt.find(id, fe_hash_upper("PANEL")).unwrap();
-    assert_eq!(alpha(&rt, panel), 255, "the stored colour until the first update");
+    assert_eq!(alpha(&rt, panel), 0, "INIT must hide the stored end pose before drawing");
+    assert_eq!(rt.tree(id).nodes[panel.index].world_colour[3], 0);
     rt.update(1.0 / 60.0);
     assert_eq!(alpha(&rt, panel), 0, "INIT makes it transparent");
     assert_eq!(rt.script_of(panel), Some(INIT));
+}
+
+#[test]
+fn loading_primes_the_entrance_without_advancing_clocks_or_repeating_init_events() {
+    let mut obj = Obj::image(1, fe_hash_upper("Panel"));
+    let mut init = hidden_init();
+    init.chain = Some(FADEIN);
+    init.events.push((0x88, 0xFFFF_FFFF, 0));
+    obj.scripts.extend([init.build(), fade_script().build()]);
+    let bytes = package("Entrance.fng", &[], &[obj], &[], &[]);
+    let (mut rt, first) = load(&bytes);
+    let first_panel = rt.find_guid(first, 1).unwrap();
+    assert_eq!(rt.script_of(first_panel), Some(FADEIN));
+    assert_eq!(rt.object(first_panel).unwrap().time, 0);
+    assert_eq!(alpha(&rt, first_panel), 0);
+    assert!(rt.take_outgoing().is_empty(), "initialization messages wait for the next update");
+
+    rt.update(0.3125);
+    assert_eq!(rt.take_outgoing(), vec![Outgoing::Game { message: 0x88, package: first, from: Some(1) }]);
+    let first_state = rt.object(first_panel).unwrap().clone();
+    let remainder = rt.remainder;
+    let second = rt.load(Package::parse(&bytes).unwrap());
+    let second_panel = rt.find_guid(second, 1).unwrap();
+    assert_eq!(rt.object(second_panel).unwrap().time, 0);
+    assert_eq!(alpha(&rt, second_panel), 0);
+    assert_eq!(rt.object(first_panel).unwrap().time, first_state.time);
+    assert_eq!(rt.object(first_panel).unwrap().data.words, first_state.data.words);
+    assert_eq!(rt.remainder, remainder);
+
+    rt.update(1.0 / 60.0);
+    assert_eq!(rt.take_outgoing(), vec![Outgoing::Game { message: 0x88, package: second, from: Some(1) }]);
+    assert_eq!(rt.object(second_panel).unwrap().time, 16);
+    assert!((1..255).contains(&alpha(&rt, second_panel)));
+    rt.update(1.0 / 60.0);
+    assert!(rt.take_outgoing().is_empty(), "each INIT event fires once");
 }
 
 #[test]

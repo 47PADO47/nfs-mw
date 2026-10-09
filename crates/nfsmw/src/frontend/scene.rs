@@ -115,6 +115,10 @@ impl Scene for Pausable {
         self.inner.set_transmission(transmission);
     }
 
+    fn set_wheel_options(&mut self, wheel: crate::settings::WheelOptions) {
+        self.inner.set_wheel_options(wheel);
+    }
+
     fn hud_state(&self) -> Option<crate::hud::HudState> {
         if self.paused.get() {
             return Some(crate::hud::HudState { visible: false, ..Default::default() });
@@ -151,6 +155,15 @@ impl Scene for Pausable {
     fn set_spark_style(&mut self, style: crate::settings::SparkStyle) {
         self.inner.set_spark_style(style);
         self.effects_dirty = true;
+    }
+
+    fn set_exhaust_flames(&mut self, on: bool) {
+        self.inner.set_exhaust_flames(on);
+        self.effects_dirty = true;
+    }
+
+    fn note_sputters(&mut self, pops: u32) {
+        self.inner.note_sputters(pops);
     }
 
     fn fullscreen(&mut self) -> Option<Fullscreen> {

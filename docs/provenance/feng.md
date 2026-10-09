@@ -18,6 +18,14 @@ The game side is `crates/nfsmw/src/hud/`.
   - Probes of the user's own install (210 distinct packages, five fonts, the HUD texture packs): the facts marked
     **[verified]** in the format document. The probe programs are not part of the repository.
 - **Implemented:** 2026-10-08, from the specs only (the decompiled code was not open while writing).
+- **Rendering correction (2026-10-09):** re-read `FEngRender.cpp`'s `GenerateRenderContext` and
+  `MakeRenderMatrix` to correct the group-scale omission in the spec. MainMenu's signed arrow scale
+  and size animation tracks, and the pause selection glow's DXT3 alpha and additive blend mode,
+  were checked in a base PC install. Implementation follows the corrected spec; no reference code copied.
+- **Presentation initialization (2026-10-09) [ours]:** the Rust host can switch screens after the frame's
+  runtime update. Evaluating the incoming package at zero elapsed ticks during load prevents its stored
+  visible pose from flashing before `INIT`. Regression tests inspect the immediate tree and the actual
+  switch frame in base and modded PC menu packages; no original-game load timing or source code is claimed.
 - **HUD gauges (2026-10-08, second pass):** section 8 of the runtime spec was extended from `Frontend/HUD/{FEPkg_Hud,
   FeTachometer,FeSpeedometer,FeNitrousGauge,FeTurboMeter,FeShiftUpdater,FeHudElement}` and
   `Physics/Behaviors/EngineRacer` (the shift potential): the tachometer scale and red-zone table, the nitrous bar and

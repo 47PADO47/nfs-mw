@@ -83,11 +83,14 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         collision_sparks: field(&table, origin, "collision_sparks", boolean),
         spark_style: field(&table, origin, "spark_style", |v| super::SparkStyle::from_str(text_of(v)?)),
         speed_trails: field(&table, origin, "speed_trails", boolean),
+        exhaust_flames: field(&table, origin, "exhaust_flames", boolean),
         transmission: field(&table, origin, "transmission", |v| Transmission::from_str(text_of(v)?)),
         minimap: field(&table, origin, "minimap", |v| MinimapMode::from_str(text_of(v)?)),
         hud_layout: field(&table, origin, "hud_layout", |v| HudLayout::from_str(text_of(v)?)),
         paddle_up: field(&table, origin, "paddle_up", button_code),
         paddle_down: field(&table, origin, "paddle_down", button_code),
+        manual_clutch: field(&table, origin, "manual_clutch", boolean),
+        h_shifter: field(&table, origin, "h_shifter", boolean),
     }
 }
 
@@ -191,6 +194,14 @@ paddle_down = -1",
             "test",
         );
         assert_eq!((p.paddle_up, p.paddle_down), (Some(7), None));
+    }
+
+    #[test]
+    fn reads_the_wheel_switches() {
+        let p = parse("manual_clutch = true\nh_shifter = false", "test");
+        assert_eq!((p.manual_clutch, p.h_shifter), (Some(true), Some(false)));
+        let bad = parse("manual_clutch = 'yes'\nh_shifter = 1", "test");
+        assert_eq!((bad.manual_clutch, bad.h_shifter), (None, None));
     }
 
     #[test]

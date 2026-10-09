@@ -2,7 +2,8 @@
 //!
 //! `"3:throttle=1;2:throttle=1,steer=0.4;1:brake=1"` holds each input set for that many seconds.
 //! Keys: `throttle`, `brake`, `steer` (-1..1), `handbrake`, `nos` (0 or 1), `up` and `down` (a gear
-//! shift at the start of the segment), `reset` (back to the nearest road at the start of it). A segment without keys coasts.
+//! shift at the start of the segment), `reset` (back to the nearest road at the start of it), `pop` (one sputter
+//! pop for the exhaust flames at the start of it, as the sound would report). A segment without keys coasts.
 
 use super::clock::STEP;
 use super::input::DriveInput;
@@ -40,7 +41,12 @@ impl DriveScript {
                     "up" => input.shift_up = n > 0.5,
                     "down" => input.shift_down = n > 0.5,
                     "reset" => input.reset = n > 0.5,
-                    other => return Err(format!("unknown key {other:?} (throttle brake steer handbrake nos up down)")),
+                    "pop" => input.pop = n > 0.5,
+                    other => {
+                        return Err(format!(
+                            "unknown key {other:?} (throttle brake steer handbrake nos up down reset pop)"
+                        ));
+                    }
                 }
             }
             segments.push(Segment { seconds, input });
@@ -67,6 +73,7 @@ impl DriveScript {
                     shift_up: s.input.shift_up && first,
                     shift_down: s.input.shift_down && first,
                     reset: s.input.reset && first,
+                    pop: s.input.pop && first,
                     ..s.input
                 };
             }
@@ -103,6 +110,8 @@ mod tests {
         assert!(a.shift_up && a.nos && a.throttle == 1.0);
         assert!(!script.input_at(0.5).shift_up, "a shift is requested once, at the start");
         assert!(script.input_at(1.2).handbrake);
+        let script = DriveScript::parse("1:throttle;1:pop").unwrap();
+        assert!(!script.input_at(0.5).pop && script.input_at(1.0).pop && !script.input_at(1.5).pop, "a pop is once");
         let script = DriveScript::parse("1:throttle;1:reset").unwrap();
         assert!(!script.input_at(0.5).reset && script.input_at(1.0).reset && !script.input_at(1.5).reset);
     }

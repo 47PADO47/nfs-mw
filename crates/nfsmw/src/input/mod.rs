@@ -12,6 +12,9 @@ pub mod commands;
 mod config_tests;
 mod describe;
 mod device_settings;
+mod presentation;
+#[cfg(test)]
+mod presentation_tests;
 mod remap;
 mod snapshot;
 mod source;
@@ -19,5 +22,7 @@ mod state;
 mod systems;
 
 pub use action::Action;
+pub(crate) use bindings::Source;
+pub use presentation::{InputDevice, InputPresentation};
 pub use state::{ActionState, Bindings};
 pub use systems::{InputLayerPlugin, MouseCapture, UiFocus};
