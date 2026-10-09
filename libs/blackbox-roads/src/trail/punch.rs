@@ -128,6 +128,10 @@ pub fn punch_avoidables(
             let ra = c.right_axis();
             let diag = |s: f32| ((a.forward * a.half_length + ar * (a.half_width * s)).dot(ra)).abs();
             let half = diag(1.0).max(diag(-1.0)) + 0.2 * shift.abs() + vehicle_half_width + margin;
+            // A car clear of the corridor leaves it alone.
+            if lateral - half >= c.right_offset || lateral + half <= c.left_offset {
+                continue;
+            }
             let gap_right = c.right_offset - (lateral + half);
             let gap_left = (lateral - half) - c.left_offset;
             let (fits_right, fits_left) = (gap_right > 0.0, gap_left > 0.0);

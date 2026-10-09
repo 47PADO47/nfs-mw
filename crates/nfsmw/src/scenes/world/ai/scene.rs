@@ -1,6 +1,10 @@
 //! The world scene's side of the traffic: where it spawns around and when it runs.
 
+use blackbox_roads::Body;
+use glam::{Vec2, Vec3};
+
 use super::Focus;
+use crate::scenes::world::space;
 use crate::scenes::world::{View, WorldScene};
 
 impl WorldScene {
@@ -8,13 +12,24 @@ impl WorldScene {
     pub(in crate::scenes::world) fn traffic_focus(&self) -> Focus {
         match (&self.drive, self.view) {
             (Some(drive), View::Chase) => {
-                let p = drive.position();
-                Focus { position: [p.x, p.y], heading: drive.heading(), speed: drive.speed() }
+                let (p, heading, speed) = (drive.position(), drive.heading(), drive.speed());
+                // Physics space: the heading's direction and the car's velocity along it.
+                let [fx, _, fz] = space::to_physics(Vec3::new(heading.cos(), heading.sin(), 0.0));
+                let (half_width, half_length) = drive.half_extents();
+                let body = Body {
+                    position: Vec3::from(space::to_physics(p)),
+                    velocity: Vec3::new(fx * speed, 0.0, fz * speed),
+                    forward: Vec2::new(fx, fz),
+                    half_width,
+                    half_length,
+                };
+                Focus { position: [p.x, p.y], heading, speed, body: Some(body) }
             }
             _ => Focus {
                 position: [self.camera.position.x, self.camera.position.y],
                 heading: self.camera.yaw,
                 speed: 0.0,
+                body: None,
             },
         }
     }

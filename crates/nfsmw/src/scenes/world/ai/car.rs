@@ -4,12 +4,12 @@ use std::rc::Rc;
 
 use blackbox_collision::CollisionWorld;
 use blackbox_driver::{AiControls, ControllerKind, DriveFlags, DriveRequest, Driver, GearRequest};
-use blackbox_roads::{RandomSource, RoadNav, RoadNetwork};
-use glam::Vec3;
+use blackbox_roads::{Body, RandomSource, RoadNav, RoadNetwork};
+use glam::{Vec2, Vec3};
 use nfsmw_data::car::physics::SurfaceTable;
 
 use super::TrafficModel;
-use super::traffic::{self, THINK_PERIOD, THINK_STEPS};
+use super::traffic::{self, THINK_STEPS};
 use crate::scenes::world::drive::{CarPose, CarRig, CarSim, DriveInput, STEP, WorldGround};
 use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::road::Spawn;
@@ -22,6 +22,9 @@ pub struct Start {
     pub stagger: u32,
     pub speed: f32,
 }
+
+/// Below this speed (m/s) a car counts as standing still.
+const IDLE_SPEED: f32 = 0.5;
 
 pub struct AiCar {
     pub name: String,
@@ -40,6 +43,15 @@ pub struct AiCar {
     speed: f32,
     controls: AiControls,
     radius: f32,
+    mass: f32,
+    /// Half width and half length of the body.
+    half: (f32, f32),
+    /// The last think found another car in the way.
+    blocked: bool,
+    /// Seconds the car has been (almost) standing still.
+    idle: f32,
+    /// Seconds with no wheel on the ground.
+    airborne: f32,
 }
 
 impl AiCar {
@@ -74,6 +86,11 @@ impl AiCar {
             speed: start.speed,
             controls: AiControls::default(),
             radius,
+            mass: physics.spec.mass,
+            half: (physics.spec.dimension.x, physics.spec.dimension.z),
+            blocked: false,
+            idle: 0.0,
+            airborne: 0.0,
         })
     }
 
@@ -94,9 +111,32 @@ impl AiCar {
         self.sim.is_finite()
     }
 
+    /// Seconds the car has had no wheel on the ground (it fell off the map, or flew).
+    pub fn airborne_time(&self) -> f32 {
+        self.airborne
+    }
+
+    /// Seconds the car has been standing still.
+    pub fn idle_time(&self) -> f32 {
+        self.idle
+    }
+
     /// Speed along the car, m/s.
     pub fn speed(&self) -> f32 {
         self.sim.telemetry().speed_mps
+    }
+
+    /// A line about what the car is doing, for the `traffic status` command.
+    pub fn debug(&self) -> String {
+        format!(
+            "segment {} lane {} t {:.2}{}{}, wants {:.1} m/s",
+            self.nav.segment,
+            self.nav.lane,
+            self.nav.t,
+            if self.blocked { ", blocked" } else { "" },
+            if self.nav.dead_end { ", dead end" } else { "" },
+            self.speed
+        )
     }
 
     pub fn controls(&self) -> AiControls {
@@ -108,12 +148,13 @@ impl AiCar {
         &mut self,
         net: &RoadNetwork,
         rng: &mut impl RandomSource,
+        bodies: (&[Body], usize),
         collision: &CollisionWorld,
         props: &mut PropWorld,
         surfaces: &SurfaceTable,
     ) {
         if (self.steps + self.stagger).is_multiple_of(THINK_STEPS) {
-            self.think(net, rng);
+            self.think(net, rng, bodies);
         }
         let view = self.sim.driver_view();
         let request = DriveRequest { target: self.target, speed: self.speed, flags: DriveFlags::SIMPLE };
@@ -140,19 +181,43 @@ impl AiCar {
         self.previous = self.current;
         self.current = self.sim.pose();
         self.steps += 1;
+        self.airborne = match self.sim.telemetry().wheels_on_ground == 0 {
+            true => self.airborne + STEP,
+            false => 0.0,
+        };
+        self.idle = match self.sim.telemetry().speed_mps.abs() < IDLE_SPEED {
+            true => self.idle + STEP,
+            false => 0.0,
+        };
     }
 
-    /// The traffic think: keep the cursor ahead of the car and pick a speed.
-    fn think(&mut self, net: &RoadNetwork, rng: &mut impl RandomSource) {
+    /// The car as the trails of the other cars see it.
+    pub fn body(&self) -> Body {
         let view = self.sim.driver_view();
-        let speed = view.forward_speed.abs();
-        let look = traffic::look_ahead(speed, THINK_PERIOD, self.radius);
-        let ahead = traffic::cursor_ahead(&self.nav, view.position);
-        if !self.nav.dead_end && ahead < look {
-            self.nav.advance(net, look - ahead, Vec3::ZERO, rng);
+        let forward = Vec2::new(view.forward.x, view.forward.z).try_normalize().unwrap_or(Vec2::Y);
+        Body {
+            position: view.position,
+            velocity: self.sim.velocity(),
+            forward,
+            half_width: self.half.0,
+            half_length: self.half.1,
         }
-        self.target = self.nav.position;
-        self.speed = traffic::wanted_speed(net, &self.nav, view.forward_speed, THINK_PERIOD);
+    }
+
+    /// The traffic think: keep the cursor ahead of the car, steer past other cars and pick a speed.
+    fn think(&mut self, net: &RoadNetwork, rng: &mut impl RandomSource, (bodies, me): (&[Body], usize)) {
+        let view = self.sim.driver_view();
+        let state = traffic::CarState {
+            body: self.body(),
+            forward_speed: view.forward_speed,
+            radius: self.radius,
+            mass: self.mass,
+        };
+        let others: Vec<Body> = bodies.iter().enumerate().filter(|&(i, _)| i != me).map(|(_, b)| *b).collect();
+        let think = traffic::think(net, &mut self.nav, &state, &others, self.blocked, rng);
+        self.target = think.target;
+        self.speed = think.speed;
+        self.blocked = think.blocked;
     }
 
     /// Where the car is in physics space and which way it faces, for the spawner's spacing test.

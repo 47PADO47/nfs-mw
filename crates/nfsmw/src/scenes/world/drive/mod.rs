@@ -225,6 +225,12 @@ impl Drive {
         self.current.position
     }
 
+    /// Half the width and half the length of the car's body, metres.
+    pub fn half_extents(&self) -> (f32, f32) {
+        let half = self.physics.spec.dimension;
+        (half.x, half.z)
+    }
+
     /// Speed along the car, m/s (negative in reverse).
     pub fn speed(&self) -> f32 {
         self.telemetry.speed_mps

@@ -11,7 +11,7 @@ use std::rc::Rc;
 
 use blackbox_collision::CollisionWorld;
 use blackbox_render::{Instance, Renderer};
-use blackbox_roads::{RoadNetwork, SegmentIndex, SplitMix};
+use blackbox_roads::{Body, RoadNetwork, SegmentIndex, SplitMix};
 use nfsmw_data::car::physics::{CarPhysics, SurfaceTable};
 
 use super::drive::{CarRig, FixedClock, STEP};
@@ -19,7 +19,12 @@ use super::props::PropWorld;
 use car::AiCar;
 
 /// Cars farther than this from the player (metres) are removed.
-const DESPAWN_DISTANCE: f32 = 450.0;
+const DESPAWN_DISTANCE: f32 = 350.0;
+/// A car with no wheel on the ground for this long (seconds) fell off the map and is removed.
+const MAX_AIRBORNE: f32 = 4.0;
+/// A car standing this long (seconds) is removed when it is more than `STUCK_DISTANCE` metres from the player.
+const STUCK_TIME: f32 = 20.0;
+const STUCK_DISTANCE: f32 = 40.0;
 /// Physics steps a screenshot run simulates per update.
 const BATCH_STEPS: u32 = 6;
 /// Seconds between spawn attempts.
@@ -34,6 +39,8 @@ pub struct Focus {
     pub heading: f32,
     /// Speed along that way, m/s.
     pub speed: f32,
+    /// The player's car for the traffic to avoid, in physics space (none for the free camera).
+    pub body: Option<Body>,
 }
 
 /// A car model traffic can use: the rig is shared by every car of the model.
@@ -125,8 +132,11 @@ impl TrafficWorld {
             false => self.clock.advance(dt),
         };
         for _ in 0..steps {
-            for car in &mut self.cars {
-                car.step(&self.network, &mut self.rng, collision, props, surfaces);
+            // Every car as the others' trails see it: the traffic, then the player.
+            let mut bodies: Vec<Body> = self.cars.iter().map(AiCar::body).collect();
+            bodies.extend(focus.body);
+            for (i, car) in self.cars.iter_mut().enumerate() {
+                car.step(&self.network, &mut self.rng, (&bodies, i), collision, props, surfaces);
             }
         }
         if finishing {
@@ -134,7 +144,12 @@ impl TrafficWorld {
         }
         self.cars.retain(|car| {
             let p = car.position();
-            car.is_finite() && (p.x - focus.position[0]).hypot(p.y - focus.position[1]) < DESPAWN_DISTANCE
+            let away = (p.x - focus.position[0]).hypot(p.y - focus.position[1]);
+            // A car that has been stuck for a long time (a jam at a junction) goes once the player is not near.
+            car.is_finite()
+                && car.airborne_time() < MAX_AIRBORNE
+                && away < DESPAWN_DISTANCE
+                && !(car.idle_time() > STUCK_TIME && away > STUCK_DISTANCE)
         });
         self.spawn_timer += dt;
         if (batch || self.spawn_timer >= SPAWN_PERIOD) && self.cars.len() < self.target {
@@ -169,7 +184,7 @@ impl TrafficWorld {
             let p = car.position();
             let c = car.controls();
             lines.push(format!(
-                "{} at ({:.0}, {:.0}), {:.0} m away, {:.1} m/s, gas {:.0} brake {:.0} steer {:+.2}",
+                "{} at ({:.0}, {:.0}), {:.0} m away, {:.1} m/s, gas {:.0} brake {:.0} steer {:+.2}; {}",
                 car.name,
                 p.x,
                 p.y,
@@ -177,7 +192,8 @@ impl TrafficWorld {
                 car.speed(),
                 c.gas,
                 c.brake,
-                c.steer
+                c.steer,
+                car.debug()
             ));
         }
         lines.join("\n")
