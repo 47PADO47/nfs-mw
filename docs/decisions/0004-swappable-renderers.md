@@ -85,10 +85,48 @@ Criteria are fixed in [plan §8](../plans/gfx-renderers/verification-risks.md): 
 strict scenes within the tolerances of §7, a real-city diff mean of at most 3/255 at five positions plus a visual
 review, the CPU, GPU and hitch budgets of §7, and no Bevy render crates in a default build.
 
-**Result:** filled in by PR 8 (`feat/gfx-bevy-spike`), with the compile-time and binary-size deltas, which are
-unmeasured today. The two no-go paths are in §8: (a) keep Bevy for `view-car`, the showroom and menus while the
-city stays native (or uses custom instancing); (b) stop the Bevy backend, keep the interface, settings, testkit,
-shared passes and `fsr3-wgpu`, and move TAA, DLSS and FSR 3 into the native backend (the 0003 route).
+**Result (PR 8, `feat/gfx-bevy-spike`, measured 2026-10-09 on Intel Iris Xe, Vulkan, Mesa 26.2.3; the owner's
+RTX numbers and any DX12 run are still to come).** The details, tables and method are in
+[bevy-backend.md](../bevy-backend.md).
+
+| Criterion | Target | Measured | Verdict |
+|---|---|---|---|
+| 1. Testkit strict scenes | max 4, mean 0.5, p99 2 | grid, alpha cards, sky, depth: max 1, mean at most 0.04, p99 at most 1 (Iris Xe and lavapipe) | pass |
+| 2a. Real city, five positions | mean at most 3/255 | 0.22 to 1.61 at six positions | pass |
+| 2b. Visual review | foliage, fences, blend order, sky | foliage and fences identical; blend order differs where blended draws overlap; the sky is off by a smooth 8 to 12 levels | pass with two known gaps |
+| 3a. CPU per frame | at most native + 4 ms | +4.4 and +5.1 ms (native 2.3 to 2.5, Bevy 6.9 to 7.3); +5.3 in a sparse place | **fail by 0.4 to 1.3 ms** |
+| 3b. Frame time (GPU-bound budget) | at most 1.3x native | p50 1.45x and 1.5x (5.6 to 6.1 vs 8.4 to 8.9 ms; 144 to 150 vs 106 to 110 fps), the same at half resolution | **fail** (the frame is CPU-bound, so the ratio is the CPU's) |
+| 3c. Tile-upload hitch | at most 2x native | not measured; the worst frames of a 30 s drive are equal (16 to 18 ms vs 17.5 to 19.5 ms) | open |
+| 3d. RSS | at most 1.5x native | 1.3 to 1.45x (503 to 506 vs 348 to 390 MiB); VRAM not measured | pass |
+| 4. Default build has no Bevy render crates | none | `cargo tree -p nfsmw -e normal` has no `bevy_render`; still builds on Rust 1.95 | pass |
+| Cold release build, with the feature | recorded | 120 s without, 215 s with (+95 s) | recorded |
+| Binary size, with the feature | recorded | 62.4 MiB without, 111.0 MiB with (+48.6 MiB; the plan guessed +15 to 30) | recorded |
+| MSRV | check | the feature needs Rust 1.97.1 (Bevy's WESL stack); only the new crate declares it | recorded |
+
+What decides the verdict:
+
+- **Nothing fundamental failed.** Bevy takes the game's existing window with no special handling (its window
+  systems build the surface from the `bevy_winit` handle), the world renders pixel-close to the native
+  renderer, headless capture works on Iris Xe and on lavapipe, and a drive through the city runs at about 105 to
+  110 fps at 1080p on integrated graphics.
+- **The 80,000-object city is not the problem.** The scene culls to a few hundred objects per frame, the instance
+  pool costs 0.055 ms per frame, and a synthetic 40,000-instance frame costs 15 ms on this GPU. The custom
+  instancing fallback of the plan would not help.
+- **The two failures are one fixed per-frame cost of about 4.4 to 5.3 ms of CPU** that does not shrink with fewer
+  objects, so it comes from Bevy's schedules and the idle plugins `PbrPlugin` brings, not from this crate's
+  work. It is **not profiled yet**; turning on Bevy's `multi_threaded` made it worse (11.3 ms of CPU).
+- **Gaps that are by design of the spike:** blended draws blend in linear space and in distance order (sky and
+  overlapping layers), and the UI, effect, glossy and post layers do not exist yet.
+
+**Recommendation: conditional GO.** Continue to PR 9 and 10 (scene layers, then post), with a hard gate at the
+start of PR 9: profile the fixed Bevy cost (`trace_tracy`) and cut it (replace `PbrPlugin` by the few plugins the
+material needs, turn off clustering and the other unused passes) until the CPU criterion (native + 4 ms) and the
+frame-time ratio (1.3x) hold on Iris Xe. If they cannot be met with the trimmed plugin set, take **no-go path (a)**
+of the plan: keep the Bevy backend for `view-car`, the showroom and menus, where the object count is small, and
+leave the city on the native renderer. The criteria as written do not all hold today, so this is not a plain GO;
+the reasons it is not a no-go are that the failures are small (0.4 to 1.3 ms; 1.45x), understood to be fixed
+cost, and not in the code this project owns. No case for no-go path (b) (fidelity or integration) was found.
+Default builds are unaffected either way: renderer `blackbox`, no `bevy_render` compiled.
 
 ## Consequences
 
@@ -136,18 +174,18 @@ The full list of risks and open decisions is in [plan §9](../plans/gfx-renderer
 
 ## Could not verify
 
-Kept from the plan ([§11](../plans/gfx-renderers/verification-risks.md)); none of it was built or run:
+Kept from the plan ([§11](../plans/gfx-renderers/verification-risks.md)). PR 8 settled these three: the MSRV
+(Bevy's WESL stack needs Rust 1.97.1), raw `CommandEncoder` access from `Core3d` systems (yes, through
+`RenderContext::command_encoder`, read from the source and used by Bevy itself), and the compile-time and
+binary-size deltas (measured above). `ViewDepthTexture` sampleability is half settled (`Camera3d` takes the depth
+texture's `TextureUsages`; not exercised). The rest was not built or run:
 
-- MSRV of the individual Bevy 0.20 render crates (crates.io shows `null`).
-- Raw wgpu `CommandEncoder` access from Bevy 0.20 `Core3d` systems, for the shared passes.
-- `ViewDepthTexture` sampleability for soft particles.
 - DLSS preset defaults per mode (second-hand quotes of the 310.5.0 release notes only).
 - Whether `dlss` with `force_disable_dlss` builds without the SDK.
 - Solari alpha-mask support (absent from the docs).
 - Lavapipe exposing all five Solari features through wgpu.
 - FSR SDK 2.3 DLL names, API and licence terms.
 - That DLSS 5's 2026-09-03 launch actually happened (reported as scheduled).
-- Compile-time and binary-size deltas.
 
 ## Sources
 
