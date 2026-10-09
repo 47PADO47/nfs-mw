@@ -52,6 +52,7 @@ blackbox-carsound = { path = "libs/blackbox-carsound" }
 blackbox-bevy-render = { path = "libs/blackbox-bevy-render" }
 blackbox-chunk = { path = "libs/blackbox-chunk" }
 blackbox-collision = { path = "libs/blackbox-collision" }
+blackbox-driver = { path = "libs/blackbox-driver" }
 blackbox-feng = { path = "libs/blackbox-feng" }
 blackbox-gfx = { path = "libs/blackbox-gfx" }
 blackbox-gfx-testkit = { path = "libs/blackbox-gfx-testkit" }
