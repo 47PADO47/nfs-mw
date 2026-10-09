@@ -38,6 +38,23 @@ pub const DEFAULT_COP_SHARE: Percent = Percent(5);
 /// extension, on because it was asked for.
 pub const DEFAULT_TRAFFIC_LIGHTS: bool = true;
 
+/// The settings the world's traffic follows, told to the scene together so that it can see any of them change.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TrafficSettings {
+    /// Cars kept on the road (0: none).
+    pub cars: u32,
+    /// Share of them that are patrol cops, in percent.
+    pub cop_share: Percent,
+    /// Whether they obey traffic lights.
+    pub lights: bool,
+}
+
+impl From<&Settings> for TrafficSettings {
+    fn from(s: &Settings) -> Self {
+        Self { cars: s.traffic, cop_share: s.cop_share, lights: s.traffic_lights }
+    }
+}
+
 /// The resolved settings.
 #[derive(bevy_ecs::resource::Resource, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Settings {

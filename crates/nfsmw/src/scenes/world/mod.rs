@@ -81,8 +81,9 @@ pub struct WorldScene {
     drive: Option<Drive>,
     /// Computer-driven cars, when the track has a road network.
     traffic: Option<ai::TrafficWorld>,
-    /// The `traffic`, `cop_share` settings as last told, and a count typed in the console that replaces them.
-    traffic_setting: (u32, crate::settings::Percent),
+    /// The `traffic`, `cop_share` and `traffic_lights` settings as last told, and a count typed in the console that
+    /// replaces the first.
+    traffic_setting: crate::settings::TrafficSettings,
     traffic_manual: Option<usize>,
     /// The car last driven, for `drive` without a name.
     last_car: String,
@@ -168,7 +169,11 @@ impl WorldScene {
             pending_car,
             drive: None,
             traffic,
-            traffic_setting: (0, crate::settings::Percent(0)),
+            traffic_setting: crate::settings::TrafficSettings {
+                cars: 0,
+                cop_share: crate::settings::Percent(0),
+                lights: false,
+            },
             traffic_manual: None,
             physics,
             tire_effects: [true; 2],
@@ -461,8 +466,8 @@ impl Scene for WorldScene {
         }
     }
 
-    fn set_traffic(&mut self, cars: u32, cop_share: crate::settings::Percent) {
-        self.apply_traffic_setting(cars, cop_share);
+    fn set_traffic(&mut self, traffic: crate::settings::TrafficSettings) {
+        self.apply_traffic_setting(traffic);
     }
 
     fn hud_state(&self) -> Option<crate::hud::HudState> {

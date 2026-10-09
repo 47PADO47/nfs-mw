@@ -10,6 +10,7 @@ use nfsmw_data::car::physics::SurfaceTable;
 
 use super::TrafficModel;
 use super::cop::{self, CopState, Target};
+use super::stop::{self, Lights};
 use super::traffic::{self, Cruise, THINK_STEPS};
 use crate::scenes::world::drive::{CarPose, CarRig, CarSim, DriveInput, STEP, WorldGround};
 use crate::scenes::world::props::PropWorld;
@@ -32,6 +33,8 @@ pub struct Ctx<'a, R> {
     pub bodies: &'a [(Body, bool)],
     pub me: usize,
     pub player: Option<Body>,
+    /// The traffic lights, when they are on.
+    pub lights: Option<Lights<'a>>,
 }
 
 /// How a new car begins: when its first think comes and how fast it rolls.
@@ -102,8 +105,12 @@ pub struct AiCar {
     half: (f32, f32),
     /// The last think found another car in the way.
     blocked: bool,
-    /// Seconds the car has been (almost) standing still.
+    /// Seconds the car has been (almost) standing still, not counting the time it waits for a light.
     idle: f32,
+    /// The stop line the car last headed for (an index into the signal controller's approaches).
+    stop_memory: Option<usize>,
+    /// The car is held by a light that is not green.
+    waiting: bool,
     /// Seconds with no wheel on the ground.
     airborne: f32,
     /// 0..1: hit hard enough to lose control for a moment.
@@ -159,6 +166,8 @@ impl AiCar {
             half: (physics.spec.dimension.x, physics.spec.dimension.z),
             blocked: false,
             idle: 0.0,
+            stop_memory: None,
+            waiting: false,
             airborne: 0.0,
             shock: 0.0,
             accident: Accident::None,
@@ -203,7 +212,7 @@ impl AiCar {
     /// A line about what the car is doing, for the `traffic status` command.
     pub fn debug(&self) -> String {
         format!(
-            "{} segment {} lane {} t {:.2}{}{}, wants {:.1} m/s",
+            "{} segment {} lane {} t {:.2}{}{}{}, wants {:.1} m/s",
             if self.is_cop() {
                 "cop"
             } else if self.patrol {
@@ -215,6 +224,7 @@ impl AiCar {
             self.nav.lane,
             self.nav.t,
             if self.blocked { ", blocked" } else { "" },
+            if self.waiting { ", waits for a light" } else { "" },
             if self.nav.dead_end { ", dead end" } else { "" },
             self.speed
         )
@@ -302,7 +312,7 @@ impl AiCar {
             true => self.airborne + STEP,
             false => 0.0,
         };
-        self.idle = match self.sim.telemetry().speed_mps.abs() < IDLE_SPEED {
+        self.idle = match self.sim.telemetry().speed_mps.abs() < IDLE_SPEED && !self.waiting {
             true => self.idle + STEP,
             false => 0.0,
         };
@@ -324,11 +334,12 @@ impl AiCar {
     /// The think of the car's role: traffic follows its lane, a cop chases the player.
     fn think<R: RandomSource>(&mut self, ctx: &mut Ctx<'_, R>) {
         let view = self.sim.driver_view();
-        let state = traffic::CarState {
+        let mut state = traffic::CarState {
             body: self.body(),
             forward_speed: view.forward_speed,
             radius: self.radius,
             mass: self.mass,
+            stop: None,
         };
         match &mut self.role {
             Role::Traffic => {
@@ -338,6 +349,10 @@ impl AiCar {
                         n => Accident::InProgress(n - 1),
                     };
                 }
+                // Patrol cops obey the lights too; only a cop in a chase does not.
+                state.stop =
+                    ctx.lights.and_then(|l| stop::find(&l, ctx.net, &self.nav, &state.body, &mut self.stop_memory));
+                self.waiting = state.stop.is_some_and(|s| s.is_holding());
                 let mut others: Vec<Body> =
                     ctx.bodies.iter().enumerate().filter(|&(i, _)| i != ctx.me).map(|(_, b)| b.0).collect();
                 others.extend(ctx.player);

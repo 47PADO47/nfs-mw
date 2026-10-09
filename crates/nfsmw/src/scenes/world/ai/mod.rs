@@ -13,6 +13,7 @@ mod population;
 mod pursuit;
 mod scene;
 mod spawn;
+mod stop;
 mod traffic;
 
 use std::collections::HashSet;
@@ -20,7 +21,7 @@ use std::rc::Rc;
 
 use blackbox_collision::CollisionWorld;
 use blackbox_render::Instance;
-use blackbox_roads::{Body, RoadNetwork, SegmentIndex, SplitMix};
+use blackbox_roads::{Body, RoadNetwork, SegmentIndex, SignalController, SplitMix};
 use glam::Vec3;
 use nfsmw_data::car::physics::{CarPhysics, SurfaceTable};
 
@@ -34,6 +35,7 @@ pub(super) use models::load_requested;
 pub use pattern::{Pattern, Patterns};
 pub use population::{ModelRequest, PatrolPlan};
 pub use pursuit::{CopModel, Pursuit};
+use stop::Lights;
 
 /// Physics steps a screenshot run simulates per update.
 const BATCH_STEPS: u32 = 6;
@@ -63,6 +65,11 @@ pub struct TrafficModel {
 pub struct TrafficWorld {
     network: RoadNetwork,
     index: SegmentIndex,
+    /// The signals of the junctions and the simulated seconds on their clock.
+    signals: SignalController,
+    signal_time: f32,
+    /// Cars stop for the lights (the `traffic_lights` setting).
+    lights_on: bool,
     models: Vec<TrafficModel>,
     cop_models: Vec<CopModel>,
     pursuit: Option<Pursuit>,
@@ -93,6 +100,9 @@ impl TrafficWorld {
     pub fn new(network: RoadNetwork) -> Self {
         let index = SegmentIndex::build(&network);
         Self {
+            signals: SignalController::new(&network),
+            signal_time: 0.0,
+            lights_on: false,
             network,
             index,
             models: Vec::new(),
@@ -121,6 +131,11 @@ impl TrafficWorld {
 
     pub fn model_names(&self) -> Vec<&str> {
         self.models.iter().map(|m| m.name.as_str()).collect()
+    }
+
+    /// Whether the cars stop for the traffic lights (a rewrite extension: the original has none).
+    pub fn set_lights(&mut self, on: bool) {
+        self.lights_on = on;
     }
 
     /// Asks a screenshot run to simulate `seconds` before it captures.
@@ -166,6 +181,7 @@ impl TrafficWorld {
         for _ in 0..steps {
             // Every car as the others' trails see it, with whether it is a cop.
             let bodies: Vec<(Body, bool)> = self.cars.iter().map(|c| (c.body(), c.is_cop())).collect();
+            let lights = self.lights_on.then_some(Lights { controller: &self.signals, time: self.signal_time });
             for (me, car) in self.cars.iter_mut().enumerate() {
                 let mut ctx = Ctx {
                     net: &self.network,
@@ -174,9 +190,11 @@ impl TrafficWorld {
                     bodies: &bodies,
                     me,
                     player: focus.body,
+                    lights,
                 };
                 car.step(&mut ctx, collision, props, surfaces);
             }
+            self.signal_time += STEP;
         }
         let simulated = match batch {
             true => steps as f32 * STEP,
