@@ -1,5 +1,5 @@
 //! The pursuit tables of the attribute database: which cop cars chase at each heat level.
-//! Spec: `docs/specs/ai-pursuit-heat.md` (§1, §2.1, §2.7).
+//! Spec: `docs/specs/ai-pursuit-heat.md` (§1, §2.1, §2.2, §2.7).
 
 use blackbox_attrib::{Database, Value, vlt_hash};
 
@@ -63,6 +63,23 @@ pub fn heat_row(db: &Database, heat: u32) -> Option<HeatRow> {
         time_between_first_four_spawns: row.get_f32("TimeBetweenFirstFourSpawn").unwrap_or(10.0),
         time_between_cop_spawns: row.get_f32("TimeBetweenCopSpawn").unwrap_or(5.0),
     })
+}
+
+/// Patrol cruise speed of a cop car on city lanes, when the `default` row has no `SearchModeCityMPH`.
+pub const FALLBACK_PATROL_CITY_MPH: f32 = 50.0;
+/// Patrol cruise speed of a cop car on highway lanes, when the `default` row has no `SearchModeHwyMPH`.
+pub const FALLBACK_PATROL_HIGHWAY_MPH: f32 = 71.0;
+
+/// The speeds, in mph, at which a cop car patrols (no pursuit running) on city and on highway lanes:
+/// `SearchModeCityMPH` and `SearchModeHwyMPH` of the `default` collection of `pursuitlevels`.
+pub fn patrol_speeds_mph(db: &Database) -> (f32, f32) {
+    let Some(row) = db.collection("pursuitlevels", "default") else {
+        return (FALLBACK_PATROL_CITY_MPH, FALLBACK_PATROL_HIGHWAY_MPH);
+    };
+    (
+        row.get_f32("SearchModeCityMPH").unwrap_or(FALLBACK_PATROL_CITY_MPH),
+        row.get_f32("SearchModeHwyMPH").unwrap_or(FALLBACK_PATROL_HIGHWAY_MPH),
+    )
 }
 
 /// The `aivehicle` numbers of a car that limit how fast an AI drives it.
