@@ -9,31 +9,45 @@ publish.workspace = true
 
 [dependencies]
 blackbox-gfx.workspace = true
+# The Bevy render crates are pinned in the workspace (docs/decisions/0004-swappable-renderers.md).
 bevy_anti_alias.workspace = true
 bevy_app.workspace = true
 bevy_asset.workspace = true
 bevy_camera.workspace = true
 bevy_color.workspace = true
 bevy_core_pipeline.workspace = true
+bevy_diagnostic.workspace = true
 bevy_ecs.workspace = true
 bevy_image.workspace = true
 bevy_light.workspace = true
+bevy_material.workspace = true
 bevy_math.workspace = true
 bevy_mesh.workspace = true
 bevy_pbr.workspace = true
+bevy_reflect.workspace = true
 bevy_render.workspace = true
 bevy_shader.workspace = true
+bevy_time.workspace = true
 bevy_transform.workspace = true
 bevy_window.workspace = true
+glam.workspace = true
 log.workspace = true
 pollster.workspace = true
 thiserror.workspace = true
 wgpu.workspace = true
-glam.workspace = true
 
 [dev-dependencies]
+# System names in Bevy's error messages.
+bevy_ecs = { workspace = true, features = ["debug"] }
+# The native renderer, the other side of the cross-backend comparisons, and the scenes both draw.
+blackbox-gfx-testkit.workspace = true
+blackbox-render.workspace = true
 # The serial lock GPU tests share: parallel Vulkan device creation crashes some Mesa drivers.
 blackbox-gpu-passes = { workspace = true, features = ["test-support"] }
+# Writes pictures for looking at when BLACKBOX_DUMP_DIR is set.
+png.workspace = true
+# Shows what Bevy logs (shader and pipeline errors) in the GPU tests.
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "env-filter"] }
 
 [lints]
 workspace = true
