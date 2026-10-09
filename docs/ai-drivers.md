@@ -80,6 +80,11 @@ original's behaviour back. They are not a reading of the game and nothing in the
   and stops with its front at the line, and the walking-pace floor is dropped for the last metre so it stays on
   the brake. A car already past the line, or too close to stop on amber, drives through. A car held by a light is
   not counted idle by the 20 s stuck rule. Cops chasing the player ignore the lights; patrol cops obey them.
+- **What it looks like** (`world/ai/lamps.rs`): the map's own signal scenery (`XO_TrafficLight*`, `SGN_Signal_*`,
+  `XS_TrafficSignal*`) is drawn as ordinary props and cannot be recoloured, so each signalled approach gets a marker of
+  its own while the setting is on: a grey post 1 m beyond the kerb with a 0.9 m lamp on top that is green, amber or
+  red as the light, and a white bar across the road at the stop line. They are plain boxes, not models, and sit
+  next to the scenery's signals rather than replacing them (the scenery's own lights stay as they are in the data).
 - **Not modelled:** turn priority and gap acceptance (cars still do not look at cross traffic), a junction jammed
   by queues (a car enters on green even if the exit is full), right turn on red, pedestrian phases, flashing amber at
   night, detection loops.

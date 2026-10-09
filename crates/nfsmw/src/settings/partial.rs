@@ -7,7 +7,7 @@ use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
 
 /// A volume setting in percent, 0 to 100.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Percent(pub u8);
 
 impl Percent {

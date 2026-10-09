@@ -4,7 +4,7 @@ use blackbox_render::Renderer;
 use blackbox_roads::Body;
 use glam::{Vec2, Vec3};
 
-use super::{Focus, load_requested};
+use super::{Focus, LampMeshes, load_requested};
 use crate::scenes::world::{View, WorldScene, space};
 use crate::settings::TrafficSettings;
 
@@ -66,6 +66,9 @@ impl WorldScene {
         traffic.set_lights(self.traffic_setting.lights);
         if traffic.wants_models() && self.residency.complete() {
             load_requested(self, renderer);
+        }
+        if self.traffic_setting.lights && self.lamp_meshes.is_none() {
+            self.lamp_meshes = Some(LampMeshes::upload(renderer));
         }
         let focus = self.traffic_focus();
         let loaded = self.residency.complete();

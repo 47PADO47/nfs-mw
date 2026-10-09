@@ -81,10 +81,11 @@ pub struct WorldScene {
     drive: Option<Drive>,
     /// Computer-driven cars, when the track has a road network.
     traffic: Option<ai::TrafficWorld>,
-    /// The `traffic`, `cop_share` and `traffic_lights` settings as last told, and a count typed in the console that
-    /// replaces the first.
+    /// The traffic settings as last told, and a console car count that replaces `cars`.
     traffic_setting: crate::settings::TrafficSettings,
     traffic_manual: Option<usize>,
+    /// The traffic light markers' meshes, uploaded when the lights are first on.
+    lamp_meshes: Option<ai::LampMeshes>,
     /// The car last driven, for `drive` without a name.
     last_car: String,
     /// Car physics data, road grips and the gameplay database.
@@ -169,12 +170,9 @@ impl WorldScene {
             pending_car,
             drive: None,
             traffic,
-            traffic_setting: crate::settings::TrafficSettings {
-                cars: 0,
-                cop_share: crate::settings::Percent(0),
-                lights: false,
-            },
+            traffic_setting: Default::default(),
             traffic_manual: None,
+            lamp_meshes: None,
             physics,
             tire_effects: [true; 2],
             smoke_quality: crate::settings::SmokeQuality::Standard,
@@ -405,6 +403,8 @@ impl Scene for WorldScene {
         visibility::collect(self.residency.placed(), &camera, rules, self.residency.props(), &mut self.visible);
         if let Some(traffic) = &self.traffic {
             traffic.instances(&mut self.visible);
+            let lamps = self.lamp_meshes.as_ref().filter(|_| self.traffic_setting.lights);
+            traffic.lamp_instances(lamps, position, &mut self.visible);
         }
         if let Some(drive) = &self.drive {
             drive.instances(&mut self.visible);

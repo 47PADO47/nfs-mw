@@ -39,7 +39,7 @@ pub const DEFAULT_COP_SHARE: Percent = Percent(5);
 pub const DEFAULT_TRAFFIC_LIGHTS: bool = true;
 
 /// The settings the world's traffic follows, told to the scene together so that it can see any of them change.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct TrafficSettings {
     /// Cars kept on the road (0: none).
     pub cars: u32,
