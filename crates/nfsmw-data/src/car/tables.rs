@@ -4,7 +4,7 @@
 use anyhow::{Context, Result};
 use blackbox_attrib::Database;
 use blackbox_carparts::layout::{CarDataLayout, MOST_WANTED};
-use blackbox_carparts::{CarTypeInfo, PartsDb, PresetRide, SlotTypes};
+use blackbox_carparts::{CarTypeInfo, LightMaterial, PartsDb, PresetRide, SlotTypes};
 use game_install::GameDir;
 
 use crate::read_unwrapped;
@@ -46,6 +46,8 @@ pub struct CarTables {
     pub parts: PartsDb,
     pub slot_types: SlotTypes,
     pub presets: Vec<PresetRide>,
+    /// The shading constants of the car materials (`LightMaterials`).
+    pub light_materials: Vec<LightMaterial>,
     /// Gameplay database (class `ecar` places the wheels).
     pub attributes: Database,
 }
@@ -59,6 +61,7 @@ impl CarTables {
             parts: blackbox_carparts::read_parts_db(&globalb, LAYOUT).context("reading the parts database")?,
             slot_types: blackbox_carparts::read_slot_types(&globalb, LAYOUT),
             presets: blackbox_carparts::read_preset_rides(&globalb, LAYOUT),
+            light_materials: blackbox_carparts::read_light_materials(&globalb, LAYOUT),
             attributes: Database::open(&attributes).context("reading GLOBAL/ATTRIBUTES.BIN")?,
         })
     }
