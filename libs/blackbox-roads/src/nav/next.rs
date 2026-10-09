@@ -32,6 +32,7 @@ impl RoadNav {
         match self.kind {
             NavKind::Traffic => self.next_traffic(net, toward, rng),
             NavKind::Direction => self.next_direction(net, toward),
+            NavKind::Path => self.next_path(net, toward),
         }
     }
 

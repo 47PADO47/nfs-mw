@@ -82,7 +82,7 @@ impl RoadNav {
     }
 
     /// The step onto `segment`, keeping the nearest selectable lane to the current offset.
-    fn snap_onto(&self, net: &RoadNetwork, segment: u16, node: u16) -> Step {
+    pub(super) fn snap_onto(&self, net: &RoadNetwork, segment: u16, node: u16) -> Step {
         let node_ind = leaving_from(net.segment(segment), node);
         let from = travel_profile(net, self.segment, self.node_ind, true);
         let offset = from.zones.get(self.lane).map(|_| from.signed_offset(self.lane)).unwrap_or(0.0);

@@ -125,3 +125,57 @@ fn real_install_traffic_cursors_never_dead_end_early() {
     // Dead ends are the 5 dead-end nodes plus one-way and no-traffic exits: a small share of runs.
     assert!(dead * 20 < runs, "{dead} of {runs} cursors dead-ended: {:?}", &stuck_at[..stuck_at.len().min(10)]);
 }
+
+/// Routes between far apart nodes are connected walks; ordinary routes never chain two junction
+/// connectors, and are not much longer than the straight line (spec §9).
+#[test]
+#[ignore = "needs a game install; set NFSMW_GAME_DIR"]
+fn real_install_paths_are_connected_walks() {
+    use crate::{PathRequest, PathState, PathType, RandomSource, find_path};
+    let Some(net) = network() else { return };
+    let mut rng = crate::SplitMix(3);
+    let mut ratios = Vec::new();
+    let (mut full, mut other) = (0, 0);
+    for _ in 0..400 {
+        let (a, b) = (rng.index(net.segments.len()) as u16, rng.index(net.segments.len()) as u16);
+        let (sa, sb) = (net.segment(a), net.segment(b));
+        if sa.is_decision() || sb.is_decision() || a == b {
+            continue;
+        }
+        let goal = net.node(sb.nodes[0]).position;
+        for path_type in [PathType::Racer, PathType::Cop] {
+            let request = PathRequest {
+                segment: a,
+                node: sa.nodes[1],
+                may_turn_round: true,
+                goal_segment: b,
+                goal_node: None,
+                goal_position: goal,
+                path_type,
+            };
+            let result = find_path(&net, &request);
+            if result.state != PathState::Full {
+                other += 1;
+                continue;
+            }
+            full += 1;
+            for pair in result.segments.windows(2) {
+                let (x, y) = (net.segment(pair[0]), net.segment(pair[1]));
+                assert!(x.nodes.iter().any(|n| y.nodes.contains(n)), "{pair:?} are not connected");
+                if path_type != PathType::Cop {
+                    assert!(!(x.is_decision() && y.is_decision()), "two connectors in a row: {pair:?}");
+                }
+            }
+            let length: f32 = result.segments.iter().map(|&s| net.segment(s).length).sum();
+            let straight = net.node(sa.nodes[1]).position.distance(goal);
+            if path_type == PathType::Racer && straight > 300.0 {
+                ratios.push(length / straight);
+            }
+        }
+    }
+    eprintln!("{full} routes found, {other} not");
+    assert!(ratios.len() > 10, "{} long routes", ratios.len());
+    let mean = ratios.iter().sum::<f32>() / ratios.len() as f32;
+    eprintln!("mean route length over straight distance: {mean:.2} over {} routes", ratios.len());
+    assert!((1.0..2.0).contains(&mean), "{mean}");
+}
