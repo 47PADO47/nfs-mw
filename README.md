@@ -20,16 +20,29 @@ the game is on the [roadmap](docs/architecture.md#roadmap).
 
 You need Rust (stable) and an installed copy of the game.
 
-```sh
-cargo run --release -p nfsmw                 # the game: boot movies, menus, free roam (same as `play`)
-cargo run --release -p nfsmw -- --help       # every command and example
-cargo run --release -p nfsmw -- --game-dir "D:/Need For Speed Most Wanted Black Edition" check-install
-cargo run --release -p nfsmw -- view-world
-cargo run --release -p nfsmw -- view-car BMWM3GTR --backend dx12
-```
+1. Build the game (run this from the repository folder):
+
+   ```sh
+   cargo build --release -p nfsmw
+   ```
+
+2. Run the setup, which asks where the game is installed and which window mode you want, and saves the answers:
+
+   ```sh
+   ./target/release/nfsmw setup
+   ```
+
+3. Start the game:
+
+   ```sh
+   ./target/release/nfsmw
+   ```
+
+On Windows the executable is `target\release\nfsmw.exe`. `nfsmw --help` lists every command and option, and the
+setup steps are explained in [docs/setup.md](docs/setup.md).
 
 The install is found from `--game-dir`, `$NFSMW_GAME_DIR`, a `.env` file (copy `.env.example`), the per-user
-config file, or the retail registry key ([details](docs/architecture.md#finding-the-install)).
+config file written by `setup`, or the retail registry key ([details](docs/architecture.md#finding-the-install)).
 
 | Command | What it does |
 |---|---|

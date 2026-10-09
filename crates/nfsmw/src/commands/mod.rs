@@ -1,6 +1,7 @@
 //! Command dispatch.
 
 mod install;
+mod setup;
 
 use anyhow::Result;
 use nfsmw_data::game::open_install;
@@ -29,6 +30,7 @@ pub fn run(cli: Cli) -> Result<()> {
     let command = cli.command.unwrap_or_else(Command::play);
     match command {
         Command::CheckInstall => install::check(game_dir),
+        Command::Setup => setup::run(game_dir),
         Command::Keys => {
             let s = Settings::load(Partial::default());
             print!("{}", Bindings::load(&s).describe());
