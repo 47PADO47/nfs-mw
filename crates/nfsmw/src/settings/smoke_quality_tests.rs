@@ -35,7 +35,7 @@ fn quality_layers_resolve_in_order_and_bad_values_fall_through() {
 fn cli_quality_is_optional_and_strict_and_overrides_the_environment() {
     let parse = |flags: &[&str]| {
         let cli = Cli::try_parse_from(["nfsmw", "view-world"].into_iter().chain(flags.iter().copied())).unwrap();
-        let Command::ViewWorld { view, .. } = cli.command else { unreachable!() };
+        let Some(Command::ViewWorld { view, .. }) = cli.command else { unreachable!() };
         view.settings_layer()
     };
     assert_eq!(parse(&[]).smoke_quality, None);

@@ -691,6 +691,7 @@ dependencies = [
  "bevy_reflect",
  "derive_more",
  "log",
+ "serde",
  "smol_str",
  "thiserror 2.0.21",
 ]
@@ -1050,6 +1051,7 @@ version = "0.1.0"
 dependencies = [
  "blackbox-attrib",
  "blackbox-chunk",
+ "ea-compress",
  "thiserror 2.0.21",
 ]
 
@@ -2876,6 +2878,7 @@ dependencies = [
  "nfsmw-data",
  "png",
  "raw-window-handle",
+ "serde",
  "toml",
 ]
 

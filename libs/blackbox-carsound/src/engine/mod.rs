@@ -165,6 +165,7 @@ pub(crate) struct EngineCore {
     rng: Rng,
     time: f32,
     pitch_multiplier: f32,
+    redline_sample_available: bool,
     physics: Physics,
     shifting: Shifting,
     accel: AccelTrans,
@@ -182,6 +183,7 @@ impl EngineCore {
             rng: Rng::new(tuning.seed),
             time: 0.0,
             pitch_multiplier: 1.0,
+            redline_sample_available: true,
             physics: Physics::new(),
             shifting: Shifting::new(),
             accel: AccelTrans::new(),
@@ -209,7 +211,7 @@ impl EngineCore {
         };
         self.shifting.update(&ctx, &self.shift_tuning, events);
         self.accel.update(&ctx, self.shifting.active(), &self.accel_tuning, events);
-        self.ctl.update(&ctx, &self.shifting, &self.accel, &self.tuning, &mut self.rng);
+        self.ctl.update(&ctx, &self.shifting, &self.accel, &self.tuning, &mut self.rng, self.redline_sample_available);
         self.mix.update(&ctx, &self.ctl, &self.shifting, &self.accel, &self.tuning);
         self.mix.update_cruise(&ctx, &mut self.ctl, &self.shifting, &self.tuning, &mut self.rng);
         events.compression_bump |= self.ctl.bump_started;
@@ -286,6 +288,12 @@ impl EngineMixer {
         let core = EngineCore::new(tuning);
         let output = core.output(EngineEvents::default());
         Self { core, ticker: Ticker::default(), output }
+    }
+
+    /// Whether the sample layer can take over at the limiter. Without it, keep the engine loops audible;
+    /// the redline state and tachometer bounce still follow the car. Changes take effect on the next tick.
+    pub fn set_redline_sample_available(&mut self, available: bool) {
+        self.core.redline_sample_available = available;
     }
 
     /// Advances by `dt` seconds with the latest telemetry and returns the latest output. The output keeps its

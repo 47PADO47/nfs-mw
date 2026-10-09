@@ -27,8 +27,10 @@ pub fn volumes_of(settings: &Settings) -> Volumes {
 impl Plugin for AudioPlugin {
     fn build(&self, app: &mut App) {
         let volumes = app.world().get_resource::<Settings>().map(volumes_of).unwrap_or_default();
-        app.insert_non_send(Audio::new(self.dir.clone(), volumes))
-            .add_systems(Update, (sync_volumes.in_set(FrameSet::Prepare), drive_car.in_set(FrameSet::Ui)));
+        app.insert_non_send(Audio::new(self.dir.clone(), volumes)).add_systems(
+            Update,
+            ((sync_volumes, sync_radio).in_set(FrameSet::Prepare), drive_car.in_set(FrameSet::Ui)),
+        );
     }
 }
 
@@ -41,6 +43,16 @@ fn sync_volumes(settings: Res<Settings>, mut audio: NonSendMut<Audio>) {
     if audio.volumes() != wanted {
         audio.set_volumes(wanted);
     }
+}
+
+/// `radio = false` in the config file and `set radio off` in the console reach the radio. Only a change of the setting
+/// does: the `radio on` and `radio off` commands stay in force until the setting changes again.
+fn sync_radio(settings: Res<Settings>, mut audio: NonSendMut<Audio>, mut applied: Local<Option<bool>>) {
+    if *applied == Some(settings.radio) {
+        return;
+    }
+    *applied = Some(settings.radio);
+    audio.set_radio_wanted(settings.radio);
 }
 
 /// The scene's car plays its engine.

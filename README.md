@@ -20,23 +20,39 @@ the game is on the [roadmap](docs/architecture.md#roadmap).
 
 You need Rust (stable) and an installed copy of the game.
 
-```sh
-cargo run --release -p nfsmw -- --game-dir "D:/Need For Speed Most Wanted Black Edition" check-install
-cargo run --release -p nfsmw -- view-world
-cargo run --release -p nfsmw -- view-car BMWM3GTR --backend dx12
-```
+1. Build the game (run this from the repository folder):
+
+   ```sh
+   cargo build --release -p nfsmw
+   ```
+
+2. Run the setup, which asks where the game is installed and which window mode you want, and saves the answers:
+
+   ```sh
+   ./target/release/nfsmw setup
+   ```
+
+3. Start the game:
+
+   ```sh
+   ./target/release/nfsmw
+   ```
+
+On Windows the executable is `target\release\nfsmw.exe`. `nfsmw --help` lists every command and option, and the
+setup steps are explained in [docs/setup.md](docs/setup.md).
 
 The install is found from `--game-dir`, `$NFSMW_GAME_DIR`, a `.env` file (copy `.env.example`), the per-user
-config file, or the retail registry key ([details](docs/architecture.md#finding-the-install)).
+config file written by `setup`, or the retail registry key ([details](docs/architecture.md#finding-the-install)).
 
 | Command | What it does |
 |---|---|
 | `check-install` | Shows where the install was found, identifies `speed.exe`, checks required files |
+| `keys` | Lists every key, button and stick binding (the console command `keys` shows the live ones) |
 | `list-cars` | Lists car folders |
-| `play` | The game flow: boot movies, title screen, main menu (arrows or WASD, Enter, Esc; pad: D-pad, A, B), free roam, pause menu (Esc or Start) with the audio, video and gameplay settings. `--skip-boot`, `--drive` (straight to free roam) |
+| `play` (no command does the same) | The game flow: boot movies, title screen, main menu (arrows or WASD, Enter, Esc; pad: D-pad, A, B), free roam, pause menu (Esc or Start) with the audio, video and gameplay settings. `--skip-boot`, `--drive` (straight to free roam) |
 | `view-screen NAME` | One of the install's menu screens on its own (`list-screens` lists them, `dump-screen NAME` prints one): `--category audio\|video\|gameplay`, `--pause`, `--options` |
 | `view-car [CAR]` | A car assembled from its stock parts (wheels, brakes, paint) on a floor: drag to rotate, scroll to zoom. Options: `--lod A..E`, `--preset NAME` (a `PresetRides` car such as `CE_GTRSTREET`), `--all-parts` (every solid, unassembled) |
-| `view-world` | Fly through the city: WASD, Space/C, Shift, mouse to look (Esc frees the cursor, click to capture it again), scroll for speed. Options: `--at X,Y`, `--height`, `--heading`, `--pitch`, `--fog-distance`, and `--drive [CAR]` to drive instead (W/S, A/D, Space handbrake, Shift/Ctrl gears, N nitrous, R reset, F free camera; pad: triggers, left stick) |
+| `view-world` | Fly through the city: WASD, Space/C, Shift, mouse to look (Esc frees the cursor, click to capture it again), scroll for speed. Options: `--at X,Y`, `--height`, `--heading`, `--pitch`, `--fog-distance`, and `--drive [CAR]` to drive instead (W/S, A/D, Space handbrake, E/Q gears, Left Shift nitrous, R reset, F free camera; pad: triggers, left stick) |
 
 Options for both viewers:
 
@@ -66,6 +82,10 @@ The per-user config file lives at:
 Run `nfsmw check-install` to see the exact path on your system. The file uses [TOML](https://toml.io)
 and lets you set the game directory, graphics backend, frame-rate cap, and other options without
 passing CLI flags every time.
+
+The Gameplay menu includes independent stick/trigger deadzones, sensitivity and camera inversion.
+Keyboard, mouse and gamepad assignments can be changed and saved through the console or config file
+([controller settings](docs/controller-settings.md)).
 
 ## Repository
 

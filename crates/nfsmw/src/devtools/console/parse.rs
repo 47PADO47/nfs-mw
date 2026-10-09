@@ -9,6 +9,12 @@ pub enum Command {
     /// Actual window mode, size, position and focus (as opposed to requested preferences).
     Window,
     Monitors,
+    /// Every key, button and stick binding.
+    Keys,
+    Bindings {
+        name: String,
+        args: Vec<String>,
+    },
     /// Show one setting, or all of them.
     Get(Option<String>),
     Set {
@@ -28,7 +34,12 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 16] = [
+pub const BUILT_IN: [(&str, &str); 22] = [
+    ("bind <action> <input>", "replace one device family's action assignments; keys lists action names"),
+    ("addbind <action> <input>", "add another physical input to an action"),
+    ("unbind <action> [keyboard|mouse|gamepad|all]", "remove action assignments"),
+    ("bind-reset [action]", "restore default assignments for one action or all"),
+    ("bind-save", "save the live assignments to the config file"),
     ("help", "list the commands"),
     ("clear", "empty the console"),
     ("quit", "close the game"),
@@ -40,6 +51,7 @@ pub const BUILT_IN: [(&str, &str); 16] = [
     ("monitor <current|primary|index>", "select a monitor, indices start at zero"),
     ("window", "show the actual window size, mode, DPI and focus"),
     ("monitors", "list available monitors and their indices"),
+    ("keys", "list every key, button and stick binding"),
     ("smoke_quality <standard|high>", "change tire smoke presentation quality"),
     ("volume <0-100>", "master volume (same as set volume)"),
     ("sound [bank [index]]", "list the sounds of a bank (IG_GLOBAL/Siren_MB.abk) or play one"),
@@ -67,24 +79,27 @@ pub fn parse(line: &str) -> Result<Option<Command>, String> {
     let Some(name) = words.next() else { return Ok(None) };
     let args: Vec<&str> = words.collect();
     let name = name.to_ascii_lowercase();
-    let need = |n: usize, usage: &str| {
-        if args.len() == n { Ok(()) } else { Err(format!("usage: {usage}")) }
-    };
+    if matches!(name.as_str(), "bind" | "addbind" | "unbind" | "bind-reset" | "bind-save") {
+        return Ok(Some(Command::Bindings { name, args: args.iter().map(|a| (*a).to_owned()).collect() }));
+    }
     Ok(Some(match name.as_str() {
         "help" | "?" => Command::Help,
         "clear" | "cls" => Command::Clear,
         "quit" | "exit" => Command::Quit,
         "window" => Command::Window,
         "monitors" => Command::Monitors,
+        "keys" | "bindings" | "controls" => Command::Keys,
         "get" => match args.as_slice() {
             [] => Command::Get(None),
             [key] => Command::Get(Some((*key).to_owned())),
             _ => return Err("usage: get [setting]".into()),
         },
-        "set" => {
-            need(2, "set <setting> <value>")?;
-            Command::Set { key: args[0].to_ascii_lowercase(), value: args[1].to_owned() }
-        }
+        "set" => match args.as_slice() {
+            // No value: a switch flips, any other setting says what it takes (an empty value).
+            [key] => Command::Set { key: key.to_ascii_lowercase(), value: String::new() },
+            [key, value] => Command::Set { key: key.to_ascii_lowercase(), value: (*value).to_owned() },
+            _ => return Err("usage: set <setting> [value] (get lists the settings)".into()),
+        },
         "tire-effects" if matches!(args.as_slice(), ["smoke" | "marks", _]) => {
             let key = match args[0] {
                 "smoke" => "tire_smoke",
@@ -93,11 +108,19 @@ pub fn parse(line: &str) -> Result<Option<Command>, String> {
             Command::Set { key: key.to_owned(), value: args[1].to_owned() }
         }
         shorthand if SET_SHORTHANDS.contains(&shorthand) => {
-            need(1, &format!("{shorthand} <value>"))?;
-            Command::Set { key: shorthand.to_owned(), value: args[0].to_owned() }
+            if args.len() > 1 {
+                return Err(format!("usage: {shorthand} <value>"));
+            }
+            Command::Set {
+                key: shorthand.to_owned(),
+                value: args.first().map_or_else(String::new, |v| (*v).to_owned()),
+            }
         }
         "resolution" | "res" => {
             let usage = "resolution <width> <height> (or WIDTHxHEIGHT)";
+            if args.is_empty() {
+                return Ok(Some(Command::Set { key: "resolution".into(), value: String::new() }));
+            }
             if args.as_slice() == ["native"] {
                 return Ok(Some(Command::Set { key: "resolution".into(), value: "native".into() }));
             }
@@ -150,8 +173,17 @@ mod tests {
         assert_eq!(ok("fps 60"), Command::Set { key: "fps".into(), value: "60".into() });
         assert_eq!(ok("metrics advanced"), Command::Set { key: "metrics".into(), value: "advanced".into() });
         assert_eq!(ok("readout full"), Command::Set { key: "readout".into(), value: "full".into() });
-        assert!(parse("fps").is_err());
         assert!(parse("fps 1 2").is_err());
+    }
+
+    #[test]
+    fn set_without_a_value_asks_for_its_usage_or_flips() {
+        let bare = |key: &str| Command::Set { key: key.into(), value: String::new() };
+        assert_eq!(ok("set fps"), bare("fps"));
+        assert_eq!(ok("SET Vsync"), bare("vsync"));
+        assert_eq!(ok("fps"), bare("fps"));
+        assert_eq!(ok("resolution"), bare("resolution"));
+        assert!(parse("set").is_err() && parse("set a b c").is_err());
     }
 
     #[test]
@@ -170,6 +202,13 @@ mod tests {
         assert_eq!(ok("monitor primary"), Command::Set { key: "monitor".into(), value: "primary".into() });
         assert_eq!(ok("window"), Command::Window);
         assert_eq!(ok("monitors"), Command::Monitors);
+    }
+
+    #[test]
+    fn keys_has_three_names() {
+        for name in ["keys", "bindings", "CONTROLS"] {
+            assert_eq!(ok(name), Command::Keys);
+        }
     }
 
     #[test]

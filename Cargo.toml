@@ -46,7 +46,7 @@ bevy_a11y = "=0.20.0-rc.2"
 bevy_app = "=0.20.0-rc.2"
 bevy_ecs = "=0.20.0-rc.2"
 bevy_gilrs = "=0.20.0-rc.2"
-bevy_input = "=0.20.0-rc.2"
+bevy_input = { version = "=0.20.0-rc.2", features = ["serialize"] }
 bevy_time = "=0.20.0-rc.2"
 bevy_window = "=0.20.0-rc.2"
 bevy_winit = "=0.20.0-rc.2"
@@ -83,4 +83,3 @@ all = { level = "warn", priority = -1 }
 [profile.dev.package."*"]
 # Decompression and texture decoding are painfully slow unoptimised.
 opt-level = 2
-

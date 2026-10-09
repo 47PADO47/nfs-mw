@@ -443,3 +443,10 @@ decompiled code was consulted again only to settle these points.
   false the 0.7 s blend of §4.4 runs.
 - **Volumes:** the three loop volumes and the redline volume are returned as `value / 32767` clamped to 0..1, the
   7-bit `SNDvol` being treated as linear (Q4).
+- **Unavailable sample layer:** the caller reports whether the `CAR` module and its requested bank voices
+  are usable. A missing bank, interpreter failure or failed bank voice disables the limiter's sample takeover,
+  rather than ducking the surviving Ginsu loops without their replacement. The tachometer still bounces at
+  the limiter. Losing the layer during a takeover uses the normal 50 ms engine-release and sample-release
+  fades; enabling a usable layer while redlining uses the original gear-dependent attack. With a usable
+  layer, all thresholds, factors and fades in §7 remain unchanged. This is a graceful-degradation decision,
+  not a claim about the original's behavior with missing or modified banks.

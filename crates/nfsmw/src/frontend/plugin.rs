@@ -88,6 +88,10 @@ fn update(
     host.hold_capture = fe.script.as_ref().is_some_and(|s| !s.is_over());
     let dt = if scripted.is_some() { script::STEP } else { time.delta_secs().min(MAX_STEP) };
     let mut mask = scripted.unwrap_or_else(|| pad_mask(&actions));
+    // A click does what accept does while the game boots: it skips a movie and continues from the title screen.
+    if matches!(fe.stage, Stage::Boot(_)) && actions.pressed(Action::Click) {
+        mask |= pad::ACCEPT;
+    }
     if fe.latch {
         if mask != 0 {
             mask = 0;
@@ -98,7 +102,10 @@ fn update(
 
     match fe.stage {
         Stage::Boot(Boot::Movie { bypass, .. }) => {
-            let skip = bypass && (actions.just_pressed(Action::MenuAccept) || actions.just_pressed(Action::MenuStart));
+            let skip = bypass
+                && (actions.just_pressed(Action::MenuAccept)
+                    || actions.just_pressed(Action::MenuStart)
+                    || actions.just_pressed(Action::Click));
             if host.scene.finished() || skip {
                 fe.next_boot(host, &mut env);
             }

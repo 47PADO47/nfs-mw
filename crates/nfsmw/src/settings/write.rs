@@ -18,6 +18,30 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     let mut put = |key: &str, value: Value| {
         table.insert(key.to_owned(), value);
     };
+    if let Some(v) = changes.deadzone_mode {
+        put("deadzone_mode", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.steering_deadzone {
+        put("steering_deadzone", Value::Integer(i64::from(v.percent())));
+    }
+    if let Some(v) = changes.camera_deadzone {
+        put("camera_deadzone", Value::Integer(i64::from(v.percent())));
+    }
+    if let Some(v) = changes.trigger_deadzone {
+        put("trigger_deadzone", Value::Integer(i64::from(v.percent())));
+    }
+    if let Some(v) = changes.steering_sensitivity {
+        put("steering_sensitivity", Value::Integer(i64::from(v.percent())));
+    }
+    if let Some(v) = changes.camera_sensitivity {
+        put("camera_sensitivity", Value::Integer(i64::from(v.percent())));
+    }
+    if let Some(v) = changes.mouse_sensitivity {
+        put("mouse_sensitivity", Value::Integer(i64::from(v.percent())));
+    }
+    if let Some(v) = changes.invert_camera_y {
+        put("invert_camera_y", Value::Boolean(v));
+    }
     if let Some(v) = changes.backend {
         put("backend", Value::String(v.to_string()));
     }
@@ -59,6 +83,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     }
     if let Some(v) = changes.tire_smoke {
         put("tire_smoke", Value::Boolean(v));
+    }
+    if let Some(v) = changes.radio {
+        put("radio", Value::Boolean(v));
     }
     if let Some(v) = changes.skid_marks {
         put("skid_marks", Value::Boolean(v));
@@ -150,6 +177,7 @@ mod tests {
             sfx_volume: Some(Percent(30)),
             engine_volume: Some(Percent(40)),
             hud: Some(false),
+            radio: Some(false),
             transmission: Some(crate::settings::Transmission::Manual),
             paddle_up: Some(5),
             paddle_down: Some(6),

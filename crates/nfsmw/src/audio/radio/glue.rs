@@ -23,7 +23,10 @@ impl Audio {
     pub(in crate::audio) fn radio(&mut self) -> Result<&mut Radio, String> {
         if matches!(self.radio, RadioSlot::Unloaded) {
             self.radio = match self.load_radio() {
-                Ok(radio) => RadioSlot::Ready(Box::new(radio)),
+                Ok(mut radio) => {
+                    radio.set_enabled(self.radio_wanted);
+                    RadioSlot::Ready(Box::new(radio))
+                }
                 Err(e) => {
                     log::warn!("no radio: {e}");
                     RadioSlot::Failed(e)
@@ -58,7 +61,8 @@ impl Audio {
     /// Once per frame: `driving` is true while a car is being driven. Starts the radio when driving begins and moves
     /// on to the next song when one ends. Does nothing before the first drive unless the player used `radio`.
     pub fn update_radio(&mut self, driving: bool) {
-        if !driving && !matches!(self.radio, RadioSlot::Ready(_)) {
+        let loaded = matches!(self.radio, RadioSlot::Ready(_));
+        if !loaded && (!driving || !self.radio_wanted) {
             return;
         }
         let audible = self.volumes.music > 0.001 && self.volumes.master > 0.001;
@@ -67,6 +71,14 @@ impl Audio {
         }
         let (Some(out), RadioSlot::Ready(radio)) = (self.output.as_mut(), &mut self.radio) else { return };
         radio.update(driving, audible, &mut out.music);
+    }
+
+    /// The `radio` setting: off keeps the radio from loading and silences a loaded one; on lets it play again.
+    pub fn set_radio_wanted(&mut self, on: bool) {
+        self.radio_wanted = on;
+        if let RadioSlot::Ready(radio) = &mut self.radio {
+            radio.set_enabled(on);
+        }
     }
 
     /// The song on the air, for the HUD (which does not draw it yet).

@@ -56,10 +56,54 @@ pub enum Action {
     MenuStart,
     /// Menu hot key: quit from the main menu.
     MenuQuit,
+    /// Button: a click, which skips a boot movie and continues from the title screen.
+    Click,
 }
 
 impl Action {
-    pub const ALL: [Action; 28] = [
+    pub fn name(self) -> &'static str {
+        const NAMES: [&str; Action::ALL.len()] = [
+            "move_forward",
+            "move_right",
+            "move_up",
+            "look_x",
+            "look_y",
+            "orbit_x",
+            "orbit_y",
+            "zoom",
+            "boost",
+            "cancel",
+            "console",
+            "throttle",
+            "brake",
+            "steer",
+            "handbrake",
+            "shift_up",
+            "shift_down",
+            "nos",
+            "reset_car",
+            "toggle_camera",
+            "menu_up",
+            "menu_down",
+            "menu_left",
+            "menu_right",
+            "menu_accept",
+            "menu_back",
+            "menu_start",
+            "menu_quit",
+            "click",
+        ];
+        NAMES[self.index()]
+    }
+
+    pub fn parse(name: &str) -> Result<Self, String> {
+        let name = name.to_ascii_lowercase();
+        Self::ALL
+            .into_iter()
+            .find(|a| a.name() == name)
+            .ok_or_else(|| format!("unknown action {name:?}; use keys to list actions"))
+    }
+    pub const ALL: [Action; 29] = [
         Action::MoveForward,
         Action::MoveRight,
         Action::MoveUp,
@@ -88,6 +132,7 @@ impl Action {
         Action::MenuBack,
         Action::MenuStart,
         Action::MenuQuit,
+        Action::Click,
     ];
 
     /// Actions that still work while the UI has the keyboard.

@@ -177,17 +177,11 @@ impl IconMenu {
         }
     }
 
-    /// The next enabled icon in a direction, none at the end (the original does not wrap here).
+    /// The next icon in a direction, none at the end (the original does not wrap here). Icons whose screens do not
+    /// exist yet are greyed out but can still be selected, so the whole row can be browsed.
     fn neighbour(&self, step: isize) -> Option<usize> {
-        let mut slot = self.selected as isize + step;
-        while slot >= self.first_slot() as isize && slot <= self.last_slot() as isize {
-            let icon = self.slots[slot as usize].icon?;
-            if self.icons[icon].enabled {
-                return Some(slot as usize);
-            }
-            slot += step;
-        }
-        None
+        let slot = self.selected.checked_add_signed(step)?;
+        (self.first_slot()..=self.last_slot()).contains(&slot).then_some(slot)
     }
 
     fn scroll_by(&mut self, cx: &mut Cx, step: isize) {
@@ -286,9 +280,14 @@ impl IconMenu {
 
 impl ScreenLogic for IconMenu {
     fn start(&mut self, cx: &mut Cx) {
-        if let Some(region) = cx.named("ICON_SCROLL_REGION") {
-            let at = cx.rt.position(region).unwrap_or_default();
+        // The cursor brackets sit on the stand-in icon (`OPTION_MASTER`), so that is where the selected icon goes:
+        // the region's own position is up to 17 units off it (MainMenu.fng), which left the icon out of its brackets.
+        let region = cx.named("ICON_SCROLL_REGION");
+        let master = cx.object(ids::OPTION_MASTER);
+        if let Some(at) = master.or(region).and_then(|o| cx.rt.position(o)) {
             self.center = Vec2::new(at.x, at.y);
+        }
+        if let Some(region) = region {
             cx.rt.set_hidden(region, true);
         }
         // The package leaves a stand-in icon at the cursor; the scroller draws the real ones.
@@ -330,7 +329,12 @@ impl ScreenLogic for IconMenu {
                 if !self.reacts {
                     return;
                 }
-                let Some(i) = self.current_icon().filter(|&i| self.icons[i].enabled) else { return };
+                let Some(i) = self.current_icon() else { return };
+                if !self.icons[i].enabled {
+                    // The package switched its buttons off for the leave animation that will not come.
+                    cx.rt.post_to_package(cx.package, ids::INPUT_ENABLE);
+                    return;
+                }
                 cx.memory.insert(self.memory_key(cx), i);
                 let id = self.icons[i].id;
                 // The pause package has no leave message: its screens run the event handler's script themselves.

@@ -3,6 +3,9 @@
 //! Each source produces a [`Partial`]; [`Settings::load`] merges them. The in-game settings menu
 //! (milestone 6) and the developer console write the config file layer.
 
+mod controls;
+#[cfg(test)]
+mod controls_tests;
 mod env;
 mod file;
 mod partial;
@@ -17,6 +20,7 @@ mod write;
 
 use blackbox_render::Backend;
 
+pub use controls::{Controls, Deadzone, DeadzoneMode, Sensitivity};
 pub use partial::{Partial, Percent, parse_bool};
 pub use smoke_quality::SmokeQuality;
 pub use transmission::Transmission;
@@ -29,6 +33,7 @@ use crate::devtools::{ShowMetrics, ShowReadout};
 /// The resolved settings.
 #[derive(bevy_ecs::resource::Resource, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Settings {
+    pub controls: Controls,
     pub backend: Backend,
     pub vsync: bool,
     pub max_fps: MaxFps,
@@ -46,6 +51,8 @@ pub struct Settings {
     pub hud: bool,
     /// Draw smoke from the driven car's loaded tire contacts.
     pub tire_smoke: bool,
+    /// Play the radio while driving (the `radio` console command still works when it is off).
+    pub radio: bool,
     /// Optional smoke presentation quality; standard retains the default cost and look.
     pub smoke_quality: SmokeQuality,
     /// Draw bounded, ground-following tire marks.
@@ -61,6 +68,16 @@ impl From<Partial> for Settings {
     /// Fill what no layer set with the defaults.
     fn from(p: Partial) -> Self {
         Self {
+            controls: Controls {
+                deadzone_mode: p.deadzone_mode.unwrap_or_default(),
+                steering_deadzone: p.steering_deadzone.unwrap_or(Controls::default().steering_deadzone),
+                camera_deadzone: p.camera_deadzone.unwrap_or(Controls::default().camera_deadzone),
+                trigger_deadzone: p.trigger_deadzone.unwrap_or(Controls::default().trigger_deadzone),
+                steering_sensitivity: p.steering_sensitivity.unwrap_or(Controls::default().steering_sensitivity),
+                camera_sensitivity: p.camera_sensitivity.unwrap_or(Controls::default().camera_sensitivity),
+                mouse_sensitivity: p.mouse_sensitivity.unwrap_or(Controls::default().mouse_sensitivity),
+                invert_camera_y: p.invert_camera_y.unwrap_or(Controls::default().invert_camera_y),
+            },
             backend: p.backend.unwrap_or_default(),
             vsync: p.vsync.unwrap_or(true),
             max_fps: p.max_fps.unwrap_or_default(),
@@ -75,6 +92,7 @@ impl From<Partial> for Settings {
             engine_volume: p.engine_volume.unwrap_or(Percent(90)),
             hud: p.hud.unwrap_or(true),
             tire_smoke: p.tire_smoke.unwrap_or(true),
+            radio: p.radio.unwrap_or(true),
             smoke_quality: p.smoke_quality.unwrap_or_default(),
             skid_marks: p.skid_marks.unwrap_or(true),
             transmission: p.transmission.unwrap_or_default(),

@@ -85,6 +85,8 @@ pub(crate) fn cast_instance(
     article: &Article,
     (a, b): (Vec3, Vec3),
     opts: &RayOptions,
+    identity: (u32, usize),
+    accept: &mut impl FnMut(&Hit) -> bool,
 ) -> Option<Hit> {
     if u32::from(inst.flags) & opts.exclude != 0 || (opts.skip_groups && inst.group != 0) {
         return None;
@@ -101,10 +103,31 @@ pub(crate) fn cast_instance(
     }
 
     let (la, lb) = (inst.to_local(a), inst.to_local(b));
-    let mut best: Option<Candidate> = None;
+    let mut best: Option<Hit> = None;
     let mut consider = |c: Candidate| {
-        if best.as_ref().is_none_or(|h| c.t < h.t) {
-            best = Some(c);
+        if best.as_ref().is_some_and(|h| c.t >= h.t) {
+            return;
+        }
+        let point = inst.to_world(lerp(la, lb, c.t));
+        let mut normal = inst.dir_to_world(c.normal);
+        let front_facing = dot(normal, sub(a, point)) >= 0.0;
+        if !front_facing {
+            normal = scale(normal, -1.0);
+        }
+        let hit = Hit {
+            t: c.t,
+            point,
+            normal,
+            kind: c.kind,
+            front_facing,
+            surface_hash: article.surface_hash(c.surface).unwrap_or(0),
+            surface_index: c.surface,
+            surface_flags: c.flags,
+            section: identity.0,
+            instance: identity.1,
+        };
+        if accept(&hit) {
+            best = Some(hit);
         }
     };
 
@@ -152,24 +175,5 @@ pub(crate) fn cast_instance(
         }
     }
 
-    let c = best?;
-    let point = inst.to_world(lerp(la, lb, c.t));
-    // Orient the normal towards the start of the segment.
-    let mut normal = inst.dir_to_world(c.normal);
-    let front_facing = dot(normal, sub(a, point)) >= 0.0;
-    if !front_facing {
-        normal = scale(normal, -1.0);
-    }
-    Some(Hit {
-        t: c.t,
-        point,
-        normal,
-        kind: c.kind,
-        front_facing,
-        surface_hash: article.surface_hash(c.surface).unwrap_or(0),
-        surface_index: c.surface,
-        surface_flags: c.flags,
-        section: 0,
-        instance: 0,
-    })
+    best
 }

@@ -27,7 +27,7 @@ fn tire_layers_resolve_independently_and_invalid_values_fall_through() {
 fn tire_cli_switches_override_lower_layers_and_conflicting_flags_are_rejected() {
     let parse = |flags: &[&str]| {
         let cli = Cli::try_parse_from(["nfsmw", "view-world"].into_iter().chain(flags.iter().copied())).unwrap();
-        let Command::ViewWorld { view, .. } = cli.command else { unreachable!() };
+        let Some(Command::ViewWorld { view, .. }) = cli.command else { unreachable!() };
         view.settings_layer()
     };
     let defaults = parse(&[]);

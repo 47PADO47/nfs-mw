@@ -4,6 +4,7 @@
 use std::str::FromStr;
 
 use super::ids::{LABEL_OFF, LABEL_ON};
+use super::input_options::InputSetting;
 use super::logic::Category;
 use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
@@ -25,6 +26,7 @@ pub enum Setting {
     SkidMarks,
     SmokeQuality,
     Transmission,
+    Input(InputSetting),
 }
 
 /// What a row's title shows.
@@ -79,10 +81,12 @@ pub fn rows(category: Category) -> Vec<Row> {
             row(Setting::SmokeQuality, Title::Text("Smoke Quality")),
         ],
         Category::Gameplay => {
-            vec![
+            let mut rows = vec![
                 row(Setting::Hud, Title::Label(0xAC14_8579)),
                 row(Setting::Transmission, Title::Label(LABEL_TRANSMISSION)),
-            ]
+            ];
+            rows.extend(InputSetting::ALL.into_iter().map(|setting| row(Setting::Input(setting), setting.title())));
+            rows
         }
     }
 }
@@ -121,6 +125,7 @@ impl Setting {
     /// What the data string shows for a toggle.
     pub fn data(self, s: &Settings) -> Data {
         match self {
+            Setting::Input(setting) => setting.data(s),
             Setting::Vsync => on_off(s.vsync),
             Setting::Hud => on_off(s.hud),
             Setting::TireSmoke => on_off(s.tire_smoke),
@@ -163,8 +168,12 @@ impl Setting {
     /// Moves the setting one step (`forward`: right, else left) and records the change for the config file.
     /// Returns whether the value changed (a slider at its end does not).
     pub fn step(self, s: &mut Settings, changed: &mut Partial, forward: bool) -> bool {
+        if let Setting::Input(setting) = self {
+            return setting.step(s, changed, forward);
+        }
         let before = *s;
         match self {
+            Setting::Input(_) => unreachable!("input settings are handled above"),
             Setting::MasterVolume => {
                 s.master_volume = nudge(s.master_volume, forward);
                 changed.master_volume = Some(s.master_volume);
@@ -298,7 +307,7 @@ mod tests {
     fn every_category_has_rows() {
         assert_eq!(rows(Category::Audio).len(), 4);
         assert_eq!(rows(Category::Video).len(), 7);
-        assert_eq!(rows(Category::Gameplay).len(), 2);
+        assert_eq!(rows(Category::Gameplay).len(), 10);
     }
 
     #[test]
