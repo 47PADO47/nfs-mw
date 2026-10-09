@@ -108,6 +108,20 @@ DLSS Super Resolution for after the milestone, as an optional, default-off Cargo
 FSR 2 and later temporal upscalers need the same inputs and are future work. DLSS frame generation,
 FSR 3 frame generation, FSR 4 and Streamline are not reachable through wgpu and are not planned.
 
+### FSR 3.1 temporal upscaler (`libs/fsr3-wgpu`)
+
+[`libs/fsr3-wgpu`](../libs/fsr3-wgpu) is a standalone WGSL port of AMD's FSR 3.1 temporal upscaler (MIT,
+from the FidelityFX SDK v1.1.4; frame generation is not included). It is **not wired into any renderer
+yet**: it depends only on `wgpu`, so a backend can add it on Vulkan and DirectX 12 (and Metal) without
+subgroup operations or vendor code. It needs the inputs of the table above: the jittered colour at the
+render size, the reverse-Z depth (the crate takes the reverse infinite convention as a flag), motion
+vectors, the Halton(2,3) jitter (`fsr3_wgpu::jitter`), the texture LOD bias `log2(1 / ratio) - 1`
+(`QualityMode::mip_bias`) and a reset on camera cuts. The per-axis ratios are AMD's: native 1.0, quality
+1.5, balanced 1.7, performance 2.0, ultra performance 3.0. It replaces anti-aliasing (it is temporal
+anti-aliasing at 1.0), so FXAA and FSR 1 are left off with it. Its README lists the SDK files, the
+differences from AMD's upscaler and what an integration has to provide; the headless GPU tests check
+convergence, motion vectors, disocclusion, reset and robustness on Vulkan.
+
 ## Checking it
 
 ```sh

@@ -42,6 +42,7 @@ backends, multi-platform support and testing. The structure follows
 | [`blackbox-gpu-passes`](../libs/blackbox-gpu-passes) | Reusable wgpu passes (UI layer, world effects, soft particles, fullscreen filter, FSR 1) that any render loop can call with its own encoder | — |
 | [`blackbox-render`](../libs/blackbox-render) | Backend-neutral renderer (wgpu inside); implements the `blackbox-gfx` types and `RenderBackend`; headless mode | — |
 | [`blackbox-bevy-render`](../libs/blackbox-bevy-render) | Optional Bevy 0.20 renderer implementing `RenderBackend` as plugins of the game's `App` (world path only so far, [bevy-backend.md](bevy-backend.md)); a leaf crate behind the `renderer-bevy` feature | Bevy render crates |
+| [`fsr3-wgpu`](../libs/fsr3-wgpu) | AMD FidelityFX Super Resolution 3.1 temporal upscaler in WGSL for wgpu (fp32, no subgroup operations); standalone, not used by a renderer yet | — |
 | [`blackbox-scene`](../libs/blackbox-scene) | Uploading solids and textures to the renderer; boxes; frustum culling | — |
 | [`game-install`](../libs/game-install) | Finding, validating and reading an install, case-insensitively | driven by a `GameSpec` |
 
