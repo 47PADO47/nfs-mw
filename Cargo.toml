@@ -43,15 +43,15 @@ game-install = { path = "libs/game-install" }
 nfsmw-data = { path = "crates/nfsmw-data" }
 
 # Third-party (see docs/rust-stack.md for why each was picked)
-# Bevy: the ECS shell only, no renderer (docs/decisions/0001-bevy.md). Pinned to the 0.20 release candidate.
-bevy_a11y = "=0.20.0-rc.2"
-bevy_app = "=0.20.0-rc.2"
-bevy_ecs = "=0.20.0-rc.2"
-bevy_gilrs = "=0.20.0-rc.2"
-bevy_input = { version = "=0.20.0-rc.2", features = ["serialize"] }
-bevy_time = "=0.20.0-rc.2"
-bevy_window = "=0.20.0-rc.2"
-bevy_winit = "=0.20.0-rc.2"
+# Bevy: the ECS shell only, no renderer (docs/decisions/0001-bevy.md). Pinned to the exact 0.20 release.
+bevy_a11y = "=0.20.0"
+bevy_app = "=0.20.0"
+bevy_ecs = "=0.20.0"
+bevy_gilrs = "=0.20.0"
+bevy_input = { version = "=0.20.0", features = ["serialize"] }
+bevy_time = "=0.20.0"
+bevy_window = "=0.20.0"
+bevy_winit = "=0.20.0"
 anyhow = "1"
 bytemuck = { version = "1", features = ["derive"] }
 clap = { version = "4", features = ["derive"] }

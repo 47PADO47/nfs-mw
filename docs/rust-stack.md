@@ -8,7 +8,7 @@ Which crates the rewrite uses or plans to use, and why. Versions and licenses we
 | Crate | Version | License | Used for |
 |---|---|---|---|
 | wgpu | 30 | MIT OR Apache-2.0 | Rendering on Vulkan, Direct3D 12, OpenGL (and Metal). Uploads DXT directly with `TEXTURE_COMPRESSION_BC` |
-| bevy_app, bevy_ecs, bevy_input, bevy_time, bevy_window, bevy_winit, bevy_a11y, bevy_gilrs | =0.20.0-rc.2 | MIT OR Apache-2.0 | The application shell: schedule, ECS, window and event loop (`bevy_winit` wraps winit 0.30), keyboard, mouse and gamepad input (gilrs 0.11). No `bevy_render`. See [decisions/0001-bevy.md](decisions/0001-bevy.md) |
+| bevy_app, bevy_ecs, bevy_input, bevy_time, bevy_window, bevy_winit, bevy_a11y, bevy_gilrs | =0.20.0 | MIT OR Apache-2.0 | The application shell: schedule, ECS, window and event loop (`bevy_winit` wraps winit 0.30), keyboard, mouse and gamepad input (gilrs 0.11). No `bevy_render`. See [decisions/0001-bevy.md](decisions/0001-bevy.md) |
 | glam | 0.34 | MIT OR Apache-2.0 | Math. Since 0.34 the projection and view matrices live in `glam::camera` (we use `rh::proj::directx`, which matches wgpu's clip space) |
 | bytemuck | 1 | Zlib OR Apache-2.0 OR MIT | Vertex structs to GPU buffers |
 | texture2ddecoder | 0.1 | MIT OR Apache-2.0 | CPU DXT decode when a texture can't be uploaded as BC |
