@@ -1,0 +1,23 @@
+[package]
+name = "fsr3-wgpu"
+description = "AMD FidelityFX Super Resolution 3.1 temporal upscaler ported to WGSL for wgpu (Vulkan, Direct3D 12): no subgroup operations, fp32."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+bytemuck.workspace = true
+glam.workspace = true
+thiserror.workspace = true
+wgpu.workspace = true
+
+[dev-dependencies]
+# Validates the WGSL sources without a GPU.
+naga.workspace = true
+# Headless GPU tests block on adapter and device requests.
+pollster.workspace = true
+
+[lints]
+workspace = true
