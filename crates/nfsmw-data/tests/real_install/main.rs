@@ -17,6 +17,7 @@ mod minimap;
 mod music;
 mod physics;
 mod sound;
+mod speech;
 mod textures;
 mod world;
 mod zones;
