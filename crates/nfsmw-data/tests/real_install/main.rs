@@ -15,6 +15,7 @@ mod handling;
 mod manual;
 mod music;
 mod physics;
+mod pursuit;
 mod sound;
 mod textures;
 mod world;
