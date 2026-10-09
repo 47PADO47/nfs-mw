@@ -7,7 +7,8 @@ use glam::Vec3;
 use nfsmw_data::car::physics::SurfaceTable;
 
 use super::car::{AiCar, Role, Start};
-use super::{Focus, TrafficWorld};
+use super::traffic::Cruise;
+use super::{Focus, TrafficModel, TrafficWorld};
 use crate::scenes::world::drive::WorldGround;
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::space;
@@ -21,22 +22,40 @@ const WEDGE: f32 = std::f32::consts::FRAC_PI_4;
 const MIN_GAP: f32 = 20.0;
 /// How far ahead of the car the cursor starts.
 const START_LOOK_AHEAD: f32 = 30.0;
-/// A new car starts at this fraction of the posted speed.
+/// A new car starts at this fraction of the lower of its two cruising speeds.
 const START_SPEED_FACTOR: f32 = 0.75;
+/// A standing player always gets oncoming traffic; at this speed (m/s) half of it comes the same way.
+const SAME_WAY_SPEED: f32 = 50.0;
+
+/// Which car to put on the road.
+#[derive(Debug, Clone, Copy)]
+pub enum Pick {
+    /// The traffic model at this index.
+    Traffic(usize),
+    /// The patrol cop model at this index.
+    Patrol(usize),
+}
 
 impl TrafficWorld {
-    /// Tries to add one car ahead of `focus`. Returns whether it worked.
-    pub(super) fn spawn_one(&mut self, focus: Focus, collision: &CollisionWorld, surfaces: &SurfaceTable) -> bool {
-        if self.models.is_empty() {
-            return false;
-        }
+    /// Tries to add the car `pick` ahead of `focus`. Returns whether it worked.
+    pub(super) fn spawn_one(
+        &mut self,
+        pick: Pick,
+        cruise: Cruise,
+        focus: Focus,
+        collision: &CollisionWorld,
+        surfaces: &SurfaceTable,
+    ) -> bool {
+        let model: &TrafficModel = match pick {
+            Pick::Traffic(i) => &self.models[i],
+            Pick::Patrol(i) => &self.cop_models[i].model,
+        };
         let rng = &mut self.rng;
         let angle = focus.heading + (rng.next_f32() * 2.0 - 1.0) * WEDGE;
         let offset = (rng.next_f32() * 2.0 - 1.0) * SPREAD;
         let distance = AHEAD + offset + focus.speed.max(0.0);
         let at = Vec3::new(focus.position[0] + distance * angle.cos(), focus.position[1] + distance * angle.sin(), 0.0);
-        // A standing player always gets oncoming traffic, a fast one half and half.
-        let oncoming = rng.next_f32() <= 1.0 - 0.5 * (focus.speed / 50.0).clamp(0.0, 1.0);
+        let oncoming = rng.next_f32() <= 1.0 - 0.5 * (focus.speed / SAME_WAY_SPEED).clamp(0.0, 1.0);
         let dir = match oncoming {
             true => angle + std::f32::consts::PI,
             false => angle,
@@ -56,13 +75,15 @@ impl TrafficWorld {
         let render = space::to_render(nav.position.to_array());
         let facing = space::to_render(nav.forward.to_array());
         let spawn = Spawn { position: render, heading: facing.y.atan2(facing.x) };
-        let model = &self.models[rng.index(self.models.len())];
         nav.half_width = model.physics.spec.dimension.x;
         nav.enable_trail(&self.network);
         nav.advance_with_lookahead(&self.network, START_LOOK_AHEAD, Vec3::ZERO, START_LOOK_AHEAD, rng);
-        let stagger = (rng.next_f32() * 10.0) as u32;
-        let start_speed = START_SPEED_FACTOR * super::traffic::STREET_SPEED;
-        let start = Start { stagger, speed: start_speed };
+        let start = Start {
+            stagger: (rng.next_f32() * 10.0) as u32,
+            speed: START_SPEED_FACTOR * cruise.street.min(cruise.highway),
+            cruise,
+            patrol: matches!(pick, Pick::Patrol(_)),
+        };
         let car = AiCar::place(model, Role::Traffic, nav, spawn, start, &WorldGround { collision, surfaces });
         let Some(car) = car else { return false };
         log::info!("traffic: {} at ({:.0}, {:.0}), {} m ahead", car.name, render.x, render.y, distance as i32);

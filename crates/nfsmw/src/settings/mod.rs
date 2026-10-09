@@ -175,4 +175,33 @@ mod tests {
         assert_eq!(bad, Partial::default());
         assert_eq!(file::parse("monitor = 0", "test").monitor, Some(Monitor::Index(0)));
     }
+
+    #[test]
+    fn traffic_is_on_by_default_with_one_cop_in_twenty() {
+        let s = Settings::from(Partial::default());
+        assert_eq!((s.traffic, s.cop_share), (DEFAULT_TRAFFIC, DEFAULT_COP_SHARE));
+        assert!(s.traffic > 0);
+        assert_eq!(DEFAULT_COP_SHARE, Percent(5), "5 percent is one in twenty");
+    }
+
+    #[test]
+    fn the_traffic_settings_come_from_every_layer() {
+        let cli = Partial { traffic: Some(0), ..Partial::default() };
+        let env = env::read(|n| match n {
+            env::TRAFFIC => Some("20".to_owned()),
+            env::COP_SHARE => Some("10".to_owned()),
+            _ => None,
+        });
+        let file = file::parse("traffic = 6\ncop_share = 25\n", "test");
+        let s: Settings = cli.clone().or(env.clone()).or(file.clone()).into();
+        assert_eq!(
+            (s.traffic, s.cop_share),
+            (0, Percent(10)),
+            "the command line turns traffic off, the environment sets the share"
+        );
+        let s: Settings = Partial::default().or(file).into();
+        assert_eq!((s.traffic, s.cop_share), (6, Percent(25)));
+        assert_eq!(env::read(|n| (n == env::TRAFFIC).then(|| "many".to_owned())).traffic, None);
+        assert_eq!(file::parse("traffic = -3", "test").traffic, None, "a negative count is ignored");
+    }
 }

@@ -39,7 +39,7 @@ pub(super) fn run(
         "garage" if args.is_empty() => Ok(nfsmw_data::car::list(&scene.dir).join("  ")),
         "pos" if args.is_empty() => Ok(pos(scene)),
         "props" => props(scene, args),
-        "traffic" => ai::traffic_command(scene, renderer, args),
+        "traffic" => ai::traffic_command(scene, args),
         "pursuit" => ai::pursuit_command(scene, renderer, args),
         "tire-effects" => tire_effects(scene, renderer, args),
         "debug" => debug(scene, renderer, args),

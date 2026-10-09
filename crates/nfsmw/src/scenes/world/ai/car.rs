@@ -10,7 +10,7 @@ use nfsmw_data::car::physics::SurfaceTable;
 
 use super::TrafficModel;
 use super::cop::{self, CopState, Target};
-use super::traffic::{self, THINK_STEPS};
+use super::traffic::{self, Cruise, THINK_STEPS};
 use crate::scenes::world::drive::{CarPose, CarRig, CarSim, DriveInput, STEP, WorldGround};
 use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::road::Spawn;
@@ -40,6 +40,10 @@ pub struct Start {
     /// Physics steps added to the car's clock so the thinks of different cars fall on different steps.
     pub stagger: u32,
     pub speed: f32,
+    /// The speeds it cruises at.
+    pub cruise: Cruise,
+    /// A patrol cop: a cop car driving like traffic.
+    pub patrol: bool,
 }
 
 /// How a crash with the player went for a traffic car.
@@ -105,6 +109,10 @@ pub struct AiCar {
     /// 0..1: hit hard enough to lose control for a moment.
     shock: f32,
     accident: Accident,
+    cruise: Cruise,
+    patrol: bool,
+    /// Seconds the car has been out of the player's view.
+    offscreen: f32,
 }
 
 impl AiCar {
@@ -154,6 +162,9 @@ impl AiCar {
             airborne: 0.0,
             shock: 0.0,
             accident: Accident::None,
+            cruise: start.cruise,
+            patrol: start.patrol,
+            offscreen: 0.0,
         })
     }
 
@@ -193,7 +204,13 @@ impl AiCar {
     pub fn debug(&self) -> String {
         format!(
             "{} segment {} lane {} t {:.2}{}{}, wants {:.1} m/s",
-            if self.is_cop() { "cop" } else { "traffic" },
+            if self.is_cop() {
+                "cop"
+            } else if self.patrol {
+                "patrol"
+            } else {
+                "traffic"
+            },
             self.nav.segment,
             self.nav.lane,
             self.nav.t,
@@ -207,8 +224,26 @@ impl AiCar {
         self.controls
     }
 
+    /// A cop chasing the player.
     pub fn is_cop(&self) -> bool {
         matches!(self.role, Role::Cop(_))
+    }
+
+    /// A cop car cruising like traffic.
+    pub fn is_patrol(&self) -> bool {
+        self.patrol
+    }
+
+    /// Adds `dt` to the time the car has been out of view, or clears it when it is in view.
+    pub fn note_view(&mut self, in_view: bool, dt: f32) {
+        self.offscreen = match in_view {
+            true => 0.0,
+            false => self.offscreen + dt,
+        };
+    }
+
+    pub fn offscreen_time(&self) -> f32 {
+        self.offscreen
     }
 
     /// One physics step: think when it is this car's turn, then drive.
@@ -306,7 +341,8 @@ impl AiCar {
                 let mut others: Vec<Body> =
                     ctx.bodies.iter().enumerate().filter(|&(i, _)| i != ctx.me).map(|(_, b)| b.0).collect();
                 others.extend(ctx.player);
-                let think = traffic::think(ctx.net, &mut self.nav, &state, &others, self.blocked, ctx.rng);
+                let think =
+                    traffic::think(ctx.net, &mut self.nav, &state, &others, self.blocked, ctx.rng, &self.cruise);
                 self.target = think.target;
                 self.speed = think.speed;
                 self.blocked = think.blocked;
