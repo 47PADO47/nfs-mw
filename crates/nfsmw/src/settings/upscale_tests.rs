@@ -37,9 +37,9 @@ fn upscaler_has_a_strict_round_trip() {
     for text in ["fsr2", "dlss", "on", "", "1"] {
         assert!(text.parse::<UpscaleMode>().is_err(), "{text:?}");
     }
-    assert_eq!(UpscaleMode::Off.upscaler(), None);
-    assert_eq!(UpscaleMode::Bilinear.upscaler(), Some(Upscaler::Bilinear));
-    assert_eq!(UpscaleMode::Fsr1.upscaler(), Some(Upscaler::Fsr1));
+    assert_eq!(UpscaleMode::Off.upscaler(), Upscaler::Off);
+    assert_eq!(UpscaleMode::Bilinear.upscaler(), Upscaler::Bilinear);
+    assert_eq!(UpscaleMode::Fsr1.upscaler(), Upscaler::Fsr1);
 }
 
 #[test]

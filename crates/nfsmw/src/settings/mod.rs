@@ -16,9 +16,12 @@ mod env;
 #[cfg(test)]
 mod exhaust_flames_tests;
 mod file;
+mod graphics;
 mod graphics_preset;
 #[cfg(test)]
 mod graphics_preset_tests;
+#[cfg(test)]
+mod graphics_tests;
 mod hud_layout;
 #[cfg(test)]
 mod hud_layout_tests;
@@ -32,6 +35,8 @@ mod smoke_quality;
 #[cfg(test)]
 mod smoke_quality_tests;
 mod spark_style;
+#[cfg(test)]
+pub(crate) mod test_caps;
 #[cfg(test)]
 mod tire_tests;
 mod transmission;

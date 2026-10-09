@@ -69,12 +69,12 @@ pub enum UpscaleMode {
 }
 
 impl UpscaleMode {
-    /// The renderer's upscaler, or `None` when the render scale is ignored.
-    pub fn upscaler(self) -> Option<Upscaler> {
+    /// The renderer's upscaler. `Off` makes the renderer ignore the render scale.
+    pub fn upscaler(self) -> Upscaler {
         match self {
-            Self::Off => None,
-            Self::Bilinear => Some(Upscaler::Bilinear),
-            Self::Fsr1 => Some(Upscaler::Fsr1),
+            Self::Off => Upscaler::Off,
+            Self::Bilinear => Upscaler::Bilinear,
+            Self::Fsr1 => Upscaler::Fsr1,
         }
     }
 }
