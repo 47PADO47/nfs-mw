@@ -7,9 +7,15 @@
 //!
 //! See the README for the call sequence of each pass.
 
+#[cfg(test)]
+mod shader_tests;
+mod ui;
+#[cfg(test)]
+mod ui_tests;
 mod world;
 
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
 
+pub use ui::{UiPass, UiTextureError};
 pub use world::{DEPTH_FORMAT, Globals, HDR_FORMAT, WorldBindings, create_depth, write_mask};
