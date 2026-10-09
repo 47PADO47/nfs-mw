@@ -1,9 +1,12 @@
 //! The wgpu implementation of the renderer (Vulkan, Direct3D 12, OpenGL).
 
+mod backend_impl;
 mod capture;
 mod effects;
 mod frame;
 mod glossy;
+#[cfg(test)]
+mod headless_tests;
 mod init;
 mod instances;
 #[cfg(test)]
@@ -20,6 +23,8 @@ mod soft_particles;
 #[cfg(test)]
 mod streak_tests;
 mod targets;
+#[cfg(test)]
+mod test_support;
 mod textured_effects;
 mod textures;
 mod ui;
