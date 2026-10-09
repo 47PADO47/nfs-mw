@@ -30,6 +30,7 @@ pub struct Host {
     tire_effects: [bool; 2],
     smoke_quality: SmokeQuality,
     vehicle_effects: [bool; 2],
+    spark_style: crate::settings::SparkStyle,
     /// The transmission setting as of the last frame, given to every scene that is put in the window.
     pub transmission: Transmission,
 }
@@ -39,6 +40,7 @@ impl Host {
         scene.set_tire_effects(settings.tire_smoke, settings.skid_marks);
         scene.set_smoke_quality(settings.smoke_quality);
         scene.set_vehicle_effects(settings.collision_sparks, settings.speed_trails);
+        scene.set_spark_style(settings.spark_style);
         Self {
             scene,
             screenshot,
@@ -53,6 +55,7 @@ impl Host {
             tire_effects: [settings.tire_smoke, settings.skid_marks],
             smoke_quality: settings.smoke_quality,
             vehicle_effects: [settings.collision_sparks, settings.speed_trails],
+            spark_style: settings.spark_style,
             transmission: settings.transmission,
         }
     }
@@ -63,6 +66,7 @@ impl Host {
         scene.set_tire_effects(self.tire_effects[0], self.tire_effects[1]);
         scene.set_smoke_quality(self.smoke_quality);
         scene.set_vehicle_effects(self.vehicle_effects[0], self.vehicle_effects[1]);
+        scene.set_spark_style(self.spark_style);
         let renderer = self.renderer.as_mut().ok_or_else(|| anyhow::anyhow!("the renderer is not ready"))?;
         scene.init(renderer)?;
         scene.set_transmission(self.transmission);
@@ -81,6 +85,11 @@ impl Host {
     pub fn set_smoke_quality(&mut self, quality: SmokeQuality) {
         self.smoke_quality = quality;
         self.scene.set_smoke_quality(quality);
+    }
+
+    pub fn set_spark_style(&mut self, style: crate::settings::SparkStyle) {
+        self.spark_style = style;
+        self.scene.set_spark_style(style);
     }
 
     pub fn set_vehicle_effects(&mut self, sparks: bool, trails: bool) {

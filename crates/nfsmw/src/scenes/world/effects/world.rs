@@ -20,6 +20,7 @@ impl WorldScene {
         let layer = drive.effects.build(position, forward);
         drive.vehicle_effects.geometry(position, forward, matches!(self.view, View::Chase), &mut layer.streaks);
         drive.vehicle_effects.glows(position, forward, &mut layer.glows);
+        drive.vehicle_effects.textured(forward, &self.residency.shared.materials, &mut layer.textured);
         renderer.set_effects(layer);
     }
 }

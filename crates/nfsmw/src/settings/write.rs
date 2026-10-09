@@ -69,6 +69,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.collision_sparks {
         put("collision_sparks", Value::Boolean(v));
     }
+    if let Some(v) = changes.spark_style {
+        put("spark_style", Value::String(v.to_string()));
+    }
     if let Some(v) = changes.speed_trails {
         put("speed_trails", Value::Boolean(v));
     }

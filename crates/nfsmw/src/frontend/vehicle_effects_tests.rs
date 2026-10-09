@@ -1,45 +1,46 @@
-use super::ids::{LABEL_OFF, LABEL_ON};
+use super::ids::LABEL_OFF;
 use super::logic::Category;
 use super::options::{Control, Data, Setting, Title, rows};
 use crate::settings::{Partial, Settings, SmokeQuality};
 
 #[test]
-fn optional_vehicle_effect_rows_toggle_independently_of_tires_and_hud() {
+fn optional_vehicle_effect_rows_cycle_stock_and_experimental_independently() {
+    use crate::settings::SparkStyle::{OriginalPc, RestoredExperimental};
     let rows = rows(Category::Video);
-    for (index, setting, title) in
-        [(7, Setting::CollisionSparks, "Collision Sparks"), (8, Setting::SpeedTrails, "Speed Trails")]
-    {
-        assert_eq!(rows[index].setting, setting);
-        assert_eq!(rows[index].title, Title::Text(title));
-        let initial = Settings::from(Partial {
-            hud: Some(false),
-            tire_smoke: Some(false),
-            smoke_quality: Some(SmokeQuality::High),
-            ..Partial::default()
-        });
-        for forward in [true, false] {
-            let (mut settings, mut changes) = (initial, Partial::default());
-            assert_eq!(setting.control(&settings), Control::Toggle);
-            assert_eq!(setting.data(&settings), Data::Label(LABEL_OFF));
-            for enabled in [true, false] {
-                assert!(setting.step(&mut settings, &mut changes, forward));
-                let (mut expected, mut written) = (initial, Partial::default());
-                match setting {
-                    Setting::CollisionSparks => {
-                        expected.collision_sparks = enabled;
-                        written.collision_sparks = Some(enabled);
-                    }
-                    Setting::SpeedTrails => {
-                        expected.speed_trails = enabled;
-                        written.speed_trails = Some(enabled);
-                    }
-                    _ => unreachable!(),
-                }
-                assert_eq!(settings, expected);
-                assert_eq!(changes, written);
-                assert_eq!(setting.data(&settings), Data::Label(if enabled { LABEL_ON } else { LABEL_OFF }));
-            }
+    assert_eq!(rows[7].title, Title::Text("Collision Sparks"));
+    assert_eq!(rows[8].title, Title::Text("Speed Trails (Experimental)"));
+    let initial = Settings::from(Partial {
+        hud: Some(false),
+        tire_smoke: Some(false),
+        smoke_quality: Some(SmokeQuality::High),
+        ..Partial::default()
+    });
+    for (forward, modes) in [
+        (true, [OriginalPc, RestoredExperimental, OriginalPc]),
+        (false, [RestoredExperimental, OriginalPc, OriginalPc]),
+    ] {
+        let (mut settings, mut changed) = (initial, Partial::default());
+        for (i, mode) in modes.into_iter().enumerate() {
+            Setting::CollisionSparks.step(&mut settings, &mut changed, forward);
+            let enabled = i != 2;
+            assert_eq!(settings, Settings { collision_sparks: enabled, spark_style: mode, ..initial });
+            assert_eq!(
+                changed,
+                Partial { collision_sparks: Some(enabled), spark_style: Some(mode), ..Partial::default() }
+            );
+            let expected = match enabled {
+                true => Data::Text(mode.label().into()),
+                false => Data::Label(LABEL_OFF),
+            };
+            assert_eq!(Setting::CollisionSparks.data(&settings), expected);
         }
+    }
+    let (mut settings, mut changed) = (initial, Partial::default());
+    assert_eq!(Setting::SpeedTrails.control(&settings), Control::Toggle);
+    for enabled in [true, false] {
+        Setting::SpeedTrails.step(&mut settings, &mut changed, true);
+        assert_eq!(settings, Settings { speed_trails: enabled, ..initial });
+        assert_eq!(changed, Partial { speed_trails: Some(enabled), ..Partial::default() });
     }
 }
 
@@ -94,9 +95,10 @@ fn vehicle_effects_main_and_pause_video_rows_show_toggle_and_save() {
         for _ in 0..7 {
             press(&mut screens, &mut env, pad::DOWN);
         }
-        for (slot, title, setting) in
-            [(8, "Collision Sparks", Setting::CollisionSparks), (9, "Speed Trails", Setting::SpeedTrails)]
-        {
+        for (slot, title, setting) in [
+            (8, "Collision Sparks", Setting::CollisionSparks),
+            (9, "Speed Trails (Experimental)", Setting::SpeedTrails),
+        ] {
             let native_rgb = title_colour(&screens, slot).0[..3].to_vec();
             // More than two complete 1200-tick highlight loops, including the transparent endpoints.
             for _ in 0..160 {
@@ -107,19 +109,40 @@ fn vehicle_effects_main_and_pause_video_rows_show_toggle_and_save() {
                 assert_eq!(local[..3], native_rgb, "{name}, slot {slot}: authored RGB stays intact");
                 assert!(world[..3].iter().copied().max().unwrap() >= 160, "{name}, slot {slot}: visible color");
             }
-            for (button, enabled) in [(0, false), (pad::RIGHT, true), (pad::LEFT, false), (pad::RIGHT, true)] {
+            let toggles = match setting {
+                Setting::CollisionSparks => vec![
+                    (0, false),
+                    (pad::RIGHT, true),
+                    (pad::RIGHT, true),
+                    (pad::RIGHT, false),
+                    (pad::LEFT, true),
+                    (pad::LEFT, true),
+                    (pad::LEFT, false),
+                    (pad::RIGHT, true),
+                ],
+                _ => vec![(0, false), (pad::RIGHT, true), (pad::LEFT, false), (pad::RIGHT, true)],
+            };
+            for (button, enabled) in toggles {
                 if button != 0 {
                     press(&mut screens, &mut env, button);
                 }
                 let tree = screens.trees().pop().unwrap();
-                let value = strings.get(if enabled { LABEL_ON } else { LABEL_OFF }).unwrap();
+                let data = setting.data(env.settings);
+                let value = match &data {
+                    Data::Label(hash) => strings.get(*hash).unwrap().to_string(),
+                    Data::Text(text) => text.clone(),
+                };
                 for (object, text) in
                     [(format!("OPTION_NAME_{slot}"), title), (format!("OPTION_DATA_{slot}"), value.as_str())]
                 {
                     let node = tree.nodes.iter().find(|node| node.name_hash == fe_hash_upper(&object) && node.visible);
                     assert_eq!(node.and_then(|node| node.text.as_deref()), Some(text), "{name}, {object}");
                 }
-                assert_eq!(setting.data(env.settings), Data::Label(if enabled { LABEL_ON } else { LABEL_OFF }));
+                let actual = match setting {
+                    Setting::CollisionSparks => env.settings.collision_sparks,
+                    _ => env.settings.speed_trails,
+                };
+                assert_eq!(actual, enabled);
             }
             if slot == 8 {
                 press(&mut screens, &mut env, pad::DOWN);
@@ -131,7 +154,12 @@ fn vehicle_effects_main_and_pause_video_rows_show_toggle_and_save() {
         assert_eq!(*env.settings, expected, "{name}: other visual settings stay unchanged");
         assert_eq!(
             *env.changed,
-            Partial { collision_sparks: Some(true), speed_trails: Some(true), ..Partial::default() }
+            Partial {
+                collision_sparks: Some(true),
+                spark_style: Some(crate::settings::SparkStyle::OriginalPc),
+                speed_trails: Some(true),
+                ..Partial::default()
+            }
         );
         run(&mut screens, &mut env, 0, 30);
         let mut commands = Vec::new();

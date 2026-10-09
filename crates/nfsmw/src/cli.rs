@@ -243,6 +243,9 @@ pub struct ViewArgs {
     /// Enable optional impact/scrape sparks [env NFSMW_COLLISION_SPARKS; default off].
     #[arg(long, conflicts_with = "no_collision_sparks")]
     pub collision_sparks: bool,
+    /// Select original PC particles or the experimental restored streaks.
+    #[arg(long)]
+    pub spark_style: Option<crate::settings::SparkStyle>,
     /// Disable impact/scrape sparks.
     #[arg(long)]
     pub no_collision_sparks: bool,
@@ -294,6 +297,7 @@ impl ViewArgs {
             radio: switch(self.radio, self.no_radio),
             skid_marks: switch(self.skid_marks, self.no_skid_marks),
             collision_sparks: switch(self.collision_sparks, self.no_collision_sparks),
+            spark_style: self.spark_style,
             speed_trails: switch(self.speed_trails, self.no_speed_trails),
             transmission: self.transmission,
             ..Partial::default()

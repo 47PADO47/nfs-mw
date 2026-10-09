@@ -30,7 +30,7 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 19] = [
+pub const BUILT_IN: [(&str, &str); 20] = [
     ("help", "list the commands"),
     ("clear", "empty the console"),
     ("quit", "close the game"),
@@ -44,8 +44,9 @@ pub const BUILT_IN: [(&str, &str); 19] = [
     ("monitors", "list available monitors and their indices"),
     ("keys", "list every key, button and stick binding"),
     ("smoke_quality <standard|high>", "change tire smoke presentation quality"),
-    ("collision_sparks <on|off>", "change optional impact and scrape streaks"),
-    ("speed_trails <on|off>", "change optional high-speed wind trails"),
+    ("collision_sparks <on|off>", "change collision sparks"),
+    ("spark_style <original-pc|restored-experimental>", "select stock or experimental collision particles"),
+    ("speed_trails <on|off>", "change experimental high-speed wind trails"),
     ("volume <0-100>", "master volume (same as set volume)"),
     ("sound [bank [index]]", "list the sounds of a bank (IG_GLOBAL/Siren_MB.abk) or play one"),
     ("engine <car> [percent] | off", "hold a car's engine sound at a share of its RPM range"),
@@ -53,7 +54,7 @@ pub const BUILT_IN: [(&str, &str); 19] = [
 ];
 
 /// Further shorthands for `set`: `vsync off` is `set vsync off`.
-const SET_SHORTHANDS: [&str; 12] = [
+const SET_SHORTHANDS: [&str; 13] = [
     "fps",
     "vsync",
     "metrics",
@@ -64,6 +65,7 @@ const SET_SHORTHANDS: [&str; 12] = [
     "tire_smoke",
     "skid_marks",
     "collision_sparks",
+    "spark_style",
     "speed_trails",
     "smoke_quality",
 ];

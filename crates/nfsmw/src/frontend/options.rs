@@ -80,7 +80,7 @@ pub fn rows(category: Category) -> Vec<Row> {
             row(Setting::SkidMarks, Title::Text("Skid Marks")),
             row(Setting::SmokeQuality, Title::Text("Smoke Quality")),
             row(Setting::CollisionSparks, Title::Text("Collision Sparks")),
-            row(Setting::SpeedTrails, Title::Text("Speed Trails")),
+            row(Setting::SpeedTrails, Title::Text("Speed Trails (Experimental)")),
         ],
         Category::Gameplay => {
             vec![
@@ -129,7 +129,8 @@ impl Setting {
             Setting::Hud => on_off(s.hud),
             Setting::TireSmoke => on_off(s.tire_smoke),
             Setting::SkidMarks => on_off(s.skid_marks),
-            Setting::CollisionSparks => on_off(s.collision_sparks),
+            Setting::CollisionSparks if !s.collision_sparks => on_off(false),
+            Setting::CollisionSparks => Data::Text(s.spark_style.label().into()),
             Setting::SpeedTrails => on_off(s.speed_trails),
             Setting::SmokeQuality => Data::Text(
                 match s.smoke_quality {
@@ -204,8 +205,19 @@ impl Setting {
                 changed.skid_marks = Some(s.skid_marks);
             }
             Setting::CollisionSparks => {
-                s.collision_sparks = !s.collision_sparks;
+                let at = match (s.collision_sparks, s.spark_style) {
+                    (false, _) => 0,
+                    (true, crate::settings::SparkStyle::OriginalPc) => 1,
+                    (true, crate::settings::SparkStyle::RestoredExperimental) => 2,
+                };
+                let next = cycle(at, 3, forward);
+                s.collision_sparks = next != 0;
+                s.spark_style = match next {
+                    2 => crate::settings::SparkStyle::RestoredExperimental,
+                    _ => crate::settings::SparkStyle::OriginalPc,
+                };
                 changed.collision_sparks = Some(s.collision_sparks);
+                changed.spark_style = Some(s.spark_style);
             }
             Setting::SpeedTrails => {
                 s.speed_trails = !s.speed_trails;

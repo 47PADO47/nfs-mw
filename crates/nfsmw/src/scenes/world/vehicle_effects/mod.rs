@@ -1,8 +1,15 @@
-//! Optional vehicle streaks, implemented from docs/specs/vehicle-visual-effects.md.
+//! Stock collision sprites and experimental vehicle streaks; see docs/specs/.
 
 mod body;
 mod geometry;
 mod particle;
+mod pc_emitter;
+#[cfg(test)]
+mod pc_install_tests;
+mod pc_particle;
+mod pc_sparks;
+#[cfg(test)]
+mod pc_tests;
 mod sparks;
 mod sweep;
 #[cfg(test)]
@@ -26,21 +33,41 @@ pub struct VehicleEffects {
     trails: Trails,
     enabled: [bool; 2],
     body: Option<body::BodyClip>,
+    pc: pc_sparks::PcSparks,
+    style: crate::settings::SparkStyle,
 }
 
 impl VehicleEffects {
     pub fn new(data: VisualEffectsData) -> Self {
-        Self { data, sparks: Sparks::default(), trails: Trails::default(), enabled: [false; 2], body: None }
+        Self {
+            data,
+            sparks: Sparks::default(),
+            trails: Trails::default(),
+            enabled: [false; 2],
+            body: None,
+            pc: pc_sparks::PcSparks::default(),
+            style: crate::settings::SparkStyle::OriginalPc,
+        }
     }
 
     pub fn set_body(&mut self, pose: CarPose, bounds: nfsmw_data::car::physics::CarBounds) {
         self.body = body::BodyClip::new(pose, bounds);
     }
 
+    pub fn set_style(&mut self, style: crate::settings::SparkStyle) {
+        if self.style == style {
+            return;
+        }
+        self.style = style;
+        self.sparks.clear();
+        self.pc.clear();
+    }
+
     pub fn set_enabled(&mut self, sparks: bool, trails: bool) {
         self.enabled = [sparks, trails];
         if !sparks {
             self.sparks.clear();
+            self.pc.clear();
         }
         if !trails {
             self.trails.clear();
@@ -49,12 +76,14 @@ impl VehicleEffects {
 
     pub fn clear(&mut self) {
         self.sparks.clear();
+        self.pc.clear();
         self.trails.clear();
     }
 
     /// A reset or camera parking ends emission and disconnects old trail geometry.
     pub fn disconnect(&mut self) {
         self.sparks.disconnect();
+        self.pc.disconnect();
         self.trails.clear();
     }
 
@@ -63,6 +92,7 @@ impl VehicleEffects {
             return;
         }
         self.sparks.age(dt);
+        self.pc.age(dt);
         self.trails.age(dt);
     }
 
@@ -75,13 +105,20 @@ impl VehicleEffects {
         {
             return;
         }
-        self.age(dt);
+        self.sparks.age(dt);
+        self.trails.age(dt);
         if self.enabled[0] {
-            self.sparks.emit(contacts, &self.data.collision, velocity, dt);
+            match self.style {
+                crate::settings::SparkStyle::OriginalPc => self.pc.emit(contacts, &self.data.collision, velocity, dt),
+                crate::settings::SparkStyle::RestoredExperimental => {
+                    self.sparks.emit(contacts, &self.data.collision, velocity, dt)
+                }
+            }
         }
         if self.enabled[1] {
             self.trails.emit(self.data.trail, pose, velocity, dt);
         }
+        self.pc.age(dt);
     }
 
     pub fn bounce(&mut self, world: &blackbox_collision::CollisionWorld, dt: f32) {
@@ -99,13 +136,26 @@ impl VehicleEffects {
         self.sparks.glows(camera, forward, self.body, out);
     }
 
+    pub fn textured(
+        &self,
+        forward: Vec3,
+        textures: &std::collections::HashMap<u32, (blackbox_render::TextureHandle, blackbox_render::BlendMode)>,
+        out: &mut Vec<blackbox_render::TexturedEffect>,
+    ) {
+        self.pc.geometry(forward, textures, out);
+    }
+
     pub fn status(&self) -> String {
         format!(
-            "sparks {}: {}/{} live, {} emitted; speed trails {}: {}/{} live, {} emitted",
+            "sparks {} ({}): {}/{} live, {} emitted; speed trails {} (experimental): {}/{} live, {} emitted",
             self.enabled[0],
-            self.sparks.len(),
-            MAX_SPARKS,
-            self.sparks.emitted,
+            self.style,
+            self.pc.len() + self.sparks.len(),
+            match self.style {
+                crate::settings::SparkStyle::OriginalPc => 1024,
+                _ => MAX_SPARKS,
+            },
+            self.pc.emitted + self.sparks.emitted,
             self.enabled[1],
             self.trails.len(),
             MAX_TRAILS,

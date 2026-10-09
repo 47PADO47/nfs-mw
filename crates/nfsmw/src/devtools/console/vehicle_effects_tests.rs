@@ -5,7 +5,7 @@ use blackbox_render::{FrameParams, Instance, Renderer};
 
 use super::{exec, parse, settings_cmd};
 use crate::app::Host;
-use crate::settings::{Partial, Settings, SmokeQuality};
+use crate::settings::{Partial, Settings, SmokeQuality, SparkStyle};
 use crate::viewer::Scene;
 
 #[derive(Default)]
@@ -13,6 +13,7 @@ struct Seen {
     vehicle: Vec<[bool; 2]>,
     tires: Vec<[bool; 2]>,
     quality: Vec<SmokeQuality>,
+    styles: Vec<SparkStyle>,
 }
 
 struct ObservedScene(Arc<Mutex<Seen>>);
@@ -30,6 +31,9 @@ impl Scene for ObservedScene {
     }
     fn set_vehicle_effects(&mut self, sparks: bool, trails: bool) {
         self.0.lock().unwrap().vehicle.push([sparks, trails]);
+    }
+    fn set_spark_style(&mut self, style: SparkStyle) {
+        self.0.lock().unwrap().styles.push(style);
     }
     fn set_tire_effects(&mut self, smoke: bool, marks: bool) {
         self.0.lock().unwrap().tires.push([smoke, marks]);
@@ -92,6 +96,14 @@ fn vehicle_effects_parsed_commands_apply_immediately_and_invalid_input_is_atomic
         assert_eq!(settings, Settings { collision_sparks: expected[0], speed_trails: expected[1], ..initial });
     }
     let before = settings;
+    let Some(parse::Command::Set { key, value }) = parse::parse("spark_style restored-experimental").unwrap() else {
+        panic!("expected style setting")
+    };
+    exec::set_live(&mut settings, &mut host, &key, &value).unwrap();
+    assert_eq!(seen.lock().unwrap().styles.last(), Some(&SparkStyle::RestoredExperimental));
+    assert!(exec::set_live(&mut settings, &mut host, "spark_style", "better").is_err());
+    assert_eq!(settings.spark_style, SparkStyle::RestoredExperimental);
+    exec::set_live(&mut settings, &mut host, "spark_style", "original-pc").unwrap();
     for key in ["collision_sparks", "speed_trails"] {
         assert!(exec::set_live(&mut settings, &mut host, key, "maybe").is_err());
         assert!(parse::parse(&format!("{key} on extra")).is_err());

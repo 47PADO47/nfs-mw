@@ -85,6 +85,7 @@ pub struct WorldScene {
     physics: PhysicsData,
     tire_effects: [bool; 2],
     vehicle_effects: [bool; 2],
+    spark_style: crate::settings::SparkStyle,
     smoke_quality: crate::settings::SmokeQuality,
     /// `debug collisions` is on: the car's contact points are drawn.
     markers_on: bool,
@@ -162,6 +163,7 @@ impl WorldScene {
             physics,
             tire_effects: [true; 2],
             vehicle_effects: [false; 2],
+            spark_style: crate::settings::SparkStyle::OriginalPc,
             smoke_quality: crate::settings::SmokeQuality::Standard,
             markers_on: false,
             marker_meshes: None,
@@ -219,6 +221,7 @@ impl WorldScene {
             drive.effects.set_enabled(self.tire_effects[0], self.tire_effects[1]);
             drive.effects.set_quality(self.smoke_quality);
             drive.vehicle_effects.set_enabled(self.vehicle_effects[0], self.vehicle_effects[1]);
+            drive.vehicle_effects.set_style(self.spark_style);
         }
         self.view = View::Chase;
         Ok(())
@@ -363,6 +366,13 @@ impl Scene for WorldScene {
 
     fn refresh_effects(&mut self, renderer: &mut Renderer) {
         self.upload_effects(renderer);
+    }
+
+    fn set_spark_style(&mut self, style: crate::settings::SparkStyle) {
+        self.spark_style = style;
+        if let Some(drive) = self.drive.as_mut() {
+            drive.vehicle_effects.set_style(style);
+        }
     }
 
     fn set_vehicle_effects(&mut self, sparks: bool, trails: bool) {

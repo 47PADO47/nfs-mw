@@ -148,6 +148,11 @@ impl Scene for Pausable {
         self.effects_dirty = true;
     }
 
+    fn set_spark_style(&mut self, style: crate::settings::SparkStyle) {
+        self.inner.set_spark_style(style);
+        self.effects_dirty = true;
+    }
+
     fn fullscreen(&mut self) -> Option<Fullscreen> {
         self.inner.fullscreen()
     }
@@ -187,7 +192,7 @@ mod tests {
     #[test]
     fn replacement_driving_scene_inherits_live_effect_settings_through_pause_wrapper() {
         use crate::app::Host;
-        use crate::settings::{Partial, Settings, SmokeQuality};
+        use crate::settings::{Partial, Settings, SmokeQuality, SparkStyle};
         use std::sync::Mutex;
 
         #[derive(Default)]
@@ -195,6 +200,7 @@ mod tests {
             tires: [bool; 2],
             quality: Option<SmokeQuality>,
             vehicle: [bool; 2],
+            style: Option<SparkStyle>,
         }
         struct Observed(Arc<Mutex<Seen>>);
         impl Scene for Observed {
@@ -217,12 +223,16 @@ mod tests {
             fn set_vehicle_effects(&mut self, sparks: bool, trails: bool) {
                 self.0.lock().unwrap().vehicle = [sparks, trails];
             }
+            fn set_spark_style(&mut self, style: SparkStyle) {
+                self.0.lock().unwrap().style = Some(style);
+            }
         }
         let settings = Settings::from(Partial::default());
         let mut host = Host::new(Box::new(MenuScene), &settings, None);
         host.set_tire_effects(false, true);
         host.set_smoke_quality(SmokeQuality::High);
         host.set_vehicle_effects(true, false);
+        host.set_spark_style(SparkStyle::RestoredExperimental);
         let seen = Arc::new(Mutex::new(Seen::default()));
         let scene = Pausable::new(Box::new(Observed(seen.clone())), PauseFlag::default());
         // Preferences must reach the incoming scene before renderer init and screenshot settling.
@@ -231,6 +241,7 @@ mod tests {
         assert_eq!(seen.tires, [false, true]);
         assert_eq!(seen.quality, Some(SmokeQuality::High));
         assert_eq!(seen.vehicle, [true, false]);
+        assert_eq!(seen.style, Some(SparkStyle::RestoredExperimental));
     }
 
     #[test]
@@ -267,5 +278,8 @@ mod tests {
         scene.set_vehicle_effects(false, false);
         assert_eq!(*seen.lock().unwrap(), vec![[true, false], [false, false]]);
         assert!(scene.effects_dirty, "disabling also needs a refresh of frozen buffers");
+        scene.effects_dirty = false;
+        scene.set_spark_style(crate::settings::SparkStyle::RestoredExperimental);
+        assert!(scene.effects_dirty, "a style change must refresh frozen sprite and streak buffers");
     }
 }
