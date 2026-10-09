@@ -107,6 +107,9 @@ Engines, viewers and hook projects
   Xbox 360 Stuff Pack — https://nfsmods.xyz/mod/1200 — reference only.
     elaymm4 and ToruTheRedFox; installed configuration and binary corroborate
     the widescreen 0.92 UI scale used by the optional HUD preset. No addon code copied.
+  Lovro Pleše (xan1242), NFSMW_XenonEffects — MIT.
+    https://github.com/xan1242/NFSMW_XenonEffects — behavior and configuration reference only.
+    No source or textures copied; procedural spark and contrail presentation is new.
   MWisBest/OpenNFSTools — no license — reference only (install registry key).
   yugecin/nfsu2-re — no license — reference only. MaxHwoy/hyperlinked — BSD-3-Clause.
   TsyVM/MWEncyclopedia — no license — leads only (contains known errors).

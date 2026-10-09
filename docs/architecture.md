@@ -298,6 +298,8 @@ camera-facing smoke and grounded strips use `blackbox-render::EffectLayer`, dept
 scene geometry and before the UI. CPU histories and reused GPU buffers have hard budgets.
 See [tire-effects.md](tire-effects.md) for controls and [the spec](specs/tire-effects.md) for the design.
 
+Optional sparks and wind trails use stock attribute links in `nfsmw-data::vehicle_effects` and bounded presentation in `scenes/world/vehicle_effects/`; see [vehicle-effects.md](vehicle-effects.md).
+
 Known gaps: the car shader, car-versus-car and traffic, damage, the
 original's wall steering, a controller that has been tried on real hardware, steering wheel support, the invisible
 walls a playtest found on leaves, curbs and sidewalks (not identified: no prop is called a leaf and the data holds

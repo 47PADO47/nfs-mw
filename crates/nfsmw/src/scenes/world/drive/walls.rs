@@ -21,6 +21,8 @@ use crate::scenes::world::space;
 const FLOOR_NORMAL: f32 = 0.7;
 /// Hits deeper than this are ignored (a wall we are already far inside is not one we just hit).
 const MAX_DEPTH: f32 = 1.5;
+/// Visual telemetry budget, deepest first; the physics contacts remain unrestricted.
+const MAX_VISUAL_CONTACTS: usize = 16;
 
 /// Where a wall contact came from in the collision data, for the log.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -51,6 +53,23 @@ pub struct ContactPoint {
     pub point: Vec3,
     pub normal: Vec3,
     pub kind: ContactKind,
+}
+
+/// Inputs for collision visuals, captured before the wall response (physics space).
+/// Selection and emission are specified in `docs/specs/vehicle-visual-effects.md`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct VisualContact {
+    pub point: Vec3,
+    pub normal: Vec3,
+    /// Velocity of this body point, including rotation, before any wall/prop response.
+    pub velocity: Vec3,
+    /// This contact's actual normal impulse divided by car mass, m/s; zero without a reaction.
+    pub impulse_delta_v: f32,
+    /// World material hash, including 0; prop materials have not yet been retained by the host.
+    pub surface: Option<u32>,
+    pub kind: ContactKind,
+    pub info: Option<HitInfo>,
+    pub prop: Option<u32>,
 }
 
 /// A probe point sticking into a wall.
@@ -200,6 +219,8 @@ pub struct Impact {
     pub deepest: Option<(Vec3, Option<HitInfo>)>,
     /// Every contact of the step (physics space), deepest first: what `debug collisions` draws.
     pub contacts: Vec<ContactPoint>,
+    /// At most sixteen rigid contacts, deepest first, retaining their pre-response velocities.
+    pub visuals: Vec<VisualContact>,
 }
 
 impl From<&WallContact> for ContactPoint {
@@ -225,7 +246,23 @@ pub fn resolve(vehicle: &mut Vehicle, cast: Cast<'_>, props: PropQuery<'_>, wall
     let half = body.dimension() + body.spec().collision_box_pad;
     let (position, rot, car_mass) = (body.position, body.rotation(), body.mass());
     let contacts = find(cast, props, position, rot, half);
-    let mut impact = Impact { contacts: contacts.iter().map(ContactPoint::from).collect(), ..Impact::default() };
+    let visuals = contacts
+        .iter()
+        .filter(|c| !is_light(c))
+        .take(MAX_VISUAL_CONTACTS)
+        .map(|c| VisualContact {
+            point: c.point,
+            normal: c.normal,
+            velocity: body.point_velocity(c.point),
+            impulse_delta_v: 0.0,
+            surface: c.info.map(|i| i.surface),
+            kind: ContactPoint::from(c).kind,
+            info: c.info,
+            prop: c.prop.map(|(id, _)| id),
+        })
+        .collect();
+    let mut impact =
+        Impact { contacts: contacts.iter().map(ContactPoint::from).collect(), visuals, ..Impact::default() };
 
     for c in contacts.iter().filter(|c| is_light(c)) {
         if let Some((id, Some(mass))) = c.prop
@@ -242,7 +279,7 @@ pub fn resolve(vehicle: &mut Vehicle, cast: Cast<'_>, props: PropQuery<'_>, wall
     impact.rigid = rigid.len();
     impact.deepest = Some((deepest.point, deepest.info));
     impact.front = deepest.normal.dot(rot.z_axis).abs() > deepest.normal.dot(rot.x_axis).abs();
-    for c in &rigid {
+    for (index, c) in rigid.iter().enumerate() {
         let n = c.normal;
         let e = Vec3::new(n.dot(rot.x_axis), n.dot(rot.y_axis), n.dot(rot.z_axis)) * walls.elasticity;
         let plane = PlaneContact {
@@ -254,6 +291,9 @@ pub fn resolve(vehicle: &mut Vehicle, cast: Cast<'_>, props: PropQuery<'_>, wall
         let params = ContactParams { restitution: e.length(), inertia_scale: walls.moment_scale };
         if let Some(reaction) = vehicle.body_mut().react_plane(&plane, &params) {
             impact.impulse = impact.impulse.max(reaction.impulse);
+            if let Some(visual) = impact.visuals.get_mut(index) {
+                visual.impulse_delta_v = reaction.impulse / car_mass;
+            }
             // One reaction per step, as the ground code does: the deepest contact decides.
             break;
         }
@@ -267,6 +307,8 @@ pub fn resolve(vehicle: &mut Vehicle, cast: Cast<'_>, props: PropQuery<'_>, wall
 
 #[cfg(test)]
 mod regression_tests;
+#[cfg(test)]
+mod visual_tests;
 
 #[cfg(test)]
 mod tests {

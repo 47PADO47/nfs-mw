@@ -9,6 +9,7 @@ mod residency;
 mod resident;
 mod road;
 mod space;
+mod vehicle_effects;
 mod visibility;
 mod zone;
 
@@ -83,6 +84,8 @@ pub struct WorldScene {
     /// Car physics data, road grips and the gameplay database.
     physics: PhysicsData,
     tire_effects: [bool; 2],
+    vehicle_effects: [bool; 2],
+    spark_style: crate::settings::SparkStyle,
     smoke_quality: crate::settings::SmokeQuality,
     /// `debug collisions` is on: the car's contact points are drawn.
     markers_on: bool,
@@ -159,6 +162,8 @@ impl WorldScene {
             drive: None,
             physics,
             tire_effects: [true; 2],
+            vehicle_effects: [false; 2],
+            spark_style: crate::settings::SparkStyle::OriginalPc,
             smoke_quality: crate::settings::SmokeQuality::Standard,
             markers_on: false,
             marker_meshes: None,
@@ -194,23 +199,29 @@ impl WorldScene {
         script: Option<DriveScript>,
     ) -> Result<()> {
         let physics = self.physics_of(&model)?;
+        let visuals = nfsmw_data::vehicle_effects::VisualEffectsData::read(
+            self.physics.database(),
+            model.car_type.as_deref().unwrap_or(&name),
+        );
         let rig = CarRig::upload(renderer, model);
         let [x, y] = self.focus();
         match self.drive.as_mut() {
             Some(drive) => {
-                drive.set_car(renderer, name.clone(), rig, physics);
+                drive.set_car(renderer, name.clone(), rig, physics, visuals);
                 drive.respawn_near([x, y], None);
             }
             None => {
                 let request =
                     SpawnRequest { near: [self.camera.position.x, self.camera.position.y], heading: None, exact: None };
-                self.drive = Some(Drive::new(name.clone(), rig, physics, request, script));
+                self.drive = Some(Drive::new(name.clone(), rig, physics, request, script, visuals));
             }
         }
         self.last_car = name;
         if let Some(drive) = self.drive.as_mut() {
             drive.effects.set_enabled(self.tire_effects[0], self.tire_effects[1]);
             drive.effects.set_quality(self.smoke_quality);
+            drive.vehicle_effects.set_enabled(self.vehicle_effects[0], self.vehicle_effects[1]);
+            drive.vehicle_effects.set_style(self.spark_style);
         }
         self.view = View::Chase;
         Ok(())
@@ -355,6 +366,20 @@ impl Scene for WorldScene {
 
     fn refresh_effects(&mut self, renderer: &mut Renderer) {
         self.upload_effects(renderer);
+    }
+
+    fn set_spark_style(&mut self, style: crate::settings::SparkStyle) {
+        self.spark_style = style;
+        if let Some(drive) = self.drive.as_mut() {
+            drive.vehicle_effects.set_style(style);
+        }
+    }
+
+    fn set_vehicle_effects(&mut self, sparks: bool, trails: bool) {
+        self.vehicle_effects = [sparks, trails];
+        if let Some(drive) = self.drive.as_mut() {
+            drive.vehicle_effects.set_enabled(sparks, trails);
+        }
     }
 
     fn set_smoke_quality(&mut self, quality: crate::settings::SmokeQuality) {

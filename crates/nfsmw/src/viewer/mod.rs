@@ -72,6 +72,9 @@ pub trait Scene {
     }
     /// Apply the independently layered tire-visual settings. Scenes without tires ignore them.
     fn set_tire_effects(&mut self, _smoke: bool, _skid_marks: bool) {}
+    /// Apply optional collision sparks and high-speed wind trails.
+    fn set_vehicle_effects(&mut self, _sparks: bool, _trails: bool) {}
+    fn set_spark_style(&mut self, _style: crate::settings::SparkStyle) {}
     /// Refresh changed visual-effect buffers without advancing a paused scene.
     fn refresh_effects(&mut self, _renderer: &mut Renderer) {}
     /// Apply the optional smoke presentation quality. Scenes without tires ignore it.

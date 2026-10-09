@@ -16,9 +16,12 @@ mod partial;
 mod smoke_quality;
 #[cfg(test)]
 mod smoke_quality_tests;
+mod spark_style;
 #[cfg(test)]
 mod tire_tests;
 mod transmission;
+#[cfg(test)]
+mod vehicle_effects_tests;
 mod window;
 mod write;
 
@@ -29,6 +32,7 @@ pub use hud_layout::HudLayout;
 pub use minimap::MinimapMode;
 pub use partial::{Partial, Percent, parse_bool};
 pub use smoke_quality::SmokeQuality;
+pub use spark_style::SparkStyle;
 pub use transmission::Transmission;
 pub use window::{Monitor, Resolution, WindowMode};
 pub use write::write as write_file;
@@ -63,6 +67,11 @@ pub struct Settings {
     pub smoke_quality: SmokeQuality,
     /// Draw bounded, ground-following tire marks.
     pub skid_marks: bool,
+    /// Collision particles, using the selected stock or experimental style.
+    pub collision_sparks: bool,
+    pub spark_style: SparkStyle,
+    /// Experimental wind trails at high speed.
+    pub speed_trails: bool,
     /// Who changes gear: the box (default) or the player.
     pub transmission: Transmission,
     /// How the HUD's minimap is shown: fixed (default), rotating or off.
@@ -105,6 +114,9 @@ impl From<Partial> for Settings {
             radio: p.radio.unwrap_or(true),
             smoke_quality: p.smoke_quality.unwrap_or_default(),
             skid_marks: p.skid_marks.unwrap_or(true),
+            collision_sparks: p.collision_sparks.unwrap_or(false),
+            spark_style: p.spark_style.unwrap_or_default(),
+            speed_trails: p.speed_trails.unwrap_or(false),
             transmission: p.transmission.unwrap_or_default(),
             minimap: p.minimap.unwrap_or_default(),
             hud_layout: p.hud_layout.unwrap_or_default(),

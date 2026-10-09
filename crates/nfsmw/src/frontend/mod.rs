@@ -22,6 +22,8 @@ mod widget_menu;
 mod hud_layout_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod vehicle_effects_tests;
 
 pub use flow::Start;
 pub use logic::{Args, Category};
