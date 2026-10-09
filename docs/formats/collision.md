@@ -19,6 +19,12 @@ meanings, see [evidence tags](../README.md#evidence-tags). Little-endian, metres
 Not present in this install: `0003B802` (grid island data) and collision objects (`co` records).
 Triggers are not in the collision packs; they use the `EmTriggerPack` ([world.md](world.md)).
 
+The counts above describe the reference asset set, not format invariants. A second verified asset set
+has 83 car bounds sets, 1,036 nodes and 94 point clouds rather than 86 / 1,066 / 97; its BMW bounds
+and track totals agree with the reference. Whole-file compression also varies (`GlobalB.lzc` may be
+JDLZ-wrapped or plain chunks). Install tests unwrap it, validate every bounds tree and cloud reference,
+and check required car geometry instead of requiring one car collection total.
+
 ## Coordinate space **[verified]**
 
 Collision data is in **physics space**: x right, y up, z forward, metres, right-handed
