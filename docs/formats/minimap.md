@@ -1,5 +1,8 @@
 # Minimap data (map tiles, calibration, HUD textures)
 
+The rewrite exposes Fixed / Rotating / Off in Options > Gameplay. Menu edits apply immediately and
+persist when leaving the screen; the config key and console setting are `minimap`.
+
 What the in-game minimap reads from the install: the map pictures cut into tiles, the per-track calibration
 that places world coordinates on them, and the HUD textures and objects around it. How the game uses them
 each frame is in [../specs/hud-minimap.md](../specs/hud-minimap.md). Evidence tags are explained in the

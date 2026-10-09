@@ -328,7 +328,7 @@ mod tests {
             let cli =
                 Cli::try_parse_from(["nfsmw", "view-world", "--screenshot", "out.png", "--screenshot-size", size])
                     .unwrap();
-            let Some(Command::ViewWorld { view, .. }) = cli.command else { panic!("wrong command") };
+            let Command::ViewWorld { view, .. } = cli.command else { panic!("wrong command") };
             assert_eq!(view.screenshot_size, Some(parse_screenshot_size(size).unwrap()));
             assert_eq!(view.settings_layer().resolution, None);
         }

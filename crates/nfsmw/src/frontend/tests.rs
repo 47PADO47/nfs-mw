@@ -232,3 +232,20 @@ fn main_and_pause_video_options_change_and_save_display_and_tire_settings() {
         assert_eq!(h.changed.smoke_quality, Some(SmokeQuality::High));
     }
 }
+
+#[test]
+fn main_and_pause_minimap_options_apply_and_request_a_save() {
+    for (name, pause) in [(screen::OPTIONS, false), (screen::PAUSE_OPTIONS, true)] {
+        let args = Args { pause, category: Category::Gameplay, ..Args::default() };
+        let Some(mut h) = Harness::open(name, args) else { return };
+        h.wait(1.0);
+        h.press(pad::DOWN);
+        h.press(pad::DOWN);
+        h.press(pad::RIGHT);
+        assert_eq!(h.settings.minimap, crate::settings::MinimapMode::Rotating);
+        assert_eq!(h.changed.minimap, Some(crate::settings::MinimapMode::Rotating));
+        h.press(pad::BACK);
+        h.wait(1.5);
+        assert!(h.said(&Command::SaveSettings));
+    }
+}
