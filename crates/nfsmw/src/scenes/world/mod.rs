@@ -81,6 +81,9 @@ pub struct WorldScene {
     drive: Option<Drive>,
     /// Computer-driven cars, when the track has a road network.
     traffic: Option<ai::TrafficWorld>,
+    /// The `traffic`, `cop_share` settings as last told, and a count typed in the console that replaces them.
+    traffic_setting: (u32, crate::settings::Percent),
+    traffic_manual: Option<usize>,
     /// The car last driven, for `drive` without a name.
     last_car: String,
     /// Car physics data, road grips and the gameplay database.
@@ -115,7 +118,10 @@ impl WorldScene {
     pub fn open(dir: &GameDir, options: Options) -> Result<Self> {
         let index = WorldIndex::open(dir, DEFAULT_TRACK)?;
         let physics = PhysicsData::load(dir)?;
-        let traffic = index.road_network.clone().map(ai::TrafficWorld::new);
+        let mut traffic = index.road_network.clone().map(ai::TrafficWorld::new);
+        if let Some(world) = traffic.as_mut() {
+            world.load_data(physics.database(), index.track_zones.clone());
+        }
         let props = PropCatalog::new(index.prop_bounds.clone(), physics.database());
         log::info!("{} props have collision bounds", props.len());
         let stream = dir.resolve(&index.stream_file).with_context(|| format!("{} is missing", index.stream_file))?;
@@ -162,6 +168,8 @@ impl WorldScene {
             pending_car,
             drive: None,
             traffic,
+            traffic_setting: (0, crate::settings::Percent(0)),
+            traffic_manual: None,
             physics,
             tire_effects: [true; 2],
             smoke_quality: crate::settings::SmokeQuality::Standard,
@@ -336,7 +344,7 @@ impl Scene for WorldScene {
             self.camera.update(input, dt);
         }
         self.update_drive(input, dt);
-        self.update_traffic(dt);
+        self.update_traffic(renderer, dt);
         if !self.grounded && self.residency.complete() {
             self.grounded = true;
             let estimate = ground::height_near(self.residency.placed(), self.start[0], self.start[1], 150.0);
@@ -451,6 +459,10 @@ impl Scene for WorldScene {
         if let Some(drive) = self.drive.as_mut() {
             drive.set_transmission(transmission);
         }
+    }
+
+    fn set_traffic(&mut self, cars: u32, cop_share: crate::settings::Percent) {
+        self.apply_traffic_setting(cars, cop_share);
     }
 
     fn hud_state(&self) -> Option<crate::hud::HudState> {

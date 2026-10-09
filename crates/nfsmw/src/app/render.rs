@@ -62,6 +62,7 @@ fn start(
     log::info!("renderer: {} (requested backend: {})", renderer.adapter_summary(), options.backend);
     host.scene.init(&mut renderer)?;
     host.scene.set_transmission(host.transmission);
+    host.scene.set_traffic(host.traffic.0, host.traffic.1);
     host.size = size;
     host.renderer = Some(renderer);
     Ok(())
@@ -84,6 +85,8 @@ pub fn update_scene(mut host: NonSendMut<Host>, actions: Res<ActionState>, time:
     let Some(renderer) = host.renderer.as_mut() else { return };
     host.transmission = settings.transmission;
     host.scene.set_transmission(settings.transmission);
+    host.traffic = (settings.traffic, settings.cop_share);
+    host.scene.set_traffic(settings.traffic, settings.cop_share);
     // Startup console settings have run in Commands before a screenshot's scripted simulation.
     if host.screenshot.is_some() && host.frames == 0 {
         screenshot::wait_ready(host.scene.as_mut(), renderer);

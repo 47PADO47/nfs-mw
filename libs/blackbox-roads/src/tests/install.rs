@@ -179,3 +179,21 @@ fn real_install_paths_are_connected_walks() {
     eprintln!("mean route length over straight distance: {mean:.2} over {} routes", ratios.len());
     assert!((1.0..2.0).contains(&mean), "{mean}");
 }
+
+#[test]
+#[ignore = "needs a game install; set NFSMW_GAME_DIR"]
+fn real_install_track_zones_match_the_documented_counts() {
+    let Some(dir) = std::env::var_os("NFSMW_GAME_DIR") else { return };
+    let path = std::path::Path::new(&dir).join("TRACKS/L2RA.BUN");
+    let raw = std::fs::read(&path).unwrap();
+    let data = ea_compress::unwrap(&raw).unwrap();
+    let zones = crate::TrackZones::read(&data).expect("zones").expect("L2RA.BUN has track path zones");
+    assert_eq!(zones.zones.len(), 705);
+    let of_kind = |kind| zones.zones.iter().filter(|z| z.kind == kind).count();
+    assert_eq!((of_kind(3), of_kind(4), of_kind(5), of_kind(6)), (70, 143, 178, 211));
+    assert_eq!((of_kind(9), of_kind(13), of_kind(14)), (11, 3, 3));
+    // Every polygon lies inside its own bounding box.
+    for z in &zones.zones {
+        assert!(z.polygon.iter().all(|p| p.cmpge(z.bbox_min - 1e-3).all() && p.cmple(z.bbox_max + 1e-3).all()));
+    }
+}

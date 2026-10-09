@@ -1,7 +1,7 @@
 //! The cop waves read from the install match the tables in `docs/specs/ai-pursuit-heat.md` §2.7.
 
 use blackbox_attrib::Database;
-use nfsmw_data::pursuit::{ai_vehicle, heat_row};
+use nfsmw_data::pursuit::{ai_vehicle, heat_row, patrol_speeds_mph};
 
 use crate::install;
 
@@ -35,4 +35,12 @@ fn cop_cars_have_their_documented_speed_multipliers() {
         (midsize.max_speed_kmh, midsize.acceleration_multiplier, midsize.top_speed_multiplier),
         (280.0, 1.05, 1.6)
     );
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_patrol_speeds_are_the_documented_defaults() {
+    let Some(dir) = install() else { return };
+    let db = Database::open(&dir.read("GLOBAL/ATTRIBUTES.BIN").unwrap()).expect("attributes.bin");
+    assert_eq!(patrol_speeds_mph(&db), (50.0, 71.0));
 }

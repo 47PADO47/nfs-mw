@@ -14,12 +14,16 @@ pub const THINK_PERIOD: f32 = THINK_STEPS as f32 / 60.0;
 
 /// Posted speeds in metres per second: 35 mph on streets, 55 mph where there are four or more traffic
 /// lanes.
-pub const STREET_SPEED: f32 = 35.0 * 0.447_04;
-pub const HIGHWAY_SPEED: f32 = 55.0 * 0.447_04;
+pub const STREET_SPEED: f32 = 35.0 * MPH;
+pub const HIGHWAY_SPEED: f32 = 55.0 * MPH;
+/// Metres per second in one mile per hour.
+pub const MPH: f32 = 0.447_04;
 /// Traffic lane zones (both directions) that make a road a highway.
 const HIGHWAY_LANES: usize = 4;
-/// Lateral acceleration traffic takes bends at: 0.6 g.
-const LATERAL_ACCELERATION: f32 = 0.6 * 9.8;
+/// Lateral acceleration (in g) traffic and cops take bends at.
+const TRAFFIC_LATERAL_G: f32 = 0.6;
+const COP_LATERAL_G: f32 = 1.6;
+const GRAVITY: f32 = 9.8;
 /// The speed a car on a free road may always ask for, so that a stopped car can pull away again. The
 /// original has no such floor and a car that has come to a halt stays on the brake.
 const CREEP_SPEED: f32 = 1.0;
@@ -33,14 +37,41 @@ pub fn look_ahead(speed: f32, think: f32, radius: f32) -> f32 {
     base + speed * think + radius
 }
 
+/// How a car cruises: its speed on streets and on roads with four or more traffic lanes, and how hard it
+/// takes bends. Traffic gets the numbers of the pattern it spawned in, patrol cops the search-mode speeds.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Cruise {
+    pub street: f32,
+    pub highway: f32,
+    pub lateral_g: f32,
+    /// A cop may accelerate as hard as it likes; traffic never asks for much more than it has.
+    pub limit_acceleration: bool,
+}
+
+impl Cruise {
+    pub fn traffic(street: f32, highway: f32) -> Self {
+        Self { street, highway, lateral_g: TRAFFIC_LATERAL_G, limit_acceleration: true }
+    }
+
+    pub fn patrol(street: f32, highway: f32) -> Self {
+        Self { street, highway, lateral_g: COP_LATERAL_G, limit_acceleration: false }
+    }
+}
+
+impl Default for Cruise {
+    fn default() -> Self {
+        Self::traffic(STREET_SPEED, HIGHWAY_SPEED)
+    }
+}
+
 /// The speed limit posted on the segment the cursor is on.
-pub fn posted_speed(net: &RoadNetwork, nav: &RoadNav) -> f32 {
+pub fn posted_speed(net: &RoadNetwork, nav: &RoadNav, cruise: &Cruise) -> f32 {
     let seg = net.segment(nav.segment);
     let profile = net.profile_at(nav.segment, seg.nodes[0]);
     let lanes = profile.zones.iter().filter(|z| z.kind == zone::TRAFFIC).count();
     match lanes >= HIGHWAY_LANES {
-        true => HIGHWAY_SPEED,
-        false => STREET_SPEED,
+        true => cruise.highway,
+        false => cruise.street,
     }
 }
 
@@ -84,6 +115,7 @@ pub fn think(
     others: &[Body],
     was_blocked: bool,
     rng: &mut impl RandomSource,
+    cruise: &Cruise,
 ) -> Think {
     let speed = car.forward_speed.abs();
     let look = match was_blocked {
@@ -102,21 +134,27 @@ pub fn think(
         .and_then(|trail| update_occluded_position(trail, &car.body, nav.position, &near, true, nav.half_width));
     let target = occlusion.as_ref().map_or(nav.position, |o| o.position);
     let blocked = occlusion.as_ref().is_some_and(|o| o.avoidable != 0);
-    Think { target, speed: compute_speed(net, nav, car, occlusion.as_ref()), blocked }
+    Think { target, speed: compute_speed(net, nav, car, occlusion.as_ref(), cruise), blocked }
 }
 
 /// The wanted speed: the posted one, limited by the bends ahead and by the car in front, nothing at a dead
 /// end, and never far above the current speed.
-fn compute_speed(net: &RoadNetwork, nav: &RoadNav, car: &CarState, occlusion: Option<&Occlusion>) -> f32 {
+fn compute_speed(
+    net: &RoadNetwork,
+    nav: &RoadNav,
+    car: &CarState,
+    occlusion: Option<&Occlusion>,
+    cruise: &Cruise,
+) -> f32 {
     if nav.dead_end {
         return 0.0;
     }
-    let posted = posted_speed(net, nav);
+    let posted = posted_speed(net, nav, cruise);
     let current = car.forward_speed;
     let mut desired = posted;
     if let (Some(o), Some(trail)) = (occlusion, nav.trail()) {
         let k = trail_curvature(trail.cookies(), o.current_index, car.body.position, o, nav.position, current);
-        let a = LATERAL_ACCELERATION;
+        let a = cruise.lateral_g * GRAVITY;
         desired = desired.min((a / (a / (posted * posted)).max(k.abs())).sqrt());
         if o.avoidable != 0 && !o.from_behind {
             let length = 2.0 * car.radius;
@@ -129,6 +167,9 @@ fn compute_speed(net: &RoadNetwork, nav: &RoadNav, car: &CarState, occlusion: Op
     }
     // The cap on how far the target may exceed the current speed would pin a stopped car to the brake (the
     // pedals treat anything under 0.5 m/s as "stop"), so a free road always allows a walking pace.
+    if !cruise.limit_acceleration {
+        return desired;
+    }
     desired.min((current.max(0.0) + ACCELERATION_CAP * THINK_PERIOD).max(CREEP_SPEED))
 }
 
@@ -189,8 +230,8 @@ mod tests {
         let net = straight_net();
         let mut nav = lane_nav(&net, 0.1);
         let car = car_at(40.0, STREET_SPEED);
-        let t = think(&net, &mut nav, &car, &[], false, &mut SplitMix(1));
-        assert_eq!(posted_speed(&net, &nav), STREET_SPEED);
+        let t = think(&net, &mut nav, &car, &[], false, &mut SplitMix(1), &Cruise::default());
+        assert_eq!(posted_speed(&net, &nav, &Cruise::default()), STREET_SPEED);
         assert_eq!(t.speed, STREET_SPEED);
         assert!(!t.blocked);
         // The cursor was brought up to the look-ahead distance and the car steers at it.
@@ -203,7 +244,7 @@ mod tests {
     fn a_standing_car_may_only_ask_for_a_little_more() {
         let net = straight_net();
         let mut nav = lane_nav(&net, 0.1);
-        let t = think(&net, &mut nav, &car_at(40.0, 10.0), &[], false, &mut SplitMix(1));
+        let t = think(&net, &mut nav, &car_at(40.0, 10.0), &[], false, &mut SplitMix(1), &Cruise::default());
         assert!((t.speed - (10.0 + ACCELERATION_CAP * THINK_PERIOD)).abs() < 1e-5, "{}", t.speed);
     }
 
@@ -211,7 +252,7 @@ mod tests {
     fn a_stopped_car_on_a_free_road_pulls_away() {
         let net = straight_net();
         let mut nav = lane_nav(&net, 0.1);
-        let t = think(&net, &mut nav, &car_at(40.0, 0.0), &[], false, &mut SplitMix(1));
+        let t = think(&net, &mut nav, &car_at(40.0, 0.0), &[], false, &mut SplitMix(1), &Cruise::default());
         assert!(t.speed >= CREEP_SPEED, "{}", t.speed);
     }
 
@@ -221,7 +262,7 @@ mod tests {
         let mut nav = lane_nav(&net, 0.1);
         nav.advance(&net, 1000.0, Vec3::ZERO, &mut SplitMix(1));
         assert!(nav.dead_end);
-        let t = think(&net, &mut nav, &car_at(399.0, 10.0), &[], false, &mut SplitMix(1));
+        let t = think(&net, &mut nav, &car_at(399.0, 10.0), &[], false, &mut SplitMix(1), &Cruise::default());
         assert_eq!(t.speed, 0.0);
     }
 
@@ -239,11 +280,22 @@ mod tests {
         };
         let mut speeds = Vec::new();
         for _ in 0..3 {
-            let t = think(&net, &mut nav, &me, &[stopped], false, &mut SplitMix(1));
+            let t = think(&net, &mut nav, &me, &[stopped], false, &mut SplitMix(1), &Cruise::default());
             speeds.push((t.speed, t.blocked));
         }
         let (speed, blocked) = speeds[2];
         assert!(blocked, "{speeds:?}");
         assert!(speed < STREET_SPEED - 5.0, "{speeds:?}");
+    }
+
+    #[test]
+    fn a_patrol_cop_cruises_at_its_own_speeds_and_takes_no_acceleration_limit() {
+        let net = straight_net();
+        let mut nav = lane_nav(&net, 0.1);
+        let cruise = Cruise::patrol(22.0, 32.0);
+        assert_eq!(posted_speed(&net, &nav, &cruise), 22.0);
+        let t = think(&net, &mut nav, &car_at(40.0, 10.0), &[], false, &mut SplitMix(1), &cruise);
+        assert_eq!(t.speed, 22.0, "no cap of speed plus 2 m/s per second");
+        assert!(cruise.lateral_g > Cruise::default().lateral_g, "cops take bends harder");
     }
 }
