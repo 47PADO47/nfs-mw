@@ -6,7 +6,7 @@ use super::pipelines::{BLEND_ORDER, SHADINGS};
 use super::post::PassContext;
 use super::resources::Globals;
 use super::targets::FrameTargets;
-use crate::{FrameParams, Instance, RenderError};
+use crate::{FrameParams, Instance, RenderError, Shading};
 
 impl Renderer {
     /// Draw `instances` and present. Returns `Ok(false)` when the frame was skipped
@@ -95,6 +95,9 @@ impl Renderer {
 
         for (mode, shading) in BLEND_ORDER.iter().flat_map(|&b| SHADINGS.iter().map(move |&s| (b, s))) {
             pass.set_pipeline(self.pipelines.get(mode, shading));
+            if matches!(shading, Shading::Glossy(_)) {
+                self.glossy.bind_scene(&mut pass);
+            }
             let mut start = 0;
             while start < instances.len() {
                 let mesh_handle = instances[start].mesh;
@@ -102,7 +105,12 @@ impl Renderer {
                 if let Some(mesh) = self.meshes.get(mesh_handle.0) {
                     pass.set_vertex_buffer(0, mesh.vertices.slice(..));
                     pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint16);
-                    for d in mesh.draws.iter().filter(|d| d.blend == mode && d.shading == shading) {
+                    for d in mesh.draws.iter().filter(|d| d.blend == mode && d.shading.same_pipeline(shading)) {
+                        if let Shading::Glossy(material) = d.shading
+                            && !self.glossy.bind_material(&mut pass, material)
+                        {
+                            continue;
+                        }
                         let slot = d.texture.map(|t| self.redirects.get(&t.0).copied().unwrap_or(t.0));
                         let texture = slot.and_then(|s| self.textures.get(s)).or(self.textures.get(0));
                         if let Some(texture) = texture {

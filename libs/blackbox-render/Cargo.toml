@@ -16,5 +16,8 @@ raw-window-handle.workspace = true
 thiserror.workspace = true
 wgpu.workspace = true
 
+[dev-dependencies]
+naga = { version = "30", features = ["wgsl-in"] }
+
 [lints]
 workspace = true
