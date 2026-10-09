@@ -3,6 +3,9 @@
 //! Each source produces a [`Partial`]; [`Settings::load`] merges them. The in-game settings menu
 //! (milestone 6) and the developer console write the config file layer.
 
+mod car_shading;
+#[cfg(test)]
+mod car_shading_tests;
 mod controls;
 #[cfg(test)]
 mod controls_tests;
@@ -37,6 +40,7 @@ mod write;
 
 use blackbox_render::Backend;
 
+pub use car_shading::CarShading;
 pub use controls::{Controls, Deadzone, DeadzoneMode, Sensitivity};
 pub use hud_layout::HudLayout;
 pub use minimap::MinimapMode;
@@ -81,6 +85,8 @@ pub struct Settings {
     pub radio: bool,
     /// Start at the main menu instead of the boot movies and the title screen (the `--skip-boot` flag).
     pub skip_intro: bool,
+    /// How cars are shaded: glossy (default) or the single-light shading of everything else.
+    pub car_shading: CarShading,
     /// Optional smoke presentation quality; standard retains the default cost and look.
     pub smoke_quality: SmokeQuality,
     /// Draw bounded, ground-following tire marks.
@@ -149,6 +155,7 @@ impl From<Partial> for Settings {
             tire_smoke: p.tire_smoke.unwrap_or(true),
             radio: p.radio.unwrap_or(true),
             skip_intro: p.skip_intro.unwrap_or(false),
+            car_shading: p.car_shading.unwrap_or_default(),
             smoke_quality: p.smoke_quality.unwrap_or_default(),
             skid_marks: p.skid_marks.unwrap_or(true),
             collision_sparks: p.collision_sparks.unwrap_or(false),

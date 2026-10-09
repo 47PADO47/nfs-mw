@@ -1,32 +1,42 @@
 //! Car textures and shading materials on the GPU, looked up through the car's texture swaps
-//! and its paint.
+//! and its paint. With simple car shading no glossy material or light rig is created at all and the
+//! solids keep the renderer's single-light shading.
 
 use std::collections::{HashMap, HashSet};
 
 use blackbox_render::{BlendMode, GlossyMaterial, GlossyMaterialHandle, Renderer, Shading, TextureHandle};
 use blackbox_scene::{MaterialLookup, blend_mode, upload_texture};
+use glam::Vec3;
 use nfsmw_data::car::{CARSKIN, CarModel, TextureSwaps};
 
+use super::lighting;
 use super::shading::glossy_material;
+use crate::settings::CarShading;
 
 pub struct CarMaterials {
     uploaded: HashMap<u32, (TextureHandle, BlendMode)>,
     /// The glossy material of each light material the car uses, by name hash.
     glossy: HashMap<u32, GlossyMaterialHandle>,
-    /// For light materials the car tables do not know.
-    fallback: GlossyMaterialHandle,
+    /// For light materials the car tables do not know; `None` with simple shading.
+    fallback: Option<GlossyMaterialHandle>,
     /// The light material that stands in for `CARSKIN`.
     paint: Option<u32>,
 }
 
 impl CarMaterials {
-    pub fn upload(renderer: &mut Renderer, model: &CarModel) -> Self {
+    /// Upload the car's textures and, for glossy shading, its light materials, lighting the rig by a sun
+    /// that is in direction `to_sun` from the car.
+    pub fn upload(renderer: &mut Renderer, model: &CarModel, shading: CarShading, to_sun: Vec3) -> Self {
         let uploaded = model
             .textures
             .iter()
             .filter_map(|(&hash, t)| upload_texture(renderer, t).map(|handle| (hash, (handle, blend_mode(Some(t))))))
             .collect();
         let paint = model.paint.as_ref().and_then(|p| p.light_material);
+        if shading == CarShading::Simple {
+            return Self { uploaded, glossy: HashMap::new(), fallback: None, paint };
+        }
+        renderer.set_lighting_rig(&lighting::rig(to_sun));
         let used: HashSet<u32> =
             model.solids.values().flat_map(|s| s.light_material_hashes.iter().copied()).chain(paint).collect();
         let glossy = used
@@ -36,7 +46,7 @@ impl CarMaterials {
                 Some((hash, renderer.create_glossy_material(&glossy_material(material))))
             })
             .collect();
-        let fallback = renderer.create_glossy_material(&GlossyMaterial::default());
+        let fallback = Some(renderer.create_glossy_material(&GlossyMaterial::default()));
         Self { uploaded, glossy, fallback, paint }
     }
 
@@ -45,7 +55,7 @@ impl CarMaterials {
         for (handle, _) in self.uploaded.into_values() {
             renderer.destroy_texture(handle);
         }
-        for handle in self.glossy.into_values().chain([self.fallback]) {
+        for handle in self.glossy.into_values().chain(self.fallback) {
             renderer.destroy_glossy_material(handle);
         }
     }
@@ -77,10 +87,11 @@ impl MaterialLookup for Lookup<'_> {
     /// Body groups name `CARSKIN`, which stands for the paint's light material.
     fn shading(&self, light_material_hash: u32) -> Option<Shading> {
         let materials = self.materials;
+        let fallback = materials.fallback?;
         let hash = match (light_material_hash == CARSKIN, materials.paint) {
             (true, Some(paint)) => paint,
             _ => light_material_hash,
         };
-        Some(Shading::Glossy(materials.glossy.get(&hash).copied().unwrap_or(materials.fallback)))
+        Some(Shading::Glossy(materials.glossy.get(&hash).copied().unwrap_or(fallback)))
     }
 }

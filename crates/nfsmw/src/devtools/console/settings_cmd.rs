@@ -11,7 +11,7 @@ use crate::settings::{
 };
 
 /// Settings the console can show.
-const KEYS: [&str; 42] = [
+const KEYS: [&str; 43] = [
     "deadzone_mode",
     "steering_deadzone",
     "camera_deadzone",
@@ -36,6 +36,7 @@ const KEYS: [&str; 42] = [
     "hud",
     "tire_smoke",
     "radio",
+    "car_shading",
     "smoke_quality",
     "skid_marks",
     "collision_sparks",
@@ -83,6 +84,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "hud" => on_off(settings.hud).to_owned(),
         "tire_smoke" => on_off(settings.tire_smoke).to_owned(),
         "radio" => on_off(settings.radio).to_owned(),
+        "car_shading" => settings.car_shading.to_string(),
         "smoke_quality" => settings.smoke_quality.to_string(),
         "skid_marks" => on_off(settings.skid_marks).to_owned(),
         "collision_sparks" => on_off(settings.collision_sparks).to_owned(),
@@ -141,6 +143,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "hud" => settings.hud = parse_bool(value)?,
         "tire_smoke" => settings.tire_smoke = parse_bool(value)?,
         "radio" => settings.radio = parse_bool(value)?,
+        "car_shading" => settings.car_shading = value.parse()?,
         "smoke_quality" => settings.smoke_quality = value.parse()?,
         "skid_marks" => settings.skid_marks = parse_bool(value)?,
         "collision_sparks" => settings.collision_sparks = parse_bool(value)?,
@@ -196,6 +199,7 @@ fn syntax(key: &str) -> Option<&'static str> {
         "monitor" => "<current|primary|index>",
         "resolution" => "<WIDTHxHEIGHT|native>",
         "volume" | "master_volume" | "music_volume" | "sfx_volume" | "engine_volume" | "speech_volume" => "<0-100>",
+        "car_shading" => "<simple|glossy>",
         "smoke_quality" => "<standard|high>",
         "spark_style" => "<original-pc|restored-experimental>",
         "transmission" => "<automatic|manual>",

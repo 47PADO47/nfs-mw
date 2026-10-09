@@ -105,6 +105,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.exhaust_flames {
         put("exhaust_flames", Value::Boolean(v));
     }
+    if let Some(v) = changes.car_shading {
+        put("car_shading", Value::String(v.to_string()));
+    }
     if let Some(v) = changes.smoke_quality {
         put("smoke_quality", Value::String(v.to_string()));
     }

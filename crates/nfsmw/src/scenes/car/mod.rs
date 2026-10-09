@@ -16,6 +16,7 @@ use glam::{Mat4, Vec3};
 use nfsmw_data::car::{CarModel, LoadOptions};
 
 use crate::input::ActionState;
+use crate::settings::CarShading;
 use crate::viewer::Scene;
 use crate::viewer::camera::{FlyCamera, OrbitCamera};
 use materials::CarMaterials;
@@ -40,12 +41,25 @@ pub struct CarScene {
     /// Everything uploaded for the current car, to free when another replaces it.
     meshes: Vec<MeshHandle>,
     materials: Option<CarMaterials>,
+    /// The car shading the current car was uploaded with, and the one asked for since.
+    shading: CarShading,
+    wanted_shading: CarShading,
 }
 
 impl CarScene {
     pub fn new(model: CarModel, yaw_degrees: f32) -> Self {
         let camera = orbit_for(&model, yaw_degrees.to_radians());
-        Self { model, camera, free: None, source: None, instances: Vec::new(), meshes: Vec::new(), materials: None }
+        Self {
+            model,
+            camera,
+            free: None,
+            source: None,
+            instances: Vec::new(),
+            meshes: Vec::new(),
+            materials: None,
+            shading: CarShading::default(),
+            wanted_shading: CarShading::default(),
+        }
     }
 
     /// Let the console load other cars from `dir`, with the same options.
@@ -72,7 +86,8 @@ impl CarScene {
 
     /// Upload the car and its floor and list the instances.
     fn upload(&mut self, renderer: &mut Renderer) {
-        let materials = CarMaterials::upload(renderer, &self.model);
+        self.shading = self.wanted_shading;
+        let materials = CarMaterials::upload(renderer, &self.model, self.shading, -LIGHT_DIR);
         let mut cache: HashMap<(u32, bool), Option<MeshHandle>> = HashMap::new();
         let world = self.to_world();
         for p in &self.model.placements {
@@ -138,12 +153,19 @@ impl Scene for CarScene {
     }
 
     fn init(&mut self, renderer: &mut Renderer) -> Result<()> {
-        renderer.set_lighting_rig(&lighting::rig(-LIGHT_DIR));
         self.upload(renderer);
         Ok(())
     }
 
-    fn update(&mut self, _renderer: &mut Renderer, input: &ActionState, dt: f32) {
+    fn set_car_shading(&mut self, shading: CarShading) {
+        self.wanted_shading = shading;
+    }
+
+    fn update(&mut self, renderer: &mut Renderer, input: &ActionState, dt: f32) {
+        if self.wanted_shading != self.shading {
+            self.release(renderer);
+            self.upload(renderer);
+        }
         match &mut self.free {
             Some(free) => free.update(input, dt),
             None => self.camera.update(input),

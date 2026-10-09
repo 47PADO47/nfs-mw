@@ -3,8 +3,8 @@
 use blackbox_render::Backend;
 
 use super::{
-    Deadzone, HudLayout, MinimapMode, Monitor, PostAa, PostBloom, PostTonemap, RadioHudStyle, RenderScale, Resolution,
-    Sensitivity, SmokeQuality, Transmission, UpscaleMode, WindowMode,
+    CarShading, Deadzone, HudLayout, MinimapMode, Monitor, PostAa, PostBloom, PostTonemap, RadioHudStyle, RenderScale,
+    Resolution, Sensitivity, SmokeQuality, Transmission, UpscaleMode, WindowMode,
 };
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
@@ -70,6 +70,7 @@ pub struct Partial {
     pub tire_smoke: Option<bool>,
     pub radio: Option<bool>,
     pub skip_intro: Option<bool>,
+    pub car_shading: Option<CarShading>,
     pub smoke_quality: Option<SmokeQuality>,
     pub skid_marks: Option<bool>,
     pub collision_sparks: Option<bool>,
@@ -121,6 +122,7 @@ impl Partial {
             tire_smoke: self.tire_smoke.or(lower.tire_smoke),
             radio: self.radio.or(lower.radio),
             skip_intro: self.skip_intro.or(lower.skip_intro),
+            car_shading: self.car_shading.or(lower.car_shading),
             smoke_quality: self.smoke_quality.or(lower.smoke_quality),
             skid_marks: self.skid_marks.or(lower.skid_marks),
             collision_sparks: self.collision_sparks.or(lower.collision_sparks),

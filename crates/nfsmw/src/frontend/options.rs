@@ -3,6 +3,7 @@
 
 use std::str::FromStr;
 
+use super::graphics_options::GraphicsSetting;
 use super::ids::{LABEL_OFF, LABEL_ON};
 use super::input_options::InputSetting;
 use super::logic::Category;
@@ -36,6 +37,7 @@ pub enum Setting {
     Transmission,
     Input(InputSetting),
     Post(PostSetting),
+    Graphics(GraphicsSetting),
     HudLayout,
     RadioHud,
     Minimap,
@@ -104,6 +106,7 @@ pub fn rows(category: Category) -> Vec<Row> {
         ]
         .into_iter()
         .chain(PostSetting::ALL.into_iter().map(|setting| row(Setting::Post(setting), setting.title())))
+        .chain(GraphicsSetting::ALL.into_iter().map(|setting| row(Setting::Graphics(setting), setting.title())))
         .collect(),
         Category::Gameplay => vec![
             row(Setting::Hud, Title::Label(0xAC14_8579)),
@@ -169,6 +172,7 @@ impl Setting {
         match self {
             Setting::Input(setting) => setting.data(s),
             Setting::Post(setting) => setting.data(s),
+            Setting::Graphics(setting) => setting.data(s),
             Setting::HudLayout => Data::Text(
                 match s.hud_layout {
                     HudLayout::Pc => "PC",
@@ -253,12 +257,17 @@ impl Setting {
         if let Setting::Post(setting) = self {
             return setting.step(s, changed, forward);
         }
+        if let Setting::Graphics(setting) = self {
+            return setting.step(s, changed, forward);
+        }
         if !self.enabled(s) {
             return false;
         }
         let before = *s;
         match self {
-            Setting::Input(_) | Setting::Post(_) => unreachable!("input and post settings are handled above"),
+            Setting::Input(_) | Setting::Post(_) | Setting::Graphics(_) => {
+                unreachable!("input, post and graphics settings are handled above")
+            }
             Setting::HudLayout => {
                 let layouts = [HudLayout::Pc, HudLayout::Classic, HudLayout::Xbox360];
                 let at = layouts.iter().position(|layout| *layout == s.hud_layout).unwrap_or(0);
@@ -462,7 +471,7 @@ mod tests {
     #[test]
     fn every_category_has_rows() {
         assert_eq!(rows(Category::Audio).len(), 5);
-        assert_eq!(rows(Category::Video).len(), 16);
+        assert_eq!(rows(Category::Video).len(), 17);
         assert_eq!(rows(Category::Gameplay).len(), 5);
         assert_eq!(rows(Category::Controls).len(), 8);
     }

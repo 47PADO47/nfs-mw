@@ -206,6 +206,16 @@ impl Drive {
         true
     }
 
+    /// Draw the car with `shading` from now on (it is uploaded again when that changes).
+    pub fn set_car_shading(
+        &mut self,
+        renderer: &mut blackbox_render::Renderer,
+        shading: crate::settings::CarShading,
+        to_sun: glam::Vec3,
+    ) {
+        self.rig.reshade(renderer, shading, to_sun);
+    }
+
     /// Swap the car model; the car is put back on the road where it stands.
     pub fn set_car(
         &mut self,

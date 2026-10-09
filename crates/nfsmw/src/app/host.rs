@@ -7,7 +7,7 @@ use bevy_ecs::resource::Resource;
 use blackbox_render::Renderer;
 
 use super::pacing::FrameLimiter;
-use crate::settings::{Settings, SmokeQuality, Transmission, WheelOptions};
+use crate::settings::{CarShading, Settings, SmokeQuality, Transmission, WheelOptions};
 use crate::viewer::Scene;
 
 pub struct Host {
@@ -30,6 +30,7 @@ pub struct Host {
     pub hold_capture: bool,
     tire_effects: [bool; 2],
     smoke_quality: SmokeQuality,
+    car_shading: CarShading,
     vehicle_effects: [bool; 2],
     spark_style: crate::settings::SparkStyle,
     exhaust_flames: bool,
@@ -43,6 +44,7 @@ impl Host {
     pub fn new(mut scene: Box<dyn Scene>, settings: &Settings, screenshot: Option<super::screenshot::Plan>) -> Self {
         scene.set_tire_effects(settings.tire_smoke, settings.skid_marks);
         scene.set_smoke_quality(settings.smoke_quality);
+        scene.set_car_shading(settings.car_shading);
         scene.set_vehicle_effects(settings.collision_sparks, settings.speed_trails);
         scene.set_spark_style(settings.spark_style);
         scene.set_exhaust_flames(settings.exhaust_flames);
@@ -60,6 +62,7 @@ impl Host {
             hold_capture: false,
             tire_effects: [settings.tire_smoke, settings.skid_marks],
             smoke_quality: settings.smoke_quality,
+            car_shading: settings.car_shading,
             vehicle_effects: [settings.collision_sparks, settings.speed_trails],
             spark_style: settings.spark_style,
             exhaust_flames: settings.exhaust_flames,
@@ -73,6 +76,7 @@ impl Host {
     pub fn replace_scene(&mut self, mut scene: Box<dyn Scene>) -> anyhow::Result<()> {
         scene.set_tire_effects(self.tire_effects[0], self.tire_effects[1]);
         scene.set_smoke_quality(self.smoke_quality);
+        scene.set_car_shading(self.car_shading);
         scene.set_vehicle_effects(self.vehicle_effects[0], self.vehicle_effects[1]);
         scene.set_spark_style(self.spark_style);
         scene.set_exhaust_flames(self.exhaust_flames);
@@ -96,6 +100,11 @@ impl Host {
     pub fn set_smoke_quality(&mut self, quality: SmokeQuality) {
         self.smoke_quality = quality;
         self.scene.set_smoke_quality(quality);
+    }
+
+    pub fn set_car_shading(&mut self, shading: CarShading) {
+        self.car_shading = shading;
+        self.scene.set_car_shading(shading);
     }
 
     pub fn set_spark_style(&mut self, style: crate::settings::SparkStyle) {

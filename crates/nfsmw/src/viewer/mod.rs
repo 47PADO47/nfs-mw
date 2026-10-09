@@ -86,6 +86,8 @@ pub trait Scene {
     fn refresh_effects(&mut self, _renderer: &mut Renderer) {}
     /// Apply the optional smoke presentation quality. Scenes without tires ignore it.
     fn set_smoke_quality(&mut self, _quality: crate::settings::SmokeQuality) {}
+    /// Apply the car shading setting: the scene re-uploads its cars when it changes. Scenes without cars ignore it.
+    fn set_car_shading(&mut self, _shading: crate::settings::CarShading) {}
     /// A picture to show over the window this frame, if any.
     fn fullscreen(&mut self) -> Option<Fullscreen> {
         None
