@@ -1,7 +1,7 @@
 //! From the game's light materials to the renderer's glossy materials
 //! (docs/specs/car-assembly.md §8).
 
-use blackbox_render::GlossyMaterial;
+use blackbox_gfx::GlossyMaterial;
 use nfsmw_data::car::LightMaterial;
 
 /// A material's `min` (edge-on) value and `range` up to its `max` (facing), per channel:

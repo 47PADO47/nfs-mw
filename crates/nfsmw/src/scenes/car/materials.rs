@@ -4,7 +4,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use blackbox_render::{BlendMode, GlossyMaterial, GlossyMaterialHandle, Renderer, Shading, TextureHandle};
+use blackbox_gfx::{BlendMode, GlossyMaterial, GlossyMaterialHandle, RenderBackend, Shading, TextureHandle};
 use blackbox_scene::{MaterialLookup, blend_mode, upload_texture};
 use glam::Vec3;
 use nfsmw_data::car::{CARSKIN, CarModel, TextureSwaps};
@@ -26,7 +26,7 @@ pub struct CarMaterials {
 impl CarMaterials {
     /// Upload the car's textures and, for glossy shading, its light materials, lighting the rig by a sun
     /// that is in direction `to_sun` from the car.
-    pub fn upload(renderer: &mut Renderer, model: &CarModel, shading: CarShading, to_sun: Vec3) -> Self {
+    pub fn upload(renderer: &mut dyn RenderBackend, model: &CarModel, shading: CarShading, to_sun: Vec3) -> Self {
         let uploaded = model
             .textures
             .iter()
@@ -51,7 +51,7 @@ impl CarMaterials {
     }
 
     /// Free the textures and materials.
-    pub fn destroy(self, renderer: &mut Renderer) {
+    pub fn destroy(self, renderer: &mut dyn RenderBackend) {
         for (handle, _) in self.uploaded.into_values() {
             renderer.destroy_texture(handle);
         }
