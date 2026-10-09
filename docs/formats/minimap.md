@@ -17,7 +17,7 @@ tests or probes.
 | `MINI_MAP_<event id>.BIN` (264 files) | | the minimap of one race; `_R` files are the reversed routes **[unconfirmed]** |
 
 A file is a plain sequence of 64 top-level chunks `0x0003A100 CompTPKBlock` and nothing else. The payload of
-each chunk is a bare JDLZ blob that inflates to a complete TPK of exactly one texture (17,152 bytes:
+each chunk in the original PC install is a bare JDLZ blob that inflates to a complete TPK of exactly one texture (17,152 bytes:
 [textures.md](textures.md#linking-textures-to-models) has the container). The texture is:
 
 | Property | Value |
@@ -37,6 +37,14 @@ the whole city: a tile is 832 m wide).
 
 The picture is additive: the tile texture's blend type is 2, so black is "nothing" and the map brightens what is
 behind it. See the spec for how the HUD draws it.
+
+### Replacement maps **[verified]**
+
+A modded PC install has the same 64-chunk grid with higher-resolution tiles and mixed compression wrappers:
+the full map contains 60 JDLZ and 4 HUFF blocks, `Unlock_1` has 33 JDLZ and 31 HUFF, and `Unlock_2` has 48 JDLZ
+and 16 HUFF. The reader detects each block's wrapper separately using `ea-compress`; it also accepts the stored
+RAWW wrapper supported by that library. The authored HUD tile size and world calibration are independent of
+the replacement texture's pixel dimensions. Original map files remain unchanged.
 
 ## Calibration: `TrackInfos` **[verified]**
 

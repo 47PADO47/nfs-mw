@@ -169,6 +169,9 @@ pub struct ViewArgs {
     /// Render one frame to this PNG file and exit instead of opening an interactive window.
     #[arg(long, value_name = "FILE.png")]
     pub screenshot: Option<PathBuf>,
+    /// Physical render target for a screenshot (default 1280x720); independent of window preferences.
+    #[arg(long, hide = true, requires = "screenshot", value_name = "WIDTHxHEIGHT", value_parser = parse_screenshot_size)]
+    pub screenshot_size: Option<[u32; 2]>,
     /// Run a console command once the window is up (repeatable), e.g. --exec "fps 60" --exec "car PORSCHE911".
     #[arg(long, value_name = "COMMAND")]
     pub exec: Vec<String>,
@@ -218,6 +221,7 @@ impl ViewArgs {
     pub fn run_options(&self, dir: &game_install::GameDir, hud_default: bool) -> crate::app::RunOptions {
         crate::app::RunOptions {
             screenshot: self.screenshot.clone(),
+            screenshot_size: self.screenshot_size,
             exec: self.exec.clone(),
             open_console: self.open_console,
             hud: (self.hud || hud_default || self.hud_demo.is_some()).then(|| dir.clone()),
@@ -288,6 +292,13 @@ fn parse_xy(s: &str) -> Result<[f32; 2], String> {
     Ok([n(x)?, n(y)?])
 }
 
+fn parse_screenshot_size(s: &str) -> Result<[u32; 2], String> {
+    let Resolution::Pixels { width, height } = s.parse::<Resolution>()? else {
+        return Err("expected WIDTHxHEIGHT, not native".into());
+    };
+    Ok([width, height])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -309,6 +320,22 @@ mod tests {
     fn xy() {
         assert_eq!(parse_xy("1.5,-2").unwrap(), [1.5, -2.0]);
         assert!(parse_xy("3").is_err());
+    }
+
+    #[test]
+    fn screenshot_size_is_explicit_and_independent_of_window_preferences() {
+        for size in ["1920x1080", "2560x1440", "3840x2160"] {
+            let cli =
+                Cli::try_parse_from(["nfsmw", "view-world", "--screenshot", "out.png", "--screenshot-size", size])
+                    .unwrap();
+            let Some(Command::ViewWorld { view, .. }) = cli.command else { panic!("wrong command") };
+            assert_eq!(view.screenshot_size, Some(parse_screenshot_size(size).unwrap()));
+            assert_eq!(view.settings_layer().resolution, None);
+        }
+        assert!(Cli::try_parse_from(["nfsmw", "view-world", "--screenshot-size", "1920x1080"]).is_err());
+        for invalid in ["native", "0x1080", "1920x0", "16385x1080", "1920"] {
+            assert!(parse_screenshot_size(invalid).is_err(), "{invalid}");
+        }
     }
 
     #[test]

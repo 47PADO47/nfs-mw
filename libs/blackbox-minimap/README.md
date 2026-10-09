@@ -1,12 +1,12 @@
 # blackbox-minimap
 
-The minimap of EA Black Box games (Need for Speed: Most Wanted): a reader for the map files (an 8 x 8 grid of
-JDLZ-compressed one-texture TPKs), the projection from world metres to places on the map picture, and the
+The minimap of EA Black Box games: a reader for tiled map files (wrapped one-texture TPKs, including mixed
+JDLZ/HUFF replacement maps), the projection from world metres to places on the map picture, and the
 placement of the view around the player: which four tiles are shown, how far the group of pieces scrolls, what
 the mask and the pieces' texture rectangles follow, how the picture or the arrow turns, and where a blip
 (another car, an event icon) goes. **No rendering, no file access:** a host passes bytes in and draws.
 
-- `TileSet::parse` reads a `MINI_MAP*.BIN` file into its 64 tile textures (`blackbox-tpk` `Texture`s); `tile_name`
+- `TileSet::parse` reads map bytes into tile textures (`blackbox-tpk` `Texture`s); `tile_name`
   gives the name the HUD package refers to a tile by.
 - `Calibration::to_map` is the game's world-to-map conversion; `bearing_degrees` turns a world direction into a
   compass bearing.

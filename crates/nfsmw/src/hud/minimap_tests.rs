@@ -52,6 +52,19 @@ fn package() -> Package {
     ];
     for (i, name) in ["TRACK_MAP1", "TRACK_MAP2", "TRACK_MAP3", "TRACK_MAP4"].iter().enumerate() {
         let mut piece = object(ObjectKind::MultiImage, 21 + i as u32, name, Some(20), [0.0; 2]);
+        piece.multi = Some(MultiDef { textures: [fe_hash_upper("MINIMAP_MASK"), 0, 0], flags: [1, 0, 0] });
+        piece.data.words[7] = match i % 2 {
+            0 => -64.0f32,
+            _ => 64.0f32,
+        }
+        .to_bits();
+        piece.data.words[8] = match i {
+            0 | 1 => -64.0f32,
+            _ => 64.0f32,
+        }
+        .to_bits();
+        piece.data.words[14] = 128.0f32.to_bits();
+        piece.data.words[15] = 128.0f32.to_bits();
         let w = WINDOWS[i];
         for (word, v) in [(21, w[0]), (22, w[1]), (27, w[2]), (28, w[3])] {
             piece.data.words[word] = v.to_bits();
@@ -168,5 +181,95 @@ fn the_player_stays_at_the_centre_of_the_minimap_whatever_the_turn() {
         let on_screen = group.world.transform_point3(local);
         close(on_screen.x, GROUP_AT[0]);
         close(on_screen.y, GROUP_AT[1]);
+    }
+}
+
+#[test]
+fn invalid_calibration_or_missing_piece_mask_keeps_the_map_unbound() {
+    let mut rt = Runtime::new();
+    let id = rt.load(package());
+    for width in [0.0, -1.0, f32::INFINITY, f32::NAN] {
+        assert!(MinimapBinding::new(&rt, id, Calibration { width, ..MAP }, "MAP").is_none());
+    }
+    let mut incomplete = package();
+    incomplete.objects.iter_mut().find(|o| o.name_hash == fe_hash_upper("TRACK_MAP1")).unwrap().multi = None;
+    let id = rt.load(incomplete);
+    assert!(MinimapBinding::new(&rt, id, MAP, "MAP").is_none());
+}
+
+#[test]
+fn without_a_map_binding_the_rest_of_the_hud_remains_usable() {
+    let mut rt = Runtime::new();
+    let id = rt.load(package());
+    let mut binding = HudBinding::new(&mut rt, id);
+    binding.apply(&mut rt, &state([1250.0, 6750.0], [0.0, 1.0], Orientation::North));
+    assert!(node(&rt, id, "SpeedometerGroup").visible);
+    assert!(node(&rt, id, "GaugeCluster").visible);
+    for name in ["TRACK_MAP", "TRACKMAPTARGETRING", "PLAYERCARINDICATOR"] {
+        assert!(!node(&rt, id, name).visible);
+    }
+}
+
+#[test]
+fn a_missing_tile_or_unreadable_mask_disables_only_the_map() {
+    for missing in [None, Some(0), Some(31), Some(63)] {
+        let mut rt = Runtime::new();
+        let id = rt.load(package());
+        let minimap = MinimapBinding::new(&rt, id, MAP, "MINI_MAP").unwrap();
+        assert!(minimap.resources_available(|_| true, |_| true));
+        let available = minimap.resources_available(
+            |key| missing.is_none_or(|n| key != fe_hash_upper(&tile_name("MINI_MAP", n))),
+            |_| missing.is_some(),
+        );
+        assert!(!available, "a tile or the mask is missing");
+        let mut binding = HudBinding::new(&mut rt, id).with_minimap(available.then_some(minimap));
+        binding.apply(&mut rt, &state([1250.0, 6750.0], [0.0, 1.0], Orientation::North));
+        assert!(node(&rt, id, "SpeedometerGroup").visible);
+        for name in ["TRACK_MAP", "TRACK_MAP1", "TRACKMAPTARGETRING", "PLAYERCARINDICATOR"] {
+            assert!(!node(&rt, id, name).visible, "{name} must not leave an unclipped square or orphan arrow");
+        }
+    }
+}
+
+#[test]
+fn world_landmarks_stay_aligned_when_tiles_switch_or_the_map_rotates() {
+    let (mut rt, id, mut binding) = setup();
+    // Cross both half-tile selection boundaries and tile boundaries in each axis.
+    for x in [1499.9, 1500.0, 1500.1, 1999.9, 2000.0, 2000.1] {
+        for y in [6499.9, 6500.0, 6500.1, 5999.9, 6000.0, 6000.1] {
+            for orientation in [Orientation::North, Orientation::Heading] {
+                let s = state([x, y], [0.6, 0.8], orientation);
+                binding.apply(&mut rt, &s);
+                let bearing = blackbox_minimap::bearing_degrees([0.6, 0.8]);
+                let turn = match orientation {
+                    Orientation::North => 0.0,
+                    Orientation::Heading => -bearing.to_radians(),
+                };
+                let (sin, cos) = turn.sin_cos();
+                // A landmark 100 metres east and 70 north of the player, independent of tile selection.
+                let landmark = MAP.to_map([x + 100.0, y + 70.0]);
+                let expected = Vec3::new(
+                    GROUP_AT[0] + (100.0 * cos + 70.0 * sin) * 1024.0 / MAP.width,
+                    GROUP_AT[1] + (100.0 * sin - 70.0 * cos) * 1024.0 / MAP.width,
+                    0.0,
+                );
+                let (column, row) = ((landmark[0] * 8.0).floor() as i32, (landmark[1] * 8.0).floor() as i32);
+                let tile = row * 8 + column;
+                let tree = rt.tree(id);
+                let piece = tree
+                    .nodes
+                    .iter()
+                    .find(|n| {
+                        matches!(n.kind,
+                            NodeKind::Image { texture, .. } if texture == fe_hash_upper(&tile_name("MINI_MAP", tile))
+                        )
+                    })
+                    .expect("nearby landmark has a selected tile");
+                let uv = Vec3::new(landmark[0] * 8.0 - column as f32 - 0.5, landmark[1] * 8.0 - row as f32 - 0.5, 0.0);
+                let actual = piece.world.transform_point3(uv);
+                close(actual.x, expected.x);
+                close(actual.y, expected.y);
+            }
+        }
     }
 }

@@ -74,6 +74,7 @@ pub fn read_track_infos(dir: &GameDir) -> Result<Vec<TrackInfo>> {
 pub fn open_city_calibration(dir: &GameDir) -> Result<Calibration> {
     let infos = read_track_infos(dir)?;
     let info = infos.iter().find(|t| t.number == OPEN_CITY).ok_or_else(|| anyhow!("no track {OPEN_CITY}"))?;
+    anyhow::ensure!(info.map.is_valid(), "track {OPEN_CITY} has invalid map calibration: {:?}", info.map);
     Ok(info.map)
 }
 

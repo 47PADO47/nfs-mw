@@ -31,8 +31,13 @@ pub fn wait_ready(scene: &mut dyn Scene, renderer: &mut Renderer) {
 }
 
 /// Render `instances` (and the UI layer) off-screen and write the PNG.
-pub fn capture(renderer: &mut Renderer, params: &FrameParams, instances: &[Instance], path: &Path) -> Result<()> {
-    let (w, h) = SIZE;
+pub fn capture(
+    renderer: &mut Renderer,
+    params: &FrameParams,
+    instances: &[Instance],
+    (w, h): (u32, u32),
+    path: &Path,
+) -> Result<()> {
     let pixels = renderer.capture(w, h, params, instances)?;
     save_png(path, w, h, &pixels)?;
     println!("wrote {}", path.display());

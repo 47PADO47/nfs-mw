@@ -1,4 +1,4 @@
-//! The minimap of EA Black Box games (Need for Speed: Most Wanted): the map tiles, the projection from world
+//! The minimap of EA Black Box games: the map tiles, the projection from world
 //! metres to map units, and the placement of the view around the player (which four tiles, the scroll, the turn).
 //! No rendering and no file access: a host feeds it bytes and draws the result.
 //!

@@ -113,6 +113,11 @@ impl MeshBuilder {
 }
 
 impl BlackboxPresenter {
+    #[cfg(test)]
+    pub(crate) fn cache_sizes(&self) -> (usize, usize, usize) {
+        (self.uploaded.len(), self.masked.len(), self.decoded.len())
+    }
+
     /// Builds the HUD meshes for `tree` and prepends them to the frame's UI layer (egui's panels stay on top);
     /// uploads the textures it has not uploaded yet.
     pub fn present(&mut self, tree: &UiTree, assets: &UiAssets, screen: Screen, out: &mut UiOutput) {
