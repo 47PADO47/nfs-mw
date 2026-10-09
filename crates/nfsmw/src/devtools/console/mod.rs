@@ -5,6 +5,8 @@
 
 mod exec;
 #[cfg(test)]
+mod exhaust_flames_tests;
+#[cfg(test)]
 mod hud_layout_tests;
 mod parse;
 mod settings_cmd;
