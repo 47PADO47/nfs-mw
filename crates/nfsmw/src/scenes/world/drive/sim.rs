@@ -6,7 +6,10 @@
 //! the car model has 2 rear right, 3 rear left.
 
 use blackbox_collision::CollisionWorld;
+use blackbox_vehicle::ControlConfig;
+use blackbox_vehicle::drivetrain::{GEAR_FIRST, GEAR_NEUTRAL, GEAR_REVERSE};
 use blackbox_vehicle::induction::InductionKind;
+use blackbox_vehicle::steering::{ABSOLUTE_MAX_STEERING, SteeringDevice};
 use blackbox_vehicle::{FIXED_STEP, Ground, InputState, Vehicle};
 use glam::{Mat3, Quat, Vec3};
 use nfsmw_data::car::WheelPose;
@@ -94,21 +97,70 @@ impl CarSim {
         }
     }
 
+    /// A sim for a car drawn with `rig`: the wheel heights and the tire shapes come from the model.
+    pub fn for_rig(physics: CarPhysics, rig: &super::rig::CarRig) -> Self {
+        let mut sim = Self::new(physics, rig.rest_heights());
+        sim.set_visual_tires(rig.visual_tires());
+        sim
+    }
+
     pub(super) fn set_visual_tires(&mut self, tires: Option<[super::visual_tires::VisualTire; 4]>) {
         self.visual_tires = tires;
     }
 
     /// Put the car on the road at `spawn`, standing still. False when `ground` has nothing there.
     pub fn place(&mut self, ground: &dyn Ground, spawn: Spawn) -> bool {
+        self.place_moving(ground, spawn, 0.0)
+    }
+
+    /// Put the car on the road at `spawn`, already rolling forward at `speed` m/s.
+    pub fn place_moving(&mut self, ground: &dyn Ground, spawn: Spawn, speed: f32) -> bool {
         self.spin = [0.0; 4];
         let [x, _, z] = space::to_physics(spawn.position);
         // The heading is counter-clockwise from +X in the world; the library's yaw is about the up axis
         // from +z, which is the other way round.
         let top = spawn.position.z + 2.0;
-        if self.vehicle.place_on_ground(ground, x, z, top, -spawn.heading) {
-            return true;
+        self.vehicle.place_on_ground_moving(ground, x, z, top, -spawn.heading, speed)
+    }
+
+    /// Makes the car take its controls from an AI: no dead zone, no automatic reverse or idle braking,
+    /// the full steering angle for the input, and the gearbox shifts by itself.
+    pub fn configure_ai(&mut self) {
+        self.vehicle.config = ControlConfig {
+            dead_zone: 0.0,
+            auto_reverse: false,
+            auto_brake: false,
+            automatic: true,
+            steering_device: SteeringDevice::Ai,
+        };
+    }
+
+    /// What an AI driver needs to know of the car.
+    pub fn driver_view(&self) -> blackbox_driver::VehicleView {
+        let v = &self.vehicle;
+        let velocity = v.linear_velocity();
+        blackbox_driver::VehicleView {
+            position: v.position(),
+            forward: v.rotation().z_axis,
+            forward_speed: v.forward_speed(),
+            planar_speed: Vec3::new(velocity.x, 0.0, velocity.z).length(),
+            gear_is_reverse: v.gear() == GEAR_REVERSE,
+            max_steer: (ABSOLUTE_MAX_STEERING * v.spec().tires.steering).to_radians(),
+            in_shock: false,
+            staging: false,
         }
-        false
+    }
+
+    pub fn shift_reverse(&mut self) {
+        self.vehicle.shift_to(GEAR_REVERSE);
+    }
+
+    pub fn shift_first(&mut self) {
+        self.vehicle.shift_to(GEAR_FIRST);
+    }
+
+    pub fn shift_neutral(&mut self) {
+        self.vehicle.shift_to(GEAR_NEUTRAL);
     }
 
     /// Whether the gearbox shifts by itself (the transmission setting).

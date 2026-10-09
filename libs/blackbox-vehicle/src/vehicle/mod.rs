@@ -141,6 +141,20 @@ impl Vehicle {
     /// the springs at their unloaded length. The ground is searched for from height `top` down to 100 m
     /// below it; returns false if there is none.
     pub fn place_on_ground(&mut self, ground: &dyn Ground, x: f32, z: f32, top: f32, yaw: f32) -> bool {
+        self.place_on_ground_moving(ground, x, z, top, yaw, 0.0)
+    }
+
+    /// Like [`Vehicle::place_on_ground`] but already moving forward at `speed` m/s with the wheels and the
+    /// engine matched to it (traffic starts driving this way).
+    pub fn place_on_ground_moving(
+        &mut self,
+        ground: &dyn Ground,
+        x: f32,
+        z: f32,
+        top: f32,
+        yaw: f32,
+        speed: f32,
+    ) -> bool {
         let Some(hit) = ground.hit(Vec3::new(x, top, z), Vec3::NEG_Y, 100.0) else { return false };
         let y = top - hit.distance;
         let ride = self
@@ -149,7 +163,11 @@ impl Vehicle {
             .axle(0, self.tunings.ride_height)
             .ride
             .max(self.spec.chassis.axle(1, self.tunings.ride_height).ride);
-        self.place(Vec3::new(x, y + self.spec.dimension.y + ride, z), Quat::from_rotation_y(yaw));
+        let (position, orientation) = (Vec3::new(x, y + self.spec.dimension.y + ride, z), Quat::from_rotation_y(yaw));
+        match speed > 0.0 {
+            true => self.place_moving(position, orientation, speed),
+            false => self.place(position, orientation),
+        }
         true
     }
 
