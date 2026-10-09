@@ -374,11 +374,10 @@ overlay and the HUD apply at once) and record the change; the config file layer 
 ## Sound
 
 `audio/` in the binary owns the output device (`kira` 0.12, cpal) and three mixer groups, effects, music and engine,
-under a master volume; the four volumes are settings (`master_volume`, `music_volume`, `sfx_volume`,
-`engine_volume`, 0 to 100) and `--no-sound` turns the device off. Without a device the game runs silent. Decoding
+under a master volume; the volumes are settings (`master_volume`, `music_volume`, `sfx_volume`, `engine_volume`,
+`speech_volume`, 0 to 100) and `--no-sound` turns the device off. Without a device the game runs silent. Decoding
 is `ea-audio`, engine synthesis is `blackbox-ginsu`, and the mix controller is `blackbox-carsound`; `nfsmw-data`'s
-`sound/` reads a car's sound set (loops, banks, shift pattern, turbo, acceleration transition) from the AttribSys
-database.
+`sound/` reads a car's sound set from the database.
 
 - **The engine.** A scene reports the car it drives with `Scene::car_sound` (a `CarSoundState`: car type, the
   controllers' telemetry, the collision events since the last frame and the scrape going on). An ECS system feeds
@@ -407,8 +406,7 @@ database.
   `audio/aems/params.rs`, from `docs/specs/engine-sound-aems.md`. The shift sweeteners are the module's bank
   sounds 1 and 2 played directly (what the `CAR_SWTN` module does).
 - **Console.** `sound [bank [index]]` lists or plays a bank sound; `engine <car> [percent] | off` holds an engine
-  at a share of its RPM range; `volume` shows and sets the volumes. `RUST_LOG=nfsmw::audio=debug` logs the loops
-  and hits that start.
+  at a share of its RPM range; `speech` (below). `RUST_LOG=nfsmw::audio=debug` logs the loops and hits that start.
 - **Movies.** `nfsmw play-movie <name> [--start SECONDS]` and `list-movies`: `movie/` demuxes the file with
   `blackbox-movie`, decodes the sound up front with `ea-audio` (handed to the audio system through
   `Scene::take_clip`), decodes the video against a clock and shows the frames through `Scene::fullscreen`, which a
@@ -431,7 +429,10 @@ database.
   `radio shuffle|ordered`. The song on the air is `Audio::now_playing()` (artist, title, album, elapsed) for the HUD,
   which does not draw it yet. The pursuit and ambience music (the same graph, driven by game state) and the jukebox
   are not done, and nobody has listened to the result: how the original ends a song is inferred (see the spec).
-- **Not done:** speech, the interactive music, the radio's HUD display, the mixer's reverb, low-pass and azimuth
+- **Speech.** `audio/speech/`: a `Dispatcher` (the queue and its rules) and the takes of `copspeech.big`, on a track
+  of their own (`speech_volume`). Only the 28 events with banks of their own can be said and nothing asks for speech
+  yet, since there is no pursuit (console: `speech say|play <event>`). Spec [speech.md](specs/speech.md); not listened to.
+- **Not done:** speech sentences and triggers, the interactive music, the radio's HUD display, the mixer's reverb, low-pass and azimuth
   outputs, Doppler, and a comparison of the engine's levels with the running original (the absolute level,
   `MAKEUP`, and the chase-camera distances are guesses).
 
@@ -472,7 +473,7 @@ Unit tests, real-install tests and the guard rails are described in [testing.md]
 | 3 | Sky dome, LODs, water, panoramas; zone-based streaming (visible sections); AttribSys reader; car assembly from the parts DB (stock parts, wheels, brakes, paint). Playtest fixes: misplaced and floating scenery, mouse look without holding a button, `--max-fps`, clearer config-file path | done |
 | 4 | Engine foundation: decide on Bevy (ECS, events, UI) in an ADR and migrate the viewers if adopted; layered settings (command line > environment > per-user config file > defaults, with a settings menu in 6); input layer with controller support; developer console (F12: log view, commands such as change car, toggle free camera, change settings); performance overlay (`--show-metrics off\|basic\|advanced`). Decided: Bevy as the shell with our renderer ([ADR 0001](decisions/0001-bevy.md)), full Bevy renderer revisited in 8 | done |
 | 5 | Vehicle physics, spec-first (`docs/specs/vehicle-*.md`); world collision (`CarpWCollisionPack`); drive a car with the original HUD: read the FEng HUD packages (`HUD_*.fng` in `InGameB.bun`) and draw them with the UI layer; steering wheel controller support (wheel axes, pedals, shifters) on the input layer from 4 |  in progress: `blackbox-vehicle`, the collision reader, input actions, `view-world --drive` (placing, chase camera, one-sided walls, props, reset and fall recovery, scripted runs), manual shifting (Q/E, pad bumpers and wheel paddle buttons, with a transmission setting and an options row), the original HUD (speedometer, tachometer with its red zone and shift light, gear, nitrous bar, turbo dial, minimap; the rest of the package waits for the race and pursuit state of milestone 7), the `--show-readout` levels and the `debug collisions` command are in; steering wheel support (wheel axes and pedals; a wheel is untested) is open; controller testing on real hardware and calibration against the original are done ([Driving](#driving-view-world---drive), [The HUD](#the-hud)) |
-| 6 | Audio (EA-XA, EA-XAS engine loops, MicroTalk speech), VP6 movies, FEng menus (the same FEng runtime as the HUD), in-game settings menu | in progress: the codecs, banks, music and movie decoders, Ginsu synthesis, the car sound data, the engine and effects mixers, the dynamic mixer maps, the sample (AEMS) layer of the engine and the sputters, the output device, the driven car's engine and effects, a movie player and the radio (licensed songs, gapless, play lists; not yet heard by a human) are in, and so are the front end (boot movies, title screen, main menu, option screens for audio, video and gameplay, the pause menu, free roam) and the settings written to the config file; speech and the interactive music are open, and so is the playtest report that the engine sounds muted at the rev limiter was fixed by [PR 5](https://github.com/47PADO47/nfs-mw/pull/5); `RUST_LOG=nfsmw::audio=debug` logs the limiter ([Sound](#sound), [The front end](#the-front-end)) |
+| 6 | Audio (EA-XA, EA-XAS engine loops, MicroTalk speech), VP6 movies, FEng menus (the same FEng runtime as the HUD), in-game settings menu | in progress: the codecs, banks, music and movie decoders, Ginsu synthesis, the car sound data, the engine and effects mixers, the dynamic mixer maps, the sample (AEMS) layer of the engine and the sputters, the output device, the driven car's engine and effects, a movie player and the radio (licensed songs, gapless, play lists; not yet heard by a human) are in, and so are the front end (boot movies, title screen, main menu, option screens for audio, video and gameplay, the pause menu, free roam) and the settings written to the config file; speech (the queue and the 28 phrases with banks of their own; no sentences, no triggers) is in, the interactive music is open, and so is the playtest report that the engine sounds muted at the rev limiter was fixed by [PR 5](https://github.com/47PADO47/nfs-mw/pull/5); `RUST_LOG=nfsmw::audio=debug` logs the limiter ([Sound](#sound), [The front end](#the-front-end)) |
 | 7 | AI racers, traffic, pursuit, races; career data; console commands to spawn AI | |
 | 8 | Graphics: the car shader and lighting rig, tire smoke and skid marks (`blackbox-vehicle` already reports per-wheel `skid` and `smoke`; this draws them), exhaust flames (backfire on lift-off, driven by the sputters of the sample layer), post-processing, upscaling (FSR; DLSS where the backend allows it), ReShade compatibility, Bevy Solari | |
 | 9 | Discord Rich Presence | |
@@ -481,7 +482,6 @@ Unit tests, real-install tests and the guard rails are described in [testing.md]
 | 12 | scripting API for mods | |
 | 13 | Websocket/server/something for telemetry/api info on player career etc | |
 | 14 | Drift mode: a handling variant with more controlled sliding at lower speeds (its own tire and assist tuning in `blackbox-vehicle`, the original has burnout and drift assists that are not modelled yet) | |
-
 
 Why this order:
 

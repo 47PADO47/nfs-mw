@@ -183,6 +183,7 @@ screens, labels and behaviour where a label exists:
 | Audio | Sound Effects Volume | `0xFD487543` | `sfx_volume` |
 | Audio | Engine Volume | `0xA2B1F888` | `engine_volume` |
 | Audio | Menu Music Volume | `0x418E681D` | `music_volume` |
+| Audio | Speech Volume | `0x9E5FB82A` | `speech_volume` |
 | Video | Vsync | `0x6CEB9CB6` | `vsync` (On / Off) |
 | Video | Frame Limit | none in the language table, plain text | `max_fps` (Unlocked, 30, 60, 120, 144, 240) |
 | Video | Performance Overlay | none, plain text | `show_metrics` (Off, Basic, Advanced) |

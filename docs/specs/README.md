@@ -19,7 +19,8 @@ dynamic mixer: [dynamic-mixer.md](dynamic-mixer.md) (evaluating a mixer map) and
 [car-sound-mixer.md](car-sound-mixer.md) (what the car sound publishes and reads); AEMS: [aems.md](aems.md)
 (running a module of a sound bank) and [engine-sound-aems.md](engine-sound-aems.md) (the engine's sample layer,
 the sputters, the sweeteners); the radio: [music-graph.md](music-graph.md) (the PathFinder graph of `MW_Music.mpf`,
-the song events and the play lists); the HUD minimap: [hud-minimap.md](hud-minimap.md) (the projection, the tiles around the player, the turning, the missing speed zoom); the user interface: [feng-runtime.md](feng-runtime.md) (scripts, messages,
+the song events and the play lists); speech: [speech.md](speech.md) (the dispatch queue, when a line may be said,
+the recordings); the HUD minimap: [hud-minimap.md](hud-minimap.md) (the projection, the tiles around the player, the turning, the missing speed zoom); the user interface: [feng-runtime.md](feng-runtime.md) (scripts, messages,
 drawing), [feng-input.md](feng-input.md) (pad messages, focus, navigation) and [frontend-menus.md](frontend-menus.md)
 (the screens, the option rows, the game flow).
 

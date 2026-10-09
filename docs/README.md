@@ -70,7 +70,7 @@ against the install at `D:/Need For Speed Most Wanted Black Edition`.
 | [formats/attributes.md](formats/attributes.md) | AttribSys `VPAK` packs, vaults, exports, hash, the 57 classes | Layout verified |
 | [formats/cardata.md](formats/cardata.md) | Car types, parts database, slot types, presets, light materials, solid markers, `ecar`, vinyls | Car tables verified; vinyls partial |
 | [formats/animation.md](formats/animation.md) | EAGL4 ELF objects, skeletons, banks, NIS cutscenes | Container verified; codecs open |
-| [formats/audio.md](formats/audio.md) | Sound banks, GIN engine loops, MPF/MUS music, speech, reverb | Codecs known; some indexes open |
+| [formats/audio.md](formats/audio.md) | Sound banks, GIN engine loops, MPF/MUS music, speech, reverb | Codecs known; speech `.idx` verified, `.evt` and `.csi` partial |
 | [formats/aems.md](formats/aems.md) | AEMS module banks: the dataflow graphs and code inside `.abk` files | Verified on all 301 banks; Rust reader |
 | [formats/mixmap.md](formats/mixmap.md) | Dynamic-mixer maps (`MIXMAPS/*.mxb`): states, controls, events, 3D controls, channels, presets | Verified; Rust reader |
 | [formats/video.md](formats/video.md) | EA VP6 container and decoder options | Complete |
@@ -112,7 +112,7 @@ against the install at `D:/Need For Speed Most Wanted Black Edition`.
 | `TroughBoundary.bin` chunk `0x00034190` (not in the decomp's chunk list) | — |
 | EAGL bank header and channel layouts | `EAGL4Anim/*` in the decomp |
 | Where a compressed palettized texture keeps its palette | no example in car packs; check world/frontend streams |
-| Speech/event index formats (`.idx`, `.evt`, `.csi`), reverb and mix presets | [formats/audio.md](formats/audio.md) |
+| Speech sentence rules (`.evt` parameter tests, `.csi` tables), reverb and mix presets | [formats/audio.md](formats/audio.md) |
 | FEngFont glyph format | [formats/frontend.md](formats/frontend.md) |
 | Save header bytes 0x08–0x33 | [formats/saves.md](formats/saves.md) |
 | How the `CarShader` paint, reflections and lighting work | the `fx_2_0` effects in `speed.exe` ([formats/shaders.md](formats/shaders.md)) |
