@@ -164,6 +164,7 @@ fn quad(out: &mut Vec<EffectVertex>, depth: f32, color: [u8; 4]) {
 }
 
 fn check(backend: wgpu::Backends) {
+    let _gpu = crate::gpu::test_support::serial();
     let mut gpu = Gpu::new(backend);
     let no_fog = [f32::MAX, f32::MAX];
     let mut layer = EffectLayer::default();

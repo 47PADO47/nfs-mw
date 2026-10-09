@@ -167,6 +167,7 @@ pub(super) fn near(pixel: [u8; 4], expected: [u8; 4]) -> bool {
 }
 
 fn check(backend: wgpu::Backends) {
+    let _gpu = crate::gpu::test_support::serial();
     let gpu = Gpu::new(backend);
     let hdr = wgpu::Color { r: 1.5, g: 0.5, b: 0.25, a: 0.3 };
 

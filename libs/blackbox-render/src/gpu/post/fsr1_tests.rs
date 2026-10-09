@@ -98,6 +98,7 @@ fn upscale(gpu: &Gpu, chain: &mut PostChain) -> Vec<Vec<u8>> {
 }
 
 fn check(backend: wgpu::Backends) {
+    let _gpu = crate::gpu::test_support::serial();
     let gpu = Gpu::new(backend);
     let rcas = RcasScale::new();
     let (dark, light) = (64u8, 191u8);

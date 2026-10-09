@@ -54,6 +54,7 @@ fn run(device: &wgpu::Device, queue: &wgpu::Queue, chain: &mut PostChain, size: 
 }
 
 fn check(backend: wgpu::Backends) {
+    let _gpu = crate::gpu::test_support::serial();
     let (device, queue) = gpu(backend);
     let size = (32, 32);
 

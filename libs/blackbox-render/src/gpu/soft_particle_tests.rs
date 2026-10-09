@@ -22,6 +22,7 @@ fn soft_particles_depth_dx12() {
 }
 
 fn check(backend: wgpu::Backends) {
+    let _gpu = crate::gpu::test_support::serial();
     let mut desc = wgpu::InstanceDescriptor::new_without_display_handle();
     desc.backends = backend;
     let instance = wgpu::Instance::new(desc);

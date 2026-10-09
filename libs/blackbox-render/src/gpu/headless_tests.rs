@@ -20,6 +20,7 @@ fn clear_frame(color: [f32; 3]) -> FrameParams {
 #[test]
 #[ignore = "needs a GPU"]
 fn a_headless_renderer_draws_into_its_output() {
+    let _gpu = test_support::serial();
     let Some(mut renderer) = test_support::headless((64, 36)) else { return };
     assert_eq!(renderer.surface_size(), (64, 36));
     assert!(renderer.draws_directly());
@@ -42,6 +43,7 @@ fn a_headless_renderer_draws_into_its_output() {
 #[test]
 #[ignore = "needs a GPU"]
 fn captures_are_requested_then_polled_once() {
+    let _gpu = test_support::serial();
     let Some(mut renderer) = test_support::headless((64, 36)) else { return };
     let frame = clear_frame([1.0, 0.0, 0.5]);
     let backend: &mut dyn RenderBackend = &mut renderer;
@@ -63,6 +65,7 @@ fn captures_are_requested_then_polled_once() {
 #[test]
 #[ignore = "needs a GPU"]
 fn the_trait_reports_the_adapter_and_status() {
+    let _gpu = test_support::serial();
     let Some(mut renderer) = test_support::headless((32, 18)) else { return };
     let backend: &mut dyn RenderBackend = &mut renderer;
     let info = backend.info().clone();

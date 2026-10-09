@@ -4,8 +4,18 @@
 //! - `BLACKBOX_TEST_API=vulkan|dx12|gl|auto`: the graphics API to test (default Vulkan);
 //! - `BLACKBOX_GPU_FALLBACK=1`: use the API's software adapter (lavapipe for Vulkan).
 
+use std::sync::{Mutex, MutexGuard, PoisonError};
+
 use crate::{Backend, Renderer, RendererOptions};
 use blackbox_gfx::{BackendInfo, GraphicsApi};
+
+static GPU: Mutex<()> = Mutex::new(());
+
+/// Hold this for the whole of a test that creates a GPU device. The tests run in parallel threads, and
+/// creating Vulkan devices at the same time crashes some Mesa drivers (SIGSEGV), so they take turns.
+pub(super) fn serial() -> MutexGuard<'static, ()> {
+    GPU.lock().unwrap_or_else(PoisonError::into_inner)
+}
 
 /// The API the tests use.
 pub(super) fn test_api() -> Backend {
