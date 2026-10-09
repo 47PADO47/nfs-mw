@@ -3,6 +3,7 @@
 mod basics;
 mod driving;
 mod feel;
+mod hitch;
 mod manual;
 mod robustness;
 

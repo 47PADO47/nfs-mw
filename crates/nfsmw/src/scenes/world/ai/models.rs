@@ -7,22 +7,32 @@ use super::{CopCar, CopModel, ModelRequest, TrafficModel};
 use crate::scenes::world::drive::CarRig;
 use crate::scenes::world::{WorldScene, load_car};
 
-/// The folder of a traffic car: its `pvehicle` name, or that name without the `traf` prefix (`traftaxi` is
-/// the folder `TAXI`).
-fn folders(vehicle: &str) -> Vec<String> {
+/// The car folders to try for the `pvehicle` `vehicle`, best first: its own name, that name without the `traf`
+/// prefix (`traftaxi` is the folder `TAXI`), then the records it inherits from that are folders themselves
+/// (`semib` has no model of its own and uses the tractor's, `SEMI`). `cars` are the folders of the install and
+/// `lineage` the vehicle and its ancestors.
+fn folders(cars: &[String], vehicle: &str, lineage: &[String]) -> Vec<String> {
     let upper = vehicle.to_ascii_uppercase();
     let mut found = vec![upper.clone()];
     if let Some(rest) = upper.strip_prefix("TRAF") {
         found.push(rest.to_owned());
     }
+    for ancestor in lineage.iter().skip(1) {
+        let name = ancestor.to_ascii_uppercase();
+        if cars.contains(&name) && !found.contains(&name) {
+            found.push(name);
+        }
+    }
     found
 }
 
-/// Loads one traffic car model by its `pvehicle` name.
-fn load_traffic(scene: &mut WorldScene, renderer: &mut Renderer, vehicle: &str) -> Result<TrafficModel, String> {
+/// Loads the model and physics of one `pvehicle`, without the trailer it may pull.
+fn load_body(scene: &mut WorldScene, renderer: &mut Renderer, vehicle: &str) -> Result<TrafficModel, String> {
     let mut last = format!("no car folder for {vehicle}");
-    for folder in folders(vehicle) {
-        let (folder, model) = match load_car(&scene.dir, &folder) {
+    let cars = nfsmw_data::car::list(&scene.dir);
+    let lineage = scene.physics.lineage(vehicle);
+    for folder in folders(&cars, vehicle, &lineage) {
+        let (_, model) = match load_car(&scene.dir, &folder) {
             Ok(car) => car,
             Err(e) => {
                 last = format!("{e:#}");
@@ -30,13 +40,23 @@ fn load_traffic(scene: &mut WorldScene, renderer: &mut Renderer, vehicle: &str) 
             }
         };
         let physics = scene
-            .physics_of(&model)
-            .or_else(|_| scene.physics.car(vehicle))
+            .physics
+            .car(vehicle)
+            .or_else(|_| scene.physics_of(&model))
             .map_err(|e| format!("{vehicle} has no physics: {e:#}"))?;
         let rig = std::rc::Rc::new(CarRig::upload(renderer, model));
-        return Ok(TrafficModel { name: folder, rig, physics });
+        return Ok(TrafficModel { name: vehicle.to_ascii_uppercase(), rig, physics, trailer: None });
     }
     Err(last)
+}
+
+/// Loads one traffic car model by its `pvehicle` name, with the trailer it pulls when it is a semi tractor.
+fn load_traffic(scene: &mut WorldScene, renderer: &mut Renderer, vehicle: &str) -> Result<TrafficModel, String> {
+    let mut model = load_body(scene, renderer, vehicle)?;
+    let Some(trailer) = scene.physics.trailer_of(vehicle) else { return Ok(model) };
+    let trailer = load_body(scene, renderer, &trailer).map_err(|e| format!("its trailer {trailer}: {e}"))?;
+    model.trailer = Some(Box::new(trailer));
+    Ok(model)
 }
 
 /// Loads the cop cars `names` that are not loaded yet.
@@ -62,7 +82,7 @@ pub(super) fn load_cop_models(scene: &mut WorldScene, renderer: &mut Renderer, n
         let rig = std::rc::Rc::new(CarRig::upload(renderer, model));
         let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
         traffic.add_cop_model(CopModel {
-            model: TrafficModel { name: folder, rig, physics },
+            model: TrafficModel { name: folder, rig, physics, trailer: None },
             car: CopCar { performance, ai },
         });
     }
@@ -101,5 +121,28 @@ pub(in crate::scenes::world) fn load_requested(scene: &mut WorldScene, renderer:
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn names(list: &[&str]) -> Vec<String> {
+        list.iter().map(|s| (*s).to_owned()).collect()
+    }
+
+    #[test]
+    fn a_traffic_car_tries_its_own_folder_then_the_one_without_the_prefix() {
+        let cars = names(&["TAXI", "TRAFTAXI"]);
+        assert_eq!(folders(&cars, "traftaxi", &names(&["traftaxi", "street"])), ["TRAFTAXI", "TAXI"]);
+    }
+
+    #[test]
+    fn a_tractor_variant_uses_the_folder_of_the_tractor_it_inherits_from() {
+        let cars = names(&["SEMI", "TRAILERB"]);
+        let lineage = names(&["semib", "semi", "tractors", "cars", "default"]);
+        assert_eq!(folders(&cars, "semib", &lineage), ["SEMIB", "SEMI"]);
+        assert_eq!(folders(&cars, "trailerb", &names(&["trailerb", "trailers", "default"])), ["TRAILERB"]);
     }
 }

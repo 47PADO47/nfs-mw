@@ -25,6 +25,7 @@ pub const TIRE_SMOKE: &str = "NFSMW_TIRE_SMOKE";
 pub const RADIO: &str = "NFSMW_RADIO";
 pub const TRAFFIC: &str = "NFSMW_TRAFFIC";
 pub const COP_SHARE: &str = "NFSMW_COP_SHARE";
+pub const TRAFFIC_LIGHTS: &str = "NFSMW_TRAFFIC_LIGHTS";
 pub const SMOKE_QUALITY: &str = "NFSMW_SMOKE_QUALITY";
 pub const SKID_MARKS: &str = "NFSMW_SKID_MARKS";
 pub const TRANSMISSION: &str = "NFSMW_TRANSMISSION";
@@ -60,6 +61,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         radio: value(&get, RADIO, parse_bool),
         traffic: value(&get, TRAFFIC, |s| s.trim().parse::<u32>().map_err(|e| e.to_string())),
         cop_share: value(&get, COP_SHARE, Percent::from_str),
+        traffic_lights: value(&get, TRAFFIC_LIGHTS, parse_bool),
         smoke_quality: value(&get, SMOKE_QUALITY, SmokeQuality::from_str),
         skid_marks: value(&get, SKID_MARKS, parse_bool),
         transmission: value(&get, TRANSMISSION, Transmission::from_str),

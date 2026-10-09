@@ -275,6 +275,7 @@ impl CarSim {
 
 mod ai;
 mod pair;
+mod trailer;
 
 #[cfg(test)]
 mod tests;

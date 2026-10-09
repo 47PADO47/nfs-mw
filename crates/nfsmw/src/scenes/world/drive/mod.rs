@@ -27,6 +27,7 @@ use crate::input::ActionState;
 use crate::settings::Transmission;
 use crate::viewer::camera::{ChaseCamera, Followed};
 pub(super) use clock::{FixedClock, STEP};
+pub(super) use debug::upload_box;
 pub use debug::{ContactMarkers, LEGEND as MARKER_LEGEND, MarkerMeshes};
 use fall::FallWatch;
 pub(super) use ground::WorldGround;

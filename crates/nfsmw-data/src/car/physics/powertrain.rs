@@ -58,3 +58,68 @@ pub fn nos(c: Fields<'_>) -> NosSpec {
         recharge_max_speed: c.f32("RECHARGE_MAX_SPEED"),
     }
 }
+
+/// Idle and red line (rpm) of the engine a trailer does not have: any positive pair keeps the powertrain's
+/// maths well defined, the torque table is empty so it never makes a newton metre.
+const NO_ENGINE_IDLE: f32 = 1000.0;
+const NO_ENGINE_RED_LINE: f32 = 6000.0;
+/// Gears of the transmission a trailer does not have: reverse, neutral, first, all with ratio 0 so no
+/// torque ever reaches the wheels.
+const NO_TRANSMISSION_GEARS: usize = 3;
+
+/// The engine of a body without one (a trailer): no torque at any speed.
+pub fn no_engine() -> EngineSpec {
+    EngineSpec {
+        torque: Vec::new(),
+        idle: NO_ENGINE_IDLE,
+        red_line: NO_ENGINE_RED_LINE,
+        max_rpm: NO_ENGINE_RED_LINE,
+        flywheel_mass: 0.0,
+        engine_braking: Vec::new(),
+        speed_limiter: [0.0; 2],
+    }
+}
+
+/// The transmission of a body without one (a trailer): every gear has ratio 0, so the wheels roll free.
+pub fn no_transmission() -> TransmissionSpec {
+    TransmissionSpec {
+        gear_ratio: vec![0.0; NO_TRANSMISSION_GEARS],
+        gear_efficiency: vec![1.0; NO_TRANSMISSION_GEARS],
+        final_gear: 1.0,
+        torque_split: 0.0,
+        differential: [0.0; 3],
+        torque_converter: 0.0,
+        clutch_slip: 0.0,
+        shift_speed: 0.0,
+        optimal_shift: 0.0,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use blackbox_vehicle::{FIXED_STEP, FlatGround, InputState, Vehicle, VehicleSpec};
+
+    use super::*;
+
+    #[test]
+    fn a_body_without_powertrain_rolls_free_and_brakes() {
+        let ground = FlatGround::new(0.0);
+        let mut spec = VehicleSpec::example();
+        spec.engine = no_engine();
+        spec.transmission = no_transmission();
+        let mut body = Vehicle::new(spec);
+        body.place_on_ground_moving(&ground, 0.0, 0.0, 5.0, 0.0, 10.0);
+        let full_throttle = InputState { throttle: 1.0, ..InputState::default() };
+        for _ in 0..120 {
+            body.step(FIXED_STEP, &full_throttle, &ground);
+        }
+        let coasting = body.forward_speed();
+        assert!(coasting > 8.0 && coasting <= 10.0, "no engine drives the body: {coasting} m/s");
+        let brake = InputState { brake: 1.0, ..InputState::default() };
+        for _ in 0..240 {
+            body.step(FIXED_STEP, &brake, &ground);
+        }
+        assert!(body.forward_speed().abs() < coasting - 5.0, "the brakes act: {} m/s", body.forward_speed());
+        assert!(body.position().is_finite());
+    }
+}

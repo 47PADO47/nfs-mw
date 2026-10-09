@@ -16,7 +16,7 @@ pub use bounds::{CarBounds, car_bounds, read_car_bounds};
 pub use chassis::{aero, chassis};
 pub use data::PhysicsData;
 pub use fields::Fields;
-pub use powertrain::{engine, induction, nos, transmission};
+pub use powertrain::{engine, induction, no_engine, no_transmission, nos, transmission};
 pub use running_gear::{brakes, tires};
 pub use spec::{CarPhysics, car_physics};
 pub use surface::{SurfaceAudio, SurfaceTable};

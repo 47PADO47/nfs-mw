@@ -3,9 +3,12 @@
 //! Specs: `docs/specs/ai-traffic.md`, `docs/specs/ai-traffic-spawning.md`.
 
 mod car;
+mod collide;
 mod commands;
 mod cop;
 mod data;
+mod hitch;
+mod lamps;
 mod manager;
 mod models;
 mod pattern;
@@ -13,27 +16,30 @@ mod population;
 mod pursuit;
 mod scene;
 mod spawn;
+mod stop;
 mod traffic;
+mod trailer;
 
 use std::collections::HashSet;
 use std::rc::Rc;
 
 use blackbox_collision::CollisionWorld;
 use blackbox_render::Instance;
-use blackbox_roads::{Body, RoadNetwork, SegmentIndex, SplitMix};
-use glam::Vec3;
+use blackbox_roads::{Body, RoadNetwork, SegmentIndex, SignalController, SplitMix};
 use nfsmw_data::car::physics::{CarPhysics, SurfaceTable};
 
-use super::drive::{CarRig, CarSim, FixedClock, STEP};
+use super::drive::{CarRig, FixedClock, STEP};
 use super::props::PropWorld;
 use car::{AiCar, Ctx};
 pub(super) use commands::{pursuit_command, traffic_command};
 pub use cop::CopCar;
+pub use lamps::LampMeshes;
 use manager::TypeTimers;
 pub(super) use models::load_requested;
 pub use pattern::{Pattern, Patterns};
 pub use population::{ModelRequest, PatrolPlan};
 pub use pursuit::{CopModel, Pursuit};
+use stop::Lights;
 
 /// Physics steps a screenshot run simulates per update.
 const BATCH_STEPS: u32 = 6;
@@ -58,11 +64,18 @@ pub struct TrafficModel {
     pub name: String,
     pub rig: Rc<CarRig>,
     pub physics: CarPhysics,
+    /// The trailer a semi tractor pulls.
+    pub trailer: Option<Box<TrafficModel>>,
 }
 
 pub struct TrafficWorld {
     network: RoadNetwork,
     index: SegmentIndex,
+    /// The signals of the junctions and the simulated seconds on their clock.
+    signals: SignalController,
+    signal_time: f32,
+    /// Cars stop for the lights (the `traffic_lights` setting).
+    lights_on: bool,
     models: Vec<TrafficModel>,
     cop_models: Vec<CopModel>,
     pursuit: Option<Pursuit>,
@@ -93,6 +106,9 @@ impl TrafficWorld {
     pub fn new(network: RoadNetwork) -> Self {
         let index = SegmentIndex::build(&network);
         Self {
+            signals: SignalController::new(&network),
+            signal_time: 0.0,
+            lights_on: false,
             network,
             index,
             models: Vec::new(),
@@ -121,6 +137,11 @@ impl TrafficWorld {
 
     pub fn model_names(&self) -> Vec<&str> {
         self.models.iter().map(|m| m.name.as_str()).collect()
+    }
+
+    /// Whether the cars stop for the traffic lights (a rewrite extension: the original has none).
+    pub fn set_lights(&mut self, on: bool) {
+        self.lights_on = on;
     }
 
     /// Asks a screenshot run to simulate `seconds` before it captures.
@@ -164,8 +185,11 @@ impl TrafficWorld {
             false => self.clock.advance(dt),
         };
         for _ in 0..steps {
-            // Every car as the others' trails see it, with whether it is a cop.
-            let bodies: Vec<(Body, bool)> = self.cars.iter().map(|c| (c.body(), c.is_cop())).collect();
+            // Every car as the others' trails see it (a hitched trailer is part of its tractor), with whether it is
+            // a cop, then the trailers that came loose.
+            let mut bodies: Vec<(Body, bool)> = self.cars.iter().map(|c| (c.avoidable(), c.is_cop())).collect();
+            bodies.extend(self.cars.iter().filter_map(AiCar::loose_trailer_body).map(|b| (b, false)));
+            let lights = self.lights_on.then_some(Lights { controller: &self.signals, time: self.signal_time });
             for (me, car) in self.cars.iter_mut().enumerate() {
                 let mut ctx = Ctx {
                     net: &self.network,
@@ -174,9 +198,11 @@ impl TrafficWorld {
                     bodies: &bodies,
                     me,
                     player: focus.body,
+                    lights,
                 };
                 car.step(&mut ctx, collision, props, surfaces);
             }
+            self.signal_time += STEP;
         }
         let simulated = match batch {
             true => steps as f32 * STEP,
@@ -199,35 +225,11 @@ impl TrafficWorld {
         }
     }
 
-    /// Lets the cars hit each other and the player's car (`player`).
-    pub fn collide(&mut self, mut player: Option<&mut CarSim>) {
-        const NEAR: f32 = 8.0;
-        for i in 0..self.cars.len() {
-            let (head, tail) = self.cars.split_at_mut(i + 1);
-            let car = &mut head[i];
-            if let Some(player) = player.as_deref_mut()
-                && car.physics_position().distance(Vec3::from(player.collision_box().centre.to_array())) < NEAR
-                && let Some(hit) = player.collide_with(car.sim_mut())
-            {
-                car.on_hit(hit.impulse, true);
-            }
-            for other in tail {
-                if car.physics_position().distance(other.physics_position()) >= NEAR {
-                    continue;
-                }
-                if let Some(hit) = car.sim_mut().collide_with(other.sim_mut()) {
-                    car.on_hit(hit.impulse, false);
-                    other.on_hit(hit.impulse, false);
-                }
-            }
-        }
-    }
-
     /// Appends the instances of every car.
     pub fn instances(&self, out: &mut Vec<Instance>) {
         let alpha = self.clock.alpha();
         for car in &self.cars {
-            car.rig().instances(&car.pose(alpha), out);
+            car.instances(alpha, out);
         }
     }
 

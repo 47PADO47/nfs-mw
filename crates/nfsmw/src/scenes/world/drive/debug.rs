@@ -73,12 +73,17 @@ pub struct MarkerMeshes {
 
 impl MarkerMeshes {
     pub fn upload(renderer: &mut Renderer) -> Self {
-        Self { meshes: KINDS.map(|kind| upload_box(renderer, kind)) }
+        Self { meshes: KINDS.map(|kind| upload_box(renderer, "contact marker", kind.colour())) }
     }
 }
 
-fn upload_box(renderer: &mut Renderer, kind: MarkerKind) -> MeshHandle {
-    let colour = kind.colour();
+/// Uploads a pre-lit box of one colour (B G R A, 0x80 is full brightness) from the origin along +x, 1 m long and
+/// 1 m square: the unit shape every marker is a scaled copy of.
+pub(in crate::scenes::world) fn upload_box(
+    renderer: &mut Renderer,
+    label: &'static str,
+    colour: [u8; 4],
+) -> MeshHandle {
     let mut vertices = Vec::new();
     let mut indices: Vec<u16> = Vec::new();
     // Six faces of the box x in 0..1, y and z in -0.5..0.5, each as two triangles.
@@ -98,7 +103,7 @@ fn upload_box(renderer: &mut Renderer, kind: MarkerKind) -> MeshHandle {
         indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
     }
     renderer.create_mesh(&MeshDesc {
-        label: "contact marker",
+        label,
         vertices: &vertices,
         indices: &indices,
         draws: vec![DrawRange {

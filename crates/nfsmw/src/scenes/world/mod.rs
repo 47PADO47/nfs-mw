@@ -81,9 +81,11 @@ pub struct WorldScene {
     drive: Option<Drive>,
     /// Computer-driven cars, when the track has a road network.
     traffic: Option<ai::TrafficWorld>,
-    /// The `traffic`, `cop_share` settings as last told, and a count typed in the console that replaces them.
-    traffic_setting: (u32, crate::settings::Percent),
+    /// The traffic settings as last told, and a console car count that replaces `cars`.
+    traffic_setting: crate::settings::TrafficSettings,
     traffic_manual: Option<usize>,
+    /// The traffic light markers' meshes, uploaded when the lights are first on.
+    lamp_meshes: Option<ai::LampMeshes>,
     /// The car last driven, for `drive` without a name.
     last_car: String,
     /// Car physics data, road grips and the gameplay database.
@@ -168,8 +170,9 @@ impl WorldScene {
             pending_car,
             drive: None,
             traffic,
-            traffic_setting: (0, crate::settings::Percent(0)),
+            traffic_setting: Default::default(),
             traffic_manual: None,
+            lamp_meshes: None,
             physics,
             tire_effects: [true; 2],
             smoke_quality: crate::settings::SmokeQuality::Standard,
@@ -400,6 +403,8 @@ impl Scene for WorldScene {
         visibility::collect(self.residency.placed(), &camera, rules, self.residency.props(), &mut self.visible);
         if let Some(traffic) = &self.traffic {
             traffic.instances(&mut self.visible);
+            let lamps = self.lamp_meshes.as_ref().filter(|_| self.traffic_setting.lights);
+            traffic.lamp_instances(lamps, position, &mut self.visible);
         }
         if let Some(drive) = &self.drive {
             drive.instances(&mut self.visible);
@@ -461,8 +466,8 @@ impl Scene for WorldScene {
         }
     }
 
-    fn set_traffic(&mut self, cars: u32, cop_share: crate::settings::Percent) {
-        self.apply_traffic_setting(cars, cop_share);
+    fn set_traffic(&mut self, traffic: crate::settings::TrafficSettings) {
+        self.apply_traffic_setting(traffic);
     }
 
     fn hud_state(&self) -> Option<crate::hud::HudState> {
