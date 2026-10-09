@@ -128,12 +128,13 @@ impl RenderBackend for Recorder {
 
 fn frame() -> FrameParams {
     FrameParams {
-        view_proj: Mat4::IDENTITY,
+        view: Mat4::IDENTITY,
+        projection: crate::Projection::Identity,
         camera_position: Vec3::ZERO,
         light_dir: Vec3::NEG_Z,
         clear_color: [0.0; 3],
-        fog_start: f32::MAX,
-        fog_end: f32::MAX,
+        fog: None,
+        camera_cut: false,
     }
 }
 
@@ -167,7 +168,7 @@ fn a_backend_is_usable_as_a_trait_object() {
     let (texture, mesh) = upload(boxed.as_mut());
     assert_ne!(texture.raw(), mesh.raw(), "handles are distinct");
     assert_eq!(boxed.stats().textures, 1);
-    let instances = [Instance { mesh, transform: Mat4::IDENTITY }; 3];
+    let instances = [Instance::new(mesh, Mat4::IDENTITY); 3];
     assert_eq!(boxed.render(&frame(), &instances).unwrap(), FrameStatus::Presented);
     boxed.destroy_mesh(mesh);
     boxed.destroy_texture(texture);

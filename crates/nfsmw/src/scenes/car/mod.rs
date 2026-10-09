@@ -96,14 +96,14 @@ impl CarScene {
                 upload_solid(renderer, &self.model.solids[&p.solid], &lookup, Shading::Lit)
             });
             if let Some(mesh) = mesh {
-                self.instances.push(Instance { mesh, transform: world * p.transform });
+                self.instances.push(Instance::new(mesh, world * p.transform));
             }
         }
         self.meshes.extend(cache.into_values().flatten());
         if self.model.car_type.is_some() {
             let floor = floor::upload(renderer);
             self.meshes.push(floor);
-            self.instances.push(Instance { mesh: floor, transform: Mat4::IDENTITY });
+            self.instances.push(Instance::new(floor, Mat4::IDENTITY));
         }
         self.materials = Some(materials);
         // The renderer wants instances of one mesh next to each other.
@@ -173,17 +173,18 @@ impl Scene for CarScene {
     }
 
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
-        let (view_proj, camera_position) = match &self.free {
-            Some(free) => (free.view_proj(aspect), free.position),
-            None => (self.camera.view_proj(aspect), self.camera.eye()),
+        let (view, projection, camera_position) = match &self.free {
+            Some(free) => (free.view(), free.projection(aspect), free.position),
+            None => (self.camera.view(), self.camera.projection(aspect), self.camera.eye()),
         };
         let params = FrameParams {
-            view_proj,
+            view,
+            projection,
             camera_position,
             light_dir: LIGHT_DIR,
             clear_color: [0.18, 0.2, 0.24],
-            fog_start: f32::MAX,
-            fog_end: f32::MAX,
+            fog: None,
+            camera_cut: false,
         };
         (params, &self.instances)
     }

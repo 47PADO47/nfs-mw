@@ -71,12 +71,13 @@ impl Renderer {
         instances: &[Instance],
     ) {
         let [r, g, b] = frame.clear_color;
+        let [fog_start, fog_end] = frame.fog_range();
         let globals = Globals {
-            view_proj: frame.view_proj.to_cols_array_2d(),
+            view_proj: frame.view_proj().to_cols_array_2d(),
             camera_pos: frame.camera_position.extend(1.0).to_array(),
             light_dir: frame.light_dir.normalize_or_zero().extend(0.0).to_array(),
             fog_color: [r, g, b, 1.0],
-            fog_range: [frame.fog_start, frame.fog_end, self.upscale.texture_lod_bias, 0.0],
+            fog_range: [fog_start, fog_end, self.upscale.texture_lod_bias, 0.0],
         };
         self.queue.write_buffer(&self.shared.globals, 0, bytemuck::bytes_of(&globals));
         let matrices: Vec<[f32; 16]> = instances.iter().map(|i| i.transform.to_cols_array()).collect();

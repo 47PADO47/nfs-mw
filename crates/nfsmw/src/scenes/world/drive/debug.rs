@@ -183,7 +183,7 @@ impl ContactMarkers {
         out.extend(
             self.placements()
                 .into_iter()
-                .map(|(kind, transform)| Instance { mesh: meshes.meshes[kind.index()], transform }),
+                .map(|(kind, transform)| Instance::new(meshes.meshes[kind.index()], transform)),
         );
     }
 }

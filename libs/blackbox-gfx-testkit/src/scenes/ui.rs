@@ -83,10 +83,7 @@ pub(super) fn build(cx: &mut Cx) -> Parts {
 
     let ui = UiLayer { pixels_per_point: cx.size[0] as f32 / LAYOUT_WIDTH, meshes };
     let camera = Camera::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 10.0, 0.0));
-    let mut parts = Parts::world(
-        camera.frame(cx.aspect, CLEAR, None),
-        vec![Instance { mesh: backdrop, transform: Mat4::IDENTITY }],
-    );
+    let mut parts = Parts::world(camera.frame(cx.aspect, CLEAR, None), vec![Instance::new(backdrop, Mat4::IDENTITY)]);
     parts.ui = ui;
     parts
 }

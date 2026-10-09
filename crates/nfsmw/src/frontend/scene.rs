@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::Result;
+use blackbox_gfx::Projection;
 use blackbox_render::{FrameParams, Instance, Renderer};
 use glam::{Mat4, Vec3};
 
@@ -31,12 +32,14 @@ impl Scene for MenuScene {
 
     fn frame(&mut self, _aspect: f32) -> (FrameParams, &[Instance]) {
         let params = FrameParams {
-            view_proj: Mat4::IDENTITY,
+            view: Mat4::IDENTITY,
+            projection: Projection::Identity,
             camera_position: Vec3::ZERO,
             light_dir: Vec3::NEG_Z,
             clear_color: [0.02, 0.02, 0.03],
-            fog_start: f32::MAX,
-            fog_end: f32::MAX,
+            fog: None,
+            // Nothing 3D is drawn, so there is no camera to follow from frame to frame.
+            camera_cut: true,
         };
         (params, &[])
     }

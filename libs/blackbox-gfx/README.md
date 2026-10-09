@@ -50,12 +50,17 @@ is pure, so it is fully unit-tested without a GPU. The rules, in the order they 
 
 `resolve` is idempotent: resolving an effective result again changes nothing.
 
-## What is not here yet
+## Frames
 
-Left for the PR that migrates the callers, so that the interface PR stayed a move plus the new trait:
+`FrameParams` carries the camera as `view` plus a `Projection` (a reverse-Z perspective with no far plane,
+or `Identity` for 2D frames), with `view_proj()` for the product. Fog is an `Option<Fog { start, end }>`.
+`camera_cut` is set on a teleport, a camera toggle or a new scene, so a backend that reuses the last frame
+(temporal anti-aliasing, temporal upscalers) can drop its history. The matrices are never jittered: a backend
+that jitters does it itself, and scene culling keeps using these.
 
-- `FrameParams` and `Instance` keep their current shapes (`view_proj`, `fog_start`/`fog_end`). The plan
-  adds `view`, `projection`, `fog`, `camera_cut` and a stable `InstanceKey` there.
+Every `Instance` has an `InstanceKey`, a stable name for the placed object (`InstanceKey::new(tile, index)`,
+or `TRANSIENT` when it has none). The native renderer ignores it; a retained-mode backend maps it to its own
+entity, which also gives correct motion vectors.
 
 `blackbox-render`'s `Renderer` implements `RenderBackend` (the native renderer, with its own capabilities);
 [`blackbox-gfx-testkit`](../blackbox-gfx-testkit) has procedural scenes, image metrics and digests to check any

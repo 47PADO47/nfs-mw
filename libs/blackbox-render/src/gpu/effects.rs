@@ -185,7 +185,7 @@ impl Effects {
         }
         let (device, queue) = gpu;
         let (target, depth) = views;
-        self.soft.prepare(device, queue, depth, frame.view_proj.inverse(), self.soft_distance);
+        self.soft.prepare(device, queue, depth, frame.view_proj().inverse(), self.soft_distance);
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("soft particles"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {

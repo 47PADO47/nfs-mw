@@ -66,9 +66,6 @@ pub(super) fn build(cx: &mut Cx) -> Parts {
     let land = cx.mesh("sky land", &land.finish());
 
     // The dome follows the camera, as a sky does.
-    let instances = vec![
-        Instance { mesh: dome, transform: Mat4::from_translation(camera.eye) },
-        Instance { mesh: land, transform: Mat4::IDENTITY },
-    ];
+    let instances = vec![Instance::new(dome, Mat4::from_translation(camera.eye)), Instance::new(land, Mat4::IDENTITY)];
     Parts::world(camera.frame(cx.aspect, HORIZON, Some((200.0, 6000.0))), instances)
 }

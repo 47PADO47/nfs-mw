@@ -47,10 +47,7 @@ pub(super) fn build(cx: &mut Cx) -> Parts {
     spheres.sphere(Vec3::new(1.9, 6.0, 1.3), 1.3, 24, 48, |_| prelit([1.0; 3], 1.0));
     let spheres = cx.mesh("glossy spheres", &spheres.finish());
 
-    let instances = vec![
-        Instance { mesh: floor_mesh, transform: Mat4::IDENTITY },
-        Instance { mesh: spheres, transform: Mat4::IDENTITY },
-    ];
+    let instances = vec![Instance::new(floor_mesh, Mat4::IDENTITY), Instance::new(spheres, Mat4::IDENTITY)];
     let camera = Camera::new(Vec3::new(0.0, -3.0, 1.8), Vec3::new(0.0, 6.0, 1.2));
     Parts::world(camera.frame(cx.aspect, CLEAR, None), instances)
 }

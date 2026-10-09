@@ -38,7 +38,7 @@ pub fn collect<'a>(
     out.extend(placed.filter(|p| frustum.intersects(&p.bounds) && !props.hidden(p.prop_id)).filter_map(|p| {
         let slots = p.lods.map(|m| m.is_some());
         let slot = rules.choose(&view, p.position, p.radius, p.flags, slots, p.detailed)?;
-        Some(Instance { mesh: p.lods[slot]?, transform: p.transform })
+        Some(Instance::new(p.lods[slot]?, p.transform))
     }));
     out.sort_unstable_by_key(|i| i.mesh);
 }

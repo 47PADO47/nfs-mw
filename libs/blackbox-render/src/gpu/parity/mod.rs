@@ -80,7 +80,7 @@ pub(super) fn capture(renderer: &mut Renderer, scene: SceneId) -> Result<(RgbaIm
 
 /// Project a world point to pixel coordinates of a `SIZE` image drawn with `frame`.
 pub(super) fn project(frame: &FrameParams, point: glam::Vec3) -> (u32, u32) {
-    let clip = frame.view_proj * point.extend(1.0);
+    let clip = frame.view_proj() * point.extend(1.0);
     let ndc = clip / clip.w;
     let x = (ndc.x * 0.5 + 0.5) * SIZE[0] as f32;
     let y = (0.5 - ndc.y * 0.5) * SIZE[1] as f32;

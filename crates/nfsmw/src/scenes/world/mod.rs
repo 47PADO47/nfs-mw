@@ -17,6 +17,7 @@ mod visibility;
 mod zone;
 
 use anyhow::{Context, Result};
+use blackbox_gfx::Fog;
 use blackbox_render::{FrameParams, Instance, Renderer};
 use game_install::GameDir;
 use glam::Vec3;
@@ -376,18 +377,19 @@ impl Scene for WorldScene {
 
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
         let chase = self.drive.as_ref().filter(|_| self.view == View::Chase);
-        let (view_proj, position, forward, fov_degrees) = match chase {
+        let (view, projection, position, forward, fov_degrees) = match chase {
             Some(drive) => {
                 let c = drive.camera();
-                (c.view_proj(aspect), c.position, c.forward(), c.fov_degrees())
+                (c.view(), c.projection(aspect), c.position, c.forward(), c.fov_degrees())
             }
             None => {
-                (self.camera.view_proj(aspect), self.camera.position, self.camera.forward(), FlyCamera::FOV_Y_DEGREES)
+                let c = &self.camera;
+                (c.view(), c.projection(aspect), c.position, c.forward(), FlyCamera::FOV_Y_DEGREES)
             }
         };
         let fog_end = self.fog_distance;
         let camera = visibility::Camera {
-            view_proj,
+            view_proj: projection.matrix() * view,
             position: position.to_array(),
             forward: forward.to_array(),
             fov_y_radians: fov_degrees.to_radians(),
@@ -401,12 +403,13 @@ impl Scene for WorldScene {
             }
         }
         let params = FrameParams {
-            view_proj,
+            view,
+            projection,
             camera_position: position,
             light_dir: sun::DIRECTION,
             clear_color: CLEAR,
-            fog_start: fog_end * 0.5,
-            fog_end,
+            fog: Some(Fog { start: fog_end * 0.5, end: fog_end }),
+            camera_cut: false,
         };
         (params, &self.visible)
     }

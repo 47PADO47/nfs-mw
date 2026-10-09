@@ -113,7 +113,7 @@ impl CarRig {
                 }
                 _ => placement.transform,
             };
-            out.push(Instance { mesh: part.mesh, transform: world * local });
+            out.push(Instance::new(part.mesh, world * local));
         }
     }
 }

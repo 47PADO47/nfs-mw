@@ -177,7 +177,7 @@ fn every_scene_builds_valid_geometry_and_releases_everything() {
                 }
             }
         }
-        assert!(built.frame.view_proj.is_finite());
+        assert!(built.frame.view_proj().is_finite());
         built.release(&mut backend);
         assert_eq!(backend.live(), 0, "{}: nothing left behind", scene.name());
         assert_eq!((backend.effects, backend.ui_meshes), (0, 0), "{}: layers cleared", scene.name());
@@ -189,7 +189,7 @@ fn scenes_are_deterministic() {
     for scene in SceneId::ALL {
         let a = scene.build(&mut Recorder::new(true, 0), [256, 144]);
         let b = scene.build(&mut Recorder::new(true, 0), [256, 144]);
-        assert_eq!(a.frame.view_proj, b.frame.view_proj);
+        assert_eq!(a.frame.view_proj(), b.frame.view_proj());
         assert_eq!(a.instances.len(), b.instances.len());
         assert_eq!(a.effects.surfaces, b.effects.surfaces);
     }

@@ -1,6 +1,6 @@
 //! A look-at camera that produces the reverse-Z frame parameters the renderers expect.
 
-use blackbox_gfx::FrameParams;
+use blackbox_gfx::{Fog, FrameParams, Projection};
 use glam::{Mat4, Vec3};
 
 /// A perspective camera in the games' z-up world, with an infinite far plane and reverse Z.
@@ -17,28 +17,32 @@ impl Camera {
         Self { eye, target, fov_y_degrees: 60.0, near: 0.1 }
     }
 
+    /// World to view space.
+    pub fn view(&self) -> Mat4 {
+        glam::camera::rh::view::look_at_mat4(self.eye, self.target, Vec3::Z)
+    }
+
+    /// View to clip space for a surface of the given width over height.
+    pub fn projection(&self, aspect: f32) -> Projection {
+        Projection::PerspectiveInfiniteReverse { fov_y: self.fov_y_degrees.to_radians(), aspect, near: self.near }
+    }
+
     /// World to clip space for a surface of the given width over height.
     pub fn view_proj(&self, aspect: f32) -> Mat4 {
-        let view = glam::camera::rh::view::look_at_mat4(self.eye, self.target, Vec3::Z);
-        let projection = glam::camera::rh::proj::directx::perspective_infinite_reverse(
-            self.fov_y_degrees.to_radians(),
-            aspect,
-            self.near,
-        );
-        projection * view
+        self.projection(aspect).matrix() * self.view()
     }
 
     /// Frame parameters for this camera. `fog` is the (start, end) distance of the linear fog towards
     /// `clear_color`, or `None` for no fog.
     pub fn frame(&self, aspect: f32, clear_color: [f32; 3], fog: Option<(f32, f32)>) -> FrameParams {
-        let (fog_start, fog_end) = fog.unwrap_or((f32::MAX, f32::MAX));
         FrameParams {
-            view_proj: self.view_proj(aspect),
+            view: self.view(),
+            projection: self.projection(aspect),
             camera_position: self.eye,
             light_dir: Vec3::new(-0.4, 0.3, -0.85).normalize(),
             clear_color,
-            fog_start,
-            fog_end,
+            fog: fog.map(|(start, end)| Fog { start, end }),
+            camera_cut: false,
         }
     }
 
@@ -65,11 +69,11 @@ mod tests {
     }
 
     #[test]
-    fn no_fog_uses_the_max_convention() {
+    fn fog_is_optional() {
         let frame = Camera::new(Vec3::ZERO, Vec3::Y).frame(1.0, [0.0; 3], None);
-        assert_eq!((frame.fog_start, frame.fog_end), (f32::MAX, f32::MAX));
+        assert_eq!(frame.fog, None);
         let fogged = Camera::new(Vec3::ZERO, Vec3::Y).frame(1.0, [0.0; 3], Some((5.0, 9.0)));
-        assert_eq!((fogged.fog_start, fogged.fog_end), (5.0, 9.0));
+        assert_eq!(fogged.fog, Some(Fog { start: 5.0, end: 9.0 }));
     }
 
     #[test]

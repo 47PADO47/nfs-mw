@@ -3,12 +3,13 @@
 
 use glam::{Vec3, Vec4};
 
-use super::view_proj;
+use super::{projection, view};
 
 /// The depth the renderer writes for a point `distance` metres straight ahead of the camera.
 fn depth_ahead(near: f32, distance: f32) -> f32 {
     let eye = Vec3::ZERO;
-    let clip = view_proj(eye, Vec3::X, 60.0, 16.0 / 9.0, near) * Vec4::new(distance, 0.0, 0.0, 1.0);
+    let view_proj = projection(60.0, 16.0 / 9.0, near).matrix() * view(eye, Vec3::X);
+    let clip = view_proj * Vec4::new(distance, 0.0, 0.0, 1.0);
     clip.z / clip.w
 }
 

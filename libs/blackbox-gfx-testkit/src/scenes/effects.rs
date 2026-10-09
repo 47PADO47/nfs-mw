@@ -97,7 +97,7 @@ pub(super) fn build(cx: &mut Cx) -> Parts {
     EffectLayer::quad(&mut fog_puff, billboard(&camera, Vec3::new(4.5, 5.0, 1.0), 1.2), [150, 220, 160, 220]);
     layer.textured.push(TexturedEffect { texture: glow, blend: BlendMode::AlphaBlend, vertices: fog_puff });
 
-    let instances = vec![Instance { mesh: world, transform: Mat4::IDENTITY }];
+    let instances = vec![Instance::new(world, Mat4::IDENTITY)];
     let mut parts = Parts::world(camera.frame(cx.aspect, CLEAR, Some((10.0, 40.0))), instances);
     parts.effects = layer;
     parts

@@ -4,16 +4,18 @@ use glam::{Mat4, Vec3};
 
 use super::test_support;
 use crate::{FrameParams, Renderer};
+use blackbox_gfx::Projection;
 use blackbox_gfx::{FrameStatus, RenderBackend};
 
 fn clear_frame(color: [f32; 3]) -> FrameParams {
     FrameParams {
-        view_proj: Mat4::IDENTITY,
+        view: Mat4::IDENTITY,
+        projection: Projection::Identity,
         camera_position: Vec3::ZERO,
         light_dir: Vec3::NEG_Z,
         clear_color: color,
-        fog_start: f32::MAX,
-        fog_end: f32::MAX,
+        fog: None,
+        camera_cut: false,
     }
 }
 
