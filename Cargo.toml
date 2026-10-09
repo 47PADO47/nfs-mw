@@ -21,6 +21,7 @@ blackbox-carparts = { path = "libs/blackbox-carparts" }
 blackbox-carsound = { path = "libs/blackbox-carsound" }
 blackbox-chunk = { path = "libs/blackbox-chunk" }
 blackbox-collision = { path = "libs/blackbox-collision" }
+blackbox-driver = { path = "libs/blackbox-driver" }
 blackbox-feng = { path = "libs/blackbox-feng" }
 blackbox-ginsu = { path = "libs/blackbox-ginsu" }
 blackbox-hash = { path = "libs/blackbox-hash" }

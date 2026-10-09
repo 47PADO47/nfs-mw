@@ -1056,6 +1056,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "blackbox-driver"
+version = "0.1.0"
+dependencies = [
+ "glam 0.34.1",
+]
+
+[[package]]
 name = "blackbox-feng"
 version = "0.1.0"
 dependencies = [
