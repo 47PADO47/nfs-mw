@@ -8,7 +8,7 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
 
-struct Rgba {
+pub struct Rgba {
     width: u32,
     height: u32,
     data: Vec<u8>,
@@ -76,7 +76,9 @@ fn write(path: &str, width: u32, height: u32, data: &[u8]) -> Result<(), String>
 }
 
 pub fn run(args: &[String]) -> Result<bool, String> {
-    let files: Vec<&String> = args.iter().filter(|a| a.ends_with(".png")).collect();
+    let out = args.iter().position(|a| a == "--out").map(|at| at + 1);
+    let files: Vec<&String> =
+        args.iter().enumerate().filter(|(i, a)| Some(*i) != out && a.ends_with(".png")).map(|(_, a)| a).collect();
     let [a, b] = files[..] else { return Err("usage: cargo xtask img-diff A.png B.png [--out DIFF.png]".into()) };
     let (image_a, image_b) = (read(a)?, read(b)?);
     let (stats, amplified) = diff(&image_a, &image_b)?;

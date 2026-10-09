@@ -32,7 +32,7 @@ use bevy_gilrs::GilrsPlugin;
 use bevy_input::InputPlugin;
 use bevy_time::TimePlugin;
 use bevy_window::{Window, WindowPlugin, WindowResolution};
-use bevy_winit::WinitPlugin;
+use bevy_winit::{WinitPlugin, WinitSettings};
 
 use crate::devtools::DevToolsPlugin;
 use crate::gui::GuiPlugin;
@@ -169,6 +169,10 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
     .add_systems(Update, graphics::apply.in_set(FrameSet::Draw).before(render::draw))
     .add_systems(Update, render::draw.in_set(FrameSet::Draw))
     .add_systems(Last, pacing::end_of_frame);
+    if bench_seconds.is_some() {
+        // An unfocused window would otherwise be updated at 60 Hz, and the numbers would be the cap's.
+        app.insert_resource(WinitSettings::continuous());
+    }
     if renderer == crate::settings::RendererKind::Bevy {
         render::add_bevy_plugin(&mut app, settings.backend);
     }

@@ -101,7 +101,10 @@ fn drive_screen(
         screen.render_size = camera::render_override(surface, settings);
     }
     if screen.vsync != Some(settings.vsync) {
-        window.present_mode = if settings.vsync { PresentMode::AutoVsync } else { PresentMode::AutoNoVsync };
+        // Mailbox, not AutoNoVsync: Bevy's no-vsync fallback list tries Immediate first, which on Mesa under
+        // Wayland and Xwayland still ran at the display rate (60 fps) where Mailbox ran unthrottled; wgpu's own
+        // AutoNoVsync, which the native renderer uses, picks Mailbox. Mailbox falls back to Immediate and Fifo.
+        window.present_mode = if settings.vsync { PresentMode::AutoVsync } else { PresentMode::Mailbox };
         screen.vsync = Some(settings.vsync);
     }
 }

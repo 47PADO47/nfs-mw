@@ -54,7 +54,10 @@ pub fn create(
         return;
     }
     let size = (window.physical_width(), window.physical_height());
-    let backend = Box::new(factory.create([size.0, size.1]));
+    let mut backend = factory.create([size.0, size.1]);
+    // The native renderer takes this at creation; the Bevy window follows the facade.
+    blackbox_gfx::RenderBackend::set_vsync(&mut backend, settings.vsync);
+    let backend = Box::new(backend);
     match super::finish(&mut host, backend, size, &settings) {
         Ok(()) => capture.0 = host.scene.captures_mouse() && host.screenshot.is_none(),
         Err(e) => {
