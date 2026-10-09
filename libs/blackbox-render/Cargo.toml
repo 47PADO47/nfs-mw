@@ -18,6 +18,8 @@ thiserror.workspace = true
 wgpu.workspace = true
 
 [dev-dependencies]
+# Synthetic scenes, image metrics and digests for the native regression guard.
+blackbox-gfx-testkit.workspace = true
 # Validates the WGSL sources without a GPU.
 naga.workspace = true
 

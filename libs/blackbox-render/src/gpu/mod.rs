@@ -13,6 +13,8 @@ mod instances;
 mod lean_tests;
 mod meshes;
 mod output;
+#[cfg(test)]
+mod parity;
 mod pipelines;
 mod post;
 mod resources;
