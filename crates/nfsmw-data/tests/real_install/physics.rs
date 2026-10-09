@@ -75,7 +75,11 @@ fn road_surfaces_have_grip() {
 fn car_bounds_are_a_car_sized_box() {
     let Some(dir) = install() else { return };
     let sets = physics::read_car_bounds(&dir).unwrap();
-    assert_eq!(sets.len(), 86);
+    // Edition and replacement assets vary in count; require complete, distinct bounds trees.
+    assert!(sets.len() >= 50, "only {} car bounds sets", sets.len());
+    let names: std::collections::HashSet<_> = sets.iter().map(|s| s.name_hash).collect();
+    assert_eq!(names.len(), sets.len(), "duplicate car names");
+    assert!(sets.iter().all(|s| !s.nodes.is_empty() && s.is_tree()), "incomplete bounds tree");
     // docs/formats/collision.md: the M3 GTR's root box.
     let m3 = physics::car_bounds(&sets, "BMWM3GTR").unwrap();
     assert!((m3.half_dimensions - glam::Vec3::new(0.938, 0.621, 2.271)).abs().max_element() < 1e-3, "{m3:?}");

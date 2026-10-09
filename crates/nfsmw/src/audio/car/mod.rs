@@ -55,6 +55,7 @@ pub(super) struct CarAudio {
     pub levels: Levels,
     /// The sample layer (engine samples and sputters); `None` when the banks could not be run.
     aems: Option<AemsLayer>,
+    sample_available: bool,
     /// `engineaudio.Master_Vol`.
     master_volume: u32,
     handle: EngineHandle,
@@ -99,6 +100,12 @@ impl Audio {
             }
         }
         let Some(mut car) = self.car.take() else { return };
+        let sample_available = car.aems.as_ref().is_some_and(AemsLayer::engine_available);
+        if car.sample_available && !sample_available {
+            log::warn!("{}: engine sample layer failed; the Ginsu loops will keep playing at the limiter", car.car);
+        }
+        car.sample_available = sample_available;
+        car.engine.set_redline_sample_available(sample_available);
         // The map's pitch for the engine (one frame old) is the dynamic mixer's pitch multiplier.
         let input = CarInput { pitch_multiplier: car.levels.engine_pitch, ..state.input };
         let out = car.engine.update(dt, &input);
@@ -177,6 +184,7 @@ impl Audio {
         let aems = AemsLayer::load(self, &loaded.sound).map_err(|e| log::warn!("no sample layer for {name}: {e}")).ok();
         Ok(CarAudio {
             levels: Levels::unmixed(),
+            sample_available: aems.as_ref().is_some_and(AemsLayer::engine_available),
             aems,
             mixer,
             master_volume: loaded.sound.engine.master_volume,

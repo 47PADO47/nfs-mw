@@ -17,7 +17,7 @@ use nfsmw_data::world::PropKind;
 use crate::scenes::world::props::{Obb, PropWorld};
 use crate::scenes::world::space;
 
-/// A surface whose normal points up more than this is a floor, not a wall.
+/// Shallow faces belong to ground handling, including origin-facing downward normals.
 const FLOOR_NORMAL: f32 = 0.7;
 /// Hits deeper than this are ignored (a wall we are already far inside is not one we just hit).
 const MAX_DEPTH: f32 = 1.5;
@@ -122,11 +122,7 @@ pub type Cast<'a> = &'a dyn Fn(Vec3, Vec3) -> Option<Hit>;
 pub fn world_cast(collision: &CollisionWorld) -> impl Fn(Vec3, Vec3) -> Option<Hit> + '_ {
     let options = RayOptions { exclude: u32::from(GROUP_EXCLUSION), ..RayOptions::default() };
     move |from, to| {
-        let hit = collision.ray_cast(from.to_array(), to.to_array(), &options)?;
-        let one_sided = hit.kind == HitKind::Barrier && hit.surface_flags & BARRIER_TWO_SIDED == 0;
-        if one_sided && !hit.front_facing {
-            return None;
-        }
+        let hit = collision.ray_cast_filtered(from.to_array(), to.to_array(), &options, eligible)?;
         let info = HitInfo {
             barrier: hit.kind == HitKind::Barrier,
             surface: hit.surface_hash,
@@ -135,6 +131,18 @@ pub fn world_cast(collision: &CollisionWorld) -> impl Fn(Vec3, Vec3) -> Option<H
         };
         Some(Hit { point: Vec3::from(hit.point), normal: Vec3::from(hit.normal), prop: None, info: Some(info) })
     }
+}
+
+/// Reject floors and rear-facing one-way barriers before they can hide a valid wall farther along
+/// the probe. A ray normal faces its origin, so a floor can have either sign of y.
+fn eligible(hit: &blackbox_collision::Hit) -> bool {
+    if hit.kind == HitKind::Face && hit.normal[1].abs() > FLOOR_NORMAL {
+        return false;
+    }
+    if hit.kind == HitKind::Barrier && hit.surface_flags & BARRIER_TWO_SIDED == 0 && !hit.front_facing {
+        return false;
+    }
+    true
 }
 
 /// The props the body's box overlaps, as wall contacts (physics space): the world's props are found by
@@ -178,7 +186,7 @@ pub fn find(cast: Cast<'_>, props: PropQuery<'_>, position: Vec3, rot: Mat3, hal
         .filter_map(|&local| {
             let probe = position + rot * local;
             let hit = cast(position, probe)?;
-            if hit.normal.y > FLOOR_NORMAL && hit.prop.is_none() {
+            if hit.normal.y.abs() > FLOOR_NORMAL && hit.prop.is_none() {
                 return None;
             }
             let depth = (hit.point - probe).dot(hit.normal);
@@ -297,6 +305,8 @@ pub fn resolve(vehicle: &mut Vehicle, cast: Cast<'_>, props: PropQuery<'_>, wall
     impact
 }
 
+#[cfg(test)]
+mod regression_tests;
 #[cfg(test)]
 mod visual_tests;
 
