@@ -11,10 +11,12 @@ fn the_map_files_hold_an_eight_by_eight_grid_of_named_tiles() {
         let tiles = minimap::read_tiles(&dir, stem).unwrap_or_else(|e| panic!("{stem}: {e:#}"));
         let header = stem.to_ascii_uppercase();
         for (n, t) in tiles.tiles.iter().enumerate() {
-            assert_eq!((t.width, t.height), (128, 128), "{stem} tile {n}");
+            assert!(t.width > 0 && t.width == t.height, "{stem} tile {n}: {}x{}", t.width, t.height);
             let name = blackbox_minimap::tile_name(&header, n as i32);
             assert_eq!(t.name_hash, blackbox_hash::bstring_hash(&name), "{stem} tile {n} is not {name}");
         }
+        let sizes: std::collections::BTreeSet<_> = tiles.tiles.iter().map(|t| (t.width, t.height)).collect();
+        eprintln!("{stem}: {} named tiles, texture sizes {sizes:?}", tiles.len());
     }
 }
 

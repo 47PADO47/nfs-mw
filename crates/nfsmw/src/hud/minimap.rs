@@ -27,6 +27,7 @@ pub struct MinimapBinding {
     header: String,
     group: ObjectRef,
     pieces: [ObjectRef; 4],
+    masks: [u32; 4],
     arrow: ObjectRef,
     /// Where the package puts the group, and the mask rectangle of each piece.
     group_position: Vec3,
@@ -36,13 +37,21 @@ pub struct MinimapBinding {
 impl MinimapBinding {
     /// Finds the objects; `None` when the package lacks one (a different HUD).
     pub fn new(rt: &Runtime, package: PackageId, calibration: Calibration, header: &str) -> Option<Self> {
+        if !calibration.is_valid() {
+            return None;
+        }
         let find = |name: &str| rt.find(package, fe_hash_upper(name));
         let group = find(GROUP)?;
         let arrow = find(ARROW)?;
         let mut pieces = [group; 4];
         let mut mask_windows = [[0.0; 4]; 4];
+        let mut masks = [0; 4];
         for (i, name) in PIECES.iter().enumerate() {
             pieces[i] = find(name)?;
+            masks[i] = rt.package(package)?.objects.get(pieces[i].index)?.multi?.textures[0];
+            if masks[i] == 0 {
+                return None;
+            }
             mask_windows[i] = rt.object(pieces[i])?.data.multi_uv(0);
         }
         Some(Self {
@@ -50,6 +59,7 @@ impl MinimapBinding {
             header: header.to_ascii_uppercase(),
             group,
             pieces,
+            masks,
             arrow,
             group_position: rt.position(group)?,
             mask_windows,
@@ -66,15 +76,33 @@ impl MinimapBinding {
                 return None;
             }
         };
-        if assets.texture(fe_hash_upper(&tile_name(FULL_MAP, 0))).is_none() {
-            log::warn!("the minimap is off: the map tiles of {FULL_MAP} are not in the assets");
+        let Some(binding) = Self::new(rt, package, calibration, FULL_MAP) else {
+            log::warn!("the minimap is off: invalid calibration or incomplete HUD objects");
+            return None;
+        };
+        let complete = binding.resources_available(
+            |key| assets.texture(key).is_some(),
+            |key| assets.image(key).is_some_and(|image| image.width > 0 && image.height > 0),
+        );
+        if !complete {
+            log::warn!("the minimap is off: a map tile or readable mask texture is missing");
             return None;
         }
-        let binding = Self::new(rt, package, calibration, FULL_MAP);
-        if binding.is_none() {
-            log::warn!("the minimap is off: the HUD package lacks its objects");
+        Some(binding)
+    }
+
+    /// Resource validation is separate from install discovery, so incomplete hosts can fail closed.
+    pub(super) fn resources_available(
+        &self,
+        tile_exists: impl Fn(u32) -> bool,
+        mask_readable: impl Fn(u32) -> bool,
+    ) -> bool {
+        let all_tiles = (0..GRID.tiles_per_side * GRID.tiles_per_side)
+            .all(|n| tile_exists(fe_hash_upper(&tile_name(&self.header, n))));
+        if !all_tiles {
+            return false;
         }
-        binding
+        self.masks.iter().enumerate().all(|(i, mask)| self.masks[..i].contains(mask) || mask_readable(*mask))
     }
 
     /// The view for this frame: the player's place, the car's heading and the speed zoom.

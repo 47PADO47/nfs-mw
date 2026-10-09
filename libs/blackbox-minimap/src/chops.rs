@@ -1,4 +1,4 @@
-//! The map pictures: a grid of equal square tiles ("chops"), each stored as a JDLZ-compressed one-texture TPK
+//! The map pictures: a grid of equal square tiles ("chops"), each stored as a wrapped one-texture TPK
 //! in a `CompTPKBlock` chunk. Format: `docs/formats/minimap.md`.
 
 use blackbox_chunk::chunks;
@@ -39,7 +39,7 @@ impl TileSet {
                 continue;
             }
             let n = tiles.len();
-            let pack = ea_compress::jdlz_decompress(chunk.payload).map_err(|e| Error::Inflate(n, e))?;
+            let pack = ea_compress::unwrap(chunk.payload).map_err(|e| Error::Inflate(n, e))?;
             let packs = read_texture_packs(&pack).map_err(|e| Error::Pack(n, e))?;
             let mut textures: Vec<Texture> = packs.into_iter().flat_map(|p| p.textures).collect();
             if textures.len() != 1 {
@@ -85,8 +85,29 @@ mod tests {
     #[test]
     fn a_tile_that_does_not_inflate_names_its_place() {
         let mut file = chunk(0x0003_4201, &[0; 4]);
-        file.extend(chunk(COMP_TPK_BLOCK, &[0xAA; 32]));
+        file.extend(chunk(COMP_TPK_BLOCK, b"JDLZ"));
         let Err(Error::Inflate(0, _)) = TileSet::parse(&file) else { panic!("expected an inflate error") };
+    }
+
+    #[test]
+    fn each_tile_detects_its_own_wrapper() {
+        // Stored empty input reaches the texture-count check, not the JDLZ decoder.
+        let mut stored = b"RAWW".to_vec();
+        stored.extend([1, 0x10, 0, 0]);
+        stored.extend(0u32.to_le_bytes());
+        stored.extend(16u32.to_le_bytes());
+        assert!(matches!(TileSet::parse(&chunk(COMP_TPK_BLOCK, &stored)), Err(Error::NotOneTexture(0, 0))));
+
+        // A malformed HUFF header is diagnosed by the HUFF codec, independently of the preceding chunk.
+        let mut huff = b"HUFF".to_vec();
+        huff.extend([2, 0x10, 0, 0]);
+        huff.extend([0; 8]);
+        let mut file = chunk(0x0003_4201, &[]);
+        file.extend(chunk(COMP_TPK_BLOCK, &huff));
+        let Err(Error::Inflate(0, ea_compress::Error::BadHeader { kind, .. })) = TileSet::parse(&file) else {
+            panic!("expected a HUFF header error");
+        };
+        assert_eq!(kind, "HUFF");
     }
 
     #[test]

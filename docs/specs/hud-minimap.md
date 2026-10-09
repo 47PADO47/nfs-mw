@@ -25,6 +25,10 @@ package `HUD_SingleRace.fng` ([feng-runtime.md](feng-runtime.md) section 8).
 - Its objects are `TRACK_MAP` (the group with the four map pieces), `TRACKMAPTARGETRING` (the backing disc) and
   `PLAYERCARINDICATOR` (the arrow); the blip images are described in section 7. Showing the feature makes all of
   them visible; each frame then only moves them. **[decomp]**
+- Host validation: the rewrite keeps the map hidden if its calibration is non-finite or has a non-positive
+  width, if a named tile is missing, or if a piece has no readable mask. This prevents invalid positions and
+  unclipped squares when an install is incomplete or modified; the speedometer and other HUD elements remain
+  usable. This is a robustness rule of the rewrite, not a claim about the original's error handling.
 
 ## 2. Which map
 
@@ -155,5 +159,6 @@ to -120, `MinimapDispX` to -0.9375), `false` moves it back. In this rewrite the 
   off, invisible at 6.5 m per picture pixel).
 - Which of the three whole-city files a free roam run should use depends on career progress that this rewrite
   does not have; it always uses the full `MINI_MAP`.
-- Out-of-range tile numbers near the picture's edges draw nothing instead of the game's wrapped-over neighbours.
+- Tile numbers outside 0..63 draw nothing. A column past the left or right edge still gives a neighbouring
+  row's in-range tile, as described in section 4; the four tile numbers are not clamped by column.
 - The look has not been compared with a capture of the original.

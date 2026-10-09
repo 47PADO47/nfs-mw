@@ -56,6 +56,8 @@ pub enum FrameSet {
 pub struct RunOptions {
     /// Write a PNG and exit instead of opening an interactive window.
     pub screenshot: Option<PathBuf>,
+    /// Physical off-screen target size; `None` preserves the default screenshot dimensions.
+    pub screenshot_size: Option<[u32; 2]>,
     /// Console commands to run once the renderer is up (`--exec`).
     pub exec: Vec<String>,
     /// Start with the console open.
@@ -72,11 +74,11 @@ pub struct RunOptions {
 
 /// Open a window and run `scene` until the user quits (or write the screenshot and exit).
 pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> Result<()> {
-    let RunOptions { screenshot, exec, open_console, hud, hud_demo, audio, frontend } = options;
+    let RunOptions { screenshot, screenshot_size, exec, open_console, hud, hud_demo, audio, frontend } = options;
     let error = ErrorSlot(Arc::new(Mutex::new(None)));
     let mut window = Window { title: scene.title(), ..Window::default() };
     if screenshot.is_some() {
-        let (w, h) = screenshot::SIZE;
+        let [w, h] = screenshot_size.unwrap_or([screenshot::SIZE.0, screenshot::SIZE.1]);
         window.visible = false;
         window.focused = false;
         window.position = bevy_window::WindowPosition::At([-32768, -32768].into());
