@@ -3,8 +3,7 @@
 
 use crate::settings::RendererKind;
 
-/// Whether this build has the Bevy renderer: the `renderer-bevy` cargo feature, which is off by default and
-/// which no build uses until the Bevy backend lands.
+/// Whether this build has the Bevy renderer: the `renderer-bevy` cargo feature, which is off by default.
 pub const BEVY_COMPILED: bool = cfg!(feature = "renderer-bevy");
 
 /// The renderer to create, and why it is not the requested one.
@@ -26,9 +25,30 @@ pub fn decide(requested: RendererKind, bevy_compiled: bool) -> Choice {
     Choice { renderer: requested, fallback: None }
 }
 
-/// The renderer to create for `requested`. A fallback is logged.
-pub fn choose(requested: RendererKind) -> RendererKind {
-    let choice = decide(requested, BEVY_COMPILED);
+/// [`decide`], then, for bevy, the adapter probe: `probe` says whether this PC can run it (and why not), and
+/// a PC that cannot falls back to the native renderer too. The probe runs before the `App` is built, because
+/// Bevy panics when it finds no adapter once it exists.
+pub fn decide_with_probe(
+    requested: RendererKind,
+    bevy_compiled: bool,
+    probe: impl FnOnce() -> Result<(), String>,
+) -> Choice {
+    let choice = decide(requested, bevy_compiled);
+    if choice.renderer != RendererKind::Bevy {
+        return choice;
+    }
+    match probe() {
+        Ok(()) => choice,
+        Err(why) => Choice {
+            renderer: RendererKind::Blackbox,
+            fallback: Some(format!("bevy was requested, but this PC cannot run it ({why}); using blackbox")),
+        },
+    }
+}
+
+/// The renderer to create for `requested` on graphics API `api`. A fallback is logged.
+pub fn choose(requested: RendererKind, api: blackbox_gfx::GraphicsApi) -> RendererKind {
+    let choice = decide_with_probe(requested, BEVY_COMPILED, || super::bevy::probe(api));
     if let Some(reason) = &choice.fallback {
         log::error!("renderer: {reason}");
     }
@@ -63,9 +83,25 @@ mod tests {
     }
 
     #[test]
+    fn a_pc_the_probe_rejects_falls_back_with_the_reason() {
+        let choice = decide_with_probe(RendererKind::Bevy, true, || Err("no GPU adapter".to_owned()));
+        assert_eq!(choice.renderer, RendererKind::Blackbox);
+        assert!(choice.fallback.unwrap().contains("no GPU adapter"));
+        let kept = decide_with_probe(RendererKind::Bevy, true, || Ok(()));
+        assert_eq!(kept, Choice { renderer: RendererKind::Bevy, fallback: None });
+    }
+
+    #[test]
+    fn the_probe_is_not_asked_for_blackbox_or_a_build_without_bevy() {
+        let never = || -> Result<(), String> { panic!("probed") };
+        assert_eq!(decide_with_probe(RendererKind::Blackbox, true, never).renderer, RendererKind::Blackbox);
+        assert_eq!(decide_with_probe(RendererKind::Bevy, false, never).renderer, RendererKind::Blackbox);
+    }
+
+    #[test]
     #[cfg(not(feature = "renderer-bevy"))]
-    fn this_build_has_no_bevy_renderer_yet() {
+    fn a_default_build_has_no_bevy_renderer() {
         assert!(!BEVY_COMPILED);
-        assert_eq!(choose(RendererKind::Bevy), RendererKind::Blackbox);
+        assert_eq!(choose(RendererKind::Bevy, blackbox_gfx::GraphicsApi::Auto), RendererKind::Blackbox);
     }
 }

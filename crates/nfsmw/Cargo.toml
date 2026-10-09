@@ -18,6 +18,7 @@ bevy_time.workspace = true
 bevy_window.workspace = true
 bevy_winit.workspace = true
 blackbox-aems.workspace = true
+blackbox-bevy-render = { workspace = true, optional = true }
 blackbox-attrib.workspace = true
 blackbox-carsound.workspace = true
 blackbox-chunk.workspace = true
@@ -51,9 +52,9 @@ serde.workspace = true
 toml.workspace = true
 
 [features]
-# The optional Bevy renderer (docs/renderers.md). The backend crate does not exist yet, so the feature only
-# marks a build that is meant to have it; the default build never has it.
-renderer-bevy = []
+# The optional Bevy renderer (docs/renderers.md, docs/bevy-backend.md). The default build never has it, so it
+# never compiles bevy_render.
+renderer-bevy = ["dep:blackbox-bevy-render"]
 
 [lints]
 workspace = true

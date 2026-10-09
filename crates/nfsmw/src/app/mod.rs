@@ -117,6 +117,9 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
         window.resolution = WindowResolution::new(w, h).with_scale_factor_override(1.0);
     }
 
+    // The renderer is fixed here, before the App exists: a bevy request this build or PC cannot satisfy falls back
+    // to the native renderer, because Bevy panics when it finds no adapter once the app is built.
+    let renderer = render::select::choose(settings.renderer, settings.backend);
     let mut app = App::new();
     app.add_plugins((
         TaskPoolPlugin::default(),
@@ -131,6 +134,7 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
         DevToolsPlugin,
     ))
     .insert_resource(*settings)
+    .insert_resource(render::ActiveRenderer(renderer))
     .insert_resource(window::WindowModes::new(screenshot.is_some()))
     .insert_resource(Bindings::load(settings))
     .insert_resource(error.clone())
@@ -150,7 +154,14 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
     )
     .add_systems(
         Update,
-        (window::shortcut, window::update, render::create_renderer, cursor::update, render::resize)
+        (
+            window::shortcut,
+            window::update,
+            render::create_renderer.run_if(render::using_blackbox),
+            render::create_bevy_renderer.run_if(render::using_bevy),
+            cursor::update,
+            render::resize,
+        )
             .chain()
             .in_set(FrameSet::Prepare),
     )
@@ -158,6 +169,9 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
     .add_systems(Update, graphics::apply.in_set(FrameSet::Draw).before(render::draw))
     .add_systems(Update, render::draw.in_set(FrameSet::Draw))
     .add_systems(Last, pacing::end_of_frame);
+    if renderer == crate::settings::RendererKind::Bevy {
+        render::add_bevy_plugin(&mut app, settings.backend);
+    }
     if let Some(dir) = hud {
         app.add_plugins(crate::hud::HudPlugin { dir, initial: hud_demo.unwrap_or_default() });
     }
