@@ -161,3 +161,85 @@ fn contact_conserves_nothing_but_stays_finite_when_rotated() {
     let vp = b.point_velocity(c.point);
     assert!(vp.y >= -1e-3, "contact point still approaching: {}", vp.y);
 }
+
+mod bodies {
+    use glam::{Mat3, Quat, Vec3};
+
+    use super::super::{BodyContact, BodyHit, Obb, RigidBody, RigidBodySpec, obb_contact, react_bodies, separate};
+
+    fn car_box(centre: Vec3, yaw: f32) -> Obb {
+        Obb { centre, axes: Mat3::from_rotation_y(yaw), half: Vec3::new(0.9, 0.7, 2.2) }
+    }
+
+    fn body(position: Vec3, velocity: Vec3, mass: f32) -> RigidBody {
+        let mut b = RigidBody::new(mass, Vec3::new(0.9, 0.7, 2.2), Vec3::ONE, RigidBodySpec::default());
+        b.place(position, Quat::IDENTITY);
+        b.linear_velocity = velocity;
+        b
+    }
+
+    #[test]
+    fn boxes_apart_do_not_touch_and_overlapping_boxes_report_the_shallowest_axis() {
+        assert!(obb_contact(&car_box(Vec3::ZERO, 0.0), &car_box(Vec3::new(0.0, 0.0, 6.0), 0.0)).is_none());
+        // Nose to tail, overlapping by 0.4 m along z: the normal points from the second box to the first.
+        let c = obb_contact(&car_box(Vec3::new(0.0, 0.0, 4.0), 0.0), &car_box(Vec3::ZERO, 0.0)).unwrap();
+        assert!((c.overlap - 0.4).abs() < 1e-4, "{c:?}");
+        assert!(c.normal.distance(Vec3::Z) < 1e-4);
+        // Swapping the boxes flips the normal.
+        let c = obb_contact(&car_box(Vec3::ZERO, 0.0), &car_box(Vec3::new(0.0, 0.0, 4.0), 0.0)).unwrap();
+        assert!(c.normal.distance(-Vec3::Z) < 1e-4);
+    }
+
+    #[test]
+    fn a_side_swipe_at_an_angle_overlaps_sideways() {
+        // The second car is turned 30 degrees and half a metre too close sideways.
+        let c = obb_contact(&car_box(Vec3::new(1.7, 0.0, 0.0), 0.0), &car_box(Vec3::ZERO, 0.5)).unwrap();
+        assert!(c.overlap > 0.0 && c.overlap < 2.0);
+        assert!(c.normal.dot(Vec3::X) > 0.5, "{:?}", c.normal);
+    }
+
+    #[test]
+    fn a_head_on_hit_trades_momentum_and_separates_the_cars() {
+        let mut a = body(Vec3::new(0.0, 0.0, 4.0), Vec3::new(0.0, 0.0, -10.0), 1500.0);
+        let mut b = body(Vec3::ZERO, Vec3::new(0.0, 0.0, 10.0), 1500.0);
+        let boxes = (car_box(a.position, 0.0), car_box(b.position, 0.0));
+        let hit = obb_contact(&boxes.0, &boxes.1).unwrap();
+        separate(&mut a, &mut b, hit.normal, hit.overlap);
+        assert!(a.position.z - b.position.z >= 4.4 - 1e-3);
+        let contact = BodyContact {
+            point: hit.point,
+            normal: hit.normal,
+            overlap: hit.overlap,
+            friction_static: 0.5,
+            friction_kinetic: 0.4,
+        };
+        let h = BodyHit { restitution: 0.2, inertia_scale: Vec3::ONE };
+        let before = a.linear_velocity * a.mass() + b.linear_velocity * b.mass();
+        let reaction = react_bodies(&mut a, &mut b, &contact, &h, &h).unwrap();
+        let after = a.linear_velocity * a.mass() + b.linear_velocity * b.mass();
+        assert!((after - before).length() < 1.0, "momentum {before:?} -> {after:?}");
+        assert!(reaction.closing_speed > 19.0);
+        // At the contact point they no longer approach each other (the corner contact also spins them).
+        let closing = (a.point_velocity(hit.point) - b.point_velocity(hit.point)).dot(hit.normal);
+        assert!(closing >= -1e-3, "still closing at {closing}");
+        // Not approaching: no reaction.
+        assert!(react_bodies(&mut a, &mut b, &contact, &h, &h).is_none());
+    }
+
+    #[test]
+    fn the_lighter_car_gets_the_bigger_change_of_speed() {
+        let mut heavy = body(Vec3::new(0.0, 0.0, 4.0), Vec3::new(0.0, 0.0, -5.0), 5000.0);
+        let mut light = body(Vec3::ZERO, Vec3::new(0.0, 0.0, 5.0), 1000.0);
+        let contact = BodyContact {
+            point: Vec3::new(0.0, 0.0, 2.2),
+            normal: Vec3::Z,
+            overlap: 0.0,
+            friction_static: 0.5,
+            friction_kinetic: 0.4,
+        };
+        let h = BodyHit { restitution: 0.1, inertia_scale: Vec3::ONE };
+        react_bodies(&mut heavy, &mut light, &contact, &h, &h).unwrap();
+        assert!(light.linear_velocity.z < -3.0, "{:?}", light.linear_velocity);
+        assert!(heavy.linear_velocity.z.abs() < 4.0);
+    }
+}
