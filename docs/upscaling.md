@@ -30,7 +30,7 @@ same settings for the run. `--screenshot` captures the final, upscaled image.
 
 | Render scale | Upscaler | Result |
 |---|---|---|
-| 100 | any | The scene is drawn at the window size and copied; no upscale pass runs. |
+| 100 | any | The scene is drawn at the window size; no upscale pass runs, and with no post effect it goes straight to the window with no copy. |
 | below 100 | `fsr1` | The scene is drawn small, then upscaled by FSR 1 (EASU) and sharpened (RCAS). |
 | below 100 | `bilinear` | The scene is drawn small and stretched with bilinear filtering: soft, cheapest. |
 | above 100 | `fsr1` or `bilinear` | Supersampling: the scene is drawn large and filtered down with bilinear filtering (the upscaler does not apply). |

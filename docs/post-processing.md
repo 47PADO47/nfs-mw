@@ -37,7 +37,9 @@ screen. In the F12 console, `get post_bloom`, `set post_bloom high` and the shor
   upscalers want as input.
 
 The effects run in a fixed order: bloom, tone mapping, anti-aliasing. Anti-aliasing comes last so it
-sees the final colours. Each effect that is off costs nothing: no pass is created for it.
+sees the final colours. Each effect that is off costs nothing: no pass is created for it. With all
+three off the scene is drawn straight into the window; bloom and tone mapping draw it in a 16-bit float
+image (twice the memory and bandwidth), FXAA alone in the window's own format.
 
 ## Checking them
 
