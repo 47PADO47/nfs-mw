@@ -201,7 +201,7 @@ every song turns up within 2N picks [confirmed by the Rust tests of the rule, in
   songs played lets "previous" go back (a song played for more than 3 s starts over instead) and "next" go forward
   through the history before the play list picks. Keys: `radio_toggle` (M), `radio_next` (`.`), `radio_previous`
   (`,`); the chyron with the artist, title and album comes up when a song starts, pauses or resumes. It is the original
-  `EA_TRAX.fng` screen by default (`radio_hud = ea_trax`), with its text held at full alpha for the six-second timer,
+  `EA_TRAX.fng` screen by default (`radio_hud = ea_trax`), with its text faded in and out over the six-second timer (the screen's own fade track is not driven yet),
   or the rewrite's own card (`radio_hud = custom`, `hud/radio.rs`).
 - After a pursuit ends, licensed music resumes after a delay of 40 s [inferred].
 - Music volume 0 stops the licensed music; the front-end and in-game music volumes are separate settings.

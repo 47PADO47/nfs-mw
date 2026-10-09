@@ -113,7 +113,8 @@ fn present(
     // The presenter puts each call's meshes in front of the ones of the calls before it, so the chyron is drawn
     // first and the HUD after it: the chyron then sits on top of the gauges.
     if let (true, Some(trax)) = (ea_trax, hud.trax.as_ref()) {
-        let chyron = hud.runtime.tree(trax.package());
+        let mut chyron = hud.runtime.tree(trax.package());
+        trax.place(&mut chyron, screen, settings.hud_layout);
         presenter.0.present(&chyron, &assets.0, screen, &mut out);
     }
     let mut tree = hud.runtime.tree(hud.package);
