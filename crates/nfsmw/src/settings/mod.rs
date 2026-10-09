@@ -57,6 +57,8 @@ pub struct Settings {
     pub music_volume: Percent,
     pub sfx_volume: Percent,
     pub engine_volume: Percent,
+    /// The police dispatch's radio lines.
+    pub speech_volume: Percent,
     /// Draw the in-game HUD while driving (the free camera never shows it).
     pub hud: bool,
     /// Draw smoke from the driven car's loaded tire contacts.
@@ -109,6 +111,7 @@ impl From<Partial> for Settings {
             music_volume: p.music_volume.unwrap_or(Percent(60)),
             sfx_volume: p.sfx_volume.unwrap_or(Percent(90)),
             engine_volume: p.engine_volume.unwrap_or(Percent(90)),
+            speech_volume: p.speech_volume.unwrap_or(Percent(90)),
             hud: p.hud.unwrap_or(true),
             tire_smoke: p.tire_smoke.unwrap_or(true),
             radio: p.radio.unwrap_or(true),

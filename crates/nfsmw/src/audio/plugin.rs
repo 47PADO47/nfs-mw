@@ -31,6 +31,7 @@ impl Plugin for AudioPlugin {
             Update,
             ((sync_volumes, sync_radio).in_set(FrameSet::Prepare), drive_car.in_set(FrameSet::Ui)),
         );
+        super::speech::add_systems(app);
     }
 }
 

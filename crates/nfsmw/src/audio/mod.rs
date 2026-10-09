@@ -14,6 +14,7 @@ mod pcm;
 mod plugin;
 mod radio;
 mod refs;
+mod speech;
 mod tuning;
 mod volume;
 
@@ -62,6 +63,8 @@ pub struct Audio {
     radio: radio::RadioSlot,
     /// Whether the settings let the radio play (the `radio` console command can still start it).
     radio_wanted: bool,
+    /// The police dispatch's speech, loaded when first needed.
+    speech: speech::SpeechSlot,
     /// Bank sounds that could not be loaded, so each is reported once.
     missing: HashSet<(String, usize)>,
     /// The car whose sound could not be loaded, so the failure is not repeated every frame.
@@ -106,6 +109,7 @@ impl Audio {
             stitches: None,
             radio: radio::RadioSlot::default(),
             radio_wanted: true,
+            speech: speech::SpeechSlot::default(),
             missing: HashSet::new(),
             failed: None,
             music: None,

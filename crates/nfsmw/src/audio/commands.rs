@@ -4,7 +4,7 @@ use super::{Audio, EngineMix, Group};
 
 /// Whether `name` is one of the commands of this module.
 pub fn handles(name: &str) -> bool {
-    matches!(name, "sound" | "engine" | "radio")
+    matches!(name, "sound" | "engine" | "radio" | "speech")
 }
 
 /// Run a sound command. `audio` is `None` when the game was started without sound.
@@ -14,6 +14,7 @@ pub fn run(audio: Option<&mut Audio>, name: &str, args: &[&str]) -> Result<Strin
         "sound" => sound(audio, args),
         "engine" => engine(audio, args),
         "radio" => super::radio::command(audio, args),
+        "speech" => super::speech::command(audio, args),
         other => Err(format!("unknown sound command {other:?}")),
     }
 }
