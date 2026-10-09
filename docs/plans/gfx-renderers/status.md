@@ -24,11 +24,11 @@ All branches are in one GitHub stack (stack #23, draft PRs, each based on the pr
 | 10 | `feat/gfx-bevy-post` | | **not started** |
 | 11 | `feat/gfx-bevy-dlss` | | **not started**, needs the NVIDIA PC |
 | 12 | `feat/gfx-bevy-solari` | | **not started**, needs the NVIDIA PC |
-| 13a | `feat/gfx-fsr3-core` | | code done and pushed, **no PR yet** (see §4) |
+| 13a | `feat/gfx-fsr3-core` | #41 | done: `libs/fsr3-wgpu`, not used by a renderer yet |
 | 13b | `feat/gfx-fsr3` | | **not started** |
 | 14 | `feat/gfx-bevy-fsr4` | | **not started**, experimental, needs an RX 7000/9000 tester |
 
-Not part of the stack: exhaust flames (#31, against `main`).
+The status PR itself is the top of the stack (see the PR list on GitHub). Not part of the stack: exhaust flames (#31, against `main`).
 
 ## 2. Changes from the plan while building it
 
@@ -72,7 +72,7 @@ Start from the stack tip (`feat/gfx-bevy-spike`, or this docs branch which sits 
 | 10 Bevy post | bloom, tone mapping, FXAA, SMAA, TAA (jitter, motion vectors from `InstanceKey`, `camera_cut` reset), render scale, FSR 1 pass, mip bias; components only inserted when enabled | any |
 | 11 DLSS | `dlss` / `dlss-mock` features, `DlssInitPlugin` before `RenderPlugin`, `DlssProjectId`, build needs the DLSS SDK (`DLSS_SDK`, `VULKAN_SDK`, clang); CI compile-checks with the mock; `docs/licensing.md` must record the NVIDIA terms | **NVIDIA RTX, Vulkan** |
 | 12 Solari | startup-gated (`ray_tracing != off`), needs the wgpu ray-query features, mirrors world meshes into `RaytracingMesh3d` + `StandardMaterial` (alpha-tested and blended geometry excluded), DLSS-RR as denoiser when built | **RTX, Vulkan** |
-| 13a/13b FSR 3 | 13a exists (`libs/fsr3-wgpu`, FSR 3.1.4 port, 32 CPU + 28 GPU tests); rebase `feat/gfx-fsr3-core` onto the stack tip and open its PR, then 13b adds the `EarlyPostProcess` system (README of the crate lists what Bevy must supply: jitter, depth, motion vectors, a storage-capable output texture, reset on `camera_cut`) | Vulkan here; DX12 image quality on your PC |
+| 13a/13b FSR 3 | 13a is merged into the stack (#41: `libs/fsr3-wgpu`, FSR 3.1.4 port, 32 CPU + 28 GPU tests); 13b adds the `EarlyPostProcess` system (README of the crate lists what Bevy must supply: jitter, depth, motion vectors, a storage-capable output texture, reset on `camera_cut`) | Vulkan here; DX12 image quality on your PC |
 | 14 FSR 4 | DX12 only, AMD's signed DLL loaded at run time, RX 7000/9000; cannot be verified without that hardware, park the branch if nobody can test | **AMD RDNA 3/4, DX12** |
 
 Notes that save time:
