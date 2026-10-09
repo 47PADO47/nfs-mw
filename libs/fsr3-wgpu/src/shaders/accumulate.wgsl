@@ -31,7 +31,8 @@
 //
 // Changes from the original: only the fp32 reference path (the approximate Lanczos for the upsample
 // kernel and the sin-based one for the history), without the paired-16-bit Xbox variant; the history
-// and the new locks are read with textureLoad; the history is clamped to the range of its 16-bit
+// taps repeat the edge texel instead of AMD's clamp to 1..size-2; the history and the new locks are
+// read with textureLoad; the history is clamped to the range of its 16-bit
 // storage; `OUTPUT_FORMAT` is replaced with the format of the output texture when the module is built.
 
 @group(0) @binding(1) var input_color: texture_2d<f32>;
@@ -74,9 +75,10 @@ fn lanczos2_weights(t: f32) -> vec4<f32> {
     return vec4<f32>(lanczos2(-1.0 - t), lanczos2(-t), lanczos2(1.0 - t), lanczos2(2.0 - t));
 }
 
+// AMD clamps the taps to 1..size-2, which reads the second texel in place of the first one and shifts
+// the picture by a pixel along the edges of the screen; the taps here repeat the edge texel instead.
 fn history_texel(pos: vec2<i32>, size: vec2<i32>) -> vec4<f32> {
-    let clamped = vec2<i32>(max(1, min(pos.x, size.x - 2)), max(1, min(pos.y, size.y - 2)));
-    return textureLoad(previous_history, clamped, 0);
+    return textureLoad(previous_history, clamp_load(pos, vec2<i32>(0), size), 0);
 }
 
 // The previous output at `uv`: a 4x4 Lanczos2 filter with the deringing of AMD's reference.
