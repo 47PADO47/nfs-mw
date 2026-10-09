@@ -23,10 +23,11 @@ pub use handles::{CaptureId, GlossyMaterialHandle, MeshHandle, TextureHandle, Ui
 pub use material::{DirectionalLight, Environment, GlossyMaterial, LightingRig, SkyGradient};
 pub use mesh::{BlendMode, DrawRange, MeshDesc, Shading, Vertex};
 pub use settings::{
-    Antialiasing, DEFAULT_BLOOM_THRESHOLD, DEFAULT_RENDER_SCALE, DEFAULT_UPSCALE_SHARPNESS, MAX_BLOOM_INTENSITY,
-    MAX_BLOOM_THRESHOLD, MAX_EXPOSURE, MAX_RENDER_SCALE, MAX_TEXTURE_LOD_BIAS, MIN_EXPOSURE, MIN_RENDER_SCALE,
-    MIN_TEXTURE_LOD_BIAS, PostEffect, PostSettings, Tonemap, Upscaler, clamp_render_scale, clamp_texture_lod_bias,
-    clamp_upscale_sharpness, fsr1_active, rcas_stops, scaled_size, suggested_texture_lod_bias,
+    Antialiasing, DEFAULT_BLOOM_THRESHOLD, DEFAULT_RENDER_SCALE, DEFAULT_UPSCALE_SHARPNESS, GraphicsSettings,
+    MAX_BLOOM_INTENSITY, MAX_BLOOM_THRESHOLD, MAX_EXPOSURE, MAX_RENDER_SCALE, MAX_TEXTURE_LOD_BIAS, MIN_EXPOSURE,
+    MIN_RENDER_SCALE, MIN_TEXTURE_LOD_BIAS, PostEffect, PostSettings, RayTracing, Tonemap, UpscaleQuality, Upscaler,
+    clamp_render_scale, clamp_texture_lod_bias, clamp_upscale_sharpness, fsr1_active, rcas_stops, scaled_size,
+    suggested_temporal_texture_lod_bias, suggested_texture_lod_bias,
 };
 pub use texture::{PixelFormat, TextureDesc};
 pub use ui::{UiLayer, UiMesh, UiTexturePatch, UiVertex};

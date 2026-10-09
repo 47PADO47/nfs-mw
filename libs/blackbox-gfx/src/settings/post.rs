@@ -1,7 +1,7 @@
 //! Which post-process effects run and how strong they are. Pure data: the passes themselves belong to the renderer.
 
 /// How the HDR scene image is mapped to the displayable range.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum Tonemap {
     /// No curve: the resolve pass clamps to the output range, as before tone mapping existed.
     #[default]
@@ -12,16 +12,48 @@ pub enum Tonemap {
     Aces,
 }
 
+impl Tonemap {
+    pub const ALL: [Tonemap; 2] = [Tonemap::Off, Tonemap::Aces];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::Aces => "aces",
+        }
+    }
+}
+
 /// Anti-aliasing applied to the render-size image, before any upscaling.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+///
+/// Which methods exist depends on the renderer (its `Capabilities::antialiasing`): the native
+/// renderer has [`Off`](Self::Off) and [`Fxaa`](Self::Fxaa).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum Antialiasing {
     #[default]
     Off,
     /// Fast approximate anti-aliasing: a single fullscreen pass that smooths edges found by luma contrast.
     Fxaa,
+    /// Subpixel morphological anti-aliasing: edge-pattern based, a few passes, sharper than FXAA.
+    Smaa,
+    /// Temporal anti-aliasing: accumulates jittered frames. Needs motion vectors and history.
+    Taa,
 }
 
-/// One effect of the chain, named for planning and tests.
+impl Antialiasing {
+    pub const ALL: [Antialiasing; 4] = [Antialiasing::Off, Antialiasing::Fxaa, Antialiasing::Smaa, Antialiasing::Taa];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::Fxaa => "fxaa",
+            Self::Smaa => "smaa",
+            Self::Taa => "taa",
+        }
+    }
+}
+
+/// One effect of the shared post chain, named for planning and tests. SMAA and TAA are not in it:
+/// they belong to the renderers that offer them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PostEffect {
     Bloom,
@@ -95,7 +127,7 @@ impl PostSettings {
         if self.tonemap != Tonemap::Off {
             effects.push(PostEffect::Tonemap);
         }
-        if self.antialiasing != Antialiasing::Off {
+        if self.antialiasing == Antialiasing::Fxaa {
             effects.push(PostEffect::Fxaa);
         }
         effects
@@ -127,6 +159,19 @@ mod tests {
         assert_eq!(only_aa.effects(), [PostEffect::Fxaa]);
         let only_bloom = PostSettings { bloom_intensity: 0.1, ..PostSettings::default() };
         assert_eq!(only_bloom.effects(), [PostEffect::Bloom]);
+    }
+
+    #[test]
+    fn only_fxaa_is_a_chain_effect() {
+        for aa in [Antialiasing::Off, Antialiasing::Smaa, Antialiasing::Taa] {
+            assert!(PostSettings { antialiasing: aa, ..PostSettings::default() }.effects().is_empty(), "{aa:?}");
+        }
+    }
+
+    #[test]
+    fn names_are_lower_case_and_in_order() {
+        assert_eq!(Antialiasing::ALL.map(Antialiasing::name), ["off", "fxaa", "smaa", "taa"]);
+        assert_eq!(Tonemap::ALL.map(Tonemap::name), ["off", "aces"]);
     }
 
     #[test]
