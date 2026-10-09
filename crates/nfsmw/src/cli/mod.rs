@@ -218,6 +218,10 @@ pub struct ViewArgs {
     /// For --screenshot with --screenshot-count: seconds between captures [default 1].
     #[arg(long, requires = "screenshot", value_name = "SECS")]
     pub screenshot_interval: Option<f32>,
+    /// Measure frame times for this many seconds once the scene has loaded, print p50, p95, p99 and the worst
+    /// frame with the renderer and the CPU and memory use, and exit. Add --no-vsync for meaningful numbers.
+    #[arg(long, value_name = "SECONDS", conflicts_with = "screenshot")]
+    pub bench_seconds: Option<f32>,
     /// Run a console command once the window is up (repeatable), e.g. --exec "fps 60" --exec "car PORSCHE911".
     #[arg(long, value_name = "COMMAND")]
     pub exec: Vec<String>,
@@ -347,6 +351,7 @@ impl ViewArgs {
             screenshot_delay: self.screenshot_delay.unwrap_or(0.0),
             screenshot_count: self.screenshot_count.unwrap_or(1),
             screenshot_interval: self.screenshot_interval.unwrap_or(1.0),
+            bench_seconds: self.bench_seconds,
             exec: self.exec.clone(),
             open_console: self.open_console,
             hud: (self.hud || hud_default || self.hud_demo.is_some()).then(|| dir.clone()),

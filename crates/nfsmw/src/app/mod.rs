@@ -5,6 +5,7 @@
 //! The seam to the renderer is [`render`]: it is the only place that creates the renderer or draws, and
 //! `render/native.rs` is the only file that names the native `blackbox-render` crate.
 
+mod bench;
 mod cursor;
 mod graphics;
 mod host;
@@ -83,6 +84,8 @@ pub struct RunOptions {
     pub audio: Option<game_install::GameDir>,
     /// Run the front end (menus, game flow) on top of the scene.
     pub frontend: Option<crate::frontend::FrontendPlugin>,
+    /// Measure frame times for this many seconds once the scene is loaded, print them and exit (`--bench-seconds`).
+    pub bench_seconds: Option<f32>,
 }
 
 /// Open a window and run `scene` until the user quits (or write the screenshot and exit).
@@ -99,6 +102,7 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
         hud_demo,
         audio,
         frontend,
+        bench_seconds,
     } = options;
     let plan = screenshot
         .clone()
@@ -130,7 +134,7 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
     .insert_resource(window::WindowModes::new(screenshot.is_some()))
     .insert_resource(Bindings::load(settings))
     .insert_resource(error.clone())
-    .insert_non_send(Host::new(scene, settings, plan))
+    .insert_non_send(Host::new(scene, settings, plan).with_bench(bench_seconds))
     .configure_sets(
         Update,
         (

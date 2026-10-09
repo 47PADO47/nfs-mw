@@ -28,6 +28,8 @@ pub struct Host {
     pub limiter: FrameLimiter,
     pub title_timer: Instant,
     pub frames: u32,
+    /// `--bench-seconds`: measures frame times and exits.
+    pub bench: Option<super::bench::Bench>,
     /// The front end uses Escape (pause, back), so Escape does not release the mouse or quit.
     pub cancel_handled: bool,
     /// The front end decides when a scene is over (a finished movie is not the end of the program).
@@ -65,6 +67,7 @@ impl Host {
             limiter: FrameLimiter::new(settings.max_fps),
             title_timer: Instant::now(),
             frames: 0,
+            bench: None,
             cancel_handled: false,
             flow_driven: false,
             hold_capture: false,
@@ -77,6 +80,12 @@ impl Host {
             transmission: settings.transmission,
             wheel: settings.wheel_options(),
         }
+    }
+
+    /// Measure frame times for `seconds` and exit (`--bench-seconds`).
+    pub fn with_bench(mut self, seconds: Option<f32>) -> Self {
+        self.bench = seconds.map(super::bench::Bench::new);
+        self
     }
 
     /// Puts another scene in the window: it is initialised with the renderer, and in a screenshot run it is given
