@@ -13,6 +13,11 @@ fn word(on: bool) -> &'static str {
 }
 
 impl ExhaustFlames {
+    /// Fake one sputter pop: a backfire at the next step, whatever the throttle does.
+    pub fn pop(&mut self) {
+        self.forced = self.enabled;
+    }
+
     /// `exhaust-flames [status|engine <level>|pop]`. The flames themselves are switched with the
     /// `exhaust_flames` setting (`set exhaust_flames off`).
     pub fn command(&mut self, args: &[&str]) -> Result<String, String> {
@@ -22,7 +27,7 @@ impl ExhaustFlames {
                 if !self.enabled {
                     return Err("the exhaust flames are off (set exhaust_flames on)".into());
                 }
-                self.forced = true;
+                self.pop();
             }
             ["engine", level] => {
                 self.engine_level = level.parse::<i32>().ok().filter(|l| *l >= 0).ok_or(USAGE)?;

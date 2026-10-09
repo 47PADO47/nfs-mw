@@ -281,3 +281,22 @@ fn the_command_reports_and_validates() {
     assert!(fx.command(&["on"]).is_err(), "the setting switches the flames, not the command");
     assert!(fx.command(&["sparkle"]).is_err());
 }
+
+#[test]
+fn only_the_additive_lane_is_brightened() {
+    let faint = EmitterSpec { colors: [[200, 100, 50, 40]; 4], ..spec() };
+    let mut fx = flames(0);
+    let State::Ready(active) = &mut fx.state else { unreachable!() };
+    active.lanes = vec![lane(&faint, 0, 2, 0), lane(&faint, 1, 2, 1)];
+    run(&mut fx, 6, &car(3, true));
+    let State::Ready(a) = &mut fx.state else { unreachable!() };
+    let alpha = |a: &mut Active, lane: usize| {
+        assert!(a.quads(lane, Vec3::new(90.0, 0.0, 1.0), Vec3::X));
+        a.lanes[lane].vertices.iter().map(|v| v.color[3]).max().unwrap()
+    };
+    // The colour curve starts at the given alpha and the particles are young: 40, times the gain for the fire.
+    let (fire, smoke) = (alpha(a, 0), alpha(a, 1));
+    assert!(fire > smoke && f32::from(smoke) * super::ADDITIVE_GAIN - 4.0 <= f32::from(fire), "{fire} {smoke}");
+    assert_eq!(smoke, 40);
+    assert_eq!(fire, 160);
+}

@@ -293,6 +293,9 @@ impl Drive {
                 None => player.held(),
             };
             want_reset |= input.reset;
+            if input.pop {
+                self.flames.pop();
+            }
             let impact = sim.step(&input, &ground, Some((collision, &*props)));
             self.effects.step(sim.tire_contacts(collision), sim.effect_velocity(), clock::STEP);
             self.vehicle_effects.step(&impact.visuals, sim.pose(), sim.effect_velocity(), clock::STEP);

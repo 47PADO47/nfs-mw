@@ -18,6 +18,8 @@ pub struct DriveInput {
     pub shift_down: bool,
     /// The reset button went down: put the car back on the nearest road.
     pub reset: bool,
+    /// A scripted sputter pop for the exhaust flames (`pop` in a `--drive-script`; no key does it).
+    pub pop: bool,
 }
 
 impl DriveInput {
@@ -31,13 +33,14 @@ impl DriveInput {
             shift_up: actions.just_pressed(Action::ShiftUp),
             shift_down: actions.just_pressed(Action::ShiftDown),
             reset: actions.just_pressed(Action::ResetCar),
+            pop: false,
         }
     }
 
     /// The same input with the one-shot shift requests cleared, for the second and later physics
     /// steps of a frame.
     pub fn held(self) -> Self {
-        Self { shift_up: false, shift_down: false, reset: false, ..self }
+        Self { shift_up: false, shift_down: false, reset: false, pop: false, ..self }
     }
 }
 

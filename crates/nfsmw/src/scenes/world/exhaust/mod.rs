@@ -20,6 +20,11 @@ use trigger::{Backfire, ShiftEvent, ShiftTiming, blowoff_allowed, flame_intensit
 pub const MAX_PIPES: usize = 4;
 pub const EMITTER_LIMIT: usize = 96;
 
+/// Factor on the alpha of additive particles (the fire). The emitter data keeps their alpha at 40 to 60 of 255,
+/// which an additive blend of `src * alpha` turns into a flame too faint to see against a lit road; the blend
+/// state of the original is not known (spec section 6), so the rewrite brightens them (spec 8.5).
+pub const ADDITIVE_GAIN: f32 = 4.0;
+
 /// What the effects need of the car for one physics step.
 pub struct CarState {
     /// The car model's frame in the world.
@@ -156,12 +161,18 @@ impl Active {
     fn quads(&mut self, lane: usize, camera: Vec3, forward: Vec3) -> bool {
         let right = forward.cross(Vec3::Z).normalize_or(Vec3::X);
         let up = right.cross(forward).normalize_or(Vec3::Z);
+        let gain = match self.textures[self.lanes[lane].texture].blend {
+            BlendMode::Additive => ADDITIVE_GAIN,
+            _ => 1.0,
+        };
         let lane = &mut self.lanes[lane];
         self.order.clear();
         lane.vertices.clear();
         for sprite in lane.emitters.iter().flat_map(Emitter::sprites) {
             let corners = sprite.corners(right, up, forward);
-            self.order.push(((sprite.position - camera).dot(forward), corners, sprite.color));
+            let mut color = sprite.color;
+            color[3] = (f32::from(color[3]) * gain).min(255.0) as u8;
+            self.order.push(((sprite.position - camera).dot(forward), corners, color));
         }
         if self.order.is_empty() {
             return false;
