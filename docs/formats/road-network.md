@@ -271,9 +271,20 @@ enabled barrier (segment flags 12 and 13, [spec](../specs/ai-road-network.md#bar
 
 ## Reading it in Rust
 
-`libs/blackbox-collision` already walks the `CARP` tree and exposes the grid with the road-segment lists.
-The record layouts above are enough for a `RoadNetwork` reader (a new engine-generic lib or a module next to
-the grid; no MW names are needed because the counts come from `RNhd`).
+`libs/blackbox-collision` walks the `CARP` tree and exposes the grid with the road-segment lists;
+`libs/blackbox-roads` reads the rest, from the bytes of the world metadata file (no MW names are needed because
+the counts come from `RNhd` and each zone record carries its own size):
+
+- `RoadNetwork::read(&meta)` parses the `RNgp` group (nodes, segments, profiles, roads) and checks every
+  cross-reference.
+- `TrackZones::read(&meta)` parses the `0x3414A` chunk inside `0x80034147`: `TrackZone { kind, position, direction,
+  elevation, data, bbox_min, bbox_max, polygon }` in file order. `first_of_kind_at(kind, point)` is the engine's
+  lookup (bounding box, then an even-odd polygon test; the first zone of the type in file order wins) and
+  `contains_point(kind, point)` lists every match. `to_zone_space(physics)` gives the 2D point `(z, -x)` of a
+  physics-space position and `from_zone_space(point, y)` goes back.
+- `nfsmw_data::world::WorldIndex` loads both (`road_network`, `track_zones`);
+  `nfsmw_data::traffic::pattern_hash(name)` is the string hash that traffic-pattern zones store in `Data[0]`
+  (`h = h * 33 + c`, seed `0xFFFFFFFF`; the file holds it as a signed `i32`).
 
 ## References
 
