@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use blackbox_render::Backend;
+use blackbox_gfx::GraphicsApi;
 use clap::{Args, Parser, Subcommand};
 
 use crate::app::pacing::MaxFps;
@@ -174,7 +174,7 @@ impl Command {
 pub struct ViewArgs {
     /// Graphics backend: auto, vulkan, dx12 or gl [env NFSMW_BACKEND; default auto].
     #[arg(long)]
-    pub backend: Option<Backend>,
+    pub backend: Option<GraphicsApi>,
     /// Disable vsync [env NFSMW_VSYNC=off; config `vsync = false`].
     #[arg(long)]
     pub no_vsync: bool,

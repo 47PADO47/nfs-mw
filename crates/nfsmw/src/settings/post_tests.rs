@@ -1,6 +1,6 @@
 use super::*;
 use crate::cli::{Cli, Command};
-use blackbox_render::{Antialiasing, PostSettings, Tonemap};
+use blackbox_gfx::{Antialiasing, PostSettings, Tonemap};
 use clap::Parser;
 
 fn view_layer(flags: &[&str]) -> Partial {
@@ -47,7 +47,7 @@ fn bloom_steps_grow_and_off_is_zero() {
     let strengths = [PostBloom::Off, PostBloom::Low, PostBloom::Medium, PostBloom::High].map(PostBloom::intensity);
     assert_eq!(strengths[0], 0.0);
     assert!(strengths.windows(2).all(|w| w[0] < w[1]), "{strengths:?}");
-    assert!(strengths[3] <= blackbox_render::MAX_BLOOM_INTENSITY);
+    assert!(strengths[3] <= blackbox_gfx::MAX_BLOOM_INTENSITY);
 }
 
 #[test]
@@ -63,7 +63,7 @@ fn the_settings_map_to_the_renderer_effects() {
     assert_eq!(effects.bloom_intensity, PostBloom::Medium.intensity());
     assert_eq!(effects.effects().len(), 3);
     let only_aa = Settings::from(Partial { post_aa: Some(PostAa::Fxaa), ..Partial::default() });
-    assert_eq!(post_effects(&only_aa).effects(), [blackbox_render::PostEffect::Fxaa]);
+    assert_eq!(post_effects(&only_aa).effects(), [blackbox_gfx::PostEffect::Fxaa]);
 }
 
 #[test]

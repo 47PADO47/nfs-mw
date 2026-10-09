@@ -6,8 +6,8 @@ use anyhow::{Result, bail};
 use bevy_app::{AppExit, Plugin, Update};
 use bevy_ecs::prelude::*;
 use bevy_window::{PrimaryWindow, Window};
-use blackbox_gfx::Projection;
-use blackbox_render::{FrameParams, Instance, Renderer, UiLayer, UiMesh, UiTextureId, UiVertex};
+use blackbox_gfx::{FrameParams, Instance, Projection, UiLayer, UiMesh, UiTextureId, UiVertex};
+use blackbox_render::Renderer;
 use game_install::GameDir;
 use glam::{Mat4, Vec3};
 

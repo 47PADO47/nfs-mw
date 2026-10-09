@@ -5,8 +5,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::Result;
-use blackbox_gfx::Projection;
-use blackbox_render::{FrameParams, Instance, Renderer};
+use blackbox_gfx::{FrameParams, Instance, Projection};
+use blackbox_render::Renderer;
 use glam::{Mat4, Vec3};
 
 use crate::input::ActionState;

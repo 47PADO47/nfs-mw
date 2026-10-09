@@ -1,6 +1,6 @@
 //! One layer of settings: every field may be unset.
 
-use blackbox_render::Backend;
+use blackbox_gfx::GraphicsApi;
 
 use super::{
     CarShading, Deadzone, GraphicsPreset, HudLayout, MinimapMode, Monitor, PostAa, PostBloom, PostTonemap,
@@ -53,7 +53,7 @@ pub struct Partial {
     pub camera_sensitivity: Option<Sensitivity>,
     pub mouse_sensitivity: Option<Sensitivity>,
     pub invert_camera_y: Option<bool>,
-    pub backend: Option<Backend>,
+    pub backend: Option<GraphicsApi>,
     pub vsync: Option<bool>,
     pub max_fps: Option<MaxFps>,
     pub show_metrics: Option<ShowMetrics>,
@@ -164,10 +164,10 @@ mod tests {
 
     #[test]
     fn upper_layer_wins_and_gaps_fall_through() {
-        let cli = Partial { backend: Some(Backend::Gl), ..Partial::default() };
-        let file = Partial { backend: Some(Backend::Vulkan), vsync: Some(false), ..Partial::default() };
+        let cli = Partial { backend: Some(GraphicsApi::Gl), ..Partial::default() };
+        let file = Partial { backend: Some(GraphicsApi::Vulkan), vsync: Some(false), ..Partial::default() };
         let merged = cli.or(file);
-        assert_eq!(merged.backend, Some(Backend::Gl));
+        assert_eq!(merged.backend, Some(GraphicsApi::Gl));
         assert_eq!(merged.vsync, Some(false));
         assert_eq!(merged.max_fps, None);
     }

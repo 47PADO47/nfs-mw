@@ -41,7 +41,7 @@ mod wheel;
 mod window;
 mod write;
 
-use blackbox_render::Backend;
+use blackbox_gfx::GraphicsApi;
 
 pub use car_shading::CarShading;
 pub use controls::{Controls, Deadzone, DeadzoneMode, Sensitivity};
@@ -66,7 +66,7 @@ use crate::devtools::{ShowMetrics, ShowReadout};
 #[derive(bevy_ecs::resource::Resource, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Settings {
     pub controls: Controls,
-    pub backend: Backend,
+    pub backend: GraphicsApi,
     pub vsync: bool,
     pub max_fps: MaxFps,
     pub show_metrics: ShowMetrics,
@@ -226,7 +226,7 @@ mod tests {
     #[test]
     fn defaults() {
         let s = Settings::from(Partial::default());
-        assert_eq!((s.backend, s.vsync, s.max_fps), (Backend::Auto, true, MaxFps::default()));
+        assert_eq!((s.backend, s.vsync, s.max_fps), (GraphicsApi::Auto, true, MaxFps::default()));
         assert_eq!(s.transmission, Transmission::Automatic, "automatic, as in the original");
         assert_eq!(s.minimap, MinimapMode::Fixed, "fixed, the original's free roam mode");
         assert_eq!(s.wheel_options(), WheelOptions::default(), "no clutch pedal and no H-shifter unless asked for");
@@ -240,7 +240,7 @@ mod tests {
         let file = file::parse("backend = 'vulkan'\nmax_fps = 90\n", "test");
         let s: Settings = cli.or(env).or(file).into();
         assert!(!s.vsync, "command line");
-        assert_eq!(s.backend, Backend::Gl, "environment over file");
+        assert_eq!(s.backend, GraphicsApi::Gl, "environment over file");
         assert_eq!(s.max_fps, "90".parse().unwrap(), "file over default");
     }
 

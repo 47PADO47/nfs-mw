@@ -1,7 +1,8 @@
 use std::sync::{Arc, Mutex};
 
 use bevy_app::{App, Update};
-use blackbox_render::{FrameParams, Instance, Renderer};
+use blackbox_gfx::{FrameParams, Instance};
+use blackbox_render::Renderer;
 
 use super::{exec, parse, settings_cmd};
 use crate::app::Host;
