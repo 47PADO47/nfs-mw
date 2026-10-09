@@ -7,7 +7,6 @@
 //!
 //! Layout:
 //! - [`api`](crate::api): the types callers use;
-//! - [`backend`](crate::Backend): the user-selectable graphics backend;
 //! - [`ui`](crate::UiLayer): the 2D layer drawn over the scene (consoles, overlays, menus);
 //! - [`render_scale`](crate::scaled_size): the internal render size relative to the surface;
 //! - [`post_settings`](crate::PostSettings): which post-process effects (bloom, tone mapping, FXAA) run;
@@ -16,7 +15,6 @@
 //!   surface itself, or an offscreen image), the post-process chain, frames).
 
 mod api;
-mod backend;
 mod effects;
 mod glossy;
 mod gpu;
@@ -31,7 +29,7 @@ pub use api::{
     BlendMode, DrawRange, FrameParams, Instance, MeshDesc, MeshHandle, PixelFormat, RenderError, RendererOptions,
     Shading, TextureDesc, TextureHandle, Vertex,
 };
-pub use backend::{Backend, ParseBackendError};
+pub use blackbox_gfx::{Backend, GraphicsApi, ParseBackendError, ParseGraphicsApiError};
 pub use effects::{DEFAULT_SOFT_DISTANCE, EffectLayer, EffectVertex, TexturedEffect};
 pub use glossy::{DirectionalLight, GlossyMaterial, GlossyMaterialHandle, LightingRig, SkyGradient};
 pub use gpu::Renderer;
