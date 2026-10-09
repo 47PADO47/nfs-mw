@@ -47,7 +47,7 @@ are not biased.
 [FidelityFX Super Resolution 1](https://gpuopen.com/fidelityfx-superresolution/) is a spatial
 upscaler from AMD: no motion vectors, no history, one frame in and one frame out. It runs two
 passes, EASU (edge-adaptive upscale, 12 taps) and RCAS (contrast-adaptive sharpening). Both are
-ported to WGSL in `libs/blackbox-render/src/shaders/fsr1.wgsl` from AMD's `ffx_fsr1.h`, which is
+ported to WGSL in `libs/blackbox-gpu-passes/src/shaders/fsr1.wgsl` from AMD's `ffx_fsr1.h`, which is
 MIT-licensed; the copyright and permission notices stay in the shader's header and in
 [NOTICE](../NOTICE). It runs on every backend (Vulkan, Direct3D 12 and OpenGL) because the shader only
 uses plain texture loads.

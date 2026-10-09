@@ -15,6 +15,9 @@ License: MIT OR Apache-2.0.
 
 The renderer-neutral types (meshes, textures, frame parameters, effect and UI layers, post and upscale settings,
 the graphics API enum) live in [`blackbox-gfx`](../blackbox-gfx) and are re-exported from this crate.
+The reusable wgpu passes (the UI layer, the world effects, soft particles, the fullscreen filter helper and
+FSR 1) live in [`blackbox-gpu-passes`](../blackbox-gpu-passes), which this renderer calls from its frame; a
+renderer built on another engine can call the same passes from its own render loop.
 
 `EffectLayer` uploads reusable world-space triangle batches for depth-tested surface overlays
 and soft alpha billboards. Effects draw after the scene and before UI; they do not write depth.
@@ -110,8 +113,8 @@ The internal render size is the surface size times the render scale, per axis:
 clamped settings back). The default `PostSettings` runs none of them, so the chain is just `resolve` and the
 frame is unchanged. Enabled effects run at the render size in the fixed order bloom, tone mapping (an ACES fit
 with an exposure), FXAA, then `resolve`; passes inserted by other code stay behind them. Each effect is its own
-pass built on a small fullscreen-filter helper with one WGSL module (`shaders/post_common.wgsl` plus the
-effect's file); an effect that is off has no pass. Setting the current value again does nothing; changing it
+pass built on the fullscreen-filter helper of `blackbox-gpu-passes` with one WGSL module (its
+`post_common.wgsl` plus the effect's file here); an effect that is off has no pass. Setting the current value again does nothing; changing it
 rebuilds the effect passes. FXAA is an independent implementation of the published algorithm, not a copy of
 the reference header.
 
@@ -121,7 +124,7 @@ When the render scale is below 1.0 the scene is brought back to the output size 
 
 - `Renderer::set_upscaler(Upscaler::Bilinear)` (default) leaves it to the resolve pass's bilinear filter.
 - `Upscaler::Fsr1` adds two output-size passes before the resolve pass: AMD FidelityFX Super Resolution 1's EASU
-  (edge-adaptive upscale) and RCAS (sharpening), ported to WGSL (`shaders/fsr1.wgsl`, MIT, notice kept in the file
+  (edge-adaptive upscale) and RCAS (sharpening), ported to WGSL (`blackbox-gpu-passes`' `shaders/fsr1.wgsl`, MIT, notice kept in the file
   and in the repository's NOTICE). It expects an anti-aliased, display-referred input and clamps it to 0..1;
   anti-aliasing passes belong before it in the chain, which keeps output-size passes last.
   `set_upscale_sharpness(0.0..=1.0)` sets RCAS (0 skips the pass; the default is `DEFAULT_UPSCALE_SHARPNESS`).
