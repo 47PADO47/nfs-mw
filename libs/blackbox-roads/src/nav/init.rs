@@ -4,7 +4,7 @@
 use glam::Vec3;
 
 use super::traffic_lanes::{forward_traffic_lanes, pick_lane};
-use super::{LaneType, NavKind, RoadNav};
+use super::{LaneType, NavKind, RandomSource, RoadNav};
 use crate::{RoadNetwork, SegmentFilter, SegmentIndex, closest_segment, flags, lane_line, travel_profile};
 
 /// The default half width of a car.
@@ -132,6 +132,25 @@ impl RoadNav {
             _ => stored.zones.len() - 1 - stored_lane,
         };
         self.place(net, segment, node_ind, lane, t);
+    }
+
+    /// Whether a traffic car may be spawned where the cursor is: the segment is a plain road where traffic
+    /// is allowed, not a one-way entered against its direction, and has a traffic lane in the direction of
+    /// travel. When it can, the cursor becomes a traffic cursor in a random one of those lanes.
+    pub fn can_traffic_spawn(&mut self, net: &RoadNetwork, rng: &mut impl RandomSource) -> bool {
+        let seg = net.segment(self.segment);
+        if seg.is_decision() || seg.has(flags::NO_TRAFFIC) || (seg.is_one_way() && self.node_ind == 0) {
+            return false;
+        }
+        let lanes = forward_traffic_lanes(&travel_profile(net, self.segment, self.node_ind, false));
+        if lanes.is_empty() {
+            return false;
+        }
+        let lane = lanes[rng.index(lanes.len())];
+        *self = Self { kind: NavKind::Traffic, lane_type: LaneType::Traffic, ..self.clone() };
+        self.filter = SegmentFilter { traffic: true, ..SegmentFilter::default() };
+        self.place(net, self.segment, self.node_ind, lane, self.t);
+        true
     }
 
     /// Whether traffic may use the segment the cursor is on.
