@@ -1,6 +1,6 @@
 [package]
 name = "blackbox-scene"
-description = "Bridges EA Black Box solids and texture packs to blackbox-render: GPU upload, culling helpers."
+description = "Bridges EA Black Box solids and texture packs to blackbox-gfx: GPU upload, culling helpers."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,7 +8,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
-blackbox-render.workspace = true
+blackbox-gfx.workspace = true
 blackbox-solid.workspace = true
 blackbox-tpk.workspace = true
 glam.workspace = true

@@ -1,10 +1,10 @@
 //! Texture upload: DXT straight to the GPU when possible, else decoded to RGBA8.
 
-use blackbox_render::{BlendMode, PixelFormat, Renderer, TextureDesc, TextureHandle};
+use blackbox_gfx::{BlendMode, PixelFormat, RenderBackend, TextureDesc, TextureHandle};
 use blackbox_tpk::{AlphaUsage, PixelFormat as TpkFormat, Texture};
 
 /// Upload `t`, or `None` (with a warning) for formats that can't be decoded yet.
-pub fn upload_texture(renderer: &mut Renderer, t: &Texture) -> Option<TextureHandle> {
+pub fn upload_texture(backend: &mut dyn RenderBackend, t: &Texture) -> Option<TextureHandle> {
     let bc = match t.format {
         TpkFormat::Dxt1 => Some(PixelFormat::Bc1),
         TpkFormat::Dxt3 => Some(PixelFormat::Bc2),
@@ -13,9 +13,11 @@ pub fn upload_texture(renderer: &mut Renderer, t: &Texture) -> Option<TextureHan
     };
     match bc {
         // wgpu needs block-compressed textures to be a whole number of blocks.
-        Some(format) if renderer.supports_bc() && t.width.is_multiple_of(4) && t.height.is_multiple_of(4) => {
+        Some(format)
+            if backend.capabilities().compressed_bc && t.width.is_multiple_of(4) && t.height.is_multiple_of(4) =>
+        {
             let mips: Vec<&[u8]> = (0..t.mip_levels).map_while(|level| t.mip(level)).collect();
-            Some(renderer.create_texture(&TextureDesc {
+            Some(backend.create_texture(&TextureDesc {
                 label: &t.name,
                 width: t.width,
                 height: t.height,
@@ -24,7 +26,7 @@ pub fn upload_texture(renderer: &mut Renderer, t: &Texture) -> Option<TextureHan
             }))
         }
         _ => match blackbox_tpk::decode_rgba8(t) {
-            Some(rgba) => Some(renderer.create_texture(&TextureDesc {
+            Some(rgba) => Some(backend.create_texture(&TextureDesc {
                 label: &t.name,
                 width: t.width,
                 height: t.height,
