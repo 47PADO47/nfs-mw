@@ -21,7 +21,7 @@ pub fn execute(
     mut host: NonSendMut<Host>,
     mut audio: Option<NonSendMut<Audio>>,
     mut window: Single<&mut Window, With<PrimaryWindow>>,
-    (modes, bindings): (Res<WindowModes>, Res<Bindings>),
+    (modes, mut bindings): (Res<WindowModes>, ResMut<Bindings>),
     mut exit: MessageWriter<AppExit>,
 ) {
     let host = &mut *host;
@@ -35,6 +35,9 @@ pub fn execute(
         let result = match parse::parse(&line) {
             Ok(None) => continue,
             Ok(Some(Command::Keys)) => Ok(bindings.describe()),
+            Ok(Some(Command::Bindings { name, args })) => {
+                crate::input::commands::run(&mut bindings, &settings, &name, &args)
+            }
             Ok(Some(command)) => {
                 run(command, &mut settings, host, audio.as_deref_mut(), &mut window, &modes, &mut exit)
             }
@@ -72,6 +75,7 @@ fn run(
         Command::Window => Ok(WindowModes::status(window)),
         Command::Monitors => Ok(modes.monitors.clone()),
         Command::Keys => Err("keys is answered by the console before commands run".into()),
+        Command::Bindings { .. } => Err("bindings are answered by the console before commands run".into()),
         Command::Set { key, value } => set_live(settings, host, &key, &value),
         Command::Resolution { width, height } => {
             if host.screenshot.is_some() {

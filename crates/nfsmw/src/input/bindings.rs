@@ -53,9 +53,6 @@ pub struct Binding {
     pub per_second: bool,
 }
 
-/// Sticks within this distance of the centre read as zero.
-pub const DEADZONE: f32 = 0.15;
-
 impl Binding {
     const fn new(action: Action, source: Source, scale: f32) -> Self {
         Self { action, source, scale, per_second: false }
@@ -79,17 +76,42 @@ impl Binding {
             Source::MouseMotion { .. } => 0.0,
             Source::Scroll => s.scroll,
             Source::MouseButton(b) => f32::from(u8::from(s.buttons.contains(&b))),
-            Source::PadAxis(a) => deadzone(s.pad_axis(a)),
+            Source::PadAxis(a) => self.axis_response(s.pad_axis(a), s),
             Source::PadButton(b) => f32::from(u8::from(s.pad_buttons.contains(&b))),
-            Source::PadTrigger(b) => s.pad_triggers.get(&b).copied().unwrap_or_else(|| s.pad_button_value(b)),
+            Source::PadTrigger(b) => s.controls.trigger_deadzone.apply_mode(
+                s.pad_triggers.get(&b).copied().unwrap_or_else(|| s.pad_button_value(b)).max(0.0),
+                s.controls.deadzone_mode,
+            ),
         };
-        raw * self.scale * if self.per_second { s.dt } else { 1.0 }
+        let mut value = raw * self.scale * if self.per_second { s.dt } else { 1.0 };
+        if matches!(self.source, Source::MouseMotion { .. }) {
+            value *= s.controls.mouse_sensitivity.factor();
+        }
+        if s.controls.invert_camera_y && matches!(self.action, Action::LookY | Action::OrbitY) {
+            value = -value;
+        }
+        if !value.is_finite() {
+            return 0.0;
+        }
+        value
+    }
+
+    fn axis_response(&self, raw: f32, s: &Snapshot) -> f32 {
+        if self.action == Action::Steer {
+            return s.controls.steering_deadzone.apply_mode(raw, s.controls.deadzone_mode)
+                * s.controls.steering_sensitivity.factor();
+        }
+        if matches!(self.action, Action::LookX | Action::LookY | Action::OrbitX | Action::OrbitY) {
+            return s.controls.camera_deadzone.apply_mode(raw, s.controls.deadzone_mode)
+                * s.controls.camera_sensitivity.factor();
+        }
+        deadzone(raw)
     }
 }
 
 /// Rescale so the output still reaches 1 at full deflection.
 fn deadzone(v: f32) -> f32 {
-    if v.abs() < DEADZONE { 0.0 } else { v.signum() * (v.abs() - DEADZONE) / (1.0 - DEADZONE) }
+    crate::settings::Deadzone::default().apply(v)
 }
 
 /// Mouse pixels per second a fully pushed stick turns the camera by.

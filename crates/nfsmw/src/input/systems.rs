@@ -29,6 +29,7 @@ impl Plugin for InputLayerPlugin {
             .init_resource::<ActionState>()
             .init_resource::<MouseCapture>()
             .init_resource::<UiFocus>()
+            .add_observer(super::device_settings::configure_added_gamepad)
             .add_systems(PreUpdate, update_actions.after(InputSystems));
     }
 }
@@ -47,10 +48,12 @@ fn update_actions(
     focus: Res<UiFocus>,
     time: Res<Time>,
     bindings: Res<Bindings>,
+    settings: Option<Res<crate::settings::Settings>>,
     mut state: ResMut<ActionState>,
     mut held: Local<HashSet<GamepadButton>>,
 ) {
     let mut snapshot = Snapshot {
+        controls: settings.as_deref().map_or_else(crate::settings::Controls::default, |s| s.controls),
         // Keep a complete down/up pulse visible for one action frame, even when the key is no
         // longer held by the time this system runs (console/camera/gear shortcuts need the edge).
         keys: keys.get_pressed().chain(keys.get_just_pressed()).copied().collect(),
@@ -66,18 +69,20 @@ fn update_actions(
     };
     for pad in &pads {
         snapshot.pad_buttons.extend(pad.get_pressed().copied());
-        for button in [GamepadButton::LeftTrigger2, GamepadButton::RightTrigger2] {
-            if let Some(value) = pad.get(button) {
-                let entry = snapshot.pad_triggers.entry(button).or_insert(0.0);
-                *entry = entry.max(value);
-            }
-        }
+        // Bevy's analog store also contains buttons, including nonstandard wheel pedals.
         for input in pad.get_analog_axes() {
-            let GamepadInput::Axis(axis) = *input else { continue };
-            let value = pad.get(axis).unwrap_or(0.0);
-            let entry = snapshot.pad_axes.entry(axis).or_insert(0.0);
-            if value.abs() > entry.abs() {
-                *entry = value;
+            let value = pad.get(*input).unwrap_or(0.0);
+            match *input {
+                GamepadInput::Button(button) => {
+                    let entry = snapshot.pad_triggers.entry(button).or_insert(0.0);
+                    *entry = entry.max(value);
+                }
+                GamepadInput::Axis(axis) => {
+                    let entry = snapshot.pad_axes.entry(axis).or_insert(0.0);
+                    if value.abs() > entry.abs() {
+                        *entry = value;
+                    }
+                }
             }
         }
     }
@@ -158,6 +163,44 @@ mod tests {
         key(&mut app, KeyCode::KeyW, ButtonState::Released);
         app.update();
         assert_eq!(app.world().resource::<ActionState>().value(Action::Throttle), 0.0);
+    }
+
+    #[test]
+    fn live_remapping_reaches_actions_in_the_next_input_frame() {
+        let mut app = app();
+        app.world_mut().resource_mut::<Bindings>().bind(Action::Throttle, "key:J", false).unwrap();
+        key(&mut app, KeyCode::KeyW, ButtonState::Pressed);
+        app.update();
+        assert_eq!(app.world().resource::<ActionState>().value(Action::Throttle), 0.0);
+        key(&mut app, KeyCode::KeyJ, ButtonState::Pressed);
+        app.update();
+        assert!(app.world().resource::<ActionState>().just_pressed(Action::Throttle));
+        key(&mut app, KeyCode::KeyJ, ButtonState::Released);
+        app.update();
+        assert_eq!(app.world().resource::<ActionState>().value(Action::Throttle), 0.0);
+    }
+
+    #[test]
+    fn nonstandard_analog_button_pedals_preserve_partial_travel() {
+        use bevy_input::gamepad::{
+            GamepadConnection, GamepadConnectionEvent, RawGamepadButtonChangedEvent, RawGamepadEvent,
+        };
+        let mut app = app();
+        let entity = app.world_mut().spawn_empty().id();
+        app.world_mut().resource_mut::<Bindings>().bind(Action::Throttle, "trigger:Other(7)", false).unwrap();
+        app.world_mut().write_message(GamepadConnectionEvent::new(
+            entity,
+            GamepadConnection::Connected { name: "Software pedal".into(), vendor_id: None, product_id: None },
+        ));
+        for value in [0.4, 0.75, 1.0, 0.7, 0.65, 0.01, 0.0] {
+            app.world_mut().write_message(RawGamepadEvent::Button(RawGamepadButtonChangedEvent::new(
+                entity,
+                GamepadButton::Other(7),
+                value,
+            )));
+            app.update();
+            assert_eq!(app.world().resource::<ActionState>().value(Action::Throttle), value);
+        }
     }
 
     #[test]
