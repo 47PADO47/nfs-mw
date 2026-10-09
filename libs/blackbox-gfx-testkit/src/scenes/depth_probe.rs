@@ -13,9 +13,18 @@ use crate::mesh::{MeshBuilder, prelit};
 
 const CLEAR: [f32; 3] = [0.04, 0.04, 0.06];
 /// Distances (the depth of the red quad's plane) of the four columns.
-const DISTANCES: [f32; 4] = [2.0, 80.0, 2500.0, 9000.0];
+pub const DISTANCES: [f32; 4] = [2.0, 80.0, 2500.0, 9000.0];
+/// The height (in the unit space) of the row where a quad is tilted through another.
+pub const ROW_CROSSING: f32 = 0.25;
+/// The height of the row where a quad sits 0.1 % behind another.
+pub const ROW_BEHIND: f32 = -0.25;
 const RED: [f32; 3] = [0.9, 0.1, 0.1];
 const GREEN: [f32; 3] = [0.1, 0.8, 0.2];
+
+/// The x of the centre of column `k`, in the unit space where the quads sit at distance 1.
+pub fn column_x(k: usize) -> f32 {
+    -0.75 + 0.5 * k as f32
+}
 
 /// A quad with corners given at distance 1, scaled about the camera at the origin.
 fn scaled_quad(mesh: &mut MeshBuilder, corners: [Vec3; 4], scale: f32, rgb: [f32; 3]) {
@@ -26,9 +35,9 @@ pub(super) fn build(cx: &mut Cx) -> Parts {
     let mut mesh = MeshBuilder::new();
     mesh.state(None, BlendMode::Opaque, Shading::Prelit);
     for (k, &distance) in DISTANCES.iter().enumerate() {
-        let x = -0.9 + 0.6 * k as f32;
+        let x = column_x(k);
         // Row A: the green quad runs from 0.9 (in front) to 1.1 (behind) the red plane.
-        let z = 0.25;
+        let z = ROW_CROSSING;
         let red = [
             Vec3::new(x - 0.12, 1.0, z - 0.15),
             Vec3::new(x + 0.12, 1.0, z - 0.15),
@@ -44,7 +53,7 @@ pub(super) fn build(cx: &mut Cx) -> Parts {
         scaled_quad(&mut mesh, red, distance, RED);
         scaled_quad(&mut mesh, tilted, distance, GREEN);
         // Row B: green 0.1 % behind red, drawn second.
-        let z = -0.25;
+        let z = ROW_BEHIND;
         let red = [
             Vec3::new(x - 0.12, 1.0, z - 0.15),
             Vec3::new(x + 0.12, 1.0, z - 0.15),

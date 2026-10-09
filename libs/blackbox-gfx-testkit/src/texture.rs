@@ -160,7 +160,7 @@ mod tests {
     #[test]
     fn halving_averages_a_checker_to_grey() {
         let image = Image::checker(8, 1, [0, 0, 0], [200, 200, 200]);
-        assert!(image.mips[1].chunks_exact(4).all(|t| t[0] == 100 && t[3] == 255));
+        assert!(image.mips[1].as_chunks::<4>().0.iter().all(|t| t[0] == 100 && t[3] == 255));
     }
 
     #[test]

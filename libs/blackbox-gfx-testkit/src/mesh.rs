@@ -218,7 +218,7 @@ mod tests {
         let mesh = b.finish();
         assert_eq!(mesh.vertices.len(), 24);
         assert!(mesh.vertices.iter().all(|v| Vec3::from(v.position).dot(Vec3::from(v.normal)) > 0.5));
-        for tri in mesh.indices.chunks_exact(3) {
+        for tri in mesh.indices.as_chunks::<3>().0 {
             let [a, b, c] = [0, 1, 2].map(|i| Vec3::from(mesh.vertices[tri[i] as usize].position));
             let winding = (b - a).cross(c - a);
             assert!(winding.dot(a) > 0.0, "counter-clockwise seen from outside");

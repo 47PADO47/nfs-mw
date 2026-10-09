@@ -6,7 +6,7 @@
 
 mod alpha_cards;
 mod blend_stack;
-mod depth_probe;
+pub mod depth_probe;
 mod effects;
 mod glossy;
 mod grid;

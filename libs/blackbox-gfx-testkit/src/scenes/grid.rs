@@ -59,6 +59,6 @@ pub(super) fn build(cx: &mut Cx) -> Parts {
         Instance { mesh: boxes, transform: place(-1.0, 24.0, 1.2, 1.8) },
     ];
 
-    let camera = Camera::new(Vec3::new(0.0, -6.0, 2.2), Vec3::new(0.0, 14.0, 0.4));
+    let camera = Camera::new(Vec3::new(0.0, -6.0, 4.5), Vec3::new(0.0, 14.0, 0.0));
     Parts::world(camera.frame(cx.aspect, CLEAR, Some((8.0, 45.0))), instances)
 }

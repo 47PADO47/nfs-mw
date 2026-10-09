@@ -54,6 +54,7 @@ pub(super) fn build(cx: &mut Cx) -> Parts {
         (-200.0, 2000.0, 150.0, 500.0, 0.35),
         (400.0, 5000.0, 400.0, 900.0, 0.3),
     ];
+    land.state(None, BlendMode::Opaque, Shading::Prelit);
     for (x, y, width, height, grey) in blocks {
         let half = width * 0.5;
         land.cuboid(
