@@ -1,7 +1,9 @@
 //! Check sampled color/alpha, animated-cell UVs and depth on actual GPU backends.
 
-use super::{BACKGROUND, Gpu, quad};
-use crate::{BlendMode, EffectLayer, TextureHandle, TexturedEffect};
+use blackbox_gfx::{BlendMode, EffectLayer, TexturedEffect};
+
+use super::{BACKGROUND, Bench, quad};
+use crate::test_support::serial;
 
 #[test]
 #[ignore = "needs a Vulkan GPU"]
@@ -17,9 +19,9 @@ fn textured_particles_dx12() {
 }
 
 fn check(backend: wgpu::Backends) {
-    let _gpu = crate::gpu::test_support::serial();
-    let mut gpu = Gpu::new(backend);
-    let texture = gpu.device.create_texture(&wgpu::TextureDescriptor {
+    let _lock = serial();
+    let mut gpu = Bench::new(backend);
+    let texture = gpu.gpu.device.create_texture(&wgpu::TextureDescriptor {
         label: Some("synthetic particle atlas"),
         size: wgpu::Extent3d { width: 2, height: 1, depth_or_array_layers: 1 },
         mip_level_count: 1,
@@ -29,22 +31,22 @@ fn check(backend: wgpu::Backends) {
         usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
         view_formats: &[],
     });
-    gpu.queue.write_texture(
+    gpu.gpu.queue.write_texture(
         texture.as_image_copy(),
         &[100, 0, 0, 128, 0, 0, 0, 0],
         wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(8), rows_per_image: Some(1) },
         texture.size(),
     );
     let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-    let group = gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
+    let group = gpu.gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("synthetic particle atlas"),
-        layout: &gpu.shared.bindings.texture_layout,
+        layout: &gpu.bindings.texture_layout,
         entries: &[
             wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&view) },
-            wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&gpu.shared.bindings.sampler) },
+            wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&gpu.bindings.sampler) },
         ],
     });
-    let handle = TextureHandle::from_raw(gpu.textures.insert(group));
+    let handle = gpu.add_texture(group);
     let mut vertices = Vec::new();
     quad(&mut vertices, 0.8, [128, 255, 255, 128]);
     vertices.iter_mut().for_each(|v| v.uv = [0.25, 0.5]);

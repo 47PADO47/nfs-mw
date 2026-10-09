@@ -2,6 +2,7 @@
 //! post-process chain then writes to the surface, then the UI over it.
 
 use super::Renderer;
+use super::effects::SoftDraw;
 use super::output::Output;
 use super::pipelines::{BLEND_ORDER, SHADINGS};
 use super::post::PassContext;
@@ -154,8 +155,14 @@ impl Renderer {
             }
         }
         self.effects.draw(&mut pass);
-        self.effects.textured.draw(&mut pass, |t| self.textures.get(t.raw()));
+        self.effects.draw_textured(&mut pass, |t| self.textures.get(t.raw()));
         drop(pass);
-        self.effects.draw_soft((&self.device, &self.queue), encoder, (target, depth), &self.shared, frame);
+        let soft = SoftDraw {
+            target,
+            depth,
+            globals: &self.shared.bindings.globals_bind_group,
+            inverse_view_proj: frame.view_proj().inverse(),
+        };
+        self.effects.draw_soft(&self.device, &self.queue, encoder, &soft);
     }
 }

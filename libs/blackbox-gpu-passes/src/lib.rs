@@ -8,6 +8,9 @@
 //! See the README for the call sequence of each pass.
 
 mod batch;
+mod effects;
+#[cfg(test)]
+mod effects_tests;
 #[cfg(test)]
 mod shader_tests;
 #[cfg(test)]
@@ -28,6 +31,7 @@ pub use batch::Batch;
 /// effect pipelines. [`TexturedEffects`] and the renderer's effect pipelines use the same source.
 pub const EFFECTS_WGSL: &str = include_str!("shaders/effects.wgsl");
 
+pub use effects::{Effects, SoftDraw};
 pub use soft_particles::SoftParticles;
 pub use textured_effects::TexturedEffects;
 pub use ui::{UiPass, UiTextureError};

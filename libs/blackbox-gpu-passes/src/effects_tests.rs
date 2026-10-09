@@ -1,10 +1,10 @@
 //! Synthetic GPU checks for the actual additive effect pipeline (no surface or assets).
 
+use blackbox_gfx::{EffectLayer, EffectVertex, TextureHandle};
 use glam::{Mat4, Vec3};
 
-use super::effects::Effects;
-use super::resources::{self, Globals, Shared};
-use crate::{EffectLayer, EffectVertex};
+use crate::test_support::{Gpu, serial};
+use crate::{Effects, Globals, WorldBindings, create_depth};
 
 const BACKGROUND: [u8; 4] = [16, 24, 32, 255];
 #[path = "textured_effect_tests.rs"]
@@ -23,33 +23,29 @@ fn additive_streaks_dx12() {
     check(wgpu::Backends::DX12);
 }
 
-struct Gpu {
-    device: wgpu::Device,
-    queue: wgpu::Queue,
-    shared: Shared,
+struct Bench {
+    gpu: Gpu,
+    bindings: WorldBindings,
     effects: Effects,
-    textures: super::slots::Slots<wgpu::BindGroup>,
+    /// Texture bind groups; a [`TextureHandle`] is an index.
+    textures: Vec<wgpu::BindGroup>,
 }
 
-impl Gpu {
+impl Bench {
     fn new(backend: wgpu::Backends) -> Self {
-        let mut desc = wgpu::InstanceDescriptor::new_without_display_handle();
-        desc.backends = backend;
-        let instance = wgpu::Instance::new(desc);
-        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::HighPerformance,
-            force_fallback_adapter: false,
-            compatible_surface: None,
-            apply_limit_buckets: false,
-        }))
-        .expect("test GPU adapter");
-        let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default())).unwrap();
-        let shared = Shared::new(&device);
-        let effects = Effects::new(&device, wgpu::TextureFormat::Rgba8Unorm, &shared);
-        Self { device, queue, shared, effects, textures: super::slots::Slots::new() }
+        let gpu = Gpu::new(backend);
+        let bindings = WorldBindings::new(&gpu.device);
+        let effects = Effects::new(&gpu.device, wgpu::TextureFormat::Rgba8Unorm, &bindings);
+        Self { gpu, bindings, effects, textures: Vec::new() }
+    }
+
+    fn add_texture(&mut self, group: wgpu::BindGroup) -> TextureHandle {
+        self.textures.push(group);
+        TextureHandle::from_raw(self.textures.len() - 1)
     }
 
     fn sample(&mut self, layer: &EffectLayer, depth: f32, width: u32, fog: [f32; 2]) -> Pixels {
+        let Gpu { device, queue } = &self.gpu;
         let globals = Globals {
             view_proj: Mat4::IDENTITY.to_cols_array_2d(),
             camera_pos: [0.0, 0.0, 0.0, 1.0],
@@ -58,22 +54,12 @@ impl Gpu {
             fog_color: [0.3, 0.6, 0.9, 1.0],
             fog_range: [fog[0], fog[1], 0.0, 0.0],
         };
-        self.queue.write_buffer(&self.shared.bindings.globals, 0, bytemuck::bytes_of(&globals));
-        self.effects.upload(&self.device, &self.queue, layer);
-        let size = wgpu::Extent3d { width, height: width, depth_or_array_layers: 1 };
-        let target = self.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("streak test target"),
-            size,
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Unorm,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
-            view_formats: &[],
-        });
+        queue.write_buffer(&self.bindings.globals, 0, bytemuck::bytes_of(&globals));
+        self.effects.upload(device, queue, layer);
+        let target = self.gpu.target(width);
         let view = target.create_view(&wgpu::TextureViewDescriptor::default());
-        let depth_view = resources::create_depth(&self.device, width, width);
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+        let depth_view = create_depth(device, width, width);
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("streak test pass"),
@@ -100,38 +86,11 @@ impl Gpu {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            pass.set_bind_group(0, &self.shared.bindings.globals_bind_group, &[]);
+            pass.set_bind_group(0, &self.bindings.globals_bind_group, &[]);
             self.effects.draw(&mut pass);
-            self.effects.textured.draw(&mut pass, |t| self.textures.get(t.raw()));
+            self.effects.draw_textured(&mut pass, |t| self.textures.get(t.raw()));
         }
-        let row = (width * 4).next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
-        let readback = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("streak test readback"),
-            size: u64::from(row * width),
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
-        encoder.copy_texture_to_buffer(
-            target.as_image_copy(),
-            wgpu::TexelCopyBufferInfo {
-                buffer: &readback,
-                layout: wgpu::TexelCopyBufferLayout {
-                    offset: 0,
-                    bytes_per_row: Some(row),
-                    rows_per_image: Some(width),
-                },
-            },
-            size,
-        );
-        self.queue.submit([encoder.finish()]);
-        let slice = readback.slice(..);
-        slice.map_async(wgpu::MapMode::Read, |_| {});
-        self.device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
-        let mapped = slice.get_mapped_range().unwrap();
-        let rgba = (0..width as usize)
-            .flat_map(|y| mapped[y * row as usize..][..(width * 4) as usize].iter().copied())
-            .collect();
-        Pixels { width, rgba }
+        Pixels { width, rgba: self.gpu.finish(encoder, &target) }
     }
 }
 
@@ -164,8 +123,8 @@ fn quad(out: &mut Vec<EffectVertex>, depth: f32, color: [u8; 4]) {
 }
 
 fn check(backend: wgpu::Backends) {
-    let _gpu = crate::gpu::test_support::serial();
-    let mut gpu = Gpu::new(backend);
+    let _lock = serial();
+    let mut gpu = Bench::new(backend);
     let no_fog = [f32::MAX, f32::MAX];
     let mut layer = EffectLayer::default();
     quad(&mut layer.streaks, 0.8, [80, 0, 0, 128]);

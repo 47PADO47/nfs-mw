@@ -19,8 +19,6 @@ mod pipelines;
 mod post;
 mod resources;
 mod slots;
-#[cfg(test)]
-mod streak_tests;
 mod targets;
 #[cfg(test)]
 mod test_support;
