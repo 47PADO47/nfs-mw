@@ -62,6 +62,7 @@ pub const BUILT_IN: [(&str, &str); 27] = [
     ("sound [bank [index]]", "list the sounds of a bank (IG_GLOBAL/Siren_MB.abk) or play one"),
     ("engine <car> [percent] | off", "hold a car's engine sound at a share of its RPM range"),
     ("radio [list|next|play <n>|on|off|shuffle|ordered]", "the radio: show what plays, skip, switch it"),
+    ("music [pursuit <1-4> [0-100]|intensity <0-100>|clear]", "the pursuit music: show it, force a chase to test it"),
 ];
 
 /// Further shorthands for `set`: `vsync off` is `set vsync off`.
