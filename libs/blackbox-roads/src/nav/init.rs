@@ -5,7 +5,7 @@ use glam::Vec3;
 
 use super::traffic_lanes::{forward_traffic_lanes, pick_lane};
 use super::{LaneType, NavKind, RandomSource, RoadNav};
-use crate::{RoadNetwork, SegmentFilter, SegmentIndex, closest_segment, flags, lane_line, travel_profile};
+use crate::{PathType, RoadNetwork, SegmentFilter, SegmentIndex, closest_segment, flags, lane_line, travel_profile};
 
 /// The default half width of a car.
 const DEFAULT_HALF_WIDTH: f32 = 1.0;
@@ -28,6 +28,9 @@ impl RoadNav {
             curvature: 0.0,
             line: crate::Bezier::line(Vec3::ZERO, Vec3::Z),
             trail: None,
+            path: Vec::new(),
+            path_type: PathType::None,
+            goal: None,
         }
     }
 
@@ -101,7 +104,7 @@ impl RoadNav {
         let (from, to) = (travel_profile(net, segment, node_ind, false), travel_profile(net, segment, node_ind, true));
         let candidates: Vec<usize> = match self.kind {
             NavKind::Traffic => forward_traffic_lanes(&to),
-            NavKind::Direction => {
+            NavKind::Direction | NavKind::Path => {
                 let mask = self.lane_type.drivable_mask();
                 (0..to.zones.len()).filter(|&i| to.zones[i].in_mask(mask)).collect()
             }

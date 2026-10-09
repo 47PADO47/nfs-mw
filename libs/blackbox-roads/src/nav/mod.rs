@@ -7,12 +7,13 @@ mod direction;
 mod init;
 mod lane_type;
 mod next;
+mod path_nav;
 mod random;
 mod traffic_lanes;
 
 use glam::Vec3;
 
-use crate::{Bezier, NodeInd, SegmentFilter, Trail};
+use crate::{Bezier, NodeInd, PathType, SegmentFilter, Trail};
 
 pub use lane_type::LaneType;
 pub use random::{RandomSource, SplitMix};
@@ -25,6 +26,8 @@ pub enum NavKind {
     Traffic,
     /// Go where a target vector points; turns around at dead ends.
     Direction,
+    /// Follow a list of segments found by the path finder, then fall back to direction mode.
+    Path,
 }
 
 /// A cursor on one lane of one segment, heading towards one of its nodes.
@@ -52,6 +55,12 @@ pub struct RoadNav {
     line: Bezier,
     /// The look-ahead trail, when the car steers by one.
     trail: Option<Trail>,
+    /// The segments of a path nav, start first.
+    pub path: Vec<u16>,
+    /// Whom the path was found for.
+    pub path_type: PathType,
+    /// Where the path ends: the goal segment and the stored-direction parameter.
+    pub goal: Option<(u16, f32)>,
 }
 
 impl RoadNav {
