@@ -304,6 +304,10 @@ involved in a collision tests the world only every 4th physics step below 2 m/s 
   steering 0 and no driving; when the condition ends it re-initialises the cursor on the current lane.
 - **Stop sign / intersection flags.** The action has `stop_sign` and `clear_intersection` booleans, initialised to
   false and never used. There is no stopping at junctions ([ai-traffic-world.md §1](ai-traffic-world.md#1-traffic-lights-and-stop-signs)).
+  *Rewrite extension, not in the original:* with the `traffic_lights` setting on, a red light (or an amber the car
+  can no longer stop for within its `stopping_distance`) is treated as a stationary obstacle at the stop line of
+  the junction the car is heading for, in the speed computation of §3.3. See
+  [ai-drivers.md](../ai-drivers.md#traffic-lights-a-rewrite-extension).
 - **Cops.** The same action drives cops that patrol or search without sight of the target. Differences: no
   acceleration limit, lateral acceleration 1.6 g instead of 0.6 g for the curvature limit, and, for a cop respawned
   during a pursuit without sight of the target, the cruising speeds are the default `pursuitlevels` collection's

@@ -13,6 +13,11 @@ junctions that traffic, racers and cops drive on.
   `to_zone_space` / `from_zone_space` convert between physics space and the 2D frame the zones use
   (physics `x = -y2d`, `z = x2d`).
 
+- `SignalController`: traffic lights for the junctions, an **extension** (the original has none). It groups the
+  nodes joined by decision segments into junctions (731 in the install), gives every road that enters a junction
+  of three or more roads a stop line, a heading and one of two phases, and answers `state(approach, time)` with
+  green, amber or red from a fixed-time cycle (timing in named constants, a per-junction offset).
+
 Takes bytes, never opens files. Coordinates are the game's physics space (x right, y up, z forward), except the zones, which use the 2D frame
 above.
 

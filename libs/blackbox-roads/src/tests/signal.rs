@@ -186,7 +186,13 @@ fn real_install_junctions_have_two_phases_each() {
     // The decision segments form 731 connected groups (docs/formats/road-network.md).
     assert_eq!(controller.junctions().len(), 731);
     let signalled: Vec<_> = controller.junctions().iter().filter(|j| j.has_signals()).collect();
-    assert!(signalled.len() > 600, "{} signalled junctions", signalled.len());
+    eprintln!(
+        "{} of {} junctions signalled, {} approaches",
+        signalled.len(),
+        controller.junctions().len(),
+        controller.approaches().len()
+    );
+    assert!(signalled.len() > 700, "{} signalled junctions", signalled.len());
     for junction in signalled {
         for phase in 0..2 {
             let count = junction.approaches.iter().filter(|&&a| controller.approaches()[a].phase == phase).count();
