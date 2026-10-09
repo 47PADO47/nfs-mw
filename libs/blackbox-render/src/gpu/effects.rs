@@ -4,9 +4,9 @@ use std::collections::HashMap;
 
 use super::Renderer;
 use super::resources::{DEPTH_FORMAT, Shared};
-use super::soft_particles::SoftParticles;
 use super::targets::write_mask;
 use crate::{DEFAULT_SOFT_DISTANCE, EffectLayer, EffectVertex};
+use blackbox_gpu_passes::SoftParticles;
 
 pub(super) const ATTRIBUTES: [wgpu::VertexAttribute; 4] =
     wgpu::vertex_attr_array![0 => Float32x3, 1 => Unorm8x4, 2 => Float32x2, 3 => Float32x2];
@@ -73,7 +73,7 @@ impl Effects {
             layout,
             pipelines: HashMap::new(),
             format,
-            soft: SoftParticles::new(device, format, shared),
+            soft: SoftParticles::new(device, format, &shared.bindings),
             detailed: false,
             soft_distance: DEFAULT_SOFT_DISTANCE,
             textured: super::textured_effects::TexturedEffects::new(device, format, shared),
@@ -199,7 +199,7 @@ impl Effects {
             occlusion_query_set: None,
             multiview_mask: None,
         });
-        self.soft.bind(&mut pass, shared);
+        self.soft.bind(&mut pass, &shared.bindings.globals_bind_group);
         let batch = &self.batches[1];
         pass.set_vertex_buffer(0, batch.buffer.slice(..));
         pass.draw(0..batch.count, 0..1);

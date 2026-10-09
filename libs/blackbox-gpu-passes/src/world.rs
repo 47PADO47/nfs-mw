@@ -17,6 +17,11 @@ pub fn write_mask(format: wgpu::TextureFormat) -> wgpu::ColorWrites {
     }
 }
 
+/// The vertex layout of [`blackbox_gfx::EffectVertex`] as the effect shaders read it: position (location
+/// 0), colour (1), uv (2) and the detail pair (3, age and seed).
+pub const EFFECT_VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 4] =
+    wgpu::vertex_attr_array![0 => Float32x3, 1 => Unorm8x4, 2 => Float32x2, 3 => Float32x2];
+
 /// A reverse-Z depth image of `width` x `height` (at least 1x1) that can be rendered to and sampled as a
 /// depth texture, which is what the soft-particle pass needs.
 pub fn create_depth(device: &wgpu::Device, width: u32, height: u32) -> wgpu::TextureView {

@@ -9,6 +9,9 @@
 
 #[cfg(test)]
 mod shader_tests;
+#[cfg(test)]
+mod soft_particle_tests;
+mod soft_particles;
 mod ui;
 #[cfg(test)]
 mod ui_tests;
@@ -17,5 +20,6 @@ mod world;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
 
+pub use soft_particles::SoftParticles;
 pub use ui::{UiPass, UiTextureError};
-pub use world::{DEPTH_FORMAT, Globals, HDR_FORMAT, WorldBindings, create_depth, write_mask};
+pub use world::{DEPTH_FORMAT, EFFECT_VERTEX_ATTRIBUTES, Globals, HDR_FORMAT, WorldBindings, create_depth, write_mask};

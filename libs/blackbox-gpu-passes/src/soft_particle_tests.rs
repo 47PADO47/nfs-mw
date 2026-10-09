@@ -2,11 +2,10 @@
 
 use glam::{Mat4, Vec3};
 
-use super::{
-    resources::{self, Globals, Shared},
-    soft_particles::SoftParticles,
-};
-use crate::{DEFAULT_SOFT_DISTANCE, EffectLayer};
+use blackbox_gfx::{DEFAULT_SOFT_DISTANCE, EffectLayer};
+
+use crate::test_support::{Gpu, serial};
+use crate::{Globals, SoftParticles, WorldBindings, create_depth};
 
 #[test]
 #[ignore = "needs a Vulkan GPU"]
@@ -22,19 +21,9 @@ fn soft_particles_depth_dx12() {
 }
 
 fn check(backend: wgpu::Backends) {
-    let _gpu = crate::gpu::test_support::serial();
-    let mut desc = wgpu::InstanceDescriptor::new_without_display_handle();
-    desc.backends = backend;
-    let instance = wgpu::Instance::new(desc);
-    let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-        power_preference: wgpu::PowerPreference::HighPerformance,
-        force_fallback_adapter: false,
-        compatible_surface: None,
-        apply_limit_buckets: false,
-    }))
-    .expect("test GPU adapter");
-    let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default())).unwrap();
-    let shared = Shared::new(&device);
+    let _lock = serial();
+    let Gpu { device, queue } = Gpu::new(backend);
+    let shared = WorldBindings::new(&device);
     let projection = glam::camera::rh::proj::directx::perspective_infinite_reverse(1.0, 1.0, 0.1);
     let globals = Globals {
         view_proj: projection.to_cols_array_2d(),
@@ -43,7 +32,7 @@ fn check(backend: wgpu::Backends) {
         fog_color: [0.0; 4],
         fog_range: [f32::MAX, f32::MAX, 0.0, 0.0],
     };
-    queue.write_buffer(&shared.bindings.globals, 0, bytemuck::bytes_of(&globals));
+    queue.write_buffer(&shared.globals, 0, bytemuck::bytes_of(&globals));
     let mut soft = SoftParticles::new(&device, wgpu::TextureFormat::Rgba8Unorm, &shared);
     let mut vertices = Vec::new();
     EffectLayer::particle_quad(
@@ -83,7 +72,7 @@ fn check(backend: wgpu::Backends) {
 fn sample(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-    shared: &Shared,
+    shared: &WorldBindings,
     soft: &mut SoftParticles,
     buffer: &wgpu::Buffer,
     projection: Mat4,
@@ -102,7 +91,7 @@ fn sample(
         view_formats: &[],
     });
     let view = target.create_view(&wgpu::TextureViewDescriptor::default());
-    let depth = resources::create_depth(device, width, width);
+    let depth = create_depth(device, width, width);
     let clear_depth = if distance == 0.0 { 0.0 } else { projection.project_point3(Vec3::new(0.0, 0.0, -distance)).z };
     let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
     {
@@ -142,7 +131,7 @@ fn sample(
             occlusion_query_set: None,
             multiview_mask: None,
         });
-        soft.bind(&mut pass, shared);
+        soft.bind(&mut pass, &shared.globals_bind_group);
         pass.set_vertex_buffer(0, buffer.slice(..));
         pass.draw(0..6, 0..1);
     }
