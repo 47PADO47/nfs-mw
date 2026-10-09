@@ -45,15 +45,27 @@ impl CollisionWorld {
     /// The nearest hit along the segment from `from` to `to` (physics space: x right, y up,
     /// z forward), or `None`. Instances whose pack is not loaded are ignored.
     pub fn ray_cast(&self, from: Vec3, to: Vec3, opts: &RayOptions) -> Option<Hit> {
+        self.ray_cast_filtered(from, to, opts, |_| true)
+    }
+
+    /// The nearest hit accepted by `accept`. The predicate is applied before choosing a winner,
+    /// including within one article, so a rejected surface never hides a farther accepted one.
+    /// It receives world-space data and the candidate's actual section and instance identity.
+    /// Farther candidates may be culled without calling the predicate; do not depend on its call count.
+    pub fn ray_cast_filtered(
+        &self,
+        from: Vec3,
+        to: Vec3,
+        opts: &RayOptions,
+        mut accept: impl FnMut(&Hit) -> bool,
+    ) -> Option<Hit> {
         let seg = prepare_segment(from, to)?;
         let mut best: Option<Hit> = None;
         let mut test = |pack: &CollisionPack, index: usize| {
             let (Some(inst), Some(article)) = (pack.instances.get(index), pack.article_of(index)) else { return };
-            if let Some(mut hit) = cast_instance(inst, article, seg, opts)
+            if let Some(hit) = cast_instance(inst, article, seg, opts, (pack.section, index), &mut accept)
                 && best.as_ref().is_none_or(|b| closer(&hit, b, seg.0))
             {
-                hit.section = pack.section;
-                hit.instance = index;
                 best = Some(hit);
             }
         };
