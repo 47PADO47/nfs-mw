@@ -14,6 +14,7 @@ pub enum Category {
     Audio,
     Video,
     Gameplay,
+    Controls,
 }
 
 /// What a screen is opened with (the original passes an argument and reads the game mode).
@@ -73,6 +74,22 @@ pub struct Cx<'a> {
 }
 
 impl Cx<'_> {
+    /// Sets host-authored text on every string directly inside a group, including its shadow.
+    pub fn text_group(&mut self, group_hash: u32, text: &str) {
+        let Some(group) = self.object(group_hash) else { return };
+        let Some(def) = self.rt.package(self.package) else { return };
+        let guid = def.objects[group.index].guid;
+        let strings: Vec<usize> = def
+            .objects
+            .iter()
+            .enumerate()
+            .filter(|(_, o)| o.parent == Some(guid) && o.string.is_some())
+            .map(|(i, _)| i)
+            .collect();
+        for index in strings {
+            self.rt.set_text(ObjectRef { package: self.package, index }, text);
+        }
+    }
     /// The object with this name hash in the screen's package.
     pub fn object(&self, name_hash: u32) -> Option<ObjectRef> {
         self.rt.find(self.package, name_hash)

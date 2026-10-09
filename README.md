@@ -50,7 +50,7 @@ config file written by `setup`, or the retail registry key ([details](docs/archi
 | `keys` | Lists every key, button and stick binding (the console command `keys` shows the live ones) |
 | `list-cars` | Lists car folders |
 | `play` (no command does the same) | The game flow: boot movies, title screen, main menu (arrows or WASD, Enter, Esc; pad: D-pad, A, B), free roam, pause menu (Esc or Start) with the audio, video and gameplay settings. `--skip-boot`, `--drive` (straight to free roam) |
-| `view-screen NAME` | One of the install's menu screens on its own (`list-screens` lists them, `dump-screen NAME` prints one): `--category audio\|video\|gameplay`, `--pause`, `--options` |
+| `view-screen NAME` | One of the install's menu screens on its own (`list-screens` lists them, `dump-screen NAME` prints one): `--category audio\|video\|gameplay\|controls`, `--pause`, `--options` |
 | `view-car [CAR]` | A car assembled from its stock parts (wheels, brakes, paint) on a floor: drag to rotate, scroll to zoom. Options: `--lod A..E`, `--preset NAME` (a `PresetRides` car such as `CE_GTRSTREET`), `--all-parts` (every solid, unassembled) |
 | `view-world` | Fly through the city: WASD, Space/C, Shift, mouse to look (Esc frees the cursor, click to capture it again), scroll for speed. Options: `--at X,Y`, `--height`, `--heading`, `--pitch`, `--fog-distance`, and `--drive [CAR]` to drive instead (W/S, A/D, Space handbrake, E/Q gears, Left Shift nitrous, R reset, F free camera; pad: triggers, left stick) |
 
@@ -83,11 +83,14 @@ Run `nfsmw check-install` to see the exact path on your system. The file uses [T
 and lets you set the game directory, graphics backend, frame-rate cap, and other options without
 passing CLI flags every time.
 
-The Gameplay menu includes independent stick/trigger deadzones, sensitivity and camera inversion.
+The Controls menu includes independent stick/trigger deadzones, sensitivity and camera inversion.
 Keyboard, mouse and gamepad assignments can be changed and saved through the console or config file
 ([controller settings](docs/controller-settings.md)).
 Gameplay also offers [HUD Layout](docs/hud-layout.md): PC widescreen placement,
 the earlier centered layout, or the Xbox addon's 92% wide scale.
+Xbox menus use bundled Kenney CC0 prompts that follow the live bindings and active input device.
+A accepts, B goes back, Menu/Start pauses or resumes, and View/Back quits from the main menu.
+Idle stick drift and console hotkeys do not switch the prompts. Losing the active controller pauses driving.
 
 ## Repository
 

@@ -20,6 +20,8 @@ struct Step {
 #[derive(Debug, Clone, Default)]
 pub struct UiScript {
     steps: VecDeque<Step>,
+    /// Deterministic prompt device for screenshots, not a gameplay preference.
+    pub device: Option<crate::input::InputDevice>,
 }
 
 fn button(name: &str) -> Result<u32, String> {
@@ -43,9 +45,12 @@ fn frames(seconds: &str) -> Result<u32, String> {
 impl UiScript {
     pub fn parse(text: &str) -> Result<Self, String> {
         let mut steps = VecDeque::new();
+        let mut device = None;
         for part in text.split([';', ',']).map(str::trim).filter(|p| !p.is_empty()) {
             let words: Vec<&str> = part.split_whitespace().collect();
             match words[..] {
+                ["device", "xbox"] => device = Some(crate::input::InputDevice::Xbox),
+                ["device", "keyboard"] => device = Some(crate::input::InputDevice::Keyboard),
                 ["wait", s] => steps.push_back(Step { mask: 0, frames: frames(s)? }),
                 ["hold", name, s] => steps.push_back(Step { mask: button(name)?, frames: frames(s)? }),
                 [name] => {
@@ -55,7 +60,7 @@ impl UiScript {
                 _ => return Err(format!("cannot read the script step {part:?}")),
             }
         }
-        Ok(Self { steps })
+        Ok(Self { steps, device })
     }
 
     /// The pad mask of the next frame, or none when the script is over.
