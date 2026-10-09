@@ -28,6 +28,8 @@ drawing), [feng-input.md](feng-input.md) (pad messages, focus, navigation) and [
 [Original PC collision particles](pc-collision-particles.md) specifies ordinary
 textured sparks and contact glow separately from the experimental restoration.
 
+[Post-processing](post-processing.md) specifies the optional bloom, tone mapping and FXAA passes (new design).
+
 [Controller settings](controller-settings.md) specifies rewrite response options and saved rebinding.
 [Controller UI](controller-ui.md) specifies device ownership, live binding prompts and menu rendering corrections.
 
