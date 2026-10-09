@@ -39,6 +39,7 @@ pub mod induction;
 pub mod input;
 pub mod math;
 pub mod nos;
+pub mod performance;
 pub mod rigid_body;
 pub mod steering;
 pub mod suspension;
