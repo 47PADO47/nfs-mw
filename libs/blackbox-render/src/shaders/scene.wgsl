@@ -12,7 +12,7 @@ struct Globals {
     camera_pos: vec4<f32>,
     light_dir: vec4<f32>,
     fog_color: vec4<f32>,
-    // x = start, y = end
+    // x = start, y = end, z = texture LOD bias
     fog_range: vec4<f32>,
 };
 
@@ -54,7 +54,7 @@ fn vs_main(v: VsIn) -> VsOut {
 }
 
 fn shade(in: VsOut) -> vec4<f32> {
-    let base = textureSample(diffuse, diffuse_sampler, in.uv) * in.color;
+    let base = textureSampleBias(diffuse, diffuse_sampler, in.uv, globals.fog_range.z) * in.color;
     var lit: vec3<f32>;
     if PRELIT {
         lit = min(base.rgb * 2.0, vec3<f32>(1.0));

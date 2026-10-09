@@ -20,6 +20,7 @@ mod targets;
 mod textured_effects;
 mod textures;
 mod ui;
+mod upscale;
 
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
@@ -36,6 +37,7 @@ pub struct Renderer {
     targets: targets::FrameTargets,
     post: post::PostChain,
     render_scale: f32,
+    upscale: upscale::Upscale,
     shared: resources::Shared,
     pipelines: pipelines::Pipelines,
     /// Texture bind groups. Slot 0 is the white fallback.
@@ -99,6 +101,7 @@ impl Renderer {
         }
         self.render_scale = scale;
         self.recreate_targets();
+        self.sync_upscale_passes();
     }
 
     /// The current render scale (after clamping).

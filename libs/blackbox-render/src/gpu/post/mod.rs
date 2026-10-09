@@ -3,13 +3,17 @@
 //!
 //! The chain always ends with the built-in [`resolve`] pass, which writes the output. The post
 //! effects (bloom, tone mapping, FXAA; see [`effects`]) sit at the front, and later passes
-//! (upscaling) are inserted before the resolve pass with [`PostChain::insert`].
+//! (upscaling) are inserted before the resolve pass with [`PostChain::insert`]. Passes that write
+//! the output size (the upscalers) are always kept after the ones that write the render size.
 
 mod bloom;
 #[cfg(test)]
 mod effect_tests;
 mod effects;
 mod filter;
+mod fsr1;
+#[cfg(test)]
+mod fsr1_tests;
 mod fxaa;
 mod plan;
 mod resolve;
@@ -20,13 +24,14 @@ mod tonemap;
 use super::targets::FrameTargets;
 use plan::{Source, Target};
 
+pub(super) use fsr1::{EASU as FSR1_EASU, RCAS as FSR1_RCAS, RcasScale, passes as fsr1_passes};
+
 /// How big the image a pass writes is, when it does not write the final output.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Extent {
     /// The internal render size (the scene image's size).
     Render,
     /// The output size (an upscaling pass writes this).
-    #[allow(dead_code, reason = "for the upscaling pass of a later layer")]
     Output,
 }
 
@@ -106,12 +111,29 @@ impl PostChain {
     }
 
     /// Insert `pass` so it runs at `index` among the passes (0 = first). Past-the-end indices put
-    /// it right before the resolve pass, which always stays last; the post effects stay in front of
-    /// every inserted pass.
-    #[allow(dead_code, reason = "the entry point for the post-process passes of later layers")]
+    /// it right before the resolve pass, which always stays last. The post effects stay in front of
+    /// every inserted pass, and a pass that writes the output size ignores the index and goes right
+    /// before the resolve pass, so it follows every render-size pass.
     pub(super) fn insert(&mut self, index: usize, pass: Box<dyn PostPass>) {
-        let index = index.clamp(self.effect_count, self.passes.len() - 1);
+        let extents: Vec<Extent> = self.passes.iter().map(|p| p.extent()).collect();
+        let index = plan::insert_index(&extents, index.max(self.effect_count), pass.extent());
         self.passes.insert(index, pass);
+    }
+
+    /// Whether a pass named `name` is in the chain.
+    pub(super) fn has(&self, name: &str) -> bool {
+        self.passes.iter().any(|p| p.name() == name)
+    }
+
+    /// Remove every pass named `name` (never the resolve pass).
+    pub(super) fn remove(&mut self, name: &str) {
+        let last = self.passes.len() - 1;
+        let mut index = 0;
+        self.passes.retain(|p| {
+            let keep = index == last || p.name() != name;
+            index += 1;
+            keep
+        });
     }
 
     /// The pass names in execution order.
