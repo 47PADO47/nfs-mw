@@ -14,6 +14,7 @@ mod minimap;
 #[cfg(test)]
 mod minimap_tests;
 mod plugin;
+mod radio;
 mod skin;
 mod state;
 mod viewport;
@@ -21,4 +22,5 @@ mod viewport;
 mod viewport_tests;
 
 pub use plugin::HudPlugin;
+pub use radio::{RadioHud, show as show_radio};
 pub use state::{HudState, MapPosition};

@@ -40,6 +40,7 @@ struct Hud {
 
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
+        app.init_resource::<super::RadioHud>().add_systems(Update, super::radio::update.in_set(FrameSet::SceneUpdate));
         let Some(assets) = crate::ui::ensure(app, &self.dir) else { return };
         let catalog = Catalog::load(&self.dir, &HUD_FILES);
         let Some(package) = catalog.find(HUD_PACKAGE).cloned() else {
