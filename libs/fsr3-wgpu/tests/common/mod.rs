@@ -6,6 +6,7 @@
 #![allow(dead_code)]
 
 pub mod scene;
+mod scene_gpu;
 mod scene_shader;
 
 use glam::UVec2;
