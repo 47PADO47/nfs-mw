@@ -25,6 +25,8 @@ mod exhaust_flames_tests;
 #[cfg(test)]
 mod hud_layout_tests;
 #[cfg(test)]
+mod radio_hud_tests;
+#[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod vehicle_effects_tests;

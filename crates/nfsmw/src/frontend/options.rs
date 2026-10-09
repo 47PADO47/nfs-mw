@@ -8,7 +8,9 @@ use super::input_options::InputSetting;
 use super::logic::Category;
 use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
-use crate::settings::{HudLayout, MinimapMode, Partial, Percent, Settings, SmokeQuality, Transmission, WindowMode};
+use crate::settings::{
+    HudLayout, MinimapMode, Partial, Percent, RadioHudStyle, Settings, SmokeQuality, Transmission, WindowMode,
+};
 
 /// A setting a row edits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -32,6 +34,7 @@ pub enum Setting {
     Transmission,
     Input(InputSetting),
     HudLayout,
+    RadioHud,
     Minimap,
 }
 
@@ -94,6 +97,7 @@ pub fn rows(category: Category) -> Vec<Row> {
             row(Setting::Hud, Title::Label(0xAC14_8579)),
             row(Setting::Transmission, Title::Label(LABEL_TRANSMISSION)),
             row(Setting::HudLayout, Title::Text("HUD Layout")),
+            row(Setting::RadioHud, Title::Text("Radio HUD")),
             row(Setting::Minimap, Title::Text("Minimap")),
         ],
         Category::Controls => {
@@ -143,6 +147,13 @@ impl Setting {
                     HudLayout::Pc => "PC",
                     HudLayout::Classic => "Centered",
                     HudLayout::Xbox360 => "Xbox 360",
+                }
+                .to_owned(),
+            ),
+            Setting::RadioHud => Data::Text(
+                match s.radio_hud {
+                    RadioHudStyle::EaTrax => "EA Trax",
+                    RadioHudStyle::Custom => "Custom",
                 }
                 .to_owned(),
             ),
@@ -211,6 +222,12 @@ impl Setting {
                 let at = layouts.iter().position(|layout| *layout == s.hud_layout).unwrap_or(0);
                 s.hud_layout = layouts[cycle(at, layouts.len(), forward)];
                 changed.hud_layout = Some(s.hud_layout);
+            }
+            Setting::RadioHud => {
+                let styles = [RadioHudStyle::EaTrax, RadioHudStyle::Custom];
+                let at = styles.iter().position(|style| *style == s.radio_hud).unwrap_or(0);
+                s.radio_hud = styles[cycle(at, styles.len(), forward)];
+                changed.radio_hud = Some(s.radio_hud);
             }
             Setting::Minimap => {
                 let modes = [MinimapMode::Fixed, MinimapMode::Rotating, MinimapMode::Off];
@@ -378,7 +395,7 @@ mod tests {
     fn every_category_has_rows() {
         assert_eq!(rows(Category::Audio).len(), 5);
         assert_eq!(rows(Category::Video).len(), 10);
-        assert_eq!(rows(Category::Gameplay).len(), 4);
+        assert_eq!(rows(Category::Gameplay).len(), 5);
         assert_eq!(rows(Category::Controls).len(), 8);
     }
 

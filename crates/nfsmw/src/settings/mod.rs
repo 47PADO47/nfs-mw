@@ -15,6 +15,7 @@ mod hud_layout;
 mod hud_layout_tests;
 mod minimap;
 mod partial;
+mod radio_hud;
 mod smoke_quality;
 #[cfg(test)]
 mod smoke_quality_tests;
@@ -34,6 +35,7 @@ pub use controls::{Controls, Deadzone, DeadzoneMode, Sensitivity};
 pub use hud_layout::HudLayout;
 pub use minimap::MinimapMode;
 pub use partial::{Partial, Percent, parse_bool};
+pub use radio_hud::RadioHudStyle;
 pub use smoke_quality::SmokeQuality;
 pub use spark_style::SparkStyle;
 pub use transmission::Transmission;
@@ -86,6 +88,8 @@ pub struct Settings {
     pub minimap: MinimapMode,
     /// Placement and scale of the in-game HUD.
     pub hud_layout: HudLayout,
+    /// How the radio announces the song on the HUD: the original EA Trax chyron or the rewrite's card.
+    pub radio_hud: RadioHudStyle,
     /// Gamepad button codes of a steering wheel's shift paddles (`GamepadButton::Other`), if the player gave them.
     pub paddle_up: Option<u32>,
     pub paddle_down: Option<u32>,
@@ -134,6 +138,7 @@ impl From<Partial> for Settings {
             transmission: p.transmission.unwrap_or_default(),
             minimap: p.minimap.unwrap_or_default(),
             hud_layout: p.hud_layout.unwrap_or_default(),
+            radio_hud: p.radio_hud.unwrap_or_default(),
             paddle_up: p.paddle_up,
             paddle_down: p.paddle_down,
             manual_clutch: p.manual_clutch.unwrap_or(false),
