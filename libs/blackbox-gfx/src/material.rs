@@ -7,15 +7,6 @@
 
 use glam::Vec3;
 
-/// A glossy material registered with the renderer; use it as [`Shading::Glossy`](crate::Shading::Glossy).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct GlossyMaterialHandle(pub(crate) usize);
-
-impl GlossyMaterialHandle {
-    /// Stands for "any glossy material" where only the pipeline matters.
-    pub(crate) const ANY: Self = Self(usize::MAX);
-}
-
 /// One directional light.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DirectionalLight {
@@ -105,6 +96,15 @@ impl Default for SkyGradient {
     fn default() -> Self {
         Self { zenith: [0.30, 0.48, 0.78], horizon: [0.78, 0.84, 0.90], ground: [0.22, 0.23, 0.25] }
     }
+}
+
+/// What the glossy environment reflection shows.
+#[derive(Debug, Clone, Copy)]
+pub enum Environment<'a> {
+    /// A procedural sky.
+    Sky(SkyGradient),
+    /// A cube map: six square RGBA8 faces of `size` by `size` pixels, in the order +X, -X, +Y, -Y, +Z, -Z.
+    Faces { size: u32, faces: [&'a [u8]; 6] },
 }
 
 #[cfg(test)]

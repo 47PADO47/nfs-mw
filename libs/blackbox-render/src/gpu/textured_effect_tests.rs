@@ -43,7 +43,7 @@ fn check(backend: wgpu::Backends) {
             wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&gpu.shared.sampler) },
         ],
     });
-    let handle = TextureHandle(gpu.textures.insert(group));
+    let handle = TextureHandle::from_raw(gpu.textures.insert(group));
     let mut vertices = Vec::new();
     quad(&mut vertices, 0.8, [128, 255, 255, 128]);
     vertices.iter_mut().for_each(|v| v.uv = [0.25, 0.5]);

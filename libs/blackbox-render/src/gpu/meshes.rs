@@ -28,10 +28,10 @@ impl Renderer {
             contents: bytemuck::cast_slice(&indices),
             usage: wgpu::BufferUsages::INDEX,
         });
-        MeshHandle(self.meshes.insert(GpuMesh { vertices, indices, draws: desc.draws.clone() }))
+        MeshHandle::from_raw(self.meshes.insert(GpuMesh { vertices, indices, draws: desc.draws.clone() }))
     }
 
     pub fn destroy_mesh(&mut self, handle: MeshHandle) {
-        self.meshes.remove(handle.0);
+        self.meshes.remove(handle.raw());
     }
 }
