@@ -1,6 +1,6 @@
-//! Dynamic world-space triangles: grounded surface overlays and soft billboards.
+//! Dynamic world-space triangles: grounded surface overlays, soft billboards and additive streaks.
 //!
-//! Both are depth tested, alpha blended and drawn before the UI without writing depth.
+//! All are depth tested and drawn before the UI without writing depth.
 //! The caller owns geometry, sorting, lifetime and budgets; buffers are reused across frames.
 
 use glam::Vec3;
@@ -24,6 +24,9 @@ pub struct EffectLayer {
     pub surfaces: Vec<EffectVertex>,
     /// Soft circular billboards, in back-to-front order.
     pub particles: Vec<EffectVertex>,
+    /// Additive streak triangles; UV x crosses the width, UV y runs from head (0) to tail (1).
+    /// Overlap adds light independent of ordering within this batch.
+    pub streaks: Vec<EffectVertex>,
     /// Enable evolving procedural density and depth-softened intersections for particles.
     pub detailed_particles: bool,
     /// Distance in world units over which an intersecting particle fades.
@@ -35,6 +38,7 @@ impl Default for EffectLayer {
         Self {
             surfaces: Vec::new(),
             particles: Vec::new(),
+            streaks: Vec::new(),
             detailed_particles: false,
             soft_distance: DEFAULT_SOFT_DISTANCE,
         }
@@ -45,6 +49,7 @@ impl EffectLayer {
     pub fn clear(&mut self) {
         self.surfaces.clear();
         self.particles.clear();
+        self.streaks.clear();
     }
 
     /// Append a quad, with corners in perimeter order and UVs from (0,0) to (1,1).
@@ -70,5 +75,19 @@ mod tests {
         let layer = EffectLayer::default();
         assert_eq!(layer.soft_distance, DEFAULT_SOFT_DISTANCE);
         assert!(!layer.detailed_particles);
+        assert!(layer.streaks.is_empty());
+    }
+
+    #[test]
+    fn clear_empties_all_three_batches_and_keeps_their_reusable_storage() {
+        let mut layer = EffectLayer::default();
+        let corners = [Vec3::ZERO, Vec3::X, Vec3::ONE, Vec3::Y];
+        for out in [&mut layer.surfaces, &mut layer.particles, &mut layer.streaks] {
+            EffectLayer::quad(out, corners, [255; 4]);
+        }
+        let capacities = [layer.surfaces.capacity(), layer.particles.capacity(), layer.streaks.capacity()];
+        layer.clear();
+        assert!(layer.surfaces.is_empty() && layer.particles.is_empty() && layer.streaks.is_empty());
+        assert_eq!([layer.surfaces.capacity(), layer.particles.capacity(), layer.streaks.capacity()], capacities);
     }
 }

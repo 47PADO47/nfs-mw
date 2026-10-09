@@ -46,3 +46,17 @@ fn fs_particle(in: VsOut) -> @location(0) vec4<f32> {
     let wisps = 0.78 + 0.22 * sin(p.x * 8.0 + sin(p.y * 7.0)) * sin(p.y * 6.0);
     return fogged(in, edge * edge * wisps);
 }
+
+@fragment
+fn fs_streak(in: VsOut) -> @location(0) vec4<f32> {
+    let along = clamp(in.uv.y, 0.0, 1.0);
+    let taper = mix(1.0, 0.1, smoothstep(0.0, 1.0, along));
+    let across = abs(in.uv.x * 2.0 - 1.0) / taper;
+    let soft_edge = 1.0 - smoothstep(0.15, 1.0, across);
+    let ends = smoothstep(0.0, 0.08, along) * (1.0 - smoothstep(0.75, 1.0, along));
+    let mask = soft_edge * soft_edge * ends;
+    let distance = length(in.world - globals.camera_pos.xyz);
+    let fog = clamp((distance - globals.fog_range.x) / max(globals.fog_range.y - globals.fog_range.x, 0.001), 0.0, 1.0);
+    // Additive light disappears into fog; blending toward the fog colour would emit luminous fog.
+    return vec4<f32>(in.color.rgb * (1.0 - fog), in.color.a * mask);
+}

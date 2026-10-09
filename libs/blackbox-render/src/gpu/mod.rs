@@ -12,6 +12,8 @@ mod slots;
 #[cfg(test)]
 mod soft_particle_tests;
 mod soft_particles;
+#[cfg(test)]
+mod streak_tests;
 mod textures;
 mod ui;
 
