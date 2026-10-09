@@ -2,7 +2,9 @@
 
 mod commands;
 mod floor;
+pub(crate) mod lighting;
 pub(crate) mod materials;
+mod shading;
 
 use std::collections::HashMap;
 
@@ -17,6 +19,10 @@ use crate::input::ActionState;
 use crate::viewer::Scene;
 use crate::viewer::camera::{FlyCamera, OrbitCamera};
 use materials::CarMaterials;
+
+/// The direction the light travels in the viewer (the placeholder shading of the floor uses it
+/// directly; cars get a rig built around the sun it comes from).
+const LIGHT_DIR: Vec3 = Vec3::new(-0.4, -0.3, -1.0);
 
 /// Where cars come from, so the console can switch to another one.
 struct Source {
@@ -66,7 +72,7 @@ impl CarScene {
 
     /// Upload the car and its floor and list the instances.
     fn upload(&mut self, renderer: &mut Renderer) {
-        let materials = CarMaterials::upload(renderer, &self.model.textures);
+        let materials = CarMaterials::upload(renderer, &self.model);
         let mut cache: HashMap<(u32, bool), Option<MeshHandle>> = HashMap::new();
         let world = self.to_world();
         for p in &self.model.placements {
@@ -132,6 +138,7 @@ impl Scene for CarScene {
     }
 
     fn init(&mut self, renderer: &mut Renderer) -> Result<()> {
+        renderer.set_lighting_rig(&lighting::rig(-LIGHT_DIR));
         self.upload(renderer);
         Ok(())
     }
@@ -151,7 +158,7 @@ impl Scene for CarScene {
         let params = FrameParams {
             view_proj,
             camera_position,
-            light_dir: Vec3::new(-0.4, -0.3, -1.0),
+            light_dir: LIGHT_DIR,
             clear_color: [0.18, 0.2, 0.24],
             fog_start: f32::MAX,
             fog_end: f32::MAX,
