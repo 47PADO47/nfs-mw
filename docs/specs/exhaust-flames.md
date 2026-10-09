@@ -31,7 +31,7 @@ searched for and absent from the sources.
    (about 0.28 s on most cars, 0.06 s on the FXX Evo) and only above 10 m/s. This is the "pop" at a shift. [decomp]
 3. The miss-shift smoke is raised only by the drag-race engine class. [decomp]
 4. The **sputters** (the crackle of the engine sound, `CARSFX_SparkChatter`) are sound only. The car renderer never
-   reads them; no visual is tied to a lift-off crackle. [decomp: not found]
+   reads them; no visual is tied to a lift-off crackle. [decomp: not found] The rewrite adds one on purpose (section 8.3).
 5. The textures are `FX_FIRE02_ADDITIVE`, `FX_SMK06_BLEND`, `FX_SMK03_BLEND` and `FX_SMK05_BLEND` of the particle
    texture pack. [verified]
 
@@ -208,20 +208,83 @@ between emitters. [decomp for the vectors; inferred for the blend]
 ## 7. Not found, or not done in the original
 
 - Who raises `E_UPSHIFT` / `E_DOWNSHIFT` (section 2) and the body of `hermite_basis` (section 6).
-- A link from the sputters (sound) to any visual. The sputters have no render-side reader.
+- A link from the sputters (sound) to any visual. The sputters have no render-side reader; the rewrite's lift-off
+  backfire (section 8.3) is its own design, not the original's.
 - The platform blend state of particles (section 4).
 - AI racers' own flames follow the same code (usage 2); only the player's car exists in the rewrite.
 
 ## 8. The rewrite
 
+Everything in this section is the rewrite's own design **[decision]** unless it says otherwise.
+
+### 8.1 Structure
+
 - `libs/blackbox-particles` holds the emitter simulation of sections 5 and 6 (plain structs, no game names; start
-  delay and on/off cycles are not modelled). `blackbox-render` draws textured billboard batches (additive or
-  alpha-blended) in the effects pass. `nfsmw-data` reads the groups, the markers and the textures from the
+  delay and on/off cycles are not modelled). `blackbox-render` draws the textured billboard batches (additive or
+  alpha-blended) of its effects layer. `nfsmw-data` reads the groups, the markers and the textures from the
   install at run time; **no game texture or data is stored in the repository**.
-- `crates/nfsmw/src/scenes/world/effects/exhaust/` owns the trigger (section 2), the pipes (section 3) and
-  the per-frame step at the 60 Hz physics rate. The gear change is read from the physics' gear: a change between
-  two forward gears (or into one) counts as an up-shift or down-shift event.
+- `crates/nfsmw/src/scenes/world/exhaust/` owns the trigger (section 2), the pipes (section 3) and the per-frame
+  step at the 60 Hz physics rate. The gear change is read from the physics' gear: a change between two forward
+  gears (or into one) counts as an up-shift or down-shift event.
 - The career's installed engine level does not exist yet: it defaults to **0** and the console command
   `exhaust-flames engine <n>` sets it, so cars with upgradable engines show the shift flame only after
-  `exhaust-flames engine 1` (or higher). `exhaust-flames off|on|status` toggles and reports.
+  `exhaust-flames engine 1` (or higher). The nitrous flames at any level.
 - The miss-shift smoke (drag races) is not drawn; there are no drag races yet.
+
+### 8.2 The setting
+
+`exhaust_flames` (on or off) switches the whole feature; the default is **on**. Setting, command line
+(`--exhaust-flames` / `--no-exhaust-flames`), environment (`NFSMW_EXHAUST_FLAMES`), config file, F12 console
+(`set exhaust_flames off`) and the Video option row work as for `tire_smoke`. What the switch does:
+
+- **Off:** the car's pipe markers, particle group and textures are not read, nothing is uploaded to the GPU, no
+  emitter exists, the physics step and the frame skip the flames after one `Option` check, and no vertex is
+  built. Sputter notices from the sound are dropped.
+- **On:** the flames of the driven car are loaded the first frame after the car is placed (or the setting is turned
+  on), so a menu change takes effect at once without restarting the car. Turning it off drops the emitters and
+  frees the textures. At rest the cost is the same `Option` check plus, per pipe emitter, a check that it has no
+  particles; a flame costs at most the budget below.
+- The default is on because an idle car pays almost nothing and the feature is rare to see (nitrous, a shift
+  pop, a lift-off crackle); the particle counts are capped (8.4). A machine that cannot afford even that sets it off.
+
+### 8.3 The triggers
+
+A pipe flames, in this order of strength, when:
+
+1. **The nitrous is burning** (the physics' `nos_burning`): the group at full intensity (section 2).
+2. **A gear-change blow-off runs** on an engine that allows it: the group at full intensity (section 2).
+3. **A sputter pops while the driver is off the throttle** (the *lift-off backfire*): the group at intensity 0.5 for
+   `BACKFIRE_SECONDS` (0.06 s, about the life of one fire particle) after each pop.
+
+The third is the rewrite's own: the original ties no visual to the sputters (section 1, item 4) but the roadmap asks
+for the crackle to show. Each time the `CAR_Sputter` module of the sample layer starts a pop voice
+([engine-sound-aems.md](engine-sound-aems.md) section 4: about five pops over 2.5 s after a lift-off at high RPM,
+one after a shift, none at a steady throttle) the sound reports one *sputter notice* to the scene. The scene turns it
+into a backfire when the throttle of that physics step is below 0.15 and the gear is a forward one; a pop with the
+foot down (the pop after a shift under power) shows only what the blow-off rule of item 2 shows. A notice is raised
+when the voice starts, so the flame leads the sound by the audio latency (tens of milliseconds) and trails it by the
+frame the notice waits for the next physics step. The tuner car's forced backfire (`Force_Trigger`) is not produced
+(engine-sound-aems.md section 5).
+
+Without sound (`--no-sound`, no output device, screenshot runs, no sputter bank in the car's set) there are no
+notices and so no lift-off backfire; nitrous and the blow-off do not depend on the sound. `exhaust-flames pop`
+raises one notice by hand, which is how the backfire is screenshot.
+
+### 8.4 Budgets
+
+- At most **4 pipes** (the census of section 3 found 1 to 4) and at most **96 live particles per emitter**
+  (`Emitter::set_limit`; the group's own rates need about 40 for the fire and 25 for the glow, so the cap is only
+  reached by a modified install). That is at most 4 x 2 x 96 = 768 sprites, 4,608 vertices, per frame.
+- The emitter's particle storage is reserved to its limit when it is created, so stepping never allocates; a spawn
+  past the limit is skipped. The vertex buffers of the sprite batches go back to the flames after each upload and
+  are reused; the GPU side reuses its buffers (`blackbox-render`). Nothing is allocated for a frame without
+  particles.
+- Emitters with no particles and not flaming are not stepped.
+- The flames are drawn depth-tested without depth writes and are not part of the tire or collision effect budgets.
+
+### 8.5 Checks
+
+`exhaust-flames` (F12) prints the pipes, the engine level, the live particles and the state; `exhaust-flames engine
+<n>` sets the level and `exhaust-flames pop` fakes one sputter notice. A scripted run screenshots the nitrous:
+`nfsmw view-world --drive --drive-script "3:throttle=1;1.5:throttle=1,nos=1" --screenshot nos.png` (the script ends
+while the nitrous burns), and `--exec "exhaust-flames pop"` after a throttle script shows the backfire.
