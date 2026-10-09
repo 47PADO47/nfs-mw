@@ -17,6 +17,8 @@ const ROWS_ON_SCREEN_PAUSED: usize = 10;
 /// (the fill image is 32 high and the base 6), and the base sits this far below the row's top.
 const FILL_INSET: Vec2 = Vec2::new(2.0, -12.0);
 const SLIDER_DROP: f32 = 9.5;
+/// The alpha of a disabled row's title, value and arrows (the enabled ones are fully opaque).
+const DISABLED_ALPHA: u8 = 110;
 
 /// The objects of one row.
 struct RowObjects {
@@ -157,6 +159,7 @@ impl WidgetMenu {
         for o in [r.base, r.fill].into_iter().flatten() {
             cx.rt.set_hidden(o, !slider);
         }
+        Self::dim(cx, r, row, row.setting.enabled(cx.settings));
         match control {
             Control::Toggle => {
                 let Some(data) = r.data else { return };
@@ -166,6 +169,26 @@ impl WidgetMenu {
                 }
             }
             Control::Slider(percent) => self.draw_slider(cx, r, f32::from(percent) / 100.0),
+        }
+    }
+
+    /// Dims a disabled row. A retail label keeps its authored title alpha animation while it is enabled.
+    fn dim(cx: &mut Cx, r: &RowObjects, row: &Row, enabled: bool) {
+        let alpha = if enabled { 255 } else { DISABLED_ALPHA };
+        for o in [r.data, r.left, r.right].into_iter().flatten() {
+            cx.rt.set_alpha(o, alpha);
+        }
+        if enabled && matches!(row.title, Title::Label(_)) {
+            return;
+        }
+        cx.rt.set_alpha(r.name, alpha);
+    }
+
+    /// Redraws every row in view, so a change that alters another row's state (vsync and the frame limit) shows.
+    fn draw_visible(&self, cx: &mut Cx) {
+        let (first, last) = (self.top, (self.top + self.on_screen).min(self.rows.len()));
+        for index in first..last {
+            self.draw_row(cx, index, index - first);
         }
     }
 
@@ -212,7 +235,8 @@ impl WidgetMenu {
             return;
         }
         let Some(r) = self.objects.get(self.selected.saturating_sub(self.top)) else { return };
-        cx.rt.set_alpha(r.name, 255);
+        let alpha = if row.setting.enabled(cx.settings) { 255 } else { DISABLED_ALPHA };
+        cx.rt.set_alpha(r.name, alpha);
     }
 
     /// Selects the previous or next row, wrapping round, and scrolls the list when it must.
@@ -238,7 +262,7 @@ impl WidgetMenu {
             return;
         }
         row.setting.step(cx.settings, cx.changed, forward);
-        self.draw_row(cx, self.selected, self.selected.saturating_sub(self.top));
+        self.draw_visible(cx);
     }
 
     fn leave(&mut self, cx: &mut Cx) {
@@ -314,11 +338,13 @@ impl ScreenLogic for WidgetMenu {
         for index in first..last {
             let slot = index - first;
             self.place(cx, slot);
-            if let Some(row) = self.rows.get(index)
-                && let Control::Slider(percent) = row.setting.control(cx.settings)
-                && let Some(r) = self.objects.get(slot)
-            {
+            let (Some(row), Some(r)) = (self.rows.get(index), self.objects.get(slot)) else { continue };
+            if let Control::Slider(percent) = row.setting.control(cx.settings) {
                 self.draw_slider(cx, r, f32::from(percent) / 100.0);
+            }
+            // The package's scripts reset the title's alpha, so a disabled row is dimmed every frame.
+            if !row.setting.enabled(cx.settings) {
+                Self::dim(cx, r, row, false);
             }
         }
         self.keep_selected_title_readable(cx);
