@@ -15,6 +15,8 @@ use bevy_pbr::MeshMaterial3d;
 use bevy_transform::components::GlobalTransform;
 use blackbox_gfx::Instance;
 
+use crate::material::BlackboxMaterial;
+
 use super::assets::{Stores, material_for};
 use super::state::{GRACE_FRAMES, Placed, PoolKey, WorldState};
 
@@ -59,6 +61,41 @@ pub fn sync(
         }
     }
     sweep(state, commands, placed, epoch);
+    log_batch_stats(state, epoch);
+}
+
+/// Log the per-frame batch split (every 120 frames) so we know whether batches are material- or mesh-driven.
+fn log_batch_stats(state: &WorldState, epoch: u64) {
+    if !epoch.is_multiple_of(120) {
+        return;
+    }
+    use std::collections::{HashMap, HashSet};
+    type MeshId = bevy_asset::AssetId<bevy_mesh::Mesh>;
+    type MaterialId = bevy_asset::AssetId<BlackboxMaterial>;
+    let mut per_batch: HashMap<(MeshId, MaterialId), usize> = HashMap::new();
+    let mut meshes: HashSet<MeshId> = HashSet::new();
+    let mut materials: HashSet<MaterialId> = HashSet::new();
+    let mut draws = 0usize;
+    for entry in state.pool.values() {
+        if entry.seen != epoch {
+            continue;
+        }
+        for &(mesh_id, material_id) in &entry.batches {
+            draws += 1;
+            *per_batch.entry((mesh_id, material_id)).or_insert(0) += 1;
+            meshes.insert(mesh_id);
+            materials.insert(material_id);
+        }
+    }
+    let mut sizes: Vec<usize> = per_batch.values().copied().collect();
+    sizes.sort_unstable_by(|a, b| b.cmp(a));
+    let top: Vec<usize> = sizes.into_iter().take(3).collect();
+    log::info!(
+        "batch-stats: draws={draws} batches={} meshes={} materials={} top_batch_sizes={top:?}",
+        per_batch.len(),
+        meshes.len(),
+        materials.len(),
+    );
 }
 
 /// An object listed again: move it if it moved, show it if it was hidden.
@@ -96,14 +133,21 @@ fn spawn(
     let ranges: Vec<_> =
         state.meshes[&mesh].ranges.iter().map(|r| (r.mesh.clone(), r.texture, r.blend, r.shading, r.glossy)).collect();
     let mut entities: Vec<Entity> = Vec::with_capacity(ranges.len());
+    let mut batches = Vec::with_capacity(ranges.len());
     for (bevy_mesh, texture, blend, shading, glossy) in ranges {
         let material = material_for(state, stores, texture, blend, shading, glossy);
+        let mesh_id = bevy_mesh.id();
+        let material_id = material.id();
         let entity = commands
             .spawn((Mesh3d(bevy_mesh), MeshMaterial3d(material), transform, Visibility::Visible, NoFrustumCulling))
             .id();
         entities.push(entity);
+        batches.push((mesh_id, material_id));
     }
-    state.pool.insert(key, Placed { mesh, entities, transform: instance.transform, seen: epoch, hidden_since: None });
+    state.pool.insert(
+        key,
+        Placed { mesh, entities, batches, transform: instance.transform, seen: epoch, hidden_since: None },
+    );
 }
 
 fn despawn(state: &mut WorldState, commands: &mut Commands, key: PoolKey) {

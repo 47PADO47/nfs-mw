@@ -57,6 +57,8 @@ pub enum PoolKey {
 pub struct Placed {
     pub mesh: usize,
     pub entities: Vec<Entity>,
+    /// The `(mesh, material)` asset id of each entity in `entities`, for batch-count stats.
+    pub batches: Vec<(bevy_asset::AssetId<bevy_mesh::Mesh>, bevy_asset::AssetId<BlackboxMaterial>)>,
     pub transform: glam::Mat4,
     /// The epoch of the last frame that listed this object.
     pub seen: u64,
