@@ -84,6 +84,7 @@ impl SoftParticles {
         if self.pipelines.contains_key(&format) {
             return;
         }
+        let entry_point = if crate::world::is_srgb(format) { "fs_main_srgb" } else { "fs_main" };
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("soft particles"),
             layout: Some(&self.pipeline_layout),
@@ -102,7 +103,7 @@ impl SoftParticles {
             multisample: Default::default(),
             fragment: Some(wgpu::FragmentState {
                 module: &self.shader,
-                entry_point: Some("fs_main"),
+                entry_point: Some(entry_point),
                 compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
                     format,

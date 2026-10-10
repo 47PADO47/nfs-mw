@@ -45,6 +45,10 @@ impl TexturedEffects {
     }
 
     fn build(&self, device: &wgpu::Device, format: wgpu::TextureFormat) -> [wgpu::RenderPipeline; 2] {
+        let entries = match crate::world::is_srgb(format) {
+            true => ["fs_textured_alpha_srgb", "fs_textured_srgb"],
+            false => ["fs_textured_alpha", "fs_textured"],
+        };
         std::array::from_fn(|i| {
             let blend = match i {
                 0 => wgpu::BlendState::ALPHA_BLENDING,
@@ -81,7 +85,7 @@ impl TexturedEffects {
                 multisample: Default::default(),
                 fragment: Some(wgpu::FragmentState {
                     module: &self.shader,
-                    entry_point: Some(["fs_textured_alpha", "fs_textured"][i]),
+                    entry_point: Some(entries[i]),
                     compilation_options: Default::default(),
                     targets: &[Some(wgpu::ColorTargetState {
                         format,
