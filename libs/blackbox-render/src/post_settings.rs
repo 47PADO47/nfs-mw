@@ -80,6 +80,12 @@ impl PostSettings {
         }
     }
 
+    /// Whether an enabled effect needs the scene in HDR (bloom and tone mapping). Anti-aliasing works
+    /// on display-range colours, so the scene can be drawn in the surface's own format without it.
+    pub fn needs_hdr(&self) -> bool {
+        self.effects().iter().any(|e| matches!(e, PostEffect::Bloom | PostEffect::Tonemap))
+    }
+
     /// The enabled effects in the order they run.
     pub fn effects(&self) -> Vec<PostEffect> {
         let mut effects = Vec::new();
@@ -121,6 +127,15 @@ mod tests {
         assert_eq!(only_aa.effects(), [PostEffect::Fxaa]);
         let only_bloom = PostSettings { bloom_intensity: 0.1, ..PostSettings::default() };
         assert_eq!(only_bloom.effects(), [PostEffect::Bloom]);
+    }
+
+    #[test]
+    fn only_bloom_and_tone_mapping_need_hdr() {
+        assert!(!PostSettings::default().needs_hdr());
+        let fxaa = PostSettings { antialiasing: Antialiasing::Fxaa, ..PostSettings::default() };
+        assert!(!fxaa.needs_hdr());
+        assert!(PostSettings { bloom_intensity: 0.1, ..fxaa }.needs_hdr());
+        assert!(PostSettings { tonemap: Tonemap::Aces, ..fxaa }.needs_hdr());
     }
 
     #[test]

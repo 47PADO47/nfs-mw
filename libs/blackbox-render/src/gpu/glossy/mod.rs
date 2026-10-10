@@ -118,10 +118,30 @@ fn environment_view(device: &wgpu::Device, queue: &wgpu::Queue, size: u32, faces
     })
 }
 
+/// The glossy state, created on first use.
+fn ensure<'a>(
+    glossy: &'a mut Option<Glossy>,
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    layouts: &Layouts,
+) -> &'a mut Glossy {
+    glossy.get_or_insert_with(|| Glossy::new(device, queue, layouts.clone()))
+}
+
 impl Renderer {
+    /// Whether any glossy resource exists. Nothing glossy (rig, environment cube map, bind groups, pipelines)
+    /// is built until the first of [`set_lighting_rig`](Self::set_lighting_rig),
+    /// [`set_environment_sky`](Self::set_environment_sky), [`set_environment_faces`](Self::set_environment_faces)
+    /// or [`create_glossy_material`](Self::create_glossy_material) is called, so a caller that never shades
+    /// glossy pays no memory, shader compile or draw time for it.
+    pub fn glossy_in_use(&self) -> bool {
+        self.glossy.is_some()
+    }
+
     /// Set the lights every glossy draw is lit by, from the next frame on.
     pub fn set_lighting_rig(&mut self, rig: &LightingRig) {
-        self.queue.write_buffer(&self.glossy.rig, 0, bytemuck::bytes_of(&RigUniform::new(rig)));
+        let glossy = ensure(&mut self.glossy, &self.device, &self.queue, &self.shared.glossy);
+        self.queue.write_buffer(&glossy.rig, 0, bytemuck::bytes_of(&RigUniform::new(rig)));
     }
 
     /// Reflect a generated sky in glossy surfaces (the default).
@@ -139,13 +159,14 @@ impl Renderer {
             log::warn!("environment faces are smaller than {size}x{size} RGBA8: keeping the old environment");
             return;
         }
+        let glossy = ensure(&mut self.glossy, &self.device, &self.queue, &self.shared.glossy);
         let view = environment_view(&self.device, &self.queue, size, &faces.map(|f| &f[..texel_bytes]));
-        let glossy = &mut self.glossy;
         glossy.scene = scene_group(&self.device, &glossy.layouts, &glossy.rig, &view, &glossy.sampler);
     }
 
     /// Register a material for [`Shading::Glossy`](crate::Shading::Glossy) draws.
     pub fn create_glossy_material(&mut self, material: &GlossyMaterial) -> GlossyMaterialHandle {
+        let glossy = ensure(&mut self.glossy, &self.device, &self.queue, &self.shared.glossy);
         let buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("glossy material"),
             contents: bytemuck::bytes_of(&MaterialUniform::new(material)),
@@ -153,14 +174,15 @@ impl Renderer {
         });
         let group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("glossy material"),
-            layout: &self.glossy.layouts.material,
+            layout: &glossy.layouts.material,
             entries: &[wgpu::BindGroupEntry { binding: 0, resource: buffer.as_entire_binding() }],
         });
-        GlossyMaterialHandle(self.glossy.materials.insert(group))
+        GlossyMaterialHandle(glossy.materials.insert(group))
     }
 
     /// Free a material. Draws that still use it are skipped.
     pub fn destroy_glossy_material(&mut self, handle: GlossyMaterialHandle) {
-        self.glossy.materials.remove(handle.0);
+        let Some(glossy) = self.glossy.as_mut() else { return };
+        glossy.materials.remove(handle.0);
     }
 }

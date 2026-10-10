@@ -91,6 +91,7 @@ pub struct WorldScene {
     exhaust_flames: bool,
     spark_style: crate::settings::SparkStyle,
     smoke_quality: crate::settings::SmokeQuality,
+    car_shading: crate::settings::CarShading,
     /// `debug collisions` is on: the car's contact points are drawn.
     markers_on: bool,
     /// The meshes of the contact markers, uploaded the first time they are asked for.
@@ -171,6 +172,7 @@ impl WorldScene {
             exhaust_flames: false,
             spark_style: crate::settings::SparkStyle::OriginalPc,
             smoke_quality: crate::settings::SmokeQuality::Standard,
+            car_shading: crate::settings::CarShading::default(),
             markers_on: false,
             marker_meshes: None,
         })
@@ -293,6 +295,9 @@ impl Scene for WorldScene {
     }
 
     fn update(&mut self, renderer: &mut Renderer, input: &ActionState, dt: f32) {
+        if let Some(drive) = self.drive.as_mut() {
+            drive.set_car_shading(renderer, self.car_shading, sun::to_sun());
+        }
         if input.just_pressed(Action::ToggleCamera) && self.drive.is_some() {
             log::info!("{}", self.toggle_view());
         }
@@ -356,6 +361,10 @@ impl Scene for WorldScene {
         if let Some(drive) = self.drive.as_mut() {
             drive.flames.note_pops(pops);
         }
+    }
+
+    fn set_car_shading(&mut self, shading: crate::settings::CarShading) {
+        self.car_shading = shading;
     }
 
     fn set_smoke_quality(&mut self, quality: crate::settings::SmokeQuality) {

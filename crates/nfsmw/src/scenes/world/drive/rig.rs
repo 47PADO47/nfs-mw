@@ -8,6 +8,7 @@ use glam::{Mat4, Quat, Vec3};
 use nfsmw_data::car::{CarModel, WheelPose};
 
 use crate::scenes::car::materials::CarMaterials;
+use crate::settings::CarShading;
 
 /// Where the car is and how its wheels sit, in the world.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -51,25 +52,27 @@ pub struct CarRig {
     parts: Vec<Part>,
     meshes: Vec<MeshHandle>,
     materials: CarMaterials,
+    shading: CarShading,
 }
 
 impl CarRig {
-    pub fn upload(renderer: &mut Renderer, model: CarModel) -> Self {
-        let materials = CarMaterials::upload(renderer, &model);
-        let mut cache: HashMap<(u32, bool), Option<MeshHandle>> = HashMap::new();
-        let mut parts = Vec::new();
-        for (placement, p) in model.placements.iter().enumerate() {
-            let mesh = *cache.entry((p.solid, p.left_brake)).or_insert_with(|| {
-                let lookup = materials.for_placement(&model.swaps, p.left_brake);
-                upload_solid(renderer, &model.solids[&p.solid], &lookup, Shading::Lit)
-            });
-            if let Some(mesh) = mesh {
-                parts.push(Part { mesh, placement });
-            }
+    /// Upload `model` with `shading`, lit by a sun in direction `to_sun` from the car.
+    pub fn upload(renderer: &mut Renderer, model: CarModel, shading: CarShading, to_sun: Vec3) -> Self {
+        let (parts, meshes, materials) = upload_parts(renderer, &model, shading, to_sun);
+        Self { model, parts, meshes, materials, shading }
+    }
+
+    /// Upload the car again with `shading` when it differs from the one it has.
+    pub fn reshade(&mut self, renderer: &mut Renderer, shading: CarShading, to_sun: Vec3) {
+        if shading == self.shading {
+            return;
         }
-        parts.sort_by_key(|p| p.mesh);
-        let meshes = cache.into_values().flatten().collect();
-        Self { model, parts, meshes, materials }
+        for mesh in self.meshes.drain(..) {
+            renderer.destroy_mesh(mesh);
+        }
+        let (parts, meshes, materials) = upload_parts(renderer, &self.model, shading, to_sun);
+        std::mem::replace(&mut self.materials, materials).destroy(renderer);
+        (self.parts, self.meshes, self.shading) = (parts, meshes, shading);
     }
 
     /// The model the rig was uploaded from.
@@ -113,6 +116,37 @@ impl CarRig {
             out.push(Instance { mesh: part.mesh, transform: world * local });
         }
     }
+}
+
+impl super::Drive {
+    /// Draw the car with `shading` from now on (it is uploaded again when that changes).
+    pub fn set_car_shading(&mut self, renderer: &mut Renderer, shading: CarShading, to_sun: Vec3) {
+        self.rig.reshade(renderer, shading, to_sun);
+    }
+}
+
+/// Upload the placed solids of `model` with `shading`: the parts sorted by mesh (the renderer wants instances
+/// of one mesh together), every mesh uploaded and the car's materials.
+fn upload_parts(
+    renderer: &mut Renderer,
+    model: &CarModel,
+    shading: CarShading,
+    to_sun: Vec3,
+) -> (Vec<Part>, Vec<MeshHandle>, CarMaterials) {
+    let materials = CarMaterials::upload(renderer, model, shading, to_sun);
+    let mut cache: HashMap<(u32, bool), Option<MeshHandle>> = HashMap::new();
+    let mut parts = Vec::new();
+    for (placement, p) in model.placements.iter().enumerate() {
+        let mesh = *cache.entry((p.solid, p.left_brake)).or_insert_with(|| {
+            let lookup = materials.for_placement(&model.swaps, p.left_brake);
+            upload_solid(renderer, &model.solids[&p.solid], &lookup, Shading::Lit)
+        });
+        if let Some(mesh) = mesh {
+            parts.push(Part { mesh, placement });
+        }
+    }
+    parts.sort_by_key(|p| p.mesh);
+    (parts, cache.into_values().flatten().collect(), materials)
 }
 
 #[cfg(test)]

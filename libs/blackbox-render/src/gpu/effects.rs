@@ -1,8 +1,11 @@
 //! Reused dynamic buffers and pipelines for world-space effects.
 
+use std::collections::HashMap;
+
 use super::Renderer;
 use super::resources::{DEPTH_FORMAT, Shared};
 use super::soft_particles::SoftParticles;
+use super::targets::write_mask;
 use crate::{DEFAULT_SOFT_DISTANCE, EffectLayer, EffectVertex};
 
 pub(super) const ATTRIBUTES: [wgpu::VertexAttribute; 4] =
@@ -42,7 +45,11 @@ impl Batch {
 
 pub(super) struct Effects {
     batches: [Batch; 4],
-    pipelines: [wgpu::RenderPipeline; 4],
+    shader: wgpu::ShaderModule,
+    layout: wgpu::PipelineLayout,
+    /// Per target format, built the first time the effects are drawn into it.
+    pipelines: HashMap<wgpu::TextureFormat, [wgpu::RenderPipeline; 4]>,
+    format: wgpu::TextureFormat,
     soft: SoftParticles,
     detailed: bool,
     soft_distance: f32,
@@ -60,7 +67,34 @@ impl Effects {
             bind_group_layouts: &[Some(&shared.globals_layout)],
             immediate_size: 0,
         });
-        let pipelines = std::array::from_fn(|i| {
+        let mut effects = Self {
+            batches: std::array::from_fn(|_| Batch::new(device)),
+            shader,
+            layout,
+            pipelines: HashMap::new(),
+            format,
+            soft: SoftParticles::new(device, format, shared),
+            detailed: false,
+            soft_distance: DEFAULT_SOFT_DISTANCE,
+            textured: super::textured_effects::TexturedEffects::new(device, format, shared),
+        };
+        effects.use_format(device, format);
+        effects
+    }
+
+    /// Draw into `format` from now on, building its pipelines the first time.
+    pub(super) fn use_format(&mut self, device: &wgpu::Device, format: wgpu::TextureFormat) {
+        self.format = format;
+        self.soft.use_format(device, format);
+        self.textured.use_format(device, format);
+        if !self.pipelines.contains_key(&format) {
+            let pipelines = self.build(device, format);
+            self.pipelines.insert(format, pipelines);
+        }
+    }
+
+    fn build(&self, device: &wgpu::Device, format: wgpu::TextureFormat) -> [wgpu::RenderPipeline; 4] {
+        std::array::from_fn(|i| {
             let entry = ["fs_surface", "fs_particle", "fs_streak", "fs_glow"][i];
             let bias = match i {
                 0 => wgpu::DepthBiasState { constant: 2, slope_scale: 1.0, clamp: 0.0 },
@@ -79,9 +113,9 @@ impl Effects {
             };
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(entry),
-                layout: Some(&layout),
+                layout: Some(&self.layout),
                 vertex: wgpu::VertexState {
-                    module: &shader,
+                    module: &self.shader,
                     entry_point: Some("vs_main"),
                     compilation_options: Default::default(),
                     buffers: &[Some(wgpu::VertexBufferLayout {
@@ -100,27 +134,19 @@ impl Effects {
                 }),
                 multisample: Default::default(),
                 fragment: Some(wgpu::FragmentState {
-                    module: &shader,
+                    module: &self.shader,
                     entry_point: Some(entry),
                     compilation_options: Default::default(),
                     targets: &[Some(wgpu::ColorTargetState {
                         format,
                         blend: Some(blend),
-                        write_mask: wgpu::ColorWrites::ALL,
+                        write_mask: write_mask(format),
                     })],
                 }),
                 multiview_mask: None,
                 cache: None,
             })
-        });
-        Self {
-            batches: std::array::from_fn(|_| Batch::new(device)),
-            pipelines,
-            soft: SoftParticles::new(device, format, shared),
-            detailed: false,
-            soft_distance: DEFAULT_SOFT_DISTANCE,
-            textured: super::textured_effects::TexturedEffects::new(device, format, shared),
-        }
+        })
     }
 
     pub(super) fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, layer: &EffectLayer) {
@@ -135,7 +161,8 @@ impl Effects {
     }
 
     pub(super) fn draw(&self, pass: &mut wgpu::RenderPass<'_>) {
-        for (i, (batch, pipeline)) in self.batches.iter().zip(&self.pipelines).enumerate() {
+        let Some(pipelines) = self.pipelines.get(&self.format) else { return };
+        for (i, (batch, pipeline)) in self.batches.iter().zip(pipelines).enumerate() {
             if batch.count == 0 || (i == 1 && self.detailed) {
                 continue;
             }

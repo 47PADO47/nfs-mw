@@ -60,16 +60,24 @@ where
     surface.configure(&device, &config);
 
     let shared = resources::Shared::new(&device);
-    // The scene and the world effects draw into an offscreen HDR image; only the UI draws straight
-    // into the surface.
-    let scene_format = targets::pick_color_format(&adapter, config.format);
-    let pipelines = pipelines::Pipelines::new(&device, scene_format, &shared);
-    let targets = targets::FrameTargets::new(&device, scene_format, (config.width, config.height));
+    // With nothing but the plain resolve in the chain the scene draws straight into the surface, like
+    // the UI; passes that need the offscreen image (see `refresh_targets`) switch it on later.
+    let hdr_format = targets::pick_color_format(&adapter, config.format);
+    let output = (config.width, config.height);
+    let plan = targets::plan_scene(&targets::SceneInputs {
+        output,
+        render: output,
+        passes: false,
+        hdr: false,
+        surface_format: config.format,
+        hdr_format,
+    });
+    let pipelines = pipelines::Pipelines::new(&device, plan.format, &shared);
+    let targets = targets::SceneTargets::new(&device, &plan);
     let post = post::PostChain::new(&device);
     let instances = instances::InstanceBuffer::new(&device);
-    let glossy = super::glossy::Glossy::new(&device, &queue, shared.glossy.clone());
     let ui = super::ui::Ui::new(&device, config.format, &shared);
-    let effects = super::effects::Effects::new(&device, scene_format, &shared);
+    let effects = super::effects::Effects::new(&device, plan.format, &shared);
 
     let mut renderer = Renderer {
         surface,
@@ -79,6 +87,7 @@ where
         adapter_info,
         supports_bc,
         targets,
+        hdr_format,
         post,
         render_scale: DEFAULT_RENDER_SCALE,
         upscale: Default::default(),
@@ -88,7 +97,7 @@ where
         meshes: Slots::new(),
         instances,
         effects,
-        glossy,
+        glossy: None,
         ui,
         redirects: Default::default(),
     };

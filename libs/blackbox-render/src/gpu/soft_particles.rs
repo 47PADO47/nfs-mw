@@ -1,5 +1,8 @@
 //! Depth-aware procedural particles. Algorithm spec: docs/specs/high-quality-smoke.md.
 
+use std::collections::HashMap;
+
+use super::targets::write_mask;
 use super::{effects::ATTRIBUTES, resources::Shared};
 use crate::{DEFAULT_SOFT_DISTANCE, EffectVertex};
 
@@ -11,7 +14,11 @@ struct Parameters {
 }
 
 pub(super) struct SoftParticles {
-    pipeline: wgpu::RenderPipeline,
+    shader: wgpu::ShaderModule,
+    pipeline_layout: wgpu::PipelineLayout,
+    /// Per target format, built the first time the particles are drawn into it.
+    pipelines: HashMap<wgpu::TextureFormat, wgpu::RenderPipeline>,
+    format: wgpu::TextureFormat,
     layout: wgpu::BindGroupLayout,
     parameters: wgpu::Buffer,
     binding: Option<(wgpu::TextureView, wgpu::BindGroup)>,
@@ -59,11 +66,23 @@ impl SoftParticles {
             label: Some("procedural soft particles"),
             source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/soft_particles.wgsl").into()),
         });
+        let mut soft =
+            Self { shader, pipeline_layout, pipelines: HashMap::new(), format, layout, parameters, binding: None };
+        soft.use_format(device, format);
+        soft
+    }
+
+    /// Draw into `format` from now on, building its pipeline the first time.
+    pub fn use_format(&mut self, device: &wgpu::Device, format: wgpu::TextureFormat) {
+        self.format = format;
+        if self.pipelines.contains_key(&format) {
+            return;
+        }
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("soft particles"),
-            layout: Some(&pipeline_layout),
+            layout: Some(&self.pipeline_layout),
             vertex: wgpu::VertexState {
-                module: &shader,
+                module: &self.shader,
                 entry_point: Some("vs_main"),
                 compilation_options: Default::default(),
                 buffers: &[Some(wgpu::VertexBufferLayout {
@@ -76,19 +95,19 @@ impl SoftParticles {
             depth_stencil: None,
             multisample: Default::default(),
             fragment: Some(wgpu::FragmentState {
-                module: &shader,
+                module: &self.shader,
                 entry_point: Some("fs_main"),
                 compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
                     format,
                     blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
+                    write_mask: write_mask(format),
                 })],
             }),
             multiview_mask: None,
             cache: None,
         });
-        Self { pipeline, layout, parameters, binding: None }
+        self.pipelines.insert(format, pipeline);
     }
 
     pub fn prepare(
@@ -117,7 +136,9 @@ impl SoftParticles {
     }
 
     pub fn bind(&self, pass: &mut wgpu::RenderPass<'_>, shared: &Shared) {
-        pass.set_pipeline(&self.pipeline);
+        if let Some(pipeline) = self.pipelines.get(&self.format) {
+            pass.set_pipeline(pipeline);
+        }
         pass.set_bind_group(0, &shared.globals_bind_group, &[]);
         pass.set_bind_group(1, &self.binding.as_ref().expect("prepared soft particle depth").1, &[]);
     }

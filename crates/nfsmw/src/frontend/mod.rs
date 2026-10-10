@@ -5,6 +5,7 @@
 pub mod dump;
 mod factory;
 mod flow;
+mod graphics_options;
 mod icon_menu;
 mod ids;
 pub(crate) mod input_options;

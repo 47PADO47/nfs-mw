@@ -147,6 +147,10 @@ impl Scene for Pausable {
         self.effects_dirty = true;
     }
 
+    fn set_car_shading(&mut self, shading: crate::settings::CarShading) {
+        self.inner.set_car_shading(shading);
+    }
+
     fn set_vehicle_effects(&mut self, sparks: bool, trails: bool) {
         self.inner.set_vehicle_effects(sparks, trails);
         self.effects_dirty = true;
@@ -205,7 +209,7 @@ mod tests {
     #[test]
     fn replacement_driving_scene_inherits_live_effect_settings_through_pause_wrapper() {
         use crate::app::Host;
-        use crate::settings::{Partial, Settings, SmokeQuality, SparkStyle};
+        use crate::settings::{CarShading, Partial, Settings, SmokeQuality, SparkStyle};
         use std::sync::Mutex;
 
         #[derive(Default)]
@@ -214,6 +218,7 @@ mod tests {
             quality: Option<SmokeQuality>,
             vehicle: [bool; 2],
             style: Option<SparkStyle>,
+            shading: Option<CarShading>,
         }
         struct Observed(Arc<Mutex<Seen>>);
         impl Scene for Observed {
@@ -239,6 +244,9 @@ mod tests {
             fn set_spark_style(&mut self, style: SparkStyle) {
                 self.0.lock().unwrap().style = Some(style);
             }
+            fn set_car_shading(&mut self, shading: CarShading) {
+                self.0.lock().unwrap().shading = Some(shading);
+            }
         }
         let settings = Settings::from(Partial::default());
         let mut host = Host::new(Box::new(MenuScene), &settings, None);
@@ -246,6 +254,7 @@ mod tests {
         host.set_smoke_quality(SmokeQuality::High);
         host.set_vehicle_effects(true, false);
         host.set_spark_style(SparkStyle::RestoredExperimental);
+        host.set_car_shading(CarShading::Simple);
         let seen = Arc::new(Mutex::new(Seen::default()));
         let scene = Pausable::new(Box::new(Observed(seen.clone())), PauseFlag::default());
         // Preferences must reach the incoming scene before renderer init and screenshot settling.
@@ -255,6 +264,7 @@ mod tests {
         assert_eq!(seen.quality, Some(SmokeQuality::High));
         assert_eq!(seen.vehicle, [true, false]);
         assert_eq!(seen.style, Some(SparkStyle::RestoredExperimental));
+        assert_eq!(seen.shading, Some(CarShading::Simple));
     }
 
     #[test]

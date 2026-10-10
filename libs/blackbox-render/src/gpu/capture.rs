@@ -1,7 +1,7 @@
 //! Off-screen rendering to RGBA8, for screenshots and tests.
 
-use super::{Renderer, targets::FrameTargets};
-use crate::{FrameParams, Instance, RenderError, scaled_size};
+use super::{Renderer, targets::SceneTargets};
+use crate::{FrameParams, Instance, RenderError};
 
 impl Renderer {
     /// Render one frame off-screen, `width` by `height` pixels, and return it as tightly packed RGBA8.
@@ -25,8 +25,7 @@ impl Renderer {
             view_formats: &[],
         });
         let view = target.create_view(&wgpu::TextureViewDescriptor::default());
-        let scene =
-            FrameTargets::new(&self.device, self.targets.color_format, scaled_size((width, height), self.render_scale));
+        let scene = SceneTargets::new(&self.device, &self.scene_plan((width, height)));
         let row = (width * 4).next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
         let readback = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("capture readback"),
@@ -36,7 +35,7 @@ impl Renderer {
         });
         let mut encoder =
             self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("capture") });
-        self.encode_scene(&mut encoder, Some(&scene), frame, instances);
+        self.encode_scene(&mut encoder, Some(&scene), &view, frame, instances);
         self.encode_post(&mut encoder, Some(&scene), &view, (width, height));
         self.encode_ui(&mut encoder, &view, (width, height));
         encoder.copy_texture_to_buffer(

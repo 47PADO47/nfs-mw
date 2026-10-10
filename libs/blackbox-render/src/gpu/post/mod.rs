@@ -136,8 +136,24 @@ impl PostChain {
         });
     }
 
+    /// Whether any pass runs besides the final resolve (post effects, upscalers). When none does, the
+    /// scene can be drawn straight into the output.
+    pub(super) fn has_passes(&self) -> bool {
+        self.passes.len() > 1
+    }
+
+    /// Free the ping-pong images (they are recreated when a pass needs them).
+    pub(super) fn release_scratch(&mut self) {
+        self.scratch = [None, None];
+    }
+
+    /// How many ping-pong images are allocated.
+    #[cfg(test)]
+    pub(super) fn scratch_count(&self) -> usize {
+        self.scratch.iter().flatten().count()
+    }
+
     /// The pass names in execution order.
-    #[allow(dead_code, reason = "diagnostics for later layers and tests")]
     pub(super) fn names(&self) -> Vec<&'static str> {
         self.passes.iter().map(|p| p.name()).collect()
     }
@@ -152,6 +168,12 @@ impl PostChain {
         let Self { passes, scratch, .. } = self;
         let steps = plan::plan(passes.len());
         let scene = ctx.scene;
+        // A chain that got shorter no longer needs its second (or any) ping-pong image.
+        for (slot, image) in scratch.iter_mut().enumerate() {
+            if !steps.iter().any(|step| step.target == Target::Scratch(slot)) {
+                *image = None;
+            }
+        }
         for (pass, step) in passes.iter_mut().zip(steps) {
             if let Target::Scratch(slot) = step.target {
                 let size = match pass.extent() {

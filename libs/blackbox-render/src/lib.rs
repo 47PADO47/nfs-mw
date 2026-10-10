@@ -12,8 +12,8 @@
 //! - [`render_scale`](crate::scaled_size): the internal render size relative to the surface;
 //! - [`post_settings`](crate::PostSettings): which post-process effects (bloom, tone mapping, FXAA) run;
 //! - [`upscale`](crate::Upscaler): how a scene drawn below the surface size is brought back up (bilinear, FSR 1);
-//! - `gpu/`: the wgpu implementation (device setup, resources, pipelines, the offscreen HDR
-//!   targets, the post-process chain, frames).
+//! - `gpu/`: the wgpu implementation (device setup, resources, pipelines, the scene targets (the
+//!   surface itself, or an offscreen image), the post-process chain, frames).
 
 mod api;
 mod backend;

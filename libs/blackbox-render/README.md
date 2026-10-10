@@ -26,27 +26,41 @@ inputs; the application chooses presentation quality and emission budgets.
 
 ## Render pipeline
 
-`Renderer::render` and `Renderer::capture` draw in three stages:
+`Renderer::render` and `Renderer::capture` pick the cheapest path that gives the requested look:
 
-1. The scene and the world effects (including soft particles) draw into an offscreen colour image and a
-   reverse-Z `Depth32Float` buffer, both at the internal render size. The colour image is `Rgba16Float`
-   (HDR) when the adapter can render to, blend into and filter that format, otherwise the surface's own
-   format, so the frame then looks as it did before the offscreen image existed.
-2. An ordered chain of fullscreen post-process passes reads the scene image (and may sample the depth
-   buffer) and writes the surface; intermediate passes ping-pong through scratch images. The chain always
-   ends with the built-in `resolve` pass: clamp to the output range, alpha 1, an exact texel copy when the
-   render size equals the output size and bilinear filtering otherwise. The post effects sit at the front
-   (see below) and upscalers are inserted before `resolve` (`gpu/post/`).
-3. The UI layer draws on the surface after the chain, at surface resolution: it is never post-processed or
-   upscaled.
+- **Direct (the default).** With no post effect, no upscaler and a render scale that gives the surface's own
+  size, the scene and the world effects draw straight into the surface image, with a reverse-Z `Depth32Float`
+  buffer at the same size. There is no offscreen colour image and no `resolve` copy: against the offscreen
+  path that is one full-size `Rgba16Float` image (8 bytes a pixel, 28 MiB at 2560x1440) and one full-screen
+  read and write less per frame, and the scene pipelines blend in the surface's 8-bit format. The
+  result matches the offscreen path to within rounding (+-1 in a fifth of the pixels, where blended layers
+  round once per layer instead of once at the end). `draws_directly()` reports it. A surface that encodes sRGB
+  on write always takes the offscreen path, so blending stays linear.
+- **Offscreen.** Any post pass, an upscaler or a render scale other than 1.0 sends the scene into an offscreen
+  colour image and a depth buffer, both at the internal render size. The colour image is `Rgba16Float` (HDR)
+  only when bloom or tone mapping runs and the adapter can render to, blend into and filter that format;
+  FXAA, FSR 1 and the bilinear upscale draw into the surface's own 8-bit format instead (half the memory and
+  bandwidth). An ordered chain of fullscreen post-process passes then reads the scene image (and may sample
+  the depth buffer) and writes the surface; intermediate passes ping-pong through scratch images, which are
+  freed when the chain gets shorter. The chain always ends with the built-in `resolve` pass: clamp to the
+  output range, alpha 1, an exact texel copy when the render size equals the output size and bilinear
+  filtering otherwise. The post effects sit at the front (see below) and upscalers are inserted before
+  `resolve` (`gpu/post/`).
+- The UI layer draws on the surface last, at surface resolution: it is never post-processed or upscaled.
+
+Scene pipelines, effect pipelines and the glossy resources are built when first needed: the pipelines per
+target format (a renderer that stays on the direct path never builds the `Rgba16Float` set), the glossy shader,
+rig, environment cube map and bind groups on the first glossy call (`glossy_in_use()`).
+Switching between paths recreates the targets; a path used before keeps its pipelines.
 
 The internal render size is the surface size times the render scale, per axis:
 
 - `Renderer::set_render_scale(scale)` clamps `scale` to `MIN_RENDER_SCALE..=MAX_RENDER_SCALE`
   (0.25..=2.0; non-finite values give 1.0) and resizes the offscreen targets. The default is
-  `DEFAULT_RENDER_SCALE` (1.0), which is pixel-identical to drawing straight into the surface.
-- `Renderer::resize` keeps the render scale; `render_scale()`, `render_size()`, `surface_size()` and `is_hdr()`
-  report the current state. `scaled_size(surface, scale)` is the pure size computation.
+  `DEFAULT_RENDER_SCALE` (1.0), which with no post pass draws straight into the surface.
+- `Renderer::resize` keeps the render scale; `render_scale()`, `render_size()`, `surface_size()`, `is_hdr()`,
+  `draws_directly()` and
+  `post_passes()` (the pass names in order) report the current state. `scaled_size(surface, scale)` is the pure size computation.
 - `Renderer::capture(width, height, ...)` runs the same stages at the capture size and returns the final image.
 
 ### Post effects

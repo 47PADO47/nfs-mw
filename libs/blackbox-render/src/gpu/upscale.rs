@@ -75,8 +75,14 @@ impl Renderer {
         fsr1_active(self.upscale.upscaler, self.render_scale)
     }
 
-    /// Put the post chain in line with the upscaler, the render scale and the sharpness.
+    /// Put the post chain in line with the upscaler, the render scale and the sharpness, and the scene
+    /// targets with the chain.
     pub(super) fn sync_upscale_passes(&mut self) {
+        self.sync_fsr1_passes();
+        self.refresh_targets();
+    }
+
+    fn sync_fsr1_passes(&mut self) {
         let active = self.fsr1_active();
         let stops = rcas_stops(self.upscale.sharpness);
         if let Some(stops) = stops {

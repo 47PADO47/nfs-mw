@@ -288,7 +288,9 @@ support it]. `MetallicScale` and `SpecularHotSpot` are not read by this shader. 
 
 ### What is implemented
 
-`Shading::Glossy` in `blackbox-render` (`shaders/glossy.wgsl`) draws every car group:
+`Shading::Glossy` in `blackbox-render` (`shaders/glossy.wgsl`) draws every car group. With the `car_shading = simple`
+setting (docs/low-end.md) the game maps every group to `Shading::Lit` instead and creates no glossy material,
+light rig or environment, so the renderer builds none of the glossy resources:
 
 - the §8 maths per pixel, in world space (the lights are given in world space instead of being
   rotated into each model's space; the result is the same), with `sh = 1` (no shadow map) and the

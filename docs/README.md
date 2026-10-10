@@ -32,6 +32,7 @@ against the install at `D:/Need For Speed Most Wanted Black Edition`.
 
 | Doc | What it covers |
 |---|---|
+| [low-end.md](low-end.md) | Weak GPUs and laptops: what each graphics setting costs, the low, medium and high presets, a low-end config and how to read the performance overlay |
 | [post-processing.md](post-processing.md) | Optional tone mapping, bloom and FXAA: settings, menu rows, what each does and how to compare them |
 | [vehicle-effects.md](vehicle-effects.md) | Original PC sparks, experimental restored sparks and wind trails using base-game assets |
 | [architecture.md](architecture.md) | `libs/` (engine-generic) vs `crates/` (MW), finding the install, the streamed city, graphics backends, Windows/Linux, roadmap |

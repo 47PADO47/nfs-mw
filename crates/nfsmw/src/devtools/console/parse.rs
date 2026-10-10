@@ -34,7 +34,7 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 32] = [
+pub const BUILT_IN: [(&str, &str); 34] = [
     ("bind <action> <input>", "replace one device family's action assignments; keys lists action names"),
     ("addbind <action> <input>", "add another physical input to an action"),
     ("unbind <action> [keyboard|mouse|gamepad|all]", "remove action assignments"),
@@ -52,6 +52,8 @@ pub const BUILT_IN: [(&str, &str); 32] = [
     ("window", "show the actual window size, mode, DPI and focus"),
     ("monitors", "list available monitors and their indices"),
     ("keys", "list every key, button and stick binding"),
+    ("graphics_preset <custom|low|medium|high>", "set the graphics settings a preset stands for"),
+    ("car_shading <simple|glossy>", "car shading: glossy or the cheap single-light look"),
     ("smoke_quality <standard|high>", "change tire smoke presentation quality"),
     ("hud-layout <pc|classic|xbox360>", "change HUD placement and scale"),
     ("post_tonemap <off|aces>", "filmic tone mapping (darkens the image)"),
@@ -73,7 +75,7 @@ pub const BUILT_IN: [(&str, &str); 32] = [
 ];
 
 /// Further shorthands for `set`: `vsync off` is `set vsync off`.
-const SET_SHORTHANDS: [&str; 21] = [
+const SET_SHORTHANDS: [&str; 23] = [
     "fps",
     "vsync",
     "metrics",
@@ -88,6 +90,8 @@ const SET_SHORTHANDS: [&str; 21] = [
     "speed_trails",
     "exhaust_flames",
     "smoke_quality",
+    "car_shading",
+    "graphics_preset",
     "hud_layout",
     "hud-layout",
     "radio_hud",
@@ -244,7 +248,7 @@ mod tests {
     #[test]
     fn completion() {
         let scene = [("car <folder>", "change the car"), ("cars", "list the cars")];
-        assert_eq!(complete("c", &scene), ["car", "cars", "clear", "collision_sparks"]);
+        assert_eq!(complete("c", &scene), ["car", "car_shading", "cars", "clear", "collision_sparks"]);
         assert_eq!(complete("re", &scene), ["resolution"]);
         assert_eq!(complete("vo", &scene), ["volume"]);
         assert!(complete("zzz", &scene).is_empty());

@@ -6,6 +6,8 @@ mod frame;
 mod glossy;
 mod init;
 mod instances;
+#[cfg(test)]
+mod lean_tests;
 mod meshes;
 mod pipelines;
 mod post;
@@ -25,6 +27,7 @@ mod upscale;
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 use crate::{RenderError, RendererOptions, clamp_render_scale, scaled_size};
+use targets::{HDR_FORMAT, SceneInputs, SceneTargets};
 
 pub struct Renderer {
     surface: wgpu::Surface<'static>,
@@ -33,8 +36,10 @@ pub struct Renderer {
     config: wgpu::SurfaceConfiguration,
     adapter_info: wgpu::AdapterInfo,
     supports_bc: bool,
-    /// The offscreen HDR scene image and depth buffer, at the internal render size.
-    targets: targets::FrameTargets,
+    /// What the scene is drawn into: the surface itself, or an offscreen image at the internal render size.
+    targets: SceneTargets,
+    /// The format of the offscreen image when a pass needs HDR: `Rgba16Float`, or the surface format.
+    hdr_format: wgpu::TextureFormat,
     post: post::PostChain,
     render_scale: f32,
     upscale: upscale::Upscale,
@@ -45,7 +50,8 @@ pub struct Renderer {
     meshes: slots::Slots<meshes::GpuMesh>,
     instances: instances::InstanceBuffer,
     effects: effects::Effects,
-    glossy: glossy::Glossy,
+    /// Created by the first glossy call, so a renderer that never shades anything glossy pays nothing.
+    glossy: Option<glossy::Glossy>,
     ui: ui::Ui,
     /// Texture slot -> slot drawn in its place (animated textures).
     redirects: std::collections::HashMap<usize, usize>,
@@ -79,8 +85,8 @@ impl Renderer {
         self.supports_bc
     }
 
-    /// Follow a new surface size: the surface and the offscreen targets (at the current render
-    /// scale) are recreated.
+    /// Follow a new surface size: the surface and the scene targets (at the current render scale)
+    /// are recreated.
     pub fn resize(&mut self, width: u32, height: u32) {
         if width == 0 || height == 0 {
             return;
@@ -88,7 +94,7 @@ impl Renderer {
         self.config.width = width;
         self.config.height = height;
         self.surface.configure(&self.device, &self.config);
-        self.recreate_targets();
+        self.refresh_targets();
     }
 
     /// Draw the scene at `scale` times the surface size per axis (clamped to
@@ -100,7 +106,6 @@ impl Renderer {
             return;
         }
         self.render_scale = scale;
-        self.recreate_targets();
         self.sync_upscale_passes();
     }
 
@@ -111,7 +116,7 @@ impl Renderer {
 
     /// The internal size (width, height) the scene is drawn at: the surface size times the render scale.
     pub fn render_size(&self) -> (u32, u32) {
-        self.targets.size
+        self.targets.size()
     }
 
     /// The size (width, height) of the surface the frame is presented to.
@@ -119,17 +124,48 @@ impl Renderer {
         (self.config.width, self.config.height)
     }
 
-    /// Whether the scene is drawn in a 16-bit float HDR format (otherwise in the surface's format).
+    /// Whether the scene is drawn in a 16-bit float HDR format. Only bloom and tone mapping ask for it;
+    /// otherwise the scene is drawn in the surface's format.
     pub fn is_hdr(&self) -> bool {
-        self.targets.color_format == targets::HDR_FORMAT
+        self.targets.color_format() == HDR_FORMAT
     }
 
-    fn recreate_targets(&mut self) {
-        let size = scaled_size(self.surface_size(), self.render_scale);
-        if size == self.targets.size {
+    /// Whether the scene is drawn straight into the surface. That is the case while no post effect or
+    /// upscaler runs and the render scale gives the surface's own size: there is then no offscreen colour
+    /// image and no resolve copy, only a depth buffer.
+    pub fn draws_directly(&self) -> bool {
+        self.targets.offscreen().is_none()
+    }
+
+    /// The post-process passes that run each frame, in order, ending with the built-in `resolve`. They only
+    /// run while the scene is drawn offscreen ([`Self::draws_directly`] is false).
+    pub fn post_passes(&self) -> Vec<&'static str> {
+        self.post.names()
+    }
+
+    /// Where a scene for an `output`-sized image is drawn, given the render scale and the passes in the chain.
+    fn scene_plan(&self, output: (u32, u32)) -> targets::ScenePlan {
+        targets::plan_scene(&SceneInputs {
+            output,
+            render: scaled_size(output, self.render_scale),
+            passes: self.post.has_passes(),
+            hdr: self.post.effect_settings().needs_hdr(),
+            surface_format: self.config.format,
+            hdr_format: self.hdr_format,
+        })
+    }
+
+    /// Recreate the scene targets when the surface size, the render scale or the passes in the chain
+    /// ask for different ones, and free the post chain's images when the scene goes straight to the surface.
+    fn refresh_targets(&mut self) {
+        let plan = self.scene_plan(self.surface_size());
+        if self.targets.matches(&plan) {
             return;
         }
-        self.targets = targets::FrameTargets::new(&self.device, self.targets.color_format, size);
+        self.targets = SceneTargets::new(&self.device, &plan);
+        if plan.direct {
+            self.post.release_scratch();
+        }
     }
 
     /// Turn vertical sync on or off without recreating the renderer.
