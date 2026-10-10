@@ -20,6 +20,7 @@ Which crates the rewrite uses or plans to use, and why. Versions and licenses we
 | png | 0.18 | MIT OR Apache-2.0 | `--screenshot` |
 | egui | 0.36 | MIT OR Apache-2.0 | Developer UI (metrics overlay, console). Only the context, layout and tessellation are used; `gui/` hands its output to `blackbox-render`'s UI layer. Its bundled fonts (Hack, Ubuntu-Light, Noto Emoji, emoji-icon-font) are OFL-1.1 and Ubuntu Font Licence: `deny.toml` has an exception and `NOTICE` lists them |
 | thiserror, anyhow, log, env_logger, pollster | — | MIT OR Apache-2.0 | Errors, logging, blocking on wgpu futures |
+| wesl | =0.6.0 | MIT OR Apache-2.0 | `[build-dependencies]` of `blackbox-gpu-passes` only: expands its `.wesl` shaders (the `SRGB_TARGET` conditional) to plain WGSL at build time, standalone (no Bevy). Pinned exact: pre-1.0, same policy as Bevy |
 | nihav_core, nihav_duck (+ nihav_codec_support) | 0.1.0, git `ruffle-rs/nihav-vp6` @ `12d0bdf` | MIT (repo `COPYING`; no `license` field in the manifests) | VP6 video decoding in [`blackbox-movie`](../libs/blackbox-movie), behind its default `vp6` feature. `deny.toml` allows the git source and clarifies the license |
 
 Written in-house because no crate exists: **JDLZ** and **HUFF** ([`ea-compress`](../libs/ea-compress)),

@@ -97,9 +97,49 @@ target, format, blend })`. `Blend::Replace` clears the target, `Blend::Add` load
 
 ## Shaders
 
-`src/shaders/`: `ui.wgsl`, `effects.wgsl` (`EFFECTS_WGSL`, for renderers that build their own effect
-pipelines), `soft_particles.wgsl`, `post_common.wgsl` and `fsr1.wgsl` (AMD's MIT notice at the top). Vertex
-layouts: `EFFECT_VERTEX_ATTRIBUTES` for `EffectVertex`; the UI vertex is `blackbox_gfx::UiVertex`.
+`src/shaders/`: `ui.wesl`, `effects.wesl` (`EFFECTS_WGSL` / `EFFECTS_WGSL_SRGB`, for renderers that build
+their own effect pipelines), `soft_particles.wesl`, plus plain WGSL with no target-format conditional:
+`post_common.wgsl` and `fsr1.wgsl` (AMD's MIT notice at the top). Vertex layouts:
+`EFFECT_VERTEX_ATTRIBUTES` for `EffectVertex`; the UI vertex is `blackbox_gfx::UiVertex`.
+
+### Why `.wesl` and the `SRGB_TARGET` conditional
+
+A render target view that is sRGB (a window surface, typically, when the renderer is Bevy) needs its
+shaders to gamma-decode once before writing, so the hardware's encode-on-write reproduces the same bytes a
+plain UNORM target would get (`world::is_srgb`). Native never sees an sRGB target and needs no decode. The
+`ui`, `effects` and `soft_particles` shaders used to carry two copies of every fragment entry point (a
+plain one and a `_srgb` one, differing only in the last line) to cover both cases; `fsr1.wgsl` and
+`post_common.wgsl` have no such split and stay plain `.wgsl`.
+
+The `.wesl` sources collapse each pair into one entry point gated by a WESL conditional, matching the
+convention the Bevy backend's own material shader uses for its own conditionals (`@if(...) {...}
+@else {...}`, via `bevy_shader::load_shader_library!`):
+
+```wgsl
+@fragment
+fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
+    let c = textureSample(tex, samp, in.uv) * in.color;
+    @if(SRGB_TARGET) {
+        return vec4<f32>(linear_from_gamma(c.rgb), c.a);
+    } @else {
+        return c;
+    }
+}
+```
+
+This crate stays Bevy-free, so it cannot use Bevy's `bevy_shader`/WESL-in-the-asset-system machinery; the
+[`wesl`](https://crates.io/crates/wesl) crate compiles WESL to plain WGSL text standalone, with no Bevy
+involved. `build.rs` compiles each `.wesl` source twice, once per value of `SRGB_TARGET`, with
+`wesl::resolver::VirtualResolver` (no filesystem resolution: each shader is one self-contained file, no
+cross-file imports) and `ManglerKind::None` (there is only one module, so there is nothing to mangle), and
+writes the two expanded `.wgsl` files to `OUT_DIR`. `wesl` is a `[build-dependencies]` entry only: it never
+reaches the compiled binary, and a default build's dependency graph is unaffected.
+
+The Rust side builds one shader module per condition, lazily, cached the same way pipelines already are
+(now keyed by `is_srgb(format)` instead of by an entry-point string): see `shader_module` in `effects.rs`
+and the equivalent in `ui.rs`, `soft_particles.rs` and `textured_effects.rs`. To add a new conditional
+variant, add the flag to the `.wesl` source, set it in `build.rs`'s `expand` (alongside `SRGB_TARGET`), and
+pick the right compiled module where the pipeline is built.
 
 ## Tests
 
