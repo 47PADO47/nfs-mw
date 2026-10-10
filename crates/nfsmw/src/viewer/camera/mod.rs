@@ -1,6 +1,8 @@
 //! Cameras. The games' worlds are Z-up.
 
 mod chase;
+#[cfg(test)]
+mod depth_tests;
 mod fly;
 mod orbit;
 
