@@ -33,7 +33,20 @@ fn vs_main(in: VsIn) -> VsOut {
     return out;
 }
 
+// The exact sRGB decode, so decode then the hardware's encode on write is the identity (a renderer whose
+// render target view is sRGB compiles this module with `SRGB_TARGET` set; see `world::is_srgb`).
+fn linear_from_gamma(c: vec3<f32>) -> vec3<f32> {
+    let low = c / 12.92;
+    let high = pow((c + vec3<f32>(0.055)) / 1.055, vec3<f32>(2.4));
+    return select(high, low, c <= vec3<f32>(0.04045));
+}
+
 @fragment
 fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
-    return textureSample(tex, samp, in.uv) * in.color;
+    let c = textureSample(tex, samp, in.uv) * in.color;
+    @if(SRGB_TARGET) {
+        return vec4<f32>(linear_from_gamma(c.rgb), c.a);
+    } @else {
+        return c;
+    }
 }

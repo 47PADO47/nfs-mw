@@ -9,8 +9,12 @@ use crate::world::{DEPTH_FORMAT, EFFECT_VERTEX_ATTRIBUTES, WorldBindings, write_
 
 /// Textured world particles: one batch per [`TexturedEffect`], depth-tested against the scene depth
 /// (reverse-Z, no depth writes), drawn with the texture bind group the caller keeps for each handle.
+/// Entry points, indexed as `pipelines[usize::from(blend == BlendMode::Additive)]`.
+const ENTRIES: [&str; 2] = ["fs_textured_alpha", "fs_textured"];
+
 pub struct TexturedEffects {
-    shader: wgpu::ShaderModule,
+    /// The plain and sRGB-target shader modules, built once and shared by every format's pipelines.
+    shaders: HashMap<bool, wgpu::ShaderModule>,
     layout: wgpu::PipelineLayout,
     /// Per target format, built the first time the effects are drawn into it.
     pipelines: HashMap<wgpu::TextureFormat, [wgpu::RenderPipeline; 2]>,
@@ -21,16 +25,13 @@ pub struct TexturedEffects {
 
 impl TexturedEffects {
     pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat, bindings: &WorldBindings) -> Self {
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("textured world effects"),
-            source: wgpu::ShaderSource::Wgsl(crate::EFFECTS_WGSL.into()),
-        });
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("textured world effects"),
             bind_group_layouts: &[Some(&bindings.globals_layout), Some(&bindings.texture_layout)],
             immediate_size: 0,
         });
-        let mut effects = Self { shader, layout, pipelines: HashMap::new(), format, batches: Vec::new(), count: 0 };
+        let mut effects =
+            Self { shaders: HashMap::new(), layout, pipelines: HashMap::new(), format, batches: Vec::new(), count: 0 };
         effects.use_format(device, format);
         effects
     }
@@ -44,7 +45,18 @@ impl TexturedEffects {
         }
     }
 
-    fn build(&self, device: &wgpu::Device, format: wgpu::TextureFormat) -> [wgpu::RenderPipeline; 2] {
+    fn build(&mut self, device: &wgpu::Device, format: wgpu::TextureFormat) -> [wgpu::RenderPipeline; 2] {
+        let srgb = crate::world::is_srgb(format);
+        let shader = self.shaders.entry(srgb).or_insert_with(|| {
+            let source = match srgb {
+                true => crate::EFFECTS_WGSL_SRGB,
+                false => crate::EFFECTS_WGSL,
+            };
+            device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("textured world effects"),
+                source: wgpu::ShaderSource::Wgsl(source.into()),
+            })
+        });
         std::array::from_fn(|i| {
             let blend = match i {
                 0 => wgpu::BlendState::ALPHA_BLENDING,
@@ -61,7 +73,7 @@ impl TexturedEffects {
                 label: Some("textured world effects"),
                 layout: Some(&self.layout),
                 vertex: wgpu::VertexState {
-                    module: &self.shader,
+                    module: shader,
                     entry_point: Some("vs_main"),
                     compilation_options: Default::default(),
                     buffers: &[Some(wgpu::VertexBufferLayout {
@@ -80,8 +92,8 @@ impl TexturedEffects {
                 }),
                 multisample: Default::default(),
                 fragment: Some(wgpu::FragmentState {
-                    module: &self.shader,
-                    entry_point: Some(["fs_textured_alpha", "fs_textured"][i]),
+                    module: shader,
+                    entry_point: Some(ENTRIES[i]),
                     compilation_options: Default::default(),
                     targets: &[Some(wgpu::ColorTargetState {
                         format,

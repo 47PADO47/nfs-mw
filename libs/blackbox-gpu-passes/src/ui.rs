@@ -40,6 +40,11 @@ struct UiTexture {
     size: [u32; 2],
 }
 
+/// The plain-target WGSL, expanded at build time from `shaders/ui.wesl` with `SRGB_TARGET` disabled.
+const UI_WGSL: &str = include_str!(concat!(env!("OUT_DIR"), "/ui.wgsl"));
+/// The sRGB-target WGSL, gamma-decoded once before writing (see `world::is_srgb`).
+const UI_WGSL_SRGB: &str = include_str!(concat!(env!("OUT_DIR"), "/ui_srgb.wgsl"));
+
 /// Draws [`UiLayer`]s: textured, clipped, premultiplied-alpha triangles in points.
 ///
 /// Typical use from any render loop:
@@ -47,7 +52,8 @@ struct UiTexture {
 /// 2. [`Self::set_layer`] with the layer to draw;
 /// 3. [`Self::encode`] once per frame, after everything else has been drawn into the target.
 pub struct UiPass {
-    shader: wgpu::ShaderModule,
+    /// The plain and sRGB-target shader modules, built once and shared by every format's pipeline.
+    shaders: HashMap<bool, wgpu::ShaderModule>,
     pipeline_layout: wgpu::PipelineLayout,
     /// Per target format, built the first time the UI is drawn into it.
     pipelines: HashMap<wgpu::TextureFormat, wgpu::RenderPipeline>,
@@ -74,10 +80,6 @@ impl UiPass {
     /// A pass with no pipelines yet: they are built per target format by [`Self::use_format`] or the
     /// first [`Self::encode`] into that format.
     pub fn new(device: &wgpu::Device) -> Self {
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("ui shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/ui.wgsl").into()),
-        });
         let globals_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("ui globals"),
             entries: &[wgpu::BindGroupLayoutEntry {
@@ -115,7 +117,7 @@ impl UiPass {
             ..Default::default()
         });
         Self {
-            shader,
+            shaders: HashMap::new(),
             pipeline_layout,
             pipelines: HashMap::new(),
             globals,
@@ -134,11 +136,19 @@ impl UiPass {
         if self.pipelines.contains_key(&format) {
             return;
         }
+        let srgb = crate::world::is_srgb(format);
+        let shader = self.shaders.entry(srgb).or_insert_with(|| {
+            let source = if srgb { UI_WGSL_SRGB } else { UI_WGSL };
+            device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("ui shader"),
+                source: wgpu::ShaderSource::Wgsl(source.into()),
+            })
+        });
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("ui"),
             layout: Some(&self.pipeline_layout),
             vertex: wgpu::VertexState {
-                module: &self.shader,
+                module: shader,
                 entry_point: Some("vs_main"),
                 compilation_options: Default::default(),
                 buffers: &[Some(wgpu::VertexBufferLayout {
@@ -151,7 +161,7 @@ impl UiPass {
             depth_stencil: None,
             multisample: Default::default(),
             fragment: Some(wgpu::FragmentState {
-                module: &self.shader,
+                module: shader,
                 entry_point: Some("fs_main"),
                 compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {

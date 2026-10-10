@@ -15,7 +15,6 @@ use std::collections::HashMap;
 
 use blackbox_gfx::{DEFAULT_SOFT_DISTANCE, EffectLayer, EffectVertex, TextureHandle};
 
-use crate::EFFECTS_WGSL;
 use crate::batch::Batch;
 use crate::soft_particles::SoftParticles;
 use crate::textured_effects::TexturedEffects;
@@ -35,7 +34,8 @@ pub struct SoftDraw<'a> {
 
 pub struct Effects {
     batches: [Batch; 4],
-    shader: wgpu::ShaderModule,
+    /// The plain and sRGB-target shader modules, built once and shared by every format's pipelines.
+    shaders: HashMap<bool, wgpu::ShaderModule>,
     layout: wgpu::PipelineLayout,
     /// Per target format, built the first time the effects are drawn into it.
     pipelines: HashMap<wgpu::TextureFormat, [wgpu::RenderPipeline; 4]>,
@@ -46,12 +46,27 @@ pub struct Effects {
     textured: TexturedEffects,
 }
 
+/// The shader module for `srgb`, compiled from [`crate::EFFECTS_WGSL`] or [`crate::EFFECTS_WGSL_SRGB`]
+/// the first time that condition is needed.
+fn shader_module<'a>(
+    device: &wgpu::Device,
+    shaders: &'a mut HashMap<bool, wgpu::ShaderModule>,
+    srgb: bool,
+) -> &'a wgpu::ShaderModule {
+    shaders.entry(srgb).or_insert_with(|| {
+        let source = match srgb {
+            true => crate::EFFECTS_WGSL_SRGB,
+            false => crate::EFFECTS_WGSL,
+        };
+        device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("world effects"),
+            source: wgpu::ShaderSource::Wgsl(source.into()),
+        })
+    })
+}
+
 impl Effects {
     pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat, bindings: &WorldBindings) -> Self {
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("world effects"),
-            source: wgpu::ShaderSource::Wgsl(EFFECTS_WGSL.into()),
-        });
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("world effects"),
             bind_group_layouts: &[Some(&bindings.globals_layout)],
@@ -59,7 +74,7 @@ impl Effects {
         });
         let mut effects = Self {
             batches: std::array::from_fn(|_| Batch::new(device)),
-            shader,
+            shaders: HashMap::new(),
             layout,
             pipelines: HashMap::new(),
             format,
@@ -83,9 +98,12 @@ impl Effects {
         }
     }
 
-    fn build(&self, device: &wgpu::Device, format: wgpu::TextureFormat) -> [wgpu::RenderPipeline; 4] {
+    fn build(&mut self, device: &wgpu::Device, format: wgpu::TextureFormat) -> [wgpu::RenderPipeline; 4] {
+        let srgb = crate::world::is_srgb(format);
+        let shader = shader_module(device, &mut self.shaders, srgb);
+        const ENTRIES: [&str; 4] = ["fs_surface", "fs_particle", "fs_streak", "fs_glow"];
         std::array::from_fn(|i| {
-            let entry = ["fs_surface", "fs_particle", "fs_streak", "fs_glow"][i];
+            let entry = ENTRIES[i];
             let bias = match i {
                 0 => wgpu::DepthBiasState { constant: 2, slope_scale: 1.0, clamp: 0.0 },
                 _ => wgpu::DepthBiasState::default(),
@@ -105,7 +123,7 @@ impl Effects {
                 label: Some(entry),
                 layout: Some(&self.layout),
                 vertex: wgpu::VertexState {
-                    module: &self.shader,
+                    module: shader,
                     entry_point: Some("vs_main"),
                     compilation_options: Default::default(),
                     buffers: &[Some(wgpu::VertexBufferLayout {
@@ -124,7 +142,7 @@ impl Effects {
                 }),
                 multisample: Default::default(),
                 fragment: Some(wgpu::FragmentState {
-                    module: &self.shader,
+                    module: shader,
                     entry_point: Some(entry),
                     compilation_options: Default::default(),
                     targets: &[Some(wgpu::ColorTargetState {

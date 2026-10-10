@@ -8,7 +8,7 @@ use glam::Vec3;
 use crate::{BlendMode, TextureHandle};
 
 /// A caller-ordered batch of textured world particles. Textures are owned by the caller.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TexturedEffect {
     pub texture: TextureHandle,
     pub blend: BlendMode,
@@ -28,7 +28,7 @@ pub struct EffectVertex {
 /// World-unit distance over which an intersecting particle fades, unless the layer says otherwise.
 pub const DEFAULT_SOFT_DISTANCE: f32 = 0.3;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct EffectLayer {
     /// Surface overlays with feathered edges and a subtle longitudinal pattern.
     pub surfaces: Vec<EffectVertex>,

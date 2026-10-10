@@ -6,7 +6,7 @@ use crate::git;
 pub const MAX_LINES: usize = 500;
 
 /// Extensions the limit applies to.
-const CHECKED: &[&str] = &["rs", "wgsl", "py", "md", "toml", "yml"];
+const CHECKED: &[&str] = &["rs", "wgsl", "wesl", "py", "md", "toml", "yml"];
 
 /// Generated or vendored files exempt from the limit.
 const EXEMPT: &[&str] = &["Cargo.lock", "LICENSE-APACHE"];
@@ -48,5 +48,6 @@ mod tests {
         assert_eq!(too_long("a/b.rs", "x\n".repeat(MAX_LINES).as_bytes()), None);
         assert_eq!(too_long("Cargo.lock", long.as_bytes()), None);
         assert_eq!(too_long("image.svg", long.as_bytes()), None);
+        assert_eq!(too_long("a/shader.wesl", long.as_bytes()), Some(MAX_LINES + 1));
     }
 }

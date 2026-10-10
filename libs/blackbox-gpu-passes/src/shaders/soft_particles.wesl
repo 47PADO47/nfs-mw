@@ -69,8 +69,16 @@ fn intersection(in: VsOut) -> f32 {
     let particle_distance = length(in.world - globals.camera_pos.xyz);
     return smoothstep(0.0, parameters.fade.x, scene_distance - particle_distance);
 }
-@fragment
-fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
+
+// The exact sRGB decode, so decode then the hardware's encode on write is the identity (a renderer whose
+// render target view is sRGB compiles this module with `SRGB_TARGET` set; see `world::is_srgb`).
+fn linear_from_gamma(c: vec3<f32>) -> vec3<f32> {
+    let low = c / 12.92;
+    let high = pow((c + vec3<f32>(0.055)) / 1.055, vec3<f32>(2.4));
+    return select(high, low, c <= vec3<f32>(0.04045));
+}
+
+fn particle_color(in: VsOut) -> vec4<f32> {
     let p = in.uv * 2.0 - 1.0;
     let mask = density(p, in.detail.x, in.detail.y);
     let distance = length(in.world - globals.camera_pos.xyz);
@@ -78,4 +86,14 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let shade = 0.88 + 0.12 * noise(p * 3.0 + vec2<f32>(in.detail.y));
     let color = mix(in.color.rgb * shade, globals.fog_color.rgb, fog);
     return vec4<f32>(color, in.color.a * mask * intersection(in));
+}
+
+@fragment
+fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
+    let c = particle_color(in);
+    @if(SRGB_TARGET) {
+        return vec4<f32>(linear_from_gamma(c.rgb), c.a);
+    } @else {
+        return c;
+    }
 }
