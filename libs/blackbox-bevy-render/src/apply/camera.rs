@@ -6,7 +6,8 @@
 
 use bevy_anti_alias::fxaa::Fxaa;
 use bevy_camera::{
-    Camera, Camera3d, ClearColorConfig, MainPassResolutionOverride, PerspectiveProjection, Projection, RenderTarget,
+    Camera, Camera3d, Camera3dDepthTextureUsage, ClearColorConfig, MainPassResolutionOverride, PerspectiveProjection,
+    Projection, RenderTarget,
 };
 use bevy_color::Color;
 use bevy_ecs::bundle::Bundle;
@@ -58,7 +59,14 @@ pub fn render_override(target: [u32; 2], settings: &CameraSettings) -> Option<UV
 /// Everything a new camera needs; later frames overwrite the pose, lens, clear colour and bias.
 pub fn bundle(frame: &FrameParams, target: RenderTarget, settings: &CameraSettings) -> impl Bundle {
     (
-        Camera3d::default(),
+        Camera3d {
+            // The soft-particle pass samples the finished depth over a second pass; see
+            // `systems::effects::effects_soft_pass` and docs/bevy-backend.md ("PR 9").
+            depth_texture_usages: Camera3dDepthTextureUsage::from(
+                wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            ),
+            ..Camera3d::default()
+        },
         Camera { clear_color: clear(frame), ..Default::default() },
         target,
         lens(frame),

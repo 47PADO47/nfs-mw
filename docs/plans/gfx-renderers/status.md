@@ -20,7 +20,7 @@ All branches are in one GitHub stack (stack #23, draft PRs, each based on the pr
 | 7 | `refactor/gfx-shared-passes` | #37 | done: `libs/blackbox-gpu-passes` |
 | 6 | `feat/gfx-settings` | #39 | done (built after 7, so it sits above it in the stack) |
 | 8 | `feat/gfx-bevy-spike` | #40 | done: conditional GO, see §3 |
-| 9 | `feat/gfx-bevy-scene` | | **not started** |
+| 9 | `feat/gfx-bevy-scene` | | done: glossy shading, the lighting rig and environment, texture redirects, the effect layer, the UI layer; see §3a |
 | 10 | `feat/gfx-bevy-post` | | **not started** |
 | 11 | `feat/gfx-bevy-dlss` | | **not started**, needs the NVIDIA PC |
 | 12 | `feat/gfx-bevy-solari` | | **not started**, needs the NVIDIA PC |
@@ -57,8 +57,27 @@ Details and the full table: [bevy-backend.md](../../bevy-backend.md) and ADR 000
 - Release build +95 s, binary +48.6 MiB with the feature. Default builds have no `bevy_render`.
 - **Gate before PR 9:** profile with `trace_tracy`, trim the plugin set until both criteria hold. If they cannot be
   met, take no-go path (a) (§8): Bevy for the car viewer, showroom and menus, the city stays on the native renderer.
-- **Not drawn under `--renderer bevy` yet:** glossy shading (falls back to lit), texture redirects, effect layer,
-  **UI layer (menus, HUD, console)**, post effects, camera cut. PR 9 and 10 add them.
+  **Not re-run**: PR 9 (§3a) was built directly on top of the spike at the owner's instruction, without
+  repeating this profiling pass on Iris Xe. It was, however, verified functionally on different hardware
+  (an NVIDIA RTX 4070 SUPER) where the spike's CPU/frame-time numbers were never measured in the first
+  place, so whether the two criteria hold on Iris Xe is still open.
+- **Not drawn under `--renderer bevy` yet (as of PR 8):** glossy shading (falls back to lit), texture
+  redirects, effect layer, **UI layer (menus, HUD, console)**, post effects, camera cut. PR 9 (§3a) added
+  everything except post effects and camera cut, which stay for PR 10.
+
+## 3a. PR 9: glossy shading, redirects, the effect layer and the UI
+
+Built on an NVIDIA RTX 4070 SUPER over Vulkan (this machine, not the Iris Xe laptop §3's numbers come
+from). Full write-up, the axes and sRGB gotchas, and the measured testkit numbers:
+[bevy-backend.md](../../bevy-backend.md), "PR 9". Also verified directly on the real install: driving
+screenshot (`nfsmw view-world --renderer bevy --drive --screenshot`, world, glossy car and HUD all drawing
+together) and the main menu (`nfsmw view-screen MainMenu.fng --renderer bevy --screenshot`), previously
+solid black under `--renderer bevy` and now drawing normally.
+
+Left for PR 9's own follow-up or PR 10: the soft/detailed-particle path (`smoke-quality high`) compiles and
+sets the camera's depth usages correctly, but has no test coverage — the testkit's `effects` scene never
+turns `detailed_particles` on, and that scene's pixels are pinned by the native renderer's own digest tests
+(recorded on Iris Xe, which this session could not regenerate).
 
 ## 4. Handoff: building the remaining PRs
 
@@ -68,7 +87,7 @@ Start from the stack tip (`feat/gfx-bevy-spike`, or this docs branch which sits 
 
 | PR | Needs | Hardware you need |
 |---|---|---|
-| 9 Bevy scene | the gate in §3; calls the passes of `blackbox-gpu-passes` (its README has the foreign-loop contract: group-0 `Globals`, `Depth32Float` reverse-Z, UI last); `RenderContext::command_encoder()` gives the raw encoder (read from source, not exercised); depth sampling for soft particles needs `TEXTURE_BINDING` on the camera depth (read from source, not exercised) | any Vulkan GPU |
+| 9 Bevy scene | **done**, see §3a | any Vulkan GPU |
 | 10 Bevy post | bloom, tone mapping, FXAA, SMAA, TAA (jitter, motion vectors from `InstanceKey`, `camera_cut` reset), render scale, FSR 1 pass, mip bias; components only inserted when enabled | any |
 | 11 DLSS | `dlss` / `dlss-mock` features, `DlssInitPlugin` before `RenderPlugin`, `DlssProjectId`, build needs the DLSS SDK (`DLSS_SDK`, `VULKAN_SDK`, clang); CI compile-checks with the mock; `docs/licensing.md` must record the NVIDIA terms | **NVIDIA RTX, Vulkan** |
 | 12 Solari | startup-gated (`ray_tracing != off`), needs the wgpu ray-query features, mirrors world meshes into `RaytracingMesh3d` + `StandardMaterial` (alpha-tested and blended geometry excluded), DLSS-RR as denoiser when built | **RTX, Vulkan** |
