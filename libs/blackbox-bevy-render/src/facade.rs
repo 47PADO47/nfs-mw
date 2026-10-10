@@ -8,8 +8,8 @@ use std::sync::{Arc, Mutex};
 use blackbox_gfx::{
     BackendInfo, Capabilities, CaptureId, EffectLayer, Environment, FrameParams, FrameStatus, GlossyMaterial,
     GlossyMaterialHandle, GraphicsSettings, Instance, LightingRig, MeshDesc, MeshHandle, RenderBackend, RenderError,
-    RenderStats, Resolved, RgbaImage, TextureDesc, TextureHandle, UiLayer, UiTextureId, UiTexturePatch, resolve,
-    scaled_size,
+    RenderStats, Resolved, RgbaImage, SkyGradient, TextureDesc, TextureHandle, UiLayer, UiTextureId, UiTexturePatch,
+    resolve, scaled_size,
 };
 
 use crate::ops::{CameraSettings, CaptureRequest, FrameData, Op, Shared, UiOp, lock};
@@ -33,6 +33,8 @@ pub struct BevyBackend {
     meshes: usize,
     surface: [u32; 2],
     warned: Warned,
+    /// Whether an environment (the caller's own, or the lazy default below) has been queued yet.
+    environment_requested: bool,
 }
 
 impl BevyBackend {
@@ -52,6 +54,7 @@ impl BevyBackend {
             meshes: 0,
             surface,
             warned: Warned::default(),
+            environment_requested: false,
         }
     }
 
@@ -61,6 +64,27 @@ impl BevyBackend {
 
     fn set_camera(&self, change: impl FnOnce(&mut CameraSettings)) {
         change(&mut lock(&self.shared).settings);
+    }
+
+    /// Native lazily builds a default procedural sky the first time any glossy resource is touched
+    /// (`Glossy::new`, `libs/blackbox-render/src/gpu/glossy/mod.rs`), so a caller that never calls
+    /// [`RenderBackend::set_environment`] — true of every scene in `crates/nfsmw` today — still gets a
+    /// believable, dim reflection instead of no reflection at all. Without an equivalent here, a glossy
+    /// material's `environment` field stays `None` forever and Bevy's `AsBindGroup` substitutes its
+    /// generic missing-texture fallback: an opaque *white* 1x1 cube (`Image::default()`), not native's
+    /// muted sky. That washes every glossy surface's env term toward white, reading as "too shiny" and
+    /// pushing saturated paint toward pink; it is worst on high-`envmap` chrome and exhaust tips, which
+    /// should reflect a dim sky tint and instead reflect pure white. Called from both
+    /// [`RenderBackend::create_glossy_material`] and [`RenderBackend::set_lighting_rig`], matching
+    /// native's `ensure()`, which both of those also trigger.
+    fn ensure_default_environment(&mut self) {
+        if self.environment_requested {
+            return;
+        }
+        self.environment_requested = true;
+        let image = crate::apply::environment::build(Environment::Sky(SkyGradient::default()))
+            .expect("the default sky always builds");
+        self.push(Op::SetEnvironment(Box::new(image)));
     }
 }
 
@@ -154,6 +178,7 @@ impl RenderBackend for BevyBackend {
     }
 
     fn create_glossy_material(&mut self, material: &GlossyMaterial) -> GlossyMaterialHandle {
+        self.ensure_default_environment();
         let handle = GlossyMaterialHandle::from_raw(self.next_glossy);
         self.next_glossy += 1;
         self.push(Op::AddGlossyMaterial { handle, params: crate::material::GlossyUniform::of(material) });
@@ -165,10 +190,14 @@ impl RenderBackend for BevyBackend {
     }
 
     fn set_lighting_rig(&mut self, rig: &LightingRig) {
+        self.ensure_default_environment();
         self.push(Op::SetLightingRig(crate::material::RigUniform::of(rig)));
     }
 
     fn set_environment(&mut self, environment: Environment<'_>) {
+        // A caller-provided environment always wins, including over a default already queued: this
+        // runs after it in the same op queue, so it is applied last regardless.
+        self.environment_requested = true;
         match crate::apply::environment::build(environment) {
             Some(image) => self.push(Op::SetEnvironment(Box::new(image))),
             None => once(&mut self.warned.environment, "a too-small environment face"),
@@ -225,5 +254,66 @@ impl RenderBackend for BevyBackend {
             effect_capacities: [capacities.surfaces, capacities.particles],
             streak_capacity: capacities.streaks,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use blackbox_gfx::GraphicsApi;
+
+    use super::*;
+
+    fn backend() -> BevyBackend {
+        let info =
+            BackendInfo { renderer: "bevy", api: GraphicsApi::Vulkan, adapter: String::new(), driver: String::new() };
+        let caps = crate::caps::capabilities(GraphicsApi::Vulkan, false);
+        BevyBackend::new(Arc::new(Mutex::new(Shared::default())), info, caps, [1, 1])
+    }
+
+    fn environment_ops(backend: &BevyBackend) -> usize {
+        lock(&backend.shared).ops.iter().filter(|op| matches!(op, Op::SetEnvironment(_))).count()
+    }
+
+    /// Nothing in `crates/nfsmw` ever calls `set_environment` (native gets a default lazily, from
+    /// `Glossy::new`; see `ensure_default_environment`'s doc comment). Without a matching default here,
+    /// every glossy material's environment field stays `None` forever and samples Bevy's opaque white
+    /// fallback instead, which is what made cars look "too shiny" and pushed paint towards pink/white.
+    #[test]
+    fn creating_a_glossy_material_queues_a_default_environment_once() {
+        let mut backend = backend();
+        assert_eq!(environment_ops(&backend), 0, "nothing queued before any glossy call");
+        backend.create_glossy_material(&GlossyMaterial::default());
+        assert_eq!(environment_ops(&backend), 1, "the lazy default is queued on first use");
+        backend.create_glossy_material(&GlossyMaterial::default());
+        backend.set_lighting_rig(&LightingRig::default());
+        assert_eq!(environment_ops(&backend), 1, "later glossy calls do not queue it again");
+    }
+
+    #[test]
+    fn setting_the_lighting_rig_alone_also_queues_the_default() {
+        let mut backend = backend();
+        backend.set_lighting_rig(&LightingRig::default());
+        assert_eq!(environment_ops(&backend), 1);
+    }
+
+    /// A caller that does set its own environment (the testkit's `glossy` scene, unlike the real game)
+    /// must never have it clobbered by the lazy default, however the two calls are ordered.
+    #[test]
+    fn an_explicit_environment_set_before_any_glossy_call_is_not_overwritten() {
+        let mut backend = backend();
+        backend.set_environment(Environment::Sky(SkyGradient::default()));
+        backend.create_glossy_material(&GlossyMaterial::default());
+        backend.set_lighting_rig(&LightingRig::default());
+        assert_eq!(environment_ops(&backend), 1, "only the explicit call queued an environment");
+    }
+
+    #[test]
+    fn an_explicit_environment_set_after_a_glossy_call_still_applies() {
+        let mut backend = backend();
+        backend.create_glossy_material(&GlossyMaterial::default());
+        backend.set_environment(Environment::Sky(SkyGradient::default()));
+        // One from the lazy default, one from the explicit call; `apply_op` applies them in order, so
+        // the explicit one (queued second) is what every material ends up with.
+        assert_eq!(environment_ops(&backend), 2);
     }
 }
