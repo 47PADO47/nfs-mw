@@ -8,7 +8,7 @@ use crate::caps::native_capabilities;
 use crate::{Backend, DEFAULT_RENDER_SCALE, PixelFormat, RenderError, RendererOptions, TextureDesc};
 use blackbox_gfx::{BackendInfo, GraphicsApi, GraphicsSettings};
 
-fn wgpu_backends(backend: Backend) -> wgpu::Backends {
+pub(super) fn wgpu_backends(backend: Backend) -> wgpu::Backends {
     match backend {
         Backend::Auto => wgpu::Backends::PRIMARY | wgpu::Backends::GL,
         Backend::Vulkan => wgpu::Backends::VULKAN,

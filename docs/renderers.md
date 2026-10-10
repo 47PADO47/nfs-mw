@@ -4,7 +4,9 @@ Two things decide how the game is drawn, and they are separate settings:
 
 - **`renderer`** is *who draws*: the native **Black Box** renderer (`blackbox`, the default) or the
   optional **Bevy** renderer (`bevy`).
-- **`backend`** is *which graphics API* the renderer uses: `auto`, `vulkan`, `dx12` or `gl`.
+- **`backend`** is *which graphics API* the renderer uses: `auto`, `vulkan`, `dx12` or `gl`. The Video options
+  row **Graphics API (After Restart)** cycles only through the APIs this PC has a GPU for (`auto` is always there),
+  and the Bevy renderer skips `gl`.
 
 The Bevy renderer is a **spike**: it draws the world (meshes, textures, fog, alpha test, blending, sky) and
 nothing else yet, and it only exists in builds made with `--features renderer-bevy`. The settings, menu rows

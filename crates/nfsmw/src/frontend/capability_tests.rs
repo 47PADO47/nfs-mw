@@ -26,16 +26,16 @@ fn text(s: &'static str) -> Title {
 #[test]
 fn the_native_renderer_hides_ray_tracing_and_the_quality_mode_but_has_the_renderer_row() {
     let video = titles(Category::Video, &test_caps::native());
-    assert_eq!(video.len(), 19);
+    assert_eq!(video.len(), 20);
     for hidden in ["Ray Tracing", "Upscale Quality"] {
         assert!(!video.contains(&text(hidden)), "{hidden} needs a renderer that offers it");
     }
     assert_eq!(
-        video.last(),
-        Some(&text("Renderer (After Restart)")),
+        video[video.len() - 2..],
+        [text("Renderer (After Restart)"), text("Graphics API (After Restart)")],
         "after the rows that were there before, which keep their places"
     );
-    assert_eq!(video[video.len() - 3..video.len() - 1], [text("Graphics Preset"), text("Car Shading")]);
+    assert_eq!(video[video.len() - 4..video.len() - 2], [text("Graphics Preset"), text("Car Shading")]);
     assert_eq!(titles(Category::Audio, &test_caps::native()).len(), 5);
     assert_eq!(titles(Category::Gameplay, &test_caps::native()).len(), 5);
 }
@@ -43,12 +43,13 @@ fn the_native_renderer_hides_ray_tracing_and_the_quality_mode_but_has_the_render
 #[test]
 fn a_full_renderer_has_every_row_next_to_the_setting_it_belongs_with() {
     let video = titles(Category::Video, &test_caps::full());
-    assert_eq!(video.len(), 21);
+    assert_eq!(video.len(), 22);
     let at =
         |name: &'static str| video.iter().position(|t| *t == text(name)).unwrap_or_else(|| panic!("no {name} row"));
     assert_eq!(at("Upscale Quality"), at("Upscale Sharpness") + 1);
     assert_eq!(at("Ray Tracing"), at("Anti-Aliasing") + 1);
-    assert_eq!(at("Renderer (After Restart)"), video.len() - 1);
+    assert_eq!(at("Renderer (After Restart)"), video.len() - 2);
+    assert_eq!(at("Graphics API (After Restart)"), video.len() - 1);
     assert_eq!(titles(Category::Audio, &test_caps::full()).len(), 5, "only the Video screen has them");
 }
 

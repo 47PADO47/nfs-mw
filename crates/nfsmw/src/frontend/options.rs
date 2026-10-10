@@ -117,6 +117,7 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
         .chain(offered(RendererSetting::RayTracing))
         .chain(GraphicsSetting::ALL.into_iter().map(|setting| row(Setting::Graphics(setting), setting.title())))
         .chain(offered(RendererSetting::Renderer))
+        .chain(offered(RendererSetting::GraphicsApi))
         .collect(),
         Category::Gameplay => vec![
             row(Setting::Hud, Title::Label(0xAC14_8579)),

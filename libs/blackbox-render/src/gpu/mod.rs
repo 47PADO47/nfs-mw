@@ -1,5 +1,6 @@
 //! The wgpu implementation of the renderer (Vulkan, Direct3D 12, OpenGL).
 
+mod adapters;
 mod backend_impl;
 mod capture;
 mod effects;
@@ -25,6 +26,8 @@ mod test_support;
 mod textures;
 mod ui;
 mod upscale;
+
+pub use adapters::available_apis;
 
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 

@@ -30,5 +30,5 @@ pub use blackbox_gfx::{
     Upscaler, Vertex, clamp_render_scale, clamp_texture_lod_bias, clamp_upscale_sharpness, scaled_size,
     suggested_texture_lod_bias,
 };
-pub use gpu::Renderer;
+pub use gpu::{Renderer, available_apis};
 pub use options::RendererOptions;
