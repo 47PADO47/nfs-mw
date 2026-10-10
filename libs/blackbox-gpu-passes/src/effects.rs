@@ -84,8 +84,12 @@ impl Effects {
     }
 
     fn build(&self, device: &wgpu::Device, format: wgpu::TextureFormat) -> [wgpu::RenderPipeline; 4] {
+        let srgb = crate::world::is_srgb(format);
         std::array::from_fn(|i| {
-            let entry = ["fs_surface", "fs_particle", "fs_streak", "fs_glow"][i];
+            let entry = match srgb {
+                true => ["fs_surface_srgb", "fs_particle_srgb", "fs_streak_srgb", "fs_glow_srgb"][i],
+                false => ["fs_surface", "fs_particle", "fs_streak", "fs_glow"][i],
+            };
             let bias = match i {
                 0 => wgpu::DepthBiasState { constant: 2, slope_scale: 1.0, clamp: 0.0 },
                 _ => wgpu::DepthBiasState::default(),

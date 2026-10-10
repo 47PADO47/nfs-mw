@@ -243,6 +243,8 @@ fn scene_names_are_unique_and_fidelity_matches_the_plan() {
     assert_eq!(names.len(), SceneId::ALL.len());
     assert_eq!(SceneId::DepthProbe.fidelity(), Fidelity::Strict);
     assert_eq!(SceneId::BlendStack.fidelity().tolerance().mean, 4.0);
-    assert_eq!(SceneId::Ui.fidelity().tolerance().max, 1);
+    // Not the plan's original guess (1): once built, overlapping translucent UI meshes turned out to
+    // hit the same linear-vs-gamma blending gap as `Blended` (see `Fidelity::Ui`'s doc comment).
+    assert_eq!(SceneId::Ui.fidelity().tolerance().max, 40);
     assert_eq!(SceneId::GlossySphere.fidelity().tolerance().p99, 8);
 }

@@ -1,7 +1,10 @@
 //! The world material: `BlackboxMaterial`, specialised per shading model and blend mode.
 //!
-//! One Bevy material asset exists per (texture, blend, shading); see `docs/bevy-backend.md`, "Colour" and
-//! "Draw order", for why the shader works in gamma space and what Bevy's sorted blending changes.
+//! One Bevy material asset exists per (texture, blend, shading, glossy material); see
+//! `docs/bevy-backend.md`, "Colour" and "Draw order", for why the shader works in gamma space and what
+//! Bevy's sorted blending changes.
+
+pub mod glossy;
 
 use bevy_asset::{Asset, Handle};
 use bevy_image::Image;
@@ -17,8 +20,9 @@ use bevy_shader::ShaderRef;
 use blackbox_gfx::{BlendMode, FrameParams, Shading};
 
 use crate::mesh::ATTRIBUTE_COLOR_BGRA;
+pub use glossy::{GlossyUniform, RigUniform};
 
-/// The shading models the material is specialised for (glossy arrives with the scene PR).
+/// The shading models the material is specialised for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ShadingKind {
     /// Texture x vertex colour x 2, fogged.
@@ -27,15 +31,18 @@ pub enum ShadingKind {
     Lit,
     /// Like `Prelit` but never fogged.
     Sky,
+    /// Three lights, a sun highlight and an environment reflection; see `glossy.rs`.
+    Glossy,
 }
 
 impl ShadingKind {
-    /// The model that draws `shading`. Glossy falls back to `Lit` until it has its own material.
+    /// The model that draws `shading`.
     pub fn of(shading: Shading) -> Self {
         match shading {
             Shading::Prelit => Self::Prelit,
             Shading::Sky => Self::Sky,
-            Shading::Lit | Shading::Glossy(_) => Self::Lit,
+            Shading::Lit => Self::Lit,
+            Shading::Glossy(_) => Self::Glossy,
         }
     }
 }
@@ -117,6 +124,15 @@ pub struct BlackboxMaterial {
     #[texture(1)]
     #[sampler(2)]
     pub texture: Option<Handle<Image>>,
+    /// This material's own shading constants, when it is [`ShadingKind::Glossy`]; unused otherwise.
+    #[uniform(3)]
+    pub glossy: GlossyUniform,
+    /// The lighting rig every glossy material shares, re-synced like `params` whenever it changes.
+    #[uniform(4)]
+    pub rig: RigUniform,
+    #[texture(5, dimension = "cube")]
+    #[sampler(6)]
+    pub environment: Option<Handle<Image>>,
     pub shading: ShadingKind,
     pub blend: BlendKind,
 }
@@ -186,7 +202,9 @@ impl Material for BlackboxMaterial {
 
         let fragment = descriptor.fragment.as_mut().expect("the material has a fragment shader");
         let defs = &mut fragment.shader_defs;
-        if shading != ShadingKind::Lit {
+        if shading == ShadingKind::Glossy {
+            defs.push("GLOSSY".into());
+        } else if shading != ShadingKind::Lit {
             defs.push("PRELIT".into());
         }
         if shading != ShadingKind::Sky {
@@ -252,6 +270,10 @@ mod tests {
         assert_eq!(ShadingKind::of(Shading::Prelit), ShadingKind::Prelit);
         assert_eq!(ShadingKind::of(Shading::Sky), ShadingKind::Sky);
         assert_eq!(ShadingKind::of(Shading::Lit), ShadingKind::Lit);
+        assert_eq!(
+            ShadingKind::of(Shading::Glossy(blackbox_gfx::GlossyMaterialHandle::from_raw(1))),
+            ShadingKind::Glossy
+        );
     }
 
     #[test]
@@ -259,6 +281,9 @@ mod tests {
         let material = BlackboxMaterial {
             params: Params::default(),
             texture: None,
+            glossy: GlossyUniform::default(),
+            rig: RigUniform::default(),
+            environment: None,
             shading: ShadingKind::Sky,
             blend: BlendKind::Additive,
         };

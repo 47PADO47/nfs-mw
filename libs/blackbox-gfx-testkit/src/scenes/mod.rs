@@ -113,7 +113,9 @@ pub enum Fidelity {
     Glossy,
     /// Blending and effects: a renderer that blends in linear space differs by design.
     Blended,
-    /// The UI pass: the same shared pass, off by at most one.
+    /// The UI pass: the same shared pass and (with a render target view that is sRGB) the same
+    /// gamma-decoded output, so opaque pixels match almost exactly; overlapping translucent meshes
+    /// still blend in a different space than native's, the same gap as [`Self::Blended`].
     Ui,
 }
 
@@ -123,7 +125,7 @@ impl Fidelity {
             Self::Strict => Tolerance::new(4, 0.5, 2),
             Self::Glossy => Tolerance { max: 255, mean: 1.5, p99: 8 },
             Self::Blended => Tolerance { max: 255, mean: 4.0, p99: 24 },
-            Self::Ui => Tolerance { max: 1, mean: 255.0, p99: 255 },
+            Self::Ui => Tolerance { max: 40, mean: 3.0, p99: 35 },
         }
     }
 }

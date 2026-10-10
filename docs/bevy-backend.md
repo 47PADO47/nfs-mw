@@ -6,10 +6,11 @@ Bevy `App`, behind the `renderer-bevy` cargo feature of `nfsmw` (off by default)
 [`renderer`](renderers.md) setting. This page is for developers: how it works, how it was measured, what is
 missing. The decision it feeds is in [ADR 0004](decisions/0004-swappable-renderers.md).
 
-**Status: the go/no-go spike.** It draws the world path only (textures, meshes, instances, camera, fog,
-alpha test, blending, sky, headless capture). The glossy car shader, the effect layer, the UI layer, post
-effects, temporal methods and ray tracing belong to later PRs; the facade accepts those calls, logs once that
-they are ignored, and draws nothing for them.
+**Status: PR 9 landed.** The spike's world path (textures, meshes, instances, camera, fog, alpha test,
+blending, sky, headless capture) now has glossy shading, the lighting rig and environment, texture
+redirects, the world effect layer and the UI layer; see "PR 9" below. Post effects (bloom, tone mapping,
+SMAA, TAA, FSR 1), temporal methods and ray tracing still belong to later PRs; the facade accepts those
+calls, logs once that they are ignored, and draws nothing for them.
 
 ```sh
 cargo run --release -p nfsmw --features renderer-bevy -- view-world --renderer bevy
@@ -86,15 +87,18 @@ blended layers, is off by up to about 12 levels for that reason. See the results
   entity), each compacted to the vertices it uses with the order kept and indices rebased. The source indices
   are `u16`, so a range never needs more than 65,536 vertices and the new indices stay `u16`. Attributes:
   position, normal, UV0 and a custom `Unorm8x4` BGRA colour.
-- **`BlackboxMaterial`:** one asset per (texture, blend, shading), shared by every draw that uses the
-  combination. Specialisation: `Prelit`, `Lit` and `Sky` (shader defs `PRELIT`, `FOG`) by `Opaque`,
-  `AlphaTest` (`Mask(0.5)`, discard in the shader), `AlphaBlend` and `Additive` (the exact native blend states,
-  colour written only so captures stay opaque). Culling is off, as native. The prepass and shadows are off for
-  the material. The uniform holds the fog colour and range and the light direction; it is rewritten on all
-  materials only when a frame's values differ from the last. The native texture LOD bias rides on the
-  camera's `MipBias` (read as `view.mip_bias`). Glossy draws fall back to `Lit` until the scene PR.
-- **Not done:** `redirect_texture` (animated textures stay on their first frame), the glossy shader, the
-  lighting rig and environment.
+- **`BlackboxMaterial`:** one asset per (texture, blend, shading, glossy material), shared by every draw
+  that uses the combination. Specialisation: `Prelit`, `Lit`, `Sky` and `Glossy` (shader defs `PRELIT`,
+  `FOG`, `GLOSSY`) by `Opaque`, `AlphaTest` (`Mask(0.5)`, discard in the shader), `AlphaBlend` and
+  `Additive` (the exact native blend states, colour written only so captures stay opaque). Culling is off,
+  as native. The prepass and shadows are off for the material. The uniform holds the fog colour and range
+  and the light direction; it is rewritten on all materials only when a frame's values differ from the
+  last. The native texture LOD bias rides on the camera's `MipBias` (read as `view.mip_bias`). Every
+  material also carries the glossy uniform, the lighting rig and the environment cube map (unused unless
+  the shading is `Glossy`): cheap enough, and keeps one material type instead of two.
+- **`redirect_texture`:** a `HashMap<usize, usize>` in `WorldState`, consulted when a draw becomes a
+  material; existing materials keyed on the redirected number are repointed in place, not respawned. See
+  "PR 9" for the lighting rig, the environment and the effect and UI layers.
 
 ## Instances
 
@@ -196,8 +200,51 @@ ms CPU per frame; Bevy 92 fps, p50 12.6 ms, 8.0 ms CPU per frame. At 960x540 the
 per frame and per draw, not per pixel. In `apply()` itself the pool costs 0.055 ms per frame: the extra
 4.4 to 5.3 ms of CPU does not shrink with fewer objects, so it is a fixed per-frame cost of Bevy's schedules
 (extract, queue, prepare and the idle plugins `PbrPlugin` adds), not the instance pool and not the draws.
-Where exactly it goes is **not yet profiled** (no profiler was available here; Bevy's `trace_tracy` is the
-first thing to try in the next PR). Custom instancing would not remove it.
+Where exactly it goes is **not yet profiled** (no profiler was available on the spike machine); the `trace`
+feature and the plan below are the way in. Custom instancing would not remove it.
+
+### Investigating the fixed CPU cost
+
+A rougher data point from the owner's RTX-class PC (reported, **not** measured with the bench harness above):
+about 800 to 1,000 fps native against 240 to 380 fps on Bevy — a worse ratio than the Iris Xe's 1.45x. That is
+consistent with the tax being fixed: a constant ~4.5 ms added to native's ~1 to 1.3 ms/frame is a 3 to 4x
+slowdown, while the same ~4.5 ms added to the laptop's already-slow 6 to 7 ms/frame is only 1.45x. A bigger GPU
+makes the fixed CPU cost a larger fraction of the frame, not smaller.
+
+What the spike's own numbers already establish about where the cost is **not**: it is flat across entity count
+(100 vs 480 objects) and across resolution (960x540 vs 1920x1080). That rules out draws, pixels and per-entity
+extract/batch work — all of those shrink in the sparse scene or at the smaller target. A cost that stays put is
+**per-frame fixed schedule overhead**: Bevy running a large, fixed set of systems serially every frame (ECS is
+single-threaded here, and `multi_threaded` was tried and made it worse — see "Threads"), plus the fixed part of
+`ExtractSchedule`. The prime suspect is the forward-PBR machinery `PbrPlugin` schedules every frame (clustering,
+light probes, shadow/prepass prep, SSAO/SSR, volumetric fog, lightmaps, decals) — none of which `BlackboxMaterial`
+uses: it does its own fog and lighting in the shader, with shadows, prepass and deferred off.
+
+**Now wired to measure it (this PR):**
+
+- **A `trace` cargo feature** on `blackbox-bevy-render`, forwarded by `nfsmw`'s own `trace` feature. It turns on
+  the bevy render crates' `trace` feature (their per-system `tracing` spans) and installs a Tracy subscriber
+  (`blackbox_bevy_render::init_tracing`, called from `main` under the feature). Build
+  `cargo run --release -p nfsmw --features trace -- view-world --renderer bevy --drive --no-vsync` with the Tracy
+  client attached to get per-system times in extract/queue/prepare and confirm which systems eat the ~4.5 ms. This
+  replaces the earlier "no profiler available" gap; run it on the RTX machine, where the tax hurts most.
+- **Interactive pipeline compilation is now asynchronous.** `synchronous_pipeline_compilation` became a field on
+  `BlackboxBevyRenderPlugin`: headless captures and tests keep it `true` (reproducible frames), but the live
+  window sets it `false`, so steady-state frames never block on compilation (and new pipelines appearing mid-drive
+  no longer stall the frame). This is a correctness/hitch fix as much as a throughput one; it is not expected to
+  move the steady-state fixed cost, which is why the Tracy trace is the real next step.
+
+**Candidate fixes, once the trace attributes the cost (highest payoff first, not yet done):**
+
+- **A zero-tooling bisection** to attribute the cost without Tracy: re-run the CPU-time bench with `PbrPlugin` +
+  `MaterialPlugin` removed (clear-only camera) for the floor, then with `MaterialPlugin` but no `PbrPlugin`; the
+  gap is PbrPlugin's fixed tax, measured directly.
+- **Drop or decompose `PbrPlugin`** — the biggest lever. Strip the sub-features `BlackboxMaterial` never consumes,
+  or replace `MaterialPlugin` + `PbrPlugin` with a minimal mesh-draw pipeline on a render phase that skips
+  clustering and lighting entirely.
+- **Pipelined rendering** (the PR 11 question) to overlap frame N's render-world schedule with frame N+1's
+  main-world. It hides the tax rather than removing it, and is distinct from the `multi_threaded` ECS that already
+  regressed; worth measuring only if CPU is still the ceiling after the PbrPlugin work.
 
 Instance scaling (headless, 640x360, keyed static instances of one single-range mesh, so the best case for
 Bevy's batching, frame cost including GPU): 1,000 instances 1.5 ms, 10,000 4.2 ms, 40,000 15.2 ms (about 0.35 ms per
@@ -218,26 +265,83 @@ The plan guessed +1.5 to 3 minutes and +15 to 30 MB: the time is inside that, th
 build has no `bevy_render` (`cargo tree -p nfsmw -e normal | grep -c bevy_render` prints 0), compiles
 the same crates as before and still checks on Rust 1.95.
 
+## PR 9: glossy shading, redirects, the world effect layer and the UI
+
+Glossy shading, the lighting rig, the environment, `redirect_texture`, the world effect layer and the UI
+layer. Glossy and redirects are in `material/` and `apply/`, as planned (§9); the effect layer and the UI
+layer turned out to need `systems/{effects,ui}.rs` added **directly to Bevy's render sub-app**, not routed
+through the facade's `apply()` queue:
+
+- **Where they run.** Both are systems added to Bevy's own `Core3d` schedule (`render_app.add_systems
+  (Core3d, ...)` in `plugin.rs`), not a render-graph node: Bevy 0.20 replaced that with an ECS schedule,
+  `Core3dSystems::{Prepass, MainPass, EarlyPostProcess, PostProcess}`, weakly chained. The effect layer
+  runs `.in_set(EarlyPostProcess)` (after the world meshes, before tone mapping), matching native's
+  `gpu/frame.rs` order; a second, chained system draws detailed particles over the finished colour and
+  depth. The UI runs `.after(bevy_core_pipeline::upscaling::upscaling)` by function reference (ordering
+  only against `Core3dSystems::PostProcess` would leave it ambiguous against `upscaling`, the only other
+  system scheduled there), targeting `ViewTarget::out_texture()` at the camera's `physical_target_size`,
+  not the (possibly scaled) render size.
+- **Where their data comes from.** Both read `EffectLayer`/`UiLayer` straight from the facade's `Shared`
+  bridge (`ops.rs`) — the *same* `Arc<Mutex<_>>`, inserted into the render sub-app once at plugin build
+  (`render_app.insert_resource(bridge.clone())`), not through Bevy's `Extract` step, so there is no extra
+  frame of latency and no `WorldState` involvement. Texture handles and the fog/light parameters, which
+  only `WorldState` (main-world only) has, do go through a real `ExtractSchedule` system
+  (`systems::effects::extract_world`).
+- **Effect vertices are world-space, not model-local.** Mesh instances are converted to Bevy's axes by
+  their per-instance transform (`axes::model`, in `apply/instances.rs`); nothing does that for effect
+  vertices, which are already in world space when the game hands them over. The first attempt skipped
+  this and drew streaks as vertical lines off the top of the screen; `systems::effects::to_bevy_axes`
+  converts every vertex before `Effects::upload`.
+- **The environment cube map is written in the games' axes, sampled in Bevy's.** `apply/environment.rs`
+  ports native's procedural sky generator (and the `Faces` case) byte for byte, so the cube map's six
+  faces hold exactly what native's would. The glossy shader's reflection direction is computed in Bevy's
+  axes, so it is converted back to the games' axes (`vec3(r.x, -r.z, r.y)`) only at the `textureSample`
+  call, in `material/blackbox.wesl` — the one place the mismatch actually matters.
+- **A render target view that is sRGB needs its shaders to gamma-decode once.** The world material already
+  did this (`linear_from_gamma`, "Colour" above); `blackbox-gpu-passes`' effect, textured-effect,
+  soft-particle and UI shaders did not, because native always draws into a plain UNORM surface. Writing
+  gamma bytes straight into an sRGB view double-encodes them on write (a *lot* brighter than native, not a
+  subtle gap). Fixed in the shared crate: an `_srgb` fragment entry point per pass, picked automatically
+  from the target format (`world::is_srgb`) — invisible to native, which never hits an sRGB format.
+- **Measured** (testkit, this machine's Vulkan adapter — an NVIDIA RTX 4070 SUPER, not the Iris Xe of the
+  spike's numbers above): `glossy_sphere` max 1, mean 0.254, p99 1 (`Fidelity::Glossy`: mean 1.5, p99 8);
+  `effects` max 65, mean 0.405, p99 13 (`Fidelity::Blended`: mean 4, p99 24); `ui` max 34, mean 2.516, p99
+  31. The plan's original guess for the UI tolerance (max 1, "the same shared pass, off by at most one")
+  predates the sRGB finding above; opaque UI pixels do match almost exactly now, but overlapping
+  translucent UI meshes hit the same linear-vs-gamma blending gap as `Blended`, so `Fidelity::Ui`'s
+  tolerance was widened to match what was actually measured (`libs/blackbox-gfx-testkit/src/scenes/mod.rs`).
+- Also verified directly, not just through the testkit: `nfsmw view-world --renderer bevy --drive
+  --screenshot` (the HUD, the glossy car, the world and its effects all draw together) and `nfsmw
+  view-screen MainMenu.fng --renderer bevy --screenshot` (the main menu, previously solid black under
+  `--renderer bevy`, now draws normally).
+
 ## Known gaps
 
-- Glossy shading, the lighting rig and the environment; `redirect_texture`; the effect layer, soft particles and
-  textured effects; the UI layer (menus, HUD, console and movies draw nothing under `--renderer bevy`).
-- Blended and additive draws: linear blending and distance sorting (above).
+- Blended and additive draws: linear blending and distance sorting (above); the UI layer and the effect
+  layer inherit the same gap where their own meshes overlap translucently (PR 9's measurements).
 - Post effects: bloom, tone mapping, SMAA, TAA, FSR 1 and all temporal methods. `post_aa fxaa` and
   `upscaler bilinear` with a render scale below 1 are wired (Bevy's `Fxaa` and `MainPassResolutionOverride`)
   but not measured.
 - Ray tracing and DLSS, which need PR 11 and 12.
-- No hitch measurement for tile streaming, and no DX12 or NVIDIA numbers.
+- No hitch measurement for tile streaming, and the frame-time/CPU/memory table above is still Iris Xe
+  only; PR 9 was functionally verified (testkit parity, a driving screenshot, the main menu) on an NVIDIA
+  RTX 4070 SUPER over Vulkan, but the benchmark was not repeated there, and DX12 remains untested.
 - `Camera.camera_cut` is ignored (nothing temporal exists yet).
 
 ## Plan section 11 items this spike settled
 
 - **Raw wgpu `CommandEncoder` access from `Core3d` systems:** yes. A system takes `RenderContext` and calls
-  `command_encoder()` (a plain wgpu encoder) or `begin_tracked_render_pass`; per-view data comes from
-  `ViewQuery`. Bevy's own `main_transparent_pass_3d` and the readback copy do exactly this. Not yet exercised by
-  this crate.
+  `command_encoder()` (a plain wgpu encoder); per-view data comes from `ViewQuery`. Bevy's own
+  `main_transparent_pass_3d` does exactly this, and `Core3d` turned out to be an ECS schedule, not a
+  render-graph node system (see "PR 9"); the effect layer's two systems (`systems/effects.rs`) are
+  built the same way, manually `begin_render_pass`-ing a raw `wgpu::RenderPass` since
+  `blackbox_gpu_passes::Effects` takes one, not Bevy's tracked wrapper.
 - **`ViewDepthTexture` sampleability:** `Camera3d::depth_texture_usages` takes a `TextureUsages`, so
-  `TEXTURE_BINDING` can be requested on the camera. Read from the source; not exercised.
+  `TEXTURE_BINDING` can be requested on the camera; set in `apply/camera.rs`'s camera bundle for the
+  soft-particle pass. **Not exercised by a test**: the testkit's `effects` scene never sets
+  `detailed_particles`, and that scene's digests are pinned for the native renderer (changing it needs
+  regenerating those on the recorded hardware, which this session doesn't have) — a gap for the next PR
+  that actually turns detailed particles on (`smoke-quality high`).
 - **MSRV:** `cargo +1.95.0 check -p nfsmw --features renderer-bevy` **fails**: Bevy 0.20's WESL stack (`wesl`,
   `wesl-core`, `wesl-macros`, `wgsl-parse`, `wgsl-types` 0.6) requires rustc 1.97.1. The default build
   (`cargo +1.95.0 check -p nfsmw`) still passes. So only `blackbox-bevy-render` declares

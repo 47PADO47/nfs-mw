@@ -11,7 +11,8 @@ use bevy_app::{App, Plugin, PostUpdate};
 use bevy_asset::{AssetEventSystems, AssetPlugin};
 use bevy_camera::CameraPlugin;
 use bevy_camera::visibility::VisibilitySystems;
-use bevy_core_pipeline::CorePipelinePlugin;
+use bevy_core_pipeline::upscaling::upscaling;
+use bevy_core_pipeline::{Core3d, Core3dSystems, CorePipelinePlugin};
 use bevy_diagnostic::FrameCountPlugin;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Res, SystemParam};
@@ -19,9 +20,9 @@ use bevy_image::ImagePlugin;
 use bevy_light::LightPlugin;
 use bevy_mesh::MeshPlugin;
 use bevy_pbr::{MaterialPlugin, PbrPlugin};
-use bevy_render::RenderPlugin;
 use bevy_render::renderer::{RenderAdapterInfo, RenderDevice};
 use bevy_render::settings::{RenderCreation, WgpuSettings};
+use bevy_render::{ExtractSchedule, RenderApp, RenderPlugin};
 use blackbox_gfx::{BackendInfo, GraphicsApi};
 
 use crate::apply::{self, WorldState};
@@ -29,6 +30,8 @@ use crate::facade::BevyBackend;
 use crate::material::BlackboxMaterial;
 use crate::ops::BlackboxBridge;
 use crate::probe::{api_of, backends_for};
+use crate::systems::effects::{self, EffectsRender};
+use crate::systems::ui::{self, UiRender};
 
 /// Adds the Black Box renderer to an `App` that already has the task pool, time and window plugins.
 #[derive(Debug, Clone, Copy)]
@@ -37,11 +40,14 @@ pub struct BlackboxBevyRenderPlugin {
     pub api: GraphicsApi,
     /// Use the API's software adapter (lavapipe, WARP), for CI and tests.
     pub force_fallback_adapter: bool,
+    /// Wait for pipeline compilation instead of skipping draws. Needed for reproducible captures and
+    /// tests; the live window sets it false so steady-state frames never block on compilation.
+    pub synchronous_pipeline_compilation: bool,
 }
 
 impl Default for BlackboxBevyRenderPlugin {
     fn default() -> Self {
-        Self { api: GraphicsApi::Auto, force_fallback_adapter: false }
+        Self { api: GraphicsApi::Auto, force_fallback_adapter: false, synchronous_pipeline_compilation: true }
     }
 }
 
@@ -60,8 +66,7 @@ impl Plugin for BlackboxBevyRenderPlugin {
             AssetPlugin::default(),
             RenderPlugin {
                 render_creation: RenderCreation::Automatic(Box::new(settings)),
-                // Frames must be reproducible (screenshots, tests): wait for pipelines instead of skipping draws.
-                synchronous_pipeline_compilation: true,
+                synchronous_pipeline_compilation: self.synchronous_pipeline_compilation,
                 ..RenderPlugin::default()
             },
             ImagePlugin::default(),
@@ -84,6 +89,26 @@ impl Plugin for BlackboxBevyRenderPlugin {
                 .before(VisibilitySystems::VisibilityPropagate)
                 .before(VisibilitySystems::CheckVisibility),
         );
+
+        // The render world's own copy of the bridge: the same `Arc`, so effects and the UI layer are
+        // read straight from the facade's queue with no extra frame of latency from Bevy's extract step.
+        let bridge = app.world().resource::<BlackboxBridge>().clone();
+        let Some(render_app) = app.get_sub_app_mut(RenderApp) else { return };
+        render_app
+            .insert_resource(bridge)
+            .init_resource::<EffectsRender>()
+            .init_resource::<UiRender>()
+            .init_resource::<effects::ExtractedWorld>()
+            .add_systems(ExtractSchedule, effects::extract_world)
+            .add_systems(
+                Core3d,
+                (
+                    (effects::effects_main_pass, effects::effects_soft_pass)
+                        .chain()
+                        .in_set(Core3dSystems::EarlyPostProcess),
+                    ui::ui_pass.after(upscaling),
+                ),
+            );
     }
 }
 

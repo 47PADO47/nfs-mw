@@ -10,16 +10,39 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use bevy_ecs::resource::Resource;
 use bevy_image::Image;
-use blackbox_gfx::{CaptureId, FrameParams, Instance, MeshHandle, RenderError, RgbaImage, TextureHandle};
+use blackbox_gfx::{
+    CaptureId, EffectLayer, FrameParams, GlossyMaterialHandle, Instance, MeshHandle, RenderError, RgbaImage,
+    TextureHandle, UiLayer, UiTextureId,
+};
 
+use crate::material::{GlossyUniform, RigUniform};
 use crate::mesh::RangeData;
 
 /// One resource change, applied in the order it was made.
 pub enum Op {
-    AddTexture { handle: TextureHandle, image: Box<Image> },
+    AddTexture {
+        handle: TextureHandle,
+        image: Box<Image>,
+    },
     RemoveTexture(TextureHandle),
-    AddMesh { handle: MeshHandle, ranges: Vec<RangeData> },
+    /// Draw `to` wherever `from` is used, or stop redirecting `from` when `to` is `None`.
+    SetRedirect {
+        from: TextureHandle,
+        to: Option<TextureHandle>,
+    },
+    AddMesh {
+        handle: MeshHandle,
+        ranges: Vec<RangeData>,
+    },
     RemoveMesh(MeshHandle),
+    AddGlossyMaterial {
+        handle: GlossyMaterialHandle,
+        params: GlossyUniform,
+    },
+    RemoveGlossyMaterial(GlossyMaterialHandle),
+    SetLightingRig(RigUniform),
+    /// The new environment cube map, built on the calling thread.
+    SetEnvironment(Box<Image>),
 }
 
 /// Everything one frame is drawn from.
@@ -34,6 +57,22 @@ pub struct CaptureRequest {
     pub id: CaptureId,
     pub size: [u32; 2],
     pub data: FrameData,
+}
+
+/// A UI texture change, queued for the render world to apply (it owns the pixel data; native's
+/// `UiTexturePatch` borrows it, which cannot cross the facade/render-world boundary).
+pub enum UiOp {
+    Update { id: UiTextureId, offset: Option<[u32; 2]>, size: [u32; 2], rgba: Vec<u8> },
+    Free(UiTextureId),
+}
+
+/// Capacities the render world's effects pipeline reports once it exists, for `stats()`. Fixed at
+/// construction, like native's.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct EffectCapacities {
+    pub surfaces: usize,
+    pub particles: usize,
+    pub streaks: usize,
 }
 
 /// Settings the facade passes on to the cameras.
@@ -53,7 +92,9 @@ impl Default for CameraSettings {
     }
 }
 
-/// The queue's contents.
+/// The queue's contents. Shared by both worlds: the facade (main world) writes to it, and the render
+/// world's Core 3D systems (given the same `Arc` directly, not through Bevy's extract step, so there is
+/// no extra frame of latency) read and drain it.
 #[derive(Default)]
 pub struct Shared {
     pub ops: Vec<Op>,
@@ -65,6 +106,14 @@ pub struct Shared {
     pub settings: CameraSettings,
     /// The surface size the facade was last told about (windows follow Bevy's own size).
     pub surface: [u32; 2],
+    /// The latest effect layer, drawn every frame until replaced again.
+    pub effects: EffectLayer,
+    /// UI texture changes, drained by the render world in the order they were made.
+    pub ui_ops: Vec<UiOp>,
+    /// The latest UI layer, drawn every frame until replaced again.
+    pub ui_layer: UiLayer,
+    /// Set once the render world's effects pipeline exists, for `stats()`.
+    pub effect_capacities: Option<EffectCapacities>,
 }
 
 /// The main-world end of the queue; the facade holds a clone of the same `Arc`.

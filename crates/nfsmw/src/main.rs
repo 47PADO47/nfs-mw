@@ -19,5 +19,7 @@ use clap::Parser;
 
 fn main() -> anyhow::Result<()> {
     devtools::install_logging();
+    #[cfg(feature = "trace")]
+    blackbox_bevy_render::init_tracing();
     commands::run(cli::Cli::parse())
 }
