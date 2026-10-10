@@ -34,9 +34,14 @@ pub use probe::{Probe, ProbeError, Vendor, probe, probe_with};
 
 /// Install a Tracy `tracing` subscriber so Bevy's per-system spans (enabled by the `trace` feature) are
 /// recorded. Call once at startup, before the app runs, and attach the Tracy client to read them.
+///
+/// This sets only the `tracing` dispatcher, not a `log` bridge: `env_logger` already owns the global `log`
+/// logger, so `SubscriberInitExt::init`/`try_init` would fail trying to install a second one.
 #[cfg(feature = "trace")]
 pub fn init_tracing() {
     use tracing_subscriber::layer::SubscriberExt;
-    use tracing_subscriber::util::SubscriberInitExt;
-    tracing_subscriber::registry().with(tracing_tracy::TracyLayer::default()).init();
+    let subscriber = tracing_subscriber::registry().with(tracing_tracy::TracyLayer::default());
+    if let Err(err) = tracing::subscriber::set_global_default(subscriber) {
+        log::warn!("Tracy tracing subscriber not installed: {err}");
+    }
 }
