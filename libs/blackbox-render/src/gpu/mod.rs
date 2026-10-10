@@ -19,15 +19,9 @@ mod pipelines;
 mod post;
 mod resources;
 mod slots;
-#[cfg(test)]
-mod soft_particle_tests;
-mod soft_particles;
-#[cfg(test)]
-mod streak_tests;
 mod targets;
 #[cfg(test)]
 mod test_support;
-mod textured_effects;
 mod textures;
 mod ui;
 mod upscale;

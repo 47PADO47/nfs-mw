@@ -1,6 +1,6 @@
 //! The tone-mapping pass: exposure, then a filmic curve (`shaders/tonemap.wgsl`).
 
-use super::filter::{Blend, Draw, Filter, Params, TONEMAP_WGSL};
+use super::filter::{Blend, Draw, Filter, Params, tonemap_wgsl};
 use super::{PassContext, PassIo, PostPass};
 use crate::PostSettings;
 
@@ -23,7 +23,7 @@ pub(super) struct TonemapPass {
 
 impl TonemapPass {
     pub(super) fn new(device: &wgpu::Device, settings: &PostSettings) -> Self {
-        Self { filter: Filter::new(device, "tonemap", TONEMAP_WGSL), params: params(settings) }
+        Self { filter: Filter::new(device, "tonemap", &tonemap_wgsl()), params: params(settings) }
     }
 }
 

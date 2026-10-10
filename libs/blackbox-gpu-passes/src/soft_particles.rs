@@ -1,10 +1,13 @@
 //! Depth-aware procedural particles. Algorithm spec: docs/specs/high-quality-smoke.md.
+//!
+//! The pass samples the completed opaque scene depth (reverse-Z) to fade a particle where it meets
+//! geometry, so the depth image must not be attached to the pass that draws the particles.
 
 use std::collections::HashMap;
 
-use super::targets::write_mask;
-use super::{effects::ATTRIBUTES, resources::Shared};
-use crate::{DEFAULT_SOFT_DISTANCE, EffectVertex};
+use blackbox_gfx::{DEFAULT_SOFT_DISTANCE, EffectVertex};
+
+use crate::world::{EFFECT_VERTEX_ATTRIBUTES, WorldBindings, write_mask};
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -13,7 +16,10 @@ struct Parameters {
     fade: [f32; 4],
 }
 
-pub(super) struct SoftParticles {
+/// The soft-particle pipeline and its depth binding. Call [`Self::prepare`] with the scene depth, then
+/// [`Self::bind`] inside a render pass that targets the colour image, set the particle vertex buffer
+/// (`EffectVertex` layout) and draw.
+pub struct SoftParticles {
     shader: wgpu::ShaderModule,
     pipeline_layout: wgpu::PipelineLayout,
     /// Per target format, built the first time the particles are drawn into it.
@@ -25,7 +31,7 @@ pub(super) struct SoftParticles {
 }
 
 impl SoftParticles {
-    pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat, shared: &Shared) -> Self {
+    pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat, bindings: &WorldBindings) -> Self {
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("soft particle depth"),
             entries: &[
@@ -59,12 +65,12 @@ impl SoftParticles {
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("soft particles"),
-            bind_group_layouts: &[Some(&shared.globals_layout), Some(&layout)],
+            bind_group_layouts: &[Some(&bindings.globals_layout), Some(&layout)],
             immediate_size: 0,
         });
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("procedural soft particles"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/soft_particles.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/soft_particles.wgsl").into()),
         });
         let mut soft =
             Self { shader, pipeline_layout, pipelines: HashMap::new(), format, layout, parameters, binding: None };
@@ -88,7 +94,7 @@ impl SoftParticles {
                 buffers: &[Some(wgpu::VertexBufferLayout {
                     array_stride: std::mem::size_of::<EffectVertex>() as u64,
                     step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &ATTRIBUTES,
+                    attributes: &EFFECT_VERTEX_ATTRIBUTES,
                 })],
             },
             primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
@@ -110,6 +116,8 @@ impl SoftParticles {
         self.pipelines.insert(format, pipeline);
     }
 
+    /// Upload the fade distance and the inverse view-projection, and bind `depth` (the scene's reverse-Z
+    /// depth view, sampleable). `distance` is in world units; a non-finite value falls back to the default.
     pub fn prepare(
         &mut self,
         device: &wgpu::Device,
@@ -135,11 +143,13 @@ impl SoftParticles {
         self.binding = Some((depth.clone(), binding));
     }
 
-    pub fn bind(&self, pass: &mut wgpu::RenderPass<'_>, shared: &Shared) {
+    /// Set the pipeline and bind groups 0 (`globals`, the group of [`WorldBindings`]) and 1 (the depth).
+    /// Panics if [`Self::prepare`] has not run.
+    pub fn bind(&self, pass: &mut wgpu::RenderPass<'_>, globals: &wgpu::BindGroup) {
         if let Some(pipeline) = self.pipelines.get(&self.format) {
             pass.set_pipeline(pipeline);
         }
-        pass.set_bind_group(0, &shared.globals_bind_group, &[]);
+        pass.set_bind_group(0, globals, &[]);
         pass.set_bind_group(1, &self.binding.as_ref().expect("prepared soft particle depth").1, &[]);
     }
 }

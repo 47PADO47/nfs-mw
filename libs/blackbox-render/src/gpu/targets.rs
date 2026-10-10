@@ -3,8 +3,7 @@
 
 use super::resources::create_depth;
 
-/// The preferred HDR colour format of the offscreen scene image.
-pub(super) const HDR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
+pub(super) use blackbox_gpu_passes::{HDR_FORMAT, write_mask};
 
 /// The format an HDR scene is drawn in: [`HDR_FORMAT`] when the adapter can render to it, blend into
 /// it and sample it with a filtering sampler, otherwise the surface's own `fallback` format (the
@@ -146,16 +145,6 @@ impl SceneTargets {
     }
 }
 
-/// Which channels the scene pipelines write into `format`. The offscreen HDR image keeps the alpha
-/// the scene blends (the old behaviour); any other target is cleared to alpha 1 and keeps it, so a
-/// scene drawn straight into the surface is opaque whatever the compositor's alpha mode.
-pub(super) fn write_mask(format: wgpu::TextureFormat) -> wgpu::ColorWrites {
-    match format == HDR_FORMAT {
-        true => wgpu::ColorWrites::ALL,
-        false => wgpu::ColorWrites::COLOR,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -204,11 +193,5 @@ mod tests {
     fn an_srgb_surface_never_takes_the_fast_path_or_the_8_bit_image() {
         let plan = plan_scene(&SceneInputs { surface_format: SRGB, ..inputs() });
         assert_eq!(plan, ScenePlan { direct: false, format: HDR_FORMAT, size: (1280, 720) });
-    }
-
-    #[test]
-    fn the_hdr_image_keeps_alpha_and_other_targets_stay_opaque() {
-        assert_eq!(write_mask(HDR_FORMAT), wgpu::ColorWrites::ALL);
-        assert_eq!(write_mask(BGRA), wgpu::ColorWrites::COLOR);
     }
 }

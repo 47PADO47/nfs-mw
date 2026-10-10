@@ -3,8 +3,7 @@
 The Rust rewrite reads every asset from the user's own install at runtime and ships no game data. This
 page covers how the workspace is split, how the install is found, how the city streams, the graphics
 backends, multi-platform support and testing. The structure follows
-[vladtrc/iw4L](https://github.com/vladtrc/iw4L) ([research.md § 8](research.md#8-reference-projects-for-the-rust-rewrite)),
-scaled down.
+[vladtrc/iw4L](https://github.com/vladtrc/iw4L) ([research.md § 8](research.md#8-reference-projects-for-the-rust-rewrite)), scaled down.
 
 ## Two halves: `libs/` and `crates/`
 
@@ -40,6 +39,7 @@ scaled down.
 | [`blackbox-vehicle`](../libs/blackbox-vehicle) | Deterministic fixed-step vehicle physics: rigid body, engine and gearbox, suspension, tires, steering, aero; driven by plain parameter structs and a `Ground` ray-cast trait | — (parameters passed by the caller) |
 | [`blackbox-gfx`](../libs/blackbox-gfx) | The renderer-neutral graphics interface: shared types, the `RenderBackend` trait, capabilities, graphics settings and the pure `resolve` | — |
 | [`blackbox-gfx-testkit`](../libs/blackbox-gfx-testkit) | Test support for any renderer: procedural scenes, image metrics and digests (no game data, no GPU API) | — |
+| [`blackbox-gpu-passes`](../libs/blackbox-gpu-passes) | Reusable wgpu passes (UI layer, world effects, soft particles, fullscreen filter, FSR 1) that any render loop can call with its own encoder | — |
 | [`blackbox-render`](../libs/blackbox-render) | Backend-neutral renderer (wgpu inside); implements the `blackbox-gfx` types and `RenderBackend`; headless mode | — |
 | [`blackbox-scene`](../libs/blackbox-scene) | Uploading solids and textures to the renderer; boxes; frustum culling | — |
 | [`game-install`](../libs/game-install) | Finding, validating and reading an install, case-insensitively | driven by a `GameSpec` |

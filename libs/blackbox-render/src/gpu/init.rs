@@ -117,8 +117,9 @@ fn assemble(output: Output, adapter: &wgpu::Adapter, device: wgpu::Device, queue
     let targets = targets::SceneTargets::new(&device, &plan);
     let post = post::PostChain::new(&device);
     let instances = instances::InstanceBuffer::new(&device);
-    let ui = super::ui::Ui::new(&device, format, &shared);
-    let effects = super::effects::Effects::new(&device, plan.format, &shared);
+    let mut ui = super::ui::Ui::new(&device);
+    ui.use_format(&device, format);
+    let effects = super::effects::Effects::new(&device, plan.format, &shared.bindings);
 
     let api = api_of(adapter_info.backend);
     let info = BackendInfo {

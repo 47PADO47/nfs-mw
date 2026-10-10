@@ -4,7 +4,7 @@
 |---|---|---|---|
 | Unit tests on synthetic bytes | `#[cfg(test)]` / `tests` modules in every crate | no | yes |
 | Real-install tests | [`crates/nfsmw-data/tests/real_install/`](../crates/nfsmw-data/tests/real_install) (`#[ignore]`) | yes | no |
-| GPU tests (renderer) | `#[ignore = "needs a GPU"]` in `blackbox-render`, scenes from [`blackbox-gfx-testkit`](../libs/blackbox-gfx-testkit) | no | no (optional job) |
+| GPU tests (renderer) | `#[ignore = "needs a GPU"]` in `blackbox-render`, scenes from [`blackbox-gfx-testkit`](../libs/blackbox-gfx-testkit); the passes' own in [`blackbox-gpu-passes`](../libs/blackbox-gpu-passes) | no | no (optional job) |
 | Leak + size checks | `cargo xtask check` | no | yes, first job |
 | Python tool tests | [`tests/`](../tests) | no | yes |
 
@@ -38,7 +38,10 @@ BLACKBOX_TEST_API=dx12 cargo test -p blackbox-render --lib -- --include-ignored 
 BLACKBOX_GPU_FALLBACK=1 cargo test -p blackbox-render --lib -- --include-ignored  # software adapter (lavapipe, WARP)
 ```
 
-They take turns on one lock, because creating Vulkan devices on parallel threads crashes some Mesa drivers.
+They take turns on one lock, because creating Vulkan devices on parallel threads crashes some Mesa drivers. The
+lock (`serial()`) lives in `blackbox-gpu-passes`' `test-support` feature, so the tests of both crates share it.
+The passes crate tests its UI, effect, soft particle, filter and FSR 1 passes against a plain wgpu device, with no
+renderer around them (`cargo test -p blackbox-gpu-passes -- --include-ignored`).
 
 - **Structure tests** (`gpu/parity/structure_tests.rs`) check facts that hold on any adapter: depth order out to
   9 km, fog, alpha-test cut-outs, blend order, clip rectangles, and that the UI is never post-processed.

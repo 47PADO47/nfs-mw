@@ -38,7 +38,7 @@ pre-commit hook and CI) and code review enforce rules 1 and 2. See [CONTRIBUTING
 
 NOTICE lists each project with the files that carry its notice: VaultLib (AttribSys), vgmstream and utkencode
 (EA audio codecs), and AMD's FidelityFX Super Resolution 1 (MIT), whose EASU and RCAS were rewritten in WGSL in
-`libs/blackbox-render/src/shaders/fsr1.wgsl` with AMD's and Michal Drobot's notices at the top of the shader.
+`libs/blackbox-gpu-passes/src/shaders/fsr1.wgsl` with AMD's and Michal Drobot's notices at the top of the shader.
 Upstream headers are read from the scratchpad only and never committed.
 
 ### Repositories with no license
