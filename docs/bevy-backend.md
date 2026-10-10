@@ -225,10 +225,10 @@ uses: it does its own fog and lighting in the shader, with shadows, prepass and 
 
 - **A `trace` cargo feature** on `blackbox-bevy-render`, forwarded by `nfsmw`'s own `trace` feature. It turns on
   the bevy render crates' `trace` feature (their per-system `tracing` spans) and installs a Tracy subscriber
-  (`blackbox_bevy_render::init_tracing`, called from `main` under the feature). Build
-  `cargo run --release -p nfsmw --features trace -- view-world --renderer bevy --drive --no-vsync` with the Tracy
-  client attached to get per-system times in extract/queue/prepare and confirm which systems eat the ~4.5 ms. This
-  replaces the earlier "no profiler available" gap; run it on the RTX machine, where the tax hurts most.
+  (`blackbox_bevy_render::init_tracing`, called from `main` under the feature). Run it with
+  `cargo xtask run trace` and the Tracy client attached to get per-system times in extract/queue/prepare and
+  confirm which systems eat the ~4.5 ms. The capture and analysis steps are in [profiling-bevy.md](profiling-bevy.md).
+  This replaces the earlier "no profiler available" gap; run it on the RTX machine, where the tax hurts most.
 - **Interactive pipeline compilation is now asynchronous.** `synchronous_pipeline_compilation` became a field on
   `BlackboxBevyRenderPlugin`: headless captures and tests keep it `true` (reproducible frames), but the live
   window sets it `false`, so steady-state frames never block on compilation (and new pipelines appearing mid-drive
