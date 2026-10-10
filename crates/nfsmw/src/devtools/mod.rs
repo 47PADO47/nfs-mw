@@ -3,6 +3,7 @@
 
 mod console;
 mod logbuf;
+mod logfile;
 mod metrics;
 mod overlay;
 mod readout;

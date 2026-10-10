@@ -1,4 +1,4 @@
-//! A copy of the log, for the console to show.
+//! A copy of the log, for the console to show. The same lines also go to the log file (see [`logfile`]).
 //!
 //! [`install`] replaces the plain `env_logger` with one that also keeps the last few hundred lines.
 //! Console command output goes through [`output`], into the same buffer.
@@ -7,6 +7,8 @@ use std::collections::VecDeque;
 use std::sync::{Mutex, OnceLock};
 
 use log::{Level, Log, Metadata, Record};
+
+use super::logfile;
 
 /// Lines kept.
 const CAPACITY: usize = 1000;
@@ -78,35 +80,65 @@ pub fn clear() {
     buffer().lines.clear();
 }
 
-/// `env_logger` plus the buffer.
-struct Tee(env_logger::Logger);
+/// `env_logger` on stderr, the same lines in the log file, plus the buffer.
+struct Tee {
+    stderr: env_logger::Logger,
+    file: Option<env_logger::Logger>,
+}
 
 impl Log for Tee {
     fn enabled(&self, metadata: &Metadata<'_>) -> bool {
-        self.0.enabled(metadata)
+        self.stderr.enabled(metadata) || self.file.as_ref().is_some_and(|file| file.enabled(metadata))
     }
 
     fn log(&self, record: &Record<'_>) {
         if self.enabled(record.metadata()) {
             push(Kind::Log(record.level()), format!("{}", record.args()));
         }
-        self.0.log(record);
+        self.stderr.log(record);
+        if let Some(file) = &self.file {
+            file.log(record);
+        }
     }
 
     fn flush(&self) {
-        self.0.flush();
+        self.stderr.flush();
+        if let Some(file) = &self.file {
+            file.flush();
+        }
     }
 }
 
-/// Set up logging: `env_logger`'s output (honouring `RUST_LOG`) plus the console's copy.
+const DEFAULT_FILTER: &str = "info,wgpu_core=warn,wgpu_hal=warn,naga=warn";
+
+/// An `env_logger` builder that honours `RUST_LOG`, so the file and stderr keep the same filter.
+fn env_builder() -> env_logger::Builder {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(DEFAULT_FILTER))
+}
+
+/// Set up logging: `env_logger`'s output (honouring `RUST_LOG`) on stderr, the same lines in the log file, plus the
+/// console's copy. A panic is logged too, so it is in the file as well as on stderr.
 pub fn install() {
-    let inner = env_logger::Builder::from_env(
-        env_logger::Env::default().default_filter_or("info,wgpu_core=warn,wgpu_hal=warn,naga=warn"),
-    )
-    .build();
-    log::set_max_level(inner.filter());
+    let stderr = env_builder().build();
+    let opened = logfile::open();
+    let log_path = opened.as_ref().map(|(path, _)| path.clone());
+    let file = opened.map(|(_, file)| {
+        env_builder()
+            .write_style(env_logger::WriteStyle::Never)
+            .target(env_logger::Target::Pipe(Box::new(file)))
+            .build()
+    });
+    log::set_max_level(stderr.filter());
     // Only fails if a logger is already set, which we do not want to override.
-    let _ = log::set_boxed_logger(Box::new(Tee(inner)));
+    let _ = log::set_boxed_logger(Box::new(Tee { stderr, file }));
+    if let Some(path) = log_path {
+        log::info!("log file: {}", path.display());
+    }
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        log::error!("{info}");
+        previous(info);
+    }));
 }
 
 #[cfg(test)]
