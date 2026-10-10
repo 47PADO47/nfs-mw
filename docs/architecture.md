@@ -2,8 +2,7 @@
 
 The Rust rewrite reads every asset from the user's own install at runtime and ships no game data. This
 page covers how the workspace is split, how the install is found, how the city streams, the graphics
-backends, multi-platform support and testing. The structure follows
-[vladtrc/iw4L](https://github.com/vladtrc/iw4L) ([research.md § 8](research.md#8-reference-projects-for-the-rust-rewrite)), scaled down.
+backends, multi-platform support and testing. The structure follows [vladtrc/iw4L](https://github.com/vladtrc/iw4L) ([research.md § 8](research.md#8-reference-projects-for-the-rust-rewrite)), scaled down.
 
 ## Two halves: `libs/` and `crates/`
 
