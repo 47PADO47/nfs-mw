@@ -91,6 +91,39 @@ net is positive, consider moving the merge to stream time to amortize it.
 
 Either sub-step lands as small commits with the parity tests kept green.
 
+## Step 2b scope (stream-time merge)
+
+Grounded in the pipeline (section parse on a worker thread → `Residency::upload_arrived` uploads meshes and
+builds `Vec<Placed>` → per-frame `visibility::collect` frustum-culls, runs `LodRules::choose`, emits one keyed
+`Instance` per visible object → `render`).
+
+- **Hook:** `Residency::upload_arrived` (`crates/nfsmw/src/scenes/world/residency.rs`), right after `upload_meshes`
+  + `place`, where the tile's raw geometry (`SectionData.solids`: vertices/indices/groups), the placements'
+  world transforms (`Placed.transform`), and the material lookup all coexist. The matching teardown already
+  exists in `unload_unwanted` → `SectionResources::release`. Mirror in `finish_shared` only if needed.
+  `SectionData` is dropped at the end of `upload_arrived`, so the merge must run there, not lazily.
+- **Merge key:** `(TextureHandle, BlendMode, Shading)` — the `DrawRange` fields. World scenery is `Prelit`/`Sky`
+  and opaque/alpha-test, so many groups across a tile share a key.
+- **What it does:** per tile, for candidate placements, transform each group's vertices into world space by the
+  placement transform and concatenate by material key into one merged `MeshDesc` (one `DrawRange` per key),
+  splitting at 65,535-vertex windows (`indices: &[u16]`, `base_vertex: i32`). The merged chunk meshes are emitted
+  as their own keyed instances; their source placements are **removed from the per-frame LOD/cull path** so
+  nothing is drawn twice.
+- **Candidate criteria (to keep LOD/culling where it matters):** only small, opaque/alpha-test, LOD-stable,
+  non-prop scenery, committing to one LOD slot at bake time. Exclude props (need per-object `hidden`), large
+  objects (want frustum culling and `None`/coarse-slot savings), and objects whose solid comes from the shared
+  sets (baking duplicates shared geometry per tile).
+- **Obstacles (from the pipeline map):** LOD freeze within a merged group; loss of per-object frustum culling
+  (merged chunk is one AABB); shared-mesh duplication; the u16 index window; and collapsed `InstanceKey`
+  identity (fine for native/immediate, changes temporal semantics for retained backends).
+
+### Increments
+
+1. Tile-level merge of opaque `Prelit`, non-prop, LOD-stable scenery at a fixed LOD, behind a flag; merged chunks
+   drawn, source placements suppressed; measure one zone with the batch-stats counters + screenshot parity + fps.
+2. Tune candidate criteria / add per-LOD-band merged meshes if the LOD freeze is visible.
+3. Extend to the shared sets if worthwhile.
+
 ## Step 3 — verify
 
 - Offscreen screenshot parity: `view-world ... --screenshot` on native and Bevy, compared with
