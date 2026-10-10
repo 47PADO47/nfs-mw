@@ -53,9 +53,10 @@ numbers.
 
 ## Step 2 — reduce the batches (gated on Step 1's numbers)
 
-**Ruled out by Step 1 (2026-10-10):** the city drive measured `draws=875 batches=531 meshes=531 materials=207`.
-`batches == meshes`, so the split is **mesh-driven** and **2a cannot help** — collapsing materials leaves the 531
-mesh-bound batches untouched. **2b is the path.**
+**Ruled out by Step 1 (2026-10-10):** over a full city drive (238 frame samples), `batches == meshes` on every
+single sample — draws 282–1576, batches/meshes 228–923, materials 114–296. The split is **mesh-driven**
+everywhere, so **2a cannot help**: even in the densest frame (843 batches) collapsing the ~240 materials leaves
+843 mesh-bound batches. **2b is the path.**
 
 **2a. Bindless material (if material-driven).** Bind all textures as a binding array and select per draw by an
 index, so the texture leaves `MaterialKey`. Materials collapse from ~hundreds to ~16 (`blend` × `shading`, plus a
@@ -87,8 +88,8 @@ Either sub-step lands as small commits with the parity tests kept green.
 ## Status
 
 - [x] Step 1 — batch counters (`apply/instances.rs`, `apply/state.rs`)
-- [x] Step 1 — numbers captured (RTX host, city drive): `draws=875 batches=531 meshes=531 materials=207
-  top_batch_sizes=[14, 14, 14]`. **Mesh-driven** (`batches == meshes`): bindless (2a) cannot reduce the 531
-  batches; the lever is static-mesh merging (2b).
+- [x] Step 1 — numbers captured (RTX host, full city drive, 238 samples): `batches == meshes` on every sample;
+  draws 282–1576, batches/meshes 228–923, materials 114–296. **Mesh-driven everywhere**: bindless (2a) cannot
+  reduce the mesh-bound batch count; the lever is static-mesh merging (2b).
 - [ ] Step 2b — merge static meshes that share a material
 - [ ] Step 3 — parity + fps verified
