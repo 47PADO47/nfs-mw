@@ -445,10 +445,12 @@ impl Scene for WorldScene {
     }
 
     fn hud_state(&self) -> Option<crate::hud::HudState> {
+        let hidden = Some(crate::hud::HudState { visible: false, ..Default::default() });
         if self.view == View::Fly {
-            return Some(crate::hud::HudState { visible: false, ..Default::default() });
+            return hidden;
         }
-        self.drive.as_ref()?.hud_state()
+        // No car yet (the world is still loading): hidden, not the idle HUD a viewer shows.
+        self.drive.as_ref().and_then(|drive| drive.hud_state()).or(hidden)
     }
 
     fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
