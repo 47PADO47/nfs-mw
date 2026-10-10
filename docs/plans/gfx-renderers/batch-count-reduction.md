@@ -64,9 +64,30 @@ few glossy). `probe` already reports a `binding_arrays` capability
 ([`probe.rs`](../../../libs/blackbox-bevy-render/src/probe.rs)); nothing uses it yet. Keep the current per-texture
 path as a fallback for adapters without binding arrays, selected from the probe.
 
-**2b. Static-mesh merging (if mesh-driven).** Merge static tiles that share a material into larger meshes so one
-batch covers many former draws. This is a bigger change touching how `AddMesh`/instances are built; scope it only
-if Step 1 shows mesh-driven splits dominate.
+**2b. Static-mesh merging (the path).** Step 1 showed the batch count equals the distinct visible-mesh count, so
+the fix is to draw fewer, larger meshes. Group the frame's *static* instances (keyed scenery with a stable
+transform — not transient or moving objects) by material `(texture, blend, shading, glossy)`, bake each source
+`DrawRange`'s vertices into world space, and concatenate them into one merged mesh per group: ~531 meshes →
+~207 per-material draws (and, combined later with bindless, a handful per blend/shading).
+
+Where it could live:
+
+- **In the backend** (`libs/blackbox-bevy-render`) — dynamic batching of the already-culled instance set the
+  scene hands over each frame. Self-contained, testable in isolation, no game-side change. Risk: it trades
+  Bevy's per-batch bind-group churn for per-rebuild vertex transforms and buffer uploads, so it must rebuild
+  only when the visible set changes (streaming pops tiles), not every frame, and be measured to confirm the
+  trade is net positive.
+- **At stream time** (`crates/nfsmw` + `libs/blackbox-scenery`) — merge static scenery into per-chunk meshes
+  when a tile loads, so the renderer just gets fewer, bigger meshes. Amortizes the merge over streaming and
+  keeps the backend simple, but touches the streaming/LOD path and must respect material and LOD boundaries.
+
+Either way: merging loses per-object culling/LOD within a group (merge at chunk granularity to bound this),
+makes vertex buffers larger, and the merge key must include everything that splits a pipeline. Verify with
+Step 3 and re-run the batch-stats counters to confirm the batch count actually drops.
+
+**Recommended first step:** a backend dynamic-batching prototype behind a flag, merging the visible static set
+per material and rebuilding on visible-set change, measured on one zone against the GPU-builder baseline. If the
+net is positive, consider moving the merge to stream time to amortize it.
 
 Either sub-step lands as small commits with the parity tests kept green.
 
