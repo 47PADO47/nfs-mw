@@ -8,7 +8,7 @@ and explicit resolutions remain available through config, CLI and the console.
 The application supports `windowed` (default), `borderless` (the monitor's desktop size) and
 `exclusive` (a video mode advertised by the selected monitor). This is a new application feature;
 it does not claim to reproduce the original game's window-management code. It uses the existing
-[Bevy window API](https://docs.rs/bevy_window/0.20.0-rc.2/bevy_window/enum.WindowMode.html) and
+[Bevy window API](https://docs.rs/bevy_window/0.20.0/bevy_window/enum.WindowMode.html) and
 [winit fullscreen support](https://docs.rs/winit/0.30.13/winit/window/struct.Window.html#method.set_fullscreen),
 both already permissive dependencies of this project.
 

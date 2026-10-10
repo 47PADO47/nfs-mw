@@ -190,7 +190,7 @@ A check for this: a headless test that renders a known reverse-Z scene and asser
 - **Licence handling:** `dlss` stays off by default and out of the default CI build; no NVIDIA binary or SDK
   enters the repository (the leak check refuses binaries). Releases that bundle `nvngx_dlss.dll` need the
   project owner to read the RTX SDKs LICENSE obligations first (credits attribution, notice to NVIDIA).
-- **Follow-up outside this ADR:** move the Bevy pin from `=0.20.0-rc.2` to the final `=0.20.0` and re-check
+- **Follow-up outside this ADR (done in the `build/bevy-0.20-final` PR; `rust-version` stays 1.95):** move the Bevy pin from `=0.20.0-rc.2` to the final `=0.20.0` and re-check
   `rust-version` (a chore, separate from graphics).
 
 ## Revisit trigger
