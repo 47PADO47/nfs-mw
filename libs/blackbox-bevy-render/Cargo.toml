@@ -39,7 +39,23 @@ glam.workspace = true
 log.workspace = true
 pollster.workspace = true
 thiserror.workspace = true
+tracing-subscriber = { version = "0.3", default-features = false, features = ["registry"], optional = true }
+tracing-tracy = { version = "0.11", optional = true }
 wgpu.workspace = true
+
+[features]
+# Tracy profiling: emit Bevy's per-system `tracing` spans and install a Tracy subscriber. Build via
+# nfsmw's `trace` feature and run with the Tracy client attached. See docs/bevy-backend.md.
+trace = [
+    "dep:tracing-subscriber",
+    "dep:tracing-tracy",
+    "bevy_app/trace",
+    "bevy_ecs/trace",
+    "bevy_render/trace",
+    "bevy_core_pipeline/trace",
+    "bevy_pbr/trace",
+    "bevy_asset/trace",
+]
 
 [dev-dependencies]
 # System names in Bevy's error messages.

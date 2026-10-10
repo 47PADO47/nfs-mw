@@ -55,6 +55,8 @@ toml.workspace = true
 # The optional Bevy renderer (docs/renderers.md, docs/bevy-backend.md). The default build never has it, so it
 # never compiles bevy_render.
 renderer-bevy = ["dep:blackbox-bevy-render"]
+# Tracy profiling of the Bevy renderer (docs/bevy-backend.md). Implies renderer-bevy.
+trace = ["renderer-bevy", "blackbox-bevy-render/trace"]
 
 [lints]
 workspace = true
