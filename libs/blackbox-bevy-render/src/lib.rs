@@ -20,6 +20,7 @@ pub mod plugin;
 pub mod probe;
 #[cfg(test)]
 mod stress_tests;
+pub mod systems;
 pub mod texture;
 
 pub use facade::BevyBackend;

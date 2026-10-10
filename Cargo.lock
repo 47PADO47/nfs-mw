@@ -1352,6 +1352,7 @@ dependencies = [
  "blackbox-gfx-testkit",
  "blackbox-gpu-passes",
  "blackbox-render",
+ "bytemuck",
  "glam 0.34.1",
  "log",
  "png",

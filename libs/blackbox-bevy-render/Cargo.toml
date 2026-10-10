@@ -11,6 +11,8 @@ publish.workspace = true
 
 [dependencies]
 blackbox-gfx.workspace = true
+# The world effect layer and the UI layer: the same passes the native renderer draws them with.
+blackbox-gpu-passes.workspace = true
 # The Bevy render crates are pinned in the workspace (docs/decisions/0004-swappable-renderers.md).
 bevy_anti_alias.workspace = true
 bevy_app.workspace = true
@@ -32,6 +34,7 @@ bevy_shader.workspace = true
 bevy_time.workspace = true
 bevy_transform.workspace = true
 bevy_window.workspace = true
+bytemuck.workspace = true
 glam.workspace = true
 log.workspace = true
 pollster.workspace = true

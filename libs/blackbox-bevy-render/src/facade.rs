@@ -1,7 +1,7 @@
 //! `BevyBackend`: the `RenderBackend` the game talks to.
 //!
-//! Handles are numbered here, at once; the work happens when [`crate::apply`] runs in the Bevy schedule. What
-//! this crate does not draw yet (the effect layer, the UI layer) is accepted and logged once.
+//! Handles are numbered here, at once; the work happens when [`crate::apply`] runs in the Bevy schedule, and
+//! when the render world's Core 3D systems read [`crate::ops::Shared`] directly (see `systems/`).
 
 use std::sync::{Arc, Mutex};
 
@@ -12,13 +12,11 @@ use blackbox_gfx::{
     scaled_size, suggested_texture_lod_bias,
 };
 
-use crate::ops::{CameraSettings, CaptureRequest, FrameData, Op, Shared, lock};
+use crate::ops::{CameraSettings, CaptureRequest, FrameData, Op, Shared, UiOp, lock};
 
 /// Log a missing feature once per kind, not once per frame.
 #[derive(Default)]
 struct Warned {
-    effects: bool,
-    ui: bool,
     environment: bool,
 }
 
@@ -176,26 +174,20 @@ impl RenderBackend for BevyBackend {
     }
 
     fn set_effects(&mut self, layer: &EffectLayer) {
-        let empty = layer.surfaces.is_empty()
-            && layer.particles.is_empty()
-            && layer.streaks.is_empty()
-            && layer.glows.is_empty()
-            && layer.textured.is_empty();
-        if !empty {
-            once(&mut self.warned.effects, "the effect layer");
-        }
+        lock(&self.shared).effects = layer.clone();
     }
 
-    fn update_ui_texture(&mut self, _patch: &UiTexturePatch<'_>) {
-        once(&mut self.warned.ui, "the UI layer");
+    fn update_ui_texture(&mut self, patch: &UiTexturePatch<'_>) {
+        let op = UiOp::Update { id: patch.id, offset: patch.offset, size: patch.size, rgba: patch.rgba.to_vec() };
+        lock(&self.shared).ui_ops.push(op);
     }
 
-    fn free_ui_texture(&mut self, _id: UiTextureId) {}
+    fn free_ui_texture(&mut self, id: UiTextureId) {
+        lock(&self.shared).ui_ops.push(UiOp::Free(id));
+    }
 
     fn set_ui_layer(&mut self, layer: UiLayer) {
-        if !layer.meshes.is_empty() {
-            once(&mut self.warned.ui, "the UI layer");
-        }
+        lock(&self.shared).ui_layer = layer;
     }
 
     fn render(&mut self, frame: &FrameParams, instances: &[Instance]) -> Result<FrameStatus, RenderError> {
@@ -224,6 +216,12 @@ impl RenderBackend for BevyBackend {
     }
 
     fn stats(&self) -> RenderStats {
-        RenderStats { meshes: self.meshes, textures: self.textures, effect_capacities: [0; 2], streak_capacity: 0 }
+        let capacities = lock(&self.shared).effect_capacities.unwrap_or_default();
+        RenderStats {
+            meshes: self.meshes,
+            textures: self.textures,
+            effect_capacities: [capacities.surfaces, capacities.particles],
+            streak_capacity: capacities.streaks,
+        }
     }
 }
