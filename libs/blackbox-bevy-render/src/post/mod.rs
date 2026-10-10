@@ -22,7 +22,7 @@ use bevy_anti_alias::smaa::Smaa;
 use bevy_camera::Hdr;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::system::Commands;
-use bevy_post_process::bloom::{Bloom, BloomPrefilter};
+use bevy_post_process::bloom::{Bloom, BloomCompositeMode, BloomPrefilter};
 use bevy_render::view::Tonemapping;
 use blackbox_gfx::{Antialiasing, PostSettings, Tonemap};
 
@@ -40,7 +40,13 @@ fn tonemapping(tonemap: Tonemap) -> Tonemapping {
 }
 
 /// `Bloom` when the intensity is above zero, built from [`PostSettings::bloom_intensity`] and
-/// [`PostSettings::bloom_threshold`] on top of Bevy's natural preset (energy-conserving compositing).
+/// [`PostSettings::bloom_threshold`].
+///
+/// Compositing is **additive**, like the native renderer's bloom: it adds the thresholded, blurred glow on
+/// top of the image. Bevy's `NATURAL` preset is energy-conserving, which lerps the base toward the
+/// (thresholded, mostly dark) bloom and so darkens the scene — going fully to black at high intensity, since
+/// the game's LDR content rarely exceeds the threshold and the bloom buffer is near-black. Additive keeps the
+/// base intact and only brightens; the blur/scatter characteristics still come from `NATURAL`.
 fn bloom(post: &PostSettings) -> Option<Bloom> {
     if post.bloom_intensity <= 0.0 {
         return None;
@@ -48,6 +54,7 @@ fn bloom(post: &PostSettings) -> Option<Bloom> {
     Some(Bloom {
         intensity: post.bloom_intensity,
         prefilter: BloomPrefilter { threshold: post.bloom_threshold, threshold_softness: BLOOM_THRESHOLD_SOFTNESS },
+        composite_mode: BloomCompositeMode::Additive,
         ..Bloom::NATURAL
     })
 }
@@ -91,5 +98,7 @@ mod tests {
             .expect("positive intensity blooms");
         assert_eq!(bloom.intensity, 0.5);
         assert_eq!(bloom.prefilter.threshold, 1.2);
+        // Additive, not energy-conserving: bloom brightens, it does not darken the scene.
+        assert_eq!(bloom.composite_mode, BloomCompositeMode::Additive);
     }
 }
