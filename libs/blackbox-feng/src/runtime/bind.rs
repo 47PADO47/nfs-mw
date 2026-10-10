@@ -145,6 +145,12 @@ impl Runtime {
         }
     }
 
+    /// The alpha (0..255) of the object as it is now, after the package's scripts have run.
+    pub fn alpha(&self, o: ObjectRef) -> Option<u8> {
+        let s = self.running(o.package)?.objects.get(o.index)?;
+        Some(s.data.alpha().clamp(0, 255) as u8)
+    }
+
     /// Sets the colour (red, green, blue) of the object.
     pub fn set_colour(&mut self, o: ObjectRef, rgb: [u8; 3]) {
         if let Some(s) = self.state_mut(o) {
