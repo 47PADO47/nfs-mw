@@ -200,8 +200,51 @@ ms CPU per frame; Bevy 92 fps, p50 12.6 ms, 8.0 ms CPU per frame. At 960x540 the
 per frame and per draw, not per pixel. In `apply()` itself the pool costs 0.055 ms per frame: the extra
 4.4 to 5.3 ms of CPU does not shrink with fewer objects, so it is a fixed per-frame cost of Bevy's schedules
 (extract, queue, prepare and the idle plugins `PbrPlugin` adds), not the instance pool and not the draws.
-Where exactly it goes is **not yet profiled** (no profiler was available here; Bevy's `trace_tracy` is the
-first thing to try in the next PR). Custom instancing would not remove it.
+Where exactly it goes is **not yet profiled** (no profiler was available on the spike machine); the `trace`
+feature and the plan below are the way in. Custom instancing would not remove it.
+
+### Investigating the fixed CPU cost
+
+A rougher data point from the owner's RTX-class PC (reported, **not** measured with the bench harness above):
+about 800 to 1,000 fps native against 240 to 380 fps on Bevy — a worse ratio than the Iris Xe's 1.45x. That is
+consistent with the tax being fixed: a constant ~4.5 ms added to native's ~1 to 1.3 ms/frame is a 3 to 4x
+slowdown, while the same ~4.5 ms added to the laptop's already-slow 6 to 7 ms/frame is only 1.45x. A bigger GPU
+makes the fixed CPU cost a larger fraction of the frame, not smaller.
+
+What the spike's own numbers already establish about where the cost is **not**: it is flat across entity count
+(100 vs 480 objects) and across resolution (960x540 vs 1920x1080). That rules out draws, pixels and per-entity
+extract/batch work — all of those shrink in the sparse scene or at the smaller target. A cost that stays put is
+**per-frame fixed schedule overhead**: Bevy running a large, fixed set of systems serially every frame (ECS is
+single-threaded here, and `multi_threaded` was tried and made it worse — see "Threads"), plus the fixed part of
+`ExtractSchedule`. The prime suspect is the forward-PBR machinery `PbrPlugin` schedules every frame (clustering,
+light probes, shadow/prepass prep, SSAO/SSR, volumetric fog, lightmaps, decals) — none of which `BlackboxMaterial`
+uses: it does its own fog and lighting in the shader, with shadows, prepass and deferred off.
+
+**Now wired to measure it (this PR):**
+
+- **A `trace` cargo feature** on `blackbox-bevy-render`, forwarded by `nfsmw`'s own `trace` feature. It turns on
+  the bevy render crates' `trace` feature (their per-system `tracing` spans) and installs a Tracy subscriber
+  (`blackbox_bevy_render::init_tracing`, called from `main` under the feature). Build
+  `cargo run --release -p nfsmw --features trace -- view-world --renderer bevy --drive --no-vsync` with the Tracy
+  client attached to get per-system times in extract/queue/prepare and confirm which systems eat the ~4.5 ms. This
+  replaces the earlier "no profiler available" gap; run it on the RTX machine, where the tax hurts most.
+- **Interactive pipeline compilation is now asynchronous.** `synchronous_pipeline_compilation` became a field on
+  `BlackboxBevyRenderPlugin`: headless captures and tests keep it `true` (reproducible frames), but the live
+  window sets it `false`, so steady-state frames never block on compilation (and new pipelines appearing mid-drive
+  no longer stall the frame). This is a correctness/hitch fix as much as a throughput one; it is not expected to
+  move the steady-state fixed cost, which is why the Tracy trace is the real next step.
+
+**Candidate fixes, once the trace attributes the cost (highest payoff first, not yet done):**
+
+- **A zero-tooling bisection** to attribute the cost without Tracy: re-run the CPU-time bench with `PbrPlugin` +
+  `MaterialPlugin` removed (clear-only camera) for the floor, then with `MaterialPlugin` but no `PbrPlugin`; the
+  gap is PbrPlugin's fixed tax, measured directly.
+- **Drop or decompose `PbrPlugin`** — the biggest lever. Strip the sub-features `BlackboxMaterial` never consumes,
+  or replace `MaterialPlugin` + `PbrPlugin` with a minimal mesh-draw pipeline on a render phase that skips
+  clustering and lighting entirely.
+- **Pipelined rendering** (the PR 11 question) to overlap frame N's render-world schedule with frame N+1's
+  main-world. It hides the tax rather than removing it, and is distinct from the `multi_threaded` ECS that already
+  regressed; worth measuring only if CPU is still the ceiling after the PbrPlugin work.
 
 Instance scaling (headless, 640x360, keyed static instances of one single-range mesh, so the best case for
 Bevy's batching, frame cost including GPU): 1,000 instances 1.5 ms, 10,000 4.2 ms, 40,000 15.2 ms (about 0.35 ms per
