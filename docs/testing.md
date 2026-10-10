@@ -65,3 +65,12 @@ python tools/split_digests.py /tmp/digests.txt
 
 To add a GPU family, add a variant to `Family` in `gpu/test_support.rs`, a directory under `digests/`, and run
 the generator on that GPU. Cross-backend comparisons use the testkit's metrics instead of digests (its README).
+
+## Bevy renderer tests
+
+`cargo test -p blackbox-bevy-render` runs the CPU tests. Its GPU tests (`-- --include-ignored --test-threads=1`, they take
+the same `serial()` lock) draw the strict testkit scenes headless on the Bevy renderer and compare them with the
+native one through `compare` against the plan's tolerances (max 4, mean 0.5, p99 2 of 255); they print the real
+numbers (`--nocapture`) and skip without an adapter. `BLACKBOX_GPU_FALLBACK=1` runs them on lavapipe; where the
+environment restricts Vulkan drivers (`VK_LOADER_DRIVERS_SELECT=*intel*`), also set it to `'*lvp*'`. Results and
+how to compare the real city: [bevy-backend.md](bevy-backend.md) (`cargo xtask img-diff`).

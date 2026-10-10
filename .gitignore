@@ -33,6 +33,7 @@
 !/libs/*/README.md
 !/libs/*/src/**/*.rs
 !/libs/*/src/**/*.wgsl
+!/libs/*/src/**/*.wesl
 !/libs/*/tests/**/*.rs
 !/crates/*/Cargo.toml
 !/crates/*/src/**/*.rs

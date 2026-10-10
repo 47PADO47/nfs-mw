@@ -6,9 +6,10 @@ Two things decide how the game is drawn, and they are separate settings:
   optional **Bevy** renderer (`bevy`).
 - **`backend`** is *which graphics API* the renderer uses: `auto`, `vulkan`, `dx12` or `gl`.
 
-The Bevy renderer is **not built yet**. The settings, menu rows and checks described here are in
-place so that configuration files, the console and the menus already work the same way for either
-renderer; today every build runs `blackbox`. The design is in
+The Bevy renderer is a **spike**: it draws the world (meshes, textures, fog, alpha test, blending, sky) and
+nothing else yet, and it only exists in builds made with `--features renderer-bevy`. The settings, menu rows
+and checks described here work the same way for either renderer. What it draws, how it was measured and what
+is missing: [bevy-backend.md](bevy-backend.md). The design is in
 [the plan](plans/gfx-renderers/README.md) and [ADR 0004](decisions/0004-swappable-renderers.md).
 
 Everything defaults to what the game did before these settings existed: `blackbox`, every effect
@@ -26,8 +27,9 @@ row at the bottom of the Video options (in the main menu and the pause menu). Th
 after a restart**; the console and the menu say so.
 
 If you ask for `bevy` and this build does not have it (it needs the `renderer-bevy` cargo feature, which
-no build has yet), the game logs why and starts `blackbox` instead. It never fails to start because of
-the setting. The same goes for a PC the Bevy renderer cannot run on, once it exists.
+is off by default), or this PC has no usable Vulkan or Direct3D 12 adapter (the Bevy renderer has no
+OpenGL), the game logs why and starts `blackbox` instead. It never fails to start because of the
+setting.
 
 ## What each renderer can do
 

@@ -73,7 +73,8 @@ fn the_renderer_key_says_when_it_applies_and_when_the_build_cannot_run_it() {
     let mut host = host(&settings, test_caps::native());
     let text = set(&mut settings, &mut host, "renderer bevy").unwrap();
     assert!(text.starts_with("renderer = bevy (applies after restart)"), "{text}");
-    assert!(text.contains("this build has no bevy renderer"), "{text}");
+    // The note exists exactly in builds without the renderer-bevy feature.
+    assert_eq!(text.contains("this build has no bevy renderer"), !cfg!(feature = "renderer-bevy"), "{text}");
     assert_eq!(
         set(&mut settings, &mut host, "renderer blackbox").unwrap(),
         "renderer = blackbox (applies after restart)"

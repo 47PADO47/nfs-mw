@@ -4,6 +4,7 @@
 //! file here ([`native`] is the Black Box renderer); swapping the renderer replaces that factory, not the game
 //! code (docs/decisions/0001-bevy.md, docs/decisions/0004-swappable-renderers.md).
 
+mod bevy;
 mod native;
 pub mod select;
 
@@ -14,17 +15,34 @@ use bevy_ecs::prelude::*;
 use bevy_time::Time;
 use bevy_window::{PrimaryWindow, RawHandleWrapper, Window};
 use bevy_winit::DisplayHandleWrapper;
+use blackbox_gfx::RenderBackend;
 
 use super::host::{ErrorSlot, Host};
 use super::screenshot;
 use crate::gui::UiOutput;
 use crate::input::{ActionState, MouseCapture};
 use crate::settings::{RendererKind, Settings};
+pub use bevy::{add_plugin as add_bevy_plugin, create as create_bevy_renderer};
 
 /// Longest step a scene is asked to advance by, so a stall does not throw the camera across the map.
 const MAX_STEP: f32 = 0.1;
 /// Frames a screenshot run lets the UI and the metrics settle for before capturing.
 const SCREENSHOT_SETTLE_FRAMES: u32 = 3;
+
+/// The renderer chosen at startup (the `renderer` setting after the build and probe checks). It cannot change
+/// while the app runs: switching renderer needs a restart.
+#[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ActiveRenderer(pub RendererKind);
+
+/// Run condition: the native renderer is the active one.
+pub fn using_blackbox(active: Res<ActiveRenderer>) -> bool {
+    active.0 == RendererKind::Blackbox
+}
+
+/// Run condition: the Bevy renderer is the active one.
+pub fn using_bevy(active: Res<ActiveRenderer>) -> bool {
+    active.0 == RendererKind::Bevy
+}
 
 /// Create the renderer as soon as the window has a native handle.
 #[allow(clippy::too_many_arguments)]
@@ -58,10 +76,17 @@ fn start(
     display: &DisplayHandleWrapper,
     settings: &Settings,
 ) -> anyhow::Result<()> {
-    let mut renderer = match select::choose(settings.renderer) {
-        RendererKind::Blackbox => native::create(raw, size, display, settings)?,
-        RendererKind::Bevy => anyhow::bail!("the bevy renderer is not part of this build"),
-    };
+    let renderer = native::create(raw, size, display, settings)?;
+    finish(host, renderer, size, settings)
+}
+
+/// What every renderer gets once it exists: the graphics settings, then the scene's resources.
+fn finish(
+    host: &mut Host,
+    mut renderer: Box<dyn RenderBackend>,
+    size: (u32, u32),
+    settings: &Settings,
+) -> anyhow::Result<()> {
     let info = renderer.info();
     log::info!("renderer: {} on {} (requested backend: {})", info.renderer, info.summary(), settings.backend);
     host.graphics.apply(renderer.as_mut(), settings);

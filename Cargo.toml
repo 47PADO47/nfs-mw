@@ -4,7 +4,37 @@ resolver = "3"
 #         No NFS:MW-specific code: they are meant to move to a shared utilities monorepo.
 # crates/ the NFS:MW game itself.
 members = ["libs/*", "crates/*", "xtask"]
-default-members = ["libs/*", "crates/*"]
+# Every lib except the optional Bevy renderer, so a plain `cargo build` at the root never compiles bevy_render
+# (`--workspace` and `-p blackbox-bevy-render` still reach it). Add new libs here.
+default-members = [
+    "libs/blackbox-aems",
+    "libs/blackbox-attrib",
+    "libs/blackbox-carparts",
+    "libs/blackbox-carsound",
+    "libs/blackbox-chunk",
+    "libs/blackbox-collision",
+    "libs/blackbox-feng",
+    "libs/blackbox-gfx",
+    "libs/blackbox-gfx-testkit",
+    "libs/blackbox-ginsu",
+    "libs/blackbox-gpu-passes",
+    "libs/blackbox-hash",
+    "libs/blackbox-minimap",
+    "libs/blackbox-mixmap",
+    "libs/blackbox-movie",
+    "libs/blackbox-render",
+    "libs/blackbox-scene",
+    "libs/blackbox-scenery",
+    "libs/blackbox-solid",
+    "libs/blackbox-streaming",
+    "libs/blackbox-text",
+    "libs/blackbox-tpk",
+    "libs/blackbox-vehicle",
+    "libs/ea-audio",
+    "libs/ea-compress",
+    "libs/game-install",
+    "crates/*",
+]
 
 [workspace.package]
 version = "0.1.0"
@@ -19,6 +49,7 @@ blackbox-aems = { path = "libs/blackbox-aems" }
 blackbox-attrib = { path = "libs/blackbox-attrib" }
 blackbox-carparts = { path = "libs/blackbox-carparts" }
 blackbox-carsound = { path = "libs/blackbox-carsound" }
+blackbox-bevy-render = { path = "libs/blackbox-bevy-render" }
 blackbox-chunk = { path = "libs/blackbox-chunk" }
 blackbox-collision = { path = "libs/blackbox-collision" }
 blackbox-feng = { path = "libs/blackbox-feng" }
@@ -46,10 +77,27 @@ game-install = { path = "libs/game-install" }
 nfsmw-data = { path = "crates/nfsmw-data" }
 
 # Third-party (see docs/rust-stack.md for why each was picked)
-# Bevy: the ECS shell only, no renderer (docs/decisions/0001-bevy.md). Pinned to the exact 0.20 release.
+# Bevy: the ECS shell (docs/decisions/0001-bevy.md), plus the render crates only blackbox-bevy-render uses
+# (docs/decisions/0004-swappable-renderers.md). Pinned to the exact 0.20 release.
 bevy_a11y = "=0.20.0"
+bevy_anti_alias = "=0.20.0"
 bevy_app = "=0.20.0"
+bevy_asset = "=0.20.0"
+bevy_camera = "=0.20.0"
+bevy_color = "=0.20.0"
+bevy_core_pipeline = "=0.20.0"
+bevy_diagnostic = "=0.20.0"
 bevy_ecs = "=0.20.0"
+bevy_image = "=0.20.0"
+bevy_light = "=0.20.0"
+bevy_material = "=0.20.0"
+bevy_math = "=0.20.0"
+bevy_mesh = "=0.20.0"
+bevy_pbr = "=0.20.0"
+bevy_reflect = "=0.20.0"
+bevy_render = "=0.20.0"
+bevy_shader = "=0.20.0"
+bevy_transform = "=0.20.0"
 bevy_gilrs = "=0.20.0"
 bevy_input = { version = "=0.20.0", features = ["serialize"] }
 bevy_time = "=0.20.0"

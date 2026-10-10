@@ -33,6 +33,7 @@ against the install at `D:/Need For Speed Most Wanted Black Edition`.
 | Doc | What it covers |
 |---|---|
 | [renderers.md](renderers.md) | The `renderer` setting (native Black Box or Bevy), what each can do, every graphics key with its CLI, environment and TOML names, restart rules, the `gfx` console command |
+| [bevy-backend.md](bevy-backend.md) | The optional Bevy renderer spike: how it fits the game's `App`, axes, colour, instancing, the measured results against the native renderer, known gaps |
 | [low-end.md](low-end.md) | Weak GPUs and laptops: what each graphics setting costs, the low, medium and high presets, a low-end config and how to read the performance overlay |
 | [post-processing.md](post-processing.md) | Optional tone mapping, bloom and anti-aliasing (FXAA; SMAA and TAA on the Bevy renderer): settings, menu rows, what each does and how to compare them |
 | [vehicle-effects.md](vehicle-effects.md) | Original PC sparks, experimental restored sparks and wind trails using base-game assets |

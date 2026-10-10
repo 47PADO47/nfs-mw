@@ -5,6 +5,7 @@
 //! The seam to the renderer is [`render`]: it is the only place that creates the renderer or draws, and
 //! `render/native.rs` is the only file that names the native `blackbox-render` crate.
 
+mod bench;
 mod cursor;
 mod graphics;
 mod host;
@@ -31,7 +32,7 @@ use bevy_gilrs::GilrsPlugin;
 use bevy_input::InputPlugin;
 use bevy_time::TimePlugin;
 use bevy_window::{Window, WindowPlugin, WindowResolution};
-use bevy_winit::WinitPlugin;
+use bevy_winit::{WinitPlugin, WinitSettings};
 
 use crate::devtools::DevToolsPlugin;
 use crate::gui::GuiPlugin;
@@ -83,6 +84,8 @@ pub struct RunOptions {
     pub audio: Option<game_install::GameDir>,
     /// Run the front end (menus, game flow) on top of the scene.
     pub frontend: Option<crate::frontend::FrontendPlugin>,
+    /// Measure frame times for this many seconds once the scene is loaded, print them and exit (`--bench-seconds`).
+    pub bench_seconds: Option<f32>,
 }
 
 /// Open a window and run `scene` until the user quits (or write the screenshot and exit).
@@ -99,6 +102,7 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
         hud_demo,
         audio,
         frontend,
+        bench_seconds,
     } = options;
     let plan = screenshot
         .clone()
@@ -113,6 +117,9 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
         window.resolution = WindowResolution::new(w, h).with_scale_factor_override(1.0);
     }
 
+    // The renderer is fixed here, before the App exists: a bevy request this build or PC cannot satisfy falls back
+    // to the native renderer, because Bevy panics when it finds no adapter once the app is built.
+    let renderer = render::select::choose(settings.renderer, settings.backend);
     let mut app = App::new();
     app.add_plugins((
         TaskPoolPlugin::default(),
@@ -127,10 +134,11 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
         DevToolsPlugin,
     ))
     .insert_resource(*settings)
+    .insert_resource(render::ActiveRenderer(renderer))
     .insert_resource(window::WindowModes::new(screenshot.is_some()))
     .insert_resource(Bindings::load(settings))
     .insert_resource(error.clone())
-    .insert_non_send(Host::new(scene, settings, plan))
+    .insert_non_send(Host::new(scene, settings, plan).with_bench(bench_seconds))
     .configure_sets(
         Update,
         (
@@ -146,7 +154,14 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
     )
     .add_systems(
         Update,
-        (window::shortcut, window::update, render::create_renderer, cursor::update, render::resize)
+        (
+            window::shortcut,
+            window::update,
+            render::create_renderer.run_if(render::using_blackbox),
+            render::create_bevy_renderer.run_if(render::using_bevy),
+            cursor::update,
+            render::resize,
+        )
             .chain()
             .in_set(FrameSet::Prepare),
     )
@@ -154,6 +169,13 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
     .add_systems(Update, graphics::apply.in_set(FrameSet::Draw).before(render::draw))
     .add_systems(Update, render::draw.in_set(FrameSet::Draw))
     .add_systems(Last, pacing::end_of_frame);
+    if bench_seconds.is_some() {
+        // An unfocused window would otherwise be updated at 60 Hz, and the numbers would be the cap's.
+        app.insert_resource(WinitSettings::continuous());
+    }
+    if renderer == crate::settings::RendererKind::Bevy {
+        render::add_bevy_plugin(&mut app, settings.backend);
+    }
     if let Some(dir) = hud {
         app.add_plugins(crate::hud::HudPlugin { dir, initial: hud_demo.unwrap_or_default() });
     }
