@@ -118,6 +118,10 @@ impl Scene for MovieScene {
         }
     }
 
+    fn hud_state(&self) -> Option<crate::hud::HudState> {
+        Some(crate::hud::HudState { visible: false, ..Default::default() })
+    }
+
     fn frame(&mut self, _aspect: f32) -> (FrameParams, &[Instance]) {
         let params = FrameParams {
             view_proj: Mat4::IDENTITY,
