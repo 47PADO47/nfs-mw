@@ -137,6 +137,12 @@ unsafe_code = "deny"
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
 
+[profile.dev]
+# Our own crates: the per-frame render bridge and scene systems are CPU work on every frame, so unoptimised code
+# shows up as frame time in dev builds. Level 1 keeps compiles quick. To step through code in a debugger, set
+# CARGO_PROFILE_DEV_OPT_LEVEL=0: optimised code skips breakpoints.
+opt-level = 1
+
 [profile.dev.package."*"]
 # Decompression and texture decoding are painfully slow unoptimised.
 opt-level = 2
