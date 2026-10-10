@@ -99,6 +99,74 @@ Known gap carried forward, not caught by this PR's own tests: the world effect l
 not HDR-aware, so their colours are wrong whenever bloom or tone mapping is on (their shared shaders only
 branch on sRGB-vs-not, not "linear HDR"); needs a third shader variant in `blackbox-gpu-passes`.
 
+## 3c. Fix: glossy materials had no default environment, so they reflected white
+
+Reported after PR 10 landed: running the real game with `--renderer bevy`, cars looked too shiny, a red
+car's paint read pink, and a BMW's chrome exhaust tips read white instead of grey. Two already-documented
+gaps looked like plausible causes; both were ruled out by reproducing the bug first, not by reasoning about
+it:
+
+- **Not PR 10's HDR/bloom gap.** The bug reproduces identically with `post_bloom`/`post_tonemap` both off
+  (confirmed against the user's own saved config, `%APPDATA%\nfsmw\config\config.toml`), so
+  `PostSettings::needs_hdr()` is false and no `Hdr` component is ever inserted; that gap cannot apply.
+- **Not "Colour"'s linear-vs-gamma blend gap.** Car paint, chrome and exhaust all draw
+  `BlendKind::Opaque` (`blend_mode()` in `libs/blackbox-scene/src/textures.rs`: a copy-mode texture with a
+  modulated alpha, which is what a specular/reflection mask is, draws opaque; confirmed by the shader's
+  own `OPAQUE_ALPHA` branch in `material/blackbox.wesl` writing alpha 1 unconditionally). That blend gap
+  only matters when two draws composite in hardware, so it cannot apply to a single opaque draw.
+- **What it actually was.** Sampling identical pixels directly (not just the aggregate `img-diff` stats)
+  on `nfsmw view-car FXXEVO --renderer {blackbox|bevy}` showed every channel brighter on Bevy, including
+  points with no specular highlight or fog involved — e.g. a shaded roof/glass pixel read `(46, 48, 53)`
+  natively and `(109, 109, 107)` on Bevy: brighter *and* pulled toward neutral on every channel, the
+  signature of a flat colour added everywhere, not a clipped highlight or a blend-order swap.
+
+**Root cause:** no caller in `crates/nfsmw` ever calls `RenderBackend::set_environment` — not `CarScene`,
+not `WorldScene`. Native papers over this: `Glossy::new()` (`libs/blackbox-render/src/gpu/glossy/mod.rs`)
+builds a procedural sky cube map from `SkyGradient::default()` the moment any glossy resource is first
+touched (`set_lighting_rig`, `create_glossy_material`, or an explicit `set_environment_*`), via its
+`ensure()` helper, so a caller that never sets one still gets a dim sky reflection for free.
+`BevyBackend::create_glossy_material` and `set_lighting_rig` had no equivalent, so
+`BlackboxMaterial::environment` stayed `None` forever in every real scene. Bevy's `AsBindGroup`
+substitutes its own fallback for a `None` texture binding; for a plain `Option<Handle<Image>>` field that
+fallback is `Image::default()` — an opaque *white* 1x1 cube, not native's dim sky. Every glossy surface's
+`env * (occlusion * env_strength * diff.a * 0.5)` term (`shade_glossy`, `material/blackbox.wesl`) added a
+flat white tint instead, since the glossy spike (PR 9) landed, not something PR 10 introduced. That
+explains all three symptoms: "too shiny" is a brightness floor under every highlight, the paint reading
+pink is white desaturating red, and the exhaust reading white is chrome/metal light materials having the
+highest `envmap_min`/`envmap_range` of any part.
+
+**The fix** (`libs/blackbox-bevy-render/src/facade.rs`): `BevyBackend::ensure_default_environment` mirrors
+native's `ensure()`, called from `create_glossy_material` and `set_lighting_rig`. The first call queues one
+`Op::SetEnvironment` from `Environment::Sky(SkyGradient::default())` and never a second; a caller's own,
+later `set_environment` is never clobbered, in either order, because `set_environment` marks the default
+"requested" itself. This is also why `glossy_spheres_match_native` never caught the bug: the testkit's own
+`glossy` scene (`libs/blackbox-gfx-testkit/src/scenes/glossy.rs`) calls `set_environment` itself before
+drawing, unlike any real scene. Four new facade tests (`facade.rs`, `mod tests`) pin the lazy default and
+its ordering against an explicit call; they need no GPU, since the facade only ever queues ops.
+
+**Verified**, same car and position, before/after, `cargo xtask img-diff` (1280x720, the user's own saved
+settings: glossy shading, bloom and tone mapping off):
+
+| Comparison | Before: mean / p99 / max | After: mean / p99 / max |
+|---|---|---|
+| `view-car FXXEVO`, native vs. bevy | 7.145 / 73 / 241 | 3.825 / 13 / 241 |
+| `view-car BMWM3GTR`, native vs. bevy | 6.412 / 58 / 241 | 3.914 / 14 / 242 |
+| Driving past FXXEVO at 2152,1399 (I7) | 8.257 / 109 / 255 | 4.248 / 61 / 255 |
+
+The sampled roof pixel above now reads `(53, 56, 62)` against native's `(46, 48, 53)` — a handful of
+levels, not a 60-level flat offset. The diff pictures afterwards show the car's own body panels as
+near-black (no difference); what remains is anti-aliased silhouette edges and, for the driving shot, the
+sky's own already-documented linear-vs-gamma tint and the windshield's blended glass (a separate sorting
+gap, see "Colour" and "Draw order" in `bevy-backend.md`) — not the car's paint or chrome.
+
+Every tolerance already recorded in `bevy-backend.md`'s "Results" and "PR 9" sections is unchanged by this
+fix, because none of those measurements could have exercised the bug: the testkit's `glossy` scene sets its
+own environment (`glossy_sphere` is still `max 1, mean 0.254, p99 1`, identical to the recorded PR 9
+numbers, and all 63 of `blackbox-bevy-render`'s tests — including every ignored GPU one — pass unchanged),
+and the "real city" flyover table never drives a car (no `--drive`) while the city's own traffic and
+scenery never request `Shading::Glossy` (`crates/nfsmw/src/scenes/world/resident.rs` only ever asks for
+`Prelit`/`Sky`), so neither table ever touched a glossy material in the first place.
+
 ## 4. Handoff: building the remaining PRs
 
 Start from the stack tip (`feat/gfx-bevy-spike`, or this docs branch which sits on it). Every commit must pass

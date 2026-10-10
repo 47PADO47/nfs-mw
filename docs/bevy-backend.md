@@ -297,7 +297,11 @@ through the facade's `apply()` queue:
   ports native's procedural sky generator (and the `Faces` case) byte for byte, so the cube map's six
   faces hold exactly what native's would. The glossy shader's reflection direction is computed in Bevy's
   axes, so it is converted back to the games' axes (`vec3(r.x, -r.z, r.y)`) only at the `textureSample`
-  call, in `material/blackbox.wesl` — the one place the mismatch actually matters.
+  call, in `material/blackbox.wesl` — the one place the mismatch actually matters. **Fixed after PR 10:**
+  no caller in `crates/nfsmw` ever calls `set_environment`, so a material's cube map stayed Bevy's opaque
+  white fallback instead of native's lazy default sky, making cars look too shiny and paint read pink,
+  worst on chrome. `BevyBackend::ensure_default_environment` (`facade.rs`) now mirrors native's lazy
+  default; see [status.md §3c](plans/gfx-renderers/status.md) for the investigation.
 - **A render target view that is sRGB needs its shaders to gamma-decode once.** The world material already
   did this (`linear_from_gamma`, "Colour" above); `blackbox-gpu-passes`' effect, textured-effect,
   soft-particle and UI shaders did not, because native always draws into a plain UNORM surface. Writing
