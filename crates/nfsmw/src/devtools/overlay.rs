@@ -7,11 +7,9 @@ use super::metrics::{HISTORY, Metrics, ShowMetrics};
 /// A frame time at which the graph tops out, in milliseconds (a 30 fps frame).
 const GRAPH_MAX_MS: f32 = 33.3;
 
-/// The metrics panel. With `engine_fps` the renderer shows the frame rate and graph itself, so this keeps only
-/// the counts and the adapter (and only at the advanced level).
-pub fn show(ctx: &egui::Context, level: ShowMetrics, m: &Metrics, engine_fps: bool) {
+pub fn show(ctx: &egui::Context, level: ShowMetrics, m: &Metrics) {
     readout(ctx, m);
-    if level == ShowMetrics::Off || (engine_fps && level != ShowMetrics::Advanced) {
+    if level == ShowMetrics::Off {
         return;
     }
     egui::Window::new("metrics")
@@ -22,18 +20,14 @@ pub fn show(ctx: &egui::Context, level: ShowMetrics, m: &Metrics, engine_fps: bo
         .anchor(Align2::LEFT_TOP, vec2(8.0, 8.0))
         .frame(Frame::window(&ctx.global_style()).fill(Color32::from_black_alpha(170)))
         .show(ctx, |ui| {
-            if !engine_fps {
-                let headline = format!("{:.0} fps  {:.1} ms", m.fps(), m.average_ms());
-                ui.label(RichText::new(headline).monospace().strong());
-            }
+            let headline = format!("{:.0} fps  {:.1} ms", m.fps(), m.average_ms());
+            ui.label(RichText::new(headline).monospace().strong());
             if level == ShowMetrics::Advanced {
-                if !engine_fps {
-                    ui.label(
-                        RichText::new(format!("1% low {:.0} fps  worst {:.1} ms", m.low_1pct_fps(), m.worst_ms()))
-                            .monospace(),
-                    );
-                    graph(ui, m);
-                }
+                ui.label(
+                    RichText::new(format!("1% low {:.0} fps  worst {:.1} ms", m.low_1pct_fps(), m.worst_ms()))
+                        .monospace(),
+                );
+                graph(ui, m);
                 ui.label(RichText::new(format!("{} meshes  {} textures", m.meshes, m.textures)).monospace());
                 if !m.adapter.is_empty() {
                     ui.label(RichText::new(&m.adapter).monospace().weak());

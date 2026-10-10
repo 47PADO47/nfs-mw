@@ -10,7 +10,6 @@ pub mod apply;
 pub mod axes;
 mod caps;
 pub mod facade;
-mod fps_overlay;
 pub mod harness;
 pub mod material;
 pub mod mesh;
@@ -28,7 +27,6 @@ pub mod systems;
 pub mod texture;
 
 pub use facade::BevyBackend;
-pub use fps_overlay::{BlackboxFpsOverlayPlugin, FpsOverlayConfig, FrameTimeGraphConfig};
 pub use harness::HeadlessBevy;
 pub use ops::BlackboxBridge;
 pub use plugin::{BackendFactory, BlackboxBevyRenderPlugin, backend};

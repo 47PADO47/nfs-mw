@@ -43,7 +43,6 @@ fn run_ui(
     time: Res<Time<Real>>,
     settings: Res<Settings>,
     metrics: Res<Metrics>,
-    active: Res<crate::app::ActiveRenderer>,
     mut console: ResMut<Console>,
     hud: Option<Res<crate::hud::HudState>>,
     radio: Option<Res<crate::hud::RadioHud>>,
@@ -70,9 +69,7 @@ fn run_ui(
             let screen = crate::ui::present::Screen { width, height, pixels_per_point: window.scale_factor() };
             crate::hud::show_radio(ctx, radio, screen, settings.hud_layout);
         }
-        // The Bevy renderer draws the frame rate itself (`FpsOverlayPlugin`), so the panel leaves it out there.
-        let engine_fps = active.0 == crate::settings::RendererKind::Bevy;
-        overlay::show(ctx, settings.show_metrics, &metrics, engine_fps);
+        overlay::show(ctx, settings.show_metrics, &metrics);
         console::show(ctx, &mut console);
     });
 }
