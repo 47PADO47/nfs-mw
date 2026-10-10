@@ -145,5 +145,15 @@ builds `Vec<Placed>` → per-frame `visibility::collect` frustum-culls, runs `Lo
 - [x] Step 1 — numbers captured (RTX host, full city drive, 238 samples): `batches == meshes` on every sample;
   draws 282–1576, batches/meshes 228–923, materials 114–296. **Mesh-driven everywhere**: bindless (2a) cannot
   reduce the mesh-bound batch count; the lever is static-mesh merging (2b).
-- [ ] Step 2b — merge static meshes that share a material
-- [ ] Step 3 — parity + fps verified
+- [x] Step 2b — prototyped (behind `NFSMW_MERGE_STATIC`) and **measured: low-upside, not pursued.** A city
+  drive merged only 107 of 8187 placements (1.3%); the batch count stayed at the baseline (avg ~639,
+  `batches == meshes`). The exclusions are structural, not tuning: `shared` dominates (and is correct to
+  exclude — shared-set models are already instanced into one batch, so baking them per tile would *add*
+  batches and duplicate geometry), while `radius`/`prop` protect per-object frustum culling on the large
+  unique structures. The mergeable set (small, tile-local, non-shared, non-prop) is ~1% of the scene. The
+  batch count is dominated by geometry that already batches well (shared, instanced) or must stay per-object
+  (large, culled), so it cannot be cut without hurting instancing or culling.
+- **Conclusion:** reducing batch count is a dead end for this content. The remaining levers attack the
+  per-frame bind-group *rebuild* cost directly: the CPU instance builder (sidesteps `gpu_preprocess`
+  entirely — the deferred CPU-builder investigation above) or caching the bind groups (a vendored `bevy_pbr`
+  patch). See docs/benchmarks/2026-10-10-bevy-vs-native.md "Next".
