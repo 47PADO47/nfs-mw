@@ -1,8 +1,8 @@
 //! Render scale and upscaler: from the settings to the renderer (docs/upscaling.md).
 
-use blackbox_render::{Renderer, Upscaler, suggested_texture_lod_bias};
+use blackbox_gfx::{GraphicsSettings, RenderBackend, Upscaler};
 
-use crate::settings::Settings;
+use crate::settings::{Settings, post_effects};
 
 /// The per-axis render scale the renderer is given: 1.0 while the upscaler is off, otherwise the setting.
 pub fn effective_scale(settings: &Settings) -> f32 {
@@ -17,14 +17,21 @@ pub fn differs(a: &Settings, b: &Settings) -> bool {
     (a.render_scale, a.upscaler, a.upscale_sharpness) != (b.render_scale, b.upscaler, b.upscale_sharpness)
 }
 
-/// Give the renderer the render scale, upscaler and sharpness of `settings`, and sharpen the world's textures
-/// to match the lower resolution.
-pub fn apply(renderer: &mut Renderer, settings: &Settings) {
-    let scale = effective_scale(settings);
-    renderer.set_upscaler(settings.upscaler.upscaler().unwrap_or(Upscaler::Bilinear));
-    renderer.set_upscale_sharpness(settings.upscale_sharpness.amplitude());
-    renderer.set_render_scale(scale);
-    renderer.set_texture_lod_bias(suggested_texture_lod_bias(scale));
+/// What the settings ask of the renderer: the post effects, the upscaler with its render scale and sharpness.
+pub fn graphics(settings: &Settings) -> GraphicsSettings {
+    GraphicsSettings {
+        post: post_effects(settings),
+        upscaler: settings.upscaler.upscaler().unwrap_or(Upscaler::Bilinear),
+        render_scale: effective_scale(settings),
+        upscale_sharpness: settings.upscale_sharpness.amplitude(),
+        ..GraphicsSettings::default()
+    }
+}
+
+/// Give the renderer the graphics settings. The renderer maps them onto what it can run, and sharpens the
+/// world's textures to match a lower resolution.
+pub fn apply(renderer: &mut dyn RenderBackend, settings: &Settings) {
+    renderer.apply_graphics(&graphics(settings));
 }
 
 #[cfg(test)]
@@ -42,6 +49,15 @@ mod tests {
         assert_eq!(effective_scale(&settings(50, UpscaleMode::Fsr1)), 0.5);
         assert_eq!(effective_scale(&settings(150, UpscaleMode::Bilinear)), 1.5);
         assert_eq!(effective_scale(&Settings::from(Partial::default())), 1.0);
+    }
+
+    #[test]
+    fn the_graphics_settings_carry_the_post_effects_and_the_upscaler() {
+        let asked = graphics(&settings(67, UpscaleMode::Fsr1));
+        assert_eq!((asked.upscaler, asked.render_scale), (Upscaler::Fsr1, 0.67));
+        assert!(asked.post.effects().is_empty());
+        let off = graphics(&settings(67, UpscaleMode::Off));
+        assert_eq!((off.upscaler, off.render_scale), (Upscaler::Bilinear, 1.0), "off draws at the output size");
     }
 
     #[test]

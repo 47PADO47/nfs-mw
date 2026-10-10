@@ -48,10 +48,7 @@ pub(super) fn build(cx: &mut Cx) -> Parts {
     cards.card(Vec3::new(0.0, 12.0, 0.0), 4.0, 4.0, -0.9, prelit([0.6, 0.9, 1.0], 1.0));
     let cards = cx.mesh("cards leaves", &cards.finish());
 
-    let instances = vec![
-        Instance { mesh: backdrop, transform: Mat4::IDENTITY },
-        Instance { mesh: cards, transform: Mat4::IDENTITY },
-    ];
+    let instances = vec![Instance::new(backdrop, Mat4::IDENTITY), Instance::new(cards, Mat4::IDENTITY)];
     let camera = Camera::new(Vec3::new(0.0, -3.0, 3.0), Vec3::new(0.0, 10.0, 2.5));
     Parts::world(camera.frame(cx.aspect, CLEAR, None), instances)
 }

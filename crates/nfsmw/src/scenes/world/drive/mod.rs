@@ -8,6 +8,7 @@ mod effect_feed;
 mod fall;
 mod ground;
 mod input;
+mod placement;
 mod rig;
 mod script;
 mod sim;
@@ -28,7 +29,7 @@ use super::space;
 use super::vehicle_effects::VehicleEffects;
 use crate::input::ActionState;
 use crate::settings::{Transmission, WheelOptions};
-use crate::viewer::camera::{ChaseCamera, Followed};
+use crate::viewer::camera::{CameraCut, ChaseCamera, Followed};
 use clock::FixedClock;
 pub use debug::{ContactMarkers, LEGEND as MARKER_LEGEND, MarkerMeshes};
 use fall::FallWatch;
@@ -83,6 +84,8 @@ pub struct Drive {
     /// What the car sound hears of the drive.
     sound: SoundFeed,
     chase: ChaseCamera,
+    /// The chase camera jumped to the car (it was placed on the road).
+    cut: CameraCut,
     script: Option<ScriptRun>,
     /// A screenshot run drove the script in batches: once it ends the car stays where it stopped.
     batch_run: bool,
@@ -133,6 +136,7 @@ impl Drive {
             telemetry: Telemetry::default(),
             sound: SoundFeed::default(),
             chase: ChaseCamera::default(),
+            cut: CameraCut::default(),
             script: script.map(|script| ScriptRun { script, time: 0.0 }),
             batch_run: false,
             steps: 0,
@@ -149,82 +153,6 @@ impl Drive {
     /// The map position residency should follow, if the car is not on the road yet.
     pub fn waiting_for_road(&self) -> Option<SpawnRequest> {
         self.request
-    }
-
-    /// Ask for the car to be put on the road nearest `near`, keeping `heading` if given.
-    pub fn respawn_near(&mut self, near: [f32; 2], heading: Option<f32>) {
-        self.reset_effects();
-        self.request = Some(SpawnRequest { near, heading, exact: None });
-    }
-
-    /// The last place the car was on a road.
-    pub fn last_good(&self) -> Option<Spawn> {
-        self.last_good
-    }
-
-    /// Put the car back where it last stood on a road, if it ever did.
-    pub fn restore_last_good(&mut self) -> bool {
-        let Some(good) = self.last_good else { return false };
-        self.reset_effects();
-        self.request =
-            Some(SpawnRequest { near: [good.position.x, good.position.y], heading: None, exact: Some(good) });
-        true
-    }
-
-    /// Give up waiting for a road (none was found).
-    pub fn cancel_request(&mut self) {
-        self.request = None;
-    }
-
-    /// Put the car on `spawn`, standing still. False when `ground` has no road there.
-    pub fn spawn(&mut self, spawn: Spawn, collision: &CollisionWorld, surfaces: &SurfaceTable) -> bool {
-        let ground = WorldGround { collision, surfaces };
-        let request = self.request.take();
-        let spawn = match request {
-            // Keep facing the way the car did: the road runs both ways.
-            Some(SpawnRequest { heading: Some(h), exact: None, .. }) if (spawn.heading - h).cos() < 0.0 => {
-                Spawn { heading: spawn.heading + std::f32::consts::PI, ..spawn }
-            }
-            _ => spawn,
-        };
-        let rest = self.rig.rest_heights();
-        let sim = self.sim.get_or_insert_with(|| CarSim::new(self.physics.clone(), rest));
-        sim.set_visual_tires(self.rig.visual_tires());
-        if !sim.place(&ground, spawn) {
-            return false;
-        }
-        let (pose, telemetry) = (sim.pose(), sim.telemetry());
-        self.reset_effects();
-        (self.previous, self.current) = (pose, pose);
-        self.telemetry = telemetry;
-        self.clock.reset();
-        self.chase.snap();
-        self.steps = 0;
-        self.fall.reset();
-        self.last_check = 0;
-        self.last_good = Some(spawn);
-        true
-    }
-
-    /// Swap the car model; the car is put back on the road where it stands.
-    pub fn set_car(
-        &mut self,
-        renderer: &mut blackbox_render::Renderer,
-        name: String,
-        rig: CarRig,
-        physics: CarPhysics,
-        visuals: nfsmw_data::vehicle_effects::VisualEffectsData,
-    ) {
-        std::mem::replace(&mut self.rig, rig).release(renderer);
-        self.vehicle_effects = VehicleEffects::new(visuals);
-        self.flames.unload();
-        self.physics = physics;
-        self.effects.clear();
-        self.car_name = name;
-        if self.sim.take().is_some() {
-            let at = self.current.position;
-            self.request = Some(SpawnRequest { near: [at.x, at.y], heading: Some(self.heading()), exact: None });
-        }
     }
 
     /// Heading of the car, radians from +X.
@@ -406,12 +334,12 @@ impl Drive {
     }
 
     /// Append the instances of the contact markers.
-    pub fn marker_instances(&self, meshes: &MarkerMeshes, out: &mut Vec<blackbox_render::Instance>) {
+    pub fn marker_instances(&self, meshes: &MarkerMeshes, out: &mut Vec<blackbox_gfx::Instance>) {
         self.markers.instances(meshes, out);
     }
 
     /// Append the car's instances.
-    pub fn instances(&self, out: &mut Vec<blackbox_render::Instance>) {
+    pub fn instances(&self, out: &mut Vec<blackbox_gfx::Instance>) {
         if self.sim.is_some() {
             self.rig.instances(&self.pose(), out);
         }

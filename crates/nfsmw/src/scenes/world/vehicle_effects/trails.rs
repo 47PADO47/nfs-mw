@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use blackbox_render::EffectVertex;
+use blackbox_gfx::EffectVertex;
 use glam::Vec3;
 use nfsmw_data::vehicle_effects::EmitterStyle;
 

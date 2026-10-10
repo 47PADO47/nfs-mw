@@ -1,11 +1,11 @@
 //! Upload world effects against the active camera, independent of UI/HUD rendering.
 
-use blackbox_render::{EffectLayer, Renderer};
+use blackbox_gfx::{EffectLayer, RenderBackend};
 
 use super::super::{View, WorldScene};
 
 impl WorldScene {
-    pub(in crate::scenes::world) fn upload_effects(&mut self, renderer: &mut Renderer) {
+    pub(in crate::scenes::world) fn upload_effects(&mut self, renderer: &mut dyn RenderBackend) {
         let Some(drive) = self.drive.as_mut() else {
             renderer.set_effects(&EffectLayer::default());
             return;

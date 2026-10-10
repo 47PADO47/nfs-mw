@@ -91,7 +91,7 @@ fn run(
             let renderer = host.renderer.as_mut().ok_or("the renderer is not ready")?;
             let args: Vec<&str> = args.iter().map(String::as_str).collect();
             host.scene
-                .command(renderer, &name, &args)
+                .command(renderer.as_mut(), &name, &args)
                 .unwrap_or_else(|| Err(format!("unknown command {name:?} (type help)")))
         }
     }
@@ -180,7 +180,7 @@ pub fn sync_settings(settings: Res<Settings>, mut host: NonSendMut<Host>, mut ap
     if crate::app::upscale::differs(&before, &settings)
         && let Some(renderer) = host.renderer.as_mut()
     {
-        crate::app::upscale::apply(renderer, &settings);
+        crate::app::upscale::apply(renderer.as_mut(), &settings);
     }
 }
 

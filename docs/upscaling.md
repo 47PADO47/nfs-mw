@@ -93,7 +93,7 @@ DLSS Super Resolution for after the milestone, as an optional, default-off Cargo
 | Output at the window size | Done: upscale passes write the output size (`Extent::Output`). |
 | Depth | Done: `Depth32Float` at the render size, reverse-Z (1 at the near plane, 0 far; no far plane), already bindable as a sampled texture. A reverse-depth flag is all the SDK needs. |
 | Mip bias | Done: `set_texture_lod_bias`; temporal upscalers use `log2(scale) - 1`. |
-| Projection jitter | Missing: `FrameParams::view_proj` is not jittered; needs a per-frame sub-pixel offset (a Halton sequence) in the projection and its value passed to the upscaler. |
+| Projection jitter | Missing: `FrameParams` (`view`, `projection`) is not jittered; needs a per-frame sub-pixel offset (a Halton sequence) in the projection and its value passed to the upscaler. |
 | Motion vectors | Missing: instances carry only the current transform. It needs a per-instance previous transform, a previous view-projection, and a second colour output for the vectors. Skinned or animated parts (wheels, the sky) need care. |
 | Hook into device creation | Missing: `dlss_wgpu` creates the instance and device itself, replacing the calls in `gpu/init.rs` when the feature is on. |
 

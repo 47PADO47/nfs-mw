@@ -4,7 +4,7 @@
 pub mod camera;
 
 use anyhow::Result;
-use blackbox_render::{FrameParams, Instance, Renderer};
+use blackbox_gfx::{FrameParams, Instance, RenderBackend};
 
 use crate::input::ActionState;
 
@@ -30,9 +30,9 @@ pub struct Fullscreen {
 pub trait Scene {
     fn title(&self) -> String;
     /// Upload the initial resources.
-    fn init(&mut self, renderer: &mut Renderer) -> Result<()>;
+    fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()>;
     /// Advance by `dt` seconds: camera, streaming, uploads.
-    fn update(&mut self, renderer: &mut Renderer, input: &ActionState, dt: f32);
+    fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32);
     /// The frame to draw. Instances of the same mesh should be adjacent.
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]);
     /// For screenshots: whether everything the first view needs has loaded.
@@ -83,7 +83,7 @@ pub trait Scene {
     /// The sound's sputter module started `pops` pops since the last call (the lift-off backfire follows them).
     fn note_sputters(&mut self, _pops: u32) {}
     /// Refresh changed visual-effect buffers without advancing a paused scene.
-    fn refresh_effects(&mut self, _renderer: &mut Renderer) {}
+    fn refresh_effects(&mut self, _renderer: &mut dyn RenderBackend) {}
     /// Apply the optional smoke presentation quality. Scenes without tires ignore it.
     fn set_smoke_quality(&mut self, _quality: crate::settings::SmokeQuality) {}
     /// Apply the car shading setting: the scene re-uploads its cars when it changes. Scenes without cars ignore it.
@@ -105,7 +105,12 @@ pub trait Scene {
         &[]
     }
     /// Run a console command. `None` means the scene has no such command.
-    fn command(&mut self, _renderer: &mut Renderer, _name: &str, _args: &[&str]) -> Option<Result<String, String>> {
+    fn command(
+        &mut self,
+        _renderer: &mut dyn RenderBackend,
+        _name: &str,
+        _args: &[&str],
+    ) -> Option<Result<String, String>> {
         None
     }
 }

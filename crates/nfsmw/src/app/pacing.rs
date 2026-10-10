@@ -75,7 +75,7 @@ pub fn end_of_frame(mut host: NonSendMut<Host>, mut window: Single<&mut Window, 
         let status = host.scene.status().map(|s| format!(" - {s}")).unwrap_or_default();
         let fps = host.frames as f32 / elapsed;
         log::debug!("{fps:.1} fps");
-        window.title = format!("{} - {} - {fps:.0} fps{status}", host.scene.title(), renderer.adapter_summary());
+        window.title = format!("{} - {} - {fps:.0} fps{status}", host.scene.title(), renderer.info().summary());
         (host.title_timer, host.frames) = (Instant::now(), 0);
     }
     host.limiter.wait();

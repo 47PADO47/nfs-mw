@@ -1,5 +1,5 @@
 //! The immediate-mode UI host (egui): turns Bevy's input into egui events, and egui's output into the
-//! renderer-neutral [`UiLayer`](blackbox_render::UiLayer) that the render bridge draws.
+//! renderer-neutral [`UiLayer`](blackbox_gfx::UiLayer) that the render bridge draws.
 //!
 //! Nothing here draws or touches the renderer. The panels (metrics, console) live in `devtools` and only
 //! see an `egui::Context`; under a full Bevy move this host would be replaced by `bevy_egui`.

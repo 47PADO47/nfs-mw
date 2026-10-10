@@ -1,6 +1,6 @@
 //! Solid upload: one GPU mesh per solid, one draw range per shading group.
 
-use blackbox_render::{BlendMode, DrawRange, MeshDesc, MeshHandle, Renderer, Shading, TextureHandle, Vertex};
+use blackbox_gfx::{BlendMode, DrawRange, MeshDesc, MeshHandle, RenderBackend, Shading, TextureHandle, Vertex};
 use blackbox_solid::Solid;
 
 /// Resolves a texture name hash to an uploaded texture and how to blend it.
@@ -57,7 +57,7 @@ pub fn solid_mesh(solid: &Solid, materials: &impl MaterialLookup, shading: Shadi
 
 /// Upload a solid. Returns `None` for solids without geometry.
 pub fn upload_solid(
-    renderer: &mut Renderer,
+    backend: &mut dyn RenderBackend,
     solid: &Solid,
     materials: &impl MaterialLookup,
     shading: Shading,
@@ -66,7 +66,7 @@ pub fn upload_solid(
         return None;
     }
     let (vertices, draws) = solid_mesh(solid, materials, shading);
-    Some(renderer.create_mesh(&MeshDesc { label: &solid.name, vertices: &vertices, indices: &solid.indices, draws }))
+    Some(backend.create_mesh(&MeshDesc { label: &solid.name, vertices: &vertices, indices: &solid.indices, draws }))
 }
 
 #[cfg(test)]

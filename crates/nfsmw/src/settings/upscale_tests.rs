@@ -1,6 +1,6 @@
 use super::*;
 use crate::cli::{Cli, Command};
-use blackbox_render::Upscaler;
+use blackbox_gfx::Upscaler;
 use clap::Parser;
 
 #[test]

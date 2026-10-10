@@ -5,7 +5,7 @@
 //! sun itself as the key, a cool fill on the far side and a dim back light. Angles and colours
 //! are choices, not game values.
 
-use blackbox_render::{DirectionalLight, LightingRig};
+use blackbox_gfx::{DirectionalLight, LightingRig};
 use glam::Vec3;
 
 /// Fill light: degrees around the sun's azimuth and elevation above the horizon.

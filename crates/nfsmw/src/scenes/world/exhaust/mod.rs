@@ -10,8 +10,9 @@ mod command;
 mod load;
 mod trigger;
 
+use blackbox_gfx::RenderBackend;
 use blackbox_particles::{Emitter, Frame};
-use blackbox_render::{BlendMode, EffectLayer, EffectVertex, Renderer, TextureHandle, TexturedEffect};
+use blackbox_render::{BlendMode, EffectLayer, EffectVertex, TextureHandle, TexturedEffect};
 use glam::{Mat4, Vec3};
 
 use trigger::{Backfire, ShiftEvent, ShiftTiming, blowoff_allowed, flame_intensity};
@@ -214,7 +215,7 @@ impl ExhaustFlames {
     }
 
     /// Free the GPU textures of flames that were unloaded.
-    pub fn release(&mut self, renderer: &mut Renderer) {
+    pub fn release(&mut self, renderer: &mut dyn RenderBackend) {
         for handle in self.stale.drain(..) {
             renderer.destroy_texture(handle);
         }

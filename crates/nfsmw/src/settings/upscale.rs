@@ -3,7 +3,7 @@
 use std::fmt;
 use std::str::FromStr;
 
-use blackbox_render::Upscaler;
+use blackbox_gfx::Upscaler;
 
 /// Smallest and largest render scale in percent of the output size per axis.
 pub const MIN_RENDER_SCALE: u16 = 50;

@@ -138,14 +138,14 @@ fn text_of(v: &Value) -> Result<&str, String> {
 
 #[cfg(test)]
 mod tests {
-    use blackbox_render::Backend;
+    use blackbox_gfx::GraphicsApi;
 
     use super::*;
 
     #[test]
     fn reads_values_and_leaves_game_dir_alone() {
         let p = parse("game_dir = 'D:/NFS'\nbackend = 'vulkan'\nvsync = false\nmax_fps = 144\n", "test");
-        assert_eq!(p.backend, Some(Backend::Vulkan));
+        assert_eq!(p.backend, Some(GraphicsApi::Vulkan));
         assert_eq!(p.vsync, Some(false));
         assert_eq!(p.max_fps, Some(MaxFps::from_str("144").unwrap()));
         assert_eq!(parse("max_fps = 'unlocked'", "test").max_fps, Some(MaxFps::default()));

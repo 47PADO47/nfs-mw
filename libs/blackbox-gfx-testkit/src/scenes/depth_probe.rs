@@ -71,5 +71,5 @@ pub(super) fn build(cx: &mut Cx) -> Parts {
     }
     let mesh = cx.mesh("depth probe", &mesh.finish());
     let camera = Camera::new(Vec3::ZERO, Vec3::Y);
-    Parts::world(camera.frame(cx.aspect, CLEAR, None), vec![Instance { mesh, transform: Mat4::IDENTITY }])
+    Parts::world(camera.frame(cx.aspect, CLEAR, None), vec![Instance::new(mesh, Mat4::IDENTITY)])
 }

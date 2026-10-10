@@ -23,6 +23,7 @@ blackbox-carsound.workspace = true
 blackbox-chunk.workspace = true
 blackbox-collision.workspace = true
 blackbox-feng.workspace = true
+blackbox-gfx.workspace = true
 blackbox-minimap.workspace = true
 blackbox-mixmap.workspace = true
 blackbox-movie.workspace = true

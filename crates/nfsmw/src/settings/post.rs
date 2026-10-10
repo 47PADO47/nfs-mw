@@ -4,7 +4,7 @@
 use std::fmt;
 use std::str::FromStr;
 
-use blackbox_render::{Antialiasing, PostSettings, Tonemap};
+use blackbox_gfx::{Antialiasing, PostSettings, Tonemap};
 
 use super::Settings;
 

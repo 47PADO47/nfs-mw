@@ -16,7 +16,7 @@ mod sweep;
 mod tests;
 mod trails;
 
-use blackbox_render::EffectVertex;
+use blackbox_gfx::EffectVertex;
 use glam::Vec3;
 use nfsmw_data::vehicle_effects::VisualEffectsData;
 
@@ -139,8 +139,8 @@ impl VehicleEffects {
     pub fn textured(
         &self,
         forward: Vec3,
-        textures: &std::collections::HashMap<u32, (blackbox_render::TextureHandle, blackbox_render::BlendMode)>,
-        out: &mut Vec<blackbox_render::TexturedEffect>,
+        textures: &std::collections::HashMap<u32, (blackbox_gfx::TextureHandle, blackbox_gfx::BlendMode)>,
+        out: &mut Vec<blackbox_gfx::TexturedEffect>,
     ) {
         self.pc.geometry(forward, textures, out);
     }

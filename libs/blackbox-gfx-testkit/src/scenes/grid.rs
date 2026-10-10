@@ -52,11 +52,11 @@ pub(super) fn build(cx: &mut Cx) -> Parts {
         Mat4::from_translation(Vec3::new(x, y, 0.0)) * Mat4::from_rotation_z(yaw) * Mat4::from_scale(Vec3::splat(scale))
     };
     let instances = vec![
-        Instance { mesh: even, transform: Mat4::IDENTITY },
-        Instance { mesh: odd, transform: Mat4::IDENTITY },
-        Instance { mesh: boxes, transform: place(-4.0, 9.0, 0.4, 1.0) },
-        Instance { mesh: boxes, transform: place(3.5, 15.0, -0.7, 1.4) },
-        Instance { mesh: boxes, transform: place(-1.0, 24.0, 1.2, 1.8) },
+        Instance::new(even, Mat4::IDENTITY),
+        Instance::new(odd, Mat4::IDENTITY),
+        Instance::new(boxes, place(-4.0, 9.0, 0.4, 1.0)),
+        Instance::new(boxes, place(3.5, 15.0, -0.7, 1.4)),
+        Instance::new(boxes, place(-1.0, 24.0, 1.2, 1.8)),
     ];
 
     let camera = Camera::new(Vec3::new(0.0, -6.0, 4.5), Vec3::new(0.0, 14.0, 0.0));

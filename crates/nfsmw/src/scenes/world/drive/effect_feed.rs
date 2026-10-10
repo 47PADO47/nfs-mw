@@ -1,5 +1,5 @@
 use blackbox_attrib::Database;
-use blackbox_render::Renderer;
+use blackbox_gfx::RenderBackend;
 use game_install::GameDir;
 use glam::Vec3;
 
@@ -33,7 +33,7 @@ impl Drive {
 
     /// Free the flames' unloaded textures and load the car's flames when the setting is on and they are not
     /// loaded yet. A frame with the setting off and nothing to free does nothing.
-    pub fn maintain_flames(&mut self, renderer: &mut Renderer, dir: &GameDir, db: &Database) {
+    pub fn maintain_flames(&mut self, renderer: &mut dyn RenderBackend, dir: &GameDir, db: &Database) {
         self.flames.release(renderer);
         self.flames.load(renderer, dir, db, self.rig.model());
     }

@@ -1,12 +1,12 @@
 //! Getting into a car: its physics, its effects and the settings the effects follow.
 
 use anyhow::{Context, Result};
-use blackbox_render::Renderer;
+use blackbox_gfx::RenderBackend;
 use nfsmw_data::car::CarModel;
 use nfsmw_data::car::physics::CarPhysics;
 
 use super::drive::{CarRig, Drive, DriveScript, SpawnRequest};
-use super::{View, WorldScene};
+use super::{View, WorldScene, keys, sun};
 
 impl WorldScene {
     /// The physics of the car `model` was assembled as.
@@ -18,7 +18,7 @@ impl WorldScene {
     /// Start (or restart) driving `model` from the camera's place.
     pub(super) fn start_driving(
         &mut self,
-        renderer: &mut Renderer,
+        renderer: &mut dyn RenderBackend,
         name: String,
         model: CarModel,
         script: Option<DriveScript>,
@@ -28,7 +28,7 @@ impl WorldScene {
             self.physics.database(),
             model.car_type.as_deref().unwrap_or(&name),
         );
-        let rig = CarRig::upload(renderer, model, self.car_shading, super::sun::to_sun());
+        let rig = CarRig::upload(renderer, keys::PLAYER_CAR, model, self.car_shading, sun::to_sun());
         let [x, y] = self.focus();
         match self.drive.as_mut() {
             Some(drive) => {

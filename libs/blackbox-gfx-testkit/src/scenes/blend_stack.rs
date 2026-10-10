@@ -51,7 +51,7 @@ pub(super) fn build(cx: &mut Cx) -> Parts {
     square(&mut light, 3.0, 12.0, 6.0, 5.0, prelit([1.0, 1.0, 1.0], 1.0));
     let light = cx.mesh("blend light", &light.finish());
 
-    let instances = [wall, first, second, light].map(|mesh| Instance { mesh, transform: Mat4::IDENTITY }).to_vec();
+    let instances = [wall, first, second, light].map(|mesh| Instance::new(mesh, Mat4::IDENTITY)).to_vec();
     let camera = Camera::new(Vec3::new(0.0, -6.0, 4.0), Vec3::new(0.0, 10.0, 4.0));
     Parts::world(camera.frame(cx.aspect, CLEAR, None), instances)
 }

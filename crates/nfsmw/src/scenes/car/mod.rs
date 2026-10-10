@@ -9,7 +9,7 @@ mod shading;
 use std::collections::HashMap;
 
 use anyhow::Result;
-use blackbox_render::{FrameParams, Instance, MeshHandle, Renderer, Shading};
+use blackbox_gfx::{FrameParams, Instance, InstanceKey, MeshHandle, RenderBackend, Shading};
 use blackbox_scene::{Aabb, upload_solid};
 use game_install::GameDir;
 use glam::{Mat4, Vec3};
@@ -18,12 +18,15 @@ use nfsmw_data::car::{CarModel, LoadOptions};
 use crate::input::ActionState;
 use crate::settings::CarShading;
 use crate::viewer::Scene;
-use crate::viewer::camera::{FlyCamera, OrbitCamera};
+use crate::viewer::camera::{CameraCut, FlyCamera, OrbitCamera};
 use materials::CarMaterials;
 
 /// The direction the light travels in the viewer (the placeholder shading of the floor uses it
 /// directly; cars get a rig built around the sun it comes from).
 const LIGHT_DIR: Vec3 = Vec3::new(-0.4, -0.3, -1.0);
+
+/// The floor's part number in the instance keys (cars have fewer parts than this).
+const FLOOR_PART: u32 = u32::MAX - 1;
 
 /// Where cars come from, so the console can switch to another one.
 struct Source {
@@ -44,6 +47,10 @@ pub struct CarScene {
     /// The car shading the current car was uploaded with, and the one asked for since.
     shading: CarShading,
     wanted_shading: CarShading,
+    /// Which car is on the floor: another car gets new instance keys.
+    car: u32,
+    /// The camera jumped (a new scene, another car, the camera toggle).
+    cut: CameraCut,
 }
 
 impl CarScene {
@@ -59,6 +66,8 @@ impl CarScene {
             materials: None,
             shading: CarShading::default(),
             wanted_shading: CarShading::default(),
+            car: 0,
+            cut: CameraCut::default(),
         }
     }
 
@@ -74,7 +83,7 @@ impl CarScene {
     }
 
     /// Free what the current car uploaded.
-    fn release(&mut self, renderer: &mut Renderer) {
+    fn release(&mut self, renderer: &mut dyn RenderBackend) {
         for mesh in self.meshes.drain(..) {
             renderer.destroy_mesh(mesh);
         }
@@ -85,25 +94,29 @@ impl CarScene {
     }
 
     /// Upload the car and its floor and list the instances.
-    fn upload(&mut self, renderer: &mut Renderer) {
+    fn upload(&mut self, renderer: &mut dyn RenderBackend) {
         self.shading = self.wanted_shading;
         let materials = CarMaterials::upload(renderer, &self.model, self.shading, -LIGHT_DIR);
         let mut cache: HashMap<(u32, bool), Option<MeshHandle>> = HashMap::new();
         let world = self.to_world();
-        for p in &self.model.placements {
+        for (part, p) in self.model.placements.iter().enumerate() {
             let mesh = *cache.entry((p.solid, p.left_brake)).or_insert_with(|| {
                 let lookup = materials.for_placement(&self.model.swaps, p.left_brake);
                 upload_solid(renderer, &self.model.solids[&p.solid], &lookup, Shading::Lit)
             });
             if let Some(mesh) = mesh {
-                self.instances.push(Instance { mesh, transform: world * p.transform });
+                self.instances.push(Instance::keyed(
+                    mesh,
+                    world * p.transform,
+                    InstanceKey::new(self.car, part as u32),
+                ));
             }
         }
         self.meshes.extend(cache.into_values().flatten());
         if self.model.car_type.is_some() {
             let floor = floor::upload(renderer);
             self.meshes.push(floor);
-            self.instances.push(Instance { mesh: floor, transform: Mat4::IDENTITY });
+            self.instances.push(Instance::keyed(floor, Mat4::IDENTITY, InstanceKey::new(self.car, FLOOR_PART)));
         }
         self.materials = Some(materials);
         // The renderer wants instances of one mesh next to each other.
@@ -111,9 +124,11 @@ impl CarScene {
     }
 
     /// Swap in another car, keeping the viewing angle.
-    fn replace_model(&mut self, renderer: &mut Renderer, model: CarModel) {
+    fn replace_model(&mut self, renderer: &mut dyn RenderBackend, model: CarModel) {
         self.release(renderer);
         let yaw = self.camera.yaw;
+        self.car += 1;
+        self.cut.arm();
         self.model = model;
         self.camera = orbit_for(&self.model, yaw);
         self.upload(renderer);
@@ -152,7 +167,7 @@ impl Scene for CarScene {
         self.free.is_some()
     }
 
-    fn init(&mut self, renderer: &mut Renderer) -> Result<()> {
+    fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
         self.upload(renderer);
         Ok(())
     }
@@ -161,7 +176,7 @@ impl Scene for CarScene {
         self.wanted_shading = shading;
     }
 
-    fn update(&mut self, renderer: &mut Renderer, input: &ActionState, dt: f32) {
+    fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
         if self.wanted_shading != self.shading {
             self.release(renderer);
             self.upload(renderer);
@@ -173,17 +188,18 @@ impl Scene for CarScene {
     }
 
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
-        let (view_proj, camera_position) = match &self.free {
-            Some(free) => (free.view_proj(aspect), free.position),
-            None => (self.camera.view_proj(aspect), self.camera.eye()),
+        let (view, projection, camera_position) = match &self.free {
+            Some(free) => (free.view(), free.projection(aspect), free.position),
+            None => (self.camera.view(), self.camera.projection(aspect), self.camera.eye()),
         };
         let params = FrameParams {
-            view_proj,
+            view,
+            projection,
             camera_position,
             light_dir: LIGHT_DIR,
             clear_color: [0.18, 0.2, 0.24],
-            fog_start: f32::MAX,
-            fog_end: f32::MAX,
+            fog: None,
+            camera_cut: self.cut.take(),
         };
         (params, &self.instances)
     }
@@ -192,7 +208,12 @@ impl Scene for CarScene {
         commands::LIST
     }
 
-    fn command(&mut self, renderer: &mut Renderer, name: &str, args: &[&str]) -> Option<Result<String, String>> {
+    fn command(
+        &mut self,
+        renderer: &mut dyn RenderBackend,
+        name: &str,
+        args: &[&str],
+    ) -> Option<Result<String, String>> {
         commands::run(self, renderer, name, args)
     }
 }

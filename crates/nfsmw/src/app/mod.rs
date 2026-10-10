@@ -1,7 +1,9 @@
 //! The application: a Bevy `App` that owns the window, the loop, the input and the schedule, and
-//! hands each frame to `blackbox-render` (see `docs/decisions/0001-bevy.md`).
+//! hands each frame to a renderer behind the `blackbox-gfx` `RenderBackend` trait (see
+//! `docs/decisions/0001-bevy.md`).
 //!
-//! The seam to the renderer is [`render`]: it is the only place that creates the renderer or draws.
+//! The seam to the renderer is [`render`]: it is the only place that creates the renderer or draws, and
+//! `render/native.rs` is the only file that names the native `blackbox-render` crate.
 
 mod cursor;
 mod host;

@@ -1,7 +1,10 @@
 //! The render bridge: the one place where the app creates the renderer and draws a frame.
 //!
-//! Moving to Bevy's own renderer (docs/decisions/0001-bevy.md, option B) replaces this file and the
-//! implementation behind `blackbox-render`'s API, not the game code.
+//! The app only knows [`RenderBackend`](blackbox_gfx::RenderBackend). Each renderer has a factory in its own
+//! file here ([`native`] is the Black Box renderer); swapping the renderer replaces that factory, not the game
+//! code (docs/decisions/0001-bevy.md, docs/decisions/0004-swappable-renderers.md).
+
+mod native;
 
 use std::time::Instant;
 
@@ -10,7 +13,6 @@ use bevy_ecs::prelude::*;
 use bevy_time::Time;
 use bevy_window::{PrimaryWindow, RawHandleWrapper, Window};
 use bevy_winit::DisplayHandleWrapper;
-use blackbox_render::{Renderer, RendererOptions};
 
 use super::host::{ErrorSlot, Host};
 use super::screenshot;
@@ -40,8 +42,7 @@ pub fn create_renderer(
     }
     let (raw, win) = *window;
     let size = (win.physical_width(), win.physical_height());
-    let options = RendererOptions { backend: settings.backend, vsync: settings.vsync, ..RendererOptions::default() };
-    match start(&mut host, raw, size, &display, options, &settings) {
+    match start(&mut host, raw, size, &display, &settings) {
         Ok(()) => capture.0 = host.scene.captures_mouse() && host.screenshot.is_none(),
         Err(e) => {
             errors.set(e);
@@ -50,22 +51,17 @@ pub fn create_renderer(
     }
 }
 
-#[allow(unsafe_code)]
 fn start(
     host: &mut Host,
     raw: &RawHandleWrapper,
     size: (u32, u32),
     display: &DisplayHandleWrapper,
-    options: RendererOptions,
     settings: &Settings,
 ) -> anyhow::Result<()> {
-    // SAFETY: this runs in a system that takes `NonSendMut`, so it is on the main thread, which is
-    // what `get_handle` requires.
-    let handle = unsafe { raw.get_handle() };
-    let mut renderer = Renderer::new(handle, size, display.0.clone(), options)?;
-    log::info!("renderer: {} (requested backend: {})", renderer.adapter_summary(), options.backend);
-    upscale::apply(&mut renderer, settings);
-    host.scene.init(&mut renderer)?;
+    let mut renderer = native::create(raw, size, display, settings)?;
+    log::info!("renderer: {} (requested backend: {})", renderer.info().summary(), settings.backend);
+    upscale::apply(renderer.as_mut(), settings);
+    host.scene.init(renderer.as_mut())?;
     host.scene.set_transmission(host.transmission);
     host.scene.set_wheel_options(host.wheel);
     host.size = size;
@@ -80,7 +76,7 @@ pub fn resize(mut host: NonSendMut<Host>, window: Single<&Window, With<PrimaryWi
     if size != host.size
         && let Some(r) = host.renderer.as_mut()
     {
-        r.resize(size.0, size.1);
+        r.resize([size.0, size.1]);
         host.size = size;
     }
 }
@@ -94,9 +90,9 @@ pub fn update_scene(mut host: NonSendMut<Host>, actions: Res<ActionState>, time:
     host.scene.set_wheel_options(host.wheel);
     // Startup console settings have run in Commands before a screenshot's scripted simulation.
     if host.screenshot.is_some() && host.frames == 0 {
-        screenshot::wait_ready(host.scene.as_mut(), renderer);
+        screenshot::wait_ready(host.scene.as_mut(), renderer.as_mut());
     }
-    host.scene.update(renderer, &actions, time.delta_secs().min(MAX_STEP));
+    host.scene.update(renderer.as_mut(), &actions, time.delta_secs().min(MAX_STEP));
 }
 
 /// Draw the scene and the UI over it, or (screenshot runs) capture it once the UI has settled.
@@ -121,12 +117,29 @@ pub fn draw(
     let (params, instances) = host.scene.frame(renderer.aspect_ratio());
     let result = if let Some(plan) = host.screenshot.as_mut() {
         host.frames += 1;
-        if host.frames < SCREENSHOT_SETTLE_FRAMES || host.hold_capture {
+        if host.pending_capture.is_none() && (host.frames < SCREENSHOT_SETTLE_FRAMES || host.hold_capture) {
             return;
         }
-        let Some(path) = plan.due(Instant::now()) else { return };
-        let last = plan.finished();
-        screenshot::capture(renderer, &params, instances, host.size, &path).map(|()| {
+        let started = match host.pending_capture.take() {
+            Some(pending) => Ok(pending),
+            None => match plan.due(Instant::now()) {
+                None => return,
+                Some(path) => {
+                    let last = plan.finished();
+                    screenshot::request(renderer.as_mut(), &params, instances, host.size).map(|id| (id, path, last))
+                }
+            },
+        };
+        // A renderer that works on the capture for a few frames is asked again every frame until it is done.
+        let written = started.and_then(|(id, path, last)| {
+            if screenshot::poll(renderer.as_mut(), id, &path)? {
+                return Ok(Some(last));
+            }
+            host.pending_capture = Some((id, path, last));
+            Ok(None)
+        });
+        written.map(|done| {
+            let Some(last) = done else { return };
             if let Some(status) = host.scene.status() {
                 println!("{status}");
             }

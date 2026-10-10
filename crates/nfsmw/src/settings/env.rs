@@ -117,7 +117,7 @@ fn value<T>(get: &impl Fn(&str) -> Option<String>, name: &str, parse: impl Fn(&s
 mod tests {
     use std::collections::HashMap;
 
-    use blackbox_render::Backend;
+    use blackbox_gfx::GraphicsApi;
 
     use super::*;
 
@@ -130,7 +130,7 @@ mod tests {
     fn reads_every_setting() {
         let p = layer(&[(BACKEND, "dx12"), (VSYNC, "off"), (MAX_FPS, "60"), (SHOW_METRICS, "advanced")]);
         assert_eq!(p.show_metrics, Some(ShowMetrics::Advanced));
-        assert_eq!(p.backend, Some(Backend::Dx12));
+        assert_eq!(p.backend, Some(GraphicsApi::Dx12));
         assert_eq!(p.vsync, Some(false));
         assert_eq!(p.max_fps, Some("60".parse::<MaxFps>().unwrap()));
     }
