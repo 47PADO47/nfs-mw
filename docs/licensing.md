@@ -34,6 +34,13 @@ pre-commit hook and CI) and code review enforce rules 1 and 2. See [CONTRIBUTING
 | **No license** | yes, as a reference | **no** | no | See next section |
 | Decompiled code (any label) | yes | no | no | Spec-first (see below) |
 
+### Code ported under these rules
+
+NOTICE lists each project with the files that carry its notice: VaultLib (AttribSys), vgmstream and utkencode
+(EA audio codecs), and AMD's FidelityFX Super Resolution 1 (MIT), whose EASU and RCAS were rewritten in WGSL in
+`libs/blackbox-render/src/shaders/fsr1.wgsl` with AMD's and Michal Drobot's notices at the top of the shader.
+Upstream headers are read from the scratchpad only and never committed.
+
 ### Repositories with no license
 
 A repository without a license is **not** MIT. Under copyright law (the Berne Convention, which nearly

@@ -11,6 +11,7 @@
 //! - [`ui`](crate::UiLayer): the 2D layer drawn over the scene (consoles, overlays, menus);
 //! - [`render_scale`](crate::scaled_size): the internal render size relative to the surface;
 //! - [`post_settings`](crate::PostSettings): which post-process effects (bloom, tone mapping, FXAA) run;
+//! - [`upscale`](crate::Upscaler): how a scene drawn below the surface size is brought back up (bilinear, FSR 1);
 //! - `gpu/`: the wgpu implementation (device setup, resources, pipelines, the offscreen HDR
 //!   targets, the post-process chain, frames).
 
@@ -21,7 +22,10 @@ mod glossy;
 mod gpu;
 mod post_settings;
 mod render_scale;
+#[cfg(test)]
+mod shader_tests;
 mod ui;
+mod upscale;
 
 pub use api::{
     BlendMode, DrawRange, FrameParams, Instance, MeshDesc, MeshHandle, PixelFormat, RenderError, RendererOptions,
@@ -37,3 +41,7 @@ pub use post_settings::{
 };
 pub use render_scale::{DEFAULT_RENDER_SCALE, MAX_RENDER_SCALE, MIN_RENDER_SCALE, clamp_render_scale, scaled_size};
 pub use ui::{UiLayer, UiMesh, UiTextureId, UiTexturePatch, UiVertex};
+pub use upscale::{
+    DEFAULT_UPSCALE_SHARPNESS, MAX_TEXTURE_LOD_BIAS, MIN_TEXTURE_LOD_BIAS, Upscaler, clamp_texture_lod_bias,
+    clamp_upscale_sharpness, suggested_texture_lod_bias,
+};

@@ -11,6 +11,7 @@ mod render;
 mod screenshot;
 #[cfg(test)]
 pub use screenshot::Plan;
+pub mod upscale;
 pub mod window;
 
 pub use cursor::update as cursor_update;

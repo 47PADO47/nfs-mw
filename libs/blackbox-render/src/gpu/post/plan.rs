@@ -1,5 +1,7 @@
 //! Which image each pass of the chain reads and writes. Pure, so the ordering is unit-tested.
 
+use super::Extent;
+
 /// What a pass reads.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Source {
@@ -42,6 +44,18 @@ pub(super) fn plan(pass_count: usize) -> Vec<Step> {
         .collect()
 }
 
+/// Where a pass of size `new` goes in a chain whose passes write `extents` (the last is the resolve
+/// pass), when it is asked to run at `index`. An output-size pass goes right before the resolve pass
+/// whatever the index; a render-size pass goes at `index` but stays before the first output-size pass.
+pub(super) fn insert_index(extents: &[Extent], index: usize, new: Extent) -> usize {
+    let resolve = extents.len().saturating_sub(1);
+    if new == Extent::Output {
+        return resolve;
+    }
+    let first_output = extents.iter().position(|e| *e == Extent::Output).unwrap_or(resolve);
+    index.min(first_output)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -77,5 +91,21 @@ mod tests {
                 assert_eq!(steps[i + 1].source, Source::Scratch(written));
             }
         }
+    }
+
+    #[test]
+    fn inserted_passes_stay_before_resolve_and_output_passes_stay_last() {
+        use Extent::{Output, Render};
+        // Chain: [resolve].
+        assert_eq!(insert_index(&[Render], 0, Render), 0);
+        assert_eq!(insert_index(&[Render], 99, Render), 0, "before the resolve pass");
+        assert_eq!(insert_index(&[Render], 99, Output), 0);
+        // Chain: [bloom, upscale, resolve]: render-size passes cannot pass the upscaler.
+        let chain = [Render, Output, Render];
+        assert_eq!(insert_index(&chain, 99, Render), 1);
+        assert_eq!(insert_index(&chain, 2, Render), 1);
+        assert_eq!(insert_index(&chain, 0, Render), 0);
+        assert_eq!(insert_index(&chain, 99, Output), 2, "a second output pass follows the first");
+        assert_eq!(insert_index(&chain, 0, Output), 2, "output passes ignore the index");
     }
 }

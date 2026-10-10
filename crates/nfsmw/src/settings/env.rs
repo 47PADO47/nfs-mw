@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 use super::partial::{Partial, Percent, parse_bool};
 use super::{Deadzone, HudLayout, MinimapMode, RadioHudStyle, Sensitivity, Transmission};
-use super::{Monitor, PostAa, PostBloom, PostTonemap, Resolution, SmokeQuality, WindowMode};
+use super::{Monitor, PostAa, PostBloom, PostTonemap, RenderScale, Resolution, SmokeQuality, UpscaleMode, WindowMode};
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
 
@@ -38,6 +38,9 @@ pub const RADIO_HUD: &str = "NFSMW_RADIO_HUD";
 pub const POST_TONEMAP: &str = "NFSMW_POST_TONEMAP";
 pub const POST_BLOOM: &str = "NFSMW_POST_BLOOM";
 pub const POST_AA: &str = "NFSMW_POST_AA";
+pub const RENDER_SCALE: &str = "NFSMW_RENDER_SCALE";
+pub const UPSCALER: &str = "NFSMW_UPSCALER";
+pub const UPSCALE_SHARPNESS: &str = "NFSMW_UPSCALE_SHARPNESS";
 pub const PADDLE_UP: &str = "NFSMW_PADDLE_UP";
 pub const PADDLE_DOWN: &str = "NFSMW_PADDLE_DOWN";
 pub const MANUAL_CLUTCH: &str = "NFSMW_MANUAL_CLUTCH";
@@ -85,6 +88,9 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         post_tonemap: value(&get, POST_TONEMAP, PostTonemap::from_str),
         post_bloom: value(&get, POST_BLOOM, PostBloom::from_str),
         post_aa: value(&get, POST_AA, PostAa::from_str),
+        render_scale: value(&get, RENDER_SCALE, RenderScale::from_str),
+        upscaler: value(&get, UPSCALER, UpscaleMode::from_str),
+        upscale_sharpness: value(&get, UPSCALE_SHARPNESS, Percent::from_str),
         paddle_up: value(&get, PADDLE_UP, |s| s.trim().parse::<u32>().map_err(|e| e.to_string())),
         paddle_down: value(&get, PADDLE_DOWN, |s| s.trim().parse::<u32>().map_err(|e| e.to_string())),
         manual_clutch: value(&get, MANUAL_CLUTCH, parse_bool),

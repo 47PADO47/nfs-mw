@@ -81,6 +81,7 @@ where
         targets,
         post,
         render_scale: DEFAULT_RENDER_SCALE,
+        upscale: Default::default(),
         shared,
         pipelines,
         textures: Slots::new(),

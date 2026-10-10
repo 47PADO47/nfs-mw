@@ -26,6 +26,9 @@ mod spark_style;
 #[cfg(test)]
 mod tire_tests;
 mod transmission;
+mod upscale;
+#[cfg(test)]
+mod upscale_tests;
 #[cfg(test)]
 mod vehicle_effects_tests;
 mod wheel;
@@ -43,6 +46,7 @@ pub use radio_hud::RadioHudStyle;
 pub use smoke_quality::SmokeQuality;
 pub use spark_style::SparkStyle;
 pub use transmission::Transmission;
+pub use upscale::{RenderScale, UpscaleMode};
 pub use wheel::WheelOptions;
 pub use window::{Monitor, Resolution, WindowMode};
 pub use write::write as write_file;
@@ -100,6 +104,11 @@ pub struct Settings {
     pub post_tonemap: PostTonemap,
     pub post_bloom: PostBloom,
     pub post_aa: PostAa,
+    /// The 3D scene's size in percent of the output size per axis, and the filter that scales it back up.
+    pub render_scale: RenderScale,
+    pub upscaler: UpscaleMode,
+    /// FSR 1 sharpening, 0 to 100 percent.
+    pub upscale_sharpness: Percent,
     /// Gamepad button codes of a steering wheel's shift paddles (`GamepadButton::Other`), if the player gave them.
     pub paddle_up: Option<u32>,
     pub paddle_down: Option<u32>,
@@ -153,6 +162,9 @@ impl From<Partial> for Settings {
             post_tonemap: p.post_tonemap.unwrap_or_default(),
             post_bloom: p.post_bloom.unwrap_or_default(),
             post_aa: p.post_aa.unwrap_or_default(),
+            render_scale: p.render_scale.unwrap_or_default(),
+            upscaler: p.upscaler.unwrap_or_default(),
+            upscale_sharpness: p.upscale_sharpness.unwrap_or(Percent(80)),
             paddle_up: p.paddle_up,
             paddle_down: p.paddle_down,
             manual_clutch: p.manual_clutch.unwrap_or(false),

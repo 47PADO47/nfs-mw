@@ -62,7 +62,7 @@ impl Renderer {
             camera_pos: frame.camera_position.extend(1.0).to_array(),
             light_dir: frame.light_dir.normalize_or_zero().extend(0.0).to_array(),
             fog_color: [r, g, b, 1.0],
-            fog_range: [frame.fog_start, frame.fog_end, 0.0, 0.0],
+            fog_range: [frame.fog_start, frame.fog_end, self.upscale.texture_lod_bias, 0.0],
         };
         self.queue.write_buffer(&self.shared.globals, 0, bytemuck::bytes_of(&globals));
         let matrices: Vec<[f32; 16]> = instances.iter().map(|i| i.transform.to_cols_array()).collect();

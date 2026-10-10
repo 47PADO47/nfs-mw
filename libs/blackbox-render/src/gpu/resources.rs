@@ -10,6 +10,7 @@ pub(super) struct Globals {
     pub camera_pos: [f32; 4],
     pub light_dir: [f32; 4],
     pub fog_color: [f32; 4],
+    /// x = fog start, y = fog end, z = texture LOD bias.
     pub fog_range: [f32; 4],
 }
 

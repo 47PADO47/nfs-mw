@@ -129,6 +129,15 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.post_aa {
         put("post_aa", Value::String(v.to_string()));
     }
+    if let Some(v) = changes.render_scale {
+        put("render_scale", Value::Integer(i64::from(v.percent())));
+    }
+    if let Some(v) = changes.upscaler {
+        put("upscaler", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.upscale_sharpness {
+        put("upscale_sharpness", Value::Integer(i64::from(v.0)));
+    }
     if let Some(v) = changes.paddle_up {
         put("paddle_up", Value::Integer(i64::from(v)));
     }

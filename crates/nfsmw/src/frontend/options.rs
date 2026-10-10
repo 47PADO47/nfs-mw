@@ -10,7 +10,8 @@ use super::post_options::PostSetting;
 use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
 use crate::settings::{
-    HudLayout, MinimapMode, Partial, Percent, RadioHudStyle, Settings, SmokeQuality, Transmission, WindowMode,
+    HudLayout, MinimapMode, Partial, Percent, RadioHudStyle, RenderScale, Settings, SmokeQuality, Transmission,
+    UpscaleMode, WindowMode,
 };
 
 /// A setting a row edits.
@@ -38,6 +39,9 @@ pub enum Setting {
     HudLayout,
     RadioHud,
     Minimap,
+    RenderScale,
+    Upscaler,
+    UpscaleSharpness,
 }
 
 /// What a row's title shows.
@@ -94,6 +98,9 @@ pub fn rows(category: Category) -> Vec<Row> {
             row(Setting::CollisionSparks, Title::Text("Collision Sparks")),
             row(Setting::SpeedTrails, Title::Text("Speed Trails (Experimental)")),
             row(Setting::ExhaustFlames, Title::Text("Exhaust Flames")),
+            row(Setting::RenderScale, Title::Text("Render Scale")),
+            row(Setting::Upscaler, Title::Text("Upscaler")),
+            row(Setting::UpscaleSharpness, Title::Text("Upscale Sharpness")),
         ]
         .into_iter()
         .chain(PostSetting::ALL.into_iter().map(|setting| row(Setting::Post(setting), setting.title())))
@@ -118,6 +125,9 @@ const LABEL_MANUAL: u32 = 0x317D_3005;
 
 /// Frame limits the row cycles through.
 const FRAME_LIMITS: [&str; 6] = ["unlocked", "30", "60", "120", "144", "240"];
+/// Render scales (percent) the row cycles through: FSR 1's quality modes and a few supersampling steps.
+const RENDER_SCALES: [u16; 9] = [50, 59, 67, 77, 85, 100, 125, 150, 200];
+const UPSCALERS: [UpscaleMode; 3] = [UpscaleMode::Off, UpscaleMode::Bilinear, UpscaleMode::Fsr1];
 const METRICS: [ShowMetrics; 3] = [ShowMetrics::Off, ShowMetrics::Basic, ShowMetrics::Advanced];
 const WINDOW_MODES: [WindowMode; 3] = [WindowMode::Windowed, WindowMode::Borderless, WindowMode::Exclusive];
 /// A slider press moves the volume by this many percent.
@@ -134,6 +144,7 @@ fn percent_of(s: &Settings, setting: Setting) -> Option<Percent> {
         Setting::EngineVolume => s.engine_volume,
         Setting::MusicVolume => s.music_volume,
         Setting::SpeechVolume => s.speech_volume,
+        Setting::UpscaleSharpness => s.upscale_sharpness,
         _ => return None,
     })
 }
@@ -180,6 +191,15 @@ impl Setting {
                     MinimapMode::Off => "Off",
                 }
                 .into(),
+            ),
+            Setting::RenderScale => Data::Text(format!("{}%", s.render_scale.percent())),
+            Setting::Upscaler => Data::Text(
+                match s.upscaler {
+                    UpscaleMode::Off => "Off",
+                    UpscaleMode::Bilinear => "Bilinear",
+                    UpscaleMode::Fsr1 => "FSR 1",
+                }
+                .to_owned(),
             ),
             Setting::Vsync => on_off(s.vsync),
             Setting::Hud => on_off(s.hud),
@@ -256,6 +276,19 @@ impl Setting {
                 let at = modes.iter().position(|m| *m == s.minimap).unwrap_or(0);
                 s.minimap = modes[cycle(at, modes.len(), forward)];
                 changed.minimap = Some(s.minimap);
+            }
+            Setting::RenderScale => {
+                s.render_scale = next_scale(s.render_scale, forward);
+                changed.render_scale = Some(s.render_scale);
+            }
+            Setting::Upscaler => {
+                let at = UPSCALERS.iter().position(|m| *m == s.upscaler).unwrap_or(0);
+                s.upscaler = UPSCALERS[cycle(at, UPSCALERS.len(), forward)];
+                changed.upscaler = Some(s.upscaler);
+            }
+            Setting::UpscaleSharpness => {
+                s.upscale_sharpness = nudge(s.upscale_sharpness, forward);
+                changed.upscale_sharpness = Some(s.upscale_sharpness);
             }
             Setting::MasterVolume => {
                 s.master_volume = nudge(s.master_volume, forward);
@@ -355,6 +388,19 @@ fn nudge(p: Percent, forward: bool) -> Percent {
     Percent(v)
 }
 
+/// The next preset above (`forward`) or below the scale, wrapping around; a scale between presets (set from the
+/// console or the config file) moves to the closest preset in that direction.
+fn next_scale(current: RenderScale, forward: bool) -> RenderScale {
+    let now = current.percent();
+    let next = match forward {
+        true => RENDER_SCALES.iter().copied().find(|p| *p > now).unwrap_or(RENDER_SCALES[0]),
+        false => {
+            RENDER_SCALES.iter().rev().copied().find(|p| *p < now).unwrap_or(RENDER_SCALES[RENDER_SCALES.len() - 1])
+        }
+    };
+    RenderScale::new(next).unwrap_or(current)
+}
+
 fn cycle(at: usize, len: usize, forward: bool) -> usize {
     if forward { (at + 1) % len } else { (at + len - 1) % len }
 }
@@ -416,7 +462,7 @@ mod tests {
     #[test]
     fn every_category_has_rows() {
         assert_eq!(rows(Category::Audio).len(), 5);
-        assert_eq!(rows(Category::Video).len(), 13);
+        assert_eq!(rows(Category::Video).len(), 16);
         assert_eq!(rows(Category::Gameplay).len(), 5);
         assert_eq!(rows(Category::Controls).len(), 8);
     }

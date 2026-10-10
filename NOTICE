@@ -41,6 +41,14 @@ vgmstream — https://github.com/vgmstream/vgmstream — ISC-style licence
   the layouts read by src/meta/ea_schl*.c. The notice is kept at the top of
   libs/ea-audio/src/codec/{xa.rs, xas.rs, microtalk/*.rs}.
 
+GPUOpen-Effects/FidelityFX-FSR — https://github.com/GPUOpen-Effects/FidelityFX-FSR — MIT
+  Copyright (c) 2021 Advanced Micro Devices, Inc. (ffx_fsr1.h, ffx_a.h)
+  Copyright (c) 2014 Michal Drobot (concepts in the "float approximations" of ffx_a.h)
+  Portions ported into libs/blackbox-render: FidelityFX Super Resolution 1, the EASU upscale
+  and the RCAS sharpening, rewritten in WGSL (shaders/fsr1.wgsl) with the approximate
+  reciprocal and reciprocal square root helpers of ffx_a.h. The MIT notice is kept at the
+  top of that file. The upstream header files are not vendored.
+
 daddesio/utkencode — https://github.com/daddesio/utkencode — Unlicense (public domain)
   Original of the MicroTalk (UTK) decoder that vgmstream's utkdec.c derives from.
   Credited in libs/ea-audio/src/codec/microtalk/.

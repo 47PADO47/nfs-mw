@@ -32,6 +32,8 @@ mod radio_hud_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
+mod upscale_tests;
+#[cfg(test)]
 mod vehicle_effects_tests;
 
 pub use flow::Start;

@@ -59,3 +59,20 @@ pass built on a small fullscreen-filter helper with one WGSL module (`shaders/po
 effect's file); an effect that is off has no pass. Setting the current value again does nothing; changing it
 rebuilds the effect passes. FXAA is an independent implementation of the published algorithm, not a copy of
 the reference header.
+
+### Upscaling
+
+When the render scale is below 1.0 the scene is brought back to the output size by an upscaler:
+
+- `Renderer::set_upscaler(Upscaler::Bilinear)` (default) leaves it to the resolve pass's bilinear filter.
+- `Upscaler::Fsr1` adds two output-size passes before the resolve pass: AMD FidelityFX Super Resolution 1's EASU
+  (edge-adaptive upscale) and RCAS (sharpening), ported to WGSL (`shaders/fsr1.wgsl`, MIT, notice kept in the file
+  and in the repository's NOTICE). It expects an anti-aliased, display-referred input and clamps it to 0..1;
+  anti-aliasing passes belong before it in the chain, which keeps output-size passes last.
+  `set_upscale_sharpness(0.0..=1.0)` sets RCAS (0 skips the pass; the default is `DEFAULT_UPSCALE_SHARPNESS`).
+- Neither runs at a render scale of 1.0 or more. `fsr1_active()` reports whether the FSR 1 passes are in the chain.
+- `set_texture_lod_bias(bias)` adds a mip bias to the world's texture samples; `suggested_texture_lod_bias(scale)` is
+  `log2(scale)` below native, 0.0 otherwise. Particles and the UI are not biased.
+
+Not done, for DLSS and other temporal upscalers (docs/upscaling.md): projection jitter, previous transforms and a
+motion-vector output. The depth buffer is already reverse-Z `Depth32Float`.

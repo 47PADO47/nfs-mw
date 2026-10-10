@@ -20,13 +20,13 @@ fn post_chain_dx12() {
     check(wgpu::Backends::DX12);
 }
 
-struct Gpu {
-    device: wgpu::Device,
-    queue: wgpu::Queue,
+pub(super) struct Gpu {
+    pub(super) device: wgpu::Device,
+    pub(super) queue: wgpu::Queue,
 }
 
 impl Gpu {
-    fn new(backend: wgpu::Backends) -> Self {
+    pub(super) fn new(backend: wgpu::Backends) -> Self {
         let mut desc = wgpu::InstanceDescriptor::new_without_display_handle();
         desc.backends = backend;
         let instance = wgpu::Instance::new(desc);
@@ -42,7 +42,13 @@ impl Gpu {
     }
 
     /// Clear a fresh scene image of `size` to `color` and run `chain` into an output of `out` size.
-    fn run(&self, chain: &mut PostChain, size: (u32, u32), color: wgpu::Color, out: (u32, u32)) -> Vec<[u8; 4]> {
+    pub(super) fn run(
+        &self,
+        chain: &mut PostChain,
+        size: (u32, u32),
+        color: wgpu::Color,
+        out: (u32, u32),
+    ) -> Vec<[u8; 4]> {
         let device = &self.device;
         let scene = FrameTargets::new(device, HDR_FORMAT, size);
         let target = device.create_texture(&wgpu::TextureDescriptor {
@@ -156,7 +162,7 @@ impl PostPass for Constant {
     }
 }
 
-fn near(pixel: [u8; 4], expected: [u8; 4]) -> bool {
+pub(super) fn near(pixel: [u8; 4], expected: [u8; 4]) -> bool {
     pixel.iter().zip(expected).all(|(&a, b)| a.abs_diff(b) <= 1)
 }
 

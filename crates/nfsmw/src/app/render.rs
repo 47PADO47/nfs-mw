@@ -14,6 +14,7 @@ use blackbox_render::{Renderer, RendererOptions};
 
 use super::host::{ErrorSlot, Host};
 use super::screenshot;
+use super::upscale;
 use crate::gui::UiOutput;
 use crate::input::{ActionState, MouseCapture};
 use crate::settings::Settings;
@@ -40,7 +41,7 @@ pub fn create_renderer(
     let (raw, win) = *window;
     let size = (win.physical_width(), win.physical_height());
     let options = RendererOptions { backend: settings.backend, vsync: settings.vsync };
-    match start(&mut host, raw, size, &display, options) {
+    match start(&mut host, raw, size, &display, options, &settings) {
         Ok(()) => capture.0 = host.scene.captures_mouse() && host.screenshot.is_none(),
         Err(e) => {
             errors.set(e);
@@ -56,12 +57,14 @@ fn start(
     size: (u32, u32),
     display: &DisplayHandleWrapper,
     options: RendererOptions,
+    settings: &Settings,
 ) -> anyhow::Result<()> {
     // SAFETY: this runs in a system that takes `NonSendMut`, so it is on the main thread, which is
     // what `get_handle` requires.
     let handle = unsafe { raw.get_handle() };
     let mut renderer = Renderer::new(handle, size, display.0.clone(), options)?;
     log::info!("renderer: {} (requested backend: {})", renderer.adapter_summary(), options.backend);
+    upscale::apply(&mut renderer, settings);
     host.scene.init(&mut renderer)?;
     host.scene.set_transmission(host.transmission);
     host.scene.set_wheel_options(host.wheel);

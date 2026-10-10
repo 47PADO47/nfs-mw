@@ -6,11 +6,12 @@ use std::str::FromStr;
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
 use crate::settings::{
-    HudLayout, MinimapMode, Percent, PostAa, PostBloom, PostTonemap, RadioHudStyle, Settings, Transmission, parse_bool,
+    HudLayout, MinimapMode, Percent, PostAa, PostBloom, PostTonemap, RadioHudStyle, RenderScale, Settings,
+    Transmission, parse_bool,
 };
 
 /// Settings the console can show.
-const KEYS: [&str; 39] = [
+const KEYS: [&str; 42] = [
     "deadzone_mode",
     "steering_deadzone",
     "camera_deadzone",
@@ -50,6 +51,9 @@ const KEYS: [&str; 39] = [
     "post_tonemap",
     "post_bloom",
     "post_aa",
+    "render_scale",
+    "upscaler",
+    "upscale_sharpness",
 ];
 
 /// The text for `get <key>`, or an error naming the valid keys.
@@ -94,6 +98,9 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "post_tonemap" => settings.post_tonemap.to_string(),
         "post_bloom" => settings.post_bloom.to_string(),
         "post_aa" => settings.post_aa.to_string(),
+        "render_scale" => settings.render_scale.to_string(),
+        "upscaler" => settings.upscaler.to_string(),
+        "upscale_sharpness" => settings.upscale_sharpness.to_string(),
         other => return Err(unknown(other)),
     };
     Ok(format!("{key} = {value}"))
@@ -149,6 +156,9 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "post_tonemap" => settings.post_tonemap = PostTonemap::from_str(value)?,
         "post_bloom" => settings.post_bloom = PostBloom::from_str(value)?,
         "post_aa" => settings.post_aa = PostAa::from_str(value)?,
+        "render_scale" => settings.render_scale = RenderScale::from_str(value)?,
+        "upscaler" => settings.upscaler = value.parse()?,
+        "upscale_sharpness" => settings.upscale_sharpness = Percent::from_str(value)?,
         "backend" => return Err("the graphics backend cannot change while running; restart with --backend".into()),
         other => return Err(unknown(other)),
     }
@@ -195,6 +205,9 @@ fn syntax(key: &str) -> Option<&'static str> {
         "post_tonemap" => "<off|aces>",
         "post_bloom" => "<off|low|medium|high>",
         "post_aa" => "<off|fxaa>",
+        "render_scale" => "<50-200>",
+        "upscaler" => "<off|bilinear|fsr1>",
+        "upscale_sharpness" => "<0-100>",
         _ => return None,
     })
 }
@@ -321,6 +334,23 @@ mod tests {
         assert_eq!(s.minimap, MinimapMode::Rotating);
         assert!(set(&mut s, "minimap", "zoomed").is_err());
         assert_eq!(s.minimap, MinimapMode::Rotating);
+    }
+
+    #[test]
+    fn the_upscaling_settings_are_set_by_name_and_validated() {
+        let mut s = defaults();
+        assert_eq!(get(&s, "render_scale").unwrap(), "render_scale = 100");
+        assert_eq!(get(&s, "upscaler").unwrap(), "upscaler = fsr1");
+        assert_eq!(get(&s, "upscale_sharpness").unwrap(), "upscale_sharpness = 80");
+        assert_eq!(set(&mut s, "render_scale", "67%").unwrap(), "render_scale = 67");
+        assert_eq!(set(&mut s, "upscaler", "bilinear").unwrap(), "upscaler = bilinear");
+        assert_eq!(set(&mut s, "upscale_sharpness", "25").unwrap(), "upscale_sharpness = 25");
+        let before = s;
+        assert!(set(&mut s, "render_scale", "10").is_err());
+        assert!(set(&mut s, "upscaler", "dlss").is_err());
+        assert!(set(&mut s, "upscale_sharpness", "101").is_err());
+        assert_eq!(s, before);
+        assert_eq!(set(&mut s, "render_scale", "").unwrap_err(), "usage: set render_scale <50-200> (now 67)");
     }
 
     #[test]
