@@ -35,8 +35,8 @@ inputs; the application chooses presentation quality and emission budgets.
 2. An ordered chain of fullscreen post-process passes reads the scene image (and may sample the depth
    buffer) and writes the surface; intermediate passes ping-pong through scratch images. The chain always
    ends with the built-in `resolve` pass: clamp to the output range, alpha 1, an exact texel copy when the
-   render size equals the output size and bilinear filtering otherwise. Later effects and upscalers are
-   inserted before it (`gpu/post/`).
+   render size equals the output size and bilinear filtering otherwise. The post effects sit at the front
+   (see below) and upscalers are inserted before `resolve` (`gpu/post/`).
 3. The UI layer draws on the surface after the chain, at surface resolution: it is never post-processed or
    upscaled.
 
@@ -48,3 +48,14 @@ The internal render size is the surface size times the render scale, per axis:
 - `Renderer::resize` keeps the render scale; `render_scale()`, `render_size()`, `surface_size()` and `is_hdr()`
   report the current state. `scaled_size(surface, scale)` is the pure size computation.
 - `Renderer::capture(width, height, ...)` runs the same stages at the capture size and returns the final image.
+
+### Post effects
+
+`Renderer::set_post_effects(PostSettings)` turns on bloom, tone mapping and FXAA (`post_effects()` reads the
+clamped settings back). The default `PostSettings` runs none of them, so the chain is just `resolve` and the
+frame is unchanged. Enabled effects run at the render size in the fixed order bloom, tone mapping (an ACES fit
+with an exposure), FXAA, then `resolve`; passes inserted by other code stay behind them. Each effect is its own
+pass built on a small fullscreen-filter helper with one WGSL module (`shaders/post_common.wgsl` plus the
+effect's file); an effect that is off has no pass. Setting the current value again does nothing; changing it
+rebuilds the effect passes. FXAA is an independent implementation of the published algorithm, not a copy of
+the reference header.

@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 use super::partial::{Partial, Percent, parse_bool};
 use super::{Deadzone, HudLayout, MinimapMode, RadioHudStyle, Sensitivity, Transmission};
-use super::{Monitor, Resolution, SmokeQuality, WindowMode};
+use super::{Monitor, PostAa, PostBloom, PostTonemap, Resolution, SmokeQuality, WindowMode};
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
 
@@ -35,6 +35,9 @@ pub const TRANSMISSION: &str = "NFSMW_TRANSMISSION";
 pub const MINIMAP: &str = "NFSMW_MINIMAP";
 pub const HUD_LAYOUT: &str = "NFSMW_HUD_LAYOUT";
 pub const RADIO_HUD: &str = "NFSMW_RADIO_HUD";
+pub const POST_TONEMAP: &str = "NFSMW_POST_TONEMAP";
+pub const POST_BLOOM: &str = "NFSMW_POST_BLOOM";
+pub const POST_AA: &str = "NFSMW_POST_AA";
 pub const PADDLE_UP: &str = "NFSMW_PADDLE_UP";
 pub const PADDLE_DOWN: &str = "NFSMW_PADDLE_DOWN";
 pub const MANUAL_CLUTCH: &str = "NFSMW_MANUAL_CLUTCH";
@@ -79,6 +82,9 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         minimap: value(&get, MINIMAP, MinimapMode::from_str),
         hud_layout: value(&get, HUD_LAYOUT, HudLayout::from_str),
         radio_hud: value(&get, RADIO_HUD, RadioHudStyle::from_str),
+        post_tonemap: value(&get, POST_TONEMAP, PostTonemap::from_str),
+        post_bloom: value(&get, POST_BLOOM, PostBloom::from_str),
+        post_aa: value(&get, POST_AA, PostAa::from_str),
         paddle_up: value(&get, PADDLE_UP, |s| s.trim().parse::<u32>().map_err(|e| e.to_string())),
         paddle_down: value(&get, PADDLE_DOWN, |s| s.trim().parse::<u32>().map_err(|e| e.to_string())),
         manual_clutch: value(&get, MANUAL_CLUTCH, parse_bool),

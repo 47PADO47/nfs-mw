@@ -10,6 +10,7 @@
 //! - [`backend`](crate::Backend): the user-selectable graphics backend;
 //! - [`ui`](crate::UiLayer): the 2D layer drawn over the scene (consoles, overlays, menus);
 //! - [`render_scale`](crate::scaled_size): the internal render size relative to the surface;
+//! - [`post_settings`](crate::PostSettings): which post-process effects (bloom, tone mapping, FXAA) run;
 //! - `gpu/`: the wgpu implementation (device setup, resources, pipelines, the offscreen HDR
 //!   targets, the post-process chain, frames).
 
@@ -18,6 +19,7 @@ mod backend;
 mod effects;
 mod glossy;
 mod gpu;
+mod post_settings;
 mod render_scale;
 mod ui;
 
@@ -29,5 +31,9 @@ pub use backend::{Backend, ParseBackendError};
 pub use effects::{DEFAULT_SOFT_DISTANCE, EffectLayer, EffectVertex, TexturedEffect};
 pub use glossy::{DirectionalLight, GlossyMaterial, GlossyMaterialHandle, LightingRig, SkyGradient};
 pub use gpu::Renderer;
+pub use post_settings::{
+    Antialiasing, DEFAULT_BLOOM_THRESHOLD, MAX_BLOOM_INTENSITY, MAX_BLOOM_THRESHOLD, MAX_EXPOSURE, MIN_EXPOSURE,
+    PostEffect, PostSettings, Tonemap,
+};
 pub use render_scale::{DEFAULT_RENDER_SCALE, MAX_RENDER_SCALE, MIN_RENDER_SCALE, clamp_render_scale, scaled_size};
 pub use ui::{UiLayer, UiMesh, UiTextureId, UiTexturePatch, UiVertex};

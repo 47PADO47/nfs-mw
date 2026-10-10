@@ -1,13 +1,21 @@
 //! The post-process chain: an ordered list of fullscreen passes between the HDR scene image and
 //! the output image. The UI is drawn after the chain, so it is never post-processed or upscaled.
 //!
-//! The chain always ends with the built-in [`resolve`] pass, which writes the output. Later passes
-//! (bloom, tonemapping, upscaling) are inserted before it with [`PostChain::insert`].
+//! The chain always ends with the built-in [`resolve`] pass, which writes the output. The post
+//! effects (bloom, tone mapping, FXAA; see [`effects`]) sit at the front, and later passes
+//! (upscaling) are inserted before the resolve pass with [`PostChain::insert`].
 
+mod bloom;
+#[cfg(test)]
+mod effect_tests;
+mod effects;
+mod filter;
+mod fxaa;
 mod plan;
 mod resolve;
 #[cfg(test)]
 mod tests;
+mod tonemap;
 
 use super::targets::FrameTargets;
 use plan::{Source, Target};
@@ -82,18 +90,27 @@ pub(super) struct PostChain {
     /// Never empty: the last pass is the resolve pass.
     passes: Vec<Box<dyn PostPass>>,
     scratch: [Option<Scratch>; 2],
+    /// How many passes at the front of `passes` are the post effects of `settings`.
+    effect_count: usize,
+    settings: crate::PostSettings,
 }
 
 impl PostChain {
     pub(super) fn new(device: &wgpu::Device) -> Self {
-        Self { passes: vec![Box::new(resolve::Resolve::new(device))], scratch: [None, None] }
+        Self {
+            passes: vec![Box::new(resolve::Resolve::new(device))],
+            scratch: [None, None],
+            effect_count: 0,
+            settings: crate::PostSettings::default(),
+        }
     }
 
     /// Insert `pass` so it runs at `index` among the passes (0 = first). Past-the-end indices put
-    /// it right before the resolve pass, which always stays last.
+    /// it right before the resolve pass, which always stays last; the post effects stay in front of
+    /// every inserted pass.
     #[allow(dead_code, reason = "the entry point for the post-process passes of later layers")]
     pub(super) fn insert(&mut self, index: usize, pass: Box<dyn PostPass>) {
-        let index = index.min(self.passes.len() - 1);
+        let index = index.clamp(self.effect_count, self.passes.len() - 1);
         self.passes.insert(index, pass);
     }
 
@@ -110,7 +127,7 @@ impl PostChain {
         encoder: &mut wgpu::CommandEncoder,
         output: (&wgpu::TextureView, wgpu::TextureFormat),
     ) {
-        let Self { passes, scratch } = self;
+        let Self { passes, scratch, .. } = self;
         let steps = plan::plan(passes.len());
         let scene = ctx.scene;
         for (pass, step) in passes.iter_mut().zip(steps) {
