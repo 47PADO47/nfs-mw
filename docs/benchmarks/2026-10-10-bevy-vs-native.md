@@ -68,6 +68,43 @@ reverted.
 Open question: whether this is a bug in our material or instancing path that the CPU path exposes, or a limit of
 the CPU path itself. Until that is answered, the GPU builder stays on.
 
+### Static investigation (2026-10-10): inconclusive
+
+A read of `bevy_pbr`, `bevy_camera` and `bevy_render` 0.20.0 did **not** find the cause: nothing the CPU builder
+requires is missing from our entities, and no Bevy limitation was confirmed. Three hypotheses were ruled out:
+
+- **`NoFrustumCulling`** is not a CPU/GPU difference. Both builders run `check_visibility_cpu_culling`
+  (`bevy_camera/src/visibility/mod.rs`) in `CheckVisibility`; `NoFrustumCulling` skips only the frustum test
+  (~line 823) and the entity is still marked visible (~846).
+- **Missing `Transform`** is not required. The CPU extractor `extract_meshes_for_cpu_building`
+  (`bevy_pbr/src/render/mesh.rs` ~1811-1921) reads `GlobalTransform` via `transform.affine()` (~1886) — the same
+  source as the GPU builder (~2223) — and never reads `Transform`.
+- **The custom vertex attribute / `specialize`** has no builder-specific branch; the draw path is identical for
+  both (`mesh.rs` ~4708-4737).
+
+Two CPU-only divergences remain as unconfirmed suspects:
+
+- The sorted batcher (`bevy_render/src/batching/mod.rs` ~219-244) leaves `batch_range` at the queue default
+  `0..1` for a failed item (`bevy_pbr/src/material.rs` ~1342, ~1450); `DrawMesh` then skips it.
+- The CPU path falls back to `MaterialBindingId::default()` (`mesh.rs` ~1873-1875) where the GPU path skips the
+  entity (~1473). If a queued item has no `RenderMaterialBindings` entry this would draw with a default/empty
+  material — a plausible explanation for the *flat grey-blue* colour.
+
+### Deferred: how to debug it (needs a GPU)
+
+This can't be settled by static reading; it needs runtime instrumentation on the RTX host (focus-safe, offscreen).
+On a throwaway branch with `use_gpu_instance_buffer_builder: false`:
+
+1. In `apply`, count `RenderMeshInstancesCpu` entries against the instance-pool size.
+2. Count queued phase items per opaque bin and per transparent batch after `batch_and_prepare_*`.
+3. Count `DrawMesh` `Skip` results by reason (empty `batch_range`, missing vertex slice, missing material binding).
+4. Capture one RenderDoc frame: are the tree/building/road draws issued at all, and with which instance indices
+   and `MeshUniform` values?
+
+Verify visually with offscreen `--screenshot` + `cargo xtask img-diff` against the GPU-path baseline (reference
+mean ~1.6 at `2152,1399`, per [bevy-backend.md](../bevy-backend.md) "The real city"). Flipping back to the GPU
+builder is a one-line revert. Potential upside if it is our bug: ~311 → ~810 fps.
+
 ## Experiment: no clustering on the scene camera (rejected)
 
 `ClusterConfig::None` on the scene camera crashed the app at startup (a system failed on a missing resource, then
@@ -96,3 +133,11 @@ Three options, to be decided:
    on every frame. Caching needs a vendored patch of `bevy_pbr`, which is a maintenance cost.
 3. **Reduce per-frame writes** in our own systems, so `Queue::write_buffer` and `StagingBuffer::new` (about 575 and
    585 calls per frame) shrink. This does not touch Bevy's bind-group rebuilds.
+
+   **Low value (2026-10-10 static check).** Our own per-frame `write_buffer` calls are few — the effects globals
+   plus one `batch.upload` per effect batch (`systems/effects.rs`), the UI's three writes
+   (`blackbox-gpu-passes/src/ui.rs`), and the soft-particle params: on the order of a dozen per frame, not ~575.
+   The ~575 writes and ~398 `create_bind_group` calls are Bevy's `prepare_preprocess_bind_groups` rebuilding
+   per-batch resources every frame, scaling with the ~400 draw batches. So the write count is cut either by
+   option 1/2 above or by **reducing the batch count** (fewer distinct materials — e.g. texture atlasing — or a
+   custom instanced pipeline that bypasses `gpu_preprocess`), not by trimming our own uploads.
