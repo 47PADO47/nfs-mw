@@ -71,6 +71,8 @@ pub struct Settings {
     pub tire_smoke: bool,
     /// Play the radio while driving (the `radio` console command still works when it is off).
     pub radio: bool,
+    /// Start at the main menu instead of the boot movies and the title screen (the `--skip-boot` flag).
+    pub skip_intro: bool,
     /// Optional smoke presentation quality; standard retains the default cost and look.
     pub smoke_quality: SmokeQuality,
     /// Draw bounded, ground-following tire marks.
@@ -129,6 +131,7 @@ impl From<Partial> for Settings {
             hud: p.hud.unwrap_or(true),
             tire_smoke: p.tire_smoke.unwrap_or(true),
             radio: p.radio.unwrap_or(true),
+            skip_intro: p.skip_intro.unwrap_or(false),
             smoke_quality: p.smoke_quality.unwrap_or_default(),
             skid_marks: p.skid_marks.unwrap_or(true),
             collision_sparks: p.collision_sparks.unwrap_or(false),
