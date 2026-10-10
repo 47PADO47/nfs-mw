@@ -2,7 +2,7 @@
 //! crate. Everything here is behind the `renderer-bevy` cargo feature; without it the functions are stubs that
 //! say the build has no Bevy renderer, so the rest of the app needs no `cfg`.
 
-use bevy_app::App;
+use bevy_app::{App, Update};
 use blackbox_gfx::GraphicsApi;
 
 /// Whether this PC can run the Bevy renderer on `api`, and if not, why. Logs what it found.
@@ -33,15 +33,36 @@ pub fn probe(_api: GraphicsApi) -> Result<(), String> {
 /// Join the renderer to the game's `App` (before `run`). Only called once the probe passed.
 #[cfg(feature = "renderer-bevy")]
 pub fn add_plugin(app: &mut App, api: GraphicsApi) {
-    app.add_plugins(blackbox_bevy_render::BlackboxBevyRenderPlugin {
-        api,
-        synchronous_pipeline_compilation: false,
-        ..Default::default()
-    });
+    use bevy_ecs::schedule::IntoScheduleConfigs;
+    app.add_plugins((
+        blackbox_bevy_render::BlackboxBevyRenderPlugin {
+            api,
+            synchronous_pipeline_compilation: false,
+            ..Default::default()
+        },
+        blackbox_bevy_render::BlackboxFpsOverlayPlugin,
+    ))
+    .add_systems(Update, sync_fps_overlay.run_if(super::using_bevy));
 }
 
 #[cfg(not(feature = "renderer-bevy"))]
 pub fn add_plugin(_app: &mut App, _api: GraphicsApi) {}
+
+/// Shows Bevy's frame-rate overlay when the `metrics` setting asks for it; `advanced` adds the frame-time graph.
+#[cfg(feature = "renderer-bevy")]
+pub fn sync_fps_overlay(
+    settings: bevy_ecs::prelude::Res<crate::settings::Settings>,
+    mut config: bevy_ecs::prelude::ResMut<blackbox_bevy_render::FpsOverlayConfig>,
+) {
+    let enabled = settings.show_metrics != crate::devtools::ShowMetrics::Off;
+    let graph = settings.show_metrics == crate::devtools::ShowMetrics::Advanced;
+    // Compare first: writing the resource through `ResMut` marks it changed every frame otherwise.
+    if config.enabled == enabled && config.frame_time_graph_config.enabled == graph {
+        return;
+    }
+    config.enabled = enabled;
+    config.frame_time_graph_config.enabled = graph;
+}
 
 /// Create the Bevy backend once the device exists (the plugins have finished by the first `Update`).
 #[cfg(feature = "renderer-bevy")]
