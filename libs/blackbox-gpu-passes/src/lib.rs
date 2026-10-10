@@ -33,9 +33,15 @@ pub mod test_support;
 
 pub use batch::Batch;
 
-/// The WGSL of the world effects (`vs_main` and the `fs_*` stages), for renderers that build their own
-/// effect pipelines. [`TexturedEffects`] and the renderer's effect pipelines use the same source.
-pub const EFFECTS_WGSL: &str = include_str!("shaders/effects.wgsl");
+/// The WGSL of the world effects (`vs_main` and the `fs_*` stages) for a plain (non-sRGB) target, for
+/// renderers that build their own effect pipelines. [`TexturedEffects`] and the renderer's effect
+/// pipelines use the same source. Expanded at build time from `shaders/effects.wesl`; see
+/// [`EFFECTS_WGSL_SRGB`] for the sRGB-target variant and the README for why there are two.
+pub const EFFECTS_WGSL: &str = include_str!(concat!(env!("OUT_DIR"), "/effects.wgsl"));
+
+/// [`EFFECTS_WGSL`] gamma-decoded once before writing, for a renderer whose render target view is sRGB
+/// (see `world::is_srgb`).
+pub const EFFECTS_WGSL_SRGB: &str = include_str!(concat!(env!("OUT_DIR"), "/effects_srgb.wgsl"));
 
 pub use effects::{Effects, SoftDraw};
 pub use filter::{Blend, Draw, Filter, POST_COMMON_WGSL, Params, filter_source};

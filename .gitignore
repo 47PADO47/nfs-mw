@@ -34,6 +34,7 @@
 !/libs/*/src/**/*.rs
 !/libs/*/src/**/*.wgsl
 !/libs/*/src/**/*.wesl
+!/libs/*/build.rs
 !/libs/*/tests/**/*.rs
 !/crates/*/Cargo.toml
 !/crates/*/src/**/*.rs

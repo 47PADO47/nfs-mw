@@ -73,6 +73,7 @@ sha2 = "0.10"
 texture2ddecoder = "0.1"
 thiserror = "2"
 toml = "0.9"
+wesl = "=0.6.0"
 wgpu = "30"
 winreg = "0.56"
 # VP6 video: the VP5/VP6 subset of NihAV that Ruffle split out and kindly had relicensed to MIT by its

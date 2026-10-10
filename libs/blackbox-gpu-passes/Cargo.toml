@@ -18,6 +18,10 @@ glam.workspace = true
 pollster = { workspace = true, optional = true }
 wgpu.workspace = true
 
+[build-dependencies]
+# Expands the WESL shaders (the sRGB conditional) to plain WGSL at build time; never a runtime dependency.
+wesl.workspace = true
+
 [dev-dependencies]
 # Validates the WGSL sources without a GPU.
 naga.workspace = true

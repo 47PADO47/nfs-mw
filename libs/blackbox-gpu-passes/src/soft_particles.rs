@@ -16,11 +16,18 @@ struct Parameters {
     fade: [f32; 4],
 }
 
+/// The plain-target WGSL, expanded at build time from `shaders/soft_particles.wesl` with `SRGB_TARGET`
+/// disabled.
+const SOFT_PARTICLES_WGSL: &str = include_str!(concat!(env!("OUT_DIR"), "/soft_particles.wgsl"));
+/// The sRGB-target WGSL, gamma-decoded once before writing (see `world::is_srgb`).
+const SOFT_PARTICLES_WGSL_SRGB: &str = include_str!(concat!(env!("OUT_DIR"), "/soft_particles_srgb.wgsl"));
+
 /// The soft-particle pipeline and its depth binding. Call [`Self::prepare`] with the scene depth, then
 /// [`Self::bind`] inside a render pass that targets the colour image, set the particle vertex buffer
 /// (`EffectVertex` layout) and draw.
 pub struct SoftParticles {
-    shader: wgpu::ShaderModule,
+    /// The plain and sRGB-target shader modules, built once and shared by every format's pipeline.
+    shaders: HashMap<bool, wgpu::ShaderModule>,
     pipeline_layout: wgpu::PipelineLayout,
     /// Per target format, built the first time the particles are drawn into it.
     pipelines: HashMap<wgpu::TextureFormat, wgpu::RenderPipeline>,
@@ -68,12 +75,15 @@ impl SoftParticles {
             bind_group_layouts: &[Some(&bindings.globals_layout), Some(&layout)],
             immediate_size: 0,
         });
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("procedural soft particles"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/soft_particles.wgsl").into()),
-        });
-        let mut soft =
-            Self { shader, pipeline_layout, pipelines: HashMap::new(), format, layout, parameters, binding: None };
+        let mut soft = Self {
+            shaders: HashMap::new(),
+            pipeline_layout,
+            pipelines: HashMap::new(),
+            format,
+            layout,
+            parameters,
+            binding: None,
+        };
         soft.use_format(device, format);
         soft
     }
@@ -84,12 +94,19 @@ impl SoftParticles {
         if self.pipelines.contains_key(&format) {
             return;
         }
-        let entry_point = if crate::world::is_srgb(format) { "fs_main_srgb" } else { "fs_main" };
+        let srgb = crate::world::is_srgb(format);
+        let shader = self.shaders.entry(srgb).or_insert_with(|| {
+            let source = if srgb { SOFT_PARTICLES_WGSL_SRGB } else { SOFT_PARTICLES_WGSL };
+            device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("procedural soft particles"),
+                source: wgpu::ShaderSource::Wgsl(source.into()),
+            })
+        });
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("soft particles"),
             layout: Some(&self.pipeline_layout),
             vertex: wgpu::VertexState {
-                module: &self.shader,
+                module: shader,
                 entry_point: Some("vs_main"),
                 compilation_options: Default::default(),
                 buffers: &[Some(wgpu::VertexBufferLayout {
@@ -102,8 +119,8 @@ impl SoftParticles {
             depth_stencil: None,
             multisample: Default::default(),
             fragment: Some(wgpu::FragmentState {
-                module: &self.shader,
-                entry_point: Some(entry_point),
+                module: shader,
+                entry_point: Some("fs_main"),
                 compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
                     format,

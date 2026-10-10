@@ -33,9 +33,8 @@ fn fogged(in: VsOut, alpha: f32) -> vec4<f32> {
     return vec4<f32>(mix(in.color.rgb, globals.fog_color.rgb, fog), in.color.a * alpha);
 }
 
-// The exact sRGB decode, so decode then the hardware's encode on write is the identity (a renderer
-// whose render target view is sRGB picks the `_srgb` entry point of each pass below instead of the
-// plain one); see `world::is_srgb`.
+// The exact sRGB decode, so decode then the hardware's encode on write is the identity (a renderer whose
+// render target view is sRGB compiles this module with `SRGB_TARGET` set; see `world::is_srgb`).
 fn linear_from_gamma(c: vec3<f32>) -> vec3<f32> {
     let low = c / 12.92;
     let high = pow((c + vec3<f32>(0.055)) / 1.055, vec3<f32>(2.4));
@@ -50,13 +49,12 @@ fn surface_color(in: VsOut) -> vec4<f32> {
 
 @fragment
 fn fs_surface(in: VsOut) -> @location(0) vec4<f32> {
-    return surface_color(in);
-}
-
-@fragment
-fn fs_surface_srgb(in: VsOut) -> @location(0) vec4<f32> {
     let c = surface_color(in);
-    return vec4<f32>(linear_from_gamma(c.rgb), c.a);
+    @if(SRGB_TARGET) {
+        return vec4<f32>(linear_from_gamma(c.rgb), c.a);
+    } @else {
+        return c;
+    }
 }
 
 fn particle_color(in: VsOut) -> vec4<f32> {
@@ -69,13 +67,12 @@ fn particle_color(in: VsOut) -> vec4<f32> {
 
 @fragment
 fn fs_particle(in: VsOut) -> @location(0) vec4<f32> {
-    return particle_color(in);
-}
-
-@fragment
-fn fs_particle_srgb(in: VsOut) -> @location(0) vec4<f32> {
     let c = particle_color(in);
-    return vec4<f32>(linear_from_gamma(c.rgb), c.a);
+    @if(SRGB_TARGET) {
+        return vec4<f32>(linear_from_gamma(c.rgb), c.a);
+    } @else {
+        return c;
+    }
 }
 
 fn streak_color(in: VsOut) -> vec4<f32> {
@@ -91,13 +88,12 @@ fn streak_color(in: VsOut) -> vec4<f32> {
 
 @fragment
 fn fs_streak(in: VsOut) -> @location(0) vec4<f32> {
-    return streak_color(in);
-}
-
-@fragment
-fn fs_streak_srgb(in: VsOut) -> @location(0) vec4<f32> {
     let c = streak_color(in);
-    return vec4<f32>(linear_from_gamma(c.rgb), c.a);
+    @if(SRGB_TARGET) {
+        return vec4<f32>(linear_from_gamma(c.rgb), c.a);
+    } @else {
+        return c;
+    }
 }
 
 fn glow_color(in: VsOut) -> vec4<f32> {
@@ -113,13 +109,12 @@ fn glow_color(in: VsOut) -> vec4<f32> {
 
 @fragment
 fn fs_glow(in: VsOut) -> @location(0) vec4<f32> {
-    return glow_color(in);
-}
-
-@fragment
-fn fs_glow_srgb(in: VsOut) -> @location(0) vec4<f32> {
     let c = glow_color(in);
-    return vec4<f32>(linear_from_gamma(c.rgb), c.a);
+    @if(SRGB_TARGET) {
+        return vec4<f32>(linear_from_gamma(c.rgb), c.a);
+    } @else {
+        return c;
+    }
 }
 
 fn textured_color(in: VsOut) -> vec4<f32> {
@@ -131,13 +126,12 @@ fn textured_color(in: VsOut) -> vec4<f32> {
 
 @fragment
 fn fs_textured(in: VsOut) -> @location(0) vec4<f32> {
-    return textured_color(in);
-}
-
-@fragment
-fn fs_textured_srgb(in: VsOut) -> @location(0) vec4<f32> {
     let c = textured_color(in);
-    return vec4<f32>(linear_from_gamma(c.rgb), c.a);
+    @if(SRGB_TARGET) {
+        return vec4<f32>(linear_from_gamma(c.rgb), c.a);
+    } @else {
+        return c;
+    }
 }
 
 fn textured_alpha_color(in: VsOut) -> vec4<f32> {
@@ -149,11 +143,10 @@ fn textured_alpha_color(in: VsOut) -> vec4<f32> {
 
 @fragment
 fn fs_textured_alpha(in: VsOut) -> @location(0) vec4<f32> {
-    return textured_alpha_color(in);
-}
-
-@fragment
-fn fs_textured_alpha_srgb(in: VsOut) -> @location(0) vec4<f32> {
     let c = textured_alpha_color(in);
-    return vec4<f32>(linear_from_gamma(c.rgb), c.a);
+    @if(SRGB_TARGET) {
+        return vec4<f32>(linear_from_gamma(c.rgb), c.a);
+    } @else {
+        return c;
+    }
 }
