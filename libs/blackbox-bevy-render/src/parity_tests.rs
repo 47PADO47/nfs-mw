@@ -132,6 +132,12 @@ fn the_depth_probe_matches_native() {
     check(SceneId::DepthProbe);
 }
 
+#[test]
+#[ignore = "needs a GPU"]
+fn glossy_spheres_match_native() {
+    check(SceneId::GlossySphere);
+}
+
 /// Blending and additive layers blend in linear space on Bevy (an sRGB target) and in gamma space natively, and
 /// Bevy sorts transparent draws by distance where the native renderer keeps submission order. The numbers are
 /// reported, not asserted: they are the documented gap (docs/bevy-backend.md).

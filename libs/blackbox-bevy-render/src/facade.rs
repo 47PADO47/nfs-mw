@@ -1,7 +1,7 @@
 //! `BevyBackend`: the `RenderBackend` the game talks to.
 //!
 //! Handles are numbered here, at once; the work happens when [`crate::apply`] runs in the Bevy schedule. What
-//! this spike does not draw yet (glossy shading, the effect layer, the UI layer) is accepted and logged once.
+//! this crate does not draw yet (the effect layer, the UI layer) is accepted and logged once.
 
 use std::sync::{Arc, Mutex};
 
@@ -17,7 +17,6 @@ use crate::ops::{CameraSettings, CaptureRequest, FrameData, Op, Shared, lock};
 /// Log a missing feature once per kind, not once per frame.
 #[derive(Default)]
 struct Warned {
-    glossy: bool,
     effects: bool,
     ui: bool,
     environment: bool,
@@ -154,21 +153,26 @@ impl RenderBackend for BevyBackend {
         self.push(Op::RemoveMesh(handle));
     }
 
-    fn create_glossy_material(&mut self, _material: &GlossyMaterial) -> GlossyMaterialHandle {
-        once(&mut self.warned.glossy, "glossy shading (draws fall back to lit)");
+    fn create_glossy_material(&mut self, material: &GlossyMaterial) -> GlossyMaterialHandle {
         let handle = GlossyMaterialHandle::from_raw(self.next_glossy);
         self.next_glossy += 1;
+        self.push(Op::AddGlossyMaterial { handle, params: crate::material::GlossyUniform::of(material) });
         handle
     }
 
-    fn destroy_glossy_material(&mut self, _handle: GlossyMaterialHandle) {}
-
-    fn set_lighting_rig(&mut self, _rig: &LightingRig) {
-        once(&mut self.warned.glossy, "glossy shading (draws fall back to lit)");
+    fn destroy_glossy_material(&mut self, handle: GlossyMaterialHandle) {
+        self.push(Op::RemoveGlossyMaterial(handle));
     }
 
-    fn set_environment(&mut self, _environment: Environment<'_>) {
-        once(&mut self.warned.environment, "the glossy environment");
+    fn set_lighting_rig(&mut self, rig: &LightingRig) {
+        self.push(Op::SetLightingRig(crate::material::RigUniform::of(rig)));
+    }
+
+    fn set_environment(&mut self, environment: Environment<'_>) {
+        match crate::apply::environment::build(environment) {
+            Some(image) => self.push(Op::SetEnvironment(Box::new(image))),
+            None => once(&mut self.warned.environment, "a too-small environment face"),
+        }
     }
 
     fn set_effects(&mut self, layer: &EffectLayer) {

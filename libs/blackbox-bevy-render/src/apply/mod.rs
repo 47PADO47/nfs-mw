@@ -7,6 +7,7 @@
 pub mod assets;
 pub mod camera;
 pub mod capture;
+pub mod environment;
 pub mod instances;
 pub mod redirects;
 pub mod state;
@@ -106,6 +107,7 @@ fn draw(
     data: &FrameData,
 ) {
     assets::sync_params(state, stores, Params::of(&data.frame));
+    assets::sync_rig_environment(state, stores);
     instances::sync(state, stores, commands, placed, &data.instances);
 }
 

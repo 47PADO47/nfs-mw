@@ -8,7 +8,7 @@ use bevy_ecs::resource::Resource;
 use bevy_image::Image;
 use bevy_mesh::Mesh;
 
-use crate::material::{BlackboxMaterial, BlendKind, Params, ShadingKind};
+use crate::material::{BlackboxMaterial, BlendKind, GlossyUniform, Params, RigUniform, ShadingKind};
 
 /// One draw range of a registered mesh, ready to give an entity.
 pub struct RangeEntry {
@@ -17,6 +17,8 @@ pub struct RangeEntry {
     pub texture: Option<usize>,
     pub blend: BlendKind,
     pub shading: ShadingKind,
+    /// The glossy material number, when `shading` is [`ShadingKind::Glossy`].
+    pub glossy: Option<usize>,
 }
 
 /// A registered mesh: one Bevy mesh per draw range.
@@ -30,6 +32,8 @@ pub struct MaterialKey {
     pub texture: Option<usize>,
     pub blend: BlendKind,
     pub shading: ShadingKind,
+    /// The glossy material number, when `shading` is [`ShadingKind::Glossy`].
+    pub glossy: Option<usize>,
 }
 
 /// One material asset per (texture, blend, shading), shared by every draw that uses the combination.
@@ -77,6 +81,15 @@ pub struct WorldState {
     pub materials: MaterialCache,
     /// The parameters every material currently holds.
     pub params: Option<Params>,
+    /// Every registered glossy material's shading constants, keyed by its number.
+    pub glossy: HashMap<usize, GlossyUniform>,
+    /// The lighting rig every glossy material currently reads.
+    pub rig: RigUniform,
+    /// The environment reflection every glossy material currently reads.
+    pub environment: Option<Handle<Image>>,
+    /// The `(rig, environment)` every glossy material currently holds, so re-syncing can be skipped
+    /// once nothing has changed.
+    pub rig_environment_applied: Option<(RigUniform, Option<Handle<Image>>)>,
     pub pool: HashMap<PoolKey, Placed>,
     pub screen: Option<ScreenCamera>,
     pub capture: Option<super::capture::ActiveCapture>,

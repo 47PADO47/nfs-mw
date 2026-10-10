@@ -88,7 +88,7 @@ mod tests {
         state.textures.insert(1, a);
         state.textures.insert(2, b.clone());
         with_stores(&mut world, |stores| {
-            let handle = material_for(&mut state, stores, Some(1), BlendKind::Opaque, ShadingKind::Lit);
+            let handle = material_for(&mut state, stores, Some(1), BlendKind::Opaque, ShadingKind::Lit, None);
             set(&mut state, stores, 1, Some(2));
             assert_eq!(stores.materials.get(&handle).unwrap().texture, Some(b));
         });
@@ -103,7 +103,7 @@ mod tests {
         state.textures.insert(1, a.clone());
         state.textures.insert(2, b.clone());
         with_stores(&mut world, |stores| {
-            let handle = material_for(&mut state, stores, Some(1), BlendKind::Opaque, ShadingKind::Lit);
+            let handle = material_for(&mut state, stores, Some(1), BlendKind::Opaque, ShadingKind::Lit, None);
             set(&mut state, stores, 1, Some(2));
             assert_eq!(stores.materials.get(&handle).unwrap().texture, Some(b));
             set(&mut state, stores, 1, None);
@@ -120,7 +120,7 @@ mod tests {
         state.textures.insert(1, a.clone());
         state.textures.insert(2, b);
         with_stores(&mut world, |stores| {
-            let handle = material_for(&mut state, stores, Some(1), BlendKind::Opaque, ShadingKind::Lit);
+            let handle = material_for(&mut state, stores, Some(1), BlendKind::Opaque, ShadingKind::Lit, None);
             set(&mut state, stores, 1, Some(2));
             purge(&mut state, stores, 2);
             assert!(state.redirects.is_empty());
@@ -139,13 +139,14 @@ mod tests {
         state.textures.insert(2, b);
         state.textures.insert(3, c.clone());
         with_stores(&mut world, |stores| {
-            let other = material_for(&mut state, stores, Some(3), BlendKind::Opaque, ShadingKind::Lit);
+            let other = material_for(&mut state, stores, Some(3), BlendKind::Opaque, ShadingKind::Lit, None);
             set(&mut state, stores, 1, Some(2));
             assert_eq!(stores.materials.get(&other).unwrap().texture, Some(c));
             assert!(!state.materials.by_key.contains_key(&MaterialKey {
                 texture: Some(1),
                 blend: BlendKind::Opaque,
-                shading: ShadingKind::Lit
+                shading: ShadingKind::Lit,
+                glossy: None
             }));
         });
     }

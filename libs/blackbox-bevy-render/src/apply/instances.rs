@@ -94,10 +94,10 @@ fn spawn(
     let mesh = instance.mesh.raw();
     let transform = global_transform(instance.transform);
     let ranges: Vec<_> =
-        state.meshes[&mesh].ranges.iter().map(|r| (r.mesh.clone(), r.texture, r.blend, r.shading)).collect();
+        state.meshes[&mesh].ranges.iter().map(|r| (r.mesh.clone(), r.texture, r.blend, r.shading, r.glossy)).collect();
     let mut entities: Vec<Entity> = Vec::with_capacity(ranges.len());
-    for (bevy_mesh, texture, blend, shading) in ranges {
-        let material = material_for(state, stores, texture, blend, shading);
+    for (bevy_mesh, texture, blend, shading, glossy) in ranges {
+        let material = material_for(state, stores, texture, blend, shading, glossy);
         let entity = commands
             .spawn((Mesh3d(bevy_mesh), MeshMaterial3d(material), transform, Visibility::Visible, NoFrustumCulling))
             .id();

@@ -10,8 +10,11 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use bevy_ecs::resource::Resource;
 use bevy_image::Image;
-use blackbox_gfx::{CaptureId, FrameParams, Instance, MeshHandle, RenderError, RgbaImage, TextureHandle};
+use blackbox_gfx::{
+    CaptureId, FrameParams, GlossyMaterialHandle, Instance, MeshHandle, RenderError, RgbaImage, TextureHandle,
+};
 
+use crate::material::{GlossyUniform, RigUniform};
 use crate::mesh::RangeData;
 
 /// One resource change, applied in the order it was made.
@@ -31,6 +34,14 @@ pub enum Op {
         ranges: Vec<RangeData>,
     },
     RemoveMesh(MeshHandle),
+    AddGlossyMaterial {
+        handle: GlossyMaterialHandle,
+        params: GlossyUniform,
+    },
+    RemoveGlossyMaterial(GlossyMaterialHandle),
+    SetLightingRig(RigUniform),
+    /// The new environment cube map, built on the calling thread.
+    SetEnvironment(Box<Image>),
 }
 
 /// Everything one frame is drawn from.
