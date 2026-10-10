@@ -39,7 +39,8 @@ scaled down.
 | [`blackbox-particles`](../libs/blackbox-particles) | Particle emitters: spawn and update rules (cone spray, drag, gravity, keyed size, angle and colour curves) as a deterministic simulation that yields sprites | — |
 | [`blackbox-vehicle`](../libs/blackbox-vehicle) | Deterministic fixed-step vehicle physics: rigid body, engine and gearbox, suspension, tires, steering, aero; driven by plain parameter structs and a `Ground` ray-cast trait | — (parameters passed by the caller) |
 | [`blackbox-gfx`](../libs/blackbox-gfx) | The renderer-neutral graphics interface: shared types, the `RenderBackend` trait, capabilities, graphics settings and the pure `resolve` | — |
-| [`blackbox-render`](../libs/blackbox-render) | Backend-neutral renderer (wgpu inside); implements the `blackbox-gfx` types | — |
+| [`blackbox-gfx-testkit`](../libs/blackbox-gfx-testkit) | Test support for any renderer: procedural scenes, image metrics and digests (no game data, no GPU API) | — |
+| [`blackbox-render`](../libs/blackbox-render) | Backend-neutral renderer (wgpu inside); implements the `blackbox-gfx` types and `RenderBackend`; headless mode | — |
 | [`blackbox-scene`](../libs/blackbox-scene) | Uploading solids and textures to the renderer; boxes; frustum culling | — |
 | [`game-install`](../libs/game-install) | Finding, validating and reading an install, case-insensitively | driven by a `GameSpec` |
 
@@ -145,10 +146,8 @@ bevy_winit window ─► PreUpdate: input/ resolves devices into actions (Action
 Runtime options resolve in layers, highest first ([`crates/nfsmw/src/settings/`](../crates/nfsmw/src/settings)):
 
 1. the command line (`--backend`, `--no-vsync`, `--max-fps`, `--show-metrics`, `--show-readout`);
-2. environment variables (`NFSMW_BACKEND`, `NFSMW_VSYNC`, `NFSMW_MAX_FPS`, `NFSMW_SHOW_METRICS`,
-   `NFSMW_SHOW_READOUT`);
-3. the per-user config file (`backend`, `vsync`, `max_fps`, `show_metrics`, `show_readout`, `radio`; the same file as
-   `game_dir`);
+2. environment variables (`NFSMW_BACKEND`, `NFSMW_VSYNC`, `NFSMW_MAX_FPS`, `NFSMW_SHOW_METRICS`, `NFSMW_SHOW_READOUT`);
+3. the per-user config file (`backend`, `vsync`, `max_fps`, `show_metrics`, `show_readout`, `radio`; the same file as `game_dir`);
 4. the defaults (`auto`, vsync on, unlocked, overlay off, readout minimal).
 
 Gameplay keys: `hud`, `transmission` (`--transmission automatic|manual`, `NFSMW_TRANSMISSION`; automatic by default,

@@ -17,6 +17,7 @@ fn textured_particles_dx12() {
 }
 
 fn check(backend: wgpu::Backends) {
+    let _gpu = crate::gpu::test_support::serial();
     let mut gpu = Gpu::new(backend);
     let texture = gpu.device.create_texture(&wgpu::TextureDescriptor {
         label: Some("synthetic particle atlas"),

@@ -52,13 +52,14 @@ is pure, so it is fully unit-tested without a GPU. The rules, in the order they 
 
 ## What is not here yet
 
-This crate is the first step of the swappable-renderers plan. Two things are deliberately left for the PR
-that migrates the callers, so that this one stays a move plus the new interface:
+Left for the PR that migrates the callers, so that the interface PR stayed a move plus the new trait:
 
 - `FrameParams` and `Instance` keep their current shapes (`view_proj`, `fog_start`/`fog_end`). The plan
   adds `view`, `projection`, `fog`, `camera_cut` and a stable `InstanceKey` there.
-- Nothing implements `RenderBackend` yet. `blackbox-render` re-exports the moved types, so existing callers
-  compile unchanged; it gains its `impl RenderBackend for Renderer` next.
+
+`blackbox-render`'s `Renderer` implements `RenderBackend` (the native renderer, with its own capabilities);
+[`blackbox-gfx-testkit`](../blackbox-gfx-testkit) has procedural scenes, image metrics and digests to check any
+implementation.
 
 ## Rules
 

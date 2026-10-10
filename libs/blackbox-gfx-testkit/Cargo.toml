@@ -1,0 +1,15 @@
+[package]
+name = "blackbox-gfx-testkit"
+description = "Test support for renderers behind blackbox-gfx: procedural scenes, image metrics and digests. No game data, no GPU API."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+blackbox-gfx.workspace = true
+glam.workspace = true
+
+[lints]
+workspace = true

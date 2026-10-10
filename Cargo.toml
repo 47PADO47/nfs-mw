@@ -23,6 +23,7 @@ blackbox-chunk = { path = "libs/blackbox-chunk" }
 blackbox-collision = { path = "libs/blackbox-collision" }
 blackbox-feng = { path = "libs/blackbox-feng" }
 blackbox-gfx = { path = "libs/blackbox-gfx" }
+blackbox-gfx-testkit = { path = "libs/blackbox-gfx-testkit" }
 blackbox-ginsu = { path = "libs/blackbox-ginsu" }
 blackbox-hash = { path = "libs/blackbox-hash" }
 blackbox-minimap = { path = "libs/blackbox-minimap" }

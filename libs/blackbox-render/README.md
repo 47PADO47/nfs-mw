@@ -27,6 +27,43 @@ Their separate pass samples depth without attaching it, handles reverse-Z occlus
 uses the capture target's depth during off-screen renders. These remain generic renderer
 inputs; the application chooses presentation quality and emission budgets.
 
+## As a `RenderBackend`
+
+`Renderer` implements [`blackbox_gfx::RenderBackend`](../blackbox-gfx), so a scene can take
+`&mut dyn RenderBackend` and run on any renderer. The inherent methods stay (the trait methods forward to
+them) until the callers have moved to the trait.
+
+- `capabilities()` is fixed for the renderer: anti-aliasing `{Off, Fxaa}`, upscalers `{Off, Bilinear, Fsr1}`,
+  every tone map, bloom, no ray tracing, a render scale of 0.25 to 2.0 and nothing that needs a restart.
+  `compressed_bc` and `hdr_targets` come from the adapter.
+- `apply_graphics(&GraphicsSettings)` resolves the request against those capabilities and applies the effective
+  settings with `set_post_effects`, `set_upscaler`, `set_upscale_sharpness`, `set_render_scale` and
+  `set_texture_lod_bias(suggested_texture_lod_bias(scale))`. It returns the `Resolved` (effective settings, every
+  downgrade with its reason, every note); `graphics()` reads the effective settings back. A request the renderer
+  can run is applied exactly.
+- `info()` names the renderer (`"blackbox"`), the API in use, the adapter and the driver.
+
+### Headless and captures
+
+`Renderer::headless((width, height), options)` creates a renderer with no window or surface: frames go into an
+`Rgba8Unorm` texture. `render` draws into it (and returns `true`), `read_output()` reads it back, `resize`
+recreates it. `RendererOptions::force_fallback_adapter` asks for the software adapter (lavapipe, WARP). Tests and
+tools use it; the GPU tests in `gpu/parity/` run on it.
+
+Captures are asynchronous in the trait: `request_capture(size, frame, instances)` returns a `CaptureId` and
+`poll_capture(id)` returns the image once. This renderer draws and reads the frame back inside
+`request_capture`, so the first poll has it; `capture()` still returns the bytes directly. The UI layer and the
+post chain are part of a capture, as on screen.
+
+### Tests
+
+`cargo test -p blackbox-render --lib -- --include-ignored` runs the GPU tests (headless; see
+[docs/testing.md](../../docs/testing.md#gpu-tests)). They render the
+[`blackbox-gfx-testkit`](../blackbox-gfx-testkit) scenes under five setting combinations and compare 32x18 colour
+digests recorded on Intel Iris Xe (Vulkan, Mesa) within +-2 per channel; the digests are Rust constants in
+`gpu/parity/digests/`, and `BLACKBOX_UPDATE_DIGESTS=1` prints new ones. Any change to the native image needs an
+intended digest update in the same commit.
+
 ## Render pipeline
 
 `Renderer::render` and `Renderer::capture` pick the cheapest path that gives the requested look:

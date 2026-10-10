@@ -282,6 +282,7 @@ fn grey_pixels(pixels: &[[u8; 4]]) -> usize {
 }
 
 fn check(backend: wgpu::Backends) {
+    let _gpu = crate::gpu::test_support::serial();
     let gpu = Gpu::new(backend);
     let size = (64, 64);
     let flat = "return vec4<f32>(1.5, 0.5, 0.25, 0.3);";
