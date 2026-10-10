@@ -124,7 +124,7 @@ User and developer docs land with each PR (§10). A final docs-only sweep can be
 - Owner: look and performance on RTX, texture and slab limits on the full city, with and without DLSS-RR.
 
 **PR 13: `feat/gfx-fsr3`**
-- 13a `libs/fsr3-wgpu`: a port of the FSR 3.1.x upscaler passes from the MIT FidelityFX source (pin the exact SDK tag and file list in the README and NOTICE). One WGSL file per pass, each under 500 lines; no subgroup operations (a portable path); fp32. Rust: context, resources, dispatch, Halton jitter helper, quality ratios.
+- 13a `libs/fsr3-wgpu`: a port of the FSR 3.1.x upscaler passes from the MIT FidelityFX source (pin the exact SDK tag and file list in the README and NOTICE). One WGSL file per pass, converted to WESL, each under 500 lines; no subgroup operations (a portable path); fp32. Rust: context, resources, dispatch, Halton jitter helper, quality ratios.
 - 13a headless tests:
   - a static scene converges towards a supersampled reference;
   - a translating checkerboard keeps PSNR above a threshold (motion-vector reprojection);
