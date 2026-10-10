@@ -28,6 +28,7 @@ impl WorldScene {
             self.physics.database(),
             model.car_type.as_deref().unwrap_or(&name),
         );
+        super::sun::light_cars(renderer);
         let rig = CarRig::upload(renderer, model);
         let [x, y] = self.focus();
         match self.drive.as_mut() {

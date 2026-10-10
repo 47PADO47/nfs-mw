@@ -200,7 +200,7 @@ TRACKS/STREAML2RA.BUN ─► loader threads (nfsmw-data::world::Streamer)
   with the fog-free sky shading. Texture animations (water, signals) advance every frame. Depth is reverse-Z with an infinite far plane, so the 9.7 km dome is never clipped.
 - **Shading:** world geometry is pre-lit (vertex colour × 2, no sun); blending follows each texture's
   `AlphaBlendType` ([textures.md](formats/textures.md#alpha)). Linear fog from half of `--fog-distance` to
-  all of it (default 3 km); placeholder until the game's fog is known.
+  all of it (default 3 km); placeholder until the game's fog is known. Cars use the renderer's glossy shading (`Shading::Glossy`): three directional lights (`set_lighting_rig`), a sun highlight and a reflection of an environment cube map (a generated sky unless `set_environment_faces` replaces it), with the constants of each part's light material ([specs/car-assembly.md §8](specs/car-assembly.md#8-the-car-shader)).
 - **Camera:** free-fly (WASD, Space/C, Shift, right-drag to look, scroll for speed). It starts above the
   centre of the city, or at `--at X,Y`, at `--height` metres above the ground; the ground is estimated from
   the scenery boxes until collision is loaded.

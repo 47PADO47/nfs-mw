@@ -19,6 +19,7 @@ pub(super) struct Shared {
     pub globals_bind_group: wgpu::BindGroup,
     pub texture_layout: wgpu::BindGroupLayout,
     pub sampler: wgpu::Sampler,
+    pub glossy: super::glossy::Layouts,
 }
 
 impl Shared {
@@ -78,7 +79,8 @@ impl Shared {
             anisotropy_clamp: 8,
             ..Default::default()
         });
-        Self { globals, globals_layout, globals_bind_group, texture_layout, sampler }
+        let glossy = super::glossy::Layouts::new(device);
+        Self { globals, globals_layout, globals_bind_group, texture_layout, sampler, glossy }
     }
 }
 

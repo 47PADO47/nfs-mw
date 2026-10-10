@@ -2,7 +2,7 @@
 
 use glam::{Mat4, Vec3};
 
-use crate::Backend;
+use crate::{Backend, GlossyMaterialHandle};
 
 #[derive(Debug, thiserror::Error)]
 pub enum RenderError {
@@ -87,6 +87,20 @@ pub enum Shading {
     Prelit,
     /// Like [`Shading::Prelit`] but never fogged: sky domes, which sit beyond the fog.
     Sky,
+    /// Texture × three-light rig, sun highlight and environment reflection, with the constants
+    /// of a registered material (see [`Renderer::create_glossy_material`](crate::Renderer::create_glossy_material)
+    /// and [`Renderer::set_lighting_rig`](crate::Renderer::set_lighting_rig)). Vehicle paint, rims and glass.
+    Glossy(GlossyMaterialHandle),
+}
+
+impl Shading {
+    /// Whether both use the same pipeline (every glossy material does).
+    pub(crate) fn same_pipeline(self, other: Shading) -> bool {
+        match (self, other) {
+            (Shading::Glossy(_), Shading::Glossy(_)) => true,
+            (a, b) => a == b,
+        }
+    }
 }
 
 /// One draw call: a range of the mesh's indices with one texture.

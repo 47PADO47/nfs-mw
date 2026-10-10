@@ -16,6 +16,7 @@
 mod api;
 mod backend;
 mod effects;
+mod glossy;
 mod gpu;
 mod render_scale;
 mod ui;
@@ -26,6 +27,7 @@ pub use api::{
 };
 pub use backend::{Backend, ParseBackendError};
 pub use effects::{DEFAULT_SOFT_DISTANCE, EffectLayer, EffectVertex, TexturedEffect};
+pub use glossy::{DirectionalLight, GlossyMaterial, GlossyMaterialHandle, LightingRig, SkyGradient};
 pub use gpu::Renderer;
 pub use render_scale::{DEFAULT_RENDER_SCALE, MAX_RENDER_SCALE, MIN_RENDER_SCALE, clamp_render_scale, scaled_size};
 pub use ui::{UiLayer, UiMesh, UiTextureId, UiTexturePatch, UiVertex};

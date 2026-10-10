@@ -11,6 +11,7 @@ mod resident;
 mod road;
 mod space;
 mod start;
+mod sun;
 mod vehicle_effects;
 mod visibility;
 mod zone;
@@ -100,6 +101,7 @@ pub struct WorldScene {
 const FLOWN_AWAY: f32 = 25.0;
 
 const CLEAR: [f32; 3] = [0.55, 0.63, 0.72];
+
 /// The car `drive` picks when none was named.
 pub const DEFAULT_CAR: &str = "BMWM3GTR";
 
@@ -392,7 +394,7 @@ impl Scene for WorldScene {
         let params = FrameParams {
             view_proj,
             camera_position: position,
-            light_dir: Vec3::new(-0.35, -0.45, -1.0),
+            light_dir: sun::DIRECTION,
             clear_color: CLEAR,
             fog_start: fog_end * 0.5,
             fog_end,

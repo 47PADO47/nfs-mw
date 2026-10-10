@@ -2,12 +2,13 @@
 
 use super::instances::INSTANCE_LAYOUT;
 use super::resources::{DEPTH_FORMAT, Shared};
-use crate::{BlendMode, Shading, Vertex};
+use crate::{BlendMode, GlossyMaterialHandle, Shading, Vertex};
 
 /// Draw order: opaque and alpha-tested first, blended last.
 pub(super) const BLEND_ORDER: [BlendMode; 4] =
     [BlendMode::Opaque, BlendMode::AlphaTest, BlendMode::AlphaBlend, BlendMode::Additive];
-pub(super) const SHADINGS: [Shading; 3] = [Shading::Lit, Shading::Prelit, Shading::Sky];
+pub(super) const SHADINGS: [Shading; 4] =
+    [Shading::Lit, Shading::Prelit, Shading::Sky, Shading::Glossy(GlossyMaterialHandle::ANY)];
 
 pub(super) struct Pipelines {
     /// Indexed by `index(blend, shading)`.
@@ -16,7 +17,7 @@ pub(super) struct Pipelines {
 
 fn index(blend: BlendMode, shading: Shading) -> usize {
     let b = BLEND_ORDER.iter().position(|&m| m == blend).unwrap_or(0);
-    let s = SHADINGS.iter().position(|&m| m == shading).unwrap_or(0);
+    let s = SHADINGS.iter().position(|&m| m.same_pipeline(shading)).unwrap_or(0);
     b * SHADINGS.len() + s
 }
 
@@ -37,6 +38,20 @@ impl Pipelines {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("scene shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/scene.wgsl").into()),
+        });
+        let glossy_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("glossy shader"),
+            source: wgpu::ShaderSource::Wgsl(super::glossy::SHADER.into()),
+        });
+        let glossy_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("glossy"),
+            bind_group_layouts: &[
+                Some(&shared.globals_layout),
+                Some(&shared.texture_layout),
+                Some(&shared.glossy.scene),
+                Some(&shared.glossy.material),
+            ],
+            immediate_size: 0,
         });
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("scene"),
@@ -60,11 +75,15 @@ impl Pipelines {
             let prelit = matches!(shading, Shading::Prelit | Shading::Sky);
             let constants =
                 [("PRELIT", f64::from(u8::from(prelit))), ("FOG", f64::from(u8::from(shading != Shading::Sky)))];
+            // The glossy shader has its own module, layout and no overrides.
+            let glossy = matches!(shading, Shading::Glossy(_));
+            let (module, pipeline_layout, constants): (_, _, &[(&str, f64)]) =
+                if glossy { (&glossy_shader, &glossy_layout, &[]) } else { (&shader, &layout, &constants) };
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(&label),
-                layout: Some(&layout),
+                layout: Some(pipeline_layout),
                 vertex: wgpu::VertexState {
-                    module: &shader,
+                    module,
                     entry_point: Some("vs_main"),
                     compilation_options: Default::default(),
                     buffers: &[Some(vertex_layout.clone()), Some(INSTANCE_LAYOUT)],
@@ -85,12 +104,9 @@ impl Pipelines {
                 }),
                 multisample: Default::default(),
                 fragment: Some(wgpu::FragmentState {
-                    module: &shader,
+                    module,
                     entry_point: Some(entry),
-                    compilation_options: wgpu::PipelineCompilationOptions {
-                        constants: &constants,
-                        ..Default::default()
-                    },
+                    compilation_options: wgpu::PipelineCompilationOptions { constants, ..Default::default() },
                     targets: &[Some(wgpu::ColorTargetState {
                         format: color_format,
                         blend,

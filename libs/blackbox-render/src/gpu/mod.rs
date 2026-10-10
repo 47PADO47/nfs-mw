@@ -3,6 +3,7 @@
 mod capture;
 mod effects;
 mod frame;
+mod glossy;
 mod init;
 mod instances;
 mod meshes;
@@ -42,6 +43,7 @@ pub struct Renderer {
     meshes: slots::Slots<meshes::GpuMesh>,
     instances: instances::InstanceBuffer,
     effects: effects::Effects,
+    glossy: glossy::Glossy,
     ui: ui::Ui,
     /// Texture slot -> slot drawn in its place (animated textures).
     redirects: std::collections::HashMap<usize, usize>,

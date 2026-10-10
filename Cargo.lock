@@ -1117,6 +1117,7 @@ dependencies = [
  "bytemuck",
  "glam 0.34.1",
  "log",
+ "naga",
  "pollster",
  "raw-window-handle",
  "thiserror 2.0.21",

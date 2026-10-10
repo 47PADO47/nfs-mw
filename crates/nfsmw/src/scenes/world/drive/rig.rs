@@ -55,7 +55,7 @@ pub struct CarRig {
 
 impl CarRig {
     pub fn upload(renderer: &mut Renderer, model: CarModel) -> Self {
-        let materials = CarMaterials::upload(renderer, &model.textures);
+        let materials = CarMaterials::upload(renderer, &model);
         let mut cache: HashMap<(u32, bool), Option<MeshHandle>> = HashMap::new();
         let mut parts = Vec::new();
         for (placement, p) in model.placements.iter().enumerate() {

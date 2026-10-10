@@ -67,6 +67,7 @@ where
     let targets = targets::FrameTargets::new(&device, scene_format, (config.width, config.height));
     let post = post::PostChain::new(&device);
     let instances = instances::InstanceBuffer::new(&device);
+    let glossy = super::glossy::Glossy::new(&device, &queue, shared.glossy.clone());
     let ui = super::ui::Ui::new(&device, config.format, &shared);
     let effects = super::effects::Effects::new(&device, scene_format, &shared);
 
@@ -86,6 +87,7 @@ where
         meshes: Slots::new(),
         instances,
         effects,
+        glossy,
         ui,
         redirects: Default::default(),
     };
