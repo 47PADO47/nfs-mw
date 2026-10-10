@@ -43,7 +43,7 @@ pollster.workspace = true
 thiserror.workspace = true
 tracing = { version = "0.1", default-features = false, optional = true }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["registry"], optional = true }
-tracing-tracy = { version = "0.11", optional = true }
+tracing-tracy = { version = "0.12", optional = true }
 wgpu.workspace = true
 
 [features]
@@ -53,6 +53,8 @@ trace = [
     "dep:tracing",
     "dep:tracing-subscriber",
     "dep:tracing-tracy",
+    # System names in the trace (without it every system shows as "<Enable the debug feature ...>").
+    "bevy_ecs/debug",
     "bevy_app/trace",
     "bevy_ecs/trace",
     "bevy_render/trace",
