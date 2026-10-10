@@ -28,6 +28,8 @@ bevy_material.workspace = true
 bevy_math.workspace = true
 bevy_mesh.workspace = true
 bevy_pbr.workspace = true
+# Bloom: see the comment in the workspace Cargo.toml.
+bevy_post_process.workspace = true
 bevy_reflect.workspace = true
 bevy_render.workspace = true
 bevy_shader.workspace = true
