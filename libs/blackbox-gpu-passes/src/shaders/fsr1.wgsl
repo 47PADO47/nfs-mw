@@ -37,8 +37,15 @@
 struct Params {
     // The size of the image the pass writes, in pixels.
     out_size: vec2<f32>,
+    // The size of the image this pass reads, in pixels: the valid content inside `src`, which may be
+    // smaller than `textureDimensions(src)` (a caller that draws its low-resolution image into one
+    // corner of a fixed-size texture, rather than a texture sized exactly to it, passes its own content
+    // size here instead of the texture's).
+    in_size: vec2<f32>,
     // RCAS sharpness as a linear lobe scale: exp2(-stops), 1 = maximum sharpness.
     rcas: f32,
+    // `vec3`'s own alignment in the uniform address space is 16 bytes, not 12: a lone `f32` keeps this
+    // struct free of that padding so its WGSL size matches the Rust `Params`'s plain `repr(C)` layout.
     pad: f32,
 };
 
@@ -53,7 +60,7 @@ fn vs_main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4<f32> {
 }
 
 fn load(p: vec2<i32>) -> vec3<f32> {
-    let last = vec2<i32>(textureDimensions(src)) - vec2<i32>(1);
+    let last = vec2<i32>(params.in_size) - vec2<i32>(1);
     let c = textureLoad(src, clamp(p, vec2<i32>(0), last), 0).rgb;
     return clamp(c, vec3<f32>(0.0), vec3<f32>(1.0));
 }
@@ -112,7 +119,7 @@ fn easu_set(w: f32, l_a: f32, l_b: f32, l_c: f32, l_d: f32, l_e: f32) -> vec3<f3
 @fragment
 fn fs_easu(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
     // The output pixel position in input pixels, and the position of 'f'.
-    let ratio = vec2<f32>(textureDimensions(src)) / params.out_size;
+    let ratio = params.in_size / params.out_size;
     var pp = floor(frag.xy) * ratio + (0.5 * ratio - vec2<f32>(0.5));
     let fp = floor(pp);
     pp = pp - fp;

@@ -73,6 +73,7 @@ impl Fsr1Stage {
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct Params {
     out_size: [f32; 2],
+    in_size: [f32; 2],
     rcas: f32,
     pad: f32,
 }
@@ -182,6 +183,12 @@ impl Fsr1Pass {
 pub struct Fsr1Io<'a> {
     /// The image to read, any size; the stage reads it with exact texel loads.
     pub input: &'a wgpu::TextureView,
+    /// The valid content inside `input`, in pixels: what the stage treats as the whole source image for
+    /// its upscale ratio and its edge clamp, which may be smaller than `input`'s own dimensions (a
+    /// render target drawn into one corner of a larger, fixed-size texture rather than one sized exactly
+    /// to it — Bevy's `MainPassResolutionOverride` works this way; native's own render target does not,
+    /// so there `input_size` is always `input`'s own size).
+    pub input_size: (u32, u32),
     /// The image to write, `output_size` pixels, a render attachment of `output_format`.
     pub output: &'a wgpu::TextureView,
     pub output_format: wgpu::TextureFormat,
@@ -206,8 +213,12 @@ impl Fsr1Pass {
         encoder: &mut wgpu::CommandEncoder,
         io: &Fsr1Io<'_>,
     ) {
-        let params =
-            Params { out_size: [io.output_size.0 as f32, io.output_size.1 as f32], rcas: self.rcas.get(), pad: 0.0 };
+        let params = Params {
+            out_size: [io.output_size.0 as f32, io.output_size.1 as f32],
+            in_size: [io.input_size.0 as f32, io.input_size.1 as f32],
+            rcas: self.rcas.get(),
+            pad: 0.0,
+        };
         queue.write_buffer(&self.params, 0, bytemuck::bytes_of(&params));
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some(self.stage.name()),
