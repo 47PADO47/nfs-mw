@@ -17,6 +17,24 @@ pub fn write_mask(format: wgpu::TextureFormat) -> wgpu::ColorWrites {
     }
 }
 
+/// Whether `format`'s colour channels are sRGB-encoded (the hardware decodes on sample and encodes on
+/// write). The shaders here compute gamma-space colour directly, like the games' own renderer; a
+/// renderer whose render target view happens to be sRGB (a window surface, typically) must pick the
+/// `_srgb` fragment entry point of each pass, which gamma-decodes its output once so the hardware's
+/// write-encode reproduces the same bytes a plain UNORM target would get. A renderer that draws
+/// straight into a UNORM surface (native) never sees an sRGB format here and needs no such entry point.
+pub fn is_srgb(format: wgpu::TextureFormat) -> bool {
+    matches!(
+        format,
+        wgpu::TextureFormat::Rgba8UnormSrgb
+            | wgpu::TextureFormat::Bgra8UnormSrgb
+            | wgpu::TextureFormat::Bc1RgbaUnormSrgb
+            | wgpu::TextureFormat::Bc2RgbaUnormSrgb
+            | wgpu::TextureFormat::Bc3RgbaUnormSrgb
+            | wgpu::TextureFormat::Bc7RgbaUnormSrgb
+    )
+}
+
 /// The vertex layout of [`blackbox_gfx::EffectVertex`] as the effect shaders read it: position (location
 /// 0), colour (1), uv (2) and the detail pair (3, age and seed).
 pub const EFFECT_VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 4] =
@@ -156,5 +174,13 @@ mod tests {
     fn globals_match_the_wgsl_block() {
         // mat4x4 + four vec4: 64 + 4 * 16 bytes.
         assert_eq!(std::mem::size_of::<Globals>(), 128);
+    }
+
+    #[test]
+    fn only_the_srgb_variants_need_gamma_decoded_output() {
+        assert!(is_srgb(wgpu::TextureFormat::Bgra8UnormSrgb));
+        assert!(is_srgb(wgpu::TextureFormat::Rgba8UnormSrgb));
+        assert!(!is_srgb(wgpu::TextureFormat::Bgra8Unorm));
+        assert!(!is_srgb(HDR_FORMAT));
     }
 }
