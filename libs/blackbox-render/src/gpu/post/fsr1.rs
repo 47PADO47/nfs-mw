@@ -26,8 +26,13 @@ impl PostPass for Fsr1 {
     }
 
     fn encode(&mut self, ctx: &PassContext<'_>, io: &PassIo<'_>, encoder: &mut wgpu::CommandEncoder) {
-        let io =
-            Fsr1Io { input: io.input, output: io.output, output_format: io.output_format, output_size: io.output_size };
+        let io = Fsr1Io {
+            input: io.input,
+            input_size: io.input_size,
+            output: io.output,
+            output_format: io.output_format,
+            output_size: io.output_size,
+        };
         self.0.encode(ctx.device, ctx.queue, encoder, &io);
     }
 }

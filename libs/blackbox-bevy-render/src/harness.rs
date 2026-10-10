@@ -63,6 +63,12 @@ impl HeadlessBevy {
     pub fn app(&self) -> &App {
         &self.app
     }
+
+    /// The Bevy app, for tests that drive it directly (spawning their own camera, running commands)
+    /// rather than going through [`blackbox_gfx::RenderBackend`].
+    pub fn app_mut(&mut self) -> &mut App {
+        &mut self.app
+    }
 }
 
 impl RenderBackend for HeadlessBevy {

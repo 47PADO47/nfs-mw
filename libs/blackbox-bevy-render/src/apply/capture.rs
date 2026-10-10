@@ -21,8 +21,15 @@ use wgpu::{TextureFormat, TextureUsages};
 use super::camera;
 use crate::ops::{CameraSettings, CaptureRequest, FrameData, Shared, lock};
 
-/// Frames the capture camera draws before the picture is read back.
+/// Frames the capture camera draws before the picture is read back, when it needs no convergence time.
 const WARMUP_FRAMES: u32 = 3;
+
+/// Frames the capture camera draws before the picture is read back when TAA is on: it starts every
+/// capture with a fresh history (`TemporalAntiAliasing::default().reset == true`), so a screenshot taken
+/// at [`WARMUP_FRAMES`] would read back a barely-converged, still-noisy frame. Picked well past where the
+/// testkit's own convergence test (`post_tests.rs`) sees the difference against a long-settled frame drop
+/// under its epsilon on a static scene.
+const TAA_WARMUP_FRAMES: u32 = 24;
 
 /// The format of capture images: the sRGB format a window would use, so a capture looks like the screen.
 const FORMAT: TextureFormat = TextureFormat::Rgba8UnormSrgb;
@@ -33,6 +40,8 @@ pub struct ActiveCapture {
     /// Keeps the render target alive.
     pub image: Handle<Image>,
     pub frames: u32,
+    /// [`WARMUP_FRAMES`], or [`TAA_WARMUP_FRAMES`] when the capture's own settings have TAA on.
+    pub warmup: u32,
     pub requested: bool,
     /// Set by the readback observer once the result is filed (the caller may take it before the next frame).
     pub done: Arc<AtomicBool>,
@@ -52,7 +61,14 @@ pub fn begin(
     let image = images.add(target);
     let bundle = camera::bundle(&data.frame, RenderTarget::Image(image.clone().into()), settings);
     let camera = commands.spawn(bundle).id();
-    ActiveCapture { id, camera, image, frames: 0, requested: false, done: Arc::default(), data }
+    // A capture camera is spawned fresh every time, so its very first `set_post` is also the only one:
+    // bring it to the effective settings at once rather than drawing a frame or more of defaults first.
+    camera::set_post(commands, camera, settings);
+    let warmup = match settings.post.antialiasing {
+        blackbox_gfx::Antialiasing::Taa => TAA_WARMUP_FRAMES,
+        _ => WARMUP_FRAMES,
+    };
+    ActiveCapture { id, camera, image, frames: 0, warmup, requested: false, done: Arc::default(), data }
 }
 
 /// One more frame of an active capture. Returns `true` once its result was filed and its camera removed.
@@ -67,7 +83,7 @@ pub fn advance(
         return true;
     }
     active.frames += 1;
-    if active.requested || active.frames < WARMUP_FRAMES {
+    if active.requested || active.frames < active.warmup {
         return false;
     }
     active.requested = true;

@@ -11,8 +11,8 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use bevy_ecs::resource::Resource;
 use bevy_image::Image;
 use blackbox_gfx::{
-    CaptureId, EffectLayer, FrameParams, GlossyMaterialHandle, Instance, MeshHandle, RenderError, RgbaImage,
-    TextureHandle, UiLayer, UiTextureId,
+    CaptureId, DEFAULT_UPSCALE_SHARPNESS, EffectLayer, FrameParams, GlossyMaterialHandle, Instance, MeshHandle,
+    PostSettings, RenderError, RgbaImage, TextureHandle, UiLayer, UiTextureId, Upscaler,
 };
 
 use crate::material::{GlossyUniform, RigUniform};
@@ -75,20 +75,33 @@ pub struct EffectCapacities {
     pub streaks: usize,
 }
 
-/// Settings the facade passes on to the cameras.
+/// Settings the facade passes on to the cameras: the full effective [`PostSettings`] and [`Upscaler`], not
+/// just the FXAA and bilinear subset the spike offered. [`apply::camera`](crate::apply::camera) and
+/// [`crate::post`] read this to insert or remove the matching components every time it changes.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CameraSettings {
     pub vsync: bool,
-    /// Added to the texture LOD (the render scale's suggested bias).
+    /// Added to the texture LOD: the render scale's suggested bias, one mip sharper when the
+    /// anti-aliasing or the upscaler is temporal (see `suggested_temporal_texture_lod_bias`).
     pub mip_bias: f32,
-    pub fxaa: bool,
-    /// The fraction of the surface the scene is drawn at (bilinear upscaling when below 1).
+    /// The fraction of the surface the scene is drawn at (upscaled by `upscaler` when below 1).
     pub render_scale: f32,
+    pub post: PostSettings,
+    pub upscaler: Upscaler,
+    /// FSR 1's RCAS sharpening strength, 0.0 (off) to 1.0 (strongest); meaningless for other upscalers.
+    pub upscale_sharpness: f32,
 }
 
 impl Default for CameraSettings {
     fn default() -> Self {
-        Self { vsync: true, mip_bias: 0.0, fxaa: false, render_scale: 1.0 }
+        Self {
+            vsync: true,
+            mip_bias: 0.0,
+            render_scale: 1.0,
+            post: PostSettings::default(),
+            upscaler: Upscaler::default(),
+            upscale_sharpness: DEFAULT_UPSCALE_SHARPNESS,
+        }
     }
 }
 

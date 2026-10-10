@@ -6,11 +6,12 @@ Bevy `App`, behind the `renderer-bevy` cargo feature of `nfsmw` (off by default)
 [`renderer`](renderers.md) setting. This page is for developers: how it works, how it was measured, what is
 missing. The decision it feeds is in [ADR 0004](decisions/0004-swappable-renderers.md).
 
-**Status: PR 9 landed.** The spike's world path (textures, meshes, instances, camera, fog, alpha test,
-blending, sky, headless capture) now has glossy shading, the lighting rig and environment, texture
-redirects, the world effect layer and the UI layer; see "PR 9" below. Post effects (bloom, tone mapping,
-SMAA, TAA, FSR 1), temporal methods and ray tracing still belong to later PRs; the facade accepts those
-calls, logs once that they are ignored, and draws nothing for them.
+**Status: PR 10 landed.** The spike's world path (textures, meshes, instances, camera, fog, alpha test,
+blending, sky, headless capture) has glossy shading, the lighting rig and environment, texture redirects,
+the world effect layer and the UI layer (PR 9), and now bloom, tone mapping, FXAA, SMAA, TAA (jitter,
+motion vectors, `camera_cut`), the render scale and FSR 1 (PR 10); see "PR 9" and "PR 10" below. Temporal
+upscalers (FSR 3/4, DLSS) and ray tracing still belong to later PRs; the facade accepts those calls, logs
+once that they are ignored, and draws nothing for them.
 
 ```sh
 cargo run --release -p nfsmw --features renderer-bevy -- view-world --renderer bevy
@@ -315,18 +316,146 @@ through the facade's `apply()` queue:
   view-screen MainMenu.fng --renderer bevy --screenshot` (the main menu, previously solid black under
   `--renderer bevy`, now draws normally).
 
+## PR 10: bloom, tone mapping, FXAA, SMAA, TAA, render scale, FSR 1
+
+Every post component is driven by the full effective `PostSettings`/`Upscaler` now, not just the FXAA bool
+and render-scale float the spike carried (`ops::CameraSettings` widened to hold `PostSettings`, `Upscaler`
+and `upscale_sharpness`; `facade::apply_graphics` populates all of it from `resolve()`'s output, same as
+the native backend already does). `apply/camera.rs::set_post` and the new `post/` module insert or remove
+every component strictly by whether its effect is on, matching the settings doc's rule ("nothing runs or
+is allocated when off", `docs/plans/gfx-renderers/upscalers-settings.md` §5): no `Hdr`, `Bloom`,
+`TemporalAntiAliasing` or its prepasses, `Fxaa` or `Smaa` when their setting is off.
+
+- **Bloom needed a new pinned dependency.** The plan expected `bevy_core_pipeline` to already wire bloom's
+  render-graph node, leaving PR 10 to insert only the `Bloom` marker component. In Bevy 0.20 bloom (with
+  depth of field, motion blur and the other screen-space effects) moved out of `bevy_core_pipeline` into
+  its own crate, `bevy_post_process`, not in the workspace's existing Bevy pin list. Added
+  `bevy_post_process = "=0.20.0"` next to the other Bevy crates in the workspace `Cargo.toml` and its
+  `PostProcessPlugin` to `plugin.rs`'s plugin set (it also builds depth-of-field and motion blur, both
+  unused and dormant: `BlackboxMaterial` requests no depth prepass for them to read). `post::set` maps
+  `PostSettings::bloom_intensity`/`bloom_threshold` onto `Bloom`'s own fields on top of its `NATURAL`
+  preset, and `Tonemap::Aces` onto `Tonemapping::AcesFitted` (Bevy's closest match — `TonyMcMapface`/`AgX`
+  need the `tonemapping_luts` feature, not pulled in, and would not match `Tonemap`'s two-value contract
+  anyway).
+- **Bloom and tone mapping need an `Hdr` camera; the world material needed no changes for it.** Both
+  `Bloom` and `Tonemapping` other than `None` only do anything useful on an HDR-rendered scene (`Bloom`
+  even `#[require(Hdr)]`s it), so `post::set` inserts `Hdr` exactly when `PostSettings::needs_hdr()` is
+  true. The material's own "Colour" trick (above) already makes this work for free: `linear_from_gamma`
+  decodes once and an sRGB *target* re-encodes it on write, netting out to native's gamma bytes — but an
+  `Hdr` target (`Rgba16Float`) does not re-encode anything, so the same decoded value is simply stored as
+  the linear colour Bevy's own bloom and tone-mapping passes expect. The effect layer and UI layer passes
+  (`blackbox-gpu-passes`) were not given the same treatment: their `_srgb`/plain entry-point split
+  (PR 9) only knows about `is_srgb`, not "linear HDR", so their colours are **not yet correct when bloom
+  or tone mapping is on** — a gap scoped out here (see "Known gaps") because the testkit scenes used to
+  verify bloom and tone mapping (`Grid`, the strict ones) never exercise the effect or UI layer.
+- **SMAA needed no spike.** `bevy_anti_alias::smaa::Smaa` is already a plain drop-in component (its own
+  plugin was already in the `AntiAliasPlugin` bundle PR 9 added), so `Antialiasing::Smaa` maps onto it the
+  same way `Fxaa` already did. Not separately measured against native (native has no SMAA to compare
+  against; per-backend sanity only, `docs/plans/gfx-renderers/verification-risks.md` §7).
+- **TAA's motion vectors needed no new plumbing at all.** The worry going in was whether the instance
+  pool's entity reuse (PR 5/9) was actually stable enough for Bevy's own motion-vector machinery; it is.
+  `bevy_pbr::prepass::update_mesh_previous_global_transforms` runs in `PreUpdate` every frame and keeps
+  every `Mesh3d` entity's `PreviousGlobalTransform` one tick behind its `GlobalTransform`, driven by
+  Bevy's own change detection; `apply/instances.rs` only *writes* `GlobalTransform` when an instance's
+  matrix actually changed, and reuses the same `Entity` for a given `InstanceKey` instead of respawning —
+  exactly what that system needs for a still object to read zero motion and a moving one to read the
+  correct one-frame-old value. `post/taa.rs::set` inserts `TemporalAntiAliasing` (which
+  `#[require(...)]`s `TemporalJitter`, `MipBias`, `DepthPrepass` and `MotionVectorPrepass` — jitter and
+  both prepasses, for free) via `entry().or_insert_with` rather than a plain `insert`, so turning TAA on
+  is idempotent across frames: a fresh `TemporalAntiAliasing::default()` has `reset: true`, and
+  overwriting an already-on camera's component every frame would wipe its history every frame and it
+  would never converge. Turning it off removes `TemporalAntiAliasing` **and** the three components it
+  required explicitly — Bevy does not cascade-remove required components, so without this a camera that
+  had TAA on once would keep paying for both prepasses forever.
+- **`camera_cut` resets TAA's history**, finally wired up (PR 9's "Known gaps" called it out as ignored).
+  `post/taa.rs::reset_on_cut` runs from `apply/camera.rs::follow` — every frame, not gated by the
+  settings-changed check `set_post` uses — since `camera_cut` is a per-frame flag on `FrameParams`, not
+  part of the settings `set_post` reacts to; it sets `TemporalAntiAliasing.reset = true` only when TAA is
+  on and this frame is a cut (Bevy clears `reset` back to `false` itself once used, so nothing here ever
+  needs to clear it).
+- **The render scale had a latent bug from the spike, caught by the FSR 1 test.** PR 8/9 already inserted
+  `MainPassResolutionOverride` to shrink the main pass below the output size, but from the **main world**
+  (`apply/camera.rs`, in the facade's own `PostUpdate` system) — which compiled, looked right, and was
+  silently a complete no-op: `MainPassResolutionOverride`'s own doc comment says to insert it "on a 3d
+  camera entity in the render world", and nothing syncs a main-world copy there (unlike `Bloom`, `Fxaa`,
+  `Smaa` and `TemporalAntiAliasing`, which are all genuinely synced components). The scene always drew at
+  the full surface size regardless of the render scale; PR 9's own "wired but not measured" caveat on this
+  was accurate in a way nobody had tested. Caught here because FSR 1 (below) upscales from whatever the
+  main pass actually drew, and a render running at full resolution with the shader *assuming* a smaller
+  one gave a dramatically wrong (not just blurrier) picture — see `post::scale::apply_resolution_override`'s
+  own doc comment for the fix: a new render-world-only `Core3d` system, scheduled
+  `.before(Core3dSystems::Prepass)` (ahead of the depth/motion-vector prepasses, which read the override
+  too), that inserts or removes the component straight onto the render-world camera entity every frame
+  from `BlackboxBridge`.
+- **FSR 1 reuses the shared pass, but needed a size the shared pass previously assumed it could read off
+  the texture.** `blackbox_gpu_passes::fsr1`'s WGSL read the source image's size with `textureDimensions`,
+  which is exactly right for native (its render target is allocated at exactly the render size) but wrong
+  for Bevy: `MainPassResolutionOverride` does not shrink `main_texture` itself, it only restricts the
+  *viewport* the main pass draws into within an output-sized texture — so `textureDimensions` would read
+  the whole, larger texture as if every pixel of it were valid content. Added an explicit `input_size`
+  field to `Fsr1Io`/the shader's `Params` uniform (`in_size: vec2<f32>`, read instead of
+  `textureDimensions` for both EASU's upscale ratio and its edge clamp); native's own call site now
+  forwards its already-existing `PassIo::input_size` (previously computed and silently discarded there —
+  it happened to always equal `textureDimensions` for native, so nothing was broken, just redundant), and
+  the Bevy pass computes it the same way `apply_resolution_override` does (`scaled_size` of the output by
+  the render scale). RCAS, reading EASU's own tightly-sized scratch output rather than the oversized main
+  texture, passes its content size as simply the output size. A `vec3<f32>` padding field in the uniform
+  initially mismatched the Rust struct's plain `repr(C)` layout (WGSL's uniform address space aligns
+  `vec3` to 16 bytes, not 12) and failed wgpu's bind-group-size validation outright; a lone `f32` pad field
+  avoids the mismatch.
+- **Replacing Bevy's own `upscaling` blit, not suppressing it.** `bevy_core_pipeline::upscaling::upscaling`
+  has no run condition — it always blits the (possibly override-sized) main texture to the output, and
+  there is no public hook from outside `UpscalingPlugin` to stop it running. `post::fsr1::fsr1_pass`
+  instead runs `.after(upscaling)` and, only when FSR 1 is the active upscaler, fully overwrites what
+  `upscaling` just wrote (EASU's render pass clears its own output). The final image is correct either
+  way; the cost is one extra, thrown-away full-resolution bilinear blit on every frame FSR 1 is active.
+  Left as a known, documented inefficiency rather than patched around — cleanly removing it needs changing
+  how `UpscalingPlugin` registers its own system, not something this crate can reach into.
+- **A capture's own camera now waits for TAA to converge before reading back.** A `request_capture`
+  camera is always fresh (a new `TemporalAntiAliasing` with `reset: true`), so a screenshot taken after
+  the spike's fixed three-frame warm-up would read back a barely-converged, visibly noisy frame whenever
+  TAA is on. `apply/capture.rs` now waits longer (`TAA_WARMUP_FRAMES`, picked past where
+  `post_tests::taa_converges_on_a_static_scene` sees the difference against a long-settled frame drop
+  under its own epsilon) specifically when the capture's own effective settings have TAA on; every other
+  capture keeps the original three-frame warm-up.
+- **Tests** (`post_tests.rs`; all `#[ignore = "needs a GPU"]`, all pass on an NVIDIA RTX 4070 SUPER over
+  Vulkan): TAA converges on a static scene (frame 16 vs frame 32 of the Grid scene, mean 1.085, p99 10,
+  max 30 out of 255 — `max` alone is not a convergence signal, TAA keeps dithering at edges by design
+  forever, so the assertion is on `mean` and `p99`); a camera cut resets history (compared against a
+  **fresh, unjittered** (`Antialiasing::Off`) camera at the same pose rather than another TAA camera, to
+  avoid conflating "ghosting" with "two single-sample frames landing on different points of the Halton
+  jitter sequence" — confirmed to actually detect a broken reset by temporarily disabling it and watching
+  the measured mean roughly quadruple, from 2.391 to 9.629); no prepass components exist when TAA is off,
+  checked both for a camera that never had it and (to prove the *removal* strips what it once added, not
+  merely that a pristine camera lacks it) one toggled on then off again; FSR 1 matches native within
+  tolerance at 67% render scale (measured mean 1.78, p99 18, max 54 — wider than the strict scenes' own
+  mean 0.5 because EASU and RCAS are edge-adaptive and amplify the pre-upscale differences every scene
+  already has at the checkerboard's many edges, not because the upscale pass itself differs: both
+  renderers run the exact same shared shader on it). The first three drive a camera directly
+  (`spawn_camera`/`readback` helpers in `post_tests.rs`), bypassing the facade's screen camera (which only
+  exists behind a real window) and the one-shot `request_capture` camera (which despawns itself a few
+  frames after completion, too short-lived to accumulate and then re-read 16+ frames of history); doing
+  this surfaced one more Bevy-specific timing wrinkle, documented on the test file's own `readback` helper:
+  a `ReadbackOnce` entity spawned directly on the `World` between two `app.update()` calls gets its
+  marker components stripped by Bevy's own `cleanup_readback_once` (`First`, every tick) before the render
+  world's `ExtractSchedule` (near the end of the same tick) ever sees it, so it must be queued and spawned
+  from a system in `PostUpdate` instead — exactly the timing `apply/capture.rs`'s own `commands.spawn(...)`
+  already has for free, which is why that existing, narrower path never needed this.
+
 ## Known gaps
 
-- Blended and additive draws: linear blending and distance sorting (above); the UI layer and the effect
-  layer inherit the same gap where their own meshes overlap translucently (PR 9's measurements).
-- Post effects: bloom, tone mapping, SMAA, TAA, FSR 1 and all temporal methods. `post_aa fxaa` and
-  `upscaler bilinear` with a render scale below 1 are wired (Bevy's `Fxaa` and `MainPassResolutionOverride`)
-  but not measured.
-- Ray tracing and DLSS, which need PR 11 and 12.
+- Blended and additive draws: linear blending and distance sorting (PR 9); the UI layer and the effect
+  layer inherit the same gap where their own meshes overlap translucently.
+- The effect layer and the UI layer are not yet HDR-aware: when bloom or tone mapping is on, their colours
+  are wrong (their shared shaders only branch on `is_srgb`, not "linear HDR") — not caught by the PR 10
+  tests, which use testkit scenes without an effect or UI layer. A follow-up needs a third entry-point
+  variant in `blackbox-gpu-passes` for a linear, non-sRGB target.
+- Temporal upscalers (FSR 3/4) and DLSS, which need PR 11, 13b and the DLSS SDK; ray tracing needs PR 12.
 - No hitch measurement for tile streaming, and the frame-time/CPU/memory table above is still Iris Xe
   only; PR 9 was functionally verified (testkit parity, a driving screenshot, the main menu) on an NVIDIA
-  RTX 4070 SUPER over Vulkan, but the benchmark was not repeated there, and DX12 remains untested.
-- `Camera.camera_cut` is ignored (nothing temporal exists yet).
+  RTX 4070 SUPER over Vulkan, but the benchmark was not repeated there; PR 10's own testing was GPU-test
+  only (no `--bench-seconds`/real-city screenshot pass), also on the RTX 4070 SUPER. DX12 remains untested
+  for both.
 
 ## Plan section 11 items this spike settled
 
@@ -353,10 +482,12 @@ through the facade's `apply()` queue:
 ## Testing
 
 - CPU tests: `cargo test -p blackbox-bevy-render` (axes, mesh compaction, textures, capabilities, material
-  parameters, readback unpadding, the probe).
-- GPU tests (`#[ignore = "needs a GPU"]`, all take `blackbox_gpu_passes::test_support::serial()`): the strict
-  scenes against native, the blend stack report, back-to-back captures and the instance stress timing.
-  `BLACKBOX_GPU_FALLBACK=1` uses the software adapter; this machine's environment sets
-  `VK_LOADER_DRIVERS_SELECT=*intel*`, so lavapipe needs `VK_LOADER_DRIVERS_SELECT='*lvp*'`.
-  `BLACKBOX_DUMP_DIR=<dir>` writes the native, Bevy and difference pictures for looking at.
+  parameters, readback unpadding, the probe, bloom/tone-map mapping, the render-scale LOD bias curve).
+- GPU tests (`#[ignore = "needs a GPU"]`, all take `blackbox_gpu_passes::test_support::serial()`):
+  `parity_tests.rs` (the strict scenes against native, the blend stack report, back-to-back captures, the
+  instance stress timing) and `post_tests.rs` (PR 10: TAA convergence, the camera-cut reset, no prepass
+  when TAA is off, FSR 1 against native — see "PR 10" above). `BLACKBOX_GPU_FALLBACK=1` uses the software
+  adapter; this machine's environment sets `VK_LOADER_DRIVERS_SELECT=*intel*`, so lavapipe needs
+  `VK_LOADER_DRIVERS_SELECT='*lvp*'`. `BLACKBOX_DUMP_DIR=<dir>` writes the native, Bevy and difference
+  pictures `parity_tests.rs` draws for looking at (`post_tests.rs` does not use it).
 - `cargo xtask img-diff A.png B.png [--out diff.png]` compares two screenshots.

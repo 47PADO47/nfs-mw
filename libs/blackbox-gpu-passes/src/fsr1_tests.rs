@@ -49,8 +49,15 @@ fn upscale(gpu: &Gpu, passes: &mut [Fsr1Pass]) -> Vec<Vec<u8>> {
     let mut encoder = gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
     let mut current = edge_image(gpu, 8);
     for pass in passes {
+        let input_size = (current.size().width, current.size().height);
         let next = gpu.target(16);
-        let io = Fsr1Io { input: &view(&current), output: &view(&next), output_format: FORMAT, output_size: (16, 16) };
+        let io = Fsr1Io {
+            input: &view(&current),
+            input_size,
+            output: &view(&next),
+            output_format: FORMAT,
+            output_size: (16, 16),
+        };
         pass.encode(&gpu.device, &gpu.queue, &mut encoder, &io);
         current = next;
     }

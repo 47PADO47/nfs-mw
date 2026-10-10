@@ -128,14 +128,15 @@ fn drive_screen(
     let Ok(mut window) = windows.single_mut() else { return };
     let screen = state.screen.get_or_insert_with(|| {
         let bundle = camera::bundle(&data.frame, RenderTarget::Window(WindowRef::Primary), settings);
-        ScreenCamera { entity: commands.spawn(bundle).id(), fxaa: !settings.fxaa, render_size: None, vsync: None }
+        ScreenCamera { entity: commands.spawn(bundle).id(), applied: None, render_size: None, vsync: None }
     });
     camera::follow(commands, screen.entity, &data.frame, settings);
-    let post = (screen.fxaa, screen.render_size) != (settings.fxaa, camera::render_override(surface, settings));
+    let render_size = camera::render_override(surface, settings.render_scale);
+    let post = screen.applied != Some(*settings) || screen.render_size != render_size;
     if post {
-        camera::set_post(commands, screen.entity, settings, surface);
-        screen.fxaa = settings.fxaa;
-        screen.render_size = camera::render_override(surface, settings);
+        camera::set_post(commands, screen.entity, settings);
+        screen.applied = Some(*settings);
+        screen.render_size = render_size;
     }
     if screen.vsync != Some(settings.vsync) {
         // Mailbox, not AutoNoVsync: Bevy's no-vsync fallback list tries Immediate first, which on Mesa under

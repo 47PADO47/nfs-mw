@@ -1021,6 +1021,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_post_process"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d684c2ac93e94d9b7ba767ce02ea435ef244677a24746241726de2aa552ba1a4"
+dependencies = [
+ "bevy_app",
+ "bevy_asset",
+ "bevy_camera",
+ "bevy_color",
+ "bevy_core_pipeline",
+ "bevy_curve",
+ "bevy_derive",
+ "bevy_ecs",
+ "bevy_extract",
+ "bevy_image",
+ "bevy_math",
+ "bevy_platform",
+ "bevy_reflect",
+ "bevy_render",
+ "bevy_shader",
+ "bevy_utils",
+ "smallvec",
+ "thiserror 2.0.21",
+ "tracing",
+]
+
+[[package]]
 name = "bevy_ptr"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1345,6 +1372,7 @@ dependencies = [
  "bevy_math",
  "bevy_mesh",
  "bevy_pbr",
+ "bevy_post_process",
  "bevy_reflect",
  "bevy_render",
  "bevy_shader",
@@ -1361,6 +1389,7 @@ dependencies = [
  "png",
  "pollster",
  "thiserror 2.0.21",
+ "tracing",
  "tracing-subscriber",
  "tracing-tracy",
  "wgpu",

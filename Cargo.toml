@@ -95,6 +95,8 @@ bevy_material = "=0.20.0"
 bevy_math = "=0.20.0"
 bevy_mesh = "=0.20.0"
 bevy_pbr = "=0.20.0"
+# Bloom (depth of field and other screen-space effects are not used): moved out of bevy_core_pipeline in 0.20.
+bevy_post_process = "=0.20.0"
 bevy_reflect = "=0.20.0"
 bevy_render = "=0.20.0"
 bevy_shader = "=0.20.0"

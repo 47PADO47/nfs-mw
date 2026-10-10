@@ -21,7 +21,7 @@ All branches are in one GitHub stack (stack #23, draft PRs, each based on the pr
 | 6 | `feat/gfx-settings` | #39 | done (built after 7, so it sits above it in the stack) |
 | 8 | `feat/gfx-bevy-spike` | #40 | done: conditional GO, see §3 |
 | 9 | `feat/gfx-bevy-scene` | | done: glossy shading, the lighting rig and environment, texture redirects, the effect layer, the UI layer; see §3a |
-| 10 | `feat/gfx-bevy-post` | | **not started** |
+| 10 | `feat/gfx-bevy-post` | | done: bloom, tone mapping, FXAA, SMAA, TAA, render scale, FSR 1; see §3b |
 | 11 | `feat/gfx-bevy-dlss` | | **not started**, needs the NVIDIA PC |
 | 12 | `feat/gfx-bevy-solari` | | **not started**, needs the NVIDIA PC |
 | 13a | `feat/gfx-fsr3-core` | #41 | done: `libs/fsr3-wgpu`, not used by a renderer yet |
@@ -79,6 +79,26 @@ sets the camera's depth usages correctly, but has no test coverage — the testk
 turns `detailed_particles` on, and that scene's pixels are pinned by the native renderer's own digest tests
 (recorded on Iris Xe, which this session could not regenerate).
 
+## 3b. PR 10: bloom, tone mapping, FXAA, SMAA, TAA, render scale, FSR 1
+
+Also built on the NVIDIA RTX 4070 SUPER over Vulkan. Full write-up, every deviation and what was measured:
+[bevy-backend.md](../../bevy-backend.md), "PR 10". The one worth repeating here: the render scale
+(`MainPassResolutionOverride`) had been a silent no-op since PR 8/9 — inserted from the main world, where
+Bevy never looks for it — so Bevy always rendered at full resolution regardless of the setting. PR 10's own
+FSR 1 test caught it (a render that was never actually downscaled, upscaled anyway, framed wrongly rather
+than just blurrier) and fixed it with a new render-world-only `Core3d` system. `libs/blackbox-gpu-passes`'s
+shared FSR 1 pass gained an explicit input-size parameter as part of the same fix (native's call site
+forwards a value it already had but previously discarded; no behaviour change there).
+
+Four new GPU tests in `libs/blackbox-bevy-render/src/post_tests.rs`, all passing: TAA converges on a
+static scene, a camera cut resets TAA's history (verified to actually catch a broken reset, not just
+measure one that works, by temporarily disabling it and watching the metric roughly quadruple), no
+prepass components exist when TAA is off, and FSR 1 matches native within tolerance at 67% render scale.
+
+Known gap carried forward, not caught by this PR's own tests: the world effect layer and the UI layer are
+not HDR-aware, so their colours are wrong whenever bloom or tone mapping is on (their shared shaders only
+branch on sRGB-vs-not, not "linear HDR"); needs a third shader variant in `blackbox-gpu-passes`.
+
 ## 4. Handoff: building the remaining PRs
 
 Start from the stack tip (`feat/gfx-bevy-spike`, or this docs branch which sits on it). Every commit must pass
@@ -88,7 +108,7 @@ Start from the stack tip (`feat/gfx-bevy-spike`, or this docs branch which sits 
 | PR | Needs | Hardware you need |
 |---|---|---|
 | 9 Bevy scene | **done**, see §3a | any Vulkan GPU |
-| 10 Bevy post | bloom, tone mapping, FXAA, SMAA, TAA (jitter, motion vectors from `InstanceKey`, `camera_cut` reset), render scale, FSR 1 pass, mip bias; components only inserted when enabled | any |
+| 10 Bevy post | **done**, see §3b | any Vulkan GPU |
 | 11 DLSS | `dlss` / `dlss-mock` features, `DlssInitPlugin` before `RenderPlugin`, `DlssProjectId`, build needs the DLSS SDK (`DLSS_SDK`, `VULKAN_SDK`, clang); CI compile-checks with the mock; `docs/licensing.md` must record the NVIDIA terms | **NVIDIA RTX, Vulkan** |
 | 12 Solari | startup-gated (`ray_tracing != off`), needs the wgpu ray-query features, mirrors world meshes into `RaytracingMesh3d` + `StandardMaterial` (alpha-tested and blended geometry excluded), DLSS-RR as denoiser when built | **RTX, Vulkan** |
 | 13a/13b FSR 3 | 13a is merged into the stack (#41: `libs/fsr3-wgpu`, FSR 3.1.4 port, 32 CPU + 28 GPU tests); 13b adds the `EarlyPostProcess` system (README of the crate lists what Bevy must supply: jitter, depth, motion vectors, a storage-capable output texture, reset on `camera_cut`) | Vulkan here; DX12 image quality on your PC |

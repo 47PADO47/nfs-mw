@@ -28,6 +28,8 @@ bevy_material.workspace = true
 bevy_math.workspace = true
 bevy_mesh.workspace = true
 bevy_pbr.workspace = true
+# Bloom: see the comment in the workspace Cargo.toml.
+bevy_post_process.workspace = true
 bevy_reflect.workspace = true
 bevy_render.workspace = true
 bevy_shader.workspace = true
@@ -39,6 +41,7 @@ glam.workspace = true
 log.workspace = true
 pollster.workspace = true
 thiserror.workspace = true
+tracing = { version = "0.1", default-features = false, optional = true }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["registry"], optional = true }
 tracing-tracy = { version = "0.11", optional = true }
 wgpu.workspace = true
@@ -47,6 +50,7 @@ wgpu.workspace = true
 # Tracy profiling: emit Bevy's per-system `tracing` spans and install a Tracy subscriber. Build via
 # nfsmw's `trace` feature and run with the Tracy client attached. See docs/bevy-backend.md.
 trace = [
+    "dep:tracing",
     "dep:tracing-subscriber",
     "dep:tracing-tracy",
     "bevy_app/trace",
