@@ -2441,6 +2441,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aa9a19cbb55df58761df49b23516a86d432839add4af60fc256da840f66ed35b"
 
 [[package]]
+name = "fsr3-wgpu"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "glam 0.34.1",
+ "naga",
+ "pollster",
+ "thiserror 2.0.21",
+ "wgpu",
+]
+
+[[package]]
 name = "futures-channel"
 version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"

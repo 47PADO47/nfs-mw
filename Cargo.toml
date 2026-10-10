@@ -72,6 +72,7 @@ blackbox-tpk = { path = "libs/blackbox-tpk" }
 blackbox-vehicle = { path = "libs/blackbox-vehicle" }
 ea-audio = { path = "libs/ea-audio" }
 ea-compress = { path = "libs/ea-compress" }
+fsr3-wgpu = { path = "libs/fsr3-wgpu" }
 game-install = { path = "libs/game-install" }
 # NFS:MW (crates/)
 nfsmw-data = { path = "crates/nfsmw-data" }

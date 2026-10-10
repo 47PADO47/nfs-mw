@@ -49,6 +49,18 @@ GPUOpen-Effects/FidelityFX-FSR — https://github.com/GPUOpen-Effects/FidelityFX
   reciprocal and reciprocal square root helpers of ffx_a.h. The MIT notice is kept at the
   top of that file. The upstream header files are not vendored.
 
+GPUOpen-LibrariesAndSDKs/FidelityFX-SDK — https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK — MIT
+  Copyright (C) 2024 Advanced Micro Devices, Inc.
+  Pinned to the tag v1.1.4 (commit c6efa6bf7f2027b3ec94f28578bb5965eabb9e55), whose FSR 3 upscaler is
+  version 3.1.4. Portions ported into libs/fsr3-wgpu: the FSR 3.1 temporal upscaler (not frame
+  generation) rewritten in WGSL from sdk/include/FidelityFX/gpu/fsr3upscaler/ffx_fsr3upscaler_{accumulate,
+  callbacks_hlsl,common,luma_instability,luma_pyramid,prepare_inputs,prepare_reactivity,rcas,reproject,
+  resources,sample,shading_change,shading_change_pyramid,upsample}.h, the RCAS of
+  sdk/include/FidelityFX/gpu/fsr1/ffx_fsr1.h, and the host logic of sdk/src/components/fsr3upscaler/
+  ffx_fsr3upscaler.cpp (constants, jitter, quality ratios, pass order); the DX12 pass wrappers were read
+  for the bindings. The MIT notice is kept at the top of every file in libs/fsr3-wgpu/src/shaders/. The
+  upstream files are not vendored; the list is in libs/fsr3-wgpu/README.md.
+
 daddesio/utkencode — https://github.com/daddesio/utkencode — Unlicense (public domain)
   Original of the MicroTalk (UTK) decoder that vgmstream's utkdec.c derives from.
   Credited in libs/ea-audio/src/codec/microtalk/.
