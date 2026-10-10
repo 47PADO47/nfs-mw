@@ -16,9 +16,20 @@ use crate::mesh::RangeData;
 
 /// One resource change, applied in the order it was made.
 pub enum Op {
-    AddTexture { handle: TextureHandle, image: Box<Image> },
+    AddTexture {
+        handle: TextureHandle,
+        image: Box<Image>,
+    },
     RemoveTexture(TextureHandle),
-    AddMesh { handle: MeshHandle, ranges: Vec<RangeData> },
+    /// Draw `to` wherever `from` is used, or stop redirecting `from` when `to` is `None`.
+    SetRedirect {
+        from: TextureHandle,
+        to: Option<TextureHandle>,
+    },
+    AddMesh {
+        handle: MeshHandle,
+        ranges: Vec<RangeData>,
+    },
     RemoveMesh(MeshHandle),
 }
 

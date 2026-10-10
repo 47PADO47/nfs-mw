@@ -71,6 +71,8 @@ pub struct ScreenCamera {
 #[derive(Resource, Default)]
 pub struct WorldState {
     pub textures: HashMap<usize, Handle<Image>>,
+    /// Texture number to redirect to, keyed by the texture number draws still ask for.
+    pub redirects: HashMap<usize, usize>,
     pub meshes: HashMap<usize, MeshEntry>,
     pub materials: MaterialCache,
     /// The parameters every material currently holds.

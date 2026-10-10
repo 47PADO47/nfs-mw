@@ -20,7 +20,6 @@ struct Warned {
     glossy: bool,
     effects: bool,
     ui: bool,
-    redirect: bool,
     environment: bool,
 }
 
@@ -138,8 +137,8 @@ impl RenderBackend for BevyBackend {
         self.push(Op::RemoveTexture(handle));
     }
 
-    fn redirect_texture(&mut self, _from: TextureHandle, _to: Option<TextureHandle>) {
-        once(&mut self.warned.redirect, "texture redirection (animated textures)");
+    fn redirect_texture(&mut self, from: TextureHandle, to: Option<TextureHandle>) {
+        self.push(Op::SetRedirect { from, to });
     }
 
     fn create_mesh(&mut self, desc: &MeshDesc<'_>) -> MeshHandle {

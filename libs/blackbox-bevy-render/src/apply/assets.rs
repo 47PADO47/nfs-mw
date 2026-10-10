@@ -6,6 +6,7 @@ use bevy_ecs::system::SystemParam;
 use bevy_image::Image;
 use bevy_mesh::Mesh;
 
+use super::redirects;
 use super::state::{MaterialKey, MeshEntry, RangeEntry, WorldState};
 use crate::material::{BlackboxMaterial, BlendKind, Params, ShadingKind};
 use crate::ops::Op;
@@ -25,6 +26,7 @@ pub fn apply_op(state: &mut WorldState, stores: &mut Stores, op: Op) {
             state.textures.insert(handle.raw(), stores.images.add(*image));
         }
         Op::RemoveTexture(handle) => remove_texture(state, stores, handle.raw()),
+        Op::SetRedirect { from, to } => redirects::set(state, stores, from.raw(), to.map(|h| h.raw())),
         Op::AddMesh { handle, ranges } => {
             let ranges = ranges
                 .into_iter()
@@ -44,7 +46,8 @@ pub fn apply_op(state: &mut WorldState, stores: &mut Stores, op: Op) {
 }
 
 /// Drop a texture and the materials that hold it. Entities that still use one keep the asset alive until they go.
-fn remove_texture(state: &mut WorldState, _stores: &mut Stores, texture: usize) {
+fn remove_texture(state: &mut WorldState, stores: &mut Stores, texture: usize) {
+    redirects::purge(state, stores, texture);
     state.textures.remove(&texture);
     let Some(keys) = state.materials.by_texture.remove(&texture) else { return };
     for key in keys {
@@ -64,7 +67,7 @@ pub fn material_for(
     if let Some(handle) = state.materials.by_key.get(&key) {
         return handle.clone();
     }
-    let image = texture.and_then(|t| state.textures.get(&t).cloned());
+    let image = texture.and_then(|t| state.textures.get(&redirects::resolve(state, t)).cloned());
     let handle = stores.materials.add(BlackboxMaterial {
         params: state.params.unwrap_or_default(),
         texture: image,

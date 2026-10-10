@@ -8,6 +8,7 @@ pub mod assets;
 pub mod camera;
 pub mod capture;
 pub mod instances;
+pub mod redirects;
 pub mod state;
 
 use bevy_camera::RenderTarget;
