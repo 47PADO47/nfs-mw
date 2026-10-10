@@ -40,11 +40,14 @@ pub struct BlackboxBevyRenderPlugin {
     pub api: GraphicsApi,
     /// Use the API's software adapter (lavapipe, WARP), for CI and tests.
     pub force_fallback_adapter: bool,
+    /// Wait for pipeline compilation instead of skipping draws. Needed for reproducible captures and
+    /// tests; the live window sets it false so steady-state frames never block on compilation.
+    pub synchronous_pipeline_compilation: bool,
 }
 
 impl Default for BlackboxBevyRenderPlugin {
     fn default() -> Self {
-        Self { api: GraphicsApi::Auto, force_fallback_adapter: false }
+        Self { api: GraphicsApi::Auto, force_fallback_adapter: false, synchronous_pipeline_compilation: true }
     }
 }
 
@@ -63,8 +66,7 @@ impl Plugin for BlackboxBevyRenderPlugin {
             AssetPlugin::default(),
             RenderPlugin {
                 render_creation: RenderCreation::Automatic(Box::new(settings)),
-                // Frames must be reproducible (screenshots, tests): wait for pipelines instead of skipping draws.
-                synchronous_pipeline_compilation: true,
+                synchronous_pipeline_compilation: self.synchronous_pipeline_compilation,
                 ..RenderPlugin::default()
             },
             ImagePlugin::default(),

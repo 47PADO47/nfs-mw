@@ -40,7 +40,7 @@ impl HeadlessBevy {
                 close_when_requested: false,
                 ..WindowPlugin::default()
             },
-            BlackboxBevyRenderPlugin { api, force_fallback_adapter },
+            BlackboxBevyRenderPlugin { api, force_fallback_adapter, ..Default::default() },
         ));
         app.finish();
         app.cleanup();

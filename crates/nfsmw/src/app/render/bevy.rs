@@ -33,7 +33,11 @@ pub fn probe(_api: GraphicsApi) -> Result<(), String> {
 /// Join the renderer to the game's `App` (before `run`). Only called once the probe passed.
 #[cfg(feature = "renderer-bevy")]
 pub fn add_plugin(app: &mut App, api: GraphicsApi) {
-    app.add_plugins(blackbox_bevy_render::BlackboxBevyRenderPlugin { api, ..Default::default() });
+    app.add_plugins(blackbox_bevy_render::BlackboxBevyRenderPlugin {
+        api,
+        synchronous_pipeline_compilation: false,
+        ..Default::default()
+    });
 }
 
 #[cfg(not(feature = "renderer-bevy"))]
