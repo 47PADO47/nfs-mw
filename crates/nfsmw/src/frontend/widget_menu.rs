@@ -172,16 +172,22 @@ impl WidgetMenu {
         }
     }
 
-    /// Dims a disabled row. A retail label keeps its authored title alpha animation while it is enabled.
+    /// Dims a disabled row. The package's scripts own the alpha of the arrows and the data (they show the arrows
+    /// on the highlighted row only), so this only caps it: a hidden object stays hidden, a shown one is dimmed.
+    /// A row that is enabled again gets back the full alpha it had before it was dimmed. A retail label keeps its
+    /// authored title alpha animation while it is enabled.
     fn dim(cx: &mut Cx, r: &RowObjects, row: &Row, enabled: bool) {
-        let alpha = if enabled { 255 } else { DISABLED_ALPHA };
-        for o in [r.data, r.left, r.right].into_iter().flatten() {
+        let title_owned = !(enabled && matches!(row.title, Title::Label(_)));
+        let objects = [r.data, r.left, r.right].into_iter().flatten().chain(title_owned.then_some(r.name));
+        for o in objects {
+            let Some(current) = cx.rt.alpha(o) else { continue };
+            let alpha = match (enabled, current) {
+                (true, DISABLED_ALPHA) => 255,
+                (true, _) => continue,
+                (false, _) => current.min(DISABLED_ALPHA),
+            };
             cx.rt.set_alpha(o, alpha);
         }
-        if enabled && matches!(row.title, Title::Label(_)) {
-            return;
-        }
-        cx.rt.set_alpha(r.name, alpha);
     }
 
     /// Redraws every row in view, so a change that alters another row's state (vsync and the frame limit) shows.
