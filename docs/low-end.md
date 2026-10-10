@@ -40,21 +40,26 @@ use, vsync on, and the window or `resolution` setting at the panel's own size or
 
 ## Graphics presets
 
-`graphics_preset` is `custom` (the default, which changes nothing), `low`, `medium` or `high`. A preset
+`graphics_preset` is `custom` (the default, which changes nothing), `low`, `medium`, `high` or `ultra`. A preset
 stands for these settings:
 
-| Setting | `low` | `medium` | `high` | default (`custom`) |
-|---|---|---|---|---|
-| `car_shading` | `simple` | `glossy` | `glossy` | `glossy` |
-| `post_tonemap` | `off` | `off` | `off` | `off` |
-| `post_bloom` | `off` | `off` | `low` | `off` |
-| `post_aa` | `off` | `fxaa` | `fxaa` | `off` |
-| `render_scale` | `75` | `100` | `100` | `100` |
-| `upscaler` | `bilinear` | `fsr1` | `fsr1` | `fsr1` |
-| `tire_smoke`, `skid_marks` | on | on | on | on |
-| `smoke_quality` | `standard` | `standard` | `high` | `standard` |
-| `collision_sparks` | off | off | on | off |
-| `speed_trails` | off | off | off | off |
+| Setting | `low` | `medium` | `high` | `ultra` | default (`custom`) |
+|---|---|---|---|---|---|
+| `car_shading` | `simple` | `glossy` | `glossy` | `glossy` | `glossy` |
+| `post_tonemap` | `off` | `off` | `off` | `off` | `off` |
+| `post_bloom` | `off` | `off` | `low` | `low` | `off` |
+| `post_aa` | `off` | `fxaa` | `fxaa` | `taa` | `off` |
+| `render_scale` | `75` | `100` | `100` | `100` | `100` |
+| `upscaler` | `bilinear` | `fsr1` | `fsr1` | `fsr1` | `fsr1` |
+| `ray_tracing` | `off` | `off` | `off` | `medium` | `off` |
+| `tire_smoke`, `skid_marks` | on | on | on | on | on |
+| `smoke_quality` | `standard` | `standard` | `high` | `high` | `standard` |
+| `collision_sparks` | off | off | on | on | off |
+| `speed_trails` | off | off | off | off | off |
+
+`ultra` is for the optional Bevy renderer. `taa` and ray tracing do not exist on the native renderer, which
+runs them as `fxaa` and `off`, so there `ultra` is `high` (with the two downgrades logged); see
+[renderers.md](renderers.md).
 
 `upscale_sharpness` and the other settings are not part of a preset. Nothing is detected from your GPU:
 the preset is only ever what you pick.

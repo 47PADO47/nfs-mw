@@ -15,6 +15,7 @@ mod plugin;
 pub(crate) mod post_options;
 mod prompt_layout;
 mod prompts;
+mod renderer_options;
 mod scene;
 mod screens;
 mod script;
@@ -22,6 +23,8 @@ mod scroller;
 mod splash;
 mod widget_menu;
 
+#[cfg(test)]
+mod capability_tests;
 #[cfg(test)]
 mod disabled_rows_tests;
 #[cfg(test)]

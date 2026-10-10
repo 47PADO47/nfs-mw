@@ -56,7 +56,9 @@ impl fmt::Display for RenderScale {
     }
 }
 
-/// How the scene is brought back to the output size when the render scale is below 100.
+/// How the scene is brought back to the output size when the render scale is below 100. The temporal upscalers
+/// (`fsr3`, `fsr4`, `dlss`) only exist on the Bevy renderer and take their render size from `upscale_quality`;
+/// the native renderer runs them as the best spatial one it has (docs/renderers.md).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum UpscaleMode {
     /// No scaling: the render scale is ignored and the scene is drawn at the output size.
@@ -66,15 +68,24 @@ pub enum UpscaleMode {
     /// AMD FidelityFX Super Resolution 1.
     #[default]
     Fsr1,
+    /// AMD FSR 3 upscaler: temporal, any GPU.
+    Fsr3,
+    /// AMD FSR 4: machine-learning, recent Radeon GPUs under DX12.
+    Fsr4,
+    /// NVIDIA DLSS Super Resolution: RTX GPUs under Vulkan.
+    Dlss,
 }
 
 impl UpscaleMode {
-    /// The renderer's upscaler, or `None` when the render scale is ignored.
-    pub fn upscaler(self) -> Option<Upscaler> {
+    /// The renderer's upscaler. `Off` makes the renderer ignore the render scale.
+    pub fn upscaler(self) -> Upscaler {
         match self {
-            Self::Off => None,
-            Self::Bilinear => Some(Upscaler::Bilinear),
-            Self::Fsr1 => Some(Upscaler::Fsr1),
+            Self::Off => Upscaler::Off,
+            Self::Bilinear => Upscaler::Bilinear,
+            Self::Fsr1 => Upscaler::Fsr1,
+            Self::Fsr3 => Upscaler::Fsr3,
+            Self::Fsr4 => Upscaler::Fsr4,
+            Self::Dlss => Upscaler::Dlss,
         }
     }
 }
@@ -87,7 +98,10 @@ impl FromStr for UpscaleMode {
             "off" | "none" => Ok(Self::Off),
             "bilinear" => Ok(Self::Bilinear),
             "fsr1" | "fsr" | "fsr-1" => Ok(Self::Fsr1),
-            _ => Err(format!("expected off, bilinear or fsr1, got {s:?}")),
+            "fsr3" | "fsr-3" => Ok(Self::Fsr3),
+            "fsr4" | "fsr-4" => Ok(Self::Fsr4),
+            "dlss" => Ok(Self::Dlss),
+            _ => Err(format!("expected off, bilinear, fsr1, fsr3, fsr4 or dlss, got {s:?}")),
         }
     }
 }
@@ -98,6 +112,9 @@ impl fmt::Display for UpscaleMode {
             Self::Off => "off",
             Self::Bilinear => "bilinear",
             Self::Fsr1 => "fsr1",
+            Self::Fsr3 => "fsr3",
+            Self::Fsr4 => "fsr4",
+            Self::Dlss => "dlss",
         })
     }
 }

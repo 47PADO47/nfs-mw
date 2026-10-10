@@ -6,12 +6,12 @@ use std::str::FromStr;
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
 use crate::settings::{
-    HudLayout, MinimapMode, Percent, PostAa, PostBloom, PostTonemap, RadioHudStyle, RenderScale, Settings,
-    Transmission, parse_bool,
+    HudLayout, MinimapMode, Percent, PostAa, PostBloom, PostTonemap, RadioHudStyle, RenderScale, RendererKind,
+    Settings, Transmission, parse_bool,
 };
 
 /// Settings the console can show.
-const KEYS: [&str; 44] = [
+const KEYS: [&str; 47] = [
     "deadzone_mode",
     "steering_deadzone",
     "camera_deadzone",
@@ -21,6 +21,7 @@ const KEYS: [&str; 44] = [
     "mouse_sensitivity",
     "invert_camera_y",
     "backend",
+    "renderer",
     "vsync",
     "fps",
     "metrics",
@@ -56,6 +57,8 @@ const KEYS: [&str; 44] = [
     "render_scale",
     "upscaler",
     "upscale_sharpness",
+    "upscale_quality",
+    "ray_tracing",
 ];
 
 /// The text for `get <key>`, or an error naming the valid keys.
@@ -70,6 +73,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "mouse_sensitivity" => settings.controls.mouse_sensitivity.to_string(),
         "invert_camera_y" => on_off(settings.controls.invert_camera_y).to_owned(),
         "backend" => settings.backend.to_string(),
+        "renderer" => settings.renderer.to_string(),
         "vsync" => on_off(settings.vsync).to_owned(),
         "fps" | "max_fps" => settings.max_fps.to_string(),
         "metrics" | "show_metrics" => settings.show_metrics.to_string(),
@@ -105,6 +109,8 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "render_scale" => settings.render_scale.to_string(),
         "upscaler" => settings.upscaler.to_string(),
         "upscale_sharpness" => settings.upscale_sharpness.to_string(),
+        "upscale_quality" => settings.upscale_quality.to_string(),
+        "ray_tracing" => settings.ray_tracing.to_string(),
         other => return Err(unknown(other)),
     };
     Ok(format!("{key} = {value}"))
@@ -130,6 +136,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "camera_sensitivity" => settings.controls.camera_sensitivity = value.parse()?,
         "mouse_sensitivity" => settings.controls.mouse_sensitivity = value.parse()?,
         "invert_camera_y" => settings.controls.invert_camera_y = parse_bool(value)?,
+        "renderer" => settings.renderer = RendererKind::from_str(value)?,
         "vsync" => settings.vsync = parse_bool(value)?,
         "fps" | "max_fps" => settings.max_fps = MaxFps::from_str(value)?,
         "metrics" | "show_metrics" => settings.show_metrics = ShowMetrics::from_str(value)?,
@@ -165,11 +172,17 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "render_scale" => settings.render_scale = RenderScale::from_str(value)?,
         "upscaler" => settings.upscaler = value.parse()?,
         "upscale_sharpness" => settings.upscale_sharpness = Percent::from_str(value)?,
+        "upscale_quality" => settings.upscale_quality = value.parse()?,
+        "ray_tracing" => settings.ray_tracing = value.parse()?,
         "backend" => return Err("the graphics backend cannot change while running; restart with --backend".into()),
         other => return Err(unknown(other)),
     }
     settings.settle_preset();
-    get(settings, key)
+    let text = get(settings, key)?;
+    if key == "renderer" {
+        return Ok(format!("{text} (applies after restart)"));
+    }
+    Ok(text)
 }
 
 /// The on/off settings, which `set <key>` flips.
@@ -200,10 +213,11 @@ fn syntax(key: &str) -> Option<&'static str> {
         "metrics" | "show_metrics" => "<off|basic|advanced>",
         "readout" | "show_readout" => "<off|minimal|full>",
         "window_mode" => "<windowed|borderless|exclusive>",
+        "renderer" => "<blackbox|bevy>",
         "monitor" => "<current|primary|index>",
         "resolution" => "<WIDTHxHEIGHT|native>",
         "volume" | "master_volume" | "music_volume" | "sfx_volume" | "engine_volume" | "speech_volume" => "<0-100>",
-        "graphics_preset" => "<custom|low|medium|high>",
+        "graphics_preset" => "<custom|low|medium|high|ultra>",
         "car_shading" => "<simple|glossy>",
         "smoke_quality" => "<standard|high>",
         "spark_style" => "<original-pc|restored-experimental>",
@@ -213,10 +227,12 @@ fn syntax(key: &str) -> Option<&'static str> {
         "radio_hud" | "radio-hud" => "<ea_trax|custom>",
         "post_tonemap" => "<off|aces>",
         "post_bloom" => "<off|low|medium|high>",
-        "post_aa" => "<off|fxaa>",
+        "post_aa" => "<off|fxaa|smaa|taa>",
         "render_scale" => "<50-200>",
-        "upscaler" => "<off|bilinear|fsr1>",
+        "upscaler" => "<off|bilinear|fsr1|fsr3|fsr4|dlss>",
         "upscale_sharpness" => "<0-100>",
+        "upscale_quality" => "<auto|native|quality|balanced|performance|ultra_performance>",
+        "ray_tracing" => "<off|low|medium|high>",
         _ => return None,
     })
 }
@@ -336,6 +352,36 @@ mod tests {
     }
 
     #[test]
+    fn the_renderer_is_set_by_name_and_applies_after_a_restart() {
+        let mut s = defaults();
+        assert_eq!(get(&s, "renderer").unwrap(), "renderer = blackbox");
+        assert_eq!(set(&mut s, "renderer", "bevy").unwrap(), "renderer = bevy (applies after restart)");
+        assert_eq!(s.renderer, RendererKind::Bevy);
+        assert_eq!(get(&s, "renderer").unwrap(), "renderer = bevy");
+        let before = s;
+        assert!(set(&mut s, "renderer", "wgpu").unwrap_err().contains("expected blackbox or bevy"));
+        assert_eq!(s, before);
+        assert_eq!(set(&mut s, "renderer", "").unwrap_err(), "usage: set renderer <blackbox|bevy> (now bevy)");
+    }
+
+    #[test]
+    fn upscale_quality_and_ray_tracing_are_set_by_name_and_validated() {
+        let mut s = defaults();
+        assert_eq!(get(&s, "upscale_quality").unwrap(), "upscale_quality = quality");
+        assert_eq!(get(&s, "ray_tracing").unwrap(), "ray_tracing = off");
+        assert_eq!(set(&mut s, "upscale_quality", "ultra_performance").unwrap(), "upscale_quality = ultra_performance");
+        assert_eq!(set(&mut s, "ray_tracing", "high").unwrap(), "ray_tracing = high");
+        let before = s;
+        assert!(set(&mut s, "upscale_quality", "extreme").unwrap_err().contains("expected auto, native"));
+        assert!(set(&mut s, "ray_tracing", "path").unwrap_err().contains("expected off, low, medium or high"));
+        assert_eq!(s, before);
+        assert_eq!(
+            set(&mut s, "ray_tracing", "").unwrap_err(),
+            "usage: set ray_tracing <off|low|medium|high> (now high)"
+        );
+    }
+
+    #[test]
     fn the_minimap_mode_is_set_by_name() {
         let mut s = defaults();
         assert_eq!(get(&s, "minimap").unwrap(), "minimap = fixed");
@@ -356,7 +402,7 @@ mod tests {
         assert_eq!(set(&mut s, "upscale_sharpness", "25").unwrap(), "upscale_sharpness = 25");
         let before = s;
         assert!(set(&mut s, "render_scale", "10").is_err());
-        assert!(set(&mut s, "upscaler", "dlss").is_err());
+        assert!(set(&mut s, "upscaler", "xess").is_err());
         assert!(set(&mut s, "upscale_sharpness", "101").is_err());
         assert_eq!(s, before);
         assert_eq!(set(&mut s, "render_scale", "").unwrap_err(), "usage: set render_scale <50-200> (now 67)");
@@ -373,10 +419,10 @@ mod tests {
         assert_eq!(set(&mut s, "post_bloom", "low").unwrap(), "post_bloom = low");
         assert_eq!(get(&s, "graphics_preset").unwrap(), "graphics_preset = custom");
         assert_eq!(get(&s, "car_shading").unwrap(), "car_shading = simple", "the rest stays");
-        assert!(set(&mut s, "graphics_preset", "ultra").is_err());
+        assert!(set(&mut s, "graphics_preset", "extreme").is_err());
         assert_eq!(
             set(&mut s, "graphics_preset", "").unwrap_err(),
-            "usage: set graphics_preset <custom|low|medium|high> (now custom)"
+            "usage: set graphics_preset <custom|low|medium|high|ultra> (now custom)"
         );
         assert_eq!(set(&mut s, "car_shading", "glossy").unwrap(), "car_shading = glossy");
     }

@@ -12,7 +12,10 @@ fn the_frame_limit_is_disabled_while_vsync_is_on() {
     let off = settings(false);
     assert!(!Setting::MaxFps.enabled(&on));
     assert!(Setting::MaxFps.enabled(&off));
-    assert!(rows(Category::Video).iter().any(|row| row.setting == Setting::MaxFps), "still listed and selectable");
+    assert!(
+        rows(Category::Video, &crate::settings::test_caps::native()).iter().any(|row| row.setting == Setting::MaxFps),
+        "still listed and selectable"
+    );
 }
 
 #[test]
@@ -42,7 +45,7 @@ fn turning_vsync_off_enables_the_frame_limit_again() {
 fn the_other_rows_are_always_enabled() {
     for s in [settings(true), settings(false)] {
         for category in [Category::Audio, Category::Video, Category::Gameplay] {
-            for row in rows(category) {
+            for row in rows(category, &crate::settings::test_caps::native()) {
                 if row.setting != Setting::MaxFps {
                     assert!(row.setting.enabled(&s), "{:?}", row.setting);
                 }

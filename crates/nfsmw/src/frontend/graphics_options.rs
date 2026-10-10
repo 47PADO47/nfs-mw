@@ -27,6 +27,7 @@ impl GraphicsSetting {
                     GraphicsPreset::Low => "Low",
                     GraphicsPreset::Medium => "Medium",
                     GraphicsPreset::High => "High",
+                    GraphicsPreset::Ultra => "Ultra",
                 },
                 Self::CarShading => match s.car_shading {
                     CarShading::Simple => "Simple",
@@ -42,7 +43,7 @@ impl GraphicsSetting {
         let before = *s;
         match self {
             Self::Preset => {
-                let all = [GraphicsPreset::Custom, GraphicsPreset::Low, GraphicsPreset::Medium, GraphicsPreset::High];
+                let all = GraphicsPreset::ALL;
                 let at = all.iter().position(|p| *p == s.graphics_preset).unwrap_or(0);
                 let next = if forward { (at + 1) % all.len() } else { (at + all.len() - 1) % all.len() };
                 s.apply_preset(all[next]);

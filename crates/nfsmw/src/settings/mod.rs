@@ -3,19 +3,27 @@
 //! Each source produces a [`Partial`]; [`Settings::load`] merges them. The in-game settings menu
 //! (milestone 6) and the developer console write the config file layer.
 
+#[macro_use]
+mod names;
+
+pub mod availability;
 mod car_shading;
 #[cfg(test)]
 mod car_shading_tests;
 mod controls;
 #[cfg(test)]
 mod controls_tests;
+mod effective;
 mod env;
 #[cfg(test)]
 mod exhaust_flames_tests;
 mod file;
+mod graphics;
 mod graphics_preset;
 #[cfg(test)]
 mod graphics_preset_tests;
+#[cfg(test)]
+mod graphics_tests;
 mod hud_layout;
 #[cfg(test)]
 mod hud_layout_tests;
@@ -25,14 +33,25 @@ mod post;
 #[cfg(test)]
 mod post_tests;
 mod radio_hud;
+mod ray_tracing;
+#[cfg(test)]
+mod ray_tracing_tests;
+mod renderer;
+#[cfg(test)]
+mod renderer_tests;
 mod smoke_quality;
 #[cfg(test)]
 mod smoke_quality_tests;
 mod spark_style;
 #[cfg(test)]
+pub(crate) mod test_caps;
+#[cfg(test)]
 mod tire_tests;
 mod transmission;
 mod upscale;
+mod upscale_quality;
+#[cfg(test)]
+mod upscale_quality_tests;
 #[cfg(test)]
 mod upscale_tests;
 #[cfg(test)]
@@ -51,10 +70,13 @@ pub use minimap::MinimapMode;
 pub use partial::{Partial, Percent, parse_bool};
 pub use post::{PostAa, PostBloom, PostTonemap, post_effects};
 pub use radio_hud::RadioHudStyle;
+pub use ray_tracing::RayTracingLevel;
+pub use renderer::RendererKind;
 pub use smoke_quality::SmokeQuality;
 pub use spark_style::SparkStyle;
 pub use transmission::Transmission;
 pub use upscale::{RenderScale, UpscaleMode};
+pub use upscale_quality::UpscaleQuality;
 pub use wheel::WheelOptions;
 pub use window::{Monitor, Resolution, WindowMode};
 pub use write::write as write_file;
@@ -67,6 +89,8 @@ use crate::devtools::{ShowMetrics, ShowReadout};
 pub struct Settings {
     pub controls: Controls,
     pub backend: GraphicsApi,
+    /// Who draws: the native `blackbox` renderer (default) or `bevy`; applies after a restart.
+    pub renderer: RendererKind,
     pub vsync: bool,
     pub max_fps: MaxFps,
     pub show_metrics: ShowMetrics,
@@ -121,6 +145,10 @@ pub struct Settings {
     pub upscaler: UpscaleMode,
     /// FSR 1 sharpening, 0 to 100 percent.
     pub upscale_sharpness: Percent,
+    /// How far a temporal upscaler (fsr3, fsr4, dlss) renders below the output size.
+    pub upscale_quality: UpscaleQuality,
+    /// Ray-traced lighting (bevy renderer only); off to on needs a restart.
+    pub ray_tracing: RayTracingLevel,
     /// Gamepad button codes of a steering wheel's shift paddles (`GamepadButton::Other`), if the player gave them.
     pub paddle_up: Option<u32>,
     pub paddle_down: Option<u32>,
@@ -149,6 +177,7 @@ impl From<Partial> for Settings {
                 invert_camera_y: p.invert_camera_y.unwrap_or(Controls::default().invert_camera_y),
             },
             backend: p.backend.unwrap_or_default(),
+            renderer: p.renderer.unwrap_or_default(),
             vsync: p.vsync.unwrap_or(true),
             max_fps: p.max_fps.unwrap_or_default(),
             show_metrics: p.show_metrics.unwrap_or_default(),
@@ -182,6 +211,8 @@ impl From<Partial> for Settings {
             render_scale: p.render_scale.unwrap_or_default(),
             upscaler: p.upscaler.unwrap_or_default(),
             upscale_sharpness: p.upscale_sharpness.unwrap_or(Percent(80)),
+            upscale_quality: p.upscale_quality.unwrap_or_default(),
+            ray_tracing: p.ray_tracing.unwrap_or_default(),
             paddle_up: p.paddle_up,
             paddle_down: p.paddle_down,
             manual_clutch: p.manual_clutch.unwrap_or(false),

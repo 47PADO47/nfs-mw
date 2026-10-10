@@ -10,7 +10,10 @@ use toml::{Table, Value};
 
 use super::partial::{Partial, Percent};
 use super::{CarShading, Deadzone, GraphicsPreset, HudLayout, MinimapMode, RadioHudStyle, Sensitivity, Transmission};
-use super::{Monitor, PostAa, PostBloom, PostTonemap, RenderScale, Resolution, SmokeQuality, UpscaleMode, WindowMode};
+use super::{
+    Monitor, PostAa, PostBloom, PostTonemap, RayTracingLevel, RenderScale, RendererKind, Resolution, SmokeQuality,
+    UpscaleMode, UpscaleQuality, WindowMode,
+};
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
 
@@ -57,6 +60,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         }),
         invert_camera_y: field(&table, origin, "invert_camera_y", boolean),
         backend: field(&table, origin, "backend", |v| text_of(v)?.parse().map_err(|e| format!("{e}"))),
+        renderer: field(&table, origin, "renderer", |v| RendererKind::from_str(text_of(v)?)),
         vsync: field(&table, origin, "vsync", |v| v.as_bool().ok_or_else(|| "expected true or false".to_owned())),
         max_fps: field(&table, origin, "max_fps", |v| match v {
             Value::Integer(n) => MaxFps::from_str(&n.to_string()),
@@ -101,6 +105,8 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         }),
         upscaler: field(&table, origin, "upscaler", |v| UpscaleMode::from_str(text_of(v)?)),
         upscale_sharpness: field(&table, origin, "upscale_sharpness", percent),
+        upscale_quality: field(&table, origin, "upscale_quality", |v| UpscaleQuality::from_str(text_of(v)?)),
+        ray_tracing: field(&table, origin, "ray_tracing", |v| RayTracingLevel::from_str(text_of(v)?)),
         paddle_up: field(&table, origin, "paddle_up", button_code),
         paddle_down: field(&table, origin, "paddle_down", button_code),
         manual_clutch: field(&table, origin, "manual_clutch", boolean),

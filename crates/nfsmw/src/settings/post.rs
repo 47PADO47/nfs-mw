@@ -1,9 +1,6 @@
 //! The post-processing settings: tone mapping, bloom and anti-aliasing (docs/post-processing.md).
 //! Each is independent and every default is off, which keeps the image exactly as it was.
 
-use std::fmt;
-use std::str::FromStr;
-
 use blackbox_gfx::{Antialiasing, PostSettings, Tonemap};
 
 use super::Settings;
@@ -33,12 +30,15 @@ pub enum PostBloom {
     High,
 }
 
-/// The `post_aa` setting: anti-aliasing of the 3D scene (the HUD and menus are never touched).
+/// The `post_aa` setting: anti-aliasing of the 3D scene (the HUD and menus are never touched). `smaa` and `taa`
+/// only exist on the Bevy renderer; the native one runs them as `fxaa` (docs/renderers.md).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum PostAa {
     #[default]
     Off,
     Fxaa,
+    Smaa,
+    Taa,
 }
 
 impl PostBloom {
@@ -64,32 +64,11 @@ pub fn post_effects(settings: &Settings) -> PostSettings {
         antialiasing: match settings.post_aa {
             PostAa::Off => Antialiasing::Off,
             PostAa::Fxaa => Antialiasing::Fxaa,
+            PostAa::Smaa => Antialiasing::Smaa,
+            PostAa::Taa => Antialiasing::Taa,
         },
         ..PostSettings::default()
     }
-}
-
-macro_rules! names {
-    ($ty:ty, $expected:literal, [$(($variant:path, $name:literal)),+ $(,)?]) => {
-        impl FromStr for $ty {
-            type Err = String;
-
-            fn from_str(s: &str) -> Result<Self, String> {
-                match s {
-                    $($name => Ok($variant),)+
-                    _ => Err(format!("expected {}, got {s:?}", $expected)),
-                }
-            }
-        }
-
-        impl fmt::Display for $ty {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str(match self {
-                    $($variant => $name,)+
-                })
-            }
-        }
-    };
 }
 
 names!(PostTonemap, "off or aces", [(Self::Off, "off"), (Self::Aces, "aces")]);
@@ -98,4 +77,8 @@ names!(
     "off, low, medium or high",
     [(Self::Off, "off"), (Self::Low, "low"), (Self::Medium, "medium"), (Self::High, "high")]
 );
-names!(PostAa, "off or fxaa", [(Self::Off, "off"), (Self::Fxaa, "fxaa")]);
+names!(
+    PostAa,
+    "off, fxaa, smaa or taa",
+    [(Self::Off, "off"), (Self::Fxaa, "fxaa"), (Self::Smaa, "smaa"), (Self::Taa, "taa")]
+);

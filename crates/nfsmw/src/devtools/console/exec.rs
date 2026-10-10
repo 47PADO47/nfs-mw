@@ -5,14 +5,14 @@ use bevy_ecs::prelude::*;
 use bevy_window::{PrimaryWindow, Window};
 
 use super::parse::{self, BUILT_IN, Command};
-use super::{Console, settings_cmd};
+use super::{Console, gfx_cmd, settings_cmd};
 use crate::app::Host;
 use crate::app::pacing::FrameLimiter;
 use crate::app::window::WindowModes;
 use crate::audio::Audio;
 use crate::devtools::logbuf;
 use crate::input::Bindings;
-use crate::settings::Settings;
+use crate::settings::{RendererKind, Settings, availability};
 
 /// Run the lines typed since last frame and print what they say.
 pub fn execute(
@@ -74,6 +74,7 @@ fn run(
         Command::Get(Some(key)) => settings_cmd::get(settings, &key),
         Command::Window => Ok(WindowModes::status(window)),
         Command::Monitors => Ok(modes.monitors.clone()),
+        Command::Gfx => gfx(settings, host),
         Command::Keys => Err("keys is answered by the console before commands run".into()),
         Command::Bindings { .. } => Err("bindings are answered by the console before commands run".into()),
         Command::Set { key, value } => set_live(settings, host, &key, &value),
@@ -102,7 +103,21 @@ pub(super) fn set_live(settings: &mut Settings, host: &mut Host, key: &str, valu
     if host.screenshot.is_some() && matches!(key, "window_mode" | "monitor" | "resolution") {
         return Err("screenshot runs keep a hidden window at their fixed resolution".into());
     }
-    let text = settings_cmd::set(settings, key, value)?;
+    let before = *settings;
+    let mut text = settings_cmd::set(settings, key, value)?;
+    if let Some(renderer) = host.renderer.as_ref() {
+        let caps = renderer.capabilities();
+        if let Err(e) = availability::check(key, settings, caps) {
+            *settings = before;
+            return Err(e);
+        }
+        if availability::needs_restart(caps, &before.graphics(), &settings.graphics()) {
+            text.push_str(" (applies after restart)");
+        }
+    }
+    if key == "renderer" && settings.renderer == RendererKind::Bevy && !crate::app::BEVY_COMPILED {
+        text.push_str("; this build has no bevy renderer, so blackbox will be used");
+    }
     if matches!(key, "tire_smoke" | "skid_marks") {
         host.set_tire_effects(settings.tire_smoke, settings.skid_marks);
     }
@@ -128,6 +143,14 @@ pub(super) fn set_live(settings: &mut Settings, host: &mut Host, key: &str, valu
         host.set_exhaust_flames(settings.exhaust_flames);
     }
     Ok(text)
+}
+
+/// The `gfx` report: the renderer, what it can do and the graphics settings as requested and in effect.
+pub(super) fn gfx(settings: &Settings, host: &mut Host) -> Result<String, String> {
+    host.apply_graphics(settings);
+    let renderer = host.renderer.as_ref().ok_or("the renderer is not ready")?;
+    let resolved = host.graphics.resolved().ok_or("the graphics settings are not applied yet")?;
+    Ok(gfx_cmd::report(settings, renderer.info(), renderer.capabilities(), resolved, crate::app::BEVY_COMPILED))
 }
 
 fn help(scene: &[(&str, &str)]) -> String {
@@ -177,11 +200,7 @@ pub fn sync_settings(settings: Res<Settings>, mut host: NonSendMut<Host>, mut ap
     {
         renderer.set_vsync(settings.vsync);
     }
-    if crate::app::upscale::differs(&before, &settings)
-        && let Some(renderer) = host.renderer.as_mut()
-    {
-        crate::app::upscale::apply(renderer.as_mut(), &settings);
-    }
+    host.apply_graphics(&settings);
 }
 
 #[cfg(test)]

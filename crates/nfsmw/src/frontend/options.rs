@@ -8,12 +8,15 @@ use super::ids::{LABEL_OFF, LABEL_ON};
 use super::input_options::InputSetting;
 use super::logic::Category;
 use super::post_options::PostSetting;
+use super::renderer_options::RendererSetting;
 use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
+use crate::settings::availability;
 use crate::settings::{
     HudLayout, MinimapMode, Partial, Percent, RadioHudStyle, RenderScale, Settings, SmokeQuality, Transmission,
     UpscaleMode, WindowMode,
 };
+use blackbox_gfx::Capabilities;
 
 /// A setting a row edits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -38,6 +41,7 @@ pub enum Setting {
     Input(InputSetting),
     Post(PostSetting),
     Graphics(GraphicsSetting),
+    Renderer(RendererSetting),
     HudLayout,
     RadioHud,
     Minimap,
@@ -79,8 +83,11 @@ const fn row(setting: Setting, title: Title) -> Row {
     Row { setting, title }
 }
 
-/// The rows of a category.
-pub fn rows(category: Category) -> Vec<Row> {
+/// The rows of a category on a renderer with these capabilities. A row the renderer cannot do (ray tracing, the
+/// temporal upscalers' quality mode) is left out: an option row has no greyed-out state.
+pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
+    let renderer_row = |setting: RendererSetting| row(Setting::Renderer(setting), setting.title());
+    let offered = |setting: RendererSetting| setting.shown(caps).then(|| renderer_row(setting));
     match category {
         Category::Audio => vec![
             row(Setting::MasterVolume, Title::Label(0x2678_2C3E)),
@@ -105,8 +112,11 @@ pub fn rows(category: Category) -> Vec<Row> {
             row(Setting::UpscaleSharpness, Title::Text("Upscale Sharpness")),
         ]
         .into_iter()
+        .chain(offered(RendererSetting::UpscaleQuality))
         .chain(PostSetting::ALL.into_iter().map(|setting| row(Setting::Post(setting), setting.title())))
+        .chain(offered(RendererSetting::RayTracing))
         .chain(GraphicsSetting::ALL.into_iter().map(|setting| row(Setting::Graphics(setting), setting.title())))
+        .chain(offered(RendererSetting::Renderer))
         .collect(),
         Category::Gameplay => vec![
             row(Setting::Hud, Title::Label(0xAC14_8579)),
@@ -130,9 +140,18 @@ const LABEL_MANUAL: u32 = 0x317D_3005;
 const FRAME_LIMITS: [&str; 6] = ["unlocked", "30", "60", "120", "144", "240"];
 /// Render scales (percent) the row cycles through: FSR 1's quality modes and a few supersampling steps.
 const RENDER_SCALES: [u16; 9] = [50, 59, 67, 77, 85, 100, 125, 150, 200];
-const UPSCALERS: [UpscaleMode; 3] = [UpscaleMode::Off, UpscaleMode::Bilinear, UpscaleMode::Fsr1];
+const UPSCALERS: [UpscaleMode; 6] = [
+    UpscaleMode::Off,
+    UpscaleMode::Bilinear,
+    UpscaleMode::Fsr1,
+    UpscaleMode::Fsr3,
+    UpscaleMode::Fsr4,
+    UpscaleMode::Dlss,
+];
 const METRICS: [ShowMetrics; 3] = [ShowMetrics::Off, ShowMetrics::Basic, ShowMetrics::Advanced];
 const WINDOW_MODES: [WindowMode; 3] = [WindowMode::Windowed, WindowMode::Borderless, WindowMode::Exclusive];
+/// The most values any row cycles through; `advance` gives up after that many steps.
+const MAX_VALUES: usize = 8;
 /// A slider press moves the volume by this many percent.
 const VOLUME_STEP: u8 = 10;
 
@@ -173,6 +192,7 @@ impl Setting {
             Setting::Input(setting) => setting.data(s),
             Setting::Post(setting) => setting.data(s),
             Setting::Graphics(setting) => setting.data(s),
+            Setting::Renderer(setting) => setting.data(s),
             Setting::HudLayout => Data::Text(
                 match s.hud_layout {
                     HudLayout::Pc => "PC",
@@ -202,6 +222,9 @@ impl Setting {
                     UpscaleMode::Off => "Off",
                     UpscaleMode::Bilinear => "Bilinear",
                     UpscaleMode::Fsr1 => "FSR 1",
+                    UpscaleMode::Fsr3 => "FSR 3",
+                    UpscaleMode::Fsr4 => "FSR 4",
+                    UpscaleMode::Dlss => "DLSS",
                 }
                 .to_owned(),
             ),
@@ -248,6 +271,42 @@ impl Setting {
         }
     }
 
+    /// What the data string shows on a renderer with these capabilities: the value it actually runs, so a stored
+    /// `taa` reads FXAA on a renderer that has no TAA.
+    pub fn data_in(self, s: &Settings, caps: &Capabilities) -> Data {
+        self.data(&s.effective(caps))
+    }
+
+    /// The config key of a setting a renderer may not be able to run.
+    fn key(self) -> Option<&'static str> {
+        match self {
+            Setting::Upscaler => Some("upscaler"),
+            Setting::Post(PostSetting::Aa) => Some("post_aa"),
+            Setting::Post(PostSetting::Tonemap) => Some("post_tonemap"),
+            Setting::Post(PostSetting::Bloom) => Some("post_bloom"),
+            Setting::Renderer(RendererSetting::RayTracing) => Some("ray_tracing"),
+            _ => None,
+        }
+    }
+
+    /// Whether the renderer can run the setting's current value.
+    pub fn offered(self, s: &Settings, caps: &Capabilities) -> bool {
+        self.key().is_none_or(|key| availability::is_offered(key, s, caps))
+    }
+
+    /// [`step`](Self::step), skipping the values the renderer cannot run, so a toggle only cycles through what
+    /// works. A stored value the renderer cannot run (set for another renderer) moves to the next one it can.
+    pub fn advance(self, s: &mut Settings, changed: &mut Partial, forward: bool, caps: &Capabilities) -> bool {
+        let before = *s;
+        for _ in 0..MAX_VALUES {
+            self.step(s, changed, forward);
+            if self.offered(s, caps) {
+                break;
+            }
+        }
+        before != *s
+    }
+
     /// Moves the setting one step (`forward`: right, else left) and records the change for the config file.
     /// Returns whether the value changed (a slider at its end does not).
     pub fn step(self, s: &mut Settings, changed: &mut Partial, forward: bool) -> bool {
@@ -269,13 +328,16 @@ impl Setting {
         if let Setting::Graphics(setting) = self {
             return setting.step(s, changed, forward);
         }
+        if let Setting::Renderer(setting) = self {
+            return setting.step(s, changed, forward);
+        }
         if !self.enabled(s) {
             return false;
         }
         let before = *s;
         match self {
-            Setting::Input(_) | Setting::Post(_) | Setting::Graphics(_) => {
-                unreachable!("input, post and graphics settings are handled above")
+            Setting::Input(_) | Setting::Post(_) | Setting::Graphics(_) | Setting::Renderer(_) => {
+                unreachable!("input, post, graphics and renderer settings are handled above")
             }
             Setting::HudLayout => {
                 let layouts = [HudLayout::Pc, HudLayout::Classic, HudLayout::Xbox360];
@@ -424,118 +486,5 @@ fn cycle(at: usize, len: usize, forward: bool) -> usize {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn defaults() -> Settings {
-        Settings::from(Partial::default())
-    }
-
-    #[test]
-    fn volumes_move_by_ten_and_stop_at_the_ends() {
-        let (mut s, mut c) = (defaults(), Partial::default());
-        assert_eq!(s.master_volume, Percent(80));
-        assert!(Setting::MasterVolume.step(&mut s, &mut c, true));
-        assert_eq!(s.master_volume, Percent(90));
-        assert!(Setting::MasterVolume.step(&mut s, &mut c, true));
-        assert!(!Setting::MasterVolume.step(&mut s, &mut c, true), "100 is the end");
-        assert_eq!(c.master_volume, Some(Percent(100)));
-        for _ in 0..12 {
-            Setting::MasterVolume.step(&mut s, &mut c, false);
-        }
-        assert_eq!(s.master_volume, Percent(0));
-        assert_eq!(Setting::MasterVolume.control(&s), Control::Slider(0));
-    }
-
-    #[test]
-    fn toggles_flip_and_cycle_and_record_the_change() {
-        let (mut s, mut c) = (defaults(), Partial::default());
-        assert!(s.vsync);
-        Setting::Vsync.step(&mut s, &mut c, true);
-        assert!(!s.vsync);
-        assert_eq!(c.vsync, Some(false));
-        assert_eq!(Setting::Vsync.data(&s), Data::Label(LABEL_OFF));
-        Setting::Hud.step(&mut s, &mut c, false);
-        assert_eq!((s.hud, c.hud), (false, Some(false)));
-
-        assert_eq!(Setting::MaxFps.data(&s), Data::Text("Unlocked".into()));
-        Setting::MaxFps.step(&mut s, &mut c, true);
-        assert_eq!(Setting::MaxFps.data(&s), Data::Text("30 FPS".into()));
-        Setting::MaxFps.step(&mut s, &mut c, false);
-        Setting::MaxFps.step(&mut s, &mut c, false);
-        assert_eq!(Setting::MaxFps.data(&s), Data::Text("240 FPS".into()), "left from unlocked wraps to the last");
-
-        assert_eq!(Setting::Transmission.data(&s), Data::Label(LABEL_AUTOMATIC));
-        Setting::Transmission.step(&mut s, &mut c, true);
-        assert_eq!((s.transmission, c.transmission), (Transmission::Manual, Some(Transmission::Manual)));
-        assert_eq!(Setting::Transmission.data(&s), Data::Label(LABEL_MANUAL));
-        Setting::Transmission.step(&mut s, &mut c, false);
-        assert_eq!(s.transmission, Transmission::Automatic, "left and right both toggle, as in the original");
-
-        Setting::Metrics.step(&mut s, &mut c, true);
-        assert_eq!(s.show_metrics, ShowMetrics::Basic);
-        assert_eq!(c.show_metrics, Some(ShowMetrics::Basic));
-    }
-
-    #[test]
-    fn every_category_has_rows() {
-        assert_eq!(rows(Category::Audio).len(), 5);
-        assert_eq!(rows(Category::Video).len(), 18);
-        assert_eq!(rows(Category::Gameplay).len(), 5);
-        assert_eq!(rows(Category::Controls).len(), 8);
-    }
-
-    #[test]
-    fn the_speech_volume_row_is_a_slider_that_records_its_change() {
-        let (mut s, mut changes) = (defaults(), Partial::default());
-        assert_eq!(Setting::SpeechVolume.control(&s), Control::Slider(s.speech_volume.0));
-        Setting::SpeechVolume.step(&mut s, &mut changes, false);
-        assert_eq!(s.speech_volume.0, 80);
-        assert_eq!(changes, Partial { speech_volume: Some(s.speech_volume), ..Partial::default() });
-    }
-
-    #[test]
-    fn video_window_mode_cycles_both_directions_and_records_the_selection() {
-        let (mut s, mut changes) = (defaults(), Partial::default());
-        Setting::WindowMode.step(&mut s, &mut changes, true);
-        assert_eq!((s.window_mode, changes.window_mode), (WindowMode::Borderless, Some(WindowMode::Borderless)));
-        Setting::WindowMode.step(&mut s, &mut changes, true);
-        assert_eq!(Setting::WindowMode.data(&s), Data::Text("Exclusive".into()));
-        Setting::WindowMode.step(&mut s, &mut changes, true);
-        assert_eq!(s.window_mode, WindowMode::Windowed);
-        Setting::WindowMode.step(&mut s, &mut changes, false);
-        assert_eq!(s.window_mode, WindowMode::Exclusive);
-    }
-
-    #[test]
-    fn video_tire_toggles_record_independent_changes() {
-        let (mut s, mut changes) = (defaults(), Partial::default());
-        Setting::TireSmoke.step(&mut s, &mut changes, true);
-        assert_eq!((s.tire_smoke, changes.tire_smoke), (false, Some(false)));
-        assert!(s.skid_marks);
-        Setting::SkidMarks.step(&mut s, &mut changes, false);
-        assert_eq!((s.skid_marks, changes.skid_marks), (false, Some(false)));
-        assert_eq!(Setting::TireSmoke.data(&s), Data::Label(LABEL_OFF));
-    }
-
-    #[test]
-    fn smoke_quality_cycles_and_records_only_its_selection() {
-        let (mut s, mut changes) = (defaults(), Partial::default());
-        Setting::SmokeQuality.step(&mut s, &mut changes, true);
-        assert_eq!(Setting::SmokeQuality.data(&s), Data::Text("High".into()));
-        assert_eq!(changes, Partial { smoke_quality: Some(SmokeQuality::High), ..Partial::default() });
-        Setting::SmokeQuality.step(&mut s, &mut changes, false);
-        assert_eq!(Setting::SmokeQuality.data(&s), Data::Text("Standard".into()));
-    }
-
-    #[test]
-    fn minimap_menu_cycles_both_directions_and_records_the_selection() {
-        let (mut s, mut changes) = (defaults(), Partial::default());
-        for mode in [MinimapMode::Rotating, MinimapMode::Off, MinimapMode::Fixed] {
-            assert!(Setting::Minimap.step(&mut s, &mut changes, true));
-            assert_eq!((s.minimap, changes.minimap), (mode, Some(mode)));
-        }
-        assert!(Setting::Minimap.step(&mut s, &mut changes, false));
-        assert_eq!(s.minimap, MinimapMode::Off);
-    }
-}
+#[path = "options_tests.rs"]
+mod tests;

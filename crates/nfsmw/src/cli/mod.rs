@@ -175,6 +175,10 @@ pub struct ViewArgs {
     /// Graphics backend: auto, vulkan, dx12 or gl [env NFSMW_BACKEND; default auto].
     #[arg(long)]
     pub backend: Option<GraphicsApi>,
+    /// Which renderer draws: blackbox (the native one) or bevy; it applies on the next start, and a build or PC
+    /// without the bevy renderer uses blackbox [env NFSMW_RENDERER; config `renderer`; default blackbox].
+    #[arg(long, value_name = "blackbox|bevy")]
+    pub renderer: Option<crate::settings::RendererKind>,
     /// Disable vsync [env NFSMW_VSYNC=off; config `vsync = false`].
     #[arg(long)]
     pub no_vsync: bool,
@@ -248,9 +252,10 @@ pub struct ViewArgs {
     /// Disable tire smoke.
     #[arg(long)]
     pub no_tire_smoke: bool,
-    /// A named set of graphics settings: custom (none; the default), low, medium or high. Any setting given
-    /// on its own, in any layer, wins over the preset [env NFSMW_GRAPHICS_PRESET; config `graphics_preset`].
-    #[arg(long, value_name = "custom|low|medium|high")]
+    /// A named set of graphics settings: custom (none; the default), low, medium, high or ultra (high plus taa and
+    /// ray tracing, which only the bevy renderer has). Any setting given on its own, in any layer, wins over
+    /// the preset [env NFSMW_GRAPHICS_PRESET; config `graphics_preset`].
+    #[arg(long, value_name = "custom|low|medium|high|ultra")]
     pub graphics_preset: Option<crate::settings::GraphicsPreset>,
     /// Car shading: glossy (three lights, sun highlight, reflections) or simple (one light; the cheap path)
     /// [env NFSMW_CAR_SHADING; config `car_shading`; default glossy].
@@ -263,13 +268,23 @@ pub struct ViewArgs {
     /// config `render_scale`; default 100]. Below 100 the scene is scaled up with --upscaler; the HUD stays sharp.
     #[arg(long, value_name = "50-200")]
     pub render_scale: Option<crate::settings::RenderScale>,
-    /// How a render scale below 100 is scaled up: fsr1 (FidelityFX Super Resolution 1), bilinear, or off (the
-    /// render scale is ignored) [env NFSMW_UPSCALER; config `upscaler`; default fsr1].
-    #[arg(long, value_name = "off|bilinear|fsr1")]
+    /// How the scene is scaled up: fsr1 (FidelityFX Super Resolution 1), bilinear, or off (the render scale is
+    /// ignored); fsr3, fsr4 and dlss are temporal upscalers of the bevy renderer and run as fsr1 without it
+    /// [env NFSMW_UPSCALER; config `upscaler`; default fsr1].
+    #[arg(long, value_name = "off|bilinear|fsr1|fsr3|fsr4|dlss")]
     pub upscaler: Option<crate::settings::UpscaleMode>,
     /// FSR 1 sharpening, 0 (off) to 100 [env NFSMW_UPSCALE_SHARPNESS; config `upscale_sharpness`; default 80].
     #[arg(long, value_name = "0-100")]
     pub upscale_sharpness: Option<crate::settings::Percent>,
+    /// How far a temporal upscaler (fsr3, fsr4, dlss) renders below the output: auto, native, quality (67 %),
+    /// balanced, performance or ultra_performance [env NFSMW_UPSCALE_QUALITY; config `upscale_quality`;
+    /// default quality].
+    #[arg(long, value_name = "auto|native|quality|balanced|performance|ultra_performance")]
+    pub upscale_quality: Option<crate::settings::UpscaleQuality>,
+    /// Ray-traced lighting: off, low, medium or high; only the bevy renderer on a GPU with ray queries has it,
+    /// and switching it on or off needs a restart [env NFSMW_RAY_TRACING; config `ray_tracing`; default off].
+    #[arg(long, value_name = "off|low|medium|high")]
+    pub ray_tracing: Option<crate::settings::RayTracingLevel>,
     /// Turn the radio off [env NFSMW_RADIO=off; config `radio = false`; default on].
     #[arg(long, conflicts_with = "radio")]
     pub no_radio: bool,
@@ -309,8 +324,9 @@ pub struct ViewArgs {
     /// Bloom around bright areas: off, low, medium or high [env NFSMW_POST_BLOOM; config `post_bloom`; default off].
     #[arg(long, value_name = "off|low|medium|high")]
     pub post_bloom: Option<crate::settings::PostBloom>,
-    /// Anti-aliasing of the 3D scene: off or fxaa [env NFSMW_POST_AA; config `post_aa`; default off].
-    #[arg(long, value_name = "off|fxaa")]
+    /// Anti-aliasing of the 3D scene: off, fxaa, smaa or taa; smaa and taa need the bevy renderer and run as fxaa
+    /// without it [env NFSMW_POST_AA; config `post_aa`; default off].
+    #[arg(long, value_name = "off|fxaa|smaa|taa")]
     pub post_aa: Option<crate::settings::PostAa>,
     /// Who changes gear: automatic or manual (Q/E, the bumpers or the wheel paddles shift)
     /// [env NFSMW_TRANSMISSION; config `transmission`; default automatic].
@@ -345,6 +361,7 @@ impl ViewArgs {
     pub fn settings_layer(&self) -> Partial {
         Partial {
             backend: self.backend,
+            renderer: self.renderer,
             vsync: self.no_vsync.then_some(false),
             max_fps: self.max_fps,
             show_metrics: self.show_metrics,
@@ -373,6 +390,8 @@ impl ViewArgs {
             render_scale: self.render_scale,
             upscaler: self.upscaler,
             upscale_sharpness: self.upscale_sharpness,
+            upscale_quality: self.upscale_quality,
+            ray_tracing: self.ray_tracing,
             ..Partial::default()
         }
     }
@@ -425,90 +444,4 @@ fn parse_screenshot_size(s: &str) -> Result<[u32; 2], String> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_hud_demo_takes_optional_gauges() {
-        let plain = parse_hud_demo("100,4000,8000,3").unwrap();
-        assert!(!plain.has_nos && !plain.has_turbo);
-        assert!((plain.speed - 100.0 / 3.6).abs() < 1e-4);
-        let nos = parse_hud_demo("100,4000,8000,3,60").unwrap();
-        assert!(nos.has_nos && !nos.has_turbo && (nos.nos - 0.6).abs() < 1e-6);
-        let both = parse_hud_demo("100,4000,8000,3,60,-5").unwrap();
-        assert!(both.has_turbo && both.boost_psi == -5.0);
-        assert!(parse_hud_demo("100,4000,8000").is_err());
-        assert!(parse_hud_demo("1,2,3,4,5,6,7").is_err());
-    }
-
-    #[test]
-    fn xy() {
-        assert_eq!(parse_xy("1.5,-2").unwrap(), [1.5, -2.0]);
-        assert!(parse_xy("3").is_err());
-    }
-
-    #[test]
-    fn screenshot_size_is_explicit_and_independent_of_window_preferences() {
-        for size in ["1920x1080", "2560x1440", "3840x2160"] {
-            let cli =
-                Cli::try_parse_from(["nfsmw", "view-world", "--screenshot", "out.png", "--screenshot-size", size])
-                    .unwrap();
-            let Some(Command::ViewWorld { view, .. }) = cli.command else { panic!("wrong command") };
-            assert_eq!(view.screenshot_size, Some(parse_screenshot_size(size).unwrap()));
-            assert_eq!(view.settings_layer().resolution, None);
-        }
-        assert!(Cli::try_parse_from(["nfsmw", "view-world", "--screenshot-size", "1920x1080"]).is_err());
-        for invalid in ["native", "0x1080", "1920x0", "16385x1080", "1920"] {
-            assert!(parse_screenshot_size(invalid).is_err(), "{invalid}");
-        }
-    }
-
-    #[test]
-    fn cli_is_consistent() {
-        use clap::CommandFactory;
-        Cli::command().debug_assert();
-    }
-
-    #[test]
-    fn no_command_starts_the_game() {
-        let bare = Cli::try_parse_from(["nfsmw"]).unwrap();
-        assert!(bare.command.is_none());
-        let cli = Cli::try_parse_from(["nfsmw", "--game-dir", "X"]).unwrap();
-        assert!(cli.command.is_none() && cli.game_dir.is_some());
-        assert!(Cli::try_parse_from(["nfsmw", "--game-dir", "X", "view-car"]).is_ok());
-        assert!(Cli::try_parse_from(["nfsmw", "--no-sound"]).is_err(), "viewer options belong to a command");
-    }
-
-    #[test]
-    fn help_and_keys_are_commands() {
-        use clap::error::ErrorKind;
-        for flag in ["-h", "--help"] {
-            let err = Cli::try_parse_from(["nfsmw", flag]).err().expect("help ends parsing");
-            assert_eq!(err.kind(), ErrorKind::DisplayHelp);
-            assert!(err.to_string().contains("Examples:"), "the help carries the examples");
-        }
-        assert!(matches!(Cli::try_parse_from(["nfsmw", "keys"]).unwrap().command, Some(Command::Keys)));
-        assert!(matches!(Cli::try_parse_from(["nfsmw", "bindings"]).unwrap().command, Some(Command::Keys)));
-    }
-
-    #[test]
-    fn window_options_reach_the_cli_settings_layer() {
-        let cli = Cli::try_parse_from([
-            "nfsmw",
-            "view-car",
-            "--window-mode",
-            "exclusive",
-            "--monitor",
-            "1",
-            "--resolution",
-            "1920x1080",
-        ])
-        .unwrap();
-        let Some(Command::ViewCar { view, .. }) = cli.command else { panic!("wrong command") };
-        let layer = view.settings_layer();
-        assert_eq!(layer.window_mode, Some(WindowMode::Exclusive));
-        assert_eq!(layer.monitor, Some(Monitor::Index(1)));
-        assert_eq!(layer.resolution, Some(Resolution::pixels(1920, 1080).unwrap()));
-        assert!(Cli::try_parse_from(["nfsmw", "view-car", "--resolution", "0x0"]).is_err());
-    }
-}
+mod tests;
