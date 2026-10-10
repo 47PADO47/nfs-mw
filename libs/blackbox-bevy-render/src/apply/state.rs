@@ -67,7 +67,9 @@ pub struct Placed {
 /// The camera that is on screen and the settings last applied to it.
 pub struct ScreenCamera {
     pub entity: Entity,
-    pub fxaa: bool,
+    /// `None` right after spawning: forces [`super::camera::set_post`] to run at least once, so the very
+    /// first frame already has the effective post-process components instead of catching up a frame late.
+    pub applied: Option<crate::ops::CameraSettings>,
     pub render_size: Option<bevy_math::UVec2>,
     pub vsync: Option<bool>,
 }

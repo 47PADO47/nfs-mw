@@ -9,7 +9,7 @@ use blackbox_gfx::{
     BackendInfo, Capabilities, CaptureId, EffectLayer, Environment, FrameParams, FrameStatus, GlossyMaterial,
     GlossyMaterialHandle, GraphicsSettings, Instance, LightingRig, MeshDesc, MeshHandle, RenderBackend, RenderError,
     RenderStats, Resolved, RgbaImage, TextureDesc, TextureHandle, UiLayer, UiTextureId, UiTexturePatch, resolve,
-    scaled_size, suggested_texture_lod_bias,
+    scaled_size,
 };
 
 use crate::ops::{CameraSettings, CaptureRequest, FrameData, Op, Shared, UiOp, lock};
@@ -101,9 +101,11 @@ impl RenderBackend for BevyBackend {
         let resolved = resolve(requested, &self.caps);
         let effective = resolved.effective;
         self.set_camera(|settings| {
-            settings.fxaa = effective.post.antialiasing == blackbox_gfx::Antialiasing::Fxaa;
+            settings.post = effective.post;
+            settings.upscaler = effective.upscaler;
+            settings.upscale_sharpness = effective.upscale_sharpness;
             settings.render_scale = effective.render_scale;
-            settings.mip_bias = suggested_texture_lod_bias(effective.render_scale);
+            settings.mip_bias = crate::post::scale::mip_bias(effective.post.antialiasing, effective.render_scale);
         });
         self.graphics = effective;
         resolved

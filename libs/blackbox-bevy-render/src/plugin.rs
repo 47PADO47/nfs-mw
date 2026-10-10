@@ -29,6 +29,8 @@ use crate::apply::{self, WorldState};
 use crate::facade::BevyBackend;
 use crate::material::BlackboxMaterial;
 use crate::ops::BlackboxBridge;
+use crate::post;
+use crate::post::fsr1::{self, Fsr1Render};
 use crate::probe::{api_of, backends_for};
 use crate::systems::effects::{self, EffectsRender};
 use crate::systems::ui::{self, UiRender};
@@ -75,6 +77,9 @@ impl Plugin for BlackboxBevyRenderPlugin {
             LightPlugin,
             CorePipelinePlugin,
             bevy_anti_alias::AntiAliasPlugin,
+            // Bloom, depth of field and motion blur moved out of `bevy_core_pipeline` in 0.20; only bloom is
+            // used (`post/mod.rs`), but the plugin adds all of them, and the others stay dormant unused.
+            bevy_post_process::PostProcessPlugin,
         ));
         // Before the material plugin: it starts loading the shader when it is built.
         crate::material::load_shaders(app);
@@ -98,15 +103,27 @@ impl Plugin for BlackboxBevyRenderPlugin {
             .insert_resource(bridge)
             .init_resource::<EffectsRender>()
             .init_resource::<UiRender>()
+            .init_resource::<Fsr1Render>()
             .init_resource::<effects::ExtractedWorld>()
             .add_systems(ExtractSchedule, effects::extract_world)
             .add_systems(
                 Core3d,
                 (
+                    // Before `Core3dSystems::Prepass`, not merely inside it: the depth and motion-vector
+                    // prepasses (when TAA is on) size themselves from `MainPassResolutionOverride` too
+                    // (`bevy_core_pipeline::prepass::node`), and systems in the same set run in no
+                    // particular order unless chained — this one has to win the race every time, not most
+                    // of the time, so it is ordered before the whole set instead.
+                    post::scale::apply_resolution_override.before(Core3dSystems::Prepass),
                     (effects::effects_main_pass, effects::effects_soft_pass)
                         .chain()
                         .in_set(Core3dSystems::EarlyPostProcess),
-                    ui::ui_pass.after(upscaling),
+                    // FSR 1 replaces Bevy's own bilinear blit when it is the active upscaler (see
+                    // `post/fsr1.rs` for why it runs after, not instead of, `upscaling` rather than
+                    // suppressing it); the UI layer draws last, at the output's own resolution, whichever
+                    // one ran.
+                    fsr1::fsr1_pass.after(upscaling),
+                    ui::ui_pass.after(upscaling).after(fsr1::fsr1_pass),
                 ),
             );
     }

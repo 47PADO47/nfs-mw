@@ -4,10 +4,8 @@
 //! lens from the frame's projection. The projection is Bevy's own reverse-Z infinite perspective, which is
 //! exactly the matrix the games' callers build; the aspect ratio follows the render target.
 
-use bevy_anti_alias::fxaa::Fxaa;
 use bevy_camera::{
-    Camera, Camera3d, Camera3dDepthTextureUsage, ClearColorConfig, MainPassResolutionOverride, PerspectiveProjection,
-    Projection, RenderTarget,
+    Camera, Camera3d, Camera3dDepthTextureUsage, ClearColorConfig, PerspectiveProjection, Projection, RenderTarget,
 };
 use bevy_color::Color;
 use bevy_ecs::bundle::Bundle;
@@ -47,13 +45,11 @@ pub fn clear(frame: &FrameParams) -> ClearColorConfig {
     ClearColorConfig::Custom(Color::srgb(r, g, b))
 }
 
-/// The pixel size the scene is drawn at, when it is not the target's.
-pub fn render_override(target: [u32; 2], settings: &CameraSettings) -> Option<UVec2> {
-    if settings.render_scale >= 1.0 {
-        return None;
-    }
-    let (w, h) = blackbox_gfx::scaled_size((target[0], target[1]), settings.render_scale);
-    Some(UVec2::new(w, h))
+/// The pixel size the scene is drawn at when it is not `target`'s own (see
+/// [`crate::post::scale::render_size`]; this just wraps it as a `UVec2` for Bevy call sites). It is not
+/// set as a component from here: see `post::scale::apply_resolution_override`.
+pub fn render_override(target: [u32; 2], render_scale: f32) -> Option<UVec2> {
+    crate::post::scale::render_size(target, render_scale).map(|(w, h)| UVec2::new(w, h))
 }
 
 /// Everything a new camera needs; later frames overwrite the pose, lens, clear colour and bias.
@@ -79,7 +75,10 @@ pub fn bundle(frame: &FrameParams, target: RenderTarget, settings: &CameraSettin
     )
 }
 
-/// Overwrite what changes from frame to frame on an existing camera.
+/// Overwrite what changes from frame to frame on an existing camera, including a TAA history reset on a
+/// camera cut (a teleport, a freecam toggle, a scene switch): `crate::post::taa::reset_on_cut` runs here,
+/// not in [`set_post`], because `camera_cut` is a per-frame flag on `frame`, while `set_post` only runs
+/// when the *settings* change (see `apply/mod.rs`'s `drive_screen`).
 pub fn follow(commands: &mut Commands, camera: Entity, frame: &FrameParams, settings: &CameraSettings) {
     let mut entity = commands.entity(camera);
     entity.insert((lens(frame), pose(frame), MipBias(settings.mip_bias)));
@@ -87,17 +86,22 @@ pub fn follow(commands: &mut Commands, camera: Entity, frame: &FrameParams, sett
         let clear = clear(frame);
         move |mut camera| camera.clear_color = clear
     });
+    crate::post::taa::reset_on_cut(
+        commands,
+        camera,
+        settings.post.antialiasing == blackbox_gfx::Antialiasing::Taa,
+        frame.camera_cut,
+    );
 }
 
-/// Turn FXAA and the reduced main-pass size on or off.
-pub fn set_post(commands: &mut Commands, camera: Entity, settings: &CameraSettings, target: [u32; 2]) {
-    let mut entity = commands.entity(camera);
-    match settings.fxaa {
-        true => entity.insert(Fxaa::default()),
-        false => entity.remove::<Fxaa>(),
-    };
-    match render_override(target, settings) {
-        Some(size) => entity.insert(MainPassResolutionOverride(size)),
-        None => entity.remove::<MainPassResolutionOverride>(),
-    };
+/// Bring every post-process component (bloom, tone mapping, FXAA, SMAA, TAA, `Hdr`) up to `settings`.
+/// Called once right after a camera is spawned (so its very first frame already draws with the effective
+/// settings, not a frame late) and again whenever the settings change.
+///
+/// The reduced main-pass size itself is not set here: `MainPassResolutionOverride`'s own doc comment says
+/// to insert it "on a 3d camera entity in the render world", and it is never synced from the main world
+/// (no `ExtractComponentPlugin` registers it) — `post::scale::apply_resolution_override` sets it directly
+/// on the render-world view every frame instead, from the same [`CameraSettings`] read through the bridge.
+pub fn set_post(commands: &mut Commands, camera: Entity, settings: &CameraSettings) {
+    crate::post::set(commands, camera, settings);
 }

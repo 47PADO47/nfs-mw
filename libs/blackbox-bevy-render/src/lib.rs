@@ -17,6 +17,7 @@ pub mod ops;
 #[cfg(test)]
 mod parity_tests;
 pub mod plugin;
+pub mod post;
 pub mod probe;
 #[cfg(test)]
 mod stress_tests;
