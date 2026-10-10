@@ -4,6 +4,8 @@
 //! metrics overlay and front-end screens all draw through it. Positions are in points; the layer says
 //! how many pixels one point is.
 
+use crate::UiTextureId;
+
 /// One UI vertex.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
@@ -14,10 +16,6 @@ pub struct UiVertex {
     /// RGBA with **premultiplied** alpha, in the same (gamma) space as the texture.
     pub color_rgba: [u8; 4],
 }
-
-/// Names a UI texture. The caller picks the number.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct UiTextureId(pub u64);
 
 /// Triangles drawn with one texture inside one clip rectangle.
 #[derive(Debug, Clone)]

@@ -5,43 +5,29 @@
 //! a `wgpu` type. Everything runs on `wgpu`, which gives Vulkan, Direct3D 12
 //! and OpenGL.
 //!
+//! The renderer-neutral types (meshes, textures, frame parameters, effect and UI layers, post and
+//! upscale settings, the graphics API enum) live in `blackbox-gfx` and are re-exported here, so
+//! callers keep importing them from this crate.
+//!
 //! Layout:
-//! - [`api`](crate::api): the types callers use;
-//! - [`backend`](crate::Backend): the user-selectable graphics backend;
-//! - [`ui`](crate::UiLayer): the 2D layer drawn over the scene (consoles, overlays, menus);
-//! - [`render_scale`](crate::scaled_size): the internal render size relative to the surface;
-//! - [`post_settings`](crate::PostSettings): which post-process effects (bloom, tone mapping, FXAA) run;
-//! - [`upscale`](crate::Upscaler): how a scene drawn below the surface size is brought back up (bilinear, FSR 1);
+//! - [`options`](crate::RendererOptions): how a renderer is created;
 //! - `gpu/`: the wgpu implementation (device setup, resources, pipelines, the scene targets (the
 //!   surface itself, or an offscreen image), the post-process chain, frames).
 
-mod api;
-mod backend;
-mod effects;
-mod glossy;
 mod gpu;
-mod post_settings;
-mod render_scale;
+mod options;
 #[cfg(test)]
 mod shader_tests;
-mod ui;
-mod upscale;
 
-pub use api::{
-    BlendMode, DrawRange, FrameParams, Instance, MeshDesc, MeshHandle, PixelFormat, RenderError, RendererOptions,
-    Shading, TextureDesc, TextureHandle, Vertex,
+pub use blackbox_gfx::{
+    Antialiasing, Backend, BlendMode, DEFAULT_BLOOM_THRESHOLD, DEFAULT_RENDER_SCALE, DEFAULT_SOFT_DISTANCE,
+    DEFAULT_UPSCALE_SHARPNESS, DirectionalLight, DrawRange, EffectLayer, EffectVertex, FrameParams, GlossyMaterial,
+    GlossyMaterialHandle, GraphicsApi, Instance, LightingRig, MAX_BLOOM_INTENSITY, MAX_BLOOM_THRESHOLD, MAX_EXPOSURE,
+    MAX_RENDER_SCALE, MAX_TEXTURE_LOD_BIAS, MIN_EXPOSURE, MIN_RENDER_SCALE, MIN_TEXTURE_LOD_BIAS, MeshDesc, MeshHandle,
+    ParseBackendError, ParseGraphicsApiError, PixelFormat, PostEffect, PostSettings, RenderError, Shading, SkyGradient,
+    TextureDesc, TextureHandle, TexturedEffect, Tonemap, UiLayer, UiMesh, UiTextureId, UiTexturePatch, UiVertex,
+    Upscaler, Vertex, clamp_render_scale, clamp_texture_lod_bias, clamp_upscale_sharpness, scaled_size,
+    suggested_texture_lod_bias,
 };
-pub use backend::{Backend, ParseBackendError};
-pub use effects::{DEFAULT_SOFT_DISTANCE, EffectLayer, EffectVertex, TexturedEffect};
-pub use glossy::{DirectionalLight, GlossyMaterial, GlossyMaterialHandle, LightingRig, SkyGradient};
 pub use gpu::Renderer;
-pub use post_settings::{
-    Antialiasing, DEFAULT_BLOOM_THRESHOLD, MAX_BLOOM_INTENSITY, MAX_BLOOM_THRESHOLD, MAX_EXPOSURE, MIN_EXPOSURE,
-    PostEffect, PostSettings, Tonemap,
-};
-pub use render_scale::{DEFAULT_RENDER_SCALE, MAX_RENDER_SCALE, MIN_RENDER_SCALE, clamp_render_scale, scaled_size};
-pub use ui::{UiLayer, UiMesh, UiTextureId, UiTexturePatch, UiVertex};
-pub use upscale::{
-    DEFAULT_UPSCALE_SHARPNESS, MAX_TEXTURE_LOD_BIAS, MIN_TEXTURE_LOD_BIAS, Upscaler, clamp_texture_lod_bias,
-    clamp_upscale_sharpness, suggested_texture_lod_bias,
-};
+pub use options::RendererOptions;

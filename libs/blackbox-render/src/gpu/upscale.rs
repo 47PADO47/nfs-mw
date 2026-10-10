@@ -2,7 +2,8 @@
 
 use super::Renderer;
 use super::post::{FSR1_EASU, FSR1_RCAS, RcasScale, fsr1_passes};
-use crate::upscale::{fsr1_active, rcas_stops};
+use blackbox_gfx::{fsr1_active, rcas_stops};
+
 use crate::{DEFAULT_UPSCALE_SHARPNESS, Upscaler, clamp_texture_lod_bias, clamp_upscale_sharpness};
 
 /// The upscaling state of a renderer.

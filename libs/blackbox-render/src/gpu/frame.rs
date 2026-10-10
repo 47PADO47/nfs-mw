@@ -116,7 +116,7 @@ impl Renderer {
             while start < instances.len() {
                 let mesh_handle = instances[start].mesh;
                 let end = start + instances[start..].iter().take_while(|i| i.mesh == mesh_handle).count();
-                if let Some(mesh) = self.meshes.get(mesh_handle.0) {
+                if let Some(mesh) = self.meshes.get(mesh_handle.raw()) {
                     pass.set_vertex_buffer(0, mesh.vertices.slice(..));
                     pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint16);
                     for d in mesh.draws.iter().filter(|d| d.blend == mode && d.shading.same_pipeline(shading)) {
@@ -125,7 +125,7 @@ impl Renderer {
                         {
                             continue;
                         }
-                        let slot = d.texture.map(|t| self.redirects.get(&t.0).copied().unwrap_or(t.0));
+                        let slot = d.texture.map(|t| self.redirects.get(&t.raw()).copied().unwrap_or(t.raw()));
                         let texture = slot.and_then(|s| self.textures.get(s)).or(self.textures.get(0));
                         if let Some(texture) = texture {
                             pass.set_bind_group(1, texture, &[]);

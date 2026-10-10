@@ -60,7 +60,7 @@ impl Glossy {
 
     /// Bind one material. Returns `false` (draw nothing) for a destroyed or unknown handle.
     pub(super) fn bind_material(&self, pass: &mut wgpu::RenderPass<'_>, handle: GlossyMaterialHandle) -> bool {
-        let Some(group) = self.materials.get(handle.0) else {
+        let Some(group) = self.materials.get(handle.raw()) else {
             return false;
         };
         pass.set_bind_group(3, group, &[]);
@@ -177,12 +177,12 @@ impl Renderer {
             layout: &glossy.layouts.material,
             entries: &[wgpu::BindGroupEntry { binding: 0, resource: buffer.as_entire_binding() }],
         });
-        GlossyMaterialHandle(glossy.materials.insert(group))
+        GlossyMaterialHandle::from_raw(glossy.materials.insert(group))
     }
 
     /// Free a material. Draws that still use it are skipped.
     pub fn destroy_glossy_material(&mut self, handle: GlossyMaterialHandle) {
         let Some(glossy) = self.glossy.as_mut() else { return };
-        glossy.materials.remove(handle.0);
+        glossy.materials.remove(handle.raw());
     }
 }

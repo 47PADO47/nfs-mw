@@ -113,7 +113,7 @@ impl TexturedEffects {
             if batch.count == 0 {
                 continue;
             }
-            let Some(texture) = textures.get(texture.0) else { continue };
+            let Some(texture) = textures.get(texture.raw()) else { continue };
             pass.set_pipeline(&pipelines[usize::from(*blend == BlendMode::Additive)]);
             pass.set_bind_group(1, texture, &[]);
             pass.set_vertex_buffer(0, batch.buffer.slice(..));

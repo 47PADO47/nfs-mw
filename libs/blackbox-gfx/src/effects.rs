@@ -5,11 +5,13 @@
 
 use glam::Vec3;
 
+use crate::{BlendMode, TextureHandle};
+
 /// A caller-ordered batch of textured world particles. Textures are owned by the caller.
 #[derive(Debug)]
 pub struct TexturedEffect {
-    pub texture: crate::TextureHandle,
-    pub blend: crate::BlendMode,
+    pub texture: TextureHandle,
+    pub blend: BlendMode,
     pub vertices: Vec<EffectVertex>,
 }
 

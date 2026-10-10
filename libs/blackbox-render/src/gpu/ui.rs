@@ -121,10 +121,10 @@ impl Renderer {
     pub fn update_ui_texture(&mut self, patch: &UiTexturePatch<'_>) {
         let [w, h] = patch.size;
         if w == 0 || h == 0 || patch.rgba.len() != (w as usize) * (h as usize) * 4 {
-            log::warn!("ui texture {}: {} bytes for {w}x{h}", patch.id.0, patch.rgba.len());
+            log::warn!("ui texture {}: {} bytes for {w}x{h}", patch.id.raw(), patch.rgba.len());
             return;
         }
-        let existing = self.ui.textures.get(&patch.id.0);
+        let existing = self.ui.textures.get(&patch.id.raw());
         let origin = match (patch.offset, existing) {
             (Some([x, y]), Some(t)) if x + w <= t.size[0] && y + h <= t.size[1] => [x, y],
             (None, Some(t)) if t.size == patch.size => [0, 0],
@@ -133,11 +133,11 @@ impl Renderer {
                 [0, 0]
             }
             _ => {
-                log::warn!("ui texture {}: region does not fit", patch.id.0);
+                log::warn!("ui texture {}: region does not fit", patch.id.raw());
                 return;
             }
         };
-        let Some(t) = self.ui.textures.get(&patch.id.0) else { return };
+        let Some(t) = self.ui.textures.get(&patch.id.raw()) else { return };
         self.queue.write_texture(
             wgpu::TexelCopyTextureInfo {
                 texture: &t.texture,
@@ -171,12 +171,12 @@ impl Renderer {
                 wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&self.ui.sampler) },
             ],
         });
-        self.ui.textures.insert(id.0, UiTexture { texture, bind_group, size });
+        self.ui.textures.insert(id.raw(), UiTexture { texture, bind_group, size });
     }
 
     /// Free a UI texture. Meshes that still name it are skipped.
     pub fn free_ui_texture(&mut self, id: UiTextureId) {
-        self.ui.textures.remove(&id.0);
+        self.ui.textures.remove(&id.raw());
     }
 
     /// The UI to draw over every following frame, until replaced. An empty layer draws nothing.
@@ -241,7 +241,7 @@ impl Renderer {
         pass.set_vertex_buffer(0, self.ui.vertices.slice(..));
         pass.set_index_buffer(self.ui.indices.slice(..), wgpu::IndexFormat::Uint32);
         for (texture, (x, y, w, h), range, base_vertex) in draws {
-            let Some(t) = self.ui.textures.get(&texture.0) else { continue };
+            let Some(t) = self.ui.textures.get(&texture.raw()) else { continue };
             pass.set_scissor_rect(x, y, w, h);
             pass.set_bind_group(1, &t.bind_group, &[]);
             pass.draw_indexed(range, base_vertex, 0..1);
