@@ -78,6 +78,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         hud: field(&table, origin, "hud", |v| v.as_bool().ok_or_else(|| "expected true or false".to_owned())),
         tire_smoke: field(&table, origin, "tire_smoke", boolean),
         radio: field(&table, origin, "radio", boolean),
+        skip_intro: field(&table, origin, "skip_intro", boolean),
         smoke_quality: field(&table, origin, "smoke_quality", |v| SmokeQuality::from_str(text_of(v)?)),
         skid_marks: field(&table, origin, "skid_marks", boolean),
         collision_sparks: field(&table, origin, "collision_sparks", boolean),
@@ -136,6 +137,12 @@ mod tests {
         assert_eq!(p.vsync, Some(false));
         assert_eq!(p.max_fps, Some(MaxFps::from_str("144").unwrap()));
         assert_eq!(parse("max_fps = 'unlocked'", "test").max_fps, Some(MaxFps::default()));
+    }
+
+    #[test]
+    fn reads_the_skip_intro_switch() {
+        assert_eq!(parse("skip_intro = true\n", "test").skip_intro, Some(true));
+        assert_eq!(parse("skip_intro = 'yes'\n", "test").skip_intro, None);
     }
 
     #[test]

@@ -69,7 +69,8 @@ pub fn run(cli: Cli) -> Result<()> {
         }
         Command::Play { skip_boot, drive, ui_script, view } => {
             let dir = open_install(game_dir)?;
-            let start = match (drive, skip_boot || ui_script.is_some()) {
+            let skip_intro = crate::settings::Settings::load(view.settings_layer()).skip_intro;
+            let start = match (drive, skip_boot || skip_intro || ui_script.is_some()) {
                 (true, _) => crate::frontend::Start::Drive,
                 (false, true) => crate::frontend::Start::Menu,
                 (false, false) => crate::frontend::Start::Boot,

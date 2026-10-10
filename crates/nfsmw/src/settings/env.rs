@@ -24,6 +24,7 @@ pub const SPEECH_VOLUME: &str = "NFSMW_SPEECH_VOLUME";
 pub const HUD: &str = "NFSMW_HUD";
 pub const TIRE_SMOKE: &str = "NFSMW_TIRE_SMOKE";
 pub const RADIO: &str = "NFSMW_RADIO";
+pub const SKIP_INTRO: &str = "NFSMW_SKIP_INTRO";
 pub const SMOKE_QUALITY: &str = "NFSMW_SMOKE_QUALITY";
 pub const SKID_MARKS: &str = "NFSMW_SKID_MARKS";
 pub const COLLISION_SPARKS: &str = "NFSMW_COLLISION_SPARKS";
@@ -67,6 +68,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         hud: value(&get, HUD, parse_bool),
         tire_smoke: value(&get, TIRE_SMOKE, parse_bool),
         radio: value(&get, RADIO, parse_bool),
+        skip_intro: value(&get, SKIP_INTRO, parse_bool),
         smoke_quality: value(&get, SMOKE_QUALITY, SmokeQuality::from_str),
         skid_marks: value(&get, SKID_MARKS, parse_bool),
         collision_sparks: value(&get, COLLISION_SPARKS, parse_bool),
@@ -146,6 +148,13 @@ mod tests {
         assert_eq!((p.manual_clutch, p.h_shifter), (Some(true), Some(false)));
         let bad = layer(&[(MANUAL_CLUTCH, "pedal")]);
         assert_eq!(bad.manual_clutch, None);
+    }
+
+    #[test]
+    fn reads_the_skip_intro_switch() {
+        assert_eq!(layer(&[(SKIP_INTRO, "on")]).skip_intro, Some(true));
+        assert_eq!(layer(&[(SKIP_INTRO, "0")]).skip_intro, Some(false));
+        assert_eq!(layer(&[(SKIP_INTRO, "later")]).skip_intro, None);
     }
 
     #[test]
