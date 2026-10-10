@@ -1,10 +1,11 @@
 //! Off-screen rendering to RGBA8, for screenshots and tests.
 
-use super::{Renderer, resources};
-use crate::{FrameParams, Instance, RenderError};
+use super::{Renderer, targets::FrameTargets};
+use crate::{FrameParams, Instance, RenderError, scaled_size};
 
 impl Renderer {
-    /// Render one frame off-screen and return it as tightly packed RGBA8.
+    /// Render one frame off-screen, `width` by `height` pixels, and return it as tightly packed RGBA8.
+    /// The scene is drawn at the current render scale and resolved to the full size, like on screen.
     pub fn capture(
         &mut self,
         width: u32,
@@ -24,7 +25,8 @@ impl Renderer {
             view_formats: &[],
         });
         let view = target.create_view(&wgpu::TextureViewDescriptor::default());
-        let depth = resources::create_depth(&self.device, width, height);
+        let scene =
+            FrameTargets::new(&self.device, self.targets.color_format, scaled_size((width, height), self.render_scale));
         let row = (width * 4).next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
         let readback = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("capture readback"),
@@ -34,7 +36,8 @@ impl Renderer {
         });
         let mut encoder =
             self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("capture") });
-        self.encode_scene(&mut encoder, &view, Some(&depth), frame, instances);
+        self.encode_scene(&mut encoder, Some(&scene), frame, instances);
+        self.encode_post(&mut encoder, Some(&scene), &view, (width, height));
         self.encode_ui(&mut encoder, &view, (width, height));
         encoder.copy_texture_to_buffer(
             target.as_image_copy(),

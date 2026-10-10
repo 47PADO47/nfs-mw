@@ -53,10 +53,8 @@ scaled down.
 Rules that keep this structure working:
 
 - **Format crates take `&[u8]` and never open files.** Only `game-install` touches the install.
-- **The renderer has no game knowledge**, and its API has no wgpu types, so the implementation behind it
-  can change (for example to Bevy's renderer) without touching callers.
-- **Files stay small:** no source or doc file over 500 lines (`cargo xtask size-check`). Split by domain
-  into folders and modules, with one struct or concern per file.
+- **The renderer has no game knowledge**, and its API has no wgpu types, so the implementation behind it can change (for example to Bevy's renderer) without touching callers.
+- **Files stay small:** no source or doc file over 500 lines (`cargo xtask size-check`). Split by domain into folders and modules, with one struct or concern per file.
 - **Game rules live in their own pure crates** (physics in `blackbox-vehicle`, AI to come), built spec-first ([licensing.md](licensing.md#spec-first)). `blackbox-vehicle` takes no I/O and no collision dependency: the game fills its parameter structs from AttribSys and gives it a `Ground` over the collision world.
 
 ## Finding the install
@@ -106,16 +104,13 @@ bevy_winit window ─► PreUpdate: input/ resolves devices into actions (Action
   full-range pedal axes, `gear_*` actions (H-shifter) and an optional `clutch` pedal cover it
   ([controls](controller-settings.md)); only synthetic tests ran, no real wheel was tried.
 - **Cursor:** mouse-look scenes capture the cursor; the first Esc (or Start) releases it, the next quits.
-- **Errors** from systems (no GPU, a failed present) are stored and returned from `main`; the app exits with
-  an error code.
+- **Errors** from systems (no GPU, a failed present) are stored and returned from `main`; the app exits with an error code.
 
 ## Developer tools
 
 - **UI layer.** `blackbox-render` draws a 2D layer over the scene: textured, clipped, premultiplied-alpha
-  triangles (`UiLayer`, `UiTexturePatch`). It knows nothing about egui; the HUD and the front-end menus
-  draw through the same layer.
-- **egui host** (`gui/`): turns Bevy keyboard, mouse and wheel messages into egui events and egui's output
-  into that layer. The panels only see an `egui::Context`.
+  triangles (`UiLayer`, `UiTexturePatch`). It knows nothing about egui; the HUD and the front-end menus draw through the same layer.
+- **egui host** (`gui/`): turns Bevy keyboard, mouse and wheel messages into egui events and egui's output into that layer. The panels only see an `egui::Context`.
 - **Metrics** (`devtools/`): `Metrics` is plain data (240 frame times, GPU name, mesh and texture counts).
   `--show-metrics basic` draws fps and frame time; `advanced` adds the 1% low, worst frame, a frame-time graph
   with a 60 fps line, resource counts and the scene status.
@@ -447,8 +442,11 @@ Select with `--backend <auto|vulkan|dx12|gl>`:
 | `dx12` | ✔ | — | wgpu | working |
 | `gl` | ✔ (WGL) | ✔ (EGL, X11/Wayland) | wgpu | working |
 
-Direct3D 11 is not offered: wgpu removed its D3D11 backend in 2023. Direct3D 12 and Vulkan cover the same
-hardware on Windows 10 and later, and OpenGL covers older GPUs.
+Direct3D 11 is not offered: wgpu removed its D3D11 backend in 2023. Direct3D 12 and Vulkan cover the same hardware on Windows 10 and later, and OpenGL covers older GPUs.
+
+## Render pipeline
+
+A frame in `blackbox-render` is three stages: the scene and the world effects draw into an offscreen `Rgba16Float` colour image plus a reverse-Z depth buffer, both at the internal render size (surface size × render scale, `set_render_scale`, 0.25 to 2.0, default 1.0); an ordered chain of fullscreen post-process passes reads that image (and the depth buffer, as a sampled texture) and ping-pongs through scratch images; the last pass writes the surface. The chain ships one pass, `resolve` (clamp, alpha 1; an exact copy at scale 1.0, bilinear otherwise), and later effects and upscalers insert before it. The UI layer draws after the chain at surface resolution, so it is never post-processed or upscaled, and `--screenshot` captures the final image. Without a filterable, blendable `Rgba16Float` target (some OpenGL drivers) the scene image uses the surface format, which looks as before.
 
 ## Multi-platform
 
