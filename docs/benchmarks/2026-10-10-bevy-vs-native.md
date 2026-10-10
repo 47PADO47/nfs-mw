@@ -68,6 +68,18 @@ reverted.
 Open question: whether this is a bug in our material or instancing path that the CPU path exposes, or a limit of
 the CPU path itself. Until that is answered, the GPU builder stays on.
 
+## Experiment: no clustering on the scene camera (rejected)
+
+`ClusterConfig::None` on the scene camera crashed the app at startup (a system failed on a missing resource, then
+exit code 1). `ClusterConfig::Single` runs but is no faster: 311 fps, p50 3.18 ms, the same as before. Clustering is
+not the cost, so the change was reverted.
+
+## Dev build: workspace crates at opt-level 1 (kept)
+
+Dev builds of the Bevy renderer ran at 176 fps (p50 5.41 ms). With `[profile.dev] opt-level = 1` for the
+workspace's own crates, the same run reaches 272 fps (p50 3.64 ms). Dependencies were already at opt-level 2.
+Committed as `perf(build)`.
+
 ## Scene lighting
 
 The scene creates no Bevy shadow-casting lights; lighting goes through `blackbox_gfx` lights uniformly into our

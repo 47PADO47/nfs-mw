@@ -44,6 +44,9 @@ only effect is on symbol names for callstacks, and `tracing-tracy` records no ca
 to (its default `stack_depth` is 0). The per-system spans are unaffected. The message cannot be turned off from
 this repository: `tracy-client-sys` does not expose a switch for Tracy's Windows callstack setup.
 
+The first trace run opens a local listener for the Tracy client. Windows Defender Firewall may ask about
+`nfsmw` the first time. Allow it on private networks only; the listener is for the local profiler, not the internet.
+
 ## Capture a trace
 
 1. Get Tracy 0.14.1 (wire protocol 82, matching `tracy-client-sys` 0.30) from
