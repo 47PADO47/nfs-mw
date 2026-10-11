@@ -59,10 +59,6 @@ impl Drive {
             None => self.presses.take_into(self.frame_input),
         };
         let impact = sim.step(&input, &WorldGround { collision, surfaces }, Some((collision, props)));
-        for &(id, mass) in &impact.knocked {
-            log::info!("knocked over a {mass:.0} kg prop ({} knocked over now)", props.knocked_count() + 1);
-            props.knock(id);
-        }
         Some(DriveStep { input, impact })
     }
 

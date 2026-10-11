@@ -18,7 +18,6 @@ pub struct Placed {
     pub transform: Mat4,
     /// World-space bounds (from the scenery instance).
     pub bounds: Aabb,
-    pub position: [f32; 3],
     /// `SceneryInfo::radius`.
     pub radius: f32,
     pub flags: u32,
@@ -26,6 +25,8 @@ pub struct Placed {
     pub prop: Option<Arc<PropShape>>,
     /// The id the prop world gave it (0 until the tile is registered).
     pub prop_id: u32,
+    /// Original physics pose and stable identity, when this instance has a spawner.
+    pub spawner: Option<blackbox_scenery::ObjectSpawner>,
 }
 
 #[cfg(test)]
@@ -38,11 +39,11 @@ impl Placed {
             detailed: None,
             transform,
             bounds: Aabb::new((at - 1.0).to_array(), (at + 1.0).to_array()),
-            position: at.to_array(),
             radius: 1.0,
             flags: 0,
             prop: Some(shape),
             prop_id: 0,
+            spawner: None,
         }
     }
 }
@@ -130,8 +131,14 @@ pub fn place(
 ) -> (Vec<Placed>, usize) {
     let mut placed = Vec::new();
     let mut unresolved = 0;
+    let spawners: HashMap<_, _> = data.spawners.iter().map(|s| (s.override_index, s)).collect();
     for section in &data.scenery {
-        for inst in &section.instances {
+        let hooks: HashMap<_, _> = section
+            .override_hooks
+            .iter()
+            .map(|h| (usize::from(h.instance_index), u32::from(h.override_index)))
+            .collect();
+        for (instance, inst) in section.instances.iter().enumerate() {
             let Some(info) = section.info_of(inst) else { continue };
             let rules = &blackbox_scenery::layout::MOST_WANTED.visibility;
             if !inst.visible_in(rules.player_view, rules) || SKIPPED_MODELS.contains(&info.name.as_str()) {
@@ -143,16 +150,24 @@ pub fn place(
                 unresolved += 1;
                 continue;
             }
+            let spawner = hooks.get(&instance).and_then(|id| spawners.get(id)).copied();
+            let prop = match spawner {
+                Some(spawn) => props.for_spawner(&info.name, spawn),
+                None => props.shape(&info.name),
+            };
+            if spawner.is_some() && prop.is_none() {
+                log::debug!("no physics bounds/attributes for placed {}", info.name);
+            }
             placed.push(Placed {
                 lods: std::array::from_fn(|i| resolved.get(i).copied().flatten().map(|(m, _)| m)),
                 detailed: resolved.first().copied().flatten().map(|(_, lod)| lod),
                 transform: Mat4::from_cols_array_2d(&inst.matrix_columns()),
                 bounds: Aabb::new(inst.bbox_min, inst.bbox_max),
-                position: inst.position,
                 radius: info.radius,
                 flags: inst.exclude_flags,
-                prop: props.shape(&info.name),
+                prop,
                 prop_id: 0,
+                spawner: spawner.copied(),
             });
         }
     }

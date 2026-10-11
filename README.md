@@ -102,6 +102,11 @@ Keyboard, mouse and gamepad assignments can be changed and saved through the con
 See [docs/development.md](docs/development.md) for the full setup guide (required tools,
 first-time setup, CI, reverse-engineering toolchain).
 
+The world-interaction branch's base, local mise/LLVM-MinGW build setup and measured
+physics coverage are recorded in [world interactions](docs/world-interactions.md).
+Cars, traffic and dynamic scenery share a [fixed physics clock](docs/physics-timing.md).
+Full original-game interaction parity remains in progress.
+
 ## Credits and license
 
 Built on a lot of community reverse-engineering work, listed with licenses in [NOTICE](NOTICE) and

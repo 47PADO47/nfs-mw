@@ -151,10 +151,7 @@ impl TrailerCar {
             false => DriveInput { brake: 1.0, ..DriveInput::default() },
         };
         let ground = WorldGround { collision, surfaces };
-        let impact = self.sim.step(&input, &ground, Some((collision, &*props)));
-        for &(id, _) in &impact.knocked {
-            props.knock(id);
-        }
+        self.sim.step(&input, &ground, Some((collision, props)));
         if was_hitched && !self.coupling.hold(tractor, &mut self.sim) {
             let gap = self.coupling.gap(tractor, &self.sim);
             let (a, b) = (posture(tractor), posture(&self.sim));

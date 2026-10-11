@@ -141,7 +141,7 @@ pub fn world_props(props: &PropWorld) -> impl Fn(Vec3, Mat3, Vec3) -> Vec<WallCo
             .map(|o| {
                 let normal = Vec3::from(space::to_physics(o.normal));
                 let mass = match o.kind {
-                    PropKind::Light { mass } => Some(mass),
+                    PropKind::Movable { mass } => Some(mass),
                     PropKind::Rigid => None,
                 };
                 // Where the car's box touches: its extreme point towards the prop.

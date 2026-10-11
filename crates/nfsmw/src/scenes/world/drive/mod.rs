@@ -15,7 +15,7 @@ mod simulation;
 mod sound;
 mod trace;
 mod visual_tires;
-mod walls;
+pub(super) mod walls;
 
 use blackbox_collision::CollisionWorld;
 use glam::Vec3;

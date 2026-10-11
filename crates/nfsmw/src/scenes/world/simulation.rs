@@ -43,6 +43,7 @@ impl WorldScene {
         if let Some(traffic) = self.traffic.as_mut() {
             traffic.set_alpha(alpha);
         }
+        self.residency.world_parts().1.set_alpha(alpha);
         if let Some(drive) = self.drive.as_mut() {
             drive.set_alpha(match driving {
                 true => alpha,
@@ -59,7 +60,7 @@ impl WorldScene {
         let focus = self.traffic_focus();
         let (collision, props) = self.residency.world_parts();
         let surfaces = &self.physics.surfaces;
-        props.tick(STEP);
+        props.step(&super::drive::WorldGround { collision, surfaces }, STEP);
         let player_step = match (driving, self.drive.as_mut()) {
             (true, Some(drive)) => drive.step(collision, props, surfaces),
             _ => None,

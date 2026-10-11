@@ -156,7 +156,7 @@ fn props(scene: &WorldScene, args: &[&str]) -> Result<String, String> {
         .map(|(name, kind, p, d)| {
             let kind = match kind {
                 nfsmw_data::world::PropKind::Rigid => "rigid".to_owned(),
-                nfsmw_data::world::PropKind::Light { mass } => format!("light, {mass:.0} kg"),
+                nfsmw_data::world::PropKind::Movable { mass } => format!("movable, {mass:.0} kg"),
             };
             format!("{name} ({kind}) at ({:.0}, {:.0}, {:.0}), {d:.0} m", p.x, p.y, p.z)
         })

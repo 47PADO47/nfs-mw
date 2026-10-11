@@ -131,7 +131,7 @@ impl CarSim {
         &mut self,
         input: &DriveInput,
         ground: &dyn Ground,
-        world: Option<(&CollisionWorld, &PropWorld)>,
+        world: Option<(&CollisionWorld, &mut PropWorld)>,
     ) -> Impact {
         let input = InputState {
             throttle: input.throttle,
@@ -144,12 +144,16 @@ impl CarSim {
         };
         self.vehicle.step(FIXED_STEP, &input, ground);
         let impact = match world {
-            Some((collision, props)) => walls::resolve(
-                &mut self.vehicle,
-                &walls::world_cast(collision),
-                &walls::world_props(props),
-                &self.walls,
-            ),
+            Some((collision, props)) => {
+                let mut impact = walls::resolve(
+                    &mut self.vehicle,
+                    &walls::world_cast(collision),
+                    &walls::world_props(props),
+                    &self.walls,
+                );
+                props.collide_vehicle(&mut self.vehicle, &mut impact);
+                impact
+            }
             None => Impact::default(),
         };
         for (spin, &physics) in self.spin.iter_mut().zip(&PHYSICS_WHEEL) {

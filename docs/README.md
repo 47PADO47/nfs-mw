@@ -33,6 +33,7 @@ against the install at `D:/Need For Speed Most Wanted Black Edition`.
 | Doc | What it covers |
 |---|---|
 | [architecture.md](architecture.md) | `libs/` (engine-generic) vs `crates/` (MW), finding the install, the streamed city, graphics backends, Windows/Linux, roadmap |
+| [world-interactions.md](world-interactions.md) | Contact, dynamic scenery and frame-rate parity work, validation and remaining gaps |
 | [testing.md](testing.md) | the kinds of tests, the real-install tests and how to run them |
 | [window-modes.md](window-modes.md) | Windowed, borderless and exclusive fullscreen, display selection, resolution and runtime switching |
 | [tire-effects.md](tire-effects.md) | Tire smoke, ground-following marks, runtime controls and reproducible driving checks |
@@ -54,6 +55,8 @@ against the install at `D:/Need For Speed Most Wanted Black Edition`.
 | [tools/chunkdump.md](tools/chunkdump.md) | The Python chunk-tree dumper |
 
 ### File formats
+
+[Prop spawners](formats/prop-spawners.md) connect original physics placements to scenery and gameplay attributes.
 
 | Doc | What it covers | Status |
 |---|---|---|

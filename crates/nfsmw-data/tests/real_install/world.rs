@@ -101,13 +101,23 @@ fn prop_bounds_sit_where_their_scenery_is() {
     let (mut light, mut rigid) = (0, 0);
     for (i, section) in index.sections.iter().enumerate() {
         let data = load_section(&mut file, i, section).unwrap();
+        let spawners: std::collections::HashMap<_, _> = data.spawners.iter().map(|s| (s.override_index, s)).collect();
         for sec in &data.scenery {
-            for inst in &sec.instances {
+            let hooks: std::collections::HashMap<_, _> = sec
+                .override_hooks
+                .iter()
+                .map(|h| (usize::from(h.instance_index), u32::from(h.override_index)))
+                .collect();
+            for (n, inst) in sec.instances.iter().enumerate() {
                 let Some(info) = sec.info_of(inst) else { continue };
-                let Some(shape) = catalog.shape(&info.name) else { continue };
+                let shape = match hooks.get(&n).and_then(|id| spawners.get(id)) {
+                    Some(spawn) => catalog.for_spawner(&info.name, spawn),
+                    None => catalog.shape(&info.name),
+                };
+                let Some(shape) = shape else { continue };
                 matched_names.insert(info.name.clone());
                 match shape.kind {
-                    PropKind::Light { .. } => light += 1,
+                    PropKind::Movable { .. } => light += 1,
                     PropKind::Rigid => rigid += 1,
                 }
                 let m = Mat4::from_cols_array_2d(&inst.matrix_columns());

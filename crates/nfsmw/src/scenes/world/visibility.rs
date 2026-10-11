@@ -35,10 +35,15 @@ pub fn collect<'a>(
         pixel_scale: LodView::pixel_scale_for(camera.fov_y_radians, REFERENCE_HEIGHT),
     };
     out.clear();
-    out.extend(placed.filter(|p| frustum.intersects(&p.bounds) && !props.hidden(p.prop_id)).filter_map(|p| {
+    out.extend(placed.filter_map(|p| {
+        let (transform, bounds) = props.pose(p.prop_id).unwrap_or((p.transform, p.bounds));
+        if !frustum.intersects(&bounds) {
+            return None;
+        }
         let slots = p.lods.map(|m| m.is_some());
-        let slot = rules.choose(&view, p.position, p.radius, p.flags, slots, p.detailed)?;
-        Some(Instance { mesh: p.lods[slot]?, transform: p.transform })
+        let position = transform.w_axis.truncate().to_array();
+        let slot = rules.choose(&view, position, p.radius, p.flags, slots, p.detailed)?;
+        Some(Instance { mesh: p.lods[slot]?, transform })
     }));
     out.sort_unstable_by_key(|i| i.mesh);
 }

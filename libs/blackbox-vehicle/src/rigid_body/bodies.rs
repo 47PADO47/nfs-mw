@@ -1,6 +1,6 @@
 //! Two bodies against each other: separating them and the impulse that changes their velocities.
-//! Spec: `docs/specs/vehicle-rigid-body.md` (§5, §6). The original's solver is not specified; this is the
-//! textbook rule with Coulomb friction, like [`RigidBody::react_plane`].
+//! Spec: `docs/specs/pc-object-contact.md`. Response uses the measured PC iteration rule;
+//! the simple mass-weighted separation helper remains a caller-selected approximation.
 
 use glam::Vec3;
 

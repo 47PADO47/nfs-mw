@@ -30,3 +30,36 @@ zero object restitution. Road speed/stop signs in A41 use `mediummetalpost`.
 This spec currently establishes data interpretation and body construction only.
 Attachment, no-car-effect response, hierarchy/fragments and lifecycle require
 their own measured runtime rules before claiming original behavior.
+
+## Contact and initialization rules
+
+The PC behavior-change callback confirms: a virgin placement with nonzero
+`DETACH_FORCE` attaches to the world; negative values attach with a zero break
+threshold (permanent). A zero value starts unattached and asleep. Without an
+explicit centre marker, the collision centre is the volume-weighted average of
+object-colliding primitive offsets. Inertia still comes from the root dimensions.
+Bounds object flag `0x04` becomes runtime primitive flag `0x02`; disabled bounds
+are excluded. World-only bounds must not be substituted for object primitives.
+
+The vehicle response override makes the vehicle's temporary contact moment
+immobile when the other body is a movable smackable with `NO_CAR_EFFECT=true`.
+This preserves the car's velocity while transferring motion to the prop. An
+attached prop does not enable this override: the car can slow down while breaking
+it loose. The next contact sees the detached state. A zero break threshold never
+detaches an attached object. These are temporary contact flags, not a frozen car.
+
+Separate objects before applying the 32-iteration contact response. If exactly
+one is immobile, move only the other. If both are mobile, use the stored mass
+ratio for car/prop contacts. Both immobile means no separation or response.
+The original also shifts the contact point with whichever primitive penetrates
+the other. The original geometry classification and full contact order remain
+separate parity work.
+
+## Runtime integration boundary
+
+The first dynamic integration uses the existing body's fixed-step gravity/drag,
+ground-plane response, box overlap and render interpolation. Detached objects
+remain rendered and collidable. Geometry sweeps, original ground-point clouds,
+fragments, event sequencers, offscreen destruction and respawn are not established
+by this stage. In particular, do not replace those missing lifecycle rules with
+a six-second disappear/reappear timer.

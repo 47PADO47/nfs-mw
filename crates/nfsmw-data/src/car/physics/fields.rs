@@ -48,6 +48,9 @@ impl<'a> Fields<'a> {
 
     /// The xyz of a vector field.
     pub fn vec3(&self, name: &str) -> Vec3 {
+        if let Some(Value::Vector3(v)) = self.0.get(name) {
+            return Vec3::from_array(*v);
+        }
         self.0.get_vector4(name).map_or(Vec3::ZERO, |v| Vec3::new(v[0], v[1], v[2]))
     }
 

@@ -10,5 +10,9 @@
   all 13,484 records to scenery hooks and attributes. Positions match exactly.
   Synthetic tests cover alignment, fields and invalid record counts. The ignored
   install test repeats the complete mapping and reports missing bounds explicitly.
-- **Limits:** this verifies serialized data, not runtime object lifecycle,
-  fragmentation, attachments or full gameplay parity.
+- **Runtime checks:** synthetic body tests cover breakaway thresholds, no-car-effect,
+  persistent motion, secondary impacts, grid cleanup and render-rate invariance.
+  PC initialization/contact overrides were inspected before implementation.
+- **Limits:** original geometry, full lifecycle, centre markers, fragmentation,
+  truck attachments and live gameplay comparison remain open. The runtime tests
+  do not establish full gameplay parity.

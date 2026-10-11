@@ -1,0 +1,49 @@
+//! Original `smackable` data; `docs/specs/prop-attributes.md`.
+
+use blackbox_attrib::CollectionRef;
+use blackbox_vehicle::rigid_body::RigidBodySpec;
+use glam::Vec3;
+
+use crate::car::physics::{Fields, rigid_body_spec};
+
+#[derive(Debug, Clone)]
+pub struct PropDynamics {
+    pub mass: f32,
+    pub tensor_scale: Vec3,
+    pub body: RigidBodySpec,
+    pub detach_impulse: f32,
+    pub no_car_effect: bool,
+    pub immobile: bool,
+    pub respawn_time: f32,
+    pub kill_off_screen: f32,
+    pub dropout: [f32; 2],
+    pub allow_off_world: bool,
+}
+
+impl PropDynamics {
+    pub fn read(collection: CollectionRef<'_>) -> Option<Self> {
+        let fields = Fields(collection);
+        let body = fields.link("rigidbodyspecs")?;
+        let mass = fields.f32("MASS");
+        if !mass.is_finite() || mass <= 0.0 {
+            return None;
+        }
+        let moment = fields.vec3("MOMENT");
+        let tensor_scale = Vec3::from_array(moment.to_array().map(|v| match v > 0.0 {
+            true => 2.0 * v,
+            false => 2.0,
+        }));
+        Some(Self {
+            mass,
+            tensor_scale,
+            body: rigid_body_spec(body),
+            detach_impulse: fields.f32("DETACH_FORCE"),
+            no_car_effect: fields.bool("NO_CAR_EFFECT"),
+            immobile: body.bool("IMMOBILE_OBJECT_COLLISIONS"),
+            respawn_time: fields.f32("RESPAWN_TIME"),
+            kill_off_screen: fields.f32("KILL_OFF_SCREEN"),
+            dropout: fields.pair("DROPOUT"),
+            allow_off_world: fields.bool("ALLOW_OFF_WORLD"),
+        })
+    }
+}

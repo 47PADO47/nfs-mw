@@ -316,10 +316,7 @@ impl AiCar {
             nos: self.controls.nos,
             ..DriveInput::default()
         };
-        let impact = self.sim.step(&input, &WorldGround { collision, surfaces }, Some((collision, &*props)));
-        for &(id, _) in &impact.knocked {
-            props.knock(id);
-        }
+        self.sim.step(&input, &WorldGround { collision, surfaces }, Some((collision, props)));
         if let Some(trailer) = self.trailer.as_mut() {
             let brakes = Brakes { brake: self.controls.brake, handbrake: self.controls.handbrake > 0.5 };
             trailer.step(&mut self.sim, brakes, collision, props, surfaces);
