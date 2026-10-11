@@ -192,6 +192,11 @@ impl AiCar {
         })
     }
 
+    /// The headlight beams of the car.
+    pub fn beams(&self, alpha: f32, out: &mut Vec<blackbox_render::EffectVertex>) {
+        self.rig.lights().beams(self.pose(alpha).transform(), out);
+    }
+
     /// The lamps of the car as glows, lit by its brake, steering, siren and the blink clock.
     pub fn glows(
         &self,

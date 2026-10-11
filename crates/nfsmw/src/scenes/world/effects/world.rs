@@ -23,8 +23,10 @@ impl WorldScene {
         drive.vehicle_effects.geometry(position, forward, matches!(self.view, View::Chase), &mut layer.streaks);
         drive.vehicle_effects.glows(position, forward, &mut layer.glows);
         lamps.glows(lamp_frame, lamp_state, position, forward, &mut layer.glows);
+        lamps.beams(lamp_frame, &mut layer.streaks);
         if let Some(traffic) = &self.traffic {
             traffic.car_glows(position, forward, &mut layer.glows);
+            traffic.car_beams(&mut layer.streaks);
             traffic.lamp_glows(position, forward, &mut layer.glows);
         }
         drive.vehicle_effects.textured(forward, &self.residency.shared.materials, &mut layer.textured);

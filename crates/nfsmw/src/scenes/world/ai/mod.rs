@@ -165,6 +165,13 @@ impl TrafficWorld {
         self.warmup_left <= 0.0 || !self.has_work()
     }
 
+    /// Appends the headlight beams of every car.
+    pub fn car_beams(&self, out: &mut Vec<EffectVertex>) {
+        for car in &self.cars {
+            car.beams(self.alpha, out);
+        }
+    }
+
     /// Appends the glows of the lamps of every car and of the signal lamps within sight.
     pub fn car_glows(&self, camera: Vec3, forward: Vec3, out: &mut Vec<EffectVertex>) {
         for car in &self.cars {

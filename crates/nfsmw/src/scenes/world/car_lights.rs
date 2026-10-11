@@ -8,7 +8,7 @@
 //! markers of their side, since the car data has no signal markers.
 
 use blackbox_hash::bstring_hash;
-use blackbox_render::EffectVertex;
+use blackbox_render::{EffectLayer, EffectVertex};
 use glam::{Mat4, Vec3};
 use nfsmw_data::car::CarModel;
 
@@ -51,6 +51,11 @@ const SIREN_BRIGHTNESS: f32 = 0.9;
 const SIREN_RED_COLOUR: [f32; 4] = [1.0, 0.05, 0.05, 1.0];
 const SIREN_BLUE_COLOUR: [f32; 4] = [0.1, 0.3, 1.0, 1.0];
 const SIREN_PERIOD: f32 = 0.25;
+/// Headlight beam: how far ahead, how wide at its end and how bright (metres and 0 to 1), from the lamp.
+const BEAM_LENGTH: f32 = 14.0;
+const BEAM_WIDTH: f32 = 3.5;
+const BEAM_NEAR: f32 = 0.15;
+const BEAM_BRIGHTNESS: f32 = 0.08;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Kind {
@@ -132,6 +137,21 @@ impl CarLights {
             }
         }
         Self { lamps }
+    }
+
+    /// Appends a faint additive beam ahead of each headlight, as flat streaks at the lamp's height, for a car whose
+    /// model frame is `to_world`. An approximation of the original's projected headlight cone.
+    pub fn beams(&self, to_world: Mat4, out: &mut Vec<EffectVertex>) {
+        let colour = geometry::color(HEAD_COLOUR, BEAM_BRIGHTNESS);
+        for lamp in self.lamps.iter().filter(|l| l.kind == Kind::Head) {
+            let at = lamp.at;
+            let side = Vec3::Y * BEAM_NEAR;
+            let far = Vec3::X * BEAM_LENGTH;
+            let spread = Vec3::Y * BEAM_WIDTH;
+            let corners = [at + side, at + far + spread, at + far - spread, at - side];
+            let world = corners.map(|c| to_world.transform_point3(c));
+            EffectLayer::quad(out, world, colour);
+        }
     }
 
     /// Appends the glows of the lit lamps of a car whose model frame is `to_world`.
@@ -236,5 +256,17 @@ mod tests {
         out.clear();
         lights.glows(Mat4::IDENTITY, LampState { reverse: true, ..RELEASED }, camera, Vec3::X, &mut out);
         assert_eq!(out.len(), 18);
+    }
+
+    #[test]
+    fn each_headlight_casts_one_beam_quad() {
+        let lights = CarLights::new(vec![
+            Lamp { at: Vec3::new(2.0, 0.5, 0.5), kind: Kind::Head },
+            Lamp { at: Vec3::new(2.0, -0.5, 0.5), kind: Kind::Head },
+            Lamp { at: Vec3::new(-2.0, 0.5, 0.5), kind: Kind::Tail },
+        ]);
+        let mut out = Vec::new();
+        lights.beams(Mat4::IDENTITY, &mut out);
+        assert_eq!(out.len(), 12);
     }
 }
