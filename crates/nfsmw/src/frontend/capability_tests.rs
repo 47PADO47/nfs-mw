@@ -26,7 +26,7 @@ fn text(s: &'static str) -> Title {
 #[test]
 fn the_native_renderer_hides_ray_tracing_and_the_quality_mode_but_has_the_renderer_row() {
     let video = titles(Category::Video, &test_caps::native());
-    assert_eq!(video.len(), 23);
+    assert_eq!(video.len(), 24);
     for hidden in ["Ray Tracing", "Upscale Quality"] {
         assert!(!video.contains(&text(hidden)), "{hidden} needs a renderer that offers it");
     }
@@ -43,7 +43,7 @@ fn the_native_renderer_hides_ray_tracing_and_the_quality_mode_but_has_the_render
 #[test]
 fn a_full_renderer_has_every_row_next_to_the_setting_it_belongs_with() {
     let video = titles(Category::Video, &test_caps::full());
-    assert_eq!(video.len(), 25);
+    assert_eq!(video.len(), 26);
     let at =
         |name: &'static str| video.iter().position(|t| *t == text(name)).unwrap_or_else(|| panic!("no {name} row"));
     assert_eq!(at("Upscale Quality"), at("Upscaler") + 1);
@@ -171,6 +171,25 @@ fn the_preset_row_reaches_ultra_and_the_native_renderer_shows_it_as_high() {
     assert_eq!(c.ray_tracing, Some(RayTracingLevel::Medium), "the preset writes every key it sets");
     preset.advance(&mut s, &mut c, true, &native);
     assert_eq!(preset.data_in(&s, &native), Data::Text("Custom".into()), "forward from ultra wraps to custom");
+}
+
+#[test]
+fn reflections_follow_renderer_support_and_glossy_shading() {
+    let native = test_caps::native();
+    let unsupported = blackbox_gfx::Capabilities { local_reflections: false, ..native };
+    let row = Setting::Graphics(GraphicsSetting::Reflections);
+    let mut s = defaults();
+    let mut changes = Partial::default();
+    s.car_shading = crate::settings::CarShading::Simple;
+    assert!(!row.enabled(&s));
+    assert!(!row.advance(&mut s, &mut changes, true, &native));
+    assert_eq!(changes, Partial::default());
+    s.car_shading = crate::settings::CarShading::Glossy;
+    assert!(row.enabled(&s));
+    assert!(row.advance(&mut s, &mut changes, true, &native));
+    assert_eq!(row.data_in(&s, &native), Data::Text("High".into()));
+    assert!(!titles(Category::Video, &unsupported).contains(&text("Car Reflections")));
+    assert_eq!(row.data_in(&s, &unsupported), Data::Text("Static Sky".into()));
 }
 
 #[test]

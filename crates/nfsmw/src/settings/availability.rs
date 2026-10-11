@@ -54,6 +54,14 @@ fn asked(key: &str, settings: &Settings, caps: &Capabilities) -> Option<Asked> {
                 false => vec!["off"],
             },
         },
+        "reflections" => Asked {
+            value: g.reflections.name().to_owned(),
+            possible: g.reflections == super::ReflectionQuality::Off || caps.local_reflections,
+            available: match caps.local_reflections {
+                true => super::ReflectionQuality::ALL.iter().map(|q| q.name()).collect(),
+                false => vec!["off"],
+            },
+        },
         _ => return None,
     })
 }

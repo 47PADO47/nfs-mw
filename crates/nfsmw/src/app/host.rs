@@ -98,6 +98,8 @@ impl Host {
         scene.set_spark_style(self.spark_style);
         scene.set_exhaust_flames(self.exhaust_flames);
         let renderer = self.renderer.as_mut().ok_or_else(|| anyhow::anyhow!("the renderer is not ready"))?;
+        // A local environment belongs to the old scene; menus and viewers must not inherit its capture.
+        renderer.set_reflection_scene(None);
         scene.init(renderer.as_mut())?;
         scene.set_transmission(self.transmission);
         scene.set_wheel_options(self.wheel);

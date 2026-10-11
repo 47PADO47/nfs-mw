@@ -27,6 +27,7 @@ pub(super) struct Glossy {
     sampler: wgpu::Sampler,
     /// Group 2: the rig and the environment.
     scene: wgpu::BindGroup,
+    static_scene: wgpu::BindGroup,
     /// Group 3 per material.
     materials: Slots<wgpu::BindGroup>,
 }
@@ -50,10 +51,18 @@ impl Glossy {
         let faces = env::sky_faces(&SkyGradient::default(), SKY_FACE_SIZE);
         let view = environment_view(device, queue, SKY_FACE_SIZE, &faces.each_ref().map(Vec::as_slice));
         let scene = scene_group(device, &layouts, &rig, &view, &sampler);
-        Self { layouts, rig, sampler, scene, materials: Slots::new() }
+        Self { layouts, rig, sampler, static_scene: scene.clone(), scene, materials: Slots::new() }
     }
 
     /// Bind the rig and the environment; call after setting a glossy pipeline.
+    pub(super) fn use_environment(&mut self, device: &wgpu::Device, view: &wgpu::TextureView) {
+        self.scene = scene_group(device, &self.layouts, &self.rig, view, &self.sampler);
+    }
+
+    pub(super) fn restore_environment(&mut self) {
+        self.scene = self.static_scene.clone();
+    }
+
     pub(super) fn bind_scene(&self, pass: &mut wgpu::RenderPass<'_>) {
         pass.set_bind_group(2, &self.scene, &[]);
     }
@@ -162,6 +171,7 @@ impl Renderer {
         let glossy = ensure(&mut self.glossy, &self.device, &self.queue, &self.shared.glossy);
         let view = environment_view(&self.device, &self.queue, size, &faces.map(|f| &f[..texel_bytes]));
         glossy.scene = scene_group(&self.device, &glossy.layouts, &glossy.rig, &view, &glossy.sampler);
+        glossy.static_scene = glossy.scene.clone();
     }
 
     /// Register a material for [`Shading::Glossy`](crate::Shading::Glossy) draws.

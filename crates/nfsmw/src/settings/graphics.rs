@@ -11,6 +11,7 @@ impl Settings {
     /// What the settings ask of the renderer: the post effects, the upscaler with its render scale and sharpness.
     pub fn graphics(&self) -> GraphicsSettings {
         GraphicsSettings {
+            reflections: self.reflections,
             post: post_effects(self),
             upscaler: self.upscaler.upscaler(),
             render_scale: self.render_scale.factor(),

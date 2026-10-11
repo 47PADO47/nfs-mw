@@ -158,6 +158,7 @@ fn assemble(output: Output, adapter: &wgpu::Adapter, device: wgpu::Device, queue
         targets,
         hdr_format,
         post,
+        reflections: None,
         ao: None,
         render_scale: DEFAULT_RENDER_SCALE,
         upscale: Default::default(),

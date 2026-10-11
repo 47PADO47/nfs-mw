@@ -63,6 +63,7 @@ mod write;
 use blackbox_gfx::GraphicsApi;
 
 pub use blackbox_gfx::AoQuality;
+pub use blackbox_gfx::ReflectionQuality;
 pub use car_shading::CarShading;
 pub use controls::{Controls, Deadzone, DeadzoneMode, Sensitivity};
 pub use graphics_preset::GraphicsPreset;
@@ -141,6 +142,7 @@ pub struct Settings {
     pub post_tonemap: PostTonemap,
     pub post_bloom: PostBloom,
     pub post_aa: PostAa,
+    pub reflections: ReflectionQuality,
     /// Experimental contact occlusion; presets never enable it implicitly.
     pub ao: AoQuality,
     pub ao_intensity: Percent,
@@ -213,6 +215,7 @@ impl From<Partial> for Settings {
             post_tonemap: p.post_tonemap.unwrap_or_default(),
             post_bloom: p.post_bloom.unwrap_or_default(),
             post_aa: p.post_aa.unwrap_or_default(),
+            reflections: p.reflections.unwrap_or(ReflectionQuality::Medium),
             ao: p.ao.unwrap_or_default(),
             ao_intensity: p.ao_intensity.unwrap_or(Percent(75)),
             ao_compare: p.ao_compare.unwrap_or(false),

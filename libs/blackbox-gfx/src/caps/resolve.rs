@@ -75,6 +75,11 @@ pub fn resolve(requested: &GraphicsSettings, caps: &Capabilities) -> Resolved {
     let mut out = Resolved { effective: requested, downgrades: Vec::new(), notes: Vec::new() };
     tonemap(&mut out, caps);
     bloom(&mut out, caps);
+    if out.effective.reflections != crate::ReflectionQuality::Off && !caps.local_reflections {
+        let asked = out.effective.reflections;
+        out.effective.reflections = crate::ReflectionQuality::Off;
+        out.downgrade(Setting::Reflections, asked, "off", unsupported(caps));
+    }
     if out.effective.ao.active() && !caps.ambient_occlusion {
         let asked = out.effective.ao.quality;
         out.effective.ao.quality = crate::AoQuality::Off;

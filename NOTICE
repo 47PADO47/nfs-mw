@@ -126,6 +126,9 @@ Engines, viewers and hook projects
   magcius/noclip.website (src/NeedForSpeedMostWanted) — MIT, partly reverse-engineered — read only.
   whoismept/OpenUG2 — MIT. bdrtr/PryHUB — Apache-2.0. OpenNFS/OpenNFS — MIT.
   veritr1x/nfsmw-recomp — MIT (speed.exe v1.3 hash, loading-path notes).
+  codepdbh/nfsmw-android — https://github.com/codepdbh/nfsmw-android — GPL-3.0, read only.
+    Xbox 360 native renderer and reflection synchronization notes considered as context.
+    No code or assets copied; see docs/provenance/car-reflections.md.
   berkayylmao/NFSPluginSDK — BSD-3-Clause. gaycoderprincess/nya-common-nfsmw — MPL-2.0.
   ThirteenAG/WidescreenFixesPack — MIT (registry key, camera, aspect-aware HUD placement).
     https://github.com/ThirteenAG/WidescreenFixesPack — reference only; no code copied.

@@ -55,6 +55,8 @@ pub struct Residency {
     /// The props of the resident tiles, and which of them are knocked over.
     props: PropWorld,
     catalog: PropCatalog,
+    /// Changes when the scenery available to a view changes, including while the clock is paused.
+    visual_revision: u64,
 }
 
 impl Residency {
@@ -90,6 +92,7 @@ impl Residency {
             collision: CollisionWorld::new(collision_grid),
             props: PropWorld::default(),
             catalog,
+            visual_revision: 0,
         }
     }
 
@@ -109,6 +112,7 @@ impl Residency {
     }
 
     fn switch_zone(&mut self, x: f32, y: f32) {
+        self.visual_revision = self.visual_revision.wrapping_add(1);
         self.previous = std::mem::replace(&mut self.drawn, self.zones.drawn());
         self.wanted = self.zones.wanted();
         // Nearest first within the drawn tiles, then within the rest.
@@ -174,6 +178,7 @@ impl Residency {
         log::info!("shared sets resident: {} models, {} textures", shared.meshes.len(), shared.materials.len());
         self.shared = shared;
         self.shared_ready = true;
+        self.visual_revision = self.visual_revision.wrapping_add(1);
     }
 
     fn upload_arrived(&mut self, renderer: &mut dyn RenderBackend) {
@@ -196,6 +201,7 @@ impl Residency {
                 self.collision.insert(pack);
             }
             self.tiles.insert(data.index, TileState::Resident { resources, placed, packs });
+            self.visual_revision = self.visual_revision.wrapping_add(1);
         }
     }
 
@@ -205,11 +211,15 @@ impl Residency {
         if !self.wanted_resident() {
             return;
         }
-        self.previous.clear();
+        if !self.previous.is_empty() {
+            self.visual_revision = self.visual_revision.wrapping_add(1);
+            self.previous.clear();
+        }
         let wanted: HashSet<usize> = self.wanted.iter().copied().collect();
         let unwanted: Vec<usize> = self.tiles.keys().copied().filter(|i| !wanted.contains(i)).collect();
         for i in unwanted {
             if let Some(TileState::Resident { resources, packs, .. }) = self.tiles.remove(&i) {
+                self.visual_revision = self.visual_revision.wrapping_add(1);
                 resources.release(renderer);
                 self.props.remove_tile(i);
                 for section in packs {
@@ -254,6 +264,11 @@ impl Residency {
             TileState::Requested => &[],
         });
         self.shared_placed.iter().chain(tiles)
+    }
+
+    /// Invalidates cached environment captures after streaming or a visibility-set change.
+    pub fn visual_revision(&self) -> u64 {
+        self.visual_revision
     }
 
     /// Whether the shared sets and every tile the current zone needs are resident.

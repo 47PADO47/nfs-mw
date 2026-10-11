@@ -49,6 +49,8 @@ pub struct Capabilities {
     pub upscalers: UpscalerSet,
     pub tonemaps: TonemapSet,
     pub bloom: bool,
+    /// Scenery captures for local environment-map reflections.
+    pub local_reflections: bool,
     pub ambient_occlusion: bool,
     pub ray_tracing: RtSupport,
     /// Smallest and largest render scale. A temporal upscaler's quality mode must fit in it too.
@@ -70,6 +72,7 @@ impl Capabilities {
             upscalers: UpscalerSet::of(&[Upscaler::Off]),
             tonemaps: TonemapSet::of(&[Tonemap::Off]),
             bloom: false,
+            local_reflections: false,
             ambient_occlusion: false,
             ray_tracing: RtSupport::None,
             render_scale: (1.0, 1.0),

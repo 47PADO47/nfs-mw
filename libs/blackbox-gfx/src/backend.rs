@@ -73,6 +73,10 @@ pub trait RenderBackend {
     /// What glossy surfaces reflect, until replaced.
     fn set_environment(&mut self, environment: Environment<'_>);
 
+    /// Capture local surroundings for glossy surfaces, or restore the supplied static environment.
+    /// Backends without local captures keep their static environment.
+    fn set_reflection_scene(&mut self, _scene: Option<crate::ReflectionScene<'_>>) {}
+
     // --- layers ----------------------------------------------------------------------------------
 
     /// Replace the world effects drawn in every following frame, until replaced again.

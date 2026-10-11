@@ -253,6 +253,7 @@ impl Setting {
     /// The config key of a setting a renderer may not be able to run.
     fn key(self) -> Option<&'static str> {
         match self {
+            Setting::Graphics(GraphicsSetting::Reflections) => Some("reflections"),
             Setting::Graphics(GraphicsSetting::AmbientOcclusion) => Some("ao"),
             Setting::Upscaler => Some("upscaler"),
             Setting::Post(PostSetting::Aa) => Some("post_aa"),

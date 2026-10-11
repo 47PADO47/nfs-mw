@@ -1,34 +1,51 @@
 //! The graphics-cost rows of the Video options (docs/low-end.md).
 
-use super::options::{Data, Title};
-use crate::settings::{AoQuality, CarShading, GraphicsPreset, Partial, Percent, Settings};
 use blackbox_gfx::Capabilities;
+
+use super::options::{Data, Title};
+use crate::settings::{AoQuality, CarShading, GraphicsPreset, Partial, Percent, ReflectionQuality, Settings};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GraphicsSetting {
     Preset,
     CarShading,
+    Reflections,
     AmbientOcclusion,
     AoIntensity,
     AoComparison,
 }
 
 impl GraphicsSetting {
-    pub const ALL: [Self; 5] =
-        [Self::Preset, Self::CarShading, Self::AmbientOcclusion, Self::AoIntensity, Self::AoComparison];
+    pub const ALL: [Self; 6] = [
+        Self::Preset,
+        Self::CarShading,
+        Self::Reflections,
+        Self::AmbientOcclusion,
+        Self::AoIntensity,
+        Self::AoComparison,
+    ];
 
     pub fn shown(self, caps: &Capabilities) -> bool {
-        !matches!(self, Self::AmbientOcclusion | Self::AoIntensity | Self::AoComparison) || caps.ambient_occlusion
+        match self {
+            Self::Reflections => caps.local_reflections,
+            Self::AmbientOcclusion | Self::AoIntensity | Self::AoComparison => caps.ambient_occlusion,
+            Self::Preset | Self::CarShading => true,
+        }
     }
 
     pub fn enabled(self, s: &Settings) -> bool {
-        !matches!(self, Self::AoIntensity | Self::AoComparison) || s.ao != AoQuality::Off
+        match self {
+            Self::Reflections => s.car_shading == CarShading::Glossy,
+            Self::AoIntensity | Self::AoComparison => s.ao != AoQuality::Off,
+            Self::Preset | Self::CarShading | Self::AmbientOcclusion => true,
+        }
     }
 
     pub fn title(self) -> Title {
         Title::Text(match self {
             Self::Preset => "Graphics Preset",
             Self::CarShading => "Car Shading",
+            Self::Reflections => "Car Reflections",
             Self::AmbientOcclusion => "Ambient Occlusion (Experimental)",
             Self::AoIntensity => "AO Intensity",
             Self::AoComparison => "AO Comparison",
@@ -47,6 +64,12 @@ impl GraphicsSetting {
                     GraphicsPreset::Medium => "Medium",
                     GraphicsPreset::High => "High",
                     GraphicsPreset::Ultra => "Ultra",
+                },
+                Self::Reflections => match s.reflections {
+                    ReflectionQuality::Off => "Static Sky",
+                    ReflectionQuality::Low => "Low",
+                    ReflectionQuality::Medium => "Medium",
+                    ReflectionQuality::High => "High",
                 },
                 Self::CarShading => match s.car_shading {
                     CarShading::Simple => "Simple",
@@ -82,6 +105,16 @@ impl GraphicsSetting {
                 s.apply_preset(all[next]);
                 // Every key the preset sets is written, so the file says what the player sees.
                 *changed = Partial { graphics_preset: Some(s.graphics_preset), ..all[next].layer() }.or(*changed);
+            }
+            Self::Reflections => {
+                let all = ReflectionQuality::ALL;
+                let at = all.iter().position(|q| *q == s.reflections).unwrap_or(0);
+                let offset = match forward {
+                    true => 1,
+                    false => all.len() - 1,
+                };
+                s.reflections = all[(at + offset) % all.len()];
+                changed.reflections = Some(s.reflections);
             }
             Self::CarShading => {
                 s.car_shading = match s.car_shading {

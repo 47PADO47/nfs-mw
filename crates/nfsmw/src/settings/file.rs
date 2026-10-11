@@ -98,6 +98,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         post_tonemap: field(&table, origin, "post_tonemap", |v| PostTonemap::from_str(text_of(v)?)),
         post_bloom: field(&table, origin, "post_bloom", |v| PostBloom::from_str(text_of(v)?)),
         post_aa: field(&table, origin, "post_aa", |v| PostAa::from_str(text_of(v)?)),
+        reflections: field(&table, origin, "reflections", |v| super::ReflectionQuality::from_str(text_of(v)?)),
         ao: field(&table, origin, "ao", |v| super::AoQuality::from_str(text_of(v)?)),
         ao_intensity: field(&table, origin, "ao_intensity", percent),
         ao_compare: field(&table, origin, "ao_compare", boolean),

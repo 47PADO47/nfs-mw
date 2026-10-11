@@ -11,7 +11,7 @@ use crate::settings::{
 };
 
 /// Settings the console can show.
-const KEYS: [&str; 50] = [
+const KEYS: [&str; 51] = [
     "deadzone_mode",
     "steering_deadzone",
     "camera_deadzone",
@@ -54,6 +54,7 @@ const KEYS: [&str; 50] = [
     "post_tonemap",
     "post_bloom",
     "post_aa",
+    "reflections",
     "ao",
     "ao_intensity",
     "ao_compare",
@@ -109,6 +110,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "post_tonemap" => settings.post_tonemap.to_string(),
         "post_bloom" => settings.post_bloom.to_string(),
         "post_aa" => settings.post_aa.to_string(),
+        "reflections" => settings.reflections.to_string(),
         "ao" => settings.ao.to_string(),
         "ao_intensity" => settings.ao_intensity.to_string(),
         "ao_compare" => on_off(settings.ao_compare).to_owned(),
@@ -175,6 +177,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "post_tonemap" => settings.post_tonemap = PostTonemap::from_str(value)?,
         "post_bloom" => settings.post_bloom = PostBloom::from_str(value)?,
         "post_aa" => settings.post_aa = PostAa::from_str(value)?,
+        "reflections" => settings.reflections = value.parse()?,
         "ao" => settings.ao = value.parse()?,
         "ao_intensity" => settings.ao_intensity = value.parse()?,
         "ao_compare" => settings.ao_compare = parse_bool(value)?,
@@ -238,6 +241,7 @@ fn syntax(key: &str) -> Option<&'static str> {
         "post_tonemap" => "<off|aces>",
         "post_bloom" => "<off|low|medium|high>",
         "post_aa" => "<off|fxaa|smaa|taa>",
+        "reflections" => "<off|low|medium|high>",
         "ao" => "<off|low|medium|high>",
         "ao_intensity" => "<0-100>",
         "render_scale" => "<50-200>",

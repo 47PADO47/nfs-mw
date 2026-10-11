@@ -14,6 +14,9 @@ use blackbox_gfx::{
 use super::Renderer;
 
 impl RenderBackend for Renderer {
+    fn set_reflection_scene(&mut self, scene: Option<blackbox_gfx::ReflectionScene<'_>>) {
+        self.capture_reflections(scene);
+    }
     fn info(&self) -> &BackendInfo {
         &self.info
     }

@@ -8,10 +8,22 @@ fn native() -> Capabilities {
         upscalers: UpscalerSet::of(&[Upscaler::Off, Upscaler::Bilinear, Upscaler::Fsr1]),
         tonemaps: TonemapSet::all(),
         bloom: true,
+        local_reflections: true,
         ambient_occlusion: true,
         render_scale: Capabilities::full_render_scale(),
         ..Capabilities::baseline("blackbox", GraphicsApi::Vulkan)
     }
+}
+
+#[test]
+fn unsupported_capture_restores_static_reflections_without_changing_the_request() {
+    let wanted = GraphicsSettings { reflections: crate::ReflectionQuality::High, ..Default::default() };
+    assert_eq!(resolve(&wanted, &native()).effective, wanted);
+    let caps = Capabilities { local_reflections: false, ..native() };
+    let resolved = resolve(&wanted, &caps);
+    assert_eq!(resolved.effective.reflections, crate::ReflectionQuality::Off);
+    assert!(resolved.downgrade_of(Setting::Reflections).is_some());
+    assert_eq!(wanted.reflections, crate::ReflectionQuality::High);
 }
 
 #[test]

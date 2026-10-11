@@ -19,6 +19,9 @@ mod output;
 mod parity;
 mod pipelines;
 mod post;
+#[cfg(test)]
+mod reflection_tests;
+mod reflections;
 mod resources;
 mod slots;
 mod targets;
@@ -53,6 +56,7 @@ pub struct Renderer {
     /// The format of the offscreen image when a pass needs HDR: `Rgba16Float`, or the surface format.
     hdr_format: wgpu::TextureFormat,
     post: post::PostChain,
+    reflections: Option<reflections::ReflectionCapture>,
     ao: Option<ao::AmbientOcclusion>,
     render_scale: f32,
     upscale: upscale::Upscale,

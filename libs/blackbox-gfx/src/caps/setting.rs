@@ -15,18 +15,20 @@ pub enum Setting {
     RenderScale,
     Tonemap,
     Bloom,
+    Reflections,
     AmbientOcclusion,
     RayTracing,
 }
 
 impl Setting {
-    pub const ALL: [Setting; 8] = [
+    pub const ALL: [Setting; 9] = [
         Setting::Antialiasing,
         Setting::Upscaler,
         Setting::UpscaleQuality,
         Setting::RenderScale,
         Setting::Tonemap,
         Setting::Bloom,
+        Setting::Reflections,
         Setting::AmbientOcclusion,
         Setting::RayTracing,
     ];
@@ -39,6 +41,7 @@ impl Setting {
             Self::RenderScale => "render scale",
             Self::Tonemap => "tone mapping",
             Self::Bloom => "bloom",
+            Self::Reflections => "car reflections",
             Self::AmbientOcclusion => "ambient occlusion",
             Self::RayTracing => "ray tracing",
         }
@@ -67,6 +70,7 @@ impl GraphicsSettings {
         note(Setting::RenderScale, self.render_scale != other.render_scale);
         note(Setting::Tonemap, self.post.tonemap != other.post.tonemap);
         note(Setting::Bloom, (self.post.bloom_intensity > 0.0) != (other.post.bloom_intensity > 0.0));
+        note(Setting::Reflections, self.reflections != other.reflections);
         note(Setting::AmbientOcclusion, self.ao != other.ao);
         note(Setting::RayTracing, self.ray_tracing != other.ray_tracing);
         changed
