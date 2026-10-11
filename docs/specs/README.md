@@ -25,6 +25,8 @@ the recordings); [exhaust-flames.md](exhaust-flames.md) (the tail-pipe particle 
 drawing), [feng-input.md](feng-input.md) (pad messages, focus, navigation) and [frontend-menus.md](frontend-menus.md)
 (the screens, the option rows, the game flow).
 
+Time of day: [time-of-day.md](time-of-day.md) (the 8 lighting presets and the blend; the clock is not yet confirmed).
+
 [Original PC collision particles](pc-collision-particles.md) specifies ordinary
 textured sparks and contact glow separately from the experimental restoration.
 
