@@ -121,6 +121,10 @@ impl Scene for Pausable {
         self.inner.set_camera_mode(mode);
     }
 
+    fn takes_camera_setting(&self) -> bool {
+        self.inner.takes_camera_setting()
+    }
+
     fn set_wheel_options(&mut self, wheel: crate::settings::WheelOptions) {
         self.inner.set_wheel_options(wheel);
     }

@@ -305,6 +305,10 @@ impl Scene for WorldScene {
         self.camera_mode = mode;
     }
 
+    fn takes_camera_setting(&self) -> bool {
+        self.drive.is_some()
+    }
+
     fn set_car_shading(&mut self, shading: crate::settings::CarShading) {
         self.car_shading = shading;
     }
@@ -324,6 +328,7 @@ impl Scene for WorldScene {
             (Some(drive), _) => drive.camera(),
             (None, _) => &self.camera,
         };
+        debug_assert!(camera.selectable(), "the camera setting picked a camera it may not choose");
         let lens = camera.lens(aspect);
         let fog_end = self.fog_distance;
         let cull = visibility::Camera {

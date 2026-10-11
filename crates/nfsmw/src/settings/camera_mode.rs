@@ -17,6 +17,12 @@ pub enum CameraMode {
 impl CameraMode {
     /// Every choosable camera, in the order the options row cycles through them.
     pub const ALL: [Self; 2] = [Self::Chase, Self::DynamicFov];
+
+    /// The next choosable camera after this one, wrapping round.
+    pub fn next(self) -> Self {
+        let at = Self::ALL.iter().position(|mode| *mode == self).unwrap_or(0);
+        Self::ALL[(at + 1) % Self::ALL.len()]
+    }
 }
 
 impl FromStr for CameraMode {
@@ -54,5 +60,7 @@ mod tests {
             assert_eq!(mode.to_string().parse(), Ok(mode));
         }
         assert_eq!(CameraMode::default(), CameraMode::Chase);
+        assert_eq!(CameraMode::Chase.next(), CameraMode::DynamicFov);
+        assert_eq!(CameraMode::DynamicFov.next(), CameraMode::Chase);
     }
 }

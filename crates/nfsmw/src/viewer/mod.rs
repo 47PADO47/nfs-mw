@@ -59,6 +59,10 @@ pub trait Scene {
     fn set_transmission(&mut self, _transmission: crate::settings::Transmission) {}
     /// Which gameplay camera to use (the camera setting), told every frame; scenes without a chase camera ignore it.
     fn set_camera_mode(&mut self, _mode: crate::settings::CameraMode) {}
+    /// Whether the camera hotkey changes the gameplay camera now (only while driving).
+    fn takes_camera_setting(&self) -> bool {
+        false
+    }
     /// A steering wheel's optional controls (the clutch pedal, the H-shifter), told every frame before `update`; a
     /// scene without a car ignores it.
     fn set_wheel_options(&mut self, _wheel: crate::settings::WheelOptions) {}

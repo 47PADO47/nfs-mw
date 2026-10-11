@@ -275,6 +275,7 @@ fn driving() -> Vec<Binding> {
         Binding::new(Nos, key(KeyCode::ShiftLeft), 1.0),
         Binding::new(ResetCar, key(KeyCode::KeyR), 1.0),
         Binding::new(ToggleCamera, key(KeyCode::KeyF), 1.0),
+        Binding::new(CycleCamera, key(KeyCode::KeyC), 1.0),
         Binding::new(Throttle, Source::PadTrigger(GamepadButton::RightTrigger2), 1.0),
         Binding::new(Brake, Source::PadTrigger(GamepadButton::LeftTrigger2), 1.0),
         Binding::new(Steer, Source::PadAxis(GamepadAxis::LeftStickX), 1.0),

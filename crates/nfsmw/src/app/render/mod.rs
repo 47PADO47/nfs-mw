@@ -20,7 +20,7 @@ use blackbox_gfx::RenderBackend;
 use super::host::{ErrorSlot, Host};
 use super::screenshot;
 use crate::gui::UiOutput;
-use crate::input::{ActionState, MouseCapture};
+use crate::input::{Action, ActionState, MouseCapture};
 use crate::settings::{RendererKind, Settings};
 pub use bevy::{add_plugin as add_bevy_plugin, create as create_bevy_renderer};
 
@@ -111,9 +111,18 @@ pub fn resize(mut host: NonSendMut<Host>, window: Single<&Window, With<PrimaryWi
     }
 }
 
-pub fn update_scene(mut host: NonSendMut<Host>, actions: Res<ActionState>, time: Res<Time>, settings: Res<Settings>) {
+pub fn update_scene(
+    mut host: NonSendMut<Host>,
+    actions: Res<ActionState>,
+    time: Res<Time>,
+    mut settings: ResMut<Settings>,
+) {
     let host = &mut *host;
     let Some(renderer) = host.renderer.as_mut() else { return };
+    // The camera hotkey changes the setting in memory (not the config file); the scene follows it below.
+    if actions.just_pressed(Action::CycleCamera) && host.scene.takes_camera_setting() {
+        settings.camera_mode = settings.camera_mode.next();
+    }
     host.transmission = settings.transmission;
     host.camera_mode = settings.camera_mode;
     host.scene.set_transmission(settings.transmission);
