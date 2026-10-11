@@ -8,6 +8,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+blackbox-hash.workspace = true
 anyhow.workspace = true
 bevy_a11y.workspace = true
 bevy_app.workspace = true

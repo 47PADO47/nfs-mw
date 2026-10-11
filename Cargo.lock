@@ -3470,6 +3470,7 @@ dependencies = [
  "blackbox-feng",
  "blackbox-gfx",
  "blackbox-ginsu",
+  "blackbox-hash",
  "blackbox-minimap",
  "blackbox-mixmap",
  "blackbox-movie",
