@@ -5,9 +5,9 @@
 use super::{Camera, Lens};
 
 /// Field of view at rest, degrees: a little narrower than the chase camera, so a stopped car looks close.
-pub const REST_FOV_DEGREES: f32 = 55.0;
+pub const REST_FOV_DEGREES: f32 = 45.0;
 /// Field of view at and above [`TOP_SPEED`], degrees: wider than before, so speed reads.
-pub const TOP_FOV_DEGREES: f32 = 100.0;
+pub const TOP_FOV_DEGREES: f32 = 110.0;
 /// The speed (m/s) at which the view is fully widened (about 288 km/h); faster does not go further.
 pub const TOP_SPEED: f32 = 80.0;
 
