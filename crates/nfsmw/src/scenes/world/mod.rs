@@ -20,6 +20,7 @@ mod road;
 mod simulation;
 mod space;
 mod start;
+mod sign_lamps;
 mod sun;
 mod vehicle_effects;
 mod visibility;
