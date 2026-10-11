@@ -42,8 +42,8 @@ pub enum ContactKind {
     Face,
     /// A rigid prop.
     PropRigid,
-    /// A light prop the car pushes aside.
-    PropLight,
+    /// A movable prop; its mass comes from the installed attributes.
+    PropMovable,
 }
 
 /// Where the car met something this step, as the debug view draws it.
@@ -208,7 +208,7 @@ pub struct Impact {
 impl From<&WallContact> for ContactPoint {
     fn from(c: &WallContact) -> Self {
         let kind = match (c.prop, c.info) {
-            (Some((_, Some(_))), _) => ContactKind::PropLight,
+            (Some((_, Some(_))), _) => ContactKind::PropMovable,
             (Some((_, None)), _) => ContactKind::PropRigid,
             (None, Some(HitInfo { barrier: true, .. })) => ContactKind::Barrier,
             (None, _) => ContactKind::Face,
@@ -358,7 +358,7 @@ mod tests {
         let prop = |mass| WallContact { prop: Some((1, mass)), info: None, ..barrier };
         assert_eq!(ContactPoint::from(&barrier).kind, ContactKind::Barrier);
         assert_eq!(ContactPoint::from(&prop(None)).kind, ContactKind::PropRigid);
-        assert_eq!(ContactPoint::from(&prop(Some(80.0))).kind, ContactKind::PropLight);
+        assert_eq!(ContactPoint::from(&prop(Some(80.0))).kind, ContactKind::PropMovable);
     }
 
     #[test]

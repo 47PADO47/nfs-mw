@@ -6,6 +6,9 @@ mod shapes;
 pub use attributes::PropDynamics;
 pub use shapes::boxes;
 
+#[cfg(test)]
+mod tests;
+
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -50,7 +53,7 @@ pub struct PropCatalog {
     sets: HashMap<u32, Arc<BoundsSet>>,
     dynamics: HashMap<u32, Arc<PropDynamics>>,
     cache: RefCell<HashMap<String, Option<Arc<PropShape>>>>,
-    placed_cache: RefCell<HashMap<(u32, u32), Arc<PropShape>>>,
+    placed_cache: RefCell<HashMap<(u32, u32, String), Arc<PropShape>>>,
 }
 
 impl PropCatalog {
@@ -97,7 +100,8 @@ impl PropCatalog {
 
     /// Exact collision and attribute keys. Missing bounds/attributes stay missing.
     pub fn for_spawner(&self, name: &str, spawn: &ObjectSpawner) -> Option<Arc<PropShape>> {
-        let key = (spawn.collision, spawn.attributes);
+        // Distinct visible models can share bounds and attributes. Their identity is still distinct.
+        let key = (spawn.collision, spawn.attributes, name.to_owned());
         if let Some(shape) = self.placed_cache.borrow().get(&key) {
             return Some(shape.clone());
         }

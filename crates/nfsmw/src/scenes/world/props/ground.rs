@@ -1,6 +1,7 @@
-//! Existing plane response applied to loose prop primitives; point-cloud parity is pending.
+//! Ground support from enabled box corners and installed point clouds.
+//! The existing height-query tolerances and plane response still need original comparison.
 
-use blackbox_collision::bounds_flags;
+use blackbox_collision::{Shape, bounds_flags};
 use blackbox_vehicle::{
     Ground,
     rigid_body::{BodyState, ContactParams, PlaneContact},
@@ -18,27 +19,21 @@ pub(super) fn step(prop: &mut PropBody, ground: &dyn Ground, dt: f32) {
     prop.rigid.apply_drag();
     let travel = (prop.rigid.position - previous).length();
     let lift = 0.3 + travel;
-    let mut contacts = Vec::new();
-    for p in prop.geometry.primitives.iter().filter(|p| p.collides(bounds_flags::PRIM_VS_GROUND)) {
-        let b = prop.obb(p);
-        for x in [-1.0, 1.0] {
-            for y in [-1.0, 1.0] {
-                for z in [-1.0, 1.0] {
-                    let corner = b.centre + b.axes * (b.half * Vec3::new(x, y, z));
-                    let Some(hit) = ground.hit(corner + Vec3::Y * lift, Vec3::NEG_Y, lift + 0.02) else { continue };
-                    let normal = hit.normal * hit.normal.y.signum();
-                    if normal.y < 0.05 {
-                        continue;
-                    }
-                    let depth = (lift - hit.distance) * normal.y;
-                    if depth < -0.02 || !depth.is_finite() {
-                        continue;
-                    }
-                    contacts.push((corner, normal, depth));
-                }
+    let mut contacts: Vec<_> = points(prop)
+        .filter_map(|point| {
+            let hit = ground.hit(point + Vec3::Y * lift, Vec3::NEG_Y, lift + 0.02)?;
+            let normal = hit.normal * hit.normal.y.signum();
+            if normal.y < 0.05 {
+                return None;
             }
-        }
-    }
+            let depth = (lift - hit.distance) * normal.y;
+            if depth < -0.02 || !depth.is_finite() {
+                return None;
+            }
+            Some((point, normal, depth))
+        })
+        .take(16)
+        .collect();
     contacts.sort_by(|a, b| b.2.total_cmp(&a.2));
     let spec = *prop.rigid.spec();
     for &(point, normal, _) in &contacts {
@@ -61,4 +56,30 @@ pub(super) fn step(prop: &mut PropBody, ground: &dyn Ground, dt: f32) {
         prop.rigid.position += normal * depth.max(0.0);
     }
     prop.rigid.update_sleep(contacts.len());
+}
+
+fn points(prop: &PropBody) -> impl Iterator<Item = Vec3> + '_ {
+    let boxes = prop
+        .geometry
+        .primitives
+        .iter()
+        .filter(|p| p.shape == Shape::Box && p.collides(bounds_flags::PRIM_VS_GROUND))
+        .flat_map(|p| {
+            let b = prop.obb(p);
+            std::array::from_fn::<_, 8, _>(|i| {
+                let sign = |mask| match i & mask == 0 {
+                    true => -1.0,
+                    false => 1.0,
+                };
+                b.centre + b.axes * (b.half * Vec3::new(sign(4), sign(2), sign(1)))
+            })
+        });
+    let clouds = prop
+        .geometry
+        .ground_meshes
+        .iter()
+        .filter(|m| m.flags & bounds_flags::DISABLED == 0)
+        .flat_map(|m| &m.points)
+        .map(|p| prop.rigid.position + prop.rigid.rotation() * p);
+    boxes.chain(clouds)
 }

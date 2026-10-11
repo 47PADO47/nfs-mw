@@ -52,16 +52,29 @@ detaches an attached object. These are temporary contact flags, not a frozen car
 
 Separate objects before applying the 32-iteration contact response. If exactly
 one is immobile, move only the other. If both are mobile, use the stored mass
-ratio for car/prop contacts. Both immobile means no separation or response.
-The original also shifts the contact point with whichever primitive penetrates
-the other. The original geometry classification and full contact order remain
-separate parity work.
+ratio for car/prop contacts. For prop pairs use the normal-speed shares described
+in [box contacts](box-object-contacts.md). When both moments are immobile, first
+release any with a positive break threshold. Two unbreakable immobile moments
+produce no separation or response. Shift the point with its incident surface and
+translate temporary contact centres with their bodies. Full compound contact
+order remains separate parity work.
 
 ## Runtime integration boundary
 
 The first dynamic integration uses the existing body's fixed-step gravity/drag,
-ground-plane response, box overlap and render interpolation. Detached objects
-remain rendered and collidable. Geometry sweeps, original ground-point clouds,
+ground-plane response, measured box contact and render interpolation. Detached objects
+remain rendered and collidable. Original ground-point query tolerances,
 fragments, event sequencers, offscreen destruction and respawn are not established
 by this stage. In particular, do not replace those missing lifecycle rules with
 a six-second disappear/reappear timer.
+
+## Ground support integration
+
+The existing height-query integration must include every enabled ground mesh
+vertex in the body frame, transformed by the current body pose. Disabled clouds
+do not support the body. Ground box corners and cloud points are separate contact
+sources; a sphere with ground flags must not be treated as a box. Keep at most
+16 contacts, in primitive/cloud visitation order, then sort deepest first.
+All support queries and impulse resolution run on the shared fixed clock.
+This fixes missing support geometry; it does not certify the existing plane
+solver or query tolerances against the original.

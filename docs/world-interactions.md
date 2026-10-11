@@ -48,14 +48,18 @@ unload. Complete prop position/orientation/velocity traces match bit for bit at
 
 The install checks resolve 13,484 attribute/visual pairs; 13,479 have track bounds.
 They also check cone, tree, traffic-light and log mass, tensor and detach values.
-Body construction selects immediate children, excludes internal fragment subtrees,
+An exhaustive runtime check additionally constructs all 13,479 resolved bodies,
+checks their original identity, mass, inertia, attachment and initial visual pose,
+and exercises collision registration and unload. Shared collision/attribute keys
+no longer reuse another model's name. Body construction selects immediate children, excludes internal fragment subtrees,
 keeps disabled flags for contact filtering, and supplies missing fallback boxes.
 The cone regression checks collision and an unchanged visual pose with a nonzero
 root pivot. Four synthetic construction cases were also executed through the PC
-routines. Ground response still uses existing primitive corner probes. Sphere
+routines. Ground support includes enabled installed clouds and box corners, with
+16 contacts retained; plane response and height-query tolerances remain approximate. Sphere
 object contacts and sphere/box and box/box displacement tests use measured routines.
 Separation now translates the incident contact point and temporary collision centres;
-prop pairs use original normal-speed shares. Lifecycle, centre markers and ground clouds
+prop pairs use original normal-speed shares. Lifecycle and centre markers
 remain open. Fallen props currently persist while resident; streaming out resets
 them. These limits prevent claiming full parity.
 

@@ -6,6 +6,9 @@ use nfsmw_data::world::{LocalBox, PropDynamics};
 
 use super::*;
 
+mod installed;
+mod support;
+
 fn placement(id: u32, at: Vec3, mass: f32, no_car_effect: bool, detach: f32) -> Placed {
     let node = Bounds {
         orientation: [0.0, 0.0, 0.0, 1.0],
@@ -98,6 +101,7 @@ fn no_car_effect_leaves_car_motion_unchanged_and_launches_prop() {
     assert_eq!(v.position(), car(20.0).position());
     assert_eq!(impact.impulse, 0.0);
     assert!(!impact.contacts.is_empty());
+    assert_eq!(impact.contacts[0].kind, ContactKind::PropMovable);
     assert!(world.colliders[&id].body.as_ref().unwrap().rigid.linear_velocity.length() > 1.0);
 }
 
@@ -108,8 +112,13 @@ fn attachment_threshold_is_respected_before_no_car_effect() {
     let (world, _, impact, id) = hit(true, 500.0, 20.0);
     assert!(!world.colliders[&id].body.as_ref().unwrap().attached);
     assert!(impact.impulse > 0.0, "breaking an attached object can affect the car");
-    let (world, _, _, id) = hit(true, -1.0, 20.0);
+    let (world, _, impact, id) = hit(true, -1.0, 20.0);
     assert!(world.colliders[&id].body.as_ref().unwrap().attached, "negative force means permanent attachment");
+    assert_eq!(
+        impact.contacts[0].kind,
+        ContactKind::PropRigid,
+        "a pinned object is a rigid contact regardless of mass"
+    );
 }
 
 #[test]

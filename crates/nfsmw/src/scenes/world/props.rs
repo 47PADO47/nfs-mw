@@ -308,12 +308,12 @@ impl PropWorld {
                 p.attached &= prop_immobile;
                 p.moved |= !prop_immobile;
                 let delta_v = response.impulse_delta_v[0];
+                let kind = match prop_immobile {
+                    true => ContactKind::PropRigid,
+                    false => ContactKind::PropMovable,
+                };
                 impact.impulse = impact.impulse.max(delta_v * vehicle.body().mass());
-                impact.contacts.push(ContactPoint {
-                    point: hit.point,
-                    normal: hit.normal,
-                    kind: ContactKind::PropLight,
-                });
+                impact.contacts.push(ContactPoint { point: hit.point, normal: hit.normal, kind });
                 if delta_v > 0.0 {
                     vehicle.notify_collision(delta_v);
                 }
