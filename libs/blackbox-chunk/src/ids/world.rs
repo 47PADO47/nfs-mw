@@ -3,11 +3,16 @@
 /// `TrackStreamingSections`: the streaming index in the track metadata file.
 pub const TRACK_STREAMING_SECTIONS: u32 = 0x0003_4110;
 pub const SCENERY_SECTION: u32 = 0x8003_4100;
+/// Named render parts (`docs/formats/model-hierarchies.md`).
+pub const MODEL_HIERARCHY_TREE: u32 = 0x8003_410B;
+pub const MODEL_HIERARCHY: u32 = 0x0003_410C;
 pub const SCENERY_SECTION_HEADER: u32 = 0x0003_4101;
 pub const SCENERY_INFOS: u32 = 0x0003_4102;
 pub const SCENERY_INSTANCES: u32 = 0x0003_4103;
 pub const SCENERY_TREE_NODES: u32 = 0x0003_4105;
 pub const SCENERY_OVERRIDE_HOOKS: u32 = 0x0003_4106;
+/// Placed physics objects (`docs/formats/prop-spawners.md`).
+pub const SMOKEABLE_SPAWNERS: u32 = 0x0003_4027;
 pub const SCENERY_PRECULLER_INFOS: u32 = 0x0003_4107;
 /// `VisibleSectionManager`: zones and what each one loads and draws.
 pub const VISIBLE_SECTION_MANAGER: u32 = 0x8003_4150;
@@ -23,6 +28,8 @@ pub const TRACK_PATH_ZONES: u32 = 0x0003_414A;
 pub const CARP_WGRID: u32 = 0x0003_B800;
 /// `CarpWCollisionPack`: one section's static collision (`CARP` blob).
 pub const CARP_WCOLLISION_PACK: u32 = 0x0003_B801;
+/// Event state machines, actions and event lists (`docs/formats/event-sequences.md`).
+pub const EVENT_SEQUENCES: u32 = 0x0003_B811;
 /// `BoundsPack`: container of collision bounds (cars in `GlobalB.lzc`, props in the world file).
 pub const BOUNDS_PACK: u32 = 0x8003_B900;
 pub const BOUNDS: u32 = 0x0003_B901;

@@ -202,6 +202,8 @@ store target as prev; (speed-break) blend toward steer_input * 60 deg
 Post-collision (timer `T` set by a hard hit, from 0 to 1 s): `secs = 1 - T`; if `0 < secs < 1`:
 `speed_term = 1 - min(1, fwd_speed / (170 mph*0.7))`, `blend = Graph{(0,0.2),(0.2,0.5),(0.5,0.7),(0.7,1)}(secs)`,
 `max *= speed_term*(1-blend) + blend`. A collision with impulse > 10 sets `T = max(T, Ramp(impulse, 10, 40))`.
+Here impulse is force divided by the body's temporary collision mass, in m/s,
+not the normal impulse in N s. An immobile contact moment supplies zero to steering.
 
 Averages: `avg_input` is a mean of the *remapped* steering input over the last 0.55 s of game time. The
 input remap is a 21-point table over [-1, 1] whose centre is flat (derivative ~3.4 per unit near 0):

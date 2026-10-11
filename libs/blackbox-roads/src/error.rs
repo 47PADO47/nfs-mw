@@ -7,7 +7,7 @@ pub enum Error {
     #[error("no {0} in the file")]
     Missing(&'static str),
     #[error(transparent)]
-    Carp(#[from] blackbox_collision::Error),
+    Carp(#[from] blackbox_carp::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

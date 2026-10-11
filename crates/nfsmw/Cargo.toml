@@ -31,6 +31,7 @@ blackbox-render.workspace = true
 blackbox-roads.workspace = true
 blackbox-scene.workspace = true
 blackbox-scenery.workspace = true
+blackbox-sequence.workspace = true
 blackbox-streaming.workspace = true
 blackbox-text.workspace = true
 blackbox-tpk.workspace = true
@@ -51,3 +52,6 @@ toml.workspace = true
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+blackbox-solid.workspace = true

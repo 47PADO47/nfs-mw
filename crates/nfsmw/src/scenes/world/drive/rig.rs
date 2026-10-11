@@ -92,12 +92,20 @@ impl CarRig {
     }
 
     /// Append the car's instances for `pose`.
-    pub fn instances(&self, pose: &CarPose, out: &mut Vec<Instance>) {
+    pub fn instances(
+        &self,
+        pose: &CarPose,
+        hidden: Option<&std::collections::BTreeSet<usize>>,
+        out: &mut Vec<Instance>,
+    ) {
         let world = pose.transform();
         let posed: Option<[(Mat4, Mat4); 4]> =
             self.model.corners.as_ref().map(|c| std::array::from_fn(|i| c[i].posed(pose.wheels[i])));
         for part in &self.parts {
             let placement = &self.model.placements[part.placement];
+            if hidden.is_some_and(|hidden| hidden.contains(&placement.slot)) {
+                continue;
+            }
             let local = match (placement.corner, &posed) {
                 (Some(corner), Some(posed)) => {
                     let (wheel, brake) = posed[corner];
@@ -107,6 +115,16 @@ impl CarRig {
             };
             out.push(Instance { mesh: part.mesh, transform: world * local });
         }
+    }
+
+    pub fn fragment_instances(&self, slot: usize) -> Vec<Instance> {
+        self.parts
+            .iter()
+            .filter_map(|part| {
+                let placement = &self.model.placements[part.placement];
+                (placement.slot == slot).then_some(Instance { mesh: part.mesh, transform: placement.transform })
+            })
+            .collect()
     }
 }
 

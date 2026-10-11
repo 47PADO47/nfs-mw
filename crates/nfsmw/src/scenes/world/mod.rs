@@ -1,15 +1,20 @@
 //! The streamed city: a free-fly camera, or a car to drive with a chase camera.
 
 mod ai;
+mod cargo;
 mod commands;
 mod drive;
 mod effects;
+mod events;
 mod ground;
+mod object_geometry;
 mod props;
 mod residency;
 mod resident;
 mod road;
+mod simulation;
 mod space;
+mod start;
 mod visibility;
 mod zone;
 
@@ -18,13 +23,14 @@ use blackbox_render::{FrameParams, Instance, Renderer};
 use game_install::GameDir;
 use glam::Vec3;
 use nfsmw_data::car::CarModel;
-use nfsmw_data::car::physics::{CarPhysics, PhysicsData};
+use nfsmw_data::car::physics::PhysicsData;
 use nfsmw_data::world::{DEFAULT_TRACK, PropCatalog, Streamer, WorldIndex, load_global_textures};
 
 use crate::input::{Action, ActionState};
 use crate::viewer::{Scene, camera::FlyCamera};
-use drive::{CarRig, Drive, DriveScript, MarkerMeshes, SpawnRequest};
+use drive::{Drive, DriveScript, MarkerMeshes};
 use residency::Residency;
+use start::load_car;
 
 pub struct Options {
     pub at: Option<[f32; 2]>,
@@ -76,6 +82,8 @@ pub struct WorldScene {
     visible: Vec<Instance>,
     /// Seconds since the scene started, for texture animations.
     clock: f32,
+    physics_clock: drive::FixedClock,
+    physics_aspect: f32,
     view: View,
     pending_car: Option<PendingCar>,
     drive: Option<Drive>,
@@ -105,26 +113,17 @@ const CLEAR: [f32; 3] = [0.55, 0.63, 0.72];
 /// The car `drive` picks when none was named.
 pub const DEFAULT_CAR: &str = "BMWM3GTR";
 
-/// Load a car for driving (highest detail, stock parts). `name` may be a unique prefix.
-fn load_car(dir: &GameDir, name: &str) -> Result<(String, CarModel)> {
-    let cars = nfsmw_data::car::list(dir);
-    let folder = nfsmw_data::car::pick_folder(&cars, name)
-        .with_context(|| format!("no car {name:?}, or several start with it (`nfsmw list-cars`)"))?
-        .to_owned();
-    let options = nfsmw_data::car::LoadOptions { lod: 'A', all_parts: false, preset: None };
-    let model = nfsmw_data::car::load(dir, &folder, &options)?;
-    Ok((folder, model))
-}
-
 impl WorldScene {
     pub fn open(dir: &GameDir, options: Options) -> Result<Self> {
         let index = WorldIndex::open(dir, DEFAULT_TRACK)?;
-        let physics = PhysicsData::load(dir)?;
+        let mut physics = PhysicsData::load(dir)?;
+        physics.set_sequences(index.sequences.clone());
         let mut traffic = index.road_network.clone().map(ai::TrafficWorld::new);
         if let Some(world) = traffic.as_mut() {
             world.load_data(physics.database(), index.track_zones.clone());
         }
-        let props = PropCatalog::new(index.prop_bounds.clone(), physics.database());
+        let props = PropCatalog::new(index.prop_bounds.clone(), physics.database())
+            .with_hierarchies(index.model_hierarchies.clone());
         log::info!("{} props have collision bounds", props.len());
         let stream = dir.resolve(&index.stream_file).with_context(|| format!("{} is missing", index.stream_file))?;
         let threads = std::thread::available_parallelism().map_or(4, |n| n.get().clamp(2, 6));
@@ -165,6 +164,8 @@ impl WorldScene {
             fog_distance: options.fog_distance,
             visible: Vec::new(),
             clock: 0.0,
+            physics_clock: drive::FixedClock::default(),
+            physics_aspect: 16.0 / 9.0,
             view: if pending_car.is_some() { View::Chase } else { View::Fly },
             last_car: pending_car.as_ref().map_or_else(|| DEFAULT_CAR.to_owned(), |c| c.name.clone()),
             pending_car,
@@ -195,45 +196,8 @@ impl WorldScene {
         }
     }
 
-    /// The physics of the car `model` was assembled as.
-    fn physics_of(&mut self, model: &CarModel) -> Result<CarPhysics> {
-        let type_name = model.car_type.as_deref().context("this car is not in the car tables, so it has no physics")?;
-        self.physics.car(type_name)
-    }
-
-    /// Start (or restart) driving `model` from the camera's place.
-    fn start_driving(
-        &mut self,
-        renderer: &mut Renderer,
-        name: String,
-        model: CarModel,
-        script: Option<DriveScript>,
-    ) -> Result<()> {
-        let physics = self.physics_of(&model)?;
-        let rig = CarRig::upload(renderer, model);
-        let [x, y] = self.focus();
-        match self.drive.as_mut() {
-            Some(drive) => {
-                drive.set_car(renderer, name.clone(), rig, physics);
-                drive.respawn_near([x, y], None);
-            }
-            None => {
-                let request =
-                    SpawnRequest { near: [self.camera.position.x, self.camera.position.y], heading: None, exact: None };
-                self.drive = Some(Drive::new(name.clone(), rig, physics, request, script));
-            }
-        }
-        self.last_car = name;
-        if let Some(drive) = self.drive.as_mut() {
-            drive.effects.set_enabled(self.tire_effects[0], self.tire_effects[1]);
-            drive.effects.set_quality(self.smoke_quality);
-        }
-        self.view = View::Chase;
-        Ok(())
-    }
-
     /// Put a waiting car on the road once the area around it has loaded, then run its physics.
-    fn update_drive(&mut self, input: &ActionState, dt: f32) {
+    fn prepare_drive(&mut self) {
         let (Some(drive), physics) = (self.drive.as_mut(), &self.physics) else { return };
         drive.set_markers(self.markers_on);
         if let Some(request) = drive.waiting_for_road()
@@ -279,14 +243,6 @@ impl WorldScene {
                 }
             }
         }
-        if self.view == View::Chase {
-            let loaded = self.residency.complete();
-            let (collision, props) = self.residency.world_parts();
-            drive.step(collision, props, &physics.surfaces, input, dt, loaded);
-            drive.follow(self.residency.collision(), (input.value(Action::LookX), input.value(Action::LookY)), dt);
-            return;
-        }
-        drive.age_effects(dt);
     }
 
     /// Switch between the chase camera and the free camera (the car waits while you fly).
@@ -341,13 +297,12 @@ impl Scene for WorldScene {
         let [x, y] = self.focus();
         self.residency.update(renderer, x, y);
         self.clock += dt;
-        self.residency.world_parts().1.tick(dt);
         self.residency.animate(renderer, self.clock);
         if self.view == View::Fly {
             self.camera.update(input, dt);
         }
-        self.update_drive(input, dt);
-        self.update_traffic(renderer, dt);
+        self.prepare_drive();
+        self.update_simulation(renderer, input, dt);
         if !self.grounded && self.residency.complete() {
             self.grounded = true;
             let estimate = ground::height_near(self.residency.placed(), self.start[0], self.start[1], 150.0);
@@ -382,6 +337,7 @@ impl Scene for WorldScene {
     }
 
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
+        self.physics_aspect = aspect;
         let chase = self.drive.as_ref().filter(|_| self.view == View::Chase);
         let (view_proj, position, forward, fov_degrees) = match chase {
             Some(drive) => {
@@ -401,6 +357,7 @@ impl Scene for WorldScene {
         };
         let rules = &blackbox_scenery::layout::MOST_WANTED.lod;
         visibility::collect(self.residency.placed(), &camera, rules, self.residency.props(), &mut self.visible);
+        self.residency.props().fragment_instances(&mut self.visible);
         if let Some(traffic) = &self.traffic {
             traffic.instances(&mut self.visible);
             let lamps = self.lamp_meshes.as_ref().filter(|_| self.traffic_setting.lights);

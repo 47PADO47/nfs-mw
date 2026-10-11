@@ -52,7 +52,7 @@ Numbers accept `0x` prefixes. The exit code is non-zero if any file failed to pa
 ## Recipes
 
 ```bash
-G="D:/Need For Speed Most Wanted Black Edition"
+G="${NFSMW_GAME_DIR:?Set NFSMW_GAME_DIR to your install first}"
 
 # What's in a car?
 python tools/chunkdump.py "$G/CARS/BMWM3GTR/GEOMETRY.BIN" -s -d 2
@@ -86,7 +86,7 @@ decompresses byte-for-byte to `gameplay.bak`.
 
 ## Validation against the install
 
-Run over every data file in `D:\Need For Speed Most Wanted Black Edition`: 688 bChunk files and 514,808
+Run over every data file in the inspected local install: 688 bChunk files and 514,808
 chunks parsed with **0 failures**. The only files it rejects are genuinely not chunk files (sound
 reverb data, `GlobalMemoryFile.bin`) and one corrupt add-on file (`CARS/FXXEVO/VINYLS.BIN`). See
 [install-layout.md](../install-layout.md).

@@ -1,17 +1,26 @@
 //! A car dragging a second, engineless body through a ball joint, on flat ground.
 
 use super::*;
-use crate::rigid_body::BallJoint;
+use crate::rigid_body::{AngularLimit, BallJoint, LimitMode};
 
 /// Height of the hitch above the box centre of the example car, metres.
 const HITCH_Y: f32 = -0.2;
 /// Solver passes per step.
-const PASSES: usize = 4;
+const PASSES: usize = 32;
 
 /// A tractor and a trailer behind it, joined at the tractor's tail.
 fn hitched() -> (Vehicle, Vehicle, BallJoint) {
     let mut tractor = Vehicle::new(VehicleSpec::example());
-    let mut trailer = Vehicle::new(VehicleSpec::example());
+    let mut trailer_spec = VehicleSpec::example();
+    trailer_spec.engine.torque.clear();
+    trailer_spec.engine.engine_braking.clear();
+    trailer_spec.engine.flywheel_mass = 0.0;
+    trailer_spec.transmission.gear_ratio.fill(0.0);
+    trailer_spec.dimension = Vec3::new(0.9, 0.62, 3.0);
+    trailer_spec.chassis.front_axle = -0.6;
+    trailer_spec.chassis.wheel_base = 1.0;
+    trailer_spec.chassis.front_weight_bias = 50.0;
+    let mut trailer = Vehicle::new(trailer_spec);
     let tail = tractor.spec().dimension.z;
     let nose = trailer.spec().dimension.z;
     assert!(tractor.place_on_ground(&flat(), 0.0, 0.0, 5.0, 0.0));
@@ -31,6 +40,15 @@ fn drive(tractor: &mut Vehicle, trailer: &mut Vehicle, joint: &BallJoint, input:
         tractor.step(FIXED_STEP, input, &g);
         trailer.step(FIXED_STEP, &InputState::default(), &g);
         joint.solve(tractor.body_mut(), trailer.body_mut(), FIXED_STEP, PASSES);
+        // A fifth wheel restricts tilt; a free ball joint can pitch the tractor out of tire contact.
+        let tilt = AngularLimit {
+            frame_a: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
+            vector_b: Vec3::Y,
+            positive: 0.2,
+            negative: 0.2,
+            mode: LimitMode::Conical,
+        };
+        tilt.solve(joint, tractor.body_mut(), trailer.body_mut());
         worst = worst.max(joint.gap(tractor.body(), trailer.body()));
     }
     worst

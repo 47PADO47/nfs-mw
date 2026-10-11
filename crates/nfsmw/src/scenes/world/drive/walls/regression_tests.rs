@@ -46,7 +46,7 @@ fn barrier(x: f32, front: bool, two_sided: bool) -> Barrier {
         p0: [x, -2.0, ends[0]],
         p1: [x, 2.0, ends[1]],
         surface: 0,
-        flags: 2 | u8::from(two_sided) * BARRIER_TWO_SIDED,
+        flags: 2 | (u8::from(two_sided) * BARRIER_TWO_SIDED),
         inv_xz_len: 1.0 / 8.0,
     }
 }

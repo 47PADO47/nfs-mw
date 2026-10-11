@@ -12,6 +12,7 @@
 //! touches the filesystem: it takes bytes.
 
 mod article;
+mod body_geometry;
 mod bounds;
 mod bytes;
 pub mod carp;
@@ -31,6 +32,7 @@ pub use article::{
     Article, BARRIER_TWO_SIDED, Barrier, PackedVert, RADIUS_SCALE, STRIP_FACING_UNKNOWN, STRIP_UP_FACING,
     SURFACE_NO_GROUND, Strip, Triangle, VERT_SCALE,
 };
+pub use body_geometry::{BodyGeometry, BodyMesh, BodyPrimitive, GeometryOptions};
 pub use bounds::{Bounds, BoundsSet, Shape, find_bounds, flags as bounds_flags, read_bounds_sets};
 pub use error::{Error, Result};
 pub use grid::{Grid, GridNode, InstanceRef};

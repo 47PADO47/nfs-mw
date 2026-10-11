@@ -12,6 +12,9 @@ use super::props::PropWorld;
 use super::resident::{Placed, SectionResources, place};
 use super::zone::Zones;
 
+#[cfg(test)]
+mod tests;
+
 /// Requests in flight at once.
 const MAX_IN_FLIGHT: usize = 8;
 /// Tiles uploaded per frame (uploads run on the render thread).
@@ -252,6 +255,16 @@ impl Residency {
     /// Whether the shared sets and every tile the current zone needs are resident.
     pub fn complete(&self) -> bool {
         self.shared_ready && self.zones.name().is_some() && self.arrived.is_empty() && self.wanted_resident()
+    }
+
+    /// Keep driving while distant scenery loads. Actual local collision packs must be resident;
+    /// zone names need not have a corresponding tile. Old collision/props stay until the new zone loads.
+    pub fn simulation_ready(&self, [x, y]: [f32; 2], margin: f32) -> bool {
+        if !self.shared_ready || self.zones.name().is_none() {
+            return false;
+        }
+        let point = super::space::to_physics(glam::Vec3::new(x, y, 0.0));
+        self.collision.resident_near(point, margin).unwrap_or_else(|| self.wanted_resident())
     }
 
     /// The collision of the tiles that are resident now.

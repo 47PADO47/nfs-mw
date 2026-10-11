@@ -8,7 +8,7 @@ use bevy_input::gamepad::{Gamepad, GamepadButton, GamepadInput};
 use bevy_input::keyboard::KeyCode;
 use bevy_input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll, MouseButton, MouseScrollUnit};
 use bevy_input::{ButtonInput, InputSystems};
-use bevy_time::Time;
+use bevy_time::{Real, Time};
 
 use super::snapshot::Snapshot;
 use super::state::{ActionState, Bindings};
@@ -46,7 +46,7 @@ fn update_actions(
     pads: Query<&Gamepad>,
     capture: Res<MouseCapture>,
     focus: Res<UiFocus>,
-    time: Res<Time>,
+    time: Res<Time<Real>>,
     bindings: Res<Bindings>,
     settings: Option<Res<crate::settings::Settings>>,
     mut state: ResMut<ActionState>,
@@ -119,7 +119,7 @@ mod tests {
 
     fn app() -> App {
         let mut app = App::new();
-        app.add_plugins((InputPlugin, InputLayerPlugin)).init_resource::<Time>();
+        app.add_plugins((InputPlugin, InputLayerPlugin)).init_resource::<Time<Real>>();
         app
     }
 
@@ -132,6 +132,30 @@ mod tests {
             repeat: false,
             window: Entity::PLACEHOLDER,
         });
+    }
+
+    #[test]
+    fn camera_stick_uses_real_elapsed_time_after_a_stall() {
+        use bevy_input::gamepad::{
+            GamepadAxis, GamepadConnection, GamepadConnectionEvent, RawGamepadAxisChangedEvent, RawGamepadEvent,
+        };
+        let mut app = app();
+        // A capped virtual clock must not shorten the camera input supplied to fixed-step driving.
+        app.init_resource::<Time>();
+        app.world_mut().resource_mut::<Time>().advance_by(std::time::Duration::from_secs_f32(0.1));
+        let entity = app.world_mut().spawn_empty().id();
+        app.world_mut().write_message(GamepadConnectionEvent::new(
+            entity,
+            GamepadConnection::Connected { name: "Software stick".into(), vendor_id: None, product_id: None },
+        ));
+        app.world_mut().write_message(RawGamepadEvent::Axis(RawGamepadAxisChangedEvent::new(
+            entity,
+            GamepadAxis::RightStickX,
+            1.0,
+        )));
+        app.world_mut().resource_mut::<Time<Real>>().advance_by(std::time::Duration::from_secs_f32(0.5));
+        app.update();
+        assert_eq!(app.world().resource::<ActionState>().value(Action::LookX), 350.0);
     }
 
     #[test]

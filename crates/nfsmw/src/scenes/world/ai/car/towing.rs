@@ -26,6 +26,18 @@ fn rig_body(tractor: &Body, trailer_at: Vec3, trailer_forward: Vec2, trailer_hal
 }
 
 impl AiCar {
+    pub fn update_events(
+        &mut self,
+        props: &mut crate::scenes::world::props::PropWorld,
+        data: &nfsmw_data::car::physics::PhysicsData,
+        view: Vec3,
+    ) {
+        crate::scenes::world::cargo::update(&mut self.sim, &self.rig, props, data, view);
+        if let Some(trailer) = self.trailer.as_mut() {
+            trailer.update_events(props, data, view);
+        }
+    }
+
     /// The car as the other cars' trails avoid it: with its trailer when that is hitched.
     pub fn avoidable(&self) -> Body {
         let body = self.body();
@@ -64,9 +76,9 @@ impl AiCar {
 
     /// Appends the instances of the car and of its trailer.
     pub fn instances(&self, alpha: f32, out: &mut Vec<Instance>) {
-        self.rig.instances(&self.pose(alpha), out);
+        self.rig.instances(&self.pose(alpha), self.sim.events.as_ref().map(|e| &e.hidden_slots), out);
         if let Some(trailer) = &self.trailer {
-            trailer.rig().instances(&trailer.pose(alpha), out);
+            trailer.instances(alpha, out);
         }
     }
 

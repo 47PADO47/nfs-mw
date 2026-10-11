@@ -1,8 +1,8 @@
 //! The whole road network: nodes, segments, profiles and roads of the `RNgp` group.
 //! Spec: `docs/formats/road-network.md`.
 
+use blackbox_carp::{Carp, Group, tag4};
 use blackbox_chunk::{Chunk, ids};
-use blackbox_collision::carp::{Carp, Group, tag4};
 
 use crate::bytes::Reader;
 use crate::error::malformed;

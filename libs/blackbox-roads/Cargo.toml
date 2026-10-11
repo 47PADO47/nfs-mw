@@ -9,7 +9,7 @@ publish.workspace = true
 
 [dependencies]
 blackbox-chunk.workspace = true
-blackbox-collision.workspace = true
+blackbox-carp.workspace = true
 glam.workspace = true
 thiserror.workspace = true
 

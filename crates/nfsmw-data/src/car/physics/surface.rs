@@ -25,6 +25,7 @@ pub struct SurfaceAudio {
 pub struct SurfaceTable {
     grips: HashMap<u32, SurfaceGrip>,
     audio: HashMap<u32, SurfaceAudio>,
+    body_friction: HashMap<u32, f32>,
     unknown: SurfaceGrip,
 }
 
@@ -45,7 +46,13 @@ impl SurfaceTable {
             })
             .collect();
         let unknown = db.collection("simsurface", UNKNOWN).map_or(SurfaceGrip::DEFAULT, |c| read(Fields(c)));
-        Self { grips, audio, unknown }
+        let body_friction =
+            db.collections_of("simsurface").map(|c| (c.key(), c.get_f32("GROUND_FRICTION").unwrap_or(1.0))).collect();
+        Self { grips, audio, body_friction, unknown }
+    }
+
+    pub fn body_friction(&self, hash: u32) -> f32 {
+        self.body_friction.get(&hash).or_else(|| self.body_friction.get(&self.unknown.tag)).copied().unwrap_or(1.0)
     }
 
     /// The sounds of a surface by name hash (`unknown` for one without a collection).
@@ -86,6 +93,7 @@ mod tests {
         let table = SurfaceTable {
             grips: HashMap::from([(7, SurfaceGrip { lateral: 0.5, drive: 0.6, rolling: 2.0, tag: 7 })]),
             audio: HashMap::from([(7, SurfaceAudio { skid_type: 1, road_loop: 3 })]),
+            body_friction: HashMap::from([(7, 0.3)]),
             unknown: SurfaceGrip { lateral: 0.9, drive: 0.9, rolling: 1.0, tag: 0 },
         };
         assert_eq!(table.grip(7).lateral, 0.5);

@@ -6,6 +6,18 @@ use glam::Vec3;
 use super::CarSim;
 
 impl CarSim {
+    /// Original named joint node in this body's local frame.
+    pub fn joint_anchor(&self, name: u32, male: bool) -> Option<Vec3> {
+        self.geometry.as_ref()?.joint(name, male)
+    }
+
+    pub fn joint_limits(&self, other: &Self, name: u32) -> Vec<blackbox_vehicle::rigid_body::AngularLimit> {
+        match (&self.geometry, &other.geometry) {
+            (Some(a), Some(b)) => a.joint_limits(b, name),
+            _ => Vec::new(),
+        }
+    }
+
     /// Makes the car a body nobody drives (a trailer): it takes the brake and the handbrake it is given and
     /// otherwise rolls free, with no idle braking and no reversing by itself.
     pub fn configure_trailer(&mut self) {

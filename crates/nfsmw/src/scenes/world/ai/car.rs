@@ -126,6 +126,7 @@ pub struct AiCar {
     patrol: bool,
     /// Seconds the car has been out of the player's view.
     offscreen: f32,
+    breaker_stop: bool,
 }
 
 impl AiCar {
@@ -142,6 +143,7 @@ impl AiCar {
         let (name, rig, physics) = (model.name.clone(), model.rig.clone(), &model.physics);
         let mut sim = CarSim::for_rig(physics.clone(), &rig);
         sim.configure_ai();
+        sim.collision_role.cop = start.patrol || matches!(role, Role::Cop(_));
         if !sim.place_moving(ground, spawn, start.speed) {
             return None;
         }
@@ -185,6 +187,7 @@ impl AiCar {
             cruise: start.cruise,
             patrol: start.patrol,
             offscreen: 0.0,
+            breaker_stop: false,
         })
     }
 
@@ -193,8 +196,20 @@ impl AiCar {
         self.current.position
     }
 
+    pub fn set_breaker_stop(&mut self, stop: bool) {
+        self.breaker_stop = stop;
+    }
+
     pub fn pose(&self, alpha: f32) -> CarPose {
         self.previous.lerp(&self.current, alpha)
+    }
+
+    /// Collision separation belongs to this tick's displayed pose too.
+    pub fn sync_contacts(&mut self) {
+        if let Some(trailer) = self.trailer.as_mut() {
+            trailer.sync_contacts(&mut self.sim);
+        }
+        self.current = self.sim.pose();
     }
 
     pub fn is_finite(&self) -> bool {
@@ -299,6 +314,9 @@ impl AiCar {
                 self.controls = AiControls { brake: 1.0, steer: 1.0, ..AiControls::default() };
             }
         }
+        if self.breaker_stop {
+            self.controls = AiControls { brake: 1.0, ..AiControls::default() };
+        }
         shift(&mut self.sim, self.controls.gear);
         let input = DriveInput {
             throttle: self.controls.gas,
@@ -308,10 +326,7 @@ impl AiCar {
             nos: self.controls.nos,
             ..DriveInput::default()
         };
-        let impact = self.sim.step(&input, &WorldGround { collision, surfaces }, Some((collision, &*props)));
-        for &(id, _) in &impact.knocked {
-            props.knock(id);
-        }
+        self.sim.step(&input, &WorldGround { collision, surfaces }, Some((collision, props)));
         if let Some(trailer) = self.trailer.as_mut() {
             let brakes = Brakes { brake: self.controls.brake, handbrake: self.controls.handbrake > 0.5 };
             trailer.step(&mut self.sim, brakes, collision, props, surfaces);

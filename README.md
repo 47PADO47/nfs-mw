@@ -16,6 +16,12 @@ You can drive a car through the city (`view-world --drive`), or start from the m
 movies, title screen and main menu, then free roam, with the pause menu and the settings screens on Esc); the rest of
 the game is on the [roadmap](docs/architecture.md#roadmap).
 
+Cars, scenery contacts, cleanup, trailer constraints and installed pursuit-breaker
+sequences share a 60 Hz physics clock. See [world interaction coverage](docs/world-interactions.md)
+for checks against the installed game and [remaining parity work](docs/world-interactions-todo.md).
+The player and chase camera interpolate together between physics ticks; nearby
+collision coverage controls loading pauses while distant scenery streams.
+
 ## Quick start
 
 You need Rust (stable) and an installed copy of the game.
@@ -101,6 +107,11 @@ Keyboard, mouse and gamepad assignments can be changed and saved through the con
 
 See [docs/development.md](docs/development.md) for the full setup guide (required tools,
 first-time setup, CI, reverse-engineering toolchain).
+
+The world-interaction branch's base, local mise/LLVM-MinGW build setup and measured
+physics coverage are recorded in [world interactions](docs/world-interactions.md).
+Cars, traffic and dynamic scenery share a [fixed physics clock](docs/physics-timing.md).
+Full original-game interaction parity remains in progress.
 
 ## Credits and license
 

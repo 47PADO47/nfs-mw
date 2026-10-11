@@ -1,17 +1,37 @@
 //! Two bodies against each other: separating them and the impulse that changes their velocities.
-//! Spec: `docs/specs/vehicle-rigid-body.md` (§5, §6). The original's solver is not specified; this is the
-//! textbook rule with Coulomb friction, like [`RigidBody::react_plane`].
+//! Spec: `docs/specs/pc-object-contact.md`. Response uses the measured PC iteration rule;
+//! penetration correction follows `docs/specs/box-object-contacts.md`.
 
 use glam::Vec3;
 
 use super::body::{BodyState, RigidBody};
-use super::contact::{FrictionState, Reaction};
+use super::{ContactMoment, PlaneContact, Reaction, react_moments};
 
 /// What differs per body in a hit: how bouncy it is here and how hard it is to turn.
 #[derive(Clone, Copy, Debug)]
 pub struct BodyHit {
     pub restitution: f32,
     pub inertia_scale: Vec3,
+    pub mass_scale: f32,
+    /// World-space contact centre; `None` uses the body's stored centre of gravity.
+    pub centre: Option<Vec3>,
+    pub immobile: bool,
+    pub breaking_impulse: f32,
+    pub fixed_centre: bool,
+}
+
+impl Default for BodyHit {
+    fn default() -> Self {
+        Self {
+            restitution: 0.0,
+            inertia_scale: Vec3::ONE,
+            mass_scale: 1.0,
+            centre: None,
+            immobile: false,
+            breaking_impulse: 0.0,
+            fixed_centre: false,
+        }
+    }
 }
 
 /// A contact between two bodies.
@@ -23,6 +43,69 @@ pub struct BodyContact {
     pub overlap: f32,
     pub friction_static: f32,
     pub friction_kinetic: f32,
+    pub point_on_first: bool,
+}
+
+/// Which rule a caller uses to distribute overlap between two mobile bodies.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Separation {
+    Mass,
+    NormalSpeed,
+}
+
+/// The response and each body's effective collision notification, in m/s.
+pub struct BodyReaction {
+    pub reaction: Reaction,
+    pub immobile: [bool; 2],
+    pub impulse_delta_v: [f32; 2],
+}
+
+impl BodyContact {
+    pub fn from_geometry(contact: super::ObbContact, friction: [f32; 2]) -> Self {
+        Self {
+            point: contact.point,
+            normal: contact.normal,
+            overlap: contact.overlap,
+            friction_static: friction[0],
+            friction_kinetic: friction[1],
+            point_on_first: contact.point_on_first,
+        }
+    }
+}
+
+/// Select moments before separation, update their world centres and the incident surface point,
+/// then resolve the velocities. Body positions can change even without an approaching contact.
+pub fn resolve_bodies(
+    a: &mut RigidBody,
+    b: &mut RigidBody,
+    contact: &BodyContact,
+    hit_a: &BodyHit,
+    hit_b: &BodyHit,
+    separation: Separation,
+) -> Option<BodyReaction> {
+    if a.state == BodyState::Frozen || b.state == BodyState::Frozen {
+        return None;
+    }
+    let mut left = a.contact_moment(hit_a);
+    let mut right = b.contact_moment(hit_b);
+    let mut contact = *contact;
+    if !super::separation::correct(a, b, &mut left, &mut right, &mut contact, separation) {
+        return None;
+    }
+    let plane = PlaneContact {
+        point: contact.point,
+        normal: contact.normal,
+        friction_static: contact.friction_static,
+        friction_kinetic: contact.friction_kinetic,
+    };
+    let reaction = react_moments(&mut left, &mut right, &plane, 32)?;
+    a.apply_contact_moment(&left);
+    b.apply_contact_moment(&right);
+    let impulse_delta_v = [&left, &right].map(|moment| match moment.immobile {
+        true => 0.0,
+        false => reaction.impulse / moment.mass,
+    });
+    Some(BodyReaction { reaction, immobile: [left.immobile, right.immobile], impulse_delta_v })
 }
 
 /// Pushes two overlapping bodies apart along the normal, the lighter one further (by the mass ratio).
@@ -33,9 +116,8 @@ pub fn separate(a: &mut RigidBody, b: &mut RigidBody, normal: Vec3, overlap: f32
     b.position -= normal * (overlap * move_b);
 }
 
-/// Resolves the contact: a normal impulse with the mean restitution of the two bodies, then friction.
-/// `a` is the first body of the contact (the normal points at it). Returns `None` when the bodies are not
-/// approaching.
+/// Resolve a pair with 32 iterated impulses. Each body keeps its own restitution.
+/// Effective masses and centres exist only for this contact and never retune the stored bodies.
 pub fn react_bodies(
     a: &mut RigidBody,
     b: &mut RigidBody,
@@ -46,48 +128,43 @@ pub fn react_bodies(
     if a.state == BodyState::Frozen || b.state == BodyState::Frozen {
         return None;
     }
-    let n = contact.normal;
-    let (tensor_a, tensor_b) =
-        (a.scaled_inv_world_tensor(hit_a.inertia_scale), b.scaled_inv_world_tensor(hit_b.inertia_scale));
-    let (ra, rb) = (contact.point - a.world_cog(), contact.point - b.world_cog());
-    let relative = |a: &RigidBody, b: &RigidBody| {
-        (a.linear_velocity + a.angular_velocity.cross(ra)) - (b.linear_velocity + b.angular_velocity.cross(rb))
+    let mut left = a.contact_moment(hit_a);
+    let mut right = b.contact_moment(hit_b);
+    let plane = PlaneContact {
+        point: contact.point,
+        normal: contact.normal,
+        friction_static: contact.friction_static,
+        friction_kinetic: contact.friction_kinetic,
     };
-    let vn = relative(a, b).dot(n);
-    if vn >= 0.0 {
-        return None;
-    }
-    a.wake();
-    b.wake();
-    let inverse_mass = |dir: Vec3| {
-        a.inv_mass
-            + b.inv_mass
-            + dir.dot((tensor_a * ra.cross(dir)).cross(ra))
-            + dir.dot((tensor_b * rb.cross(dir)).cross(rb))
-    };
-    let e = (0.5 * (hit_a.restitution + hit_b.restitution)).clamp(0.0, 1.0);
-    let jn = -(1.0 + e) * vn / inverse_mass(n);
-    a.linear_velocity += n * (jn * a.inv_mass);
-    a.angular_velocity += tensor_a * ra.cross(n * jn);
-    b.linear_velocity -= n * (jn * b.inv_mass);
-    b.angular_velocity -= tensor_b * rb.cross(n * jn);
+    let reaction = react_moments(&mut left, &mut right, &plane, 32)?;
+    a.apply_contact_moment(&left);
+    b.apply_contact_moment(&right);
+    Some(reaction)
+}
 
-    let vp = relative(a, b);
-    let vt = vp - n * vp.dot(n);
-    let sliding = vt.length();
-    let mut friction = FrictionState::None;
-    if sliding > 1e-6 {
-        let t = vt / sliding;
-        let jt_stop = sliding / inverse_mass(t);
-        let (jt, state) = match jt_stop <= contact.friction_static * jn {
-            true => (jt_stop, FrictionState::Static),
-            false => (contact.friction_kinetic * jn, FrictionState::Dynamic),
-        };
-        a.linear_velocity -= t * (jt * a.inv_mass);
-        a.angular_velocity -= tensor_a * ra.cross(t * jt);
-        b.linear_velocity += t * (jt * b.inv_mass);
-        b.angular_velocity += tensor_b * rb.cross(t * jt);
-        friction = state;
+impl RigidBody {
+    /// Create temporary parameters without modifying integration mass, inertia or centre of gravity.
+    pub fn contact_moment(&self, hit: &BodyHit) -> ContactMoment {
+        ContactMoment {
+            mass: self.mass * hit.mass_scale,
+            inverse_inertia: self.scaled_inv_world_tensor(hit.inertia_scale),
+            centre: hit.centre.unwrap_or_else(|| self.world_cog()),
+            linear_velocity: self.linear_velocity,
+            angular_velocity: self.angular_velocity,
+            elasticity: hit.restitution,
+            immobile: hit.immobile,
+            breaking_impulse: hit.breaking_impulse,
+            fixed_centre: hit.fixed_centre,
+        }
     }
-    Some(Reaction { impulse: jn, closing_speed: -vn, sliding_speed: sliding, friction })
+
+    /// Commit only contact velocities. Attachment state belongs to the caller.
+    pub fn apply_contact_moment(&mut self, moment: &ContactMoment) {
+        if self.state == BodyState::Frozen || moment.immobile {
+            return;
+        }
+        self.wake();
+        self.linear_velocity = moment.linear_velocity;
+        self.angular_velocity = moment.angular_velocity;
+    }
 }

@@ -1,4 +1,4 @@
-# Install layout: `D:\Need For Speed Most Wanted Black Edition`
+# Install layout of the inspected game copy
 
 Results of scanning this install with `tools/chunkdump.py`. The install is **modded**, so some files
 differ from retail; see the end of this page. For the tag meanings, see

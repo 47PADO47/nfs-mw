@@ -15,6 +15,7 @@ mod pattern;
 mod population;
 mod pursuit;
 mod scene;
+mod simulation;
 mod spawn;
 mod stop;
 mod traffic;
@@ -23,14 +24,12 @@ mod trailer;
 use std::collections::HashSet;
 use std::rc::Rc;
 
-use blackbox_collision::CollisionWorld;
 use blackbox_render::Instance;
 use blackbox_roads::{Body, RoadNetwork, SegmentIndex, SignalController, SplitMix};
-use nfsmw_data::car::physics::{CarPhysics, SurfaceTable};
+use nfsmw_data::car::physics::CarPhysics;
 
-use super::drive::{CarRig, FixedClock, STEP};
-use super::props::PropWorld;
-use car::{AiCar, Ctx};
+use super::drive::CarRig;
+use car::AiCar;
 pub(super) use commands::{pursuit_command, traffic_command};
 pub use cop::CopCar;
 pub use lamps::LampMeshes;
@@ -39,10 +38,7 @@ pub(super) use models::load_requested;
 pub use pattern::{Pattern, Patterns};
 pub use population::{ModelRequest, PatrolPlan};
 pub use pursuit::{CopModel, Pursuit};
-use stop::Lights;
 
-/// Physics steps a screenshot run simulates per update.
-const BATCH_STEPS: u32 = 6;
 /// The traffic manager runs twice a second.
 const MANAGER_PERIOD: f32 = 0.5;
 
@@ -81,7 +77,7 @@ pub struct TrafficWorld {
     pursuit: Option<Pursuit>,
     cars: Vec<AiCar>,
     rng: SplitMix,
-    clock: FixedClock,
+    alpha: f32,
     /// How many cars the manager keeps on the road.
     target: usize,
     /// The share of them that are patrol cops, in percent.
@@ -100,9 +96,21 @@ pub struct TrafficWorld {
     warmup_left: f32,
     /// Simulated seconds since the last debug status line.
     log_timer: f32,
+    breaker_areas: Vec<super::props::scenery::StopArea>,
 }
 
 impl TrafficWorld {
+    pub fn update_events(
+        &mut self,
+        props: &mut super::props::PropWorld,
+        data: &nfsmw_data::car::physics::PhysicsData,
+        view: glam::Vec3,
+    ) {
+        for car in &mut self.cars {
+            car.update_events(props, data, view);
+        }
+    }
+
     pub fn new(network: RoadNetwork) -> Self {
         let index = SegmentIndex::build(&network);
         Self {
@@ -116,7 +124,7 @@ impl TrafficWorld {
             pursuit: None,
             cars: Vec::new(),
             rng: SplitMix(0x6E66_736D_7721),
-            clock: FixedClock::default(),
+            alpha: 0.0,
             target: 0,
             cop_share: 0,
             patterns: None,
@@ -127,6 +135,7 @@ impl TrafficWorld {
             spawn_timer: 0.0,
             warmup_left: 0.0,
             log_timer: 0.0,
+            breaker_areas: Vec::new(),
         }
     }
 
@@ -152,82 +161,12 @@ impl TrafficWorld {
 
     /// Whether a screenshot run may capture: the warm-up is over.
     pub fn settled(&self) -> bool {
-        self.warmup_left <= 0.0
-    }
-
-    /// Runs the cars for `dt` seconds of frame time and keeps the traffic at its target count around
-    /// `focus` (map x, y). `loaded` is false while the map around the player is still streaming in.
-    pub fn update(
-        &mut self,
-        dt: f32,
-        focus: Focus,
-        loaded: bool,
-        collision: &CollisionWorld,
-        props: &mut PropWorld,
-        surfaces: &SurfaceTable,
-    ) {
-        if !loaded {
-            return;
-        }
-        if self.cars.is_empty() && self.target == 0 && self.pursuit.is_none() {
-            // Nothing to simulate: a screenshot run does not wait for it.
-            self.warmup_left = 0.0;
-            return;
-        }
-        // A screenshot run has no frame time: it simulates its warm-up in batches.
-        let batch = dt == 0.0 && self.warmup_left > 0.0;
-        let finishing = batch && self.warmup_left <= BATCH_STEPS as f32 * STEP;
-        let steps = match batch {
-            true => {
-                self.warmup_left -= BATCH_STEPS as f32 * STEP;
-                BATCH_STEPS
-            }
-            false => self.clock.advance(dt),
-        };
-        for _ in 0..steps {
-            // Every car as the others' trails see it (a hitched trailer is part of its tractor), with whether it is
-            // a cop, then the trailers that came loose.
-            let mut bodies: Vec<(Body, bool)> = self.cars.iter().map(|c| (c.avoidable(), c.is_cop())).collect();
-            bodies.extend(self.cars.iter().filter_map(AiCar::loose_trailer_body).map(|b| (b, false)));
-            let lights = self.lights_on.then_some(Lights { controller: &self.signals, time: self.signal_time });
-            for (me, car) in self.cars.iter_mut().enumerate() {
-                let mut ctx = Ctx {
-                    net: &self.network,
-                    index: &self.index,
-                    rng: &mut self.rng,
-                    bodies: &bodies,
-                    me,
-                    player: focus.body,
-                    lights,
-                };
-                car.step(&mut ctx, collision, props, surfaces);
-            }
-            self.signal_time += STEP;
-        }
-        let simulated = match batch {
-            true => steps as f32 * STEP,
-            false => dt,
-        };
-        self.update_pursuit(simulated, focus, collision, surfaces);
-        self.log_timer += simulated;
-        if self.log_timer >= 5.0 && log::log_enabled!(log::Level::Debug) {
-            self.log_timer = 0.0;
-            log::debug!("traffic status: {}", self.status(focus));
-        }
-        if finishing {
-            log::info!("traffic after the screenshot warm-up: {}", self.status(focus));
-        }
-        self.recycle(simulated, focus);
-        self.spawn_timer += simulated;
-        if (batch || self.spawn_timer >= MANAGER_PERIOD) && self.target > 0 {
-            self.spawn_timer = 0.0;
-            self.manage(MANAGER_PERIOD, focus, collision, surfaces);
-        }
+        self.warmup_left <= 0.0 || !self.has_work()
     }
 
     /// Appends the instances of every car.
     pub fn instances(&self, out: &mut Vec<Instance>) {
-        let alpha = self.clock.alpha();
+        let alpha = self.alpha;
         for car in &self.cars {
             car.instances(alpha, out);
         }

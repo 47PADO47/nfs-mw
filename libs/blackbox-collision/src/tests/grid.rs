@@ -113,3 +113,26 @@ fn world_uses_the_grid_to_pick_candidates() {
 fn pack_of_one(tile: Vec<u8>) -> Vec<u8> {
     pack(7, &[tile], &[InstanceSpec::upright([60.0, 0.0, 140.0], [4.0, 1.0, 4.0], 0)])
 }
+
+#[test]
+fn readiness_checks_adjacent_cells_without_waiting_for_distant_packs() {
+    let grid = Grid::parse(&grid_payload(&[
+        node(0, [&[7 << 16], &[], &[], &[]]),
+        node(1, [&[8 << 16], &[], &[], &[]]),
+        node(11, [&[9 << 16], &[], &[], &[]]),
+    ]))
+    .unwrap();
+    let mut world = CollisionWorld::new(Some(grid));
+    let tile = article(&[ground_strip(0)], &[], &[ASPHALT]);
+    let placement = InstanceSpec::upright([-40.0, 0.0, -40.0], [4.0, 1.0, 4.0], 0);
+    world
+        .insert(CollisionPack::parse(&pack(7, std::slice::from_ref(&tile), std::slice::from_ref(&placement))).unwrap());
+    assert_eq!(world.resident_near([-40.0, 0.0, -40.0], 0.0), Some(true));
+    assert_eq!(world.resident_near([-40.0, 0.0, -40.0], 5.0), Some(false), "body reaches the adjacent cell");
+    world.insert(CollisionPack::parse(&pack(8, &[tile], &[placement])).unwrap());
+    assert_eq!(world.resident_near([-40.0, 0.0, -40.0], 5.0), Some(true), "distant pack 9 is irrelevant");
+    world.remove(8);
+    assert_eq!(world.resident_near([-40.0, 0.0, -40.0], 5.0), Some(false));
+    assert_eq!(CollisionWorld::default().resident_near([0.0; 3], 5.0), None);
+    assert_eq!(world.resident_near([f32::NAN; 3], 5.0), Some(false));
+}

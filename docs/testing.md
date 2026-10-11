@@ -8,7 +8,7 @@
 | Python tool tests | [`tests/`](../tests) | no | yes |
 
 ```sh
-NFSMW_GAME_DIR="D:/Need For Speed Most Wanted Black Edition" cargo test --release -p nfsmw-data -- --ignored
+NFSMW_GAME_DIR="<your-install>" cargo test --release -p nfsmw-data -- --ignored
 ```
 
 The real-install tests check:

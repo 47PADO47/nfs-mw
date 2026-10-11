@@ -1,4 +1,4 @@
-use glam::Vec3;
+use glam::{Mat3, Vec3};
 
 use super::body::{BodyState, RigidBody};
 
@@ -44,47 +44,30 @@ pub struct Reaction {
 }
 
 impl RigidBody {
-    /// Resolves a contact with an immovable surface by a classical impulse with Coulomb friction. Updates
-    /// the velocities and returns `None` when the contact point is not approaching the surface.
-    ///
-    /// The original solver is not specified; this is the textbook rule (see the README).
+    /// Resolves an immovable plane with 16 moment iterations. Restitution affects the output
+    /// velocities while the reported normal impulse excludes restitution.
     pub fn react_plane(&mut self, contact: &PlaneContact, params: &ContactParams) -> Option<Reaction> {
         if self.state == BodyState::Frozen {
             return None;
         }
-        self.wake();
-        let n = contact.normal;
-        let inv_tensor = self.scaled_inv_world_tensor(params.inertia_scale);
-        let r = contact.point - self.world_cog();
-        let v_point = self.linear_velocity + self.angular_velocity.cross(r);
-        let vn = v_point.dot(n);
-        if vn >= 0.0 {
-            return None;
-        }
-        let effective_mass_inv = |dir: Vec3| self.inv_mass + dir.dot((inv_tensor * r.cross(dir)).cross(r));
-        let jn = -(1.0 + params.restitution.clamp(0.0, 1.0)) * vn / effective_mass_inv(n);
-        let mut v = self.linear_velocity + n * (jn * self.inv_mass);
-        let mut w = self.angular_velocity + inv_tensor * r.cross(n * jn);
-
-        // Coulomb friction against the tangential velocity left after the normal impulse.
-        let vp = v + w.cross(r);
-        let vt = vp - n * vp.dot(n);
-        let sliding = vt.length();
-        let mut friction = FrictionState::None;
-        if sliding > 1e-6 {
-            let t = vt / sliding;
-            let jt_stop = sliding / effective_mass_inv(t);
-            let (jt, state) = if jt_stop <= contact.friction_static * jn {
-                (jt_stop, FrictionState::Static)
-            } else {
-                (contact.friction_kinetic * jn, FrictionState::Dynamic)
-            };
-            v -= t * (jt * self.inv_mass);
-            w -= inv_tensor * r.cross(t * jt);
-            friction = state;
-        }
-        self.linear_velocity = v;
-        self.angular_velocity = w;
-        Some(Reaction { impulse: jn, closing_speed: -vn, sliding_speed: sliding, friction })
+        let mut body = self.contact_moment(&super::BodyHit {
+            restitution: params.restitution,
+            inertia_scale: params.inertia_scale,
+            ..Default::default()
+        });
+        let mut surface = super::ContactMoment {
+            mass: 1.0,
+            inverse_inertia: Mat3::ZERO,
+            centre: contact.point,
+            linear_velocity: Vec3::ZERO,
+            angular_velocity: Vec3::ZERO,
+            elasticity: 0.0,
+            immobile: true,
+            breaking_impulse: 0.0,
+            fixed_centre: true,
+        };
+        let reaction = super::react_moments(&mut body, &mut surface, contact, 16)?;
+        self.apply_contact_moment(&body);
+        Some(reaction)
     }
 }

@@ -23,7 +23,7 @@ Planned modules: an AI driver layer (controllers, speed governor, action selecti
   navigator itself is specified in [ai-road-nav-trail.md](../specs/ai-road-nav-trail.md)). Read for
   understanding only. No code, local names or tweak-variable names copied; the numeric constants and
   attribute field names quoted are facts (data).
-- **Data read from the install** (this machine, `D:\Need For Speed Most Wanted Black Edition`, with a
+- **Data read from a local install** (selected with `NFSMW_GAME_DIR`, with a
   throwaway Python AttribSys reader, nothing committed): the `aivehicle` collections and their
   multipliers; `collisionreactions` records and the goal-name hash (Jenkins lookup2, case-sensitive: `AIGoalRacer`
   = 0x08D0D8A7, `AIGoalStaticRoadBlock` = 0x9E55B2E3, `AIGoalPit` = 0xEC619CB2); `system.SimTasks` order;

@@ -27,12 +27,12 @@ pub enum MarkerKind {
     Barrier,
     Face,
     PropRigid,
-    PropLight,
+    PropMovable,
     Tyre,
 }
 
 const KINDS: [MarkerKind; 5] =
-    [MarkerKind::Barrier, MarkerKind::Face, MarkerKind::PropRigid, MarkerKind::PropLight, MarkerKind::Tyre];
+    [MarkerKind::Barrier, MarkerKind::Face, MarkerKind::PropRigid, MarkerKind::PropMovable, MarkerKind::Tyre];
 
 impl MarkerKind {
     /// Vertex colour, B G R A: the world is pre-lit with 0x80 as full brightness.
@@ -41,7 +41,7 @@ impl MarkerKind {
             Self::Barrier => [0x18, 0x18, 0x80, 0xFF],
             Self::Face => [0x18, 0x60, 0x80, 0xFF],
             Self::PropRigid => [0x80, 0x18, 0x80, 0xFF],
-            Self::PropLight => [0x18, 0x80, 0x80, 0xFF],
+            Self::PropMovable => [0x18, 0x80, 0x80, 0xFF],
             Self::Tyre => [0x20, 0x80, 0x20, 0xFF],
         }
     }
@@ -57,7 +57,7 @@ impl From<ContactKind> for MarkerKind {
             ContactKind::Barrier => Self::Barrier,
             ContactKind::Face => Self::Face,
             ContactKind::PropRigid => Self::PropRigid,
-            ContactKind::PropLight => Self::PropLight,
+            ContactKind::PropMovable => Self::PropMovable,
         }
     }
 }
@@ -231,7 +231,7 @@ mod tests {
     #[test]
     fn contacts_stay_a_while_and_the_tyre_hits_are_the_latest() {
         let mut m = ContactMarkers::default();
-        m.record(&[contact(ContactKind::Barrier), contact(ContactKind::PropLight)], tyres());
+        m.record(&[contact(ContactKind::Barrier), contact(ContactKind::PropMovable)], tyres());
         assert_eq!(m.counts(), (2, 4));
         for _ in 0..LIFETIME_STEPS - 1 {
             m.record(&[], vec![(Vec3::ZERO, Vec3::Y)]);
@@ -254,9 +254,9 @@ mod tests {
         let mut m = ContactMarkers::default();
         m.set_enabled(true);
         // Physics (1, 2, 3) is render (3, -1, 2); the normal -z is render -x.
-        m.record(&[contact(ContactKind::PropLight)], vec![]);
+        m.record(&[contact(ContactKind::PropMovable)], vec![]);
         let placed = m.placements();
-        assert!(placed.iter().all(|(kind, _)| *kind == MarkerKind::PropLight));
+        assert!(placed.iter().all(|(kind, _)| *kind == MarkerKind::PropMovable));
         let (_, stick) = placed[0];
         assert!((stick.transform_point3(Vec3::ZERO) - Vec3::new(3.0, -1.0, 2.0)).length() < 1e-5);
         let tip = stick.transform_point3(Vec3::X);

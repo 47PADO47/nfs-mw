@@ -1,0 +1,15 @@
+[package]
+name = "blackbox-sequence"
+description = "CARP event-sequence reader and deterministic state-machine runtime."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+blackbox-carp.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

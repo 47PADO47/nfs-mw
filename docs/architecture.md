@@ -27,6 +27,8 @@ scaled down.
 | [`blackbox-streaming`](../libs/blackbox-streaming) | The track streaming index | `layout::MOST_WANTED` passed by the caller |
 | [`blackbox-scenery`](../libs/blackbox-scenery) | Scenery infos and instances; visibility rule | `layout::MOST_WANTED` passed by the caller |
 | [`blackbox-collision`](../libs/blackbox-collision) | World collision packs, the collision grid, car and prop bounds, a ray-cast query | — (one layout so far) |
+| [`blackbox-carp`](../libs/blackbox-carp) | Embedded CARP tagged groups shared by collision, roads and event packages | — |
+| [`blackbox-sequence`](../libs/blackbox-sequence) | Event systems, states, action queues and timed event lists | — (event handlers and tag hashes supplied by the game) |
 | [`blackbox-feng`](../libs/blackbox-feng) | FEng user-interface packages and fonts: reader, script and message runtime, a retained `UiTree`; no rendering | — (one format version) |
 | [`blackbox-text`](../libs/blackbox-text) | Language string tables (`LANGUAGES/*.bin`) | — |
 | [`ea-audio`](../libs/ea-audio) | EA audio: SCHl streams, ABK sound banks, MPF/MUS music and its node graph, `.big` speech, `.gin` engine loops; EA-XA, EA-XAS and MicroTalk decoders | self-describing headers |
@@ -246,6 +248,9 @@ input (actions or --drive-script) ─► DriveInput ─► 60 Hz fixed step (acc
    ▼
 CarPose (render axes) ─► CarRig (assembled car, wheels posed: steer, spin, suspension travel) ─► ChaseCamera
 ```
+
+The world owns the shared physics clock for the player, traffic, trailers, contacts
+and prop timers. See [physics timing](physics-timing.md) for ordering and frame-rate tests.
 
 - **Axes.** Physics space is x right, y up, z forward (left-handed); the world and the car models are x forward,
   y left, z up. `sim.rs` builds the pose from the body's axes column by column, puts the model origin at the

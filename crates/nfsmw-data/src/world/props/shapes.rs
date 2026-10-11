@@ -1,0 +1,173 @@
+//! Static bounds conversion for scenery without a physics spawner.
+
+use blackbox_collision::{BoundsSet, Shape, bounds_flags};
+use glam::{Mat3, Quat, Vec3};
+
+use super::LocalBox;
+
+/// A bounds-space (physics axes) vector in the model's axes: `(x, y, z) -> (z, -x, y)`.
+fn to_model(v: [f32; 3]) -> Vec3 {
+    Vec3::new(v[2], -v[0], v[1])
+}
+
+/// Bounds space to model space as a matrix: a reflection, since physics space is left-handed.
+fn model_from_bounds() -> Mat3 {
+    Mat3::from_cols(Vec3::new(0.0, -1.0, 0.0), Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0))
+}
+
+/// A box at least this tall (half height, metres) and this long (half length) with a long side this many times
+/// its short one is a mast arm: a pole with a bar over the road.
+const ARM_MIN_HEIGHT: f32 = 2.0;
+const ARM_MIN_REACH: f32 = 1.0;
+const ARM_RATIO: f32 = 2.5;
+
+/// The pole of a mast arm. The data gives a street light or traffic light with an arm one slab from the ground to
+/// the top and along the whole arm, so a car driving under the arm hit it. Only the pole stands in the way: the
+/// slab is cut to its short side, kept at the place nearest the model's origin (the foot of the pole). Any other
+/// box is returned as it is.
+fn pole_of_arm(b: LocalBox) -> LocalBox {
+    let (long, short) = if b.half.y >= b.half.x { (1, 0) } else { (0, 1) };
+    if b.half.z < ARM_MIN_HEIGHT || b.half[long] < ARM_MIN_REACH || b.half[long] < ARM_RATIO * b.half[short] {
+        return b;
+    }
+    let axis = b.rotation * if long == 1 { Vec3::Y } else { Vec3::X };
+    // Where the model's origin is along the arm, from the box's centre, kept inside the slab.
+    let reach = b.half[long] - b.half[short];
+    let along = (-b.centre).dot(axis).clamp(-reach, reach);
+    let mut half = b.half;
+    half[long] = half[short];
+    LocalBox { centre: b.centre + axis * along, half, ..b }
+}
+
+/// The boxes of a bounds set in model space. Nodes that collide with the world count; a set with none
+/// uses its root. Spheres become the cube around them. The arm of a street light or traffic light is not part
+/// of its boxes (see [`pole_of_arm`]).
+pub fn boxes(set: &BoundsSet) -> Vec<LocalBox> {
+    let usable = |n: &&blackbox_collision::Bounds| {
+        n.flags & bounds_flags::DISABLED == 0 && matches!(n.shape(), Shape::Box | Shape::Sphere)
+    };
+    let mut nodes: Vec<_> =
+        set.nodes.iter().filter(usable).filter(|n| n.flags & bounds_flags::PRIM_VS_WORLD != 0).collect();
+    if nodes.is_empty() {
+        nodes = set.nodes.iter().take(1).filter(usable).collect();
+    }
+    let m = model_from_bounds();
+    nodes
+        .into_iter()
+        .map(|n| {
+            let [x, y, z, w] = n.orientation;
+            let q = Quat::from_xyzw(x, y, z, w);
+            let q = if q.length_squared() > 1e-6 { q.normalize() } else { Quat::IDENTITY };
+            let rotation = Quat::from_mat3(&(m * Mat3::from_quat(q) * m.transpose()));
+            let half = n.half_dimensions;
+            let half = if n.shape() == Shape::Sphere { [n.radius; 3] } else { half };
+            pole_of_arm(LocalBox { centre: to_model(n.pivot), rotation, half: Vec3::new(half[2], half[0], half[1]) })
+        })
+        .collect()
+}
+#[cfg(test)]
+mod tests {
+    use blackbox_collision::Bounds;
+
+    use super::*;
+
+    fn node(flags: u16, pivot: [f32; 3], half: [f32; 3]) -> Bounds {
+        Bounds {
+            orientation: [0.0, 0.0, 0.0, 1.0],
+            position: [0.0; 3],
+            flags,
+            half_dimensions: half,
+            child_count: 0,
+            point_cloud: None,
+            pivot,
+            first_child: 0,
+            radius: half[0],
+            surface: 0,
+            name_hash: 0,
+        }
+    }
+
+    #[test]
+    fn bounds_axes_become_model_axes() {
+        // Physics axes: 0.3 wide (x), 0.7 tall (y), 0.5 long (z), centred 0.7 up and 0.1 ahead.
+        let set = BoundsSet {
+            name_hash: 1,
+            nodes: vec![node(bounds_flags::BOX | bounds_flags::PRIM_VS_WORLD, [0.0, 0.7, 0.1], [0.3, 0.7, 0.5])],
+            point_clouds: vec![],
+        };
+        let b = boxes(&set);
+        assert_eq!(b.len(), 1);
+        // Model axes: forward = length, left = width, up = height; the centre 0.1 ahead and 0.7 up.
+        assert_eq!(b[0].half, Vec3::new(0.5, 0.3, 0.7));
+        assert!((b[0].centre - Vec3::new(0.1, 0.0, 0.7)).length() < 1e-6);
+        assert!(b[0].rotation.angle_between(Quat::IDENTITY) < 1e-5);
+    }
+
+    #[test]
+    fn a_turned_box_turns_the_same_way_in_model_space() {
+        // A quarter turn about the physics up axis (y) swaps the box's width and length in the world, and
+        // about the model's up axis (z) too, with the opposite sense because the spaces mirror each other.
+        let mut n = node(bounds_flags::BOX | bounds_flags::PRIM_VS_WORLD, [0.0; 3], [1.0, 1.0, 1.0]);
+        let q = Quat::from_rotation_y(std::f32::consts::FRAC_PI_2);
+        n.orientation = [q.x, q.y, q.z, q.w];
+        let set = BoundsSet { name_hash: 1, nodes: vec![n], point_clouds: vec![] };
+        let r = boxes(&set)[0].rotation;
+        // Physics +z (forward) turned about +y by 90 degrees points along +x (right); in model axes that
+        // is forward turned to the -y (right) side: the model's forward axis goes to its right.
+        let turned_forward = r * Vec3::X;
+        assert!((turned_forward - Vec3::NEG_Y).length() < 1e-4, "{turned_forward:?}");
+        assert!((r * Vec3::Z - Vec3::Z).length() < 1e-4, "up stays up");
+    }
+
+    #[test]
+    fn the_arm_of_a_traffic_light_is_cut_off_and_only_the_pole_stays() {
+        // The data of XO_TrafficLightB: one slab 0.47 wide, 3.75 long and 8.7 tall, the pole at the model's origin.
+        let slab = LocalBox {
+            centre: Vec3::new(0.0, -1.644, 4.313),
+            rotation: Quat::IDENTITY,
+            half: Vec3::new(0.235, 1.873, 4.347),
+        };
+        let pole = pole_of_arm(slab);
+        assert_eq!(pole.half, Vec3::new(0.235, 0.235, 4.347));
+        assert!(pole.centre.y.abs() < 0.01, "the pole stands at the origin: {:?}", pole.centre);
+        assert_eq!(pole.centre.z, slab.centre.z);
+        // The arm side is clear: a car one metre to the side of the pole does not touch it.
+        assert!(pole.centre.y - pole.half.y > -0.5);
+    }
+
+    #[test]
+    fn boxes_that_are_not_arms_stay_as_they_are() {
+        let squat =
+            LocalBox { centre: Vec3::new(0.0, -1.0, 0.4), rotation: Quat::IDENTITY, half: Vec3::new(0.2, 1.5, 0.4) };
+        let fat =
+            LocalBox { centre: Vec3::new(0.0, 0.0, 3.7), rotation: Quat::IDENTITY, half: Vec3::new(1.0, 1.2, 3.7) };
+        let thin =
+            LocalBox { centre: Vec3::new(0.0, 0.0, 3.0), rotation: Quat::IDENTITY, half: Vec3::new(0.2, 0.3, 3.0) };
+        for b in [squat, fat, thin] {
+            assert_eq!(pole_of_arm(b), b);
+        }
+    }
+
+    #[test]
+    fn only_world_colliding_nodes_count_else_the_root() {
+        let set = BoundsSet {
+            name_hash: 1,
+            nodes: vec![
+                node(bounds_flags::BOX, [0.0; 3], [1.0; 3]),
+                node(bounds_flags::BOX | bounds_flags::PRIM_VS_WORLD, [1.0, 0.0, 0.0], [0.5; 3]),
+                node(
+                    bounds_flags::BOX | bounds_flags::PRIM_VS_WORLD | bounds_flags::DISABLED,
+                    [2.0, 0.0, 0.0],
+                    [0.5; 3],
+                ),
+            ],
+            point_clouds: vec![],
+        };
+        let b = boxes(&set);
+        assert_eq!(b.len(), 1);
+        assert_eq!(b[0].half, Vec3::splat(0.5));
+        let only_root =
+            BoundsSet { name_hash: 1, nodes: vec![node(bounds_flags::BOX, [0.0; 3], [1.0; 3])], point_clouds: vec![] };
+        assert_eq!(boxes(&only_root).len(), 1);
+    }
+}
