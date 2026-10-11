@@ -11,7 +11,7 @@ pub enum PostSetting {
 }
 
 impl PostSetting {
-    pub const ALL: [Self; 3] = [Self::Tonemap, Self::Bloom, Self::Aa];
+    pub const ALL: [Self; 3] = [Self::Aa, Self::Tonemap, Self::Bloom];
 
     pub fn title(self) -> Title {
         Title::Text(match self {
