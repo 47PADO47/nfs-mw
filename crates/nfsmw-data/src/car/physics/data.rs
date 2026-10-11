@@ -2,11 +2,12 @@
 //! and the road surfaces.
 
 use anyhow::{Context, Result};
-use blackbox_attrib::Database;
-use blackbox_collision::BoundsSet;
+use blackbox_attrib::{Database, vlt_hash};
+use blackbox_collision::{BoundsSet, find_bounds};
 use game_install::GameDir;
+use std::sync::Arc;
 
-use super::{CarPhysics, SurfaceTable, car_bounds, car_physics, read_car_bounds};
+use super::{CarGeometry, CarPhysics, Fields, SurfaceTable, car_bounds, car_physics, read_car_bounds};
 
 pub struct PhysicsData {
     db: Database,
@@ -33,13 +34,23 @@ impl PhysicsData {
     /// The physics of car type `type_name` (e.g. `BMWM3GTR`). A vehicle without bounds of its own (the
     /// semi tractor variants `semib`, `semicon`, ...) has the bounds of the nearest ancestor that has them.
     pub fn car(&self, type_name: &str) -> Result<CarPhysics> {
-        let mut names = self.lineage(type_name).into_iter();
-        let first = names.next().unwrap_or_else(|| type_name.to_owned());
-        let bounds = match car_bounds(&self.bounds, &first) {
-            Ok(bounds) => bounds,
-            Err(e) => names.find_map(|name| car_bounds(&self.bounds, &name).ok()).ok_or(e)?,
-        };
-        car_physics(&self.db, type_name, bounds)
+        let (bounds, source) = self
+            .lineage(type_name)
+            .into_iter()
+            .find_map(|name| {
+                let bounds = car_bounds(&self.bounds, &name).ok()?;
+                let source = find_bounds(&self.bounds, vlt_hash(&name.to_ascii_uppercase()))?;
+                Some((bounds, source))
+            })
+            .with_context(|| format!("{type_name} has no collision bounds in its vehicle lineage"))?;
+        let mut physics = car_physics(&self.db, type_name, bounds)?;
+        let record = self
+            .db
+            .collection("pvehicle", &type_name.to_ascii_lowercase())
+            .and_then(|v| v.follow("rigidbodyspecs"))
+            .map(Fields);
+        physics.geometry = CarGeometry::read(Arc::new(source.clone()), record).map(Arc::new);
+        Ok(physics)
     }
 
     /// The `pvehicle` named `name` and then its ancestors, by name (`semib`, `semi`, `tractors`); just

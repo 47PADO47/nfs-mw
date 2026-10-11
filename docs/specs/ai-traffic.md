@@ -81,15 +81,13 @@ audio behaviours are the `Traffic` variants. All numbers below are **[verified]*
   A trailer `pvehicle` has a chassis, tires and brakes but **no engine and no transmission**: it is a body that
   only rolls and brakes. Its axles are a tandem at the back of its box (front axle 2.8 m, rear axle 4.3 m behind
   the box centre, which leaves its centre of gravity over the axles: front weight bias 50 %).
-- **The 5th wheel point [decision].** Neither the sources nor the data say where the joint sits (the tractor
-  class only creates the trailer and holds the two together). This rewrite puts the hitch at the middle of the
-  back edge of the tractor's collision box and the kingpin at the middle of the front edge of the trailer's box
-  (so the two boxes touch end to end), both 1.2 m (about four feet, the height of a real 5th wheel plate)
-  above the bottom of their own box so the trailer rides level. The joint is a ball joint: the trailer yaws,
-  pitches and rolls freely about the kingpin, held there by impulses with a Baumgarte correction of 0.2 per step,
-  four passes per 60 Hz step (`BallJoint` in `blackbox-vehicle`). The original's joint model (hinge, limits,
-  spring) is not known; a ball joint plus the release rules below reproduces what the description of the rules
-  says.
+- **The 5th wheel point [verified data, PC routine inspected].** The female and male `5THWHEEL`
+  bounds carry local anchors. All six installed tractor/trailer variants resolve these nodes; the tractor
+  anchor is (0, -0.403, -2.928) m and the log trailer's is (0.015, -1.168, 4.483) m. The runtime uses
+  their stored positions directly. See [world sequencers](world-sequencers.md#bounds-and-hitch).
+  Response still uses a ball joint with Baumgarte correction 0.2 and four passes per 60 Hz step.
+  The original's conical/prismatic child constraints remain to be implemented; the current unconstrained
+  ball joint is an approximation, even with the correct anchors.
 - **Spawning and removal.** The trailer is placed behind the tractor on the same heading with the same speed, with
   its kingpin on the hitch, and is removed with it. A tractor whose test says "invalid" is kept while its trailer
   is valid (section 8 of the spawning spec) and a trailer that has come loose and is invalid is removed on its own.

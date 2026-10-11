@@ -13,6 +13,7 @@ pub use obb::{Obb, PropOverlap};
 
 use super::drive::walls::{ContactKind, ContactPoint, Impact};
 use super::{resident::Placed, space};
+use blackbox_collision::BodyGeometry;
 use blackbox_scene::Aabb;
 use blackbox_vehicle::{Ground, Vehicle, rigid_body::BodyState};
 use glam::{Mat4, Vec3};
@@ -261,15 +262,17 @@ impl PropWorld {
     }
 
     /// A vehicle transfers impulses to resident bodies, including previously fallen ones.
-    pub fn collide_vehicle(&mut self, vehicle: &mut Vehicle, impact: &mut Impact) {
+    pub fn collide_vehicle(&mut self, vehicle: &mut Vehicle, geometry: Option<&BodyGeometry>, impact: &mut Impact) {
         let centre = space::to_render(vehicle.position().to_array());
-        let radius = vehicle.body().radius();
+        let radius = geometry.map_or(vehicle.body().radius(), |g| {
+            g.primitives.iter().map(|p| p.centre.length() + p.half.length()).fold(0.0_f32, f32::max)
+        });
         let bounds = Aabb::new((centre - radius).to_array(), (centre + radius).to_array());
         for id in self.candidates(&bounds) {
             let c = self.colliders.get_mut(&id).unwrap();
             let Some(p) = c.body.as_mut() else { continue };
             let Some(spec) = &c.shape.dynamics else { continue };
-            let Some((hit, _surface)) = contact::car_contact(vehicle.body(), p) else { continue };
+            let Some((hit, _surface)) = contact::car_contact(vehicle.body(), geometry, p) else { continue };
             let mut car = contact::material(vehicle.body(), hit.normal);
             car.immobile = spec.no_car_effect && !p.attached && !spec.immobile;
             let prop = contact::parameters(&p.rigid, -hit.normal, spec, p.attached);

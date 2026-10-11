@@ -1,19 +1,35 @@
 //! Original contact materials, attachment and no-car-effect overrides.
 
-use blackbox_collision::bounds_flags;
+use blackbox_collision::{BodyGeometry, bounds_flags};
 use blackbox_vehicle::rigid_body::{BodyHit, Obb, ObbContact, PlaneContact, RigidBody, obb_contact, react_moments};
-use glam::Vec3;
+use glam::{Mat3, Vec3};
 use nfsmw_data::world::PropDynamics;
 
 use super::body::PropBody;
 
-pub(super) fn car_contact(car: &RigidBody, prop: &PropBody) -> Option<(ObbContact, u32)> {
-    let a = Obb { centre: car.position, axes: car.rotation(), half: car.dimension() };
+pub(super) fn car_contact(
+    car: &RigidBody,
+    geometry: Option<&BodyGeometry>,
+    prop: &PropBody,
+) -> Option<(ObbContact, u32)> {
+    let shapes = match geometry {
+        Some(g) => g
+            .primitives
+            .iter()
+            .filter(|p| p.collides(bounds_flags::PRIM_VS_OBJECTS))
+            .map(|p| Obb {
+                centre: car.position + car.rotation() * p.centre,
+                axes: car.rotation() * Mat3::from_quat(p.rotation),
+                half: p.half,
+            })
+            .collect(),
+        None => vec![Obb { centre: car.position, axes: car.rotation(), half: car.dimension() }],
+    };
     prop.geometry
         .primitives
         .iter()
         .filter(|p| p.collides(bounds_flags::PRIM_VS_OBJECTS))
-        .filter_map(|p| Some((obb_contact(&a, &prop.obb(p))?, p.surface)))
+        .flat_map(|p| shapes.iter().filter_map(move |a| Some((obb_contact(a, &prop.obb(p))?, p.surface))))
         .max_by(|a, b| a.0.overlap.total_cmp(&b.0.overlap))
 }
 

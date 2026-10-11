@@ -69,7 +69,7 @@ fn hit(no_effect: bool, detach: f32, speed: f32) -> (PropWorld, Vehicle, Impact,
     world.add_tile(1, &mut p);
     let mut v = car(speed);
     let mut impact = Impact::default();
-    world.collide_vehicle(&mut v, &mut impact);
+    world.collide_vehicle(&mut v, None, &mut impact);
     (world, v, impact, p[0].prop_id)
 }
 
@@ -140,7 +140,7 @@ fn loose_prop_can_hit_another_prop_and_be_hit_again() {
     let mut v = car(20.0);
     v.body_mut().position = world.colliders[&id].body.as_ref().unwrap().rigid.position - Vec3::Z * 2.5;
     let mut impact = Impact::default();
-    world.collide_vehicle(&mut v, &mut impact);
+    world.collide_vehicle(&mut v, None, &mut impact);
     assert!(!impact.contacts.is_empty(), "fallen prop remains collidable");
 }
 
@@ -211,7 +211,7 @@ fn flagless_cone_bounds_make_a_body_at_the_root_pivot_without_a_visual_jump() {
     let mut v = car(20.0);
     v.body_mut().position += at;
     let mut impact = Impact::default();
-    world.collide_vehicle(&mut v, &mut impact);
+    world.collide_vehicle(&mut v, None, &mut impact);
     assert!(!impact.contacts.is_empty(), "a root without collision flags still needs a collision body");
     assert!(world.colliders[&p.prop_id].body.as_ref().unwrap().rigid.linear_velocity.length() > 1.0);
 }

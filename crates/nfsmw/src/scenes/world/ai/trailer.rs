@@ -1,9 +1,10 @@
 //! The trailer a semi tractor pulls: its own car physics, held to the tractor by a ball joint at the 5th
 //! wheel until the joint lets go.
-//! Spec: `docs/specs/ai-traffic.md` (§2, the 5th wheel decision).
+//! Geometry: `docs/specs/world-sequencers.md`; constraint response is still approximate.
 
 use std::rc::Rc;
 
+use blackbox_attrib::vlt_hash;
 use blackbox_collision::CollisionWorld;
 use blackbox_vehicle::rigid_body::BallJoint;
 use glam::Vec3;
@@ -15,23 +16,15 @@ use crate::scenes::world::drive::{CarPose, CarRig, CarSim, DriveInput, STEP, Wor
 use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::road::Spawn;
 
-/// Height of the 5th wheel and the kingpin above the bottom of each body's box, metres. The install does not
-/// say where the joint is (`docs/specs/ai-traffic.md`, 5th wheel decision); a real 5th wheel plate sits about
-/// four feet above the road, and the same height on both bodies keeps the trailer level.
-pub const FIFTH_WHEEL_HEIGHT: f32 = 1.2;
 /// Solver passes of the joint per physics step.
 const SOLVER_PASSES: usize = 4;
 /// Below this speed (m/s) a body counts as standing still.
 const IDLE_SPEED: f32 = 0.5;
 
-/// The joint of a tractor and its trailer, anchors in each body's own frame (physics axes, from the centre of
-/// its box): the tractor's hitch is at the back of its box, the trailer's kingpin at the front of its box,
-/// both `FIFTH_WHEEL_HEIGHT` above the bottom.
-pub fn fifth_wheel(tractor_half: Vec3, trailer_half: Vec3) -> BallJoint {
-    BallJoint {
-        anchor_a: Vec3::new(0.0, FIFTH_WHEEL_HEIGHT - tractor_half.y, -tractor_half.z),
-        anchor_b: Vec3::new(0.0, FIFTH_WHEEL_HEIGHT - trailer_half.y, trailer_half.z),
-    }
+/// Matching named female/male nodes, in each body's own physics frame.
+pub fn fifth_wheel(tractor: &CarSim, trailer: &CarSim) -> Option<BallJoint> {
+    let name = vlt_hash("5THWHEEL");
+    Some(BallJoint { anchor_a: tractor.joint_anchor(name, false)?, anchor_b: trailer.joint_anchor(name, true)? })
 }
 
 /// What the tractor's driver asks of the trailer's brakes.
@@ -48,8 +41,8 @@ pub struct Coupling {
 }
 
 impl Coupling {
-    pub fn new(tractor: &CarSim, trailer: &CarSim) -> Self {
-        Self { joint: fifth_wheel(tractor.half_dimensions(), trailer.half_dimensions()), hitch: Hitch::default() }
+    pub fn new(tractor: &CarSim, trailer: &CarSim) -> Option<Self> {
+        Some(Self { joint: fifth_wheel(tractor, trailer)?, hitch: Hitch::default() })
     }
 
     pub fn is_hitched(&self) -> bool {
@@ -112,9 +105,9 @@ impl TrailerCar {
     ) -> Option<Self> {
         let mut sim = CarSim::for_rig(model.physics.clone(), &model.rig);
         sim.configure_trailer();
-        let coupling = Coupling::new(tractor, &sim);
-        // Centre to centre along the road: the tractor's box length to the hitch, the trailer's to its centre.
-        let back = tractor.half_dimensions().z + sim.half_dimensions().z;
+        let coupling = Coupling::new(tractor, &sim)?;
+        // Query the road near the actual kingpin position before aligning the two body frames.
+        let back = coupling.joint.anchor_b.z - coupling.joint.anchor_a.z;
         let (sin, cos) = spawn.heading.sin_cos();
         let position = spawn.position - Vec3::new(cos * back, sin * back, 0.0);
         if !sim.place_moving(ground, Spawn { position, heading: spawn.heading }, speed) {

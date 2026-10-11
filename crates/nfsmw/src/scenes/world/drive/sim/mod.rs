@@ -10,7 +10,8 @@ use blackbox_vehicle::induction::InductionKind;
 use blackbox_vehicle::{FIXED_STEP, Ground, InputState, Vehicle};
 use glam::{Mat3, Quat, Vec3};
 use nfsmw_data::car::WheelPose;
-use nfsmw_data::car::physics::{CarPhysics, SurfaceTable, WallSpec};
+use nfsmw_data::car::physics::{CarGeometry, CarPhysics, SurfaceTable, WallSpec};
+use std::sync::Arc;
 
 use super::input::DriveInput;
 use super::rig::CarPose;
@@ -68,6 +69,7 @@ pub struct CarSim {
     spin: [f32; 4],
     walls: WallSpec,
     visual_tires: Option<[super::visual_tires::VisualTire; 4]>,
+    geometry: Option<Arc<CarGeometry>>,
 }
 
 /// A vector from physics space to render space axes: `(x, y, z) -> (z, -x, y)`.
@@ -91,6 +93,7 @@ impl CarSim {
             spin: [0.0; 4],
             walls: physics.walls,
             visual_tires: None,
+            geometry: physics.geometry,
         }
     }
 
@@ -151,7 +154,7 @@ impl CarSim {
                     &walls::world_props(props),
                     &self.walls,
                 );
-                props.collide_vehicle(&mut self.vehicle, &mut impact);
+                props.collide_vehicle(&mut self.vehicle, self.geometry.as_ref().map(|g| &g.body), &mut impact);
                 impact
             }
             None => Impact::default(),

@@ -20,9 +20,9 @@ isolated routines, scene integration and live-game comparisons.
 |---|---|---|
 | Car response | Fixed friction/restitution, textbook impulse | 32-iteration solver matches 13 PC reference cases; per-body object materials and grounded player contact centre integrated; AI reaction overrides pending |
 | Timing | Player/AI step separately; pairs collide once per render frame | Shared 60 Hz world tick; car-state and impact traces identical at 5/10/30/60/120/144/240 FPS and uneven frames; live validation pending |
-| Geometry | Flattened prop hierarchy, single car box, no swept object contacts | Prop child selection, root frames, padding and fallback geometry match measured construction rules; car primitives and sweeps pending |
+| Geometry | Flattened prop hierarchy, single car box, no swept object contacts | Car/prop child selection, root frames, padding and fallback geometry integrated; spheres, contact manifolds and sweeps pending |
 | Scenery | Name guesses, >150 kg immovable, lighter props disappear for six seconds | All 13,484 placements join exactly to scenery/attributes; persistent bodies, breakaway and no-car-effect response integrated; geometry and lifecycle parity pending |
-| Trailers | Approximate anchors and response | Pending bounds joints and reference comparison |
+| Trailers | Approximate anchors and response | Original named anchors read and used for all six installed variants; constrained joint solver and live comparison pending |
 | Truck cargo | No released logs/crates | Original event packages and deterministic sequencer implemented; installed log damage trigger emits original fragments once; bodies/render integration pending |
 | World/ground | Approximate probes and solver | Pending original comparison |
 | Damage/feedback | Partial sparks/audio, incomplete collision events | Pending |
@@ -66,3 +66,17 @@ state machines to DropLoad, verifies its fragment/explosion events and its empty
 state after completion. Queue/timing traces match across render rates and stalls.
 See [sequence provenance](provenance/world-sequencers.md) for coverage and limits.
 This is event/data validation; falling cargo is not yet wired into the world.
+
+## Vehicle geometry and hitch checks
+
+The intact car body uses its enabled object primitives for car/prop and car/car
+contacts, retaining gaps and disabled parts. Broad-phase radii include child
+offsets and padding. The frame-rate regression uses a compound vehicle body.
+The existing box contact-point algorithm remains an approximation.
+
+All six tractor/trailer variants resolve their original named anchors. A flat
+ground test exercises the four variants used in traffic patterns after their
+unloaded suspensions settle. The unused cement trailer has unusual rotated
+bounds: its stored anchor is lateral rather than below the body. An initial
+trial leaves a 0.15 m gap during driving; that model needs separate original-game
+validation. Joint constraints and spawning/suspension parity remain open.

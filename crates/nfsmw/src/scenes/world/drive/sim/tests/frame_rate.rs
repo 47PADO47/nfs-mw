@@ -17,6 +17,7 @@ fn run(frame_times: impl IntoIterator<Item = f32>) -> Trace {
         cars.iter_mut().zip([(100.0, 0.0, 25.0), (112.0, 0.0, 0.0), (145.0, std::f32::consts::PI, 20.0)])
     {
         car.configure_ai();
+        super::geometry::compound(car);
         assert!(car.place_moving(&ground, Spawn { position: Vec3::new(x, 50.0, 5.0), heading }, speed));
     }
     cars[1].body_mut().set_mass(2500.0);

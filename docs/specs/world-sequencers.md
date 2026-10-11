@@ -69,9 +69,13 @@ before claiming complete parity. Parsing a sequence does not prove its effects.
 
 ## Bounds and hitch
 
-Named female/male joint bounds identify the tractor and trailer anchors. Convert
-their pivots from model space to body space by subtracting the root pivot.
-Match joint names; do not infer anchors from vehicle length or a constant height.
+Named female/male joint bounds identify the tractor and trailer anchors. The PC
+CreateJoint routine (`0x6718F0`) searches immediate children of each body's root
+for the requested name and female/male flag, then uses their stored `position`
+vectors directly as the local anchors. Do not derive them from absolute pivots:
+separate quantization can produce different values. The tractor requests
+`5THWHEEL` on both bodies. Missing either node means no joint can be created.
+Do not infer anchors from vehicle length or a constant height.
 Conical/prismatic child bounds carry constraint data; the current ball-joint
 solver remains an approximation until those constraints are implemented.
 
