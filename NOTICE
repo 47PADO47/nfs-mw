@@ -150,6 +150,14 @@ Input references
     Reference for configurable per-axis cutoff deadzones and controller mappings. No code copied.
 
 Rendering concepts
+  Intel XeGTAO — https://github.com/GameTechDev/XeGTAO — MIT.
+    Copyright (C) 2016-2021, Intel Corporation.
+    Horizon search and analytic slice integration adapted in
+    libs/blackbox-render/src/shaders/ao_horizon.wgsl, which carries the full MIT notice.
+    This is a compact depth-only GTAO experiment, not the complete XeGTAO implementation.
+  Quasar — https://github.com/dev25bansal-ops/quasar — MIT.
+    Hemisphere SSAO shader considered as a reference; no code copied.
+    See docs/ambient-occlusion.md for the approach and limitations.
   NVIDIA GPU Gems 3, chapter 23.4, soft particles — reference only.
     https://developer.nvidia.com/gpugems/gpugems3/part-iv-image-effects/chapter-23-high-speed-screen-particles
     Depth-based intersection fading concept; no shader or source code copied.

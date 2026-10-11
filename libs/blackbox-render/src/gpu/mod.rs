@@ -1,6 +1,7 @@
 //! The wgpu implementation of the renderer (Vulkan, Direct3D 12, OpenGL).
 
 mod adapters;
+pub(crate) mod ao;
 mod backend_impl;
 mod capture;
 mod effects;
@@ -52,6 +53,7 @@ pub struct Renderer {
     /// The format of the offscreen image when a pass needs HDR: `Rgba16Float`, or the surface format.
     hdr_format: wgpu::TextureFormat,
     post: post::PostChain,
+    ao: Option<ao::AmbientOcclusion>,
     render_scale: f32,
     upscale: upscale::Upscale,
     shared: resources::Shared,

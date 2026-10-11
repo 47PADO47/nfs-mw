@@ -46,6 +46,9 @@ impl RenderBackend for Renderer {
         Renderer::set_upscale_sharpness(self, effective.upscale_sharpness);
         Renderer::set_render_scale(self, effective.render_scale);
         Renderer::set_texture_lod_bias(self, suggested_texture_lod_bias(effective.render_scale));
+        if !effective.ao.active() {
+            self.ao = None;
+        }
         self.graphics = effective;
         resolved
     }

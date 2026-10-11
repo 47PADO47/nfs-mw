@@ -65,6 +65,7 @@ fn capability_lines(caps: &Capabilities) -> Vec<String> {
         format!("  upscalers:     {}", names(caps.upscalers.iter().map(|u| u.name()))),
         format!("  tone mapping:  {}", names(caps.tonemaps.iter().map(|t| t.name()))),
         format!("  bloom:         {}", yes_no(caps.bloom)),
+        format!("  ambient AO:    {}", yes_no(caps.ambient_occlusion)),
         format!("  ray tracing:   {ray_tracing}"),
         format!("  render scale:  {:.2} to {:.2}", caps.render_scale.0, caps.render_scale.1),
         format!("  BC textures:   {}", yes_no(caps.compressed_bc)),
@@ -83,6 +84,7 @@ fn value_of(setting: Setting, g: &GraphicsSettings) -> String {
         Setting::Bloom if g.post.bloom_intensity > 0.0 => format!("{:.2}", g.post.bloom_intensity),
         Setting::Bloom => "off".to_owned(),
         Setting::RayTracing => g.ray_tracing.name().to_owned(),
+        Setting::AmbientOcclusion => format!("{} {:.0}%", g.ao.quality, g.ao.intensity * 100.0),
     }
 }
 

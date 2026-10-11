@@ -11,7 +11,7 @@ use crate::settings::{
 };
 
 /// Settings the console can show.
-const KEYS: [&str; 47] = [
+const KEYS: [&str; 50] = [
     "deadzone_mode",
     "steering_deadzone",
     "camera_deadzone",
@@ -54,6 +54,9 @@ const KEYS: [&str; 47] = [
     "post_tonemap",
     "post_bloom",
     "post_aa",
+    "ao",
+    "ao_intensity",
+    "ao_compare",
     "render_scale",
     "upscaler",
     "upscale_sharpness",
@@ -106,6 +109,9 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "post_tonemap" => settings.post_tonemap.to_string(),
         "post_bloom" => settings.post_bloom.to_string(),
         "post_aa" => settings.post_aa.to_string(),
+        "ao" => settings.ao.to_string(),
+        "ao_intensity" => settings.ao_intensity.to_string(),
+        "ao_compare" => on_off(settings.ao_compare).to_owned(),
         "render_scale" => settings.render_scale.to_string(),
         "upscaler" => settings.upscaler.to_string(),
         "upscale_sharpness" => settings.upscale_sharpness.to_string(),
@@ -169,6 +175,9 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "post_tonemap" => settings.post_tonemap = PostTonemap::from_str(value)?,
         "post_bloom" => settings.post_bloom = PostBloom::from_str(value)?,
         "post_aa" => settings.post_aa = PostAa::from_str(value)?,
+        "ao" => settings.ao = value.parse()?,
+        "ao_intensity" => settings.ao_intensity = value.parse()?,
+        "ao_compare" => settings.ao_compare = parse_bool(value)?,
         "render_scale" => settings.render_scale = RenderScale::from_str(value)?,
         "upscaler" => settings.upscaler = value.parse()?,
         "upscale_sharpness" => settings.upscale_sharpness = Percent::from_str(value)?,
@@ -199,6 +208,7 @@ fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
         "radio" => Some(&mut settings.radio),
         "manual_clutch" => Some(&mut settings.manual_clutch),
         "h_shifter" => Some(&mut settings.h_shifter),
+        "ao_compare" => Some(&mut settings.ao_compare),
         _ => None,
     }
 }
@@ -228,6 +238,8 @@ fn syntax(key: &str) -> Option<&'static str> {
         "post_tonemap" => "<off|aces>",
         "post_bloom" => "<off|low|medium|high>",
         "post_aa" => "<off|fxaa|smaa|taa>",
+        "ao" => "<off|low|medium|high>",
+        "ao_intensity" => "<0-100>",
         "render_scale" => "<50-200>",
         "upscaler" => "<off|bilinear|fsr1|fsr3|fsr4|dlss>",
         "upscale_sharpness" => "<0-100>",

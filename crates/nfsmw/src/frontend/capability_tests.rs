@@ -26,7 +26,7 @@ fn text(s: &'static str) -> Title {
 #[test]
 fn the_native_renderer_hides_ray_tracing_and_the_quality_mode_but_has_the_renderer_row() {
     let video = titles(Category::Video, &test_caps::native());
-    assert_eq!(video.len(), 20);
+    assert_eq!(video.len(), 23);
     for hidden in ["Ray Tracing", "Upscale Quality"] {
         assert!(!video.contains(&text(hidden)), "{hidden} needs a renderer that offers it");
     }
@@ -43,7 +43,7 @@ fn the_native_renderer_hides_ray_tracing_and_the_quality_mode_but_has_the_render
 #[test]
 fn a_full_renderer_has_every_row_next_to_the_setting_it_belongs_with() {
     let video = titles(Category::Video, &test_caps::full());
-    assert_eq!(video.len(), 22);
+    assert_eq!(video.len(), 25);
     let at =
         |name: &'static str| video.iter().position(|t| *t == text(name)).unwrap_or_else(|| panic!("no {name} row"));
     assert_eq!(at("Upscale Quality"), at("Upscaler") + 1);
@@ -171,4 +171,34 @@ fn the_preset_row_reaches_ultra_and_the_native_renderer_shows_it_as_high() {
     assert_eq!(c.ray_tracing, Some(RayTracingLevel::Medium), "the preset writes every key it sets");
     preset.advance(&mut s, &mut c, true, &native);
     assert_eq!(preset.data_in(&s, &native), Data::Text("Custom".into()), "forward from ultra wraps to custom");
+}
+
+#[test]
+fn ao_rows_follow_support_and_keep_disabled_preferences() {
+    use crate::settings::{AoQuality, Percent};
+    let native = test_caps::native();
+    let unsupported = blackbox_gfx::Capabilities { ambient_occlusion: false, ..native };
+    for title in ["Ambient Occlusion (Experimental)", "AO Intensity", "AO Comparison"] {
+        assert!(titles(Category::Video, &native).contains(&text(title)));
+        assert!(!titles(Category::Video, &unsupported).contains(&text(title)));
+    }
+    let mut s = Settings { ao: AoQuality::Off, ao_intensity: Percent(65), ao_compare: true, ..defaults() };
+    let before = s;
+    let mut changes = Partial::default();
+    for setting in [GraphicsSetting::AoIntensity, GraphicsSetting::AoComparison] {
+        let row = Setting::Graphics(setting);
+        assert!(!row.enabled(&s));
+        for forward in [false, true] {
+            assert!(!row.advance(&mut s, &mut changes, forward, &native));
+        }
+    }
+    assert_eq!(s, before);
+    assert_eq!(changes, Partial::default());
+    s.ao = AoQuality::Medium;
+    assert!(Setting::Graphics(GraphicsSetting::AoIntensity).advance(&mut s, &mut changes, true, &native));
+    assert_eq!(changes.ao_intensity, Some(Percent(75)));
+    assert_eq!(
+        Setting::Graphics(GraphicsSetting::AmbientOcclusion).data_in(&s, &unsupported),
+        Data::Text("Off".into())
+    );
 }

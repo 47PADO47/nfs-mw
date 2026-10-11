@@ -38,7 +38,7 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
             .chain(
                 GraphicsSetting::ALL
                     .into_iter()
-                    .filter(|setting| *setting != GraphicsSetting::Preset)
+                    .filter(|setting| *setting != GraphicsSetting::Preset && setting.shown(caps))
                     .map(|setting| row(Setting::Graphics(setting), setting.title())),
             )
             .chain([
