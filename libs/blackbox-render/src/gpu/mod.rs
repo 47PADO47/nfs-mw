@@ -1,6 +1,7 @@
 //! The wgpu implementation of the renderer (Vulkan, Direct3D 12, OpenGL).
 
 mod adapters;
+pub(crate) mod ao;
 mod backend_impl;
 mod capture;
 mod effects;
@@ -56,6 +57,7 @@ pub struct Renderer {
     hdr_format: wgpu::TextureFormat,
     post: post::PostChain,
     reflections: Option<reflections::ReflectionCapture>,
+    ao: Option<ao::AmbientOcclusion>,
     render_scale: f32,
     upscale: upscale::Upscale,
     shared: resources::Shared,

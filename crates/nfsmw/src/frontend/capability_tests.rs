@@ -26,16 +26,16 @@ fn text(s: &'static str) -> Title {
 #[test]
 fn the_native_renderer_hides_ray_tracing_and_the_quality_mode_but_has_the_renderer_row() {
     let video = titles(Category::Video, &test_caps::native());
-    assert_eq!(video.len(), 21);
+    assert_eq!(video.len(), 24);
     for hidden in ["Ray Tracing", "Upscale Quality"] {
         assert!(!video.contains(&text(hidden)), "{hidden} needs a renderer that offers it");
     }
     assert_eq!(
-        video[video.len() - 2..],
+        video[1..3],
         [text("Renderer (After Restart)"), text("Graphics API (After Restart)")],
-        "after the rows that were there before, which keep their places"
+        "renderer choices sit with the display controls"
     );
-    assert_eq!(video[video.len() - 5..video.len() - 3], [text("Graphics Preset"), text("Car Shading")]);
+    assert_eq!(video[5], text("Graphics Preset"));
     assert_eq!(titles(Category::Audio, &test_caps::native()).len(), 5);
     assert_eq!(titles(Category::Gameplay, &test_caps::native()).len(), 5);
 }
@@ -43,13 +43,13 @@ fn the_native_renderer_hides_ray_tracing_and_the_quality_mode_but_has_the_render
 #[test]
 fn a_full_renderer_has_every_row_next_to_the_setting_it_belongs_with() {
     let video = titles(Category::Video, &test_caps::full());
-    assert_eq!(video.len(), 23);
+    assert_eq!(video.len(), 26);
     let at =
         |name: &'static str| video.iter().position(|t| *t == text(name)).unwrap_or_else(|| panic!("no {name} row"));
-    assert_eq!(at("Upscale Quality"), at("Upscale Sharpness") + 1);
-    assert_eq!(at("Ray Tracing"), at("Anti-Aliasing") + 1);
-    assert_eq!(at("Renderer (After Restart)"), video.len() - 2);
-    assert_eq!(at("Graphics API (After Restart)"), video.len() - 1);
+    assert_eq!(at("Upscale Quality"), at("Upscaler") + 1);
+    assert_eq!(at("Ray Tracing"), at("Bloom") + 1);
+    assert_eq!(at("Renderer (After Restart)"), 1);
+    assert_eq!(at("Graphics API (After Restart)"), 2);
     assert_eq!(titles(Category::Audio, &test_caps::full()).len(), 5, "only the Video screen has them");
 }
 
@@ -140,6 +140,7 @@ fn the_renderer_rows_cycle_and_record_only_their_own_change() {
 
     let (mut s, mut c) = (defaults(), Partial::default());
     let quality = Setting::Renderer(RendererSetting::UpscaleQuality);
+    s.upscaler = UpscaleMode::Dlss;
     assert_eq!(quality.data_in(&s, &full), Data::Text("Quality".into()));
     for name in ["Balanced", "Performance", "Ultra Performance", "Auto", "Native", "Quality"] {
         quality.advance(&mut s, &mut c, true, &full);
@@ -189,4 +190,34 @@ fn reflections_follow_renderer_support_and_glossy_shading() {
     assert_eq!(row.data_in(&s, &native), Data::Text("High".into()));
     assert!(!titles(Category::Video, &unsupported).contains(&text("Car Reflections")));
     assert_eq!(row.data_in(&s, &unsupported), Data::Text("Static Sky".into()));
+}
+
+#[test]
+fn ao_rows_follow_support_and_keep_disabled_preferences() {
+    use crate::settings::{AoQuality, Percent};
+    let native = test_caps::native();
+    let unsupported = blackbox_gfx::Capabilities { ambient_occlusion: false, ..native };
+    for title in ["Ambient Occlusion (Experimental)", "AO Intensity", "AO Comparison"] {
+        assert!(titles(Category::Video, &native).contains(&text(title)));
+        assert!(!titles(Category::Video, &unsupported).contains(&text(title)));
+    }
+    let mut s = Settings { ao: AoQuality::Off, ao_intensity: Percent(65), ao_compare: true, ..defaults() };
+    let before = s;
+    let mut changes = Partial::default();
+    for setting in [GraphicsSetting::AoIntensity, GraphicsSetting::AoComparison] {
+        let row = Setting::Graphics(setting);
+        assert!(!row.enabled(&s));
+        for forward in [false, true] {
+            assert!(!row.advance(&mut s, &mut changes, forward, &native));
+        }
+    }
+    assert_eq!(s, before);
+    assert_eq!(changes, Partial::default());
+    s.ao = AoQuality::Medium;
+    assert!(Setting::Graphics(GraphicsSetting::AoIntensity).advance(&mut s, &mut changes, true, &native));
+    assert_eq!(changes.ao_intensity, Some(Percent(75)));
+    assert_eq!(
+        Setting::Graphics(GraphicsSetting::AmbientOcclusion).data_in(&s, &unsupported),
+        Data::Text("Off".into())
+    );
 }

@@ -86,10 +86,20 @@ fn request_device(adapter: &wgpu::Adapter) -> Result<(wgpu::Device, wgpu::Queue)
     log::info!("GPU: {} ({:?}, driver {})", info.name, info.backend, info.driver);
     let supports_bc = adapter.features().contains(wgpu::Features::TEXTURE_COMPRESSION_BC);
     let required_features = if supports_bc { wgpu::Features::TEXTURE_COMPRESSION_BC } else { wgpu::Features::empty() };
+    let mut limits = wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits());
+    if adapter.get_downlevel_capabilities().flags.contains(wgpu::DownlevelFlags::COMPUTE_SHADERS) {
+        // Only the small compute limits the optional AO pass needs; retain the GL fallback.
+        limits.max_compute_workgroup_size_x = 8;
+        limits.max_compute_workgroup_size_y = 8;
+        limits.max_compute_workgroup_size_z = 1;
+        limits.max_compute_invocations_per_workgroup = 64;
+        limits.max_compute_workgroups_per_dimension = 65535;
+        limits.max_storage_textures_per_shader_stage = 1;
+    }
     pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
         label: Some("blackbox-render device"),
         required_features,
-        required_limits: wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits()),
+        required_limits: limits,
         ..Default::default()
     }))
     .map_err(|e| RenderError::Device(e.to_string()))
@@ -128,7 +138,12 @@ fn assemble(output: Output, adapter: &wgpu::Adapter, device: wgpu::Device, queue
         adapter: adapter_info.name.clone(),
         driver: format!("{} {}", adapter_info.driver, adapter_info.driver_info).trim().to_owned(),
     };
-    let caps = native_capabilities(api, supports_bc, hdr_format == targets::HDR_FORMAT);
+    let caps = native_capabilities(
+        api,
+        supports_bc,
+        hdr_format == targets::HDR_FORMAT,
+        device.limits().max_compute_invocations_per_workgroup >= 64,
+    );
 
     let mut renderer = Renderer {
         output,
@@ -144,6 +159,7 @@ fn assemble(output: Output, adapter: &wgpu::Adapter, device: wgpu::Device, queue
         hdr_format,
         post,
         reflections: None,
+        ao: None,
         render_scale: DEFAULT_RENDER_SCALE,
         upscale: Default::default(),
         shared,

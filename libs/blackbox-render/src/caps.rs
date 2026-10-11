@@ -1,5 +1,4 @@
-//! What the native renderer can run. Its feature set is frozen: FXAA, bloom, ACES tone mapping, a render
-//! scale with bilinear upscaling, and FSR 1.
+//! What the native renderer can run, including optional experimental depth-based AO.
 
 use blackbox_gfx::{
     AaSet, Antialiasing, Capabilities, GraphicsApi, RestartSet, RtSupport, TonemapSet, Upscaler, UpscalerSet,
@@ -9,7 +8,12 @@ use blackbox_gfx::{
 ///
 /// `compressed_bc` and `hdr_targets` come from the adapter. Nothing needs a restart: every option the
 /// renderer has is applied to the live chain. There is no ray tracing and no temporal method.
-pub(crate) fn native_capabilities(api: GraphicsApi, compressed_bc: bool, hdr_targets: bool) -> Capabilities {
+pub(crate) fn native_capabilities(
+    api: GraphicsApi,
+    compressed_bc: bool,
+    hdr_targets: bool,
+    ambient_occlusion: bool,
+) -> Capabilities {
     Capabilities {
         renderer: "blackbox",
         api,
@@ -20,6 +24,7 @@ pub(crate) fn native_capabilities(api: GraphicsApi, compressed_bc: bool, hdr_tar
         tonemaps: TonemapSet::all(),
         bloom: true,
         local_reflections: true,
+        ambient_occlusion,
         ray_tracing: RtSupport::None,
         render_scale: Capabilities::full_render_scale(),
         restart_required: RestartSet::empty(),
@@ -32,7 +37,7 @@ mod tests {
     use blackbox_gfx::{GraphicsSettings, PostSettings, RayTracing, Setting, Tonemap, UpscaleQuality, resolve};
 
     fn caps() -> Capabilities {
-        native_capabilities(GraphicsApi::Vulkan, true, true)
+        native_capabilities(GraphicsApi::Vulkan, true, true, true)
     }
 
     #[test]
@@ -50,7 +55,7 @@ mod tests {
 
     #[test]
     fn the_adapter_decides_compressed_textures_and_hdr() {
-        let weak = native_capabilities(GraphicsApi::Gl, false, false);
+        let weak = native_capabilities(GraphicsApi::Gl, false, false, false);
         assert!(!weak.compressed_bc && !weak.hdr_targets);
         assert_eq!(weak.api, GraphicsApi::Gl);
         assert!(caps().compressed_bc && caps().hdr_targets);

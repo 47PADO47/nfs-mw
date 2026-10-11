@@ -74,3 +74,24 @@ fn fsr3_and_fsr4_fall_back_along_the_chain_on_a_renderer_that_lacks_them() {
         assert_eq!(native.effective.upscaler, Upscaler::Fsr1, "{mode}");
     }
 }
+
+#[test]
+fn the_graphics_request_carries_ao_quality_intensity_and_comparison() {
+    let stored = Settings::from(Partial {
+        ao: Some(AoQuality::High),
+        ao_intensity: Some(Percent(60)),
+        ao_compare: Some(true),
+        ..Partial::default()
+    });
+    let asked = stored.graphics();
+    assert_eq!(asked.ao.quality, AoQuality::High);
+    assert!((asked.ao.intensity - 0.6).abs() < f32::EPSILON);
+    assert!(asked.ao.compare);
+    assert_eq!(resolve(&asked, &test_caps::native()).effective.ao, asked.ao);
+    let unsupported = blackbox_gfx::Capabilities { ambient_occlusion: false, ..test_caps::native() };
+    let run = resolve(&asked, &unsupported);
+    assert_eq!(run.effective.ao.quality, AoQuality::Off);
+    assert!(run.downgrade_of(Setting::AmbientOcclusion).is_some());
+    assert_eq!(stored.effective(&unsupported).ao, AoQuality::Off);
+    assert_eq!(stored.ao, AoQuality::High, "a downgrade preserves the stored request");
+}

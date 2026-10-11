@@ -9,6 +9,7 @@ fn native() -> Capabilities {
         tonemaps: TonemapSet::all(),
         bloom: true,
         local_reflections: true,
+        ambient_occlusion: true,
         render_scale: Capabilities::full_render_scale(),
         ..Capabilities::baseline("blackbox", GraphicsApi::Vulkan)
     }
@@ -24,6 +25,21 @@ fn unsupported_capture_restores_static_reflections_without_changing_the_request(
     assert!(resolved.downgrade_of(Setting::Reflections).is_some());
     assert_eq!(wanted.reflections, crate::ReflectionQuality::High);
 }
+
+#[test]
+fn unsupported_ao_is_disabled_with_a_reason_and_supported_ao_is_preserved() {
+    let wanted = GraphicsSettings {
+        ao: crate::AoSettings { quality: crate::AoQuality::High, compare: true, ..Default::default() },
+        ..Default::default()
+    };
+    assert_eq!(resolve(&wanted, &native()).effective, wanted);
+    let caps = Capabilities { ambient_occlusion: false, ..native() };
+    let resolved = resolve(&wanted, &caps);
+    assert_eq!(resolved.effective.ao.quality, crate::AoQuality::Off);
+    assert_eq!(resolved.effective.ao.intensity, wanted.ao.intensity);
+    assert!(resolved.downgrade_of(Setting::AmbientOcclusion).is_some());
+}
+
 fn everything() -> Capabilities {
     Capabilities {
         antialiasing: AaSet::all(),

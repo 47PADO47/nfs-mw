@@ -187,6 +187,35 @@ impl Renderer {
         if reflection {
             return;
         }
+        if self.graphics.ao.active()
+            && matches!(frame.projection, blackbox_gfx::Projection::PerspectiveInfiniteReverse { .. })
+        {
+            drop(pass);
+            self.ao.get_or_insert_with(|| super::ao::AmbientOcclusion::new(&self.device)).encode(
+                &self.device,
+                &self.queue,
+                encoder,
+                super::ao::Draw { target, depth, size: targets.size(), format, frame, settings: self.graphics.ao },
+            );
+            pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("world effects after AO"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: target,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: depth,
+                    depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            pass.set_bind_group(0, &self.shared.bindings.globals_bind_group, &[]);
+        }
         self.effects.draw(&mut pass);
         self.effects.draw_textured(&mut pass, |t| self.textures.get(t.raw()));
         drop(pass);

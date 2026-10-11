@@ -3,6 +3,8 @@
 //! All pure data and pure helpers. What a renderer can actually run is decided by
 //! [`resolve`](crate::resolve) against its [`Capabilities`](crate::Capabilities).
 
+pub mod ao;
+pub use ao::{AoQuality, AoSettings};
 pub mod post;
 pub mod ray_tracing;
 pub mod render_scale;
@@ -29,6 +31,7 @@ pub struct GraphicsSettings {
     /// Post effects, including the anti-aliasing method.
     pub post: PostSettings,
     pub reflections: crate::ReflectionQuality,
+    pub ao: AoSettings,
     pub upscaler: Upscaler,
     /// Sets the render size of a temporal upscaler.
     pub upscale_quality: UpscaleQuality,
@@ -44,6 +47,7 @@ impl Default for GraphicsSettings {
         Self {
             post: PostSettings::default(),
             reflections: crate::ReflectionQuality::Off,
+            ao: AoSettings::default(),
             upscaler: Upscaler::default(),
             upscale_quality: UpscaleQuality::default(),
             render_scale: DEFAULT_RENDER_SCALE,
@@ -58,6 +62,7 @@ impl GraphicsSettings {
     pub fn sanitized(self) -> Self {
         Self {
             post: self.post.sanitized(),
+            ao: self.ao.sanitized(),
             render_scale: clamp_render_scale(self.render_scale),
             upscale_sharpness: clamp_upscale_sharpness(self.upscale_sharpness),
             ..self

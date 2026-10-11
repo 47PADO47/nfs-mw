@@ -31,6 +31,7 @@ pub fn native() -> Capabilities {
         tonemaps: TonemapSet::all(),
         bloom: true,
         local_reflections: true,
+        ambient_occlusion: true,
         ray_tracing: RtSupport::None,
         render_scale: Capabilities::full_render_scale(),
         restart_required: RestartSet::empty(),
