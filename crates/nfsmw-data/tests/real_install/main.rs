@@ -14,6 +14,7 @@ mod ginsu;
 mod handling;
 mod manual;
 mod music;
+mod objects;
 mod physics;
 mod pursuit;
 mod sound;

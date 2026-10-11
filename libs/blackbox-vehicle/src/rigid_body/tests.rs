@@ -213,7 +213,7 @@ mod bodies {
             friction_static: 0.5,
             friction_kinetic: 0.4,
         };
-        let h = BodyHit { restitution: 0.2, inertia_scale: Vec3::ONE };
+        let h = BodyHit { restitution: 0.2, inertia_scale: Vec3::ONE, ..Default::default() };
         let before = a.linear_velocity * a.mass() + b.linear_velocity * b.mass();
         let reaction = react_bodies(&mut a, &mut b, &contact, &h, &h).unwrap();
         let after = a.linear_velocity * a.mass() + b.linear_velocity * b.mass();
@@ -237,7 +237,7 @@ mod bodies {
             friction_static: 0.5,
             friction_kinetic: 0.4,
         };
-        let h = BodyHit { restitution: 0.1, inertia_scale: Vec3::ONE };
+        let h = BodyHit { restitution: 0.1, inertia_scale: Vec3::ONE, ..Default::default() };
         react_bodies(&mut heavy, &mut light, &contact, &h, &h).unwrap();
         assert!(light.linear_velocity.z < -3.0, "{:?}", light.linear_velocity);
         assert!(heavy.linear_velocity.z.abs() < 4.0);

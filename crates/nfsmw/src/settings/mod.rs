@@ -229,7 +229,7 @@ mod tests {
             _ => None,
         });
         let file = file::parse("traffic = 6\ncop_share = 25\n", "test");
-        let s: Settings = cli.clone().or(env.clone()).or(file.clone()).into();
+        let s: Settings = cli.or(env).or(file).into();
         assert_eq!(
             (s.traffic, s.cop_share),
             (0, Percent(10)),

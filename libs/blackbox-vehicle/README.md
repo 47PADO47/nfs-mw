@@ -149,8 +149,12 @@ positions while `skid` is above a small threshold; drawing them is a later miles
 
 ## Not implemented
 
-Walls, props and car-versus-car response (the caller finds the contact and uses `RigidBody::react_plane`
-or changes velocities, then calls `Vehicle::notify_collision`), invulnerability and reset-to-road, burnout
+World contacts and prop lifecycle belong to the caller. `react_moments` and `react_bodies` provide
+iterated object response with separate per-body restitution and effective mass/inertia, friction,
+fixed centres and break thresholds. The caller supplies geometry and gameplay overrides.
+See [object contact verification](../../docs/provenance/pc-object-contact.md).
+
+Still missing here: invulnerability and reset-to-road, burnout
 and fishtail, drift state and its yaw damping, the axle traction control, wall steer, the airborne
 stabilisers, speed-break, perfect launch and drag shift quality, engine heat and sabotage, blown tires,
 catch-up cheats, forced stops, the understeer and oversteer read-outs, and the traffic and AI chassis
@@ -158,7 +162,8 @@ variants. The yaw-control boost assumes the stability setting is on.
 
 ## What needs calibration
 
-Nothing here is checked against the running game; the numbers come from the specs, which are [decomp] only.
+The object-response kernel matches 13 synthetic measurements of the original PC machine code.
+Full driving and collision scenarios still need comparison against the running game.
 
 - **Tire force scale.** The lateral table is the console build's; the PC build has an extra multiplier
   (spec open question 2). Calibrate with a skidpad run. `StepScales` and the 1.5 ellipse stretch (kept in the
