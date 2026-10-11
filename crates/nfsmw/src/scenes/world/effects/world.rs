@@ -2,6 +2,8 @@
 
 use crate::scenes::world::sign_lamps;
 use blackbox_gfx::{EffectLayer, RenderBackend};
+use blackbox_hash::bstring_hash;
+use blackbox_render::{BlendMode, TexturedEffect};
 
 use super::super::{View, WorldScene};
 
@@ -24,12 +26,20 @@ impl WorldScene {
         drive.vehicle_effects.geometry(position, forward, matches!(self.view, View::Chase), &mut layer.streaks);
         drive.vehicle_effects.glows(position, forward, &mut layer.glows);
         lamps.glows(lamp_frame, lamp_state, position, forward, &mut layer.glows);
-        lamps.beams(lamp_frame, &mut layer.streaks);
+        let mut cones = Vec::new();
+        lamps.cones(lamp_frame, &mut cones);
+        if let Some(traffic) = &self.traffic {
+            traffic.car_cones(&mut cones);
+        }
+        // The headlight cookie is projected additively: a light, not a stain.
+        let cookie = self.residency.shared.materials.get(&bstring_hash("HEADLIGHTS")).map(|m| m.0);
+        if let (Some(texture), false) = (cookie, cones.is_empty()) {
+            layer.textured.push(TexturedEffect { texture, blend: BlendMode::Additive, vertices: cones });
+        }
         let signs = self.residency.placed().filter_map(|p| p.curve_lamp);
         sign_lamps::glows(signs, drive.lamp_time, position, forward, &mut layer.glows);
         if let Some(traffic) = &self.traffic {
             traffic.car_glows(position, forward, &mut layer.glows);
-            traffic.car_beams(&mut layer.streaks);
             traffic.cop_particles(position, forward, &mut layer.textured);
             traffic.lamp_glows(position, forward, &mut layer.glows);
         }

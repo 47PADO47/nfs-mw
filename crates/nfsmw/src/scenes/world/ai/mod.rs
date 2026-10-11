@@ -175,10 +175,10 @@ impl TrafficWorld {
         }
     }
 
-    /// Appends the headlight beams of every car.
-    pub fn car_beams(&self, out: &mut Vec<EffectVertex>) {
+    /// Appends the headlight cones of every car.
+    pub fn car_cones(&self, out: &mut Vec<EffectVertex>) {
         for car in &self.cars {
-            car.beams(self.alpha, out);
+            car.cones(self.alpha, out);
         }
     }
 

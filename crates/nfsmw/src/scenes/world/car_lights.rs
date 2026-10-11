@@ -8,7 +8,7 @@
 //! markers of their side, since the car data has no signal markers.
 
 use blackbox_hash::bstring_hash;
-use blackbox_render::{EffectLayer, EffectVertex};
+use blackbox_render::EffectVertex;
 use glam::{Mat4, Vec3};
 use nfsmw_data::car::CarModel;
 
@@ -51,11 +51,14 @@ const SIREN_BRIGHTNESS: f32 = 0.9;
 const SIREN_RED_COLOUR: [f32; 4] = [1.0, 0.05, 0.05, 1.0];
 const SIREN_BLUE_COLOUR: [f32; 4] = [0.1, 0.3, 1.0, 1.0];
 const SIREN_PERIOD: f32 = 0.25;
-/// Headlight beam: how far ahead, how wide at its end and how bright (metres and 0 to 1), from the lamp.
-const BEAM_LENGTH: f32 = 14.0;
-const BEAM_WIDTH: f32 = 3.5;
-const BEAM_NEAR: f32 = 0.15;
-const BEAM_BRIGHTNESS: f32 = 0.08;
+/// Headlight cone: the cookie's horizontal half-width and its upper and lower half-heights as slopes (tangents),
+/// and how far it reaches (metres). The cookie lies on the road, lifted a little so it does not z-fight it.
+const CONE_SIDE: f32 = 0.42;
+const CONE_UP: f32 = 0.08;
+const CONE_DOWN: f32 = 0.30;
+const CONE_RANGE: f32 = 30.0;
+const CONE_LIFT: f32 = 0.03;
+const CONE_BRIGHTNESS: f32 = 0.35;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Kind {
@@ -92,6 +95,8 @@ pub struct LampState {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct CarLights {
     lamps: Vec<Lamp>,
+    /// Height of the car origin above the road at rest, metres.
+    floor: f32,
 }
 
 impl CarLights {
@@ -136,21 +141,40 @@ impl CarLights {
                 }
             }
         }
-        Self { lamps }
+        Self { lamps, floor: model.floor_height }
     }
 
-    /// Appends a faint additive beam ahead of each headlight, as flat streaks at the lamp's height, for a car whose
-    /// model frame is `to_world`. An approximation of the original's projected headlight cone.
-    pub fn beams(&self, to_world: Mat4, out: &mut Vec<EffectVertex>) {
-        let colour = geometry::color(HEAD_COLOUR, BEAM_BRIGHTNESS);
+    /// Appends the headlight cones of a car whose model frame is `to_world`: each headlight's cookie (the `HEADLIGHTS`
+    /// texture) projected onto the road ahead of it. Six vertices per cone, the cookie's top edge at its far rays
+    /// (v = 0). Rays that miss the road within range end at the range.
+    pub fn cones(&self, to_world: Mat4, out: &mut Vec<EffectVertex>) {
+        let colour = geometry::color(HEAD_COLOUR, CONE_BRIGHTNESS);
+        let ground = to_world.w_axis.z - self.floor;
         for lamp in self.lamps.iter().filter(|l| l.kind == Kind::Head) {
-            let at = lamp.at;
-            let side = Vec3::Y * BEAM_NEAR;
-            let far = Vec3::X * BEAM_LENGTH;
-            let spread = Vec3::Y * BEAM_WIDTH;
-            let corners = [at + side, at + far + spread, at + far - spread, at - side];
-            let world = corners.map(|c| to_world.transform_point3(c));
-            EffectLayer::quad(out, world, colour);
+            let origin = to_world.transform_point3(lamp.at);
+            // Left-lower, right-lower, right-upper, left-upper in car space (left is +y, up is +z), with their UVs.
+            let corners = [
+                (CONE_SIDE, -CONE_DOWN, [0.0, 1.0]),
+                (-CONE_SIDE, -CONE_DOWN, [1.0, 1.0]),
+                (-CONE_SIDE, CONE_UP, [1.0, 0.0]),
+                (CONE_SIDE, CONE_UP, [0.0, 0.0]),
+            ];
+            let points = corners.map(|(side, up, uv)| {
+                let dir = to_world.transform_vector3(Vec3::new(1.0, side, up)).normalize_or(Vec3::X);
+                if dir.z >= -1e-3 {
+                    return (origin + dir * CONE_RANGE, uv);
+                }
+                let distance = (ground - origin.z) / dir.z;
+                let mut point = origin + dir * distance.clamp(0.0, CONE_RANGE);
+                if distance < CONE_RANGE {
+                    point.z = ground + CONE_LIFT;
+                }
+                (point, uv)
+            });
+            for i in [0, 1, 2, 0, 2, 3] {
+                let (point, uv) = points[i];
+                out.push(EffectVertex { position: point.to_array(), color: colour, uv, detail: [0.0; 2] });
+            }
         }
     }
 
@@ -171,7 +195,7 @@ impl CarLights {
 
     #[cfg(test)]
     fn new(lamps: Vec<Lamp>) -> Self {
-        Self { lamps }
+        Self { lamps, floor: 0.0 }
     }
 }
 
@@ -259,14 +283,22 @@ mod tests {
     }
 
     #[test]
-    fn each_headlight_casts_one_beam_quad() {
+    fn each_headlight_casts_one_cone_of_six_vertices() {
         let lights = CarLights::new(vec![
             Lamp { at: Vec3::new(2.0, 0.5, 0.5), kind: Kind::Head },
             Lamp { at: Vec3::new(2.0, -0.5, 0.5), kind: Kind::Head },
             Lamp { at: Vec3::new(-2.0, 0.5, 0.5), kind: Kind::Tail },
         ]);
         let mut out = Vec::new();
-        lights.beams(Mat4::IDENTITY, &mut out);
+        lights.cones(Mat4::IDENTITY, &mut out);
         assert_eq!(out.len(), 12);
+    }
+
+    #[test]
+    fn the_near_cone_edge_lies_on_the_road() {
+        let lights = CarLights::new(vec![Lamp { at: Vec3::new(2.0, 0.0, 0.5), kind: Kind::Head }]);
+        let mut out = Vec::new();
+        lights.cones(Mat4::IDENTITY, &mut out);
+        assert!((out[0].position[2] - CONE_LIFT).abs() < 1e-3, "{:?}", out[0].position);
     }
 }
