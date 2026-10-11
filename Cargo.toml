@@ -108,8 +108,8 @@ bevy_transform = "=0.20.0"
 bevy_gilrs = "=0.20.0"
 bevy_input = { version = "=0.20.0", features = ["serialize"] }
 bevy_time = "=0.20.0"
-bevy_window = "=0.20.0"
-bevy_winit = "=0.20.0"
+bevy_window = { version = "=0.20.0", features = ["custom_cursor"] }
+bevy_winit = { version = "=0.20.0", features = ["custom_cursor"] }
 anyhow = "1"
 bytemuck = { version = "1", features = ["derive"] }
 clap = { version = "4", features = ["derive"] }
