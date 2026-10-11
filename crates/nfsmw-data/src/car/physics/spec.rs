@@ -4,10 +4,13 @@ use anyhow::{Context, Result};
 use blackbox_attrib::{Database, Value};
 use blackbox_vehicle::VehicleSpec;
 use blackbox_vehicle::nos::NosSpec;
+use std::sync::Arc;
 
-use super::bounds::CarBounds;
 use super::fields::Fields;
-use super::{WallSpec, aero, body, brakes, chassis, engine, induction, nos, tires, transmission};
+use super::{AiCollisionReactions, CarEventSpec, CarGeometry, bounds::CarBounds};
+use super::{
+    WallSpec, aero, body, brakes, chassis, engine, induction, no_engine, no_transmission, nos, tires, transmission,
+};
 
 /// A car ready for the physics: its spec and where the collision box sits in the car's own space.
 #[derive(Debug, Clone)]
@@ -17,6 +20,9 @@ pub struct CarPhysics {
     pub bounds: CarBounds,
     /// How the car reacts to walls.
     pub walls: WallSpec,
+    pub geometry: Option<Arc<CarGeometry>>,
+    pub events: Option<Arc<CarEventSpec>>,
+    pub reactions: Option<Arc<AiCollisionReactions>>,
 }
 
 /// The physics of car type `type_name` (e.g. `BMWM3GTR`), read from `db` (`attributes.bin`).
@@ -40,14 +46,16 @@ pub fn car_physics(db: &Database, type_name: &str, bounds: CarBounds) -> Result<
         chassis: chassis(chassis_fields),
         tires: tires(link("tires")?),
         brakes: brakes(link("brakes")?),
-        engine: engine(link("engine")?),
-        transmission: transmission(link("transmission")?),
+        // A trailer has no engine and no gearbox: a body that only rolls and brakes.
+        engine: pvehicle.follow("engine").map_or_else(no_engine, |c| engine(Fields(c))),
+        transmission: pvehicle.follow("transmission").map_or_else(no_transmission, |c| transmission(Fields(c))),
         // Cars without an induction link (the traffic cars) are naturally aspirated.
         induction: pvehicle.follow("induction").map(Fields).map(induction).unwrap_or_default(),
         nos: first_nitrous(db, Fields(pvehicle)),
         aero: aero(chassis_fields),
     };
-    Ok(CarPhysics { spec, bounds, walls })
+    let reactions = AiCollisionReactions::read(db, pvehicle).map(Arc::new);
+    Ok(CarPhysics { spec, bounds, walls, geometry: None, events: None, reactions })
 }
 
 /// The first nitrous level of the car that has a tank (the stock level when it has one).

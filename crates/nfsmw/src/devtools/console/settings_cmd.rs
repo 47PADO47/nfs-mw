@@ -3,71 +3,13 @@
 
 use std::str::FromStr;
 
+use super::settings_keys::KEYS;
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
 use crate::settings::{
     CameraMode, HudLayout, MinimapMode, Percent, PostAa, PostBloom, PostTonemap, RadioHudStyle, RenderScale,
     RendererKind, Settings, Transmission, parse_bool,
 };
-
-/// Settings the console can show.
-const KEYS: [&str; 55] = [
-    "deadzone_mode",
-    "steering_deadzone",
-    "camera_deadzone",
-    "trigger_deadzone",
-    "steering_sensitivity",
-    "camera_sensitivity",
-    "mouse_sensitivity",
-    "invert_camera_y",
-    "backend",
-    "renderer",
-    "vsync",
-    "fps",
-    "metrics",
-    "readout",
-    "window_mode",
-    "monitor",
-    "resolution",
-    "volume",
-    "music_volume",
-    "sfx_volume",
-    "engine_volume",
-    "speech_volume",
-    "hud",
-    "tire_smoke",
-    "radio",
-    "graphics_preset",
-    "car_shading",
-    "traffic",
-    "cop_share",
-    "smoke_quality",
-    "skid_marks",
-    "collision_sparks",
-    "spark_style",
-    "speed_trails",
-    "exhaust_flames",
-    "transmission",
-    "camera_mode",
-    "minimap",
-    "hud_layout",
-    "radio_hud",
-    "manual_clutch",
-    "h_shifter",
-    "post_tonemap",
-    "post_bloom",
-    "post_aa",
-    "visual_treatment",
-    "reflections",
-    "ao",
-    "ao_intensity",
-    "ao_compare",
-    "render_scale",
-    "upscaler",
-    "upscale_sharpness",
-    "upscale_quality",
-    "ray_tracing",
-];
 
 /// The text for `get <key>`, or an error naming the valid keys.
 pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
@@ -101,6 +43,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "car_shading" => settings.car_shading.to_string(),
         "traffic" => settings.traffic.to_string(),
         "cop_share" => settings.cop_share.to_string(),
+        "traffic_lights" => on_off(settings.traffic_lights).to_owned(),
         "smoke_quality" => settings.smoke_quality.to_string(),
         "skid_marks" => on_off(settings.skid_marks).to_owned(),
         "collision_sparks" => on_off(settings.collision_sparks).to_owned(),
@@ -174,6 +117,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
             settings.traffic = value.trim().parse().map_err(|_| format!("expected a number of cars, got {value:?}"))?
         }
         "cop_share" => settings.cop_share = Percent::from_str(value)?,
+        "traffic_lights" => settings.traffic_lights = parse_bool(value)?,
         "smoke_quality" => settings.smoke_quality = value.parse()?,
         "skid_marks" => settings.skid_marks = parse_bool(value)?,
         "collision_sparks" => settings.collision_sparks = parse_bool(value)?,
@@ -226,6 +170,7 @@ fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
         "manual_clutch" => Some(&mut settings.manual_clutch),
         "h_shifter" => Some(&mut settings.h_shifter),
         "ao_compare" => Some(&mut settings.ao_compare),
+        "traffic_lights" => Some(&mut settings.traffic_lights),
         _ => None,
     }
 }
@@ -470,6 +415,17 @@ mod tests {
         assert!(set(&mut s, "volume", "loud").is_err());
         assert!(set(&mut s, "bass", "11").unwrap_err().contains("unknown setting"));
         assert_eq!(s, defaults());
+    }
+
+    #[test]
+    fn the_traffic_lights_can_be_read_set_and_flipped() {
+        let mut s = defaults();
+        assert_eq!(get(&s, "traffic_lights").unwrap(), "traffic_lights = on");
+        assert_eq!(set(&mut s, "traffic_lights", "off").unwrap(), "traffic_lights = off");
+        assert!(!s.traffic_lights);
+        assert_eq!(set(&mut s, "traffic_lights", "").unwrap(), "traffic_lights = on");
+        assert!(set(&mut s, "traffic_lights", "red").is_err());
+        assert!(s.traffic_lights);
     }
 
     #[test]

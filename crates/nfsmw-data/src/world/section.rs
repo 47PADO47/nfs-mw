@@ -18,6 +18,8 @@ pub struct SectionData {
     /// Animated textures (water, signals) defined in this section.
     pub anims: Vec<TextureAnim>,
     pub scenery: Vec<ScenerySection>,
+    /// Physics placements, joined to scenery by override hooks.
+    pub spawners: Vec<blackbox_scenery::ObjectSpawner>,
     /// The section's static collision (`docs/formats/collision.md`); map tiles have one.
     pub collision: Vec<CollisionPack>,
 }
@@ -35,9 +37,11 @@ pub fn parse_section(index: usize, bytes: &[u8]) -> Result<SectionData> {
     }
     let scenery =
         blackbox_scenery::read_scenery_sections(bytes, &blackbox_scenery::layout::MOST_WANTED).context("scenery")?;
+    let spawners = blackbox_scenery::read_object_spawners(bytes, &blackbox_scenery::layout::MOST_WANTED.spawners)
+        .context("physics placements")?;
     let anims = blackbox_tpk::read_texture_anims(bytes);
     let collision = blackbox_collision::read_collision_packs(bytes).context("collision")?;
-    Ok(SectionData { index, solids, textures, anims, scenery, collision })
+    Ok(SectionData { index, solids, textures, anims, scenery, spawners, collision })
 }
 
 /// Read and parse one section from the open stream file.

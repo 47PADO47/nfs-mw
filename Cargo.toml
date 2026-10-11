@@ -48,6 +48,7 @@ publish = false
 blackbox-aems = { path = "libs/blackbox-aems" }
 blackbox-attrib = { path = "libs/blackbox-attrib" }
 blackbox-carparts = { path = "libs/blackbox-carparts" }
+blackbox-carp = { path = "libs/blackbox-carp" }
 blackbox-carsound = { path = "libs/blackbox-carsound" }
 blackbox-bevy-render = { path = "libs/blackbox-bevy-render" }
 blackbox-chunk = { path = "libs/blackbox-chunk" }
@@ -67,6 +68,7 @@ blackbox-render = { path = "libs/blackbox-render" }
 blackbox-roads = { path = "libs/blackbox-roads" }
 blackbox-scene = { path = "libs/blackbox-scene" }
 blackbox-scenery = { path = "libs/blackbox-scenery" }
+blackbox-sequence = { path = "libs/blackbox-sequence" }
 blackbox-solid = { path = "libs/blackbox-solid" }
 blackbox-streaming = { path = "libs/blackbox-streaming" }
 blackbox-text = { path = "libs/blackbox-text" }

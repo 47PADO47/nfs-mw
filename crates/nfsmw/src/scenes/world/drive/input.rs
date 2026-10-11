@@ -89,6 +89,7 @@ impl DriveInput {
 
     /// The same input with the one-shot shift requests cleared, for the second and later physics
     /// steps of a frame.
+    #[cfg(test)]
     pub fn held(self) -> Self {
         Self { shift_up: false, shift_down: false, gear_select: None, reset: false, pop: false, ..self }
     }

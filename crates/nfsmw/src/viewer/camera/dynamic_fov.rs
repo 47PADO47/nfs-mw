@@ -2,7 +2,7 @@
 //! normalised speed, eased with a cubic, mapped between the chase camera's rest FOV and a wider top
 //! FOV. Written from the behaviour of MWDynamicFOV (no licence, so facts only; see NOTICE).
 
-use super::{Camera, ChaseCamera, Lens};
+use super::{Camera, Lens};
 
 /// Field of view at rest, degrees: a little narrower than the chase camera, so a stopped car looks close.
 pub const REST_FOV_DEGREES: f32 = 55.0;
@@ -20,7 +20,7 @@ pub fn fov_for_speed(speed: f32) -> f32 {
 /// The chase camera with its field of view set by the car's speed. It borrows the chase camera
 /// (which does the following) and only changes how wide it sees.
 pub struct DynamicFov<'a> {
-    pub chase: &'a ChaseCamera,
+    pub chase: &'a super::chase::ChaseView,
     /// The car's speed, m/s.
     pub speed: f32,
 }
@@ -62,7 +62,7 @@ mod tests {
 
     #[test]
     fn keeps_the_chase_position_and_widens_the_lens() {
-        let chase = ChaseCamera::default();
+        let chase = crate::viewer::camera::ChaseCamera::default().view();
         let lens = DynamicFov { chase: &chase, speed: TOP_SPEED }.lens(16.0 / 9.0);
         assert_eq!(lens.position, chase.lens(16.0 / 9.0).position);
         assert_eq!(lens.fov_y_degrees, TOP_FOV_DEGREES);

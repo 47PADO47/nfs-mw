@@ -30,10 +30,10 @@ python tools/chunkdump.py <file.BUN|.BIN|.LZC>
 
 | Tool | Version / location | What it's for |
 |---|---|---|
-| **Ghidra** | 12.1.4 → `D:\retoolkit\decompilers\ghidra_12.1.4_PUBLIC` (runs on JDK 25 via `JAVA_HOME_OVERRIDE` in its `support\launch.properties`). Old 10.1.3 at `D:\retoolkit\decompilers\ghidra`. | Disassembly, decompilation, headless analysis/export of binaries. |
-| **JDK** | 25 → `C:\Program Files\Eclipse Adoptium\jdk-25.0.4.101-hotspot` (also JDK 17). | Runs Ghidra 12 (needs 21+) and Gradle/Java builds. |
-| **MSVC** | `cl.exe` 19.51 (VS Build Tools 2026) → `C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools`. Not on PATH; load via `VC\Auxiliary\Build\vcvars64.bat`. | Compile/validate reconstructed C/C++. |
-| **Python** | 3.14.6 (system, `C:\Python314`). | Project scripts, ReAgent, Ghidra export bridge. |
+| **Ghidra** | 12.1.4; resolve its installation with mise or `GHIDRA_INSTALL_DIR`. Configure JDK 25 through `JAVA_HOME_OVERRIDE` if needed. | Disassembly, decompilation, headless analysis/export of binaries. |
+| **JDK** | 25, selected with mise or `JAVA_HOME`. | Runs Ghidra 12 (needs 21+) and Gradle/Java builds. |
+| **MSVC** | `cl.exe` 19.51 (VS Build Tools 2026); discover the installation with `vswhere`, then load `VC\Auxiliary\Build\vcvars64.bat`. | Compile/validate reconstructed C/C++. |
+| **Python** | 3.14.6, selected with mise. | Project scripts, ReAgent, Ghidra export bridge. |
 | **uv / uvx** | On PATH. | Fast Python env/runner; drives the Ghidra MCP bridge and HCLI. |
 | **ReAgent** | `auto-re-agent` 0.4.0 (`re-agent`, `ghidra-bridge` CLIs). | AI-assisted binary→C/C++ reconstruction with a bounded validation pipeline. See §3. |
 | **Ghidra MCP** | `bethington/ghidra-mcp` v7.0.0 (built w/ Gradle+JDK25, deployed into Ghidra, bridge `.venv` via uv). | Exposes 209 Ghidra tools to Claude over MCP. See §4. |
@@ -42,7 +42,7 @@ python tools/chunkdump.py <file.BUN|.BIN|.LZC>
 > and the `ghidra-bridge export` step needs `pyghidra` + `JAVA_HOME=…jdk-25…`.
 
 ### IDA — not usable for MCP here
-- `D:\IDA Freeware 8.0` and `C:\Program Files\IDA Free 9.4` are both **IDA Free** and have **no IDAPython / no `idalib`**.
+- **IDA Free** 8.0 and 9.4 have **no IDAPython / no `idalib`**.
 - Both the official Hex-Rays IDA MCP and `mrexodia/ida-pro-mcp` require `idalib` + a **paid edition** (IDA Home/Pro/Classroom 9.4+). IDA Free is explicitly unsupported.
 - To get an IDA MCP: install IDA Home/Pro/Classroom (idalib auto-activates on 9.4+ install) → `uvx ida-hcli mcp install`. Otherwise use the Ghidra MCP, which is the free equivalent.
 
@@ -97,8 +97,8 @@ Tools appear as `mcp__ghidra-mcp__*` (209 of them: decompile, rename, structs, x
 Build/deploy (Gradle default, no Maven needed):
 ```bash
 # JAVA_HOME = JDK 25; Git Bash needs forward slashes in the path
-.\gradlew.bat buildExtension "-PGHIDRA_INSTALL_DIR=D:/retoolkit/decompilers/ghidra_12.1.4_PUBLIC"
-.\gradlew.bat deploy         "-PGHIDRA_INSTALL_DIR=D:/retoolkit/decompilers/ghidra_12.1.4_PUBLIC"
+.\gradlew.bat buildExtension "-PGHIDRA_INSTALL_DIR=$GHIDRA_INSTALL_DIR"
+.\gradlew.bat deploy         "-PGHIDRA_INSTALL_DIR=$GHIDRA_INSTALL_DIR"
 ```
 
 ---

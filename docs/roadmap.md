@@ -1,0 +1,36 @@
+# Roadmap
+
+The milestones of the rewrite, and what is done in each. The architecture is in [architecture.md](architecture.md).
+
+| Milestone | Content | Status |
+|---|---|---|
+| 1 | Workspace, guards, install discovery, bChunk/JDLZ/HUFF, solids, TPK, car viewer on Vulkan/DX12/GL | done |
+| 2 | Generic `libs/` split; the streamed city: index, sections, scenery, background loading, instanced rendering, culling, fly camera | done |
+| 3 | Sky dome, LODs, water, panoramas; zone-based streaming (visible sections); AttribSys reader; car assembly from the parts DB (stock parts, wheels, brakes, paint). Playtest fixes: misplaced and floating scenery, mouse look without holding a button, `--max-fps`, clearer config-file path | done |
+| 4 | Engine foundation: decide on Bevy (ECS, events, UI) in an ADR and migrate the viewers if adopted; layered settings (command line > environment > per-user config file > defaults, with a settings menu in 6); input layer with controller support; developer console (F12: log view, commands such as change car, toggle free camera, change settings); performance overlay (`--show-metrics off\|basic\|advanced`). Decided: Bevy as the shell with our renderer ([ADR 0001](decisions/0001-bevy.md)), full Bevy renderer revisited in 8 | done |
+ | 5 | Vehicle physics, spec-first (`docs/specs/vehicle-*.md`); world collision (`CarpWCollisionPack`); drive a car with the original HUD: read the FEng HUD packages (`HUD_*.fng` in `InGameB.bun`) and draw them with the UI layer; steering wheel controller support (wheel axes, pedals, shifters) on the input layer from 4 |  in progress: `blackbox-vehicle`, the collision reader, input actions, `view-world --drive` (placing, chase camera, one-sided walls, props, reset and fall recovery, scripted runs), manual shifting (Q/E, pad bumpers and wheel paddle buttons, with a transmission setting and an options row), the original HUD (speedometer, tachometer with its red zone and shift light, gear, nitrous bar, turbo dial, minimap; the rest of the package waits for the race and pursuit state of milestone 7), the `--show-readout` levels and the `debug collisions` command are in; steering wheel support (pedal axes, paddles, direct gears for an H-shifter and an optional clutch pedal are in; hardware testing on a real wheel is open); controller testing on real hardware and calibration against the original are done ([Driving](#driving-view-world---drive), [The HUD](#the-hud)) |
+ | 6 | Audio (EA-XA, EA-XAS engine loops, MicroTalk speech), VP6 movies, FEng menus (the same FEng runtime as the HUD), in-game settings menu | in progress: the codecs, banks, music and movie decoders, Ginsu synthesis, the car sound data, the engine and effects mixers, the dynamic mixer maps, the sample (AEMS) layer of the engine and the sputters, the output device, the driven car's engine and effects, a movie player and the radio (licensed songs, gapless, play lists, pause and previous/next keys, a HUD card; not yet heard by a human) are in, and so are the front end (boot movies, title screen, main menu, option screens for audio, video and gameplay, the pause menu, free roam) and the settings written to the config file; speech (the queue and the 28 phrases with banks of their own; no sentences, no triggers) and the pursuit music (four sets steered by game state, the hooks waiting for milestone 7; not yet heard) are in, and the ambience music is open; and so is the playtest report that the engine sounds muted at the rev limiter was fixed by [PR 5](https://github.com/47PADO47/nfs-mw/pull/5); `RUST_LOG=nfsmw::audio=debug` logs the limiter ([Sound](#sound), [The front end](#the-front-end)) |
+| 7 | AI racers, traffic, pursuit, races; career data; console commands to spawn AI | in progress: traffic, cops, lights and trailers are in (see [AI drivers](ai-drivers.md)); no career or races yet |
+| 8 | Graphics: the car shader and lighting rig, tire smoke and skid marks (`blackbox-vehicle` already reports per-wheel `skid` and `smoke`; this draws them), exhaust flames (nitrous, gear-change blow-off and a lift-off backfire on the sputter pops; [guide](exhaust-flames.md), [spec](specs/exhaust-flames.md)), post-processing, upscaling (FSR; DLSS where the backend allows it), ReShade compatibility. Bevy Solari left milestone 8 for a later spike ([ADR 0003](decisions/0003-renderer-after-milestone-8.md)) | in progress: the offscreen HDR render pipeline with a render scale, the glossy car shader with a three-light rig and a procedural environment, optional bloom, tone mapping and FXAA, FSR 1 upscaling with a texture LOD bias, the settings and Video option rows for them, and the ReShade depth contract are in ([post-processing](post-processing.md), [upscaling](upscaling.md), [ReShade](reshade.md)); tire smoke and skid marks are in ([tire effects](tire-effects.md)); the DLSS seams (jitter, motion vectors) and the DLSS feature itself are open; swappable renderers (a Bevy backend with TAA, ray tracing, FSR 3 and DLSS behind a `blackbox-gfx` interface) are planned in [ADR 0004](decisions/0004-swappable-renderers.md) and the [plan](plans/gfx-renderers/README.md) |
+| 9 | Discord Rich Presence | |
+| 10 | Lan multiplayer | |
+| 11 | Online multiplayer | |
+| 12 | scripting API for mods | |
+| 13 | Websocket/server/something for telemetry/api info on player career etc | |
+| 14 | Drift mode: a handling variant with more controlled sliding at lower speeds (its own tire and assist tuning in `blackbox-vehicle`, the original has burnout and drift assists that are not modelled yet) | |
+
+Why this order:
+
+- **Bevy before gameplay (4).** Physics, AI, races and menus are all game objects, systems and events. Choosing the
+  engine structure afterwards would mean writing them twice. The `libs/` readers stay engine-agnostic either
+  way: only `blackbox-render` and the viewers would be bridged into Bevy. Bevy renders through wgpu, so the
+  Vulkan / Direct3D 12 / OpenGL choice stays.
+- **Settings, input, console and metrics with the foundation (4).** Every later milestone adds options,
+  controls and debug commands, so they need a home first. The settings *menu* needs the front-end UI, so it
+  arrives with the menus (6).
+- **Graphics extras late (8).** DLSS needs NVIDIA's SDK (its own license, not MIT/Apache, so it would be an
+  optional feature the user enables) and a backend that exposes it. Upscalers and ReShade want a finished
+  renderer: ReShade reads the depth buffer, which is reverse-Z here, so ReShade's reversed-depth setting has to
+  be documented.
+- **Multiplayer and scripting (9)** need stable game state to sync and expose. **Discord Rich Presence (10)**
+  is the last item on purpose.

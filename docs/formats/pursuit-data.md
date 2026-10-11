@@ -1,7 +1,7 @@
 # Pursuit data: helicopter sheets, cop tuning records, breaker events, pursuit zones
 
 Data formats and tables that the cop, roadblock and helicopter specs read. Everything is checked on the install at
-`D:/Need For Speed Most Wanted Black Edition` unless marked otherwise. Evidence tags as in the
+the local install selected with `NFSMW_GAME_DIR` unless marked otherwise. Evidence tags as in the
 [docs README](../README.md#evidence-tags): **[verified]** read from the install, **[decomp]** from the
 [dbalatoni13/nfsmw](https://github.com/dbalatoni13/nfsmw) decompilation (CC0-1.0), **[unconfirmed]** inferred.
 Behaviour is in [../specs/ai-pursuit-tactics.md](../specs/ai-pursuit-tactics.md),

@@ -3,6 +3,7 @@
 //! Spec: `docs/formats/road-network.md`, `docs/specs/ai-road-network.md`.
 //!
 //! - [`RoadNetwork`]: nodes, segments, profiles and roads of the `RNgp` group in the world metadata.
+//! - [`SignalController`]: traffic lights for the junctions (an extension: the original has none).
 //! - [`TrackZones`]: the typed polygons of the track path manager (traffic patterns, tunnels...).
 //!
 //! Coordinates are the game's physics space: x right, y up, z forward, metres. This crate never
@@ -21,6 +22,7 @@ mod path;
 mod profile;
 mod road;
 mod segment;
+mod signal;
 mod trail;
 mod zones;
 
@@ -39,6 +41,10 @@ pub use path::{MAX_PATH_SEGMENTS, PathRequest, PathResult, PathState, PathType, 
 pub use profile::{RoadProfile, Zone, zone};
 pub use road::Road;
 pub use segment::{RoadSegment, flags};
+pub use signal::{
+    ALL_RED_TIME, AMBER_TIME, Approach, DEFAULT_KERB, GREEN_TIME, Junction, Light, MIN_SIGNAL_APPROACHES,
+    OFFSET_PER_JUNCTION, PHASE_ALIGNMENT, PHASES, STOP_LINE_DISTANCE, SignalController, Timing,
+};
 pub use trail::Body;
 pub use trail::{
     Avoidable, CAPACITY as TRAIL_CAPACITY, CUT, CUT_BEHIND, Cookie, DEFAULT_GAP, Occlusion, Trail, trail_curvature,

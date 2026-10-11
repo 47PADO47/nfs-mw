@@ -9,11 +9,11 @@ use bevy_input::{
     },
     keyboard::{Key, KeyCode, KeyboardInput},
 };
-use bevy_time::Time;
+use bevy_time::{Real, Time};
 
 fn app() -> App {
     let mut app = App::new();
-    app.add_plugins((InputPlugin, InputLayerPlugin)).init_resource::<Time>();
+    app.add_plugins((InputPlugin, InputLayerPlugin)).init_resource::<Time<Real>>();
     app
 }
 fn connect(app: &mut App) -> Entity {

@@ -8,6 +8,12 @@ a record. Process: [licensing.md § Spec-first](../licensing.md#spec-first).
 
 | Module | Spec | Restricted sources read |
 |---|---|---|
+| [Contact camera shake](contact-camera-shake.md) | [specs/contact-camera-shake.md](../specs/contact-camera-shake.md) | Original PC 1.3 isolated shaker routines and CC0 Rumble behavior |
+| [Pursuit breakers](pursuit-breakers.md) | [specs/pursuit-breakers.md](../specs/pursuit-breakers.md) | Original PC 1.3 event dispatch, explosions, models and installed hierarchies |
+| [Trailer constraints](trailer-constraints.md) | [specs/trailer-constraints.md](../specs/trailer-constraints.md) | Original PC 1.3 isolated joint/angle routines and installed bounds |
+| [PC object contacts](pc-object-contact.md) | [specs/pc-object-contact.md](../specs/pc-object-contact.md) | Original PC 1.3 executable (private inspection and emulation), dbalatoni13/nfsmw collision layouts (CC0) |
+| [Prop placements](prop-spawners.md) | [formats/prop-spawners.md](../formats/prop-spawners.md), [specs/prop-attributes.md](../specs/prop-attributes.md) | Original PC 1.3 data and loader, dbalatoni13/nfsmw record layouts (CC0) |
+| [World event sequences](world-sequencers.md) | [formats/event-sequences.md](../formats/event-sequences.md), [specs/world-sequencers.md](../specs/world-sequencers.md) | Original PC 1.3 packages/runtime, dbalatoni13/nfsmw CARP/event layouts (CC0) |
 | [`ea-compress::huff`](ea-compress-huff.md) | [formats/huff.md](../formats/huff.md) | C&C Generals EAC source (GPL-3.0), dbalatoni13/nfsmw `LZCompress` (decompiled, CC0) |
 | [`ea-audio`](audio-codecs.md) | [specs/audio-containers.md](../specs/audio-containers.md), [formats/audio.md](../formats/audio.md) | vgmstream (ISC-style, permissive) and utkencode (Unlicense): ported with notices; no decompiled code |
 | [Car assembly](car-assembly.md) | [specs/car-assembly.md](../specs/car-assembly.md) | dbalatoni13/nfsmw `World/CarInfo.cpp`, `CarRender.cpp`, `CarSkin.cpp` and others (decompiled, CC0) |

@@ -10,12 +10,15 @@ use blackbox_vehicle::induction::InductionKind;
 use blackbox_vehicle::{FIXED_STEP, Ground, InputState, Vehicle};
 use glam::{Mat3, Quat, Vec3};
 use nfsmw_data::car::WheelPose;
-use nfsmw_data::car::physics::{CarPhysics, SurfaceTable, WallSpec};
+use nfsmw_data::car::physics::{AiCollisionReactions, CarGeometry, CarPhysics, SurfaceTable, WallSpec};
+use std::sync::Arc;
 
 use super::input::DriveInput;
 use super::rig::CarPose;
 use super::walls::{self, Impact};
 use crate::scenes::world::effects::{self, Contact};
+use crate::scenes::world::events::{OtherBody, VehicleEvents};
+use crate::scenes::world::object_geometry::{BodyGeometryFrame, BodyPose};
 use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::space;
@@ -68,6 +71,15 @@ pub struct CarSim {
     spin: [f32; 4],
     walls: WallSpec,
     visual_tires: Option<[super::visual_tires::VisualTire; 4]>,
+    pub(in crate::scenes::world) geometry: Option<Arc<CarGeometry>>,
+    pub(in crate::scenes::world) events: Option<VehicleEvents>,
+    pub(in crate::scenes::world) collision_role: OtherBody,
+    reactions: Option<Arc<AiCollisionReactions>>,
+    /// Original goal key when an explicit AI goal is active; otherwise the installed default.
+    pub(in crate::scenes::world) collision_goal: Option<u32>,
+    pub(in crate::scenes::world) collision_racer: bool,
+    previous_contact_pose: BodyPose,
+    before_velocity: Vec3,
 }
 
 /// A vector from physics space to render space axes: `(x, y, z) -> (z, -x, y)`.
@@ -91,6 +103,20 @@ impl CarSim {
             spin: [0.0; 4],
             walls: physics.walls,
             visual_tires: None,
+            geometry: physics.geometry,
+            events: physics.events.and_then(|spec| match VehicleEvents::new(spec) {
+                Ok(events) => Some(events),
+                Err(error) => {
+                    log::warn!("vehicle event engine unavailable: {error:#}");
+                    None
+                }
+            }),
+            collision_role: OtherBody { vehicle: true, player: true, ..Default::default() },
+            reactions: physics.reactions,
+            collision_goal: None,
+            collision_racer: false,
+            previous_contact_pose: (Vec3::ZERO, Quat::IDENTITY),
+            before_velocity: Vec3::ZERO,
         }
     }
 
@@ -117,7 +143,9 @@ impl CarSim {
         // The heading is counter-clockwise from +X in the world; the library's yaw is about the up axis
         // from +z, which is the other way round.
         let top = spawn.position.z + 2.0;
-        self.vehicle.place_on_ground_moving(ground, x, z, top, -spawn.heading, speed)
+        let placed = self.vehicle.place_on_ground_moving(ground, x, z, top, -spawn.heading, speed);
+        self.previous_contact_pose = (self.vehicle.position(), self.vehicle.body().orientation);
+        placed
     }
 
     /// Whether the gearbox shifts by itself (the transmission setting).
@@ -137,8 +165,9 @@ impl CarSim {
         &mut self,
         input: &DriveInput,
         ground: &dyn Ground,
-        world: Option<(&CollisionWorld, &PropWorld)>,
+        mut world: Option<(&CollisionWorld, &mut PropWorld)>,
     ) -> Impact {
+        self.before_velocity = self.vehicle.body().linear_velocity;
         let input = InputState {
             throttle: input.throttle,
             brake: input.brake,
@@ -150,16 +179,33 @@ impl CarSim {
             gear_select: input.gear_select,
             clutch: input.clutch,
         };
+        self.previous_contact_pose = (self.vehicle.position(), self.vehicle.body().orientation);
+        if let (Some((_, props)), Some(events)) = (world.as_mut(), &self.events) {
+            props.vehicle_explosions(self.vehicle.body_mut(), &events.owner, self.collision_role.player, FIXED_STEP);
+        }
         self.vehicle.step(FIXED_STEP, &input, ground);
         let impact = match world {
-            Some((collision, props)) => walls::resolve(
-                &mut self.vehicle,
-                &walls::world_cast(collision),
-                &walls::world_props(props),
-                &self.walls,
-            ),
+            Some((collision, props)) => {
+                let mut impact = walls::resolve(
+                    &mut self.vehicle,
+                    &walls::world_cast(collision),
+                    &walls::world_props(props),
+                    &self.walls,
+                );
+                let frame = self
+                    .geometry
+                    .as_ref()
+                    .map(|g| BodyGeometryFrame { geometry: &g.body, previous: self.previous_contact_pose });
+                props.collide_vehicle(&mut self.vehicle, frame, &mut impact);
+                impact
+            }
             None => Impact::default(),
         };
+        if let Some(events) = self.events.as_mut() {
+            for &hit in &impact.damage {
+                events.hit(hit);
+            }
+        }
         for (spin, &physics) in self.spin.iter_mut().zip(&PHYSICS_WHEEL) {
             *spin += self.vehicle.wheel(physics).angular_velocity * FIXED_STEP;
         }
@@ -282,7 +328,9 @@ impl CarSim {
 }
 
 mod ai;
+mod camera;
 mod pair;
+mod trailer;
 
 #[cfg(test)]
 mod tests;

@@ -37,7 +37,7 @@ mod tests {
     use bevy_app::App;
     use bevy_input::keyboard::{Key, KeyCode, KeyboardInput};
     use bevy_input::{ButtonState, InputPlugin};
-    use bevy_time::Time;
+    use bevy_time::{Real, Time};
 
     use super::*;
     use crate::input::InputLayerPlugin;
@@ -60,7 +60,7 @@ mod tests {
             [(KeyCode::KeyM, Control::Toggle), (KeyCode::Period, Control::Next), (KeyCode::Comma, Control::Previous)]
         {
             let mut app = App::new();
-            app.add_plugins((InputPlugin, InputLayerPlugin)).init_resource::<Time>();
+            app.add_plugins((InputPlugin, InputLayerPlugin)).init_resource::<Time<Real>>();
             press(&mut app, key);
             assert_eq!(requested(app.world().resource::<ActionState>()), Some(control), "{key:?}");
             // Held down, it does not ask again.

@@ -99,6 +99,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.cop_share {
         put("cop_share", Value::Integer(i64::from(v.0)));
     }
+    if let Some(v) = changes.traffic_lights {
+        put("traffic_lights", Value::Boolean(v));
+    }
     if let Some(v) = changes.skid_marks {
         put("skid_marks", Value::Boolean(v));
     }
@@ -284,6 +287,7 @@ mod tests {
             speech_volume: Some(Percent(50)),
             hud: Some(false),
             radio: Some(false),
+            traffic_lights: Some(false),
             transmission: Some(crate::settings::Transmission::Manual),
             minimap: Some(crate::settings::MinimapMode::Rotating),
             paddle_up: Some(5),

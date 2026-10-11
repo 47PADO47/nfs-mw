@@ -33,6 +33,17 @@ textured sparks and contact glow separately from the experimental restoration.
 [Controller settings](controller-settings.md) specifies rewrite response options and saved rebinding.
 [Controller UI](controller-ui.md) specifies device ownership, live binding prompts and menu rendering corrections.
 
+[Ground contacts](ground-contact-response.md) and [prop lifetime](prop-lifetime.md)
+cover measured plane response, world probes, sinking and model cleanup.
+
+[Pursuit breakers](pursuit-breakers.md) covers named scenery fragments, area
+stimuli, expanding explosions, ownership and fixed-clock cop-stop regions.
+[Trailer constraints](trailer-constraints.md) covers named angular limits,
+mass-weighted geometry correction and measured point-moment response.
+
+[Contact camera shake](contact-camera-shake.md) covers acceleration triggers,
+waveform, view transforms and fixed-tick presentation.
+
 ## Template
 
 [Tire effects](tire-effects.md) describes this rewrite's procedural smoke and grounded marks,

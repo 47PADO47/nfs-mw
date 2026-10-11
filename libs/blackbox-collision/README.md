@@ -6,6 +6,9 @@ Reader for the **collision data** of EA Black Box games (Need for Speed: Most Wa
   articles that hold triangle strips, barriers and a surface table.
 - `Grid` (chunk `0x3B800`): the world-wide xz grid that lists which instances touch each cell.
 - `BoundsSet` (`0x8003B900`): the boxes, spheres and point clouds of a car or prop.
+- `BodyGeometry`: selects one body's immediate children or root, retaining separate fragment
+  subtrees and disabled flags. `GeometryOptions` supplies fallback dimensions, shape, padding
+  and material from the host. Construction evidence is in `docs/specs/world-sequencers.md`.
 - `CollisionWorld`: loaded packs plus the grid, with a segment query:
   `world.ray_cast(from, to, &RayOptions::default())` returns the nearest face or barrier hit with its point,
   normal and surface hash (a `simsurface` AttribSys key); `world.ground(x, z, top, bottom)` is a

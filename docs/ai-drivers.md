@@ -13,9 +13,10 @@ when they are left behind. Around one car in twenty is a patrol cop. Open the co
 |---|---|---|---|---|
 | Cars kept on the road around you (0: off) | `traffic` | `NFSMW_TRAFFIC` | `--traffic <n>`, `--no-traffic` | 10 |
 | Share of them that are patrol cops, percent | `cop_share` | `NFSMW_COP_SHARE` | `--cop-share <0-100>` | 5 (one in twenty) |
+| Cars stop at red lights at junctions (a rewrite extension, see below) | `traffic_lights` | `NFSMW_TRAFFIC_LIGHTS` | `--traffic-lights`, `--no-traffic-lights` | on |
 
-In the console: `get traffic`, `set traffic 16`, `set cop_share 10`. The defaults are the named constants
-`DEFAULT_TRAFFIC` and `DEFAULT_COP_SHARE` in [`settings/mod.rs`](../crates/nfsmw/src/settings/mod.rs).
+In the console: `get traffic`, `set traffic 16`, `set cop_share 10`, `set traffic_lights off`. The defaults are the
+named constants `DEFAULT_TRAFFIC`, `DEFAULT_COP_SHARE` and `DEFAULT_TRAFFIC_LIGHTS` in [`settings/mod.rs`](../crates/nfsmw/src/settings/mod.rs).
 
 | Command | Effect |
 |---|---|
@@ -33,6 +34,7 @@ Headless: `--exec "traffic 24" --exec "traffic warmup 25" --screenshot out.png`.
 | Navigator: lane cursor, traffic and direction rules, path following | `blackbox-roads` (`RoadNav`) | [ai-road-network](specs/ai-road-network.md) §2 to §4 |
 | Path finding (A*) | `blackbox-roads` (`find_path`, `RoadNav::find_path_to`) | [ai-pathfinder](specs/ai-pathfinder.md) |
 | Look-ahead trail, corridor cuts, steering target, curvature | `blackbox-roads` (`Trail`, `update_occluded_position`) | [ai-road-nav-trail](specs/ai-road-nav-trail.md) |
+| Traffic lights: junction groups, stop lines, phases, fixed-time cycle (rewrite extension) | `blackbox-roads` (`SignalController`) | none: the original has none |
 | Controllers: simple (traffic) and adaptive PID (cops), reverse, stuck | [`blackbox-driver`](../libs/blackbox-driver) | [ai-driver-control](specs/ai-driver-control.md), [pid](specs/ai-driver-control-pid.md) |
 | Requested speed: cornering, skill, governor, pursuit cap | `blackbox-driver` (`speed`) | [ai-driver-speed-skill](specs/ai-driver-speed-skill.md) |
 | Car performance (top speed, acceleration table, grip), car against car | [`blackbox-vehicle`](../libs/blackbox-vehicle) | [vehicle-rigid-body](specs/vehicle-rigid-body.md) §6 |
@@ -50,9 +52,49 @@ Headless: `--exec "traffic 24" --exec "traffic warmup 25" --screenshot out.png`.
   pattern zone under the player (`TrackPathZones` type 9). Models load on demand, one per frame.
 - **Patrol cops** are cop cars of the heat 1 wave that drive like traffic at the search-mode speeds of the install
   (50/71 mph) and take bends at 1.6 g. Each new car is a patrol cop with the probability `cop_share`.
+- **Semis pull trailers.** The `cityhighway` and `collegehighway` patterns bring the semi tractors (`semib`,
+  `semicrate`, `semilog`, `semicon`). A tractor loads with the trailer its `pvehicle` names (`trailerb`, ...) and the
+  two spawn, drive and are removed together. The trailer is its own car (no engine; it takes the tractor's brake and
+  handbrake) held to the tractor by a ball joint at the 5th wheel, which lets go when either body tips over, when the
+  two fold apart or when either is off the ground for 2 s ([ai-traffic](specs/ai-traffic.md) §2). The two do not
+  collide with each other while hitched, other cars avoid them as one long body, and a trailer that comes loose
+  brakes and stays as a free body. Where the 5th wheel is, is this rewrite's own decision (see below).
 - **Cars are removed** when they are far away (350 m), when nobody has seen them for the density's off-screen
   time and they are beyond its off-screen distance (4 s and 40 m at full density, as in the original), when they
   fell off the map, or when they stand stuck away from you.
+
+## Traffic lights: a rewrite extension
+
+**The original has no traffic lights** ([ai-traffic-world §1](specs/ai-traffic-world.md#1-traffic-lights-and-stop-signs)):
+its cars never slow down for a junction, and the signal scenery is only props. Lights here are an addition of this
+rewrite, asked for by the player, and the `traffic_lights` setting turns them off (`--no-traffic-lights`) to get the
+original's behaviour back. They are not a reading of the game and nothing in the specs depends on them.
+
+- **Junctions and approaches** (`blackbox_roads::SignalController`): the nodes joined by decision segments form
+  731 junction groups ([road-network](formats/road-network.md#junctions-intersections-without-records)). Every plain
+  segment that can be driven into a junction node is an approach, with a stop line 8 m before the node along the
+  segment (`STOP_LINE_DISTANCE`) and its heading there. A junction with three or more approaches (T and four-way
+  junctions) gets signals: 718 of the 731 junctions, 2,560 approaches. The other 13 are left as they are.
+- **Phases:** the approaches whose heading lies within 45 degrees of the first one's axis (either way, so the two
+  opposite roads) share phase 0, the rest are phase 1. One phase is green for 14 s, amber for 3 s, then both are red for
+  2 s before the other phase starts (`GREEN_TIME`, `AMBER_TIME`, `ALL_RED_TIME`). Each junction's cycle is
+  shifted by 5.3 s times its index (`OFFSET_PER_JUNCTION`) so that the city does not change in step. The clock is the
+  simulated time of `TrafficWorld`.
+- **What a car does** (`world/ai/stop.rs`, `traffic.rs`): it looks for the stop line of the junction it is heading to
+  (the ends of the segment under its cursor, plus the line it last saw) if it points the same way as the approach
+  and is within 80 m. A red light, or an amber the car can still stop for (`stopping_distance`), is a stationary
+  obstacle at the line: the wanted speed is `sqrt(2 * 4.5 * distance)`, so the car brakes at about 4.5 m/s squared
+  and stops with its front at the line, and the walking-pace floor is dropped for the last metre so it stays on
+  the brake. A car already past the line, or too close to stop on amber, drives through. A car held by a light is
+  not counted idle by the 20 s stuck rule. Cops chasing the player ignore the lights; patrol cops obey them.
+- **What it looks like** (`world/ai/lamps.rs`): the map's own signal scenery (`XO_TrafficLight*`, `SGN_Signal_*`,
+  `XS_TrafficSignal*`) is drawn as ordinary props and cannot be recoloured, so each signalled approach gets a marker of
+  its own while the setting is on: a grey post 1 m beyond the kerb with a 0.9 m lamp on top that is green, amber or
+  red as the light, and a white bar across the road at the stop line. They are plain boxes, not models, and sit
+  next to the scenery's signals rather than replacing them (the scenery's own lights stay as they are in the data).
+- **Not modelled:** turn priority and gap acceptance (cars still do not look at cross traffic), a junction jammed
+  by queues (a car enters on green even if the exit is full), right turn on red, pedestrian phases, flashing amber at
+  night, detection loops.
 
 ## Checked against the install
 
@@ -74,16 +116,17 @@ pattern each resolves to match its §3.
 | Simple (traffic) and adaptive-PID (cop) controllers, reverse, stuck recovery | done |
 | Traffic: patterns by zone, type timers, caps, density, 10 Hz think, posted speeds, accident and shock | done |
 | Automatic spawn and removal around the player, `traffic` and `cop_share` settings | done |
+| Traffic lights at junctions of three or more roads, `traffic_lights` setting | done, a rewrite extension (the original has none) |
 | Patrol cops among the traffic | done (they cruise; see below) |
 | Pursuit: wave per heat level from the data, spawn ring, path to the player, pursuit-mode speed | basic |
 | Car against car | done (box impulse) |
+| Semi tractors with trailers (ball joint, release rules, hitched pair spawns and goes together) | done |
 | Measured car performance for matching cops to the player's car | done |
 
 ## Not implemented yet
 
-- **Traffic:** traffic lights and stop signs, trailers and the tractor joint (the semi patterns are skipped
-  until trailers exist), horns and drive-by sounds, `collisionreactions` records, the scripted drag-race
-  traffic and the drag pattern, pool reuse of cars, parked cars.
+- **Traffic:** stop signs, priority at junctions, horns and drive-by sounds, `collisionreactions` records, the
+  scripted drag-race traffic and the drag pattern, pool reuse of cars, parked cars.
 - **Patrol cops:** a patrol cop does not start a pursuit when it sees you (no infractions, heat or sight yet) and
   never reacts to the player. Use `pursuit <heat>` to start a chase by hand.
 - **Racers:** the race action's nitrous, skill and rubber banding, race routes and checkpoints, staging,
@@ -93,8 +136,20 @@ pattern each resolves to match its §3.
 - **Simulation level of detail** for far cars, and a test of the original's behaviour in the running game: the
   spec constants are from the decompilation and have not been measured against the PC build.
 
+## Known issues
+
+- At busy junctions cars (semis among them) can jam for a long time: nothing gives way to cross or turning
+  traffic, and cars enter a junction on green even when its exit is full. Jammed cars far from you are removed
+  after 20 s standing; a semi jam near a junction was seen at (490, 185) in the `cityhighway` pattern and has not
+  been separated from the general jam.
+- Trailers can release early about 240 m from the player, probably because the collision data is only partly
+  streamed that far out.
+- The traffic lights are plain markers beside the road, not the map's own signal scenery.
+
 ## Deliberate differences
 
+- **Traffic lights exist** (`traffic_lights`, on by default) although the original has none; see
+  [above](#traffic-lights-a-rewrite-extension). With the setting off the traffic is as in the original.
 - **A stopped traffic car on a free road may ask for a walking pace (1 m/s).** In the original the target speed
   is capped at the current speed plus `2 dT`, which is under the `0.5 m/s` the pedal logic treats as "stop", so a
   car that has come to a halt stays on the brake. Without the floor, junction jams never clear.
@@ -107,4 +162,8 @@ pattern each resolves to match its §3.
   this rewrite's reading.
 - **Car against car** uses a textbook impulse (the original's solver is not in the sources) between the
   collision boxes, once per frame.
+- **The 5th wheel is a ball joint at a derived point.** The install does not say where the tractor and the trailer
+  meet: the hitch is at the back edge of the tractor's collision box and the kingpin at the front edge of the
+  trailer's, both 1.2 m above the bottom of their box, and the joint is a ball joint solved with impulses (`BallJoint`
+  in `blackbox-vehicle`). The release rules are the original's ([ai-traffic](specs/ai-traffic.md) §2).
 - **Performance table** is measured by driving the car flat out (the estimator is not in the sources).

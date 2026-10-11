@@ -2,7 +2,7 @@
 //! `#[ignore]`d; run them with
 //!
 //! ```sh
-//! NFSMW_GAME_DIR="D:/Need For Speed Most Wanted Black Edition" cargo test --release -p nfsmw-data -- --ignored
+//! NFSMW_GAME_DIR="<your-install>" cargo test --release -p nfsmw-data -- --ignored
 //! ```
 //!
 //! Without `NFSMW_GAME_DIR` they pass without checking anything.
@@ -11,14 +11,19 @@ mod carparts;
 mod cars;
 mod compare;
 mod exhaust;
+mod geometry;
 mod ginsu;
 mod handling;
 mod manual;
 mod minimap;
 mod music;
+mod objects;
 mod physics;
 mod pursuit;
+mod reactions;
+mod sequences;
 mod sound;
+mod spawners;
 mod speech;
 mod textures;
 mod traffic;

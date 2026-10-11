@@ -182,6 +182,9 @@ Clamping, drag and sleep constants (`300`, `30`, `1.225`, `0.5`, `4`) are hard-c
 
 ## 4. World collision
 
+The measured [ground response](ground-contact-response.md) specifies plane
+iterations, surface friction, point order and query tolerances used by the rewrite.
+
 ### 4.1 What the car collides against
 
 The car is a list of **collision primitives**, each with `{name hash, half dimensions, offset from the body

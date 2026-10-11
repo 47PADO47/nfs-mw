@@ -5,7 +5,7 @@ use glam::Vec3;
 
 use crate::{RoadNetwork, SegmentFilter, SegmentIndex, closest_segment, flags, lane_line, travel_profile};
 
-fn network() -> Option<RoadNetwork> {
+pub(super) fn network() -> Option<RoadNetwork> {
     let dir = std::env::var_os("NFSMW_GAME_DIR")?;
     let path = std::path::Path::new(&dir).join("TRACKS/L2RA.BUN");
     let raw = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));

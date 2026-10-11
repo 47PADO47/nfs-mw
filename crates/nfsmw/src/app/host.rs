@@ -49,7 +49,7 @@ pub struct Host {
     /// The wheel switches as of the last frame, given to every scene that is put in the window.
     pub wheel: WheelOptions,
     /// The traffic settings as of the last frame, given to every scene that is put in the window.
-    pub traffic: (u32, crate::settings::Percent),
+    pub traffic: crate::settings::TrafficSettings,
 }
 
 impl Host {
@@ -84,7 +84,7 @@ impl Host {
             transmission: settings.transmission,
             camera_mode: settings.camera_mode,
             wheel: settings.wheel_options(),
-            traffic: (settings.traffic, settings.cop_share),
+            traffic: crate::settings::TrafficSettings::from(settings),
         }
     }
 
@@ -111,7 +111,7 @@ impl Host {
         scene.set_transmission(self.transmission);
         scene.set_camera_mode(self.camera_mode);
         scene.set_wheel_options(self.wheel);
-        scene.set_traffic(self.traffic.0, self.traffic.1);
+        scene.set_traffic(self.traffic);
         if self.screenshot.is_some() {
             super::screenshot::wait_ready(scene.as_mut(), renderer.as_mut());
         }

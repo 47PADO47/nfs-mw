@@ -83,7 +83,7 @@ fn carp_tree_navigation() {
     assert_eq!(arti.record(7).unwrap().unwrap().data, [9; 8]);
     assert!(arti.record(8).unwrap().is_none());
     assert!(root.group(tag4(b"Nope")).unwrap().is_none());
-    assert!(matches!(arti.require(8, "thing"), Err(Error::Missing("thing"))));
+    assert!(matches!(arti.require(8, "thing"), Err(blackbox_carp::Error::Missing("thing"))));
 }
 
 #[test]

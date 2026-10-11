@@ -169,6 +169,15 @@ impl RigidBody {
         }
     }
 
+    /// Changes orientation without resetting velocities or accumulated forces.
+    pub fn set_orientation(&mut self, orientation: Quat) {
+        if !orientation.is_finite() || orientation.length_squared() <= f32::EPSILON {
+            return;
+        }
+        self.orientation = orientation.normalize();
+        self.refresh_matrices();
+    }
+
     /// Adds a force (N, world frame) at the centre of gravity. Wakes a sleeping body.
     pub fn apply_force(&mut self, force: Vec3) {
         self.wake();
@@ -186,6 +195,18 @@ impl RigidBody {
         self.wake();
         self.torque += (world_point - self.world_cog()).cross(force);
         self.force += force;
+    }
+
+    /// Changes the velocities as an impulse (N s, world frame) at a world point would: the linear velocity by
+    /// `impulse / mass` and the angular velocity by the torque of the impulse about the centre of gravity.
+    /// Wakes a sleeping body; a frozen one does not move.
+    pub fn apply_impulse_at(&mut self, impulse: Vec3, world_point: Vec3) {
+        if self.state == BodyState::Frozen {
+            return;
+        }
+        self.wake();
+        self.linear_velocity += impulse * self.inv_mass;
+        self.angular_velocity += self.inv_world_tensor * (world_point - self.world_cog()).cross(impulse);
     }
 
     /// Adds only the torque of a force acting at a world point.

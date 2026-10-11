@@ -4,11 +4,10 @@
 use glam::Vec3;
 
 use super::{FLOWN_AWAY, View, WorldScene, ground, road};
-use crate::input::{Action, ActionState};
 
 impl WorldScene {
-    /// Put a waiting car on the road once the area around it has loaded, then run its physics.
-    pub(super) fn update_drive(&mut self, input: &ActionState, dt: f32) {
+    /// Put a waiting car on the road once the area around it has loaded; the physics runs in `update_simulation`.
+    pub(super) fn prepare_drive(&mut self) {
         let (Some(drive), physics) = (self.drive.as_mut(), &self.physics) else { return };
         drive.set_markers(self.markers_on);
         if let Some(request) = drive.waiting_for_road()
@@ -54,14 +53,6 @@ impl WorldScene {
                 }
             }
         }
-        if self.view == View::Chase {
-            let loaded = self.residency.complete();
-            let (collision, props) = self.residency.world_parts();
-            drive.step(collision, props, &physics.surfaces, input, dt, loaded);
-            drive.follow(self.residency.collision(), (input.value(Action::LookX), input.value(Action::LookY)), dt);
-            return;
-        }
-        drive.age_effects(dt);
     }
 
     /// Switch between the chase camera and the free camera (the car waits while you fly).

@@ -11,6 +11,14 @@ pub struct ScenerySection {
     pub section_number: u32,
     pub infos: Vec<SceneryInfo>,
     pub instances: Vec<SceneryInstance>,
+    pub override_hooks: Vec<OverrideHook>,
+}
+
+/// Join a global override index to an instance in this section.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OverrideHook {
+    pub override_index: u16,
+    pub instance_index: u16,
 }
 
 impl ScenerySection {
@@ -50,7 +58,15 @@ fn read_section(section: Chunk<'_>, layout: &SceneryLayout) -> Result<ScenerySec
         .into_iter()
         .map(|r| SceneryInstance::decode(r, &layout.instance))
         .collect();
-    Ok(ScenerySection { section_number, infos, instances })
+    let hooks = &layout.hooks;
+    let override_hooks = records(ids::SCENERY_OVERRIDE_HOOKS, hooks.len, hooks.align)?
+        .into_iter()
+        .map(|r| OverrideHook {
+            override_index: u16::from_le_bytes(r[hooks.override_index..hooks.override_index + 2].try_into().unwrap()),
+            instance_index: u16::from_le_bytes(r[hooks.instance_index..hooks.instance_index + 2].try_into().unwrap()),
+        })
+        .collect();
+    Ok(ScenerySection { section_number, infos, instances, override_hooks })
 }
 
 #[cfg(test)]
@@ -84,6 +100,7 @@ mod tests {
             chunk(ids::SCENERY_SECTION_HEADER, &header),
             chunk(ids::SCENERY_INSTANCES, &padded),
             chunk(ids::SCENERY_INFOS, &info),
+            chunk(ids::SCENERY_OVERRIDE_HOOKS, &[42, 0, 0, 0]),
         ]
         .concat();
         let data = chunk(ids::SCENERY_SECTION, &body);
@@ -91,6 +108,7 @@ mod tests {
         let sections = read_scenery_sections(&data, &MOST_WANTED).unwrap();
         let s = &sections[0];
         assert_eq!(s.section_number, 141);
+        assert_eq!(s.override_hooks, [OverrideHook { override_index: 42, instance_index: 0 }]);
         assert_eq!(s.infos[0].name, "LAMP1");
         assert_eq!(s.infos[0].best_solid(), Some(0xAABB_CCDD));
         let i = &s.instances[0];

@@ -1396,6 +1396,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "blackbox-carp"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "blackbox-carparts"
 version = "0.1.0"
 dependencies = [
@@ -1420,8 +1427,10 @@ name = "blackbox-collision"
 version = "0.1.0"
 dependencies = [
  "blackbox-attrib",
+ "blackbox-carp",
  "blackbox-chunk",
  "ea-compress",
+ "glam 0.34.1",
  "thiserror 2.0.21",
 ]
 
@@ -1537,8 +1546,8 @@ dependencies = [
 name = "blackbox-roads"
 version = "0.1.0"
 dependencies = [
+ "blackbox-carp",
  "blackbox-chunk",
- "blackbox-collision",
  "ea-compress",
  "glam 0.34.1",
  "thiserror 2.0.21",
@@ -1560,6 +1569,14 @@ name = "blackbox-scenery"
 version = "0.1.0"
 dependencies = [
  "blackbox-chunk",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "blackbox-sequence"
+version = "0.1.0"
+dependencies = [
+ "blackbox-carp",
  "thiserror 2.0.21",
 ]
 
@@ -3461,6 +3478,8 @@ dependencies = [
  "blackbox-roads",
  "blackbox-scene",
  "blackbox-scenery",
+ "blackbox-sequence",
+ "blackbox-solid",
  "blackbox-streaming",
  "blackbox-text",
  "blackbox-tpk",
@@ -3496,6 +3515,7 @@ dependencies = [
  "blackbox-particles",
  "blackbox-roads",
  "blackbox-scenery",
+ "blackbox-sequence",
  "blackbox-solid",
  "blackbox-streaming",
  "blackbox-tpk",
