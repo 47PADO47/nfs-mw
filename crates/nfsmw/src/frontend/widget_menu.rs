@@ -159,7 +159,7 @@ impl WidgetMenu {
         for o in [r.base, r.fill].into_iter().flatten() {
             cx.rt.set_hidden(o, !slider);
         }
-        Self::dim(cx, r, row, row.setting.enabled(cx.settings));
+        Self::dim(cx, r, row, row.setting.enabled_in(cx.settings, &cx.caps));
         match control {
             Control::Toggle => {
                 let Some(data) = r.data else { return };
@@ -241,7 +241,7 @@ impl WidgetMenu {
             return;
         }
         let Some(r) = self.objects.get(self.selected.saturating_sub(self.top)) else { return };
-        let alpha = if row.setting.enabled(cx.settings) { 255 } else { DISABLED_ALPHA };
+        let alpha = if row.setting.enabled_in(cx.settings, &cx.caps) { 255 } else { DISABLED_ALPHA };
         cx.rt.set_alpha(r.name, alpha);
     }
 
@@ -350,7 +350,7 @@ impl ScreenLogic for WidgetMenu {
                 self.draw_slider(cx, r, f32::from(percent) / 100.0);
             }
             // The package's scripts reset the title's alpha, so a disabled row is dimmed every frame.
-            if !row.setting.enabled(cx.settings) {
+            if !row.setting.enabled_in(cx.settings, &cx.caps) {
                 Self::dim(cx, r, row, false);
             }
         }

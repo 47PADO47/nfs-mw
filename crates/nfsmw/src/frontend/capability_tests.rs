@@ -31,11 +31,11 @@ fn the_native_renderer_hides_ray_tracing_and_the_quality_mode_but_has_the_render
         assert!(!video.contains(&text(hidden)), "{hidden} needs a renderer that offers it");
     }
     assert_eq!(
-        video[video.len() - 2..],
+        video[1..3],
         [text("Renderer (After Restart)"), text("Graphics API (After Restart)")],
-        "after the rows that were there before, which keep their places"
+        "renderer choices sit with the display controls"
     );
-    assert_eq!(video[video.len() - 7..video.len() - 5], [text("Graphics Preset"), text("Car Shading")]);
+    assert_eq!(video[5], text("Graphics Preset"));
     assert_eq!(titles(Category::Audio, &test_caps::native()).len(), 5);
     assert_eq!(titles(Category::Gameplay, &test_caps::native()).len(), 5);
 }
@@ -46,10 +46,10 @@ fn a_full_renderer_has_every_row_next_to_the_setting_it_belongs_with() {
     assert_eq!(video.len(), 25);
     let at =
         |name: &'static str| video.iter().position(|t| *t == text(name)).unwrap_or_else(|| panic!("no {name} row"));
-    assert_eq!(at("Upscale Quality"), at("Upscale Sharpness") + 1);
-    assert_eq!(at("Ray Tracing"), at("Anti-Aliasing") + 1);
-    assert_eq!(at("Renderer (After Restart)"), video.len() - 2);
-    assert_eq!(at("Graphics API (After Restart)"), video.len() - 1);
+    assert_eq!(at("Upscale Quality"), at("Upscaler") + 1);
+    assert_eq!(at("Ray Tracing"), at("Bloom") + 1);
+    assert_eq!(at("Renderer (After Restart)"), 1);
+    assert_eq!(at("Graphics API (After Restart)"), 2);
     assert_eq!(titles(Category::Audio, &test_caps::full()).len(), 5, "only the Video screen has them");
 }
 
@@ -140,6 +140,7 @@ fn the_renderer_rows_cycle_and_record_only_their_own_change() {
 
     let (mut s, mut c) = (defaults(), Partial::default());
     let quality = Setting::Renderer(RendererSetting::UpscaleQuality);
+    s.upscaler = UpscaleMode::Dlss;
     assert_eq!(quality.data_in(&s, &full), Data::Text("Quality".into()));
     for name in ["Balanced", "Performance", "Ultra Performance", "Auto", "Native", "Quality"] {
         quality.advance(&mut s, &mut c, true, &full);
