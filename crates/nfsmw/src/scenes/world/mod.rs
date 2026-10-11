@@ -1,6 +1,7 @@
 //! The streamed city: a free-fly camera, or a car to drive with a chase camera.
 
 mod ai;
+mod camera_choice;
 mod car_lights;
 mod cargo;
 mod commands;
@@ -37,7 +38,7 @@ use nfsmw_data::world::{DEFAULT_TRACK, PropCatalog, Streamer, WorldIndex, load_g
 use crate::input::{Action, ActionState};
 use crate::settings::CameraMode;
 use crate::viewer::Scene;
-use crate::viewer::camera::{Camera, CameraCut, DynamicFov, FlyCamera};
+use crate::viewer::camera::{CameraCut, FlyCamera};
 use drive::{Drive, DriveScript, MarkerMeshes};
 use residency::Residency;
 
@@ -90,6 +91,8 @@ pub struct WorldScene {
     fog_distance: f32,
     visible: Vec<Instance>,
     colour_treatment: Option<blackbox_gfx::ColourTreatment>,
+    /// The seven original gameplay views, from the install's `camerainfo` data.
+    camera_views: Option<nfsmw_data::camera::Views>,
     gain_map: Option<blackbox_gfx::RgbaImage>,
     reflection_faces: [Vec<Instance>; 6],
     reflection_last: Option<reflections::CaptureStamp>,
@@ -154,6 +157,7 @@ impl WorldScene {
         let index = WorldIndex::open(dir, DEFAULT_TRACK)?;
         let physics = PhysicsData::load(dir)?;
         let colour_treatment = nfsmw_data::visual_treatment::midday(physics.database());
+        let camera_views = nfsmw_data::camera::load(physics.database());
         if colour_treatment.is_none() {
             log::warn!("midday visual treatment is missing or invalid; grading disabled");
         }
@@ -197,6 +201,7 @@ impl WorldScene {
             fog_distance: options.fog_distance,
             visible: Vec::new(),
             colour_treatment,
+            camera_views,
             gain_map,
             reflection_faces: std::array::from_fn(|_| Vec::new()),
             reflection_last: None,
@@ -354,16 +359,7 @@ impl Scene for WorldScene {
     }
 
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
-        let chase = self.drive.as_ref().filter(|_| self.view == View::Chase).map(|drive| drive.camera());
-        let speed = self.drive.as_ref().map_or(0.0, |drive| drive.speed().abs());
-        let dynamic = chase.as_ref().map(|view| DynamicFov { chase: view, speed });
-        let camera: &dyn Camera = match (&chase, &dynamic) {
-            (Some(_), Some(dynamic)) if self.camera_mode == CameraMode::DynamicFov => dynamic,
-            (Some(view), _) => view,
-            (None, _) => &self.camera,
-        };
-        debug_assert!(camera.selectable(), "the camera setting picked a camera it may not choose");
-        let lens = camera.lens(aspect);
+        let lens = self.gameplay_lens(aspect);
         let fog_end = self.fog_distance;
         let cull = visibility::Camera {
             view_proj: lens.view_proj(),
