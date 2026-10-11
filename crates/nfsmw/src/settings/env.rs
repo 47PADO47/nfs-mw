@@ -43,6 +43,7 @@ pub const HUD_LAYOUT: &str = "NFSMW_HUD_LAYOUT";
 pub const RADIO_HUD: &str = "NFSMW_RADIO_HUD";
 pub const POST_TONEMAP: &str = "NFSMW_POST_TONEMAP";
 pub const POST_BLOOM: &str = "NFSMW_POST_BLOOM";
+pub const REFLECTIONS: &str = "NFSMW_REFLECTIONS";
 pub const POST_AA: &str = "NFSMW_POST_AA";
 pub const RENDER_SCALE: &str = "NFSMW_RENDER_SCALE";
 pub const UPSCALER: &str = "NFSMW_UPSCALER";
@@ -99,6 +100,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         post_tonemap: value(&get, POST_TONEMAP, PostTonemap::from_str),
         post_bloom: value(&get, POST_BLOOM, PostBloom::from_str),
         post_aa: value(&get, POST_AA, PostAa::from_str),
+        reflections: value(&get, REFLECTIONS, super::ReflectionQuality::from_str),
         render_scale: value(&get, RENDER_SCALE, RenderScale::from_str),
         upscaler: value(&get, UPSCALER, UpscaleMode::from_str),
         upscale_sharpness: value(&get, UPSCALE_SHARPNESS, Percent::from_str),

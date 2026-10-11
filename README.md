@@ -57,6 +57,8 @@ config file written by `setup`, or the retail registry key ([details](docs/archi
 Options for both viewers:
 
 - `--backend auto|vulkan|dx12|gl` picks the graphics API ([details](docs/architecture.md#graphics-backends)).
+- `--reflections off|low|medium|high` controls local car reflections (default medium); Video options
+  and the F12 `reflections` command switch it live ([behavior and limits](docs/specs/car-reflections.md)).
 - `--max-fps 60` caps the frame rate (default `unlocked`; `--no-vsync` turns vsync off).
 - `--window-mode windowed|borderless|exclusive` chooses the window mode; Alt+Enter toggles
   fullscreen. `--monitor primary|current|INDEX` and `--resolution native|WIDTHxHEIGHT` select

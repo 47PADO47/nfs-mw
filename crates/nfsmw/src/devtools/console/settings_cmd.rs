@@ -11,7 +11,7 @@ use crate::settings::{
 };
 
 /// Settings the console can show.
-const KEYS: [&str; 47] = [
+const KEYS: [&str; 48] = [
     "deadzone_mode",
     "steering_deadzone",
     "camera_deadzone",
@@ -54,6 +54,7 @@ const KEYS: [&str; 47] = [
     "post_tonemap",
     "post_bloom",
     "post_aa",
+    "reflections",
     "render_scale",
     "upscaler",
     "upscale_sharpness",
@@ -106,6 +107,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "post_tonemap" => settings.post_tonemap.to_string(),
         "post_bloom" => settings.post_bloom.to_string(),
         "post_aa" => settings.post_aa.to_string(),
+        "reflections" => settings.reflections.to_string(),
         "render_scale" => settings.render_scale.to_string(),
         "upscaler" => settings.upscaler.to_string(),
         "upscale_sharpness" => settings.upscale_sharpness.to_string(),
@@ -169,6 +171,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "post_tonemap" => settings.post_tonemap = PostTonemap::from_str(value)?,
         "post_bloom" => settings.post_bloom = PostBloom::from_str(value)?,
         "post_aa" => settings.post_aa = PostAa::from_str(value)?,
+        "reflections" => settings.reflections = value.parse()?,
         "render_scale" => settings.render_scale = RenderScale::from_str(value)?,
         "upscaler" => settings.upscaler = value.parse()?,
         "upscale_sharpness" => settings.upscale_sharpness = Percent::from_str(value)?,
@@ -228,6 +231,7 @@ fn syntax(key: &str) -> Option<&'static str> {
         "post_tonemap" => "<off|aces>",
         "post_bloom" => "<off|low|medium|high>",
         "post_aa" => "<off|fxaa|smaa|taa>",
+        "reflections" => "<off|low|medium|high>",
         "render_scale" => "<50-200>",
         "upscaler" => "<off|bilinear|fsr1|fsr3|fsr4|dlss>",
         "upscale_sharpness" => "<0-100>",

@@ -1,21 +1,33 @@
 //! The graphics-cost rows of the Video options (docs/low-end.md).
 
+use blackbox_gfx::Capabilities;
+
 use super::options::{Data, Title};
-use crate::settings::{CarShading, GraphicsPreset, Partial, Settings};
+use crate::settings::{CarShading, GraphicsPreset, Partial, ReflectionQuality, Settings};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GraphicsSetting {
     Preset,
     CarShading,
+    Reflections,
 }
 
 impl GraphicsSetting {
-    pub const ALL: [Self; 2] = [Self::Preset, Self::CarShading];
+    pub const ALL: [Self; 3] = [Self::Preset, Self::CarShading, Self::Reflections];
+
+    pub fn shown(self, caps: &Capabilities) -> bool {
+        self != Self::Reflections || caps.local_reflections
+    }
+
+    pub fn enabled(self, s: &Settings) -> bool {
+        self != Self::Reflections || s.car_shading == CarShading::Glossy
+    }
 
     pub fn title(self) -> Title {
         Title::Text(match self {
             Self::Preset => "Graphics Preset",
             Self::CarShading => "Car Shading",
+            Self::Reflections => "Car Reflections",
         })
     }
 
@@ -29,6 +41,12 @@ impl GraphicsSetting {
                     GraphicsPreset::High => "High",
                     GraphicsPreset::Ultra => "Ultra",
                 },
+                Self::Reflections => match s.reflections {
+                    ReflectionQuality::Off => "Static Sky",
+                    ReflectionQuality::Low => "Low",
+                    ReflectionQuality::Medium => "Medium",
+                    ReflectionQuality::High => "High",
+                },
                 Self::CarShading => match s.car_shading {
                     CarShading::Simple => "Simple",
                     CarShading::Glossy => "Glossy",
@@ -40,6 +58,9 @@ impl GraphicsSetting {
 
     /// Moves to the next (or previous) value, wrapping, and records the change for the config file.
     pub fn step(self, s: &mut Settings, changed: &mut Partial, forward: bool) -> bool {
+        if !self.enabled(s) {
+            return false;
+        }
         let before = *s;
         match self {
             Self::Preset => {
@@ -49,6 +70,16 @@ impl GraphicsSetting {
                 s.apply_preset(all[next]);
                 // Every key the preset sets is written, so the file says what the player sees.
                 *changed = Partial { graphics_preset: Some(s.graphics_preset), ..all[next].layer() }.or(*changed);
+            }
+            Self::Reflections => {
+                let all = ReflectionQuality::ALL;
+                let at = all.iter().position(|q| *q == s.reflections).unwrap_or(0);
+                let offset = match forward {
+                    true => 1,
+                    false => all.len() - 1,
+                };
+                s.reflections = all[(at + offset) % all.len()];
+                changed.reflections = Some(s.reflections);
             }
             Self::CarShading => {
                 s.car_shading = match s.car_shading {

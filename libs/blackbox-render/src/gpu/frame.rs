@@ -71,18 +71,45 @@ impl Renderer {
         frame: &FrameParams,
         instances: &[Instance],
     ) {
+        self.encode_scene_mode(encoder, targets, output, frame, instances, None);
+    }
+
+    /// Reflection views omit effects, AO and glossy draws (no reflective-object feedback).
+    pub(super) fn encode_scene_mode(
+        &mut self,
+        encoder: &mut wgpu::CommandEncoder,
+        targets: Option<&SceneTargets>,
+        output: &wgpu::TextureView,
+        frame: &FrameParams,
+        instances: &[Instance],
+        capture: Option<&mut super::reflections::CaptureView>,
+    ) {
+        let reflection = capture.is_some();
         let [r, g, b] = frame.clear_color;
         let [fog_start, fog_end] = frame.fog_range();
+        let mip_bias = match reflection {
+            true => 0.0,
+            false => self.upscale.texture_lod_bias,
+        };
         let globals = Globals {
             view_proj: frame.view_proj().to_cols_array_2d(),
             camera_pos: frame.camera_position.extend(1.0).to_array(),
             light_dir: frame.light_dir.normalize_or_zero().extend(0.0).to_array(),
             fog_color: [r, g, b, 1.0],
-            fog_range: [fog_start, fog_end, self.upscale.texture_lod_bias, 0.0],
+            fog_range: [fog_start, fog_end, mip_bias, 0.0],
         };
-        self.queue.write_buffer(&self.shared.bindings.globals, 0, bytemuck::bytes_of(&globals));
         let matrices: Vec<[f32; 16]> = instances.iter().map(|i| i.transform.to_cols_array()).collect();
-        self.instances.upload(&self.device, &self.queue, &matrices);
+        let (uniform, bind_group, instance_buffer) = match capture {
+            Some(view) => {
+                view.instances.upload(&self.device, &self.queue, &matrices);
+                (&view.globals, &view.bind_group, &view.instances.buffer)
+            }
+            None => {
+                self.instances.upload(&self.device, &self.queue, &matrices);
+                (&self.shared.bindings.globals, &self.shared.bindings.globals_bind_group, &self.instances.buffer)
+            }
+        };
+        self.queue.write_buffer(uniform, 0, bytemuck::bytes_of(&globals));
 
         let targets = targets.unwrap_or(&self.targets);
         let target = targets.offscreen().map_or(output, |offscreen| &offscreen.color_view);
@@ -110,10 +137,13 @@ impl Renderer {
             occlusion_query_set: None,
             multiview_mask: None,
         });
-        pass.set_bind_group(0, &self.shared.bindings.globals_bind_group, &[]);
-        pass.set_vertex_buffer(1, self.instances.buffer.slice(..));
+        pass.set_bind_group(0, bind_group, &[]);
+        pass.set_vertex_buffer(1, instance_buffer.slice(..));
 
         for (mode, shading) in BLEND_ORDER.iter().flat_map(|&b| SHADINGS.iter().map(move |&s| (b, s))) {
+            if reflection && matches!(shading, Shading::Glossy(_)) {
+                continue;
+            }
             let Some(pipeline) = self.pipelines.get(mode, shading) else { continue };
             pass.set_pipeline(pipeline);
             let glossy = match shading {
@@ -153,6 +183,9 @@ impl Renderer {
                 }
                 start = end;
             }
+        }
+        if reflection {
+            return;
         }
         self.effects.draw(&mut pass);
         self.effects.draw_textured(&mut pass, |t| self.textures.get(t.raw()));

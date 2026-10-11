@@ -16,6 +16,7 @@ License: MIT OR Apache-2.0.
 | `settings` | `GraphicsSettings`, `PostSettings`, `Antialiasing`, `Upscaler`, `UpscaleQuality`, `RayTracing`, render-scale and upscale helpers |
 | `mesh`, `texture`, `material`, `frame` | the 36-byte `Vertex`, `MeshDesc`, `DrawRange`, `BlendMode`, `Shading`, `TextureDesc`, glossy materials and the lighting rig, `FrameParams`, `Instance`, `FrameStatus` |
 | `effects`, `ui` | the world `EffectLayer` and the 2D `UiLayer` (textured, clipped, premultiplied-alpha triangles) |
+| `reflection` | `ReflectionScene`: six scenery lists and a shared origin; `ReflectionQuality` and RH cube cameras |
 | `handles`, `error`, `capture`, `stats` | opaque resource handles, `RenderError`, `RgbaImage`, `BackendInfo` and `RenderStats` |
 
 ## The trait

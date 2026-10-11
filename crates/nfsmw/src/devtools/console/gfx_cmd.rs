@@ -83,6 +83,7 @@ fn value_of(setting: Setting, g: &GraphicsSettings) -> String {
         Setting::Bloom if g.post.bloom_intensity > 0.0 => format!("{:.2}", g.post.bloom_intensity),
         Setting::Bloom => "off".to_owned(),
         Setting::RayTracing => g.ray_tracing.name().to_owned(),
+        Setting::Reflections => g.reflections.name().to_owned(),
     }
 }
 

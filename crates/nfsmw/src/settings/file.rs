@@ -98,6 +98,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         post_tonemap: field(&table, origin, "post_tonemap", |v| PostTonemap::from_str(text_of(v)?)),
         post_bloom: field(&table, origin, "post_bloom", |v| PostBloom::from_str(text_of(v)?)),
         post_aa: field(&table, origin, "post_aa", |v| PostAa::from_str(text_of(v)?)),
+        reflections: field(&table, origin, "reflections", |v| super::ReflectionQuality::from_str(text_of(v)?)),
         render_scale: field(&table, origin, "render_scale", |v| match v {
             Value::Integer(n) => RenderScale::from_str(&n.to_string()),
             Value::Float(f) => RenderScale::from_str(&format!("{f:?}")),

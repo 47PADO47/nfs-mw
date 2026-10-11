@@ -19,6 +19,7 @@ pub(crate) fn native_capabilities(api: GraphicsApi, compressed_bc: bool, hdr_tar
         upscalers: UpscalerSet::of(&[Upscaler::Off, Upscaler::Bilinear, Upscaler::Fsr1]),
         tonemaps: TonemapSet::all(),
         bloom: true,
+        local_reflections: true,
         ray_tracing: RtSupport::None,
         render_scale: Capabilities::full_render_scale(),
         restart_required: RestartSet::empty(),

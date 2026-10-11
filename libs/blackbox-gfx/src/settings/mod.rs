@@ -28,6 +28,7 @@ pub use upscale::{
 pub struct GraphicsSettings {
     /// Post effects, including the anti-aliasing method.
     pub post: PostSettings,
+    pub reflections: crate::ReflectionQuality,
     pub upscaler: Upscaler,
     /// Sets the render size of a temporal upscaler.
     pub upscale_quality: UpscaleQuality,
@@ -42,6 +43,7 @@ impl Default for GraphicsSettings {
     fn default() -> Self {
         Self {
             post: PostSettings::default(),
+            reflections: crate::ReflectionQuality::Off,
             upscaler: Upscaler::default(),
             upscale_quality: UpscaleQuality::default(),
             render_scale: DEFAULT_RENDER_SCALE,
