@@ -1,10 +1,11 @@
 //! Two cars hitting each other.
 //! Spec: `docs/specs/vehicle-rigid-body.md` (§6).
 
+use crate::scenes::world::object_geometry::{BodyGeometryFrame, object_shapes};
 use blackbox_collision::bounds_flags;
-use blackbox_vehicle::rigid_body::{BodyContact, BodyHit, Obb, obb_contact, react_bodies, separate};
+use blackbox_vehicle::rigid_body::{BodyContact, BodyHit, react_bodies, separate};
 use blackbox_vehicle::steering::SteeringDevice;
-use glam::{Mat3, Vec3};
+use glam::Vec3;
 
 use super::CarSim;
 
@@ -19,9 +20,10 @@ pub struct CarHit {
 
 impl CarSim {
     /// The collision box in physics space.
-    pub fn collision_box(&self) -> Obb {
+    #[cfg(test)]
+    pub fn collision_box(&self) -> blackbox_vehicle::rigid_body::Obb {
         let v = &self.vehicle;
-        Obb { centre: v.position(), axes: v.rotation(), half: v.spec().dimension }
+        blackbox_vehicle::rigid_body::Obb { centre: v.position(), axes: v.rotation(), half: v.spec().dimension }
     }
 
     /// Encloses padded child shapes, which can extend past the original root box.
@@ -36,29 +38,22 @@ impl CarSim {
             .fold(0.0_f32, f32::max)
     }
 
-    /// Object-contact primitives only; detached and disabled parts are not solid bodywork.
-    fn object_boxes(&self) -> Vec<Obb> {
-        let Some(geometry) = &self.geometry else { return vec![self.collision_box()] };
-        geometry
-            .body
-            .primitives
-            .iter()
-            .filter(|p| p.collides(bounds_flags::PRIM_VS_OBJECTS))
-            .map(|p| Obb {
-                centre: self.vehicle.position() + self.vehicle.rotation() * p.centre,
-                axes: self.vehicle.rotation() * Mat3::from_quat(p.rotation),
-                half: p.half,
-            })
-            .collect()
+    pub fn collision_sweep_radius(&self) -> f32 {
+        self.collision_radius() + self.vehicle.position().distance(self.previous_contact_pose.0)
+    }
+
+    fn geometry_frame(&self) -> Option<BodyGeometryFrame<'_>> {
+        Some(BodyGeometryFrame { geometry: &self.geometry.as_ref()?.body, previous: self.previous_contact_pose })
     }
 
     /// Tests this car against `other` and, when their boxes overlap, pushes them apart and changes their
     /// velocities. Returns the hit, if the cars were approaching.
     pub fn collide_with(&mut self, other: &mut CarSim) -> Option<CarHit> {
-        let (a, b) = (self.object_boxes(), other.object_boxes());
+        let a = object_shapes(self.body(), self.geometry_frame());
+        let b = object_shapes(other.body(), other.geometry_frame());
         let contact = a
             .iter()
-            .flat_map(|a| b.iter().filter_map(move |b| obb_contact(a, b)))
+            .flat_map(|a| b.iter().filter_map(move |b| a.contact(b)))
             .max_by(|a, b| a.overlap.total_cmp(&b.overlap))?;
         let material_a = self.vehicle.body().spec().objects;
         let material_b = other.vehicle.body().spec().objects;

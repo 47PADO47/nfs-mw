@@ -21,7 +21,7 @@ struct Hit {
 
 /// Whether the bounding spheres of two bodies touch, a cheap test before the box test.
 fn near(a: &CarSim, b: &CarSim) -> bool {
-    a.body().position.distance(b.body().position) < a.collision_radius() + b.collision_radius()
+    a.body().position.distance(b.body().position) < a.collision_sweep_radius() + b.collision_sweep_radius()
 }
 
 impl TrafficWorld {

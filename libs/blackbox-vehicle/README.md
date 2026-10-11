@@ -63,6 +63,10 @@ println!("{:.1} m/s in gear {}", car.forward_speed(), car.gear());
 
 Each file stays under 500 lines; modules with many tests keep them in a `tests` folder or file.
 
+`rigid_body::sphere_contact` and `sphere_box_contact` retain spherical geometry;
+the latter takes relative primitive travel for face and corner sweeps. Measured
+behavior and the coincident-centre exception are in `docs/specs/sphere-contacts.md`.
+
 ## The ground
 
 ```rust

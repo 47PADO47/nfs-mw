@@ -5,6 +5,7 @@ mod commands;
 mod drive;
 mod effects;
 mod ground;
+mod object_geometry;
 mod props;
 mod residency;
 mod resident;

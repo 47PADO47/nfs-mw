@@ -12,8 +12,8 @@ use obb::obb_overlap;
 pub use obb::{Obb, PropOverlap};
 
 use super::drive::walls::{ContactKind, ContactPoint, Impact};
+use super::object_geometry::{BodyGeometryFrame, primitive_at};
 use super::{resident::Placed, space};
-use blackbox_collision::BodyGeometry;
 use blackbox_scene::Aabb;
 use blackbox_vehicle::{Ground, Vehicle, rigid_body::BodyState};
 use glam::{Mat4, Vec3};
@@ -44,11 +44,12 @@ impl Collider {
         };
         let mut bounds = Aabb::EMPTY;
         for primitive in &body.geometry.primitives {
-            let b = body.obb(primitive);
-            let m = Mat4::from_mat3_translation(b.axes, b.centre);
-            let physics = Aabb::new(-b.half, b.half).transformed(&m);
-            bounds.extend(space::to_render(physics.min.to_array()));
-            bounds.extend(space::to_render(physics.max.to_array()));
+            for b in [body.obb(primitive), primitive_at(primitive, body.previous)] {
+                let m = Mat4::from_mat3_translation(b.axes, b.centre);
+                let physics = Aabb::new(-b.half, b.half).transformed(&m);
+                bounds.extend(space::to_render(physics.min.to_array()));
+                bounds.extend(space::to_render(physics.max.to_array()));
+            }
         }
         for point in body.geometry.ground_meshes.iter().flat_map(|m| &m.points) {
             bounds.extend(space::to_render((body.rigid.position + body.rigid.rotation() * point).to_array()));
@@ -262,12 +263,18 @@ impl PropWorld {
     }
 
     /// A vehicle transfers impulses to resident bodies, including previously fallen ones.
-    pub fn collide_vehicle(&mut self, vehicle: &mut Vehicle, geometry: Option<&BodyGeometry>, impact: &mut Impact) {
+    pub fn collide_vehicle(
+        &mut self,
+        vehicle: &mut Vehicle,
+        geometry: Option<BodyGeometryFrame<'_>>,
+        impact: &mut Impact,
+    ) {
         let centre = space::to_render(vehicle.position().to_array());
         let radius = geometry.map_or(vehicle.body().radius(), |g| {
-            g.primitives.iter().map(|p| p.centre.length() + p.half.length()).fold(0.0_f32, f32::max)
+            g.geometry.primitives.iter().map(|p| p.centre.length() + p.half.length()).fold(0.0_f32, f32::max)
         });
-        let bounds = Aabb::new((centre - radius).to_array(), (centre + radius).to_array());
+        let previous = geometry.map_or(centre, |g| space::to_render(g.previous.0.to_array()));
+        let bounds = Aabb::new(centre.min(previous) - radius, centre.max(previous) + radius);
         for id in self.candidates(&bounds) {
             let c = self.colliders.get_mut(&id).unwrap();
             let Some(p) = c.body.as_mut() else { continue };

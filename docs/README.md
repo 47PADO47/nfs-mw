@@ -69,6 +69,7 @@ against the install at `D:/Need For Speed Most Wanted Black Edition`.
 | [formats/collision.md](formats/collision.md) | World collision packs, the collision grid, car and prop bounds, surface types, query semantics | Layouts verified; Rust reader |
 | [formats/event-sequences.md](formats/event-sequences.md) | World event engines, actions and fragment events | All 73 installed packages read; 75 engines |
 | [specs/world-sequencers.md](specs/world-sequencers.md) | State/queue timing, damage stimuli and cargo | Sequencer tested; world effect integration in progress |
+| [specs/sphere-contacts.md](specs/sphere-contacts.md) | Sphere contacts and relative sphere/box sweeps | Isolated PC vectors and world integration tests |
 | [formats/attributes.md](formats/attributes.md) | AttribSys `VPAK` packs, vaults, exports, hash, the 57 classes | Layout verified |
 | [formats/cardata.md](formats/cardata.md) | Car types, parts database, slot types, presets, light materials, solid markers, `ecar`, vinyls | Car tables verified; vinyls partial |
 | [formats/animation.md](formats/animation.md) | EAGL4 ELF objects, skeletons, banks, NIS cutscenes | Container verified; codecs open |

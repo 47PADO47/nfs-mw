@@ -1,49 +1,28 @@
 //! Original contact materials, attachment and no-car-effect overrides.
 
-use blackbox_collision::{BodyGeometry, bounds_flags};
-use blackbox_vehicle::rigid_body::{BodyHit, Obb, ObbContact, PlaneContact, RigidBody, obb_contact, react_moments};
-use glam::{Mat3, Vec3};
+use blackbox_vehicle::rigid_body::{BodyHit, ObbContact, PlaneContact, RigidBody, react_moments};
+use glam::Vec3;
 use nfsmw_data::world::PropDynamics;
 
 use super::body::PropBody;
+use crate::scenes::world::object_geometry::{BodyGeometryFrame, object_shapes};
 
 pub(super) fn car_contact(
     car: &RigidBody,
-    geometry: Option<&BodyGeometry>,
+    geometry: Option<BodyGeometryFrame<'_>>,
     prop: &PropBody,
 ) -> Option<(ObbContact, u32)> {
-    let shapes = match geometry {
-        Some(g) => g
-            .primitives
-            .iter()
-            .filter(|p| p.collides(bounds_flags::PRIM_VS_OBJECTS))
-            .map(|p| Obb {
-                centre: car.position + car.rotation() * p.centre,
-                axes: car.rotation() * Mat3::from_quat(p.rotation),
-                half: p.half,
-            })
-            .collect(),
-        None => vec![Obb { centre: car.position, axes: car.rotation(), half: car.dimension() }],
-    };
-    prop.geometry
-        .primitives
+    let shapes = object_shapes(car, geometry);
+    object_shapes(&prop.rigid, Some(prop.geometry_frame()))
         .iter()
-        .filter(|p| p.collides(bounds_flags::PRIM_VS_OBJECTS))
-        .flat_map(|p| shapes.iter().filter_map(move |a| Some((obb_contact(a, &prop.obb(p))?, p.surface))))
+        .flat_map(|p| shapes.iter().filter_map(move |a| Some((a.contact(p)?, p.surface))))
         .max_by(|a, b| a.0.overlap.total_cmp(&b.0.overlap))
 }
 
 pub(super) fn prop_contact(a: &PropBody, b: &PropBody) -> Option<ObbContact> {
-    let mut best: Option<ObbContact> = None;
-    for pa in a.geometry.primitives.iter().filter(|p| p.collides(bounds_flags::PRIM_VS_OBJECTS)) {
-        for pb in b.geometry.primitives.iter().filter(|p| p.collides(bounds_flags::PRIM_VS_OBJECTS)) {
-            let Some(contact) = obb_contact(&a.obb(pa), &b.obb(pb)) else { continue };
-            if best.is_none_or(|c| c.overlap < contact.overlap) {
-                best = Some(contact);
-            }
-        }
-    }
-    best
+    let aa = object_shapes(&a.rigid, Some(a.geometry_frame()));
+    let bb = object_shapes(&b.rigid, Some(b.geometry_frame()));
+    aa.iter().flat_map(|a| bb.iter().filter_map(move |b| a.contact(b))).max_by(|a, b| a.overlap.total_cmp(&b.overlap))
 }
 
 pub(super) fn parameters(body: &RigidBody, normal: Vec3, spec: &PropDynamics, attached: bool) -> BodyHit {

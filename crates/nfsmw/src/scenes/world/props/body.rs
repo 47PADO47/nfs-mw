@@ -6,7 +6,10 @@ use blackbox_vehicle::rigid_body::{BodyState, Obb, RigidBody};
 use glam::{Mat3, Mat4, Quat, Vec3};
 use nfsmw_data::world::PropDynamics;
 
-use crate::scenes::world::space;
+use crate::scenes::world::{
+    object_geometry::{BodyGeometryFrame, primitive_at},
+    space,
+};
 
 pub(super) struct PropBody {
     pub rigid: RigidBody,
@@ -55,11 +58,11 @@ impl PropBody {
     }
 
     pub fn obb(&self, primitive: &BodyPrimitive) -> Obb {
-        Obb {
-            centre: self.rigid.position + self.rigid.rotation() * primitive.centre,
-            axes: self.rigid.rotation() * Mat3::from_quat(primitive.rotation),
-            half: primitive.half,
-        }
+        primitive_at(primitive, (self.rigid.position, self.rigid.orientation))
+    }
+
+    pub fn geometry_frame(&self) -> BodyGeometryFrame<'_> {
+        BodyGeometryFrame { geometry: &self.geometry, previous: self.previous }
     }
 
     pub fn transform(&self, alpha: f32) -> Mat4 {

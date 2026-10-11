@@ -17,6 +17,7 @@ use super::input::DriveInput;
 use super::rig::CarPose;
 use super::walls::{self, Impact};
 use crate::scenes::world::effects::{self, Contact};
+use crate::scenes::world::object_geometry::{BodyGeometryFrame, BodyPose};
 use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::space;
@@ -70,6 +71,7 @@ pub struct CarSim {
     walls: WallSpec,
     visual_tires: Option<[super::visual_tires::VisualTire; 4]>,
     geometry: Option<Arc<CarGeometry>>,
+    previous_contact_pose: BodyPose,
 }
 
 /// A vector from physics space to render space axes: `(x, y, z) -> (z, -x, y)`.
@@ -94,6 +96,7 @@ impl CarSim {
             walls: physics.walls,
             visual_tires: None,
             geometry: physics.geometry,
+            previous_contact_pose: (Vec3::ZERO, Quat::IDENTITY),
         }
     }
 
@@ -120,7 +123,9 @@ impl CarSim {
         // The heading is counter-clockwise from +X in the world; the library's yaw is about the up axis
         // from +z, which is the other way round.
         let top = spawn.position.z + 2.0;
-        self.vehicle.place_on_ground_moving(ground, x, z, top, -spawn.heading, speed)
+        let placed = self.vehicle.place_on_ground_moving(ground, x, z, top, -spawn.heading, speed);
+        self.previous_contact_pose = (self.vehicle.position(), self.vehicle.body().orientation);
+        placed
     }
 
     /// Whether the gearbox shifts by itself (the transmission setting).
@@ -145,6 +150,7 @@ impl CarSim {
             shift_up: input.shift_up,
             shift_down: input.shift_down,
         };
+        self.previous_contact_pose = (self.vehicle.position(), self.vehicle.body().orientation);
         self.vehicle.step(FIXED_STEP, &input, ground);
         let impact = match world {
             Some((collision, props)) => {
@@ -154,7 +160,11 @@ impl CarSim {
                     &walls::world_props(props),
                     &self.walls,
                 );
-                props.collide_vehicle(&mut self.vehicle, self.geometry.as_ref().map(|g| &g.body), &mut impact);
+                let frame = self
+                    .geometry
+                    .as_ref()
+                    .map(|g| BodyGeometryFrame { geometry: &g.body, previous: self.previous_contact_pose });
+                props.collide_vehicle(&mut self.vehicle, frame, &mut impact);
                 impact
             }
             None => Impact::default(),
