@@ -36,6 +36,8 @@ fn scene(renderer: &mut Renderer) -> (FrameParams, Vec<Instance>) {
         light_dir: Vec3::NEG_Z,
         clear_color: [0.2, 0.3, 0.4],
         fog: None,
+        scattering: None,
+        surface_light: None,
         camera_cut: false,
     };
     (frame, vec![Instance::new(handle, Mat4::IDENTITY)])

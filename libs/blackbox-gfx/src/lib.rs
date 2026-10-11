@@ -32,7 +32,7 @@ pub use caps::{
 pub use capture::RgbaImage;
 pub use effects::{DEFAULT_SOFT_DISTANCE, EffectLayer, EffectVertex, TexturedEffect};
 pub use error::RenderError;
-pub use frame::{Fog, FrameParams, FrameStatus, Instance, InstanceKey, Projection};
+pub use frame::{Fog, FrameParams, FrameStatus, Instance, InstanceKey, Projection, Scattering, SurfaceLight};
 pub use handles::{CaptureId, GlossyMaterialHandle, MeshHandle, TextureHandle, UiTextureId};
 pub use material::{DirectionalLight, Environment, GlossyMaterial, LightingRig, SkyGradient};
 pub use mesh::{BlendMode, DrawRange, MeshDesc, Shading, Vertex};

@@ -31,6 +31,11 @@ fn check(backend: wgpu::Backends) {
         light_dir: [0.0; 4],
         fog_color: [0.0; 4],
         fog_range: [f32::MAX, f32::MAX, 0.0, 0.0],
+        scatter_rayleigh: [0.0; 4],
+        scatter_mie: [0.0; 4],
+        to_sun: [0.0; 4],
+        surface_ambient: [0.0; 4],
+        surface_diffuse: [0.0; 4],
     };
     queue.write_buffer(&shared.globals, 0, bytemuck::bytes_of(&globals));
     let mut soft = SoftParticles::new(&device, wgpu::TextureFormat::Rgba8Unorm, &shared);

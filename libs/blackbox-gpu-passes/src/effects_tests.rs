@@ -53,6 +53,11 @@ impl Bench {
             // Bright coloured fog must never add energy to an additive streak.
             fog_color: [0.3, 0.6, 0.9, 1.0],
             fog_range: [fog[0], fog[1], 0.0, 0.0],
+            scatter_rayleigh: [0.0; 4],
+            scatter_mie: [0.0; 4],
+            to_sun: [0.0; 4],
+            surface_ambient: [0.0; 4],
+            surface_diffuse: [0.0; 4],
         };
         queue.write_buffer(&self.bindings.globals, 0, bytemuck::bytes_of(&globals));
         self.effects.upload(device, queue, layer);
