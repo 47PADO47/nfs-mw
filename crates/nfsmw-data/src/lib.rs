@@ -20,9 +20,9 @@ pub mod music;
 pub mod pursuit;
 pub mod sound;
 pub mod speech;
+pub mod traffic;
 pub mod vehicle_effects;
 pub mod visual_treatment;
-pub mod traffic;
 pub mod world;
 
 pub use files::read_unwrapped;

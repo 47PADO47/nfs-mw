@@ -47,10 +47,26 @@ pub fn collect_for_height<'a>(
         pixel_scale: LodView::pixel_scale_for(camera.fov_y_radians, height),
     };
     out.clear();
-    out.extend(placed.filter(|p| frustum.intersects(&p.bounds) && !props.hidden(p.prop_id)).filter_map(|p| {
+    for p in placed {
+        if props.hidden(p.prop_id) {
+            continue;
+        }
+        // A moving prop is drawn where its body is, not where it was placed.
+        let (transform, bounds) = props.pose(p.prop_id).unwrap_or((p.transform, p.bounds));
+        if !frustum.intersects(&bounds) {
+            continue;
+        }
         let slots = p.lods.map(|m| m.is_some());
-        let slot = rules.choose(&view, p.position, p.radius, p.flags, slots, p.detailed)?;
-        Some(Instance::keyed(p.lods[slot]?, p.transform, p.key))
-    }));
+        let position = transform.w_axis.truncate().to_array();
+        let Some(slot) = rules.choose(&view, position, p.radius, p.flags, slots, p.detailed) else {
+            continue;
+        };
+        if props.model_instances(p.prop_id, transform, out) {
+            continue;
+        }
+        if let Some(mesh) = p.lods[slot] {
+            out.push(Instance::keyed(mesh, transform, p.key));
+        }
+    }
     out.sort_unstable_by_key(|i| i.mesh);
 }

@@ -2,35 +2,30 @@
 
 /// The physics step, seconds.
 pub const STEP: f32 = 1.0 / 60.0;
-/// Most steps owed after one slow frame; the rest of the time is dropped so the game never spirals.
-const MAX_STEPS_PER_FRAME: u32 = 8;
+const CLOCK_STEP: f64 = 1.0 / 60.0;
+/// Compensate only for float conversion at a tick boundary, not meaningful elapsed time.
+const CLOCK_EPSILON: f64 = 1e-8;
 
 #[derive(Debug, Default)]
 pub struct FixedClock {
-    accumulator: f32,
+    accumulator: f64,
 }
 
 impl FixedClock {
     /// Add a frame's time; returns how many steps to run now.
     pub fn advance(&mut self, dt: f32) -> u32 {
-        self.accumulator += dt.max(0.0);
-        let owed = (self.accumulator / STEP) as u32;
-        let steps = owed.min(MAX_STEPS_PER_FRAME);
-        self.accumulator -= owed as f32 * STEP;
-        if owed > steps {
-            // The frame took too long: forget the backlog.
-            self.accumulator = 0.0;
+        if !dt.is_finite() || dt <= 0.0 {
+            return 0;
         }
+        self.accumulator += f64::from(dt);
+        let steps = ((self.accumulator + CLOCK_EPSILON) / CLOCK_STEP) as u32;
+        self.accumulator -= f64::from(steps) * CLOCK_STEP;
         steps
     }
 
     /// How far the display is between the last two steps, 0..1.
     pub fn alpha(&self) -> f32 {
-        (self.accumulator / STEP).clamp(0.0, 1.0)
-    }
-
-    pub fn reset(&mut self) {
-        self.accumulator = 0.0;
+        (self.accumulator / CLOCK_STEP).clamp(0.0, 1.0) as f32
     }
 }
 
@@ -56,10 +51,10 @@ mod tests {
     }
 
     #[test]
-    fn a_stall_does_not_spiral() {
+    fn a_stall_keeps_all_elapsed_simulation_time() {
         let mut clock = FixedClock::default();
-        assert_eq!(clock.advance(5.0), MAX_STEPS_PER_FRAME);
-        assert_eq!(clock.advance(0.0), 0, "the backlog is dropped");
+        assert_eq!(clock.advance(5.0), 300);
+        assert_eq!(clock.advance(0.0), 0, "all elapsed ticks ran");
     }
 
     #[test]
@@ -67,5 +62,8 @@ mod tests {
         let mut clock = FixedClock::default();
         assert_eq!(clock.advance(0.0), 0);
         assert_eq!(clock.advance(-1.0), 0);
+        assert_eq!(clock.advance(f32::NAN), 0);
+        assert_eq!(clock.advance(f32::INFINITY), 0);
+        assert_eq!(clock.advance(STEP), 1, "invalid frame time did not poison the clock");
     }
 }

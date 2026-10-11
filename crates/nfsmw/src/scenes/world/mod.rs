@@ -1,18 +1,22 @@
 //! The streamed city: a free-fly camera, or a car to drive with a chase camera.
 
 mod ai;
+mod cargo;
 mod commands;
 mod drive;
 mod drive_input;
 mod effects;
+mod events;
 mod exhaust;
 mod ground;
 mod keys;
+mod object_geometry;
 mod props;
 mod reflections;
 mod residency;
 mod resident;
 mod road;
+mod simulation;
 mod space;
 mod start;
 mod sun;
@@ -90,13 +94,18 @@ pub struct WorldScene {
     reflection_last: Option<reflections::CaptureStamp>,
     /// Seconds since the scene started, for texture animations.
     clock: f32,
+    /// The aspect ratio the physics camera uses (set by each frame).
+    physics_aspect: f32,
+    /// The one fixed timeline of the player, the traffic and the object contacts (see `update_simulation`).
+    physics_clock: drive::FixedClock,
     view: View,
     pending_car: Option<PendingCar>,
     drive: Option<Drive>,
     /// Computer-driven cars, when the track has a road network.
     traffic: Option<ai::TrafficWorld>,
     /// The `traffic`, `cop_share` settings as last told, and a count typed in the console that replaces them.
-    traffic_setting: (u32, crate::settings::Percent),
+    traffic_setting: crate::settings::TrafficSettings,
+    lamp_meshes: Option<ai::LampMeshes>,
     traffic_manual: Option<usize>,
     /// The car last driven, for `drive` without a name.
     last_car: String,
@@ -189,12 +198,19 @@ impl WorldScene {
             reflection_faces: std::array::from_fn(|_| Vec::new()),
             reflection_last: None,
             clock: 0.0,
+            physics_aspect: 16.0 / 9.0,
+            physics_clock: drive::FixedClock::default(),
             view: if pending_car.is_some() { View::Chase } else { View::Fly },
             last_car: pending_car.as_ref().map_or_else(|| DEFAULT_CAR.to_owned(), |c| c.name.clone()),
             pending_car,
             drive: None,
             traffic,
-            traffic_setting: (0, crate::settings::Percent(0)),
+            traffic_setting: crate::settings::TrafficSettings {
+                cars: 0,
+                cop_share: crate::settings::Percent(0),
+                lights: false,
+            },
+            lamp_meshes: None,
             traffic_manual: None,
             physics,
             tire_effects: [true; 2],
@@ -253,13 +269,12 @@ impl Scene for WorldScene {
         let [x, y] = self.focus();
         self.residency.update(renderer, x, y);
         self.clock += dt;
-        self.residency.world_parts().1.tick(dt);
         self.residency.animate(renderer, self.clock);
         if self.view == View::Fly {
             self.camera.update(input, dt);
         }
-        self.update_drive(input, dt);
-        self.update_traffic(renderer, dt);
+        self.prepare_drive();
+        self.update_simulation(renderer, input, dt);
         if !self.grounded && self.residency.complete() {
             self.grounded = true;
             let estimate = ground::height_near(self.residency.placed(), self.start[0], self.start[1], 150.0);
@@ -335,11 +350,12 @@ impl Scene for WorldScene {
     }
 
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
-        let chase = self.drive.as_ref().filter(|_| self.view == View::Chase);
-        let dynamic = chase.map(|drive| DynamicFov { chase: drive.camera(), speed: drive.speed_mps() });
-        let camera: &dyn Camera = match (chase, &dynamic) {
+        let chase = self.drive.as_ref().filter(|_| self.view == View::Chase).map(|drive| drive.camera());
+        let speed = self.drive.as_ref().map_or(0.0, |drive| drive.speed().abs());
+        let dynamic = chase.as_ref().map(|view| DynamicFov { chase: view, speed });
+        let camera: &dyn Camera = match (&chase, &dynamic) {
             (Some(_), Some(dynamic)) if self.camera_mode == CameraMode::DynamicFov => dynamic,
-            (Some(drive), _) => drive.camera(),
+            (Some(view), _) => view,
             (None, _) => &self.camera,
         };
         debug_assert!(camera.selectable(), "the camera setting picked a camera it may not choose");
@@ -353,8 +369,11 @@ impl Scene for WorldScene {
         };
         let rules = &blackbox_scenery::layout::MOST_WANTED.lod;
         visibility::collect(self.residency.placed(), &cull, rules, self.residency.props(), &mut self.visible);
+        self.residency.props().fragment_instances(&mut self.visible);
         if let Some(traffic) = &self.traffic {
             traffic.instances(&mut self.visible);
+            let lamps = self.lamp_meshes.as_ref().filter(|_| self.traffic_setting.lights);
+            traffic.lamp_instances(lamps, lens.position, &mut self.visible);
         }
         if let Some(drive) = &self.drive {
             drive.instances(&mut self.visible);
@@ -423,8 +442,8 @@ impl Scene for WorldScene {
         self.drive.iter_mut().for_each(|drive| drive.set_wheel_options(wheel));
     }
 
-    fn set_traffic(&mut self, cars: u32, cop_share: crate::settings::Percent) {
-        self.apply_traffic_setting(cars, cop_share);
+    fn set_traffic(&mut self, traffic: crate::settings::TrafficSettings) {
+        self.apply_traffic_setting(traffic);
     }
 
     fn hud_state(&self) -> Option<crate::hud::HudState> {

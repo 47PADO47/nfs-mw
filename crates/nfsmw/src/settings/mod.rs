@@ -94,6 +94,26 @@ use crate::devtools::{ShowMetrics, ShowReadout};
 pub const DEFAULT_TRAFFIC: u32 = 10;
 /// The default share of those cars that are patrol cops: 5 percent, one in twenty.
 pub const DEFAULT_COP_SHARE: Percent = Percent(5);
+/// Whether traffic stops at red lights by default. The original game has no traffic lights: this is a rewrite
+/// extension, on because it was asked for.
+pub const DEFAULT_TRAFFIC_LIGHTS: bool = true;
+
+/// The settings the world's traffic follows, told to the scene together so that it can see any of them change.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TrafficSettings {
+    /// Cars kept on the road (0: none).
+    pub cars: u32,
+    /// Share of them that are patrol cops, in percent.
+    pub cop_share: Percent,
+    /// Whether they obey traffic lights.
+    pub lights: bool,
+}
+
+impl From<&Settings> for TrafficSettings {
+    fn from(s: &Settings) -> Self {
+        Self { cars: s.traffic, cop_share: s.cop_share, lights: s.traffic_lights }
+    }
+}
 
 /// The resolved settings.
 #[derive(bevy_ecs::resource::Resource, Debug, Clone, Copy, PartialEq, Eq)]
@@ -132,6 +152,8 @@ pub struct Settings {
     pub traffic: u32,
     /// Of those cars, the share that are patrol cops, in percent.
     pub cop_share: Percent,
+    /// Whether the traffic obeys traffic lights at junctions (a rewrite extension: the original has none).
+    pub traffic_lights: bool,
     /// Optional smoke presentation quality; standard retains the default cost and look.
     pub smoke_quality: SmokeQuality,
     /// Draw bounded, ground-following tire marks.
@@ -219,6 +241,7 @@ impl From<Partial> for Settings {
             car_shading: p.car_shading.unwrap_or_default(),
             traffic: p.traffic.unwrap_or(DEFAULT_TRAFFIC),
             cop_share: p.cop_share.unwrap_or(DEFAULT_COP_SHARE),
+            traffic_lights: p.traffic_lights.unwrap_or(DEFAULT_TRAFFIC_LIGHTS),
             smoke_quality: p.smoke_quality.unwrap_or_default(),
             skid_marks: p.skid_marks.unwrap_or(true),
             collision_sparks: p.collision_sparks.unwrap_or(false),
@@ -333,6 +356,19 @@ mod tests {
     }
 
     #[test]
+    fn traffic_lights_are_on_by_default_and_come_from_every_layer() {
+        assert!(Settings::from(Partial::default()).traffic_lights);
+        const { assert!(DEFAULT_TRAFFIC_LIGHTS) };
+        let cli = Partial { traffic_lights: Some(false), ..Partial::default() };
+        let env = env::read(|n| (n == env::TRAFFIC_LIGHTS).then(|| "on".to_owned()));
+        let file = file::parse("traffic_lights = false\n", "test");
+        assert!(!Settings::from(cli.or(env).or(file)).traffic_lights, "the command line wins");
+        assert!(Settings::from(Partial::default().or(env).or(file)).traffic_lights, "the environment over the file");
+        assert!(!Settings::from(Partial::default().or(file)).traffic_lights);
+        assert_eq!(file::parse("traffic_lights = 3", "test").traffic_lights, None);
+    }
+
+    #[test]
     fn the_traffic_settings_come_from_every_layer() {
         let cli = Partial { traffic: Some(0), ..Partial::default() };
         let env = env::read(|n| match n {
@@ -341,7 +377,7 @@ mod tests {
             _ => None,
         });
         let file = file::parse("traffic = 6\ncop_share = 25\n", "test");
-        let s: Settings = cli.clone().or(env.clone()).or(file.clone()).into();
+        let s: Settings = cli.or(env).or(file).into();
         assert_eq!(
             (s.traffic, s.cop_share),
             (0, Percent(10)),

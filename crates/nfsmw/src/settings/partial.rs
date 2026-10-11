@@ -12,7 +12,7 @@ use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
 
 /// A volume setting in percent, 0 to 100.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Percent(pub u8);
 
 impl Percent {
@@ -77,6 +77,7 @@ pub struct Partial {
     pub car_shading: Option<CarShading>,
     pub traffic: Option<u32>,
     pub cop_share: Option<Percent>,
+    pub traffic_lights: Option<bool>,
     pub smoke_quality: Option<SmokeQuality>,
     pub skid_marks: Option<bool>,
     pub collision_sparks: Option<bool>,
@@ -141,6 +142,7 @@ impl Partial {
             car_shading: self.car_shading.or(lower.car_shading),
             traffic: self.traffic.or(lower.traffic),
             cop_share: self.cop_share.or(lower.cop_share),
+            traffic_lights: self.traffic_lights.or(lower.traffic_lights),
             smoke_quality: self.smoke_quality.or(lower.smoke_quality),
             skid_marks: self.skid_marks.or(lower.skid_marks),
             collision_sparks: self.collision_sparks.or(lower.collision_sparks),

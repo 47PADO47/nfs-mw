@@ -9,29 +9,32 @@ mod effect_feed;
 mod fall;
 mod ground;
 mod input;
+mod look;
 mod placement;
+#[cfg(test)]
+mod presentation_tests;
 mod rig;
 mod script;
 mod sim;
+mod simulation;
 mod sound;
 mod trace;
 mod visual_tires;
-mod walls;
+pub(super) mod walls;
 
 use blackbox_collision::CollisionWorld;
 use glam::Vec3;
-use nfsmw_data::car::physics::{CarPhysics, SurfaceTable};
+use nfsmw_data::car::physics::CarPhysics;
 
 use super::effects::TireEffects;
 use super::exhaust::ExhaustFlames;
-use super::props::PropWorld;
 use super::road::{self, Spawn};
 use super::space;
 use super::vehicle_effects::VehicleEffects;
-use crate::input::ActionState;
 use crate::settings::{Transmission, WheelOptions};
-use crate::viewer::camera::{CameraCut, ChaseCamera, Followed};
+use crate::viewer::camera::{CameraCut, ChaseCamera, ChaseView, Followed};
 pub(super) use clock::{FixedClock, STEP};
+pub(super) use debug::upload_box;
 pub use debug::{ContactMarkers, LEGEND as MARKER_LEGEND, MarkerMeshes};
 use fall::FallWatch;
 pub(super) use ground::WorldGround;
@@ -45,9 +48,6 @@ use sound::SoundFeed;
 #[cfg(test)]
 pub(super) use walls::ContactKind;
 pub(super) use walls::VisualContact;
-
-/// Physics steps run per scene update while a script drives a screenshot run (which has no frame time).
-const SCRIPT_STEPS_PER_UPDATE: u32 = 6;
 
 /// A scripted driver and how far into it the car is.
 struct ScriptRun {
@@ -79,7 +79,8 @@ pub struct Drive {
     sim: Option<CarSim>,
     /// Set while the car waits for a road: the physics does not run.
     request: Option<SpawnRequest>,
-    clock: FixedClock,
+    alpha: f32,
+    frame_input: DriveInput,
     previous: CarPose,
     current: CarPose,
     telemetry: Telemetry,
@@ -88,6 +89,7 @@ pub struct Drive {
     chase: ChaseCamera,
     /// The chase camera jumped to the car (it was placed on the road).
     cut: CameraCut,
+    look: look::PendingLook,
     script: Option<ScriptRun>,
     /// A screenshot run drove the script in batches: once it ends the car stays where it stopped.
     batch_run: bool,
@@ -107,6 +109,8 @@ pub struct Drive {
     wheel: WheelOptions,
     /// The contact points of `debug collisions`.
     markers: ContactMarkers,
+    /// Props the car knocked over this tick, hidden by the world's next `update_events`.
+    pending_knocks: Vec<u32>,
 }
 
 impl Drive {
@@ -132,13 +136,15 @@ impl Drive {
             physics,
             sim: None,
             request: Some(request),
-            clock: FixedClock::default(),
+            alpha: 0.0,
+            frame_input: DriveInput::default(),
             previous: pose,
             current: pose,
             telemetry: Telemetry::default(),
             sound: SoundFeed::default(),
             chase: ChaseCamera::default(),
             cut: CameraCut::default(),
+            look: look::PendingLook::default(),
             script: script.map(|script| ScriptRun { script, time: 0.0 }),
             batch_run: false,
             steps: 0,
@@ -149,9 +155,11 @@ impl Drive {
             transmission: Transmission::default(),
             wheel: WheelOptions::default(),
             markers: ContactMarkers::default(),
+            pending_knocks: Vec::new(),
         }
     }
 
+    /// Who changes gear from now on (the transmission setting).
     /// The map position residency should follow, if the car is not on the road yet.
     pub fn waiting_for_road(&self) -> Option<SpawnRequest> {
         self.request
@@ -183,142 +191,9 @@ impl Drive {
         self.script.as_ref().is_none_or(|s| s.script.finished(s.time))
     }
 
-    /// Run the physics for `dt` seconds of frame time (`dt == 0` with a script means a screenshot
-    /// run: it steps a fixed batch instead, and stops when the script ends).
-    /// A batch run also waits until the map around the car (`loaded`) has streamed in, so the car
-    /// never outruns its road.
-    pub fn step(
-        &mut self,
-        collision: &CollisionWorld,
-        props: &mut PropWorld,
-        surfaces: &SurfaceTable,
-        actions: &ActionState,
-        dt: f32,
-        loaded: bool,
-    ) {
-        if self.request.is_some() {
-            self.age_effects(dt);
-            return;
-        }
-        if self.sim.is_none() {
-            self.age_effects(dt);
-            return;
-        }
-        let batch = dt == 0.0 && self.script.as_ref().is_some_and(|s| !s.script.finished(s.time));
-        self.batch_run |= batch;
-        if self.batch_run && (self.script_finished() || !loaded) {
-            return;
-        }
-        let steps = if batch { SCRIPT_STEPS_PER_UPDATE } else { self.clock.advance(dt) };
-        let Some(sim) = self.sim.as_mut() else { return };
-        let player = DriveInput::from_actions(actions, self.wheel);
-        if self.script.is_none() {
-            self.presses.note(&player);
-        }
-        sim.set_automatic(self.transmission.is_automatic());
-        sim.set_wheel_options(self.wheel);
-        let ground = WorldGround { collision, surfaces };
-        let mut want_reset = false;
-        for n in 0..steps {
-            let input = match self.script.as_mut() {
-                Some(run) => {
-                    let input = run.script.input_at(run.time);
-                    if !run.script.finished(run.time) || !batch {
-                        run.time += clock::STEP;
-                    }
-                    input
-                }
-                // The presses that came in since the last step belong to the first step of this frame.
-                None if n == 0 => self.presses.take_into(player),
-                None => player.held(),
-            };
-            want_reset |= input.reset;
-            if input.pop {
-                self.flames.pop();
-            }
-            let impact = sim.step(&input, &ground, Some((collision, &*props)));
-            self.effects.step(sim.tire_contacts(collision), sim.effect_velocity(), clock::STEP);
-            self.vehicle_effects.step(&impact.visuals, sim.pose(), sim.effect_velocity(), clock::STEP);
-            self.vehicle_effects.bounce(collision, clock::STEP);
-            self.markers.record(&impact.contacts, sim.tyre_hits());
-            for &(id, mass) in &impact.knocked {
-                log::info!(
-                    "knocked over prop {id} \"{}\" ({mass:.0} kg), action: hidden for a few seconds ({} knocked over now)",
-                    props.name(id).unwrap_or("?"),
-                    props.knocked_count() + 1,
-                );
-                props.knock(id);
-            }
-            self.previous = self.current;
-            self.current = sim.pose();
-            self.telemetry = sim.telemetry();
-            let car = effect_feed::car_state(&self.current, &self.telemetry, sim.effect_velocity(), input.throttle);
-            self.flames.step(clock::STEP, &car);
-            self.sound.after_step(sim, surfaces, &impact, &input, self.telemetry.speed_mps);
-            self.steps += 1;
-            if self.script.is_some() && self.steps.is_multiple_of(60) {
-                trace::log(
-                    self.steps,
-                    (&self.effects, &self.vehicle_effects, &self.flames),
-                    (&self.current, &self.telemetry),
-                    &input,
-                );
-            }
-        }
-        if batch && self.script.as_ref().is_none_or(|s| s.script.finished(s.time)) {
-            log::info!("tire effects at script end: {}", self.effects.status());
-        }
-        let finite = sim.is_finite();
-        if want_reset {
-            let at = self.current.position;
-            let heading = self.heading();
-            log::info!("reset at ({:.0}, {:.0}, {:.0})", at.x, at.y, at.z);
-            self.respawn_near([at.x, at.y], Some(heading));
-        }
-        let wheels_down = self.telemetry.wheels_on_ground;
-        let position = self.current.position;
-        // Remember the last road the car stood on, and notice when it has fallen off the map.
-        if wheels_down >= 3 && self.steps.saturating_sub(self.last_check) >= GOOD_SPOT_STEPS {
-            self.last_check = self.steps;
-            if let Some(road::Surface { height, road: true }) =
-                road::probe(collision, position.x, position.y, position.z + 1.5)
-                && (height - position.z).abs() < 1.5
-            {
-                self.last_good =
-                    Some(Spawn { position: Vec3::new(position.x, position.y, height), heading: self.heading() });
-            }
-        }
-        let last_height = self.last_good.map(|g| g.position.z);
-        let nothing_below = || {
-            let [px, py, pz] = space::to_physics(position);
-            collision.ground(px, pz, py, py - fall::PROBE).is_none()
-        };
-        if self.fall.update(wheels_down, steps, position.z, last_height, nothing_below) {
-            log::warn!(
-                "the car fell off the map at ({:.0}, {:.0}, {:.0}); putting it back on the road",
-                position.x,
-                position.y,
-                position.z
-            );
-            if !self.restore_last_good() {
-                self.respawn_near([position.x, position.y], None);
-            }
-        }
-        if !finite {
-            log::error!("the car's state is not finite; putting it back on the road");
-            if !self.restore_last_good() {
-                self.request = Some(SpawnRequest {
-                    near: [self.previous.position.x, self.previous.position.y],
-                    heading: None,
-                    exact: None,
-                });
-            }
-        }
-    }
-
     /// The pose to draw: between the last two physics steps.
     pub fn pose(&self) -> CarPose {
-        self.previous.lerp(&self.current, self.clock.alpha())
+        self.previous.lerp(&self.current, self.alpha)
     }
 
     /// Move the chase camera; `look` is the player's look input (the right stick or the mouse), which
@@ -329,20 +204,24 @@ impl Drive {
             self.chase.snap();
         }
         self.chase.look(look.0, look.1, dt);
-        let pose = self.pose();
+        let pose = self.current;
         let forward = pose.rotation * Vec3::X;
         let followed =
             Followed { position: pose.position, heading: forward.y.atan2(forward.x), speed: self.telemetry.speed_mps };
         self.chase.update(followed, dt, |from, to| blocked(collision, from, to));
     }
 
-    /// The car's speed in m/s, for the cameras that react to it.
-    pub fn speed_mps(&self) -> f32 {
-        self.telemetry.speed_mps
+    pub fn camera(&self) -> ChaseView {
+        self.chase.sample(self.alpha)
     }
 
-    pub fn camera(&self) -> &ChaseCamera {
-        &self.chase
+    /// Cleanup and other simulation queries use the current tick, independently of rendering.
+    pub fn physics_camera(&self) -> ChaseView {
+        self.chase.view()
+    }
+
+    pub fn take_look(&mut self, steps: u32) -> (f32, f32) {
+        self.look.take(steps)
     }
 
     /// Turns the contact markers of `debug collisions` on or off.
@@ -356,14 +235,14 @@ impl Drive {
     }
 
     /// Append the instances of the contact markers.
-    pub fn marker_instances(&self, meshes: &MarkerMeshes, out: &mut Vec<blackbox_gfx::Instance>) {
+    pub fn marker_instances(&self, meshes: &MarkerMeshes, out: &mut Vec<blackbox_render::Instance>) {
         self.markers.instances(meshes, out);
     }
 
     /// Append the car's instances.
-    pub fn instances(&self, out: &mut Vec<blackbox_gfx::Instance>) {
-        if self.sim.is_some() {
-            self.rig.instances(&self.pose(), out);
+    pub fn instances(&self, out: &mut Vec<blackbox_render::Instance>) {
+        if let Some(sim) = &self.sim {
+            self.rig.instances(&self.pose(), sim.events.as_ref().map(|e| &e.hidden_slots), out);
         }
     }
 
@@ -371,14 +250,7 @@ impl Drive {
     pub fn hud_state(&self) -> Option<crate::hud::HudState> {
         self.sim.as_ref()?;
         let t = &self.telemetry;
-        let pose = self.pose();
-        let forward = pose.rotation * Vec3::X;
         Some(crate::hud::HudState {
-            minimap: Some(crate::hud::MapPosition {
-                position: [pose.position.x, pose.position.y],
-                heading: [forward.x, forward.y],
-                orientation: blackbox_minimap::Orientation::North,
-            }),
             speed: t.speed_mps.abs(),
             rpm: t.rpm,
             max_rpm: t.max_rpm,

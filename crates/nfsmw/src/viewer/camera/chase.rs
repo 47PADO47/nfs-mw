@@ -5,6 +5,10 @@ use glam::Vec3;
 
 use super::{Camera, Lens, direction};
 
+mod presentation;
+mod shake;
+pub use presentation::ChaseView;
+
 /// Distance behind the car at rest and at [`FAST`], metres.
 const NEAR: f32 = 5.6;
 const FAR: f32 = 7.0;
@@ -55,6 +59,9 @@ pub struct ChaseCamera {
     orbit_elevation: f32,
     /// Seconds since the last look input.
     idle: f32,
+    /// Render from consecutive physics poses without changing the follow state.
+    previous_view: Option<ChaseView>,
+    shake: shake::Shake,
 }
 
 /// The car as the camera needs to know it.
@@ -80,6 +87,8 @@ impl Default for ChaseCamera {
             orbit_yaw: 0.0,
             orbit_elevation: 0.0,
             idle: 0.0,
+            previous_view: None,
+            shake: shake::Shake::default(),
         }
     }
 }
@@ -93,10 +102,22 @@ fn approach(rate: f32, dt: f32) -> f32 {
 }
 
 impl ChaseCamera {
+    pub fn view(&self) -> ChaseView {
+        ChaseView { position: self.position, target: self.target, fov_degrees: self.fov_degrees, shaken: None }
+    }
+
+    /// Draw on the same timeline as the followed car.
+    pub fn sample(&self, alpha: f32) -> ChaseView {
+        let current = self.view();
+        let view = self.previous_view.unwrap_or(current).lerp(current, alpha.clamp(0.0, 1.0));
+        view.shake(self.shake.sample(alpha))
+    }
+
     pub fn fov_degrees(&self) -> f32 {
         self.fov_degrees
     }
 
+    #[cfg(test)]
     pub fn forward(&self) -> Vec3 {
         (self.target - self.position).normalize_or_zero()
     }
@@ -106,6 +127,13 @@ impl ChaseCamera {
         self.placed = false;
         self.orbit_yaw = 0.0;
         self.orbit_elevation = 0.0;
+        self.previous_view = None;
+        self.shake = shake::Shake::default();
+    }
+
+    /// The followed car's world acceleration after all shared contacts, on the physics clock.
+    pub fn impact(&mut self, acceleration: Vec3) {
+        self.shake.request(acceleration);
     }
 
     /// Orbit the camera round the car by the player's look input (`x` turns it to the right of the
@@ -141,6 +169,8 @@ impl ChaseCamera {
     /// obstacle between them shortens that offset quickly, but it grows back slowly, so passing a
     /// post or a rail never makes the camera jump in and out.
     pub fn update(&mut self, car: Followed, dt: f32, blocked: impl Fn(Vec3, Vec3) -> Option<f32>) {
+        self.shake.advance(dt);
+        self.previous_view = self.placed.then(|| self.view());
         let speed01 = (car.speed.abs() / FAST).clamp(0.0, 1.0);
         let look = car.position + Vec3::Z * LOOK_HEIGHT;
         if !self.placed {

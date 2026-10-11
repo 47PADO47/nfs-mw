@@ -35,6 +35,7 @@ pub const GRAPHICS_PRESET: &str = "NFSMW_GRAPHICS_PRESET";
 pub const CAR_SHADING: &str = "NFSMW_CAR_SHADING";
 pub const TRAFFIC: &str = "NFSMW_TRAFFIC";
 pub const COP_SHARE: &str = "NFSMW_COP_SHARE";
+pub const TRAFFIC_LIGHTS: &str = "NFSMW_TRAFFIC_LIGHTS";
 pub const SMOKE_QUALITY: &str = "NFSMW_SMOKE_QUALITY";
 pub const SKID_MARKS: &str = "NFSMW_SKID_MARKS";
 pub const COLLISION_SPARKS: &str = "NFSMW_COLLISION_SPARKS";
@@ -97,6 +98,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         car_shading: value(&get, CAR_SHADING, CarShading::from_str),
         traffic: value(&get, TRAFFIC, |s| s.trim().parse::<u32>().map_err(|e| e.to_string())),
         cop_share: value(&get, COP_SHARE, Percent::from_str),
+        traffic_lights: value(&get, TRAFFIC_LIGHTS, parse_bool),
         smoke_quality: value(&get, SMOKE_QUALITY, SmokeQuality::from_str),
         skid_marks: value(&get, SKID_MARKS, parse_bool),
         collision_sparks: value(&get, COLLISION_SPARKS, parse_bool),

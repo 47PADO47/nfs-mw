@@ -190,7 +190,11 @@ type has an "is parked car" query. Neither is in the sources read, so parked car
 
 ## 8. Rust implementation notes
 
-- Render the traffic-light and sign scenery as normal props; do not add a signal system.
+- Render the traffic-light and sign scenery as normal props. The *original's* behaviour has no signal system and
+  nothing here changes that. The rewrite adds one anyway as an optional extension (the `traffic_lights` setting,
+  on by default, because it was asked for): `blackbox_roads::SignalController` builds fixed-time lights for the
+  junction groups and traffic cars stop at red. It is not a reading of the game, so it never feeds back into
+  the data or the specs; see [ai-drivers.md](../ai-drivers.md#traffic-lights-a-rewrite-extension).
 - Put the horn / whoosh logic in the audio layer, driven by the player's speed and the distance and angle to each
   traffic car; share one `last_honk_time` across cars. It needs only positions, forward vectors and the clock.
 - Read `HornType`, `TrafficEngType`, `WooshType` from the car's `pvehicle` and pass them on as sample ids.

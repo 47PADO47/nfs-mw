@@ -10,11 +10,15 @@ use nfsmw_data::car::physics::SurfaceTable;
 
 use super::TrafficModel;
 use super::cop::{self, CopState, Target};
+use super::stop::{self, Lights};
 use super::traffic::{self, Cruise, THINK_STEPS};
+use super::trailer::{Brakes, TrailerCar};
 use crate::scenes::world::drive::{CarPose, CarRig, CarSim, DriveInput, STEP, WorldGround};
 use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::space;
+
+mod towing;
 
 /// What a car is for.
 pub enum Role {
@@ -28,10 +32,13 @@ pub struct Ctx<'a, R> {
     pub net: &'a RoadNetwork,
     pub index: &'a SegmentIndex,
     pub rng: &'a mut R,
-    /// Every computer-driven car, with whether it is a cop, and which of them is this car.
+    /// Every computer-driven car (a semi with its trailer hitched is one long body), with whether it is a cop,
+    /// and which of them is this car; the trailers that came loose follow after the cars.
     pub bodies: &'a [(Body, bool)],
     pub me: usize,
     pub player: Option<Body>,
+    /// The traffic lights, when they are on.
+    pub lights: Option<Lights<'a>>,
 }
 
 /// How a new car begins: when its first think comes and how fast it rolls.
@@ -83,6 +90,8 @@ pub struct AiCar {
     pub name: String,
     rig: Rc<CarRig>,
     sim: CarSim,
+    /// The trailer of a semi tractor, hitched or loose.
+    trailer: Option<TrailerCar>,
     driver: Driver,
     pub role: Role,
     nav: RoadNav,
@@ -102,8 +111,12 @@ pub struct AiCar {
     half: (f32, f32),
     /// The last think found another car in the way.
     blocked: bool,
-    /// Seconds the car has been (almost) standing still.
+    /// Seconds the car has been (almost) standing still, not counting the time it waits for a light.
     idle: f32,
+    /// The stop line the car last headed for (an index into the signal controller's approaches).
+    stop_memory: Option<usize>,
+    /// The car is held by a light that is not green.
+    waiting: bool,
     /// Seconds with no wheel on the ground.
     airborne: f32,
     /// 0..1: hit hard enough to lose control for a moment.
@@ -113,6 +126,7 @@ pub struct AiCar {
     patrol: bool,
     /// Seconds the car has been out of the player's view.
     offscreen: f32,
+    breaker_stop: bool,
 }
 
 impl AiCar {
@@ -129,15 +143,21 @@ impl AiCar {
         let (name, rig, physics) = (model.name.clone(), model.rig.clone(), &model.physics);
         let mut sim = CarSim::for_rig(physics.clone(), &rig);
         sim.configure_ai();
+        sim.collision_role.cop = start.patrol || matches!(role, Role::Cop(_));
         if !sim.place_moving(ground, spawn, start.speed) {
             return None;
         }
+        let trailer = match &model.trailer {
+            Some(trailer) => Some(TrailerCar::place(trailer, &sim, spawn, start.speed, ground)?),
+            None => None,
+        };
         let pose = sim.pose();
         let radius = physics.spec.dimension.length();
         Some(Self {
             name,
             rig,
             sim,
+            trailer,
             driver: Driver::new(
                 match role {
                     Role::Traffic => ControllerKind::Simple,
@@ -159,12 +179,15 @@ impl AiCar {
             half: (physics.spec.dimension.x, physics.spec.dimension.z),
             blocked: false,
             idle: 0.0,
+            stop_memory: None,
+            waiting: false,
             airborne: 0.0,
             shock: 0.0,
             accident: Accident::None,
             cruise: start.cruise,
             patrol: start.patrol,
             offscreen: 0.0,
+            breaker_stop: false,
         })
     }
 
@@ -173,12 +196,20 @@ impl AiCar {
         self.current.position
     }
 
+    pub fn set_breaker_stop(&mut self, stop: bool) {
+        self.breaker_stop = stop;
+    }
+
     pub fn pose(&self, alpha: f32) -> CarPose {
         self.previous.lerp(&self.current, alpha)
     }
 
-    pub fn rig(&self) -> &CarRig {
-        &self.rig
+    /// Collision separation belongs to this tick's displayed pose too.
+    pub fn sync_contacts(&mut self) {
+        if let Some(trailer) = self.trailer.as_mut() {
+            trailer.sync_contacts(&mut self.sim);
+        }
+        self.current = self.sim.pose();
     }
 
     pub fn is_finite(&self) -> bool {
@@ -203,7 +234,7 @@ impl AiCar {
     /// A line about what the car is doing, for the `traffic status` command.
     pub fn debug(&self) -> String {
         format!(
-            "{} segment {} lane {} t {:.2}{}{}, wants {:.1} m/s",
+            "{} segment {} lane {} t {:.2}{}{}{}, wants {:.1} m/s",
             if self.is_cop() {
                 "cop"
             } else if self.patrol {
@@ -215,6 +246,7 @@ impl AiCar {
             self.nav.lane,
             self.nav.t,
             if self.blocked { ", blocked" } else { "" },
+            if self.waiting { ", waits for a light" } else { "" },
             if self.nav.dead_end { ", dead end" } else { "" },
             self.speed
         )
@@ -282,6 +314,9 @@ impl AiCar {
                 self.controls = AiControls { brake: 1.0, steer: 1.0, ..AiControls::default() };
             }
         }
+        if self.breaker_stop {
+            self.controls = AiControls { brake: 1.0, ..AiControls::default() };
+        }
         shift(&mut self.sim, self.controls.gear);
         let input = DriveInput {
             throttle: self.controls.gas,
@@ -291,9 +326,10 @@ impl AiCar {
             nos: self.controls.nos,
             ..DriveInput::default()
         };
-        let impact = self.sim.step(&input, &WorldGround { collision, surfaces }, Some((collision, &*props)));
-        for &(id, _) in &impact.knocked {
-            props.knock(id);
+        self.sim.step(&input, &WorldGround { collision, surfaces }, Some((collision, props)));
+        if let Some(trailer) = self.trailer.as_mut() {
+            let brakes = Brakes { brake: self.controls.brake, handbrake: self.controls.handbrake > 0.5 };
+            trailer.step(&mut self.sim, brakes, collision, props, surfaces);
         }
         self.previous = self.current;
         self.current = self.sim.pose();
@@ -302,7 +338,7 @@ impl AiCar {
             true => self.airborne + STEP,
             false => 0.0,
         };
-        self.idle = match self.sim.telemetry().speed_mps.abs() < IDLE_SPEED {
+        self.idle = match self.sim.telemetry().speed_mps.abs() < IDLE_SPEED && !self.waiting {
             true => self.idle + STEP,
             false => 0.0,
         };
@@ -324,11 +360,12 @@ impl AiCar {
     /// The think of the car's role: traffic follows its lane, a cop chases the player.
     fn think<R: RandomSource>(&mut self, ctx: &mut Ctx<'_, R>) {
         let view = self.sim.driver_view();
-        let state = traffic::CarState {
+        let mut state = traffic::CarState {
             body: self.body(),
             forward_speed: view.forward_speed,
             radius: self.radius,
             mass: self.mass,
+            stop: None,
         };
         match &mut self.role {
             Role::Traffic => {
@@ -338,6 +375,10 @@ impl AiCar {
                         n => Accident::InProgress(n - 1),
                     };
                 }
+                // Patrol cops obey the lights too; only a cop in a chase does not.
+                state.stop =
+                    ctx.lights.and_then(|l| stop::find(&l, ctx.net, &self.nav, &state.body, &mut self.stop_memory));
+                self.waiting = state.stop.is_some_and(|s| s.is_holding());
                 let mut others: Vec<Body> =
                     ctx.bodies.iter().enumerate().filter(|&(i, _)| i != ctx.me).map(|(_, b)| b.0).collect();
                 others.extend(ctx.player);
@@ -382,11 +423,6 @@ impl AiCar {
                 self.speed = think.speed;
             }
         }
-    }
-
-    /// The car's physics, for hits between cars.
-    pub(super) fn sim_mut(&mut self) -> &mut CarSim {
-        &mut self.sim
     }
 
     /// A hit with impulse `impulse` (N s). A hard one shocks the car; one with the player's car also starts an

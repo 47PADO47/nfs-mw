@@ -184,7 +184,8 @@ impl TrafficWorld {
     }
 
     /// Follows which cars the player can see and removes the ones that are gone for good: far away, seen by
-    /// nobody for a while, fallen off the map, or stuck.
+    /// nobody for a while, fallen off the map, or stuck. A tractor that is gone stays while its trailer is not
+    /// (spec §8), and a trailer that came loose and is gone is dropped on its own.
     pub(super) fn recycle(&mut self, dt: f32, focus: Focus) {
         let density = manager::density(self.target > 0, self.pursuit.is_some());
         let (distance, time) = (manager::offscreen_distance(density), manager::offscreen_time(density));
@@ -192,16 +193,69 @@ impl TrafficWorld {
             if car.is_cop() {
                 return car.is_finite();
             }
-            let p = car.position();
-            let away = (p.x - focus.position[0]).hypot(p.y - focus.position[1]);
-            car.note_view(in_view(focus, p.x, p.y, away), dt);
+            car.note_views(dt, |p| in_view(focus, p.x, p.y, away(focus, p)));
+            let limits = Limits { time, distance };
+            if car.loose_trailer().is_some_and(|t| !Vitals::of_trailer(t).valid(focus, limits)) {
+                car.drop_trailer();
+            }
             car.is_finite()
-                && car.airborne_time() < MAX_AIRBORNE
-                && away < DESPAWN_DISTANCE
-                && !(car.idle_time() > STUCK_TIME && away > STUCK_DISTANCE)
-                && !(car.offscreen_time() > time && away > distance)
+                && (Vitals::of_car(car).valid(focus, limits)
+                    || car.trailer().is_some_and(|t| Vitals::of_trailer(t).valid(focus, limits)))
         });
     }
+}
+
+/// How long out of view and how far away a body may be before it is removed.
+#[derive(Clone, Copy)]
+struct Limits {
+    time: f32,
+    distance: f32,
+}
+
+/// What decides whether a car, or a trailer, stays on the road.
+struct Vitals {
+    /// Render space.
+    position: Vec3,
+    finite: bool,
+    airborne: f32,
+    idle: f32,
+    offscreen: f32,
+}
+
+impl Vitals {
+    fn of_car(car: &super::AiCar) -> Self {
+        Self {
+            position: car.position(),
+            finite: car.is_finite(),
+            airborne: car.airborne_time(),
+            idle: car.idle_time(),
+            offscreen: car.offscreen_time(),
+        }
+    }
+
+    fn of_trailer(trailer: &super::trailer::TrailerCar) -> Self {
+        Self {
+            position: trailer.position(),
+            finite: trailer.is_finite(),
+            airborne: trailer.airborne_time(),
+            idle: trailer.idle_time(),
+            offscreen: trailer.offscreen_time(),
+        }
+    }
+
+    fn valid(&self, focus: Focus, limits: Limits) -> bool {
+        let away = away(focus, self.position);
+        self.finite
+            && self.airborne < MAX_AIRBORNE
+            && away < DESPAWN_DISTANCE
+            && !(self.idle > STUCK_TIME && away > STUCK_DISTANCE)
+            && !(self.offscreen > limits.time && away > limits.distance)
+    }
+}
+
+/// Distance from the player to `p` (render space) on the map, metres.
+fn away(focus: Focus, p: Vec3) -> f32 {
+    (p.x - focus.position[0]).hypot(p.y - focus.position[1])
 }
 
 /// Whether a car at map position `(x, y)`, `away` metres from the player, is in the player's view: close by,

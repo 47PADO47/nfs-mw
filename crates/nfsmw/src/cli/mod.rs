@@ -309,6 +309,13 @@ pub struct ViewArgs {
     /// [env NFSMW_COP_SHARE; config `cop_share`; default 5, one in twenty].
     #[arg(long, value_name = "0-100")]
     pub cop_share: Option<crate::settings::Percent>,
+    /// Make the traffic stop at red lights at junctions (a rewrite extension: the original has no lights)
+    /// [env NFSMW_TRAFFIC_LIGHTS; config `traffic_lights`; default on].
+    #[arg(long, conflicts_with = "no_traffic_lights")]
+    pub traffic_lights: bool,
+    /// Traffic ignores junctions, as in the original game.
+    #[arg(long)]
+    pub no_traffic_lights: bool,
     /// Enable skid marks [env NFSMW_SKID_MARKS; config `skid_marks`; default on].
     #[arg(long, conflicts_with = "no_skid_marks")]
     pub skid_marks: bool,
@@ -415,6 +422,7 @@ impl ViewArgs {
             radio: switch(self.radio, self.no_radio),
             traffic: if self.no_traffic { Some(0) } else { self.traffic },
             cop_share: self.cop_share,
+            traffic_lights: switch(self.traffic_lights, self.no_traffic_lights),
             skid_marks: switch(self.skid_marks, self.no_skid_marks),
             collision_sparks: switch(self.collision_sparks, self.no_collision_sparks),
             spark_style: self.spark_style,

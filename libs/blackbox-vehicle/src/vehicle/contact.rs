@@ -1,75 +1,16 @@
-//! The body box against the ground: the eight corners are tested against the road and the deepest one
-//! pushes the body out and takes the impulse (spec section 4.2). This is what stops a flipped car from
-//! sinking, and what holds a car whose suspension has bottomed out.
-
-use glam::Vec3;
+//! Ordered ground support of the body box, used when suspension bottoms out or a car overturns.
 
 use super::Vehicle;
 use crate::ground::Ground;
-use crate::rigid_body::{BodyState, ContactParams, PlaneContact};
-
-/// How far above a corner the ground ray starts.
-const CORNER_LIFT: f32 = 0.3;
-
-struct CornerContact {
-    point: Vec3,
-    normal: Vec3,
-    depth: f32,
-}
+use crate::rigid_body::BOX_CORNERS;
 
 impl Vehicle {
-    /// Resolves ground contacts of the body box and returns how many corners touch.
     pub(super) fn collide_body_with_ground(&mut self, ground: &dyn Ground) -> usize {
-        if self.body.state != BodyState::Awake {
-            return 0;
-        }
-        let rot = self.body.rotation();
-        let pos = self.body.position;
         let half = self.body.dimension() + self.body.spec().collision_box_pad;
-        let mut contacts = [const { None::<CornerContact> }; 8];
-        let mut count = 0;
-        for sx in [-1.0, 1.0] {
-            for sy in [-1.0, 1.0] {
-                for sz in [-1.0, 1.0] {
-                    let point = pos + rot * (half * Vec3::new(sx, sy, sz));
-                    let Some(hit) = ground.hit(point + Vec3::Y * CORNER_LIFT, Vec3::NEG_Y, CORNER_LIFT) else {
-                        continue;
-                    };
-                    let normal = if hit.normal.y < 0.0 { -hit.normal } else { hit.normal };
-                    let depth = (CORNER_LIFT - hit.distance) * normal.y;
-                    if depth > 1e-4 && depth.is_finite() {
-                        contacts[count] = Some(CornerContact { point, normal, depth });
-                        count += 1;
-                    }
-                }
-            }
-        }
-        if count == 0 {
-            return 0;
-        }
-        let contacts = &mut contacts[..count];
-        contacts.sort_by(|a, b| {
-            let depth = |c: &Option<CornerContact>| c.as_ref().map_or(0.0, |c| c.depth);
-            depth(b).total_cmp(&depth(a))
-        });
-        let spec = *self.body.spec();
-        for c in contacts.iter().flatten() {
-            let n = c.normal;
-            let e = Vec3::new(n.dot(rot.x_axis), n.dot(rot.y_axis), n.dot(rot.z_axis)) * spec.ground_elasticity;
-            let plane = PlaneContact {
-                point: c.point,
-                normal: n,
-                friction_static: spec.ground_friction[0],
-                friction_kinetic: spec.ground_friction[1].min(spec.ground_friction[0]),
-            };
-            let params = ContactParams { restitution: e.length(), inertia_scale: spec.ground_moment_scale };
-            if self.body.react_plane(&plane, &params).is_some() {
-                break;
-            }
-        }
-        if let Some(deepest) = &contacts[0] {
-            self.body.position += deepest.normal * deepest.depth;
-        }
-        count
+        let points = BOX_CORNERS.map(|corner| self.body.position + self.body.rotation() * (half * corner));
+        let mut contacts: Vec<_> =
+            points.into_iter().filter_map(|point| self.body.ground_contact(point, ground, crate::FIXED_STEP)).collect();
+        self.body.resolve_ground(&mut contacts);
+        contacts.len()
     }
 }

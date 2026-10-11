@@ -59,7 +59,7 @@ impl Drive {
         self.vehicle_effects.clear();
         (self.previous, self.current) = (pose, pose);
         self.telemetry = sim.telemetry();
-        self.clock.reset();
+        self.alpha = 0.0;
         self.chase.snap();
         self.cut.arm();
         self.steps = 0;

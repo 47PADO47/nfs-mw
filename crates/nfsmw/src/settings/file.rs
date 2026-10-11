@@ -89,6 +89,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         car_shading: field(&table, origin, "car_shading", |v| CarShading::from_str(text_of(v)?)),
         traffic: field(&table, origin, "traffic", count),
         cop_share: field(&table, origin, "cop_share", percent),
+        traffic_lights: field(&table, origin, "traffic_lights", boolean),
         smoke_quality: field(&table, origin, "smoke_quality", |v| SmokeQuality::from_str(text_of(v)?)),
         skid_marks: field(&table, origin, "skid_marks", boolean),
         collision_sparks: field(&table, origin, "collision_sparks", boolean),

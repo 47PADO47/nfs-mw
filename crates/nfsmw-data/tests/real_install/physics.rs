@@ -180,6 +180,43 @@ fn cars_assemble_into_vehicle_specs() {
     }
 }
 
+/// The tractors of the traffic patterns and the trailer each one pulls (`semi` has none).
+const TRACTORS: [(&str, Option<&str>); 7] = [
+    ("semi", None),
+    ("semia", Some("trailera")),
+    ("semib", Some("trailerb")),
+    ("semicmt", Some("trailercmt")),
+    ("semicon", Some("trailercon")),
+    ("semicrate", Some("trailercrate")),
+    ("semilog", Some("trailerlog")),
+];
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_semi_tractors_and_trailers_have_physics() {
+    let Some(dir) = install() else { return };
+    let data = physics::PhysicsData::load(&dir).unwrap();
+    let tractor = data.car("semi").unwrap();
+    for (name, trailer) in TRACTORS {
+        let p = data.car(name).unwrap_or_else(|e| panic!("{name}: {e:#}"));
+        // The variants have no bounds of their own: they use the box of `semi`.
+        assert_eq!(p.bounds, tractor.bounds, "{name}");
+        assert_eq!(p.spec.mass, 10_000.0, "{name}");
+        assert!(p.spec.engine.torque.len() >= 2, "{name} has an engine");
+        assert_eq!(data.trailer_of(name).as_deref(), trailer, "{name}");
+        let Some(trailer) = trailer else { continue };
+        let t = data.car(trailer).unwrap_or_else(|e| panic!("{trailer}: {e:#}"));
+        assert!((10_000.0..=10_001.0).contains(&t.spec.mass), "{trailer}: {} kg", t.spec.mass);
+        assert!(t.spec.engine.torque.is_empty() && t.spec.transmission.gear_ratio.iter().all(|&r| r == 0.0));
+        assert!(t.spec.dimension.z > p.spec.dimension.z, "{trailer} is longer than its tractor");
+        // The axles sit at the back of the trailer's box.
+        let front = t.spec.chassis.front_axle;
+        let rear = front - t.spec.chassis.wheel_base;
+        assert!(front < 0.0 && rear > -t.spec.dimension.z, "{trailer}: {:?}", t.spec.chassis);
+    }
+    assert_eq!(data.lineage("semib"), ["semib", "semi", "tractors", "cars", "default"]);
+}
+
 #[test]
 #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
 fn walls_have_friction_and_bounce() {

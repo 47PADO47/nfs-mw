@@ -11,6 +11,7 @@ impl CarSim {
     /// Makes the car take its controls from an AI: no dead zone, no automatic reverse or idle braking,
     /// the full steering angle for the input, and the gearbox shifts by itself.
     pub fn configure_ai(&mut self) {
+        self.collision_role.player = false;
         self.vehicle.config = ControlConfig {
             dead_zone: 0.0,
             auto_reverse: false,

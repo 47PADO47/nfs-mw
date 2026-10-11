@@ -74,6 +74,34 @@ pub struct SceneryLayout {
     pub instance: InstanceLayout,
     /// Offset of the u32 section number in `ScenerySectionHeader`.
     pub header_section_number: usize,
+    pub hooks: HookLayout,
+    pub spawners: SpawnerLayout,
     pub visibility: VisibilityRules,
     pub lod: LodRules,
+}
+
+/// A resident scenery instance's connection to the global override table.
+#[derive(Debug, Clone)]
+pub struct HookLayout {
+    pub len: usize,
+    pub align: usize,
+    pub override_index: usize,
+    pub instance_index: usize,
+}
+
+/// Placed physics object records, with a signed 16-bit count in the pack header.
+#[derive(Debug, Clone)]
+pub struct SpawnerLayout {
+    pub align: usize,
+    pub header_len: usize,
+    pub count: usize,
+    pub len: usize,
+    pub orientation: usize,
+    pub position: usize,
+    pub model: usize,
+    pub collision: usize,
+    pub attributes: usize,
+    pub override_index: usize,
+    pub unique_id: usize,
+    pub exclude_flags: usize,
 }

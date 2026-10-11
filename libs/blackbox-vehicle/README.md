@@ -48,7 +48,7 @@ println!("{:.1} m/s in gear {}", car.forward_speed(), car.gear());
 | Module | What it holds |
 |---|---|
 | `math` | `ramp`, `lerp`, evenly spaced `table`, piecewise `graph`, unit factors (`FT_LB_TO_NM`, `MPH_TO_MS`, ...) |
-| `rigid_body` | `RigidBody`: semi-implicit Euler, rotation about the centre of gravity, box inertia, quadratic drag, sleep, `react_plane` (impulse with Coulomb friction) |
+| `rigid_body` | `RigidBody`: integration, box inertia, drag, sleep, iterative plane/object response and ordered ground queries |
 | `engine` | `EngineSpec` (torque curve clamped at the red line, engine braking, inertia), `Clutch` |
 | `drivetrain` | `TransmissionSpec`, `ShiftPoints` and the automatic box, `calc_split` (differential), `split_drive_torque`, `Powertrain` (clutch, torque loop, limiter, speedometer) |
 | `induction`, `nos` | turbo or supercharger spool and boost; nitrous tank, burn and recharge |
@@ -63,10 +63,15 @@ println!("{:.1} m/s in gear {}", car.forward_speed(), car.gear());
 
 Each file stays under 500 lines; modules with many tests keep them in a `tests` folder or file.
 
+`rigid_body::sphere_contact` and `sphere_box_contact` retain spherical geometry;
+the latter takes relative primitive travel for face and corner sweeps. Measured
+behavior and the coincident-centre exception are in `docs/specs/sphere-contacts.md`.
+
 ## The ground
 
 ```rust
 pub trait Ground {
+    fn body_friction(&self, surface: u32) -> f32 { 1.0 }
     fn hit(&self, origin: Vec3, dir: Vec3, max_distance: f32) -> Option<GroundHit>;
 }
 pub struct GroundHit { pub distance: f32, pub normal: Vec3, pub surface: SurfaceGrip }
@@ -75,7 +80,7 @@ pub struct SurfaceGrip { pub lateral: f32, pub drive: f32, pub rolling: f32 }
 
 `hit` casts a ray from `origin` along the unit vector `dir` for at most `max_distance` metres and returns
 the nearest ground surface. The vehicle only casts straight down: from 0.5 m above each wheel contact point
-(so a wheel pressed into the road still finds it), and from 0.3 m above each corner of the body box. The
+(so a wheel pressed into the road still finds it). Body support uses motion-dependent tolerance. The
 surface is `simsurface`'s `LATERAL_GRIP`, `DRIVE_GRIP` and `ROLLING_RESISTANCE`. `max_distance` is the one
 addition to the interface sketched in the task (`hit(point, dir)`): it lets a ray cast over a collision
 world bound its work, as `blackbox-collision`'s segment query does.
@@ -128,8 +133,8 @@ Each is a deliberate choice where the spec was ambiguous, or where a literal rea
 10. **Hard-turn hold beats the post-collision limit.** In the spec's order the "held full lock keeps
     `last_max`" rule runs after the collision scaling and undoes it; kept as written.
 11. **Pedal dead zone** defaults to 0.05 (the spec has no value; `ControlConfig::dead_zone`).
-12. **Body against the ground** uses the eight corners of the box cast from 0.3 m above, a single impulse
-    pass with the body's own friction (no per-surface multiplier, no 16 sub-steps, no AI skip rule).
+12. **Body against the ground** uses ordered box corners, motion-dependent queries, per-surface
+    friction and 16 moment iterations. Game geometry can supply its enabled support clouds.
 13. **Sleep:** a car with any wheel on the ground never sleeps (as in the spec); a car resting on its roof
     can. A sleeping car wakes on throttle or handbrake.
 14. **Airborne downforce.** The original keeps 0.8 of the downforce in the air; with real aero coefficients
@@ -149,8 +154,12 @@ positions while `skid` is above a small threshold; drawing them is a later miles
 
 ## Not implemented
 
-Walls, props and car-versus-car response (the caller finds the contact and uses `RigidBody::react_plane`
-or changes velocities, then calls `Vehicle::notify_collision`), invulnerability and reset-to-road, burnout
+World contacts and prop lifecycle belong to the caller. `react_moments` and `react_bodies` provide
+iterated object response with separate per-body restitution and effective mass/inertia, friction,
+fixed centres and break thresholds. The caller supplies geometry and gameplay overrides.
+See [object contact verification](../../docs/provenance/pc-object-contact.md).
+
+Still missing here: invulnerability and reset-to-road, burnout
 and fishtail, drift state and its yaw damping, the axle traction control, wall steer, the airborne
 stabilisers, speed-break, perfect launch and drag shift quality, engine heat and sabotage, blown tires,
 catch-up cheats, forced stops, the understeer and oversteer read-outs, and the traffic and AI chassis
@@ -158,7 +167,8 @@ variants. The yaw-control boost assumes the stability setting is on.
 
 ## What needs calibration
 
-Nothing here is checked against the running game; the numbers come from the specs, which are [decomp] only.
+The object-response kernel matches 13 synthetic measurements of the original PC machine code.
+Full driving and collision scenarios still need comparison against the running game.
 
 - **Tire force scale.** The lateral table is the console build's; the PC build has an extra multiplier
   (spec open question 2). Calibrate with a skidpad run. `StepScales` and the 1.5 ellipse stretch (kept in the

@@ -109,8 +109,8 @@ NIS file uses **[verified]**. The structs are presumably in `src/Speed/Indep/Src
 Extract one animation bank and read it with standard ELF tools:
 
 ```bash
-python tools/chunkdump.py "D:/Need For Speed Most Wanted Black Edition/NIS/Scene_ArrestF02_BundleB.bun" --find 0x00E34010
-python tools/chunkdump.py "D:/Need For Speed Most Wanted Black Edition/NIS/Scene_ArrestF02_BundleB.bun" --extract 0x0014C320 -o anim.chunk
+python tools/chunkdump.py "$NFSMW_GAME_DIR/NIS/Scene_ArrestF02_BundleB.bun" --find 0x00E34010
+python tools/chunkdump.py "$NFSMW_GAME_DIR/NIS/Scene_ArrestF02_BundleB.bun" --extract 0x0014C320 -o anim.chunk
 # drop the 8-byte chunk header and the 8 bytes of 0x11 padding:
 python -c "open('anim.o','wb').write(open('anim.chunk','rb').read()[16:])"
 readelf -a anim.o      # if you have binutils; it recognizes the file as a MIPS relocatable object

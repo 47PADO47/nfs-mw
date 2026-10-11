@@ -13,6 +13,7 @@ mod gfx_tests;
 mod hud_layout_tests;
 mod parse;
 mod settings_cmd;
+mod settings_keys;
 #[cfg(test)]
 mod smoke_quality_sync_tests;
 #[cfg(test)]

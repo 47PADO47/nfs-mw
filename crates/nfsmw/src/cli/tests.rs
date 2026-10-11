@@ -82,3 +82,18 @@ fn window_options_reach_the_cli_settings_layer() {
     assert_eq!(layer.resolution, Some(Resolution::pixels(1920, 1080).unwrap()));
     assert!(Cli::try_parse_from(["nfsmw", "view-car", "--resolution", "0x0"]).is_err());
 }
+
+#[test]
+fn the_traffic_light_switches_reach_the_cli_settings_layer() {
+    let layer = |flags: &[&str]| {
+        let args = ["nfsmw", "view-car"].into_iter().chain(flags.iter().copied());
+        let Some(Command::ViewCar { view, .. }) = Cli::try_parse_from(args).unwrap().command else {
+            panic!("wrong command")
+        };
+        view.settings_layer().traffic_lights
+    };
+    assert_eq!(layer(&[]), None);
+    assert_eq!(layer(&["--traffic-lights"]), Some(true));
+    assert_eq!(layer(&["--no-traffic-lights"]), Some(false));
+    assert!(Cli::try_parse_from(["nfsmw", "view-car", "--traffic-lights", "--no-traffic-lights"]).is_err());
+}
