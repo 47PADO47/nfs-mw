@@ -41,6 +41,10 @@ impl TrafficWorld {
         for i in 0..parts.len() {
             let (head, tail) = parts.split_at_mut(i + 1);
             let part = &mut head[i];
+            // A body whose state already went bad must not push the player's car into a bad state too.
+            if !part.sim.is_finite() {
+                continue;
+            }
             if let Some(player) = player.as_deref_mut()
                 && near(player, part.sim)
                 && let Some(hit) = player.collide_with(part.sim)
