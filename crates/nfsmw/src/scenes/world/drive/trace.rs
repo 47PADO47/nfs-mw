@@ -14,8 +14,9 @@ impl super::Drive {
             return;
         }
         log::trace!(target: "nfsmw::movement",
-            "frame {{\"dt\":{dt:?},\"ticks\":{ticks},\"step\":{},\"alpha\":{:?},\"loaded\":{loaded},\"complete\":{complete},\"waiting\":{},\"speed\":{:?},\"car\":{:?},\"draw\":{:?},\"camera\":{:?},\"camera_previous\":{:?},\"camera_current\":{:?}}}",
+            "frame {{\"dt\":{dt:?},\"ticks\":{ticks},\"step\":{},\"alpha\":{:?},\"loaded\":{loaded},\"complete\":{complete},\"waiting\":{},\"speed\":{:?},\"rpm\":{:?},\"wheels\":{},\"finite\":{},\"car\":{:?},\"draw\":{:?},\"camera\":{:?},\"camera_previous\":{:?},\"camera_current\":{:?}}}",
             self.steps, self.alpha, self.request.is_some(), self.telemetry.speed_mps,
+            self.telemetry.rpm, self.telemetry.wheels_on_ground, self.sim.as_ref().is_some_and(|s| s.is_finite()),
             self.current.position.to_array(), self.pose().position.to_array(),
             self.camera().position.to_array(), self.chase.sample(0.0).position.to_array(),
             self.chase.view().position.to_array(),

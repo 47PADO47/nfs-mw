@@ -286,7 +286,22 @@ impl Residency {
             return false;
         }
         let point = super::space::to_physics(glam::Vec3::new(x, y, 0.0));
-        self.collision.resident_near(point, margin).unwrap_or_else(|| self.wanted_resident())
+        match self.collision.resident_near(point, margin) {
+            Some(true) => true,
+            // Every wanted tile is in, yet a collision pack the car's surroundings refer to is not. Nothing loads
+            // that pack any more, so waiting for it would freeze the car for good. Drive on without it.
+            Some(false) if self.wanted_resident() => {
+                static REPORTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+                if !REPORTED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+                    log::warn!(
+                        "collision near ({x:.0}, {y:.0}) refers to sections that are not loaded; driving on without them"
+                    );
+                }
+                true
+            }
+            Some(false) => false,
+            None => self.wanted_resident(),
+        }
     }
 
     /// The collision of the tiles that are resident now.

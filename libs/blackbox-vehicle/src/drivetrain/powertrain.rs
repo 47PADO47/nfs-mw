@@ -28,6 +28,8 @@ pub struct TickInput<'a> {
     /// lock-up and the rev limiter.
     pub wheel_av: &'a mut [f32; 4],
     pub grounded: [bool; 4],
+    /// The rear tires are sliding sideways (a drift). Airborne is read from `grounded`.
+    pub drifting: bool,
     /// Mean slip of the driven wheels in the direction of travel (m/s, + = spinning).
     pub drive_slip: f32,
     /// Largest slip magnitude over the four wheels (m/s): gates automatic up-shifts.
@@ -320,6 +322,7 @@ impl Powertrain {
                 speed_mph,
                 blown: i.blown,
                 tuning: i.nos_tuning,
+                stunt: i.drifting || i.grounded.iter().all(|g| !*g),
             },
         );
 

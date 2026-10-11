@@ -5,14 +5,29 @@ use glam::Vec3;
 
 use super::{FLOWN_AWAY, View, WorldScene, ground, road};
 
+/// How long a car may wait for its surroundings to load before it is placed on the nearest road anyway.
+const ROAD_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
+
 impl WorldScene {
     /// Put a waiting car on the road once the area around it has loaded; the physics runs in `update_simulation`.
     pub(super) fn prepare_drive(&mut self) {
         let (Some(drive), physics) = (self.drive.as_mut(), &self.physics) else { return };
         drive.set_markers(self.markers_on);
-        if let Some(request) = drive.waiting_for_road()
-            && self.residency.complete()
-        {
+        let Some(request) = drive.waiting_for_road() else {
+            self.waiting_since = None;
+            return;
+        };
+        let waited = self.waiting_since.get_or_insert_with(std::time::Instant::now).elapsed();
+        let loaded = self.residency.complete();
+        let timed_out = waited > ROAD_WAIT;
+        if loaded || timed_out {
+            if !loaded {
+                log::warn!(
+                    "the world did not finish loading after {:.0} s; placing the car on the nearest road it can reach",
+                    waited.as_secs_f32()
+                );
+            }
+            self.waiting_since = None;
             let collision = self.residency.collision();
             let surfaces = &physics.surfaces;
             let estimate = ground::height_near(self.residency.placed(), request.near[0], request.near[1], 150.0);
