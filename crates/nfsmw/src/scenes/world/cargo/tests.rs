@@ -29,6 +29,9 @@ fn striker() -> CarSim {
 }
 
 fn rear_hit(trailer: &mut CarSim) {
+    let ground = FlatGround::new(-100.0);
+    // Run real fixed ticks so previous contact poses describe motion, not fixture teleports.
+    trailer.step(&DriveInput::default(), &ground, None);
     let mut car = striker();
     let geometry = trailer.geometry.as_ref().unwrap();
     let rear = geometry
@@ -44,9 +47,10 @@ fn rear_hit(trailer: &mut CarSim) {
         })
         .min_by(|a, b| (a.centre.z - a.half.z).total_cmp(&(b.centre.z - b.half.z)))
         .unwrap();
-    let distance = rear.half.z + car.half_dimensions().z - 0.1;
+    let distance = rear.half.z + car.half_dimensions().z + 0.5;
     car.body_mut().place(rear.centre - Vec3::Z * distance, Quat::IDENTITY);
     car.body_mut().linear_velocity = Vec3::Z * 50.0;
+    car.step(&DriveInput::default(), &ground, None);
     assert!(car.collide_with(trailer).is_some(), "fixture must physically strike the installed rear bounds");
 }
 
