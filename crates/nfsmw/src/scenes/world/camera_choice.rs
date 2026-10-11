@@ -16,7 +16,7 @@ impl WorldScene {
         let Some(drive) = self.drive.as_ref().filter(|_| self.view == View::Chase) else {
             return self.camera.lens(aspect);
         };
-        if let Some(lens) = self.original_lens(drive.pose(), drive.speed(), aspect) {
+        if let Some(lens) = self.original_lens(drive.pose(), drive.speed(), drive.half_extents().1, aspect) {
             return lens;
         }
         let chase = drive.camera();
@@ -27,12 +27,18 @@ impl WorldScene {
     }
 
     /// The original view the setting picks, if it picks one and the install's views are loaded.
-    fn original_lens(&self, pose: crate::scenes::world::drive::CarPose, speed: f32, aspect: f32) -> Option<Lens> {
+    fn original_lens(
+        &self,
+        pose: crate::scenes::world::drive::CarPose,
+        speed: f32,
+        half_length: f32,
+        aspect: f32,
+    ) -> Option<Lens> {
         let index = original::index_of(self.camera_mode)?;
         let views = self.camera_views.as_ref()?;
         let forward = pose.rotation * Vec3::X;
         let heading = forward.y.atan2(forward.x);
-        let view = OriginalView::new(&views.views[index], pose.position, heading, speed);
+        let view = OriginalView::new(&views.views[index], pose.position, heading, speed, half_length);
         debug_assert!(view.selectable(), "the camera setting picked a camera it may not choose");
         Some(view.lens(aspect))
     }

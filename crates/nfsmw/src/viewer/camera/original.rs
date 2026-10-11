@@ -31,6 +31,13 @@ pub fn index_of(mode: CameraMode) -> Option<usize> {
     })
 }
 
+/// Where a positive offset starts: the front bumper, so a forward view is outside the body. A negative offset
+/// starts at the car's origin. Inferred from the screenshots (the bumper and hood views sat inside the body when the
+/// offset started at the origin); see docs/specs/camera-views.md.
+fn forward_from_centre(lag: f32, half_length: f32) -> f32 {
+    if lag > 0.0 { half_length } else { 0.0 }
+}
+
 /// One original view for one frame: the car's origin and heading, the view's values at the car's speed.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct OriginalView {
@@ -41,13 +48,13 @@ pub struct OriginalView {
 
 impl OriginalView {
     /// The view `view` on a car at `position`, facing `heading` (radians from +X), moving at `speed` m/s.
-    pub fn new(view: &View, position: Vec3, heading: f32, speed: f32) -> Self {
+    pub fn new(view: &View, position: Vec3, heading: f32, speed: f32, half_length: f32) -> Self {
         let speed01 = (speed.abs() / FAST).clamp(0.0, 1.0);
         let lag = View::at(view.lag, speed01);
         let height = View::at(view.height, speed01);
         let pitch = View::at(view.angle, speed01).to_radians();
         Self {
-            eye: position + direction(heading, 0.0) * lag + Vec3::Z * height,
+            eye: position + direction(heading, 0.0) * (lag + forward_from_centre(lag, half_length)) + Vec3::Z * height,
             forward: direction(heading, -pitch),
             fov_y_degrees: View::at(view.fov, speed01),
         }
@@ -95,16 +102,16 @@ mod tests {
     #[test]
     fn the_offset_is_along_the_heading_and_the_height_is_up() {
         // Heading a quarter turn left: forward is +Y, so a negative offset puts the camera at -Y (behind).
-        let cam = OriginalView::new(&view(), CAR, std::f32::consts::FRAC_PI_2, 0.0);
+        let cam = OriginalView::new(&view(), CAR, std::f32::consts::FRAC_PI_2, 0.0, 2.2);
         let lens = cam.lens(1.0);
         assert!((lens.position - (CAR + Vec3::new(0.0, -4.0, 1.0))).length() < 1e-3, "{:?}", lens.position);
     }
 
     #[test]
     fn the_values_follow_the_speed_and_stop_at_the_top_end() {
-        let at_rest = OriginalView::new(&view(), CAR, 0.0, 0.0).lens(1.0);
-        let fast = OriginalView::new(&view(), CAR, 0.0, FAST).lens(1.0);
-        let faster = OriginalView::new(&view(), CAR, 0.0, FAST * 3.0).lens(1.0);
+        let at_rest = OriginalView::new(&view(), CAR, 0.0, 0.0, 2.2).lens(1.0);
+        let fast = OriginalView::new(&view(), CAR, 0.0, FAST, 2.2).lens(1.0);
+        let faster = OriginalView::new(&view(), CAR, 0.0, FAST * 3.0, 2.2).lens(1.0);
         assert!((at_rest.fov_y_degrees - 78.0).abs() < 1e-4);
         assert!((fast.fov_y_degrees - 90.0).abs() < 1e-4);
         assert_eq!(fast.fov_y_degrees, faster.fov_y_degrees);
@@ -113,14 +120,23 @@ mod tests {
 
     #[test]
     fn a_positive_pitch_looks_down() {
-        let level = OriginalView::new(&view(), CAR, 0.0, 0.0).lens(1.0);
-        let pitched = OriginalView::new(&view(), CAR, 0.0, FAST).lens(1.0);
+        let level = OriginalView::new(&view(), CAR, 0.0, 0.0, 2.2).lens(1.0);
+        let pitched = OriginalView::new(&view(), CAR, 0.0, FAST, 2.2).lens(1.0);
         assert!(level.forward.z.abs() < 1e-6);
         assert!(pitched.forward.z < -0.1, "{:?}", pitched.forward);
     }
 
     #[test]
+    fn a_forward_offset_starts_at_the_front_bumper() {
+        // A positive offset of 0.5 m is 0.5 m past the front bumper (2.2 m from the origin), not 0.5 m from the origin.
+        let mut forward = view();
+        forward.lag = [0.5, 0.5];
+        let lens = OriginalView::new(&forward, CAR, 0.0, 0.0, 2.2).lens(1.0);
+        assert!((lens.position.x - (CAR.x + 2.7)).abs() < 1e-4, "{:?}", lens.position);
+    }
+
+    #[test]
     fn every_original_view_is_selectable() {
-        assert!(OriginalView::new(&view(), CAR, 0.0, 0.0).selectable());
+        assert!(OriginalView::new(&view(), CAR, 0.0, 0.0, 2.2).selectable());
     }
 }
