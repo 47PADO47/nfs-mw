@@ -12,8 +12,10 @@ blackbox-hash.workspace = true
 anyhow.workspace = true
 bevy_a11y.workspace = true
 bevy_app.workspace = true
+bevy_asset.workspace = true
 bevy_ecs.workspace = true
 bevy_gilrs.workspace = true
+bevy_image.workspace = true
 bevy_input.workspace = true
 bevy_time.workspace = true
 bevy_window.workspace = true
@@ -54,6 +56,7 @@ png.workspace = true
 raw-window-handle.workspace = true
 serde.workspace = true
 toml.workspace = true
+wgpu.workspace = true
 
 [features]
 # The optional Bevy renderer (docs/renderers.md, docs/bevy-backend.md). The default build never has it, so it
