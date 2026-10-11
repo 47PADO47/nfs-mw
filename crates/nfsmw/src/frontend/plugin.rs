@@ -1,7 +1,9 @@
 //! The Bevy side of the front end: drives the flow every frame and draws the screens.
 
 use bevy_app::{App, AppExit, Plugin, Update};
+use bevy_asset::Assets;
 use bevy_ecs::prelude::*;
+use bevy_image::Image;
 use bevy_time::Time;
 use bevy_window::{PrimaryWindow, Window};
 use blackbox_feng::runtime::pad;
@@ -9,6 +11,7 @@ use game_install::GameDir;
 
 use super::flow::{Boot, Frontend, Stage, Start};
 use super::logic::Env;
+use super::pointer;
 use super::screens::Screens;
 use super::script::{self, UiScript};
 use crate::app::{FrameSet, Host};
@@ -35,8 +38,10 @@ impl Plugin for FrontendPlugin {
         let catalog = Catalog::load(&self.dir, &SCREEN_FILES);
         let screens = Screens::new(catalog, assets);
         app.insert_resource(Frontend::new(screens, self.dir.clone(), self.start.clone(), self.script.clone()))
+            .init_resource::<Assets<Image>>()
             .add_systems(Update, update.in_set(FrameSet::Frontend))
-            .add_systems(Update, present.in_set(FrameSet::Hud));
+            .add_systems(Update, present.in_set(FrameSet::Hud))
+            .add_systems(Update, pointer::apply);
     }
 }
 
