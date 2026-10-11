@@ -127,12 +127,12 @@ fn moving_collision_grid_and_unload_follow_the_prop() {
     assert!(world.colliders.is_empty() && world.grid.is_empty());
 }
 
-fn swept_sphere_trace(fps: usize) -> Vec<u32> {
+fn swept_trace(fps: usize, shape_flag: u16) -> Vec<u32> {
     let mut world = PropWorld::default();
     let mut p = placement(40, Vec3::new(0.0, 5.0, 14.0), 100.0, false, 0.0);
     let shape = Arc::make_mut(p.prop.as_mut().unwrap());
     let bounds = Arc::make_mut(shape.bounds.as_mut().unwrap());
-    bounds.nodes[0].flags = flags::SPHERE | flags::PRIM_VS_OBJECTS;
+    bounds.nodes[0].flags = shape_flag | flags::PRIM_VS_OBJECTS;
     let mut placed = [p, placement(41, Vec3::new(0.0, 5.0, 15.0), 100.0, false, 0.0)];
     world.add_tile(1, &mut placed);
     let id = placed[0].prop_id;
@@ -154,17 +154,19 @@ fn swept_sphere_trace(fps: usize) -> Vec<u32> {
     }
     assert!(
         world.colliders[&placed[1].prop_id].body.as_ref().unwrap().moved,
-        "the sphere must hit the box it crossed in another grid cell"
+        "the object must hit the box it crossed in another grid cell"
     );
     trace
 }
 
 #[test]
 fn sphere_sweeps_cross_grid_cells_and_transfer_momentum_at_every_render_rate() {
-    let expected = swept_sphere_trace(60);
-    assert_eq!(expected.len(), 60 * 2 * 6);
-    for fps in [5, 10, 30, 120, 144, 240] {
-        assert_eq!(swept_sphere_trace(fps), expected, "{fps} FPS");
+    for shape in [flags::SPHERE, flags::BOX] {
+        let expected = swept_trace(60, shape);
+        assert_eq!(expected.len(), 60 * 2 * 6);
+        for fps in [5, 10, 30, 120, 144, 240] {
+            assert_eq!(swept_trace(fps, shape), expected, "shape {shape} at {fps} FPS");
+        }
     }
 }
 

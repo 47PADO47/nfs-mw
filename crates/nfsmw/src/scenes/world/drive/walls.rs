@@ -271,7 +271,7 @@ pub fn resolve(vehicle: &mut Vehicle, cast: Cast<'_>, props: PropQuery<'_>, wall
     }
     vehicle.body_mut().position += deepest.normal * deepest.depth;
     if impact.impulse > 0.0 {
-        vehicle.notify_collision(impact.impulse);
+        vehicle.notify_collision(impact.impulse / car_mass);
     }
     impact
 }

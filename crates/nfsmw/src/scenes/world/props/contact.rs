@@ -1,6 +1,8 @@
 //! Original contact materials, attachment and no-car-effect overrides.
 
-use blackbox_vehicle::rigid_body::{BodyHit, ObbContact, PlaneContact, RigidBody, react_moments};
+use blackbox_vehicle::rigid_body::{
+    BodyContact, BodyHit, BodyReaction, ObbContact, RigidBody, Separation, resolve_bodies,
+};
 use glam::Vec3;
 use nfsmw_data::world::PropDynamics;
 
@@ -51,23 +53,8 @@ pub(super) fn resolve(
     c: ObbContact,
     ha: BodyHit,
     hb: BodyHit,
-) -> Option<(f32, bool, bool)> {
-    if c.overlap <= 0.0 || (ha.immobile && hb.immobile) {
-        return None;
-    }
-    let share = match (ha.immobile, hb.immobile) {
-        (true, false) => 0.0,
-        (false, true) => 1.0,
-        _ => b.mass() / (a.mass() + b.mass()),
-    };
-    a.position += c.normal * c.overlap * share;
-    b.position -= c.normal * c.overlap * (1.0 - share);
-    let [friction_static, friction_kinetic] = a.spec().objects.friction_with(&b.spec().objects);
-    let mut ma = a.contact_moment(&ha);
-    let mut mb = b.contact_moment(&hb);
-    let plane = PlaneContact { point: c.point, normal: c.normal, friction_static, friction_kinetic };
-    let result = react_moments(&mut ma, &mut mb, &plane, 32)?;
-    a.apply_contact_moment(&ma);
-    b.apply_contact_moment(&mb);
-    Some((result.impulse, ma.immobile, mb.immobile))
+    separation: Separation,
+) -> Option<BodyReaction> {
+    let contact = BodyContact::from_geometry(c, a.spec().objects.friction_with(&b.spec().objects));
+    resolve_bodies(a, b, &contact, &ha, &hb, separation)
 }

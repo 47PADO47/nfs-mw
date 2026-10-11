@@ -4,7 +4,7 @@
 use crate::scenes::world::events::DamageHit;
 use crate::scenes::world::object_geometry::{BodyGeometryFrame, object_shapes};
 use blackbox_collision::bounds_flags;
-use blackbox_vehicle::rigid_body::{BodyContact, BodyHit, react_bodies, separate};
+use blackbox_vehicle::rigid_body::{BodyContact, BodyHit, Separation, resolve_bodies};
 use blackbox_vehicle::steering::SteeringDevice;
 use glam::Vec3;
 
@@ -58,7 +58,6 @@ impl CarSim {
             .max_by(|a, b| a.overlap.total_cmp(&b.overlap))?;
         let material_a = self.vehicle.body().spec().objects;
         let material_b = other.vehicle.body().spec().objects;
-        let [friction_static, friction_kinetic] = material_a.friction_with(&material_b);
         let grounded = self.vehicle.wheels_on_ground() > 2 && other.vehicle.wheels_on_ground() > 2;
         let hit_a = self.object_hit(contact.point, contact.normal, grounded);
         let hit_b = other.object_hit(contact.point, -contact.normal, grounded);
@@ -66,15 +65,8 @@ impl CarSim {
         let damage_a = DamageHit::capture(self.body(), contact.point, contact.normal, closing, other.collision_role);
         let damage_b = DamageHit::capture(other.body(), contact.point, -contact.normal, closing, self.collision_role);
         let (a, b) = (self.vehicle.body_mut(), other.vehicle.body_mut());
-        separate(a, b, contact.normal, contact.overlap);
-        let body = BodyContact {
-            point: contact.point,
-            normal: contact.normal,
-            overlap: contact.overlap,
-            friction_static,
-            friction_kinetic,
-        };
-        let reaction = react_bodies(a, b, &body, &hit_a, &hit_b)?;
+        let body = BodyContact::from_geometry(contact, material_a.friction_with(&material_b));
+        let response = resolve_bodies(a, b, &body, &hit_a, &hit_b, Separation::Mass)?;
         let damage_a = damage_a.resolved(a, true);
         let damage_b = damage_b.resolved(b, true);
         if let Some(events) = self.events.as_mut() {
@@ -83,9 +75,9 @@ impl CarSim {
         if let Some(events) = other.events.as_mut() {
             events.hit(damage_b);
         }
-        self.vehicle.notify_collision(reaction.impulse / 1000.0);
-        other.vehicle.notify_collision(reaction.impulse / 1000.0);
-        Some(CarHit { impulse: reaction.impulse, point: contact.point })
+        self.vehicle.notify_collision(response.impulse_delta_v[0]);
+        other.vehicle.notify_collision(response.impulse_delta_v[1]);
+        Some(CarHit { impulse: response.reaction.impulse, point: contact.point })
     }
 
     /// Temporary parameters selected for this contact, including the grounded player's roll centre.

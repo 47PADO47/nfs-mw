@@ -2,7 +2,7 @@
 
 use blackbox_collision::{BodyGeometry, BodyPrimitive, Shape, bounds_flags};
 use blackbox_vehicle::rigid_body::{
-    Obb, ObbContact, RigidBody, Sphere, obb_contact, sphere_box_contact, sphere_contact,
+    Obb, ObbContact, RigidBody, Sphere, box_contact, sphere_box_contact, sphere_contact,
 };
 use glam::{Mat3, Quat, Vec3};
 
@@ -58,12 +58,12 @@ impl ObjectGeometry {
 
     pub fn contact(&self, other: &Self) -> Option<ObbContact> {
         match (self.shape, other.shape) {
-            (Shape::Box, Shape::Box) => obb_contact(&self.bounds, &other.bounds),
+            (Shape::Box, Shape::Box) => box_contact(&self.bounds, &other.bounds, self.travel, other.travel),
             (Shape::Sphere, Shape::Sphere) => sphere_contact(self.sphere(), other.sphere()),
             (Shape::Sphere, Shape::Box) => sphere_box_contact(self.sphere(), &other.bounds, self.travel - other.travel),
             (Shape::Box, Shape::Sphere) => {
                 let hit = sphere_box_contact(other.sphere(), &self.bounds, other.travel - self.travel)?;
-                Some(ObbContact { normal: -hit.normal, ..hit })
+                Some(ObbContact { normal: -hit.normal, point_on_first: !hit.point_on_first, ..hit })
             }
             _ => None,
         }

@@ -333,7 +333,7 @@ impl Vehicle {
         Some((contact.point, contact.normal))
     }
 
-    /// Reports a hard hit (impulse in N s) that the caller resolved itself: limits steering for a moment
+    /// Reports a hard hit (effective change of speed in m/s) that the caller resolved itself: limits steering for a moment
     /// and keeps the sleep damping off for this step.
     pub fn notify_collision(&mut self, impulse: f32) {
         self.steering.notify_collision(impulse);

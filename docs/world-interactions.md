@@ -20,7 +20,7 @@ isolated routines, scene integration and live-game comparisons.
 |---|---|---|
 | Car response | Fixed friction/restitution, textbook impulse | 32-iteration solver matches 13 PC reference cases; per-body object materials and grounded player contact centre integrated; AI reaction overrides pending |
 | Timing | Player/AI step separately; pairs collide once per render frame | Shared 60 Hz world tick; car-state and impact traces identical at 5/10/30/60/120/144/240 FPS and uneven frames; live validation pending |
-| Geometry | Flattened prop hierarchy, single car box, no swept object contacts | Car/prop hierarchy and sphere contacts integrated; sphere/box sweeps match PC cases; box manifolds and box sweeps pending |
+| Geometry | Flattened prop hierarchy, single car box, no swept object contacts | Car/prop hierarchy and measured sphere/box contacts integrated; 5,012 box cases match PC, including travel, clipping and tumbling; compound response order pending |
 | Scenery | Name guesses, >150 kg immovable, lighter props disappear for six seconds | All 13,484 placements join exactly to scenery/attributes; persistent bodies, breakaway and no-car-effect response integrated; geometry and lifecycle parity pending |
 | Trailers | Approximate anchors and response | Original named anchors read and used for all six installed variants; constrained joint solver and live comparison pending |
 | Truck cargo | No released logs/crates | Original rear-impact triggers release seven logs or three carrier cars into collidable/renderable bodies; explosion effects and lifecycle parity pending |
@@ -53,8 +53,9 @@ keeps disabled flags for contact filtering, and supplies missing fallback boxes.
 The cone regression checks collision and an unchanged visual pose with a nonzero
 root pivot. Four synthetic construction cases were also executed through the PC
 routines. Ground response still uses existing primitive corner probes. Sphere
-object contacts and sphere/box sweeps use the measured routines; box/box contact
-points still use the earlier approximation. Lifecycle, centre markers and ground clouds
+object contacts and sphere/box and box/box displacement tests use measured routines.
+Separation now translates the incident contact point and temporary collision centres;
+prop pairs use original normal-speed shares. Lifecycle, centre markers and ground clouds
 remain open. Fallen props currently persist while resident; streaming out resets
 them. These limits prevent claiming full parity.
 
@@ -80,7 +81,8 @@ shock, load-loss feedback and offscreen lifetime effects remain unimplemented.
 The intact car body uses its enabled object primitives for car/prop and car/car
 contacts, retaining gaps and disabled parts. Broad-phase radii include child
 offsets and padding. The frame-rate regression uses a compound vehicle body.
-The existing box contact-point algorithm remains an approximation.
+The box contact algorithm agrees with 5,012 isolated PC cases; contact ordering
+across compound primitives remains open.
 
 All six tractor/trailer variants resolve their original named anchors. A flat
 ground test exercises the four variants used in traffic patterns after their
@@ -93,5 +95,6 @@ Sphere contact tests compare face, corner, containment, tangency, moving-box and
 swept vectors against isolated PC execution (0.00001 numerical tolerance). The
 world test launches a sphere across a stationary box in a different grid cell
 within one tick; momentum transfer and body traces match at 5–240 render FPS.
-Travel includes primitive rotation. Box/box sweeps remain unimplemented, and the
+Travel includes primitive rotation. Box crossing tests also transfer momentum
+across grid cells and have identical traces at 5–240 FPS. The
 coincident-sphere contact point deliberately avoids the PC's residual-memory bug.

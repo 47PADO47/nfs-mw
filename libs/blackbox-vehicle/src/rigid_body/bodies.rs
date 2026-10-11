@@ -1,6 +1,6 @@
 //! Two bodies against each other: separating them and the impulse that changes their velocities.
 //! Spec: `docs/specs/pc-object-contact.md`. Response uses the measured PC iteration rule;
-//! the simple mass-weighted separation helper remains a caller-selected approximation.
+//! penetration correction follows `docs/specs/box-object-contacts.md`.
 
 use glam::Vec3;
 
@@ -43,6 +43,69 @@ pub struct BodyContact {
     pub overlap: f32,
     pub friction_static: f32,
     pub friction_kinetic: f32,
+    pub point_on_first: bool,
+}
+
+/// Which rule a caller uses to distribute overlap between two mobile bodies.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Separation {
+    Mass,
+    NormalSpeed,
+}
+
+/// The response and each body's effective collision notification, in m/s.
+pub struct BodyReaction {
+    pub reaction: Reaction,
+    pub immobile: [bool; 2],
+    pub impulse_delta_v: [f32; 2],
+}
+
+impl BodyContact {
+    pub fn from_geometry(contact: super::ObbContact, friction: [f32; 2]) -> Self {
+        Self {
+            point: contact.point,
+            normal: contact.normal,
+            overlap: contact.overlap,
+            friction_static: friction[0],
+            friction_kinetic: friction[1],
+            point_on_first: contact.point_on_first,
+        }
+    }
+}
+
+/// Select moments before separation, update their world centres and the incident surface point,
+/// then resolve the velocities. Body positions can change even without an approaching contact.
+pub fn resolve_bodies(
+    a: &mut RigidBody,
+    b: &mut RigidBody,
+    contact: &BodyContact,
+    hit_a: &BodyHit,
+    hit_b: &BodyHit,
+    separation: Separation,
+) -> Option<BodyReaction> {
+    if a.state == BodyState::Frozen || b.state == BodyState::Frozen {
+        return None;
+    }
+    let mut left = a.contact_moment(hit_a);
+    let mut right = b.contact_moment(hit_b);
+    let mut contact = *contact;
+    if !super::separation::correct(a, b, &mut left, &mut right, &mut contact, separation) {
+        return None;
+    }
+    let plane = PlaneContact {
+        point: contact.point,
+        normal: contact.normal,
+        friction_static: contact.friction_static,
+        friction_kinetic: contact.friction_kinetic,
+    };
+    let reaction = react_moments(&mut left, &mut right, &plane, 32)?;
+    a.apply_contact_moment(&left);
+    b.apply_contact_moment(&right);
+    let impulse_delta_v = [&left, &right].map(|moment| match moment.immobile {
+        true => 0.0,
+        false => reaction.impulse / moment.mass,
+    });
+    Some(BodyReaction { reaction, immobile: [left.immobile, right.immobile], impulse_delta_v })
 }
 
 /// Pushes two overlapping bodies apart along the normal, the lighter one further (by the mass ratio).

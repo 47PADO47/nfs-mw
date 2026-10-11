@@ -9,17 +9,18 @@ mod joint;
 mod material;
 mod moment;
 mod obb;
+mod separation;
 mod spec;
 mod sphere;
 
-pub use bodies::{BodyContact, BodyHit, react_bodies, separate};
+pub use bodies::{BodyContact, BodyHit, BodyReaction, Separation, react_bodies, resolve_bodies, separate};
 pub use body::{BodyState, MAX_ANGULAR_SPEED, MAX_LINEAR_SPEED, RigidBody};
 pub use contact::{ContactParams, FrictionState, PlaneContact, Reaction};
 pub use inertia::{box_inertia, inverse_diagonal};
 pub use joint::{BAUMGARTE, BallJoint, MAX_CORRECTION_SPEED};
 pub use material::ObjectMaterial;
 pub use moment::{ContactMoment, react_moments};
-pub use obb::{Obb, ObbContact, obb_contact};
+pub use obb::{Obb, ObbContact, box_contact, obb_contact};
 pub use spec::RigidBodySpec;
 pub use sphere::{Sphere, sphere_box_contact, sphere_contact};
 

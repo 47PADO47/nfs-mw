@@ -59,7 +59,7 @@ impl Steering {
         self.prev_angle
     }
 
-    /// A hard hit with the given impulse limits the steering for up to a second.
+    /// A hard hit with the given change of speed (m/s) limits steering for up to a second.
     pub fn notify_collision(&mut self, impulse: f32) {
         if impulse > 10.0 {
             self.collision_timer = self.collision_timer.max(ramp(impulse, 10.0, 40.0));

@@ -18,7 +18,10 @@ use super::events::{DamageHit, OtherBody};
 use super::object_geometry::{BodyGeometryFrame, primitive_at};
 use super::{resident::Placed, space};
 use blackbox_scene::Aabb;
-use blackbox_vehicle::{Ground, Vehicle, rigid_body::BodyState};
+use blackbox_vehicle::{
+    Ground, Vehicle,
+    rigid_body::{BodyState, Separation},
+};
 use glam::{Mat4, Vec3};
 use nfsmw_data::world::{PropKind, PropShape};
 use std::collections::{BTreeSet, HashMap};
@@ -256,7 +259,8 @@ impl PropWorld {
             let Some(c) = contact::prop_contact(pa, pb) else { continue };
             let ha = contact::parameters(&pa.rigid, c.normal, sa, pa.attached);
             let hb = contact::parameters(&pb.rigid, -c.normal, sb, pb.attached);
-            if let Some((_, ia, ib)) = contact::resolve(&mut pa.rigid, &mut pb.rigid, c, ha, hb) {
+            if let Some(response) = contact::resolve(&mut pa.rigid, &mut pb.rigid, c, ha, hb, Separation::NormalSpeed) {
+                let [ia, ib] = response.immobile;
                 pa.attached &= ia;
                 pb.attached &= ib;
                 pa.moved |= !ia;
@@ -297,15 +301,13 @@ impl PropWorld {
             let mut car = contact::material(vehicle.body(), hit.normal);
             car.immobile = spec.no_car_effect && !p.attached && !spec.immobile;
             let prop = contact::parameters(&p.rigid, -hit.normal, spec, p.attached);
-            let response = contact::resolve(vehicle.body_mut(), &mut p.rigid, hit, car, prop);
-            if let Some((impulse, car_immobile, prop_immobile)) = response {
+            let response = contact::resolve(vehicle.body_mut(), &mut p.rigid, hit, car, prop, Separation::Mass);
+            if let Some(response) = response {
+                let prop_immobile = response.immobile[1];
                 impact.damage.push(damage.resolved(vehicle.body(), true));
                 p.attached &= prop_immobile;
                 p.moved |= !prop_immobile;
-                let delta_v = match car_immobile {
-                    true => 0.0,
-                    false => impulse / vehicle.body().mass(),
-                };
+                let delta_v = response.impulse_delta_v[0];
                 impact.impulse = impact.impulse.max(delta_v * vehicle.body().mass());
                 impact.contacts.push(ContactPoint {
                     point: hit.point,
@@ -313,7 +315,7 @@ impl PropWorld {
                     kind: ContactKind::PropLight,
                 });
                 if delta_v > 0.0 {
-                    vehicle.notify_collision(impulse);
+                    vehicle.notify_collision(delta_v);
                 }
             }
             self.regrid(id);

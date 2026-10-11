@@ -25,14 +25,14 @@ pub fn sphere_contact(a: Sphere, b: Sphere) -> Option<ObbContact> {
     let distance = a.centre.distance(b.centre);
     if distance == 0.0 {
         // The original leaves point components unwritten here. Keep a deterministic finite point.
-        return Some(ObbContact { normal: Vec3::NEG_Y, point: a.centre, overlap: a.radius });
+        return Some(ObbContact { normal: Vec3::NEG_Y, point: a.centre, overlap: a.radius, point_on_first: true });
     }
     let overlap = a.radius + b.radius - distance;
     if overlap <= 0.0 || !overlap.is_finite() {
         return None;
     }
     let normal = (a.centre - b.centre) / distance;
-    Some(ObbContact { normal, point: a.centre - normal * a.radius, overlap })
+    Some(ObbContact { normal, point: a.centre - normal * a.radius, overlap, point_on_first: true })
 }
 
 /// `travel` is sphere displacement minus box displacement, including each local offset's rotation.
@@ -66,7 +66,12 @@ pub fn sphere_box_contact(sphere: Sphere, b: &Obb, travel: Vec3) -> Option<ObbCo
     if current.cmple(b.half).all() || !outside.any() {
         let axis = (0..3).filter(|&i| area[i] > 0.0).min_by(|&i, &j| old_depth[i].total_cmp(&old_depth[j]))?;
         let normal = b.axes.col(axis) * sign[axis];
-        return Some(ObbContact { normal, point: sphere.centre + normal * depth[axis], overlap: depth[axis] });
+        return Some(ObbContact {
+            normal,
+            point: sphere.centre + normal * depth[axis],
+            overlap: depth[axis],
+            point_on_first: false,
+        });
     }
     let offset = b.axes * Vec3::select(outside, (b.half - current) * sign, Vec3::ZERO);
     let point = sphere.centre + offset;
@@ -85,7 +90,7 @@ pub fn sphere_box_contact(sphere: Sphere, b: &Obb, travel: Vec3) -> Option<ObbCo
             if radius + direction.dot(travel) < distance || overlap <= 0.0 {
                 return None;
             }
-            return Some(ObbContact { normal: -direction, point, overlap });
+            return Some(ObbContact { normal: -direction, point, overlap, point_on_first: false });
         }
         let offset2 = offset.length_squared();
         if offset2 >= radius * radius {
@@ -98,7 +103,7 @@ pub fn sphere_box_contact(sphere: Sphere, b: &Obb, travel: Vec3) -> Option<ObbCo
         if overlap <= EPSILON {
             return None;
         }
-        return Some(ObbContact { normal, point, overlap });
+        return Some(ObbContact { normal, point, overlap, point_on_first: false });
     }
     let closest = sphere.centre - travel + travel * (projection / length2);
     let distance2 = closest.distance_squared(point);
@@ -108,7 +113,12 @@ pub fn sphere_box_contact(sphere: Sphere, b: &Obb, travel: Vec3) -> Option<ObbCo
     }
     if !full_volume {
         let axis = flat_axis()?;
-        return Some(ObbContact { normal: b.axes.col(axis) * sign[axis], point, overlap: depth[axis] });
+        return Some(ObbContact {
+            normal: b.axes.col(axis) * sign[axis],
+            point,
+            overlap: depth[axis],
+            point_on_first: false,
+        });
     }
     let entry = closest - travel * (radicand / length2).sqrt();
     let normal = (entry - point).try_normalize()?;
@@ -116,7 +126,7 @@ pub fn sphere_box_contact(sphere: Sphere, b: &Obb, travel: Vec3) -> Option<ObbCo
     if overlap <= 0.0 {
         return None;
     }
-    Some(ObbContact { normal, point, overlap })
+    Some(ObbContact { normal, point, overlap, point_on_first: false })
 }
 
 #[cfg(test)]

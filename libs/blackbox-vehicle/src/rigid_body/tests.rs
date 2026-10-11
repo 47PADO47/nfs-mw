@@ -212,6 +212,7 @@ mod bodies {
             overlap: hit.overlap,
             friction_static: 0.5,
             friction_kinetic: 0.4,
+            point_on_first: hit.point_on_first,
         };
         let h = BodyHit { restitution: 0.2, inertia_scale: Vec3::ONE, ..Default::default() };
         let before = a.linear_velocity * a.mass() + b.linear_velocity * b.mass();
@@ -236,6 +237,7 @@ mod bodies {
             overlap: 0.0,
             friction_static: 0.5,
             friction_kinetic: 0.4,
+            point_on_first: false,
         };
         let h = BodyHit { restitution: 0.1, inertia_scale: Vec3::ONE, ..Default::default() };
         react_bodies(&mut heavy, &mut light, &contact, &h, &h).unwrap();

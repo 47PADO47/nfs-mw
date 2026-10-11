@@ -62,4 +62,6 @@ minus perpendicular distance. For a zero-volume box, use the first outside
 positive-area face and its current signed penetration. Require positive depth.
 
 This establishes sphere contacts only. Box/box manifolds, full contact dispatch,
-separation-point adjustment and response ordering remain distinct parity work.
+point ownership and separation-point adjustment follow
+[box-object-contacts.md](box-object-contacts.md). Sphere/sphere points move with
+the first sphere; sphere/box points move with the box.
