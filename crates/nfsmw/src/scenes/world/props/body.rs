@@ -23,6 +23,40 @@ pub(super) struct PropBody {
 }
 
 impl PropBody {
+    /// A vehicle fragment starts in the named child frame, with its parent mesh pose preserved.
+    pub fn fragment(
+        bounds: &BoundsSet,
+        root: usize,
+        spec: &PropDynamics,
+        pose: (Vec3, Quat),
+        visual: Mat4,
+    ) -> Option<Self> {
+        let half = Vec3::from_array(bounds.nodes.get(root)?.half_dimensions).max(Vec3::splat(0.025));
+        let geometry = BodyGeometry::from_bounds(
+            bounds,
+            root,
+            GeometryOptions {
+                fallback_half: half,
+                fallback_shape: spec.fallback_shape,
+                box_padding: spec.body.collision_box_pad,
+                surface: spec.base_surface,
+            },
+        )?;
+        let mut rigid = RigidBody::new(spec.mass, half, spec.tensor_scale, spec.body);
+        rigid.place(pose.0, pose.1);
+        rigid.set_cog(geometry.centre_of_gravity());
+        let pose = (rigid.position, rigid.orientation);
+        Some(Self {
+            rigid,
+            geometry,
+            attached: spec.detach_impulse != 0.0,
+            moved: true,
+            previous: pose,
+            visual,
+            inverse_initial: pose_matrix(pose).inverse(),
+        })
+    }
+
     pub fn new(spawn: &ObjectSpawner, bounds: &BoundsSet, spec: &PropDynamics, visual: Mat4) -> Option<Self> {
         let root = bounds.nodes.first()?;
         let half = Vec3::from_array(root.half_dimensions).max(Vec3::splat(0.025));

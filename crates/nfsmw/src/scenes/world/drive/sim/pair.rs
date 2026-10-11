@@ -1,6 +1,7 @@
 //! Two cars hitting each other.
 //! Spec: `docs/specs/vehicle-rigid-body.md` (§6).
 
+use crate::scenes::world::events::DamageHit;
 use crate::scenes::world::object_geometry::{BodyGeometryFrame, object_shapes};
 use blackbox_collision::bounds_flags;
 use blackbox_vehicle::rigid_body::{BodyContact, BodyHit, react_bodies, separate};
@@ -61,6 +62,9 @@ impl CarSim {
         let grounded = self.vehicle.wheels_on_ground() > 2 && other.vehicle.wheels_on_ground() > 2;
         let hit_a = self.object_hit(contact.point, contact.normal, grounded);
         let hit_b = other.object_hit(contact.point, -contact.normal, grounded);
+        let closing = (self.body().point_velocity(contact.point) - other.body().point_velocity(contact.point)).length();
+        let damage_a = DamageHit::capture(self.body(), contact.point, contact.normal, closing, other.collision_role);
+        let damage_b = DamageHit::capture(other.body(), contact.point, -contact.normal, closing, self.collision_role);
         let (a, b) = (self.vehicle.body_mut(), other.vehicle.body_mut());
         separate(a, b, contact.normal, contact.overlap);
         let body = BodyContact {
@@ -71,6 +75,14 @@ impl CarSim {
             friction_kinetic,
         };
         let reaction = react_bodies(a, b, &body, &hit_a, &hit_b)?;
+        let damage_a = damage_a.resolved(a, true);
+        let damage_b = damage_b.resolved(b, true);
+        if let Some(events) = self.events.as_mut() {
+            events.hit(damage_a);
+        }
+        if let Some(events) = other.events.as_mut() {
+            events.hit(damage_b);
+        }
         self.vehicle.notify_collision(reaction.impulse / 1000.0);
         other.vehicle.notify_collision(reaction.impulse / 1000.0);
         Some(CarHit { impulse: reaction.impulse, point: contact.point })

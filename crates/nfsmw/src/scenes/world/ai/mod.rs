@@ -99,6 +99,17 @@ pub struct TrafficWorld {
 }
 
 impl TrafficWorld {
+    pub fn update_events(
+        &mut self,
+        props: &mut super::props::PropWorld,
+        data: &nfsmw_data::car::physics::PhysicsData,
+        view: glam::Vec3,
+    ) {
+        for car in &mut self.cars {
+            car.update_events(props, data, view);
+        }
+    }
+
     pub fn new(network: RoadNetwork) -> Self {
         let index = SegmentIndex::build(&network);
         Self {

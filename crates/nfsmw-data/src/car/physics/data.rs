@@ -7,11 +7,13 @@ use blackbox_collision::{BoundsSet, find_bounds};
 use game_install::GameDir;
 use std::sync::Arc;
 
-use super::{CarGeometry, CarPhysics, Fields, SurfaceTable, car_bounds, car_physics, read_car_bounds};
+use super::{CarEventSpec, CarGeometry, CarPhysics, Fields, SurfaceTable, car_bounds, car_physics, read_car_bounds};
+use crate::world::sequences::SequenceCatalog;
 
 pub struct PhysicsData {
     db: Database,
     bounds: Vec<BoundsSet>,
+    sequences: SequenceCatalog,
     /// Grip of each road surface, by name hash (collision hits carry the hash).
     pub surfaces: SurfaceTable,
 }
@@ -23,12 +25,22 @@ impl PhysicsData {
         let bounds = read_car_bounds(dir)?;
         let surfaces = SurfaceTable::from_database(&db);
         log::info!("physics data: {} car bounds, {} road surfaces", bounds.len(), surfaces.len());
-        Ok(Self { db, bounds, surfaces })
+        Ok(Self { db, bounds, surfaces, sequences: SequenceCatalog::default() })
     }
 
     /// The gameplay database (`attributes.bin`).
     pub fn database(&self) -> &Database {
         &self.db
+    }
+
+    /// The track's installed event packages, shared by every vehicle loaded afterwards.
+    pub fn set_sequences(&mut self, sequences: SequenceCatalog) {
+        self.sequences = sequences;
+    }
+
+    pub fn fragment_dynamics(&self, key: u32) -> Option<Arc<crate::world::PropDynamics>> {
+        let collection = self.db.collection_by_key(vlt_hash("smackable"), key)?;
+        crate::world::PropDynamics::read(collection).map(Arc::new)
     }
 
     /// The physics of car type `type_name` (e.g. `BMWM3GTR`). A vehicle without bounds of its own (the
@@ -50,6 +62,11 @@ impl PhysicsData {
             .and_then(|v| v.follow("rigidbodyspecs"))
             .map(Fields);
         physics.geometry = CarGeometry::read(Arc::new(source.clone()), record).map(Arc::new);
+        physics.events = self
+            .db
+            .collection("pvehicle", &type_name.to_ascii_lowercase())
+            .and_then(|v| CarEventSpec::read(v, &self.sequences))
+            .map(Arc::new);
         Ok(physics)
     }
 

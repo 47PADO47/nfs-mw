@@ -1,9 +1,11 @@
 //! The streamed city: a free-fly camera, or a car to drive with a chase camera.
 
 mod ai;
+mod cargo;
 mod commands;
 mod drive;
 mod effects;
+mod events;
 mod ground;
 mod object_geometry;
 mod props;
@@ -122,7 +124,8 @@ fn load_car(dir: &GameDir, name: &str) -> Result<(String, CarModel)> {
 impl WorldScene {
     pub fn open(dir: &GameDir, options: Options) -> Result<Self> {
         let index = WorldIndex::open(dir, DEFAULT_TRACK)?;
-        let physics = PhysicsData::load(dir)?;
+        let mut physics = PhysicsData::load(dir)?;
+        physics.set_sequences(index.sequences.clone());
         let mut traffic = index.road_network.clone().map(ai::TrafficWorld::new);
         if let Some(world) = traffic.as_mut() {
             world.load_data(physics.database(), index.track_zones.clone());
@@ -396,6 +399,7 @@ impl Scene for WorldScene {
         };
         let rules = &blackbox_scenery::layout::MOST_WANTED.lod;
         visibility::collect(self.residency.placed(), &camera, rules, self.residency.props(), &mut self.visible);
+        self.residency.props().fragment_instances(&mut self.visible);
         if let Some(traffic) = &self.traffic {
             traffic.instances(&mut self.visible);
             let lamps = self.lamp_meshes.as_ref().filter(|_| self.traffic_setting.lights);

@@ -10,7 +10,7 @@ mod geometry;
 fn sim() -> CarSim {
     let spec = VehicleSpec::example();
     let bounds = CarBounds { half_dimensions: spec.dimension, pivot: Vec3::new(0.0, spec.dimension.y, 0.1) };
-    CarSim::new(CarPhysics { spec, bounds, walls: WallSpec::default(), geometry: None }, [0.2; 4])
+    CarSim::new(CarPhysics { spec, bounds, walls: WallSpec::default(), geometry: None, events: None }, [0.2; 4])
 }
 
 fn spawn_at(heading: f32) -> Spawn {

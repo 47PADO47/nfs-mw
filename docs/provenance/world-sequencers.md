@@ -24,7 +24,16 @@
   and orientation (quaternion tolerance 0.00001). Additional synthetic tests
   check fallback boxes/spheres, padding, surface fallback and mesh-only roots.
   The install check constructs geometry for all 13,479 resolved prop placements.
+- **Scene integration:** original vehicle strength and damage-zone scaling feed
+  collision stimuli. Undelayed EFireEventList expands in place, as measured at
+  `0x638540`, retaining its dynamic context. Installed physical rear-end tests
+  release seven logs or three carrier cars into the prop solver, with identical
+  body traces at 5–240 render FPS. Only successfully spawned uploaded parts are
+  hidden; missing meshes preserve the parent. Parent destruction removes child
+  bodies. The PC vehicle-fragment limit is 121; the separate global model limit
+  of 2297 is not yet tracked by the rewrite.
 - **Limits:** expression filters return an explicit unsupported error. Pause,
   rate changes and unload tags remain outside this runtime. Parsing and synthetic
-  event dispatch do not yet establish cargo body, explosion, rendering, audio,
-  pursuit-breaker or full original-game parity.
+  event dispatch and CPU body tests do not establish live rendering, explosion,
+  audio, pursuit-breaker or full original-game parity. Offscreen fragment timers,
+  damage visuals, jointed fragments and other event effects remain pending.

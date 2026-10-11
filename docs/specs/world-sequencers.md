@@ -30,6 +30,13 @@ Filters require expression evaluation. Until implemented, filtered states must
 return an explicit unsupported result. Unknown event IDs remain observable to
 the host, not treated as successfully implemented gameplay effects.
 
+`EFireEventList` (`0xA3CFBFEC`) contains an event-list record tag at byte 4,
+delayed flag at byte 8 and verbose flag at byte 12. An undelayed invocation
+expands the named list at that position in the current list and retains the
+current dynamic context. This is how TrailerB's combined release action invokes
+its two smaller lists. Missing list references and delayed invocations require
+an explicit error until their deferred context is implemented.
+
 ## Damage triggers
 
 An impact's closing speed must be at least 1 m/s. Ignore a hit from a smackable
@@ -61,7 +68,9 @@ and draw from the subtree's frame, preserving the mesh's original world pose.
 Hide only the parent part requested by the event, retaining it on failed spawn.
 Keep detached bodies collidable, renderable and owned after their truck moves.
 
-Original DrawVehicle caps vehicle fragments at 61 and all models at 434. Its
+The PC DrawVehicle routine (`0x6B0500`) permits a spawn while the global vehicle
+fragment count is below 121 and the model count is below 2297. The unfinished
+reference's 61/434 limits belong to a different build and are not the PC limits. Its
 offscreen lifetime comes from KILL_OFF_SCREEN, with the timer cleared on seeing
 the fragment again. The exact fragment initialization, explosion response,
 constraint limits, child cleanup and event ordering need PC routine validation

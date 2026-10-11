@@ -23,7 +23,7 @@ isolated routines, scene integration and live-game comparisons.
 | Geometry | Flattened prop hierarchy, single car box, no swept object contacts | Car/prop hierarchy and sphere contacts integrated; sphere/box sweeps match PC cases; box manifolds and box sweeps pending |
 | Scenery | Name guesses, >150 kg immovable, lighter props disappear for six seconds | All 13,484 placements join exactly to scenery/attributes; persistent bodies, breakaway and no-car-effect response integrated; geometry and lifecycle parity pending |
 | Trailers | Approximate anchors and response | Original named anchors read and used for all six installed variants; constrained joint solver and live comparison pending |
-| Truck cargo | No released logs/crates | Original event packages and deterministic sequencer implemented; installed log damage trigger emits original fragments once; bodies/render integration pending |
+| Truck cargo | No released logs/crates | Original rear-impact triggers release seven logs or three carrier cars into collidable/renderable bodies; explosion effects and lifecycle parity pending |
 | World/ground | Approximate probes and solver | Pending original comparison |
 | Damage/feedback | Partial sparks/audio, incomplete collision events | Pending |
 | Set pieces | Missing pursuit breakers, spike strips and scripted objects | Pending |
@@ -54,7 +54,7 @@ The cone regression checks collision and an unchanged visual pose with a nonzero
 root pivot. Four synthetic construction cases were also executed through the PC
 routines. Ground response still uses existing primitive corner probes. Sphere
 object contacts and sphere/box sweeps use the measured routines; box/box contact
-points still use the earlier approximation. Lifecycle, centre markers, ground clouds and truck cargo release
+points still use the earlier approximation. Lifecycle, centre markers and ground clouds
 remain open. Fallen props currently persist while resident; streaming out resets
 them. These limits prevent claiming full parity.
 
@@ -65,7 +65,15 @@ The log-trailer install test follows damage-zone IMPACT_1 through the original
 state machines to DropLoad, verifies its fragment/explosion events and its empty
 state after completion. Queue/timing traces match across render rates and stalls.
 See [sequence provenance](provenance/world-sequencers.md) for coverage and limits.
-This is event/data validation; falling cargo is not yet wired into the world.
+Vehicle collisions now feed the original damage-zone stimuli. Successful fragment
+spawns hide the corresponding uploaded parent mesh and retain its world pose in
+the shared prop solver. Installed rear-end collision tests release seven log
+meshes and three carrier-car meshes, verify one load per trailer and parent
+cleanup, and compare complete fixed-tick body traces at 5–240 render FPS.
+Missing meshes leave parent parts visible. Original side-zone scaling does not
+release cargo. These CPU tests use installed meshes and bounds; an interactive
+collision/render comparison with the original game remains necessary. Explosion,
+shock, load-loss feedback and offscreen lifetime effects remain unimplemented.
 
 ## Vehicle geometry and hitch checks
 

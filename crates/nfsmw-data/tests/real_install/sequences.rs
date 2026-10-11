@@ -32,6 +32,7 @@ fn all_world_sequences_parse_and_log_damage_releases_the_original_parts_once() {
                         player.stimulate(p, Some(system), stimulus, QueueMode::Allow, None).unwrap();
                     }
                     WorldEvent::Other(_) => {}
+                    WorldEvent::FireList { .. } => panic!("the log trailer uses direct lists"),
                 }
             }
         }

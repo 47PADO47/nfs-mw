@@ -14,6 +14,7 @@ use glam::{Mat3, Vec3};
 use nfsmw_data::car::physics::WallSpec;
 use nfsmw_data::world::PropKind;
 
+use crate::scenes::world::events::{DamageHit, OtherBody};
 use crate::scenes::world::props::{Obb, PropWorld};
 use crate::scenes::world::space;
 
@@ -188,6 +189,8 @@ pub fn find(cast: Cast<'_>, props: PropQuery<'_>, position: Vec3, rot: Mat3, hal
 /// What a step against the world did.
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Impact {
+    /// Damage callback data captured before each successful response.
+    pub damage: Vec<DamageHit>,
     /// The strongest wall impulse, N s (0 without a hit).
     pub impulse: f32,
     /// Light props the car ran into, with their masses: the caller knocks them over.
@@ -252,7 +255,15 @@ pub fn resolve(vehicle: &mut Vehicle, cast: Cast<'_>, props: PropQuery<'_>, wall
             friction_kinetic: walls.friction[1].min(walls.friction[0]),
         };
         let params = ContactParams { restitution: e.length(), inertia_scale: walls.moment_scale };
+        let damage = DamageHit::capture(
+            vehicle.body(),
+            c.point,
+            n,
+            vehicle.body().point_velocity(c.point).length(),
+            OtherBody::default(),
+        );
         if let Some(reaction) = vehicle.body_mut().react_plane(&plane, &params) {
+            impact.damage.push(damage.resolved(vehicle.body(), false));
             impact.impulse = impact.impulse.max(reaction.impulse);
             // One reaction per step, as the ground code does: the deepest contact decides.
             break;

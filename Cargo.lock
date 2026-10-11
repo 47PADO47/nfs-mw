@@ -2900,6 +2900,7 @@ dependencies = [
  "blackbox-roads",
  "blackbox-scene",
  "blackbox-scenery",
+ "blackbox-sequence",
  "blackbox-streaming",
  "blackbox-text",
  "blackbox-tpk",

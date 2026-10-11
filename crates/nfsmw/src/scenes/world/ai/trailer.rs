@@ -175,8 +175,12 @@ impl TrailerCar {
         self.coupling.is_hitched()
     }
 
-    pub fn rig(&self) -> &CarRig {
-        &self.rig
+    pub fn instances(&self, alpha: f32, out: &mut Vec<blackbox_render::Instance>) {
+        self.rig.instances(&self.pose(alpha), self.sim.events.as_ref().map(|e| &e.hidden_slots), out);
+    }
+
+    pub fn update_events(&mut self, props: &mut PropWorld, data: &nfsmw_data::car::physics::PhysicsData, view: Vec3) {
+        crate::scenes::world::cargo::update(&mut self.sim, &self.rig, props, data, view);
     }
 
     pub fn pose(&self, alpha: f32) -> CarPose {

@@ -17,6 +17,7 @@ use super::input::DriveInput;
 use super::rig::CarPose;
 use super::walls::{self, Impact};
 use crate::scenes::world::effects::{self, Contact};
+use crate::scenes::world::events::{OtherBody, VehicleEvents};
 use crate::scenes::world::object_geometry::{BodyGeometryFrame, BodyPose};
 use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::road::Spawn;
@@ -70,7 +71,9 @@ pub struct CarSim {
     spin: [f32; 4],
     walls: WallSpec,
     visual_tires: Option<[super::visual_tires::VisualTire; 4]>,
-    geometry: Option<Arc<CarGeometry>>,
+    pub(in crate::scenes::world) geometry: Option<Arc<CarGeometry>>,
+    pub(in crate::scenes::world) events: Option<VehicleEvents>,
+    pub(in crate::scenes::world) collision_role: OtherBody,
     previous_contact_pose: BodyPose,
 }
 
@@ -96,6 +99,14 @@ impl CarSim {
             walls: physics.walls,
             visual_tires: None,
             geometry: physics.geometry,
+            events: physics.events.and_then(|spec| match VehicleEvents::new(spec) {
+                Ok(events) => Some(events),
+                Err(error) => {
+                    log::warn!("vehicle event engine unavailable: {error:#}");
+                    None
+                }
+            }),
+            collision_role: OtherBody { vehicle: true, player: true, ..Default::default() },
             previous_contact_pose: (Vec3::ZERO, Quat::IDENTITY),
         }
     }
@@ -169,6 +180,11 @@ impl CarSim {
             }
             None => Impact::default(),
         };
+        if let Some(events) = self.events.as_mut() {
+            for &hit in &impact.damage {
+                events.hit(hit);
+            }
+        }
         for (spin, &physics) in self.spin.iter_mut().zip(&PHYSICS_WHEEL) {
             *spin += self.vehicle.wheel(physics).angular_velocity * FIXED_STEP;
         }

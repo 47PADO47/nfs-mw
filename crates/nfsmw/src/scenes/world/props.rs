@@ -2,16 +2,19 @@
 
 mod body;
 mod contact;
+mod fragments;
 mod ground;
 mod obb;
 #[cfg(test)]
 mod tests;
 
 use body::PropBody;
+pub use fragments::FragmentSpawn;
 use obb::obb_overlap;
 pub use obb::{Obb, PropOverlap};
 
 use super::drive::walls::{ContactKind, ContactPoint, Impact};
+use super::events::{DamageHit, OtherBody};
 use super::object_geometry::{BodyGeometryFrame, primitive_at};
 use super::{resident::Placed, space};
 use blackbox_scene::Aabb;
@@ -73,6 +76,7 @@ pub struct PropWorld {
     tiles: HashMap<usize, Vec<u32>>,
     next_id: u32,
     alpha: f32,
+    fragments: std::collections::BTreeMap<u32, fragments::FragmentVisual>,
 }
 
 fn cells(bounds: &Aabb) -> Vec<Cell> {
@@ -216,6 +220,7 @@ impl PropWorld {
 
     /// One world tick; fallen props keep their render/collision identity.
     pub fn step(&mut self, ground: &dyn Ground, dt: f32) {
+        self.remove_orphaned_fragments();
         let mut active = Vec::new();
         for (&id, c) in &mut self.colliders {
             let Some(b) = c.body.as_mut() else { continue };
@@ -280,11 +285,21 @@ impl PropWorld {
             let Some(p) = c.body.as_mut() else { continue };
             let Some(spec) = &c.shape.dynamics else { continue };
             let Some((hit, _surface)) = contact::car_contact(vehicle.body(), geometry, p) else { continue };
+            let velocity = vehicle.body().point_velocity(hit.point);
+            let closing = (velocity - p.rigid.point_velocity(hit.point)).length();
+            let damage = DamageHit::capture(
+                vehicle.body(),
+                hit.point,
+                hit.normal,
+                closing,
+                OtherBody { no_car_effect: spec.no_car_effect, ..Default::default() },
+            );
             let mut car = contact::material(vehicle.body(), hit.normal);
             car.immobile = spec.no_car_effect && !p.attached && !spec.immobile;
             let prop = contact::parameters(&p.rigid, -hit.normal, spec, p.attached);
             let response = contact::resolve(vehicle.body_mut(), &mut p.rigid, hit, car, prop);
             if let Some((impulse, car_immobile, prop_immobile)) = response {
+                impact.damage.push(damage.resolved(vehicle.body(), true));
                 p.attached &= prop_immobile;
                 p.moved |= !prop_immobile;
                 let delta_v = match car_immobile {

@@ -290,8 +290,8 @@ impl Drive {
 
     /// Append the car's instances.
     pub fn instances(&self, out: &mut Vec<blackbox_render::Instance>) {
-        if self.sim.is_some() {
-            self.rig.instances(&self.pose(), out);
+        if let Some(sim) = &self.sim {
+            self.rig.instances(&self.pose(), sim.events.as_ref().map(|e| &e.hidden_slots), out);
         }
     }
 

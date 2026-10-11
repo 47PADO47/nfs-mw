@@ -82,6 +82,10 @@ pub struct Explosion {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum WorldEvent {
+    FireList {
+        list: u32,
+        delayed: bool,
+    },
     Fragment(Fragment),
     Stimulus {
         system: u32,
@@ -107,6 +111,10 @@ impl WorldEvent {
             Ok(value)
         };
         match event.id {
+            0xA3CF_BFEC => {
+                let _verbose = word(12)?;
+                Ok(Self::FireList { list: word(4)?, delayed: word(8)? != 0 })
+            }
             0x2554_C48A => Ok(Self::Fragment(Fragment {
                 part: word(4)?,
                 collision: word(8)?,

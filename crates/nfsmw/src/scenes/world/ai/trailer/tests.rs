@@ -45,7 +45,7 @@ fn physics(spec: VehicleSpec, male: bool) -> CarPhysics {
     let geometry =
         CarGeometry::read(Arc::new(BoundsSet { name_hash: 1, nodes: vec![root, joint], point_clouds: vec![] }), None)
             .map(Arc::new);
-    CarPhysics { spec, bounds, walls: WallSpec::default(), geometry }
+    CarPhysics { spec, bounds, walls: WallSpec::default(), geometry, events: None }
 }
 
 fn tractor() -> CarSim {
