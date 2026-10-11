@@ -18,6 +18,8 @@ fn frame(axis: Vec3) -> FrameParams {
         camera_position: axis * 4.0,
         light_dir: Vec3::Z,
         fog: None,
+        scattering: None,
+        surface_light: None,
         clear_color: [0.0; 3],
         camera_cut: true,
     }

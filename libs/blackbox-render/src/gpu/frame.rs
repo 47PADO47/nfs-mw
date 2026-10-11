@@ -91,12 +91,31 @@ impl Renderer {
             true => 0.0,
             false => self.upscale.texture_lod_bias,
         };
+        let (scatter_rayleigh, scatter_mie, to_sun) = match frame.scattering {
+            Some(s) => (
+                [s.rayleigh[0], s.rayleigh[1], s.rayleigh[2], 1.0],
+                [s.mie[0], s.mie[1], s.mie[2], s.g],
+                s.to_sun.normalize_or_zero().extend(0.0).to_array(),
+            ),
+            None => ([0.0; 4], [0.0; 4], [0.0; 4]),
+        };
+        let (surface_ambient, surface_diffuse) = match frame.surface_light {
+            Some(l) => {
+                ([l.ambient[0], l.ambient[1], l.ambient[2], 1.0], [l.diffuse[0], l.diffuse[1], l.diffuse[2], 0.0])
+            }
+            None => ([0.0; 4], [0.0; 4]),
+        };
         let globals = Globals {
             view_proj: frame.view_proj().to_cols_array_2d(),
             camera_pos: frame.camera_position.extend(1.0).to_array(),
             light_dir: frame.light_dir.normalize_or_zero().extend(0.0).to_array(),
             fog_color: [r, g, b, 1.0],
             fog_range: [fog_start, fog_end, mip_bias, 0.0],
+            scatter_rayleigh,
+            scatter_mie,
+            to_sun,
+            surface_ambient,
+            surface_diffuse,
         };
         let matrices: Vec<[f32; 16]> = instances.iter().map(|i| i.transform.to_cols_array()).collect();
         let (uniform, bind_group, instance_buffer) = match capture {

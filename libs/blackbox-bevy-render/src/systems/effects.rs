@@ -85,6 +85,11 @@ fn globals_of(view: &ExtractedView, params: &Params, mip_bias: f32) -> Globals {
         light_dir: [0.0; 4],
         fog_color: params.fog_color.to_array(),
         fog_range: [params.fog_range.x, params.fog_range.y, mip_bias, 0.0],
+        scatter_rayleigh: [0.0; 4],
+        scatter_mie: [0.0; 4],
+        to_sun: [0.0; 4],
+        surface_ambient: [0.0; 4],
+        surface_diffuse: [0.0; 4],
     }
 }
 

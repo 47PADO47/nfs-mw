@@ -134,6 +134,8 @@ fn frame() -> FrameParams {
         light_dir: Vec3::NEG_Z,
         clear_color: [0.0; 3],
         fog: None,
+        scattering: None,
+        surface_light: None,
         camera_cut: false,
     }
 }

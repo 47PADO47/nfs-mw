@@ -10,7 +10,31 @@ struct Globals {
     fog_color: vec4<f32>,
     // x = start, y = end
     fog_range: vec4<f32>,
+    // Scattering fog (see the Rust `Globals`): Rayleigh xyz with w = on, Mie xyz with w = g, sun direction.
+    scatter_rayleigh: vec4<f32>,
+    scatter_mie: vec4<f32>,
+    to_sun: vec4<f32>,
 };
+
+const PI_F: f32 = 3.14159265358979;
+
+/// The atmospheric scattering fog (`docs/specs/time-of-day.md`): `colour·E + in-scattered`, with
+/// `E = exp(−(Br + Bm)·d)` and the in-scattered light for the angle `c` between the view ray and the sun.
+fn scatter_fog(colour: vec3<f32>, world: vec3<f32>) -> vec3<f32> {
+    let offset = world - globals.camera_pos.xyz;
+    let d = length(offset);
+    let view = offset / max(d, 1e-4);
+    let c = dot(view, globals.to_sun.xyz);
+    let br = globals.scatter_rayleigh.xyz;
+    let bm = globals.scatter_mie.xyz;
+    let g = globals.scatter_mie.w;
+    let sum = max(br + bm, vec3<f32>(1e-9));
+    let e = exp(-(br + bm) * d);
+    let hg = (1.0 - g) * (1.0 - g) / (4.0 * PI_F * pow(max(1.0 + g * g - 2.0 * g * c, 1e-6), 1.5));
+    let rayleigh = 3.0 / (16.0 * PI_F) * (1.0 + c * c);
+    let inscatter = (br * rayleigh + bm * hg) * (vec3<f32>(1.0) - e) / sum;
+    return colour * e + inscatter;
+}
 
 // Three lights: direction towards the light (xyz), colour (xyz), then the ambient colour.
 struct Rig {
@@ -116,6 +140,10 @@ fn shade(in: VsOut) -> Shaded {
 
     let distance = length(in.world - globals.camera_pos.xyz);
     let fog = clamp((distance - globals.fog_range.x) / max(globals.fog_range.y - globals.fog_range.x, 0.001), 0.0, 1.0);
+    if globals.scatter_rayleigh.w > 0.5 {
+        out.rgb = scatter_fog(out.rgb, in.world);
+        return out;
+    }
     out.rgb = mix(out.rgb, globals.fog_color.rgb, fog);
     return out;
 }

@@ -15,6 +15,8 @@ fn clear_frame(color: [f32; 3]) -> FrameParams {
         light_dir: Vec3::NEG_Z,
         clear_color: color,
         fog: None,
+        scattering: None,
+        surface_light: None,
         camera_cut: false,
     }
 }

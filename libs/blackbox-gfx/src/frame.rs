@@ -103,6 +103,24 @@ pub struct Fog {
     pub end: f32,
 }
 
+/// Atmospheric scattering fog, which replaces the linear fog on the world surfaces when set: per-channel
+/// Rayleigh and Mie coefficients, the Mie anisotropy `g`, and the unit direction towards the sun.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Scattering {
+    pub rayleigh: [f32; 3],
+    pub mie: [f32; 3],
+    pub g: f32,
+    pub to_sun: Vec3,
+}
+
+/// The colours of the world surfaces' light: the ambient colour and the diffuse colour (scaled by the sun's
+/// direction). Used in place of the fixed ambient and diffuse terms when set.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SurfaceLight {
+    pub ambient: [f32; 3],
+    pub diffuse: [f32; 3],
+}
+
 /// Per-frame scene parameters.
 ///
 /// The matrices are the camera's own, never jittered: a renderer that jitters for temporal methods
@@ -118,6 +136,10 @@ pub struct FrameParams {
     pub clear_color: [f32; 3],
     /// Fog towards `clear_color`, or `None` for no fog.
     pub fog: Option<Fog>,
+    /// Scattering fog for the world surfaces, or `None` to use `fog`.
+    pub scattering: Option<Scattering>,
+    /// Ambient and diffuse colours of the world surfaces, or `None` for the fixed terms.
+    pub surface_light: Option<SurfaceLight>,
     /// The camera jumped (a teleport, a scene or camera switch): a renderer that reuses the last
     /// frame (temporal anti-aliasing, temporal upscalers) drops its history.
     pub camera_cut: bool,
@@ -170,6 +192,8 @@ mod tests {
             light_dir: Vec3::NEG_Z,
             clear_color: [0.0; 3],
             fog: None,
+            scattering: None,
+            surface_light: None,
             camera_cut: false,
         };
         assert_eq!(frame.view_proj(), projection.matrix() * view);
@@ -186,6 +210,8 @@ mod tests {
             light_dir: Vec3::NEG_Z,
             clear_color: [0.0; 3],
             fog: None,
+            scattering: None,
+            surface_light: None,
             camera_cut: false,
         };
         assert_eq!(frame.view_proj(), Mat4::IDENTITY);
@@ -200,6 +226,8 @@ mod tests {
             light_dir: Vec3::NEG_Z,
             clear_color: [0.0; 3],
             fog: None,
+            scattering: None,
+            surface_light: None,
             camera_cut: false,
         };
         assert_eq!(frame.fog_range(), [f32::MAX; 2]);
