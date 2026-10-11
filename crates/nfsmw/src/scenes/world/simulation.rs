@@ -3,7 +3,7 @@
 use blackbox_render::Renderer;
 
 use super::{View, WorldScene, drive::STEP};
-use crate::input::{Action, ActionState};
+use crate::input::ActionState;
 
 /// A screenshot update has no elapsed frame time, so it runs this many shared ticks.
 const BATCH_STEPS: u32 = 6;
@@ -23,20 +23,20 @@ impl WorldScene {
         let batch = dt == 0.0
             && ((driving && self.drive.as_ref().is_some_and(|d| d.needs_batch()))
                 || self.traffic.as_ref().is_some_and(|t| !t.settled()));
-        // Streaming pauses the shared world; one car must not advance through frozen traffic.
-        let loaded = self.residency.complete();
+        // Only missing local world data pauses simulation, not loading distant visible scenery.
+        let speed = self.drive.as_ref().map_or(0.0, |drive| drive.speed().abs());
+        let loaded = self.residency.simulation_ready(self.focus(), 20.0 + speed * dt.max(STEP));
         let steps = match (loaded, batch) {
-            (false, _) => {
-                self.physics_clock.reset();
-                0
-            }
+            (false, _) => 0,
             (true, true) => BATCH_STEPS,
             (true, false) => self.physics_clock.advance(dt),
         };
+        let look = self.drive.as_mut().map_or((0.0, 0.0), |drive| drive.take_look(steps));
         for _ in 0..steps {
-            self.physics_step(driving, (input.value(Action::LookX), input.value(Action::LookY)));
+            self.physics_step(driving, look);
         }
-        let alpha = match batch || !loaded || dt == 0.0 {
+        // A loading pause holds the last displayed phase instead of jumping ahead and rewinding.
+        let alpha = match batch || dt == 0.0 {
             true => 1.0,
             false => self.physics_clock.alpha(),
         };
@@ -49,6 +49,7 @@ impl WorldScene {
                 true => alpha,
                 false => 1.0,
             });
+            drive.trace_frame(dt, steps, loaded, self.residency.complete());
         }
     }
 
@@ -81,7 +82,7 @@ impl WorldScene {
             drive.follow(collision, look, STEP);
         }
         let view = match self.drive.as_ref().filter(|_| self.view == View::Chase) {
-            Some(drive) => drive.camera().view_proj(self.physics_aspect),
+            Some(drive) => drive.physics_camera().view_proj(self.physics_aspect),
             None => self.camera.view_proj(self.physics_aspect),
         };
         props.update_lifetimes(&super::drive::WorldGround { collision, surfaces }, view, STEP);

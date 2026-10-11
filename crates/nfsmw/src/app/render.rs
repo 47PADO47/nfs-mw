@@ -5,7 +5,7 @@
 
 use bevy_app::AppExit;
 use bevy_ecs::prelude::*;
-use bevy_time::Time;
+use bevy_time::{Real, Time};
 use bevy_window::{PrimaryWindow, RawHandleWrapper, Window};
 use bevy_winit::DisplayHandleWrapper;
 use blackbox_render::{Renderer, RendererOptions};
@@ -16,8 +16,6 @@ use crate::gui::UiOutput;
 use crate::input::{ActionState, MouseCapture};
 use crate::settings::Settings;
 
-/// Longest step a scene is asked to advance by, so a stall does not throw the camera across the map.
-const MAX_STEP: f32 = 0.1;
 /// Frames a screenshot run lets the UI and the metrics settle for before capturing.
 const SCREENSHOT_SETTLE_FRAMES: u32 = 3;
 
@@ -80,7 +78,12 @@ pub fn resize(mut host: NonSendMut<Host>, window: Single<&Window, With<PrimaryWi
     }
 }
 
-pub fn update_scene(mut host: NonSendMut<Host>, actions: Res<ActionState>, time: Res<Time>, settings: Res<Settings>) {
+pub fn update_scene(
+    mut host: NonSendMut<Host>,
+    actions: Res<ActionState>,
+    time: Res<Time<Real>>,
+    settings: Res<Settings>,
+) {
     let host = &mut *host;
     let Some(renderer) = host.renderer.as_mut() else { return };
     host.transmission = settings.transmission;
@@ -91,7 +94,9 @@ pub fn update_scene(mut host: NonSendMut<Host>, actions: Res<ActionState>, time:
     if host.screenshot.is_some() && host.frames == 0 {
         screenshot::wait_ready(host.scene.as_mut(), renderer);
     }
-    host.scene.update(renderer, &actions, time.delta_secs().min(MAX_STEP));
+    // Fixed-step scenes consume every elapsed tick. Clamping here slowed driving below 10 FPS
+    // and discarded simulation time after a stall; virtual time also has its own delta cap.
+    host.scene.update(renderer, &actions, time.delta_secs());
 }
 
 /// Draw the scene and the UI over it, or (screenshot runs) capture it once the UI has settled.

@@ -19,15 +19,46 @@ isolated routines, scene integration and live-game comparisons.
 | Area | Starting gap | Status |
 |---|---|---|
 | Car response | Fixed friction/restitution, textbook impulse | Measured 32-iteration solver, original per-body materials, player contact centre and installed AI collision profiles integrated; live comparison and original goal states pending |
-| Timing | Player/AI step separately; pairs collide once per render frame | Shared 60 Hz world tick; car-state and impact traces identical at 5/10/30/60/120/144/240 FPS and uneven frames; live validation pending |
+| Timing | Player/AI step separately; pairs collide once per render frame | Shared 60 Hz world tick; camera and car render between the same ticks; camera input retained across frames; driving continues while distant scenery loads; live comparison pending |
 | Geometry | Flattened prop hierarchy, single car box, no swept object contacts | Car/prop hierarchy and measured sphere/box contacts integrated; 5,012 box cases match PC, including travel, clipping and tumbling; compound response order pending |
 | Scenery | Name guesses, >150 kg immovable, lighter props disappear for six seconds | All 13,484 placements join exactly to scenery/attributes; breakaway, per-object lifetime, sinking and restoration integrated; static trigger recreation and live comparison pending |
 | Trailers | Approximate anchors and response | Original named anchors, geometric correction, 32 point-moment iterations and conical/prismatic limits integrated; cement spawn frame and live comparison pending |
 | Truck cargo | No released logs/crates | Original rear-impact triggers release seven logs or three carrier cars into collidable/renderable bodies; explosion effects and lifecycle parity pending |
 | World/ground | Approximate probes and solver | Measured iterative plane response, original probe tolerances, surface friction and disabled-ground flags integrated; cached face queries and live comparison pending |
 | Damage/feedback | Partial sparks/audio, incomplete collision events | Pending |
-| Set pieces | Missing pursuit breakers, spike strips and scripted objects | Pending |
+| Set pieces | Missing pursuit breakers, spike strips and scripted objects | Installed support/roof, scaffold and gas-pump sequences integrated; exact triggers, explosion/damage, feedback and spike strips pending |
 | Full comparison | No comprehensive repeatable collision suite | Pending live captures and numerical comparison |
+
+Further parity implementation is deferred while the movement regression is fixed.
+The actionable backlog and acceptance checks are in
+[remaining world interaction work](world-interactions-todo.md).
+
+## Movement regression
+
+The player was rendered between consecutive 60 Hz poses while the chase camera
+used the latest physics pose. At 60 m/s this produced up to a metre of relative
+offset and alternating movement at high render rates. Both now interpolate
+position, camera target and field of view from the same two ticks. Cleanup still
+observes the current physics camera; drawing cannot change physics or timers.
+Spawn/reset snaps both camera endpoints to the new car.
+
+Camera input is a frame delta. It now accumulates on frames without a physics
+tick and divides across multiple ticks, instead of being lost or repeated.
+The app supplies real elapsed time without its former 0.1-second clamp, so low
+frame rates and stalls do not discard physics time. Per-second look input uses
+the same real clock.
+Streaming no longer pauses the whole world for every newly requested distant
+tile. The collision grid's nearby packs must be resident; old-zone collision and props
+remain available during the new zone's load. A necessary loading pause retains
+the displayed interpolation phase so resuming cannot rewind the car. Installed
+checks verify local coverage using actual collision-pack IDs; the start zone
+`A1` has no same-numbered streaming tile and gets its road from `A41`.
+
+Presentation regressions check smooth camera/car movement at 5, 30, 60, 120,
+144 and 240 FPS plus uneven frames, unchanged fixed-tick follow/collision
+traces, camera input totals and reset behavior. Opt-in runtime diagnostics use
+`RUST_LOG=nfsmw::movement=trace`; each `frame` record includes physics/render
+positions, camera endpoints, interpolation phase and streaming readiness.
 
 ## Verification
 

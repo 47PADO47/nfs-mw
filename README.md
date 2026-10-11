@@ -18,7 +18,9 @@ the game is on the [roadmap](docs/architecture.md#roadmap).
 
 Cars, scenery contacts, cleanup, trailer constraints and installed pursuit-breaker
 sequences share a 60 Hz physics clock. See [world interaction coverage](docs/world-interactions.md)
-for checks against the installed game and remaining parity gaps.
+for checks against the installed game and [remaining parity work](docs/world-interactions-todo.md).
+The player and chase camera interpolate together between physics ticks; nearby
+collision coverage controls loading pauses while distant scenery streams.
 
 ## Quick start
 

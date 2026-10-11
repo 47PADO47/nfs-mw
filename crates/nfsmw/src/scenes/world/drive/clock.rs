@@ -27,10 +27,6 @@ impl FixedClock {
     pub fn alpha(&self) -> f32 {
         (self.accumulator / CLOCK_STEP).clamp(0.0, 1.0) as f32
     }
-
-    pub fn reset(&mut self) {
-        self.accumulator = 0.0;
-    }
 }
 
 #[cfg(test)]

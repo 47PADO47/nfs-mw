@@ -4,7 +4,7 @@ mod chase;
 mod fly;
 mod orbit;
 
-pub use chase::{ChaseCamera, Followed};
+pub use chase::{ChaseCamera, ChaseView, Followed};
 pub use fly::FlyCamera;
 pub use orbit::OrbitCamera;
 

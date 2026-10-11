@@ -8,6 +8,9 @@ mod debug;
 mod fall;
 mod ground;
 mod input;
+mod look;
+#[cfg(test)]
+mod presentation_tests;
 mod rig;
 mod script;
 mod sim;
@@ -25,7 +28,7 @@ use super::effects::TireEffects;
 use super::road::Spawn;
 use super::space;
 use crate::settings::Transmission;
-use crate::viewer::camera::{ChaseCamera, Followed};
+use crate::viewer::camera::{ChaseCamera, ChaseView, Followed};
 pub(super) use clock::{FixedClock, STEP};
 pub(super) use debug::upload_box;
 pub use debug::{ContactMarkers, LEGEND as MARKER_LEGEND, MarkerMeshes};
@@ -75,6 +78,7 @@ pub struct Drive {
     /// What the car sound hears of the drive.
     sound: SoundFeed,
     chase: ChaseCamera,
+    look: look::PendingLook,
     script: Option<ScriptRun>,
     /// A screenshot run drove the script in batches: once it ends the car stays where it stopped.
     batch_run: bool,
@@ -121,6 +125,7 @@ impl Drive {
             telemetry: Telemetry::default(),
             sound: SoundFeed::default(),
             chase: ChaseCamera::default(),
+            look: look::PendingLook::default(),
             script: script.map(|script| ScriptRun { script, time: 0.0 }),
             batch_run: false,
             steps: 0,
@@ -191,6 +196,8 @@ impl Drive {
         self.telemetry = sim.telemetry();
         self.alpha = 0.0;
         self.chase.snap();
+        self.look = look::PendingLook::default();
+        self.follow(collision, (0.0, 0.0), 0.0);
         self.steps = 0;
         self.fall.reset();
         self.last_check = 0;
@@ -269,8 +276,17 @@ impl Drive {
         self.chase.update(followed, dt, |from, to| blocked(collision, from, to));
     }
 
-    pub fn camera(&self) -> &ChaseCamera {
-        &self.chase
+    pub fn camera(&self) -> ChaseView {
+        self.chase.sample(self.alpha)
+    }
+
+    /// Cleanup and other simulation queries use the current tick, independently of rendering.
+    pub fn physics_camera(&self) -> ChaseView {
+        self.chase.view()
+    }
+
+    pub fn take_look(&mut self, steps: u32) -> (f32, f32) {
+        self.look.take(steps)
     }
 
     /// Turns the contact markers of `debug collisions` on or off.

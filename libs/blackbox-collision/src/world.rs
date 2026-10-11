@@ -42,6 +42,23 @@ impl CollisionWorld {
         self.packs.len()
     }
 
+    /// Whether every instance referenced by the grid near `point` has a resident pack.
+    /// Includes all cells touched by the xz square, so missing adjacent collision is detected
+    /// before a body crosses a cell edge. `None` means there is no grid to establish coverage.
+    pub fn resident_near(&self, point: Vec3, radius: f32) -> Option<bool> {
+        let grid = self.grid.as_ref()?;
+        if !point.into_iter().all(f32::is_finite) || !radius.is_finite() || radius < 0.0 {
+            return Some(false);
+        }
+        let (r0, c0) = grid.cell_of(point[0] - radius, point[2] - radius);
+        let (r1, c1) = grid.cell_of(point[0] + radius, point[2] + radius);
+        Some((r0..=r1).all(|row| {
+            (c0..=c1)
+                .filter_map(|col| grid.node(grid.node_index(row, col)))
+                .all(|node| node.instances.iter().all(|reference| self.packs.contains_key(&reference.section())))
+        }))
+    }
+
     /// The nearest hit along the segment from `from` to `to` (physics space: x right, y up,
     /// z forward), or `None`. Instances whose pack is not loaded are ignored.
     pub fn ray_cast(&self, from: Vec3, to: Vec3, opts: &RayOptions) -> Option<Hit> {

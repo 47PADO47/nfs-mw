@@ -6,7 +6,7 @@ use nfsmw_data::car::physics::SurfaceTable;
 
 use super::walls::Impact;
 use super::{Drive, DriveInput, GOOD_SPOT_STEPS, Spawn, SpawnRequest, WorldGround, clock, fall, trace};
-use crate::input::ActionState;
+use crate::input::{Action, ActionState};
 use crate::scenes::world::{props::PropWorld, road, space};
 
 /// Work to finish after every body's motion and contacts have run.
@@ -19,10 +19,12 @@ impl Drive {
     /// Sample input once per render frame; presses wait for the next physics tick.
     pub fn prepare_frame(&mut self, actions: &ActionState, dt: f32) {
         self.frame_input = DriveInput::from_actions(actions);
+        self.look.note((actions.value(Action::LookX), actions.value(Action::LookY)));
         if self.script.is_none() {
             self.presses.note(&self.frame_input);
         }
-        self.batch_run |= dt == 0.0 && !self.script_finished();
+        // An interactive app's first frame also has dt=0, before the car has been placed.
+        self.batch_run |= dt == 0.0 && self.needs_batch();
         if let Some(sim) = self.sim.as_mut() {
             sim.set_automatic(self.transmission.is_automatic());
         }
