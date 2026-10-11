@@ -123,6 +123,8 @@ pub struct WorldScene {
     marker_meshes: Option<MarkerMeshes>,
     /// The free camera jumped (a new scene, the camera toggle, `goto`, the start settling on the ground).
     cut: CameraCut,
+    /// When the car started waiting for a road (no physics while it waits).
+    waiting_since: Option<std::time::Instant>,
     /// The gameplay camera the setting picked; only used while driving.
     camera_mode: CameraMode,
 }
@@ -222,6 +224,7 @@ impl WorldScene {
             markers_on: false,
             marker_meshes: None,
             cut: CameraCut::default(),
+            waiting_since: None,
             camera_mode: CameraMode::default(),
         })
     }
