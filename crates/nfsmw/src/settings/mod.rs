@@ -48,6 +48,8 @@ pub(crate) mod test_caps;
 #[cfg(test)]
 mod tire_tests;
 mod transmission;
+#[cfg(test)]
+mod treatment_tests;
 mod upscale;
 mod upscale_quality;
 #[cfg(test)]
@@ -70,7 +72,7 @@ pub use graphics_preset::GraphicsPreset;
 pub use hud_layout::HudLayout;
 pub use minimap::MinimapMode;
 pub use partial::{Partial, Percent, parse_bool};
-pub use post::{PostAa, PostBloom, PostTonemap, post_effects};
+pub use post::{PostAa, PostBloom, PostTonemap, VisualTreatment, post_effects};
 pub use radio_hud::RadioHudStyle;
 pub use ray_tracing::RayTracingLevel;
 pub use renderer::RendererKind;
@@ -142,6 +144,7 @@ pub struct Settings {
     pub post_tonemap: PostTonemap,
     pub post_bloom: PostBloom,
     pub post_aa: PostAa,
+    pub visual_treatment: VisualTreatment,
     pub reflections: ReflectionQuality,
     /// Experimental contact occlusion; presets never enable it implicitly.
     pub ao: AoQuality,
@@ -215,6 +218,7 @@ impl From<Partial> for Settings {
             post_tonemap: p.post_tonemap.unwrap_or_default(),
             post_bloom: p.post_bloom.unwrap_or_default(),
             post_aa: p.post_aa.unwrap_or_default(),
+            visual_treatment: p.visual_treatment.unwrap_or_default(),
             reflections: p.reflections.unwrap_or(ReflectionQuality::Medium),
             ao: p.ao.unwrap_or_default(),
             ao_intensity: p.ao_intensity.unwrap_or(Percent(75)),

@@ -8,6 +8,9 @@ use super::{PassContext, PassIo, PostChain, PostPass, fxaa};
 use crate::gpu::targets::{FrameTargets, HDR_FORMAT};
 use crate::{Antialiasing, PostSettings, Tonemap};
 
+#[path = "treatment_tests.rs"]
+mod treatment_tests;
+
 const OUTPUT_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 
 fn validate(name: &str, source: &str) -> wgpu::naga::Module {

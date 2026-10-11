@@ -335,6 +335,9 @@ pub struct ViewArgs {
     /// without it [env NFSMW_POST_AA; config `post_aa`; default off].
     #[arg(long, value_name = "off|fxaa|smaa|taa")]
     pub post_aa: Option<crate::settings::PostAa>,
+    /// Experimental midday visual treatment: off, low (half strength), or high (original profile).
+    #[arg(long, value_name = "off|low|high")]
+    pub visual_treatment: Option<crate::settings::VisualTreatment>,
     /// Experimental ambient occlusion [env NFSMW_AO; config `ao`; default off].
     #[arg(long, value_name = "off|low|medium|high")]
     pub ao: Option<crate::settings::AoQuality>,
@@ -405,6 +408,7 @@ impl ViewArgs {
             post_tonemap: self.post_tonemap,
             post_bloom: self.post_bloom,
             post_aa: self.post_aa,
+            visual_treatment: self.visual_treatment,
             ao: self.ao,
             ao_intensity: self.ao_intensity,
             ao_compare: self.ao_compare,

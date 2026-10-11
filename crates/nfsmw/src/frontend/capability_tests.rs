@@ -26,7 +26,7 @@ fn text(s: &'static str) -> Title {
 #[test]
 fn the_native_renderer_hides_ray_tracing_and_the_quality_mode_but_has_the_renderer_row() {
     let video = titles(Category::Video, &test_caps::native());
-    assert_eq!(video.len(), 24);
+    assert_eq!(video.len(), 25);
     for hidden in ["Ray Tracing", "Upscale Quality"] {
         assert!(!video.contains(&text(hidden)), "{hidden} needs a renderer that offers it");
     }
@@ -43,7 +43,7 @@ fn the_native_renderer_hides_ray_tracing_and_the_quality_mode_but_has_the_render
 #[test]
 fn a_full_renderer_has_every_row_next_to_the_setting_it_belongs_with() {
     let video = titles(Category::Video, &test_caps::full());
-    assert_eq!(video.len(), 26);
+    assert_eq!(video.len(), 27);
     let at =
         |name: &'static str| video.iter().position(|t| *t == text(name)).unwrap_or_else(|| panic!("no {name} row"));
     assert_eq!(at("Upscale Quality"), at("Upscaler") + 1);

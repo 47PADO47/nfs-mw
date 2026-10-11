@@ -11,7 +11,7 @@ use crate::settings::{
 };
 
 /// Settings the console can show.
-const KEYS: [&str; 51] = [
+const KEYS: [&str; 52] = [
     "deadzone_mode",
     "steering_deadzone",
     "camera_deadzone",
@@ -54,6 +54,7 @@ const KEYS: [&str; 51] = [
     "post_tonemap",
     "post_bloom",
     "post_aa",
+    "visual_treatment",
     "reflections",
     "ao",
     "ao_intensity",
@@ -110,6 +111,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "post_tonemap" => settings.post_tonemap.to_string(),
         "post_bloom" => settings.post_bloom.to_string(),
         "post_aa" => settings.post_aa.to_string(),
+        "visual_treatment" => settings.visual_treatment.to_string(),
         "reflections" => settings.reflections.to_string(),
         "ao" => settings.ao.to_string(),
         "ao_intensity" => settings.ao_intensity.to_string(),
@@ -177,6 +179,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "post_tonemap" => settings.post_tonemap = PostTonemap::from_str(value)?,
         "post_bloom" => settings.post_bloom = PostBloom::from_str(value)?,
         "post_aa" => settings.post_aa = PostAa::from_str(value)?,
+        "visual_treatment" => settings.visual_treatment = value.parse()?,
         "reflections" => settings.reflections = value.parse()?,
         "ao" => settings.ao = value.parse()?,
         "ao_intensity" => settings.ao_intensity = value.parse()?,
@@ -241,6 +244,7 @@ fn syntax(key: &str) -> Option<&'static str> {
         "post_tonemap" => "<off|aces>",
         "post_bloom" => "<off|low|medium|high>",
         "post_aa" => "<off|fxaa|smaa|taa>",
+        "visual_treatment" => "<off|low|high>",
         "reflections" => "<off|low|medium|high>",
         "ao" => "<off|low|medium|high>",
         "ao_intensity" => "<0-100>",

@@ -20,6 +20,7 @@ pub mod reflection;
 pub mod settings;
 pub mod stats;
 pub mod texture;
+pub mod treatment;
 pub mod ui;
 
 pub use api::{GraphicsApi, ParseGraphicsApiError};
@@ -45,6 +46,7 @@ pub use settings::{
 };
 pub use stats::{BackendInfo, RenderStats};
 pub use texture::{PixelFormat, TextureDesc};
+pub use treatment::ColourTreatment;
 pub use ui::{UiLayer, UiMesh, UiTexturePatch, UiVertex};
 
 /// The former name of [`GraphicsApi`], kept so existing callers compile unchanged.

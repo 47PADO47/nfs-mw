@@ -23,6 +23,7 @@ pub(crate) fn native_capabilities(
         upscalers: UpscalerSet::of(&[Upscaler::Off, Upscaler::Bilinear, Upscaler::Fsr1]),
         tonemaps: TonemapSet::all(),
         bloom: true,
+        scene_treatment: true,
         local_reflections: true,
         ambient_occlusion,
         ray_tracing: RtSupport::None,

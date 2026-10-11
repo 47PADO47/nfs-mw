@@ -135,6 +135,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.post_bloom {
         put("post_bloom", Value::String(v.to_string()));
     }
+    if let Some(v) = changes.visual_treatment {
+        put("visual_treatment", Value::String(v.to_string()));
+    }
     if let Some(v) = changes.reflections {
         put("reflections", Value::String(v.to_string()));
     }

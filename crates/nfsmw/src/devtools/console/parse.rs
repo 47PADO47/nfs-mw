@@ -36,7 +36,7 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 42] = [
+pub const BUILT_IN: [(&str, &str); 43] = [
     ("bind <action> <input>", "replace one device family's action assignments; keys lists action names"),
     ("addbind <action> <input>", "add another physical input to an action"),
     ("unbind <action> [keyboard|mouse|gamepad|all]", "remove action assignments"),
@@ -68,6 +68,7 @@ pub const BUILT_IN: [(&str, &str); 42] = [
     ),
     ("ray_tracing <off|low|medium|high>", "ray-traced lighting (bevy renderer; off to on needs a restart)"),
     ("post_aa <off|fxaa|smaa|taa>", "anti-aliasing of the 3D scene (smaa, taa: bevy renderer)"),
+    ("visual_treatment <off|low|high>", "installed midday colour look (native renderer)"),
     ("reflections <off|low|medium|high>", "local car reflections; off restores the static sky"),
     ("ao <off|low|medium|high>", "experimental contact occlusion; off releases its resources"),
     ("ao_intensity <0-100>", "contact occlusion strength"),
@@ -88,7 +89,7 @@ pub const BUILT_IN: [(&str, &str); 42] = [
 ];
 
 /// Further shorthands for `set`: `vsync off` is `set vsync off`.
-const SET_SHORTHANDS: [&str; 30] = [
+const SET_SHORTHANDS: [&str; 31] = [
     "fps",
     "renderer",
     "vsync",
@@ -113,6 +114,7 @@ const SET_SHORTHANDS: [&str; 30] = [
     "post_tonemap",
     "post_bloom",
     "post_aa",
+    "visual_treatment",
     "upscale_quality",
     "ray_tracing",
     "reflections",

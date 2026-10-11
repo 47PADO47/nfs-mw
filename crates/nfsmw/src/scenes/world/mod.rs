@@ -82,6 +82,8 @@ pub struct WorldScene {
     wait_for_load: bool,
     fog_distance: f32,
     visible: Vec<Instance>,
+    colour_treatment: Option<blackbox_gfx::ColourTreatment>,
+    gain_map: Option<blackbox_gfx::RgbaImage>,
     reflection_faces: [Vec<Instance>; 6],
     reflection_last: Option<reflections::CaptureStamp>,
     /// Seconds since the scene started, for texture animations.
@@ -130,6 +132,12 @@ impl WorldScene {
     pub fn open(dir: &GameDir, options: Options) -> Result<Self> {
         let index = WorldIndex::open(dir, DEFAULT_TRACK)?;
         let physics = PhysicsData::load(dir)?;
+        let colour_treatment = nfsmw_data::visual_treatment::midday(physics.database());
+        if colour_treatment.is_none() {
+            log::warn!("midday visual treatment is missing or invalid; grading disabled");
+        }
+        let globals = load_global_textures(dir)?;
+        let gain_map = nfsmw_data::visual_treatment::gain_map(&globals.textures);
         let props = PropCatalog::new(index.prop_bounds.clone(), physics.database());
         log::info!("{} props have collision bounds", props.len());
         let stream = dir.resolve(&index.stream_file).with_context(|| format!("{} is missing", index.stream_file))?;
@@ -155,14 +163,7 @@ impl WorldScene {
             dir: dir.clone(),
             track: index.track.clone(),
             camera,
-            residency: Residency::new(
-                index.sections,
-                index.visible,
-                streamer,
-                load_global_textures(dir)?,
-                index.collision_grid,
-                props,
-            ),
+            residency: Residency::new(index.sections, index.visible, streamer, globals, index.collision_grid, props),
             start,
             start_height: options.height,
             // The car is placed on a road, not the camera on the ground.
@@ -170,6 +171,8 @@ impl WorldScene {
             wait_for_load: options.wait_for_load,
             fog_distance: options.fog_distance,
             visible: Vec::new(),
+            colour_treatment,
+            gain_map,
             reflection_faces: std::array::from_fn(|_| Vec::new()),
             reflection_last: None,
             clock: 0.0,
@@ -216,6 +219,7 @@ impl Scene for WorldScene {
     }
 
     fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
+        renderer.set_colour_treatment(self.colour_treatment.as_ref(), self.gain_map.as_ref());
         if let Some(PendingCar { name, model, script }) = self.pending_car.take() {
             self.start_driving(renderer, name, model, script)?;
         }

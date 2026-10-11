@@ -3,12 +3,15 @@
 use blackbox_gfx::Capabilities;
 
 use super::options::{Data, Title};
-use crate::settings::{AoQuality, CarShading, GraphicsPreset, Partial, Percent, ReflectionQuality, Settings};
+use crate::settings::{
+    AoQuality, CarShading, GraphicsPreset, Partial, Percent, ReflectionQuality, Settings, VisualTreatment,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GraphicsSetting {
     Preset,
     CarShading,
+    VisualTreatment,
     Reflections,
     AmbientOcclusion,
     AoIntensity,
@@ -16,9 +19,10 @@ pub enum GraphicsSetting {
 }
 
 impl GraphicsSetting {
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::Preset,
         Self::CarShading,
+        Self::VisualTreatment,
         Self::Reflections,
         Self::AmbientOcclusion,
         Self::AoIntensity,
@@ -27,6 +31,7 @@ impl GraphicsSetting {
 
     pub fn shown(self, caps: &Capabilities) -> bool {
         match self {
+            Self::VisualTreatment => caps.scene_treatment,
             Self::Reflections => caps.local_reflections,
             Self::AmbientOcclusion | Self::AoIntensity | Self::AoComparison => caps.ambient_occlusion,
             Self::Preset | Self::CarShading => true,
@@ -37,7 +42,7 @@ impl GraphicsSetting {
         match self {
             Self::Reflections => s.car_shading == CarShading::Glossy,
             Self::AoIntensity | Self::AoComparison => s.ao != AoQuality::Off,
-            Self::Preset | Self::CarShading | Self::AmbientOcclusion => true,
+            Self::Preset | Self::CarShading | Self::VisualTreatment | Self::AmbientOcclusion => true,
         }
     }
 
@@ -45,6 +50,7 @@ impl GraphicsSetting {
         Title::Text(match self {
             Self::Preset => "Graphics Preset",
             Self::CarShading => "Car Shading",
+            Self::VisualTreatment => "Visual Treatment (Experimental)",
             Self::Reflections => "Car Reflections",
             Self::AmbientOcclusion => "Ambient Occlusion (Experimental)",
             Self::AoIntensity => "AO Intensity",
@@ -64,6 +70,11 @@ impl GraphicsSetting {
                     GraphicsPreset::Medium => "Medium",
                     GraphicsPreset::High => "High",
                     GraphicsPreset::Ultra => "Ultra",
+                },
+                Self::VisualTreatment => match s.visual_treatment {
+                    VisualTreatment::Off => "Off",
+                    VisualTreatment::Low => "Subtle",
+                    VisualTreatment::High => "Original",
                 },
                 Self::Reflections => match s.reflections {
                     ReflectionQuality::Off => "Static Sky",
@@ -105,6 +116,10 @@ impl GraphicsSetting {
                 s.apply_preset(all[next]);
                 // Every key the preset sets is written, so the file says what the player sees.
                 *changed = Partial { graphics_preset: Some(s.graphics_preset), ..all[next].layer() }.or(*changed);
+            }
+            Self::VisualTreatment => {
+                s.visual_treatment = super::post_options::pick(&VisualTreatment::ALL, s.visual_treatment, forward);
+                changed.visual_treatment = Some(s.visual_treatment);
             }
             Self::Reflections => {
                 let all = ReflectionQuality::ALL;

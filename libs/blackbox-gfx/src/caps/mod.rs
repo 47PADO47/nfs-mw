@@ -49,6 +49,8 @@ pub struct Capabilities {
     pub upscalers: UpscalerSet,
     pub tonemaps: TonemapSet,
     pub bloom: bool,
+    /// Display-space colour grading.
+    pub scene_treatment: bool,
     /// Scenery captures for local environment-map reflections.
     pub local_reflections: bool,
     pub ambient_occlusion: bool,
@@ -72,6 +74,7 @@ impl Capabilities {
             upscalers: UpscalerSet::of(&[Upscaler::Off]),
             tonemaps: TonemapSet::of(&[Tonemap::Off]),
             bloom: false,
+            scene_treatment: false,
             local_reflections: false,
             ambient_occlusion: false,
             ray_tracing: RtSupport::None,

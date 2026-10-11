@@ -18,6 +18,7 @@ pub mod music;
 pub mod sound;
 pub mod speech;
 pub mod vehicle_effects;
+pub mod visual_treatment;
 pub mod world;
 
 pub use files::read_unwrapped;

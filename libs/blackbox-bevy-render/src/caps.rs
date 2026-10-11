@@ -19,6 +19,7 @@ pub fn capabilities(api: GraphicsApi, compressed_bc: bool) -> Capabilities {
         upscalers: UpscalerSet::of(&[Upscaler::Off, Upscaler::Bilinear, Upscaler::Fsr1]),
         tonemaps: TonemapSet::of(&[Tonemap::Off, Tonemap::Aces]),
         bloom: true,
+        scene_treatment: false,
         local_reflections: false,
         ambient_occlusion: false,
         ray_tracing: RtSupport::None,
