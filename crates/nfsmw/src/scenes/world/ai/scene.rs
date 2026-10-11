@@ -1,6 +1,6 @@
 //! The world scene's side of the traffic: where it spawns around, which settings it follows and when it runs.
 
-use blackbox_render::Renderer;
+use blackbox_gfx::RenderBackend;
 use blackbox_roads::Body;
 use glam::{Vec2, Vec3};
 
@@ -54,7 +54,7 @@ impl WorldScene {
     }
 
     /// Runs the computer-driven cars around the player (or the free camera).
-    pub(in crate::scenes::world) fn update_traffic(&mut self, renderer: &mut Renderer, dt: f32) {
+    pub(in crate::scenes::world) fn update_traffic(&mut self, renderer: &mut dyn RenderBackend, dt: f32) {
         let (wanted, share) = (self.traffic_wanted(), u32::from(self.traffic_setting.1.0));
         let Some(traffic) = self.traffic.as_mut() else { return };
         traffic.configure(wanted, share);

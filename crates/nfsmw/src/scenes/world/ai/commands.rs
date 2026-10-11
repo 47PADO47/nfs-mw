@@ -1,6 +1,6 @@
 //! The console commands of the computer-driven cars: `traffic` and `pursuit`.
 
-use blackbox_render::Renderer;
+use blackbox_gfx::RenderBackend;
 use nfsmw_data::pursuit::heat_row;
 
 use super::models::load_cop_models;
@@ -42,7 +42,7 @@ pub(in crate::scenes::world) fn traffic_command(scene: &mut WorldScene, args: &[
 /// `pursuit <heat>|off|status`: cops chase the player with the wave of that heat level.
 pub(in crate::scenes::world) fn pursuit_command(
     scene: &mut WorldScene,
-    renderer: &mut Renderer,
+    renderer: &mut dyn RenderBackend,
     args: &[&str],
 ) -> Result<String, String> {
     const USAGE: &str = "usage: pursuit <heat 1-10>|off|status";

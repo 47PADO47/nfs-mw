@@ -1,11 +1,17 @@
 //! Loading the car models the traffic manager asks for.
 
-use blackbox_render::Renderer;
+use blackbox_gfx::RenderBackend;
 use nfsmw_data::pursuit::ai_vehicle;
 
 use super::{CopCar, CopModel, ModelRequest, TrafficModel};
 use crate::scenes::world::drive::CarRig;
-use crate::scenes::world::{WorldScene, load_car};
+use crate::scenes::world::{WorldScene, load_car, sun};
+
+/// Each traffic model gets its own instance-key group, so its cars never share a key with the player's or another model's.
+fn next_traffic_car() -> u32 {
+    static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
+    NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+}
 
 /// The folder of a traffic car: its `pvehicle` name, or that name without the `traf` prefix (`traftaxi` is
 /// the folder `TAXI`).
@@ -19,7 +25,7 @@ fn folders(vehicle: &str) -> Vec<String> {
 }
 
 /// Loads one traffic car model by its `pvehicle` name.
-fn load_traffic(scene: &mut WorldScene, renderer: &mut Renderer, vehicle: &str) -> Result<TrafficModel, String> {
+fn load_traffic(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, vehicle: &str) -> Result<TrafficModel, String> {
     let mut last = format!("no car folder for {vehicle}");
     for folder in folders(vehicle) {
         let (folder, model) = match load_car(&scene.dir, &folder) {
@@ -33,14 +39,14 @@ fn load_traffic(scene: &mut WorldScene, renderer: &mut Renderer, vehicle: &str) 
             .physics_of(&model)
             .or_else(|_| scene.physics.car(vehicle))
             .map_err(|e| format!("{vehicle} has no physics: {e:#}"))?;
-        let rig = std::rc::Rc::new(CarRig::upload(renderer, model));
+        let rig = std::rc::Rc::new(CarRig::upload(renderer, next_traffic_car(), model, scene.car_shading, sun::to_sun()));
         return Ok(TrafficModel { name: folder, rig, physics });
     }
     Err(last)
 }
 
 /// Loads the cop cars `names` that are not loaded yet.
-pub(super) fn load_cop_models(scene: &mut WorldScene, renderer: &mut Renderer, names: &[String]) -> Result<(), String> {
+pub(super) fn load_cop_models(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, names: &[String]) -> Result<(), String> {
     for name in names {
         if scene.traffic.as_ref().is_some_and(|t| t.has_cop_model(name)) {
             continue;
@@ -59,7 +65,7 @@ pub(super) fn load_cop_models(scene: &mut WorldScene, renderer: &mut Renderer, n
             ai.top_speed_multiplier,
             ai.acceleration_multiplier
         );
-        let rig = std::rc::Rc::new(CarRig::upload(renderer, model));
+        let rig = std::rc::Rc::new(CarRig::upload(renderer, next_traffic_car(), model, scene.car_shading, sun::to_sun()));
         let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
         traffic.add_cop_model(CopModel {
             model: TrafficModel { name: folder, rig, physics },
@@ -70,7 +76,7 @@ pub(super) fn load_cop_models(scene: &mut WorldScene, renderer: &mut Renderer, n
 }
 
 /// Loads the first model the traffic manager is waiting for (one per call, so loading does not stall a frame).
-pub(in crate::scenes::world) fn load_requested(scene: &mut WorldScene, renderer: &mut Renderer) {
+pub(in crate::scenes::world) fn load_requested(scene: &mut WorldScene, renderer: &mut dyn RenderBackend) {
     let Some(traffic) = scene.traffic.as_mut() else { return };
     let mut requests = traffic.take_model_requests();
     if requests.is_empty() {
