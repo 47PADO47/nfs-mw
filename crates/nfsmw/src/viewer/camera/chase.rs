@@ -174,9 +174,16 @@ impl ChaseCamera {
     const NEAR_PLANE: f32 = 0.3;
 }
 
+impl ChaseCamera {
+    /// The lens with a given field of view instead of the car-speed one (the dynamic FOV camera).
+    pub fn lens_with_fov(&self, aspect: f32, fov_y_degrees: f32) -> Lens {
+        Lens::look_at(self.position, self.target, fov_y_degrees, Self::NEAR_PLANE, aspect)
+    }
+}
+
 impl Camera for ChaseCamera {
     fn lens(&self, aspect: f32) -> Lens {
-        Lens::look_at(self.position, self.target, self.fov_degrees(), Self::NEAR_PLANE, aspect)
+        self.lens_with_fov(aspect, self.fov_degrees())
     }
 
     fn selectable(&self) -> bool {

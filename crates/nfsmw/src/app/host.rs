@@ -9,7 +9,7 @@ use blackbox_gfx::{CaptureId, RenderBackend};
 
 use super::graphics::Applied;
 use super::pacing::FrameLimiter;
-use crate::settings::{CarShading, Settings, SmokeQuality, Transmission, WheelOptions};
+use crate::settings::{CameraMode, CarShading, Settings, SmokeQuality, Transmission, WheelOptions};
 use crate::viewer::Scene;
 
 pub struct Host {
@@ -44,6 +44,8 @@ pub struct Host {
     exhaust_flames: bool,
     /// The transmission setting as of the last frame, given to every scene that is put in the window.
     pub transmission: Transmission,
+    /// The gameplay camera setting as of the last frame, given to every scene that is put in the window.
+    pub camera_mode: CameraMode,
     /// The wheel switches as of the last frame, given to every scene that is put in the window.
     pub wheel: WheelOptions,
 }
@@ -78,6 +80,7 @@ impl Host {
             spark_style: settings.spark_style,
             exhaust_flames: settings.exhaust_flames,
             transmission: settings.transmission,
+            camera_mode: settings.camera_mode,
             wheel: settings.wheel_options(),
         }
     }
@@ -103,6 +106,7 @@ impl Host {
         renderer.set_reflection_scene(None);
         scene.init(renderer.as_mut())?;
         scene.set_transmission(self.transmission);
+        scene.set_camera_mode(self.camera_mode);
         scene.set_wheel_options(self.wheel);
         if self.screenshot.is_some() {
             super::screenshot::wait_ready(scene.as_mut(), renderer.as_mut());

@@ -232,6 +232,7 @@ impl Setting {
             Setting::Camera => Data::Text(
                 match s.camera_mode {
                     CameraMode::Chase => "Chase",
+                    CameraMode::DynamicFov => "Dynamic FOV",
                 }
                 .to_owned(),
             ),

@@ -4,11 +4,13 @@ mod chase;
 mod cut;
 #[cfg(test)]
 mod depth_tests;
+mod dynamic_fov;
 mod fly;
 mod orbit;
 
 pub use chase::{ChaseCamera, Followed};
 pub use cut::CameraCut;
+pub use dynamic_fov::DynamicFov;
 pub use fly::FlyCamera;
 pub use orbit::OrbitCamera;
 

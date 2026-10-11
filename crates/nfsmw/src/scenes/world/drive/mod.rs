@@ -323,6 +323,11 @@ impl Drive {
         self.chase.update(followed, dt, |from, to| blocked(collision, from, to));
     }
 
+    /// The car's speed in m/s, for the cameras that react to it.
+    pub fn speed_mps(&self) -> f32 {
+        self.telemetry.speed_mps
+    }
+
     pub fn camera(&self) -> &ChaseCamera {
         &self.chase
     }

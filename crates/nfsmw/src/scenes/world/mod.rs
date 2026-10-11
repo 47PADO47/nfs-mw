@@ -29,8 +29,9 @@ use nfsmw_data::car::physics::PhysicsData;
 use nfsmw_data::world::{DEFAULT_TRACK, PropCatalog, Streamer, WorldIndex, load_global_textures};
 
 use crate::input::{Action, ActionState};
+use crate::settings::CameraMode;
 use crate::viewer::Scene;
-use crate::viewer::camera::{Camera, CameraCut, FlyCamera};
+use crate::viewer::camera::{Camera, CameraCut, DynamicFov, FlyCamera};
 use drive::{Drive, DriveScript, MarkerMeshes};
 use residency::Residency;
 
@@ -107,6 +108,8 @@ pub struct WorldScene {
     marker_meshes: Option<MarkerMeshes>,
     /// The free camera jumped (a new scene, the camera toggle, `goto`, the start settling on the ground).
     cut: CameraCut,
+    /// The gameplay camera the setting picked; only used while driving.
+    camera_mode: CameraMode,
 }
 
 /// Leaving the free camera more than this far (metres) from the car brings the car to the camera.
@@ -190,6 +193,7 @@ impl WorldScene {
             markers_on: false,
             marker_meshes: None,
             cut: CameraCut::default(),
+            camera_mode: CameraMode::default(),
         })
     }
 
@@ -297,6 +301,10 @@ impl Scene for WorldScene {
         }
     }
 
+    fn set_camera_mode(&mut self, mode: CameraMode) {
+        self.camera_mode = mode;
+    }
+
     fn set_car_shading(&mut self, shading: crate::settings::CarShading) {
         self.car_shading = shading;
     }
@@ -310,9 +318,11 @@ impl Scene for WorldScene {
 
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
         let chase = self.drive.as_ref().filter(|_| self.view == View::Chase);
-        let camera: &dyn Camera = match chase {
-            Some(drive) => drive.camera(),
-            None => &self.camera,
+        let dynamic = chase.map(|drive| DynamicFov { chase: drive.camera(), speed: drive.speed_mps() });
+        let camera: &dyn Camera = match (chase, &dynamic) {
+            (Some(_), Some(dynamic)) if self.camera_mode == CameraMode::DynamicFov => dynamic,
+            (Some(drive), _) => drive.camera(),
+            (None, _) => &self.camera,
         };
         let lens = camera.lens(aspect);
         let fog_end = self.fog_distance;

@@ -166,3 +166,13 @@ Rendering concepts
   NVIDIA GPU Gems 3, chapter 23.4, soft particles — reference only.
     https://developer.nvidia.com/gpugems/gpugems3/part-iv-image-effects/chapter-23-high-speed-screen-particles
     Depth-based intersection fading concept; no shader or source code copied.
+
+-------------------------------------------------------------------------------
+Projects whose behaviour we learned from (no code copied)
+-------------------------------------------------------------------------------
+
+giovannosaur/MWDynamicFOV — https://github.com/giovannosaur/MWDynamicFOV — no licence
+  The dynamic FOV camera (crates/nfsmw/src/viewer/camera/dynamic_fov.rs) reproduces
+  the mod's behaviour: the view widens with speed on a cubic ease-in curve. The mod
+  publishes no licence, so none of its code was copied or ported, and its game-memory
+  offsets are not used.

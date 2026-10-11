@@ -10,11 +10,13 @@ pub enum CameraMode {
     /// Behind the car, following it.
     #[default]
     Chase,
+    /// Behind the car, with the view widening as it speeds up.
+    DynamicFov,
 }
 
 impl CameraMode {
     /// Every choosable camera, in the order the options row cycles through them.
-    pub const ALL: [Self; 1] = [Self::Chase];
+    pub const ALL: [Self; 2] = [Self::Chase, Self::DynamicFov];
 }
 
 impl FromStr for CameraMode {
@@ -23,7 +25,8 @@ impl FromStr for CameraMode {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.trim().to_ascii_lowercase().as_str() {
             "chase" => Ok(Self::Chase),
-            _ => Err(format!("expected chase, got {s:?}")),
+            "dynamic-fov" | "dynamic_fov" => Ok(Self::DynamicFov),
+            _ => Err(format!("expected chase or dynamic-fov, got {s:?}")),
         }
     }
 }
@@ -32,6 +35,7 @@ impl fmt::Display for CameraMode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Self::Chase => "chase",
+            Self::DynamicFov => "dynamic-fov",
         })
     }
 }
@@ -44,6 +48,7 @@ mod tests {
     fn parses_and_displays_names() {
         assert_eq!("chase".parse(), Ok(CameraMode::Chase));
         assert_eq!(" Chase ".parse(), Ok(CameraMode::Chase));
+        assert_eq!("dynamic_fov".parse(), Ok(CameraMode::DynamicFov));
         assert!("orbit".parse::<CameraMode>().is_err());
         for mode in CameraMode::ALL {
             assert_eq!(mode.to_string().parse(), Ok(mode));

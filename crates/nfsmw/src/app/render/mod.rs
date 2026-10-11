@@ -92,6 +92,7 @@ fn finish(
     host.graphics.apply(renderer.as_mut(), settings);
     host.scene.init(renderer.as_mut())?;
     host.scene.set_transmission(host.transmission);
+    host.scene.set_camera_mode(host.camera_mode);
     host.scene.set_wheel_options(host.wheel);
     host.size = size;
     host.renderer = Some(renderer);
@@ -114,7 +115,9 @@ pub fn update_scene(mut host: NonSendMut<Host>, actions: Res<ActionState>, time:
     let host = &mut *host;
     let Some(renderer) = host.renderer.as_mut() else { return };
     host.transmission = settings.transmission;
+    host.camera_mode = settings.camera_mode;
     host.scene.set_transmission(settings.transmission);
+    host.scene.set_camera_mode(settings.camera_mode);
     host.wheel = settings.wheel_options();
     host.scene.set_wheel_options(host.wheel);
     // Startup console settings have run in Commands before a screenshot's scripted simulation.
