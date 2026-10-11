@@ -21,6 +21,10 @@ pub struct NosSpec {
     pub recharge_max_speed: f32,
 }
 
+/// Recharge rate multiplier while drifting or airborne. Kept modest so a tank refills noticeably
+/// faster on a slide or a jump without becoming a free boost.
+pub const STUNT_RECHARGE: f32 = 1.5;
+
 impl NosSpec {
     /// The car has nitrous when both the capacity and the boost are positive.
     pub fn present(&self) -> bool {
@@ -42,6 +46,8 @@ pub struct NosInput {
     pub blown: bool,
     /// Tuning slider in [-1, 1].
     pub tuning: f32,
+    /// Drifting or airborne: the tank recharges at [`STUNT_RECHARGE`] times the normal rate.
+    pub stunt: bool,
 }
 
 /// Nitrous state.
@@ -84,11 +90,12 @@ impl Nos {
             return;
         }
         let recharge = if i.speed_mph >= spec.recharge_min_speed && i.gear >= GEAR_FIRST {
-            lerp(
+            let seconds = lerp(
                 spec.recharge_min,
                 spec.recharge_max,
                 ramp(i.speed_mph, spec.recharge_min_speed, spec.recharge_max_speed),
-            )
+            );
+            if i.stunt { seconds / STUNT_RECHARGE } else { seconds }
         } else {
             0.0
         };

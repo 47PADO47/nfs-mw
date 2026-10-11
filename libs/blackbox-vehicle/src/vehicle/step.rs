@@ -13,6 +13,9 @@ use crate::rigid_body::BodyState;
 use crate::steering::{SteeringInput, ackermann};
 use crate::suspension::center_of_gravity;
 
+/// Rear slip angle (turns, 1.0 = 360 deg) past which the car counts as drifting. About 14 degrees.
+const DRIFT_SLIP: f32 = 0.04;
+
 impl Vehicle {
     /// Advances the car by `dt` seconds (use [`crate::FIXED_STEP`]; the tuning assumes 60 Hz).
     ///
@@ -142,6 +145,7 @@ impl Vehicle {
             speed,
             wheel_av: &mut av,
             grounded,
+            drifting: self.is_drifting(),
             drive_slip,
             max_wheel_slip,
             induction_tuning: self.tunings.induction,
@@ -155,6 +159,11 @@ impl Vehicle {
         for (t, q) in self.tires.iter_mut().zip(torques) {
             t.drive_torque = q;
         }
+    }
+
+    /// A drift: a grounded rear tire slides sideways past [`DRIFT_SLIP`] (turns, 1.0 = 360 deg).
+    fn is_drifting(&self) -> bool {
+        (2..4).any(|i| self.loaded[i] && self.tires[i].slip_angle.abs() > DRIFT_SLIP)
     }
 
     fn apply_aero(&mut self) {

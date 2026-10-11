@@ -14,7 +14,16 @@ fn spec() -> NosSpec {
 }
 
 fn input(held: bool, speed_mph: f32) -> NosInput {
-    NosInput { dt: 1.0 / 60.0, held, gear: GEAR_FIRST + 1, throttle: 1.0, speed_mph, blown: false, tuning: 0.0 }
+    NosInput {
+        dt: 1.0 / 60.0,
+        held,
+        gear: GEAR_FIRST + 1,
+        throttle: 1.0,
+        speed_mph,
+        blown: false,
+        tuning: 0.0,
+        stunt: false,
+    }
 }
 
 #[test]
@@ -64,4 +73,24 @@ fn empties_then_recharges_after_the_disengage_delay() {
         n.update(&s, &input(false, 60.0));
     }
     assert!(n.capacity > before);
+}
+
+#[test]
+fn stunts_recharge_faster_but_not_instantly() {
+    let spec = spec();
+    let drain = |stunt: bool| {
+        let mut n = Nos::new(&spec);
+        n.update(&spec, &input(true, 50.0));
+        n.capacity = 0.5;
+        let mut t = 0.0;
+        while n.capacity < 1.0 && t < 1000.0 {
+            n.update(&spec, &NosInput { stunt, ..input(false, 50.0) });
+            t += 1.0 / 60.0;
+        }
+        t
+    };
+    let plain = drain(false);
+    let stunt = drain(true);
+    assert!(stunt < plain, "stunt {stunt} plain {plain}");
+    assert!(stunt > plain / (STUNT_RECHARGE + 0.1), "stunt {stunt} too fast vs plain {plain}");
 }

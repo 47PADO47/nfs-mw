@@ -126,6 +126,7 @@ impl Dyno {
             speed: self.v,
             wheel_av: &mut self.av,
             grounded: [true; 4],
+            drifting: false,
             drive_slip: 0.0,
             max_wheel_slip: 0.0,
             induction_tuning: 0.0,
