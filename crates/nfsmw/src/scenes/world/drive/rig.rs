@@ -8,6 +8,7 @@ use glam::{Mat4, Quat, Vec3};
 use nfsmw_data::car::{CarModel, WheelPose};
 
 use crate::scenes::car::materials::CarMaterials;
+use crate::scenes::world::car_lights::CarLights;
 use crate::scenes::world::keys;
 use crate::settings::CarShading;
 
@@ -56,6 +57,7 @@ pub struct CarRig {
     meshes: Vec<MeshHandle>,
     materials: CarMaterials,
     shading: CarShading,
+    lights: CarLights,
 }
 
 impl CarRig {
@@ -68,7 +70,8 @@ impl CarRig {
         to_sun: Vec3,
     ) -> Self {
         let (parts, meshes, materials) = upload_parts(renderer, &model, shading, to_sun);
-        Self { car, model, parts, meshes, materials, shading }
+        let lights = CarLights::for_model(&model);
+        Self { car, model, parts, meshes, materials, shading, lights }
     }
 
     /// Upload the car again with `shading` when it differs from the one it has.
@@ -82,6 +85,11 @@ impl CarRig {
         let (parts, meshes, materials) = upload_parts(renderer, &self.model, shading, to_sun);
         std::mem::replace(&mut self.materials, materials).destroy(renderer);
         (self.parts, self.meshes, self.shading) = (parts, meshes, shading);
+    }
+
+    /// The lamps of the car, as glows.
+    pub fn lights(&self) -> &CarLights {
+        &self.lights
     }
 
     /// The model the rig was uploaded from.

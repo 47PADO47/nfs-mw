@@ -1,6 +1,7 @@
 //! The streamed city: a free-fly camera, or a car to drive with a chase camera.
 
 mod ai;
+mod car_lights;
 mod cargo;
 mod commands;
 mod drive;

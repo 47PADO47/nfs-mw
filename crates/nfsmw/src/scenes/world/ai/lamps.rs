@@ -4,13 +4,14 @@
 //! They are a rewrite extension together with the lights themselves.
 
 use blackbox_gfx::RenderBackend;
-use blackbox_render::{Instance, MeshHandle};
+use blackbox_render::{EffectVertex, Instance, MeshHandle};
 use blackbox_roads::{Light, right_of};
 use glam::{Mat4, Vec3};
 
 use super::TrafficWorld;
 use crate::scenes::world::drive::upload_box;
 use crate::scenes::world::space;
+use crate::scenes::world::vehicle_effects::geometry;
 
 /// Lamps further than this from the camera (metres) are not drawn.
 const DRAW_DISTANCE: f32 = 300.0;
@@ -29,6 +30,11 @@ const AMBER: [u8; 4] = [0x10, 0x70, 0x80, 0xFF];
 const RED: [u8; 4] = [0x18, 0x18, 0x80, 0xFF];
 const POST: [u8; 4] = [0x40, 0x40, 0x40, 0xFF];
 const BAR: [u8; 4] = [0x80, 0x80, 0x80, 0xFF];
+/// Glow radius (metres) over a lamp, and the lamp colours as RGBA.
+const LAMP_GLOW: f32 = 1.1;
+const GLOW_GREEN: [f32; 4] = [0.2, 1.0, 0.3, 1.0];
+const GLOW_AMBER: [f32; 4] = [1.0, 0.65, 0.1, 1.0];
+const GLOW_RED: [f32; 4] = [1.0, 0.1, 0.05, 1.0];
 
 /// The meshes the lamps are drawn with.
 pub struct LampMeshes {
@@ -72,6 +78,32 @@ fn oriented_box(origin: Vec3, forward: Vec3, side: Vec3, size: Vec3) -> Mat4 {
 }
 
 impl TrafficWorld {
+    /// Appends a glow over each signal lamp within sight, in the colour it shows.
+    pub fn lamp_glows(&self, camera: Vec3, forward: Vec3, out: &mut Vec<EffectVertex>) {
+        let up = Vec3::Z;
+        for (index, approach) in self.signals.approaches().iter().enumerate() {
+            let stop = space::to_render(approach.stop_position.to_array());
+            if (stop - camera).truncate().length() > DRAW_DISTANCE {
+                continue;
+            }
+            let right = space::to_render(right_of(approach.heading).to_array());
+            let post = stop + right * (approach.kerb + POST_SETBACK);
+            let (colour, brightness) = match self.signals.state(index, self.signal_time) {
+                Light::Green => (GLOW_GREEN, 0.9),
+                Light::Amber => (GLOW_AMBER, 0.9),
+                Light::Red => (GLOW_RED, 0.9),
+            };
+            geometry::glow(
+                out,
+                post + up * POST_HEIGHT,
+                LAMP_GLOW,
+                geometry::color(colour, brightness),
+                camera,
+                forward,
+            );
+        }
+    }
+
     /// Appends the instances of the signals within sight of `camera` (render space), when there are meshes for them: the post, the lamp in the
     /// colour of the light and the stop bar of every signalled approach.
     pub fn lamp_instances(&self, meshes: Option<&LampMeshes>, camera: Vec3, out: &mut Vec<Instance>) {

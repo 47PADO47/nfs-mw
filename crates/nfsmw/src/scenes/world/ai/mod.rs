@@ -24,8 +24,9 @@ mod trailer;
 use std::collections::HashSet;
 use std::rc::Rc;
 
-use blackbox_render::Instance;
+use blackbox_render::{EffectVertex, Instance};
 use blackbox_roads::{Body, RoadNetwork, SegmentIndex, SignalController, SplitMix};
+use glam::Vec3;
 use nfsmw_data::car::physics::CarPhysics;
 
 use super::drive::CarRig;
@@ -162,6 +163,13 @@ impl TrafficWorld {
     /// Whether a screenshot run may capture: the warm-up is over.
     pub fn settled(&self) -> bool {
         self.warmup_left <= 0.0 || !self.has_work()
+    }
+
+    /// Appends the glows of the lamps of every car and of the signal lamps within sight.
+    pub fn car_glows(&self, camera: Vec3, forward: Vec3, out: &mut Vec<EffectVertex>) {
+        for car in &self.cars {
+            car.glows(self.alpha, camera, forward, out);
+        }
     }
 
     /// Appends the instances of every car.

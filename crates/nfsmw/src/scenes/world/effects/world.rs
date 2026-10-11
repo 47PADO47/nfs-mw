@@ -18,9 +18,15 @@ impl WorldScene {
         };
         let (pose, bounds) = drive.spark_body();
         drive.vehicle_effects.set_body(pose, bounds);
+        let (lamps, lamp_frame, brake) = drive.lamp_source();
         let layer = drive.effects.build(position, forward);
         drive.vehicle_effects.geometry(position, forward, matches!(self.view, View::Chase), &mut layer.streaks);
         drive.vehicle_effects.glows(position, forward, &mut layer.glows);
+        lamps.glows(lamp_frame, brake, position, forward, &mut layer.glows);
+        if let Some(traffic) = &self.traffic {
+            traffic.car_glows(position, forward, &mut layer.glows);
+            traffic.lamp_glows(position, forward, &mut layer.glows);
+        }
         drive.vehicle_effects.textured(forward, &self.residency.shared.materials, &mut layer.textured);
         drive.flames.geometry(position, forward, layer);
         renderer.set_effects(layer);

@@ -192,6 +192,11 @@ impl AiCar {
     }
 
     /// The car's position in render space.
+    /// The lamps of the car as glows, lit by its brake.
+    pub fn glows(&self, alpha: f32, camera: Vec3, forward: Vec3, out: &mut Vec<blackbox_render::EffectVertex>) {
+        self.rig.lights().glows(self.pose(alpha).transform(), self.controls.brake, camera, forward, out);
+    }
+
     pub fn position(&self) -> Vec3 {
         self.current.position
     }
