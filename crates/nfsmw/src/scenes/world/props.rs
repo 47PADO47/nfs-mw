@@ -181,7 +181,14 @@ impl PropWorld {
     }
 
     fn candidates(&self, bounds: &Aabb) -> BTreeSet<u32> {
-        cells(bounds).into_iter().filter_map(|cell| self.grid.get(&cell)).flatten().copied().collect()
+        // A knocked-over prop is hidden, so nothing hits it until it is back.
+        cells(bounds)
+            .into_iter()
+            .filter_map(|cell| self.grid.get(&cell))
+            .flatten()
+            .copied()
+            .filter(|id| !self.hidden(*id))
+            .collect()
     }
 
     pub fn len(&self) -> usize {
