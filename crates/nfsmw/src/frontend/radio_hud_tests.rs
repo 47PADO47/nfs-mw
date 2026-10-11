@@ -4,7 +4,7 @@ use crate::settings::{Partial, RadioHudStyle, Settings};
 
 #[test]
 fn radio_hud_row_follows_hud_layout_and_cycles_both_styles() {
-    let rows = rows(Category::Gameplay);
+    let rows = rows(Category::Gameplay, &crate::settings::test_caps::native());
     let index = rows.iter().position(|row| row.setting == Setting::HudLayout).unwrap() + 1;
     assert_eq!(rows[index].setting, Setting::RadioHud);
     assert_eq!(rows[index].title, Title::Text("Radio HUD"));

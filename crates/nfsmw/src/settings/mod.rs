@@ -3,42 +3,86 @@
 //! Each source produces a [`Partial`]; [`Settings::load`] merges them. The in-game settings menu
 //! (milestone 6) and the developer console write the config file layer.
 
+#[macro_use]
+mod names;
+
+pub mod availability;
+mod camera_mode;
+mod car_shading;
+#[cfg(test)]
+mod car_shading_tests;
 mod controls;
 #[cfg(test)]
 mod controls_tests;
+mod effective;
 mod env;
 #[cfg(test)]
 mod exhaust_flames_tests;
 mod file;
+mod graphics;
+mod graphics_preset;
+#[cfg(test)]
+mod graphics_preset_tests;
+#[cfg(test)]
+mod graphics_tests;
 mod hud_layout;
 #[cfg(test)]
 mod hud_layout_tests;
 mod minimap;
 mod partial;
+mod post;
+#[cfg(test)]
+mod post_tests;
 mod radio_hud;
+mod ray_tracing;
+#[cfg(test)]
+mod ray_tracing_tests;
+mod renderer;
+#[cfg(test)]
+mod renderer_tests;
 mod smoke_quality;
 #[cfg(test)]
 mod smoke_quality_tests;
 mod spark_style;
 #[cfg(test)]
+pub(crate) mod test_caps;
+#[cfg(test)]
 mod tire_tests;
 mod transmission;
+#[cfg(test)]
+mod treatment_tests;
+mod upscale;
+mod upscale_quality;
+#[cfg(test)]
+mod upscale_quality_tests;
+#[cfg(test)]
+mod upscale_tests;
 #[cfg(test)]
 mod vehicle_effects_tests;
 mod wheel;
 mod window;
 mod write;
 
-use blackbox_render::Backend;
+use blackbox_gfx::GraphicsApi;
 
+pub use blackbox_gfx::AoQuality;
+pub use blackbox_gfx::ReflectionQuality;
+pub use camera_mode::CameraMode;
+pub use car_shading::CarShading;
 pub use controls::{Controls, Deadzone, DeadzoneMode, Sensitivity};
+pub use graphics_preset::GraphicsPreset;
 pub use hud_layout::HudLayout;
 pub use minimap::MinimapMode;
 pub use partial::{Partial, Percent, parse_bool};
+pub use post::{PostAa, PostBloom, PostTonemap, VisualTreatment, post_effects};
 pub use radio_hud::RadioHudStyle;
+pub use ray_tracing::RayTracingLevel;
+pub use renderer::RendererKind;
 pub use smoke_quality::SmokeQuality;
 pub use spark_style::SparkStyle;
 pub use transmission::Transmission;
+pub use upscale::{RenderScale, UpscaleMode};
+pub use upscale_quality::UpscaleQuality;
 pub use wheel::WheelOptions;
 pub use window::{Monitor, Resolution, WindowMode};
 pub use write::write as write_file;
@@ -50,7 +94,9 @@ use crate::devtools::{ShowMetrics, ShowReadout};
 #[derive(bevy_ecs::resource::Resource, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Settings {
     pub controls: Controls,
-    pub backend: Backend,
+    pub backend: GraphicsApi,
+    /// Who draws: the native `blackbox` renderer (default) or `bevy`; applies after a restart.
+    pub renderer: RendererKind,
     pub vsync: bool,
     pub max_fps: MaxFps,
     pub show_metrics: ShowMetrics,
@@ -73,6 +119,10 @@ pub struct Settings {
     pub radio: bool,
     /// Start at the main menu instead of the boot movies and the title screen (the `--skip-boot` flag).
     pub skip_intro: bool,
+    /// The preset the settings it covers still match, else `Custom` (see [`GraphicsPreset`]).
+    pub graphics_preset: GraphicsPreset,
+    /// How cars are shaded: glossy (default) or the single-light shading of everything else.
+    pub car_shading: CarShading,
     /// Optional smoke presentation quality; standard retains the default cost and look.
     pub smoke_quality: SmokeQuality,
     /// Draw bounded, ground-following tire marks.
@@ -86,12 +136,32 @@ pub struct Settings {
     pub exhaust_flames: bool,
     /// Who changes gear: the box (default) or the player.
     pub transmission: Transmission,
+    pub camera_mode: CameraMode,
     /// How the HUD's minimap is shown: fixed (default), rotating or off.
     pub minimap: MinimapMode,
     /// Placement and scale of the in-game HUD.
     pub hud_layout: HudLayout,
     /// How the radio announces the song on the HUD: the original EA Trax chyron or the rewrite's card.
     pub radio_hud: RadioHudStyle,
+    /// Post-processing, all off by default: the tone-mapping curve, bloom strength and anti-aliasing.
+    pub post_tonemap: PostTonemap,
+    pub post_bloom: PostBloom,
+    pub post_aa: PostAa,
+    pub visual_treatment: VisualTreatment,
+    pub reflections: ReflectionQuality,
+    /// Experimental contact occlusion; presets never enable it implicitly.
+    pub ao: AoQuality,
+    pub ao_intensity: Percent,
+    pub ao_compare: bool,
+    /// The 3D scene's size in percent of the output size per axis, and the filter that scales it back up.
+    pub render_scale: RenderScale,
+    pub upscaler: UpscaleMode,
+    /// FSR 1 sharpening, 0 to 100 percent.
+    pub upscale_sharpness: Percent,
+    /// How far a temporal upscaler (fsr3, fsr4, dlss) renders below the output size.
+    pub upscale_quality: UpscaleQuality,
+    /// Ray-traced lighting (bevy renderer only); off to on needs a restart.
+    pub ray_tracing: RayTracingLevel,
     /// Gamepad button codes of a steering wheel's shift paddles (`GamepadButton::Other`), if the player gave them.
     pub paddle_up: Option<u32>,
     pub paddle_down: Option<u32>,
@@ -104,7 +174,11 @@ pub struct Settings {
 impl From<Partial> for Settings {
     /// Fill what no layer set with the defaults.
     fn from(p: Partial) -> Self {
-        Self {
+        // A preset fills what no layer set: command line > environment > config file > preset > defaults.
+        let requested = p.graphics_preset.unwrap_or_default();
+        let p = p.or(requested.layer());
+        let mut settings = Self {
+            graphics_preset: requested,
             controls: Controls {
                 deadzone_mode: p.deadzone_mode.unwrap_or_default(),
                 steering_deadzone: p.steering_deadzone.unwrap_or(Controls::default().steering_deadzone),
@@ -116,6 +190,7 @@ impl From<Partial> for Settings {
                 invert_camera_y: p.invert_camera_y.unwrap_or(Controls::default().invert_camera_y),
             },
             backend: p.backend.unwrap_or_default(),
+            renderer: p.renderer.unwrap_or_default(),
             vsync: p.vsync.unwrap_or(true),
             max_fps: p.max_fps.unwrap_or_default(),
             show_metrics: p.show_metrics.unwrap_or_default(),
@@ -132,6 +207,7 @@ impl From<Partial> for Settings {
             tire_smoke: p.tire_smoke.unwrap_or(true),
             radio: p.radio.unwrap_or(true),
             skip_intro: p.skip_intro.unwrap_or(false),
+            car_shading: p.car_shading.unwrap_or_default(),
             smoke_quality: p.smoke_quality.unwrap_or_default(),
             skid_marks: p.skid_marks.unwrap_or(true),
             collision_sparks: p.collision_sparks.unwrap_or(false),
@@ -139,14 +215,30 @@ impl From<Partial> for Settings {
             speed_trails: p.speed_trails.unwrap_or(false),
             exhaust_flames: p.exhaust_flames.unwrap_or(true),
             transmission: p.transmission.unwrap_or_default(),
+            camera_mode: p.camera_mode.unwrap_or_default(),
             minimap: p.minimap.unwrap_or_default(),
             hud_layout: p.hud_layout.unwrap_or_default(),
             radio_hud: p.radio_hud.unwrap_or_default(),
+            post_tonemap: p.post_tonemap.unwrap_or_default(),
+            post_bloom: p.post_bloom.unwrap_or_default(),
+            post_aa: p.post_aa.unwrap_or_default(),
+            visual_treatment: p.visual_treatment.unwrap_or_default(),
+            reflections: p.reflections.unwrap_or(ReflectionQuality::Medium),
+            ao: p.ao.unwrap_or_default(),
+            ao_intensity: p.ao_intensity.unwrap_or(Percent(75)),
+            ao_compare: p.ao_compare.unwrap_or(false),
+            render_scale: p.render_scale.unwrap_or_default(),
+            upscaler: p.upscaler.unwrap_or_default(),
+            upscale_sharpness: p.upscale_sharpness.unwrap_or(Percent(80)),
+            upscale_quality: p.upscale_quality.unwrap_or_default(),
+            ray_tracing: p.ray_tracing.unwrap_or_default(),
             paddle_up: p.paddle_up,
             paddle_down: p.paddle_down,
             manual_clutch: p.manual_clutch.unwrap_or(false),
             h_shifter: p.h_shifter.unwrap_or(false),
-        }
+        };
+        settings.settle_preset();
+        settings
     }
 }
 
@@ -184,7 +276,7 @@ mod tests {
     #[test]
     fn defaults() {
         let s = Settings::from(Partial::default());
-        assert_eq!((s.backend, s.vsync, s.max_fps), (Backend::Auto, true, MaxFps::default()));
+        assert_eq!((s.backend, s.vsync, s.max_fps), (GraphicsApi::Auto, true, MaxFps::default()));
         assert_eq!(s.transmission, Transmission::Automatic, "automatic, as in the original");
         assert_eq!(s.minimap, MinimapMode::Fixed, "fixed, the original's free roam mode");
         assert_eq!(s.wheel_options(), WheelOptions::default(), "no clutch pedal and no H-shifter unless asked for");
@@ -198,7 +290,7 @@ mod tests {
         let file = file::parse("backend = 'vulkan'\nmax_fps = 90\n", "test");
         let s: Settings = cli.or(env).or(file).into();
         assert!(!s.vsync, "command line");
-        assert_eq!(s.backend, Backend::Gl, "environment over file");
+        assert_eq!(s.backend, GraphicsApi::Gl, "environment over file");
         assert_eq!(s.max_fps, "90".parse().unwrap(), "file over default");
     }
 

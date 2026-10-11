@@ -5,10 +5,13 @@ use std::str::FromStr;
 
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
-use crate::settings::{HudLayout, MinimapMode, Percent, RadioHudStyle, Settings, Transmission, parse_bool};
+use crate::settings::{
+    CameraMode, HudLayout, MinimapMode, Percent, PostAa, PostBloom, PostTonemap, RadioHudStyle, RenderScale,
+    RendererKind, Settings, Transmission, parse_bool,
+};
 
 /// Settings the console can show.
-const KEYS: [&str; 36] = [
+const KEYS: [&str; 53] = [
     "deadzone_mode",
     "steering_deadzone",
     "camera_deadzone",
@@ -18,6 +21,7 @@ const KEYS: [&str; 36] = [
     "mouse_sensitivity",
     "invert_camera_y",
     "backend",
+    "renderer",
     "vsync",
     "fps",
     "metrics",
@@ -33,6 +37,8 @@ const KEYS: [&str; 36] = [
     "hud",
     "tire_smoke",
     "radio",
+    "graphics_preset",
+    "car_shading",
     "smoke_quality",
     "skid_marks",
     "collision_sparks",
@@ -40,11 +46,25 @@ const KEYS: [&str; 36] = [
     "speed_trails",
     "exhaust_flames",
     "transmission",
+    "camera_mode",
     "minimap",
     "hud_layout",
     "radio_hud",
     "manual_clutch",
     "h_shifter",
+    "post_tonemap",
+    "post_bloom",
+    "post_aa",
+    "visual_treatment",
+    "reflections",
+    "ao",
+    "ao_intensity",
+    "ao_compare",
+    "render_scale",
+    "upscaler",
+    "upscale_sharpness",
+    "upscale_quality",
+    "ray_tracing",
 ];
 
 /// The text for `get <key>`, or an error naming the valid keys.
@@ -59,6 +79,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "mouse_sensitivity" => settings.controls.mouse_sensitivity.to_string(),
         "invert_camera_y" => on_off(settings.controls.invert_camera_y).to_owned(),
         "backend" => settings.backend.to_string(),
+        "renderer" => settings.renderer.to_string(),
         "vsync" => on_off(settings.vsync).to_owned(),
         "fps" | "max_fps" => settings.max_fps.to_string(),
         "metrics" | "show_metrics" => settings.show_metrics.to_string(),
@@ -74,6 +95,8 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "hud" => on_off(settings.hud).to_owned(),
         "tire_smoke" => on_off(settings.tire_smoke).to_owned(),
         "radio" => on_off(settings.radio).to_owned(),
+        "graphics_preset" => settings.graphics_preset.to_string(),
+        "car_shading" => settings.car_shading.to_string(),
         "smoke_quality" => settings.smoke_quality.to_string(),
         "skid_marks" => on_off(settings.skid_marks).to_owned(),
         "collision_sparks" => on_off(settings.collision_sparks).to_owned(),
@@ -81,11 +104,25 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "speed_trails" => on_off(settings.speed_trails).to_owned(),
         "exhaust_flames" => on_off(settings.exhaust_flames).to_owned(),
         "transmission" => settings.transmission.to_string(),
+        "camera_mode" => settings.camera_mode.to_string(),
         "minimap" => settings.minimap.to_string(),
         "hud_layout" | "hud-layout" => settings.hud_layout.to_string(),
         "radio_hud" | "radio-hud" => settings.radio_hud.to_string(),
         "manual_clutch" => on_off(settings.manual_clutch).to_owned(),
         "h_shifter" => on_off(settings.h_shifter).to_owned(),
+        "post_tonemap" => settings.post_tonemap.to_string(),
+        "post_bloom" => settings.post_bloom.to_string(),
+        "post_aa" => settings.post_aa.to_string(),
+        "visual_treatment" => settings.visual_treatment.to_string(),
+        "reflections" => settings.reflections.to_string(),
+        "ao" => settings.ao.to_string(),
+        "ao_intensity" => settings.ao_intensity.to_string(),
+        "ao_compare" => on_off(settings.ao_compare).to_owned(),
+        "render_scale" => settings.render_scale.to_string(),
+        "upscaler" => settings.upscaler.to_string(),
+        "upscale_sharpness" => settings.upscale_sharpness.to_string(),
+        "upscale_quality" => settings.upscale_quality.to_string(),
+        "ray_tracing" => settings.ray_tracing.to_string(),
         other => return Err(unknown(other)),
     };
     Ok(format!("{key} = {value}"))
@@ -111,6 +148,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "camera_sensitivity" => settings.controls.camera_sensitivity = value.parse()?,
         "mouse_sensitivity" => settings.controls.mouse_sensitivity = value.parse()?,
         "invert_camera_y" => settings.controls.invert_camera_y = parse_bool(value)?,
+        "renderer" => settings.renderer = RendererKind::from_str(value)?,
         "vsync" => settings.vsync = parse_bool(value)?,
         "fps" | "max_fps" => settings.max_fps = MaxFps::from_str(value)?,
         "metrics" | "show_metrics" => settings.show_metrics = ShowMetrics::from_str(value)?,
@@ -126,6 +164,8 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "hud" => settings.hud = parse_bool(value)?,
         "tire_smoke" => settings.tire_smoke = parse_bool(value)?,
         "radio" => settings.radio = parse_bool(value)?,
+        "graphics_preset" => settings.apply_preset(value.parse()?),
+        "car_shading" => settings.car_shading = value.parse()?,
         "smoke_quality" => settings.smoke_quality = value.parse()?,
         "skid_marks" => settings.skid_marks = parse_bool(value)?,
         "collision_sparks" => settings.collision_sparks = parse_bool(value)?,
@@ -133,15 +173,34 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "speed_trails" => settings.speed_trails = parse_bool(value)?,
         "exhaust_flames" => settings.exhaust_flames = parse_bool(value)?,
         "transmission" => settings.transmission = Transmission::from_str(value)?,
+        "camera_mode" => settings.camera_mode = CameraMode::from_str(value)?,
         "minimap" => settings.minimap = MinimapMode::from_str(value)?,
         "hud_layout" | "hud-layout" => settings.hud_layout = HudLayout::from_str(value)?,
         "radio_hud" | "radio-hud" => settings.radio_hud = RadioHudStyle::from_str(value)?,
         "manual_clutch" => settings.manual_clutch = parse_bool(value)?,
         "h_shifter" => settings.h_shifter = parse_bool(value)?,
+        "post_tonemap" => settings.post_tonemap = PostTonemap::from_str(value)?,
+        "post_bloom" => settings.post_bloom = PostBloom::from_str(value)?,
+        "post_aa" => settings.post_aa = PostAa::from_str(value)?,
+        "visual_treatment" => settings.visual_treatment = value.parse()?,
+        "reflections" => settings.reflections = value.parse()?,
+        "ao" => settings.ao = value.parse()?,
+        "ao_intensity" => settings.ao_intensity = value.parse()?,
+        "ao_compare" => settings.ao_compare = parse_bool(value)?,
+        "render_scale" => settings.render_scale = RenderScale::from_str(value)?,
+        "upscaler" => settings.upscaler = value.parse()?,
+        "upscale_sharpness" => settings.upscale_sharpness = Percent::from_str(value)?,
+        "upscale_quality" => settings.upscale_quality = value.parse()?,
+        "ray_tracing" => settings.ray_tracing = value.parse()?,
         "backend" => return Err("the graphics backend cannot change while running; restart with --backend".into()),
         other => return Err(unknown(other)),
     }
-    get(settings, key)
+    settings.settle_preset();
+    let text = get(settings, key)?;
+    if key == "renderer" {
+        return Ok(format!("{text} (applies after restart)"));
+    }
+    Ok(text)
 }
 
 /// The on/off settings, which `set <key>` flips.
@@ -158,6 +217,7 @@ fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
         "radio" => Some(&mut settings.radio),
         "manual_clutch" => Some(&mut settings.manual_clutch),
         "h_shifter" => Some(&mut settings.h_shifter),
+        "ao_compare" => Some(&mut settings.ao_compare),
         _ => None,
     }
 }
@@ -172,15 +232,31 @@ fn syntax(key: &str) -> Option<&'static str> {
         "metrics" | "show_metrics" => "<off|basic|advanced>",
         "readout" | "show_readout" => "<off|minimal|full>",
         "window_mode" => "<windowed|borderless|exclusive>",
+        "renderer" => "<blackbox|bevy>",
         "monitor" => "<current|primary|index>",
         "resolution" => "<WIDTHxHEIGHT|native>",
         "volume" | "master_volume" | "music_volume" | "sfx_volume" | "engine_volume" | "speech_volume" => "<0-100>",
+        "graphics_preset" => "<custom|low|medium|high|ultra>",
+        "car_shading" => "<simple|glossy>",
         "smoke_quality" => "<standard|high>",
         "spark_style" => "<original-pc|restored-experimental>",
         "transmission" => "<automatic|manual>",
+        "camera_mode" => "<chase|dynamic-fov>",
         "minimap" => "<fixed|rotating|off>",
         "hud_layout" | "hud-layout" => "<pc|classic|xbox360>",
         "radio_hud" | "radio-hud" => "<ea_trax|custom>",
+        "post_tonemap" => "<off|aces>",
+        "post_bloom" => "<off|low|medium|high>",
+        "post_aa" => "<off|fxaa|smaa|taa>",
+        "visual_treatment" => "<off|low|high>",
+        "reflections" => "<off|low|medium|high>",
+        "ao" => "<off|low|medium|high>",
+        "ao_intensity" => "<0-100>",
+        "render_scale" => "<50-200>",
+        "upscaler" => "<off|bilinear|fsr1|fsr3|fsr4|dlss>",
+        "upscale_sharpness" => "<0-100>",
+        "upscale_quality" => "<auto|native|quality|balanced|performance|ultra_performance>",
+        "ray_tracing" => "<off|low|medium|high>",
         _ => return None,
     })
 }
@@ -300,6 +376,36 @@ mod tests {
     }
 
     #[test]
+    fn the_renderer_is_set_by_name_and_applies_after_a_restart() {
+        let mut s = defaults();
+        assert_eq!(get(&s, "renderer").unwrap(), "renderer = blackbox");
+        assert_eq!(set(&mut s, "renderer", "bevy").unwrap(), "renderer = bevy (applies after restart)");
+        assert_eq!(s.renderer, RendererKind::Bevy);
+        assert_eq!(get(&s, "renderer").unwrap(), "renderer = bevy");
+        let before = s;
+        assert!(set(&mut s, "renderer", "wgpu").unwrap_err().contains("expected blackbox or bevy"));
+        assert_eq!(s, before);
+        assert_eq!(set(&mut s, "renderer", "").unwrap_err(), "usage: set renderer <blackbox|bevy> (now bevy)");
+    }
+
+    #[test]
+    fn upscale_quality_and_ray_tracing_are_set_by_name_and_validated() {
+        let mut s = defaults();
+        assert_eq!(get(&s, "upscale_quality").unwrap(), "upscale_quality = quality");
+        assert_eq!(get(&s, "ray_tracing").unwrap(), "ray_tracing = off");
+        assert_eq!(set(&mut s, "upscale_quality", "ultra_performance").unwrap(), "upscale_quality = ultra_performance");
+        assert_eq!(set(&mut s, "ray_tracing", "high").unwrap(), "ray_tracing = high");
+        let before = s;
+        assert!(set(&mut s, "upscale_quality", "extreme").unwrap_err().contains("expected auto, native"));
+        assert!(set(&mut s, "ray_tracing", "path").unwrap_err().contains("expected off, low, medium or high"));
+        assert_eq!(s, before);
+        assert_eq!(
+            set(&mut s, "ray_tracing", "").unwrap_err(),
+            "usage: set ray_tracing <off|low|medium|high> (now high)"
+        );
+    }
+
+    #[test]
     fn the_minimap_mode_is_set_by_name() {
         let mut s = defaults();
         assert_eq!(get(&s, "minimap").unwrap(), "minimap = fixed");
@@ -307,6 +413,42 @@ mod tests {
         assert_eq!(s.minimap, MinimapMode::Rotating);
         assert!(set(&mut s, "minimap", "zoomed").is_err());
         assert_eq!(s.minimap, MinimapMode::Rotating);
+    }
+
+    #[test]
+    fn the_upscaling_settings_are_set_by_name_and_validated() {
+        let mut s = defaults();
+        assert_eq!(get(&s, "render_scale").unwrap(), "render_scale = 100");
+        assert_eq!(get(&s, "upscaler").unwrap(), "upscaler = fsr1");
+        assert_eq!(get(&s, "upscale_sharpness").unwrap(), "upscale_sharpness = 80");
+        assert_eq!(set(&mut s, "render_scale", "67%").unwrap(), "render_scale = 67");
+        assert_eq!(set(&mut s, "upscaler", "bilinear").unwrap(), "upscaler = bilinear");
+        assert_eq!(set(&mut s, "upscale_sharpness", "25").unwrap(), "upscale_sharpness = 25");
+        let before = s;
+        assert!(set(&mut s, "render_scale", "10").is_err());
+        assert!(set(&mut s, "upscaler", "xess").is_err());
+        assert!(set(&mut s, "upscale_sharpness", "101").is_err());
+        assert_eq!(s, before);
+        assert_eq!(set(&mut s, "render_scale", "").unwrap_err(), "usage: set render_scale <50-200> (now 67)");
+    }
+
+    #[test]
+    fn a_preset_sets_its_keys_and_changing_one_makes_it_custom() {
+        let mut s = defaults();
+        assert_eq!(get(&s, "graphics_preset").unwrap(), "graphics_preset = custom");
+        assert_eq!(set(&mut s, "graphics_preset", "low").unwrap(), "graphics_preset = low");
+        assert_eq!(get(&s, "car_shading").unwrap(), "car_shading = simple");
+        assert_eq!(get(&s, "render_scale").unwrap(), "render_scale = 75");
+        assert_eq!(get(&s, "upscaler").unwrap(), "upscaler = bilinear");
+        assert_eq!(set(&mut s, "post_bloom", "low").unwrap(), "post_bloom = low");
+        assert_eq!(get(&s, "graphics_preset").unwrap(), "graphics_preset = custom");
+        assert_eq!(get(&s, "car_shading").unwrap(), "car_shading = simple", "the rest stays");
+        assert!(set(&mut s, "graphics_preset", "extreme").is_err());
+        assert_eq!(
+            set(&mut s, "graphics_preset", "").unwrap_err(),
+            "usage: set graphics_preset <custom|low|medium|high|ultra> (now custom)"
+        );
+        assert_eq!(set(&mut s, "car_shading", "glossy").unwrap(), "car_shading = glossy");
     }
 
     #[test]

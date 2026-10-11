@@ -146,6 +146,11 @@ impl PropWorld {
         self.knocked.contains_key(&id)
     }
 
+    /// The scenery name of prop `id`, for the log.
+    pub fn name(&self, id: u32) -> Option<&str> {
+        self.colliders.get(&id).map(|c| c.shape.name.as_str())
+    }
+
     /// Knock a prop over; it comes back after [`REGENERATE_AFTER`] seconds.
     pub fn knock(&mut self, id: u32) {
         self.knocked.insert(id, REGENERATE_AFTER);

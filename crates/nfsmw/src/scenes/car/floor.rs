@@ -1,11 +1,11 @@
 //! A plain floor under the car, so the wheels have something to stand on.
 
-use blackbox_render::{BlendMode, DrawRange, MeshDesc, MeshHandle, Renderer, Shading, Vertex};
+use blackbox_gfx::{BlendMode, DrawRange, MeshDesc, MeshHandle, RenderBackend, Shading, Vertex};
 
 /// Half the floor's side, metres.
 const HALF_SIZE: f32 = 6.0;
 
-pub fn upload(renderer: &mut Renderer) -> MeshHandle {
+pub fn upload(renderer: &mut dyn RenderBackend) -> MeshHandle {
     let corner = |x: f32, y: f32| Vertex {
         position: [x * HALF_SIZE, y * HALF_SIZE, 0.0],
         normal: [0.0, 0.0, 1.0],

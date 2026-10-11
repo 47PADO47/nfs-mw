@@ -5,14 +5,17 @@
 pub mod dump;
 mod factory;
 mod flow;
+mod graphics_options;
 mod icon_menu;
 mod ids;
 pub(crate) mod input_options;
 mod logic;
 mod options;
 mod plugin;
+pub(crate) mod post_options;
 mod prompt_layout;
 mod prompts;
+mod renderer_options;
 mod scene;
 mod screens;
 mod script;
@@ -20,6 +23,8 @@ mod scroller;
 mod splash;
 mod widget_menu;
 
+#[cfg(test)]
+mod capability_tests;
 #[cfg(test)]
 mod disabled_rows_tests;
 #[cfg(test)]
@@ -30,6 +35,8 @@ mod hud_layout_tests;
 mod radio_hud_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod upscale_tests;
 #[cfg(test)]
 mod vehicle_effects_tests;
 

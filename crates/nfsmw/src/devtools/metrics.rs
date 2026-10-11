@@ -115,9 +115,10 @@ pub fn collect(
 ) {
     metrics.push(time.delta_secs());
     let Some(renderer) = host.renderer.as_ref() else { return };
-    (metrics.meshes, metrics.textures) = renderer.resource_counts();
+    let stats = renderer.stats();
+    (metrics.meshes, metrics.textures) = (stats.meshes, stats.textures);
     if metrics.adapter.is_empty() {
-        metrics.adapter = renderer.adapter_summary();
+        metrics.adapter = renderer.info().summary();
     }
     metrics.status = host.scene.status().unwrap_or_default();
     metrics.hud = match settings.show_readout {

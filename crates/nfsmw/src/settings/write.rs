@@ -45,6 +45,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.backend {
         put("backend", Value::String(v.to_string()));
     }
+    if let Some(v) = changes.renderer {
+        put("renderer", Value::String(v.to_string()));
+    }
     if let Some(v) = changes.vsync {
         put("vsync", Value::Boolean(v));
     }
@@ -105,8 +108,17 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.exhaust_flames {
         put("exhaust_flames", Value::Boolean(v));
     }
+    if let Some(v) = changes.graphics_preset {
+        put("graphics_preset", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.car_shading {
+        put("car_shading", Value::String(v.to_string()));
+    }
     if let Some(v) = changes.smoke_quality {
         put("smoke_quality", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.camera_mode {
+        put("camera_mode", Value::String(v.to_string()));
     }
     if let Some(v) = changes.transmission {
         put("transmission", Value::String(v.to_string()));
@@ -119,6 +131,45 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     }
     if let Some(v) = changes.radio_hud {
         put("radio_hud", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.post_tonemap {
+        put("post_tonemap", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.post_bloom {
+        put("post_bloom", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.visual_treatment {
+        put("visual_treatment", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.reflections {
+        put("reflections", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.ao {
+        put("ao", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.ao_intensity {
+        put("ao_intensity", Value::Integer(i64::from(v.0)));
+    }
+    if let Some(v) = changes.ao_compare {
+        put("ao_compare", Value::Boolean(v));
+    }
+    if let Some(v) = changes.post_aa {
+        put("post_aa", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.render_scale {
+        put("render_scale", Value::Integer(i64::from(v.percent())));
+    }
+    if let Some(v) = changes.upscaler {
+        put("upscaler", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.upscale_sharpness {
+        put("upscale_sharpness", Value::Integer(i64::from(v.0)));
+    }
+    if let Some(v) = changes.upscale_quality {
+        put("upscale_quality", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.ray_tracing {
+        put("ray_tracing", Value::String(v.to_string()));
     }
     if let Some(v) = changes.paddle_up {
         put("paddle_up", Value::Integer(i64::from(v)));
@@ -167,6 +218,24 @@ mod tests {
             ..Partial::default()
         };
         assert_eq!(file::parse(&merge("", &changes).unwrap(), "test"), changes);
+    }
+
+    #[test]
+    fn ambient_occlusion_round_trips_and_higher_layers_override_it() {
+        use crate::settings::AoQuality;
+        let changes = Partial {
+            ao: Some(AoQuality::High),
+            ao_intensity: Some(Percent(60)),
+            ao_compare: Some(true),
+            ..Default::default()
+        };
+        let text = merge("future_option = 42", &changes).unwrap();
+        assert!(text.contains("future_option = 42"));
+        let saved = file::parse(&text, "test");
+        assert_eq!(saved, changes);
+        let override_layer = Partial { ao: Some(AoQuality::Off), ao_compare: Some(false), ..Default::default() };
+        let s = super::super::Settings::from(override_layer.or(saved));
+        assert_eq!((s.ao, s.ao_intensity, s.ao_compare), (AoQuality::Off, Percent(60), false));
     }
 
     #[test]

@@ -2,9 +2,7 @@
 
 The Rust rewrite reads every asset from the user's own install at runtime and ships no game data. This
 page covers how the workspace is split, how the install is found, how the city streams, the graphics
-backends, multi-platform support and testing. The structure follows
-[vladtrc/iw4L](https://github.com/vladtrc/iw4L) ([research.md § 8](research.md#8-reference-projects-for-the-rust-rewrite)),
-scaled down.
+backends, multi-platform support and testing. The structure follows [vladtrc/iw4L](https://github.com/vladtrc/iw4L) ([research.md § 8](research.md#8-reference-projects-for-the-rust-rewrite)), scaled down.
 
 ## Two halves: `libs/` and `crates/`
 
@@ -38,7 +36,12 @@ scaled down.
 | [`blackbox-movie`](../libs/blackbox-movie) | EA VP6 movies (`.vp6`): demuxer and video decoder (the MIT `nihav-vp6`); no audio yet | — |
 | [`blackbox-particles`](../libs/blackbox-particles) | Particle emitters: spawn and update rules (cone spray, drag, gravity, keyed size, angle and colour curves) as a deterministic simulation that yields sprites | — |
 | [`blackbox-vehicle`](../libs/blackbox-vehicle) | Deterministic fixed-step vehicle physics: rigid body, engine and gearbox, suspension, tires, steering, aero; driven by plain parameter structs and a `Ground` ray-cast trait | — (parameters passed by the caller) |
-| [`blackbox-render`](../libs/blackbox-render) | Backend-neutral renderer (wgpu inside) | — |
+| [`blackbox-gfx`](../libs/blackbox-gfx) | The renderer-neutral graphics interface: shared types, the `RenderBackend` trait, capabilities, graphics settings and the pure `resolve` | — |
+| [`blackbox-gfx-testkit`](../libs/blackbox-gfx-testkit) | Test support for any renderer: procedural scenes, image metrics and digests (no game data, no GPU API) | — |
+| [`blackbox-gpu-passes`](../libs/blackbox-gpu-passes) | Reusable wgpu passes (UI layer, world effects, soft particles, fullscreen filter, FSR 1) that any render loop can call with its own encoder | — |
+| [`blackbox-render`](../libs/blackbox-render) | Backend-neutral renderer (wgpu inside); implements the `blackbox-gfx` types and `RenderBackend`; headless mode | — |
+| [`blackbox-bevy-render`](../libs/blackbox-bevy-render) | Optional Bevy 0.20 renderer implementing `RenderBackend` as plugins of the game's `App` (world path only so far, [bevy-backend.md](bevy-backend.md)); a leaf crate behind the `renderer-bevy` feature | Bevy render crates |
+| [`fsr3-wgpu`](../libs/fsr3-wgpu) | AMD FidelityFX Super Resolution 3.1 temporal upscaler in WGSL for wgpu (fp32, no subgroup operations); standalone, not used by a renderer yet | — |
 | [`blackbox-scene`](../libs/blackbox-scene) | Uploading solids and textures to the renderer; boxes; frustum culling | — |
 | [`game-install`](../libs/game-install) | Finding, validating and reading an install, case-insensitively | driven by a `GameSpec` |
 
@@ -53,10 +56,9 @@ scaled down.
 Rules that keep this structure working:
 
 - **Format crates take `&[u8]` and never open files.** Only `game-install` touches the install.
-- **The renderer has no game knowledge**, and its API has no wgpu types, so the implementation behind it
-  can change (for example to Bevy's renderer) without touching callers.
-- **Files stay small:** no source or doc file over 500 lines (`cargo xtask size-check`). Split by domain
-  into folders and modules, with one struct or concern per file.
+- **The renderer has no game knowledge**, and its API has no wgpu types, so the implementation behind it can change (for example to Bevy's renderer) without touching callers.
+- **`libs/` stays Bevy-free, with one exception** ([ADR 0004](decisions/0004-swappable-renderers.md)): Bevy-based renderer backend crates (for example `blackbox-bevy-render`) are allowed in `libs/` as optional leaf crates that nothing else depends on. Callers use the renderer-neutral `blackbox-gfx` interface only.
+- **Files stay small:** no source or doc file over 500 lines (`cargo xtask size-check`). Split by domain into folders and modules, with one struct or concern per file.
 - **Game rules live in their own pure crates** (physics in `blackbox-vehicle`, AI to come), built spec-first ([licensing.md](licensing.md#spec-first)). `blackbox-vehicle` takes no I/O and no collision dependency: the game fills its parameter structs from AttribSys and gives it a `Ground` over the collision world.
 
 ## Finding the install
@@ -81,7 +83,7 @@ Linux. `nfsmw check-install` shows what was found.
 
 `nfsmw` is a Bevy app ([decision](decisions/0001-bevy.md)): `bevy_app` and `bevy_ecs` for the schedule and
 resources, `bevy_winit` for the window and loop, `bevy_input` and `bevy_gilrs` for devices. Bevy's renderer
-is not used: `blackbox-render` draws the frame, from one system, in `app/render.rs` (the render bridge).
+is not used: a `blackbox-gfx` `RenderBackend` (`blackbox-render` by default) draws the frame, from one system, in `app/render/` (the render bridge).
 
 ```
 bevy_winit window ─► PreUpdate: input/ resolves devices into actions (ActionState)
@@ -106,16 +108,13 @@ bevy_winit window ─► PreUpdate: input/ resolves devices into actions (Action
   full-range pedal axes, `gear_*` actions (H-shifter) and an optional `clutch` pedal cover it
   ([controls](controller-settings.md)); only synthetic tests ran, no real wheel was tried.
 - **Cursor:** mouse-look scenes capture the cursor; the first Esc (or Start) releases it, the next quits.
-- **Errors** from systems (no GPU, a failed present) are stored and returned from `main`; the app exits with
-  an error code.
+- **Errors** from systems (no GPU, a failed present) are stored and returned from `main`; the app exits with an error code.
 
 ## Developer tools
 
 - **UI layer.** `blackbox-render` draws a 2D layer over the scene: textured, clipped, premultiplied-alpha
-  triangles (`UiLayer`, `UiTexturePatch`). It knows nothing about egui; the HUD and the front-end menus
-  draw through the same layer.
-- **egui host** (`gui/`): turns Bevy keyboard, mouse and wheel messages into egui events and egui's output
-  into that layer. The panels only see an `egui::Context`.
+  triangles (`UiLayer`, `UiTexturePatch`). It knows nothing about egui; the HUD and the front-end menus draw through the same layer.
+- **egui host** (`gui/`): turns Bevy keyboard, mouse and wheel messages into egui events and egui's output into that layer. The panels only see an `egui::Context`.
 - **Metrics** (`devtools/`): `Metrics` is plain data (240 frame times, GPU name, mesh and texture counts).
   `--show-metrics basic` draws fps and frame time; `advanced` adds the 1% low, worst frame, a frame-time graph
   with a 60 fps line, resource counts and the scene status.
@@ -148,10 +147,8 @@ bevy_winit window ─► PreUpdate: input/ resolves devices into actions (Action
 Runtime options resolve in layers, highest first ([`crates/nfsmw/src/settings/`](../crates/nfsmw/src/settings)):
 
 1. the command line (`--backend`, `--no-vsync`, `--max-fps`, `--show-metrics`, `--show-readout`);
-2. environment variables (`NFSMW_BACKEND`, `NFSMW_VSYNC`, `NFSMW_MAX_FPS`, `NFSMW_SHOW_METRICS`,
-   `NFSMW_SHOW_READOUT`);
-3. the per-user config file (`backend`, `vsync`, `max_fps`, `show_metrics`, `show_readout`, `radio`; the same file as
-   `game_dir`);
+2. environment variables (`NFSMW_BACKEND`, `NFSMW_VSYNC`, `NFSMW_MAX_FPS`, `NFSMW_SHOW_METRICS`, `NFSMW_SHOW_READOUT`);
+3. the per-user config file (`backend`, `vsync`, `max_fps`, `show_metrics`, `show_readout`, `radio`; the same file as `game_dir`);
 4. the defaults (`auto`, vsync on, unlocked, overlay off, readout minimal).
 
 Gameplay keys: `hud`, `transmission` (`--transmission automatic|manual`, `NFSMW_TRANSMISSION`; automatic by default,
@@ -205,7 +202,7 @@ TRACKS/STREAML2RA.BUN ─► loader threads (nfsmw-data::world::Streamer)
   with the fog-free sky shading. Texture animations (water, signals) advance every frame. Depth is reverse-Z with an infinite far plane, so the 9.7 km dome is never clipped.
 - **Shading:** world geometry is pre-lit (vertex colour × 2, no sun); blending follows each texture's
   `AlphaBlendType` ([textures.md](formats/textures.md#alpha)). Linear fog from half of `--fog-distance` to
-  all of it (default 3 km); placeholder until the game's fog is known.
+  all of it (default 3 km); placeholder until the game's fog is known. Cars use the renderer's glossy shading (`Shading::Glossy`): three directional lights (`set_lighting_rig`), a sun highlight and a reflection of an environment cube map (a generated sky unless `set_environment_faces` replaces it), with the constants of each part's light material ([specs/car-assembly.md §8](specs/car-assembly.md#8-the-car-shader)).
 - **Camera:** free-fly (WASD, Space/C, Shift, right-drag to look, scroll for speed). It starts above the
   centre of the city, or at `--at X,Y`, at `--height` metres above the ground; the ground is estimated from
   the scenery boxes until collision is loaded.
@@ -447,8 +444,11 @@ Select with `--backend <auto|vulkan|dx12|gl>`:
 | `dx12` | ✔ | — | wgpu | working |
 | `gl` | ✔ (WGL) | ✔ (EGL, X11/Wayland) | wgpu | working |
 
-Direct3D 11 is not offered: wgpu removed its D3D11 backend in 2023. Direct3D 12 and Vulkan cover the same
-hardware on Windows 10 and later, and OpenGL covers older GPUs.
+Direct3D 11 is not offered: wgpu removed its D3D11 backend in 2023. Direct3D 12 and Vulkan cover the same hardware on Windows 10 and later, and OpenGL covers older GPUs.
+
+## Render pipeline
+
+A frame in `blackbox-render` takes the cheapest path that gives the requested look. With no post effect, no upscaler and render scale 1.0 (the default) the scene draws straight into the surface next to a reverse-Z depth buffer, with no offscreen image and no copy. Otherwise it draws into an offscreen colour image plus the depth buffer at the internal render size (surface size × render scale, `set_render_scale`, 0.25 to 2.0), `Rgba16Float` only when bloom or tone mapping needs HDR and the surface's own format otherwise, and an ordered chain of fullscreen post-process passes reads that image (and the depth buffer, as a sampled texture) and ping-pongs through scratch images; the last pass writes the surface. The chain always ends with `resolve` (clamp, alpha 1; an exact copy at scale 1.0, bilinear otherwise); the optional bloom, tone mapping and FXAA passes sit at the front (`Renderer::set_post_effects`, all off by default, [post-processing.md](post-processing.md)) and upscalers insert before `resolve` (FSR 1 and the bilinear fallback: [upscaling.md](upscaling.md)). The UI layer draws last at surface resolution, so it is never post-processed or upscaled, and `--screenshot` captures the final image. Pipelines and the glossy car shader's resources are built on first use; the cost of each setting is in [low-end.md](low-end.md).
 
 ## Multi-platform
 
@@ -475,7 +475,7 @@ Unit tests, real-install tests and the guard rails are described in [testing.md]
  | 5 | Vehicle physics, spec-first (`docs/specs/vehicle-*.md`); world collision (`CarpWCollisionPack`); drive a car with the original HUD: read the FEng HUD packages (`HUD_*.fng` in `InGameB.bun`) and draw them with the UI layer; steering wheel controller support (wheel axes, pedals, shifters) on the input layer from 4 |  in progress: `blackbox-vehicle`, the collision reader, input actions, `view-world --drive` (placing, chase camera, one-sided walls, props, reset and fall recovery, scripted runs), manual shifting (Q/E, pad bumpers and wheel paddle buttons, with a transmission setting and an options row), the original HUD (speedometer, tachometer with its red zone and shift light, gear, nitrous bar, turbo dial, minimap; the rest of the package waits for the race and pursuit state of milestone 7), the `--show-readout` levels and the `debug collisions` command are in; steering wheel support (pedal axes, paddles, direct gears for an H-shifter and an optional clutch pedal are in; hardware testing on a real wheel is open); controller testing on real hardware and calibration against the original are done ([Driving](#driving-view-world---drive), [The HUD](#the-hud)) |
  | 6 | Audio (EA-XA, EA-XAS engine loops, MicroTalk speech), VP6 movies, FEng menus (the same FEng runtime as the HUD), in-game settings menu | in progress: the codecs, banks, music and movie decoders, Ginsu synthesis, the car sound data, the engine and effects mixers, the dynamic mixer maps, the sample (AEMS) layer of the engine and the sputters, the output device, the driven car's engine and effects, a movie player and the radio (licensed songs, gapless, play lists, pause and previous/next keys, a HUD card; not yet heard by a human) are in, and so are the front end (boot movies, title screen, main menu, option screens for audio, video and gameplay, the pause menu, free roam) and the settings written to the config file; speech (the queue and the 28 phrases with banks of their own; no sentences, no triggers) and the pursuit music (four sets steered by game state, the hooks waiting for milestone 7; not yet heard) are in, and the ambience music is open; and so is the playtest report that the engine sounds muted at the rev limiter was fixed by [PR 5](https://github.com/47PADO47/nfs-mw/pull/5); `RUST_LOG=nfsmw::audio=debug` logs the limiter ([Sound](#sound), [The front end](#the-front-end)) |
 | 7 | AI racers, traffic, pursuit, races; career data; console commands to spawn AI | |
-| 8 | Graphics: the car shader and lighting rig, tire smoke and skid marks (`blackbox-vehicle` already reports per-wheel `skid` and `smoke`; this draws them), exhaust flames (nitrous, gear-change blow-off and a lift-off backfire on the sputter pops; [guide](exhaust-flames.md), [spec](specs/exhaust-flames.md)), post-processing, upscaling (FSR; DLSS where the backend allows it), ReShade compatibility, Bevy Solari | |
+| 8 | Graphics: the car shader and lighting rig, tire smoke and skid marks (`blackbox-vehicle` already reports per-wheel `skid` and `smoke`; this draws them), exhaust flames (nitrous, gear-change blow-off and a lift-off backfire on the sputter pops; [guide](exhaust-flames.md), [spec](specs/exhaust-flames.md)), post-processing, upscaling (FSR; DLSS where the backend allows it), ReShade compatibility. Bevy Solari left milestone 8 for a later spike ([ADR 0003](decisions/0003-renderer-after-milestone-8.md)) | in progress: the offscreen HDR render pipeline with a render scale, the glossy car shader with a three-light rig and a procedural environment, optional bloom, tone mapping and FXAA, FSR 1 upscaling with a texture LOD bias, the settings and Video option rows for them, and the ReShade depth contract are in ([post-processing](post-processing.md), [upscaling](upscaling.md), [ReShade](reshade.md)); tire smoke and skid marks are in ([tire effects](tire-effects.md)); the DLSS seams (jitter, motion vectors) and the DLSS feature itself are open; swappable renderers (a Bevy backend with TAA, ray tracing, FSR 3 and DLSS behind a `blackbox-gfx` interface) are planned in [ADR 0004](decisions/0004-swappable-renderers.md) and the [plan](plans/gfx-renderers/README.md) |
 | 9 | Discord Rich Presence | |
 | 10 | Lan multiplayer | |
 | 11 | Online multiplayer | |

@@ -51,20 +51,23 @@ impl Renderer {
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some(desc.label),
-            layout: &self.shared.texture_layout,
+            layout: &self.shared.bindings.texture_layout,
             entries: &[
                 wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&view) },
-                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&self.shared.sampler) },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&self.shared.bindings.sampler),
+                },
             ],
         });
-        TextureHandle(self.textures.insert(bind_group))
+        TextureHandle::from_raw(self.textures.insert(bind_group))
     }
 
     /// Free a texture. Draws that still reference it fall back to white.
     pub fn destroy_texture(&mut self, handle: TextureHandle) {
-        if handle.0 != 0 {
-            self.textures.remove(handle.0);
-            self.redirects.retain(|&from, &mut to| from != handle.0 && to != handle.0);
+        if handle.raw() != 0 {
+            self.textures.remove(handle.raw());
+            self.redirects.retain(|&from, &mut to| from != handle.raw() && to != handle.raw());
         }
     }
 
@@ -73,10 +76,10 @@ impl Renderer {
     pub fn redirect_texture(&mut self, from: TextureHandle, to: Option<TextureHandle>) {
         match to {
             Some(to) if to != from => {
-                self.redirects.insert(from.0, to.0);
+                self.redirects.insert(from.raw(), to.raw());
             }
             _ => {
-                self.redirects.remove(&from.0);
+                self.redirects.remove(&from.raw());
             }
         }
     }

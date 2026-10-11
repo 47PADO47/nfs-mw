@@ -1,13 +1,15 @@
 //! State the app's systems share. It is `NonSend`: the renderer and the scene stay on the main thread.
 
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use bevy_ecs::resource::Resource;
-use blackbox_render::Renderer;
+use blackbox_gfx::{CaptureId, RenderBackend};
 
+use super::graphics::Applied;
 use super::pacing::FrameLimiter;
-use crate::settings::{Settings, SmokeQuality, Transmission, WheelOptions};
+use crate::settings::{CameraMode, CarShading, Settings, SmokeQuality, Transmission, WheelOptions};
 use crate::viewer::Scene;
 
 pub struct Host {
@@ -15,13 +17,19 @@ pub struct Host {
     /// Counts the scenes put in the window, so a scene's sound can be stopped when it goes.
     pub scene_changes: u32,
     pub screenshot: Option<super::screenshot::Plan>,
-    /// Created once the window exists.
-    pub renderer: Option<Renderer>,
+    /// Created once the window exists; the app only knows the trait, the factory is in [`super::render`].
+    pub renderer: Option<Box<dyn RenderBackend>>,
+    /// The graphics request the renderer has and what it made of it (downgrades, notes).
+    pub graphics: Applied,
+    /// A screenshot the renderer is still working on: its id, its file and whether it is the last of its plan.
+    pub pending_capture: Option<(CaptureId, PathBuf, bool)>,
     /// The window size the renderer was last resized to.
     pub size: (u32, u32),
     pub limiter: FrameLimiter,
     pub title_timer: Instant,
     pub frames: u32,
+    /// `--bench-seconds`: measures frame times and exits.
+    pub bench: Option<super::bench::Bench>,
     /// The front end uses Escape (pause, back), so Escape does not release the mouse or quit.
     pub cancel_handled: bool,
     /// The front end decides when a scene is over (a finished movie is not the end of the program).
@@ -30,11 +38,14 @@ pub struct Host {
     pub hold_capture: bool,
     tire_effects: [bool; 2],
     smoke_quality: SmokeQuality,
+    car_shading: CarShading,
     vehicle_effects: [bool; 2],
     spark_style: crate::settings::SparkStyle,
     exhaust_flames: bool,
     /// The transmission setting as of the last frame, given to every scene that is put in the window.
     pub transmission: Transmission,
+    /// The gameplay camera setting as of the last frame, given to every scene that is put in the window.
+    pub camera_mode: CameraMode,
     /// The wheel switches as of the last frame, given to every scene that is put in the window.
     pub wheel: WheelOptions,
 }
@@ -43,6 +54,7 @@ impl Host {
     pub fn new(mut scene: Box<dyn Scene>, settings: &Settings, screenshot: Option<super::screenshot::Plan>) -> Self {
         scene.set_tire_effects(settings.tire_smoke, settings.skid_marks);
         scene.set_smoke_quality(settings.smoke_quality);
+        scene.set_car_shading(settings.car_shading);
         scene.set_vehicle_effects(settings.collision_sparks, settings.speed_trails);
         scene.set_spark_style(settings.spark_style);
         scene.set_exhaust_flames(settings.exhaust_flames);
@@ -51,21 +63,32 @@ impl Host {
             scene_changes: 0,
             screenshot,
             renderer: None,
+            graphics: Applied::default(),
+            pending_capture: None,
             size: (0, 0),
             limiter: FrameLimiter::new(settings.max_fps),
             title_timer: Instant::now(),
             frames: 0,
+            bench: None,
             cancel_handled: false,
             flow_driven: false,
             hold_capture: false,
             tire_effects: [settings.tire_smoke, settings.skid_marks],
             smoke_quality: settings.smoke_quality,
+            car_shading: settings.car_shading,
             vehicle_effects: [settings.collision_sparks, settings.speed_trails],
             spark_style: settings.spark_style,
             exhaust_flames: settings.exhaust_flames,
             transmission: settings.transmission,
+            camera_mode: settings.camera_mode,
             wheel: settings.wheel_options(),
         }
+    }
+
+    /// Measure frame times for `seconds` and exit (`--bench-seconds`).
+    pub fn with_bench(mut self, seconds: Option<f32>) -> Self {
+        self.bench = seconds.map(super::bench::Bench::new);
+        self
     }
 
     /// Puts another scene in the window: it is initialised with the renderer, and in a screenshot run it is given
@@ -73,19 +96,30 @@ impl Host {
     pub fn replace_scene(&mut self, mut scene: Box<dyn Scene>) -> anyhow::Result<()> {
         scene.set_tire_effects(self.tire_effects[0], self.tire_effects[1]);
         scene.set_smoke_quality(self.smoke_quality);
+        scene.set_car_shading(self.car_shading);
         scene.set_vehicle_effects(self.vehicle_effects[0], self.vehicle_effects[1]);
         scene.set_spark_style(self.spark_style);
         scene.set_exhaust_flames(self.exhaust_flames);
         let renderer = self.renderer.as_mut().ok_or_else(|| anyhow::anyhow!("the renderer is not ready"))?;
-        scene.init(renderer)?;
+        renderer.set_colour_treatment(None, None);
+        // A local environment belongs to the old scene; menus and viewers must not inherit its capture.
+        renderer.set_reflection_scene(None);
+        scene.init(renderer.as_mut())?;
         scene.set_transmission(self.transmission);
+        scene.set_camera_mode(self.camera_mode);
         scene.set_wheel_options(self.wheel);
         if self.screenshot.is_some() {
-            super::screenshot::wait_ready(scene.as_mut(), renderer);
+            super::screenshot::wait_ready(scene.as_mut(), renderer.as_mut());
         }
         self.scene = scene;
         self.scene_changes += 1;
         Ok(())
+    }
+
+    /// Give the renderer the graphics settings (once per change).
+    pub fn apply_graphics(&mut self, settings: &Settings) {
+        let Some(renderer) = self.renderer.as_mut() else { return };
+        self.graphics.apply(renderer.as_mut(), settings);
     }
 
     pub fn set_tire_effects(&mut self, smoke: bool, marks: bool) {
@@ -96,6 +130,11 @@ impl Host {
     pub fn set_smoke_quality(&mut self, quality: SmokeQuality) {
         self.smoke_quality = quality;
         self.scene.set_smoke_quality(quality);
+    }
+
+    pub fn set_car_shading(&mut self, shading: CarShading) {
+        self.car_shading = shading;
+        self.scene.set_car_shading(shading);
     }
 
     pub fn set_spark_style(&mut self, style: crate::settings::SparkStyle) {

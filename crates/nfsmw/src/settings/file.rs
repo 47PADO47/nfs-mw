@@ -9,8 +9,13 @@ use std::str::FromStr;
 use toml::{Table, Value};
 
 use super::partial::{Partial, Percent};
-use super::{Deadzone, HudLayout, MinimapMode, RadioHudStyle, Sensitivity, Transmission};
-use super::{Monitor, Resolution, SmokeQuality, WindowMode};
+use super::{
+    CameraMode, CarShading, Deadzone, GraphicsPreset, HudLayout, MinimapMode, RadioHudStyle, Sensitivity, Transmission,
+};
+use super::{
+    Monitor, PostAa, PostBloom, PostTonemap, RayTracingLevel, RenderScale, RendererKind, Resolution, SmokeQuality,
+    UpscaleMode, UpscaleQuality, WindowMode,
+};
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
 
@@ -57,6 +62,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         }),
         invert_camera_y: field(&table, origin, "invert_camera_y", boolean),
         backend: field(&table, origin, "backend", |v| text_of(v)?.parse().map_err(|e| format!("{e}"))),
+        renderer: field(&table, origin, "renderer", |v| RendererKind::from_str(text_of(v)?)),
         vsync: field(&table, origin, "vsync", |v| v.as_bool().ok_or_else(|| "expected true or false".to_owned())),
         max_fps: field(&table, origin, "max_fps", |v| match v {
             Value::Integer(n) => MaxFps::from_str(&n.to_string()),
@@ -79,6 +85,8 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         tire_smoke: field(&table, origin, "tire_smoke", boolean),
         radio: field(&table, origin, "radio", boolean),
         skip_intro: field(&table, origin, "skip_intro", boolean),
+        graphics_preset: field(&table, origin, "graphics_preset", |v| GraphicsPreset::from_str(text_of(v)?)),
+        car_shading: field(&table, origin, "car_shading", |v| CarShading::from_str(text_of(v)?)),
         smoke_quality: field(&table, origin, "smoke_quality", |v| SmokeQuality::from_str(text_of(v)?)),
         skid_marks: field(&table, origin, "skid_marks", boolean),
         collision_sparks: field(&table, origin, "collision_sparks", boolean),
@@ -86,9 +94,27 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         speed_trails: field(&table, origin, "speed_trails", boolean),
         exhaust_flames: field(&table, origin, "exhaust_flames", boolean),
         transmission: field(&table, origin, "transmission", |v| Transmission::from_str(text_of(v)?)),
+        camera_mode: field(&table, origin, "camera_mode", |v| CameraMode::from_str(text_of(v)?)),
         minimap: field(&table, origin, "minimap", |v| MinimapMode::from_str(text_of(v)?)),
         hud_layout: field(&table, origin, "hud_layout", |v| HudLayout::from_str(text_of(v)?)),
         radio_hud: field(&table, origin, "radio_hud", |v| RadioHudStyle::from_str(text_of(v)?)),
+        post_tonemap: field(&table, origin, "post_tonemap", |v| PostTonemap::from_str(text_of(v)?)),
+        post_bloom: field(&table, origin, "post_bloom", |v| PostBloom::from_str(text_of(v)?)),
+        visual_treatment: field(&table, origin, "visual_treatment", |v| super::VisualTreatment::from_str(text_of(v)?)),
+        post_aa: field(&table, origin, "post_aa", |v| PostAa::from_str(text_of(v)?)),
+        reflections: field(&table, origin, "reflections", |v| super::ReflectionQuality::from_str(text_of(v)?)),
+        ao: field(&table, origin, "ao", |v| super::AoQuality::from_str(text_of(v)?)),
+        ao_intensity: field(&table, origin, "ao_intensity", percent),
+        ao_compare: field(&table, origin, "ao_compare", boolean),
+        render_scale: field(&table, origin, "render_scale", |v| match v {
+            Value::Integer(n) => RenderScale::from_str(&n.to_string()),
+            Value::Float(f) => RenderScale::from_str(&format!("{f:?}")),
+            other => RenderScale::from_str(text_of(other)?),
+        }),
+        upscaler: field(&table, origin, "upscaler", |v| UpscaleMode::from_str(text_of(v)?)),
+        upscale_sharpness: field(&table, origin, "upscale_sharpness", percent),
+        upscale_quality: field(&table, origin, "upscale_quality", |v| UpscaleQuality::from_str(text_of(v)?)),
+        ray_tracing: field(&table, origin, "ray_tracing", |v| RayTracingLevel::from_str(text_of(v)?)),
         paddle_up: field(&table, origin, "paddle_up", button_code),
         paddle_down: field(&table, origin, "paddle_down", button_code),
         manual_clutch: field(&table, origin, "manual_clutch", boolean),
@@ -126,14 +152,14 @@ fn text_of(v: &Value) -> Result<&str, String> {
 
 #[cfg(test)]
 mod tests {
-    use blackbox_render::Backend;
+    use blackbox_gfx::GraphicsApi;
 
     use super::*;
 
     #[test]
     fn reads_values_and_leaves_game_dir_alone() {
         let p = parse("game_dir = 'D:/NFS'\nbackend = 'vulkan'\nvsync = false\nmax_fps = 144\n", "test");
-        assert_eq!(p.backend, Some(Backend::Vulkan));
+        assert_eq!(p.backend, Some(GraphicsApi::Vulkan));
         assert_eq!(p.vsync, Some(false));
         assert_eq!(p.max_fps, Some(MaxFps::from_str("144").unwrap()));
         assert_eq!(parse("max_fps = 'unlocked'", "test").max_fps, Some(MaxFps::default()));

@@ -11,6 +11,10 @@ use super::tables::CarTables;
 /// needs no more than a few texels).
 const PAINT_TEXTURE_SIZE: u32 = 4;
 
+/// Name hash of `CARSKIN`, the light material the body groups name; drawing swaps it for the
+/// paint's own material (`Paint::light_material`).
+pub const CARSKIN: u32 = bstring_hash("CARSKIN");
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Paint {
     /// Part name, e.g. `METAL_L1_COLOR02`.
@@ -64,4 +68,15 @@ impl Paint {
 /// The skin placeholders a skinnable car's body uses (`<CAR>_SKIN1`, `GLOBAL_SKIN1`).
 pub fn skin_placeholders(base_model_name: &str) -> [String; 2] {
     [format!("{base_model_name}_SKIN1"), "GLOBAL_SKIN1".to_owned()]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn carskin_is_the_hash_cars_name() {
+        // Seen in the solids of every car file as an unlisted light material (docs/specs/car-assembly.md §7).
+        assert_eq!(CARSKIN, 0xD6D6_080A);
+    }
 }

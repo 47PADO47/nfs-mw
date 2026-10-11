@@ -4,6 +4,7 @@ use std::fmt;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
 
+use bevy_app::AppExit;
 use bevy_ecs::prelude::*;
 use bevy_window::{PrimaryWindow, Window};
 
@@ -67,15 +68,25 @@ impl FrameLimiter {
 }
 
 /// Last system of the frame: refresh the title every second, then sleep to the frame-rate cap.
-pub fn end_of_frame(mut host: NonSendMut<Host>, mut window: Single<&mut Window, With<PrimaryWindow>>) {
+pub fn end_of_frame(
+    mut host: NonSendMut<Host>,
+    mut window: Single<&mut Window, With<PrimaryWindow>>,
+    mut exit: MessageWriter<AppExit>,
+) {
     let host = &mut *host;
     let Some(renderer) = host.renderer.as_ref() else { return };
+    let ready = host.scene.ready();
+    if let Some(report) = host.bench.as_mut().and_then(|bench| bench.frame(ready)) {
+        report.lines(renderer.info().renderer).iter().for_each(|line| println!("{line}"));
+        println!("bench: backend {}", renderer.info().summary());
+        exit.write(AppExit::Success);
+    }
     let elapsed = host.title_timer.elapsed().as_secs_f32();
     if elapsed >= 1.0 {
         let status = host.scene.status().map(|s| format!(" - {s}")).unwrap_or_default();
         let fps = host.frames as f32 / elapsed;
         log::debug!("{fps:.1} fps");
-        window.title = format!("{} - {} - {fps:.0} fps{status}", host.scene.title(), renderer.adapter_summary());
+        window.title = format!("{} - {} - {fps:.0} fps{status}", host.scene.title(), renderer.info().summary());
         (host.title_timer, host.frames) = (Instant::now(), 0);
     }
     host.limiter.wait();

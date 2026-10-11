@@ -1,6 +1,6 @@
 //! The car viewer's console commands: `car`, `garage` and `freecam`.
 
-use blackbox_render::Renderer;
+use blackbox_gfx::RenderBackend;
 
 use super::CarScene;
 use crate::viewer::camera::FlyCamera;
@@ -16,7 +16,7 @@ const FREE_SPEED: f32 = 4.0;
 
 pub(super) fn run(
     scene: &mut CarScene,
-    renderer: &mut Renderer,
+    renderer: &mut dyn RenderBackend,
     name: &str,
     args: &[&str],
 ) -> Option<Result<String, String>> {
@@ -34,7 +34,7 @@ fn list(scene: &CarScene) -> Result<String, String> {
     Ok(nfsmw_data::car::list(&source.dir).join("  "))
 }
 
-fn switch(scene: &mut CarScene, renderer: &mut Renderer, folder: &str) -> Result<String, String> {
+fn switch(scene: &mut CarScene, renderer: &mut dyn RenderBackend, folder: &str) -> Result<String, String> {
     let source = scene.source.as_ref().ok_or("this viewer cannot load other cars")?;
     let cars = nfsmw_data::car::list(&source.dir);
     let found = nfsmw_data::car::pick_folder(&cars, folder)
@@ -46,6 +46,7 @@ fn switch(scene: &mut CarScene, renderer: &mut Renderer, folder: &str) -> Result
 
 /// Orbit to free: start where the orbit camera is, looking at the car.
 fn toggle_free(scene: &mut CarScene) -> String {
+    scene.cut.arm();
     if scene.free.take().is_some() {
         return "orbit camera".into();
     }

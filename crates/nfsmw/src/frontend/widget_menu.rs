@@ -65,7 +65,7 @@ impl WidgetMenu {
         let on_screen = if args.pause { ROWS_ON_SCREEN_PAUSED } else { ROWS_ON_SCREEN };
         Self {
             args,
-            rows: options::rows(args.category),
+            rows: Vec::new(),
             objects: Vec::new(),
             layout: None,
             selected: 0,
@@ -159,11 +159,11 @@ impl WidgetMenu {
         for o in [r.base, r.fill].into_iter().flatten() {
             cx.rt.set_hidden(o, !slider);
         }
-        Self::dim(cx, r, row, row.setting.enabled(cx.settings));
+        Self::dim(cx, r, row, row.setting.enabled_in(cx.settings, &cx.caps));
         match control {
             Control::Toggle => {
                 let Some(data) = r.data else { return };
-                match row.setting.data(cx.settings) {
+                match row.setting.data_in(cx.settings, &cx.caps) {
                     Data::Label(label) => cx.rt.set_label(data, label),
                     Data::Text(text) => cx.rt.set_text(data, text),
                 }
@@ -241,7 +241,7 @@ impl WidgetMenu {
             return;
         }
         let Some(r) = self.objects.get(self.selected.saturating_sub(self.top)) else { return };
-        let alpha = if row.setting.enabled(cx.settings) { 255 } else { DISABLED_ALPHA };
+        let alpha = if row.setting.enabled_in(cx.settings, &cx.caps) { 255 } else { DISABLED_ALPHA };
         cx.rt.set_alpha(r.name, alpha);
     }
 
@@ -267,7 +267,7 @@ impl WidgetMenu {
         if self.leaving {
             return;
         }
-        row.setting.step(cx.settings, cx.changed, forward);
+        row.setting.advance(cx.settings, cx.changed, forward, &cx.caps);
         self.draw_visible(cx);
     }
 
@@ -296,6 +296,7 @@ const CURSOR: u32 = 0x0674_5352;
 
 impl ScreenLogic for WidgetMenu {
     fn start(&mut self, cx: &mut Cx) {
+        self.rows = options::rows(self.args.category, &cx.caps);
         self.find_rows(cx);
         // Packages supply reusable screen slots, not one object for every logical setting.
         self.on_screen = self.on_screen.min(self.objects.len());
@@ -349,7 +350,7 @@ impl ScreenLogic for WidgetMenu {
                 self.draw_slider(cx, r, f32::from(percent) / 100.0);
             }
             // The package's scripts reset the title's alpha, so a disabled row is dimmed every frame.
-            if !row.setting.enabled(cx.settings) {
+            if !row.setting.enabled_in(cx.settings, &cx.caps) {
                 Self::dim(cx, r, row, false);
             }
         }
@@ -405,6 +406,7 @@ mod tests {
                 assets: &assets,
                 settings: &mut settings,
                 changed: &mut changed,
+                caps: crate::settings::test_caps::native(),
                 commands: &mut commands,
                 memory: &mut memory,
                 name,

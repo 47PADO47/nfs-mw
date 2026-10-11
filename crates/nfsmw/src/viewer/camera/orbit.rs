@@ -1,8 +1,8 @@
 //! Orbit camera for model viewing: left-drag rotates, scroll zooms.
 
-use glam::{Mat4, Vec3};
+use glam::Vec3;
 
-use super::{direction, view_proj};
+use super::{Camera, Lens, direction};
 use crate::input::{Action, ActionState};
 
 pub struct OrbitCamera {
@@ -23,8 +23,15 @@ impl OrbitCamera {
         self.target + direction(self.yaw, self.pitch) * self.distance
     }
 
-    pub fn view_proj(&self, aspect: f32) -> Mat4 {
-        let near = (self.distance * 0.01).max(0.01);
-        view_proj(self.eye(), self.target, 55.0, aspect, near)
+    const FOV_Y_DEGREES: f32 = 55.0;
+
+    fn near(&self) -> f32 {
+        (self.distance * 0.01).max(0.01)
+    }
+}
+
+impl Camera for OrbitCamera {
+    fn lens(&self, aspect: f32) -> Lens {
+        Lens::look_at(self.eye(), self.target, Self::FOV_Y_DEGREES, self.near(), aspect)
     }
 }

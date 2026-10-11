@@ -2,21 +2,26 @@
 
 mod commands;
 mod drive;
+mod drive_input;
 mod effects;
 mod exhaust;
 mod ground;
+mod keys;
 mod props;
+mod reflections;
 mod residency;
 mod resident;
 mod road;
 mod space;
 mod start;
+mod sun;
 mod vehicle_effects;
 mod visibility;
 mod zone;
 
 use anyhow::{Context, Result};
-use blackbox_render::{FrameParams, Instance, Renderer};
+use blackbox_gfx::Fog;
+use blackbox_gfx::{FrameParams, Instance, RenderBackend};
 use game_install::GameDir;
 use glam::Vec3;
 use nfsmw_data::car::CarModel;
@@ -24,7 +29,9 @@ use nfsmw_data::car::physics::PhysicsData;
 use nfsmw_data::world::{DEFAULT_TRACK, PropCatalog, Streamer, WorldIndex, load_global_textures};
 
 use crate::input::{Action, ActionState};
-use crate::viewer::{Scene, camera::FlyCamera};
+use crate::settings::CameraMode;
+use crate::viewer::Scene;
+use crate::viewer::camera::{Camera, CameraCut, DynamicFov, FlyCamera};
 use drive::{Drive, DriveScript, MarkerMeshes};
 use residency::Residency;
 
@@ -76,6 +83,10 @@ pub struct WorldScene {
     wait_for_load: bool,
     fog_distance: f32,
     visible: Vec<Instance>,
+    colour_treatment: Option<blackbox_gfx::ColourTreatment>,
+    gain_map: Option<blackbox_gfx::RgbaImage>,
+    reflection_faces: [Vec<Instance>; 6],
+    reflection_last: Option<reflections::CaptureStamp>,
     /// Seconds since the scene started, for texture animations.
     clock: f32,
     view: View,
@@ -90,16 +101,22 @@ pub struct WorldScene {
     exhaust_flames: bool,
     spark_style: crate::settings::SparkStyle,
     smoke_quality: crate::settings::SmokeQuality,
+    car_shading: crate::settings::CarShading,
     /// `debug collisions` is on: the car's contact points are drawn.
     markers_on: bool,
     /// The meshes of the contact markers, uploaded the first time they are asked for.
     marker_meshes: Option<MarkerMeshes>,
+    /// The free camera jumped (a new scene, the camera toggle, `goto`, the start settling on the ground).
+    cut: CameraCut,
+    /// The gameplay camera the setting picked; only used while driving.
+    camera_mode: CameraMode,
 }
 
 /// Leaving the free camera more than this far (metres) from the car brings the car to the camera.
 const FLOWN_AWAY: f32 = 25.0;
 
 const CLEAR: [f32; 3] = [0.55, 0.63, 0.72];
+
 /// The car `drive` picks when none was named.
 pub const DEFAULT_CAR: &str = "BMWM3GTR";
 
@@ -118,6 +135,12 @@ impl WorldScene {
     pub fn open(dir: &GameDir, options: Options) -> Result<Self> {
         let index = WorldIndex::open(dir, DEFAULT_TRACK)?;
         let physics = PhysicsData::load(dir)?;
+        let colour_treatment = nfsmw_data::visual_treatment::midday(physics.database());
+        if colour_treatment.is_none() {
+            log::warn!("midday visual treatment is missing or invalid; grading disabled");
+        }
+        let globals = load_global_textures(dir)?;
+        let gain_map = nfsmw_data::visual_treatment::gain_map(&globals.textures);
         let props = PropCatalog::new(index.prop_bounds.clone(), physics.database());
         log::info!("{} props have collision bounds", props.len());
         let stream = dir.resolve(&index.stream_file).with_context(|| format!("{} is missing", index.stream_file))?;
@@ -143,14 +166,7 @@ impl WorldScene {
             dir: dir.clone(),
             track: index.track.clone(),
             camera,
-            residency: Residency::new(
-                index.sections,
-                index.visible,
-                streamer,
-                load_global_textures(dir)?,
-                index.collision_grid,
-                props,
-            ),
+            residency: Residency::new(index.sections, index.visible, streamer, globals, index.collision_grid, props),
             start,
             start_height: options.height,
             // The car is placed on a road, not the camera on the ground.
@@ -158,6 +174,10 @@ impl WorldScene {
             wait_for_load: options.wait_for_load,
             fog_distance: options.fog_distance,
             visible: Vec::new(),
+            colour_treatment,
+            gain_map,
+            reflection_faces: std::array::from_fn(|_| Vec::new()),
+            reflection_last: None,
             clock: 0.0,
             view: if pending_car.is_some() { View::Chase } else { View::Fly },
             last_car: pending_car.as_ref().map_or_else(|| DEFAULT_CAR.to_owned(), |c| c.name.clone()),
@@ -169,8 +189,11 @@ impl WorldScene {
             exhaust_flames: false,
             spark_style: crate::settings::SparkStyle::OriginalPc,
             smoke_quality: crate::settings::SmokeQuality::Standard,
+            car_shading: crate::settings::CarShading::default(),
             markers_on: false,
             marker_meshes: None,
+            cut: CameraCut::default(),
+            camera_mode: CameraMode::default(),
         })
     }
 
@@ -187,90 +210,6 @@ impl WorldScene {
             _ => [self.camera.position.x, self.camera.position.y],
         }
     }
-
-    /// Put a waiting car on the road once the area around it has loaded, then run its physics.
-    fn update_drive(&mut self, input: &ActionState, dt: f32) {
-        let (Some(drive), physics) = (self.drive.as_mut(), &self.physics) else { return };
-        drive.set_markers(self.markers_on);
-        if let Some(request) = drive.waiting_for_road()
-            && self.residency.complete()
-        {
-            let collision = self.residency.collision();
-            let surfaces = &physics.surfaces;
-            let estimate = ground::height_near(self.residency.placed(), request.near[0], request.near[1], 150.0);
-            let top = estimate.unwrap_or(0.0) + 40.0;
-            let found = match request.exact {
-                Some(spawn) if drive.spawn(spawn, collision, surfaces) => Some(spawn),
-                _ => road::find(request.near, |x, y| road::probe(collision, x, y, top)).filter(|&spawn| {
-                    // `spawn` consumed the request when it failed above; ask again only on success.
-                    drive.spawn(spawn, collision, surfaces)
-                }),
-            };
-            match found {
-                Some(spawn) => log::info!(
-                    "{} on the road at ({:.0}, {:.0}, {:.1}), heading {:.0} degrees",
-                    drive.car_name,
-                    spawn.position.x,
-                    spawn.position.y,
-                    spawn.position.z,
-                    spawn.heading.to_degrees()
-                ),
-                // No road in reach: the last place the car stood on one, if there is any.
-                None if drive.last_good().is_some_and(|good| drive.spawn(good, collision, surfaces)) => {
-                    log::info!(
-                        "no road near ({:.0}, {:.0}); the car is back where it last was on a road",
-                        request.near[0],
-                        request.near[1]
-                    );
-                }
-                None => {
-                    log::warn!(
-                        "no road within 400 m of ({:.0}, {:.0}) and none to go back to; switching to the free camera",
-                        request.near[0],
-                        request.near[1]
-                    );
-                    drive.cancel_request();
-                    self.view = View::Fly;
-                    self.camera.position = Vec3::new(request.near[0], request.near[1], estimate.unwrap_or(0.0) + 40.0);
-                }
-            }
-        }
-        if self.view == View::Chase {
-            let loaded = self.residency.complete();
-            let (collision, props) = self.residency.world_parts();
-            drive.step(collision, props, &physics.surfaces, input, dt, loaded);
-            drive.follow(self.residency.collision(), (input.value(Action::LookX), input.value(Action::LookY)), dt);
-            return;
-        }
-        drive.age_effects(dt);
-    }
-
-    /// Switch between the chase camera and the free camera (the car waits while you fly).
-    fn toggle_view(&mut self) -> &'static str {
-        let Some(drive) = self.drive.as_mut() else { return "not driving (use the drive command)" };
-        match self.view {
-            View::Chase => {
-                let camera = drive.camera();
-                let look = (drive.position() - camera.position).normalize_or_zero();
-                self.camera.position = camera.position;
-                self.camera.yaw = look.y.atan2(look.x);
-                self.camera.pitch = look.z.clamp(-1.0, 1.0).asin();
-                self.view = View::Fly;
-                "free camera (the car waits); F or `freecam` to go back"
-            }
-            View::Fly => {
-                // Back in the car: if the camera has been flown away from it, the car joins the
-                // street nearest to where the camera is, facing the way the camera looks.
-                let cam = self.camera.position;
-                let at = drive.position();
-                if (cam.x - at.x).hypot(cam.y - at.y) > FLOWN_AWAY {
-                    drive.respawn_near([cam.x, cam.y], Some(self.camera.yaw));
-                }
-                self.view = View::Chase;
-                "chase camera"
-            }
-        }
-    }
 }
 
 impl Scene for WorldScene {
@@ -283,14 +222,18 @@ impl Scene for WorldScene {
         format!("nfsmw — {}", self.track)
     }
 
-    fn init(&mut self, renderer: &mut Renderer) -> Result<()> {
+    fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
+        renderer.set_colour_treatment(self.colour_treatment.as_ref(), self.gain_map.as_ref());
         if let Some(PendingCar { name, model, script }) = self.pending_car.take() {
             self.start_driving(renderer, name, model, script)?;
         }
         Ok(())
     }
 
-    fn update(&mut self, renderer: &mut Renderer, input: &ActionState, dt: f32) {
+    fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
+        if let Some(drive) = self.drive.as_mut() {
+            drive.set_car_shading(renderer, self.car_shading, sun::to_sun());
+        }
         if input.just_pressed(Action::ToggleCamera) && self.drive.is_some() {
             log::info!("{}", self.toggle_view());
         }
@@ -310,12 +253,14 @@ impl Scene for WorldScene {
             let top = estimate.unwrap_or(0.0) + 30.0;
             let road = space::ground_below(self.residency.collision(), self.start[0], self.start[1], top, top - 120.0);
             self.camera.position.z = road.or(estimate).unwrap_or(0.0) + self.start_height;
+            self.cut.arm();
             log::info!(
                 "ground near the start: scenery estimate {estimate:?}, collision {road:?}; camera at z = {:.0}",
                 self.camera.position.z
             );
         }
         self.upload_effects(renderer);
+        self.update_reflections(renderer);
     }
 
     fn set_tire_effects(&mut self, smoke: bool, skid_marks: bool) {
@@ -325,7 +270,7 @@ impl Scene for WorldScene {
         }
     }
 
-    fn refresh_effects(&mut self, renderer: &mut Renderer) {
+    fn refresh_effects(&mut self, renderer: &mut dyn RenderBackend) {
         self.upload_effects(renderer);
     }
 
@@ -356,6 +301,18 @@ impl Scene for WorldScene {
         }
     }
 
+    fn set_camera_mode(&mut self, mode: CameraMode) {
+        self.camera_mode = mode;
+    }
+
+    fn takes_camera_setting(&self) -> bool {
+        self.drive.is_some()
+    }
+
+    fn set_car_shading(&mut self, shading: crate::settings::CarShading) {
+        self.car_shading = shading;
+    }
+
     fn set_smoke_quality(&mut self, quality: crate::settings::SmokeQuality) {
         self.smoke_quality = quality;
         if let Some(drive) = self.drive.as_mut() {
@@ -365,37 +322,39 @@ impl Scene for WorldScene {
 
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
         let chase = self.drive.as_ref().filter(|_| self.view == View::Chase);
-        let (view_proj, position, forward, fov_degrees) = match chase {
-            Some(drive) => {
-                let c = drive.camera();
-                (c.view_proj(aspect), c.position, c.forward(), c.fov_degrees())
-            }
-            None => {
-                (self.camera.view_proj(aspect), self.camera.position, self.camera.forward(), FlyCamera::FOV_Y_DEGREES)
-            }
+        let dynamic = chase.map(|drive| DynamicFov { chase: drive.camera(), speed: drive.speed_mps() });
+        let camera: &dyn Camera = match (chase, &dynamic) {
+            (Some(_), Some(dynamic)) if self.camera_mode == CameraMode::DynamicFov => dynamic,
+            (Some(drive), _) => drive.camera(),
+            (None, _) => &self.camera,
         };
+        debug_assert!(camera.selectable(), "the camera setting picked a camera it may not choose");
+        let lens = camera.lens(aspect);
         let fog_end = self.fog_distance;
-        let camera = visibility::Camera {
-            view_proj,
-            position: position.to_array(),
-            forward: forward.to_array(),
-            fov_y_radians: fov_degrees.to_radians(),
+        let cull = visibility::Camera {
+            view_proj: lens.view_proj(),
+            position: lens.position.to_array(),
+            forward: lens.forward.to_array(),
+            fov_y_radians: lens.fov_y_degrees.to_radians(),
         };
         let rules = &blackbox_scenery::layout::MOST_WANTED.lod;
-        visibility::collect(self.residency.placed(), &camera, rules, self.residency.props(), &mut self.visible);
+        visibility::collect(self.residency.placed(), &cull, rules, self.residency.props(), &mut self.visible);
         if let Some(drive) = &self.drive {
             drive.instances(&mut self.visible);
             if let (true, Some(meshes)) = (self.markers_on, &self.marker_meshes) {
                 drive.marker_instances(meshes, &mut self.visible);
             }
         }
+        let drive_cut = self.drive.as_mut().is_some_and(|drive| drive.take_camera_cut());
+        let camera_cut = self.cut.take() | drive_cut;
         let params = FrameParams {
-            view_proj,
-            camera_position: position,
-            light_dir: Vec3::new(-0.35, -0.45, -1.0),
+            view: lens.view,
+            projection: lens.projection,
+            camera_position: lens.position,
+            light_dir: sun::DIRECTION,
             clear_color: CLEAR,
-            fog_start: fog_end * 0.5,
-            fog_end,
+            fog: Some(Fog { start: fog_end * 0.5, end: fog_end }),
+            camera_cut,
         };
         (params, &self.visible)
     }
@@ -470,7 +429,12 @@ impl Scene for WorldScene {
         commands::LIST
     }
 
-    fn command(&mut self, renderer: &mut Renderer, name: &str, args: &[&str]) -> Option<Result<String, String>> {
+    fn command(
+        &mut self,
+        renderer: &mut dyn RenderBackend,
+        name: &str,
+        args: &[&str],
+    ) -> Option<Result<String, String>> {
         commands::run(self, renderer, name, args)
     }
 }

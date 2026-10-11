@@ -1,6 +1,6 @@
 //! The world viewer's console commands: `drive`, `reset`, `tp`, `goto`, `freecam`, `pos`, `props` and `debug`.
 
-use blackbox_render::Renderer;
+use blackbox_gfx::RenderBackend;
 use glam::Vec3;
 
 use super::drive::{self, MarkerMeshes};
@@ -26,7 +26,7 @@ pub(super) const LIST: &[(&str, &str)] = &[
 
 pub(super) fn run(
     scene: &mut WorldScene,
-    renderer: &mut Renderer,
+    renderer: &mut dyn RenderBackend,
     name: &str,
     args: &[&str],
 ) -> Option<Result<String, String>> {
@@ -48,7 +48,7 @@ pub(super) fn run(
     })
 }
 
-fn vehicle_effects(scene: &mut WorldScene, renderer: &mut Renderer, args: &[&str]) -> Result<String, String> {
+fn vehicle_effects(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, args: &[&str]) -> Result<String, String> {
     let drive = scene.drive.as_mut().ok_or("not driving (use the drive command)")?;
     match args {
         [] | ["status"] => return Ok(drive.vehicle_effects.status()),
@@ -60,14 +60,14 @@ fn vehicle_effects(scene: &mut WorldScene, renderer: &mut Renderer, args: &[&str
     Ok(result)
 }
 
-fn tire_effects(scene: &mut WorldScene, renderer: &mut Renderer, args: &[&str]) -> Result<String, String> {
+fn tire_effects(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, args: &[&str]) -> Result<String, String> {
     let drive = scene.drive.as_mut().ok_or("not driving (use the drive command)")?;
     let result = drive.effects.command(args)?;
     if let [effect @ ("smoke" | "marks"), value @ ("on" | "off")] = args {
         scene.tire_effects[usize::from(*effect == "marks")] = *value == "on";
     }
     scene.upload_effects(renderer);
-    let capacity = renderer.effect_capacities();
+    let capacity = renderer.stats().effect_capacities;
     Ok(format!("{result}; GPU capacity {} surface / {} particle vertices", capacity[0], capacity[1]))
 }
 
@@ -76,7 +76,7 @@ fn exhaust_flames(scene: &mut WorldScene, args: &[&str]) -> Result<String, Strin
     drive.flames.command(args)
 }
 
-fn drive(scene: &mut WorldScene, renderer: &mut Renderer, args: &[&str]) -> Result<String, String> {
+fn drive(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, args: &[&str]) -> Result<String, String> {
     let wanted = match args {
         [] => scene.last_car.clone(),
         [name] => (*name).to_owned(),
@@ -126,6 +126,7 @@ fn goto(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
         scene.toggle_view();
     }
     scene.camera.position = Vec3::new(x, y, scene.camera.position.z);
+    scene.cut.arm();
     // The height is settled once the new area has loaded (above its ground, as at the start).
     scene.start = [x, y];
     scene.start_height = height;
@@ -134,7 +135,7 @@ fn goto(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
 }
 
 /// `debug collisions [on|off]`: the contact points of the car drawn in the world.
-fn debug(scene: &mut WorldScene, renderer: &mut Renderer, args: &[&str]) -> Result<String, String> {
+fn debug(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, args: &[&str]) -> Result<String, String> {
     const USAGE: &str = "usage: debug collisions [on|off]";
     let on = match args {
         ["collisions"] => !scene.markers_on,

@@ -1,7 +1,8 @@
 use std::sync::{Arc, Mutex};
 
 use bevy_app::{App, Update};
-use blackbox_render::{FrameParams, Instance, Renderer};
+use blackbox_gfx::RenderBackend;
+use blackbox_render::{FrameParams, Instance};
 
 use super::{exec, parse, settings_cmd};
 use crate::app::Host;
@@ -14,10 +15,10 @@ impl Scene for ObservedScene {
     fn title(&self) -> String {
         String::new()
     }
-    fn init(&mut self, _: &mut Renderer) -> anyhow::Result<()> {
+    fn init(&mut self, _: &mut dyn RenderBackend) -> anyhow::Result<()> {
         Ok(())
     }
-    fn update(&mut self, _: &mut Renderer, _: &crate::input::ActionState, _: f32) {}
+    fn update(&mut self, _: &mut dyn RenderBackend, _: &crate::input::ActionState, _: f32) {}
     fn frame(&mut self, _: f32) -> (FrameParams, &[Instance]) {
         unreachable!()
     }

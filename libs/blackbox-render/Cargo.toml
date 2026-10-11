@@ -8,6 +8,8 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+blackbox-gfx.workspace = true
+blackbox-gpu-passes.workspace = true
 bytemuck.workspace = true
 glam.workspace = true
 log.workspace = true
@@ -15,6 +17,14 @@ pollster.workspace = true
 raw-window-handle.workspace = true
 thiserror.workspace = true
 wgpu.workspace = true
+
+[dev-dependencies]
+# Synthetic scenes, image metrics and digests for the native regression guard.
+blackbox-gfx-testkit.workspace = true
+# The serial lock the GPU tests share with the passes crate.
+blackbox-gpu-passes = { workspace = true, features = ["test-support"] }
+# Validates the WGSL sources without a GPU.
+naga.workspace = true
 
 [lints]
 workspace = true

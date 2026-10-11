@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use blackbox_render::EffectVertex;
+use blackbox_gfx::EffectVertex;
 use glam::{Quat, Vec3};
 use nfsmw_data::vehicle_effects::{CollisionEffects, SparkLink};
 

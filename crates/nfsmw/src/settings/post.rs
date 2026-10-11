@@ -1,0 +1,105 @@
+//! The post-processing settings: tone mapping, bloom and anti-aliasing (docs/post-processing.md).
+//! Each is independent and every default is off, which keeps the image exactly as it was.
+
+use blackbox_gfx::{Antialiasing, PostSettings, Tonemap};
+
+use super::Settings;
+
+/// Bloom strength at each step of the setting (the renderer's `bloom_intensity`).
+const LOW_BLOOM: f32 = 0.5;
+const MEDIUM_BLOOM: f32 = 1.0;
+const HIGH_BLOOM: f32 = 1.8;
+
+/// The `post_tonemap` setting: the curve that maps the scene to the display range.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum PostTonemap {
+    /// No curve: values are clamped, as before the setting existed.
+    #[default]
+    Off,
+    /// A filmic ACES curve. It adds contrast and darkens the image noticeably.
+    Aces,
+}
+
+/// The `post_bloom` setting: glow around bright areas.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum PostBloom {
+    #[default]
+    Off,
+    Low,
+    Medium,
+    High,
+}
+
+/// The `post_aa` setting: anti-aliasing of the 3D scene (the HUD and menus are never touched). `smaa` and `taa`
+/// only exist on the Bevy renderer; the native one runs them as `fxaa` (docs/renderers.md).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum PostAa {
+    #[default]
+    Off,
+    Fxaa,
+    Smaa,
+    Taa,
+}
+
+impl PostBloom {
+    /// The renderer's bloom intensity; 0.0 means off.
+    pub fn intensity(self) -> f32 {
+        match self {
+            Self::Off => 0.0,
+            Self::Low => LOW_BLOOM,
+            Self::Medium => MEDIUM_BLOOM,
+            Self::High => HIGH_BLOOM,
+        }
+    }
+}
+
+/// What the renderer is asked to run for `settings`.
+pub fn post_effects(settings: &Settings) -> PostSettings {
+    PostSettings {
+        colour_treatment: settings.visual_treatment.strength(),
+        tonemap: match settings.post_tonemap {
+            PostTonemap::Off => Tonemap::Off,
+            PostTonemap::Aces => Tonemap::Aces,
+        },
+        bloom_intensity: settings.post_bloom.intensity(),
+        antialiasing: match settings.post_aa {
+            PostAa::Off => Antialiasing::Off,
+            PostAa::Fxaa => Antialiasing::Fxaa,
+            PostAa::Smaa => Antialiasing::Smaa,
+            PostAa::Taa => Antialiasing::Taa,
+        },
+        ..PostSettings::default()
+    }
+}
+
+/// Display-space midday look; Low is an enhanced half-strength blend.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum VisualTreatment {
+    #[default]
+    Off,
+    Low,
+    High,
+}
+impl VisualTreatment {
+    pub const ALL: [Self; 3] = [Self::Off, Self::Low, Self::High];
+    pub fn strength(self) -> f32 {
+        match self {
+            Self::Off => 0.0,
+            Self::Low => 0.5,
+            Self::High => 1.0,
+        }
+    }
+}
+names!(VisualTreatment, "off, low or high", [(Self::Off, "off"), (Self::Low, "low"), (Self::High, "high")]);
+
+names!(PostTonemap, "off or aces", [(Self::Off, "off"), (Self::Aces, "aces")]);
+names!(
+    PostBloom,
+    "off, low, medium or high",
+    [(Self::Off, "off"), (Self::Low, "low"), (Self::Medium, "medium"), (Self::High, "high")]
+);
+names!(
+    PostAa,
+    "off, fxaa, smaa or taa",
+    [(Self::Off, "off"), (Self::Fxaa, "fxaa"), (Self::Smaa, "smaa"), (Self::Taa, "taa")]
+);

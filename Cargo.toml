@@ -4,7 +4,37 @@ resolver = "3"
 #         No NFS:MW-specific code: they are meant to move to a shared utilities monorepo.
 # crates/ the NFS:MW game itself.
 members = ["libs/*", "crates/*", "xtask"]
-default-members = ["libs/*", "crates/*"]
+# Every lib except the optional Bevy renderer, so a plain `cargo build` at the root never compiles bevy_render
+# (`--workspace` and `-p blackbox-bevy-render` still reach it). Add new libs here.
+default-members = [
+    "libs/blackbox-aems",
+    "libs/blackbox-attrib",
+    "libs/blackbox-carparts",
+    "libs/blackbox-carsound",
+    "libs/blackbox-chunk",
+    "libs/blackbox-collision",
+    "libs/blackbox-feng",
+    "libs/blackbox-gfx",
+    "libs/blackbox-gfx-testkit",
+    "libs/blackbox-ginsu",
+    "libs/blackbox-gpu-passes",
+    "libs/blackbox-hash",
+    "libs/blackbox-minimap",
+    "libs/blackbox-mixmap",
+    "libs/blackbox-movie",
+    "libs/blackbox-render",
+    "libs/blackbox-scene",
+    "libs/blackbox-scenery",
+    "libs/blackbox-solid",
+    "libs/blackbox-streaming",
+    "libs/blackbox-text",
+    "libs/blackbox-tpk",
+    "libs/blackbox-vehicle",
+    "libs/ea-audio",
+    "libs/ea-compress",
+    "libs/game-install",
+    "crates/*",
+]
 
 [workspace.package]
 version = "0.1.0"
@@ -19,10 +49,14 @@ blackbox-aems = { path = "libs/blackbox-aems" }
 blackbox-attrib = { path = "libs/blackbox-attrib" }
 blackbox-carparts = { path = "libs/blackbox-carparts" }
 blackbox-carsound = { path = "libs/blackbox-carsound" }
+blackbox-bevy-render = { path = "libs/blackbox-bevy-render" }
 blackbox-chunk = { path = "libs/blackbox-chunk" }
 blackbox-collision = { path = "libs/blackbox-collision" }
 blackbox-feng = { path = "libs/blackbox-feng" }
+blackbox-gfx = { path = "libs/blackbox-gfx" }
+blackbox-gfx-testkit = { path = "libs/blackbox-gfx-testkit" }
 blackbox-ginsu = { path = "libs/blackbox-ginsu" }
+blackbox-gpu-passes = { path = "libs/blackbox-gpu-passes" }
 blackbox-hash = { path = "libs/blackbox-hash" }
 blackbox-minimap = { path = "libs/blackbox-minimap" }
 blackbox-mixmap = { path = "libs/blackbox-mixmap" }
@@ -38,20 +72,40 @@ blackbox-tpk = { path = "libs/blackbox-tpk" }
 blackbox-vehicle = { path = "libs/blackbox-vehicle" }
 ea-audio = { path = "libs/ea-audio" }
 ea-compress = { path = "libs/ea-compress" }
+fsr3-wgpu = { path = "libs/fsr3-wgpu" }
 game-install = { path = "libs/game-install" }
 # NFS:MW (crates/)
 nfsmw-data = { path = "crates/nfsmw-data" }
 
 # Third-party (see docs/rust-stack.md for why each was picked)
-# Bevy: the ECS shell only, no renderer (docs/decisions/0001-bevy.md). Pinned to the 0.20 release candidate.
-bevy_a11y = "=0.20.0-rc.2"
-bevy_app = "=0.20.0-rc.2"
-bevy_ecs = "=0.20.0-rc.2"
-bevy_gilrs = "=0.20.0-rc.2"
-bevy_input = { version = "=0.20.0-rc.2", features = ["serialize"] }
-bevy_time = "=0.20.0-rc.2"
-bevy_window = "=0.20.0-rc.2"
-bevy_winit = "=0.20.0-rc.2"
+# Bevy: the ECS shell (docs/decisions/0001-bevy.md), plus the render crates only blackbox-bevy-render uses
+# (docs/decisions/0004-swappable-renderers.md). Pinned to the exact 0.20 release.
+bevy_a11y = "=0.20.0"
+bevy_anti_alias = "=0.20.0"
+bevy_app = "=0.20.0"
+bevy_asset = "=0.20.0"
+bevy_camera = "=0.20.0"
+bevy_color = "=0.20.0"
+bevy_core_pipeline = "=0.20.0"
+bevy_diagnostic = "=0.20.0"
+bevy_ecs = "=0.20.0"
+bevy_image = "=0.20.0"
+bevy_light = "=0.20.0"
+bevy_material = "=0.20.0"
+bevy_math = "=0.20.0"
+bevy_mesh = "=0.20.0"
+bevy_pbr = "=0.20.0"
+# Bloom (depth of field and other screen-space effects are not used): moved out of bevy_core_pipeline in 0.20.
+bevy_post_process = "=0.20.0"
+bevy_reflect = "=0.20.0"
+bevy_render = "=0.20.0"
+bevy_shader = "=0.20.0"
+bevy_transform = "=0.20.0"
+bevy_gilrs = "=0.20.0"
+bevy_input = { version = "=0.20.0", features = ["serialize"] }
+bevy_time = "=0.20.0"
+bevy_window = "=0.20.0"
+bevy_winit = "=0.20.0"
 anyhow = "1"
 bytemuck = { version = "1", features = ["derive"] }
 clap = { version = "4", features = ["derive"] }
@@ -61,6 +115,7 @@ env_logger = "0.11"
 glam = { version = "0.34", features = ["bytemuck"] }
 kira = { version = "0.12", default-features = false, features = ["cpal"] }
 log = "0.4"
+naga = { version = "30", default-features = false, features = ["wgsl-in"] }
 png = "0.18"
 pollster = "0.4"
 raw-window-handle = "0.6"
@@ -81,6 +136,12 @@ unsafe_code = "deny"
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
+
+[profile.dev]
+# Our own crates: the per-frame render bridge and scene systems are CPU work on every frame, so unoptimised code
+# shows up as frame time in dev builds. Level 1 keeps compiles quick. To step through code in a debugger, set
+# CARGO_PROFILE_DEV_OPT_LEVEL=0: optimised code skips breakpoints.
+opt-level = 1
 
 [profile.dev.package."*"]
 # Decompression and texture decoding are painfully slow unoptimised.

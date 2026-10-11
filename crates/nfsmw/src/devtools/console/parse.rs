@@ -9,6 +9,8 @@ pub enum Command {
     /// Actual window mode, size, position and focus (as opposed to requested preferences).
     Window,
     Monitors,
+    /// The renderer, its capabilities and the graphics settings requested vs in effect.
+    Gfx,
     /// Every key, button and stick binding.
     Keys,
     Bindings {
@@ -34,7 +36,7 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 29] = [
+pub const BUILT_IN: [(&str, &str); 43] = [
     ("bind <action> <input>", "replace one device family's action assignments; keys lists action names"),
     ("addbind <action> <input>", "add another physical input to an action"),
     ("unbind <action> [keyboard|mouse|gamepad|all]", "remove action assignments"),
@@ -46,14 +48,31 @@ pub const BUILT_IN: [(&str, &str); 29] = [
     ("get [setting]", "show a setting, or all"),
     ("set <setting> <value>", "change a setting (get lists the keys)"),
     ("fps <number|unlocked>", "frame-rate cap (same as set fps)"),
+    ("renderer <blackbox|bevy>", "choose the renderer (applies after restart)"),
     ("resolution <width> <height>|native", "window size or exclusive video mode (also WIDTHxHEIGHT)"),
     ("window_mode <windowed|borderless|exclusive>", "change the window mode (Alt+Enter toggles fullscreen)"),
     ("monitor <current|primary|index>", "select a monitor, indices start at zero"),
     ("window", "show the actual window size, mode, DPI and focus"),
     ("monitors", "list available monitors and their indices"),
+    ("gfx", "show the renderer, graphics API, capabilities and requested vs effective graphics settings"),
     ("keys", "list every key, button and stick binding"),
+    ("graphics_preset <custom|low|medium|high|ultra>", "set the graphics settings a preset stands for"),
+    ("car_shading <simple|glossy>", "car shading: glossy or the cheap single-light look"),
     ("smoke_quality <standard|high>", "change tire smoke presentation quality"),
     ("hud-layout <pc|classic|xbox360>", "change HUD placement and scale"),
+    ("post_tonemap <off|aces>", "filmic tone mapping (darkens the image)"),
+    ("post_bloom <off|low|medium|high>", "glow around bright areas"),
+    (
+        "upscale_quality <auto|native|quality|balanced|performance|ultra_performance>",
+        "render size of the temporal upscalers",
+    ),
+    ("ray_tracing <off|low|medium|high>", "ray-traced lighting (bevy renderer; off to on needs a restart)"),
+    ("post_aa <off|fxaa|smaa|taa>", "anti-aliasing of the 3D scene (smaa, taa: bevy renderer)"),
+    ("visual_treatment <off|low|high>", "installed midday colour look (native renderer)"),
+    ("reflections <off|low|medium|high>", "local car reflections; off restores the static sky"),
+    ("ao <off|low|medium|high>", "experimental contact occlusion; off releases its resources"),
+    ("ao_intensity <0-100>", "contact occlusion strength"),
+    ("ao_compare <on|off>", "same-frame comparison: left off, right on"),
     ("collision_sparks <on|off>", "change collision sparks"),
     ("spark_style <original-pc|restored-experimental>", "select stock or experimental collision particles"),
     ("speed_trails <on|off>", "change experimental high-speed wind trails"),
@@ -70,8 +89,9 @@ pub const BUILT_IN: [(&str, &str); 29] = [
 ];
 
 /// Further shorthands for `set`: `vsync off` is `set vsync off`.
-const SET_SHORTHANDS: [&str; 18] = [
+const SET_SHORTHANDS: [&str; 31] = [
     "fps",
+    "renderer",
     "vsync",
     "metrics",
     "volume",
@@ -85,10 +105,22 @@ const SET_SHORTHANDS: [&str; 18] = [
     "speed_trails",
     "exhaust_flames",
     "smoke_quality",
+    "car_shading",
+    "graphics_preset",
     "hud_layout",
     "hud-layout",
     "radio_hud",
     "radio-hud",
+    "post_tonemap",
+    "post_bloom",
+    "post_aa",
+    "visual_treatment",
+    "upscale_quality",
+    "ray_tracing",
+    "reflections",
+    "ao",
+    "ao_intensity",
+    "ao_compare",
 ];
 
 /// Parse one line. `Ok(None)` for an empty line.
@@ -106,6 +138,7 @@ pub fn parse(line: &str) -> Result<Option<Command>, String> {
         "quit" | "exit" => Command::Quit,
         "window" => Command::Window,
         "monitors" => Command::Monitors,
+        "gfx" => Command::Gfx,
         "keys" | "bindings" | "controls" => Command::Keys,
         "get" => match args.as_slice() {
             [] => Command::Get(None),
@@ -238,8 +271,8 @@ mod tests {
     #[test]
     fn completion() {
         let scene = [("car <folder>", "change the car"), ("cars", "list the cars")];
-        assert_eq!(complete("c", &scene), ["car", "cars", "clear", "collision_sparks"]);
-        assert_eq!(complete("re", &scene), ["resolution"]);
+        assert_eq!(complete("c", &scene), ["car", "car_shading", "cars", "clear", "collision_sparks"]);
+        assert_eq!(complete("re", &scene), ["reflections", "renderer", "resolution"]);
         assert_eq!(complete("vo", &scene), ["volume"]);
         assert!(complete("zzz", &scene).is_empty());
     }

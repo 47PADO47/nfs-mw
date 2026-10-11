@@ -1,7 +1,7 @@
 //! egui's output as renderer-neutral data: texture patches and a [`UiLayer`] of clipped meshes.
 
 use bevy_ecs::prelude::*;
-use blackbox_render::{UiLayer, UiMesh, UiTextureId, UiTexturePatch, UiVertex};
+use blackbox_gfx::{UiLayer, UiMesh, UiTextureId, UiTexturePatch, UiVertex};
 use egui::epaint::{ImageData, Primitive};
 
 /// A texture upload waiting for the renderer.

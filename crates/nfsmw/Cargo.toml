@@ -18,11 +18,13 @@ bevy_time.workspace = true
 bevy_window.workspace = true
 bevy_winit.workspace = true
 blackbox-aems.workspace = true
+blackbox-bevy-render = { workspace = true, optional = true }
 blackbox-attrib.workspace = true
 blackbox-carsound.workspace = true
 blackbox-chunk.workspace = true
 blackbox-collision.workspace = true
 blackbox-feng.workspace = true
+blackbox-gfx.workspace = true
 blackbox-minimap.workspace = true
 blackbox-mixmap.workspace = true
 blackbox-movie.workspace = true
@@ -48,6 +50,13 @@ png.workspace = true
 raw-window-handle.workspace = true
 serde.workspace = true
 toml.workspace = true
+
+[features]
+# The optional Bevy renderer (docs/renderers.md, docs/bevy-backend.md). The default build never has it, so it
+# never compiles bevy_render.
+renderer-bevy = ["dep:blackbox-bevy-render"]
+# Tracy profiling of the Bevy renderer (docs/bevy-backend.md). Implies renderer-bevy.
+trace = ["renderer-bevy", "blackbox-bevy-render/trace"]
 
 [lints]
 workspace = true

@@ -190,6 +190,9 @@ pub fn find(cast: Cast<'_>, props: PropQuery<'_>, position: Vec3, rot: Mat3, hal
                 return None;
             }
             let depth = (hit.point - probe).dot(hit.normal);
+            if depth >= MAX_DEPTH {
+                log::debug!("ignored, too deep ({depth:.2} m): prop {:?} info {:?}", hit.prop, hit.info);
+            }
             (depth > 1e-4 && depth < MAX_DEPTH).then_some(WallContact {
                 point: hit.point,
                 normal: hit.normal,
@@ -199,7 +202,13 @@ pub fn find(cast: Cast<'_>, props: PropQuery<'_>, position: Vec3, rot: Mat3, hal
             })
         })
         .collect();
-    found.extend(props(position, rot, half).into_iter().filter(|c| c.depth < MAX_DEPTH));
+    for c in props(position, rot, half) {
+        if c.depth >= MAX_DEPTH {
+            log::debug!("ignored, too deep ({:.2} m): prop {:?}", c.depth, c.prop);
+            continue;
+        }
+        found.push(c);
+    }
     found.sort_by(|a, b| b.depth.total_cmp(&a.depth));
     found
 }
@@ -239,6 +248,16 @@ fn is_light(c: &WallContact) -> bool {
     matches!(c.prop, Some((_, Some(_))))
 }
 
+/// What the car does about a contact, for the log.
+fn action(c: &WallContact) -> &'static str {
+    match ContactPoint::from(c).kind {
+        ContactKind::PropLight => "knocked over (prop hidden for a while, car loses momentum)",
+        ContactKind::PropRigid => "wall response (prop stays)",
+        ContactKind::Barrier => "wall response (barrier)",
+        ContactKind::Face => "wall response (steep face)",
+    }
+}
+
 /// Resolve contacts on `vehicle`. Rigid contacts react with the wall friction and restitution and the
 /// deepest pushes the body out; a light prop only costs the car the momentum it takes to push it away.
 pub fn resolve(vehicle: &mut Vehicle, cast: Cast<'_>, props: PropQuery<'_>, walls: &WallSpec) -> Impact {
@@ -246,6 +265,16 @@ pub fn resolve(vehicle: &mut Vehicle, cast: Cast<'_>, props: PropQuery<'_>, wall
     let half = body.dimension() + body.spec().collision_box_pad;
     let (position, rot, car_mass) = (body.position, body.rotation(), body.mass());
     let contacts = find(cast, props, position, rot, half);
+    for c in &contacts {
+        log::debug!(
+            "collision {:?} prop {:?} info {:?} at {:?}: {}",
+            ContactPoint::from(c).kind,
+            c.prop.map(|(id, _)| id),
+            c.info,
+            c.point,
+            action(c),
+        );
+    }
     let visuals = contacts
         .iter()
         .filter(|c| !is_light(c))

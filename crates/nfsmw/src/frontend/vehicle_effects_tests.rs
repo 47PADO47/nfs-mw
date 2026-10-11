@@ -6,9 +6,10 @@ use crate::settings::{Partial, Settings, SmokeQuality};
 #[test]
 fn optional_vehicle_effect_rows_cycle_stock_and_experimental_independently() {
     use crate::settings::SparkStyle::{OriginalPc, RestoredExperimental};
-    let rows = rows(Category::Video);
-    assert_eq!(rows[7].title, Title::Text("Collision Sparks"));
-    assert_eq!(rows[8].title, Title::Text("Speed Trails (Experimental)"));
+    let rows = rows(Category::Video, &crate::settings::test_caps::native());
+    let at = rows.iter().position(|row| row.setting == Setting::CollisionSparks).unwrap();
+    assert_eq!(rows[at].title, Title::Text("Collision Sparks"));
+    assert_eq!(rows[at + 1].title, Title::Text("Speed Trails (Experimental)"));
     let initial = Settings::from(Partial {
         hud: Some(false),
         tire_smoke: Some(false),
@@ -89,15 +90,18 @@ fn vehicle_effects_main_and_pause_video_rows_show_toggle_and_save() {
             ..Partial::default()
         });
         let (mut settings, mut changes) = (initial, Partial::default());
-        let mut env = Env { settings: &mut settings, changed: &mut changes };
+        let mut env =
+            Env { settings: &mut settings, changed: &mut changes, caps: crate::settings::test_caps::native() };
         screens.open(name, Args { pause, category: Category::Video, ..Args::default() }, true, &mut env);
         run(&mut screens, &mut env, 0, 60);
-        for _ in 0..7 {
+        let at =
+            rows(Category::Video, &env.caps).iter().position(|row| row.setting == Setting::CollisionSparks).unwrap();
+        for _ in 0..at {
             press(&mut screens, &mut env, pad::DOWN);
         }
         for (slot, title, setting) in [
-            (8, "Collision Sparks", Setting::CollisionSparks),
-            (9, "Speed Trails (Experimental)", Setting::SpeedTrails),
+            (if pause { 10 } else { 9 }, "Collision Sparks", Setting::CollisionSparks),
+            (if pause { 10 } else { 9 }, "Speed Trails (Experimental)", Setting::SpeedTrails),
         ] {
             let native_rgb = title_colour(&screens, slot).0[..3].to_vec();
             // More than two complete 1200-tick highlight loops, including the transparent endpoints.
@@ -144,10 +148,10 @@ fn vehicle_effects_main_and_pause_video_rows_show_toggle_and_save() {
                 };
                 assert_eq!(actual, enabled);
             }
-            if slot == 8 {
+            if setting == Setting::CollisionSparks {
                 press(&mut screens, &mut env, pad::DOWN);
                 run(&mut screens, &mut env, 0, 12);
-                assert_eq!(title_colour(&screens, 8).0[3], 255, "{name}: deselected title settles normally");
+                assert_eq!(title_colour(&screens, slot - 1).0[3], 255, "{name}: deselected title settles normally");
             }
         }
         let expected = Settings { collision_sparks: true, speed_trails: true, ..initial };
@@ -171,7 +175,7 @@ fn vehicle_effects_main_and_pause_video_rows_show_toggle_and_save() {
             };
             commands.extend(run(&mut screens, &mut env, button, 1));
             if screens.top() == Some(name) {
-                native_exit_alpha |= title_colour(&screens, 9).0[3] < 255;
+                native_exit_alpha |= title_colour(&screens, if pause { 10 } else { 9 }).0[3] < 255;
             }
         }
         assert!(native_exit_alpha, "{name}: leaving restores the authored title alpha animation");

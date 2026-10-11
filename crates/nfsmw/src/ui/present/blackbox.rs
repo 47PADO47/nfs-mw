@@ -5,7 +5,7 @@ use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 
 use blackbox_feng::{NodeKind, UiNode, UiTree, font::TextStyle};
-use blackbox_render::{UiLayer, UiMesh, UiTextureId, UiVertex};
+use blackbox_gfx::{UiLayer, UiMesh, UiTextureId, UiVertex};
 use glam::{Vec3, Vec4};
 
 use super::{Screen, mask};

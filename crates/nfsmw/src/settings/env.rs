@@ -3,12 +3,18 @@
 use std::str::FromStr;
 
 use super::partial::{Partial, Percent, parse_bool};
-use super::{Deadzone, HudLayout, MinimapMode, RadioHudStyle, Sensitivity, Transmission};
-use super::{Monitor, Resolution, SmokeQuality, WindowMode};
+use super::{
+    CameraMode, CarShading, Deadzone, GraphicsPreset, HudLayout, MinimapMode, RadioHudStyle, Sensitivity, Transmission,
+};
+use super::{
+    Monitor, PostAa, PostBloom, PostTonemap, RayTracingLevel, RenderScale, RendererKind, Resolution, SmokeQuality,
+    UpscaleMode, UpscaleQuality, WindowMode,
+};
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
 
 pub const BACKEND: &str = "NFSMW_BACKEND";
+pub const RENDERER: &str = "NFSMW_RENDERER";
 pub const VSYNC: &str = "NFSMW_VSYNC";
 pub const MAX_FPS: &str = "NFSMW_MAX_FPS";
 pub const SHOW_METRICS: &str = "NFSMW_SHOW_METRICS";
@@ -25,6 +31,8 @@ pub const HUD: &str = "NFSMW_HUD";
 pub const TIRE_SMOKE: &str = "NFSMW_TIRE_SMOKE";
 pub const RADIO: &str = "NFSMW_RADIO";
 pub const SKIP_INTRO: &str = "NFSMW_SKIP_INTRO";
+pub const GRAPHICS_PRESET: &str = "NFSMW_GRAPHICS_PRESET";
+pub const CAR_SHADING: &str = "NFSMW_CAR_SHADING";
 pub const SMOKE_QUALITY: &str = "NFSMW_SMOKE_QUALITY";
 pub const SKID_MARKS: &str = "NFSMW_SKID_MARKS";
 pub const COLLISION_SPARKS: &str = "NFSMW_COLLISION_SPARKS";
@@ -32,9 +40,22 @@ pub const SPARK_STYLE: &str = "NFSMW_SPARK_STYLE";
 pub const SPEED_TRAILS: &str = "NFSMW_SPEED_TRAILS";
 pub const EXHAUST_FLAMES: &str = "NFSMW_EXHAUST_FLAMES";
 pub const TRANSMISSION: &str = "NFSMW_TRANSMISSION";
+pub const CAMERA_MODE: &str = "NFSMW_CAMERA_MODE";
 pub const MINIMAP: &str = "NFSMW_MINIMAP";
 pub const HUD_LAYOUT: &str = "NFSMW_HUD_LAYOUT";
 pub const RADIO_HUD: &str = "NFSMW_RADIO_HUD";
+pub const POST_TONEMAP: &str = "NFSMW_POST_TONEMAP";
+pub const POST_BLOOM: &str = "NFSMW_POST_BLOOM";
+pub const REFLECTIONS: &str = "NFSMW_REFLECTIONS";
+pub const AO: &str = "NFSMW_AO";
+pub const AO_INTENSITY: &str = "NFSMW_AO_INTENSITY";
+pub const AO_COMPARE: &str = "NFSMW_AO_COMPARE";
+pub const POST_AA: &str = "NFSMW_POST_AA";
+pub const RENDER_SCALE: &str = "NFSMW_RENDER_SCALE";
+pub const UPSCALER: &str = "NFSMW_UPSCALER";
+pub const UPSCALE_SHARPNESS: &str = "NFSMW_UPSCALE_SHARPNESS";
+pub const UPSCALE_QUALITY: &str = "NFSMW_UPSCALE_QUALITY";
+pub const RAY_TRACING: &str = "NFSMW_RAY_TRACING";
 pub const PADDLE_UP: &str = "NFSMW_PADDLE_UP";
 pub const PADDLE_DOWN: &str = "NFSMW_PADDLE_DOWN";
 pub const MANUAL_CLUTCH: &str = "NFSMW_MANUAL_CLUTCH";
@@ -53,6 +74,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         mouse_sensitivity: value(&get, "NFSMW_MOUSE_SENSITIVITY", Sensitivity::from_str),
         invert_camera_y: value(&get, "NFSMW_INVERT_CAMERA_Y", parse_bool),
         backend: value(&get, BACKEND, |s| s.parse().map_err(|e| format!("{e}"))),
+        renderer: value(&get, RENDERER, RendererKind::from_str),
         vsync: value(&get, VSYNC, parse_bool),
         max_fps: value(&get, MAX_FPS, MaxFps::from_str),
         show_metrics: value(&get, SHOW_METRICS, ShowMetrics::from_str),
@@ -69,6 +91,8 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         tire_smoke: value(&get, TIRE_SMOKE, parse_bool),
         radio: value(&get, RADIO, parse_bool),
         skip_intro: value(&get, SKIP_INTRO, parse_bool),
+        graphics_preset: value(&get, GRAPHICS_PRESET, GraphicsPreset::from_str),
+        car_shading: value(&get, CAR_SHADING, CarShading::from_str),
         smoke_quality: value(&get, SMOKE_QUALITY, SmokeQuality::from_str),
         skid_marks: value(&get, SKID_MARKS, parse_bool),
         collision_sparks: value(&get, COLLISION_SPARKS, parse_bool),
@@ -76,9 +100,23 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         speed_trails: value(&get, SPEED_TRAILS, parse_bool),
         exhaust_flames: value(&get, EXHAUST_FLAMES, parse_bool),
         transmission: value(&get, TRANSMISSION, Transmission::from_str),
+        camera_mode: value(&get, CAMERA_MODE, CameraMode::from_str),
         minimap: value(&get, MINIMAP, MinimapMode::from_str),
         hud_layout: value(&get, HUD_LAYOUT, HudLayout::from_str),
         radio_hud: value(&get, RADIO_HUD, RadioHudStyle::from_str),
+        post_tonemap: value(&get, POST_TONEMAP, PostTonemap::from_str),
+        post_bloom: value(&get, POST_BLOOM, PostBloom::from_str),
+        visual_treatment: value(&get, "NFSMW_VISUAL_TREATMENT", super::VisualTreatment::from_str),
+        post_aa: value(&get, POST_AA, PostAa::from_str),
+        reflections: value(&get, REFLECTIONS, super::ReflectionQuality::from_str),
+        ao: value(&get, AO, super::AoQuality::from_str),
+        ao_intensity: value(&get, AO_INTENSITY, Percent::from_str),
+        ao_compare: value(&get, AO_COMPARE, parse_bool),
+        render_scale: value(&get, RENDER_SCALE, RenderScale::from_str),
+        upscaler: value(&get, UPSCALER, UpscaleMode::from_str),
+        upscale_sharpness: value(&get, UPSCALE_SHARPNESS, Percent::from_str),
+        upscale_quality: value(&get, UPSCALE_QUALITY, UpscaleQuality::from_str),
+        ray_tracing: value(&get, RAY_TRACING, RayTracingLevel::from_str),
         paddle_up: value(&get, PADDLE_UP, |s| s.trim().parse::<u32>().map_err(|e| e.to_string())),
         paddle_down: value(&get, PADDLE_DOWN, |s| s.trim().parse::<u32>().map_err(|e| e.to_string())),
         manual_clutch: value(&get, MANUAL_CLUTCH, parse_bool),
@@ -101,7 +139,7 @@ fn value<T>(get: &impl Fn(&str) -> Option<String>, name: &str, parse: impl Fn(&s
 mod tests {
     use std::collections::HashMap;
 
-    use blackbox_render::Backend;
+    use blackbox_gfx::GraphicsApi;
 
     use super::*;
 
@@ -114,7 +152,7 @@ mod tests {
     fn reads_every_setting() {
         let p = layer(&[(BACKEND, "dx12"), (VSYNC, "off"), (MAX_FPS, "60"), (SHOW_METRICS, "advanced")]);
         assert_eq!(p.show_metrics, Some(ShowMetrics::Advanced));
-        assert_eq!(p.backend, Some(Backend::Dx12));
+        assert_eq!(p.backend, Some(GraphicsApi::Dx12));
         assert_eq!(p.vsync, Some(false));
         assert_eq!(p.max_fps, Some("60".parse::<MaxFps>().unwrap()));
     }

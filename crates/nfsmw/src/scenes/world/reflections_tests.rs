@@ -1,0 +1,63 @@
+//! The real streaming path must invalidate a rate-limited capture even with no elapsed game time.
+use super::*;
+use crate::input::ActionState;
+use crate::viewer::Scene;
+use blackbox_render::{Renderer, RendererOptions};
+use std::time::{Duration, Instant};
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR) and a Vulkan GPU"]
+fn streaming_refreshes_a_paused_low_quality_capture() {
+    let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").expect("set NFSMW_GAME_DIR")).unwrap();
+    let mut renderer = Renderer::headless(
+        (64, 64),
+        RendererOptions { backend: blackbox_gfx::GraphicsApi::Vulkan, vsync: false, force_fallback_adapter: false },
+    )
+    .unwrap();
+    let mut graphics = *renderer.graphics();
+    graphics.reflections = ReflectionQuality::Low;
+    renderer.apply_graphics(&graphics);
+    let mut world = WorldScene::open(
+        &dir,
+        super::super::Options {
+            at: Some([2150.0, 1399.0]),
+            height: 40.0,
+            heading: 45.0,
+            pitch: -20.0,
+            fog_distance: 3000.0,
+            wait_for_load: true,
+            drive: Some(super::super::DriveOptions { car: super::super::DEFAULT_CAR.into(), script: None }),
+        },
+    )
+    .unwrap();
+    world.init(&mut renderer).unwrap();
+    let start = Instant::now();
+    let mut revisions = std::collections::HashSet::new();
+    loop {
+        world.update(&mut renderer, &ActionState::default(), 0.0);
+        if let Some(stamp) = world.reflection_last {
+            revisions.insert(stamp.scenery);
+        }
+        if world.ready() {
+            break;
+        }
+        assert!(start.elapsed() < Duration::from_secs(60), "streaming timed out");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert_eq!(world.clock, 0.0);
+    assert!(revisions.len() > 1, "loading scenery refreshed the capture with the clock paused");
+    assert_eq!(world.reflection_last.unwrap().scenery, world.residency.visual_revision());
+    assert!(world.reflection_faces.iter().map(Vec::len).sum::<usize>() > 100, "capture contains loaded scenery");
+    let unchanged = world.reflection_last;
+    world.update(&mut renderer, &ActionState::default(), 0.0);
+    assert_eq!(world.reflection_last, unchanged, "an unchanged low-quality view does not need another capture");
+
+    graphics.reflections = ReflectionQuality::High;
+    renderer.apply_graphics(&graphics);
+    world.update(&mut renderer, &ActionState::default(), 0.0);
+    assert_eq!(world.reflection_last.unwrap().quality, ReflectionQuality::High);
+    graphics.reflections = ReflectionQuality::Off;
+    renderer.apply_graphics(&graphics);
+    world.update(&mut renderer, &ActionState::default(), 0.0);
+    assert!(world.reflection_last.is_none(), "disabling clears the cached snapshot");
+}

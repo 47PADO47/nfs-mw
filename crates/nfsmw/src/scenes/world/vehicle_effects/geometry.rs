@@ -1,4 +1,4 @@
-use blackbox_render::{EffectLayer, EffectVertex};
+use blackbox_gfx::{EffectLayer, EffectVertex};
 use glam::Vec3;
 
 /// Camera-facing thin quad along a world-space segment; UV y runs head to tail.

@@ -6,7 +6,7 @@ use anyhow::{Result, bail};
 use bevy_app::{AppExit, Plugin, Update};
 use bevy_ecs::prelude::*;
 use bevy_window::{PrimaryWindow, Window};
-use blackbox_render::{FrameParams, Instance, Renderer, UiLayer, UiMesh, UiTextureId, UiVertex};
+use blackbox_gfx::{FrameParams, Instance, Projection, RenderBackend, UiLayer, UiMesh, UiTextureId, UiVertex};
 use game_install::GameDir;
 use glam::{Mat4, Vec3};
 
@@ -101,11 +101,11 @@ impl Scene for MovieScene {
         format!("nfsmw — {}", self.name)
     }
 
-    fn init(&mut self, _renderer: &mut Renderer) -> Result<()> {
+    fn init(&mut self, _renderer: &mut dyn RenderBackend) -> Result<()> {
         Ok(())
     }
 
-    fn update(&mut self, _renderer: &mut Renderer, _input: &ActionState, dt: f32) {
+    fn update(&mut self, _renderer: &mut dyn RenderBackend, _input: &ActionState, dt: f32) {
         self.elapsed += f64::from(dt);
         match self.movie.step(f64::from(dt)) {
             Ok(Step::Frame) => self.frame = Some(self.movie.rgba().to_vec()),
@@ -124,12 +124,14 @@ impl Scene for MovieScene {
 
     fn frame(&mut self, _aspect: f32) -> (FrameParams, &[Instance]) {
         let params = FrameParams {
-            view_proj: Mat4::IDENTITY,
+            view: Mat4::IDENTITY,
+            projection: Projection::Identity,
             camera_position: Vec3::ZERO,
             light_dir: Vec3::NEG_Z,
             clear_color: [0.0, 0.0, 0.0],
-            fog_start: f32::MAX,
-            fog_end: f32::MAX,
+            fog: None,
+            // Nothing 3D is drawn, so there is no camera to follow from frame to frame.
+            camera_cut: true,
         };
         (params, &[])
     }

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::Result;
-use blackbox_render::{FrameParams, Instance, Renderer};
+use blackbox_gfx::{FrameParams, Instance, Projection, RenderBackend};
 use glam::{Mat4, Vec3};
 
 use crate::input::ActionState;
@@ -19,11 +19,11 @@ impl Scene for MenuScene {
         "nfsmw".to_owned()
     }
 
-    fn init(&mut self, _renderer: &mut Renderer) -> Result<()> {
+    fn init(&mut self, _renderer: &mut dyn RenderBackend) -> Result<()> {
         Ok(())
     }
 
-    fn update(&mut self, _renderer: &mut Renderer, _input: &ActionState, _dt: f32) {}
+    fn update(&mut self, _renderer: &mut dyn RenderBackend, _input: &ActionState, _dt: f32) {}
 
     fn hud_state(&self) -> Option<crate::hud::HudState> {
         Some(crate::hud::HudState { visible: false, ..Default::default() })
@@ -31,12 +31,14 @@ impl Scene for MenuScene {
 
     fn frame(&mut self, _aspect: f32) -> (FrameParams, &[Instance]) {
         let params = FrameParams {
-            view_proj: Mat4::IDENTITY,
+            view: Mat4::IDENTITY,
+            projection: Projection::Identity,
             camera_position: Vec3::ZERO,
             light_dir: Vec3::NEG_Z,
             clear_color: [0.02, 0.02, 0.03],
-            fog_start: f32::MAX,
-            fog_end: f32::MAX,
+            fog: None,
+            // Nothing 3D is drawn, so there is no camera to follow from frame to frame.
+            camera_cut: true,
         };
         (params, &[])
     }
@@ -75,11 +77,11 @@ impl Scene for Pausable {
         self.inner.title()
     }
 
-    fn init(&mut self, renderer: &mut Renderer) -> Result<()> {
+    fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
         self.inner.init(renderer)
     }
 
-    fn update(&mut self, renderer: &mut Renderer, input: &ActionState, dt: f32) {
+    fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
         if self.paused.get() {
             if self.effects_dirty {
                 self.inner.refresh_effects(renderer);
@@ -115,6 +117,14 @@ impl Scene for Pausable {
         self.inner.set_transmission(transmission);
     }
 
+    fn set_camera_mode(&mut self, mode: crate::settings::CameraMode) {
+        self.inner.set_camera_mode(mode);
+    }
+
+    fn takes_camera_setting(&self) -> bool {
+        self.inner.takes_camera_setting()
+    }
+
     fn set_wheel_options(&mut self, wheel: crate::settings::WheelOptions) {
         self.inner.set_wheel_options(wheel);
     }
@@ -145,6 +155,10 @@ impl Scene for Pausable {
     fn set_smoke_quality(&mut self, quality: crate::settings::SmokeQuality) {
         self.inner.set_smoke_quality(quality);
         self.effects_dirty = true;
+    }
+
+    fn set_car_shading(&mut self, shading: crate::settings::CarShading) {
+        self.inner.set_car_shading(shading);
     }
 
     fn set_vehicle_effects(&mut self, sparks: bool, trails: bool) {
@@ -182,7 +196,12 @@ impl Scene for Pausable {
         self.inner.commands()
     }
 
-    fn command(&mut self, renderer: &mut Renderer, name: &str, args: &[&str]) -> Option<Result<String, String>> {
+    fn command(
+        &mut self,
+        renderer: &mut dyn RenderBackend,
+        name: &str,
+        args: &[&str],
+    ) -> Option<Result<String, String>> {
         self.inner.command(renderer, name, args)
     }
 }
@@ -205,7 +224,7 @@ mod tests {
     #[test]
     fn replacement_driving_scene_inherits_live_effect_settings_through_pause_wrapper() {
         use crate::app::Host;
-        use crate::settings::{Partial, Settings, SmokeQuality, SparkStyle};
+        use crate::settings::{CarShading, Partial, Settings, SmokeQuality, SparkStyle};
         use std::sync::Mutex;
 
         #[derive(Default)]
@@ -214,16 +233,17 @@ mod tests {
             quality: Option<SmokeQuality>,
             vehicle: [bool; 2],
             style: Option<SparkStyle>,
+            shading: Option<CarShading>,
         }
         struct Observed(Arc<Mutex<Seen>>);
         impl Scene for Observed {
             fn title(&self) -> String {
                 String::new()
             }
-            fn init(&mut self, _: &mut Renderer) -> Result<()> {
+            fn init(&mut self, _: &mut dyn RenderBackend) -> Result<()> {
                 Ok(())
             }
-            fn update(&mut self, _: &mut Renderer, _: &ActionState, _: f32) {}
+            fn update(&mut self, _: &mut dyn RenderBackend, _: &ActionState, _: f32) {}
             fn frame(&mut self, _: f32) -> (FrameParams, &[Instance]) {
                 unreachable!()
             }
@@ -239,6 +259,9 @@ mod tests {
             fn set_spark_style(&mut self, style: SparkStyle) {
                 self.0.lock().unwrap().style = Some(style);
             }
+            fn set_car_shading(&mut self, shading: CarShading) {
+                self.0.lock().unwrap().shading = Some(shading);
+            }
         }
         let settings = Settings::from(Partial::default());
         let mut host = Host::new(Box::new(MenuScene), &settings, None);
@@ -246,6 +269,7 @@ mod tests {
         host.set_smoke_quality(SmokeQuality::High);
         host.set_vehicle_effects(true, false);
         host.set_spark_style(SparkStyle::RestoredExperimental);
+        host.set_car_shading(CarShading::Simple);
         let seen = Arc::new(Mutex::new(Seen::default()));
         let scene = Pausable::new(Box::new(Observed(seen.clone())), PauseFlag::default());
         // Preferences must reach the incoming scene before renderer init and screenshot settling.
@@ -255,6 +279,7 @@ mod tests {
         assert_eq!(seen.quality, Some(SmokeQuality::High));
         assert_eq!(seen.vehicle, [true, false]);
         assert_eq!(seen.style, Some(SparkStyle::RestoredExperimental));
+        assert_eq!(seen.shading, Some(CarShading::Simple));
     }
 
     #[test]
@@ -266,10 +291,10 @@ mod tests {
             fn title(&self) -> String {
                 String::new()
             }
-            fn init(&mut self, _: &mut Renderer) -> Result<()> {
+            fn init(&mut self, _: &mut dyn RenderBackend) -> Result<()> {
                 Ok(())
             }
-            fn update(&mut self, _: &mut Renderer, _: &ActionState, _: f32) {
+            fn update(&mut self, _: &mut dyn RenderBackend, _: &ActionState, _: f32) {
                 panic!("a paused scene must not advance");
             }
             fn frame(&mut self, _: f32) -> (FrameParams, &[Instance]) {

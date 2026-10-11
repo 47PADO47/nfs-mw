@@ -1,11 +1,13 @@
 //! One layer of settings: every field may be unset.
 
-use blackbox_render::Backend;
+use blackbox_gfx::GraphicsApi;
 
 use super::{
-    Deadzone, HudLayout, MinimapMode, Monitor, RadioHudStyle, Resolution, Sensitivity, SmokeQuality, Transmission,
+    CameraMode, CarShading, Deadzone, GraphicsPreset, HudLayout, MinimapMode, Monitor, PostAa, PostBloom, PostTonemap,
+    RadioHudStyle, RenderScale, RendererKind, Resolution, Sensitivity, SmokeQuality, Transmission, UpscaleMode,
     WindowMode,
 };
+use super::{RayTracingLevel, UpscaleQuality};
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
 
@@ -53,7 +55,8 @@ pub struct Partial {
     pub camera_sensitivity: Option<Sensitivity>,
     pub mouse_sensitivity: Option<Sensitivity>,
     pub invert_camera_y: Option<bool>,
-    pub backend: Option<Backend>,
+    pub backend: Option<GraphicsApi>,
+    pub renderer: Option<RendererKind>,
     pub vsync: Option<bool>,
     pub max_fps: Option<MaxFps>,
     pub show_metrics: Option<ShowMetrics>,
@@ -70,6 +73,8 @@ pub struct Partial {
     pub tire_smoke: Option<bool>,
     pub radio: Option<bool>,
     pub skip_intro: Option<bool>,
+    pub graphics_preset: Option<GraphicsPreset>,
+    pub car_shading: Option<CarShading>,
     pub smoke_quality: Option<SmokeQuality>,
     pub skid_marks: Option<bool>,
     pub collision_sparks: Option<bool>,
@@ -77,9 +82,23 @@ pub struct Partial {
     pub speed_trails: Option<bool>,
     pub exhaust_flames: Option<bool>,
     pub transmission: Option<Transmission>,
+    pub camera_mode: Option<CameraMode>,
     pub minimap: Option<MinimapMode>,
     pub hud_layout: Option<HudLayout>,
     pub radio_hud: Option<RadioHudStyle>,
+    pub post_tonemap: Option<PostTonemap>,
+    pub post_bloom: Option<PostBloom>,
+    pub post_aa: Option<PostAa>,
+    pub visual_treatment: Option<super::VisualTreatment>,
+    pub reflections: Option<super::ReflectionQuality>,
+    pub ao: Option<super::AoQuality>,
+    pub ao_intensity: Option<Percent>,
+    pub ao_compare: Option<bool>,
+    pub render_scale: Option<RenderScale>,
+    pub upscaler: Option<UpscaleMode>,
+    pub upscale_sharpness: Option<Percent>,
+    pub upscale_quality: Option<UpscaleQuality>,
+    pub ray_tracing: Option<RayTracingLevel>,
     pub paddle_up: Option<u32>,
     pub paddle_down: Option<u32>,
     pub manual_clutch: Option<bool>,
@@ -99,6 +118,7 @@ impl Partial {
             mouse_sensitivity: self.mouse_sensitivity.or(lower.mouse_sensitivity),
             invert_camera_y: self.invert_camera_y.or(lower.invert_camera_y),
             backend: self.backend.or(lower.backend),
+            renderer: self.renderer.or(lower.renderer),
             vsync: self.vsync.or(lower.vsync),
             max_fps: self.max_fps.or(lower.max_fps),
             show_metrics: self.show_metrics.or(lower.show_metrics),
@@ -115,6 +135,8 @@ impl Partial {
             tire_smoke: self.tire_smoke.or(lower.tire_smoke),
             radio: self.radio.or(lower.radio),
             skip_intro: self.skip_intro.or(lower.skip_intro),
+            graphics_preset: self.graphics_preset.or(lower.graphics_preset),
+            car_shading: self.car_shading.or(lower.car_shading),
             smoke_quality: self.smoke_quality.or(lower.smoke_quality),
             skid_marks: self.skid_marks.or(lower.skid_marks),
             collision_sparks: self.collision_sparks.or(lower.collision_sparks),
@@ -122,9 +144,23 @@ impl Partial {
             speed_trails: self.speed_trails.or(lower.speed_trails),
             exhaust_flames: self.exhaust_flames.or(lower.exhaust_flames),
             transmission: self.transmission.or(lower.transmission),
+            camera_mode: self.camera_mode.or(lower.camera_mode),
             minimap: self.minimap.or(lower.minimap),
             hud_layout: self.hud_layout.or(lower.hud_layout),
             radio_hud: self.radio_hud.or(lower.radio_hud),
+            post_tonemap: self.post_tonemap.or(lower.post_tonemap),
+            post_bloom: self.post_bloom.or(lower.post_bloom),
+            post_aa: self.post_aa.or(lower.post_aa),
+            visual_treatment: self.visual_treatment.or(lower.visual_treatment),
+            reflections: self.reflections.or(lower.reflections),
+            ao: self.ao.or(lower.ao),
+            ao_intensity: self.ao_intensity.or(lower.ao_intensity),
+            ao_compare: self.ao_compare.or(lower.ao_compare),
+            render_scale: self.render_scale.or(lower.render_scale),
+            upscaler: self.upscaler.or(lower.upscaler),
+            upscale_sharpness: self.upscale_sharpness.or(lower.upscale_sharpness),
+            upscale_quality: self.upscale_quality.or(lower.upscale_quality),
+            ray_tracing: self.ray_tracing.or(lower.ray_tracing),
             paddle_up: self.paddle_up.or(lower.paddle_up),
             paddle_down: self.paddle_down.or(lower.paddle_down),
             manual_clutch: self.manual_clutch.or(lower.manual_clutch),
@@ -148,10 +184,10 @@ mod tests {
 
     #[test]
     fn upper_layer_wins_and_gaps_fall_through() {
-        let cli = Partial { backend: Some(Backend::Gl), ..Partial::default() };
-        let file = Partial { backend: Some(Backend::Vulkan), vsync: Some(false), ..Partial::default() };
+        let cli = Partial { backend: Some(GraphicsApi::Gl), ..Partial::default() };
+        let file = Partial { backend: Some(GraphicsApi::Vulkan), vsync: Some(false), ..Partial::default() };
         let merged = cli.or(file);
-        assert_eq!(merged.backend, Some(Backend::Gl));
+        assert_eq!(merged.backend, Some(GraphicsApi::Gl));
         assert_eq!(merged.vsync, Some(false));
         assert_eq!(merged.max_fps, None);
     }

@@ -71,7 +71,7 @@ fn check_file(path: &str, bytes: &[u8]) -> Vec<String> {
         problems.push("binary content (NUL bytes)".to_owned());
         return problems;
     }
-    let is_code = matches!(ext.as_deref(), Some("rs" | "wgsl" | "py")) && path != SELF_PATH;
+    let is_code = matches!(ext.as_deref(), Some("rs" | "wgsl" | "wesl" | "py")) && path != SELF_PATH;
     if is_code {
         for (n, line) in String::from_utf8_lossy(bytes).lines().enumerate() {
             if line.contains(ALLOW_MARKER) {
@@ -149,5 +149,6 @@ mod tests {
         assert!(!check_file(".env", b"NFSMW_GAME_DIR=D:/x").is_empty());
         assert!(check_file(".env.example", b"NFSMW_GAME_DIR=D:/x").is_empty());
         assert!(check_file("crates/a/src/lib.rs", b"fn main() {}\n").is_empty());
+        assert!(!check_file("libs/a/src/shader.wesl", b"fn x() { FUN_00401850(); }\n").is_empty());
     }
 }

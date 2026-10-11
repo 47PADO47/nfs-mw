@@ -57,6 +57,8 @@ pub enum Action {
     ResetCar,
     /// Button: switch between the chase camera and the free camera.
     ToggleCamera,
+    /// Driving button: the next gameplay camera (the camera setting).
+    CycleCamera,
     /// Menu button: the focus moves up.
     MenuUp,
     MenuDown,
@@ -113,6 +115,7 @@ impl Action {
             "nos",
             "reset_car",
             "toggle_camera",
+            "cycle_camera",
             "menu_up",
             "menu_down",
             "menu_left",
@@ -136,7 +139,7 @@ impl Action {
             .find(|a| a.name() == name)
             .ok_or_else(|| format!("unknown action {name:?}; use keys to list actions"))
     }
-    pub const ALL: [Action; 42] = [
+    pub const ALL: [Action; 43] = [
         Action::MoveForward,
         Action::MoveRight,
         Action::MoveUp,
@@ -167,6 +170,7 @@ impl Action {
         Action::Nos,
         Action::ResetCar,
         Action::ToggleCamera,
+        Action::CycleCamera,
         Action::MenuUp,
         Action::MenuDown,
         Action::MenuLeft,

@@ -9,7 +9,7 @@ use game_install::GameDir;
 use super::ids::screen;
 use super::logic::{Args, Category, Command, Env};
 use super::screens::Screens;
-use crate::settings::{Partial, Percent, Settings};
+use crate::settings::{Partial, Percent, Settings, test_caps};
 use crate::ui::{Catalog, SCREEN_FILES, UiAssets};
 
 const FRAME: f32 = 1.0 / 60.0;
@@ -158,14 +158,14 @@ impl Harness {
             changed: Partial::default(),
             commands: Vec::new(),
         };
-        let mut env = Env { settings: &mut h.settings, changed: &mut h.changed };
+        let mut env = Env { settings: &mut h.settings, changed: &mut h.changed, caps: test_caps::native() };
         h.commands = h.screens.open(name, args, true, &mut env);
         Some(h)
     }
 
     fn run(&mut self, mask: u32, frames: usize) {
         for _ in 0..frames {
-            let mut env = Env { settings: &mut self.settings, changed: &mut self.changed };
+            let mut env = Env { settings: &mut self.settings, changed: &mut self.changed, caps: test_caps::native() };
             self.commands.extend(self.screens.update(FRAME, mask, &mut env));
         }
     }
@@ -276,7 +276,7 @@ fn the_video_rows_change_vsync_and_the_hud_row_the_hud() {
     h.press(pad::DOWN);
     h.press(pad::RIGHT);
     assert_eq!(h.settings.max_fps.to_string(), "30");
-    for _ in 1..super::options::rows(Category::Video).len() {
+    for _ in 1..super::options::rows(Category::Video, &crate::settings::test_caps::native()).len() {
         h.press(pad::DOWN);
     }
     h.press(pad::RIGHT);
@@ -383,7 +383,7 @@ fn controls_options_show_every_response_row_with_visible_values() {
         let args = Args { pause, category: Category::Controls, ..Args::default() };
         let Some(mut h) = Harness::open(name, args) else { return };
         h.wait(1.0);
-        let rows = rows(Category::Controls);
+        let rows = rows(Category::Controls, &crate::settings::test_caps::native());
         for (index, row) in rows.iter().enumerate() {
             let slot = index.min(visible - 1) + 1;
             let tree = h.screens.trees().pop().unwrap();
@@ -421,7 +421,7 @@ fn main_and_pause_minimap_options_apply_and_request_a_save() {
         let args = Args { pause, category: Category::Gameplay, ..Args::default() };
         let Some(mut h) = Harness::open(name, args) else { return };
         h.wait(1.0);
-        let row = super::options::rows(Category::Gameplay)
+        let row = super::options::rows(Category::Gameplay, &crate::settings::test_caps::native())
             .iter()
             .position(|r| r.setting == super::options::Setting::Minimap)
             .unwrap();

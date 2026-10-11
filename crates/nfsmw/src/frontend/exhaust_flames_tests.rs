@@ -5,14 +5,16 @@ use crate::settings::{Partial, Settings};
 
 #[test]
 fn the_video_screen_has_one_exhaust_flames_row_after_the_vehicle_effects() {
-    let video = rows(Category::Video);
+    let video = rows(Category::Video, &crate::settings::test_caps::native());
     let at = video.iter().position(|r| r.setting == Setting::ExhaustFlames).expect("a row");
     assert_eq!(video[at].title, Title::Text("Exhaust Flames"));
     assert_eq!(video[at - 1].setting, Setting::SpeedTrails);
     // The pause menu shows the same rows as the main menu.
     assert_eq!(video.iter().filter(|r| r.setting == Setting::ExhaustFlames).count(), 1);
     for category in [Category::Audio, Category::Gameplay] {
-        assert!(rows(category).iter().all(|r| r.setting != Setting::ExhaustFlames));
+        assert!(
+            rows(category, &crate::settings::test_caps::native()).iter().all(|r| r.setting != Setting::ExhaustFlames)
+        );
     }
 }
 
@@ -65,10 +67,14 @@ fn main_and_pause_video_screens_show_the_exhaust_flames_row_and_save_it() {
     for (name, pause) in [(screen::OPTIONS, false), (screen::PAUSE_OPTIONS, true)] {
         let mut screens = Screens::new(Catalog::load(&dir, &SCREEN_FILES), assets.clone());
         let (mut settings, mut changes) = (Settings::from(Partial::default()), Partial::default());
-        let mut env = Env { settings: &mut settings, changed: &mut changes };
+        let mut env =
+            Env { settings: &mut settings, changed: &mut changes, caps: crate::settings::test_caps::native() };
         screens.open(name, Args { pause, category: Category::Video, ..Args::default() }, true, &mut env);
         run(&mut screens, &mut env, 0, 60);
-        let at = rows(Category::Video).iter().position(|r| r.setting == Setting::ExhaustFlames).unwrap();
+        let at = rows(Category::Video, &crate::settings::test_caps::native())
+            .iter()
+            .position(|r| r.setting == Setting::ExhaustFlames)
+            .unwrap();
         for _ in 0..at {
             press(&mut screens, &mut env, pad::DOWN);
         }

@@ -175,6 +175,22 @@ hook, unit tests on synthetic data plus `#[ignore]`d real-install tests, a much 
 No Rust crate exists for JDLZ, HUFF, EA-XA, EA-XAS, MicroTalk or the EA video container, so we write
 those from specs. The chosen crates and their licenses are in [rust-stack.md](rust-stack.md).
 
+## 10. Graphics references for milestone 8
+
+Surveyed on **2026-10-09** (licenses read from the files, dates from the GitHub API). What they mean for the
+renderer is decided in [decisions/0003-renderer-after-milestone-8.md](decisions/0003-renderer-after-milestone-8.md).
+
+| Project | Value | License | Last push |
+|---|---|---|---|
+| [GPUOpen-Effects/FidelityFX-FSR](https://github.com/GPUOpen-Effects/FidelityFX-FSR) | FSR 1 EASU and RCAS (`ffx_fsr1.h`, `ffx_a.h`), HLSL and GLSL. Port to WGSL; keep AMD's and Michal Drobot's notices | MIT | 2022-05-22 |
+| [GPUOpen-Effects/FidelityFX-FSR2](https://github.com/GPUOpen-Effects/FidelityFX-FSR2) | FSR 2.2.1 temporal upscaler, DX12 and Vulkan backends, HLSL; needs motion vectors and jitter | MIT-style (README) | 2023-08-26 |
+| [GPUOpen-LibrariesAndSDKs/FidelityFX-SDK](https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK) | FSR 3.1 upscaler source (MIT file list); FSR 4 and frame generation ship as signed DX12 DLLs (binary only, no reverse engineering) | MIT for the listed sources, binary-only for the DLLs | 2026-06-24 |
+| [bevyengine/dlss_wgpu](https://github.com/bevyengine/dlss_wgpu) | DLSS Super Resolution and Ray Reconstruction on wgpu 30 through wgpu-hal (Vulkan only); needs NVIDIA's SDK at build time | MIT OR Apache-2.0 (the SDK: NVIDIA RTX SDKs LICENSE) | 2026-09-11 |
+| [NVIDIA/DLSS](https://github.com/NVIDIA/DLSS) | DLSS SDK 310.9.1 headers, libraries and docs | NVIDIA RTX SDKs LICENSE (not open source) | 2026-09-08 |
+| [bevyengine/bevy](https://github.com/bevyengine/bevy) `crates/bevy_solari` | Experimental ray-traced lighting on wgpu ray queries; needs Bevy's renderer, PBR deferred meshes and DLSS-RR for a clean image | MIT OR Apache-2.0 | 2026-10-09 |
+| [crosire/reshade](https://github.com/crosire/reshade) | Post-processing injector (D3D9 to D3D12, OpenGL, Vulkan layer); Windows only; reads the depth buffer | BSD-3-Clause | 2026-09-24 |
+| [DadSchoorse/vkBasalt](https://github.com/DadSchoorse/vkBasalt) | Vulkan post-processing layer for Linux (the usual stand-in for ReShade there) | Zlib | 2023-10-04 |
+
 ## Engine notes from the decomp **[decomp]**
 
 - **Chunk loading.** `bChunkLoader` keeps a table of ID → loader/unloader functions, bucketed by

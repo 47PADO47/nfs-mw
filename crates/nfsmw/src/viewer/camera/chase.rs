@@ -1,9 +1,9 @@
 //! A camera that follows a car: it sits behind it, turns slowly with its heading, backs off and
 //! widens its view with speed, and is pushed in by whatever stands between it and the car.
 
-use glam::{Mat4, Vec3};
+use glam::Vec3;
 
-use super::{direction, view_proj};
+use super::{Camera, Lens, direction};
 
 /// Distance behind the car at rest and at [`FAST`], metres.
 const NEAR: f32 = 5.6;
@@ -171,8 +171,23 @@ impl ChaseCamera {
         self.fov_degrees = FOV_SLOW + (FOV_FAST - FOV_SLOW) * speed01;
     }
 
-    pub fn view_proj(&self, aspect: f32) -> Mat4 {
-        view_proj(self.position, self.target, self.fov_degrees, aspect, 0.3)
+    const NEAR_PLANE: f32 = 0.3;
+}
+
+impl ChaseCamera {
+    /// The lens with a given field of view instead of the car-speed one (the dynamic FOV camera).
+    pub fn lens_with_fov(&self, aspect: f32, fov_y_degrees: f32) -> Lens {
+        Lens::look_at(self.position, self.target, fov_y_degrees, Self::NEAR_PLANE, aspect)
+    }
+}
+
+impl Camera for ChaseCamera {
+    fn lens(&self, aspect: f32) -> Lens {
+        self.lens_with_fov(aspect, self.fov_degrees())
+    }
+
+    fn selectable(&self) -> bool {
+        true
     }
 }
 

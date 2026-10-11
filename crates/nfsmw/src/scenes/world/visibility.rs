@@ -2,7 +2,7 @@
 //! (`docs/specs/scenery-lod.md`, which also acts as the draw distance), then
 //! sorting by mesh so the renderer can instance repeated models.
 
-use blackbox_render::Instance;
+use blackbox_gfx::Instance;
 use blackbox_scene::Frustum;
 use blackbox_scenery::LodView;
 use blackbox_scenery::layout::LodRules;
@@ -28,17 +28,29 @@ pub fn collect<'a>(
     props: &PropWorld,
     out: &mut Vec<Instance>,
 ) {
+    collect_for_height(placed, camera, rules, props, REFERENCE_HEIGHT, out);
+}
+
+/// A small environment capture needs its own projected-size LOD, rather than the player's 480px rule.
+pub fn collect_for_height<'a>(
+    placed: impl Iterator<Item = &'a Placed>,
+    camera: &Camera,
+    rules: &LodRules,
+    props: &PropWorld,
+    height: f32,
+    out: &mut Vec<Instance>,
+) {
     let frustum = Frustum::from_view_proj(&camera.view_proj);
     let view = LodView {
         position: camera.position,
         forward: camera.forward,
-        pixel_scale: LodView::pixel_scale_for(camera.fov_y_radians, REFERENCE_HEIGHT),
+        pixel_scale: LodView::pixel_scale_for(camera.fov_y_radians, height),
     };
     out.clear();
     out.extend(placed.filter(|p| frustum.intersects(&p.bounds) && !props.hidden(p.prop_id)).filter_map(|p| {
         let slots = p.lods.map(|m| m.is_some());
         let slot = rules.choose(&view, p.position, p.radius, p.flags, slots, p.detailed)?;
-        Some(Instance { mesh: p.lods[slot]?, transform: p.transform })
+        Some(Instance::keyed(p.lods[slot]?, p.transform, p.key))
     }));
     out.sort_unstable_by_key(|i| i.mesh);
 }

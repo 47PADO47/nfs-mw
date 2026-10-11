@@ -67,7 +67,7 @@ wheel, H-shifter or clutch pedal was available.
 
 ## Backend filtering
 
-Inspected the Cargo.lock-pinned `bevy_input` and `bevy_gilrs` 0.20.0-rc.2 sources (`src/gamepad.rs`,
+Inspected the Cargo.lock-pinned `bevy_input` and `bevy_gilrs` 0.20.0 sources (`src/gamepad.rs`,
 `src/lib.rs` and `src/gilrs_system.rs`). Bevy's gilrs adapter disables gilrs's default filters and only
 converts D-pad axes to buttons. Bevy's own default 5 percent analog zones and 1 percent change thresholds
 still discard small updates; although `Gamepad` stores accepted raw values, a return to zero can leave a

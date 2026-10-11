@@ -32,17 +32,26 @@ against the install at `D:/Need For Speed Most Wanted Black Edition`.
 
 | Doc | What it covers |
 |---|---|
+| [renderers.md](renderers.md) | The `renderer` setting (native Black Box or Bevy), what each can do, every graphics key with its CLI, environment and TOML names, restart rules, the `gfx` console command |
+| [bevy-backend.md](bevy-backend.md) | The optional Bevy renderer spike: how it fits the game's `App`, axes, colour, instancing, the measured results against the native renderer, known gaps |
+| [low-end.md](low-end.md) | Weak GPUs and laptops: what each graphics setting costs, the low, medium and high presets, a low-end config and how to read the performance overlay |
+| [post-processing.md](post-processing.md) | Optional tone mapping, bloom and anti-aliasing (FXAA; SMAA and TAA on the Bevy renderer): settings, menu rows, what each does and how to compare them |
+| [visual-treatment.md](visual-treatment.md) | Installed PC midday colour treatment for the native renderer |
+| [ambient-occlusion.md](ambient-occlusion.md) | Experimental depth-only GTAO: quality, live comparison, filtering, limitations and GPU validation |
 | [vehicle-effects.md](vehicle-effects.md) | Original PC sparks, experimental restored sparks and wind trails using base-game assets |
 | [architecture.md](architecture.md) | `libs/` (engine-generic) vs `crates/` (MW), finding the install, the streamed city, graphics backends, Windows/Linux, roadmap |
 | [testing.md](testing.md) | the kinds of tests, the real-install tests and how to run them |
 | [window-modes.md](window-modes.md) | Windowed, borderless and exclusive fullscreen, display selection, resolution and runtime switching |
 | [hud-layout.md](hud-layout.md) | PC widescreen, centered and Xbox-scaled HUD presets |
+| [upscaling.md](upscaling.md) | Render scale, bilinear and FSR 1 upscaling, the temporal upscalers and their quality modes, ReShade limits, seams for DLSS |
+| [reshade.md](reshade.md) | Using ReShade or vkBasalt: backends, the reverse-Z depth settings, render scale limits |
 | [tire-effects.md](tire-effects.md) | Tire smoke, ground-following marks, runtime controls and reproducible driving checks |
 | [vehicle-effects.md](vehicle-effects.md) | Optional collision sparks and high-speed wind trails using stock-install definitions |
 | [exhaust-flames.md](exhaust-flames.md) | Tail-pipe flames for nitrous, gear changes and lift-off sputter pops: the `exhaust_flames` setting, console, budgets and checks |
 | [controller-settings.md](controller-settings.md) | Independent response options and saved keyboard, mouse and gamepad rebinding |
 | [rust-stack.md](rust-stack.md) | Crates used and planned, with versions and licenses; rejected options |
-| [decisions/](decisions/0001-bevy.md) | Architecture decision records: [0001 Bevy as the game framework](decisions/0001-bevy.md) (proposed) |
+| [decisions/](decisions/0001-bevy.md) | Architecture decision records: [0001 Bevy as the game framework](decisions/0001-bevy.md) (proposed), [0003 The renderer after milestone 8](decisions/0003-renderer-after-milestone-8.md) (proposed), [0004 Two renderers behind one interface](decisions/0004-swappable-renderers.md) (proposed) |
+| [plans/gfx-renderers/](plans/gfx-renderers/README.md) | Plan for swappable renderers (native Black Box and Bevy) behind one interface: [interface](plans/gfx-renderers/interface.md), [Bevy backend](plans/gfx-renderers/bevy-backend.md), [upscalers and settings](plans/gfx-renderers/upscalers-settings.md), [PR list](plans/gfx-renderers/pr-list.md), [status and handoff](plans/gfx-renderers/status.md), [verification and risks](plans/gfx-renderers/verification-risks.md) |
 | [licensing.md](licensing.md) | Project license, what each source license allows, unlicensed repos, the spec-first process |
 | [specs/](specs/README.md) | Behaviour specs written before implementing it from decompiled sources: [scenery visibility](specs/scenery-visibility.md), [scenery LOD](specs/scenery-lod.md), [visible sections](specs/visible-sections.md), [car assembly](specs/car-assembly.md), [FEng input](specs/feng-input.md), [front-end menus](specs/frontend-menus.md) |
 | [provenance/](provenance/README.md) | Records for modules whose behaviour came from restricted sources |

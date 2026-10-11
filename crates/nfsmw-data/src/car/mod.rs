@@ -24,8 +24,9 @@ use game_install::GameDir;
 use glam::Mat4;
 
 pub use assemble::Placement;
+pub use blackbox_carparts::LightMaterial;
 pub use ecar::WheelSetup;
-pub use paint::Paint;
+pub use paint::{CARSKIN, Paint};
 pub use parts::is_stock_part;
 pub use stock::{Slots, preset_parts, stock_parts};
 pub use swaps::TextureSwaps;
@@ -47,6 +48,8 @@ pub struct CarModel {
     pub textures: HashMap<u32, Texture>,
     pub swaps: TextureSwaps,
     pub paint: Option<Paint>,
+    /// Shading constants of the car materials, by name hash (empty when the car tables are not read).
+    pub light_materials: HashMap<u32, LightMaterial>,
     /// Height of the car origin above the floor (tyres resting on it), 0 when unknown.
     pub floor_height: f32,
     /// The four wheel and brake mounts, to pose a moving car; with the `ecar` wheel record.
@@ -151,6 +154,7 @@ pub fn load(dir: &GameDir, car: &str, options: &LoadOptions) -> Result<CarModel>
         textures,
         swaps,
         paint,
+        light_materials: t.light_materials.iter().map(|m| (m.name_hash, m.clone())).collect(),
         floor_height: setup.as_ref().map_or(0.0, wheels::floor_height),
         corners,
         wheel_setup: setup,
@@ -201,6 +205,7 @@ fn unassembled(dir: &GameDir, car: &str, solids: Vec<Solid>, options: &LoadOptio
         textures,
         swaps,
         paint: None,
+        light_materials: HashMap::new(),
         floor_height: 0.0,
         corners: None,
         wheel_setup: None,
