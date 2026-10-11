@@ -18,7 +18,7 @@ use nfsmw_data::car::{CarModel, LoadOptions};
 use crate::input::ActionState;
 use crate::settings::CarShading;
 use crate::viewer::Scene;
-use crate::viewer::camera::{CameraCut, FlyCamera, OrbitCamera};
+use crate::viewer::camera::{Camera, CameraCut, FlyCamera, OrbitCamera};
 use materials::CarMaterials;
 
 /// The direction the light travels in the viewer (the placeholder shading of the floor uses it
@@ -188,14 +188,15 @@ impl Scene for CarScene {
     }
 
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
-        let (view, projection, camera_position) = match &self.free {
-            Some(free) => (free.view(), free.projection(aspect), free.position),
-            None => (self.camera.view(), self.camera.projection(aspect), self.camera.eye()),
+        let camera: &dyn Camera = match &self.free {
+            Some(free) => free,
+            None => &self.camera,
         };
+        let lens = camera.lens(aspect);
         let params = FrameParams {
-            view,
-            projection,
-            camera_position,
+            view: lens.view,
+            projection: lens.projection,
+            camera_position: lens.position,
             light_dir: LIGHT_DIR,
             clear_color: [0.18, 0.2, 0.24],
             fog: None,

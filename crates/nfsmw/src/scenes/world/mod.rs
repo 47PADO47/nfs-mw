@@ -30,7 +30,7 @@ use nfsmw_data::world::{DEFAULT_TRACK, PropCatalog, Streamer, WorldIndex, load_g
 
 use crate::input::{Action, ActionState};
 use crate::viewer::Scene;
-use crate::viewer::camera::{CameraCut, FlyCamera};
+use crate::viewer::camera::{Camera, CameraCut, FlyCamera};
 use drive::{Drive, DriveScript, MarkerMeshes};
 use residency::Residency;
 
@@ -310,25 +310,20 @@ impl Scene for WorldScene {
 
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
         let chase = self.drive.as_ref().filter(|_| self.view == View::Chase);
-        let (view, projection, position, forward, fov_degrees) = match chase {
-            Some(drive) => {
-                let c = drive.camera();
-                (c.view(), c.projection(aspect), c.position, c.forward(), c.fov_degrees())
-            }
-            None => {
-                let c = &self.camera;
-                (c.view(), c.projection(aspect), c.position, c.forward(), FlyCamera::FOV_Y_DEGREES)
-            }
+        let camera: &dyn Camera = match chase {
+            Some(drive) => drive.camera(),
+            None => &self.camera,
         };
+        let lens = camera.lens(aspect);
         let fog_end = self.fog_distance;
-        let camera = visibility::Camera {
-            view_proj: projection.matrix() * view,
-            position: position.to_array(),
-            forward: forward.to_array(),
-            fov_y_radians: fov_degrees.to_radians(),
+        let cull = visibility::Camera {
+            view_proj: lens.view_proj(),
+            position: lens.position.to_array(),
+            forward: lens.forward.to_array(),
+            fov_y_radians: lens.fov_y_degrees.to_radians(),
         };
         let rules = &blackbox_scenery::layout::MOST_WANTED.lod;
-        visibility::collect(self.residency.placed(), &camera, rules, self.residency.props(), &mut self.visible);
+        visibility::collect(self.residency.placed(), &cull, rules, self.residency.props(), &mut self.visible);
         if let Some(drive) = &self.drive {
             drive.instances(&mut self.visible);
             if let (true, Some(meshes)) = (self.markers_on, &self.marker_meshes) {
@@ -338,9 +333,9 @@ impl Scene for WorldScene {
         let drive_cut = self.drive.as_mut().is_some_and(|drive| drive.take_camera_cut());
         let camera_cut = self.cut.take() | drive_cut;
         let params = FrameParams {
-            view,
-            projection,
-            camera_position: position,
+            view: lens.view,
+            projection: lens.projection,
+            camera_position: lens.position,
             light_dir: sun::DIRECTION,
             clear_color: CLEAR,
             fog: Some(Fog { start: fog_end * 0.5, end: fog_end }),

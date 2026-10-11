@@ -1,10 +1,9 @@
 //! Free-fly camera: WASD to move, Space/C (or E/Q) up and down, Shift faster,
 //! mouse to look around (captured cursor, or hold the right button), scroll to change speed.
 
-use blackbox_gfx::Projection;
-use glam::{Mat4, Vec3};
+use glam::Vec3;
 
-use super::{direction, projection, view};
+use super::{Camera, Lens, direction};
 use crate::input::{Action, ActionState};
 
 pub struct FlyCamera {
@@ -38,12 +37,10 @@ impl FlyCamera {
     }
 
     const NEAR: f32 = 0.5;
+}
 
-    pub fn view(&self) -> Mat4 {
-        view(self.position, self.position + self.forward())
-    }
-
-    pub fn projection(&self, aspect: f32) -> Projection {
-        projection(Self::FOV_Y_DEGREES, aspect, Self::NEAR)
+impl Camera for FlyCamera {
+    fn lens(&self, aspect: f32) -> Lens {
+        Lens::look_at(self.position, self.position + self.forward(), Self::FOV_Y_DEGREES, Self::NEAR, aspect)
     }
 }

@@ -1,10 +1,9 @@
 //! A camera that follows a car: it sits behind it, turns slowly with its heading, backs off and
 //! widens its view with speed, and is pushed in by whatever stands between it and the car.
 
-use blackbox_gfx::Projection;
-use glam::{Mat4, Vec3};
+use glam::Vec3;
 
-use super::{direction, projection, view};
+use super::{Camera, Lens, direction};
 
 /// Distance behind the car at rest and at [`FAST`], metres.
 const NEAR: f32 = 5.6;
@@ -173,13 +172,11 @@ impl ChaseCamera {
     }
 
     const NEAR_PLANE: f32 = 0.3;
+}
 
-    pub fn view(&self) -> Mat4 {
-        view(self.position, self.target)
-    }
-
-    pub fn projection(&self, aspect: f32) -> Projection {
-        projection(self.fov_degrees, aspect, Self::NEAR_PLANE)
+impl Camera for ChaseCamera {
+    fn lens(&self, aspect: f32) -> Lens {
+        Lens::look_at(self.position, self.target, self.fov_degrees(), Self::NEAR_PLANE, aspect)
     }
 }
 

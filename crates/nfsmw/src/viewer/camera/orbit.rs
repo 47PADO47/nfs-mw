@@ -1,9 +1,8 @@
 //! Orbit camera for model viewing: left-drag rotates, scroll zooms.
 
-use blackbox_gfx::Projection;
-use glam::{Mat4, Vec3};
+use glam::Vec3;
 
-use super::{direction, projection, view};
+use super::{Camera, Lens, direction};
 use crate::input::{Action, ActionState};
 
 pub struct OrbitCamera {
@@ -29,12 +28,10 @@ impl OrbitCamera {
     fn near(&self) -> f32 {
         (self.distance * 0.01).max(0.01)
     }
+}
 
-    pub fn view(&self) -> Mat4 {
-        view(self.eye(), self.target)
-    }
-
-    pub fn projection(&self, aspect: f32) -> Projection {
-        projection(Self::FOV_Y_DEGREES, aspect, self.near())
+impl Camera for OrbitCamera {
+    fn lens(&self, aspect: f32) -> Lens {
+        Lens::look_at(self.eye(), self.target, Self::FOV_Y_DEGREES, self.near(), aspect)
     }
 }
