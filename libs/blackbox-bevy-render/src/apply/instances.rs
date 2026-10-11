@@ -90,7 +90,7 @@ fn log_batch_stats(state: &WorldState, epoch: u64) {
     let mut sizes: Vec<usize> = per_batch.values().copied().collect();
     sizes.sort_unstable_by(|a, b| b.cmp(a));
     let top: Vec<usize> = sizes.into_iter().take(3).collect();
-    log::info!(
+    log::debug!(
         "batch-stats: draws={draws} batches={} meshes={} materials={} top_batch_sizes={top:?}",
         per_batch.len(),
         meshes.len(),
