@@ -85,8 +85,8 @@ vectors directly as the local anchors. Do not derive them from absolute pivots:
 separate quantization can produce different values. The tractor requests
 `5THWHEEL` on both bodies. Missing either node means no joint can be created.
 Do not infer anchors from vehicle length or a constant height.
-Conical/prismatic child bounds carry constraint data; the current ball-joint
-solver remains an approximation until those constraints are implemented.
+Conical/prismatic child bounds carry constraint data. Their construction and
+response are specified in [trailer constraints](trailer-constraints.md).
 
 Internal hierarchy nodes belong to independently spawned parts. A spawned
 fragment explicitly selects its own subtree; the rules measured below decide

@@ -1,24 +1,10 @@
-//! A ball joint between two rigid bodies: one point of each is held on the same place in the world, the
-//! bodies are free to turn about it. Used to hitch a trailer to a tractor (the "5th wheel").
-//!
-//! A sequential-impulse constraint, as in any rigid body engine: the relative velocity of the two anchor
-//! points is driven to zero by impulses, with a Baumgarte term that turns the remaining distance between
-//! the anchors into a closing speed so numerical drift does not accumulate.
+//! Articulation: mass-weighted fulcrum correction followed by joint moment response.
+//! Spec: `docs/specs/trailer-constraints.md`.
 
-use glam::{Mat3, Vec3};
+use glam::{Mat3, Quat, Vec3};
 
-use super::body::{BodyState, RigidBody};
+use super::{BodyHit, BodyState, RigidBody, react_joint_moments};
 
-/// The Baumgarte factor: the share of the anchor gap the correction closes in one step.
-pub const BAUMGARTE: f32 = 0.2;
-/// Two sleeping bodies whose anchors are this close (m) are left asleep.
-const SLEEPING_GAP: f32 = 0.001;
-/// Largest closing speed (m/s) the position correction may ask for, so a badly misplaced joint pulls
-/// together gently instead of throwing the bodies.
-pub const MAX_CORRECTION_SPEED: f32 = 4.0;
-
-/// A joint tying `anchor_a` of one body to `anchor_b` of another. Anchors are points in each body's own
-/// frame, measured from its origin (`RigidBody::position`), in metres.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BallJoint {
     pub anchor_a: Vec3,
@@ -26,51 +12,73 @@ pub struct BallJoint {
 }
 
 impl BallJoint {
-    /// The two anchor points in the world, in the order of the bodies.
     pub fn world_anchors(&self, a: &RigidBody, b: &RigidBody) -> (Vec3, Vec3) {
         (a.position + a.rotation() * self.anchor_a, b.position + b.rotation() * self.anchor_b)
     }
 
-    /// Distance between the two anchors in the world: zero when the joint holds.
     pub fn gap(&self, a: &RigidBody, b: &RigidBody) -> f32 {
         let (pa, pb) = self.world_anchors(a, b);
         pa.distance(pb)
     }
 
-    /// Applies impulses so the anchors move together, `iterations` times over (one is exact for a single
-    /// joint, more only matter when several constraints share a body). `dt` is the step in seconds.
+    pub fn fulcrum(&self, a: &RigidBody, b: &RigidBody) -> Vec3 {
+        let (pa, pb) = self.world_anchors(a, b);
+        if a.state == BodyState::Frozen {
+            return pa;
+        }
+        if b.state == BodyState::Frozen {
+            return pb;
+        }
+        let share = a.mass() / (a.mass() + b.mass());
+        pa * share + pb * (1.0 - share)
+    }
+
+    /// `iterations` counts moment substeps, conventionally 32; geometry closes in this tick.
     pub fn solve(&self, a: &mut RigidBody, b: &mut RigidBody, dt: f32, iterations: usize) {
-        if dt <= 0.0 || (a.state == BodyState::Frozen && b.state == BodyState::Frozen) {
+        if !dt.is_finite()
+            || dt <= 0.0
+            || iterations == 0
+            || (a.state == BodyState::Frozen && b.state == BodyState::Frozen)
+        {
             return;
         }
-        if a.state == BodyState::Asleep && b.state == BodyState::Asleep && self.gap(a, b) < SLEEPING_GAP {
-            return;
-        }
-        for _ in 0..iterations {
-            let (pa, pb) = self.world_anchors(a, b);
-            let (ra, rb) = (pa - a.world_cog(), pb - b.world_cog());
-            let gap = pa - pb;
-            let closing = (-BAUMGARTE / dt * gap).clamp_length_max(MAX_CORRECTION_SPEED);
-            let relative = a.point_velocity(pa) - b.point_velocity(pb);
-            let k = effective_mass_inverse(a, ra) + effective_mass_inverse(b, rb);
-            // Two bodies that cannot move (no mass, or frozen) make the matrix singular: nothing to solve.
-            let inverse = k.inverse();
-            if !inverse.is_finite() {
-                return;
-            }
-            let impulse = inverse * (closing - relative);
-            a.apply_impulse_at(impulse, pa);
-            b.apply_impulse_at(-impulse, pb);
+        let fulcrum = self.fulcrum(a, b);
+        set_fulcrum(a, self.anchor_a, fulcrum);
+        set_fulcrum(b, self.anchor_b, fulcrum);
+        let mut ma = a.joint_moment(fulcrum);
+        let mut mb = b.joint_moment(fulcrum);
+        if react_joint_moments(&mut ma, &mut mb, fulcrum, iterations as u32) {
+            a.apply_contact_moment(&ma);
+            b.apply_contact_moment(&mb);
         }
     }
 }
 
-/// The matrix that turns an impulse at offset `r` from the centre of gravity into the change of velocity of
-/// that point: `1/m I - [r] I^-1 [r]`. A frozen body does not move, so it adds nothing.
-fn effective_mass_inverse(body: &RigidBody, r: Vec3) -> Mat3 {
-    if body.state == BodyState::Frozen {
-        return Mat3::ZERO;
+impl RigidBody {
+    /// Original articulation point tensor; includes its diagonal parallel-axis contribution.
+    pub fn joint_moment(&self, point: Vec3) -> super::ContactMoment {
+        let mut moment =
+            self.contact_moment(&BodyHit { immobile: self.state == BodyState::Frozen, ..Default::default() });
+        let r = self.rotation().transpose() * (point - self.world_cog());
+        let squared = r * r;
+        let offset = Vec3::new(squared.y + squared.z, squared.x + squared.z, squared.x + squared.y) * self.mass();
+        let inverse = super::inverse_diagonal(self.inertia() + offset);
+        moment.inverse_inertia = self.rotation() * Mat3::from_diagonal(inverse) * self.rotation().transpose();
+        moment
     }
-    let skew = Mat3::from_cols(Vec3::new(0.0, r.z, -r.y), Vec3::new(-r.z, 0.0, r.x), Vec3::new(r.y, -r.x, 0.0));
-    Mat3::from_diagonal(Vec3::splat(body.inv_mass)) - skew * body.inv_world_tensor() * skew
+}
+
+fn set_fulcrum(body: &mut RigidBody, anchor: Vec3, fulcrum: Vec3) {
+    if body.state == BodyState::Frozen {
+        return;
+    }
+    let arm = body.rotation() * anchor;
+    if let (Some(from), Some(to)) = (arm.try_normalize(), (fulcrum - body.position).try_normalize()) {
+        body.set_orientation(Quat::from_rotation_arc(from, to) * body.orientation);
+    }
+    let position = fulcrum - body.rotation() * anchor;
+    if position.distance_squared(body.position) > 0.000001 {
+        body.wake();
+    }
+    body.position = position;
 }

@@ -7,6 +7,8 @@ use std::sync::Arc;
 
 use super::*;
 
+mod clock;
+
 fn physics(spec: VehicleSpec, male: bool) -> CarPhysics {
     let bounds = CarBounds { half_dimensions: spec.dimension, pivot: Vec3::new(0.0, spec.dimension.y, 0.0) };
     let root = Bounds {
@@ -122,14 +124,19 @@ fn installed_traffic_trucks_hold_their_original_hitch_positions_while_driving() 
     let dir = game_install::GameDir::open(std::path::PathBuf::from(path)).unwrap();
     let data = nfsmw_data::car::physics::PhysicsData::load(&dir).unwrap();
     let ground = FlatGround::new(5.0);
-    // These are the tractor variants present in the installed road traffic patterns.
-    for name in ["semib", "semicon", "semicrate", "semilog"] {
+    // The unused cement model's rotated body/suspension frame needs a separate spawn adapter.
+    for name in ["semia", "semib", "semicon", "semicrate", "semilog"] {
         let mut a = CarSim::new(data.car(name).unwrap(), [0.5; 4]);
         let mut b = CarSim::new(data.car(&data.trailer_of(name).unwrap()).unwrap(), [0.5; 4]);
         a.configure_ai();
         b.configure_trailer();
         assert!(a.place_moving(&ground, spawn(), 8.0));
         let coupling = Coupling::new(&a, &b).unwrap();
+        assert_eq!(coupling.limits.len(), 2, "{name} named male/female constraint matches");
+        assert_eq!(coupling.limits[0].mode, blackbox_vehicle::rigid_body::LimitMode::Conical);
+        assert_eq!(coupling.limits[1].mode, blackbox_vehicle::rigid_body::LimitMode::Prismatic);
+        assert!((coupling.limits[0].positive.to_degrees() - 10.98).abs() < 0.05);
+        assert!((coupling.limits[1].positive.to_degrees() - 80.54).abs() < 0.05);
         let back = coupling.joint.anchor_b.z - coupling.joint.anchor_a.z;
         assert!(b.place_moving(&ground, Spawn { position: spawn().position - Vec3::X * back, heading: 0.0 }, 8.0));
         coupling.align(&a, &mut b);
@@ -145,6 +152,24 @@ fn installed_traffic_trucks_hold_their_original_hitch_positions_while_driving() 
         assert!(pair.0.is_finite() && pair.1.is_finite(), "{name}");
         assert!(pair.2.is_hitched(), "{name} released on a flat road");
         assert!(gap < 0.1, "{name} hitch gap: {gap}");
+    }
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn all_six_installed_variants_resolve_both_original_angular_constraints() {
+    let Some(path) = std::env::var_os("NFSMW_GAME_DIR") else { return };
+    let dir = game_install::GameDir::open(std::path::PathBuf::from(path)).unwrap();
+    let data = nfsmw_data::car::physics::PhysicsData::load(&dir).unwrap();
+    for name in ["semia", "semib", "semicmt", "semicon", "semicrate", "semilog"] {
+        let a = CarSim::new(data.car(name).unwrap(), [0.5; 4]);
+        let b = CarSim::new(data.car(&data.trailer_of(name).unwrap()).unwrap(), [0.5; 4]);
+        let coupling = Coupling::new(&a, &b).unwrap();
+        assert_eq!(coupling.limits.len(), 2, "{name}");
+        for limit in coupling.limits {
+            assert!(limit.frame_a.is_finite() && limit.vector_b.is_finite(), "{name}");
+            assert!(limit.positive > 0.0 && limit.positive == limit.negative);
+        }
     }
 }
 

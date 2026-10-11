@@ -8,6 +8,7 @@ a record. Process: [licensing.md § Spec-first](../licensing.md#spec-first).
 
 | Module | Spec | Restricted sources read |
 |---|---|---|
+| [Trailer constraints](trailer-constraints.md) | [specs/trailer-constraints.md](../specs/trailer-constraints.md) | Original PC 1.3 isolated joint/angle routines and installed bounds |
 | [PC object contacts](pc-object-contact.md) | [specs/pc-object-contact.md](../specs/pc-object-contact.md) | Original PC 1.3 executable (private inspection and emulation), dbalatoni13/nfsmw collision layouts (CC0) |
 | [Prop placements](prop-spawners.md) | [formats/prop-spawners.md](../formats/prop-spawners.md), [specs/prop-attributes.md](../specs/prop-attributes.md) | Original PC 1.3 data and loader, dbalatoni13/nfsmw record layouts (CC0) |
 | [World event sequences](world-sequencers.md) | [formats/event-sequences.md](../formats/event-sequences.md), [specs/world-sequencers.md](../specs/world-sequencers.md) | Original PC 1.3 packages/runtime, dbalatoni13/nfsmw CARP/event layouts (CC0) |

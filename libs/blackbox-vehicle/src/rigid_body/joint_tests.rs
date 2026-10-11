@@ -31,7 +31,7 @@ fn solving_removes_the_relative_velocity_of_the_anchors_and_keeps_the_momentum()
     a.angular_velocity = Vec3::new(0.0, 0.5, 0.0);
     let momentum = |a: &RigidBody, b: &RigidBody| a.linear_velocity * a.mass() + b.linear_velocity * b.mass();
     let before = momentum(&a, &b);
-    joint.solve(&mut a, &mut b, FIXED_STEP, 1);
+    joint.solve(&mut a, &mut b, FIXED_STEP, 32);
     let (pa, pb) = joint.world_anchors(&a, &b);
     let relative = a.point_velocity(pa) - b.point_velocity(pb);
     assert!(relative.length() < 1e-3, "anchors still move apart at {relative:?}");
@@ -49,7 +49,7 @@ fn a_pulled_body_follows_and_the_anchors_stay_together() {
         a.apply_torque(Vec3::new(0.0, turn * 3000.0, 0.0));
         a.begin_frame(FIXED_STEP);
         b.begin_frame(FIXED_STEP);
-        joint.solve(&mut a, &mut b, FIXED_STEP, 4);
+        joint.solve(&mut a, &mut b, FIXED_STEP, 32);
         worst = worst.max(joint.gap(&a, &b));
     }
     assert!(worst < 0.05, "the anchors drifted {worst} m apart");
@@ -59,17 +59,14 @@ fn a_pulled_body_follows_and_the_anchors_stay_together() {
 }
 
 #[test]
-fn a_gap_closes_gently() {
+fn a_gap_closes_geometrically_without_inventing_a_closing_velocity() {
     let (mut a, mut b, joint) = pair();
     b.position.z -= 1.0;
     let start = joint.gap(&a, &b);
-    for _ in 0..120 {
-        joint.solve(&mut a, &mut b, FIXED_STEP, 4);
-        a.begin_frame(FIXED_STEP);
-        b.begin_frame(FIXED_STEP);
-        assert!(a.linear_velocity.length() <= MAX_CORRECTION_SPEED + 1e-3);
-    }
-    assert!(start > 0.9 && joint.gap(&a, &b) < 0.05, "gap {start} -> {}", joint.gap(&a, &b));
+    joint.solve(&mut a, &mut b, FIXED_STEP, 32);
+    assert!(start > 0.9 && joint.gap(&a, &b) < 0.00001, "gap {start} -> {}", joint.gap(&a, &b));
+    assert_eq!(a.linear_velocity, Vec3::ZERO);
+    assert_eq!(b.linear_velocity, Vec3::ZERO);
 }
 
 #[test]
@@ -77,7 +74,7 @@ fn a_frozen_body_does_not_move() {
     let (mut a, mut b, joint) = pair();
     b.state = BodyState::Frozen;
     a.linear_velocity = Vec3::new(0.0, 0.0, -5.0);
-    joint.solve(&mut a, &mut b, FIXED_STEP, 2);
+    joint.solve(&mut a, &mut b, FIXED_STEP, 32);
     assert_eq!(b.linear_velocity, Vec3::ZERO);
     assert!(a.linear_velocity.length() < 0.5, "the free body is held back: {:?}", a.linear_velocity);
 }
@@ -98,4 +95,52 @@ fn an_impulse_at_a_point_turns_the_body() {
     assert!((body.linear_velocity.x - 1.0).abs() < 1e-5);
     // r = +z, J = +x: r x J = +y.
     assert!(body.angular_velocity.y > 0.0 && body.angular_velocity.x.abs() < 1e-6);
+}
+
+#[test]
+fn joint_velocity_matches_measured_pc_moments_with_point_inertia() {
+    let cases = [
+        (
+            1000.0,
+            3000.0,
+            Vec3::ZERO,
+            Vec3::ZERO,
+            Vec3::new(0.0, 0.0, 10.0),
+            Vec3::ZERO,
+            Vec3::new(0.0, 0.0, 2.5),
+            Vec3::ZERO,
+            Vec3::new(0.0, 0.0, 2.5000002),
+            Vec3::ZERO,
+        ),
+        (
+            1000.0,
+            1000.0,
+            Vec3::new(0.0, 0.0, -5.0),
+            Vec3::new(0.0, 0.0, -2.5),
+            Vec3::new(2.0, 0.0, 10.0),
+            Vec3::new(0.0, 0.5, 0.0),
+            Vec3::new(1.790441, 0.0, 5.0),
+            Vec3::new(0.0, 0.5661765, 0.0),
+            Vec3::new(0.20955892, 0.0, 5.0),
+            Vec3::new(0.0, 0.066176474, 0.0),
+        ),
+    ];
+    for (ma, mb, pb, point, velocity, angular, va, wa, vb, wb) in cases {
+        let spec = RigidBodySpec { gravity: 0.0, ..Default::default() };
+        let mut a = RigidBody::new(ma, Vec3::new(1.0, 1.0, 2.0), Vec3::ONE, spec);
+        let mut b = RigidBody::new(mb, Vec3::new(1.0, 1.0, 2.0), Vec3::ONE, spec);
+        b.place(pb, Quat::IDENTITY);
+        a.linear_velocity = velocity;
+        a.angular_velocity = angular;
+        let (mut left, mut right) = (a.joint_moment(point), b.joint_moment(point));
+        assert!(react_joint_moments(&mut left, &mut right, point, 32));
+        for (actual, expected) in [
+            (left.linear_velocity, va),
+            (left.angular_velocity, wa),
+            (right.linear_velocity, vb),
+            (right.angular_velocity, wb),
+        ] {
+            assert!((actual - expected).abs().max_element() < 0.00001, "{actual:?} != {expected:?}");
+        }
+    }
 }

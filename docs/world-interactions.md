@@ -22,7 +22,7 @@ isolated routines, scene integration and live-game comparisons.
 | Timing | Player/AI step separately; pairs collide once per render frame | Shared 60 Hz world tick; car-state and impact traces identical at 5/10/30/60/120/144/240 FPS and uneven frames; live validation pending |
 | Geometry | Flattened prop hierarchy, single car box, no swept object contacts | Car/prop hierarchy and measured sphere/box contacts integrated; 5,012 box cases match PC, including travel, clipping and tumbling; compound response order pending |
 | Scenery | Name guesses, >150 kg immovable, lighter props disappear for six seconds | All 13,484 placements join exactly to scenery/attributes; breakaway, per-object lifetime, sinking and restoration integrated; static trigger recreation and live comparison pending |
-| Trailers | Approximate anchors and response | Original named anchors read and used for all six installed variants; constrained joint solver and live comparison pending |
+| Trailers | Approximate anchors and response | Original named anchors, geometric correction, 32 point-moment iterations and conical/prismatic limits integrated; cement spawn frame and live comparison pending |
 | Truck cargo | No released logs/crates | Original rear-impact triggers release seven logs or three carrier cars into collidable/renderable bodies; explosion effects and lifecycle parity pending |
 | World/ground | Approximate probes and solver | Measured iterative plane response, original probe tolerances, surface friction and disabled-ground flags integrated; cached face queries and live comparison pending |
 | Damage/feedback | Partial sparks/audio, incomplete collision events | Pending |
@@ -95,12 +95,14 @@ offsets and padding. The frame-rate regression uses a compound vehicle body.
 The box contact algorithm agrees with 5,012 isolated PC cases; contact ordering
 across compound primitives remains open.
 
-All six tractor/trailer variants resolve their original named anchors. A flat
-ground test exercises the four variants used in traffic patterns after their
-unloaded suspensions settle. The unused cement trailer has unusual rotated
-bounds: its stored anchor is lateral rather than below the body. An initial
-trial leaves a 0.15 m gap during driving; that model needs separate original-game
-validation. Joint constraints and spawning/suspension parity remain open.
+All six tractor/trailer variants resolve their named anchors and both angular
+constraints. Five variants, including every one used in installed road patterns,
+remain hitched after their unloaded suspensions settle, with under 0.00002 m
+anchor separation. Full turning/braking/collision traces match at 5–240 FPS.
+The unused cement trailer has a rotated body/kingpin frame that does not settle
+in the current spawn adapter. Its spawn frame, original-game comparisons,
+singular rotations and immobile limit velocity response remain open. See
+[constraint evidence](provenance/trailer-constraints.md).
 
 Sphere contact tests compare face, corner, containment, tangency, moving-box and
 swept vectors against isolated PC execution (0.00001 numerical tolerance). The

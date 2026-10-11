@@ -1,12 +1,12 @@
 //! The trailer a semi tractor pulls: its own car physics, held to the tractor by a ball joint at the 5th
 //! wheel until the joint lets go.
-//! Geometry: `docs/specs/world-sequencers.md`; constraint response is still approximate.
+//! Spec: `docs/specs/trailer-constraints.md`.
 
 use std::rc::Rc;
 
 use blackbox_attrib::vlt_hash;
 use blackbox_collision::CollisionWorld;
-use blackbox_vehicle::rigid_body::BallJoint;
+use blackbox_vehicle::rigid_body::{AngularLimit, BallJoint};
 use glam::Vec3;
 use nfsmw_data::car::physics::SurfaceTable;
 
@@ -17,7 +17,7 @@ use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::road::Spawn;
 
 /// Solver passes of the joint per physics step.
-const SOLVER_PASSES: usize = 4;
+const SOLVER_PASSES: usize = 32;
 /// Below this speed (m/s) a body counts as standing still.
 const IDLE_SPEED: f32 = 0.5;
 
@@ -37,12 +37,17 @@ pub struct Brakes {
 /// The 5th wheel: the joint that holds a tractor and its trailer together and the conditions that release it.
 pub struct Coupling {
     joint: BallJoint,
+    limits: Vec<AngularLimit>,
     hitch: Hitch,
 }
 
 impl Coupling {
     pub fn new(tractor: &CarSim, trailer: &CarSim) -> Option<Self> {
-        Some(Self { joint: fifth_wheel(tractor, trailer)?, hitch: Hitch::default() })
+        Some(Self {
+            joint: fifth_wheel(tractor, trailer)?,
+            limits: tractor.joint_limits(trailer, vlt_hash("5THWHEEL")),
+            hitch: Hitch::default(),
+        })
     }
 
     pub fn is_hitched(&self) -> bool {
@@ -65,12 +70,24 @@ impl Coupling {
 
     /// Holds the trailer to the tractor for one physics step and checks whether the joint lets go. Returns
     /// whether the two are still hitched.
+    #[cfg(test)]
     pub fn hold(&mut self, tractor: &mut CarSim, trailer: &mut CarSim) -> bool {
+        self.resolve(tractor, trailer);
+        self.update_hitch(tractor, trailer)
+    }
+
+    fn update_hitch(&mut self, tractor: &CarSim, trailer: &CarSim) -> bool {
+        self.hitch.update(STEP, posture(tractor), posture(trailer))
+    }
+
+    fn resolve(&self, tractor: &mut CarSim, trailer: &mut CarSim) {
         if !self.hitch.is_hitched() {
-            return false;
+            return;
         }
         self.joint.solve(tractor.body_mut(), trailer.body_mut(), STEP, SOLVER_PASSES);
-        self.hitch.update(STEP, posture(tractor), posture(trailer))
+        for limit in &self.limits {
+            limit.solve(&self.joint, tractor.body_mut(), trailer.body_mut());
+        }
     }
 
     /// Distance between the hitch and the kingpin, metres.
@@ -145,7 +162,7 @@ impl TrailerCar {
         };
         let ground = WorldGround { collision, surfaces };
         self.sim.step(&input, &ground, Some((collision, props)));
-        if was_hitched && !self.coupling.hold(tractor, &mut self.sim) {
+        if was_hitched && !self.coupling.update_hitch(tractor, &self.sim) {
             let gap = self.coupling.gap(tractor, &self.sim);
             let (a, b) = (posture(tractor), posture(&self.sim));
             log::info!(
@@ -201,7 +218,8 @@ impl TrailerCar {
         &mut self.sim
     }
 
-    pub fn sync_contacts(&mut self) {
+    pub fn sync_contacts(&mut self, tractor: &mut CarSim) {
+        self.coupling.resolve(tractor, &mut self.sim);
         self.current = self.sim.pose();
     }
 

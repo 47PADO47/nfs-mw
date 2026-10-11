@@ -85,9 +85,9 @@ audio behaviours are the `Traffic` variants. All numbers below are **[verified]*
   bounds carry local anchors. All six installed tractor/trailer variants resolve these nodes; the tractor
   anchor is (0, -0.403, -2.928) m and the log trailer's is (0.015, -1.168, 4.483) m. The runtime uses
   their stored positions directly. See [world sequencers](world-sequencers.md#bounds-and-hitch).
-  Response still uses a ball joint with Baumgarte correction 0.2 and four passes per 60 Hz step.
-  The original's conical/prismatic child constraints remain to be implemented; the current unconstrained
-  ball joint is an approximation, even with the correct anchors.
+  Response uses mass-weighted geometric correction, 32 point-moment iterations and the original
+  named conical/prismatic child limits on the shared 60 Hz clock.
+  See [trailer constraints](trailer-constraints.md) for measurements and remaining limits.
 - **Spawning and removal.** The trailer is placed behind the tractor on the same heading with the same speed, with
   its kingpin on the hitch, and is removed with it. A tractor whose test says "invalid" is kept while its trailer
   is valid (section 8 of the spawning spec) and a trailer that has come loose and is invalid is removed on its own.

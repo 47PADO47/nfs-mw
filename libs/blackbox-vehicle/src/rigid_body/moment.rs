@@ -98,6 +98,37 @@ fn reduced_mass(a: &ContactMoment, b: &ContactMoment, immobile_a: bool, immobile
     a.mass * b.mass / (a.mass + b.mass)
 }
 
+/// Articulation opposes the full point velocity without friction, approach filtering or restitution.
+pub fn react_joint_moments(a: &mut ContactMoment, b: &mut ContactMoment, point: Vec3, iterations: u32) -> bool {
+    if iterations == 0 || !a.is_valid() || !b.is_valid() || !point.is_finite() || (a.immobile && b.immobile) {
+        return false;
+    }
+    let (mut left, mut right) = (IterationBody::new(a, point, a.immobile), IterationBody::new(b, point, b.immobile));
+    let mass = reduced_mass(a, b, a.immobile, b.immobile);
+    let mut reacted = false;
+    let (mut ma, mut mb) = (*a, *b);
+    ma.elasticity = 0.0;
+    mb.elasticity = 0.0;
+    for i in 0..iterations {
+        let momentum = (left.velocity() - right.velocity()) * mass;
+        if momentum.length_squared() == 0.0 {
+            break;
+        }
+        reacted = true;
+        if i == 0 {
+            continue;
+        }
+        let impulse = -momentum * (i as f32 / iterations as f32);
+        left.apply(&ma, impulse, Vec3::ZERO);
+        right.apply(&mb, -impulse, Vec3::ZERO);
+    }
+    if reacted {
+        left.finish(a);
+        right.finish(b);
+    }
+    reacted
+}
+
 fn friction(momentum: Vec3, normal: Vec3, impulse: f32, plane: &PlaneContact) -> (Vec3, FrictionState) {
     let tangent = momentum + normal * impulse;
     let length = tangent.length();

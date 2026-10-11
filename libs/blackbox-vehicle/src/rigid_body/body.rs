@@ -169,6 +169,15 @@ impl RigidBody {
         }
     }
 
+    /// Changes orientation without resetting velocities or accumulated forces.
+    pub fn set_orientation(&mut self, orientation: Quat) {
+        if !orientation.is_finite() || orientation.length_squared() <= f32::EPSILON {
+            return;
+        }
+        self.orientation = orientation.normalize();
+        self.refresh_matrices();
+    }
+
     /// Adds a force (N, world frame) at the centre of gravity. Wakes a sleeping body.
     pub fn apply_force(&mut self, force: Vec3) {
         self.wake();

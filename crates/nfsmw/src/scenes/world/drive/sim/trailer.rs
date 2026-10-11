@@ -11,6 +11,13 @@ impl CarSim {
         self.geometry.as_ref()?.joint(name, male)
     }
 
+    pub fn joint_limits(&self, other: &Self, name: u32) -> Vec<blackbox_vehicle::rigid_body::AngularLimit> {
+        match (&self.geometry, &other.geometry) {
+            (Some(a), Some(b)) => a.joint_limits(b, name),
+            _ => Vec::new(),
+        }
+    }
+
     /// Makes the car a body nobody drives (a trailer): it takes the brake and the handbrake it is given and
     /// otherwise rolls free, with no idle braking and no reversing by itself.
     pub fn configure_trailer(&mut self) {

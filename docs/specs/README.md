@@ -27,6 +27,8 @@ drawing), [feng-input.md](feng-input.md) (pad messages, focus, navigation) and [
 
 [Ground contacts](ground-contact-response.md) and [prop lifetime](prop-lifetime.md)
 cover measured plane response, world probes, sinking and model cleanup.
+[Trailer constraints](trailer-constraints.md) covers named angular limits,
+mass-weighted geometry correction and measured point-moment response.
 
 ## Template
 
