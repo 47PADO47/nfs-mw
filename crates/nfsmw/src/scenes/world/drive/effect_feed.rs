@@ -12,13 +12,6 @@ impl Drive {
         (self.pose(), self.physics.bounds)
     }
 
-    /// The car was put somewhere else: break the tire tracks and drop the sparks and the flames.
-    pub(super) fn reset_effects(&mut self) {
-        self.effects.disconnect();
-        self.vehicle_effects.clear();
-        self.flames.clear();
-    }
-
     /// Age parked effects without emitting. Completed screenshot batches stay deterministic.
     pub fn age_effects(&mut self, dt: f32) {
         self.effects.disconnect();
