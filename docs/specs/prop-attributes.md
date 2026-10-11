@@ -39,7 +39,9 @@ threshold (permanent). A zero value starts unattached and asleep. Without an
 explicit centre marker, the collision centre is the volume-weighted average of
 object-colliding primitive offsets. Inertia still comes from the root dimensions.
 Bounds object flag `0x04` becomes runtime primitive flag `0x02`; disabled bounds
-are excluded. World-only bounds must not be substituted for object primitives.
+remain in the mass calculation but are excluded from contacts. World-only bounds
+must not be substituted for object primitives. Body selection, fallback shapes,
+padding and material rules are in [world sequencers](world-sequencers.md).
 
 The vehicle response override makes the vehicle's temporary contact moment
 immobile when the other body is a movable smackable with `NO_CAR_EFFECT=true`.

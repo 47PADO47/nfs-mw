@@ -10,6 +10,7 @@ publish.workspace = true
 [dependencies]
 blackbox-carp.workspace = true
 blackbox-chunk.workspace = true
+glam.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]

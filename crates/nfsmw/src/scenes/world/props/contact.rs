@@ -9,17 +9,18 @@ use super::body::PropBody;
 
 pub(super) fn car_contact(car: &RigidBody, prop: &PropBody) -> Option<(ObbContact, u32)> {
     let a = Obb { centre: car.position, axes: car.rotation(), half: car.dimension() };
-    prop.primitives
+    prop.geometry
+        .primitives
         .iter()
-        .filter(|p| p.flags & bounds_flags::PRIM_VS_OBJECTS != 0)
+        .filter(|p| p.collides(bounds_flags::PRIM_VS_OBJECTS))
         .filter_map(|p| Some((obb_contact(&a, &prop.obb(p))?, p.surface)))
         .max_by(|a, b| a.0.overlap.total_cmp(&b.0.overlap))
 }
 
 pub(super) fn prop_contact(a: &PropBody, b: &PropBody) -> Option<ObbContact> {
     let mut best: Option<ObbContact> = None;
-    for pa in a.primitives.iter().filter(|p| p.flags & bounds_flags::PRIM_VS_OBJECTS != 0) {
-        for pb in b.primitives.iter().filter(|p| p.flags & bounds_flags::PRIM_VS_OBJECTS != 0) {
+    for pa in a.geometry.primitives.iter().filter(|p| p.collides(bounds_flags::PRIM_VS_OBJECTS)) {
+        for pb in b.geometry.primitives.iter().filter(|p| p.collides(bounds_flags::PRIM_VS_OBJECTS)) {
             let Some(contact) = obb_contact(&a.obb(pa), &b.obb(pb)) else { continue };
             if best.is_none_or(|c| c.overlap < contact.overlap) {
                 best = Some(contact);

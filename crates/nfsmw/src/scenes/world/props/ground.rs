@@ -19,7 +19,7 @@ pub(super) fn step(prop: &mut PropBody, ground: &dyn Ground, dt: f32) {
     let travel = (prop.rigid.position - previous).length();
     let lift = 0.3 + travel;
     let mut contacts = Vec::new();
-    for p in prop.primitives.iter().filter(|p| p.flags & bounds_flags::PRIM_VS_GROUND != 0) {
+    for p in prop.geometry.primitives.iter().filter(|p| p.collides(bounds_flags::PRIM_VS_GROUND)) {
         let b = prop.obb(p);
         for x in [-1.0, 1.0] {
             for y in [-1.0, 1.0] {

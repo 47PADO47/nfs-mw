@@ -18,6 +18,12 @@
   and identical fixed-tick traces across render rates and a 300 ms stall.
 - **PC correction:** function `0x645A40` confirms idle invocation and busy queueing;
   the unfinished reference reverses this condition. The runtime follows the PC.
+- **Body construction:** isolated execution of `0x672050` and `0x66A890` with four
+  synthetic hierarchies checks intact, disabled, selected-subtree and root-only
+  geometry. The tests compare the selected names, local offsets, extents, flags
+  and orientation (quaternion tolerance 0.00001). Additional synthetic tests
+  check fallback boxes/spheres, padding, surface fallback and mesh-only roots.
+  The install check constructs geometry for all 13,479 resolved prop placements.
 - **Limits:** expression filters return an explicit unsupported error. Pause,
   rate changes and unload tags remain outside this runtime. Parsing and synthetic
   event dispatch do not yet establish cargo body, explosion, rendering, audio,

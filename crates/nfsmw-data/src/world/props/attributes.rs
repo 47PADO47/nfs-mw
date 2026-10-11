@@ -1,6 +1,7 @@
 //! Original `smackable` data; `docs/specs/prop-attributes.md`.
 
 use blackbox_attrib::CollectionRef;
+use blackbox_collision::Shape;
 use blackbox_vehicle::rigid_body::RigidBodySpec;
 use glam::Vec3;
 
@@ -11,6 +12,8 @@ pub struct PropDynamics {
     pub mass: f32,
     pub tensor_scale: Vec3,
     pub body: RigidBodySpec,
+    pub fallback_shape: Shape,
+    pub base_surface: u32,
     pub detach_impulse: f32,
     pub no_car_effect: bool,
     pub immobile: bool,
@@ -37,6 +40,11 @@ impl PropDynamics {
             mass,
             tensor_scale,
             body: rigid_body_spec(body),
+            fallback_shape: match body.0.get_str("DEFAULT_COL_BOX") {
+                Some("SPHERE") => Shape::Sphere,
+                _ => Shape::Box,
+            },
+            base_surface: body.0.get_string_key("BASE_MATERIAL").map_or(0, |k| k.hash32),
             detach_impulse: fields.f32("DETACH_FORCE"),
             no_car_effect: fields.bool("NO_CAR_EFFECT"),
             immobile: body.bool("IMMOBILE_OBJECT_COLLISIONS"),

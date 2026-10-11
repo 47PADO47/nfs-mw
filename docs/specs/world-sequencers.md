@@ -75,7 +75,46 @@ Match joint names; do not infer anchors from vehicle length or a constant height
 Conical/prismatic child bounds carry constraint data; the current ball-joint
 solver remains an approximation until those constraints are implemented.
 
-Disabled hierarchy nodes suppress their children for the intact parent. A
-spawned fragment explicitly selects its own subtree, so a disabled car-carrier
-attachment can become active independently. The precise primitive transforms
-and disabled inheritance must be confirmed against construction before use.
+Internal hierarchy nodes belong to independently spawned parts. A spawned
+fragment explicitly selects its own subtree; the rules measured below decide
+which shapes belong to its body.
+
+## PC construction measurements
+
+The executable's Collection::AddTo (`0x672050`) and AddNode (`0x66A890`) were
+executed in isolated x86 memory with synthetic bounds and a recording collision
+interface. They select **immediate children**, not a flattened descendant list.
+An internal child (`0x20`) is skipped, including its descendants. Other children
+contribute their own primitive/mesh flags; disabled flags are retained for later
+collision filtering. Child primitive centres use `position`, not `pivot`, and
+their stored quaternion is relative to the selected root body's frame.
+
+If no child contributed geometry, AddTo tries the selected root itself. Its
+primitive has zero offset and identity rotation because the body's transform
+already includes that root's transform. If that also has no collision flags,
+RigidBody::CreateGeometries (`0x6A6E30`) creates a body-sized primitive, enabling
+world/object/ground collision. This matters for cones whose root flags are only
+`0x40`: they must still collide. A rigid-body DEFAULT_COL_BOX value of SPHERE
+selects a sphere using the largest half extent, with world/object channels only;
+otherwise the fallback is a box. COLLISION_BOX_PAD expands every collision box
+(including explicit bounds boxes), but never a sphere. A bounds surface of zero
+uses the body's BASE_MATERIAL. Sphere orientation is identity.
+
+Scenery's placement transform (`0x66B520`) places the body's centre at the
+spawner position plus its rotated root pivot. Its orientation is the spawner's
+orientation. Rendering retains the original visual matrix through the inverse
+initial body transform. Root dimensions have a minimum half extent of 0.025 m
+in the smackable constructor. A fallback-only body has a zero local centre of
+gravity. Explicit primitive offsets determine the volume-weighted centre.
+Spheres use the stored radius, not half dimensions, and are inserted before
+boxes (in reverse sphere insertion order). Mesh-only bounds can suppress a
+fallback even when they add no object-colliding primitive.
+
+The fragment event handler at `0x63B320` confirms that the same inheritance
+factor multiplies both captured linear and angular velocity. It constructs the
+child frame from the parent model transform and the selected node's local
+orientation/position. Process-stimulus events (`0x646570`) do not forward the
+previous damage callback's context, so the cargo action captures its model's
+current velocity. The renderer applies the inverse fragment frame to keep the
+detached mesh aligned at birth. Queue hashes map to disable `0xCC7F660A`, shallow
+`0x669EC6BC`, allow `0`/`0x102ABF91`, flush `0x3C56741D`, abort `0x936F462E`.

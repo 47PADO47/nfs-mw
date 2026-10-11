@@ -20,7 +20,7 @@ isolated routines, scene integration and live-game comparisons.
 |---|---|---|
 | Car response | Fixed friction/restitution, textbook impulse | 32-iteration solver matches 13 PC reference cases; per-body object materials and grounded player contact centre integrated; AI reaction overrides pending |
 | Timing | Player/AI step separately; pairs collide once per render frame | Shared 60 Hz world tick; car-state and impact traces identical at 5/10/30/60/120/144/240 FPS and uneven frames; live validation pending |
-| Geometry | Single car box, no swept object contacts | Pending primitive and sweep work |
+| Geometry | Flattened prop hierarchy, single car box, no swept object contacts | Prop child selection, root frames, padding and fallback geometry match measured construction rules; car primitives and sweeps pending |
 | Scenery | Name guesses, >150 kg immovable, lighter props disappear for six seconds | All 13,484 placements join exactly to scenery/attributes; persistent bodies, breakaway and no-car-effect response integrated; geometry and lifecycle parity pending |
 | Trailers | Approximate anchors and response | Pending bounds joints and reference comparison |
 | Truck cargo | No released logs/crates | Original event packages and deterministic sequencer implemented; installed log damage trigger emits original fragments once; bodies/render integration pending |
@@ -48,9 +48,13 @@ unload. Complete prop position/orientation/velocity traces match bit for bit at
 
 The install checks resolve 13,484 attribute/visual pairs; 13,479 have track bounds.
 They also check cone, tree, traffic-light and log mass, tensor and detach values.
-Ground response still uses existing primitive corner probes, spheres still use
+Body construction selects immediate children, excludes internal fragment subtrees,
+keeps disabled flags for contact filtering, and supplies missing fallback boxes.
+The cone regression checks collision and an unchanged visual pose with a nonzero
+root pivot. Four synthetic construction cases were also executed through the PC
+routines. Ground response still uses existing primitive corner probes, spheres still use
 their enclosing box, and object contact points still use the existing narrow
-phase. Lifecycle, centre markers, hierarchy fragments and truck cargo release
+phase. Lifecycle, centre markers, ground clouds and truck cargo release
 remain open. Fallen props currently persist while resident; streaming out resets
 them. These limits prevent claiming full parity.
 

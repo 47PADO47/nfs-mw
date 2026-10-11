@@ -24,6 +24,8 @@ fn placement(id: u32, at: Vec3, mass: f32, no_car_effect: bool, detach: f32) -> 
         mass,
         tensor_scale: Vec3::splat(3.0),
         body: RigidBodySpec::default(),
+        fallback_shape: blackbox_collision::Shape::Box,
+        base_surface: 0,
         detach_impulse: detach,
         no_car_effect,
         immobile: false,
@@ -189,4 +191,27 @@ fn prop_motion_and_ground_contacts_are_identical_at_every_render_rate() {
     for fps in [5, 10, 30, 120, 144, 240] {
         assert_eq!(trace(fps), expected, "{fps} FPS");
     }
+}
+
+#[test]
+fn flagless_cone_bounds_make_a_body_at_the_root_pivot_without_a_visual_jump() {
+    let at = Vec3::new(5.0, 0.0, 7.0);
+    let mut p = placement(12, at, 100.0, true, 0.0);
+    let shape = Arc::make_mut(p.prop.as_mut().unwrap());
+    let bounds = Arc::make_mut(shape.bounds.as_mut().unwrap());
+    let root = &mut bounds.nodes[0];
+    root.flags = flags::BOX;
+    root.pivot = [0.0, 0.5, 0.0];
+    let mut world = PropWorld::default();
+    world.add_tile(1, std::slice::from_mut(&mut p));
+    let body = world.colliders[&p.prop_id].body.as_ref().unwrap();
+    assert_eq!(body.rigid.position, at + Vec3::Y * 0.5);
+    assert!(body.geometry.used_fallback);
+    assert_eq!(world.pose(p.prop_id).unwrap().0, p.transform);
+    let mut v = car(20.0);
+    v.body_mut().position += at;
+    let mut impact = Impact::default();
+    world.collide_vehicle(&mut v, &mut impact);
+    assert!(!impact.contacts.is_empty(), "a root without collision flags still needs a collision body");
+    assert!(world.colliders[&p.prop_id].body.as_ref().unwrap().rigid.linear_velocity.length() > 1.0);
 }

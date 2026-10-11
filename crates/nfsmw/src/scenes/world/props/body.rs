@@ -1,6 +1,6 @@
 //! Runtime rigid body for an original scenery placement.
 
-use blackbox_collision::{BoundsSet, Shape, bounds_flags};
+use blackbox_collision::{BodyGeometry, BodyPrimitive, BoundsSet, GeometryOptions};
 use blackbox_scenery::ObjectSpawner;
 use blackbox_vehicle::rigid_body::{BodyState, Obb, RigidBody};
 use glam::{Mat3, Mat4, Quat, Vec3};
@@ -8,19 +8,9 @@ use nfsmw_data::world::PropDynamics;
 
 use crate::scenes::world::space;
 
-/// A primitive in physics model coordinates. Sphere geometry is retained for later narrow-phase work.
-#[derive(Clone)]
-pub(super) struct Primitive {
-    pub centre: Vec3,
-    pub rotation: Quat,
-    pub half: Vec3,
-    pub flags: u16,
-    pub surface: u32,
-}
-
 pub(super) struct PropBody {
     pub rigid: RigidBody,
-    pub primitives: Vec<Primitive>,
+    pub geometry: BodyGeometry,
     pub attached: bool,
     pub moved: bool,
     pub previous: (Vec3, Quat),
@@ -32,50 +22,30 @@ pub(super) struct PropBody {
 impl PropBody {
     pub fn new(spawn: &ObjectSpawner, bounds: &BoundsSet, spec: &PropDynamics, visual: Mat4) -> Option<Self> {
         let root = bounds.nodes.first()?;
-        let primitives: Vec<_> = bounds
-            .nodes
-            .iter()
-            .filter_map(|n| {
-                if n.flags & bounds_flags::DISABLED != 0 || n.shape() == Shape::None {
-                    return None;
-                }
-                let q = Quat::from_array(n.orientation);
-                let rotation = match q.is_finite() && q.length_squared() > 1e-6 {
-                    true => q.normalize(),
-                    false => Quat::IDENTITY,
-                };
-                Some(Primitive {
-                    centre: Vec3::from_array(n.pivot),
-                    rotation,
-                    half: Vec3::from_array(n.half_dimensions),
-                    flags: n.flags,
-                    surface: n.surface,
-                })
-            })
-            .collect();
-        let mut rigid = RigidBody::new(spec.mass, Vec3::from_array(root.half_dimensions), spec.tensor_scale, spec.body);
+        let half = Vec3::from_array(root.half_dimensions).max(Vec3::splat(0.025));
+        let options = GeometryOptions {
+            fallback_half: half,
+            fallback_shape: spec.fallback_shape,
+            box_padding: spec.body.collision_box_pad,
+            surface: spec.base_surface,
+        };
+        let geometry = BodyGeometry::from_bounds(bounds, 0, options)?;
+        let mut rigid = RigidBody::new(spec.mass, half, spec.tensor_scale, spec.body);
         let orientation = Quat::from_array(spawn.orientation);
         let position = Vec3::from_array(spawn.position);
         if !position.is_finite() || !orientation.is_finite() || orientation.length_squared() < 1e-6 {
             return None;
         }
-        rigid.place(position, orientation);
+        let orientation = orientation.normalize();
+        rigid.place(position + orientation * Vec3::from_array(root.pivot), orientation);
         // The original uses volume-weighted object primitives unless a centre marker is present.
-        let (mut centre, mut volume) = (Vec3::ZERO, 0.0);
-        for p in primitives.iter().filter(|p| p.flags & bounds_flags::PRIM_VS_OBJECTS != 0) {
-            let weight = p.half.x * p.half.y * p.half.z;
-            centre += p.centre * weight;
-            volume += weight;
-        }
-        if volume > 0.0 {
-            rigid.set_cog(centre / volume);
-        }
+        rigid.set_cog(geometry.centre_of_gravity());
         rigid.state = BodyState::Asleep;
         let previous = (rigid.position, rigid.orientation);
         let inverse_initial = pose_matrix(previous).inverse();
         Some(Self {
             rigid,
-            primitives,
+            geometry,
             attached: spec.detach_impulse != 0.0,
             moved: false,
             previous,
@@ -84,7 +54,7 @@ impl PropBody {
         })
     }
 
-    pub fn obb(&self, primitive: &Primitive) -> Obb {
+    pub fn obb(&self, primitive: &BodyPrimitive) -> Obb {
         Obb {
             centre: self.rigid.position + self.rigid.rotation() * primitive.centre,
             axes: self.rigid.rotation() * Mat3::from_quat(primitive.rotation),

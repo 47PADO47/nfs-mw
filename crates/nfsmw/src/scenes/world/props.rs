@@ -42,12 +42,15 @@ impl Collider {
             });
         };
         let mut bounds = Aabb::EMPTY;
-        for primitive in &body.primitives {
+        for primitive in &body.geometry.primitives {
             let b = body.obb(primitive);
             let m = Mat4::from_mat3_translation(b.axes, b.centre);
             let physics = Aabb::new(-b.half, b.half).transformed(&m);
             bounds.extend(space::to_render(physics.min.to_array()));
             bounds.extend(space::to_render(physics.max.to_array()));
+        }
+        for point in body.geometry.ground_meshes.iter().flat_map(|m| &m.points) {
+            bounds.extend(space::to_render((body.rigid.position + body.rigid.rotation() * point).to_array()));
         }
         bounds
     }

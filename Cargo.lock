@@ -1060,6 +1060,7 @@ dependencies = [
  "blackbox-carp",
  "blackbox-chunk",
  "ea-compress",
+ "glam 0.34.1",
  "thiserror 2.0.21",
 ]
 
