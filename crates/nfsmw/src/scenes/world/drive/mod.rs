@@ -229,7 +229,11 @@ impl Drive {
             self.vehicle_effects.bounce(collision, clock::STEP);
             self.markers.record(&impact.contacts, sim.tyre_hits());
             for &(id, mass) in &impact.knocked {
-                log::info!("knocked over a {mass:.0} kg prop ({} knocked over now)", props.knocked_count() + 1);
+                log::info!(
+                    "knocked over prop {id} \"{}\" ({mass:.0} kg), action: hidden for a few seconds ({} knocked over now)",
+                    props.name(id).unwrap_or("?"),
+                    props.knocked_count() + 1,
+                );
                 props.knock(id);
             }
             self.previous = self.current;
