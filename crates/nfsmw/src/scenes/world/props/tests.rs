@@ -274,3 +274,18 @@ fn flagless_cone_bounds_make_a_body_at_the_root_pivot_without_a_visual_jump() {
     assert!(!impact.contacts.is_empty(), "a root without collision flags still needs a collision body");
     assert!(world.colliders[&p.prop_id].body.as_ref().unwrap().rigid.linear_velocity.length() > 1.0);
 }
+
+#[test]
+fn knocked_props_are_hidden_for_a_while_and_come_back() {
+    let mut world = PropWorld::default();
+    let mut p = placement(7, Vec3::ZERO, 100.0, false, 0.0);
+    world.add_tile(0, std::slice::from_mut(&mut p));
+    let ground = FlatGround::new(0.0);
+    assert!(!world.hidden(p.prop_id));
+    world.knock(p.prop_id);
+    assert!(world.hidden(p.prop_id));
+    world.step(&ground, REGENERATE_AFTER - 1.0);
+    assert!(world.hidden(p.prop_id), "still gone just before the time is up");
+    world.step(&ground, 1.5);
+    assert!(!world.hidden(p.prop_id), "back after REGENERATE_AFTER seconds");
+}
