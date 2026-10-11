@@ -192,13 +192,26 @@ impl AiCar {
         })
     }
 
-    /// The car's position in render space.
-    /// The lamps of the car as glows, lit by its brake.
-    pub fn glows(&self, alpha: f32, camera: Vec3, forward: Vec3, out: &mut Vec<blackbox_render::EffectVertex>) {
-        let state = LampState { brake: self.controls.brake, reverse: self.sim.telemetry().gear < 0 };
+    /// The lamps of the car as glows, lit by its brake, steering, siren and the blink clock.
+    pub fn glows(
+        &self,
+        alpha: f32,
+        time: f32,
+        camera: Vec3,
+        forward: Vec3,
+        out: &mut Vec<blackbox_render::EffectVertex>,
+    ) {
+        let state = LampState {
+            brake: self.controls.brake,
+            reverse: self.sim.telemetry().gear < 0,
+            steer: self.controls.steer,
+            siren: self.is_cop(),
+            time,
+        };
         self.rig.lights().glows(self.pose(alpha).transform(), state, camera, forward, out);
     }
 
+    /// The car's position in render space.
     pub fn position(&self) -> Vec3 {
         self.current.position
     }

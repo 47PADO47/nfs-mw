@@ -168,7 +168,7 @@ impl TrafficWorld {
     /// Appends the glows of the lamps of every car and of the signal lamps within sight.
     pub fn car_glows(&self, camera: Vec3, forward: Vec3, out: &mut Vec<EffectVertex>) {
         for car in &self.cars {
-            car.glows(self.alpha, camera, forward, out);
+            car.glows(self.alpha, self.signal_time, camera, forward, out);
         }
     }
 
