@@ -3,6 +3,7 @@
 use blackbox_gfx::RenderBackend;
 use glam::Vec3;
 
+use super::ai;
 use super::drive::{self, MarkerMeshes};
 use super::{View, WorldScene, load_car};
 
@@ -15,6 +16,10 @@ pub(super) const LIST: &[(&str, &str)] = &[
     ("freecam", "switch between the chase camera and the free camera"),
     ("pos", "show where the camera or the car is"),
     ("props [radius]", "list the props with collision near the car or camera (default 30 m)"),
+    (
+        "traffic <count>|off|status|warmup <s>",
+        "keep <count> computer-driven cars on the road around you; off removes them; warmup: a screenshot run simulates <s> seconds first",
+    ),
     ("tire-effects [status|clear|smoke on/off|marks on/off]", "tire visual controls and bounded resource counts"),
     ("vehicle-effects [status|clear]", "collision spark and speed-trail resource counts"),
     (
@@ -39,6 +44,8 @@ pub(super) fn run(
         "garage" if args.is_empty() => Ok(nfsmw_data::car::list(&scene.dir).join("  ")),
         "pos" if args.is_empty() => Ok(pos(scene)),
         "props" => props(scene, args),
+        "traffic" => ai::traffic_command(scene, args),
+        "pursuit" => ai::pursuit_command(scene, renderer, args),
         "tire-effects" => tire_effects(scene, renderer, args),
         "vehicle-effects" => vehicle_effects(scene, renderer, args),
         "exhaust-flames" => exhaust_flames(scene, args),

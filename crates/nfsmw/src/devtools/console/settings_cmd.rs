@@ -11,7 +11,7 @@ use crate::settings::{
 };
 
 /// Settings the console can show.
-const KEYS: [&str; 53] = [
+const KEYS: [&str; 55] = [
     "deadzone_mode",
     "steering_deadzone",
     "camera_deadzone",
@@ -39,6 +39,8 @@ const KEYS: [&str; 53] = [
     "radio",
     "graphics_preset",
     "car_shading",
+    "traffic",
+    "cop_share",
     "smoke_quality",
     "skid_marks",
     "collision_sparks",
@@ -97,6 +99,8 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "radio" => on_off(settings.radio).to_owned(),
         "graphics_preset" => settings.graphics_preset.to_string(),
         "car_shading" => settings.car_shading.to_string(),
+        "traffic" => settings.traffic.to_string(),
+        "cop_share" => settings.cop_share.to_string(),
         "smoke_quality" => settings.smoke_quality.to_string(),
         "skid_marks" => on_off(settings.skid_marks).to_owned(),
         "collision_sparks" => on_off(settings.collision_sparks).to_owned(),
@@ -166,6 +170,10 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "radio" => settings.radio = parse_bool(value)?,
         "graphics_preset" => settings.apply_preset(value.parse()?),
         "car_shading" => settings.car_shading = value.parse()?,
+        "traffic" => {
+            settings.traffic = value.trim().parse().map_err(|_| format!("expected a number of cars, got {value:?}"))?
+        }
+        "cop_share" => settings.cop_share = Percent::from_str(value)?,
         "smoke_quality" => settings.smoke_quality = value.parse()?,
         "skid_marks" => settings.skid_marks = parse_bool(value)?,
         "collision_sparks" => settings.collision_sparks = parse_bool(value)?,
@@ -257,6 +265,8 @@ fn syntax(key: &str) -> Option<&'static str> {
         "upscale_sharpness" => "<0-100>",
         "upscale_quality" => "<auto|native|quality|balanced|performance|ultra_performance>",
         "ray_tracing" => "<off|low|medium|high>",
+        "traffic" => "<cars, 0 = off>",
+        "cop_share" => "<0-100>",
         _ => return None,
     })
 }

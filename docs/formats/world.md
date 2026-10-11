@@ -14,7 +14,7 @@ which now takes them from the decomp's `SpeedChunks.hpp`. For the tag meanings, 
 | `8003B900 BoundsPack` → `0003B901 CollisionBody / Bounds` | `L2RA.BUN` (405), `GlobalB.lzc` (86) | Prop bounds (L2RA) / car bounds (GlobalB) | [collision.md](collision.md); Nikki `Collision` (car bounds, MIT) |
 | `8003B810 CarpEventSequences` → `0003B811` | `L2RA.BUN` (73) | Scripted world events (pursuit breakers, …) | decomp `Libs/Support/Miscellaneous/CARP.h` |
 | `80036000 EmTriggerPack` (`36001` header, `36002` tree, `36003` triggers) | stream (415) | Trigger volumes per section | decomp `World/EventManager.cpp` |
-| `80034147 TrackPathManager` → `0003414A TrackPathZones`; `0003414D TrackPathBarriers` | `L2RA.BUN` | AI / navigation zones and barriers | decomp `World/TrackPath.cpp` |
+| `80034147 TrackPathManager` → `0003414A TrackPathZones`; `0003414D TrackPathBarriers` | `L2RA.BUN` (705 zones, 1,376 barriers) | AI / navigation zones and barriers | [road-network.md](road-network.md); decomp `World/TrackPath.cpp` |
 | `00034146 TrackPositionMarkers` | `L2RA.BUN` (15,748 B) | Named positions | decomp `World/TrackPositionMarker.cpp` |
 | `00034159 HeliSheet` | stream (435) | Helicopter navigation sheets | decomp `World/HeliSheet.cpp` (registers a `bChunkLoader`) |
 | `00034027 SmokeableSpawners` | stream (366) | Breakable / smokeable prop spawners | decomp `Misc/ResourceLoader.cpp`; noclip calls it "DestructiblesList" |
@@ -40,7 +40,9 @@ the tags `CDat`, `Map `, `RNgp`, `CGcn` **[verified]**. Per the decomp:
   nodes (`WGrid::Init`).
 - `RNgp`: the **road network**, i.e. roads, segments, nodes, intersections, lanes and profiles. Record
   sizes come from `WRoadElem.h`: `WRoad` 0x8, `WRoadNetworkInfo` 0xE, `WRoadLane` 0x4, `WRoadProfile`
-  0x40, `WRoadSegment` 0x16, `WRoadNode` 0x20, `WRoadIntersection` 0x40.
+  0x40, `WRoadSegment` 0x16, `WRoadNode` 0x20, `WRoadIntersection` 0x40. **Layouts and statistics, measured
+  on the install (4,385 nodes, 6,538 segments, 710 profiles, 1,308 roads, no intersection records), are in
+  [road-network.md](road-network.md)**, together with the `TrackPathZones` and `TrackPathBarriers` tables.
 
 AI driving, traffic and cop routing use this (`WRoadNetwork.cpp`, `WPathFinder.cpp`). noclip parses
 the vertex list only, to snap its camera to roads.

@@ -1,5 +1,6 @@
 //! The streamed city: a free-fly camera, or a car to drive with a chase camera.
 
+mod ai;
 mod commands;
 mod drive;
 mod drive_input;
@@ -92,6 +93,11 @@ pub struct WorldScene {
     view: View,
     pending_car: Option<PendingCar>,
     drive: Option<Drive>,
+    /// Computer-driven cars, when the track has a road network.
+    traffic: Option<ai::TrafficWorld>,
+    /// The `traffic`, `cop_share` settings as last told, and a count typed in the console that replaces them.
+    traffic_setting: (u32, crate::settings::Percent),
+    traffic_manual: Option<usize>,
     /// The car last driven, for `drive` without a name.
     last_car: String,
     /// Car physics data, road grips and the gameplay database.
@@ -141,6 +147,10 @@ impl WorldScene {
         }
         let globals = load_global_textures(dir)?;
         let gain_map = nfsmw_data::visual_treatment::gain_map(&globals.textures);
+        let mut traffic = index.road_network.clone().map(ai::TrafficWorld::new);
+        if let Some(world) = traffic.as_mut() {
+            world.load_data(physics.database(), index.track_zones.clone());
+        }
         let props = PropCatalog::new(index.prop_bounds.clone(), physics.database());
         log::info!("{} props have collision bounds", props.len());
         let stream = dir.resolve(&index.stream_file).with_context(|| format!("{} is missing", index.stream_file))?;
@@ -183,6 +193,9 @@ impl WorldScene {
             last_car: pending_car.as_ref().map_or_else(|| DEFAULT_CAR.to_owned(), |c| c.name.clone()),
             pending_car,
             drive: None,
+            traffic,
+            traffic_setting: (0, crate::settings::Percent(0)),
+            traffic_manual: None,
             physics,
             tire_effects: [true; 2],
             vehicle_effects: [false; 2],
@@ -246,6 +259,7 @@ impl Scene for WorldScene {
             self.camera.update(input, dt);
         }
         self.update_drive(input, dt);
+        self.update_traffic(renderer, dt);
         if !self.grounded && self.residency.complete() {
             self.grounded = true;
             let estimate = ground::height_near(self.residency.placed(), self.start[0], self.start[1], 150.0);
@@ -339,6 +353,9 @@ impl Scene for WorldScene {
         };
         let rules = &blackbox_scenery::layout::MOST_WANTED.lod;
         visibility::collect(self.residency.placed(), &cull, rules, self.residency.props(), &mut self.visible);
+        if let Some(traffic) = &self.traffic {
+            traffic.instances(&mut self.visible);
+        }
         if let Some(drive) = &self.drive {
             drive.instances(&mut self.visible);
             if let (true, Some(meshes)) = (self.markers_on, &self.marker_meshes) {
@@ -360,6 +377,9 @@ impl Scene for WorldScene {
     }
 
     fn ready(&self) -> bool {
+        if self.traffic.as_ref().is_some_and(|t| !t.settled()) {
+            return false;
+        }
         match &self.drive {
             Some(drive) => self.residency.complete() && drive.waiting_for_road().is_none() && drive.script_finished(),
             None if self.wait_for_load => self.grounded && self.residency.complete(),
@@ -401,6 +421,10 @@ impl Scene for WorldScene {
 
     fn set_wheel_options(&mut self, wheel: crate::settings::WheelOptions) {
         self.drive.iter_mut().for_each(|drive| drive.set_wheel_options(wheel));
+    }
+
+    fn set_traffic(&mut self, cars: u32, cop_share: crate::settings::Percent) {
+        self.apply_traffic_setting(cars, cop_share);
     }
 
     fn hud_state(&self) -> Option<crate::hud::HudState> {

@@ -2,6 +2,7 @@
 //! camera and the scripted driver. The world scene owns the streaming and decides when and where
 //! the car appears; this module owns everything about the car itself.
 
+mod access;
 mod clock;
 mod debug;
 mod effect_feed;
@@ -30,15 +31,16 @@ use super::vehicle_effects::VehicleEffects;
 use crate::input::ActionState;
 use crate::settings::{Transmission, WheelOptions};
 use crate::viewer::camera::{CameraCut, ChaseCamera, Followed};
-use clock::FixedClock;
+pub(super) use clock::{FixedClock, STEP};
 pub use debug::{ContactMarkers, LEGEND as MARKER_LEGEND, MarkerMeshes};
 use fall::FallWatch;
-use ground::WorldGround;
+pub(super) use ground::WorldGround;
 pub use input::DriveInput;
 use input::Presses;
 pub use rig::{CarPose, CarRig};
 pub use script::DriveScript;
-use sim::{CarSim, Telemetry};
+pub(super) use sim::CarSim;
+use sim::Telemetry;
 use sound::SoundFeed;
 #[cfg(test)]
 pub(super) use walls::ContactKind;
@@ -163,6 +165,17 @@ impl Drive {
 
     pub fn position(&self) -> Vec3 {
         self.current.position
+    }
+
+    /// Half the width and half the length of the car's body, metres.
+    pub fn half_extents(&self) -> (f32, f32) {
+        let half = self.physics.spec.dimension;
+        (half.x, half.z)
+    }
+
+    /// Speed along the car, m/s (negative in reverse).
+    pub fn speed(&self) -> f32 {
+        self.telemetry.speed_mps
     }
 
     /// Whether the script (if any) has run out.

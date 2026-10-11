@@ -42,7 +42,8 @@ pub fn car_physics(db: &Database, type_name: &str, bounds: CarBounds) -> Result<
         brakes: brakes(link("brakes")?),
         engine: engine(link("engine")?),
         transmission: transmission(link("transmission")?),
-        induction: induction(link("induction")?),
+        // Cars without an induction link (the traffic cars) are naturally aspirated.
+        induction: pvehicle.follow("induction").map(Fields).map(induction).unwrap_or_default(),
         nos: first_nitrous(db, Fields(pvehicle)),
         aero: aero(chassis_fields),
     };

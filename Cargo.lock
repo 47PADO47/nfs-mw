@@ -1426,6 +1426,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "blackbox-driver"
+version = "0.1.0"
+dependencies = [
+ "glam 0.34.1",
+]
+
+[[package]]
 name = "blackbox-feng"
 version = "0.1.0"
 dependencies = [
@@ -1524,6 +1531,17 @@ dependencies = [
  "raw-window-handle",
  "thiserror 2.0.21",
  "wgpu",
+]
+
+[[package]]
+name = "blackbox-roads"
+version = "0.1.0"
+dependencies = [
+ "blackbox-chunk",
+ "blackbox-collision",
+ "ea-compress",
+ "glam 0.34.1",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -3431,6 +3449,7 @@ dependencies = [
  "blackbox-carsound",
  "blackbox-chunk",
  "blackbox-collision",
+ "blackbox-driver",
  "blackbox-feng",
  "blackbox-gfx",
  "blackbox-ginsu",
@@ -3439,6 +3458,7 @@ dependencies = [
  "blackbox-movie",
  "blackbox-particles",
  "blackbox-render",
+ "blackbox-roads",
  "blackbox-scene",
  "blackbox-scenery",
  "blackbox-streaming",
@@ -3474,6 +3494,7 @@ dependencies = [
  "blackbox-hash",
  "blackbox-minimap",
  "blackbox-particles",
+ "blackbox-roads",
  "blackbox-scenery",
  "blackbox-solid",
  "blackbox-streaming",

@@ -17,9 +17,11 @@ mod manual;
 mod minimap;
 mod music;
 mod physics;
+mod pursuit;
 mod sound;
 mod speech;
 mod textures;
+mod traffic;
 mod world;
 mod zones;
 

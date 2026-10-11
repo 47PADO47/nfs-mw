@@ -87,6 +87,8 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         skip_intro: field(&table, origin, "skip_intro", boolean),
         graphics_preset: field(&table, origin, "graphics_preset", |v| GraphicsPreset::from_str(text_of(v)?)),
         car_shading: field(&table, origin, "car_shading", |v| CarShading::from_str(text_of(v)?)),
+        traffic: field(&table, origin, "traffic", count),
+        cop_share: field(&table, origin, "cop_share", percent),
         smoke_quality: field(&table, origin, "smoke_quality", |v| SmokeQuality::from_str(text_of(v)?)),
         skid_marks: field(&table, origin, "skid_marks", boolean),
         collision_sparks: field(&table, origin, "collision_sparks", boolean),
@@ -138,6 +140,12 @@ fn percent(v: &Value) -> Result<Percent, String> {
         Value::Float(f) => Percent::from_str(&format!("{f:?}")),
         other => Percent::from_str(text_of(other)?),
     }
+}
+
+/// A count of cars: a whole number from 0 up.
+fn count(v: &Value) -> Result<u32, String> {
+    let n = v.as_integer().ok_or_else(|| "expected a number of cars".to_owned())?;
+    u32::try_from(n).map_err(|_| format!("{n} is not a number of cars"))
 }
 
 /// A gamepad button code: a whole number from 0 up.
