@@ -178,6 +178,10 @@ impl Camera for ChaseCamera {
     fn lens(&self, aspect: f32) -> Lens {
         Lens::look_at(self.position, self.target, self.fov_degrees(), Self::NEAR_PLANE, aspect)
     }
+
+    fn selectable(&self) -> bool {
+        true
+    }
 }
 
 #[cfg(test)]

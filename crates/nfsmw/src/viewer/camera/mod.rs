@@ -49,6 +49,12 @@ impl Lens {
 /// needs from whichever camera is active.
 pub trait Camera {
     fn lens(&self, aspect: f32) -> Lens;
+
+    /// Whether the gameplay camera setting may choose this camera. A camera with its own toggle (the free
+    /// and orbit cameras) is not; a new camera is hidden from the setting until it says otherwise.
+    fn selectable(&self) -> bool {
+        false
+    }
 }
 
 /// World to view space for a camera at `eye` looking at `target` (the worlds are Z-up).
@@ -64,4 +70,19 @@ pub fn projection(fov_y_degrees: f32, aspect: f32, near: f32) -> Projection {
 /// Unit direction for a heading (radians from +X, counter-clockwise) and pitch (up positive).
 pub fn direction(yaw: f32, pitch: f32) -> Vec3 {
     Vec3::new(yaw.cos() * pitch.cos(), yaw.sin() * pitch.cos(), pitch.sin())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::viewer::camera::{ChaseCamera, FlyCamera, OrbitCamera};
+
+    #[test]
+    fn only_the_chase_camera_is_chosen_from_settings() {
+        let fly = FlyCamera { position: Vec3::ZERO, yaw: 0.0, pitch: 0.0, speed: 1.0 };
+        let orbit = OrbitCamera { target: Vec3::ZERO, distance: 1.0, yaw: 0.0, pitch: 0.0 };
+        assert!(ChaseCamera::default().selectable());
+        assert!(!fly.selectable(), "the free camera has its own toggle");
+        assert!(!orbit.selectable(), "the orbit camera has its own toggle");
+    }
 }
