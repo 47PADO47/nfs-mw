@@ -2,7 +2,7 @@
 //! `#[ignore]`d; run them with
 //!
 //! ```sh
-//! NFSMW_GAME_DIR="D:/Need For Speed Most Wanted Black Edition" cargo test --release -p nfsmw-data -- --ignored
+//! NFSMW_GAME_DIR="<your-install>" cargo test --release -p nfsmw-data -- --ignored
 //! ```
 //!
 //! Without `NFSMW_GAME_DIR` they pass without checking anything.

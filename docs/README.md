@@ -2,7 +2,7 @@
 
 Documentation for the Rust rewrite of Need for Speed: Most Wanted (2005, PC v1.3 / Black Edition): how
 the game stores its data, what prior work exists, and how the rewrite is built. Format claims are checked
-against the install at `D:/Need For Speed Most Wanted Black Edition`.
+against a local install selected with `NFSMW_GAME_DIR`.
 
 ## Short answers
 

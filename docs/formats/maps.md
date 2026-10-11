@@ -242,7 +242,7 @@ license) has a C# reader.
 ## Inspecting it yourself
 
 ```bash
-python tools/chunkdump.py "D:/Need For Speed Most Wanted Black Edition/TRACKS/L2RA.BUN" -s -d 2
-python tools/chunkdump.py "D:/Need For Speed Most Wanted Black Edition/TRACKS/STREAML2RA.BUN" --summary
-python tools/chunkdump.py "D:/Need For Speed Most Wanted Black Edition/TRACKS/STREAML2RA.BUN" -d 1 -n 30
+python tools/chunkdump.py "$NFSMW_GAME_DIR/TRACKS/L2RA.BUN" -s -d 2
+python tools/chunkdump.py "$NFSMW_GAME_DIR/TRACKS/STREAML2RA.BUN" --summary
+python tools/chunkdump.py "$NFSMW_GAME_DIR/TRACKS/STREAML2RA.BUN" -d 1 -n 30
 ```
