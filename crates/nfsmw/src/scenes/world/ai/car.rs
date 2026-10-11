@@ -128,6 +128,8 @@ pub struct AiCar {
     /// Seconds the car has been out of the player's view.
     offscreen: f32,
     breaker_stop: bool,
+    /// The light bars of a cop car, when it has them.
+    cop_lights: Option<super::cop_lights::CopLightRun>,
 }
 
 impl AiCar {
@@ -189,6 +191,7 @@ impl AiCar {
             patrol: start.patrol,
             offscreen: 0.0,
             breaker_stop: false,
+            cop_lights: model.cop_lights.clone().map(super::cop_lights::CopLightRun::new),
         })
     }
 
@@ -219,6 +222,20 @@ impl AiCar {
     /// The car's position in render space.
     pub fn position(&self) -> Vec3 {
         self.current.position
+    }
+
+    /// Advance the light bars by one tick, at the car's frame.
+    pub fn step_lights(&mut self) {
+        if let Some(lights) = &mut self.cop_lights {
+            lights.step(STEP, self.current.transform());
+        }
+    }
+
+    /// The sprites of the light bars, for the effect layer.
+    pub fn cop_particles(&self, camera: Vec3, forward: Vec3, out: &mut Vec<blackbox_render::TexturedEffect>) {
+        if let Some(lights) = &self.cop_lights {
+            lights.textured(camera, forward, out);
+        }
     }
 
     pub fn set_breaker_stop(&mut self, stop: bool) {

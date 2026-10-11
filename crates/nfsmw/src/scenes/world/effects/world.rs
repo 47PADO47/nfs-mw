@@ -30,6 +30,7 @@ impl WorldScene {
         if let Some(traffic) = &self.traffic {
             traffic.car_glows(position, forward, &mut layer.glows);
             traffic.car_beams(&mut layer.streaks);
+            traffic.cop_particles(position, forward, &mut layer.textured);
             traffic.lamp_glows(position, forward, &mut layer.glows);
         }
         drive.vehicle_effects.textured(forward, &self.residency.shared.materials, &mut layer.textured);

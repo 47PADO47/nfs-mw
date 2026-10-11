@@ -3,6 +3,7 @@
 //! swaps. Spec: docs/specs/car-assembly.md.
 
 mod assemble;
+pub mod cop_lights;
 mod ecar;
 pub mod exhaust;
 mod paint;

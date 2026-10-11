@@ -6,6 +6,7 @@ mod car;
 mod collide;
 mod commands;
 mod cop;
+mod cop_lights;
 mod data;
 mod hitch;
 mod lamps;
@@ -63,6 +64,8 @@ pub struct TrafficModel {
     pub physics: CarPhysics,
     /// The trailer a semi tractor pulls.
     pub trailer: Option<Box<TrafficModel>>,
+    /// A cop model's light bars (`None` for traffic).
+    pub cop_lights: Option<Rc<cop_lights::CopLightSet>>,
 }
 
 pub struct TrafficWorld {
@@ -163,6 +166,13 @@ impl TrafficWorld {
     /// Whether a screenshot run may capture: the warm-up is over.
     pub fn settled(&self) -> bool {
         self.warmup_left <= 0.0 || !self.has_work()
+    }
+
+    /// Appends the sprites of the cop light bars of every car.
+    pub fn cop_particles(&self, camera: Vec3, forward: Vec3, out: &mut Vec<blackbox_render::TexturedEffect>) {
+        for car in &self.cars {
+            car.cop_particles(camera, forward, out);
+        }
     }
 
     /// Appends the headlight beams of every car.
