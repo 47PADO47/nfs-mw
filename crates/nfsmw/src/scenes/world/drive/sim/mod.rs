@@ -278,10 +278,18 @@ impl CarSim {
         self.vehicle.rotation().y_axis.y
     }
 
-    /// Whether the state is usable (no NaN or runaway values).
+    /// Whether the state is usable (no NaN or runaway values). Covers the rotation, the wheels and the engine
+    /// too: a NaN there freezes the car while its position still looks fine.
     pub fn is_finite(&self) -> bool {
         let v = &self.vehicle;
-        v.position().is_finite() && v.orientation().is_finite() && v.linear_velocity().is_finite()
+        let angles = v.wheel_angles();
+        v.position().is_finite()
+            && v.orientation().is_finite()
+            && v.linear_velocity().is_finite()
+            && v.angular_velocity().is_finite()
+            && v.rpm().is_finite()
+            && angles.left.is_finite()
+            && angles.right.is_finite()
     }
 
     /// The model's origin in physics space.

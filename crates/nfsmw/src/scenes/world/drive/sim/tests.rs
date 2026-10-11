@@ -17,6 +17,16 @@ fn sim() -> CarSim {
     )
 }
 
+#[test]
+fn a_nan_in_the_engine_or_wheels_counts_as_not_finite() {
+    let mut sim = sim();
+    assert!(sim.is_finite());
+    sim.vehicle.body_mut().angular_velocity = Vec3::splat(f32::NAN);
+    assert!(!sim.is_finite(), "a NaN spin is caught");
+    sim.vehicle.body_mut().angular_velocity = Vec3::ZERO;
+    assert!(sim.is_finite());
+}
+
 fn spawn_at(heading: f32) -> Spawn {
     Spawn { position: Vec3::new(100.0, 50.0, 5.0), heading }
 }
