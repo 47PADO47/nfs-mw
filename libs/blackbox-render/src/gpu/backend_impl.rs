@@ -17,6 +17,9 @@ impl RenderBackend for Renderer {
     fn set_colour_treatment(&mut self, profile: Option<&blackbox_gfx::ColourTreatment>, gain: Option<&RgbaImage>) {
         self.set_scene_treatment(profile, gain);
     }
+    fn set_reflection_scene(&mut self, scene: Option<blackbox_gfx::ReflectionScene<'_>>) {
+        self.capture_reflections(scene);
+    }
     fn info(&self) -> &BackendInfo {
         &self.info
     }
@@ -49,6 +52,9 @@ impl RenderBackend for Renderer {
         Renderer::set_upscale_sharpness(self, effective.upscale_sharpness);
         Renderer::set_render_scale(self, effective.render_scale);
         Renderer::set_texture_lod_bias(self, suggested_texture_lod_bias(effective.render_scale));
+        if !effective.ao.active() {
+            self.ao = None;
+        }
         self.graphics = effective;
         resolved
     }

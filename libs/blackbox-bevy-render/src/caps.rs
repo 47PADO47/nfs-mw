@@ -20,6 +20,8 @@ pub fn capabilities(api: GraphicsApi, compressed_bc: bool) -> Capabilities {
         tonemaps: TonemapSet::of(&[Tonemap::Off, Tonemap::Aces]),
         bloom: true,
         scene_treatment: false,
+        local_reflections: false,
+        ambient_occlusion: false,
         ray_tracing: RtSupport::None,
         // Rendering above the surface size is not wired up.
         render_scale: (MIN_RENDER_SCALE, 1.0),

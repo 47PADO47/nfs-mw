@@ -99,6 +99,10 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         post_bloom: field(&table, origin, "post_bloom", |v| PostBloom::from_str(text_of(v)?)),
         visual_treatment: field(&table, origin, "visual_treatment", |v| super::VisualTreatment::from_str(text_of(v)?)),
         post_aa: field(&table, origin, "post_aa", |v| PostAa::from_str(text_of(v)?)),
+        reflections: field(&table, origin, "reflections", |v| super::ReflectionQuality::from_str(text_of(v)?)),
+        ao: field(&table, origin, "ao", |v| super::AoQuality::from_str(text_of(v)?)),
+        ao_intensity: field(&table, origin, "ao_intensity", percent),
+        ao_compare: field(&table, origin, "ao_compare", boolean),
         render_scale: field(&table, origin, "render_scale", |v| match v {
             Value::Integer(n) => RenderScale::from_str(&n.to_string()),
             Value::Float(f) => RenderScale::from_str(&format!("{f:?}")),

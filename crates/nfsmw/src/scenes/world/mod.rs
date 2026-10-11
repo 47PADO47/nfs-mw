@@ -8,6 +8,7 @@ mod exhaust;
 mod ground;
 mod keys;
 mod props;
+mod reflections;
 mod residency;
 mod resident;
 mod road;
@@ -83,6 +84,8 @@ pub struct WorldScene {
     visible: Vec<Instance>,
     colour_treatment: Option<blackbox_gfx::ColourTreatment>,
     gain_map: Option<blackbox_gfx::RgbaImage>,
+    reflection_faces: [Vec<Instance>; 6],
+    reflection_last: Option<reflections::CaptureStamp>,
     /// Seconds since the scene started, for texture animations.
     clock: f32,
     view: View,
@@ -170,6 +173,8 @@ impl WorldScene {
             visible: Vec::new(),
             colour_treatment,
             gain_map,
+            reflection_faces: std::array::from_fn(|_| Vec::new()),
+            reflection_last: None,
             clock: 0.0,
             view: if pending_car.is_some() { View::Chase } else { View::Fly },
             last_car: pending_car.as_ref().map_or_else(|| DEFAULT_CAR.to_owned(), |c| c.name.clone()),
@@ -251,6 +256,7 @@ impl Scene for WorldScene {
             );
         }
         self.upload_effects(renderer);
+        self.update_reflections(renderer);
     }
 
     fn set_tire_effects(&mut self, smoke: bool, skid_marks: bool) {

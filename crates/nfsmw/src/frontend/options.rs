@@ -6,6 +6,7 @@ use std::str::FromStr;
 use super::graphics_options::GraphicsSetting;
 use super::ids::{LABEL_OFF, LABEL_ON};
 use super::input_options::InputSetting;
+#[cfg(test)]
 use super::logic::Category;
 use super::post_options::PostSetting;
 use super::renderer_options::RendererSetting;
@@ -83,59 +84,9 @@ const fn row(setting: Setting, title: Title) -> Row {
     Row { setting, title }
 }
 
-/// The rows of a category on a renderer with these capabilities. A row the renderer cannot do (ray tracing, the
-/// temporal upscalers' quality mode) is left out: an option row has no greyed-out state.
-pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
-    let renderer_row = |setting: RendererSetting| row(Setting::Renderer(setting), setting.title());
-    let offered = |setting: RendererSetting| setting.shown(caps).then(|| renderer_row(setting));
-    match category {
-        Category::Audio => vec![
-            row(Setting::MasterVolume, Title::Label(0x2678_2C3E)),
-            row(Setting::SfxVolume, Title::Label(0xFD48_7543)),
-            row(Setting::EngineVolume, Title::Label(0xA2B1_F888)),
-            row(Setting::MusicVolume, Title::Label(0x418E_681D)),
-            row(Setting::SpeechVolume, Title::Label(0x9E5F_B82A)),
-        ],
-        Category::Video => vec![
-            row(Setting::Vsync, Title::Label(0x6CEB_9CB6)),
-            row(Setting::MaxFps, Title::Text("Frame Limit")),
-            row(Setting::Metrics, Title::Text("Performance Overlay")),
-            row(Setting::WindowMode, Title::Text("Window Mode")),
-            row(Setting::TireSmoke, Title::Text("Tire Smoke")),
-            row(Setting::SkidMarks, Title::Text("Skid Marks")),
-            row(Setting::SmokeQuality, Title::Text("Smoke Quality")),
-            row(Setting::CollisionSparks, Title::Text("Collision Sparks")),
-            row(Setting::SpeedTrails, Title::Text("Speed Trails (Experimental)")),
-            row(Setting::ExhaustFlames, Title::Text("Exhaust Flames")),
-            row(Setting::RenderScale, Title::Text("Render Scale")),
-            row(Setting::Upscaler, Title::Text("Upscaler")),
-            row(Setting::UpscaleSharpness, Title::Text("Upscale Sharpness")),
-        ]
-        .into_iter()
-        .chain(offered(RendererSetting::UpscaleQuality))
-        .chain(PostSetting::ALL.into_iter().map(|setting| row(Setting::Post(setting), setting.title())))
-        .chain(offered(RendererSetting::RayTracing))
-        .chain(
-            GraphicsSetting::ALL
-                .into_iter()
-                .filter(|s| s.shown(caps))
-                .map(|setting| row(Setting::Graphics(setting), setting.title())),
-        )
-        .chain(offered(RendererSetting::Renderer))
-        .chain(offered(RendererSetting::GraphicsApi))
-        .collect(),
-        Category::Gameplay => vec![
-            row(Setting::Hud, Title::Label(0xAC14_8579)),
-            row(Setting::Transmission, Title::Label(LABEL_TRANSMISSION)),
-            row(Setting::HudLayout, Title::Text("HUD Layout")),
-            row(Setting::RadioHud, Title::Text("Radio HUD")),
-            row(Setting::Minimap, Title::Text("Minimap")),
-        ],
-        Category::Controls => {
-            InputSetting::ALL.into_iter().map(|setting| row(Setting::Input(setting), setting.title())).collect()
-        }
-    }
-}
+#[path = "options_rows.rs"]
+mod category_rows;
+pub use category_rows::rows;
 
 /// The original's Transmission row: its title and the two values (docs/specs/vehicle-manual-shifting.md, section 1).
 const LABEL_TRANSMISSION: u32 = 0xD314_07E7;
@@ -173,6 +124,7 @@ fn percent_of(s: &Settings, setting: Setting) -> Option<Percent> {
         Setting::MusicVolume => s.music_volume,
         Setting::SpeechVolume => s.speech_volume,
         Setting::UpscaleSharpness => s.upscale_sharpness,
+        Setting::Graphics(GraphicsSetting::AoIntensity) => s.ao_intensity,
         _ => return None,
     })
 }
@@ -188,8 +140,23 @@ impl Setting {
         match self {
             // With vsync on the display paces the frames, so the limiter is greyed out.
             Setting::MaxFps => !s.vsync,
+            Setting::Graphics(setting) => setting.enabled(s),
+            Setting::Post(PostSetting::Aa) => !s.upscaler.upscaler().is_temporal(),
+            Setting::SmokeQuality => s.tire_smoke,
+            Setting::RenderScale => matches!(s.upscaler, UpscaleMode::Bilinear | UpscaleMode::Fsr1),
+            Setting::UpscaleSharpness => s.upscaler == UpscaleMode::Fsr1,
+            Setting::Renderer(RendererSetting::UpscaleQuality) => s.upscaler.upscaler().is_temporal(),
             _ => true,
         }
+    }
+
+    /// Dependency checks use the running renderer's values, keeping stored preferences intact.
+    pub fn enabled_in(self, s: &Settings, caps: &Capabilities) -> bool {
+        if self == Setting::RenderScale {
+            // Even a temporal request falling back to FSR 1 takes its size from Upscale Quality.
+            return self.enabled(s);
+        }
+        self.enabled(&s.effective(caps))
     }
 
     /// What the data string shows for a toggle.
@@ -287,6 +254,8 @@ impl Setting {
     fn key(self) -> Option<&'static str> {
         match self {
             Setting::Graphics(GraphicsSetting::VisualTreatment) => Some("visual_treatment"),
+            Setting::Graphics(GraphicsSetting::Reflections) => Some("reflections"),
+            Setting::Graphics(GraphicsSetting::AmbientOcclusion) => Some("ao"),
             Setting::Upscaler => Some("upscaler"),
             Setting::Post(PostSetting::Aa) => Some("post_aa"),
             Setting::Post(PostSetting::Tonemap) => Some("post_tonemap"),
@@ -304,9 +273,15 @@ impl Setting {
     /// [`step`](Self::step), skipping the values the renderer cannot run, so a toggle only cycles through what
     /// works. A stored value the renderer cannot run (set for another renderer) moves to the next one it can.
     pub fn advance(self, s: &mut Settings, changed: &mut Partial, forward: bool, caps: &Capabilities) -> bool {
+        if !self.enabled_in(s, caps) {
+            return false;
+        }
         let before = *s;
         for _ in 0..MAX_VALUES {
-            self.step(s, changed, forward);
+            self.step_value(s, changed, forward);
+            if s.settle_preset() {
+                changed.graphics_preset = Some(crate::settings::GraphicsPreset::Custom);
+            }
             if self.offered(s, caps) {
                 break;
             }
@@ -316,7 +291,11 @@ impl Setting {
 
     /// Moves the setting one step (`forward`: right, else left) and records the change for the config file.
     /// Returns whether the value changed (a slider at its end does not).
+    #[cfg(test)]
     pub fn step(self, s: &mut Settings, changed: &mut Partial, forward: bool) -> bool {
+        if !self.enabled(s) {
+            return false;
+        }
         let moved = self.step_value(s, changed, forward);
         // Changing one setting a preset covers leaves the preset behind: the row then reads Custom.
         if s.settle_preset() {
@@ -337,9 +316,6 @@ impl Setting {
         }
         if let Setting::Renderer(setting) = self {
             return setting.step(s, changed, forward);
-        }
-        if !self.enabled(s) {
-            return false;
         }
         let before = *s;
         match self {

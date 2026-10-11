@@ -6,7 +6,7 @@
 
 use blackbox_gfx::{Antialiasing, Capabilities, GraphicsSettings, RayTracing, Setting, Tonemap, Upscaler};
 
-use super::Settings;
+use super::{AoQuality, Settings};
 
 /// What a setting asks for, whether the renderer can do it, and the values it can do.
 struct Asked {
@@ -46,11 +46,27 @@ fn asked(key: &str, settings: &Settings, caps: &Capabilities) -> Option<Asked> {
             possible: g.post.bloom_intensity <= 0.0 || caps.bloom,
             available: vec!["off"],
         },
+        "ao" => Asked {
+            value: g.ao.quality.name().to_owned(),
+            possible: g.ao.quality == AoQuality::Off || caps.ambient_occlusion,
+            available: match caps.ambient_occlusion {
+                true => AoQuality::ALL.iter().map(|q| q.name()).collect(),
+                false => vec!["off"],
+            },
+        },
         "ray_tracing" => Asked {
             value: g.ray_tracing.name().to_owned(),
             possible: !g.ray_tracing.is_on() || caps.ray_tracing.is_available(),
             available: match caps.ray_tracing.is_available() {
                 true => RayTracing::ALL.iter().map(|r| r.name()).collect(),
+                false => vec!["off"],
+            },
+        },
+        "reflections" => Asked {
+            value: g.reflections.name().to_owned(),
+            possible: g.reflections == super::ReflectionQuality::Off || caps.local_reflections,
+            available: match caps.local_reflections {
+                true => super::ReflectionQuality::ALL.iter().map(|q| q.name()).collect(),
                 false => vec!["off"],
             },
         },

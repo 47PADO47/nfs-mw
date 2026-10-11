@@ -76,6 +76,9 @@ pub trait RenderBackend {
     /// Set the current scene's colour profile and optional gain map; `None` clears it.
     /// The gain map is display-space RGBA: blue multiplies colour. Other channels are reserved.
     fn set_colour_treatment(&mut self, _profile: Option<&crate::ColourTreatment>, _gain: Option<&RgbaImage>) {}
+    /// Capture local surroundings for glossy surfaces, or restore the supplied static environment.
+    /// Backends without local captures keep their static environment.
+    fn set_reflection_scene(&mut self, _scene: Option<crate::ReflectionScene<'_>>) {}
 
     // --- layers ----------------------------------------------------------------------------------
 

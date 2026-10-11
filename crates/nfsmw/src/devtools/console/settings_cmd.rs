@@ -11,7 +11,7 @@ use crate::settings::{
 };
 
 /// Settings the console can show.
-const KEYS: [&str; 48] = [
+const KEYS: [&str; 52] = [
     "deadzone_mode",
     "steering_deadzone",
     "camera_deadzone",
@@ -55,6 +55,10 @@ const KEYS: [&str; 48] = [
     "post_bloom",
     "post_aa",
     "visual_treatment",
+    "reflections",
+    "ao",
+    "ao_intensity",
+    "ao_compare",
     "render_scale",
     "upscaler",
     "upscale_sharpness",
@@ -108,6 +112,10 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "post_bloom" => settings.post_bloom.to_string(),
         "post_aa" => settings.post_aa.to_string(),
         "visual_treatment" => settings.visual_treatment.to_string(),
+        "reflections" => settings.reflections.to_string(),
+        "ao" => settings.ao.to_string(),
+        "ao_intensity" => settings.ao_intensity.to_string(),
+        "ao_compare" => on_off(settings.ao_compare).to_owned(),
         "render_scale" => settings.render_scale.to_string(),
         "upscaler" => settings.upscaler.to_string(),
         "upscale_sharpness" => settings.upscale_sharpness.to_string(),
@@ -172,6 +180,10 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "post_bloom" => settings.post_bloom = PostBloom::from_str(value)?,
         "post_aa" => settings.post_aa = PostAa::from_str(value)?,
         "visual_treatment" => settings.visual_treatment = value.parse()?,
+        "reflections" => settings.reflections = value.parse()?,
+        "ao" => settings.ao = value.parse()?,
+        "ao_intensity" => settings.ao_intensity = value.parse()?,
+        "ao_compare" => settings.ao_compare = parse_bool(value)?,
         "render_scale" => settings.render_scale = RenderScale::from_str(value)?,
         "upscaler" => settings.upscaler = value.parse()?,
         "upscale_sharpness" => settings.upscale_sharpness = Percent::from_str(value)?,
@@ -202,6 +214,7 @@ fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
         "radio" => Some(&mut settings.radio),
         "manual_clutch" => Some(&mut settings.manual_clutch),
         "h_shifter" => Some(&mut settings.h_shifter),
+        "ao_compare" => Some(&mut settings.ao_compare),
         _ => None,
     }
 }
@@ -232,6 +245,9 @@ fn syntax(key: &str) -> Option<&'static str> {
         "post_bloom" => "<off|low|medium|high>",
         "post_aa" => "<off|fxaa|smaa|taa>",
         "visual_treatment" => "<off|low|high>",
+        "reflections" => "<off|low|medium|high>",
+        "ao" => "<off|low|medium|high>",
+        "ao_intensity" => "<0-100>",
         "render_scale" => "<50-200>",
         "upscaler" => "<off|bilinear|fsr1|fsr3|fsr4|dlss>",
         "upscale_sharpness" => "<0-100>",

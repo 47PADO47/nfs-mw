@@ -37,6 +37,7 @@ against the install at `D:/Need For Speed Most Wanted Black Edition`.
 | [low-end.md](low-end.md) | Weak GPUs and laptops: what each graphics setting costs, the low, medium and high presets, a low-end config and how to read the performance overlay |
 | [post-processing.md](post-processing.md) | Optional tone mapping, bloom and anti-aliasing (FXAA; SMAA and TAA on the Bevy renderer): settings, menu rows, what each does and how to compare them |
 | [visual-treatment.md](visual-treatment.md) | Installed PC midday colour treatment for the native renderer |
+| [ambient-occlusion.md](ambient-occlusion.md) | Experimental depth-only GTAO: quality, live comparison, filtering, limitations and GPU validation |
 | [vehicle-effects.md](vehicle-effects.md) | Original PC sparks, experimental restored sparks and wind trails using base-game assets |
 | [architecture.md](architecture.md) | `libs/` (engine-generic) vs `crates/` (MW), finding the install, the streamed city, graphics backends, Windows/Linux, roadmap |
 | [testing.md](testing.md) | the kinds of tests, the real-install tests and how to run them |

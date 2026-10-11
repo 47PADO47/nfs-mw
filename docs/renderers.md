@@ -14,9 +14,26 @@ and checks described here work the same way for either renderer. What it draws, 
 is missing: [bevy-backend.md](bevy-backend.md). The design is in
 [the plan](plans/gfx-renderers/README.md) and [ADR 0004](decisions/0004-swappable-renderers.md).
 
-Everything defaults to what the game did before these settings existed: `blackbox`, every effect
-off, ray tracing off, native resolution. Nothing extra is built or allocated for a feature that is
-off, so the default stays lean for low-end PCs ([low-end.md](low-end.md)).
+The default renderer is `blackbox`, with post effects and ray tracing off at native resolution.
+Glossy cars use local scenery reflections at medium quality. Off releases their capture resources
+and restores the static sky; simple car shading skips captures ([low-end.md](low-end.md)).
+
+## Car reflections
+
+The native renderer captures scenery around the car, including objects behind the main camera, using the
+original-style car material response. Video options offer **Car Reflections**: off, low (64-pixel faces
+at up to 15 Hz), medium (128 at up to 30 Hz), or high (256 every frame). These rates and sizes are rewrite
+tuning choices, rather than recovered retail PC constants. The six faces update together and stay on
+the GPU. The player car, HUD and effects are excluded.
+The high setting refreshes every rendered frame for high-frame-rate driving. Capture buffers are
+reused and all six faces use one queue submission. The optional Bevy backend retains its static sky
+and does not offer this capture setting.
+
+Use `--reflections off|low|medium|high`, `NFSMW_REFLECTIONS`, the `reflections` config key, or
+`reflections off` / `reflections medium` in the F12 console for comparison. Only the user's base-game
+scenery assets are required. This covers paint, glass and other car-shader surfaces; wet-road and water
+reflection shaders are separate work. See [the specification](specs/car-reflections.md) and
+[provenance](provenance/car-reflections.md) for established behavior and remaining parity limits.
 
 ## Choosing a renderer
 

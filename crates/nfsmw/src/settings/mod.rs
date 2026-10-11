@@ -64,6 +64,8 @@ mod write;
 
 use blackbox_gfx::GraphicsApi;
 
+pub use blackbox_gfx::AoQuality;
+pub use blackbox_gfx::ReflectionQuality;
 pub use car_shading::CarShading;
 pub use controls::{Controls, Deadzone, DeadzoneMode, Sensitivity};
 pub use graphics_preset::GraphicsPreset;
@@ -143,6 +145,11 @@ pub struct Settings {
     pub post_bloom: PostBloom,
     pub post_aa: PostAa,
     pub visual_treatment: VisualTreatment,
+    pub reflections: ReflectionQuality,
+    /// Experimental contact occlusion; presets never enable it implicitly.
+    pub ao: AoQuality,
+    pub ao_intensity: Percent,
+    pub ao_compare: bool,
     /// The 3D scene's size in percent of the output size per axis, and the filter that scales it back up.
     pub render_scale: RenderScale,
     pub upscaler: UpscaleMode,
@@ -212,6 +219,10 @@ impl From<Partial> for Settings {
             post_bloom: p.post_bloom.unwrap_or_default(),
             post_aa: p.post_aa.unwrap_or_default(),
             visual_treatment: p.visual_treatment.unwrap_or_default(),
+            reflections: p.reflections.unwrap_or(ReflectionQuality::Medium),
+            ao: p.ao.unwrap_or_default(),
+            ao_intensity: p.ao_intensity.unwrap_or(Percent(75)),
+            ao_compare: p.ao_compare.unwrap_or(false),
             render_scale: p.render_scale.unwrap_or_default(),
             upscaler: p.upscaler.unwrap_or_default(),
             upscale_sharpness: p.upscale_sharpness.unwrap_or(Percent(80)),

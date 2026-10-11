@@ -128,6 +128,9 @@ Engines, viewers and hook projects
     Colour-treatment curves and screen gain map reference: docs/provenance/visual-treatment.md.
   whoismept/OpenUG2 — MIT. bdrtr/PryHUB — Apache-2.0. OpenNFS/OpenNFS — MIT.
   veritr1x/nfsmw-recomp — MIT (speed.exe v1.3 hash, loading-path notes).
+  codepdbh/nfsmw-android — https://github.com/codepdbh/nfsmw-android — GPL-3.0, read only.
+    Xbox 360 native renderer and reflection synchronization notes considered as context.
+    No code or assets copied; see docs/provenance/car-reflections.md.
   berkayylmao/NFSPluginSDK — BSD-3-Clause. gaycoderprincess/nya-common-nfsmw — MPL-2.0.
   ThirteenAG/WidescreenFixesPack — MIT (registry key, camera, aspect-aware HUD placement).
     https://github.com/ThirteenAG/WidescreenFixesPack — reference only; no code copied.
@@ -152,6 +155,14 @@ Input references
     Reference for configurable per-axis cutoff deadzones and controller mappings. No code copied.
 
 Rendering concepts
+  Intel XeGTAO — https://github.com/GameTechDev/XeGTAO — MIT.
+    Copyright (C) 2016-2021, Intel Corporation.
+    Horizon search and analytic slice integration adapted in
+    libs/blackbox-render/src/shaders/ao_horizon.wgsl, which carries the full MIT notice.
+    This is a compact depth-only GTAO experiment, not the complete XeGTAO implementation.
+  Quasar — https://github.com/dev25bansal-ops/quasar — MIT.
+    Hemisphere SSAO shader considered as a reference; no code copied.
+    See docs/ambient-occlusion.md for the approach and limitations.
   NVIDIA GPU Gems 3, chapter 23.4, soft particles — reference only.
     https://developer.nvidia.com/gpugems/gpugems3/part-iv-image-effects/chapter-23-high-speed-screen-particles
     Depth-based intersection fading concept; no shader or source code copied.

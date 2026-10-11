@@ -265,6 +265,9 @@ pub struct ViewArgs {
     /// [env NFSMW_CAR_SHADING; config `car_shading`; default glossy].
     #[arg(long, value_name = "simple|glossy")]
     pub car_shading: Option<crate::settings::CarShading>,
+    /// Local car reflections [env NFSMW_REFLECTIONS; config `reflections`; default medium].
+    #[arg(long, value_name = "off|low|medium|high")]
+    pub reflections: Option<crate::settings::ReflectionQuality>,
     /// Smoke presentation: standard or high [env NFSMW_SMOKE_QUALITY; config `smoke_quality`; default standard].
     #[arg(long, value_name = "standard|high")]
     pub smoke_quality: Option<crate::settings::SmokeQuality>,
@@ -335,6 +338,15 @@ pub struct ViewArgs {
     /// Experimental midday visual treatment: off, low (half strength), or high (original profile).
     #[arg(long, value_name = "off|low|high")]
     pub visual_treatment: Option<crate::settings::VisualTreatment>,
+    /// Experimental ambient occlusion [env NFSMW_AO; config `ao`; default off].
+    #[arg(long, value_name = "off|low|medium|high")]
+    pub ao: Option<crate::settings::AoQuality>,
+    /// AO strength 0 to 100 [env NFSMW_AO_INTENSITY; default 75].
+    #[arg(long, value_name = "0-100")]
+    pub ao_intensity: Option<crate::settings::Percent>,
+    /// Compare AO in the same frame: left off, right on [env NFSMW_AO_COMPARE].
+    #[arg(long, num_args = 0..=1, default_missing_value = "true")]
+    pub ao_compare: Option<bool>,
     /// Who changes gear: automatic or manual (Q/E, the bumpers or the wheel paddles shift)
     /// [env NFSMW_TRANSMISSION; config `transmission`; default automatic].
     #[arg(long, value_name = "automatic|manual")]
@@ -384,6 +396,7 @@ impl ViewArgs {
             tire_smoke: switch(self.tire_smoke, self.no_tire_smoke),
             graphics_preset: self.graphics_preset,
             car_shading: self.car_shading,
+            reflections: self.reflections,
             smoke_quality: self.smoke_quality,
             radio: switch(self.radio, self.no_radio),
             skid_marks: switch(self.skid_marks, self.no_skid_marks),
@@ -396,6 +409,9 @@ impl ViewArgs {
             post_bloom: self.post_bloom,
             post_aa: self.post_aa,
             visual_treatment: self.visual_treatment,
+            ao: self.ao,
+            ao_intensity: self.ao_intensity,
+            ao_compare: self.ao_compare,
             render_scale: self.render_scale,
             upscaler: self.upscaler,
             upscale_sharpness: self.upscale_sharpness,
