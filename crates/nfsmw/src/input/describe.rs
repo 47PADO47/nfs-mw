@@ -78,7 +78,7 @@ fn labels(action: Action) -> (&'static str, &'static str) {
         Nos => ("Nitrous", ""),
         ResetCar => ("Reset the car onto the road", ""),
         ToggleCamera => ("Chase camera / free camera", ""),
-        CycleCamera => ("Change camera (chase / dynamic FOV)", "C"),
+        CycleCamera => ("Change camera (chase, dynamic FOV, then the original views)", "C"),
         MenuUp => ("Menu up", ""),
         MenuDown => ("Menu down", ""),
         MenuLeft => ("Menu left", ""),
