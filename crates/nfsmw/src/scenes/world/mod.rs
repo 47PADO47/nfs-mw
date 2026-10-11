@@ -14,6 +14,7 @@ mod resident;
 mod road;
 mod simulation;
 mod space;
+mod start;
 mod visibility;
 mod zone;
 
@@ -22,13 +23,14 @@ use blackbox_render::{FrameParams, Instance, Renderer};
 use game_install::GameDir;
 use glam::Vec3;
 use nfsmw_data::car::CarModel;
-use nfsmw_data::car::physics::{CarPhysics, PhysicsData};
+use nfsmw_data::car::physics::PhysicsData;
 use nfsmw_data::world::{DEFAULT_TRACK, PropCatalog, Streamer, WorldIndex, load_global_textures};
 
 use crate::input::{Action, ActionState};
 use crate::viewer::{Scene, camera::FlyCamera};
-use drive::{CarRig, Drive, DriveScript, MarkerMeshes, SpawnRequest};
+use drive::{Drive, DriveScript, MarkerMeshes};
 use residency::Residency;
+use start::load_car;
 
 pub struct Options {
     pub at: Option<[f32; 2]>,
@@ -81,6 +83,7 @@ pub struct WorldScene {
     /// Seconds since the scene started, for texture animations.
     clock: f32,
     physics_clock: drive::FixedClock,
+    physics_aspect: f32,
     view: View,
     pending_car: Option<PendingCar>,
     drive: Option<Drive>,
@@ -109,17 +112,6 @@ const FLOWN_AWAY: f32 = 25.0;
 const CLEAR: [f32; 3] = [0.55, 0.63, 0.72];
 /// The car `drive` picks when none was named.
 pub const DEFAULT_CAR: &str = "BMWM3GTR";
-
-/// Load a car for driving (highest detail, stock parts). `name` may be a unique prefix.
-fn load_car(dir: &GameDir, name: &str) -> Result<(String, CarModel)> {
-    let cars = nfsmw_data::car::list(dir);
-    let folder = nfsmw_data::car::pick_folder(&cars, name)
-        .with_context(|| format!("no car {name:?}, or several start with it (`nfsmw list-cars`)"))?
-        .to_owned();
-    let options = nfsmw_data::car::LoadOptions { lod: 'A', all_parts: false, preset: None };
-    let model = nfsmw_data::car::load(dir, &folder, &options)?;
-    Ok((folder, model))
-}
 
 impl WorldScene {
     pub fn open(dir: &GameDir, options: Options) -> Result<Self> {
@@ -172,6 +164,7 @@ impl WorldScene {
             visible: Vec::new(),
             clock: 0.0,
             physics_clock: drive::FixedClock::default(),
+            physics_aspect: 16.0 / 9.0,
             view: if pending_car.is_some() { View::Chase } else { View::Fly },
             last_car: pending_car.as_ref().map_or_else(|| DEFAULT_CAR.to_owned(), |c| c.name.clone()),
             pending_car,
@@ -200,43 +193,6 @@ impl WorldScene {
             },
             _ => [self.camera.position.x, self.camera.position.y],
         }
-    }
-
-    /// The physics of the car `model` was assembled as.
-    fn physics_of(&mut self, model: &CarModel) -> Result<CarPhysics> {
-        let type_name = model.car_type.as_deref().context("this car is not in the car tables, so it has no physics")?;
-        self.physics.car(type_name)
-    }
-
-    /// Start (or restart) driving `model` from the camera's place.
-    fn start_driving(
-        &mut self,
-        renderer: &mut Renderer,
-        name: String,
-        model: CarModel,
-        script: Option<DriveScript>,
-    ) -> Result<()> {
-        let physics = self.physics_of(&model)?;
-        let rig = CarRig::upload(renderer, model);
-        let [x, y] = self.focus();
-        match self.drive.as_mut() {
-            Some(drive) => {
-                drive.set_car(renderer, name.clone(), rig, physics);
-                drive.respawn_near([x, y], None);
-            }
-            None => {
-                let request =
-                    SpawnRequest { near: [self.camera.position.x, self.camera.position.y], heading: None, exact: None };
-                self.drive = Some(Drive::new(name.clone(), rig, physics, request, script));
-            }
-        }
-        self.last_car = name;
-        if let Some(drive) = self.drive.as_mut() {
-            drive.effects.set_enabled(self.tire_effects[0], self.tire_effects[1]);
-            drive.effects.set_quality(self.smoke_quality);
-        }
-        self.view = View::Chase;
-        Ok(())
     }
 
     /// Put a waiting car on the road once the area around it has loaded, then run its physics.
@@ -380,6 +336,7 @@ impl Scene for WorldScene {
     }
 
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
+        self.physics_aspect = aspect;
         let chase = self.drive.as_ref().filter(|_| self.view == View::Chase);
         let (view_proj, position, forward, fov_degrees) = match chase {
             Some(drive) => {

@@ -4,6 +4,7 @@ mod body;
 mod contact;
 mod fragments;
 mod ground;
+mod lifetime;
 mod obb;
 #[cfg(test)]
 mod tests;
@@ -151,7 +152,10 @@ impl PropWorld {
 
     fn regrid(&mut self, id: u32) {
         let Some(c) = self.colliders.get_mut(&id) else { return };
-        let new = cells(&c.physics_bounds());
+        let new = match c.body.as_ref().is_some_and(|b| b.lifetime.sinking) {
+            true => Vec::new(),
+            false => cells(&c.physics_bounds()),
+        };
         if new == c.cells {
             return;
         }
@@ -228,7 +232,8 @@ impl PropWorld {
         for (&id, c) in &mut self.colliders {
             let Some(b) = c.body.as_mut() else { continue };
             b.previous = (b.rigid.position, b.rigid.orientation);
-            if b.rigid.state != BodyState::Awake || b.attached {
+            b.object_contact = false;
+            if b.rigid.state != BodyState::Awake || b.attached || b.lifetime.sinking {
                 continue;
             }
             ground::step(b, ground, dt);
@@ -260,6 +265,10 @@ impl PropWorld {
             let ha = contact::parameters(&pa.rigid, c.normal, sa, pa.attached);
             let hb = contact::parameters(&pb.rigid, -c.normal, sb, pb.attached);
             if let Some(response) = contact::resolve(&mut pa.rigid, &mut pb.rigid, c, ha, hb, Separation::NormalSpeed) {
+                pa.lifetime.activate(sa);
+                pb.lifetime.activate(sb);
+                pa.object_contact = true;
+                pb.object_contact = true;
                 let [ia, ib] = response.immobile;
                 pa.attached &= ia;
                 pb.attached &= ib;
@@ -303,6 +312,8 @@ impl PropWorld {
             let prop = contact::parameters(&p.rigid, -hit.normal, spec, p.attached);
             let response = contact::resolve(vehicle.body_mut(), &mut p.rigid, hit, car, prop, Separation::Mass);
             if let Some(response) = response {
+                p.lifetime.activate(spec);
+                p.object_contact = true;
                 let prop_immobile = response.immobile[1];
                 impact.damage.push(damage.resolved(vehicle.body(), true));
                 p.attached &= prop_immobile;

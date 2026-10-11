@@ -262,7 +262,7 @@ impl Drive {
             self.chase.snap();
         }
         self.chase.look(look.0, look.1, dt);
-        let pose = self.pose();
+        let pose = self.current;
         let forward = pose.rotation * Vec3::X;
         let followed =
             Followed { position: pose.position, heading: forward.y.atan2(forward.x), speed: self.telemetry.speed_mps };

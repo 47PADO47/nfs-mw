@@ -17,6 +17,9 @@ pub(super) struct PropBody {
     pub attached: bool,
     pub moved: bool,
     pub previous: (Vec3, Quat),
+    pub lifetime: super::lifetime::Lifetime,
+    pub object_contact: bool,
+    initial: RigidBody,
     /// Original visual matrix, including any model scale/quantization.
     visual: Mat4,
     inverse_initial: Mat4,
@@ -47,11 +50,14 @@ impl PropBody {
         rigid.set_cog(geometry.centre_of_gravity());
         let pose = (rigid.position, rigid.orientation);
         Some(Self {
+            initial: rigid.clone(),
             rigid,
             geometry,
             attached: spec.detach_impulse != 0.0,
             moved: true,
             previous: pose,
+            lifetime: super::lifetime::Lifetime::default(),
+            object_contact: false,
             visual,
             inverse_initial: pose_matrix(pose).inverse(),
         })
@@ -81,11 +87,14 @@ impl PropBody {
         let previous = (rigid.position, rigid.orientation);
         let inverse_initial = pose_matrix(previous).inverse();
         Some(Self {
+            initial: rigid.clone(),
             rigid,
             geometry,
             attached: spec.detach_impulse != 0.0,
             moved: false,
             previous,
+            lifetime: super::lifetime::Lifetime::default(),
+            object_contact: false,
             visual,
             inverse_initial,
         })
@@ -103,6 +112,16 @@ impl PropBody {
         let pose =
             (self.previous.0.lerp(self.rigid.position, alpha), self.previous.1.slerp(self.rigid.orientation, alpha));
         pose_matrix(pose) * self.inverse_initial * self.visual
+    }
+
+    pub fn restore(&mut self, spec: &PropDynamics) {
+        self.rigid = self.initial.clone();
+        self.rigid.state = blackbox_vehicle::rigid_body::BodyState::Asleep;
+        self.previous = (self.rigid.position, self.rigid.orientation);
+        self.attached = spec.detach_impulse != 0.0;
+        self.moved = false;
+        self.object_contact = false;
+        self.lifetime = super::lifetime::Lifetime::default();
     }
 }
 

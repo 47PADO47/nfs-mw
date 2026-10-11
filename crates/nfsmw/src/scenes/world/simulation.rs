@@ -34,7 +34,7 @@ impl WorldScene {
             (true, false) => self.physics_clock.advance(dt),
         };
         for _ in 0..steps {
-            self.physics_step(driving);
+            self.physics_step(driving, (input.value(Action::LookX), input.value(Action::LookY)));
         }
         let alpha = match batch || !loaded || dt == 0.0 {
             true => 1.0,
@@ -49,14 +49,11 @@ impl WorldScene {
                 true => alpha,
                 false => 1.0,
             });
-            if driving {
-                drive.follow(self.residency.collision(), (input.value(Action::LookX), input.value(Action::LookY)), dt);
-            }
         }
     }
 
     /// Every moving car integrates before pair contacts, and every pose is captured after those contacts.
-    fn physics_step(&mut self, driving: bool) {
+    fn physics_step(&mut self, driving: bool, look: (f32, f32)) {
         let focus = self.traffic_focus();
         let (collision, props) = self.residency.world_parts();
         let surfaces = &self.physics.surfaces;
@@ -76,5 +73,13 @@ impl WorldScene {
             drive.update_events(props, &self.physics, self.camera.position);
             drive.finish_step(collision, surfaces, step);
         }
+        if let Some(drive) = self.drive.as_mut().filter(|_| driving) {
+            drive.follow(collision, look, STEP);
+        }
+        let view = match self.drive.as_ref().filter(|_| self.view == View::Chase) {
+            Some(drive) => drive.camera().view_proj(self.physics_aspect),
+            None => self.camera.view_proj(self.physics_aspect),
+        };
+        props.update_lifetimes(&super::drive::WorldGround { collision, surfaces }, view, STEP);
     }
 }

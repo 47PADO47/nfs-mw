@@ -25,6 +25,9 @@ drawing), [feng-input.md](feng-input.md) (pad messages, focus, navigation) and [
 
 [Controller settings](controller-settings.md) specifies rewrite response options and saved rebinding.
 
+[Ground contacts](ground-contact-response.md) and [prop lifetime](prop-lifetime.md)
+cover measured plane response, world probes, sinking and model cleanup.
+
 ## Template
 
 [Tire effects](tire-effects.md) describes this rewrite's procedural smoke and grounded marks,

@@ -21,7 +21,7 @@ impl PropWorld {
 
     pub(super) fn insert_fragment(
         &mut self,
-        body: PropBody,
+        mut body: PropBody,
         spec: Arc<PropDynamics>,
         instances: Vec<Instance>,
         owner: Weak<()>,
@@ -29,6 +29,7 @@ impl PropWorld {
         if self.fragment_count() >= 121 {
             return None;
         }
+        body.lifetime.activate(&spec);
         self.next_id += 1;
         let id = self.next_id | 0xC000_0000;
         let transform = body.transform(1.0);
@@ -68,10 +69,14 @@ impl PropWorld {
         let dead: Vec<_> =
             self.fragments.iter().filter(|(_, f)| f.owner.strong_count() == 0).map(|(&id, _)| id).collect();
         for id in dead {
-            self.fragments.remove(&id);
-            if let Some(collider) = self.colliders.remove(&id) {
-                self.remove_cells(id, &collider.cells);
-            }
+            self.remove_fragment(id);
+        }
+    }
+
+    pub(super) fn remove_fragment(&mut self, id: u32) {
+        self.fragments.remove(&id);
+        if let Some(collider) = self.colliders.remove(&id) {
+            self.remove_cells(id, &collider.cells);
         }
     }
 }

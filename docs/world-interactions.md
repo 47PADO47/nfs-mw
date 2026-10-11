@@ -21,7 +21,7 @@ isolated routines, scene integration and live-game comparisons.
 | Car response | Fixed friction/restitution, textbook impulse | Measured 32-iteration solver, original per-body materials, player contact centre and installed AI collision profiles integrated; live comparison and original goal states pending |
 | Timing | Player/AI step separately; pairs collide once per render frame | Shared 60 Hz world tick; car-state and impact traces identical at 5/10/30/60/120/144/240 FPS and uneven frames; live validation pending |
 | Geometry | Flattened prop hierarchy, single car box, no swept object contacts | Car/prop hierarchy and measured sphere/box contacts integrated; 5,012 box cases match PC, including travel, clipping and tumbling; compound response order pending |
-| Scenery | Name guesses, >150 kg immovable, lighter props disappear for six seconds | All 13,484 placements join exactly to scenery/attributes; persistent bodies, breakaway and no-car-effect response integrated; geometry and lifecycle parity pending |
+| Scenery | Name guesses, >150 kg immovable, lighter props disappear for six seconds | All 13,484 placements join exactly to scenery/attributes; breakaway, per-object lifetime, sinking and restoration integrated; static trigger recreation and live comparison pending |
 | Trailers | Approximate anchors and response | Original named anchors read and used for all six installed variants; constrained joint solver and live comparison pending |
 | Truck cargo | No released logs/crates | Original rear-impact triggers release seven logs or three carrier cars into collidable/renderable bodies; explosion effects and lifecycle parity pending |
 | World/ground | Approximate probes and solver | Measured iterative plane response, original probe tolerances, surface friction and disabled-ground flags integrated; cached face queries and live comparison pending |
@@ -62,9 +62,12 @@ and root extent. The closed-cloud support fixture can settle on either its base 
 its side. Cached face queries and live ground comparisons remain open. Sphere
 object contacts and sphere/box and box/box displacement tests use measured routines.
 Separation now translates the incident contact point and temporary collision centres;
-prop pairs use original normal-speed shares. Lifecycle and centre markers
-remain open. Fallen props currently persist while resident; streaming out resets
-them. These limits prevent claiming full parity.
+prop pairs use original normal-speed shares. Per-object offscreen and off-world
+clocks, resting, dropout sinking, fragment release and placement restoration run
+on fixed ticks. Resting scenery with no dropout retains its final pose; streaming
+out resets it. Frustum/LOD/occlusion equivalence, cached world positions, static
+trigger recreation and centre markers remain open. These limits prevent claiming
+full parity. See [lifetime rules](specs/prop-lifetime.md).
 
 ## Event sequence validation
 
@@ -81,7 +84,8 @@ cleanup, and compare complete fixed-tick body traces at 5–240 render FPS.
 Missing meshes leave parent parts visible. Original side-zone scaling does not
 release cargo. These CPU tests use installed meshes and bounds; an interactive
 collision/render comparison with the original game remains necessary. Explosion,
-shock, load-loss feedback and offscreen lifetime effects remain unimplemented.
+shock and load-loss feedback remain unimplemented. Detached-part cleanup uses the
+original separate offscreen timer and parent ownership.
 
 ## Vehicle geometry and hitch checks
 
