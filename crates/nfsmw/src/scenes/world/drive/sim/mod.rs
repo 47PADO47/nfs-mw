@@ -79,6 +79,7 @@ pub struct CarSim {
     pub(in crate::scenes::world) collision_goal: Option<u32>,
     pub(in crate::scenes::world) collision_racer: bool,
     previous_contact_pose: BodyPose,
+    before_velocity: Vec3,
 }
 
 /// A vector from physics space to render space axes: `(x, y, z) -> (z, -x, y)`.
@@ -115,6 +116,7 @@ impl CarSim {
             collision_goal: None,
             collision_racer: false,
             previous_contact_pose: (Vec3::ZERO, Quat::IDENTITY),
+            before_velocity: Vec3::ZERO,
         }
     }
 
@@ -159,6 +161,7 @@ impl CarSim {
         ground: &dyn Ground,
         mut world: Option<(&CollisionWorld, &mut PropWorld)>,
     ) -> Impact {
+        self.before_velocity = self.vehicle.body().linear_velocity;
         let input = InputState {
             throttle: input.throttle,
             brake: input.brake,
@@ -317,6 +320,7 @@ impl CarSim {
 }
 
 mod ai;
+mod camera;
 mod pair;
 mod trailer;
 

@@ -25,7 +25,7 @@ isolated routines, scene integration and live-game comparisons.
 | Trailers | Approximate anchors and response | Original named anchors, geometric correction, 32 point-moment iterations and conical/prismatic limits integrated; cement spawn frame and live comparison pending |
 | Truck cargo | No released logs/crates | Original rear-impact triggers release seven logs or three carrier cars into collidable/renderable bodies; explosion effects and lifecycle parity pending |
 | World/ground | Approximate probes and solver | Measured iterative plane response, original probe tolerances, surface friction and disabled-ground flags integrated; cached face queries and live comparison pending |
-| Damage/feedback | Partial sparks/audio, incomplete collision events | Pending |
+| Damage/feedback | Incomplete collision events and camera feedback | Measured contact camera shake integrated; collision audio remains deferred |
 | Set pieces | Missing pursuit breakers, spike strips and scripted objects | Installed support/roof, scaffold and gas-pump sequences integrated; exact triggers, explosion/damage, feedback and spike strips pending |
 | Full comparison | No comprehensive repeatable collision suite | Pending live captures and numerical comparison |
 
@@ -166,3 +166,15 @@ This does not establish complete pursuit-breaker parity. Initial impact triggers
 simple-physics behavior, explosion contact points/shell selection and damage,
 cinematics, authored effects/audio, score/wreck notifications and exact stop-cop
 AI behavior still have gaps. See [breaker provenance](provenance/pursuit-breakers.md).
+
+## Contact camera feedback
+
+Acceleration after world and car-pair contacts drives the measured PC shaker.
+Its waveform uses the same presentation time as the player and chase camera;
+sampling leaves the physics follow/cleanup view unchanged. Thirteen native
+sampler vectors and a native view-transform fixture cover the isolated math.
+Presentation checks compare active shake at the same elapsed time at
+5/10/30/60/120/144/240 FPS and uneven frame durations. Teleports clear it.
+Authored explosion/cinematic camera events and full gameplay comparison remain
+open. See [the camera spec](specs/contact-camera-shake.md). Collision audio is
+deferred and is outside this contribution.

@@ -74,6 +74,7 @@ impl Drive {
         self.current = sim.pose();
         self.telemetry = sim.telemetry();
         self.sound.after_step(sim, surfaces, &impact, &input, self.telemetry.speed_mps);
+        self.chase.impact(sim.camera_acceleration());
         self.steps += 1;
         if self.script.is_some() && self.steps.is_multiple_of(60) {
             trace::log(self.steps, &self.effects, (&self.current, &self.telemetry), &input);

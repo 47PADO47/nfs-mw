@@ -8,6 +8,7 @@ a record. Process: [licensing.md § Spec-first](../licensing.md#spec-first).
 
 | Module | Spec | Restricted sources read |
 |---|---|---|
+| [Contact camera shake](contact-camera-shake.md) | [specs/contact-camera-shake.md](../specs/contact-camera-shake.md) | Original PC 1.3 isolated shaker routines and CC0 Rumble behavior |
 | [Pursuit breakers](pursuit-breakers.md) | [specs/pursuit-breakers.md](../specs/pursuit-breakers.md) | Original PC 1.3 event dispatch, explosions, models and installed hierarchies |
 | [Trailer constraints](trailer-constraints.md) | [specs/trailer-constraints.md](../specs/trailer-constraints.md) | Original PC 1.3 isolated joint/angle routines and installed bounds |
 | [PC object contacts](pc-object-contact.md) | [specs/pc-object-contact.md](../specs/pc-object-contact.md) | Original PC 1.3 executable (private inspection and emulation), dbalatoni13/nfsmw collision layouts (CC0) |
