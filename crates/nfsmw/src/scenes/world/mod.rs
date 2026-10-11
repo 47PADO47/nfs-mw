@@ -12,6 +12,7 @@ mod exhaust;
 mod ground;
 mod keys;
 mod object_geometry;
+mod lighting;
 mod props;
 mod reflections;
 mod residency;
@@ -93,6 +94,7 @@ pub struct WorldScene {
     colour_treatment: Option<blackbox_gfx::ColourTreatment>,
     gain_map: Option<blackbox_gfx::RgbaImage>,
     reflection_faces: [Vec<Instance>; 6],
+    time_of_day: Option<nfsmw_data::time_of_day::Presets>,
     reflection_last: Option<reflections::CaptureStamp>,
     /// Seconds since the scene started, for texture animations.
     clock: f32,
@@ -100,6 +102,7 @@ pub struct WorldScene {
     physics_aspect: f32,
     /// The one fixed timeline of the player, the traffic and the object contacts (see `update_simulation`).
     physics_clock: drive::FixedClock,
+    sun: sun::Sun,
     view: View,
     pending_car: Option<PendingCar>,
     drive: Option<Drive>,
@@ -159,6 +162,7 @@ impl WorldScene {
             log::warn!("midday visual treatment is missing or invalid; grading disabled");
         }
         let globals = load_global_textures(dir)?;
+        let time_of_day = nfsmw_data::time_of_day::load(physics.database());
         let gain_map = nfsmw_data::visual_treatment::gain_map(&globals.textures);
         let mut traffic = index.road_network.clone().map(ai::TrafficWorld::new);
         if let Some(world) = traffic.as_mut() {
@@ -203,11 +207,13 @@ impl WorldScene {
             reflection_last: None,
             clock: 0.0,
             physics_aspect: 16.0 / 9.0,
+            time_of_day,
             physics_clock: drive::FixedClock::default(),
             view: if pending_car.is_some() { View::Chase } else { View::Fly },
             last_car: pending_car.as_ref().map_or_else(|| DEFAULT_CAR.to_owned(), |c| c.name.clone()),
             pending_car,
             drive: None,
+            sun: sun::Sun::new(),
             traffic,
             traffic_setting: crate::settings::TrafficSettings {
                 cars: 0,
@@ -266,7 +272,7 @@ impl Scene for WorldScene {
 
     fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
         if let Some(drive) = self.drive.as_mut() {
-            drive.set_car_shading(renderer, self.car_shading, sun::to_sun());
+            drive.set_car_shading(renderer, self.car_shading, self.sun.to_sun());
         }
         if input.just_pressed(Action::ToggleCamera) && self.drive.is_some() {
             log::info!("{}", self.toggle_view());
@@ -280,6 +286,7 @@ impl Scene for WorldScene {
         }
         self.prepare_drive();
         self.update_simulation(renderer, input, dt);
+        self.sun.advance(dt);
         if !self.grounded && self.residency.complete() {
             self.grounded = true;
             let estimate = ground::height_near(self.residency.placed(), self.start[0], self.start[1], 150.0);
@@ -392,9 +399,11 @@ impl Scene for WorldScene {
             view: lens.view,
             projection: lens.projection,
             camera_position: lens.position,
-            light_dir: sun::DIRECTION,
-            clear_color: CLEAR,
+            light_dir: self.sun.direction(),
+            clear_color: self.fog_colour(),
             fog: Some(Fog { start: fog_end * 0.5, end: fog_end }),
+            scattering: self.scattering(),
+            surface_light: self.surface_light(),
             camera_cut,
         };
         (params, &self.visible)
