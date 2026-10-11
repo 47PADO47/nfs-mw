@@ -18,6 +18,7 @@ mod objects;
 mod physics;
 mod pursuit;
 mod sound;
+mod spawners;
 mod textures;
 mod traffic;
 mod world;

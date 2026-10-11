@@ -8,6 +8,8 @@ pub const SCENERY_INFOS: u32 = 0x0003_4102;
 pub const SCENERY_INSTANCES: u32 = 0x0003_4103;
 pub const SCENERY_TREE_NODES: u32 = 0x0003_4105;
 pub const SCENERY_OVERRIDE_HOOKS: u32 = 0x0003_4106;
+/// Placed physics objects (`docs/formats/prop-spawners.md`).
+pub const SMOKEABLE_SPAWNERS: u32 = 0x0003_4027;
 pub const SCENERY_PRECULLER_INFOS: u32 = 0x0003_4107;
 /// `VisibleSectionManager`: zones and what each one loads and draws.
 pub const VISIBLE_SECTION_MANAGER: u32 = 0x8003_4150;

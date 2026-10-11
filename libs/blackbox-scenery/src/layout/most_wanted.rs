@@ -3,7 +3,7 @@
 //! row-vector convention) verified by matching transformed solid bounds against
 //! the stored instance boxes (`docs/formats/maps.md`).
 
-use super::{InfoLayout, InstanceLayout, LodRules, SceneryLayout, VisibilityRules};
+use super::{HookLayout, InfoLayout, InstanceLayout, LodRules, SceneryLayout, SpawnerLayout, VisibilityRules};
 
 pub const MOST_WANTED: SceneryLayout = SceneryLayout {
     used_by: "NFS: Most Wanted (PC)",
@@ -31,6 +31,21 @@ pub const MOST_WANTED: SceneryLayout = SceneryLayout {
         info_index: 0x3E,
     },
     header_section_number: 0x0C,
+    hooks: HookLayout { len: 4, align: 1, override_index: 0, instance_index: 2 },
+    spawners: SpawnerLayout {
+        align: 16,
+        header_len: 16,
+        count: 12,
+        len: 64,
+        orientation: 0,
+        position: 16,
+        model: 32,
+        collision: 36,
+        attributes: 40,
+        override_index: 44,
+        unique_id: 48,
+        exclude_flags: 52,
+    },
     // docs/specs/scenery-visibility.md: 0x10 = every view, 0x02 = player views.
     visibility: VisibilityRules { inverted_bits: 0x60, player_view: 0x12 },
     // docs/specs/scenery-lod.md.
