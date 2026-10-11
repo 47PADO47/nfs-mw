@@ -4,6 +4,8 @@ use nfsmw_data::car::physics::CarBounds;
 
 use super::*;
 
+mod frame_rate;
+
 fn sim() -> CarSim {
     let spec = VehicleSpec::example();
     let bounds = CarBounds { half_dimensions: spec.dimension, pivot: Vec3::new(0.0, spec.dimension.y, 0.1) };

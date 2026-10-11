@@ -58,8 +58,8 @@ impl WorldScene {
         }
     }
 
-    /// Runs the computer-driven cars around the player (or the free camera).
-    pub(in crate::scenes::world) fn update_traffic(&mut self, renderer: &mut Renderer, dt: f32) {
+    /// Apply settings and load requested models before any physics tick.
+    pub(in crate::scenes::world) fn prepare_traffic(&mut self, renderer: &mut Renderer) {
         let (wanted, share) = (self.traffic_wanted(), u32::from(self.traffic_setting.cop_share.0));
         let Some(traffic) = self.traffic.as_mut() else { return };
         traffic.configure(wanted, share);
@@ -70,12 +70,5 @@ impl WorldScene {
         if self.traffic_setting.lights && self.lamp_meshes.is_none() {
             self.lamp_meshes = Some(LampMeshes::upload(renderer));
         }
-        let focus = self.traffic_focus();
-        let loaded = self.residency.complete();
-        let Some(traffic) = self.traffic.as_mut() else { return };
-        let (collision, props) = self.residency.world_parts();
-        traffic.update(dt, focus, loaded, collision, props, &self.physics.surfaces);
-        let player = self.drive.as_mut().and_then(|drive| drive.sim_mut());
-        traffic.collide(player);
     }
 }

@@ -247,6 +247,9 @@ input (actions or --drive-script) ─► DriveInput ─► 60 Hz fixed step (acc
 CarPose (render axes) ─► CarRig (assembled car, wheels posed: steer, spin, suspension travel) ─► ChaseCamera
 ```
 
+The world owns the shared physics clock for the player, traffic, trailers, contacts
+and prop timers. See [physics timing](physics-timing.md) for ordering and frame-rate tests.
+
 - **Axes.** Physics space is x right, y up, z forward (left-handed); the world and the car models are x forward,
   y left, z up. `sim.rs` builds the pose from the body's axes column by column, puts the model origin at the
   body box's centre minus the collision pivot, and maps the library's wheel order (rear left, rear right) to the

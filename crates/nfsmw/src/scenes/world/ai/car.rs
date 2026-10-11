@@ -197,6 +197,14 @@ impl AiCar {
         self.previous.lerp(&self.current, alpha)
     }
 
+    /// Collision separation belongs to this tick's displayed pose too.
+    pub fn sync_contacts(&mut self) {
+        self.current = self.sim.pose();
+        if let Some(trailer) = self.trailer.as_mut() {
+            trailer.sync_contacts();
+        }
+    }
+
     pub fn is_finite(&self) -> bool {
         self.sim.is_finite()
     }

@@ -9,6 +9,7 @@ mod props;
 mod residency;
 mod resident;
 mod road;
+mod simulation;
 mod space;
 mod visibility;
 mod zone;
@@ -76,6 +77,7 @@ pub struct WorldScene {
     visible: Vec<Instance>,
     /// Seconds since the scene started, for texture animations.
     clock: f32,
+    physics_clock: drive::FixedClock,
     view: View,
     pending_car: Option<PendingCar>,
     drive: Option<Drive>,
@@ -165,6 +167,7 @@ impl WorldScene {
             fog_distance: options.fog_distance,
             visible: Vec::new(),
             clock: 0.0,
+            physics_clock: drive::FixedClock::default(),
             view: if pending_car.is_some() { View::Chase } else { View::Fly },
             last_car: pending_car.as_ref().map_or_else(|| DEFAULT_CAR.to_owned(), |c| c.name.clone()),
             pending_car,
@@ -233,7 +236,7 @@ impl WorldScene {
     }
 
     /// Put a waiting car on the road once the area around it has loaded, then run its physics.
-    fn update_drive(&mut self, input: &ActionState, dt: f32) {
+    fn prepare_drive(&mut self) {
         let (Some(drive), physics) = (self.drive.as_mut(), &self.physics) else { return };
         drive.set_markers(self.markers_on);
         if let Some(request) = drive.waiting_for_road()
@@ -279,14 +282,6 @@ impl WorldScene {
                 }
             }
         }
-        if self.view == View::Chase {
-            let loaded = self.residency.complete();
-            let (collision, props) = self.residency.world_parts();
-            drive.step(collision, props, &physics.surfaces, input, dt, loaded);
-            drive.follow(self.residency.collision(), (input.value(Action::LookX), input.value(Action::LookY)), dt);
-            return;
-        }
-        drive.age_effects(dt);
     }
 
     /// Switch between the chase camera and the free camera (the car waits while you fly).
@@ -341,13 +336,12 @@ impl Scene for WorldScene {
         let [x, y] = self.focus();
         self.residency.update(renderer, x, y);
         self.clock += dt;
-        self.residency.world_parts().1.tick(dt);
         self.residency.animate(renderer, self.clock);
         if self.view == View::Fly {
             self.camera.update(input, dt);
         }
-        self.update_drive(input, dt);
-        self.update_traffic(renderer, dt);
+        self.prepare_drive();
+        self.update_simulation(renderer, input, dt);
         if !self.grounded && self.residency.complete() {
             self.grounded = true;
             let estimate = ground::height_near(self.residency.placed(), self.start[0], self.start[1], 150.0);

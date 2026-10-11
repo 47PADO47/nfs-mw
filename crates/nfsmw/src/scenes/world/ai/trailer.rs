@@ -207,6 +207,10 @@ impl TrailerCar {
         &mut self.sim
     }
 
+    pub fn sync_contacts(&mut self) {
+        self.current = self.sim.pose();
+    }
+
     pub fn is_finite(&self) -> bool {
         self.sim.is_finite()
     }
