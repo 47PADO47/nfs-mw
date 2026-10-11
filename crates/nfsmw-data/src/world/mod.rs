@@ -11,6 +11,7 @@ mod globals;
 mod index;
 mod props;
 mod section;
+pub mod sequences;
 mod streamer;
 
 pub use globals::{GLOBAL_TEXTURE_FILES, GlobalTextures, load_global_textures};

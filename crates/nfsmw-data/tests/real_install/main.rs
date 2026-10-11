@@ -17,6 +17,7 @@ mod music;
 mod objects;
 mod physics;
 mod pursuit;
+mod sequences;
 mod sound;
 mod spawners;
 mod textures;

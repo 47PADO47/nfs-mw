@@ -67,6 +67,8 @@ against the install at `D:/Need For Speed Most Wanted Black Edition`.
 | [formats/maps.md](formats/maps.md) | The L2RA world: metadata chunks, streaming index, section families, scenery placement and rotation encoding | Verified; Rust readers |
 | [formats/world.md](formats/world.md) | World grid and road network, collision packs, bounds, triggers, emitters, sky, minimap | Partial (decomp only for several) |
 | [formats/collision.md](formats/collision.md) | World collision packs, the collision grid, car and prop bounds, surface types, query semantics | Layouts verified; Rust reader |
+| [formats/event-sequences.md](formats/event-sequences.md) | World event engines, actions and fragment events | All 73 installed packages read; 75 engines |
+| [specs/world-sequencers.md](specs/world-sequencers.md) | State/queue timing, damage stimuli and cargo | Sequencer tested; world effect integration in progress |
 | [formats/attributes.md](formats/attributes.md) | AttribSys `VPAK` packs, vaults, exports, hash, the 57 classes | Layout verified |
 | [formats/cardata.md](formats/cardata.md) | Car types, parts database, slot types, presets, light materials, solid markers, `ecar`, vinyls | Car tables verified; vinyls partial |
 | [formats/animation.md](formats/animation.md) | EAGL4 ELF objects, skeletons, banks, NIS cutscenes | Container verified; codecs open |

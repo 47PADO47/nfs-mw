@@ -25,6 +25,8 @@ pub const TRACK_PATH_ZONES: u32 = 0x0003_414A;
 pub const CARP_WGRID: u32 = 0x0003_B800;
 /// `CarpWCollisionPack`: one section's static collision (`CARP` blob).
 pub const CARP_WCOLLISION_PACK: u32 = 0x0003_B801;
+/// Event state machines, actions and event lists (`docs/formats/event-sequences.md`).
+pub const EVENT_SEQUENCES: u32 = 0x0003_B811;
 /// `BoundsPack`: container of collision bounds (cars in `GlobalB.lzc`, props in the world file).
 pub const BOUNDS_PACK: u32 = 0x8003_B900;
 pub const BOUNDS: u32 = 0x0003_B901;

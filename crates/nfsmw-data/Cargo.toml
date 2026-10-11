@@ -17,6 +17,7 @@ blackbox-ginsu.workspace = true
 blackbox-hash.workspace = true
 blackbox-roads.workspace = true
 blackbox-scenery.workspace = true
+blackbox-sequence.workspace = true
 blackbox-solid.workspace = true
 blackbox-streaming.workspace = true
 blackbox-tpk.workspace = true
