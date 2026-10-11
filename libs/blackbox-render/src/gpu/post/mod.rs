@@ -20,6 +20,8 @@ mod resolve;
 #[cfg(test)]
 mod tests;
 mod tonemap;
+mod treatment;
+mod treatment_composite;
 
 use super::targets::FrameTargets;
 use plan::{Source, Target};
@@ -98,6 +100,7 @@ pub(super) struct PostChain {
     /// How many passes at the front of `passes` are the post effects of `settings`.
     effect_count: usize,
     settings: crate::PostSettings,
+    profile: Option<treatment::Profile>,
 }
 
 impl PostChain {
@@ -107,6 +110,7 @@ impl PostChain {
             scratch: [None, None],
             effect_count: 0,
             settings: crate::PostSettings::default(),
+            profile: None,
         }
     }
 

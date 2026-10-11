@@ -332,6 +332,9 @@ pub struct ViewArgs {
     /// without it [env NFSMW_POST_AA; config `post_aa`; default off].
     #[arg(long, value_name = "off|fxaa|smaa|taa")]
     pub post_aa: Option<crate::settings::PostAa>,
+    /// Experimental midday visual treatment: off, low (half strength), or high (original profile).
+    #[arg(long, value_name = "off|low|high")]
+    pub visual_treatment: Option<crate::settings::VisualTreatment>,
     /// Who changes gear: automatic or manual (Q/E, the bumpers or the wheel paddles shift)
     /// [env NFSMW_TRANSMISSION; config `transmission`; default automatic].
     #[arg(long, value_name = "automatic|manual")]
@@ -392,6 +395,7 @@ impl ViewArgs {
             post_tonemap: self.post_tonemap,
             post_bloom: self.post_bloom,
             post_aa: self.post_aa,
+            visual_treatment: self.visual_treatment,
             render_scale: self.render_scale,
             upscaler: self.upscaler,
             upscale_sharpness: self.upscale_sharpness,

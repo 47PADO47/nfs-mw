@@ -8,10 +8,24 @@ use crate::gpu::Renderer;
 use crate::{PostEffect, PostSettings};
 
 /// The passes for `settings` in execution order.
-fn build(device: &wgpu::Device, settings: &PostSettings) -> Vec<Box<dyn PostPass>> {
+fn build(
+    device: &wgpu::Device,
+    settings: &PostSettings,
+    profile: Option<&super::treatment::Profile>,
+) -> Vec<Box<dyn PostPass>> {
     let mut passes: Vec<Box<dyn PostPass>> = Vec::new();
     for effect in settings.effects() {
         match effect {
+            PostEffect::SceneTreatment => {
+                if settings.colour_treatment <= 0.0 || profile.is_none() {
+                    continue;
+                }
+                passes.push(Box::new(super::treatment::TreatmentPass::new(
+                    device,
+                    settings,
+                    profile.expect("profile checked above"),
+                )))
+            }
             PostEffect::Bloom => passes.push(Box::new(BloomPass::new(device, settings))),
             PostEffect::Fxaa => passes.push(Box::new(FxaaPass::new(device))),
             PostEffect::Tonemap => passes.push(Box::new(TonemapPass::new(device, settings))),
@@ -21,6 +35,15 @@ fn build(device: &wgpu::Device, settings: &PostSettings) -> Vec<Box<dyn PostPass
 }
 
 impl PostChain {
+    /// Profile changes invalidate the effect list even when the user settings stay the same.
+    pub(super) fn set_treatment(&mut self, device: &wgpu::Device, profile: Option<super::treatment::Profile>) {
+        self.profile = profile;
+        let fresh = build(device, &self.settings, self.profile.as_ref());
+        let count = fresh.len();
+        self.passes.splice(..self.effect_count, fresh);
+        self.effect_count = count;
+    }
+
     /// Replace the effect passes at the front of the chain with those `settings` ask for. Returns
     /// whether anything changed. Other passes and the resolve pass stay.
     pub(in crate::gpu) fn set_effects(&mut self, device: &wgpu::Device, settings: PostSettings) -> bool {
@@ -28,7 +51,7 @@ impl PostChain {
         if settings == self.settings {
             return false;
         }
-        let fresh = build(device, &settings);
+        let fresh = build(device, &settings, self.profile.as_ref());
         let count = fresh.len();
         self.passes.splice(..self.effect_count, fresh);
         self.effect_count = count;
@@ -42,6 +65,20 @@ impl PostChain {
 }
 
 impl Renderer {
+    pub(crate) fn set_scene_treatment(
+        &mut self,
+        profile: Option<&blackbox_gfx::ColourTreatment>,
+        gain: Option<&blackbox_gfx::RgbaImage>,
+    ) {
+        let profile = profile.filter(|p| p.is_valid()).map(|p| super::treatment::Profile {
+            settings: *p,
+            gain: super::treatment::gain_texture(&self.device, &self.queue, gain),
+            luma_format: self.hdr_format,
+        });
+        self.post.set_treatment(&self.device, profile);
+        self.refresh_targets();
+    }
+
     /// Turn the post-process effects (bloom, tone mapping, FXAA) on or off and set their strength.
     /// They run on the scene at the internal render size, before the final resolve; the UI is never
     /// affected. The default [`PostSettings`] runs none, so the frame is the plain clamped scene.

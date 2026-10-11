@@ -1,5 +1,7 @@
 //! The graphics-cost rows of the Video options (docs/low-end.md).
 
+use blackbox_gfx::Capabilities;
+
 use super::options::{Data, Title};
 use crate::settings::{CarShading, GraphicsPreset, Partial, Settings};
 
@@ -7,15 +9,21 @@ use crate::settings::{CarShading, GraphicsPreset, Partial, Settings};
 pub enum GraphicsSetting {
     Preset,
     CarShading,
+    VisualTreatment,
 }
 
 impl GraphicsSetting {
-    pub const ALL: [Self; 2] = [Self::Preset, Self::CarShading];
+    pub const ALL: [Self; 3] = [Self::Preset, Self::CarShading, Self::VisualTreatment];
+
+    pub fn shown(self, caps: &Capabilities) -> bool {
+        self != Self::VisualTreatment || caps.scene_treatment
+    }
 
     pub fn title(self) -> Title {
         Title::Text(match self {
             Self::Preset => "Graphics Preset",
             Self::CarShading => "Car Shading",
+            Self::VisualTreatment => "Visual Treatment (Experimental)",
         })
     }
 
@@ -28,6 +36,11 @@ impl GraphicsSetting {
                     GraphicsPreset::Medium => "Medium",
                     GraphicsPreset::High => "High",
                     GraphicsPreset::Ultra => "Ultra",
+                },
+                Self::VisualTreatment => match s.visual_treatment {
+                    crate::settings::VisualTreatment::Off => "Off",
+                    crate::settings::VisualTreatment::Low => "Subtle",
+                    crate::settings::VisualTreatment::High => "Original",
                 },
                 Self::CarShading => match s.car_shading {
                     CarShading::Simple => "Simple",
@@ -49,6 +62,11 @@ impl GraphicsSetting {
                 s.apply_preset(all[next]);
                 // Every key the preset sets is written, so the file says what the player sees.
                 *changed = Partial { graphics_preset: Some(s.graphics_preset), ..all[next].layer() }.or(*changed);
+            }
+            Self::VisualTreatment => {
+                s.visual_treatment =
+                    super::post_options::pick(&crate::settings::VisualTreatment::ALL, s.visual_treatment, forward);
+                changed.visual_treatment = Some(s.visual_treatment);
             }
             Self::CarShading => {
                 s.car_shading = match s.car_shading {

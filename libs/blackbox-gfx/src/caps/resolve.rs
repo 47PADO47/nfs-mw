@@ -75,6 +75,10 @@ pub fn resolve(requested: &GraphicsSettings, caps: &Capabilities) -> Resolved {
     let mut out = Resolved { effective: requested, downgrades: Vec::new(), notes: Vec::new() };
     tonemap(&mut out, caps);
     bloom(&mut out, caps);
+    if !caps.scene_treatment && out.effective.post.colour_treatment > 0.0 {
+        out.effective.post.colour_treatment = 0.0;
+        out.downgrade(Setting::ColourTreatment, "on", "off", unsupported(caps));
+    }
     upscaler(&mut out, caps, requested.upscaler);
     antialiasing(&mut out, caps);
     render_scale(&mut out, caps, &requested);

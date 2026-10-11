@@ -73,6 +73,10 @@ pub trait RenderBackend {
     /// What glossy surfaces reflect, until replaced.
     fn set_environment(&mut self, environment: Environment<'_>);
 
+    /// Set the current scene's colour profile and optional gain map; `None` clears it.
+    /// The gain map is display-space RGBA: blue multiplies colour. Other channels are reserved.
+    fn set_colour_treatment(&mut self, _profile: Option<&crate::ColourTreatment>, _gain: Option<&RgbaImage>) {}
+
     // --- layers ----------------------------------------------------------------------------------
 
     /// Replace the world effects drawn in every following frame, until replaced again.

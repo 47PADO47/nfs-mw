@@ -115,7 +115,12 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
         .chain(offered(RendererSetting::UpscaleQuality))
         .chain(PostSetting::ALL.into_iter().map(|setting| row(Setting::Post(setting), setting.title())))
         .chain(offered(RendererSetting::RayTracing))
-        .chain(GraphicsSetting::ALL.into_iter().map(|setting| row(Setting::Graphics(setting), setting.title())))
+        .chain(
+            GraphicsSetting::ALL
+                .into_iter()
+                .filter(|s| s.shown(caps))
+                .map(|setting| row(Setting::Graphics(setting), setting.title())),
+        )
         .chain(offered(RendererSetting::Renderer))
         .chain(offered(RendererSetting::GraphicsApi))
         .collect(),
@@ -281,6 +286,7 @@ impl Setting {
     /// The config key of a setting a renderer may not be able to run.
     fn key(self) -> Option<&'static str> {
         match self {
+            Setting::Graphics(GraphicsSetting::VisualTreatment) => Some("visual_treatment"),
             Setting::Upscaler => Some("upscaler"),
             Setting::Post(PostSetting::Aa) => Some("post_aa"),
             Setting::Post(PostSetting::Tonemap) => Some("post_tonemap"),

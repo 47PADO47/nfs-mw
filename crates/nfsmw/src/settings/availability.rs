@@ -18,6 +18,14 @@ struct Asked {
 fn asked(key: &str, settings: &Settings, caps: &Capabilities) -> Option<Asked> {
     let g = settings.graphics();
     Some(match key {
+        "visual_treatment" => Asked {
+            value: settings.visual_treatment.to_string(),
+            possible: settings.visual_treatment == super::VisualTreatment::Off || caps.scene_treatment,
+            available: match caps.scene_treatment {
+                true => vec!["off", "low", "high"],
+                false => vec!["off"],
+            },
+        },
         "post_aa" => Asked {
             value: g.post.antialiasing.name().to_owned(),
             possible: g.post.antialiasing == Antialiasing::Off || caps.antialiasing.contains(g.post.antialiasing),

@@ -15,17 +15,19 @@ pub enum Setting {
     RenderScale,
     Tonemap,
     Bloom,
+    ColourTreatment,
     RayTracing,
 }
 
 impl Setting {
-    pub const ALL: [Setting; 7] = [
+    pub const ALL: [Setting; 8] = [
         Setting::Antialiasing,
         Setting::Upscaler,
         Setting::UpscaleQuality,
         Setting::RenderScale,
         Setting::Tonemap,
         Setting::Bloom,
+        Setting::ColourTreatment,
         Setting::RayTracing,
     ];
 
@@ -37,6 +39,7 @@ impl Setting {
             Self::RenderScale => "render scale",
             Self::Tonemap => "tone mapping",
             Self::Bloom => "bloom",
+            Self::ColourTreatment => "colour treatment",
             Self::RayTracing => "ray tracing",
         }
     }
@@ -64,6 +67,7 @@ impl GraphicsSettings {
         note(Setting::RenderScale, self.render_scale != other.render_scale);
         note(Setting::Tonemap, self.post.tonemap != other.post.tonemap);
         note(Setting::Bloom, (self.post.bloom_intensity > 0.0) != (other.post.bloom_intensity > 0.0));
+        note(Setting::ColourTreatment, self.post.colour_treatment != other.post.colour_treatment);
         note(Setting::RayTracing, self.ray_tracing != other.ray_tracing);
         changed
     }

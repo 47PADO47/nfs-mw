@@ -56,6 +56,7 @@ impl PostBloom {
 /// What the renderer is asked to run for `settings`.
 pub fn post_effects(settings: &Settings) -> PostSettings {
     PostSettings {
+        colour_treatment: settings.visual_treatment.strength(),
         tonemap: match settings.post_tonemap {
             PostTonemap::Off => Tonemap::Off,
             PostTonemap::Aces => Tonemap::Aces,
@@ -70,6 +71,26 @@ pub fn post_effects(settings: &Settings) -> PostSettings {
         ..PostSettings::default()
     }
 }
+
+/// Display-space midday look; Low is an enhanced half-strength blend.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum VisualTreatment {
+    #[default]
+    Off,
+    Low,
+    High,
+}
+impl VisualTreatment {
+    pub const ALL: [Self; 3] = [Self::Off, Self::Low, Self::High];
+    pub fn strength(self) -> f32 {
+        match self {
+            Self::Off => 0.0,
+            Self::Low => 0.5,
+            Self::High => 1.0,
+        }
+    }
+}
+names!(VisualTreatment, "off, low or high", [(Self::Off, "off"), (Self::Low, "low"), (Self::High, "high")]);
 
 names!(PostTonemap, "off or aces", [(Self::Off, "off"), (Self::Aces, "aces")]);
 names!(

@@ -56,6 +56,7 @@ impl Antialiasing {
 /// they belong to the renderers that offer them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PostEffect {
+    SceneTreatment,
     Bloom,
     Tonemap,
     Fxaa,
@@ -70,10 +71,12 @@ pub const DEFAULT_BLOOM_THRESHOLD: f32 = 0.8;
 
 /// The post-process effects. [`Default`] runs none of them, so the frame is the plain clamped scene.
 ///
-/// The chain order is fixed: bloom, then tone mapping, then anti-aliasing (which needs the final,
+/// The chain order is fixed: scene treatment, bloom, tone mapping, then anti-aliasing (which needs the final,
 /// display-range colours), then the renderer's own resolve (and later upscaling) pass.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PostSettings {
+    /// Blend with a game-supplied colour profile (0 = off, 1 = full).
+    pub colour_treatment: f32,
     pub tonemap: Tonemap,
     /// Linear scale applied before the tone-mapping curve ([`MIN_EXPOSURE`]..=[`MAX_EXPOSURE`]; 1.0 is neutral).
     pub exposure: f32,
@@ -87,6 +90,7 @@ pub struct PostSettings {
 impl Default for PostSettings {
     fn default() -> Self {
         Self {
+            colour_treatment: 0.0,
             tonemap: Tonemap::Off,
             exposure: 1.0,
             bloom_intensity: 0.0,
@@ -105,6 +109,7 @@ impl PostSettings {
             false => default,
         };
         Self {
+            colour_treatment: pick(self.colour_treatment, 0.0, 0.0, 1.0),
             exposure: pick(self.exposure, defaults.exposure, MIN_EXPOSURE, MAX_EXPOSURE),
             bloom_intensity: pick(self.bloom_intensity, defaults.bloom_intensity, 0.0, MAX_BLOOM_INTENSITY),
             bloom_threshold: pick(self.bloom_threshold, defaults.bloom_threshold, 0.0, MAX_BLOOM_THRESHOLD),
@@ -121,6 +126,9 @@ impl PostSettings {
     /// The enabled effects in the order they run.
     pub fn effects(&self) -> Vec<PostEffect> {
         let mut effects = Vec::new();
+        if self.colour_treatment > 0.0 {
+            effects.push(PostEffect::SceneTreatment);
+        }
         if self.bloom_intensity > 0.0 {
             effects.push(PostEffect::Bloom);
         }

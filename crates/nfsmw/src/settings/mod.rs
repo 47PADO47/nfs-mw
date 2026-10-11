@@ -48,6 +48,8 @@ pub(crate) mod test_caps;
 #[cfg(test)]
 mod tire_tests;
 mod transmission;
+#[cfg(test)]
+mod treatment_tests;
 mod upscale;
 mod upscale_quality;
 #[cfg(test)]
@@ -68,7 +70,7 @@ pub use graphics_preset::GraphicsPreset;
 pub use hud_layout::HudLayout;
 pub use minimap::MinimapMode;
 pub use partial::{Partial, Percent, parse_bool};
-pub use post::{PostAa, PostBloom, PostTonemap, post_effects};
+pub use post::{PostAa, PostBloom, PostTonemap, VisualTreatment, post_effects};
 pub use radio_hud::RadioHudStyle;
 pub use ray_tracing::RayTracingLevel;
 pub use renderer::RendererKind;
@@ -140,6 +142,7 @@ pub struct Settings {
     pub post_tonemap: PostTonemap,
     pub post_bloom: PostBloom,
     pub post_aa: PostAa,
+    pub visual_treatment: VisualTreatment,
     /// The 3D scene's size in percent of the output size per axis, and the filter that scales it back up.
     pub render_scale: RenderScale,
     pub upscaler: UpscaleMode,
@@ -208,6 +211,7 @@ impl From<Partial> for Settings {
             post_tonemap: p.post_tonemap.unwrap_or_default(),
             post_bloom: p.post_bloom.unwrap_or_default(),
             post_aa: p.post_aa.unwrap_or_default(),
+            visual_treatment: p.visual_treatment.unwrap_or_default(),
             render_scale: p.render_scale.unwrap_or_default(),
             upscaler: p.upscaler.unwrap_or_default(),
             upscale_sharpness: p.upscale_sharpness.unwrap_or(Percent(80)),

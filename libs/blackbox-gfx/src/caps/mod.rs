@@ -49,6 +49,8 @@ pub struct Capabilities {
     pub upscalers: UpscalerSet,
     pub tonemaps: TonemapSet,
     pub bloom: bool,
+    /// Display-space colour grading.
+    pub scene_treatment: bool,
     pub ray_tracing: RtSupport,
     /// Smallest and largest render scale. A temporal upscaler's quality mode must fit in it too.
     pub render_scale: (f32, f32),
@@ -69,6 +71,7 @@ impl Capabilities {
             upscalers: UpscalerSet::of(&[Upscaler::Off]),
             tonemaps: TonemapSet::of(&[Tonemap::Off]),
             bloom: false,
+            scene_treatment: false,
             ray_tracing: RtSupport::None,
             render_scale: (1.0, 1.0),
             restart_required: RestartSet::empty(),

@@ -14,6 +14,9 @@ use blackbox_gfx::{
 use super::Renderer;
 
 impl RenderBackend for Renderer {
+    fn set_colour_treatment(&mut self, profile: Option<&blackbox_gfx::ColourTreatment>, gain: Option<&RgbaImage>) {
+        self.set_scene_treatment(profile, gain);
+    }
     fn info(&self) -> &BackendInfo {
         &self.info
     }

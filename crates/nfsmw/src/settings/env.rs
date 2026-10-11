@@ -98,6 +98,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         radio_hud: value(&get, RADIO_HUD, RadioHudStyle::from_str),
         post_tonemap: value(&get, POST_TONEMAP, PostTonemap::from_str),
         post_bloom: value(&get, POST_BLOOM, PostBloom::from_str),
+        visual_treatment: value(&get, "NFSMW_VISUAL_TREATMENT", super::VisualTreatment::from_str),
         post_aa: value(&get, POST_AA, PostAa::from_str),
         render_scale: value(&get, RENDER_SCALE, RenderScale::from_str),
         upscaler: value(&get, UPSCALER, UpscaleMode::from_str),

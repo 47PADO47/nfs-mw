@@ -15,6 +15,11 @@ impl Settings {
         let run = resolve(&self.graphics(), caps).effective;
         Settings {
             post_aa: aa(run.post.antialiasing),
+            visual_treatment: match run.post.colour_treatment {
+                v if v >= 1.0 => super::VisualTreatment::High,
+                v if v > 0.0 => super::VisualTreatment::Low,
+                _ => super::VisualTreatment::Off,
+            },
             upscaler: upscaler(run.upscaler),
             post_tonemap: tonemap(run.post.tonemap),
             post_bloom: if run.post.bloom_intensity > 0.0 { self.post_bloom } else { PostBloom::Off },
