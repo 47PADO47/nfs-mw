@@ -7,7 +7,7 @@ use blackbox_vehicle::nos::NosSpec;
 use std::sync::Arc;
 
 use super::fields::Fields;
-use super::{CarEventSpec, CarGeometry, bounds::CarBounds};
+use super::{AiCollisionReactions, CarEventSpec, CarGeometry, bounds::CarBounds};
 use super::{
     WallSpec, aero, body, brakes, chassis, engine, induction, no_engine, no_transmission, nos, tires, transmission,
 };
@@ -22,6 +22,7 @@ pub struct CarPhysics {
     pub walls: WallSpec,
     pub geometry: Option<Arc<CarGeometry>>,
     pub events: Option<Arc<CarEventSpec>>,
+    pub reactions: Option<Arc<AiCollisionReactions>>,
 }
 
 /// The physics of car type `type_name` (e.g. `BMWM3GTR`), read from `db` (`attributes.bin`).
@@ -53,7 +54,8 @@ pub fn car_physics(db: &Database, type_name: &str, bounds: CarBounds) -> Result<
         nos: first_nitrous(db, Fields(pvehicle)),
         aero: aero(chassis_fields),
     };
-    Ok(CarPhysics { spec, bounds, walls, geometry: None, events: None })
+    let reactions = AiCollisionReactions::read(db, pvehicle).map(Arc::new);
+    Ok(CarPhysics { spec, bounds, walls, geometry: None, events: None, reactions })
 }
 
 /// The first nitrous level of the car that has a tank (the stock level when it has one).

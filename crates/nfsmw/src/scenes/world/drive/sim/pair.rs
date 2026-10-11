@@ -5,7 +5,6 @@ use crate::scenes::world::events::DamageHit;
 use crate::scenes::world::object_geometry::{BodyGeometryFrame, object_shapes};
 use blackbox_collision::bounds_flags;
 use blackbox_vehicle::rigid_body::{BodyContact, BodyHit, Separation, resolve_bodies};
-use blackbox_vehicle::steering::SteeringDevice;
 use glam::Vec3;
 
 use super::CarSim;
@@ -59,8 +58,18 @@ impl CarSim {
         let material_a = self.vehicle.body().spec().objects;
         let material_b = other.vehicle.body().spec().objects;
         let grounded = self.vehicle.wheels_on_ground() > 2 && other.vehicle.wheels_on_ground() > 2;
-        let hit_a = self.object_hit(contact.point, contact.normal, grounded);
-        let hit_b = other.object_hit(contact.point, -contact.normal, grounded);
+        let hit_a = self.object_hit(
+            contact.point,
+            contact.normal,
+            grounded,
+            other.collision_role.player || other.collision_racer,
+        );
+        let hit_b = other.object_hit(
+            contact.point,
+            -contact.normal,
+            grounded,
+            self.collision_role.player || self.collision_racer,
+        );
         let closing = (self.body().point_velocity(contact.point) - other.body().point_velocity(contact.point)).length();
         let damage_a = DamageHit::capture(self.body(), contact.point, contact.normal, closing, other.collision_role);
         let damage_b = DamageHit::capture(other.body(), contact.point, -contact.normal, closing, self.collision_role);
@@ -81,7 +90,13 @@ impl CarSim {
     }
 
     /// Temporary parameters selected for this contact, including the grounded player's roll centre.
-    fn object_hit(&self, point: Vec3, normal: Vec3, grounded: bool) -> BodyHit {
+    pub(super) fn object_hit(
+        &self,
+        point: Vec3,
+        normal: Vec3,
+        grounded: bool,
+        partner_human_or_racer: bool,
+    ) -> BodyHit {
         let body = self.vehicle.body();
         let material = body.spec().objects;
         let mut hit = BodyHit {
@@ -90,11 +105,30 @@ impl CarSim {
             mass_scale: material.mass_scale,
             ..Default::default()
         };
-        if grounded && self.vehicle.config.steering_device != SteeringDevice::Ai {
-            let mut cog = body.cog();
-            cog.y = point.y - body.position.y - 0.125;
-            hit.centre = Some(body.position + body.rotation() * cog);
+        let mut cog = body.cog();
+        if self.collision_role.player {
+            if grounded {
+                cog.y = point.y - body.position.y - 0.125;
+                hit.centre = Some(body.position + body.rotation() * cog);
+            }
+            return hit;
         }
+        if !partner_human_or_racer {
+            return hit;
+        }
+        let Some(profile) = self.reactions.as_ref().and_then(|r| r.profile(self.collision_goal)) else { return hit };
+        let forward = body.rotation().z_axis;
+        let front = (point - body.position).dot(forward) > 0.0;
+        let side = normal.dot(forward).abs() < 0.707;
+        let reaction = profile.choose(front, side);
+        hit.restitution = (hit.restitution + reaction.elasticity).clamp(0.0, 1.0);
+        if reaction.mass_scale > 0.0 {
+            hit.mass_scale *= reaction.mass_scale;
+            hit.inertia_scale *= reaction.mass_scale;
+        }
+        cog.y += reaction.roll_height;
+        cog.z += reaction.weight_bias;
+        hit.centre = Some(body.position + body.rotation() * cog);
         hit
     }
 }

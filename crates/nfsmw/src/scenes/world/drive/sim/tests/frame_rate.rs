@@ -21,6 +21,9 @@ fn run(frame_times: impl IntoIterator<Item = f32>) -> Trace {
         assert!(car.place_moving(&ground, Spawn { position: Vec3::new(x, 50.0, 5.0), heading }, speed));
     }
     cars[1].body_mut().set_mass(2500.0);
+    cars[0].collision_role.player = true;
+    super::reactions::install(&mut cars[1]);
+    cars[2].collision_racer = true;
     let mut clock = FixedClock::default();
     let mut trace = Trace { steps: 0, states: Vec::new(), hits: Vec::new() };
     for dt in frame_times {

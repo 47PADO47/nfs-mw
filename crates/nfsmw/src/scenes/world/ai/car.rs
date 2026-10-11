@@ -142,7 +142,7 @@ impl AiCar {
         let (name, rig, physics) = (model.name.clone(), model.rig.clone(), &model.physics);
         let mut sim = CarSim::for_rig(physics.clone(), &rig);
         sim.configure_ai();
-        sim.collision_role.cop = matches!(role, Role::Cop(_));
+        sim.collision_role.cop = start.patrol || matches!(role, Role::Cop(_));
         if !sim.place_moving(ground, spawn, start.speed) {
             return None;
         }

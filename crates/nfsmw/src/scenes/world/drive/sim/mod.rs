@@ -10,7 +10,7 @@ use blackbox_vehicle::induction::InductionKind;
 use blackbox_vehicle::{FIXED_STEP, Ground, InputState, Vehicle};
 use glam::{Mat3, Quat, Vec3};
 use nfsmw_data::car::WheelPose;
-use nfsmw_data::car::physics::{CarGeometry, CarPhysics, SurfaceTable, WallSpec};
+use nfsmw_data::car::physics::{AiCollisionReactions, CarGeometry, CarPhysics, SurfaceTable, WallSpec};
 use std::sync::Arc;
 
 use super::input::DriveInput;
@@ -74,6 +74,10 @@ pub struct CarSim {
     pub(in crate::scenes::world) geometry: Option<Arc<CarGeometry>>,
     pub(in crate::scenes::world) events: Option<VehicleEvents>,
     pub(in crate::scenes::world) collision_role: OtherBody,
+    reactions: Option<Arc<AiCollisionReactions>>,
+    /// Original goal key when an explicit AI goal is active; otherwise the installed default.
+    pub(in crate::scenes::world) collision_goal: Option<u32>,
+    pub(in crate::scenes::world) collision_racer: bool,
     previous_contact_pose: BodyPose,
 }
 
@@ -107,6 +111,9 @@ impl CarSim {
                 }
             }),
             collision_role: OtherBody { vehicle: true, player: true, ..Default::default() },
+            reactions: physics.reactions,
+            collision_goal: None,
+            collision_racer: false,
             previous_contact_pose: (Vec3::ZERO, Quat::IDENTITY),
         }
     }
