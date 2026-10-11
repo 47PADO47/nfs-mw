@@ -49,6 +49,8 @@ impl WorldScene {
             light_dir: sun::DIRECTION,
             clear_color: CLEAR,
             fog: Some(Fog { start: self.fog_distance * 0.5, end: self.fog_distance }),
+            scattering: None,
+            surface_light: None,
             camera_cut: true,
         };
         for face in 0..6 {
