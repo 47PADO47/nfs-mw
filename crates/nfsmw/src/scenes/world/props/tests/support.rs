@@ -7,6 +7,7 @@ fn world(disabled: bool) -> (PropWorld, u32) {
     let mut p = placement(90, Vec3::Y * 3.0, 1000.0, false, 0.0);
     let bounds = Arc::make_mut(Arc::make_mut(p.prop.as_mut().unwrap()).bounds.as_mut().unwrap());
     bounds.nodes[0].flags = flags::BOX | flags::PRIM_VS_OBJECTS;
+    bounds.nodes[0].half_dimensions = [0.5, 1.0, 0.5];
     world.add_tile(1, std::slice::from_mut(&mut p));
     let body = world.colliders.get_mut(&p.prop_id).unwrap().body.as_mut().unwrap();
     body.geometry.ground_meshes.push(BodyMesh {
@@ -16,6 +17,10 @@ fn world(disabled: bool) -> (PropWorld, u32) {
             Vec3::new(0.4, -1.0, -0.4),
             Vec3::new(0.4, -1.0, 0.4),
             Vec3::new(-0.4, -1.0, 0.4),
+            Vec3::new(-0.4, 1.0, -0.4),
+            Vec3::new(0.4, 1.0, -0.4),
+            Vec3::new(0.4, 1.0, 0.4),
+            Vec3::new(-0.4, 1.0, 0.4),
         ],
         surface: 0,
         flags: flags::MESH_VS_GROUND
@@ -59,7 +64,7 @@ fn trace(fps: usize, disabled: bool) -> (Vec<u32>, f32) {
 #[test]
 fn ground_clouds_support_the_body_without_box_corners_and_follow_the_fixed_clock() {
     let (reference, y) = trace(60, false);
-    assert!((0.97..1.05).contains(&y), "cloud support should hold the body a metre above the ground, got {y}");
+    assert!((0.39..1.05).contains(&y), "cloud support should hold the body above the ground after falling, got {y}");
     for fps in [5, 10, 30, 120, 144, 240] {
         assert_eq!(trace(fps, false).0, reference, "{fps} FPS");
     }

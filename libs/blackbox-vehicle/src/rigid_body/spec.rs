@@ -23,6 +23,8 @@ pub struct RigidBodySpec {
     pub ground_elasticity: Vec3,
     /// Inertia multiplier per body axis in ground hits (1 = unchanged).
     pub ground_moment_scale: Vec3,
+    /// Integrate the body without ground contacts.
+    pub no_ground_collisions: bool,
     /// Contact parameters for other rigid bodies.
     pub objects: ObjectMaterial,
 }
@@ -39,6 +41,7 @@ impl Default for RigidBodySpec {
             ground_friction: [0.8, 0.6],
             ground_elasticity: Vec3::splat(0.2),
             ground_moment_scale: Vec3::ONE,
+            no_ground_collisions: false,
             objects: ObjectMaterial::default(),
         }
     }

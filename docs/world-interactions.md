@@ -24,7 +24,7 @@ isolated routines, scene integration and live-game comparisons.
 | Scenery | Name guesses, >150 kg immovable, lighter props disappear for six seconds | All 13,484 placements join exactly to scenery/attributes; persistent bodies, breakaway and no-car-effect response integrated; geometry and lifecycle parity pending |
 | Trailers | Approximate anchors and response | Original named anchors read and used for all six installed variants; constrained joint solver and live comparison pending |
 | Truck cargo | No released logs/crates | Original rear-impact triggers release seven logs or three carrier cars into collidable/renderable bodies; explosion effects and lifecycle parity pending |
-| World/ground | Approximate probes and solver | Pending original comparison |
+| World/ground | Approximate probes and solver | Measured iterative plane response, original probe tolerances, surface friction and disabled-ground flags integrated; cached face queries and live comparison pending |
 | Damage/feedback | Partial sparks/audio, incomplete collision events | Pending |
 | Set pieces | Missing pursuit breakers, spike strips and scripted objects | Pending |
 | Full comparison | No comprehensive repeatable collision suite | Pending live captures and numerical comparison |
@@ -56,7 +56,10 @@ keeps disabled flags for contact filtering, and supplies missing fallback boxes.
 The cone regression checks collision and an unchanged visual pose with a nonzero
 root pivot. Four synthetic construction cases were also executed through the PC
 routines. Ground support includes enabled installed clouds and box corners, with
-16 contacts retained; plane response and height-query tolerances remain approximate. Sphere
+16 contacts retained. Plane response matches measured PC vectors, including sliding
+and off-centre rotation; height probes use the original velocity-dependent tolerance
+and root extent. The closed-cloud support fixture can settle on either its base or
+its side. Cached face queries and live ground comparisons remain open. Sphere
 object contacts and sphere/box and box/box displacement tests use measured routines.
 Separation now translates the incident contact point and temporary collision centres;
 prop pairs use original normal-speed shares. Lifecycle and centre markers

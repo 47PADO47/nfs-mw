@@ -68,6 +68,7 @@ pub fn rigid_body_spec(c: Fields<'_>) -> RigidBodySpec {
         ground_friction: c.pair("GROUND_FRICTION"),
         ground_elasticity: c.vec3("GROUND_ELASTICITY"),
         ground_moment_scale: c.vec3("GROUND_MOMENT_SCALE"),
+        no_ground_collisions: c.bool("NO_GROUND_COLLISIONS"),
         objects: object_material(c),
     }
 }

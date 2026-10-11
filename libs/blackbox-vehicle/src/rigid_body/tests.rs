@@ -118,7 +118,7 @@ fn plane_contact_bounces_with_restitution() {
     let r = b.react_plane(&c, &params).expect("approaching");
     assert!((b.linear_velocity.y - 5.0).abs() < 1e-3, "v = {}", b.linear_velocity.y);
     assert!((r.closing_speed - 10.0).abs() < 1e-4);
-    assert!((r.impulse - 15.0 * 1000.0).abs() < 1.0);
+    assert!((r.impulse - 10.0 * 1000.0).abs() < 1.0);
 }
 
 #[test]

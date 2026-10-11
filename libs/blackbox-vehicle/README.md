@@ -48,7 +48,7 @@ println!("{:.1} m/s in gear {}", car.forward_speed(), car.gear());
 | Module | What it holds |
 |---|---|
 | `math` | `ramp`, `lerp`, evenly spaced `table`, piecewise `graph`, unit factors (`FT_LB_TO_NM`, `MPH_TO_MS`, ...) |
-| `rigid_body` | `RigidBody`: semi-implicit Euler, rotation about the centre of gravity, box inertia, quadratic drag, sleep, `react_plane` (impulse with Coulomb friction) |
+| `rigid_body` | `RigidBody`: integration, box inertia, drag, sleep, iterative plane/object response and ordered ground queries |
 | `engine` | `EngineSpec` (torque curve clamped at the red line, engine braking, inertia), `Clutch` |
 | `drivetrain` | `TransmissionSpec`, `ShiftPoints` and the automatic box, `calc_split` (differential), `split_drive_torque`, `Powertrain` (clutch, torque loop, limiter, speedometer) |
 | `induction`, `nos` | turbo or supercharger spool and boost; nitrous tank, burn and recharge |
@@ -71,6 +71,7 @@ behavior and the coincident-centre exception are in `docs/specs/sphere-contacts.
 
 ```rust
 pub trait Ground {
+    fn body_friction(&self, surface: u32) -> f32 { 1.0 }
     fn hit(&self, origin: Vec3, dir: Vec3, max_distance: f32) -> Option<GroundHit>;
 }
 pub struct GroundHit { pub distance: f32, pub normal: Vec3, pub surface: SurfaceGrip }
@@ -79,7 +80,7 @@ pub struct SurfaceGrip { pub lateral: f32, pub drive: f32, pub rolling: f32 }
 
 `hit` casts a ray from `origin` along the unit vector `dir` for at most `max_distance` metres and returns
 the nearest ground surface. The vehicle only casts straight down: from 0.5 m above each wheel contact point
-(so a wheel pressed into the road still finds it), and from 0.3 m above each corner of the body box. The
+(so a wheel pressed into the road still finds it). Body support uses motion-dependent tolerance. The
 surface is `simsurface`'s `LATERAL_GRIP`, `DRIVE_GRIP` and `ROLLING_RESISTANCE`. `max_distance` is the one
 addition to the interface sketched in the task (`hit(point, dir)`): it lets a ray cast over a collision
 world bound its work, as `blackbox-collision`'s segment query does.
@@ -132,8 +133,8 @@ Each is a deliberate choice where the spec was ambiguous, or where a literal rea
 10. **Hard-turn hold beats the post-collision limit.** In the spec's order the "held full lock keeps
     `last_max`" rule runs after the collision scaling and undoes it; kept as written.
 11. **Pedal dead zone** defaults to 0.05 (the spec has no value; `ControlConfig::dead_zone`).
-12. **Body against the ground** uses the eight corners of the box cast from 0.3 m above, a single impulse
-    pass with the body's own friction (no per-surface multiplier, no 16 sub-steps, no AI skip rule).
+12. **Body against the ground** uses ordered box corners, motion-dependent queries, per-surface
+    friction and 16 moment iterations. Game geometry can supply its enabled support clouds.
 13. **Sleep:** a car with any wheel on the ground never sleeps (as in the spec); a car resting on its roof
     can. A sleeping car wakes on throttle or handbrake.
 14. **Airborne downforce.** The original keeps 0.8 of the downforce in the air; with real aero coefficients

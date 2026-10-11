@@ -4,6 +4,7 @@
 mod bodies;
 mod body;
 mod contact;
+mod ground;
 mod inertia;
 mod joint;
 mod material;
@@ -16,6 +17,7 @@ mod sphere;
 pub use bodies::{BodyContact, BodyHit, BodyReaction, Separation, react_bodies, resolve_bodies, separate};
 pub use body::{BodyState, MAX_ANGULAR_SPEED, MAX_LINEAR_SPEED, RigidBody};
 pub use contact::{ContactParams, FrictionState, PlaneContact, Reaction};
+pub use ground::{BOX_CORNERS, GroundContact};
 pub use inertia::{box_inertia, inverse_diagonal};
 pub use joint::{BAUMGARTE, BallJoint, MAX_CORRECTION_SPEED};
 pub use material::ObjectMaterial;
