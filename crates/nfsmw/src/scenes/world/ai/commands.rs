@@ -1,6 +1,6 @@
 //! The console commands of the computer-driven cars: `traffic` and `pursuit`.
 
-use blackbox_render::Renderer;
+use blackbox_gfx::RenderBackend;
 use nfsmw_data::pursuit::{ai_vehicle, heat_row};
 
 use super::{CopCar, CopModel, TrafficModel};
@@ -11,7 +11,7 @@ use crate::scenes::world::{WorldScene, load_car};
 const TRAFFIC_CARS: &[&str] =
     &["TRAFFICCOUP", "TRAF4DSEDA", "TRAF4DSEDC", "TRAFHA", "TRAFCOURT", "TRAFPICKUPA", "TRAFMINIVAN", "TRAFNEWS"];
 
-fn load_traffic_models(scene: &mut WorldScene, renderer: &mut Renderer) -> Result<usize, String> {
+fn load_traffic_models(scene: &mut WorldScene, renderer: &mut dyn RenderBackend) -> Result<usize, String> {
     let mut loaded = 0;
     for name in TRAFFIC_CARS {
         let (folder, model) = match load_car(&scene.dir, name) {
@@ -28,7 +28,7 @@ fn load_traffic_models(scene: &mut WorldScene, renderer: &mut Renderer) -> Resul
                 continue;
             }
         };
-        let rig = std::rc::Rc::new(CarRig::upload(renderer, model));
+        let rig = std::rc::Rc::new(CarRig::upload(renderer, super::next_traffic_car(), model, scene.car_shading, crate::scenes::world::sun::to_sun()));
         let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
         traffic.add_model(TrafficModel { name: folder, rig, physics });
         loaded += 1;
@@ -41,7 +41,7 @@ fn load_traffic_models(scene: &mut WorldScene, renderer: &mut Renderer) -> Resul
 
 pub(in crate::scenes::world) fn traffic_command(
     scene: &mut WorldScene,
-    renderer: &mut Renderer,
+    renderer: &mut dyn RenderBackend,
     args: &[&str],
 ) -> Result<String, String> {
     const USAGE: &str = "usage: traffic <count>|off|status|warmup <seconds>";
@@ -79,7 +79,7 @@ pub(in crate::scenes::world) fn traffic_command(
 }
 
 /// Loads the cop cars `names` that are not loaded yet.
-fn load_cop_models(scene: &mut WorldScene, renderer: &mut Renderer, names: &[String]) -> Result<(), String> {
+fn load_cop_models(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, names: &[String]) -> Result<(), String> {
     for name in names {
         if scene.traffic.as_ref().is_some_and(|t| t.has_cop_model(name)) {
             continue;
@@ -98,7 +98,7 @@ fn load_cop_models(scene: &mut WorldScene, renderer: &mut Renderer, names: &[Str
             ai.top_speed_multiplier,
             ai.acceleration_multiplier
         );
-        let rig = std::rc::Rc::new(CarRig::upload(renderer, model));
+        let rig = std::rc::Rc::new(CarRig::upload(renderer, super::next_traffic_car(), model, scene.car_shading, crate::scenes::world::sun::to_sun()));
         let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
         traffic.add_cop_model(CopModel {
             model: TrafficModel { name: folder, rig, physics },
@@ -111,7 +111,7 @@ fn load_cop_models(scene: &mut WorldScene, renderer: &mut Renderer, names: &[Str
 /// `pursuit <heat>|off|status`: cops chase the player with the wave of that heat level.
 pub(in crate::scenes::world) fn pursuit_command(
     scene: &mut WorldScene,
-    renderer: &mut Renderer,
+    renderer: &mut dyn RenderBackend,
     args: &[&str],
 ) -> Result<String, String> {
     const USAGE: &str = "usage: pursuit <heat 1-10>|off|status";

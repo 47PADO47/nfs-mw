@@ -13,7 +13,8 @@ mod traffic;
 use std::rc::Rc;
 
 use blackbox_collision::CollisionWorld;
-use blackbox_render::{Instance, Renderer};
+use blackbox_gfx::RenderBackend;
+use blackbox_render::Instance;
 use blackbox_roads::{Body, RoadNetwork, SegmentIndex, SplitMix};
 use glam::Vec3;
 use nfsmw_data::car::physics::{CarPhysics, SurfaceTable};
@@ -222,7 +223,7 @@ impl TrafficWorld {
     }
 
     /// Removes every car and frees the models.
-    pub fn clear(&mut self, renderer: &mut Renderer) {
+    pub fn clear(&mut self, renderer: &mut dyn RenderBackend) {
         self.cars.clear();
         self.target = 0;
         for model in self.models.drain(..) {
@@ -253,4 +254,10 @@ impl TrafficWorld {
         }
         lines.join("\n")
     }
+}
+
+/// Each traffic model gets its own instance-key group, so its cars never share a key with the player's or another model's.
+pub(super) fn next_traffic_car() -> u32 {
+    static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
+    NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }

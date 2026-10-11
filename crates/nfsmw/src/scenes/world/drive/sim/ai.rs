@@ -17,6 +17,8 @@ impl CarSim {
             auto_brake: false,
             automatic: true,
             steering_device: SteeringDevice::Ai,
+            manual_clutch: false,
+            h_shifter: false,
         };
     }
 

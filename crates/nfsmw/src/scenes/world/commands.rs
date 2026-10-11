@@ -4,7 +4,8 @@ use blackbox_gfx::RenderBackend;
 use glam::Vec3;
 
 use super::ai;
-use super::drive::{self, MarkerMeshes};
+use super::drive::{self, CarRig, MarkerMeshes};
+use super::sun;
 use super::{View, WorldScene, load_car};
 
 pub(super) const LIST: &[(&str, &str)] = &[
@@ -88,7 +89,7 @@ fn load_traffic_models(scene: &mut WorldScene, renderer: &mut dyn RenderBackend)
                 continue;
             }
         };
-        let rig = std::rc::Rc::new(CarRig::upload(renderer, model));
+        let rig = std::rc::Rc::new(CarRig::upload(renderer, ai::next_traffic_car(), model, scene.car_shading, sun::to_sun()));
         let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
         traffic.add_model(ai::TrafficModel { name: folder, rig, physics });
         loaded += 1;
