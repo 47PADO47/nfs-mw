@@ -7,6 +7,14 @@ fixtures do not replace a comparison while playing both games.
 
 ## Next comparisons
 
+- Reproduce the reported fences that return too quickly after an impact.
+  Compare offscreen timers, dropout/resting states, streaming ownership and
+  placement restoration against the original, including leaving and returning
+  to the area. This report remains unresolved.
+- Reproduce the reported parked cars that feel too light. Check their installed
+  identity, collision geometry, mass/inertia, attachment and temporary reaction
+  overrides against original/remake impacts. This report remains unresolved.
+
 - Record repeatable original/remake routes and impacts with the same car, speed,
   direction and object. Include light props, large attached objects, traffic,
   head-on/rear/side impacts, curbs, slopes, jumps and fallen debris. Measure
@@ -20,7 +28,7 @@ fixtures do not replace a comparison while playing both games.
   uneven frames. Check both identical fixed-tick outcomes and continuous
   camera/world/car presentation. Profile GPU uploads and missing local collision
   data separately from camera interpolation. Local collision packs that are unavailable
-  still requires a simulation pause.
+  still require a simulation pause.
 
 ## Physics and lifecycle
 
