@@ -2901,6 +2901,7 @@ dependencies = [
  "blackbox-scene",
  "blackbox-scenery",
  "blackbox-sequence",
+ "blackbox-solid",
  "blackbox-streaming",
  "blackbox-text",
  "blackbox-tpk",

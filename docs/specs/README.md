@@ -27,6 +27,9 @@ drawing), [feng-input.md](feng-input.md) (pad messages, focus, navigation) and [
 
 [Ground contacts](ground-contact-response.md) and [prop lifetime](prop-lifetime.md)
 cover measured plane response, world probes, sinking and model cleanup.
+
+[Pursuit breakers](pursuit-breakers.md) covers named scenery fragments, area
+stimuli, expanding explosions, ownership and fixed-clock cop-stop regions.
 [Trailer constraints](trailer-constraints.md) covers named angular limits,
 mass-weighted geometry correction and measured point-moment response.
 

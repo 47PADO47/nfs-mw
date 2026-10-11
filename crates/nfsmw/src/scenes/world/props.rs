@@ -6,6 +6,7 @@ mod fragments;
 mod ground;
 mod lifetime;
 mod obb;
+pub(super) mod scenery;
 #[cfg(test)]
 mod tests;
 
@@ -32,6 +33,7 @@ const CELL: f32 = 16.0;
 type Cell = (i32, i32);
 
 struct Collider {
+    collidable: bool,
     shape: Arc<PropShape>,
     transform: Mat4,
     inverse_transform: Mat4,
@@ -81,6 +83,7 @@ pub struct PropWorld {
     next_id: u32,
     alpha: f32,
     fragments: std::collections::BTreeMap<u32, fragments::FragmentVisual>,
+    scenery: scenery::SceneryEvents,
 }
 
 fn cells(bounds: &Aabb) -> Vec<Cell> {
@@ -114,9 +117,13 @@ impl PropWorld {
                 continue;
             }
             p.prop_id = id;
+            if let (Some(bounds), Some(spec)) = (&shape.bounds, &shape.dynamics) {
+                self.scenery.models.insert(id, scenery::SceneryModel::placed(p.parts.clone(), bounds.clone(), spec));
+            }
             self.colliders.insert(
                 id,
                 Collider {
+                    collidable: true,
                     shape,
                     transform: p.transform,
                     inverse_transform: p.transform.inverse(),
@@ -134,9 +141,11 @@ impl PropWorld {
     pub fn remove_tile(&mut self, tile: usize) {
         let Some(ids) = self.tiles.remove(&tile) else { return };
         for id in ids {
+            self.scenery.models.remove(&id);
             let Some(c) = self.colliders.remove(&id) else { continue };
             self.remove_cells(id, &c.cells);
         }
+        self.remove_orphaned_fragments();
     }
 
     fn remove_cells(&mut self, id: u32, old: &[Cell]) {
@@ -152,7 +161,7 @@ impl PropWorld {
 
     fn regrid(&mut self, id: u32) {
         let Some(c) = self.colliders.get_mut(&id) else { return };
-        let new = match c.body.as_ref().is_some_and(|b| b.lifetime.sinking) {
+        let new = match !c.collidable || c.body.as_ref().is_some_and(|b| b.lifetime.sinking) {
             true => Vec::new(),
             false => cells(&c.physics_bounds()),
         };
@@ -228,6 +237,7 @@ impl PropWorld {
     /// One world tick; fallen props keep their render/collision identity.
     pub fn step(&mut self, ground: &dyn Ground, dt: f32) {
         self.remove_orphaned_fragments();
+        self.advance_explosions(dt);
         let mut active = Vec::new();
         for (&id, c) in &mut self.colliders {
             let Some(b) = c.body.as_mut() else { continue };
@@ -262,6 +272,8 @@ impl PropWorld {
             let (Some(pa), Some(pb)) = (&mut ca.body, &mut cb.body) else { continue };
             let (Some(sa), Some(sb)) = (&ca.shape.dynamics, &cb.shape.dynamics) else { continue };
             let Some(c) = contact::prop_contact(pa, pb) else { continue };
+            let attached = [pa.attached, pb.attached];
+            let closing = (pa.rigid.point_velocity(c.point) - pb.rigid.point_velocity(c.point)).length();
             let ha = contact::parameters(&pa.rigid, c.normal, sa, pa.attached);
             let hb = contact::parameters(&pb.rigid, -c.normal, sb, pb.attached);
             if let Some(response) = contact::resolve(&mut pa.rigid, &mut pb.rigid, c, ha, hb, Separation::NormalSpeed) {
@@ -274,6 +286,8 @@ impl PropWorld {
                 pb.attached &= ib;
                 pa.moved |= !ia;
                 pb.moved |= !ib;
+                self.contact_event(a, attached[0], closing);
+                self.contact_event(b, attached[1], closing);
             }
             self.regrid(a);
             self.regrid(b);
@@ -299,6 +313,7 @@ impl PropWorld {
             let Some(spec) = &c.shape.dynamics else { continue };
             let Some((hit, _surface)) = contact::car_contact(vehicle.body(), geometry, p) else { continue };
             let velocity = vehicle.body().point_velocity(hit.point);
+            let was_attached = p.attached;
             let closing = (velocity - p.rigid.point_velocity(hit.point)).length();
             let damage = DamageHit::capture(
                 vehicle.body(),
@@ -311,7 +326,7 @@ impl PropWorld {
             car.immobile = spec.no_car_effect && !p.attached && !spec.immobile;
             let prop = contact::parameters(&p.rigid, -hit.normal, spec, p.attached);
             let response = contact::resolve(vehicle.body_mut(), &mut p.rigid, hit, car, prop, Separation::Mass);
-            if let Some(response) = response {
+            if let Some(ref response) = response {
                 p.lifetime.activate(spec);
                 p.object_contact = true;
                 let prop_immobile = response.immobile[1];
@@ -328,6 +343,9 @@ impl PropWorld {
                 if delta_v > 0.0 {
                     vehicle.notify_collision(delta_v);
                 }
+            }
+            if response.is_some() {
+                self.contact_event(id, was_attached, closing);
             }
             self.regrid(id);
         }

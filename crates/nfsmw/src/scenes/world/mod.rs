@@ -122,7 +122,8 @@ impl WorldScene {
         if let Some(world) = traffic.as_mut() {
             world.load_data(physics.database(), index.track_zones.clone());
         }
-        let props = PropCatalog::new(index.prop_bounds.clone(), physics.database());
+        let props = PropCatalog::new(index.prop_bounds.clone(), physics.database())
+            .with_hierarchies(index.model_hierarchies.clone());
         log::info!("{} props have collision bounds", props.len());
         let stream = dir.resolve(&index.stream_file).with_context(|| format!("{} is missing", index.stream_file))?;
         let threads = std::thread::available_parallelism().map_or(4, |n| n.get().clamp(2, 6));

@@ -50,6 +50,7 @@ pub struct PropShape {
 
 /// Track bounds and inherited prop attributes. Names never select a dynamic object's behavior.
 pub struct PropCatalog {
+    hierarchies: HashMap<u32, Arc<blackbox_scenery::ModelHierarchy>>,
     sets: HashMap<u32, Arc<BoundsSet>>,
     dynamics: HashMap<u32, Arc<PropDynamics>>,
     cache: RefCell<HashMap<String, Option<Arc<PropShape>>>>,
@@ -61,11 +62,21 @@ impl PropCatalog {
         let dynamics =
             db.collections_of("smackable").filter_map(|c| Some((c.key(), Arc::new(PropDynamics::read(c)?)))).collect();
         Self {
+            hierarchies: HashMap::new(),
             sets: sets.into_iter().map(|s| (s.name_hash, Arc::new(s))).collect(),
             dynamics,
             cache: RefCell::default(),
             placed_cache: RefCell::default(),
         }
+    }
+
+    pub fn with_hierarchies(mut self, hierarchies: Vec<blackbox_scenery::ModelHierarchy>) -> Self {
+        self.hierarchies = hierarchies.into_iter().map(|h| (h.name_hash, Arc::new(h))).collect();
+        self
+    }
+
+    pub fn hierarchy(&self, key: u32) -> Option<Arc<blackbox_scenery::ModelHierarchy>> {
+        self.hierarchies.get(&key).cloned()
     }
 
     pub fn len(&self) -> usize {

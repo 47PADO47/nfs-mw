@@ -118,7 +118,9 @@ impl super::PropWorld {
         let mut ids: Vec<_> = self.colliders.keys().copied().collect();
         ids.sort_unstable();
         for id in ids {
-            let c = self.colliders.get_mut(&id).unwrap();
+            let Some(c) = self.colliders.get_mut(&id) else {
+                continue;
+            };
             let visible = frustum.intersects(&c.pose(1.0).1);
             let (Some(body), Some(spec)) = (&mut c.body, &c.shape.dynamics) else { continue };
             if !body.lifetime.active {
@@ -144,7 +146,10 @@ impl super::PropWorld {
                     self.remove_fragment(id);
                     continue;
                 }
-                Change::Release => body.restore(spec),
+                Change::Release => {
+                    body.restore(spec);
+                    self.reset_model(id);
+                }
             }
             self.regrid(id);
         }

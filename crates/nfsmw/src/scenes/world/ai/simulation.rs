@@ -10,6 +10,9 @@ use super::{Focus, MANAGER_PERIOD, TrafficWorld};
 use crate::scenes::world::{drive::STEP, props::PropWorld};
 
 impl TrafficWorld {
+    pub fn breaker_stops(&mut self, areas: Vec<super::super::props::scenery::StopArea>) {
+        self.breaker_areas.extend(areas);
+    }
     pub(super) fn has_work(&self) -> bool {
         !self.cars.is_empty() || self.target > 0 || self.pursuit.is_some()
     }
@@ -26,6 +29,12 @@ impl TrafficWorld {
         bodies.extend(self.cars.iter().filter_map(AiCar::loose_trailer_body).map(|b| (b, false)));
         let lights = self.lights_on.then_some(Lights { controller: &self.signals, time: self.signal_time });
         for (me, car) in self.cars.iter_mut().enumerate() {
+            let position = glam::Vec3::from_array(super::super::space::to_physics(car.position()));
+            let stop = car.is_cop()
+                && self.breaker_areas.iter().any(|area| {
+                    area.duration > 0.0 && position.distance_squared(area.position) <= area.radius * area.radius
+                });
+            car.set_breaker_stop(stop);
             let mut ctx = Ctx {
                 net: &self.network,
                 index: &self.index,
@@ -38,6 +47,10 @@ impl TrafficWorld {
             car.step(&mut ctx, collision, props, surfaces);
         }
         self.signal_time += STEP;
+        for area in &mut self.breaker_areas {
+            area.duration -= STEP;
+        }
+        self.breaker_areas.retain(|a| a.duration > 0.0);
     }
 
     /// Commit contact poses and advance every gameplay timer by exactly one tick.

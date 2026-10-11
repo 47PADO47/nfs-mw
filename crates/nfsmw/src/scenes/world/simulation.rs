@@ -73,6 +73,10 @@ impl WorldScene {
             drive.update_events(props, &self.physics, self.camera.position);
             drive.finish_step(collision, surfaces, step);
         }
+        let stops = props.update_scenery(&self.physics);
+        if let Some(traffic) = self.traffic.as_mut() {
+            traffic.breaker_stops(stops);
+        }
         if let Some(drive) = self.drive.as_mut().filter(|_| driving) {
             drive.follow(collision, look, STEP);
         }

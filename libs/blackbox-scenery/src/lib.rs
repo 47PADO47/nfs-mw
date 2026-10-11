@@ -5,6 +5,7 @@
 //! The records have no version field, so the caller picks the [`layout`] for its game.
 
 mod error;
+mod hierarchy;
 mod info;
 mod instance;
 pub mod layout;
@@ -13,6 +14,7 @@ mod section;
 mod spawner;
 
 pub use error::{Error, Result};
+pub use hierarchy::{ModelHierarchy, ModelNode, read_model_hierarchies};
 pub use info::SceneryInfo;
 pub use instance::SceneryInstance;
 pub use lod::{LodModel, LodView};

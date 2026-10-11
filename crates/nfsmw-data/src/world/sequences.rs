@@ -8,6 +8,8 @@ use anyhow::{Context, Result, bail};
 use blackbox_attrib::vlt_hash;
 use blackbox_chunk::{find_all, ids};
 use blackbox_sequence::{Event, Package, Tags};
+#[cfg(test)]
+mod tests;
 
 pub const TAGS: Tags = Tags { start: vlt_hash("start"), end: vlt_hash("end"), stop: vlt_hash("stop") };
 
@@ -93,6 +95,23 @@ pub enum WorldEvent {
         queue_mode: u32,
     },
     Explosion(Explosion),
+    AreaStimulus {
+        system: u32,
+        stimulus: u32,
+        queue_mode: u32,
+        radius: f32,
+    },
+    HideObject,
+    KillObject,
+    WakeObject,
+    HidePart(u32),
+    StopCops {
+        radius: f32,
+        duration: f32,
+    },
+    PursuitBreaker {
+        begin: bool,
+    },
     /// The host can report unsupported effects explicitly.
     Other(u32),
 }
@@ -111,6 +130,18 @@ impl WorldEvent {
             Ok(value)
         };
         match event.id {
+            0x7624_42F3 => Ok(Self::AreaStimulus {
+                system: word(4)?,
+                stimulus: word(8)?,
+                queue_mode: word(12)?,
+                radius: number(16)?,
+            }),
+            0x0713_D2FA => Ok(Self::HideObject),
+            0xBD2F_6FF1 => Ok(Self::KillObject),
+            0x8E60_A642 => Ok(Self::WakeObject),
+            0xEFFE_CDD6 => Ok(Self::HidePart(word(4)?)),
+            0xDDA7_829B => Ok(Self::StopCops { radius: number(4)?, duration: number(8)? }),
+            0x47C1_D36D => Ok(Self::PursuitBreaker { begin: word(4)? != 0 }),
             0xA3CF_BFEC => {
                 let _verbose = word(12)?;
                 Ok(Self::FireList { list: word(4)?, delayed: word(8)? != 0 })

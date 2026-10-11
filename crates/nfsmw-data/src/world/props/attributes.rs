@@ -21,6 +21,10 @@ pub struct PropDynamics {
     pub kill_off_screen: f32,
     pub dropout: [f32; 2],
     pub allow_off_world: bool,
+    pub event_sequencer: u32,
+    pub start_sequencer: bool,
+    pub no_trigger: bool,
+    pub explosion_effect: f32,
 }
 
 impl PropDynamics {
@@ -52,6 +56,10 @@ impl PropDynamics {
             kill_off_screen: fields.f32("KILL_OFF_SCREEN"),
             dropout: fields.pair("DROPOUT"),
             allow_off_world: fields.bool("ALLOW_OFF_WORLD"),
+            event_sequencer: collection.get_string_key("EventSequencer").map_or(0, |k| k.hash32),
+            start_sequencer: fields.bool("start_sequencer"),
+            no_trigger: fields.bool("no_trigger"),
+            explosion_effect: fields.f32("ExplosionEffect"),
         })
     }
 }

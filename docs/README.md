@@ -68,6 +68,7 @@ against the install at `D:/Need For Speed Most Wanted Black Edition`.
 | [formats/world.md](formats/world.md) | World grid and road network, collision packs, bounds, triggers, emitters, sky, minimap | Partial (decomp only for several) |
 | [formats/collision.md](formats/collision.md) | World collision packs, the collision grid, car and prop bounds, surface types, query semantics | Layouts verified; Rust reader |
 | [formats/event-sequences.md](formats/event-sequences.md) | World event engines, actions and fragment events | All 73 installed packages read; 75 engines |
+| [formats/model-hierarchies.md](formats/model-hierarchies.md) | Named intact and internal fragment models | Validated reader and installed breakup checks |
 | [specs/world-sequencers.md](specs/world-sequencers.md) | State/queue timing, damage stimuli and cargo | Sequencer tested; world effect integration in progress |
 | [specs/sphere-contacts.md](specs/sphere-contacts.md) | Sphere contacts and relative sphere/box sweeps | Isolated PC vectors and world integration tests |
 | [formats/attributes.md](formats/attributes.md) | AttribSys `VPAK` packs, vaults, exports, hash, the 57 classes | Layout verified |

@@ -43,6 +43,10 @@ impl PhysicsData {
         crate::world::PropDynamics::read(collection).map(Arc::new)
     }
 
+    pub fn sequence(&self, key: u32) -> Option<crate::world::sequences::Sequence> {
+        self.sequences.get(key).cloned()
+    }
+
     /// The physics of car type `type_name` (e.g. `BMWM3GTR`). A vehicle without bounds of its own (the
     /// semi tractor variants `semib`, `semicon`, ...) has the bounds of the nearest ancestor that has them.
     pub fn car(&self, type_name: &str) -> Result<CarPhysics> {

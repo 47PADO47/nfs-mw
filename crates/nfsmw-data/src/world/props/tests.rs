@@ -35,8 +35,13 @@ fn models_sharing_original_physics_keys_keep_their_own_identity() {
         kill_off_screen: 8.0,
         dropout: [0.0; 2],
         allow_off_world: false,
+        event_sequencer: 0,
+        start_sequencer: false,
+        no_trigger: false,
+        explosion_effect: 0.0,
     });
     let catalog = PropCatalog {
+        hierarchies: HashMap::new(),
         sets: HashMap::from([(1, bounds)]),
         dynamics: HashMap::from([(2, dynamics)]),
         cache: RefCell::default(),

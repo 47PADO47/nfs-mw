@@ -3,6 +3,9 @@
 /// `TrackStreamingSections`: the streaming index in the track metadata file.
 pub const TRACK_STREAMING_SECTIONS: u32 = 0x0003_4110;
 pub const SCENERY_SECTION: u32 = 0x8003_4100;
+/// Named render parts (`docs/formats/model-hierarchies.md`).
+pub const MODEL_HIERARCHY_TREE: u32 = 0x8003_410B;
+pub const MODEL_HIERARCHY: u32 = 0x0003_410C;
 pub const SCENERY_SECTION_HEADER: u32 = 0x0003_4101;
 pub const SCENERY_INFOS: u32 = 0x0003_4102;
 pub const SCENERY_INSTANCES: u32 = 0x0003_4103;

@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 /// One placed scenery object: up to four LOD meshes, chosen per frame
 /// (`docs/specs/scenery-lod.md`).
+#[derive(Clone)]
 pub struct Placed {
     pub lods: [Option<MeshHandle>; 4],
     /// The slot-0 solid's polygon count and density, for the LOD choice.
@@ -27,6 +28,7 @@ pub struct Placed {
     pub prop_id: u32,
     /// Original physics pose and stable identity, when this instance has a spawner.
     pub spawner: Option<blackbox_scenery::ObjectSpawner>,
+    pub parts: Option<Arc<super::props::scenery::ModelParts>>,
 }
 
 #[cfg(test)]
@@ -44,6 +46,7 @@ impl Placed {
             prop: Some(shape),
             prop_id: 0,
             spawner: None,
+            parts: None,
         }
     }
 }
@@ -168,6 +171,19 @@ pub fn place(
                 prop,
                 prop_id: 0,
                 spawner: spawner.copied(),
+                parts: props.hierarchy(info.hierarchy_hash).map(|hierarchy| {
+                    let meshes: std::collections::BTreeMap<_, _> = hierarchy
+                        .nodes
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(i, n)| Some((i, own.mesh(n.model_hash, shared)?.0)))
+                        .collect();
+                    Arc::new(super::props::scenery::ModelParts {
+                        available: meshes.keys().copied().collect(),
+                        hierarchy,
+                        meshes,
+                    })
+                }),
             });
         }
     }

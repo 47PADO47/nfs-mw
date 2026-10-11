@@ -10,7 +10,7 @@ mod installed;
 mod lifetime;
 mod support;
 
-fn placement(id: u32, at: Vec3, mass: f32, no_car_effect: bool, detach: f32) -> Placed {
+pub(super) fn placement(id: u32, at: Vec3, mass: f32, no_car_effect: bool, detach: f32) -> Placed {
     let node = Bounds {
         orientation: [0.0, 0.0, 0.0, 1.0],
         position: [0.0; 3],
@@ -37,6 +37,10 @@ fn placement(id: u32, at: Vec3, mass: f32, no_car_effect: bool, detach: f32) -> 
         kill_off_screen: 8.0,
         dropout: [0.0; 2],
         allow_off_world: false,
+        event_sequencer: 0,
+        start_sequencer: false,
+        no_trigger: false,
+        explosion_effect: 0.0,
     };
     let shape = Arc::new(PropShape {
         name: format!("test-{id}"),

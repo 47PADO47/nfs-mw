@@ -16,6 +16,10 @@ You can drive a car through the city (`view-world --drive`), or start from the m
 movies, title screen and main menu, then free roam, with the pause menu and the settings screens on Esc); the rest of
 the game is on the [roadmap](docs/architecture.md#roadmap).
 
+Cars, scenery contacts, cleanup, trailer constraints and installed pursuit-breaker
+sequences share a 60 Hz physics clock. See [world interaction coverage](docs/world-interactions.md)
+for checks against the installed game and remaining parity gaps.
+
 ## Quick start
 
 You need Rust (stable) and an installed copy of the game.

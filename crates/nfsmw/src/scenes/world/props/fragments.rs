@@ -12,21 +12,34 @@ use super::{Collider, PropWorld, body::PropBody};
 pub(super) struct FragmentVisual {
     instances: Vec<Instance>,
     owner: Weak<()>,
+    scenery: bool,
 }
 
 impl PropWorld {
+    #[cfg(test)]
     pub fn fragment_count(&self) -> usize {
         self.fragments.values().filter(|f| f.owner.strong_count() > 0).count()
     }
 
     pub(super) fn insert_fragment(
         &mut self,
-        mut body: PropBody,
+        body: PropBody,
         spec: Arc<PropDynamics>,
         instances: Vec<Instance>,
         owner: Weak<()>,
     ) -> Option<u32> {
-        if self.fragment_count() >= 121 {
+        self.insert_fragment_with(body, spec, instances, owner, false)
+    }
+
+    pub(super) fn insert_fragment_with(
+        &mut self,
+        mut body: PropBody,
+        spec: Arc<PropDynamics>,
+        instances: Vec<Instance>,
+        owner: Weak<()>,
+        scenery: bool,
+    ) -> Option<u32> {
+        if !scenery && self.fragments.values().filter(|f| !f.scenery && f.owner.strong_count() > 0).count() >= 121 {
             return None;
         }
         body.lifetime.activate(&spec);
@@ -41,6 +54,7 @@ impl PropWorld {
             dynamics: Some(spec),
         });
         let mut collider = Collider {
+            collidable: true,
             shape,
             transform,
             inverse_transform: transform.inverse(),
@@ -50,7 +64,7 @@ impl PropWorld {
         };
         collider.original_bounds = collider.physics_bounds();
         self.colliders.insert(id, collider);
-        self.fragments.insert(id, FragmentVisual { instances, owner });
+        self.fragments.insert(id, FragmentVisual { instances, owner, scenery });
         self.regrid(id);
         Some(id)
     }
@@ -61,6 +75,9 @@ impl PropWorld {
                 continue;
             }
             let Some((world, _)) = self.pose(id) else { continue };
+            if self.model_instances(id, world, out) {
+                continue;
+            }
             out.extend(fragment.instances.iter().map(|i| Instance { mesh: i.mesh, transform: world * i.transform }));
         }
     }
@@ -74,6 +91,7 @@ impl PropWorld {
     }
 
     pub(super) fn remove_fragment(&mut self, id: u32) {
+        self.scenery.models.remove(&id);
         self.fragments.remove(&id);
         if let Some(collider) = self.colliders.remove(&id) {
             self.remove_cells(id, &collider.cells);

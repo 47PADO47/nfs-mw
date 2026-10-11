@@ -126,6 +126,7 @@ pub struct AiCar {
     patrol: bool,
     /// Seconds the car has been out of the player's view.
     offscreen: f32,
+    breaker_stop: bool,
 }
 
 impl AiCar {
@@ -186,12 +187,17 @@ impl AiCar {
             cruise: start.cruise,
             patrol: start.patrol,
             offscreen: 0.0,
+            breaker_stop: false,
         })
     }
 
     /// The car's position in render space.
     pub fn position(&self) -> Vec3 {
         self.current.position
+    }
+
+    pub fn set_breaker_stop(&mut self, stop: bool) {
+        self.breaker_stop = stop;
     }
 
     pub fn pose(&self, alpha: f32) -> CarPose {
@@ -307,6 +313,9 @@ impl AiCar {
             Accident::Over => {
                 self.controls = AiControls { brake: 1.0, steer: 1.0, ..AiControls::default() };
             }
+        }
+        if self.breaker_stop {
+            self.controls = AiControls { brake: 1.0, ..AiControls::default() };
         }
         shift(&mut self.sim, self.controls.gear);
         let input = DriveInput {

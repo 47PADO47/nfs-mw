@@ -157,7 +157,7 @@ impl CarSim {
         &mut self,
         input: &DriveInput,
         ground: &dyn Ground,
-        world: Option<(&CollisionWorld, &mut PropWorld)>,
+        mut world: Option<(&CollisionWorld, &mut PropWorld)>,
     ) -> Impact {
         let input = InputState {
             throttle: input.throttle,
@@ -169,6 +169,9 @@ impl CarSim {
             shift_down: input.shift_down,
         };
         self.previous_contact_pose = (self.vehicle.position(), self.vehicle.body().orientation);
+        if let (Some((_, props)), Some(events)) = (world.as_mut(), &self.events) {
+            props.vehicle_explosions(self.vehicle.body_mut(), &events.owner, self.collision_role.player, FIXED_STEP);
+        }
         self.vehicle.step(FIXED_STEP, &input, ground);
         let impact = match world {
             Some((collision, props)) => {

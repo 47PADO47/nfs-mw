@@ -70,3 +70,15 @@ parent attachment. These are measured values, read from the install at runtime.
 
 `TrailerB` has seven systems and five actions. It drops different car attachments
 on successive triggers. It must not be reduced to a single hardcoded log action.
+
+## Scenery and breaker events
+
+`EProcessAreaStimulus` (`0x762442F3`) stores system, stimulus, queue-mode and
+radius at 4/8/12/16; the dynamic centre comes from the emitting model. Supports
+send this message to distinct roof models. `EBreakerStopCops` (`0xDDA7829B`)
+has radius and duration floats at 4/8. `EPursuitBreaker` (`0x47C1D36D`) has its
+begin flag at 4. `EHidePart` (`0xEFFECDD6`) stores its part hash at 4.
+EHideObject (`0x0713D2FA`), EKillObject (`0xBD2F6FF1`) and EWakeObject
+(`0x8E60A642`) use dynamic model context. ETriggerMomentNIS (`0x7DF7F613`)
+is a cinematic event and must not be decoded as a part-visibility command.
+See [breaker behavior](../specs/pursuit-breakers.md) for the host semantics.

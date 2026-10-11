@@ -33,6 +33,7 @@ fn all_world_sequences_parse_and_log_damage_releases_the_original_parts_once() {
                     }
                     WorldEvent::Other(_) => {}
                     WorldEvent::FireList { .. } => panic!("the log trailer uses direct lists"),
+                    _ => panic!("unexpected log-trailer effect"),
                 }
             }
         }

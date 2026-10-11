@@ -52,3 +52,6 @@ toml.workspace = true
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+blackbox-solid.workspace = true

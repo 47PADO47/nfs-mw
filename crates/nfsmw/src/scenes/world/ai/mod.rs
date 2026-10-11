@@ -96,6 +96,7 @@ pub struct TrafficWorld {
     warmup_left: f32,
     /// Simulated seconds since the last debug status line.
     log_timer: f32,
+    breaker_areas: Vec<super::props::scenery::StopArea>,
 }
 
 impl TrafficWorld {
@@ -134,6 +135,7 @@ impl TrafficWorld {
             spawn_timer: 0.0,
             warmup_left: 0.0,
             log_timer: 0.0,
+            breaker_areas: Vec::new(),
         }
     }
 

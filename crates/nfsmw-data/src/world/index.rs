@@ -21,6 +21,7 @@ pub struct WorldIndex {
     pub prop_bounds: Vec<blackbox_collision::BoundsSet>,
     /// Original event engines, including breakables and truck cargo.
     pub sequences: super::sequences::SequenceCatalog,
+    pub model_hierarchies: Vec<blackbox_scenery::ModelHierarchy>,
     /// Install-relative path of the stream file.
     pub stream_file: String,
 }
@@ -43,6 +44,11 @@ impl WorldIndex {
         let prop_bounds = blackbox_collision::read_bounds_sets(&meta)
             .map_err(|e| anyhow::anyhow!("reading the prop bounds in {meta_file}: {e}"))?;
         let sequences = super::sequences::SequenceCatalog::read(&meta)?;
+        let model_hierarchies = blackbox_scenery::read_model_hierarchies(
+            &meta,
+            blackbox_chunk::ids::MODEL_HIERARCHY_TREE,
+            blackbox_chunk::ids::MODEL_HIERARCHY,
+        )?;
         log::info!(
             "{track}: {} sections ({} map tiles, {} shared), {} zones",
             sections.len(),
@@ -59,6 +65,7 @@ impl WorldIndex {
             track_zones,
             prop_bounds,
             sequences,
+            model_hierarchies,
             stream_file: format!("TRACKS/STREAM{track}.BUN"),
         })
     }

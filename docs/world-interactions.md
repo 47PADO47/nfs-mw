@@ -83,7 +83,7 @@ meshes and three carrier-car meshes, verify one load per trailer and parent
 cleanup, and compare complete fixed-tick body traces at 5–240 render FPS.
 Missing meshes leave parent parts visible. Original side-zone scaling does not
 release cargo. These CPU tests use installed meshes and bounds; an interactive
-collision/render comparison with the original game remains necessary. Explosion,
+collision/render comparison with the original game remains necessary. Trailer-local explosions,
 shock and load-loss feedback remain unimplemented. Detached-part cleanup uses the
 original separate offscreen timer and parent ownership.
 
@@ -111,3 +111,27 @@ within one tick; momentum transfer and body traces match at 5–240 render FPS.
 Travel includes primitive rotation. Box crossing tests also transfer momentum
 across grid cells and have identical traces at 5–240 FPS. The
 coincident-sphere contact point deliberately avoids the PC's residual-memory bug.
+
+## Pursuit-breaker integration
+
+Original scenery sequences now drive named fragment models, support-to-roof area
+messages, timed collapse events, explosion expansion and stop-cop areas. A
+collision with the installed tire-shop support brings down its roof; the beach
+scaffold releases four pieces; a gas-pump impact yields 31 surviving pieces
+through the support/roof chain after ten seconds. Full body/force, model-state,
+visibility and stop-event traces match at 5, 15, 30, 60, 120, 144 and 240 FPS and
+uneven frame durations. Both the local tile and permanently shared solids supply
+art in these CPU checks, matching the runtime's asset lookup. Parent unload
+removes all child physics and grid registrations. Synthetic cleanup checks
+cover parent release during a pass that already contains its child IDs.
+
+The player explosion target is independent of the non-player vehicle target,
+matching the measured PC bitmask. Waves apply a force only when outward point
+velocity is below expansion speed, once per target; faster departing bodies
+receive no additional acceleration. Stop-cop areas brake pursuing cops inside
+the sphere and include later entrants for their fixed-clock lifetime.
+
+This does not establish complete pursuit-breaker parity. Initial impact triggers,
+simple-physics behavior, explosion contact points/shell selection and damage,
+cinematics, authored effects/audio, score/wreck notifications and exact stop-cop
+AI behavior still have gaps. See [breaker provenance](provenance/pursuit-breakers.md).
