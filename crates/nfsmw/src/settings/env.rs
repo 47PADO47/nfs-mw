@@ -3,7 +3,9 @@
 use std::str::FromStr;
 
 use super::partial::{Partial, Percent, parse_bool};
-use super::{CarShading, Deadzone, GraphicsPreset, HudLayout, MinimapMode, RadioHudStyle, Sensitivity, Transmission};
+use super::{
+    CameraMode, CarShading, Deadzone, GraphicsPreset, HudLayout, MinimapMode, RadioHudStyle, Sensitivity, Transmission,
+};
 use super::{
     Monitor, PostAa, PostBloom, PostTonemap, RayTracingLevel, RenderScale, RendererKind, Resolution, SmokeQuality,
     UpscaleMode, UpscaleQuality, WindowMode,
@@ -38,6 +40,7 @@ pub const SPARK_STYLE: &str = "NFSMW_SPARK_STYLE";
 pub const SPEED_TRAILS: &str = "NFSMW_SPEED_TRAILS";
 pub const EXHAUST_FLAMES: &str = "NFSMW_EXHAUST_FLAMES";
 pub const TRANSMISSION: &str = "NFSMW_TRANSMISSION";
+pub const CAMERA_MODE: &str = "NFSMW_CAMERA_MODE";
 pub const MINIMAP: &str = "NFSMW_MINIMAP";
 pub const HUD_LAYOUT: &str = "NFSMW_HUD_LAYOUT";
 pub const RADIO_HUD: &str = "NFSMW_RADIO_HUD";
@@ -97,6 +100,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         speed_trails: value(&get, SPEED_TRAILS, parse_bool),
         exhaust_flames: value(&get, EXHAUST_FLAMES, parse_bool),
         transmission: value(&get, TRANSMISSION, Transmission::from_str),
+        camera_mode: value(&get, CAMERA_MODE, CameraMode::from_str),
         minimap: value(&get, MINIMAP, MinimapMode::from_str),
         hud_layout: value(&get, HUD_LAYOUT, HudLayout::from_str),
         radio_hud: value(&get, RADIO_HUD, RadioHudStyle::from_str),

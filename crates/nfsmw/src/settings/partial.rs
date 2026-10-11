@@ -3,7 +3,7 @@
 use blackbox_gfx::GraphicsApi;
 
 use super::{
-    CarShading, Deadzone, GraphicsPreset, HudLayout, MinimapMode, Monitor, PostAa, PostBloom, PostTonemap,
+    CameraMode, CarShading, Deadzone, GraphicsPreset, HudLayout, MinimapMode, Monitor, PostAa, PostBloom, PostTonemap,
     RadioHudStyle, RenderScale, RendererKind, Resolution, Sensitivity, SmokeQuality, Transmission, UpscaleMode,
     WindowMode,
 };
@@ -82,6 +82,7 @@ pub struct Partial {
     pub speed_trails: Option<bool>,
     pub exhaust_flames: Option<bool>,
     pub transmission: Option<Transmission>,
+    pub camera_mode: Option<CameraMode>,
     pub minimap: Option<MinimapMode>,
     pub hud_layout: Option<HudLayout>,
     pub radio_hud: Option<RadioHudStyle>,
@@ -143,6 +144,7 @@ impl Partial {
             speed_trails: self.speed_trails.or(lower.speed_trails),
             exhaust_flames: self.exhaust_flames.or(lower.exhaust_flames),
             transmission: self.transmission.or(lower.transmission),
+            camera_mode: self.camera_mode.or(lower.camera_mode),
             minimap: self.minimap.or(lower.minimap),
             hud_layout: self.hud_layout.or(lower.hud_layout),
             radio_hud: self.radio_hud.or(lower.radio_hud),

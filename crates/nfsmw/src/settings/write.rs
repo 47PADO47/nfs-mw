@@ -117,6 +117,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.smoke_quality {
         put("smoke_quality", Value::String(v.to_string()));
     }
+    if let Some(v) = changes.camera_mode {
+        put("camera_mode", Value::String(v.to_string()));
+    }
     if let Some(v) = changes.transmission {
         put("transmission", Value::String(v.to_string()));
     }

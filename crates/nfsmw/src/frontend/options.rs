@@ -14,8 +14,8 @@ use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
 use crate::settings::availability;
 use crate::settings::{
-    HudLayout, MinimapMode, Partial, Percent, RadioHudStyle, RenderScale, Settings, SmokeQuality, Transmission,
-    UpscaleMode, WindowMode,
+    CameraMode, HudLayout, MinimapMode, Partial, Percent, RadioHudStyle, RenderScale, Settings, SmokeQuality,
+    Transmission, UpscaleMode, WindowMode,
 };
 use blackbox_gfx::Capabilities;
 
@@ -39,6 +39,7 @@ pub enum Setting {
     ExhaustFlames,
     SmokeQuality,
     Transmission,
+    Camera,
     Input(InputSetting),
     Post(PostSetting),
     Graphics(GraphicsSetting),
@@ -228,6 +229,12 @@ impl Setting {
                 Transmission::Automatic => LABEL_AUTOMATIC,
                 Transmission::Manual => LABEL_MANUAL,
             }),
+            Setting::Camera => Data::Text(
+                match s.camera_mode {
+                    CameraMode::Chase => "Chase",
+                }
+                .to_owned(),
+            ),
             Setting::MaxFps => Data::Text(match s.max_fps.to_string().as_str() {
                 "unlocked" => "Unlocked".to_owned(),
                 fps => format!("{fps} FPS"),
@@ -415,6 +422,11 @@ impl Setting {
             Setting::Transmission => {
                 s.transmission = s.transmission.other();
                 changed.transmission = Some(s.transmission);
+            }
+            Setting::Camera => {
+                let at = CameraMode::ALL.iter().position(|m| *m == s.camera_mode).unwrap_or(0);
+                s.camera_mode = CameraMode::ALL[cycle(at, CameraMode::ALL.len(), forward)];
+                changed.camera_mode = Some(s.camera_mode);
             }
             Setting::MaxFps => {
                 let at = FRAME_LIMITS.iter().position(|l| MaxFps::from_str(l).is_ok_and(|m| m == s.max_fps));

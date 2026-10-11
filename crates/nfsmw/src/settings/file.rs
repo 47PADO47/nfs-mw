@@ -9,7 +9,9 @@ use std::str::FromStr;
 use toml::{Table, Value};
 
 use super::partial::{Partial, Percent};
-use super::{CarShading, Deadzone, GraphicsPreset, HudLayout, MinimapMode, RadioHudStyle, Sensitivity, Transmission};
+use super::{
+    CameraMode, CarShading, Deadzone, GraphicsPreset, HudLayout, MinimapMode, RadioHudStyle, Sensitivity, Transmission,
+};
 use super::{
     Monitor, PostAa, PostBloom, PostTonemap, RayTracingLevel, RenderScale, RendererKind, Resolution, SmokeQuality,
     UpscaleMode, UpscaleQuality, WindowMode,
@@ -92,6 +94,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         speed_trails: field(&table, origin, "speed_trails", boolean),
         exhaust_flames: field(&table, origin, "exhaust_flames", boolean),
         transmission: field(&table, origin, "transmission", |v| Transmission::from_str(text_of(v)?)),
+        camera_mode: field(&table, origin, "camera_mode", |v| CameraMode::from_str(text_of(v)?)),
         minimap: field(&table, origin, "minimap", |v| MinimapMode::from_str(text_of(v)?)),
         hud_layout: field(&table, origin, "hud_layout", |v| HudLayout::from_str(text_of(v)?)),
         radio_hud: field(&table, origin, "radio_hud", |v| RadioHudStyle::from_str(text_of(v)?)),

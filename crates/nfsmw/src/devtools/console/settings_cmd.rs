@@ -6,12 +6,12 @@ use std::str::FromStr;
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
 use crate::settings::{
-    HudLayout, MinimapMode, Percent, PostAa, PostBloom, PostTonemap, RadioHudStyle, RenderScale, RendererKind,
-    Settings, Transmission, parse_bool,
+    CameraMode, HudLayout, MinimapMode, Percent, PostAa, PostBloom, PostTonemap, RadioHudStyle, RenderScale,
+    RendererKind, Settings, Transmission, parse_bool,
 };
 
 /// Settings the console can show.
-const KEYS: [&str; 52] = [
+const KEYS: [&str; 53] = [
     "deadzone_mode",
     "steering_deadzone",
     "camera_deadzone",
@@ -46,6 +46,7 @@ const KEYS: [&str; 52] = [
     "speed_trails",
     "exhaust_flames",
     "transmission",
+    "camera_mode",
     "minimap",
     "hud_layout",
     "radio_hud",
@@ -103,6 +104,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "speed_trails" => on_off(settings.speed_trails).to_owned(),
         "exhaust_flames" => on_off(settings.exhaust_flames).to_owned(),
         "transmission" => settings.transmission.to_string(),
+        "camera_mode" => settings.camera_mode.to_string(),
         "minimap" => settings.minimap.to_string(),
         "hud_layout" | "hud-layout" => settings.hud_layout.to_string(),
         "radio_hud" | "radio-hud" => settings.radio_hud.to_string(),
@@ -171,6 +173,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "speed_trails" => settings.speed_trails = parse_bool(value)?,
         "exhaust_flames" => settings.exhaust_flames = parse_bool(value)?,
         "transmission" => settings.transmission = Transmission::from_str(value)?,
+        "camera_mode" => settings.camera_mode = CameraMode::from_str(value)?,
         "minimap" => settings.minimap = MinimapMode::from_str(value)?,
         "hud_layout" | "hud-layout" => settings.hud_layout = HudLayout::from_str(value)?,
         "radio_hud" | "radio-hud" => settings.radio_hud = RadioHudStyle::from_str(value)?,
@@ -238,6 +241,7 @@ fn syntax(key: &str) -> Option<&'static str> {
         "smoke_quality" => "<standard|high>",
         "spark_style" => "<original-pc|restored-experimental>",
         "transmission" => "<automatic|manual>",
+        "camera_mode" => "<chase>",
         "minimap" => "<fixed|rotating|off>",
         "hud_layout" | "hud-layout" => "<pc|classic|xbox360>",
         "radio_hud" | "radio-hud" => "<ea_trax|custom>",

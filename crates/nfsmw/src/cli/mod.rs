@@ -351,6 +351,9 @@ pub struct ViewArgs {
     /// [env NFSMW_TRANSMISSION; config `transmission`; default automatic].
     #[arg(long, value_name = "automatic|manual")]
     pub transmission: Option<crate::settings::Transmission>,
+    /// Which camera gameplay uses: chase [env NFSMW_CAMERA_MODE; config `camera_mode`; default chase].
+    #[arg(long, value_name = "chase")]
+    pub camera_mode: Option<crate::settings::CameraMode>,
     /// Numbers for a HUD that has no car behind it: "speed_kmh,rpm,max_rpm,gear[,nos_percent[,boost_psi]]" (for
     /// reference screenshots; a nitrous or boost value shows that gauge).
     #[arg(long, hide = true, value_name = "SPEED,RPM,MAX_RPM,GEAR[,NOS[,PSI]]", value_parser = parse_hud_demo, allow_hyphen_values = true)]
@@ -405,6 +408,7 @@ impl ViewArgs {
             speed_trails: switch(self.speed_trails, self.no_speed_trails),
             exhaust_flames: switch(self.exhaust_flames, self.no_exhaust_flames),
             transmission: self.transmission,
+            camera_mode: self.camera_mode,
             post_tonemap: self.post_tonemap,
             post_bloom: self.post_bloom,
             post_aa: self.post_aa,

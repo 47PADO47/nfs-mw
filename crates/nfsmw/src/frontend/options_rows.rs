@@ -57,6 +57,7 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
             row(Setting::HudLayout, Title::Text("HUD Layout")),
             row(Setting::RadioHud, Title::Text("Radio HUD")),
             row(Setting::Minimap, Title::Text("Minimap")),
+            row(Setting::Camera, Title::Text("Camera")),
         ],
         Category::Controls => {
             InputSetting::ALL.into_iter().map(|setting| row(Setting::Input(setting), setting.title())).collect()

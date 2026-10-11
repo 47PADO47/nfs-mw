@@ -7,6 +7,7 @@
 mod names;
 
 pub mod availability;
+mod camera_mode;
 mod car_shading;
 #[cfg(test)]
 mod car_shading_tests;
@@ -66,6 +67,7 @@ use blackbox_gfx::GraphicsApi;
 
 pub use blackbox_gfx::AoQuality;
 pub use blackbox_gfx::ReflectionQuality;
+pub use camera_mode::CameraMode;
 pub use car_shading::CarShading;
 pub use controls::{Controls, Deadzone, DeadzoneMode, Sensitivity};
 pub use graphics_preset::GraphicsPreset;
@@ -134,6 +136,7 @@ pub struct Settings {
     pub exhaust_flames: bool,
     /// Who changes gear: the box (default) or the player.
     pub transmission: Transmission,
+    pub camera_mode: CameraMode,
     /// How the HUD's minimap is shown: fixed (default), rotating or off.
     pub minimap: MinimapMode,
     /// Placement and scale of the in-game HUD.
@@ -212,6 +215,7 @@ impl From<Partial> for Settings {
             speed_trails: p.speed_trails.unwrap_or(false),
             exhaust_flames: p.exhaust_flames.unwrap_or(true),
             transmission: p.transmission.unwrap_or_default(),
+            camera_mode: p.camera_mode.unwrap_or_default(),
             minimap: p.minimap.unwrap_or_default(),
             hud_layout: p.hud_layout.unwrap_or_default(),
             radio_hud: p.radio_hud.unwrap_or_default(),
