@@ -194,7 +194,7 @@ fn syntax(key: &str) -> Option<&'static str> {
         "smoke_quality" => "<standard|high>",
         "spark_style" => "<original-pc|restored-experimental>",
         "transmission" => "<automatic|manual>",
-        "camera_mode" => "<chase|dynamic-fov>",
+        "camera_mode" => "<chase|dynamic-fov|bumper|hood|close|far|superfar|drift|pursuit>",
         "minimap" => "<fixed|rotating|off>",
         "hud_layout" | "hud-layout" => "<pc|classic|xbox360>",
         "radio_hud" | "radio-hud" => "<ea_trax|custom>",

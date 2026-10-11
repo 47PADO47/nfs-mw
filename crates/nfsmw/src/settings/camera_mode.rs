@@ -12,11 +12,29 @@ pub enum CameraMode {
     Chase,
     /// Behind the car, with the view widening as it speeds up.
     DynamicFov,
+    /// The original game's views, from its `camerainfo` data (docs/specs/camera-views.md).
+    Bumper,
+    Hood,
+    Close,
+    Far,
+    SuperFar,
+    Drift,
+    Pursuit,
 }
 
 impl CameraMode {
     /// Every choosable camera, in the order the options row cycles through them.
-    pub const ALL: [Self; 2] = [Self::Chase, Self::DynamicFov];
+    pub const ALL: [Self; 9] = [
+        Self::Chase,
+        Self::DynamicFov,
+        Self::Bumper,
+        Self::Hood,
+        Self::Close,
+        Self::Far,
+        Self::SuperFar,
+        Self::Drift,
+        Self::Pursuit,
+    ];
 
     /// The next choosable camera after this one, wrapping round.
     pub fn next(self) -> Self {
@@ -32,7 +50,16 @@ impl FromStr for CameraMode {
         match s.trim().to_ascii_lowercase().as_str() {
             "chase" => Ok(Self::Chase),
             "dynamic-fov" | "dynamic_fov" => Ok(Self::DynamicFov),
-            _ => Err(format!("expected chase or dynamic-fov, got {s:?}")),
+            "bumper" => Ok(Self::Bumper),
+            "hood" => Ok(Self::Hood),
+            "close" => Ok(Self::Close),
+            "far" => Ok(Self::Far),
+            "superfar" | "super-far" | "super_far" => Ok(Self::SuperFar),
+            "drift" => Ok(Self::Drift),
+            "pursuit" => Ok(Self::Pursuit),
+            _ => Err(format!(
+                "expected chase, dynamic-fov, bumper, hood, close, far, superfar, drift or pursuit, got {s:?}"
+            )),
         }
     }
 }
@@ -42,6 +69,13 @@ impl fmt::Display for CameraMode {
         f.write_str(match self {
             Self::Chase => "chase",
             Self::DynamicFov => "dynamic-fov",
+            Self::Bumper => "bumper",
+            Self::Hood => "hood",
+            Self::Close => "close",
+            Self::Far => "far",
+            Self::SuperFar => "superfar",
+            Self::Drift => "drift",
+            Self::Pursuit => "pursuit",
         })
     }
 }
@@ -55,12 +89,23 @@ mod tests {
         assert_eq!("chase".parse(), Ok(CameraMode::Chase));
         assert_eq!(" Chase ".parse(), Ok(CameraMode::Chase));
         assert_eq!("dynamic_fov".parse(), Ok(CameraMode::DynamicFov));
+        assert_eq!("super-far".parse(), Ok(CameraMode::SuperFar));
         assert!("orbit".parse::<CameraMode>().is_err());
         for mode in CameraMode::ALL {
             assert_eq!(mode.to_string().parse(), Ok(mode));
         }
         assert_eq!(CameraMode::default(), CameraMode::Chase);
-        assert_eq!(CameraMode::Chase.next(), CameraMode::DynamicFov);
-        assert_eq!(CameraMode::DynamicFov.next(), CameraMode::Chase);
+    }
+
+    #[test]
+    fn the_options_row_cycles_through_every_camera_and_wraps() {
+        let mut mode = CameraMode::default();
+        let mut seen = vec![mode];
+        for _ in 1..CameraMode::ALL.len() {
+            mode = mode.next();
+            seen.push(mode);
+        }
+        assert_eq!(seen, CameraMode::ALL);
+        assert_eq!(mode.next(), CameraMode::Chase);
     }
 }

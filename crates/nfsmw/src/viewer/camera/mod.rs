@@ -7,6 +7,7 @@ mod depth_tests;
 mod dynamic_fov;
 mod fly;
 mod orbit;
+pub mod original;
 
 pub use chase::{ChaseCamera, ChaseView, Followed};
 pub use cut::CameraCut;
