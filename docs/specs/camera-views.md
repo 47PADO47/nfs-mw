@@ -86,7 +86,13 @@ For a car at its interpolated pose (model origin `position`, heading `heading` f
 1. The speed fraction is `t = clamp(|v| / 60, 0, 1)`. Sixty metres a second is the chase camera's full-speed value;
    the game's own curve is unconfirmed.
 2. Each value is `rest + (speed - rest) * t` for the pairs above.
-3. The eye is `position + (cos heading, sin heading, 0) * LAG + (0, 0, HEIGHT)`.
+3. The eye is `position + (cos heading, sin heading, 0) * (LAG + start) + (0, 0, HEIGHT)`, where `start` is 0 for a
+   negative `LAG` and the car's half length (the physics box's `half_extents().1`, about 2.2 m) for a positive `LAG`.
+   The positive case is inferred from screenshots: with `start` at 0 the bumper and hood views sat inside the car's
+   body (the dashboard and windscreen filled the picture). Starting them at the front bumper put both outside the
+   body, with the bumper low and the hood higher. The far, close and superfar views (negative `LAG`) show the car
+   from behind, as expected. The bumper's `LAG` of 0.5 m and the hood's 0.24 m are measured from the front bumper,
+   which the game's own data does not state.
 4. The view points along `(cos heading, sin heading, -sin ANGLE)`, so a positive `ANGLE` looks down.
 5. The lens uses the FOV, the near plane of 0.3 m and the window's aspect ratio.
 
@@ -110,8 +116,8 @@ code (`FUN_00467d70` to `FUN_00467e30`), which pass each view's name hash to the
 ## Unconfirmed
 
 - **Speed curve.** The values are interpolated linearly with a 60 m/s scale. The game may use another curve or scale.
-- **Sign of `LAG`.** Negative values are taken to be behind the car. The bumper's positive value is then in front of
-  the origin, which needs checking in the game.
+- **Where positive `LAG` starts.** Positive values are taken to start at the front bumper (see step 3). This is
+  inferred from screenshots of the bumper and hood views, not from the game's code. Check it against the original.
 - **Field of view.** Taken as vertical degrees. The game may use horizontal degrees.
 - **`ANGLE` sign.** Taken as a pitch down for positive values. The values are small, so this is worth checking.
 - **`STIFFNESS`.** Not used. Its use in the game (probably how firmly the view follows the car) is not known.
