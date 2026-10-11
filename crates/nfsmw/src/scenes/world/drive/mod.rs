@@ -22,7 +22,7 @@ mod trace;
 mod visual_tires;
 pub(super) mod walls;
 
-use crate::scenes::world::car_lights::CarLights;
+use crate::scenes::world::car_lights::{CarLights, LampState};
 use blackbox_collision::CollisionWorld;
 use glam::{Mat4, Vec3};
 use nfsmw_data::car::physics::CarPhysics;
@@ -172,8 +172,9 @@ impl Drive {
     /// Heading of the car, radians from +X.
     /// The car's lamps, with the car frame and brake pedal they are drawn with (copied, so the caller can hold
     /// the effect layer meanwhile).
-    pub fn lamp_source(&self) -> (CarLights, Mat4, f32) {
-        (self.rig.lights().clone(), self.pose().transform(), self.brake_lamp)
+    pub fn lamp_source(&self) -> (CarLights, Mat4, LampState) {
+        let reverse = self.sim.as_ref().is_some_and(|s| s.telemetry().gear < 0);
+        (self.rig.lights().clone(), self.pose().transform(), LampState { brake: self.brake_lamp, reverse })
     }
 
     pub fn heading(&self) -> f32 {
