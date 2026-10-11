@@ -16,17 +16,17 @@
 pub mod camera;
 pub mod car;
 mod files;
-pub mod game;
 pub mod fog;
+pub mod game;
 pub mod minimap;
 pub mod music;
 pub mod pursuit;
 pub mod sound;
 pub mod speech;
+pub mod time_of_day;
 pub mod traffic;
 pub mod vehicle_effects;
 pub mod visual_treatment;
 pub mod world;
-pub mod time_of_day;
 
 pub use files::read_unwrapped;
