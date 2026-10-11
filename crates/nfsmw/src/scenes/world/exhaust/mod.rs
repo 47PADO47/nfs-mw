@@ -148,6 +148,7 @@ impl Active {
         self.intensity = 0.0;
     }
 
+    #[cfg(test)]
     fn clear(&mut self) {
         self.disconnect();
         for emitter in self.lanes.iter_mut().flat_map(|l| l.emitters.iter_mut()) {
@@ -260,6 +261,7 @@ impl ExhaustFlames {
     }
 
     /// Remove every particle and forget the events.
+    #[cfg(test)]
     pub fn clear(&mut self) {
         self.pops = 0;
         if let State::Ready(active) = &mut self.state {
