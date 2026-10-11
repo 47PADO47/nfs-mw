@@ -115,7 +115,12 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
         .chain(offered(RendererSetting::UpscaleQuality))
         .chain(PostSetting::ALL.into_iter().map(|setting| row(Setting::Post(setting), setting.title())))
         .chain(offered(RendererSetting::RayTracing))
-        .chain(GraphicsSetting::ALL.into_iter().map(|setting| row(Setting::Graphics(setting), setting.title())))
+        .chain(
+            GraphicsSetting::ALL
+                .into_iter()
+                .filter(|s| s.shown(caps))
+                .map(|setting| row(Setting::Graphics(setting), setting.title())),
+        )
         .chain(offered(RendererSetting::Renderer))
         .chain(offered(RendererSetting::GraphicsApi))
         .collect(),
@@ -168,6 +173,7 @@ fn percent_of(s: &Settings, setting: Setting) -> Option<Percent> {
         Setting::MusicVolume => s.music_volume,
         Setting::SpeechVolume => s.speech_volume,
         Setting::UpscaleSharpness => s.upscale_sharpness,
+        Setting::Graphics(GraphicsSetting::AoIntensity) => s.ao_intensity,
         _ => return None,
     })
 }
@@ -183,6 +189,7 @@ impl Setting {
         match self {
             // With vsync on the display paces the frames, so the limiter is greyed out.
             Setting::MaxFps => !s.vsync,
+            Setting::Graphics(setting) => setting.enabled(s),
             _ => true,
         }
     }
@@ -281,6 +288,7 @@ impl Setting {
     /// The config key of a setting a renderer may not be able to run.
     fn key(self) -> Option<&'static str> {
         match self {
+            Setting::Graphics(GraphicsSetting::AmbientOcclusion) => Some("ao"),
             Setting::Upscaler => Some("upscaler"),
             Setting::Post(PostSetting::Aa) => Some("post_aa"),
             Setting::Post(PostSetting::Tonemap) => Some("post_tonemap"),

@@ -8,9 +8,24 @@ fn native() -> Capabilities {
         upscalers: UpscalerSet::of(&[Upscaler::Off, Upscaler::Bilinear, Upscaler::Fsr1]),
         tonemaps: TonemapSet::all(),
         bloom: true,
+        ambient_occlusion: true,
         render_scale: Capabilities::full_render_scale(),
         ..Capabilities::baseline("blackbox", GraphicsApi::Vulkan)
     }
+}
+
+#[test]
+fn unsupported_ao_is_disabled_with_a_reason_and_supported_ao_is_preserved() {
+    let wanted = GraphicsSettings {
+        ao: crate::AoSettings { quality: crate::AoQuality::High, compare: true, ..Default::default() },
+        ..Default::default()
+    };
+    assert_eq!(resolve(&wanted, &native()).effective, wanted);
+    let caps = Capabilities { ambient_occlusion: false, ..native() };
+    let resolved = resolve(&wanted, &caps);
+    assert_eq!(resolved.effective.ao.quality, crate::AoQuality::Off);
+    assert_eq!(resolved.effective.ao.intensity, wanted.ao.intensity);
+    assert!(resolved.downgrade_of(Setting::AmbientOcclusion).is_some());
 }
 
 fn everything() -> Capabilities {

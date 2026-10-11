@@ -19,6 +19,7 @@ impl Settings {
             post_tonemap: tonemap(run.post.tonemap),
             post_bloom: if run.post.bloom_intensity > 0.0 { self.post_bloom } else { PostBloom::Off },
             ray_tracing: ray_tracing(run.ray_tracing),
+            ao: run.ao.quality,
             ..*self
         }
     }

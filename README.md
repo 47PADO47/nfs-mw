@@ -92,6 +92,9 @@ Xbox menus use bundled Kenney CC0 prompts that follow the live bindings and acti
 A accepts, B goes back, Menu/Start pauses or resumes, and View/Back quits from the main menu.
 Idle stick drift and console hotkeys do not switch the prompts. Losing the active controller pauses driving.
 
+Video options include opt-in [experimental ambient occlusion](docs/ambient-occlusion.md), with quality,
+intensity and a live split comparison. Start with `nfsmw play --ao medium`; it needs only base-game assets.
+
 ## Repository
 
 | Path | Contents |

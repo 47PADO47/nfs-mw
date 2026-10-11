@@ -135,6 +135,15 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.post_bloom {
         put("post_bloom", Value::String(v.to_string()));
     }
+    if let Some(v) = changes.ao {
+        put("ao", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.ao_intensity {
+        put("ao_intensity", Value::Integer(i64::from(v.0)));
+    }
+    if let Some(v) = changes.ao_compare {
+        put("ao_compare", Value::Boolean(v));
+    }
     if let Some(v) = changes.post_aa {
         put("post_aa", Value::String(v.to_string()));
     }
@@ -200,6 +209,24 @@ mod tests {
             ..Partial::default()
         };
         assert_eq!(file::parse(&merge("", &changes).unwrap(), "test"), changes);
+    }
+
+    #[test]
+    fn ambient_occlusion_round_trips_and_higher_layers_override_it() {
+        use crate::settings::AoQuality;
+        let changes = Partial {
+            ao: Some(AoQuality::High),
+            ao_intensity: Some(Percent(60)),
+            ao_compare: Some(true),
+            ..Default::default()
+        };
+        let text = merge("future_option = 42", &changes).unwrap();
+        assert!(text.contains("future_option = 42"));
+        let saved = file::parse(&text, "test");
+        assert_eq!(saved, changes);
+        let override_layer = Partial { ao: Some(AoQuality::Off), ao_compare: Some(false), ..Default::default() };
+        let s = super::super::Settings::from(override_layer.or(saved));
+        assert_eq!((s.ao, s.ao_intensity, s.ao_compare), (AoQuality::Off, Percent(60), false));
     }
 
     #[test]

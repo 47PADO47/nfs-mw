@@ -75,6 +75,11 @@ pub fn resolve(requested: &GraphicsSettings, caps: &Capabilities) -> Resolved {
     let mut out = Resolved { effective: requested, downgrades: Vec::new(), notes: Vec::new() };
     tonemap(&mut out, caps);
     bloom(&mut out, caps);
+    if out.effective.ao.active() && !caps.ambient_occlusion {
+        let asked = out.effective.ao.quality;
+        out.effective.ao.quality = crate::AoQuality::Off;
+        out.downgrade(Setting::AmbientOcclusion, asked, "off", unsupported(caps));
+    }
     upscaler(&mut out, caps, requested.upscaler);
     antialiasing(&mut out, caps);
     render_scale(&mut out, caps, &requested);

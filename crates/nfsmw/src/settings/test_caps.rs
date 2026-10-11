@@ -30,6 +30,7 @@ pub fn native() -> Capabilities {
         upscalers: UpscalerSet::of(&[Upscaler::Off, Upscaler::Bilinear, Upscaler::Fsr1]),
         tonemaps: TonemapSet::all(),
         bloom: true,
+        ambient_occlusion: true,
         ray_tracing: RtSupport::None,
         render_scale: Capabilities::full_render_scale(),
         restart_required: RestartSet::empty(),

@@ -19,6 +19,7 @@ pub fn capabilities(api: GraphicsApi, compressed_bc: bool) -> Capabilities {
         upscalers: UpscalerSet::of(&[Upscaler::Off, Upscaler::Bilinear, Upscaler::Fsr1]),
         tonemaps: TonemapSet::of(&[Tonemap::Off, Tonemap::Aces]),
         bloom: true,
+        ambient_occlusion: false,
         ray_tracing: RtSupport::None,
         // Rendering above the surface size is not wired up.
         render_scale: (MIN_RENDER_SCALE, 1.0),

@@ -46,7 +46,7 @@ fn the_other_rows_are_always_enabled() {
     for s in [settings(true), settings(false)] {
         for category in [Category::Audio, Category::Video, Category::Gameplay] {
             for row in rows(category, &crate::settings::test_caps::native()) {
-                if row.setting != Setting::MaxFps {
+                if !matches!(row.setting, Setting::MaxFps | Setting::Graphics(_)) {
                     assert!(row.setting.enabled(&s), "{:?}", row.setting);
                 }
             }
