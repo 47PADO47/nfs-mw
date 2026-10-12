@@ -323,3 +323,8 @@ needs a fresh analysis of the `NFS13.exe` car-sim class, which is not yet done.
 `0xD6FD9EA1`, `EAXTrafficCar` `0x88AAA41B`, none present). So the `BlewByCop` gate and the `CarSoundConn` chain traced in
 `speed.exe` are specific to that build. The running `NFS13.exe` does not use them, which means the runtime check as planned
 (reading `+0x228` of those sims) cannot identify the role-2 car in this build.
+
+**The game with the car-sound system is `speed.exe` on the Desktop (read).** `C:\Users\PADO\Desktop\Need for Speed Most Wanted\speed.exe`
+(6,049,792 bytes) contains the plain strings `CarSoundConn` and `BlewByCop`, which the install's `NFS13.exe` does not. This is the
+build the Ghidra analysis covers. The runtime check therefore must attach to this `speed.exe`, not to `NFS13.exe` (PID 23832,
+which is the wrong build for the `BlewByCop` gate).
