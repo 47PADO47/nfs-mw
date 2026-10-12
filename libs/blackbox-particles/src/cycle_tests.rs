@@ -58,5 +58,5 @@ fn a_start_delay_holds_back_the_first_birth() {
     for _ in 0..10 {
         emitter.step(0.05, &frame);
     }
-    assert!(emitter.len() > 0, "after the delay");
+    assert!(!emitter.is_empty(), "after the delay");
 }
