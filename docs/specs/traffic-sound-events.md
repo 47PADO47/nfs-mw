@@ -363,6 +363,12 @@ published table does not contain that route, so it is removed. The invented `1 +
   repeats five times at offsets `0x40`, `0x5C`, `0x78`, `0x94` and `0xB0` (stride `0x1C`), which reads as an array of one
   sub-record type. The key is **not** the `vlt_hash` of the name (`0x2D83EBD7`), nor CRC-32 (`0x1C100881`) or FNV-1/1a of the
   name, so the Genesys key function is still unidentified and the field names cannot yet be recovered.
+- **Hash candidates rejected for the Genesys key (read).** Tested against `0x2EDB25E7` (type) and `0xB92285F2` (sub-record),
+  on `Genesys.Gen.VehicleSound`, `VehicleSound`, `Genesys.Gen.WorldSound`, `BurstTyre`, `PlayerWithinVfx`, `WorldSound`,
+  `MiscSound` and `Genesys.Gen.MixerChannel` in the original, lower and upper case: `vlt_hash`; Jenkins lookup2 with initial
+  values `0`, `0xABCDEF00`, `0x9E3779B9`, `0xFFFFFFFF`, `0x12345678`, `0xDEADBEEF`; Jenkins lookup3 `hashlittle` with
+  initial values `0`, `0xABCDEF00`, `0x9E3779B9`; CRC-32; FNV-1; FNV-1a. None matches. The key is not a plain hash of the
+  type name in these forms.
 - **`bnd2` header (read).** `GAMELOGIC/GAMEPLAY.BNDL` (216,879 B): `0x00` `bnd2`; `0x04` u32 `0x00010005`; `0x08` u32 file
   size `0x34F2F`; `0x0C` u32 `0x118` (table offset); `0x10` u32 `0x70`; `0x14` u32 `0x4F30`; `0x18`/`0x1C`/`0x20` u32
   `0x34F2F` (end offsets); `0x24` u32 **9** (entry count); `0x34` container name `GAMEDATA`. The table at `0x118` is 0x20-byte
