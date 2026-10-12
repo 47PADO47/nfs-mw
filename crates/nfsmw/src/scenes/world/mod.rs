@@ -16,6 +16,7 @@ mod keys;
 mod lighting;
 mod object_geometry;
 mod props;
+mod rear_view;
 mod reflections;
 mod residency;
 mod resident;
@@ -92,6 +93,8 @@ pub struct WorldScene {
     wait_for_load: bool,
     fog_distance: f32,
     visible: Vec<Instance>,
+    /// What the rear-view mirror sees: the same world, without the player's car.
+    rear_visible: Vec<Instance>,
     colour_treatment: Option<blackbox_gfx::ColourTreatment>,
     /// The seven original gameplay views, from the install's `camerainfo` data.
     camera_views: Option<nfsmw_data::camera::Views>,
@@ -207,6 +210,7 @@ impl WorldScene {
             wait_for_load: options.wait_for_load,
             fog_distance: options.fog_distance,
             visible: Vec::new(),
+            rear_visible: Vec::new(),
             colour_treatment,
             camera_views,
             gain_map,
@@ -406,6 +410,10 @@ impl Scene for WorldScene {
             camera_cut,
         };
         (params, &self.visible)
+    }
+
+    fn rear_view(&mut self, aspect: f32) -> Option<(FrameParams, &[Instance])> {
+        self.rear_frame(aspect)
     }
 
     fn ready(&self) -> bool {
