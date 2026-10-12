@@ -218,3 +218,9 @@ sound instance. The self-ID signature therefore does not identify the sound-inst
 inflated streams of `VEH_1085007_HI`. The densest candidate, `0x101AC` (624 bytes, all three keys), names a
 `Genesys.Gen.VehicleDamage…` type, so it is a schema. The shape therefore selects schemas as well as any instance data, and
 it is not a discriminator for the instance streams.
+
+**Schema cross-check (read).** The non-schema filter (drop streams naming `Genesys.Gen`) left one candidate in
+`VEH_1085007_HI`, the 464-byte stream at `0x133AB`. Its name is split across the words (`Genesys`, `VehicleSound`,
+`AnimationBehaviour`), so the filter missed it, and the stream is also a schema. With the name-split case included, **no
+non-schema sub-record candidate remains in this bundle.** So the per-car instances are not in `VEH_1085007_HI`, and the
+sound instances must be in a different bundle (not yet located).
