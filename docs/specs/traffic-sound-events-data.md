@@ -490,3 +490,8 @@ Slot 18 onward is text, so the vtable ends at slot 17. The callers of slot 0 are
 `17`) within 0x100 bytes of a `[reg+0x28]` load found 23 candidate sites. The four in the sound-code range (`0x570B9F`, `0x578158`,
 `0x57EE0C`, `0x57FC01`) disassemble from mid-instruction offsets, so they are false matches, not real calls. A reliable classification
 needs instruction-boundary disassembly of the whole binary, which this scan does not provide. The caller of slot 0 is still unidentified.
+
+**Full-binary indirect-call pass (read).** A linear disassembly of the whole code section (instruction boundaries real) finds only eight
+plain indirect calls of the form `call dword ptr [reg]`. Most of them are in the `0x00F0F7xx`..`0x00F1873A` region. The one that fits a
+vtable slot-0 call is at `0x00F0FAB3`: it follows `mov eax, [ecx]` and calls `[eax]`, which is slot 0 when `ecx` is the sound object. This is
+a **candidate, not verified**: the owner of `ecx` at `0x00F0FAB3` is not yet confirmed to be the object at `0x00F9A3C4`.
