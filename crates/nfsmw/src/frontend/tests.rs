@@ -230,6 +230,21 @@ fn the_quit_button_of_the_main_menu_quits() {
 }
 
 #[test]
+fn a_click_focuses_the_visible_button_under_the_pointer() {
+    use glam::Vec3;
+    let Some(mut h) = Harness::open(screen::MAIN_MENU, Args::default()) else { return };
+    h.wait(1.0);
+    let tree = h.screens.trees().pop().unwrap();
+    let visible = |b: &blackbox_feng::ObjectRef| tree.nodes.iter().any(|n| n.index == b.index && n.visible);
+    let button = h.screens.top_buttons().into_iter().find(visible).expect("the main menu shows a button");
+    let node = tree.nodes.iter().find(|n| n.index == button.index).unwrap();
+    let centre = node.world.transform_point3(Vec3::ZERO).truncate();
+    assert!(h.screens.focus_button_at(centre), "the centre of a visible button is on it");
+    assert_eq!(h.screens.focused_button(), Some(button));
+    assert!(!h.screens.focus_button_at(glam::Vec2::new(-600.0, 0.0)), "far off every button");
+}
+
+#[test]
 fn options_and_back_move_between_the_main_menu_and_the_categories() {
     let Some(mut h) = Harness::open(screen::MAIN_MENU, Args::default()) else { return };
     h.wait(1.0);

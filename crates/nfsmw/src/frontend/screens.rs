@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use blackbox_feng::{Outgoing, PackageCommandKind, PackageId, Runtime, UiTree};
+use blackbox_feng::{ObjectRef, Outgoing, PackageCommandKind, PackageId, Runtime, UiTree};
 use glam::Vec2;
 
 use super::factory;
@@ -190,6 +190,16 @@ impl Screens {
         let Some(button) = self.runtime.button_at(top.id, point) else { return false };
         self.runtime.focus_button(button);
         true
+    }
+
+    /// The buttons of the top screen, in file order.
+    pub fn top_buttons(&self) -> Vec<ObjectRef> {
+        self.stack.last().map_or_else(Vec::new, |top| self.runtime.buttons(top.id))
+    }
+
+    /// The focused button of the top screen.
+    pub fn focused_button(&self) -> Option<ObjectRef> {
+        self.runtime.current_button(self.stack.last()?.id)
     }
 }
 
