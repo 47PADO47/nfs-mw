@@ -297,6 +297,11 @@ published table does not contain that route, so it is removed. The invented `1 +
   `FUN_004640F0` is the name lookup (string compare with `FUN_00460DD0`). Its callers are `FUN_0073A920` (creates the named
   pools `Main Pool`, `Track Streaming`, `Audio Memory Pool`, `Speech Cache Memory Pool`, `FEngMemoryPool`) and `FUN_00500D80`.
   So the `CarSoundConn` pool is likely the `Audio Memory Pool`, but the slot-10 caller is still not located.
+- Classification of the 170 `+0x28` indirect calls (read): they fall in 130 distinct enclosing functions. Of the 95 that
+  are functions with a `+0x28` call and a named body, **none** references the pool-id global `DAT_008EE558`, the
+  descriptor `0x00896800`, the name-hash global `0x00913BD8`, or the pool tables `DAT_0090DF10`/`DAT_0090DFF0`/`DAT_0090DE50`.
+  So the getter is invoked on an object reached through a pointer, not through those globals. The next step is the
+  callers of the functions that take that object, which are not yet traced.
 - So the only 0x250 allocation is the named node in `FUN_007992F0`. Its caller `FUN_0054CCF0` (vtable `0x0089B334`) has
   no direct caller. The same vtable is set by `FUN_005142F0`, a base constructor that calls `FUN_00572360`. So the node's
   owner is a UI-side class shared through the named table, not the car sim. The 0x250 path does not lead to the car
