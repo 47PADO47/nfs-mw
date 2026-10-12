@@ -213,3 +213,8 @@ for the file's own ID as a little-endian `u32` gives: `VEH_122818_TR` 0 streams;
 streams each. The 336-byte stream at `0x499F1` of `VEH_1085007_LO` (ID at byte 92) is a table of bundle pointers
 (`0x108E4F`, `0x108E50`, `0x108E79`, ...), so the ID there is incidental, and that stream is a resource table, not the
 sound instance. The self-ID signature therefore does not identify the sound-instance stream either.
+
+**Sub-record shape signature (read).** The schema shape `(key, 0, value, 0)` with a `VehicleSoundSet` key appears in 53
+inflated streams of `VEH_1085007_HI`. The densest candidate, `0x101AC` (624 bytes, all three keys), names a
+`Genesys.Gen.VehicleDamage…` type, so it is a schema. The shape therefore selects schemas as well as any instance data, and
+it is not a discriminator for the instance streams.
