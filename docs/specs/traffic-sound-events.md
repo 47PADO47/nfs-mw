@@ -201,6 +201,14 @@ published table does not contain that route, so it is removed. The invented `1 +
     data and was not read. `FUN_004EB8E0` also appends to `+0x20` on demand, by ID.
   - Consequence: if the nitrous object is on the list, its update (slot 9) runs each frame and its slot `+0x30` is a `RET`.
     The boost interpolator is then never evaluated, so the boost ramp is never applied (see the list-walker entry above).
+- The record-to-factory link is read, not inferred. The record table head `DAT_009148BC` is zero in the file: records are
+  registered at run time by `FUN_004F2760` (calls `FUN_004EA670(&DAT_009148BC, descriptor)` per record). The nitrous
+  descriptor is at `0x008EFB6C`: class ID `(word0 >> 4) & 0xFFF` = **5**, type `(word0 >> 16) & 0xFF` = 2, name pointer
+  `0x008981D8` (`CARSFX_Nitrous`), factory `0x004F8050` (`FUN_004F8050`).
+- Admission to the owner's list (`FUN_004E5770`, `FUN_004F2BB0`): the nitrous object (ID 5) is created for mask bit 5
+  (`0x20`) at the owner's `+0x28`, and it passes the type test when the owner's `+0x0C` is 3, 4, 5 or 12, or equals 2.
+  So the membership condition is: mask `+0x28` has bit `0x20` set, and owner `+0x0C` is 3, 4, 5, 12 or 2. Both values come
+  from car-sound data and were not read yet.
 - Hash check: `vlt_hash("nos")` is `B1669F64` (the class `nos`), so the probe hashing is correct.
 - The sound-instance queue is `DAT_00912270` (posted by `FUN_004e52c0`, consumed by `FUN_004ce960`), with instances in
   a table at `0x00912858` (stride `0x68`). The per-instance processor is `FUN_004d0a60` and `FUN_004cfac0`, and the
