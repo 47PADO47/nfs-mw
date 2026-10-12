@@ -351,6 +351,13 @@ published table does not contain that route, so it is removed. The invented `1 +
   `Genesys.Gen.*`) game-data resources: gameplay triggers, nitrous and heat parameters, pursuit and cop behaviour. The
   readable strings contain no car type name and no car-sound role. So the `bnd2` gameplay entries do not hold the car
   descriptors. The role-2 mapping still needs the record that the car-sound constructor reads, which is not located.
+- **Other bundles (read).** Strings of every `GAMELOGIC` bundle: no car type or car-sound role (`HL_31208.BNDL` has 3,362
+  strings, none car-related; `GAMEMODES.BNDL` has `CAR_ONLY` and `RequestTrafficRestart`). Strings of the `SOUND` bundles:
+  `GLOBAL.BNDL` (24,578 strings) and `METALCAR.BNDL` (19,698) are Genesys sound data. They define the type
+  **`Genesys.Gen.VehicleSound`** (with `.BurstTyre` and `.PlayerWithinVfx`), next to `WorldSound`, `MiscSound`,
+  `CollisionSoundSet` and `MixerChannel`. The type names are present but the field names are not stored as adjacent strings,
+  so the field schema is binary and not yet decoded. The per-car `VehicleSound` instances, which would hold the role,
+  are the next thing to read.
 - **`bnd2` header (read).** `GAMELOGIC/GAMEPLAY.BNDL` (216,879 B): `0x00` `bnd2`; `0x04` u32 `0x00010005`; `0x08` u32 file
   size `0x34F2F`; `0x0C` u32 `0x118` (table offset); `0x10` u32 `0x70`; `0x14` u32 `0x4F30`; `0x18`/`0x1C`/`0x20` u32
   `0x34F2F` (end offsets); `0x24` u32 **9** (entry count); `0x34` container name `GAMEDATA`. The table at `0x118` is 0x20-byte
