@@ -1,5 +1,6 @@
 //! Upload world effects against the active camera, independent of UI/HUD rendering.
 
+use crate::scenes::world::sign_lamps;
 use blackbox_gfx::{EffectLayer, RenderBackend};
 
 use super::super::{View, WorldScene};
@@ -18,13 +19,18 @@ impl WorldScene {
         };
         let (pose, bounds) = drive.spark_body();
         drive.vehicle_effects.set_body(pose, bounds);
-        let (lamps, lamp_frame, brake) = drive.lamp_source();
+        let (lamps, lamp_frame, lamp_state) = drive.lamp_source();
         let layer = drive.effects.build(position, forward);
         drive.vehicle_effects.geometry(position, forward, matches!(self.view, View::Chase), &mut layer.streaks);
         drive.vehicle_effects.glows(position, forward, &mut layer.glows);
-        lamps.glows(lamp_frame, brake, position, forward, &mut layer.glows);
+        lamps.glows(lamp_frame, lamp_state, position, forward, &mut layer.glows);
+        lamps.beams(lamp_frame, &mut layer.streaks);
+        let signs = self.residency.placed().filter_map(|p| p.curve_lamp);
+        sign_lamps::glows(signs, drive.lamp_time, position, forward, &mut layer.glows);
         if let Some(traffic) = &self.traffic {
             traffic.car_glows(position, forward, &mut layer.glows);
+            traffic.car_beams(&mut layer.streaks);
+            traffic.cop_particles(position, forward, &mut layer.textured);
             traffic.lamp_glows(position, forward, &mut layer.glows);
         }
         drive.vehicle_effects.textured(forward, &self.residency.shared.materials, &mut layer.textured);

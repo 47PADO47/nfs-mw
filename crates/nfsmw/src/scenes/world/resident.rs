@@ -31,6 +31,8 @@ pub struct Placed {
     /// Original physics pose and stable identity, when this instance has a spawner.
     pub spawner: Option<blackbox_scenery::ObjectSpawner>,
     pub parts: Option<Arc<super::props::scenery::ModelParts>>,
+    /// The flashing lamp on a curve warning sign: its place in the world, or `None` for other objects.
+    pub curve_lamp: Option<glam::Vec3>,
 }
 
 #[cfg(test)]
@@ -50,6 +52,7 @@ impl Placed {
             key: InstanceKey::TRANSIENT,
             spawner: None,
             parts: None,
+            curve_lamp: None,
         }
     }
 }
@@ -175,6 +178,7 @@ pub fn place(
                 prop_id: 0,
                 key: InstanceKey::TRANSIENT,
                 spawner: spawner.copied(),
+                curve_lamp: super::sign_lamps::lamp_point(&info.name, Aabb::new(inst.bbox_min, inst.bbox_max)),
                 parts: props.hierarchy(info.hierarchy_hash).map(|hierarchy| {
                     let meshes: std::collections::BTreeMap<_, _> = hierarchy
                         .nodes

@@ -6,6 +6,7 @@ mod car;
 mod collide;
 mod commands;
 mod cop;
+mod cop_lights;
 mod data;
 mod hitch;
 mod lamps;
@@ -19,6 +20,8 @@ mod simulation;
 mod spawn;
 mod stop;
 mod traffic;
+#[allow(dead_code)] // the hooks in collide.rs and cop.rs are not wired yet (docs/specs/traffic-sound-events.md §4)
+mod traffic_events;
 mod trailer;
 
 use std::collections::HashSet;
@@ -31,7 +34,7 @@ use nfsmw_data::car::physics::CarPhysics;
 
 use super::drive::CarRig;
 use car::AiCar;
-pub(super) use commands::{pursuit_command, traffic_command};
+pub(super) use commands::{pursuit_command, speeding_pursuit, traffic_command};
 pub use cop::CopCar;
 pub use lamps::LampMeshes;
 use manager::TypeTimers;
@@ -63,6 +66,10 @@ pub struct TrafficModel {
     pub physics: CarPhysics,
     /// The trailer a semi tractor pulls.
     pub trailer: Option<Box<TrafficModel>>,
+    /// A cop model's light bars (`None` for traffic).
+    pub cop_lights: Option<Rc<cop_lights::CopLightSet>>,
+    /// The `pvehicle` `HornType`: the sound number of its horn in `IG_GLOBAL/TRAFFIC_MB.abk`.
+    pub horn: u32,
 }
 
 pub struct TrafficWorld {
@@ -98,6 +105,17 @@ pub struct TrafficWorld {
     /// Simulated seconds since the last debug status line.
     log_timer: f32,
     breaker_areas: Vec<super::props::scenery::StopArea>,
+    /// The thresholds of the sound and pursuit rules (`traffic_events.rs`).
+    events: traffic_events::EventTuning,
+    /// Sounds the cars asked for since the scene last took them (`collide.rs`).
+    sounds: Vec<crate::audio::traffic::TrafficSound>,
+    /// Seconds left in which a hit by the player counts as recent.
+    hit_timer: f32,
+    /// The player's speed (m/s) and whether a patrol cop can see the player, as of the last collision step.
+    player_speed: f32,
+    /// The player's physics position as of the last collision step (`None` when not driving).
+    player_position: Option<Vec3>,
+    seen_by_patrol: bool,
 }
 
 impl TrafficWorld {
@@ -137,7 +155,40 @@ impl TrafficWorld {
             warmup_left: 0.0,
             log_timer: 0.0,
             breaker_areas: Vec::new(),
+            events: traffic_events::EventTuning::default(),
+            sounds: Vec::new(),
+            hit_timer: 0.0,
+            player_speed: 0.0,
+            player_position: None,
+            seen_by_patrol: false,
         }
+    }
+
+    /// The thresholds the sound and pursuit rules use.
+    pub fn events(&self) -> traffic_events::EventTuning {
+        self.events
+    }
+
+    /// Whether a chase is on.
+    pub fn is_pursuing(&self) -> bool {
+        self.pursuit.is_some()
+    }
+
+    /// What a patrol cop knows about the player at `heat`, as of the last collision step.
+    pub fn sighting(&self, heat: u32) -> traffic_events::Sighting {
+        traffic_events::Sighting {
+            heat,
+            player_speed: self.player_speed,
+            seen: self.seen_by_patrol,
+            recent_hit: self.hit_timer > 0.0,
+            // No 911 calls in the rewrite yet.
+            has_911: false,
+        }
+    }
+
+    /// The sounds the cars asked for since the last call.
+    pub fn take_sounds(&mut self) -> Vec<crate::audio::traffic::TrafficSound> {
+        std::mem::take(&mut self.sounds)
     }
 
     pub fn add_model(&mut self, model: TrafficModel) {
@@ -165,14 +216,6 @@ impl TrafficWorld {
         self.warmup_left <= 0.0 || !self.has_work()
     }
 
-    /// Appends the glows of the lamps of every car and of the signal lamps within sight.
-    pub fn car_glows(&self, camera: Vec3, forward: Vec3, out: &mut Vec<EffectVertex>) {
-        for car in &self.cars {
-            car.glows(self.alpha, camera, forward, out);
-        }
-    }
-
-    /// Appends the instances of every car.
     /// The cops for the minimap (`docs/specs/hud-cop-blips.md`). A pursuit is on while the world has one.
     pub fn map_blips(&self, out: &mut Vec<crate::hud::MapBlip>) {
         let pursuing = self.pursuit.is_some();
@@ -185,6 +228,27 @@ impl TrafficWorld {
                 heading: [forward.x, forward.y],
                 active: pursuing,
             });
+        }
+    }
+
+    /// Appends the sprites of the cop light bars of every car.
+    pub fn cop_particles(&self, camera: Vec3, forward: Vec3, out: &mut Vec<blackbox_render::TexturedEffect>) {
+        for car in &self.cars {
+            car.cop_particles(camera, forward, out);
+        }
+    }
+
+    /// Appends the headlight beams of every car.
+    pub fn car_beams(&self, out: &mut Vec<EffectVertex>) {
+        for car in &self.cars {
+            car.beams(self.alpha, out);
+        }
+    }
+
+    /// Appends the glows of the lamps of every car and of the signal lamps within sight.
+    pub fn car_glows(&self, camera: Vec3, forward: Vec3, out: &mut Vec<EffectVertex>) {
+        for car in &self.cars {
+            car.glows(self.alpha, self.signal_time, camera, forward, out);
         }
     }
 

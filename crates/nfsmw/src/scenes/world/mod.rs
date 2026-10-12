@@ -3,6 +3,7 @@
 mod ai;
 mod camera_choice;
 mod car_lights;
+mod car_loader;
 mod cargo;
 mod commands;
 mod drive;
@@ -14,6 +15,7 @@ mod ground;
 mod hud;
 mod keys;
 mod lighting;
+use car_loader::load_car;
 mod object_geometry;
 mod props;
 mod rear_view;
@@ -21,6 +23,7 @@ mod reflections;
 mod residency;
 mod resident;
 mod road;
+mod sign_lamps;
 mod simulation;
 mod space;
 mod start;
@@ -96,19 +99,19 @@ pub struct WorldScene {
     /// What the rear-view mirror sees: the same world, without the player's car.
     rear_visible: Vec<Instance>,
     colour_treatment: Option<blackbox_gfx::ColourTreatment>,
+    time_of_day: Option<nfsmw_data::time_of_day::Presets>,
     /// The seven original gameplay views, from the install's `camerainfo` data.
     camera_views: Option<nfsmw_data::camera::Views>,
     gain_map: Option<blackbox_gfx::RgbaImage>,
     reflection_faces: [Vec<Instance>; 6],
-    time_of_day: Option<nfsmw_data::time_of_day::Presets>,
     reflection_last: Option<reflections::CaptureStamp>,
     /// Seconds since the scene started, for texture animations.
     clock: f32,
+    sun: sun::Sun,
     /// The aspect ratio the physics camera uses (set by each frame).
     physics_aspect: f32,
     /// The one fixed timeline of the player, the traffic and the object contacts (see `update_simulation`).
     physics_clock: drive::FixedClock,
-    sun: sun::Sun,
     view: View,
     pending_car: Option<PendingCar>,
     drive: Option<Drive>,
@@ -150,28 +153,17 @@ const CLEAR: [f32; 3] = [0.55, 0.63, 0.72];
 /// The car `drive` picks when none was named.
 pub const DEFAULT_CAR: &str = "BMWM3GTR";
 
-/// Load a car for driving (highest detail, stock parts). `name` may be a unique prefix.
-fn load_car(dir: &GameDir, name: &str) -> Result<(String, CarModel)> {
-    let cars = nfsmw_data::car::list(dir);
-    let folder = nfsmw_data::car::pick_folder(&cars, name)
-        .with_context(|| format!("no car {name:?}, or several start with it (`nfsmw list-cars`)"))?
-        .to_owned();
-    let options = nfsmw_data::car::LoadOptions { lod: 'A', all_parts: false, preset: None };
-    let model = nfsmw_data::car::load(dir, &folder, &options)?;
-    Ok((folder, model))
-}
-
 impl WorldScene {
     pub fn open(dir: &GameDir, options: Options) -> Result<Self> {
         let index = WorldIndex::open(dir, DEFAULT_TRACK)?;
         let physics = PhysicsData::load(dir)?;
         let colour_treatment = nfsmw_data::visual_treatment::midday(physics.database());
+        let time_of_day = nfsmw_data::time_of_day::load(physics.database());
         let camera_views = nfsmw_data::camera::load(physics.database());
         if colour_treatment.is_none() {
             log::warn!("midday visual treatment is missing or invalid; grading disabled");
         }
         let globals = load_global_textures(dir)?;
-        let time_of_day = nfsmw_data::time_of_day::load(physics.database());
         let gain_map = nfsmw_data::visual_treatment::gain_map(&globals.textures);
         let mut traffic = index.road_network.clone().map(ai::TrafficWorld::new);
         if let Some(world) = traffic.as_mut() {
@@ -212,19 +204,19 @@ impl WorldScene {
             visible: Vec::new(),
             rear_visible: Vec::new(),
             colour_treatment,
+            time_of_day,
             camera_views,
             gain_map,
             reflection_faces: std::array::from_fn(|_| Vec::new()),
             reflection_last: None,
             clock: 0.0,
+            sun: sun::Sun::new(),
             physics_aspect: 16.0 / 9.0,
-            time_of_day,
             physics_clock: drive::FixedClock::default(),
             view: if pending_car.is_some() { View::Chase } else { View::Fly },
             last_car: pending_car.as_ref().map_or_else(|| DEFAULT_CAR.to_owned(), |c| c.name.clone()),
             pending_car,
             drive: None,
-            sun: sun::Sun::new(),
             traffic,
             map_blips: Vec::new(),
             traffic_setting: crate::settings::TrafficSettings {
@@ -292,6 +284,7 @@ impl Scene for WorldScene {
         let [x, y] = self.focus();
         self.residency.update(renderer, x, y);
         self.clock += dt;
+        self.sun.advance(dt);
         self.residency.animate(renderer, self.clock);
         if self.view == View::Fly {
             self.camera.update(input, dt);
@@ -473,6 +466,10 @@ impl Scene for WorldScene {
 
     fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
         self.drive.as_mut()?.car_sound()
+    }
+
+    fn take_traffic_sounds(&mut self) -> Vec<crate::audio::traffic::TrafficSound> {
+        self.traffic.as_mut().map(|t| t.take_sounds()).unwrap_or_default()
     }
 
     fn readout(&self, level: crate::devtools::ShowReadout) -> Option<String> {

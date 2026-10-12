@@ -2,7 +2,7 @@
 
 use blackbox_gfx::RenderBackend;
 
-use super::{View, WorldScene, drive::STEP};
+use super::{View, WorldScene, ai, drive::STEP};
 use crate::input::ActionState;
 use crate::viewer::camera::Camera;
 
@@ -35,6 +35,14 @@ impl WorldScene {
         let look = self.drive.as_mut().map_or((0.0, 0.0), |drive| drive.take_look(steps));
         for _ in 0..steps {
             self.physics_step(driving, look);
+        }
+        // The speeding trigger reads the sighting the collision step just made, checked against the walls.
+        if self.drive.is_some() {
+            let (collision, _) = self.residency.world_parts();
+            if let Some(traffic) = self.traffic.as_mut() {
+                traffic.update_sight(&super::drive::walls::world_cast(collision));
+            }
+            ai::speeding_pursuit(self, renderer);
         }
         // A loading pause holds the last displayed phase instead of jumping ahead and rewinding.
         let alpha = match batch || dt == 0.0 {
