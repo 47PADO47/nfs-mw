@@ -235,15 +235,18 @@ published table does not contain that route, so it is removed. The invented `1 +
   passes `*(record+0x0C)`). The caller of `FUN_004CAEF0` is `FUN_004CC790`, which builds a 0x28-byte car sub-object from a
   record. `FUN_004CC790` has no direct caller and no table entry in any initialised memory (a dword scan finds none), so its
   path is not reached by a static call. The role values for the player's car are therefore not established by this path.
-  Other writers of `+0x228` exist (`0x56C624`, `0x5E4BDD`, `0x6C3FC6`, `0x6D4EB6`, `0x704F28`, `0x705015`, `0x71CC1A`,
-  `0x720345`, `0x791F30`, `0x793BA1`, `0x79F507`, `0x864862`) and were not read.
-- Other writers of `+0x228` (read): `FUN_0056C5E0` zeroes an object and sets `+0x200` to 2 (not `+0x228`). `FUN_00704E70`
-  writes a game timestamp (`DAT_00925AE8`) to `+0x228` of a different object, the one that also holds `+0x130`, `+0x134`
-  and `+0x1D4`. `FUN_005E4B10` zeroes `+0x228` of a 0x250-byte object. `FUN_006D4DC0` binds a post-processing parameter
-  handle to `+0x228`. None of these is the car sound sim, so the role at `+0x228` for the car sim comes only from the
-  constructor `FUN_004C9CB0`, whose caller path (`FUN_004CC790`) has no static entry point. The state-2 gate therefore
-  depends on a path not reached statically. Writers at `0x6C3FC6`, `0x704F28` (the same function as `FUN_00704E70`'s
-  second store), `0x71CC1A`, `0x720345`, `0x791F30`, `0x793BA1`, `0x79F507` and `0x864862` were not read.
+- Other writers of `+0x228` (all read): `FUN_0056C5E0` zeroes an object and sets `+0x200` to 2 (not `+0x228`).
+  `FUN_00704E70` writes a game timestamp (`DAT_00925AE8`) to `+0x228` of a different object. `FUN_005E4B10` zeroes
+  `+0x228` of a 0x250-byte object. `FUN_006D4DC0` binds a post-processing parameter handle to `+0x228`.
+  `FUN_006C3D20` is a shader-parameter name constructor (unrelated). `FUN_0071CB10` and `FUN_007200C0` are game-object
+  constructors that store the timestamp `DAT_00925AE8` at `+0x228`; `FUN_007200C0` builds the event-driven object
+  that names "AIRacerBusted", "Infraction" and "SoundAI". `FUN_00791F10`, `FUN_00793B90` and `FUN_0079F450` reset
+  `+0x228` to 0 (reset routines). `FUN_00864850` is a property setter that writes its argument to `+0x228` only when the
+  key is the fourcc `'time'` (`0x74696D65`), so this field is a timestamp in every store read so far.
+- Conclusion for the gate: no writer of `+0x228` stores a role value on the car sound sim. Every reachable store is a
+  timestamp or a zero reset. The state-2 comparison therefore cannot be a role on this object, and the gate's meaning
+  stays **[unconfirmed]**. The `FUN_004C9CB0` role argument remains the only role source, and its caller path is not
+  reached statically.
 - Hash check: `vlt_hash("nos")` is `B1669F64` (the class `nos`), so the probe hashing is correct.
 - The sound-instance queue is `DAT_00912270` (posted by `FUN_004e52c0`, consumed by `FUN_004ce960`), with instances in
   a table at `0x00912858` (stride `0x68`). The per-instance processor is `FUN_004d0a60` and `FUN_004cfac0`, and the
