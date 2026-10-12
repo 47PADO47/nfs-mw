@@ -372,3 +372,12 @@ and for each of four literal tags compares 2-byte chunks of the row's name at `[
 `0xFAD4F8`, `0xFAD504`, `0xFAD510` and `0xFAD51C`, are `Fron`, `Fron`, `Rear`, `Rear`: front and rear position tags. The routine
 writes the matched index into a 4-by-4 grid. So this is a front and rear wheel or axle position matcher, not the car-type table.
 The car-type table is therefore not in the slot-pair path, and the nested objects under `0x57C120` hold part and wheel data.
+
+**`NFS13.exe` car-sound pass, step 7 (read): the car-type table is `VehicleListEntry`.** The sound and vehicle strings of
+`NFS13.exe` include the record type `VehicleListEntry` (VA `0xF9B0AC`, repeated per field), with the fields `Vehicle ID`,
+`Livery Vehicle ID`, `Vehicle Name`, `Vehicle Description`, `Vehicle Name Image`, `Vehicle Short Name`, `Vehicle Image`,
+`Vehicle Power`, `Vehicle Power RPM`, `Vehicle Year`, `Vehicle Tier`, and `Car Select Sound` (VA `0xF9B3F0`, with `CarSelectSound`
+at `0xF9B404`). The list type is `VehicleListResourceType` (VA `0xF9B5E0`). The per-car list I decoded earlier
+(`VEHICLES/VEHICLELIST.BNDL`, 112-byte records keyed by vehicle ID) is this table. So the car's sound set is the `Car Select Sound`
+field of its `VehicleListEntry`, and the role value is read from that record. Next: locate the field offset of `Car Select Sound`
+within the entry, and check it against the role-2 value.
