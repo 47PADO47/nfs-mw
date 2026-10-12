@@ -22,6 +22,8 @@ pub mod post;
 mod post_tests;
 pub mod probe;
 #[cfg(test)]
+mod shadow_tests;
+#[cfg(test)]
 mod stress_tests;
 pub mod systems;
 pub mod texture;

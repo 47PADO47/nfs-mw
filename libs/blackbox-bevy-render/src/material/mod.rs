@@ -4,7 +4,10 @@
 //! `docs/bevy-backend.md`, "Colour" and "Draw order", for why the shader works in gamma space and what
 //! Bevy's sorted blending changes.
 
+pub(crate) mod color;
 pub mod glossy;
+mod shadow;
+use shadow::{shader as shadow_shader, specialize as specialize_shadow};
 
 use bevy_asset::{Asset, Handle};
 use bevy_image::Image;
@@ -77,6 +80,8 @@ pub struct Params {
     pub fog_range: Vec4,
     /// The direction the light travels, in Bevy's axes.
     pub light_dir: Vec4,
+    /// x = use the ACES reference-colour bridge.
+    pub tone_map: Vec4,
 }
 
 impl Params {
@@ -89,6 +94,14 @@ impl Params {
             fog_color: Vec4::new(r, g, b, 1.0),
             fog_range: Vec4::new(start, end, 0.0, 0.0),
             light_dir: Vec4::new(light.x, light.y, light.z, 0.0),
+            tone_map: Vec4::ZERO,
+        }
+    }
+
+    pub fn with_tonemap(frame: &FrameParams, tonemap: blackbox_gfx::Tonemap) -> Self {
+        Self {
+            tone_map: Vec4::new(u8::from(tonemap == blackbox_gfx::Tonemap::Aces).into(), 0.0, 0.0, 0.0),
+            ..Self::of(frame)
         }
     }
 }
@@ -99,6 +112,7 @@ impl Default for Params {
             fog_color: Vec4::new(0.0, 0.0, 0.0, 1.0),
             fog_range: Vec4::new(f32::MAX, f32::MAX, 0.0, 0.0),
             light_dir: Vec4::new(0.0, -1.0, 0.0, 0.0),
+            tone_map: Vec4::ZERO,
         }
     }
 }
@@ -150,6 +164,7 @@ const ADDITIVE: BlendState = BlendState {
 /// Loads the material's shader (embedded in this crate) and keeps it loaded. Called once by the plugin.
 pub(crate) fn load_shaders(app: &mut bevy_app::App) {
     bevy_shader::load_shader_library!(app, "blackbox.wesl");
+    bevy_shader::load_shader_library!(app, "shadow.wesl");
 }
 
 fn shader() -> ShaderRef {
@@ -181,7 +196,15 @@ impl Material for BlackboxMaterial {
     }
 
     fn enable_shadows() -> bool {
-        false
+        true
+    }
+
+    fn prepass_vertex_shader() -> ShaderRef {
+        shadow_shader()
+    }
+
+    fn prepass_fragment_shader() -> ShaderRef {
+        shadow_shader()
     }
 
     fn specialize(
@@ -191,6 +214,9 @@ impl Material for BlackboxMaterial {
         key: MaterialPipelineKey<Self>,
     ) -> Result<(), SpecializedMeshPipelineError> {
         let BlackboxKey { shading, blend } = key.bind_group_data;
+        if descriptor.vertex.shader_defs.iter().any(|def| def == &"PREPASS_PIPELINE".into()) {
+            return specialize_shadow(descriptor, layout, shading, blend);
+        }
         descriptor.vertex.buffers = vec![layout.0.get_layout(&[
             Mesh::ATTRIBUTE_POSITION.at_shader_location(0),
             Mesh::ATTRIBUTE_NORMAL.at_shader_location(1),
@@ -202,6 +228,9 @@ impl Material for BlackboxMaterial {
 
         let fragment = descriptor.fragment.as_mut().expect("the material has a fragment shader");
         let defs = &mut fragment.shader_defs;
+        if shading != ShadingKind::Sky && blend != BlendKind::Additive {
+            defs.push("RECEIVE_SHADOWS".into());
+        }
         if shading == ShadingKind::Glossy {
             defs.push("GLOSSY".into());
         } else if shading != ShadingKind::Lit {

@@ -6,7 +6,7 @@
 //! listed are hidden at once and despawned after [`GRACE_FRAMES`], so tiles that flicker at the edge of view
 //! do not churn entities.
 
-use bevy_camera::visibility::{NoFrustumCulling, Visibility};
+use bevy_camera::visibility::Visibility;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::system::{Commands, Query};
 use bevy_math::Affine3A;
@@ -66,7 +66,7 @@ pub fn sync(
 
 /// Log the per-frame batch split (every 120 frames) so we know whether batches are material- or mesh-driven.
 fn log_batch_stats(state: &WorldState, epoch: u64) {
-    if !epoch.is_multiple_of(120) {
+    if !log::log_enabled!(log::Level::Debug) || !epoch.is_multiple_of(120) {
         return;
     }
     use std::collections::{HashMap, HashSet};
@@ -130,17 +130,22 @@ fn spawn(
 ) {
     let mesh = instance.mesh.raw();
     let transform = global_transform(instance.transform);
-    let ranges: Vec<_> =
-        state.meshes[&mesh].ranges.iter().map(|r| (r.mesh.clone(), r.texture, r.blend, r.shading, r.glossy)).collect();
+    let ranges: Vec<_> = state.meshes[&mesh]
+        .ranges
+        .iter()
+        .map(|r| (r.mesh.clone(), r.aabb, r.texture, r.blend, r.shading, r.glossy))
+        .collect();
     let mut entities: Vec<Entity> = Vec::with_capacity(ranges.len());
     let mut batches = Vec::with_capacity(ranges.len());
-    for (bevy_mesh, texture, blend, shading, glossy) in ranges {
+    for (bevy_mesh, aabb, texture, blend, shading, glossy) in ranges {
         let material = material_for(state, stores, texture, blend, shading, glossy);
         let mesh_id = bevy_mesh.id();
         let material_id = material.id();
-        let entity = commands
-            .spawn((Mesh3d(bevy_mesh), MeshMaterial3d(material), transform, Visibility::Visible, NoFrustumCulling))
-            .id();
+        let entity =
+            commands.spawn((Mesh3d(bevy_mesh), MeshMaterial3d(material), aabb, transform, Visibility::Visible)).id();
+        if !super::shadows::casts(shading, blend) {
+            commands.entity(entity).insert(bevy_light::NotShadowCaster);
+        }
         entities.push(entity);
         batches.push((mesh_id, material_id));
     }

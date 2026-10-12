@@ -5,6 +5,13 @@ Licensed under MIT OR Apache-2.0 (see LICENSE-MIT and LICENSE-APACHE).
 This repository contains no game assets and no decompiled code. The game is read
 at runtime from the user's own installation.
 
+Bevy 0.20 — MIT OR Apache-2.0 (dependency).
+  https://github.com/bevyengine/bevy
+  Dynamic soft shadows use Bevy's cascaded shadow maps and Gaussian PCF filtering.
+  The ACES SDR-reference calibration derives the inverse neutral RRT/ODT fit from
+  Bevy's tone mapping shader; no upstream shader is copied.
+  See docs/soft-shadows.md.
+
 Controller prompt artwork: Kenney Input Prompts 1.5A — CC0 1.0 Universal.
   https://kenney.nl/assets/input-prompts
   https://creativecommons.org/publicdomain/zero/1.0/
