@@ -18,7 +18,8 @@ mod effective;
 mod env;
 #[cfg(test)]
 mod exhaust_flames_tests;
-mod file;
+mod extra_options;
+pub(crate) mod file;
 mod graphics;
 mod graphics_preset;
 #[cfg(test)]
@@ -63,7 +64,7 @@ mod upscale_tests;
 mod vehicle_effects_tests;
 mod wheel;
 mod window;
-mod write;
+pub(crate) mod write;
 
 use blackbox_gfx::GraphicsApi;
 
@@ -99,6 +100,20 @@ pub const DEFAULT_COP_SHARE: Percent = Percent(5);
 /// Whether traffic stops at red lights by default. The original game has no traffic lights: this is a rewrite
 /// extension, on because it was asked for.
 pub const DEFAULT_TRAFFIC_LIGHTS: bool = true;
+/// Rain on every track, as the Extra Options `[Weather] AlwaysRain` switch (off by default).
+pub const DEFAULT_ALWAYS_RAIN: bool = false;
+/// The rain amount: 100 percent is the original amount.
+pub const DEFAULT_RAIN_AMOUNT: Percent = Percent(100);
+/// The game speed multiplier: 1 is the original speed.
+pub const DEFAULT_GAME_SPEED: f32 = 1.0;
+/// The world's animation speed: 1 is the original rate (Extra Options `WorldAnimationSpeed`).
+pub const DEFAULT_ANIMATION_SPEED: f32 = 1.0;
+/// The car model scale: 1 is the original size (Extra Options `CarScale`, visual only).
+pub const DEFAULT_CAR_SCALE: f32 = 1.0;
+/// The rev limiter is on by default, as in the original.
+pub const DEFAULT_NO_REV_LIMITER: bool = false;
+/// The HUD stays up while looking back (Extra Options `ShowHUDOnLookBack`); off hides it, as the original does.
+pub const DEFAULT_SHOW_HUD_ON_LOOK_BACK: bool = false;
 
 /// The settings the world's traffic follows, told to the scene together so that it can see any of them change.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -118,7 +133,7 @@ impl From<&Settings> for TrafficSettings {
 }
 
 /// The resolved settings.
-#[derive(bevy_ecs::resource::Resource, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(bevy_ecs::resource::Resource, Debug, Clone, Copy, PartialEq)]
 pub struct Settings {
     pub controls: Controls,
     pub backend: GraphicsApi,
@@ -156,6 +171,20 @@ pub struct Settings {
     pub cop_share: Percent,
     /// Whether the traffic obeys traffic lights at junctions (a rewrite extension: the original has none).
     pub traffic_lights: bool,
+    /// Rain on every track (Extra Options `AlwaysRain`).
+    pub always_rain: bool,
+    /// The rain amount, 0 to 100 percent of the original.
+    pub rain_amount: Percent,
+    /// The physics clock multiplier, 0.1 to 4 (Extra Options `GameSpeed`).
+    pub game_speed: f32,
+    /// The world animation rate, 0.1 to 4 (Extra Options `WorldAnimationSpeed`).
+    pub animation_speed: f32,
+    /// The player car's model scale, 0.25 to 4 (Extra Options `CarScale`).
+    pub car_scale: f32,
+    /// The HUD stays up while looking back (Extra Options `ShowHUDOnLookBack`).
+    pub show_hud_on_look_back: bool,
+    /// Lift the engine's rev limiter (Extra Options `NoRevLimiter`).
+    pub no_rev_limiter: bool,
     /// Optional smoke presentation quality; standard retains the default cost and look.
     pub smoke_quality: SmokeQuality,
     /// Draw bounded, ground-following tire marks.
@@ -199,6 +228,8 @@ pub struct Settings {
     pub ray_tracing: RayTracingLevel,
     /// Gamepad button codes of a steering wheel's shift paddles (`GamepadButton::Other`), if the player gave them.
     pub paddle_up: Option<u32>,
+    /// The headlights hotkey as a Windows virtual-key code (Extra Options `[Hotkeys] Headlights`); `None` is H.
+    pub headlights_key: Option<u32>,
     pub paddle_down: Option<u32>,
     /// A clutch pedal is bound (the `clutch` action): while it is pressed the clutch stays open. Off by default.
     pub manual_clutch: bool,
@@ -245,6 +276,13 @@ impl From<Partial> for Settings {
             car_shading: p.car_shading.unwrap_or_default(),
             traffic: p.traffic.unwrap_or(DEFAULT_TRAFFIC),
             cop_share: p.cop_share.unwrap_or(DEFAULT_COP_SHARE),
+            always_rain: p.always_rain.unwrap_or(DEFAULT_ALWAYS_RAIN),
+            rain_amount: p.rain_amount.unwrap_or(DEFAULT_RAIN_AMOUNT),
+            game_speed: p.game_speed.unwrap_or(DEFAULT_GAME_SPEED).clamp(0.1, 4.0),
+            animation_speed: p.animation_speed.unwrap_or(DEFAULT_ANIMATION_SPEED).clamp(0.1, 4.0),
+            show_hud_on_look_back: p.show_hud_on_look_back.unwrap_or(DEFAULT_SHOW_HUD_ON_LOOK_BACK),
+            car_scale: p.car_scale.unwrap_or(DEFAULT_CAR_SCALE).clamp(0.25, 4.0),
+            no_rev_limiter: p.no_rev_limiter.unwrap_or(DEFAULT_NO_REV_LIMITER),
             traffic_lights: p.traffic_lights.unwrap_or(DEFAULT_TRAFFIC_LIGHTS),
             smoke_quality: p.smoke_quality.unwrap_or_default(),
             skid_marks: p.skid_marks.unwrap_or(true),
@@ -272,6 +310,7 @@ impl From<Partial> for Settings {
             upscale_quality: p.upscale_quality.unwrap_or_default(),
             ray_tracing: p.ray_tracing.unwrap_or_default(),
             paddle_up: p.paddle_up,
+            headlights_key: p.headlights_key,
             paddle_down: p.paddle_down,
             manual_clutch: p.manual_clutch.unwrap_or(false),
             h_shifter: p.h_shifter.unwrap_or(false),
@@ -302,9 +341,13 @@ impl Settings {
     /// Resolve the settings: `cli` over the process environment over the config file over the defaults.
     pub fn load(cli: Partial) -> Self {
         let env = env::read(|name| std::env::var(name).ok());
-        let file =
-            game_install::config_file_path(&nfsmw_data::game::SPEC).map(|path| file::read(&path)).unwrap_or_default();
-        cli.or(env).or(file).into()
+        let config = game_install::config_file_path(&nfsmw_data::game::SPEC);
+        let file = config.as_deref().map(file::read).unwrap_or_default();
+        let extra = match config.as_deref().and_then(std::path::Path::parent) {
+            Some(dir) => extra_options::read(&dir.join(extra_options::FILE_NAME)),
+            None => Partial::default(),
+        };
+        cli.or(env).or(file).or(extra).into()
     }
 }
 
@@ -392,5 +435,41 @@ mod tests {
         assert_eq!((s.traffic, s.cop_share), (6, Percent(25)));
         assert_eq!(env::read(|n| (n == env::TRAFFIC).then(|| "many".to_owned())).traffic, None);
         assert_eq!(file::parse("traffic = -3", "test").traffic, None, "a negative count is ignored");
+    }
+}
+
+/// The settings a running world reads each frame: the physics clock and the animation clock rates.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct WorldTuning {
+    pub game_speed: f32,
+    pub animation_speed: f32,
+    /// The player car's model scale, 0.25 to 4 (Extra Options `CarScale`).
+    pub car_scale: f32,
+    pub show_hud_on_look_back: bool,
+    /// Lift the engine's rev limiter (Extra Options `NoRevLimiter`).
+    pub no_rev_limiter: bool,
+}
+
+impl Default for WorldTuning {
+    fn default() -> Self {
+        Self {
+            game_speed: DEFAULT_GAME_SPEED,
+            animation_speed: DEFAULT_ANIMATION_SPEED,
+            show_hud_on_look_back: DEFAULT_SHOW_HUD_ON_LOOK_BACK,
+            car_scale: DEFAULT_CAR_SCALE,
+            no_rev_limiter: DEFAULT_NO_REV_LIMITER,
+        }
+    }
+}
+
+impl From<&Settings> for WorldTuning {
+    fn from(s: &Settings) -> Self {
+        Self {
+            game_speed: s.game_speed,
+            animation_speed: s.animation_speed,
+            show_hud_on_look_back: s.show_hud_on_look_back,
+            car_scale: s.car_scale,
+            no_rev_limiter: s.no_rev_limiter,
+        }
     }
 }

@@ -45,7 +45,7 @@ impl std::fmt::Display for Percent {
 
 /// The settings one source (command line, environment, config file) sets. Unset fields fall
 /// through to the next layer.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Partial {
     pub deadzone_mode: Option<super::DeadzoneMode>,
     pub steering_deadzone: Option<Deadzone>,
@@ -77,6 +77,17 @@ pub struct Partial {
     pub car_shading: Option<CarShading>,
     pub traffic: Option<u32>,
     pub cop_share: Option<Percent>,
+    pub always_rain: Option<bool>,
+    pub rain_amount: Option<Percent>,
+    /// `GameSpeed`: the multiplier of the physics clock (1 is the original speed).
+    pub game_speed: Option<f32>,
+    /// `WorldAnimationSpeed`: the multiplier of the world animation clock (1 is the original rate).
+    pub animation_speed: Option<f32>,
+    pub car_scale: Option<f32>,
+    /// `NoRevLimiter`: lift the engine's rev limiter.
+    pub no_rev_limiter: Option<bool>,
+    /// `ShowHUDOnLookBack`: keep the HUD up while looking back.
+    pub show_hud_on_look_back: Option<bool>,
     pub traffic_lights: Option<bool>,
     pub smoke_quality: Option<SmokeQuality>,
     pub skid_marks: Option<bool>,
@@ -104,6 +115,8 @@ pub struct Partial {
     pub upscale_quality: Option<UpscaleQuality>,
     pub ray_tracing: Option<RayTracingLevel>,
     pub paddle_up: Option<u32>,
+    /// `[Hotkeys] Headlights` of the Extra Options file: a Windows virtual-key code for the headlights.
+    pub headlights_key: Option<u32>,
     pub paddle_down: Option<u32>,
     pub manual_clutch: Option<bool>,
     pub h_shifter: Option<bool>,
@@ -143,6 +156,13 @@ impl Partial {
             car_shading: self.car_shading.or(lower.car_shading),
             traffic: self.traffic.or(lower.traffic),
             cop_share: self.cop_share.or(lower.cop_share),
+            always_rain: self.always_rain.or(lower.always_rain),
+            rain_amount: self.rain_amount.or(lower.rain_amount),
+            game_speed: self.game_speed.or(lower.game_speed),
+            animation_speed: self.animation_speed.or(lower.animation_speed),
+            car_scale: self.car_scale.or(lower.car_scale),
+            no_rev_limiter: self.no_rev_limiter.or(lower.no_rev_limiter),
+            show_hud_on_look_back: self.show_hud_on_look_back.or(lower.show_hud_on_look_back),
             traffic_lights: self.traffic_lights.or(lower.traffic_lights),
             smoke_quality: self.smoke_quality.or(lower.smoke_quality),
             skid_marks: self.skid_marks.or(lower.skid_marks),
@@ -170,6 +190,7 @@ impl Partial {
             upscale_quality: self.upscale_quality.or(lower.upscale_quality),
             ray_tracing: self.ray_tracing.or(lower.ray_tracing),
             paddle_up: self.paddle_up.or(lower.paddle_up),
+            headlights_key: self.headlights_key.or(lower.headlights_key),
             paddle_down: self.paddle_down.or(lower.paddle_down),
             manual_clutch: self.manual_clutch.or(lower.manual_clutch),
             h_shifter: self.h_shifter.or(lower.h_shifter),
