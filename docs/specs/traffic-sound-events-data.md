@@ -141,3 +141,9 @@ field reference inside schema records. The smallest stream (file `0x2537D`, 144 
 value. The role field of a `VehicleSound` instance is therefore an entry `(key, 0, value, 0)` whose key is the role field's
 key. The field key for the role is not yet identified, and the instance streams that hold a `VehicleSound` with value 2
 are not yet isolated.
+
+**Instance search (read, negative).** All 73 occurrences of the `VehicleSound` key `0x2EDB25E7` in the inflated `SOUND`
+bundles are followed by `(0, 4)`: the key is always paired with the value 4, which is a field kind (a reference to a
+`VehicleSound`), not a per-car value. No occurrence is followed by the value 2. So a car's role is not stored as the field
+that follows this key, and the per-car `VehicleSound` instances are stored under a different field key that is not yet
+identified.
