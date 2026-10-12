@@ -254,6 +254,11 @@ published table does not contain that route, so it is removed. The invented `1 +
   is a **pool-type descriptor** of the generic allocator, and its slot 10 is the `CarSoundConn` name lookup. The owner
   of `+0x228` is therefore a pool client, reached through the allocator's id table (`DAT_0090DFF0`, stride 100). Its
   client code is not yet read.
+- The other registration callers, read: `FUN_005B0D70` registers descriptor `0x008A2C94`, `FUN_005F7390` registers
+  `0x008A3AD0`, `FUN_0056B820` registers the language-texture pool with `0x00899D40`, `FUN_0070F500` registers
+  `0x008B2578`, `FUN_0075C550` registers the streaming pool with `0x008B5220`, and `FUN_0078AE80` registers the "Online
+  Buffer" pool with `0x008B6888`. None of these is `0x00896800`. So the only registrations of the sound descriptor are
+  `FUN_004CC3A0` and the site at `0x004ABFEE`, whose entry is not resolved (the bytes before it are padding).
 - Earlier reading (superseded in its object identity, kept for the chain): the `BlewByCop` check reads `+0x228` of the
   car's sound-sim object and compares it with the integer 2. `FUN_004C9CB0` (constructor) stores its float argument at `+0x228` (the role word from a record: `FUN_004CAEF0`
   passes `*(record+0x0C)`). The caller of `FUN_004CAEF0` is `FUN_004CC790`, which builds a 0x28-byte car sub-object from a
