@@ -332,3 +332,7 @@ which is the wrong build for the `BlewByCop` gate).
 **Runtime read of the Desktop `speed.exe` (read, in progress).** Attached to `speed.exe` (PID 36252). At the menu, the car-sim
 count `DAT_00913DBC` reads `0` and the array pointer `DAT_00913DB4` is `0x00913DC0`, so no car sims exist yet. The sims are
 created when a race or drive loads a car. The next read needs a car in the world, which requires starting an event in the game.
+
+**Runtime check of the connection registry (read).** In the running `speed.exe` (PID 36252), the registry record at `0x00913BD8`
+holds `0x1DD80B70` (`CarSoundConn`), the factory `0x004CC790`, and a link `0x008EEAF8`. This matches the static analysis.
+The car-sound connection objects are created only when a car loads, so their instances remain unread until a race starts.
