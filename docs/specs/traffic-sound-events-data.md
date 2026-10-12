@@ -440,3 +440,9 @@ point to the per-vehicle sound-set loader. Next: read `0x00ACEEA0` to see the re
 wrapper that calls the resource opener `0x00A1D640` with the same argument (`0x00ACEEB0` wraps `0x00A1D5C0` the same way). So the
 chain is: `_VEHICLESOUND` name builder, then `0xACEEA0`, then `0xA1D640`. Next: read `0x00A1D640` to see which file it opens, and
 whether that file holds the `CarSelectSound` targets.
+
+**`NFS13.exe` sound-set loader, step (read): `0x00A1D640` is a case-insensitive CRC-32.** The routine folds uppercase ASCII to
+lowercase (`0x41`..`0x5A` gain `0x20`) and runs the table-driven reflected CRC-32 (table at `0x010D0848`). The loader therefore finds
+a sound set by the CRC-32 of its lowercased name, not by a file path. The `CarSelectSound` targets (`14691`, `14692`, `14693`,
+`14725`) are then indexes that a CRC-32 lookup maps to. Next: list candidate lowercased set names, compute their CRC-32, and match
+the results against the stored keys.
