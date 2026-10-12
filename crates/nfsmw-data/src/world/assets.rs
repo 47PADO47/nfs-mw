@@ -20,6 +20,9 @@ struct Asset {
     anims: Vec<TextureAnim>,
 }
 
+/// How far a decal stands off the face it sits on, in metres.
+const DECAL_LIFT: f32 = 0.01;
+
 /// Every shared model of a track, sorted by name, each name once.
 pub struct SharedAssets {
     assets: Vec<Asset>,
@@ -81,6 +84,21 @@ impl SharedAssets {
         let asset = &self.assets[index];
         let hash = asset.solid.name_hash;
         let mut solid = asset.solid.clone();
+        // Groups after the first are decals (a lens on a light box, a sign on a wall). They sit on a face of the first
+        // group at the same depth and lose the depth test, so their vertices stand off their normals a little.
+        let decal: HashSet<usize> = solid
+            .groups
+            .iter()
+            .skip(1)
+            .flat_map(|g| solid.indices[g.first_index as usize..(g.first_index + g.num_triangles * 3) as usize].iter())
+            .map(|&i| i as usize)
+            .collect();
+        for i in decal {
+            let v = &mut solid.vertices[i];
+            for k in 0..3 {
+                v.position[k] += v.normal[k] * DECAL_LIFT;
+            }
+        }
         // Some models carry no vertex colour at all; drawn as they are they come out black, so their texture shows
         // at full brightness instead.
         for v in &mut solid.vertices {
