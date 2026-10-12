@@ -300,3 +300,8 @@ table) is not present in the attached `NFS13.exe` memory, so the owner records c
 Reading the `+0x228` role field at each match's address minus `0x28` gave `5` for one candidate (`0x672CE1D8`) and `0` for
 four others. The layout offset is assumed, not verified, and the signature also matches non-sim data, so these values do not
 yet identify the car-sim array or the role-2 car.
+
+**Sim confirmation (read, negative on the sample).** The constructor writes `1` at sim `+0x1F0`, which is the signature address
+minus `0x60`. Of four sampled signature matches (`0x672CE200`, `0x70BC1B2C`, `0x7217A1D0`, `0x766DB010`), all four hold `-1` at the
+signature (as expected), but none holds `1` at `+0x1F0` (the values read were `5`, a pointer, a pointer and `4`). So the sampled
+matches are not car-sim objects with this layout. The signature alone does not identify the sim array.
