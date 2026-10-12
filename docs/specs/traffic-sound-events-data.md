@@ -224,3 +224,9 @@ it is not a discriminator for the instance streams.
 `AnimationBehaviour`), so the filter missed it, and the stream is also a schema. With the name-split case included, **no
 non-schema sub-record candidate remains in this bundle.** So the per-car instances are not in `VEH_1085007_HI`, and the
 sound instances must be in a different bundle (not yet located).
+
+**Vehicle-bundle cross-check (read, negative).** Across all `VEHICLES/VEH_*.BNDL` bundles, with schemas excluded by the
+`Genesys` name (the name test is on the full word, so split names are caught), **zero bundles** contain a non-schema
+sub-record candidate (the `(key, 0, value, 0)` shape with a `VehicleSoundSet` key). So the per-car sound instances are not
+stored in the vehicle bundles in that shape. They must be in another bundle set or a different layout, which is not yet
+located.
