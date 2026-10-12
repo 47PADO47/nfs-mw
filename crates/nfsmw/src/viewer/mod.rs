@@ -48,6 +48,10 @@ pub trait Scene {
     fn ready(&self) -> bool {
         true
     }
+    /// Start timing once resources are ready, even while a scripted route is still moving.
+    fn benchmark_ready(&self) -> bool {
+        self.ready()
+    }
     /// Mouse look: hide and hold the cursor so mouse motion always turns the camera.
     /// Esc releases the cursor and a click captures it again.
     fn captures_mouse(&self) -> bool {

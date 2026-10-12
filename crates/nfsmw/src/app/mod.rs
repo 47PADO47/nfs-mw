@@ -11,9 +11,9 @@ mod graphics;
 mod host;
 mod mirror;
 pub mod pacing;
-mod render;
-mod streaks;
+pub(crate) mod render;
 mod screenshot;
+mod streaks;
 #[cfg(test)]
 pub use screenshot::Plan;
 #[cfg(test)]

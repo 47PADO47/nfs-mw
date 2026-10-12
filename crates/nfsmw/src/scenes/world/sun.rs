@@ -31,6 +31,14 @@ impl Sun {
         Self { phase: START_PHASE, dir: 1, lo: sun_phase_limit(0) }
     }
 
+    /// Diagnostic freeze holds lighting, without stopping traffic or accruing a catch-up step.
+    pub(super) fn update(&mut self, dt: f32, frozen: bool) {
+        if frozen {
+            return;
+        }
+        self.advance(dt);
+    }
+
     /// Moves the sun on by `dt` seconds (the frame time).
     pub(super) fn advance(&mut self, dt: f32) {
         let (phase, dir) = advance_sun_phase(self.phase, self.dir, 1.0, dt, self.lo);
@@ -70,5 +78,17 @@ mod tests {
             sun.advance(1.0 / 60.0);
         }
         assert_ne!(sun.to_sun(), before);
+    }
+
+    #[test]
+    fn freezing_holds_lighting_and_resume_does_not_catch_up() {
+        let mut sun = Sun::new();
+        let before = sun.to_sun();
+        sun.update(600.0, true);
+        assert_eq!(sun.to_sun(), before);
+        sun.update(1.0, false);
+        let mut expected = Sun::new();
+        expected.advance(1.0);
+        assert_eq!(sun.to_sun(), expected.to_sun());
     }
 }

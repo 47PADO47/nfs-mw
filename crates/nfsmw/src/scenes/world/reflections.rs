@@ -10,6 +10,7 @@ pub(super) struct CaptureStamp {
     quality: ReflectionQuality,
     origin: Vec3,
     scenery: u64,
+    original_shadows: bool,
 }
 
 impl WorldScene {
@@ -37,6 +38,7 @@ impl WorldScene {
         if self.reflection_last.is_some_and(|last| {
             last.quality == quality
                 && last.scenery == scenery
+                && last.original_shadows == self.original_shadows
                 && self.clock - last.seconds < interval
                 && last.origin.distance_squared(origin) < 4.0
         }) {
@@ -62,7 +64,7 @@ impl WorldScene {
                 fov_y_radians: std::f32::consts::FRAC_PI_2,
             };
             visibility::collect_for_height(
-                self.residency.placed(),
+                self.residency.placed().filter(|p| self.original_shadows || !p.original_shadow),
                 &camera,
                 &blackbox_scenery::layout::MOST_WANTED.lod,
                 self.residency.props(),
@@ -76,7 +78,13 @@ impl WorldScene {
             frame: template,
             faces: self.reflection_faces.each_ref().map(Vec::as_slice),
         }));
-        self.reflection_last = Some(CaptureStamp { seconds: self.clock, quality, origin, scenery });
+        self.reflection_last = Some(CaptureStamp {
+            seconds: self.clock,
+            quality,
+            origin,
+            scenery,
+            original_shadows: self.original_shadows,
+        });
     }
 }
 

@@ -54,7 +54,7 @@ pub fn update(
     let uses_mouse = host.scene.captures_mouse();
     if actions.just_pressed(Action::Cancel) {
         on_cancel(&host, &mut console, &mut capture, &mut focus, &mut exit);
-    } else if uses_mouse && !console.open && mouse.just_pressed(MouseButton::Left) {
+    } else if uses_mouse && !console.open && !focus.0 && mouse.just_pressed(MouseButton::Left) {
         capture.0 = true;
     }
     if *was_focused && !window.focused {

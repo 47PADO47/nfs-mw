@@ -83,15 +83,17 @@ fn the_upscaler_row_cycles_all_six_on_a_full_renderer() {
 }
 
 #[test]
-fn anti_aliasing_cycles_off_and_fxaa_on_the_native_renderer_and_all_four_on_a_full_one() {
+fn anti_aliasing_cycles_spatial_modes_on_native_and_all_four_on_a_full_one() {
     let aa = Setting::Post(PostSetting::Aa);
     let (mut s, mut c, native) = (defaults(), Partial::default(), test_caps::native());
     aa.advance(&mut s, &mut c, true, &native);
     assert_eq!(s.post_aa, PostAa::Fxaa);
     aa.advance(&mut s, &mut c, true, &native);
-    assert_eq!(s.post_aa, PostAa::Off, "smaa and taa are skipped");
+    assert_eq!(s.post_aa, PostAa::Smaa);
+    aa.advance(&mut s, &mut c, true, &native);
+    assert_eq!(s.post_aa, PostAa::Off, "taa is skipped");
     aa.advance(&mut s, &mut c, false, &native);
-    assert_eq!(s.post_aa, PostAa::Fxaa, "backwards too");
+    assert_eq!(s.post_aa, PostAa::Smaa, "backwards too");
     let (mut s, full) = (defaults(), test_caps::full());
     let seen: Vec<_> = (0..4)
         .map(|_| {
@@ -121,7 +123,7 @@ fn a_value_stored_for_another_renderer_shows_as_what_runs_and_moves_to_a_value_t
     assert_eq!(s.post_aa, PostAa::Off, "forward from taa wraps to off");
     let mut s = stored;
     aa.advance(&mut s, &mut c, false, &native);
-    assert_eq!(s.post_aa, PostAa::Fxaa, "backward from taa skips smaa");
+    assert_eq!(s.post_aa, PostAa::Smaa, "backward from taa offers spatial smaa");
     // Only what the player changed is touched: the ray tracing value for another renderer stays.
     assert_eq!((s.ray_tracing, s.upscaler), (RayTracingLevel::High, UpscaleMode::Dlss));
     assert_eq!(c.ray_tracing, None);

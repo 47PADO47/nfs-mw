@@ -40,7 +40,7 @@ impl Plugin for InputLayerPlugin {
 const PIXELS_PER_LINE: f32 = 60.0;
 
 #[allow(clippy::too_many_arguments)]
-fn update_actions(
+pub(crate) fn update_actions(
     keys: Res<ButtonInput<KeyCode>>,
     buttons: Res<ButtonInput<MouseButton>>,
     motion: Res<AccumulatedMouseMotion>,

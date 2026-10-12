@@ -2,6 +2,7 @@
 //! panels that draw it are thin egui views, so a full Bevy move changes the views, not the tools.
 
 mod console;
+mod graphics_lab;
 mod logbuf;
 mod logfile;
 mod metrics;
@@ -27,6 +28,7 @@ pub struct DevToolsPlugin;
 impl Plugin for DevToolsPlugin {
     fn build(&self, app: &mut App) {
         console::build(app);
+        graphics_lab::build(app);
         app.init_resource::<Metrics>()
             .add_systems(Update, run_ui.in_set(crate::app::FrameSet::Ui))
             .add_systems(Last, metrics::collect);
@@ -41,7 +43,8 @@ fn run_ui(
     mut out: ResMut<UiOutput>,
     window: Single<&Window, With<PrimaryWindow>>,
     time: Res<Time<Real>>,
-    settings: Res<Settings>,
+    mut settings: ResMut<Settings>,
+    mut lab: ResMut<graphics_lab::GraphicsLab>,
     metrics: Res<Metrics>,
     mut console: ResMut<Console>,
     hud: Option<Res<crate::hud::HudState>>,
@@ -74,5 +77,6 @@ fn run_ui(
         let left = host.scene.ui(ctx);
         overlay::show(ctx, settings.show_metrics, &metrics, left);
         console::show(ctx, &mut console);
+        graphics_lab::show(ctx, &mut lab, &mut settings, &metrics);
     });
 }

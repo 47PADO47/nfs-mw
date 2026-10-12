@@ -28,6 +28,8 @@ pub struct Placed {
     pub prop_id: u32,
     /// Its name for the renderer, from the tile and its place in the tile's list (see [`super::keys`]).
     pub key: InstanceKey,
+    /// Authored shadow-only scenery, identified in this game's asset names.
+    pub original_shadow: bool,
     /// Original physics pose and stable identity, when this instance has a spawner.
     pub spawner: Option<blackbox_scenery::ObjectSpawner>,
     pub parts: Option<Arc<super::props::scenery::ModelParts>>,
@@ -50,6 +52,7 @@ impl Placed {
             prop: Some(shape),
             prop_id: 0,
             key: InstanceKey::TRANSIENT,
+            original_shadow: false,
             spawner: None,
             parts: None,
             curve_lamp: None,
@@ -61,7 +64,7 @@ impl Placed {
 #[derive(Default)]
 pub struct SectionResources {
     pub materials: HashMap<u32, (TextureHandle, BlendMode)>,
-    pub meshes: HashMap<u32, (MeshHandle, LodModel)>,
+    pub meshes: HashMap<u32, (MeshHandle, LodModel, bool)>,
     /// Animated textures defined here; frames may live here or in the shared sets.
     pub anims: Vec<blackbox_tpk::TextureAnim>,
 }
@@ -90,7 +93,7 @@ impl SectionResources {
         for solid in &data.solids {
             if let Some(mesh) = upload_solid(renderer, solid, &lookup, shading_for(&solid.name)) {
                 let lod = LodModel { num_polys: solid.num_polys, density: solid.density };
-                meshes.push((solid.name_hash, (mesh, lod)));
+                meshes.push((solid.name_hash, (mesh, lod, solid.name.starts_with("SHD_"))));
             }
         }
         self.meshes.extend(meshes);
@@ -107,11 +110,11 @@ impl SectionResources {
     }
 
     pub fn mesh(&self, hash: u32, fallback: &SectionResources) -> Option<(MeshHandle, LodModel)> {
-        self.meshes.get(&hash).or_else(|| fallback.meshes.get(&hash)).copied()
+        self.meshes.get(&hash).or_else(|| fallback.meshes.get(&hash)).map(|&(mesh, lod, _)| (mesh, lod))
     }
 
     pub fn release(self, renderer: &mut dyn RenderBackend) {
-        for (mesh, _) in self.meshes.into_values() {
+        for (mesh, _, _) in self.meshes.into_values() {
             renderer.destroy_mesh(mesh);
         }
         for (texture, _) in self.materials.into_values() {
@@ -168,6 +171,13 @@ pub fn place(
                 log::debug!("no physics bounds/attributes for placed {}", info.name);
             }
             placed.push(Placed {
+                original_shadow: info.name.starts_with("SHD_")
+                    || resolved.iter().enumerate().filter(|(_, mesh)| mesh.is_some()).all(|(i, _)| {
+                        own.meshes
+                            .get(&info.solid_keys[i])
+                            .or_else(|| shared.meshes.get(&info.solid_keys[i]))
+                            .is_some_and(|model| model.2)
+                    }),
                 lods: std::array::from_fn(|i| resolved.get(i).copied().flatten().map(|(m, _)| m)),
                 detailed: resolved.first().copied().flatten().map(|(_, lod)| lod),
                 transform: Mat4::from_cols_array_2d(&inst.matrix_columns()),
