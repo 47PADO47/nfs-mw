@@ -199,3 +199,10 @@ the list as a leaf value through `0x00F0F94A`, so the next step is the caller of
 at `0x00F102F1`, belongs to a copy-and-add function at `0x00F102D9`: it copies a composite's two children (`[ecx]`, `[ecx+4]`) into the new
 object, then calls `Add` with its own argument (`[ebp+0xC]`). So the value that carries the `CarSelectSound` ID enters at the caller of
 `0x00F102D9`, one level further up. That caller is the next step.
+
+**Callers of the copy-and-add function `0x00F102D9` (read).** Three callers: `0x00F10BB3` (a window that disassembles from mid-instruction),
+`0x00F10F65` and `0x00F11B79`.
+- `0x00F10F65` builds its value from the literal `0x5B` (91) through `0x00F100A7`: a fixed code, not data-driven.
+- `0x00F11B79` pushes its own function argument (`[ebp+8]`) with a flag `1`, so it is the data-driven path. Its argument is the value that
+  carries the list entry, and the `CarSelectSound` ID is expected to arrive there.
+The next step is the function that contains `0x00F11B79`, and its callers, to find where the `[ebp+8]` argument comes from.
