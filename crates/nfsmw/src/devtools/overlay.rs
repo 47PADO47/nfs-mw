@@ -7,7 +7,8 @@ use super::metrics::{HISTORY, Metrics, ShowMetrics};
 /// A frame time at which the graph tops out, in milliseconds (a 30 fps frame).
 const GRAPH_MAX_MS: f32 = 33.3;
 
-pub fn show(ctx: &egui::Context, level: ShowMetrics, m: &Metrics) {
+/// Draw the metrics `left` points in from the window's left edge (beside a scene's panel, or 0 for none).
+pub fn show(ctx: &egui::Context, level: ShowMetrics, m: &Metrics, left: f32) {
     readout(ctx, m);
     if level == ShowMetrics::Off {
         return;
@@ -17,7 +18,7 @@ pub fn show(ctx: &egui::Context, level: ShowMetrics, m: &Metrics) {
         .resizable(false)
         .movable(false)
         .interactable(false)
-        .anchor(Align2::LEFT_TOP, vec2(8.0, 8.0))
+        .anchor(Align2::LEFT_TOP, vec2(left + 8.0, 8.0))
         .frame(Frame::window(&ctx.global_style()).fill(Color32::from_black_alpha(170)))
         .show(ctx, |ui| {
             let headline = format!("{:.0} fps  {:.1} ms", m.fps(), m.average_ms());

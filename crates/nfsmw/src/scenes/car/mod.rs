@@ -5,6 +5,8 @@ mod floor;
 pub(crate) mod lighting;
 pub(crate) mod materials;
 mod shading;
+mod texture_anim;
+mod wheels;
 
 use std::collections::HashMap;
 
@@ -51,6 +53,13 @@ pub struct CarScene {
     car: u32,
     /// The camera jumped (a new scene, another car, the camera toggle).
     cut: CameraCut,
+    /// Where the car sits across the picture, in normalised device units: 0 keeps it in the middle, 1 moves it
+    /// by a full half-width to the right. A viewer with a panel on the left uses the middle of the free part.
+    pub(crate) view_offset: f32,
+    /// How the solids are lit: lit for cars; a scenery model is prelit (its colours are in the vertices).
+    pub(crate) solid_shading: Shading,
+    /// Texture animations of the model on the floor (scenery only).
+    pub(crate) texture_anims: Vec<blackbox_tpk::TextureAnim>,
 }
 
 impl CarScene {
@@ -68,6 +77,9 @@ impl CarScene {
             wanted_shading: CarShading::default(),
             car: 0,
             cut: CameraCut::default(),
+            view_offset: 0.0,
+            solid_shading: Shading::Lit,
+            texture_anims: Vec::new(),
         }
     }
 
@@ -102,7 +114,7 @@ impl CarScene {
         for (part, p) in self.model.placements.iter().enumerate() {
             let mesh = *cache.entry((p.solid, p.left_brake)).or_insert_with(|| {
                 let lookup = materials.for_placement(&self.model.swaps, p.left_brake);
-                upload_solid(renderer, &self.model.solids[&p.solid], &lookup, Shading::Lit)
+                upload_solid(renderer, &self.model.solids[&p.solid], &lookup, self.solid_shading)
             });
             if let Some(mesh) = mesh {
                 self.instances.push(Instance::keyed(
@@ -124,7 +136,7 @@ impl CarScene {
     }
 
     /// Swap in another car, keeping the viewing angle.
-    fn replace_model(&mut self, renderer: &mut dyn RenderBackend, model: CarModel) {
+    pub(crate) fn replace_model(&mut self, renderer: &mut dyn RenderBackend, model: CarModel) {
         self.release(renderer);
         let yaw = self.camera.yaw;
         self.car += 1;
@@ -193,8 +205,15 @@ impl Scene for CarScene {
             None => &self.camera,
         };
         let lens = camera.lens(aspect);
+        let mut view = lens.view;
+        if self.free.is_none() && self.view_offset != 0.0 {
+            // A shift sideways of `s` at the car's distance moves it by `view_offset` of the half-width:
+            // the NDC shift is s / (aspect * tan(fov / 2) * distance).
+            let half_width = aspect * (lens.fov_y_degrees.to_radians() * 0.5).tan() * self.camera.distance;
+            view = Mat4::from_translation(Vec3::X * self.view_offset * half_width) * view;
+        }
         let params = FrameParams {
-            view: lens.view,
+            view,
             projection: lens.projection,
             camera_position: lens.position,
             light_dir: LIGHT_DIR,
