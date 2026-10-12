@@ -45,6 +45,7 @@ impl TrafficWorld {
                 lights,
             };
             car.step(&mut ctx, collision, props, surfaces);
+            car.step_lights();
         }
         self.signal_time += STEP;
         for area in &mut self.breaker_areas {

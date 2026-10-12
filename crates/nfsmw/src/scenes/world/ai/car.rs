@@ -13,11 +13,13 @@ use super::cop::{self, CopState, Target};
 use super::stop::{self, Lights};
 use super::traffic::{self, Cruise, THINK_STEPS};
 use super::trailer::{Brakes, TrailerCar};
+use crate::scenes::world::car_lights::LampState;
 use crate::scenes::world::drive::{CarPose, CarRig, CarSim, DriveInput, STEP, WorldGround};
 use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::space;
 
+mod sound;
 mod towing;
 
 /// What a car is for.
@@ -127,6 +129,12 @@ pub struct AiCar {
     /// Seconds the car has been out of the player's view.
     offscreen: f32,
     breaker_stop: bool,
+    /// The light bars of a cop car, when it has them.
+    cop_lights: Option<super::cop_lights::CopLightRun>,
+    /// The horn sound (`HornType`) of this car.
+    pub horn: u32,
+    /// Seconds until the car may play a near miss or a horn again (`traffic_events::EventTuning::cooldown`).
+    quiet: f32,
 }
 
 impl AiCar {
@@ -188,17 +196,53 @@ impl AiCar {
             patrol: start.patrol,
             offscreen: 0.0,
             breaker_stop: false,
+            cop_lights: model.cop_lights.clone().map(super::cop_lights::CopLightRun::new),
+            horn: model.horn,
+            quiet: 0.0,
         })
     }
 
-    /// The car's position in render space.
-    /// The lamps of the car as glows, lit by its brake.
-    pub fn glows(&self, alpha: f32, camera: Vec3, forward: Vec3, out: &mut Vec<blackbox_render::EffectVertex>) {
-        self.rig.lights().glows(self.pose(alpha).transform(), self.controls.brake, camera, forward, out);
+    /// The headlight beams of the car.
+    pub fn beams(&self, alpha: f32, out: &mut Vec<blackbox_render::EffectVertex>) {
+        self.rig.lights().beams(self.pose(alpha).transform(), out);
     }
 
+    /// The lamps of the car as glows, lit by its brake, steering, siren and the blink clock.
+    pub fn glows(
+        &self,
+        alpha: f32,
+        time: f32,
+        camera: Vec3,
+        forward: Vec3,
+        out: &mut Vec<blackbox_render::EffectVertex>,
+    ) {
+        let state = LampState {
+            brake: self.controls.brake,
+            reverse: self.sim.telemetry().gear < 0,
+            steer: self.controls.steer,
+            siren: self.is_cop(),
+            time,
+        };
+        self.rig.lights().glows(self.pose(alpha).transform(), state, camera, forward, out);
+    }
+
+    /// The car's position in render space.
     pub fn position(&self) -> Vec3 {
         self.current.position
+    }
+
+    /// Advance the light bars by one tick, at the car's frame.
+    pub fn step_lights(&mut self) {
+        if let Some(lights) = &mut self.cop_lights {
+            lights.step(STEP, self.current.transform());
+        }
+    }
+
+    /// The sprites of the light bars, for the effect layer.
+    pub fn cop_particles(&self, camera: Vec3, forward: Vec3, out: &mut Vec<blackbox_render::TexturedEffect>) {
+        if let Some(lights) = &self.cop_lights {
+            lights.textured(camera, forward, out);
+        }
     }
 
     pub fn set_breaker_stop(&mut self, stop: bool) {

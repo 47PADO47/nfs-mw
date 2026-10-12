@@ -1,10 +1,15 @@
 //! The console commands of the computer-driven cars: `traffic` and `pursuit`.
 
 use blackbox_gfx::RenderBackend;
+use blackbox_vehicle::performance::Performance;
 use nfsmw_data::pursuit::heat_row;
 
 use super::models::load_cop_models;
+use super::traffic_events::{Sighting, starts_pursuit};
 use crate::scenes::world::WorldScene;
+
+/// The heat of the patrol cops: the first wave (`data.rs`). A patrol cop chases at this heat.
+const PATROL_HEAT: u32 = 1;
 
 pub(in crate::scenes::world) fn traffic_command(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
     const USAGE: &str = "usage: traffic <count>|off|status|warmup <seconds>";
@@ -67,13 +72,43 @@ pub(in crate::scenes::world) fn pursuit_command(
                 player.end_grip,
                 player.acceleration
             );
-            let row = heat_row(scene.physics.database(), heat).ok_or("no cop table for that heat")?;
-            let names: Vec<String> = row.cops.iter().filter(|c| c.name != "copheli").map(|c| c.name.clone()).collect();
-            load_cop_models(scene, renderer, &names)?;
-            let traffic = scene.traffic.as_mut().ok_or(USAGE)?;
-            traffic.start_pursuit(heat, row, player);
-            Ok(format!("pursuit at heat {heat}: {}", names.join(", ")))
+            begin_pursuit(scene, renderer, heat, player)
         }
         _ => Err(USAGE.into()),
+    }
+}
+
+/// Starts a chase at `heat` against `player`: loads the cop models of its wave and gives the wave to the traffic.
+fn begin_pursuit(
+    scene: &mut WorldScene,
+    renderer: &mut dyn RenderBackend,
+    heat: u32,
+    player: Performance,
+) -> Result<String, String> {
+    let row = heat_row(scene.physics.database(), heat).ok_or("no cop table for that heat")?;
+    let names: Vec<String> = row.cops.iter().filter(|c| c.name != "copheli").map(|c| c.name.clone()).collect();
+    load_cop_models(scene, renderer, &names)?;
+    let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
+    traffic.start_pursuit(heat, row, player);
+    Ok(format!("pursuit at heat {heat}: {}", names.join(", ")))
+}
+
+/// The speeding trigger (`docs/specs/traffic-sound-events.md` §3.3): while no chase is on, a patrol cop that sees the
+/// player starts one when the player is over the speeding line, has hit traffic lately, or the heat is high enough.
+pub(in crate::scenes::world) fn speeding_pursuit(scene: &mut WorldScene, renderer: &mut dyn RenderBackend) {
+    let Some(traffic) = scene.traffic.as_ref() else { return };
+    if traffic.is_pursuing() {
+        return;
+    }
+    let Some(drive) = scene.drive.as_ref() else { return };
+    // The speed comes from the drive now; the traffic supplies the rest (the sight and the recent hit).
+    let sight = Sighting { player_speed: drive.speed(), ..traffic.sighting(PATROL_HEAT) };
+    if !starts_pursuit(&traffic.events(), &sight) {
+        return;
+    }
+    let player = drive.performance();
+    match begin_pursuit(scene, renderer, PATROL_HEAT, player) {
+        Ok(line) => log::info!("speeding: {line}"),
+        Err(e) => log::warn!("speeding: no chase: {e}"),
     }
 }
