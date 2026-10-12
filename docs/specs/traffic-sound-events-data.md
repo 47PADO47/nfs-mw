@@ -126,3 +126,10 @@ The caller that turns a type name into the 32-bit key is still unidentified.
 The enclosing function of `0x00A4E224` takes the registry key as an argument: at `0x00A4E0CD` it pushes `[esp+0x2C]` (the
 key) into the registry lookup `0x00A52500`, and at `0x00A4E0FB` it stores the key through the output pointer. So the 32-bit
 key is an argument to the registration function, and the caller that supplies it is the next link, not yet identified.
+
+**The key is stored data (read).** The function containing `0x00A4E224` has entry `0x00A4DFD0` (`sub esp, 0x14`). Its two
+callers, `0x00A4E5A6` and `0x00A4EBF0`, do not compute the key. They read it from a record: `0x00A4E54D` loads
+`mov edi, [ebx+0x20]` (the key field of a descriptor), and `0x00A4EB8E` loads `ebx = [ecx]` from a list entry. So the 32-bit
+Genesys type keys (such as `0x2EDB25E7`) are **values stored in the bundle records**, not outputs of a hash at run time.
+That is why none of the hash tests matched. The role-2 car descriptor is therefore a stored record, and it can be read by
+decoding the record layout (the `+0x20` key field and the record size), not by reproducing a hash.
