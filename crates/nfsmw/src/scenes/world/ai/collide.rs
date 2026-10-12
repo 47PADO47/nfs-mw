@@ -34,21 +34,17 @@ struct Hit {
     by_player: bool,
 }
 
-/// A close pass of the player past a traffic car: the car, the gap (m) and the player's speed (m/s).
+/// A close pass of the player past a traffic car: the car, the distance between their centres (m) and how fast the
+/// two are closing (m/s, the difference of their velocities).
 struct Pass {
     owner: usize,
-    gap: f32,
-    speed: f32,
+    distance: f32,
+    relative_speed: f32,
 }
 
 /// Whether the bounding spheres of two bodies touch, a cheap test before the box test.
 fn near(a: &CarSim, b: &CarSim) -> bool {
     a.body().position.distance(b.body().position) < a.collision_sweep_radius() + b.collision_sweep_radius()
-}
-
-/// The gap between two bodies' bounding spheres (m); negative when they overlap.
-fn gap(a: &CarSim, b: &CarSim) -> f32 {
-    a.body().position.distance(b.body().position) - a.collision_sweep_radius() - b.collision_sweep_radius()
 }
 
 fn horn_volume(impulse: f32) -> f32 {
@@ -83,16 +79,19 @@ impl TrafficWorld {
             if !part.sim.is_finite() {
                 continue;
             }
-            if let Some(player) = player.as_deref_mut()
-                && near(player, part.sim)
-            {
-                match player.collide_with(part.sim) {
-                    Some(hit) => hits.push(Hit { owner: part.owner, impulse: hit.impulse, by_player: true }),
-                    None => passes.push(Pass {
+            if let Some(player) = player.as_deref_mut() {
+                // A pass is judged on the centres, which can be further apart than the bounding spheres touch.
+                let distance = player.body().position.distance(part.sim.body().position);
+                if near(player, part.sim)
+                    && let Some(hit) = player.collide_with(part.sim)
+                {
+                    hits.push(Hit { owner: part.owner, impulse: hit.impulse, by_player: true });
+                } else if distance < events.near_miss_distance {
+                    passes.push(Pass {
                         owner: part.owner,
-                        gap: gap(player, part.sim),
-                        speed: player.body().linear_velocity.length(),
-                    }),
+                        distance,
+                        relative_speed: (player.body().linear_velocity - part.sim.body().linear_velocity).length(),
+                    });
                 }
             }
             for other in tail {
@@ -124,7 +123,7 @@ impl TrafficWorld {
         }
         for pass in passes {
             let car = &mut self.cars[pass.owner];
-            if near_miss(&events, pass.speed, pass.gap, false, car.ready()) {
+            if near_miss(&events, pass.relative_speed, pass.distance, false, car.ready()) {
                 car.sounded(events.cooldown);
                 self.sounds.push(TrafficSound::NearMiss { volume: NEAR_MISS_VOLUME });
             }
