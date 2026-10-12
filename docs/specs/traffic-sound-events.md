@@ -209,6 +209,13 @@ published table does not contain that route, so it is removed. The invented `1 +
   (`0x20`) at the owner's `+0x28`, and it passes the type test when the owner's `+0x0C` is 3, 4, 5 or 12, or equals 2.
   So the membership condition is: mask `+0x28` has bit `0x20` set, and owner `+0x0C` is 3, 4, 5, 12 or 2. Both values come
   from car-sound data and were not read yet.
+- The concrete owner class is vtable `0x00896A30` (its constructor sets it after `FUN_004D8EC0`). Its slot 1 is the setup
+  `FUN_004F4AC0` (mask argument), slot 5 the list walker `FUN_004D91D0`, slot 8 the cleanup `FUN_004D9250`. Its destructor is
+  `FUN_004AFB10`.
+- Its factory is `FUN_004B9D10(flag)`: it allocates 0x48 bytes (allocation flag `0x1000`, or `0x1040` when `flag` is 1), runs
+  the base constructor, and sets the vtable. `FUN_004AFAE0` is a second constructor. Neither has a direct caller in the
+  binary; both are reached through a table, so the caller that passes the mask (and the owner's type `+0x0C`) is not yet
+  found. That is the remaining membership step.
 - Hash check: `vlt_hash("nos")` is `B1669F64` (the class `nos`), so the probe hashing is correct.
 - The sound-instance queue is `DAT_00912270` (posted by `FUN_004e52c0`, consumed by `FUN_004ce960`), with instances in
   a table at `0x00912858` (stride `0x68`). The per-instance processor is `FUN_004d0a60` and `FUN_004cfac0`, and the
