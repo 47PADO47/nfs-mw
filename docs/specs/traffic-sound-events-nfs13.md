@@ -213,3 +213,9 @@ them show what it is fed. `0x00F1350E` passes a pair of stack buffers and a coun
 (`[ebp+8]`) and stores a global at `0x011BBCC4`. So the function parses values out of a data buffer, passing the buffer down a chain of
 callers. The `CarSelectSound` IDs are read by this parser from the entry's data, so the ID-to-sound-set mapping is a parse of the list
 records, not a separate table. The remaining step is to identify the record format that this parser reads.
+
+**The record format is a text expression (read).** The parser `0x00F11862` reads one character at a time from a global cursor at
+`0x011BBCC4`. It dispatches on the character: `'A'` (`0x41`) and the characters `0x2F` to `0x39` (`/` and the digits) are handled by
+separate branches, with digit codes resolved through a table at `0x0109D5E8`, and a fallback branch at `0x00F11CFC`. It stores a
+two-word result (a value and a flag) at the caller's output (`[ebp+8]`). So the list entries are small text expressions over digits and
+operators, parsed into node values. The ID-to-sound-set mapping is therefore a rule in that text, and its source string is the next thing to find.
