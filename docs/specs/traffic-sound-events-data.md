@@ -446,3 +446,8 @@ lowercase (`0x41`..`0x5A` gain `0x20`) and runs the table-driven reflected CRC-3
 a sound set by the CRC-32 of its lowercased name, not by a file path. The `CarSelectSound` targets (`14691`, `14692`, `14693`,
 `14725`) are then indexes that a CRC-32 lookup maps to. Next: list candidate lowercased set names, compute their CRC-32, and match
 the results against the stored keys.
+
+**CRC-32 key match (read, negative).** The case-insensitive CRC-32 of 45 candidate sound-set names (the car names `bmwm3`, `bmwm3gtr`,
+`copheli`, `coplightblue`, `coplightred`, `coplightwhite`, `corvette`, `mustanggt`, `porsche911`, each alone and with the prefixes
+`_vehiclesound_`, `vehiclesound_`, `_vehiclesound` and `vehiclesound`) was searched for in every inflated `VEHICLES/` and `SOUND/`
+stream. **Zero hits.** The sound-set names are therefore not these car names, or the keys are stored in a form I have not found.
