@@ -291,6 +291,12 @@ published table does not contain that route, so it is removed. The invented `1 +
   uses a constant hash, and none computes `CarSoundConn`. The `CarSoundConn` hash is produced only by the static getters
   (`0x004AE550`, `0x00693BE0`), which the pool-type descriptor's slot 10 reaches. The callers of that virtual slot are the
   remaining search, and they are not yet read.
+- The pool object itself has vtable `0x00896800`: `FUN_00464D80` stores its descriptor argument at `*this`. Slot 10 is
+  `[pool+0x28]`. A direct scan finds 170 indirect calls through `+0x28` (`FF 50/51/52/53/56/57 28`), which are not yet
+  classified. The pool id table `DAT_0090DF10` and the name table `DAT_0090DE50` are read only inside the allocator.
+  `FUN_004640F0` is the name lookup (string compare with `FUN_00460DD0`). Its callers are `FUN_0073A920` (creates the named
+  pools `Main Pool`, `Track Streaming`, `Audio Memory Pool`, `Speech Cache Memory Pool`, `FEngMemoryPool`) and `FUN_00500D80`.
+  So the `CarSoundConn` pool is likely the `Audio Memory Pool`, but the slot-10 caller is still not located.
 - So the only 0x250 allocation is the named node in `FUN_007992F0`. Its caller `FUN_0054CCF0` (vtable `0x0089B334`) has
   no direct caller. The same vtable is set by `FUN_005142F0`, a base constructor that calls `FUN_00572360`. So the node's
   owner is a UI-side class shared through the named table, not the car sim. The 0x250 path does not lead to the car
