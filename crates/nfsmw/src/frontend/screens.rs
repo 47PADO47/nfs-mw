@@ -193,11 +193,13 @@ impl Screens {
     }
 
     /// The buttons of the top screen, in file order.
+    #[cfg(test)]
     pub fn top_buttons(&self) -> Vec<ObjectRef> {
         self.stack.last().map_or_else(Vec::new, |top| self.runtime.buttons(top.id))
     }
 
     /// The focused button of the top screen.
+    #[cfg(test)]
     pub fn focused_button(&self) -> Option<ObjectRef> {
         self.runtime.current_button(self.stack.last()?.id)
     }
