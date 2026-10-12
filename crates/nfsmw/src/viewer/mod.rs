@@ -116,6 +116,10 @@ pub trait Scene {
     fn take_clip(&mut self) -> Option<ea_audio::Pcm> {
         None
     }
+    /// The one-shot sounds the traffic cars asked for since the last call (horns, near-miss whooshes).
+    fn take_traffic_sounds(&mut self) -> Vec<crate::audio::traffic::TrafficSound> {
+        Vec::new()
+    }
     /// The scene is over: the app quits.
     fn finished(&self) -> bool {
         false

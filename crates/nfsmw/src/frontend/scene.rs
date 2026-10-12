@@ -194,6 +194,10 @@ impl Scene for Pausable {
         self.inner.take_clip()
     }
 
+    fn take_traffic_sounds(&mut self) -> Vec<crate::audio::traffic::TrafficSound> {
+        self.inner.take_traffic_sounds()
+    }
+
     fn finished(&self) -> bool {
         self.inner.finished()
     }
