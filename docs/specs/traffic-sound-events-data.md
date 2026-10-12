@@ -230,3 +230,9 @@ sound instances must be in a different bundle (not yet located).
 sub-record candidate (the `(key, 0, value, 0)` shape with a `VehicleSoundSet` key). So the per-car sound instances are not
 stored in the vehicle bundles in that shape. They must be in another bundle set or a different layout, which is not yet
 located.
+
+**`SOUND/` and `GAMELOGIC/` cross-check (read, negative).** The same non-schema sub-record test (the `(key, 0, value, 0)`
+shape with a `VehicleSoundSet` key, schemas excluded by the `Genesys` name) was run on every bundle in `SOUND/`
+(`GLOBAL`, `METALCAR`, `MIXER_CHANNELS`, `REVERB`, `SPEEDSOUNDS`) and `GAMELOGIC/` (including `WEAPONS/` and `HSM/`).
+**Zero candidates in every bundle.** So the per-car sound instances are not stored under this shape in any bundle of the
+`VEHICLES`, `SOUND` or `GAMELOGIC` sets. Their layout is different, and it is not yet identified.
