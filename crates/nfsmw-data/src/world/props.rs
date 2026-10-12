@@ -61,9 +61,14 @@ impl PropCatalog {
     pub fn new(sets: Vec<BoundsSet>, db: &Database) -> Self {
         let dynamics =
             db.collections_of("smackable").filter_map(|c| Some((c.key(), Arc::new(PropDynamics::read(c)?)))).collect();
+        // The track pack keeps the first collection for each key, including its collision children.
+        let mut bounds = HashMap::new();
+        for set in sets {
+            bounds.entry(set.name_hash).or_insert_with(|| Arc::new(set));
+        }
         Self {
             hierarchies: HashMap::new(),
-            sets: sets.into_iter().map(|s| (s.name_hash, Arc::new(s))).collect(),
+            sets: bounds,
             dynamics,
             cache: RefCell::default(),
             placed_cache: RefCell::default(),

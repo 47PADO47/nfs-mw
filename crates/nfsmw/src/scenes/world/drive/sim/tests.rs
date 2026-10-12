@@ -4,6 +4,7 @@ use nfsmw_data::car::physics::CarBounds;
 
 use super::*;
 
+mod contact_order;
 mod frame_rate;
 mod geometry;
 mod reactions;

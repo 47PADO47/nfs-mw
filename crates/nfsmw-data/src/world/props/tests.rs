@@ -3,6 +3,8 @@ use blackbox_vehicle::rigid_body::RigidBodySpec;
 
 use super::*;
 
+mod duplicates;
+
 #[test]
 fn models_sharing_original_physics_keys_keep_their_own_identity() {
     let bounds = Arc::new(BoundsSet {
