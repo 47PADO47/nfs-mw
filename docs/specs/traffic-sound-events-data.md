@@ -462,3 +462,10 @@ So the sound-set names are not stored as readable text in any file searched. The
 **Sound-set names in the running `speed.exe` (read, negative at the menu).** Cheat Engine searched the attached process for `vehiclesound`
 and `_VEHICLESOUND` (case as the loader builds them). Both return zero addresses at the menu. The loader builds the lowercased set names
 when a car loads, so this search needs a race running to be conclusive.
+
+**Numeric sound-set name (read).** The name builder near `0x57BDxx` formats a number with the `%d`/`%u`/`%lld` conversion
+(`0x00427F80`) and prefixes `_VEHICLESOUND`. So a sound-set name is the prefix plus a decimal number, and its key is the
+case-insensitive CRC-32. Four prefixes (`_vehiclesound`, `vehiclesound`, `_vehiclesound_`, `vehiclesound_`) with numbers 0 to 29999
+were tested against the inflated `VEHICLES/` and `SOUND/` streams. That gives 3,807 hits, from many numbers. **But the four
+`CarSelectSound` targets (`14691`, `14692`, `14693`, `14725`) give zero hits** under all four prefixes. So the `CarSelectSound`
+values are not CRC-32 keys of these names: they are IDs, and their sound sets are keyed differently.
