@@ -21,7 +21,11 @@ fn run_front_end(
     let script = script.map(crate::frontend::UiScript::parse).transpose().map_err(anyhow::Error::msg)?;
     let mut options = view.run_options(dir, true);
     options.frontend = Some(crate::frontend::FrontendPlugin { dir: dir.clone(), start, script });
-    crate::app::run(Box::new(crate::frontend::MenuScene), &Settings::load(view.settings_layer()), options)
+    crate::app::run(
+        Box::new(crate::frontend::MenuScene::new(Some(dir.clone()))),
+        &Settings::load(view.settings_layer()),
+        options,
+    )
 }
 
 pub fn run(cli: Cli) -> Result<()> {
