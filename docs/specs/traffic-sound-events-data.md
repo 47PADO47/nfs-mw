@@ -403,3 +403,13 @@ Checked across the 70 per-car records (stream `0xF76`): byte 40 (`Car Select Sou
 `14691`, `14692`, `14693` and `14725`. So the sound reference is sparse, most cars use none, and the four non-zero values are the
 car-select sound references. Byte 100 (word 25) remains the categorical field (values 18, 8, 0, 1, 16), so word 25 is not the
 `Car Select Sound` field. The role-2 value is still not located in these records.
+
+**`VehicleListEntry` field table (read, complete).** The registration calls at `0x42AE27`..`0x42B127` in `NFS13.exe` name each field
+and its byte offset: `Vehicle ID`, `Livery Vehicle ID`, `Vehicle Name`, `GamePack ID` (`0x2C`), `Vehicle Description` (`0x0C`),
+`Vehicle Name Image` (`0x24`), `Vehicle Short Name` (`0x10`), `Vehicle Image` (`0x1C`), `Online Selection Image` (`0x20`),
+`PaintPackGroup` (`0x34`), `TopSpeed` (`0x38`), `Acceleration` (`0x40`), `Power` (`0x44`), `PowerRPM` (`0x6A`), `Year` (`0x6C`),
+`Tier` (`0x68`), `CarSelectSound` (`0x28`), `ManufacturerId` (`0x14`), and the rollout fields (`0x48` to `0x60`). The record size is `0x70`.
+
+None of these fields is named as a sound-owner role. The only sound reference in the entry is `CarSelectSound` at `0x28`, which is
+zero for 66 of the 70 cars. The role-2 value is therefore not a field of the entry itself. It should sit in the sound set that
+`CarSelectSound` points to, and the four non-zero references (`14691`, `14692`, `14693`, `14725`) are the candidate sets to check.
