@@ -429,3 +429,9 @@ beside the sound-set schema keys. They are references to a table whose entries a
 (`GAMELOGIC/**`, the root `*.BNDL` and `*.BIN`). Seven occurrences were found, all in `GLOBALEFFECTS.BNDL` (`14691` five times, `14692`
 twice). The effects bundle is not a sound-set table, so these are most likely coincidental values. The table that defines the
 `CarSelectSound` targets is still not located.
+
+**`NFS13.exe` sound-set loader, step (read).** The string `_VEHICLESOUND` (VA `0xFAD464`) is used at `0x57BE31`. The routine near
+`0x57BE00` builds a resource name: it copies a prefix (`_VEHICLESOUND` or the alternative at `0xFAD474`) and appends the caller's
+string with `0x00EDA4D0`, then calls `0x00ACEEA0` with the result. So this is the vehicle-sound resource-name builder, the entry
+point to the per-vehicle sound-set loader. Next: read `0x00ACEEA0` to see the resource it opens, and whether that resource holds the
+`CarSelectSound` targets.

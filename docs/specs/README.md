@@ -42,6 +42,8 @@ textured sparks and contact glow separately from the experimental restoration.
 [EAGL animation banks](eagl-animation.md) records the animation bank layout, the channel evaluators and the 14-byte key format found in `speed.exe`, and what is still unmapped (work in progress; the airliner is not yet animated).
 [Controller UI](controller-ui.md) specifies device ownership, live binding prompts and menu rendering corrections.
 
+[LAN and online server launcher](lan-server.md) records how the original `server.dll` is started and patched outside the game (MIT-licensed NFSLAN as the source, with what the stock `speed.exe` does and does not contain). Reference only; nothing is implemented.
+
 [Ground contacts](ground-contact-response.md) and [prop lifetime](prop-lifetime.md)
 cover measured plane response, world probes, sinking and model cleanup.
 
