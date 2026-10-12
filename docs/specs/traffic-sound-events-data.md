@@ -419,3 +419,8 @@ zero for 66 of the 70 cars. The role-2 value is therefore not a field of the ent
 `14692` 17), including in the per-car list and in vehicle bundles such as `VEH_1085007_HI`. None of the occurrences has a raw `2`
 within 16 bytes. So these references do not put a role value of 2 beside them, and the role-2 value is not in the sound-set
 references in this form.
+
+**Definition search for the `14691`-range values (read, negative).** The values `14691`, `14692`, `14693` and `14725` were searched in
+every inflated `VEHICLES/` and `SOUND/` stream for an occurrence within 32 bytes of a Genesys object key (`0x2EDB25E7`,
+`0xB92285F2`, `0x0B3FE48A`, `0xA32A93D6`, `0x8A89E1A3`). **Zero** definitions were found, so these values are not stored
+beside the sound-set schema keys. They are references to a table whose entries are not in these streams.
