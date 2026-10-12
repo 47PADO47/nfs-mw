@@ -387,3 +387,9 @@ within the entry, and check it against the role-2 value.
 another bundle. The field offset of `Car Select Sound` within the 112-byte record therefore cannot be read from the strings. The
 next step is to derive the field-name hashes of the `VehicleListEntry` fields (the `vlt_hash` and the base-40 forms already
 tested) and match them against the record's key words.
+
+**`VehicleListEntry` field hashes (read, negative).** The base-40 12-character hash from `NFS13.exe` (`0x009ED220`) was computed for
+the field names `Vehicle ID`, `Vehicle Name`, `Vehicle Short Name`, `Vehicle Tier`, `Car Select Sound`, `CarSelectSound`,
+`Vehicle Power`, `Vehicle Year`, `Vehicle Power RPM`, `Livery Vehicle ID`, `Vehicle Image`, `VehicleSound`, `SoundSet`,
+`Sound Set` and `VehicleSoundSet` (low and high halves). None appears among the 32-bit words of the 70-record per-car table
+(stream `0xF76`). So the field keys are not that hash of the field names.
