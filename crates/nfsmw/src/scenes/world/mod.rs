@@ -5,8 +5,8 @@ mod camera_choice;
 mod car_lights;
 mod car_loader;
 mod cargo;
-mod damage_marks;
 mod commands;
+mod damage_marks;
 mod drive;
 mod drive_input;
 mod effects;
@@ -18,12 +18,13 @@ mod keys;
 mod lighting;
 use car_loader::load_car;
 mod object_geometry;
+mod open;
 mod props;
+mod readiness;
 mod rear_view;
 mod reflections;
 mod residency;
 mod resident;
-mod open;
 mod road;
 mod sign_lamps;
 mod simulation;
@@ -138,6 +139,7 @@ pub struct WorldScene {
     /// The physics clock multiplier (Extra Options `GameSpeed`).
     tuning: crate::settings::WorldTuning,
     car_shading: crate::settings::CarShading,
+    shadow_quality: blackbox_gfx::ShadowQuality,
     /// `debug collisions` is on: the car's contact points are drawn.
     markers_on: bool,
     /// The meshes of the contact markers, uploaded the first time they are asked for.
@@ -193,6 +195,7 @@ impl Scene for WorldScene {
     }
 
     fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
+        self.shadow_quality = renderer.graphics().shadows;
         if let Some(drive) = self.drive.as_mut() {
             drive.set_car_shading(renderer, self.car_shading, self.sun.to_sun());
             drive.set_damaged_windows(renderer, self.sun.to_sun());
@@ -315,9 +318,17 @@ impl Scene for WorldScene {
             position: lens.position.to_array(),
             forward: lens.forward.to_array(),
             fov_y_radians: lens.fov_y_degrees.to_radians(),
+            light_dir: sun::DIRECTION.to_array(),
         };
         let rules = &blackbox_scenery::layout::MOST_WANTED.lod;
-        visibility::collect(self.residency.placed(), &cull, rules, self.residency.props(), &mut self.visible);
+        visibility::collect_with_shadows(
+            self.residency.placed(),
+            &cull,
+            rules,
+            self.residency.props(),
+            self.shadow_quality.sampling().2,
+            &mut self.visible,
+        );
         self.residency.props().fragment_instances(&mut self.visible);
         if let Some(traffic) = &self.traffic {
             traffic.instances(&mut self.visible);
@@ -351,14 +362,11 @@ impl Scene for WorldScene {
     }
 
     fn ready(&self) -> bool {
-        if self.traffic.as_ref().is_some_and(|t| !t.settled()) {
-            return false;
-        }
-        match &self.drive {
-            Some(drive) => self.residency.complete() && drive.waiting_for_road().is_none() && drive.script_finished(),
-            None if self.wait_for_load => self.grounded && self.residency.complete(),
-            None => self.residency.counts().2,
-        }
+        self.loaded_for_bench() && self.drive.as_ref().is_none_or(|drive| drive.script_finished())
+    }
+
+    fn benchmark_ready(&self) -> bool {
+        self.loaded_for_bench()
     }
 
     fn status(&self) -> Option<String> {
