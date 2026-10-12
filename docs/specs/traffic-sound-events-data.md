@@ -163,3 +163,14 @@ hash-to-name table is not stored in these files.
 `TRAFFIC` and `BMWM3` were searched in UTF-16LE in the raw files of the install's root, `SOUND/`, `GAMELOGIC/`, `VEHICLES/`,
 `NFS13.exe`, and in every inflated stream of those bundles. **No occurrence.** So the car names are not stored as text in
 either encoding, and the ID-to-name table is not in the files searched.
+
+**Car names found on disk (read).** The vehicle bundles are named by vehicle ID: `VEHICLES/VEH_<id>_HI.BNDL`, `_LO.BNDL`,
+`_TR.BNDL`. The vehicle ID in the gameplay data (`Players.LocalPlayer.GetVehicleInfo.ID(EQUALS:1085007)`) matches the file
+`VEH_1085007_HI.BNDL`, so the file name is the link from ID to vehicle. `VEHICLELIST.BNDL` holds the ID `1085007` as a
+little-endian `u32` at offset 4848 of the stream at `0xF76`.
+
+A search of the inflated `VEHICLES/*.BNDL` streams for the `vlt_hash` values of real car names (taken from the repo:
+`BMWM3`, `BMWM3GTR`, `COPHELI`, `COPLIGHTBLUE`, `COPLIGHTRED`, `COPLIGHTWHITE`, `CORVETTE`, `MUSTANGGT`, `PORSCHE911`) found
+**one hit**: `MUSTANGGT` (`0xB8BBBF63`) in `VEH_122818_TR.BNDL`, stream offset `0x7747`. That stream is a 768,000-byte table of
+repeated 32-byte records with float data (a vehicle part or light table), so the name hash is present but the record holds
+no sound role. The sound role is still not located, so this is a name source, not the role source.
