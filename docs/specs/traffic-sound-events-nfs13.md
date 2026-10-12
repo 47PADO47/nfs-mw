@@ -219,3 +219,8 @@ records, not a separate table. The remaining step is to identify the record form
 separate branches, with digit codes resolved through a table at `0x0109D5E8`, and a fallback branch at `0x00F11CFC`. It stores a
 two-word result (a value and a flag) at the caller's output (`[ebp+8]`). So the list entries are small text expressions over digits and
 operators, parsed into node values. The ID-to-sound-set mapping is therefore a rule in that text, and its source string is the next thing to find.
+
+**The parser's text cursor (read).** The cursor global is `0x011BBCC4` (bytes `c4 bc 1b 01`; an earlier search used a wrong byte and found none).
+It is written at about 28 sites (`0x00F0F358` to `0x00F1406D`) and read at about 70 sites, because the parser advances it. The number
+reader at `0x00F0F340` shows the pattern: it increments the cursor, reads a character, and parses digits with `0x00F0F156`. So the cursor
+walks a text buffer. Its initial value is set by an outer caller that loads a string pointer; that root setter is not yet located.
