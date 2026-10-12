@@ -6,6 +6,7 @@ mod input;
 mod interp;
 mod messages;
 mod nav;
+mod pointer;
 mod state;
 mod update;
 

@@ -4,7 +4,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use blackbox_feng::{Outgoing, PackageCommandKind, PackageId, Runtime, UiTree};
+use blackbox_feng::{ObjectRef, Outgoing, PackageCommandKind, PackageId, Runtime, UiTree};
+use glam::Vec2;
 
 use super::factory;
 use super::logic::{Args, Command, Cx, Env, ScreenLogic};
@@ -180,6 +181,25 @@ impl Screens {
         let Some(top) = self.stack.last() else { return };
         let target = self.runtime.find(top.id, name_hash);
         self.runtime.post(top.id, message, target);
+    }
+
+    /// Focuses the button of the top screen under a point of the FEng screen (640 x 480, origin at the centre).
+    /// Returns false when no button is there.
+    pub fn focus_button_at(&mut self, point: Vec2) -> bool {
+        let Some(top) = self.stack.last() else { return false };
+        let Some(button) = self.runtime.button_at(top.id, point) else { return false };
+        self.runtime.focus_button(button);
+        true
+    }
+
+    /// The buttons of the top screen, in file order.
+    pub fn top_buttons(&self) -> Vec<ObjectRef> {
+        self.stack.last().map_or_else(Vec::new, |top| self.runtime.buttons(top.id))
+    }
+
+    /// The focused button of the top screen.
+    pub fn focused_button(&self) -> Option<ObjectRef> {
+        self.runtime.current_button(self.stack.last()?.id)
     }
 }
 

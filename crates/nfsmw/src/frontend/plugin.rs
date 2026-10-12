@@ -11,7 +11,7 @@ use game_install::GameDir;
 
 use super::flow::{Boot, Frontend, Stage, Start};
 use super::logic::Env;
-use super::pointer;
+use super::pointer::{self, feng_point};
 use super::screens::Screens;
 use super::script::{self, UiScript};
 use crate::app::{FrameSet, Host};
@@ -72,6 +72,8 @@ fn update(
     mut capture: ResMut<MouseCapture>,
     mut exit: MessageWriter<AppExit>,
     input: Res<InputPresentation>,
+    window: Single<&Window, With<PrimaryWindow>>,
+    mut clicking: Local<bool>,
 ) {
     let (fe, host) = (&mut *fe, &mut *host);
     let Some(caps) = host.renderer.as_ref().map(|r| *r.capabilities()) else { return };
@@ -95,6 +97,18 @@ fn update(
     // A click does what accept does while the game boots: it skips a movie and continues from the title screen.
     if matches!(fe.stage, Stage::Boot(_)) && actions.pressed(Action::Click) {
         mask |= pad::ACCEPT;
+    }
+    // On the menus a click focuses the button under the pointer and holds accept while the button is held.
+    if matches!(fe.stage, Stage::Menus | Stage::Paused) {
+        if actions.just_pressed(Action::Click) {
+            *clicking = feng_point(&window).is_some_and(|point| fe.screens.focus_button_at(point));
+        }
+        if !actions.pressed(Action::Click) {
+            *clicking = false;
+        }
+        if *clicking {
+            mask |= pad::ACCEPT;
+        }
     }
     if fe.latch {
         if mask != 0 {
