@@ -27,6 +27,7 @@ mod spawners;
 mod speech;
 mod textures;
 mod traffic;
+mod trailer_logs;
 mod world;
 mod zones;
 
