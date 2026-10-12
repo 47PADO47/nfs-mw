@@ -181,3 +181,9 @@ no sound role. The sound role is still not located, so this is a name source, no
 sub-record), plus the `VehicleSound` kind key `0x2EDB25E7` with value 4 and the sub-record key `0xB92285F2`. The vehicle ID
 `122818` (MUSTANGGT) does not occur in the competitor sound streams. So the sound set is not keyed by the vehicle ID in this
 bundle, and its instances (which would link a car to a set) are in other streams, not yet read.
+
+**Instance streams of `VEH_122818_TR.BNDL` (read, partial).** Only `VEH_122818_TR.BNDL` exists for vehicle 122818 (no
+`_HI`/`_LO` file). Its inflated streams contain Genesys data: 68 streams hold a generic `0x02000000` word, and a few hold
+`Genesys.Gen` strings and the `VehicleSoundSet` field key `0x8A89E1A3` (streams at `0x1DA9`, `0x36CB`, `0x37AD`, `0x388F`,
+`0x3A39`, `0x3B61`, `0x3C58`). The values after that key do not follow the `(key, 0, value)` pattern of the schema streams,
+so the instance layout differs and is not yet decoded. The role-2 value is therefore not read from these instances yet.
