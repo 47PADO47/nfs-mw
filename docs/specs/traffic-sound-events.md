@@ -278,8 +278,10 @@ published table does not contain that route, so it is removed. The invented `1 +
 - The other two 0x250 immediates are field offsets, not allocation sizes. `0x0047E23F` is `FADD`/`FST` on `[ESI+0x250]`
   (a timer accumulator). `0x007FE1D8` stores zero to `[ESI+0x250]` in a reset that also clears `+0x248`, `+0x244`,
   `+0x24C`, `+0x254` and `+0x258`.
-- So the only 0x250 allocation is the named node in `FUN_007992F0`. Its caller `FUN_0054CCF0` (vtable `0x0089B334`) is
-  not yet tied to the car sim. The car sim's `+0x228` owner remains open.
+- So the only 0x250 allocation is the named node in `FUN_007992F0`. Its caller `FUN_0054CCF0` (vtable `0x0089B334`) has
+  no direct caller. The same vtable is set by `FUN_005142F0`, a base constructor that calls `FUN_00572360`. So the node's
+  owner is a UI-side class shared through the named table, not the car sim. The 0x250 path does not lead to the car
+  sim's `+0x228` owner.
 - Earlier reading (superseded in its object identity, kept for the chain): the `BlewByCop` check reads `+0x228` of the
   car's sound-sim object and compares it with the integer 2. `FUN_004C9CB0` (constructor) stores its float argument at `+0x228` (the role word from a record: `FUN_004CAEF0`
   passes `*(record+0x0C)`). The caller of `FUN_004CAEF0` is `FUN_004CC790`, which builds a 0x28-byte car sub-object from a
