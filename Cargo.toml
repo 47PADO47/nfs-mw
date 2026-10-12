@@ -23,6 +23,7 @@ default-members = [
     "libs/blackbox-mixmap",
     "libs/blackbox-pursuit",
     "libs/blackbox-speedfx",
+    "libs/blackbox-speedfx",
     "libs/blackbox-movie",
     "libs/blackbox-render",
     "libs/blackbox-scene",
@@ -65,6 +66,7 @@ blackbox-hash = { path = "libs/blackbox-hash" }
 blackbox-minimap = { path = "libs/blackbox-minimap" }
 blackbox-mixmap = { path = "libs/blackbox-mixmap" }
 blackbox-pursuit = { path = "libs/blackbox-pursuit" }
+blackbox-speedfx = { path = "libs/blackbox-speedfx" }
 blackbox-speedfx = { path = "libs/blackbox-speedfx" }
 blackbox-movie = { path = "libs/blackbox-movie" }
 blackbox-particles = { path = "libs/blackbox-particles" }
