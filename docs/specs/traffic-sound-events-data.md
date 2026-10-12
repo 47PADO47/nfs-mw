@@ -294,3 +294,9 @@ located.
 
 **Owner-class name in the running process (read, negative).** The owner-class name `EAXCopCar` (from the `speed.exe` owner
 table) is not present in the attached `NFS13.exe` memory, so the owner records cannot be reached through that name.
+
+**Sim signature in the running process (read, inconclusive).** The constant tail of the car-sim constructor (`+0x250` = `-1`,
+`+0x254` = `0`, `+0x258` = `2`, bytes `FF FF FF FF 00 00 00 00 02 00 00 00`) matches 73 addresses in `NFS13.exe` memory.
+Reading the `+0x228` role field at each match's address minus `0x28` gave `5` for one candidate (`0x672CE1D8`) and `0` for
+four others. The layout offset is assumed, not verified, and the signature also matches non-sim data, so these values do not
+yet identify the car-sim array or the role-2 car.
