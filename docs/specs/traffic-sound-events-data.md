@@ -305,3 +305,8 @@ yet identify the car-sim array or the role-2 car.
 minus `0x60`. Of four sampled signature matches (`0x672CE200`, `0x70BC1B2C`, `0x7217A1D0`, `0x766DB010`), all four hold `-1` at the
 signature (as expected), but none holds `1` at `+0x1F0` (the values read were `5`, a pointer, a pointer and `4`). So the sampled
 matches are not car-sim objects with this layout. The signature alone does not identify the sim array.
+
+**Full sim-layout check (read, negative).** A single signature requiring `01 00 00 00` at `+0x1F0` and the `-1`/`0`/`2` tail at
+`+0x250` (96 bytes apart) matches **zero** addresses in the running `NFS13.exe`. So none of the 73 earlier candidates has the
+constructor's layout, and the car-sim object is not found with this layout. The `+0x1F0` and `+0x250` offsets come from the
+`speed.exe` constructor, so the layout may differ in `NFS13.exe`, which would also explain the failure.
