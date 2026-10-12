@@ -303,7 +303,9 @@ published table does not contain that route, so it is removed. The invented `1 +
   They are registered in the owner-record table at `0x008EE5F8` (records at `0x10` stride, factory at `+0xC`), with names:
   `FUN_004C3830` = `EAXCopCar` (name at `0x008966F4`), `FUN_004C3B20` = `EAXTruck` (`0x008966E8`), `FUN_004C3C90` =
   `EAXTrafficCar` (`0x008966D8`). So the `BlewByCop` owner is a cop, truck or traffic car sound object, and its sim is
-  reached through `+0x34`. The sim's own class and its `+0x228` writer are not yet read.
+  reached through `+0x34`. The sim's own class and its `+0x228` writer are not yet read. The base constructor
+  `FUN_004B9BB0` (vtable `0x896FA8`) does not set `+0x34`, so the sim is attached after construction, through a later
+  call on the owner, which is the next thing to read.
 - Classification of the 170 `+0x28` indirect calls (read): they fall in 130 distinct enclosing functions. Of the 95 that
   are functions with a `+0x28` call and a named body, **none** references the pool-id global `DAT_008EE558`, the
   descriptor `0x00896800`, the name-hash global `0x00913BD8`, or the pool tables `DAT_0090DF10`/`DAT_0090DFF0`/`DAT_0090DE50`.
