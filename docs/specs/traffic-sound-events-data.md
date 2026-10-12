@@ -310,3 +310,9 @@ matches are not car-sim objects with this layout. The signature alone does not i
 `+0x250` (96 bytes apart) matches **zero** addresses in the running `NFS13.exe`. So none of the 73 earlier candidates has the
 constructor's layout, and the car-sim object is not found with this layout. The `+0x1F0` and `+0x250` offsets come from the
 `speed.exe` constructor, so the layout may differ in `NFS13.exe`, which would also explain the failure.
+
+**Layout derived from `NFS13.exe` (read, negative).** `NFS13.exe` contains no `mov dword ptr [reg+0x250], -1` store (the bytes
+`50 02 00 00 FF FF FF FF` occur zero times, and the `C7 8x` encodings do not match either). The `1` store at `+0x1F0` occurs
+twice, but not beside the `+0x250` store. So the car-sim class in `NFS13.exe` does not use the `speed.exe` layout, and the
+`speed.exe` offsets (`+0x228` role, `+0x250` tail, `+0x1F0` flag) cannot be used to read the running game. The role-2 value
+needs a fresh analysis of the `NFS13.exe` car-sim class, which is not yet done.
