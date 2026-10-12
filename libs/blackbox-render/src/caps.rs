@@ -26,6 +26,7 @@ pub(crate) fn native_capabilities(
         scene_treatment: true,
         local_reflections: true,
         ambient_occlusion,
+        soft_shadows: false,
         ray_tracing: RtSupport::None,
         render_scale: Capabilities::full_render_scale(),
         restart_required: RestartSet::empty(),

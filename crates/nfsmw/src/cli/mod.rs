@@ -378,13 +378,15 @@ pub struct ViewArgs {
     /// Bloom around bright areas: off, low, medium or high [env NFSMW_POST_BLOOM; config `post_bloom`; default off].
     #[arg(long, value_name = "off|low|medium|high")]
     pub post_bloom: Option<crate::settings::PostBloom>,
-    /// Anti-aliasing of the 3D scene: off, fxaa, smaa or taa; smaa and taa need the bevy renderer and run as fxaa
-    /// without it [env NFSMW_POST_AA; config `post_aa`; default off].
+    /// Scene anti-aliasing (smaa/taa need Bevy) [env NFSMW_POST_AA; config `post_aa`; default off].
     #[arg(long, value_name = "off|fxaa|smaa|taa")]
     pub post_aa: Option<crate::settings::PostAa>,
     /// Experimental midday visual treatment: off, low (half strength), or high (original profile).
     #[arg(long, value_name = "off|low|high")]
     pub visual_treatment: Option<crate::settings::VisualTreatment>,
+    /// Dynamic soft sun shadows (Bevy) [env NFSMW_SHADOWS; config `shadows`; default off].
+    #[arg(long, value_name = "off|low|medium|high")]
+    pub shadows: Option<crate::settings::ShadowQuality>,
     /// Experimental ambient occlusion [env NFSMW_AO; config `ao`; default off].
     #[arg(long, value_name = "off|low|medium|high")]
     pub ao: Option<crate::settings::AoQuality>,
@@ -464,6 +466,7 @@ impl ViewArgs {
             post_bloom: self.post_bloom,
             post_aa: self.post_aa,
             visual_treatment: self.visual_treatment,
+            shadows: self.shadows,
             ao: self.ao,
             ao_intensity: self.ao_intensity,
             ao_compare: self.ao_compare,

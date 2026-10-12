@@ -272,6 +272,7 @@ impl Setting {
         match self {
             Setting::Graphics(GraphicsSetting::VisualTreatment) => Some("visual_treatment"),
             Setting::Graphics(GraphicsSetting::Reflections) => Some("reflections"),
+            Setting::Graphics(GraphicsSetting::Shadows) => Some("shadows"),
             Setting::Graphics(GraphicsSetting::AmbientOcclusion) => Some("ao"),
             Setting::Upscaler => Some("upscaler"),
             Setting::Post(PostSetting::Aa) => Some("post_aa"),

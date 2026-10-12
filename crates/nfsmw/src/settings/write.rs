@@ -156,6 +156,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.reflections {
         put("reflections", Value::String(v.to_string()));
     }
+    if let Some(v) = changes.shadows {
+        put("shadows", Value::String(v.to_string()));
+    }
     if let Some(v) = changes.ao {
         put("ao", Value::String(v.to_string()));
     }
@@ -220,6 +223,17 @@ mod tests {
     use crate::app::pacing::MaxFps;
     use crate::devtools::{ShowMetrics, ShowReadout};
     use crate::settings::{Percent, file};
+
+    #[test]
+    fn shadows_round_trip_and_the_higher_layer_wins() {
+        use crate::settings::ShadowQuality;
+        let changes = Partial { shadows: Some(ShadowQuality::High), ..Default::default() };
+        let text = merge("future_option = 42", &changes).unwrap();
+        let saved = file::parse(&text, "test");
+        assert_eq!(saved, changes);
+        let override_layer = Partial { shadows: Some(ShadowQuality::Off), ..Default::default() };
+        assert_eq!(crate::settings::Settings::from(override_layer.or(saved)).shadows, ShadowQuality::Off);
+    }
 
     #[test]
     fn tire_toggles_round_trip() {

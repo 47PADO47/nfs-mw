@@ -46,6 +46,14 @@ fn asked(key: &str, settings: &Settings, caps: &Capabilities) -> Option<Asked> {
             possible: g.post.bloom_intensity <= 0.0 || caps.bloom,
             available: vec!["off"],
         },
+        "shadows" => Asked {
+            value: g.shadows.name().to_owned(),
+            possible: g.shadows == super::ShadowQuality::Off || caps.soft_shadows,
+            available: match caps.soft_shadows {
+                true => super::ShadowQuality::ALL.iter().map(|q| q.name()).collect(),
+                false => vec!["off"],
+            },
+        },
         "ao" => Asked {
             value: g.ao.quality.name().to_owned(),
             possible: g.ao.quality == AoQuality::Off || caps.ambient_occlusion,

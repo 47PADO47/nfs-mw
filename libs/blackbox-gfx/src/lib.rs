@@ -37,6 +37,7 @@ pub use handles::{CaptureId, GlossyMaterialHandle, MeshHandle, TextureHandle, Ui
 pub use material::{DirectionalLight, Environment, GlossyMaterial, LightingRig, SkyGradient};
 pub use mesh::{BlendMode, DrawRange, MeshDesc, Shading, Vertex};
 pub use reflection::{ReflectionQuality, ReflectionScene};
+pub use settings::ShadowQuality;
 pub use settings::{
     Antialiasing, AoQuality, AoSettings, DEFAULT_BLOOM_THRESHOLD, DEFAULT_RENDER_SCALE, DEFAULT_UPSCALE_SHARPNESS,
     GraphicsSettings, MAX_BLOOM_INTENSITY, MAX_BLOOM_THRESHOLD, MAX_EXPOSURE, MAX_RENDER_SCALE, MAX_TEXTURE_LOD_BIAS,

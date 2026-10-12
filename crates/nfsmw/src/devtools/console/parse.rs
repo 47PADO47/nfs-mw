@@ -36,7 +36,7 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 43] = [
+pub const BUILT_IN: [(&str, &str); 44] = [
     ("bind <action> <input>", "replace one device family's action assignments; keys lists action names"),
     ("addbind <action> <input>", "add another physical input to an action"),
     ("unbind <action> [keyboard|mouse|gamepad|all]", "remove action assignments"),
@@ -70,6 +70,7 @@ pub const BUILT_IN: [(&str, &str); 43] = [
     ("post_aa <off|fxaa|smaa|taa>", "anti-aliasing of the 3D scene (smaa, taa: bevy renderer)"),
     ("visual_treatment <off|low|high>", "installed midday colour look (native renderer)"),
     ("reflections <off|low|medium|high>", "local car reflections; off restores the static sky"),
+    ("shadows <off|low|medium|high>", "dynamic soft sun shadows (Bevy renderer)"),
     ("ao <off|low|medium|high>", "experimental contact occlusion; off releases its resources"),
     ("ao_intensity <0-100>", "contact occlusion strength"),
     ("ao_compare <on|off>", "same-frame comparison: left off, right on"),
@@ -89,7 +90,7 @@ pub const BUILT_IN: [(&str, &str); 43] = [
 ];
 
 /// Further shorthands for `set`: `vsync off` is `set vsync off`.
-const SET_SHORTHANDS: [&str; 31] = [
+const SET_SHORTHANDS: [&str; 32] = [
     "fps",
     "renderer",
     "vsync",
@@ -118,6 +119,7 @@ const SET_SHORTHANDS: [&str; 31] = [
     "upscale_quality",
     "ray_tracing",
     "reflections",
+    "shadows",
     "ao",
     "ao_intensity",
     "ao_compare",

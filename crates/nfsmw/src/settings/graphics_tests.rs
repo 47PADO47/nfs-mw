@@ -19,6 +19,17 @@ fn the_defaults_ask_for_nothing() {
 }
 
 #[test]
+fn shadow_request_survives_layering_and_backend_downgrades() {
+    let stored = Settings::from(Partial { shadows: Some(ShadowQuality::High), ..Default::default() });
+    assert_eq!(stored.graphics().shadows, ShadowQuality::High);
+    assert_eq!(stored.effective(&test_caps::native()).shadows, ShadowQuality::Off);
+    assert_eq!(stored.effective(&test_caps::full()).shadows, ShadowQuality::High);
+    assert!(availability::check("shadows", &stored, &test_caps::native()).is_err());
+    assert!(availability::check("shadows", &stored, &test_caps::full()).is_ok());
+    assert_eq!(stored.shadows, ShadowQuality::High);
+}
+
+#[test]
 fn the_graphics_settings_carry_the_post_effects_and_the_upscaler() {
     let asked = settings(67, UpscaleMode::Fsr1).graphics();
     assert_eq!((asked.upscaler, asked.render_scale), (Upscaler::Fsr1, 0.67));

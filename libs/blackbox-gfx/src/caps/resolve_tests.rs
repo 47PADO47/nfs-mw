@@ -16,6 +16,18 @@ fn native() -> Capabilities {
 }
 
 #[test]
+fn soft_shadows_are_preserved_or_explicitly_downgraded() {
+    let wanted = GraphicsSettings { shadows: crate::ShadowQuality::High, ..Default::default() };
+    let unsupported = resolve(&wanted, &native());
+    assert_eq!(unsupported.effective.shadows, crate::ShadowQuality::Off);
+    assert!(unsupported.downgrade_of(Setting::Shadows).is_some());
+    let supported = Capabilities { soft_shadows: true, ..native() };
+    assert_eq!(resolve(&wanted, &supported).effective, wanted);
+    assert_eq!(wanted.shadows, crate::ShadowQuality::High);
+    assert_eq!(GraphicsSettings::default().changed_settings(&wanted), RestartSet::of(&[Setting::Shadows]));
+}
+
+#[test]
 fn unsupported_capture_restores_static_reflections_without_changing_the_request() {
     let wanted = GraphicsSettings { reflections: crate::ReflectionQuality::High, ..Default::default() };
     assert_eq!(resolve(&wanted, &native()).effective, wanted);

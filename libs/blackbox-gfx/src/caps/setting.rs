@@ -18,11 +18,12 @@ pub enum Setting {
     ColourTreatment,
     Reflections,
     AmbientOcclusion,
+    Shadows,
     RayTracing,
 }
 
 impl Setting {
-    pub const ALL: [Setting; 10] = [
+    pub const ALL: [Setting; 11] = [
         Setting::Antialiasing,
         Setting::Upscaler,
         Setting::UpscaleQuality,
@@ -32,6 +33,7 @@ impl Setting {
         Setting::ColourTreatment,
         Setting::Reflections,
         Setting::AmbientOcclusion,
+        Setting::Shadows,
         Setting::RayTracing,
     ];
 
@@ -46,6 +48,7 @@ impl Setting {
             Self::ColourTreatment => "colour treatment",
             Self::Reflections => "car reflections",
             Self::AmbientOcclusion => "ambient occlusion",
+            Self::Shadows => "soft shadows",
             Self::RayTracing => "ray tracing",
         }
     }
@@ -76,6 +79,7 @@ impl GraphicsSettings {
         note(Setting::ColourTreatment, self.post.colour_treatment != other.post.colour_treatment);
         note(Setting::Reflections, self.reflections != other.reflections);
         note(Setting::AmbientOcclusion, self.ao != other.ao);
+        note(Setting::Shadows, self.shadows != other.shadows);
         note(Setting::RayTracing, self.ray_tracing != other.ray_tracing);
         changed
     }
