@@ -257,3 +257,8 @@ field, or the role-2 value is stored in another place. The role-2 mapping is sti
 **Role-2 check over the per-car list (read, negative).** None of the 28 words of the 70 per-car records equals `2`, so no car
 in this list has the raw value the `BlewByCop` gate tests. The role-2 value is therefore not stored in this table in that form.
 Word 25 remains a categorical field with no role-2 value. The role-2 mapping is still unresolved.
+
+**All per-car list streams (read, negative).** Thirty-five of the 51 inflated streams of `VEHICLELIST.BNDL` contain
+ID-led records (vehicle ID followed by a zero word). The largest, stream `0x3B14` (24,736 bytes), has 103 ID records and 21
+words equal to `2`. Those words sit at no consistent offset from the record ID (no offset holds more than three), so they are
+incidental. No stream gives a per-car raw role field of 2. The role-2 mapping is still unresolved.
