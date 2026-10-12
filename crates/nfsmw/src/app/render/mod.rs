@@ -152,11 +152,12 @@ pub fn draw(
         renderer.update_ui_texture(&patch.as_patch());
     }
     if let Some(layer) = ui.layer.take() {
-        renderer.set_ui_layer(layer);
+        host.mirror.set_layer(renderer.as_mut(), layer);
     }
     for id in ui.freed.drain(..) {
         renderer.free_ui_texture(id);
     }
+    host.mirror.update(renderer.as_mut(), host.scene.as_mut());
 
     let (params, instances) = host.scene.frame(renderer.aspect_ratio());
     let result = if let Some(plan) = host.screenshot.as_mut() {

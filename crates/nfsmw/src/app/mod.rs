@@ -9,6 +9,7 @@ mod bench;
 mod cursor;
 mod graphics;
 mod host;
+mod mirror;
 pub mod pacing;
 mod render;
 mod screenshot;
