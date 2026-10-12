@@ -359,3 +359,10 @@ alone.
 stores the first value at `+0x184` (the owner object) and the second at `+0x188` (the table), and it sets the flag at `+0x18`.
 Its callers are `0x57E87B` and `0x5EFC4E`. Next: read those two callers to see which owner and table they pass, which identifies
 the car-type table.
+
+**`NFS13.exe` car-sound pass, step 5 (read).** Two callers of the nested-sound initializer `0x57C120`:
+- `0x57E87B`: copies a list of 16-bit values from the caller's argument into the object at `+0x1870`, then passes the pair
+  pointer from its own argument. The `u16` list is a per-object index table, not yet identified.
+- `0x5EFC4E`: works on an array of 0x200-byte slots starting at `+0x69D30`, indexed by an `eax` value. It builds the pair with
+  `0x57CA50` at `esp+0x24`, then calls the initializer. So the nested sound object is one per slot in this array.
+Next: read `0x57CA50` to see how the pair (owner and table) is built, which identifies the car-type table.
