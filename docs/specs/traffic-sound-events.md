@@ -237,6 +237,16 @@ published table does not contain that route, so it is removed. The invented `1 +
   no MSVC RTTI locator before them, so the owning class and the constructor that installs the vtable are not found yet.
   The `+0x228` value of that sim object is still the unresolved part. The earlier notes below used the 0x28-byte record,
   which is not established as the same object.
+- Creation path of the 0x28 `CarSoundConn` object (read). Its name is the string at `0x00896840`; a static initializer
+  at `0x00885770` hashes it (`vlt_hash` = `0x1DD80B70`) and pushes a record onto the list whose head is `0x00988EC0`
+  (record: hash at `+0`, factory `FUN_004CC790` at `+4`, next at `+8`). The creator is `FUN_006F2540`, which walks that
+  list for a hash and calls the record's factory. Its callers are `FUN_006F4400`, `FUN_006F4620` and `FUN_006F44E0`.
+  `FUN_006F44E0` passes the constant `0x998C21C0`, which is not `CarSoundConn` (checked against the four connection names
+  in the same list). The `CarSoundConn` hash is read in two static-cache getters: `0x004AE550` (guard `0x00913BFC`, reached
+  only through the vtable slot at `0x00896828`) and `0x00693BE0` (guard `0x00938680`, reached only through the vtable
+  slot at `0x008AB320`). The class descriptor at `0x00896800` is passed to the registration call `0x00465240` from
+  `0x004ABFEE` and `0x004CC3D9`. The object that calls the getter, and so the owner of the `+0x228` state word, is not
+  yet identified.
 - Earlier reading (superseded in its object identity, kept for the chain): the `BlewByCop` check reads `+0x228` of the
   car's sound-sim object and compares it with the integer 2. `FUN_004C9CB0` (constructor) stores its float argument at `+0x228` (the role word from a record: `FUN_004CAEF0`
   passes `*(record+0x0C)`). The caller of `FUN_004CAEF0` is `FUN_004CC790`, which builds a 0x28-byte car sub-object from a
