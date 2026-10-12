@@ -240,3 +240,10 @@ shape with a `VehicleSoundSet` key, schemas excluded by the `Genesys` name) was 
 **Type-key reference shape (read, negative).** The `VehicleSoundSet` schema header carries two candidate type keys,
 `0x77B7F019` and `0xBB4E3D72`. Searching every inflated stream of `VEHICLES/` and `SOUND/` for either value found **no**
 occurrence. So an instance does not reference its set by these keys, and the set's type key is not one of these words.
+
+**Per-car list (read, partial).** `VEHICLES/VEHICLELIST.BNDL`, inflated stream at file `0xF76` (13,072 bytes), is a per-car
+table with a fixed 112-byte record. Vehicle IDs appear at record starts (`122672` at byte 32, `122675` at 144, `122682` at 256,
+...), each followed by a zero word. The rest of each record mixes small integers (for example `0x12`, `0x1FE`, `0x20D`,
+`0x1A4`) and floats (dimensions and weights). `COMPETITORSOUNDS.BNDL` has no vehicle IDs with a small neighbour, so the
+per-car link is in this list. The sound-set index is one of the small integers in the record, but the field is not yet
+confirmed: it needs to vary across cars that use different sets, which is the next check.
