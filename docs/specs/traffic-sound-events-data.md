@@ -485,3 +485,8 @@ object's other methods, and find which one passes the `CarSelectSound` ID.
 2 `0x00531A70`, 3 `0x00531A80`, 4 `0x00531A90`, 5 `0x005719C0`, 6 `0x005719D0`, 7 `0x00531AC0`, 8 `0x00531AD0`, 9 `0x00531AE0`,
 10 `0x00425620`, 11 `0x00A874D0`, 12 `0x00A81F90`, 13 `0x00A8CC20`, 14 `0x00425600`, 15 `0x00425610`, 16 `0x00A8B180`, 17 `0x00A8B200`.
 Slot 18 onward is text, so the vtable ends at slot 17. The callers of slot 0 are indirect (`call [reg]`), and they are not yet identified.
+
+**Classifying the indirect callers of slot 0 (read, method unreliable).** A byte scan for indirect calls (`FF 10`, `11`, `12`, `13`, `16`,
+`17`) within 0x100 bytes of a `[reg+0x28]` load found 23 candidate sites. The four in the sound-code range (`0x570B9F`, `0x578158`,
+`0x57EE0C`, `0x57FC01`) disassemble from mid-instruction offsets, so they are false matches, not real calls. A reliable classification
+needs instruction-boundary disassembly of the whole binary, which this scan does not provide. The caller of slot 0 is still unidentified.
