@@ -207,3 +207,9 @@ non-sound data, and the sound instances are still not identified.
 `0xA32A93D6` and `0x8A89E1A3` occur in 12,775 inflated streams of the vehicle bundles (`VEH_1085007_HI` alone has many).
 Such a count means the keys are common values in the binary tables, not a sound-instance signature. So this screen does not
 single out the instance streams, and a different signature is needed.
+
+**Self-ID signature (read).** A vehicle's instance should carry its own ID. Searching each vehicle bundle's inflated streams
+for the file's own ID as a little-endian `u32` gives: `VEH_122818_TR` 0 streams; `VEH_1085007_HI` and `VEH_1085007_LO` 2
+streams each. The 336-byte stream at `0x499F1` of `VEH_1085007_LO` (ID at byte 92) is a table of bundle pointers
+(`0x108E4F`, `0x108E50`, `0x108E79`, ...), so the ID there is incidental, and that stream is a resource table, not the
+sound instance. The self-ID signature therefore does not identify the sound-instance stream either.
