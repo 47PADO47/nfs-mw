@@ -424,3 +424,8 @@ references in this form.
 every inflated `VEHICLES/` and `SOUND/` stream for an occurrence within 32 bytes of a Genesys object key (`0x2EDB25E7`,
 `0xB92285F2`, `0x0B3FE48A`, `0xA32A93D6`, `0x8A89E1A3`). **Zero** definitions were found, so these values are not stored
 beside the sound-set schema keys. They are references to a table whose entries are not in these streams.
+
+**Remaining bundle sets (read, weak lead).** The `14691`-range values were searched in the inflated streams of the other 46 bundles
+(`GAMELOGIC/**`, the root `*.BNDL` and `*.BIN`). Seven occurrences were found, all in `GLOBALEFFECTS.BNDL` (`14691` five times, `14692`
+twice). The effects bundle is not a sound-set table, so these are most likely coincidental values. The table that defines the
+`CarSelectSound` targets is still not located.
