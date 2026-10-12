@@ -238,10 +238,9 @@ and writes them into the alias's slot as TOML: the config's keys (`write::merge`
 settings the config file does not carry (`skip_intro`, `always_rain`, `rain_amount`, `game_speed`, `animation_speed`,
 `car_scale`, `no_rev_limiter`, `show_hud_on_look_back`, `headlights_key`), which live in the extra-options layer. A load
 (`saves::load_latest_alias`, the highest `Save N`) reads them back, and `Frontend::load_alias` makes them the current settings and marks them
-
-Several aliases exist now, but Load reads only the latest: choosing one needs a list screen, which is not built. The
-names are fixed (`Save N`), because the game has no text entry here.
 changed, so they reach the config file like any other change. The round trip is tested with non-default values.
+
+Several aliases exist, but Load reads only the latest: choosing one needs a list screen, which is not built. The names are fixed (`Save N`), because the game has no text entry here.
 
 **Career data is not in an alias yet**: the rewrite does not read or write career data, so there is nothing to save.
 `settings/mod.rs` made `file` and `write` `pub(crate)` for this. Load is wired to the Controls row "Load Alias".
