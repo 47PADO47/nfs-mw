@@ -284,3 +284,10 @@ does not share that layout: the bytes at `0x4C0A90` in `NFS13.exe` are a differe
 writer. So the car-sim array (`DAT_00913DB4`) is not at a known address in `NFS13.exe`, and the `+0x228` read cannot be
 done yet. The next step is to locate the car-sim array in `NFS13.exe` (for example through the Genesys name strings in its
 data), then read `+0x228` per sim.
+
+**Genesys names in the running `NFS13.exe` (read).** Searching the attached process for the type names found
+`Genesys.Gen.VehicleSound` at `0x0F8148D8` (with `.BurstTyre`, `.PlayerWithinVfx`, `VehicleSoundSet` and `.Transmission` nearby).
+One writable pointer to the name exists at `0x0F8148D0`, which is a type record field, so the type record starts near
+`0x0F8148C8`. Scans for pointers to that record (writable and default protection) found **no** instance references. So the
+per-car instances do not hold a direct pointer to the type record in writable memory, and the car-sim array is still not
+located.
