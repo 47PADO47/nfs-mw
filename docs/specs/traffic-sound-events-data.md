@@ -152,3 +152,9 @@ identified.
 Viper, Corvette, Mustang, Cop, RX7, Skyline, Carrera, Ferrari, Porsche, Audi, Mercedes, Subaru) returns only binary
 fragments, with no readable car-type name. So per-car instances are keyed by hashed IDs, and the car identity needs the
 hash-to-name mapping, which is not in these streams.
+
+**Hash-to-name table search (read, negative).** The car type names are not in `NFS13.exe` as text (`BMWM3GTR`, `COPCAR`,
+`FORDCOP`, `CHEVYCORVETTE`, `LAMBOGALLARDO` count 0; `TRAFFIC` count 4). Their `vlt_hash` values (`BMWM3GTR` `0x20D3071F`,
+`COPCAR` `0xD4BF6F56`, `FORDCOP` `0x4E9792BC`, `TRAFFIC` `0x7DF94ADA`) do not appear in `NFS13.exe` or in any inflated
+stream of `SOUND/`, `GAMELOGIC/` or `VEHICLES/`. So the car IDs are not `vlt_hash` values of the names, and the
+hash-to-name table is not stored in these files.
