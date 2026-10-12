@@ -192,3 +192,8 @@ so the instance layout differs and is not yet decoded. The role-2 value is there
 (`...Position`) and repeats the kind-4 entries of `0x2EDB25E7`, with the key `0x8A89E1A3` as one of its fields. So the
 vehicle bundle stores the schemas of the sound types. The instances (one per car) are in other streams of the same
 bundle, which are not yet isolated. The role-2 value is still unread.
+
+**Stream classification of `VEH_122818_TR.BNDL` (read).** The bundle inflates to 130 streams. Those that name a Genesys
+type (`Genesys.Gen`) are schemas: 0x70702, 0xA0702 and 0xB0702 headers (8 streams). The other 101 streams of 64 bytes or more
+have no type name, and they are the candidates for the per-car instance data. Their layout is not yet decoded, so the
+role value is not read from them.
