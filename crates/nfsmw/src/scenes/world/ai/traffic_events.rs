@@ -12,10 +12,10 @@ const SEEN_IS_ENOUGH_HEAT: u32 = 4;
 pub struct EventTuning {
     /// m/s above which a patrol cop reacts to the player's speed.
     pub speeding: f32,
-    /// m/s the player must be doing for a pass to count as a near miss.
+    /// m/s of relative speed between the player and the car it passes for a near miss (traffic-sound-events.md §1.2).
     pub near_miss_speed: f32,
-    /// Lateral metres between the two bodies that count as a near miss.
-    pub near_miss_gap: f32,
+    /// Metres between the two cars' centres within which a pass is a near miss (traffic-sound-events.md §1.2).
+    pub near_miss_distance: f32,
     /// Seconds before the same car can play another near miss or crash horn.
     pub cooldown: f32,
     /// Seconds a traffic hit still counts as recent.
@@ -28,8 +28,8 @@ impl Default for EventTuning {
     fn default() -> Self {
         Self {
             speeding: SPEEDING_MPS,
-            near_miss_speed: 20.0,
-            near_miss_gap: 2.5,
+            near_miss_speed: 15.0,
+            near_miss_distance: 12.0,
             cooldown: 3.0,
             hit_memory: 1.0,
             cop_sight: 151.0,
@@ -41,15 +41,15 @@ impl Default for EventTuning {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TrafficEvent {
     /// The player passed a traffic car close by without touching it.
-    NearMiss { speed: f32, gap: f32 },
+    NearMiss { relative_speed: f32, distance: f32 },
     /// A car hit another car or the player; `horn_id` is its `pvehicle.HornType`.
     CrashHorn { horn_id: u32, impulse: f32, by_player: bool },
 }
 
-/// Whether a near miss plays: the player is fast enough, the gap is small and positive, the pass was not a hit,
-/// and the car's cooldown has run out (`ready`).
-pub fn near_miss(tuning: &EventTuning, player_speed: f32, gap: f32, hit: bool, ready: bool) -> bool {
-    !hit && ready && player_speed >= tuning.near_miss_speed && gap > 0.0 && gap <= tuning.near_miss_gap
+/// Whether a near miss plays (traffic-sound-events.md §1.2): the two cars are closing at `relative_speed` or more, their centres
+/// are within `near_miss_distance`, the pass was not a hit, and the car's cooldown has run out (`ready`).
+pub fn near_miss(tuning: &EventTuning, relative_speed: f32, distance: f32, hit: bool, ready: bool) -> bool {
+    !hit && ready && relative_speed >= tuning.near_miss_speed && distance < tuning.near_miss_distance
 }
 
 /// Whether a car's horn plays for a hit: the car is involved and its cooldown has run out (`ready`).
@@ -92,20 +92,20 @@ mod tests {
     }
 
     #[test]
-    fn near_miss_needs_speed_gap_no_hit_and_ready() {
+    fn near_miss_needs_closing_speed_distance_no_hit_and_ready() {
         let t = EventTuning::default();
-        assert!(near_miss(&t, 25.0, 1.0, false, true));
-        assert!(!near_miss(&t, 19.9, 1.0, false, true), "slow pass");
-        assert!(!near_miss(&t, 25.0, 0.0, false, true), "touching is not a near miss");
-        assert!(!near_miss(&t, 25.0, 2.6, false, true), "too far");
-        assert!(!near_miss(&t, 25.0, 1.0, true, true), "a hit plays the horn instead");
-        assert!(!near_miss(&t, 25.0, 1.0, false, false), "cooldown");
+        assert!(near_miss(&t, 15.0, 5.0, false, true));
+        assert!(!near_miss(&t, 14.9, 5.0, false, true), "closing too slowly");
+        assert!(!near_miss(&t, 15.0, 12.0, false, true), "too far (12 m is out)");
+        assert!(!near_miss(&t, 15.0, 5.0, true, true), "a hit plays the horn instead");
+        assert!(!near_miss(&t, 15.0, 5.0, false, false), "cooldown");
     }
 
     #[test]
-    fn near_miss_gap_edge_is_inclusive() {
+    fn near_miss_distance_edge_is_exclusive() {
         let t = EventTuning::default();
-        assert!(near_miss(&t, 25.0, t.near_miss_gap, false, true));
+        assert!(near_miss(&t, 15.0, t.near_miss_distance - 0.01, false, true));
+        assert!(!near_miss(&t, 15.0, t.near_miss_distance, false, true));
     }
 
     #[test]
