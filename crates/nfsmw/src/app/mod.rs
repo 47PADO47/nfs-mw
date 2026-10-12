@@ -14,6 +14,7 @@ mod render;
 mod screenshot;
 #[cfg(test)]
 pub use screenshot::Plan;
+#[cfg(test)]
 pub(crate) mod test_backend;
 pub mod window;
 
