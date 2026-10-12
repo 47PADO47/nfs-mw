@@ -316,3 +316,10 @@ constructor's layout, and the car-sim object is not found with this layout. The 
 twice, but not beside the `+0x250` store. So the car-sim class in `NFS13.exe` does not use the `speed.exe` layout, and the
 `speed.exe` offsets (`+0x228` role, `+0x250` tail, `+0x1F0` flag) cannot be used to read the running game. The role-2 value
 needs a fresh analysis of the `NFS13.exe` car-sim class, which is not yet done.
+
+**`NFS13.exe` has no `speed.exe` car-sound system (read, negative).** The car-sound owner and connection names are absent from
+`NFS13.exe` in both forms: as text (`CarSoundConn`, `CarRenderConn`, `WorldBodyConn`, `EAXCopCar`, `EAXTrafficCar`, `EAXTruck`,
+`BlewByCop` all count 0) and as their `vlt_hash` values (`CarSoundConn` `0x1DD80B70`, `EAXCopCar` `0x888A8B77`, `EAXTruck`
+`0xD6FD9EA1`, `EAXTrafficCar` `0x88AAA41B`, none present). So the `BlewByCop` gate and the `CarSoundConn` chain traced in
+`speed.exe` are specific to that build. The running `NFS13.exe` does not use them, which means the runtime check as planned
+(reading `+0x228` of those sims) cannot identify the role-2 car in this build.
