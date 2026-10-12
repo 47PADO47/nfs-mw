@@ -130,7 +130,7 @@ pub fn load(dir: &GameDir, car: &str, options: &LoadOptions) -> Result<CarModel>
     let used: HashSet<u32> = placements.iter().map(|p| p.solid).collect();
     pool.retain(|h, _| used.contains(h));
 
-    let swaps = TextureSwaps::for_car(&car_type.base_model_name);
+    let swaps = TextureSwaps::for_car_type(&car_type.base_model_name, car_type.usage_type);
     let paint = slots[slot::BASE_PAINT].map(|p| Paint::of(t, &p));
     let mut textures = textures::load(dir, car, &wanted_textures(&pool, &swaps))?;
     if let (true, Some(paint)) = (car_type.skinnable, &paint) {
