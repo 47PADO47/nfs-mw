@@ -216,6 +216,20 @@ published table does not contain that route, so it is removed. The invented `1 +
   the base constructor, and sets the vtable. `FUN_004AFAE0` is a second constructor. Neither has a direct caller in the
   binary; both are reached through a table, so the caller that passes the mask (and the owner's type `+0x0C`) is not yet
   found. That is the remaining membership step.
+- **Membership of the nitrous object is resolved (Ghidra).** The caller that sets the owner's mask is `FUN_004F2E90`:
+  - For each local player it creates the owner with `FUN_004E5970(manager, 0)`. That looks up the owner's record (type 5,
+    id 0, factory `FUN_004B9D10`) in the second registration list (`DAT_009145B0`, registered by `FUN_004F2B00`) and
+    appends the object to the manager's list.
+  - It then calls the owner's setup (slot 1) with the mask `0x00053BFC`, or `0x000D3BFC` when a flag is set. Both include bit
+    `0x20` (the nitrous ID 5). The mask is hard-coded in this function, not read from car data.
+  - Bit 8 is also set, and `FUN_004EB8E0` creates object 8 on demand. The mask matches the mixer spec's player object list
+    (`car-sound-mixer.md` §1, mask `0x53BFA`, which includes object 5). The one-bit difference is in bit 1 only.
+  - The nitrous admission test (`FUN_004E5770`) is satisfied: the manager's type is 5, and the nitrous record's type is 2,
+    which passes the rule for owner types 3, 4, 5 and 12.
+  - **Therefore the nitrous object is in the owner's list for the player's car.** Its update runs each frame (slot 9), its
+    slot `+0x30` is a `RET`, and its boost interpolator is never evaluated. So the boost ramp is never applied on this path.
+    This is strong, since the mask and admission are both read. The one open point is whether another path evaluates the
+    interpolator, which the direct-call and list-walker checks above do not show.
 - Hash check: `vlt_hash("nos")` is `B1669F64` (the class `nos`), so the probe hashing is correct.
 - The sound-instance queue is `DAT_00912270` (posted by `FUN_004e52c0`, consumed by `FUN_004ce960`), with instances in
   a table at `0x00912858` (stride `0x68`). The per-instance processor is `FUN_004d0a60` and `FUN_004cfac0`, and the
