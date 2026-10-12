@@ -48,7 +48,11 @@ mod tests {
     #[test]
     fn a_point_is_inside_the_quad_it_is_scaled_and_moved_to() {
         // A 100 x 40 button centred at (200, -50).
-        let world = Mat4::from_scale_rotation_translation(Vec3::new(100.0, 40.0, 1.0), glam::Quat::IDENTITY, Vec3::new(200.0, -50.0, 0.0));
+        let world = Mat4::from_scale_rotation_translation(
+            Vec3::new(100.0, 40.0, 1.0),
+            glam::Quat::IDENTITY,
+            Vec3::new(200.0, -50.0, 0.0),
+        );
         assert!(contains(&world, Vec2::new(200.0, -50.0)));
         assert!(contains(&world, Vec2::new(249.0, -31.0)));
         assert!(!contains(&world, Vec2::new(251.0, -50.0)), "just right of the edge");
