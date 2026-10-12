@@ -197,3 +197,8 @@ bundle, which are not yet isolated. The role-2 value is still unread.
 type (`Genesys.Gen`) are schemas: 0x70702, 0xA0702 and 0xB0702 headers (8 streams). The other 101 streams of 64 bytes or more
 have no type name, and they are the candidates for the per-car instance data. Their layout is not yet decoded, so the
 role value is not read from them.
+
+**Candidate-stream sample (read).** The 384-byte candidate at file offset `0x1E52` of `VEH_122818_TR.BNDL` is a binary table
+with an internal offset sequence (`0x60`, `0x78`, `0x90`, `0xC0`, `0xD8`, `0x120`, `0x138`, `0x160`, ...) and float-like
+words. It looks like a geometry or animation table, not a sound instance. So the unnamed candidates are at least partly
+non-sound data, and the sound instances are still not identified.
