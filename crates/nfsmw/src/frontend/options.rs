@@ -233,6 +233,13 @@ impl Setting {
                 match s.camera_mode {
                     CameraMode::Chase => "Chase",
                     CameraMode::DynamicFov => "Dynamic FOV",
+                    CameraMode::Bumper => "Bumper",
+                    CameraMode::Hood => "Hood",
+                    CameraMode::Close => "Close",
+                    CameraMode::Far => "Far",
+                    CameraMode::SuperFar => "Super far",
+                    CameraMode::Drift => "Drift",
+                    CameraMode::Pursuit => "Pursuit",
                 }
                 .to_owned(),
             ),

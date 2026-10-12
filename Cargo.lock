@@ -1269,7 +1269,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc9a83f3cbaa04155b5dc9b247819c0e215aee754451a4324b82ddeb80dc53f1"
 dependencies = [
  "bevy_app",
+ "bevy_asset",
  "bevy_ecs",
+ "bevy_image",
  "bevy_input",
  "bevy_math",
  "bevy_platform",
@@ -1291,8 +1293,10 @@ dependencies = [
  "bevy_a11y",
  "bevy_android",
  "bevy_app",
+ "bevy_asset",
  "bevy_derive",
  "bevy_ecs",
+ "bevy_image",
  "bevy_input",
  "bevy_input_focus",
  "bevy_log",
@@ -1301,10 +1305,12 @@ dependencies = [
  "bevy_reflect",
  "bevy_tasks",
  "bevy_window",
+ "bytemuck",
  "js-sys",
  "tracing",
  "wasm-bindgen",
  "web-sys",
+ "wgpu-types",
  "winit",
 ]
 
@@ -3454,8 +3460,10 @@ dependencies = [
  "anyhow",
  "bevy_a11y",
  "bevy_app",
+ "bevy_asset",
  "bevy_ecs",
  "bevy_gilrs",
+ "bevy_image",
  "bevy_input",
  "bevy_time",
  "bevy_window",
@@ -3470,6 +3478,7 @@ dependencies = [
  "blackbox-feng",
  "blackbox-gfx",
  "blackbox-ginsu",
+ "blackbox-hash",
  "blackbox-minimap",
  "blackbox-mixmap",
  "blackbox-movie",
@@ -3497,6 +3506,7 @@ dependencies = [
  "raw-window-handle",
  "serde",
  "toml 0.9.12+spec-1.1.0",
+ "wgpu",
 ]
 
 [[package]]

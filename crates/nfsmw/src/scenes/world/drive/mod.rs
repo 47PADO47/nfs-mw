@@ -22,8 +22,9 @@ mod trace;
 mod visual_tires;
 pub(super) mod walls;
 
+use crate::scenes::world::car_lights::CarLights;
 use blackbox_collision::CollisionWorld;
-use glam::Vec3;
+use glam::{Mat4, Vec3};
 use nfsmw_data::car::physics::CarPhysics;
 
 use super::effects::TireEffects;
@@ -72,6 +73,8 @@ const GOOD_SPOT_STEPS: u32 = 30;
 pub struct Drive {
     pub car_name: String,
     pub effects: TireEffects,
+    /// The brake pedal as the lamps see it, 0 to 1.
+    pub brake_lamp: f32,
     pub vehicle_effects: VehicleEffects,
     pub flames: ExhaustFlames,
     rig: CarRig,
@@ -130,6 +133,7 @@ impl Drive {
         Self {
             car_name,
             effects: TireEffects::default(),
+            brake_lamp: 0.0,
             vehicle_effects: VehicleEffects::new(visuals),
             flames: ExhaustFlames::default(),
             rig,
@@ -166,6 +170,12 @@ impl Drive {
     }
 
     /// Heading of the car, radians from +X.
+    /// The car's lamps, with the car frame and brake pedal they are drawn with (copied, so the caller can hold
+    /// the effect layer meanwhile).
+    pub fn lamp_source(&self) -> (CarLights, Mat4, f32) {
+        (self.rig.lights().clone(), self.pose().transform(), self.brake_lamp)
+    }
+
     pub fn heading(&self) -> f32 {
         let forward = self.current.rotation * Vec3::X;
         forward.y.atan2(forward.x)

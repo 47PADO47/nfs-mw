@@ -12,6 +12,7 @@ pub(crate) mod input_options;
 mod logic;
 mod options;
 mod plugin;
+mod pointer;
 pub(crate) mod post_options;
 mod prompt_layout;
 mod prompts;

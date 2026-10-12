@@ -42,13 +42,20 @@ pub(super) fn streak_range(
     }
 }
 
-pub(super) fn color(rgba: [f32; 4], fade: f32) -> [u8; 4] {
+pub(in crate::scenes::world) fn color(rgba: [f32; 4], fade: f32) -> [u8; 4] {
     let mut result = rgba.map(|v| (v.clamp(0.0, 1.0) * 255.0).trunc() as u8);
     result[3] = (f32::from(result[3]) * fade.clamp(0.0, 1.0)).trunc() as u8;
     result
 }
 
-pub(super) fn glow(out: &mut Vec<EffectVertex>, point: Vec3, radius: f32, color: [u8; 4], camera: Vec3, forward: Vec3) {
+pub(in crate::scenes::world) fn glow(
+    out: &mut Vec<EffectVertex>,
+    point: Vec3,
+    radius: f32,
+    color: [u8; 4],
+    camera: Vec3,
+    forward: Vec3,
+) {
     let view = (camera - point).normalize_or(-forward);
     let right = view.cross(Vec3::Z).normalize_or(Vec3::Y) * radius;
     let up = right.normalize().cross(view) * radius;

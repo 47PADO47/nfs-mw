@@ -28,8 +28,10 @@ use std::sync::{Arc, Mutex};
 use anyhow::{Result, anyhow};
 use bevy_a11y::AccessibilityPlugin;
 use bevy_app::{App, AppExit, Last, TaskPoolPlugin, Update};
+use bevy_asset::AssetPlugin;
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_gilrs::GilrsPlugin;
+use bevy_image::ImagePlugin;
 use bevy_input::InputPlugin;
 use bevy_time::TimePlugin;
 use bevy_window::{Window, WindowPlugin, WindowResolution};
@@ -127,6 +129,9 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
         TimePlugin,
         InputPlugin,
         AccessibilityPlugin,
+        // Before the window: the cursor plugin in `bevy_winit` needs the asset server and the image assets.
+        AssetPlugin::default(),
+        ImagePlugin::default(),
         WindowPlugin { primary_window: Some(window), ..WindowPlugin::default() },
         WinitPlugin::default(),
         GilrsPlugin,

@@ -25,6 +25,9 @@ the recordings); [exhaust-flames.md](exhaust-flames.md) (the tail-pipe particle 
 drawing), [feng-input.md](feng-input.md) (pad messages, focus, navigation) and [frontend-menus.md](frontend-menus.md)
 (the screens, the option rows, the game flow).
 
+Cameras: [camera-views.md](camera-views.md) (the seven original views, from the install's `camerainfo` data, the camera
+setting's cycle and the gameplay camera's priority; the speed curve and some field meanings are still unconfirmed).
+
 [Original PC collision particles](pc-collision-particles.md) specifies ordinary
 textured sparks and contact glow separately from the experimental restoration.
 

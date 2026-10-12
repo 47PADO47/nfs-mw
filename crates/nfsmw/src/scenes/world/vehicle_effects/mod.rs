@@ -1,7 +1,7 @@
 //! Stock collision sprites and experimental vehicle streaks; see docs/specs/.
 
 mod body;
-mod geometry;
+pub(in crate::scenes::world) mod geometry;
 mod particle;
 mod pc_emitter;
 #[cfg(test)]

@@ -369,8 +369,8 @@ pub struct ViewArgs {
     /// [env NFSMW_TRANSMISSION; config `transmission`; default automatic].
     #[arg(long, value_name = "automatic|manual")]
     pub transmission: Option<crate::settings::Transmission>,
-    /// Which camera gameplay uses: chase or dynamic-fov [env NFSMW_CAMERA_MODE; config `camera_mode`; default chase].
-    #[arg(long, value_name = "chase|dynamic-fov")]
+    /// Which camera gameplay uses: chase, dynamic-fov, bumper, hood, close, far, superfar, drift or pursuit [env NFSMW_CAMERA_MODE; config `camera_mode`; default chase].
+    #[arg(long, value_name = "chase|dynamic-fov|bumper|hood|close|far|superfar|drift|pursuit")]
     pub camera_mode: Option<crate::settings::CameraMode>,
     /// Numbers for a HUD that has no car behind it: "speed_kmh,rpm,max_rpm,gear[,nos_percent[,boost_psi]]" (for
     /// reference screenshots; a nitrous or boost value shows that gauge).

@@ -64,14 +64,19 @@ impl Plugin for BlackboxBevyRenderPlugin {
         if !app.is_plugin_added::<FrameCountPlugin>() {
             app.add_plugins(FrameCountPlugin);
         }
+        // The game adds these before its window (the cursor needs them); a bare harness does not.
+        if !app.is_plugin_added::<AssetPlugin>() {
+            app.add_plugins(AssetPlugin::default());
+        }
+        if !app.is_plugin_added::<ImagePlugin>() {
+            app.add_plugins(ImagePlugin::default());
+        }
         app.add_plugins((
-            AssetPlugin::default(),
             RenderPlugin {
                 render_creation: RenderCreation::Automatic(Box::new(settings)),
                 synchronous_pipeline_compilation: self.synchronous_pipeline_compilation,
                 ..RenderPlugin::default()
             },
-            ImagePlugin::default(),
             MeshPlugin,
             CameraPlugin,
             LightPlugin,

@@ -12,6 +12,7 @@
 //! - [`sound`]: a car's engine sound set (`.gin` loops, banks and mix tuning) from the attribute database;
 //! - [`speech`]: the scheduling data of the police dispatch's speech events from the attribute database.
 
+pub mod camera;
 pub mod car;
 mod files;
 pub mod game;
