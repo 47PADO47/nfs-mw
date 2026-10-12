@@ -200,6 +200,8 @@ impl Scene for CarScene {
             light_dir: LIGHT_DIR,
             clear_color: [0.18, 0.2, 0.24],
             fog: None,
+            scattering: None,
+            surface_light: None,
             camera_cut: self.cut.take(),
         };
         (params, &self.instances)

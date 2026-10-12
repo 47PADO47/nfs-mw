@@ -37,6 +37,8 @@ impl Scene for MenuScene {
             light_dir: Vec3::NEG_Z,
             clear_color: [0.02, 0.02, 0.03],
             fog: None,
+            scattering: None,
+            surface_light: None,
             // Nothing 3D is drawn, so there is no camera to follow from frame to frame.
             camera_cut: true,
         };

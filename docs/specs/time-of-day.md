@@ -1,0 +1,248 @@
+# Time-of-day lighting
+
+Status: **sun motion and fog colour implemented, built and tested in the running game** (world tests 230 pass; sun and fog unit tests 17 pass; `nfsmw-data` 69 pass; offscreen screenshot renders). Outstanding: the visual match of the scattering fog and lighting against the original game, which needs a reference frame. Out of scope for this pass and still open: the sky dome, the colour grade's time link, scalar `+0xA0`, and the live blend weight `t` (held at 0.0685).
+world scene (`crates/nfsmw/src/scenes/world/sun.rs`). The night colours are specified too: in the states
+checked, the preset blend follows a location value, not the clock, and the clock's counter is never written.
+The one open question is who would write that counter in a state that runs it (see below).
+
+Source: the retail PC executable `speed.exe` (Ghidra, `SPEED_EXE_1_3`), the installed
+`GLOBAL/ATTRIBUTES.BIN`, and live checks in CheatEngine on a running free-roam game. No decompiled source is
+copied (see [licensing.md](../licensing.md#spec-first)).
+
+## Data
+
+The attribute class `timeofdaylighting` (class hash `0x399ED882`) has **8 collections**, each with
+**13 fields**. Field names are not in the install; only the hashes are known. The game loads them by name
+hash, in this order (the lighting object's constructor, `FUN_00770D70`):
+
+| Index | Collection hash |
+|---|---|
+| 0 | `0x3DCFA673` |
+| 1 | `0xB902CFAD` |
+| 2 | `0x59C373C3` |
+| 3 | `0xD835D0C8` |
+| 4 | `0xA01A3942` |
+| 5 | `0x0E1C797C` |
+| 6 | `0x94ABDFF0` |
+| 7 | `0x919B6689` |
+
+Fields are floats or `Vector4`s. A missing collection makes the preset unusable and the caller keeps the
+existing lighting. The index-to-time mapping is **[unconfirmed]**.
+
+## Lighting object
+
+The lighting object (`DAT_009B392C`, 400 bytes, built by `FUN_00770D70`) is the state the frame reads. Offsets
+in the object:
+
+| Offset | Meaning |
+|---|---|
+| `+0x00` | Rate `rate`, 1.0 by default **[verified live]**. |
+| `+0x04` | Direction `dir`, ±1 **[verified live: 1]**. |
+| `+0x08` | Sun phase `p` **[verified live]**. |
+| `+0x0C` | Angle offset `a`, 3.28 by default **[verified live]**. |
+| `+0x10` | Angle offset `b`, 0.5 by default **[verified live]**. |
+| `+0x160` | Blend weight `t` between preset pairs, set by `FUN_00769580`. The override `DAT_00905CE8` is never written, so it is inactive. |
+| `+0x164` | Dusk factor `1 − (clamp(sunZ, 0.25, 0.5) − 0.25) · 4`, with `sunZ` at `+0x188`. |
+| `+0x170..0x17C` | Sun vector before normalising, written by `FUN_00769360`. |
+| `+0x180..0x188` | Normalised sun direction (`+0x188` is its height). Used for the car and scene lights. |
+
+## Sun direction **[verified]**
+
+`FUN_00769360` runs once per frame. It advances the phase, clamps it, and builds the sun. The result is
+checked against the live game below.
+
+1. **Phase limit:** `lo = 0.35` if the game state `DAT_00925E90` is 3, otherwise `0.05`. The phase stays in
+   `[lo, 1 − lo]`.
+2. **Integrator** (used in free roam, see the clock below). Per frame, with `dt` the frame time in seconds
+   (`DAT_009259BC`, read live as `1/75 s`):
+
+   `p ← p + dt · dir · rate · 0.05 / 60`
+
+   If the new `p` is below `lo`, set `p = lo` and flip `dir`. If it is above `1 − lo`, set `p = 1 − lo` and flip
+   `dir`. The phase therefore runs from `lo` to `1 − lo` in `0.9 · 60 / 0.05 = 1080 s` (18 minutes), then back.
+3. **Vector:** with `u = (p − 0.5) · π`:
+
+   `v = (sin u · cos a + sin a · sin b · cos u,  sin b · cos a · cos u + sin u · sin a,  cos u · cos b)`
+
+4. **Direction:** `sun = v / |v|`. The normalisation is required: `|v|` is about 0.95 at the live sample, not 1.
+
+Checked against the live game (`p = 0.1403`, `a = 3.28`, `b = 0.5`): the formula gives
+`(0.916, −0.081, 0.394)` against the game's `(0.913, −0.085, 0.400)`, within the sampling error. The formula
+was also derived by a symbolic emulation of the disassembly, which gives the same expressions.
+
+The sine in the game uses 16-bit angles, one turn per 65536, so `sin` is quantised to 1/65536 of a turn. That
+error is negligible for lighting and is not modelled.
+
+The sun's height at noon (`p = 0.5`) is `cos b` in `Z`. With `b = 0.5` rad that is about 61° of elevation. At
+the phase limits the elevation stays above about 8°, so this sun never sets. Night is therefore not this sun;
+it is the preset blend, which is **[unconfirmed]** (see below).
+
+## Clock **[verified branch, unconfirmed use]**
+
+`FUN_00735620` chooses the phase source. It returns 1 when the flag `0x009B0FB9` is set or
+`FUN_0078EBA0()` is true (`DAT_009B41FC` or `DAT_009B4220` ≥ 1). When it returns 0, the integrator runs.
+
+When it returns 1, `p` is set from `FUN_00735A30`, a one-hour triangle:
+
+- `t = (ticks mod 3600) · 1000 + base − offset`, in milliseconds, wrapped at 3 600 000
+- `p = t / 1 800 000`, folded so that `p ≥ 1` becomes `2 − p`
+
+The triangle is 0 at the hour's start, 1 at 30 minutes, and 0 at the end of the hour. The ticks are the
+whole-second counter at `0x009B0FE4` (`+0x44` in the object at `0x009B0FA0`). `base` is `FUN_0078B2C0()` and
+`offset` is `DAT_009B0FC0`, neither read yet.
+
+Live checks in free roam: the flag `0x009B0FB9` and the two race counters are all 0, so the integrator runs
+and the triangle is not used. The counter does not move even in race or pursuit (the user checked). So in
+this install the triangle branch is not active in the states checked. Its gate is **[unconfirmed]** beyond that.
+
+The implemented function `time_of_day::clock_phase` gives the triangle and is tested.
+
+## Other time terms **[unconfirmed]**
+
+- `FUN_0073C980` and `FUN_0073C9F0` use the same counter with a 503-second wrap and a sine in degrees
+  (`0.714` degrees per second). They feed `FUN_0073CA50`, which the world update uses through the map target
+  `FUN_00753AC0`. That path's inputs are not confirmed to be live.
+- `DAT_009B0A50` is a 0–360 angle advanced by `FUN_00758100` at 45°/s, an 8-second loop. It is not the day
+  cycle. Its use is not known.
+- The world's eased value `+0x290` is the blend weight `t` for the presets (`FUN_006DE300` passes it to
+  `FUN_00769580`). It eases towards a map target from `FUN_00753AC0`. Whether it is the time of day, a
+  tunnel or zone factor, is **[unconfirmed]**.
+
+## Night colours and the preset blend **[verified live]**
+
+- The preset pair is chosen by `FUN_006C0A20`: it returns `DAT_00901828 != 0`, which was `1` in free roam, so the
+  pair is presets 1 and 3 (`+0xD4` and `+0xFC`), with preset 2 (`+0xE8`) as the third input.
+- The blend weight `t` at `+0x160` equals the world's eased value at `+0x290` (`0.0685` at the checked
+  location, steady over six seconds). `+0x290` eases towards a map target from `FUN_00753AC0`, which depends on
+  the car's position. So the preset blend follows the location (tunnels, zones), not the time of day.
+- The time term that would make the presets follow the day is `FUN_0073CA50`, which reads the 503-second
+  counter. It returns 1 when the counter path is off, so in free roam the time term is neutral.
+- The counter path needs the gate `0x009B0FB9` or the mode counters `0x009B41FC`/`0x009B4220` ≥ 1. The mode
+  counters are written by the game-state functions (values 1–7). The gate `0x009B0FB9` has no writer. In
+  free roam and in the race and pursuit states checked, the counter `0x009B0FE4` never changed.
+- **Conclusion for this build:** the daily change the player sees is the sun's motion (above) and the
+  location-driven preset blend. The night presets are not reached by a clock here.
+
+**Open:** which state, if any, writes the counter `0x009B0FE4`. That would enable the one-hour clock and the
+503-second term. No static writer exists, so it would need a watchpoint in a state not yet tested (for
+example a career day cycle, a cutscene or the frontend). The sun and the location blend do not depend on it.
+
+## Application
+
+Field names were matched by hashing candidate names with the attribute hash (`vlt_hash`). Matched colour fields:
+`AmbientColour` `0x52194D72`, `DiffuseColour` `0x7623FEB2`, `SpecularColour` `0x5855B1E7`, `FogHazeColour`
+`0xC91C60C7`, `FogSkyColour` `0x1D76EA96`. The eight scalar fields have no match yet.
+
+**Preset block layout (decoded).** Each preset holder's block is read by `FUN_00768EE0` at fixed offsets, and
+verified against the live blocks (preset 0 at `+0xC0`, values match the dump):
+
+| Block offset | Colour | Name hash |
+|---|---|---|
+| `+0x00` | Specular | `0x5855B1E7` |
+| `+0x10` | Diffuse | `0x7623FEB2` |
+| `+0x20` | Ambient | `0x52194D72` |
+| `+0x30` | Fog haze | `0xC91C60C7` |
+| (lookup) | Fog sky | `0x1D76EA96` |
+
+The lighting object's colour block (`+0x20` onward) receives the mix of the two blends: Diffuse at `+0x20`
+(read by `FUN_006C6300`), Ambient at `+0x30` (`FUN_006C6450`), Specular at `+0x40`.
+
+**Implemented: lighting and fog colour.** The lighting is the mix of two blends by the dusk factor:
+
+- The dusk factor is the game's formula from the sun's height `z`: `1 − (clamp(z, 0.25, 0.5) − 0.25) · 4`
+  **[verified in `FUN_00769580`]**.
+- The low-sun blend is presets 1 and 3 blended by `t` (`FUN_00768EE0` with `+0xD4` and `+0xFC`) **[verified]**.
+- The high-sun blend is presets 0 and 2 blended by `t` (`+0xC0` and `+0xE8`) **[verified]**.
+- The mix is `high + (low − high) · dusk` (`FUN_00769190`) **[verified]**.
+- The fog colour is the fog-haze colour of that mix. The fog runs towards the frame's clear colour, so the fog and
+  background take it.
+- `t` is held at 0.0685, the value of the world's eased `+0x290` at the checked spot **[assumption]**. Porting that
+  eased value needs the map sample (`FUN_00753AC0`), not yet done.
+
+Implemented in `time_of_day::lighting`, `time_of_day::fog_colour` and `WorldScene::fog_colour`.
+
+**Fog and sky path (decoded).** `FUN_006D6CF0` sets the fog and sky shader state. Its flag `DAT_00901934` is `1` in
+the checked game, so it takes the else branch, which reads the lighting object directly **[verified live]**:
+
+| Lighting offset | Use | Record key (the same field, by name hash) |
+|---|---|---|
+| `+0x70` vec4 (`w` at `+0x7C`) | Sky colour, scaled by the distance term | `0xA450F56C` |
+| `+0x80` vec4 (`w` at `+0x8C`) | Fog haze colour, scaled by the fog term | `0x2CF0B378` |
+| `+0x90` × 0.01 | Distance term (sky side) | `0x555FD699` |
+| `+0x94` × 0.01 | Distance term (fog side) | `0xC8BAF5D6` |
+| `+0x98` | Integer flag | `0x2F70D78A` |
+| `+0x9C` | Scalar, shapes the fog curve | `0xDBA22A95` |
+| `+0xA0` | Scalar | not matched yet |
+
+So the time-of-day block drives the fog and the sky, and the fog colour is the haze colour at `+0x80`, which is the
+mix of the two blends (see above). The sky colour at `+0x70` is set by the same lighting update; which blend field feeds it is not yet confirmed.
+The renderer's `FrameParams` takes only a clear colour and a fog start and end, so the depth curve and the sky-dome
+colour are not yet mapped into it.
+
+**Fog model (decoded).** The fog effect's constant names (`Fog_Br_Plus_Bm`, `Fog_One_Over_BrBm`, `Fog_Const_1..3`,
+`Fog_DistanceScale`) are in the embedded effect blobs (`IDI_WORLD_FX` and others, found by the `fx_2_0` magic).
+They describe atmospheric scattering: Rayleigh (`Br`, from the sky colour `+0x70` times the distance `+0x90·0.01`)
+and Mie (`Bm`, from the haze colour `+0x80` times the distance `+0x94·0.01`), with `g` at `+0x9C`. The game
+scales the distances as `field·0.01·0.0099 + 0.0001` **[verified: the constants and the `FUN_006D6CF0` arithmetic]**.
+With `E = exp(−(Br+Bm)·d)` and `In = (Br·3/(16π)·(1+c²) + Bm·HG(c))·(1−E)/(Br+Bm)`, the pixel is `scene·E + In`.
+Implemented in `crates/nfsmw-data/src/fog.rs`, with tests. The Henyey-Greenstein term uses the `(1 − g)²`
+form the game's constants suggest; the exact normalisation is **[unconfirmed]** against the shader.
+
+**Renderer (wired, not visually verified).** `FrameParams` has an optional `Scattering` (Rayleigh, Mie, `g`, the
+direction to the sun). The shared `Globals` grew to 176 bytes with those fields. The scene and glossy shaders use
+`scatter_fog` when the Rayleigh `w` flag is set, and the linear fog otherwise. The effect and soft-particle shaders
+still use the linear fog. The world frame sets the scattering each frame from the lighting. The three scalars
+(`+0x90` = 3.0, `+0x94` = 2.27, `+0x9C` = −0.47) are held at their observed values. The headless shader tests pass
+(one clear-colour test is off by one LSB, not on a fogged path). The game was not run for a visual check, and the
+`nfsmw` crate does not build at the time of writing because of separate in-progress edits to the car lamp code.
+
+**Surface lighting (wired).** The world surfaces take the lighting's ambient colour (`+0x30`) and diffuse colour
+(`+0x20`), mixed by the dusk factor. `FrameParams.surface_light` carries them, and the shared `Globals` (now 208 bytes)
+passes them to `scene.wgsl`. Without them the shader keeps the fixed 0.35 ambient and 0.65 diffuse. The specular
+colour (`+0x40`) is not applied: the world surfaces have no specular term, and the game's specular belongs to the
+car's glossy parts, which use their own per-car rig. The car rig is not changed. A screenshot renders; the match
+with the original game is not verified.
+
+**Findings for the three open items (checked in the embedded effects and `FUN_006D6CF0`).**
+
+- **Sky dome (item 1).** The `SKYDOME` scenery uses effect 0, which has only the texture, the transform and the
+  blend state: no fog and no sky constant. So the dome's colour is its texture times its vertex colour, not the
+  lighting, in the original too. The lighting-driven sky colour is `FFSKYCOLOR` and `SUNCOLOR`, in the skybox
+  effects (blobs 14, 17 and 18). Those are the sky model paths (`SkyRender`), which this renderer does not run.
+  Driving them needs the skybox shader's semantics and the sky-model path, which is not implemented.
+- **Colour grade (item 2).** The grade is the visual-treatment effect (blob 21): `ColourBloomTint`, `Desaturation`,
+  `BlackBloomIntensity`, `ColourBloomIntensity`, `GAINMAP` and the visual-effect brightness, radial blur and vignette.
+  Its values come from the `visuallook` attribute record. No read of the lighting object was found in the paths
+  checked, so there is no verified time-of-day link yet.
+- **Scalar `+0xA0` (item 3).** The record branch of `FUN_006D6CF0` does not read `+0xA0`; it uses 1.0 there.
+  The names the effects use for brightness-like values did not match any hash. The attribute names are not stored
+  in `speed.exe` (only the hashes), so matching `+0xA0` needs an external name list.
+
+**Not implemented:**
+
+- **Sky.** The sky is scenery models (`SKYDOME`, `SKYDOME_XENON`) with textures in `InGameA.bun`. Their colour is
+  not set by the lighting object, so there is no verified sky-colour path yet. The horizon colour follows the fog.
+- **Colour grade.** The grade is `visuallook` `default` (`ColourBloomTint`, curves). It is not driven by the time
+  of day in any state checked, and the time-of-day blend does not reach it yet.
+- **Scalar fields** (fog distance, sun intensity and similar). Their names are not matched, so fog distances stay
+  as the world's fixed values.
+- **Ambient, diffuse and specular colours.** Matched by name but not yet connected to the renderer's light model.
+
+## Implementation plan
+
+1. **Sun daily motion** (done). `Sun` in `crates/nfsmw/src/scenes/world/sun.rs` keeps the phase and direction,
+   advances it each frame, and feeds the scene light and the drive car's shading. Start phase `0.5` (noon). The
+   traffic cars and reflections still use the noon sun, since they are set up without a frame update.
+2. **Preset blend** (done as specified, in the location form). `time_of_day::blend` with `t` from the world's
+   `+0x290` value. Not yet applied to the renderer's colours.
+3. **Application** of the blended presets to fog, sky and grade (not yet started).
+
+Implemented in `crates/nfsmw-data/src/time_of_day.rs`: `clock_phase`, `sun_phase_limit`,
+`advance_sun_phase`, `sun_direction`, plus the preset loader and blend. Tests cover the noon sun, the live
+sample, unit length, the bounces, and the 18-minute half cycle.
+
+## Verification
+
+- Unit tests on the formula, the integrator and the clock.
+- The live sample above, from CheatEngine on the running game (`p`, the sun vector, `a`, `b`).
+- Not yet verified: the sun's look against a screenshot of the game at a known phase, and the night.

@@ -11,16 +11,19 @@
 //! - [`music`]: the licensed songs of the radio, from the attribute database;
 //! - [`sound`]: a car's engine sound set (`.gin` loops, banks and mix tuning) from the attribute database;
 //! - [`speech`]: the scheduling data of the police dispatch's speech events from the attribute database.
+//! - [`time_of_day`]: the 8 lighting presets from the attribute database and the blend between two (no clock yet).
 
 pub mod camera;
 pub mod car;
 mod files;
+pub mod fog;
 pub mod game;
 pub mod minimap;
 pub mod music;
 pub mod pursuit;
 pub mod sound;
 pub mod speech;
+pub mod time_of_day;
 pub mod traffic;
 pub mod vehicle_effects;
 pub mod visual_treatment;

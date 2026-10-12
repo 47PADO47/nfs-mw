@@ -74,6 +74,17 @@ pub struct Globals {
     pub fog_color: [f32; 4],
     /// x = fog start, y = fog end (both in world units; `f32::MAX` turns fog off), z = texture LOD bias.
     pub fog_range: [f32; 4],
+    /// xyz = Rayleigh coefficients per channel, w = 1 when the scattering fog is on, 0 for the linear fog.
+    /// Read by the world surface shaders; the effect shaders read only the block above.
+    pub scatter_rayleigh: [f32; 4],
+    /// xyz = Mie coefficients per channel, w = the Mie anisotropy `g`.
+    pub scatter_mie: [f32; 4],
+    /// xyz = unit direction towards the sun, w = 0.
+    pub to_sun: [f32; 4],
+    /// xyz = ambient colour of the world surfaces, w = 1 when the lighting colours are on, 0 for the fixed terms.
+    pub surface_ambient: [f32; 4],
+    /// xyz = diffuse colour of the world surfaces (scales the sun term).
+    pub surface_diffuse: [f32; 4],
 }
 
 /// The globals buffer with its bind group, and the layouts and sampler that textured draws use.
@@ -173,7 +184,7 @@ mod tests {
     #[test]
     fn globals_match_the_wgsl_block() {
         // mat4x4 + four vec4: 64 + 4 * 16 bytes.
-        assert_eq!(std::mem::size_of::<Globals>(), 128);
+        assert_eq!(std::mem::size_of::<Globals>(), 208);
     }
 
     #[test]

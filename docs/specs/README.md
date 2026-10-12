@@ -28,6 +28,8 @@ drawing), [feng-input.md](feng-input.md) (pad messages, focus, navigation) and [
 Cameras: [camera-views.md](camera-views.md) (the seven original views, from the install's `camerainfo` data, the camera
 setting's cycle and the gameplay camera's priority; the speed curve and some field meanings are still unconfirmed).
 
+Time of day: [time-of-day.md](time-of-day.md) (the 8 lighting presets and the blend; the clock is not yet confirmed).
+
 [Original PC collision particles](pc-collision-particles.md) specifies ordinary
 textured sparks and contact glow separately from the experimental restoration.
 

@@ -42,6 +42,8 @@ impl Camera {
             light_dir: Vec3::new(-0.4, 0.3, -0.85).normalize(),
             clear_color,
             fog: fog.map(|(start, end)| Fog { start, end }),
+            scattering: None,
+            surface_light: None,
             camera_cut: false,
         }
     }
