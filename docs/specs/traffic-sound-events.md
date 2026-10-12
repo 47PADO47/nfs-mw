@@ -170,6 +170,16 @@ published table does not contain that route, so it is removed. The invented `1 +
   (`+0x34`). None evaluates an interpolator at `+0x44`. The nitrous object's own interpolator (`obj+0x44`) therefore has no
   direct evaluator call in the binary. Either it is evaluated through a computed or indirect call, or the boost is never
   evaluated in the original. This is a negative result for the direct-call route, not proof of absence.
+- Indirect route (Ghidra script, temporary, removed): `CALL dword ptr [reg+0x24]` (vtable slot 9, the nitrous update) in
+  `0x4C0000` to `0x500000` has 7 hits. The one that iterates objects is `FUN_004D91D0`, a list walker. It takes two
+  intrusive lists at `this+0x20` and `this+0x24` (each node's first dword is its vtable, the second its next pointer) and
+  calls slot 9 (`+0x24`) and slot `+0x30` on every node. It is called from `FUN_004E52A0`, the per-frame tick of a car-sound
+  owner (its car is at `+0x34`). The nitrous object's next pointer is at its own `+0x04` (set to 0 in its constructor), which
+  fits being a node in such a list, but the membership is not yet proven.
+- For the nitrous object, slot `+0x30` is `0x004B3300`, a bare `RET`. So along this path the nitrous update (slot 9) only
+  starts or stops the boost, and nothing evaluates its interpolator. The boost value at `obj+0x58` then stays at the start
+  value that `FUN_004B02B0` writes (0), if the object is on this list. This is a strong lead that the original never
+  applies the boost ramp, not a finished proof. The remaining check is where the nitrous object is inserted into the list.
 - Hash check: `vlt_hash("nos")` is `B1669F64` (the class `nos`), so the probe hashing is correct.
 - The sound-instance queue is `DAT_00912270` (posted by `FUN_004e52c0`, consumed by `FUN_004ce960`), with instances in
   a table at `0x00912858` (stride `0x68`). The per-instance processor is `FUN_004d0a60` and `FUN_004cfac0`, and the
