@@ -46,6 +46,7 @@ fn run_ui(
     mut console: ResMut<Console>,
     hud: Option<Res<crate::hud::HudState>>,
     radio: Option<Res<crate::hud::RadioHud>>,
+    mut host: NonSendMut<crate::app::Host>,
 ) {
     let (width, height) = (window.width(), window.height());
     let raw = egui::RawInput {
@@ -69,7 +70,9 @@ fn run_ui(
             let screen = crate::ui::present::Screen { width, height, pixels_per_point: window.scale_factor() };
             crate::hud::show_radio(ctx, radio, screen, settings.hud_layout);
         }
-        overlay::show(ctx, settings.show_metrics, &metrics);
+        // The scene's panels first: the metrics sit beside them, so they know how far in to go.
+        let left = host.scene.ui(ctx);
+        overlay::show(ctx, settings.show_metrics, &metrics, left);
         console::show(ctx, &mut console);
     });
 }

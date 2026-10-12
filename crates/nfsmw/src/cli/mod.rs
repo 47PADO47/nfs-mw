@@ -9,6 +9,7 @@ use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
 use crate::settings::{Monitor, Partial, Resolution, WindowMode};
 use hud_demo::parse_hud_demo;
+use parse::{parse_screenshot_size, parse_xy};
 
 const AFTER_HELP: &str = "With no command the game starts as `play` does: the boot movies, the title screen,
 the main menu, then free roam in your car. Give options to `play`
@@ -19,6 +20,8 @@ Examples:
   nfsmw play --skip-boot                 start at the main menu
   nfsmw play --drive                     start driving at once
   nfsmw view-car BMWM3GTR                look at a car
+  nfsmw asset-viewer                     browse every car, click one to show it
+  nfsmw view-assets                      browse the poles, cones and other scenery models
   nfsmw view-world --drive SKYLINEZT     drive through the city
   nfsmw keys                             list every key, button and stick binding
 
@@ -51,6 +54,8 @@ pub enum Command {
     Keys,
     /// List the cars in the install.
     ListCars,
+    /// List the shared scenery models (poles, cones...) of the city, one name per line.
+    ListAssets,
     /// Show a car assembled from its stock parts (drag to orbit, scroll to zoom, Esc to quit).
     ViewCar {
         /// Car folder name under CARS/, e.g. BMWM3GTR.
@@ -68,6 +73,23 @@ pub enum Command {
         /// Camera yaw in degrees.
         #[arg(long, default_value_t = 35.0, allow_negative_numbers = true)]
         yaw: f32,
+        #[command(flatten)]
+        view: ViewArgs,
+    },
+    /// Browse every car in the install: a searchable list on the left, the chosen car on the right with its
+    /// wheels turning and the front pair steering (Esc quits).
+    AssetViewer {
+        /// The car to start with: a folder name under CARS/, or a unique start of one.
+        #[arg(default_value = "BMWM3GTR")]
+        car: String,
+        #[command(flatten)]
+        view: ViewArgs,
+    },
+    /// Browse the shared scenery models (poles, cones, bins...): a searchable list on the left, the chosen model
+    /// on the right (Esc quits).
+    ViewAssets {
+        /// The model to start with, or a unique start of its name; the first one when left out.
+        name: Option<String>,
         #[command(flatten)]
         view: ViewArgs,
     },
@@ -462,19 +484,7 @@ fn switch(on: bool, off: bool) -> Option<bool> {
     on.then_some(true)
 }
 
-fn parse_xy(s: &str) -> Result<[f32; 2], String> {
-    let (x, y) = s.split_once(',').ok_or("expected X,Y")?;
-    let n = |v: &str| v.trim().parse::<f32>().map_err(|e| e.to_string());
-    Ok([n(x)?, n(y)?])
-}
-
-fn parse_screenshot_size(s: &str) -> Result<[u32; 2], String> {
-    let Resolution::Pixels { width, height } = s.parse::<Resolution>()? else {
-        return Err("expected WIDTHxHEIGHT, not native".into());
-    };
-    Ok([width, height])
-}
-
 mod hud_demo;
+mod parse;
 #[cfg(test)]
 mod tests;

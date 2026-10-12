@@ -49,6 +49,12 @@ pub trait Scene {
     fn captures_mouse(&self) -> bool {
         false
     }
+    /// The scene's own egui panels, drawn every UI pass over the window (after the scene's update, before the
+    /// frame is drawn). Returns the width in points of the strip on the left that they take, so the overlays
+    /// can sit beside them; 0 when there is none. Scenes without panels ignore it.
+    fn ui(&mut self, _ctx: &egui::Context) -> f32 {
+        0.0
+    }
     /// Extra text for the window title (streaming progress, counts).
     fn status(&self) -> Option<String> {
         None

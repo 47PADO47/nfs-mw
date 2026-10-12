@@ -47,6 +47,7 @@ fn no_command_starts_the_game() {
     let cli = Cli::try_parse_from(["nfsmw", "--game-dir", "X"]).unwrap();
     assert!(cli.command.is_none() && cli.game_dir.is_some());
     assert!(Cli::try_parse_from(["nfsmw", "--game-dir", "X", "view-car"]).is_ok());
+    assert!(Cli::try_parse_from(["nfsmw", "asset-viewer", "CAMARO", "--window-mode", "windowed"]).is_ok());
     assert!(Cli::try_parse_from(["nfsmw", "--no-sound"]).is_err(), "viewer options belong to a command");
 }
 

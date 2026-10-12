@@ -7,6 +7,7 @@
 //! solid in its own tile or in a shared set, never in another tile, so shared
 //! sets stay loaded and tiles stream independently.
 
+mod assets;
 mod globals;
 mod index;
 mod props;
@@ -14,6 +15,7 @@ mod section;
 pub mod sequences;
 mod streamer;
 
+pub use assets::SharedAssets;
 pub use globals::{GLOBAL_TEXTURE_FILES, GlobalTextures, load_global_textures};
 pub use index::WorldIndex;
 pub use props::{LocalBox, PropCatalog, PropDynamics, PropKind, PropShape, boxes as prop_boxes};

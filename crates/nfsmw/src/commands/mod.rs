@@ -42,6 +42,14 @@ pub fn run(cli: Cli) -> Result<()> {
             }
             Ok(())
         }
+        Command::ListAssets => {
+            let dir = open_install(game_dir)?;
+            let assets = nfsmw_data::world::SharedAssets::load(&dir, nfsmw_data::world::DEFAULT_TRACK)?;
+            for name in assets.names() {
+                println!("{name}");
+            }
+            Ok(())
+        }
         Command::ListMovies => {
             for movie in crate::movie::list(&open_install(game_dir)?) {
                 println!("{movie}");
@@ -109,6 +117,16 @@ pub fn run(cli: Cli) -> Result<()> {
                 &Settings::load(view.settings_layer()),
                 run_options,
             )
+        }
+        Command::AssetViewer { car, view } => {
+            let dir = open_install(game_dir)?;
+            let scene = crate::scenes::assets::AssetScene::open_cars(&dir, &car)?;
+            crate::app::run(Box::new(scene), &Settings::load(view.settings_layer()), view.run_options(&dir, false))
+        }
+        Command::ViewAssets { name, view } => {
+            let dir = open_install(game_dir)?;
+            let scene = crate::scenes::assets::AssetScene::open_scenery(&dir, name.as_deref())?;
+            crate::app::run(Box::new(scene), &Settings::load(view.settings_layer()), view.run_options(&dir, false))
         }
         Command::ViewWorld { at, height, heading, pitch, fog_distance, wait_for_load, drive, drive_script, view } => {
             let dir = open_install(game_dir)?;

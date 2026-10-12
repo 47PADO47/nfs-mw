@@ -50,6 +50,11 @@ impl CarMaterials {
         Self { uploaded, glossy, fallback, paint }
     }
 
+    /// The uploaded texture with this name hash, if the car draws it.
+    pub fn texture(&self, hash: u32) -> Option<TextureHandle> {
+        self.uploaded.get(&hash).map(|(handle, _)| *handle)
+    }
+
     /// Free the textures and materials.
     pub fn destroy(self, renderer: &mut dyn RenderBackend) {
         for (handle, _) in self.uploaded.into_values() {
