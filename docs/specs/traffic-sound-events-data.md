@@ -469,3 +469,8 @@ case-insensitive CRC-32. Four prefixes (`_vehiclesound`, `vehiclesound`, `_vehic
 were tested against the inflated `VEHICLES/` and `SOUND/` streams. That gives 3,807 hits, from many numbers. **But the four
 `CarSelectSound` targets (`14691`, `14692`, `14693`, `14725`) give zero hits** under all four prefixes. So the `CarSelectSound`
 values are not CRC-32 keys of these names: they are IDs, and their sound sets are keyed differently.
+
+**Function that builds the sound-set name (read).** The enclosing function of the `_VEHICLESOUND` name builder has a `sub esp, 0x338`
+prologue at `0x0057BC70` (the bytes before it are padding). It has no direct `call` callers, so it is reached through a virtual slot
+or a function pointer. Its `CarSelectSound` ID argument arrives on the stack (`[esp+0x35C]` at the name builder). The next step is to
+find the vtable or table that holds `0x0057BC70` and the ID source for that call.
