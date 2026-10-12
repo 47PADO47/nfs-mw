@@ -247,3 +247,9 @@ table with a fixed 112-byte record. Vehicle IDs appear at record starts (`122672
 `0x1A4`) and floats (dimensions and weights). `COMPETITORSOUNDS.BNDL` has no vehicle IDs with a small neighbour, so the
 per-car link is in this list. The sound-set index is one of the small integers in the record, but the field is not yet
 confirmed: it needs to vary across cars that use different sets, which is the next check.
+
+**Cross-car comparison (read).** Across the 70 records of the per-car list (stream `0xF76`), word 25 of the record (byte
+offset 100 from the ID) is the only categorical field: it takes five values, `18` (42 cars), `8` (11), `0` (11), `1` (5) and
+`16` (1). Examples: `MUSTANGGT` (`122818`) = 8, `1085007` = 18, `122672` = 18, `122675` = 18. So field 25 is a candidate
+class or sound-set index. **No car has the value 2**, the value the `BlewByCop` gate tests. So field 25 is either not the role
+field, or the role-2 value is stored in another place. The role-2 mapping is still unresolved.
