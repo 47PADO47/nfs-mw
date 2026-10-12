@@ -147,7 +147,8 @@ fn nitrous_loops_while_it_burns_and_purges_when_the_tank_runs_dry() {
             _ => None,
         })
         .collect();
-    assert!(pitches.last().unwrap() > pitches.first().unwrap(), "the pitch rises with the boost");
+    assert!(!pitches.is_empty(), "the loop plays while the nitrous burns");
+    assert!(pitches.iter().all(|&p| p == 1.0), "the mixer map sets the pitch, not a boost here");
     let off = rig.run(0.2, CarInput { nos_active: false, nos_empty: true, ..input(0.7, 1.0, 3) });
     assert_eq!(stops(&off, LoopId::Nitrous), 1);
     assert_eq!(plays(&off, |s| s == SoundRef::Purge).len(), 1);
