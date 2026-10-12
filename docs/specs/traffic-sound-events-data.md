@@ -268,3 +268,8 @@ data. A search for vehicle-ID-like values with a raw `2` within 16 bytes found 1
 `0x00020001` (`131073`), which is a record flag and not a car ID. Of the remaining matches, only 11 are real vehicle file IDs,
 and they occur once or twice each, at about the rate chance produces. So the traffic attribute bundle does not link a car ID
 to a raw role value of 2 either.
+
+**Role-2 field-key search (read, negative).** Every bundle of `VEHICLES/`, `SOUND/` and `GAMELOGIC/` was inflated and searched
+for a `VehicleSoundSet` field key (`0x0B3FE48A`, `0xA32A93D6`, `0x8A89E1A3`) followed by the 16-byte pattern `(0, 2, 0)`, the
+shape a per-car role value of 2 would take in the schema layout. **Zero occurrences.** So the role value is not stored as a
+keyed field with value 2 in these bundles.
