@@ -321,6 +321,15 @@ published table does not contain that route, so it is removed. The invented `1 +
   param_1 = sim)` stores `owner+0x34 = param_1`. So `+0x34` is the car sim, passed in by the caller of owner slot 3. It also
   sets `owner+0xA8` to 0, 1 or 2 from the list entries of the sim (types `0x20` gives 2, `0x10` gives 1), and reads the sim's
   tables at `+0x200` and `+0x208`. The caller of owner slot 3 (which creates the sim) is the next read.
+- **The `+0x228` owner (resolved).** The car sims are the array at `DAT_00913DB4` (count `DAT_00913DBC`), filled by
+  `FUN_004C0A90` from the car-sim constructor `FUN_004C9CB0`. `FUN_004CAEF0` (the body of the `CarSoundConn` factory
+  `FUN_004CC790`) mallocs **0x260** bytes, constructs the sim with `FUN_004C9CB0(sim, id, role, ·, ·)`, and stores the sim
+  at its `this+0x14`. The role is the float at **record `+0x0C`**, where the record is the car descriptor from the
+  `CarSoundConn` registry. `FUN_004C9CB0` stores it at **sim `+0x228`**, and sets `+0x22C = 1`, `+0x22D` from the role.
+  So the state word is the car descriptor's role field. The `BlewByCop` gate compares its raw bits with the integer 2,
+  so it selects the descriptors whose role field holds the value 2 (raw). The owners of the descriptors are the car
+  types `EAXCopCar`, `EAXTruck` and `EAXTrafficCar`. Which car descriptors carry role 2 is in the game data, not the
+  binary.
 - Classification of the 170 `+0x28` indirect calls (read): they fall in 130 distinct enclosing functions. Of the 95 that
   are functions with a `+0x28` call and a named body, **none** references the pool-id global `DAT_008EE558`, the
   descriptor `0x00896800`, the name-hash global `0x00913BD8`, or the pool tables `DAT_0090DF10`/`DAT_0090DFF0`/`DAT_0090DE50`.
