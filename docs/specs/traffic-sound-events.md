@@ -237,6 +237,13 @@ published table does not contain that route, so it is removed. The invented `1 +
   path is not reached by a static call. The role values for the player's car are therefore not established by this path.
   Other writers of `+0x228` exist (`0x56C624`, `0x5E4BDD`, `0x6C3FC6`, `0x6D4EB6`, `0x704F28`, `0x705015`, `0x71CC1A`,
   `0x720345`, `0x791F30`, `0x793BA1`, `0x79F507`, `0x864862`) and were not read.
+- Other writers of `+0x228` (read): `FUN_0056C5E0` zeroes an object and sets `+0x200` to 2 (not `+0x228`). `FUN_00704E70`
+  writes a game timestamp (`DAT_00925AE8`) to `+0x228` of a different object, the one that also holds `+0x130`, `+0x134`
+  and `+0x1D4`. `FUN_005E4B10` zeroes `+0x228` of a 0x250-byte object. `FUN_006D4DC0` binds a post-processing parameter
+  handle to `+0x228`. None of these is the car sound sim, so the role at `+0x228` for the car sim comes only from the
+  constructor `FUN_004C9CB0`, whose caller path (`FUN_004CC790`) has no static entry point. The state-2 gate therefore
+  depends on a path not reached statically. Writers at `0x6C3FC6`, `0x704F28` (the same function as `FUN_00704E70`'s
+  second store), `0x71CC1A`, `0x720345`, `0x791F30`, `0x793BA1`, `0x79F507` and `0x864862` were not read.
 - Hash check: `vlt_hash("nos")` is `B1669F64` (the class `nos`), so the probe hashing is correct.
 - The sound-instance queue is `DAT_00912270` (posted by `FUN_004e52c0`, consumed by `FUN_004ce960`), with instances in
   a table at `0x00912858` (stride `0x68`). The per-instance processor is `FUN_004d0a60` and `FUN_004cfac0`, and the
