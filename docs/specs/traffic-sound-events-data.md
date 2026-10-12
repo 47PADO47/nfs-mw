@@ -474,3 +474,9 @@ values are not CRC-32 keys of these names: they are IDs, and their sound sets ar
 prologue at `0x0057BC70` (the bytes before it are padding). It has no direct `call` callers, so it is reached through a virtual slot
 or a function pointer. Its `CarSelectSound` ID argument arrives on the stack (`[esp+0x35C]` at the name builder). The next step is to
 find the vtable or table that holds `0x0057BC70` and the ID source for that call.
+
+**The owner of the sound-set name builder (read).** The address `0x0057BC70` is stored once, at `0x00F9A3C4`, which is slot 0 of
+a vtable at `0x00F9A3C4`. The constructor at `0x00425360` installs that vtable (`mov [eax], 0xF9A3C4`), together with sub-object
+vtables at `+0x18` (`0xF99700`), `+0x28` (`0xF98EF8`), `+0x50` (`0xF98DB0`) and `+0x98` (`0xF98DAC`), and clears a block of 16 pairs from
+`+0x428`. So the name builder `0x0057BC70` is the first virtual method of a large object that owns the sound-set lookup. Next: read that
+object's other methods, and find which one passes the `CarSelectSound` ID.
