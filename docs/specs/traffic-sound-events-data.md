@@ -158,3 +158,8 @@ hash-to-name mapping, which is not in these streams.
 `COPCAR` `0xD4BF6F56`, `FORDCOP` `0x4E9792BC`, `TRAFFIC` `0x7DF94ADA`) do not appear in `NFS13.exe` or in any inflated
 stream of `SOUND/`, `GAMELOGIC/` or `VEHICLES/`. So the car IDs are not `vlt_hash` values of the names, and the
 hash-to-name table is not stored in these files.
+
+**UTF-16 name search (read, negative).** The car names `BMWM3GTR`, `COPCAR`, `FORDCOP`, `CHEVYCORVETTE`, `LAMBOGALLARDO`,
+`TRAFFIC` and `BMWM3` were searched in UTF-16LE in the raw files of the install's root, `SOUND/`, `GAMELOGIC/`, `VEHICLES/`,
+`NFS13.exe`, and in every inflated stream of those bundles. **No occurrence.** So the car names are not stored as text in
+either encoding, and the ID-to-name table is not in the files searched.
