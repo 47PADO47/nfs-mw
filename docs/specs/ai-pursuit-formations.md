@@ -351,3 +351,16 @@ Details in [ai-helicopter.md](ai-helicopter.md). [decomp]
   options are the caller's data (the install's, section 6). Seven tests.
 - **Not built:** the cars (SUVs and cross cars from the pool), their spawn points (340 to 150 m ahead or behind), the
   `AIGoalHeadOnRam` and roadblock goals, the request timers and resets, and the speech.
+
+## Rewrite status (support, in the chase)
+
+- **The chase rolls support** (`ai/police.rs`, `tick_support`): every 10 s after the level's minimum delay (`ai/support.rs`,
+  `pursuitsupport` rows 1 to 10, install-verified), and only while the cops see the player, the heavy options of the level
+  are rolled with `blackbox_pursuit::support::roll`. The heavy roadblock is placed by the world (`ai/roadblock.rs`) and no
+  second one is rolled for the same chase.
+- **Not built:** RAM (`AIGoalHeadOnRam` and its two SUVs; the roll is logged), the leader options (the cross cars and the
+  priority check, which is not yet done per heat), the SUV spawns, the request duration and its reset, and the speech.
+- **Unconfirmed:** the support check's 10 s period is the spec's `support_check_timer`; the roll uses the same random
+  stream as the other rolls.
+- **Verified in a run:** a unit test (`a_support_roll_asks_for_a_roadblock_after_the_delay_while_seen`) covers the roll and
+  the delay. A headless run did not hit a roll in its short window, so the in-game request is not yet seen.
