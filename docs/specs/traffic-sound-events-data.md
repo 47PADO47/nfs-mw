@@ -277,3 +277,10 @@ keyed field with value 2 in these bundles.
 **Runtime check attempt (read, blocked).** With approval, `NFS13.exe` was launched from the install folder (PID 23832, running).
 Attaching CheatEngine failed: the Cheat Engine bridge (v12/v99 pipe) is not reachable on this machine, so no memory was read.
 The role-2 value remains unread. The check needs the Cheat Engine bridge running before it can attach.
+
+**Runtime check, continued.** Cheat Engine was started (`cheatengine-i386.exe`, PID 11184) and attached to `NFS13.exe`
+(PID 23832) successfully. But the addresses used in this document come from Ghidra's `speed.exe` analysis, and `NFS13.exe`
+does not share that layout: the bytes at `0x4C0A90` in `NFS13.exe` are a different function, not the car-sim array
+writer. So the car-sim array (`DAT_00913DB4`) is not at a known address in `NFS13.exe`, and the `+0x228` read cannot be
+done yet. The next step is to locate the car-sim array in `NFS13.exe` (for example through the Genesys name strings in its
+data), then read `+0x228` per sim.
