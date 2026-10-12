@@ -458,3 +458,7 @@ stream. **Zero hits.** The sound-set names are therefore not these car names, or
 - `GDFBinary_en_US.dll`: none of the car display names (`M3 GTR`, `Mustang`, `Corvette`, `Porsche`, `BMW`, `Traffic`) in ASCII or
   UTF-16. The word `Cop` appears twice in UTF-16.
 So the sound-set names are not stored as readable text in any file searched. Their source is not located.
+
+**Sound-set names in the running `speed.exe` (read, negative at the menu).** Cheat Engine searched the attached process for `vehiclesound`
+and `_VEHICLESOUND` (case as the loader builds them). Both return zero addresses at the menu. The loader builds the lowercased set names
+when a car loads, so this search needs a race running to be conclusive.
