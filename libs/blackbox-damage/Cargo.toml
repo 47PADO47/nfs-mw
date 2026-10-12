@@ -1,0 +1,11 @@
+[package]
+name = "blackbox-damage"
+description = "Persistent visual damage of a vehicle: per-zone panel, paint and glass levels from impact severities, and punctured tires."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
