@@ -393,3 +393,13 @@ the field names `Vehicle ID`, `Vehicle Name`, `Vehicle Short Name`, `Vehicle Tie
 `Vehicle Power`, `Vehicle Year`, `Vehicle Power RPM`, `Livery Vehicle ID`, `Vehicle Image`, `VehicleSound`, `SoundSet`,
 `Sound Set` and `VehicleSoundSet` (low and high halves). None appears among the 32-bit words of the 70-record per-car table
 (stream `0xF76`). So the field keys are not that hash of the field names.
+
+**`VehicleListEntry` field offsets (read).** The registration table at `0x42ADF2`..`0x42B0xx` in `NFS13.exe` registers each field
+with its byte offset in the record. The record is `0x70` (112) bytes, as in the list. The field `Car Select Sound` (name at
+`0xF9B3F0`, alias `CarSelectSound` at `0xF9B404`) has offset **`0x28`** (byte 40), type `0xF`, count 1. The field `Vehicle Tier`
+has offset `0x68` (byte 104), and `Vehicle Power` (or the preceding field) has `0x6A`, `0x6C`.
+
+Checked across the 70 per-car records (stream `0xF76`): byte 40 (`Car Select Sound`) is **0 for 66 cars**, and the other four hold
+`14691`, `14692`, `14693` and `14725`. So the sound reference is sparse, most cars use none, and the four non-zero values are the
+car-select sound references. Byte 100 (word 25) remains the categorical field (values 18, 8, 0, 1, 16), so word 25 is not the
+`Car Select Sound` field. The role-2 value is still not located in these records.
