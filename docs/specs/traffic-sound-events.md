@@ -258,7 +258,9 @@ published table does not contain that route, so it is removed. The invented `1 +
   `0x008A3AD0`, `FUN_0056B820` registers the language-texture pool with `0x00899D40`, `FUN_0070F500` registers
   `0x008B2578`, `FUN_0075C550` registers the streaming pool with `0x008B5220`, and `FUN_0078AE80` registers the "Online
   Buffer" pool with `0x008B6888`. None of these is `0x00896800`. So the only registrations of the sound descriptor are
-  `FUN_004CC3A0` and the site at `0x004ABFEE`, whose entry is not resolved (the bytes before it are padding).
+  `FUN_004CC3A0` and the site at `0x004ABFEE`. That site is in a function at `0x004ABFC0` (`MOV EAX,[ESP+4]`, a size
+  test, then a 0x2000 pool allocation and the registration with `0x00896800`). `0x004ABFC0` has no direct caller and no
+  stored pointer anywhere in initialized memory, so it is not reached by any static path, like `FUN_004CC790`.
 - `FUN_004CC3A0` is called only from `FUN_00665FC0`, the game's boot sequence, so the sound pool and its managers are
   created once at startup.
 - The pool-id global `DAT_008EE558` is read by a family of owner factories whose records sit in a 0x10-byte table at
