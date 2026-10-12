@@ -1,7 +1,7 @@
 //! Hit-testing a pointer against the buttons of a package, so a click can focus the button under it and press it
 //! the way accept does (the mouse side of spec `docs/specs/feng-input.md`).
 
-use glam::{Mat2, Vec2};
+use glam::{Mat2, Mat4, Vec2};
 
 use super::{ObjectRef, PackageId, Runtime};
 
@@ -10,10 +10,32 @@ impl Runtime {
     /// buttons overlap. A hidden button, or one whose parent is hidden, is never hit.
     pub fn button_at(&self, package: PackageId, point: Vec2) -> Option<ObjectRef> {
         let p = self.running(package)?;
+        self.topmost_at(package, point, |index| p.buttons.contains(&index))
+    }
+
+    /// The nearest visible object of `candidates` under a point of the screen, with the same rules as
+    /// [`Runtime::button_at`]. The objects are the caller's to name, such as the arrows of a row.
+    pub fn object_at(&self, candidates: &[ObjectRef], point: Vec2) -> Option<ObjectRef> {
+        let package = candidates.first()?.package;
+        self.topmost_at(package, point, |index| candidates.iter().any(|o| o.index == index))
+    }
+
+    /// The transform that maps an object's unit square (-0.5 .. 0.5) onto its box on the screen, as it is drawn now.
+    pub fn object_quad(&self, o: ObjectRef) -> Option<Mat4> {
+        self.tree(o.package).nodes.iter().find(|n| n.index == o.index).map(|n| n.world)
+    }
+
+    /// Makes a button the current one, as moving the focus to it does, so the next accept presses it.
+    pub fn focus_button(&mut self, button: ObjectRef) {
+        self.set_focus_index(button.package, Some(button.index), true);
+    }
+
+    /// The visible object that `accept` takes and that lies under `point`, the nearest one when they overlap.
+    fn topmost_at(&self, package: PackageId, point: Vec2, accept: impl Fn(usize) -> bool) -> Option<ObjectRef> {
         let tree = self.tree(package);
         let mut best: Option<(usize, f32)> = None;
         for node in &tree.nodes {
-            if !node.visible || !p.buttons.contains(&node.index) || !contains(&node.world, point) {
+            if !node.visible || !accept(node.index) || !contains(&node.world, point) {
                 continue;
             }
             // Larger depth is farther, so the smallest one is on top.
@@ -23,11 +45,6 @@ impl Runtime {
         }
         let (index, _) = best?;
         Some(ObjectRef { package, index })
-    }
-
-    /// Makes a button the current one, as moving the focus to it does, so the next accept presses it.
-    pub fn focus_button(&mut self, button: ObjectRef) {
-        self.set_focus_index(button.package, Some(button.index), true);
     }
 }
 
