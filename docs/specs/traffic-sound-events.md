@@ -301,6 +301,10 @@ published table does not contain that route, so it is removed. The invented `1 +
   timestamp or a zero reset. The state-2 comparison therefore cannot be a role on this object, and the gate's meaning
   stays **[unconfirmed]**. The `FUN_004C9CB0` role argument remains the only role source, and its caller path is not
   reached statically.
+- Interpolator writers (read). `FUN_004B02B0` (the interpolator setup) has 35 callers. The nitrous boost is set only by
+  `FUN_004EEF80` (the nitrous update, slot 9), at `0x004EEFDE` (rise) and `0x004EF026` (fall). The other 33 callers set
+  unrelated interpolators and do not touch the nitrous object. So the nitrous boost has one writer, and its evaluation
+  is still only the list-walker path, which slot `+0x30` (a `RET`) skips. The boost is never applied on this path.
 - Hash check: `vlt_hash("nos")` is `B1669F64` (the class `nos`), so the probe hashing is correct.
 - The sound-instance queue is `DAT_00912270` (posted by `FUN_004e52c0`, consumed by `FUN_004ce960`), with instances in
   a table at `0x00912858` (stride `0x68`). The per-instance processor is `FUN_004d0a60` and `FUN_004cfac0`, and the
