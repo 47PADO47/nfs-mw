@@ -230,8 +230,15 @@ published table does not contain that route, so it is removed. The invented `1 +
     slot `+0x30` is a `RET`, and its boost interpolator is never evaluated. So the boost ramp is never applied on this path.
     This is strong, since the mask and admission are both read. The one open point is whether another path evaluates the
     interpolator, which the direct-call and list-walker checks above do not show.
-- State-2 gate (partly read). The `BlewByCop` check reads `+0x228` of the car's sound-sim object and compares it with the
-  integer 2. `FUN_004C9CB0` (constructor) stores its float argument at `+0x228` (the role word from a record: `FUN_004CAEF0`
+- State-2 gate (partly read). `FUN_004C3980` reads `+0x228` of the object at `+0x34` of its argument (the sim object, not
+  the 0x28-byte record) and compares it with the integer 2. Its only callers are two thiscall thunks, `0x004C3E00` and
+  `0x004C3E30`, which are slot 7 of two vtables at `0x00896FF0` and `0x00897040` (same thunk body, both call
+  `FUN_004C3980` with `this`, then `FUN_004E52A0` and clear `+0x124`). Neither vtable base has a direct xref, and there is
+  no MSVC RTTI locator before them, so the owning class and the constructor that installs the vtable are not found yet.
+  The `+0x228` value of that sim object is still the unresolved part. The earlier notes below used the 0x28-byte record,
+  which is not established as the same object.
+- Earlier reading (superseded in its object identity, kept for the chain): the `BlewByCop` check reads `+0x228` of the
+  car's sound-sim object and compares it with the integer 2. `FUN_004C9CB0` (constructor) stores its float argument at `+0x228` (the role word from a record: `FUN_004CAEF0`
   passes `*(record+0x0C)`). The caller of `FUN_004CAEF0` is `FUN_004CC790`, which builds a 0x28-byte car sub-object from a
   record. `FUN_004CC790` has no direct caller and no table entry in any initialised memory (a dword scan finds none), so its
   path is not reached by a static call. The role values for the player's car are therefore not established by this path.
