@@ -97,3 +97,21 @@ interpolator's timing, but nothing in the sources links them to the mix. The rew
 The rewrite stops the loop with a 120 ms fade where the original sets the volume to 0 at once; a small deliberate
 difference.
 
+
+## Genesys name hash in `NFS13.exe` (read, read-only)
+
+`NFS13.exe` (install root, 13.6 MB, image base `0x400000`) contains the Genesys type-registration strings
+`Dynamically registered Genesys type` (VA `0x102BF04`, referenced from `0xA4E469`) and `Dynamically registered Genesys
+property` (VA `0x102BF28`, referenced from `0xA4E20F`). The registration code near `0xA4E204` calls a name helper, then the
+hash function at `0x009ED220`.
+
+`0x009ED220` is a 64-bit base-40 string hash over **12 characters** (the loop runs at most three four-character blocks,
+`edi = 0, 4, 8`, and pads short names with zeros). For each character `c`: `h = h * 40 + m(c)`, with
+`m('_') = 39`, `m(c) = c - 0x54` for `c >= 'a'`, `m(c) = c - 0x34` for `'A' <= c < 'a'` (case-folded), `m(c) = c - 0x2D`
+for digits, `m('/') = 2`, `m('-') = 1`, and `m(other) = 0`. The result is returned in `EDX:EAX` (high and low 32 bits).
+
+Checked against the type key `0x2EDB25E7` and the sub-record key `0xB92285F2`: `VehicleSound`, `WorldSound`, `MiscSound`,
+`MixerChannel`, `BurstTyre`, `PlayerWithinVfx`, `Genesys.Gen.` (the 12-character prefix), and the lo, hi, lo^hi and lo+hi
+combinations of each. **No match.** The hash has 946 callers in `NFS13.exe`, so the Genesys registration call is one of them,
+not yet identified. The type-name string `VehicleSoundResourceType` (VA `0xFA10B0`) has no absolute-address reference, so the
+type table is built at run time from a data table, not from a direct push.
