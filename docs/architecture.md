@@ -25,6 +25,7 @@ backends, multi-platform support and testing. The structure follows [vladtrc/iw4
 | [`blackbox-streaming`](../libs/blackbox-streaming) | The track streaming index | `layout::MOST_WANTED` passed by the caller |
 | [`blackbox-scenery`](../libs/blackbox-scenery) | Scenery infos and instances; visibility rule | `layout::MOST_WANTED` passed by the caller |
 | [`blackbox-collision`](../libs/blackbox-collision) | World collision packs, the collision grid, car and prop bounds, a ray-cast query | — (one layout so far) |
+| [`blackbox-damage`](../libs/blackbox-damage) | Persistent visual damage per impact zone (panel, paint, glass levels) and punctured tires; impacts in, levels out | — (zones and glazing passed by the caller) |
 | [`blackbox-carp`](../libs/blackbox-carp) | Embedded CARP tagged groups shared by collision, roads and event packages | — |
 | [`blackbox-sequence`](../libs/blackbox-sequence) | Event systems, states, action queues and timed event lists | — (event handlers and tag hashes supplied by the game) |
 | [`blackbox-feng`](../libs/blackbox-feng) | FEng user-interface packages and fonts: reader, script and message runtime, a retained `UiTree`; no rendering | — (one format version) |
@@ -36,6 +37,8 @@ backends, multi-platform support and testing. The structure follows [vladtrc/iw4
 | [`blackbox-mixmap`](../libs/blackbox-mixmap) | The sound system's dynamic mixer: `MIXMAPS/*.mxb` parser and a deterministic evaluator (published values in, per-object volume, pitch and filter slots out) | — (one format version) |
 | [`blackbox-aems`](../libs/blackbox-aems) | AEMS module banks inside `.abk` files: a reader and an interpreter of the event-sound graphs (which samples play, how loud and how high); voices and objects are a `Host` trait the caller implements | — (one format version) |
 | [`blackbox-movie`](../libs/blackbox-movie) | EA VP6 movies (`.vp6`): demuxer and video decoder (the MIT `nihav-vp6`); no audio yet | — |
+| [`blackbox-pursuit`](../libs/blackbox-pursuit) | Pursuit rules as pure functions: heat, the infraction log and its detection, cop tactic geometry, and the police helicopter (flight model, controller, sight, behaviours) | — (fines, heat tables and per-level tuning passed by the caller) |
+| [`blackbox-speedfx`](../libs/blackbox-speedfx) | High-speed screen effects as curves: speed streaks, radial blur, shake and a nitrous FOV kick, with smoothing | — (tuning passed by the caller) |
 | [`blackbox-particles`](../libs/blackbox-particles) | Particle emitters: spawn and update rules (cone spray, drag, gravity, keyed size, angle and colour curves) as a deterministic simulation that yields sprites | — |
 | [`blackbox-vehicle`](../libs/blackbox-vehicle) | Deterministic fixed-step vehicle physics: rigid body, engine and gearbox, suspension, tires, steering, aero; driven by plain parameter structs and a `Ground` ray-cast trait | — (parameters passed by the caller) |
 | [`blackbox-gfx`](../libs/blackbox-gfx) | The renderer-neutral graphics interface: shared types, the `RenderBackend` trait, capabilities, graphics settings and the pure `resolve` | — |
@@ -105,7 +108,7 @@ bevy_winit window ─► PreUpdate: input/ resolves devices into actions (Action
   `InputPresentation` selects the active pad and prompt device ([menu policy](specs/controller-ui.md)).
 - **Driving actions:** `Throttle` and `Brake` (0..1, so a pad's analog triggers are real pedals), `Steer` (-1..1),
   `Handbrake`, `ShiftUp`, `ShiftDown`, `Nos`, `ResetCar` and `ToggleCamera`. Keyboard: W/S or Up/Down pedals, A/D
-  or Left/Right steer, Space handbrake, E/Q (or Right Shift/Ctrl) shift up/down, Left Shift nitrous, R reset, F camera. Pad: right
+  or Left/Right steer, Space handbrake, E/Q (or Right Shift/Ctrl) shift up/down, Left Shift nitrous, R reset, F camera, H headlights, hold B to look back. Pad: right
   and left trigger pedals, left stick steers, A handbrake, X nitrous, right/left bumper shift up/down, Back resets,
   Y toggles the camera. Like all bindings they are untested on a real controller. A wheel appears as a gamepad with
   device-specific codes, which the log prints on first use. `paddle_up` / `paddle_down`, `pedal:` / `pedal_inv:`
@@ -133,7 +136,7 @@ bevy_winit window ─► PreUpdate: input/ resolves devices into actions (Action
     the shorthands `fps 60` / `vsync off` / `metrics advanced`, and `resolution <w> <h>`. Changes last for
     the run; the config file is not written.
   - The car viewer adds `car <folder>`, `garage` and `freecam` (orbit ↔ free camera). The world viewer adds
-    `drive`, `reset`, `tp`, `goto`, `freecam`, `pos`, `props`, `debug collisions` and `garage` ([Driving](#driving-view-world---drive)).
+    `drive`, `reset`, `repair`, `damage`, `tp`, `goto`, `freecam`, `pos`, `props`, `debug collisions` and `garage` ([Driving](#driving-view-world---drive)).
     Scenes offer commands through `Scene::commands` and `Scene::command`; "spawn AI" arrives with milestone 7.
   - `--exec "<command>"` (repeatable) runs commands at startup, like Quake's `+exec`; `--open-console`
     (hidden) starts with the console open, which is how the screenshots in bug reports show it.
@@ -153,7 +156,8 @@ Runtime options resolve in layers, highest first ([`crates/nfsmw/src/settings/`]
 1. the command line (`--backend`, `--no-vsync`, `--max-fps`, `--show-metrics`, `--show-readout`);
 2. environment variables (`NFSMW_BACKEND`, `NFSMW_VSYNC`, `NFSMW_MAX_FPS`, `NFSMW_SHOW_METRICS`, `NFSMW_SHOW_READOUT`);
 3. the per-user config file (`backend`, `vsync`, `max_fps`, `show_metrics`, `show_readout`, `radio`; the same file as `game_dir`);
-4. the defaults (`auto`, vsync on, unlocked, overlay off, readout minimal).
+4. `NFSMWExtraOptionsSettings.ini` next to the config file, in the Extra Options format ([extra-options.md](specs/extra-options.md)): `SkipMovies` only so far;
+5. the defaults (`auto`, vsync on, unlocked, overlay off, readout minimal).
 
 Gameplay keys: `hud`, `transmission` (`--transmission automatic|manual`, `NFSMW_TRANSMISSION`; automatic by default,
 as in the original), the wheel's `paddle_up` / `paddle_down` codes and off-by-default `manual_clutch` / `h_shifter`

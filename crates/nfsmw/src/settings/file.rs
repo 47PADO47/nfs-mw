@@ -41,6 +41,14 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         }
     };
     Partial {
+        always_rain: None,
+        rain_amount: None,
+        game_speed: None,
+        animation_speed: None,
+        car_scale: None,
+        headlights_key: None,
+        no_rev_limiter: None,
+        show_hud_on_look_back: None,
         deadzone_mode: field(&table, origin, "deadzone_mode", |v| super::DeadzoneMode::from_str(text_of(v)?)),
         steering_deadzone: field(&table, origin, "steering_deadzone", |v| {
             Deadzone::from_str(&v.as_str().map(str::to_owned).unwrap_or_else(|| v.to_string()))

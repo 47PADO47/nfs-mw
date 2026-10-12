@@ -30,6 +30,8 @@ setting's cycle and the gameplay camera's priority; the speed curve and some fie
 
 Time of day: [time-of-day.md](time-of-day.md) (the 8 lighting presets and the blend; the clock is not yet confirmed).
 
+Weather: [weather.md](weather.md) (the rain target from the script hook and the zone map, the easing, the drop pool and wind; rain only, no thunder or lightning in this build; static analysis, not yet confirmed in game).
+
 [Original PC collision particles](pc-collision-particles.md) specifies ordinary
 textured sparks and contact glow separately from the experimental restoration.
 
@@ -39,6 +41,8 @@ textured sparks and contact glow separately from the experimental restoration.
 
 [EAGL animation banks](eagl-animation.md) records the animation bank layout, the channel evaluators and the 14-byte key format found in `speed.exe`, and what is still unmapped (work in progress; the airliner is not yet animated).
 [Controller UI](controller-ui.md) specifies device ownership, live binding prompts and menu rendering corrections.
+
+[LAN and online server launcher](lan-server.md) records how the original `server.dll` is started and patched outside the game (MIT-licensed NFSLAN as the source, with what the stock `speed.exe` does and does not contain). Reference only; nothing is implemented.
 
 [Ground contacts](ground-contact-response.md) and [prop lifetime](prop-lifetime.md)
 cover measured plane response, world probes, sinking and model cleanup.
@@ -71,3 +75,8 @@ consuming the vehicle's existing intensities. Its appearance and lifetime are ne
 ## How to check it
 <what to measure in the original game to confirm the implementation matches>
 ```
+
+## Police and high-speed effects
+
+- [police-tactics.md](police-tactics.md): the aim of each cop (block, pit, ram) and what the rule leaves out.
+- [speed-effects.md](speed-effects.md): the high-speed screen effects; the curves are in `libs/blackbox-speedfx`.

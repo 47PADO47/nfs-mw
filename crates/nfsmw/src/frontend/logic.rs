@@ -6,6 +6,8 @@ use blackbox_feng::{ObjectRef, PackageId, Runtime, fe_hash_upper};
 use blackbox_gfx::Capabilities;
 use glam::Vec2;
 
+use super::confirm::{Alert, Confirm};
+use crate::input::Control;
 use crate::settings::{Partial, Settings};
 use crate::ui::UiAssets;
 
@@ -41,6 +43,11 @@ pub enum Command {
     Switch(String, Args),
     Push(String, Args),
     Pop,
+    /// Ask a question with two answers on top of the current screen (`confirm.rs`).
+    Confirm(Confirm),
+    /// Show a notice with one answer on top of the current screen (`confirm.rs`).
+    #[allow(dead_code)] // no screen raises one yet
+    Alert(Alert),
     /// Leave the menus and drive.
     StartFreeRoam,
     /// Close the pause menu and go on driving.
@@ -50,6 +57,12 @@ pub enum Command {
     QuitGame,
     /// Write the settings to the config file.
     SaveSettings,
+    /// Change one slot (0 primary, 1 secondary) of a control to the next key pressed (`controls_screen.rs`).
+    Remap(Control, usize),
+    /// Save the alias index with the default alias (`saves.rs`), and say so in an alert.
+    SaveAlias,
+    /// Read the alias index back and say whether it has the default alias (`saves.rs`), in an alert.
+    LoadAlias,
     /// The boot flow goes on to its next step.
     NextBootStep,
 }
@@ -75,6 +88,8 @@ pub struct Cx<'a> {
     pub commands: &'a mut Vec<Command>,
     /// The option index the screen last left on, per screen name.
     pub memory: &'a mut std::collections::HashMap<String, usize>,
+    /// The key names of the controls list, per row: the primary and the secondary (`controls_screen::key_texts`).
+    pub key_texts: &'a [[String; 2]],
     pub name: &'a str,
 }
 
@@ -198,6 +213,14 @@ pub trait ScreenLogic: Send + Sync {
 
     /// Every frame after the runtime updated, `dt` in seconds.
     fn tick(&mut self, _cx: &mut Cx, _dt: f32) {}
+
+    /// A click at a point of the screen (FEng units, origin at the centre). Returns whether the screen took it.
+    fn click(&mut self, _cx: &mut Cx, _point: Vec2) -> bool {
+        false
+    }
+
+    /// The mouse wheel turned `steps` notches, positive is up.
+    fn scroll(&mut self, _cx: &mut Cx, _steps: i32) {}
 }
 
 /// A screen without behaviour of its own: its package runs its scripts and nothing answers the game.

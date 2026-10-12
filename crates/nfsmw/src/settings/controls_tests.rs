@@ -49,7 +49,11 @@ fn gameplay_rows_persist_controls_without_erasing_bindings() {
     use crate::frontend::input_options::InputSetting;
     let mut settings: Settings = Partial::default().into();
     let mut changes = Partial::default();
-    for row in InputSetting::ALL {
+    // The keyboard row opens a screen and changes no value, so only the value rows are stepped.
+    let value_rows = InputSetting::ALL
+        .into_iter()
+        .filter(|r| !matches!(r, InputSetting::KeyboardBindings | InputSetting::SaveAlias | InputSetting::LoadAlias));
+    for row in value_rows {
         assert!(row.step(&mut settings, &mut changes, true));
     }
     let existing = "game_dir='unchanged'\nunknown=7\n[bindings]\nnos=['button:East']";

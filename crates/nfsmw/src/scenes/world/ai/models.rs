@@ -32,6 +32,12 @@ fn folders(cars: &[String], vehicle: &str, lineage: &[String]) -> Vec<String> {
     found
 }
 
+/// The horn sound of a `pvehicle` (`HornType`). 5 when the record has none: 5 is the first horn the spec verified.
+fn horn_of(db: &blackbox_attrib::Database, vehicle: &str) -> u32 {
+    const DEFAULT_HORN: u32 = 5;
+    db.collection("pvehicle", &vehicle.to_ascii_lowercase()).and_then(|c| c.get_u32("HornType")).unwrap_or(DEFAULT_HORN)
+}
+
 /// Loads the model and physics of one `pvehicle`, without the trailer it may pull.
 fn load_body(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, vehicle: &str) -> Result<TrafficModel, String> {
     let mut last = format!("no car folder for {vehicle}");
@@ -52,7 +58,15 @@ fn load_body(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, vehicle: 
             .map_err(|e| format!("{vehicle} has no physics: {e:#}"))?;
         let rig =
             std::rc::Rc::new(CarRig::upload(renderer, next_traffic_car(), model, scene.car_shading, sun::to_sun()));
-        return Ok(TrafficModel { name: vehicle.to_ascii_uppercase(), rig, physics, trailer: None });
+        let horn = horn_of(scene.physics.database(), vehicle);
+        return Ok(TrafficModel {
+            name: vehicle.to_ascii_uppercase(),
+            rig,
+            physics,
+            trailer: None,
+            cop_lights: None,
+            horn,
+        });
     }
     Err(last)
 }
@@ -94,11 +108,24 @@ pub(super) fn load_cop_models(
             ai.top_speed_multiplier,
             ai.acceleration_multiplier
         );
+        let cop_lights =
+            nfsmw_data::car::cop_lights::CopLightFx::read(scene.physics.database(), &model).and_then(|fx| {
+                let hashes: Vec<u32> = fx.lanes.iter().flat_map(|l| l.emitters.iter().map(|e| e.texture)).collect();
+                let found = nfsmw_data::car::exhaust::particle_textures(&scene.dir, &hashes).unwrap_or_default();
+                super::cop_lights::CopLightSet::build(renderer, &fx, &found)
+            });
         let rig =
             std::rc::Rc::new(CarRig::upload(renderer, next_traffic_car(), model, scene.car_shading, sun::to_sun()));
         let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
         traffic.add_cop_model(CopModel {
-            model: TrafficModel { name: folder, rig, physics, trailer: None },
+            model: TrafficModel {
+                name: folder,
+                rig,
+                physics,
+                trailer: None,
+                cop_lights,
+                horn: horn_of(scene.physics.database(), &name.to_ascii_lowercase()),
+            },
             car: CopCar { performance, ai },
         });
     }

@@ -101,7 +101,7 @@ mod tests {
     #[test]
     #[cfg(not(feature = "renderer-bevy"))]
     fn a_default_build_has_no_bevy_renderer() {
-        assert!(!BEVY_COMPILED);
+        const { assert!(!BEVY_COMPILED) };
         assert_eq!(choose(RendererKind::Bevy, blackbox_gfx::GraphicsApi::Auto), RendererKind::Blackbox);
     }
 }

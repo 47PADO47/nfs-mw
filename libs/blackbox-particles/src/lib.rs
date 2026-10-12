@@ -21,6 +21,8 @@
 //! ```
 
 mod curve;
+#[cfg(test)]
+mod cycle_tests;
 mod emitter;
 mod rng;
 mod spec;

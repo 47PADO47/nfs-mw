@@ -17,6 +17,7 @@ pub fn engine(c: Fields<'_>) -> EngineSpec {
         flywheel_mass: c.f32("FLYWHEEL_MASS"),
         engine_braking: c.floats("ENGINE_BRAKING"),
         speed_limiter: c.pair("SPEED_LIMITER"),
+        no_rev_limiter: false,
     }
 }
 
@@ -77,6 +78,7 @@ pub fn no_engine() -> EngineSpec {
         flywheel_mass: 0.0,
         engine_braking: Vec::new(),
         speed_limiter: [0.0; 2],
+        no_rev_limiter: false,
     }
 }
 

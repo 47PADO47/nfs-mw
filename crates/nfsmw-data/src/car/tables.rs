@@ -25,6 +25,12 @@ pub mod slot {
     pub const SPOILER: usize = 44;
     pub const UNIVERSAL_SPOILER_BASE: usize = 45;
     pub const DAMAGE0: RangeInclusive<usize> = 46..=51;
+    pub const DAMAGE0_FRONT: usize = 46;
+    pub const DAMAGE0_FRONT_LEFT: usize = 47;
+    pub const DAMAGE0_FRONT_RIGHT: usize = 48;
+    pub const DAMAGE0_REAR: usize = 49;
+    pub const DAMAGE0_REAR_LEFT: usize = 50;
+    pub const DAMAGE0_REAR_RIGHT: usize = 51;
     pub const ROOF: usize = 62;
     pub const FRONT_WHEEL: usize = 66;
     pub const REAR_WHEEL: usize = 67;

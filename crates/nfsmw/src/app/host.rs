@@ -38,10 +38,13 @@ pub struct Host {
     pub hold_capture: bool,
     /// The rear-view mirror drawn over the HUD (see [`super::mirror`]).
     pub mirror: super::mirror::MirrorOverlay,
+    pub streaks: super::streaks::StreakOverlay,
     /// The `rear_view_mirror` setting as of the last frame: when off, the rear view is not captured.
     pub rear_view_mirror: bool,
     tire_effects: [bool; 2],
     smoke_quality: SmokeQuality,
+    rain: (bool, f32),
+    world: crate::settings::WorldTuning,
     car_shading: CarShading,
     vehicle_effects: [bool; 2],
     spark_style: crate::settings::SparkStyle,
@@ -60,6 +63,8 @@ impl Host {
     pub fn new(mut scene: Box<dyn Scene>, settings: &Settings, screenshot: Option<super::screenshot::Plan>) -> Self {
         scene.set_tire_effects(settings.tire_smoke, settings.skid_marks);
         scene.set_smoke_quality(settings.smoke_quality);
+        scene.set_rain(settings.always_rain, settings.rain_amount.amplitude());
+        scene.set_world_tuning(settings.into());
         scene.set_car_shading(settings.car_shading);
         scene.set_vehicle_effects(settings.collision_sparks, settings.speed_trails);
         scene.set_spark_style(settings.spark_style);
@@ -80,9 +85,12 @@ impl Host {
             flow_driven: false,
             hold_capture: false,
             mirror: Default::default(),
+            streaks: Default::default(),
             rear_view_mirror: settings.rear_view_mirror,
             tire_effects: [settings.tire_smoke, settings.skid_marks],
             smoke_quality: settings.smoke_quality,
+            rain: (settings.always_rain, settings.rain_amount.amplitude()),
+            world: settings.into(),
             car_shading: settings.car_shading,
             vehicle_effects: [settings.collision_sparks, settings.speed_trails],
             spark_style: settings.spark_style,
@@ -105,6 +113,8 @@ impl Host {
     pub fn replace_scene(&mut self, mut scene: Box<dyn Scene>) -> anyhow::Result<()> {
         scene.set_tire_effects(self.tire_effects[0], self.tire_effects[1]);
         scene.set_smoke_quality(self.smoke_quality);
+        scene.set_rain(self.rain.0, self.rain.1);
+        scene.set_world_tuning(self.world);
         scene.set_car_shading(self.car_shading);
         scene.set_vehicle_effects(self.vehicle_effects[0], self.vehicle_effects[1]);
         scene.set_spark_style(self.spark_style);

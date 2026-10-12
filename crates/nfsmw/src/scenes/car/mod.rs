@@ -83,6 +83,11 @@ impl CarScene {
         }
     }
 
+    /// Turns the orbit camera around the car by `radians` (the menus' turntable).
+    pub(crate) fn turn(&mut self, radians: f32) {
+        self.camera.yaw += radians;
+    }
+
     /// Let the console load other cars from `dir`, with the same options.
     pub fn with_source(mut self, dir: GameDir, options: LoadOptions) -> Self {
         self.source = Some(Source { dir, options });
@@ -112,6 +117,9 @@ impl CarScene {
         let mut cache: HashMap<(u32, bool), Option<MeshHandle>> = HashMap::new();
         let world = self.to_world();
         for (part, p) in self.model.placements.iter().enumerate() {
+            if nfsmw_data::car::damage::is_corner_overlay(p.slot) {
+                continue;
+            }
             let mesh = *cache.entry((p.solid, p.left_brake)).or_insert_with(|| {
                 let lookup = materials.for_placement(&self.model.swaps, p.left_brake);
                 upload_solid(renderer, &self.model.solids[&p.solid], &lookup, self.solid_shading)
@@ -157,7 +165,7 @@ fn orbit_for(model: &CarModel, yaw: f32) -> OrbitCamera {
 fn bounds(model: &CarModel) -> Aabb {
     let mut bounds = Aabb::EMPTY;
     let lift = Mat4::from_translation(Vec3::Z * model.floor_height);
-    for p in &model.placements {
+    for p in model.placements.iter().filter(|p| !nfsmw_data::car::damage::is_corner_overlay(p.slot)) {
         let s = &model.solids[&p.solid];
         let (min, max) = (Vec3::from(s.bounds_min), Vec3::from(s.bounds_max));
         for corner in 0..8 {

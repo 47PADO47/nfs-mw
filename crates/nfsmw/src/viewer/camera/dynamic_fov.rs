@@ -23,11 +23,13 @@ pub struct DynamicFov<'a> {
     pub chase: &'a super::chase::ChaseView,
     /// The car's speed, m/s.
     pub speed: f32,
+    /// Degrees added on top of the speed's field of view (the high-speed effects' nitrous kick).
+    pub kick: f32,
 }
 
 impl Camera for DynamicFov<'_> {
     fn lens(&self, aspect: f32) -> Lens {
-        self.chase.lens_with_fov(aspect, fov_for_speed(self.speed))
+        self.chase.lens_with_fov(aspect, fov_for_speed(self.speed) + self.kick)
     }
 
     fn selectable(&self) -> bool {
@@ -63,9 +65,9 @@ mod tests {
     #[test]
     fn keeps_the_chase_position_and_widens_the_lens() {
         let chase = crate::viewer::camera::ChaseCamera::default().view();
-        let lens = DynamicFov { chase: &chase, speed: TOP_SPEED }.lens(16.0 / 9.0);
+        let lens = DynamicFov { chase: &chase, speed: TOP_SPEED, kick: 0.0 }.lens(16.0 / 9.0);
         assert_eq!(lens.position, chase.lens(16.0 / 9.0).position);
         assert_eq!(lens.fov_y_degrees, TOP_FOV_DEGREES);
-        assert!(DynamicFov { chase: &chase, speed: 0.0 }.selectable());
+        assert!(DynamicFov { chase: &chase, speed: 0.0, kick: 0.0 }.selectable());
     }
 }

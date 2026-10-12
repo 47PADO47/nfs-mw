@@ -100,6 +100,7 @@ There is no public decomp of any sibling game.
 | [ExOptsTeam/NFSMWExOpts](https://github.com/ExOptsTeam/NFSMWExOpts) | Many gameplay addresses | GPL-3.0 | 2023-02-19 |
 | [nlgxzef/NFSMWUnlimiter](https://github.com/nlgxzef/NFSMWUnlimiter) | Car list and limits | **none** | 2023-12-12 |
 | [xan1242](https://github.com/xan1242): NFS-XtendedInput, XNFSMusicPlayer, NFSMW_XenonEffects | Input, music, particles (XenonEffects backports Carbon code) | MIT | 2022–2025 |
+| [xan1242/NFSLAN](https://github.com/xan1242/NFSLAN) | Launcher for MW's `server.dll` that patches it for LAN and online play: patch sites, redirect model, local challenge. Documented in [specs/lan-server.md](specs/lan-server.md) | MIT | 2023-06-20 (last commit) |
 | [rng-guy/NFSMWBartender](https://github.com/rng-guy/NFSMWBartender) | Pursuit internals: cop spawn tables, heat, roadblocks, helicopter | CC0-1.0 | 2026-10-05 |
 | s-b-repo/nfsmw-2005-re | Ghidra renames and attribute-hash cracks. **Low trust**: agent-generated, some claims wrong | BSD-3-Clause | 2026-08-13 |
 

@@ -1,40 +1,24 @@
 //! Nitrous: the loop while it burns and the purge when the tank runs dry. Spec §5.
+//!
+//! The loop plays at the mixer's own pitch (1.0). The mixer map sets the nitrous outputs from the inputs the game
+//! publishes, which are the loop flag (input 1) and the purge flag (input 2) only (`car-sound-mixer.md` §2). The
+//! nitrous pitch and low-pass inputs are never published, so they read 0 there too. The boost interpolator the
+//! original runs on the nitrous (0.4 s rise, 1 s fall, `docs/specs/traffic-sound-events.md` §1.4) has no published
+//! route, so it is not applied.
 
 use super::{LoopId, SoundCommand, SoundRef};
-use crate::engine::TICK_SECONDS;
 use crate::input::CarInput;
-use crate::math::slew;
-use crate::tuning::NitrousTuning;
 
-/// The pitch boost rises over 0.4 s and falls over 1 s.
-const RISE_SECONDS: f32 = 0.4;
-const FALL_SECONDS: f32 = 1.0;
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub(crate) struct NitrousFx {
-    tuning: NitrousTuning,
     active: bool,
     empty: bool,
-    boost: f32,
 }
 
 impl NitrousFx {
-    pub fn new(tuning: NitrousTuning) -> Self {
-        Self { tuning, active: false, empty: false, boost: 0.0 }
-    }
-
     pub fn tick(&mut self, input: &CarInput, out: &mut Vec<SoundCommand>) {
-        let target = if input.nos_active { 1.0 } else { 0.0 };
-        let step = TICK_SECONDS / if input.nos_active { RISE_SECONDS } else { FALL_SECONDS };
-        self.boost = slew(self.boost, target, step);
-
         if input.nos_active {
-            out.push(SoundCommand::SetLoop {
-                id: LoopId::Nitrous,
-                sound: SoundRef::Nitrous,
-                volume: 1.0,
-                pitch: 1.0 + self.tuning.pitch_boost * self.boost,
-            });
+            out.push(SoundCommand::SetLoop { id: LoopId::Nitrous, sound: SoundRef::Nitrous, volume: 1.0, pitch: 1.0 });
         }
         if self.active && !input.nos_active {
             out.push(SoundCommand::StopLoop(LoopId::Nitrous));

@@ -61,7 +61,7 @@ pub struct Binding {
 }
 
 impl Binding {
-    const fn new(action: Action, source: Source, scale: f32) -> Self {
+    pub(super) const fn new(action: Action, source: Source, scale: f32) -> Self {
         Self { action, source, scale, per_second: false }
     }
 
@@ -273,9 +273,12 @@ fn driving() -> Vec<Binding> {
         Binding::new(ShiftDown, key(KeyCode::ControlRight), 1.0),
         Binding::new(Clutch, key(KeyCode::KeyZ), 1.0),
         Binding::new(Nos, key(KeyCode::ShiftLeft), 1.0),
+        Binding::new(Speedbreaker, key(KeyCode::ControlLeft), 1.0),
         Binding::new(ResetCar, key(KeyCode::KeyR), 1.0),
         Binding::new(ToggleCamera, key(KeyCode::KeyF), 1.0),
         Binding::new(CycleCamera, key(KeyCode::KeyC), 1.0),
+        Binding::new(ToggleHeadlights, key(KeyCode::KeyH), 1.0),
+        Binding::new(LookBack, key(KeyCode::KeyB), 1.0),
         Binding::new(Throttle, Source::PadTrigger(GamepadButton::RightTrigger2), 1.0),
         Binding::new(Brake, Source::PadTrigger(GamepadButton::LeftTrigger2), 1.0),
         Binding::new(Steer, Source::PadAxis(GamepadAxis::LeftStickX), 1.0),

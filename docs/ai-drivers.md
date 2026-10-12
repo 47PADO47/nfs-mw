@@ -119,6 +119,14 @@ pattern each resolves to match its §3.
 | Traffic lights at junctions of three or more roads, `traffic_lights` setting | done, a rewrite extension (the original has none) |
 | Patrol cops among the traffic | done (they cruise; see below) |
 | Pursuit: wave per heat level from the data, spawn ring, path to the player, pursuit-mode speed | basic |
+| Heat: starts at the base, grows while chased (`blackbox-pursuit::Heat`), forced chases raise it | done, base and maximum and the time per level are the spec's bin-free values |
+| Evade: the chase ends after the cops have not seen the player for the install's `evadetimeout` (`blackbox-pursuit::Evade`) | done; the hiding-spot speed-up runs inside HIDDEN track zones (height rule unconfirmed); an escape carries 0.95 of the heat into the next chase for the one car (no career); the busted meter is not built |
+| Infractions: speeding; off road (more than 9 m from a road centreline while a cop within 25 m sees the player); hit and run (the player hits traffic with the throttle held, a cop within 25 m sees); resisting arrest (the cops lost sight); the fines of the install | done; "deliberate" is a throttle proxy, and the thresholds are unconfirmed |
+| Police helicopter: spawn 250 m behind, follow, search, skid hit, exit and fuel per heat level; the minimap blip; its `COPHELI` model drawn in the chase | done (`blackbox-pursuit::helicopter`); the model is loaded and drawn but not yet seen in a running game; the sight uses the world's ray cast (the line to the player must be clear); the floor is the track's height sheet (read from the stream file; 51 504 triangles on the install); no rotor sound |
+| High-speed effects: streaks, radial blur, shake and nitrous FOV kick as curves with smoothing (`blackbox-speedfx`) | the nitrous FOV kick is on the chase camera; the speed streaks are drawn (not yet seen in a running game); the radial blur is computed but not drawn |
+| Cop tactics: block, pit or ram; cops drive to their block slot or the rear quarter (`cop_aims.rs`, [police tactics](specs/police-tactics.md)) | done from heat 3 (block) and 4 (pit); both gates are unconfirmed; the formation choice timer is in `blackbox-pursuit::formation` (tested) and runs each chase; the slots and their tightening are in `formation::slots` (tested); the finisher's timers are in `formation::finisher` (tested); while a formation is chosen, each cop aims at its slot (`formation::slots::assign`); the finisher runs in the game from the cops' gap to their slots; while it runs, pit, box-in and rolling-block cops drive to their in-position offsets and the others chase the player (the goals are approximated by these aims); the collapse ring is driven in the game (cops within 60 m aim at ring slots while the player is slower than the level's collapse speed); cops brake and hold the handbrake within 2 m of their slot (the pull-over's stop; no `AIGoalPullOver` goal) |
+| Support requests: the rolls (`blackbox-pursuit::support`, tested) run in the chase every 10 s after the level's delay, and a heavy roadblock roll places the roadblock; RAM, the leader options, the SUV spawns and the request timers are not built |
+| Roadblock layouts: the 15 normal and 9 spike layouts, the car count, the pick and the placement (`blackbox-pursuit::roadblock`, tested); cop cars placed in the world by the `roadblock` console command (`ai/roadblock.rs`); the command runs only once the drive has started (`--exec` is too early for a headless check; see the roadblock spec); the player position it uses was zero until fixed, and the placement is not yet seen in a run; no request from a chase, no barriers or spikes |
 | Car against car | done (box impulse) |
 | Semi tractors with trailers (ball joint, release rules, hitched pair spawns and goes together) | done |
 | Measured car performance for matching cops to the player's car | done |
@@ -131,8 +139,10 @@ pattern each resolves to match its §3.
   never reacts to the player. Use `pursuit <heat>` to start a chase by hand.
 - **Racers:** the race action's nitrous, skill and rubber banding, race routes and checkpoints, staging,
   shortcuts and barriers, the GPS arrow.
-- **Pursuit:** heat growth, busted and evade rules, cop sight and hearing, formations, ram, PIT and other
-  tactics, roadblocks and spike strips, support cars, helicopters, speech, the HUD values, bounty.
+- **Pursuit:** busted (the bust meter), cop sight and hearing, the formation timers and roadblocks and spike strips,
+  support cars, the helicopter's rotor sound and its heli-sheet floor, speech, the HUD values, bounty, and drawing
+  the speed streaks and blur ([speed effects](specs/speed-effects.md), section 4). The "deliberate" hit rule is a
+  throttle proxy until the install's rule is read.
 - **Simulation level of detail** for far cars, and a test of the original's behaviour in the running game: the
   spec constants are from the decompilation and have not been measured against the PC build.
 

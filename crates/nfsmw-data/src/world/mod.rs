@@ -9,6 +9,7 @@
 
 mod assets;
 mod globals;
+pub mod heli_sheet;
 mod index;
 mod props;
 mod section;

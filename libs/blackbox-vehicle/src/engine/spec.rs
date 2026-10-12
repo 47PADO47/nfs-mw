@@ -16,15 +16,23 @@ pub struct EngineSpec {
     pub engine_braking: Vec<f32>,
     /// `[governor start speed, ramp width]` in mph; 0 disables the speed limiter.
     pub speed_limiter: [f32; 2],
+    /// Lift the rev limiter: the engine turns up to `max_rpm` instead of stopping at the red line. A game
+    /// setting (Extra Options `NoRevLimiter`), not a property of the car.
+    pub no_rev_limiter: bool,
 }
 
 impl EngineSpec {
-    /// Torque in ft*lb at `rpm`, clamped to `idle..red_line`.
+    /// The highest engine speed the engine reaches: the red line, or the top of the curve without the limiter.
+    pub fn rev_limit(&self) -> f32 {
+        if self.no_rev_limiter { self.max_rpm.max(self.red_line) } else { self.red_line }
+    }
+
+    /// Torque in ft*lb at `rpm`, clamped to `idle..rev_limit`.
     pub fn torque_ftlb(&self, rpm: f32) -> f32 {
         if self.torque.len() <= 1 {
             return 0.0;
         }
-        let rpm = rpm.clamp(self.idle, self.red_line.max(self.idle));
+        let rpm = rpm.clamp(self.idle, self.rev_limit().max(self.idle));
         table(&self.torque, self.idle, self.max_rpm, rpm)
     }
 
@@ -39,7 +47,7 @@ impl EngineSpec {
             [] => 0.0,
             [one] => -torque * one,
             curve => {
-                let rpm = rpm.clamp(self.idle, self.red_line.max(self.idle));
+                let rpm = rpm.clamp(self.idle, self.rev_limit().max(self.idle));
                 -torque * table(curve, self.idle, self.max_rpm, rpm).clamp(0.0, 1.0)
             }
         }
@@ -52,6 +60,10 @@ impl EngineSpec {
 
     pub fn idle_rad(&self) -> f32 {
         rpm_to_rad(self.idle)
+    }
+
+    pub fn rev_limit_rad(&self) -> f32 {
+        rpm_to_rad(self.rev_limit())
     }
 
     pub fn red_line_rad(&self) -> f32 {

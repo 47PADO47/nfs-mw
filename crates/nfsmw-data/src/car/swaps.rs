@@ -44,6 +44,9 @@ const DECAL_PLACEHOLDERS: &[&str] = &[
     "RIGHT_REAR_WINDOW_DECAL",
 ];
 
+/// The cracked-window texture of the global pack (`GLOBAL/GLOBALB.BUN`, `WINDOW_DAMAGE0`).
+pub const WINDOW_DAMAGE: &str = "WINDOW_DAMAGE0";
+
 /// Window placeholders; undamaged, they all show `WINDOW_FRONT`.
 const WINDOWS: &[&str] = &[
     "WINDOW_FRONT",
@@ -89,6 +92,15 @@ impl TextureSwaps {
             swap(window, "WINDOW_FRONT");
         }
         Self { map, hidden: DECAL_PLACEHOLDERS.iter().map(|n| bstring_hash(n)).collect() }
+    }
+
+    /// Show the cracked-window texture on these texture hashes (window placeholders or window solids' diffuse
+    /// textures).
+    pub fn with_window_hashes(mut self, hashes: &[u32]) -> Self {
+        for &hash in hashes {
+            self.map.insert(hash, bstring_hash(WINDOW_DAMAGE));
+        }
+        self
     }
 
     /// The texture to draw for `hash` (itself when nothing replaces it).

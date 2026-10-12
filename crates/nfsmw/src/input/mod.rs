@@ -16,7 +16,11 @@ mod presentation;
 #[cfg(test)]
 mod presentation_tests;
 mod remap;
+mod slots;
 mod snapshot;
+mod vk;
+#[cfg(test)]
+mod headlights_tests;
 mod source;
 mod state;
 mod systems;
@@ -24,5 +28,6 @@ mod systems;
 pub use action::Action;
 pub(crate) use bindings::Source;
 pub use presentation::{InputDevice, InputPresentation};
+pub use slots::Control;
 pub use state::{ActionState, Bindings};
 pub use systems::{InputLayerPlugin, MouseCapture, UiFocus};

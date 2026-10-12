@@ -2,6 +2,7 @@
 
 use bevy_app::AppExit;
 use bevy_ecs::prelude::*;
+use bevy_time::Time;
 use bevy_window::{PrimaryWindow, Window};
 
 use super::parse::{self, BUILT_IN, Command};
@@ -17,6 +18,7 @@ use crate::settings::{RendererKind, Settings, availability};
 /// Run the lines typed since last frame and print what they say.
 pub fn execute(
     mut console: ResMut<Console>,
+    time: Res<Time>,
     mut settings: ResMut<Settings>,
     mut host: NonSendMut<Host>,
     mut audio: Option<NonSendMut<Audio>>,
@@ -30,7 +32,22 @@ pub fn execute(
     if host.renderer.is_none() {
         return;
     }
-    for line in std::mem::take(&mut console.pending) {
+    if let Some(until) = console.wait_until {
+        if time.elapsed_secs() < until {
+            return;
+        }
+        console.wait_until = None;
+    }
+    let mut lines = std::mem::take(&mut console.pending).into_iter();
+    while let Some(line) = lines.next() {
+        // `wait <seconds>` holds the lines after it until that many seconds have passed since start.
+        if let Some(seconds) = line.trim().strip_prefix("wait ") {
+            if let Ok(seconds) = seconds.trim().parse::<f32>() {
+                console.wait_until = Some(time.elapsed_secs() + seconds.max(0.0));
+                console.pending = lines.collect();
+                return;
+            }
+        }
         logbuf::input(&format!("> {line}"));
         let result = match parse::parse(&line) {
             Ok(None) => continue,

@@ -65,6 +65,7 @@ impl Drive {
         if input.pop {
             self.flames.pop();
         }
+        self.breaker.step(input.speedbreaker, sim.telemetry().speed_mps.abs(), clock::STEP);
         let impact = sim.step(&input, &WorldGround { collision, surfaces }, Some((collision, props)));
         Some(DriveStep { input, impact })
     }
@@ -73,6 +74,8 @@ impl Drive {
     pub fn finish_step(&mut self, collision: &CollisionWorld, surfaces: &SurfaceTable, step: DriveStep) {
         let DriveStep { input, impact } = step;
         self.brake_lamp = input.brake;
+        self.steer_lamp = input.steer;
+        self.lamp_time += clock::STEP;
         let Some(sim) = self.sim.as_mut() else { return };
         self.pending_knocks.extend(impact.knocked.iter().map(|&(id, _)| id));
         self.effects.step(sim.tire_contacts(collision), sim.effect_velocity(), clock::STEP);

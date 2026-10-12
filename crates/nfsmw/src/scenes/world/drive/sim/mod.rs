@@ -183,6 +183,12 @@ impl CarSim {
         if let (Some((_, props)), Some(events)) = (world.as_mut(), &self.events) {
             props.vehicle_explosions(self.vehicle.body_mut(), &events.owner, self.collision_role.player, FIXED_STEP);
         }
+        if let Some(events) = &self.events {
+            let punctured = events.punctured();
+            for wheel in (0..4).filter(|&w| punctured[w]) {
+                self.vehicle.tire_damage.puncture(wheel);
+            }
+        }
         self.vehicle.step(FIXED_STEP, &input, ground);
         let impact = match world {
             Some((collision, props)) => {
@@ -312,6 +318,52 @@ impl CarSim {
             WheelPose { steer: -w.steer_angle, spin: self.spin[i], travel }
         });
         CarPose { position: space::to_render(origin.to_array()), rotation: Quat::from_mat3(&cols), wheels }
+    }
+
+    /// The zones whose glass is cracked.
+    pub fn cracked_zones(&self) -> Vec<usize> {
+        let Some(events) = self.events.as_ref() else { return Vec::new() };
+        let mut out = Vec::new();
+        for zone in 0..events.damage.zone_count() {
+            if events.damage.zone(zone).glass > 0 {
+                out.push(zone);
+            }
+        }
+        out
+    }
+
+    /// Apply an impact to a zone, as if the car was hit (the `damage` console command). Returns whether it changed.
+    pub fn inflict(&mut self, zone: usize, severity: u8, glazed: bool) -> bool {
+        let Some(events) = self.events.as_mut() else {
+            log::warn!("this car has no damage events; the hit is not applied");
+            return false;
+        };
+        let changed = events.damage.impact(zone, severity, glazed);
+        log::info!("damage: zone {zone} severity {severity}, changed {changed}, now {:?}", events.damage.zone(zone));
+        if usize::from(severity) >= nfsmw_data::car::damage::PUNCTURE_SEVERITY
+            && let Some(wheel) = nfsmw_data::car::damage::ZONE_WHEEL.get(zone).copied().flatten()
+        {
+            events.damage.puncture(wheel);
+        }
+        changed
+    }
+
+    /// Clear the damage; the punctures follow on the next step.
+    pub fn repair(&mut self) {
+        if let Some(events) = self.events.as_mut() {
+            events.damage.repair();
+            self.vehicle.tire_damage.reset();
+        }
+    }
+
+    /// Lift or restore the engine's rev limiter.
+    pub fn set_no_rev_limiter(&mut self, on: bool) {
+        self.vehicle.set_no_rev_limiter(on);
+    }
+
+    /// The body's half extents in the physics frame (x width, y height, z length).
+    pub fn half_extents(&self) -> Vec3 {
+        self.vehicle.body().dimension()
     }
 
     pub fn telemetry(&self) -> Telemetry {

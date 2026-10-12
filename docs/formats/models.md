@@ -88,6 +88,11 @@ def bStringHash(s):
     return h
 ```
 
+**Version 0x18 [verified]:** the front-end stages (`FRONTEND/PLATFORMS/PlatformCrib.BIN`, five solids) use the
+same record with the version byte at 0x0C set to `0x18`. Checked on the crib: the name hash equals `bStringHash` of
+the name, the name is NUL-terminated at 0xA0, and the counts and bounds read sane. The rewrite reads it with the
+0x16 offsets (`libs/blackbox-solid/src/layout/v18.rs`).
+
 ## Shading groups (`0x00134B02`) **[community + verified]**
 
 Each record is 104 bytes, one per material within the solid. 104-byte records divide the payload

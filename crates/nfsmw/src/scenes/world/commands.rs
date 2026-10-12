@@ -1,4 +1,4 @@
-//! The world viewer's console commands: `drive`, `reset`, `tp`, `goto`, `freecam`, `pos`, `props` and `debug`.
+//! The world viewer's console commands: `drive`, `reset`, `repair`, `tp`, `goto`, `freecam`, `pos`, `props` and `debug`.
 
 use blackbox_gfx::RenderBackend;
 use glam::Vec3;
@@ -13,6 +13,8 @@ pub(super) const LIST: &[(&str, &str)] = &[
     ("tp <x> <y>", "put the car on the road nearest to the map position"),
     ("goto <x> <y> [height]", "fly the free camera to a map position"),
     ("garage", "list your cars (for now every car in the install; use drive <car> to get into one)"),
+    ("repair", "clear the car's visible damage and punctured tires"),
+    ("damage <zone> <severity 0-6> [glass]", "hit the car in a zone (0-9 or DZ_FRONT, DZ_LFRONT, ...) to test the damage visuals"),
     ("freecam", "switch between the chase camera and the free camera"),
     ("pos", "show where the camera or the car is"),
     ("props [radius]", "list the props with collision near the car or camera (default 30 m)"),
@@ -38,6 +40,8 @@ pub(super) fn run(
     Some(match name {
         "drive" => drive(scene, renderer, args),
         "reset" if args.is_empty() => reset(scene),
+        "repair" if args.is_empty() => repair(scene),
+        "damage" => damage(scene, args),
         "tp" => tp(scene, args),
         "goto" => goto(scene, args),
         "freecam" if args.is_empty() => Ok(scene.toggle_view().to_owned()),
@@ -46,6 +50,7 @@ pub(super) fn run(
         "props" => props(scene, args),
         "traffic" => ai::traffic_command(scene, args),
         "pursuit" => ai::pursuit_command(scene, renderer, args),
+        "roadblock" => ai::roadblock_command(scene, args),
         "tire-effects" => tire_effects(scene, renderer, args),
         "vehicle-effects" => vehicle_effects(scene, renderer, args),
         "exhaust-flames" => exhaust_flames(scene, args),
@@ -92,6 +97,36 @@ fn drive(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, args: &[&str]
     let (folder, model) = load_car(&scene.dir, &wanted).map_err(|e| format!("{e:#}"))?;
     scene.start_driving(renderer, folder.clone(), model, None).map_err(|e| format!("{e:#}"))?;
     Ok(format!("driving {folder}"))
+}
+
+const DAMAGE_USAGE: &str = "usage: damage <zone 0-9 or DZ_NAME> <severity 0-6> [glass]";
+
+fn damage(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
+    let (zone, severity, glazed) = match args {
+        [zone, severity] => (*zone, *severity, false),
+        [zone, severity, "glass"] => (*zone, *severity, true),
+        _ => return Err(DAMAGE_USAGE.into()),
+    };
+    let zone = match zone.parse::<usize>() {
+        Ok(index) => index,
+        Err(_) => nfsmw_data::car::physics::DAMAGE_ZONES
+            .iter()
+            .position(|name| name.eq_ignore_ascii_case(zone))
+            .ok_or(DAMAGE_USAGE)?,
+    };
+    let severity: u8 = severity.parse().map_err(|_| DAMAGE_USAGE.to_owned())?;
+    if zone >= nfsmw_data::car::physics::DAMAGE_ZONES.len() || severity > blackbox_damage::MAX_SEVERITY {
+        return Err(DAMAGE_USAGE.into());
+    }
+    let drive = scene.drive.as_mut().ok_or("not driving (use the drive command)")?;
+    drive.inflict(zone, severity, glazed);
+    Ok(format!("hit {} with severity {severity}", nfsmw_data::car::physics::DAMAGE_ZONES[zone]))
+}
+
+fn repair(scene: &mut WorldScene) -> Result<String, String> {
+    let drive = scene.drive.as_mut().ok_or("not driving (use the drive command)")?;
+    drive.repair();
+    Ok("car repaired".into())
 }
 
 fn reset(scene: &mut WorldScene) -> Result<String, String> {

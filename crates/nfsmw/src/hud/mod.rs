@@ -31,7 +31,7 @@ mod viewport;
 mod viewport_tests;
 
 pub use blip_style::MapBlip;
-pub use blip_styles::COP;
+pub use blip_styles::{COP, HELICOPTER};
 pub use plugin::HudPlugin;
 pub use radio::{RadioHud, show as show_radio};
 pub use state::{HudState, MapPosition};

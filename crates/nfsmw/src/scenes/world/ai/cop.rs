@@ -60,6 +60,8 @@ pub struct CopState {
 #[derive(Debug, Clone, Copy)]
 pub struct Target {
     pub body: Body,
+    /// Where this cop drives instead of the player, when a tactic (a block or a pit) sets one.
+    pub aim: Option<Vec3>,
 }
 
 /// What a think decided.
@@ -94,7 +96,7 @@ impl CopState {
         traffic: &[Body],
     ) -> CopThink {
         let (net, index, rng) = (ctx.net, ctx.index, &mut *ctx.rng);
-        let goal = target.body.position;
+        let goal = target.aim.unwrap_or(target.body.position);
         self.repath -= THINK_PERIOD;
         let to_target = Vec3::new(goal.x - car.body.position.x, 0.0, goal.z - car.body.position.z);
         if self.repath <= 0.0 || nav.dead_end {

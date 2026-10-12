@@ -4,57 +4,29 @@ use std::rc::Rc;
 
 use blackbox_collision::CollisionWorld;
 use blackbox_driver::{AiControls, ControllerKind, DriveFlags, DriveRequest, Driver, GearRequest};
-use blackbox_roads::{Body, RandomSource, RoadNav, RoadNetwork, SegmentIndex};
+use blackbox_roads::{Body, RandomSource, RoadNav};
 use glam::{Vec2, Vec3};
 use nfsmw_data::car::physics::SurfaceTable;
 
 use super::TrafficModel;
-use super::cop::{self, CopState, Target};
-use super::stop::{self, Lights};
+use super::cop::{self, Target};
+use super::stop;
 use super::traffic::{self, Cruise, THINK_STEPS};
 use super::trailer::{Brakes, TrailerCar};
+use crate::scenes::world::car_lights::LampState;
 use crate::scenes::world::drive::{CarPose, CarRig, CarSim, DriveInput, STEP, WorldGround};
 use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::space;
 
+mod setup;
+mod sound;
 mod towing;
 
-/// What a car is for.
-pub enum Role {
-    Traffic,
-    /// A cop chasing the player.
-    Cop(Box<CopState>),
-}
+pub use setup::{Ctx, Role, Start};
 
-/// The world a car thinks in.
-pub struct Ctx<'a, R> {
-    pub net: &'a RoadNetwork,
-    pub index: &'a SegmentIndex,
-    pub rng: &'a mut R,
-    /// Every computer-driven car (a semi with its trailer hitched is one long body), with whether it is a cop,
-    /// and which of them is this car; the trailers that came loose follow after the cars.
-    pub bodies: &'a [(Body, bool)],
-    pub me: usize,
-    pub player: Option<Body>,
-    /// The traffic lights, when they are on.
-    pub lights: Option<Lights<'a>>,
-}
-
-/// How a new car begins: when its first think comes and how fast it rolls.
-#[derive(Debug, Clone, Copy)]
-pub struct Start {
-    /// Physics steps added to the car's clock so the thinks of different cars fall on different steps.
-    pub stagger: u32,
-    pub speed: f32,
-    /// The speeds it cruises at.
-    pub cruise: Cruise,
-    /// A patrol cop: a cop car driving like traffic.
-    pub patrol: bool,
-}
-
-/// How a crash with the player went for a traffic car.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// How a crash with the player went for a traffic car.
 enum Accident {
     None,
     /// No pedals and full lock, for this many more thinks.
@@ -69,6 +41,8 @@ const ACCIDENT_THINKS: u32 = 3;
 const SHOCK_MIN_SPEED_CHANGE: f32 = 2.0;
 const SHOCK_FORCE: f32 = 10.0;
 const SHOCK_TIME: f32 = 3.0;
+/// A cop this close (metres, horizontally) to its formation or collapse slot has arrived and brakes there (unconfirmed).
+const SLOT_ARRIVAL: f32 = 2.0;
 
 /// A cop stuck against something backs up for this long (s) asking for this speed (m/s).
 const RECOVERY_SECONDS: f32 = 2.0;
@@ -127,6 +101,16 @@ pub struct AiCar {
     /// Seconds the car has been out of the player's view.
     offscreen: f32,
     breaker_stop: bool,
+    /// A cop that has reached its slot holds the handbrake (the pull-over).
+    arrived: bool,
+    /// A roadblock car: it holds its place with the brakes on whatever the chase does (`AIGoalStaticRoadBlock`).
+    roadblock: bool,
+    /// The light bars of a cop car, when it has them.
+    cop_lights: Option<super::cop_lights::CopLightRun>,
+    /// The horn sound (`HornType`) of this car.
+    pub horn: u32,
+    /// Seconds until the car may play a near miss or a horn again (`traffic_events::EventTuning::cooldown`).
+    quiet: f32,
 }
 
 impl AiCar {
@@ -188,17 +172,67 @@ impl AiCar {
             patrol: start.patrol,
             offscreen: 0.0,
             breaker_stop: false,
+            arrived: false,
+            roadblock: false,
+            cop_lights: model.cop_lights.clone().map(super::cop_lights::CopLightRun::new),
+            horn: model.horn,
+            quiet: 0.0,
         })
     }
 
-    /// The car's position in render space.
-    /// The lamps of the car as glows, lit by its brake.
-    pub fn glows(&self, alpha: f32, camera: Vec3, forward: Vec3, out: &mut Vec<blackbox_render::EffectVertex>) {
-        self.rig.lights().glows(self.pose(alpha).transform(), self.controls.brake, camera, forward, out);
+    /// The headlight beams of the car.
+    pub fn beams(&self, alpha: f32, out: &mut Vec<blackbox_render::EffectVertex>) {
+        self.rig.lights().beams(self.pose(alpha).transform(), true, out);
     }
 
+    /// The lamps of the car as glows, lit by its brake, steering, siren and the blink clock.
+    pub fn glows(
+        &self,
+        alpha: f32,
+        time: f32,
+        camera: Vec3,
+        forward: Vec3,
+        out: &mut Vec<blackbox_render::EffectVertex>,
+    ) {
+        let state = LampState {
+            brake: self.controls.brake,
+            reverse: self.sim.telemetry().gear < 0,
+            steer: self.controls.steer,
+            headlights: true,
+            siren: self.is_cop(),
+            time,
+        };
+        self.rig.lights().glows(self.pose(alpha).transform(), state, camera, forward, out);
+    }
+
+    /// The car's position in render space.
     pub fn position(&self) -> Vec3 {
         self.current.position
+    }
+
+    /// Advance the light bars by one tick, at the car's frame.
+    pub fn step_lights(&mut self) {
+        if let Some(lights) = &mut self.cop_lights {
+            lights.step(STEP, self.current.transform());
+        }
+    }
+
+    /// The sprites of the light bars, for the effect layer.
+    pub fn cop_particles(&self, camera: Vec3, forward: Vec3, out: &mut Vec<blackbox_render::TexturedEffect>) {
+        if let Some(lights) = &self.cop_lights {
+            lights.textured(camera, forward, out);
+        }
+    }
+
+    /// Makes this car a roadblock car: it stays where it was placed with the brakes on.
+    pub fn set_roadblock(&mut self) {
+        self.roadblock = true;
+        self.breaker_stop = true;
+    }
+
+    /// Whether this car is part of a roadblock (and so holds its place).
+    pub fn is_roadblock(&self) -> bool {
+        self.roadblock
     }
 
     pub fn set_breaker_stop(&mut self, stop: bool) {
@@ -327,7 +361,7 @@ impl AiCar {
             throttle: self.controls.gas,
             brake: self.controls.brake,
             steer: self.controls.steer,
-            handbrake: self.controls.handbrake > 0.5,
+            handbrake: self.controls.handbrake > 0.5 || self.arrived,
             nos: self.controls.nos,
             ..DriveInput::default()
         };
@@ -423,9 +457,16 @@ impl AiCar {
                     }
                     shift(&mut self.sim, Some(gear));
                 }
-                let think = cop.think(ctx, &mut self.nav, &state, &Target { body: player }, &traffic);
+                let aim = ctx.aims.get(ctx.me).copied().flatten();
+                let think = cop.think(ctx, &mut self.nav, &state, &Target { body: player, aim }, &traffic);
                 self.target = think.target;
-                self.speed = think.speed;
+                // A cop that has reached its slot (a collapse or formation point) stops there: the pull-over goal's brake.
+                let arrived = aim.is_some_and(|a| {
+                    let d = a - state.body.position;
+                    Vec2::new(d.x, d.z).length() <= SLOT_ARRIVAL
+                });
+                self.arrived = arrived;
+                self.speed = if arrived { 0.0 } else { think.speed };
             }
         }
     }

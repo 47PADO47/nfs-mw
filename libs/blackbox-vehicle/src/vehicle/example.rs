@@ -57,6 +57,7 @@ impl VehicleSpec {
                 flywheel_mass: 20.0,
                 engine_braking: vec![0.15],
                 speed_limiter: [0.0, 0.0],
+                no_rev_limiter: false,
             },
             transmission: TransmissionSpec {
                 gear_ratio: vec![3.4, 0.0, 3.6, 2.2, 1.5, 1.1, 0.9, 0.75],

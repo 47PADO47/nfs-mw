@@ -28,5 +28,5 @@ pub use engine::{
 pub use input::{CarInput, GEAR_FIRST, GEAR_NEUTRAL, GEAR_REVERSE, NO_ROAD_NOISE, WheelInput};
 pub use tuning::{
     AccelTransition, CarSoundTuning, CollisionTuning, DecelWindow, EngineMix, EngineMode, EngineTuning, MixLevels,
-    NitrousTuning, ShiftStage, ShiftTuning, SkidTuning, TurboTuning, Wobble,
+    ShiftStage, ShiftTuning, SkidTuning, TurboTuning, Wobble,
 };

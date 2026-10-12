@@ -5,6 +5,7 @@
 use blackbox_feng::ObjectRef;
 use glam::Vec2;
 
+use super::confirm::Confirm;
 use super::ids::{self, screen};
 use super::logic::{Args, Category, Command, Cx, ScreenLogic};
 use super::scroller::{self, Fade, Scroll};
@@ -29,6 +30,9 @@ enum Id {
     QuickRace,
     MyCars,
     Options,
+    Player,
+    EaTrax,
+    Credits,
     Category(Category),
     Resume,
     QuitToMenu,
@@ -58,12 +62,22 @@ fn icons(kind: Kind) -> Vec<Icon> {
             icon(Id::MyCars, 0xB0C4_6023, 0x1AFD_5BE6, false),
             icon(Id::Options, 0x3058_FE37, 0x19A8_C0AF, true),
         ],
-        Kind::Categories { .. } => vec![
-            icon(Id::Category(Category::Audio), 0xF37A_F144, 0xE76C_D783, true),
-            icon(Id::Category(Category::Video), 0x8A00_6328, 0xE8E2_4508, true),
-            icon(Id::Category(Category::Gameplay), 0x4DF9_8FB2, 0xD0CF_6EE1, true),
-            icon(Id::Category(Category::Controls), crate::ui::input_icons::ATLAS, 0, true),
-        ],
+        // The original's option list (docs/specs/frontend-menus.md, 2.2): Player, EA Trax and Credits have no
+        // screen here yet, so they are greyed out; EA Trax and Credits are left out in the pause menu.
+        Kind::Categories { pause } => {
+            let mut list = vec![
+                icon(Id::Category(Category::Audio), 0xF37A_F144, 0xE76C_D783, true),
+                icon(Id::Category(Category::Video), 0x8A00_6328, 0xE8E2_4508, true),
+                icon(Id::Category(Category::Gameplay), 0x4DF9_8FB2, 0xD0CF_6EE1, true),
+                icon(Id::Player, 0, 0xF760_EABE, false),
+                icon(Id::Category(Category::Controls), crate::ui::input_icons::ATLAS, 0, true),
+            ];
+            if !pause {
+                list.push(icon(Id::EaTrax, 0, 0xDCFB_6B36, false));
+                list.push(icon(Id::Credits, 0, 0x0905_101F, false));
+            }
+            list
+        }
         Kind::Pause => vec![
             icon(Id::Resume, 0x12BB_5EA2, 0x01BD_185C, true),
             icon(Id::Options, 0x520D_E4E3, 0x2B5A_03A8, true),
@@ -236,7 +250,7 @@ impl IconMenu {
             (Kind::Pause, Pending::Pressed(Id::Options)) => {
                 cx.send(Command::Switch(screen::PAUSE_MENU.into(), Args { pause: true, options: true, ..self.args }));
             }
-            (Kind::Pause, Pending::Pressed(Id::QuitToMenu)) => cx.send(Command::QuitToMenu),
+            (Kind::Pause, Pending::Pressed(Id::QuitToMenu)) => cx.send(Command::Confirm(Confirm::quit_to_menu())),
             _ => {}
         }
     }
@@ -335,6 +349,12 @@ impl ScreenLogic for IconMenu {
         self.place(cx);
     }
 
+    fn scroll(&mut self, cx: &mut Cx, steps: i32) {
+        for _ in 0..steps.unsigned_abs() {
+            self.scroll_by(cx, if steps > 0 { -1 } else { 1 });
+        }
+    }
+
     fn message(&mut self, cx: &mut Cx, message: u32) {
         match message {
             PAD_LEFT => self.scroll_by(cx, -1),
@@ -413,7 +433,8 @@ mod tests {
         let main = icons(Kind::Main);
         assert_eq!(main.len(), 5);
         assert!(main[0].enabled && !main[1].enabled, "career works, the challenge series do not exist yet");
-        assert_eq!(icons(Kind::Categories { pause: false }).len(), 4);
+        assert_eq!(icons(Kind::Categories { pause: false }).len(), 7, "the original's option list");
+        assert_eq!(icons(Kind::Categories { pause: true }).len(), 5, "no EA Trax or Credits in the pause menu");
         assert_eq!(icons(Kind::Pause)[0].name, 0x01BD_185C, "Resume Free Roam");
     }
 

@@ -8,41 +8,103 @@ use anyhow::Result;
 use blackbox_gfx::{FrameParams, Instance, Projection, RenderBackend};
 use glam::{Mat4, Vec3};
 
+use game_install::GameDir;
+use nfsmw_data::car::LoadOptions;
+
 use crate::input::ActionState;
+use super::room::Room;
+use crate::scenes::car::CarScene;
 use crate::viewer::{Fullscreen, Scene};
 
-/// What the menus sit on until the front end has a 3D backdrop of its own: a dark flat colour.
-pub struct MenuScene;
+/// The stock car the menus turn on their backdrop. [ours] The original shows the car on a platform stage
+/// (`FRONTEND/PLATFORMS/PLATFORMCRIB.BIN`, see docs/specs/frontend-menus.md); until that stage is read, the car
+/// stands on the car viewer's floor.
+const MENU_CAR: &str = "BMWM3GTR";
+/// Degrees per second the car turns on the backdrop. [ours]
+const TURN_RATE: f32 = 12.0;
+
+/// What the menus sit on: a car turning slowly on the car viewer's floor when the install has it, and a dark flat
+/// colour otherwise.
+#[derive(Default)]
+pub struct MenuScene {
+    dir: Option<GameDir>,
+    car: Option<CarScene>,
+    /// The stage's room, when the install has it (`room.rs`).
+    room: Option<Room>,
+    /// The car's and the room's parts together, for the frame.
+    parts: Vec<Instance>,
+}
+
+impl MenuScene {
+    pub fn new(dir: Option<GameDir>) -> Self {
+        Self { dir, car: None, room: None, parts: Vec::new() }
+    }
+}
+
+fn flat_frame() -> FrameParams {
+    FrameParams {
+        view: Mat4::IDENTITY,
+        projection: Projection::Identity,
+        camera_position: Vec3::ZERO,
+        light_dir: Vec3::NEG_Z,
+        clear_color: [0.02, 0.02, 0.03],
+        fog: None,
+        scattering: None,
+        surface_light: None,
+        // Nothing 3D is drawn, so there is no camera to follow from frame to frame.
+        camera_cut: true,
+    }
+}
 
 impl Scene for MenuScene {
     fn title(&self) -> String {
         "nfsmw".to_owned()
     }
 
-    fn init(&mut self, _renderer: &mut dyn RenderBackend) -> Result<()> {
+    fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
+        let Some(dir) = &self.dir else { return Ok(()) };
+        let options = LoadOptions { lod: 'A', all_parts: false, preset: None };
+        let model = match nfsmw_data::car::load(dir, MENU_CAR, &options) {
+            Ok(model) => model,
+            Err(e) => {
+                log::warn!("the menu backdrop has no car ({MENU_CAR}): {e:#}");
+                return Ok(());
+            }
+        };
+        let mut car = CarScene::new(model, 0.0);
+        car.init(renderer)?;
+        self.car = Some(car);
+        match Room::load(renderer, dir) {
+            Ok(room) => self.room = Some(room),
+            Err(e) => log::warn!("the menu room is not drawn: {e:#}"),
+        }
         Ok(())
     }
 
-    fn update(&mut self, _renderer: &mut dyn RenderBackend, _input: &ActionState, _dt: f32) {}
+    fn update(&mut self, renderer: &mut dyn RenderBackend, _input: &ActionState, dt: f32) {
+        let Some(car) = &mut self.car else { return };
+        car.turn((TURN_RATE * dt).to_radians());
+        // The backdrop takes no input: the car is turned by the turntable alone.
+        car.update(renderer, &ActionState::default(), dt);
+    }
 
     fn hud_state(&self) -> Option<crate::hud::HudState> {
         Some(crate::hud::HudState { visible: false, ..Default::default() })
     }
 
-    fn frame(&mut self, _aspect: f32) -> (FrameParams, &[Instance]) {
-        let params = FrameParams {
-            view: Mat4::IDENTITY,
-            projection: Projection::Identity,
-            camera_position: Vec3::ZERO,
-            light_dir: Vec3::NEG_Z,
-            clear_color: [0.02, 0.02, 0.03],
-            fog: None,
-            scattering: None,
-            surface_light: None,
-            // Nothing 3D is drawn, so there is no camera to follow from frame to frame.
-            camera_cut: true,
+    fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
+        let Self { car, room, parts, .. } = self;
+        let (params, car_parts) = match car {
+            Some(car) => car.frame(aspect),
+            None => (flat_frame(), &[] as &[Instance]),
         };
-        (params, &[])
+        let Some(room) = room else { return (params, car_parts) };
+        parts.clear();
+        parts.extend_from_slice(car_parts);
+        parts.extend_from_slice(room.instances());
+        // The renderer wants instances of one mesh next to each other.
+        parts.sort_by_key(|i| i.mesh);
+        (params, parts.as_slice())
     }
 }
 
@@ -194,6 +256,10 @@ impl Scene for Pausable {
         self.inner.take_clip()
     }
 
+    fn take_traffic_sounds(&mut self) -> Vec<crate::audio::traffic::TrafficSound> {
+        self.inner.take_traffic_sounds()
+    }
+
     fn finished(&self) -> bool {
         self.inner.finished()
     }
@@ -219,12 +285,12 @@ mod tests {
     #[test]
     fn a_paused_game_is_still_a_game_for_the_radio() {
         let flag = PauseFlag::default();
-        let mut scene = Pausable::new(Box::new(MenuScene), flag.clone());
+        let mut scene = Pausable::new(Box::new(MenuScene::default()), flag.clone());
         assert!(!scene.paused());
         flag.set(true);
         assert!(scene.paused());
         assert!(scene.car_sound().is_none(), "the car is silent while paused");
-        assert!(!MenuScene.paused(), "the menus are not a game");
+        assert!(!MenuScene::default().paused(), "the menus are not a game");
     }
 
     #[test]
@@ -270,7 +336,7 @@ mod tests {
             }
         }
         let settings = Settings::from(Partial::default());
-        let mut host = Host::new(Box::new(MenuScene), &settings, None);
+        let mut host = Host::new(Box::new(MenuScene::default()), &settings, None);
         host.set_tire_effects(false, true);
         host.set_smoke_quality(SmokeQuality::High);
         host.set_vehicle_effects(true, false);

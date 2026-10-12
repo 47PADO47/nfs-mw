@@ -40,9 +40,9 @@ fn drawn_in_body_frame(s: usize, slots: &Slots) -> bool {
         slot::DRIVER | slot::LICENSE_PLATE => false,
         slot::FRONT_WHEEL | slot::REAR_WHEEL | slot::FRONT_BRAKE | slot::REAR_BRAKE => false,
         slot::UNIVERSAL_SPOILER_BASE => slots[slot::SPOILER].is_some_and(|p| p.upgrade_level != 0),
-        // Corner damage stays hidden until damaged; decal models only show transparent
-        // DEFAULTALPHA without a decal.
-        s if slot::DAMAGE0.contains(&s) || slot::DECAL_MODELS.contains(&s) => false,
+        // Corner damage is placed but the renderer keeps it hidden until its zone is damaged
+        // (`CarModel::damage_overlay`); decal models only show transparent DEFAULTALPHA without a decal.
+        s if slot::DECAL_MODELS.contains(&s) => false,
         _ => true,
     }
 }

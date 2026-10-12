@@ -1,0 +1,316 @@
+//! The police helicopter: its tuning, its flight model, its controller, its sight and its behaviours. The caller
+//! holds one [`Tuning`] per heat level (the game's values by default) and one [`Helicopter`] while it flies.
+//! Spec: `docs/specs/ai-helicopter.md`.
+
+pub mod behaviour;
+pub mod control;
+pub mod flight;
+pub mod sight;
+
+use glam::Vec3;
+
+use behaviour::{Exit, Player, horizontal_distance};
+use control::{Goal, Heights};
+use flight::{Chopper, Specs};
+use sight::{Look, Sight};
+
+/// The settings of one heat level that change how the helicopter behaves. The defaults are the game's own values.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Tuning {
+    /// Metres along the road behind the target where it spawns (`SpawnPursuitHelicopter`: 250).
+    pub spawn_distance: f32,
+    /// Seconds its fuel lasts after it spawns (`HeliFuelTime`).
+    pub fuel_time: f32,
+    /// Metres it sees to its front (`heliLOSdistance`: 251 or 301).
+    pub line_of_sight: f32,
+    /// Metres from the player at which it leaves (600; 375 for ground units).
+    pub despawn_distance: f32,
+    /// Top speed, m/s (`chopperspecs` `MAX_SPEED_MPS`: 100).
+    pub speed_cap: f32,
+    /// Whether it lunges in for skid hits (the level's `pursuitsupport` has a `SKID_HIT` air entry).
+    pub skid_hit: bool,
+}
+
+impl Default for Tuning {
+    fn default() -> Self {
+        Self {
+            spawn_distance: 250.0,
+            fuel_time: 60.0,
+            line_of_sight: 251.0,
+            despawn_distance: 600.0,
+            speed_cap: 100.0,
+            skid_hit: false,
+        }
+    }
+}
+
+/// The seconds between two thinks: the helicopter thinks every 0.125 s (the spec's think period).
+pub const THINK_PERIOD: f32 = 0.125;
+
+/// What the helicopter is doing.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Mode {
+    Follow,
+    /// The skid hit is coming in from `side` (+1 or -1 of the player's right).
+    SkidApproach {
+        side: f32,
+    },
+    SkidStrike {
+        side: f32,
+    },
+    /// The player is out of sight: fly to `point`.
+    Search {
+        point: Vec3,
+    },
+    Exit(Exit),
+}
+
+/// The player as the helicopter's sight sees it: where it is and the flags the world sets.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Target {
+    pub hidden: bool,
+    pub in_tunnel: bool,
+}
+
+/// The floor and the random numbers the search needs, supplied by the caller so the helicopter stays pure.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SearchInput {
+    /// Which way round the search circles the last known place, in turns (0 to 1).
+    pub angle_turns: f32,
+    /// A uniform random number in `0..=1` picking the search distance.
+    pub unit_random: f32,
+}
+
+/// A helicopter in flight: the body, the sight, the fuel, the skid timer and the mode.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Helicopter {
+    pub body: Chopper,
+    pub mode: Mode,
+    pub sight: Sight,
+    /// Seconds of fuel left.
+    pub fuel: f32,
+    /// Above zero while a skid hit runs; below zero the skid cooldown counts down.
+    pub skid_timer: f32,
+    pub tuning: Tuning,
+}
+
+impl Helicopter {
+    /// A helicopter at `position`, facing `heading`, with its fuel full.
+    pub fn spawn(position: Vec3, heading: f32, tuning: Tuning) -> Self {
+        Self {
+            body: Chopper::new(position, heading),
+            mode: Mode::Follow,
+            sight: Sight::default(),
+            fuel: tuning.fuel_time,
+            skid_timer: 0.0,
+            tuning,
+        }
+    }
+
+    /// Whether it is far enough from the player to be removed from the pursuit.
+    pub fn too_far(&self, player: &Player) -> bool {
+        horizontal_distance(self.body.position, player.position) > self.tuning.despawn_distance
+    }
+
+    /// Starts leaving: climbs away from the player and flies out.
+    pub fn leave(&mut self) {
+        self.mode = Mode::Exit(Exit::start(self.body.position));
+    }
+
+    /// One think of `THINK_PERIOD` seconds. `in_pursuit` is false when the chase has ended, which sends it away. `clear`
+    /// tests the line to the target. Returns `true` once an exit is finished and the helicopter should be removed.
+    pub fn think(
+        &mut self,
+        dt: f32,
+        player: &Player,
+        target: Target,
+        clear: &dyn Fn(Vec3) -> bool,
+        heights: &dyn Heights,
+        search: SearchInput,
+    ) -> bool {
+        self.fuel -= THINK_PERIOD;
+        self.skid_timer -= THINK_PERIOD;
+        let specs = Specs { max_speed: self.tuning.speed_cap, ..Specs::default() };
+        if let Mode::Exit(mut exit) = self.mode {
+            let goal = exit.think(self.body.position, self.body.velocity, player);
+            self.mode = Mode::Exit(exit);
+            self.step(dt, goal, heights, &specs);
+            return exit.finished(self.body.position, player);
+        }
+        if self.fuel <= 0.0 {
+            self.leave();
+            return false;
+        }
+        let look = Look {
+            heli: self.body.position,
+            forward: self.body.forward(),
+            target: player.position,
+            range: self.tuning.line_of_sight,
+            hidden: target.hidden,
+            in_tunnel: target.in_tunnel,
+        };
+        let seen = self.sight.can_see(&look, || clear(player.position));
+        let goal = match seen {
+            true => self.pursue(player),
+            false => self.search(player, heights, search),
+        };
+        self.step(dt, goal, heights, &specs);
+        false
+    }
+
+    /// The goal while the player is in sight: follow, or a skid hit (its modes switch by the skid rules).
+    fn pursue(&mut self, player: &Player) -> Goal {
+        let heli = self.body.position;
+        self.update_skid(heli, player);
+        match self.mode {
+            Mode::SkidApproach { side } => behaviour::skid_approach(heli, player, side),
+            Mode::SkidStrike { side } => behaviour::skid_strike(player, side),
+            Mode::Follow | Mode::Search { .. } | Mode::Exit(_) => {
+                self.mode = Mode::Follow;
+                let skid_ready = self.tuning.skid_hit && self.skid_timer < -5.0;
+                behaviour::follow(heli, player, self.skid_timer, skid_ready)
+            }
+        }
+    }
+
+    /// Moves between follow, approach and strike by the skid rules of the spec.
+    fn update_skid(&mut self, heli: Vec3, player: &Player) {
+        match self.mode {
+            Mode::SkidApproach { side } if behaviour::skid_aborts(heli, player) => {
+                self.abort_skid(side);
+            }
+            Mode::SkidApproach { side } if behaviour::skid_strikes(heli, player, side) => {
+                self.skid_timer = self.skid_timer.max(2.0);
+                self.mode = Mode::SkidStrike { side };
+            }
+            Mode::SkidStrike { side } if behaviour::skid_aborts(heli, player) => {
+                self.abort_skid(side);
+            }
+            Mode::Follow
+                if self.tuning.skid_hit && self.skid_timer < -5.0 && behaviour::skid_can_start(heli, player) =>
+            {
+                self.skid_timer = behaviour::SKID_TIMER;
+                self.mode = Mode::SkidApproach { side: behaviour::skid_side(heli, player) };
+            }
+            _ => {}
+        }
+    }
+
+    fn abort_skid(&mut self, _side: f32) {
+        self.skid_timer = 0.0;
+        self.mode = Mode::Follow;
+    }
+
+    /// The goal while the player is out of sight: fly to a search point around its last known place.
+    fn search(&mut self, player: &Player, heights: &dyn Heights, search: SearchInput) -> Goal {
+        let floor = heights.elevation(player.position.x, player.position.z);
+        let point = behaviour::search_point(player.position, search.angle_turns, search.unit_random, 1000.0, floor);
+        self.mode = Mode::Search { point };
+        behaviour::search(point, self.body.velocity)
+    }
+
+    fn step(&mut self, dt: f32, goal: Goal, heights: &dyn Heights, specs: &Specs) {
+        let desired = control::desired(self.body.position, self.body.velocity, &goal, heights);
+        self.body.step(dt, desired.velocity, goal.look_at - self.body.position, desired.max_decel, specs);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use control::Flat;
+
+    fn player() -> Player {
+        Player { position: Vec3::ZERO, velocity: Vec3::new(30.0, 0.0, 0.0), forward: Vec3::X }
+    }
+
+    const OPEN: Target = Target { hidden: false, in_tunnel: false };
+    const SEARCH: SearchInput = SearchInput { angle_turns: 0.0, unit_random: 0.5 };
+
+    fn clear(_: Vec3) -> bool {
+        true
+    }
+
+    fn run(heli: &mut Helicopter, seconds: f32, target: Target, line: &dyn Fn(Vec3) -> bool) -> bool {
+        let steps = (seconds / THINK_PERIOD) as usize;
+        let mut done = false;
+        for _ in 0..steps {
+            done |= heli.think(THINK_PERIOD, &player(), target, line, &Flat(0.0), SEARCH);
+        }
+        done
+    }
+
+    #[test]
+    fn the_game_values_are_the_defaults() {
+        let t = Tuning::default();
+        assert_eq!(t.spawn_distance, 250.0);
+        assert_eq!(t.despawn_distance, 600.0);
+        assert_eq!(t.speed_cap, 100.0);
+    }
+
+    #[test]
+    fn fuel_runs_out_and_the_helicopter_exits() {
+        let tuning = Tuning { fuel_time: 1.0, ..Tuning::default() };
+        let mut heli = Helicopter::spawn(Vec3::new(-100.0, 40.0, 0.0), 0.0, tuning);
+        run(&mut heli, 2.0, OPEN, &clear);
+        assert!(matches!(heli.mode, Mode::Exit(_)));
+    }
+
+    #[test]
+    fn a_visible_player_is_followed_closely() {
+        let mut heli = Helicopter::spawn(Vec3::new(-150.0, 40.0, 0.0), 0.0, Tuning::default());
+        run(&mut heli, 10.0, OPEN, &clear);
+        assert_eq!(heli.mode, Mode::Follow);
+        let gap = horizontal_distance(heli.body.position, player().position);
+        assert!(gap < 150.0, "keeps up with the car: {gap} m");
+    }
+
+    #[test]
+    fn a_lost_player_sends_it_to_search() {
+        let mut heli = Helicopter::spawn(Vec3::new(-150.0, 40.0, 0.0), 0.0, Tuning::default());
+        let blocked = |_: Vec3| false;
+        run(&mut heli, 0.5, OPEN, &blocked);
+        assert!(matches!(heli.mode, Mode::Search { .. }));
+    }
+
+    #[test]
+    fn a_hidden_player_is_not_seen_once_latched() {
+        let mut heli = Helicopter::spawn(Vec3::new(-150.0, 40.0, 0.0), 0.0, Tuning::default());
+        let blocked = |_: Vec3| false;
+        let hidden = Target { hidden: true, in_tunnel: false };
+        run(&mut heli, 0.25, hidden, &blocked);
+        assert!(matches!(heli.mode, Mode::Search { .. }));
+    }
+
+    #[test]
+    fn with_skid_hit_it_comes_in_beside_the_player_when_in_window() {
+        let tuning = Tuning { skid_hit: true, ..Tuning::default() };
+        let mut heli = Helicopter::spawn(Vec3::new(20.0, 8.0, 0.0), 0.0, tuning);
+        heli.skid_timer = -10.0;
+        run(&mut heli, THINK_PERIOD, OPEN, &clear);
+        assert!(matches!(heli.mode, Mode::SkidApproach { .. }), "mode {:?}", heli.mode);
+    }
+
+    #[test]
+    fn a_skid_is_not_started_during_cooldown() {
+        let tuning = Tuning { skid_hit: true, ..Tuning::default() };
+        let mut heli = Helicopter::spawn(Vec3::new(20.0, 8.0, 0.0), 0.0, tuning);
+        heli.skid_timer = 0.0;
+        run(&mut heli, THINK_PERIOD, OPEN, &clear);
+        assert_eq!(heli.mode, Mode::Follow, "cooldown not over");
+    }
+
+    #[test]
+    fn the_exit_reports_done_once_it_is_clear_of_the_car() {
+        let mut heli = Helicopter::spawn(Vec3::new(-20.0, 10.0, 0.0), 0.0, Tuning::default());
+        heli.leave();
+        let done = run(&mut heli, 60.0, OPEN, &clear);
+        assert!(done, "the exit finishes within a minute");
+    }
+
+    #[test]
+    fn a_helicopter_far_back_is_removed() {
+        let heli = Helicopter::spawn(Vec3::new(-700.0, 40.0, 0.0), 0.0, Tuning::default());
+        assert!(heli.too_far(&player()));
+    }
+}

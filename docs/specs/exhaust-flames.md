@@ -170,8 +170,15 @@ for each particle:
     size and colour start at curve parameter 0
 ```
 
-`MotionLive` set means a spawned particle does **not** take the car's velocity: it stays where it was born and
-only moves with its own speed, so at speed the flame leaves a trail along the path of the pipe. The local matrix is
+Birth code: `FUN_00509b30` (the particle birth; `FUN_0050af90` calls it per emitter). Decompiled as: the
+inherit branch runs when `MotionInherit != 0` and the int at emitter data `+0xe0` is 0, so a nonzero `+0xe0` means
+the particle does **not** take the car's velocity. [decomp, `FUN_00509b30`]
+
+**Open:** that int is read at `+0xe0` with no name. The field keys are not 32-bit constants in `speed.exe` (checked
+for both the AttribSys hash and `bStringHash`), and no emitter struct is defined in the Ghidra project. So the
+mapping `+0xe0` = `MotionLive` is [inferred], not verified. It is also odd that the fire has `MotionInherit` 1.0
+together with `MotionLive` 1, which would make the inherit inert. Until the offset is named, do not change the
+motion code on the strength of this section. The local matrix is
 set from the pipe effect every update, before spawning. The system caps live particles at 1024 and emitters at
 500 (the player's effects have priority); no budget problem arises from two pipes. [decomp]
 
@@ -191,6 +198,9 @@ colour            = cubic(t) of the 4 colours, each channel x 255 clamped to 0..
 angle  = initial angle +- angle_delta * (1 + rotation offset)         // + or - by the direction flag
 dies if colour alpha <= AlphaToKillAt, unless NoKillAtAlpha
 ```
+
+Update code: `FUN_00508c30` (per-particle step). It moves `position += velocity * dt` with no transform by the
+emitter's matrix, so a particle keeps its birth position after it is spawned, whatever the live flag. [decomp]
 
 Because `t` uses the nominal `Life`, a particle with a shorter random life starts further along the curves.
 `Size` is stored doubled: the **half** size is `Size * 0.5`, so `Size` is the full quad width. Colours are packed
@@ -212,6 +222,11 @@ between emitters. [decomp for the vectors; inferred for the blend]
   backfire (section 8.3) is its own design, not the original's.
 - The platform blend state of particles (section 4).
 - AI racers' own flames follow the same code (usage 2); only the player's car exists in the rewrite.
+- The name of the emitter-data int at `+0xe0` (section 5). Needed to say whether the original's fire trails.
+- The draw path that places particles (`FUN_00508c30` does not). Needed to say whether a live particle is drawn
+  relative to its emitter. Not found in the decompile so far.
+- Whether `ADDITIVE_GAIN` (rewrite, 8.5) is close to the original brightness. No original data gives a gain;
+  the 4.0 is a design choice.
 
 ## 8. The rewrite
 

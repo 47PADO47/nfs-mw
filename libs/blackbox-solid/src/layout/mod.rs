@@ -5,6 +5,7 @@
 //! `docs/formats/models.md`.
 
 mod v16;
+mod v18;
 
 /// Field offsets inside `SolidInfo`.
 #[derive(Debug, Clone)]
@@ -71,7 +72,7 @@ pub struct SolidLayout {
 }
 
 /// All supported layouts.
-pub const LAYOUTS: &[&SolidLayout] = &[&v16::V16];
+pub const LAYOUTS: &[&SolidLayout] = &[&v16::V16, &v18::V18];
 
 /// Offset of the version byte in `SolidInfo`, shared by every known layout.
 pub const VERSION_OFFSET: usize = 0x0C;

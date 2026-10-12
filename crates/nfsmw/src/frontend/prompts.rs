@@ -1,7 +1,7 @@
 //! Contextual action hints, shared by every implemented front-end screen.
 
 use blackbox_feng::{NodeKind, UiNode, UiTree, fe_hash_upper};
-use glam::{Mat4, Quat, Vec3};
+use glam::{Mat4, Quat, Vec2, Vec3};
 
 use super::{ids::screen, prompt_layout::Frame};
 use crate::input::{Action, Bindings, InputDevice};
@@ -12,46 +12,71 @@ use crate::ui::{
 };
 
 const FONT: u32 = 0x5455_70c6; // FONT_MW_BODY
+/// Half the height of a hint in its frame's units, before the fit: the keycaps are 22 high.
+const HINT_HALF_HEIGHT: f32 = 13.0;
 
-pub fn decorate(tree: &mut UiTree, name: &str, bindings: &Bindings, device: InputDevice, assets: &UiAssets) {
+/// A footer hint that a click presses: the action it stands for, and the rectangle it covers in FEng units.
+pub struct HintArea {
+    pub action: Action,
+    pub min: Vec2,
+    pub max: Vec2,
+}
+
+impl HintArea {
+    pub fn covers(&self, point: Vec2) -> bool {
+        (self.min.x..=self.max.x).contains(&point.x) && (self.min.y..=self.max.y).contains(&point.y)
+    }
+}
+
+/// Draws the footer hints of a screen and returns the ones that a click can press.
+pub fn decorate(
+    tree: &mut UiTree,
+    name: &str,
+    bindings: &Bindings,
+    device: InputDevice,
+    assets: &UiAssets,
+) -> Vec<HintArea> {
     let (pause, rows, main, splash) = (
         name.eq_ignore_ascii_case(screen::PAUSE_MENU),
         [screen::OPTIONS, screen::PAUSE_OPTIONS].iter().any(|s| name.eq_ignore_ascii_case(s)),
         name.eq_ignore_ascii_case(screen::MAIN_MENU),
         [screen::SPLASH, screen::SPLASH_WIDE].iter().any(|s| name.eq_ignore_ascii_case(s)),
     );
-    let Some(frame) = Frame::find(tree, name) else { return };
+    let Some(frame) = Frame::find(tree, name) else { return Vec::new() };
     hide_legacy_hints(tree, splash);
     let first_hint = tree.nodes.len();
     let action = |a| vec![prompts::for_action(bindings, a, device)];
-    let mut hints = vec![(action(Action::MenuAccept), "Accept")];
+    // Each hint names the action a click on it presses; the pairs of arrows have none.
+    let mut hints = vec![(action(Action::MenuAccept), "Accept", Some(Action::MenuAccept))];
     if splash {
-        hints = vec![(action(Action::MenuStart), "Continue")];
+        hints = vec![(action(Action::MenuStart), "Continue", Some(Action::MenuStart))];
     }
     if !splash {
-        hints.push((action(Action::MenuBack), "Back"));
+        hints.push((action(Action::MenuBack), "Back", Some(Action::MenuBack)));
     }
     if main {
-        hints[1] = (action(Action::MenuQuit), "Quit");
+        hints[1] = (action(Action::MenuQuit), "Quit", Some(Action::MenuQuit));
     }
     if rows {
         hints = vec![
-            (prompts::pair(bindings, Action::MenuUp, Action::MenuDown, device), "Select"),
-            (prompts::pair(bindings, Action::MenuLeft, Action::MenuRight, device), "Adjust"),
-            (action(Action::MenuBack), "Done"),
+            (prompts::pair(bindings, Action::MenuUp, Action::MenuDown, device), "Select", None),
+            (prompts::pair(bindings, Action::MenuLeft, Action::MenuRight, device), "Adjust", None),
+            (action(Action::MenuBack), "Done", Some(Action::MenuBack)),
         ];
     }
     let colour = match pause || name.eq_ignore_ascii_case(screen::PAUSE_OPTIONS) {
         true => [255, 174, 64, 255],
         false => [255; 4],
     };
-    let total: f32 = hints.iter().map(|(keys, label)| hint_width(keys, label, assets)).sum();
+    let total: f32 = hints.iter().map(|(keys, label, _)| hint_width(keys, label, assets)).sum();
     let fit = (frame.width / total.max(1.0)).min((frame.height - 2.0) / 25.0).min(1.0);
     let mut x = match frame.centred {
         true => -total * fit * 0.5,
         false => -frame.width * 0.5,
     };
-    for (keys, label) in hints {
+    let mut areas = Vec::new();
+    for (keys, label, pressed) in hints {
+        let start = x;
         for key in keys {
             let key_width = prompt_width(&key, assets) * fit;
             match key {
@@ -62,8 +87,15 @@ pub fn decorate(tree: &mut UiTree, name: &str, bindings: &Bindings, device: Inpu
         }
         text(tree, label, x + 3.0 * fit, 0.0, fit, colour, assets);
         x += (text_width(label, assets) + 22.0) * fit;
+        if let Some(action) = pressed {
+            let half = HINT_HALF_HEIGHT * fit;
+            let a = frame.world.transform_point3(Vec3::new(start, -half, 0.0)).truncate();
+            let b = frame.world.transform_point3(Vec3::new(x, half, 0.0)).truncate();
+            areas.push(HintArea { action, min: a.min(b), max: a.max(b) });
+        }
     }
     frame.apply(tree, first_hint);
+    areas
 }
 
 fn prompt_width(prompt: &Prompt, assets: &UiAssets) -> f32 {

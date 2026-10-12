@@ -5,7 +5,7 @@ mod effects;
 mod engine;
 mod shift;
 
-pub use effects::{CollisionTuning, NitrousTuning, SkidTuning, TurboTuning};
+pub use effects::{CollisionTuning, SkidTuning, TurboTuning};
 pub use engine::{DecelWindow, EngineMix, EngineMode, EngineTuning, MixLevels};
 pub use shift::{AccelTransition, ShiftStage, ShiftTuning, Wobble};
 
@@ -17,7 +17,6 @@ pub struct CarSoundTuning {
     pub accel_transition: AccelTransition,
     /// `None` for a car without forced induction (`turbosfx/default`).
     pub turbo: Option<TurboTuning>,
-    pub nitrous: NitrousTuning,
     pub skid: SkidTuning,
     /// The local player's car: it gets the RPM remap, the clutch model, the tachometer feedback, the
     /// brake-mash sound and measured landing intensities.
@@ -33,7 +32,6 @@ impl Default for CarSoundTuning {
             shift: ShiftTuning::default(),
             accel_transition: AccelTransition::default(),
             turbo: None,
-            nitrous: NitrousTuning::default(),
             skid: SkidTuning::default(),
             is_local_player: true,
             seed: 1,

@@ -22,6 +22,11 @@ pub struct MirrorOverlay {
 
 impl MirrorOverlay {
     /// Sets the frame's UI layer, and keeps it so the rear view can be captured without it.
+    /// The HUD and UI layer as the presenter last made it, without the streaks.
+    pub fn base_layer(&self) -> Option<&UiLayer> {
+        self.layer.as_ref()
+    }
+
     pub fn set_layer(&mut self, renderer: &mut dyn RenderBackend, layer: UiLayer) {
         renderer.set_ui_layer(layer.clone());
         self.layer = Some(layer);

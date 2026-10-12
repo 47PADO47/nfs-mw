@@ -53,12 +53,18 @@ pub enum Action {
     Clutch,
     /// Driving button: nitrous oxide.
     Nos,
+    /// Button: the speed breaker, which slows the world while its meter lasts (`speedbreaker.rs`).
+    Speedbreaker,
     /// Driving button: put the car back on the road.
     ResetCar,
     /// Button: switch between the chase camera and the free camera.
     ToggleCamera,
     /// Driving button: the next gameplay camera (the camera setting).
     CycleCamera,
+    /// Driving button: the car's headlights on or off.
+    ToggleHeadlights,
+    /// Driving button: hold to look back at the car (the camera swings round).
+    LookBack,
     /// Menu button: the focus moves up.
     MenuUp,
     MenuDown,
@@ -113,9 +119,12 @@ impl Action {
             "gear_7",
             "clutch",
             "nos",
+            "speedbreaker",
             "reset_car",
             "toggle_camera",
             "cycle_camera",
+            "toggle_headlights",
+            "look_back",
             "menu_up",
             "menu_down",
             "menu_left",
@@ -139,7 +148,7 @@ impl Action {
             .find(|a| a.name() == name)
             .ok_or_else(|| format!("unknown action {name:?}; use keys to list actions"))
     }
-    pub const ALL: [Action; 43] = [
+    pub const ALL: [Action; 46] = [
         Action::MoveForward,
         Action::MoveRight,
         Action::MoveUp,
@@ -168,9 +177,12 @@ impl Action {
         Action::Gear7,
         Action::Clutch,
         Action::Nos,
+        Action::Speedbreaker,
         Action::ResetCar,
         Action::ToggleCamera,
         Action::CycleCamera,
+        Action::ToggleHeadlights,
+        Action::LookBack,
         Action::MenuUp,
         Action::MenuDown,
         Action::MenuLeft,

@@ -10,10 +10,15 @@ mod gui;
 mod hud;
 mod input;
 mod movie;
+mod save_format;
+mod saves;
 mod scenes;
 mod settings;
 mod ui;
 mod viewer;
+// The renderer does not call the weather model yet; it is tested on its own.
+#[cfg_attr(not(test), allow(dead_code))]
+mod weather;
 
 use clap::Parser;
 

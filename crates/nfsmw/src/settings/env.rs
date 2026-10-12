@@ -69,6 +69,14 @@ pub const H_SHIFTER: &str = "NFSMW_H_SHIFTER";
 /// does not parse is reported and ignored.
 pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
     Partial {
+        always_rain: None,
+        rain_amount: None,
+        game_speed: None,
+        animation_speed: None,
+        car_scale: None,
+        headlights_key: None,
+        no_rev_limiter: None,
+        show_hud_on_look_back: None,
         deadzone_mode: value(&get, "NFSMW_DEADZONE_MODE", super::DeadzoneMode::from_str),
         steering_deadzone: value(&get, "NFSMW_STEERING_DEADZONE", Deadzone::from_str),
         camera_deadzone: value(&get, "NFSMW_CAMERA_DEADZONE", Deadzone::from_str),

@@ -118,7 +118,15 @@ Selecting Options sets the game mode to options and switches to `MainMenu_Sub.fn
 
 ### 2.2 Option categories [decomp]
 
-`MainMenu_Sub.fng` as `UIOptionsMain`: options Audio (`0xE76CD783`, icon `0xF37AF144`), Video (`0x8A006328`),
+Found in the dump of `MainMenu_Sub.fng` (`nfsmw dump-screen`): twelve option buttons `OPTION_1`..`OPTION_12`
+(name hashes `0x4B4E3888`..`0x4B4E3890`, `0xB51549B8`..`0xB51549BA`). The rewrite now lists the original's
+categories in order: Audio, Video, Gameplay, Player (`0xF760EABE` "Player"), Controls (`0x04DC6DB5`), and, outside
+the pause menu, EA Trax (`0xDCFB6B36`) and Credits (`0x0905101F`). Player, EA Trax and Credits are greyed out:
+the rewrite has no screen for them. **[ours]** Their icon textures are not read yet, so they show no picture.
+The spec's `0xD708EFEF` and `0xA04A7B26` are the buttons' name hashes; the text labels above are what the game
+displays (found with `nfsmw strings`).
+
+[decomp] `MainMenu_Sub.fng` as `UIOptionsMain`: options Audio (`0xE76CD783`, icon `0xF37AF144`), Video (`0x8A006328`),
 Gameplay (`0x4DF98FB2`), Player (`0xD708EFEF`), Controller (`0xA04A7B26`), then EA Trax and Credits when not
 opened from the pause menu. The title is `options` (`0x4ECA678C`). Pressing one sets the category and switches to
 `Options.fng` (in game: `Pause_Options.fng`); `PAD_BACK` returns to `MainMenu.fng` (in game: `Pause_Main.fng`).

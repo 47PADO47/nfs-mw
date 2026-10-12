@@ -3,6 +3,8 @@
 //! swaps. Spec: docs/specs/car-assembly.md.
 
 mod assemble;
+pub mod cop_lights;
+pub mod damage;
 mod ecar;
 pub mod exhaust;
 mod paint;
@@ -169,6 +171,7 @@ fn wanted_textures(solids: &HashMap<u32, Solid>, swaps: &TextureSwaps) -> HashSe
         .flat_map(|h| [h, swaps.resolve(h)])
         .collect();
     wanted.insert(bstring_hash(swaps::BRAKE_LEFT));
+    wanted.insert(bstring_hash(swaps::WINDOW_DAMAGE));
     wanted
 }
 

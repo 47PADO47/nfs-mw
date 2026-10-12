@@ -44,6 +44,10 @@ const NEEDLE_START_DEG: f32 = 66.0;
 const NEEDLE_SWEEP_DEG: f32 = 228.0;
 /// The nitrous bar's mask turns from this angle (empty) down to 0 (full).
 const NOS_BAR_EMPTY_DEG: f32 = 175.0;
+/// The speed breaker bar: the FEng object `Speedbreaker_Meter_Multi_Image` (name hash of that string). Its geometry is
+/// assumed to match the nitrous bar's (not checked on screen yet).
+const SPEEDBREAKER_BAR: u32 = 0x5DF2_F5B4;
+const SPEEDBREAKER_BAR_EMPTY_DEG: f32 = NOS_BAR_EMPTY_DEG;
 /// The turbo needle swings across this range of angles for a gauge from `TURBO_MIN_PSI` to `TURBO_MAX_PSI`.
 const TURBO_DEG: (f32, f32) = (-45.0, 45.0);
 const TURBO_PSI: (f32, f32) = (-20.0, 20.0);
@@ -69,6 +73,7 @@ pub struct HudBinding {
     shift_light: Option<ObjectRef>,
     nos_icon: Option<ObjectRef>,
     nos_bar: Option<ObjectRef>,
+    speedbreaker_bar: Option<ObjectRef>,
     turbo_needle: Option<ObjectRef>,
     /// The minimap, once the host has given it a map (see [`HudBinding::with_minimap`]).
     minimap: Option<MinimapBinding>,
@@ -113,6 +118,7 @@ impl HudBinding {
             shift_light: find(rt, package, "Shift_light"),
             nos_icon: rt.find(package, 0x27DD_F583),
             nos_bar: rt.find(package, 0xEDFB_6D37),
+            speedbreaker_bar: rt.find(package, SPEEDBREAKER_BAR),
             turbo_needle: find(rt, package, "3rdperson_TurboDial"),
             minimap: None,
             blips: BlipBinding::builtin(rt, package),
@@ -176,6 +182,7 @@ impl HudBinding {
         }
         self.speedometer(rt, s);
         self.tachometer(rt, s);
+        self.speedbreaker(rt, s);
         if s.has_nos {
             self.nitrous(rt, s);
         }
@@ -236,6 +243,13 @@ impl HudBinding {
         }
         if let Some(o) = self.redline {
             rt.set_mask_rotation(o, redline_rotation(s.max_rpm, s.red_line));
+        }
+    }
+
+    fn speedbreaker(&mut self, rt: &mut Runtime, s: &HudState) {
+        if let Some(o) = self.speedbreaker_bar {
+            let meter = s.speedbreaker.clamp(0.0, 1.0);
+            rt.set_mask_rotation(o, meter * -SPEEDBREAKER_BAR_EMPTY_DEG + SPEEDBREAKER_BAR_EMPTY_DEG);
         }
     }
 

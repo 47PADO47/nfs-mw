@@ -56,7 +56,9 @@ Compute `floor(impulse / strength * zone.VisualScale)`, capped at six. Send
 `COLLISION`, then vehicle/cop/player stimuli when applicable, then `IMPACT_1`
 through the computed level to that zone's system. Keep the pre-impact velocity
 as the event's dynamic velocity. The original also tracks hit points, visual
-damage, shock, suppression distance and repair; those remain separate work.
+damage, shock, suppression distance and repair; those remain separate work. Visible
+damage now accumulates per zone from these impacts ([vehicle-damage.md](vehicle-damage.md));
+hit points, shock, suppression distance and repair are still open.
 
 ## Fragments
 

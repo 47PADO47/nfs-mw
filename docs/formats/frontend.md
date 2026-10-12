@@ -20,7 +20,7 @@ four-character chunk IDs and two-character property tags. For the tag meanings, 
 | `FRONTEND/DEMO_FRONTEND.BUN` | starts with an `FEngCompressedPackage` |
 | `GLOBAL/HUDTEX*.BIN`, `HUDTEXTURESPHOTOFINISH.BIN` | HUD textures (TPK, see [textures.md](textures.md)) |
 | `GLOBAL/HUDS_Custom_NN.bin` (00 to 10) | stock texture packs of the selectable tachometer and speedometer skins (`TACH_NEEDLE_00`, `TACH_FILL_00`, `7000_LINES_00` … `10000_LINES_00`, `TURBO_NEEDLE_00`, `TURBO_LINES_00`); the game loads `HUDS_Custom_%2.2d.bin` |
-| `FRONTEND/PLATFORMS/*.BIN` | Front-end 3D scenes: `CAREER_SAFEHOUSE`, `CAR_LOT`, `CUSTOMIZATION_SHOP(_BACKROOM)`, `NextGenSky` are `GeometryPack`s; `PlatformCrib` is a TPK |
+| `FRONTEND/PLATFORMS/*.BIN` | Front-end 3D scenes: `CAREER_SAFEHOUSE`, `CAR_LOT`, `CUSTOMIZATION_SHOP(_BACKROOM)`, `NextGenSky` are `GeometryPack`s; `PlatformCrib` is a `TexturePack` with a `GeometryPack` of five solids (the menu room, no car; [menu-backdrop.md](../specs/menu-backdrop.md)) |
 
 `FRONTEND/FRONTA.BUN` is empty. A census of 210 distinct packages across these files backs the layouts below.
 

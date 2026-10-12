@@ -5,6 +5,8 @@ mod driving;
 mod feel;
 mod hitch;
 mod manual;
+mod puncture;
+mod rev_limit;
 mod robustness;
 mod wheel;
 

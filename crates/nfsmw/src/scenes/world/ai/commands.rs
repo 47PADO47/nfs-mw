@@ -1,10 +1,15 @@
 //! The console commands of the computer-driven cars: `traffic` and `pursuit`.
 
 use blackbox_gfx::RenderBackend;
+use blackbox_vehicle::performance::Performance;
 use nfsmw_data::pursuit::heat_row;
 
 use super::models::load_cop_models;
+use super::traffic_events::{Sighting, starts_pursuit};
 use crate::scenes::world::WorldScene;
+
+/// The heat of the patrol cops: the first wave (`data.rs`). A patrol cop chases at this heat.
+const PATROL_HEAT: u32 = 1;
 
 pub(in crate::scenes::world) fn traffic_command(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
     const USAGE: &str = "usage: traffic <count>|off|status|warmup <seconds>";
@@ -67,13 +72,75 @@ pub(in crate::scenes::world) fn pursuit_command(
                 player.end_grip,
                 player.acceleration
             );
-            let row = heat_row(scene.physics.database(), heat).ok_or("no cop table for that heat")?;
-            let names: Vec<String> = row.cops.iter().filter(|c| c.name != "copheli").map(|c| c.name.clone()).collect();
-            load_cop_models(scene, renderer, &names)?;
-            let traffic = scene.traffic.as_mut().ok_or(USAGE)?;
-            traffic.start_pursuit(heat, row, player);
-            Ok(format!("pursuit at heat {heat}: {}", names.join(", ")))
+            begin_pursuit(scene, renderer, heat, player)
         }
         _ => Err(USAGE.into()),
     }
+}
+
+/// Starts a chase at `heat` against `player`: loads the cop models of its wave and gives the wave to the traffic.
+fn begin_pursuit(
+    scene: &mut WorldScene,
+    renderer: &mut dyn RenderBackend,
+    heat: u32,
+    player: Performance,
+) -> Result<String, String> {
+    let row = heat_row(scene.physics.database(), heat).ok_or("no cop table for that heat")?;
+    let names: Vec<String> = row.cops.iter().filter(|c| c.name != "copheli").map(|c| c.name.clone()).collect();
+    load_cop_models(scene, renderer, &names)?;
+    // The helicopter is not a car of the wave, but it is drawn from the same model. A model that fails to load only
+    // leaves the helicopter out of the picture.
+    if let Err(e) = load_cop_models(scene, renderer, &["copheli".to_owned()]) {
+        log::warn!("the police helicopter has no model: {e}");
+    }
+    let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
+    traffic.start_pursuit(heat, row, player);
+    Ok(format!("pursuit at heat {heat}: {}", names.join(", ")))
+}
+
+/// The speeding trigger (`docs/specs/traffic-sound-events.md` §3.3): while no chase is on, a patrol cop that sees the
+/// player starts one when the player is over the speeding line, has hit traffic lately, or the heat is high enough.
+pub(in crate::scenes::world) fn speeding_pursuit(scene: &mut WorldScene, renderer: &mut dyn RenderBackend) {
+    let Some(traffic) = scene.traffic.as_ref() else { return };
+    if traffic.is_pursuing() {
+        return;
+    }
+    let Some(drive) = scene.drive.as_ref() else { return };
+    // The speed comes from the drive now; the traffic supplies the rest (the sight and the recent hit).
+    let sight = Sighting { player_speed: drive.speed(), ..traffic.sighting(PATROL_HEAT) };
+    if !starts_pursuit(&traffic.events(), &sight) {
+        return;
+    }
+    let player = drive.performance();
+    match begin_pursuit(scene, renderer, PATROL_HEAT, player) {
+        Ok(line) => log::info!("speeding: {line}"),
+        Err(e) => log::warn!("speeding: no chase: {e}"),
+    }
+}
+
+/// `roadblock`: lays a roadblock of cop cars across the road 250 m ahead (a test of the placement; the support request
+/// that asks for one in a chase is not built, `docs/specs/ai-pursuit-formations.md` section 6). The outcome also goes to
+/// the log file, so a headless run shows it (the console keeps its own buffer).
+pub(in crate::scenes::world) fn roadblock_command(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
+    let result = roadblock_outcome(scene, args);
+    match &result {
+        Ok(text) => log::info!("{text}"),
+        Err(e) => log::warn!("roadblock: {e}"),
+    }
+    result
+}
+
+fn roadblock_outcome(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
+    if !args.is_empty() {
+        return Err("usage: roadblock".into());
+    }
+    let drive = scene.drive.as_ref().ok_or("not driving (use the drive command first)")?;
+    if drive.hud_state().is_none() {
+        return Err("the car is not on the road yet; type the command once the drive has started".into());
+    }
+    let view = drive.player_view();
+    let (collision, _) = scene.residency.world_parts();
+    let surfaces = &scene.physics.surfaces;
+    let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
+    traffic.place_roadblock(view, collision, surfaces).map(|n| format!("roadblock: {n} cop cars placed"))
 }

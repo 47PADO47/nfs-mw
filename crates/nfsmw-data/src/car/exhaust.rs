@@ -77,7 +77,7 @@ pub fn pipe_frames(placements: &[Placement], solids: &HashMap<u32, Solid>) -> Ve
     frames
 }
 
-fn group_emitters(db: &Database, group: CollectionRef<'_>) -> Vec<GroupEmitter> {
+pub(crate) fn group_emitters(db: &Database, group: CollectionRef<'_>) -> Vec<GroupEmitter> {
     let Some(items) = group.get("Emitters").and_then(|v| v.as_array()) else { return Vec::new() };
     items
         .iter()
@@ -130,6 +130,12 @@ fn emitter_spec(e: CollectionRef<'_>) -> EmitterSpec {
         size: four("Size"),
         angle: four("RelativeAngle"),
         colors: [color("Color1"), color("Color2"), color("Color3"), color("Color4")],
+        on_cycle: float("OnCycle"),
+        on_cycle_variance: float("OnCycleVariance"),
+        off_cycle: float("OffCycle"),
+        off_cycle_variance: float("OffCycleVariance"),
+        start_delay: float("StartDelay"),
+        one_shot: e.get_bool("IsOneShot").unwrap_or(false),
         kill_alpha: match no_kill {
             true => None,
             false => Some(e.get_i32("AlphaToKillAt").unwrap_or(0).clamp(0, 255) as u8),

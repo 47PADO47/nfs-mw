@@ -55,6 +55,16 @@ pub struct EmitterSpec {
     pub colors: [[u8; 4]; 4],
     /// A particle whose alpha falls to this value or below dies (`None`: never).
     pub kill_alpha: Option<u8>,
+    /// The emitter is on for `on_cycle` seconds, then off for `off_cycle` seconds, each drawn additively within its
+    /// variance. A zero `on_cycle` means always on.
+    pub on_cycle: f32,
+    pub on_cycle_variance: f32,
+    pub off_cycle: f32,
+    pub off_cycle_variance: f32,
+    /// Seconds of silence before the first on-cycle.
+    pub start_delay: f32,
+    /// Stop for good after the first on-cycle.
+    pub one_shot: bool,
 }
 
 impl Default for EmitterSpec {
@@ -87,6 +97,12 @@ impl Default for EmitterSpec {
             angle: [0.0; 4],
             colors: [[255; 4]; 4],
             kill_alpha: Some(0),
+            on_cycle: 0.0,
+            on_cycle_variance: 0.0,
+            off_cycle: 0.0,
+            off_cycle_variance: 0.0,
+            start_delay: 0.0,
+            one_shot: false,
         }
     }
 }

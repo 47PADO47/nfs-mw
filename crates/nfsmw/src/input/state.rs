@@ -98,6 +98,12 @@ impl Default for Bindings {
 }
 
 impl Bindings {
+    /// Replace the keys bound to `action` with `key` (the mouse and pad bindings stay).
+    pub fn rebind_key(&mut self, action: super::action::Action, key: bevy_input::keyboard::KeyCode) {
+        self.0.retain(|b| b.action != action || !matches!(b.source, super::bindings::Source::Key(_)));
+        self.0.push(super::bindings::Binding::new(action, super::bindings::Source::Key(key), 1.0));
+    }
+
     /// The defaults plus a wheel's shift paddles, given as the codes of their gamepad buttons.
     pub fn with_paddles(up: Option<u32>, down: Option<u32>) -> Self {
         let mut all = bindings::defaults();

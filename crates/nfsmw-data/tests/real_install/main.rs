@@ -14,6 +14,7 @@ mod exhaust;
 mod geometry;
 mod ginsu;
 mod handling;
+mod heli_sheet;
 mod manual;
 mod minimap;
 mod music;
@@ -27,6 +28,7 @@ mod spawners;
 mod speech;
 mod textures;
 mod traffic;
+mod trailer_logs;
 mod world;
 mod zones;
 

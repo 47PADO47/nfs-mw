@@ -146,6 +146,8 @@ pub fn draw(
     mut ui: ResMut<UiOutput>,
     errors: Res<ErrorSlot>,
     mut exit: MessageWriter<AppExit>,
+    window: Single<&Window, With<PrimaryWindow>>,
+    time: Res<Time>,
 ) {
     let host = &mut *host;
     let Some(renderer) = host.renderer.as_mut() else { return };
@@ -161,6 +163,10 @@ pub fn draw(
     if host.rear_view_mirror {
         host.mirror.update(renderer.as_mut(), host.scene.as_mut());
     }
+    // The streaks go over the last HUD layer, every frame, so they stay while the presenter is quiet.
+    let size = [window.width(), window.height()];
+    let strength = host.scene.speed_streaks();
+    host.streaks.show(renderer.as_mut(), host.mirror.base_layer(), strength, size, time.elapsed_secs());
 
     let (params, instances) = host.scene.frame(renderer.aspect_ratio());
     let result = if let Some(plan) = host.screenshot.as_mut() {

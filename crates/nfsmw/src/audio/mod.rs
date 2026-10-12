@@ -16,6 +16,7 @@ mod plugin;
 mod radio;
 mod refs;
 mod speech;
+pub mod traffic;
 mod tuning;
 mod volume;
 

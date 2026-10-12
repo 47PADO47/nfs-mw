@@ -147,7 +147,7 @@ impl EffectsMixer {
             ticker: Ticker::default(),
             shift: ShiftFx::new(tuning),
             turbo: tuning.turbo.map(|t| TurboFx::new(t, tuning.seed)),
-            nitrous: NitrousFx::new(tuning.nitrous),
+            nitrous: NitrousFx::default(),
             skids: SkidFx::new(tuning.skid),
             road: RoadFx::default(),
             wind: WindFx::default(),
