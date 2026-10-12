@@ -280,6 +280,10 @@ published table does not contain that route, so it is removed. The invented `1 +
 - The other two 0x250 immediates are field offsets, not allocation sizes. `0x0047E23F` is `FADD`/`FST` on `[ESI+0x250]`
   (a timer accumulator). `0x007FE1D8` stores zero to `[ESI+0x250]` in a reset that also clears `+0x248`, `+0x244`,
   `+0x24C`, `+0x254` and `+0x258`.
+- Direct search of the dispatcher's callers (`FUN_006F4400` and `FUN_006F4620`): `FUN_006F4400` is called from
+  `FUN_0067B520` (hash `0x998C21C0`), `FUN_006A49C0`, `FUN_006B45C0`, `FUN_006BA0B0` and `FUN_006BBC70` (hash
+  `0x804C146E`); `FUN_006F4620` from `FUN_006722C0` and two undefined sites. None of these passes the `CarSoundConn` hash
+  `0x1DD80B70`, so the car sound connection is created through a path that uses a computed hash, which is not found yet.
 - So the only 0x250 allocation is the named node in `FUN_007992F0`. Its caller `FUN_0054CCF0` (vtable `0x0089B334`) has
   no direct caller. The same vtable is set by `FUN_005142F0`, a base constructor that calls `FUN_00572360`. So the node's
   owner is a UI-side class shared through the named table, not the car sim. The 0x250 path does not lead to the car
