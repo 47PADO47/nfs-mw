@@ -8,12 +8,14 @@ mod dynamic_fov;
 mod fly;
 mod orbit;
 pub mod original;
+mod rear_view;
 
 pub use chase::{ChaseCamera, ChaseView, Followed};
 pub use cut::CameraCut;
 pub use dynamic_fov::DynamicFov;
 pub use fly::FlyCamera;
 pub use orbit::OrbitCamera;
+pub use rear_view::RearView;
 
 use blackbox_gfx::Projection;
 use glam::{Mat4, Vec3};
