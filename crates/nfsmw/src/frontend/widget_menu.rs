@@ -3,8 +3,8 @@
 //! this logic puts the settings on them, moves the selection and changes the values.
 
 use blackbox_feng::ids::{BUTTON_PRESSED, PAD_ACCEPT, PAD_BACK, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_START, PAD_UP};
-use blackbox_feng::{ObjectRef, fe_hash_upper};
-use glam::Vec2;
+use blackbox_feng::{ObjectRef, Runtime, fe_hash_upper};
+use glam::{Vec2, Vec3};
 
 use super::ids::{self, screen};
 use super::logic::{Args, Command, Cx, ScreenLogic};
@@ -39,6 +39,9 @@ struct Layout {
     /// Top-left of the data column, and its size.
     data: Vec2,
     data_size: Vec2,
+    /// The masters the two columns are read from; their boxes are where the rows are drawn.
+    title_object: ObjectRef,
+    data_object: ObjectRef,
 }
 
 pub struct WidgetMenu {
@@ -89,10 +92,12 @@ impl WidgetMenu {
                 fill: cx.named(&format!("FILLBAR_SLIDER_{n}")),
             });
         }
-        let title = cx.named("TITLE_MASTER").and_then(|o| top_left(cx, o));
-        let data = cx.named("DATA_MASTER").and_then(|o| top_left(cx, o));
-        if let (Some((title, title_size)), Some((data, data_size))) = (title, data) {
-            self.layout = Some(Layout { title, title_size, data, data_size });
+        let masters = (cx.named("TITLE_MASTER"), cx.named("DATA_MASTER"));
+        if let (Some(title_object), Some(data_object)) = masters
+            && let (Some((title, title_size)), Some((data, data_size))) =
+                (top_left(cx, title_object), top_left(cx, data_object))
+        {
+            self.layout = Some(Layout { title, title_size, data, data_size, title_object, data_object });
         }
     }
 
@@ -261,6 +266,54 @@ impl WidgetMenu {
         self.layout_rows(cx);
     }
 
+    /// The visible row under a point, as its slot on screen. A row runs across the title and the data columns.
+    /// The title master's box is one row high, and the row in slot `k` lies `k` boxes further down.
+    fn slot_at(&self, rt: &Runtime, point: Vec2) -> Option<usize> {
+        let layout = self.layout.as_ref()?;
+        let title = rt.object_quad(layout.title_object)?;
+        let data = rt.object_quad(layout.data_object)?;
+        let edges =
+            [title.transform_point3(Vec3::new(-0.5, 0.0, 0.0)).x, data.transform_point3(Vec3::new(0.5, 0.0, 0.0)).x];
+        let (left, right) = (edges[0].min(edges[1]), edges[0].max(edges[1]));
+        if point.x < left || point.x > right {
+            return None;
+        }
+        let row = (title.inverse().transform_point3(point.extend(0.0)).y + 0.5).floor();
+        if row < 0.0 {
+            return None;
+        }
+        let slot = row as usize;
+        (self.top + slot < (self.top + self.on_screen).min(self.rows.len())).then_some(slot)
+    }
+
+    /// Selects a row as if the arrows moved there one row at a time, down or up, whichever way is shorter.
+    fn select(&mut self, cx: &mut Cx, index: usize) {
+        let n = self.rows.len();
+        for _ in 0..n {
+            if self.selected == index {
+                return;
+            }
+            let down = (index + n - self.selected) % n;
+            self.move_selection(cx, down <= n - down);
+        }
+    }
+
+    /// A click on a row selects it; a click on one of its arrows then changes the setting in that direction.
+    fn click_row(&mut self, cx: &mut Cx, point: Vec2) -> bool {
+        if self.leaving {
+            return false;
+        }
+        let Some(slot) = self.slot_at(cx.rt, point) else { return false };
+        let Some((left, right)) = self.objects.get(slot).map(|r| (r.left, r.right)) else { return false };
+        let arrows: Vec<ObjectRef> = [left, right].into_iter().flatten().collect();
+        let arrow = cx.rt.object_at(&arrows, point);
+        self.select(cx, self.top + slot);
+        if let Some(arrow) = arrow {
+            self.change(cx, Some(arrow) == right);
+        }
+        true
+    }
+
     /// Left or right on the selected row changes its setting; the new value is in effect at once.
     fn change(&mut self, cx: &mut Cx, forward: bool) {
         let Some(row) = self.rows.get(self.selected).copied() else { return };
@@ -335,6 +388,17 @@ impl ScreenLogic for WidgetMenu {
             PAD_START if self.args.pause => cx.send(Command::Resume),
             ids::EXIT_COMPLETE => self.finish(cx),
             _ => {}
+        }
+    }
+
+    fn click(&mut self, cx: &mut Cx, point: Vec2) -> bool {
+        self.click_row(cx, point)
+    }
+
+    /// The wheel moves the selection, as the up and down arrows do.
+    fn scroll(&mut self, cx: &mut Cx, steps: i32) {
+        for _ in 0..steps.unsigned_abs() {
+            self.move_selection(cx, steps < 0);
         }
     }
 

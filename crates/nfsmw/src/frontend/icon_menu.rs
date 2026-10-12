@@ -335,6 +335,12 @@ impl ScreenLogic for IconMenu {
         self.place(cx);
     }
 
+    fn scroll(&mut self, cx: &mut Cx, steps: i32) {
+        for _ in 0..steps.unsigned_abs() {
+            self.scroll_by(cx, if steps > 0 { -1 } else { 1 });
+        }
+    }
+
     fn message(&mut self, cx: &mut Cx, message: u32) {
         match message {
             PAD_LEFT => self.scroll_by(cx, -1),
