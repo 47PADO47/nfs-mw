@@ -369,6 +369,10 @@ published table does not contain that route, so it is removed. The invented `1 +
   values `0`, `0xABCDEF00`, `0x9E3779B9`, `0xFFFFFFFF`, `0x12345678`, `0xDEADBEEF`; Jenkins lookup3 `hashlittle` with
   initial values `0`, `0xABCDEF00`, `0x9E3779B9`; CRC-32; FNV-1; FNV-1a. None matches. The key is not a plain hash of the
   type name in these forms.
+- **Where the Genesys key is computed (read).** `speed.exe` has no `Genesys` or `Cgs` string (Ghidra `search_strings`
+  returns none), and `GDFBinary_en_US.dll` in the install root has none either (`Genesys`, `CgsCore`, `CgsResource`,
+  `VehicleSound` count 0). Both are stripped of names. So the key function can only be found by analysing the code
+  itself. The DLL would have to be imported into the Ghidra project to read it, which changes the shared project.
 - **`bnd2` header (read).** `GAMELOGIC/GAMEPLAY.BNDL` (216,879 B): `0x00` `bnd2`; `0x04` u32 `0x00010005`; `0x08` u32 file
   size `0x34F2F`; `0x0C` u32 `0x118` (table offset); `0x10` u32 `0x70`; `0x14` u32 `0x4F30`; `0x18`/`0x1C`/`0x20` u32
   `0x34F2F` (end offsets); `0x24` u32 **9** (entry count); `0x34` container name `GAMEDATA`. The table at `0x118` is 0x20-byte
