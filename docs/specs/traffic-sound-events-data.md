@@ -413,3 +413,9 @@ and its byte offset: `Vehicle ID`, `Livery Vehicle ID`, `Vehicle Name`, `GamePac
 None of these fields is named as a sound-owner role. The only sound reference in the entry is `CarSelectSound` at `0x28`, which is
 zero for 66 of the 70 cars. The role-2 value is therefore not a field of the entry itself. It should sit in the sound set that
 `CarSelectSound` points to, and the four non-zero references (`14691`, `14692`, `14693`, `14725`) are the candidate sets to check.
+
+**`CarSelectSound` target values (read, negative for role 2).** The four non-zero `CarSelectSound` values (`14691`, `14692`,
+`14693`, `14725`) occur 348 times across the inflated `VEHICLES/` and `SOUND/` streams (`14691` 222 times, `14725` 74, `14693` 35,
+`14692` 17), including in the per-car list and in vehicle bundles such as `VEH_1085007_HI`. None of the occurrences has a raw `2`
+within 16 bytes. So these references do not put a role value of 2 beside them, and the role-2 value is not in the sound-set
+references in this form.
