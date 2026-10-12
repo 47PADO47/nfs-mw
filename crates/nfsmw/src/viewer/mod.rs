@@ -37,6 +37,10 @@ pub trait Scene {
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]);
     /// The rear-view mirror's frame, when the scene has a car to look back from. The mirror is drawn
     /// offscreen and shown in the HUD; the car itself is left out of it.
+    /// The high-speed streaks' strength, 0 to 1 (`docs/specs/speed-effects.md`).
+    fn speed_streaks(&self) -> f32 {
+        0.0
+    }
     fn rear_view(&mut self, _aspect: f32) -> Option<(FrameParams, &[Instance])> {
         None
     }
@@ -108,6 +112,10 @@ pub trait Scene {
     fn set_smoke_quality(&mut self, _quality: crate::settings::SmokeQuality) {}
     /// Apply the car shading setting: the scene re-uploads its cars when it changes. Scenes without cars ignore it.
     fn set_car_shading(&mut self, _shading: crate::settings::CarShading) {}
+    /// Rain on every track, and its amount (0 to 1). Scenes without a road ignore it.
+    fn set_rain(&mut self, _always: bool, _amount: f32) {}
+    /// The world's speeds: the physics clock and the animation clock run at these multiples of the original rates. Scenes without a world ignore it.
+    fn set_world_tuning(&mut self, _tuning: crate::settings::WorldTuning) {}
     /// A picture to show over the window this frame, if any.
     fn fullscreen(&mut self) -> Option<Fullscreen> {
         None

@@ -38,6 +38,8 @@ pub struct Console {
     history: Vec<String>,
     /// Which history entry Up/Down is showing.
     history_at: Option<usize>,
+    /// Seconds since start until which the lines are held (`wait <seconds>` in a startup list).
+    pub wait_until: Option<f32>,
     /// Lines to run next frame.
     pending: Vec<String>,
     /// The scene's own commands, for `help` and Tab.

@@ -42,6 +42,8 @@ pub struct HudState {
     pub has_nos: bool,
     /// Nitrous left, 0..1.
     pub nos: f32,
+    /// The speed breaker's meter, 0..1 (`scenes/world/drive/speedbreaker.rs`).
+    pub speedbreaker: f32,
     /// The car has forced induction: the turbo gauge is shown.
     pub has_turbo: bool,
     /// Boost gauge, psi (negative in vacuum).
@@ -70,6 +72,7 @@ impl Default for HudState {
             skin: 0,
             has_nos: false,
             nos: 0.0,
+            speedbreaker: 0.0,
             has_turbo: false,
             boost_psi: 0.0,
             minimap: None,

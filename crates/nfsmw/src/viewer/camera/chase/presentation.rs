@@ -26,6 +26,11 @@ impl Camera for ChaseView {
 }
 
 impl ChaseView {
+    /// The field of view the chase camera asks for, degrees (before any high-speed kick).
+    pub fn fov_degrees(&self) -> f32 {
+        self.fov_degrees
+    }
+
     /// The lens with a given field of view; a shaken view keeps its shake.
     pub fn lens_with_fov(&self, aspect: f32, fov_y_degrees: f32) -> Lens {
         let mut lens = Lens::look_at(self.position, self.target, fov_y_degrees, NEAR_PLANE, aspect);

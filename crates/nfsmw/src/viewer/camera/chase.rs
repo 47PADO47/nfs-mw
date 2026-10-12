@@ -38,6 +38,8 @@ const LOOK_MIN_ELEVATION: f32 = -0.15;
 /// Seconds without look input before the camera swings back behind the car, and how quickly, per second.
 const RECENTRE_AFTER: f32 = 1.2;
 const RECENTRE_RATE: f32 = 3.0;
+/// How fast the camera swings round to look back while the control is held, per second.
+const LOOK_BACK_RATE: f32 = 6.0;
 /// Keep this far from walls and the ground.
 const CLEARANCE: f32 = 0.4;
 /// The camera never comes closer to the car than this because of an obstacle.
@@ -56,6 +58,10 @@ pub struct ChaseCamera {
     placed: bool,
     /// How far the player has orbited the camera round the car and up from behind it, radians.
     orbit_yaw: f32,
+    /// The look-back control is held.
+    looking_back: bool,
+    /// How far the camera has swung round to look back, 0 (behind the car) to 1 (facing it).
+    back_turn: f32,
     orbit_elevation: f32,
     /// Seconds since the last look input.
     idle: f32,
@@ -85,6 +91,8 @@ impl Default for ChaseCamera {
             reach: 1.0,
             placed: false,
             orbit_yaw: 0.0,
+            looking_back: false,
+            back_turn: 0.0,
             orbit_elevation: 0.0,
             idle: 0.0,
             previous_view: None,
@@ -156,6 +164,16 @@ impl ChaseCamera {
         self.orbit_elevation -= self.orbit_elevation * back;
     }
 
+    /// Hold or release the look-back control: while held, the camera swings round to face the car.
+    pub fn set_look_back(&mut self, on: bool) {
+        self.looking_back = on;
+    }
+
+    /// Whether the camera is looking back at the car (the control is held, or it is still turning).
+    pub fn looking_back(&self) -> bool {
+        self.looking_back || self.back_turn > 0.5
+    }
+
     /// Whether the player has the camera turned away from behind the car.
     #[cfg(test)]
     fn orbited(&self) -> bool {
@@ -178,7 +196,9 @@ impl ChaseCamera {
         } else {
             self.yaw += wrap(car.heading - self.yaw) * approach(TURN_RATE, dt);
         }
-        let behind = -direction(self.yaw + self.orbit_yaw, 0.0);
+        let turn_target = if self.looking_back { 1.0 } else { 0.0 };
+        self.back_turn += (turn_target - self.back_turn) * approach(LOOK_BACK_RATE, dt);
+        let behind = -direction(self.yaw + self.orbit_yaw + std::f32::consts::PI * self.back_turn, 0.0);
         let distance = NEAR + (FAR - NEAR) * speed01;
         let (up, flat) = self.orbit_elevation.sin_cos();
         let wanted =
@@ -375,5 +395,26 @@ mod tests {
         let far = Followed { position: Vec3::new(5000.0, 0.0, 10.0), heading: 1.0, speed: 0.0 };
         cam.update(far, 1.0 / 60.0, open);
         assert!((cam.position.x - 5000.0).abs() < 10.0);
+    }
+
+    #[test]
+    fn holding_look_back_swings_the_camera_round_to_face_the_car() {
+        let mut cam = ChaseCamera::default();
+        for _ in 0..60 {
+            cam.update(car(0.0, 20.0), 1.0 / 60.0, open);
+        }
+        assert!(cam.position.x < 100.0, "behind the car at first: {}", cam.position.x);
+        cam.set_look_back(true);
+        for _ in 0..240 {
+            cam.update(car(0.0, 20.0), 1.0 / 60.0, open);
+        }
+        assert!(cam.position.x > 100.0, "in front of the car while held: {}", cam.position.x);
+        assert!(cam.looking_back());
+        cam.set_look_back(false);
+        for _ in 0..600 {
+            cam.update(car(0.0, 20.0), 1.0 / 60.0, open);
+        }
+        assert!(cam.position.x < 100.0, "and behind again once released: {}", cam.position.x);
+        assert!(!cam.looking_back());
     }
 }
