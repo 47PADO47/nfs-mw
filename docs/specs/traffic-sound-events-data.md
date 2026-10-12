@@ -435,3 +435,8 @@ twice). The effects bundle is not a sound-set table, so these are most likely co
 string with `0x00EDA4D0`, then calls `0x00ACEEA0` with the result. So this is the vehicle-sound resource-name builder, the entry
 point to the per-vehicle sound-set loader. Next: read `0x00ACEEA0` to see the resource it opens, and whether that resource holds the
 `CarSelectSound` targets.
+
+**`NFS13.exe` sound-set loader, step (read).** The resource-name builder `0x57BE00` passes its result to `0x00ACEEA0`, a thin
+wrapper that calls the resource opener `0x00A1D640` with the same argument (`0x00ACEEB0` wraps `0x00A1D5C0` the same way). So the
+chain is: `_VEHICLESOUND` name builder, then `0xACEEA0`, then `0xA1D640`. Next: read `0x00A1D640` to see which file it opens, and
+whether that file holds the `CarSelectSound` targets.
