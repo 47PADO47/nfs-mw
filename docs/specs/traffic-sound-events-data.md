@@ -366,3 +366,9 @@ the car-type table.
 - `0x5EFC4E`: works on an array of 0x200-byte slots starting at `+0x69D30`, indexed by an `eax` value. It builds the pair with
   `0x57CA50` at `esp+0x24`, then calls the initializer. So the nested sound object is one per slot in this array.
 Next: read `0x57CA50` to see how the pair (owner and table) is built, which identifies the car-type table.
+
+**`NFS13.exe` car-sound pass, step 6 (read).** The pair builder `0x57CA50` loops over rows of 0x90 bytes (four rows, up to `0x240`),
+and for each of four literal tags compares 2-byte chunks of the row's name at `[edi+0x82]`. The four tags, read as dwords at
+`0xFAD4F8`, `0xFAD504`, `0xFAD510` and `0xFAD51C`, are `Fron`, `Fron`, `Rear`, `Rear`: front and rear position tags. The routine
+writes the matched index into a 4-by-4 grid. So this is a front and rear wheel or axle position matcher, not the car-type table.
+The car-type table is therefore not in the slot-pair path, and the nested objects under `0x57C120` hold part and wheel data.
