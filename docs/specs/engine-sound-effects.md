@@ -299,7 +299,9 @@ the end of [engine-sound.md](engine-sound.md)):
   `ChargeTime`, which re-arms the duck every other update when the RPM scale is below 1). The blow-off sample
   ends after `TurboTuning::blowoff_seconds` (the game fills it with the decoded length). The spool loop's pitch
   follows `0.8 + 0.4 * spool` (the bank derives its own from `PSI`).
-- **Nitrous.** The pitch boost of §5 scales `1 + 0.08 * boost` on the loop.
+- **Nitrous.** The loop plays at the mixer's pitch and the published inputs are the loop and purge flags only
+  (`car-sound-mixer.md` §2). The boost interpolator's 0.4 s rise and 1 s fall are in `traffic-sound-events.md` §1.4, but
+  their route into the mix is not found, so they are not applied. The invented `1 + 0.08 * boost` is removed.
 - **Skids.** The slip normalisation and the `fwd`, `side`, `load` smoothing of §7 are kept. The loop volume of an
   axle is `max(fwd, side) * (0.3 + 0.7 * wheel_load)` (all 0..1), the pitch `0.9 + 0.2 * max(fwd, side)`, and
   the voice stops below 0.01. The surface is the highest `Aud_Skid_Type` of the grounded wheels (a blown tire
