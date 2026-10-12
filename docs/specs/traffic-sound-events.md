@@ -230,6 +230,13 @@ published table does not contain that route, so it is removed. The invented `1 +
     slot `+0x30` is a `RET`, and its boost interpolator is never evaluated. So the boost ramp is never applied on this path.
     This is strong, since the mask and admission are both read. The one open point is whether another path evaluates the
     interpolator, which the direct-call and list-walker checks above do not show.
+- State-2 gate (partly read). The `BlewByCop` check reads `+0x228` of the car's sound-sim object and compares it with the
+  integer 2. `FUN_004C9CB0` (constructor) stores its float argument at `+0x228` (the role word from a record: `FUN_004CAEF0`
+  passes `*(record+0x0C)`). The caller of `FUN_004CAEF0` is `FUN_004CC790`, which builds a 0x28-byte car sub-object from a
+  record. `FUN_004CC790` has no direct caller and no table entry in any initialised memory (a dword scan finds none), so its
+  path is not reached by a static call. The role values for the player's car are therefore not established by this path.
+  Other writers of `+0x228` exist (`0x56C624`, `0x5E4BDD`, `0x6C3FC6`, `0x6D4EB6`, `0x704F28`, `0x705015`, `0x71CC1A`,
+  `0x720345`, `0x791F30`, `0x793BA1`, `0x79F507`, `0x864862`) and were not read.
 - Hash check: `vlt_hash("nos")` is `B1669F64` (the class `nos`), so the probe hashing is correct.
 - The sound-instance queue is `DAT_00912270` (posted by `FUN_004e52c0`, consumed by `FUN_004ce960`), with instances in
   a table at `0x00912858` (stride `0x68`). The per-instance processor is `FUN_004d0a60` and `FUN_004cfac0`, and the
