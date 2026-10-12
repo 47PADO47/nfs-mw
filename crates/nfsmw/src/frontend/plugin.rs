@@ -8,16 +8,17 @@ use bevy_time::Time;
 use bevy_window::{PrimaryWindow, Window};
 use blackbox_feng::runtime::pad;
 use game_install::GameDir;
+use glam::Vec2;
 
 use super::flow::{Boot, Frontend, Stage, Start};
-use super::logic::Env;
+use super::logic::{Command, Env};
 use super::pointer::{self, feng_point};
 use super::screens::Screens;
 use super::script::{self, UiScript};
 use crate::app::{FrameSet, Host};
 use crate::devtools::Console;
 use crate::gui::UiOutput;
-use crate::input::{Action, ActionState, Bindings, InputPresentation, MouseCapture};
+use crate::input::{Action, ActionState, Bindings, InputDevice, InputPresentation, MouseCapture};
 use crate::settings::Settings;
 use crate::ui::present::Screen;
 use crate::ui::{Catalog, Presenter, SCREEN_FILES, SharedAssets};
@@ -61,6 +62,36 @@ fn pad_mask(actions: &ActionState) -> u32 {
     .fold(0, |mask, (_, bit)| mask | bit)
 }
 
+/// What a click on the menus presses.
+enum Press {
+    /// Accept, held while the button is held.
+    Accept,
+    /// Back, once.
+    Back,
+    /// Quit, once, as the quit action does on the main menu.
+    Quit,
+    /// A screen's own part (an option row or its arrow), with what it queued.
+    Screen(Vec<Command>),
+    Nothing,
+}
+
+/// What a click at a point of the menus presses: a footer hint first, then the screen's own parts, then a button.
+fn press_at(fe: &mut Frontend, point: Vec2, bindings: &Bindings, device: InputDevice, env: &mut Env) -> Press {
+    match fe.screens.hint_at(point, bindings, device) {
+        Some(Action::MenuAccept) => return Press::Accept,
+        Some(Action::MenuBack) => return Press::Back,
+        Some(Action::MenuQuit) => return Press::Quit,
+        _ => {}
+    }
+    if let Some(commands) = fe.screens.click(point, env) {
+        return Press::Screen(commands);
+    }
+    if fe.screens.focus_button_at(point) {
+        return Press::Accept;
+    }
+    Press::Nothing
+}
+
 #[allow(clippy::too_many_arguments)]
 fn update(
     mut fe: ResMut<Frontend>,
@@ -73,7 +104,9 @@ fn update(
     mut exit: MessageWriter<AppExit>,
     input: Res<InputPresentation>,
     window: Single<&Window, With<PrimaryWindow>>,
+    bindings: Res<Bindings>,
     mut clicking: Local<bool>,
+    mut wheel: Local<f32>,
 ) {
     let (fe, host) = (&mut *fe, &mut *host);
     let Some(caps) = host.renderer.as_ref().map(|r| *r.capabilities()) else { return };
@@ -98,10 +131,20 @@ fn update(
     if matches!(fe.stage, Stage::Boot(_)) && actions.pressed(Action::Click) {
         mask |= pad::ACCEPT;
     }
-    // On the menus a click focuses the button under the pointer and holds accept while the button is held.
+    // On the menus a click presses what is under the pointer and holds accept while a button is held.
+    let (mut press_back, mut press_quit) = (false, false);
     if matches!(fe.stage, Stage::Menus | Stage::Paused) {
-        if actions.just_pressed(Action::Click) {
-            *clicking = feng_point(&window).is_some_and(|point| fe.screens.focus_button_at(point));
+        if actions.just_pressed(Action::Click)
+            && let Some(point) = feng_point(&window)
+        {
+            let device = fe.script.as_ref().and_then(|s| s.device).unwrap_or(input.device);
+            match press_at(fe, point, &bindings, device, &mut env) {
+                Press::Accept => *clicking = true,
+                Press::Back => press_back = true,
+                Press::Quit => press_quit = true,
+                Press::Screen(commands) => fe.apply(commands, host, &mut env),
+                Press::Nothing => {}
+            }
         }
         if !actions.pressed(Action::Click) {
             *clicking = false;
@@ -109,6 +152,18 @@ fn update(
         if *clicking {
             mask |= pad::ACCEPT;
         }
+        if press_back {
+            mask |= pad::BACK;
+        }
+    }
+    // The wheel scrolls the menus a notch at a time; the fraction of a notch waits for the next frame.
+    let menus = matches!(fe.stage, Stage::Menus | Stage::Paused);
+    *wheel = if menus { *wheel + actions.value(Action::Zoom) } else { 0.0 };
+    let notches = wheel.trunc();
+    *wheel -= notches;
+    if menus && notches != 0.0 {
+        let commands = fe.screens.scroll(notches as i32, &mut env);
+        fe.apply(commands, host, &mut env);
     }
     if fe.latch {
         if mask != 0 {
@@ -141,7 +196,9 @@ fn update(
             }
         }
         Stage::Boot(Boot::Splash) | Stage::Menus | Stage::Paused => {
-            if actions.just_pressed(Action::MenuQuit) && fe.screens.top() == Some(super::ids::screen::MAIN_MENU) {
+            if (actions.just_pressed(Action::MenuQuit) || press_quit)
+                && fe.screens.top() == Some(super::ids::screen::MAIN_MENU)
+            {
                 fe.screens.post_to_top(super::ids::QUIT_BUTTON, super::ids::MOUSE_LEFT_RELEASED);
             }
             let commands = fe.screens.update(dt, mask, &mut env);
