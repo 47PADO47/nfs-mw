@@ -19,6 +19,16 @@ const HUD_TEXTURE_BIT: u64 = 1 << 62;
 const MASKED_TEXTURE_BIT: u64 = 1 << 61;
 /// Mask rotations are rebuilt at this resolution, in steps per degree.
 const MASK_STEPS_PER_DEGREE: f32 = 4.0;
+/// The rear-view mirror's picture, uploaded by the app (`app::mirror`). Drawn under the bezel.
+pub const MIRROR_TEXTURE: UiTextureId = UiTextureId(0x4D49_5252_4F52);
+/// Name of the two bezel images of the mirror (`Mirror_Backing_Radar.tga`), in `HUD_SingleRace.fng`.
+const MIRROR_BEZEL: u32 = 0x5630_E0B9;
+/// The radar backing (`0x839e7d77`) and the bezel: the images that fade in with the mirror.
+const FADED_IN: [u32; 2] = [MIRROR_BEZEL, 0x839E_7D77];
+/// The alpha the package gives those two images on their own.
+const MIRROR_OWN_ALPHA: u32 = 200;
+/// The glass inside the bezel, as fractions of the bezel's width and height that are left out on each side.
+const MIRROR_GLASS_INSET: [f32; 2] = [0.03, 0.05];
 
 /// A multi image drawn through its mask: the slot is the object's (and its mask's), whatever picture it shows.
 #[derive(Hash, PartialEq, Eq, Clone, Copy)]
@@ -107,6 +117,52 @@ impl MeshBuilder {
     }
 }
 
+/// The alpha of a faded-in image: the package's alpha (200 for the bezel and the radar backing) scaled to the full
+/// range, so the fade of the group reaches 255 at the end.
+fn faded_alpha(alpha: u8) -> u8 {
+    (u32::from(alpha) * 255 / MIRROR_OWN_ALPHA).min(255) as u8
+}
+
+/// The rear-view picture, over the rectangle the mirror's bezel covers. The bezel is drawn after it, so the frame
+/// sits on top of the picture's edges.
+fn mirror_picture(tree: &UiTree, builder: &mut MeshBuilder, scale: f32, origin: [f32; 2]) {
+    let mut lo = [f32::MAX; 2];
+    let mut hi = [f32::MIN; 2];
+    let mut bezel_alpha = None;
+    for node in tree.draw_order.iter().map(|&i| &tree.nodes[i]).filter(|n| n.name_hash == MIRROR_BEZEL) {
+        bezel_alpha.get_or_insert(node.world_colour[3]);
+        for (x, y) in [(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)] {
+            let p = (node.world * Vec4::new(x, y, 0.0, 1.0)).truncate();
+            lo = [lo[0].min(p.x), lo[1].min(p.y)];
+            hi = [hi[0].max(p.x), hi[1].max(p.y)];
+        }
+    }
+    if lo[0] > hi[0] {
+        return;
+    }
+    // The bezel is a frame around the glass: the picture covers the glass, not the frame. Insets are fractions of the
+    // bezel's size, measured on the reference screenshot.
+    let (w, h) = (hi[0] - lo[0], hi[1] - lo[1]);
+    lo = [lo[0] + w * MIRROR_GLASS_INSET[0], lo[1] + h * MIRROR_GLASS_INSET[1]];
+    hi = [hi[0] - w * MIRROR_GLASS_INSET[0], hi[1] - h * MIRROR_GLASS_INSET[1]];
+    let corners = [
+        Vec3::new(lo[0], lo[1], 0.0),
+        Vec3::new(hi[0], lo[1], 0.0),
+        Vec3::new(hi[0], hi[1], 0.0),
+        Vec3::new(lo[0], hi[1], 0.0),
+    ];
+    // The picture fades with the bezel: it takes the bezel's alpha, scaled to the full range.
+    let alpha = faded_alpha(bezel_alpha.unwrap_or(0));
+    builder.quad(
+        MIRROR_TEXTURE,
+        corners,
+        [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
+        vertex_colour([255, 255, 255, alpha], false),
+        scale,
+        origin,
+    );
+}
+
 impl BlackboxPresenter {
     #[cfg(test)]
     pub(crate) fn cache_sizes(&self) -> (usize, usize, usize) {
@@ -119,10 +175,15 @@ impl BlackboxPresenter {
         let origin = [screen.width * 0.5, screen.height * 0.5];
         let scale = screen.scale();
         let mut builder = MeshBuilder { meshes: Vec::new(), clip: [0.0, 0.0, screen.width, screen.height] };
+        let mut mirror_drawn = false;
         for &i in &tree.draw_order {
             let node = &tree.nodes[i];
             match &node.kind {
                 NodeKind::Image { texture, uv, mask, mask_rotation, mask_uv } => {
+                    if node.name_hash == MIRROR_BEZEL && !mirror_drawn {
+                        mirror_drawn = true;
+                        mirror_picture(tree, &mut builder, scale, origin);
+                    }
                     let drawn = match mask {
                         Some(mask) => self.masked(node, (*texture, *mask), *mask_rotation, *mask_uv, assets, out),
                         None => self.ensure(*texture, assets, out),
@@ -222,7 +283,13 @@ impl BlackboxPresenter {
         let corner = |x: f32, y: f32| (node.world * Vec4::new(x, y, 0.0, 1.0)).truncate();
         let corners = [corner(-0.5, -0.5), corner(0.5, -0.5), corner(0.5, 0.5), corner(-0.5, 0.5)];
         let uvs = [[uv[0], uv[1]], [uv[2], uv[1]], [uv[2], uv[3]], [uv[0], uv[3]]];
-        builder.quad(id, corners, uvs, vertex_colour(node.world_colour, additive), scale, origin);
+        // The bezel and the radar backing are drawn at 200 in the package. They fade with the mirror, so their
+        // alpha is scaled up to the full range: a fade to 255 on the group gives full alpha here.
+        let mut colour = node.world_colour;
+        if FADED_IN.contains(&node.name_hash) {
+            colour[3] = faded_alpha(colour[3]);
+        }
+        builder.quad(id, corners, uvs, vertex_colour(colour, additive), scale, origin);
     }
 
     #[allow(clippy::too_many_arguments)]

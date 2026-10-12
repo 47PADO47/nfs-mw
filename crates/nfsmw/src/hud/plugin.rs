@@ -99,6 +99,7 @@ fn present(
     }
     let hud = &mut *hud;
     let ea_trax = settings.radio_hud == RadioHudStyle::EaTrax;
+    hud.binding.advance_mirror_fade(time.delta_secs().min(MAX_STEP));
     hud.binding.apply(&mut hud.runtime, &state);
     if let Some(trax) = hud.trax.as_mut() {
         let song = ea_trax.then(|| radio.song().zip(radio.serial())).flatten();

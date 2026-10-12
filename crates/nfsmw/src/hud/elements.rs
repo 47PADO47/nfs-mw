@@ -13,6 +13,13 @@ const SPEEDOMETER: [u32; 1] = [0x941f_ff09];
 const TACHOMETER: [u32; 1] = [0x5164_d4ea];
 /// The nitrous gauge: its group (frame and icon) and the bar, a multi image next to the group.
 const NITROUS: [u32; 2] = [0x87c3_8e97, 0xedfb_6d37];
+/// The rear-view mirror's group (its two bezel images and the picture drawn under them), and the radar sensor under
+/// it: the backing and the two LED strips. The sensor shows its idle state; it does not detect cops yet.
+const MIRROR: [u32; 1] = [0x9ee0_6631];
+/// The radar's base is its dark backing; the green LED strips are not shown (the reference has only the dark grille).
+const RADAR: [u32; 1] = [0x839e_7d77];
+/// The radar's green laser (`Radar_Icon.tga`): it shows over the base radar while a cop is nearby.
+const LASER: [u32; 1] = [0x6ccb_bbf1];
 
 /// The elements and where they sit in the package.
 pub struct Layout {
@@ -25,8 +32,12 @@ pub struct Layout {
     turbo: Vec<usize>,
     /// The group of the minimap's pieces, its backing disc and the player's arrow.
     minimap: Vec<usize>,
+    mirror: Vec<usize>,
+    radar: Vec<usize>,
     /// What the hidden flags were last set for: (nitrous, turbo, minimap).
-    applied: Option<(bool, bool, bool)>,
+    /// The green laser over the radar, shown while a cop is nearby.
+    laser: Vec<usize>,
+    applied: Option<(bool, bool, bool, bool)>,
 }
 
 impl Layout {
@@ -50,19 +61,23 @@ impl Layout {
             nitrous: find(&NITROUS),
             turbo: find(&[fe_hash_upper("TURBO_GROUP")]),
             minimap: find(&[fe_hash_upper(GROUP), fe_hash_upper(BACKING), fe_hash_upper(ARROW)]),
+            mirror: find(&MIRROR),
+            radar: find(&RADAR),
+            laser: find(&LASER),
             applied: None,
         }
     }
 
     /// Shows the speedometer, the tachometer and the gauges asked for, and hides everything else in the package.
     /// Nothing happens while the request is the one already applied.
-    pub fn update(&mut self, rt: &mut Runtime, nitrous: bool, turbo: bool, minimap: bool) {
-        if self.applied == Some((nitrous, turbo, minimap)) {
+    pub fn update(&mut self, rt: &mut Runtime, nitrous: bool, turbo: bool, minimap: bool, laser: bool) {
+        if self.applied == Some((nitrous, turbo, minimap, laser)) {
             return;
         }
-        self.applied = Some((nitrous, turbo, minimap));
+        self.applied = Some((nitrous, turbo, minimap, laser));
         let mut shown = vec![false; self.parent.len()];
-        let mut roots: Vec<usize> = self.speedometer.iter().chain(&self.tachometer).copied().collect();
+        let mut roots: Vec<usize> =
+            self.speedometer.iter().chain(&self.tachometer).chain(&self.mirror).chain(&self.radar).copied().collect();
         if nitrous {
             roots.extend(&self.nitrous);
         }
@@ -71,6 +86,9 @@ impl Layout {
         }
         if minimap {
             roots.extend(&self.minimap);
+        }
+        if laser {
+            roots.extend(&self.laser);
         }
         for root in roots {
             // The root's ancestors have to show for it to show; everything under it shows with it.

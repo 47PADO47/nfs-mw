@@ -50,6 +50,9 @@ pub struct HudState {
     pub minimap: Option<MapPosition>,
     /// The cops, racers, checkpoint and helicopter on the map (`docs/specs/hud-minimap.md` section 7).
     pub blips: Vec<MapBlip>,
+    /// A police car is near: the radar's green laser shows over the base radar. Nothing sets it yet (the sensor is
+    /// not wired), so it stays off.
+    pub cop_nearby: bool,
 }
 
 impl Default for HudState {
@@ -71,6 +74,7 @@ impl Default for HudState {
             boost_psi: 0.0,
             minimap: None,
             blips: Vec::new(),
+            cop_nearby: false,
         }
     }
 }
