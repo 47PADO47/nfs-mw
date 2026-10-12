@@ -11,6 +11,7 @@ use super::scene::{MenuScene, Pausable, PauseFlag};
 use super::screens::Screens;
 use super::script::UiScript;
 use crate::app::Host;
+use crate::input::Control;
 use crate::scenes::world::{DEFAULT_CAR, DriveOptions, Options, WorldScene};
 use crate::settings::{Partial, Settings};
 
@@ -48,7 +49,9 @@ pub enum Stage {
     Paused,
 }
 
-use super::ids::screen::{MAIN_MENU, PAUSE_MENU, SPLASH, SPLASH_WIDE};
+use super::confirm::{Alert, AlertLogic};
+use super::ids::screen::{DIALOG, MAIN_MENU, PAUSE_MENU, SPLASH, SPLASH_WIDE};
+use crate::ui::Text;
 
 /// Windows wider than this (width over height) get the widescreen title screen; 4:3 is 1.33.
 const WIDE_ASPECT: f32 = 1.4;
@@ -72,6 +75,8 @@ pub struct Frontend {
     save: bool,
     /// The pad mask of the last frame, for the start press that pauses.
     pub(super) last_mask: u32,
+    /// A slot waiting for its next key (the controls screen asked; `plugin.rs` takes the key).
+    pub(super) remap: Option<(Control, usize)>,
 }
 
 impl Frontend {
@@ -90,6 +95,7 @@ impl Frontend {
             quit: false,
             save: true,
             last_mask: 0,
+            remap: None,
         }
     }
 
@@ -104,7 +110,7 @@ impl Frontend {
             }
             Start::Menu => self.show_menu(host, env),
             Start::Screen(name, args) => {
-                self.replace_scene(host, Box::new(MenuScene));
+                self.replace_scene(host, Box::new(MenuScene::new(Some(self.dir.clone()))));
                 let commands = self.screens.open(&name, args, true, env);
                 self.apply(commands, host, env);
                 self.stage = Stage::Menus;
@@ -147,7 +153,7 @@ impl Frontend {
                 }
             }
             Boot::Splash => {
-                self.replace_scene(host, Box::new(MenuScene));
+                self.replace_scene(host, Box::new(MenuScene::new(Some(self.dir.clone()))));
                 // Like the original (`eIsWidescreen`): the wide package for any window wider than 4:3.
                 let wide = host.renderer.as_ref().is_none_or(|r| r.aspect_ratio() > WIDE_ASPECT);
                 let commands = self.screens.open(if wide { SPLASH_WIDE } else { SPLASH }, Args::default(), true, env);
@@ -162,7 +168,7 @@ impl Frontend {
         self.latch = true;
         self.paused.set(false);
         self.screens.clear();
-        self.replace_scene(host, Box::new(MenuScene));
+        self.replace_scene(host, Box::new(MenuScene::new(Some(self.dir.clone()))));
         let commands = self.screens.open(MAIN_MENU, Args::default(), true, env);
         self.stage = Stage::Menus;
         self.apply(commands, host, env);
@@ -231,9 +237,52 @@ impl Frontend {
                 }
                 Command::NextBootStep => self.next_boot(host, env),
                 Command::SaveSettings => self.save_settings(env.changed),
-                Command::Switch(..) | Command::Push(..) | Command::Pop => {}
+                Command::Remap(control, slot) => {
+                    log::info!("remap: waiting for a key for {control:?} slot {slot}");
+                    self.remap = Some((control, slot));
+                }
+                Command::SaveAlias => self.save_alias(host, env),
+                Command::LoadAlias => self.load_alias(host, env),
+                Command::Switch(..) | Command::Push(..) | Command::Pop | Command::Confirm(_) | Command::Alert(_) => {}
             }
         }
+    }
+
+    /// Loads the latest alias's settings (`saves::load_latest_alias`) and makes them the current settings. The loaded
+    /// values are marked changed, so they go to the config file as any change does. Shows the outcome in an alert.
+    fn load_alias(&mut self, host: &mut Host, env: &mut Env) {
+        let message = match crate::saves::store().map(|store| crate::saves::load_latest_alias(&store)) {
+            None => "There is no per-user folder to load from.".to_owned(),
+            Some(Ok(Some((name, settings)))) => {
+                *env.settings = settings;
+                *env.changed = crate::saves::partial_of(env.settings);
+                format!("{name} loaded.")
+            }
+            Some(Ok(None)) => "No alias is saved yet.".to_owned(),
+            Some(Err(e)) => {
+                log::warn!("the alias could not be loaded: {e}");
+                format!("The alias could not be loaded: {e}")
+            }
+        };
+        let alert = AlertLogic::new(Alert::new(Text::Custom(message)));
+        let commands = self.screens.open_with(DIALOG, Box::new(alert), false, env);
+        self.apply(commands, host, env);
+    }
+
+    /// Saves the current settings as a new named alias (`saves::save_new_alias`) and shows what happened in an alert.
+    fn save_alias(&mut self, host: &mut Host, env: &mut Env) {
+        let settings = *env.settings;
+        let message = match crate::saves::store().map(|store| crate::saves::save_new_alias(&store, &settings)) {
+            Some(Ok(name)) => format!("{name} saved."),
+            Some(Err(e)) => {
+                log::warn!("the alias could not be saved: {e}");
+                format!("The alias could not be saved: {e}")
+            }
+            None => "There is no per-user folder to save to.".to_owned(),
+        };
+        let alert = AlertLogic::new(Alert::new(Text::Custom(message)));
+        let commands = self.screens.open_with(DIALOG, Box::new(alert), false, env);
+        self.apply(commands, host, env);
     }
 
     fn save_settings(&self, changed: &mut Partial) {

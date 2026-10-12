@@ -8,10 +8,15 @@ pub mod screen {
     /// The title screen for windows wider than 4:3.
     pub const SPLASH_WIDE: &str = "WS_MW_LS_Splash.fng";
     pub const MAIN_MENU: &str = "MainMenu.fng";
+    /// The generic two-answer dialog (`confirm.rs`).
+    pub const DIALOG: &str = "Dialog.fng";
     pub const MAIN_MENU_SUB: &str = "MainMenu_Sub.fng";
     pub const OPTIONS: &str = "Options.fng";
     pub const PAUSE_MENU: &str = "Pause_Main.fng";
     pub const PAUSE_OPTIONS: &str = "Pause_Options.fng";
+    /// The keyboard controls list (`controls_screen.rs`), and its in-game copy.
+    pub const CONTROLS: &str = "Options_PC_Controller.fng";
+    pub const PAUSE_CONTROLS: &str = "Pause_PC_Controller.fng";
 }
 
 // Messages.

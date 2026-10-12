@@ -7,8 +7,10 @@ use blackbox_feng::{ObjectRef, Runtime, fe_hash_upper};
 use glam::{Vec2, Vec3};
 
 use super::ids::{self, screen};
+use super::input_options::InputSetting;
 use super::logic::{Args, Command, Cx, ScreenLogic};
 use super::options::{self, Control, Data, Row, Title};
+use super::widget_layout::{Layout, RowObjects};
 
 /// Rows the screen shows at once (ten from the pause menu).
 const ROWS_ON_SCREEN: usize = 9;
@@ -19,31 +21,6 @@ const FILL_INSET: Vec2 = Vec2::new(2.0, -12.0);
 const SLIDER_DROP: f32 = 9.5;
 /// The alpha of a disabled row's title, value and arrows (the enabled ones are fully opaque).
 const DISABLED_ALPHA: u8 = 110;
-
-/// The objects of one row.
-struct RowObjects {
-    name: ObjectRef,
-    guid: u32,
-    data: Option<ObjectRef>,
-    left: Option<ObjectRef>,
-    right: Option<ObjectRef>,
-    base: Option<ObjectRef>,
-    fill: Option<ObjectRef>,
-}
-
-/// Where rows go, from the package's two master objects (the title column and the data column).
-struct Layout {
-    /// Top-left of the title column, and its size.
-    title: Vec2,
-    title_size: Vec2,
-    /// Top-left of the data column, and its size.
-    data: Vec2,
-    data_size: Vec2,
-    /// The masters the two columns are read from; their boxes are where the rows are drawn.
-    title_object: ObjectRef,
-    data_object: ObjectRef,
-}
-
 pub struct WidgetMenu {
     args: Args,
     rows: Vec<Row>,
@@ -320,6 +297,18 @@ impl WidgetMenu {
         if self.leaving {
             return;
         }
+        if row.setting == options::Setting::Input(InputSetting::KeyboardBindings) {
+            cx.send(Command::Push(screen::CONTROLS.into(), Args::default()));
+            return;
+        }
+        if row.setting == options::Setting::Input(InputSetting::SaveAlias) {
+            cx.send(Command::SaveAlias);
+            return;
+        }
+        if row.setting == options::Setting::Input(InputSetting::LoadAlias) {
+            cx.send(Command::LoadAlias);
+            return;
+        }
         row.setting.advance(cx.settings, cx.changed, forward, &cx.caps);
         self.draw_visible(cx);
     }
@@ -473,6 +462,7 @@ mod tests {
                 caps: crate::settings::test_caps::native(),
                 commands: &mut commands,
                 memory: &mut memory,
+                key_texts: &[],
                 name,
             };
             menu.find_rows(&mut cx);

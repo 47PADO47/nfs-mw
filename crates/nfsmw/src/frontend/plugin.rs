@@ -4,6 +4,8 @@ use bevy_app::{App, AppExit, Plugin, Update};
 use bevy_asset::Assets;
 use bevy_ecs::prelude::*;
 use bevy_image::Image;
+use bevy_input::ButtonInput;
+use bevy_input::keyboard::KeyCode;
 use bevy_time::Time;
 use bevy_window::{PrimaryWindow, Window};
 use blackbox_feng::runtime::pad;
@@ -43,6 +45,16 @@ impl Plugin for FrontendPlugin {
             .add_systems(Update, update.in_set(FrameSet::Frontend))
             .add_systems(Update, present.in_set(FrameSet::Hud))
             .add_systems(Update, pointer::apply);
+    }
+}
+
+/// Puts a key in a slot and writes the bindings to the config file. A missing config path only keeps the change for
+/// this run.
+fn remember_key(bindings: &mut Bindings, control: crate::input::Control, slot: usize, key: KeyCode) {
+    bindings.set_keyboard_slot(control, slot, key);
+    let Some(path) = Settings::config_path() else { return };
+    if let Err(e) = bindings.save_to(&path) {
+        log::warn!("the key could not be saved to {}: {e:#}", path.display());
     }
 }
 
@@ -97,6 +109,7 @@ fn update(
     mut fe: ResMut<Frontend>,
     mut host: NonSendMut<Host>,
     actions: Res<ActionState>,
+    keys: Res<ButtonInput<KeyCode>>,
     mut settings: ResMut<Settings>,
     time: Res<Time>,
     console: Res<Console>,
@@ -104,7 +117,7 @@ fn update(
     mut exit: MessageWriter<AppExit>,
     input: Res<InputPresentation>,
     window: Single<&Window, With<PrimaryWindow>>,
-    bindings: Res<Bindings>,
+    mut bindings: ResMut<Bindings>,
     mut clicking: Local<bool>,
     mut wheel: Local<f32>,
 ) {
@@ -126,6 +139,17 @@ fn update(
     let scripted = fe.script.as_mut().and_then(UiScript::next_mask);
     host.hold_capture = fe.script.as_ref().is_some_and(|s| !s.is_over());
     let dt = if scripted.is_some() { script::STEP } else { time.delta_secs().min(MAX_STEP) };
+    // A slot waiting for its key takes the next key pressed; Escape cancels the wait.
+    let script_key = fe.script.as_mut().and_then(UiScript::take_key);
+    if let Some((control, slot)) = fe.remap
+        && let Some(key) = script_key.or_else(|| keys.get_just_pressed().next().copied())
+    {
+        fe.remap = None;
+        if key != KeyCode::Escape {
+            remember_key(&mut bindings, control, slot, key);
+        }
+    }
+    fe.screens.set_key_texts(super::controls_screen::key_texts(&bindings));
     let mut mask = scripted.unwrap_or_else(|| pad_mask(&actions));
     // A click does what accept does while the game boots: it skips a movie and continues from the title screen.
     if matches!(fe.stage, Stage::Boot(_)) && actions.pressed(Action::Click) {

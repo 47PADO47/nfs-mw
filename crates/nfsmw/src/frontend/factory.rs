@@ -1,10 +1,13 @@
 //! Which logic runs which package (the original `ScreenFactoryData`, docs/specs/frontend-menus.md section 1).
 
+use super::confirm::{Alert, AlertLogic};
+use super::controls_screen::ControlsLogic;
 use super::icon_menu::{IconMenu, Kind};
 use super::ids::screen;
 use super::logic::{Args, Plain, ScreenLogic};
 use super::splash::Splash;
 use super::widget_menu::WidgetMenu;
+use crate::ui::Text;
 
 /// The logic for the package called `name` (its file name, any case). A package without logic of its own runs
 /// as it is.
@@ -26,6 +29,13 @@ pub fn make(name: &str, args: Args) -> Box<dyn ScreenLogic> {
     }
     if is(screen::OPTIONS) || is(screen::PAUSE_OPTIONS) {
         return Box::new(WidgetMenu::new(args));
+    }
+    // A dialog opened by name (`view-screen`) shows a notice; confirmations open it with their own logic.
+    if is(screen::DIALOG) {
+        return Box::new(AlertLogic::new(Alert::new(Text::Custom("Load complete.".into()))));
+    }
+    if is(screen::CONTROLS) || is(screen::PAUSE_CONTROLS) {
+        return Box::new(ControlsLogic::default());
     }
     Box::new(Plain)
 }

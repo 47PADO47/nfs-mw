@@ -9,7 +9,9 @@ use blackbox_feng::ObjectRef;
 use blackbox_feng::{Outgoing, PackageCommandKind, PackageId, Runtime, UiTree};
 use glam::Vec2;
 
+use super::confirm::{AlertLogic, ConfirmLogic};
 use super::factory;
+use super::ids::screen::DIALOG;
 use super::logic::{Args, Command, Cx, Env, ScreenLogic};
 use crate::ui::{Catalog, UiAssets};
 
@@ -27,6 +29,8 @@ pub struct Screens {
     memory: HashMap<String, usize>,
     /// A screen gaining control waits for release before accepting a new gesture.
     await_release: bool,
+    /// The key names of the controls list, set by the frame's bindings (`set_key_texts`).
+    key_texts: Vec<[String; 2]>,
 }
 
 impl Screens {
@@ -34,7 +38,20 @@ impl Screens {
         let mut runtime = Runtime::new();
         let strings = assets.clone();
         runtime.set_string_resolver(move |label| strings.strings.as_ref()?.get(label));
-        Self { runtime, catalog, assets, stack: Vec::new(), memory: HashMap::new(), await_release: false }
+        Self {
+            runtime,
+            catalog,
+            assets,
+            stack: Vec::new(),
+            memory: HashMap::new(),
+            await_release: false,
+            key_texts: Vec::new(),
+        }
+    }
+
+    /// Sets the key names the controls list shows this frame (`controls_screen::key_texts`).
+    pub fn set_key_texts(&mut self, key_texts: Vec<[String; 2]>) {
+        self.key_texts = key_texts;
     }
 
     /// The file name of the screen on top.
@@ -52,6 +69,17 @@ impl Screens {
     /// Loads a screen on top of the stack; `replace` first unloads the one that is there. Commands the new
     /// screen queues while starting are returned.
     pub fn open(&mut self, name: &str, args: Args, replace: bool, env: &mut Env) -> Vec<Command> {
+        self.open_with(name, factory::make(name, args), replace, env)
+    }
+
+    /// Like [`Self::open`], with the logic already chosen (a confirmation dialog carries its question).
+    pub fn open_with(
+        &mut self,
+        name: &str,
+        mut logic: Box<dyn ScreenLogic>,
+        replace: bool,
+        env: &mut Env,
+    ) -> Vec<Command> {
         let Some(package) = self.catalog.find(name).cloned() else {
             log::warn!("no screen {name:?} in the install");
             return Vec::new();
@@ -65,7 +93,6 @@ impl Screens {
         }
         let file_name = package.name.clone();
         let id = self.runtime.load(package);
-        let mut logic = factory::make(&file_name, args);
         let mut commands = Vec::new();
         let mut cx = Cx {
             rt: &mut self.runtime,
@@ -76,6 +103,7 @@ impl Screens {
             caps: env.caps,
             commands: &mut commands,
             memory: &mut self.memory,
+            key_texts: &self.key_texts,
             name: &file_name,
         };
         logic.start(&mut cx);
@@ -130,20 +158,22 @@ impl Screens {
     }
 
     fn deliver(&mut self, package: PackageId, message: u32, env: &mut Env, out: &mut Vec<Command>) {
-        let Self { runtime, assets, stack, memory, .. } = self;
+        let Self { runtime, assets, stack, memory, key_texts, .. } = self;
         let Some(screen) = stack.iter_mut().find(|s| s.id == package) else { return };
         let (settings, changed, caps) = (&mut *env.settings, &mut *env.changed, env.caps);
         let name = &screen.name;
-        let mut cx = Cx { rt: runtime, package, assets, settings, changed, caps, commands: out, memory, name };
+        let mut cx =
+            Cx { rt: runtime, package, assets, settings, changed, caps, commands: out, memory, key_texts, name };
         screen.logic.message(&mut cx, message);
     }
 
     fn deliver_tick(&mut self, package: PackageId, dt: f32, env: &mut Env, out: &mut Vec<Command>) {
-        let Self { runtime, assets, stack, memory, .. } = self;
+        let Self { runtime, assets, stack, memory, key_texts, .. } = self;
         let Some(screen) = stack.iter_mut().find(|s| s.id == package) else { return };
         let (settings, changed, caps) = (&mut *env.settings, &mut *env.changed, env.caps);
         let name = &screen.name;
-        let mut cx = Cx { rt: runtime, package, assets, settings, changed, caps, commands: out, memory, name };
+        let mut cx =
+            Cx { rt: runtime, package, assets, settings, changed, caps, commands: out, memory, key_texts, name };
         screen.logic.tick(&mut cx, dt);
     }
 
@@ -158,6 +188,14 @@ impl Screens {
                     Command::Switch(name, args) => commands.extend(self.open(&name, args, true, env)),
                     Command::Push(name, args) => commands.extend(self.open(&name, args, false, env)),
                     Command::Pop => self.pop(),
+                    Command::Confirm(confirm) => {
+                        let logic = Box::new(ConfirmLogic::new(confirm));
+                        commands.extend(self.open_with(DIALOG, logic, false, env));
+                    }
+                    Command::Alert(alert) => {
+                        let logic = Box::new(AlertLogic::new(alert));
+                        commands.extend(self.open_with(DIALOG, logic, false, env));
+                    }
                     other => rest.push(other),
                 }
             }
@@ -230,7 +268,7 @@ impl Screens {
         env: &mut Env,
         act: impl FnOnce(&mut dyn ScreenLogic, &mut Cx) -> bool,
     ) -> Option<(bool, Vec<Command>)> {
-        let Self { runtime, assets, stack, memory, .. } = self;
+        let Self { runtime, assets, stack, memory, key_texts, .. } = self;
         let screen = stack.last_mut()?;
         let (settings, changed, caps) = (&mut *env.settings, &mut *env.changed, env.caps);
         let mut commands = Vec::new();
@@ -243,6 +281,7 @@ impl Screens {
             caps,
             commands: &mut commands,
             memory,
+            key_texts,
             name: &screen.name,
         };
         let taken = act(screen.logic.as_mut(), &mut cx);

@@ -2,6 +2,8 @@
 //! main menu, free roam, the pause menu) and the screens' own logic. The packages are run by `blackbox-feng` and
 //! drawn by the shared presenter in `ui`. Spec: `docs/specs/frontend-menus.md`.
 
+mod confirm;
+mod controls_screen;
 pub mod dump;
 mod factory;
 mod flow;
@@ -16,13 +18,18 @@ mod pointer;
 pub(crate) mod post_options;
 mod prompt_layout;
 mod prompts;
+mod room;
 mod renderer_options;
 mod scene;
 mod screens;
 mod script;
 mod scroller;
 mod splash;
+mod widget_layout;
 mod widget_menu;
+// The shared option widgets. The advanced controls screen that uses them is not wired to its package yet.
+#[allow(dead_code)]
+mod widgets;
 
 #[cfg(test)]
 mod capability_tests;

@@ -6,6 +6,7 @@
 
 use std::collections::VecDeque;
 
+use bevy_input::keyboard::KeyCode;
 use blackbox_feng::runtime::pad;
 
 /// The clock step of a scripted frame.
@@ -15,11 +16,57 @@ pub const STEP: f32 = 1.0 / 60.0;
 struct Step {
     mask: u32,
     frames: u32,
+    /// A key press for the frame this step starts on (`key NAME`), for the remap screen.
+    key: Option<KeyCode>,
+}
+
+/// The keys a script can press: the letters, Space and Escape.
+fn key(name: &str) -> Result<KeyCode, String> {
+    const LETTERS: [KeyCode; 26] = [
+        KeyCode::KeyA,
+        KeyCode::KeyB,
+        KeyCode::KeyC,
+        KeyCode::KeyD,
+        KeyCode::KeyE,
+        KeyCode::KeyF,
+        KeyCode::KeyG,
+        KeyCode::KeyH,
+        KeyCode::KeyI,
+        KeyCode::KeyJ,
+        KeyCode::KeyK,
+        KeyCode::KeyL,
+        KeyCode::KeyM,
+        KeyCode::KeyN,
+        KeyCode::KeyO,
+        KeyCode::KeyP,
+        KeyCode::KeyQ,
+        KeyCode::KeyR,
+        KeyCode::KeyS,
+        KeyCode::KeyT,
+        KeyCode::KeyU,
+        KeyCode::KeyV,
+        KeyCode::KeyW,
+        KeyCode::KeyX,
+        KeyCode::KeyY,
+        KeyCode::KeyZ,
+    ];
+    if let [c] = name.as_bytes()
+        && c.is_ascii_alphabetic()
+    {
+        return Ok(LETTERS[usize::from(c.to_ascii_lowercase() - b'a')]);
+    }
+    match name {
+        "Space" => Ok(KeyCode::Space),
+        "Escape" => Ok(KeyCode::Escape),
+        other => Err(format!("unknown key {other:?} (a letter, Space or Escape)")),
+    }
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct UiScript {
     steps: VecDeque<Step>,
+    /// The key the last frame's step pressed, until the frontend takes it (`take_key`).
+    key: Option<KeyCode>,
     /// Deterministic prompt device for screenshots, not a gameplay preference.
     pub device: Option<crate::input::InputDevice>,
 }
@@ -51,22 +98,31 @@ impl UiScript {
             match words[..] {
                 ["device", "xbox"] => device = Some(crate::input::InputDevice::Xbox),
                 ["device", "keyboard"] => device = Some(crate::input::InputDevice::Keyboard),
-                ["wait", s] => steps.push_back(Step { mask: 0, frames: frames(s)? }),
-                ["hold", name, s] => steps.push_back(Step { mask: button(name)?, frames: frames(s)? }),
+                ["wait", s] => steps.push_back(Step { mask: 0, frames: frames(s)?, key: None }),
+                ["hold", name, s] => steps.push_back(Step { mask: button(name)?, frames: frames(s)?, key: None }),
+                ["key", name] => steps.push_back(Step { mask: 0, frames: 1, key: Some(key(name)?) }),
                 [name] => {
-                    steps.push_back(Step { mask: button(name)?, frames: 4 });
-                    steps.push_back(Step { mask: 0, frames: 4 });
+                    steps.push_back(Step { mask: button(name)?, frames: 4, key: None });
+                    steps.push_back(Step { mask: 0, frames: 4, key: None });
                 }
                 _ => return Err(format!("cannot read the script step {part:?}")),
             }
         }
-        Ok(Self { steps, device })
+        Ok(Self { steps, device, key: None })
+    }
+
+    /// The key the script pressed on the frame just stepped, if any. The frontend takes it once per frame.
+    pub fn take_key(&mut self) -> Option<KeyCode> {
+        self.key.take()
     }
 
     /// The pad mask of the next frame, or none when the script is over.
     pub fn next_mask(&mut self) -> Option<u32> {
         let step = self.steps.front_mut()?;
         let mask = step.mask;
+        if let Some(key) = step.key {
+            self.key = Some(key);
+        }
         step.frames = step.frames.saturating_sub(1);
         if step.frames == 0 {
             self.steps.pop_front();
@@ -92,6 +148,17 @@ mod tests {
         assert_eq!(&masks[7..11], &[0; 4]);
         assert_eq!(masks[11..].iter().filter(|&&m| m == pad::ACCEPT).count(), 6);
         assert!(s.is_over());
+    }
+
+    #[test]
+    fn a_key_step_presses_once() {
+        let mut s = UiScript::parse("key W; wait 0.05").unwrap();
+        assert_eq!(s.next_mask(), Some(0));
+        assert_eq!(s.take_key(), Some(KeyCode::KeyW));
+        assert_eq!(s.take_key(), None, "taken once");
+        assert_eq!(s.next_mask(), Some(0));
+        assert_eq!(s.take_key(), None, "a wait presses nothing");
+        assert!(UiScript::parse("key Tab").unwrap_err().contains("Tab"));
     }
 
     #[test]

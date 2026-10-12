@@ -111,7 +111,8 @@ fn controls_category_opens_changes_saves_and_restores_its_selection() {
     {
         let Some(mut h) = Harness::open(menu, Args { options: true, pause, ..Args::default() }) else { return };
         h.wait(1.0);
-        for _ in 0..3 {
+        // Audio, Video, Gameplay, Player (greyed out), then Controls.
+        for _ in 0..4 {
             h.press(pad::RIGHT);
         }
         h.wait(0.5);
@@ -122,7 +123,7 @@ fn controls_category_opens_changes_saves_and_restores_its_selection() {
                     .any(|n| n.name_hash == super::ids::ICON_TITLE && n.text.as_deref() == Some("Controls"))
             })
         };
-        assert!(selected_title(&h), "{menu}: fourth category must be Controls");
+        assert!(selected_title(&h), "{menu}: the fifth category must be Controls");
         // Hold A through the switch. The next screen must not accept the same gesture again.
         h.run(pad::ACCEPT, 120);
         h.run(0, 3);
@@ -342,10 +343,27 @@ fn the_pause_menu_resumes_opens_the_options_and_quits() {
     h.wait(1.5);
     assert_eq!(h.screens.top(), Some(screen::PAUSE_MENU));
 
+    // Quit asks first: No (the default) keeps the pause menu.
     let mut h = Harness::open(screen::PAUSE_MENU, pause).unwrap();
     h.wait(1.0);
     h.press(pad::RIGHT);
     h.press(pad::RIGHT);
+    h.press(pad::ACCEPT);
+    h.wait(1.5);
+    assert_eq!(h.screens.top(), Some(screen::DIALOG), "quit asks first: {:?}", h.commands);
+    h.press(pad::ACCEPT);
+    h.wait(1.5);
+    assert_eq!(h.screens.top(), Some(screen::PAUSE_MENU), "no keeps the game paused");
+    assert!(!h.said(&Command::QuitToMenu), "{:?}", h.commands);
+
+    // Yes quits to the main menu.
+    let mut h = Harness::open(screen::PAUSE_MENU, pause).unwrap();
+    h.wait(1.0);
+    h.press(pad::RIGHT);
+    h.press(pad::RIGHT);
+    h.press(pad::ACCEPT);
+    h.wait(1.5);
+    h.press(pad::LEFT);
     h.press(pad::ACCEPT);
     h.wait(1.5);
     assert!(h.said(&Command::QuitToMenu), "{:?}", h.commands);
