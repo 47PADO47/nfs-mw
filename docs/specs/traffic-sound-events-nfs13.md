@@ -234,3 +234,9 @@ cursor is above these. The root setter is not yet located.
 direct callers are `0x00F10748`, `0x00F1109C`, `0x00F12200`, `0x00F13229`, `0x00F1327E`, `0x00F13781`, `0x00F13D76` and `0x00F13DBE`. All of
 them are inside the expression-parser region (`0x00F10000`..`0x00F14000`), so the walk has not yet left the parser. The top-level entry is
 one of these callers' callers, further up the same region. Not yet located.
+
+**The expression region is closed under static calls (read).** The enclosing functions of the eight callers are `0x00F10720`,
+`0x00F11001`, `0x00F121A5`, `0x00F13149`, `0x00F1366E` and `0x00F13A4D`. Their callers are all inside the region (`0x00F0F000`..`0x00F15000`),
+and none of the entries is stored as a function pointer. So the expression parser is entered only through an indirect route that static
+reading cannot follow. The top-level text source must be found at run time: a data breakpoint on the cursor `0x011BBCC4` would show the
+string the parser starts from, once a race loads.
