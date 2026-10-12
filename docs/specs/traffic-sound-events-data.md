@@ -354,3 +354,8 @@ header is `[object + [object+0x188] + 0x1C]`, a per-object indirection at `+0x18
 `0x57FEA0`, `0x581BF7`, `0x583B15`, `0x584FA4`, `0x5881E4`, `0x5882D4` and `0x5883C4` read the owner through `[+0x184]`/`[+0x28]`,
 so these are nested sound objects. The car-type table is one of these, but which one is not yet identified from the call sites
 alone.
+
+**`NFS13.exe` car-sound pass, step 4 (read).** The nested-sound initializer at `0x57C120` takes a pair from its argument and
+stores the first value at `+0x184` (the owner object) and the second at `+0x188` (the table), and it sets the flag at `+0x18`.
+Its callers are `0x57E87B` and `0x5EFC4E`. Next: read those two callers to see which owner and table they pass, which identifies
+the car-type table.
