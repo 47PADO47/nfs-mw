@@ -381,3 +381,9 @@ at `0xF9B404`). The list type is `VehicleListResourceType` (VA `0xF9B5E0`). The 
 (`VEHICLES/VEHICLELIST.BNDL`, 112-byte records keyed by vehicle ID) is this table. So the car's sound set is the `Car Select Sound`
 field of its `VehicleListEntry`, and the role value is read from that record. Next: locate the field offset of `Car Select Sound`
 within the entry, and check it against the role-2 value.
+
+**Field offset of `Car Select Sound` (read, not yet found).** No inflated stream of `VEHICLES/VEHICLELIST.BNDL` contains the name
+`VehicleListEntry` or any of its field names as text, so the schema that gives the field order is keyed by hash or lives in
+another bundle. The field offset of `Car Select Sound` within the 112-byte record therefore cannot be read from the strings. The
+next step is to derive the field-name hashes of the `VehicleListEntry` fields (the `vlt_hash` and the base-40 forms already
+tested) and match them against the record's key words.
