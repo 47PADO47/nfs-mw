@@ -133,3 +133,11 @@ callers, `0x00A4E5A6` and `0x00A4EBF0`, do not compute the key. They read it fro
 Genesys type keys (such as `0x2EDB25E7`) are **values stored in the bundle records**, not outputs of a hash at run time.
 That is why none of the hash tests matched. The role-2 car descriptor is therefore a stored record, and it can be read by
 decoding the record layout (the `+0x20` key field and the record size), not by reproducing a hash.
+
+**Record layout (read, partial).** The key `0x2EDB25E7` occurs in 80+ inflated `GLOBAL.BNDL` streams, mostly as a
+field reference inside schema records. The smallest stream (file `0x2537D`, 144 bytes) is the schema of
+`Genesys.Gen.MixerChannel.Priority`: a header of 32-bit words, the name string, then 16-byte entries of the form
+`(key u32, 0 u32, value u32, 0 u32)`. At `+0x70` the entry is `key 0x2EDB25E7, value 4`, so the key is a field key with a
+value. The role field of a `VehicleSound` instance is therefore an entry `(key, 0, value, 0)` whose key is the role field's
+key. The field key for the role is not yet identified, and the instance streams that hold a `VehicleSound` with value 2
+are not yet isolated.
