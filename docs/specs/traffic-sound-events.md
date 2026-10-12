@@ -340,6 +340,11 @@ published table does not contain that route, so it is removed. The invented `1 +
   `VPAK` pack. A byte search of every `.BNDL`, `.BIN` and `.BIG` in the install finds **no** `VPAK` (the attribute
   database format of `blackbox-attrib`). So the pvehicle and car-descriptor attributes are not in a `VPAK` in this
   install, and the role field is in a container format that the repo does not yet read.
+- **`bnd2` header (read).** `GAMELOGIC/GAMEPLAY.BNDL` (216,879 B): `0x00` `bnd2`; `0x04` u32 `0x00010005`; `0x08` u32 file
+  size `0x34F2F`; `0x0C` u32 `0x118` (table offset); `0x10` u32 `0x70`; `0x14` u32 `0x4F30`; `0x18`/`0x1C`/`0x20` u32
+  `0x34F2F` (end offsets); `0x24` u32 **9** (entry count); `0x34` container name `GAMEDATA`. The table at `0x118` is 0x20-byte
+  records of (hash, flags, size, offset) in the same `0x40000`/`0x400...` flag style as bChunk. The vault inside these
+  entries is not decoded yet, so the car-descriptor role field remains unread.
 - Classification of the 170 `+0x28` indirect calls (read): they fall in 130 distinct enclosing functions. Of the 95 that
   are functions with a `+0x28` call and a named body, **none** references the pool-id global `DAT_008EE558`, the
   descriptor `0x00896800`, the name-hash global `0x00913BD8`, or the pool tables `DAT_0090DF10`/`DAT_0090DFF0`/`DAT_0090DE50`.
