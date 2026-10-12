@@ -37,7 +37,7 @@ pub struct Layout {
     /// What the hidden flags were last set for: (nitrous, turbo, minimap).
     /// The green laser over the radar, shown while a cop is nearby.
     laser: Vec<usize>,
-    applied: Option<(bool, bool, bool, bool)>,
+    applied: Option<(bool, bool, bool, bool, bool)>,
 }
 
 impl Layout {
@@ -70,14 +70,17 @@ impl Layout {
 
     /// Shows the speedometer, the tachometer and the gauges asked for, and hides everything else in the package.
     /// Nothing happens while the request is the one already applied.
-    pub fn update(&mut self, rt: &mut Runtime, nitrous: bool, turbo: bool, minimap: bool, laser: bool) {
-        if self.applied == Some((nitrous, turbo, minimap, laser)) {
+    pub fn update(&mut self, rt: &mut Runtime, nitrous: bool, turbo: bool, minimap: bool, laser: bool, mirror: bool) {
+        if self.applied == Some((nitrous, turbo, minimap, laser, mirror)) {
             return;
         }
-        self.applied = Some((nitrous, turbo, minimap, laser));
+        self.applied = Some((nitrous, turbo, minimap, laser, mirror));
         let mut shown = vec![false; self.parent.len()];
-        let mut roots: Vec<usize> =
-            self.speedometer.iter().chain(&self.tachometer).chain(&self.mirror).chain(&self.radar).copied().collect();
+        let mut roots: Vec<usize> = self.speedometer.iter().chain(&self.tachometer).copied().collect();
+        if mirror {
+            roots.extend(&self.mirror);
+            roots.extend(&self.radar);
+        }
         if nitrous {
             roots.extend(&self.nitrous);
         }

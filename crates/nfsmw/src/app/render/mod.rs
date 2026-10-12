@@ -130,6 +130,7 @@ pub fn update_scene(
     host.traffic = crate::settings::TrafficSettings::from(&*settings);
     host.scene.set_traffic(host.traffic);
     host.scene.set_camera_mode(settings.camera_mode);
+    host.rear_view_mirror = settings.rear_view_mirror;
     host.wheel = settings.wheel_options();
     host.scene.set_wheel_options(host.wheel);
     // Startup console settings have run in Commands before a screenshot's scripted simulation.
@@ -157,7 +158,9 @@ pub fn draw(
     for id in ui.freed.drain(..) {
         renderer.free_ui_texture(id);
     }
-    host.mirror.update(renderer.as_mut(), host.scene.as_mut());
+    if host.rear_view_mirror {
+        host.mirror.update(renderer.as_mut(), host.scene.as_mut());
+    }
 
     let (params, instances) = host.scene.frame(renderer.aspect_ratio());
     let result = if let Some(plan) = host.screenshot.as_mut() {

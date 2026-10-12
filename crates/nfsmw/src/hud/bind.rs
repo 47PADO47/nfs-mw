@@ -53,6 +53,8 @@ const GEAR_SHIFTING_ALPHA: u8 = 0x88;
 /// The objects of the package the HUD drives, found once.
 pub struct HudBinding {
     layout: Layout,
+    /// The rear-view mirror and the radar under it are shown (the `rear_view_mirror` setting).
+    mirror_shown: bool,
     /// The mirror's top group and the group under it, held at full alpha (see `apply`).
     mirror_frames: [Option<ObjectRef>; 4],
     /// Seconds since the HUD started, up to the end of the mirror's fade-in.
@@ -95,6 +97,7 @@ impl HudBinding {
         let mut b = Self {
             layout: Layout::new(rt, package),
             mirror_frames: [None; 4],
+            mirror_shown: true,
             mirror_elapsed: 0.0,
             digits: [
                 find(rt, package, "SPEED_DIGIT_1"),
@@ -117,7 +120,7 @@ impl HudBinding {
             last_nos: 0.0,
             applied_face: None,
         };
-        b.layout.update(rt, false, false, false, false);
+        b.layout.update(rt, false, false, false, false, true);
         // The mirror's frame rests fully visible. The game fades it in from a script on an event this build does
         // not raise, so the fade is skipped here.
         b.mirror_frames =
@@ -147,6 +150,11 @@ impl HudBinding {
     }
 
     /// Pushes the state into the objects. Call before `Runtime::update`.
+    /// Shows or hides the rear-view mirror and the radar under it. Takes effect at the next `apply`.
+    pub fn set_mirror_shown(&mut self, on: bool) {
+        self.mirror_shown = on;
+    }
+
     /// Advances the mirror's fade-in by `dt` seconds. Called once per frame, before `apply`.
     pub fn advance_mirror_fade(&mut self, dt: f32) {
         self.mirror_elapsed = (self.mirror_elapsed + dt).min(MIRROR_FADE_SECONDS);
@@ -154,7 +162,7 @@ impl HudBinding {
 
     pub fn apply(&mut self, rt: &mut Runtime, s: &HudState) {
         let map = s.minimap.zip(self.minimap.as_ref());
-        self.layout.update(rt, s.has_nos, s.has_turbo, map.is_some(), s.cop_nearby);
+        self.layout.update(rt, s.has_nos, s.has_turbo, map.is_some(), s.cop_nearby, self.mirror_shown);
         // The mirror's frame rests at full alpha, every frame: its own colour track would otherwise leave it at zero.
         let alpha = mirror_fade_alpha(self.mirror_elapsed);
         for frame in self.mirror_frames.iter().flatten() {

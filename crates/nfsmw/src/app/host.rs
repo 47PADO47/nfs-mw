@@ -38,6 +38,8 @@ pub struct Host {
     pub hold_capture: bool,
     /// The rear-view mirror drawn over the HUD (see [`super::mirror`]).
     pub mirror: super::mirror::MirrorOverlay,
+    /// The `rear_view_mirror` setting as of the last frame: when off, the rear view is not captured.
+    pub rear_view_mirror: bool,
     tire_effects: [bool; 2],
     smoke_quality: SmokeQuality,
     car_shading: CarShading,
@@ -78,6 +80,7 @@ impl Host {
             flow_driven: false,
             hold_capture: false,
             mirror: Default::default(),
+            rear_view_mirror: settings.rear_view_mirror,
             tire_effects: [settings.tire_smoke, settings.skid_marks],
             smoke_quality: settings.smoke_quality,
             car_shading: settings.car_shading,
