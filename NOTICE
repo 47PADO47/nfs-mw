@@ -159,7 +159,7 @@ Rendering concepts
     Copyright (C) 2016-2021, Intel Corporation.
     Horizon search and analytic slice integration adapted in
     libs/blackbox-render/src/shaders/ao_horizon.wgsl, which carries the full MIT notice.
-    This is a compact depth-only GTAO experiment, not the complete XeGTAO implementation.
+    This is a compact spatial GTAO adaptation, not the complete XeGTAO implementation.
   Quasar — https://github.com/dev25bansal-ops/quasar — MIT.
     Hemisphere SSAO shader considered as a reference; no code copied.
     See docs/ambient-occlusion.md for the approach and limitations.
@@ -176,3 +176,23 @@ giovannosaur/MWDynamicFOV — https://github.com/giovannosaur/MWDynamicFOV — n
   the mod's behaviour: the view widens with speed on a cubic ease-in curve. The mod
   publishes no licence, so none of its code was copied or ported, and its game-memory
   offsets are not used.
+
+Graphics lab prototypes
+  smaa-rs 0.21.0 - https://codeberg.org/fintelia/smaa-rs - MIT.
+    SMAA 1x implementation and its included permissively licensed reference lookup data.
+    Used as a dependency, without temporal resolve.
+  Microsoft Cascaded Shadow Maps - reference only; no code copied.
+    https://learn.microsoft.com/en-us/windows/win32/dxtecharts/cascaded-shadow-maps
+    Stable fitting, cascade overlap, filter guard bands and receiver-plane bias
+    concepts in the native shadow experiment. Implementation is original.
+Graphics lab shadow improvements
+  Directional PCSS concepts: Randima Fernando / NVIDIA, described in GPU Gems 3
+  https://developer.nvidia.com/gpugems/gpugems3/part-ii-light-and-shadows/chapter-8-summed-area-variance-shadow-maps
+  Contact shadow depth ray-march limitations: Epic Games documentation
+  https://dev.epicgames.com/documentation/unreal-engine/contact-shadows?application_version=4.27
+  Conceptual references only; the Rust and WGSL implementation is original.
+Graphics lab ambient lighting
+  Gary King / NVIDIA GPU Gems 2, chapter 10 - reference only; no code copied.
+    https://developer.nvidia.com/gpugems/gpugems2/part-ii-shading-lighting-and-shadows/chapter-10-real-time-computation-dynamic
+    Diffuse irradiance convolution with spherical harmonics. The projection and
+    evaluation shaders are original implementations of the mathematical method.

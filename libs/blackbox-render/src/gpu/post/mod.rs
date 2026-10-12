@@ -162,6 +162,23 @@ impl PostChain {
         self.passes.iter().map(|p| p.name()).collect()
     }
 
+    /// Surface diagnostics bypass grading/effects without changing saved or requested settings.
+    pub(super) fn encode_diagnostic(
+        &mut self,
+        ctx: &PassContext<'_>,
+        encoder: &mut wgpu::CommandEncoder,
+        output: (&wgpu::TextureView, wgpu::TextureFormat),
+    ) {
+        let io = PassIo {
+            input: &ctx.scene.color_view,
+            input_size: ctx.scene.size,
+            output: output.0,
+            output_format: output.1,
+            output_size: ctx.output_size,
+        };
+        self.passes.last_mut().expect("final resolve").encode(ctx, &io, encoder);
+    }
+
     /// Record every pass. The last one writes `output`.
     pub(super) fn encode(
         &mut self,

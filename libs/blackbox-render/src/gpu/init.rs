@@ -85,7 +85,11 @@ fn request_device(adapter: &wgpu::Adapter) -> Result<(wgpu::Device, wgpu::Queue)
     let info = adapter.get_info();
     log::info!("GPU: {} ({:?}, driver {})", info.name, info.backend, info.driver);
     let supports_bc = adapter.features().contains(wgpu::Features::TEXTURE_COMPRESSION_BC);
-    let required_features = if supports_bc { wgpu::Features::TEXTURE_COMPRESSION_BC } else { wgpu::Features::empty() };
+    let mut required_features =
+        if supports_bc { wgpu::Features::TEXTURE_COMPRESSION_BC } else { wgpu::Features::empty() };
+    if adapter.features().contains(super::timing::FEATURES) {
+        required_features |= super::timing::FEATURES;
+    }
     let mut limits = wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits());
     if adapter.get_downlevel_capabilities().flags.contains(wgpu::DownlevelFlags::COMPUTE_SHADERS) {
         // Only the small compute limits the optional AO pass needs; retain the GL fallback.
@@ -95,6 +99,8 @@ fn request_device(adapter: &wgpu::Adapter) -> Result<(wgpu::Device, wgpu::Queue)
         limits.max_compute_invocations_per_workgroup = 64;
         limits.max_compute_workgroups_per_dimension = 65535;
         limits.max_storage_textures_per_shader_stage = 1;
+        limits.max_storage_buffers_per_shader_stage = adapter.limits().max_storage_buffers_per_shader_stage.min(1);
+        limits.max_storage_buffer_binding_size = adapter.limits().max_storage_buffer_binding_size.min(288);
     }
     pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
         label: Some("blackbox-render device"),
@@ -145,6 +151,7 @@ fn assemble(output: Output, adapter: &wgpu::Adapter, device: wgpu::Device, queue
         device.limits().max_compute_invocations_per_workgroup >= 64,
     );
 
+    let timing = super::timing::Timing::new(&device, &queue);
     let mut renderer = Renderer {
         output,
         device,
@@ -159,7 +166,16 @@ fn assemble(output: Output, adapter: &wgpu::Adapter, device: wgpu::Device, queue
         hdr_format,
         post,
         reflections: None,
+        experiments: Default::default(),
+        experiment_stats: blackbox_gfx::ExperimentStats { supported: api != GraphicsApi::Gl, ..Default::default() },
+        shadows: None,
+        smaa: None,
+        shadow_casters: None,
         ao: None,
+        contact: None,
+        surfaces: None,
+        reuse_prepass_depth: true,
+        timing,
         render_scale: DEFAULT_RENDER_SCALE,
         upscale: Default::default(),
         shared,

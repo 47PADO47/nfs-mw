@@ -9,6 +9,8 @@ pub(super) struct GpuMesh {
     pub vertices: wgpu::Buffer,
     pub indices: wgpu::Buffer,
     pub draws: Vec<DrawRange>,
+    pub center: glam::Vec3,
+    pub radius: f32,
 }
 
 impl Renderer {
@@ -28,7 +30,22 @@ impl Renderer {
             contents: bytemuck::cast_slice(&indices),
             usage: wgpu::BufferUsages::INDEX,
         });
-        MeshHandle::from_raw(self.meshes.insert(GpuMesh { vertices, indices, draws: desc.draws.clone() }))
+        let mut min = glam::Vec3::splat(f32::INFINITY);
+        let mut max = glam::Vec3::splat(f32::NEG_INFINITY);
+        for v in desc.vertices {
+            let p = glam::Vec3::from_array(v.position);
+            min = min.min(p);
+            max = max.max(p);
+        }
+        let center = (min + max) * 0.5;
+        let radius = center.distance(max);
+        MeshHandle::from_raw(self.meshes.insert(GpuMesh {
+            vertices,
+            indices,
+            draws: desc.draws.clone(),
+            center,
+            radius,
+        }))
     }
 
     pub fn destroy_mesh(&mut self, handle: MeshHandle) {

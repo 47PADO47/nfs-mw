@@ -4,10 +4,12 @@ struct AoParams {
     projection: vec4<f32>, // inverse projection X/Y scale, reverse-Z near, unused
     effect: vec4<f32>, // radius, intensity, distance fade start/end
     sampling: vec4<u32>, // resolution divisor, slices, steps per side, comparison
-    fog: vec4<f32>, // fog start/end, unused
+    fog: vec4<f32>, // retained uniform layout
+    view: mat4x4<f32>,
 };
 @group(0) @binding(0) var<uniform> params: AoParams;
 @group(0) @binding(1) var scene_depth: texture_depth_2d;
+@group(0) @binding(4) var world_normals: texture_2d<f32>;
 
 fn inside(pixel: vec2<i32>) -> bool {
     return all(pixel >= vec2<i32>(0)) && all(pixel < vec2<i32>(params.sizes.xy));
@@ -45,6 +47,11 @@ fn derivative(pixel: vec2<i32>, axis: vec2<i32>, center: vec3<f32>) -> vec3<f32>
 }
 fn normal_at(pixel: vec2<i32>, center: vec3<f32>) -> vec3<f32> {
     let fallback = safe_normal(-center, vec3<f32>(0.0, 0.0, 1.0));
+    let encoded = textureLoad(world_normals, pixel, 0);
+    if encoded.a > 0.5 {
+        let n = safe_normal((params.view * vec4<f32>(encoded.xyz * 2.0 - 1.0, 0.0)).xyz, fallback);
+        return select(n, -n, dot(n, fallback) < 0.0);
+    }
     var normal = safe_normal(cross(derivative(pixel, vec2<i32>(1, 0), center),
                                   derivative(pixel, vec2<i32>(0, 1), center)), fallback);
     if dot(normal, fallback) < 0.0 { normal = -normal; }
@@ -71,9 +78,15 @@ fn ao_pixel(pixel: vec2<i32>) -> vec2<i32> {
 // Normal agreement further prevents filtering across corners.
 fn surface_weight(center: vec3<f32>, normal: vec3<f32>, pixel: vec2<i32>, data: vec4<f32>) -> f32 {
     if data.y <= 0.0 { return 0.0; }
-    let delta = view_at(vec2<f32>(ao_pixel(pixel)), data.y) - center;
+    return geometry_weight(center, normal, view_at(vec2<f32>(ao_pixel(pixel)), data.y), decode_normal(data.zw));
+}
+fn geometry_weight(center: vec3<f32>, normal: vec3<f32>, neighbor: vec3<f32>, neighbor_normal: vec3<f32>) -> f32 {
+    let delta = neighbor - center;
     let tolerance = 0.04 + abs(center.z) * 0.0015;
     let plane = abs(dot(delta, normal)) / tolerance;
-    let agreement = max(dot(normal, decode_normal(data.zw)), 0.0);
-    return exp(-plane * plane) * pow(agreement, 8.0);
+    let agreement = max(dot(normal, neighbor_normal), 0.0);
+    // The integer power needs three multiplies, without logarithm/exponent evaluation.
+    let squared = agreement * agreement;
+    let fourth = squared * squared;
+    return exp(-plane * plane) * (fourth * fourth);
 }

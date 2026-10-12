@@ -1,4 +1,4 @@
-// Bilateral upsample and bounded multiplicative composition before particles and UI.
+// Bilateral upsample into an ambient visibility mask. No finished-colour multiply.
 @group(0) @binding(2) var filtered_ao: texture_2d<f32>;
 
 @vertex
@@ -23,8 +23,11 @@ fn fs_main(@builtin(position) fragment: vec4<f32>) -> @location(0) vec4<f32> {
         for (var x = 0; x <= 1; x++) {
             let neighbor = base + vec2<i32>(x, y);
             if any(neighbor < vec2<i32>(0)) || any(neighbor >= vec2<i32>(params.sizes.zw)) { continue; }
-            let value = textureLoad(filtered_ao, neighbor, 0);
             let bilinear = select(1.0 - fraction, fraction, vec2<i32>(x, y) != vec2<i32>(0));
+            // At native AO resolution three taps have exactly zero weight. They cannot
+            // change the result, so avoid their depth/normal loads and bilateral math.
+            if bilinear.x == 0.0 || bilinear.y == 0.0 { continue; }
+            let value = textureLoad(filtered_ao, neighbor, 0);
             let weight = surface_weight(center, normal, neighbor, value) * bilinear.x * bilinear.y;
             sum += value.x * weight;
             weight_sum += weight;
@@ -32,8 +35,7 @@ fn fs_main(@builtin(position) fragment: vec4<f32>) -> @location(0) vec4<f32> {
     }
     if weight_sum < 1e-4 { return vec4<f32>(1.0); }
     let occlusion = 1.0 - clamp(sum / weight_sum, 0.0, 1.0);
-    // Fog was baked into the scene, so don't turn distant fog into dark silhouettes.
-    let fog_visibility = 1.0 - clamp((length(center) - params.fog.x) / max(params.fog.y - params.fog.x, 0.001), 0.0, 1.0);
-    let factor = 1.0 - 0.45 * params.effect.y * occlusion * fog_visibility;
-    return vec4<f32>(vec3<f32>(factor), 1.0);
+    // A visibility term, consumed by ambient lighting before fog. Direct light is untouched.
+    let factor = 1.0 - 0.45 * params.effect.y * occlusion;
+    return vec4<f32>(factor, 0.0, 0.0, 1.0);
 }

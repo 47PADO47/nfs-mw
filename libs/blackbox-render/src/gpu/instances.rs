@@ -14,13 +14,14 @@ pub(super) struct InstanceBuffer {
     pub buffer: wgpu::Buffer,
     /// Capacity in matrices.
     capacity: usize,
+    scratch: Vec<[f32; 16]>,
 }
 
 impl InstanceBuffer {
     const INITIAL: usize = 4096;
 
     pub(super) fn new(device: &wgpu::Device) -> Self {
-        Self { buffer: Self::allocate(device, Self::INITIAL), capacity: Self::INITIAL }
+        Self { buffer: Self::allocate(device, Self::INITIAL), capacity: Self::INITIAL, scratch: Vec::new() }
     }
 
     fn allocate(device: &wgpu::Device, capacity: usize) -> wgpu::Buffer {
@@ -41,5 +42,18 @@ impl InstanceBuffer {
         if !matrices.is_empty() {
             queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(matrices));
         }
+    }
+
+    pub(super) fn upload_instances(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        instances: &[blackbox_gfx::Instance],
+    ) {
+        let mut matrices = std::mem::take(&mut self.scratch);
+        matrices.clear();
+        matrices.extend(instances.iter().map(|i| i.transform.to_cols_array()));
+        self.upload(device, queue, &matrices);
+        self.scratch = matrices;
     }
 }
