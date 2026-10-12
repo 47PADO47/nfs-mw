@@ -267,6 +267,13 @@ published table does not contain that route, so it is removed. The invented `1 +
   (vtable `0x896B90`), `FUN_004BCB80` 0x98, `FUN_004BD010` 0xD8, `FUN_004BE350` 0xE0, `FUN_004BEFA0` 0x28 (vtable
   `0x896DB8`), `FUN_004BF100` 0x28 (vtable `0x896DFC`). None allocates the 0x250 object, so the car sim with `+0x228`
   is not made through this table, and its owner is still unidentified.
+- The 0x250 allocation (read). The only immediate 0x250 loaded as a size is at `0x007993DD`, inside `FUN_007992F0`. That
+  function searches a named list (by `strcmp`, `FUN_00460D20`); on a miss it allocates 0x250 bytes with `FUN_00652AF0`
+  (alignment 8), zeroes the words from `+0x8` to `+0x24C` (so `+0x228` is zero), stores a name at `+0x10` and a handle at
+  `+0x24C` from `FUN_00793340`. So the 0x250 object is a named table node, not the car sim itself.
+  Callers of `FUN_007992F0`: `FUN_0054CCF0` (a constructor with vtable `0x0089B334`, passing itself as the owner and the
+  global name `DAT_0091C39C`) and `FUN_00537F60` (not yet read). Which node the car sim is remains open.
+- The other two 0x250 immediates (`0x0047E23F`, `0x007FE1D8`, both `MOV ESI, 0x250`) are not yet read.
 - Earlier reading (superseded in its object identity, kept for the chain): the `BlewByCop` check reads `+0x228` of the
   car's sound-sim object and compares it with the integer 2. `FUN_004C9CB0` (constructor) stores its float argument at `+0x228` (the role word from a record: `FUN_004CAEF0`
   passes `*(record+0x0C)`). The caller of `FUN_004CAEF0` is `FUN_004CC790`, which builds a 0x28-byte car sub-object from a
