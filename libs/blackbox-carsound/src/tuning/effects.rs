@@ -21,19 +21,6 @@ impl Default for TurboTuning {
     }
 }
 
-/// Nitrous sound shaping.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct NitrousTuning {
-    /// How much the loop's pitch rises with the boost interpolator (1 + `pitch_boost` at full boost).
-    pub pitch_boost: f32,
-}
-
-impl Default for NitrousTuning {
-    fn default() -> Self {
-        Self { pitch_boost: 0.08 }
-    }
-}
-
 /// Skid sound selection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct SkidTuning {
