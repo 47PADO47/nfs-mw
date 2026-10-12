@@ -224,3 +224,8 @@ operators, parsed into node values. The ID-to-sound-set mapping is therefore a r
 It is written at about 28 sites (`0x00F0F358` to `0x00F1406D`) and read at about 70 sites, because the parser advances it. The number
 reader at `0x00F0F340` shows the pattern: it increments the cursor, reads a character, and parses digits with `0x00F0F156`. So the cursor
 walks a text buffer. Its initial value is set by an outer caller that loads a string pointer; that root setter is not yet located.
+
+**Root setter search (read, not yet found).** The cursor writes at `0x00F131A2`, `0x00F136C0` are internal increments of the parser.
+The special-form parser at `0x00F123A9` reads the cursor and dispatches on the markers `?` (`0x3F`) and `$` (`0x24`). Its only direct
+callers, `0x00F11DB9` and `0x00F131D2`, are inside the parser itself. So the top-level entry that first loads a string pointer into the
+cursor is above these. The root setter is not yet located.
