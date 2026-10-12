@@ -336,3 +336,9 @@ created when a race or drive loads a car. The next read needs a car in the world
 **Runtime check of the connection registry (read).** In the running `speed.exe` (PID 36252), the registry record at `0x00913BD8`
 holds `0x1DD80B70` (`CarSoundConn`), the factory `0x004CC790`, and a link `0x008EEAF8`. This matches the static analysis.
 The car-sound connection objects are created only when a car loads, so their instances remain unread until a race starts.
+
+**`NFS13.exe` car-sound pass, step 1 (read).** The exact `Genesys.Gen.VehicleSound` string is absent from `NFS13.exe`, but the
+shorter `VehicleSound` string (VA `0xF9C2A8`) has one code reference, at `0x42B860`. That site is a debug assertion (it pushes the
+string and a line number `0x207` and calls the logger `0xACFF30`), not a loader. The routine at `0x42B870` is a generic keyed-table
+lookup: it scans a `u32` key array at `[ecx+4]` (count at `[ecx]`) and returns the matching 12-byte entry at `base + index*12`.
+Next: find the callers of `0x42B870` to see which table holds the car-sound types.
