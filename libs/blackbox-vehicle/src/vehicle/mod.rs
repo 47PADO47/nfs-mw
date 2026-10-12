@@ -41,6 +41,8 @@ pub struct Vehicle {
     pub forced_wheel_angles: Option<crate::steering::WheelAngles>,
     /// Engine blown or car destroyed: gas 0, brakes on.
     pub disabled: bool,
+    /// Spike-strip damage per tire (see `tires::damage`): a blown tire brakes fully and grips less.
+    pub tire_damage: crate::tires::TireDamage,
     body: RigidBody,
     geometry: Geometry,
     params: [TireParams; 4],
@@ -91,6 +93,7 @@ impl Vehicle {
             config: ControlConfig::default(),
             forced_wheel_angles: None,
             disabled: false,
+            tire_damage: crate::tires::TireDamage::default(),
             body,
             geometry,
             params,
@@ -290,6 +293,11 @@ impl Vehicle {
     }
 
     /// The state of wheel `i` (0 front left, 1 front right, 2 rear left, 3 rear right).
+    /// Lift or restore the engine's rev limiter (Extra Options `NoRevLimiter`).
+    pub fn set_no_rev_limiter(&mut self, on: bool) {
+        self.powertrain.set_no_rev_limiter(on);
+    }
+
     pub fn wheel(&self, i: usize) -> WheelState {
         let steer = match i {
             0 => self.wheel_angles.left,

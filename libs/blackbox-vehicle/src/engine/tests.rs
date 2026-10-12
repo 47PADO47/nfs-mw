@@ -9,6 +9,7 @@ fn spec() -> EngineSpec {
         flywheel_mass: 20.0,
         engine_braking: vec![0.2],
         speed_limiter: [0.0, 0.0],
+        no_rev_limiter: false,
     }
 }
 

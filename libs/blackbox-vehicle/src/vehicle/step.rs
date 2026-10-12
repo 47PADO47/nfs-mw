@@ -25,6 +25,7 @@ impl Vehicle {
         if dt.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) || !dt.is_finite() {
             return;
         }
+        self.tire_damage.advance(dt);
         self.body.begin_frame(dt);
         self.time += dt;
         match self.body.state {

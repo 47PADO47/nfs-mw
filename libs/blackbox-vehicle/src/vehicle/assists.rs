@@ -7,6 +7,7 @@ use crate::drivetrain::GEAR_REVERSE;
 use crate::math::table;
 use crate::tires::StepScales;
 
+
 impl Vehicle {
     /// Starts the step on every tire and applies the assists. Call before the drive torque is added.
     pub(super) fn begin_tires(&mut self, speed: f32) {
@@ -43,7 +44,8 @@ impl Vehicle {
         let h = self.tunings.handling;
         for i in 0..4 {
             let driven = if i < 2 { driven_front } else { driven_rear };
-            let cmd = wheel_command(&brake_ctx, i, driven, false);
+            let blown = self.tire_damage.is_blown(i);
+            let cmd = wheel_command(&brake_ctx, i, driven, blown);
             let t = &mut self.tires[i];
             t.brake = cmd.brake;
             t.ebrake = cmd.ebrake;
@@ -55,6 +57,9 @@ impl Vehicle {
                 t.traction_boost *= self.yaw_control * (boost - 1.0) + 1.0;
             }
             t.traction_boost *= nos_boost;
+            if blown {
+                t.traction_boost *= crate::tires::BLOWN_TRACTION;
+            }
             t.traction_circle = (1.0 + 0.2 * h, 1.0 - 0.2 * h);
         }
     }

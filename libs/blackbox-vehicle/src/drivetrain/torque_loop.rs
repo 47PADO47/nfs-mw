@@ -27,7 +27,7 @@ impl Powertrain {
     pub(super) fn torque_loop(&mut self, c: &mut LoopCtx<'_>) -> f32 {
         let dt = c.dt;
         let min_w = self.engine.idle_rad();
-        let max_w = self.engine.red_line_rad();
+        let max_w = self.engine.rev_limit_rad();
         let reverse = self.gear == GEAR_REVERSE;
         let neutral = self.gear == GEAR_NEUTRAL;
         let dir = if reverse { -1.0 } else { 1.0 };

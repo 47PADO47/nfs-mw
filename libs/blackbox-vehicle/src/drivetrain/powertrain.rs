@@ -142,6 +142,11 @@ impl Powertrain {
         self.nos_spec.present()
     }
 
+    /// Lift or restore the rev limiter (see `EngineSpec::no_rev_limiter`).
+    pub fn set_no_rev_limiter(&mut self, on: bool) {
+        self.engine.no_rev_limiter = on;
+    }
+
     pub fn engine_spec(&self) -> &EngineSpec {
         &self.engine
     }
@@ -200,11 +205,11 @@ impl Powertrain {
     /// Road speed (m/s) at `rpm` in `gear`, without the speed limiter.
     pub fn speed_at(&self, rpm: f32, gear: usize) -> f32 {
         let ratio = self.trans.ratio(gear) * self.trans.final_gear;
-        if ratio <= 1e-6 || self.engine.red_line <= self.engine.idle {
+        if ratio <= 1e-6 || self.engine.rev_limit() <= self.engine.idle {
             return 0.0;
         }
         let clutch_rpm =
-            (rpm - self.engine.idle) / ratio / (self.engine.red_line - self.engine.idle) * self.engine.red_line;
+            (rpm - self.engine.idle) / ratio / (self.engine.rev_limit() - self.engine.idle) * self.engine.rev_limit();
         (rpm_to_rad(clutch_rpm) * self.avg_wheel_radius).max(0.0)
     }
 
@@ -219,7 +224,7 @@ impl Powertrain {
 
     /// Top speed: the red line in the top gear, clamped to the limiter.
     pub fn max_speed(&self) -> f32 {
-        let v = self.speed_at(self.engine.red_line, self.trans.top_gear());
+        let v = self.speed_at(self.engine.rev_limit(), self.trans.top_gear());
         match self.engine.speed_limiter[0] {
             l if l > 0.0 => v.min(mph_to_ms(l)),
             _ => v,
@@ -292,14 +297,14 @@ impl Powertrain {
             }
             self.gear = g;
         }
-        let rpm = self.speed_to_rpm(v.abs(), self.gear).clamp(self.engine.idle, self.engine.red_line);
+        let rpm = self.speed_to_rpm(v.abs(), self.gear).clamp(self.engine.idle, self.engine.rev_limit());
         self.omega = rpm_to_rad(rpm);
         self.omega_trans = self.omega;
         self.rpm_display = rpm;
     }
 
     fn speed_to_rpm(&self, v: f32, gear: usize) -> f32 {
-        let (min_w, max_w) = (self.engine.idle_rad(), self.engine.red_line_rad());
+        let (min_w, max_w) = (self.engine.idle_rad(), self.engine.rev_limit_rad());
         let ratio = self.trans.ratio(gear) * self.trans.final_gear;
         let wheel_w = v / self.avg_wheel_radius.max(1e-3);
         rad_to_rpm(min_w + wheel_w * ratio * (max_w - min_w) / max_w)
