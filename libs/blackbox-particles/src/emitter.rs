@@ -66,6 +66,19 @@ struct Particle {
     color: [u8; 4],
 }
 
+/// Where an emitter is in its on and off cycles.
+#[derive(Debug, Clone, Default)]
+struct Cycle {
+    started: bool,
+    on: bool,
+    /// Seconds left in the current on or off phase.
+    left: f32,
+    /// Seconds left before the first on-cycle.
+    delay: f32,
+    /// A one-shot emitter has finished its first on-cycle.
+    done: bool,
+}
+
 /// A running emitter.
 #[derive(Debug, Clone)]
 pub struct Emitter {
@@ -80,6 +93,7 @@ pub struct Emitter {
     enabled: bool,
     /// Live particles allowed; a spawn past it is skipped.
     limit: usize,
+    cycle: Cycle,
 }
 
 impl Emitter {
@@ -96,6 +110,7 @@ impl Emitter {
             rng: Rng::new(seed),
             enabled: true,
             limit: MAX_PARTICLES,
+            cycle: Cycle::default(),
         }
     }
 
@@ -140,6 +155,7 @@ impl Emitter {
     pub fn clear(&mut self) {
         self.particles.clear();
         self.owed = 0.0;
+        self.cycle = Cycle::default();
     }
 
     /// Spawn (when enabled) and then advance every particle, the new ones included, by `dt` seconds.
@@ -147,7 +163,7 @@ impl Emitter {
         if !dt.is_finite() || dt <= 0.0 {
             return;
         }
-        if self.enabled {
+        if self.enabled && self.cycle_on(dt) {
             self.spawn(dt, frame);
         }
         self.advance(dt);
@@ -160,6 +176,49 @@ impl Emitter {
             angle: p.angle,
             color: p.color,
         })
+    }
+
+    /// Advance the on and off cycles by `dt` and say whether the emitter is on for this step. Continuous emitters
+    /// (no on-cycle) are always on.
+    fn cycle_on(&mut self, dt: f32) -> bool {
+        let (on_cycle, on_variance) = (self.spec.on_cycle, self.spec.on_cycle_variance);
+        if on_cycle <= 0.0 {
+            return true;
+        }
+        if !self.cycle.started {
+            self.cycle = Cycle { started: true, on: true, delay: self.spec.start_delay, ..Cycle::default() };
+            self.cycle.left = self.draw_cycle(on_cycle, on_variance);
+        }
+        if self.cycle.done {
+            return false;
+        }
+        if self.cycle.delay > 0.0 {
+            self.cycle.delay -= dt;
+            return false;
+        }
+        self.cycle.left -= dt;
+        // A zero-length phase passes at once; the bound keeps a degenerate spec from looping.
+        for _ in 0..4 {
+            if self.cycle.left > 0.0 {
+                break;
+            }
+            if self.cycle.on && self.spec.one_shot {
+                self.cycle.done = true;
+                return false;
+            }
+            self.cycle.on = !self.cycle.on;
+            let next = match self.cycle.on {
+                true => self.draw_cycle(on_cycle, on_variance),
+                false => self.draw_cycle(self.spec.off_cycle, self.spec.off_cycle_variance),
+            };
+            self.cycle.left += next;
+        }
+        self.cycle.on
+    }
+
+    /// A phase length: `length` plus or minus `variance`, never negative.
+    fn draw_cycle(&mut self, length: f32, variance: f32) -> f32 {
+        (length + (self.rng.unit() * 2.0 - 1.0) * variance).max(0.0)
     }
 
     fn spawn(&mut self, dt: f32, frame: &Frame) {
