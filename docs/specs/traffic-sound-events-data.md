@@ -236,3 +236,7 @@ shape with a `VehicleSoundSet` key, schemas excluded by the `Genesys` name) was 
 (`GLOBAL`, `METALCAR`, `MIXER_CHANNELS`, `REVERB`, `SPEEDSOUNDS`) and `GAMELOGIC/` (including `WEAPONS/` and `HSM/`).
 **Zero candidates in every bundle.** So the per-car sound instances are not stored under this shape in any bundle of the
 `VEHICLES`, `SOUND` or `GAMELOGIC` sets. Their layout is different, and it is not yet identified.
+
+**Type-key reference shape (read, negative).** The `VehicleSoundSet` schema header carries two candidate type keys,
+`0x77B7F019` and `0xBB4E3D72`. Searching every inflated stream of `VEHICLES/` and `SOUND/` for either value found **no**
+occurrence. So an instance does not reference its set by these keys, and the set's type key is not one of these words.
