@@ -229,15 +229,18 @@ refusals.
 
 **The screen (my decision, not yours):** the Controls category has a "Save Alias" row (`input_options.rs`,
 `InputSetting::SaveAlias`). Pressing it sends `Command::SaveAlias`, and `Frontend::save_alias` (`flow.rs`) calls
-`saves::save_default_alias` on the `saves` folder next to the config file. It adds the alias `Default` (pointing at the
-slot `default`) if it is not there, saves the index in the slot `aliases`, and shows "Alias saved." (or the error) in an
+`saves::save_new_alias` on the `saves` folder next to the config file. Each press makes a new named alias, `Save N`, with the
+slot `save-N`. The index is saved in the slot `aliases`, and the alert says "Save N saved." (or the error) in an
 `AlertLogic` alert, titled "save/load" (`SAVE_LOAD_TITLE`, `0x774E4F02`).
-It saves the alias list and, in the slot `default`, the settings (see below).
-Each alias now holds **every setting** (decided, by the user). `saves::save_default_alias` takes the current `Settings`
+It saves the alias index and, in each `save-N` slot, the settings (see below).
+Each alias now holds **every setting** (decided, by the user). `saves::save_new_alias` takes the current `Settings`
 and writes them into the alias's slot as TOML: the config's keys (`write::merge` over `saves::partial_of`), plus the nine
 settings the config file does not carry (`skip_intro`, `always_rain`, `rain_amount`, `game_speed`, `animation_speed`,
 `car_scale`, `no_rev_limiter`, `show_hud_on_look_back`, `headlights_key`), which live in the extra-options layer. A load
-(`saves::load_default_alias`) reads them back, and `Frontend::load_alias` makes them the current settings and marks them
+(`saves::load_latest_alias`, the highest `Save N`) reads them back, and `Frontend::load_alias` makes them the current settings and marks them
+
+Several aliases exist now, but Load reads only the latest: choosing one needs a list screen, which is not built. The
+names are fixed (`Save N`), because the game has no text entry here.
 changed, so they reach the config file like any other change. The round trip is tested with non-default values.
 
 **Career data is not in an alias yet**: the rewrite does not read or write career data, so there is nothing to save.
@@ -261,7 +264,7 @@ Reproduce the Save Alias check with the scripted pad (the frontend runs for real
 
 The screenshot shows the save/load alert ("Alias saved.", one Continue button) over the Controls category. The file is
 written to `<config folder>/saves/aliases.sav`; on the test machine that was `AppData\Roaming\nfsmw\config\saves\`, and it
-holds the 16-byte digest, `Game`, the version `8`, then `Default = "default"`.
+holds the 16-byte digest, `Game`, the version `8`, then the settings as TOML.
 
 **Load Alias** is the eleventh row (`InputSetting::LoadAlias`, `Command::LoadAlias`, `Frontend::load_alias`). It reads
 the alias index with `saves::load_aliases` and shows "Alias loaded." when the default alias is there, "No alias is saved
