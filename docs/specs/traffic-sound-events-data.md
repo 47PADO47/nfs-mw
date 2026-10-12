@@ -480,3 +480,8 @@ a vtable at `0x00F9A3C4`. The constructor at `0x00425360` installs that vtable (
 vtables at `+0x18` (`0xF99700`), `+0x28` (`0xF98EF8`), `+0x50` (`0xF98DB0`) and `+0x98` (`0xF98DAC`), and clears a block of 16 pairs from
 `+0x428`. So the name builder `0x0057BC70` is the first virtual method of a large object that owns the sound-set lookup. Next: read that
 object's other methods, and find which one passes the `CarSelectSound` ID.
+
+**Sound-object vtable (read).** The vtable at `0x00F9A3C4` has 18 method slots: slot 0 `0x0057BC70` (the name builder), 1 `0x00573F70`,
+2 `0x00531A70`, 3 `0x00531A80`, 4 `0x00531A90`, 5 `0x005719C0`, 6 `0x005719D0`, 7 `0x00531AC0`, 8 `0x00531AD0`, 9 `0x00531AE0`,
+10 `0x00425620`, 11 `0x00A874D0`, 12 `0x00A81F90`, 13 `0x00A8CC20`, 14 `0x00425600`, 15 `0x00425610`, 16 `0x00A8B180`, 17 `0x00A8B200`.
+Slot 18 onward is text, so the vtable ends at slot 17. The callers of slot 0 are indirect (`call [reg]`), and they are not yet identified.
