@@ -121,3 +121,8 @@ bucket count, linear probe over empty `-1` slots) and `0x00A52430` (the same pro
 computed by the caller, not by these helpers. The registration function at `0x00A4DF00` calls `0x00A51F10` and `0x00A558A0`
 (the grow/rehash path). Further 12-character slices of the names (first, last, middle, upper case) were rejected as well.
 The caller that turns a type name into the 32-bit key is still unidentified.
+
+**Callers of the registration function (read).** `0x00A4DF00` is called from `0x00A4E224`, `0x00A4E343` and `0x00A4E3C3`.
+The enclosing function of `0x00A4E224` takes the registry key as an argument: at `0x00A4E0CD` it pushes `[esp+0x2C]` (the
+key) into the registry lookup `0x00A52500`, and at `0x00A4E0FB` it stores the key through the output pointer. So the 32-bit
+key is an argument to the registration function, and the caller that supplies it is the next link, not yet identified.
