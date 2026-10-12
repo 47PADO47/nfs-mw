@@ -19,7 +19,8 @@ pub const DAMAGE_ZONES: [&str; 10] = [
 
 #[derive(Debug, Clone)]
 pub struct CarEventSpec {
-    pub sequence: Sequence,
+    /// The car's sequencer, when the car names one that the catalog has. Damage does not need it.
+    pub sequence: Option<Sequence>,
     /// FORCE converted from kN to N.
     pub strength: f32,
     pub suppress_distance: f32,
@@ -28,7 +29,7 @@ pub struct CarEventSpec {
 
 impl CarEventSpec {
     pub fn read(vehicle: CollectionRef<'_>, sequences: &SequenceCatalog) -> Option<Self> {
-        let key = vehicle.get_string_key("EventSequencer")?.hash32;
+        let key = vehicle.get_string_key("EventSequencer").map(|k| k.hash32);
         let damage = vehicle.follow("damagespecs")?;
         let visual_scale = DAMAGE_ZONES.map(|zone| {
             let Some(Value::Raw { bytes, .. }) = damage.get(zone) else { return 0.0 };
@@ -36,7 +37,7 @@ impl CarEventSpec {
             f32::from_le_bytes(value.try_into().unwrap())
         });
         Some(Self {
-            sequence: sequences.get(key)?.clone(),
+            sequence: key.and_then(|k| sequences.get(k)).cloned(),
             strength: damage.get_f32("FORCE").unwrap_or(0.0) * 1000.0,
             suppress_distance: damage.get_f32("SUPPRESS_DIST").unwrap_or(0.0),
             visual_scale,

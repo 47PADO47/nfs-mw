@@ -12,6 +12,7 @@ anyhow.workspace = true
 blackbox-attrib.workspace = true
 blackbox-carparts.workspace = true
 blackbox-chunk.workspace = true
+blackbox-damage.workspace = true
 blackbox-collision.workspace = true
 blackbox-ginsu.workspace = true
 blackbox-gfx.workspace = true

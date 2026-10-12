@@ -66,10 +66,14 @@ impl PhysicsData {
             .and_then(|v| v.follow("rigidbodyspecs"))
             .map(Fields);
         physics.geometry = CarGeometry::read(Arc::new(source.clone()), record).map(Arc::new);
+        // The event sequencer and damage specs come from the nearest ancestor that has them.
         physics.events = self
-            .db
-            .collection("pvehicle", &type_name.to_ascii_lowercase())
-            .and_then(|v| CarEventSpec::read(v, &self.sequences))
+            .lineage(type_name)
+            .into_iter()
+            .find_map(|name| {
+                let vehicle = self.db.collection("pvehicle", &name.to_ascii_lowercase())?;
+                CarEventSpec::read(vehicle, &self.sequences)
+            })
             .map(Arc::new);
         Ok(physics)
     }
