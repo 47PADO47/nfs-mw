@@ -4,11 +4,21 @@
 use bevy_asset::{Assets, RenderAssetUsages};
 use bevy_ecs::prelude::*;
 use bevy_image::Image;
-use bevy_window::{CursorIcon, CustomCursor, CustomCursorImage, PrimaryWindow};
+use bevy_window::{CursorIcon, CustomCursor, CustomCursorImage, PrimaryWindow, Window};
 use blackbox_feng::fe_hash_upper;
+use glam::Vec2;
 use wgpu::{Extent3d, TextureDimension, TextureFormat};
 
+use crate::ui::present::FENG_HEIGHT;
 use crate::ui::{SharedAssets, UiAssets};
+
+/// The window's pointer in FEng units: the 480-unit height fills the window, the origin is the centre of the
+/// screen and y points down. `None` while the pointer is outside the window.
+pub fn feng_point(window: &Window) -> Option<Vec2> {
+    let cursor = window.cursor_position()?;
+    let scale = window.height() / FENG_HEIGHT;
+    Some(Vec2::new((cursor.x - window.width() * 0.5) / scale, (cursor.y - window.height() * 0.5) / scale))
+}
 
 /// The texture's name in the install.
 const POINTER: &str = "PC_CURSOR";
