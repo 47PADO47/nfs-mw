@@ -186,3 +186,9 @@ new head. Five callers (`0x00F10010`, `0x00F10334`, `0x00F1039A`, `0x00F105A9`, 
 `0x00F0FFE2`: for a value above zero, with state byte `[esi+4] <= 1`, it makes a leaf with `0x00F0F9F7`, then links it with the chain builder.
 Values 2 and 3 take a separate path (`0x00F0FE1B`). So the composite is a list of small codes, one per added value, and the codes come from the
 callers. The next step is to identify the caller that adds the `CarSelectSound` ID.
+
+**The other chain-builder callers (read).** Of the four remaining callers of `0x00F0FD86`, two are real call sites:
+- `0x00F10334` links a child node copied from another node (`[eax+4]`).
+- `0x00F1039A` links a leaf made by `0x00F0F94A` (the value-to-leaf factory).
+The callers at `0x00F105A9` and `0x00F1060C` disassemble from mid-instruction offsets, so they are not calls. The `CarSelectSound` ID enters
+the list as a leaf value through `0x00F0F94A`, so the next step is the caller of `0x00F0F94A` that supplies the ID.
