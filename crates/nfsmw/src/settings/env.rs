@@ -42,6 +42,7 @@ pub const COLLISION_SPARKS: &str = "NFSMW_COLLISION_SPARKS";
 pub const SPARK_STYLE: &str = "NFSMW_SPARK_STYLE";
 pub const SPEED_TRAILS: &str = "NFSMW_SPEED_TRAILS";
 pub const EXHAUST_FLAMES: &str = "NFSMW_EXHAUST_FLAMES";
+pub const REAR_VIEW_MIRROR: &str = "NFSMW_REAR_VIEW_MIRROR";
 pub const TRANSMISSION: &str = "NFSMW_TRANSMISSION";
 pub const CAMERA_MODE: &str = "NFSMW_CAMERA_MODE";
 pub const MINIMAP: &str = "NFSMW_MINIMAP";
@@ -105,6 +106,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         spark_style: value(&get, SPARK_STYLE, super::SparkStyle::from_str),
         speed_trails: value(&get, SPEED_TRAILS, parse_bool),
         exhaust_flames: value(&get, EXHAUST_FLAMES, parse_bool),
+        rear_view_mirror: value(&get, REAR_VIEW_MIRROR, parse_bool),
         transmission: value(&get, TRANSMISSION, Transmission::from_str),
         camera_mode: value(&get, CAMERA_MODE, CameraMode::from_str),
         minimap: value(&get, MINIMAP, MinimapMode::from_str),

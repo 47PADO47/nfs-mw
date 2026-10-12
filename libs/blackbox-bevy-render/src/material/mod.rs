@@ -245,6 +245,8 @@ mod tests {
             light_dir: Vec3::new(0.0, 1.0, -1.0).normalize(),
             clear_color: [0.25, 0.5, 0.75],
             fog,
+            scattering: None,
+            surface_light: None,
             camera_cut: false,
         }
     }

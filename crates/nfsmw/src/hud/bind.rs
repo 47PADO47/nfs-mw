@@ -2,6 +2,7 @@
 //! `docs/specs/feng-runtime.md` section 8).
 
 use blackbox_feng::{ObjectRef, PackageId, Runtime, fe_hash_upper};
+use glam::Vec3;
 
 use super::blip_style::BlipStyle;
 use super::blips::BlipBinding;
@@ -16,6 +17,25 @@ pub(super) const SCRIPT_INIT: u32 = blackbox_feng::runtime::INIT_SCRIPT;
 /// The nitrous icon's scripts: while the tank drains, and while it is not draining.
 pub(super) const SCRIPT_NOS_BURNING: u32 = 0x77031C70;
 pub(super) const SCRIPT_NOS_READY: u32 = 0x03826A28;
+/// The rear-view mirror's top group (`0x7fac287b`) and the script that brings it to full colour.
+const MIRROR_FRAME: u32 = 0x7FAC_287B;
+/// The mirror's group of bezel images under it (`0x9ee06631`).
+const MIRROR_GROUP: u32 = 0x9EE0_6631;
+/// The radar's backing group (`0xab9c1d4d`) and its icon and LED group (`0x062743f5`).
+const RADAR_BACKING_GROUP: u32 = 0xAB9C_1D4D;
+const RADAR_ICON_GROUP: u32 = 0x0627_43F5;
+/// The radar's backing image (`0x839e7d77`). The package puts it over the picture; the reference screenshot has it
+/// just under the bezel, so both radar pieces move down by these amounts (docs/specs/rear-view-mirror.md).
+const RADAR_BACKING: u32 = 0x839E_7D77;
+/// The mirror fades in over this many seconds, the length of the game's own mirror track (`len 600`).
+const MIRROR_FADE_SECONDS: f32 = 0.6;
+
+/// The mirror's alpha `elapsed` seconds into its fade-in: 0 at the start, 255 once the fade is done.
+pub fn mirror_fade_alpha(elapsed: f32) -> u8 {
+    (elapsed / MIRROR_FADE_SECONDS).clamp(0.0, 1.0).mul_add(255.0, 0.5) as u8
+}
+const RADAR_BACKING_DROP: f32 = 75.0;
+const RADAR_GROUP_DROP: f32 = 15.0;
 /// Language labels of the speed units.
 const LABEL_KMH: u32 = 0x8569a25f;
 const LABEL_MPH: u32 = 0x8569ab44;
@@ -33,6 +53,12 @@ const GEAR_SHIFTING_ALPHA: u8 = 0x88;
 /// The objects of the package the HUD drives, found once.
 pub struct HudBinding {
     layout: Layout,
+    /// The rear-view mirror and the radar under it are shown (the `rear_view_mirror` setting).
+    mirror_shown: bool,
+    /// The mirror's top group and the group under it, held at full alpha (see `apply`).
+    mirror_frames: [Option<ObjectRef>; 4],
+    /// Seconds since the HUD started, up to the end of the mirror's fade-in.
+    mirror_elapsed: f32,
     digits: [Option<ObjectRef>; 3],
     units: Option<ObjectRef>,
     gear: Option<ObjectRef>,
@@ -70,6 +96,9 @@ impl HudBinding {
     pub fn new(rt: &mut Runtime, package: PackageId) -> Self {
         let mut b = Self {
             layout: Layout::new(rt, package),
+            mirror_frames: [None; 4],
+            mirror_shown: true,
+            mirror_elapsed: 0.0,
             digits: [
                 find(rt, package, "SPEED_DIGIT_1"),
                 find(rt, package, "SPEED_DIGIT_2"),
@@ -91,7 +120,18 @@ impl HudBinding {
             last_nos: 0.0,
             applied_face: None,
         };
-        b.layout.update(rt, false, false, false);
+        b.layout.update(rt, false, false, false, false, true);
+        // The mirror's frame rests fully visible. The game fades it in from a script on an event this build does
+        // not raise, so the fade is skipped here.
+        b.mirror_frames =
+            [MIRROR_FRAME, MIRROR_GROUP, RADAR_BACKING_GROUP, RADAR_ICON_GROUP].map(|h| rt.find(package, h));
+        for (hash, drop) in [(RADAR_BACKING, RADAR_BACKING_DROP), (RADAR_ICON_GROUP, RADAR_GROUP_DROP)] {
+            if let Some(o) = rt.find(package, hash)
+                && let Some(p) = rt.position(o)
+            {
+                rt.set_position(o, p + Vec3::Y * drop);
+            }
+        }
         b
     }
 
@@ -110,9 +150,24 @@ impl HudBinding {
     }
 
     /// Pushes the state into the objects. Call before `Runtime::update`.
+    /// Shows or hides the rear-view mirror and the radar under it. Takes effect at the next `apply`.
+    pub fn set_mirror_shown(&mut self, on: bool) {
+        self.mirror_shown = on;
+    }
+
+    /// Advances the mirror's fade-in by `dt` seconds. Called once per frame, before `apply`.
+    pub fn advance_mirror_fade(&mut self, dt: f32) {
+        self.mirror_elapsed = (self.mirror_elapsed + dt).min(MIRROR_FADE_SECONDS);
+    }
+
     pub fn apply(&mut self, rt: &mut Runtime, s: &HudState) {
         let map = s.minimap.zip(self.minimap.as_ref());
-        self.layout.update(rt, s.has_nos, s.has_turbo, map.is_some());
+        self.layout.update(rt, s.has_nos, s.has_turbo, map.is_some(), s.cop_nearby, self.mirror_shown);
+        // The mirror's frame rests at full alpha, every frame: its own colour track would otherwise leave it at zero.
+        let alpha = mirror_fade_alpha(self.mirror_elapsed);
+        for frame in self.mirror_frames.iter().flatten() {
+            rt.set_alpha(*frame, alpha);
+        }
         if let Some((at, minimap)) = map {
             minimap.apply(rt, s, &at);
         }

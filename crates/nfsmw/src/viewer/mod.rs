@@ -35,6 +35,11 @@ pub trait Scene {
     fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32);
     /// The frame to draw. Instances of the same mesh should be adjacent.
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]);
+    /// The rear-view mirror's frame, when the scene has a car to look back from. The mirror is drawn
+    /// offscreen and shown in the HUD; the car itself is left out of it.
+    fn rear_view(&mut self, _aspect: f32) -> Option<(FrameParams, &[Instance])> {
+        None
+    }
     /// For screenshots: whether everything the first view needs has loaded.
     fn ready(&self) -> bool {
         true

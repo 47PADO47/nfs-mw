@@ -11,10 +11,12 @@ mod effects;
 mod events;
 mod exhaust;
 mod ground;
+mod hud;
 mod keys;
 mod lighting;
 mod object_geometry;
 mod props;
+mod rear_view;
 mod reflections;
 mod residency;
 mod resident;
@@ -91,6 +93,8 @@ pub struct WorldScene {
     wait_for_load: bool,
     fog_distance: f32,
     visible: Vec<Instance>,
+    /// What the rear-view mirror sees: the same world, without the player's car.
+    rear_visible: Vec<Instance>,
     colour_treatment: Option<blackbox_gfx::ColourTreatment>,
     /// The seven original gameplay views, from the install's `camerainfo` data.
     camera_views: Option<nfsmw_data::camera::Views>,
@@ -206,6 +210,7 @@ impl WorldScene {
             wait_for_load: options.wait_for_load,
             fog_distance: options.fog_distance,
             visible: Vec::new(),
+            rear_visible: Vec::new(),
             colour_treatment,
             camera_views,
             gain_map,
@@ -407,6 +412,10 @@ impl Scene for WorldScene {
         (params, &self.visible)
     }
 
+    fn rear_view(&mut self, aspect: f32) -> Option<(FrameParams, &[Instance])> {
+        self.rear_frame(aspect)
+    }
+
     fn ready(&self) -> bool {
         if self.traffic.as_ref().is_some_and(|t| !t.settled()) {
             return false;
@@ -459,17 +468,7 @@ impl Scene for WorldScene {
     }
 
     fn hud_state(&self) -> Option<crate::hud::HudState> {
-        let hidden = Some(crate::hud::HudState { visible: false, ..Default::default() });
-        if self.view == View::Fly {
-            return hidden;
-        }
-        // No car yet (the world is still loading): hidden, not the idle HUD a viewer shows.
-        let mut hud = self.drive.as_ref().and_then(|drive| drive.hud_state()).or(hidden);
-        if let (Some(state), Some(traffic)) = (hud.as_mut(), self.traffic.as_ref()) {
-            traffic.map_blips(&mut state.blips);
-            state.blips.extend_from_slice(&self.map_blips);
-        }
-        hud
+        self.hud_frame()
     }
 
     fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {

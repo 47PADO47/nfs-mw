@@ -240,3 +240,12 @@ fn the_units_follow_the_setting() {
     b.apply(&mut rt, &HudState { use_mph: true, ..Default::default() });
     assert_eq!(text_of(&rt, id, "3rdPersonSpeedUnits").0, "MPH");
 }
+
+#[test]
+fn the_mirror_fades_in_over_the_game_track_length() {
+    use super::bind::mirror_fade_alpha;
+    assert_eq!(mirror_fade_alpha(0.0), 0);
+    assert_eq!(mirror_fade_alpha(0.3), 128);
+    assert_eq!(mirror_fade_alpha(0.6), 255);
+    assert_eq!(mirror_fade_alpha(5.0), 255, "it stays at full once the fade is done");
+}

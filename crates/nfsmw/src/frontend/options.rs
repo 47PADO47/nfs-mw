@@ -37,6 +37,7 @@ pub enum Setting {
     CollisionSparks,
     SpeedTrails,
     ExhaustFlames,
+    RearViewMirror,
     SmokeQuality,
     Transmission,
     Camera,
@@ -210,6 +211,7 @@ impl Setting {
             Setting::CollisionSparks => Data::Text(s.spark_style.label().into()),
             Setting::SpeedTrails => on_off(s.speed_trails),
             Setting::ExhaustFlames => on_off(s.exhaust_flames),
+            Setting::RearViewMirror => on_off(s.rear_view_mirror),
             Setting::SmokeQuality => Data::Text(
                 match s.smoke_quality {
                     SmokeQuality::Standard => "Standard",
@@ -426,6 +428,10 @@ impl Setting {
             Setting::ExhaustFlames => {
                 s.exhaust_flames = !s.exhaust_flames;
                 changed.exhaust_flames = Some(s.exhaust_flames);
+            }
+            Setting::RearViewMirror => {
+                s.rear_view_mirror = !s.rear_view_mirror;
+                changed.rear_view_mirror = Some(s.rear_view_mirror);
             }
             Setting::Transmission => {
                 s.transmission = s.transmission.other();
