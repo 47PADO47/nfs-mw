@@ -68,11 +68,13 @@ impl TrafficWorld {
     /// Starts a chase at `heat` with the wave of `row`; `player` is how the player's car performs.
     pub fn start_pursuit(&mut self, heat: u32, row: HeatRow, player: Performance) {
         self.pursuit = Some(Pursuit::new(heat, row, player));
+        self.police.begin(heat);
     }
 
     /// Ends the chase and removes the cops.
     pub fn stop_pursuit(&mut self) {
         self.pursuit = None;
+        self.police.end();
         self.cars.retain(|c| !c.is_cop());
     }
 
@@ -199,6 +201,17 @@ impl TrafficWorld {
     pub fn pursuit_status(&self) -> String {
         let Some(p) = &self.pursuit else { return "no pursuit".into() };
         let cops: Vec<String> = self.cars.iter().filter(|c| c.is_cop()).map(|c| c.name.clone()).collect();
-        format!("heat {}: {} of {} cops ({})", p.heat, cops.len(), p.wanted(), cops.join(", "))
+        let infractions: Vec<String> = self.police.infractions().iter().map(|i| format!("{i:?}")).collect();
+        let formation = self.police.last_formation().map_or("none yet".to_owned(), |f| format!("{f:?}"));
+        format!(
+            "heat {}: {} of {} cops ({}); formation {formation}; infractions {} for ${}{}",
+            p.heat,
+            cops.len(),
+            p.wanted(),
+            cops.join(", "),
+            infractions.len(),
+            self.police.infractions().total_fines(),
+            if infractions.is_empty() { String::new() } else { format!(" ({})", infractions.join(", ")) },
+        )
     }
 }

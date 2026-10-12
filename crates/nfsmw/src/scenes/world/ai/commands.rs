@@ -88,6 +88,11 @@ fn begin_pursuit(
     let row = heat_row(scene.physics.database(), heat).ok_or("no cop table for that heat")?;
     let names: Vec<String> = row.cops.iter().filter(|c| c.name != "copheli").map(|c| c.name.clone()).collect();
     load_cop_models(scene, renderer, &names)?;
+    // The helicopter is not a car of the wave, but it is drawn from the same model. A model that fails to load only
+    // leaves the helicopter out of the picture.
+    if let Err(e) = load_cop_models(scene, renderer, &["copheli".to_owned()]) {
+        log::warn!("the police helicopter has no model: {e}");
+    }
     let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
     traffic.start_pursuit(heat, row, player);
     Ok(format!("pursuit at heat {heat}: {}", names.join(", ")))
@@ -111,4 +116,31 @@ pub(in crate::scenes::world) fn speeding_pursuit(scene: &mut WorldScene, rendere
         Ok(line) => log::info!("speeding: {line}"),
         Err(e) => log::warn!("speeding: no chase: {e}"),
     }
+}
+
+/// `roadblock`: lays a roadblock of cop cars across the road 250 m ahead (a test of the placement; the support request
+/// that asks for one in a chase is not built, `docs/specs/ai-pursuit-formations.md` section 6). The outcome also goes to
+/// the log file, so a headless run shows it (the console keeps its own buffer).
+pub(in crate::scenes::world) fn roadblock_command(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
+    let result = roadblock_outcome(scene, args);
+    match &result {
+        Ok(text) => log::info!("{text}"),
+        Err(e) => log::warn!("roadblock: {e}"),
+    }
+    result
+}
+
+fn roadblock_outcome(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
+    if !args.is_empty() {
+        return Err("usage: roadblock".into());
+    }
+    let drive = scene.drive.as_ref().ok_or("not driving (use the drive command first)")?;
+    if drive.hud_state().is_none() {
+        return Err("the car is not on the road yet; type the command once the drive has started".into());
+    }
+    let view = drive.player_view();
+    let (collision, _) = scene.residency.world_parts();
+    let surfaces = &scene.physics.surfaces;
+    let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
+    traffic.place_roadblock(view, collision, surfaces).map(|n| format!("roadblock: {n} cop cars placed"))
 }

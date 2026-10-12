@@ -5,6 +5,7 @@ mod camera_choice;
 mod car_lights;
 mod car_loader;
 mod cargo;
+mod damage_marks;
 mod commands;
 mod drive;
 mod drive_input;
@@ -22,6 +23,7 @@ mod rear_view;
 mod reflections;
 mod residency;
 mod resident;
+mod open;
 mod road;
 mod sign_lamps;
 mod simulation;
@@ -132,6 +134,9 @@ pub struct WorldScene {
     exhaust_flames: bool,
     spark_style: crate::settings::SparkStyle,
     smoke_quality: crate::settings::SmokeQuality,
+    rain: crate::weather::rain::Rain,
+    /// The physics clock multiplier (Extra Options `GameSpeed`).
+    tuning: crate::settings::WorldTuning,
     car_shading: crate::settings::CarShading,
     /// `debug collisions` is on: the car's contact points are drawn.
     markers_on: bool,
@@ -154,93 +159,6 @@ const CLEAR: [f32; 3] = [0.55, 0.63, 0.72];
 pub const DEFAULT_CAR: &str = "BMWM3GTR";
 
 impl WorldScene {
-    pub fn open(dir: &GameDir, options: Options) -> Result<Self> {
-        let index = WorldIndex::open(dir, DEFAULT_TRACK)?;
-        let physics = PhysicsData::load(dir)?;
-        let colour_treatment = nfsmw_data::visual_treatment::midday(physics.database());
-        let time_of_day = nfsmw_data::time_of_day::load(physics.database());
-        let camera_views = nfsmw_data::camera::load(physics.database());
-        if colour_treatment.is_none() {
-            log::warn!("midday visual treatment is missing or invalid; grading disabled");
-        }
-        let globals = load_global_textures(dir)?;
-        let gain_map = nfsmw_data::visual_treatment::gain_map(&globals.textures);
-        let mut traffic = index.road_network.clone().map(ai::TrafficWorld::new);
-        if let Some(world) = traffic.as_mut() {
-            world.load_data(physics.database(), index.track_zones.clone());
-        }
-        let props = PropCatalog::new(index.prop_bounds.clone(), physics.database());
-        log::info!("{} props have collision bounds", props.len());
-        let stream = dir.resolve(&index.stream_file).with_context(|| format!("{} is missing", index.stream_file))?;
-        let threads = std::thread::available_parallelism().map_or(4, |n| n.get().clamp(2, 6));
-        let streamer = Streamer::spawn(stream.to_path_buf(), index.sections.clone(), threads);
-        let start = options.at.unwrap_or_else(|| index.centre());
-        let camera = FlyCamera {
-            position: Vec3::new(start[0], start[1], options.height),
-            yaw: options.heading.to_radians(),
-            pitch: options.pitch.to_radians(),
-            speed: 40.0,
-        };
-        log::info!("camera starts at ({:.0}, {:.0}), {:.0} m above the ground", start[0], start[1], options.height);
-        let pending_car = options
-            .drive
-            .map(|d| {
-                let (name, model) = load_car(dir, &d.car)?;
-                let script = d.script.as_deref().map(DriveScript::parse).transpose().map_err(anyhow::Error::msg)?;
-                Ok::<_, anyhow::Error>(PendingCar { name, model, script })
-            })
-            .transpose()?;
-        Ok(Self {
-            dir: dir.clone(),
-            track: index.track.clone(),
-            camera,
-            residency: Residency::new(index.sections, index.visible, streamer, globals, index.collision_grid, props),
-            start,
-            start_height: options.height,
-            // The car is placed on a road, not the camera on the ground.
-            grounded: pending_car.is_some(),
-            wait_for_load: options.wait_for_load,
-            fog_distance: options.fog_distance,
-            visible: Vec::new(),
-            rear_visible: Vec::new(),
-            colour_treatment,
-            time_of_day,
-            camera_views,
-            gain_map,
-            reflection_faces: std::array::from_fn(|_| Vec::new()),
-            reflection_last: None,
-            clock: 0.0,
-            sun: sun::Sun::new(),
-            physics_aspect: 16.0 / 9.0,
-            physics_clock: drive::FixedClock::default(),
-            view: if pending_car.is_some() { View::Chase } else { View::Fly },
-            last_car: pending_car.as_ref().map_or_else(|| DEFAULT_CAR.to_owned(), |c| c.name.clone()),
-            pending_car,
-            drive: None,
-            traffic,
-            map_blips: Vec::new(),
-            traffic_setting: crate::settings::TrafficSettings {
-                cars: 0,
-                cop_share: crate::settings::Percent(0),
-                lights: false,
-            },
-            lamp_meshes: None,
-            traffic_manual: None,
-            physics,
-            tire_effects: [true; 2],
-            vehicle_effects: [false; 2],
-            exhaust_flames: false,
-            spark_style: crate::settings::SparkStyle::OriginalPc,
-            smoke_quality: crate::settings::SmokeQuality::Standard,
-            car_shading: crate::settings::CarShading::default(),
-            markers_on: false,
-            marker_meshes: None,
-            cut: CameraCut::default(),
-            waiting_since: None,
-            camera_mode: CameraMode::default(),
-        })
-    }
-
     /// Map position (x, y) the streaming follows.
     fn focus(&self) -> [f32; 2] {
         match (&self.drive, self.view) {
@@ -277,13 +195,28 @@ impl Scene for WorldScene {
     fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
         if let Some(drive) = self.drive.as_mut() {
             drive.set_car_shading(renderer, self.car_shading, self.sun.to_sun());
+            drive.set_damaged_windows(renderer, self.sun.to_sun());
+            drive.set_car_scale(self.tuning.car_scale);
+            drive.set_no_rev_limiter(self.tuning.no_rev_limiter);
+            drive.set_look_back(input.pressed(Action::LookBack));
         }
+        if input.just_pressed(Action::ToggleHeadlights)
+            && let Some(drive) = self.drive.as_mut()
+        {
+            let on = drive.toggle_headlights();
+            log::info!("headlights {}", if on { "on" } else { "off" });
+        }
+        let camera = match (self.view, self.drive.as_ref()) {
+            (View::Chase, Some(drive)) => drive.camera().position,
+            _ => self.camera.position,
+        };
+        self.rain.update(dt, camera);
         if input.just_pressed(Action::ToggleCamera) && self.drive.is_some() {
             log::info!("{}", self.toggle_view());
         }
         let [x, y] = self.focus();
         self.residency.update(renderer, x, y);
-        self.clock += dt;
+        self.clock += dt * self.tuning.animation_speed;
         self.sun.advance(dt);
         self.residency.animate(renderer, self.clock);
         if self.view == View::Fly {
@@ -357,6 +290,14 @@ impl Scene for WorldScene {
 
     fn set_car_shading(&mut self, shading: crate::settings::CarShading) {
         self.car_shading = shading;
+    }
+
+    fn set_rain(&mut self, always: bool, amount: f32) {
+        self.rain.configure(always, amount);
+    }
+
+    fn set_world_tuning(&mut self, tuning: crate::settings::WorldTuning) {
+        self.tuning = tuning;
     }
 
     fn set_smoke_quality(&mut self, quality: crate::settings::SmokeQuality) {
@@ -460,7 +401,15 @@ impl Scene for WorldScene {
         self.apply_traffic_setting(traffic);
     }
 
+    fn speed_streaks(&self) -> f32 {
+        self.traffic.as_ref().map_or(0.0, |traffic| traffic.streak_strength())
+    }
+
     fn hud_state(&self) -> Option<crate::hud::HudState> {
+        let looking_back = self.drive.as_ref().is_some_and(|d| d.looking_back());
+        if looking_back && !self.tuning.show_hud_on_look_back {
+            return None;
+        }
         self.hud_frame()
     }
 

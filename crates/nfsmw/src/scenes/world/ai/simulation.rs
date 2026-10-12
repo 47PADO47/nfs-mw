@@ -28,12 +28,14 @@ impl TrafficWorld {
         let mut bodies: Vec<(Body, bool)> = self.cars.iter().map(|c| (c.avoidable(), c.is_cop())).collect();
         bodies.extend(self.cars.iter().filter_map(AiCar::loose_trailer_body).map(|b| (b, false)));
         let lights = self.lights_on.then_some(Lights { controller: &self.signals, time: self.signal_time });
+        let aims = focus.body.as_ref().map(|player| self.cop_aims(player)).unwrap_or_default();
         for (me, car) in self.cars.iter_mut().enumerate() {
             let position = glam::Vec3::from_array(super::super::space::to_physics(car.position()));
-            let stop = car.is_cop()
-                && self.breaker_areas.iter().any(|area| {
-                    area.duration > 0.0 && position.distance_squared(area.position) <= area.radius * area.radius
-                });
+            let stop = car.is_roadblock()
+                || (car.is_cop()
+                    && self.breaker_areas.iter().any(|area| {
+                        area.duration > 0.0 && position.distance_squared(area.position) <= area.radius * area.radius
+                    }));
             car.set_breaker_stop(stop);
             let mut ctx = Ctx {
                 net: &self.network,
@@ -42,6 +44,7 @@ impl TrafficWorld {
                 bodies: &bodies,
                 me,
                 player: focus.body,
+                aims: &aims,
                 lights,
             };
             car.step(&mut ctx, collision, props, surfaces);

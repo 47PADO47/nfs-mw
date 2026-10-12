@@ -20,10 +20,12 @@ impl WorldScene {
             return lens;
         }
         let chase = drive.camera();
+        // The high-speed effects widen the view on top of the chase camera's own field of view (nitrous, for now).
+        let kick = self.traffic.as_ref().map_or(0.0, |traffic| traffic.fov_kick());
         if self.camera_mode == CameraMode::DynamicFov {
-            return DynamicFov { chase: &chase, speed: drive.speed().abs() }.lens(aspect);
+            return DynamicFov { chase: &chase, speed: drive.speed().abs(), kick }.lens(aspect);
         }
-        chase.lens(aspect)
+        chase.lens_with_fov(aspect, chase.fov_degrees() + kick)
     }
 
     /// The original view the setting picks, if it picks one and the install's views are loaded.

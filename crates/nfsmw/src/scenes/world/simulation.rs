@@ -30,7 +30,7 @@ impl WorldScene {
         let steps = match (loaded, batch) {
             (false, _) => 0,
             (true, true) => BATCH_STEPS,
-            (true, false) => self.physics_clock.advance(dt),
+            (true, false) => self.physics_clock.advance(dt * self.tuning.game_speed),
         };
         let look = self.drive.as_mut().map_or((0.0, 0.0), |drive| drive.take_look(steps));
         for _ in 0..steps {
@@ -43,6 +43,24 @@ impl WorldScene {
                 traffic.update_sight(&super::drive::walls::world_cast(collision));
             }
             ai::speeding_pursuit(self, renderer);
+            // The helicopter's sight asks the world whether the line to the player is clear.
+            let (collision, _) = self.residency.world_parts();
+            if let (Some(drive), Some(traffic)) = (self.drive.as_ref(), self.traffic.as_mut()) {
+                let view = drive.player_view();
+                let cast = super::drive::walls::world_cast(collision);
+                let clear = |from: glam::Vec3, to: glam::Vec3| cast(from, to).is_none();
+                traffic.update_police(dt, &view, &clear);
+                // A support roll asked for a roadblock: the world places it, and the chase keeps no second one.
+                if traffic.take_roadblock_request() {
+                    match traffic.place_roadblock(view, collision, &self.physics.surfaces) {
+                        Ok(cars) => {
+                            log::info!("support: a roadblock of {cars} cop cars");
+                            traffic.roadblock_placed();
+                        }
+                        Err(e) => log::warn!("support: no roadblock: {e}"),
+                    }
+                }
+            }
         }
         // A loading pause holds the last displayed phase instead of jumping ahead and rewinding.
         let alpha = match batch || dt == 0.0 {

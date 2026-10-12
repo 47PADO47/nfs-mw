@@ -4,6 +4,7 @@
 
 mod car;
 mod collide;
+mod cop_aims;
 mod commands;
 mod cop;
 mod cop_lights;
@@ -13,8 +14,11 @@ mod lamps;
 mod manager;
 mod models;
 mod pattern;
+mod police;
 mod population;
 mod pursuit;
+mod roadblock;
+mod support;
 mod scene;
 mod simulation;
 mod spawn;
@@ -34,13 +38,14 @@ use nfsmw_data::car::physics::CarPhysics;
 
 use super::drive::CarRig;
 use car::AiCar;
-pub(super) use commands::{pursuit_command, speeding_pursuit, traffic_command};
+pub(super) use commands::{pursuit_command, roadblock_command, speeding_pursuit, traffic_command};
 pub use cop::CopCar;
 pub use lamps::LampMeshes;
 use manager::TypeTimers;
 pub(super) use models::load_requested;
 pub use pattern::{Pattern, Patterns};
 pub use population::{ModelRequest, PatrolPlan};
+pub use police::PlayerView;
 pub use pursuit::{CopModel, Pursuit};
 
 /// The traffic manager runs twice a second.
@@ -83,6 +88,7 @@ pub struct TrafficWorld {
     models: Vec<TrafficModel>,
     cop_models: Vec<CopModel>,
     pursuit: Option<Pursuit>,
+    police: police::Police,
     cars: Vec<AiCar>,
     rng: SplitMix,
     alpha: f32,
@@ -141,6 +147,7 @@ impl TrafficWorld {
             models: Vec::new(),
             cop_models: Vec::new(),
             pursuit: None,
+            police: police::Police::default(),
             cars: Vec::new(),
             rng: SplitMix(0x6E66_736D_7721),
             alpha: 0.0,
@@ -219,6 +226,7 @@ impl TrafficWorld {
     /// The cops for the minimap (`docs/specs/hud-cop-blips.md`). A pursuit is on while the world has one.
     pub fn map_blips(&self, out: &mut Vec<crate::hud::MapBlip>) {
         let pursuing = self.pursuit.is_some();
+        self.helicopter_blips(pursuing, out);
         for car in self.cars.iter().filter(|c| c.is_cop()) {
             let at = car.position();
             let forward = car.pose(1.0).rotation * Vec3::X;
@@ -257,6 +265,7 @@ impl TrafficWorld {
         for car in &self.cars {
             car.instances(alpha, out);
         }
+        self.police.instances(out);
     }
 
     /// Removes every car (the models stay loaded).

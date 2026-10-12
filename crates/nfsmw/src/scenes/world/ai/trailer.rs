@@ -193,7 +193,8 @@ impl TrailerCar {
     }
 
     pub fn instances(&self, alpha: f32, out: &mut Vec<blackbox_render::Instance>) {
-        self.rig.instances(&self.pose(alpha), self.sim.events.as_ref().map(|e| &e.hidden_slots), out);
+        let revealed = self.sim.events.as_ref().map(|e| e.revealed_slots()).unwrap_or_default();
+        self.rig.instances(&self.pose(alpha), self.sim.events.as_ref().map(|e| &e.hidden_slots), &revealed, out);
     }
 
     pub fn update_events(&mut self, props: &mut PropWorld, data: &nfsmw_data::car::physics::PhysicsData, view: Vec3) {
