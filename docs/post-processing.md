@@ -1,6 +1,6 @@
 # Post-processing
 
-Three optional effects run on the finished 3D scene: tone mapping, bloom and anti-aliasing (FXAA).
+Three optional effects run on the finished 3D scene: tone mapping, bloom and spatial anti-aliasing.
 They are separate switches, **all off by default**, so the default image is exactly the one the game
 drew before they existed. The HUD and the menus are drawn afterwards and are never affected.
 The design is in [the spec](specs/post-processing.md).
@@ -20,9 +20,10 @@ Video options in the main menu and the pause menu end with Tone Mapping, Bloom a
 screen. In the F12 console, `get post_bloom`, `set post_bloom high` and the shorthand `post_bloom high`
 (likewise `post_tonemap`, `post_aa`) read and change the same settings for the run; they are not saved.
 
-`smaa` and `taa` only exist on the Bevy renderer ([renderers.md](renderers.md)); the native renderer runs
-either as `fxaa` and logs the downgrade, and `set post_aa taa` in the console is refused there with the list
-of what it offers (`off, fxaa`). The Anti-Aliasing menu row cycles only the values the renderer can run.
+`smaa` runs spatial SMAA 1x on native Vulkan/DX12 and on Bevy. `taa` remains Bevy-only
+([renderers.md](renderers.md)); native logs a downgrade to FXAA for a stored TAA request.
+The Anti-Aliasing menu row cycles only the values the renderer can run. The separate
+[graphics lab](graphics-lab.md) offers live comparisons without more menu rows.
 
 ## What each effect does
 
@@ -39,6 +40,8 @@ of what it offers (`off, fxaa`). The Anti-Aliasing menu row cycles only the valu
   single cheap pass (FXAA, written from the published description of version 3.11). It blurs textures
   very slightly. With render scale below 1.0 it runs before the image is scaled up, which is what
   upscalers want as input.
+- **Anti-aliasing (`smaa`).** Native SMAA 1x detects edges and computes spatial blending weights
+  on the display image after upscaling. It has no jitter or frame history. The UI is drawn afterwards.
 
 The effects run in a fixed order: bloom, tone mapping, anti-aliasing. Anti-aliasing comes last so it
 sees the final colours. Each effect that is off costs nothing: no pass is created for it. With all
