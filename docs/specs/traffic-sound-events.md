@@ -306,6 +306,12 @@ published table does not contain that route, so it is removed. The invented `1 +
   reached through `+0x34`. The sim's own class and its `+0x228` writer are not yet read. The base constructor
   `FUN_004B9BB0` (vtable `0x896FA8`) does not set `+0x34`, so the sim is attached after construction, through a later
   call on the owner, which is the next thing to read.
+- The owner vtable (read): `0x00896FF8` slot 1 is `FUN_004F4AC0` (the setup), slot 5 is the `BlewByCop` thunk
+  `0x004C3E30`, and slot 9/10 are `FUN_004AFA80`/`FUN_004AFA90`. `FUN_004F4AC0` stores the mask at `+0x28`, zeroes
+  `+0x1C` and `+0x38`, and calls `FUN_004F2BB0` (per mask bit: finds the component by class id through `FUN_004E5770`,
+  calls its slot 5, appends it to the list at `+0x24`) and `FUN_004F2C60` (walks that list and calls each component's
+  slot 3, then `FUN_004EB8E0`, and clears `+0x30`). **Neither writes `+0x34`.** So the sim pointer at `+0x34` is stored by
+  a different writer, which is still not found.
 - Classification of the 170 `+0x28` indirect calls (read): they fall in 130 distinct enclosing functions. Of the 95 that
   are functions with a `+0x28` call and a named body, **none** references the pool-id global `DAT_008EE558`, the
   descriptor `0x00896800`, the name-hash global `0x00913BD8`, or the pool tables `DAT_0090DF10`/`DAT_0090DFF0`/`DAT_0090DE50`.
