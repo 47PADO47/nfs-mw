@@ -312,6 +312,10 @@ published table does not contain that route, so it is removed. The invented `1 +
   calls its slot 5, appends it to the list at `+0x24`) and `FUN_004F2C60` (walks that list and calls each component's
   slot 3, then `FUN_004EB8E0`, and clears `+0x30`). **Neither writes `+0x34`.** So the sim pointer at `+0x34` is stored by
   a different writer, which is still not found.
+- Store scan for `+0x34` (read): 507 functions contain `MOV [reg+0x34], reg` (opcode `89`, `disp8 = 0x34`). **None** of
+  them references the owner vtables `0x00896FF8`, `0x00897048`, `0x00896FA8` or `0x00896FA0`. So the sim pointer is stored
+  by a generic helper that receives the owner as an argument, not by the function that builds the owner. The helper's
+  callers are the next step.
 - Classification of the 170 `+0x28` indirect calls (read): they fall in 130 distinct enclosing functions. Of the 95 that
   are functions with a `+0x28` call and a named body, **none** references the pool-id global `DAT_008EE558`, the
   descriptor `0x00896800`, the name-hash global `0x00913BD8`, or the pool tables `DAT_0090DF10`/`DAT_0090DFF0`/`DAT_0090DE50`.
