@@ -192,3 +192,10 @@ callers. The next step is to identify the caller that adds the `CarSelectSound` 
 - `0x00F1039A` links a leaf made by `0x00F0F94A` (the value-to-leaf factory).
 The callers at `0x00F105A9` and `0x00F1060C` disassemble from mid-instruction offsets, so they are not calls. The `CarSelectSound` ID enters
 the list as a leaf value through `0x00F0F94A`, so the next step is the caller of `0x00F0F94A` that supplies the ID.
+
+**Callers of the leaf factory and of Add (read).** The value-to-leaf factory `0x00F0F94A` has three callers: `0x00F0FCB4` and `0x00F0FE01`
+(both inside the list code) and `0x00F1038E` (the real caller noted above). The `Add(value)` method `0x00F0FFE2` has nine callers
+(`0x00F102F1`, `0x00F1031B`, `0x00F10372`, `0x00F10714`, `0x00F10CF6`, `0x00F10F2D`, `0x00F11116`, `0x00F1246D`, `0x00F13DDD`). The first,
+at `0x00F102F1`, belongs to a copy-and-add function at `0x00F102D9`: it copies a composite's two children (`[ecx]`, `[ecx+4]`) into the new
+object, then calls `Add` with its own argument (`[ebp+0xC]`). So the value that carries the `CarSelectSound` ID enters at the caller of
+`0x00F102D9`, one level further up. That caller is the next step.
