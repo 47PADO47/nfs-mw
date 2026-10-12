@@ -348,3 +348,9 @@ Next: find the callers of `0x42B870` to see which table holds the car-sound type
 from the object's `+0x30` field and searches the table at `[edi+0x44]`. It then scales float parameters (`+0x5C`..`+0x68`) by the
 per-entry value. So this is the audio-parameter lookup, keyed by the object's type key, and the car-type table is one of the 11
 callers' tables. Next: identify which caller searches the car-type (sound-owner) table.
+
+**`NFS13.exe` car-sound pass, step 3 (read).** The other ten callers of `0x42B870` build their table the same way: the table
+header is `[object + [object+0x188] + 0x1C]`, a per-object indirection at `+0x188`, and the key is pushed by the caller. Callers
+`0x57FEA0`, `0x581BF7`, `0x583B15`, `0x584FA4`, `0x5881E4`, `0x5882D4` and `0x5883C4` read the owner through `[+0x184]`/`[+0x28]`,
+so these are nested sound objects. The car-type table is one of these, but which one is not yet identified from the call sites
+alone.
