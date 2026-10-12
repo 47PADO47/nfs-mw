@@ -316,6 +316,11 @@ published table does not contain that route, so it is removed. The invented `1 +
   them references the owner vtables `0x00896FF8`, `0x00897048`, `0x00896FA8` or `0x00896FA0`. So the sim pointer is stored
   by a generic helper that receives the owner as an argument, not by the function that builds the owner. The helper's
   callers are the next step.
+- **The attach (read).** Narrowing the 349 store functions to those in vtables leaves `FUN_004E4FD0`, which is slot 3 of
+  the owner base vtables `0x00896FA8` (at `0x00896FB4`) and `0x00897048` (at `0x00897054`). `FUN_004E4FD0(this = owner,
+  param_1 = sim)` stores `owner+0x34 = param_1`. So `+0x34` is the car sim, passed in by the caller of owner slot 3. It also
+  sets `owner+0xA8` to 0, 1 or 2 from the list entries of the sim (types `0x20` gives 2, `0x10` gives 1), and reads the sim's
+  tables at `+0x200` and `+0x208`. The caller of owner slot 3 (which creates the sim) is the next read.
 - Classification of the 170 `+0x28` indirect calls (read): they fall in 130 distinct enclosing functions. Of the 95 that
   are functions with a `+0x28` call and a named body, **none** references the pool-id global `DAT_008EE558`, the
   descriptor `0x00896800`, the name-hash global `0x00913BD8`, or the pool tables `DAT_0090DF10`/`DAT_0090DFF0`/`DAT_0090DE50`.
