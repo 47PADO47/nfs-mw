@@ -162,6 +162,14 @@ published table does not contain that route, so it is removed. The invented `1 +
   `FUN_00423580`, `FUN_0047F490`); drive and sound update (`FUN_0047D3C0`); and the car-sound state update `FUN_00472740`,
   whose ramps (rise 4 per second, fall 1 per second at `this+0x50`; rise and fall 0.5 per second at `this+0x6C`) do not match
   the nitrous timing. Not yet checked: about 60 of the 165 hits, mostly physics, rendering and UI code.
+- Evaluator call sites, all read (Ghidra): every direct caller of `0x004B0320` has been decompiled. Each evaluates an
+  interpolator at a different offset of its own object: `FUN_004BC0C0` (`+0x110`, `+0x12C`), `FUN_004BCDC0` (`+0x4C`),
+  `FUN_004BCCD0` (`+0x30`), `FUN_004BCD50` (`+0x68`), `FUN_004BEB40` (`+0x78`), `FUN_004BA340` (a wrapper over whatever it
+  is given), `FUN_004BBB60` (`+0x14C`, `+0x88`), `FUN_004BBAE0` (`+0x6C`), the unnamed block at `0x004BC820` (`+0xD8`,
+  `+0xF4`), `FUN_004EFDB0` (`+0x48`), `FUN_004E66B0` (`+0x3C`), `FUN_004C4DB0` (`+0x88`, `+0x6C`, `+0xA4`), and `0x004DC900`
+  (`+0x34`). None evaluates an interpolator at `+0x44`. The nitrous object's own interpolator (`obj+0x44`) therefore has no
+  direct evaluator call in the binary. Either it is evaluated through a computed or indirect call, or the boost is never
+  evaluated in the original. This is a negative result for the direct-call route, not proof of absence.
 - Hash check: `vlt_hash("nos")` is `B1669F64` (the class `nos`), so the probe hashing is correct.
 - The sound-instance queue is `DAT_00912270` (posted by `FUN_004e52c0`, consumed by `FUN_004ce960`), with instances in
   a table at `0x00912858` (stride `0x68`). The per-instance processor is `FUN_004d0a60` and `FUN_004cfac0`, and the
