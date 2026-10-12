@@ -174,3 +174,10 @@ A search of the inflated `VEHICLES/*.BNDL` streams for the `vlt_hash` values of 
 **one hit**: `MUSTANGGT` (`0xB8BBBF63`) in `VEH_122818_TR.BNDL`, stream offset `0x7747`. That stream is a 768,000-byte table of
 repeated 32-byte records with float data (a vehicle part or light table), so the name hash is present but the record holds
 no sound role. The sound role is still not located, so this is a name source, not the role source.
+
+**`VehicleSoundSet` (read).** `VEHICLES/COMPETITORSOUNDS.BNDL` defines `Genesys.Gen.VehicleSoundSet` and its
+`.Transmission` sub-type. Its schema stream (448 bytes, file offset `0x41F`) has field keys `0x0B3FE48A` and
+`0xA32A93D6` (each repeated three times at offsets `0x5C`, `0x78`, `0x94` and `0xB0`, `0xCC`, `0xE8`, i.e. arrays of a
+sub-record), plus the `VehicleSound` kind key `0x2EDB25E7` with value 4 and the sub-record key `0xB92285F2`. The vehicle ID
+`122818` (MUSTANGGT) does not occur in the competitor sound streams. So the sound set is not keyed by the vehicle ID in this
+bundle, and its instances (which would link a car to a set) are in other streams, not yet read.
