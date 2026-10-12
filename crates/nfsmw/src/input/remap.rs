@@ -14,6 +14,12 @@ use crate::settings::Settings;
 impl Bindings {
     pub fn load(settings: &Settings) -> Self {
         let mut bindings = Self::with_paddles(settings.paddle_up, settings.paddle_down);
+        if let Some(code) = settings.headlights_key {
+            match super::vk::key(code) {
+                Some(key) => bindings.rebind_key(super::action::Action::ToggleHeadlights, key),
+                None => log::warn!("no key for the Headlights hotkey code {code}; the default stays"),
+            }
+        }
         let Some(path) = Settings::config_path() else { return bindings };
         match std::fs::read_to_string(&path) {
             Ok(text) => bindings.apply_config(&text, &path.display().to_string()),
