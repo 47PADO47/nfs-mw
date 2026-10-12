@@ -202,3 +202,8 @@ role value is not read from them.
 with an internal offset sequence (`0x60`, `0x78`, `0x90`, `0xC0`, `0xD8`, `0x120`, `0x138`, `0x160`, ...) and float-like
 words. It looks like a geometry or animation table, not a sound instance. So the unnamed candidates are at least partly
 non-sound data, and the sound instances are still not identified.
+
+**Screen of all `VEH_*` bundles for the `VehicleSoundSet` keys (read, not discriminative).** The keys `0x0B3FE48A`,
+`0xA32A93D6` and `0x8A89E1A3` occur in 12,775 inflated streams of the vehicle bundles (`VEH_1085007_HI` alone has many).
+Such a count means the keys are common values in the binary tables, not a sound-instance signature. So this screen does not
+single out the instance streams, and a different signature is needed.
