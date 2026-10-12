@@ -3,6 +3,8 @@
 
 use blackbox_feng::{ObjectRef, PackageId, Runtime, fe_hash_upper};
 
+use super::blip_style::BlipStyle;
+use super::blips::BlipBinding;
 use super::elements::Layout;
 use super::minimap::MinimapBinding;
 use super::skin::{fill_texture, needle_texture, tach_face_texture};
@@ -44,6 +46,8 @@ pub struct HudBinding {
     turbo_needle: Option<ObjectRef>,
     /// The minimap, once the host has given it a map (see [`HudBinding::with_minimap`]).
     minimap: Option<MinimapBinding>,
+    /// The cop, racer, checkpoint and helicopter objects on the map.
+    blips: BlipBinding,
     shift_on: bool,
     last_nos: f32,
     /// What the face, needle and redline were last set for: skin, scale, red line.
@@ -82,6 +86,7 @@ impl HudBinding {
             nos_bar: rt.find(package, 0xEDFB_6D37),
             turbo_needle: find(rt, package, "3rdperson_TurboDial"),
             minimap: None,
+            blips: BlipBinding::builtin(rt, package),
             shift_on: false,
             last_nos: 0.0,
             applied_face: None,
@@ -92,6 +97,13 @@ impl HudBinding {
 
     /// Gives the HUD a minimap (built from the package's objects and the map's calibration). Without one the
     /// minimap objects stay hidden.
+    /// Registers a custom map blip style (see [`BlipStyle`]); its objects come from the package by its icon names.
+    /// No caller yet: the extension point for custom blips.
+    #[allow(dead_code)]
+    pub fn add_blip_style(&mut self, rt: &mut Runtime, package: PackageId, style: Box<dyn BlipStyle>) {
+        self.blips.add(rt, package, style);
+    }
+
     pub fn with_minimap(mut self, minimap: Option<MinimapBinding>) -> Self {
         self.minimap = minimap;
         self
@@ -103,6 +115,9 @@ impl HudBinding {
         self.layout.update(rt, s.has_nos, s.has_turbo, map.is_some());
         if let Some((at, minimap)) = map {
             minimap.apply(rt, s, &at);
+        }
+        if let Some(minimap) = self.minimap.as_ref() {
+            self.blips.apply(rt, s, minimap);
         }
         self.speedometer(rt, s);
         self.tachometer(rt, s);

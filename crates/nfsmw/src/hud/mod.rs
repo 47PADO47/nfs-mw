@@ -7,6 +7,14 @@
 mod bind;
 #[cfg(test)]
 mod bind_tests;
+mod blip_style;
+#[cfg(test)]
+mod blip_style_tests;
+mod blip_styles;
+mod blips;
+mod cop_blip;
+#[cfg(test)]
+mod cop_blip_tests;
 mod elements;
 #[cfg(test)]
 mod install_tests;
@@ -22,6 +30,8 @@ mod viewport;
 #[cfg(test)]
 mod viewport_tests;
 
+pub use blip_style::MapBlip;
+pub use blip_styles::COP;
 pub use plugin::HudPlugin;
 pub use radio::{RadioHud, show as show_radio};
 pub use state::{HudState, MapPosition};
