@@ -239,3 +239,24 @@ Once the Cheat Engine bridge or Ghidra debugger is up:
 3. Watch `g_WindHeading` (`0x9b0a50`): it should rise by 45 per second and wrap at 360.
 4. Find the source of `FUN_0073c9f0` and the zone table at `0x9b2a9c` to replace the placeholder
    "chance" with the real roll.
+
+## The port's rain (what is drawn)
+
+The drop pool above is now drawn. `weather/rain.rs` steps the weather's rain toward a target, and the
+drop pool around the camera spawns and falls with it. Each falling drop is one vertical streak quad, drawn
+in the world's effect layer (`scenes/world/effects/world.rs`).
+
+- **Target.** The original takes the rain target from the zone rain map (the placeholder "chance" above),
+  which is not reproduced yet. Until it is, the target is full rain when the Extra Options file sets
+  `[Weather] AlwaysRain = 1` (and the amount is above 0), and dry otherwise. So the port has rain only when
+  that switch is on.
+- **Amount.** `[Weather] GeneralRainAmount` scales the spawn rate (`120 * amount` drops per second at full
+  rain). 100 percent is the default.
+- **Motion and box.** The fall speed (14 m/s), the spawn box (50 × 12 × 50 m around the camera) and the
+  recycling band (8 m below and 6 m above the camera's height) are port choices, not measured values. The
+  wind is not applied yet (the drops fall straight down).
+- **Known limits.** The drops are placed in world space, so drops far behind the camera keep falling until
+  they leave the band; the box is not re-centred on the camera's motion.
+
+Code: [`crates/nfsmw/src/weather/rain.rs`](../../crates/nfsmw/src/weather/rain.rs),
+[`extra-options.md`](extra-options.md).
