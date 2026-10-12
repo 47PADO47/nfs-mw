@@ -342,3 +342,9 @@ shorter `VehicleSound` string (VA `0xF9C2A8`) has one code reference, at `0x42B8
 string and a line number `0x207` and calls the logger `0xACFF30`), not a loader. The routine at `0x42B870` is a generic keyed-table
 lookup: it scans a `u32` key array at `[ecx+4]` (count at `[ecx]`) and returns the matching 12-byte entry at `base + index*12`.
 Next: find the callers of `0x42B870` to see which table holds the car-sound types.
+
+**`NFS13.exe` car-sound pass, step 2 (read).** The keyed-table lookup `0x42B870` has 11 callers (`0x4A5FFB`, `0x539D16`, `0x539D36`,
+`0x57C4D4`, `0x57FEA0`, `0x581BF7`, `0x583B15`, `0x584FA4`, `0x5881E4`, `0x5882D4`, `0x5883C4`). The first, at `0x4A5FFB`, passes a key read
+from the object's `+0x30` field and searches the table at `[edi+0x44]`. It then scales float parameters (`+0x5C`..`+0x68`) by the
+per-entry value. So this is the audio-parameter lookup, keyed by the object's type key, and the car-type table is one of the 11
+callers' tables. Next: identify which caller searches the car-type (sound-owner) table.
