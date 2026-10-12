@@ -14,6 +14,21 @@ const CAR_GROUPS: u32 = 0x8000_0000;
 /// The car the player drives.
 pub const PLAYER_CAR: u32 = 0;
 
+/// A fresh identity for one placed vehicle, including a trailer. Shared rigs keep their own default identity.
+pub fn next_car() -> u32 {
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    static NEXT: AtomicU32 = AtomicU32::new(1);
+    let mut id = NEXT.load(Ordering::Relaxed);
+    loop {
+        assert!(id < CAR_GROUPS, "vehicle instance-key groups exhausted");
+        match NEXT.compare_exchange_weak(id, id + 1, Ordering::Relaxed, Ordering::Relaxed) {
+            Ok(_) => return id,
+            Err(current) => id = current,
+        }
+    }
+}
+
 /// The `index`th placed object of map tile `tile`.
 pub fn tile(tile: usize, index: usize) -> InstanceKey {
     InstanceKey::new(tile as u32, index as u32)
@@ -35,7 +50,20 @@ mod tests {
 
     #[test]
     fn scenery_and_cars_never_share_a_key() {
-        let keys = [tile(0, 0), tile(0, 1), tile(1, 0), shared(0), shared(1), car_part(PLAYER_CAR, 0), car_part(1, 0)];
+        let (first, second) = (next_car(), next_car());
+        let keys = [
+            tile(0, 0),
+            tile(0, 1),
+            tile(1, 0),
+            shared(0),
+            shared(1),
+            car_part(PLAYER_CAR, 0),
+            car_part(first, 0),
+            car_part(first, 1),
+            car_part(second, 0),
+            car_part(second, 1),
+        ];
+        assert_eq!(car_part(first, 0).parts().0, car_part(first, 1).parts().0);
         for (i, a) in keys.iter().enumerate() {
             assert!(!a.is_transient());
             for b in &keys[i + 1..] {

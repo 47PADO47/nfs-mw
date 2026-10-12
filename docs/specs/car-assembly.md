@@ -218,6 +218,16 @@ verified]:
 | `REAR_DEFROSTER` | itself (damaged: `WINDOW_DAMAGE0`) |
 | `CARBONFIBRE` skin set | only for carbon hoods (`CARBONFIBRE` attribute) |
 
+**Traffic tires** [decomp, PC build; installed references verified]: the original
+reference is the car type's **base model name** followed by `_TIRE`. Only car
+types whose `usage_type` is 2 redirect it to `TRAFFIC_TIRE`; racer and police
+types retain their own reference. The shared texture is in the global pack.
+Stock `TRAILERLOG` and `TRAILERB` wheel meshes reference their own missing tire
+names, whereas the `SEMI` wheel directly references `TRAFFIC_TIRE`. Apply the
+swap before collecting textures to load, so both data lookup and render upload
+use the shared atlas. The PC constructor and used-texture helper confirm this
+rule; see [provenance](../provenance/car-assembly.md#pc-traffic-tires-2026-10-12).
+
 ## 7. Paint
 
 **Colour.** The base-paint part (slot 76) has attributes `RED`, `GREEN`, `BLUE`, `GLOSS` (0–255) and

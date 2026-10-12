@@ -26,7 +26,7 @@ pub(super) struct PropBody {
 }
 
 impl PropBody {
-    /// A vehicle fragment starts in the named child frame, with its parent mesh pose preserved.
+    /// Runtime fragments are non-virgin births, preserving the mesh pose without placement attachment.
     pub fn fragment(
         bounds: &BoundsSet,
         root: usize,
@@ -53,7 +53,7 @@ impl PropBody {
             initial: rigid.clone(),
             rigid,
             geometry,
-            attached: spec.detach_impulse != 0.0,
+            attached: false,
             moved: true,
             previous: pose,
             lifetime: super::lifetime::Lifetime::default(),
@@ -79,8 +79,13 @@ impl PropBody {
         if !position.is_finite() || !orientation.is_finite() || orientation.length_squared() < 1e-6 {
             return None;
         }
+        // Placement expands the stored quaternion before normalizing the rigid rotation.
+        let pivot = Vec3::from_array(root.pivot);
+        let axis = Vec3::new(orientation.x, orientation.y, orientation.z);
+        let cross = 2.0 * axis.cross(pivot);
+        let offset = pivot + orientation.w * cross + axis.cross(cross);
         let orientation = orientation.normalize();
-        rigid.place(position + orientation * Vec3::from_array(root.pivot), orientation);
+        rigid.place(position + offset, orientation);
         // The original uses volume-weighted object primitives unless a centre marker is present.
         rigid.set_cog(geometry.centre_of_gravity());
         rigid.state = BodyState::Asleep;

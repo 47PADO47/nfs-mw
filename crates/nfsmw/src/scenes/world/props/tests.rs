@@ -6,8 +6,11 @@ use nfsmw_data::world::{LocalBox, PropDynamics};
 
 use super::*;
 
+mod compound;
+mod fragments;
 mod installed;
 mod lifetime;
+mod placement;
 mod support;
 
 pub(super) fn placement(id: u32, at: Vec3, mass: f32, no_car_effect: bool, detach: f32) -> Placed {

@@ -8,6 +8,8 @@ use std::sync::Arc;
 use super::*;
 
 mod clock;
+mod installed_spawn;
+mod startup;
 
 fn physics(spec: VehicleSpec, male: bool) -> CarPhysics {
     let bounds = CarBounds { half_dimensions: spec.dimension, pivot: Vec3::new(0.0, spec.dimension.y, 0.0) };

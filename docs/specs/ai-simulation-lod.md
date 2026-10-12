@@ -148,6 +148,13 @@ Constant, set at spawn, never changed for vehicles (no call to re-rate a vehicle
 task with rate `r` runs every `1/r` ticks; "variable" tasks count render frames
 ([ai-driver-control.md](ai-driver-control.md) section 2).
 
+**[verified PC static, 2026-10-12]** The PC 1.3 task constructor stores the rate and starting accumulator.
+On each eligible frame the scheduler adds the rate to the accumulator and invokes the callback when it
+reaches one, then subtracts one. Variable tasks accumulate actual elapsed frame time and pass that total
+to the callback; their rate is not a period in seconds. The traffic manager registers rate 0.5, offset 0.5
+and variable mode. This establishes scheduler units, not a runtime measurement of population behavior;
+see [traffic provenance](../provenance/ai-traffic.md).
+
 | Task | Rate | Mode | Period at 60 Hz |
 |---|---|---|---|
 | racer / player-car AI think | 0.5 | fixed | 2 ticks (30 Hz) |

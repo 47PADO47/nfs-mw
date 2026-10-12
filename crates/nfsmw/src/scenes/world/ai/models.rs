@@ -5,13 +5,7 @@ use nfsmw_data::pursuit::ai_vehicle;
 
 use super::{CopCar, CopModel, ModelRequest, TrafficModel};
 use crate::scenes::world::drive::CarRig;
-use crate::scenes::world::{WorldScene, load_car, sun};
-
-/// Each traffic model gets its own instance-key group, so its cars never share a key with the player's or another model's.
-fn next_traffic_car() -> u32 {
-    static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
-    NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-}
+use crate::scenes::world::{WorldScene, keys, load_car, sun};
 
 /// The car folders to try for the `pvehicle` `vehicle`, best first: its own name, that name without the `traf`
 /// prefix (`traftaxi` is the folder `TAXI`), then the records it inherits from that are folders themselves
@@ -56,13 +50,14 @@ fn load_body(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, vehicle: 
             .car(vehicle)
             .or_else(|_| scene.physics_of(&model))
             .map_err(|e| format!("{vehicle} has no physics: {e:#}"))?;
-        let rig =
-            std::rc::Rc::new(CarRig::upload(renderer, next_traffic_car(), model, scene.car_shading, sun::to_sun()));
+        let rig = std::rc::Rc::new(CarRig::upload(renderer, keys::next_car(), model, scene.car_shading, sun::to_sun()));
         let horn = horn_of(scene.physics.database(), vehicle);
+        let tractor = scene.physics.is_tractor(vehicle);
         return Ok(TrafficModel {
             name: vehicle.to_ascii_uppercase(),
             rig,
             physics,
+            tractor,
             trailer: None,
             cop_lights: None,
             horn,
@@ -114,14 +109,14 @@ pub(super) fn load_cop_models(
                 let found = nfsmw_data::car::exhaust::particle_textures(&scene.dir, &hashes).unwrap_or_default();
                 super::cop_lights::CopLightSet::build(renderer, &fx, &found)
             });
-        let rig =
-            std::rc::Rc::new(CarRig::upload(renderer, next_traffic_car(), model, scene.car_shading, sun::to_sun()));
+        let rig = std::rc::Rc::new(CarRig::upload(renderer, keys::next_car(), model, scene.car_shading, sun::to_sun()));
         let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
         traffic.add_cop_model(CopModel {
             model: TrafficModel {
                 name: folder,
                 rig,
                 physics,
+                tractor: scene.physics.is_tractor(&car_type),
                 trailer: None,
                 cop_lights,
                 horn: horn_of(scene.physics.database(), &name.to_ascii_lowercase()),

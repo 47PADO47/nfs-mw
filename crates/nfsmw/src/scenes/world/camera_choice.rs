@@ -4,10 +4,10 @@ use glam::Vec3;
 
 use crate::settings::CameraMode;
 use crate::viewer::camera::original::{self, OriginalView};
-use crate::viewer::camera::{Camera, DynamicFov, Lens};
+use crate::viewer::camera::{Camera, ChaseView, DynamicFov, Lens};
 
-use super::View;
-use super::WorldScene;
+use super::drive::{CarPose, Drive};
+use super::{View, WorldScene};
 
 impl WorldScene {
     /// The lens for this frame: an original view on the car, the chase camera (or its dynamic-FOV variant), or the
@@ -16,10 +16,21 @@ impl WorldScene {
         let Some(drive) = self.drive.as_ref().filter(|_| self.view == View::Chase) else {
             return self.camera.lens(aspect);
         };
-        if let Some(lens) = self.original_lens(drive.pose(), drive.speed(), drive.half_extents().1, aspect) {
+        self.car_lens(drive, drive.pose(), drive.camera(), aspect)
+    }
+
+    /// The selected view at the current physics tick, independent of render interpolation and shake.
+    pub(super) fn simulation_lens(&self, aspect: f32) -> Lens {
+        let Some(drive) = self.drive.as_ref().filter(|_| self.view == View::Chase) else {
+            return self.camera.lens(aspect);
+        };
+        self.car_lens(drive, drive.physics_pose(), drive.physics_camera(), aspect)
+    }
+
+    fn car_lens(&self, drive: &Drive, pose: CarPose, chase: ChaseView, aspect: f32) -> Lens {
+        if let Some(lens) = self.original_lens(pose, drive.speed(), drive.half_extents().1, aspect) {
             return lens;
         }
-        let chase = drive.camera();
         // The high-speed effects widen the view on top of the chase camera's own field of view (nitrous, for now).
         let kick = self.traffic.as_ref().map_or(0.0, |traffic| traffic.fov_kick());
         if self.camera_mode == CameraMode::DynamicFov {
@@ -29,13 +40,7 @@ impl WorldScene {
     }
 
     /// The original view the setting picks, if it picks one and the install's views are loaded.
-    fn original_lens(
-        &self,
-        pose: crate::scenes::world::drive::CarPose,
-        speed: f32,
-        half_length: f32,
-        aspect: f32,
-    ) -> Option<Lens> {
+    fn original_lens(&self, pose: CarPose, speed: f32, half_length: f32, aspect: f32) -> Option<Lens> {
         let index = original::index_of(self.camera_mode)?;
         let views = self.camera_views.as_ref()?;
         let forward = pose.rotation * Vec3::X;

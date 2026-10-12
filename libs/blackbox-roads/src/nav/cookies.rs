@@ -3,7 +3,7 @@
 
 use super::{LaneType, NavKind, RoadNav};
 use crate::trail::{Cookie, DEFAULT_GAP, Trail, xz};
-use crate::{RoadNetwork, lane_line_shifted, travel_profile};
+use crate::{Bezier, RoadNetwork, lane_line_shifted, travel_profile};
 
 /// Default corridor half width round a lane that is not a traffic lane, metres.
 const DEFAULT_BOUND: f32 = 2.0;
@@ -99,9 +99,19 @@ impl RoadNav {
 
     /// The cross-section of the corridor at the cursor.
     pub fn cookie(&self, net: &RoadNetwork) -> Cookie {
+        let [left, right] = self.bound_lines(net).map(|line| xz(line.position(self.t)));
+        Cookie::new(self.position, left, right, self.curvature, self.segment)
+    }
+
+    /// Lane bounds use the same join as the centre, so the trail cannot snap back to the node's layout.
+    pub(super) fn bound_lines(&self, net: &RoadNetwork) -> [Bezier; 2] {
         let (left, right) = self.corridor(net);
-        let bound =
-            |delta: f32| xz(lane_line_shifted(net, self.segment, self.node_ind, self.lane, delta).position(self.t));
-        Cookie::new(self.position, bound(left), bound(right), self.curvature, self.segment)
+        let deltas = [left, right];
+        let Some(starts) = self.bound_starts else {
+            return deltas.map(|delta| lane_line_shifted(net, self.segment, self.node_ind, self.lane, delta));
+        };
+        std::array::from_fn(|i| {
+            crate::lane::lane_line_from_start(net, self.segment, self.node_ind, self.lane, deltas[i], starts[i])
+        })
     }
 }

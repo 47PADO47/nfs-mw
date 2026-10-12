@@ -74,8 +74,8 @@ impl RoadNav {
     /// The step onto `segment`, leaving from `node`, in traffic lane `nth` of its profile.
     fn continue_on(&self, net: &RoadNetwork, segment: u16, node: u16, nth: usize, from_curb: bool) -> Step {
         let node_ind = leaving_from(net.segment(segment), node);
-        let start = travel_profile(net, segment, node_ind, false);
-        Step::To { segment, node_ind, lane: pick_lane(&start, nth, from_curb) }
+        let end = travel_profile(net, segment, node_ind, true);
+        Step::To { segment, node_ind, lane: pick_lane(&end, nth, from_curb) }
     }
 
     /// Picks a decision segment at the junction node and the exit road behind it.

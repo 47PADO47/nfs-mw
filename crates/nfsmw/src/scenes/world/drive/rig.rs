@@ -49,7 +49,7 @@ struct Part {
 }
 
 pub struct CarRig {
-    /// Which car this is, for the instance keys.
+    /// Default instance identity; actors that share the uploaded rig supply their own identity.
     car: u32,
     model: CarModel,
     /// Sorted by mesh, as the renderer wants instances of one mesh together.
@@ -166,6 +166,18 @@ impl CarRig {
         revealed: &std::collections::BTreeSet<usize>,
         out: &mut Vec<Instance>,
     ) {
+        self.instances_for(self.car, pose, hidden, revealed, out);
+    }
+
+    /// Draw one physical vehicle while retaining the rig's shared meshes and materials.
+    pub fn instances_for(
+        &self,
+        car: u32,
+        pose: &CarPose,
+        hidden: Option<&std::collections::BTreeSet<usize>>,
+        revealed: &std::collections::BTreeSet<usize>,
+        out: &mut Vec<Instance>,
+    ) {
         let world = pose.transform() * Mat4::from_scale(Vec3::splat(self.scale));
         let posed: Option<[(Mat4, Mat4); 4]> =
             self.model.corners.as_ref().map(|c| std::array::from_fn(|i| c[i].posed(pose.wheels[i])));
@@ -184,7 +196,7 @@ impl CarRig {
                 }
                 _ => placement.transform,
             };
-            out.push(Instance::keyed(part.mesh, world * local, keys::car_part(self.car, part.placement)));
+            out.push(Instance::keyed(part.mesh, world * local, keys::car_part(car, part.placement)));
         }
     }
 

@@ -192,17 +192,22 @@ impl CarSim {
         self.vehicle.step(FIXED_STEP, &input, ground);
         let impact = match world {
             Some((collision, props)) => {
+                let frame = self
+                    .geometry
+                    .as_ref()
+                    .map(|g| BodyGeometryFrame { geometry: &g.body, previous: self.previous_contact_pose });
+                // The original prunes object pairs before its end-frame world collision callback.
+                let mut objects = Impact::default();
+                props.collide_vehicle(&mut self.vehicle, frame, &mut objects);
                 let mut impact = walls::resolve(
                     &mut self.vehicle,
                     &walls::world_cast(collision),
                     &walls::world_props(props),
                     &self.walls,
                 );
-                let frame = self
-                    .geometry
-                    .as_ref()
-                    .map(|g| BodyGeometryFrame { geometry: &g.body, previous: self.previous_contact_pose });
-                props.collide_vehicle(&mut self.vehicle, frame, &mut impact);
+                impact.impulse = impact.impulse.max(objects.impulse);
+                impact.contacts.extend(objects.contacts);
+                impact.damage.splice(0..0, objects.damage);
                 impact
             }
             None => Impact::default(),

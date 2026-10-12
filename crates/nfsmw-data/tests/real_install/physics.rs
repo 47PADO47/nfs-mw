@@ -10,6 +10,19 @@ fn attributes() -> Option<Database> {
     Some(Database::open(&dir.read("GLOBAL/ATTRIBUTES.BIN").unwrap()).expect("attributes.bin"))
 }
 
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn tractor_identity_comes_from_the_installed_body_behavior() {
+    let Some(dir) = install() else { return };
+    let data = physics::PhysicsData::load(&dir).unwrap();
+    for tractor in ["semi", "semib", "semilog", "semicrate", "cs_semi"] {
+        assert!(data.is_tractor(tractor), "{tractor}");
+    }
+    for other in ["trafha", "trafgarb", "trailerlog", "copmidsize", "bmwm3gtr", "not_a_vehicle"] {
+        assert!(!data.is_tractor(other), "{other}");
+    }
+}
+
 fn link<'a>(db: &'a Database, car: &str, field: &str) -> Fields<'a> {
     let pvehicle = db.collection("pvehicle", car).unwrap_or_else(|| panic!("no pvehicle {car}"));
     Fields(pvehicle.follow(field).unwrap_or_else(|| panic!("{car}: no {field} link")))

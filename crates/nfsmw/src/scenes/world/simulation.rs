@@ -4,7 +4,6 @@ use blackbox_gfx::RenderBackend;
 
 use super::{View, WorldScene, ai, drive::STEP};
 use crate::input::ActionState;
-use crate::viewer::camera::Camera;
 
 /// A screenshot update has no elapsed frame time, so it runs this many shared ticks.
 const BATCH_STEPS: u32 = 6;
@@ -83,6 +82,7 @@ impl WorldScene {
     /// Every moving car integrates before pair contacts, and every pose is captured after those contacts.
     fn physics_step(&mut self, driving: bool, look: (f32, f32)) {
         let focus = self.traffic_focus();
+        let event_view = self.simulation_lens(self.physics_aspect).position;
         let (collision, props) = self.residency.world_parts();
         let surfaces = &self.physics.surfaces;
         props.step(&super::drive::WorldGround { collision, surfaces }, STEP);
@@ -94,11 +94,11 @@ impl WorldScene {
             traffic.step(focus, collision, props, surfaces);
             let player = self.drive.as_mut().filter(|_| player_step.is_some()).and_then(|d| d.sim_mut());
             traffic.collide(player);
-            traffic.update_events(props, &self.physics, self.camera.position);
+            traffic.update_events(props, &self.physics, event_view);
             traffic.finish_step(focus, collision, surfaces);
         }
         if let (Some(drive), Some(step)) = (self.drive.as_mut(), player_step) {
-            drive.update_events(props, &self.physics, self.camera.position);
+            drive.update_events(props, &self.physics, event_view);
             drive.finish_step(collision, surfaces, step);
         }
         let stops = props.update_scenery(&self.physics);
@@ -108,10 +108,8 @@ impl WorldScene {
         if let Some(drive) = self.drive.as_mut().filter(|_| driving) {
             drive.follow(collision, look, STEP);
         }
-        let view = match self.drive.as_ref().filter(|_| self.view == View::Chase) {
-            Some(drive) => drive.physics_camera().view_proj(self.physics_aspect),
-            None => self.camera.lens(self.physics_aspect).view_proj(),
-        };
+        let view = self.simulation_lens(self.physics_aspect).view_proj();
+        let (collision, props) = self.residency.world_parts();
         props.update_lifetimes(&super::drive::WorldGround { collision, surfaces }, view, STEP);
     }
 }

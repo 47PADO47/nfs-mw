@@ -92,4 +92,12 @@ impl PhysicsData {
         let vehicle = self.db.collection("pvehicle", &tractor.to_ascii_lowercase())?;
         Some(vehicle.follow("Trailer")?.name()?.to_owned())
     }
+
+    /// The installed rigid-body behaviour, including tractors that have no attached trailer.
+    pub fn is_tractor(&self, name: &str) -> bool {
+        self.db
+            .collection("pvehicle", &name.to_ascii_lowercase())
+            .and_then(|vehicle| vehicle.get_string_key("BEHAVIOR_MECHANIC_RIGIDBODY"))
+            .is_some_and(|behaviour| behaviour.hash32 == vlt_hash("RBTractor"))
+    }
 }

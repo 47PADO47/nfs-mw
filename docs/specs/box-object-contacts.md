@@ -80,6 +80,34 @@ whether separation is possible. Then run the 32-iteration object response.
 
 ## Measured examples and scope
 
+### Compound dispatch
+
+**[verified]** For an eligible pair of bodies, visit the first body's enabled
+object primitives in list order, then each enabled primitive of the second body.
+Prepare the first primitive from the body's current pose at the start of its
+outer iteration. Prepare each second primitive when its pair is visited. Run
+response immediately for every successful narrow phase; do not retain only the
+deepest overlap. Keep the original previous primitive centres for the fixed tick.
+Separation also translates the prepared current collision centres. Repreparing
+from the updated poses before the next pair retains this position change;
+the response does not rotate either body pose.
+An earlier separation can change a subsequent primitive's position and travel,
+even when its impulse solver reports no approaching contact.
+
+The installed car/lamp regression has a deeper nonclosing intact-body contact
+followed by a shallower approaching roof contact. Read-only PC dispatch and
+isolated impulse execution confirm the later pair releases the attachment;
+the measured one-mobile/one-attached separation is applied between those calls.
+The slow control remains attached. This establishes the compound pair behavior,
+not the global broad-phase ordering or a full original gameplay trace.
+
+A synthetic compound/attached-pole control has a nonclosing downward overlap
+of 1.75 m. Separating that pair brings its upper primitive to a valid rightward
+contact of 1 m, which exceeds the attachment threshold. Preparing every contact
+before response would miss this later pair. Disabling the upper primitive keeps
+the attachment. Native dispatch and isolated impulse execution confirm both
+outcomes with the same measured separation adapter.
+
 Equal boxes with half dimensions (1,1,2), centres (0,0,0) and (0,0,3.8),
 no travel: point (0,0,1.8), normal (0,0,-1), penetration 0.2, point on B.
 A small box with half dimensions (0.2,0.7,0.3) at (0,0,2.2): point (0,0,2),
