@@ -273,3 +273,7 @@ to a raw role value of 2 either.
 for a `VehicleSoundSet` field key (`0x0B3FE48A`, `0xA32A93D6`, `0x8A89E1A3`) followed by the 16-byte pattern `(0, 2, 0)`, the
 shape a per-car role value of 2 would take in the schema layout. **Zero occurrences.** So the role value is not stored as a
 keyed field with value 2 in these bundles.
+
+**Runtime check attempt (read, blocked).** With approval, `NFS13.exe` was launched from the install folder (PID 23832, running).
+Attaching CheatEngine failed: the Cheat Engine bridge (v12/v99 pipe) is not reachable on this machine, so no memory was read.
+The role-2 value remains unread. The check needs the Cheat Engine bridge running before it can attach.
