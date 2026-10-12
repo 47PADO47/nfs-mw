@@ -259,6 +259,14 @@ published table does not contain that route, so it is removed. The invented `1 +
   `0x008B2578`, `FUN_0075C550` registers the streaming pool with `0x008B5220`, and `FUN_0078AE80` registers the "Online
   Buffer" pool with `0x008B6888`. None of these is `0x00896800`. So the only registrations of the sound descriptor are
   `FUN_004CC3A0` and the site at `0x004ABFEE`, whose entry is not resolved (the bytes before it are padding).
+- `FUN_004CC3A0` is called only from `FUN_00665FC0`, the game's boot sequence, so the sound pool and its managers are
+  created once at startup.
+- The pool-id global `DAT_008EE558` is read by a family of owner factories whose records sit in a 0x10-byte table at
+  `0x008EE628` (type, name, link, factory at `+0xC`). Each allocates from the pool. Sizes and vtables read:
+  `FUN_004B9D10` (nitrous owner), `FUN_004B9E60` 0x140 (vtable `0x896A60`), `FUN_004BB990` 0x168, `FUN_004BC280` 0x168
+  (vtable `0x896B90`), `FUN_004BCB80` 0x98, `FUN_004BD010` 0xD8, `FUN_004BE350` 0xE0, `FUN_004BEFA0` 0x28 (vtable
+  `0x896DB8`), `FUN_004BF100` 0x28 (vtable `0x896DFC`). None allocates the 0x250 object, so the car sim with `+0x228`
+  is not made through this table, and its owner is still unidentified.
 - Earlier reading (superseded in its object identity, kept for the chain): the `BlewByCop` check reads `+0x228` of the
   car's sound-sim object and compares it with the integer 2. `FUN_004C9CB0` (constructor) stores its float argument at `+0x228` (the role word from a record: `FUN_004CAEF0`
   passes `*(record+0x0C)`). The caller of `FUN_004CAEF0` is `FUN_004CC790`, which builds a 0x28-byte car sub-object from a
