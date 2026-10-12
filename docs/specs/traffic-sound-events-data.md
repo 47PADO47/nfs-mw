@@ -328,3 +328,7 @@ needs a fresh analysis of the `NFS13.exe` car-sim class, which is not yet done.
 (6,049,792 bytes) contains the plain strings `CarSoundConn` and `BlewByCop`, which the install's `NFS13.exe` does not. This is the
 build the Ghidra analysis covers. The runtime check therefore must attach to this `speed.exe`, not to `NFS13.exe` (PID 23832,
 which is the wrong build for the `BlewByCop` gate).
+
+**Runtime read of the Desktop `speed.exe` (read, in progress).** Attached to `speed.exe` (PID 36252). At the menu, the car-sim
+count `DAT_00913DBC` reads `0` and the array pointer `DAT_00913DB4` is `0x00913DC0`, so no car sims exist yet. The sims are
+created when a race or drive loads a car. The next read needs a car in the world, which requires starting an event in the game.
