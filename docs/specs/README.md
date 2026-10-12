@@ -36,6 +36,8 @@ textured sparks and contact glow separately from the experimental restoration.
 [Post-processing](post-processing.md) specifies the optional bloom, tone mapping and FXAA passes (new design).
 
 [Controller settings](controller-settings.md) specifies rewrite response options and saved rebinding.
+
+[EAGL animation banks](eagl-animation.md) records the animation bank layout, the channel evaluators and the 14-byte key format found in `speed.exe`, and what is still unmapped (work in progress; the airliner is not yet animated).
 [Controller UI](controller-ui.md) specifies device ownership, live binding prompts and menu rendering corrections.
 
 [Ground contacts](ground-contact-response.md) and [prop lifetime](prop-lifetime.md)
