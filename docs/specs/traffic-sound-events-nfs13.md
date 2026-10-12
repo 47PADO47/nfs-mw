@@ -206,3 +206,10 @@ object, then calls `Add` with its own argument (`[ebp+0xC]`). So the value that 
 - `0x00F11B79` pushes its own function argument (`[ebp+8]`) with a flag `1`, so it is the data-driven path. Its argument is the value that
   carries the list entry, and the `CarSelectSound` ID is expected to arrive there.
 The next step is the function that contains `0x00F11B79`, and its callers, to find where the `[ebp+8]` argument comes from.
+
+**The enclosing function is a data parser (read).** The function containing the data-driven call `0x00F11B79` starts at `0x00F11862`
+(`mov edi, edi; push ebp; mov ebp, esp`). It has four direct callers: `0x00F11CDE`, `0x00F11EBE`, `0x00F123D8` and `0x00F1350E`. Two of
+them show what it is fed. `0x00F1350E` passes a pair of stack buffers and a counter (`ebx`). `0x00F123D8` passes its own argument
+(`[ebp+8]`) and stores a global at `0x011BBCC4`. So the function parses values out of a data buffer, passing the buffer down a chain of
+callers. The `CarSelectSound` IDs are read by this parser from the entry's data, so the ID-to-sound-set mapping is a parse of the list
+records, not a separate table. The remaining step is to identify the record format that this parser reads.
