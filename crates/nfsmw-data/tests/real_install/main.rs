@@ -14,6 +14,7 @@ mod exhaust;
 mod geometry;
 mod ginsu;
 mod handling;
+mod heli_sheet;
 mod manual;
 mod minimap;
 mod music;
