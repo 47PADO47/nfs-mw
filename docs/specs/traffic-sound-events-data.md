@@ -253,3 +253,7 @@ offset 100 from the ID) is the only categorical field: it takes five values, `18
 `16` (1). Examples: `MUSTANGGT` (`122818`) = 8, `1085007` = 18, `122672` = 18, `122675` = 18. So field 25 is a candidate
 class or sound-set index. **No car has the value 2**, the value the `BlewByCop` gate tests. So field 25 is either not the role
 field, or the role-2 value is stored in another place. The role-2 mapping is still unresolved.
+
+**Role-2 check over the per-car list (read, negative).** None of the 28 words of the 70 per-car records equals `2`, so no car
+in this list has the raw value the `BlewByCop` gate tests. The role-2 value is therefore not stored in this table in that form.
+Word 25 remains a categorical field with no role-2 value. The role-2 mapping is still unresolved.
