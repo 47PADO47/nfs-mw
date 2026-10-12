@@ -347,6 +347,10 @@ published table does not contain that route, so it is removed. The invented `1 +
 - **Vault-marker search (read, negative).** The AttribSys vault chunks `ExpN`, `PtrN`, `DepN`, `StrE` and the pack magic
   `VPAK` were searched in every raw and every inflated stream of the install. **None is present.** So the pvehicle and
   car-descriptor data is not in AttribSys vault form in this install, and the `bnd2` entries use a different record layout.
+- **`bnd2` entry contents (read).** The inflated streams of `GAMELOGIC/GAMEPLAY.BNDL` are Genesys (`CgsResource`,
+  `Genesys.Gen.*`) game-data resources: gameplay triggers, nitrous and heat parameters, pursuit and cop behaviour. The
+  readable strings contain no car type name and no car-sound role. So the `bnd2` gameplay entries do not hold the car
+  descriptors. The role-2 mapping still needs the record that the car-sound constructor reads, which is not located.
 - **`bnd2` header (read).** `GAMELOGIC/GAMEPLAY.BNDL` (216,879 B): `0x00` `bnd2`; `0x04` u32 `0x00010005`; `0x08` u32 file
   size `0x34F2F`; `0x0C` u32 `0x118` (table offset); `0x10` u32 `0x70`; `0x14` u32 `0x4F30`; `0x18`/`0x1C`/`0x20` u32
   `0x34F2F` (end offsets); `0x24` u32 **9** (entry count); `0x34` container name `GAMEDATA`. The table at `0x118` is 0x20-byte
