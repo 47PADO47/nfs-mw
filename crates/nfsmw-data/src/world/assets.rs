@@ -23,6 +23,46 @@ struct Asset {
 /// How far a decal stands off the face it sits on, in metres.
 const DECAL_LIFT: f32 = 0.01;
 
+/// A decal that uses an animated texture but maps only a small patch of it shows that patch, which can look the same
+/// in every frame. Such decals are stretched over the whole texture so the animation shows on them. Only decals whose
+/// coordinates cover less than half the texture on both axes are changed.
+fn spread_animated_decals(solid: &mut Solid, anims: &[TextureAnim]) {
+    let animated: HashSet<u32> =
+        anims.iter().flat_map(|a| std::iter::once(a.name_hash).chain(a.frames.iter().copied())).collect();
+    let ranges: Vec<(usize, usize)> = solid
+        .groups
+        .iter()
+        .skip(1)
+        .filter(|g| g.diffuse_texture(solid).is_some_and(|h| animated.contains(&h)))
+        .map(|g| {
+            let first = g.first_index as usize;
+            (first, first + g.num_triangles as usize * 3)
+        })
+        .collect();
+    for (first, end) in ranges {
+        let verts: HashSet<usize> = solid.indices[first..end].iter().map(|&i| i as usize).collect();
+        let mut lo = [f32::MAX; 2];
+        let mut hi = [f32::MIN; 2];
+        for &i in &verts {
+            for k in 0..2 {
+                lo[k] = lo[k].min(solid.vertices[i].uv[k]);
+                hi[k] = hi[k].max(solid.vertices[i].uv[k]);
+            }
+        }
+        if (0..2).any(|k| hi[k] - lo[k] >= 0.5) {
+            continue;
+        }
+        for &i in &verts {
+            for k in 0..2 {
+                let span = hi[k] - lo[k];
+                if span > 0.0 {
+                    solid.vertices[i].uv[k] = (solid.vertices[i].uv[k] - lo[k]) / span;
+                }
+            }
+        }
+    }
+}
+
 /// Every shared model of a track, sorted by name, each name once.
 pub struct SharedAssets {
     assets: Vec<Asset>,
@@ -51,9 +91,10 @@ impl SharedAssets {
         let mut assets: Vec<Asset> = solids
             .into_iter()
             .filter(|solid| seen.insert(solid.name_hash))
-            .map(|solid| {
+            .map(|mut solid| {
                 let anims: Vec<TextureAnim> =
                     anims.iter().filter(|a| solid.texture_hashes.contains(&a.name_hash)).cloned().collect();
+                spread_animated_decals(&mut solid, &anims);
                 // The frames of an animation are drawn in its place, so they are uploaded with the model too.
                 let hashes: HashSet<u32> = solid
                     .texture_hashes
