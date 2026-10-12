@@ -187,3 +187,8 @@ bundle, and its instances (which would link a car to a set) are in other streams
 `Genesys.Gen` strings and the `VehicleSoundSet` field key `0x8A89E1A3` (streams at `0x1DA9`, `0x36CB`, `0x37AD`, `0x388F`,
 `0x3A39`, `0x3B61`, `0x3C58`). The values after that key do not follow the `(key, 0, value)` pattern of the schema streams,
 so the instance layout differs and is not yet decoded. The role-2 value is therefore not read from these instances yet.
+
+**Stream at `0x3C58` (read).** This stream is a schema, not an instance: it names a `Genesys.Gen.VehicleSound` sub-type
+(`...Position`) and repeats the kind-4 entries of `0x2EDB25E7`, with the key `0x8A89E1A3` as one of its fields. So the
+vehicle bundle stores the schemas of the sound types. The instances (one per car) are in other streams of the same
+bundle, which are not yet isolated. The role-2 value is still unread.
