@@ -8,6 +8,7 @@ use clap::{Args, Parser, Subcommand};
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
 use crate::settings::{Monitor, Partial, Resolution, WindowMode};
+use hud_demo::parse_hud_demo;
 
 const AFTER_HELP: &str = "With no command the game starts as `play` does: the boot movies, the title screen,
 the main menu, then free roam in your car. Give options to `play`
@@ -343,6 +344,12 @@ pub struct ViewArgs {
     /// Disable the tail-pipe flames (nothing of them is loaded).
     #[arg(long)]
     pub no_exhaust_flames: bool,
+    /// Show the rear-view mirror in the HUD [env NFSMW_REAR_VIEW_MIRROR; config `rear_view_mirror`; default on].
+    #[arg(long, conflicts_with = "no_rear_view_mirror")]
+    pub rear_view_mirror: bool,
+    /// Hide the rear-view mirror in the HUD.
+    #[arg(long)]
+    pub no_rear_view_mirror: bool,
     /// Tone-mapping curve: off or aces [env NFSMW_POST_TONEMAP; config `post_tonemap`; default off].
     #[arg(long, value_name = "off|aces")]
     pub post_tonemap: Option<crate::settings::PostTonemap>,
@@ -428,6 +435,7 @@ impl ViewArgs {
             spark_style: self.spark_style,
             speed_trails: switch(self.speed_trails, self.no_speed_trails),
             exhaust_flames: switch(self.exhaust_flames, self.no_exhaust_flames),
+            rear_view_mirror: switch(self.rear_view_mirror, self.no_rear_view_mirror),
             transmission: self.transmission,
             camera_mode: self.camera_mode,
             post_tonemap: self.post_tonemap,
@@ -454,32 +462,6 @@ fn switch(on: bool, off: bool) -> Option<bool> {
     on.then_some(true)
 }
 
-fn parse_hud_demo(s: &str) -> Result<crate::hud::HudState, String> {
-    let n: Vec<f32> =
-        s.split(',').map(|v| v.trim().parse::<f32>().map_err(|e| e.to_string())).collect::<Result<_, _>>()?;
-    let [speed, rpm, max_rpm, gear, rest @ ..] = &n[..] else { return Err(HUD_DEMO_FORMAT.into()) };
-    let (speed, rpm, max_rpm, gear) = (*speed, *rpm, *max_rpm, *gear);
-    if rest.len() > 2 {
-        return Err(HUD_DEMO_FORMAT.into());
-    }
-    let red_line = max_rpm - 500.0;
-    Ok(crate::hud::HudState {
-        speed: speed / 3.6,
-        rpm,
-        max_rpm,
-        red_line,
-        gear: gear as i32,
-        shift_light: rpm > red_line,
-        has_nos: !rest.is_empty(),
-        nos: rest.first().map_or(0.0, |p| p / 100.0),
-        has_turbo: rest.len() > 1,
-        boost_psi: rest.get(1).copied().unwrap_or(0.0),
-        ..Default::default()
-    })
-}
-
-const HUD_DEMO_FORMAT: &str = "expected SPEED,RPM,MAX_RPM,GEAR[,NOS_PERCENT[,BOOST_PSI]]";
-
 fn parse_xy(s: &str) -> Result<[f32; 2], String> {
     let (x, y) = s.split_once(',').ok_or("expected X,Y")?;
     let n = |v: &str| v.trim().parse::<f32>().map_err(|e| e.to_string());
@@ -493,5 +475,6 @@ fn parse_screenshot_size(s: &str) -> Result<[u32; 2], String> {
     Ok([width, height])
 }
 
+mod hud_demo;
 #[cfg(test)]
 mod tests;

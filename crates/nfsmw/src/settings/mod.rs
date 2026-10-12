@@ -37,6 +37,8 @@ mod radio_hud;
 mod ray_tracing;
 #[cfg(test)]
 mod ray_tracing_tests;
+#[cfg(test)]
+mod rear_view_mirror_tests;
 mod renderer;
 #[cfg(test)]
 mod renderer_tests;
@@ -165,6 +167,8 @@ pub struct Settings {
     pub speed_trails: bool,
     /// Flames at the tail pipes: gear-change blow-off and lift-off backfire. Nothing is loaded when off.
     pub exhaust_flames: bool,
+    /// The rear-view mirror in the HUD (the rear view captured from the car, with the radar under it).
+    pub rear_view_mirror: bool,
     /// Who changes gear: the box (default) or the player.
     pub transmission: Transmission,
     pub camera_mode: CameraMode,
@@ -248,6 +252,7 @@ impl From<Partial> for Settings {
             spark_style: p.spark_style.unwrap_or_default(),
             speed_trails: p.speed_trails.unwrap_or(false),
             exhaust_flames: p.exhaust_flames.unwrap_or(true),
+            rear_view_mirror: p.rear_view_mirror.unwrap_or(true),
             transmission: p.transmission.unwrap_or_default(),
             camera_mode: p.camera_mode.unwrap_or_default(),
             minimap: p.minimap.unwrap_or_default(),
