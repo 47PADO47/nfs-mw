@@ -336,6 +336,10 @@ published table does not contain that route, so it is removed. The invented `1 +
   parse `SOUND/*.BNDL` at the top level (`SPEEDSOUNDS.BNDL` is not a bChunk; `METALCAR.BNDL` overruns at `0x1000D`), and
   `docs/formats/audio.md` does not document a car-descriptor role field. So the role-2 mapping needs the car-sound
   bundle format, which is not yet decoded.
+- **Bundle format (read, negative).** The `SOUND/` and `GAMELOGIC/` bundles begin with a `bnd2` header, not a bChunk
+  `VPAK` pack. A byte search of every `.BNDL`, `.BIN` and `.BIG` in the install finds **no** `VPAK` (the attribute
+  database format of `blackbox-attrib`). So the pvehicle and car-descriptor attributes are not in a `VPAK` in this
+  install, and the role field is in a container format that the repo does not yet read.
 - Classification of the 170 `+0x28` indirect calls (read): they fall in 130 distinct enclosing functions. Of the 95 that
   are functions with a `+0x28` call and a named body, **none** references the pool-id global `DAT_008EE558`, the
   descriptor `0x00896800`, the name-hash global `0x00913BD8`, or the pool tables `DAT_0090DF10`/`DAT_0090DFF0`/`DAT_0090DE50`.
