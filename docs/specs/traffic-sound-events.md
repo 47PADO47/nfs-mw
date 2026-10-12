@@ -247,6 +247,13 @@ published table does not contain that route, so it is removed. The invented `1 +
   slot at `0x008AB320`). The class descriptor at `0x00896800` is passed to the registration call `0x00465240` from
   `0x004ABFEE` and `0x004CC3D9`. The object that calls the getter, and so the owner of the `+0x228` state word, is not
   yet identified.
+- Registration callers of `FUN_00465240` (read): `FUN_004CC3A0` (the sound-system initializer: a 0x2000-byte pool, then
+  the sound managers of sizes 0xA8, 0x1C, 0x24, 0x28, 0x20 and so on, stored in `DAT_00911FA8`..`DAT_00911F90`),
+  `FUN_005B0D70`, `FUN_005F7390`, `FUN_0056B820`, `FUN_0070F500`, `FUN_0075C550`, `FUN_0078AE80`, and an undefined
+  site at `0x004ABFF6`. `FUN_00465240` stores the descriptor in a per-id array and calls `FUN_00464D80`, so `0x00896800`
+  is a **pool-type descriptor** of the generic allocator, and its slot 10 is the `CarSoundConn` name lookup. The owner
+  of `+0x228` is therefore a pool client, reached through the allocator's id table (`DAT_0090DFF0`, stride 100). Its
+  client code is not yet read.
 - Earlier reading (superseded in its object identity, kept for the chain): the `BlewByCop` check reads `+0x228` of the
   car's sound-sim object and compares it with the integer 2. `FUN_004C9CB0` (constructor) stores its float argument at `+0x228` (the role word from a record: `FUN_004CAEF0`
   passes `*(record+0x0C)`). The caller of `FUN_004CAEF0` is `FUN_004CC790`, which builds a 0x28-byte car sub-object from a
