@@ -10,6 +10,7 @@ default-members = [
     "libs/blackbox-aems",
     "libs/blackbox-attrib",
     "libs/blackbox-carparts",
+    "libs/blackbox-damage",
     "libs/blackbox-carsound",
     "libs/blackbox-chunk",
     "libs/blackbox-collision",
@@ -23,7 +24,6 @@ default-members = [
     "libs/blackbox-mixmap",
     "libs/blackbox-pursuit",
     "libs/blackbox-speedfx",
-    "libs/blackbox-speedfx",
     "libs/blackbox-movie",
     "libs/blackbox-render",
     "libs/blackbox-scene",
@@ -36,6 +36,7 @@ default-members = [
     "libs/ea-audio",
     "libs/ea-compress",
     "libs/game-install",
+    "libs/save-store",
     "crates/*",
 ]
 
@@ -56,6 +57,7 @@ blackbox-carsound = { path = "libs/blackbox-carsound" }
 blackbox-bevy-render = { path = "libs/blackbox-bevy-render" }
 blackbox-chunk = { path = "libs/blackbox-chunk" }
 blackbox-collision = { path = "libs/blackbox-collision" }
+blackbox-damage = { path = "libs/blackbox-damage" }
 blackbox-driver = { path = "libs/blackbox-driver" }
 blackbox-feng = { path = "libs/blackbox-feng" }
 blackbox-gfx = { path = "libs/blackbox-gfx" }
@@ -66,7 +68,6 @@ blackbox-hash = { path = "libs/blackbox-hash" }
 blackbox-minimap = { path = "libs/blackbox-minimap" }
 blackbox-mixmap = { path = "libs/blackbox-mixmap" }
 blackbox-pursuit = { path = "libs/blackbox-pursuit" }
-blackbox-speedfx = { path = "libs/blackbox-speedfx" }
 blackbox-speedfx = { path = "libs/blackbox-speedfx" }
 blackbox-movie = { path = "libs/blackbox-movie" }
 blackbox-particles = { path = "libs/blackbox-particles" }
@@ -84,6 +85,7 @@ ea-audio = { path = "libs/ea-audio" }
 ea-compress = { path = "libs/ea-compress" }
 fsr3-wgpu = { path = "libs/fsr3-wgpu" }
 game-install = { path = "libs/game-install" }
+save-store = { path = "libs/save-store" }
 # NFS:MW (crates/)
 nfsmw-data = { path = "crates/nfsmw-data" }
 
