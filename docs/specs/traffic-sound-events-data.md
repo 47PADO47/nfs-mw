@@ -147,3 +147,8 @@ bundles are followed by `(0, 4)`: the key is always paired with the value 4, whi
 `VehicleSound`), not a per-car value. No occurrence is followed by the value 2. So a car's role is not stored as the field
 that follows this key, and the per-car `VehicleSound` instances are stored under a different field key that is not yet
 identified.
+
+**Car-name search (read, negative).** A search of the inflated `SOUND` streams for car model names (BMW, Lamborghini,
+Viper, Corvette, Mustang, Cop, RX7, Skyline, Carrera, Ferrari, Porsche, Audi, Mercedes, Subaru) returns only binary
+fragments, with no readable car-type name. So per-car instances are keyed by hashed IDs, and the car identity needs the
+hash-to-name mapping, which is not in these streams.
