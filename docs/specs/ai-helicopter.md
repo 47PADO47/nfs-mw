@@ -330,3 +330,32 @@ State `seek up -> seek car -> fly out`.
 - The helicopter is a regular vehicle entity with `NO_WORLD_COLLISIONS` (skip world queries) and ground and object
   collisions; give it the object-collision weight of 20 000 kg.
 - Keep the skid-hit state machine data-driven by `AirSupportOptions` containing `SKID_HIT`.
+
+## Rewrite status
+
+Implemented in `libs/blackbox-pursuit/src/helicopter/` (sight, flight model, controller, behaviours) and wired in
+`crates/nfsmw/src/scenes/world/ai/police.rs`: it joins from heat 4 after a 10 s wait, takes the per-level fuel and
+respawn tables of section 2.3, follows, skid-hits where the level has `SKID_HIT`, searches, exits, and shows on the
+minimap. Its `COPHELI` model is loaded with the cops and drawn at its pose (render frame rebuilt from the physics nose
+and up). Sight uses the world's ray cast (the line from the helicopter to the player, lifted 1 m, must be clear; the
+`clear` closure in `ai/police.rs`). The heli sheet's chunk parser and its lookup are in `libs/blackbox-roads/src/heli_sheet.rs`
+(section 1 of `docs/formats/pursuit-data.md`). The sheet is read from `STREAML2RA.BUN` when the track opens
+(`crates/nfsmw-data/src/world/heli_sheet.rs`, a header walk: the 532 MB file is not read whole) and is the helicopter's
+floor (`SheetFloor` in `ai/police.rs`; a flat floor when the sheet is missing). On the install the walk gives the
+documented 51 504 triangles (`tests/real_install/heli_sheet.rs`). Not yet seen in a running game. Open: that wiring, rotor sound, and the spotlight/rotor
+wash effects. The shipped numbers are the spec's; the controller is the spec's, not the decompilation's code.
+
+## Verified in `speed.exe` (Ghidra, PC v1.3)
+
+The binary has no symbols; these were found from the strings and their references, and the names are ours.
+
+| Claim | Where | Evidence |
+|---|---|---|
+| Spawn 250 m behind the target | `SpawnPursuitHelicopter` at `0x004269a0` | pushes `0x437A0000` = 250.0f into the nav advance |
+| Height +20 m | same function | adds the float at `0x00890560` = 20.0 to the spawn height |
+| Nav points backward | same function | multiplies the target direction by `0x00890DA8` = -1.0 |
+| One helicopter at a time, a free one is reused | `0x00426610` (an inactive `copheli` in the vehicle pool) | filters the pool by the `copheli` type name, returns the first not spawned |
+| Cop manager asks for a helicopter | `0x0043E8D0` (the cop manager's update) | compares the cop type's hash with `copheli` (`0x008915DC`) and calls `0x004269A0` |
+
+Not yet checked against the binary: the controller constants (section 4), the visual sphere (75 m), the fuel and respawn
+tables (2.3), the skid-hit rules (6.1) and the exit (6.2). The function holding `DoDriving` is not located yet.

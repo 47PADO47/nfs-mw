@@ -316,3 +316,17 @@ car select screen (x0.95); get busted three times and confirm the impound.
 - Whether `RepPointsPerMinute` is truly added every 10 s (`kSecondsPerRepUpdate`) as the code reads.
 - The `fecooling` values and the rule that applies `NewDecal`.
 - The HUD feeder (pursuit values to elements) and the radar detector's target source.
+
+## Rewrite status
+
+- **Evade** (section 2.2): implemented in `libs/blackbox-pursuit/src/evade.rs`. The unseen time fills while no cop sees the
+  player and empties when one does; the chase ends at `evadetimeout` (install values, per heat level). The hiding-spot
+  multiplier applies while the player is in a HIDDEN track zone (kind 8, `TrackZones` from the track's metadata) at its
+  height, within 1.25 m (the spec's rule, section 5 of `docs/formats/pursuit-data.md`). **[unconfirmed]** the zone's
+  `elevation` is read as a physics height; that unit is not checked against the install.
+- **Busted** (the bust meter, `BustSpeed`, `MeterDeadZoneBustedDistance`): not implemented. The fields are read here, but
+  the meter's rule (what fills it and what the player must do) is not in this spec yet.
+- **Heat growth** (section 3.2): done with the bin-free times per level; the career bins are not read.
+- **Evade heat** (section 3.3): an escape multiplies the heat by 0.95 and the value carries into the next chase, as the
+  start heat (`max(heat, base)`). The rewrite has one car and no career, so this is that car's heat only
+  (`Police::carried_heat`). **[unconfirmed]** The install's career rule (every car of the stable) is not modelled.

@@ -322,3 +322,59 @@ wrecked, stops nearby cops. In the sources the whole mechanism is one message an
   spawner depends on the latch.
 - Spike strip: no need for a trigger/simulated swap; a per-tick query of the road props near each racer-class car is
   enough. Use the swept box test with the tire box (0.15 m half width).
+
+## Rewrite status
+
+- **Layouts, the car count, the pick and the placement** (sections 2.1 to 4 as geometry): implemented in
+  `libs/blackbox-pursuit/src/roadblock.rs`, with the 15 normal and 9 spike layouts. A test checks that every layout's
+  cars match its required count. The facing rotation's sign is unconfirmed (see section 2.4).
+- **Not built:** the request and the finding of the spot on the road (sections 1 and 2.1 need the road nav), getting the
+  cars from the pool or stealing out-of-view cops (2.2), spawning the cars and props (2.5), the lifetime, dodging and
+  clean-up (5), the spike-strip test and tire damage (6), and the pursuit breakers' use of the layouts (7).
+
+## Rewrite status (world placement)
+
+- **Placement in the world:** `crates/nfsmw/src/scenes/world/ai/roadblock.rs` places the cop cars of a roadblock: the road
+  spot 250 m ahead of the player (`RoadNav::init_at_point`), a two-lane road (a 3.5 m half width, **[unconfirmed]**), the
+  layout from `blackbox_pursuit::roadblock` (`cars_asked`, `pick`, `place`), and each car through `AiCar::place` at its
+  point and heading. Each car holds its place with the brakes on (the static roadblock goal; the `roadblock` flag, which
+  the simulation keeps braking). Roadblock cars are not in the pursuit's cop list.
+- **Trigger:** the `roadblock` console command only. The support request that asks for one in a chase (section 6 of the
+  formations spec) is not built.
+- **Not built:** barriers and spike strips (they need props), the overlap check against other cars, and the lifetime,
+  dodging and clean-up of section 5.
+- **Not verified in the game:** the placement compiles, but it has not been run yet. The game binary currently fails to
+  build because of unrelated uncommitted changes in `frontend/flow.rs` and `saves.rs`.
+
+## Run result (headless, install, `pursuit 5` then `roadblock`)
+
+- The spot is found and the layout is picked (two cars), but **no car is placed**: both `AiCar::place` calls return
+  `None`. The log shows `roadblock: the car does not fit at (34, 318)` and `(40, 322)` (physics x and z).
+- `AiCar::place` fails in `CarSim::place_moving`, which needs the ground under the spawn point. Placing the cars at the road
+  centre's height instead of the player's did not change the result, so the likely cause is the ground query at that spot
+  (the collision tiles there may not be loaded, or the ray is outside them). Not yet confirmed.
+- Next step: read the ground query used by `place_on_ground_moving` and check it at a point 250 m ahead; compare with the
+  traffic spawn, which places cars 150 to 400 m ahead and works.
+
+## Diagnosis so far (headless, same run)
+
+- At 250 m the cop road is found, but the car is still refused by `place_on_ground_moving`, which fails only when
+  `WorldGround::hit` finds nothing 100 m below the spawn point. Snapping each car to the nav's road point (as the traffic
+  spawn does) did not change it, so the collision under that road point is not hit by the ray.
+- At 120 m the cop-road search finds no road at all (the search uses `SegmentFilter { cop, no_decision }`, which skips junction
+  segments; the spot may be a junction).
+- Open: whether the collision tiles at the 250 m spot are loaded (`residency.simulation_ready` only covers the drive's focus
+  area), and whether `SURFACE_NO_GROUND` or `GROUP_EXCLUSION` excludes that road's faces. The next check is to log
+  `collision` coverage at the spot and the ray's first hit.
+
+## Diagnosis, update (player position)
+
+- The roadblock took its player point from `Focus.body`, which is zero, so every search began at the origin. It now
+  uses the drive's player view (`PlayerView`, converted to physics space).
+- The drive's `player_view` now reads the interpolated pose (`pose().position`), not the raw `current` pose. The police
+  used the same view, so their position (helicopter spawn and sight, the speed effects' input) was also zero before.
+- `--exec` commands run when the window opens, before the drive's car is on the road. A `roadblock` at that point is
+  refused with "the car is not on the road yet". So the headless check needs a delayed trigger, which the console does not
+  have yet. The next step is a way to run the command once the drive has started (for example a delay option for `--exec`,
+  or running it from the drive's first frame).
+- The cause of the earlier "no car fits" lines was the origin-based point, not the ground: those results are superseded.

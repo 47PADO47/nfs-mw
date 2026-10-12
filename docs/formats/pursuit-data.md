@@ -13,6 +13,9 @@ The AttribSys container is in [attributes.md](attributes.md); the track path zon
 
 ## 1. `HeliSheet` chunk `0x00034159` [verified]
 
+**Implementation.** The parser is `blackbox_roads::HeliSheet` (`libs/blackbox-roads/src/heli_sheet.rs`); the top-level walk
+over the stream file is `nfsmw_data::world::heli_sheet::read`. The walk gives 51 504 triangles on the install.
+
 **Where.** `TRACKS/STREAML2RA.BUN`, top-level chunks (the stream file's chunk list is flat): **435 chunks, 940 584 bytes
 in total**, 51 504 triangles. One chunk per *drivable section*; the section number is stored in the chunk (values 101 to
 2030, all 435 distinct). The loader registers the chunk with a `bChunkLoader`; at run time the chunks of the loaded

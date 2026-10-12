@@ -299,3 +299,55 @@ Details in [ai-helicopter.md](ai-helicopter.md). [decomp]
 - The finisher and collapse are a small state machine on the pursuit object; keep the exact branch order of section 5
   (the finisher-running branch takes precedence over the collapse branch).
 - Support vehicles are normal cop cars with a `support_goal`; a flag on the pursuit's vehicle list is enough.
+
+## Rewrite status
+
+- **Choosing the formation (section 2):** implemented as `blackbox-pursuit::formation::Picker` (`libs/blackbox-pursuit/src/formation.rs`):
+  the countdown, the stagger and weighted alternation by attempt parity, the follow override with a standing roadblock, the
+  reset on a heat change, and the per-level records of section 2 (Duration and Frequency). Six tests.
+  **[unconfirmed]** The stagger time of heats 8 and 10 is not in the spec; it is 4 s.
+- **Slots and tightening (section 1):** implemented in `libs/blackbox-pursuit/src/formation/slots.rs`: the pursuit offsets
+  of the six formations as the spec gives them, the box-in and rolling-block tightening (`scale = f k + (1 - k)`, so a full
+  finisher timer gives `1 - k`), and the fill order by priority. Twelve formation tests pass.
+- **Finisher timers (section 5):** implemented in `libs/blackbox-pursuit/src/formation/finisher.rs`: the in-position
+  timer (rate `4 x tolerance`, the clamped reading, the arming at `TimeToFinisher` with `MinFinisherCops`, the just-below
+  hold when too few cops are in place) and the run timer to `FinisherTime`, which ends it and resets the in-position
+  timer. Six tests.
+- **Driving the game:** the picker runs each frame of a chase (`ai/police.rs`) and shows the last formation in the
+  `pursuit status` line. While a formation is chosen, each cop's aim is its slot (`slots::assign`, nearest cops taking the
+  first priority slots, placed in the target's frame; `ai/cop_aims.rs`); with no formation the block and pit rules apply.
+  The tightening is held at its open-timer value (`f = 1`) because the finisher's in-position timer is not yet fed by the
+  cops' distances.
+- **Finisher in the game (section 5):** the cops within `IN_POSITION` (4 m, unconfirmed) of their slots feed
+  `formation::finisher` each frame (`ai/police.rs`, `formation_gap`). When it arms, the cops drive straight at the player
+  for its run (`ai/cop_aims.rs`): a formation with an in-position table (pit, box-in, rolling block; `slots::in_position_offsets`
+  at tightness 0.5, **[unconfirmed]** as the level's tightness is not read) gets each cop its in-position offset, nearest cops
+  first; the other cops chase the player, the ram. The run times are the constants of `finisher_params` (box-in and rolling
+  block 5 s **[unconfirmed]**; pit 2 s). The goals themselves (`AIGoalRam`, `AIGoalPit`, with their braking and steering) are
+  approximated by these aims.
+- **Herd `x` (section 4):** the arithmetic is in `formation::slots` (`herd_crowd`, `herd_offsets`, tested). The inputs
+  (the target's lateral distance from the road centre and the traffic lane offset) come from the road nav, which the
+  formation does not yet read, so the game's herd slots still sit at the table's `x`.
+- **Not built:** the ram and pit goals of the finisher (section 5.1 and the tactics spec),
+  the collapse (5.1), and the support requests (6).
+
+## Rewrite status (collapse)
+
+- **Collapse ring (section 5.1):** the per-level table (speed, inner and outer radius, most cops) and the ring placement are
+  in `libs/blackbox-pursuit/src/formation/collapse.rs`: the farthest candidates form the outer ring and the nearest the
+  inner one, each ring ordered by a pseudo-angle from the front, and evenly spaced slots starting at the front-most cop.
+  Five tests. The table is the spec's verified one.
+- **Driven in the game:** while a formation is chosen and the player's speed is under the level's collapse speed, the cops
+  within 60 m of the player take the ring slots (`ai/cop_aims.rs`, `collapse_aims`); the others keep the chase.
+  **Approximation:** the cops aim at their ring slot and, within 2 m of it, brake and hold the handbrake (`ai/car.rs`,
+  `SLOT_ARRIVAL`, unconfirmed). The `AIGoalPullOver` goal's own drive rules, and the support cars' flight, are not built. The candidates' other exclusions (support vehicles, fleeing cops) are not
+  applied: the rewrite has no support cars or fleeing cops yet.
+
+## Rewrite status (support requests, section 6)
+
+- **The request roll** is in `libs/blackbox-pursuit/src/support.rs`: the priority check (the first leader option whose
+  priority time has passed and whose priority chance beats the roll), then the base roll (the heavy options only while no
+  roadblock stands, then the leader options on what is left), with the 15 s roadblock delay as a constant. The per-level
+  options are the caller's data (the install's, section 6). Seven tests.
+- **Not built:** the cars (SUVs and cross cars from the pool), their spawn points (340 to 150 m ahead or behind), the
+  `AIGoalHeadOnRam` and roadblock goals, the request timers and resets, and the speech.

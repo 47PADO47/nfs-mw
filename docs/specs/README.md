@@ -75,3 +75,8 @@ consuming the vehicle's existing intensities. Its appearance and lifetime are ne
 ## How to check it
 <what to measure in the original game to confirm the implementation matches>
 ```
+
+## Police and high-speed effects
+
+- [police-tactics.md](police-tactics.md): the aim of each cop (block, pit, ram) and what the rule leaves out.
+- [speed-effects.md](speed-effects.md): the high-speed screen effects; the curves are in `libs/blackbox-speedfx`.
