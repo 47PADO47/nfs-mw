@@ -172,3 +172,9 @@ its children is the sound object at `0x00F9A3C4`, which is not established. The 
 caches its result at `[esi+0xC]` (computed only when that is negative) and sums slot-0 results of two child objects, `[esi+8]` and
 `[esi+4]`. It passes no `CarSelectSound` ID. So it is a generic composite size calculation. The candidate is rejected as the name-builder
 caller unless one of its children is the sound object at `0x00F9A3C4`, which is not established. The slot-0 caller remains unidentified.
+
+**The size combiner's class (read).** The combiner at `0x00F0FA9E` (entry, a hot-patch `mov edi, edi` before `0x00F0FAA0`) is slot 0 of
+the vtable at `0x0109D834`. The constructor at `0x00F0FA80` installs that vtable and stores two child pointers, at `+0x4` and `+0x8`, from
+its stack arguments. The vtable has slots 0 to 5 as code: `0x00F0FA9E` (size combiner), `0x00F0FAC9`, `0x00F0FAE5`, `0x00F0FF42`,
+`0x00F0FF46`, `0x00F0FF58`. So this is a binary composite node. It has no direct callers, so its instances come from a factory or a registry.
+The children are not identified, and the sound object at `0x00F9A3C4` is a different class.
