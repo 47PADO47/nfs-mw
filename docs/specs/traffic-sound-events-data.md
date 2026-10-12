@@ -115,3 +115,9 @@ Checked against the type key `0x2EDB25E7` and the sub-record key `0xB92285F2`: `
 combinations of each. **No match.** The hash has 946 callers in `NFS13.exe`, so the Genesys registration call is one of them,
 not yet identified. The type-name string `VehicleSoundResourceType` (VA `0xFA10B0`) has no absolute-address reference, so the
 type table is built at run time from a data table, not from a direct push.
+
+**Registry (read).** The Genesys types are kept in a hash set keyed by a 32-bit value: `0x00A51F10` (bucket `div` by the
+bucket count, linear probe over empty `-1` slots) and `0x00A52430` (the same probe with a load-factor update). The key is
+computed by the caller, not by these helpers. The registration function at `0x00A4DF00` calls `0x00A51F10` and `0x00A558A0`
+(the grow/rehash path). Further 12-character slices of the names (first, last, middle, upper case) were rejected as well.
+The caller that turns a type name into the 32-bit key is still unidentified.
