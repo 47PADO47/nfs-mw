@@ -17,6 +17,9 @@ const FRAME: f32 = 1.0 / 60.0;
 #[path = "prompt_tests.rs"]
 mod prompt_tests;
 
+#[path = "click_tests.rs"]
+mod click_tests;
+
 #[path = "icon_transition_tests.rs"]
 mod icon_transition_tests;
 
