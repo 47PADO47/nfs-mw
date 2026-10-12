@@ -189,6 +189,18 @@ published table does not contain that route, so it is removed. The invented `1 +
 - `FUN_004D8EF0` only resets node data; it does not insert. The insertion of a node into `+0x20` or `+0x24` was not found.
   A whole-binary scan finds 74 stores of a register into `[reg+0x20]` or `[reg+0x24]` in `0x4D0000` to `0x4F0000`; most
   belong to other classes. The insertion is the next check.
+- Membership of the nitrous object in the owner's list (resolved to a condition, Ghidra):
+  - The owner's slot 1 is `FUN_004F4AC0`. It stores its argument (a mask) at `+0x28`, clears `+0x1C` and `+0x38`, and calls
+    `FUN_004F2BB0`, then `FUN_004F2C60`.
+  - `FUN_004F2BB0` loops over the 32 bits of the mask at `+0x28`. For each set bit it creates an object with
+    `FUN_004E5770(owner+0xC, owner+0x10, bit)` and appends it to the owner's `+0x24` list (count at `+0x2C`).
+  - `FUN_004E5770` looks up a record by class ID in a table and calls the record's factory with the record's flag
+    bits. For the nitrous object the factory is `FUN_004F8050` (its argument is the flag). That the record's factory is
+    `FUN_004F8050` is **[inferred]** from the call shape, not read from the table.
+  - So the nitrous object is on the list whenever its record's bit is set in the mask at `+0x28`. The mask comes from car
+    data and was not read. `FUN_004EB8E0` also appends to `+0x20` on demand, by ID.
+  - Consequence: if the nitrous object is on the list, its update (slot 9) runs each frame and its slot `+0x30` is a `RET`.
+    The boost interpolator is then never evaluated, so the boost ramp is never applied (see the list-walker entry above).
 - Hash check: `vlt_hash("nos")` is `B1669F64` (the class `nos`), so the probe hashing is correct.
 - The sound-instance queue is `DAT_00912270` (posted by `FUN_004e52c0`, consumed by `FUN_004ce960`), with instances in
   a table at `0x00912858` (stride `0x68`). The per-instance processor is `FUN_004d0a60` and `FUN_004cfac0`, and the
