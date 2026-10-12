@@ -178,3 +178,11 @@ the vtable at `0x0109D834`. The constructor at `0x00F0FA80` installs that vtable
 its stack arguments. The vtable has slots 0 to 5 as code: `0x00F0FA9E` (size combiner), `0x00F0FAC9`, `0x00F0FAE5`, `0x00F0FF42`,
 `0x00F0FF46`, `0x00F0FF58`. So this is a binary composite node. It has no direct callers, so its instances come from a factory or a registry.
 The children are not identified, and the sound object at `0x00F9A3C4` is a different class.
+
+**The composite node factory and its callers (read).** The composite nodes are created in two places that store the vtable `0x0109D834`:
+the constructor `0x00F0FA80` and the chain builder `0x00F0FD86`. The chain builder (entry `0x00F0FD86`) allocates a 16-byte node from pool
+`0x011BBCA4`, sets its first child to the object's current head (`[esi]`), sets its second child to its argument, and stores the node as the
+new head. Five callers (`0x00F10010`, `0x00F10334`, `0x00F1039A`, `0x00F105A9`, `0x00F1060C`) use it. The first is an `Add(value)` method at
+`0x00F0FFE2`: for a value above zero, with state byte `[esi+4] <= 1`, it makes a leaf with `0x00F0F9F7`, then links it with the chain builder.
+Values 2 and 3 take a separate path (`0x00F0FE1B`). So the composite is a list of small codes, one per added value, and the codes come from the
+callers. The next step is to identify the caller that adds the `CarSelectSound` ID.
