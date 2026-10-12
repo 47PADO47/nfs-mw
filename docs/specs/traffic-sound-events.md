@@ -180,6 +180,15 @@ published table does not contain that route, so it is removed. The invented `1 +
   starts or stops the boost, and nothing evaluates its interpolator. The boost value at `obj+0x58` then stays at the start
   value that `FUN_004B02B0` writes (0), if the object is on this list. This is a strong lead that the original never
   applies the boost ramp, not a finished proof. The remaining check is where the nitrous object is inserted into the list.
+- The list owner (membership check, in progress). Its vtable is `0x00898614`. Its constructor is `FUN_004D8EC0` (writes the
+  vtable at `0x004D8EC4`), its destructor is `FUN_004E53B0`, which calls `FUN_004D9250` (walks `+0x20` and `+0x24`, calls
+  each node's slot 0 with delete). Vtable slots: 0 `0x004EB860`, 1 `0x004F4AC0`, 2 `0x004AFB00`, 3 `0x004D9300`, 4
+  `0x004D9190` (walks `+0x24`, calls node slot `+0x18`), 5 `0x004D91D0` (the update walker of section 1.4), 6 `0x004D91B0`
+  (walks `+0x24`, calls node slot `+0x28`), 7 `0x004F4AF0`, 8 `0x004D9250` (cleanup), 9 `0x004D8EA0`, 10 `0x004D8EB0`,
+  11 `0x00574E50`, 12 `0x004D95A0`, 13 `0x004D95D0`, 14 `0x004D95E0`, 15 `0x004D9600`.
+- `FUN_004D8EF0` only resets node data; it does not insert. The insertion of a node into `+0x20` or `+0x24` was not found.
+  A whole-binary scan finds 74 stores of a register into `[reg+0x20]` or `[reg+0x24]` in `0x4D0000` to `0x4F0000`; most
+  belong to other classes. The insertion is the next check.
 - Hash check: `vlt_hash("nos")` is `B1669F64` (the class `nos`), so the probe hashing is correct.
 - The sound-instance queue is `DAT_00912270` (posted by `FUN_004e52c0`, consumed by `FUN_004ce960`), with instances in
   a table at `0x00912858` (stride `0x68`). The per-instance processor is `FUN_004d0a60` and `FUN_004cfac0`, and the
