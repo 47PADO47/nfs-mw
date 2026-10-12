@@ -3,7 +3,14 @@
 use crate::scenes::world::sign_lamps;
 use blackbox_gfx::{EffectLayer, RenderBackend};
 
+use super::super::damage_marks::Mark;
 use super::super::{View, WorldScene};
+
+/// Rain streaks: a pale blue, dim enough to read as water rather than light.
+const RAIN_COLOUR: [u8; 4] = [180, 200, 255, 90];
+/// Damage marks: a dark scrape and a pale crack line.
+const SCUFF_COLOUR: [u8; 4] = [40, 40, 40, 170];
+const CRACK_COLOUR: [u8; 4] = [235, 240, 245, 210];
 
 impl WorldScene {
     pub(in crate::scenes::world) fn upload_effects(&mut self, renderer: &mut dyn RenderBackend) {
@@ -20,11 +27,24 @@ impl WorldScene {
         let (pose, bounds) = drive.spark_body();
         drive.vehicle_effects.set_body(pose, bounds);
         let (lamps, lamp_frame, lamp_state) = drive.lamp_source();
+        let damage = drive.damage_quads();
         let layer = drive.effects.build(position, forward);
         drive.vehicle_effects.geometry(position, forward, matches!(self.view, View::Chase), &mut layer.streaks);
         drive.vehicle_effects.glows(position, forward, &mut layer.glows);
         lamps.glows(lamp_frame, lamp_state, position, forward, &mut layer.glows);
-        lamps.beams(lamp_frame, &mut layer.streaks);
+        lamps.beams(lamp_frame, lamp_state.headlights, &mut layer.streaks);
+        for mark in damage {
+            let colour = match mark.mark {
+                Mark::Scuff => SCUFF_COLOUR,
+                Mark::Crack => CRACK_COLOUR,
+            };
+            blackbox_gfx::EffectLayer::quad(&mut layer.streaks, mark.corners, colour);
+        }
+        let mut drops = Vec::new();
+        self.rain.streaks(position, &mut drops);
+        for quad in drops {
+            blackbox_gfx::EffectLayer::quad(&mut layer.streaks, quad, RAIN_COLOUR);
+        }
         let signs = self.residency.placed().filter_map(|p| p.curve_lamp);
         sign_lamps::glows(signs, drive.lamp_time, position, forward, &mut layer.glows);
         if let Some(traffic) = &self.traffic {

@@ -83,6 +83,8 @@ pub struct LampState {
     pub reverse: bool,
     /// The steering, -1 to 1; positive steers left, so the left signals blink.
     pub steer: f32,
+    /// The headlights are on.
+    pub headlights: bool,
     /// The cop light bar is on.
     pub siren: bool,
     /// Simulated seconds, for the blinking.
@@ -141,7 +143,10 @@ impl CarLights {
 
     /// Appends a faint additive beam ahead of each headlight, as flat streaks at the lamp's height, for a car whose
     /// model frame is `to_world`. An approximation of the original's projected headlight cone.
-    pub fn beams(&self, to_world: Mat4, out: &mut Vec<EffectVertex>) {
+    pub fn beams(&self, to_world: Mat4, headlights: bool, out: &mut Vec<EffectVertex>) {
+        if !headlights {
+            return;
+        }
         let colour = geometry::color(HEAD_COLOUR, BEAM_BRIGHTNESS);
         for lamp in self.lamps.iter().filter(|l| l.kind == Kind::Head) {
             let at = lamp.at;
@@ -181,7 +186,7 @@ fn look(kind: Kind, state: LampState) -> Option<(f32, [f32; 4], f32)> {
     let brake = if state.brake.is_nan() { 0.0 } else { state.brake.clamp(0.0, 1.0) };
     let steer = if state.steer.is_nan() { 0.0 } else { state.steer.clamp(-1.0, 1.0) };
     match kind {
-        Kind::Head => Some((HEAD_RADIUS, HEAD_COLOUR, HEAD_BRIGHTNESS)),
+        Kind::Head => state.headlights.then_some((HEAD_RADIUS, HEAD_COLOUR, HEAD_BRIGHTNESS)),
         Kind::Tail => {
             let lit = TAIL_REST + (TAIL_BRAKE - TAIL_REST) * brake;
             Some((TAIL_RADIUS + (TAIL_BRAKE_RADIUS - TAIL_RADIUS) * brake, TAIL_COLOUR, lit))
@@ -205,7 +210,8 @@ fn look(kind: Kind, state: LampState) -> Option<(f32, [f32; 4], f32)> {
 mod tests {
     use super::*;
 
-    const RELEASED: LampState = LampState { brake: 0.0, reverse: false, steer: 0.0, siren: false, time: 0.0 };
+    const RELEASED: LampState =
+        LampState { brake: 0.0, reverse: false, steer: 0.0, headlights: true, siren: false, time: 0.0 };
 
     #[test]
     fn braking_brightens_and_widens_only_the_tail_lamps() {
@@ -266,7 +272,24 @@ mod tests {
             Lamp { at: Vec3::new(-2.0, 0.5, 0.5), kind: Kind::Tail },
         ]);
         let mut out = Vec::new();
-        lights.beams(Mat4::IDENTITY, &mut out);
+        lights.beams(Mat4::IDENTITY, true, &mut out);
         assert_eq!(out.len(), 12);
+    }
+
+    #[test]
+    fn headlights_off_darkens_the_beams_and_the_head_glows_only() {
+        let lights = CarLights::new(vec![
+            Lamp { at: Vec3::new(2.0, 0.5, 0.5), kind: Kind::Head },
+            Lamp { at: Vec3::new(-2.0, 0.5, 0.5), kind: Kind::Tail },
+        ]);
+        let camera = Vec3::new(-10.0, 0.0, 1.0);
+        let mut on = Vec::new();
+        lights.glows(Mat4::IDENTITY, RELEASED, camera, Vec3::X, &mut on);
+        let mut off = Vec::new();
+        lights.glows(Mat4::IDENTITY, LampState { headlights: false, ..RELEASED }, camera, Vec3::X, &mut off);
+        assert_eq!(on.len() - off.len(), 6, "one headlight glow, six vertices");
+        let mut beams = Vec::new();
+        lights.beams(Mat4::IDENTITY, false, &mut beams);
+        assert!(beams.is_empty());
     }
 }

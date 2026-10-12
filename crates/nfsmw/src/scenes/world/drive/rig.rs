@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use blackbox_gfx::{Instance, MeshHandle, RenderBackend, Shading};
 use blackbox_scene::upload_solid;
 use glam::{Mat4, Quat, Vec3};
-use nfsmw_data::car::{CarModel, WheelPose};
+use nfsmw_data::car::{CarModel, TextureSwaps, WheelPose};
 
 use crate::scenes::car::materials::CarMaterials;
 use crate::scenes::world::car_lights::CarLights;
@@ -58,6 +58,10 @@ pub struct CarRig {
     materials: CarMaterials,
     shading: CarShading,
     lights: CarLights,
+    /// The model scale (`CarScale`); 1 is the original size. Only the body parts scale, not the lights.
+    scale: f32,
+    /// The impact zones whose glass is cracked (their windows show the cracked texture).
+    cracked_zones: Vec<usize>,
 }
 
 impl CarRig {
@@ -69,9 +73,10 @@ impl CarRig {
         shading: CarShading,
         to_sun: Vec3,
     ) -> Self {
-        let (parts, meshes, materials) = upload_parts(renderer, &model, shading, to_sun);
+        let swaps = model.swaps.clone();
+        let (parts, meshes, materials) = upload_parts(renderer, &model, &swaps, shading, to_sun);
         let lights = CarLights::for_model(&model);
-        Self { car, model, parts, meshes, materials, shading, lights }
+        Self { car, model, parts, meshes, materials, shading, lights, scale: 1.0, cracked_zones: Vec::new() }
     }
 
     /// Upload the car again with `shading` when it differs from the one it has.
@@ -82,9 +87,45 @@ impl CarRig {
         for mesh in self.meshes.drain(..) {
             renderer.destroy_mesh(mesh);
         }
-        let (parts, meshes, materials) = upload_parts(renderer, &self.model, shading, to_sun);
+        let swaps = self.swaps();
+        let (parts, meshes, materials) = upload_parts(renderer, &self.model, &swaps, shading, to_sun);
         std::mem::replace(&mut self.materials, materials).destroy(renderer);
         (self.parts, self.meshes, self.shading) = (parts, meshes, shading);
+    }
+
+    /// Scale the model about its origin (`CarScale`).
+    pub fn set_scale(&mut self, scale: f32) {
+        self.scale = scale;
+    }
+
+    /// The texture swaps of the car with the cracked windows applied: the body's window placeholders of those
+    /// zones, and the diffuse textures of their window solids.
+    fn swaps(&self) -> TextureSwaps {
+        let mut hashes = Vec::new();
+        for &zone in &self.cracked_zones {
+            hashes.extend(nfsmw_data::car::damage::zone_windows(zone).iter().map(|w| blackbox_hash::bstring_hash(w)));
+            let Some(suffix) = nfsmw_data::car::damage::zone_window_solid(zone) else { continue };
+            for solid in self.model.solids.values().filter(|s| s.name.ends_with(suffix)) {
+                hashes.extend(solid.groups.iter().filter_map(|g| g.diffuse_texture(solid)));
+            }
+        }
+        self.model.swaps.clone().with_window_hashes(&hashes)
+    }
+
+    /// Show the cracked-glass texture on the windows of these zones (see `zone_windows`). The car is
+    /// re-uploaded only when the set changes.
+    pub fn set_cracked_zones(&mut self, renderer: &mut dyn RenderBackend, zones: Vec<usize>, to_sun: Vec3) {
+        if zones == self.cracked_zones {
+            return;
+        }
+        self.cracked_zones = zones;
+        for mesh in self.meshes.drain(..) {
+            renderer.destroy_mesh(mesh);
+        }
+        let swaps = self.swaps();
+        let (parts, meshes, materials) = upload_parts(renderer, &self.model, &swaps, self.shading, to_sun);
+        std::mem::replace(&mut self.materials, materials).destroy(renderer);
+        (self.parts, self.meshes) = (parts, meshes);
     }
 
     /// The lamps of the car, as glows.
@@ -116,19 +157,24 @@ impl CarRig {
         super::visual_tires::from_model(&self.model)
     }
 
-    /// Append the car's instances for `pose`.
+    /// Append the car's instances for `pose`. Slots in `hidden` are skipped; corner damage overlays
+    /// (`DAMAGE0_*`) are drawn only when their slot is in `revealed`.
     pub fn instances(
         &self,
         pose: &CarPose,
         hidden: Option<&std::collections::BTreeSet<usize>>,
+        revealed: &std::collections::BTreeSet<usize>,
         out: &mut Vec<Instance>,
     ) {
-        let world = pose.transform();
+        let world = pose.transform() * Mat4::from_scale(Vec3::splat(self.scale));
         let posed: Option<[(Mat4, Mat4); 4]> =
             self.model.corners.as_ref().map(|c| std::array::from_fn(|i| c[i].posed(pose.wheels[i])));
         for part in &self.parts {
             let placement = &self.model.placements[part.placement];
             if hidden.is_some_and(|hidden| hidden.contains(&placement.slot)) {
+                continue;
+            }
+            if nfsmw_data::car::damage::is_corner_overlay(placement.slot) && !revealed.contains(&placement.slot) {
                 continue;
             }
             let local = match (placement.corner, &posed) {
@@ -169,6 +215,7 @@ impl super::Drive {
 fn upload_parts(
     renderer: &mut dyn RenderBackend,
     model: &CarModel,
+    swaps: &TextureSwaps,
     shading: CarShading,
     to_sun: Vec3,
 ) -> (Vec<Part>, Vec<MeshHandle>, CarMaterials) {
@@ -177,7 +224,7 @@ fn upload_parts(
     let mut parts = Vec::new();
     for (placement, p) in model.placements.iter().enumerate() {
         let mesh = *cache.entry((p.solid, p.left_brake)).or_insert_with(|| {
-            let lookup = materials.for_placement(&model.swaps, p.left_brake);
+            let lookup = materials.for_placement(swaps, p.left_brake);
             upload_solid(renderer, &model.solids[&p.solid], &lookup, Shading::Lit)
         });
         if let Some(mesh) = mesh {

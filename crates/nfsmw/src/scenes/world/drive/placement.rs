@@ -51,6 +51,9 @@ impl Drive {
         let rest = self.rig.rest_heights();
         let sim = self.sim.get_or_insert_with(|| CarSim::new(self.physics.clone(), rest));
         sim.set_visual_tires(self.rig.visual_tires());
+        for (zone, severity, glazed) in self.queued_hits.drain(..) {
+            sim.inflict(zone, severity, glazed);
+        }
         if !sim.place(&ground, spawn) {
             return false;
         }

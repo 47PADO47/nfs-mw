@@ -65,6 +65,7 @@ impl Drive {
         if input.pop {
             self.flames.pop();
         }
+        self.breaker.step(input.speedbreaker, sim.telemetry().speed_mps.abs(), clock::STEP);
         let impact = sim.step(&input, &WorldGround { collision, surfaces }, Some((collision, props)));
         Some(DriveStep { input, impact })
     }

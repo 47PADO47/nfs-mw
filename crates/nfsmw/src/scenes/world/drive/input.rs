@@ -29,6 +29,8 @@ pub struct DriveInput {
     pub steer: f32,
     pub handbrake: bool,
     pub nos: bool,
+    /// The speed breaker button is held.
+    pub speedbreaker: bool,
     /// Shift requests; true for the one step after the button went down.
     pub shift_up: bool,
     pub shift_down: bool,
@@ -78,6 +80,7 @@ impl DriveInput {
             steer: actions.value(Action::Steer).clamp(-1.0, 1.0),
             handbrake: actions.pressed(Action::Handbrake),
             nos: actions.pressed(Action::Nos),
+            speedbreaker: actions.pressed(Action::Speedbreaker),
             shift_up: actions.just_pressed(Action::ShiftUp),
             shift_down: actions.just_pressed(Action::ShiftDown),
             gear_select: selected_gear(actions, wheel.h_shifter),

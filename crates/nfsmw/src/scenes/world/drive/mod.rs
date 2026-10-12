@@ -15,6 +15,7 @@ mod placement;
 mod presentation_tests;
 mod rig;
 mod script;
+mod speedbreaker;
 mod sim;
 mod simulation;
 mod sound;
@@ -78,6 +79,8 @@ pub struct Drive {
     /// The steering as the lamps see it, and the seconds they have blinked for.
     pub steer_lamp: f32,
     pub lamp_time: f32,
+    /// The player's headlights, toggled by the Headlights action.
+    pub headlights: bool,
     pub vehicle_effects: VehicleEffects,
     pub flames: ExhaustFlames,
     rig: CarRig,
@@ -90,9 +93,13 @@ pub struct Drive {
     previous: CarPose,
     current: CarPose,
     telemetry: Telemetry,
+    /// The speed breaker's meter (`speedbreaker.rs`).
+    breaker: speedbreaker::SpeedBreaker,
     /// What the car sound hears of the drive.
     sound: SoundFeed,
     chase: ChaseCamera,
+    /// Console hits given before the car exists; applied when it is placed.
+    queued_hits: Vec<(usize, u8, bool)>,
     /// The chase camera jumped to the car (it was placed on the road).
     cut: CameraCut,
     look: look::PendingLook,
@@ -139,6 +146,7 @@ impl Drive {
             brake_lamp: 0.0,
             steer_lamp: 0.0,
             lamp_time: 0.0,
+            headlights: true,
             vehicle_effects: VehicleEffects::new(visuals),
             flames: ExhaustFlames::default(),
             rig,
@@ -150,8 +158,10 @@ impl Drive {
             previous: pose,
             current: pose,
             telemetry: Telemetry::default(),
+            breaker: speedbreaker::SpeedBreaker::default(),
             sound: SoundFeed::default(),
             chase: ChaseCamera::default(),
+            queued_hits: Vec::new(),
             cut: CameraCut::default(),
             look: look::PendingLook::default(),
             script: script.map(|script| ScriptRun { script, time: 0.0 }),
@@ -180,9 +190,76 @@ impl Drive {
     /// The car's lamps, with the car frame and what lights them. Copied, so the caller can hold the effect layer.
     pub fn lamp_source(&self) -> (CarLights, Mat4, LampState) {
         let reverse = self.sim.as_ref().is_some_and(|s| s.telemetry().gear < 0);
-        let state =
-            LampState { brake: self.brake_lamp, reverse, steer: self.steer_lamp, siren: false, time: self.lamp_time };
+        let state = LampState {
+            brake: self.brake_lamp,
+            reverse,
+            steer: self.steer_lamp,
+            headlights: self.headlights,
+            siren: false,
+            time: self.lamp_time,
+        };
         (self.rig.lights().clone(), self.pose().transform(), state)
+    }
+
+    /// The player car's model scale (`CarScale`).
+    pub fn set_car_scale(&mut self, scale: f32) {
+        self.rig.set_scale(scale);
+    }
+
+    /// Show the cracked-glass texture on the windows the damage has cracked.
+    pub fn set_damaged_windows(&mut self, renderer: &mut dyn blackbox_gfx::RenderBackend, to_sun: Vec3) {
+        if let Some(sim) = self.sim.as_ref() {
+            let zones = sim.cracked_zones();
+            self.rig.set_cracked_zones(renderer, zones, to_sun);
+        }
+    }
+
+    /// Apply an impact to a zone (see `CarSim::inflict`).
+    pub fn inflict(&mut self, zone: usize, severity: u8, glazed: bool) -> bool {
+        match self.sim.as_mut() {
+            Some(sim) => sim.inflict(zone, severity, glazed),
+            None => {
+                self.queued_hits.push((zone, severity, glazed));
+                false
+            }
+        }
+    }
+
+    /// Clear the car's visible damage and punctures (the `repair` command).
+    pub fn repair(&mut self) {
+        if let Some(sim) = self.sim.as_mut() {
+            sim.repair();
+        }
+    }
+
+    /// Lift or restore the player car's rev limiter (`NoRevLimiter`).
+    pub fn set_no_rev_limiter(&mut self, on: bool) {
+        if let Some(sim) = self.sim.as_mut() {
+            sim.set_no_rev_limiter(on);
+        }
+    }
+
+    /// Turn the headlights on or off; returns the new state.
+    pub fn toggle_headlights(&mut self) -> bool {
+        self.headlights = !self.headlights;
+        self.headlights
+    }
+
+    /// The visible damage over the car, as world-space quads (see `damage_marks`).
+    pub fn damage_quads(&self) -> Vec<crate::scenes::world::damage_marks::MarkQuad> {
+        let Some(sim) = &self.sim else { return Vec::new() };
+        let Some(events) = &sim.events else { return Vec::new() };
+        let physics = sim.half_extents();
+        // Physics x is the width, z the length; the model frame has x forward and y left.
+        let model_half = glam::Vec3::new(physics.z, physics.x, physics.y);
+        let to_world = self.pose().transform();
+        crate::scenes::world::damage_marks::marks(&events.damage, model_half)
+            .into_iter()
+            .map(|m| crate::scenes::world::damage_marks::MarkQuad {
+                corners: m.corners.map(|c| to_world.transform_point3(c)),
+                mark: m.mark,
+            })
+            .collect()
     }
 
     pub fn heading(&self) -> f32 {
@@ -215,6 +292,19 @@ impl Drive {
         self.previous.lerp(&self.current, self.alpha)
     }
 
+    /// The car as the police and the high-speed effects see it. Nitrous is 0 without the part.
+    pub fn player_view(&self) -> crate::scenes::world::ai::PlayerView {
+        let forward = self.pose().rotation * Vec3::X;
+        let nitrous = if self.telemetry.has_nos { self.telemetry.nos } else { 0.0 };
+        crate::scenes::world::ai::PlayerView {
+            position: self.pose().position,
+            forward,
+            speed: self.speed(),
+            nitrous,
+            throttle: self.frame_input.throttle,
+        }
+    }
+
     /// Move the chase camera; `look` is the player's look input (the right stick or the mouse), which
     /// orbits the camera round the car.
     pub fn follow(&mut self, collision: &CollisionWorld, look: (f32, f32), dt: f32) {
@@ -228,6 +318,16 @@ impl Drive {
         let followed =
             Followed { position: pose.position, heading: forward.y.atan2(forward.x), speed: self.telemetry.speed_mps };
         self.chase.update(followed, dt, |from, to| blocked(collision, from, to));
+    }
+
+    /// Hold or release the look-back control (see `ChaseCamera::set_look_back`).
+    pub fn set_look_back(&mut self, on: bool) {
+        self.chase.set_look_back(on);
+    }
+
+    /// Whether the camera is looking back at the car.
+    pub fn looking_back(&self) -> bool {
+        self.chase.looking_back()
     }
 
     pub fn camera(&self) -> ChaseView {
@@ -261,7 +361,8 @@ impl Drive {
     /// Append the car's instances.
     pub fn instances(&self, out: &mut Vec<blackbox_render::Instance>) {
         if let Some(sim) = &self.sim {
-            self.rig.instances(&self.pose(), sim.events.as_ref().map(|e| &e.hidden_slots), out);
+            let revealed = sim.events.as_ref().map(|e| e.revealed_slots()).unwrap_or_default();
+            self.rig.instances(&self.pose(), sim.events.as_ref().map(|e| &e.hidden_slots), &revealed, out);
         }
     }
 
@@ -286,6 +387,7 @@ impl Drive {
             shift_light: t.shift_up,
             has_nos: t.has_nos,
             nos: t.nos,
+            speedbreaker: self.breaker.meter,
             has_turbo: t.has_induction,
             boost_psi: t.boost_psi,
             ..Default::default()
