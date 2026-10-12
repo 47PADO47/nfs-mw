@@ -4,6 +4,7 @@
 //! reads the game or the GPU. Values the spec has not measured yet are parameters, not constants.
 
 pub mod drops;
+pub mod rain;
 #[cfg(test)]
 mod tests;
 
