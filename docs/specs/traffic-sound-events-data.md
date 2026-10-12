@@ -291,3 +291,6 @@ One writable pointer to the name exists at `0x0F8148D0`, which is a type record 
 `0x0F8148C8`. Scans for pointers to that record (writable and default protection) found **no** instance references. So the
 per-car instances do not hold a direct pointer to the type record in writable memory, and the car-sim array is still not
 located.
+
+**Owner-class name in the running process (read, negative).** The owner-class name `EAXCopCar` (from the `speed.exe` owner
+table) is not present in the attached `NFS13.exe` memory, so the owner records cannot be reached through that name.
