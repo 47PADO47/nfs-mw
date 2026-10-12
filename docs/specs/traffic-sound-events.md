@@ -297,6 +297,13 @@ published table does not contain that route, so it is removed. The invented `1 +
   `FUN_004640F0` is the name lookup (string compare with `FUN_00460DD0`). Its callers are `FUN_0073A920` (creates the named
   pools `Main Pool`, `Track Streaming`, `Audio Memory Pool`, `Speech Cache Memory Pool`, `FEngMemoryPool`) and `FUN_00500D80`.
   So the `CarSoundConn` pool is likely the `Audio Memory Pool`, but the slot-10 caller is still not located.
+- **The car-sound owner classes (read).** The `BlewByCop` check's `param_1` is a 0x130-byte owner. Its three factories
+  are `FUN_004C3830`, `FUN_004C3B20` and `FUN_004C3C90`. Each allocates 0x130 bytes from the pool id `DAT_008EE558`, calls
+  the base constructor `FUN_004B9BB0`, and installs a vtable (`0x896FF8` for the first two, `0x897048` for the third).
+  They are registered in the owner-record table at `0x008EE5F8` (records at `0x10` stride, factory at `+0xC`), with names:
+  `FUN_004C3830` = `EAXCopCar` (name at `0x008966F4`), `FUN_004C3B20` = `EAXTruck` (`0x008966E8`), `FUN_004C3C90` =
+  `EAXTrafficCar` (`0x008966D8`). So the `BlewByCop` owner is a cop, truck or traffic car sound object, and its sim is
+  reached through `+0x34`. The sim's own class and its `+0x228` writer are not yet read.
 - Classification of the 170 `+0x28` indirect calls (read): they fall in 130 distinct enclosing functions. Of the 95 that
   are functions with a `+0x28` call and a named body, **none** references the pool-id global `DAT_008EE558`, the
   descriptor `0x00896800`, the name-hash global `0x00913BD8`, or the pool tables `DAT_0090DF10`/`DAT_0090DFF0`/`DAT_0090DE50`.
