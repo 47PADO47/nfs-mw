@@ -273,7 +273,13 @@ published table does not contain that route, so it is removed. The invented `1 +
   `+0x24C` from `FUN_00793340`. So the 0x250 object is a named table node, not the car sim itself.
   Callers of `FUN_007992F0`: `FUN_0054CCF0` (a constructor with vtable `0x0089B334`, passing itself as the owner and the
   global name `DAT_0091C39C`) and `FUN_00537F60` (not yet read). Which node the car sim is remains open.
-- The other two 0x250 immediates (`0x0047E23F`, `0x007FE1D8`, both `MOV ESI, 0x250`) are not yet read.
+- `FUN_00537F60` (read): for each entry of a list it creates a 0x44-byte display object (vtable `0x0089DD2C`), reads
+  the `SCROLL_TEXT_%d` strings, and names its node through `FUN_007992F0`. It is a text or HUD owner, not the car sim.
+- The other two 0x250 immediates are field offsets, not allocation sizes. `0x0047E23F` is `FADD`/`FST` on `[ESI+0x250]`
+  (a timer accumulator). `0x007FE1D8` stores zero to `[ESI+0x250]` in a reset that also clears `+0x248`, `+0x244`,
+  `+0x24C`, `+0x254` and `+0x258`.
+- So the only 0x250 allocation is the named node in `FUN_007992F0`. Its caller `FUN_0054CCF0` (vtable `0x0089B334`) is
+  not yet tied to the car sim. The car sim's `+0x228` owner remains open.
 - Earlier reading (superseded in its object identity, kept for the chain): the `BlewByCop` check reads `+0x228` of the
   car's sound-sim object and compares it with the integer 2. `FUN_004C9CB0` (constructor) stores its float argument at `+0x228` (the role word from a record: `FUN_004CAEF0`
   passes `*(record+0x0C)`). The caller of `FUN_004CAEF0` is `FUN_004CC790`, which builds a 0x28-byte car sub-object from a
