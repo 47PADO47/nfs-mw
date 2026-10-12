@@ -30,6 +30,8 @@ setting's cycle and the gameplay camera's priority; the speed curve and some fie
 
 Time of day: [time-of-day.md](time-of-day.md) (the 8 lighting presets and the blend; the clock is not yet confirmed).
 
+Weather: [weather.md](weather.md) (the rain target from the script hook and the zone map, the easing, the drop pool and wind; rain only, no thunder or lightning in this build; static analysis, not yet confirmed in game).
+
 [Original PC collision particles](pc-collision-particles.md) specifies ordinary
 textured sparks and contact glow separately from the experimental restoration.
 
