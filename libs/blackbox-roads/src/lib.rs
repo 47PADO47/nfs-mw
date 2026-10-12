@@ -12,6 +12,7 @@
 mod bytes;
 mod curve;
 mod error;
+mod heli_sheet;
 mod index;
 mod lane;
 mod locate;
@@ -50,4 +51,5 @@ pub use trail::{
     Avoidable, CAPACITY as TRAIL_CAPACITY, CUT, CUT_BEHIND, Cookie, DEFAULT_GAP, Occlusion, Trail, trail_curvature,
     update_occluded_position,
 };
+pub use heli_sheet::{HeliSheet, Triangle as HeliTriangle};
 pub use zones::{TrackZone, TrackZones, from_zone_space, to_zone_space};
