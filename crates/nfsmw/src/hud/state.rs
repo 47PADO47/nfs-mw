@@ -1,6 +1,8 @@
 use bevy_ecs::prelude::Resource;
 use blackbox_minimap::Orientation;
 
+use super::blip_style::MapBlip;
+
 /// Where the car is, for the minimap (`docs/specs/hud-minimap.md`).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MapPosition {
@@ -46,6 +48,8 @@ pub struct HudState {
     pub boost_psi: f32,
     /// The minimap shows this place; `None` hides it (a scene that has no map position).
     pub minimap: Option<MapPosition>,
+    /// The cops, racers, checkpoint and helicopter on the map (`docs/specs/hud-minimap.md` section 7).
+    pub blips: Vec<MapBlip>,
 }
 
 impl Default for HudState {
@@ -66,6 +70,7 @@ impl Default for HudState {
             has_turbo: false,
             boost_psi: 0.0,
             minimap: None,
+            blips: Vec::new(),
         }
     }
 }

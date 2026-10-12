@@ -110,6 +110,8 @@ pub struct WorldScene {
     drive: Option<Drive>,
     /// Computer-driven cars, when the track has a road network.
     traffic: Option<ai::TrafficWorld>,
+    /// Other minimap blips (racers, checkpoint, helicopter) that a system sets each frame; nothing sets them yet.
+    pub map_blips: Vec<crate::hud::MapBlip>,
     /// The `traffic`, `cop_share` settings as last told, and a count typed in the console that replaces them.
     traffic_setting: crate::settings::TrafficSettings,
     lamp_meshes: Option<ai::LampMeshes>,
@@ -219,6 +221,7 @@ impl WorldScene {
             drive: None,
             sun: sun::Sun::new(),
             traffic,
+            map_blips: Vec::new(),
             traffic_setting: crate::settings::TrafficSettings {
                 cars: 0,
                 cop_share: crate::settings::Percent(0),
@@ -461,7 +464,12 @@ impl Scene for WorldScene {
             return hidden;
         }
         // No car yet (the world is still loading): hidden, not the idle HUD a viewer shows.
-        self.drive.as_ref().and_then(|drive| drive.hud_state()).or(hidden)
+        let mut hud = self.drive.as_ref().and_then(|drive| drive.hud_state()).or(hidden);
+        if let (Some(state), Some(traffic)) = (hud.as_mut(), self.traffic.as_ref()) {
+            traffic.map_blips(&mut state.blips);
+            state.blips.extend_from_slice(&self.map_blips);
+        }
+        hud
     }
 
     fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {

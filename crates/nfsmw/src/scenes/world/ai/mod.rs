@@ -173,6 +173,21 @@ impl TrafficWorld {
     }
 
     /// Appends the instances of every car.
+    /// The cops for the minimap (`docs/specs/hud-cop-blips.md`). A pursuit is on while the world has one.
+    pub fn map_blips(&self, out: &mut Vec<crate::hud::MapBlip>) {
+        let pursuing = self.pursuit.is_some();
+        for car in self.cars.iter().filter(|c| c.is_cop()) {
+            let at = car.position();
+            let forward = car.pose(1.0).rotation * Vec3::X;
+            out.push(crate::hud::MapBlip {
+                style: crate::hud::COP,
+                position: [at.x, at.y],
+                heading: [forward.x, forward.y],
+                active: pursuing,
+            });
+        }
+    }
+
     pub fn instances(&self, out: &mut Vec<Instance>) {
         let alpha = self.alpha;
         for car in &self.cars {

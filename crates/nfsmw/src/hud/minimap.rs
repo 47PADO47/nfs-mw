@@ -3,7 +3,7 @@
 //! tile textures of the view, scrolls and turns the group of pieces, and turns the arrow.
 
 use blackbox_feng::{ObjectRef, PackageId, Runtime, fe_hash_upper};
-use blackbox_minimap::{Calibration, View, speed_zoom, tile_name};
+use blackbox_minimap::{Blip, Calibration, Orientation, View, place_blip, speed_zoom, tile_name};
 use game_install::GameDir;
 use glam::Vec3;
 use nfsmw_data::minimap::{FULL_MAP, GRID, MAX_SPEED};
@@ -19,6 +19,8 @@ pub const ARROW: &str = "PLAYERCARINDICATOR";
 const PIECES: [&str; 4] = ["TRACK_MAP1", "TRACK_MAP2", "TRACK_MAP3", "TRACK_MAP4"];
 /// The game's `MinimapPivotX` and `MinimapPivotY`: zero for the 4:3 HUD (they move with the widescreen layout).
 const PIVOT_SHIFT: [f32; 2] = [0.0, 0.0];
+/// The width of the whole picture on the HUD, in HUD units (`docs/specs/hud-minimap.md` section 7).
+const PICTURE_WIDTH: f32 = 1024.0;
 
 /// The minimap objects and what is needed to drive them.
 pub struct MinimapBinding {
@@ -108,6 +110,16 @@ impl MinimapBinding {
     /// The view for this frame: the player's place, the car's heading and the speed zoom.
     pub fn view(&self, state: &HudState, at: &MapPosition) -> View {
         View::new(GRID, &self.calibration, at.position, at.heading, speed_zoom(state.speed, MAX_SPEED))
+    }
+
+    /// Where a world position and heading land on the picture (`docs/specs/hud-minimap.md` section 7).
+    pub(super) fn blip(&self, view: &View, orientation: Orientation, position: [f32; 2], heading: [f32; 2]) -> Blip {
+        place_blip(view, orientation, self.calibration.to_map(position), heading, false, PICTURE_WIDTH)
+    }
+
+    /// Where the picture's centre is on the HUD, before it scrolls.
+    pub(super) fn centre(&self) -> [f32; 2] {
+        [self.group_position.x, self.group_position.y]
     }
 
     /// Pushes the view into the objects. Call before `Runtime::update`.
