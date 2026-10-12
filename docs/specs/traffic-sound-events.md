@@ -287,7 +287,10 @@ published table does not contain that route, so it is removed. The invented `1 +
 - The callers read so far are vehicle-side objects. `FUN_006A49C0` and `FUN_006B45C0` register hash `0xA3F44E2E`
   (`-0x5C0BB1D2`); `FUN_006BA0B0` registers `0x804C146E` and builds a `heliwash` and a `Physics` connection; `FUN_006722C0`
   registers `0x804C146E` through `FUN_006F4620`. None of these hashes is the `CarSoundConn` hash. The two undefined sites
-  (`0x0066B35A`, `0x0069384D`) are not yet read.
+  (`0x0066B35A`, `0x0069384D`) also register `0x804C146E` through `FUN_006F4620`. So every dispatcher caller found
+  uses a constant hash, and none computes `CarSoundConn`. The `CarSoundConn` hash is produced only by the static getters
+  (`0x004AE550`, `0x00693BE0`), which the pool-type descriptor's slot 10 reaches. The callers of that virtual slot are the
+  remaining search, and they are not yet read.
 - So the only 0x250 allocation is the named node in `FUN_007992F0`. Its caller `FUN_0054CCF0` (vtable `0x0089B334`) has
   no direct caller. The same vtable is set by `FUN_005142F0`, a base constructor that calls `FUN_00572360`. So the node's
   owner is a UI-side class shared through the named table, not the car sim. The 0x250 path does not lead to the car
