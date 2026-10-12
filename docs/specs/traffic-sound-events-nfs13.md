@@ -229,3 +229,8 @@ walks a text buffer. Its initial value is set by an outer caller that loads a st
 The special-form parser at `0x00F123A9` reads the cursor and dispatches on the markers `?` (`0x3F`) and `$` (`0x24`). Its only direct
 callers, `0x00F11DB9` and `0x00F131D2`, are inside the parser itself. So the top-level entry that first loads a string pointer into the
 cursor is above these. The root setter is not yet located.
+
+**Walking up from the parser (read).** The function that contains the stack-buffer caller `0x00F1350E` starts at `0x00F133B7`. Its
+direct callers are `0x00F10748`, `0x00F1109C`, `0x00F12200`, `0x00F13229`, `0x00F1327E`, `0x00F13781`, `0x00F13D76` and `0x00F13DBE`. All of
+them are inside the expression-parser region (`0x00F10000`..`0x00F14000`), so the walk has not yet left the parser. The top-level entry is
+one of these callers' callers, further up the same region. Not yet located.
