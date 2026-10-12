@@ -4,7 +4,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use blackbox_feng::{ObjectRef, Outgoing, PackageCommandKind, PackageId, Runtime, UiTree};
+#[cfg(test)]
+use blackbox_feng::ObjectRef;
+use blackbox_feng::{Outgoing, PackageCommandKind, PackageId, Runtime, UiTree};
 use glam::Vec2;
 
 use super::factory;
@@ -190,6 +192,61 @@ impl Screens {
         let Some(button) = self.runtime.button_at(top.id, point) else { return false };
         self.runtime.focus_button(button);
         true
+    }
+
+    /// Hands a click at a point of the top screen to its logic. `None` when the screen does not take it.
+    pub fn click(&mut self, point: Vec2, env: &mut Env) -> Option<Vec<Command>> {
+        let (taken, commands) = self.on_top(env, |logic, cx| logic.click(cx, point))?;
+        taken.then(|| self.apply_stack_commands(commands, env))
+    }
+
+    /// Hands the mouse wheel's notches to the top screen's logic and returns what it queued.
+    pub fn scroll(&mut self, steps: i32, env: &mut Env) -> Vec<Command> {
+        let Some((_, commands)) = self.on_top(env, |logic, cx| {
+            logic.scroll(cx, steps);
+            true
+        }) else {
+            return Vec::new();
+        };
+        self.apply_stack_commands(commands, env)
+    }
+
+    /// The footer hint of the top screen under a point that a click presses, as the screen draws it now.
+    pub fn hint_at(
+        &self,
+        point: Vec2,
+        bindings: &crate::input::Bindings,
+        device: crate::input::InputDevice,
+    ) -> Option<crate::input::Action> {
+        let top = self.stack.last()?;
+        let mut tree = self.runtime.tree(top.id);
+        let hints = super::prompts::decorate(&mut tree, &top.name, bindings, device, &self.assets);
+        hints.iter().find(|h| h.covers(point)).map(|h| h.action)
+    }
+
+    /// Runs `act` on the top screen's logic with its context, and returns what it queued with its answer.
+    fn on_top(
+        &mut self,
+        env: &mut Env,
+        act: impl FnOnce(&mut dyn ScreenLogic, &mut Cx) -> bool,
+    ) -> Option<(bool, Vec<Command>)> {
+        let Self { runtime, assets, stack, memory, .. } = self;
+        let screen = stack.last_mut()?;
+        let (settings, changed, caps) = (&mut *env.settings, &mut *env.changed, env.caps);
+        let mut commands = Vec::new();
+        let mut cx = Cx {
+            rt: runtime,
+            package: screen.id,
+            assets,
+            settings,
+            changed,
+            caps,
+            commands: &mut commands,
+            memory,
+            name: &screen.name,
+        };
+        let taken = act(screen.logic.as_mut(), &mut cx);
+        Some((taken, commands))
     }
 
     /// The buttons of the top screen, in file order.

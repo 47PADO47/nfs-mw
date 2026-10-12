@@ -198,6 +198,14 @@ pub trait ScreenLogic: Send + Sync {
 
     /// Every frame after the runtime updated, `dt` in seconds.
     fn tick(&mut self, _cx: &mut Cx, _dt: f32) {}
+
+    /// A click at a point of the screen (FEng units, origin at the centre). Returns whether the screen took it.
+    fn click(&mut self, _cx: &mut Cx, _point: Vec2) -> bool {
+        false
+    }
+
+    /// The mouse wheel turned `steps` notches, positive is up.
+    fn scroll(&mut self, _cx: &mut Cx, _steps: i32) {}
 }
 
 /// A screen without behaviour of its own: its package runs its scripts and nothing answers the game.
