@@ -44,6 +44,9 @@ struct Pass {
 
 /// Whether the bounding spheres of two bodies touch, a cheap test before the box test.
 fn near(a: &CarSim, b: &CarSim) -> bool {
+    if !a.is_finite() || !b.is_finite() {
+        return false;
+    }
     a.body().position.distance(b.body().position) < a.collision_sweep_radius() + b.collision_sweep_radius()
 }
 
@@ -188,3 +191,6 @@ mod sight_tests {
         assert!(clear(&at_target, Vec3::new(0.0, 0.5, 0.0), target));
     }
 }
+
+#[cfg(test)]
+mod tests;

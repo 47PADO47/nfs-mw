@@ -10,6 +10,8 @@ use nfsmw_data::car::{
 };
 use nfsmw_data::world::{DEFAULT_TRACK, WorldIndex};
 
+mod visuals;
+
 fn installed() -> Option<(GameDir, PhysicsData)> {
     let _ = env_logger::try_init();
     let path = std::env::var_os("NFSMW_GAME_DIR")?;

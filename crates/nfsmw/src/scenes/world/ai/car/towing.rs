@@ -77,7 +77,13 @@ impl AiCar {
     /// Appends the instances of the car and of its trailer.
     pub fn instances(&self, alpha: f32, out: &mut Vec<Instance>) {
         let revealed = self.sim.events.as_ref().map(|e| e.revealed_slots()).unwrap_or_default();
-        self.rig.instances(&self.pose(alpha), self.sim.events.as_ref().map(|e| &e.hidden_slots), &revealed, out);
+        self.rig.instances_for(
+            self.render_id,
+            &self.pose(alpha),
+            self.sim.events.as_ref().map(|e| &e.hidden_slots),
+            &revealed,
+            out,
+        );
         if let Some(trailer) = &self.trailer {
             trailer.instances(alpha, out);
         }

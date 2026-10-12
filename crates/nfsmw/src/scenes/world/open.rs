@@ -5,7 +5,8 @@ use super::*;
 impl WorldScene {
     pub fn open(dir: &GameDir, options: Options) -> Result<Self> {
         let index = WorldIndex::open(dir, DEFAULT_TRACK)?;
-        let physics = PhysicsData::load(dir)?;
+        let mut physics = PhysicsData::load(dir)?;
+        physics.set_sequences(index.sequences.clone());
         let colour_treatment = nfsmw_data::visual_treatment::midday(physics.database());
         let time_of_day = nfsmw_data::time_of_day::load(physics.database());
         let camera_views = nfsmw_data::camera::load(physics.database());
@@ -25,7 +26,8 @@ impl WorldScene {
                 Err(e) => log::warn!("helicopter sheet: {e}; the helicopter flies at a flat floor"),
             }
         }
-        let props = PropCatalog::new(index.prop_bounds.clone(), physics.database());
+        let props = PropCatalog::new(index.prop_bounds.clone(), physics.database())
+            .with_hierarchies(index.model_hierarchies.clone());
         log::info!("{} props have collision bounds", props.len());
         let stream = dir.resolve(&index.stream_file).with_context(|| format!("{} is missing", index.stream_file))?;
         let threads = std::thread::available_parallelism().map_or(4, |n| n.get().clamp(2, 6));

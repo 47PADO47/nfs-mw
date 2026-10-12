@@ -22,15 +22,19 @@ For the tag meanings, see [evidence tags](../README.md#evidence-tags).
   `rigidbodyspecs/traffic`, `transmission/traffic`, `chassis/trafstreet`; the road network profile lane types.
   Values marked **[verified]** were read from the install.
 
-Everything is **[decomp]** unless marked. Nothing was measured in the running game.
+Everything is **[decomp]** unless marked. Nothing was measured in the running game. The task-rate
+interpretation was checked statically against the PC 1.3 scheduler on 2026-10-12; see
+[simulation rates](ai-simulation-lod.md#4-update-rates) and the provenance record.
 
 ## 1. Overview and update rates
 
 - A traffic car is a physics vehicle with driver class **traffic** and the behaviours `RBVehicle` (or `RBTractor`
   for semi tractors), `EngineTraffic`, `SuspensionTraffic`, `DrawTraffic`, `SoundTraffic`, `DamageVehicle`, `PInput`
   and the AI behaviour `AIVehicleTraffic` **[verified]**.
-- The AI "think" runs at **10 Hz** (`0.1 s` period). Each new traffic car gets a start offset that grows by 0.1 s and
-  wraps at 1.0 s, so the cars' thinks are spread over ten phases. A think: update the AI base (smoothed yaw and yaw
+- The AI "think" has frame-variable task **rate 0.1**, roughly one think per ten rendered frames (6 Hz at
+  60 FPS). The rate is an accumulator increment, not a period in seconds. Each new traffic car gets an
+  accumulator offset that grows by 0.1 and wraps at 1.0, spreading the thinks over ten phases. A think:
+  update the AI base (smoothed yaw and yaw
   rate), age the spawn timer, then run the goal.
 - The goal of a spawned traffic car is **"traffic"**, which has exactly one action, **`AIActionTraffic`** (score 0.1,
   never finished by itself). No stuck recovery, no reverse, no airborne or damage actions: a blocked traffic car
@@ -103,7 +107,8 @@ audio behaviours are the `Traffic` variants. All numbers below are **[verified]*
 
 ### 3.1 Per-think update
 
-`dT` is the think period (about 0.1 s). With `speed` the rigid body speed and `radius` its bounding radius:
+`dT` is elapsed time since the previous think (about 1/6 s at 60 FPS). With `speed` the rigid body speed and
+`radius` its bounding radius:
 
 ```
 look = lerp(10, 30, ramp(speed, 0, 25)) + speed * dT + radius          # metres; 30 + ... when blocked by a car
@@ -218,7 +223,7 @@ The NoTraffic flag also feeds the cops' road filter (`NoTraffic xor CopsXorTraff
 ### 5.1 Avoiding cars ahead
 
 Every AI car (traffic, racers, cops, the player's car) is an **avoidable**: a region of radius
-`max(avoid_radius, 2 * speed)` around the car, refreshed at **4 Hz** by the avoidable manager (a sweep-and-prune
+`max(avoid_radius, 2 * speed)` around the car, refreshed every **four fixed ticks** by the avoidable manager (a sweep-and-prune
 over all avoidables; each car gets the list of overlapping neighbours). A traffic car sets its `avoid_radius` to its
 look-ahead each think, so its neighbour list is the cars within roughly 10 to 30 m (more when fast).
 During the occlusion update the neighbours that are ahead are punched out of the car's trail (algorithm in
@@ -262,8 +267,9 @@ if other exists and (other.absolute_speed >= 5 mph  or  accident != OVER)
 So only a collision with a player, racer or cop car matters; traffic against traffic, props and the world do nothing.
 During the accident states (every think):
 
-- `IN_PROGRESS`: `timer -= 1` **per think** (not per second), so with the 10 Hz think the phase lasts **3 thinks =
-  0.3 s** (the code treats it as a counter, probably meant as seconds; keep the behaviour). Controls: gas 0, brake 0,
+- `IN_PROGRESS`: `timer -= 1` **per think** (not per second), so the phase lasts **3 thinks**, approximately
+  30 rendered frames or 0.5 s at 60 FPS (the code treats it as a counter, probably meant as seconds;
+  keep the behaviour). Controls: gas 0, brake 0,
   handbrake 0 and, except for tractors, steering at full lock (value 1). No lane following. When the timer reaches 0 the
   state becomes `OVER`.
 - `OVER`: gas 0, brake 1 and (not tractors) steering stays at 1. The car brakes to a halt, wheels turned, and stays
@@ -364,7 +370,7 @@ The generic vehicle model is in the `vehicle-*` specs. The traffic variants:
 
 | Value | Meaning | Tag |
 |---|---|---|
-| 0.1 s (+ stagger 0.1 s steps) | traffic AI think period | **[decomp]** |
+| 0.1 (+ stagger 0.1 accumulator steps) | frame-variable traffic AI task rate, about ten rendered frames | **[decomp, verified PC scheduler]** |
 | 10 to 30 m (+ speed*dT + radius) | cursor look-ahead, blended over 0 to 25 m/s | **[decomp]** |
 | 35 / 55 mph | default and pattern street / highway speed | **[decomp]** / **[verified]** |
 | 4 lanes | traffic-lane zone count that selects the highway speed | **[decomp]** |
@@ -373,9 +379,9 @@ The generic vehicle model is in the `vehicle-*` specs. The traffic variants:
 | 2 dT | max target speed above current speed | **[decomp]** |
 | 80 m | distance to the camera inside which a crash starts an accident | **[decomp]** |
 | 5 mph | other car's speed to restart an accident after it ended | **[decomp]** |
-| 3 thinks (0.3 s) | accident phase | **[decomp]** |
+| 3 thinks (about 30 rendered frames) | accident phase | **[decomp]** |
 | 2, 3 s / 0.2 / 10 | shock threshold, `SHOCK_TIME`, `SHOCK_FORCE` | **[decomp]** / **[verified]** |
-| 0.25 s | avoidable refresh period | **[decomp]** |
+| 0.25 task rate (four fixed ticks) | avoidable refresh cadence | **[decomp]** |
 
 ## 9. How to check it
 
@@ -385,7 +391,8 @@ In the original (PC build), free roam:
    junctions and turns at random.
 2. Stop in front of an oncoming car's lane: the car should stop behind you rather than swerve; stop a car with the
    brake and note how it re-accelerates (full throttle to the posted speed).
-3. Ram a traffic car with the player's car: it should lose control for about 0.3 s (no throttle, no brake, wheels hard
+3. Ram a traffic car with the player's car: measure the three-think accident phase at several frame rates
+   (no throttle, no brake, wheels hard
    over) then stand still with brakes on until it drops out of view. Ram it with another traffic car (a rare event):
    no stopping.
 4. Look for any traffic light or stop sign that changes behaviour: none expected.
@@ -398,14 +405,16 @@ In the original (PC build), free roam:
   only the traffic-specific pieces are described here.
 - Hole punching and the trail curvature are marked unfinished in the decomp; the shipped behaviour of traffic around
   parked or stopped cars needs a measurement.
-- Whether the PC build still has the 0.3 s accident phase (the unit looks like a bug but may be shipped).
+- Whether the PC build's accident controls still count exactly three thinks, and the duration at different frame rates.
 - The sign convention of the steering input (the accident steers to full positive lock).
 
 ## 11. Rust implementation notes
 
-- Keep three layers: a **spawner** (2 Hz, [ai-traffic-spawning.md](ai-traffic-spawning.md)), a **traffic driver**
-  (10 Hz, produces target point + target speed + accident state) and the **shared vehicle controller**
+- Keep three layers: a **spawner** ([ai-traffic-spawning.md](ai-traffic-spawning.md)), a **traffic driver**
+  (produces target point + target speed + accident state) and the **shared vehicle controller**
   (every physics step). Traffic never needs more than a handful of cars (cap 10 total), so plain vectors are enough.
+- The rewrite runs the driver every ten physics ticks and its manager every 0.5 simulated seconds. These
+  are deterministic adaptations; the original driver and manager use render-frame accumulator rates.
 - Read `trafficpattern`, `pvehicle`, `aivehicle` and `collisionreactions` straight from the attribute database with
   the class and field names above; do not hard-code the car list. Only three constants live in code: 0.6 g, the
   stopping-distance pair `3 / 50` over `0 / 80`, the accident timing, and the look-ahead range `10 / 30 / 25`.
@@ -413,7 +422,7 @@ In the original (PC build), free roam:
   numbering exactly (nth lane from centre, curb-relative on the rightmost entrance) so cars keep their lanes.
 - Reproduce the accident quirk (decrement per think) behind a named constant so it can be changed, and make the
   state reset on respawn only.
-- The avoidable list can be a brute-force O(n^2) overlap test at 4 Hz for at most ~20 cars.
+- The avoidable list can be a brute-force O(n^2) overlap test every four fixed ticks for at most ~20 cars.
 - Do not implement lights, stops, lane changes or pull-over; they are not in the original data/code path.
 - Keep the shock-to-neutral rule in the controller, not in the driver, because it is applied after the driver's
   controls.

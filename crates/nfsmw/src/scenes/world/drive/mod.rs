@@ -15,10 +15,10 @@ mod placement;
 mod presentation_tests;
 mod rig;
 mod script;
-mod speedbreaker;
 mod sim;
 mod simulation;
 mod sound;
+mod speedbreaker;
 mod trace;
 mod visual_tires;
 pub(super) mod walls;
@@ -290,6 +290,11 @@ impl Drive {
     /// The pose to draw: between the last two physics steps.
     pub fn pose(&self) -> CarPose {
         self.previous.lerp(&self.current, self.alpha)
+    }
+
+    /// The live physical pose, including contacts not yet published to the render poses.
+    pub fn physics_pose(&self) -> CarPose {
+        self.sim.as_ref().map_or(self.current, CarSim::pose)
     }
 
     /// The car as the police and the high-speed effects see it. Nitrous is 0 without the part.

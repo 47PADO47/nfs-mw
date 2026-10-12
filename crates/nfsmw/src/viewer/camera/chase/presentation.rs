@@ -56,6 +56,7 @@ impl ChaseView {
         (self.target - self.position).normalize_or_zero()
     }
 
+    #[cfg(test)]
     pub fn view_proj(&self, aspect: f32) -> Mat4 {
         let projection =
             glam::camera::rh::proj::directx::perspective_infinite_reverse(self.fov_degrees.to_radians(), aspect, 0.3);
