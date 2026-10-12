@@ -451,3 +451,10 @@ the results against the stored keys.
 `copheli`, `coplightblue`, `coplightred`, `coplightwhite`, `corvette`, `mustanggt`, `porsche911`, each alone and with the prefixes
 `_vehiclesound_`, `vehiclesound_`, `_vehiclesound` and `vehiclesound`) was searched for in every inflated `VEHICLES/` and `SOUND/`
 stream. **Zero hits.** The sound-set names are therefore not these car names, or the keys are stored in a form I have not found.
+
+**Source of the sound-set names (read, not found).** Three places were searched for the names that the CRC-32 lookup needs:
+- `NFS13.exe`: no lowercase sound or car set names (a lowercase search of sound and car words returned nothing).
+- `VEHICLES/VEHICLELIST.BNDL` inflated streams: 49 readable strings, all Genesys or nitrous and upgrade terms; no car names.
+- `GDFBinary_en_US.dll`: none of the car display names (`M3 GTR`, `Mustang`, `Corvette`, `Porsche`, `BMW`, `Traffic`) in ASCII or
+  UTF-16. The word `Cop` appears twice in UTF-16.
+So the sound-set names are not stored as readable text in any file searched. Their source is not located.
