@@ -26,3 +26,13 @@
   sections). Hole punching is marked unfinished in the decomp.
 - **Not copied:** no decompiled text, no game data. Numbers in the docs are layouts, counts and tuning
   constants.
+- **PC transition follow-up (2026-10-12, static):** Ghidra inspection of the original x86 PC executable
+  (SHA-256 `80774c2e5d619b4f120b48d4462896fd504c263399d203a238769cffde1d253c`), using the PC symbol
+  map only to identify routines, confirmed traffic endpoint carry-over in `PrivateIncNavPosition`
+  (`0x7755a0`), the always-preserve-start result and far-node lane selection in `GetNextTraffic`
+  (`0x774c50`), and handle scaling in `SetControlPos` (`0x76f140`). `EvaluateSplines` (`0x7753e0`)
+  and its point evaluator (`0x773fd0`) also confirm linear interpolation and zero curvature on uncurved
+  segments. The previous lane and both corridor
+  endpoints become the next segment's start; its destination offset comes from its far-node profile.
+  Synthetic tests exercise turns and changed zone indices. Installed-data tests measure all legal
+  plain-road exits. These check the reconstruction; they do not establish visual or runtime parity.

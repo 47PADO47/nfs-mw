@@ -21,6 +21,83 @@ fn a_cursor_follows_its_lane_across_a_chain_node() {
 }
 
 #[test]
+fn a_traffic_lane_transition_keeps_its_previous_endpoint() {
+    let mut net = chain_road();
+    net.nodes[2].position = Vec3::new(100.0, 0.0, 100.0);
+    for (segment, node_ind, lane) in [(0, 1, 3), (1, 0, 3)] {
+        let mut nav = RoadNav::traffic();
+        nav.place(&net, segment, node_ind, lane, 1.0);
+        nav.enable_trail(&net);
+        let previous_end = nav.position;
+        let previous_bounds = nav.cookie(&net);
+        nav.advance(&net, 0.01, Vec3::ZERO, &mut SplitMix(1));
+        assert_ne!(nav.segment, segment);
+        assert!(
+            nav.lane_line().start().distance(previous_end) < 1e-4,
+            "lane jumped from {previous_end:?} to {:?}",
+            nav.lane_line().start()
+        );
+        assert!(nav.position.distance(previous_end) < 0.02, "{:?}", nav.position);
+        assert_eq!(nav.lane, lane, "keeps the lane counted from the centre");
+        let bounds = nav.cookie(&net);
+        assert!(bounds.left.distance(previous_bounds.left) < 0.02, "left bound jumped: {bounds:?}");
+        assert!(bounds.right.distance(previous_bounds.right) < 0.02, "right bound jumped: {bounds:?}");
+        for _ in 0..10 {
+            let previous = nav.position;
+            nav.advance(&net, 0.5, Vec3::ZERO, &mut SplitMix(1));
+            assert!((nav.position.distance(previous) - 0.5).abs() < 1e-3, "{:?}", nav.position);
+            assert_eq!(nav.lane_line().start(), previous_end);
+            assert!(nav.forward.is_finite() && nav.forward.length() > 0.99);
+        }
+    }
+}
+
+#[test]
+fn a_curved_traffic_join_scales_the_new_handles_from_the_carried_endpoint() {
+    let mut net = chain_road();
+    net.nodes[2].position = Vec3::new(100.0, 0.0, 100.0);
+    net.segments[1].flags = crate::flags::CURVED;
+    net.segments[1].start_handle = Vec3::new(30.0, 0.0, 0.0);
+    net.segments[1].end_handle = Vec3::new(-30.0, 0.0, 0.0);
+    let mut nav = traffic_in_forward_lane(&net);
+    nav.place(&net, 0, 1, 3, 1.0);
+    nav.enable_trail(&net);
+    let previous_end = nav.position;
+    nav.advance(&net, 0.01, Vec3::ZERO, &mut SplitMix(1));
+    let line = nav.lane_line();
+    let expected_end = Vec3::new(100.0, 0.0, 98.0);
+    let scale = previous_end.distance(expected_end) / 100.0;
+    assert_eq!(line.start(), previous_end);
+    assert_eq!(line.end(), expected_end);
+    assert!(line.points[1].distance(previous_end + Vec3::X * 30.0 * scale) < 1e-4);
+    assert!(line.points[2].distance(expected_end - Vec3::X * 30.0 * scale) < 1e-4);
+    for _ in 0..20 {
+        let previous = nav.position;
+        nav.advance(&net, 0.5, Vec3::ZERO, &mut SplitMix(1));
+        let travelled = nav.position.distance(previous);
+        assert!((0.1..1.0).contains(&travelled), "travelled {travelled}");
+        assert!(nav.position.is_finite() && nav.forward.is_finite() && nav.curvature.is_finite());
+    }
+}
+
+#[test]
+fn a_traffic_transition_selects_the_lane_at_the_far_end_profile() {
+    let mut net = chain_road();
+    net.nodes[2].profile = 1;
+    net.profiles.push(crate::RoadProfile {
+        middle: 1,
+        zones: vec![lane(crate::zone::TRAFFIC, 2.0), lane(crate::zone::SHOULDER, 1.0), lane(crate::zone::TRAFFIC, 4.0)],
+    });
+    let mut nav = traffic_in_forward_lane(&net);
+    nav.place(&net, 0, 1, 3, 1.0);
+    let previous_end = nav.position;
+    nav.advance(&net, 0.01, Vec3::ZERO, &mut SplitMix(1));
+    assert_eq!((nav.segment, nav.node_ind, nav.lane), (1, 1, 2));
+    assert_eq!(nav.lane_line().start(), previous_end);
+    assert_eq!(nav.lane_line().end(), Vec3::new(4.0, 0.0, 200.0));
+}
+
+#[test]
 fn a_traffic_cursor_stops_at_a_dead_end() {
     let net = chain_road();
     let mut nav = traffic_in_forward_lane(&net);

@@ -27,6 +27,7 @@ impl RoadNav {
             forward: Vec3::Z,
             curvature: 0.0,
             line: crate::Bezier::line(Vec3::ZERO, Vec3::Z),
+            bound_starts: None,
             trail: None,
             path: Vec::new(),
             path_type: PathType::None,
@@ -165,6 +166,14 @@ impl RoadNav {
     /// Rebuilds the lane line, then evaluates the cursor on it.
     pub(super) fn rebuild(&mut self, net: &RoadNetwork) {
         self.line = lane_line(net, self.segment, self.node_ind, self.lane);
+        self.bound_starts = None;
+        self.evaluate();
+    }
+
+    /// A traffic join carries the old lane and corridor ends instead of snapping its start sideways.
+    pub(super) fn continue_from_end(&mut self, net: &RoadNetwork, start: Vec3, bound_starts: Option<[Vec3; 2]>) {
+        self.line = crate::lane::lane_line_from_start(net, self.segment, self.node_ind, self.lane, 0.0, start);
+        self.bound_starts = bound_starts;
         self.evaluate();
     }
 
