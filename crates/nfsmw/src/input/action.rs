@@ -65,6 +65,8 @@ pub enum Action {
     ToggleHeadlights,
     /// Driving button: hold to look back at the car (the camera swings round).
     LookBack,
+    /// In-world button: interact with what the car or player stands on (enter a race, safe house or shop).
+    Interact,
     /// Menu button: the focus moves up.
     MenuUp,
     MenuDown,
@@ -125,6 +127,7 @@ impl Action {
             "cycle_camera",
             "toggle_headlights",
             "look_back",
+            "interact",
             "menu_up",
             "menu_down",
             "menu_left",
@@ -148,7 +151,7 @@ impl Action {
             .find(|a| a.name() == name)
             .ok_or_else(|| format!("unknown action {name:?}; use keys to list actions"))
     }
-    pub const ALL: [Action; 46] = [
+    pub const ALL: [Action; 47] = [
         Action::MoveForward,
         Action::MoveRight,
         Action::MoveUp,
@@ -183,6 +186,7 @@ impl Action {
         Action::CycleCamera,
         Action::ToggleHeadlights,
         Action::LookBack,
+        Action::Interact,
         Action::MenuUp,
         Action::MenuDown,
         Action::MenuLeft,

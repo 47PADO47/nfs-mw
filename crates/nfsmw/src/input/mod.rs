@@ -14,6 +14,8 @@ mod describe;
 mod device_settings;
 #[cfg(test)]
 mod headlights_tests;
+#[cfg(test)]
+mod interact_tests;
 mod presentation;
 #[cfg(test)]
 mod presentation_tests;
