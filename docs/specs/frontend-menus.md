@@ -124,19 +124,33 @@ Selecting Options sets the game mode to options and switches to `MainMenu_Sub.fn
 Found in the dump of `MainMenu_Sub.fng` (`nfsmw dump-screen`): twelve option buttons `OPTION_1`..`OPTION_12`
 (name hashes `0x4B4E3888`..`0x4B4E3890`, `0xB51549B8`..`0xB51549BA`). The rewrite now lists the original's
 categories in order: Audio, Video, Gameplay, Player (label `0xF760EABE` "Player"), Controls (`0x04DC6DB5`), and,
-outside the pause menu, Online (label `0x7D347E05` "Online Options", shown in the original only in online mode),
-EA Trax (`0xDCFB6B36`) and Credits (`0x0905101F`). Player, Online, EA Trax and Credits are greyed out: the rewrite
-has no screen for them. The labels are what the game displays (`nfsmw strings`) **[verified]**.
+outside the pause menu, EA Trax (`0xDCFB6B36`) and Credits (`0x0905101F`). Player, EA Trax and Credits are greyed out:
+the rewrite has no screen for them. The labels are what the game displays (`nfsmw strings`) **[verified]**.
+
+**Controls split (ours).** The Controls icon opens the keyboard list (`Options_PC_Controller.fng`, `controls_screen.rs`)
+directly, with the original's controller picture. Control Options (a title we chose; the original has no such entry)
+sits beside it and opens the sensitivity and camera rows (`Options.fng`, category Controls): Deadzone Mode to Invert
+Camera Y, then Save Alias and Load Alias. That list has no Keyboard Bindings row (`InputSetting::ALL`). Both icons leave
+with the usual animation. Back on the key list returns to the categories (`Command::Switch`), which restore the icon
+they remember, so the key list sits on no screen beneath it. The pause menu has the same six icons, Player greyed out.
+
+**Online is not listed (decomp, ours).** The original adds Online only in online mode, which this build never is, so
+the offline list is Audio to Credits, without Online, plus Control Options. `MainMenu_Sub.fng` has twelve option
+objects: two book ends at each end and eight entries, which this list fills exactly. The greyed-out Online entry
+(texture `0x5A5E5137`, `OMOnline`) is therefore gone; a longer list has no slot for it (`icon_menu.rs` warns and
+panics if a package has fewer slots than entries).
 
 **Icon textures.** `UIOptionsMain::Setup` adds each category as `OMxxx(texture, label, 0)`:
 `OMAudio(0xF37AF144, 0xE76CD783, 0)` and `OMPlayer(0xD708EFEF, 0xF760EABE, 0)` **[decomp]**. The Audio pair is the one
 the rewrite already draws, so the first argument is the texture: **Player's icon texture is `0xD708EFEF`** (set in
 `icon_menu.rs`; `nfsmw view-screen MainMenu_Sub.fng --options --ui-script "wait 1;right;right;right;wait 1"` shows its
 picture, dimmed). The earlier note that `0xD708EFEF` is a button name hash was wrong.
-The same reading gives Online texture `0x5A5E5137` (`OMOnline`, win32 online mode) **[decomp]**, which the rewrite now
-uses; it draws a picture, dimmed. EA Trax `0xC52CCBF6` and Credits `0x51009E20` **[decomp]** are not applied yet; they
-have no texture in the rewrite and show none. `OMController` gives texture `0xA04A7B26` **[decomp, unconfirmed]**; the
-rewrite draws the input glyph atlas for Controls instead.
+The same reading gives Online texture `0x5A5E5137` (`OMOnline`, win32 online mode) **[decomp]**; the rewrite does not
+list Online (see above). EA Trax `0xC52CCBF6` and Credits `0x51009E20` **[decomp]** are not applied yet; they have no
+texture in the rewrite and show none. `OMController` gives texture `0xA04A7B26` **[decomp; picture verified on screen]**:
+`nfsmw view-screen MainMenu_Sub.fng --options --ui-script "wait 1;right;right;right;right;wait 1"` draws a gear-shift
+picture in the Controls slot, which the rewrite uses for the Controls icon. Control Options draws the input glyph atlas
+(`input_icons::ATLAS`, `Glyph::Controller`), the picture the Controls icon had before the split.
 
 **LAN.** The strings `LAN main menu` (`0x03F6F2BF`) and `LAN options` (`0x19889765`) exist **[verified]**, but neither
 `UIMain::Setup` nor `UIOptionsMain::Setup` adds a LAN icon **[decomp]**, so the rewrite has no LAN entry.
@@ -257,3 +271,5 @@ Career and Quick Race both start free roam with the stock car.
 2. `nfsmw view-screen Options.fng` for the rows (the screen needs its category: `--category audio`).
 3. Compare with the running original at the same window size (not done): icon sizes and positions after a scroll,
    row positions of the option screens.
+4. `nfsmw view-screen MainMenu_Sub.fng --options --ui-script "wait 1;right;right;right;right;accept;wait 3"` shows the
+   keyboard list (Controls). With one more `right` and `accept` instead, the sensitivity rows show (Control Options).
