@@ -191,6 +191,18 @@ pub struct ViewArgs {
     /// Hide the rear-view mirror in the HUD.
     #[arg(long)]
     pub no_rear_view_mirror: bool,
+    /// Show the game in Discord Rich Presence [env NFSMW_DISCORD; config `discord`; default on].
+    #[arg(long, conflicts_with = "no_discord")]
+    pub discord: bool,
+    /// Hide the game from Discord Rich Presence.
+    #[arg(long)]
+    pub no_discord: bool,
+    /// Show the elapsed play time in Discord Rich Presence [env NFSMW_DISCORD_TIME_PLAYED; config `discord_time_played`; default on].
+    #[arg(long, conflicts_with = "no_discord_time_played")]
+    pub discord_time_played: bool,
+    /// Hide the elapsed play time from Discord Rich Presence.
+    #[arg(long)]
+    pub no_discord_time_played: bool,
     /// Tone-mapping curve: off or aces [env NFSMW_POST_TONEMAP; config `post_tonemap`; default off].
     #[arg(long, value_name = "off|aces")]
     pub post_tonemap: Option<crate::settings::PostTonemap>,
@@ -277,6 +289,8 @@ impl ViewArgs {
             speed_trails: switch(self.speed_trails, self.no_speed_trails),
             exhaust_flames: switch(self.exhaust_flames, self.no_exhaust_flames),
             rear_view_mirror: switch(self.rear_view_mirror, self.no_rear_view_mirror),
+            discord: switch(self.discord, self.no_discord),
+            discord_time_played: switch(self.discord_time_played, self.no_discord_time_played),
             transmission: self.transmission,
             camera_mode: self.camera_mode,
             post_tonemap: self.post_tonemap,
