@@ -94,16 +94,21 @@ Markers and triggers (`Position`, `Rotation`, `Dimensions`):
 - `Position` is a `Vector3` in **map coordinates** `(x, y, z)` with z up. The game converts to physics space
   (x right, y up, z forward; [collision.md](collision.md#coordinate-space-verified)) as
   `world = (-y, z, x)` **[exe]**. Example: `startgrid` of `10_2_1_sprint` `(1511.82, 4404.87, 209.605)` is the
-  world point `(-4404.87, 209.605, 1511.82)`.
+  world point `(-4404.87, 209.605, 1511.82)` **[verified]** (the reader's install test). The reader in
+  `crates/nfsmw-data/src/gameplay` applies this conversion (`to_world`).
 - `Rotation` is a heading in degrees. The unit heading in world space is `(-sin R, 0, cos R)` (a rotation about
-  the up axis by `-R` degrees, applied to `(0, 0, 1)`) **[exe]**. Check on the data: for 212 races with a first
+  the up axis by `-R` degrees, applied to `(0, 0, 1)`) **[exe]**; the reader's `world_heading`. Check on the data: for 212 races with a first
   checkpoint over 100 m from the start, the cosine between that heading and the direction from the start to
   checkpoint 1 averages 0.81 (86 percent above 0.5); the opposite sign averages 0.08 **[verified]**. A marker
   lookup can add an extra rotation in degrees (used for `ForceStartPosition`).
-- `Dimensions` (box triggers) are three extents; checkpoints are almost always `(2, W, 40)` with W
-  25..60 (`(2, 40, 40)` for 961 of the checkpoint uses; `(40, 40, 40)` for 141, the cube kind). The first value is
-  presumably the thickness along the heading **[unconfirmed]**. Finish lines are `(2, 25..50, 40)` or
-  `(3, 30..40, 3)`.
+- `Dimensions` (box triggers) are three extents. Over the 1,446 checkpoint-named box triggers **[verified]**: the
+  first extent is 2 m (or 4 m or less) for 1,296; 143 are the 40 m cube kind `(40, 40, 40)`; 7 are other shapes.
+  The `(2, W, 40)` kind has W 25..60 (`(2, 40, 40)` the most common). The first value is therefore the thin axis;
+  that it lies along the heading is still **[unconfirmed]** (see open question 1). Finish lines have a first
+  extent of 2 m in the samples read, with the second 25..65 m; `10_2_1_sprint` has `(3, 65, 5)`.
+- Trigger flags: `OneShot` and `FireOnExit` are False on `trigger` and `boxtrigger`, and `FireOnExit` is True on
+  `zonetrigger`; `ParticleEffect` is empty on `trigger` and `fxgame_flare_red` on `finishline`, with
+  `FlareSpacing` 5 there. **[verified]**
 - `Width` (the `wrongway` trigger, 150 m for `10_2_1_sprint`), `Directional`, `ResetsPlayer` describe the
   wrong-way reset trigger; `FireOnExit`, `OneShot`, `ParticleEffect` are trigger options (finish lines use
   `fxgame_flare_red` with `FlareSpacing 5`).
@@ -191,12 +196,58 @@ skill 0; unnamed `opponent`s with `OPM_*` presets).
   `KnockoutRacer`, `NotifyRaceFinished` and `RestoreStartPositions` on the engine. The bytecode is not
   decompiled; the engine side of these calls is in the specs.
 
-## 6. Open questions
+## 6. Reading the gameplay class (`crates/nfsmw-data/src/gameplay`) **[verified]**
 
-1. The order of the three `Dimensions` extents of a box trigger and the exact trigger test (which axis is the
-   thickness; whether a checkpoint is crossed by the car centre or any wheel). Look at the trigger code in
-   `GTrigger`, which is stripped in the decomp.
+- `gameplay::load(&GameDir)` reads `GLOBAL/ATTRIBUTES.BIN` (the class) and `GLOBAL/gameplay.bin` (the
+  collections) through `blackbox-attrib`, and returns `GameplayData { races, triggers, markers }`.
+  `GameplayData::trigger(key)` resolves a race's `racefinish` or `Checkpoint[]` key to a box trigger.
+- A `GCollectionKey` field has type hash `0x6CD4B70A` and is stored as 4 raw bytes: the little-endian `vlt_hash`
+  of the target collection's full name (for example `race_bin_10/10_2_1_sprint/startgrid`). All checkpoint and
+  finish keys of the install resolve to a loaded box trigger.
+- Races: non-template collections with a `racestart` (255). Box triggers: non-template collections that inherit
+  `boxtrigger` (2,332, of which 87 are named `*/finishline` and 1,446 `*/checkpoint*`; the rest include
+  `ai_cp*` and `time_bonus_checkpoint*` triggers of the traffic and challenge races).
+- Race icons: `p2p` 51, `tollbooth` 68, `challenge` 36, `circuit` 32, `speedtrap` 31, `knockout` 20, `drag` 11,
+  empty 6. Races with a finish 217, with checkpoints 216, every race has a start.
+
+## 7. Activity zones: auto shops and safe houses **[verified]** unless marked
+
+Zones are sphere triggers, not boxes. Each zone collection inherits `zonetrigger` (`Radius`, `FireOnExit` True,
+`ZoneType`) and sets its own `Position`. They are grouped by a collection with a `ZoneList`:
+
+| Group | `ZoneType` | Zones read | Notes |
+|---|---|---|---|
+| `menu_gate_customshop` | `customshop` (the auto shop) | `zone_customshop_1` .. `_8` (8) | `ZoneList` names all 8 |
+| `menu_gate_safehouse` | `safehouse` | `zone_safehouse_1`, `_2`, `_4`, `_5` (4) | no `_3` in the install; `ZoneList` names 4 |
+| `menu_gate_carlot` | `carlot` | `zone_carlot_1` .. `_3` | not read by the reader (car lot, not in scope) |
+
+Per zone:
+
+- `Position` (map coordinates, converted to physics space) and `Radius` (metres, for example 6 or 7).
+- `ZoneType` is inherited from `zone_customshop` / `zone_safehouse`. The strings `customshop` and `safehouse` and
+  the attribute name `ZoneType` are present in `speed.exe` **[exe]** (strings found by a Ghidra string search;
+  the code that reads them was not decompiled).
+- A child `respawn` marker: a `marker` with `Position` and `Rotation`. Its key is in the zone's field `0x2241F4CD`
+  (a `GCollectionKey`, the zone's `Children[0]`; the field's name is not known, so the key is read by its hash).
+- Field `0x6CE23062` (`Int32`): 8, 12, 15 or 16 across the 12 zones (shops 8 x1, 12 x4, 15 x3; safe houses 8 x1,
+  12 x2, 16 x1) **[verified]**. Its meaning is **[unconfirmed]**. The safe-house map icon is the format string
+  `SAFEHOUSEINDICATOR_%d` in `speed.exe`; the index that goes with it is not yet tied to this field.
+- Field `0x883C65E3` (`Bool`): True on the group collections, not read.
+
+Map icons of the race types are the `MMICON_<TYPE>_%d` strings in `speed.exe` (`CHECKPOINT`, `SPRINT`, `DRAG`,
+`CIRCUIT`, `KNOCKOUT`, `TOLLBOOTH`, `SPEEDTRAP`, `AIRACER`, `COPCAR`, `ROADBLOCK`) **[exe]**, strings only.
+
+## 8. Open questions
+
+1. The trigger test: which extent lies along the heading (the data says the first extent is the thin one, see
+   section 3.1), and whether a checkpoint is crossed by the car centre or any part of the car. The trigger code
+   (`EGTriggerInternal` in `speed.exe`, the box test) has no symbols in the Ghidra project: every function near
+   the strings is `FUN_*`. A Ghidra pass over the box-containment routine is needed; until then the trigger test
+   is **[unconfirmed]**.
 2. The unit of `InitialPlayerSpeed` (m/s assumed).
 3. The Lua state graphs (what ends a knockout lap, when the countdown starts the engines): decompile the
    bytecode (Lua 5.0 chunk) and describe them.
 4. `Barriers` entry syntax (`*` prefix) beyond "player barrier flag" and how `SCENERY_GROUP_DOOR` entries act.
+5. The meaning of the zone field `0x6CE23062` (Int32, 8..16) and of `0x883C65E3` (Bool), and the field name of
+   the respawn key `0x2241F4CD`. The field names are not in the database; they are matched by their hashes only.
+6. Whether the auto shop and safe house map icons are chosen by `ZoneType` alone or by the zone's index.
