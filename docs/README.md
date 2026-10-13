@@ -48,6 +48,7 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | [hud-layout.md](hud-layout.md) | PC widescreen, centered and Xbox-scaled HUD presets |
 | [upscaling.md](upscaling.md) | Render scale, bilinear and FSR 1 upscaling, the temporal upscalers and their quality modes, ReShade limits, seams for DLSS |
 | [reshade.md](reshade.md) | Using ReShade or vkBasalt: backends, the reverse-Z depth settings, render scale limits |
+| [reshade-shaders/](reshade-shaders/README.md) | Survey of a local ReShade effect pack (33 files): what each does, licence tiers, ideas worth taking and what the repo already has |
 | [tire-effects.md](tire-effects.md) | Tire smoke, ground-following marks, runtime controls and reproducible driving checks |
 | [vehicle-effects.md](vehicle-effects.md) | Optional collision sparks and high-speed wind trails using stock-install definitions |
 | [exhaust-flames.md](exhaust-flames.md) | Tail-pipe flames for nitrous, gear changes and lift-off sputter pops: the `exhaust_flames` setting, console, budgets and checks |
@@ -55,6 +56,12 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | [rust-stack.md](rust-stack.md) | Crates used and planned, with versions and licenses; rejected options |
 | [decisions/](decisions/0001-bevy.md) | Architecture decision records: [0001 Bevy as the game framework](decisions/0001-bevy.md) (proposed), [0003 The renderer after milestone 8](decisions/0003-renderer-after-milestone-8.md) (proposed), [0004 Two renderers behind one interface](decisions/0004-swappable-renderers.md) (proposed) |
 | [plans/gfx-renderers/](plans/gfx-renderers/README.md) | Plan for swappable renderers (native Black Box and Bevy) behind one interface: [interface](plans/gfx-renderers/interface.md), [Bevy backend](plans/gfx-renderers/bevy-backend.md), [upscalers and settings](plans/gfx-renderers/upscalers-settings.md), [PR list](plans/gfx-renderers/pr-list.md), [status and handoff](plans/gfx-renderers/status.md), [verification and risks](plans/gfx-renderers/verification-risks.md) |
+| [mods/redux-v3.md](mods/redux-v3.md) | Reference notes on the REDUX V3 community mod pack (unlicensed): contents, install, target build, what the port already covers |
+| [mods/redux-v3-plugins.md](mods/redux-v3-plugins.md) | Per-plugin reference for the pack's `.asi` plugins, every shipped config key with its default, and the Xbox 360 shader-swap script |
+| [mods/nfsmw-extra-options.md](mods/nfsmw-extra-options.md) | NFSMW Extra Options (GPL-3.0, facts only): hotkeys, quick race and traffic limits, pursuit and weather tuning, fixes, every settings key with its default |
+| [mods/nfsmw-unlimiter.md](mods/nfsmw-unlimiter.md) | NFSMW Unlimiter (unlicensed script mod): fixes and limits lifted for added cars, modder hooks, the settings file keys with defaults, required assets |
+| [mods/nfsmw-unlimiter-essentials.md](mods/nfsmw-unlimiter-essentials.md) | NFSMW Unlimiter Essentials (unlicensed car parts pack): paint, neon, wheels, plates, brakes and tyres; Binarius install steps and known issues |
+| [mods/README.md](mods/README.md) | Index of 42 community mod and tool repositories: one page each (mechanism, config, licence, how the rewrite could match it) |
 | [licensing.md](licensing.md) | Project license, what each source license allows, unlicensed repos, the spec-first process |
 | [ai-drivers.md](ai-drivers.md) | The AI drivers in the code: traffic and cops, which spec each layer follows, deliberate differences, what is open |
 | [specs/](specs/README.md) | Behaviour specs written before implementing it from decompiled sources: [scenery visibility](specs/scenery-visibility.md), [scenery LOD](specs/scenery-lod.md), [visible sections](specs/visible-sections.md), [car assembly](specs/car-assembly.md), [FEng input](specs/feng-input.md), [front-end menus](specs/frontend-menus.md), [LAN server](specs/lan-server.md) |
