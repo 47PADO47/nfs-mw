@@ -88,6 +88,8 @@ Linux. `nfsmw check-install` shows what was found.
 
 ## The application shell
 
+The screen flow, scenes and renderer switch are walked through in [app-flow.md](app-flow.md).
+
 `nfsmw` is a Bevy app ([decision](decisions/0001-bevy.md)): `bevy_app` and `bevy_ecs` for the schedule and
 resources, `bevy_winit` for the window and loop, `bevy_input` and `bevy_gilrs` for devices. Bevy's renderer
 is not used: a `blackbox-gfx` `RenderBackend` (`blackbox-render` by default) draws the frame, from one system, in `app/render/` (the render bridge).
