@@ -1,4 +1,7 @@
+use super::hud_demo::parse_hud_demo;
+use super::parse::{parse_screenshot_size, parse_xy};
 use super::*;
+use crate::settings::{Monitor, Resolution, WindowMode};
 
 #[test]
 fn the_hud_demo_takes_optional_gauges() {
