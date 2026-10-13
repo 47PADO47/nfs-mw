@@ -7,7 +7,17 @@ fn view(speed: f32) -> PlayerView {
 }
 
 fn sensed(seen: bool) -> Sensed {
-    Sensed { seen, unit_random: 0.5, on_road: true, nearest_cop: 10.0, hit_traffic: false, hidden: false, formation_random: [0.5, 0.5], formation_gap: None, support_random: 0.5 }
+    Sensed {
+        seen,
+        unit_random: 0.5,
+        on_road: true,
+        nearest_cop: 10.0,
+        hit_traffic: false,
+        hidden: false,
+        formation_random: [0.5, 0.5],
+        formation_gap: None,
+        support_random: 0.5,
+    }
 }
 
 #[test]

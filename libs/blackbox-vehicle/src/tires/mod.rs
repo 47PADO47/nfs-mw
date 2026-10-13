@@ -5,8 +5,8 @@ mod damage;
 mod lateral;
 mod loaded;
 mod scales;
-pub mod spike;
 mod spec;
+pub mod spike;
 mod state;
 
 pub use damage::{BLOWN_TRACTION, TireDamage, TireState};

@@ -14,7 +14,10 @@ pub(super) const LIST: &[(&str, &str)] = &[
     ("goto <x> <y> [height]", "fly the free camera to a map position"),
     ("garage", "list your cars (for now every car in the install; use drive <car> to get into one)"),
     ("repair", "clear the car's visible damage and punctured tires"),
-    ("damage <zone> <severity 0-6> [glass]", "hit the car in a zone (0-9 or DZ_FRONT, DZ_LFRONT, ...) to test the damage visuals"),
+    (
+        "damage <zone> <severity 0-6> [glass]",
+        "hit the car in a zone (0-9 or DZ_FRONT, DZ_LFRONT, ...) to test the damage visuals",
+    ),
     ("freecam", "switch between the chase camera and the free camera"),
     ("pos", "show where the camera or the car is"),
     ("props [radius]", "list the props with collision near the car or camera (default 30 m)"),

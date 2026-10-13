@@ -10,9 +10,9 @@ use blackbox_roads::{LaneType, NavKind, RoadNav, SegmentFilter};
 use glam::Vec3;
 use nfsmw_data::car::physics::SurfaceTable;
 
+use super::TrafficWorld;
 use super::car::{AiCar, Role, Start};
 use super::traffic::Cruise;
-use super::TrafficWorld;
 use crate::scenes::world::drive::WorldGround;
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::space;
@@ -45,12 +45,8 @@ impl TrafficWorld {
         }
         let side = Vec3::new(forward.z, 0.0, -forward.x);
         let centre = nav.position;
-        let road = Road {
-            left: centre + side * LANE_HALF,
-            right: centre - side * LANE_HALF,
-            target: at_player,
-            forward,
-        };
+        let road =
+            Road { left: centre + side * LANE_HALF, right: centre - side * LANE_HALF, target: at_player, forward };
         let cr_width = 2.0 * LANE_HALF + 1.0;
         let cars = roadblock::cars_asked(cr_width);
         let layout = roadblock::pick(&NORMAL, cr_width, cars).ok_or("no roadblock layout fits this road")?;
@@ -82,10 +78,7 @@ impl TrafficWorld {
         // Snap to the road: the nav gives the nearest road point, as the traffic spawn does; a point beside the road has no ground.
         let on_road = nav.position;
         let render_at = space::to_render(on_road.to_array());
-        let spawn = Spawn {
-            position: render_at,
-            heading: render_forward.y.atan2(render_forward.x),
-        };
+        let spawn = Spawn { position: render_at, heading: render_forward.y.atan2(render_forward.x) };
         let start = Start {
             stagger: 0,
             speed: 0.0,

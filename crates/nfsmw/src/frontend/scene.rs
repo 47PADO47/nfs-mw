@@ -11,8 +11,8 @@ use glam::{Mat4, Vec3};
 use game_install::GameDir;
 use nfsmw_data::car::LoadOptions;
 
-use crate::input::ActionState;
 use super::room::Room;
+use crate::input::ActionState;
 use crate::scenes::car::CarScene;
 use crate::viewer::{Fullscreen, Scene};
 

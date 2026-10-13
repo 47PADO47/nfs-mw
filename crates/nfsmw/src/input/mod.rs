@@ -12,18 +12,18 @@ pub mod commands;
 mod config_tests;
 mod describe;
 mod device_settings;
+#[cfg(test)]
+mod headlights_tests;
 mod presentation;
 #[cfg(test)]
 mod presentation_tests;
 mod remap;
 mod slots;
 mod snapshot;
-mod vk;
-#[cfg(test)]
-mod headlights_tests;
 mod source;
 mod state;
 mod systems;
+mod vk;
 
 pub use action::Action;
 pub(crate) use bindings::Source;

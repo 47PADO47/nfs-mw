@@ -12,8 +12,8 @@ mod host;
 mod mirror;
 pub mod pacing;
 mod render;
-mod streaks;
 mod screenshot;
+mod streaks;
 #[cfg(test)]
 pub use screenshot::Plan;
 #[cfg(test)]
