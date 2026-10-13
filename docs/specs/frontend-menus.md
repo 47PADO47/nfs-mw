@@ -103,11 +103,14 @@ uses the same slot animation as the installed icons.
 
 ### 2.1 Main menu entries [decomp]
 
-Entries this rewrite cannot do yet (Challenge Series, My Cars, the profile manager) are greyed out (alpha 150, never
+Entries this rewrite cannot do yet (Challenge Series, My Cars, Alias Manager) are greyed out (alpha 150, never
 selected). `MainMenu.fng` options, in order, as `(name label, icon texture)`: Career (`0x5815A2B5`, `0x03704F3D`),
 Challenge Series (`0xCC8CB746`, `0x9A962438`), Quick Race (`0x54020A7A`, `0x4E6FBB02`), My Cars
-(`0x1AFD5BE6`, `0xB0C46023`), Profile Manager (memory card builds only), Options (`0x19A8C0AF`,
-`0x3058FE37`). The title is the label `0xB24AAE58` on `TITLE_GROUP` (`0xB71B576D`). With no profile loaded the
+(`0x1AFD5BE6`, `0xB0C46023`), Alias Manager (`0xBCB18F38`, `0x6B303856`), Options (`0x19A8C0AF`, `0x3058FE37`).
+**[decomp]** `UIMain::Setup` (the non-Mike-Mann branch) adds Alias Manager only when `IsMemcardEnabled` is nonzero;
+whether the PC build sets that flag is **[unconfirmed]**, so the rewrite shows the entry greyed out. The label
+`0xBCB18F38` reads "Alias Manager" **[verified]** (`nfsmw strings`). The same decompiled setup adds no Online or LAN
+entry to the main menu **[decomp]**. The title is the label `0xB24AAE58` on `TITLE_GROUP` (`0xB71B576D`). With no profile loaded the
 screen hides the player name group (`0xFB80CDAC`) and the game-statistics hint (`0x8913E195`). A `Quit` button (the
 object `0xC0A32823`, label `0xC51FBF74`, keyboard hint `Q`) lives in the package and answers a mouse release
 with the message `0x62799A4C` for the game **[verified, name unknown]**; this rewrite has no mouse, so the `Q` key
@@ -120,11 +123,27 @@ Selecting Options sets the game mode to options and switches to `MainMenu_Sub.fn
 
 Found in the dump of `MainMenu_Sub.fng` (`nfsmw dump-screen`): twelve option buttons `OPTION_1`..`OPTION_12`
 (name hashes `0x4B4E3888`..`0x4B4E3890`, `0xB51549B8`..`0xB51549BA`). The rewrite now lists the original's
-categories in order: Audio, Video, Gameplay, Player (`0xF760EABE` "Player"), Controls (`0x04DC6DB5`), and, outside
-the pause menu, EA Trax (`0xDCFB6B36`) and Credits (`0x0905101F`). Player, EA Trax and Credits are greyed out:
-the rewrite has no screen for them. **[ours]** Their icon textures are not read yet, so they show no picture.
-The spec's `0xD708EFEF` and `0xA04A7B26` are the buttons' name hashes; the text labels above are what the game
-displays (found with `nfsmw strings`).
+categories in order: Audio, Video, Gameplay, Player (label `0xF760EABE` "Player"), Controls (`0x04DC6DB5`), and,
+outside the pause menu, Online (label `0x7D347E05` "Online Options", shown in the original only in online mode),
+EA Trax (`0xDCFB6B36`) and Credits (`0x0905101F`). Player, Online, EA Trax and Credits are greyed out: the rewrite
+has no screen for them. The labels are what the game displays (`nfsmw strings`) **[verified]**.
+
+**Icon textures.** `UIOptionsMain::Setup` adds each category as `OMxxx(texture, label, 0)`:
+`OMAudio(0xF37AF144, 0xE76CD783, 0)` and `OMPlayer(0xD708EFEF, 0xF760EABE, 0)` **[decomp]**. The Audio pair is the one
+the rewrite already draws, so the first argument is the texture: **Player's icon texture is `0xD708EFEF`** (set in
+`icon_menu.rs`; `nfsmw view-screen MainMenu_Sub.fng --options --ui-script "wait 1;right;right;right;wait 1"` shows its
+picture, dimmed). The earlier note that `0xD708EFEF` is a button name hash was wrong.
+The same reading gives Online texture `0x5A5E5137` (`OMOnline`, win32 online mode) **[decomp]**, which the rewrite now
+uses; it draws a picture, dimmed. EA Trax `0xC52CCBF6` and Credits `0x51009E20` **[decomp]** are not applied yet; they
+have no texture in the rewrite and show none. `OMController` gives texture `0xA04A7B26` **[decomp, unconfirmed]**; the
+rewrite draws the input glyph atlas for Controls instead.
+
+**LAN.** The strings `LAN main menu` (`0x03F6F2BF`) and `LAN options` (`0x19889765`) exist **[verified]**, but neither
+`UIMain::Setup` nor `UIOptionsMain::Setup` adds a LAN icon **[decomp]**, so the rewrite has no LAN entry.
+
+**Ghidra.** `/speed.exe` has no function names, and the byte search needed to find the code that adds these
+entries was not available in this pass. The hashes above come from the decompiled source; the Player texture was
+checked on screen (a wrong hash would draw no picture).
 
 [decomp] `MainMenu_Sub.fng` as `UIOptionsMain`: options Audio (`0xE76CD783`, icon `0xF37AF144`), Video (`0x8A006328`),
 Gameplay (`0x4DF98FB2`), Player (`0xD708EFEF`), Controller (`0xA04A7B26`), then EA Trax and Credits when not
