@@ -167,6 +167,11 @@ impl Scene for Pausable {
         self.inner.rear_view(aspect)
     }
 
+    // Like the rear view, speed streaks belong to the driving scene; forward them so the play path draws them.
+    fn speed_streaks(&self) -> f32 {
+        self.inner.speed_streaks()
+    }
+
     fn ready(&self) -> bool {
         self.inner.ready()
     }
