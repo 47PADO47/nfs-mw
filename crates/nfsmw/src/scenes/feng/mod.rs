@@ -18,6 +18,8 @@ pub struct FengViewerScene {
     /// Index into `names` of the screen on the backdrop.
     selected: usize,
     panel: sidebar::Panel,
+    /// Whether Ctrl+B has hidden the list. The screen then takes the whole window.
+    collapsed: bool,
     /// The hand-over with the front end: picks go out, and the list's pointer state comes back in.
     browse: Browse,
     /// The menus' flat backdrop: no car and no room, so nothing is turned or followed.
@@ -43,6 +45,7 @@ impl FengViewerScene {
             names,
             selected,
             panel: sidebar::Panel::default(),
+            collapsed: false,
             browse: Browse::default(),
             backdrop: MenuScene::new(None),
         })
@@ -81,6 +84,14 @@ impl Scene for FengViewerScene {
     }
 
     fn ui(&mut self, ctx: &egui::Context) -> f32 {
+        if sidebar::toggle_pressed(ctx) {
+            self.collapsed = !self.collapsed;
+        }
+        if self.collapsed {
+            // No list to be over; the backdrop has no camera to recentre.
+            self.browse.set_over_panel(false);
+            return 0.0;
+        }
         let clicked = sidebar::show(ctx, &mut self.panel, &self.names, self.selected, None, "screens");
         if let Some(index) = clicked {
             self.selected = index;

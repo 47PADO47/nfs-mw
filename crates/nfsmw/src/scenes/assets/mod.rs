@@ -46,6 +46,8 @@ pub struct AssetScene {
     /// Whether the pointer is over the list: the camera ignores it there, so a drag over the list does not turn
     /// the model.
     over_panel: bool,
+    /// Whether Ctrl+B has hidden the list. The model then recentres on the whole window.
+    collapsed: bool,
     /// Why the last click did not load its model.
     error: Option<String>,
     car: CarScene,
@@ -97,6 +99,7 @@ impl AssetScene {
             requested: None,
             panel: sidebar::Panel::default(),
             over_panel: false,
+            collapsed: false,
             error: None,
             car,
             clock: 0.0,
@@ -176,6 +179,16 @@ impl Scene for AssetScene {
     }
 
     fn ui(&mut self, ctx: &egui::Context) -> f32 {
+        if sidebar::toggle_pressed(ctx) {
+            self.collapsed = !self.collapsed;
+        }
+        if self.collapsed {
+            // No list to be over, and the model sits in the middle of the window.
+            self.over_panel = false;
+            self.car.view_offset = 0.0;
+            return 0.0;
+        }
+        self.car.view_offset = sidebar::PANEL_FRACTION;
         let clicked = sidebar::show(ctx, &mut self.panel, &self.names, self.selected, self.error.as_deref(), self.noun);
         if let Some(index) = clicked {
             self.requested = Some(index);
