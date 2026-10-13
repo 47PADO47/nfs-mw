@@ -12,6 +12,7 @@ use blackbox_feng::runtime::pad;
 use game_install::GameDir;
 use glam::Vec2;
 
+use super::browse::Browse;
 use super::flow::{Boot, Frontend, Stage, Start};
 use super::logic::{Command, Env};
 use super::pointer::{self, feng_point};
@@ -33,6 +34,8 @@ pub struct FrontendPlugin {
     pub start: Start,
     /// A scripted pad that replaces the real input (`--ui-script`).
     pub script: Option<UiScript>,
+    /// The sidebar that picks the screens, for `feng-viewer` (`Start::Browse`).
+    pub browse: Option<Browse>,
 }
 
 impl Plugin for FrontendPlugin {
@@ -40,7 +43,9 @@ impl Plugin for FrontendPlugin {
         let Some(assets) = crate::ui::ensure(app, &self.dir) else { return };
         let catalog = Catalog::load(&self.dir, &SCREEN_FILES);
         let screens = Screens::new(catalog, assets);
-        app.insert_resource(Frontend::new(screens, self.dir.clone(), self.start.clone(), self.script.clone()))
+        let mut frontend = Frontend::new(screens, self.dir.clone(), self.start.clone(), self.script.clone());
+        frontend.browse = self.browse.clone();
+        app.insert_resource(frontend)
             .init_resource::<Assets<Image>>()
             .add_systems(Update, update.in_set(FrameSet::Frontend))
             .add_systems(Update, present.in_set(FrameSet::Hud))
@@ -128,6 +133,11 @@ fn update(
     let mut current = *settings;
     let mut env = Env { settings: &mut current, changed: &mut changed, caps };
     fe.begin(host, &mut env);
+    // The sidebar's pick is shown on the frame after it was clicked (its scene runs after this system).
+    let picked = fe.browse.as_ref().and_then(Browse::take);
+    if let Some(name) = picked {
+        fe.show_browsed(&name, host, &mut env);
+    }
 
     // Escape belongs to the front end unless the console had it (it closes the console on the same press).
     let console_had_it = console.open || fe.console_was_open;
@@ -155,10 +165,13 @@ fn update(
     if matches!(fe.stage, Stage::Boot(_)) && actions.pressed(Action::Click) {
         mask |= pad::ACCEPT;
     }
-    // On the menus a click presses what is under the pointer and holds accept while a button is held.
+    // On the menus a click presses what is under the pointer and holds accept while a button is held. A sidebar's
+    // list takes its own clicks and wheel turns, so none of them reach the screen under it.
     let (mut press_back, mut press_quit) = (false, false);
+    let on_list = fe.browse.as_ref().is_some_and(Browse::over_panel);
     if matches!(fe.stage, Stage::Menus | Stage::Paused) {
         if actions.just_pressed(Action::Click)
+            && !on_list
             && let Some(point) = feng_point(&window)
         {
             let device = fe.script.as_ref().and_then(|s| s.device).unwrap_or(input.device);
@@ -181,7 +194,7 @@ fn update(
         }
     }
     // The wheel scrolls the menus a notch at a time; the fraction of a notch waits for the next frame.
-    let menus = matches!(fe.stage, Stage::Menus | Stage::Paused);
+    let menus = matches!(fe.stage, Stage::Menus | Stage::Paused) && !on_list;
     *wheel = if menus { *wheel + actions.value(Action::Zoom) } else { 0.0 };
     let notches = wheel.trunc();
     *wheel -= notches;

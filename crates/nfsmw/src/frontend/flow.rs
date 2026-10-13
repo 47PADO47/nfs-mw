@@ -6,6 +6,7 @@ use std::collections::VecDeque;
 use bevy_ecs::prelude::*;
 use game_install::GameDir;
 
+use super::browse::Browse;
 use super::logic::{Args, Command, Env};
 use super::scene::{MenuScene, Pausable, PauseFlag};
 use super::screens::Screens;
@@ -24,6 +25,9 @@ pub enum Start {
     Menu,
     /// One screen, as `view-screen` shows it.
     Screen(String, Args),
+    /// One screen over the scene already in the window, which stays (`feng-viewer`). Later screens come from the
+    /// [`Browse`] handle the front end was given.
+    Browse(String),
     /// Straight into free roam.
     Drive,
 }
@@ -77,6 +81,8 @@ pub struct Frontend {
     pub(super) last_mask: u32,
     /// A slot waiting for its next key (the controls screen asked; `plugin.rs` takes the key).
     pub(super) remap: Option<(Control, usize)>,
+    /// The sidebar's hand-over, when a viewer runs the front end over its own scene (`Start::Browse`).
+    pub(super) browse: Option<Browse>,
 }
 
 impl Frontend {
@@ -96,6 +102,7 @@ impl Frontend {
             save: true,
             last_mask: 0,
             remap: None,
+            browse: None,
         }
     }
 
@@ -115,8 +122,18 @@ impl Frontend {
                 self.apply(commands, host, env);
                 self.stage = Stage::Menus;
             }
+            Start::Browse(name) => self.show_browsed(&name, host, env),
             Start::Drive => self.start_free_roam(host),
         }
+    }
+
+    /// Shows `name` in place of the screens there are, over the scene already in the window (which stays).
+    pub(super) fn show_browsed(&mut self, name: &str, host: &mut Host, env: &mut Env) {
+        self.latch = true;
+        self.screens.clear();
+        let commands = self.screens.open(name, Args::default(), true, env);
+        self.stage = Stage::Menus;
+        self.apply(commands, host, env);
     }
 
     fn replace_scene(&mut self, host: &mut Host, scene: Box<dyn crate::viewer::Scene>) -> bool {

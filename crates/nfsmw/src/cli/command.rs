@@ -102,6 +102,14 @@ pub enum Command {
         #[command(flatten)]
         view: ViewArgs,
     },
+    /// Browse every FEng screen in the install: a searchable list on the left, the chosen screen over a flat backdrop
+    /// with the camera off (Esc quits). `nfsmw feng-viewer MainMenu.fng --screenshot out.png` shows one at once.
+    FengViewer {
+        /// The screen to start with, in any case; the first one when left out.
+        name: Option<String>,
+        #[command(flatten)]
+        view: ViewArgs,
+    },
     /// List the FEng screens (menus, in-game screens) in the install.
     ListScreens,
     /// Search the English language table: text containing FILTER, or one label as 0xHASH.

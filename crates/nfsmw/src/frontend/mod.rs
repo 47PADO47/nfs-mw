@@ -2,6 +2,7 @@
 //! main menu, free roam, the pause menu) and the screens' own logic. The packages are run by `blackbox-feng` and
 //! drawn by the shared presenter in `ui`. Spec: `docs/specs/frontend-menus.md`.
 
+mod browse;
 mod confirm;
 mod controls_screen;
 pub mod dump;
@@ -48,6 +49,7 @@ mod upscale_tests;
 #[cfg(test)]
 mod vehicle_effects_tests;
 
+pub use browse::Browse;
 pub use flow::Start;
 pub use logic::{Args, Category};
 pub use plugin::FrontendPlugin;
