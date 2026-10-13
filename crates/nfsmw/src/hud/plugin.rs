@@ -63,7 +63,7 @@ impl Plugin for HudPlugin {
         let package = runtime.load(package);
         let minimap = MinimapBinding::open_city(&runtime, package, &self.dir, &assets);
         let binding = HudBinding::new(&mut runtime, package).with_minimap(minimap);
-        let viewport = HudViewport::new(&runtime.tree(package));
+        let viewport = HudViewport::new(&runtime.tree(package), &binding.blip_icon_hashes());
         let trax = trax::load(&self.dir, &mut runtime);
         app.insert_resource(Hud { runtime, package, binding, viewport, trax })
             .insert_resource(self.initial.clone())

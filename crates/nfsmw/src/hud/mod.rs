@@ -12,6 +12,8 @@ mod blip_style;
 mod blip_style_tests;
 mod blip_styles;
 mod blips;
+#[cfg(test)]
+mod blips_tests;
 mod cop_blip;
 #[cfg(test)]
 mod cop_blip_tests;

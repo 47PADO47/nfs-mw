@@ -38,6 +38,11 @@ impl BlipBinding {
         binding
     }
 
+    /// The name hashes of the pool objects of the styles registered now (see `HudViewport::new`).
+    pub fn icon_hashes(&self) -> Vec<u32> {
+        self.styles.iter().flat_map(|style| style.icons()).map(|name| fe_hash_upper(&name)).collect()
+    }
+
     /// Registers one more style. A style whose name is already registered is ignored.
     pub fn add(&mut self, rt: &mut Runtime, package: PackageId, style: Box<dyn BlipStyle>) {
         if self.styles.iter().any(|s| s.name() == style.name()) {

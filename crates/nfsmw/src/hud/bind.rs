@@ -150,6 +150,11 @@ impl HudBinding {
         self.blips.add(rt, package, style);
     }
 
+    /// The name hashes of the map blips' pool objects, for `HudViewport::new`.
+    pub fn blip_icon_hashes(&self) -> Vec<u32> {
+        self.blips.icon_hashes()
+    }
+
     pub fn with_minimap(mut self, minimap: Option<MinimapBinding>) -> Self {
         self.minimap = minimap;
         self
