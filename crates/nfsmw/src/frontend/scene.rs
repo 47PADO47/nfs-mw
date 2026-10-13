@@ -161,6 +161,12 @@ impl Scene for Pausable {
         self.inner.frame(aspect)
     }
 
+    // The rear-view mirror is the driving scene's, so the wrapper must pass it on: without this the HUD mirror
+    // shows its bezel over a blank picture whenever the scene runs inside the front end (the play path).
+    fn rear_view(&mut self, aspect: f32) -> Option<(FrameParams, &[Instance])> {
+        self.inner.rear_view(aspect)
+    }
+
     fn ready(&self) -> bool {
         self.inner.ready()
     }
@@ -391,5 +397,27 @@ mod tests {
         scene.effects_dirty = false;
         scene.set_spark_style(crate::settings::SparkStyle::RestoredExperimental);
         assert!(scene.effects_dirty, "a style change must refresh frozen sprite and streak buffers");
+    }
+
+    #[test]
+    fn the_rear_view_mirror_reaches_the_driving_scene_through_the_wrapper() {
+        struct Mirror;
+        impl Scene for Mirror {
+            fn title(&self) -> String {
+                String::new()
+            }
+            fn init(&mut self, _: &mut dyn RenderBackend) -> Result<()> {
+                Ok(())
+            }
+            fn update(&mut self, _: &mut dyn RenderBackend, _: &ActionState, _: f32) {}
+            fn frame(&mut self, _: f32) -> (FrameParams, &[Instance]) {
+                unreachable!()
+            }
+            fn rear_view(&mut self, _: f32) -> Option<(FrameParams, &[Instance])> {
+                Some((flat_frame(), &[]))
+            }
+        }
+        let mut scene = Pausable::new(Box::new(Mirror), PauseFlag::default());
+        assert!(scene.rear_view(2.0).is_some(), "a driving scene's mirror must not be dropped by the wrapper");
     }
 }
