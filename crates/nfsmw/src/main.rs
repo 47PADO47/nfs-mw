@@ -5,6 +5,7 @@ mod audio;
 mod cli;
 mod commands;
 mod devtools;
+mod discord;
 mod frontend;
 mod gui;
 mod hud;
