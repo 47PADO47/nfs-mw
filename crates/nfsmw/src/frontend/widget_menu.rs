@@ -297,10 +297,6 @@ impl WidgetMenu {
         if self.leaving {
             return;
         }
-        if row.setting == options::Setting::Input(InputSetting::KeyboardBindings) {
-            cx.send(Command::Push(screen::CONTROLS.into(), Args::default()));
-            return;
-        }
         if row.setting == options::Setting::Input(InputSetting::SaveAlias) {
             cx.send(Command::SaveAlias);
             return;
@@ -357,7 +353,8 @@ impl ScreenLogic for WidgetMenu {
         };
         cx.label_group(ids::HEADER_TEXT, title);
         if self.args.category == super::logic::Category::Controls {
-            cx.text_group(ids::HEADER_TEXT, "Controls");
+            // The Controls icon opens the key list; this list is the Control Options item.
+            cx.text_group(ids::HEADER_TEXT, "Control Options");
         }
         self.layout_rows(cx);
     }

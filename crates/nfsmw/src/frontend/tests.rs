@@ -105,30 +105,41 @@ fn title_prompts_follow_the_authored_position_and_fade_above_the_copyright() {
 }
 
 #[test]
-fn controls_category_opens_changes_saves_and_restores_its_selection() {
-    for (menu, rows, pause) in
-        [(screen::MAIN_MENU_SUB, screen::OPTIONS, false), (screen::PAUSE_MENU, screen::PAUSE_OPTIONS, true)]
-    {
+fn controls_icon_opens_the_key_list_and_control_options_the_sensitivity_rows() {
+    for (menu, rows, keys, pause) in [
+        (screen::MAIN_MENU_SUB, screen::OPTIONS, screen::CONTROLS, false),
+        (screen::PAUSE_MENU, screen::PAUSE_OPTIONS, screen::PAUSE_CONTROLS, true),
+    ] {
         let Some(mut h) = Harness::open(menu, Args { options: true, pause, ..Args::default() }) else { return };
         h.wait(1.0);
-        // Audio, Video, Gameplay, Player (greyed out), then Controls.
+        let title_is = |h: &Harness, text: &str| {
+            h.screens.trees().iter().any(|tree| {
+                tree.nodes.iter().any(|n| n.name_hash == super::ids::ICON_TITLE && n.text.as_deref() == Some(text))
+            })
+        };
+        // Audio, Video, Gameplay, Player (greyed out), then Controls: the key list replaces the categories.
         for _ in 0..4 {
             h.press(pad::RIGHT);
         }
         h.wait(0.5);
-        let selected_title = |h: &Harness| {
-            h.screens.trees().iter().any(|tree| {
-                tree.nodes
-                    .iter()
-                    .any(|n| n.name_hash == super::ids::ICON_TITLE && n.text.as_deref() == Some("Controls"))
-            })
-        };
-        assert!(selected_title(&h), "{menu}: the fifth category must be Controls");
+        assert!(title_is(&h, "Controls"), "{menu}: the fifth category must be Controls");
         // Hold A through the switch. The next screen must not accept the same gesture again.
         h.run(pad::ACCEPT, 120);
         h.run(0, 3);
         h.wait(1.5);
-        assert_eq!(h.screens.top(), Some(rows));
+        assert_eq!(h.screens.top(), Some(keys), "{menu}: Controls opens the key list");
+        h.press(pad::BACK);
+        h.wait(1.5);
+        assert_eq!(h.screens.top(), Some(menu), "{menu}: back returns to the categories");
+        assert!(title_is(&h, "Controls"), "{menu}: return must keep Controls selected");
+        // Control Options, the next category, opens the sensitivity and camera rows.
+        h.press(pad::RIGHT);
+        h.wait(0.5);
+        assert!(title_is(&h, "Control Options"), "{menu}: the sixth category");
+        h.run(pad::ACCEPT, 120);
+        h.run(0, 3);
+        h.wait(1.5);
+        assert_eq!(h.screens.top(), Some(rows), "{menu}: Control Options opens the rows");
         h.wait(1.0);
         h.press(pad::RIGHT);
         assert!(h.changed.deadzone_mode.is_some(), "{menu}: {:?}", h.changed);
@@ -136,10 +147,10 @@ fn controls_category_opens_changes_saves_and_restores_its_selection() {
         h.wait(1.5);
         assert!(h.said(&Command::SaveSettings));
         assert_eq!(h.screens.top(), Some(menu));
-        assert!(selected_title(&h), "{menu}: return must keep Controls selected");
+        assert!(title_is(&h, "Control Options"), "{menu}: return must keep Control Options selected");
         h.press(pad::LEFT);
         h.wait(0.5);
-        assert!(!selected_title(&h), "{menu}: leaving Controls must restore the language label");
+        assert!(title_is(&h, "Controls"), "{menu}: moving back restores the Controls label");
     }
 }
 

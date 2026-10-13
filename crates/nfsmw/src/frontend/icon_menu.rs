@@ -32,7 +32,10 @@ enum Id {
     AliasManager,
     Options,
     Player,
-    Online,
+    /// The key list (`controls_screen.rs`).
+    Controls,
+    /// The sensitivity and camera rows (`widget_menu.rs`).
+    ControlOptions,
     EaTrax,
     Credits,
     Category(Category),
@@ -66,19 +69,20 @@ fn icons(kind: Kind) -> Vec<Icon> {
             icon(Id::AliasManager, 0x6B30_3856, 0xBCB1_8F38, false),
             icon(Id::Options, 0x3058_FE37, 0x19A8_C0AF, true),
         ],
-        // The original's option list (docs/specs/frontend-menus.md, 2.2): Player, Online, EA Trax and Credits have
-        // no screen here yet, so they are greyed out; Online, EA Trax and Credits are left out in the pause menu.
+        // The original's option list (docs/specs/frontend-menus.md, 2.2): Player, EA Trax and Credits have no screen
+        // here yet, so they are greyed out; EA Trax and Credits are left out in the pause menu. Online is left out too:
+        // the original shows it only in online mode, which this build never is, and the package has room for eight.
+        // Controls opens the key list; Control Options (the sensitivity and camera rows) sits beside it.
         Kind::Categories { pause } => {
             let mut list = vec![
                 icon(Id::Category(Category::Audio), 0xF37A_F144, 0xE76C_D783, true),
                 icon(Id::Category(Category::Video), 0x8A00_6328, 0xE8E2_4508, true),
                 icon(Id::Category(Category::Gameplay), 0x4DF9_8FB2, 0xD0CF_6EE1, true),
                 icon(Id::Player, 0xD708_EFEF, 0xF760_EABE, false),
-                icon(Id::Category(Category::Controls), crate::ui::input_icons::ATLAS, 0, true),
+                icon(Id::Controls, 0xA04A_7B26, 0x04DC_6DB5, true),
+                icon(Id::ControlOptions, crate::ui::input_icons::ATLAS, 0, true),
             ];
             if !pause {
-                // The original shows Online only in online mode (`OMOnline`, win32).
-                list.push(icon(Id::Online, 0x5A5E_5137, 0x7D34_7E05, false));
                 list.push(icon(Id::EaTrax, 0, 0xDCFB_6B36, false));
                 list.push(icon(Id::Credits, 0, 0x0905_101F, false));
             }
@@ -184,13 +188,15 @@ impl IconMenu {
     fn refresh_header(&self, cx: &mut Cx) {
         let Some(i) = self.current_icon() else { return };
         let name = self.icons[i].name;
+        let text = match self.icons[i].id {
+            Id::ControlOptions => Some("Control Options"),
+            _ => None,
+        };
         for hash in [ids::ICON_TITLE, ids::ICON_TITLE_SHADOW] {
-            if let Some(o) = cx.object(hash) {
-                if self.icons[i].id == Id::Category(Category::Controls) {
-                    cx.rt.set_text(o, "Controls");
-                    continue;
-                }
-                cx.label(o, name);
+            let Some(o) = cx.object(hash) else { continue };
+            match text {
+                Some(text) => cx.rt.set_text(o, text),
+                None => cx.label(o, name),
             }
         }
         if self.selected == self.first_slot() {
@@ -239,9 +245,10 @@ impl IconMenu {
             (Kind::Main, Pending::Pressed(Id::Options)) => {
                 cx.send(Command::Switch(screen::MAIN_MENU_SUB.into(), Args { options: true, ..self.args }));
             }
-            (Kind::Categories { .. }, Pending::Pressed(Id::Category(category))) => {
-                let name = if pause { screen::PAUSE_OPTIONS } else { screen::OPTIONS };
-                cx.send(Command::Switch(name.into(), Args { category, options: true, ..self.args }));
+            (Kind::Categories { .. }, Pending::Pressed(Id::Category(category))) => self.open_options(cx, category),
+            (Kind::Categories { .. }, Pending::Pressed(Id::Controls)) => self.open_controls(cx),
+            (Kind::Categories { .. }, Pending::Pressed(Id::ControlOptions)) => {
+                self.open_options(cx, Category::Controls)
             }
             (Kind::Categories { .. }, Pending::Back) if pause => {
                 cx.send(Command::Switch(screen::PAUSE_MENU.into(), Args { pause: true, options: false, ..self.args }));
@@ -259,6 +266,18 @@ impl IconMenu {
             (Kind::Pause, Pending::Pressed(Id::QuitToMenu)) => cx.send(Command::Confirm(Confirm::quit_to_menu())),
             _ => {}
         }
+    }
+
+    /// The option list of a category: the pause menu's in game, the main menu's otherwise.
+    fn open_options(&self, cx: &mut Cx, category: Category) {
+        let name = if self.pause() { screen::PAUSE_OPTIONS } else { screen::OPTIONS };
+        cx.send(Command::Switch(name.into(), Args { category, options: true, ..self.args }));
+    }
+
+    /// The key list (`controls_screen.rs`), which goes back to these categories when it is left.
+    fn open_controls(&self, cx: &mut Cx) {
+        let name = if self.pause() { screen::PAUSE_CONTROLS } else { screen::CONTROLS };
+        cx.send(Command::Switch(name.into(), Args { options: true, ..self.args }));
     }
 
     /// Writes where each icon is, how big and how opaque, from the scroll value and the clock.
@@ -296,7 +315,7 @@ impl IconMenu {
             let guid = cx.rt.package(cx.package).map_or(0, |p| p.objects[obj.index].guid);
             let texture = icon.map_or(ids::END_OF_SCROLLER, |i| self.icons[i].texture);
             cx.rt.set_texture(obj, texture);
-            if icon.is_some_and(|i| self.icons[i].id == Id::Category(Category::Controls)) {
+            if icon.is_some_and(|i| self.icons[i].id == Id::ControlOptions) {
                 cx.rt.set_uv(obj, crate::ui::input_icons::Glyph::Controller.uv());
             }
             self.slots.push(Slot { obj, guid, size, offset, icon });
@@ -445,10 +464,18 @@ mod tests {
                 .all(|i| !i.enabled)
         );
         let categories = icons(Kind::Categories { pause: false });
-        assert_eq!(categories.len(), 8, "the original's option list, Online included");
+        assert_eq!(
+            categories.len(),
+            8,
+            "the offline option list plus Control Options, which fits the 12 package slots"
+        );
+        let controls = categories.iter().find(|i| i.id == Id::Controls).expect("the Controls icon");
+        assert_eq!(controls.texture, 0xA04A_7B26, "OMController's picture (docs/specs/frontend-menus.md, 2.2)");
+        let options = categories.iter().position(|i| i.id == Id::ControlOptions).expect("Control Options");
+        assert_eq!(categories[options - 1].id, Id::Controls, "Control Options follows Controls");
         let player = categories.iter().find(|i| i.id == Id::Player).expect("the Player category");
         assert_eq!((player.texture, player.name), (0xD708_EFEF, 0xF760_EABE), "the original's Player icon");
-        assert_eq!(icons(Kind::Categories { pause: true }).len(), 5, "no Online, EA Trax or Credits in the pause menu");
+        assert_eq!(icons(Kind::Categories { pause: true }).len(), 6, "no EA Trax or Credits in the pause menu");
         assert_eq!(icons(Kind::Pause)[0].name, 0x01BD_185C, "Resume Free Roam");
     }
 

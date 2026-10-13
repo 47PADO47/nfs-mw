@@ -49,7 +49,7 @@ fn every_category_has_rows() {
     assert_eq!(rows(Category::Audio, &crate::settings::test_caps::native()).len(), 5);
     assert_eq!(rows(Category::Video, &crate::settings::test_caps::native()).len(), 25);
     assert_eq!(rows(Category::Gameplay, &crate::settings::test_caps::native()).len(), 7);
-    assert_eq!(rows(Category::Controls, &crate::settings::test_caps::native()).len(), 11);
+    assert_eq!(rows(Category::Controls, &crate::settings::test_caps::native()).len(), 10);
 }
 #[test]
 fn the_speech_volume_row_is_a_slider_that_records_its_change() {
