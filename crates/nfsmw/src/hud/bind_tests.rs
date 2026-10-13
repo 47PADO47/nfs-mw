@@ -61,6 +61,11 @@ fn package() -> Package {
         named(ObjectKind::MultiImage, 17, 0xEDFB_6D37, Some(14)),
         object(ObjectKind::Group, 18, "TURBO_GROUP", Some(14)),
         object(ObjectKind::Image, 19, "3rdperson_TurboDial", Some(18)),
+        // The rear-view mirror: its top group, the bezel group under it, the bezel, and the radar's backing.
+        named(ObjectKind::Group, 20, 0x7FAC_287B, None),
+        named(ObjectKind::Group, 21, 0x9EE0_6631, Some(20)),
+        named(ObjectKind::Image, 22, 0x5630_E0B9, Some(21)),
+        named(ObjectKind::Image, 23, 0x839E_7D77, None),
     ];
     Package {
         name: "HUD.fng".into(),
@@ -248,4 +253,41 @@ fn the_mirror_fades_in_over_the_game_track_length() {
     assert_eq!(mirror_fade_alpha(0.3), 128);
     assert_eq!(mirror_fade_alpha(0.6), 255);
     assert_eq!(mirror_fade_alpha(5.0), 255, "it stays at full once the fade is done");
+}
+
+#[test]
+fn the_mirror_and_its_radar_show_only_while_the_setting_is_on() {
+    let (mut rt, id, mut b) = setup();
+    // Past the fade, so the frame's alpha is full and only the setting can hide the mirror.
+    b.advance_mirror_fade(1.0);
+    b.apply(&mut rt, &HudState::default());
+    let mirror = [20, 21, 22, 23];
+    for guid in mirror {
+        assert!(visible(&rt, id, guid), "{guid} shows by default");
+    }
+    b.set_mirror_shown(false);
+    b.apply(&mut rt, &HudState::default());
+    for guid in mirror {
+        assert!(!visible(&rt, id, guid), "{guid} hides with rear_view_mirror off");
+    }
+    assert!(visible(&rt, id, 1) && visible(&rt, id, 8), "the speedometer and tachometer stay");
+    b.set_mirror_shown(true);
+    b.apply(&mut rt, &HudState::default());
+    for guid in mirror {
+        assert!(visible(&rt, id, guid), "{guid} shows again");
+    }
+}
+
+#[test]
+fn the_mirror_frame_fades_in_then_holds_full_alpha() {
+    let (mut rt, id, mut b) = setup();
+    let frame = rt.find(id, 0x7FAC_287B).unwrap();
+    b.apply(&mut rt, &HudState::default());
+    assert_eq!(rt.alpha(frame), Some(0), "the fade starts at zero");
+    b.advance_mirror_fade(0.3);
+    b.apply(&mut rt, &HudState::default());
+    assert_eq!(rt.alpha(frame), Some(128));
+    b.advance_mirror_fade(1.0);
+    b.apply(&mut rt, &HudState::default());
+    assert_eq!(rt.alpha(frame), Some(255), "full once the fade is done");
 }
