@@ -1,9 +1,11 @@
-//! The list of cars beside the asset viewer: a search box on top, the matching cars below, the chosen car
-//! highlighted. Only the egui view lives here; the scene loads what is clicked.
+//! The searchable list docked to the left of a viewer: a search box on top, the matching names below, the chosen
+//! name highlighted. Shared by the viewers that list things (cars, scenery assets). Only the egui view lives here;
+//! the scene loads what is clicked.
 
 use egui::{Align2, Color32, Frame, RichText, ScrollArea, TextEdit, vec2};
 
-use super::PANEL_FRACTION;
+/// The share of the window the list takes, on the left; the scene centres its model in the rest.
+pub const PANEL_FRACTION: f32 = 0.3;
 
 /// Passes that re-centre the list on the selection: egui clamps the offset against the content size it knew last pass,
 /// so the first passes settle it.
