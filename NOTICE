@@ -131,6 +131,10 @@ Engines, viewers and hook projects
   codepdbh/nfsmw-android — https://github.com/codepdbh/nfsmw-android — GPL-3.0, read only.
     Xbox 360 native renderer and reflection synchronization notes considered as context.
     No code or assets copied; see docs/provenance/car-reflections.md.
+  hedge-dev/XenosRecomp (copied in codepdbh/nfsmw-android/shaders/XenosRecomp) — MIT,
+  Copyright (c) 2025 hedge-dev and contributors — https://github.com/hedge-dev/XenosRecomp — read only.
+    Xbox 360 shader translator: the control-flow and container design was read for ideas. No code copied.
+    See docs/xenos-shaders/README.md. The fork's own files in that folder are GPL-3.0 (see above).
   berkayylmao/NFSPluginSDK — BSD-3-Clause. gaycoderprincess/nya-common-nfsmw — MPL-2.0.
   ThirteenAG/WidescreenFixesPack — MIT (registry key, camera, aspect-aware HUD placement).
     https://github.com/ThirteenAG/WidescreenFixesPack — reference only; no code copied.
