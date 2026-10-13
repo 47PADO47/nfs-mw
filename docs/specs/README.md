@@ -37,6 +37,8 @@ textured sparks and contact glow separately from the experimental restoration.
 
 [Post-processing](post-processing.md) specifies the optional bloom, tone mapping and FXAA passes (new design).
 
+[Contrast-adaptive sharpening](cas-sharpening.md) specifies a CAS pass for native resolution, from AMD's MIT algorithm as read in a ReShade pack (new design; overlaps RCAS, see the spec).
+
 [Controller settings](controller-settings.md) specifies rewrite response options and saved rebinding.
 
 [EAGL animation banks](eagl-animation.md) records the animation bank layout, the channel evaluators and the 14-byte key format found in `speed.exe`, and what is still unmapped (work in progress; the airliner is not yet animated).
