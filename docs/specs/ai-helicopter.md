@@ -33,6 +33,14 @@ world and ground moment scales 1e6 (it does not tumble from world contact), obje
 `Destroy()` (a pursuit-breaker zone, [ai-pursuit-roadblocks.md](ai-pursuit-roadblocks.md) section 7) does. `chopperspecs`:
 `copheli` uses the `default` collection; `qchopper` and `henchchopper` exist but no vehicle references them. [decomp][verified]
 
+**No car links.** The record has no `chassis`, `tires`, `brakes`, `engine`, `transmission`, `induction` or `nos` link, not even
+an inherited one: its lineage is `copheli` -> `choppers` -> `default`, and a car's record (`bmwm3gtr`, `copmidsize`) has all of
+them. [verified], checked by the install test `the_helicopter_record_has_no_car_links`
+(`crates/nfsmw-data/tests/real_install/pursuit.rs`). The car reader
+`car_physics` needs the chassis, tires and brakes, so the game layer loads the helicopter as a model only:
+`load_helicopter_model` (`crates/nfsmw/src/scenes/world/ai/models.rs`) uploads its rig, and no `CarPhysics` is built for it.
+The helicopter's flight is `SimpleChopper` (section 5), not the car physics.
+
 The AI is `AIVehicleHelicopter` (derived from the cop pursuit driver). It thinks every 0.125 s like the cop cars.
 There is at most **one** helicopter at a time (`gHeliVehicle`, `HeliVehicleActive()`).
 
