@@ -6,6 +6,8 @@ use super::icon_menu::{IconMenu, Kind};
 use super::ids::screen;
 use super::logic::{Args, Plain, ScreenLogic};
 use super::splash::Splash;
+use super::track_options::TrackOptions;
+use super::track_select::TrackSelect;
 use super::widget_menu::WidgetMenu;
 use crate::ui::Text;
 
@@ -36,6 +38,12 @@ pub fn make(name: &str, args: Args) -> Box<dyn ScreenLogic> {
     }
     if is(screen::CONTROLS) || is(screen::PAUSE_CONTROLS) {
         return Box::new(ControlsLogic::new(args));
+    }
+    if is(screen::TRACK_SELECT) {
+        return Box::new(TrackSelect::default());
+    }
+    if is(screen::TRACK_OPTIONS) {
+        return Box::new(TrackOptions);
     }
     Box::new(Plain)
 }

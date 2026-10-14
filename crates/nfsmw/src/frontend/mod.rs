@@ -29,6 +29,8 @@ mod screens;
 mod script;
 mod scroller;
 mod splash;
+mod track_options;
+mod track_select;
 mod widget_layout;
 mod widget_menu;
 // The shared option widgets. The advanced controls screen that uses them is not wired to its package yet.

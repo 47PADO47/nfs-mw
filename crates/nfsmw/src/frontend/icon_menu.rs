@@ -229,7 +229,10 @@ impl IconMenu {
     fn act(&mut self, cx: &mut Cx, pending: Pending) {
         let pause = self.pause();
         match (self.kind, pending) {
-            (Kind::Main, Pending::Pressed(Id::Career | Id::QuickRace)) => cx.send(Command::StartFreeRoam),
+            (Kind::Main, Pending::Pressed(Id::Career)) => cx.send(Command::StartFreeRoam),
+            (Kind::Main, Pending::Pressed(Id::QuickRace)) => {
+                cx.send(Command::Switch(screen::TRACK_SELECT.into(), Args::default()));
+            }
             (Kind::Main, Pending::Pressed(Id::Options)) => {
                 cx.send(Command::Switch(screen::MAIN_MENU_SUB.into(), Args { options: true, ..self.args }));
             }
