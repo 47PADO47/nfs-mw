@@ -121,6 +121,7 @@ fn drive(audio: &mut Audio, car: &str, path: SamplePath) -> [Stage; 3] {
                 pitch: out.decel_loop.playback_rate,
             },
             low_pass_hz: out.low_pass_hz,
+            ..Default::default()
         });
         levels = dynamic.update(
             TICK,

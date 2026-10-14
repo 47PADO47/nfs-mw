@@ -3,6 +3,7 @@
 //! (the evaluator, `blackbox-mixmap`) and `docs/specs/car-sound-mixer.md` (this wiring).
 
 pub(super) mod ambient;
+mod authored;
 pub(super) mod collision;
 mod feed;
 mod ids;
@@ -30,9 +31,18 @@ pub struct CarMixer {
     dual: bool,
     map: Arc<MixMap>,
     view: super::AudioView,
+    tyres: crate::audio::car::tyres::TyreMixerSignals,
+    environment: super::environment::EnvironmentController,
+    environment_values: super::environment::EnvironmentValues,
 }
 
 impl CarMixer {
+    #[cfg(test)]
+    pub(in crate::audio) fn mute_continuous_effects(&mut self) {
+        for object in [object::WEATHER, object::WIND, object::ROAD, object::SKIDS] {
+            self.mixer.attach(player_object(object), false);
+        }
+    }
     pub(in crate::audio) fn set_landing(&mut self, landing: Option<blackbox_carsound::Landing>) {
         self.mixer
             .set_input(ids::player_object_input(object::BOTTOM_OUT, 1), if landing.is_some() { 32767 } else { 0 });
@@ -63,18 +73,37 @@ impl CarMixer {
         for o in [engine, object::SHIFT, object::TURBO, object::NITROUS, object::SPARKS, object::SKIDS] {
             mixer.attach(player_object(o), true);
         }
-        for o in [object::ROAD, object::WIND, object::BOTTOM_OUT] {
+        for o in [object::ROAD, object::WIND, object::WEATHER, object::BOTTOM_OUT] {
             mixer.attach(player_object(o), true);
         }
-        Self { mixer, dual, map, view: Default::default() }
+        Self {
+            mixer,
+            dual,
+            map,
+            view: Default::default(),
+            tyres: Default::default(),
+            environment: Default::default(),
+            environment_values: Default::default(),
+        }
     }
 
     /// Publishes `frame`, advances by `dt` seconds and returns the levels for the next frame.
     pub fn update(&mut self, dt: f32, frame: &Frame<'_>) -> Levels {
         feed::publish(&mut self.mixer, frame, &self.view);
+        for (index, value) in self.tyres.update(dt, frame.input).into_iter().enumerate() {
+            self.mixer.set_input(ids::player_object_input(object::SKIDS, index as u8), value);
+        }
+        self.environment_values = self.environment.update(dt, self.view.environment);
+        for (index, value) in self.view.environment.mixer_inputs(self.environment_values).into_iter().enumerate() {
+            self.mixer.set_input(ids::player_controller(6, index as u8), value);
+        }
         self.mixer.process(dt);
         self.mixer.set_input(ids::player_object_input(object::BOTTOM_OUT, 1), 0);
-        Levels::read(&self.mixer, self.dual)
+        let mut levels = Levels::read(&self.mixer, self.dual);
+        levels.environment = self.environment_values;
+        levels.engine_distance_filter =
+            super::environment::distance_filter(self.view.distances(self.view.car_position)[1]);
+        levels
     }
 
     pub fn set_view(&mut self, view: super::AudioView) {

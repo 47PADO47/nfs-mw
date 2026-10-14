@@ -9,6 +9,7 @@ mod aems;
 mod capture;
 mod car;
 mod chase;
+pub mod environment;
 mod filter;
 #[cfg(test)]
 mod replay;
@@ -40,7 +41,9 @@ use kira::track::{TrackBuilder, TrackHandle};
 use kira::{AudioManager, AudioManagerSettings, DefaultBackend, Tween};
 use nfsmw_data::sound::{CarSound, EngineLoops, SoundUpgrades};
 
-pub use car::{CarContact, CarEvent, CarSoundState, CarSoundTick, ContactSource};
+pub use car::{
+    CarAudioTelemetry, CarContact, CarEvent, CarSoundState, CarSoundTick, ContactSource, RoadContext, RoadTerrain,
+};
 pub use engine::{EngineHandle, EngineMix, EngineVoice, LoopMix};
 pub use interactive::{MusicInput, PursuitFeed};
 pub use plugin::AudioPlugin;

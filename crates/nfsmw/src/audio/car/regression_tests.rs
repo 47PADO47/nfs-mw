@@ -29,6 +29,7 @@ fn contact() -> CarContact {
 
 fn state(car: &str, input: CarInput, ticks: Vec<CarSoundTick>) -> CarSoundState {
     CarSoundState {
+        telemetry: CarAudioTelemetry::default(),
         car: car.into(),
         upgrades: SoundUpgrades::default(),
         input,
@@ -60,7 +61,7 @@ fn installed_authored_scrape_is_audible_reuses_its_voice_and_releases() {
     let mut recorded = Vec::new();
     for i in 0..180 {
         let contacts = if i < 60 { vec![contact()] } else { vec![] };
-        let tick = CarSoundTick { input, contacts, surface: 0 };
+        let tick = CarSoundTick { telemetry: CarAudioTelemetry::default(), input, contacts, surface: 0 };
         audio.drive_car(Some(&state("BMWM3GTR", input, vec![tick])), 1.0 / 60.0);
         recorded.extend_from_slice(audio.render_replay(800));
         let count = audio.car.as_ref().unwrap().contacts.active_count();
@@ -104,7 +105,12 @@ fn replay(rate: u32, fps: u32, car: &str) -> (capture::Levels, u64) {
                 gear: 5,
                 ..Default::default()
             };
-            ticks.push(CarSoundTick { input: latest, contacts: vec![], surface: 0 });
+            ticks.push(CarSoundTick {
+                telemetry: CarAudioTelemetry::default(),
+                input: latest,
+                contacts: vec![],
+                surface: 0,
+            });
             physics_tick += 1;
         }
         audio.drive_car(Some(&state(car, latest, ticks)), 1.0 / fps as f32);
@@ -272,13 +278,30 @@ fn tyre_landing(compression: f32) -> capture::Levels {
     };
     for input in std::iter::repeat_n(grounded, 20).chain(std::iter::repeat_n(air, 20)) {
         audio.drive_car(
-            Some(&state("BMWM3GTR", input, vec![CarSoundTick { input, contacts: vec![], surface: 0 }])),
+            Some(&state(
+                "BMWM3GTR",
+                input,
+                vec![CarSoundTick { telemetry: CarAudioTelemetry::default(), input, contacts: vec![], surface: 0 }],
+            )),
             1.0 / 60.0,
         );
+        // Isolate the landing from independently covered continuous sound families.
+        let car = audio.car.as_mut().unwrap();
+        car.sound.engine.has_transmission_loop = false;
+        car.mixer.as_mut().unwrap().mute_continuous_effects();
         audio.render_replay(800);
     }
     audio.drive_car(
-        Some(&state("BMWM3GTR", grounded, vec![CarSoundTick { input: grounded, contacts: vec![], surface: 0 }])),
+        Some(&state(
+            "BMWM3GTR",
+            grounded,
+            vec![CarSoundTick {
+                telemetry: CarAudioTelemetry::default(),
+                input: grounded,
+                contacts: vec![],
+                surface: 0,
+            }],
+        )),
         1.0 / 60.0,
     );
     assert_eq!(audio.impact_counter, 0, "a wheel landing must not become a physical crash event");
@@ -286,7 +309,16 @@ fn tyre_landing(compression: f32) -> capture::Levels {
     let mut recorded = audio.render_replay(800).to_vec();
     for _ in 0..180 {
         audio.drive_car(
-            Some(&state("BMWM3GTR", grounded, vec![CarSoundTick { input: grounded, contacts: vec![], surface: 0 }])),
+            Some(&state(
+                "BMWM3GTR",
+                grounded,
+                vec![CarSoundTick {
+                    telemetry: CarAudioTelemetry::default(),
+                    input: grounded,
+                    contacts: vec![],
+                    surface: 0,
+                }],
+            )),
             1.0 / 60.0,
         );
         recorded.extend_from_slice(audio.render_replay(800));

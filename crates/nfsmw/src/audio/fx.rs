@@ -33,7 +33,7 @@ impl Audio {
         car.impacts.landing(self, stitch, [13000, 15000, 24000, 32767][bucket]);
     }
     /// The collision stitches of `InGameB.bun`, read once (empty when the file cannot be read).
-    fn stitches(&mut self) -> Arc<Vec<Stitch>> {
+    pub(super) fn stitches(&mut self) -> Arc<Vec<Stitch>> {
         if let Some(stitches) = &self.stitches {
             return stitches.clone();
         }

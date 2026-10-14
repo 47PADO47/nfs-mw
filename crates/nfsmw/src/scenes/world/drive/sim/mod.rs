@@ -6,6 +6,7 @@
 //! the car model has 2 rear right, 3 rear left.
 
 use blackbox_collision::CollisionWorld;
+mod audio;
 use blackbox_vehicle::induction::InductionKind;
 use blackbox_vehicle::{FIXED_STEP, Ground, InputState, Vehicle};
 use glam::{Mat3, Quat, Vec3};
@@ -281,7 +282,7 @@ impl CarSim {
             let audio = v.wheel_surface_tag(PHYSICS_WHEEL[i]).map(|tag| surfaces.audio(tag));
             // The tire reports how fast the patch slides over the road and how much of that is wheel spin; the
             // rest is sideways.
-            let sideways = (w.slide_speed * w.slide_speed - w.slip * w.slip).max(0.0).sqrt();
+            let sideways = w.lateral_speed;
             blackbox_carsound::WheelInput {
                 on_ground: w.on_ground,
                 slip: w.slip,

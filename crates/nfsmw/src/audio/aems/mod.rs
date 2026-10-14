@@ -72,16 +72,33 @@ impl Part {
 pub(super) struct EffectModule {
     part: Part,
     clock: f32,
+    has_ticked: bool,
+    discarded: bool,
 }
 
 impl EffectModule {
+    pub fn release(&mut self) {
+        if !self.has_ticked {
+            // No graph update has reached the host, so no voice or child object exists to release.
+            self.discarded = true;
+            return;
+        }
+        self.part.instance.request_destroy();
+    }
+    #[cfg(test)]
+    pub fn voice_counts(&self) -> (u32, usize) {
+        self.part.voices.counts()
+    }
     pub fn finished(&self) -> bool {
-        self.part.instance.is_destroyed()
+        self.discarded || self.part.instance.is_destroyed()
     }
     pub fn load(audio: &mut Audio, bank: &str, class: &str, seed: u32) -> Result<Self, String> {
-        Ok(Self { part: Part::load(audio, bank, class, seed)?, clock: 0.0 })
+        Ok(Self { part: Part::load(audio, bank, class, seed)?, clock: 0.0, has_ticked: false, discarded: false })
     }
     pub fn update(&mut self, sampler: &mut dyn Sampler, dt: f32, params: &[i32]) -> bool {
+        if self.discarded {
+            return true;
+        }
         if !dt.is_finite() {
             return true;
         }
@@ -90,6 +107,7 @@ impl EffectModule {
         while self.clock + 0.001 >= TICK_MS && ticks < 12 {
             self.clock = (self.clock - TICK_MS).max(0.0);
             ticks += 1;
+            self.has_ticked = true;
             if !self.part.tick(sampler, params, 1.0) || self.part.voices.failed {
                 return false;
             }

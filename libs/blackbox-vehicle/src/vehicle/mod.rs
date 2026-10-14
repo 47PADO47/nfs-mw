@@ -373,6 +373,7 @@ impl Vehicle {
             on_ground,
             load: tire.load,
             slip: tire.slip,
+            lateral_speed: tire.lateral_speed,
             slip_angle: tire.slip_angle * std::f32::consts::TAU,
             traction: tire.traction,
             locked: tire.brake_locked,

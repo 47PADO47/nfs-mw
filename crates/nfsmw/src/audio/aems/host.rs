@@ -76,6 +76,10 @@ pub struct Voices {
 }
 
 impl Voices {
+    #[cfg(test)]
+    pub(super) fn counts(&self) -> (u32, usize) {
+        (self.started, self.slots.iter().flatten().filter(|voice| voice.status().playing).count())
+    }
     /// The voices started since the last call.
     pub fn take_started(&mut self) -> u32 {
         std::mem::take(&mut self.started)

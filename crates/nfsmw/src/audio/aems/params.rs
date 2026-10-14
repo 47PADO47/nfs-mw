@@ -61,7 +61,11 @@ pub fn engine_with_frequency(
     p[car::VOL_ENG] = attenuation;
     p[car::VOL_EXH] = attenuation;
     p[car::SPU_OR_EE] = 1;
-    p[car::PITCH_OFFSET] = (levels.engine_pitch * 16383.0) as i32 - 0x3FFF;
+    p[car::PITCH_OFFSET] = ((levels.engine_pitch * 16383.0) as i32 - 0x3FFF).clamp(-16383, 16383);
+    p[13] = (levels.environment.aems_dry - 32767).clamp(-32767, 0);
+    p[14] = ((i64::from(levels.environment.aems_wet) * i64::from(q15(levels.engine_samples))) >> 15) as i32;
+    p[15] = levels.engine_azimuth;
+    p[21] = (levels.engine_low_pass_hz as i32).min(levels.engine_distance_filter).clamp(0, 25000);
     p[car::MAX_RPM] = q15(out.redline_sample_volume * levels.engine_samples);
     p
 }
@@ -82,6 +86,18 @@ pub fn sputter(class: u32, id: u32, volume: i32, out: &EngineOutput, levels: &Le
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn environment_fields_use_signed_dry_attenuation_and_graph_filter_inputs() {
+        let mut levels =
+            Levels { engine_samples: 0.5, engine_azimuth: 16384, engine_distance_filter: 7398, ..Levels::unmixed() };
+        levels.environment.aems_dry = 25998;
+        levels.environment.aems_wet = 9223;
+        let words = engine(66, &output(), &levels);
+        assert_eq!(words[13], -6769);
+        assert_eq!(words[14], (9223 * 16384) >> 15);
+        assert_eq!(words[15], 16384);
+        assert_eq!(&words[21..25], &[7398, 0, 0, 0]);
+    }
 
     fn output() -> EngineOutput {
         EngineOutput {

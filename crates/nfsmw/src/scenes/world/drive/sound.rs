@@ -11,6 +11,7 @@ use nfsmw_data::sound::SoundUpgrades;
 pub struct SoundFeed {
     ticks: Vec<CarSoundTick>,
     latest: CarInput,
+    telemetry: crate::audio::CarAudioTelemetry,
     surface: u32,
 }
 
@@ -38,14 +39,21 @@ impl SoundFeed {
             up_dot: sim.up_dot(),
             ..Default::default()
         };
+        self.telemetry = sim.audio_telemetry(surfaces);
         let mut contacts = impact.sounds.clone();
         contacts.extend(sim.take_sound_contacts());
-        self.ticks.push(CarSoundTick { input: self.latest, contacts, surface: self.surface });
+        self.ticks.push(CarSoundTick {
+            telemetry: self.telemetry,
+            input: self.latest,
+            contacts,
+            surface: self.surface,
+        });
     }
 
     /// Reading the latest state never repeats contacts from an earlier physics tick.
     pub fn state(&mut self, car: &str, _t: &Telemetry, performance: PerformancePackage) -> CarSoundState {
         CarSoundState {
+            telemetry: self.telemetry,
             car: car.to_owned(),
             upgrades: sound_upgrades(performance),
             input: self.latest,

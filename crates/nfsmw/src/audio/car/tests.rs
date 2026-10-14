@@ -108,6 +108,7 @@ fn a_scripted_drive_sounds_like_an_engine() {
                 pitch: o.decel_loop.playback_rate,
             },
             low_pass_hz: o.low_pass_hz,
+            ..Default::default()
         });
         let frame = crate::audio::mixer::Frame {
             input: &input,

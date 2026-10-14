@@ -16,15 +16,21 @@ use super::mixer::{CarMixer, Frame, Levels, scale_command};
 use super::tuning::tuning;
 use super::{Audio, EngineHandle, EngineMix};
 
-mod ambient;
+pub(super) mod ambient;
+mod telemetry;
+pub use ambient::{RoadContext, RoadTerrain};
+pub use telemetry::CarAudioTelemetry;
 mod contact;
 mod contacts;
 mod impacts;
+pub(super) mod transmission;
+pub(super) mod tyres;
 pub use contact::{CarContact, ContactSource};
 
 /// Every physics state since the previous audio update, in simulation order.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CarSoundTick {
+    pub telemetry: CarAudioTelemetry,
     pub input: CarInput,
     pub contacts: Vec<CarContact>,
     pub surface: u32,
@@ -49,6 +55,7 @@ pub struct CarEvent {
 /// What the scene tells the sound each frame about the car it drives.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CarSoundState {
+    pub telemetry: CarAudioTelemetry,
     /// The car type (`BMWM3GTR`), which picks its sound set.
     pub car: String,
     /// The performance levels that select engine, shifting and induction sound sets.
@@ -88,10 +95,13 @@ pub(super) struct CarAudio {
     contacts: contacts::ContactPlayback,
     pub(super) impacts: impacts::ImpactPlayback,
     ambient: ambient::AmbientPlayback,
+    tyres: tyres::TyrePlayback,
+    transmission: transmission::TransmissionPlayback,
     pub(super) event_delay: f32,
 }
 
 struct DriveFrame<'a> {
+    telemetry: &'a CarAudioTelemetry,
     input: &'a CarInput,
     contacts: &'a [CarContact],
     events: &'a [CarEvent],
@@ -157,6 +167,7 @@ impl Audio {
                 &mut car,
                 &DriveFrame {
                     input: &state.input,
+                    telemetry: &state.telemetry,
                     contacts: &[],
                     events: &state.events,
                     view: &state.view,
@@ -174,6 +185,7 @@ impl Audio {
                 &mut car,
                 &DriveFrame {
                     input: &tick.input,
+                    telemetry: &tick.telemetry,
                     contacts: &tick.contacts,
                     events: if i == 0 { &state.events } else { &[] },
                     view: &state.view,
@@ -229,6 +241,8 @@ impl Audio {
                     pitch: out.decel_loop.playback_rate * levels.engine_pitch,
                 },
                 low_pass_hz: out.low_pass_hz.min(levels.engine_low_pass_hz),
+                azimuth: levels.engine_azimuth as u16,
+                dry: (levels.environment.ginsu_dry.clamp(0, 32767) >> 8) as f32 / 127.0,
             },
             out.tick_revision,
         );
@@ -255,18 +269,42 @@ impl Audio {
         let landing_level = car.mixer.as_ref().map_or((1.0, 0), CarMixer::landing_level);
         car.impacts.update(self, frame.dt, frame.delay, &input, frame.view, landing_level);
         car.contacts.update(self, frame.dt, &input, frame.view);
-        for command in &commands {
-            if let SoundCommand::SetLoop { id: LoopId::Road(side), sound: SoundRef::RoadNoise(0..=7), .. } = command {
-                self.apply(car, SoundCommand::StopLoop(LoopId::Road(*side)));
+        let tyre_frame = tyres::TyreFrame {
+            understeer: frame.telemetry.understeer,
+            oversteer: frame.telemetry.oversteer,
+            side_surface: [[0, 3], [1, 2]]
+                .map(|side| side.into_iter().map(|i| i32::from(input.wheels[i].skid_surface)).max().unwrap_or(0)),
+            skid_type: 0,
+        };
+        if car.tyres.update(self, &car.sound, &input, tyre_frame, car.mixer.as_ref().map(CarMixer::tyres), frame.dt) {
+            for side in 0..2 {
+                self.apply(car, SoundCommand::StopLoop(LoopId::Skid(side)));
             }
+            tyres::TyrePlayback::consume(&mut commands);
         }
-        car.ambient.update(
+        car.transmission.update(
+            self,
+            &car.sound,
+            transmission::TransmissionFrame {
+                forward_speed: frame.telemetry.forward_speed,
+                shifting: out.shift_state != blackbox_carsound::ShiftState::None,
+            },
+            car.mixer.as_ref().map(CarMixer::transmission),
+            frame.dt,
+        );
+        car.ambient.update_with_context(
             self,
             &input,
             &mut commands,
             car.mixer.as_ref().map_or_else(Default::default, CarMixer::ambient),
             frame.dt,
+            frame.telemetry.road.as_ref(),
         );
+        for id in [LoopId::Wind, LoopId::Road(0), LoopId::Road(1)] {
+            if car.ambient.owns_loop(id) {
+                self.apply(car, SoundCommand::StopLoop(id));
+            }
+        }
         for command in commands.drain(..) {
             self.apply(car, scale_command(&levels, command));
         }
@@ -318,6 +356,8 @@ impl Audio {
             contacts: contacts::ContactPlayback::default(),
             impacts: impacts::ImpactPlayback::default(),
             ambient: ambient::AmbientPlayback::default(),
+            tyres: tyres::TyrePlayback::default(),
+            transmission: transmission::TransmissionPlayback::default(),
             event_delay: 0.0,
         })
     }

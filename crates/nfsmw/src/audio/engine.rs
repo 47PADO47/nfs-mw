@@ -39,6 +39,8 @@ pub struct EngineMix {
     pub accel: LoopMix,
     pub decel: LoopMix,
     pub low_pass_hz: f32,
+    pub azimuth: u16,
+    pub dry: f32,
 }
 
 impl Default for EngineMix {
@@ -54,6 +56,8 @@ impl EngineMix {
             accel: LoopMix { frequency, volume: accel_volume, pitch },
             decel: LoopMix { frequency, volume: decel_volume, pitch },
             low_pass_hz: 25_000.0,
+            azimuth: 0,
+            dry: 1.0,
         }
     }
 }
@@ -240,6 +244,10 @@ impl Sound for EngineSound {
             let take = ((self.control_left / dt - 1e-9).ceil() as usize).max(1).min(out.len() - written);
             let chunk = &mut out[written..written + take];
             let closed = self.control.closed.load(Ordering::Relaxed);
+            let pan = (f32::from(self.request.mix.azimuth) / 65536.0 * std::f32::consts::TAU).sin();
+            let dry = clean(self.request.mix.dry, 0.0, 1.0);
+            let left_gain = dry * (1.0 - pan).sqrt();
+            let right_gain = dry * (1.0 + pan).sqrt();
             for frame in chunk.iter_mut() {
                 let mut sample = self.accel.sample(accel, dt);
                 if let Some(stream) = &mut self.decel {
@@ -249,7 +257,8 @@ impl Sound for EngineSound {
                     self.release_left = (self.release_left - dt).max(0.0);
                     sample *= (self.release_left / 0.12) as f32;
                 }
-                *frame = Frame::from_mono(sample);
+                // Constant-power pan normalized to the established centre gain.
+                *frame = Frame { left: sample * left_gain, right: sample * right_gain };
             }
             let cutoff = clean(self.request.mix.low_pass_hz, 0.0, 25_000.0);
             self.filter_handle.set(cutoff);
@@ -320,6 +329,32 @@ mod tests {
 
     fn mix(hz: f32, pitch: f32) -> EngineMix {
         EngineMix::shared(hz * 120.0, pitch, 1.0, 0.0)
+    }
+
+    #[test]
+    fn spatial_engine_control_preserves_centre_energy_and_applies_dry_gain() {
+        let sample = |azimuth, dry| {
+            let voice = EngineVoice { accel: data(), decel: None, start: EngineMix::default() };
+            let (mut sound, handle) = voice.into_sound().unwrap();
+            let mut mix = mix(200.0, 1.0);
+            mix.azimuth = azimuth;
+            mix.dry = dry;
+            handle.set(mix);
+            let mut out = vec![Frame::ZERO; 48000];
+            sound.process(&mut out, 1.0 / 48000.0, &kira::info::MockInfoBuilder::new().build());
+            out[24000..].iter().fold([0.0f64; 2], |mut energy, frame| {
+                energy[0] += f64::from(frame.left).powi(2);
+                energy[1] += f64::from(frame.right).powi(2);
+                energy
+            })
+        };
+        let centre = sample(0, 1.0);
+        let right = sample(16384, 1.0);
+        let dry = sample(0, 0.5);
+        assert!(centre[0] > 0.01 && (centre[0] - centre[1]).abs() < 1e-9);
+        assert_eq!(right[0], 0.0);
+        assert!((right[1] / (centre[0] + centre[1]) - 1.0).abs() < 0.001);
+        assert!((dry[0] / centre[0] - 0.25).abs() < 0.001);
     }
 
     #[test]

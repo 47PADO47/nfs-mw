@@ -9,6 +9,7 @@ pub struct AudioView {
     pub camera_forward: Vec3,
     pub camera_state: u8,
     pub view_value: i32,
+    pub environment: super::environment::EnvironmentContext,
 }
 
 impl Default for AudioView {
@@ -20,6 +21,7 @@ impl Default for AudioView {
             camera_forward: Vec3::X,
             camera_state: 0,
             view_value: 32767,
+            environment: Default::default(),
         }
     }
 }

@@ -476,6 +476,7 @@ impl Scene for WorldScene {
             camera_forward: lens.forward,
             camera_state,
             view_value,
+            environment: Default::default(),
         };
         Some(state)
     }
