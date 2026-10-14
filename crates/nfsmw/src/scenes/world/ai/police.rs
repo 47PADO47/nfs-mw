@@ -12,7 +12,6 @@ use super::support;
 use blackbox_pursuit::formation::finisher::{Event, Finisher};
 use blackbox_pursuit::formation::slots::assign;
 use blackbox_pursuit::formation::{Formation, Picker};
-use blackbox_pursuit::helicopter::behaviour::Player;
 use blackbox_pursuit::helicopter::control::{Flat, Heights};
 use blackbox_pursuit::helicopter::{Helicopter, Mode, SearchInput, THINK_PERIOD, Target, Tuning};
 use blackbox_pursuit::rules::{self, Contact};
@@ -21,7 +20,7 @@ use blackbox_pursuit::{Busted, Evade, Fines, Heat, Infraction, InfractionLog};
 use blackbox_render::Instance;
 use blackbox_roads::{HeliSheet, RandomSource, SegmentFilter, TrackZone, closest_segment, to_zone_space};
 use blackbox_speedfx::{Effects, SpeedFx, Tuning as SpeedTuning};
-use glam::{Mat3, Quat, Vec2, Vec3};
+use glam::{Vec2, Vec3};
 
 use super::traffic_events::SPEEDING_MPS;
 use crate::scenes::world::drive::{CarPose, CarRig};
@@ -442,55 +441,12 @@ impl Police {
     }
 }
 
-/// A physics-frame orientation as a render-frame one. The nose is the physics X axis, up is Y; render space has x
-/// forward, y left and z up (`space`), so the render frame is rebuilt from the converted nose and up.
-fn render_rotation(orientation: Quat) -> Quat {
-    let nose = space::to_render((orientation * Vec3::X).to_array());
-    let up = space::to_render((orientation * Vec3::Y).to_array());
-    let left = up.cross(nose);
-    Quat::from_mat3(&Mat3::from_cols(nose, left, up))
-}
-
-/// Seconds of heat growth per level: `TIME_PER_LEVEL` for the level the heat is at.
-fn time_per_level(level: u32) -> f32 {
-    TIME_PER_LEVEL[(level as usize).clamp(1, TIME_PER_LEVEL.len()) - 1]
-}
-
-/// The fuel of the helicopter at `level`: the table covers levels 4 to 10.
-fn fuel_time(level: u32) -> f32 {
-    FUEL_TIME[(level as usize).clamp(4, 10) - 4]
-}
-
-/// The wait before the next helicopter at `level`.
-fn respawn_time(level: u32) -> f32 {
-    RESPAWN_TIME[(level as usize).clamp(1, RESPAWN_TIME.len()) - 1]
-}
-
-/// `v` with its height removed.
-fn horizontal(v: Vec3) -> Vec3 {
-    Vec3::new(v.x, 0.0, v.z)
-}
-
-/// The player as the helicopter sees it: physics space, with its velocity along the car.
-fn to_body(player: &PlayerView) -> Player {
-    let position = Vec3::from_array(space::to_physics(player.position));
-    let forward = Vec3::from_array(space::to_physics(player.forward)).normalize_or_zero();
-    Player { position, velocity: forward * player.speed, forward }
-}
-
 #[cfg(test)]
 #[path = "police_tests.rs"]
 mod tests;
 
 mod busted;
+mod helpers;
 mod world;
 
-/// The track's height sheet as the helicopter's floor. Physics `(x, z)` is the sheet's map point `(z, -x)`
-/// (`to_zone_space`); where no triangle covers the point there is no floor.
-struct SheetFloor<'a>(Option<&'a HeliSheet>);
-
-impl Heights for SheetFloor<'_> {
-    fn elevation(&self, x: f32, z: f32) -> Option<f32> {
-        self.0?.elevation(glam::Vec2::new(z, -x))
-    }
-}
+use helpers::{SheetFloor, fuel_time, horizontal, render_rotation, respawn_time, time_per_level, to_body};
