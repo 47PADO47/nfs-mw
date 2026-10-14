@@ -40,8 +40,8 @@ mod viewport_tests;
 
 pub use blip_style::MapBlip;
 pub use blip_styles::{
-    AUTO_SHOP, CAR_LOT, COP, HELICOPTER, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP, RACE_SPRINT,
-    RACE_TOLLBOOTH, SAFE_HOUSE,
+    AUTO_SHOP, AUTO_SHOP_TINT, CAR_LOT, CAR_LOT_TINT, COP, HELICOPTER, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT,
+    RACE_SPEEDTRAP, RACE_SPRINT, RACE_TOLLBOOTH, SAFE_HOUSE, SAFE_HOUSE_TINT,
 };
 pub use interact_prompt::{InteractPopup, Prompt, show as show_interact_prompt};
 pub use plugin::HudPlugin;

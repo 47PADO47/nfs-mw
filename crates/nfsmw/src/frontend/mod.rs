@@ -34,10 +34,8 @@ mod widget_menu;
 // The shared option widgets. The advanced controls screen that uses them is not wired to its package yet.
 #[allow(dead_code)]
 mod widgets;
-// The world map's pure state. Not yet bound to its screen (`docs/specs/world-map.md`), so nothing outside its tests
-// calls it yet.
-#[allow(dead_code, unused_imports)]
-mod world_map;
+// The world map: opened from free roam with M, drawn by the devtools pass (`docs/specs/world-map.md`).
+pub(crate) mod world_map;
 
 #[cfg(test)]
 mod capability_tests;

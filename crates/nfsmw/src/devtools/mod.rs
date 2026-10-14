@@ -51,6 +51,7 @@ fn run_ui(
     mut garage: ResMut<crate::garage::Overlay>,
     mut capture: ResMut<crate::input::MouseCapture>,
     mut focus: ResMut<crate::input::UiFocus>,
+    mut map: ResMut<crate::frontend::world_map::WorldMapOverlay>,
 ) {
     let (width, height) = (window.width(), window.height());
     let raw = egui::RawInput {
@@ -78,6 +79,8 @@ fn run_ui(
         let left = host.scene.ui(ctx);
         overlay::show(ctx, settings.show_metrics, &metrics, left);
         console::show(ctx, &mut console);
+        // The world map covers the frame while it is open (the world is paused behind it).
+        crate::frontend::world_map::show(ctx, &mut map);
         if garage.open {
             let mut open = true;
             let request =
