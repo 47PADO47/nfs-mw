@@ -31,6 +31,7 @@ pub fn apply_op(state: &mut WorldState, stores: &mut Stores, op: Op) {
             let ranges = ranges
                 .into_iter()
                 .map(|range| RangeEntry {
+                    aabb: range.aabb,
                     mesh: stores.meshes.add(range.mesh),
                     texture: range.texture.map(|t| t.raw()),
                     blend: range.blend.into(),

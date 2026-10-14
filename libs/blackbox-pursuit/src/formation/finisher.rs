@@ -89,7 +89,9 @@ impl Finisher {
 pub fn params_for(formation: super::Formation) -> Option<Params> {
     use super::Formation;
     match formation {
-        Formation::BoxIn | Formation::RollingBlock => Some(Params { tolerance: 1.0, time_to_arm: 4.0, run_time: 5.0, min_cops: 2 }),
+        Formation::BoxIn | Formation::RollingBlock => {
+            Some(Params { tolerance: 1.0, time_to_arm: 4.0, run_time: 5.0, min_cops: 2 })
+        }
         Formation::Pit => Some(Params { tolerance: 0.5, time_to_arm: 1.2, run_time: 2.0, min_cops: 1 }),
         _ => None,
     }

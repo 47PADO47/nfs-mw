@@ -75,7 +75,7 @@ pub fn end_of_frame(
 ) {
     let host = &mut *host;
     let Some(renderer) = host.renderer.as_ref() else { return };
-    let ready = host.scene.ready();
+    let ready = host.scene.benchmark_ready();
     if let Some(report) = host.bench.as_mut().and_then(|bench| bench.frame(ready)) {
         report.lines(renderer.info().renderer).iter().for_each(|line| println!("{line}"));
         println!("bench: backend {}", renderer.info().summary());

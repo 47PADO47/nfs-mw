@@ -114,11 +114,23 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.speed_trails {
         put("speed_trails", Value::Boolean(v));
     }
+    if let Some(v) = changes.speed_trail_style {
+        put("speed_trail_style", Value::String(v.to_string()));
+    }
     if let Some(v) = changes.exhaust_flames {
         put("exhaust_flames", Value::Boolean(v));
     }
+    if let Some(v) = changes.turn_signals {
+        put("turn_signals", Value::Boolean(v));
+    }
     if let Some(v) = changes.rear_view_mirror {
         put("rear_view_mirror", Value::Boolean(v));
+    }
+    if let Some(v) = changes.discord {
+        put("discord", Value::Boolean(v));
+    }
+    if let Some(v) = changes.discord_time_played {
+        put("discord_time_played", Value::Boolean(v));
     }
     if let Some(v) = changes.graphics_preset {
         put("graphics_preset", Value::String(v.to_string()));
@@ -155,6 +167,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     }
     if let Some(v) = changes.reflections {
         put("reflections", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.shadows {
+        put("shadows", Value::String(v.to_string()));
     }
     if let Some(v) = changes.ao {
         put("ao", Value::String(v.to_string()));
@@ -220,6 +235,17 @@ mod tests {
     use crate::app::pacing::MaxFps;
     use crate::devtools::{ShowMetrics, ShowReadout};
     use crate::settings::{Percent, file};
+
+    #[test]
+    fn shadows_round_trip_and_the_higher_layer_wins() {
+        use crate::settings::ShadowQuality;
+        let changes = Partial { shadows: Some(ShadowQuality::High), ..Default::default() };
+        let text = merge("future_option = 42", &changes).unwrap();
+        let saved = file::parse(&text, "test");
+        assert_eq!(saved, changes);
+        let override_layer = Partial { shadows: Some(ShadowQuality::Off), ..Default::default() };
+        assert_eq!(crate::settings::Settings::from(override_layer.or(saved)).shadows, ShadowQuality::Off);
+    }
 
     #[test]
     fn tire_toggles_round_trip() {

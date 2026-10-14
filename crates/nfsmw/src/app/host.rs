@@ -48,6 +48,7 @@ pub struct Host {
     car_shading: CarShading,
     vehicle_effects: [bool; 2],
     spark_style: crate::settings::SparkStyle,
+    speed_trail_style: crate::settings::SpeedTrailStyle,
     exhaust_flames: bool,
     /// The transmission setting as of the last frame, given to every scene that is put in the window.
     pub transmission: Transmission,
@@ -68,6 +69,7 @@ impl Host {
         scene.set_car_shading(settings.car_shading);
         scene.set_vehicle_effects(settings.collision_sparks, settings.speed_trails);
         scene.set_spark_style(settings.spark_style);
+        scene.set_speed_trail_style(settings.speed_trail_style);
         scene.set_exhaust_flames(settings.exhaust_flames);
         Self {
             scene,
@@ -94,6 +96,7 @@ impl Host {
             car_shading: settings.car_shading,
             vehicle_effects: [settings.collision_sparks, settings.speed_trails],
             spark_style: settings.spark_style,
+            speed_trail_style: settings.speed_trail_style,
             exhaust_flames: settings.exhaust_flames,
             transmission: settings.transmission,
             camera_mode: settings.camera_mode,
@@ -118,6 +121,7 @@ impl Host {
         scene.set_car_shading(self.car_shading);
         scene.set_vehicle_effects(self.vehicle_effects[0], self.vehicle_effects[1]);
         scene.set_spark_style(self.spark_style);
+        scene.set_speed_trail_style(self.speed_trail_style);
         scene.set_exhaust_flames(self.exhaust_flames);
         let renderer = self.renderer.as_mut().ok_or_else(|| anyhow::anyhow!("the renderer is not ready"))?;
         renderer.set_colour_treatment(None, None);
@@ -160,6 +164,11 @@ impl Host {
     pub fn set_spark_style(&mut self, style: crate::settings::SparkStyle) {
         self.spark_style = style;
         self.scene.set_spark_style(style);
+    }
+
+    pub fn set_speed_trail_style(&mut self, style: crate::settings::SpeedTrailStyle) {
+        self.speed_trail_style = style;
+        self.scene.set_speed_trail_style(style);
     }
 
     pub fn set_exhaust_flames(&mut self, on: bool) {

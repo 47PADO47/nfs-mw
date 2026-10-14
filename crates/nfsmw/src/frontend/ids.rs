@@ -17,6 +17,13 @@ pub mod screen {
     /// The keyboard controls list (`controls_screen.rs`), and its in-game copy.
     pub const CONTROLS: &str = "Options_PC_Controller.fng";
     pub const PAUSE_CONTROLS: &str = "Pause_PC_Controller.fng";
+    /// The loading screen shown while free roam streams in (`loading.rs`). Widescreen only in the install.
+    pub const LOADING: &str = "WS_Loading.fng";
+    /// Quick Race: the track list (`track_select.rs`) and the track's options (`track_options.rs`).
+    pub const TRACK_SELECT: &str = "Track_Select.fng";
+    pub const TRACK_OPTIONS: &str = "Track_Options.fng";
+    /// The world map (M in free roam): its logic is `world_map/screen`, opened by `world_map/control.rs`.
+    pub const WORLD_MAP: &str = "WorldMapMain.fng";
 }
 
 // Messages.

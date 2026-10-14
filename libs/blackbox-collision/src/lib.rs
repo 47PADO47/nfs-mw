@@ -18,6 +18,7 @@ mod bytes;
 pub mod carp;
 mod error;
 mod grid;
+pub mod ground_reference;
 mod instance;
 mod math;
 mod object;

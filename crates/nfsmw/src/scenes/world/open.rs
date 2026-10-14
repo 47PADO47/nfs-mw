@@ -5,6 +5,17 @@ use super::*;
 impl WorldScene {
     pub fn open(dir: &GameDir, options: Options) -> Result<Self> {
         let index = WorldIndex::open(dir, DEFAULT_TRACK)?;
+        let audio_environment = nfsmw_data::read_unwrapped(dir, &format!("TRACKS/{DEFAULT_TRACK}.BUN"))
+            .and_then(|bytes| crate::audio::environment_context::EnvironmentMap::read(&bytes))
+            .map_err(|e| log::warn!("audio environment unavailable: {e:#}"))
+            .ok();
+        if let Some(environment) = &audio_environment {
+            log::info!(
+                "audio environment: map {}, zones {}",
+                environment.map_available(),
+                environment.zones_available()
+            );
+        }
         let mut physics = PhysicsData::load(dir)?;
         physics.set_sequences(index.sequences.clone());
         let colour_treatment = nfsmw_data::visual_treatment::midday(physics.database());
@@ -48,7 +59,20 @@ impl WorldScene {
                 Ok::<_, anyhow::Error>(PendingCar { name, model, script })
             })
             .transpose()?;
+        let (map_blips, entry_zones) = match nfsmw_data::gameplay::load(dir) {
+            Ok(data) => (super::hud::static_blips(&data), entry_zones::EntryZones::from_data(&data)),
+            Err(e) => {
+                log::warn!("race and interior blips and entry zones are off: {e:#}");
+                (Vec::new(), entry_zones::EntryZones::default())
+            }
+        };
         Ok(Self {
+            garage: garage::catalog(dir, &physics)?,
+            garage_parts: None,
+            garage_open: false,
+            audio_environment,
+            common_sounds: Vec::new(),
+            sound_speedbreaker_active: false,
             dir: dir.clone(),
             track: index.track.clone(),
             camera,
@@ -61,6 +85,9 @@ impl WorldScene {
             fog_distance: options.fog_distance,
             visible: Vec::new(),
             rear_visible: Vec::new(),
+            shadow_quality: blackbox_gfx::ShadowQuality::Off,
+            shadow_casters: Vec::new(),
+            original_shadows: true,
             colour_treatment,
             time_of_day,
             camera_views,
@@ -69,14 +96,17 @@ impl WorldScene {
             reflection_last: None,
             clock: 0.0,
             sun: sun::Sun::new(),
+            day: super::day::DayClock::new(nfsmw_data::day_night::DayNightConfig::default()),
             physics_aspect: 16.0 / 9.0,
             physics_clock: drive::FixedClock::default(),
+            speedbreaker_clock: drive::SpeedbreakerClock::default(),
             view: if pending_car.is_some() { View::Chase } else { View::Fly },
             last_car: pending_car.as_ref().map_or_else(|| DEFAULT_CAR.to_owned(), |c| c.name.clone()),
             pending_car,
             drive: None,
             traffic,
-            map_blips: Vec::new(),
+            map_blips,
+            entry: entry::Entry { zones: entry_zones, popup: Default::default() },
             traffic_setting: crate::settings::TrafficSettings {
                 cars: 0,
                 cop_share: crate::settings::Percent(0),
@@ -87,6 +117,7 @@ impl WorldScene {
             physics,
             tire_effects: [true; 2],
             vehicle_effects: [false; 2],
+            speed_trail_style: crate::settings::SpeedTrailStyle::default(),
             exhaust_flames: false,
             spark_style: crate::settings::SparkStyle::OriginalPc,
             smoke_quality: crate::settings::SmokeQuality::Standard,

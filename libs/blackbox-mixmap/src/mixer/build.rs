@@ -169,6 +169,8 @@ impl<'a> Builder<'a> {
             blocks: Vec::new(),
             input_index: HashMap::new(),
             block_index: HashMap::new(),
+            event_index: HashMap::new(),
+            event_overrides: HashMap::new(),
             camera: 0,
         };
         for (s, inst, state) in self.instances() {
@@ -184,7 +186,8 @@ impl<'a> Builder<'a> {
                     scales,
                 });
             }
-            for e in &state.events {
+            for (index, e) in state.events.iter().enumerate() {
+                m.event_index.insert((s, inst, index as u8), m.events.len());
                 m.events.push(self.event_node(e, inst));
             }
             for sp in &state.spatial {

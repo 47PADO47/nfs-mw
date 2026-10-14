@@ -1,9 +1,11 @@
-//! The list of cars beside the asset viewer: a search box on top, the matching cars below, the chosen car
-//! highlighted. Only the egui view lives here; the scene loads what is clicked.
+//! The searchable list docked to the left of a viewer: a search box on top, the matching names below, the chosen
+//! name highlighted. Shared by the viewers that list things (cars, scenery assets). Only the egui view lives here;
+//! the scene loads what is clicked.
 
 use egui::{Align2, Color32, Frame, RichText, ScrollArea, TextEdit, vec2};
 
-use super::PANEL_FRACTION;
+/// The share of the window the list takes, on the left; the scene centres its model in the rest.
+pub const PANEL_FRACTION: f32 = 0.3;
 
 /// Passes that re-centre the list on the selection: egui clamps the offset against the content size it knew last pass,
 /// so the first passes settle it.
@@ -27,6 +29,12 @@ impl Default for Panel {
 /// The width of the list in points: the strip on the left that the list takes.
 pub fn width(ctx: &egui::Context) -> f32 {
     ctx.content_rect().width() * PANEL_FRACTION
+}
+
+/// Whether Ctrl+B was pressed this pass, which shows or hides the list. The press is consumed, so the search box
+/// does not also take it.
+pub fn toggle_pressed(ctx: &egui::Context) -> bool {
+    ctx.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::B))
 }
 
 /// Draw the list over the left of the window. `noun` names what is listed ("cars", "assets"). Returns the index
@@ -98,6 +106,32 @@ mod tests {
 
     fn cars() -> Vec<String> {
         ["BMWM3", "BMWM3GTR", "CAMARO", "CARRERAGT"].iter().map(|s| (*s).to_owned()).collect()
+    }
+
+    /// One UI pass fed these events: whether the toggle key was pressed in it.
+    fn toggle_in_pass(ctx: &egui::Context, events: Vec<egui::Event>) -> bool {
+        let mut pressed = false;
+        let raw = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0))),
+            events,
+            ..Default::default()
+        };
+        let mut output = ctx.run_ui(raw, |ui| pressed = toggle_pressed(ui.ctx()));
+        // No renderer here: drop the texture uploads egui asks for, or its drop check panics.
+        output.textures_delta.clear();
+        pressed
+    }
+
+    fn key(key: egui::Key, modifiers: egui::Modifiers) -> egui::Event {
+        egui::Event::Key { key, physical_key: Some(key), pressed: true, repeat: false, modifiers }
+    }
+
+    #[test]
+    fn ctrl_b_toggles_once_per_press_and_plain_b_does_not() {
+        let ctx = egui::Context::default();
+        assert!(toggle_in_pass(&ctx, vec![key(egui::Key::B, egui::Modifiers::CTRL)]));
+        assert!(!toggle_in_pass(&ctx, Vec::new()), "no key, no toggle");
+        assert!(!toggle_in_pass(&ctx, vec![key(egui::Key::B, egui::Modifiers::NONE)]), "plain B is not the toggle");
     }
 
     #[test]

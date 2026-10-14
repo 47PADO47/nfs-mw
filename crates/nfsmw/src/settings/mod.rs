@@ -7,6 +7,7 @@
 mod names;
 
 pub mod availability;
+pub mod bartender;
 mod camera_mode;
 mod car_shading;
 #[cfg(test)]
@@ -14,11 +15,14 @@ mod car_shading_tests;
 mod controls;
 #[cfg(test)]
 mod controls_tests;
+#[cfg(test)]
+mod discord_tests;
 mod effective;
 mod env;
 #[cfg(test)]
 mod exhaust_flames_tests;
 mod extra_options;
+pub mod fairbusts;
 pub(crate) mod file;
 mod graphics;
 mod graphics_preset;
@@ -26,6 +30,7 @@ mod graphics_preset;
 mod graphics_preset_tests;
 #[cfg(test)]
 mod graphics_tests;
+pub mod helicopter;
 mod hud_layout;
 #[cfg(test)]
 mod hud_layout_tests;
@@ -47,6 +52,10 @@ mod smoke_quality;
 #[cfg(test)]
 mod smoke_quality_tests;
 mod spark_style;
+mod speed_trail_style;
+pub mod speedbreaker;
+#[cfg(test)]
+mod speedbreaker_tests;
 #[cfg(test)]
 pub(crate) mod test_caps;
 #[cfg(test)]
@@ -68,8 +77,8 @@ pub(crate) mod write;
 
 use blackbox_gfx::GraphicsApi;
 
-pub use blackbox_gfx::AoQuality;
 pub use blackbox_gfx::ReflectionQuality;
+pub use blackbox_gfx::{AoQuality, ShadowQuality};
 pub use camera_mode::CameraMode;
 pub use car_shading::CarShading;
 pub use controls::{Controls, Deadzone, DeadzoneMode, Sensitivity};
@@ -83,6 +92,8 @@ pub use ray_tracing::RayTracingLevel;
 pub use renderer::RendererKind;
 pub use smoke_quality::SmokeQuality;
 pub use spark_style::SparkStyle;
+pub use speed_trail_style::SpeedTrailStyle;
+pub use speedbreaker::SpeedbreakerTuning;
 pub use transmission::Transmission;
 pub use upscale::{RenderScale, UpscaleMode};
 pub use upscale_quality::UpscaleQuality;
@@ -92,7 +103,6 @@ pub use write::write as write_file;
 
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
-
 /// Computer-driven cars kept on the road by default (the original keeps fewer than 10 vehicles active).
 pub const DEFAULT_TRAFFIC: u32 = 10;
 /// The default share of those cars that are patrol cops: 5 percent, one in twenty.
@@ -153,6 +163,8 @@ pub struct Settings {
     pub engine_volume: Percent,
     /// The police dispatch's radio lines.
     pub speech_volume: Percent,
+    /// The Speedbreaker tunables from `NFSMWSpeedFixerSettings.ini` next to the config file. Not a [`Partial`] layer.
+    pub speedbreaker: SpeedbreakerTuning,
     /// Draw the in-game HUD while driving (the free camera never shows it).
     pub hud: bool,
     /// Draw smoke from the driven car's loaded tire contacts.
@@ -192,12 +204,19 @@ pub struct Settings {
     /// Collision particles, using the selected stock or experimental style.
     pub collision_sparks: bool,
     pub spark_style: SparkStyle,
-    /// Experimental wind trails at high speed.
+    /// Experimental high-speed effect: on or off, and which effect (`speed_trail_style`).
     pub speed_trails: bool,
+    pub speed_trail_style: SpeedTrailStyle,
     /// Flames at the tail pipes: gear-change blow-off and lift-off backfire. Nothing is loaded when off.
     pub exhaust_flames: bool,
+    /// Show turn signals on cars while steering (a rewrite extension, off by default).
+    pub turn_signals: bool,
     /// The rear-view mirror in the HUD (the rear view captured from the car, with the radar under it).
     pub rear_view_mirror: bool,
+    /// Show the game in Discord Rich Presence (the local Discord client; silently skipped when it is not running).
+    pub discord: bool,
+    /// Show the elapsed play time in Discord Rich Presence (needs `discord`).
+    pub discord_time_played: bool,
     /// Who changes gear: the box (default) or the player.
     pub transmission: Transmission,
     pub camera_mode: CameraMode,
@@ -214,6 +233,7 @@ pub struct Settings {
     pub visual_treatment: VisualTreatment,
     pub reflections: ReflectionQuality,
     /// Experimental contact occlusion; presets never enable it implicitly.
+    pub shadows: ShadowQuality,
     pub ao: AoQuality,
     pub ao_intensity: Percent,
     pub ao_compare: bool,
@@ -289,8 +309,12 @@ impl From<Partial> for Settings {
             collision_sparks: p.collision_sparks.unwrap_or(false),
             spark_style: p.spark_style.unwrap_or_default(),
             speed_trails: p.speed_trails.unwrap_or(false),
+            speed_trail_style: p.speed_trail_style.unwrap_or_default(),
             exhaust_flames: p.exhaust_flames.unwrap_or(true),
+            turn_signals: p.turn_signals.unwrap_or(false),
             rear_view_mirror: p.rear_view_mirror.unwrap_or(true),
+            discord: p.discord.unwrap_or(true),
+            discord_time_played: p.discord_time_played.unwrap_or(true),
             transmission: p.transmission.unwrap_or_default(),
             camera_mode: p.camera_mode.unwrap_or_default(),
             minimap: p.minimap.unwrap_or_default(),
@@ -301,6 +325,7 @@ impl From<Partial> for Settings {
             post_aa: p.post_aa.unwrap_or_default(),
             visual_treatment: p.visual_treatment.unwrap_or_default(),
             reflections: p.reflections.unwrap_or(ReflectionQuality::Medium),
+            shadows: p.shadows.unwrap_or_default(),
             ao: p.ao.unwrap_or_default(),
             ao_intensity: p.ao_intensity.unwrap_or(Percent(75)),
             ao_compare: p.ao_compare.unwrap_or(false),
@@ -314,6 +339,7 @@ impl From<Partial> for Settings {
             paddle_down: p.paddle_down,
             manual_clutch: p.manual_clutch.unwrap_or(false),
             h_shifter: p.h_shifter.unwrap_or(false),
+            speedbreaker: SpeedbreakerTuning::default(),
         };
         settings.settle_preset();
         settings
@@ -347,96 +373,18 @@ impl Settings {
             Some(dir) => extra_options::read(&dir.join(extra_options::FILE_NAME)),
             None => Partial::default(),
         };
-        cli.or(env).or(file).or(extra).into()
+        let speedbreaker = match config.as_deref().and_then(std::path::Path::parent) {
+            Some(dir) => speedbreaker::read(&dir.join(speedbreaker::FILE_NAME)),
+            None => SpeedbreakerTuning::default(),
+        };
+        let mut settings: Self = cli.or(env).or(file).or(extra).into();
+        settings.speedbreaker = speedbreaker;
+        settings
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn defaults() {
-        let s = Settings::from(Partial::default());
-        assert_eq!((s.backend, s.vsync, s.max_fps), (GraphicsApi::Auto, true, MaxFps::default()));
-        assert_eq!(s.transmission, Transmission::Automatic, "automatic, as in the original");
-        assert_eq!(s.minimap, MinimapMode::Fixed, "fixed, the original's free roam mode");
-        assert_eq!(s.wheel_options(), WheelOptions::default(), "no clutch pedal and no H-shifter unless asked for");
-        assert_eq!((s.paddle_up, s.paddle_down), (None, None));
-    }
-
-    #[test]
-    fn layers_resolve_in_order() {
-        let cli = Partial { vsync: Some(false), ..Partial::default() };
-        let env = env::read(|n| (n == env::BACKEND).then(|| "gl".to_owned()));
-        let file = file::parse("backend = 'vulkan'\nmax_fps = 90\n", "test");
-        let s: Settings = cli.or(env).or(file).into();
-        assert!(!s.vsync, "command line");
-        assert_eq!(s.backend, GraphicsApi::Gl, "environment over file");
-        assert_eq!(s.max_fps, "90".parse().unwrap(), "file over default");
-    }
-
-    #[test]
-    fn window_layers_resolve_independently_and_bad_values_fall_through() {
-        let cli = Partial { window_mode: Some(WindowMode::Exclusive), ..Partial::default() };
-        let env = env::read(|n| match n {
-            env::WINDOW_MODE => Some("borderless".into()),
-            env::MONITOR => Some("1".into()),
-            env::RESOLUTION => Some("bad size".into()),
-            _ => None,
-        });
-        let file = file::parse("window_mode = 'windowed'\nmonitor = 'primary'\nresolution = '1920x1080'", "test");
-        let s: Settings = cli.or(env).or(file).into();
-        assert_eq!(s.window_mode, WindowMode::Exclusive);
-        assert_eq!(s.monitor, Monitor::Index(1));
-        assert_eq!(s.resolution, Resolution::pixels(1920, 1080).unwrap());
-        let bad = file::parse("window_mode = 'bad'\nmonitor = -1\nresolution = '0x0'", "test");
-        assert_eq!(bad, Partial::default());
-        assert_eq!(file::parse("monitor = 0", "test").monitor, Some(Monitor::Index(0)));
-    }
-
-    #[test]
-    fn traffic_is_on_by_default_with_one_cop_in_twenty() {
-        let s = Settings::from(Partial::default());
-        assert_eq!((s.traffic, s.cop_share), (DEFAULT_TRAFFIC, DEFAULT_COP_SHARE));
-        assert!(s.traffic > 0);
-        assert_eq!(DEFAULT_COP_SHARE, Percent(5), "5 percent is one in twenty");
-    }
-
-    #[test]
-    fn traffic_lights_are_on_by_default_and_come_from_every_layer() {
-        assert!(Settings::from(Partial::default()).traffic_lights);
-        const { assert!(DEFAULT_TRAFFIC_LIGHTS) };
-        let cli = Partial { traffic_lights: Some(false), ..Partial::default() };
-        let env = env::read(|n| (n == env::TRAFFIC_LIGHTS).then(|| "on".to_owned()));
-        let file = file::parse("traffic_lights = false\n", "test");
-        assert!(!Settings::from(cli.or(env).or(file)).traffic_lights, "the command line wins");
-        assert!(Settings::from(Partial::default().or(env).or(file)).traffic_lights, "the environment over the file");
-        assert!(!Settings::from(Partial::default().or(file)).traffic_lights);
-        assert_eq!(file::parse("traffic_lights = 3", "test").traffic_lights, None);
-    }
-
-    #[test]
-    fn the_traffic_settings_come_from_every_layer() {
-        let cli = Partial { traffic: Some(0), ..Partial::default() };
-        let env = env::read(|n| match n {
-            env::TRAFFIC => Some("20".to_owned()),
-            env::COP_SHARE => Some("10".to_owned()),
-            _ => None,
-        });
-        let file = file::parse("traffic = 6\ncop_share = 25\n", "test");
-        let s: Settings = cli.or(env).or(file).into();
-        assert_eq!(
-            (s.traffic, s.cop_share),
-            (0, Percent(10)),
-            "the command line turns traffic off, the environment sets the share"
-        );
-        let s: Settings = Partial::default().or(file).into();
-        assert_eq!((s.traffic, s.cop_share), (6, Percent(25)));
-        assert_eq!(env::read(|n| (n == env::TRAFFIC).then(|| "many".to_owned())).traffic, None);
-        assert_eq!(file::parse("traffic = -3", "test").traffic, None, "a negative count is ignored");
-    }
-}
+mod tests;
 
 /// The settings a running world reads each frame: the physics clock and the animation clock rates.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -448,6 +396,10 @@ pub struct WorldTuning {
     pub show_hud_on_look_back: bool,
     /// Lift the engine's rev limiter (Extra Options `NoRevLimiter`).
     pub no_rev_limiter: bool,
+    /// Show turn signals on cars while steering.
+    pub turn_signals: bool,
+    /// The Speedbreaker tunables (`NFSMWSpeedFixerSettings.ini`).
+    pub speedbreaker: SpeedbreakerTuning,
 }
 
 impl Default for WorldTuning {
@@ -458,6 +410,8 @@ impl Default for WorldTuning {
             show_hud_on_look_back: DEFAULT_SHOW_HUD_ON_LOOK_BACK,
             car_scale: DEFAULT_CAR_SCALE,
             no_rev_limiter: DEFAULT_NO_REV_LIMITER,
+            turn_signals: false,
+            speedbreaker: SpeedbreakerTuning::default(),
         }
     }
 }
@@ -470,6 +424,8 @@ impl From<&Settings> for WorldTuning {
             show_hud_on_look_back: s.show_hud_on_look_back,
             car_scale: s.car_scale,
             no_rev_limiter: s.no_rev_limiter,
+            turn_signals: s.turn_signals,
+            speedbreaker: s.speedbreaker,
         }
     }
 }

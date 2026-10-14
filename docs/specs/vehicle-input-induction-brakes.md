@@ -64,6 +64,18 @@ recharge_rate (only if the player is allowed to recharge, or the car is not a pl
 "Engaged" for other systems means `nos_engaged >= 1`. The chassis multiplies tyre traction by `nos_boost`
 (so nitrous adds grip in the model, §10 note). [decomp]
 
+PC confirmation (2026-10-13): the shipped nitrous update follows the same
+recharge formula. Drift and airborne state supply no recharge multiplier.
+Its speed input is the vehicle's absolute physical speed, unlike Speedbreaker,
+which uses the transmission-based speedometer. Do not use wheel-derived
+speedometer speed for nitrous activation or recharge thresholds.
+Player recharge permission is false while the speed breaker is active;
+that gate affects recharge, not consumption. The 5 mph continuation threshold
+requires fully engaged nitrous (`nos_engaged >= 1`), so the disengage timer
+alone does not permit restarting below 10 mph. The 25 percent tuning factors
+were also confirmed in the PC helpers. **[decomp]** Original instruction
+inspection, not a live driving measurement.
+
 ## 5. Forced induction (`induction`)
 
 | Field | Unit | Use |

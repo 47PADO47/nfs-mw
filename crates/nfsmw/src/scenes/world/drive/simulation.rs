@@ -7,7 +7,7 @@ use nfsmw_data::car::physics::SurfaceTable;
 use super::effect_feed;
 use super::walls::Impact;
 use super::{Drive, DriveInput, GOOD_SPOT_STEPS, Spawn, SpawnRequest, WorldGround, clock, fall, trace};
-use crate::input::{Action, ActionState};
+use crate::input::ActionState;
 use crate::scenes::world::{props::PropWorld, road, space};
 
 /// Work to finish after every body's motion and contacts have run.
@@ -20,7 +20,6 @@ impl Drive {
     /// Sample input once per render frame; presses wait for the next physics tick.
     pub fn prepare_frame(&mut self, actions: &ActionState, dt: f32) {
         self.frame_input = DriveInput::from_actions(actions, self.wheel);
-        self.look.note((actions.value(Action::LookX), actions.value(Action::LookY)));
         if self.script.is_none() {
             self.presses.note(&self.frame_input);
         }
@@ -65,7 +64,6 @@ impl Drive {
         if input.pop {
             self.flames.pop();
         }
-        self.breaker.step(input.speedbreaker, sim.telemetry().speed_mps.abs(), clock::STEP);
         let impact = sim.step(&input, &WorldGround { collision, surfaces }, Some((collision, props)));
         Some(DriveStep { input, impact })
     }
@@ -77,6 +75,8 @@ impl Drive {
         self.steer_lamp = input.steer;
         self.lamp_time += clock::STEP;
         let Some(sim) = self.sim.as_mut() else { return };
+        let (strength, speed, slip) = sim.drift_charge();
+        self.breaker.charge_drift(strength, speed, slip, clock::STEP);
         self.pending_knocks.extend(impact.knocked.iter().map(|&(id, _)| id));
         self.effects.step(sim.tire_contacts(collision), sim.effect_velocity(), clock::STEP);
         self.vehicle_effects.step(&impact.visuals, sim.pose(), sim.effect_velocity(), clock::STEP);
@@ -103,6 +103,7 @@ impl Drive {
             log::info!("tire effects at script end: {}", self.effects.status());
         }
         if input.reset {
+            self.manual_resets += 1;
             let at = self.current.position;
             log::info!("reset at ({:.0}, {:.0}, {:.0})", at.x, at.y, at.z);
             self.respawn_near([at.x, at.y], Some(self.heading()));

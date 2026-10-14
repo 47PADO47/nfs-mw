@@ -1,10 +1,15 @@
-//! Isolated experimental GTAO pass: depth-only sampling, spatial denoise, then multiply into colour.
-//! Nothing is allocated until an enabled perspective frame is rendered. No history or extra geometry.
+//! Spatial GTAO from shared depth/normals. An R8 mask attenuates ambient lighting before fog.
 
 #[cfg(test)]
 mod benchmark;
+mod bindings;
 #[cfg(test)]
 mod contact_tests;
+#[cfg(test)]
+mod depth_tests;
+mod frame;
+#[cfg(test)]
+mod integration_tests;
 mod pipelines;
 #[cfg(test)]
 mod tests;
@@ -20,6 +25,7 @@ struct Params {
     effect: [f32; 4],
     sampling: [u32; 4],
     fog: [f32; 4],
+    view: [f32; 16],
 }
 
 struct Images {
@@ -52,19 +58,22 @@ pub(super) struct AmbientOcclusion {
     pipelines: Pipelines,
     params: wgpu::Buffer,
     images: Option<Images>,
+    inputs: Option<bindings::Inputs>,
+    pub mask: wgpu::TextureView,
+    pub size: (u32, u32),
 }
 
 pub(super) struct Draw<'a> {
     pub target: &'a wgpu::TextureView,
     pub depth: &'a wgpu::TextureView,
     pub size: (u32, u32),
-    pub format: wgpu::TextureFormat,
+    pub normals: &'a wgpu::TextureView,
     pub frame: &'a FrameParams,
     pub settings: AoSettings,
 }
 
 impl AmbientOcclusion {
-    pub(super) fn new(device: &wgpu::Device) -> Self {
+    pub(super) fn new(device: &wgpu::Device, size: (u32, u32)) -> Self {
         Self {
             pipelines: Pipelines::new(device),
             params: device.create_buffer(&wgpu::BufferDescriptor {
@@ -74,6 +83,9 @@ impl AmbientOcclusion {
                 mapped_at_creation: false,
             }),
             images: None,
+            inputs: None,
+            mask: super::surface::mask(device, size, "ambient visibility"),
+            size,
         }
     }
 
@@ -103,30 +115,18 @@ impl AmbientOcclusion {
             effect: [settings.radius, settings.intensity, 40.0, 100.0],
             sampling: [divisor, slices, steps, u32::from(settings.compare)],
             fog: [fog_start, fog_end, 0.0, 0.0],
+            view: draw.frame.view.to_cols_array(),
         };
         queue.write_buffer(&self.params, 0, bytemuck::bytes_of(&params));
-        let uniform = wgpu::BindGroupEntry { binding: 0, resource: self.params.as_entire_binding() };
-        let depth = view(1, draw.depth);
-        let generate = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("AO generate inputs"),
-            layout: &self.pipelines.generate.get_bind_group_layout(0),
-            entries: &[uniform.clone(), depth.clone(), view(2, &images.raw)],
-        });
-        let filter = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("AO filter inputs"),
-            layout: &self.pipelines.filter.get_bind_group_layout(0),
-            entries: &[uniform.clone(), view(2, &images.raw), view(3, &images.filtered)],
-        });
-        self.pipelines.use_format(device, draw.format);
-        let composite = self.pipelines.composite.as_ref().expect("AO composite pipeline");
-        let composite_inputs = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("AO composite inputs"),
-            layout: &composite.get_bind_group_layout(0),
-            entries: &[uniform, depth, view(2, &images.filtered)],
-        });
+        let views = [draw.depth, draw.normals, &images.raw, &images.filtered];
+        if self.inputs.as_ref().is_none_or(|inputs| !inputs.matches(views)) {
+            self.inputs = Some(bindings::Inputs::new(device, &self.pipelines, &self.params, views));
+        }
+        let inputs = &self.inputs.as_ref().expect("AO inputs exist").groups;
+        let composite = &self.pipelines.resolve;
         for (label, pipeline, inputs) in [
-            ("AO horizons", &self.pipelines.generate, &generate),
-            ("AO spatial denoise", &self.pipelines.filter, &filter),
+            ("AO horizons", &self.pipelines.generate, &inputs[0]),
+            ("AO spatial denoise", &self.pipelines.filter, &inputs[1]),
         ] {
             let mut pass =
                 encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some(label), timestamp_writes: None });
@@ -135,12 +135,12 @@ impl AmbientOcclusion {
             pass.dispatch_workgroups(size.0.div_ceil(8), size.1.div_ceil(8), 1);
         }
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("AO composite"),
+            label: Some("AO ambient mask"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: draw.target,
                 depth_slice: None,
                 resolve_target: None,
-                ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store },
+                ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::WHITE), store: wgpu::StoreOp::Store },
             })],
             depth_stencil_attachment: None,
             timestamp_writes: None,
@@ -148,13 +148,9 @@ impl AmbientOcclusion {
             multiview_mask: None,
         });
         pass.set_pipeline(composite);
-        pass.set_bind_group(0, &composite_inputs, &[]);
+        pass.set_bind_group(0, &inputs[2], &[]);
         pass.draw(0..3, 0..1);
     }
-}
-
-fn view(binding: u32, view: &wgpu::TextureView) -> wgpu::BindGroupEntry<'_> {
-    wgpu::BindGroupEntry { binding, resource: wgpu::BindingResource::TextureView(view) }
 }
 
 pub(crate) fn sources() -> [(&'static str, String); 3] {

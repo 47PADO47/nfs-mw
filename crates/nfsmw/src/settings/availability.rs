@@ -46,6 +46,14 @@ fn asked(key: &str, settings: &Settings, caps: &Capabilities) -> Option<Asked> {
             possible: g.post.bloom_intensity <= 0.0 || caps.bloom,
             available: vec!["off"],
         },
+        "shadows" => Asked {
+            value: g.shadows.name().to_owned(),
+            possible: g.shadows == super::ShadowQuality::Off || caps.soft_shadows,
+            available: match caps.soft_shadows {
+                true => super::ShadowQuality::ALL.iter().map(|q| q.name()).collect(),
+                false => vec!["off"],
+            },
+        },
         "ao" => Asked {
             value: g.ao.quality.name().to_owned(),
             possible: g.ao.quality == AoQuality::Off || caps.ambient_occlusion,
@@ -131,11 +139,11 @@ mod tests {
         let caps = test_caps::native();
         let taa = Settings { post_aa: PostAa::Taa, ..settings() };
         let smaa = Settings { post_aa: PostAa::Smaa, ..settings() };
+        assert!(check("post_aa", &smaa, &caps).is_ok());
         let rt = Settings { ray_tracing: RayTracingLevel::Low, ..settings() };
         let fsr4 = Settings { upscaler: UpscaleMode::Fsr4, ..settings() };
         for (key, s, error) in [
-            ("post_aa", taa, "taa is not available with the blackbox renderer (available: off, fxaa)"),
-            ("post_aa", smaa, "smaa is not available with the blackbox renderer (available: off, fxaa)"),
+            ("post_aa", taa, "taa is not available with the blackbox renderer (available: off, fxaa, smaa)"),
             ("ray_tracing", rt, "low is not available with the blackbox renderer (available: off)"),
             ("upscaler", fsr4, "fsr4 is not available with the blackbox renderer (available: off, bilinear, fsr1)"),
         ] {

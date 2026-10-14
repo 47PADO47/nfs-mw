@@ -103,8 +103,14 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         collision_sparks: field(&table, origin, "collision_sparks", boolean),
         spark_style: field(&table, origin, "spark_style", |v| super::SparkStyle::from_str(text_of(v)?)),
         speed_trails: field(&table, origin, "speed_trails", boolean),
+        speed_trail_style: field(&table, origin, "speed_trail_style", |v| {
+            super::SpeedTrailStyle::from_str(text_of(v)?)
+        }),
         exhaust_flames: field(&table, origin, "exhaust_flames", boolean),
+        turn_signals: field(&table, origin, "turn_signals", boolean),
         rear_view_mirror: field(&table, origin, "rear_view_mirror", boolean),
+        discord: field(&table, origin, "discord", boolean),
+        discord_time_played: field(&table, origin, "discord_time_played", boolean),
         transmission: field(&table, origin, "transmission", |v| Transmission::from_str(text_of(v)?)),
         camera_mode: field(&table, origin, "camera_mode", |v| CameraMode::from_str(text_of(v)?)),
         minimap: field(&table, origin, "minimap", |v| MinimapMode::from_str(text_of(v)?)),
@@ -115,6 +121,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         visual_treatment: field(&table, origin, "visual_treatment", |v| super::VisualTreatment::from_str(text_of(v)?)),
         post_aa: field(&table, origin, "post_aa", |v| PostAa::from_str(text_of(v)?)),
         reflections: field(&table, origin, "reflections", |v| super::ReflectionQuality::from_str(text_of(v)?)),
+        shadows: field(&table, origin, "shadows", |v| super::ShadowQuality::from_str(text_of(v)?)),
         ao: field(&table, origin, "ao", |v| super::AoQuality::from_str(text_of(v)?)),
         ao_intensity: field(&table, origin, "ao_intensity", percent),
         ao_compare: field(&table, origin, "ao_compare", boolean),

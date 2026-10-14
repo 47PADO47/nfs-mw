@@ -23,7 +23,7 @@ use bevy_camera::Hdr;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::system::Commands;
 use bevy_post_process::bloom::{Bloom, BloomCompositeMode, BloomPrefilter};
-use bevy_render::view::Tonemapping;
+use bevy_render::view::{ColorGrading, ColorGradingGlobal, Tonemapping};
 use blackbox_gfx::{Antialiasing, PostSettings, Tonemap};
 
 use crate::ops::CameraSettings;
@@ -66,6 +66,11 @@ fn bloom(post: &PostSettings) -> Option<Bloom> {
 pub fn set(commands: &mut Commands, camera: Entity, settings: &CameraSettings) {
     let mut entity = commands.entity(camera);
     entity.insert(tonemapping(settings.post.tonemap));
+    // The shared setting is a linear multiplier; Bevy's grading uses EV stops.
+    entity.insert(ColorGrading {
+        global: ColorGradingGlobal { exposure: settings.post.exposure.log2(), ..Default::default() },
+        ..Default::default()
+    });
     match settings.post.needs_hdr() {
         true => entity.insert(Hdr),
         false => entity.remove::<Hdr>(),

@@ -13,6 +13,7 @@ use super::confirm::{AlertLogic, ConfirmLogic};
 use super::factory;
 use super::ids::screen::DIALOG;
 use super::logic::{Args, Command, Cx, Env, ScreenLogic};
+use super::world_map::WorldMapFrame;
 use crate::ui::{Catalog, UiAssets};
 
 struct Screen {
@@ -31,6 +32,8 @@ pub struct Screens {
     await_release: bool,
     /// The key names of the controls list, set by the frame's bindings (`set_key_texts`).
     key_texts: Vec<[String; 2]>,
+    /// The world map's frame while the map is open (`set_world_map`).
+    world_map: Option<WorldMapFrame>,
 }
 
 impl Screens {
@@ -46,12 +49,18 @@ impl Screens {
             memory: HashMap::new(),
             await_release: false,
             key_texts: Vec::new(),
+            world_map: None,
         }
     }
 
     /// Sets the key names the controls list shows this frame (`controls_screen::key_texts`).
     pub fn set_key_texts(&mut self, key_texts: Vec<[String; 2]>) {
         self.key_texts = key_texts;
+    }
+
+    /// Sets the world map's frame for the screens this tick (`None` once the map closes).
+    pub fn set_world_map(&mut self, frame: Option<WorldMapFrame>) {
+        self.world_map = frame;
     }
 
     /// The file name of the screen on top.
@@ -104,6 +113,7 @@ impl Screens {
             commands: &mut commands,
             memory: &mut self.memory,
             key_texts: &self.key_texts,
+            world_map: self.world_map.as_ref(),
             name: &file_name,
         };
         logic.start(&mut cx);
@@ -158,22 +168,44 @@ impl Screens {
     }
 
     fn deliver(&mut self, package: PackageId, message: u32, env: &mut Env, out: &mut Vec<Command>) {
-        let Self { runtime, assets, stack, memory, key_texts, .. } = self;
+        let Self { runtime, assets, stack, memory, key_texts, world_map, .. } = self;
         let Some(screen) = stack.iter_mut().find(|s| s.id == package) else { return };
         let (settings, changed, caps) = (&mut *env.settings, &mut *env.changed, env.caps);
         let name = &screen.name;
-        let mut cx =
-            Cx { rt: runtime, package, assets, settings, changed, caps, commands: out, memory, key_texts, name };
+        let mut cx = Cx {
+            rt: runtime,
+            package,
+            assets,
+            settings,
+            changed,
+            caps,
+            commands: out,
+            memory,
+            key_texts,
+            world_map: world_map.as_ref(),
+            name,
+        };
         screen.logic.message(&mut cx, message);
     }
 
     fn deliver_tick(&mut self, package: PackageId, dt: f32, env: &mut Env, out: &mut Vec<Command>) {
-        let Self { runtime, assets, stack, memory, key_texts, .. } = self;
+        let Self { runtime, assets, stack, memory, key_texts, world_map, .. } = self;
         let Some(screen) = stack.iter_mut().find(|s| s.id == package) else { return };
         let (settings, changed, caps) = (&mut *env.settings, &mut *env.changed, env.caps);
         let name = &screen.name;
-        let mut cx =
-            Cx { rt: runtime, package, assets, settings, changed, caps, commands: out, memory, key_texts, name };
+        let mut cx = Cx {
+            rt: runtime,
+            package,
+            assets,
+            settings,
+            changed,
+            caps,
+            commands: out,
+            memory,
+            key_texts,
+            world_map: world_map.as_ref(),
+            name,
+        };
         screen.logic.tick(&mut cx, dt);
     }
 
@@ -268,7 +300,7 @@ impl Screens {
         env: &mut Env,
         act: impl FnOnce(&mut dyn ScreenLogic, &mut Cx) -> bool,
     ) -> Option<(bool, Vec<Command>)> {
-        let Self { runtime, assets, stack, memory, key_texts, .. } = self;
+        let Self { runtime, assets, stack, memory, key_texts, world_map, .. } = self;
         let screen = stack.last_mut()?;
         let (settings, changed, caps) = (&mut *env.settings, &mut *env.changed, env.caps);
         let mut commands = Vec::new();
@@ -282,6 +314,7 @@ impl Screens {
             commands: &mut commands,
             memory,
             key_texts,
+            world_map: world_map.as_ref(),
             name: &screen.name,
         };
         let taken = act(screen.logic.as_mut(), &mut cx);

@@ -1,7 +1,9 @@
 //! Traffic participates in the world's physics tick, including its spawning and pursuit timers.
 
 use blackbox_collision::CollisionWorld;
+use blackbox_pursuit::breaker;
 use blackbox_roads::Body;
+use glam::Vec2;
 use nfsmw_data::car::physics::SurfaceTable;
 
 use super::car::{AiCar, Ctx};
@@ -31,10 +33,12 @@ impl TrafficWorld {
         let aims = focus.body.as_ref().map(|player| self.cop_aims(player)).unwrap_or_default();
         for (me, car) in self.cars.iter_mut().enumerate() {
             let position = glam::Vec3::from_array(super::super::space::to_physics(car.position()));
+            let point = Vec2::new(position.x, position.z);
             let stop = car.is_roadblock()
                 || (car.is_cop()
                     && self.breaker_areas.iter().any(|area| {
-                        area.duration > 0.0 && position.distance_squared(area.position) <= area.radius * area.radius
+                        area.duration > 0.0
+                            && breaker::inside(Vec2::new(area.position.x, area.position.z), area.radius, point)
                     }));
             car.set_breaker_stop(stop);
             let mut ctx = Ctx {
@@ -48,6 +52,9 @@ impl TrafficWorld {
                 lights,
             };
             car.step(&mut ctx, collision, props, surfaces);
+            if car.take_wreck() {
+                self.police.record_wreck();
+            }
             car.step_lights();
         }
         self.signal_time += STEP;

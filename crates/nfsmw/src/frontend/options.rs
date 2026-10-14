@@ -14,8 +14,8 @@ use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
 use crate::settings::availability;
 use crate::settings::{
-    CameraMode, HudLayout, MinimapMode, Partial, Percent, RadioHudStyle, RenderScale, Settings, SmokeQuality,
-    Transmission, UpscaleMode, WindowMode,
+    CameraMode, HudLayout, MinimapMode, Partial, Percent, RadioHudStyle, Settings, SmokeQuality, Transmission,
+    UpscaleMode, WindowMode,
 };
 use blackbox_gfx::Capabilities;
 
@@ -36,11 +36,15 @@ pub enum Setting {
     SkidMarks,
     CollisionSparks,
     SpeedTrails,
+    SpeedTrailStyle,
     ExhaustFlames,
+    TurnSignals,
     RearViewMirror,
     SmokeQuality,
     Transmission,
     Camera,
+    Discord,
+    DiscordTimePlayed,
     Input(InputSetting),
     Post(PostSetting),
     Graphics(GraphicsSetting),
@@ -90,6 +94,10 @@ const fn row(setting: Setting, title: Title) -> Row {
 mod category_rows;
 pub use category_rows::rows;
 
+#[path = "options_steps.rs"]
+mod steps;
+use steps::{cycle, next_scale, nudge};
+
 /// The original's Transmission row: its title and the two values (docs/specs/vehicle-manual-shifting.md, section 1).
 const LABEL_TRANSMISSION: u32 = 0xD314_07E7;
 const LABEL_AUTOMATIC: u32 = 0x8CD5_32A0;
@@ -97,8 +105,6 @@ const LABEL_MANUAL: u32 = 0x317D_3005;
 
 /// Frame limits the row cycles through.
 const FRAME_LIMITS: [&str; 6] = ["unlocked", "30", "60", "120", "144", "240"];
-/// Render scales (percent) the row cycles through: FSR 1's quality modes and a few supersampling steps.
-const RENDER_SCALES: [u16; 9] = [50, 59, 67, 77, 85, 100, 125, 150, 200];
 const UPSCALERS: [UpscaleMode; 6] = [
     UpscaleMode::Off,
     UpscaleMode::Bilinear,
@@ -111,9 +117,6 @@ const METRICS: [ShowMetrics; 3] = [ShowMetrics::Off, ShowMetrics::Basic, ShowMet
 const WINDOW_MODES: [WindowMode; 3] = [WindowMode::Windowed, WindowMode::Borderless, WindowMode::Exclusive];
 /// The most values any row cycles through; `advance` gives up after that many steps.
 const MAX_VALUES: usize = 8;
-/// A slider press moves the volume by this many percent.
-const VOLUME_STEP: u8 = 10;
-
 fn on_off(on: bool) -> Data {
     Data::Label(if on { LABEL_ON } else { LABEL_OFF })
 }
@@ -145,6 +148,8 @@ impl Setting {
             Setting::Graphics(setting) => setting.enabled(s),
             Setting::Post(PostSetting::Aa) => !s.upscaler.upscaler().is_temporal(),
             Setting::SmokeQuality => s.tire_smoke,
+            // The time played is part of the Discord presence, so it is dimmed while that is off.
+            Setting::DiscordTimePlayed => s.discord,
             Setting::RenderScale => matches!(s.upscaler, UpscaleMode::Bilinear | UpscaleMode::Fsr1),
             Setting::UpscaleSharpness => s.upscaler == UpscaleMode::Fsr1,
             Setting::Renderer(RendererSetting::UpscaleQuality) => s.upscaler.upscaler().is_temporal(),
@@ -210,8 +215,12 @@ impl Setting {
             Setting::CollisionSparks if !s.collision_sparks => on_off(false),
             Setting::CollisionSparks => Data::Text(s.spark_style.label().into()),
             Setting::SpeedTrails => on_off(s.speed_trails),
+            Setting::SpeedTrailStyle => Data::Text(s.speed_trail_style.label().into()),
             Setting::ExhaustFlames => on_off(s.exhaust_flames),
+            Setting::TurnSignals => on_off(s.turn_signals),
             Setting::RearViewMirror => on_off(s.rear_view_mirror),
+            Setting::Discord => on_off(s.discord),
+            Setting::DiscordTimePlayed => on_off(s.discord_time_played),
             Setting::SmokeQuality => Data::Text(
                 match s.smoke_quality {
                     SmokeQuality::Standard => "Standard",
@@ -272,6 +281,7 @@ impl Setting {
         match self {
             Setting::Graphics(GraphicsSetting::VisualTreatment) => Some("visual_treatment"),
             Setting::Graphics(GraphicsSetting::Reflections) => Some("reflections"),
+            Setting::Graphics(GraphicsSetting::Shadows) => Some("shadows"),
             Setting::Graphics(GraphicsSetting::AmbientOcclusion) => Some("ao"),
             Setting::Upscaler => Some("upscaler"),
             Setting::Post(PostSetting::Aa) => Some("post_aa"),
@@ -322,6 +332,12 @@ impl Setting {
     }
 
     fn step_value(self, s: &mut Settings, changed: &mut Partial, forward: bool) -> bool {
+        macro_rules! toggle {
+            ($s:ident, $c:ident, $field:ident) => {{
+                $s.$field = !$s.$field;
+                $c.$field = Some($s.$field);
+            }};
+        }
         if let Setting::Input(setting) = self {
             return setting.step(s, changed, forward);
         }
@@ -390,22 +406,10 @@ impl Setting {
                 s.speech_volume = nudge(s.speech_volume, forward);
                 changed.speech_volume = Some(s.speech_volume);
             }
-            Setting::Vsync => {
-                s.vsync = !s.vsync;
-                changed.vsync = Some(s.vsync);
-            }
-            Setting::Hud => {
-                s.hud = !s.hud;
-                changed.hud = Some(s.hud);
-            }
-            Setting::TireSmoke => {
-                s.tire_smoke = !s.tire_smoke;
-                changed.tire_smoke = Some(s.tire_smoke);
-            }
-            Setting::SkidMarks => {
-                s.skid_marks = !s.skid_marks;
-                changed.skid_marks = Some(s.skid_marks);
-            }
+            Setting::Vsync => toggle!(s, changed, vsync),
+            Setting::Hud => toggle!(s, changed, hud),
+            Setting::TireSmoke => toggle!(s, changed, tire_smoke),
+            Setting::SkidMarks => toggle!(s, changed, skid_marks),
             Setting::CollisionSparks => {
                 let at = match (s.collision_sparks, s.spark_style) {
                     (false, _) => 0,
@@ -421,18 +425,19 @@ impl Setting {
                 changed.collision_sparks = Some(s.collision_sparks);
                 changed.spark_style = Some(s.spark_style);
             }
-            Setting::SpeedTrails => {
-                s.speed_trails = !s.speed_trails;
-                changed.speed_trails = Some(s.speed_trails);
+            Setting::SpeedTrails => toggle!(s, changed, speed_trails),
+            Setting::SpeedTrailStyle => {
+                s.speed_trail_style = match s.speed_trail_style {
+                    crate::settings::SpeedTrailStyle::Streaks => crate::settings::SpeedTrailStyle::Car,
+                    crate::settings::SpeedTrailStyle::Car => crate::settings::SpeedTrailStyle::Streaks,
+                };
+                changed.speed_trail_style = Some(s.speed_trail_style);
             }
-            Setting::ExhaustFlames => {
-                s.exhaust_flames = !s.exhaust_flames;
-                changed.exhaust_flames = Some(s.exhaust_flames);
-            }
-            Setting::RearViewMirror => {
-                s.rear_view_mirror = !s.rear_view_mirror;
-                changed.rear_view_mirror = Some(s.rear_view_mirror);
-            }
+            Setting::ExhaustFlames => toggle!(s, changed, exhaust_flames),
+            Setting::TurnSignals => toggle!(s, changed, turn_signals),
+            Setting::RearViewMirror => toggle!(s, changed, rear_view_mirror),
+            Setting::Discord => toggle!(s, changed, discord),
+            Setting::DiscordTimePlayed => toggle!(s, changed, discord_time_played),
             Setting::Transmission => {
                 s.transmission = s.transmission.other();
                 changed.transmission = Some(s.transmission);
@@ -470,28 +475,6 @@ impl Setting {
         }
         before != *s
     }
-}
-
-fn nudge(p: Percent, forward: bool) -> Percent {
-    let v = if forward { p.0.saturating_add(VOLUME_STEP).min(100) } else { p.0.saturating_sub(VOLUME_STEP) };
-    Percent(v)
-}
-
-/// The next preset above (`forward`) or below the scale, wrapping around; a scale between presets (set from the
-/// console or the config file) moves to the closest preset in that direction.
-fn next_scale(current: RenderScale, forward: bool) -> RenderScale {
-    let now = current.percent();
-    let next = match forward {
-        true => RENDER_SCALES.iter().copied().find(|p| *p > now).unwrap_or(RENDER_SCALES[0]),
-        false => {
-            RENDER_SCALES.iter().rev().copied().find(|p| *p < now).unwrap_or(RENDER_SCALES[RENDER_SCALES.len() - 1])
-        }
-    };
-    RenderScale::new(next).unwrap_or(current)
-}
-
-fn cycle(at: usize, len: usize, forward: bool) -> usize {
-    if forward { (at + 1) % len } else { (at + len - 1) % len }
 }
 
 #[cfg(test)]

@@ -5,8 +5,25 @@
 //! call fails with a message, so the game runs silent instead of stopping.
 
 mod aems;
+#[cfg(test)]
+mod capture;
 mod car;
+mod chase;
+pub mod common_effects;
+pub use common_effects::CommonEvent;
+pub mod environment;
+pub mod environment_context;
+mod filter;
+#[cfg(test)]
+mod replay;
+mod shaped;
+mod spatial;
+mod speedbreaker;
+mod view;
+mod wet;
+pub use view::AudioView;
 pub mod commands;
+mod coverage;
 mod engine;
 mod fx;
 mod interactive;
@@ -16,6 +33,7 @@ mod plugin;
 mod radio;
 mod refs;
 mod speech;
+mod trace;
 pub mod traffic;
 mod tuning;
 mod volume;
@@ -31,28 +49,62 @@ use kira::track::{TrackBuilder, TrackHandle};
 use kira::{AudioManager, AudioManagerSettings, DefaultBackend, Tween};
 use nfsmw_data::sound::{CarSound, EngineLoops, SoundUpgrades};
 
-pub use car::{CarEvent, CarSoundState};
+pub use car::{
+    CarAudioTelemetry, CarContact, CarEvent, CarSoundState, CarSoundTick, ContactSource, RoadContext, RoadTerrain,
+};
 pub use engine::{EngineHandle, EngineMix, EngineVoice, LoopMix};
-pub use interactive::MusicInput;
+pub use interactive::{MusicInput, PursuitFeed};
 pub use plugin::AudioPlugin;
 pub use radio::NowPlaying;
 pub use volume::{Group, Volumes};
 
 struct Output {
-    manager: AudioManager<DefaultBackend>,
+    manager: OutputManager,
     sfx: TrackHandle,
     music: TrackHandle,
     engine: TrackHandle,
+    wet: wet::Bus,
+}
+
+enum OutputManager {
+    Device(Box<AudioManager<DefaultBackend>>),
+    #[cfg(test)]
+    Replay(Box<AudioManager<replay::ReplayBackend>>),
+}
+
+impl OutputManager {
+    fn add_sub_track(&mut self, builder: TrackBuilder) -> Result<TrackHandle, String> {
+        match self {
+            Self::Device(manager) => manager.add_sub_track(builder).map_err(|e| e.to_string()),
+            #[cfg(test)]
+            Self::Replay(manager) => manager.add_sub_track(builder).map_err(|e| e.to_string()),
+        }
+    }
+    fn volume(&mut self, volume: kira::Decibels, tween: Tween) {
+        match self {
+            Self::Device(manager) => manager.main_track().set_volume(volume, tween),
+            #[cfg(test)]
+            Self::Replay(manager) => manager.main_track().set_volume(volume, tween),
+        }
+    }
 }
 
 pub struct Audio {
     output: Option<Output>,
+    trace: trace::Trace,
+    traffic: traffic::TrafficAudio,
+    common: common_effects::CommonPlayback,
+    wet: wet::Slot,
+    speedbreaker: speedbreaker::Slot,
     dir: GameDir,
     volumes: Volumes,
     /// The bytes of the banks read so far, by path under `SOUND/`.
     banks: HashMap<String, Arc<Vec<u8>>>,
     /// Decoded bank sounds by (bank path, index).
     sounds: HashMap<(String, usize), StaticSoundData>,
+    sound_channels: HashMap<(String, usize), u16>,
+    impact_counter: u32,
+    prop_sounds: HashMap<u32, Arc<nfsmw_data::sound::CollisionSounds>>,
     /// The gameplay database, read when a car's sound is first needed.
     database: Option<Arc<Database>>,
     /// The engine the `engine` console command plays, with the car it belongs to.
@@ -67,12 +119,16 @@ pub struct Audio {
     radio_wanted: bool,
     /// The police dispatch's speech, loaded when first needed.
     speech: speech::SpeechSlot,
+    /// The mid-chase cues the speech reacts to: a sighting lost or regained, the heat jumping.
+    chase_cues: chase::Cues,
+    /// Which air-support line groups the chase may say (the RevisedAirSupport switches).
+    air_support: chase::AirSupport,
     /// The pursuit music, which takes the songs' place while a chase is on.
     interactive: interactive::Interactive,
     /// Bank sounds that could not be loaded, so each is reported once.
     missing: HashSet<(String, usize)>,
-    /// The car whose sound could not be loaded, so the failure is not repeated every frame.
-    failed: Option<String>,
+    /// The car and upgrade selectors whose sound failed, avoiding repeated loads every frame.
+    failed: Option<(String, SoundUpgrades)>,
     /// The scene's soundtrack that is playing, kept so it can be stopped when the scene goes.
     music: Option<StaticSoundHandle>,
 }
@@ -91,6 +147,15 @@ impl CarEngine {
 }
 
 impl Audio {
+    fn prop_sound(&mut self, profile: u32) -> Option<Arc<nfsmw_data::sound::CollisionSounds>> {
+        if let Some(sound) = self.prop_sounds.get(&profile) {
+            return Some(sound.clone());
+        }
+        let database = self.database().ok()?;
+        let sound = Arc::new(nfsmw_data::sound::CollisionSounds::prop(&database, profile));
+        self.prop_sounds.insert(profile, sound.clone());
+        Some(sound)
+    }
     /// Open the default output device. When there is none, or it fails, the returned value is silent and says
     /// why in the log.
     pub fn new(dir: GameDir, volumes: Volumes) -> Self {
@@ -101,12 +166,24 @@ impl Audio {
                 None
             }
         };
+        Self::with_output(dir, volumes, output)
+    }
+
+    fn with_output(dir: GameDir, volumes: Volumes, output: Option<Output>) -> Self {
         let mut audio = Self {
             output,
+            trace: trace::Trace::default(),
+            traffic: traffic::TrafficAudio::default(),
+            common: common_effects::CommonPlayback::default(),
+            wet: wet::Slot::default(),
+            speedbreaker: speedbreaker::Slot::default(),
             dir,
             volumes,
             banks: HashMap::new(),
             sounds: HashMap::new(),
+            sound_channels: HashMap::new(),
+            impact_counter: 0,
+            prop_sounds: HashMap::new(),
             database: None,
             test_engine: None,
             car: None,
@@ -114,11 +191,18 @@ impl Audio {
             radio: radio::RadioSlot::default(),
             radio_wanted: true,
             speech: speech::SpeechSlot::default(),
+            chase_cues: chase::Cues::new(speech::random::Rng::from_clock()),
+            air_support: chase::AirSupport::default(),
             interactive: interactive::Interactive::default(),
             missing: HashSet::new(),
             failed: None,
             music: None,
         };
+        if let Some(path) = std::env::var_os("NFSMW_AUDIO_TRACE")
+            && let Err(error) = audio.start_trace(std::path::Path::new(&path))
+        {
+            log::warn!("{error}");
+        }
         audio.set_volumes(volumes);
         audio
     }
@@ -135,8 +219,9 @@ impl Audio {
     pub fn set_volumes(&mut self, volumes: Volumes) {
         self.volumes = volumes;
         let Some(out) = self.output.as_mut() else { return };
+        out.wet.volumes(volumes);
         let tween = Tween::default();
-        out.manager.main_track().set_volume(volume::decibels(volumes.master), tween);
+        out.manager.volume(volume::decibels(volumes.master), tween);
         out.sfx.set_volume(volume::decibels(volumes.sfx), tween);
         out.music.set_volume(volume::decibels(volumes.music), tween);
         out.engine.set_volume(volume::decibels(volumes.engine), tween);
@@ -174,6 +259,7 @@ impl Audio {
         let parsed = Bank::parse(&bytes).map_err(|e| format!("{bank}: {e}"))?;
         let decoded = parsed.decode(index).map_err(|e| format!("{bank} #{index}: {e}"))?;
         let data = pcm::sound(&decoded);
+        self.sound_channels.insert(key.clone(), decoded.channels);
         self.sounds.insert(key, data.clone());
         Ok(data)
     }
@@ -215,9 +301,13 @@ impl Audio {
 
     /// The engine sound of car type `car` (`BMWM3GTR`) at stock levels: its Ginsu loops, decoded.
     pub fn load_car_engine(&mut self, car: &str) -> Result<CarEngine, String> {
+        self.load_car_engine_upgraded(car, SoundUpgrades::default())
+    }
+
+    /// The engine and effects sound set selected by the installed performance levels.
+    pub fn load_car_engine_upgraded(&mut self, car: &str, upgrades: SoundUpgrades) -> Result<CarEngine, String> {
         let db = self.database()?;
-        let set =
-            nfsmw_data::sound::car_sound(&db, car, SoundUpgrades::default()).map_err(|e| format!("{car}: {e:#}"))?;
+        let set = nfsmw_data::sound::car_sound(&db, car, upgrades).map_err(|e| format!("{car}: {e:#}"))?;
         let loops = EngineLoops::load(&self.dir, &set.engine).map_err(|e| format!("{car}: {e:#}"))?;
         let accel = loops.accel.ok_or_else(|| format!("{car} has no Ginsu engine loop"))?;
         let voice = EngineVoice { accel, decel: loops.decel, start: EngineMix::default() };
@@ -226,16 +316,34 @@ impl Audio {
 
     /// Start an engine voice; drop the handle to stop it.
     pub fn start_engine(&mut self, voice: EngineVoice) -> Result<EngineHandle, String> {
-        self.output()?.engine.play(voice).map_err(|e| e.to_string())
+        let output = self.output()?;
+        let handle = output.engine.play(voice).map_err(|e| e.to_string())?;
+        handle.set_wet_sender(output.wet.sender(Group::Engine));
+        Ok(handle)
     }
 }
 
 impl Output {
     fn open() -> Result<Self, String> {
-        let mut manager =
-            AudioManager::<DefaultBackend>::new(AudioManagerSettings::default()).map_err(|e| e.to_string())?;
+        let mut main = kira::track::MainTrackBuilder::new();
+        let wet = main.add_effect(wet::Bus::builder());
+        let mut manager = AudioManager::<DefaultBackend>::new(AudioManagerSettings {
+            main_track_builder: main,
+            ..Default::default()
+        })
+        .map_err(|e| e.to_string())?;
         let mut track = || manager.add_sub_track(TrackBuilder::new()).map_err(|e| e.to_string());
         let (sfx, music, engine) = (track()?, track()?, track()?);
-        Ok(Self { manager, sfx, music, engine })
+        Ok(Self { manager: OutputManager::Device(Box::new(manager)), sfx, music, engine, wet })
+    }
+}
+
+impl Drop for Audio {
+    fn drop(&mut self) {
+        self.car = None;
+        self.traffic = Default::default();
+        self.common = Default::default();
+        self.test_engine = None;
+        self.trace.stop();
     }
 }

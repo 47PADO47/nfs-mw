@@ -65,6 +65,8 @@ pub enum Action {
     ToggleHeadlights,
     /// Driving button: hold to look back at the car (the camera swings round).
     LookBack,
+    /// In-world button: interact with what the car or player stands on (enter a race, safe house or shop).
+    Interact,
     /// Menu button: the focus moves up.
     MenuUp,
     MenuDown,
@@ -86,6 +88,10 @@ pub enum Action {
     RadioNext,
     /// Radio button: the previous song.
     RadioPrevious,
+    /// Button: open or close the runtime garage overlay.
+    Garage,
+    /// Button: open or close the full-screen world map, from free roam (`frontend/world_map`).
+    Map,
 }
 
 impl Action {
@@ -125,6 +131,7 @@ impl Action {
             "cycle_camera",
             "toggle_headlights",
             "look_back",
+            "interact",
             "menu_up",
             "menu_down",
             "menu_left",
@@ -137,6 +144,8 @@ impl Action {
             "radio_toggle",
             "radio_next",
             "radio_previous",
+            "garage",
+            "map",
         ];
         NAMES[self.index()]
     }
@@ -148,7 +157,7 @@ impl Action {
             .find(|a| a.name() == name)
             .ok_or_else(|| format!("unknown action {name:?}; use keys to list actions"))
     }
-    pub const ALL: [Action; 46] = [
+    pub const ALL: [Action; 49] = [
         Action::MoveForward,
         Action::MoveRight,
         Action::MoveUp,
@@ -183,6 +192,7 @@ impl Action {
         Action::CycleCamera,
         Action::ToggleHeadlights,
         Action::LookBack,
+        Action::Interact,
         Action::MenuUp,
         Action::MenuDown,
         Action::MenuLeft,
@@ -195,11 +205,13 @@ impl Action {
         Action::RadioToggle,
         Action::RadioNext,
         Action::RadioPrevious,
+        Action::Garage,
+        Action::Map,
     ];
 
     /// Actions that still work while the UI has the keyboard.
     pub(super) fn works_in_ui(self) -> bool {
-        matches!(self, Action::Cancel | Action::Console)
+        matches!(self, Action::Cancel | Action::Console | Action::Garage)
     }
 
     pub(super) fn index(self) -> usize {

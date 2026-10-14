@@ -78,6 +78,12 @@ impl PhysicsData {
         Ok(physics)
     }
 
+    pub fn car_with_performance(&self, type_name: &str, package: super::PerformancePackage) -> Result<CarPhysics> {
+        let mut physics = self.car(type_name)?;
+        super::performance::apply(&self.db, type_name, package, &mut physics)?;
+        Ok(physics)
+    }
+
     /// The `pvehicle` named `name` and then its ancestors, by name (`semib`, `semi`, `tractors`); just
     /// `name` when the record is unknown.
     pub fn lineage(&self, name: &str) -> Vec<String> {

@@ -57,7 +57,7 @@ mod tests {
     #[test]
     fn the_default_keys_ask_for_the_radio_controls_once() {
         for (key, control) in
-            [(KeyCode::KeyM, Control::Toggle), (KeyCode::Period, Control::Next), (KeyCode::Comma, Control::Previous)]
+            [(KeyCode::KeyN, Control::Toggle), (KeyCode::Period, Control::Next), (KeyCode::Comma, Control::Previous)]
         {
             let mut app = App::new();
             app.add_plugins((InputPlugin, InputLayerPlugin)).init_resource::<Time<Real>>();

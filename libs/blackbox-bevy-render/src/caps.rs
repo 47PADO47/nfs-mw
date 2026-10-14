@@ -22,6 +22,7 @@ pub fn capabilities(api: GraphicsApi, compressed_bc: bool) -> Capabilities {
         scene_treatment: false,
         local_reflections: false,
         ambient_occlusion: false,
+        soft_shadows: !matches!(api, GraphicsApi::Gl),
         ray_tracing: RtSupport::None,
         // Rendering above the surface size is not wired up.
         render_scale: (MIN_RENDER_SCALE, 1.0),
@@ -71,5 +72,20 @@ mod tests {
         assert!(resolved.effective.render_scale <= 1.0);
         assert!(resolved.downgrade_of(Setting::Upscaler).unwrap().reason.contains("bevy"));
         assert!(resolved.downgrade_of(Setting::RayTracing).unwrap().reason.contains("bevy"));
+    }
+
+    #[test]
+    fn soft_shadows_need_a_supported_api_and_change_without_restart() {
+        let wanted =
+            blackbox_gfx::GraphicsSettings { shadows: blackbox_gfx::ShadowQuality::High, ..Default::default() };
+        for api in [GraphicsApi::Vulkan, GraphicsApi::Dx12] {
+            let caps = capabilities(api, true);
+            assert!(blackbox_gfx::resolve(&wanted, &caps).is_exact());
+            assert!(caps.restart_needed(&Default::default(), &wanted).is_empty());
+        }
+        let caps = capabilities(GraphicsApi::Gl, true);
+        let resolved = blackbox_gfx::resolve(&wanted, &caps);
+        assert_eq!(resolved.effective.shadows, blackbox_gfx::ShadowQuality::Off);
+        assert!(resolved.downgrade_of(Setting::Shadows).is_some());
     }
 }

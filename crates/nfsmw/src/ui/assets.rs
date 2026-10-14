@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use blackbox_chunk::find_all;
 use blackbox_feng::package::ResourceKind;
 use blackbox_feng::{Font, Package, fe_hash_upper};
@@ -48,11 +48,22 @@ pub struct Image {
     pub blend: u8,
 }
 
+/// Decodes a bundled RGBA PNG (embedded in the executable, so it is trusted to be the shipped file).
+pub fn decode_png_rgba(data: &[u8]) -> Result<Image> {
+    let mut reader = png::Decoder::new(std::io::Cursor::new(data)).read_info()?;
+    let mut rgba = vec![0; reader.output_buffer_size().context("bundled PNG dimensions")?];
+    let frame = reader.next_frame(&mut rgba)?;
+    anyhow::ensure!(frame.color_type == png::ColorType::Rgba, "bundled PNGs must be RGBA");
+    rgba.truncate(frame.buffer_size());
+    Ok(Image { width: frame.width, height: frame.height, rgba, blend: 1 })
+}
+
 pub struct UiAssets {
     fonts: HashMap<u32, Font>,
     textures: HashMap<u32, Texture>,
     aliases: HashMap<u32, u32>,
     input_atlas: Image,
+    discord_mark: Image,
     pub strings: Option<StringTable>,
 }
 
@@ -99,7 +110,9 @@ impl UiAssets {
             .and_then(|d| StringTable::from_file(&d).map_err(|e| log::warn!("English.bin: {e}")).ok());
 
         let aliases = ALIASES.iter().map(|(a, b)| (fe_hash_upper(a), fe_hash_upper(b))).collect();
-        let assets = Self { fonts, textures, aliases, strings, input_atlas: super::input_icons::load()? };
+        let input_atlas = super::input_icons::load()?;
+        let discord_mark = super::discord_icon::load()?;
+        let assets = Self { fonts, textures, aliases, strings, input_atlas, discord_mark };
         log::info!("UI: {} fonts, {} textures", assets.fonts.len(), assets.textures.len());
         Ok(assets)
     }
@@ -139,6 +152,14 @@ impl UiAssets {
                 width: self.input_atlas.width,
                 height: self.input_atlas.height,
                 rgba: self.input_atlas.rgba.clone(),
+                blend: 1,
+            });
+        }
+        if hash == super::discord_icon::TEXTURE {
+            return Some(Image {
+                width: self.discord_mark.width,
+                height: self.discord_mark.height,
+                rgba: self.discord_mark.rgba.clone(),
                 blend: 1,
             });
         }

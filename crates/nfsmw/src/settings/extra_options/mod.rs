@@ -47,6 +47,8 @@ pub struct ExtraOptions {
     pub no_rev_limiter: Option<bool>,
     /// `[Gameplay] ShowHUDOnLookBack`: keep the HUD up while looking back.
     pub show_hud_on_look_back: Option<bool>,
+    /// `[Gameplay] ShowTurnSignals`: show turn signals on cars while steering.
+    pub turn_signals: Option<bool>,
     /// `[Hotkeys] Headlights`: a Windows virtual-key code.
     pub headlights_key: Option<u32>,
     /// `[Misc] EnableSound` and `EnableMusic`: `Some(false)` mutes everything or the music.
@@ -79,6 +81,7 @@ impl ExtraOptions {
                 }
                 ("Gameplay", "NoRevLimiter") => options.no_rev_limiter = switch(&entry.value),
                 ("Gameplay", "ShowHUDOnLookBack") => options.show_hud_on_look_back = switch(&entry.value),
+                ("Gameplay", "ShowTurnSignals") => options.turn_signals = switch(&entry.value),
                 ("Hotkeys", "Headlights") => options.headlights_key = number(&entry.value).map(|code| code as u32),
                 ("Gameplay", "CarScale") => options.car_scale = number(&entry.value),
                 _ => parsed.unsupported.push(format!("{}.{}", entry.section, entry.key)),
@@ -98,6 +101,7 @@ impl ExtraOptions {
             car_scale: self.car_scale,
             no_rev_limiter: self.no_rev_limiter,
             show_hud_on_look_back: self.show_hud_on_look_back,
+            turn_signals: self.turn_signals,
             headlights_key: self.headlights_key,
             master_volume: (self.sound == Some(false)).then_some(Percent(0)),
             music_volume: (self.music == Some(false)).then_some(Percent(0)),

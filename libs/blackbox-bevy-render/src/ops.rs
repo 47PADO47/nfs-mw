@@ -87,6 +87,7 @@ pub struct CameraSettings {
     /// The fraction of the surface the scene is drawn at (upscaled by `upscaler` when below 1).
     pub render_scale: f32,
     pub post: PostSettings,
+    pub shadows: blackbox_gfx::ShadowQuality,
     pub upscaler: Upscaler,
     /// FSR 1's RCAS sharpening strength, 0.0 (off) to 1.0 (strongest); meaningless for other upscalers.
     pub upscale_sharpness: f32,
@@ -99,6 +100,7 @@ impl Default for CameraSettings {
             mip_bias: 0.0,
             render_scale: 1.0,
             post: PostSettings::default(),
+            shadows: blackbox_gfx::ShadowQuality::Off,
             upscaler: Upscaler::default(),
             upscale_sharpness: DEFAULT_UPSCALE_SHARPNESS,
         }

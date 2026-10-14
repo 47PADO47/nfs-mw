@@ -38,3 +38,7 @@ assets, presenter).
   - Dialogs (confirm on leaving a changed option screen, defaults), the keyboard screen and the memory-card
     screens are not implemented.
   - The option rows are those of this rewrite's settings (spec section 3.1), not the original settings.
+  - Quick Race (spec section 5): the package names (`Track_Select.fng`, `Track_Options.fng`) and the class names
+    (`UIQRTrackSelect`, `UIQRTrackOptions`) were confirmed in `speed.exe` strings and by `nfsmw list-screens`. Message
+    and object hashes were read from `nfsmw dump-screen` and checked with `bStringHash`. The track list is not
+    populated; its data source was not read.

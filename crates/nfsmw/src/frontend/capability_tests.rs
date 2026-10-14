@@ -26,8 +26,8 @@ fn text(s: &'static str) -> Title {
 #[test]
 fn the_native_renderer_hides_ray_tracing_and_the_quality_mode_but_has_the_renderer_row() {
     let video = titles(Category::Video, &test_caps::native());
-    assert_eq!(video.len(), 25);
-    for hidden in ["Ray Tracing", "Upscale Quality"] {
+    assert_eq!(video.len(), 26);
+    for hidden in ["Ray Tracing", "Upscale Quality", "Dynamic Soft Shadows"] {
         assert!(!video.contains(&text(hidden)), "{hidden} needs a renderer that offers it");
     }
     assert_eq!(
@@ -37,17 +37,19 @@ fn the_native_renderer_hides_ray_tracing_and_the_quality_mode_but_has_the_render
     );
     assert_eq!(video[5], text("Graphics Preset"));
     assert_eq!(titles(Category::Audio, &test_caps::native()).len(), 5);
-    assert_eq!(titles(Category::Gameplay, &test_caps::native()).len(), 7);
+    assert_eq!(titles(Category::Gameplay, &test_caps::native()).len(), 8);
+    assert_eq!(titles(Category::Discord, &test_caps::native()).len(), 2, "the Discord toggles have their own category");
 }
 
 #[test]
 fn a_full_renderer_has_every_row_next_to_the_setting_it_belongs_with() {
     let video = titles(Category::Video, &test_caps::full());
-    assert_eq!(video.len(), 27);
+    assert_eq!(video.len(), 29);
     let at =
         |name: &'static str| video.iter().position(|t| *t == text(name)).unwrap_or_else(|| panic!("no {name} row"));
     assert_eq!(at("Upscale Quality"), at("Upscaler") + 1);
     assert_eq!(at("Ray Tracing"), at("Bloom") + 1);
+    assert_eq!(at("Dynamic Soft Shadows"), at("Car Reflections") + 1);
     assert_eq!(at("Renderer (After Restart)"), 1);
     assert_eq!(at("Graphics API (After Restart)"), 2);
     assert_eq!(titles(Category::Audio, &test_caps::full()).len(), 5, "only the Video screen has them");
@@ -83,15 +85,17 @@ fn the_upscaler_row_cycles_all_six_on_a_full_renderer() {
 }
 
 #[test]
-fn anti_aliasing_cycles_off_and_fxaa_on_the_native_renderer_and_all_four_on_a_full_one() {
+fn anti_aliasing_cycles_spatial_modes_on_native_and_all_four_on_a_full_one() {
     let aa = Setting::Post(PostSetting::Aa);
     let (mut s, mut c, native) = (defaults(), Partial::default(), test_caps::native());
     aa.advance(&mut s, &mut c, true, &native);
     assert_eq!(s.post_aa, PostAa::Fxaa);
     aa.advance(&mut s, &mut c, true, &native);
-    assert_eq!(s.post_aa, PostAa::Off, "smaa and taa are skipped");
+    assert_eq!(s.post_aa, PostAa::Smaa);
+    aa.advance(&mut s, &mut c, true, &native);
+    assert_eq!(s.post_aa, PostAa::Off, "taa is skipped");
     aa.advance(&mut s, &mut c, false, &native);
-    assert_eq!(s.post_aa, PostAa::Fxaa, "backwards too");
+    assert_eq!(s.post_aa, PostAa::Smaa, "backwards too");
     let (mut s, full) = (defaults(), test_caps::full());
     let seen: Vec<_> = (0..4)
         .map(|_| {
@@ -121,7 +125,7 @@ fn a_value_stored_for_another_renderer_shows_as_what_runs_and_moves_to_a_value_t
     assert_eq!(s.post_aa, PostAa::Off, "forward from taa wraps to off");
     let mut s = stored;
     aa.advance(&mut s, &mut c, false, &native);
-    assert_eq!(s.post_aa, PostAa::Fxaa, "backward from taa skips smaa");
+    assert_eq!(s.post_aa, PostAa::Smaa, "backward from taa offers spatial smaa");
     // Only what the player changed is touched: the ray tracing value for another renderer stays.
     assert_eq!((s.ray_tracing, s.upscaler), (RayTracingLevel::High, UpscaleMode::Dlss));
     assert_eq!(c.ray_tracing, None);

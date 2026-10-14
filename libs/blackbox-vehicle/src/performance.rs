@@ -47,8 +47,14 @@ impl Performance {
 
 /// Drives `spec` flat out on flat ground and reads off its top speed and acceleration table.
 pub fn measure(spec: &VehicleSpec) -> Performance {
+    measure_with_integration(spec, crate::tires::TireIntegration::default())
+}
+
+/// Measures with the same tire integration policy used by the caller's live vehicle.
+pub fn measure_with_integration(spec: &VehicleSpec, integration: crate::tires::TireIntegration) -> Performance {
     let ground = FlatGround::new(0.0);
     let mut car = Vehicle::new(spec.clone());
+    car.set_tire_integration(integration);
     car.place_on_ground(&ground, 0.0, 0.0, 5.0, 0.0);
     let input = InputState { throttle: 1.0, ..InputState::default() };
     let steps = (MAX_SECONDS / FIXED_STEP) as usize;

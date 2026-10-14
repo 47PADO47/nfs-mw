@@ -1,6 +1,9 @@
 //! Glossy shading: the lighting rig, the environment cube map and the registered materials.
 
 mod env;
+mod irradiance;
+#[cfg(test)]
+mod irradiance_tests;
 mod layout;
 mod uniforms;
 #[cfg(test)]
@@ -28,11 +31,22 @@ pub(super) struct Glossy {
     /// Group 2: the rig and the environment.
     scene: wgpu::BindGroup,
     static_scene: wgpu::BindGroup,
+    environment: wgpu::TextureView,
+    static_environment: wgpu::TextureView,
+    irradiance: irradiance::Irradiance,
     /// Group 3 per material.
-    materials: Slots<wgpu::BindGroup>,
+    materials: Slots<Material>,
+}
+
+struct Material {
+    buffer: wgpu::Buffer,
+    group: wgpu::BindGroup,
 }
 
 impl Glossy {
+    pub(super) fn has_material(&self, handle: GlossyMaterialHandle) -> bool {
+        self.materials.get(handle.raw()).is_some()
+    }
     pub(super) fn new(device: &wgpu::Device, queue: &wgpu::Queue, layouts: Layouts) -> Self {
         let rig = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("glossy rig"),
@@ -50,17 +64,32 @@ impl Glossy {
         });
         let faces = env::sky_faces(&SkyGradient::default(), SKY_FACE_SIZE);
         let view = environment_view(device, queue, SKY_FACE_SIZE, &faces.each_ref().map(Vec::as_slice));
-        let scene = scene_group(device, &layouts, &rig, &view, &sampler);
-        Self { layouts, rig, sampler, static_scene: scene.clone(), scene, materials: Slots::new() }
+        let irradiance = irradiance::Irradiance::new(device);
+        let scene = scene_group(device, &layouts, &rig, &view, &sampler, &irradiance.buffer);
+        Self {
+            layouts,
+            rig,
+            sampler,
+            static_scene: scene.clone(),
+            scene,
+            environment: view.clone(),
+            static_environment: view,
+            irradiance,
+            materials: Slots::new(),
+        }
     }
 
     /// Bind the rig and the environment; call after setting a glossy pipeline.
     pub(super) fn use_environment(&mut self, device: &wgpu::Device, view: &wgpu::TextureView) {
-        self.scene = scene_group(device, &self.layouts, &self.rig, view, &self.sampler);
+        self.scene = scene_group(device, &self.layouts, &self.rig, view, &self.sampler, &self.irradiance.buffer);
+        self.environment = view.clone();
+        self.irradiance.dirty = true;
     }
 
     pub(super) fn restore_environment(&mut self) {
         self.scene = self.static_scene.clone();
+        self.environment = self.static_environment.clone();
+        self.irradiance.dirty = true;
     }
 
     pub(super) fn bind_scene(&self, pass: &mut wgpu::RenderPass<'_>) {
@@ -72,8 +101,14 @@ impl Glossy {
         let Some(group) = self.materials.get(handle.raw()) else {
             return false;
         };
-        pass.set_bind_group(3, group, &[]);
+        pass.set_bind_group(3, &group.group, &[]);
         true
+    }
+
+    pub(super) fn rebind_shadows(&mut self, device: &wgpu::Device, maps: &super::shadows::maps::Maps) {
+        for material in self.materials.iter_mut() {
+            material.group = maps.material_group(device, &self.layouts.material, &material.buffer);
+        }
     }
 }
 
@@ -83,6 +118,7 @@ fn scene_group(
     rig: &wgpu::Buffer,
     environment: &wgpu::TextureView,
     sampler: &wgpu::Sampler,
+    irradiance: &wgpu::Buffer,
 ) -> wgpu::BindGroup {
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("glossy scene"),
@@ -91,6 +127,7 @@ fn scene_group(
             wgpu::BindGroupEntry { binding: 0, resource: rig.as_entire_binding() },
             wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(environment) },
             wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Sampler(sampler) },
+            wgpu::BindGroupEntry { binding: 3, resource: irradiance.as_entire_binding() },
         ],
     })
 }
@@ -138,6 +175,21 @@ fn ensure<'a>(
 }
 
 impl Renderer {
+    pub(in crate::gpu) fn supports_irradiance(&self) -> bool {
+        let limits = self.device.limits();
+        self.info.api != blackbox_gfx::GraphicsApi::Gl
+            && limits.max_storage_buffers_per_shader_stage > 0
+            && limits.max_storage_buffer_binding_size >= 288
+            && limits.max_compute_invocations_per_workgroup >= 9
+    }
+    pub(in crate::gpu) fn update_irradiance(&mut self) {
+        if !self.experiments.car_skylight || !self.supports_irradiance() {
+            return;
+        }
+        if let Some(glossy) = &mut self.glossy {
+            glossy.irradiance.update(&self.device, &self.queue, &glossy.environment, &glossy.sampler);
+        }
+    }
     /// Whether any glossy resource exists. Nothing glossy (rig, environment cube map, bind groups, pipelines)
     /// is built until the first of [`set_lighting_rig`](Self::set_lighting_rig),
     /// [`set_environment_sky`](Self::set_environment_sky), [`set_environment_faces`](Self::set_environment_faces)
@@ -170,7 +222,11 @@ impl Renderer {
         }
         let glossy = ensure(&mut self.glossy, &self.device, &self.queue, &self.shared.glossy);
         let view = environment_view(&self.device, &self.queue, size, &faces.map(|f| &f[..texel_bytes]));
-        glossy.scene = scene_group(&self.device, &glossy.layouts, &glossy.rig, &view, &glossy.sampler);
+        glossy.scene =
+            scene_group(&self.device, &glossy.layouts, &glossy.rig, &view, &glossy.sampler, &glossy.irradiance.buffer);
+        glossy.environment = view.clone();
+        glossy.static_environment = view;
+        glossy.irradiance.dirty = true;
         glossy.static_scene = glossy.scene.clone();
     }
 
@@ -182,12 +238,8 @@ impl Renderer {
             contents: bytemuck::bytes_of(&MaterialUniform::new(material)),
             usage: wgpu::BufferUsages::UNIFORM,
         });
-        let group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("glossy material"),
-            layout: &glossy.layouts.material,
-            entries: &[wgpu::BindGroupEntry { binding: 0, resource: buffer.as_entire_binding() }],
-        });
-        GlossyMaterialHandle::from_raw(glossy.materials.insert(group))
+        let group = self.shared.shadows.material_group(&self.device, &glossy.layouts.material, &buffer);
+        GlossyMaterialHandle::from_raw(glossy.materials.insert(Material { buffer, group }))
     }
 
     /// Free a material. Draws that still use it are skipped.

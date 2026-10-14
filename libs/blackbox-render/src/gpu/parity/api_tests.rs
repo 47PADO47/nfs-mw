@@ -21,7 +21,7 @@ fn the_native_capabilities_are_the_frozen_set() {
     let Some((_gpu, mut renderer)) = renderer() else { return };
     let caps = *renderer.capabilities();
     assert_eq!(caps.renderer, "blackbox");
-    assert_eq!(caps.antialiasing, AaSet::of(&[Antialiasing::Off, Antialiasing::Fxaa]));
+    assert_eq!(caps.antialiasing, AaSet::of(&[Antialiasing::Off, Antialiasing::Fxaa, Antialiasing::Smaa]));
     assert_eq!(caps.upscalers, UpscalerSet::of(&[Upscaler::Off, Upscaler::Bilinear, Upscaler::Fsr1]));
     assert_eq!(caps.tonemaps, TonemapSet::all());
     assert!(caps.bloom);

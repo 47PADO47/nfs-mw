@@ -97,8 +97,10 @@ There is no public decomp of any sibling game.
 | [berkayylmao/NFSPluginSDK](https://github.com/berkayylmao/NFSPluginSDK) | Header-only C++20, MW about 60% (Attrib, PVehicle, AIVehicle, Pursuit) | BSD-3-Clause | 2024-12-22 |
 | [gaycoderprincess/nya-common-nfsmw](https://github.com/gaycoderprincess/nya-common-nfsmw) | PC 1.3 addresses and ~90 struct headers | MPL-2.0 | 2026-08-06 |
 | [ThirteenAG/WidescreenFixesPack](https://github.com/ThirteenAG/WidescreenFixesPack) | Camera, FOV, HUD, resolution, shadow hooks | MIT | 2026-09-10 |
-| [ExOptsTeam/NFSMWExOpts](https://github.com/ExOptsTeam/NFSMWExOpts) | Many gameplay addresses | GPL-3.0 | 2023-02-19 |
-| [nlgxzef/NFSMWUnlimiter](https://github.com/nlgxzef/NFSMWUnlimiter) | Car list and limits | **none** | 2023-12-12 |
+| [ExOptsTeam/NFSMWExOpts](https://github.com/ExOptsTeam/NFSMWExOpts) | Many gameplay addresses. Settings reference: [mods/nfsmw-extra-options.md](mods/nfsmw-extra-options.md) | GPL-3.0 | 2023-02-19 |
+| [nlgxzef/NFSMWUnlimiter](https://github.com/nlgxzef/NFSMWUnlimiter) | Car fixes, engine limits, modder hooks and the `NFSMWUnlimiterSettings.ini` keys. Reference only: [mods/nfsmw-unlimiter.md](mods/nfsmw-unlimiter.md) | **none** | 2026-10-11 |
+| [nlgxzef/NFSMWUnlimiterEssentials](https://github.com/nlgxzef/NFSMWUnlimiterEssentials) | Official add-on car parts pack for Unlimiter (paint, neon, wheels, plates, brakes, tyres). Reference only: [mods/nfsmw-unlimiter-essentials.md](mods/nfsmw-unlimiter-essentials.md) | **none** | 2026-10-11 |
+| [LYNXFAME/NFS-Most-Wanted-REDUX-V3](https://github.com/LYNXFAME/NFS-Most-Wanted-REDUX-V3) | Prebuilt mod pack (14 `.asi` plugins, configs, `UnlimiterData`, an Xbox 360 shader-swap script). Reference only: [mods/redux-v3.md](mods/redux-v3.md), [mods/redux-v3-plugins.md](mods/redux-v3-plugins.md) | **none** | 2026-09-28 (last commit) |
 | [xan1242](https://github.com/xan1242): NFS-XtendedInput, XNFSMusicPlayer, NFSMW_XenonEffects | Input, music, particles (XenonEffects backports Carbon code) | MIT | 2022–2025 |
 | [xan1242/NFSLAN](https://github.com/xan1242/NFSLAN) | Launcher for MW's `server.dll` that patches it for LAN and online play: patch sites, redirect model, local challenge. Documented in [specs/lan-server.md](specs/lan-server.md) | MIT | 2023-06-20 (last commit) |
 | [rng-guy/NFSMWBartender](https://github.com/rng-guy/NFSMWBartender) | Pursuit internals: cop spawn tables, heat, roadblocks, helicopter | CC0-1.0 | 2026-10-05 |

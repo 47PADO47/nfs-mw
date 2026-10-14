@@ -72,12 +72,7 @@ impl Renderer {
         });
         let view = target.create_view(&wgpu::TextureViewDescriptor::default());
         let scene = SceneTargets::new(&self.device, &self.scene_plan((width, height)));
-        let mut encoder =
-            self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("capture") });
-        self.encode_scene(&mut encoder, Some(&scene), &view, frame, instances);
-        self.encode_post(&mut encoder, Some(&scene), &view, (width, height));
-        self.encode_ui(&mut encoder, &view, (width, height));
-        self.queue.submit([encoder.finish()]);
+        self.submit_frame(Some(&scene), &view, (width, height), frame, instances);
         self.read_texture_bytes(&target, (width, height))
     }
 

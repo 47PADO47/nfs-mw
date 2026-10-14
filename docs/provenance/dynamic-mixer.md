@@ -33,3 +33,23 @@ Module: [`libs/blackbox-mixmap`](../../libs/blackbox-mixmap) (the map reader and
   - Doppler is not computed; the 32-instance limit and the memory pools are not reproduced; "attached" is a flag.
   - The GameCube build was read; the PC build may differ in details.
   - `dB`/`q15` are computed, not looked up, and differ from the original's tables by up to 2 in `q15` (0.006 %).
+
+## PC cosine and environment follow-up
+
+The car-environment audit independently generated the cosine table from its
+mathematical definition and compared all513 consumed entries with the matching
+original PC table. `floor(32767*cos(i*pi/1022))`, clamped at0, agrees exactly;
+the earlier divisor1024 does not. No original table bytes were copied into
+public source. The shared cosine reconstruction follows this corrected spec.
+
+The distinction matters before level conversion: at the near-camera endpoint,
+the squared distance curve requests−2 hundredths of a dB in the original,
+whereas the earlier cosine reconstruction requested−8. The resulting cutoff
+was23759Hz instead of23920Hz. Correcting the cosine restores the intermediate
+curve; the retained mathematical gain conversion leaves only the separately
+documented small numeric approximation. Full original-routine replay at nine
+camera distances provides an additional end-to-end check, described in
+[car-audio-environment.md](../specs/car-audio-environment.md).
+
+This does not establish exact gain/mantissa lookup equivalence, every original
+control/context producer, or audible parity. Those limits remain explicit.

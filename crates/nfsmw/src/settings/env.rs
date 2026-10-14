@@ -41,8 +41,11 @@ pub const SKID_MARKS: &str = "NFSMW_SKID_MARKS";
 pub const COLLISION_SPARKS: &str = "NFSMW_COLLISION_SPARKS";
 pub const SPARK_STYLE: &str = "NFSMW_SPARK_STYLE";
 pub const SPEED_TRAILS: &str = "NFSMW_SPEED_TRAILS";
+pub const SPEED_TRAIL_STYLE: &str = "NFSMW_SPEED_TRAIL_STYLE";
 pub const EXHAUST_FLAMES: &str = "NFSMW_EXHAUST_FLAMES";
 pub const REAR_VIEW_MIRROR: &str = "NFSMW_REAR_VIEW_MIRROR";
+pub const DISCORD: &str = "NFSMW_DISCORD";
+pub const DISCORD_TIME_PLAYED: &str = "NFSMW_DISCORD_TIME_PLAYED";
 pub const TRANSMISSION: &str = "NFSMW_TRANSMISSION";
 pub const CAMERA_MODE: &str = "NFSMW_CAMERA_MODE";
 pub const MINIMAP: &str = "NFSMW_MINIMAP";
@@ -51,6 +54,7 @@ pub const RADIO_HUD: &str = "NFSMW_RADIO_HUD";
 pub const POST_TONEMAP: &str = "NFSMW_POST_TONEMAP";
 pub const POST_BLOOM: &str = "NFSMW_POST_BLOOM";
 pub const REFLECTIONS: &str = "NFSMW_REFLECTIONS";
+pub const SHADOWS: &str = "NFSMW_SHADOWS";
 pub const AO: &str = "NFSMW_AO";
 pub const AO_INTENSITY: &str = "NFSMW_AO_INTENSITY";
 pub const AO_COMPARE: &str = "NFSMW_AO_COMPARE";
@@ -113,8 +117,12 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         collision_sparks: value(&get, COLLISION_SPARKS, parse_bool),
         spark_style: value(&get, SPARK_STYLE, super::SparkStyle::from_str),
         speed_trails: value(&get, SPEED_TRAILS, parse_bool),
+        speed_trail_style: value(&get, SPEED_TRAIL_STYLE, super::SpeedTrailStyle::from_str),
         exhaust_flames: value(&get, EXHAUST_FLAMES, parse_bool),
+        turn_signals: None,
         rear_view_mirror: value(&get, REAR_VIEW_MIRROR, parse_bool),
+        discord: value(&get, DISCORD, parse_bool),
+        discord_time_played: value(&get, DISCORD_TIME_PLAYED, parse_bool),
         transmission: value(&get, TRANSMISSION, Transmission::from_str),
         camera_mode: value(&get, CAMERA_MODE, CameraMode::from_str),
         minimap: value(&get, MINIMAP, MinimapMode::from_str),
@@ -125,6 +133,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         visual_treatment: value(&get, "NFSMW_VISUAL_TREATMENT", super::VisualTreatment::from_str),
         post_aa: value(&get, POST_AA, PostAa::from_str),
         reflections: value(&get, REFLECTIONS, super::ReflectionQuality::from_str),
+        shadows: value(&get, SHADOWS, super::ShadowQuality::from_str),
         ao: value(&get, AO, super::AoQuality::from_str),
         ao_intensity: value(&get, AO_INTENSITY, Percent::from_str),
         ao_compare: value(&get, AO_COMPARE, parse_bool),

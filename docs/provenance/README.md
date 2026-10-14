@@ -8,7 +8,17 @@ a record. Process: [licensing.md § Spec-first](../licensing.md#spec-first).
 
 | Module | Spec | Restricted sources read |
 |---|---|---|
+| [Cached terrain reference](vehicle-ground-reference.md) | [specs/vehicle-ground-reference.md](../specs/vehicle-ground-reference.md) | Original PC body triangle-list/query cache and CC0 world collision lifecycle |
+| [Jump stabilizers](vehicle-jump-stabilizers.md) | [specs/vehicle-jump-stabilizers.md](../specs/vehicle-jump-stabilizers.md) | Original PC chassis/world-position routines and CC0 rigid-body cache lifecycle |
+| [Controls list packages](controls-packages.md) | [specs/controls-remap.md](../specs/controls-remap.md) | The install's own `Options_PC_Controller.fng` and `Pause_PC_Controller.fng` object tables (`nfsmw dump-screen`) |
+| [Speedbreaker](speedbreaker.md) | [specs/speedbreaker.md](../specs/speedbreaker.md) | Original PC 1.3 meter/time manager and CC0 player/suspension reference |
+| [Performance tuning](performance-tuning.md) | [specs/performance-tuning.md](../specs/performance-tuning.md) | Original PC 1.3 slider limits/gates, installed help, CC0 frontend/physics declarations |
+| [Performance packages](performance-upgrades.md) | [specs/performance-upgrades.md](../specs/performance-upgrades.md) | Original PC 1.3 upgrade routines; CC0 category and attribute declarations |
 | [Contact camera shake](contact-camera-shake.md) | [specs/contact-camera-shake.md](../specs/contact-camera-shake.md) | Original PC 1.3 isolated shaker routines and CC0 Rumble behavior |
+| [Police helicopter tuning](ai-helicopter-tuning.md) | [specs/ai-helicopter.md](../specs/ai-helicopter.md) section 10 | NFSMWHelicopterOptions behaviour summary (MIT, key names only; its numbers not used); Ghidra not run in this pass |
+| [AI pursuit escape](ai-pursuit-escape.md) | [specs/ai-pursuit.md](../specs/ai-pursuit.md) section 6 | dbalatoni13/nfsmw `AIPursuit.cpp` cool-down notes (decompiled, CC0); `speed.exe` partial Ghidra pass (strings and the 0.93 constant) |
+| [Pursuit tuning](pursuit-tuning.md) | [specs/pursuit-tuning.md](../specs/pursuit-tuning.md) | install-verified per-heat values in [specs/ai-pursuit-heat.md](../specs/ai-pursuit-heat.md); NFSMWBartender summary (key names not used) |
+| [FairBusts reset penalty](fairbusts-reset.md) | [specs/fairbusts-reset.md](../specs/fairbusts-reset.md) | `speed.exe` Ghidra pass (`kResetPenaltyBlock` at 0x0044447C, constants 15, 90, 0.25, 4.0); NFSMWFairBusts summary (MIT, key names only) |
 | [Pursuit breakers](pursuit-breakers.md) | [specs/pursuit-breakers.md](../specs/pursuit-breakers.md) | Original PC 1.3 event dispatch, explosions, models and installed hierarchies |
 | [Trailer constraints](trailer-constraints.md) | [specs/trailer-constraints.md](../specs/trailer-constraints.md) | Original PC 1.3 isolated joint/angle routines and installed bounds |
 | [PC object contacts](pc-object-contact.md) | [specs/pc-object-contact.md](../specs/pc-object-contact.md) | Original PC 1.3 executable (private inspection and emulation), dbalatoni13/nfsmw collision layouts (CC0) |
@@ -20,11 +30,14 @@ a record. Process: [licensing.md § Spec-first](../licensing.md#spec-first).
 | [Car environment captures](car-reflections.md) | [specs/car-reflections.md](../specs/car-reflections.md) | Retail PC car shader and shared environment camera setup (decompiled, CC0; spec first) |
 | [World scenery LOD](world-scenery-lod.md) | [specs/scenery-lod.md](../specs/scenery-lod.md) | dbalatoni13/nfsmw `World/Scenery.cpp`, `Scenery.hpp`, `Ecstasy/eView.cpp` (decompiled, CC0) |
 | [World scenery visibility](world-scenery-visibility.md) | [specs/scenery-visibility.md](../specs/scenery-visibility.md) | dbalatoni13/nfsmw `World/Scenery.cpp`, `Ecstasy/Ecstasy.cpp` (decompiled, CC0) |
+| [World entry zones](world-entry-zones.md) | [specs/world-markers.md](../specs/world-markers.md) | Original PC 1.3 zone enter handler and zone state routine (Ghidra, `speed.exe` read for behaviour; enter icon not located) |
 | [World visible sections](world-visible-sections.md) | [specs/visible-sections.md](../specs/visible-sections.md) | dbalatoni13/nfsmw `World/VisibleSection.cpp`, `TrackStreamer.cpp`, `Scenery.cpp` (decompiled, CC0) |
 | [Vehicle engine and drivetrain](vehicle-engine-drivetrain.md) | [specs/vehicle-engine-drivetrain.md](../specs/vehicle-engine-drivetrain.md), [specs/vehicle-input-induction-brakes.md](../specs/vehicle-input-induction-brakes.md), [specs/vehicle-manual-shifting.md](../specs/vehicle-manual-shifting.md) | dbalatoni13/nfsmw `Physics/Behaviors/EngineRacer.cpp`, `PInput.cpp`, AttribSys class headers (decompiled, CC0) |
 | [Vehicle suspension and tires](vehicle-suspension-tires.md) | [specs/vehicle-suspension-tires.md](../specs/vehicle-suspension-tires.md), [specs/vehicle-steering-assists-aero.md](../specs/vehicle-steering-assists-aero.md) | dbalatoni13/nfsmw `Physics/Behaviors/SuspensionRacer.cpp`, `Chassis.cpp` (decompiled, CC0) |
 | [World collision queries](world-collision-query.md) | [formats/collision.md](../formats/collision.md) | dbalatoni13/nfsmw `World/Common/WCollisionMgr.cpp`, `WGrid.cpp`, `WWorldPos.cpp`, `WWorldMath.cpp`, `Physics/Bounds.h` (decompiled, CC0) |
 | [Vehicle rigid body](vehicle-rigid-body.md) | [specs/vehicle-rigid-body.md](../specs/vehicle-rigid-body.md) | dbalatoni13/nfsmw `Physics/Behaviors/RigidBody.cpp`, `RBVehicle.cpp`, `Sim/Common/Simulation.cpp` (decompiled, CC0) |
+| [InGameA shared models and the sky](ingamea-sky-models.md) | [formats/global-databases.md](../formats/global-databases.md), [formats/world.md](../formats/world.md) | `speed.exe` 1.3 disassembly (Ghidra, read only) |
+| [ICE camera dispatch](ice-camera-dispatch.md) | [formats/animation.md](../formats/animation.md) | `speed.exe` 1.3 disassembly (Ghidra, read only); bchunk_names.py chunk names |
 | [Movies](video.md) | [formats/video.md](../formats/video.md) | ruffle-rs/nihav-vp6 (MIT, dependency); FFmpeg `electronicarts.c` (LGPL, facts only); vgmstream (ISC-style) |
 | [FEng packages and runtime](feng.md) | [formats/frontend.md](../formats/frontend.md), [specs/feng-runtime.md](../specs/feng-runtime.md) | dbalatoni13/nfsmw `FEng/*`, `Frontend/FEngRender.cpp`, `FEngFont.cpp`, `HUD/*` (decompiled, CC0); FEngLib (no license, facts only) |
 | [FEng input and the front-end menus](frontend-menus.md) | [specs/feng-input.md](../specs/feng-input.md), [specs/frontend-menus.md](../specs/frontend-menus.md) | dbalatoni13/nfsmw `FEng/FEngine.cpp`, `FEButtonMap.cpp`, `Frontend/FEJoyInput.cpp`, `Frontend/MenuScreens/*` (decompiled, CC0); the install's own packages |
@@ -36,8 +49,21 @@ a record. Process: [licensing.md § Spec-first](../licensing.md#spec-first).
 | [Speech](speech.md) | [specs/speech.md](../specs/speech.md), [formats/audio.md](../formats/audio.md) | dbalatoni13/nfsmw `EAXSound/Stream/Speech*.cpp`, `GameSpeech.cpp`, `SND_GEN/COPSPEECH.cpp`, AttribSys class `speech` (decompiled, CC0); header-only SPCH and CSIS |
 | [Exhaust flames](exhaust-flames.md) | [specs/exhaust-flames.md](../specs/exhaust-flames.md) | dbalatoni13/nfsmw `World/CarRenderConn.cpp`, `VehicleRenderConn.cpp`, `CarRender.cpp`, `Ecstasy/EmitterSystem.cpp`, `Physics/Behaviors/DrawCar.cpp`, AttribSys class headers (decompiled, CC0) |
 | [Weather](weather.md) | [specs/weather.md](../specs/weather.md) | `speed.exe` (original PC build) decompiled and disassembled in Ghidra; name-hash scan of the install's data files |
+| [Day-night clock](day-night-clock.md) | [specs/time-of-day.md](../specs/time-of-day.md) | `speed.exe` (original PC build) disassembled in Ghidra for the clock counter writer and the sun integrator; the day-night key names from the repository's note of the behaviour (no mod code) |
+| [World map screen](world-map-ghidra.md) | [specs/world-map.md](../specs/world-map.md) | `speed.exe` decompiled in Ghidra (the world map controller and its screen), read-only |
+
+Audio extensions: [power effects](car-audio-power-effects.md),
+[authored traffic](authored-traffic-audio.md), [common events](common-audio-events.md),
+[spatial maps](spatial-parameter-maps.md), [FXEDIT](fxedit-processor.md), and
+[routing, tracing and output](car-audio-output.md). The
+[Speedbreaker pitch](speedbreaker-audio.md) record covers its shared authored envelope. The
+[coverage ledger](../car-audio-coverage.md) records unresolved boundaries.
 
 ## Template
+
+[Car audio integration](car-audio-integration.md) records the contact, playback,
+authored scrape/wind/road and engine synchronization changes, with their remaining
+original-game fidelity boundaries.
 
 [Tire effects](tire-effects.md) records the existing source inputs and the new procedural visual design.
 

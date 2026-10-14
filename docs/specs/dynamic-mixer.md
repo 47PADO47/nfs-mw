@@ -27,7 +27,11 @@ All integers are `i32` and all shifts arithmetic, as in the original. Every numb
 ## 2. Shapes and dB conversion
 
 `dB(q)` and `q15(d)` convert between a Q15 level and hundredths of a dB. The original uses two tables; both
-are the following functions **[decomp, checked against the tables' end points and 20 sampled entries]**:
+are reconstructed by the following mathematical functions **[decomp,
+approximation checked against original tables]**. The gain reconstruction can
+differ by up to2Q15 units; the mantissa reconstruction differs at15 of the512
+PC entries by1 hundredth of a dB. Those are separate from the exact cosine
+formula below.
 
 ```
 q15(d):    if d == 0: return 0x7FFF
@@ -47,7 +51,14 @@ dB(q):     if q == 0: return -10000
 (602 steps per halving of the amplitude: 6.02 dB. `dB(0x7FFF)` is -1, `q15(-1)` is 32690: the pair is only
 accurate to about 0.01 dB.)
 
-`cosq(i)` for `i` in 0..=513 is `floor(32767 * cos(i * pi / 1024))` (0 for 512 and 513). The **curve shapes**
+`cosq(i)` for consumed indices0..=512 is
+`max(0, floor(32767 * cos(i * pi / 1022)))` **[verified, PC]**.
+Every one of the513 consumed original table entries agrees with this
+independently generated formula, including the zero endpoints511 and512.
+The divisor1024 from the earlier reconstruction was incorrect: it leaves
+index511 at100 and changes the curve before dB conversion. A storage guard
+entry at513 may also be zero; that is not a consumed original entry.
+The **curve shapes**
 take a Q15 input `x` (0 to 32767, clamped) and give a Q15 output; the *down* shapes fall with `x`, the *up*
 shapes are the mirrored ones:
 

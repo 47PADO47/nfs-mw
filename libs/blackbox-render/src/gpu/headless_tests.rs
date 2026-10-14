@@ -58,7 +58,10 @@ fn captures_are_requested_then_polled_once() {
 
     let image = backend.poll_capture(second).expect("the native backend completes at once").unwrap();
     assert_eq!((image.width, image.height), (16, 9));
-    assert_eq!(image.pixel(8, 4), Some([255, 0, 128, 255]));
+    let pixel = image.pixel(8, 4).unwrap();
+    assert_eq!([pixel[0], pixel[1], pixel[3]], [255, 0, 255]);
+    // 0.5 is halfway between two UNORM bytes; both hardware rounding choices are valid.
+    assert!((127..=128).contains(&pixel[2]));
     assert!(backend.poll_capture(second).is_none(), "each capture is returned once");
 
     let image = backend.poll_capture(first).unwrap().unwrap();

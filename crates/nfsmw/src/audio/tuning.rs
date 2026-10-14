@@ -12,6 +12,13 @@ pub fn tuning(sound: &CarSound, accel_min_frequency: f32) -> cs::CarSoundTuning 
         engine: cs::EngineTuning { accel_loop_min_frequency: accel_min_frequency, ..engine(&sound.engine) },
         shift: shift(&sound.shift),
         accel_transition: accel(&sound.accel_transition),
+        turbo: sound.turbo.as_ref().map(|t| cs::TurboTuning {
+            spool_volume: t.spool_volume,
+            charge_time: t.charge_time,
+            leak_rate: t.leak_rate,
+            blowoff_volume: t.blowoff_volume,
+            ..Default::default()
+        }),
         ..cs::CarSoundTuning::default()
     }
 }

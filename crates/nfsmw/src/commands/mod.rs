@@ -20,7 +20,7 @@ fn run_front_end(
 ) -> Result<()> {
     let script = script.map(crate::frontend::UiScript::parse).transpose().map_err(anyhow::Error::msg)?;
     let mut options = view.run_options(dir, true);
-    options.frontend = Some(crate::frontend::FrontendPlugin { dir: dir.clone(), start, script });
+    options.frontend = Some(crate::frontend::FrontendPlugin { dir: dir.clone(), start, script, browse: None });
     crate::app::run(
         Box::new(crate::frontend::MenuScene::new(Some(dir.clone()))),
         &Settings::load(view.settings_layer()),
@@ -96,7 +96,8 @@ pub fn run(cli: Cli) -> Result<()> {
                 "video" => crate::frontend::Category::Video,
                 "gameplay" => crate::frontend::Category::Gameplay,
                 "controls" => crate::frontend::Category::Controls,
-                other => anyhow::bail!("unknown category {other:?} (audio, video, gameplay, controls)"),
+                "discord" => crate::frontend::Category::Discord,
+                other => anyhow::bail!("unknown category {other:?} (audio, video, gameplay, controls, discord)"),
             };
             if crate::ui::Catalog::load(&dir, &crate::ui::SCREEN_FILES).find(&name).is_none() {
                 anyhow::bail!("no screen {name:?} in the install (try list-screens)");
@@ -104,6 +105,19 @@ pub fn run(cli: Cli) -> Result<()> {
             let start = crate::frontend::Start::Screen(name, crate::frontend::Args { pause, options, category });
             let settle = view.screenshot.is_some().then_some("wait 2");
             run_front_end(&dir, start, ui_script.as_deref().or(settle), &view)
+        }
+        Command::FengViewer { name, view } => {
+            let dir = open_install(game_dir)?;
+            let scene = crate::scenes::feng::FengViewerScene::open(&dir, name.as_deref())?;
+            let start = crate::frontend::Start::Browse(scene.start_name().to_owned());
+            // A screenshot waits for the screen to settle, as view-screen's does.
+            let settle = view.screenshot.is_some().then_some("wait 2");
+            let script = settle.map(crate::frontend::UiScript::parse).transpose().map_err(anyhow::Error::msg)?;
+            let plugin =
+                crate::frontend::FrontendPlugin { dir: dir.clone(), start, script, browse: Some(scene.browse()) };
+            let mut options = view.run_options(&dir, true);
+            options.frontend = Some(plugin);
+            crate::app::run(Box::new(scene), &Settings::load(view.settings_layer()), options)
         }
         Command::PlayMovie { name, start, view } => {
             let dir = open_install(game_dir)?;

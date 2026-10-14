@@ -21,6 +21,7 @@ mod roadblock;
 mod scene;
 mod simulation;
 mod spawn;
+mod spikes;
 mod stop;
 mod support;
 mod traffic;
@@ -75,8 +76,8 @@ pub struct TrafficModel {
     pub trailer: Option<Box<TrafficModel>>,
     /// A cop model's light bars (`None` for traffic).
     pub cop_lights: Option<Rc<cop_lights::CopLightSet>>,
-    /// The `pvehicle` `HornType`: the sound number of its horn in `IG_GLOBAL/TRAFFIC_MB.abk`.
-    pub horn: u32,
+    /// Installed class IDs for the authored traffic producers.
+    pub audio_profile: crate::audio::traffic::TrafficProfile,
 }
 
 pub struct TrafficWorld {
@@ -89,6 +90,8 @@ pub struct TrafficWorld {
     lights_on: bool,
     models: Vec<TrafficModel>,
     cop_models: Vec<CopModel>,
+    /// The police helicopter's rig. It is not a car, so it has no `CarPhysics` (`models.rs`).
+    helicopter_rig: Option<Rc<CarRig>>,
     pursuit: Option<Pursuit>,
     police: police::Police,
     cars: Vec<AiCar>,
@@ -123,7 +126,14 @@ pub struct TrafficWorld {
     player_speed: f32,
     /// The player's physics position as of the last collision step (`None` when not driving).
     player_position: Option<Vec3>,
-    seen_by_patrol: bool,
+    /// Whether a cop sees the player, as of the last sight test (`collide.rs`).
+    seen_by_cops: bool,
+    /// Simulated seconds since the last sight test, against `blackbox_pursuit::sight::TEST_PERIOD`.
+    sight_clock: f32,
+    /// What the player struck since the police last read it (`collide.rs`).
+    strikes: collide::Strikes,
+    /// The spike strips of the standing roadblocks, on the road plane (`spikes.rs`). Cleared when the chase ends.
+    spikes: Vec<blackbox_pursuit::spikes::Strip>,
 }
 
 impl TrafficWorld {
@@ -148,6 +158,7 @@ impl TrafficWorld {
             index,
             models: Vec::new(),
             cop_models: Vec::new(),
+            helicopter_rig: None,
             pursuit: None,
             police: police::Police::default(),
             cars: Vec::new(),
@@ -169,7 +180,10 @@ impl TrafficWorld {
             hit_timer: 0.0,
             player_speed: 0.0,
             player_position: None,
-            seen_by_patrol: false,
+            seen_by_cops: false,
+            sight_clock: 0.0,
+            strikes: collide::Strikes::default(),
+            spikes: Vec::new(),
         }
     }
 
@@ -188,7 +202,7 @@ impl TrafficWorld {
         traffic_events::Sighting {
             heat,
             player_speed: self.player_speed,
-            seen: self.seen_by_patrol,
+            seen: self.seen_by_cops,
             recent_hit: self.hit_timer > 0.0,
             // No 911 calls in the rewrite yet.
             has_911: false,
@@ -256,9 +270,9 @@ impl TrafficWorld {
     }
 
     /// Appends the glows of the lamps of every car and of the signal lamps within sight.
-    pub fn car_glows(&self, camera: Vec3, forward: Vec3, out: &mut Vec<EffectVertex>) {
+    pub fn car_glows(&self, turn_signals: bool, camera: Vec3, forward: Vec3, out: &mut Vec<EffectVertex>) {
         for car in &self.cars {
-            car.glows(self.alpha, self.signal_time, camera, forward, out);
+            car.glows(self.alpha, self.signal_time, turn_signals, camera, forward, out);
         }
     }
 

@@ -34,11 +34,7 @@ impl Renderer {
             }
             Output::Texture { texture, .. } => (None, texture.create_view(&wgpu::TextureViewDescriptor::default())),
         };
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("frame") });
-        self.encode_scene(&mut encoder, None, &view, frame, instances);
-        self.encode_post(&mut encoder, None, &view, self.surface_size());
-        self.encode_ui(&mut encoder, &view, self.surface_size());
-        self.queue.submit([encoder.finish()]);
+        self.submit_frame(None, &view, self.surface_size(), frame, instances);
         match surface_texture {
             Some(t) => self.queue.present(t),
             // Nothing presents a headless frame, so let the device retire finished work itself.
@@ -58,6 +54,12 @@ impl Renderer {
     ) {
         let Some(scene) = targets.unwrap_or(&self.targets).offscreen() else { return };
         let ctx = PassContext { device: &self.device, queue: &self.queue, scene, output_size: size };
+        if self.experiments.lighting_debug != blackbox_gfx::LightingDebug::Off
+            && self.info.api != blackbox_gfx::GraphicsApi::Gl
+        {
+            self.post.encode_diagnostic(&ctx, encoder, (output, self.output.format()));
+            return;
+        }
         self.post.encode(&ctx, encoder, (output, self.output.format()));
     }
 
@@ -71,6 +73,30 @@ impl Renderer {
         frame: &FrameParams,
         instances: &[Instance],
     ) {
+        let size = targets.unwrap_or(&self.targets).size();
+        // The colour pass and camera prepass use the same instance order and transforms.
+        self.instances.upload_instances(&self.device, &self.queue, instances);
+        if let Some(timing) = &mut self.timing {
+            timing.stamp(encoder, 4);
+        }
+        let depth = targets.unwrap_or(&self.targets).depth_view().clone();
+        self.encode_surfaces(encoder, size, frame, instances, &depth);
+        self.encode_contact(encoder, size, frame);
+        if let Some(timing) = &mut self.timing {
+            timing.stamp(encoder, 5);
+            timing.stamp(encoder, 2);
+        }
+        self.encode_shadows(encoder, frame, instances);
+        if let Some(timing) = &mut self.timing {
+            timing.stamp(encoder, 3);
+        }
+        if let Some(timing) = &mut self.timing {
+            timing.stamp(encoder, 6);
+        }
+        self.encode_ambient(encoder, frame);
+        if let Some(timing) = &mut self.timing {
+            timing.stamp(encoder, 7);
+        }
         self.encode_scene_mode(encoder, targets, output, frame, instances, None);
     }
 
@@ -110,29 +136,26 @@ impl Renderer {
             camera_pos: frame.camera_position.extend(1.0).to_array(),
             light_dir: frame.light_dir.normalize_or_zero().extend(0.0).to_array(),
             fog_color: [r, g, b, 1.0],
-            fog_range: [fog_start, fog_end, mip_bias, 0.0],
+            fog_range: [fog_start, fog_end, mip_bias, u8::from(reflection) as f32],
             scatter_rayleigh,
             scatter_mie,
             to_sun,
             surface_ambient,
             surface_diffuse,
         };
-        let matrices: Vec<[f32; 16]> = instances.iter().map(|i| i.transform.to_cols_array()).collect();
         let (uniform, bind_group, instance_buffer) = match capture {
             Some(view) => {
-                view.instances.upload(&self.device, &self.queue, &matrices);
+                view.instances.upload_instances(&self.device, &self.queue, instances);
                 (&view.globals, &view.bind_group, &view.instances.buffer)
             }
-            None => {
-                self.instances.upload(&self.device, &self.queue, &matrices);
-                (&self.shared.bindings.globals, &self.shared.bindings.globals_bind_group, &self.instances.buffer)
-            }
+            None => (&self.shared.bindings.globals, &self.shared.bindings.globals_bind_group, &self.instances.buffer),
         };
         self.queue.write_buffer(uniform, 0, bytemuck::bytes_of(&globals));
 
         let targets = targets.unwrap_or(&self.targets);
         let target = targets.offscreen().map_or(output, |offscreen| &offscreen.color_view);
         let depth = targets.depth_view();
+        let prepared_depth = !reflection && self.surfaces.as_ref().is_some_and(|s| s.targets.depth == *depth);
         let format = targets.color_format();
         self.pipelines.use_format(&self.device, format, self.glossy.is_some());
         self.effects.use_format(&self.device, format);
@@ -149,7 +172,13 @@ impl Renderer {
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: depth,
-                depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(0.0), store: wgpu::StoreOp::Store }),
+                depth_ops: Some(wgpu::Operations {
+                    load: match prepared_depth {
+                        true => wgpu::LoadOp::Load,
+                        false => wgpu::LoadOp::Clear(0.0),
+                    },
+                    store: wgpu::StoreOp::Store,
+                }),
                 stencil_ops: None,
             }),
             timestamp_writes: None,
@@ -165,6 +194,9 @@ impl Renderer {
             }
             let Some(pipeline) = self.pipelines.get(mode, shading) else { continue };
             pass.set_pipeline(pipeline);
+            if !matches!(shading, Shading::Glossy(_)) {
+                pass.set_bind_group(2, &self.shared.shadows.fallback, &[]);
+            }
             let glossy = match shading {
                 Shading::Glossy(_) => match &self.glossy {
                     Some(glossy) => Some(glossy),
@@ -180,9 +212,15 @@ impl Renderer {
                 let mesh_handle = instances[start].mesh;
                 let end = start + instances[start..].iter().take_while(|i| i.mesh == mesh_handle).count();
                 if let Some(mesh) = self.meshes.get(mesh_handle.raw()) {
+                    let mut draws =
+                        mesh.draws.iter().filter(|d| d.blend == mode && d.shading.same_pipeline(shading)).peekable();
+                    if draws.peek().is_none() {
+                        start = end;
+                        continue;
+                    }
                     pass.set_vertex_buffer(0, mesh.vertices.slice(..));
                     pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint16);
-                    for d in mesh.draws.iter().filter(|d| d.blend == mode && d.shading.same_pipeline(shading)) {
+                    for d in draws {
                         if let (Shading::Glossy(material), Some(glossy)) = (d.shading, glossy)
                             && !glossy.bind_material(&mut pass, material)
                         {
@@ -203,37 +241,11 @@ impl Renderer {
                 start = end;
             }
         }
-        if reflection {
-            return;
-        }
-        if self.graphics.ao.active()
-            && matches!(frame.projection, blackbox_gfx::Projection::PerspectiveInfiniteReverse { .. })
+        if reflection
+            || (self.experiments.lighting_debug != blackbox_gfx::LightingDebug::Off
+                && self.info.api != blackbox_gfx::GraphicsApi::Gl)
         {
-            drop(pass);
-            self.ao.get_or_insert_with(|| super::ao::AmbientOcclusion::new(&self.device)).encode(
-                &self.device,
-                &self.queue,
-                encoder,
-                super::ao::Draw { target, depth, size: targets.size(), format, frame, settings: self.graphics.ao },
-            );
-            pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("world effects after AO"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: target,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store },
-                })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: depth,
-                    depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store }),
-                    stencil_ops: None,
-                }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-            pass.set_bind_group(0, &self.shared.bindings.globals_bind_group, &[]);
+            return;
         }
         self.effects.draw(&mut pass);
         self.effects.draw_textured(&mut pass, |t| self.textures.get(t.raw()));

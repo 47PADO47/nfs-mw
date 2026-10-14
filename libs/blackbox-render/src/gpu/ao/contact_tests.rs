@@ -49,6 +49,7 @@ fn raised_body_has_smooth_ground_contact() {
     let _serial = test_support::serial();
     let Some(mut renderer) = test_support::headless(SIZE) else { return };
     let (frame, instances) = scene(&mut renderer);
+    let baseline = renderer.capture(SIZE.0, SIZE.1, &frame, &instances).unwrap();
     for quality in [AoQuality::Low, AoQuality::Medium, AoQuality::High] {
         renderer.apply_graphics(&GraphicsSettings {
             ao: AoSettings { quality, ..Default::default() },
@@ -62,7 +63,14 @@ fn raised_body_has_smooth_ground_contact() {
             .collect();
         let gradient = profile.windows(2).map(|p| (p[1] - p[0]).abs()).fold(0.0, f32::max);
         assert!(gradient < 3.5, "{quality}: contact gradient has a hard band ({gradient})");
-        assert!(profile.iter().copied().fold(255.0, f32::min) < 195.0, "contact shading remains visible");
+        let contrast = (477..535)
+            .map(|y| {
+                let before =
+                    (448..576).map(|x| f32::from(baseline[(y * SIZE.0 as usize + x) * 4])).sum::<f32>() / 128.0;
+                before - profile[y - 477]
+            })
+            .fold(0.0, f32::max);
+        assert!(contrast > 1.0, "{quality}: ambient contact shading remains visible ({contrast})");
         // Compare the same ground points as the camera moves by subpixel amounts.
         // A repeated screen pattern must not replace the bands with visible shimmer.
         for shift in [0.005, 0.01, 0.02, 0.04] {

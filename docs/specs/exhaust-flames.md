@@ -63,6 +63,10 @@ clear the miss-shift flag
   [inferred]. A stock engine of a car that can be upgraded gives no flame at a shift; a car with
   `engine_upgrades = 0` (BMW M3 GTR, FXX Evo, SF90, SL 65, Camaro, Corvette C6.R, Porsche 911 GT2 and the career
   start BMW M3 E46 among them) always has it; every upgrade level above 0 turns it on. [verified values]
+  The remake updates this ordinary engine level from the garage's installed
+  package when the package changes. Junkman flags do not change that ordinary
+  level. This replaces the diagnostic console-only default; the existing
+  eligibility equation and loaded emitter data remain the same.
 - **`shifting`** (a float, 0 when idle): set to `+1` by an up-shift event and `-1` by a down-shift event
   (`VehicleRenderConn::E_UPSHIFT = 3`, `E_DOWNSHIFT = 4`; `E_MISS_SHIFT = 0`), through
   `CarRenderConn::OnEvent`. **Who raises these events is [not found]**: nothing in the sources calls
@@ -174,11 +178,193 @@ Birth code: `FUN_00509b30` (the particle birth; `FUN_0050af90` calls it per emit
 inherit branch runs when `MotionInherit != 0` and the int at emitter data `+0xe0` is 0, so a nonzero `+0xe0` means
 the particle does **not** take the car's velocity. [decomp, `FUN_00509b30`]
 
-**Open:** that int is read at `+0xe0` with no name. The field keys are not 32-bit constants in `speed.exe` (checked
-for both the AttribSys hash and `bStringHash`), and no emitter struct is defined in the Ghidra project. So the
-mapping `+0xe0` = `MotionLive` is [inferred], not verified. It is also odd that the fire has `MotionInherit` 1.0
-together with `MotionLive` 1, which would make the inherit inert. Until the offset is named, do not change the
-motion code on the strength of this section. The local matrix is
+**Verified layout of the live emitter node** (`speed.exe`, same binary as the remastered install) [decomp]:
+
+| Offset | Content |
+|---|---|
+| `+0x20` | the pipe's local-to-world matrix, 3 rows of 4 floats (rows x, y, z, then translation). Set by `FUN_00503bc0` from the pipe effect each update, and copied into every child emitter |
+| `+0x40` | row 2 of that matrix: **the pipe's local z axis**, the only direction the cone uses (it is inside the `+0x20` block, not a separate field) |
+| `+0x60` | the car's velocity, 3 floats. Set by `FUN_00503c00` from the car every update |
+| `+0xe0` | an int. Birth inherits the car velocity only when it is **0** (`FUN_00509b30`) |
+
+The global identity matrix at `0x00987ab0` is written once at start-up by `FUN_006bd830` (called from `FUN_00665fc0`).
+It is the base the cone rotates from.
+
+**Cone direction, as the original computes it** (`FUN_004fea70`, used when the emitter field at `+0x58`
+is 0):
+
+1. Draw three random numbers from the emitter's PRNG, each through `FUN_0045d9e0(spread)`, and throw the first
+   two away. The third sets the x87 result `ST0`.
+2. For each axis, the angle index is `ROUND(ST0) / 360` as a 16-bit value (`FUN_007c4b80`). `ST0` is the last
+   draw, so the angle is taken from `spread`, in the same units as the spread field (not radians).
+3. Rotate the identity matrix by that index about x, then y, then z (`FUN_006bdbb0` and its siblings).
+4. Multiply the pipe's z row (`+0x40`, a 4-vector with w 0) by that rotation (`FUN_006bd920`, which is
+   `D3DXVec4Transform` with the vector as its last argument).
+
+So the cone is a small rotation of the pipe's z axis, **with the pipe frame applied** through the z row. It is
+not a full random direction. A spread of 0 (or any spread below 360 in these units) gives the z row exactly.
+
+**Disc direction** (`FUN_004fe930`, when the field at `+0x58` is not 0): a point on a circle in the x/y plane of
+the pipe frame, from a random angle in `[0, 360)` through `FUN_0045dbf0`/`FUN_0045db30`, rotated by the identity
+and then by the pipe matrix `+0x20`.
+
+**Velocity** (`FUN_00509b30`, after the direction): `speed = Speed` plus `rand(Speed * SpeedVariance)` (already
+in the spec). The inherit term adds the car velocity at `+0x60` times `clamp(MotionInherit +- variance, 0, 1)`
+(`FUN_0045f640`), and only when `+0xe0` is 0.
+
+**Cone units, now verified** [decomp, disassembly of `FUN_004fea70`]:
+
+- `FUN_0045db30` is the sine of a 16-bit angle (`a * 2*pi/65536`); `FUN_0045dbf0` is the cosine (it adds a quarter
+  turn). A full turn is 65536.
+- Each cone component is `rand(S) - S/2` where `S` is the emitter field at `+0xf8`, so it is uniform in `[-S/2, S/2]`
+  **degrees**. The constant `0.5` is at `0x008933d4`.
+- The angle index is `round(deg * 65536) / 360`, which converts degrees to the 16-bit scale (`0x00893348` is 65536).
+  So the rotation is the stated number of degrees, as the spec says.
+- The rotation order is X, then Y, then Z, applied to the z row as a row vector. Our code applies the same three
+  rotations in the opposite order. For small spreads the difference is second-order.
+
+**Field names, now mapped** [decomp + repo parser]: `+0xf8` is the spread, which is `SpreadAngle` in
+`crates/nfsmw-data/src/car/exhaust.rs` (`emitter_spec`). The disc switch at `+0x58` is the spec's `SpreadAsDisc`.
+`+0xe0` is `MotionLive`: the birth code inherits only when it is 0, and the fire and glow groups both have
+`MotionLive` 1 (table in section 5), so neither inherits the car's velocity. The rewrite already does the same
+(`live_motion`).
+
+**Data that rules out the cone and the inherit gate** (`crates/nfsmw-data/tests/real_install/exhaust.rs`, M3 GTR):
+the fire has `Speed` 6.0, `Life` 0.075 s, `MotionLive` 1; the glow has `Speed` 16.0, `Drag` 0.75, `Gravity` -1.0. The
+pipe z is -X (lateral) and the pipes sit at x < -1.8. So the emitter data already points the flame sideways, and the
+fire lives only about 0.45 m. A trail "behind" the car is what a 0.075 s particle leaves when the car moves on.
+
+**Trail path, now ruled out for the flame** [decomp, `FUN_00744e20`]: this function walks a list of effect objects
+of type 3 and keeps a 3-slot ring of their world frames (`+0x1280` is the ring index, frames at `+0x1190`, positions
+at `+0x1250`). It spawns sprites along the segments between the last three positions and draws each with its stored
+frame. That is a motion trail of the object, not the group emitter that the pipe flame uses, so the `+0x1c` sentinel
+does not decide the flame's position.
+
+**Group emitter draw path** [decomp, `FUN_00507770`]: the pipe flame's group is drawn by `FUN_00505380` with the
+identity matrix as its frame, so particles are placed at their birth world position and are not moved by the pipe
+frame later. This matches our rewrite (no per-frame transform). Their on-screen orientation comes from the group's
+own frame rows through `FUN_006bd980` and the sprite basis, which is where a sideways look could come from. That
+orientation is not yet traced.
+
+**Sprite orientation, traced** [decomp, `FUN_00505380`, group-emitter branch `param_6` 1, 3 or 4]:
+
+- The quad is a camera-facing billboard. Its right and up axes are the view matrix rows (`puVar7[0]`, `puVar7[1]`).
+  The rotation through `FUN_006bd980` happens only for `param_6 == 0`, which the pipe flame does not use.
+- The emitter's `+0x20` row (the pipe x axis) enters only as a facing term: the dot product of the view-to-particle
+  direction with the pipe frame's axis. It scales the sprite's brightness, not its direction. The sign handling depends
+  on the `param_6` branch and a flag bit.
+- The sprite centre is the particle position plus the normalised view direction times a curve value. That moves the
+  sprite toward the camera, not along the pipe.
+
+So the sideways look in the original is **not** a re-oriented quad. The quad faces the camera. Its direction in the world
+comes from the birth velocity (the pipe z row, as in the cone section), so the M3 flame's direction is the same birth
+velocity in both builds. The orientation path is now resolved; it does not explain the difference.
+
+**Who builds the pipe frame** [decomp, `FUN_00779460`, the car's per-frame effect update]: the frame fed to the
+group emitter's `+0x20` (`FUN_00503bc0(node, &local_80)`) is built here, not copied from the marker. It is assembled
+from a vector (`local_d0`, `local_cc`, `local_c8`) and a position (`local_c0`). The vector is rotated by the car's
+matrix at `this+0x30` (`FUN_006bd940`) when a flag is set. A second basis comes from `FUN_0076c3e0` and `FUN_005ca910`
+against the constant at `0x008b5c9c`. The inputs come from `FUN_006e9e40(this, ...)` and the offset terms
+`local_8c`, `local_88`, `local_84`. So the emitter's z row is a function of these inputs. It is **not** guaranteed to
+be the marker's z. Whether it is the pipe's marker z for M3 has not been determined. That is the next lead for the
+M3 direction question.
+
+**The blocker** [decomp, `FUN_006e9e40`]: the inputs `local_8c`–`local_84` (and the rest of `local_a0`) are filled by a
+virtual call through the object at `this+8`, vtable slot 1. The method behind that slot is chosen per object at run
+time. Static reading can't resolve it without finding the constructor that stores the vtable and the sub-object at
+`+8` for car effects. That is the next static lead, and if it doesn't close, a runtime read of the object is needed.
+
+**Constructor chain, found** [decomp]: the car effect object is built by `FUN_00786a90(this, car, desc)`. It sets the
+vtable to `PTR_FUN_008b5d90`, calls the base `FUN_006eeb40`, and that base stores **the car object** at `this+8`.
+So `FUN_006e9e40` (the call that fills `local_a0`) is a virtual call into the **car's** vtable, slot 1. The
+frame inputs (`local_8c`–`local_84`) therefore come from a method of the car class, not of the effect. The caller
+that passes the car is at `0x00789260`, which is not inside a defined function in the project. Two leads remain:
+(1) define that function or read the code around `0x00789260`, to find the car pointer and the desc; (2) find the car
+class vtable (the constructor that stores it into the car object at offset 0) and its slot 1. Until (2) is read, the
+M3 frame inputs are not known.
+
+**Resolved chain to the car object** [decomp + disassembly]: the effect factory is registered under the key
+`WorldEffectConn` (string `0x008b0454`), with the factory at `0x00789220`. That factory allocates the effect object,
+then calls `FUN_00786a90(this, car, desc)`. The car side is `CarRenderConn` (string `0x008ab128`, factory `0x0075e6c0`).
+Its constructor `0x0075d320` sets the vtable to `0x008b5254`, and it maps the car to one of 84 slots. The method at
+vtable slot 1 (`0x00738930`) only returns a validity flag: it checks `+0x60` and `+0x28 == 3`, and writes nothing.
+
+So the call `FUN_006e9e40(this, &local_a0)` in `FUN_00779460` returns a bool and does **not** fill `local_a0`. The
+frame offsets `local_8c`, `local_88`, `local_84` therefore stay at their initial zero. The pipe frame is built from the
+car matrix at `this+0x30` (allocated in the constructor by `FUN_00784ec0`) and from the effect descriptor. Two items are
+unverified: whether `this+0x30` is the car body or a pipe matrix, and how the descriptor's fields at `+4`, `+8`, `+0x14`
+enter the frame. These decide the M3 direction. This is the point where static reading stops; the next read is the
+writer of `this+0x30`.
+
+**The frame that sets the exit axis (supersedes the hypothesis below)** [decomp, `FUN_00786c40`, `FUN_0076c3e0`,
+`FUN_005ca910`, constants `0x008b5da4` = +Y and `0x008b5c9c` = +Z]:
+
+- The effect spawner takes the effect's position vector `P` (the descriptor's `+0x14`, `+0x18`, `+0x1c`).
+- `FUN_0076c3e0(q, +Y, P)` builds the shortest-arc quaternion `q` that rotates +Y onto `P`.
+- `FUN_005ca910(q, M)` turns `q` into a row-vector matrix `M` (the D3DX form: `v*M = R v`). Its row 1 is `R·Y = P`.
+- The emitter's node is given `M` as its frame (`FUN_00503bc0`, the `+0x20` block). The cone's direction is the z row
+  `R·Z` (see the cone section above).
+
+So the flame exits along **`R·Z`**, the image of +Z under the rotation that takes +Y to the pipe position. For the M3 pipe
+(`P` about (-1.9, 0, 0.2), from the real-install test) the shortest arc is about 90 degrees about an axis near +Z, and
+`R·Z` is about (0.10, -0.10, 0.99). That is lateral and slightly oblique, which matches the user's observation. Our rewrite
+uses the marker's own z axis (-X, backward), which is the difference.
+
+**Sender path, traced** [decomp, `FUN_006f44e0`, `FUN_006f2540`, `FUN_006a7a20`, `FUN_006a80f0`]: the one-shot
+message is sent by `FUN_006f44e0`, which stores a position vector and a direction vector and dispatches them by type
+hash through `FUN_006f2540`. `FUN_006a7a20` checks the speed-like vector, scales the offset, and forwards the position.
+`FUN_006a80f0` is a car-class virtual method (its address is in the car vtable area `0x008ab494`/`0x008ab4e4`). It
+takes one of two paths by key:
+
+- key `0xfc03ad6a`: the position is **computed**, a car-relative point at the rear. It is the car origin plus offsets
+  along two car basis vectors (one scaled by -0.75). It is not the pipe marker.
+- key `0xdb823931`: the position is the **caller's** position, passed through unchanged.
+
+So `P` is not guaranteed to be the pipe marker. The hypothesis "P is the marker position" is therefore weakened: for the
+rear-computed path, `P` lies on the car's rear axis, and then `R·Z` (shortest arc from +Y to `P`) is still perpendicular to
+the car's forward axis, i.e. lateral. That still matches the observed lateral flame, but the exact oblique angle depends on
+which path the blow-off uses. Which key the blow-off uses, and who the caller of `FUN_006a80f0` is, is not yet read.
+
+**The two open reads, attempted** [decomp, hashes checked with the repo's `bstring_hash`]:
+
+- **Blow-off key.** The sender keys are `0xfc03ad6a` (rear-computed position) and `0xdb823931` (caller position). Hashing the
+  effect names in the binary (`CARFX_EXHAUST_BLOWOFF`, `CARFX_NOS_BLOWOFF`, `CARFX_EXHAUST_SMOKE`, `CARFX_BLOWN_TIRE`,
+  `World_OneShotEffect`, plus the backfire and flame names) gives none of these values. So the keys are not those names, and
+  which key the blow-off uses is **not determined** by this lookup.
+- **Caller of `FUN_006a80f0`.** It is slot 5 of the virtual table at `0x008ab480` (its slot is `0x008ab494`). The caller is a
+  virtual call, so it has no direct cross-references and can't be enumerated statically. Not determined.
+
+**Still unverified:** that `P` (the descriptor's `+0x14`) is the pipe marker's position in car space. The updater is the
+registered `World_OneShotEffect` handler (the blow-off and backfire one-shot). Its descriptor comes from the one-shot open
+message (`Pkt_Effect_Shot`, `0x008b0418` area), and that writer is not yet read. If `P` is the marker position, the fix is to replace the marker z with `R·Z` in
+`pipe_frames` (or in the emitter frame), with `R` = shortest arc from +Y to the marker position.
+
+**Writer of `this+0x30`** [decomp, `FUN_00784ec0`]: it returns a pointer to a 0x70-byte instance taken from a keyed cache
+(registry `DAT_009b3888`, keyed by a value on the stack). A miss allocates the instance from the pool at `0x00925b30`
+and initialises it with `FUN_007687e0`. The constructor `FUN_00786a90` stores it at `this+0x30` when the descriptor's
+`+8` field is non-zero. So the pipe frame comes from a per-key resource instance, not from the car's live pose. `FUN_007687e0` sets
+the instance to an **identity 4x4** with cleared flag words. So the slot is a transform node that starts as identity and
+is written later, once per frame, by whatever updates that key. The key is most likely the car's exhaust part or bone,
+so the flame's frame would be the part's world transform, not the raw marker matrix. That would explain an exit axis
+different from the marker z. **Hypothesis, not yet verified:** find the writer of the node's matrix (the code that
+updates the car's part transforms and stores into the keyed node) and check whether the M3 exhaust part's z axis is
+lateral.
+
+**Earlier note, kept for context.** The pipe effects draw through `FUN_00744e20` -> `FUN_00742950` -> `FUN_00505380`. The effect
+slots hold their own 4x4 frames at `this+0x1190 + slot*0x40`, and `FUN_00744e20` passes one as the frame. `FUN_00505380`
+transforms each sprite's position by that frame (`FUN_006bd940`) on one branch, which is gated by a sentinel value
+(`+0x1c == 1000.0`) or by the caller's flag. The sprite draw in `FUN_00507770` passes the identity instead. So
+whether a flame's particles follow the pipe while they live depends on which path and gate apply. This is not yet
+confirmed for the car's pipe effects.
+
+**Still open:**
+
+- Why the rewrite's M3 flame looks like it goes straight back and not obliquely sideways. Static reading now rules out
+  the cone, the rotation units, and velocity inheritance: the original and the rewrite both use the pipe's z row, and
+  neither inherits the car's velocity for the fire. The remaining candidates are the fire's `Speed`, `Drag`, `Gravity`
+  and `Accel` values as parsed, and the pipe frame's orientation after the car transform. Only a runtime test can
+  settle it: log the emitted particle velocities for the M3 pipe in both the rewrite and the original (Cheat Engine on
+  the running game) and compare the direction. The local matrix is
 set from the pipe effect every update, before spawning. The system caps live particles at 1024 and emitters at
 500 (the player's effects have priority); no budget problem arises from two pipes. [decomp]
 

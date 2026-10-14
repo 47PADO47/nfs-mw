@@ -4,6 +4,7 @@ mod adapters;
 pub(crate) mod ao;
 mod backend_impl;
 mod capture;
+mod contact;
 mod effects;
 mod frame;
 mod glossy;
@@ -23,11 +24,15 @@ mod post;
 mod reflection_tests;
 mod reflections;
 mod resources;
+mod shadows;
 mod slots;
+mod spatial_aa;
+mod surface;
 mod targets;
 #[cfg(test)]
 mod test_support;
 mod textures;
+mod timing;
 mod ui;
 mod upscale;
 
@@ -57,7 +62,16 @@ pub struct Renderer {
     hdr_format: wgpu::TextureFormat,
     post: post::PostChain,
     reflections: Option<reflections::ReflectionCapture>,
+    experiments: blackbox_gfx::RenderExperiments,
+    experiment_stats: blackbox_gfx::ExperimentStats,
+    shadows: Option<shadows::Shadows>,
+    smaa: Option<spatial_aa::SpatialAa>,
+    shadow_casters: Option<Vec<blackbox_gfx::Instance>>,
     ao: Option<ao::AmbientOcclusion>,
+    contact: Option<contact::Contact>,
+    surfaces: Option<surface::Surfaces>,
+    reuse_prepass_depth: bool,
+    timing: Option<timing::Timing>,
     render_scale: f32,
     upscale: upscale::Upscale,
     shared: resources::Shared,
@@ -75,6 +89,11 @@ pub struct Renderer {
 }
 
 impl Renderer {
+    /// Reuse the AO/contact prepass depth in the colour pass (enabled by default).
+    /// Disabling provides a reference render path for image comparisons and profiling.
+    pub fn set_prepass_depth_reuse(&mut self, enabled: bool) {
+        self.reuse_prepass_depth = enabled;
+    }
     /// Create a renderer drawing into `window`, which is `size` pixels (width, height) now.
     ///
     /// `window` is anything with raw window and display handles, such as a winit window in an

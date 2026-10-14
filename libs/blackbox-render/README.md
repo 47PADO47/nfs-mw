@@ -37,9 +37,23 @@ inputs; the application chooses presentation quality and emission budgets.
 them). The game and `blackbox-scene` only use the trait; `nfsmw`'s `app/render/native.rs` is the one place
 that names this crate.
 
-- `capabilities()` is fixed for the renderer: anti-aliasing `{Off, Fxaa}`, upscalers `{Off, Bilinear, Fsr1}`,
+- `capabilities()` is fixed for the renderer: anti-aliasing `{Off, Fxaa, Smaa}` on Vulkan/DX12 (`{Off, Fxaa}` on GL), upscalers `{Off, Bilinear, Fsr1}`,
   every tone map, bloom, no ray tracing, a render scale of 0.25 to 2.0 and nothing that needs a restart.
   `compressed_bc` and `hdr_targets` come from the adapter.
+- Session-only raster shadows, contact detail, diffuse environment lighting, baked-light calibration and clearcoat are described in
+  [the graphics lab](../../docs/graphics-lab.md). These default off and use the separate
+  `set_render_experiments` and `set_shadow_casters` inputs.
+  Sun visibility follows actual receiver geometry, with filter guard bands and smooth slope correction.
+  Surface diagnostic views bypass colour effects without changing graphics settings; SMAA remains spatial.
+- Spatial GTAO consumes the shared camera depth/normal prepass and attenuates ambient
+  lighting before fog, preserving direct lighting, highlights and environment reflections.
+  At unbiased texture LOD the colour pass reuses that depth, rejecting hidden fragments
+  before shading and avoiding a second depth allocation. Biased alpha-test mips keep
+  separate depth, and reflection captures keep their own clear. Instance uploads and
+  AO bindings are reused; replacing a same-size image invalidates the cached bindings.
+  `set_prepass_depth_reuse(false)` selects the reference path for profiling and image checks.
+  Diffuse environment lighting projects the current cube into separate sky/ground
+  spherical harmonics on the GPU, once when it changes. Neither uses pixel history.
 - `apply_graphics(&GraphicsSettings)` resolves the request against those capabilities and applies the effective
   settings with `set_post_effects`, `set_upscaler`, `set_upscale_sharpness`, `set_render_scale` and
   `set_texture_lod_bias(suggested_texture_lod_bias(scale))`. It returns the `Resolved` (effective settings, every

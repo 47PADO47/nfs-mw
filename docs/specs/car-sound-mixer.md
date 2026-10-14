@@ -1,3 +1,7 @@
+> The historical 1.5 output makeup described below has been removed. Current
+> playback preserves authored gains; see
+> [car-audio-observability.md](car-audio-observability.md).
+
 # The car sound and the dynamic mixer
 
 What the car sound publishes to the mixer map and which outputs it reads. The evaluator is in
@@ -112,17 +116,17 @@ silent then); they step up once the car moves. The road level times the generate
   loops and sample layer together, peaks near full scale (0.95 in the scripted drive of `audio::car::tests`, the
   sample layer alone 0.66); the relative levels are the data's. A scaled effect volume stops at 1. The table
   above lists the slots without the makeup.
-- **Camera and positions.** The audio layer does not know the camera. The chase camera is taken to sit behind
-  the car on its axis at 5.6 m at rest and 7 m from 60 m/s (the chase camera's own distance): distance to the car
-  0, to the camera that, azimuth 0, for the car objects; the rear object 2 m behind, the wheels 0.9 m to each side,
+- **Camera and positions.** The audio layer receives the active camera and car transform. Position controllers
+  use planar render distances and azimuths. The rear object remains 2 m behind, the wheels 0.9 m to each side,
   the wind sources circling the car at `(1 - v/40) * 65` m (`v` in m/s, 2 to 40, not below 3 m) at the angle
   `1280 + 12288 * v/40` (of 65536) to the left (azimuth: the complement of the angle) and right.
-- **Low-pass, azimuth, reverb slots** are not applied (no filter, no panning from azimuth, no reverb).
+- **Low-pass and azimuth slots** are applied by the engine and authored module hosts. The filter transfer
+  function uses the backend implementation. Reverb words are retained but environmental reverb remains absent.
 - **Tunnel, rain, weather wind, whoosh, truck:** not produced; all their inputs read 0.
-- **Wind** plays one loop (bank sound 1) at the mean of the left and right levels times the speed ratio; the
-  rumble level (slot 4) and the two other wind loops of the original's `FX_WIND` are not played.
-- **Collisions** keep the effects mixer's levels (the state-7 map entries are per-event and need the hit's position);
-  a landing (bottom-out) takes the object 13 level.
+- **Wind and ordinary road loops** use their authored modules, separate channel levels and Q12 pitch.
+  Road transitions, wet overlays and the stitch-loop module remain incomplete.
+- **Collisions** use state 7 with the event's description, intensity and source position; sustained scrapes
+  retain their own module and mixer. See [car-audio-integration.md](car-audio-integration.md).
 - **Skid axles.** The rear axle's loop takes the "back" level (slot 6), the front axle's the forward or sideways
   one by its component; which axle the original's "back" volume belongs to is a guess.
 - **Without the map** (`SOUND/MIXMAPS/MAPOUTPUT.mxb` unreadable) every effect plays at its generated volume,

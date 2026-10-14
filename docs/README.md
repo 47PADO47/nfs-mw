@@ -1,5 +1,7 @@
 # nfs-mw docs
 
+Runtime customization: [garage-overlay.md](garage-overlay.md).
+
 Documentation for the Rust rewrite of Need for Speed: Most Wanted (2005, PC v1.3 / Black Edition): how
 the game stores its data, what prior work exists, and how the rewrite is built. Format claims are checked
 against a local install selected with `NFSMW_GAME_DIR`.
@@ -37,7 +39,7 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | [low-end.md](low-end.md) | Weak GPUs and laptops: what each graphics setting costs, the low, medium and high presets, a low-end config and how to read the performance overlay |
 | [post-processing.md](post-processing.md) | Optional tone mapping, bloom and anti-aliasing (FXAA; SMAA and TAA on the Bevy renderer): settings, menu rows, what each does and how to compare them |
 | [visual-treatment.md](visual-treatment.md) | Installed PC midday colour treatment for the native renderer |
-| [ambient-occlusion.md](ambient-occlusion.md) | Experimental depth-only GTAO: quality, live comparison, filtering, limitations and GPU validation |
+| [ambient-occlusion.md](ambient-occlusion.md) | Spatial ambient-only GTAO: shared depth/normals, live comparison, filtering, limitations and GPU validation |
 | [vehicle-effects.md](vehicle-effects.md) | Original PC sparks, experimental restored sparks and wind trails using base-game assets |
 | [architecture.md](architecture.md) | `libs/` (engine-generic) vs `crates/` (MW), finding the install, the streamed city, graphics backends, Windows/Linux, roadmap |
 | [world-interactions.md](world-interactions.md) | Contact, dynamic scenery and frame-rate parity work, validation and remaining gaps |
@@ -48,6 +50,7 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | [hud-layout.md](hud-layout.md) | PC widescreen, centered and Xbox-scaled HUD presets |
 | [upscaling.md](upscaling.md) | Render scale, bilinear and FSR 1 upscaling, the temporal upscalers and their quality modes, ReShade limits, seams for DLSS |
 | [reshade.md](reshade.md) | Using ReShade or vkBasalt: backends, the reverse-Z depth settings, render scale limits |
+| [reshade-shaders/](reshade-shaders/README.md) | Survey of a local ReShade effect pack (33 files): what each does, licence tiers, ideas worth taking and what the repo already has |
 | [tire-effects.md](tire-effects.md) | Tire smoke, ground-following marks, runtime controls and reproducible driving checks |
 | [vehicle-effects.md](vehicle-effects.md) | Optional collision sparks and high-speed wind trails using stock-install definitions |
 | [exhaust-flames.md](exhaust-flames.md) | Tail-pipe flames for nitrous, gear changes and lift-off sputter pops: the `exhaust_flames` setting, console, budgets and checks |
@@ -55,6 +58,12 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | [rust-stack.md](rust-stack.md) | Crates used and planned, with versions and licenses; rejected options |
 | [decisions/](decisions/0001-bevy.md) | Architecture decision records: [0001 Bevy as the game framework](decisions/0001-bevy.md) (proposed), [0003 The renderer after milestone 8](decisions/0003-renderer-after-milestone-8.md) (proposed), [0004 Two renderers behind one interface](decisions/0004-swappable-renderers.md) (proposed) |
 | [plans/gfx-renderers/](plans/gfx-renderers/README.md) | Plan for swappable renderers (native Black Box and Bevy) behind one interface: [interface](plans/gfx-renderers/interface.md), [Bevy backend](plans/gfx-renderers/bevy-backend.md), [upscalers and settings](plans/gfx-renderers/upscalers-settings.md), [PR list](plans/gfx-renderers/pr-list.md), [status and handoff](plans/gfx-renderers/status.md), [verification and risks](plans/gfx-renderers/verification-risks.md) |
+| [mods/redux-v3.md](mods/redux-v3.md) | Reference notes on the REDUX V3 community mod pack (unlicensed): contents, install, target build, what the port already covers |
+| [mods/redux-v3-plugins.md](mods/redux-v3-plugins.md) | Per-plugin reference for the pack's `.asi` plugins, every shipped config key with its default, and the Xbox 360 shader-swap script |
+| [mods/nfsmw-extra-options.md](mods/nfsmw-extra-options.md) | NFSMW Extra Options (GPL-3.0, facts only): hotkeys, quick race and traffic limits, pursuit and weather tuning, fixes, every settings key with its default |
+| [mods/nfsmw-unlimiter.md](mods/nfsmw-unlimiter.md) | NFSMW Unlimiter (unlicensed script mod): fixes and limits lifted for added cars, modder hooks, the settings file keys with defaults, required assets |
+| [mods/nfsmw-unlimiter-essentials.md](mods/nfsmw-unlimiter-essentials.md) | NFSMW Unlimiter Essentials (unlicensed car parts pack): paint, neon, wheels, plates, brakes and tyres; Binarius install steps and known issues |
+| [mods/README.md](mods/README.md) | Index of 42 community mod and tool repositories: one page each (mechanism, config, licence, how the rewrite could match it) |
 | [licensing.md](licensing.md) | Project license, what each source license allows, unlicensed repos, the spec-first process |
 | [ai-drivers.md](ai-drivers.md) | The AI drivers in the code: traffic and cops, which spec each layer follows, deliberate differences, what is open |
 | [specs/](specs/README.md) | Behaviour specs written before implementing it from decompiled sources: [scenery visibility](specs/scenery-visibility.md), [scenery LOD](specs/scenery-lod.md), [visible sections](specs/visible-sections.md), [car assembly](specs/car-assembly.md), [FEng input](specs/feng-input.md), [front-end menus](specs/frontend-menus.md), [LAN server](specs/lan-server.md) |
@@ -87,10 +96,23 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | [formats/model-hierarchies.md](formats/model-hierarchies.md) | Named intact and internal fragment models | Validated reader and installed breakup checks |
 | [specs/world-sequencers.md](specs/world-sequencers.md) | State/queue timing, damage stimuli and cargo | Sequencer tested; world effect integration in progress |
 | [specs/sphere-contacts.md](specs/sphere-contacts.md) | Sphere contacts and relative sphere/box sweeps | Isolated PC vectors and world integration tests |
+| [formats/global-databases.md](formats/global-databases.md) | Every file in `GLOBAL/`: the databases, UI and HUD packs, texture packs, and what the repo reads | Catalogue; read status per file |
 | [formats/attributes.md](formats/attributes.md) | AttribSys `VPAK` packs, vaults, exports, hash, the 57 classes | Layout verified |
 | [formats/cardata.md](formats/cardata.md) | Car types, parts database, slot types, presets, light materials, solid markers, `ecar`, vinyls | Car tables verified; vinyls partial |
 | [formats/animation.md](formats/animation.md) | EAGL4 ELF objects, skeletons, banks, NIS cutscenes | Container verified; codecs open |
 | [formats/audio.md](formats/audio.md) | Sound banks, GIN engine loops, MPF/MUS music, speech, reverb | Codecs known; speech `.idx` verified, `.evt` and `.csi` partial |
+| [specs/car-audio-tyres-transmission.md](specs/car-audio-tyres-transmission.md) | Authored skid and transmission producers | PC bounds and installed playback regressions |
+| [specs/car-audio-road-weather.md](specs/car-audio-road-weather.md) | Road transitions, stitch road and weather wind | PC parameters; render-clock policy explicit |
+| [specs/car-audio-environment.md](specs/car-audio-environment.md) | Engine environment, distance filtering and software effects | Authored spatial maps, zone selection and FXEDIT wet bus; backend limits explicit |
+| [car-audio-coverage.md](car-audio-coverage.md) | Audio coverage, verification boundaries and remaining gaps | Runtime audit and trace comparison tool |
+| [specs/car-audio-observability.md](specs/car-audio-observability.md) | Single-owner routing, retained controller history and bounded tracing | Event and voice lifecycle regressions |
+| [specs/car-audio-power-effects.md](specs/car-audio-power-effects.md) | Nitrous, purge, shift, sweetener, turbo and whine controllers | PC contracts and installed playback |
+| [specs/authored-traffic-audio.md](specs/authored-traffic-audio.md) | Moving engines, horns and passing whooshes | Installed profiles and cadence checks |
+| [specs/common-audio-events.md](specs/common-audio-events.md) | Speedbreaker activation and pursuit breaker modules | PC slots and retained event timing |
+| [specs/spatial-parameter-maps.md](specs/spatial-parameter-maps.md) | Spatial Reverb map and enclosure zone context | Reader and PC lookup vectors |
+| [specs/fxedit-processor.md](specs/fxedit-processor.md) | Authored effect graph parsing and processing | All installed patches; isolated PC PCM comparison |
+| [specs/car-audio-output.md](specs/car-audio-output.md) | Shared wet bus and dry/pan/send ordering | Device-rate and irregular-block regressions |
+| [specs/speedbreaker-audio.md](specs/speedbreaker-audio.md) | Shared real-time Speedbreaker pitch envelope | Original producer and installed routing checks |
 | [formats/aems.md](formats/aems.md) | AEMS module banks: the dataflow graphs and code inside `.abk` files | Verified on all 301 banks; Rust reader |
 | [formats/mixmap.md](formats/mixmap.md) | Dynamic-mixer maps (`MIXMAPS/*.mxb`): states, controls, events, 3D controls, channels, presets | Verified; Rust reader |
 | [formats/video.md](formats/video.md) | EA VP6 container and decoder options | Complete |

@@ -1,0 +1,20 @@
+@group(0) @binding(0) var<uniform> light_matrix: mat4x4<f32>;
+@group(1) @binding(0) var image: texture_2d<f32>;
+@group(1) @binding(1) var image_sampler: sampler;
+struct In {
+    @location(0) position: vec3<f32>, @location(2) color: vec4<f32>, @location(3) uv: vec2<f32>,
+    @location(4) m0: vec4<f32>, @location(5) m1: vec4<f32>,
+    @location(6) m2: vec4<f32>, @location(7) m3: vec4<f32>,
+};
+struct Out { @builtin(position) position: vec4<f32>, @location(0) uv: vec2<f32>, @location(1) alpha: f32, };
+@vertex fn vs_main(v: In) -> Out {
+    var out: Out;
+    out.position = light_matrix * mat4x4<f32>(v.m0, v.m1, v.m2, v.m3) * vec4<f32>(v.position, 1.0);
+    out.uv = v.uv;
+    out.alpha = v.color.a;
+    return out;
+}
+@fragment fn fs_opaque() {}
+@fragment fn fs_cutout(in: Out) {
+    if textureSample(image, image_sampler, in.uv).a * in.alpha < 0.5 { discard; }
+}

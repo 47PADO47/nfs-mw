@@ -13,9 +13,23 @@ const TEXTURE_FILES: &[&str] = &["CARS/{car}/TEXTURES.BIN", "CARS/TEXTURES.BIN",
 
 /// The `wanted` textures (by name hash) that the packs have.
 pub fn load(dir: &GameDir, car: &str, wanted: &HashSet<u32>) -> Result<HashMap<u32, Texture>> {
+    load_with_shared(dir, car, wanted, &HashSet::new())
+}
+
+/// Include only accessory packs that supplied placed geometry (e.g. aftermarket rims).
+pub(super) fn load_with_shared(
+    dir: &GameDir,
+    car: &str,
+    wanted: &HashSet<u32>,
+    shared: &HashSet<String>,
+) -> Result<HashMap<u32, Texture>> {
     let mut textures = HashMap::new();
-    for pattern in TEXTURE_FILES {
-        let rel = pattern.replace("{car}", car);
+    let mut shared: Vec<_> = shared.iter().collect();
+    shared.sort();
+    let files = std::iter::once(TEXTURE_FILES[0].replace("{car}", car))
+        .chain(shared.into_iter().map(|folder| format!("CARS/{folder}/TEXTURES.BIN")))
+        .chain(TEXTURE_FILES[1..].iter().map(|s| (*s).to_owned()));
+    for rel in files {
         if !dir.exists(&rel) {
             continue;
         }

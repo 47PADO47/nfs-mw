@@ -5,30 +5,44 @@ mod camera_choice;
 mod car_lights;
 mod car_loader;
 mod cargo;
-mod damage_marks;
 mod commands;
+mod damage_marks;
+mod day;
 mod drive;
 mod drive_input;
 mod effects;
+mod entry;
+mod entry_zones;
+#[cfg(test)]
+mod entry_zones_tests;
 mod events;
 mod exhaust;
 mod explosion_fx;
+mod frame;
+mod garage;
 mod ground;
 mod hud;
 mod keys;
 mod lighting;
 use car_loader::load_car;
+mod focus;
 mod object_geometry;
+mod open;
+#[cfg(test)]
+mod performance_tests;
 mod props;
+mod readiness;
 mod rear_view;
 mod reflections;
 mod residency;
 mod resident;
-mod open;
 mod road;
+mod shadow_feed;
 mod sign_lamps;
 mod simulation;
+mod sound;
 mod space;
+mod speed_trails;
 mod start;
 mod sun;
 mod vehicle_effects;
@@ -36,7 +50,6 @@ mod visibility;
 mod zone;
 
 use anyhow::{Context, Result};
-use blackbox_gfx::Fog;
 use blackbox_gfx::{FrameParams, Instance, RenderBackend};
 use game_install::GameDir;
 use glam::Vec3;
@@ -87,6 +100,12 @@ struct PendingCar {
 }
 
 pub struct WorldScene {
+    garage: crate::garage::Model,
+    garage_parts: Option<nfsmw_data::car::customization::Inventory>,
+    garage_open: bool,
+    audio_environment: Option<crate::audio::environment_context::EnvironmentMap>,
+    common_sounds: Vec<crate::audio::CommonEvent>,
+    sound_speedbreaker_active: bool,
     dir: GameDir,
     track: String,
     camera: FlyCamera,
@@ -101,6 +120,8 @@ pub struct WorldScene {
     visible: Vec<Instance>,
     /// What the rear-view mirror sees: the same world, without the player's car.
     rear_visible: Vec<Instance>,
+    shadow_casters: Vec<Instance>,
+    original_shadows: bool,
     colour_treatment: Option<blackbox_gfx::ColourTreatment>,
     time_of_day: Option<nfsmw_data::time_of_day::Presets>,
     /// The seven original gameplay views, from the install's `camerainfo` data.
@@ -111,17 +132,23 @@ pub struct WorldScene {
     /// Seconds since the scene started, for texture animations.
     clock: f32,
     sun: sun::Sun,
+    /// The day-night clock: the hour of day, the sun for it and the lights.
+    day: day::DayClock,
     /// The aspect ratio the physics camera uses (set by each frame).
     physics_aspect: f32,
     /// The one fixed timeline of the player, the traffic and the object contacts (see `update_simulation`).
     physics_clock: drive::FixedClock,
+    speedbreaker_clock: drive::SpeedbreakerClock,
     view: View,
     pending_car: Option<PendingCar>,
     drive: Option<Drive>,
     /// Computer-driven cars, when the track has a road network.
     traffic: Option<ai::TrafficWorld>,
-    /// Other minimap blips (racers, checkpoint, helicopter) that a system sets each frame; nothing sets them yet.
+    /// Minimap blips that do not come from the traffic: the race starts and the interiors, made once at open
+    /// (`hud::static_blips`). Nothing clears this list, so a later addition stays until it is removed here.
     pub map_blips: Vec<crate::hud::MapBlip>,
+    /// The entry zones (auto shops, safe houses, race starts) and the interact card (`entry.rs`).
+    entry: entry::Entry,
     /// The `traffic`, `cop_share` settings as last told, and a count typed in the console that replaces them.
     traffic_setting: crate::settings::TrafficSettings,
     lamp_meshes: Option<ai::LampMeshes>,
@@ -132,6 +159,7 @@ pub struct WorldScene {
     physics: PhysicsData,
     tire_effects: [bool; 2],
     vehicle_effects: [bool; 2],
+    speed_trail_style: crate::settings::SpeedTrailStyle,
     exhaust_flames: bool,
     spark_style: crate::settings::SparkStyle,
     smoke_quality: crate::settings::SmokeQuality,
@@ -141,6 +169,7 @@ pub struct WorldScene {
     /// The physics clock multiplier (Extra Options `GameSpeed`).
     tuning: crate::settings::WorldTuning,
     car_shading: crate::settings::CarShading,
+    shadow_quality: blackbox_gfx::ShadowQuality,
     /// `debug collisions` is on: the car's contact points are drawn.
     markers_on: bool,
     /// The meshes of the contact markers, uploaded the first time they are asked for.
@@ -161,23 +190,21 @@ const CLEAR: [f32; 3] = [0.55, 0.63, 0.72];
 /// The car `drive` picks when none was named.
 pub const DEFAULT_CAR: &str = "BMWM3GTR";
 
-impl WorldScene {
-    /// Map position (x, y) the streaming follows.
-    fn focus(&self) -> [f32; 2] {
-        match (&self.drive, self.view) {
-            (Some(drive), View::Chase) => match drive.waiting_for_road() {
-                Some(request) => request.near,
-                None => {
-                    let p = drive.position();
-                    [p.x, p.y]
-                }
-            },
-            _ => [self.camera.position.x, self.camera.position.y],
-        }
-    }
-}
-
 impl Scene for WorldScene {
+    fn garage(&mut self) -> Option<&mut crate::garage::Model> {
+        Some(&mut self.garage)
+    }
+
+    fn apply_garage(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
+        self.apply_garage_selection(renderer, selection)
+    }
+
+    fn set_garage_open(&mut self, open: bool) {
+        self.garage_open = open;
+    }
+    fn paused(&self) -> bool {
+        self.garage_open
+    }
     fn captures_mouse(&self) -> bool {
         // The mouse looks round the car too, on the chase camera.
         true
@@ -196,6 +223,16 @@ impl Scene for WorldScene {
     }
 
     fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
+        self.shadow_quality = renderer.graphics().shadows;
+        let idle = ActionState::default();
+        let input = match self.garage_open {
+            true => &idle,
+            false => input,
+        };
+        let dt = match self.garage_open {
+            true => 0.0,
+            false => dt,
+        };
         if let Some(drive) = self.drive.as_mut() {
             drive.set_car_shading(renderer, self.car_shading, self.sun.to_sun());
             drive.set_damaged_windows(renderer, self.sun.to_sun());
@@ -213,21 +250,27 @@ impl Scene for WorldScene {
             (View::Chase, Some(drive)) => drive.camera().position,
             _ => self.camera.position,
         };
-        self.rain.update(dt, camera);
         if input.just_pressed(Action::ToggleCamera) && self.drive.is_some() {
             log::info!("{}", self.toggle_view());
         }
         let [x, y] = self.focus();
         self.residency.update(renderer, x, y);
-        self.clock += dt * self.tuning.animation_speed;
-        self.sun.advance(dt);
+        self.prepare_drive();
+        let sim_dt = match self.garage_open {
+            true => 0.0,
+            false => self.update_simulation(renderer, input, dt),
+        };
+        self.update_entry(input, dt);
+        self.rain.update(sim_dt, camera);
+        self.clock += sim_dt * self.tuning.animation_speed;
+
+        self.sun.update(sim_dt, renderer.render_experiments().freeze_sun);
+        self.update_day(sim_dt);
+
         self.residency.animate(renderer, self.clock);
         if self.view == View::Fly {
-            self.camera.update(input, dt);
+            self.camera.update(input, sim_dt);
         }
-        self.prepare_drive();
-        self.update_simulation(renderer, input, dt);
-        self.sun.advance(dt);
         if !self.grounded && self.residency.complete() {
             self.grounded = true;
             let estimate = ground::height_near(self.residency.placed(), self.start[0], self.start[1], 150.0);
@@ -242,7 +285,15 @@ impl Scene for WorldScene {
             );
         }
         self.upload_effects(renderer);
+        self.original_shadows = renderer.render_experiments().original_shadows;
         self.update_reflections(renderer);
+        self.update_shadow_casters(renderer);
+    }
+
+    fn ui(&mut self, ctx: &egui::Context) -> f32 {
+        crate::hud::show_interact_prompt(ctx, &self.entry.popup);
+        self.show_pursuit_end(ctx);
+        0.0
     }
 
     fn set_tire_effects(&mut self, smoke: bool, skid_marks: bool) {
@@ -265,9 +316,12 @@ impl Scene for WorldScene {
 
     fn set_vehicle_effects(&mut self, sparks: bool, trails: bool) {
         self.vehicle_effects = [sparks, trails];
-        if let Some(drive) = self.drive.as_mut() {
-            drive.vehicle_effects.set_enabled(sparks, trails);
-        }
+        self.apply_vehicle_effects();
+    }
+
+    fn set_speed_trail_style(&mut self, style: crate::settings::SpeedTrailStyle) {
+        self.speed_trail_style = style;
+        self.apply_vehicle_effects();
     }
 
     fn set_exhaust_flames(&mut self, on: bool) {
@@ -311,42 +365,7 @@ impl Scene for WorldScene {
     }
 
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
-        let lens = self.gameplay_lens(aspect);
-        let fog_end = self.fog_distance;
-        let cull = visibility::Camera {
-            view_proj: lens.view_proj(),
-            position: lens.position.to_array(),
-            forward: lens.forward.to_array(),
-            fov_y_radians: lens.fov_y_degrees.to_radians(),
-        };
-        let rules = &blackbox_scenery::layout::MOST_WANTED.lod;
-        visibility::collect(self.residency.placed(), &cull, rules, self.residency.props(), &mut self.visible);
-        self.residency.props().fragment_instances(&mut self.visible);
-        if let Some(traffic) = &self.traffic {
-            traffic.instances(&mut self.visible);
-            let lamps = self.lamp_meshes.as_ref().filter(|_| self.traffic_setting.lights);
-            traffic.lamp_instances(lamps, lens.position, &mut self.visible);
-        }
-        if let Some(drive) = &self.drive {
-            drive.instances(&mut self.visible);
-            if let (true, Some(meshes)) = (self.markers_on, &self.marker_meshes) {
-                drive.marker_instances(meshes, &mut self.visible);
-            }
-        }
-        let drive_cut = self.drive.as_mut().is_some_and(|drive| drive.take_camera_cut());
-        let camera_cut = self.cut.take() | drive_cut;
-        let params = FrameParams {
-            view: lens.view,
-            projection: lens.projection,
-            camera_position: lens.position,
-            light_dir: self.sun.direction(),
-            clear_color: self.fog_colour(),
-            fog: Some(Fog { start: fog_end * 0.5, end: fog_end }),
-            scattering: self.scattering(),
-            surface_light: self.surface_light(),
-            camera_cut,
-        };
-        (params, &self.visible)
+        self.world_frame(aspect)
     }
 
     fn rear_view(&mut self, aspect: f32) -> Option<(FrameParams, &[Instance])> {
@@ -354,14 +373,10 @@ impl Scene for WorldScene {
     }
 
     fn ready(&self) -> bool {
-        if self.traffic.as_ref().is_some_and(|t| !t.settled()) {
-            return false;
-        }
-        match &self.drive {
-            Some(drive) => self.residency.complete() && drive.waiting_for_road().is_none() && drive.script_finished(),
-            None if self.wait_for_load => self.grounded && self.residency.complete(),
-            None => self.residency.counts().2,
-        }
+        self.ready_for_capture()
+    }
+    fn benchmark_ready(&self) -> bool {
+        self.ready_for_benchmark()
     }
 
     fn status(&self) -> Option<String> {
@@ -405,7 +420,7 @@ impl Scene for WorldScene {
     }
 
     fn speed_streaks(&self) -> f32 {
-        self.traffic.as_ref().map_or(0.0, |traffic| traffic.streak_strength())
+        self.speed_streak_strength()
     }
 
     fn hud_state(&self) -> Option<crate::hud::HudState> {
@@ -417,7 +432,16 @@ impl Scene for WorldScene {
     }
 
     fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
-        self.drive.as_mut()?.car_sound()
+        self.audio_state()
+    }
+
+    fn take_common_sounds(&mut self) -> Vec<crate::audio::CommonEvent> {
+        std::mem::take(&mut self.common_sounds)
+    }
+
+    fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {
+        let rain = self.rain.intensity();
+        self.traffic.as_ref()?.pursuit_feed().map(|feed| crate::audio::PursuitFeed { rain_intensity: rain, ..feed })
     }
 
     fn take_traffic_sounds(&mut self) -> Vec<crate::audio::traffic::TrafficSound> {

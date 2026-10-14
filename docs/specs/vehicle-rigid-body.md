@@ -215,6 +215,8 @@ body each tick with radius `max(primitive radius, 3 m)`; it caches three lists [
 
 #### World collision data (chunk 0x0003B801, one per streaming section) [decomp]
 
+Terrain and wall queries share [driver masks and group state](vehicle-ground-reference.md); exclude candidates before nearest-hit selection.
+
 A header (section number, resolved flag, last load address, payload size), then a serialized group tree
 with arrays `ci` (instances), `co` (objects) and `ca` (articles, indexed by an instance's render index):
 

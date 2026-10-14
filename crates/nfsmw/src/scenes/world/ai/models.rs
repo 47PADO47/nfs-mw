@@ -26,10 +26,14 @@ fn folders(cars: &[String], vehicle: &str, lineage: &[String]) -> Vec<String> {
     found
 }
 
-/// The horn sound of a `pvehicle` (`HornType`). 5 when the record has none: 5 is the first horn the spec verified.
-fn horn_of(db: &blackbox_attrib::Database, vehicle: &str) -> u32 {
-    const DEFAULT_HORN: u32 = 5;
-    db.collection("pvehicle", &vehicle.to_ascii_lowercase()).and_then(|c| c.get_u32("HornType")).unwrap_or(DEFAULT_HORN)
+/// Installed class IDs; missing fields remain explicitly unavailable.
+fn audio_profile(db: &blackbox_attrib::Database, vehicle: &str) -> crate::audio::traffic::TrafficProfile {
+    let collection = db.collection("pvehicle", &vehicle.to_ascii_lowercase());
+    crate::audio::traffic::TrafficProfile {
+        horn: collection.as_ref().and_then(|c| c.get_u32("HornType")),
+        engine: collection.as_ref().and_then(|c| c.get_u32("TrafficEngType")),
+        whoosh: collection.as_ref().and_then(|c| c.get_u32("WooshType")),
+    }
 }
 
 /// Loads the model and physics of one `pvehicle`, without the trailer it may pull.
@@ -51,7 +55,7 @@ fn load_body(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, vehicle: 
             .or_else(|_| scene.physics_of(&model))
             .map_err(|e| format!("{vehicle} has no physics: {e:#}"))?;
         let rig = std::rc::Rc::new(CarRig::upload(renderer, keys::next_car(), model, scene.car_shading, sun::to_sun()));
-        let horn = horn_of(scene.physics.database(), vehicle);
+        let audio_profile = audio_profile(scene.physics.database(), vehicle);
         let tractor = scene.physics.is_tractor(vehicle);
         return Ok(TrafficModel {
             name: vehicle.to_ascii_uppercase(),
@@ -60,7 +64,7 @@ fn load_body(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, vehicle: 
             tractor,
             trailer: None,
             cop_lights: None,
-            horn,
+            audio_profile,
         });
     }
     Err(last)
@@ -89,11 +93,27 @@ pub(super) fn load_cop_models(
         if scene.traffic.as_ref().is_some_and(|t| t.has_cop_model(name)) {
             continue;
         }
-        let (folder, model) = load_car(&scene.dir, &name.to_ascii_uppercase()).map_err(|e| format!("{name}: {e:#}"))?;
+        let (folder, model) = {
+            let cars = nfsmw_data::car::list(&scene.dir);
+            let lineage = scene.physics.lineage(name);
+            let mut last = format!("no car folder for {name}");
+            let mut found = None;
+            for folder in folders(&cars, name, &lineage) {
+                match load_car(&scene.dir, &folder) {
+                    Ok(car) => {
+                        found = Some(car);
+                        break;
+                    }
+                    Err(e) => last = format!("{e:#}"),
+                }
+            }
+            found.ok_or(last)?
+        };
         let car_type = model.car_type.clone().unwrap_or_else(|| name.clone());
         let physics = scene.physics_of(&model).map_err(|e| format!("{name}: {e:#}"))?;
         let ai = ai_vehicle(scene.physics.database(), &car_type);
-        let performance = blackbox_vehicle::performance::measure(&physics.spec);
+        let performance =
+            blackbox_vehicle::performance::measure_with_integration(&physics.spec, physics.tire_integration);
         log::info!(
             "cop car {folder}: top speed {:.0} m/s, grip {:.2} to {:.2}, AI limit {:.0} km/h x{} x{}",
             performance.top_speed,
@@ -119,11 +139,25 @@ pub(super) fn load_cop_models(
                 tractor: scene.physics.is_tractor(&car_type),
                 trailer: None,
                 cop_lights,
-                horn: horn_of(scene.physics.database(), &name.to_ascii_lowercase()),
+                audio_profile: audio_profile(scene.physics.database(), &car_type),
             },
             car: CopCar { performance, ai },
         });
     }
+    Ok(())
+}
+
+/// Loads the police helicopter's rig, once per track. The helicopter is not a car: its `pvehicle` record has no chassis,
+/// tires or brakes (`docs/specs/ai-helicopter.md` section 1), so only the model is loaded, with no `CarPhysics`.
+pub(super) fn load_helicopter_model(scene: &mut WorldScene, renderer: &mut dyn RenderBackend) -> Result<(), String> {
+    let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
+    if traffic.has_helicopter_rig() {
+        return Ok(());
+    }
+    let (_, model) = load_car(&scene.dir, "COPHELI").map_err(|e| format!("copheli: {e:#}"))?;
+    let rig = std::rc::Rc::new(CarRig::upload(renderer, keys::next_car(), model, scene.car_shading, sun::to_sun()));
+    let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
+    traffic.set_helicopter_rig(rig);
     Ok(())
 }
 

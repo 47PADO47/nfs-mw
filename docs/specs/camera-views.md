@@ -138,3 +138,24 @@ code (`FUN_00467d70` to `FUN_00467e30`), which pass each view's name hash to the
 2. For the sign of `LAG` and the field of view, compare the framing of the far view (default) at rest and at speed.
 3. For the speed curve, drive at a few speeds and compare the camera height and distance with the pairs above.
 4. Record each result here, with the setting used and the car.
+
+## Pursuit camera (caught pan and arrest, procedural)
+
+Built in `crates/nfsmw/src/viewer/camera/pursuit/`. `Drive::update_pursuit` advances it once per physics tick, fed by
+`scenes/world/simulation.rs` (the busted meter, `is_busted`, and the nearest height-matched cop). `Drive::camera` and
+`Drive::physics_camera` blend its shot over the chase view. The original views (bumper to drift) are not changed.
+
+- **Caught pan:** when the busted meter first rises above zero, the view eases over 2.5 s toward a side framing of the
+  player and the nearest matched cop, then back to the chase camera. It fires once per catch: the meter draining back to
+  zero re-arms it.
+- **Arrest framing:** on the bust (the rising edge of `is_busted`), a 3.0 s framing from the side of the player and the
+  cop, fixed at the bust. It replaces the caught pan and does not replay until the next chase.
+- **Original:** the bust sends `MPerpBusted` on the gameplay channel. Three seconds later the cutscene channel plays the
+  arrest, which chooses a scene and a camera track (`docs/specs/ai-pursuit.md` section 5.2; decomp
+  `Animation/AnimChooseArrest.cpp`, not read here). ICE camera tracks are not read (deferred). Ghidra on `speed.exe`
+  found the arrest clip names (`ArrestM01` to `ArrestF23`), `BUSTED_OVERLAY.fng`, `PostBusted.fng`, and
+  `BustedMomentMarker` at `0x00893200`, which has no direct xrefs. `MPerpBusted` (`0x00890d98`) is referenced only by a
+  hashed-getter function (`FUN_004080d0`). No arrest camera-track chooser was located, so the shot is not a copy of the
+  original.
+- **Guesses:** the 2.5 s pan, the 3.0 s arrest (the busted HUD time), the 0.6 s blend, the 48 degree field of view, and
+  the 6 to 16 m side distance. The shot does not avoid walls, so the framing can clip scenery.

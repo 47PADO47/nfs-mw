@@ -40,4 +40,3 @@ pub struct Start {
     /// A patrol cop: a cop car driving like traffic.
     pub patrol: bool,
 }
-

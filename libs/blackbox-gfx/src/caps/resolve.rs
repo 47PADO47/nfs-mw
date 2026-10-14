@@ -90,6 +90,11 @@ pub fn resolve(requested: &GraphicsSettings, caps: &Capabilities) -> Resolved {
         out.downgrade(Setting::AmbientOcclusion, asked, "off", unsupported(caps));
     }
     upscaler(&mut out, caps, requested.upscaler);
+    if out.effective.shadows != crate::ShadowQuality::Off && !caps.soft_shadows {
+        let asked = out.effective.shadows;
+        out.effective.shadows = crate::ShadowQuality::Off;
+        out.downgrade(Setting::Shadows, asked, "off", unsupported(caps));
+    }
     antialiasing(&mut out, caps);
     render_scale(&mut out, caps, &requested);
     ray_tracing(&mut out, caps);

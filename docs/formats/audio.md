@@ -175,20 +175,21 @@ Example, `pvehicle/bmwm3gtr` -> `engineaudio/tvr_cerb` (accelerate `GIN_TVR_Cerb
 ## Sound stitches
 
 A collision sound is not one sample: the `audioimpact` lists (`STITCH_LEVEL_n`) hold ids of a *stitch*, a short
-chain of pieces of `IG_GLOBAL/Stich_Collision_MB.abk`. `GLOBAL/InGameB.bun` has three bundles (8003B500) of
+set of pieces of `IG_GLOBAL/Stich_Collision_MB.abk`. `GLOBAL/InGameB.bun` has three bundles (8003B500) of
 608, 90 and 22 stitches; the first is the collision one (its piece ids run 0 to 170 for the bank's 171
 sounds, the other two refer to the static and whoosh banks). Each stitch is a `0003B502` record and a
 `0003B503` record, in the same order (the order is the id) **[verified on the bytes]**:
 
 | Chunk | Layout |
 |---|---|
-| `0003B502` (20 B) | `u32` hash (a name), `u16` volume (`0x7FFF` = full), `u16` id (equals the position), `u32` piece count, 8 bytes not understood |
-| `0003B503` (16 B per piece) | `u16` sample (the bank's sound counted from **0**: `BNKl` entry = sample + 1), `u16` volume (`0x3FFF` is typical), `u16` A, `u16` B, 8 bytes not understood |
+| `0003B502` (20 B) | hash at0; u16 volume at4 and stitch ID at6; i8 family at8, u8 piece count at9, i16 random pitch at10, u16 random volume at12; pointer relocation at16 |
+| `0003B503` (16 B per piece) | u8 sample at0, i8 family at1; u16 volume at2, Q12 pitch at4, independent offset at6, azimuth at8, random volume at10; i16 random pitch at12; priority at14, rolloff at15 |
 
-**[unconfirmed]** reading of the piece fields: A is the number of samples after which the next piece starts
-(2,700 to 4,600 at 36,000 Hz, which is 75 to 130 ms, shorter than the 0.1 to 0.5 s pieces, so they overlap);
-B (0 to 100) is a delay or random range and is not used. The Rust reader plays the pieces in order with the
-cumulative A as start times.
+**[verified: matched original PC routine]** The pieces are queued together. Pitch at4 is not a sample advance.
+Each piece's authored offset is passed to `AEMS_StichCollision`, which selects the bank sample (`sample + 1`)
+and implements the offset. The module also consumes piece pitch, gain, azimuth and dry/wet/filter parameters.
+Piece volume and pitch are reduced by their respective authored random ranges. Header volume is not multiplied
+into playback by the PC wrapper. The original cumulative-pitch delay interpretation was incorrect.
 
 How the car picks the stitch: `pvehicle` lists `OnHitGround`, `OnHitWorld`, `OnHitObject`, `OnBottomOut`,
 `OnScrapeGround`, `OnScrapeWorld`, `OnScrapeObject`, `OnBottomScrape` as arrays of 32-byte records

@@ -47,6 +47,7 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
                 row(Setting::SkidMarks, Title::Text("Skid Marks")),
                 row(Setting::CollisionSparks, Title::Text("Collision Sparks")),
                 row(Setting::SpeedTrails, Title::Text("Speed Trails (Experimental)")),
+                row(Setting::SpeedTrailStyle, Title::Text("Speed Trail Style")),
                 row(Setting::ExhaustFlames, Title::Text("Exhaust Flames")),
                 row(Setting::Metrics, Title::Text("Performance Overlay")),
             ])
@@ -58,10 +59,16 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
             row(Setting::RadioHud, Title::Text("Radio HUD")),
             row(Setting::Minimap, Title::Text("Minimap")),
             row(Setting::RearViewMirror, Title::Text("Rear-View Mirror")),
+            row(Setting::TurnSignals, Title::Text("Turn Signals")),
             row(Setting::Camera, Title::Text("Camera")),
         ],
         Category::Controls => {
             InputSetting::ALL.into_iter().map(|setting| row(Setting::Input(setting), setting.title())).collect()
         }
+        // The Discord Rich Presence toggles (`discord/`); the time played is dimmed while Discord is off.
+        Category::Discord => vec![
+            row(Setting::Discord, Title::Text("Discord Rich Presence")),
+            row(Setting::DiscordTimePlayed, Title::Text("Show Time Played")),
+        ],
     }
 }

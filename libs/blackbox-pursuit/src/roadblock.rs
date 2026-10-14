@@ -54,21 +54,9 @@ pub const NORMAL: [Layout; 15] = [
         cars: 3,
         slots: &[car(-5.2, -2.0, 0.875), car(0.0, -2.0, 0.12), car(4.5, -1.0, 0.87), barrier(-2.9, 0.2, 0.48)],
     },
-    Layout {
-        min_width: 5.5,
-        cars: 2,
-        slots: &[car(-2.0, 0.0, 0.26), car(2.0, 5.0, 0.48), barrier(1.5, 1.7, 0.61)],
-    },
-    Layout {
-        min_width: 6.5,
-        cars: 2,
-        slots: &[car(-2.0, 0.0, 0.75), car(3.0, 4.0, 0.25), barrier(1.5, 1.7, 0.61)],
-    },
-    Layout {
-        min_width: 8.5,
-        cars: 2,
-        slots: &[car(-0.9, 0.0, 0.72), car(4.0, 0.0, 0.32), barrier(-4.8, -0.8, 0.54)],
-    },
+    Layout { min_width: 5.5, cars: 2, slots: &[car(-2.0, 0.0, 0.26), car(2.0, 5.0, 0.48), barrier(1.5, 1.7, 0.61)] },
+    Layout { min_width: 6.5, cars: 2, slots: &[car(-2.0, 0.0, 0.75), car(3.0, 4.0, 0.25), barrier(1.5, 1.7, 0.61)] },
+    Layout { min_width: 8.5, cars: 2, slots: &[car(-0.9, 0.0, 0.72), car(4.0, 0.0, 0.32), barrier(-4.8, -0.8, 0.54)] },
     Layout {
         min_width: 15.0,
         cars: 4,
@@ -107,7 +95,13 @@ pub const NORMAL: [Layout; 15] = [
     Layout {
         min_width: 12.1,
         cars: 3,
-        slots: &[car(-4.5, 0.0, 0.75), car(1.0, 0.0, 0.25), car(4.0, 4.5, 0.72), barrier(4.3, -1.2, 0.48), barrier(4.9, 0.3, 0.04)],
+        slots: &[
+            car(-4.5, 0.0, 0.75),
+            car(1.0, 0.0, 0.25),
+            car(4.0, 4.5, 0.72),
+            barrier(4.3, -1.2, 0.48),
+            barrier(4.9, 0.3, 0.04),
+        ],
     },
     Layout {
         min_width: 10.0,
@@ -148,7 +142,13 @@ pub const NORMAL: [Layout; 15] = [
     Layout {
         min_width: 22.0,
         cars: 4,
-        slots: &[car(-9.0, 0.0, 0.74), car(-3.0, 0.0, 0.25), car(3.0, 0.0, 0.75), car(9.0, 0.0, 0.25), barrier(0.0, -3.0, 0.5)],
+        slots: &[
+            car(-9.0, 0.0, 0.74),
+            car(-3.0, 0.0, 0.25),
+            car(3.0, 0.0, 0.75),
+            car(9.0, 0.0, 0.25),
+            barrier(0.0, -3.0, 0.5),
+        ],
     },
     Layout {
         min_width: 15.0,
@@ -233,7 +233,13 @@ pub const SPIKES: [Layout; 9] = [
     Layout {
         min_width: 21.0,
         cars: 2,
-        slots: &[spike(-9.0, 0.0, 0.48), car(-3.0, 0.0, 0.25), car(3.0, 0.0, 0.75), spike(9.0, 0.0, 0.52), barrier(0.0, -3.0, 0.5)],
+        slots: &[
+            spike(-9.0, 0.0, 0.48),
+            car(-3.0, 0.0, 0.25),
+            car(3.0, 0.0, 0.75),
+            spike(9.0, 0.0, 0.52),
+            barrier(0.0, -3.0, 0.5),
+        ],
     },
     Layout {
         min_width: 15.0,
@@ -243,7 +249,13 @@ pub const SPIKES: [Layout; 9] = [
     Layout {
         min_width: 28.0,
         cars: 4,
-        slots: &[car(-12.0, 0.0, 0.74), car(-6.0, 0.0, 0.25), spike(-1.0, 0.0, 0.51), car(5.0, 0.0, 0.75), car(11.0, 0.0, 0.25)],
+        slots: &[
+            car(-12.0, 0.0, 0.74),
+            car(-6.0, 0.0, 0.25),
+            spike(-1.0, 0.0, 0.51),
+            car(5.0, 0.0, 0.75),
+            car(11.0, 0.0, 0.25),
+        ],
     },
 ];
 
@@ -260,6 +272,18 @@ pub fn pick(list: &[Layout], cr_width: f32, cars: u32) -> Option<&Layout> {
     list.iter()
         .filter(|l| l.cars <= cars && cr_width - l.min_width > 0.0)
         .min_by(|a, b| (cr_width - a.min_width).total_cmp(&(cr_width - b.min_width)))
+}
+
+/// The chance (percent) that a roadblock takes the spike layouts at each heat, 1 to 10 (`roadblockspikechance`,
+/// [verified] in `docs/specs/ai-pursuit-roadblocks.md` section 1). Any other heat has none.
+pub fn spike_chance(heat: u32) -> f32 {
+    const CHANCE: [f32; 10] = [0.0, 0.0, 0.0, 70.0, 80.0, 85.0, 85.0, 0.0, 100.0, 0.0];
+    heat.checked_sub(1).and_then(|i| CHANCE.get(i as usize)).copied().unwrap_or(0.0)
+}
+
+/// Whether this roadblock takes the spike layouts. `roll` is uniform in `0..=1`, read as a percentage of 100.
+pub fn takes_spikes(heat: u32, roll: f32) -> bool {
+    roll * 100.0 < spike_chance(heat)
 }
 
 /// The road where a roadblock goes: its two edges and the target it guards against, all in the plane (`y` unused),
@@ -328,6 +352,17 @@ mod tests {
     fn the_tables_have_the_documented_sizes() {
         assert_eq!(NORMAL.len(), 15);
         assert_eq!(SPIKES.len(), 9);
+    }
+
+    #[test]
+    fn spikes_follow_the_heat_table() {
+        assert_eq!(spike_chance(4), 70.0);
+        assert_eq!(spike_chance(9), 100.0);
+        assert_eq!(spike_chance(8), 0.0, "heat 8 has no spike strips");
+        assert_eq!(spike_chance(0), 0.0, "no heat");
+        assert_eq!(spike_chance(11), 0.0, "beyond heat 10");
+        assert!(takes_spikes(5, 0.79), "79 percent is under the heat 5 chance of 80");
+        assert!(!takes_spikes(5, 0.80), "the roll must be strictly under the chance");
     }
 
     #[test]

@@ -40,18 +40,18 @@ impl super::TrafficWorld {
         // The finisher: each cop drives to its in-position offset of the formation, when the formation has one (pit,
         // box-in, rolling block). Other cops drive at the player, which is the ram.
         if self.police.finisher_running() {
-            if let Some(formation) = self.police.last_formation() {
-                if let Some(offsets) = in_position_offsets(formation, IN_POSITION_TIGHTNESS) {
-                    let slot_of = assign_slots(formation, &positions, player_xz);
-                    let planned: Vec<Option<Vec2>> = slot_of
-                        .iter()
-                        .map(|slot| slot.and_then(|s| offsets.get(s)).map(|o| player_xz + right * o.x + forward * o.y))
-                        .collect();
-                    for (&car, aim) in cops.iter().zip(planned) {
-                        aims[car] = aim.map(|a| Vec3::new(a.x, player.position.y, a.y));
-                    }
-                    return aims;
+            if let Some(formation) = self.police.last_formation()
+                && let Some(offsets) = in_position_offsets(formation, IN_POSITION_TIGHTNESS)
+            {
+                let slot_of = assign_slots(formation, &positions, player_xz);
+                let planned: Vec<Option<Vec2>> = slot_of
+                    .iter()
+                    .map(|slot| slot.and_then(|s| offsets.get(s)).map(|o| player_xz + right * o.x + forward * o.y))
+                    .collect();
+                for (&car, aim) in cops.iter().zip(planned) {
+                    aims[car] = aim.map(|a| Vec3::new(a.x, player.position.y, a.y));
                 }
+                return aims;
             }
             return aims;
         }
@@ -60,13 +60,7 @@ impl super::TrafficWorld {
         } else {
             match self.police.last_formation() {
                 Some(formation) => assign(formation, &positions, player_xz, forward),
-                None => plan(
-                    &positions,
-                    player_xz,
-                    forward,
-                    level >= BLOCK_FROM_LEVEL,
-                    level >= PIT_FROM_LEVEL,
-                ),
+                None => plan(&positions, player_xz, forward, level >= BLOCK_FROM_LEVEL, level >= PIT_FROM_LEVEL),
             }
         };
         for (&car, aim) in cops.iter().zip(planned) {
@@ -86,7 +80,8 @@ impl super::TrafficWorld {
         level: collapse::Level,
     ) -> Vec<Option<Vec2>> {
         let mut planned = vec![None; cops.len()];
-        let near: Vec<usize> = (0..cops.len()).filter(|&k| (positions[k] - player).length() <= COLLAPSE_RANGE).collect();
+        let near: Vec<usize> =
+            (0..cops.len()).filter(|&k| (positions[k] - player).length() <= COLLAPSE_RANGE).collect();
         let offsets: Vec<Vec2> = near
             .iter()
             .map(|&k| {

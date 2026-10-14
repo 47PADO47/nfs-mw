@@ -8,17 +8,41 @@ use std::time::Duration;
 use blackbox_carsound::{CarInput, EffectsMixer, EngineMixer, LoopId, ScrapeKind, SoundCommand, SoundRef};
 use kira::Tween;
 use kira::sound::static_sound::StaticSoundHandle;
-use nfsmw_data::sound::{CarSound, EventKind};
+use nfsmw_data::sound::{CarSound, EventKind, SoundUpgrades};
 
 use super::LoopMix;
 use super::aems::{AemsLayer, Feed, KiraSampler};
-use super::mixer::{CarMixer, Frame, Levels, scale_command};
+use super::mixer::{CarMixer, Frame, Levels};
 use super::tuning::tuning;
 use super::{Audio, EngineHandle, EngineMix};
+
+pub(super) mod ambient;
+pub(super) mod power_effects;
+pub(super) mod routing;
+mod telemetry;
+mod update;
+pub use ambient::{RoadContext, RoadTerrain};
+pub use telemetry::CarAudioTelemetry;
+mod contact;
+mod contacts;
+mod impacts;
+pub(super) mod transmission;
+pub(super) mod tyres;
+pub use contact::{CarContact, ContactSource};
+
+/// Every physics state since the previous audio update, in simulation order.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CarSoundTick {
+    pub telemetry: CarAudioTelemetry,
+    pub input: CarInput,
+    pub contacts: Vec<CarContact>,
+    pub surface: u32,
+}
 
 /// A collision the physics reported since the last frame.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CarEvent {
+    pub sound_profile: u32,
     pub kind: EventKind,
     /// The `simsurface` hash of the surface involved.
     pub surface: u32,
@@ -28,29 +52,36 @@ pub struct CarEvent {
     pub front: bool,
     /// A light prop that falls over (a cone, a sign) rather than a wall.
     pub smackable: bool,
+    pub position: glam::Vec3,
 }
 
 /// What the scene tells the sound each frame about the car it drives.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CarSoundState {
+    pub telemetry: CarAudioTelemetry,
     /// The car type (`BMWM3GTR`), which picks its sound set.
     pub car: String,
+    /// The performance levels that select engine, shifting and induction sound sets.
+    pub upgrades: SoundUpgrades,
     pub input: CarInput,
     pub events: Vec<CarEvent>,
     /// What the car is rubbing along and how hard (0 to 1), if anything.
     pub scrape: Option<(ScrapeKind, f32)>,
     /// The `simsurface` hash under the car, for the sound of a landing.
     pub surface: u32,
+    pub ticks: Vec<CarSoundTick>,
+    pub view: super::AudioView,
 }
 
 /// The mixers, the voices and the sound set of one car.
 pub(super) struct CarAudio {
     pub car: String,
+    pub upgrades: SoundUpgrades,
     pub sound: CarSound,
     engine: EngineMixer,
     pub effects: EffectsMixer,
     /// The dynamic mixer; `None` when the map could not be read.
-    mixer: Option<CarMixer>,
+    pub(super) mixer: Option<CarMixer>,
     /// What the mixer said in the last frame.
     pub levels: Levels,
     /// The sample layer (engine samples and sputters); `None` when the banks could not be run.
@@ -64,6 +95,24 @@ pub(super) struct CarAudio {
     /// The loops that are playing, with the sound each plays.
     pub loops: HashMap<LoopId, (SoundRef, StaticSoundHandle)>,
     commands: Vec<SoundCommand>,
+    contacts: contacts::ContactPlayback,
+    pub(super) impacts: impacts::ImpactPlayback,
+    ambient: ambient::AmbientPlayback,
+    tyres: tyres::TyrePlayback,
+    transmission: transmission::TransmissionPlayback,
+    power: power_effects::PowerPlayback,
+    pub(super) event_delay: f32,
+}
+
+struct DriveFrame<'a> {
+    telemetry: &'a CarAudioTelemetry,
+    input: &'a CarInput,
+    contacts: &'a [CarContact],
+    events: &'a [CarEvent],
+    view: &'a super::AudioView,
+    dt: f32,
+    sim_dt: f32,
+    delay: f32,
 }
 
 impl Drop for CarAudio {
@@ -80,94 +129,77 @@ impl Drop for CarAudio {
 impl Audio {
     /// Follow the scene's car: start its sounds when it changes, feed the mixers, silence them when there is no car.
     pub fn drive_car(&mut self, state: Option<&CarSoundState>, dt: f32) {
+        self.update_speedbreaker(state.is_some_and(|state| state.view.speedbreaker), dt);
         let Some(state) = state else {
             self.car = None;
             self.failed = None;
             return;
         };
-        if self.car.as_ref().is_none_or(|c| c.car != state.car) {
+        let selectors_changed = self.car.as_ref().is_some_and(|c| c.car == state.car && c.upgrades != state.upgrades);
+        if selectors_changed
+            && let Ok(database) = self.database()
+            && let Ok(mut selected) = nfsmw_data::sound::car_sound(&database, &state.car, state.upgrades)
+            && let Some(car) = self.car.as_mut()
+        {
+            selected.engine_level = car.sound.engine_level;
+            if car.sound == selected {
+                car.upgrades = state.upgrades;
+            }
+        }
+        if self.car.as_ref().is_none_or(|c| c.car != state.car || c.upgrades != state.upgrades) {
             self.car = None;
-            if self.failed.as_deref() == Some(&state.car) || !self.available() {
+            if self.failed.as_ref().is_some_and(|(car, upgrades)| car == &state.car && *upgrades == state.upgrades)
+                || !self.available()
+            {
                 return;
             }
-            match self.start_car(&state.car) {
-                Ok(car) => self.car = Some(car),
+            match self.start_car(&state.car, state.upgrades) {
+                Ok(car) => {
+                    self.failed = None;
+                    self.car = Some(car);
+                }
                 Err(e) => {
                     log::warn!("no engine sound for {}: {e}", state.car);
-                    self.failed = Some(state.car.clone());
+                    self.failed = Some((state.car.clone(), state.upgrades));
                     return;
                 }
             }
         }
         let Some(mut car) = self.car.take() else { return };
-        let sample_available = car.aems.as_ref().is_some_and(AemsLayer::engine_available);
-        if car.sample_available && !sample_available {
-            log::warn!("{}: engine sample layer failed; the Ginsu loops will keep playing at the limiter", car.car);
+        let dt = if dt.is_finite() { dt.max(0.0) } else { 0.0 };
+        if state.ticks.is_empty() {
+            self.advance_car(
+                &mut car,
+                &DriveFrame {
+                    input: &state.input,
+                    telemetry: &state.telemetry,
+                    contacts: &[],
+                    events: &state.events,
+                    view: &state.view,
+                    dt,
+                    sim_dt: 0.0,
+                    delay: 0.0,
+                },
+            );
+            self.car = Some(car);
+            return;
         }
-        car.sample_available = sample_available;
-        car.engine.set_redline_sample_available(sample_available);
-        // The map's pitch for the engine (one frame old) is the dynamic mixer's pitch multiplier.
-        let input = CarInput { pitch_multiplier: car.levels.engine_pitch, ..state.input };
-        let out = car.engine.update(dt, &input);
-        let gain = car.levels.engine_volume;
-        if out.redlining != car.redlining {
-            car.redlining = out.redlining;
-            log::debug!(
-                "{}: the limiter {}: engine loops {:.2}, sample layer {:.2}, gain {gain:.2}",
-                car.car,
-                if out.redlining { "starts" } else { "ends" },
-                out.accel_volume,
-                out.redline_sample_volume
+        let delta = dt / state.ticks.len() as f32;
+        for (i, tick) in state.ticks.iter().enumerate() {
+            self.advance_car(
+                &mut car,
+                &DriveFrame {
+                    input: &tick.input,
+                    telemetry: &tick.telemetry,
+                    contacts: &tick.contacts,
+                    events: if i == 0 { &state.events } else { &[] },
+                    view: &state.view,
+                    dt: delta,
+                    sim_dt: blackbox_vehicle::FIXED_STEP,
+                    delay: i as f32 * delta,
+                },
             );
         }
-        car.handle.set(EngineMix {
-            accel: LoopMix {
-                frequency: out.accel_loop.frequency,
-                volume: out.accel_volume * gain,
-                pitch: out.accel_loop.playback_rate,
-            },
-            decel: LoopMix {
-                frequency: out.decel_loop.frequency,
-                volume: out.decel_volume * gain,
-                pitch: out.decel_loop.playback_rate,
-            },
-        });
-        car.effects.scrape(state.scrape);
-        let mut commands = std::mem::take(&mut car.commands);
-        commands.clear();
-        let landing = car.effects.update(dt, &input, &out, &mut commands);
-        if let Some(mixer) = car.mixer.as_mut() {
-            let sparks = car.aems.as_ref().is_some_and(AemsLayer::sparks);
-            let frame = Frame {
-                input: &input,
-                engine: &out,
-                effects: car.effects.signals(),
-                master_volume: car.master_volume,
-                sparks,
-            };
-            car.levels = mixer.update(dt, &frame);
-        }
-        if let Some(layer) = car.aems.as_mut() {
-            layer.update(&mut KiraSampler(self), dt, &Feed { engine: &out, levels: &car.levels });
-        }
-        for event in &state.events {
-            self.play_impact(&mut car, event);
-        }
-        if let Some(landing) = landing {
-            let event = CarEvent {
-                kind: EventKind::BottomOut,
-                surface: state.surface,
-                magnitude: landing.magnitude,
-                front: false,
-                smackable: false,
-            };
-            self.play_impact(&mut car, &event);
-        }
-        let levels = car.levels;
-        for command in commands.drain(..) {
-            self.apply(&mut car, scale_command(&levels, command));
-        }
-        car.commands = commands;
         self.car = Some(car);
     }
 
@@ -176,9 +208,20 @@ impl Audio {
         self.car.as_mut().and_then(|car| car.aems.as_mut()).map_or(0, AemsLayer::take_pops)
     }
 
-    fn start_car(&mut self, name: &str) -> Result<CarAudio, String> {
-        let loaded = self.load_car_engine(name)?;
-        let tuning = tuning(&loaded.sound, loaded.accel_min_frequency());
+    fn start_car(&mut self, name: &str, upgrades: SoundUpgrades) -> Result<CarAudio, String> {
+        let loaded = self.load_car_engine_upgraded(name, upgrades)?;
+        let mut tuning = tuning(&loaded.sound, loaded.accel_min_frequency());
+        if let Some(turbo) = tuning.turbo.as_mut() {
+            for (id, seconds) in turbo.blowoff_seconds.iter_mut().enumerate() {
+                let Some(target) = super::refs::resolve(&loaded.sound, SoundRef::TurboBlowoff(id as u8)) else {
+                    continue;
+                };
+                match self.bank_sound(&target.bank, target.index) {
+                    Ok(data) => *seconds = data.duration().as_secs_f32(),
+                    Err(error) => log::warn!("turbo duration unavailable: {error}"),
+                }
+            }
+        }
         let silent = EngineMix::shared(loaded.sound.engine.min_rpm, 1.0, 0.0, 0.0);
         let handle = self.start_engine(super::EngineVoice { start: silent, ..loaded.voice })?;
         log::info!("engine sound: {} ({})", loaded.sound.engine.name, loaded.sound.engine.accel_loop);
@@ -194,6 +237,7 @@ impl Audio {
             mixer,
             master_volume: loaded.sound.engine.master_volume,
             car: name.to_owned(),
+            upgrades,
             engine: EngineMixer::new(&tuning),
             effects: EffectsMixer::new(&tuning),
             sound: loaded.sound,
@@ -201,9 +245,20 @@ impl Audio {
             redlining: false,
             loops: HashMap::new(),
             commands: Vec::new(),
+            contacts: contacts::ContactPlayback::default(),
+            impacts: impacts::ImpactPlayback::default(),
+            ambient: ambient::AmbientPlayback::default(),
+            tyres: tyres::TyrePlayback::default(),
+            transmission: transmission::TransmissionPlayback::default(),
+            power: power_effects::PowerPlayback::default(),
+            event_delay: 0.0,
         })
     }
 }
 
+#[cfg(test)]
+mod regression_tests;
+#[cfg(test)]
+mod routing_tests;
 #[cfg(test)]
 mod tests;

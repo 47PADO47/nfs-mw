@@ -122,6 +122,7 @@ impl Dyno {
             dt,
             gas,
             nos_held: false,
+            can_recharge_nos: true,
             blown: false,
             automatic: self.automatic,
             speed: self.v,

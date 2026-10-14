@@ -45,7 +45,7 @@ fn an_unavailable_value_is_refused_with_what_the_native_renderer_has() {
     );
     assert_eq!(
         set(&mut settings, &mut host, "post_aa taa").unwrap_err(),
-        "taa is not available with the blackbox renderer (available: off, fxaa)"
+        "taa is not available with the blackbox renderer (available: off, fxaa, smaa)"
     );
     assert_eq!(
         set(&mut settings, &mut host, "ray_tracing low").unwrap_err(),

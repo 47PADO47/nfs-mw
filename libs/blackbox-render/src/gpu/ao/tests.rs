@@ -11,8 +11,17 @@ use crate::Renderer;
 use crate::gpu::test_support;
 
 fn scene(renderer: &mut Renderer, size: (u32, u32), with_box: bool) -> (FrameParams, Vec<Instance>) {
+    scene_shading(renderer, size, with_box, Shading::Prelit)
+}
+
+pub(super) fn scene_shading(
+    renderer: &mut Renderer,
+    size: (u32, u32),
+    with_box: bool,
+    shading: Shading,
+) -> (FrameParams, Vec<Instance>) {
     let mut mesh = MeshBuilder::new();
-    mesh.state(None, BlendMode::Opaque, Shading::Prelit);
+    mesh.state(None, BlendMode::Opaque, shading);
     let color = prelit([0.65; 3], 1.0);
     mesh.flat_quad(
         [
@@ -65,6 +74,12 @@ fn ao_contacts_are_bounded_and_off_round_trips_exactly() {
     for quality in [AoQuality::Low, AoQuality::Medium, AoQuality::High] {
         set(&mut renderer, quality, false);
         let on = renderer.capture(size.0, size.1, &frame, &instances).unwrap();
+        let visibility = read_mask(&renderer);
+        assert!(
+            visibility.iter().any(|&v| v < 240),
+            "{quality}: AO mask must contain occlusion, min {:?}",
+            visibility.iter().min()
+        );
         assert_eq!(
             on,
             renderer.capture(size.0, size.1, &frame, &instances).unwrap(),
@@ -85,9 +100,15 @@ fn ao_contacts_are_bounded_and_off_round_trips_exactly() {
             assert_eq!(a[3], b[3], "alpha is preserved");
             assert!(b[0] <= a[0], "AO cannot brighten");
             assert!(f32::from(b[0]) >= f32::from(a[0]) * 0.65 - 1.0, "bounded darkening");
-            darkened += usize::from(a[0] > b[0] + 3);
+            // Only the ambient share changes now; direct illumination remains intact.
+            darkened += usize::from(a[0] > b[0] + 1);
         }
-        assert!(darkened > 100, "{quality}: contact shading is visible ({darkened} pixels)");
+        assert!(
+            darkened > 100,
+            "{quality}: contact shading is visible ({darkened} pixels); mask min {:?}, max colour delta {:?}",
+            visibility.iter().min(),
+            off.iter().zip(&on).map(|(a, b)| a.saturating_sub(*b)).max()
+        );
         assert_eq!(&off[..320 * 4], &on[..320 * 4], "sky stays unchanged");
         set(&mut renderer, quality, true);
         let split = renderer.capture(size.0, size.1, &frame, &instances).unwrap();
@@ -100,6 +121,35 @@ fn ao_contacts_are_bounded_and_off_round_trips_exactly() {
     set(&mut renderer, AoQuality::Off, false);
     assert_eq!(off, renderer.capture(size.0, size.1, &frame, &instances).unwrap());
     assert!(renderer.ao.is_none(), "off releases the AO resources");
+}
+
+fn read_mask(renderer: &Renderer) -> Vec<u8> {
+    let ao = renderer.ao.as_ref().unwrap();
+    let row = ao.size.0.next_multiple_of(256);
+    let buffer = renderer.device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("AO visibility test"),
+        size: u64::from(row * ao.size.1),
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        mapped_at_creation: false,
+    });
+    let mut encoder = renderer.device.create_command_encoder(&Default::default());
+    encoder.copy_texture_to_buffer(
+        ao.mask.texture().as_image_copy(),
+        wgpu::TexelCopyBufferInfo {
+            buffer: &buffer,
+            layout: wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(row),
+                rows_per_image: Some(ao.size.1),
+            },
+        },
+        wgpu::Extent3d { width: ao.size.0, height: ao.size.1, depth_or_array_layers: 1 },
+    );
+    renderer.queue.submit([encoder.finish()]);
+    buffer.slice(..).map_async(wgpu::MapMode::Read, |_| {});
+    renderer.device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+    let bytes = buffer.slice(..).get_mapped_range().unwrap();
+    bytes.chunks(row as usize).flat_map(|r| r[..ao.size.0 as usize].iter().copied()).collect()
 }
 
 #[test]

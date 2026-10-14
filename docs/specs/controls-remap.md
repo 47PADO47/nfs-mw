@@ -3,12 +3,25 @@
 Status: wired, not yet checked in the game. The keyboard slots (`input/slots.rs`) take a `Control` (an action, or one
 direction of an axis). `frontend/controls_screen.rs` maps the 16 buttons to the eight rows. A press sends
 `Command::Remap`, the frontend takes the next key (Escape cancels) in `plugin.rs` and saves it with
-`Bindings::save_to`. The Controls category has a "Keyboard Bindings" row (`input_options.rs`) that pushes this screen (`WidgetMenu::change`).
+`Bindings::save_to`. The Controls icon of the option categories opens this screen directly (`icon_menu.rs`); the Control Options list (`input_options.rs`) has no bindings row.
+
+**Two packages, one logic.** The main menu's list is `Options_PC_Controller.fng`: `icon_menu.rs` (`open_controls`, not
+paused) switches to it from the Controls icon of `MainMenu_Sub.fng`. The in-game list is `Pause_PC_Controller.fng`,
+opened from the pause menu's categories. `factory.rs` gives both packages `ControlsLogic`, and the package's name picks
+its GUID table (`controls_layout.rs`: `OPTIONS` and `PAUSE`). Before that, the pause package had no table, so its
+titles and key fields stayed at the package's placeholder `option_data`. The pause GUIDs come from `nfsmw dump-screen
+Pause_PC_Controller.fng` (see [controls-packages](../provenance/controls-packages.md)).
+
 **Drawn (checked offscreen, `nfsmw view-screen Options_PC_Controller.fng --screenshot`):** the title "Keyboard
 Configuration" and the "Primary" and "Secondary" headers come from the package itself. The eight row titles are the
-package's `option_data` text objects at x = -298 (`TITLE` in `controls_screen.rs`); `ControlsLogic::start` sets them
-to the control names (Accelerate, Brake / Reverse, Steer Left, Steer Right, Handbrake, Speedbreaker, N2O, Shift Down).
-"Speedbreaker" is still a guess at `Action::Boost`.
+package's `option_data` text objects at x = -298 (`OPTIONS.title`); `ControlsLogic::start` sets them to the control
+names (Accelerate, Brake / Reverse, Steer Left, Steer Right, Handbrake, Speedbreaker, N2O, Shift Down). The pause
+package's titles are at x = -289 (`PAUSE.title`), and it is not yet drawn or checked live.
+
+**Row limit (ours).** Both packages draw exactly eight rows (16 buttons). The list therefore cannot show every action:
+Map (`M`, the world map) and ShiftUp have no row. They stay rebindable through the bindings file. A ninth row would
+need a new package object, which the rewrite does not create at runtime. Giving Map a row is a decision for the user
+(drop a row, or add a second page).
 
 **Drawn (checked offscreen): the key names.** `plugin.rs` sets `Screens::set_key_texts` from the bindings every frame
 (`controls_screen::key_texts`). The screen context (`Cx::key_texts`) carries them to `ControlsLogic::tick`, which writes

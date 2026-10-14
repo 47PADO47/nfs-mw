@@ -4,10 +4,9 @@ use blackbox_mixmap::Mixer;
 
 use super::ids::{object, player_object, slot};
 
-/// The slot levels are relative; how loud the original's full scale is, is the sound system's business. All
-/// gains are multiplied by this so the engine (about -9.6 dB in the map) stays as loud as it was before the maps
-/// were read.
-pub const MAKEUP: f32 = 1.5;
+/// Preserve the authored levels. The earlier 1.5 gain compensated for the old
+/// implementation's loudness rather than an original-game producer.
+pub const MAKEUP: f32 = 1.0;
 
 /// Gains (1 = unchanged; the makeup is included) and pitch ratios for the sounds of the car.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -20,6 +19,10 @@ pub struct Levels {
     pub sparks: f32,
     pub engine_volume: f32,
     pub engine_pitch: f32,
+    pub engine_low_pass_hz: f32,
+    pub engine_azimuth: i32,
+    pub engine_distance_filter: i32,
+    pub environment: crate::audio::environment::EnvironmentValues,
     pub clunk_up: f32,
     pub clunk_down: f32,
     pub sweet_engage: f32,
@@ -55,6 +58,10 @@ impl Levels {
             sparks: 1.0,
             engine_volume: 1.0,
             engine_pitch: 1.0,
+            engine_low_pass_hz: 25_000.0,
+            engine_azimuth: 0,
+            engine_distance_filter: 25000,
+            environment: Default::default(),
             clunk_up: 1.0,
             clunk_down: 1.0,
             sweet_engage: 1.0,
@@ -97,6 +104,10 @@ impl Levels {
             sparks: raw(object::SPARKS, slot::SPARKS).min(1.0),
             engine_volume: gain(engine, slot::ENGINE_GINSU),
             engine_pitch: pitch(engine, slot::ENGINE_PITCH),
+            engine_low_pass_hz: m.filter(player_object(engine), 5).unwrap_or(25_000.0),
+            engine_azimuth: i32::from(m.azimuth(player_object(engine), 0).unwrap_or(0)),
+            engine_distance_filter: 25000,
+            environment: Default::default(),
             clunk_up: gain(object::SHIFT, slot::CLUNK_UP),
             clunk_down: gain(object::SHIFT, slot::CLUNK_DOWN),
             sweet_engage: gain(object::SHIFT, slot::SWEET_ENGAGE),
