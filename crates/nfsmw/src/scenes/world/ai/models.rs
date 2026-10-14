@@ -93,7 +93,22 @@ pub(super) fn load_cop_models(
         if scene.traffic.as_ref().is_some_and(|t| t.has_cop_model(name)) {
             continue;
         }
-        let (folder, model) = load_car(&scene.dir, &name.to_ascii_uppercase()).map_err(|e| format!("{name}: {e:#}"))?;
+        let (folder, model) = {
+            let cars = nfsmw_data::car::list(&scene.dir);
+            let lineage = scene.physics.lineage(name);
+            let mut last = format!("no car folder for {name}");
+            let mut found = None;
+            for folder in folders(&cars, name, &lineage) {
+                match load_car(&scene.dir, &folder) {
+                    Ok(car) => {
+                        found = Some(car);
+                        break;
+                    }
+                    Err(e) => last = format!("{e:#}"),
+                }
+            }
+            found.ok_or(last)?
+        };
         let car_type = model.car_type.clone().unwrap_or_else(|| name.clone());
         let physics = scene.physics_of(&model).map_err(|e| format!("{name}: {e:#}"))?;
         let ai = ai_vehicle(scene.physics.database(), &car_type);

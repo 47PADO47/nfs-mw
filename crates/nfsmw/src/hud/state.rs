@@ -57,12 +57,15 @@ pub struct HudState {
     pub cop_nearby: bool,
     /// The chase the pursuit board shows (its timer, the cool-down bar); `None` while no cop chases the player.
     pub pursuit: Option<PursuitHud>,
+    /// The busted meter, 0 to 1: the share of the busted timer filled, 1 once the player is busted. Zero with no chase.
+    pub busted: f32,
 }
 
 impl Default for HudState {
     fn default() -> Self {
         Self {
             visible: true,
+            busted: 0.0,
             speed: 0.0,
             use_mph: false,
             rpm: 0.0,

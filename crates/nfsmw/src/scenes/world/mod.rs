@@ -7,6 +7,7 @@ mod car_loader;
 mod cargo;
 mod commands;
 mod damage_marks;
+mod day;
 mod drive;
 mod drive_input;
 mod effects;
@@ -23,6 +24,7 @@ mod hud;
 mod keys;
 mod lighting;
 use car_loader::load_car;
+mod focus;
 mod object_geometry;
 mod open;
 #[cfg(test)]
@@ -39,6 +41,7 @@ mod sign_lamps;
 mod simulation;
 mod sound;
 mod space;
+mod speed_trails;
 mod start;
 mod sun;
 mod vehicle_effects;
@@ -128,6 +131,8 @@ pub struct WorldScene {
     /// Seconds since the scene started, for texture animations.
     clock: f32,
     sun: sun::Sun,
+    /// The day-night clock: the hour of day, the sun for it and the lights.
+    day: day::DayClock,
     /// The aspect ratio the physics camera uses (set by each frame).
     physics_aspect: f32,
     /// The one fixed timeline of the player, the traffic and the object contacts (see `update_simulation`).
@@ -153,6 +158,7 @@ pub struct WorldScene {
     physics: PhysicsData,
     tire_effects: [bool; 2],
     vehicle_effects: [bool; 2],
+    speed_trail_style: crate::settings::SpeedTrailStyle,
     exhaust_flames: bool,
     spark_style: crate::settings::SparkStyle,
     smoke_quality: crate::settings::SmokeQuality,
@@ -192,7 +198,6 @@ impl Scene for WorldScene {
     fn set_garage_open(&mut self, open: bool) {
         self.garage_open = open;
     }
-
     fn paused(&self) -> bool {
         self.garage_open
     }
@@ -253,7 +258,10 @@ impl Scene for WorldScene {
         self.update_entry(input, dt);
         self.rain.update(sim_dt, camera);
         self.clock += sim_dt * self.tuning.animation_speed;
+      
         self.sun.update(sim_dt, renderer.render_experiments().freeze_sun);
+        self.update_day(sim_dt);
+      
         self.residency.animate(renderer, self.clock);
         if self.view == View::Fly {
             self.camera.update(input, sim_dt);
@@ -279,6 +287,7 @@ impl Scene for WorldScene {
 
     fn ui(&mut self, ctx: &egui::Context) -> f32 {
         crate::hud::show_interact_prompt(ctx, &self.entry.popup);
+        self.show_pursuit_end(ctx);
         0.0
     }
 
@@ -302,9 +311,12 @@ impl Scene for WorldScene {
 
     fn set_vehicle_effects(&mut self, sparks: bool, trails: bool) {
         self.vehicle_effects = [sparks, trails];
-        if let Some(drive) = self.drive.as_mut() {
-            drive.vehicle_effects.set_enabled(sparks, trails);
-        }
+        self.apply_vehicle_effects();
+    }
+
+    fn set_speed_trail_style(&mut self, style: crate::settings::SpeedTrailStyle) {
+        self.speed_trail_style = style;
+        self.apply_vehicle_effects();
     }
 
     fn set_exhaust_flames(&mut self, on: bool) {
@@ -403,7 +415,7 @@ impl Scene for WorldScene {
     }
 
     fn speed_streaks(&self) -> f32 {
-        self.traffic.as_ref().map_or(0.0, |traffic| traffic.streak_strength())
+        self.speed_streak_strength()
     }
 
     fn hud_state(&self) -> Option<crate::hud::HudState> {
@@ -423,7 +435,8 @@ impl Scene for WorldScene {
     }
 
     fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {
-        self.traffic.as_ref()?.pursuit_feed()
+        let rain = self.rain.intensity();
+        self.traffic.as_ref()?.pursuit_feed().map(|feed| crate::audio::PursuitFeed { rain_intensity: rain, ..feed })
     }
 
     fn take_traffic_sounds(&mut self) -> Vec<crate::audio::traffic::TrafficSound> {

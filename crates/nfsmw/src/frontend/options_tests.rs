@@ -47,8 +47,8 @@ fn toggles_flip_and_cycle_and_record_the_change() {
 #[test]
 fn every_category_has_rows() {
     assert_eq!(rows(Category::Audio, &crate::settings::test_caps::native()).len(), 5);
-    assert_eq!(rows(Category::Video, &crate::settings::test_caps::native()).len(), 25);
-    assert_eq!(rows(Category::Gameplay, &crate::settings::test_caps::native()).len(), 7);
+    assert_eq!(rows(Category::Video, &crate::settings::test_caps::native()).len(), 26);
+    assert_eq!(rows(Category::Gameplay, &crate::settings::test_caps::native()).len(), 8);
     assert_eq!(rows(Category::Controls, &crate::settings::test_caps::native()).len(), 10);
     assert_eq!(rows(Category::Discord, &crate::settings::test_caps::native()).len(), 2);
 }

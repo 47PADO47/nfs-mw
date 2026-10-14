@@ -105,7 +105,7 @@ fn width(rt: &Runtime, id: PackageId, guid: u32) -> f32 {
 }
 
 fn chase(secs: f32, evade: f32) -> HudState {
-    HudState { pursuit: Some(PursuitHud { secs, evade }), ..Default::default() }
+    HudState { pursuit: Some(PursuitHud { secs, evade, cops_destroyed: 0 }), ..Default::default() }
 }
 
 #[test]

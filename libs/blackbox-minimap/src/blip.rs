@@ -22,6 +22,8 @@ pub struct Blip {
     pub rotation: f32,
     /// Its opacity, 0..1.
     pub alpha: f32,
+    /// Whether the element's own place is inside the circle: `false` when it is pinned to the edge or hidden.
+    pub inside: bool,
 }
 
 /// Places an element at `map` (its place on the picture, `Calibration::to_map`) pointing along `direction`
@@ -41,6 +43,7 @@ pub fn place(
     let e = [(map[0] - view.player[0]) * view.zoom, (map[1] - view.player[1]) * view.zoom];
     let mut r = [e[0] * cos + e[1] * sin, e[1] * cos - e[0] * sin];
     let distance = (r[0] * r[0] + r[1] * r[1]).sqrt();
+    let inside = distance <= EDGE;
     let mut alpha = 1.0;
     if distance > EDGE {
         let scale = EDGE / distance;
@@ -59,6 +62,7 @@ pub fn place(
         offset: [r[0] * picture_width, r[1] * picture_width],
         rotation: bearing_degrees(direction) - turn,
         alpha: alpha.clamp(0.0, 1.0),
+        inside,
     }
 }
 

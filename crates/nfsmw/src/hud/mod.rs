@@ -28,6 +28,7 @@ mod minimap;
 mod minimap_tests;
 mod plugin;
 mod pursuit;
+mod pursuit_end;
 #[cfg(test)]
 mod pursuit_tests;
 mod radio;
@@ -40,11 +41,12 @@ mod viewport_tests;
 
 pub use blip_style::MapBlip;
 pub use blip_styles::{
-    AUTO_SHOP, COP, HELICOPTER, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP, RACE_SPRINT, RACE_TOLLBOOTH,
-    SAFE_HOUSE,
+    AUTO_SHOP, AUTO_SHOP_TINT, CAR_LOT, CAR_LOT_TINT, COP, HELICOPTER, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT,
+    RACE_SPEEDTRAP, RACE_SPRINT, RACE_TOLLBOOTH, SAFE_HOUSE, SAFE_HOUSE_TINT,
 };
 pub use interact_prompt::{InteractPopup, Prompt, show as show_interact_prompt};
 pub use plugin::HudPlugin;
 pub use pursuit::PursuitHud;
+pub use pursuit_end::{PursuitEndCard, show as show_pursuit_end};
 pub use radio::{RadioHud, show as show_radio};
 pub use state::{HudState, MapPosition};

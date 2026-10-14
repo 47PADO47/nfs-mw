@@ -33,6 +33,7 @@ fn named(kind: ObjectKind, guid: u32, name_hash: u32, parent: Option<u32>) -> Ob
         scripts: match name_hash {
             h if h == fe_hash_upper("Shift_light") => scripts(&[SCRIPT_INIT, SCRIPT_GREEN]),
             0x27DD_F583 => scripts(&[SCRIPT_INIT, SCRIPT_NOS_BURNING, SCRIPT_NOS_READY]),
+            0x1144_8B5C => scripts(&[SCRIPT_INIT, SCRIPT_NOS_BURNING]),
             _ => Vec::new(),
         },
         responses: Vec::new(),
@@ -66,6 +67,10 @@ fn package() -> Package {
         named(ObjectKind::Group, 21, 0x9EE0_6631, Some(20)),
         named(ObjectKind::Image, 22, 0x5630_E0B9, Some(21)),
         named(ObjectKind::Image, 23, 0x839E_7D77, None),
+        // The speed breaker: its meter group under the cluster, the stopwatch icon group under that, and the bar.
+        named(ObjectKind::Group, 24, 0x8991_BD54, Some(14)),
+        named(ObjectKind::Group, 25, 0x1144_8B5C, Some(24)),
+        named(ObjectKind::MultiImage, 26, 0x5DF2_F5B4, Some(14)),
     ];
     Package {
         name: "HUD.fng".into(),
@@ -192,6 +197,36 @@ fn the_nitrous_bar_empties_as_the_tank_does() {
         b.apply(&mut rt, &HudState { has_nos: true, nos, ..Default::default() });
         assert!((mask_rotation(&rt, id, 17) - want).abs() < 1e-3, "{nos}");
     }
+}
+
+#[test]
+fn the_speedbreaker_meter_shows_for_the_whole_race_whatever_its_charge() {
+    let (mut rt, id, mut b) = setup();
+    for meter in [0.0, 0.5] {
+        b.apply(&mut rt, &HudState { speedbreaker: meter, ..Default::default() });
+        for guid in [24, 25, 26] {
+            assert!(visible(&rt, id, guid), "{guid} at meter {meter}");
+        }
+    }
+}
+
+#[test]
+fn the_speedbreaker_bar_empties_as_the_meter_drains() {
+    let (mut rt, id, mut b) = setup();
+    for (meter, want) in [(1.0, 0.0), (0.5, 87.5), (0.0, 175.0)] {
+        b.apply(&mut rt, &HudState { speedbreaker: meter, ..Default::default() });
+        assert!((mask_rotation(&rt, id, 26) - want).abs() < 1e-3, "{meter}");
+    }
+}
+
+#[test]
+fn the_speedbreaker_icon_is_lit_while_the_meter_holds_charge() {
+    let (mut rt, id, mut b) = setup();
+    let icon = rt.find(id, 0x1144_8B5C).unwrap();
+    b.apply(&mut rt, &HudState { speedbreaker: 0.4, ..Default::default() });
+    assert_eq!(rt.script_of(icon), Some(SCRIPT_NOS_BURNING), "charged");
+    b.apply(&mut rt, &HudState { speedbreaker: 0.0, ..Default::default() });
+    assert_eq!(rt.script_of(icon), Some(SCRIPT_INIT), "empty");
 }
 
 #[test]

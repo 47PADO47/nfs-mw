@@ -27,6 +27,11 @@ use trails::Trails;
 pub const MAX_SPARKS: usize = 2048;
 pub const MAX_TRAILS: usize = 256;
 
+/// The strength of the high-speed view streaks at `speed` (m/s), 0 to 0.75: the car trail's curve.
+pub fn streak_strength(speed: f32) -> f32 {
+    trails::intensity(speed.abs()).unwrap_or(0.0)
+}
+
 pub struct VehicleEffects {
     data: VisualEffectsData,
     sparks: Sparks,

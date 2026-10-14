@@ -30,6 +30,10 @@ Names are the FEng object names; the hash is in brackets. The parent is the obje
 | `Heat_Meter_Multi_Image` [0x862824c9], second arc [0x4b2cbe1b] | multi image | The two half arcs of the heat gauge (`Meter_Backing.tga`; the game turns each arc's mask). Parent: group 0xb0f63386 under the group 0x1603009e. | **not bound**: which arc takes which half of the heat is not confirmed |
 | heat label `x10` [0xa81a2028] | string (two objects, same hash) | The heat multiplier text, `x{int}` (`HEAT_X%.0f` **[binary]**). | **not bound**: the two objects share one hash, so a lookup by name finds only one of them |
 | `CostToState` [0x3ff5f33c] | string | The cost-to-state text, `1000000` (placeholder). | **not bound**: the feed has no cost |
+| cops group [0xe0b1430b] | group | The group holding `Cops_Icon` [0x3787231c] with its count `99`, `Cops_TakenOut_Icon` [0x0fe608e6] and `Cops_Damaged_Icon` [0xb224abde] with their counts (the dump lists them as its children). The group's own name is not among the candidates tried. Its fade-in scripts start on `0x3c97521a` / `0x5c930796`, the same messages as the board. | **bound** (E8b): shown with the board, held at full alpha in a chase |
+| `Cops_TakenOut` [0xa16f9f1e] | string | The cops taken out (wrecked) count, right-justified beside `Cops_TakenOut_Icon` (placeholder `99`, `FONT_MW_BODY`). Hash checked with `fe_hash_upper`. | **bound** (E8b): the wrecked count of the chase (`PursuitHud::cops_destroyed`) |
+| `Cops_Damaged` count [0x5fa70d4c] | string | The damaged count beside `Cops_Damaged_Icon` (placeholder `999`). | not bound: the damaged count is not in the feed |
+| `Cops_Icon` count [0x814918ca] | string | The cops in pursuit beside `Cops_Icon` (placeholder `99`). | not bound: the engaged count is not in the feed |
 | `Radar_Icon` [0x6ccbbbf1] | image | The radar's green laser. | bound already (`cop_nearby`) |
 | `Radar_DirectionArrow` [0x24196ad4], `RADAR_GROUP` [0x062743f5] | image, group | The radar's arrow and group. | not bound (the radar detector's target is not in the feed) |
 | busted bar | — | The bust meter (five segments, [ai-pursuit.md](ai-pursuit.md) section 4.4). | **not located**: no object name hashes to a candidate; the group 0x3345911d with four `button_ring.tga` images under 0x1603009e is unverified |
@@ -50,10 +54,10 @@ Driven by `HudState::pursuit` (`Option<PursuitHud>`, `None` while no cop chases 
   scripts (`0x033113ac`, `0x5079c8f8`, `0x13f51124`) start on messages this build does not raise (the cool-down group
   has `on 0x3c97521a`) **[verified]**. The fade is skipped, as for the mirror.
 - **The timer**: `secs` (the feed's seconds since the chase began) as `mm:ss.cc`, the package's template **[verified]**.
-- **The cool-down bar**: shown when the evaded share is at least 0.05 (the spec's `evade_level >= 0.05`, ai-pursuit.md
-  section 4.4 **[decomp]**). Its fill grows from the left end: width = full width × evaded share. The share is
-  `1 − secs_to_evade / timeout(heat)` (`blackbox_pursuit::evade::timeout`), which is the progress the world already
-  computes **[decomp]** (`scenes/world/ai/police/world.rs`, `pursuit_feed`). Shown on screen: the fill starts at the
+- **The cool-down bar**: shown when the cool-down meter is at least 0.05 (the spec's `evade_level >= 0.05`, ai-pursuit.md
+  section 6 **[decomp]**). Its fill grows from the left end: width = full width × the meter. The meter is
+  `TrafficWorld::evade_level()` (`blackbox_pursuit::Cooldown`, which decays by 0.93 while a cop sees the player). The
+  feed's `secs_to_evade` still gives the timeout's progress for the audio. Shown on screen: the fill starts at the
   left end and grows right **[verified, offscreen screenshot]**.
 - The cool-down group is inside the radar group in the package, so the layout decides it on its own flag, and the
   hiding parts and the bounty row are held hidden under any feature that shows around them.

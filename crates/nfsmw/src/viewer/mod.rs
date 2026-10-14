@@ -119,6 +119,8 @@ pub trait Scene {
     /// Apply optional collision sparks and high-speed wind trails.
     fn set_vehicle_effects(&mut self, _sparks: bool, _trails: bool) {}
     fn set_spark_style(&mut self, _style: crate::settings::SparkStyle) {}
+    /// Which high-speed effect the speed trails setting shows. Scenes without a car ignore it.
+    fn set_speed_trail_style(&mut self, _style: crate::settings::SpeedTrailStyle) {}
     /// Show the flames at the car's tail pipes (the `exhaust_flames` setting). Scenes without a car ignore it.
     fn set_exhaust_flames(&mut self, _on: bool) {}
     /// The sound's sputter module started `pops` pops since the last call (the lift-off backfire follows them).

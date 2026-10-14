@@ -231,3 +231,41 @@ lighter than its mass in the front (0.6) so it bounces off; a pit cop hits with 
   `AiVehicleModel` row; no separate physics class is needed beyond `SuspensionSimple` and the collision-reaction hook.
 - Put the `PlayerCollisions` lookup in `set_goal`; make it return the `collisionreactions` handle the body then reads.
 - Keep `time_since_target_seen` as the single sight signal; the pursuit's "perp in sight" is the minimum over cops.
+
+### 2.1 Rewrite implementation (epic E7)
+
+- **Range and cone** live in `libs/blackbox-pursuit/src/sight.rs` (`ranges`, `out_of_range`, `REAR_CONE_DOT`, `TEST_PERIOD`).
+  The cone uses the cop's own forward against the unit direction to the player, as in section 2 above.
+- **Occlusion** is a separate ray in `crates/nfsmw/src/scenes/world/drive/sight.rs` (`sight_cast`): every face blocks, so road
+  decks, bridge undersides and grouped scenery block. The only pass-through is a one-sided barrier met from behind. The
+  wall probe (`drive/walls.rs`, `world_cast`) is unchanged and still serves the body and the helicopter.
+- **Who looks:** every cop car: patrol cars, chase cops and roadblock cops (`ai/collide.rs`, `update_sight`). One world-level test
+  runs every 0.25 s of simulated time and holds its answer between tests. Per-cop `TimeSinceTargetSeen` and the 7 s
+  "perp in sight" grace are not modelled yet: the evade counter takes the instantaneous sight.
+- **Vertical gate:** `rules::on_level` (`COP_LEVEL_GATE` 8 m, **[unconfirmed]** design value) gates `nearest_cop`, which feeds
+  the off-road and contact rules. A cop on another level is not near. The busted meter is not in the rewrite yet.
+- **Open:** the install's exact vertical test and the game's occlusion query flags are not confirmed by reversing (see
+  `docs/provenance/ai-pursuit-sight.md`).
+
+### 2.2 Cop damage and the cops-wrecked count (epic E8b)
+
+- **Pure rules** live in `libs/blackbox-pursuit/src/wreck.rs`: `Wreck` (damage, flipped timer, shock, destroyed), `zone_of`
+  (the impact zone), `is_flipped`, and `WreckTuning` (the per-car numbers, passed in). The impulse is the car's collision
+  impulse (N s); the force is that impulse doubled, as the other body is a vehicle. A hit with a closing speed under 1 m/s
+  or beyond the suppress distance does nothing. Damage per hit is `ratio * zone_scale / HIT_POINTS` where the ratio is
+  `force / 20000`; a scaled ratio not over `HP_THRESHOLD` does nothing, and the car is wrecked once the damage is over 1.
+- **Per-car numbers** are the table of section 6 (`crates/nfsmw/src/scenes/world/ai/car/hits.rs`, `tuning_for`). Models not
+  in the table (`copsporthench`, `copsportghost`, `copcompact`, `cops`) take the base row; the two sport variants are
+  guesses for `copc6` **[unconfirmed]**.
+- **Flipped:** checked every 0.1 s; a flipped car is wrecked after 6.0 s, or at once when the player's car moved it within
+  the last 2.0 s (`PLAYER_CAUSE`, design value **[unconfirmed]** for the causality chain). The flipped test uses the
+  body's up against the ground normal taken as world up (the car's rest pose), so a car on a slope is approximated.
+- **Zone:** the contact normal is not carried by the collision hit, so the zone is the front, rear or side from the arm
+  alone; corners and top or bottom are not picked yet **[approximation]**.
+- **Shock:** `SetShockForce` is stored (`Wreck::set_shock`, scale over `SHOCK_FORCE` 40, decays over `SHOCK_TIME` 3 s), but
+  nothing reads it yet: the wreck coast-brake rule is not built, and the traffic shock (`car.rs`) is unchanged.
+- **Wrecked cops** brake where they are and stop counting as cops (`AiCar::is_cop`), so they leave the sight, the nearest
+  cop and the formation. They are not yet removed from the world (the manager's `AIActionTooDamaged` retirement is not built).
+- **The count:** `Police::record_wreck` (`ai/police.rs`) counts each wreck while a chase is on, and `begin` clears it. The
+  rep points of the wreck (`RepPointsForDestroying[heat]`) are **not paid**: `record_wreck` is the hook they go in.
+- **Engaged cops** (`GetNumCopsFullyEngaged`) and **damaged cops** (`GetNumCopsDamaged`) are not counted yet.

@@ -1,0 +1,11 @@
+[package]
+name = "ini-tuning"
+description = "Reader for INI-style tuning files: sections, keys, comments, and numeric values checked against a range. Pure text in, values out."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true

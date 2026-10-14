@@ -1,11 +1,12 @@
-//! The sun the world is lit by. Its daily motion follows `docs/specs/time-of-day.md`: a phase that
-//! runs back and forth between two limits, with the sun's direction built from that phase.
+//! The sun the world is lit by. Its daily motion follows `docs/specs/time-of-day.md`: the phase is set from the
+//! day-night clock (`nfsmw_data::day_night::sun_phase`), and the sun's direction is built from that phase.
 
 use glam::Vec3;
-use nfsmw_data::time_of_day::{advance_sun_phase, sun_direction, sun_phase_limit};
+use nfsmw_data::day_night::DayNightConfig;
+use nfsmw_data::time_of_day::{sun_direction, sun_phase_limit};
 
-/// The orbit's angle offsets (the lighting object's `+0x0C` and `+0x10`), at their constructor defaults.
-const ANGLE_A: f32 = 3.28;
+/// The orbit's second angle offset (the lighting object's `+0x10`), at its constructor default. The first one
+/// (`+0x0C`) is the configured `sun_azimuth`.
 const ANGLE_B: f32 = 0.5;
 /// The phase at the start: noon. The game's phase at the start of a drive is not yet known.
 const START_PHASE: f32 = 0.5;
@@ -18,17 +19,18 @@ pub(super) fn to_sun() -> Vec3 {
     -DIRECTION
 }
 
-/// The sun's daily motion.
+/// The sun's position on its orbit.
 pub(super) struct Sun {
     phase: f32,
-    dir: i32,
     lo: f32,
+    azimuth: f32,
 }
 
 impl Sun {
-    /// The sun at the start of the day, in the free-roam phase limit.
+    /// The sun at noon, in the free-roam phase limit, with the default azimuth.
+    /// TODO: take the configured `sun_azimuth` once the day-night config is loaded from the settings file.
     pub(super) fn new() -> Self {
-        Self { phase: START_PHASE, dir: 1, lo: sun_phase_limit(0) }
+        Self { phase: START_PHASE, lo: sun_phase_limit(0), azimuth: DayNightConfig::default().sun_azimuth }
     }
 
     /// Diagnostic freeze holds lighting, without stopping traffic or accruing a catch-up step.
@@ -42,13 +44,16 @@ impl Sun {
     /// Moves the sun on by `dt` seconds (the frame time).
     pub(super) fn advance(&mut self, dt: f32) {
         let (phase, dir) = advance_sun_phase(self.phase, self.dir, 1.0, dt, self.lo);
+    }
+    
+    /// Sets the phase, for the time of day (see `nfsmw_data::day_night::sun_phase`).
+    pub(super) fn set_phase(&mut self, phase: f32) {
         self.phase = phase;
-        self.dir = dir;
     }
 
     /// The direction from the world towards the sun.
     pub(super) fn to_sun(&self) -> Vec3 {
-        Vec3::from_array(sun_direction(self.phase, self.lo, ANGLE_A, ANGLE_B))
+        Vec3::from_array(sun_direction(self.phase, self.lo, self.azimuth, ANGLE_B))
     }
 
     /// The direction the sun's light travels: the opposite of `to_sun`.
@@ -71,12 +76,10 @@ mod tests {
     }
 
     #[test]
-    fn advancing_moves_the_sun() {
+    fn setting_the_phase_moves_the_sun() {
         let mut sun = Sun::new();
         let before = sun.to_sun();
-        for _ in 0..600 {
-            sun.advance(1.0 / 60.0);
-        }
+        sun.set_phase(0.1);
         assert_ne!(sun.to_sun(), before);
     }
 

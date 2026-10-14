@@ -1,13 +1,14 @@
 //! Roadblocks in the world: a block of cop cars across the road 250 m ahead of the player, laid out by
 //! `blackbox_pursuit::roadblock`. The cars stop where they are placed, with the brakes held (`AIGoalStaticRoadBlock`).
-//! Only the cars are placed: barriers and spike strips need props, which are not spawned yet. The road is taken as two
-//! lanes (a 3.5 m half width, unconfirmed) because the rewrite does not read the lane profile here yet.
-//! Spec: `docs/specs/ai-pursuit-roadblocks.md` sections 2 and 3.
+//! The cars and the spike strips are placed; the sawhorse barriers are not, as they need props. A roadblock rolls its
+//! layout list by the heat's spike chance. The road is taken as two lanes (a 3.5 m half width, unconfirmed) because the
+//! rewrite does not read the lane profile here yet. Spec: `docs/specs/ai-pursuit-roadblocks.md` sections 2 to 4.
 
 use blackbox_collision::CollisionWorld;
-use blackbox_pursuit::roadblock::{self, Element, NORMAL, Road};
-use blackbox_roads::{LaneType, NavKind, RoadNav, SegmentFilter};
-use glam::Vec3;
+use blackbox_pursuit::roadblock::{self, Element, Layout, NORMAL, Road, SPIKES};
+use blackbox_pursuit::spikes::Strip;
+use blackbox_roads::{LaneType, NavKind, RandomSource, RoadNav, SegmentFilter};
+use glam::{Vec2, Vec3};
 use nfsmw_data::car::physics::SurfaceTable;
 
 use super::TrafficWorld;
@@ -49,14 +50,29 @@ impl TrafficWorld {
             Road { left: centre + side * LANE_HALF, right: centre - side * LANE_HALF, target: at_player, forward };
         let cr_width = 2.0 * LANE_HALF + 1.0;
         let cars = roadblock::cars_asked(cr_width);
-        let layout = roadblock::pick(&NORMAL, cr_width, cars).ok_or("no roadblock layout fits this road")?;
+        let heat = self.police.level().unwrap_or(1);
+        let spikes = roadblock::takes_spikes(heat, self.rng.next_f32());
+        let list: &[Layout] = if spikes { &SPIKES } else { &NORMAL };
+        let layout = roadblock::pick(list, cr_width, cars).ok_or("no roadblock layout fits this road")?;
         let mut placed = 0;
-        for slot in roadblock::place(layout, &road).iter().filter(|p| p.kind == Element::Car) {
+        let mut strips = 0;
+        for slot in roadblock::place(layout, &road) {
             let at = Vec3::new(slot.position.x, centre.y, slot.position.z);
-            if self.place_roadblock_car(at, slot.heading, collision, surfaces) {
-                placed += 1;
+            match slot.kind {
+                Element::Car => {
+                    if self.place_roadblock_car(at, slot.heading, collision, surfaces) {
+                        placed += 1;
+                    }
+                }
+                Element::Spike => {
+                    self.spikes.push(Strip { position: Vec2::new(at.x, at.z), heading: slot.heading });
+                    strips += 1;
+                }
+                // Sawhorse barriers need their props, which are not spawned yet.
+                Element::Barrier => {}
             }
         }
+        log::info!("roadblock: {} layout, {strips} spike strips", if spikes { "spike" } else { "plain" });
         Ok(placed)
     }
 

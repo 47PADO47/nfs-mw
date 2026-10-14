@@ -89,14 +89,15 @@ fn race_start(at: [f32; 2]) -> MapBlip {
 #[test]
 fn a_blip_past_the_rim_stays_registered_to_the_minimap_at_wide_aspects() {
     let (mut rt, id, mut binding) = setup();
-    // A cop 900 m east of the player: past the rim, so it is pinned to the edge of the disc.
+    // A pursuing cop 900 m east of the player: past the rim, so it is pinned to the edge of the disc. (A car that is
+    // not pursuing is drawn only inside the view, so it would not be on the map at all.)
     let state = HudState {
         minimap: Some(MapPosition { position: PLAYER, heading: [0.0, 1.0], orientation: Orientation::North }),
         blips: vec![MapBlip {
             style: COP,
             position: [PLAYER[0] + 900.0, PLAYER[1]],
             heading: [0.0, 1.0],
-            active: false,
+            active: true,
         }],
         ..HudState::default()
     };
@@ -138,4 +139,44 @@ fn a_race_start_far_off_the_disc_takes_no_icon() {
     let tree = rt.tree(id);
     assert!(drawn(&tree, "MMICON_SPRINT_0"), "the near start has the first icon");
     assert!(!drawn(&tree, "MMICON_SPRINT_1"), "the far start takes no icon");
+}
+
+fn cop(at: [f32; 2], active: bool) -> MapBlip {
+    MapBlip { style: COP, position: at, heading: [0.0, 1.0], active }
+}
+
+#[test]
+fn a_cop_outside_the_disc_is_not_drawn_when_not_pursuing() {
+    let (mut rt, id, mut binding) = setup();
+    binding.apply(&mut rt, &on_the_map(vec![cop([PLAYER[0] + 900.0, PLAYER[1]], false)]));
+    assert!(!drawn(&rt.tree(id), COP_ICON), "a car outside the view is not on the map");
+}
+
+#[test]
+fn a_cop_inside_the_disc_is_drawn_when_not_pursuing() {
+    let (mut rt, id, mut binding) = setup();
+    binding.apply(&mut rt, &on_the_map(vec![cop([PLAYER[0] + 50.0, PLAYER[1]], false)]));
+    let tree = rt.tree(id);
+    assert!(drawn(&tree, COP_ICON), "a car inside the view is drawn");
+    let offset = offset_from_centre(&tree, COP_ICON);
+    assert!(offset.truncate().length() <= RIM + 0.01, "inside the disc: {offset:?}");
+}
+
+#[test]
+fn a_pursuing_cop_outside_the_disc_is_drawn_pinned_to_the_rim() {
+    let (mut rt, id, mut binding) = setup();
+    binding.apply(&mut rt, &on_the_map(vec![cop([PLAYER[0] + 900.0, PLAYER[1]], true)]));
+    let tree = rt.tree(id);
+    assert!(drawn(&tree, COP_ICON), "a pursuing car is always drawn");
+    let offset = offset_from_centre(&tree, COP_ICON);
+    assert!((offset.truncate().length() - RIM).abs() < 0.01, "pinned to the rim: {offset:?}");
+}
+
+#[test]
+fn a_car_outside_the_view_takes_no_icon_from_one_inside_it() {
+    // The far car is listed first. It is not drawn, so it must not take the one icon the near car needs.
+    let (mut rt, id, mut binding) = setup();
+    let blips = vec![cop([PLAYER[0] + 5000.0, PLAYER[1]], false), cop([PLAYER[0] + 50.0, PLAYER[1]], false)];
+    binding.apply(&mut rt, &on_the_map(blips));
+    assert!(drawn(&rt.tree(id), COP_ICON), "the near car has the icon");
 }

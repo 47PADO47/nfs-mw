@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use blackbox_gfx::{BlendMode, InstanceKey, MeshHandle, RenderBackend, Shading, TextureHandle};
 use blackbox_scene::{Aabb, blend_mode, upload_solid, upload_texture};
 use blackbox_scenery::LodModel;
+use blackbox_solid::Solid;
 use glam::Mat4;
 use nfsmw_data::world::{PropCatalog, PropShape, SectionData};
 use std::sync::Arc;
@@ -88,9 +89,24 @@ impl SectionResources {
 
     /// Upload solids, resolving textures here first and then in `fallback` (the shared sets).
     pub fn upload_meshes(&mut self, renderer: &mut dyn RenderBackend, data: &SectionData, fallback: &SectionResources) {
+        self.upload_solid_list(renderer, &data.solids, fallback, false);
+    }
+
+    /// Upload solids, resolving textures here first and then in `fallback`. With `keep_existing`, a solid whose
+    /// name hash is already resident is skipped (the first upload wins, as the textures do).
+    pub fn upload_solid_list(
+        &mut self,
+        renderer: &mut dyn RenderBackend,
+        solids: &[Solid],
+        fallback: &SectionResources,
+        keep_existing: bool,
+    ) {
         let lookup = |hash: u32| self.materials.get(&hash).or_else(|| fallback.materials.get(&hash)).copied();
         let mut meshes = Vec::new();
-        for solid in &data.solids {
+        for solid in solids {
+            if keep_existing && self.meshes.contains_key(&solid.name_hash) {
+                continue;
+            }
             if let Some(mesh) = upload_solid(renderer, solid, &lookup, shading_for(&solid.name)) {
                 let lod = LodModel { num_polys: solid.num_polys, density: solid.density };
                 meshes.push((solid.name_hash, (mesh, lod, solid.name.starts_with("SHD_"))));

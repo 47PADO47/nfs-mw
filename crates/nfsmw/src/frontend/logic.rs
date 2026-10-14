@@ -7,6 +7,7 @@ use blackbox_gfx::Capabilities;
 use glam::Vec2;
 
 use super::confirm::{Alert, Confirm};
+use super::world_map::WorldMapFrame;
 use crate::input::Control;
 use crate::settings::{Partial, Settings};
 use crate::ui::UiAssets;
@@ -92,6 +93,8 @@ pub struct Cx<'a> {
     pub memory: &'a mut std::collections::HashMap<String, usize>,
     /// The key names of the controls list, per row: the primary and the secondary (`controls_screen::key_texts`).
     pub key_texts: &'a [[String; 2]],
+    /// The world map's frame while the map is open (`world_map/screen`); `None` on every other screen.
+    pub world_map: Option<&'a WorldMapFrame>,
     pub name: &'a str,
 }
 
@@ -112,6 +115,11 @@ impl Cx<'_> {
             self.rt.set_text(ObjectRef { package: self.package, index }, text);
         }
     }
+    /// The object with this GUID in the screen's package.
+    pub fn guid(&self, guid: u32) -> Option<ObjectRef> {
+        self.rt.find_guid(self.package, guid)
+    }
+
     /// The object with this name hash in the screen's package.
     pub fn object(&self, name_hash: u32) -> Option<ObjectRef> {
         self.rt.find(self.package, name_hash)

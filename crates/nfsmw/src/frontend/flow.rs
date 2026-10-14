@@ -8,7 +8,7 @@ use game_install::GameDir;
 
 use super::browse::Browse;
 use super::loading;
-use super::logic::{Args, Command, Env};
+use super::logic::{Args, Command, Env, ScreenLogic};
 use super::scene::{ConcealFlag, MenuScene, Pausable, PauseFlag};
 use super::screens::Screens;
 use super::script::UiScript;
@@ -55,10 +55,12 @@ pub enum Stage {
     Loading,
     Playing,
     Paused,
+    /// The world map is open over the frozen game (`world_map/control.rs`).
+    Map,
 }
 
 use super::confirm::{Alert, AlertLogic};
-use super::ids::screen::{DIALOG, LOADING, MAIN_MENU, PAUSE_MENU, SPLASH, SPLASH_WIDE};
+use super::ids::screen::{DIALOG, LOADING, MAIN_MENU, PAUSE_MENU, SPLASH, SPLASH_WIDE, WORLD_MAP};
 use crate::ui::Text;
 
 /// Windows wider than this (width over height) get the widescreen title screen; 4:3 is 1.33.
@@ -81,7 +83,7 @@ pub(super) fn free_roam_options() -> Options {
 #[derive(Resource)]
 pub struct Frontend {
     pub(super) screens: Screens,
-    dir: GameDir,
+    pub(super) dir: GameDir,
     start: Option<Start>,
     pub(super) stage: Stage,
     boot: VecDeque<Boot>,
@@ -260,7 +262,16 @@ impl Frontend {
         self.apply(commands, host, env);
     }
 
-    fn resume(&mut self) {
+    /// Opens the world map over the frozen game: its screen is the package `WorldMapMain.fng`, with the map's logic.
+    pub(super) fn open_map(&mut self, logic: Box<dyn ScreenLogic>, host: &mut Host, env: &mut Env) {
+        self.latch = true;
+        self.paused.set(true);
+        self.stage = Stage::Map;
+        let commands = self.screens.open_with(WORLD_MAP, logic, true, env);
+        self.apply(commands, host, env);
+    }
+
+    pub(super) fn resume(&mut self) {
         self.latch = true;
         self.screens.clear();
         self.paused.set(false);

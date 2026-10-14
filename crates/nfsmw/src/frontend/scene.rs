@@ -301,6 +301,10 @@ impl Scene for Pausable {
         self.effects_dirty = true;
     }
 
+    fn set_speed_trail_style(&mut self, style: crate::settings::SpeedTrailStyle) {
+        self.inner.set_speed_trail_style(style);
+    }
+
     fn set_spark_style(&mut self, style: crate::settings::SparkStyle) {
         self.inner.set_spark_style(style);
         self.effects_dirty = true;

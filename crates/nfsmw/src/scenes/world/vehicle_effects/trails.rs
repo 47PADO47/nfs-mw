@@ -11,6 +11,12 @@ use super::{MAX_TRAILS, geometry};
 pub(super) const ACTIVATION_SPEED: f32 = 44.0;
 const DISPATCH_RATE: f32 = 60.0;
 
+/// How strong the trail is at `speed` (m/s), 0.1 to 0.75 from the activation speed up; `None` below it. The
+/// view streaks use the same curve, so both effects start and grow together.
+pub(super) fn intensity(speed: f32) -> Option<f32> {
+    (speed >= ACTIVATION_SPEED).then(|| (0.1 + (speed / ACTIVATION_SPEED - 1.0) * 0.65).clamp(0.1, 0.75))
+}
+
 pub(super) struct Trails {
     particles: VecDeque<Particle>,
     carry: f32,
@@ -38,12 +44,14 @@ impl Trails {
     }
 
     pub fn emit(&mut self, style: Option<EmitterStyle>, pose: CarPose, velocity: Vec3, dt: f32) {
-        let speed = velocity.length();
-        let Some(style) = style.filter(|_| speed >= ACTIVATION_SPEED) else {
+        let Some(style) = style else {
             self.carry = 0.0;
             return;
         };
-        let intensity = (0.1 + (speed / ACTIVATION_SPEED - 1.0) * 0.65).clamp(0.1, 0.75);
+        let Some(intensity) = intensity(velocity.length()) else {
+            self.carry = 0.0;
+            return;
+        };
         self.carry = (self.carry + DISPATCH_RATE * dt).min(4.0);
         let dispatches = self.carry.floor() as usize;
         self.carry -= dispatches as f32;
