@@ -8,7 +8,7 @@ runs the same way.
 - **Sources read:** [dbalatoni13/nfsmw](https://github.com/dbalatoni13/nfsmw) (CC0-1.0, decompiled; GameCube
   build), `src/Speed/Indep/Libs/snd/9/`: `extern/aemsdef.h` (node structures), `source/library/cmn/saems.c` (node
   update functions, player, module instances, bank resolution), `saemstimupdt.c`, `sndcmn.h`. The PC functions
-  with the numbers 0 to 3, 7, 11, 15 and 31 of the table below were read in `speed.exe` (disassembled) and match.
+  with the numbers 0 to 3, 7, 11, 15, 30 and 31 of the table below were read in `speed.exe` (disassembled) and match.
   Read for understanding; no code copied.
 - **Data inputs:** the module banks (`.abk`) of `SOUND/ENGINE`, `SHIFTING`, `TURBO`, `SKIDS`, `NOS`,
   `IG_GLOBAL`.
@@ -20,13 +20,25 @@ width) at byte `k` of a node.
 ## 1. Instances and the update
 
 A module is instantiated when the game creates a Csis object of its class (`CAR`, `CAR_SWTN`, ...) and removed
-when the graph's destroy node fires or the object is deleted. An instance has its own copy of the data, a
+when the graph's destroy node fires. Releasing the class object notifies the graph through its destructor
+callback; it does not immediately erase the graph. An instance has its own copy of the data, a
 random-number state and a set of players. At most `max instances` of a module exist.
 
 The game sets the class data (the object's parameters) whenever it changes them (`SetMemberData`), then once per
 **update tick** calls the module's code, which runs every node once, in the order of the code, and routes the
 results. The tick period `T` is in milliseconds and may vary; the original uses the sound system's variable timer.
 This implementation uses the fixed 60 Hz tick of the car sound (`T = 16.6667`).
+
+**[verified: matched PC callbacks and synthetic replay]** The first sixteen bytes of a class-data node are
+client bookkeeping. Its output count is the byte at +0x10; parameters begin at +0x14. The member-data
+callback copies exactly that many signed words from the supplied parameter array into those outputs.
+It leaves the bookkeeping, count and surrounding graph data unchanged. The node function returns the
+first parameter at +0x14. No implicit ID, type or volume transformation occurs in this callback.
+
+The destructor callback writes the word at +0x10 of the destructor node to 1. Its node function returns
+and clears that flag. Class release invokes registered destructor callbacks and then drops the class
+reference; it does not replace the class parameters or force its volume to zero. Later updates must
+continue executing the authored release path until the destroy node tears down the instance.
 
 ## 2. The node functions **[verified: numbering, sizes]**
 

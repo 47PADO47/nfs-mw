@@ -101,6 +101,9 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | [formats/cardata.md](formats/cardata.md) | Car types, parts database, slot types, presets, light materials, solid markers, `ecar`, vinyls | Car tables verified; vinyls partial |
 | [formats/animation.md](formats/animation.md) | EAGL4 ELF objects, skeletons, banks, NIS cutscenes | Container verified; codecs open |
 | [formats/audio.md](formats/audio.md) | Sound banks, GIN engine loops, MPF/MUS music, speech, reverb | Codecs known; speech `.idx` verified, `.evt` and `.csi` partial |
+| [specs/car-audio-tyres-transmission.md](specs/car-audio-tyres-transmission.md) | Authored skid and transmission producers | PC bounds and installed playback regressions |
+| [specs/car-audio-road-weather.md](specs/car-audio-road-weather.md) | Road transitions, stitch road and weather wind | PC parameters; render-clock policy explicit |
+| [specs/car-audio-environment.md](specs/car-audio-environment.md) | Engine environment, distance filtering and software effects | Producers checked; world zones and wet processing pending |
 | [formats/aems.md](formats/aems.md) | AEMS module banks: the dataflow graphs and code inside `.abk` files | Verified on all 301 banks; Rust reader |
 | [formats/mixmap.md](formats/mixmap.md) | Dynamic-mixer maps (`MIXMAPS/*.mxb`): states, controls, events, 3D controls, channels, presets | Verified; Rust reader |
 | [formats/video.md](formats/video.md) | EA VP6 container and decoder options | Complete |
