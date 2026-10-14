@@ -10,8 +10,8 @@ use crate::hud::{
     RACE_TOLLBOOTH, SAFE_HOUSE,
 };
 
-/// The chase as the pursuit board shows it. The evade share is the part of the evade timeout already done (the feed
-/// gives what is left of it). `cops_destroyed` is the chase's wrecked cops.
+/// The chase as the pursuit board shows it: the timer and the wrecked cops. The evade share is what the feed gives (the
+/// part of the timeout done); the board's bar takes the cool-down meter instead, see [`WorldScene::hud_frame`].
 fn pursuit_hud(feed: PursuitFeed, cops_destroyed: u32) -> PursuitHud {
     PursuitHud {
         cops_destroyed,
@@ -34,12 +34,25 @@ impl WorldScene {
                 // The radar's green laser shows while cops chase the player.
                 state.cop_nearby = traffic.is_pursuing();
                 let wrecked = traffic.cops_destroyed();
-                state.pursuit = traffic.pursuit_feed().map(|feed| pursuit_hud(feed, wrecked));
+                // The bar is the escape's cool-down meter: it fills while the cops are out of sight and drains when
+                // they see the player again (`docs/specs/ai-pursuit.md` section 6).
+                state.pursuit = traffic
+                    .pursuit_feed()
+                    .map(|feed| PursuitHud { evade: traffic.evade_level(), ..pursuit_hud(feed, wrecked) });
                 state.busted = traffic.busted_meter();
             }
             state.blips.extend_from_slice(&self.map_blips);
         }
         hud
+    }
+
+    /// The end-of-pursuit card, drawn over the frame while it is up. Not in the fly view.
+    pub(super) fn show_pursuit_end(&self, ctx: &egui::Context) {
+        if self.view == View::Fly {
+            return;
+        }
+        let Some(card) = self.traffic.as_ref().and_then(|traffic| traffic.pursuit_end_card()) else { return };
+        crate::hud::show_pursuit_end(ctx, &card);
     }
 }
 

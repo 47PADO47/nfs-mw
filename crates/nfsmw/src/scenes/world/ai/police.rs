@@ -16,7 +16,7 @@ use blackbox_pursuit::helicopter::control::{Flat, Heights};
 use blackbox_pursuit::helicopter::{Helicopter, Mode, SearchInput, THINK_PERIOD, Target, Tuning};
 use blackbox_pursuit::rules::{self, Contact};
 use blackbox_pursuit::support::Strategy;
-use blackbox_pursuit::{Busted, Evade, Fines, Heat, Infraction, InfractionLog};
+use blackbox_pursuit::{Busted, Cooldown, EndReason, Fines, Heat, Infraction, InfractionLog};
 use blackbox_render::Instance;
 use blackbox_roads::{HeliSheet, RandomSource, SegmentFilter, TrackZone, closest_segment, to_zone_space};
 use blackbox_speedfx::{Effects, SpeedFx, Tuning as SpeedTuning};
@@ -118,8 +118,12 @@ pub struct Police {
     search_turns: f32,
     /// The helicopter's model, when it is loaded (`COPHELI`).
     rig: Option<Rc<CarRig>>,
-    /// Unseen time towards getting away (`blackbox_pursuit::Evade`).
-    evade: Evade,
+    /// The escape: the grace, the cool-down meter and EVADED (`blackbox_pursuit::Cooldown`).
+    cooldown: Cooldown,
+    /// How the last chase ended, kept after it until the next chase (`blackbox_pursuit::EndReason`).
+    end_reason: EndReason,
+    /// Seconds since the last chase ended; the end card fades by it.
+    since_end: f32,
     /// The car's heat carried from the last escape (`VehicleHeat`, the career stable's value for the one car).
     carried_heat: f32,
     /// The formation timer and the last formation chosen (`blackbox_pursuit::formation`).
@@ -158,7 +162,9 @@ impl Default for Police {
             speed_fx: SpeedFx::new(SpeedTuning::default()),
             search_turns: 0.0,
             rig: None,
-            evade: Evade::default(),
+            cooldown: Cooldown::default(),
+            end_reason: EndReason::None,
+            since_end: 0.0,
             carried_heat: 0.0,
             formations: Picker::new(),
             last_formation: None,
@@ -188,7 +194,9 @@ impl Police {
         self.infractions.clear();
         self.heli_wait = FIRST_JOIN;
         self.seen = true;
-        self.evade.reset();
+        self.cooldown = Cooldown::default();
+        self.end_reason = EndReason::None;
+        self.since_end = 0.0;
         self.pursuit_time = 0.0;
         self.support_timer = SUPPORT_CHECK;
         self.roadblock_requested = false;
@@ -211,9 +219,11 @@ impl Police {
         self.cops_destroyed
     }
 
-    /// The chase is over: the helicopter, if any, leaves.
-    pub fn end(&mut self) {
+    /// The chase is over with `reason`: the helicopter, if any, leaves. The reason and the counts stay for the summary.
+    pub fn end(&mut self, reason: EndReason) {
         self.heat = None;
+        self.end_reason = reason;
+        self.since_end = 0.0;
         if let Some(heli) = self.heli.as_mut() {
             heli.leave();
         }
@@ -293,14 +303,16 @@ impl Police {
                 heat.grow(dt, time_per_level(heat.level()));
             }
             let level = self.level().unwrap_or(1);
-            self.evade.update(dt, sensed.seen, sensed.hidden, level);
             self.tick_formations(dt, level, sensed.formation_random);
             self.tick_finisher(dt, sensed.formation_gap);
             self.tick_support(dt, sensed.seen, level, sensed.support_random);
-            evaded = self.evade.evaded(level);
+            evaded = self.tick_cooldown(dt, sensed, level);
             if let (true, Some(heat)) = (evaded, self.heat) {
                 self.carried_heat = heat.value() * EVADE_HEAT_ADJUST;
             }
+        }
+        if !pursuing {
+            self.age_end_card(dt);
         }
         self.think_helicopter(dt, pursuing, player, sensed, clear);
         evaded
@@ -464,6 +476,7 @@ impl Police {
 mod tests;
 
 mod busted;
+mod escape;
 mod helpers;
 mod world;
 

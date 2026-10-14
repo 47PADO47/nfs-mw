@@ -39,7 +39,7 @@ fn only_a_chase_counts_the_cops_it_wrecks_and_each_chase_starts_at_zero() {
     police.record_wreck();
     police.record_wreck();
     assert_eq!(police.cops_destroyed(), 2);
-    police.end();
+    police.end(EndReason::None);
     assert_eq!(police.cops_destroyed(), 2, "the count stays after the chase, for the summary");
     police.begin(5);
     assert_eq!(police.cops_destroyed(), 0);
@@ -241,7 +241,47 @@ fn a_chase_counts_its_seconds_only_while_it_runs() {
     police.begin(1);
     police.update(2.0, true, &view(0.0), sensed(false));
     assert_eq!(police.pursuit_time, 2.0);
-    police.end();
+    police.end(EndReason::None);
     police.update(2.0, false, &view(0.0), sensed(false));
     assert_eq!(police.pursuit_time, 2.0, "no clock runs without a chase");
+}
+
+#[test]
+fn an_escape_is_evaded_and_the_reason_and_the_card_clock_stay_after_the_chase() {
+    use blackbox_pursuit::CooldownStatus;
+    let mut police = Police::default();
+    police.begin(1);
+    // Level 1 needs 20 s unseen; the sight timer starts at -5 s, so the escape is reached near 25 s.
+    let mut evaded = false;
+    for _ in 0..400 {
+        evaded |= police.update(0.1, true, &view(5.0), sensed(false));
+    }
+    assert!(evaded, "got away");
+    assert_eq!(police.cooldown_status(), CooldownStatus::Evaded);
+    assert_eq!(police.end_reason(), EndReason::None, "the world ends the chase; the reason is set then");
+    police.end(EndReason::Evaded);
+    assert_eq!(police.end_reason(), EndReason::Evaded);
+    police.update(0.5, false, &view(5.0), sensed(false));
+    assert!((police.since_end() - 0.5).abs() < 1e-4, "the card's clock runs once the chase is over");
+    police.begin(1);
+    assert_eq!(police.end_reason(), EndReason::None, "a new chase clears the reason");
+}
+
+#[test]
+fn a_bust_ends_the_chase_busted_and_the_escape_does_not_tick() {
+    use blackbox_pursuit::busted::BustInput;
+    let mut police = Police::default();
+    police.begin(1);
+    let bust = BustInput { cop_distance: 5.0, seen: true, player_speed: 0.0, slow_speed: 5.0, flashing: false };
+    let mut busted = false;
+    for _ in 0..100 {
+        busted |= police.tick_busted(0.1, true, bust);
+    }
+    assert!(busted, "busted after the 5 s timeout");
+    let mut evaded = false;
+    for _ in 0..100 {
+        evaded |= police.update(0.1, true, &view(5.0), sensed(false));
+    }
+    assert!(!evaded, "a busted chase does not evade");
+    assert_eq!(police.escape_progress(), -5.0, "the escape stayed at its start");
 }

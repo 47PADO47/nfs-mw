@@ -286,6 +286,7 @@ impl Scene for WorldScene {
 
     fn ui(&mut self, ctx: &egui::Context) -> f32 {
         crate::hud::show_interact_prompt(ctx, &self.entry.popup);
+        self.show_pursuit_end(ctx);
         0.0
     }
 

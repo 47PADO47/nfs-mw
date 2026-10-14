@@ -4,6 +4,7 @@
 use std::rc::Rc;
 
 use blackbox_collision::CollisionWorld;
+use blackbox_pursuit::EndReason;
 use blackbox_pursuit::wave::{Slot, pick_needed};
 use blackbox_roads::{LaneType, NavKind, RandomSource, RoadNav, SegmentFilter};
 use blackbox_vehicle::performance::Performance;
@@ -89,10 +90,15 @@ impl TrafficWorld {
         self.police.begin(heat);
     }
 
-    /// Ends the chase and removes the cops.
+    /// Ends the chase without a result (the `pursuit off` command) and removes the cops.
     pub fn stop_pursuit(&mut self) {
+        self.end_pursuit(EndReason::None);
+    }
+
+    /// Ends the chase with `reason` and removes the cops. The reason stays readable after it (the end card, the camera).
+    pub fn end_pursuit(&mut self, reason: EndReason) {
         self.pursuit = None;
-        self.police.end();
+        self.police.end(reason);
         self.cars.retain(|c| !c.is_cop());
     }
 
