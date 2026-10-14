@@ -85,6 +85,10 @@ pub struct Sensed {
     pub nearest_cop: f32,
     /// The player hit traffic within the traffic's hit memory.
     pub hit_traffic: bool,
+    /// The player's hit this frame is the first that damages a cop (an assault).
+    pub struck_cop: bool,
+    /// The player's car touched a breakable prop this frame (damage to property).
+    pub struck_property: bool,
     /// The player is in a hiding spot (a HIDDEN track zone at its height): the evade progress runs faster.
     pub hidden: bool,
     /// The player is in a HIDDEN zone that hides it from helicopters (a zone flagged `Car` does not).
@@ -409,23 +413,33 @@ impl Police {
             self.infractions.record(Infraction::OffRoad, &FINES);
         }
         if sensed.hit_traffic {
-            let contact = Contact {
-                target: rules::Target::Traffic,
-                deliberate: player.throttle > DELIBERATE_THROTTLE,
-                closing_speed: player.speed.abs(),
-                in_pursuit: true,
-                cop_sees: sensed.seen,
-                nearest_cop: sensed.nearest_cop,
-                first_damage: false,
-            };
-            if let Some(infraction) = rules::contact_infraction(&contact) {
-                self.infractions.record(infraction, &FINES);
-            }
+            self.record_contact(rules::Target::Traffic, player, sensed, false);
+        }
+        if sensed.struck_cop {
+            self.record_contact(rules::Target::Cop, player, sensed, true);
+        }
+        if sensed.struck_property {
+            self.record_contact(rules::Target::Breakable, player, sensed, false);
         }
         if rules::lost_sight(self.seen, sensed.seen) {
             self.infractions.record(Infraction::ResistingArrest, &FINES);
         }
         self.seen = sensed.seen;
+    }
+
+    /// Records the infraction of a contact with `target`, if the rules make one (`rules::contact_infraction`).
+    fn record_contact(&mut self, target: rules::Target, player: &PlayerView, sensed: Sensed, first_damage: bool) {
+        let contact = Contact {
+            target,
+            deliberate: player.throttle > DELIBERATE_THROTTLE,
+            closing_speed: player.speed.abs(),
+            in_pursuit: true,
+            cop_sees: sensed.seen,
+            nearest_cop: sensed.nearest_cop,
+            first_damage,
+        };
+        let Some(infraction) = rules::contact_infraction(&contact) else { return };
+        self.infractions.record(infraction, &FINES);
     }
 }
 

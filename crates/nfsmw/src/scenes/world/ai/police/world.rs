@@ -56,12 +56,15 @@ impl super::super::TrafficWorld {
         let pursuing = self.is_pursuing();
         let level = self.police.level().unwrap_or(1);
         let at = Vec3::from_array(space::to_physics(player.position));
+        let strikes = self.take_strikes();
         let sensed = Sensed {
             seen: self.sighting(level).seen,
             unit_random: self.rng.next_f32(),
             on_road: self.near_road(at),
             nearest_cop: self.nearest_cop(at),
             hit_traffic: self.sighting(level).recent_hit,
+            struck_cop: strikes.cop,
+            struck_property: strikes.property,
             hidden: self.hidden_from_cars(at),
             hidden_from_heli: self.hidden_from_helicopters(at),
             in_tunnel: self.in_tunnel(at),

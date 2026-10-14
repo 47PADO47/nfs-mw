@@ -14,6 +14,8 @@ fn sensed(seen: bool) -> Sensed {
         on_road: true,
         nearest_cop: 10.0,
         hit_traffic: false,
+        struck_cop: false,
+        struck_property: false,
         hidden: false,
         hidden_from_heli: false,
         in_tunnel: false,
@@ -142,6 +144,45 @@ fn a_hit_with_the_throttle_held_and_a_cop_close_is_hit_and_run() {
     deliberate.begin(1);
     deliberate.update(0.1, true, &PlayerView { speed: 20.0, throttle: 1.0, ..view(20.0) }, watched);
     assert!(deliberate.infractions().contains(Infraction::HitAndRun));
+}
+
+#[test]
+fn a_first_hit_on_a_cop_while_it_sees_the_player_is_assault() {
+    let struck = Sensed { struck_cop: true, nearest_cop: 10.0, ..sensed(true) };
+    let mut police = Police::default();
+    police.begin(1);
+    police.update(0.1, true, &PlayerView { throttle: 1.0, ..view(20.0) }, struck);
+    assert!(police.infractions().contains(Infraction::Assault));
+    assert_eq!(police.infractions().total_fines(), 350, "the assault fine");
+}
+
+#[test]
+fn an_assault_is_not_logged_from_an_accident_and_counts_once() {
+    let struck = Sensed { struck_cop: true, nearest_cop: 10.0, ..sensed(true) };
+    let mut accident = Police::default();
+    accident.begin(1);
+    accident.update(0.1, true, &PlayerView { throttle: 0.0, ..view(20.0) }, struck);
+    assert!(!accident.infractions().contains(Infraction::Assault), "no throttle: not deliberate");
+    let mut police = Police::default();
+    police.begin(1);
+    police.update(0.1, true, &PlayerView { throttle: 1.0, ..view(20.0) }, struck);
+    let count = police.infractions().count();
+    police.update(0.1, true, &PlayerView { throttle: 1.0, ..view(20.0) }, struck);
+    assert_eq!(police.infractions().count(), count, "each infraction is logged once");
+}
+
+#[test]
+fn a_breakable_hit_while_the_cops_watch_is_damage_to_property() {
+    let hit = Sensed { struck_property: true, nearest_cop: 10.0, ..sensed(true) };
+    let mut police = Police::default();
+    police.begin(1);
+    police.update(0.1, true, &PlayerView { throttle: 1.0, ..view(20.0) }, hit);
+    assert!(police.infractions().contains(Infraction::DamageToProperty));
+    let unseen = Sensed { struck_property: true, ..sensed(false) };
+    let mut quiet = Police::default();
+    quiet.begin(1);
+    quiet.update(0.1, true, &PlayerView { throttle: 1.0, ..view(20.0) }, unseen);
+    assert!(!quiet.infractions().contains(Infraction::DamageToProperty), "the cops do not see it");
 }
 
 #[test]

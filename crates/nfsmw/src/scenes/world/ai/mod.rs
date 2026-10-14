@@ -21,6 +21,7 @@ mod roadblock;
 mod scene;
 mod simulation;
 mod spawn;
+mod spikes;
 mod stop;
 mod support;
 mod traffic;
@@ -129,6 +130,10 @@ pub struct TrafficWorld {
     seen_by_cops: bool,
     /// Simulated seconds since the last sight test, against `blackbox_pursuit::sight::TEST_PERIOD`.
     sight_clock: f32,
+    /// What the player struck since the police last read it (`collide.rs`).
+    strikes: collide::Strikes,
+    /// The spike strips of the standing roadblocks, on the road plane (`spikes.rs`). Cleared when the chase ends.
+    spikes: Vec<blackbox_pursuit::spikes::Strip>,
 }
 
 impl TrafficWorld {
@@ -177,6 +182,8 @@ impl TrafficWorld {
             player_position: None,
             seen_by_cops: false,
             sight_clock: 0.0,
+            strikes: collide::Strikes::default(),
+            spikes: Vec::new(),
         }
     }
 

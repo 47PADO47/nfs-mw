@@ -46,6 +46,13 @@ struct Pass {
     relative_speed: f32,
 }
 
+/// What the player struck since the police last read it: a cop for the first time (an assault), or a prop (a breakable).
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct Strikes {
+    pub cop: bool,
+    pub property: bool,
+}
+
 /// Whether the bounding spheres of two bodies touch, a cheap test before the box test.
 fn near(a: &CarSim, b: &CarSim) -> bool {
     if !a.is_finite() || !b.is_finite() {
@@ -148,7 +155,12 @@ impl TrafficWorld {
             }
         }
         for hit in hits {
-            self.cars[hit.owner].on_hit(hit.impulse, hit.by_player, hit.point, hit.from_camera);
+            let first_damage = self.cars[hit.owner].on_hit(hit.impulse, hit.by_player, hit.point, hit.from_camera);
+            self.strikes.cop |= first_damage;
+        }
+        if let Some(player) = player.as_deref_mut() {
+            self.strikes.property |= player.take_prop_struck();
+            self.spike_player(player);
         }
         for pass in passes {
             let car = &mut self.cars[pass.owner];
@@ -159,6 +171,11 @@ impl TrafficWorld {
         }
         self.player_speed = player.as_deref().map_or(0.0, |p| p.body().linear_velocity.length());
         self.player_position = player.as_deref().map(|p| p.body().position);
+    }
+
+    /// What the player struck since the last call: a cop for the first time, or a prop. The police read it once a frame.
+    pub fn take_strikes(&mut self) -> Strikes {
+        std::mem::take(&mut self.strikes)
     }
 
     /// Whether a cop sees the player, tested every `TEST_PERIOD` seconds of simulated time (`CanSeeTarget`, ai-pursuit
