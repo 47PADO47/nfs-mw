@@ -13,6 +13,16 @@ collision-controller comparisons, researched 2026-10-14. No code or assets copie
   scraping and the engine, cover eight ordinary road terrain IDs, exercise scrape
   refresh/release clocks and compare engine loudness at 5–360 FPS and 44.1/48 kHz.
   Representative engine families and upgrade selection/stock restoration are covered.
+- **Second pass:** matched PC sample-wrapper, landing and smackable callbacks
+  established the corrected piece record, separate landing route and prop-owned
+  OnDetached producer. Installed effect-bank probes confirmed mono channels and
+  authored stitch-module compatibility. Backend documentation established the
+  signed panning range. Added actual output tests for left/centre/right placement,
+  gentle landing, physical impact completion and five prop profiles.
+- **Playback limits:** collision family limit25 and the three-landing pool are
+  retained. Piece variation uses the port RNG; its sequence is not a PC match.
+  Mono panning follows the ideal native speaker law rather than its byte-quantized
+  table. Other prop-prop/prop-ground sound producers remain incomplete.
 - **Known differences:** no live original-game recording has established audible
   equivalence or absolute loudness calibration. Environmental reverb, signed skid
   telemetry/modules, road transitions/wet overlays, transmission modules,

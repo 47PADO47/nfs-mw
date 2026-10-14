@@ -99,6 +99,40 @@ Populate turbo tuning from the selected turbosfx data. Use decoded sample
 duration for blow-off lifetime where available. Keep the documented
 throttle-based audio torque rather than substituting physical engine torque.
 
+## Collision stitch correction
+
+The matched PC sample-wrapper routine confirms the 16-byte piece layout:
+byte0 sample ID, byte1 stitch family; u16 volume at2, Q12 pitch at4,
+independent offset at6, azimuth at8, random volume range at10, signed random
+pitch range at12, priority at14 and rolloff at15. Pitch is not a sample-count
+advance. Queue the pieces together through AEMS_StichCollision with the offset
+word; let that authored module implement its delay and sample selection.
+Do not create a cumulative sequence from piece pitch or multiply by the unused
+stitch-header volume. Piece volume and pitch are reduced by one sampled value
+in their respective authored random ranges. Add piece azimuth to event azimuth.
+Retain a collision's mixer while its pieces play so gains and position can update.
+
+Impact levels end at the first empty list. The PC selection counter is shared
+across impacts and increments before choosing the list entry.
+
+Tyre landing is a separate authored landing stitch, with its own intensity-band
+volume and bottom-out mixer object. A tyre landing must not be fabricated as
+an OnBottomOut physical body collision. Actual body contacts retain that route.
+Movable props retain OBJECT classification. Their own smackable profile emits
+audio independently of the car's table. Preserve that collection key. On actual
+detachment, first try OnDetached on the other primitive's surface using relative
+contact speed; if no eligible effect is produced, use the prop's OnHitObject
+rule and per-prop response delta-v. Do not substitute a wall sound for a missing
+object rule. PC confirms these paths and the carbody selector. This batch handles
+player-prop contacts; other prop-ground and prop-prop sound producers remain open.
+The AEMS direct route applies its dry word at seven-bit precision and azimuth
+only to mono samples. Environmental wet playback remains a separate gap.
+
+Native mono uses equal-power speaker gains; Kira's pan range is -1..+1, centre0.
+Convert azimuth with signed sine and compensate Kira's sqrt(2) speaker boost.
+This matches the ideal speaker law; PC's 256-bin byte quantization is still an
+approximation. Preserve stereo recordings' original channels.
+
 ## Wind and ordinary road modules
 
 Reference-derived wind parameters use full velocity magnitude: clamp below 2 m/s
