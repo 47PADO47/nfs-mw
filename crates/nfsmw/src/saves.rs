@@ -159,6 +159,7 @@ pub fn partial_of(s: &Settings) -> Partial {
         collision_sparks: Some(s.collision_sparks),
         spark_style: Some(s.spark_style),
         speed_trails: Some(s.speed_trails),
+        speed_trail_style: Some(s.speed_trail_style),
         exhaust_flames: Some(s.exhaust_flames),
         rear_view_mirror: Some(s.rear_view_mirror),
         discord: Some(s.discord),

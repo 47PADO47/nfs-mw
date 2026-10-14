@@ -36,6 +36,7 @@ pub enum Setting {
     SkidMarks,
     CollisionSparks,
     SpeedTrails,
+    SpeedTrailStyle,
     ExhaustFlames,
     RearViewMirror,
     SmokeQuality,
@@ -213,6 +214,7 @@ impl Setting {
             Setting::CollisionSparks if !s.collision_sparks => on_off(false),
             Setting::CollisionSparks => Data::Text(s.spark_style.label().into()),
             Setting::SpeedTrails => on_off(s.speed_trails),
+            Setting::SpeedTrailStyle => Data::Text(s.speed_trail_style.label().into()),
             Setting::ExhaustFlames => on_off(s.exhaust_flames),
             Setting::RearViewMirror => on_off(s.rear_view_mirror),
             Setting::Discord => on_off(s.discord),
@@ -429,6 +431,13 @@ impl Setting {
             Setting::SpeedTrails => {
                 s.speed_trails = !s.speed_trails;
                 changed.speed_trails = Some(s.speed_trails);
+            }
+            Setting::SpeedTrailStyle => {
+                s.speed_trail_style = match s.speed_trail_style {
+                    crate::settings::SpeedTrailStyle::Streaks => crate::settings::SpeedTrailStyle::Car,
+                    crate::settings::SpeedTrailStyle::Car => crate::settings::SpeedTrailStyle::Streaks,
+                };
+                changed.speed_trail_style = Some(s.speed_trail_style);
             }
             Setting::ExhaustFlames => {
                 s.exhaust_flames = !s.exhaust_flames;

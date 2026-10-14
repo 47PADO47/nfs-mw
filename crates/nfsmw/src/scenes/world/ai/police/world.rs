@@ -188,11 +188,6 @@ impl super::super::TrafficWorld {
             .fold(f32::INFINITY, f32::min)
     }
 
-    /// The strength of the speed streaks, 0 to 1.
-    pub fn streak_strength(&self) -> f32 {
-        self.police.effects().streaks
-    }
-
     /// The extra field of view the high-speed effects add (degrees).
     pub fn fov_kick(&self) -> f32 {
         self.police.effects().fov_kick_deg

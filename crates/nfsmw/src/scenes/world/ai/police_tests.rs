@@ -130,7 +130,7 @@ fn speed_effects_follow_the_speed() {
     let mut police = Police::default();
     police.begin(5);
     police.update(0.1, true, &view(90.0), sensed(true));
-    assert!(police.effects().streaks > 0.0);
+    assert!(police.effects().blur > 0.0);
 }
 
 #[test]

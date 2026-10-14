@@ -47,6 +47,7 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
                 row(Setting::SkidMarks, Title::Text("Skid Marks")),
                 row(Setting::CollisionSparks, Title::Text("Collision Sparks")),
                 row(Setting::SpeedTrails, Title::Text("Speed Trails (Experimental)")),
+                row(Setting::SpeedTrailStyle, Title::Text("Speed Trail Style")),
                 row(Setting::ExhaustFlames, Title::Text("Exhaust Flames")),
                 row(Setting::Metrics, Title::Text("Performance Overlay")),
             ])

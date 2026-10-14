@@ -157,6 +157,9 @@ pub(super) fn set_live(settings: &mut Settings, host: &mut Host, key: &str, valu
     if key == "spark_style" {
         host.set_spark_style(settings.spark_style);
     }
+    if key == "speed_trail_style" {
+        host.set_speed_trail_style(settings.speed_trail_style);
+    }
     if key == "exhaust_flames" {
         host.set_exhaust_flames(settings.exhaust_flames);
     }
@@ -185,6 +188,9 @@ fn help(scene: &[(&str, &str)]) -> String {
 pub fn sync_settings(settings: Res<Settings>, mut host: NonSendMut<Host>, mut applied: Local<Option<Settings>>) {
     if applied.as_ref().is_none_or(|before| before.spark_style != settings.spark_style) {
         host.set_spark_style(settings.spark_style);
+    }
+    if applied.as_ref().is_none_or(|before| before.speed_trail_style != settings.speed_trail_style) {
+        host.set_speed_trail_style(settings.speed_trail_style);
     }
     if applied.as_ref().is_none_or(|before| before.exhaust_flames != settings.exhaust_flames) {
         host.set_exhaust_flames(settings.exhaust_flames);

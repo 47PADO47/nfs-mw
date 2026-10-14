@@ -134,3 +134,16 @@ fn repeated_runs_have_identical_trails_after_motion_and_camera_changes() {
     };
     assert_eq!(run(), run());
 }
+
+#[test]
+fn speed_streaks_are_gone_below_the_trail_speed_and_grow_with_it() {
+    use super::streak_strength;
+    for speed in [0.0, -10.0, trails::ACTIVATION_SPEED - 0.01] {
+        assert_eq!(streak_strength(speed), 0.0, "no streaks at {speed} m/s");
+    }
+    let at_start = streak_strength(trails::ACTIVATION_SPEED);
+    assert!((at_start - 0.1).abs() < 1e-6, "the trail's first intensity: {at_start}");
+    assert!(streak_strength(60.0) > at_start, "stronger as the car goes faster");
+    assert_eq!(streak_strength(-120.0), streak_strength(120.0), "reverse counts as speed");
+    assert_eq!(streak_strength(200.0), 0.75, "capped like the trail");
+}

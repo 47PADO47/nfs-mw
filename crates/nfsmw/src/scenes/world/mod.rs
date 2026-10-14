@@ -23,6 +23,7 @@ mod hud;
 mod keys;
 mod lighting;
 use car_loader::load_car;
+mod focus;
 mod object_geometry;
 mod open;
 mod props;
@@ -34,6 +35,7 @@ mod road;
 mod sign_lamps;
 mod simulation;
 mod space;
+mod speed_trails;
 mod start;
 mod sun;
 mod vehicle_effects;
@@ -146,6 +148,7 @@ pub struct WorldScene {
     physics: PhysicsData,
     tire_effects: [bool; 2],
     vehicle_effects: [bool; 2],
+    speed_trail_style: crate::settings::SpeedTrailStyle,
     exhaust_flames: bool,
     spark_style: crate::settings::SparkStyle,
     smoke_quality: crate::settings::SmokeQuality,
@@ -172,22 +175,6 @@ const CLEAR: [f32; 3] = [0.55, 0.63, 0.72];
 
 /// The car `drive` picks when none was named.
 pub const DEFAULT_CAR: &str = "BMWM3GTR";
-
-impl WorldScene {
-    /// Map position (x, y) the streaming follows.
-    fn focus(&self) -> [f32; 2] {
-        match (&self.drive, self.view) {
-            (Some(drive), View::Chase) => match drive.waiting_for_road() {
-                Some(request) => request.near,
-                None => {
-                    let p = drive.position();
-                    [p.x, p.y]
-                }
-            },
-            _ => [self.camera.position.x, self.camera.position.y],
-        }
-    }
-}
 
 impl Scene for WorldScene {
     fn garage(&mut self) -> Option<&mut crate::garage::Model> {
@@ -309,9 +296,12 @@ impl Scene for WorldScene {
 
     fn set_vehicle_effects(&mut self, sparks: bool, trails: bool) {
         self.vehicle_effects = [sparks, trails];
-        if let Some(drive) = self.drive.as_mut() {
-            drive.vehicle_effects.set_enabled(sparks, trails);
-        }
+        self.apply_vehicle_effects();
+    }
+
+    fn set_speed_trail_style(&mut self, style: crate::settings::SpeedTrailStyle) {
+        self.speed_trail_style = style;
+        self.apply_vehicle_effects();
     }
 
     fn set_exhaust_flames(&mut self, on: bool) {
@@ -449,7 +439,7 @@ impl Scene for WorldScene {
     }
 
     fn speed_streaks(&self) -> f32 {
-        self.traffic.as_ref().map_or(0.0, |traffic| traffic.streak_strength())
+        self.speed_streak_strength()
     }
 
     fn hud_state(&self) -> Option<crate::hud::HudState> {

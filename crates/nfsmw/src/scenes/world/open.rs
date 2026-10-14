@@ -100,6 +100,7 @@ impl WorldScene {
             physics,
             tire_effects: [true; 2],
             vehicle_effects: [false; 2],
+            speed_trail_style: crate::settings::SpeedTrailStyle::default(),
             exhaust_flames: false,
             spark_style: crate::settings::SparkStyle::OriginalPc,
             smoke_quality: crate::settings::SmokeQuality::Standard,
