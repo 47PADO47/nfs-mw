@@ -274,6 +274,18 @@ pub fn pick(list: &[Layout], cr_width: f32, cars: u32) -> Option<&Layout> {
         .min_by(|a, b| (cr_width - a.min_width).total_cmp(&(cr_width - b.min_width)))
 }
 
+/// The chance (percent) that a roadblock takes the spike layouts at each heat, 1 to 10 (`roadblockspikechance`,
+/// [verified] in `docs/specs/ai-pursuit-roadblocks.md` section 1). Any other heat has none.
+pub fn spike_chance(heat: u32) -> f32 {
+    const CHANCE: [f32; 10] = [0.0, 0.0, 0.0, 70.0, 80.0, 85.0, 85.0, 0.0, 100.0, 0.0];
+    heat.checked_sub(1).and_then(|i| CHANCE.get(i as usize)).copied().unwrap_or(0.0)
+}
+
+/// Whether this roadblock takes the spike layouts. `roll` is uniform in `0..=1`, read as a percentage of 100.
+pub fn takes_spikes(heat: u32, roll: f32) -> bool {
+    roll * 100.0 < spike_chance(heat)
+}
+
 /// The road where a roadblock goes: its two edges and the target it guards against, all in the plane (`y` unused),
 /// and the road's forward direction.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -340,6 +352,17 @@ mod tests {
     fn the_tables_have_the_documented_sizes() {
         assert_eq!(NORMAL.len(), 15);
         assert_eq!(SPIKES.len(), 9);
+    }
+
+    #[test]
+    fn spikes_follow_the_heat_table() {
+        assert_eq!(spike_chance(4), 70.0);
+        assert_eq!(spike_chance(9), 100.0);
+        assert_eq!(spike_chance(8), 0.0, "heat 8 has no spike strips");
+        assert_eq!(spike_chance(0), 0.0, "no heat");
+        assert_eq!(spike_chance(11), 0.0, "beyond heat 10");
+        assert!(takes_spikes(5, 0.79), "79 percent is under the heat 5 chance of 80");
+        assert!(!takes_spikes(5, 0.80), "the roll must be strictly under the chance");
     }
 
     #[test]
