@@ -17,7 +17,7 @@ The copies on the Desktop and in `D:\NFSTools\NFS Most Wanted Redux 2.3` differ;
 | Status | Files |
 |---|---|
 | Read by code | `GlobalB.lzc`, `attributes.bin`, `gameplay.bin`, `gameplay.lzc`, `InGameA.bun` (textures), `GLOBALA.BUN`, `InGameB.bun`, `INGAMEC.BUN`, `WIDESCREEN_GLOBAL.BUN`, `HUDS_Custom_*.bin` (names only), `HUDTEXRACE.BIN` |
-| Partly read | `InGameA.bun` (sky models not loaded), `GLOBALA.BUN` (UI only), `FE_ATTRIB.bin` (decoded by `blackbox-attrib`, unused by the game code) |
+| Partly read | `InGameA.bun` (shared models now read, the sky draw path not pinned), `GLOBALA.BUN` (UI only), `FE_ATTRIB.bin` (decoded by `blackbox-attrib`, unused by the game code) |
 | Not read | `InGameB.bun` ICE cameras and shared animations, `RIVALS.BIN`, `DYNTEX.BIN`, `CardTextures.bin`, `HUDTEXDRAG*.BIN`, `HUDTEXSPLIT.BIN`, `HUDTEXTURESPHOTOFINISH.BIN`, `InGameSplitScreen.bun`, `THINSCREEN_GLOBAL.BUN`, `DEMO_GLOBAL.BUN`, `DEMO_MARKETING.BUN`, the `*MemoryFile.bin` files |
 | Backups | `*.bacc`, `*.bak`: the original files before a mod tool rewrote them. No code reads them. |
 
@@ -40,7 +40,7 @@ The copies on the Desktop and in `D:\NFSTools\NFS Most Wanted Redux 2.3` differ;
 | `InGameB.bun` | 946 KB | HUD and in-game FEng screens, fonts (`font_mw_body`, `tac_numbers`), ICE camera packs, shared animations, sound stitches. [frontend](frontend.md), [animation](animation.md) | Read by code for HUD and fonts. ICE and animation parts not read |
 | `INGAMEC.BUN` | 946 KB | Single-race HUD package and fonts (same chunks as `InGameB.bun`). [frontend](frontend.md) | Read by code (HUD plugin) |
 | `InGameSplitScreen.bun` | 32 KB | Split-screen HUD packages. [frontend](frontend.md) | Not read |
-| `InGameA.bun` | 5.9 MB | Sky models and textures (`SKY_MIDDAY_A_*`) and shared models. bChunk. | Textures read (`nfsmw-data/src/world/globals.rs`); sky models not loaded |
+| `InGameA.bun` | 5.9 MB | Sky models and textures (`SKY_MIDDAY_A_*`) and shared models. bChunk. | Textures and shared models read (`nfsmw-data/src/world/globals.rs`, `GLOBAL_MODEL_FILES`). The game's region loader opens `Global\InGameA.bun` in `FUN_00666AA0` (speed.exe, Ghidra). Which code resolves the `SKYDOME` solids from it is not pinned: see [provenance](../provenance/ingamea-sky-models.md) |
 | `HUDTEXRACE.BIN` | 157 KB | Race HUD texture pack (TPK). [textures](textures.md) | Listed in UI assets |
 | `HUDTEXDRAG.BIN` | 358 KB | Drag-race HUD texture pack. | Not read |
 | `HUDTEXDRAGSPLIT.BIN` | 33 KB | Drag-race split-screen HUD textures. | Not read |
