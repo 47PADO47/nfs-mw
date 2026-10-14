@@ -47,6 +47,6 @@ fn parse_record(payload: &[u8], at: usize) -> IceResult<(ShakeRecord<'_>, usize)
     let count_usize = usize::try_from(count).map_err(|_| IceError::NegativeCount(at, count))?;
     let end = header_end + count_usize * SHAKE_ELEMENT_LEN;
     let body = payload.get(header_end..end).ok_or(IceError::Truncated(header_end))?;
-    let elements = body.chunks_exact(SHAKE_ELEMENT_LEN).collect();
+    let elements = body.as_chunks::<SHAKE_ELEMENT_LEN>().0.iter().map(|e| e.as_slice()).collect();
     Ok((ShakeRecord { header, elements }, end))
 }

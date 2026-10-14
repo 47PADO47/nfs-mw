@@ -78,9 +78,8 @@ impl Zone {
 pub fn zone_of(arm: Vec3, half: Vec3, normal: Vec3) -> Zone {
     let left = arm.x < 0.0;
     let corner = arm.x.abs() > EDGE * half.x && normal.x.abs() > NORMAL_SIDE;
-    match end_of(arm.z, half.z) {
-        Some(front) => return end_zone(front, left, corner),
-        None => {}
+    if let Some(front) = end_of(arm.z, half.z) {
+        return end_zone(front, left, corner);
     }
     if arm.y > EDGE * half.y && normal.y < -NORMAL_SIDE {
         return Zone::Top;

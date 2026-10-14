@@ -44,7 +44,7 @@ impl Camera {
     }
 
     /// Picture units to view units: `(0, 0)` is the view's top left, `(1, 1)` its bottom right.
-    pub fn to_view(&self, map: [f32; 2]) -> [f32; 2] {
+    pub fn to_view(self, map: [f32; 2]) -> [f32; 2] {
         let origin = self.origin();
         [(map[0] - origin[0]) * self.zoom, (map[1] - origin[1]) * self.zoom]
     }
