@@ -29,6 +29,18 @@ pub struct Tuning {
     pub speed_cap: f32,
     /// Whether it lunges in for skid hits (the level's `pursuitsupport` has a `SKID_HIT` air entry).
     pub skid_hit: bool,
+    /// Seconds a skid hit's approach may run before its timer is spent (`SKID_TIMER`, 8; the mod's `AttackDuration`).
+    pub attack_duration: f32,
+    /// Speed (m/s) of the search flight (`SEARCH_SPEED`, 70; the mod's `SearchSpeed`).
+    pub search_speed: f32,
+    /// Speed (m/s) of the skid hit and the exit (`STRIKE_SPEED`, 100; the mod's `FlySpeed`).
+    pub fly_speed: f32,
+    /// Radius (m) within which it sees the player whatever its facing (`VISUAL_SPHERE`, 75; the mod's `AllAroundSight`).
+    pub all_around_sight: f32,
+    /// Beyond `all_around_sight` it sees only ahead (the mod's `FrontSightOnly`). Off, the whole line-of-sight range.
+    pub front_sight_only: bool,
+    /// Whether a hiding spot hides the player from it (the mod's `HidingSpots`). Off, the spots are ignored.
+    pub hiding_spots: bool,
 }
 
 impl Default for Tuning {
@@ -40,6 +52,12 @@ impl Default for Tuning {
             despawn_distance: 600.0,
             speed_cap: 100.0,
             skid_hit: false,
+            attack_duration: behaviour::SKID_TIMER,
+            search_speed: behaviour::SEARCH_SPEED,
+            fly_speed: behaviour::STRIKE_SPEED,
+            all_around_sight: sight::VISUAL_SPHERE,
+            front_sight_only: true,
+            hiding_spots: true,
         }
     }
 }
@@ -132,7 +150,7 @@ impl Helicopter {
         self.skid_timer -= THINK_PERIOD;
         let specs = Specs { max_speed: self.tuning.speed_cap, ..Specs::default() };
         if let Mode::Exit(mut exit) = self.mode {
-            let goal = exit.think(self.body.position, self.body.velocity, player);
+            let goal = exit.think(self.body.position, self.body.velocity, player, self.tuning.fly_speed);
             self.mode = Mode::Exit(exit);
             self.step(dt, goal, heights, &specs);
             return exit.finished(self.body.position, player);
@@ -146,7 +164,9 @@ impl Helicopter {
             forward: self.body.forward(),
             target: player.position,
             range: self.tuning.line_of_sight,
-            hidden: target.hidden,
+            sphere: self.tuning.all_around_sight,
+            front_only: self.tuning.front_sight_only,
+            hidden: target.hidden && self.tuning.hiding_spots,
             in_tunnel: target.in_tunnel,
         };
         let seen = self.sight.can_see(&look, || clear(player.position));
@@ -162,9 +182,10 @@ impl Helicopter {
     fn pursue(&mut self, player: &Player) -> Goal {
         let heli = self.body.position;
         self.update_skid(heli, player);
+        let fly = self.tuning.fly_speed;
         match self.mode {
-            Mode::SkidApproach { side } => behaviour::skid_approach(heli, player, side),
-            Mode::SkidStrike { side } => behaviour::skid_strike(player, side),
+            Mode::SkidApproach { side } => behaviour::skid_approach(heli, player, side, fly),
+            Mode::SkidStrike { side } => behaviour::skid_strike(player, side, fly),
             Mode::Follow | Mode::Search { .. } | Mode::Exit(_) => {
                 self.mode = Mode::Follow;
                 let skid_ready = self.tuning.skid_hit && self.skid_timer < -5.0;
@@ -189,7 +210,7 @@ impl Helicopter {
             Mode::Follow
                 if self.tuning.skid_hit && self.skid_timer < -5.0 && behaviour::skid_can_start(heli, player) =>
             {
-                self.skid_timer = behaviour::SKID_TIMER;
+                self.skid_timer = self.tuning.attack_duration;
                 self.mode = Mode::SkidApproach { side: behaviour::skid_side(heli, player) };
             }
             _ => {}
@@ -206,7 +227,7 @@ impl Helicopter {
         let floor = heights.elevation(player.position.x, player.position.z);
         let point = behaviour::search_point(player.position, search.angle_turns, search.unit_random, 1000.0, floor);
         self.mode = Mode::Search { point };
-        behaviour::search(point, self.body.velocity)
+        behaviour::search(point, self.body.velocity, self.tuning.search_speed)
     }
 
     fn step(&mut self, dt: f32, goal: Goal, heights: &dyn Heights, specs: &Specs) {
@@ -280,6 +301,17 @@ mod tests {
         let hidden = Target { hidden: true, in_tunnel: false };
         run(&mut heli, 0.25, hidden, &blocked);
         assert!(matches!(heli.mode, Mode::Search { .. }));
+    }
+
+    #[test]
+    fn with_hiding_spots_off_a_hidden_player_stays_in_sight() {
+        let tuning = Tuning { hiding_spots: false, ..Tuning::default() };
+        let mut heli = Helicopter::spawn(Vec3::new(-100.0, 40.0, 0.0), 0.0, tuning);
+        run(&mut heli, 0.25, OPEN, &clear);
+        let blocked = |_: Vec3| false;
+        let hidden = Target { hidden: true, in_tunnel: false };
+        run(&mut heli, 0.25, hidden, &blocked);
+        assert_eq!(heli.mode, Mode::Follow, "the zone is ignored, so the player near its last seen place is followed");
     }
 
     #[test]
