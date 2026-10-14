@@ -9,7 +9,8 @@ of drawable nodes. **No rendering, no windowing, no Bevy, no wgpu:** a host draw
   handles), scripts (base and delta keys, events), message responses and message targets are plain data.
 - `Font::parse` reads an `FEngFont` chunk (`0x00030201`); `Font::layout` lays a string out into glyph rectangles
   with texture coordinates, the way the game does (justification, newlines, word wrap, kerning, leading).
-- `Runtime` loads packages, starts every object in its `INIT` script and advances a 960-tick clock:
+- `Runtime` loads packages, starts every object in its `INIT` script and advances a host-selected tick clock
+  with fractional carry (`with_tick_rate`; the legacy default remains 960 ticks/second):
   step, linear and move-to interpolation, once / loop / ping-pong / chained scripts, events that become
   messages, response lists with if / else / end-if, buttons with focus messages.
 - The host binds values by object name hash (`set_text`, `set_label`, `set_hidden`, `set_rotation_z`,

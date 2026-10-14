@@ -131,6 +131,29 @@ fn a_message_starts_a_fade_that_takes_600_ticks() {
 }
 
 #[test]
+fn configured_tick_rate_preserves_fade_timing_across_render_rates() {
+    for fps in [5, 60, 144, 360] {
+        let mut rt = Runtime::with_tick_rate(1200.0);
+        let id = rt.load(Package::parse(&fading_image()).unwrap());
+        let panel = rt.find(id, fe_hash_upper("PANEL")).unwrap();
+        rt.post(id, 0x10, None);
+        rt.update(1.0 / 1200.0);
+        for _ in 0..fps {
+            rt.update(0.25 / fps as f32);
+        }
+        assert!((100..160).contains(&alpha(&rt, panel)), "half fade at {fps}");
+        for _ in 0..fps {
+            rt.update(0.25 / fps as f32);
+        }
+        assert_eq!(alpha(&rt, panel), 255, "complete fade at {fps}");
+        // f32 frame deltas can land just below the final authored tick.
+        // The completion event must arrive by the following single tick.
+        rt.update(1.0 / 1200.0);
+        assert!(rt.take_outgoing().iter().any(|event| matches!(event, Outgoing::Game { message: 0x99, .. })));
+    }
+}
+
+#[test]
 fn values_the_host_sets_survive_a_script_at_rest() {
     let (mut rt, id) = load(&fading_image());
     let panel = rt.find(id, fe_hash_upper("PANEL")).unwrap();

@@ -17,3 +17,8 @@ Spec/provenance:
 [`fxedit-processor.md`](../../docs/specs/fxedit-processor.md),
 [`fxedit-processor.md`](../../docs/provenance/fxedit-processor.md).
 Game-level installed tests compare original instruction replay and asset identity.
+
+`LowPass` exposes the software voice form of the first-order processor with
+integer cutoff normalization, immediate retargeting and history removal on
+bypass. It allocates no memory during processing. Spec:
+[`voice-low-pass.md`](../../docs/specs/voice-low-pass.md).

@@ -3,11 +3,11 @@
 use crate::bytes::{u8_at, u16_le};
 use crate::error::{Error, Result};
 
-/// Sample positions in a bank header count in units of this many bytes (the `.big` aligns streams to it).
+/// Base alignment unit; each bank multiplies it by one plus its alignment byte.
 pub const SAMPLE_UNIT: u64 = 0x100;
 
-/// Bytes before the sample table: event (2), speaker (2), entry flags (1), sample count (1) and eight bytes whose
-/// first four are the count again and the bank's length in units of [`SAMPLE_UNIT`] (the rest are zero).
+/// Bytes before the sample table: event (2), speaker (2), parameter count (1), sample count (1),
+/// repeat count (1), alignment multiplier (1), bank length in units (2), padding (2), first offset (2).
 const FIXED: usize = 14;
 
 /// What a bank header says about its takes.
@@ -35,6 +35,7 @@ impl BankHeader {
             return Err(Error::BadHeader("a speech bank without takes"));
         }
         let stride = 2 + flags;
+        let unit = SAMPLE_UNIT * (u64::from(u8_at(data, 7)?) + 1);
         let table_end = FIXED + (count - 1) * stride;
         let Some(table) = data.get(FIXED..table_end) else {
             return Err(Error::Truncated { offset: FIXED as u64, needed: table_end - FIXED });
@@ -42,7 +43,7 @@ impl BankHeader {
         let mut starts = vec![0u64];
         for entry in table.chunks_exact(stride) {
             let units = u16::from_be_bytes([entry[stride - 2], entry[stride - 1]]);
-            starts.push(u64::from(units) * SAMPLE_UNIT);
+            starts.push(u64::from(units) * unit);
         }
         if starts.windows(2).any(|w| w[0] >= w[1]) {
             return Err(Error::Corrupt("speech take starts do not increase"));
