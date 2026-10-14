@@ -239,3 +239,33 @@ fn installed_breakers_follow_area_chains_and_fragment_traces_at_every_frame_rate
         assert_eq!(run_frames(&install, target, uneven), baseline, "{engine} with uneven frames");
     }
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn installed_gas_pump_explosion_reports_a_petrol_blast() {
+    let Some(install) = installed() else {
+        return;
+    };
+    let target = install
+        .placed
+        .iter()
+        .find(|p| {
+            p.prop.as_ref().unwrap().dynamics.as_ref().unwrap().event_sequencer == vlt_hash("gaspumpexplosion_seq")
+        })
+        .unwrap();
+    let centre = Vec3::from_array(target.spawner.unwrap().position);
+    let (mut world, _) = world(&install, centre);
+    strike(&mut world, target.spawner.unwrap().unique_id + 1);
+    let ground = FlatGround::new(centre.y - 0.5);
+    let mut clock = FixedClock::default();
+    let mut blasts = Vec::new();
+    for _ in 0..600 {
+        for _ in 0..clock.advance(1.0 / 60.0) {
+            world.step(&ground, STEP);
+            world.update_scenery(&install.data);
+            blasts.extend(world.take_blasts());
+        }
+    }
+    assert!(!blasts.is_empty(), "a gas pump explosion must report a blast point");
+    assert!(blasts.iter().all(|p| p.distance(centre) < 20.0), "the blast starts at the pump, not far away");
+}

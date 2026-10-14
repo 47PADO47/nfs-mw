@@ -11,7 +11,7 @@ use nfsmw_data::car::physics::SurfaceTable;
 use nfsmw_data::sound::{Stitch, collision_stitches};
 
 use super::car::{CarAudio, CarEvent};
-use super::refs;
+use super::refs::{self, COLLISION_BANK};
 use super::volume::decibels;
 use super::{Audio, Group};
 
@@ -160,4 +160,36 @@ impl Audio {
         let volume = ((sound.volumes[play.level] * 32768.0).round() as i32).clamp(0, 32767);
         car.impacts.collision(self, stitch, sound, *event, car.mixer.as_ref(), volume);
     }
+
+    /// A petrol-station blast. STAND-IN: the install's own explosion sounds are the event-named `smackable_break`
+    /// and `debris` impacts, which have no stitches here (their `EVENT` names map to banks through the `.csi`
+    /// files, not decoded yet). So this plays the loudest stitch of a wall hit, the rewrite's choice.
+    pub(super) fn play_explosion(&mut self) {
+        let Ok(db) = self.database() else { return };
+        let Some(sound) = nfsmw_data::sound::heaviest_impact(&db, EXPLOSION_FLAG) else { return };
+        let Some((level, id)) = (0..4).rev().find_map(|l| sound.levels[l].first().map(|&id| (l, id))) else {
+            return;
+        };
+        let stitches = self.stitches();
+        let Some(stitch) = stitches.get(id as usize) else { return };
+        self.play_stitch(stitch, sound.volumes[level]);
+    }
+
+    /// Play a stitch's pieces together, each at `gain` times its own volume. Piece offsets are left out: the
+    /// stitch module applies them (`impacts.rs`), and the stand-in does not drive that module.
+    fn play_stitch(&mut self, stitch: &Stitch, gain: f32) {
+        for piece in &stitch.pieces {
+            let index = usize::from(piece.sample) + 1;
+            let Ok(data) = self.bank_sound(COLLISION_BANK, index) else { continue };
+            let volume = (stitch.volume * piece.volume * gain).clamp(0.0, 1.0);
+            let data = data.volume(decibels(volume));
+            if let Err(e) = self.play(Group::Sfx, data) {
+                log::debug!("collision sound: {e}");
+                return;
+            }
+        }
+    }
 }
+
+/// The `DESCRIPTION` flag of the impact collection a petrol-station blast borrows its sound from.
+const EXPLOSION_FLAG: &str = "WALL";

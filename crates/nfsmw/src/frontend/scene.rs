@@ -335,6 +335,10 @@ impl Scene for Pausable {
         sounds
     }
 
+    fn take_explosions(&mut self) -> u32 {
+        self.inner.take_explosions()
+    }
+
     fn finished(&self) -> bool {
         self.inner.finished()
     }

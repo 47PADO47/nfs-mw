@@ -11,6 +11,7 @@ mod carparts;
 mod cars;
 mod compare;
 mod exhaust;
+mod explosion;
 mod gameplay;
 mod geometry;
 mod ginsu;

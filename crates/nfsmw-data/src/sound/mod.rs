@@ -20,7 +20,7 @@ mod turbo;
 pub use accel::AccelTransition;
 pub use banks::GlobalBanks;
 pub use car::{CarSound, SoundUpgrades, audio_engine_level, car_sound, upgrade_entry};
-pub use collision::{CollisionSounds, EventKind, ImpactSound};
+pub use collision::{CollisionSounds, EventKind, ImpactSound, heaviest_impact};
 pub use engine::{DecelWindow, EngineGroup, EngineMix, EngineSound, MixLevels};
 pub use load::{EngineLoops, load_loop};
 pub use shift::{ShiftSound, ShiftStage, Wobble};

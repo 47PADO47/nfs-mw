@@ -77,7 +77,7 @@ pub fn pipe_frames(placements: &[Placement], solids: &HashMap<u32, Solid>) -> Ve
     frames
 }
 
-pub(crate) fn group_emitters(db: &Database, group: CollectionRef<'_>) -> Vec<GroupEmitter> {
+pub fn group_emitters(db: &Database, group: CollectionRef<'_>) -> Vec<GroupEmitter> {
     let Some(items) = group.get("Emitters").and_then(|v| v.as_array()) else { return Vec::new() };
     items
         .iter()

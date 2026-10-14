@@ -20,6 +20,7 @@ impl WorldScene {
             return;
         };
         drive.maintain_flames(renderer, &self.dir, self.physics.database());
+        self.explosions.load(renderer, &self.dir, self.physics.database());
         drive.effects.retain_sections(|s| self.residency.collision().pack(s).is_some());
         let (position, forward) = match self.view {
             View::Chase => (drive.camera().position, drive.camera().forward()),
@@ -61,6 +62,7 @@ impl WorldScene {
         }
         drive.vehicle_effects.textured(forward, &self.residency.shared.materials, &mut layer.textured);
         drive.flames.geometry(position, forward, layer);
+        self.explosions.textured(position, forward, &mut layer.textured);
         renderer.set_effects(layer);
         drive.flames.reclaim(layer);
     }
