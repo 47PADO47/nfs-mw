@@ -17,10 +17,11 @@ pub enum EventKind {
     ScrapeWorld,
     ScrapeObject,
     BottomScrape,
+    Detached,
 }
 
 impl EventKind {
-    pub const ALL: [EventKind; 8] = [
+    pub const ALL: [EventKind; 9] = [
         Self::HitGround,
         Self::HitWorld,
         Self::HitObject,
@@ -29,6 +30,7 @@ impl EventKind {
         Self::ScrapeWorld,
         Self::ScrapeObject,
         Self::BottomScrape,
+        Self::Detached,
     ];
 
     /// The `pvehicle` field with this kind's links.
@@ -42,6 +44,7 @@ impl EventKind {
             Self::ScrapeWorld => "OnScrapeWorld",
             Self::ScrapeObject => "OnScrapeObject",
             Self::BottomScrape => "OnBottomScrape",
+            Self::Detached => "OnDetached",
         }
     }
 }
@@ -162,6 +165,15 @@ impl CollisionSounds {
     /// Reads the links of `pvehicle` car `type_name`; empty when the car or the links are missing.
     pub fn read(db: &Database, type_name: &str) -> Self {
         let Some(car) = db.collection("pvehicle", &type_name.to_ascii_lowercase()) else { return Self::default() };
+        Self::from_collection(db, car)
+    }
+
+    pub fn prop(db: &Database, profile: u32) -> Self {
+        let Some(prop) = db.collection_by_key(vlt_hash("smackable"), profile) else { return Self::default() };
+        Self::from_collection(db, prop)
+    }
+
+    fn from_collection(db: &Database, car: CollectionRef<'_>) -> Self {
         let mut links = Vec::new();
         for kind in EventKind::ALL {
             let Some(Value::Array(items)) = car.get(kind.field()) else { continue };
