@@ -8,7 +8,7 @@ use blackbox_roads::HeliSheet;
 use glam::{Mat3, Quat, Vec3};
 
 use super::PlayerView;
-use super::{FUEL_TIME, RESPAWN_TIME, TIME_PER_LEVEL};
+use super::TIME_PER_LEVEL;
 use crate::scenes::world::space;
 
 /// A physics-frame orientation as a render-frame one. The nose is the physics X axis, up is Y; render space has x
@@ -23,16 +23,6 @@ pub(super) fn render_rotation(orientation: Quat) -> Quat {
 /// Seconds of heat growth per level: `TIME_PER_LEVEL` for the level the heat is at.
 pub(super) fn time_per_level(level: u32) -> f32 {
     TIME_PER_LEVEL[(level as usize).clamp(1, TIME_PER_LEVEL.len()) - 1]
-}
-
-/// The fuel of the helicopter at `level`: the table covers levels 4 to 10.
-pub(super) fn fuel_time(level: u32) -> f32 {
-    FUEL_TIME[(level as usize).clamp(4, 10) - 4]
-}
-
-/// The wait before the next helicopter at `level`.
-pub(super) fn respawn_time(level: u32) -> f32 {
-    RESPAWN_TIME[(level as usize).clamp(1, RESPAWN_TIME.len()) - 1]
 }
 
 /// `v` with its height removed.

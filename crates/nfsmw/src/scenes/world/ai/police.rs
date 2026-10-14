@@ -12,8 +12,7 @@ use super::support;
 use blackbox_pursuit::formation::finisher::{Event, Finisher};
 use blackbox_pursuit::formation::slots::assign;
 use blackbox_pursuit::formation::{Formation, Picker};
-use blackbox_pursuit::helicopter::control::{Flat, Heights};
-use blackbox_pursuit::helicopter::{Helicopter, Mode, SearchInput, THINK_PERIOD, Target, Tuning};
+use blackbox_pursuit::helicopter::Helicopter;
 use blackbox_pursuit::rules::{self, Contact};
 use blackbox_pursuit::support::Strategy;
 use blackbox_pursuit::{Busted, Cooldown, EndReason, Fines, Heat, Infraction, InfractionLog};
@@ -25,27 +24,21 @@ use glam::{Vec2, Vec3};
 use super::traffic_events::SPEEDING_MPS;
 use crate::scenes::world::drive::{CarPose, CarRig};
 use crate::scenes::world::space;
+use crate::settings::helicopter::HeliSettings;
 
-/// Heat levels with a helicopter in their cop mix (`pursuitlevels`, [verified]: heat 4 to 6 and 8 to 10).
-const HELI_LEVELS: [u32; 6] = [4, 5, 6, 8, 9, 10];
-/// Seconds of fuel for heat levels 4 to 10 (`HeliFuelTime`, [verified]).
-const FUEL_TIME: [f32; 7] = [60.0, 90.0, 180.0, 10.0, 75.0, 120.0, 400.0];
-/// Seconds before the next helicopter may join, per heat level 1 to 10 (`TimeBetweenHeliActive`, [verified]).
-const RESPAWN_TIME: [f32; 10] = [0.0, 0.0, 120.0, 180.0, 180.0, 180.0, 180.0, 120.0, 60.0, 5.0];
-/// Heat levels whose `pursuitsupport` has a skid-hit air entry (`SKID_HIT`, [verified]).
-const SKID_LEVELS: [u32; 5] = [5, 6, 7, 9, 10];
 /// Seconds of heat per level, 1 to 10 (`ai-pursuit-heat.md` §3.2, with the bin-independent values).
 const TIME_PER_LEVEL: [f32; 10] = [600.0, 600.0, 600.0, 600.0, 600.0, 600.0, 600.0, 780.0, 820.0, 2000.0];
-/// How far behind the player the helicopter spawns on the road (`SpawnPursuitHelicopter`).
-const SPAWN_BEHIND: f32 = 250.0;
-/// How high above the player it spawns.
-const SPAWN_HEIGHT: f32 = 20.0;
 /// The helicopter takes its first join this long after a chase starts (`mSpawnHeliTimer`).
 const FIRST_JOIN: f32 = 10.0;
 /// Seconds between support checks (`support_check_timer`, spec section 6).
 const SUPPORT_CHECK: f32 = 10.0;
-/// Turns the search circles per search point (0.125 of a turn, the spec's step).
-const SEARCH_STEP_TURNS: f32 = 0.125;
+/// A HIDDEN zone's first data word, as a name hash (`docs/formats/pursuit-data.md`, HIDDEN). `"Car"` hides the player
+/// from cars only, `"Heli"` from helicopters only, and any other word from both.
+const CAR_HASH: u32 = blackbox_hash::bstring_hash("Car");
+/// See [`CAR_HASH`].
+const HELI_HASH: u32 = blackbox_hash::bstring_hash("Heli");
+/// The track zone kind of a tunnel (`TUNNEL`, `pursuit-data.md`: type 3).
+pub const TUNNEL_ZONE: u32 = 3;
 
 /// The car's heat after an escape: `EvadeSuccessHeatAdjust` of the default collection (install-verified, `ai-pursuit-heat.md` §3.3).
 const EVADE_HEAT_ADJUST: f32 = 0.95;
@@ -94,6 +87,11 @@ pub struct Sensed {
     pub hit_traffic: bool,
     /// The player is in a hiding spot (a HIDDEN track zone at its height): the evade progress runs faster.
     pub hidden: bool,
+    /// The player is in a HIDDEN zone that hides it from helicopters (a zone flagged `Car` does not).
+    pub hidden_from_heli: bool,
+    /// The player is inside a tunnel zone: the helicopter does not see into one (the spec's camera test, read as the
+    /// player's place).
+    pub in_tunnel: bool,
     /// Two uniform random numbers for the formation picker (the weighted record and the timer's jitter).
     pub formation_random: [f32; 2],
     /// The cops in position at their formation slot (count) and their average distance to it, metres; `None` without a
@@ -108,6 +106,8 @@ pub struct Police {
     heat: Option<Heat>,
     infractions: InfractionLog,
     heli: Option<Helicopter>,
+    /// The helicopter's tuning per level, from `NFSMWHelicopterSettings.ini` (vanilla until it is loaded).
+    heli_settings: HeliSettings,
     /// Seconds until the next helicopter may join.
     heli_wait: f32,
     /// Seconds of think time not yet spent on the helicopter.
@@ -142,6 +142,8 @@ pub struct Police {
     roadblock_standing: bool,
     /// The HIDDEN track zones of the track (`TRACK_PATH_ZONES`, kind 8).
     hidden_zones: Vec<TrackZone>,
+    /// The TUNNEL track zones of the track (kind `TUNNEL_ZONE`), read once per track.
+    tunnel_zones: Vec<TrackZone>,
     /// The helicopter's height sheet of the track, when it was read (`nfsmw_data::world::heli_sheet`).
     heli_sheet: Option<HeliSheet>,
     /// The busted timer of the chase (`blackbox_pursuit::Busted`); reset when a chase starts, kept after it ends.
@@ -156,6 +158,7 @@ impl Default for Police {
             heat: None,
             infractions: InfractionLog::default(),
             heli: None,
+            heli_settings: HeliSettings::default(),
             heli_wait: 0.0,
             heli_clock: 0.0,
             seen: false,
@@ -175,6 +178,7 @@ impl Default for Police {
             roadblock_requested: false,
             roadblock_standing: false,
             hidden_zones: Vec::new(),
+            tunnel_zones: Vec::new(),
             heli_sheet: None,
             busted: Busted::default(),
             cops_destroyed: 0,
@@ -252,6 +256,11 @@ impl Police {
 
     pub fn set_hidden_zones(&mut self, zones: Vec<TrackZone>) {
         self.hidden_zones = zones;
+    }
+
+    /// The track's TUNNEL zones, read once per track.
+    pub fn set_tunnel_zones(&mut self, zones: Vec<TrackZone>) {
+        self.tunnel_zones = zones;
     }
 
     pub fn set_rig(&mut self, rig: Option<Rc<CarRig>>) {
@@ -350,6 +359,11 @@ impl Police {
         self.roadblock_standing = true;
     }
 
+    /// A roadblock of this chase stands.
+    pub fn roadblock_standing(&self) -> bool {
+        self.roadblock_standing
+    }
+
     /// Advances the chosen formation's finisher with the cops' gap to their slots. Armed and ended are logged.
     fn tick_finisher(&mut self, dt: f32, gap: Option<(u32, f32)>) {
         let Some(params) = self.last_formation.and_then(blackbox_pursuit::formation::finisher::params_for) else {
@@ -413,62 +427,6 @@ impl Police {
         }
         self.seen = sensed.seen;
     }
-
-    fn think_helicopter(
-        &mut self,
-        dt: f32,
-        pursuing: bool,
-        player: &PlayerView,
-        sensed: Sensed,
-        clear: &dyn Fn(Vec3, Vec3) -> bool,
-    ) {
-        if self.heli.is_none() && pursuing {
-            self.try_join(player);
-        }
-        let Some(mut heli) = self.heli.take() else { return };
-        let from = heli.body.position;
-        let line = |to: Vec3| clear(from, to + Vec3::Y);
-        let body = to_body(player);
-        let flat = Flat(body.position.y - 2.0);
-        let sheet = SheetFloor(self.heli_sheet.as_ref());
-        let heights: &dyn Heights = if self.heli_sheet.is_some() { &sheet } else { &flat };
-        self.heli_clock += dt;
-        let mut gone = false;
-        while self.heli_clock >= THINK_PERIOD && !gone {
-            self.heli_clock -= THINK_PERIOD;
-            self.search_turns = (self.search_turns + SEARCH_STEP_TURNS).fract();
-            let search = SearchInput { angle_turns: self.search_turns, unit_random: sensed.unit_random };
-            let target = Target { hidden: false, in_tunnel: false };
-            gone = heli.think(THINK_PERIOD, &body, target, &line, heights, search);
-        }
-        if gone {
-            self.heli_wait = respawn_time(self.level().unwrap_or(1));
-            return;
-        }
-        if heli.too_far(&body) && !matches!(heli.mode, Mode::Exit(_)) {
-            heli.leave();
-        }
-        self.heli = Some(heli);
-    }
-
-    /// Sends a helicopter in when the level has one, its wait is over and the chase is on.
-    fn try_join(&mut self, player: &PlayerView) {
-        let Some(level) = self.level() else { return };
-        if self.heli_wait > 0.0 || !HELI_LEVELS.contains(&level) {
-            return;
-        }
-        let body = to_body(player);
-        let behind = body.position - horizontal(body.forward).normalize_or_zero() * SPAWN_BEHIND
-            + Vec3::new(0.0, SPAWN_HEIGHT, 0.0);
-        let heading = body.forward.z.atan2(body.forward.x);
-        let tuning = Tuning {
-            spawn_distance: SPAWN_BEHIND,
-            fuel_time: fuel_time(level),
-            skid_hit: SKID_LEVELS.contains(&level),
-            ..Tuning::default()
-        };
-        self.heli = Some(Helicopter::spawn(behind, heading, tuning));
-    }
 }
 
 #[cfg(test)]
@@ -477,7 +435,8 @@ mod tests;
 
 mod busted;
 mod escape;
+mod heli;
 mod helpers;
 mod world;
 
-use helpers::{SheetFloor, fuel_time, horizontal, render_rotation, respawn_time, time_per_level, to_body};
+use helpers::{horizontal, render_rotation, time_per_level};

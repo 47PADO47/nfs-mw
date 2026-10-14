@@ -51,11 +51,12 @@ pub fn patrol_plan(db: &Database) -> Option<PatrolPlan> {
 impl TrafficWorld {
     /// Gives the traffic its patterns and patrol cops from the install.
     pub fn load_data(&mut self, db: &Database, zones: Option<TrackZones>) {
-        let hidden: Vec<_> = zones
-            .iter()
-            .flat_map(|z| z.zones.iter().filter(|z| z.kind == super::police::HIDDEN_ZONE).cloned())
-            .collect();
-        self.police.set_hidden_zones(hidden);
+        let of_kind = |kind: u32| -> Vec<blackbox_roads::TrackZone> {
+            zones.iter().flat_map(|z| z.zones.iter().filter(|z| z.kind == kind).cloned()).collect()
+        };
+        self.police.set_hidden_zones(of_kind(super::police::HIDDEN_ZONE));
+        self.police.set_tunnel_zones(of_kind(super::police::TUNNEL_ZONE));
+        self.police.set_heli_settings(crate::settings::helicopter::load());
         match build_patterns(db, zones) {
             Some(patterns) => self.set_patterns(patterns),
             None => log::warn!("traffic: the install has no traffic patterns, so no traffic will spawn"),
