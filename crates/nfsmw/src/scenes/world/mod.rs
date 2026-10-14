@@ -10,6 +10,10 @@ mod damage_marks;
 mod drive;
 mod drive_input;
 mod effects;
+mod entry;
+mod entry_zones;
+#[cfg(test)]
+mod entry_zones_tests;
 mod events;
 mod exhaust;
 mod ground;
@@ -122,6 +126,8 @@ pub struct WorldScene {
     /// Minimap blips that do not come from the traffic: the race starts and the interiors, made once at open
     /// (`hud::static_blips`). Nothing clears this list, so a later addition stays until it is removed here.
     pub map_blips: Vec<crate::hud::MapBlip>,
+    /// The entry zones (auto shops, safe houses, race starts) and the interact card (`entry.rs`).
+    entry: entry::Entry,
     /// The `traffic`, `cop_share` settings as last told, and a count typed in the console that replaces them.
     traffic_setting: crate::settings::TrafficSettings,
     lamp_meshes: Option<ai::LampMeshes>,
@@ -225,6 +231,7 @@ impl Scene for WorldScene {
         }
         self.prepare_drive();
         self.update_simulation(renderer, input, dt);
+        self.update_entry(input, dt);
         self.sun.advance(dt);
         if !self.grounded && self.residency.complete() {
             self.grounded = true;
@@ -241,6 +248,11 @@ impl Scene for WorldScene {
         }
         self.upload_effects(renderer);
         self.update_reflections(renderer);
+    }
+
+    fn ui(&mut self, ctx: &egui::Context) -> f32 {
+        crate::hud::show_interact_prompt(ctx, &self.entry.popup);
+        0.0
     }
 
     fn set_tire_effects(&mut self, smoke: bool, skid_marks: bool) {
