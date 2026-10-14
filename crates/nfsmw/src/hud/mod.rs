@@ -20,6 +20,9 @@ mod cop_blip_tests;
 mod elements;
 #[cfg(test)]
 mod install_tests;
+mod interact_prompt;
+#[cfg(test)]
+mod interact_prompt_tests;
 mod minimap;
 #[cfg(test)]
 mod minimap_tests;
@@ -40,6 +43,7 @@ pub use blip_styles::{
     AUTO_SHOP, COP, HELICOPTER, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP, RACE_SPRINT, RACE_TOLLBOOTH,
     SAFE_HOUSE,
 };
+pub use interact_prompt::{InteractPopup, Prompt, show as show_interact_prompt};
 pub use plugin::HudPlugin;
 pub use pursuit::PursuitHud;
 pub use radio::{RadioHud, show as show_radio};
