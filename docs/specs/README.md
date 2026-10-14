@@ -82,3 +82,8 @@ consuming the vehicle's existing intensities. Its appearance and lifetime are ne
 
 - [police-tactics.md](police-tactics.md): the aim of each cop (block, pit, ram) and what the rule leaves out.
 - [speed-effects.md](speed-effects.md): the high-speed screen effects; the curves are in `libs/blackbox-speedfx`.
+
+## World entries
+
+- [world-markers.md](world-markers.md): the ground disc at each auto shop, safe house and race start, the drive-over
+  zone, and the interact card with its stub entry (the destinations are not built yet).

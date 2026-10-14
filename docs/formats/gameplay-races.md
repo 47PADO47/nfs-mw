@@ -244,6 +244,8 @@ Map icons of the race types are the `MMICON_<TYPE>_%d` strings in `speed.exe` (`
    (`EGTriggerInternal` in `speed.exe`, the box test) has no symbols in the Ghidra project: every function near
    the strings is `FUN_*`. A Ghidra pass over the box-containment routine is needed; until then the trigger test
    is **[unconfirmed]**.
+   *Status:* the rewrite's working rule is in [world-markers.md](../specs/world-markers.md) section 3 (the first extent
+   along the heading, full sizes, fitted to the data, not read from the code). It is not used for any entry yet.
 2. The unit of `InitialPlayerSpeed` (m/s assumed).
 3. The Lua state graphs (what ends a knockout lap, when the countdown starts the engines): decompile the
    bytecode (Lua 5.0 chunk) and describe them.
