@@ -85,7 +85,7 @@ fn damage_both_floats_of_a_car_and_the_trailer() {
         };
         for zone in DAMAGE_ZONES {
             if let Some(Value::Raw { bytes, .. }) = damage.get(zone) {
-                let f: Vec<f32> = bytes.chunks_exact(4).map(|c| f32::from_le_bytes(c.try_into().unwrap())).collect();
+                let f: Vec<f32> = bytes.as_chunks::<4>().0.iter().map(|c| f32::from_le_bytes(*c)).collect();
                 println!("{name} {zone}: {f:?}");
             }
         }

@@ -35,7 +35,7 @@ fn a_bad_discord_value_is_ignored_and_other_keys_survive() {
 fn the_discord_flags_layer_over_the_environment_and_the_file() {
     let file = file::parse("discord = true\ndiscord_time_played = true", "test");
     let environment = env::read(|key| (key == env::DISCORD).then(|| "off".into()));
-    let settings = Settings::from(environment.or(file.clone()));
+    let settings = Settings::from(environment.or(file));
     assert!(!settings.discord, "environment over file");
     assert!(settings.discord_time_played, "the file's value where the environment is silent");
     let cli = Cli::try_parse_from(["nfsmw", "play", "--discord", "--no-discord-time-played"]).unwrap();
