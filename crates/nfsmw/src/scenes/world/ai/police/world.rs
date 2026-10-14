@@ -84,6 +84,21 @@ impl super::super::TrafficWorld {
             .is_some_and(|hit| horizontal(hit.point - at).length() <= ROAD_EDGE)
     }
 
+    /// The chase as the audio and the speech read it each frame; `None` with no chase on.
+    pub fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {
+        let pursuit = self.pursuit.as_ref()?;
+        let heat = self.police.level().unwrap_or(pursuit.heat);
+        let progress = self.police.evade.progress();
+        let limit = blackbox_pursuit::evade::timeout(heat);
+        Some(crate::audio::PursuitFeed {
+            heat,
+            intensity: chase_intensity(self.police.seen, progress, limit),
+            secs: self.police.pursuit_time,
+            secs_to_evade: (limit - progress).max(0.0),
+            player_mph: self.player_speed / super::super::traffic::MPH,
+        })
+    }
+
     /// The distance from a physics-space point to the nearest cop, horizontally; infinite with no cop.
     fn nearest_cop(&self, at: Vec3) -> f32 {
         self.cars
@@ -108,4 +123,13 @@ impl super::super::TrafficWorld {
         let Some((position, heading)) = self.police.helicopter_blip() else { return };
         out.push(crate::hud::MapBlip { style: crate::hud::HELICOPTER, position, heading, active: pursuing });
     }
+}
+
+/// How tense a chase is, 0 (the cops lost the player) to 1 (they see the player). It is full while the cops see the
+/// player, and falls as the unseen progress fills towards the evade timeout.
+pub fn chase_intensity(seen: bool, progress: f32, timeout: f32) -> f32 {
+    if seen {
+        return 1.0;
+    }
+    (1.0 - progress / timeout.max(f32::EPSILON)).clamp(0.0, 1.0)
 }

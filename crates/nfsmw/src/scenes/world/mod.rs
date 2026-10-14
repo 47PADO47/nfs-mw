@@ -417,6 +417,10 @@ impl Scene for WorldScene {
         self.drive.as_mut()?.car_sound()
     }
 
+    fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {
+        self.traffic.as_ref()?.pursuit_feed()
+    }
+
     fn take_traffic_sounds(&mut self) -> Vec<crate::audio::traffic::TrafficSound> {
         self.traffic.as_mut().map(|t| t.take_sounds()).unwrap_or_default()
     }

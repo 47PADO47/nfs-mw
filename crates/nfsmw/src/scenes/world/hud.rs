@@ -14,6 +14,8 @@ impl WorldScene {
         if let (Some(state), Some(traffic)) = (hud.as_mut(), self.traffic.as_ref()) {
             traffic.map_blips(&mut state.blips);
             state.blips.extend_from_slice(&self.map_blips);
+            // The radar's green laser shows while cops chase the player.
+            state.cop_nearby = traffic.is_pursuing();
         }
         hud
     }
