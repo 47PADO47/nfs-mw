@@ -117,12 +117,31 @@ impl Audio {
         let Some(&id) = sound.levels[play.level].get(play.index) else { return };
         let stitches = self.stitches();
         let Some(stitch) = stitches.get(id as usize) else { return };
+        let level = if event.kind == EventKind::BottomOut { car.levels.landing } else { 1.0 };
+        self.play_stitch(stitch, play.volume * level);
+    }
+
+    /// A petrol-station blast. STAND-IN: the install's own explosion sounds are the event-named `smackable_break`
+    /// and `debris` impacts, which have no stitches here (their `EVENT` names map to banks through the `.csi`
+    /// files, not decoded yet). So this plays the loudest stitch of a wall hit, the rewrite's choice.
+    pub(super) fn play_explosion(&mut self) {
+        let Ok(db) = self.database() else { return };
+        let Some(sound) = nfsmw_data::sound::heaviest_impact(&db, EXPLOSION_FLAG) else { return };
+        let Some((level, id)) = (0..4).rev().find_map(|l| sound.levels[l].first().map(|&id| (l, id))) else {
+            return;
+        };
+        let stitches = self.stitches();
+        let Some(stitch) = stitches.get(id as usize) else { return };
+        self.play_stitch(stitch, sound.volumes[level]);
+    }
+
+    /// Play a stitch's pieces one after the other, each at `gain` times its own volume.
+    fn play_stitch(&mut self, stitch: &Stitch, gain: f32) {
         let mut start = 0.0f64;
         for piece in &stitch.pieces {
             let index = usize::from(piece.sample) + 1;
             let Ok(data) = self.bank_sound(COLLISION_BANK, index) else { continue };
-            let level = if event.kind == EventKind::BottomOut { car.levels.landing } else { 1.0 };
-            let volume = (stitch.volume * piece.volume * play.volume * level).clamp(0.0, 1.0);
+            let volume = (stitch.volume * piece.volume * gain).clamp(0.0, 1.0);
             let rate = f64::from(data.sample_rate.max(1));
             let data =
                 data.volume(decibels(volume)).start_time(StartTime::Delayed(Duration::from_secs_f64(start.max(0.0))));
@@ -134,3 +153,6 @@ impl Audio {
         }
     }
 }
+
+/// The `DESCRIPTION` flag of the impact collection a petrol-station blast borrows its sound from.
+const EXPLOSION_FLAG: &str = "WALL";

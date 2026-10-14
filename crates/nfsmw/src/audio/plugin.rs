@@ -79,6 +79,10 @@ fn drive_car(
     for sound in host.scene.take_traffic_sounds() {
         audio.play_traffic(sound);
     }
+    // Each petrol-station blast of this frame plays its explosion.
+    for _ in 0..host.scene.take_explosions() {
+        audio.play_explosion();
+    }
     // The sputter pops of this frame reach the scene, which lights the tail pipes for them.
     let pops = audio.take_sputter_pops();
     if pops > 0 {

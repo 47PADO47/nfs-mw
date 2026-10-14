@@ -128,6 +128,10 @@ pub trait Scene {
     fn take_traffic_sounds(&mut self) -> Vec<crate::audio::traffic::TrafficSound> {
         Vec::new()
     }
+    /// How many explosions (petrol-station blasts) started since the last call; each one plays its sound.
+    fn take_explosions(&mut self) -> u32 {
+        0
+    }
     /// The scene is over: the app quits.
     fn finished(&self) -> bool {
         false

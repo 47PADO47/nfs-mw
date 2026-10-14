@@ -86,6 +86,8 @@ impl WorldScene {
         let (collision, props) = self.residency.world_parts();
         let surfaces = &self.physics.surfaces;
         props.step(&super::drive::WorldGround { collision, surfaces }, STEP);
+        self.explosions.request(props.take_blasts());
+        self.explosions.step(STEP);
         let player_step = match (driving, self.drive.as_mut()) {
             (true, Some(drive)) => drive.step(collision, props, surfaces),
             _ => None,

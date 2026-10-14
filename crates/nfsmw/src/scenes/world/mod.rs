@@ -12,6 +12,7 @@ mod drive_input;
 mod effects;
 mod events;
 mod exhaust;
+mod explosion_fx;
 mod ground;
 mod hud;
 mod keys;
@@ -135,6 +136,8 @@ pub struct WorldScene {
     spark_style: crate::settings::SparkStyle,
     smoke_quality: crate::settings::SmokeQuality,
     rain: crate::weather::rain::Rain,
+    /// The petrol station's explosion effect, started by the scenery physics.
+    explosions: explosion_fx::ExplosionFx,
     /// The physics clock multiplier (Extra Options `GameSpeed`).
     tuning: crate::settings::WorldTuning,
     car_shading: crate::settings::CarShading,
@@ -419,6 +422,10 @@ impl Scene for WorldScene {
 
     fn take_traffic_sounds(&mut self) -> Vec<crate::audio::traffic::TrafficSound> {
         self.traffic.as_mut().map(|t| t.take_sounds()).unwrap_or_default()
+    }
+
+    fn take_explosions(&mut self) -> u32 {
+        self.explosions.take_started()
     }
 
     fn readout(&self, level: crate::devtools::ShowReadout) -> Option<String> {

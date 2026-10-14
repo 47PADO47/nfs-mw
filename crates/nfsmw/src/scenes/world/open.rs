@@ -91,6 +91,7 @@ impl WorldScene {
             spark_style: crate::settings::SparkStyle::OriginalPc,
             smoke_quality: crate::settings::SmokeQuality::Standard,
             rain: crate::weather::rain::Rain::new(),
+            explosions: Default::default(),
             tuning: crate::settings::WorldTuning::default(),
             car_shading: crate::settings::CarShading::default(),
             markers_on: false,
