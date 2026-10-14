@@ -76,6 +76,7 @@ fn all_icon_menus_shrink_on_native_accept_back_and_start() {
         (screen::MAIN_MENU, Args::default(), main, Id::QuickRace, pad::ACCEPT),
         (screen::MAIN_MENU_SUB, sub, cats, Id::Category(Category::Gameplay), pad::ACCEPT),
         (screen::MAIN_MENU_SUB, sub, cats, Id::Category(Category::Audio), pad::BACK),
+        (screen::MAIN_MENU_SUB, sub, cats, Id::Category(Category::Discord), pad::ACCEPT),
         (screen::PAUSE_MENU, pause, Kind::Pause, Id::Options, pad::ACCEPT),
         (screen::PAUSE_MENU, pause, Kind::Pause, Id::Resume, pad::BACK),
         (screen::PAUSE_MENU, pause, Kind::Pause, Id::Resume, pad::START),
@@ -93,6 +94,21 @@ fn all_icon_menus_shrink_on_native_accept_back_and_start() {
     }
 }
 
+/// The index in `row` of the controller icon. The window over the icons (`icon_window.rs`) can move the strip, so the
+/// icon is found by its picture rather than by its place in the list.
+fn controller_at(h: &Harness, count: usize) -> usize {
+    let tree = h.screens.trees().pop().unwrap();
+    let slot = (3..3 + count)
+        .find(|slot| {
+            let hash = fe_hash_upper(&format!("OPTION_{slot}"));
+            tree.nodes.iter().any(|n| {
+                n.name_hash == hash && matches!(n.kind, NodeKind::Image { texture: crate::ui::input_icons::ATLAS, .. })
+            })
+        })
+        .expect("the controller icon is on screen");
+    slot - 3
+}
+
 #[test]
 #[ignore = "requires installed menu packages; set NFSMW_GAME_DIR"]
 fn the_controller_icon_grows_on_return_and_shares_the_row_exit_factor() {
@@ -104,16 +120,12 @@ fn the_controller_icon_grows_on_return_and_shares_the_row_exit_factor() {
         h.press(pad::RIGHT);
     }
     h.wait(0.5);
-    let tree = h.screens.trees().pop().unwrap();
-    // The strip's first icon is the third object (`OPTION_3`), as in `row`.
-    let controller = tree.nodes.iter().find(|n| n.name_hash == fe_hash_upper(&format!("OPTION_{}", 3 + control)));
-    let controller = controller.unwrap();
-    assert!(matches!(controller.kind, NodeKind::Image { texture: crate::ui::input_icons::ATLAS, .. }));
     let full = row(&h, count);
     h.run(pad::ACCEPT, 1);
     h.run(0, 3);
     let current = row(&h, count);
-    let factor = current[control].size.x / full[control].size.x;
+    let at = controller_at(&h, count);
+    let factor = current[at].size.x / full[at].size.x;
     assert!(factor > 0.0 && factor < 1.0);
     for (p, idle) in current.iter().zip(&full).filter(|(_, idle)| idle.size.x > 1.0) {
         assert!((p.size.x / idle.size.x - factor).abs() < 0.001);
@@ -131,10 +143,14 @@ fn the_controller_icon_grows_on_return_and_shares_the_row_exit_factor() {
     assert_eq!(h.screens.top(), Some(screen::PAUSE_MENU));
     assert!(row(&h, count).iter().all(|p| p.size.x == 0.0 && p.alpha == 0), "return must start at zero");
     h.run(0, 3);
-    let small = row(&h, count)[control];
+    let at = controller_at(&h, count);
+    let small = row(&h, count)[at];
     assert!(small.size.x > 0.0 && small.size.x < 60.0);
     h.wait(1.0);
-    assert!(row(&h, count)[control].size.x > 60.0, "remembered Control Options selection must finish growing");
+    assert!(
+        row(&h, count)[controller_at(&h, count)].size.x > 60.0,
+        "remembered Control Options selection must finish growing"
+    );
 }
 
 /// The main menu has eight icons over eleven package objects, so its row is windowed: the selected icon is drawn

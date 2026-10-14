@@ -48,6 +48,8 @@ const BOOK_ENDS: usize = 2;
 /// The colours the icons fade between: idle and faded, as `0xAARRGGBB`.
 const WHITE: (u32, u32) = (0xFFFF_FFFF, 0x00FF_FFFF);
 const ORANGE: (u32, u32) = (0xFFFF_AE40, 0x00FF_AE40);
+/// The picture rectangle of a bundled image that is drawn whole.
+const WHOLE_IMAGE: [f32; 4] = [0.0, 0.0, 1.0, 1.0];
 
 pub struct IconMenu {
     kind: Kind,
@@ -162,6 +164,7 @@ impl IconMenu {
             cx.rt.set_texture(slot.obj, texture);
             let uv = match icon {
                 Some(i) if self.icons[i].id == Id::ControlOptions => crate::ui::input_icons::Glyph::Controller.uv(),
+                Some(i) if self.icons[i].texture == crate::ui::discord_icon::TEXTURE => WHOLE_IMAGE,
                 _ => slot.uv,
             };
             cx.rt.set_uv(slot.obj, uv);
@@ -174,6 +177,7 @@ impl IconMenu {
         let name = self.icons[i].name;
         let text = match self.icons[i].id {
             Id::ControlOptions => Some("Control Options"),
+            Id::Category(Category::Discord) => Some("Discord"),
             _ => None,
         };
         for hash in [ids::ICON_TITLE, ids::ICON_TITLE_SHADOW] {

@@ -59,11 +59,14 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
             row(Setting::Minimap, Title::Text("Minimap")),
             row(Setting::RearViewMirror, Title::Text("Rear-View Mirror")),
             row(Setting::Camera, Title::Text("Camera")),
-            row(Setting::Discord, Title::Text("Discord Rich Presence")),
-            row(Setting::DiscordTimePlayed, Title::Text("Show Time Played")),
         ],
         Category::Controls => {
             InputSetting::ALL.into_iter().map(|setting| row(Setting::Input(setting), setting.title())).collect()
         }
+        // The Discord Rich Presence toggles (`discord/`); the time played is dimmed while Discord is off.
+        Category::Discord => vec![
+            row(Setting::Discord, Title::Text("Discord Rich Presence")),
+            row(Setting::DiscordTimePlayed, Title::Text("Show Time Played")),
+        ],
     }
 }

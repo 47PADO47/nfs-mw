@@ -64,7 +64,8 @@ pub fn icons(kind: Kind) -> Vec<Icon> {
         // The original's option list (docs/specs/frontend-menus.md, 2.2): Player, EA Trax and Credits have no screen
         // here yet, so they are greyed out; EA Trax and Credits are left out in the pause menu. Online is left out too:
         // the original shows it only in online mode, which this build never is.
-        // Controls opens the key list; Control Options (the sensitivity and camera rows) sits beside it.
+        // Controls opens the key list; Control Options (the sensitivity and camera rows) sits beside it. Discord
+        // Rich Presence has its own icon (a bundled mark, `ui/discord_icon.rs`) and its toggles.
         Kind::Categories { pause } => {
             let mut list = vec![
                 icon(Id::Category(Category::Audio), 0xF37A_F144, 0xE76C_D783, true),
@@ -73,6 +74,7 @@ pub fn icons(kind: Kind) -> Vec<Icon> {
                 icon(Id::Player, 0xD708_EFEF, 0xF760_EABE, false),
                 icon(Id::Controls, 0xA04A_7B26, 0x04DC_6DB5, true),
                 icon(Id::ControlOptions, crate::ui::input_icons::ATLAS, 0, true),
+                icon(Id::Category(Category::Discord), crate::ui::discord_icon::TEXTURE, 0, true),
             ];
             if !pause {
                 list.push(icon(Id::EaTrax, 0, 0xDCFB_6B36, false));
@@ -105,8 +107,8 @@ mod tests {
         let categories = icons(Kind::Categories { pause: false });
         assert_eq!(
             categories.len(),
-            8,
-            "the offline option list plus Control Options, which fits the 12 package slots"
+            9,
+            "the offline option list, Control Options and Discord, which the windowed row scrolls over"
         );
         let controls = categories.iter().find(|i| i.id == Id::Controls).expect("the Controls icon");
         assert_eq!(controls.texture, 0xA04A_7B26, "OMController's picture (docs/specs/frontend-menus.md, 2.2)");
@@ -114,8 +116,19 @@ mod tests {
         assert_eq!(categories[options - 1].id, Id::Controls, "Control Options follows Controls");
         let player = categories.iter().find(|i| i.id == Id::Player).expect("the Player category");
         assert_eq!((player.texture, player.name), (0xD708_EFEF, 0xF760_EABE), "the original's Player icon");
-        assert_eq!(icons(Kind::Categories { pause: true }).len(), 6, "no EA Trax or Credits in the pause menu");
+        assert_eq!(icons(Kind::Categories { pause: true }).len(), 7, "no EA Trax or Credits in the pause menu");
         assert_eq!(icons(Kind::Pause)[0].name, 0x01BD_185C, "Resume Free Roam");
+    }
+
+    #[test]
+    fn discord_has_its_own_category_icon_with_the_bundled_mark() {
+        for pause in [false, true] {
+            let categories = icons(Kind::Categories { pause });
+            let discord =
+                categories.iter().find(|i| i.id == Id::Category(Category::Discord)).expect("the Discord category icon");
+            assert_eq!(discord.texture, crate::ui::discord_icon::TEXTURE);
+            assert!(discord.enabled);
+        }
     }
 
     #[test]

@@ -46,7 +46,7 @@ fn every_option_category_has_current_prompts_and_no_legacy_duplicates() {
     use crate::ui::input_icons::{ATLAS, Glyph};
     use blackbox_feng::NodeKind;
     for (name, pause) in [(screen::OPTIONS, false), (screen::PAUSE_OPTIONS, true)] {
-        for category in [Category::Audio, Category::Video, Category::Gameplay, Category::Controls] {
+        for category in [Category::Audio, Category::Video, Category::Gameplay, Category::Controls, Category::Discord] {
             let Some(mut h) = Harness::open(name, Args { pause, category, ..Args::default() }) else { return };
             h.wait(1.0);
             let mut bindings = Bindings::default();
