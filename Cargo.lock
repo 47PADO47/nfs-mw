@@ -1463,6 +1463,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "blackbox-fxedit"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "blackbox-gfx"
 version = "0.1.0"
 dependencies = [
@@ -1525,6 +1532,14 @@ version = "0.1.0"
 dependencies = [
  "nihav_core",
  "nihav_duck",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "blackbox-paramap"
+version = "0.1.0"
+dependencies = [
+ "blackbox-chunk",
  "thiserror 2.0.21",
 ]
 
@@ -3582,12 +3597,14 @@ dependencies = [
  "blackbox-damage",
  "blackbox-driver",
  "blackbox-feng",
+ "blackbox-fxedit",
  "blackbox-gfx",
  "blackbox-ginsu",
  "blackbox-hash",
  "blackbox-minimap",
  "blackbox-mixmap",
  "blackbox-movie",
+ "blackbox-paramap",
  "blackbox-particles",
  "blackbox-pursuit",
  "blackbox-render",

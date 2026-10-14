@@ -34,7 +34,7 @@ fn model(dir: &GameDir, data: &PhysicsData, name: &str, renderer: &mut NullBacke
         tractor: data.is_tractor(name),
         trailer: None,
         cop_lights: None,
-        horn: 5,
+        audio_profile: crate::audio::traffic::TrafficProfile { horn: Some(5), ..Default::default() },
     }
 }
 

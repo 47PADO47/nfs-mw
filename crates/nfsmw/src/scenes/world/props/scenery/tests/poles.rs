@@ -34,6 +34,8 @@ fn strike(world: &mut PropWorld, id: u32, data: &PhysicsData, strike: Strike, sp
     let physics = data.car("BMWM3GTR").unwrap();
     let geometry = &physics.geometry.as_ref().unwrap().body;
     let body = world.colliders[&id].body.as_ref().unwrap();
+    let was_attached = body.attached;
+    let profile = world.colliders[&id].shape.dynamics.as_ref().unwrap().sound_profile;
     let velocity = strike.direction * speed;
     let mut car = Vehicle::new(physics.spec);
     car.body_mut().place(strike.position, strike.orientation);
@@ -51,6 +53,12 @@ fn strike(world: &mut PropWorld, id: u32, data: &PhysicsData, strike: Strike, sp
     }
     let mut impact = Impact::default();
     world.collide_vehicle(&mut car, Some(frame), &mut impact);
+    if was_attached && !world.colliders[&id].body.as_ref().unwrap().attached {
+        assert!(
+            impact.sounds.iter().any(|s| s.sound_profile == profile && s.detached),
+            "a real detached prop must retain its own authored sound profile"
+        );
+    }
     !impact.contacts.is_empty()
 }
 

@@ -34,6 +34,7 @@ mod resident;
 mod road;
 mod sign_lamps;
 mod simulation;
+mod sound;
 mod space;
 mod speed_trails;
 mod start;
@@ -97,6 +98,9 @@ pub struct WorldScene {
     garage: crate::garage::Model,
     garage_parts: Option<nfsmw_data::car::customization::Inventory>,
     garage_open: bool,
+    audio_environment: Option<crate::audio::environment_context::EnvironmentMap>,
+    common_sounds: Vec<crate::audio::CommonEvent>,
+    sound_speedbreaker_active: bool,
     dir: GameDir,
     track: String,
     camera: FlyCamera,
@@ -451,10 +455,11 @@ impl Scene for WorldScene {
     }
 
     fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
-        if self.garage_open {
-            return None;
-        }
-        self.drive.as_mut()?.car_sound()
+        self.audio_state()
+    }
+
+    fn take_common_sounds(&mut self) -> Vec<crate::audio::CommonEvent> {
+        std::mem::take(&mut self.common_sounds)
     }
 
     fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {

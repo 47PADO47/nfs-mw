@@ -74,12 +74,18 @@ fn drive_car(
     if *seen != host.scene_changes {
         *seen = host.scene_changes;
         audio.stop_music();
+        audio.stop_traffic();
     }
     let car = host.scene.car_sound();
     audio.drive_car(car.as_ref(), time.delta_secs());
-    // The traffic cars' one-shots (horns, near-miss whooshes) of this frame.
-    for sound in host.scene.take_traffic_sounds() {
-        audio.play_traffic(sound);
+    audio.update_common(host.scene.take_common_sounds(), time.delta_secs());
+    audio.trace.advance(time.delta_secs());
+    let traffic = host.scene.take_traffic_sounds();
+    if let Some(state) = &car {
+        audio.update_traffic(traffic, state.view);
+    }
+    if car.is_none() {
+        audio.stop_traffic();
     }
     // The sputter pops of this frame reach the scene, which lights the tail pipes for them.
     let pops = audio.take_sputter_pops();

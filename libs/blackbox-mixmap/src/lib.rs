@@ -43,6 +43,6 @@ pub use map::{
     Control, EnvelopeKind, Event, MasterChannel, MixMap, OutputKind, PresetWord, Spatial, SpatialRecord, State,
     SubChannel,
 };
-pub use mixer::{InputKey, InputSource, MAX_INSTANCES, Mixer, ObjectRef};
+pub use mixer::{EventOutput, InputKey, InputSource, MAX_INSTANCES, Mixer, ObjectRef};
 pub use shape::{SILENCE_DB, UNITY, curve, curve_db, db_from_q15, pitch_ratio, q15_from_db};
 pub use testmap::{MapBuilder, minimal_map};

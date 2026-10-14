@@ -14,6 +14,7 @@ use glam::{Mat3, Vec3};
 use nfsmw_data::car::physics::WallSpec;
 use nfsmw_data::world::PropKind;
 
+use crate::audio::{CarContact, ContactSource};
 use crate::scenes::world::events::{DamageHit, OtherBody};
 use crate::scenes::world::props::{Obb, PropWorld};
 use crate::scenes::world::space;
@@ -221,6 +222,8 @@ pub fn find(cast: Cast<'_>, props: PropQuery<'_>, position: Vec3, rot: Mat3, hal
 /// What a step against the world did.
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Impact {
+    /// Unbounded contact metadata for sound, independent of the visual telemetry budget.
+    pub sounds: Vec<CarContact>,
     /// Damage callback data captured before each successful response.
     pub damage: Vec<DamageHit>,
     /// The strongest wall impulse, N s (0 without a hit).
@@ -299,6 +302,25 @@ pub fn resolve(vehicle: &mut Vehicle, cast: Cast<'_>, props: PropQuery<'_>, wall
         .collect();
     let mut impact =
         Impact { contacts: contacts.iter().map(ContactPoint::from).collect(), visuals, ..Impact::default() };
+    impact.sounds = contacts
+        .iter()
+        .map(|c| CarContact {
+            sound_profile: 0,
+            detached: false,
+            source: if c.prop.is_some() { ContactSource::Object } else { ContactSource::World },
+            identity: c.prop.map_or_else(
+                || c.info.map_or(0, |i| (u64::from(i.section) << 32) | i.instance as u64),
+                |(id, _)| u64::from(id),
+            ),
+            surface: c.info.map_or(0, |i| i.surface),
+            point: c.point,
+            normal: c.normal,
+            velocity: body.point_velocity(c.point),
+            delta_v: 0.0,
+            front: c.normal.dot(rot.z_axis).abs() > c.normal.dot(rot.x_axis).abs(),
+            bottom: false,
+        })
+        .collect();
 
     for c in contacts.iter().filter(|c| is_light(c)) {
         if let Some((id, Some(mass))) = c.prop
@@ -307,11 +329,17 @@ pub fn resolve(vehicle: &mut Vehicle, cast: Cast<'_>, props: PropQuery<'_>, wall
             impact.knocked.push((id, mass));
             // Pushing the prop away takes a share of the momentum: m_car / (m_car + m_prop).
             vehicle.body_mut().linear_velocity *= car_mass / (car_mass + mass);
+            if let Some(sound) = impact.sounds.iter_mut().find(|s| s.identity == u64::from(id)) {
+                sound.delta_v = sound.closing_speed() * mass / (car_mass + mass);
+            }
         }
     }
 
     let rigid: Vec<&WallContact> = contacts.iter().filter(|c| !is_light(c)).collect();
-    let Some(deepest) = rigid.first().map(|c| **c) else { return impact };
+    let Some(deepest) = rigid.first().map(|c| **c) else {
+        impact.sounds.retain(|c| c.delta_v > 0.0);
+        return impact;
+    };
     impact.rigid = rigid.len();
     impact.deepest = Some((deepest.point, deepest.info));
     impact.front = deepest.normal.dot(rot.z_axis).abs() > deepest.normal.dot(rot.x_axis).abs();
@@ -340,6 +368,9 @@ pub fn resolve(vehicle: &mut Vehicle, cast: Cast<'_>, props: PropQuery<'_>, wall
             }
             impact.damage.push(damage.resolved(vehicle.body(), false));
             impact.impulse = impact.impulse.max(reaction.impulse);
+            if let Some(sound) = impact.sounds.iter_mut().find(|s| s.point == c.point && s.normal == n) {
+                sound.delta_v = reaction.impulse / car_mass;
+            }
             if let Some(visual) = impact.visuals.get_mut(index) {
                 visual.impulse_delta_v = reaction.impulse / car_mass;
             }
@@ -351,6 +382,7 @@ pub fn resolve(vehicle: &mut Vehicle, cast: Cast<'_>, props: PropQuery<'_>, wall
     if impact.impulse > 0.0 {
         vehicle.notify_collision(impact.impulse / car_mass);
     }
+    impact.sounds.retain(|c| c.delta_v > 0.0);
     impact
 }
 

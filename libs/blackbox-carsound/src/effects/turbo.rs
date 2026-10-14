@@ -87,7 +87,6 @@ impl TurboFx {
 
     fn blow_off(&mut self, out: &mut Vec<SoundCommand>) {
         self.state = State::Blowoff;
-        self.blowoff_left = self.tuning.blowoff_seconds;
         let spool = self.spool;
         self.charge = 0.0;
         self.peak_for = 0.0;
@@ -96,6 +95,7 @@ impl TurboFx {
             false => (0, self.tuning.blowoff_volume[0]),
         };
         let volume = q15_gain(level as f32) * spool;
+        self.blowoff_left = self.tuning.blowoff_seconds[usize::from(id)].max(0.0);
         if volume > 0.0 {
             out.push(SoundCommand::Play { sound: SoundRef::TurboBlowoff(id), volume, pitch: 1.0 });
         }

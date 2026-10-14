@@ -4,13 +4,25 @@ use super::{Audio, EngineMix, Group};
 
 /// Whether `name` is one of the commands of this module.
 pub fn handles(name: &str) -> bool {
-    matches!(name, "sound" | "engine" | "radio" | "speech" | "music")
+    matches!(name, "sound" | "engine" | "radio" | "speech" | "music" | "audio-trace" | "audio-audit")
 }
 
 /// Run a sound command. `audio` is `None` when the game was started without sound.
 pub fn run(audio: Option<&mut Audio>, name: &str, args: &[&str]) -> Result<String, String> {
     let audio = audio.ok_or("sound is off (started with --no-sound or taking a screenshot)")?;
     match name {
+        "audio-audit" => Ok(audio.coverage()),
+        "audio-trace" => match args {
+            ["off"] => {
+                audio.trace.stop();
+                Ok("audio trace closed".into())
+            }
+            [path] => {
+                audio.start_trace(std::path::Path::new(path))?;
+                Ok(format!("recording audio trace to {path}"))
+            }
+            _ => Err("usage: audio-trace <path> | off".into()),
+        },
         "sound" => sound(audio, args),
         "engine" => engine(audio, args),
         "radio" => super::radio::command(audio, args),

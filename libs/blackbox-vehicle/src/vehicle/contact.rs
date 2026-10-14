@@ -11,6 +11,8 @@ impl Vehicle {
         let mut contacts: Vec<_> =
             points.into_iter().filter_map(|point| self.body.ground_contact(point, ground, crate::FIXED_STEP)).collect();
         self.body.resolve_ground(&mut contacts);
-        contacts.len()
+        let count = contacts.len();
+        self.body_contacts = contacts;
+        count
     }
 }

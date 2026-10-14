@@ -6,6 +6,7 @@
 //! the car model has 2 rear right, 3 rear left.
 
 use blackbox_collision::CollisionWorld;
+mod audio;
 use blackbox_vehicle::induction::InductionKind;
 use blackbox_vehicle::{FIXED_STEP, Ground, InputState, Vehicle};
 use glam::{Mat3, Quat, Vec3};
@@ -84,6 +85,8 @@ pub struct CarSim {
     wheel_ground: std::cell::RefCell<[blackbox_collision::ground_reference::GroundFaceCache; 4]>,
     /// The car touched a prop (a fixed or a movable one) this step; read once by the traffic (`take_prop_struck`).
     prop_struck: bool,
+    pending_sound_contacts: Vec<crate::audio::CarContact>,
+    sound_identity: u64,
 }
 
 /// A vector from physics space to render space axes: `(x, y, z) -> (z, -x, y)`.
@@ -130,6 +133,8 @@ impl CarSim {
             before_velocity: Vec3::ZERO,
             ground_reference: Default::default(),
             wheel_ground: Default::default(),
+            pending_sound_contacts: Vec::new(),
+            sound_identity: next_sound_identity(),
         }
     }
 
@@ -212,7 +217,7 @@ impl CarSim {
             }
         }
         self.step_with_ground(&input, ground, world.is_some());
-        let impact = match world {
+        let mut impact = match world {
             Some((collision, props)) => {
                 let frame = self
                     .geometry
@@ -231,12 +236,35 @@ impl CarSim {
                 impact.impulse = impact.impulse.max(objects.impulse);
                 impact.contacts.extend(objects.contacts);
                 impact.damage.splice(0..0, objects.damage);
+                impact.sounds.extend(objects.sounds);
                 impact
             }
             None => Impact::default(),
         };
+        
         self.prop_struck |=
             impact.contacts.iter().any(|c| matches!(c.kind, ContactKind::PropRigid | ContactKind::PropMovable));
+      
+        let body = self.vehicle.body();
+        let rotation = body.rotation();
+        let bottom_point =
+            body.position - rotation.y_axis * body.dimension().y - rotation.z_axis * (body.dimension().z * 0.75);
+        impact.sounds.extend(self.vehicle.body_contacts().iter().filter(|c| c.impulse_delta_v > 0.0).map(|c| {
+            let bottom = self.vehicle.wheels_on_ground() > 2 && rotation.y_axis.dot(c.normal) > 0.2;
+            crate::audio::CarContact {
+                sound_profile: 0,
+                detached: false,
+                source: crate::audio::ContactSource::Ground,
+                identity: 0,
+                surface: c.surface,
+                point: if bottom { bottom_point } else { c.point },
+                normal: c.normal,
+                velocity: c.velocity,
+                delta_v: c.impulse_delta_v,
+                front: false,
+                bottom,
+            }
+        }));
         if let Some(events) = self.events.as_mut() {
             for &hit in &impact.damage {
                 events.hit(hit);
@@ -248,6 +276,10 @@ impl CarSim {
         impact
     }
 
+    pub fn take_sound_contacts(&mut self) -> Vec<crate::audio::CarContact> {
+        std::mem::take(&mut self.pending_sound_contacts)
+    }
+
     /// The wheels as the car sound reads them, in the model's wheel order (front left, front right, rear
     /// right, rear left).
     pub fn wheel_sounds(&self, surfaces: &SurfaceTable) -> [blackbox_carsound::WheelInput; 4] {
@@ -257,7 +289,7 @@ impl CarSim {
             let audio = v.wheel_surface_tag(PHYSICS_WHEEL[i]).map(|tag| surfaces.audio(tag));
             // The tire reports how fast the patch slides over the road and how much of that is wheel spin; the
             // rest is sideways.
-            let sideways = (w.slide_speed * w.slide_speed - w.slip * w.slip).max(0.0).sqrt();
+            let sideways = w.lateral_speed;
             blackbox_carsound::WheelInput {
                 on_ground: w.on_ground,
                 slip: w.slip,
@@ -437,6 +469,11 @@ impl CarSim {
             boost_psi: v.boost_psi(),
         }
     }
+}
+
+fn next_sound_identity() -> u64 {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    (1 << 63) | NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
 mod ai;

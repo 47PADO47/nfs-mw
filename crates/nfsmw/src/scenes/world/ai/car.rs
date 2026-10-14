@@ -103,8 +103,8 @@ pub struct AiCar {
     roadblock: bool,
     /// The light bars of a cop car, when it has them.
     cop_lights: Option<super::cop_lights::CopLightRun>,
-    /// The horn sound (`HornType`) of this car.
-    pub horn: u32,
+    /// Installed authored traffic sound class IDs.
+    pub audio_profile: crate::audio::traffic::TrafficProfile,
     /// Seconds until the car may play a near miss or a horn again (`traffic_events::EventTuning::cooldown`).
     quiet: f32,
     /// Half extents of the body (physics space): where a hit lands on a cop.
@@ -178,7 +178,7 @@ impl AiCar {
             arrived: false,
             roadblock: false,
             cop_lights: model.cop_lights.clone().map(super::cop_lights::CopLightRun::new),
-            horn: model.horn,
+            audio_profile: model.audio_profile,
             quiet: 0.0,
             dim: physics.spec.dimension,
             damage,

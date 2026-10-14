@@ -20,6 +20,8 @@ pub struct WheelState {
     pub load: f32,
     /// Wheel speed minus ground speed in m/s (+ = spinning).
     pub slip: f32,
+    /// Signed sideways contact-patch speed in m/s (+ = right).
+    pub lateral_speed: f32,
     /// Slip angle in radians.
     pub slip_angle: f32,
     /// 1 = gripping, below 1 = sliding.

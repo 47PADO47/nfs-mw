@@ -5,6 +5,17 @@ use super::*;
 impl WorldScene {
     pub fn open(dir: &GameDir, options: Options) -> Result<Self> {
         let index = WorldIndex::open(dir, DEFAULT_TRACK)?;
+        let audio_environment = nfsmw_data::read_unwrapped(dir, &format!("TRACKS/{DEFAULT_TRACK}.BUN"))
+            .and_then(|bytes| crate::audio::environment_context::EnvironmentMap::read(&bytes))
+            .map_err(|e| log::warn!("audio environment unavailable: {e:#}"))
+            .ok();
+        if let Some(environment) = &audio_environment {
+            log::info!(
+                "audio environment: map {}, zones {}",
+                environment.map_available(),
+                environment.zones_available()
+            );
+        }
         let mut physics = PhysicsData::load(dir)?;
         physics.set_sequences(index.sequences.clone());
         let colour_treatment = nfsmw_data::visual_treatment::midday(physics.database());
@@ -59,6 +70,9 @@ impl WorldScene {
             garage: garage::catalog(dir, &physics)?,
             garage_parts: None,
             garage_open: false,
+            audio_environment,
+            common_sounds: Vec::new(),
+            sound_speedbreaker_active: false,
             dir: dir.clone(),
             track: index.track.clone(),
             camera,
@@ -113,5 +127,21 @@ impl WorldScene {
             waiting_since: None,
             camera_mode: CameraMode::default(),
         })
+    }
+}
+
+impl WorldScene {
+    /// Map position (x, y) the streaming follows.
+    pub(super) fn focus(&self) -> [f32; 2] {
+        match (&self.drive, self.view) {
+            (Some(drive), View::Chase) => match drive.waiting_for_road() {
+                Some(request) => request.near,
+                None => {
+                    let p = drive.position();
+                    [p.x, p.y]
+                }
+            },
+            _ => [self.camera.position.x, self.camera.position.y],
+        }
     }
 }
