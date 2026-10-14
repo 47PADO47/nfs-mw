@@ -200,6 +200,16 @@ impl Harness {
     }
 }
 
+/// Presses down from the row of `from` to the row of `to`, counted from the rows the renderer offers.
+fn down_from_to(h: &mut Harness, category: Category, from: super::options::Setting, to: super::options::Setting) {
+    let caps = crate::settings::test_caps::native();
+    let rows = super::options::rows(category, &caps);
+    let index = |setting| rows.iter().position(|row| row.setting == setting).expect("the category has the row");
+    for _ in index(from)..index(to) {
+        h.press(pad::DOWN);
+    }
+}
+
 #[test]
 fn the_main_menu_starts_free_roam_from_career_and_quick_race() {
     let Some(mut h) = Harness::open(screen::MAIN_MENU, Args::default()) else { return };
@@ -227,12 +237,12 @@ fn every_icon_of_the_main_menu_can_be_selected_but_only_the_working_ones_do_anyt
     h.wait(1.5);
     assert!(h.commands.is_empty(), "the challenge series do nothing yet: {:?}", h.commands);
     assert_eq!(h.screens.top(), Some(screen::MAIN_MENU));
-    for _ in 0..3 {
+    for _ in 0..4 {
         h.press(pad::RIGHT);
     }
     h.press(pad::ACCEPT);
     h.wait(1.5);
-    assert_eq!(h.screens.top(), Some(screen::MAIN_MENU_SUB), "four steps right is Options");
+    assert_eq!(h.screens.top(), Some(screen::MAIN_MENU_SUB), "five steps right is Options");
 }
 
 #[test]
@@ -263,7 +273,7 @@ fn a_click_focuses_the_visible_button_under_the_pointer() {
 fn options_and_back_move_between_the_main_menu_and_the_categories() {
     let Some(mut h) = Harness::open(screen::MAIN_MENU, Args::default()) else { return };
     h.wait(1.0);
-    for _ in 0..4 {
+    for _ in 0..5 {
         h.press(pad::RIGHT);
     }
     h.press(pad::ACCEPT);
@@ -300,17 +310,22 @@ fn a_category_opens_its_rows_and_a_row_changes_a_setting_at_once() {
 fn the_video_rows_change_vsync_and_the_hud_row_the_hud() {
     let args = Args { category: Category::Video, ..Args::default() };
     let Some(mut h) = Harness::open(screen::OPTIONS, args) else { return };
+    use super::options::Setting;
     h.wait(1.0);
+    down_from_to(&mut h, Category::Video, Setting::WindowMode, Setting::Vsync);
     h.press(pad::RIGHT);
     assert!(!h.settings.vsync);
     h.press(pad::DOWN);
     h.press(pad::RIGHT);
     assert_eq!(h.settings.max_fps.to_string(), "30");
-    for _ in 1..super::options::rows(Category::Video, &crate::settings::test_caps::native()).len() {
+    // Down from Frame Limit past the end of the list: the selection wraps to the first row (window mode).
+    let rows = super::options::rows(Category::Video, &crate::settings::test_caps::native());
+    let max_fps = rows.iter().position(|row| row.setting == Setting::MaxFps).expect("frame limit row");
+    for _ in max_fps..rows.len() {
         h.press(pad::DOWN);
     }
     h.press(pad::RIGHT);
-    assert!(h.settings.vsync, "the selection wrapped to the first row: vsync is back on");
+    assert!(h.changed.window_mode.is_some(), "the selection wrapped to the first row: window mode changes");
     let args = Args { category: Category::Gameplay, ..Args::default() };
     let mut h = Harness::open(screen::OPTIONS, args).unwrap();
     h.wait(1.0);
@@ -399,20 +414,19 @@ fn main_and_pause_video_options_change_and_save_display_and_tire_settings() {
     for (name, pause) in [(screen::OPTIONS, false), (screen::PAUSE_OPTIONS, true)] {
         let args = Args { pause, category: Category::Video, ..Args::default() };
         let Some(mut h) = Harness::open(name, args) else { return };
+        use super::options::Setting::{SkidMarks, SmokeQuality as Smoke, TireSmoke, WindowMode as Window};
         h.wait(1.0);
-        for _ in 0..3 {
-            h.press(pad::DOWN);
-        }
         h.press(pad::RIGHT);
         assert_eq!(h.settings.window_mode, WindowMode::Borderless);
-        h.press(pad::DOWN);
-        h.press(pad::RIGHT);
-        h.press(pad::DOWN);
-        h.press(pad::RIGHT);
-        assert!(!h.settings.tire_smoke && !h.settings.skid_marks);
-        h.press(pad::DOWN);
+        // Smoke quality is dimmed while tire smoke is off, so it is set first.
+        down_from_to(&mut h, Category::Video, Window, Smoke);
         h.press(pad::RIGHT);
         assert_eq!(h.settings.smoke_quality, SmokeQuality::High);
+        h.press(pad::UP);
+        h.press(pad::RIGHT);
+        down_from_to(&mut h, Category::Video, TireSmoke, SkidMarks);
+        h.press(pad::RIGHT);
+        assert!(!h.settings.tire_smoke && !h.settings.skid_marks);
         h.press(pad::BACK);
         h.wait(1.5);
         assert!(h.said(&Command::SaveSettings), "{name}: {:?}", h.commands);
@@ -451,8 +465,9 @@ fn controls_options_show_every_response_row_with_visible_values() {
             }
             h.press(pad::DOWN);
         }
-        // Wrapped to the first row, then up reaches the last row with the same reusable slots.
-        h.press(pad::UP);
+        // Wrapped to the first row; down to Invert Camera Y (its place in the list, not the last row) and toggle it.
+        let invert = super::options::Setting::Input(super::input_options::InputSetting::InvertCameraY);
+        down_from_to(&mut h, Category::Controls, rows[0].setting, invert);
         h.press(pad::RIGHT);
         assert!(h.settings.controls.invert_camera_y);
         h.press(pad::BACK);
