@@ -162,7 +162,14 @@ impl Wreck {
     /// `zone_scale`, from `from_camera` metres away. Returns `true` on the impact that wrecks the car. The force is
     /// the impulse doubled (the other body is a vehicle); a ratio not over the threshold does nothing, and the damage
     /// adds `ratio * zone_scale / hit_points`.
-    pub fn impact(&mut self, tuning: &WreckTuning, impulse: f32, closing: f32, zone_scale: f32, from_camera: f32) -> bool {
+    pub fn impact(
+        &mut self,
+        tuning: &WreckTuning,
+        impulse: f32,
+        closing: f32,
+        zone_scale: f32,
+        from_camera: f32,
+    ) -> bool {
         if self.destroyed || closing < MIN_CLOSING {
             return false;
         }
@@ -226,7 +233,8 @@ mod tests {
     use super::*;
 
     /// A cop set of the base numbers (`copmidsize`): hit points 5, threshold 0.75, suppressed beyond 35 m.
-    const MID: WreckTuning = WreckTuning { hit_points: 5.0, threshold: 0.75, suppress_dist: 35.0, front_rear_scale: 0.5 };
+    const MID: WreckTuning =
+        WreckTuning { hit_points: 5.0, threshold: 0.75, suppress_dist: 35.0, front_rear_scale: 0.5 };
     const HALF: Vec3 = Vec3::new(1.0, 0.7, 2.2);
 
     /// The impulse (N s) that gives a side hit a ratio of exactly one: `20000 / 2` (the doubling of the force).
