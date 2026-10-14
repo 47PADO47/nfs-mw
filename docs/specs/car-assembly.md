@@ -209,6 +209,7 @@ verified]:
 | Placeholder in the solid | Replaced by (stock) |
 |---|---|
 | `<CAR>_SKIN1`, `GLOBAL_SKIN1` | skinnable cars: the composite paint texture (§7); others: unchanged (`<CAR>_SKIN1` exists in the car's pack) |
+| `SPOILER_SKIN1`, `ROOF_SKIN` | skinnable cars: the same base paint colour as the body, updated on repaint; carbon variants retain their own texture references |
 | `HEADLIGHT_LEFT/RIGHT` | `<CAR>_KIT00_HEADLIGHT_ON` (headlights always lit) |
 | `HEADLIGHT_GLASS_LEFT/RIGHT` | `WINDOW_FRONT` |
 | `BRAKELIGHT_LEFT/RIGHT/CENTRE`, `BRAKELIGHT_GLASS_*` | `<CAR>_KIT00_BRAKELIGHT_OFF`, `…_GLASS_OFF` (`_ON` while braking) |
@@ -227,6 +228,12 @@ names, whereas the `SEMI` wheel directly references `TRAFFIC_TIRE`. Apply the
 swap before collecting textures to load, so both data lookup and render upload
 use the shared atlas. The PC constructor and used-texture helper confirm this
 rule; see [provenance](../provenance/car-assembly.md#pc-traffic-tires-2026-10-12).
+
+Aftermarket wheel geometry references brand/style atlases in
+`CARS/WHEELS/TEXTURES.BIN`, rather than the stock car's texture pack [verified on
+installed rim models]. Load the texture pack of each shared folder that actually
+supplied placed geometry, before the common/global packs. Keep the car's own
+pack first; stock cars do not require these additional accessory packs.
 
 ## 7. Paint
 
