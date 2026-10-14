@@ -147,7 +147,9 @@ directly, with the original's controller picture. Control Options (a title we ch
 sits beside it and opens the sensitivity and camera rows (`Options.fng`, category Controls): Deadzone Mode to Invert
 Camera Y, then Save Alias and Load Alias. That list has no Keyboard Bindings row (`InputSetting::ALL`). Both icons leave
 with the usual animation. Back on the key list returns to the categories (`Command::Switch`), which restore the icon
-they remember, so the key list sits on no screen beneath it. The pause menu has the same six icons, Player greyed out.
+they remember, so the key list sits on no screen beneath it. The pause menu has six icons: Audio, Video, Gameplay,
+Controls, Control Options and Discord. **Player is left out of the pause menu ([ours]).** The original adds it there
+too (`[decomp]` below); the user asked for it to be gone from pause, and the main menu's Options keeps it greyed out.
 
 **Online is not listed (decomp, ours).** The original adds Online only in online mode, which this build never is, so
 the offline list is Audio to Credits, without Online, plus Control Options and Discord (below). The greyed-out Online
@@ -161,7 +163,9 @@ white Discord mark (`assets/discord/discord.png`, Simple Icons, CC0; see NOTICE)
 `0xE0C0_0002` (`ui/discord_icon.rs`, next to the input atlas `0xE0C0_0001`). Its header reads "Discord". The icon
 opens `Options.fng` (pause: `Pause_Options.fng`) with category `Discord`, which shows the two toggles: Discord Rich
 Presence (`discord`) and Show Time Played (`discord_time_played`, dimmed while Discord is off). These rows left the
-Gameplay category (`options_rows.rs`); the toggles themselves are unchanged. The mark is drawn whole (full-image uv).
+Gameplay category (`options_rows.rs`); the toggles themselves are unchanged. The mark is drawn whole (full-image uv)
+and at 0.65 of its slot (`DISCORD_DRAW_SCALE`, `icon_items.rs`, [ours]): at full slot size the unpadded mark read
+bigger than the package pictures. The uv stays whole; shrinking the uv would enlarge the glyph instead.
 
 **Icon textures.** `UIOptionsMain::Setup` adds each category as `OMxxx(texture, label, 0)`:
 `OMAudio(0xF37AF144, 0xE76CD783, 0)` and `OMPlayer(0xD708EFEF, 0xF760EABE, 0)` **[decomp]**. The Audio pair is the one

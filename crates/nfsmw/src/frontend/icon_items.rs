@@ -28,6 +28,20 @@ pub enum Id {
     QuitToMenu,
 }
 
+/// The share of its slot the Discord mark is drawn at. The mark is a bundled 128-unit image drawn whole
+/// (`WHOLE_IMAGE`), with no margin, so at full slot size it reads bigger than the package's pictures, which keep
+/// a margin inside the slot. Drawing it at this share brings its glyph to about the package pictures' size
+/// (docs/specs/frontend-menus.md, 2.2 Discord category). Only the size changes: the picture rectangle stays whole.
+pub const DISCORD_DRAW_SCALE: f32 = 0.65;
+
+/// How large an icon's picture is drawn, as a share of its slot.
+pub fn draw_scale(icon: &Icon) -> f32 {
+    match icon.texture {
+        crate::ui::discord_icon::TEXTURE => DISCORD_DRAW_SCALE,
+        _ => 1.0,
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct Icon {
     pub id: Id,
@@ -62,8 +76,8 @@ pub fn icons(kind: Kind) -> Vec<Icon> {
             icon(Id::Options, 0x3058_FE37, 0x19A8_C0AF, true),
         ],
         // The original's option list (docs/specs/frontend-menus.md, 2.2): Player, EA Trax and Credits have no screen
-        // here yet, so they are greyed out; EA Trax and Credits are left out in the pause menu. Online is left out too:
-        // the original shows it only in online mode, which this build never is.
+        // here yet, so they are greyed out; Player is left out in the pause menu, and EA Trax and Credits too. Online
+        // is left out as well: the original shows it only in online mode, which this build never is.
         // Controls opens the key list; Control Options (the sensitivity and camera rows) sits beside it. Discord
         // Rich Presence has its own icon (a bundled mark, `ui/discord_icon.rs`) and its toggles.
         Kind::Categories { pause } => {
@@ -71,11 +85,13 @@ pub fn icons(kind: Kind) -> Vec<Icon> {
                 icon(Id::Category(Category::Audio), 0xF37A_F144, 0xE76C_D783, true),
                 icon(Id::Category(Category::Video), 0x8A00_6328, 0xE8E2_4508, true),
                 icon(Id::Category(Category::Gameplay), 0x4DF9_8FB2, 0xD0CF_6EE1, true),
-                icon(Id::Player, 0xD708_EFEF, 0xF760_EABE, false),
-                icon(Id::Controls, 0xA04A_7B26, 0x04DC_6DB5, true),
-                icon(Id::ControlOptions, crate::ui::input_icons::ATLAS, 0, true),
-                icon(Id::Category(Category::Discord), crate::ui::discord_icon::TEXTURE, 0, true),
             ];
+            if !pause {
+                list.push(icon(Id::Player, 0xD708_EFEF, 0xF760_EABE, false));
+            }
+            list.push(icon(Id::Controls, 0xA04A_7B26, 0x04DC_6DB5, true));
+            list.push(icon(Id::ControlOptions, crate::ui::input_icons::ATLAS, 0, true));
+            list.push(icon(Id::Category(Category::Discord), crate::ui::discord_icon::TEXTURE, 0, true));
             if !pause {
                 list.push(icon(Id::EaTrax, 0, 0xDCFB_6B36, false));
                 list.push(icon(Id::Credits, 0, 0x0905_101F, false));
@@ -116,7 +132,9 @@ mod tests {
         assert_eq!(categories[options - 1].id, Id::Controls, "Control Options follows Controls");
         let player = categories.iter().find(|i| i.id == Id::Player).expect("the Player category");
         assert_eq!((player.texture, player.name), (0xD708_EFEF, 0xF760_EABE), "the original's Player icon");
-        assert_eq!(icons(Kind::Categories { pause: true }).len(), 7, "no EA Trax or Credits in the pause menu");
+        let pause = icons(Kind::Categories { pause: true });
+        assert_eq!(pause.len(), 6, "no Player, EA Trax or Credits in the pause menu");
+        assert!(pause.iter().all(|i| i.id != Id::Player), "the pause menu has no Player entry");
         assert_eq!(icons(Kind::Pause)[0].name, 0x01BD_185C, "Resume Free Roam");
     }
 
@@ -129,6 +147,16 @@ mod tests {
             assert_eq!(discord.texture, crate::ui::discord_icon::TEXTURE);
             assert!(discord.enabled);
         }
+    }
+
+    #[test]
+    fn the_discord_mark_is_drawn_smaller_than_its_slot() {
+        let categories = icons(Kind::Categories { pause: false });
+        let discord = categories.iter().find(|i| i.id == Id::Category(Category::Discord)).expect("Discord");
+        assert!(draw_scale(discord) < 1.0, "the mark fills the slot unless it is drawn smaller");
+        assert!((draw_scale(discord) - DISCORD_DRAW_SCALE).abs() < f32::EPSILON);
+        let controls = categories.iter().find(|i| i.id == Id::Controls).expect("Controls");
+        assert_eq!(draw_scale(controls), 1.0, "the package pictures keep their full slot");
     }
 
     #[test]
