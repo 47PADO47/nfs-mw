@@ -48,7 +48,9 @@ impl WorldScene {
                 let view = drive.player_view();
                 let cast = super::drive::walls::world_cast(collision);
                 let clear = |from: glam::Vec3, to: glam::Vec3| cast(from, to).is_none();
-                traffic.update_police(dt, &view, &clear);
+                // The simulated time of this update, as the traffic gets it: a screenshot run has no frame time, so
+                // a per-frame dt would stop the police clock offscreen.
+                traffic.update_police(steps as f32 * STEP, &view, &clear);
                 // A support roll asked for a roadblock: the world places it, and the chase keeps no second one.
                 if traffic.take_roadblock_request() {
                     match traffic.place_roadblock(view, collision, &self.physics.surfaces) {
