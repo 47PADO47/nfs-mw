@@ -54,6 +54,12 @@ fn a_custom_blip_has_a_pool_of_one_icon() {
 }
 
 #[test]
+fn a_cop_outside_a_pursuit_is_gated_to_the_view_and_a_pursuing_one_is_always_shown() {
+    assert_eq!(Cop.visibility(&blip(COP, false)), Visibility::InZone);
+    assert_eq!(Cop.visibility(&blip(COP, true)), Visibility::Always);
+}
+
+#[test]
 fn the_cop_flashes_only_while_active() {
     let cop = blip(COP, false);
     let idle = look_of(&Cop, &cop, 0).unwrap().colour;
