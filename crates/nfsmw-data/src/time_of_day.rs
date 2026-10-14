@@ -1,6 +1,6 @@
 //! The time-of-day lighting presets: the 8 `timeofdaylighting` collections, loaded in the game's order, and
-//! the blend between two of them. Spec: `docs/specs/time-of-day.md`. The clock that picks the blend is not
-//! implemented yet.
+//! the blend between two of them. Spec: `docs/specs/time-of-day.md`. The day-night clock that drives the sun
+//! and the lights is in `day_night`.
 
 use blackbox_attrib::{Database, Value, vlt_hash};
 

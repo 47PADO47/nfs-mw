@@ -1,6 +1,6 @@
 # Time-of-day lighting
 
-Status: **sun motion and fog colour implemented, built and tested in the running game** (world tests 230 pass; sun and fog unit tests 17 pass; `nfsmw-data` 69 pass; offscreen screenshot renders). Outstanding: the visual match of the scattering fog and lighting against the original game, which needs a reference frame. Out of scope for this pass and still open: the sky dome, the colour grade's time link, scalar `+0xA0`, and the live blend weight `t` (held at 0.0685).
+Status: **sun motion and fog colour implemented, built and tested in the running game** (world tests 230 pass; sun and fog unit tests 17 pass; `nfsmw-data` 69 pass; offscreen screenshot renders). Day-night clock (E1): the clock, the sun phase for the hour, the lights-on and lights-off switch, and their config (`crates/nfsmw-data/src/day_night.rs`, `crates/nfsmw/src/scenes/world/day.rs`) are implemented with unit tests, not yet checked against the original at a known hour. The per-frame sun integrator is gone; the clock sets the sun. The double `sun.advance` noted in the earlier pass was already removed on the current branch. Outstanding: the visual match of the scattering fog and lighting against the original game, which needs a reference frame. Out of scope for this pass and still open: the sky dome, the colour grade's time link, scalar `+0xA0`, and the live blend weight `t` (held at 0.0685).
 world scene (`crates/nfsmw/src/scenes/world/sun.rs`). The night colours are specified too: in the states
 checked, the preset blend follows a location value, not the clock, and the clock's counter is never written.
 The one open question is who would write that counter in a state that runs it (see below).
@@ -97,6 +97,27 @@ this install the triangle branch is not active in the states checked. Its gate i
 
 The implemented function `time_of_day::clock_phase` gives the triangle and is tested.
 
+**Writer of the counter (found, Ghidra `speed.exe`).** The counter `0x009B0FE4` is the `+0x44` field of the
+clock object at `0x009B0FA0`. Absolute references to `0x009B0FE4` are two reads (`FUN_0073C980`,
+`FUN_0079FB60`) and no absolute write. The write is through the object's base:
+
+- `FUN_00735960` (set-clock) takes `this` in `ECX` (`0x009B0FA0`), stores its arguments at `+0x30`, `+0x34`,
+  `+0x40` (a float) and `+0x44` (the whole-second counter), then recomputes `+0x20` and `+0x28` from the base
+  time `FUN_0078B2C0` and `FUN_007C4B80` (the `0x009B42A4` timer). The write to `+0x44` is at `0x007359A5`.
+- Its callers, with `this = 0x009B0FA0`: `FUN_007974F0` (at `0x00797559`, the state dispatcher, on its
+  state-6 path), `FUN_007A0320` (at `0x007A04E0`), `FUN_007920B0` (at `0x00792130`) and one call in an
+  unnamed function at `0x0079F3C6`.
+- In `FUN_007974F0` the counter value is the time of the current object (`[obj+0x38]`, looked up by the name
+  hash `0x7374696D`) plus 2, through the timer at `0x0045CE40`. So the writer runs when the game state
+  dispatcher is in state 6; the state values come from `DAT_009B41FC` and `DAT_009B4220` (writers listed in
+  Ghidra).
+- The gate `0x009B0FB9` has six absolute reads (`SampleRainIntensity`, `FUN_0073C980`, `FUN_0073CA50` and
+  three others) and no absolute write. It may be written through a base, not checked.
+
+So the counter is written when the state dispatcher runs state 6. Whether state 6 is a free-roam state is not
+confirmed: the live checks in free roam recorded no change, so either state 6 is not free roam or the value is
+not used there. This is the open point for a live watchpoint on `0x009B0FE4` during a state-6 entry.
+
 ## Other time terms **[unconfirmed]**
 
 - `FUN_0073C980` and `FUN_0073C9F0` use the same counter with a 503-second wrap and a sine in degrees
@@ -123,9 +144,10 @@ The implemented function `time_of_day::clock_phase` gives the triangle and is te
 - **Conclusion for this build:** the daily change the player sees is the sun's motion (above) and the
   location-driven preset blend. The night presets are not reached by a clock here.
 
-**Open:** which state, if any, writes the counter `0x009B0FE4`. That would enable the one-hour clock and the
-503-second term. No static writer exists, so it would need a watchpoint in a state not yet tested (for
-example a career day cycle, a cutscene or the frontend). The sun and the location blend do not depend on it.
+**Open (corrected):** the counter `0x009B0FE4` has a static writer, `FUN_00735960`, called on the state-6 path of
+`FUN_007974F0` (see "Writer of the counter" above). What is still open is which game state is state 6 and whether
+the free-roam sun should follow the counter there. The earlier statement that no writer exists is withdrawn.
+The sun and the location blend do not depend on it.
 
 ## Application
 
@@ -230,12 +252,21 @@ with the original game is not verified.
 
 ## Implementation plan
 
-1. **Sun daily motion** (done). `Sun` in `crates/nfsmw/src/scenes/world/sun.rs` keeps the phase and direction,
-   advances it each frame, and feeds the scene light and the drive car's shading. Start phase `0.5` (noon). The
-   traffic cars and reflections still use the noon sun, since they are set up without a frame update.
-2. **Preset blend** (done as specified, in the location form). `time_of_day::blend` with `t` from the world's
+1. **Sun daily motion** (done, now clock-driven). `Sun` in `crates/nfsmw/src/scenes/world/sun.rs` holds the phase and
+   the direction and feeds the scene light and the drive car's shading. Each frame `WorldScene::update_day`
+   (`crates/nfsmw/src/scenes/world/day.rs`) advances the clock and sets the phase with
+   `nfsmw_data::day_night::sun_phase`: sunrise `06:00` to sunset `18:00` runs the phase from the low limit to the
+   high limit, and the night holds the limit reached. Default start is noon (`12:00`) and one game hour is 150
+   real seconds (our choice, not an install value). The traffic cars and reflections still use the noon sun.
+2. **Day-night clock and lights** (done, own config). `DayNightConfig` in `crates/nfsmw-data/src/day_night.rs`
+   (serde, defaults above): `force_time` (`ForceTime`), `real_time` and `random_startup_time` (read, not applied),
+   `sun_rise`, `sun_set`, `lights_on`, `lights_off`, `sun_azimuth` (the orbit's `+0x0C` angle `a`, our mapping).
+   The player's headlights switch at `lights_on` and `lights_off` (`Drive::set_headlights`); a manual toggle holds
+   until the next switch. World lights and the sky colour are not driven yet.
+   Not yet wired: loading the config from the settings file (the defaults are used).
+3. **Preset blend** (done as specified, in the location form). `time_of_day::blend` with `t` from the world's
    `+0x290` value. Not yet applied to the renderer's colours.
-3. **Application** of the blended presets to fog, sky and grade (not yet started).
+4. **Application** of the blended presets to fog, sky and grade (not yet started).
 
 Implemented in `crates/nfsmw-data/src/time_of_day.rs`: `clock_phase`, `sun_phase_limit`,
 `advance_sun_phase`, `sun_direction`, plus the preset loader and blend. Tests cover the noon sun, the live

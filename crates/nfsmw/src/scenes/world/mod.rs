@@ -7,6 +7,7 @@ mod car_loader;
 mod cargo;
 mod commands;
 mod damage_marks;
+mod day;
 mod drive;
 mod drive_input;
 mod effects;
@@ -118,6 +119,8 @@ pub struct WorldScene {
     /// Seconds since the scene started, for texture animations.
     clock: f32,
     sun: sun::Sun,
+    /// The day-night clock: the hour of day, the sun for it and the lights.
+    day: day::DayClock,
     /// The aspect ratio the physics camera uses (set by each frame).
     physics_aspect: f32,
     /// The one fixed timeline of the player, the traffic and the object contacts (see `update_simulation`).
@@ -259,7 +262,7 @@ impl Scene for WorldScene {
         self.update_entry(input, dt);
         self.rain.update(sim_dt, camera);
         self.clock += sim_dt * self.tuning.animation_speed;
-        self.sun.advance(sim_dt);
+        self.update_day(sim_dt);
         self.residency.animate(renderer, self.clock);
         if self.view == View::Fly {
             self.camera.update(input, sim_dt);

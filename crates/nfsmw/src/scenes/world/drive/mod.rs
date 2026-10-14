@@ -255,6 +255,11 @@ impl Drive {
         self.headlights
     }
 
+    /// Set the headlights on or off, as the day-night clock does at its lights-on and lights-off hours.
+    pub fn set_headlights(&mut self, on: bool) {
+        self.headlights = on;
+    }
+
     /// The visible damage over the car, as world-space quads (see `damage_marks`).
     pub fn damage_quads(&self) -> Vec<crate::scenes::world::damage_marks::MarkQuad> {
         let Some(sim) = &self.sim else { return Vec::new() };

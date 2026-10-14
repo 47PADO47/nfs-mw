@@ -79,6 +79,7 @@ impl WorldScene {
             reflection_last: None,
             clock: 0.0,
             sun: sun::Sun::new(),
+            day: super::day::DayClock::new(nfsmw_data::day_night::DayNightConfig::default()),
             physics_aspect: 16.0 / 9.0,
             physics_clock: drive::FixedClock::default(),
             speedbreaker_clock: drive::SpeedbreakerClock::default(),
