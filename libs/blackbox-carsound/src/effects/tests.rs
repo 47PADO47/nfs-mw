@@ -32,7 +32,7 @@ fn turbo_tuning() -> CarSoundTuning {
         charge_time: 15.0,
         leak_rate: 0.5,
         blowoff_volume: [20000, 24000],
-        blowoff_seconds: 1.0,
+        blowoff_seconds: [1.0; 3],
     };
     CarSoundTuning { turbo: Some(turbo), ..tuning() }
 }
