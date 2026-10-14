@@ -220,6 +220,8 @@ fn update(
                 fe.next_boot(host, &mut env);
             }
         }
+        // Nothing pauses or skips the loading screen: the pad only drives its animation (mask 0 below).
+        Stage::Loading => fe.loading_frame(dt, host, &mut env),
         Stage::Playing => {
             let scripted_start = mask & pad::START != 0 && fe.last_mask & pad::START == 0;
             let pause = input.disconnected

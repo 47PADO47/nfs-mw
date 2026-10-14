@@ -12,6 +12,7 @@ mod graphics_options;
 mod icon_menu;
 mod ids;
 pub(crate) mod input_options;
+mod loading;
 mod logic;
 mod options;
 mod plugin;

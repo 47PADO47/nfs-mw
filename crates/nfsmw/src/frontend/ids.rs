@@ -17,6 +17,8 @@ pub mod screen {
     /// The keyboard controls list (`controls_screen.rs`), and its in-game copy.
     pub const CONTROLS: &str = "Options_PC_Controller.fng";
     pub const PAUSE_CONTROLS: &str = "Pause_PC_Controller.fng";
+    /// The loading screen shown while free roam streams in (`loading.rs`). Widescreen only in the install.
+    pub const LOADING: &str = "WS_Loading.fng";
 }
 
 // Messages.
