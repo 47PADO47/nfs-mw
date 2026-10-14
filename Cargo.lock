@@ -2999,6 +2999,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "ini-tuning"
+version = "0.1.0"
+
+[[package]]
 name = "inotify"
 version = "0.11.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3621,6 +3625,7 @@ dependencies = [
  "env_logger",
  "game-install",
  "glam 0.34.1",
+ "ini-tuning",
  "kira",
  "log",
  "nfsmw-data",
@@ -3659,6 +3664,7 @@ dependencies = [
  "game-install",
  "glam 0.34.1",
  "log",
+ "serde",
 ]
 
 [[package]]

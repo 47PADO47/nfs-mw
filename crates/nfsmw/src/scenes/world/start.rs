@@ -51,10 +51,11 @@ impl WorldScene {
         if let Some(car) = self.garage.selected() {
             self.garage.category = car.category;
         }
+        let car_trails = self.car_trails();
         if let Some(drive) = self.drive.as_mut() {
             drive.effects.set_enabled(self.tire_effects[0], self.tire_effects[1]);
             drive.effects.set_quality(self.smoke_quality);
-            drive.vehicle_effects.set_enabled(self.vehicle_effects[0], self.vehicle_effects[1]);
+            drive.vehicle_effects.set_enabled(self.vehicle_effects[0], car_trails);
             drive.vehicle_effects.set_style(self.spark_style);
             drive.flames.set_enabled(self.exhaust_flames);
         }

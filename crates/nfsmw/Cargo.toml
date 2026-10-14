@@ -32,6 +32,7 @@ blackbox-pursuit.workspace = true
 blackbox-speedfx.workspace = true
 blackbox-feng.workspace = true
 blackbox-gfx.workspace = true
+ini-tuning.workspace = true
 blackbox-minimap.workspace = true
 blackbox-mixmap.workspace = true
 blackbox-paramap.workspace = true

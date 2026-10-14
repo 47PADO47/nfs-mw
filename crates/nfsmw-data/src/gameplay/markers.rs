@@ -1,5 +1,5 @@
-//! The activity zones: the auto shops (`menu_gate_customshop/zone_customshop_N`) and the safe houses
-//! (`menu_gate_safehouse/zone_safehouse_N`). Each is a sphere trigger of class `zonetrigger` with a `ZoneType`, and
+//! The activity zones: the auto shops (`menu_gate_customshop/zone_customshop_N`), the car lots
+//! (`menu_gate_carlot/zone_carlot_N`) and the safe houses (`menu_gate_safehouse/zone_safehouse_N`). Each is a sphere trigger of class `zonetrigger` with a `ZoneType`, and
 //! a child `respawn` marker. Spec: `docs/formats/gameplay-races.md` section 7.
 
 use blackbox_attrib::{CollectionRef, Database};
@@ -17,22 +17,25 @@ const RESPAWN_FIELD: u32 = 0x2241_F4CD;
 pub enum ActivityKind {
     /// `customshop`: the auto shop (paint, parts and performance; 8 zones).
     AutoShop,
+    /// `carlot`: the car lot (buy a car; 3 zones).
+    CarLot,
     /// `safehouse`: the safe house (career hub; 4 zones).
     SafeHouse,
 }
 
 impl ActivityKind {
-    /// The kind of a `ZoneType` string. `None` for the zone types this module does not read (`carlot`, empty).
+    /// The kind of a `ZoneType` string. `None` for the zone types this module does not read (empty, other).
     pub fn from_zone_type(zone_type: &str) -> Option<Self> {
         Some(match zone_type {
             "customshop" => Self::AutoShop,
+            "carlot" => Self::CarLot,
             "safehouse" => Self::SafeHouse,
             _ => return None,
         })
     }
 }
 
-/// One auto shop or safe house.
+/// One auto shop, car lot or safe house.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ActivityMarker {
     /// The collection's key (the hash of its name).
@@ -52,7 +55,7 @@ pub struct ActivityMarker {
     pub icon_index: Option<i32>,
 }
 
-/// Every auto shop and safe house zone, in database order.
+/// Every auto shop, car lot and safe house zone, in database order.
 pub(crate) fn markers(db: &Database) -> Vec<ActivityMarker> {
     instances(db).filter(|c| inherits(*c, "zonetrigger")).filter_map(|c| marker(db, c)).collect()
 }
@@ -83,7 +86,7 @@ mod tests {
     fn zone_types_select_the_two_activities() {
         assert_eq!(ActivityKind::from_zone_type("customshop"), Some(ActivityKind::AutoShop));
         assert_eq!(ActivityKind::from_zone_type("safehouse"), Some(ActivityKind::SafeHouse));
-        assert_eq!(ActivityKind::from_zone_type("carlot"), None);
+        assert_eq!(ActivityKind::from_zone_type("carlot"), Some(ActivityKind::CarLot));
         assert_eq!(ActivityKind::from_zone_type(""), None);
     }
 }

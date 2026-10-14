@@ -96,15 +96,10 @@ pub fn skid_side(heli: Vec3, player: &Player) -> f32 {
 }
 
 /// The skid approach goal: slide in 6 m beside the player at its height plus about 2 m.
-pub fn skid_approach(heli: Vec3, player: &Player, side: f32) -> Goal {
+pub fn skid_approach(heli: Vec3, player: &Player, side: f32, speed: f32) -> Goal {
     let lift = if heli.y - player.position.y < 2.0 { 4.8 } else { 1.8 };
     let seek = player.position + player.right() * (6.0 * side) + player.velocity * 0.23 + Vec3::new(0.0, lift, 0.0);
-    Goal {
-        drive: seek,
-        speed: STRIKE_SPEED,
-        dest_velocity: player.velocity,
-        look_at: player.position + player.velocity,
-    }
+    Goal { drive: seek, speed, dest_velocity: player.velocity, look_at: player.position + player.velocity }
 }
 
 /// Whether the approach has reached its side: close, and well off the player's centreline.
@@ -115,15 +110,10 @@ pub fn skid_strikes(heli: Vec3, player: &Player, side: f32) -> bool {
 }
 
 /// The strike: slide sideways into the car at its own height.
-pub fn skid_strike(player: &Player, side: f32) -> Goal {
+pub fn skid_strike(player: &Player, side: f32, speed: f32) -> Goal {
     let offset = player.right() * (6.0 * side);
     let seek = player.position + player.velocity * 0.092 - 0.5 * offset + Vec3::new(0.0, 0.4, 0.0);
-    Goal {
-        drive: seek,
-        speed: STRIKE_SPEED,
-        dest_velocity: player.velocity,
-        look_at: player.position + player.velocity,
-    }
+    Goal { drive: seek, speed, dest_velocity: player.velocity, look_at: player.position + player.velocity }
 }
 
 /// Whether a skid hit is abandoned: the helicopter is ahead and far, below the player, or behind and beyond 12 m.
@@ -147,8 +137,8 @@ pub fn search_point(centre: Vec3, angle_turns: f32, unit_random: f32, radius: f3
 }
 
 /// The search goal: fly to a search point at search speed, matching the velocity of the helicopter.
-pub fn search(point: Vec3, heli_velocity: Vec3) -> Goal {
-    Goal { drive: point, speed: SEARCH_SPEED, dest_velocity: heli_velocity, look_at: point }
+pub fn search(point: Vec3, heli_velocity: Vec3, speed: f32) -> Goal {
+    Goal { drive: point, speed, dest_velocity: heli_velocity, look_at: point }
 }
 
 /// Where the helicopter is in its exit.
@@ -176,7 +166,7 @@ impl Exit {
     }
 
     /// Advances the stage from the helicopter and the player, then returns the goal for this think.
-    pub fn think(&mut self, heli: Vec3, heli_velocity: Vec3, player: &Player) -> Goal {
+    pub fn think(&mut self, heli: Vec3, heli_velocity: Vec3, player: &Player, speed: f32) -> Goal {
         match self.stage {
             ExitStage::SeekUp if heli.y - player.position.y >= 15.0 => {
                 self.seek = player.position + player.forward * 85.0 + Vec3::new(0.0, EXIT_HEIGHT, 0.0);
@@ -191,7 +181,7 @@ impl Exit {
             }
             _ => {}
         }
-        Goal { drive: self.seek, speed: STRIKE_SPEED, dest_velocity: heli_velocity, look_at: self.seek }
+        Goal { drive: self.seek, speed, dest_velocity: heli_velocity, look_at: self.seek }
     }
 
     /// The exit is over: the helicopter is well above the player, behind it and far away.
@@ -302,10 +292,10 @@ mod tests {
         let mut exit = Exit::start(heli);
         assert_eq!(exit.stage, ExitStage::SeekUp);
         heli.y = 30.0;
-        exit.think(heli, Vec3::ZERO, &p);
+        exit.think(heli, Vec3::ZERO, &p, STRIKE_SPEED);
         assert_eq!(exit.stage, ExitStage::SeekCar, "15 m above the player: next stage");
         heli = exit.seek;
-        exit.think(heli, Vec3::ZERO, &p);
+        exit.think(heli, Vec3::ZERO, &p, STRIKE_SPEED);
         assert_eq!(exit.stage, ExitStage::FlyOut);
         let far_behind = Vec3::new(-300.0, 60.0, 0.0);
         assert!(exit.finished(far_behind, &p));

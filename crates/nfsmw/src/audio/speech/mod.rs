@@ -16,7 +16,7 @@ mod glue;
 mod history;
 mod lines;
 mod plugin;
-mod random;
+pub(crate) mod random;
 mod rules;
 mod sink;
 #[cfg(test)]

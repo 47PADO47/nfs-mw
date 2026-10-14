@@ -171,6 +171,8 @@ impl Residency {
         for data in &pending {
             shared.upload_meshes(renderer, data, &empty);
         }
+        // The shared models of InGameA.bun (sky domes and the other SKY_* models); a stream solid of the same name wins.
+        shared.upload_solid_list(renderer, &globals.solids, &empty, true);
         for data in &pending {
             let (placed, unresolved) = place(data, &shared, &empty, &self.catalog);
             self.shared_placed.extend(placed);

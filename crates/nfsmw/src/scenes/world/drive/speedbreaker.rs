@@ -1,13 +1,10 @@
-//! Speedbreaker charge and activation, from docs/specs/speedbreaker.md.
+//! Speedbreaker charge and activation, from docs/specs/speedbreaker.md. The values come from
+//! `settings::speedbreaker`: the vanilla PC values unless `NFSMWSpeedFixerSettings.ini` changes them.
 
-/// Real seconds to deplete a full charge.
-pub const DRAIN_SECONDS: f32 = 10.0;
-/// Simulation seconds to refill while strictly above the recharge speed.
-pub const RECHARGE_SECONDS: f32 = 25.0;
-/// Minimum speedometer speed for activation/continued use (30 mph).
-pub const MINIMUM_SPEED_MPS: f32 = 30.0 * 0.44704;
-/// Recharge occurs strictly above 100 mph.
-pub const RECHARGE_ABOVE_MPS: f32 = 100.0 * 0.44704;
+use crate::settings::speedbreaker::SpeedbreakerTuning;
+
+/// The simulation-seconds drift recharge per unit of drift strength, before the configured scale.
+pub const DRIFT_RECHARGE_RATE: f32 = 0.5;
 
 /// Charge, active state and button-edge tracking. New driving sessions start full.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -15,11 +12,12 @@ pub struct SpeedBreaker {
     pub meter: f32,
     active: bool,
     held: bool,
+    tuning: SpeedbreakerTuning,
 }
 
 impl Default for SpeedBreaker {
     fn default() -> Self {
-        Self { meter: 1.0, active: false, held: false }
+        Self { meter: 1.0, active: false, held: false, tuning: SpeedbreakerTuning::default() }
     }
 }
 
@@ -28,14 +26,22 @@ impl SpeedBreaker {
         self.active
     }
 
+    /// The tunables the breaker and the physics read. Set each frame from the world settings.
+    pub fn tuning(&self) -> SpeedbreakerTuning {
+        self.tuning
+    }
+
+    pub fn set_tuning(&mut self, tuning: SpeedbreakerTuning) {
+        self.tuning = tuning;
+    }
+
     /// Drift recharge uses physical speed/body slip and the continuous fixed-step drift state.
     pub fn charge_drift(&mut self, strength: f32, speed_mps: f32, slip_radians: f32, sim_dt: f32) {
-        const MIN_SPEED: f32 = 15.646_05;
-        const MIN_SLIP: f32 = 0.523_589_97;
-        if self.active || speed_mps <= MIN_SPEED || slip_radians.abs() <= MIN_SLIP || strength <= 0.0 {
+        let drift = self.tuning.drift;
+        if self.active || speed_mps <= drift.min_speed || slip_radians.abs() <= drift.min_slip || strength <= 0.0 {
             return;
         }
-        self.meter = (self.meter + sim_dt * 0.5 * strength).clamp(0.0, 1.0);
+        self.meter = (self.meter + sim_dt * DRIFT_RECHARGE_RATE * drift.scale * strength).clamp(0.0, 1.0);
     }
 
     /// Toggle on a press, then update using distinct simulation and real deltas.
@@ -43,7 +49,7 @@ impl SpeedBreaker {
     pub fn step(&mut self, held: bool, speed_mps: f32, sim_dt: f32, real_dt: f32) -> bool {
         let pressed = held && !self.held;
         self.held = held;
-        let eligible = speed_mps >= MINIMUM_SPEED_MPS;
+        let eligible = speed_mps >= self.tuning.min_speed;
         if !eligible {
             self.active = false;
             return false;
@@ -52,14 +58,18 @@ impl SpeedBreaker {
             self.active = !self.active && self.meter > 0.0;
         }
         if self.active {
-            self.meter = (self.meter - real_dt / DRAIN_SECONDS).max(0.0);
+            if let Some(seconds) = self.tuning.max_duration {
+                self.meter = (self.meter - real_dt / seconds).max(0.0);
+            }
             if self.meter <= 0.0 {
                 self.active = false;
             }
             return self.active;
         }
-        if speed_mps > RECHARGE_ABOVE_MPS {
-            self.meter = (self.meter + sim_dt / RECHARGE_SECONDS).min(1.0);
+        if let Some(passive) = self.tuning.passive
+            && speed_mps > passive.min_speed
+        {
+            self.meter = (self.meter + sim_dt / passive.seconds).min(1.0);
         }
         false
     }
@@ -68,6 +78,7 @@ impl SpeedBreaker {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::settings::speedbreaker::vanilla::{MINIMUM_SPEED_MPS, RECHARGE_ABOVE_MPS};
 
     #[test]
     fn toggles_on_presses_and_remains_active_after_release() {

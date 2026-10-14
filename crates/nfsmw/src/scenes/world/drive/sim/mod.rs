@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use super::input::DriveInput;
 use super::rig::CarPose;
-use super::walls::{self, Impact};
+use super::walls::{self, ContactKind, Impact};
 use crate::scenes::world::effects::{self, Contact};
 use crate::scenes::world::events::{OtherBody, VehicleEvents};
 use crate::scenes::world::object_geometry::{BodyGeometryFrame, BodyPose};
@@ -83,6 +83,8 @@ pub struct CarSim {
     before_velocity: Vec3,
     ground_reference: blackbox_collision::ground_reference::GroundReferenceCache,
     wheel_ground: std::cell::RefCell<[blackbox_collision::ground_reference::GroundFaceCache; 4]>,
+    /// The car touched a prop (a fixed or a movable one) this step; read once by the traffic (`take_prop_struck`).
+    prop_struck: bool,
     pending_sound_contacts: Vec<crate::audio::CarContact>,
     sound_identity: u64,
 }
@@ -109,6 +111,7 @@ impl CarSim {
         }
         Self {
             vehicle,
+            prop_struck: false,
             pivot: physics.bounds.pivot,
             rest_height,
             spin: [0.0; 4],
@@ -238,6 +241,10 @@ impl CarSim {
             }
             None => Impact::default(),
         };
+        
+        self.prop_struck |=
+            impact.contacts.iter().any(|c| matches!(c.kind, ContactKind::PropRigid | ContactKind::PropMovable));
+      
         let body = self.vehicle.body();
         let rotation = body.rotation();
         let bottom_point =
@@ -300,6 +307,28 @@ impl CarSim {
 
     /// Where each tyre's ray met the road in the last step and the surface normal there (physics space), for
     /// the `debug collisions` view.
+    /// The four wheels' contact patches on the road plane, in physics wheel order, for the spike strips (`spikes.rs`).
+    pub fn wheel_patches(&self) -> [blackbox_pursuit::spikes::Patch; 4] {
+        std::array::from_fn(|i| {
+            let wheel = self.vehicle.wheel(i);
+            blackbox_pursuit::spikes::Patch {
+                position: glam::Vec2::new(wheel.position.x, wheel.position.z),
+                radius: wheel.radius,
+                on_ground: wheel.on_ground,
+            }
+        })
+    }
+
+    /// Punctures tire `wheel` (physics order) on the tire model. Returns whether it was intact.
+    pub fn puncture_wheel(&mut self, wheel: usize) -> bool {
+        self.vehicle.tire_damage.puncture(wheel)
+    }
+
+    /// Whether the car touched a prop since the last call.
+    pub fn take_prop_struck(&mut self) -> bool {
+        std::mem::take(&mut self.prop_struck)
+    }
+
     pub fn tyre_hits(&self) -> impl Iterator<Item = (Vec3, Vec3)> + '_ {
         (0..4).filter_map(|i| self.vehicle.wheel_ground_hit(i))
     }

@@ -2,7 +2,7 @@
 
 use blackbox_gfx::RenderBackend;
 use blackbox_vehicle::performance::Performance;
-use nfsmw_data::pursuit::heat_row;
+use nfsmw_data::pursuit::{ground_cops, heat_row, heat_rows, wave_names};
 
 use super::models::{load_cop_models, load_helicopter_model};
 use super::traffic_events::{Sighting, starts_pursuit};
@@ -85,17 +85,21 @@ fn begin_pursuit(
     heat: u32,
     player: Performance,
 ) -> Result<String, String> {
-    let row = heat_row(scene.physics.database(), heat).ok_or("no cop table for that heat")?;
-    let names: Vec<String> = row.cops.iter().filter(|c| c.name != "copheli").map(|c| c.name.clone()).collect();
+    let db = scene.physics.database();
+    let start = heat_row(db, heat).ok_or("no cop table for that heat")?;
+    // The chase re-reads its wave at every heat level it climbs to, so the cop models of all levels load now.
+    let rows = heat_rows(db);
+    let names = wave_names(&rows);
     load_cop_models(scene, renderer, &names)?;
+    let start_names: Vec<&str> = ground_cops(&start).map(|c| c.name.as_str()).collect();
     // The helicopter is not a car of the wave: it is only drawn, so it loads a rig and no physics. A model that fails
     // to load leaves the helicopter out of the picture.
     if let Err(e) = load_helicopter_model(scene, renderer) {
         log::warn!("the police helicopter has no model: {e}");
     }
     let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
-    traffic.start_pursuit(heat, row, player);
-    Ok(format!("pursuit at heat {heat}: {}", names.join(", ")))
+    traffic.start_pursuit(heat, rows, player);
+    Ok(format!("pursuit at heat {heat}: {}", start_names.join(", ")))
 }
 
 /// The speeding trigger (`docs/specs/traffic-sound-events.md` §3.3): while no chase is on, a patrol cop that sees the

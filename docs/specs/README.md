@@ -8,6 +8,9 @@ Driving extensions: [performance-upgrades.md](performance-upgrades.md),
 [speedbreaker.md](speedbreaker.md), [vehicle-jump-stabilizers.md](vehicle-jump-stabilizers.md),
 and [vehicle-ground-reference.md](vehicle-ground-reference.md) (persistent body terrain queries).
 
+Pursuit tuning: [pursuit-tuning.md](pursuit-tuning.md) (the Bartender file: cop cap, heat growth, bust speed, fines)
+and [fairbusts-reset.md](fairbusts-reset.md) (the reset penalty of the busted timer and its file).
+
 Written so far: [scenery-visibility.md](scenery-visibility.md) (exclude flags),
 [scenery-lod.md](scenery-lod.md) (level of detail), [visible-sections.md](visible-sections.md) (which world
 sections are loaded and drawn) and [car-assembly.md](car-assembly.md) (stock parts, wheels, brakes, paint,

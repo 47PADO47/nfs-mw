@@ -18,13 +18,16 @@ Each effect is a ramp of the speed (m/s, either direction), plus nitrous:
 
 | Effect | Ramp (m/s) | Maximum | Nitrous |
 |---|---|---|---|
-| Streaks (opacity) | 40 to 75 | 1 | adds to 0.4 at full nitrous |
 | Radial blur | 55 to 95 | 1 | adds 0.4 at full nitrous |
 | Camera shake | 45 to 85 | 0.04 m | none |
 | Field-of-view kick | none | 8 degrees | linear in nitrous |
 
-The effects rise towards their target at 6 per second and fall at 2.5 per second (exponential approach), so a gear change
-or a nitrous press does not jump. A non-positive step changes nothing.
+The blur, shake and field-of-view kick rise towards their target at 6 per second and fall at 2.5 per second (exponential
+approach), so a gear change or a nitrous press does not jump. A non-positive step changes nothing.
+
+The speed streaks are not in this curve. They follow the car trail's curve (`scenes/world/vehicle_effects/trails.rs`,
+`intensity`): nothing below 44 m/s, then 0.1 rising to 0.75 at 88 m/s, with no smoothing, so the two effects start and
+grow together. They are on when the Speed Trails setting is on with the **Speed Streaks** style (the default).
 
 **[unconfirmed]** These thresholds are tuning, chosen so the effects start where the dynamic FOV is widening. They are not
 measured from the PC build. The install's own high-speed screen values are not read yet (Ghidra on `speed.exe` would give
@@ -39,8 +42,9 @@ them; the search is open).
 
 ## 4. Open
 
-- Streaks: drawn. `app/streaks.rs` builds 48 short quads that radiate from the window's centre and move out with time,
-  with opacity from the streak value and a fade in and out per streak. They are composed onto the last HUD layer each
+- Streaks: drawn, as the Speed Trails setting's **Speed Streaks** style. `app/streaks.rs` builds 48 short quads that
+  radiate from the window's centre and move out with time, with opacity from the streak value and a fade in and out per
+  streak. They are composed onto the last HUD layer each
   frame (`MirrorOverlay::base_layer`), because the presenter only emits a layer when something changes. Not yet seen in
   a running game; the geometry and the composition are tested.
 - Radial blur: not drawn. It is a screen pass in `blackbox-gpu-passes`, reading the frame before the HUD.

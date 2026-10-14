@@ -13,6 +13,9 @@ const SPEEDOMETER: [u32; 1] = [0x941f_ff09];
 const TACHOMETER: [u32; 1] = [0x5164_d4ea];
 /// The nitrous gauge: its group (frame and icon) and the bar, a multi image next to the group.
 const NITROUS: [u32; 2] = [0x87c3_8e97, 0xedfb_6d37];
+/// The speed breaker meter: its group (the stopwatch icon group is under it) and the bar beside the nitrous bar. The
+/// original's race HUD creates them with the cluster and never hides them, so they show for the whole race.
+const SPEEDBREAKER: [u32; 2] = [0x8991_bd54, 0x5df2_f5b4];
 /// The rear-view mirror's group (its two bezel images and the picture drawn under them), and the radar sensor under
 /// it: the backing and the two LED strips. The sensor shows its idle state; it does not detect cops yet.
 const MIRROR: [u32; 1] = [0x9ee0_6631];
@@ -22,6 +25,9 @@ const RADAR: [u32; 1] = [0x839e_7d77];
 const LASER: [u32; 1] = [0x6ccb_bbf1];
 /// The pursuit board (`PursuitBoardGroup`): the backing, the timer and the bounty row. Shown while a chase runs.
 const PURSUIT_BOARD: [u32; 1] = [0xde89_e070];
+/// The cops group (`0xe0b1430b`): the cops icon with its count, and the taken-out icon with the wrecked count. It shows
+/// with the board, as the cops it counts are the chase's.
+const PURSUIT_COPS: [u32; 1] = [0xe0b1_430b];
 /// The cool-down bar (`Cooldown_Meter_Group`): its track and fill. It sits inside the radar's group in the package,
 /// so [`Layout::update`] decides it on its own flag. Shown once the player has started to get away.
 const COOLDOWN: [u32; 1] = [0x84a2_26ec];
@@ -35,6 +41,7 @@ const HELD_HIDDEN: [u32; 4] = [0xc46a_80a9, 0x8674_e6d4, 0x60b4_5523, 0x3807_490
 pub struct Shown {
     pub nitrous: bool,
     pub turbo: bool,
+    pub speedbreaker: bool,
     pub minimap: bool,
     pub laser: bool,
     pub mirror: bool,
@@ -51,6 +58,7 @@ pub struct Layout {
     tachometer: Vec<usize>,
     nitrous: Vec<usize>,
     turbo: Vec<usize>,
+    speedbreaker: Vec<usize>,
     /// The group of the minimap's pieces, its backing disc and the player's arrow.
     minimap: Vec<usize>,
     mirror: Vec<usize>,
@@ -58,6 +66,7 @@ pub struct Layout {
     /// The green laser over the radar, shown while a cop is nearby.
     laser: Vec<usize>,
     pursuit: Vec<usize>,
+    pursuit_cops: Vec<usize>,
     cooldown: Vec<usize>,
     held: Vec<usize>,
     applied: Option<Shown>,
@@ -83,11 +92,13 @@ impl Layout {
             tachometer: find(&TACHOMETER),
             nitrous: find(&NITROUS),
             turbo: find(&[fe_hash_upper("TURBO_GROUP")]),
+            speedbreaker: find(&SPEEDBREAKER),
             minimap: find(&[fe_hash_upper(GROUP), fe_hash_upper(BACKING), fe_hash_upper(ARROW)]),
             mirror: find(&MIRROR),
             radar: find(&RADAR),
             laser: find(&LASER),
             pursuit: find(&PURSUIT_BOARD),
+            pursuit_cops: find(&PURSUIT_COPS),
             cooldown: find(&COOLDOWN),
             held: find(&HELD_HIDDEN),
             applied: None,
@@ -113,6 +124,9 @@ impl Layout {
         if want.turbo {
             roots.extend(&self.turbo);
         }
+        if want.speedbreaker {
+            roots.extend(&self.speedbreaker);
+        }
         if want.minimap {
             roots.extend(&self.minimap);
         }
@@ -121,6 +135,7 @@ impl Layout {
         }
         if want.pursuit {
             roots.extend(&self.pursuit);
+            roots.extend(&self.pursuit_cops);
         }
         if want.cooldown {
             roots.extend(&self.cooldown);

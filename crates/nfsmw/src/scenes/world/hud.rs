@@ -6,14 +6,17 @@ use nfsmw_data::gameplay::{self, ActivityKind, ActivityMarker, GameplayData, Pla
 use super::{View, WorldScene, space};
 use crate::audio::PursuitFeed;
 use crate::hud::{
-    AUTO_SHOP, MapBlip, PursuitHud, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP, RACE_SPRINT,
+    AUTO_SHOP, CAR_LOT, MapBlip, PursuitHud, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP, RACE_SPRINT,
     RACE_TOLLBOOTH, SAFE_HOUSE,
 };
 
-/// The chase as the pursuit board shows it. The evade share is the part of the evade timeout already done (the feed
-/// gives what is left of it).
-fn pursuit_hud(feed: PursuitFeed) -> PursuitHud {
-    PursuitHud::from_evade_time(feed.secs, feed.secs_to_evade, blackbox_pursuit::evade::timeout(feed.heat))
+/// The chase as the pursuit board shows it: the timer and the wrecked cops. The evade share is what the feed gives (the
+/// part of the timeout done); the board's bar takes the cool-down meter instead, see [`WorldScene::hud_frame`].
+fn pursuit_hud(feed: PursuitFeed, cops_destroyed: u32) -> PursuitHud {
+    PursuitHud {
+        cops_destroyed,
+        ..PursuitHud::from_evade_time(feed.secs, feed.secs_to_evade, blackbox_pursuit::evade::timeout(feed.heat))
+    }
 }
 
 impl WorldScene {
@@ -30,16 +33,31 @@ impl WorldScene {
                 traffic.map_blips(&mut state.blips);
                 // The radar's green laser shows while cops chase the player.
                 state.cop_nearby = traffic.is_pursuing();
-                state.pursuit = traffic.pursuit_feed().map(pursuit_hud);
+                let wrecked = traffic.cops_destroyed();
+                // The bar is the escape's cool-down meter: it fills while the cops are out of sight and drains when
+                // they see the player again (`docs/specs/ai-pursuit.md` section 6).
+                state.pursuit = traffic
+                    .pursuit_feed()
+                    .map(|feed| PursuitHud { evade: traffic.evade_level(), ..pursuit_hud(feed, wrecked) });
+                state.busted = traffic.busted_meter();
             }
             state.blips.extend_from_slice(&self.map_blips);
         }
         hud
     }
+
+    /// The end-of-pursuit card, drawn over the frame while it is up. Not in the fly view.
+    pub(super) fn show_pursuit_end(&self, ctx: &egui::Context) {
+        if self.view == View::Fly {
+            return;
+        }
+        let Some(card) = self.traffic.as_ref().and_then(|traffic| traffic.pursuit_end_card()) else { return };
+        crate::hud::show_pursuit_end(ctx, &card);
+    }
 }
 
-/// The map blips of the race starts and the interiors (auto shops, safe houses), in the minimap's render space. They
-/// do not move, so they are made once, when the world opens. A race is shown at its start, not active: race mode is
+/// The map blips of the race starts and the interiors (auto shops, car lots, safe houses), in the minimap's render
+/// space. They do not move, so they are made once, when the world opens. A race is shown at its start, not active: race mode is
 /// not run yet.
 pub(super) fn static_blips(data: &GameplayData) -> Vec<MapBlip> {
     let races = data.races.iter().filter_map(race_blip);
@@ -67,10 +85,11 @@ fn race_style(kind: RaceType) -> Option<&'static str> {
     }
 }
 
-/// An auto shop or safe house. Its icon does not turn, so the heading points along the minimap's x axis.
+/// An auto shop, car lot or safe house. Its icon does not turn, so the heading points along the minimap's x axis.
 fn interior_blip(marker: &ActivityMarker) -> MapBlip {
     let style = match marker.kind {
         ActivityKind::AutoShop => AUTO_SHOP,
+        ActivityKind::CarLot => CAR_LOT,
         ActivityKind::SafeHouse => SAFE_HOUSE,
     };
     map_blip(style, marker.position, [1.0, 0.0])

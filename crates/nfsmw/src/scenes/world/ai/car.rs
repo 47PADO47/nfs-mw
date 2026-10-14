@@ -20,6 +20,7 @@ use crate::scenes::world::road::Spawn;
 use crate::scenes::world::{keys, space};
 
 mod accident;
+mod hits;
 mod setup;
 mod sound;
 mod towing;
@@ -27,6 +28,7 @@ mod towing;
 pub use setup::{Ctx, Role, Start};
 
 use accident::Accident;
+use hits::CopDamage;
 
 /// A hit shorter than this change of speed (m/s) does not shock the car, and the level falls over this long.
 const SHOCK_MIN_SPEED_CHANGE: f32 = 2.0;
@@ -105,6 +107,10 @@ pub struct AiCar {
     pub audio_profile: crate::audio::traffic::TrafficProfile,
     /// Seconds until the car may play a near miss or a horn again (`traffic_events::EventTuning::cooldown`).
     quiet: f32,
+    /// Half extents of the body (physics space): where a hit lands on a cop.
+    dim: Vec3,
+    /// A cop's damage (`hits`); `None` for traffic.
+    damage: Option<CopDamage>,
 }
 
 impl AiCar {
@@ -129,6 +135,7 @@ impl AiCar {
             Some(trailer) => Some(TrailerCar::place(trailer, &sim, spawn, start.speed, ground)?),
             None => None,
         };
+        let damage = sim.collision_role.cop.then(|| CopDamage::for_model(&name));
         let pose = sim.pose();
         let radius = physics.spec.dimension.length();
         Some(Self {
@@ -173,6 +180,8 @@ impl AiCar {
             cop_lights: model.cop_lights.clone().map(super::cop_lights::CopLightRun::new),
             audio_profile: model.audio_profile,
             quiet: 0.0,
+            dim: physics.spec.dimension,
+            damage,
         })
     }
 
@@ -186,6 +195,7 @@ impl AiCar {
         &self,
         alpha: f32,
         time: f32,
+        turn_signals: bool,
         camera: Vec3,
         forward: Vec3,
         out: &mut Vec<blackbox_render::EffectVertex>,
@@ -195,6 +205,7 @@ impl AiCar {
             reverse: self.sim.telemetry().gear < 0,
             steer: self.controls.steer,
             headlights: true,
+            turn_signals,
             siren: self.is_cop(),
             time,
         };
@@ -293,7 +304,7 @@ impl AiCar {
 
     /// A cop chasing the player.
     pub fn is_cop(&self) -> bool {
-        matches!(self.role, Role::Cop(_))
+        matches!(self.role, Role::Cop(_)) && !self.is_wrecked()
     }
 
     /// A cop car cruising like traffic.
@@ -343,7 +354,7 @@ impl AiCar {
         if let Some(controls) = self.accident.controls(self.tractor) {
             self.controls = controls;
         }
-        if self.breaker_stop {
+        if self.breaker_stop || self.is_wrecked() {
             self.controls = AiControls { brake: 1.0, ..AiControls::default() };
         }
         shift(&mut self.sim, self.controls.gear);
@@ -362,6 +373,7 @@ impl AiCar {
         }
         self.previous = self.current;
         self.current = self.sim.pose();
+        self.wreck_step(STEP);
         self.steps += 1;
         self.airborne = match self.sim.telemetry().wheels_on_ground == 0 {
             true => self.airborne + STEP,
@@ -457,23 +469,14 @@ impl AiCar {
         }
     }
 
-    /// A hit with impulse `impulse` (N s). A hard one shocks the car; one with the player's car also starts an
-    /// accident (the car stops thinking about the road).
-    pub(super) fn on_hit(&mut self, impulse: f32, by_player: bool) {
-        let speed_change = impulse / self.mass.max(1.0);
-        if speed_change > SHOCK_MIN_SPEED_CHANGE {
-            self.shock = self.shock.max((speed_change / SHOCK_FORCE).min(1.0));
-        }
-        if by_player {
-            log::info!("traffic: {} was hit by the player (impulse {impulse:.0} N s)", self.name);
-        }
-        if by_player {
-            self.accident.on_hit(matches!(self.role, Role::Traffic) && !self.patrol, self.tractor);
-        }
-    }
-
     /// Where the car is in physics space and which way it faces, for the spawner's spacing test.
     pub fn physics_position(&self) -> Vec3 {
         Vec3::from(space::to_physics(self.current.position))
+    }
+
+    /// Which way the car faces, in physics space (unit length): the axis of its rear cone of sight.
+    pub fn physics_forward(&self) -> Vec3 {
+        let forward = Vec3::from(space::to_physics(self.sim.driver_view().forward));
+        forward.try_normalize().unwrap_or(Vec3::Z)
     }
 }

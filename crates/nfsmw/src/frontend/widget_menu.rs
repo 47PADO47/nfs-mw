@@ -462,6 +462,7 @@ mod tests {
                 commands: &mut commands,
                 memory: &mut memory,
                 key_texts: &[],
+                world_map: None,
                 name,
             };
             menu.find_rows(&mut cx);

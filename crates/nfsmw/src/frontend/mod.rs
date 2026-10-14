@@ -4,6 +4,7 @@
 
 mod browse;
 mod confirm;
+mod controls_layout;
 mod controls_screen;
 pub mod dump;
 mod factory;
@@ -29,11 +30,15 @@ mod screens;
 mod script;
 mod scroller;
 mod splash;
+mod track_options;
+mod track_select;
 mod widget_layout;
 mod widget_menu;
 // The shared option widgets. The advanced controls screen that uses them is not wired to its package yet.
 #[allow(dead_code)]
 mod widgets;
+// The world map: opened from free roam with M, drawn by the devtools pass (`docs/specs/world-map.md`).
+pub(crate) mod world_map;
 
 #[cfg(test)]
 mod capability_tests;

@@ -7,6 +7,14 @@ use crate::infraction::Infraction;
 pub const HIT_AND_RUN_CLOSING: f32 = 4.0;
 /// Distance (m) to the nearest cop within which a hit counts while the cops see the player.
 pub const COP_NEAR: f32 = 25.0;
+/// Height difference (m) beyond which a cop is on another level (a road under or over the player's deck): it does not
+/// count as near. Unconfirmed design value; the install's figure is not read yet.
+pub const COP_LEVEL_GATE: f32 = 8.0;
+
+/// Whether a cop's height difference from the player (m, either sign) puts it on the player's level.
+pub fn on_level(height_difference: f32) -> bool {
+    height_difference.abs() <= COP_LEVEL_GATE
+}
 
 /// What a contact struck.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -134,6 +142,14 @@ mod tests {
         assert!(!off_road(true, true, 10.0));
         assert!(!off_road(false, false, 10.0));
         assert!(!off_road(false, true, 40.0));
+    }
+
+    #[test]
+    fn a_cop_twenty_metres_up_or_down_is_not_on_the_level() {
+        assert!(on_level(0.5));
+        assert!(on_level(-COP_LEVEL_GATE));
+        assert!(!on_level(20.0), "a cop on the deck above");
+        assert!(!on_level(-20.0), "a cop on the road below");
     }
 
     #[test]

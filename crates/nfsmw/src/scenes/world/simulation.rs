@@ -2,15 +2,35 @@
 
 use blackbox_gfx::RenderBackend;
 
-use super::{View, WorldScene, ai, drive::STEP};
+use glam::Vec3;
+
+use super::{View, WorldScene, ai, drive::STEP, space};
 use crate::input::ActionState;
+use crate::viewer::camera::PursuitFeed;
 
 /// A screenshot update has no elapsed frame time, so it runs this many shared ticks.
 const BATCH_STEPS: u32 = 6;
 
+/// What the pursuit camera reads from the traffic: the busted meter, the bust and the nearest cop, in render space.
+/// The police measure in physics space, so the player's position is converted to it for the cop's search.
+fn pursuit_feed(traffic: &ai::TrafficWorld, player: Vec3) -> PursuitFeed {
+    let at = Vec3::from_array(space::to_physics(player));
+    PursuitFeed {
+        meter: traffic.busted_meter(),
+        busted: traffic.is_busted(),
+        cop: traffic.nearest_matched_cop_position(at).map(|cop| space::to_render(cop.to_array())),
+        player,
+    }
+}
+
 impl WorldScene {
     pub(super) fn update_simulation(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) -> f32 {
         self.prepare_traffic(renderer);
+        let speedbreaker = self.tuning.speedbreaker;
+        self.speedbreaker_clock.set_dilation(speedbreaker.dilation);
+        if let Some(drive) = self.drive.as_mut() {
+            drive.set_speedbreaker_tuning(speedbreaker);
+        }
         let driving = self.view == View::Chase;
         if let Some(drive) = self.drive.as_mut()
             && driving
@@ -51,18 +71,25 @@ impl WorldScene {
         if self.drive.is_some() {
             let (collision, _) = self.residency.world_parts();
             if let Some(traffic) = self.traffic.as_mut() {
-                traffic.update_sight(&super::drive::walls::world_cast(collision));
+                let cast = super::drive::sight::sight_cast(collision);
+                traffic.update_sight(steps as f32 * STEP, &cast);
             }
             ai::speeding_pursuit(self, renderer);
             // The helicopter's sight asks the world whether the line to the player is clear.
             let (collision, _) = self.residency.world_parts();
-            if let (Some(drive), Some(traffic)) = (self.drive.as_ref(), self.traffic.as_mut()) {
+            if let (Some(drive), Some(traffic)) = (self.drive.as_mut(), self.traffic.as_mut()) {
                 let view = drive.player_view();
+                // The reset key starts the post-reset blink, which the busted timer reads this frame.
+                if drive.take_manual_resets() > 0 {
+                    traffic.note_manual_reset();
+                }
                 let cast = super::drive::walls::world_cast(collision);
                 let clear = |from: glam::Vec3, to: glam::Vec3| cast(from, to).is_none();
                 // The simulated time of this update, as the traffic gets it: a screenshot run has no frame time, so
                 // a per-frame dt would stop the police clock offscreen.
                 traffic.update_police(steps as f32 * STEP, &view, &clear);
+                // The pursuit camera reads the bust after the police's tick, on the same clock.
+                drive.update_pursuit(steps as f32 * STEP, pursuit_feed(traffic, view.position));
                 // A support roll asked for a roadblock: the world places it, and the chase keeps no second one.
                 if traffic.take_roadblock_request() {
                     match traffic.place_roadblock(view, collision, &self.physics.surfaces) {

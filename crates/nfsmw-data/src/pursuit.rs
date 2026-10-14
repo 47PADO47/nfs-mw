@@ -31,11 +31,45 @@ pub struct HeatRow {
 /// The `cops` record is 24 bytes: a string key (the name hash sits at offset 8), a count and a weight.
 const COP_RECORD_LEN: usize = 24;
 
-/// The row for heat level `heat` (1…10), outside races.
+/// The helicopter record of a wave is not a car.
+pub const HELICOPTER: &str = "copheli";
+
+/// The row for heat level `heat` (1…10), outside races (`heattable`).
 pub fn heat_row(db: &Database, heat: u32) -> Option<HeatRow> {
+    heat_row_in(db, "heattable", heat)
+}
+
+/// The row for heat level `heat` (1…10) while racing a race event (`racetable`).
+pub fn race_heat_row(db: &Database, heat: u32) -> Option<HeatRow> {
+    heat_row_in(db, "racetable", heat)
+}
+
+/// The rows of every heat level that has one, in level order: the row of level `n` is at index `n - 1`.
+pub fn heat_rows(db: &Database) -> Vec<HeatRow> {
+    (1..=HEAT_LEVELS).filter_map(|heat| heat_row(db, heat)).collect()
+}
+
+/// The car records of a wave: the wave without the helicopter, which is not a car.
+pub fn ground_cops(row: &HeatRow) -> impl Iterator<Item = &CopRecord> {
+    row.cops.iter().filter(|c| c.name != HELICOPTER)
+}
+
+/// Every car type the rows can put in a chase, without the helicopter, once each, in first-seen order.
+pub fn wave_names(rows: &[HeatRow]) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for cop in rows.iter().flat_map(ground_cops) {
+        if !names.contains(&cop.name) {
+            names.push(cop.name.clone());
+        }
+    }
+    names
+}
+
+/// The row of `heat` in the escalation table `table` (`heattable` or `racetable`).
+fn heat_row_in(db: &Database, table: &str, heat: u32) -> Option<HeatRow> {
     let level = heat.clamp(1, HEAT_LEVELS) as usize - 1;
     let escalation = db.collections_of("pursuitescalation").find(|c| c.name() == Some("default"))?;
-    let Value::Array(rows) = escalation.get("heattable")? else { return None };
+    let Value::Array(rows) = escalation.get(table)? else { return None };
     let row = db.resolve(rows.get(level)?.as_ref_spec()?)?;
     let names: Vec<(u32, String)> = db
         .collections_of("pvehicle")
@@ -107,5 +141,41 @@ pub fn ai_vehicle(db: &Database, car: &str) -> AiVehicle {
         max_speed_kmh: record.get_f32("MAXIMUM_AI_SPEED").unwrap_or(defaults.max_speed_kmh),
         acceleration_multiplier: record.get_f32("AccelerationMultiplier").unwrap_or(1.0),
         top_speed_multiplier: record.get_f32("TopSpeedMultiplier").unwrap_or(1.0),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cop(name: &str, count: u32) -> CopRecord {
+        CopRecord { name: name.to_owned(), count, chance: 100 }
+    }
+
+    fn row(cops: Vec<CopRecord>) -> HeatRow {
+        HeatRow {
+            cops,
+            patrol_cars: 0,
+            full_engagement_cops: 0,
+            time_between_first_four_spawns: 0.0,
+            time_between_cop_spawns: 0.0,
+        }
+    }
+
+    #[test]
+    fn the_ground_wave_leaves_the_helicopter_out() {
+        let heat_four = row(vec![cop("copgtoghost", 8), cop(HELICOPTER, 1)]);
+        let names: Vec<&str> = ground_cops(&heat_four).map(|c| c.name.as_str()).collect();
+        assert_eq!(names, vec!["copgtoghost"]);
+    }
+
+    #[test]
+    fn the_wave_names_cover_every_level_once_and_no_helicopter() {
+        let rows = vec![
+            row(vec![cop("copmidsize", 4)]),
+            row(vec![cop("copgtoghost", 8), cop(HELICOPTER, 1)]),
+            row(vec![cop("copmidsize", 4), cop("copsuvpatrol", 2)]),
+        ];
+        assert_eq!(wave_names(&rows), vec!["copmidsize", "copgtoghost", "copsuvpatrol"]);
     }
 }

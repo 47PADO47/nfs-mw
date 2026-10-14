@@ -3,9 +3,11 @@
 use bevy_app::{App, AppExit, Plugin, Update};
 use bevy_asset::Assets;
 use bevy_ecs::prelude::*;
+use bevy_ecs::system::SystemParam;
 use bevy_image::Image;
 use bevy_input::ButtonInput;
 use bevy_input::keyboard::KeyCode;
+use bevy_input::mouse::MouseButton;
 use bevy_time::Time;
 use bevy_window::{PrimaryWindow, Window};
 use blackbox_feng::runtime::pad;
@@ -18,12 +20,13 @@ use super::logic::{Command, Env};
 use super::pointer::{self, feng_point};
 use super::screens::Screens;
 use super::script::{self, UiScript};
+use super::world_map::{WorldMapOverlay, control, layout};
 use crate::app::{FrameSet, Host};
 use crate::devtools::Console;
 use crate::gui::UiOutput;
 use crate::input::{Action, ActionState, Bindings, InputDevice, InputPresentation, MouseCapture};
 use crate::settings::Settings;
-use crate::ui::present::Screen;
+use crate::ui::present::{FENG_HEIGHT, Screen};
 use crate::ui::{Catalog, Presenter, SCREEN_FILES, SharedAssets};
 
 /// Longest step the screens' clock takes, so a stall does not skip animations.
@@ -46,6 +49,7 @@ impl Plugin for FrontendPlugin {
         let mut frontend = Frontend::new(screens, self.dir.clone(), self.start.clone(), self.script.clone());
         frontend.browse = self.browse.clone();
         app.insert_resource(frontend)
+            .init_resource::<WorldMapOverlay>()
             .init_resource::<Assets<Image>>()
             .add_systems(Update, update.in_set(FrameSet::Frontend))
             .add_systems(Update, present.in_set(FrameSet::Hud))
@@ -109,6 +113,13 @@ fn press_at(fe: &mut Frontend, point: Vec2, bindings: &Bindings, device: InputDe
     Press::Nothing
 }
 
+/// What the world map needs, grouped so the frame system stays within Bevy's parameter limit.
+#[derive(SystemParam)]
+struct MapParams<'w> {
+    overlay: ResMut<'w, WorldMapOverlay>,
+    mouse: Res<'w, ButtonInput<MouseButton>>,
+}
+
 #[allow(clippy::too_many_arguments)]
 fn update(
     mut fe: ResMut<Frontend>,
@@ -126,6 +137,7 @@ fn update(
     mut clicking: Local<bool>,
     mut wheel: Local<f32>,
     garage: Res<crate::garage::Overlay>,
+    mut map: MapParams,
 ) {
     if garage.open || garage.had_input {
         *clicking = false;
@@ -239,6 +251,15 @@ fn update(
                 capture.0 = false;
                 fe.pause(host, &mut env);
             }
+            if !pause && !console_had_it && actions.just_pressed(Action::Map) {
+                control::open(fe, &mut map.overlay, host, &mut env);
+            }
+        }
+        Stage::Map => {
+            let side = layout::PICTURE_SIDE * window.height() / FENG_HEIGHT;
+            let cursor = feng_point(&window).map(layout::view_of);
+            let input = control::input(&actions, &keys, &map.mouse, cursor, side);
+            control::step(fe, &mut map.overlay, input, dt, host, &mut env);
         }
         Stage::Boot(Boot::Splash) | Stage::Menus | Stage::Paused => {
             if (actions.just_pressed(Action::MenuQuit) || press_quit)

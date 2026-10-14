@@ -1,7 +1,8 @@
 //! The abstract map blip: a custom style's condition and animation, and the game's own styles.
 
-use super::blip_style::{BlipLook, BlipStyle, MapBlip, look_of};
+use super::blip_style::{BlipLook, BlipStyle, MapBlip, Visibility, colour_to_apply, drawn_in, look_of};
 use super::blip_styles::{self, CHECKPOINT, COP, Checkpoint, Cop};
+use super::blips::nearest_blip;
 
 /// A custom blip: shows only while `active`, and spins a quarter turn each tick.
 struct Beacon;
@@ -42,9 +43,9 @@ fn an_animation_changes_the_look_each_tick() {
 }
 
 #[test]
-fn the_default_look_is_a_plain_white_icon() {
+fn the_default_look_keeps_the_package_colour() {
     let look = look_of(&Beacon, &blip("beacon", true), 0).unwrap();
-    assert_eq!(look.colour, BlipLook::PLAIN.colour);
+    assert_eq!(look.colour, None);
 }
 
 #[test]
@@ -53,13 +54,19 @@ fn a_custom_blip_has_a_pool_of_one_icon() {
 }
 
 #[test]
+fn a_cop_outside_a_pursuit_is_gated_to_the_view_and_a_pursuing_one_is_always_shown() {
+    assert_eq!(Cop.visibility(&blip(COP, false)), Visibility::InZone);
+    assert_eq!(Cop.visibility(&blip(COP, true)), Visibility::Always);
+}
+
+#[test]
 fn the_cop_flashes_only_while_active() {
     let cop = blip(COP, false);
     let idle = look_of(&Cop, &cop, 0).unwrap().colour;
-    assert_eq!(idle, BlipLook::PLAIN.colour);
-    let flashing: Vec<[u8; 4]> = (0..8).map(|t| look_of(&Cop, &blip(COP, true), t).unwrap().colour).collect();
-    assert_eq!(flashing[0], [0, 0, 255, 255]);
-    assert_eq!(flashing[4], [160, 0, 0, 255]);
+    assert_eq!(idle, Some([255, 255, 255, 255]));
+    let flashing: Vec<Option<[u8; 4]>> = (0..8).map(|t| look_of(&Cop, &blip(COP, true), t).unwrap().colour).collect();
+    assert_eq!(flashing[0], Some([0, 0, 255, 255]));
+    assert_eq!(flashing[4], Some([160, 0, 0, 255]));
 }
 
 #[test]
@@ -97,4 +104,48 @@ fn the_map_icon_pools_are_the_package_objects() {
         pool(blip_styles::SAFE_HOUSE),
         ["SAFEHOUSEINDICATOR_0", "SAFEHOUSEINDICATOR_1", "SAFEHOUSEINDICATOR_2", "SAFEHOUSEINDICATOR_3"]
     );
+}
+
+#[test]
+fn a_look_colour_wins_and_a_package_colour_is_kept_unless_plain_white() {
+    const YELLOW: [u8; 4] = [0xff, 0xed, 0x00, 0xff];
+    const RED: [u8; 4] = [0xa0, 0, 0, 0xff];
+    let tinted = BlipLook { colour: Some(RED), ..BlipLook::PLAIN };
+    assert_eq!(colour_to_apply(&tinted, Some(YELLOW), [255, 255, 255, 255]), Some(RED));
+    assert_eq!(colour_to_apply(&BlipLook::PLAIN, Some(YELLOW), [255, 255, 255, 255]), Some(YELLOW));
+    assert_eq!(colour_to_apply(&BlipLook::PLAIN, Some(YELLOW), [0, 255, 0, 255]), None);
+    assert_eq!(colour_to_apply(&BlipLook::PLAIN, None, [255, 255, 255, 255]), None);
+}
+
+#[test]
+fn a_zone_gated_blip_is_drawn_only_inside_the_circle() {
+    assert!(drawn_in(Visibility::InZone, true));
+    assert!(!drawn_in(Visibility::InZone, false));
+    assert!(drawn_in(Visibility::Always, false));
+}
+
+#[test]
+fn nearest_only_picks_the_closest_blip_of_the_style() {
+    let at = |style: &'static str, x: f32| MapBlip { style, position: [x, 0.0], heading: [1.0, 0.0], active: false };
+    let blips = [at(blip_styles::CAR_LOT, 50.0), at(blip_styles::AUTO_SHOP, 1.0), at(blip_styles::CAR_LOT, 8.0)];
+    assert_eq!(nearest_blip(&blips, blip_styles::CAR_LOT, [0.0, 0.0]), Some(2));
+    assert_eq!(nearest_blip(&blips, blip_styles::AUTO_SHOP, [0.0, 0.0]), Some(1));
+    assert_eq!(nearest_blip(&blips, blip_styles::SAFE_HOUSE, [0.0, 0.0]), None);
+}
+
+#[test]
+fn the_races_are_zone_gated_and_the_interiors_always_eligible() {
+    let styles = blip_styles::map_icon_styles();
+    let find = |name: &str| styles.iter().find(|s| s.name() == name).unwrap();
+    let idle = |style: &'static str| blip(style, false);
+    assert_eq!(find(blip_styles::RACE_SPRINT).visibility(&idle(blip_styles::RACE_SPRINT)), Visibility::InZone);
+    assert_eq!(find(blip_styles::RACE_SPRINT).fallback_colour(), None);
+    assert_eq!(find(blip_styles::AUTO_SHOP).visibility(&idle(blip_styles::AUTO_SHOP)), Visibility::Always);
+    assert!(find(blip_styles::AUTO_SHOP).nearest_only());
+    assert!(find(blip_styles::CAR_LOT).nearest_only());
+    assert_eq!(find(blip_styles::CAR_LOT).fallback_colour(), Some(blip_styles::CAR_LOT_TINT));
+    assert!(!find(blip_styles::SAFE_HOUSE).nearest_only());
+    assert_eq!(find(blip_styles::SAFE_HOUSE).visibility(&idle(blip_styles::SAFE_HOUSE)), Visibility::Always);
+    assert_eq!(find(blip_styles::SAFE_HOUSE).fallback_colour(), Some(blip_styles::SAFE_HOUSE_TINT));
+    assert_eq!(find(blip_styles::CAR_LOT).icons(), ["CAR_LOT_0", "CAR_LOT_1", "CAR_LOT_2", "CAR_LOT_3"]);
 }

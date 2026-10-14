@@ -27,7 +27,9 @@ pub fn volumes_of(settings: &Settings) -> Volumes {
 impl Plugin for AudioPlugin {
     fn build(&self, app: &mut App) {
         let volumes = app.world().get_resource::<Settings>().map(volumes_of).unwrap_or_default();
-        app.init_resource::<MusicInput>().insert_non_send(Audio::new(self.dir.clone(), volumes)).add_systems(
+        let mut audio = Audio::new(self.dir.clone(), volumes);
+        audio.set_air_support(super::chase::load_air_support());
+        app.init_resource::<MusicInput>().insert_non_send(audio).add_systems(
             Update,
             (
                 (sync_volumes, sync_radio).in_set(FrameSet::Prepare),

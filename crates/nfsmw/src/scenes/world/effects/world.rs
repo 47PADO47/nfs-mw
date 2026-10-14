@@ -28,7 +28,8 @@ impl WorldScene {
         let car = drive.position();
         let (pose, bounds) = drive.spark_body();
         drive.vehicle_effects.set_body(pose, bounds);
-        let (lamps, lamp_frame, lamp_state) = drive.lamp_source();
+        let (lamps, lamp_frame, mut lamp_state) = drive.lamp_source();
+        lamp_state.turn_signals = self.tuning.turn_signals;
         let damage = drive.damage_quads();
         let layer = drive.effects.build(position, forward);
         if self.view == View::Chase {
@@ -53,7 +54,7 @@ impl WorldScene {
         let signs = self.residency.placed().filter_map(|p| p.curve_lamp);
         sign_lamps::glows(signs, drive.lamp_time, position, forward, &mut layer.glows);
         if let Some(traffic) = &self.traffic {
-            traffic.car_glows(position, forward, &mut layer.glows);
+            traffic.car_glows(self.tuning.turn_signals, position, forward, &mut layer.glows);
             traffic.car_beams(&mut layer.streaks);
             traffic.cop_particles(position, forward, &mut layer.textured);
             traffic.lamp_glows(position, forward, &mut layer.glows);

@@ -117,12 +117,14 @@ fn controls_icon_opens_the_key_list_and_control_options_the_sensitivity_rows() {
                 tree.nodes.iter().any(|n| n.name_hash == super::ids::ICON_TITLE && n.text.as_deref() == Some(text))
             })
         };
-        // Audio, Video, Gameplay, Player (greyed out), then Controls: the key list replaces the categories.
-        for _ in 0..4 {
+        // Audio, Video, Gameplay, then Controls: the key list replaces the categories. The main menu's list also has
+        // Player (greyed out) before Controls; the pause menu has no Player entry (docs/specs/frontend-menus.md, 2.2).
+        let to_controls = if pause { 3 } else { 4 };
+        for _ in 0..to_controls {
             h.press(pad::RIGHT);
         }
         h.wait(0.5);
-        assert!(title_is(&h, "Controls"), "{menu}: the fifth category must be Controls");
+        assert!(title_is(&h, "Controls"), "{menu}: the Controls category");
         // Hold A through the switch. The next screen must not accept the same gesture again.
         h.run(pad::ACCEPT, 120);
         h.run(0, 3);
@@ -211,21 +213,35 @@ fn down_from_to(h: &mut Harness, category: Category, from: super::options::Setti
 }
 
 #[test]
-fn the_main_menu_starts_free_roam_from_career_and_quick_race() {
+fn the_main_menu_starts_free_roam_from_career() {
     let Some(mut h) = Harness::open(screen::MAIN_MENU, Args::default()) else { return };
     h.wait(1.0);
     h.press(pad::ACCEPT);
     h.wait(1.5);
     assert!(h.said(&Command::StartFreeRoam), "career: {:?}", h.commands);
+}
 
-    let mut h = Harness::open(screen::MAIN_MENU, Args::default()).unwrap();
+#[test]
+fn quick_race_opens_the_track_select_screen() {
+    let Some(mut h) = Harness::open(screen::MAIN_MENU, Args::default()) else { return };
     h.wait(1.0);
     // Career, Challenge Series, Quick Race: the challenge series is browsable but not there yet.
     h.press(pad::RIGHT);
     h.press(pad::RIGHT);
     h.press(pad::ACCEPT);
     h.wait(1.5);
-    assert!(h.said(&Command::StartFreeRoam), "quick race: {:?}", h.commands);
+    assert!(h.said(&Command::Switch(screen::TRACK_SELECT.into(), Args::default())), "quick race: {:?}", h.commands);
+    assert!(!h.said(&Command::StartFreeRoam), "quick race must not start a race: {:?}", h.commands);
+}
+
+#[test]
+fn track_options_accept_starts_nothing() {
+    let Some(mut h) = Harness::open(screen::TRACK_OPTIONS, Args::default()) else { return };
+    h.wait(1.0);
+    h.press(pad::ACCEPT);
+    h.wait(1.5);
+    assert!(!h.said(&Command::StartFreeRoam), "{:?}", h.commands);
+    assert!(!h.commands.iter().any(|c| matches!(c, Command::Switch(..) | Command::Push(..))), "{:?}", h.commands);
 }
 
 #[test]
