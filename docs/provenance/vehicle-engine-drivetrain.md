@@ -44,20 +44,37 @@ Filled from AttribSys by `nfsmw-data`.
 
 ## Open questions
 
+PC nitrous correction (2026-10-13): original executable inspection confirms
+the speed-dependent recharge formula and the absence of a drift/jump bonus.
+The library now accepts explicit recharge permission (the original player
+denies it during the speed breaker), and continuation below 10 mph requires
+fully engaged nitrous. The previous 1.5 stunt multiplier was a custom addition
+and has been removed. Synthetic lifecycle tests cover burn, cooldown, recharge
+permission and restart thresholds. Fourteen synthetic lifecycle vectors were
+also replayed through the original PC nitrous machine code and its math helpers
+in isolated x86 memory, with synthetic vehicle/player interface returns. The
+library regression compares those same inputs and outputs. This does not
+establish live PC driving parity or implement AI catch-up/infinite/remote-car
+cheats.
+
 Tracked for the implementer; none blocks starting.
 
 - **Q1** Torque curve spacing: samples are spread over `IDLE..MAX_RPM` but lookups clamp at `RED_LINE`, so the
   tail past the redline is never used. Is that the intended reading, and does `MAX_RPM` in the data really
   exceed `RED_LINE`?
-- **Q2** `MaxInductedTorque` / `MaxInductedPower` (peak torque, its RPM, peak power) are declared in
-  `PhysicsInfo` but their bodies were not in the sources read. The spec assumes "scan the curve with full
-  induction boost over idle..redline". Needed for the torque-converter blend, perfect-launch and the UI hp.
-- **Q3** The shift-point search calls the induction helper with `rpm` and `spool` swapped, which makes
-  its factor equal 1. Is that also true in the PC build, or does it include boost there?
+- **Q2 partially resolved (2026-10-14):** PC peak torque uses raw samples through
+  MAX_RPM, including above-redline samples, clamping only returned RPM. Five
+  isolated original instruction vectors confirm empty/single-sample, boost,
+  above-redline and non-50-RPM vertex cases. The peak-power helper remains unverified.
+- **Q3 resolved (2026-10-13):** the PC shift-point search also passes `rpm` and
+  `spool` in reversed order. Isolated replay of three induction strengths
+  returned identical shift thresholds. The cache setup also passes no tuning
+  to the peak-torque/power helpers, so slider changes do not rebuild those maps.
 - **Q4** `PAD_DEAD_ZONE` (gas/brake snap thresholds) has no value in the sources read; also the steering
   remap table choice (`STEER_REMAP_MEDIUM`) and whether keyboard input uses the same path.
-- **Q5** Fixed time step and the unit of `dT`; whether the 60 Hz averager windows match the actual
-  simulation rate on PC.
+- **Q5 resolved (2026-10-14):** PC schedules at 60 Hz in real time, scaling each
+  tick's simulation delta by its final time multiplier. The remake's fixed
+  simulation-time accumulator differs during Speedbreaker; see its specification.
 - **Q6** Steering tables are indexed over 0..160 by car-frame forward speed: is that m/s (so 160 m/s is far
   beyond reach) or a different unit? It decides the whole speed sensitivity; measure in the game.
 - **Q7** `SPEED_LIMITER[1]` is read as the ramp width (in mph); confirm against a car with a limiter. Also

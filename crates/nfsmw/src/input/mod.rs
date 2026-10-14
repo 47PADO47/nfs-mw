@@ -22,6 +22,8 @@ mod presentation_tests;
 mod remap;
 mod slots;
 mod snapshot;
+#[cfg(test)]
+pub(crate) use snapshot::Snapshot;
 mod source;
 mod state;
 mod systems;

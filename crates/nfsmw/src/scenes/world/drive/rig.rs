@@ -65,6 +65,17 @@ pub struct CarRig {
 }
 
 impl CarRig {
+    /// Reuse the loaded geometry while a color picker is dragged.
+    pub fn recolor(&mut self, renderer: &mut dyn RenderBackend, rgb: [u8; 3], sun: Vec3) -> anyhow::Result<()> {
+        self.model.set_body_color(rgb)?;
+        let (parts, meshes, materials) = upload_parts(renderer, &self.model, &self.swaps(), self.shading, sun);
+        for mesh in self.meshes.drain(..) {
+            renderer.destroy_mesh(mesh);
+        }
+        std::mem::replace(&mut self.materials, materials).destroy(renderer);
+        (self.parts, self.meshes) = (parts, meshes);
+        Ok(())
+    }
     /// Upload `model` with `shading`, lit by a sun in direction `to_sun` from the car.
     pub fn upload(
         renderer: &mut dyn RenderBackend,

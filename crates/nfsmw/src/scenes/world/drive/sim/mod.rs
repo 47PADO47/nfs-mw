@@ -80,6 +80,8 @@ pub struct CarSim {
     pub(in crate::scenes::world) collision_racer: bool,
     previous_contact_pose: BodyPose,
     before_velocity: Vec3,
+    ground_reference: blackbox_collision::ground_reference::GroundReferenceCache,
+    wheel_ground: std::cell::RefCell<[blackbox_collision::ground_reference::GroundFaceCache; 4]>,
 }
 
 /// A vector from physics space to render space axes: `(x, y, z) -> (z, -x, y)`.
@@ -96,8 +98,14 @@ impl CarSim {
             physics.spec.dimension,
             physics.bounds.pivot
         );
+        let mut vehicle = Vehicle::new(physics.spec);
+        vehicle.set_tire_integration(physics.tire_integration);
+        vehicle.jump_config = physics.jump_config;
+        if physics.tire_integration == blackbox_vehicle::tires::TireIntegration::Reference {
+            vehicle.wall_steering_config = nfsmw_data::car::physics::wall_steering_config();
+        }
         Self {
-            vehicle: Vehicle::new(physics.spec),
+            vehicle,
             pivot: physics.bounds.pivot,
             rest_height,
             spin: [0.0; 4],
@@ -117,6 +125,8 @@ impl CarSim {
             collision_racer: false,
             previous_contact_pose: (Vec3::ZERO, Quat::IDENTITY),
             before_velocity: Vec3::ZERO,
+            ground_reference: Default::default(),
+            wheel_ground: Default::default(),
         }
     }
 
@@ -131,6 +141,10 @@ impl CarSim {
         self.visual_tires = tires;
     }
 
+    pub(super) fn set_rest_heights(&mut self, heights: [f32; 4]) {
+        self.rest_height = heights;
+    }
+
     /// Put the car on the road at `spawn`, standing still. False when `ground` has nothing there.
     pub fn place(&mut self, ground: &dyn Ground, spawn: Spawn) -> bool {
         self.place_moving(ground, spawn, 0.0)
@@ -139,6 +153,10 @@ impl CarSim {
     /// Put the car on the road at `spawn`, already rolling forward at `speed` m/s.
     pub fn place_moving(&mut self, ground: &dyn Ground, spawn: Spawn, speed: f32) -> bool {
         self.spin = [0.0; 4];
+        self.ground_reference.clear();
+        for wheel in self.wheel_ground.get_mut() {
+            wheel.clear();
+        }
         let [x, _, z] = space::to_physics(spawn.position);
         // The heading is counter-clockwise from +X in the world; the library's yaw is about the up axis
         // from +z, which is the other way round.
@@ -167,6 +185,7 @@ impl CarSim {
         ground: &dyn Ground,
         mut world: Option<(&CollisionWorld, &mut PropWorld)>,
     ) -> Impact {
+        self.refresh_ground_reference(world.as_ref().map(|(collision, _)| *collision));
         self.before_velocity = self.vehicle.body().linear_velocity;
         let input = InputState {
             throttle: input.throttle,
@@ -189,7 +208,7 @@ impl CarSim {
                 self.vehicle.tire_damage.puncture(wheel);
             }
         }
-        self.vehicle.step(FIXED_STEP, &input, ground);
+        self.step_with_ground(&input, ground, world.is_some());
         let impact = match world {
             Some((collision, props)) => {
                 let frame = self
@@ -199,9 +218,10 @@ impl CarSim {
                 // The original prunes object pairs before its end-frame world collision callback.
                 let mut objects = Impact::default();
                 props.collide_vehicle(&mut self.vehicle, frame, &mut objects);
+                let wall_exclusion = self.terrain_exclusion();
                 let mut impact = walls::resolve(
                     &mut self.vehicle,
-                    &walls::world_cast(collision),
+                    &walls::world_cast_with_mask(collision, wall_exclusion),
                     &walls::world_props(props),
                     &self.walls,
                 );
@@ -395,6 +415,8 @@ impl CarSim {
 mod ai;
 mod camera;
 mod pair;
+mod performance;
+mod terrain;
 mod trailer;
 
 #[cfg(test)]

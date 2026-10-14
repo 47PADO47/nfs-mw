@@ -107,6 +107,7 @@ impl CarSim {
         };
         let mut cog = body.cog();
         if self.collision_role.player {
+            self.vehicle.modify_object_hit(&mut hit);
             if grounded {
                 cog.y = point.y - body.position.y - 0.125;
                 hit.centre = Some(body.position + body.rotation() * cog);

@@ -245,6 +245,35 @@ Applied while more than 2 wheels are grounded: yaw assist = `steer_input * gas *
 `|wall|` added to the angular velocity about the body up axis (nose-in, only if throttle is on and the
 sign of the assist matches `wall`), or the opposite sign when reversing along a wall.
 
+The PC instruction replay additionally verifies the boundary and state rules below. World contact
+callbacks alone populate this state; object and ground callbacks do not. Closing velocity is the
+pre-response relative contact velocity, and body velocity is the pre-response linear velocity.
+`abs(normal.y) < 0.1` is required. Both speed limits above and the front/side length tests are strict.
+The first nonzero nose and first nonzero side value survive additional callbacks that tick. A zero
+normal-right dot chooses -1 for the nose sign. Side contacts require `abs(dot(normal,right)) > epsilon`.
+
+Steering consumes the preceding contact tick, using the preceding grounded-wheel count. Nose yaw is
+`steer*gas*0.125*abs(nose)` and only runs with positive gas and more than two grounded wheels. An opposed
+nose sign returns immediately, skipping the side path. Side yaw is
+`-steer*gas*0.125*abs(side)` when `side*steer*gas > 0`, more than two wheels are grounded, and gear is
+reverse. Both setters use the same initial angular-velocity snapshot: a qualifying side replaces the
+nose result rather than adding to it. Rotate yaw about the body up axis; do not multiply by dt. Clear
+both contact values at the end of the chassis tick. Placement resets them; changing hardware retains
+them. Engine-generic consumers default to disabled and receive coefficients from the game adapter.
+
+Synthetic PC replay examples, initial upright angular velocity `(0,0.25,0)`, four grounded wheels:
+
+| Nose | Side | Steer | Gas | Gear | Result yaw, rad/s |
+|---:|---:|---:|---:|---|---:|
+| -1 | 0 | -1 | 1 | first | 0.125 |
+| 0.4 | 0 | 0.5 | 1 | first | 0.275 |
+| 0.4 | 0 | -0.5 | 1 | first | 0.25 |
+| 0 | 0.6 | 0.5 | 1 | reverse | 0.2125 |
+| 0.4 | 0.6 | 0.5 | 1 | reverse | 0.2125 |
+
+These verify isolated original routines with synthetic interfaces, not sustained gameplay. The current
+host uses outline world contacts; primitive-exact original collision callback ordering remains separate.
+
 ## 7. Other behaviours in this class
 
 ### 7.1 Understeer / oversteer factors [decomp]
@@ -255,12 +284,17 @@ skid; `oversteer = min(|avg(skid_r)| / speed, 1)`. For UI and effects only.
 ### 7.2 Queries exposed to other systems [decomp]
 
 Per-wheel traction, load, slip speed, tolerated slip, lateral speed (`GetWheelSkid`), slip angle, angular
-velocity (0 if brake-locked; the rolling rate `road_speed/radius` if sliding on the ground; else `AV`),
+velocity (0 if brake-locked; the rolling rate `road_speed/radius` if grounded
+and `traction >= 1`; otherwise raw `AV`),
 compression, on-ground flag, world position, road surface, wheels on ground count, steer angle, max steer.
 `GuessCompression(downforce)`: for negative downforce (a push down) `-(downforce*0.25)/spring[axle]` m else 0.
 `GetRideHeight(i)` = `RIDE_HEIGHT[axle]` in metres + ride-height tuning in inches.
 
 ### 7.3 Airborne stabilisers (`DoJumpStabilizer`) [decomp]
+
+The PC input/cache lifecycle and complete vector formulas are specified in
+[vehicle-jump-stabilizers](vehicle-jump-stabilizers.md). The ground reference is
+a persistent rigid-body collision-triangle cache, independent of wheel contacts.
 
 When no wheel is grounded: add a constant extra downward force `mass * 3 m/s^2`, rising by
 `(1 - Ramp(alt, 0, 6 m)) * 10 * Ramp(speed, 0, 20 m/s)` m/s^2 if airborne > 1 s, flatter than 16 degrees
@@ -274,10 +308,16 @@ ground normal. These keep jumps controllable.
 ### 7.4 Sleep damping (`DoSleep`) [decomp]
 
 Not while staging. If speed < 0.5 m/s, all four wheels grounded, brake or handbrake pressed, no gas, small
-spin (< 0.25 rad/s) and no collision this step: damp the body by `1 - speed`, zero all wheel `AV` ("all
-asleep"). Else if speed < 1 and spin < 0.25 and no gas: scale lateral velocity and yaw rate by `speed`
-and the lateral force and yaw torque by `1 - speed` ("lateral asleep"), so a creeping car does not drift
-sideways forever.
+spin (< 0.25 rad/s) and no collision this step: multiply velocity, spin and pending force/torque by
+`speed`, zero all wheel `AV` ("all asleep"). Pending force includes gravity: the original body adds
+gravity after integrating the previous tick and before the chassis runs. The library follows that
+order: scale its accumulated force once, without adding or subtracting another gravity term.
+Else if speed < 1 and spin < 0.25 and no gas: scale lateral velocity and yaw rate by `speed`;
+add cancellation of `(1 - speed)` times the old lateral force/yaw torque, leaving each multiplied
+by `speed` ("lateral asleep"). This stops low-speed sideways creep.
+
+Gravity ordering and the additive cancellation were checked against the original PC v1.3 body
+begin-frame and chassis sleep routines on 2026-10-13 **[verified, isolated machine-code inspection]**.
 
 ## 8. Player tunings (integer sliders per category)
 

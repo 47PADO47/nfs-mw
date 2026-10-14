@@ -28,6 +28,7 @@ mod sound;
 mod spawners;
 mod speech;
 mod textures;
+mod tire_profile;
 mod traffic;
 mod trailer_logs;
 mod world;

@@ -13,6 +13,10 @@ pub(super) const LIST: &[(&str, &str)] = &[
     ("tp <x> <y>", "put the car on the road nearest to the map position"),
     ("goto <x> <y> [height]", "fly the free camera to a map position"),
     ("garage", "list your cars (for now every car in the install; use drive <car> to get into one)"),
+    (
+        "parts [stock|<body|spoiler|hood|roof|rims> <stock|index> ...]",
+        "list or select the active car's installed model parts; indices start at 1",
+    ),
     ("repair", "clear the car's visible damage and punctured tires"),
     (
         "damage <zone> <severity 0-6> [glass]",
@@ -49,6 +53,7 @@ pub(super) fn run(
         "goto" => goto(scene, args),
         "freecam" if args.is_empty() => Ok(scene.toggle_view().to_owned()),
         "garage" if args.is_empty() => Ok(nfsmw_data::car::list(&scene.dir).join("  ")),
+        "parts" => super::garage::command::run(scene, renderer, args),
         "pos" if args.is_empty() => Ok(pos(scene)),
         "props" => props(scene, args),
         "traffic" => ai::traffic_command(scene, args),

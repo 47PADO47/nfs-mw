@@ -3,7 +3,9 @@
 //! swaps. Spec: docs/specs/car-assembly.md.
 
 mod assemble;
+mod color;
 pub mod cop_lights;
+pub mod customization;
 pub mod damage;
 mod ecar;
 pub mod exhaust;
@@ -50,6 +52,8 @@ pub struct CarModel {
     pub textures: HashMap<u32, Texture>,
     pub swaps: TextureSwaps,
     pub paint: Option<Paint>,
+    /// The assembled body uses generated paint textures, rather than a fixed livery.
+    pub paintable: bool,
     /// Shading constants of the car materials, by name hash (empty when the car tables are not read).
     pub light_materials: HashMap<u32, LightMaterial>,
     /// Height of the car origin above the floor (tyres resting on it), 0 when unknown.
@@ -94,6 +98,19 @@ fn is_shared_part_folder(name: &str) -> bool {
 
 /// Load and assemble `car` (a folder under `CARS/`).
 pub fn load(dir: &GameDir, car: &str, options: &LoadOptions) -> Result<CarModel> {
+    load_customized(dir, car, options, &customization::Selection::default())
+}
+
+/// Assemble compatible model replacements over stock parts, without editing the install.
+pub fn load_customized(
+    dir: &GameDir,
+    car: &str,
+    options: &LoadOptions,
+    customization: &customization::Selection,
+) -> Result<CarModel> {
+    if !customization.is_stock() && (options.all_parts || options.preset.is_some()) {
+        bail!("custom parts require stock assembly, without a preset or all-parts mode");
+    }
     let lod = usize::from(options.lod.to_ascii_uppercase() as u8).wrapping_sub(usize::from(b'A'));
     if lod > 4 {
         bail!("LOD must be A to E, not {:?}", options.lod);
@@ -102,6 +119,9 @@ pub fn load(dir: &GameDir, car: &str, options: &LoadOptions) -> Result<CarModel>
     let tables = if options.all_parts { None } else { Some(CarTables::load(dir)?) };
     let car_type = tables.as_ref().and_then(|t| t.car_type_for_folder(car));
     let (Some(t), Some(car_type)) = (tables.as_ref(), car_type) else {
+        if !customization.is_stock() {
+            bail!("custom parts require a known car type");
+        }
         if !options.all_parts {
             log::warn!("{car} is not in the car tables; showing its KIT00 solids unassembled");
         }
@@ -110,14 +130,18 @@ pub fn load(dir: &GameDir, car: &str, options: &LoadOptions) -> Result<CarModel>
 
     let slots = match &options.preset {
         Some(name) => preset_parts(t, car_type, t.preset(name).with_context(|| format!("no preset named {name}"))?),
-        None => stock_parts(t, car_type),
+        None => customization::resolve(t, car_type, customization)?,
     };
     let mut pool: HashMap<u32, Solid> = own.into_iter().map(|s| (s.name_hash, s)).collect();
+    let mut shared_sources = HashMap::new();
     let wanted: Vec<u32> = slots[..slot::MODELS].iter().flatten().filter_map(|p| t.parts.model_hash(p, lod)).collect();
     if wanted.iter().any(|h| !pool.contains_key(h)) {
         for folder in dir.subdirectories("CARS").into_iter().filter(|f| is_shared_part_folder(f)) {
             for s in read_solids(dir, &folder)? {
-                pool.entry(s.name_hash).or_insert(s);
+                if let std::collections::hash_map::Entry::Vacant(entry) = pool.entry(s.name_hash) {
+                    shared_sources.insert(s.name_hash, folder.clone());
+                    entry.insert(s);
+                }
             }
         }
     }
@@ -127,12 +151,15 @@ pub fn load(dir: &GameDir, car: &str, options: &LoadOptions) -> Result<CarModel>
         log::warn!("{car}: no ecar record for {}; wheels are not placed", car_type.base_model_name);
     }
     let (placements, corners) = assemble::assemble(t, &slots, &pool, setup.as_ref(), lod);
+    customization::validate_placements(customization, &placements)?;
     let used: HashSet<u32> = placements.iter().map(|p| p.solid).collect();
     pool.retain(|h, _| used.contains(h));
+    let shared_folders: HashSet<_> =
+        shared_sources.into_iter().filter(|(h, _)| used.contains(h)).map(|(_, folder)| folder).collect();
 
     let swaps = TextureSwaps::for_car_type(&car_type.base_model_name, car_type.usage_type);
     let paint = slots[slot::BASE_PAINT].map(|p| Paint::of(t, &p));
-    let mut textures = textures::load(dir, car, &wanted_textures(&pool, &swaps))?;
+    let mut textures = textures::load_with_shared(dir, car, &wanted_textures(&pool, &swaps), &shared_folders)?;
     if let (true, Some(paint)) = (car_type.skinnable, &paint) {
         for name in paint::skin_placeholders(&car_type.base_model_name) {
             textures.insert(bstring_hash(&name), paint.texture(&name));
@@ -156,6 +183,7 @@ pub fn load(dir: &GameDir, car: &str, options: &LoadOptions) -> Result<CarModel>
         textures,
         swaps,
         paint,
+        paintable: car_type.skinnable,
         light_materials: t.light_materials.iter().map(|m| (m.name_hash, m.clone())).collect(),
         floor_height: setup.as_ref().map_or(0.0, wheels::floor_height),
         corners,
@@ -208,6 +236,7 @@ fn unassembled(dir: &GameDir, car: &str, solids: Vec<Solid>, options: &LoadOptio
         textures,
         swaps,
         paint: None,
+        paintable: false,
         light_materials: HashMap::new(),
         floor_height: 0.0,
         corners: None,

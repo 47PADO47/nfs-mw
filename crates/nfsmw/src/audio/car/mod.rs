@@ -8,7 +8,7 @@ use std::time::Duration;
 use blackbox_carsound::{CarInput, EffectsMixer, EngineMixer, LoopId, ScrapeKind, SoundCommand, SoundRef};
 use kira::Tween;
 use kira::sound::static_sound::StaticSoundHandle;
-use nfsmw_data::sound::{CarSound, EventKind};
+use nfsmw_data::sound::{CarSound, EventKind, SoundUpgrades};
 
 use super::LoopMix;
 use super::aems::{AemsLayer, Feed, KiraSampler};
@@ -35,6 +35,8 @@ pub struct CarEvent {
 pub struct CarSoundState {
     /// The car type (`BMWM3GTR`), which picks its sound set.
     pub car: String,
+    /// The performance levels that select engine, shifting and induction sound sets.
+    pub upgrades: SoundUpgrades,
     pub input: CarInput,
     pub events: Vec<CarEvent>,
     /// What the car is rubbing along and how hard (0 to 1), if anything.
@@ -46,6 +48,7 @@ pub struct CarSoundState {
 /// The mixers, the voices and the sound set of one car.
 pub(super) struct CarAudio {
     pub car: String,
+    pub upgrades: SoundUpgrades,
     pub sound: CarSound,
     engine: EngineMixer,
     pub effects: EffectsMixer,
@@ -85,16 +88,21 @@ impl Audio {
             self.failed = None;
             return;
         };
-        if self.car.as_ref().is_none_or(|c| c.car != state.car) {
+        if self.car.as_ref().is_none_or(|c| c.car != state.car || c.upgrades != state.upgrades) {
             self.car = None;
-            if self.failed.as_deref() == Some(&state.car) || !self.available() {
+            if self.failed.as_ref().is_some_and(|(car, upgrades)| car == &state.car && *upgrades == state.upgrades)
+                || !self.available()
+            {
                 return;
             }
-            match self.start_car(&state.car) {
-                Ok(car) => self.car = Some(car),
+            match self.start_car(&state.car, state.upgrades) {
+                Ok(car) => {
+                    self.failed = None;
+                    self.car = Some(car);
+                }
                 Err(e) => {
                     log::warn!("no engine sound for {}: {e}", state.car);
-                    self.failed = Some(state.car.clone());
+                    self.failed = Some((state.car.clone(), state.upgrades));
                     return;
                 }
             }
@@ -176,8 +184,8 @@ impl Audio {
         self.car.as_mut().and_then(|car| car.aems.as_mut()).map_or(0, AemsLayer::take_pops)
     }
 
-    fn start_car(&mut self, name: &str) -> Result<CarAudio, String> {
-        let loaded = self.load_car_engine(name)?;
+    fn start_car(&mut self, name: &str, upgrades: SoundUpgrades) -> Result<CarAudio, String> {
+        let loaded = self.load_car_engine_upgraded(name, upgrades)?;
         let tuning = tuning(&loaded.sound, loaded.accel_min_frequency());
         let silent = EngineMix::shared(loaded.sound.engine.min_rpm, 1.0, 0.0, 0.0);
         let handle = self.start_engine(super::EngineVoice { start: silent, ..loaded.voice })?;
@@ -194,6 +202,7 @@ impl Audio {
             mixer,
             master_volume: loaded.sound.engine.master_volume,
             car: name.to_owned(),
+            upgrades,
             engine: EngineMixer::new(&tuning),
             effects: EffectsMixer::new(&tuning),
             sound: loaded.sound,

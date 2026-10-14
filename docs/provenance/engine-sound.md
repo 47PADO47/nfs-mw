@@ -81,6 +81,17 @@ not audible parity with the original game or an audio-device capture. The FXX Ev
 unconfirmed; no such mod was identified in the local test data. `NFSMW_LIMITER_CARS` selects a comma-separated
 car list for checking another user's install without changing the test.
 
+## Garage upgrade propagation (2026-10-13)
+
+The drive now supplies its installed engine, transmission and induction levels
+to the sound reader described in engine-sound section 2. Existing voices and
+controllers reload when these selectors change. This host wiring was implemented
+from the existing spec and Rust reader; no additional decompiled source was read.
+Tire, brake, chassis, nitrous and Junkman choices do not imply additional audio
+bank mappings. The original nitrous bank-zero rule remains unchanged. Synthetic
+tests cover this selector boundary; an ignored installed test resolves and
+decodes the sound sets selected by stock and upgraded packages.
+
 ## Open questions
 
 Tracked for the implementer; see "Open questions" at the end of each spec: update rate of the control code

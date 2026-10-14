@@ -22,7 +22,7 @@ impl Drive {
 
     /// What the car can do flat out (measured by driving the model flat out), for cops that are matched to it.
     pub(in crate::scenes::world) fn performance(&self) -> blackbox_vehicle::performance::Performance {
-        blackbox_vehicle::performance::measure(&self.physics.spec)
+        blackbox_vehicle::performance::measure_with_integration(&self.physics.spec, self.physics.tire_integration)
     }
 
     /// The physics of the car, once it stands on a road.

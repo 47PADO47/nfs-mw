@@ -11,6 +11,12 @@ Open **Options > Controls** from the main menu or pause menu. The response rows 
 backing out saves the changed settings. Deadzones move in 5 percent steps and sensitivities in 25 percent
 steps. The config file and console accept finer integer percentages.
 
+Speedbreaker toggles with **Left Ctrl**, the mouse's **Back thumb button**, or
+the gamepad's **East face button** (Xbox B / PlayStation Circle). Press again
+to stop it. **Right Ctrl** and Q downshift; Left Ctrl does not also downshift.
+The original keyboard Controls screen includes a Speedbreaker row. The `keys`
+listing reflects live assignments; its gamepad button labels use Xbox names.
+
 | Setting | Default | Range |
 |---|---|---|
 | Deadzone Mode | Rescaled | Rescaled / Cutoff |
@@ -46,13 +52,15 @@ invert_camera_y = false
 [bindings]
 throttle = ["key:KeyW", "trigger:RightTrigger2"]
 steer = ["key:KeyD", "key:KeyA:-1", "axis:LeftStickX"]
-nos = ["key:ShiftLeft", "button:East"] # Xbox B
+nos = ["key:ShiftLeft", "button:West"] # Xbox X
+speedbreaker = ["key:ControlLeft", "mouse:Back", "button:East"]
 ```
 
 ## Steering wheel
 
-A wheel shows up as a gamepad. Button and axis codes depend on the device, so nothing is bound by default except a
-clutch key. The log (`info`) prints the code of each unnamed button the first time it goes down and of each non-stick
+A wheel shows up as a gamepad and uses any standard codes it reports, including
+East for Speedbreaker. Vendor-specific wheel buttons and pedal axes have no
+fixed default because their codes depend on the device. The log (`info`) prints the code of each unnamed button the first time it goes down and of each non-stick
 axis when it is first seen or moves by half its travel; press a button or move a pedal and read the name.
 
 | Source | Meaning |
@@ -77,6 +85,7 @@ brake = ["pedal_inv:Other(1)"]
 clutch = ["pedal_inv:Other(0)"]
 gear_1 = ["button:Other(20)"]    # gear_neutral, gear_reverse, gear_2 ... gear_7 the same way
 gear_reverse = ["button:Other(26)"]
+speedbreaker = ["key:ControlLeft", "mouse:Back", "button:Other(21)"] # replace 21 with your logged wheel button
 ```
 
 `manual_clutch` and `h_shifter` (also `NFSMW_MANUAL_CLUTCH`, `NFSMW_H_SHIFTER` and `set manual_clutch on`) only matter
@@ -102,6 +111,8 @@ bind steer key:D
 addbind steer key:A:-1
 unbind nos gamepad
 bind-reset nos
+bind speedbreaker button:Other(21)
+addbind speedbreaker mouse:Back
 bind-save
 ```
 
@@ -122,6 +133,12 @@ Sources use `kind:name[:scale[:per_second]]`:
 
 Scales must be finite, nonzero and within ±10000. Mouse motion already contains the frame's delta;
 `per_second` is only valid for key/button/axis/trigger sources. Each action supports up to 32 assignments.
+
+For Speedbreaker, prefer a button. A `trigger`, `axis`, `pedal` or `pedal_inv`
+source also works: travel above the action's 0.5 threshold counts as held after
+the applicable deadzone. Returning below the threshold releases it; pressing
+again toggles it off. Leave `per_second` off for this button action. Wheel
+assignments persist through `bind-save`, like keyboard, mouse and pad bindings.
 
 The radio has three button actions, bound like any other: `radio_toggle` (pause and resume; M, the media
 play/pause key, pad right stick click), `radio_next` (`.`, media next, pad D-pad right) and `radio_previous`

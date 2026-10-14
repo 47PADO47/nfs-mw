@@ -7,6 +7,7 @@ mod commands;
 mod devtools;
 mod discord;
 mod frontend;
+mod garage;
 mod gui;
 mod hud;
 mod input;

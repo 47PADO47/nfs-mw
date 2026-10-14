@@ -88,6 +88,8 @@ pub enum Action {
     RadioNext,
     /// Radio button: the previous song.
     RadioPrevious,
+    /// Button: open or close the runtime garage overlay.
+    Garage,
 }
 
 impl Action {
@@ -140,6 +142,7 @@ impl Action {
             "radio_toggle",
             "radio_next",
             "radio_previous",
+            "garage",
         ];
         NAMES[self.index()]
     }
@@ -151,7 +154,7 @@ impl Action {
             .find(|a| a.name() == name)
             .ok_or_else(|| format!("unknown action {name:?}; use keys to list actions"))
     }
-    pub const ALL: [Action; 47] = [
+    pub const ALL: [Action; 48] = [
         Action::MoveForward,
         Action::MoveRight,
         Action::MoveUp,
@@ -199,11 +202,12 @@ impl Action {
         Action::RadioToggle,
         Action::RadioNext,
         Action::RadioPrevious,
+        Action::Garage,
     ];
 
     /// Actions that still work while the UI has the keyboard.
     pub(super) fn works_in_ui(self) -> bool {
-        matches!(self, Action::Cancel | Action::Console)
+        matches!(self, Action::Cancel | Action::Console | Action::Garage)
     }
 
     pub(super) fn index(self) -> usize {

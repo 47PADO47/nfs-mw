@@ -52,7 +52,7 @@ pub fn preset_parts(t: &CarTables, car: &CarTypeInfo, preset: &PresetRide) -> Sl
 
 /// The body decides the corner damage overlays and the door/quarter decal models:
 /// parts named `<CAR>_KIT<nn>_<suffix>` with `nn` the body's `KITNUMBER`.
-fn fill_from_body(t: &CarTables, car: &CarTypeInfo, slots: &mut Slots) {
+pub(super) fn fill_from_body(t: &CarTables, car: &CarTypeInfo, slots: &mut Slots) {
     let kit = slots[slot::BODY].map(|body| kit_number(t, &body));
     let prefix = kit.map(|kit| bstring_hash(&format!("{}_KIT{kit:02}_", car.type_name)));
     for s in slot::DAMAGE0.chain(slot::KIT_DECALS) {

@@ -5,7 +5,7 @@ use glam::Vec3;
 
 use super::Vehicle;
 use crate::aero::{self, AeroInput};
-use crate::drivetrain::{GEAR_FIRST, GEAR_REVERSE, TickInput, split_drive_torque};
+use crate::drivetrain::{GEAR_FIRST, GEAR_REVERSE, TickInput};
 use crate::ground::Ground;
 use crate::input::{GearRequest, InputContext, InputState, shape};
 use crate::math::clamp_signed;
@@ -45,6 +45,7 @@ impl Vehicle {
         let rot = self.body.rotation();
         let local_velocity = rot.transpose() * self.body.linear_velocity;
         let speed = self.body.linear_velocity.length();
+        let angular_velocity = self.body.angular_velocity;
         self.body_slip = if local_velocity.z < 1.0 { 0.0 } else { local_velocity.x.atan2(local_velocity.z) };
 
         self.update_controls(input, local_velocity.z);
@@ -55,13 +56,14 @@ impl Vehicle {
             self.wheels_on_ground_prev > 0,
         ));
         self.update_steering(dt, local_velocity.z);
+        self.apply_wall_steering();
 
         self.begin_tires(speed);
         self.run_powertrain(dt, speed);
-        self.tune_tires(dt, speed);
+        self.tune_tires(dt, speed, angular_velocity);
         self.apply_aero();
 
-        let out = self.wheel_forces(dt, ground);
+        let out = self.wheel_forces(dt, ground, angular_velocity);
         if self.wheels_on_ground > 0 {
             let up = self.body.rotation().y_axis;
             let mut torque = out.torque;
@@ -74,11 +76,13 @@ impl Vehicle {
                 self.body.position.y += out.lift_need;
             }
         }
-        self.damp_landing();
-        self.damp_creep(collided);
+        let angular_velocity = self.damp_landing(angular_velocity);
+        self.apply_jump(dt, speed, angular_velocity);
+        self.damp_creep(collided, angular_velocity);
 
         self.body.apply_drag();
         let corner_contacts = self.collide_body_with_ground(ground);
+        self.body_ground_contact = corner_contacts > 0;
         if self.wheels_on_ground == 0 {
             self.body.update_sleep(corner_contacts);
         }
@@ -104,9 +108,9 @@ impl Vehicle {
         self.controls = controls;
     }
 
-    fn update_steering(&mut self, dt: f32, forward_speed: f32) {
+    pub(super) fn update_steering(&mut self, dt: f32, forward_speed: f32) {
         let c = self.controls;
-        let angle = self.steering.update(&SteeringInput {
+        let normal_angle = self.steering.update(&SteeringInput {
             dt,
             steer: c.steering,
             gas: c.gas,
@@ -118,6 +122,10 @@ impl Vehicle {
             device: self.config.steering_device,
             rear_slip_deg: [self.tires[2].slip_angle * 360.0, self.tires[3].slip_angle * 360.0],
         });
+        let angle = match self.maneuver.steering_degrees {
+            Some(degrees) => c.steering * degrees,
+            None => normal_angle,
+        };
         self.wheel_angles = self
             .forced_wheel_angles
             .unwrap_or_else(|| ackermann(angle, self.spec.chassis.wheel_base, self.spec.chassis.track_width[0]));
@@ -135,12 +143,17 @@ impl Vehicle {
             (0..4).filter(|&i| is_driven(i)).map(|i| self.tires[i].slip).sum::<f32>() / count as f32 * dir
         };
         let max_wheel_slip = self.tires.iter().map(|t| t.slip.abs()).fold(0.0, f32::max);
-        let mut av: [f32; 4] = std::array::from_fn(|i| self.tires[i].av);
+        let reference = self.tire_integration == crate::tires::TireIntegration::Reference;
+        let mut av: [f32; 4] = std::array::from_fn(|i| match reference {
+            true => self.tires[i].display_av(self.params[i].radius, self.corners[i].compression > 0.0),
+            false => self.tires[i].av,
+        });
         let grounded = self.loaded;
         let drive_torque = self.powertrain.tick(&mut TickInput {
             dt,
             gas: self.controls.gas,
             nos_held: self.controls.nos,
+            can_recharge_nos: self.can_recharge_nos,
             blown: self.disabled,
             automatic: self.config.automatic,
             speed,
@@ -153,13 +166,13 @@ impl Vehicle {
             nos_tuning: self.tunings.nos,
             clutch_pedal: self.controls.clutch,
         });
-        for (t, a) in self.tires.iter_mut().zip(av) {
-            t.av = a;
+        let writes = self.powertrain.wheel_writes();
+        for (i, t) in self.tires.iter_mut().enumerate() {
+            if !reference || writes[i] {
+                t.av = av[i];
+            }
         }
-        let torques = split_drive_torque(drive_torque, &self.spec.transmission, av, grounded);
-        for (t, q) in self.tires.iter_mut().zip(torques) {
-            t.drive_torque = q;
-        }
+        self.distribute_drive(drive_torque, self.tires.map(|t| t.av), grounded);
     }
 
     /// A drift: a grounded rear tire slides sideways past [`DRIFT_SLIP`] (turns, 1.0 = 360 deg).
@@ -167,10 +180,15 @@ impl Vehicle {
         (2..4).any(|i| self.loaded[i] && self.tires[i].slip_angle.abs() > DRIFT_SLIP)
     }
 
-    fn apply_aero(&mut self) {
+    pub(super) fn apply_aero(&mut self) {
         let rot = self.body.rotation();
+        self.body.apply_force(-rot.y_axis * self.spec.mass * self.maneuver.extra_downward_acceleration);
+        let aero = crate::aero::AeroSpec {
+            drag_coefficient: self.spec.aero.drag_coefficient * self.maneuver.drag_scale,
+            ..self.spec.aero
+        };
         let f = aero::forces(
-            &self.spec.aero,
+            &aero,
             &AeroInput {
                 linear_velocity: self.body.linear_velocity,
                 rotation: rot,

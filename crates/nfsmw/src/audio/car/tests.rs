@@ -18,6 +18,32 @@ fn audio() -> Option<Audio> {
     Some(Audio::new(GameDir::open(std::path::PathBuf::from(dir)).unwrap(), Volumes::default()))
 }
 
+/// Explicit install evidence: every selected engine set decodes through the
+/// playback loader and matches the data selector, including returning to stock.
+#[test]
+#[ignore = "requires NFSMW_GAME_DIR"]
+fn installed_performance_sound_sets_load_and_restore() {
+    let mut audio = audio().expect("NFSMW_GAME_DIR must name an installed game");
+    let db = audio.database().unwrap();
+    for name in ["COBALTSS", "TT", "CORVETTE", "LANCEREVO8", "BMWM3GTR"] {
+        let stock = audio.load_car_engine(name).unwrap().sound;
+        for upgrades in [
+            SoundUpgrades { engine: 1, transmission: 1, induction: 1 },
+            SoundUpgrades { engine: 2, transmission: 2, induction: 2 },
+            SoundUpgrades { engine: 3, transmission: 3, induction: 3 },
+            SoundUpgrades::default(),
+        ] {
+            let expected = nfsmw_data::sound::car_sound(&db, name, upgrades).unwrap();
+            let loaded = audio.load_car_engine_upgraded(name, upgrades).unwrap();
+            assert_eq!(loaded.sound, expected, "{name}: {upgrades:?}");
+            assert!(loaded.accel_min_frequency().is_finite());
+            if upgrades == SoundUpgrades::default() {
+                assert_eq!(loaded.sound, stock, "{name} must restore its stock audio");
+            }
+        }
+    }
+}
+
 /// With the install (`NFSMW_GAME_DIR`) a real car's data drives the mixer: revving raises the Ginsu
 /// frequency and the accelerate loop is audible. Without it the test passes without checking anything.
 #[test]

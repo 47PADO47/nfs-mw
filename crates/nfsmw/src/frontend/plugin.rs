@@ -125,7 +125,13 @@ fn update(
     mut bindings: ResMut<Bindings>,
     mut clicking: Local<bool>,
     mut wheel: Local<f32>,
+    garage: Res<crate::garage::Overlay>,
 ) {
+    if garage.open || garage.had_input {
+        *clicking = false;
+        *wheel = 0.0;
+        return;
+    }
     let (fe, host) = (&mut *fe, &mut *host);
     let Some(caps) = host.renderer.as_ref().map(|r| *r.capabilities()) else { return };
     let mut changed = std::mem::take(&mut fe.changed);

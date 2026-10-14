@@ -6,9 +6,9 @@ use blackbox_vehicle::engine::EngineSpec;
 use blackbox_vehicle::induction::InductionSpec;
 use blackbox_vehicle::nos::NosSpec;
 
-use super::fields::Fields;
+use super::performance::fields::PerformanceFields;
 
-pub fn engine(c: Fields<'_>) -> EngineSpec {
+pub fn engine(c: impl PerformanceFields) -> EngineSpec {
     EngineSpec {
         torque: c.floats("TORQUE"),
         idle: c.f32("IDLE"),
@@ -21,7 +21,7 @@ pub fn engine(c: Fields<'_>) -> EngineSpec {
     }
 }
 
-pub fn transmission(c: Fields<'_>) -> TransmissionSpec {
+pub fn transmission(c: impl PerformanceFields) -> TransmissionSpec {
     let differential = c.floats("DIFFERENTIAL");
     TransmissionSpec {
         gear_ratio: c.floats("GEAR_RATIO"),
@@ -36,7 +36,7 @@ pub fn transmission(c: Fields<'_>) -> TransmissionSpec {
     }
 }
 
-pub fn induction(c: Fields<'_>) -> InductionSpec {
+pub fn induction(c: impl PerformanceFields) -> InductionSpec {
     InductionSpec {
         low_boost: c.f32("LOW_BOOST"),
         high_boost: c.f32("HIGH_BOOST"),
@@ -48,7 +48,7 @@ pub fn induction(c: Fields<'_>) -> InductionSpec {
     }
 }
 
-pub fn nos(c: Fields<'_>) -> NosSpec {
+pub fn nos(c: impl PerformanceFields) -> NosSpec {
     NosSpec {
         nos_capacity: c.f32("NOS_CAPACITY"),
         torque_boost: c.f32("TORQUE_BOOST"),

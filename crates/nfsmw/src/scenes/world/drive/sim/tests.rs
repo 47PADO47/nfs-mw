@@ -14,7 +14,16 @@ fn sim() -> CarSim {
     let spec = VehicleSpec::example();
     let bounds = CarBounds { half_dimensions: spec.dimension, pivot: Vec3::new(0.0, spec.dimension.y, 0.1) };
     CarSim::new(
-        CarPhysics { spec, bounds, walls: WallSpec::default(), geometry: None, events: None, reactions: None },
+        CarPhysics {
+            tire_integration: Default::default(),
+            jump_config: Default::default(),
+            spec,
+            bounds,
+            walls: WallSpec::default(),
+            geometry: None,
+            events: None,
+            reactions: None,
+        },
         [0.2; 4],
     )
 }

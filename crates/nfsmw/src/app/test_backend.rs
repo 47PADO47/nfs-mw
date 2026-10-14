@@ -11,13 +11,28 @@ pub struct NullBackend {
     info: BackendInfo,
     caps: Capabilities,
     settings: GraphicsSettings,
+    pub mesh_labels: std::collections::HashMap<MeshHandle, String>,
+    track_meshes: bool,
+    next_mesh: usize,
 }
 
 impl NullBackend {
     pub fn new(caps: Capabilities) -> Self {
         let info =
             BackendInfo { renderer: caps.renderer, api: caps.api, adapter: "Null GPU".into(), driver: String::new() };
-        Self { info, caps, settings: GraphicsSettings::default() }
+        Self {
+            info,
+            caps,
+            settings: GraphicsSettings::default(),
+            mesh_labels: Default::default(),
+            track_meshes: false,
+            next_mesh: 0,
+        }
+    }
+
+    pub fn with_mesh_tracking(mut self) -> Self {
+        self.track_meshes = true;
+        self
     }
 }
 
@@ -49,10 +64,18 @@ impl RenderBackend for NullBackend {
     }
     fn destroy_texture(&mut self, _handle: TextureHandle) {}
     fn redirect_texture(&mut self, _from: TextureHandle, _to: Option<TextureHandle>) {}
-    fn create_mesh(&mut self, _desc: &MeshDesc<'_>) -> MeshHandle {
-        MeshHandle::from_raw(0)
+    fn create_mesh(&mut self, desc: &MeshDesc<'_>) -> MeshHandle {
+        if !self.track_meshes {
+            return MeshHandle::from_raw(0);
+        }
+        let handle = MeshHandle::from_raw(self.next_mesh);
+        self.next_mesh += 1;
+        self.mesh_labels.insert(handle, desc.label.to_owned());
+        handle
     }
-    fn destroy_mesh(&mut self, _handle: MeshHandle) {}
+    fn destroy_mesh(&mut self, handle: MeshHandle) {
+        self.mesh_labels.remove(&handle);
+    }
     fn create_glossy_material(&mut self, _material: &GlossyMaterial) -> GlossyMaterialHandle {
         GlossyMaterialHandle::from_raw(0)
     }

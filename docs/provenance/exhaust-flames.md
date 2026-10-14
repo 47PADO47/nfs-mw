@@ -18,7 +18,10 @@
   - The lift-off backfire (a short flame at each sputter pop while off the throttle), the `exhaust_flames`
     setting, the 4x alpha gain of the additive particles, the particle budgets and the loading only while the setting is on are the rewrite's own design
     (spec section 8); the original ties no visual to the sputters.
-  - The installed engine upgrade level is a console setting (default 0), not career data.
+  - The installed engine upgrade level follows the garage performance package.
+    The console can still override it for effect diagnostics; changing the
+    package replaces that override. Junkman modifiers alone do not change the
+    ordinary engine level used by the existing trigger spec.
   - Only the player's car; the miss-shift smoke (drag races), distance culling and the global particle caps are
     not reproduced; the emitter library omits start delays and on/off cycles (unused by these effects).
 
