@@ -11,9 +11,12 @@ use crate::hud::{
 };
 
 /// The chase as the pursuit board shows it. The evade share is the part of the evade timeout already done (the feed
-/// gives what is left of it).
-fn pursuit_hud(feed: PursuitFeed) -> PursuitHud {
-    PursuitHud::from_evade_time(feed.secs, feed.secs_to_evade, blackbox_pursuit::evade::timeout(feed.heat))
+/// gives what is left of it). `cops_destroyed` is the chase's wrecked cops.
+fn pursuit_hud(feed: PursuitFeed, cops_destroyed: u32) -> PursuitHud {
+    PursuitHud {
+        cops_destroyed,
+        ..PursuitHud::from_evade_time(feed.secs, feed.secs_to_evade, blackbox_pursuit::evade::timeout(feed.heat))
+    }
 }
 
 impl WorldScene {
@@ -30,7 +33,8 @@ impl WorldScene {
                 traffic.map_blips(&mut state.blips);
                 // The radar's green laser shows while cops chase the player.
                 state.cop_nearby = traffic.is_pursuing();
-                state.pursuit = traffic.pursuit_feed().map(pursuit_hud);
+                let wrecked = traffic.cops_destroyed();
+                state.pursuit = traffic.pursuit_feed().map(|feed| pursuit_hud(feed, wrecked));
                 state.busted = traffic.busted_meter();
             }
             state.blips.extend_from_slice(&self.map_blips);

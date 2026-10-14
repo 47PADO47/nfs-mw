@@ -25,6 +25,9 @@ const RADAR: [u32; 1] = [0x839e_7d77];
 const LASER: [u32; 1] = [0x6ccb_bbf1];
 /// The pursuit board (`PursuitBoardGroup`): the backing, the timer and the bounty row. Shown while a chase runs.
 const PURSUIT_BOARD: [u32; 1] = [0xde89_e070];
+/// The cops group (`0xe0b1430b`): the cops icon with its count, and the taken-out icon with the wrecked count. It shows
+/// with the board, as the cops it counts are the chase's.
+const PURSUIT_COPS: [u32; 1] = [0xe0b1_430b];
 /// The cool-down bar (`Cooldown_Meter_Group`): its track and fill. It sits inside the radar's group in the package,
 /// so [`Layout::update`] decides it on its own flag. Shown once the player has started to get away.
 const COOLDOWN: [u32; 1] = [0x84a2_26ec];
@@ -63,6 +66,7 @@ pub struct Layout {
     /// The green laser over the radar, shown while a cop is nearby.
     laser: Vec<usize>,
     pursuit: Vec<usize>,
+    pursuit_cops: Vec<usize>,
     cooldown: Vec<usize>,
     held: Vec<usize>,
     applied: Option<Shown>,
@@ -94,6 +98,7 @@ impl Layout {
             radar: find(&RADAR),
             laser: find(&LASER),
             pursuit: find(&PURSUIT_BOARD),
+            pursuit_cops: find(&PURSUIT_COPS),
             cooldown: find(&COOLDOWN),
             held: find(&HELD_HIDDEN),
             applied: None,
@@ -130,6 +135,7 @@ impl Layout {
         }
         if want.pursuit {
             roots.extend(&self.pursuit);
+            roots.extend(&self.pursuit_cops);
         }
         if want.cooldown {
             roots.extend(&self.cooldown);
