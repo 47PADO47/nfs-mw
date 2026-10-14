@@ -19,3 +19,8 @@
     selects the low-sun presets; the preset index that is the original night is not confirmed.
   - World lights (street lights) are not switched; only the player's headlights.
   - The sky colour is not driven by the clock.
+- **Time scale (E2):** the clock is fed the simulation delta, so pause, loading and the garage hold it, the
+  speedbreaker dilates it, and GameSpeed scales it (kept on purpose). Own wiring from the spec and the existing
+  speedbreaker clock, no community mod code read or copied. Checked by synthetic tests in `day.rs` only. The
+  mod's pause and time-scale facts (IsPaused, the sim time-scale field, the frame detour) were not
+  cross-checked against the executable in this pass and are not relied on.
