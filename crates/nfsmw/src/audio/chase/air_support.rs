@@ -3,8 +3,8 @@
 //! one defaults to on. The file is `NFSMWAirSupportSettings.ini` next to the config file, read with `ini-tuning`
 //! (`[Section]` headers, `Key = value` lines, `//` comments). A missing file is all on; a malformed value is on.
 //!
-//! Only the groups that are wired in `cues.rs` are gated by [`AirSupport::allows`]. The other switches are read and
-//! held here so the config surface is complete; their TODOs are in `chase.rs`.
+//! The groups that are wired in `cues.rs` are gated by [`AirSupport::allows`]. The other switches are read and held
+//! here so the config surface is complete; their TODOs are in `chase.rs`.
 
 use std::path::Path;
 
@@ -67,11 +67,18 @@ impl AirSupport {
     /// Whether a cue may be said. The base chase lines (lost, regained, heat jump) are never switched off here.
     /// `TimeExpired` is the dispatch's "time expired" at the end of a lost search; it belongs to the mod's
     /// `SearchPattern` group, which the mod describes as the call when the chase cools down. That mapping is our
-    /// reading of the mod's description, to be checked in play.
+    /// reading of the mod's description, to be checked in play. `CopDown` as `KillShot` is also a guess: the mod's
+    /// kill-shot group may be the helicopter's kill line, not the cop-down one.
     pub fn allows(&self, cue: Cue) -> bool {
         match cue {
             Cue::Lost | Cue::Regained | Cue::HeatJump => true,
             Cue::TimeExpired => self.search_pattern,
+            Cue::Rain => self.weather_report,
+            Cue::RoadblockCalled => self.roadblock_call,
+            Cue::BeenHit => self.been_hit,
+            Cue::HeliLost => self.reacquire,
+            Cue::HeliSpotted => self.spotted_again,
+            Cue::CopDown => self.kill_shot,
         }
     }
 }

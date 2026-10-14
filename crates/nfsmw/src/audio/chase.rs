@@ -3,18 +3,20 @@
 //! edges of the chase (a sighting lost or regained, the heat jumping, the search's time running out) are said as their
 //! speech events. The air-support switches of the config (`chase/air_support.rs`) gate the groups that have a switch.
 //!
+//! Wired from the feed's air-support state (each an edge in `chase/cues.rs`, gated by its air-support switch):
+//! `WeatherReport` `weatherreport` 219 (rain rising), `RoadblockCall` `callforrb` 76, `BeenHit` `collisionworld` 98,
+//! `Reacquire` `helilostvisual` 169 and `SpottedAgain` `spotted` 214 (both with a helicopter in the chase), and
+//! `KillShot` `unitdisabled` 164 (a cop wrecked).
+//!
 //! Not wired, for lack of state in [`PursuitFeed`] (the feed is built by `scenes/world/ai/police/world.rs`, which is
 //! not this module's). Each line below needs the state named; add it to the feed, then add a cue in `chase/cues.rs`.
-//! - Helicopter lines (`SpottedAgain` `spotted` 214, `Reacquire` `helilostvisual` 169, `SearchPattern` heli call,
-//!   `HoldOn`, `KillShot`, `DeadHeliSilence`, `AttackMissed`): the helicopter's presence, its line of sight and its
-//!   health or fuel. The feed has only the cops' sight.
+//! - Helicopter lines not yet wired (`SearchPattern` heli call, `HoldOn`, `DeadHeliSilence`): the helicopter's line of
+//!   sight, its health or fuel. The feed has only the helicopter's presence.
 //! - `RamLines` `intenttoram` 113 and `AttackMissed`: a ram intent and the outcome of a ram attempt (no ram state).
 //! - `VehicleReport` `vehiclereport` 155 and `EscapedCar` `spotterwanted` 216: the first sighting's car description and
 //!   a memory of the cars that got away (neither is in the feed).
-//! - `BeenHit` `collisionworld` 98 family: the player's collisions (no hit state).
-//! - `RoadblockCall` and the strategy lines: the roadblock state (none in the feed).
-//! - `WeatherReport` `weatherreport` 219 and `RainFlag`: the rain intensity, which the weather model holds in the
-//!   scene, not the feed (`weather::Weather::rain`).
+//! - The strategy lines: the strategy state (none in the feed).
+//! - `RainFlag` (the radio's rain line): no speech collection of that name is in `/speed.exe`, so no event to ask for.
 //! - `Answer911` `disp911report` 102 and `unit911reply` 103: the 911 counters (the feed has none).
 //! - `FastAirRequest` and `FastAirReminder`: the air-support request state (none in the feed).
 //! - `NoSpeechDropoff`: the speech dispatcher's own drop rule (`speech/dispatcher.rs`), not a chase cue.
@@ -25,6 +27,8 @@ mod air_support;
 #[cfg(test)]
 mod air_support_tests;
 mod cues;
+#[cfg(test)]
+mod line_tests;
 #[cfg(test)]
 mod tests;
 
@@ -40,13 +44,20 @@ use super::{Audio, MusicInput, PursuitFeed};
 const OPENING_LINE: &str = "setup_initpursuit";
 
 /// The speech event of each cue, by its collection name (numbers in `docs/specs/ai-pursuit-speech-events.md`):
-/// `lostvisual` is 106, `regainvisual` 107, `heatjump` 220, `disptimeexpired` 180.
+/// `lostvisual` is 106, `regainvisual` 107, `heatjump` 220, `disptimeexpired` 180, `weatherreport` 219, `callforrb` 76,
+/// `collisionworld` 98, `helilostvisual` 169, `spotted` 214, `unitdisabled` 164.
 fn cue_line(cue: Cue) -> &'static str {
     match cue {
         Cue::Lost => "lostvisual",
         Cue::Regained => "regainvisual",
         Cue::HeatJump => "heatjump",
         Cue::TimeExpired => "disptimeexpired",
+        Cue::Rain => "weatherreport",
+        Cue::RoadblockCalled => "callforrb",
+        Cue::BeenHit => "collisionworld",
+        Cue::HeliLost => "helilostvisual",
+        Cue::HeliSpotted => "spotted",
+        Cue::CopDown => "unitdisabled",
     }
 }
 
