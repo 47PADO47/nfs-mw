@@ -7,7 +7,6 @@ use crate::drivetrain::GEAR_REVERSE;
 use crate::math::table;
 use crate::tires::StepScales;
 
-
 impl Vehicle {
     /// Starts the step on every tire and applies the assists. Call before the drive torque is added.
     pub(super) fn begin_tires(&mut self, speed: f32) {

@@ -105,6 +105,8 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         speed_trails: field(&table, origin, "speed_trails", boolean),
         exhaust_flames: field(&table, origin, "exhaust_flames", boolean),
         rear_view_mirror: field(&table, origin, "rear_view_mirror", boolean),
+        discord: field(&table, origin, "discord", boolean),
+        discord_time_played: field(&table, origin, "discord_time_played", boolean),
         transmission: field(&table, origin, "transmission", |v| Transmission::from_str(text_of(v)?)),
         camera_mode: field(&table, origin, "camera_mode", |v| CameraMode::from_str(text_of(v)?)),
         minimap: field(&table, origin, "minimap", |v| MinimapMode::from_str(text_of(v)?)),

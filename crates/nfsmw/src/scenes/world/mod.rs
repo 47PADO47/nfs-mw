@@ -5,11 +5,15 @@ mod camera_choice;
 mod car_lights;
 mod car_loader;
 mod cargo;
-mod damage_marks;
 mod commands;
+mod damage_marks;
 mod drive;
 mod drive_input;
 mod effects;
+mod entry;
+mod entry_zones;
+#[cfg(test)]
+mod entry_zones_tests;
 mod events;
 mod exhaust;
 mod ground;
@@ -18,12 +22,12 @@ mod keys;
 mod lighting;
 use car_loader::load_car;
 mod object_geometry;
+mod open;
 mod props;
 mod rear_view;
 mod reflections;
 mod residency;
 mod resident;
-mod open;
 mod road;
 mod sign_lamps;
 mod simulation;
@@ -119,8 +123,11 @@ pub struct WorldScene {
     drive: Option<Drive>,
     /// Computer-driven cars, when the track has a road network.
     traffic: Option<ai::TrafficWorld>,
-    /// Other minimap blips (racers, checkpoint, helicopter) that a system sets each frame; nothing sets them yet.
+    /// Minimap blips that do not come from the traffic: the race starts and the interiors, made once at open
+    /// (`hud::static_blips`). Nothing clears this list, so a later addition stays until it is removed here.
     pub map_blips: Vec<crate::hud::MapBlip>,
+    /// The entry zones (auto shops, safe houses, race starts) and the interact card (`entry.rs`).
+    entry: entry::Entry,
     /// The `traffic`, `cop_share` settings as last told, and a count typed in the console that replaces them.
     traffic_setting: crate::settings::TrafficSettings,
     lamp_meshes: Option<ai::LampMeshes>,
@@ -224,6 +231,7 @@ impl Scene for WorldScene {
         }
         self.prepare_drive();
         self.update_simulation(renderer, input, dt);
+        self.update_entry(input, dt);
         self.sun.advance(dt);
         if !self.grounded && self.residency.complete() {
             self.grounded = true;
@@ -240,6 +248,11 @@ impl Scene for WorldScene {
         }
         self.upload_effects(renderer);
         self.update_reflections(renderer);
+    }
+
+    fn ui(&mut self, ctx: &egui::Context) -> f32 {
+        crate::hud::show_interact_prompt(ctx, &self.entry.popup);
+        0.0
     }
 
     fn set_tire_effects(&mut self, smoke: bool, skid_marks: bool) {
@@ -415,6 +428,10 @@ impl Scene for WorldScene {
 
     fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
         self.drive.as_mut()?.car_sound()
+    }
+
+    fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {
+        self.traffic.as_ref()?.pursuit_feed()
     }
 
     fn take_traffic_sounds(&mut self) -> Vec<crate::audio::traffic::TrafficSound> {

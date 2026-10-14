@@ -1,9 +1,10 @@
 //! The resolved value of every action for this frame.
 
 use bevy_ecs::resource::Resource;
+use bevy_input::keyboard::KeyCode;
 
 use super::Action;
-use super::bindings::{self, Binding};
+use super::bindings::{self, Binding, Source};
 use super::snapshot::Snapshot;
 
 /// A button counts as pressed above this value.
@@ -66,6 +67,10 @@ impl ActionState {
         self.typing = ui_focus;
         self.now = [0.0; Action::ALL.len()];
         for b in &bindings.0 {
+            // Alt+Enter is the fullscreen chord (`app/window/hotkey.rs`): the Enter in it is not the interact press.
+            if b.action == Action::Interact && is_alt_enter(b, snapshot) {
+                continue;
+            }
             if matches!(b.action, Action::MenuUp | Action::MenuDown | Action::MenuLeft | Action::MenuRight)
                 && let super::bindings::Source::PadAxis(axis) = b.source
             {
@@ -85,6 +90,13 @@ impl ActionState {
             }
         }
     }
+}
+
+/// Whether this binding is the Enter key while Alt is held.
+fn is_alt_enter(binding: &Binding, snapshot: &Snapshot) -> bool {
+    let enter = matches!(binding.source, Source::Key(KeyCode::Enter | KeyCode::NumpadEnter));
+    let alt = snapshot.keys.contains(&KeyCode::AltLeft) || snapshot.keys.contains(&KeyCode::AltRight);
+    enter && alt
 }
 
 /// The active key, button and stick assignments.

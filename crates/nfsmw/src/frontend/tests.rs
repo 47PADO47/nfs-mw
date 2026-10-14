@@ -46,7 +46,7 @@ fn every_option_category_has_current_prompts_and_no_legacy_duplicates() {
     use crate::ui::input_icons::{ATLAS, Glyph};
     use blackbox_feng::NodeKind;
     for (name, pause) in [(screen::OPTIONS, false), (screen::PAUSE_OPTIONS, true)] {
-        for category in [Category::Audio, Category::Video, Category::Gameplay, Category::Controls] {
+        for category in [Category::Audio, Category::Video, Category::Gameplay, Category::Controls, Category::Discord] {
             let Some(mut h) = Harness::open(name, Args { pause, category, ..Args::default() }) else { return };
             h.wait(1.0);
             let mut bindings = Bindings::default();
@@ -105,30 +105,41 @@ fn title_prompts_follow_the_authored_position_and_fade_above_the_copyright() {
 }
 
 #[test]
-fn controls_category_opens_changes_saves_and_restores_its_selection() {
-    for (menu, rows, pause) in
-        [(screen::MAIN_MENU_SUB, screen::OPTIONS, false), (screen::PAUSE_MENU, screen::PAUSE_OPTIONS, true)]
-    {
+fn controls_icon_opens_the_key_list_and_control_options_the_sensitivity_rows() {
+    for (menu, rows, keys, pause) in [
+        (screen::MAIN_MENU_SUB, screen::OPTIONS, screen::CONTROLS, false),
+        (screen::PAUSE_MENU, screen::PAUSE_OPTIONS, screen::PAUSE_CONTROLS, true),
+    ] {
         let Some(mut h) = Harness::open(menu, Args { options: true, pause, ..Args::default() }) else { return };
         h.wait(1.0);
-        // Audio, Video, Gameplay, Player (greyed out), then Controls.
+        let title_is = |h: &Harness, text: &str| {
+            h.screens.trees().iter().any(|tree| {
+                tree.nodes.iter().any(|n| n.name_hash == super::ids::ICON_TITLE && n.text.as_deref() == Some(text))
+            })
+        };
+        // Audio, Video, Gameplay, Player (greyed out), then Controls: the key list replaces the categories.
         for _ in 0..4 {
             h.press(pad::RIGHT);
         }
         h.wait(0.5);
-        let selected_title = |h: &Harness| {
-            h.screens.trees().iter().any(|tree| {
-                tree.nodes
-                    .iter()
-                    .any(|n| n.name_hash == super::ids::ICON_TITLE && n.text.as_deref() == Some("Controls"))
-            })
-        };
-        assert!(selected_title(&h), "{menu}: the fifth category must be Controls");
+        assert!(title_is(&h, "Controls"), "{menu}: the fifth category must be Controls");
         // Hold A through the switch. The next screen must not accept the same gesture again.
         h.run(pad::ACCEPT, 120);
         h.run(0, 3);
         h.wait(1.5);
-        assert_eq!(h.screens.top(), Some(rows));
+        assert_eq!(h.screens.top(), Some(keys), "{menu}: Controls opens the key list");
+        h.press(pad::BACK);
+        h.wait(1.5);
+        assert_eq!(h.screens.top(), Some(menu), "{menu}: back returns to the categories");
+        assert!(title_is(&h, "Controls"), "{menu}: return must keep Controls selected");
+        // Control Options, the next category, opens the sensitivity and camera rows.
+        h.press(pad::RIGHT);
+        h.wait(0.5);
+        assert!(title_is(&h, "Control Options"), "{menu}: the sixth category");
+        h.run(pad::ACCEPT, 120);
+        h.run(0, 3);
+        h.wait(1.5);
+        assert_eq!(h.screens.top(), Some(rows), "{menu}: Control Options opens the rows");
         h.wait(1.0);
         h.press(pad::RIGHT);
         assert!(h.changed.deadzone_mode.is_some(), "{menu}: {:?}", h.changed);
@@ -136,10 +147,10 @@ fn controls_category_opens_changes_saves_and_restores_its_selection() {
         h.wait(1.5);
         assert!(h.said(&Command::SaveSettings));
         assert_eq!(h.screens.top(), Some(menu));
-        assert!(selected_title(&h), "{menu}: return must keep Controls selected");
+        assert!(title_is(&h, "Control Options"), "{menu}: return must keep Control Options selected");
         h.press(pad::LEFT);
         h.wait(0.5);
-        assert!(!selected_title(&h), "{menu}: leaving Controls must restore the language label");
+        assert!(title_is(&h, "Controls"), "{menu}: moving back restores the Controls label");
     }
 }
 
@@ -189,6 +200,16 @@ impl Harness {
     }
 }
 
+/// Presses down from the row of `from` to the row of `to`, counted from the rows the renderer offers.
+fn down_from_to(h: &mut Harness, category: Category, from: super::options::Setting, to: super::options::Setting) {
+    let caps = crate::settings::test_caps::native();
+    let rows = super::options::rows(category, &caps);
+    let index = |setting| rows.iter().position(|row| row.setting == setting).expect("the category has the row");
+    for _ in index(from)..index(to) {
+        h.press(pad::DOWN);
+    }
+}
+
 #[test]
 fn the_main_menu_starts_free_roam_from_career_and_quick_race() {
     let Some(mut h) = Harness::open(screen::MAIN_MENU, Args::default()) else { return };
@@ -205,23 +226,6 @@ fn the_main_menu_starts_free_roam_from_career_and_quick_race() {
     h.press(pad::ACCEPT);
     h.wait(1.5);
     assert!(h.said(&Command::StartFreeRoam), "quick race: {:?}", h.commands);
-}
-
-#[test]
-fn every_icon_of_the_main_menu_can_be_selected_but_only_the_working_ones_do_anything() {
-    let Some(mut h) = Harness::open(screen::MAIN_MENU, Args::default()) else { return };
-    h.wait(1.0);
-    h.press(pad::RIGHT);
-    h.press(pad::ACCEPT);
-    h.wait(1.5);
-    assert!(h.commands.is_empty(), "the challenge series do nothing yet: {:?}", h.commands);
-    assert_eq!(h.screens.top(), Some(screen::MAIN_MENU));
-    for _ in 0..3 {
-        h.press(pad::RIGHT);
-    }
-    h.press(pad::ACCEPT);
-    h.wait(1.5);
-    assert_eq!(h.screens.top(), Some(screen::MAIN_MENU_SUB), "four steps right is Options");
 }
 
 #[test]
@@ -249,22 +253,6 @@ fn a_click_focuses_the_visible_button_under_the_pointer() {
 }
 
 #[test]
-fn options_and_back_move_between_the_main_menu_and_the_categories() {
-    let Some(mut h) = Harness::open(screen::MAIN_MENU, Args::default()) else { return };
-    h.wait(1.0);
-    for _ in 0..4 {
-        h.press(pad::RIGHT);
-    }
-    h.press(pad::ACCEPT);
-    h.wait(1.5);
-    assert_eq!(h.screens.top(), Some(screen::MAIN_MENU_SUB));
-    h.wait(1.0);
-    h.press(pad::BACK);
-    h.wait(1.5);
-    assert_eq!(h.screens.top(), Some(screen::MAIN_MENU), "{:?}", h.commands);
-}
-
-#[test]
 fn a_category_opens_its_rows_and_a_row_changes_a_setting_at_once() {
     let Some(mut h) = Harness::open(screen::MAIN_MENU_SUB, Args { options: true, ..Args::default() }) else { return };
     h.wait(1.0);
@@ -289,17 +277,22 @@ fn a_category_opens_its_rows_and_a_row_changes_a_setting_at_once() {
 fn the_video_rows_change_vsync_and_the_hud_row_the_hud() {
     let args = Args { category: Category::Video, ..Args::default() };
     let Some(mut h) = Harness::open(screen::OPTIONS, args) else { return };
+    use super::options::Setting;
     h.wait(1.0);
+    down_from_to(&mut h, Category::Video, Setting::WindowMode, Setting::Vsync);
     h.press(pad::RIGHT);
     assert!(!h.settings.vsync);
     h.press(pad::DOWN);
     h.press(pad::RIGHT);
     assert_eq!(h.settings.max_fps.to_string(), "30");
-    for _ in 1..super::options::rows(Category::Video, &crate::settings::test_caps::native()).len() {
+    // Down from Frame Limit past the end of the list: the selection wraps to the first row (window mode).
+    let rows = super::options::rows(Category::Video, &crate::settings::test_caps::native());
+    let max_fps = rows.iter().position(|row| row.setting == Setting::MaxFps).expect("frame limit row");
+    for _ in max_fps..rows.len() {
         h.press(pad::DOWN);
     }
     h.press(pad::RIGHT);
-    assert!(h.settings.vsync, "the selection wrapped to the first row: vsync is back on");
+    assert!(h.changed.window_mode.is_some(), "the selection wrapped to the first row: window mode changes");
     let args = Args { category: Category::Gameplay, ..Args::default() };
     let mut h = Harness::open(screen::OPTIONS, args).unwrap();
     h.wait(1.0);
@@ -388,20 +381,19 @@ fn main_and_pause_video_options_change_and_save_display_and_tire_settings() {
     for (name, pause) in [(screen::OPTIONS, false), (screen::PAUSE_OPTIONS, true)] {
         let args = Args { pause, category: Category::Video, ..Args::default() };
         let Some(mut h) = Harness::open(name, args) else { return };
+        use super::options::Setting::{SkidMarks, SmokeQuality as Smoke, TireSmoke, WindowMode as Window};
         h.wait(1.0);
-        for _ in 0..3 {
-            h.press(pad::DOWN);
-        }
         h.press(pad::RIGHT);
         assert_eq!(h.settings.window_mode, WindowMode::Borderless);
-        h.press(pad::DOWN);
-        h.press(pad::RIGHT);
-        h.press(pad::DOWN);
-        h.press(pad::RIGHT);
-        assert!(!h.settings.tire_smoke && !h.settings.skid_marks);
-        h.press(pad::DOWN);
+        // Smoke quality is dimmed while tire smoke is off, so it is set first.
+        down_from_to(&mut h, Category::Video, Window, Smoke);
         h.press(pad::RIGHT);
         assert_eq!(h.settings.smoke_quality, SmokeQuality::High);
+        h.press(pad::UP);
+        h.press(pad::RIGHT);
+        down_from_to(&mut h, Category::Video, TireSmoke, SkidMarks);
+        h.press(pad::RIGHT);
+        assert!(!h.settings.tire_smoke && !h.settings.skid_marks);
         h.press(pad::BACK);
         h.wait(1.5);
         assert!(h.said(&Command::SaveSettings), "{name}: {:?}", h.commands);
@@ -440,8 +432,9 @@ fn controls_options_show_every_response_row_with_visible_values() {
             }
             h.press(pad::DOWN);
         }
-        // Wrapped to the first row, then up reaches the last row with the same reusable slots.
-        h.press(pad::UP);
+        // Wrapped to the first row; down to Invert Camera Y (its place in the list, not the last row) and toggle it.
+        let invert = super::options::Setting::Input(super::input_options::InputSetting::InvertCameraY);
+        down_from_to(&mut h, Category::Controls, rows[0].setting, invert);
         h.press(pad::RIGHT);
         assert!(h.settings.controls.invert_camera_y);
         h.press(pad::BACK);

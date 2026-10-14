@@ -12,8 +12,8 @@ mod host;
 mod mirror;
 pub mod pacing;
 mod render;
-mod streaks;
 mod screenshot;
+mod streaks;
 #[cfg(test)]
 pub use screenshot::Plan;
 #[cfg(test)]
@@ -190,6 +190,7 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
     if let Some(dir) = audio {
         app.add_plugins(crate::audio::AudioPlugin { dir });
     }
+    app.add_plugins(crate::discord::DiscordPlugin);
     app.add_plugins(crate::movie::FullscreenPlugin);
     if let Some(plugin) = frontend {
         app.add_plugins(plugin);

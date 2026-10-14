@@ -126,7 +126,7 @@ and `RacingMiniMapMode` (in a race, default 1). Value 0 = fixed (north up, secti
 therefore starts with the **fixed** minimap. **[decomp]** The rewrite has one setting, `minimap = fixed | rotating |
 off` (config file, `NFSMW_MINIMAP`, console `set minimap`), fixed by default.
 
-## 7. Blips (not implemented: a hook)
+## 7. Blips
 
 Every other object on the minimap is placed by `UpdateElementArt(world position, world direction, object, pulse)`
 (cop cars and the helicopter, racers, the second player, the checkpoint, event and shop icons from the gameplay
@@ -144,7 +144,30 @@ else:         hidden
 
 `centre` is the position of the `TRACK_MAP` group. An element farther than 0.06 (61 units, inside the disc)
 is pinned to the edge of the circle and fades out between 0.125 and 0.23; elements beyond 0.23 are hidden. The
-Rust library has this function ready and tested; nothing calls it yet.
+Rust library has this function ready and tested, and the HUD uses it for every blip style (`hud/blips.rs`).
+
+**Race and interior icons (in place).** The HUD binds these pools of `HUD_SingleRace.fng` by name
+(`hud/blip_styles.rs`, `map_icon_styles`). Each name was checked against the package's object names in the install,
+by its name hash. [package] = the object exists in the package; [exe] = the format string is in `speed.exe`
+(Ghidra string search).
+
+| Style | Pool (objects, in order) | Evidence |
+|---|---|---|
+| race start, per type: sprint, drag, circuit, knockout, tollbooth, speedtrap | `MMICON_SPRINT_0..7`, `MMICON_DRAG_0..7`, `MMICON_CIRCUIT_0..7`, `MMICON_KNOCKOUT_0..7`, `MMICON_TOLLBOOTH_0..7`, `MMICON_SPEEDTRAP_0..7` | [package] 8 each; [exe] `MMICON_SPRINT_%d` at `008a0280` |
+| auto shop | `SHOP_0..7` (texture `Minimap_Icon_Chop_Shop.tga`) | [package] 8 objects, one per shop zone. No `SHOP_%d` format string in `speed.exe` (Ghidra finds only `EN_Chopshop_*` and `customshop`), so the name is the hash match only |
+| safe house | `SAFEHOUSEINDICATOR_0..3` (texture `Safehouse_Icon.tga`) | [package] 4 objects; [exe] `SAFEHOUSEINDICATOR_%d` at `008a01ec` |
+
+Race types with no icon object in the package (challenge, checkpoint race, cash grab, speed trap jump, milestone
+jump) have no blip. A race's blip sits at its start (`racestart`), heading along the grid. Race starts are not
+active, so they show with no race mode. An interior's icon does not turn, and its index is not tied to its zone
+(`docs/formats/gameplay-races.md` section 7), so blips take the pool's objects in order.
+
+Positions come from `nfsmw_data::gameplay` (physics space) and go to render space with `scenes/world/space.rs`; for
+these positions that is the map's own coordinates. The world builds the blips once, when it opens
+(`scenes/world/hud.rs`, `static_blips`), and `hud_frame` adds them to the minimap's list next to the traffic's. A
+blip takes a pool object only when it is drawn, so a blip off the disc cannot use up the pool. The install has 213
+race starts, 8 auto shops and 4 safe houses. Open: the race icons are drawn pinned to the disc's rim at the test
+location; their look and the shop icon's size have not been compared with a capture of the original.
 
 ## 8. Widescreen
 

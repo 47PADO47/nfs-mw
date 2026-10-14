@@ -37,6 +37,8 @@ textured sparks and contact glow separately from the experimental restoration.
 
 [Post-processing](post-processing.md) specifies the optional bloom, tone mapping and FXAA passes (new design).
 
+[Contrast-adaptive sharpening](cas-sharpening.md) specifies a CAS pass for native resolution, from AMD's MIT algorithm as read in a ReShade pack (new design; overlaps RCAS, see the spec).
+
 [Controller settings](controller-settings.md) specifies rewrite response options and saved rebinding.
 
 [EAGL animation banks](eagl-animation.md) records the animation bank layout, the channel evaluators and the 14-byte key format found in `speed.exe`, and what is still unmapped (work in progress; the airliner is not yet animated).
@@ -80,3 +82,8 @@ consuming the vehicle's existing intensities. Its appearance and lifetime are ne
 
 - [police-tactics.md](police-tactics.md): the aim of each cop (block, pit, ram) and what the rule leaves out.
 - [speed-effects.md](speed-effects.md): the high-speed screen effects; the curves are in `libs/blackbox-speedfx`.
+
+## World entries
+
+- [world-markers.md](world-markers.md): the ground disc at each auto shop, safe house and race start, the drive-over
+  zone, and the interact card with its stub entry (the destinations are not built yet).

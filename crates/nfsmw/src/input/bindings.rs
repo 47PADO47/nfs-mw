@@ -248,8 +248,9 @@ fn menus() -> Vec<Binding> {
 }
 
 /// Driving: W/S or the arrows for the pedals, A/D or the arrows to steer, Space for the handbrake,
-/// E/Q (or Right Shift/Ctrl) to shift up/down, Left Shift for nitrous, R to reset the car, F to toggle the camera.
-/// On a pad the triggers are the pedals, the left stick steers, the right/left bumper shifts up/down.
+/// E/Q (or Right Shift/Ctrl) to shift up/down, Left Shift for nitrous, R to reset the car, F to toggle the camera,
+/// Enter to interact. On a pad the triggers are the pedals, the left stick steers, the right/left bumper shifts
+/// up/down, the A button is the handbrake and also interacts.
 /// A wheel's paddles are extra buttons: see [`paddles`]. Its axes, pedals, clutch and H-shifter gears have no
 /// default: the codes depend on the device, so they come from the `[bindings]` table or the console.
 fn driving() -> Vec<Binding> {
@@ -279,10 +280,12 @@ fn driving() -> Vec<Binding> {
         Binding::new(CycleCamera, key(KeyCode::KeyC), 1.0),
         Binding::new(ToggleHeadlights, key(KeyCode::KeyH), 1.0),
         Binding::new(LookBack, key(KeyCode::KeyB), 1.0),
+        Binding::new(Interact, key(KeyCode::Enter), 1.0),
         Binding::new(Throttle, Source::PadTrigger(GamepadButton::RightTrigger2), 1.0),
         Binding::new(Brake, Source::PadTrigger(GamepadButton::LeftTrigger2), 1.0),
         Binding::new(Steer, Source::PadAxis(GamepadAxis::LeftStickX), 1.0),
         Binding::new(Handbrake, button(GamepadButton::South), 1.0),
+        Binding::new(Interact, button(GamepadButton::South), 1.0),
         Binding::new(Nos, button(GamepadButton::West), 1.0),
         Binding::new(ShiftUp, button(GamepadButton::RightTrigger), 1.0),
         Binding::new(ShiftDown, button(GamepadButton::LeftTrigger), 1.0),

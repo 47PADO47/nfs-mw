@@ -92,6 +92,10 @@ pub trait Scene {
     fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
         None
     }
+    /// The chase the cops run this frame, for the pursuit music and the speech; `None` without one.
+    fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {
+        None
+    }
     /// The game is on but frozen (the pause menu is up): there is no car sound, yet the game is still being
     /// played, so the radio goes on.
     fn paused(&self) -> bool {

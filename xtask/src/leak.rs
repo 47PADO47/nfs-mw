@@ -46,10 +46,16 @@ fn has_exe_address(line: &str) -> bool {
     })
 }
 
+/// The only media exceptions: reviewed independently licensed images, each pinned byte-for-byte by fingerprint.
+/// Updating an asset requires reviewing its source/licence and fingerprint here.
+const REVIEWED_MEDIA: &[(&str, u64)] = &[
+    ("assets/input-prompts/kenney-xbox.png", 0xda7a_10ea_8ad2_ea78),
+    ("assets/discord/discord.png", 0xdbef_44cb_d040_d484),
+];
+
 fn check_file(path: &str, bytes: &[u8]) -> Vec<String> {
-    // The sole media exception is this reviewed CC0 atlas, pinned byte-for-byte.
-    // Updating the asset requires reviewing its source/licence and fingerprint here.
-    if path == "assets/input-prompts/kenney-xbox.png" && asset_fingerprint(bytes) == 0xda7a_10ea_8ad2_ea78 {
+    let reviewed = REVIEWED_MEDIA.iter().any(|(p, fingerprint)| path == *p && asset_fingerprint(bytes) == *fingerprint);
+    if reviewed {
         return Vec::new();
     }
     let mut problems = Vec::new();
@@ -123,6 +129,13 @@ mod tests {
         let mut altered = data.to_vec();
         altered[100] ^= 1;
         assert!(!check_file("assets/input-prompts/kenney-xbox.png", &altered).is_empty());
+    }
+
+    #[test]
+    fn the_reviewed_discord_mark_is_the_only_other_media_exception() {
+        let data = include_bytes!("../../assets/discord/discord.png");
+        assert!(check_file("assets/discord/discord.png", data).is_empty());
+        assert!(!check_file("assets/discord/other.png", data).is_empty());
     }
 
     #[test]

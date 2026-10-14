@@ -54,21 +54,9 @@ pub const NORMAL: [Layout; 15] = [
         cars: 3,
         slots: &[car(-5.2, -2.0, 0.875), car(0.0, -2.0, 0.12), car(4.5, -1.0, 0.87), barrier(-2.9, 0.2, 0.48)],
     },
-    Layout {
-        min_width: 5.5,
-        cars: 2,
-        slots: &[car(-2.0, 0.0, 0.26), car(2.0, 5.0, 0.48), barrier(1.5, 1.7, 0.61)],
-    },
-    Layout {
-        min_width: 6.5,
-        cars: 2,
-        slots: &[car(-2.0, 0.0, 0.75), car(3.0, 4.0, 0.25), barrier(1.5, 1.7, 0.61)],
-    },
-    Layout {
-        min_width: 8.5,
-        cars: 2,
-        slots: &[car(-0.9, 0.0, 0.72), car(4.0, 0.0, 0.32), barrier(-4.8, -0.8, 0.54)],
-    },
+    Layout { min_width: 5.5, cars: 2, slots: &[car(-2.0, 0.0, 0.26), car(2.0, 5.0, 0.48), barrier(1.5, 1.7, 0.61)] },
+    Layout { min_width: 6.5, cars: 2, slots: &[car(-2.0, 0.0, 0.75), car(3.0, 4.0, 0.25), barrier(1.5, 1.7, 0.61)] },
+    Layout { min_width: 8.5, cars: 2, slots: &[car(-0.9, 0.0, 0.72), car(4.0, 0.0, 0.32), barrier(-4.8, -0.8, 0.54)] },
     Layout {
         min_width: 15.0,
         cars: 4,
@@ -107,7 +95,13 @@ pub const NORMAL: [Layout; 15] = [
     Layout {
         min_width: 12.1,
         cars: 3,
-        slots: &[car(-4.5, 0.0, 0.75), car(1.0, 0.0, 0.25), car(4.0, 4.5, 0.72), barrier(4.3, -1.2, 0.48), barrier(4.9, 0.3, 0.04)],
+        slots: &[
+            car(-4.5, 0.0, 0.75),
+            car(1.0, 0.0, 0.25),
+            car(4.0, 4.5, 0.72),
+            barrier(4.3, -1.2, 0.48),
+            barrier(4.9, 0.3, 0.04),
+        ],
     },
     Layout {
         min_width: 10.0,
@@ -148,7 +142,13 @@ pub const NORMAL: [Layout; 15] = [
     Layout {
         min_width: 22.0,
         cars: 4,
-        slots: &[car(-9.0, 0.0, 0.74), car(-3.0, 0.0, 0.25), car(3.0, 0.0, 0.75), car(9.0, 0.0, 0.25), barrier(0.0, -3.0, 0.5)],
+        slots: &[
+            car(-9.0, 0.0, 0.74),
+            car(-3.0, 0.0, 0.25),
+            car(3.0, 0.0, 0.75),
+            car(9.0, 0.0, 0.25),
+            barrier(0.0, -3.0, 0.5),
+        ],
     },
     Layout {
         min_width: 15.0,
@@ -233,7 +233,13 @@ pub const SPIKES: [Layout; 9] = [
     Layout {
         min_width: 21.0,
         cars: 2,
-        slots: &[spike(-9.0, 0.0, 0.48), car(-3.0, 0.0, 0.25), car(3.0, 0.0, 0.75), spike(9.0, 0.0, 0.52), barrier(0.0, -3.0, 0.5)],
+        slots: &[
+            spike(-9.0, 0.0, 0.48),
+            car(-3.0, 0.0, 0.25),
+            car(3.0, 0.0, 0.75),
+            spike(9.0, 0.0, 0.52),
+            barrier(0.0, -3.0, 0.5),
+        ],
     },
     Layout {
         min_width: 15.0,
@@ -243,7 +249,13 @@ pub const SPIKES: [Layout; 9] = [
     Layout {
         min_width: 28.0,
         cars: 4,
-        slots: &[car(-12.0, 0.0, 0.74), car(-6.0, 0.0, 0.25), spike(-1.0, 0.0, 0.51), car(5.0, 0.0, 0.75), car(11.0, 0.0, 0.25)],
+        slots: &[
+            car(-12.0, 0.0, 0.74),
+            car(-6.0, 0.0, 0.25),
+            spike(-1.0, 0.0, 0.51),
+            car(5.0, 0.0, 0.75),
+            car(11.0, 0.0, 0.25),
+        ],
     },
 ];
 

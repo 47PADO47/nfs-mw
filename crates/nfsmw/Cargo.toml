@@ -49,6 +49,7 @@ blackbox-tpk.workspace = true
 blackbox-vehicle.workspace = true
 clap.workspace = true
 ea-audio.workspace = true
+discord-rich-presence.workspace = true
 egui.workspace = true
 env_logger.workspace = true
 game-install.workspace = true

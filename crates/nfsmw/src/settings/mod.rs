@@ -14,6 +14,8 @@ mod car_shading_tests;
 mod controls;
 #[cfg(test)]
 mod controls_tests;
+#[cfg(test)]
+mod discord_tests;
 mod effective;
 mod env;
 #[cfg(test)]
@@ -198,6 +200,10 @@ pub struct Settings {
     pub exhaust_flames: bool,
     /// The rear-view mirror in the HUD (the rear view captured from the car, with the radar under it).
     pub rear_view_mirror: bool,
+    /// Show the game in Discord Rich Presence (the local Discord client; silently skipped when it is not running).
+    pub discord: bool,
+    /// Show the elapsed play time in Discord Rich Presence (needs `discord`).
+    pub discord_time_played: bool,
     /// Who changes gear: the box (default) or the player.
     pub transmission: Transmission,
     pub camera_mode: CameraMode,
@@ -291,6 +297,8 @@ impl From<Partial> for Settings {
             speed_trails: p.speed_trails.unwrap_or(false),
             exhaust_flames: p.exhaust_flames.unwrap_or(true),
             rear_view_mirror: p.rear_view_mirror.unwrap_or(true),
+            discord: p.discord.unwrap_or(true),
+            discord_time_played: p.discord_time_played.unwrap_or(true),
             transmission: p.transmission.unwrap_or_default(),
             camera_mode: p.camera_mode.unwrap_or_default(),
             minimap: p.minimap.unwrap_or_default(),

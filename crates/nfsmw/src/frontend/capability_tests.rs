@@ -38,6 +38,7 @@ fn the_native_renderer_hides_ray_tracing_and_the_quality_mode_but_has_the_render
     assert_eq!(video[5], text("Graphics Preset"));
     assert_eq!(titles(Category::Audio, &test_caps::native()).len(), 5);
     assert_eq!(titles(Category::Gameplay, &test_caps::native()).len(), 7);
+    assert_eq!(titles(Category::Discord, &test_caps::native()).len(), 2, "the Discord toggles have their own category");
 }
 
 #[test]
