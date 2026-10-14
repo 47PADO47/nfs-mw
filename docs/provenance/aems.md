@@ -1,5 +1,15 @@
 # AEMS module banks
 
+PC bank-volume refinement, 2026-10-14: an original PC1.3 runtime capture paired
+1,923 AEMS bank starts with their native play options. All paired starts used the
+clamped Q15 volume shifted right eight bits for the seven-bit option. Matched PC
+bank-start and update routines establish that start remembers the inputs, while
+changed updates and unpause retain full Q15 precision. The descriptive contract
+is in [aems.md §5](../specs/aems.md#5-player). A scrape118→235 counterexample spans
+eighteen milliseconds. Raw traces and executable identity remain private; no
+original code or assets are included. Playback envelopes and wet DSP remain
+unverified by this parameter-level evidence.
+
 Module: [`libs/blackbox-aems`](../../libs/blackbox-aems) (the bank reader and the module interpreter) and the
 `audio::aems` module of [`crates/nfsmw`](../../crates/nfsmw) (the engine's sample layer, the sputters and the
 sweeteners).

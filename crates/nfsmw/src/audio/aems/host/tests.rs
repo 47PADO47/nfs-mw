@@ -90,3 +90,5 @@ fn unsupported_recordings_do_not_promise_a_limiter_replacement() {
     assert!(!host.play(0, &SampleEntry { kind: 1, ..entry() }, &PlayerInputs::default()));
     assert!(voices.failed);
 }
+
+mod gain;

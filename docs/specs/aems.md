@@ -128,6 +128,20 @@ A sound that ends by itself leaves the play control at 1; the graph restarts it 
 back to 1. The game side of this (voices, banks) is the host's: a host starts, stops, pauses, resumes and updates
 voices, and says whether one is still playing.
 
+**Bank volume at creation versus update [verified PC]:** a bank voice starts with a
+seven-bit option: clamp the volume input to 0..32767, discard its low eight bits,
+then normalize the remaining value by127. A missing volume input starts at full
+volume. The player remembers every current input as its previous value before
+starting, so an unchanged volume does not subsequently restore full precision.
+Changed volume inputs and unpause use the full clamped Q15 value divided by32767.
+Apply any caller makeup gain after this conversion; it is not part of the input.
+
+A captured scrape starts at volume118 with native option0. Its unchanged update
+keeps that initial gain; eighteen milliseconds later, volume235 invokes the full
+Q15 update despite still being below256. This is a host conversion contract,
+not a reason to quantize every update. Native device envelopes, DSP and the
+audibility of those first milliseconds need separate output comparison.
+
 ## 6. Class controller
 
 A class controller creates and feeds another Csis object (the sputter makes its `CAR_SputOutput`, which carries

@@ -95,6 +95,16 @@ impl PartHost<'_> {
     fn gain(&self, inputs: &PlayerInputs) -> f32 {
         inputs.gain() * self.makeup
     }
+
+    /// Creation uses seven-bit play options; changed updates retain Q15 precision.
+    fn initial_gain(&self, inputs: &PlayerInputs) -> f32 {
+        let word = inputs.get(input::VOLUME).unwrap_or(32767).clamp(0, 32767);
+        creation_gain(word) * self.makeup
+    }
+}
+
+fn creation_gain(word: i32) -> f32 {
+    ((word.clamp(0, 32767) >> 8) as f32) / 127.0
 }
 
 /// A sound that loops its loop points, else plays once.
@@ -123,7 +133,7 @@ impl Host for PartHost<'_> {
             self.voices.failed = true;
             return false;
         }
-        let Some(mut voice) = self.sampler.start(data, self.gain(inputs), rate(inputs)) else {
+        let Some(mut voice) = self.sampler.start(data, self.initial_gain(inputs), rate(inputs)) else {
             self.voices.failed = true;
             return false;
         };
