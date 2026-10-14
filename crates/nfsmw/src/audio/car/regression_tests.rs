@@ -252,11 +252,18 @@ fn installed_effect_pan_centres_mono_and_places_left_and_right_correctly() {
 #[test]
 #[ignore = "requires installed audio banks; set NFSMW_GAME_DIR"]
 fn installed_gentle_tyre_landing_uses_its_dedicated_sound_and_releases() {
+    let gentle = tyre_landing(0.01);
+    assert_eq!(gentle.peak, 0.0, "the sub-step startup gain must remain silent when unchanged");
+    let ordinary = tyre_landing(0.25);
+    assert!(ordinary.rms > 0.0001, "a stronger wheel return must still be audible");
+}
+
+fn tyre_landing(compression: f32) -> capture::Levels {
     let mut audio = Audio::replay(install(), 48_000);
     audio.set_volumes(crate::audio::Volumes { engine: 0.0, music: 0.0, ..Default::default() });
     let grounded = CarInput {
         speed: 0.0,
-        wheels: [blackbox_carsound::WheelInput { compression: 0.01, ..Default::default() }; 4],
+        wheels: [blackbox_carsound::WheelInput { compression, ..Default::default() }; 4],
         ..Default::default()
     };
     let air = CarInput {
@@ -290,13 +297,18 @@ fn installed_gentle_tyre_landing_uses_its_dedicated_sound_and_releases() {
         "landing modules must retire after their samples end"
     );
     let levels = capture::levels(&recorded);
-    eprintln!("gentle landing: {levels:?}");
-    assert!(levels.rms > 0.0001);
+    eprintln!("tyre landing at compression {compression}: {levels:?}");
     assert!(levels.peak < 0.35, "gentle wheel return must not be a full-volume crash");
     assert_eq!(levels.over_full_scale, 0);
     if let Some(dir) = std::env::var_os("NFSMW_AUDIO_CAPTURE_DIR") {
-        capture::write_float(&std::path::PathBuf::from(dir).join("gentle-landing.wav"), &recorded, 48_000, 2);
+        capture::write_float(
+            &std::path::PathBuf::from(dir).join(format!("tyre-landing-{compression}.wav")),
+            &recorded,
+            48_000,
+            2,
+        );
     }
+    levels
 }
 
 #[test]
