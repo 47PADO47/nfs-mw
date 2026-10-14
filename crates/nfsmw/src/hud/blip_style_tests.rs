@@ -131,14 +131,15 @@ fn nearest_only_picks_the_closest_blip_of_the_style() {
 fn the_races_are_zone_gated_and_the_interiors_always_eligible() {
     let styles = blip_styles::map_icon_styles();
     let find = |name: &str| styles.iter().find(|s| s.name() == name).unwrap();
-    assert_eq!(find(blip_styles::RACE_SPRINT).visibility(), Visibility::InZone);
+    let idle = |style: &'static str| blip(style, false);
+    assert_eq!(find(blip_styles::RACE_SPRINT).visibility(&idle(blip_styles::RACE_SPRINT)), Visibility::InZone);
     assert_eq!(find(blip_styles::RACE_SPRINT).fallback_colour(), None);
-    assert_eq!(find(blip_styles::AUTO_SHOP).visibility(), Visibility::Always);
+    assert_eq!(find(blip_styles::AUTO_SHOP).visibility(&idle(blip_styles::AUTO_SHOP)), Visibility::Always);
     assert!(find(blip_styles::AUTO_SHOP).nearest_only());
     assert!(find(blip_styles::CAR_LOT).nearest_only());
     assert_eq!(find(blip_styles::CAR_LOT).fallback_colour(), Some(blip_styles::CAR_LOT_TINT));
     assert!(!find(blip_styles::SAFE_HOUSE).nearest_only());
-    assert_eq!(find(blip_styles::SAFE_HOUSE).visibility(), Visibility::Always);
+    assert_eq!(find(blip_styles::SAFE_HOUSE).visibility(&idle(blip_styles::SAFE_HOUSE)), Visibility::Always);
     assert_eq!(find(blip_styles::SAFE_HOUSE).fallback_colour(), Some(blip_styles::SAFE_HOUSE_TINT));
     assert_eq!(find(blip_styles::CAR_LOT).icons(), ["CAR_LOT_0", "CAR_LOT_1", "CAR_LOT_2", "CAR_LOT_3"]);
 }

@@ -139,7 +139,7 @@ impl BlipStyle for IconPool {
         (0..self.size).map(|i| format!("{}{i}", self.prefix)).collect()
     }
 
-    fn visibility(&self) -> Visibility {
+    fn visibility(&self, _blip: &MapBlip) -> Visibility {
         self.visibility
     }
 

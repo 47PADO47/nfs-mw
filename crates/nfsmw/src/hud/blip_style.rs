@@ -50,8 +50,9 @@ pub trait BlipStyle: Send + Sync {
     fn shows(&self, _blip: &MapBlip) -> bool {
         true
     }
-    /// Whether the blips of this style are always eligible, or only while the view covers their zone. Default: always.
-    fn visibility(&self) -> Visibility {
+    /// Whether this blip is always eligible, or only while the view covers its own place. Takes the blip, so a style
+    /// can gate some of its blips and not others. Default: always.
+    fn visibility(&self, _blip: &MapBlip) -> Visibility {
         Visibility::Always
     }
     /// Whether only the nearest blip of this style to the player is drawn. Default: all of them.

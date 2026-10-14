@@ -98,7 +98,7 @@ impl BlipBinding {
                 continue;
             };
             let placed = minimap.blip(&view, at.orientation, blip.position, blip.heading);
-            if !drawn_in(style.visibility(), placed.inside) {
+            if !drawn_in(style.visibility(blip), placed.inside) {
                 continue;
             }
             let Some(slot) = self.slots.iter().filter(|s| s.style == index).nth(used[index]) else {
