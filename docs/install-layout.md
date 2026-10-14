@@ -60,3 +60,27 @@ differ from retail; see the end of this page. For the tag meanings, see
 | Add-on cars: COROLLAE88, FXXEVO, LEVIN, SF90, SKYLINEZT, TRUENO, TRUENOCP, TRUENOID | `GEOMETRY.BIN` header says *NFS-CarToolkit by nfsu360*; solids stored as bare JDLZ blobs |
 | `CARS/FXXEVO/VINYLS.BIN` | **Corrupt / truncated**: the chunk at 0xAFA0 claims 12,288 bytes but the file ends at 0xB219 |
 | `GLOBAL/HUDS_Custom_*.bin`, `scripts/CustomHUD` | CustomHUD mod texture packs |
+
+## Other copies on this machine
+
+Three installs were compared. The Black Edition copy above is the one the docs use. The others differ:
+
+| Install | Notes |
+|---|---|
+| `D:\Need For Speed Most Wanted Black Edition` | Black Edition, PC v1.3. `GLOBAL/` is listed in [global-databases](formats/global-databases.md). |
+| `C:\Users\PADO\Desktop\Need for Speed Most Wanted` | Modded copy with a set of ASI mods and `scripts/*.asi` mods (`NFSMWExtraOptions`, `NFSMWHDReflections`, `NFSMWUnlimiter`, `MWFixes`, widescreen fix, and others). Its `GLOBAL/` files are larger than the Black Edition files (for example `InGameA.bun` 146 MB, `GlobalB.lzc` 21.7 MB) and it keeps `.bak` copies of the 2021 files. Its `SCRIPTS/` folder holds the ASI mods and their `.ini` files. |
+| `D:\NFSTools\NFS Most Wanted Redux 2.3` | Redux install. `GLOBAL/` has `GLOBALB.BUN`, `InGameB.lzc` and no `THINSCREEN`, `DEMO` or `InGameSplitScreen` files. |
+
+### `TRACKS/` on the Desktop copy
+
+| Entry | Size | Contents |
+|---|---|---|
+| `L2RA.BUN` | 1.4 MB | World metadata. Same size as the Black Edition file. See [maps](formats/maps.md). |
+| `STREAML2RA.BUN` | 605 MB | World content, streamed while driving. The Black Edition file is 533 MB, so the content differs. |
+| `L2RA/` | 283 files | `MINI_MAP_*.BIN` (281 minimap tiles, see [minimap](formats/minimap.md)), `TrackMaps.bin` (map-screen texture pack), `TroughBoundary.bin` (a single chunk). |
+| `HotPositionL2RA.HOT` | 414 B | **[unverified]** a hot-position list for the track, dated 2017. Not documented in the repo. |
+| `PrecullerBooBooScript.hoo` | 13.6 KB | **[unverified]** a precull script. Not documented in the repo. |
+| `LOC2DYNTEX.BIN` | 0 B | Empty file. |
+
+The Black Edition `TRACKS/` has `L2RA.BUN`, `STREAML2RA.BUN`, an `L2RA/` folder (not counted here), an
+empty `LOC2DYNTEX.BIN` and `PrecullerBooBooScript.hoo` (13.6 KB). It has no `.HOT` file.

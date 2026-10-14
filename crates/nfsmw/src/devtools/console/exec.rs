@@ -16,6 +16,7 @@ use crate::input::Bindings;
 use crate::settings::{RendererKind, Settings, availability};
 
 /// Run the lines typed since last frame and print what they say.
+#[allow(clippy::too_many_arguments)]
 pub fn execute(
     mut console: ResMut<Console>,
     time: Res<Time>,
@@ -41,12 +42,12 @@ pub fn execute(
     let mut lines = std::mem::take(&mut console.pending).into_iter();
     while let Some(line) = lines.next() {
         // `wait <seconds>` holds the lines after it until that many seconds have passed since start.
-        if let Some(seconds) = line.trim().strip_prefix("wait ") {
-            if let Ok(seconds) = seconds.trim().parse::<f32>() {
-                console.wait_until = Some(time.elapsed_secs() + seconds.max(0.0));
-                console.pending = lines.collect();
-                return;
-            }
+        if let Some(seconds) = line.trim().strip_prefix("wait ")
+            && let Ok(seconds) = seconds.trim().parse::<f32>()
+        {
+            console.wait_until = Some(time.elapsed_secs() + seconds.max(0.0));
+            console.pending = lines.collect();
+            return;
         }
         logbuf::input(&format!("> {line}"));
         let result = match parse::parse(&line) {

@@ -89,6 +89,8 @@ pub struct TrafficWorld {
     lights_on: bool,
     models: Vec<TrafficModel>,
     cop_models: Vec<CopModel>,
+    /// The police helicopter's rig. It is not a car, so it has no `CarPhysics` (`models.rs`).
+    helicopter_rig: Option<Rc<CarRig>>,
     pursuit: Option<Pursuit>,
     police: police::Police,
     cars: Vec<AiCar>,
@@ -148,6 +150,7 @@ impl TrafficWorld {
             index,
             models: Vec::new(),
             cop_models: Vec::new(),
+            helicopter_rig: None,
             pursuit: None,
             police: police::Police::default(),
             cars: Vec::new(),

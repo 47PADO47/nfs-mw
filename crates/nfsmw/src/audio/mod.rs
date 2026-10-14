@@ -6,6 +6,7 @@
 
 mod aems;
 mod car;
+mod chase;
 pub mod commands;
 mod engine;
 mod fx;
@@ -33,7 +34,7 @@ use nfsmw_data::sound::{CarSound, EngineLoops, SoundUpgrades};
 
 pub use car::{CarEvent, CarSoundState};
 pub use engine::{EngineHandle, EngineMix, EngineVoice, LoopMix};
-pub use interactive::MusicInput;
+pub use interactive::{MusicInput, PursuitFeed};
 pub use plugin::AudioPlugin;
 pub use radio::NowPlaying;
 pub use volume::{Group, Volumes};

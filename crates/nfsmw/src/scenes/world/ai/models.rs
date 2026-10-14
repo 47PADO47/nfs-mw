@@ -128,6 +128,20 @@ pub(super) fn load_cop_models(
     Ok(())
 }
 
+/// Loads the police helicopter's rig, once per track. The helicopter is not a car: its `pvehicle` record has no chassis,
+/// tires or brakes (`docs/specs/ai-helicopter.md` section 1), so only the model is loaded, with no `CarPhysics`.
+pub(super) fn load_helicopter_model(scene: &mut WorldScene, renderer: &mut dyn RenderBackend) -> Result<(), String> {
+    let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
+    if traffic.has_helicopter_rig() {
+        return Ok(());
+    }
+    let (_, model) = load_car(&scene.dir, "COPHELI").map_err(|e| format!("copheli: {e:#}"))?;
+    let rig = std::rc::Rc::new(CarRig::upload(renderer, keys::next_car(), model, scene.car_shading, sun::to_sun()));
+    let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
+    traffic.set_helicopter_rig(rig);
+    Ok(())
+}
+
 /// Loads the first model the traffic manager is waiting for (one per call, so loading does not stall a frame).
 pub(in crate::scenes::world) fn load_requested(scene: &mut WorldScene, renderer: &mut dyn RenderBackend) {
     let Some(traffic) = scene.traffic.as_mut() else { return };

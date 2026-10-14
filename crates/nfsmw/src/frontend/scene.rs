@@ -41,7 +41,7 @@ impl MenuScene {
     }
 }
 
-fn flat_frame() -> FrameParams {
+pub(super) fn flat_frame() -> FrameParams {
     FrameParams {
         view: Mat4::IDENTITY,
         projection: Projection::Identity,
@@ -122,17 +122,43 @@ impl PauseFlag {
     }
 }
 
+/// Whether a [`Pausable`] scene is concealed: it keeps running (streaming while the loading screen is up) but shows
+/// nothing and makes no sound. The front end keeps one end, the scene the other.
+#[derive(Clone, Default)]
+pub struct ConcealFlag(Arc<AtomicBool>);
+
+impl ConcealFlag {
+    pub fn set(&self, concealed: bool) {
+        self.0.store(concealed, Ordering::Relaxed);
+    }
+
+    pub fn get(&self) -> bool {
+        self.0.load(Ordering::Relaxed)
+    }
+}
+
 /// A scene that stops while paused: it is not updated, makes no engine sound, takes no mouse and shows no HUD,
-/// but is still drawn, so the pause menu has the frozen road behind it.
+/// but is still drawn, so the pause menu has the frozen road behind it. While concealed (the loading screen, see
+/// `loading.rs`) it runs, but is not drawn and makes no sound.
 pub struct Pausable {
     inner: Box<dyn Scene>,
     paused: PauseFlag,
+    conceal: ConcealFlag,
     effects_dirty: bool,
 }
 
 impl Pausable {
     pub fn new(inner: Box<dyn Scene>, paused: PauseFlag) -> Self {
-        Self { inner, paused, effects_dirty: false }
+        Self { inner, paused, conceal: ConcealFlag::default(), effects_dirty: false }
+    }
+
+    pub fn with_conceal(mut self, conceal: ConcealFlag) -> Self {
+        self.conceal = conceal;
+        self
+    }
+
+    fn concealed(&self) -> bool {
+        self.conceal.get()
     }
 }
 
@@ -169,7 +195,26 @@ impl Scene for Pausable {
     }
 
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
-        self.inner.frame(aspect)
+        if !self.concealed() {
+            return self.inner.frame(aspect);
+        }
+        // The scene still takes its frame (its camera and physics read the aspect ratio), but nothing is drawn.
+        let _ = self.inner.frame(aspect);
+        (flat_frame(), &[] as &[Instance])
+    }
+
+    // The rear-view mirror is the driving scene's, so the wrapper must pass it on: without this the HUD mirror
+    // shows its bezel over a blank picture whenever the scene runs inside the front end (the play path).
+    fn rear_view(&mut self, aspect: f32) -> Option<(FrameParams, &[Instance])> {
+        if self.concealed() {
+            return None;
+        }
+        self.inner.rear_view(aspect)
+    }
+
+    // Like the rear view, speed streaks belong to the driving scene; forward them so the play path draws them.
+    fn speed_streaks(&self) -> f32 {
+        self.inner.speed_streaks()
     }
 
     fn ready(&self) -> bool {
@@ -177,7 +222,7 @@ impl Scene for Pausable {
     }
 
     fn captures_mouse(&self) -> bool {
-        !self.paused.get() && self.inner.captures_mouse()
+        !self.paused.get() && !self.concealed() && self.inner.captures_mouse()
     }
 
     fn status(&self) -> Option<String> {
@@ -209,17 +254,24 @@ impl Scene for Pausable {
     }
 
     fn hud_state(&self) -> Option<crate::hud::HudState> {
-        if self.paused.get() {
+        if self.paused.get() || self.concealed() {
             return Some(crate::hud::HudState { visible: false, ..Default::default() });
         }
         self.inner.hud_state()
     }
 
     fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
-        if self.paused.get() {
+        if self.paused.get() || self.concealed() {
             return None;
         }
         self.inner.car_sound()
+    }
+
+    fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {
+        if self.concealed() {
+            return None;
+        }
+        self.inner.pursuit_feed()
     }
 
     fn paused(&self) -> bool {
@@ -268,7 +320,11 @@ impl Scene for Pausable {
     }
 
     fn take_traffic_sounds(&mut self) -> Vec<crate::audio::traffic::TrafficSound> {
-        self.inner.take_traffic_sounds()
+        let sounds = self.inner.take_traffic_sounds();
+        if self.concealed() {
+            return Vec::new();
+        }
+        sounds
     }
 
     fn finished(&self) -> bool {
@@ -402,5 +458,27 @@ mod tests {
         scene.effects_dirty = false;
         scene.set_spark_style(crate::settings::SparkStyle::RestoredExperimental);
         assert!(scene.effects_dirty, "a style change must refresh frozen sprite and streak buffers");
+    }
+
+    #[test]
+    fn the_rear_view_mirror_reaches_the_driving_scene_through_the_wrapper() {
+        struct Mirror;
+        impl Scene for Mirror {
+            fn title(&self) -> String {
+                String::new()
+            }
+            fn init(&mut self, _: &mut dyn RenderBackend) -> Result<()> {
+                Ok(())
+            }
+            fn update(&mut self, _: &mut dyn RenderBackend, _: &ActionState, _: f32) {}
+            fn frame(&mut self, _: f32) -> (FrameParams, &[Instance]) {
+                unreachable!()
+            }
+            fn rear_view(&mut self, _: f32) -> Option<(FrameParams, &[Instance])> {
+                Some((flat_frame(), &[]))
+            }
+        }
+        let mut scene = Pausable::new(Box::new(Mirror), PauseFlag::default());
+        assert!(scene.rear_view(2.0).is_some(), "a driving scene's mirror must not be dropped by the wrapper");
     }
 }

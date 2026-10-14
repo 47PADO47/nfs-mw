@@ -5,14 +5,14 @@
 //!
 //! Specs: `docs/specs/ai-pursuit-heat.md`, `docs/specs/ai-pursuit-tactics.md`, `docs/specs/ai-helicopter.md`.
 
-pub mod heat;
 pub mod evade;
 pub mod formation;
+pub mod heat;
 pub mod helicopter;
 pub mod infraction;
 pub mod roadblock;
-pub mod support;
 pub mod rules;
+pub mod support;
 pub mod tactics;
 
 pub use evade::Evade;

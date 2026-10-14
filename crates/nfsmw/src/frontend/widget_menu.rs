@@ -297,10 +297,6 @@ impl WidgetMenu {
         if self.leaving {
             return;
         }
-        if row.setting == options::Setting::Input(InputSetting::KeyboardBindings) {
-            cx.send(Command::Push(screen::CONTROLS.into(), Args::default()));
-            return;
-        }
         if row.setting == options::Setting::Input(InputSetting::SaveAlias) {
             cx.send(Command::SaveAlias);
             return;
@@ -353,11 +349,14 @@ impl ScreenLogic for WidgetMenu {
             (super::logic::Category::Audio, true) => 0xB142_6DFA,
             (super::logic::Category::Video, true) => 0xD94E_A03F,
             (super::logic::Category::Gameplay, true) => 0x3936_D9F8,
-            (super::logic::Category::Controls, _) => 0,
+            (super::logic::Category::Controls | super::logic::Category::Discord, _) => 0,
         };
         cx.label_group(ids::HEADER_TEXT, title);
-        if self.args.category == super::logic::Category::Controls {
-            cx.text_group(ids::HEADER_TEXT, "Controls");
+        match self.args.category {
+            // The Controls icon opens the key list; this list is the Control Options item.
+            super::logic::Category::Controls => cx.text_group(ids::HEADER_TEXT, "Control Options"),
+            super::logic::Category::Discord => cx.text_group(ids::HEADER_TEXT, "Discord"),
+            _ => {}
         }
         self.layout_rows(cx);
     }

@@ -106,7 +106,7 @@ fn xbox_preset_matches_the_supplied_reference_centers_at_4k() {
     let mut rt = Runtime::new();
     let id = rt.load(package());
     let mut tree = rt.tree(id);
-    let viewport = HudViewport::new(&tree);
+    let viewport = HudViewport::new(&tree, &[]);
     let s = screen(3840.0, 2160.0);
     viewport.apply(&mut tree, s, HudLayout::Xbox360);
     for (name, x) in [("Backing", 508.26), ("Face", 3331.74)] {
@@ -124,7 +124,7 @@ fn pc_wide_layout_moves_all_gauge_descendants_once_without_stretching() {
     let mut rt = Runtime::new();
     let id = rt.load(package());
     let before = rt.tree(id);
-    let viewport = HudViewport::new(&before);
+    let viewport = HudViewport::new(&before, &[]);
     let mut tree = before.clone();
     viewport.apply(&mut tree, screen(1920.0, 1080.0), HudLayout::Pc);
     for (a, b) in before.nodes.iter().zip(&tree.nodes) {
@@ -151,7 +151,7 @@ fn rotating_and_scrolling_map_stays_registered_with_the_backing_and_arrow() {
     let id = rt.load(package());
     let map = MinimapBinding::new(&rt, id, MAP, "MAP").unwrap();
     let mut binding = HudBinding::new(&mut rt, id).with_minimap(Some(map));
-    let viewport = HudViewport::new(&rt.tree(id));
+    let viewport = HudViewport::new(&rt.tree(id), &[]);
     for layout in [HudLayout::Pc, HudLayout::Xbox360, HudLayout::Classic] {
         for orientation in [Orientation::North, Orientation::Heading] {
             for heading in [[0.0, 1.0], [1.0, 0.0], [-0.6, -0.8]] {
@@ -190,7 +190,7 @@ fn resizing_and_switching_presets_never_changes_the_runtime_or_accumulates_offse
     let mut rt = Runtime::new();
     let id = rt.load(package());
     let before = rt.tree(id);
-    let viewport = HudViewport::new(&before);
+    let viewport = HudViewport::new(&before, &[]);
     for layout in [HudLayout::Xbox360, HudLayout::Pc, HudLayout::Classic, HudLayout::Xbox360] {
         for s in [screen(1920.0, 1080.0), screen(1440.0, 1080.0), screen(2560.0, 1080.0)] {
             let mut a = rt.tree(id);
@@ -216,7 +216,7 @@ fn resizing_and_switching_presets_never_changes_the_runtime_or_accumulates_offse
 fn intermediate_and_ultrawide_aspects_preserve_round_gauges_and_visible_edges() {
     let mut rt = Runtime::new();
     let id = rt.load(package());
-    let viewport = HudViewport::new(&rt.tree(id));
+    let viewport = HudViewport::new(&rt.tree(id), &[]);
     for layout in [HudLayout::Pc, HudLayout::Xbox360] {
         for width in [1440.0, 1728.0, 1920.0, 2560.0, 3840.0] {
             let s = screen(width, 1080.0);
@@ -246,7 +246,7 @@ fn viewport_agrees_with_the_installs_authored_wide_gauge_and_backing_positions()
     let id = rt.load(catalog.find("HUD_SingleRace.fng").unwrap().clone());
     rt.update(1.0);
     let mut projected = rt.tree(id);
-    let viewport = HudViewport::new(&projected);
+    let viewport = HudViewport::new(&projected, &[]);
     viewport.apply(&mut projected, screen(1920.0, 1080.0), HudLayout::Pc);
     rt.post_to_package(id, 0x62ed04ec);
     rt.update(1.0);

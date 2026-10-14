@@ -2,6 +2,7 @@ use bevy_ecs::prelude::Resource;
 use blackbox_minimap::Orientation;
 
 use super::blip_style::MapBlip;
+use super::pursuit::PursuitHud;
 
 /// Where the car is, for the minimap (`docs/specs/hud-minimap.md`).
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -52,9 +53,10 @@ pub struct HudState {
     pub minimap: Option<MapPosition>,
     /// The cops, racers, checkpoint and helicopter on the map (`docs/specs/hud-minimap.md` section 7).
     pub blips: Vec<MapBlip>,
-    /// A police car is near: the radar's green laser shows over the base radar. Nothing sets it yet (the sensor is
-    /// not wired), so it stays off.
+    /// A police car is near: the radar's green laser shows over the base radar. The world sets it while a chase is on.
     pub cop_nearby: bool,
+    /// The chase the pursuit board shows (its timer, the cool-down bar); `None` while no cop chases the player.
+    pub pursuit: Option<PursuitHud>,
 }
 
 impl Default for HudState {
@@ -78,6 +80,7 @@ impl Default for HudState {
             minimap: None,
             blips: Vec::new(),
             cop_nearby: false,
+            pursuit: None,
         }
     }
 }

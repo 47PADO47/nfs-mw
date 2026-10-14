@@ -9,7 +9,8 @@ use bevy_input::keyboard::KeyCode;
 
 use crate::input::{Action, Bindings, Control};
 
-use super::logic::{Command, Cx, ScreenLogic};
+use super::ids::screen;
+use super::logic::{Args, Command, Cx, ScreenLogic};
 
 /// The control each row changes, from the top. Steering is one axis, so its two rows are its two directions.
 pub const ROWS: [Control; 8] = [
@@ -124,10 +125,24 @@ pub fn key_texts(bindings: &Bindings) -> Vec<[String; 2]> {
         .collect()
 }
 
-/// The controls list. It keeps the key names it last showed, so it only writes the ones that changed.
-#[derive(Default)]
+/// The controls list. It keeps the key names it last showed, so it only writes the ones that changed. Back returns
+/// to the option categories it was opened from (`icon_menu.rs`), as the option lists do.
 pub struct ControlsLogic {
+    args: Args,
     shown: Vec<[String; 2]>,
+}
+
+impl ControlsLogic {
+    pub fn new(args: Args) -> Self {
+        Self { args, shown: Vec::new() }
+    }
+
+    fn back(&self) -> Command {
+        if self.args.pause {
+            return Command::Switch(screen::PAUSE_MENU.into(), Args { pause: true, options: true, ..self.args });
+        }
+        Command::Switch(screen::MAIN_MENU_SUB.into(), Args { options: true, ..self.args })
+    }
 }
 
 impl ScreenLogic for ControlsLogic {
@@ -159,7 +174,7 @@ impl ScreenLogic for ControlsLogic {
             return;
         }
         if message == PAD_BACK {
-            cx.send(Command::Pop);
+            cx.send(self.back());
             return;
         }
         let from = focused(cx).unwrap_or(Cell { row: 0, slot: 0 });

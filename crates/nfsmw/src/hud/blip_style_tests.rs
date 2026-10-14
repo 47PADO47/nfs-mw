@@ -78,3 +78,23 @@ fn the_builtin_styles_have_distinct_names_and_pools() {
     let racer = styles.iter().find(|s| s.name() == blip_styles::RACER).unwrap();
     assert_eq!(racer.icons().len(), 8);
 }
+
+#[test]
+fn the_map_icon_pools_are_the_package_objects() {
+    let styles = blip_styles::map_icon_styles();
+    let mut names: Vec<&str> = styles.iter().map(|s| s.name()).collect();
+    names.sort_unstable();
+    names.dedup();
+    assert_eq!(names.len(), styles.len());
+    let pool = |name: &str| styles.iter().find(|s| s.name() == name).unwrap().icons();
+    assert_eq!(pool(blip_styles::RACE_SPRINT)[0], "MMICON_SPRINT_0");
+    assert_eq!(pool(blip_styles::RACE_SPEEDTRAP).last().unwrap(), "MMICON_SPEEDTRAP_7");
+    assert_eq!(
+        pool(blip_styles::AUTO_SHOP),
+        ["SHOP_0", "SHOP_1", "SHOP_2", "SHOP_3", "SHOP_4", "SHOP_5", "SHOP_6", "SHOP_7"]
+    );
+    assert_eq!(
+        pool(blip_styles::SAFE_HOUSE),
+        ["SAFEHOUSEINDICATOR_0", "SAFEHOUSEINDICATOR_1", "SAFEHOUSEINDICATOR_2", "SAFEHOUSEINDICATOR_3"]
+    );
+}

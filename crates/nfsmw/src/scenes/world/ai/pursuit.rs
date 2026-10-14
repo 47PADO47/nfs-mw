@@ -1,6 +1,8 @@
 //! The cop manager: how many cops chase, which ones, and where they appear.
 //! Spec: `docs/specs/ai-pursuit-cops.md` (§3, §4), `docs/specs/ai-pursuit-heat.md` (§2.7).
 
+use std::rc::Rc;
+
 use blackbox_collision::CollisionWorld;
 use blackbox_roads::{LaneType, NavKind, RandomSource, RoadNav, SegmentFilter};
 use blackbox_vehicle::performance::Performance;
@@ -12,7 +14,7 @@ use super::car::{AiCar, Role, Start};
 use super::cop::{CopCar, CopState};
 use super::traffic::Cruise;
 use super::{Focus, TrafficModel, TrafficWorld};
-use crate::scenes::world::drive::WorldGround;
+use crate::scenes::world::drive::{CarRig, WorldGround};
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::space;
 
@@ -85,6 +87,14 @@ impl TrafficWorld {
 
     pub fn has_cop_model(&self, name: &str) -> bool {
         self.cop_models.iter().any(|m| m.model.name.eq_ignore_ascii_case(name))
+    }
+
+    pub fn has_helicopter_rig(&self) -> bool {
+        self.helicopter_rig.is_some()
+    }
+
+    pub fn set_helicopter_rig(&mut self, rig: Rc<CarRig>) {
+        self.helicopter_rig = Some(rig);
     }
 
     /// Keeps the wave on the road: removes cops that fell far behind and sends in the next one when its
@@ -203,8 +213,9 @@ impl TrafficWorld {
         let cops: Vec<String> = self.cars.iter().filter(|c| c.is_cop()).map(|c| c.name.clone()).collect();
         let infractions: Vec<String> = self.police.infractions().iter().map(|i| format!("{i:?}")).collect();
         let formation = self.police.last_formation().map_or("none yet".to_owned(), |f| format!("{f:?}"));
+        let to_evade = self.pursuit_feed().map_or(0.0, |feed| feed.secs_to_evade);
         format!(
-            "heat {}: {} of {} cops ({}); formation {formation}; infractions {} for ${}{}",
+            "heat {}: {} of {} cops ({}); formation {formation}; evade in {to_evade:.0} s; infractions {} for ${}{}",
             p.heat,
             cops.len(),
             p.wanted(),

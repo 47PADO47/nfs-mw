@@ -34,7 +34,7 @@ fn section(action: Action) -> Section {
     match action {
         Throttle | Brake | Steer | Handbrake | ShiftUp | ShiftDown | GearReverse | GearNeutral | Gear1 | Gear2
         | Gear3 | Gear4 | Gear5 | Gear6 | Gear7 | Clutch | Nos | Speedbreaker | ResetCar | ToggleCamera
-        | CycleCamera | ToggleHeadlights | LookBack | Garage => Section::Driving,
+        | CycleCamera | ToggleHeadlights | LookBack | Garage | Interact => Section::Driving,
         MoveForward | MoveRight | MoveUp | LookX | LookY | OrbitX | OrbitY | Zoom | Boost => Section::FreeCamera,
         MenuUp | MenuDown | MenuLeft | MenuRight | MenuAccept | MenuBack | MenuStart | MenuQuit | Click => {
             Section::Menus
@@ -82,6 +82,7 @@ fn labels(action: Action) -> (&'static str, &'static str) {
         CycleCamera => ("Change camera (chase, dynamic FOV, then the original views)", "C"),
         ToggleHeadlights => ("Headlights on / off", "H"),
         LookBack => ("Look back (hold)", "B"),
+        Interact => ("Interact (enter a race, safe house or shop)", ""),
         MenuUp => ("Menu up", ""),
         MenuDown => ("Menu down", ""),
         MenuLeft => ("Menu left", ""),

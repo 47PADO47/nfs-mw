@@ -207,7 +207,8 @@ mod plan_tests {
         let cops = [Vec2::new(40.0, 0.0), Vec2::new(45.0, 1.0), Vec2::new(50.0, -1.0)];
         let aims: Vec<Vec2> = plan(&cops, Vec2::ZERO, Vec2::X, true, false).into_iter().flatten().collect();
         assert_eq!(aims.len(), 3);
-        let spread = aims.iter().map(|a| a.y).fold(f32::MIN, f32::max) - aims.iter().map(|a| a.y).fold(f32::MAX, f32::min);
+        let spread =
+            aims.iter().map(|a| a.y).fold(f32::MIN, f32::max) - aims.iter().map(|a| a.y).fold(f32::MAX, f32::min);
         assert!(spread > ROAD_HALF_WIDTH, "spread across the road: {spread}");
     }
 

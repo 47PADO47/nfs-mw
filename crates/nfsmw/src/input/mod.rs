@@ -12,6 +12,10 @@ pub mod commands;
 mod config_tests;
 mod describe;
 mod device_settings;
+#[cfg(test)]
+mod headlights_tests;
+#[cfg(test)]
+mod interact_tests;
 mod presentation;
 #[cfg(test)]
 mod presentation_tests;
@@ -20,8 +24,6 @@ mod slots;
 mod snapshot;
 #[cfg(test)]
 pub(crate) use snapshot::Snapshot;
-#[cfg(test)]
-mod headlights_tests;
 mod source;
 mod state;
 mod systems;

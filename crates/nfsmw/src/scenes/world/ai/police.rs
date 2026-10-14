@@ -8,18 +8,18 @@
 use std::collections::BTreeSet;
 use std::rc::Rc;
 
+use super::support;
+use blackbox_pursuit::formation::finisher::{Event, Finisher};
+use blackbox_pursuit::formation::slots::assign;
+use blackbox_pursuit::formation::{Formation, Picker};
 use blackbox_pursuit::helicopter::behaviour::Player;
 use blackbox_pursuit::helicopter::control::{Flat, Heights};
 use blackbox_pursuit::helicopter::{Helicopter, Mode, SearchInput, THINK_PERIOD, Target, Tuning};
 use blackbox_pursuit::rules::{self, Contact};
-use blackbox_pursuit::formation::finisher::{Event, Finisher};
 use blackbox_pursuit::support::Strategy;
-use super::support;
-use blackbox_pursuit::formation::slots::assign;
-use blackbox_pursuit::formation::{Formation, Picker};
 use blackbox_pursuit::{Evade, Fines, Heat, Infraction, InfractionLog};
-use blackbox_roads::{HeliSheet, RandomSource, SegmentFilter, TrackZone, closest_segment, to_zone_space};
 use blackbox_render::Instance;
+use blackbox_roads::{HeliSheet, RandomSource, SegmentFilter, TrackZone, closest_segment, to_zone_space};
 use blackbox_speedfx::{Effects, SpeedFx, Tuning as SpeedTuning};
 use glam::{Mat3, Quat, Vec2, Vec3};
 
@@ -298,7 +298,8 @@ impl Police {
         if !seen {
             return;
         }
-        let roll = blackbox_pursuit::support::roll(&support::heavy_options(level), &[], random, self.roadblock_standing);
+        let roll =
+            blackbox_pursuit::support::roll(&support::heavy_options(level), &[], random, self.roadblock_standing);
         match roll.map(|r| r.strategy) {
             Some(Strategy::HeavyRoadblock) => self.roadblock_requested = true,
             Some(other) => log::info!("support: {other:?} rolled (not built)"),
@@ -318,7 +319,9 @@ impl Police {
 
     /// Advances the chosen formation's finisher with the cops' gap to their slots. Armed and ended are logged.
     fn tick_finisher(&mut self, dt: f32, gap: Option<(u32, f32)>) {
-        let Some(params) = self.last_formation.and_then(blackbox_pursuit::formation::finisher::params_for) else { return };
+        let Some(params) = self.last_formation.and_then(blackbox_pursuit::formation::finisher::params_for) else {
+            return;
+        };
         let (count, average) = gap.map_or((0, None), |(count, average)| (count, Some(average)));
         match self.finisher.tick(dt, count, average, &params) {
             Event::Armed => log::info!("the finisher runs: the cops hold their slots"),
@@ -435,7 +438,6 @@ impl Police {
     }
 }
 
-
 /// A physics-frame orientation as a render-frame one. The nose is the physics X axis, up is Y; render space has x
 /// forward, y left and z up (`space`), so the render frame is rebuilt from the converted nose and up.
 fn render_rotation(orientation: Quat) -> Quat {
@@ -477,8 +479,6 @@ fn to_body(player: &PlayerView) -> Player {
 mod tests;
 
 mod world;
-
-
 
 /// The track's height sheet as the helicopter's floor. Physics `(x, z)` is the sheet's map point `(z, -x)`
 /// (`to_zone_space`); where no triangle covers the point there is no floor.
