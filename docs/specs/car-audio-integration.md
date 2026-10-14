@@ -137,4 +137,3 @@ upgrade crossfades remain outside this batch. Discrete one-shots are delayed by
 their position within the ordered render batch. Continuous authored modules still
 receive batched parameter updates on the game thread; their exact within-frame
 waveform at very low render FPS has not been established as an original match.
-
