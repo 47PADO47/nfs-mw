@@ -30,6 +30,21 @@ test) would live in `libs/`; the Most Wanted specifics (the `pursuitlevels` tabl
 - **Known differences from the original:** none yet. Expected: the rewrite may use a fixed 4 Hz pursuit step in real seconds (the original
   runs it at a fraction of its sim rate); the cop budget and the helicopter are decided by the rewrite's milestones.
 
+## Assault, property, spike strips and breakers (E8 subtask h)
+
+- **Reversed from:** the existing `[decomp]` and `[verified]` notes in `docs/specs/ai-pursuit-heat.md` section 4 (the
+  infraction table and its fines), `ai-pursuit-roadblocks.md` sections 1, 2.3, 4 and 6 (the spike chances, the spike
+  layouts, the tire puncture) and `pursuit-breakers.md` section 7 (`EBreakerStopCops`). No new Ghidra reversal was run in
+  this batch: the assault and property detection rules (`GInfractionManager`) are stripped in the decompilation, so the
+  rules rest on the spec's table and remain **[unconfirmed]**.
+- **Implemented as:** `blackbox_pursuit::rules::contact_infraction` (unchanged), fed by the player's cop hit, the prop
+  contact, and the existing traffic hit; `blackbox_pursuit::roadblock::{spike_chance, takes_spikes}`; `blackbox_pursuit::spikes`
+  for the strip geometry and tire test; `blackbox_pursuit::breaker::inside` for the zone test, now horizontal as the spec
+  says.
+- **Known differences:** a breaker zone brakes the cops inside it (`StopCops` to `set_breaker_stop`), it does not wreck them as
+  the spec's `Destroy()` does. The sawhorse barriers are not placed. The spike strip's size is a design value.
+- **Not done:** Ghidra cross-check of `GInfractionManager` and `AICopManager::ApplyBreakerZones`; both remain open.
+
 ## Wave re-pick on heat rise (E8 subtask d)
 
 - **Reversed from:** the existing `[decomp]` notes in `docs/specs/ai-pursuit.md` section 2 and `ai-pursuit-cops.md` section 4 (the

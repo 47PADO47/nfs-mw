@@ -319,6 +319,11 @@ car select screen (x0.95); get busted three times and confirm the impound.
 
 ## Rewrite status
 
+- **Assault and damage to property** (section 4, bits 8 and 32): wired. The player's hit that first damages a cop is
+  `Target::Cop` with `first_damage` (`ai/car/hits.rs` `wreck_hit`, latched in `ai/collide.rs`), logged as assault whatever
+  the cop sees. A touch of a prop (`PropRigid` or `PropMovable` contact in the drive's impact, `drive/sim/mod.rs`) is
+  `Target::Breakable`, logged while the cops watch within 25 m. **[unconfirmed]** The rewrite counts any prop, not only
+  root smackables as the table says, and does not test "direct"; the smackable flag is not carried to the contact yet.
 - **Evade** (section 2.2): implemented in `libs/blackbox-pursuit/src/evade.rs`. The unseen time fills while no cop sees the
   player and empties when one does; the chase ends at `evadetimeout` (install values, per heat level). The hiding-spot
   multiplier applies while the player is in a HIDDEN track zone (kind 8, `TrackZones` from the track's metadata) at its
