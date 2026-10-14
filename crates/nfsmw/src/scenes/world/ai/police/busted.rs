@@ -17,6 +17,7 @@ pub const BUST_TUNING: BustTuning = BustTuning {
     fill_rate: 1.0,
     drain_rate: 2.0,
     flashing_multiplier: 4.0,
+    flashing_speed_gate: false,
 };
 
 /// The speed under which the player is busted, per heat level 1 to 10, in km/h (section 5.1, the `BustSpeed` table).

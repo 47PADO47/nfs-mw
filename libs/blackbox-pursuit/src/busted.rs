@@ -22,6 +22,9 @@ pub struct BustTuning {
     pub drain_rate: f32,
     /// Multiplier on the fill rate while flashing.
     pub flashing_multiplier: f32,
+    /// Whether the speed gate still applies while flashing. Stock skips it (a flashing player counts as slow whatever
+    /// the speed); `false` is the stock rule.
+    pub flashing_speed_gate: bool,
 }
 
 /// What the caller measured this frame for the busted timer.
@@ -81,7 +84,8 @@ impl Busted {
     /// flashing, which counts as slow). `cop_distance` is the height-matched distance.
     pub fn in_zone(input: &BustInput, tuning: &BustTuning) -> bool {
         let reach = if input.flashing { tuning.flashing_reach } else { tuning.reach };
-        let slow = input.flashing || input.player_speed < input.slow_speed;
+        let skips_gate = input.flashing && !tuning.flashing_speed_gate;
+        let slow = skips_gate || input.player_speed < input.slow_speed;
         input.seen && slow && input.cop_distance < reach
     }
 
@@ -118,6 +122,7 @@ mod tests {
         fill_rate: 1.0,
         drain_rate: 2.0,
         flashing_multiplier: 4.0,
+        flashing_speed_gate: false,
     };
 
     fn input(cop_distance: f32, seen: bool, speed: f32) -> BustInput {
@@ -179,6 +184,22 @@ mod tests {
         let mut plain = Busted::default();
         plain.update(0.5, &input(60.0, true, 0.0), &TUNING);
         assert_eq!(plain.timer(), 0.0, "60 m is out of the normal reach");
+    }
+
+    #[test]
+    fn a_gated_flash_still_needs_a_slow_player() {
+        let gated = BustTuning { flashing_speed_gate: true, ..TUNING };
+        let mut bust = Busted::default();
+        let fast = BustInput { flashing: true, ..input(10.0, true, 20.0) };
+        bust.update(0.5, &fast, &gated);
+        assert_eq!(bust.timer(), 0.0, "the speed gate holds while flashing: a fast player drains");
+        let slow = BustInput { flashing: true, ..input(60.0, true, 0.0) };
+        bust.update(0.5, &slow, &gated);
+        assert_eq!(bust.timer(), 2.0, "the 90 m flashing reach still applies: slow fills 1 per second times 4");
+        let stock = BustInput { flashing: true, ..input(60.0, true, 20.0) };
+        let mut plain = Busted::default();
+        plain.update(0.5, &stock, &TUNING);
+        assert_eq!(plain.timer(), 2.0, "stock flashing skips the gate: a fast player fills");
     }
 
     #[test]
