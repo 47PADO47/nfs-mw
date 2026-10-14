@@ -85,6 +85,9 @@ pub struct Audio {
     banks: HashMap<String, Arc<Vec<u8>>>,
     /// Decoded bank sounds by (bank path, index).
     sounds: HashMap<(String, usize), StaticSoundData>,
+    sound_channels: HashMap<(String, usize), u16>,
+    impact_counter: u32,
+    prop_sounds: HashMap<u32, Arc<nfsmw_data::sound::CollisionSounds>>,
     /// The gameplay database, read when a car's sound is first needed.
     database: Option<Arc<Database>>,
     /// The engine the `engine` console command plays, with the car it belongs to.
@@ -123,6 +126,15 @@ impl CarEngine {
 }
 
 impl Audio {
+    fn prop_sound(&mut self, profile: u32) -> Option<Arc<nfsmw_data::sound::CollisionSounds>> {
+        if let Some(sound) = self.prop_sounds.get(&profile) {
+            return Some(sound.clone());
+        }
+        let database = self.database().ok()?;
+        let sound = Arc::new(nfsmw_data::sound::CollisionSounds::prop(&database, profile));
+        self.prop_sounds.insert(profile, sound.clone());
+        Some(sound)
+    }
     /// Open the default output device. When there is none, or it fails, the returned value is silent and says
     /// why in the log.
     pub fn new(dir: GameDir, volumes: Volumes) -> Self {
@@ -143,6 +155,9 @@ impl Audio {
             volumes,
             banks: HashMap::new(),
             sounds: HashMap::new(),
+            sound_channels: HashMap::new(),
+            impact_counter: 0,
+            prop_sounds: HashMap::new(),
             database: None,
             test_engine: None,
             car: None,
@@ -210,6 +225,7 @@ impl Audio {
         let parsed = Bank::parse(&bytes).map_err(|e| format!("{bank}: {e}"))?;
         let decoded = parsed.decode(index).map_err(|e| format!("{bank} #{index}: {e}"))?;
         let data = pcm::sound(&decoded);
+        self.sound_channels.insert(key.clone(), decoded.channels);
         self.sounds.insert(key, data.clone());
         Ok(data)
     }

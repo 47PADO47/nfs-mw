@@ -244,6 +244,8 @@ impl CarSim {
         impact.sounds.extend(self.vehicle.body_contacts().iter().filter(|c| c.impulse_delta_v > 0.0).map(|c| {
             let bottom = self.vehicle.wheels_on_ground() > 2 && rotation.y_axis.dot(c.normal) > 0.2;
             crate::audio::CarContact {
+                sound_profile: 0,
+                detached: false,
                 source: crate::audio::ContactSource::Ground,
                 identity: 0,
                 surface: c.surface,

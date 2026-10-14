@@ -11,7 +11,7 @@ use nfsmw_data::car::physics::SurfaceTable;
 use nfsmw_data::sound::{CarSound, ImpactSound};
 use std::collections::HashMap;
 
-type Key = (ContactSource, u64, u32, bool, bool);
+type Key = (ContactSource, u64, u32, bool, bool, u32);
 const SCRAPE_BANK: &str = "IG_GLOBAL/FX_Misc_MB.abk";
 
 struct Scrape {
@@ -36,11 +36,13 @@ pub(super) fn coalesced(contacts: &[CarContact]) -> Vec<CarContact> {
     for &contact in contacts {
         let key = key(contact);
         if let Some(prior) = out.iter_mut().find(|c| self::key(**c) == key) {
+            let detached = prior.detached || contact.detached;
             if contact.delta_v > prior.delta_v
                 || (contact.delta_v == prior.delta_v && contact.sliding_speed() > prior.sliding_speed())
             {
                 *prior = contact;
             }
+            prior.detached = detached;
             continue;
         }
         out.push(contact);
@@ -49,7 +51,7 @@ pub(super) fn coalesced(contacts: &[CarContact]) -> Vec<CarContact> {
 }
 
 fn key(c: CarContact) -> Key {
-    (c.source, c.identity, c.surface, c.bottom, c.front)
+    (c.source, c.identity, c.surface, c.bottom, c.front, c.sound_profile)
 }
 
 impl ContactPlayback {
@@ -77,17 +79,40 @@ impl ContactPlayback {
         let default = SurfaceTable::hash_of("default");
         let mut events = Vec::new();
         for contact in coalesced(contacts) {
-            let severity = if contact.bottom { contact.closing_speed() } else { contact.delta_v };
+            let owned = match contact.sound_profile {
+                0 => None,
+                profile => audio.prop_sound(profile),
+            };
+            if contact.sound_profile != 0 && owned.is_none() {
+                continue;
+            }
+            let rules = owned.as_deref().unwrap_or(&sound.collision);
+            let severity = match (contact.detached, contact.bottom) {
+                (true, _) => contact.velocity.length(),
+                (_, true) => contact.closing_speed(),
+                _ => contact.delta_v,
+            };
+            let attempt = |kind, severity| {
+                let rule = rules.rule(kind, contact.surface, default, contact.front)?;
+                let magnitude = rule.magnitude(severity).filter(|m| *m > 0.0)?;
+                Some((kind, rule.sound, magnitude))
+            };
+            let hit = attempt(contact.hit_kind(), severity).or_else(|| {
+                if !contact.detached {
+                    return None;
+                }
+                attempt(nfsmw_data::sound::EventKind::HitObject, contact.delta_v)
+            });
             if contact.velocity.length_squared() > 1.0
-                && let Some(rule) = sound.collision.rule(contact.hit_kind(), contact.surface, default, contact.front)
-                && let Some(magnitude) = rule.magnitude(severity).filter(|m| *m > 0.0)
+                && let Some((kind, selected, magnitude)) = hit
             {
                 events.push(CarEvent {
-                    kind: contact.hit_kind(),
+                    sound_profile: contact.sound_profile,
+                    kind,
                     surface: contact.surface,
                     magnitude,
                     front: contact.front,
-                    smackable: rule.sound.has("SMOKABLE"),
+                    smackable: selected.has("SMOKABLE"),
                     position: contact.render_point(),
                 });
             }
@@ -96,7 +121,7 @@ impl ContactPlayback {
                 continue;
             }
             let key = key(contact);
-            let rule = sound.collision.rule(contact.scrape_kind(), contact.surface, default, contact.front);
+            let rule = rules.rule(contact.scrape_kind(), contact.surface, default, contact.front);
             let eligible = rule.and_then(|rule| rule.magnitude(speed).map(|m| (rule.sound, m.max(0.1))));
             let Some((selected, magnitude)) = eligible.filter(|(s, _)| !s.scrape_effect.is_empty()) else {
                 if let Some(scrape) = self.scrapes.get_mut(&key) {

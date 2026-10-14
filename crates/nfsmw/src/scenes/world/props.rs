@@ -378,6 +378,8 @@ impl PropWorld {
                     let relative = vehicle.body().point_velocity(hit.point) - p.rigid.point_velocity(hit.point);
                     let rot = vehicle.body().rotation();
                     let sound = CarContact {
+                        sound_profile: 0,
+                        detached: false,
                         source: ContactSource::Object,
                         identity: u64::from(id),
                         surface: second.surface,
@@ -398,6 +400,18 @@ impl PropWorld {
                     p.moved |= !prop_immobile;
                     let delta_v = response.impulse_delta_v[0];
                     impact.sounds.push(CarContact { delta_v, ..sound });
+                    if spec.sound_profile != 0 {
+                        impact.sounds.push(CarContact {
+                            sound_profile: spec.sound_profile,
+                            detached: was_attached && !p.attached,
+                            surface: first.surface,
+                            normal: -hit.normal,
+                            velocity: -relative,
+                            delta_v: response.impulse_delta_v[1],
+                            front: false,
+                            ..sound
+                        });
+                    }
                     let kind = match prop_immobile {
                         true => ContactKind::PropRigid,
                         false => ContactKind::PropMovable,

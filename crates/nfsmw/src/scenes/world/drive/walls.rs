@@ -305,6 +305,8 @@ pub fn resolve(vehicle: &mut Vehicle, cast: Cast<'_>, props: PropQuery<'_>, wall
     impact.sounds = contacts
         .iter()
         .map(|c| CarContact {
+            sound_profile: 0,
+            detached: false,
             source: if c.prop.is_some() { ContactSource::Object } else { ContactSource::World },
             identity: c.prop.map_or_else(
                 || c.info.map_or(0, |i| (u64::from(i.section) << 32) | i.instance as u64),

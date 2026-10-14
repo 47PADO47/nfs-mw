@@ -18,7 +18,7 @@ use blackbox_carsound::EngineOutput;
 use nfsmw_data::sound::{CarSound, ENGINE_DIR};
 
 pub use self::host::{PartHost, Sampler, Voices};
-pub use self::kira_out::{EffectSampler, KiraSampler};
+pub use self::kira_out::{DelayedSampler, EffectSampler, KiraSampler};
 use super::Audio;
 use super::mixer::Levels;
 
@@ -75,6 +75,9 @@ pub(super) struct EffectModule {
 }
 
 impl EffectModule {
+    pub fn finished(&self) -> bool {
+        self.part.instance.is_destroyed()
+    }
     pub fn load(audio: &mut Audio, bank: &str, class: &str, seed: u32) -> Result<Self, String> {
         Ok(Self { part: Part::load(audio, bank, class, seed)?, clock: 0.0 })
     }

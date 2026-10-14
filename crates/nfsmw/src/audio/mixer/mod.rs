@@ -33,6 +33,18 @@ pub struct CarMixer {
 }
 
 impl CarMixer {
+    pub(in crate::audio) fn set_landing(&mut self, landing: Option<blackbox_carsound::Landing>) {
+        self.mixer
+            .set_input(ids::player_object_input(object::BOTTOM_OUT, 1), if landing.is_some() { 32767 } else { 0 });
+        if let Some(landing) = landing {
+            self.mixer
+                .set_input(ids::player_object_input(object::BOTTOM_OUT, 3), (landing.magnitude * 127.0) as i32 * 256);
+        }
+    }
+    pub(in crate::audio) fn landing_level(&self) -> (f32, u16) {
+        let object = player_object(object::BOTTOM_OUT);
+        (self.mixer.volume(object, 1).unwrap_or(0.0), self.mixer.azimuth(object, 0).unwrap_or(0))
+    }
     /// Reads the map from the install. `dual` says the car plays the two-loop engine (object 2), else the
     /// single one (object 1).
     pub fn load(dir: &GameDir, dual: bool) -> Result<Self, String> {
@@ -61,6 +73,7 @@ impl CarMixer {
     pub fn update(&mut self, dt: f32, frame: &Frame<'_>) -> Levels {
         feed::publish(&mut self.mixer, frame, &self.view);
         self.mixer.process(dt);
+        self.mixer.set_input(ids::player_object_input(object::BOTTOM_OUT, 1), 0);
         Levels::read(&self.mixer, self.dual)
     }
 

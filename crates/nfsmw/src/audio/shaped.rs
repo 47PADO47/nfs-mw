@@ -62,7 +62,19 @@ impl Audio {
     }
 }
 
-/// Original azimuth: 0 ahead, quarter-turn right. Kira panning: 0 left, 1 right.
+/// Original azimuth: 0 ahead, quarter-turn right. Kira uses -1 left, 0 centre, +1 right.
 pub fn pan(azimuth: u16) -> f32 {
-    0.5 + 0.5 * (f32::from(azimuth) / 65536.0 * std::f32::consts::TAU).sin()
+    (f32::from(azimuth) / 65536.0 * std::f32::consts::TAU).sin()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn cardinal_azimuths_use_the_signed_backend_range() {
+        assert_eq!(pan(0), 0.0);
+        assert!((pan(16384) - 1.0).abs() < 0.00001);
+        assert!(pan(32768).abs() < 0.00001);
+        assert!((pan(49152) + 1.0).abs() < 0.00001);
+    }
 }

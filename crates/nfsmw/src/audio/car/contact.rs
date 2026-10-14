@@ -13,6 +13,8 @@ pub enum ContactSource {
 /// Captured before response, with severity in the response's effective delta-v units.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CarContact {
+    pub sound_profile: u32,
+    pub detached: bool,
     pub source: ContactSource,
     pub identity: u64,
     pub surface: u32,
@@ -29,6 +31,9 @@ impl CarContact {
         Vec3::new(self.point.z, -self.point.x, self.point.y)
     }
     pub fn hit_kind(self) -> EventKind {
+        if self.detached {
+            return EventKind::Detached;
+        }
         match (self.source, self.bottom) {
             (ContactSource::Ground, true) => EventKind::BottomOut,
             (ContactSource::Ground, false) => EventKind::HitGround,

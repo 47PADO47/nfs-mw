@@ -19,6 +19,7 @@ use super::{Audio, EngineHandle, EngineMix};
 mod ambient;
 mod contact;
 mod contacts;
+mod impacts;
 pub use contact::{CarContact, ContactSource};
 
 /// Every physics state since the previous audio update, in simulation order.
@@ -32,6 +33,7 @@ pub struct CarSoundTick {
 /// A collision the physics reported since the last frame.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CarEvent {
+    pub sound_profile: u32,
     pub kind: EventKind,
     /// The `simsurface` hash of the surface involved.
     pub surface: u32,
@@ -84,6 +86,7 @@ pub(super) struct CarAudio {
     pub loops: HashMap<LoopId, (SoundRef, StaticSoundHandle)>,
     commands: Vec<SoundCommand>,
     contacts: contacts::ContactPlayback,
+    pub(super) impacts: impacts::ImpactPlayback,
     ambient: ambient::AmbientPlayback,
     pub(super) event_delay: f32,
 }
@@ -92,7 +95,6 @@ struct DriveFrame<'a> {
     input: &'a CarInput,
     contacts: &'a [CarContact],
     events: &'a [CarEvent],
-    surface: u32,
     view: &'a super::AudioView,
     dt: f32,
     sim_dt: f32,
@@ -157,7 +159,6 @@ impl Audio {
                     input: &state.input,
                     contacts: &[],
                     events: &state.events,
-                    surface: state.surface,
                     view: &state.view,
                     dt,
                     sim_dt: 0.0,
@@ -175,7 +176,6 @@ impl Audio {
                     input: &tick.input,
                     contacts: &tick.contacts,
                     events: if i == 0 { &state.events } else { &[] },
-                    surface: tick.surface,
                     view: &state.view,
                     dt: delta,
                     sim_dt: blackbox_vehicle::FIXED_STEP,
@@ -202,6 +202,7 @@ impl Audio {
         let landing = car.effects.update(frame.dt, &input, &out, &mut commands);
         if let Some(mixer) = car.mixer.as_mut() {
             mixer.set_view(*frame.view);
+            mixer.set_landing(landing);
             let sparks = car.aems.as_ref().is_some_and(AemsLayer::sparks);
             car.levels = mixer.update(
                 frame.dt,
@@ -248,19 +249,11 @@ impl Audio {
         for event in hits.iter().chain(frame.events) {
             self.play_impact(car, event, &input, frame.view);
         }
-        if let Some(landing) = landing
-            && !hits.iter().any(|e| e.kind == EventKind::BottomOut)
-        {
-            let event = CarEvent {
-                kind: EventKind::BottomOut,
-                surface: frame.surface,
-                magnitude: landing.magnitude,
-                front: false,
-                smackable: false,
-                position: frame.view.car_position,
-            };
-            self.play_impact(car, &event, &input, frame.view);
+        if let Some(landing) = landing {
+            self.play_landing(car, landing);
         }
+        let landing_level = car.mixer.as_ref().map_or((1.0, 0), CarMixer::landing_level);
+        car.impacts.update(self, frame.dt, frame.delay, &input, frame.view, landing_level);
         car.contacts.update(self, frame.dt, &input, frame.view);
         for command in &commands {
             if let SoundCommand::SetLoop { id: LoopId::Road(side), sound: SoundRef::RoadNoise(0..=7), .. } = command {
@@ -323,6 +316,7 @@ impl Audio {
             loops: HashMap::new(),
             commands: Vec::new(),
             contacts: contacts::ContactPlayback::default(),
+            impacts: impacts::ImpactPlayback::default(),
             ambient: ambient::AmbientPlayback::default(),
             event_delay: 0.0,
         })

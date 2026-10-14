@@ -13,6 +13,8 @@ fn install() -> GameDir {
 
 fn contact() -> CarContact {
     CarContact {
+        sound_profile: 0,
+        detached: false,
         source: ContactSource::World,
         identity: 1,
         surface: SurfaceTable::hash_of("default"),
@@ -213,5 +215,190 @@ fn installed_authored_wind_and_road_modules_render_all_ordinary_terrain_ids() {
         assert_eq!(levels.over_full_scale, 0);
         assert!(audio.missing.is_empty());
         eprintln!("terrain {terrain} wind/road output: {levels:?}");
+    }
+}
+
+#[test]
+#[ignore = "requires installed audio banks; set NFSMW_GAME_DIR"]
+fn installed_effect_pan_centres_mono_and_places_left_and_right_correctly() {
+    use crate::audio::aems::{EffectModule, EffectSampler};
+    for azimuth in [0, 16384, 49152] {
+        let mut audio = Audio::replay(install(), 48_000);
+        let mut effect = EffectModule::load(&mut audio, "IG_GLOBAL/FX_Misc_MB.abk", "FX_Scrape", 1).unwrap();
+        let params = [32767, 4096, azimuth, 0, 100, 25000, 0, 32767, 0];
+        let mut energy = [0.0_f64; 2];
+        for tick in 0..60 {
+            assert!(effect.update(&mut EffectSampler(&mut audio, crate::audio::Group::Sfx), 1.0 / 60.0, &params));
+            let pcm = audio.render_replay(800);
+            if tick < 20 {
+                continue;
+            }
+            for frame in pcm.as_chunks::<2>().0 {
+                energy[0] += f64::from(frame[0]).powi(2);
+                energy[1] += f64::from(frame[1]).powi(2);
+            }
+        }
+        match azimuth {
+            0 => assert!(
+                (energy[0] / energy[1] - 1.0).abs() < 0.01,
+                "centred effect must have equal speaker energy: {energy:?}"
+            ),
+            16384 => assert!(energy[1] > energy[0] * 100.0, "right effect must pan right"),
+            _ => assert!(energy[0] > energy[1] * 100.0, "left effect must pan left"),
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires installed audio banks; set NFSMW_GAME_DIR"]
+fn installed_gentle_tyre_landing_uses_its_dedicated_sound_and_releases() {
+    let mut audio = Audio::replay(install(), 48_000);
+    audio.set_volumes(crate::audio::Volumes { engine: 0.0, music: 0.0, ..Default::default() });
+    let grounded = CarInput {
+        speed: 0.0,
+        wheels: [blackbox_carsound::WheelInput { compression: 0.01, ..Default::default() }; 4],
+        ..Default::default()
+    };
+    let air = CarInput {
+        wheels: grounded.wheels.map(|w| blackbox_carsound::WheelInput { on_ground: false, ..w }),
+        ..grounded
+    };
+    for input in std::iter::repeat_n(grounded, 20).chain(std::iter::repeat_n(air, 20)) {
+        audio.drive_car(
+            Some(&state("BMWM3GTR", input, vec![CarSoundTick { input, contacts: vec![], surface: 0 }])),
+            1.0 / 60.0,
+        );
+        audio.render_replay(800);
+    }
+    audio.drive_car(
+        Some(&state("BMWM3GTR", grounded, vec![CarSoundTick { input: grounded, contacts: vec![], surface: 0 }])),
+        1.0 / 60.0,
+    );
+    assert_eq!(audio.impact_counter, 0, "a wheel landing must not become a physical crash event");
+    assert_eq!(audio.car.as_ref().unwrap().impacts.active_count(), 1);
+    let mut recorded = audio.render_replay(800).to_vec();
+    for _ in 0..180 {
+        audio.drive_car(
+            Some(&state("BMWM3GTR", grounded, vec![CarSoundTick { input: grounded, contacts: vec![], surface: 0 }])),
+            1.0 / 60.0,
+        );
+        recorded.extend_from_slice(audio.render_replay(800));
+    }
+    assert_eq!(
+        audio.car.as_ref().unwrap().impacts.active_count(),
+        0,
+        "landing modules must retire after their samples end"
+    );
+    let levels = capture::levels(&recorded);
+    eprintln!("gentle landing: {levels:?}");
+    assert!(levels.rms > 0.0001);
+    assert!(levels.peak < 0.35, "gentle wheel return must not be a full-volume crash");
+    assert_eq!(levels.over_full_scale, 0);
+    if let Some(dir) = std::env::var_os("NFSMW_AUDIO_CAPTURE_DIR") {
+        capture::write_float(&std::path::PathBuf::from(dir).join("gentle-landing.wav"), &recorded, 48_000, 2);
+    }
+}
+
+#[test]
+#[ignore = "requires installed audio banks; set NFSMW_GAME_DIR"]
+fn installed_physical_impact_stitches_render_authored_pieces_and_retire() {
+    let mut audio = Audio::replay(install(), 48_000);
+    let input = CarInput::default();
+    audio.drive_car(Some(&state("BMWM3GTR", input, vec![])), 1.0 / 60.0);
+    let mut car = audio.car.take().unwrap();
+    let view = AudioView::default();
+    for (kind, surface) in
+        [(EventKind::HitWorld, "default"), (EventKind::HitObject, "carbody"), (EventKind::BottomOut, "concrete")]
+    {
+        let event = CarEvent {
+            sound_profile: 0,
+            kind,
+            surface: SurfaceTable::hash_of(surface),
+            magnitude: 0.5,
+            front: true,
+            smackable: false,
+            position: Vec3::ZERO,
+        };
+        let before = audio.impact_counter;
+        audio.play_impact(&mut car, &event, &input, &view);
+        assert!(audio.impact_counter > before, "installed {kind:?} must select its authored stitch");
+        let mut recorded = Vec::new();
+        for _ in 0..180 {
+            car.impacts.update(&mut audio, 1.0 / 60.0, 0.0, &input, &view, (1.0, 0));
+            recorded.extend_from_slice(audio.render_replay(800));
+        }
+        assert_eq!(car.impacts.active_count(), 0, "{kind:?} pieces release");
+        let levels = capture::levels(&recorded);
+        eprintln!("{kind:?} stitch: {levels:?}");
+        assert!(levels.rms > 0.0001);
+        assert_eq!(levels.over_full_scale, 0);
+        assert!(audio.missing.is_empty());
+        if let Some(dir) = std::env::var_os("NFSMW_AUDIO_CAPTURE_DIR") {
+            capture::write_float(
+                &std::path::PathBuf::from(dir).join(format!("impact-{kind:?}.wav")),
+                &recorded,
+                48_000,
+                2,
+            );
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires installed audio banks; set NFSMW_GAME_DIR"]
+fn installed_detaching_props_emit_their_own_profile_effects() {
+    let mut audio = Audio::replay(install(), 48_000);
+    let db = audio.database().unwrap();
+    let other = SurfaceTable::hash_of("carbody");
+    let default = SurfaceTable::hash_of("default");
+    let candidates: Vec<_> = db
+        .collections_of("smackable")
+        .filter_map(|collection| {
+            let rules = nfsmw_data::sound::CollisionSounds::prop(&db, collection.key());
+            let rule = rules.rule(EventKind::Detached, other, default, false)?;
+            if !rule.minimum.is_finite() || !rule.maximum.is_finite() || rule.maximum <= rule.minimum {
+                return None;
+            }
+            Some((
+                collection.key(),
+                collection.name().unwrap_or("unnamed").to_owned(),
+                (rule.minimum + rule.maximum) * 0.5,
+            ))
+        })
+        .collect();
+    assert!(!candidates.is_empty(), "installed props must retain OnDetached audio links");
+    let input = CarInput::default();
+    audio.drive_car(Some(&state("BMWM3GTR", input, vec![])), 1.0 / 60.0);
+    let mut car = audio.car.take().unwrap();
+    let mut feed = contacts::ContactPlayback::default();
+    for (profile, name, speed) in candidates.into_iter().take(5) {
+        let event = CarContact {
+            sound_profile: profile,
+            detached: true,
+            identity: u64::from(profile),
+            surface: other,
+            velocity: Vec3::X * speed.max(1.01),
+            normal: Vec3::NEG_X,
+            delta_v: 0.1,
+            source: ContactSource::Object,
+            front: false,
+            ..contact()
+        };
+        let events = feed.observe(&mut audio, &car.sound, car.mixer.as_ref(), &[event], 1.0 / 60.0);
+        assert_eq!(events.len(), 1, "{name} detachment must emit one owned hit");
+        assert_eq!(events[0].sound_profile, profile);
+        assert_eq!(events[0].kind, EventKind::Detached);
+        audio.play_impact(&mut car, &events[0], &input, &AudioView::default());
+        assert!(car.impacts.active_count() > 0);
+        let mut recorded = Vec::new();
+        for _ in 0..180 {
+            car.impacts.update(&mut audio, 1.0 / 60.0, 0.0, &input, &AudioView::default(), (1.0, 0));
+            recorded.extend_from_slice(audio.render_replay(800));
+        }
+        let levels = capture::levels(&recorded);
+        eprintln!("{name} prop-owned detachment: {levels:?}");
+        assert!(levels.rms > 0.0001);
+        assert_eq!(levels.over_full_scale, 0);
+        assert_eq!(car.impacts.active_count(), 0);
     }
 }

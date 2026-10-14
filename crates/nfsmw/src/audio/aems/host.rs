@@ -14,6 +14,7 @@ pub struct VoiceStatus {
 
 /// One playing sound. Dropping it ends the sound.
 pub trait Voice {
+    fn set_channels(&mut self, _channels: u16) {}
     fn set_effects(&mut self, _effects: VoiceEffects) {}
     fn set_gain(&mut self, gain: f32);
     /// The playback rate, 1 = natural.
@@ -48,6 +49,9 @@ impl VoiceEffects {
 
 /// The sound output the modules play through.
 pub trait Sampler {
+    fn channels(&self, _bank: &str, _index: usize) -> u16 {
+        1
+    }
     /// Bank sound `index` (counted as in the bank's `BNKl`) of the bank at `bank`, relative to `SOUND/`.
     fn sound(&mut self, bank: &str, index: usize) -> Result<StaticSoundData, String>;
     /// Starts `data` at `gain` (linear) and playback rate `rate`.
@@ -123,6 +127,7 @@ impl Host for PartHost<'_> {
             self.voices.failed = true;
             return false;
         };
+        voice.set_channels(self.sampler.channels(self.bank, entry.index as usize));
         voice.set_effects(VoiceEffects::read(inputs));
         if self.voices.slots.len() <= player {
             self.voices.slots.resize_with(player + 1, || None);

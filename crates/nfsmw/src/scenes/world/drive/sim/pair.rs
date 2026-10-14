@@ -74,6 +74,8 @@ impl CarSim {
         let relative = self.body().point_velocity(contact.point) - other.body().point_velocity(contact.point);
         let closing = relative.length();
         let sound = crate::audio::CarContact {
+            sound_profile: 0,
+            detached: false,
             source: crate::audio::ContactSource::Object,
             identity: other.sound_identity,
             surface: surface_b,
