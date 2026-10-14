@@ -4,11 +4,12 @@
 use std::rc::Rc;
 
 use blackbox_collision::CollisionWorld;
+use blackbox_pursuit::wave::{Slot, pick_needed};
 use blackbox_roads::{LaneType, NavKind, RandomSource, RoadNav, SegmentFilter};
 use blackbox_vehicle::performance::Performance;
 use glam::Vec3;
 use nfsmw_data::car::physics::SurfaceTable;
-use nfsmw_data::pursuit::HeatRow;
+use nfsmw_data::pursuit::{HeatRow, ground_cops};
 
 use super::car::{AiCar, Role, Start};
 use super::cop::{CopCar, CopState};
@@ -31,45 +32,60 @@ const MIN_GAP: f32 = 40.0;
 const LOST_DISTANCE: f32 = 500.0;
 /// A cop starts rolling at this speed, m/s.
 const START_SPEED: f32 = 15.0;
-/// The helicopter record of a wave is not a car.
-const HELICOPTER: &str = "copheli";
-
 /// A cop car model with what limits how fast an AI drives it.
 pub struct CopModel {
     pub model: TrafficModel,
     pub car: CopCar,
 }
 
-/// The chase: the heat row of the wave and the spawn bookkeeping.
+/// The chase: the heat rows of all levels, the heat it is at, and the spawn bookkeeping. The wave is the row of the
+/// current heat, so a rise in heat brings the cop types of the higher row.
 pub struct Pursuit {
     pub heat: u32,
-    row: HeatRow,
+    /// The rows of the heat levels, index = level - 1 (`nfsmw_data::pursuit::heat_rows`).
+    rows: Vec<HeatRow>,
     player: Performance,
     spawn_timer: f32,
     involved: u32,
 }
 
 impl Pursuit {
-    pub fn new(heat: u32, row: HeatRow, player: Performance) -> Self {
-        Self { heat, row, player, spawn_timer: 0.0, involved: 0 }
+    pub fn new(heat: u32, rows: Vec<HeatRow>, player: Performance) -> Self {
+        Self { heat, rows, player, spawn_timer: 0.0, involved: 0 }
     }
 
-    /// The car types of the wave (without the helicopter) with how many of each.
+    /// The row of the heat the chase is at now; `None` when there are no rows.
+    pub fn row(&self) -> Option<&HeatRow> {
+        let last = self.rows.len().checked_sub(1)?;
+        self.rows.get((self.heat.max(1) as usize - 1).min(last))
+    }
+
+    /// Follows the police heat level: a new level takes effect at once. Returns true when the level changed.
+    pub fn follow_heat(&mut self, level: u32) -> bool {
+        if level == self.heat {
+            return false;
+        }
+        self.heat = level;
+        true
+    }
+
+    /// The car types of the wave at the current heat (without the helicopter) with how many of each.
     pub fn wave(&self) -> impl Iterator<Item = (&str, u32, u32)> {
-        self.row.cops.iter().filter(|c| c.name != HELICOPTER).map(|c| (c.name.as_str(), c.count, c.chance))
+        self.row().into_iter().flat_map(ground_cops).map(|c| (c.name.as_str(), c.count, c.chance))
     }
 
     /// How many cops the chase wants now: the whole wave, but no more than the cops still to evade.
     pub fn wanted(&self) -> usize {
+        let Some(row) = self.row() else { return 0 };
         let nominal: u32 = self.wave().map(|w| w.1).sum();
-        (nominal.min(self.row.full_engagement_cops.max(1)) as usize).min(MAX_COPS)
+        (nominal.min(row.full_engagement_cops.max(1)) as usize).min(MAX_COPS)
     }
 }
 
 impl TrafficWorld {
-    /// Starts a chase at `heat` with the wave of `row`; `player` is how the player's car performs.
-    pub fn start_pursuit(&mut self, heat: u32, row: HeatRow, player: Performance) {
-        self.pursuit = Some(Pursuit::new(heat, row, player));
+    /// Starts a chase at `heat` with the wave rows `rows` (one per level); `player` is how the player's car performs.
+    pub fn start_pursuit(&mut self, heat: u32, rows: Vec<HeatRow>, player: Performance) {
+        self.pursuit = Some(Pursuit::new(heat, rows, player));
         self.police.begin(heat);
     }
 
@@ -111,38 +127,37 @@ impl TrafficWorld {
             let p = car.position();
             !car.is_cop() || (p.x - focus.position[0]).hypot(p.y - focus.position[1]) < LOST_DISTANCE
         });
+        let level = self.police.level();
         let Some(pursuit) = self.pursuit.as_mut() else { return };
+        if let Some(level) = level
+            && pursuit.follow_heat(level)
+        {
+            let wave: Vec<&str> = pursuit.wave().map(|w| w.0).collect();
+            log::info!("pursuit: heat {level}, the wave is now {}", wave.join(", "));
+        }
         pursuit.spawn_timer -= sim_dt;
         let alive = self.cars.iter().filter(|c| c.is_cop()).count();
         if alive >= pursuit.wanted() || pursuit.spawn_timer > 0.0 {
             return;
         }
-        // The next type, weighted by its chance among those the wave still needs.
-        let mut weights: Vec<(String, u32)> = Vec::new();
-        for (name, count, chance) in pursuit.wave() {
-            let have = self.cars.iter().filter(|c| c.is_cop() && c.name.eq_ignore_ascii_case(name)).count() as u32;
-            if have < count {
-                weights.push((name.to_owned(), chance.max(1)));
-            }
-        }
-        let total: u32 = weights.iter().map(|w| w.1).sum();
-        if total == 0 {
+        // The next type of the current wave, weighted by its chance among those the wave still needs.
+        let pick = {
+            let slots: Vec<Slot> = pursuit.wave().map(|(name, count, chance)| Slot { name, count, chance }).collect();
+            let have =
+                |name: &str| self.cars.iter().filter(|c| c.is_cop() && c.name.eq_ignore_ascii_case(name)).count();
+            let roll = self.rng.next_f32();
+            pick_needed(&slots, |name| have(name) as u32, roll).map(|i| slots[i].name.to_owned())
+        };
+        let Some(name) = pick else { return };
+        let Some((first_four, later)) =
+            pursuit.row().map(|r| (r.time_between_first_four_spawns, r.time_between_cop_spawns))
+        else {
             return;
-        }
-        let mut roll = (self.rng.next_f32() * total as f32) as u32;
-        let name = weights
-            .iter()
-            .find(|(_, w)| {
-                let hit = roll < *w;
-                roll = roll.saturating_sub(*w);
-                hit
-            })
-            .map(|w| w.0.clone())
-            .unwrap_or_else(|| weights[0].0.clone());
+        };
         let involved = pursuit.involved;
         let delay = match involved < 3 {
-            true => pursuit.row.time_between_first_four_spawns,
-            false => pursuit.row.time_between_cop_spawns,
+            true => first_four,
+            false => later,
         };
         let performance = pursuit.player;
         if self.spawn_cop(&name, focus, player.position, performance, collision, surfaces)
