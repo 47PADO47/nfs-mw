@@ -2,6 +2,10 @@
 //! Numeric values are checked against an inclusive range. Pure text in, values out: no file access
 //! and no knowledge of any game.
 
+pub mod levels;
+
+pub use levels::{read_levels, section_name};
+
 /// One `Key = value` line under its section, with the names and the value as written.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Entry {
