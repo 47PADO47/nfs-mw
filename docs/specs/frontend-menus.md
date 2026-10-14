@@ -150,10 +150,18 @@ with the usual animation. Back on the key list returns to the categories (`Comma
 they remember, so the key list sits on no screen beneath it. The pause menu has the same six icons, Player greyed out.
 
 **Online is not listed (decomp, ours).** The original adds Online only in online mode, which this build never is, so
-the offline list is Audio to Credits, without Online, plus Control Options. `MainMenu_Sub.fng` has twelve option
-objects: two book ends at each end and eight entries, which this list fills exactly. The greyed-out Online entry
-(texture `0x5A5E5137`, `OMOnline`) is therefore gone; the main menu lists it instead (2.1). The categories fill
-`MainMenu_Sub.fng`'s twelve objects exactly, so they do not window; a longer list would window over them (see "Windowing" in section 2).
+the offline list is Audio to Credits, without Online, plus Control Options and Discord (below). The greyed-out Online
+entry (texture `0x5A5E5137`, `OMOnline`) is therefore gone; the main menu lists it instead (2.1). `MainMenu_Sub.fng`
+has twelve option objects. With nine entries and the four book ends the strip is 13 entries long, so the row windows
+over the objects (see "Windowing" in section 2). The pause menu's seven entries window too wherever its package has
+fewer objects than the strip has entries (eleven).
+
+**Discord category (ours).** Discord Rich Presence has its own category after Control Options, with its own icon: a
+white Discord mark (`assets/discord/discord.png`, Simple Icons, CC0; see NOTICE), bundled and registered as texture
+`0xE0C0_0002` (`ui/discord_icon.rs`, next to the input atlas `0xE0C0_0001`). Its header reads "Discord". The icon
+opens `Options.fng` (pause: `Pause_Options.fng`) with category `Discord`, which shows the two toggles: Discord Rich
+Presence (`discord`) and Show Time Played (`discord_time_played`, dimmed while Discord is off). These rows left the
+Gameplay category (`options_rows.rs`); the toggles themselves are unchanged. The mark is drawn whole (full-image uv).
 
 **Icon textures.** `UIOptionsMain::Setup` adds each category as `OMxxx(texture, label, 0)`:
 `OMAudio(0xF37AF144, 0xE76CD783, 0)` and `OMPlayer(0xD708EFEF, 0xF760EABE, 0)` **[decomp]**. The Audio pair is the one
@@ -230,7 +238,8 @@ data string that cycles through values) or a *slider*.
   highlight script and, through the row messages, shows the arrows and moves the cursor group (`POSn`). The data
   string and the slider objects get `HIGHLIGHT` / `UNHIGHLIGHT` from the screen.
 - **Header.** `HEADERTEXT` (`0x42ADB44C`) gets the category title label (Audio `0x3932C2E4`, Video `0x48478029`,
-  Gameplay `0x01CCE8C2`; from the pause menu `0xB1426DFA`, `0xD94EA03F`, `0x3936D9F8`).
+  Gameplay `0x01CCE8C2`; from the pause menu `0xB1426DFA`, `0xD94EA03F`, `0x3936D9F8`). Controls and Discord have no
+  label: their header is text (`Control Options`, `Discord`).
 
 The original audio rows are: Sound Effects Volume (`0xFD487543`), Car Volume (`0x218E4B08`), Speech Volume
 (`0x9E5FB82A`), Menu Music Volume (`0x418E681D`), Game Music Volume (`0xDF21EAC2`), Interactive Music
@@ -256,6 +265,8 @@ screens, labels and behaviour where a label exists:
 | Video | Performance Overlay | none, plain text | `show_metrics` (Off, Basic, Advanced) |
 | Gameplay | Gauges | `0xAC148579` | `hud` (On / Off) |
 | Gameplay | Transmission | `0xD31407E7` | `transmission` (Auto `0x8CD532A0` / Manual `0x317D3005`; left and right both toggle) |
+| Discord | Discord Rich Presence | none, plain text | `discord` (On / Off; ours) |
+| Discord | Show Time Played | none, plain text | `discord_time_played` (On / Off, dimmed while `discord` is off; ours) |
 
 A row can be disabled by its setting's `enabled` rule (`frontend/options.rs`). A disabled row stays selectable and shows its value dimmed (alpha 110), but left and right do nothing and nothing is saved. Frame Limit is disabled while Vsync is on.
 
@@ -290,3 +301,6 @@ Career and Quick Race both start free roam with the stock car. Free roam starts 
    row positions of the option screens.
 4. `nfsmw view-screen MainMenu_Sub.fng --options --ui-script "wait 1;right;right;right;right;accept;wait 3"` shows the
    keyboard list (Controls). With one more `right` and `accept` instead, the sensitivity rows show (Control Options).
+5. `nfsmw view-screen MainMenu_Sub.fng --options --ui-script "wait 1;right;right;right;right;right;right;wait 1"` shows
+   the Discord icon selected in the strip (titled "Discord"). With `accept` added before the last wait, the Discord
+   sub-screen shows its two toggles (`nfsmw view-screen Options.fng --category discord` opens it directly).
