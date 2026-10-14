@@ -11,6 +11,9 @@ Status: the go/no-go spike. It draws the world path only (textures, meshes, inst
 test, blending, sky, headless capture). See [docs/bevy-backend.md](../../docs/bevy-backend.md) for the design,
 the measured results and the known gaps.
 
+Dynamic cascaded spatially filtered sun shadows are optional through `GraphicsSettings.shadows`; see
+[soft shadows](../../docs/soft-shadows.md) for controls, quality levels and lighting limitations.
+
 ## Using it
 
 ```rust

@@ -95,6 +95,7 @@ impl Plugin for BlackboxBevyRenderPlugin {
         app.init_resource::<BlackboxBridge>().init_resource::<WorldState>().add_systems(
             PostUpdate,
             apply::apply
+                .before(bevy_light::SimulationLightSystems::UpdateDirectionalLightCascades)
                 .before(AssetEventSystems)
                 .before(VisibilitySystems::VisibilityPropagate)
                 .before(VisibilitySystems::CheckVisibility),

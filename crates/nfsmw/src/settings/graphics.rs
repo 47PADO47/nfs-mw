@@ -12,6 +12,7 @@ impl Settings {
     pub fn graphics(&self) -> GraphicsSettings {
         GraphicsSettings {
             reflections: self.reflections,
+            shadows: self.shadows,
             post: post_effects(self),
             upscaler: self.upscaler.upscaler(),
             render_scale: self.render_scale.factor(),

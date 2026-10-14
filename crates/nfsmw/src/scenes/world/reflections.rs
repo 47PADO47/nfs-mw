@@ -58,6 +58,7 @@ impl WorldScene {
         for face in 0..6 {
             let frame = face_frame(origin, face, &template);
             let camera = visibility::Camera {
+                light_dir: super::sun::DIRECTION.to_array(),
                 view_proj: frame.view_proj(),
                 position: origin.to_array(),
                 forward: frame.view.inverse().transform_vector3(Vec3::NEG_Z).to_array(),

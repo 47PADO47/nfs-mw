@@ -5,6 +5,8 @@
 
 pub mod ao;
 pub use ao::{AoQuality, AoSettings};
+pub mod shadows;
+pub use shadows::ShadowQuality;
 pub mod post;
 pub mod ray_tracing;
 pub mod render_scale;
@@ -32,6 +34,7 @@ pub struct GraphicsSettings {
     pub post: PostSettings,
     pub reflections: crate::ReflectionQuality,
     pub ao: AoSettings,
+    pub shadows: ShadowQuality,
     pub upscaler: Upscaler,
     /// Sets the render size of a temporal upscaler.
     pub upscale_quality: UpscaleQuality,
@@ -48,6 +51,7 @@ impl Default for GraphicsSettings {
             post: PostSettings::default(),
             reflections: crate::ReflectionQuality::Off,
             ao: AoSettings::default(),
+            shadows: ShadowQuality::Off,
             upscaler: Upscaler::default(),
             upscale_quality: UpscaleQuality::default(),
             render_scale: DEFAULT_RENDER_SCALE,

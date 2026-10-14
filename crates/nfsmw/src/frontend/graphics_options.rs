@@ -13,17 +13,19 @@ pub enum GraphicsSetting {
     CarShading,
     VisualTreatment,
     Reflections,
+    Shadows,
     AmbientOcclusion,
     AoIntensity,
     AoComparison,
 }
 
 impl GraphicsSetting {
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::Preset,
         Self::CarShading,
         Self::VisualTreatment,
         Self::Reflections,
+        Self::Shadows,
         Self::AmbientOcclusion,
         Self::AoIntensity,
         Self::AoComparison,
@@ -31,6 +33,7 @@ impl GraphicsSetting {
 
     pub fn shown(self, caps: &Capabilities) -> bool {
         match self {
+            Self::Shadows => caps.soft_shadows,
             Self::VisualTreatment => caps.scene_treatment,
             Self::Reflections => caps.local_reflections,
             Self::AmbientOcclusion | Self::AoIntensity | Self::AoComparison => caps.ambient_occlusion,
@@ -42,7 +45,7 @@ impl GraphicsSetting {
         match self {
             Self::Reflections => s.car_shading == CarShading::Glossy,
             Self::AoIntensity | Self::AoComparison => s.ao != AoQuality::Off,
-            Self::Preset | Self::CarShading | Self::VisualTreatment | Self::AmbientOcclusion => true,
+            Self::Preset | Self::CarShading | Self::VisualTreatment | Self::AmbientOcclusion | Self::Shadows => true,
         }
     }
 
@@ -52,6 +55,7 @@ impl GraphicsSetting {
             Self::CarShading => "Car Shading",
             Self::VisualTreatment => "Visual Treatment (Experimental)",
             Self::Reflections => "Car Reflections",
+            Self::Shadows => "Dynamic Soft Shadows",
             Self::AmbientOcclusion => "Ambient Occlusion (Experimental)",
             Self::AoIntensity => "AO Intensity",
             Self::AoComparison => "AO Comparison",
@@ -85,6 +89,12 @@ impl GraphicsSetting {
                 Self::CarShading => match s.car_shading {
                     CarShading::Simple => "Simple",
                     CarShading::Glossy => "Glossy",
+                },
+                Self::Shadows => match s.shadows {
+                    crate::settings::ShadowQuality::Off => "Off",
+                    crate::settings::ShadowQuality::Low => "Low",
+                    crate::settings::ShadowQuality::Medium => "Medium",
+                    crate::settings::ShadowQuality::High => "High",
                 },
                 Self::AmbientOcclusion => match s.ao {
                     AoQuality::Off => "Off",
@@ -138,6 +148,10 @@ impl GraphicsSetting {
                 };
                 changed.car_shading = Some(s.car_shading);
             }
+            Self::Shadows => {
+                s.shadows = super::post_options::pick(&crate::settings::ShadowQuality::ALL, s.shadows, forward);
+                changed.shadows = Some(s.shadows);
+            }
             Self::AmbientOcclusion => {
                 let at = AoQuality::ALL.iter().position(|q| *q == s.ao).unwrap_or(0);
                 let offset = match forward {
@@ -167,6 +181,17 @@ impl GraphicsSetting {
 mod tests {
     use super::super::options::Setting;
     use super::*;
+
+    #[test]
+    fn shadows_are_shown_only_on_supported_renderers_and_record_changes() {
+        let mut s = Settings::from(Partial::default());
+        let mut changed = Partial::default();
+        assert!(!GraphicsSetting::Shadows.shown(&crate::settings::test_caps::native()));
+        assert!(GraphicsSetting::Shadows.shown(&crate::settings::test_caps::full()));
+        assert!(GraphicsSetting::Shadows.step(&mut s, &mut changed, true));
+        assert_eq!(s.shadows, crate::settings::ShadowQuality::Low);
+        assert_eq!(changed.shadows, Some(crate::settings::ShadowQuality::Low));
+    }
 
     #[test]
     fn ao_rows_cycle_clamp_and_persist_independently() {

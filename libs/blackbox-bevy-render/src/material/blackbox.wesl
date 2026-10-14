@@ -9,8 +9,9 @@
 
 import bevy_pbr::render::{
     mesh_functions::{get_world_from_local, mesh_position_local_to_world, mesh_normal_local_to_world},
-    mesh_view_bindings::view,
+    mesh_view_bindings::{view, lights},
     view_transformations::position_world_to_clip,
+    shadows::fetch_directional_shadow,
 };
 
 struct Params {
@@ -20,6 +21,8 @@ struct Params {
     fog_range: vec4<f32>,
     // xyz: the direction the light travels (Bevy axes).
     light_dir: vec4<f32>,
+    // x: bridge display-authored colours into the ACES scene range.
+    tone_map: vec4<f32>,
 };
 
 // Glossy shading's own uniforms. Every material carries them (the rig and environment are shared,
@@ -89,6 +92,28 @@ fn linear_from_gamma(c: vec3<f32>) -> vec3<f32> {
     return select(high, low, c <= vec3<f32>(0.04045));
 }
 
+fn gamma_from_linear(c: vec3<f32>) -> vec3<f32> {
+    let low = c * 12.92;
+    let high = 1.055 * pow(max(c, vec3(0.0)), vec3(1.0 / 2.4)) - 0.055;
+    return select(high, low, c <= vec3(0.0031308));
+}
+
+// Match the authored SDR neutral levels to ACES, reserving 10% display-linear highlight headroom.
+// The neutral RRT/ODT fit is Bevy's ACES fitted curve; see material/color.rs for the CPU clear colour.
+fn scene_from_gamma(gamma: vec3<f32>) -> vec3<f32> {
+    let linear = linear_from_gamma(max(gamma, vec3(0.0)));
+    if params.tone_map.x == 0.0 {
+        return linear;
+    }
+    let y = min(linear, vec3(1.0)) * 0.9;
+    let a = 1.0 - 0.983729 * y;
+    let b = 0.0245786 - 0.432951 * y;
+    let c = 0.000090537 + 0.238081 * y;
+    let reference = (-b + sqrt(b * b + 4.0 * a * c)) / (2.0 * a);
+    let scene = reference * (1.0 + max(linear - 1.0, vec3(0.0)));
+    return select(scene, vec3(0.0), linear <= vec3(0.0));
+}
+
 struct Shaded {
     rgb: vec3<f32>,
     // The texture's own alpha, for the alpha test.
@@ -96,6 +121,33 @@ struct Shaded {
     // Texture alpha times the material's diffuse alpha, for blending.
     alpha: f32,
 };
+
+// The bridge creates at most one directional light; no light means shadows are off.
+fn sun_visibility(in: VertexOutput) -> f32 {
+    @if(!RECEIVE_SHADOWS) {
+        return 1.0;
+    }
+    @else {
+    if lights.n_directional_lights == 0u {
+        return 1.0;
+    }
+    let view_z = (view.view_from_world * vec4(in.world, 1.0)).z;
+    let light = lights.directional_lights[0];
+    if light.num_cascades == 0u {
+        return 1.0;
+    }
+    let far = light.cascades[light.num_cascades - 1u].far_bound;
+    // Fade before the last cascade ends, including its overlap. Beyond it, avoid a map lookup.
+    let fade = smoothstep(0.75 * far, far, -view_z);
+    if fade >= 1.0 {
+        return 1.0;
+    }
+    // Some prelit geometry has no authored normal; zero must not become NaN in the bias.
+    let normal = in.normal * inverseSqrt(max(dot(in.normal, in.normal), 1e-8));
+    let visibility = fetch_directional_shadow(0u, vec4(in.world, 1.0), normal, view_z, in.clip.xy);
+    return mix(visibility, 1.0, fade);
+    }
+}
 
 // Three lights, a sun highlight and an environment reflection, every ramp driven by how much the
 // surface faces the viewer; ported from the native renderer's shaders/glossy.wgsl (see
@@ -110,7 +162,8 @@ fn shade_glossy(in: VertexOutput) -> Shaded {
     let occlusion = saturate(2.0 * in.color.r);
 
     var light = rig.ambient.xyz;
-    light += saturate(dot(n, rig.light0_dir.xyz) + 0.1) * rig.light0_color.xyz;
+    let shadow = sun_visibility(in);
+    light += shadow * saturate(dot(n, rig.light0_dir.xyz) + 0.1) * rig.light0_color.xyz;
     light += saturate(dot(n, rig.light1_dir.xyz) + 0.1) * rig.light1_color.xyz;
     light += saturate(dot(n, rig.light2_dir.xyz) + 0.1) * rig.light2_color.xyz;
 
@@ -134,7 +187,7 @@ fn shade_glossy(in: VertexOutput) -> Shaded {
 
     var out: Shaded;
     out.rgb = occlusion * light * diff.rgb * tex.rgb
-        + glint * diff.a * occlusion * spec
+        + shadow * glint * diff.a * occlusion * spec
         + env * (occlusion * env_strength * diff.a * 0.5);
     out.texture_alpha = tex.a;
     out.alpha = tex.a * diff.a;
@@ -155,13 +208,21 @@ fn shade(in: VertexOutput) -> vec4<f32> {
     @if(PRELIT) {
         // Pre-lit geometry: vertex colours use 0x80 for full brightness.
         lit = min(base.rgb * 2.0, vec3<f32>(1.0));
+        if params.tone_map.x != 0.0 {
+            lit = base.rgb * 2.0;
+        }
+        @if(FOG) {
+            // Prelit scenery has no separable direct term. Retain its baked ambient light.
+            // Modulate radiance, not display bytes: 35% ambient must not become ~10% radiance.
+            lit = gamma_from_linear(linear_from_gamma(lit) * (0.35 + 0.65 * sun_visibility(in)));
+        }
     }
     @else {
         let n = normalize(in.normal);
         let diffuse_light = max(dot(n, -params.light_dir.xyz), 0.0);
         // Thin parts are often seen from behind: give back faces a little light.
         let back_light = max(dot(-n, -params.light_dir.xyz), 0.0) * 0.25;
-        lit = base.rgb * (0.35 + 0.65 * diffuse_light + back_light);
+        lit = base.rgb * (0.35 + sun_visibility(in) * (0.65 * diffuse_light + back_light));
     }
     var fog = 0.0;
     @if(FOG) {
@@ -181,10 +242,10 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
             }
         }
         @if(OPAQUE_ALPHA) {
-            return vec4<f32>(linear_from_gamma(c.rgb), 1.0);
+            return vec4<f32>(scene_from_gamma(c.rgb), 1.0);
         }
         @else {
-            return vec4<f32>(linear_from_gamma(c.rgb), c.alpha);
+            return vec4<f32>(scene_from_gamma(c.rgb), c.alpha);
         }
     }
     @else {
@@ -195,10 +256,10 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
             }
         }
         @if(OPAQUE_ALPHA) {
-            return vec4<f32>(linear_from_gamma(c.rgb), 1.0);
+            return vec4<f32>(scene_from_gamma(c.rgb), 1.0);
         }
         @else {
-            return vec4<f32>(linear_from_gamma(c.rgb), c.a);
+            return vec4<f32>(scene_from_gamma(c.rgb), c.a);
         }
     }
 }

@@ -126,6 +126,7 @@ impl RenderBackend for BevyBackend {
         let effective = resolved.effective;
         self.set_camera(|settings| {
             settings.post = effective.post;
+            settings.shadows = effective.shadows;
             settings.upscaler = effective.upscaler;
             settings.upscale_sharpness = effective.upscale_sharpness;
             settings.render_scale = effective.render_scale;

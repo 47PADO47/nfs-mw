@@ -11,6 +11,7 @@ use blackbox_gfx::{
 pub fn full() -> Capabilities {
     Capabilities {
         renderer: "bevy",
+        soft_shadows: true,
         antialiasing: AaSet::all(),
         upscalers: UpscalerSet::all(),
         ray_tracing: RtSupport::Available { denoiser: Some(Denoiser::DlssRr) },
@@ -33,6 +34,7 @@ pub fn native() -> Capabilities {
         scene_treatment: true,
         local_reflections: true,
         ambient_occlusion: true,
+        soft_shadows: false,
         ray_tracing: RtSupport::None,
         render_scale: Capabilities::full_render_scale(),
         restart_required: RestartSet::empty(),

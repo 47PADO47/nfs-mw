@@ -89,6 +89,7 @@ impl WorldScene {
             fog_distance: options.fog_distance,
             visible: Vec::new(),
             rear_visible: Vec::new(),
+            shadow_quality: blackbox_gfx::ShadowQuality::Off,
             shadow_casters: Vec::new(),
             original_shadows: true,
             colour_treatment,
