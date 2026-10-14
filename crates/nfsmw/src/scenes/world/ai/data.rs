@@ -2,7 +2,7 @@
 
 use blackbox_attrib::Database;
 use blackbox_roads::{TrackZones, to_zone_space};
-use nfsmw_data::pursuit::{heat_row, patrol_speeds_mph};
+use nfsmw_data::pursuit::{ground_cops, heat_row, patrol_speeds_mph};
 use nfsmw_data::traffic::{TrafficPattern, pattern_hash, patterns};
 
 use super::manager::Rule;
@@ -13,9 +13,6 @@ use super::{PatrolPlan, Pattern, Patterns, TrafficWorld};
 const PATTERN_ZONE: u32 = 9;
 /// The heat level whose wave patrols the streets: the first one.
 const PATROL_HEAT: u32 = 1;
-/// The helicopter record of a pursuit wave is not a car.
-const HELICOPTER: &str = "copheli";
-
 fn pattern_of(p: &TrafficPattern) -> Pattern {
     Pattern {
         name: p.name.clone(),
@@ -45,8 +42,8 @@ pub fn build_patterns(db: &Database, zones: Option<TrackZones>) -> Option<Patter
 
 /// The patrol cops: the cars of the first heat level's wave, at the search-mode speeds.
 pub fn patrol_plan(db: &Database) -> Option<PatrolPlan> {
-    let cars: Vec<String> =
-        heat_row(db, PATROL_HEAT)?.cops.into_iter().filter(|c| c.name != HELICOPTER).map(|c| c.name).collect();
+    let row = heat_row(db, PATROL_HEAT)?;
+    let cars: Vec<String> = ground_cops(&row).map(|c| c.name.clone()).collect();
     let (city, highway) = patrol_speeds_mph(db);
     Some(PatrolPlan::new(cars, city, highway))
 }

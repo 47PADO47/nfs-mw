@@ -15,6 +15,7 @@ pub mod rules;
 pub mod sight;
 pub mod support;
 pub mod tactics;
+pub mod wave;
 
 pub use evade::Evade;
 pub use heat::Heat;

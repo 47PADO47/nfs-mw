@@ -29,3 +29,14 @@ test) would live in `libs/`; the Most Wanted specifics (the `pursuitlevels` tabl
   growth per second, spawn distances, rep points per kill).
 - **Known differences from the original:** none yet. Expected: the rewrite may use a fixed 4 Hz pursuit step in real seconds (the original
   runs it at a fraction of its sim rate); the cop budget and the helicopter are decided by the rewrite's milestones.
+
+## Wave re-pick on heat rise (E8 subtask d)
+
+- **Reversed from:** the existing `[decomp]` notes in `docs/specs/ai-pursuit.md` section 2 and `ai-pursuit-cops.md` section 4 (the
+  attribute instance is re-created when `int(heat)` changes and `CopRequest` reads the current row). A Ghidra cross-check was
+  attempted but not completed: `speed.exe` is ambiguous in the open programs and the symbol-name search returned no hits.
+- **Implemented as:** the chase holds all ten `heattable` rows and re-reads the wave each spawn decision (`nfsmw` `Pursuit::follow_heat`,
+  `blackbox_pursuit::wave::pick_needed`). Race rows are read by `nfsmw_data::pursuit::race_heat_row`; the chase does not yet know it is
+  inside a race event, so it still uses `heattable`.
+- **Not done:** surplus removal when heat falls or a type is over its count; heat growth rate is unchanged (`TIME_PER_LEVEL` in `police.rs`
+  is bin-independent and does not apply the career `ScaleEscalationPerBucket`).
