@@ -1,7 +1,9 @@
 //! The traffic world's side of the police: the per-frame update that reads the cars, the roads, the zones and the
 //! formation, and the helicopter's minimap blip. Child of `police`, so it reads the police state directly.
 
+use super::busted::bust_speed;
 use super::*;
+use blackbox_pursuit::busted::BustInput;
 
 impl super::super::TrafficWorld {
     /// Advances the police one frame: heat, infractions, the helicopter and the speed effects. The cops' sight comes
@@ -64,10 +66,24 @@ impl super::super::TrafficWorld {
             formation_gap: self.formation_gap(at, player.forward),
             support_random: self.rng.next_f32(),
         };
+        // The busted timer's inputs. `flashing` stays false until the post-reset blink exists (FairBusts, E12).
+        let bust = BustInput {
+            cop_distance: self.nearest_matched_cop(at),
+            seen: sensed.seen,
+            player_speed: player.speed.abs(),
+            slow_speed: bust_speed(level),
+            flashing: false,
+        };
         self.police.set_rig(self.helicopter_rig.clone());
         let evaded = self.police.update_in_world(dt, pursuing, player, sensed, clear);
         if evaded {
             log::info!("the player got away: the cops give up");
+            self.stop_pursuit();
+            return;
+        }
+        // The arrest scene (E8f) hangs off this: the pursuit ends busted and `is_busted` stays set until the next chase.
+        if self.police.tick_busted(dt, pursuing, bust) {
+            log::info!("the player is busted: the pursuit ends");
             self.stop_pursuit();
         }
     }

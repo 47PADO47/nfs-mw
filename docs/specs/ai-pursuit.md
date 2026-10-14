@@ -336,6 +336,10 @@ when no race is running or when the race is a pursuit race (`AllowStatsToAccumul
 - The HUD needs from the pursuit: in-pursuit flag, `pursuit_meter`/`time_until_busted`, `busted` flag, `evade_level`,
   `cooldown_remaining` and `cooldown_required - 7`, `time_until_backup`, pursuit duration, cops engaged/destroyed/damaged,
   heli involved, pending rep, cost to state (heat spec section 7).
+- Busted (implemented, E8a): the timer is `blackbox_pursuit::Busted` (`libs/blackbox-pursuit/src/busted.rs`) with the
+  constants in `crates/nfsmw/src/scenes/world/ai/police/busted.rs`. The world ends the pursuit on the bust frame and
+  keeps `is_busted` until the next chase. The HUD gets the meter as `HudState::busted`. The arrest camera and scene
+  (E8f) and the FairBusts reset state (E12, `flashing`) are not built. Values and gaps: `docs/provenance/ai-pursuit-busted.md`.
 - Hidden zones need the track-path zone data (`TrackPathManager` zones of type HIDDEN and PURSUIT_START); until that data
   is read, treat the perpetrator as never hidden.
 
