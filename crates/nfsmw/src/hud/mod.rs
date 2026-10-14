@@ -33,6 +33,7 @@ mod pursuit_end;
 mod pursuit_tests;
 mod radio;
 mod skin;
+mod speedbreaker;
 mod state;
 mod trax;
 mod viewport;

@@ -62,6 +62,7 @@ struct Output {
     manager: OutputManager,
     sfx: TrackHandle,
     music: TrackHandle,
+    music_filter: filter::CutoffHandle,
     engine: TrackHandle,
     wet: wet::Bus,
 }
@@ -332,9 +333,12 @@ impl Output {
             ..Default::default()
         })
         .map_err(|e| e.to_string())?;
-        let mut track = || manager.add_sub_track(TrackBuilder::new()).map_err(|e| e.to_string());
-        let (sfx, music, engine) = (track()?, track()?, track()?);
-        Ok(Self { manager: OutputManager::Device(Box::new(manager)), sfx, music, engine, wet })
+        let sfx = manager.add_sub_track(TrackBuilder::new()).map_err(|e| e.to_string())?;
+        let mut music_builder = TrackBuilder::new();
+        let music_filter = music_builder.add_effect(filter::MusicFilterBuilder);
+        let music = manager.add_sub_track(music_builder).map_err(|e| e.to_string())?;
+        let engine = manager.add_sub_track(TrackBuilder::new()).map_err(|e| e.to_string())?;
+        Ok(Self { manager: OutputManager::Device(Box::new(manager)), sfx, music, music_filter, engine, wet })
     }
 }
 

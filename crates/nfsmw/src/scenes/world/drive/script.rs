@@ -2,7 +2,8 @@
 //!
 //! `"3:throttle=1;2:throttle=1,steer=0.4;1:brake=1"` holds each input set for that many seconds.
 //! Keys: `throttle`, `brake`, `steer` (-1..1), `handbrake`, `nos` (0 or 1), `up` and `down` (a gear
-//! shift at the start of the segment), `reset` (back to the nearest road at the start of it), `pop` (one sputter
+//! shift at the start of the segment), `speedbreaker` (the gameplay toggle button),
+//! `reset` (back to the nearest road at the start of it), `pop` (one sputter
 //! pop for the exhaust flames at the start of it, as the sound would report). A segment without keys coasts.
 
 use super::clock::STEP;
@@ -38,13 +39,14 @@ impl DriveScript {
                     "steer" => input.steer = n.clamp(-1.0, 1.0),
                     "handbrake" => input.handbrake = n > 0.5,
                     "nos" => input.nos = n > 0.5,
+                    "speedbreaker" => input.speedbreaker = n > 0.5,
                     "up" => input.shift_up = n > 0.5,
                     "down" => input.shift_down = n > 0.5,
                     "reset" => input.reset = n > 0.5,
                     "pop" => input.pop = n > 0.5,
                     other => {
                         return Err(format!(
-                            "unknown key {other:?} (throttle brake steer handbrake nos up down reset pop)"
+                            "unknown key {other:?} (throttle brake steer handbrake nos speedbreaker up down reset pop)"
                         ));
                     }
                 }
@@ -105,6 +107,10 @@ mod tests {
 
     #[test]
     fn flags_and_shifts() {
+        let breaker = DriveScript::parse("1:speedbreaker;1;1:speedbreaker").unwrap();
+        assert!(breaker.input_at(0.5).speedbreaker);
+        assert!(!breaker.input_at(1.5).speedbreaker);
+        assert!(breaker.input_at(2.5).speedbreaker);
         let script = DriveScript::parse("1:throttle,up,nos;1:handbrake=1").unwrap();
         let a = script.input_at(0.0);
         assert!(a.shift_up && a.nos && a.throttle == 1.0);

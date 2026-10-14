@@ -14,7 +14,15 @@ The original game has seven gameplay views, all now in the game as settings: **b
 **far**, **superfar**, **drift** and **pursuit**. The game's default is **far**. They are placed from the install's
 own values. The chase and dynamic-FOV cameras are the game's earlier settings and are kept.
 
-Still unconfirmed (see [Unconfirmed](#unconfirmed)): the speed curve between the rest and speed values, the sign
+PC recheck on 2026-10-14 corrected a previous interpretation: the two values
+are fullscreen and horizontal split-screen, not rest and speed endpoints.
+The current single-player host selects slot zero at every vehicle speed.
+Native GetPov divides spatial LAG by Speedbreaker zoom and multiplies FOV by
+it. The Cubic target consumer uses LAG as forward eye offset; both changes
+are required together. The custom chase adapter applies this paired target
+change to its existing horizontal offset, without claiming native Cubic follow.
+
+Still unconfirmed (see [Unconfirmed](#unconfirmed)): native speed-dependent follow/noise graphs, the sign
 of the offset, whether the field of view is vertical, what two of the fields and one zero field do, and the use of
 stiffness. Those are the first things to check in the game.
 
@@ -38,11 +46,11 @@ The mapping was checked on all 100 `ecar` collections: their 700 camera referenc
 the table, either to the generic collection or to a car-specific variant of it (for example `bmwm3gtr_hood` or
 `van_close`). The code uses the car's own variant of each view when the install has one, and the generic view otherwise.
 
-## Fields **[verified names, inferred meanings]**
+## Fields **[PC viewport selection checked, follow incomplete]**
 
 Each view collection holds nine attributes. Five are the camera's values and are used by the game (the field names
 below were resolved by matching the field's `vlt_hash` against these names; see [Names](#names)). Each of the five
-is a pair: the value at rest and the value at speed.
+is a pair: the fullscreen value and the horizontal split-screen value.
 
 | Field | Pair values by view: bumper / hood / close / far / superfar / drift / pursuit | Used as |
 |---|---|---|
@@ -83,9 +91,10 @@ The views are loaded for the car that starts driving: its own `<car>_<view>` col
 
 For a car at its interpolated pose (model origin `position`, heading `heading` from +X, speed `v` in m/s):
 
-1. The speed fraction is `t = clamp(|v| / 60, 0, 1)`. Sixty metres a second is the chase camera's full-speed value;
-   the game's own curve is unconfirmed.
-2. Each value is `rest + (speed - rest) * t` for the pairs above.
+1. The current fullscreen host selects slot zero. Original horizontal split-screen
+   selects slot one; other viewport modes select slot zero.
+2. Read that slot without speed interpolation. Speedbreaker factor divides LAG
+   and multiplies FOV; ANGLE and HEIGHT keep the selected values.
 3. The eye is `position + (cos heading, sin heading, 0) * (LAG + start) + (0, 0, HEIGHT)`, where `start` is 0 for a
    negative `LAG` and the car's half length (the physics box's `half_extents().1`, about 2.2 m) for a positive `LAG`.
    The positive case is inferred from screenshots: with `start` at 0 the bumper and hood views sat inside the car's
@@ -110,12 +119,13 @@ code (`FUN_00467d70` to `FUN_00467e30`), which pass each view's name hash to the
 
 | Constant | Value | Source |
 |---|---|---|
-| Speed fraction full scale | 60 m/s | the chase camera's `FAST` (not confirmed for these views) |
+| Horizontal split-screen pair index | 1 | native GetPov viewport-mode branch |
 | Near plane | 0.3 m | the chase camera's `NEAR_PLANE` |
 
 ## Unconfirmed
 
-- **Speed curve.** The values are interpolated linearly with a 60 m/s scale. The game may use another curve or scale.
+- **Native follow graphs.** The native Cubic mover applies separate speed/physics modifiers and temporal filters;
+  these are not the paired `camerainfo` values and remain unimplemented.
 - **Where positive `LAG` starts.** Positive values are taken to start at the front bumper (see step 3). This is
   inferred from screenshots of the bumper and hood views, not from the game's code. Check it against the original.
 - **Field of view.** Taken as vertical degrees. The game may use horizontal degrees.
@@ -136,7 +146,8 @@ code (`FUN_00467d70` to `FUN_00467e30`), which pass each view's name hash to the
 1. Cycle the camera setting in the game with a car and compare each view with the original game. The bumper, hood and
    far views are the easiest to tell apart.
 2. For the sign of `LAG` and the field of view, compare the framing of the far view (default) at rest and at speed.
-3. For the speed curve, drive at a few speeds and compare the camera height and distance with the pairs above.
+3. For native follow/noise graphs, compare camera motion at several speeds;
+   the pairs above select viewport mode and must not be treated as speed endpoints.
 4. Record each result here, with the setting used and the car.
 
 ## Pursuit camera (caught pan and arrest, procedural)

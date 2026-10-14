@@ -1,7 +1,10 @@
 # High-speed effects
 
 Status: **partly implemented**. The curves are in `libs/blackbox-speedfx`; the nitrous field-of-view kick is on the chase
-camera; the streaks are drawn (`app/streaks.rs`, section 4). The radial blur is computed but not drawn yet.
+camera. The automatic pursuit-driven HUD streak feed was removed because it
+could remain visible at rest. The independent graphics speed-lines option
+remains available and follows actual vehicle speed.
+The radial blur is computed but not drawn yet.
 
 ## 1. What is in the rewrite already
 
@@ -42,11 +45,9 @@ them; the search is open).
 
 ## 4. Open
 
-- Streaks: drawn, as the Speed Trails setting's **Speed Streaks** style. `app/streaks.rs` builds 48 short quads that
-  radiate from the window's centre and move out with time, with opacity from the streak value and a fade in and out per
-  streak. They are composed onto the last HUD layer each
-  frame (`MirrorOverlay::base_layer`), because the presenter only emits a layer when something changes. Not yet seen in
-  a running game; the geometry and the composition are tested.
+- The prototype pursuit-driven HUD streak feed was removed. Optional streaks
+  now follow actual speed rather than retained pursuit state. See
+  [player-car-lights.md](player-car-lights.md).
 - Radial blur: not drawn. It is a screen pass in `blackbox-gpu-passes`, reading the frame before the HUD.
 - Apply the shake amplitude to the chase camera.
 - Read the install's values for the streaks and the blur, if they are in the data.

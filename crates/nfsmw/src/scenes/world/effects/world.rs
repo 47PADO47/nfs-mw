@@ -15,6 +15,8 @@ const CRACK_COLOUR: [u8; 4] = [235, 240, 245, 210];
 
 impl WorldScene {
     pub(in crate::scenes::world) fn upload_effects(&mut self, renderer: &mut dyn RenderBackend) {
+        let lens = self.gameplay_lens(self.physics_aspect);
+        let (position, forward, fov) = (lens.position, lens.forward, lens.fov_y_degrees);
         let Some(drive) = self.drive.as_mut() else {
             renderer.set_effects(&EffectLayer::default());
             return;
@@ -22,15 +24,10 @@ impl WorldScene {
         drive.maintain_flames(renderer, &self.dir, self.physics.database());
         self.explosions.load(renderer, &self.dir, self.physics.database());
         drive.effects.retain_sections(|s| self.residency.collision().pack(s).is_some());
-        let (position, forward) = match self.view {
-            View::Chase => (drive.camera().position, drive.camera().forward()),
-            View::Fly => (self.camera.position, self.camera.forward()),
-        };
         let car = drive.position();
         let (pose, bounds) = drive.spark_body();
         drive.vehicle_effects.set_body(pose, bounds);
-        let (lamps, lamp_frame, mut lamp_state) = drive.lamp_source();
-        lamp_state.turn_signals = self.tuning.turn_signals;
+        let (lamps, flares, lamp_frame, lamp_state) = drive.lamp_source();
         let damage = drive.damage_quads();
         let layer = drive.effects.build(position, forward);
         if self.view == View::Chase {
@@ -38,8 +35,18 @@ impl WorldScene {
         }
         drive.vehicle_effects.geometry(position, forward, matches!(self.view, View::Chase), &mut layer.streaks);
         drive.vehicle_effects.glows(position, forward, &mut layer.glows);
-        lamps.glows(lamp_frame, lamp_state, position, forward, &mut layer.glows);
-        lamps.beams(lamp_frame, lamp_state.headlights, &mut layer.streaks);
+        flares.draw(
+            &lamps,
+            lamp_frame,
+            lamp_state,
+            super::super::car_light_flares::FlareView {
+                camera: position,
+                forward,
+                fov_degrees: fov,
+                height: renderer.surface_size()[1],
+            },
+            &mut layer.textured,
+        );
         for mark in damage {
             let colour = match mark.mark {
                 Mark::Scuff => SCUFF_COLOUR,

@@ -20,9 +20,6 @@ use crate::settings::{RadioHudStyle, Settings};
 use crate::ui::present::Screen;
 use crate::ui::{Catalog, Presenter, SharedAssets};
 
-/// Longest step the HUD clock takes, so a stall does not skip animations.
-const MAX_STEP: f32 = 0.1;
-
 /// The package that is the in-game HUD, and the files that hold it.
 const HUD_PACKAGE: &str = "HUD_SingleRace.fng";
 const HUD_FILES: [&str; 2] = ["GLOBAL/InGameB.bun", "GLOBAL/INGAMEC.BUN"];
@@ -57,7 +54,7 @@ impl Plugin for HudPlugin {
             package.objects.len(),
             assets.missing_resources(&package).len()
         );
-        let mut runtime = Runtime::new();
+        let mut runtime = crate::ui::runtime();
         if let Some(strings) = assets.strings.clone() {
             runtime.set_string_resolver(move |label| strings.get(label));
         }
@@ -105,13 +102,13 @@ fn present(
     let hud = &mut *hud;
     let ea_trax = settings.radio_hud == RadioHudStyle::EaTrax;
     hud.binding.set_mirror_shown(settings.rear_view_mirror);
-    hud.binding.advance_mirror_fade(time.delta_secs().min(MAX_STEP));
+    hud.binding.advance_mirror_fade(time.delta_secs());
     hud.binding.apply(&mut hud.runtime, &state);
     if let Some(trax) = hud.trax.as_mut() {
         let song = ea_trax.then(|| radio.song().zip(radio.serial())).flatten();
         trax.apply(&mut hud.runtime, song);
     }
-    hud.runtime.update(time.delta_secs().min(MAX_STEP));
+    hud.runtime.update(time.delta_secs());
     if let Some(trax) = hud.trax.as_ref() {
         trax.keep_text(&mut hud.runtime);
     }

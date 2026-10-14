@@ -15,22 +15,41 @@ impl CutoffHandle {
     }
 }
 
+/// Shared music-track filter, so newly started songs inherit the current mode.
+pub(super) struct MusicFilterBuilder;
+
+impl EffectBuilder for MusicFilterBuilder {
+    type Handle = CutoffHandle;
+    fn build(self) -> (Box<dyn Effect>, CutoffHandle) {
+        let (filter, handle) = VoiceFilter::new(false);
+        (Box::new(MusicFilter(filter)), handle)
+    }
+}
+
+struct MusicFilter(VoiceFilter);
+impl Effect for MusicFilter {
+    fn process(&mut self, frames: &mut [Frame], dt: f64, info: &Info) {
+        self.0.process(frames, dt, info);
+    }
+}
+
 pub(super) struct VoiceFilter {
     effect: Box<dyn Effect>,
     handle: FilterHandle,
     cutoff: Arc<AtomicU32>,
     high: bool,
     applied: Option<f64>,
+    low: [blackbox_fxedit::LowPass; 2],
 }
 
 impl VoiceFilter {
     pub fn new(high: bool) -> (Self, CutoffHandle) {
-        let (effect, handle) = FilterBuilder::new()
-            .cutoff(1.0)
-            .mode(if high { FilterMode::HighPass } else { FilterMode::LowPass })
-            .build();
-        let cutoff = Arc::new(AtomicU32::new((if high { 0.0f32 } else { 25_000.0 }).to_bits()));
-        (Self { effect, handle, cutoff: cutoff.clone(), high, applied: None }, CutoffHandle(cutoff))
+        let (effect, handle) = FilterBuilder::new().cutoff(1.0).mode(FilterMode::HighPass).build();
+        let cutoff = Arc::new(AtomicU32::new((if high { 0.0f32 } else { 65_535.0 }).to_bits()));
+        (
+            Self { effect, handle, cutoff: cutoff.clone(), high, applied: None, low: Default::default() },
+            CutoffHandle(cutoff),
+        )
     }
 
     pub fn process(&mut self, out: &mut [Frame], dt: f64, info: &Info) {
@@ -39,14 +58,22 @@ impl VoiceFilter {
             return;
         }
         let raw = f32::from_bits(self.cutoff.load(Ordering::Relaxed));
-        let value = if raw.is_finite() { f64::from(raw.clamp(0.0, 25_000.0)) } else { 0.0 };
-        let nyquist = 0.5 / dt;
-        let open = if self.high { value <= 0.0 } else { value >= 25_000.0 || value >= nyquist };
-        if open {
+        if !self.high {
+            let cutoff = if raw.is_finite() { raw.clamp(0.0, 65_535.0).round_ties_even() as u32 } else { 0 };
+            let rate = dt.recip().round() as u32;
+            for filter in &mut self.low {
+                filter.set_cutoff(rate, cutoff);
+            }
+            self.low[0].process(out.iter_mut().map(|frame| &mut frame.left));
+            self.low[1].process(out.iter_mut().map(|frame| &mut frame.right));
             return;
         }
-        let closed = if self.high { value >= nyquist } else { value <= 0.0 };
-        if closed {
+        let value = if raw.is_finite() { f64::from(raw.clamp(0.0, 25_000.0)) } else { 0.0 };
+        let nyquist = 0.5 / dt;
+        if value <= 0.0 {
+            return;
+        }
+        if value >= nyquist {
             out.fill(Frame::ZERO);
             return;
         }
@@ -78,7 +105,7 @@ mod tests {
                     if !high && cutoff == 0.0 {
                         assert!(frames.iter().all(|f| f.left == 0.0));
                     }
-                    if !high && cutoff == 25_000.0 {
+                    if !high && cutoff >= rate as f32 * 0.5 {
                         assert!(frames.iter().all(|f| f.left == 0.5));
                     }
                 }
@@ -110,5 +137,47 @@ mod tests {
         let high = energy(8000.0);
         assert!(low > 100.0, "passband remains audible");
         assert!(high < low * 0.01, "high frequencies attenuated: {high}/{low}");
+    }
+
+    #[test]
+    fn music_track_filter_reaches_new_sources_without_filtering_other_groups() {
+        use super::super::replay::ReplayBackend;
+        use kira::track::TrackBuilder;
+        use kira::{AudioManager, AudioManagerSettings};
+        let render = |filtered: bool, cutoff: f32, rate: u32| {
+            let mut manager = AudioManager::<ReplayBackend>::new(AudioManagerSettings {
+                backend_settings: rate,
+                ..Default::default()
+            })
+            .unwrap();
+            let mut music = TrackBuilder::new();
+            let filter = music.add_effect(MusicFilterBuilder);
+            let mut music = manager.add_sub_track(music).unwrap();
+            let mut sfx = manager.add_sub_track(TrackBuilder::new()).unwrap();
+            filter.set(cutoff);
+            let frames: Vec<_> = (0..rate)
+                .map(|i| Frame::from_mono((i as f32 * 8000.0 * std::f32::consts::TAU / rate as f32).sin() * 0.1))
+                .collect();
+            let sound = kira::sound::static_sound::StaticSoundData {
+                sample_rate: rate,
+                frames: Arc::from(frames),
+                settings: Default::default(),
+                slice: None,
+            };
+            // Set mode before starting this source: new songs inherit the music bus.
+            let _voice = match filtered {
+                true => music.play(sound).unwrap(),
+                false => sfx.play(sound).unwrap(),
+            };
+            manager.backend_mut().render(rate as usize / 2);
+            manager.backend_mut().render(rate as usize / 4).iter().map(|v| f64::from(*v).powi(2)).sum::<f64>()
+        };
+        for rate in [44100, 48000] {
+            let open = render(true, 65535.0, rate);
+            let held = render(true, 1800.0, rate);
+            let other = render(false, 1800.0, rate);
+            assert!(open > 1.0 && held < open * 0.01, "music attenuation at {rate}");
+            assert!((other - open).abs() < open * 0.001, "effects remain open at {rate}");
+        }
     }
 }

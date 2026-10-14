@@ -11,7 +11,7 @@ pub struct AudioView {
     pub view_value: i32,
     pub environment: super::environment::EnvironmentContext,
     pub speedbreaker: bool,
-    pub(crate) speedbreaker_pitch: Option<blackbox_mixmap::EventOutput>,
+    pub(crate) speedbreaker_mix: Option<super::speedbreaker::Mode>,
 }
 
 impl Default for AudioView {
@@ -25,7 +25,7 @@ impl Default for AudioView {
             view_value: 32767,
             environment: Default::default(),
             speedbreaker: false,
-            speedbreaker_pitch: None,
+            speedbreaker_mix: None,
         }
     }
 }

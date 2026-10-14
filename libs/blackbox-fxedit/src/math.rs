@@ -4,6 +4,11 @@ use crate::{Result, invalid};
 const PI: f32 = std::f32::consts::PI;
 const TAU: f32 = std::f32::consts::TAU;
 
+pub(super) fn one_pole(numerator: f64, denominator: f64, gain: f32) -> (f32, f32) {
+    let fraction = numerator / denominator;
+    (((1.0 - fraction) as f32) * gain, (fraction as f32) * gain)
+}
+
 fn reduced(value: f32) -> f64 {
     let mut value = f64::from(value);
     while value > f64::from(TAU) {

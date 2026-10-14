@@ -19,7 +19,7 @@ mod tests {
     fn shipped_mark_is_a_128_pixel_white_mark_on_transparency() {
         let image = load().unwrap();
         assert_eq!((image.width, image.height), (128, 128));
-        assert!(image.rgba.chunks_exact(4).any(|p| p[3] == 255 && p[..3] == [255, 255, 255]));
-        assert!(image.rgba.chunks_exact(4).any(|p| p[3] == 0));
+        assert!(image.rgba.as_chunks::<4>().0.iter().any(|p| p[3] == 255 && p[..3] == [255, 255, 255]));
+        assert!(image.rgba.as_chunks::<4>().0.iter().any(|p| p[3] == 0));
     }
 }

@@ -26,6 +26,14 @@ impl DayClock {
         self.seconds += dt;
     }
 
+    /// The lab freezes the lighting clock without accruing a catch-up step.
+    pub(super) fn update(&mut self, dt: f32, frozen: bool) {
+        if frozen {
+            return;
+        }
+        self.advance(dt);
+    }
+
     /// The hour of day now.
     pub(super) fn hour(&self) -> f32 {
         day_night::clock_hour(&self.cfg, self.seconds)
@@ -52,8 +60,8 @@ impl DayClock {
 impl WorldScene {
     /// Moves the day clock on by `sim_dt`, sets the sun for the hour, and switches the headlights when the clock
     /// crosses the lights-on or lights-off hour. A drive that is not yet placed keeps its own state.
-    pub(super) fn update_day(&mut self, sim_dt: f32) {
-        self.day.advance(sim_dt);
+    pub(super) fn update_day(&mut self, sim_dt: f32, frozen: bool) {
+        self.day.update(sim_dt, frozen);
         self.sun.set_phase(self.day.sun_phase());
         let on = self.day.lights_on();
         let Some(drive) = self.drive.as_mut() else {
@@ -74,6 +82,19 @@ mod tests {
     /// The default config: 150 real seconds per game hour, starting at noon.
     fn clock() -> DayClock {
         DayClock::new(DayNightConfig::default())
+    }
+
+    #[test]
+    fn freezing_holds_lighting_and_resume_does_not_catch_up() {
+        let mut day = clock();
+        let before = (day.hour(), day.sun_phase(), day.lights_on());
+        day.update(600.0, true);
+        assert_eq!((day.hour(), day.sun_phase(), day.lights_on()), before);
+        day.update(1.0, false);
+        let mut expected = clock();
+        expected.advance(1.0);
+        assert_eq!(day.hour(), expected.hour());
+        assert_eq!(day.sun_phase(), expected.sun_phase());
     }
 
     /// One real frame at 60 Hz: the speedbreaker-dilated delta times GameSpeed, the same product

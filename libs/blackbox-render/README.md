@@ -13,6 +13,14 @@ shading, distance fog, a 2D UI layer (textured, clipped, premultiplied-alpha tri
 
 License: MIT OR Apache-2.0.
 
+Scene-owned additive mask filtering uses `set_focus_mask` once on scene entry,
+then `set_focus_filter` for retained uniform updates. The generic pass keeps its
+mask and cached pipelines across strength and user post-setting changes, runs
+before upscaling/UI, copies exact source texels when inactive, and is removed
+by `set_focus_mask(None)`. Callers provide the texture and strength. Mask green
+times blue supplies an additive contribution; red and alpha are ignored. The
+pass does not resample or blur the source and does not duplicate base grading.
+
 The renderer-neutral types (meshes, textures, frame parameters, effect and UI layers, post and upscale settings,
 the graphics API enum) live in [`blackbox-gfx`](../blackbox-gfx) and are re-exported from this crate.
 The reusable wgpu passes (the UI layer, the world effects, soft particles, the fullscreen filter helper and

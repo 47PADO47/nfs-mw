@@ -1,7 +1,9 @@
 //! The streamed city: a free-fly camera, or a car to drive with a chase camera.
 
 mod ai;
+mod breaker_visuals;
 mod camera_choice;
+mod car_light_flares;
 mod car_lights;
 mod car_loader;
 mod cargo;
@@ -127,6 +129,7 @@ pub struct WorldScene {
     /// The seven original gameplay views, from the install's `camerainfo` data.
     camera_views: Option<nfsmw_data::camera::Views>,
     gain_map: Option<blackbox_gfx::RgbaImage>,
+    breaker_visuals: breaker_visuals::Presentation,
     reflection_faces: [Vec<Instance>; 6],
     reflection_last: Option<reflections::CaptureStamp>,
     /// Seconds since the scene started, for texture animations.
@@ -216,6 +219,7 @@ impl Scene for WorldScene {
 
     fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
         renderer.set_colour_treatment(self.colour_treatment.as_ref(), self.gain_map.as_ref());
+        self.breaker_visuals.init(renderer);
         if let Some(PendingCar { name, model, script }) = self.pending_car.take() {
             self.start_driving(renderer, name, model, script)?;
         }
@@ -261,11 +265,11 @@ impl Scene for WorldScene {
             false => self.update_simulation(renderer, input, dt),
         };
         self.update_entry(input, dt);
+        renderer.set_focus_filter(self.breaker_visuals.update(self.sound_speedbreaker_active, sim_dt));
         self.rain.update(sim_dt, camera);
         self.clock += sim_dt * self.tuning.animation_speed;
 
-        self.sun.update(sim_dt, renderer.render_experiments().freeze_sun);
-        self.update_day(sim_dt);
+        self.update_day(sim_dt, renderer.render_experiments().freeze_sun);
 
         self.residency.animate(renderer, self.clock);
         if self.view == View::Fly {

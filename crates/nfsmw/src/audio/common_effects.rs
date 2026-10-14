@@ -17,17 +17,17 @@ const MAX_TICKS: usize = 240;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommonEvent {
-    Speedbreaker,
-    PursuitBreakerStart,
-    PursuitBreakerEnd,
+    VisualPulse,
+    SpeedbreakerBegin,
+    SpeedbreakerEnd,
 }
 
 impl CommonEvent {
     fn slot(self) -> usize {
         match self {
-            Self::Speedbreaker => 0,
-            Self::PursuitBreakerStart => 1,
-            Self::PursuitBreakerEnd => 2,
+            Self::VisualPulse => 0,
+            Self::SpeedbreakerBegin => 1,
+            Self::SpeedbreakerEnd => 2,
         }
     }
 
@@ -100,7 +100,7 @@ impl CommonPlayback {
         }
         let slot = event.slot();
         self.pulses[slot] = true;
-        if event == CommonEvent::Speedbreaker && self.active[slot].is_some() {
+        if event == CommonEvent::VisualPulse && self.active[slot].is_some() {
             return true;
         }
         self.active[slot] = None;
@@ -127,7 +127,7 @@ impl CommonPlayback {
         let mut ticks = 0;
         while self.debt + 1e-9 >= TICK && ticks < MAX_TICKS {
             self.debt = (self.debt - TICK).max(0.0);
-            for event in [CommonEvent::Speedbreaker, CommonEvent::PursuitBreakerStart, CommonEvent::PursuitBreakerEnd] {
+            for event in [CommonEvent::VisualPulse, CommonEvent::SpeedbreakerBegin, CommonEvent::SpeedbreakerEnd] {
                 mixer.set_input(InputKey::object(0, 0, 4, event.input()), i32::from(self.pulses[event.slot()]) * 32767);
             }
             mixer.process(TICK as f32);

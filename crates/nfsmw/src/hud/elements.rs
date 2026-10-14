@@ -13,9 +13,6 @@ const SPEEDOMETER: [u32; 1] = [0x941f_ff09];
 const TACHOMETER: [u32; 1] = [0x5164_d4ea];
 /// The nitrous gauge: its group (frame and icon) and the bar, a multi image next to the group.
 const NITROUS: [u32; 2] = [0x87c3_8e97, 0xedfb_6d37];
-/// The speed breaker meter: its group (the stopwatch icon group is under it) and the bar beside the nitrous bar. The
-/// original's race HUD creates them with the cluster and never hides them, so they show for the whole race.
-const SPEEDBREAKER: [u32; 2] = [0x8991_bd54, 0x5df2_f5b4];
 /// The rear-view mirror's group (its two bezel images and the picture drawn under them), and the radar sensor under
 /// it: the backing and the two LED strips. The sensor shows its idle state; it does not detect cops yet.
 const MIRROR: [u32; 1] = [0x9ee0_6631];
@@ -56,9 +53,9 @@ pub struct Layout {
     parent: Vec<Option<usize>>,
     speedometer: Vec<usize>,
     tachometer: Vec<usize>,
+    speedbreaker: Vec<usize>,
     nitrous: Vec<usize>,
     turbo: Vec<usize>,
-    speedbreaker: Vec<usize>,
     /// The group of the minimap's pieces, its backing disc and the player's arrow.
     minimap: Vec<usize>,
     mirror: Vec<usize>,
@@ -90,9 +87,14 @@ impl Layout {
             parent,
             speedometer: find(&SPEEDOMETER),
             tachometer: find(&TACHOMETER),
+            speedbreaker: find(&[
+                fe_hash_upper(super::speedbreaker::GROUP),
+                fe_hash_upper(super::speedbreaker::ICON),
+                fe_hash_upper(super::speedbreaker::MASK),
+                super::speedbreaker::LINEAR_GROUP,
+            ]),
             nitrous: find(&NITROUS),
             turbo: find(&[fe_hash_upper("TURBO_GROUP")]),
-            speedbreaker: find(&SPEEDBREAKER),
             minimap: find(&[fe_hash_upper(GROUP), fe_hash_upper(BACKING), fe_hash_upper(ARROW)]),
             mirror: find(&MIRROR),
             radar: find(&RADAR),
@@ -114,6 +116,7 @@ impl Layout {
         self.applied = Some(want);
         let mut shown = vec![false; self.parent.len()];
         let mut roots: Vec<usize> = self.speedometer.iter().chain(&self.tachometer).copied().collect();
+        roots.extend(&self.speedbreaker);
         if want.mirror {
             roots.extend(&self.mirror);
             roots.extend(&self.radar);

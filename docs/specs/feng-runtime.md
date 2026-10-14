@@ -17,10 +17,15 @@ buttons, and the rules that turn objects into a draw list. The on-disk layouts a
 
 - The logical screen is **640 × 480, origin at the centre, +y down**; the view matrix is the identity. Wide
   and thin screen variants are separate packages (`WIDESCREEN_GLOBAL.BUN`), selected by the game.
-- Time is counted in **ticks**. A script length, a key time and an event time are ticks. The game passes the
-  frame's ticks to `FEngine::Update`; scripts in the HUD suggest **16 ticks per frame at 60 frames per
-  second, so 960 ticks per second** (`FADEIN` is 600 ticks, 0.625 s) **[inferred]**. The runtime takes a time
-  step in seconds and converts.
+- Time is counted in **ticks**. A script length, a key time and an event time are ticks.
+  **[PC checked]** Both native UI service callers multiply real frame seconds by
+  **1200** before integer conversion and pass those ticks to `FEngine::Update`.
+  The earlier 960-tick inference from 16 ticks/frame was wrong for this PC build.
+  A 600-tick fade lasts 0.5 seconds; the central Speedbreaker icon's 360-tick loop
+  lasts 0.3 seconds. The generic runtime accepts a host-selected rate; the game
+  host selects 1200. Fractional ticks are retained across frames so high FPS does
+  not slow UI animations through per-frame integer truncation. This fractional
+  carry is a host correction to preserve elapsed time, not original per-frame rounding.
 - A package is updated once per frame, objects in list order, children of a group after the group itself.
 - **Presentation initialization [ours]:** loading a package evaluates its `INIT` scripts with zero elapsed
   ticks before returning a drawable tree, including their immediate chain targets. This prevents a newly
@@ -250,7 +255,8 @@ The HUD also has package responses that fade parts in and out; the runtime runs 
 
 1. Load `HUD_SingleRace.fng` and print the tree: 372 objects, `INIT` scripts applied, the gauge cluster at the
    bottom right of a 640 × 480 screen.
-2. Post `FADEIN` and check alpha rises over 0.625 s; post `HIDE` and check the object stops drawing.
+2. Post `FADEIN` and check alpha rises over the authored 600 ticks (0.5 PC seconds);
+   post `HIDE` and check the object stops drawing.
 3. Compare a screenshot of the HUD with the game's at the same resolution and speed (digits, needle angle).
 4. Measure the ticks per frame in the game (a script of known length against a stopwatch).
 5. Check the order of overlapping objects (the speed digits over their backing).

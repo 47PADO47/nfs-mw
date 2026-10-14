@@ -305,12 +305,20 @@ A bank header is the SPCH bank header, which the library reads itself; this is w
 | 2 | u16 LE | speaker: 1 to 9, or `0xFFFF` for any (the cop voices; the game's per-speaker volumes are numbered the same) |
 | 4 | u8 | `flags`, 0 to 3: the table entries are `2 + flags` bytes |
 | 5 | u8 | number of takes `n` (1 to 211) |
-| 6 | 8 | the count again (u16 LE), the bank's length in `0x100` units (u16 LE), 4 zero bytes |
-| 14 | `(n-1) * (2 + flags)` | for each take after the first, `flags` bytes of unknown meaning and then its start as a **big-endian** u16 in `0x100` units from `take_pos` |
+| 6 | u8 | sample repeat-history count |
+| 7 | u8 | alignment multiplier: sample offset unit is `0x100 * (1 + value)` |
+| 8 | u16 LE | bank length in sample offset units |
+| 10 | 4 | padding and first sample start (zero in these banks) |
+| 14 | `(n-1) * (2 + flags)` | each current sample's selector bit indices followed by the next sample's **big-endian** u16 start in the bank's offset units |
 | after | rest | 0 to 122 bytes, mostly `0x70` and `0xFF`: unknown |
 
 Check: all 579 headers parse, the sum of the take counts is 13,562 (the number of streams in the `.big`), and every
 take start lies on a stream start. Banks per phrase: 1 to 9 (one per voice that recorded it, more for variants).
+
+The original PC sample getter confirms the alignment byte **[decomp]**. The
+NISAudio moment bank uses512-byte units; both Speedbreaker start recordings
+decode at that alignment **[verified]**. Its two selector fields choose stream
+type and parameter masks; see `docs/specs/speedbreaker-moment-audio.md`.
 
 ### `.evt`: the event database **[verified bytes; sentence rules not decoded]**
 

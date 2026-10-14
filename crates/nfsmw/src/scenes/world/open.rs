@@ -26,6 +26,10 @@ impl WorldScene {
         }
         let globals = load_global_textures(dir)?;
         let gain_map = nfsmw_data::visual_treatment::gain_map(&globals.textures);
+        let breaker_visuals = breaker_visuals::Presentation::new(
+            nfsmw_data::visual_treatment::speedbreaker::load(physics.database()),
+            nfsmw_data::visual_treatment::speedbreaker::mask(&globals.textures),
+        );
         let mut traffic = index.road_network.clone().map(ai::TrafficWorld::new);
         if let Some(world) = traffic.as_mut() {
             world.load_data(physics.database(), index.track_zones.clone());
@@ -92,6 +96,7 @@ impl WorldScene {
             time_of_day,
             camera_views,
             gain_map,
+            breaker_visuals,
             reflection_faces: std::array::from_fn(|_| Vec::new()),
             reflection_last: None,
             clock: 0.0,

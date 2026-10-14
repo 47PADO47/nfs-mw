@@ -1,6 +1,7 @@
 use blackbox_attrib::{Database, Value};
 use blackbox_gfx::{ColourTreatment, RgbaImage};
 use blackbox_tpk::Texture;
+pub mod speedbreaker;
 
 /// The ordinary free-roam look. Missing or malformed data leaves grading disabled.
 pub fn midday(db: &Database) -> Option<ColourTreatment> {

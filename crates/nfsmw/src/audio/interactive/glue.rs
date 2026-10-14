@@ -28,6 +28,12 @@ pub struct Interactive {
     last: (MusicState, bool),
 }
 
+impl Interactive {
+    pub(in crate::audio) fn selected(&self) -> bool {
+        self.conductor.playing() || (self.last.1 && self.forced.unwrap_or(self.last.0).pursuit.is_some())
+    }
+}
+
 /// The music file and its map, relative to the install.
 const MAP: &str = "SOUND/PFDATA/MW_Music.mpf";
 const STREAMS: &str = "SOUND/PFDATA/MW_Music.mus";

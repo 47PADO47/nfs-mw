@@ -23,7 +23,8 @@ use state::Running;
 
 use crate::package::Package;
 
-/// Ticks per second of the FEng clock: 16 ticks per frame at 60 frames per second (inferred, see the spec).
+/// Default compatibility rate. Hosts select their authored clock with
+/// [`Runtime::with_tick_rate`].
 pub const TICKS_PER_SECOND: f32 = 960.0;
 
 /// Identifies a loaded package.
@@ -47,6 +48,7 @@ pub struct Runtime {
     queue: VecDeque<Message>,
     outgoing: Vec<Outgoing>,
     remainder: f32,
+    ticks_per_second: f32,
     resolver: Option<StringResolver>,
     pad: PadState,
     pad_next: u32,
@@ -66,10 +68,18 @@ impl Runtime {
             queue: VecDeque::new(),
             outgoing: Vec::new(),
             remainder: 0.0,
+            ticks_per_second: TICKS_PER_SECOND,
             resolver: None,
             pad: PadState::default(),
             pad_next: 0,
         }
+    }
+
+    /// A runtime whose authored script ticks advance at the host-selected rate.
+    /// Fractional ticks are retained independently of the render frame rate.
+    pub fn with_tick_rate(ticks_per_second: f32) -> Self {
+        assert!(ticks_per_second.is_finite() && ticks_per_second > 0.0, "positive finite tick rate");
+        Self { ticks_per_second, ..Self::new() }
     }
 
     /// Sets the function that turns a label hash into text (the language table). Strings whose label it
@@ -130,7 +140,7 @@ impl Runtime {
         if !seconds.is_finite() || seconds <= 0.0 {
             return;
         }
-        let exact = seconds * TICKS_PER_SECOND + self.remainder;
+        let exact = seconds * self.ticks_per_second + self.remainder;
         let ticks = exact.floor();
         self.remainder = exact - ticks;
         let ticks = ticks.min(i32::MAX as f32 / 2.0) as i32;

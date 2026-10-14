@@ -3,7 +3,7 @@
 
 use glam::Vec3;
 use nfsmw_data::day_night::DayNightConfig;
-use nfsmw_data::time_of_day::{advance_sun_phase, sun_direction, sun_phase_limit};
+use nfsmw_data::time_of_day::{sun_direction, sun_phase_limit};
 
 /// The orbit's second angle offset (the lighting object's `+0x10`), at its constructor default. The first one
 /// (`+0x0C`) is the configured `sun_azimuth`.
@@ -23,7 +23,6 @@ pub(super) fn to_sun() -> Vec3 {
 pub(super) struct Sun {
     phase: f32,
     lo: f32,
-    dir: i32,
     azimuth: f32,
 }
 
@@ -31,23 +30,9 @@ impl Sun {
     /// The sun at noon, in the free-roam phase limit, with the default azimuth.
     /// TODO: take the configured `sun_azimuth` once the day-night config is loaded from the settings file.
     pub(super) fn new() -> Self {
-        Self { phase: START_PHASE, lo: sun_phase_limit(0), dir: 1, azimuth: DayNightConfig::default().sun_azimuth }
+        Self { phase: START_PHASE, lo: sun_phase_limit(0), azimuth: DayNightConfig::default().sun_azimuth }
     }
 
-    /// Diagnostic freeze holds lighting, without stopping traffic or accruing a catch-up step.
-    pub(super) fn update(&mut self, dt: f32, frozen: bool) {
-        if frozen {
-            return;
-        }
-        self.advance(dt);
-    }
-
-    /// Moves the sun on by `dt` seconds (the frame time).
-    pub(super) fn advance(&mut self, dt: f32) {
-        let (phase, dir) = advance_sun_phase(self.phase, self.dir, 1.0, dt, self.lo);
-        self.phase = phase;
-        self.dir = dir;
-    }
     /// Sets the phase, for the time of day (see `nfsmw_data::day_night::sun_phase`).
     pub(super) fn set_phase(&mut self, phase: f32) {
         self.phase = phase;
@@ -83,17 +68,5 @@ mod tests {
         let before = sun.to_sun();
         sun.set_phase(0.1);
         assert_ne!(sun.to_sun(), before);
-    }
-
-    #[test]
-    fn freezing_holds_lighting_and_resume_does_not_catch_up() {
-        let mut sun = Sun::new();
-        let before = sun.to_sun();
-        sun.update(600.0, true);
-        assert_eq!(sun.to_sun(), before);
-        sun.update(1.0, false);
-        let mut expected = Sun::new();
-        expected.advance(1.0);
-        assert_eq!(sun.to_sun(), expected.to_sun());
     }
 }

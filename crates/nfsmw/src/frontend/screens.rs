@@ -38,7 +38,7 @@ pub struct Screens {
 
 impl Screens {
     pub fn new(catalog: Catalog, assets: Arc<UiAssets>) -> Self {
-        let mut runtime = Runtime::new();
+        let mut runtime = crate::ui::runtime();
         let strings = assets.clone();
         runtime.set_string_resolver(move |label| strings.strings.as_ref()?.get(label));
         Self {

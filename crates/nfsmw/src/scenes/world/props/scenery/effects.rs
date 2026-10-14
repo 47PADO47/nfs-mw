@@ -71,8 +71,8 @@ impl PropWorld {
             }
             WorldEvent::PursuitBreaker { begin } => {
                 let event = match begin {
-                    true => crate::audio::CommonEvent::PursuitBreakerStart,
-                    false => crate::audio::CommonEvent::PursuitBreakerEnd,
+                    true => crate::audio::CommonEvent::SpeedbreakerBegin,
+                    false => crate::audio::CommonEvent::SpeedbreakerEnd,
                 };
                 self.scenery.common_sounds.push(event);
                 log::debug!("pursuit breaker model {id}, begin {begin}");

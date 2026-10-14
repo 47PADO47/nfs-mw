@@ -20,11 +20,9 @@ impl Kernel {
                 if second < 0 {
                     return Err(invalid("negative filter cutoff"));
                 }
-                let fraction64 = 2.0 * f64::from(second) / f64::from(rate);
-                let fraction = fraction64 as f32;
-                let alpha = (1.0 - fraction64) as f32;
                 let gain = f32::from(third) / 256.0;
-                Self::OnePole { previous: 0.0, alpha: alpha * gain, beta: fraction * gain }
+                let (alpha, beta) = math::one_pole(2.0 * f64::from(second), f64::from(rate), gain);
+                Self::OnePole { previous: 0.0, alpha, beta }
             }
             3 => {
                 if first < 0 {

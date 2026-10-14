@@ -76,7 +76,7 @@ impl TrafficMixer {
         whoosh: bool,
     ) -> Levels {
         self.mixer.set_camera(view.camera_state);
-        self.mixer.override_event(0, 0, 2, view.speedbreaker_pitch);
+        crate::audio::speedbreaker::publish(&mut self.mixer, &view);
         for index in [0, 1, 2, 3] {
             self.mixer.set_input(InputKey::controller(0, 0, 0, index), 0);
         }

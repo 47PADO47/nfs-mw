@@ -3,6 +3,7 @@
 //! the car appears; this module owns everything about the car itself.
 
 mod access;
+mod breaker_camera;
 mod clock;
 mod debug;
 mod effect_feed;
@@ -10,6 +11,8 @@ mod fall;
 mod garage;
 mod ground;
 mod input;
+#[cfg(test)]
+mod lamp_tests;
 mod look;
 mod placement;
 #[cfg(test)]
@@ -102,6 +105,7 @@ pub struct Drive {
     telemetry: Telemetry,
     /// The speed breaker's meter (`speedbreaker.rs`).
     breaker: speedbreaker::SpeedBreaker,
+    breaker_camera: breaker_camera::Zoom,
     /// What the car sound hears of the drive.
     sound: SoundFeed,
     chase: ChaseCamera,
@@ -173,6 +177,7 @@ impl Drive {
             current: pose,
             telemetry: Telemetry::default(),
             breaker: speedbreaker::SpeedBreaker::default(),
+            breaker_camera: breaker_camera::Zoom::default(),
             sound: SoundFeed::default(),
             chase: ChaseCamera::default(),
             pursuit: PursuitCamera::default(),
@@ -204,7 +209,7 @@ impl Drive {
     /// The car's lamps, with the car frame and brake pedal they are drawn with (copied, so the caller can hold
     /// the effect layer meanwhile).
     /// The car's lamps, with the car frame and what lights them. Copied, so the caller can hold the effect layer.
-    pub fn lamp_source(&self) -> (CarLights, Mat4, LampState) {
+    pub fn lamp_source(&self) -> (CarLights, super::car_light_flares::CarLightFlares, Mat4, LampState) {
         let reverse = self.sim.as_ref().is_some_and(|s| s.telemetry().gear < 0);
         let state = LampState {
             brake: self.brake_lamp,
@@ -215,7 +220,7 @@ impl Drive {
             siren: false,
             time: self.lamp_time,
         };
-        (self.rig.lights().clone(), self.pose().transform(), state)
+        (self.rig.lights().clone(), self.rig.flares().clone(), self.pose().transform(), state)
     }
 
     /// The player car's model scale (`CarScale`).
@@ -399,7 +404,14 @@ impl Drive {
     pub fn instances(&self, out: &mut Vec<blackbox_render::Instance>) {
         if let Some(sim) = &self.sim {
             let revealed = sim.events.as_ref().map(|e| e.revealed_slots()).unwrap_or_default();
-            self.rig.instances(&self.pose(), sim.events.as_ref().map(|e| &e.hidden_slots), &revealed, out);
+            self.rig.instances_lit(
+                super::keys::PLAYER_CAR,
+                &self.pose(),
+                sim.events.as_ref().map(|e| &e.hidden_slots),
+                &revealed,
+                [self.headlights, self.brake_lamp > 0.0],
+                out,
+            );
         }
     }
 
@@ -425,6 +437,7 @@ impl Drive {
             has_nos: t.has_nos,
             nos: t.nos,
             speedbreaker: self.breaker.meter,
+            speedbreaker_active: self.breaker.active(),
             has_turbo: t.has_induction,
             boost_psi: t.boost_psi,
             ..Default::default()

@@ -11,6 +11,7 @@ mod bloom;
 mod effect_tests;
 mod effects;
 mod filter;
+mod focus;
 mod fsr1;
 #[cfg(test)]
 mod fsr1_tests;
@@ -59,6 +60,7 @@ pub(super) struct PassIo<'a> {
 
 pub(super) trait PostPass {
     fn name(&self) -> &'static str;
+    fn set_focus(&mut self, _settings: blackbox_gfx::FocusFilter) {}
 
     /// The size of the image this pass writes when it is not the last one.
     fn extent(&self) -> Extent {

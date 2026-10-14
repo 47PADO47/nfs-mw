@@ -52,6 +52,10 @@ pub struct Conductor {
 }
 
 impl Conductor {
+    pub(super) fn playing(&self) -> bool {
+        self.live.as_ref().is_some_and(|live| !live.voice.finished())
+    }
+
     /// One frame. Returns whether the licensed songs may play.
     pub fn update(&mut self, stage: &mut dyn Stage, state: &MusicState, driving: bool, dt: f32) -> bool {
         let plan = self.director.update(state, driving, dt);

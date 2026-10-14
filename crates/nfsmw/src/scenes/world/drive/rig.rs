@@ -45,6 +45,7 @@ impl CarPose {
 /// One uploaded part: which placement of the model it is.
 struct Part {
     mesh: MeshHandle,
+    lamps: [MeshHandle; 4],
     placement: usize,
 }
 
@@ -58,6 +59,7 @@ pub struct CarRig {
     materials: CarMaterials,
     shading: CarShading,
     lights: CarLights,
+    flares: super::super::car_light_flares::CarLightFlares,
     /// The model scale (`CarScale`); 1 is the original size. Only the body parts scale, not the lights.
     scale: f32,
     /// The impact zones whose glass is cracked (their windows show the cracked texture).
@@ -87,7 +89,8 @@ impl CarRig {
         let swaps = model.swaps.clone();
         let (parts, meshes, materials) = upload_parts(renderer, &model, &swaps, shading, to_sun);
         let lights = CarLights::for_model(&model);
-        Self { car, model, parts, meshes, materials, shading, lights, scale: 1.0, cracked_zones: Vec::new() }
+        let flares = super::super::car_light_flares::CarLightFlares::upload(renderer, &model);
+        Self { car, model, parts, meshes, materials, shading, lights, flares, scale: 1.0, cracked_zones: Vec::new() }
     }
 
     /// Upload the car again with `shading` when it differs from the one it has.
@@ -144,6 +147,10 @@ impl CarRig {
         &self.lights
     }
 
+    pub fn flares(&self) -> &super::super::car_light_flares::CarLightFlares {
+        &self.flares
+    }
+
     /// The model the rig was uploaded from.
     pub fn model(&self) -> &CarModel {
         &self.model
@@ -154,6 +161,7 @@ impl CarRig {
             renderer.destroy_mesh(mesh);
         }
         self.materials.destroy(renderer);
+        self.flares.release(renderer);
     }
 
     /// Height of each wheel's centre above the model's origin at rest (the model's wheel order).
@@ -189,6 +197,19 @@ impl CarRig {
         revealed: &std::collections::BTreeSet<usize>,
         out: &mut Vec<Instance>,
     ) {
+        self.instances_lit(car, pose, hidden, revealed, [true, false], out);
+    }
+
+    pub fn instances_lit(
+        &self,
+        car: u32,
+        pose: &CarPose,
+        hidden: Option<&std::collections::BTreeSet<usize>>,
+        revealed: &std::collections::BTreeSet<usize>,
+        lamps: [bool; 2],
+        out: &mut Vec<Instance>,
+    ) {
+        let state = usize::from(lamps[0]) | (usize::from(lamps[1]) << 1);
         let world = pose.transform() * Mat4::from_scale(Vec3::splat(self.scale));
         let posed: Option<[(Mat4, Mat4); 4]> =
             self.model.corners.as_ref().map(|c| std::array::from_fn(|i| c[i].posed(pose.wheels[i])));
@@ -207,7 +228,7 @@ impl CarRig {
                 }
                 _ => placement.transform,
             };
-            out.push(Instance::keyed(part.mesh, world * local, keys::car_part(car, part.placement)));
+            out.push(Instance::keyed(part.lamps[state], world * local, keys::car_part(car, part.placement)));
         }
     }
 
@@ -243,16 +264,25 @@ fn upload_parts(
     to_sun: Vec3,
 ) -> (Vec<Part>, Vec<MeshHandle>, CarMaterials) {
     let materials = CarMaterials::upload(renderer, model, shading, to_sun);
-    let mut cache: HashMap<(u32, bool), Option<MeshHandle>> = HashMap::new();
+    let mut cache: HashMap<(u32, bool, u8), Option<MeshHandle>> = HashMap::new();
+    let variants: [_; 4] =
+        std::array::from_fn(|state| swaps.clone().with_lamp_state(state & 1 != 0, state & 2 != 0, &model.textures));
     let mut parts = Vec::new();
     for (placement, p) in model.placements.iter().enumerate() {
-        let mesh = *cache.entry((p.solid, p.left_brake)).or_insert_with(|| {
-            let lookup = materials.for_placement(swaps, p.left_brake);
-            upload_solid(renderer, &model.solids[&p.solid], &lookup, Shading::Lit)
+        let solid = &model.solids[&p.solid];
+        let relevant = solid.groups.iter().filter_map(|g| g.diffuse_texture(solid)).fold(0, |mask, hash| {
+            let head = variants[0].resolve_for(hash, p.left_brake) != variants[1].resolve_for(hash, p.left_brake);
+            let brake = variants[0].resolve_for(hash, p.left_brake) != variants[2].resolve_for(hash, p.left_brake);
+            mask | u8::from(head) | (u8::from(brake) << 1)
         });
-        if let Some(mesh) = mesh {
-            parts.push(Part { mesh, placement });
-        }
+        let lamps: [_; 4] = std::array::from_fn(|state| {
+            *cache.entry((p.solid, p.left_brake, state as u8 & relevant)).or_insert_with(|| {
+                let lookup = materials.for_placement(&variants[state], p.left_brake);
+                upload_solid(renderer, solid, &lookup, Shading::Lit)
+            })
+        });
+        let Some(mesh) = lamps[1] else { continue };
+        parts.push(Part { mesh, lamps: lamps.map(|m| m.unwrap_or(mesh)), placement });
     }
     parts.sort_by_key(|p| p.mesh);
     (parts, cache.into_values().flatten().collect(), materials)

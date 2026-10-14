@@ -1,5 +1,9 @@
 # Car assembly (stock parts, wheels, brakes, paint)
 
+Runtime player lamp states and installed lens-flare profiles are specified in
+[player-car-lights.md](player-car-lights.md). Truncated texture display names
+cannot identify `_ON`/`_OFF` states; use their full-name hashes.
+
 How NFS: Most Wanted builds the car you see from its pieces: which solids make up a stock car, where the
 four wheels and brakes go, and how the body gets its colour. Static pose only (front-end garage); the
 in-game additions (suspension, spin, steering, body roll) are listed but not specified here.

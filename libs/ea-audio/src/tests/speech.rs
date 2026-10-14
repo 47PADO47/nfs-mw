@@ -53,6 +53,14 @@ fn a_bank_of_one_take_has_no_table() {
 }
 
 #[test]
+fn bank_alignment_multiplier_applies_to_all_sample_offsets() {
+    let mut bytes = header(8, 0xFFFF, 2, &[5, 9], &[0, 0]);
+    bytes[7] = 1;
+    let bank = BankHeader::parse(&bytes).unwrap();
+    assert_eq!(bank.starts, [0, 5 * 512, 9 * 512]);
+}
+
+#[test]
 fn damaged_headers_are_errors() {
     let good = header(8, 1, 0, &[5, 9], &[]);
     assert!(matches!(BankHeader::parse(&good[..good.len() - 1]), Err(Error::Truncated { .. })));

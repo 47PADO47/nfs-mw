@@ -1,5 +1,11 @@
 # Common speedbreaker and pursuit-breaker effects
 
+The Speedbreaker follow-up distinguishes visual UVES pulses (input 1, class ID 0)
+from player Speedbreaker begin/end (inputs 3/4, class IDs 2/1). The original
+internal message name also contains "pursuit breaker". See
+[the full mode spec](speedbreaker-audio.md); prior activation-only wiring is
+superseded by that verified dispatch.
+
 Sources: [dbalatoni13/nfsmw](https://github.com/dbalatoni13/nfsmw)
 (CC0-1.0), `SFX_Common`, generated `FX_UVES` class, main sound-object enums;
 independently checked against matching PC message producer and complete

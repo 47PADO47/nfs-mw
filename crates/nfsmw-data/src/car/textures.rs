@@ -9,7 +9,8 @@ use game_install::GameDir;
 use crate::read_unwrapped;
 
 /// Packs searched for car textures, in priority order. `{car}` is the car folder.
-const TEXTURE_FILES: &[&str] = &["CARS/{car}/TEXTURES.BIN", "CARS/TEXTURES.BIN", "GLOBAL/GLOBALB.LZC"];
+const TEXTURE_FILES: &[&str] =
+    &["CARS/{car}/TEXTURES.BIN", "CARS/TEXTURES.BIN", "GLOBAL/GLOBALB.LZC", "GLOBAL/INGAMEA.BUN"];
 
 /// The `wanted` textures (by name hash) that the packs have.
 pub fn load(dir: &GameDir, car: &str, wanted: &HashSet<u32>) -> Result<HashMap<u32, Texture>> {

@@ -2,6 +2,7 @@
 //! Reads bytes and processes a mono send into mono/stereo output.
 
 mod kernel;
+mod low_pass;
 mod math;
 mod parse;
 mod processor;
@@ -9,6 +10,7 @@ mod processor;
 #[cfg(test)]
 mod tests;
 
+pub use low_pass::LowPass;
 pub use processor::Processor;
 
 pub const MAX_BLOCK: usize = 256;
