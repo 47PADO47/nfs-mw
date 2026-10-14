@@ -8,6 +8,7 @@
 //! sets stay loaded and tiles stream independently.
 
 mod assets;
+pub mod explosion_fx;
 mod globals;
 pub mod heli_sheet;
 mod index;
