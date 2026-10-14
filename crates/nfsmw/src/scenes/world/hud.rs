@@ -6,7 +6,7 @@ use nfsmw_data::gameplay::{self, ActivityKind, ActivityMarker, GameplayData, Pla
 use super::{View, WorldScene, space};
 use crate::audio::PursuitFeed;
 use crate::hud::{
-    AUTO_SHOP, MapBlip, PursuitHud, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP, RACE_SPRINT,
+    AUTO_SHOP, CAR_LOT, MapBlip, PursuitHud, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP, RACE_SPRINT,
     RACE_TOLLBOOTH, SAFE_HOUSE,
 };
 
@@ -38,8 +38,8 @@ impl WorldScene {
     }
 }
 
-/// The map blips of the race starts and the interiors (auto shops, safe houses), in the minimap's render space. They
-/// do not move, so they are made once, when the world opens. A race is shown at its start, not active: race mode is
+/// The map blips of the race starts and the interiors (auto shops, car lots, safe houses), in the minimap's render
+/// space. They do not move, so they are made once, when the world opens. A race is shown at its start, not active: race mode is
 /// not run yet.
 pub(super) fn static_blips(data: &GameplayData) -> Vec<MapBlip> {
     let races = data.races.iter().filter_map(race_blip);
@@ -67,10 +67,11 @@ fn race_style(kind: RaceType) -> Option<&'static str> {
     }
 }
 
-/// An auto shop or safe house. Its icon does not turn, so the heading points along the minimap's x axis.
+/// An auto shop, car lot or safe house. Its icon does not turn, so the heading points along the minimap's x axis.
 fn interior_blip(marker: &ActivityMarker) -> MapBlip {
     let style = match marker.kind {
         ActivityKind::AutoShop => AUTO_SHOP,
+        ActivityKind::CarLot => CAR_LOT,
         ActivityKind::SafeHouse => SAFE_HOUSE,
     };
     map_blip(style, marker.position, [1.0, 0.0])
