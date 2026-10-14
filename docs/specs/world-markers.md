@@ -78,13 +78,23 @@ A card at the top left of the screen says what the car is in, and how to enter. 
 scene (`Scene::ui`), not with FEng: the original card's package is not located yet.
 
 - **Text.** The title is the place (`Auto shop`, `Safe house`, `Race`); the line is `Press Enter to go in`
-  **[unconfirmed]**, the copy of the game is not known.
+  **[unconfirmed]**. The game's own shop prompt copy is `Enter Shop / Engage Event` (language table, label
+  `0xab1032fa`, read from the install) [verified]; the card does not use it yet.
 - **Animation.** Fades in over 0.2 s while it slides in from 24 points to the left, and fades out over 0.2 s when the
   car leaves the zone or another zone takes over (the old card goes out before the new one comes in)
   **[unconfirmed]**.
 - **Where.** 24 points from the top left of the window, the same corner as the radio card; not placed by the HUD
   layout setting **[unconfirmed]**.
 - **Scope.** Only while the car drives in the chase view. In the fly view or with no car, the card is hidden.
+
+### 4a. The enter icon (not located)
+
+The original also shows an animated enter icon (a pulsing circle with cars and an up arrow) while the car is in a zone.
+It is not drawn yet. Its FEng object, package and script are **not located**: no dumped screen (all 197 of the
+install's catalogue) has a matching object, and about 40 candidate names hash to nothing. The zone code that drives it is
+partly read: the handler opens the front-end screens of each zone (`MainMenu_Sub.fng`, `Car_Select.fng`,
+`CustomizeMain.fng`). What was checked and what is left is in [provenance/world-entry-zones.md](../provenance/world-entry-zones.md).
+The card and the ground disc stay as the only entry feedback until it is found.
 
 ## 5. The Interact button
 
@@ -134,5 +144,6 @@ screens.
    footprint). Until read, section 3 is **[unconfirmed]**.
 2. The original marker's colour, fade, pulse and size per kind (the disc is a guess; section 1).
 3. The race entry's own radius (6 m is a guess) and whether the race start is the entry or the event's own trigger.
-4. The original card's copy, package and placement (section 4).
+4. The original card's package and placement (section 4), and the enter icon's object, package and script (section 4a).
+   The copy is partly known: `Enter Shop / Engage Event` is the shop prompt's label.
 5. Which button the pad's South should do when both Handbrake and Interact are bound to it (section 5).
