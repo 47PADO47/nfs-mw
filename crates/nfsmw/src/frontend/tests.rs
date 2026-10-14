@@ -213,21 +213,35 @@ fn down_from_to(h: &mut Harness, category: Category, from: super::options::Setti
 }
 
 #[test]
-fn the_main_menu_starts_free_roam_from_career_and_quick_race() {
+fn the_main_menu_starts_free_roam_from_career() {
     let Some(mut h) = Harness::open(screen::MAIN_MENU, Args::default()) else { return };
     h.wait(1.0);
     h.press(pad::ACCEPT);
     h.wait(1.5);
     assert!(h.said(&Command::StartFreeRoam), "career: {:?}", h.commands);
+}
 
-    let mut h = Harness::open(screen::MAIN_MENU, Args::default()).unwrap();
+#[test]
+fn quick_race_opens_the_track_select_screen() {
+    let Some(mut h) = Harness::open(screen::MAIN_MENU, Args::default()) else { return };
     h.wait(1.0);
     // Career, Challenge Series, Quick Race: the challenge series is browsable but not there yet.
     h.press(pad::RIGHT);
     h.press(pad::RIGHT);
     h.press(pad::ACCEPT);
     h.wait(1.5);
-    assert!(h.said(&Command::StartFreeRoam), "quick race: {:?}", h.commands);
+    assert!(h.said(&Command::Switch(screen::TRACK_SELECT.into(), Args::default())), "quick race: {:?}", h.commands);
+    assert!(!h.said(&Command::StartFreeRoam), "quick race must not start a race: {:?}", h.commands);
+}
+
+#[test]
+fn track_options_accept_starts_nothing() {
+    let Some(mut h) = Harness::open(screen::TRACK_OPTIONS, Args::default()) else { return };
+    h.wait(1.0);
+    h.press(pad::ACCEPT);
+    h.wait(1.5);
+    assert!(!h.said(&Command::StartFreeRoam), "{:?}", h.commands);
+    assert!(!h.commands.iter().any(|c| matches!(c, Command::Switch(..) | Command::Push(..))), "{:?}", h.commands);
 }
 
 #[test]

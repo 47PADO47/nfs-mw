@@ -96,7 +96,15 @@ mod tests {
         let Some(root) = std::env::var_os("NFSMW_GAME_DIR") else { return };
         let dir = GameDir::open(std::path::PathBuf::from(root)).unwrap();
         let catalog = Catalog::load(&dir, &SCREEN_FILES);
-        for name in ["MainMenu.fng", "mainmenu_sub.fng", "Options.fng", "Pause_Main.fng", "HUD_SingleRace.fng"] {
+        for name in [
+            "MainMenu.fng",
+            "mainmenu_sub.fng",
+            "Options.fng",
+            "Pause_Main.fng",
+            "HUD_SingleRace.fng",
+            "Track_Select.fng",
+            "Track_Options.fng",
+        ] {
             assert!(catalog.find(name).is_some(), "{name} is missing");
         }
         assert!(catalog.entries().len() >= 190);
