@@ -48,6 +48,13 @@ impl WorldScene {
                 Ok::<_, anyhow::Error>(PendingCar { name, model, script })
             })
             .transpose()?;
+        let map_blips = match nfsmw_data::gameplay::load(dir) {
+            Ok(data) => super::hud::static_blips(&data),
+            Err(e) => {
+                log::warn!("race and interior blips are off: {e:#}");
+                Vec::new()
+            }
+        };
         Ok(Self {
             dir: dir.clone(),
             track: index.track.clone(),
@@ -76,7 +83,7 @@ impl WorldScene {
             pending_car,
             drive: None,
             traffic,
-            map_blips: Vec::new(),
+            map_blips,
             traffic_setting: crate::settings::TrafficSettings {
                 cars: 0,
                 cop_share: crate::settings::Percent(0),
