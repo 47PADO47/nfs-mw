@@ -31,6 +31,7 @@ impl WorldScene {
                 // The radar's green laser shows while cops chase the player.
                 state.cop_nearby = traffic.is_pursuing();
                 state.pursuit = traffic.pursuit_feed().map(pursuit_hud);
+                state.busted = traffic.busted_meter();
             }
             state.blips.extend_from_slice(&self.map_blips);
         }

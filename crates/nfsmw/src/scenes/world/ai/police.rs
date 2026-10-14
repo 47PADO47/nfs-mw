@@ -17,7 +17,7 @@ use blackbox_pursuit::helicopter::control::{Flat, Heights};
 use blackbox_pursuit::helicopter::{Helicopter, Mode, SearchInput, THINK_PERIOD, Target, Tuning};
 use blackbox_pursuit::rules::{self, Contact};
 use blackbox_pursuit::support::Strategy;
-use blackbox_pursuit::{Evade, Fines, Heat, Infraction, InfractionLog};
+use blackbox_pursuit::{Busted, Evade, Fines, Heat, Infraction, InfractionLog};
 use blackbox_render::Instance;
 use blackbox_roads::{HeliSheet, RandomSource, SegmentFilter, TrackZone, closest_segment, to_zone_space};
 use blackbox_speedfx::{Effects, SpeedFx, Tuning as SpeedTuning};
@@ -141,6 +141,8 @@ pub struct Police {
     hidden_zones: Vec<TrackZone>,
     /// The helicopter's height sheet of the track, when it was read (`nfsmw_data::world::heli_sheet`).
     heli_sheet: Option<HeliSheet>,
+    /// The busted timer of the chase (`blackbox_pursuit::Busted`); reset when a chase starts, kept after it ends.
+    busted: Busted,
 }
 
 impl Default for Police {
@@ -167,6 +169,7 @@ impl Default for Police {
             roadblock_standing: false,
             hidden_zones: Vec::new(),
             heli_sheet: None,
+            busted: Busted::default(),
         }
     }
 }
@@ -188,6 +191,7 @@ impl Police {
         self.support_timer = SUPPORT_CHECK;
         self.roadblock_requested = false;
         self.roadblock_standing = false;
+        self.busted.reset();
     }
 
     /// The chase is over: the helicopter, if any, leaves.
@@ -478,6 +482,7 @@ fn to_body(player: &PlayerView) -> Player {
 #[path = "police_tests.rs"]
 mod tests;
 
+mod busted;
 mod world;
 
 /// The track's height sheet as the helicopter's floor. Physics `(x, z)` is the sheet's map point `(z, -x)`
