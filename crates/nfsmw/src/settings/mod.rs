@@ -49,6 +49,9 @@ mod smoke_quality;
 #[cfg(test)]
 mod smoke_quality_tests;
 mod spark_style;
+pub mod speedbreaker;
+#[cfg(test)]
+mod speedbreaker_tests;
 #[cfg(test)]
 pub(crate) mod test_caps;
 #[cfg(test)]
@@ -85,6 +88,7 @@ pub use ray_tracing::RayTracingLevel;
 pub use renderer::RendererKind;
 pub use smoke_quality::SmokeQuality;
 pub use spark_style::SparkStyle;
+pub use speedbreaker::SpeedbreakerTuning;
 pub use transmission::Transmission;
 pub use upscale::{RenderScale, UpscaleMode};
 pub use upscale_quality::UpscaleQuality;
@@ -155,6 +159,8 @@ pub struct Settings {
     pub engine_volume: Percent,
     /// The police dispatch's radio lines.
     pub speech_volume: Percent,
+    /// The Speedbreaker tunables from `NFSMWSpeedFixerSettings.ini` next to the config file. Not a [`Partial`] layer.
+    pub speedbreaker: SpeedbreakerTuning,
     /// Draw the in-game HUD while driving (the free camera never shows it).
     pub hud: bool,
     /// Draw smoke from the driven car's loaded tire contacts.
@@ -322,6 +328,7 @@ impl From<Partial> for Settings {
             paddle_down: p.paddle_down,
             manual_clutch: p.manual_clutch.unwrap_or(false),
             h_shifter: p.h_shifter.unwrap_or(false),
+            speedbreaker: SpeedbreakerTuning::default(),
         };
         settings.settle_preset();
         settings
@@ -355,7 +362,13 @@ impl Settings {
             Some(dir) => extra_options::read(&dir.join(extra_options::FILE_NAME)),
             None => Partial::default(),
         };
-        cli.or(env).or(file).or(extra).into()
+        let speedbreaker = match config.as_deref().and_then(std::path::Path::parent) {
+            Some(dir) => speedbreaker::read(&dir.join(speedbreaker::FILE_NAME)),
+            None => SpeedbreakerTuning::default(),
+        };
+        let mut settings: Self = cli.or(env).or(file).or(extra).into();
+        settings.speedbreaker = speedbreaker;
+        settings
     }
 }
 
@@ -456,6 +469,8 @@ pub struct WorldTuning {
     pub show_hud_on_look_back: bool,
     /// Lift the engine's rev limiter (Extra Options `NoRevLimiter`).
     pub no_rev_limiter: bool,
+    /// The Speedbreaker tunables (`NFSMWSpeedFixerSettings.ini`).
+    pub speedbreaker: SpeedbreakerTuning,
 }
 
 impl Default for WorldTuning {
@@ -466,6 +481,7 @@ impl Default for WorldTuning {
             show_hud_on_look_back: DEFAULT_SHOW_HUD_ON_LOOK_BACK,
             car_scale: DEFAULT_CAR_SCALE,
             no_rev_limiter: DEFAULT_NO_REV_LIMITER,
+            speedbreaker: SpeedbreakerTuning::default(),
         }
     }
 }
@@ -478,6 +494,7 @@ impl From<&Settings> for WorldTuning {
             show_hud_on_look_back: s.show_hud_on_look_back,
             car_scale: s.car_scale,
             no_rev_limiter: s.no_rev_limiter,
+            speedbreaker: s.speedbreaker,
         }
     }
 }
