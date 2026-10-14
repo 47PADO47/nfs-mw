@@ -11,17 +11,19 @@ pub struct PursuitHud {
     pub secs: f32,
     /// How far the player is from getting away, 0 at the start and 1 when the cops give up.
     pub evade: f32,
+    /// The cop cars wrecked so far in the chase: the counter beside the board's cops icon.
+    pub cops_destroyed: u32,
 }
 
 impl PursuitHud {
     /// The chase from the world's numbers: `secs_to_evade` is the unseen time still to go, out of the evade
-    /// `timeout` of the heat level. The evaded share is what is already done of that timeout.
+    /// `timeout` of the heat level. The evaded share is what is already done of that timeout. No cop is counted yet.
     pub fn from_evade_time(secs: f32, secs_to_evade: f32, timeout: f32) -> Self {
         let secs = secs.max(0.0);
         if timeout <= 0.0 {
-            return Self { secs, evade: 0.0 };
+            return Self { secs, evade: 0.0, cops_destroyed: 0 };
         }
-        Self { secs, evade: (1.0 - secs_to_evade / timeout).clamp(0.0, 1.0) }
+        Self { secs, evade: (1.0 - secs_to_evade / timeout).clamp(0.0, 1.0), cops_destroyed: 0 }
     }
 
     /// Whether the cool-down bar is on the screen.
@@ -53,8 +55,8 @@ mod tests {
 
     #[test]
     fn the_cooldown_bar_shows_from_five_per_cent_evaded() {
-        assert!(!PursuitHud { secs: 0.0, evade: 0.04 }.cooldown_shown());
-        assert!(PursuitHud { secs: 0.0, evade: 0.05 }.cooldown_shown());
+        assert!(!PursuitHud { secs: 0.0, evade: 0.04, cops_destroyed: 0 }.cooldown_shown());
+        assert!(PursuitHud { secs: 0.0, evade: 0.05, cops_destroyed: 0 }.cooldown_shown());
     }
 
     #[test]

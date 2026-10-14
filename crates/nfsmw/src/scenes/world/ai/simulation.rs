@@ -48,6 +48,9 @@ impl TrafficWorld {
                 lights,
             };
             car.step(&mut ctx, collision, props, surfaces);
+            if car.take_wreck() {
+                self.police.record_wreck();
+            }
             car.step_lights();
         }
         self.signal_time += STEP;

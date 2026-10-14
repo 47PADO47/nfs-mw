@@ -64,6 +64,9 @@ const COOLDOWN_FILL: u32 = 0xCF81_7638;
 /// The pursuit board's group (`PursuitBoardGroup`) and the cool-down bar's group (`Cooldown_Meter_Group`).
 const PURSUIT_BOARD_GROUP: u32 = 0xDE89_E070;
 const COOLDOWN_GROUP: u32 = 0x84A2_26EC;
+/// The cops group (`0xE0B1430B`, the parent of the cops counters): its icons and the taken-out count beside them.
+/// Its fade-in is a script on a message this build does not raise, so it is held at full alpha during a chase too.
+const COPS_GROUP: u32 = 0xE0B1_430B;
 
 /// The objects of the package the HUD drives, found once.
 pub struct HudBinding {
@@ -89,6 +92,8 @@ pub struct HudBinding {
     turbo_needle: Option<ObjectRef>,
     /// The pursuit board's timer, `mm:ss.cc`.
     pursuit_timer: Option<ObjectRef>,
+    /// The cops taken out in the chase (`Cops_TakenOut`, beside `Cops_TakenOut_Icon`): the wrecked count.
+    cops_taken: Option<ObjectRef>,
     /// The cool-down bar's fill, with its full width and height.
     cooldown_bar: Option<CooldownBar>,
     /// The pursuit board's group and the cool-down bar's group, held at full alpha during a chase (see `pursuit`).
@@ -158,8 +163,12 @@ impl HudBinding {
             speedbreaker_icon: rt.find(package, SPEEDBREAKER_ICON_GROUP),
             turbo_needle: find(rt, package, "3rdperson_TurboDial"),
             pursuit_timer: find(rt, package, "PursuitTime"),
+            cops_taken: find(rt, package, "Cops_TakenOut"),
             cooldown_bar: cooldown_fill(rt, package),
-            pursuit_frames: [PURSUIT_BOARD_GROUP, COOLDOWN_GROUP].iter().filter_map(|h| rt.find(package, *h)).collect(),
+            pursuit_frames: [PURSUIT_BOARD_GROUP, COOLDOWN_GROUP, COPS_GROUP]
+                .iter()
+                .filter_map(|h| rt.find(package, *h))
+                .collect(),
             minimap: None,
             blips: BlipBinding::builtin(rt, package),
             shift_on: false,
@@ -312,6 +321,9 @@ impl HudBinding {
         }
         if let Some(o) = self.pursuit_timer {
             rt.set_text(o, timer_text(p.secs));
+        }
+        if let Some(o) = self.cops_taken {
+            rt.set_text(o, p.cops_destroyed.to_string());
         }
         if let Some(bar) = self.cooldown_bar {
             // The fill keeps its left end where the package has it: it grows to the right.

@@ -1,6 +1,7 @@
 //! Tests of the police state (`police.rs`).
 
 use super::*;
+use glam::Quat;
 
 fn view(speed: f32) -> PlayerView {
     PlayerView { position: Vec3::ZERO, forward: Vec3::X, speed, nitrous: 0.0, throttle: 0.0 }
@@ -27,6 +28,21 @@ fn a_chase_starts_at_its_level_and_clears_the_log() {
     police.begin(4);
     assert_eq!(police.level(), Some(4));
     assert_eq!(police.infractions().count(), 0);
+}
+
+#[test]
+fn only_a_chase_counts_the_cops_it_wrecks_and_each_chase_starts_at_zero() {
+    let mut police = Police::default();
+    police.record_wreck();
+    assert_eq!(police.cops_destroyed(), 0, "a wreck outside a chase is not counted");
+    police.begin(3);
+    police.record_wreck();
+    police.record_wreck();
+    assert_eq!(police.cops_destroyed(), 2);
+    police.end();
+    assert_eq!(police.cops_destroyed(), 2, "the count stays after the chase, for the summary");
+    police.begin(5);
+    assert_eq!(police.cops_destroyed(), 0);
 }
 
 #[test]
