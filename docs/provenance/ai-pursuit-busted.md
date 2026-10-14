@@ -26,7 +26,7 @@ Spec: [ai-pursuit.md](../specs/ai-pursuit.md) sections 4.4 and 5.
 - The meter shown to the HUD is `timer / timeout` (0 to 1). The decomp's `PursuitMeter` (spec 4.4, -1 to 1) is a
   different value that drives the five-segment bar. It is not implemented, and the bar object is not located
   (see [hud-pursuit.md](../specs/hud-pursuit.md)).
-- `flashing` is always false for now. The post-reset blink is the FairBusts (E12) area.
+- `flashing` is the post-reset blink: a manual reset starts a 2 s blink (`busted::RESET_BLINK`). The reset penalty it applies is in [fairbusts-reset.md](fairbusts-reset.md).
 - Whether a cop whose height matches counts for the whole 1.5 m gate, or only at the cop's own position, is taken as
   the spec states it.
 
