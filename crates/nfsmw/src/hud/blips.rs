@@ -1,6 +1,6 @@
 //! The map blips on the minimap: every [`BlipStyle`] registered here gets a pool of HUD objects from the package, and
 //! each frame every blip of a registered style is placed with `blackbox_minimap::place_blip`. A blip whose condition
-//! hides it takes no object; a place beyond the pool is not drawn. The look comes from the style, on the binding's
+//! hides it, or that lands outside the disc, takes no object; a drawn blip past the pool is not drawn. The look comes from the style, on the binding's
 //! tick (`docs/specs/hud-minimap.md` section 7).
 
 use blackbox_feng::{ObjectRef, PackageId, Runtime, fe_hash_upper};
@@ -82,16 +82,16 @@ impl BlipBinding {
             let Some(look) = look_of(self.styles[index].as_ref(), blip, tick) else {
                 continue;
             };
-            let Some(slot) = self.slots.iter().filter(|s| s.style == index).nth(used[index]) else {
+            let Some(o) = self.slots.iter().filter(|s| s.style == index).nth(used[index]).map(|s| s.object) else {
                 continue;
             };
-            used[index] += 1;
             let placed = minimap.blip(&view, at.orientation, blip.position, blip.heading);
             let alpha = placed.alpha * look.alpha;
+            // Only a blip that is drawn takes an object: one out of the disc must not hide a nearer one.
             if alpha <= 0.0 {
                 continue;
             }
-            let o = slot.object;
+            used[index] += 1;
             rt.set_hidden(o, false);
             rt.set_position_xy(o, centre[0] + placed.offset[0], centre[1] + placed.offset[1]);
             rt.set_rotation_z(o, (placed.rotation + look.spin).to_radians());

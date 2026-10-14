@@ -129,3 +129,19 @@ fn the_minimap_reuses_stationary_pixels_and_bounds_its_moving_cache() {
         bytes / FRAMES
     );
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_race_and_interior_map_icons_are_objects_of_the_single_race_hud() {
+    let root = std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR");
+    let dir = GameDir::open(std::path::PathBuf::from(root)).unwrap();
+    let catalog = Catalog::load(&dir, &["GLOBAL/InGameB.bun", "GLOBAL/INGAMEC.BUN"]);
+    let package = catalog.find("HUD_SingleRace.fng").expect("HUD_SingleRace.fng").clone();
+    let mut rt = Runtime::new();
+    let id = rt.load(package);
+    for style in super::blip_styles::map_icon_styles() {
+        for icon in style.icons() {
+            assert!(rt.find(id, fe_hash_upper(&icon)).is_some(), "{icon} is an object of the HUD package");
+        }
+    }
+}

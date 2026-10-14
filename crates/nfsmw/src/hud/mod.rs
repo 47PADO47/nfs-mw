@@ -33,7 +33,10 @@ mod viewport;
 mod viewport_tests;
 
 pub use blip_style::MapBlip;
-pub use blip_styles::{COP, HELICOPTER};
+pub use blip_styles::{
+    AUTO_SHOP, COP, HELICOPTER, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP, RACE_SPRINT, RACE_TOLLBOOTH,
+    SAFE_HOUSE,
+};
 pub use plugin::HudPlugin;
 pub use radio::{RadioHud, show as show_radio};
 pub use state::{HudState, MapPosition};

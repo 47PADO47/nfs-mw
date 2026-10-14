@@ -143,9 +143,8 @@ impl HudBinding {
 
     /// Gives the HUD a minimap (built from the package's objects and the map's calibration). Without one the
     /// minimap objects stay hidden.
-    /// Registers a custom map blip style (see [`BlipStyle`]); its objects come from the package by its icon names.
-    /// No caller yet: the extension point for custom blips.
-    #[allow(dead_code)]
+    /// Registers a map blip style (see [`BlipStyle`]); its objects come from the package by its icon names. Call it
+    /// before the viewport is built (`HudViewport::new` takes the icons from `blip_icon_hashes`).
     pub fn add_blip_style(&mut self, rt: &mut Runtime, package: PackageId, style: Box<dyn BlipStyle>) {
         self.blips.add(rt, package, style);
     }

@@ -1,5 +1,6 @@
-//! The blips the original game draws, as [`BlipStyle`]s: the cop, the racer, the checkpoint and the helicopter.
-//! Their icons are the package's `MMICON_*` objects (`docs/formats/minimap.md`).
+//! The blips the original game draws, as [`BlipStyle`]s: the cop, the racer, the checkpoint and the helicopter, and
+//! the race events and interiors. Their icons are the package's objects (`docs/formats/minimap.md`,
+//! `docs/specs/hud-minimap.md` section 7).
 
 use super::blip_style::{BlipLook, BlipStyle, MapBlip};
 use super::cop_blip;
@@ -8,6 +9,21 @@ pub const COP: &str = "cop";
 pub const RACER: &str = "racer";
 pub const CHECKPOINT: &str = "checkpoint";
 pub const HELICOPTER: &str = "helicopter";
+pub const RACE_SPRINT: &str = "race_sprint";
+pub const RACE_DRAG: &str = "race_drag";
+pub const RACE_CIRCUIT: &str = "race_circuit";
+pub const RACE_KNOCKOUT: &str = "race_knockout";
+pub const RACE_TOLLBOOTH: &str = "race_tollbooth";
+pub const RACE_SPEEDTRAP: &str = "race_speedtrap";
+pub const AUTO_SHOP: &str = "auto_shop";
+pub const SAFE_HOUSE: &str = "safe_house";
+
+/// The objects of one race type's pool: `MMICON_<TYPE>_0..7`.
+const RACE_POOL: usize = 8;
+/// The auto shops' pool: `SHOP_0..7`, one per shop zone.
+const AUTO_SHOP_POOL: usize = 8;
+/// The safe houses' pool: `SAFEHOUSEINDICATOR_0..3`, one per safe house.
+const SAFE_HOUSE_POOL: usize = 4;
 
 /// A police car: a white icon, and a light bar that cycles blue, grey and red while `active` (a pursuit).
 pub struct Cop;
@@ -67,6 +83,45 @@ impl BlipStyle for Helicopter {
     fn icons(&self) -> Vec<String> {
         vec!["HELICOPTER_ICON_GROUP".to_string()]
     }
+}
+
+/// A pool of HUD objects named `<prefix><index>` for `index` in `0..size`: one object per blip shown at once.
+pub struct IconPool {
+    name: &'static str,
+    prefix: &'static str,
+    size: usize,
+}
+
+impl IconPool {
+    pub const fn new(name: &'static str, prefix: &'static str, size: usize) -> Self {
+        Self { name, prefix, size }
+    }
+}
+
+impl BlipStyle for IconPool {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
+    fn icons(&self) -> Vec<String> {
+        (0..self.size).map(|i| format!("{}{i}", self.prefix)).collect()
+    }
+}
+
+/// The styles of the race events (one per race type that has an icon in the package), the auto shops and the safe
+/// houses. Blips of one style take that style's objects in order; a blip past the pool is not drawn. The icon's index
+/// is not tied to its zone (`docs/formats/gameplay-races.md` section 7).
+pub fn map_icon_styles() -> Vec<Box<dyn BlipStyle>> {
+    vec![
+        Box::new(IconPool::new(RACE_SPRINT, "MMICON_SPRINT_", RACE_POOL)),
+        Box::new(IconPool::new(RACE_DRAG, "MMICON_DRAG_", RACE_POOL)),
+        Box::new(IconPool::new(RACE_CIRCUIT, "MMICON_CIRCUIT_", RACE_POOL)),
+        Box::new(IconPool::new(RACE_KNOCKOUT, "MMICON_KNOCKOUT_", RACE_POOL)),
+        Box::new(IconPool::new(RACE_TOLLBOOTH, "MMICON_TOLLBOOTH_", RACE_POOL)),
+        Box::new(IconPool::new(RACE_SPEEDTRAP, "MMICON_SPEEDTRAP_", RACE_POOL)),
+        Box::new(IconPool::new(AUTO_SHOP, "SHOP_", AUTO_SHOP_POOL)),
+        Box::new(IconPool::new(SAFE_HOUSE, "SAFEHOUSEINDICATOR_", SAFE_HOUSE_POOL)),
+    ]
 }
 
 /// The styles the game uses.
