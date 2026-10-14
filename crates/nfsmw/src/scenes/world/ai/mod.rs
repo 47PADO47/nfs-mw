@@ -125,7 +125,10 @@ pub struct TrafficWorld {
     player_speed: f32,
     /// The player's physics position as of the last collision step (`None` when not driving).
     player_position: Option<Vec3>,
-    seen_by_patrol: bool,
+    /// Whether a cop sees the player, as of the last sight test (`collide.rs`).
+    seen_by_cops: bool,
+    /// Simulated seconds since the last sight test, against `blackbox_pursuit::sight::TEST_PERIOD`.
+    sight_clock: f32,
 }
 
 impl TrafficWorld {
@@ -172,7 +175,8 @@ impl TrafficWorld {
             hit_timer: 0.0,
             player_speed: 0.0,
             player_position: None,
-            seen_by_patrol: false,
+            seen_by_cops: false,
+            sight_clock: 0.0,
         }
     }
 
@@ -191,7 +195,7 @@ impl TrafficWorld {
         traffic_events::Sighting {
             heat,
             player_speed: self.player_speed,
-            seen: self.seen_by_patrol,
+            seen: self.seen_by_cops,
             recent_hit: self.hit_timer > 0.0,
             // No 911 calls in the rewrite yet.
             has_911: false,

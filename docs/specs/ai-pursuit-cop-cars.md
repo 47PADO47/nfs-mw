@@ -231,3 +231,18 @@ lighter than its mass in the front (0.6) so it bounces off; a pit cop hits with 
   `AiVehicleModel` row; no separate physics class is needed beyond `SuspensionSimple` and the collision-reaction hook.
 - Put the `PlayerCollisions` lookup in `set_goal`; make it return the `collisionreactions` handle the body then reads.
 - Keep `time_since_target_seen` as the single sight signal; the pursuit's "perp in sight" is the minimum over cops.
+
+### 2.1 Rewrite implementation (epic E7)
+
+- **Range and cone** live in `libs/blackbox-pursuit/src/sight.rs` (`ranges`, `out_of_range`, `REAR_CONE_DOT`, `TEST_PERIOD`).
+  The cone uses the cop's own forward against the unit direction to the player, as in section 2 above.
+- **Occlusion** is a separate ray in `crates/nfsmw/src/scenes/world/drive/sight.rs` (`sight_cast`): every face blocks, so road
+  decks, bridge undersides and grouped scenery block. The only pass-through is a one-sided barrier met from behind. The
+  wall probe (`drive/walls.rs`, `world_cast`) is unchanged and still serves the body and the helicopter.
+- **Who looks:** every cop car: patrol cars, chase cops and roadblock cops (`ai/collide.rs`, `update_sight`). One world-level test
+  runs every 0.25 s of simulated time and holds its answer between tests. Per-cop `TimeSinceTargetSeen` and the 7 s
+  "perp in sight" grace are not modelled yet: the evade counter takes the instantaneous sight.
+- **Vertical gate:** `rules::on_level` (`COP_LEVEL_GATE` 8 m, **[unconfirmed]** design value) gates `nearest_cop`, which feeds
+  the off-road and contact rules. A cop on another level is not near. The busted meter is not in the rewrite yet.
+- **Open:** the install's exact vertical test and the game's occlusion query flags are not confirmed by reversing (see
+  `docs/provenance/ai-pursuit-sight.md`).

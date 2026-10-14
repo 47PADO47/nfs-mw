@@ -16,6 +16,7 @@ mod placement;
 mod presentation_tests;
 mod rig;
 mod script;
+pub(super) mod sight;
 mod sim;
 mod simulation;
 mod sound;

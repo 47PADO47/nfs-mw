@@ -1,5 +1,6 @@
 //! Cars hitting each other and the player's car, and the sounds those hits and close passes make.
 
+use blackbox_pursuit::sight;
 use glam::Vec3;
 
 use super::TrafficWorld;
@@ -135,22 +136,30 @@ impl TrafficWorld {
         self.player_position = player.as_deref().map(|p| p.body().position);
     }
 
-    /// Whether a patrol cop can see the player: within `cop_sight` and with nothing solid between their eyes. The
-    /// test is a ray from the cop's eyes to the player's (`CanSeeTarget`, ai-pursuit §4.1). The front and rear cone
-    /// does not matter at heat 1 to 7, where both ranges are 151 m.
-    pub fn update_sight(&mut self, cast: Cast<'_>) {
+    /// Whether a cop sees the player, tested every `TEST_PERIOD` seconds of simulated time (`CanSeeTarget`, ai-pursuit
+    /// section 4.1). Every cop car counts: patrol cars, the chase's cops and the roadblock's. A cop sees the player when
+    /// the heat's range and rear cone allow it and the world's faces do not block the line from its eyes to the
+    /// player's. Between tests the last answer holds.
+    pub fn update_sight(&mut self, dt: f32, cast: Cast<'_>) {
+        self.sight_clock += dt;
+        if self.sight_clock < sight::TEST_PERIOD {
+            return;
+        }
+        self.sight_clock = self.sight_clock.rem_euclid(sight::TEST_PERIOD);
         let Some(player) = self.player_position else {
-            self.seen_by_patrol = false;
+            self.seen_by_cops = false;
             return;
         };
+        let level = self.police.level().unwrap_or(1);
         let eye = player + EYE;
-        let range = self.events.cop_sight;
-        self.seen_by_patrol = self.cars.iter().any(|car| {
-            if !car.is_patrol() {
+        self.seen_by_cops = self.cars.iter().any(|car| {
+            if !(car.is_patrol() || car.is_cop() || car.is_roadblock()) {
                 return false;
             }
             let cop = car.physics_position();
-            cop.distance(player) < range && clear(cast, cop + EYE, eye)
+            let to_player = (player - cop).try_normalize().unwrap_or(Vec3::ZERO);
+            let facing = car.physics_forward().dot(to_player);
+            !sight::out_of_range(level, cop.distance(player), facing) && clear(cast, cop + EYE, eye)
         });
     }
 }

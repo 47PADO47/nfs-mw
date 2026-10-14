@@ -99,11 +99,13 @@ impl super::super::TrafficWorld {
         })
     }
 
-    /// The distance from a physics-space point to the nearest cop, horizontally; infinite with no cop.
+    /// The horizontal distance from a physics-space point to the nearest cop on its level; infinite with none. A cop
+    /// on another level (a deck above or a road below) does not count as near.
     fn nearest_cop(&self, at: Vec3) -> f32 {
         self.cars
             .iter()
             .filter(|car| car.is_cop())
+            .filter(|car| rules::on_level(car.avoidable().position.y - at.y))
             .map(|car| horizontal(car.avoidable().position - at).length())
             .fold(f32::INFINITY, f32::min)
     }
