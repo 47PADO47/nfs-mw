@@ -4,6 +4,7 @@
 
 mod browse;
 mod confirm;
+mod controls_layout;
 mod controls_screen;
 pub mod dump;
 mod factory;

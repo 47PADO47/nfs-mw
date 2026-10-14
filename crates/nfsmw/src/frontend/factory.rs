@@ -37,7 +37,7 @@ pub fn make(name: &str, args: Args) -> Box<dyn ScreenLogic> {
         return Box::new(AlertLogic::new(Alert::new(Text::Custom("Load complete.".into()))));
     }
     if is(screen::CONTROLS) || is(screen::PAUSE_CONTROLS) {
-        return Box::new(ControlsLogic::new(args));
+        return Box::new(ControlsLogic::new(&name, args));
     }
     if is(screen::TRACK_SELECT) {
         return Box::new(TrackSelect::default());
