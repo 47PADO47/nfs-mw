@@ -1,9 +1,10 @@
 # Collision sparks and speed trails
 
 Options > Video offers **Collision Sparks: Off / Original PC / Restored
-(Experimental)** and a separate **Speed Trails (Experimental)** switch. Both
-effects default off; enabling sparks selects Original PC unless another style was
-saved. Changes appear immediately and save when leaving Options.
+(Experimental)** and a separate **Speed Trails (Experimental)** switch with a **Speed Trail Style**
+row: **Speed Streaks** (default) or **Car Only**. Both effects default off; enabling
+sparks selects Original PC unless another style was saved. Changes appear
+immediately and save when leaving Options.
 
 These modes work with an unmodified PC install. No ASI plugin, replacement
 texture pack or Xbox addon is required. Only your installed game supplies assets.
@@ -30,10 +31,15 @@ glows, a short contact flash, distributed births and car-box exclusion are host
 enhancements. The box approximates the car mesh; this mode is not a verified
 pixel match to the Xbox release or restoration mod. It adds no dynamic wall light.
 
-Speed Trails are experimental wind contrails around the body, separate from
-taillight trails and flames. They start at 44 m/s (158.4 km/h); brightness increases
-up to twice that speed. NOS does not bypass the threshold. They appear in chase
-camera, stop emitting when slowing down, and disconnect on entering free camera.
+Speed Trails are experimental high-speed effects, separate from taillight trails and
+flames. Both styles use the same curve: nothing shows below 44 m/s (158.4 km/h), then
+brightness rises with speed up to twice that speed, and NOS does not bypass the
+threshold.
+
+- **Speed Streaks** (default): short lines over the view that radiate from the
+  centre, drawn at the strength of that curve. Nothing is drawn while stopped.
+- **Car Only**: the wind contrail around the body. It appears in chase camera,
+  stops emitting when slowing down, and disconnects on entering free camera.
 
 Stationary wall overlap does not keep emitting sparks. The PC budget is 1024
 particles; restored sparks retain at most 2048 and trails 256. GPU vertex buffers
@@ -45,12 +51,14 @@ These are resource bounds, not measured performance improvements.
 collision_sparks = true
 spark_style = "original-pc" # or "restored-experimental"
 speed_trails = false
+speed_trail_style = "streaks" # or "car"
 ```
 
 CLI: `nfsmw play --collision-sparks --spark-style original-pc`.
-Environment: `NFSMW_COLLISION_SPARKS=on`, `NFSMW_SPARK_STYLE=original-pc`.
+Environment: `NFSMW_COLLISION_SPARKS=on`, `NFSMW_SPARK_STYLE=original-pc`,
+`NFSMW_SPEED_TRAIL_STYLE=car`.
 F12 console: `set collision_sparks on`, `set spark_style restored-experimental`,
-`set speed_trails on`. Menu changes save; console changes last for the run.
+`set speed_trails on`, `set speed_trail_style car`. Menu changes save; console changes last for the run.
 `vehicle-effects` shows style/counts; `vehicle-effects clear` removes particles.
 CLI > environment > file > defaults is the usual priority.
 
