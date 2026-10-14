@@ -118,6 +118,32 @@ So the counter is written when the state dispatcher runs state 6. Whether state 
 confirmed: the live checks in free roam recorded no change, so either state 6 is not free roam or the value is
 not used there. This is the open point for a live watchpoint on `0x009B0FE4` during a state-6 entry.
 
+## Day clock, pause and time scale **[implemented, synthetic tests]**
+
+The day-night clock (`DayClock` in `crates/nfsmw/src/scenes/world/day.rs`) is advanced by the simulation delta,
+not the real frame time. `WorldScene::update` calls `update_day(sim_dt)` after `update_simulation`, and
+`sim_dt` is the same delta physics uses:
+
+- **Speedbreaker:** `SpeedbreakerClock::advance` (`drive/time_scale.rs`) gives the dilated delta: 1.0 when
+  inactive, ramping to the configured target (0.25 by default) at the entry and exit rates while active. The
+  day runs at that rate during the breaker.
+- **GameSpeed (decision):** `update_simulation` multiplies the dilated delta by `tuning.game_speed`
+  (`simulation.rs`). So GameSpeed scales the day clock as well as physics, the traffic and the rain: one clock.
+  Kept on purpose. `AnimationSpeed` (`self.clock`, `mod.rs`) is a separate multiplier for scenery animation and
+  does not change the day.
+- **Pause:** `Pausable` (`frontend/scene.rs`) returns before `WorldScene::update` while paused, so the clock is not
+  advanced. Its existing test fails if the inner update runs.
+- **Loading and garage:** a missing local world sets `sim_dt` to 0 (`simulation.rs`), and an open garage passes
+  `dt = 0` (`mod.rs`). The clock holds in both.
+
+The tests are in `day.rs`: a zero delta does not advance the day, normal speed is unscaled (150 simulated
+seconds is one game hour), an active speedbreaker gives 15.140625 simulated seconds over 60 real seconds, and
+GameSpeed scales linearly. These check the clock in isolation; they do not run `WorldScene` or the pause wrapper.
+Nothing here is checked against the live game.
+
+The triangle `clock_phase` (the `FUN_00735A30` branch above) is not on this path. The day clock uses
+`nfsmw_data::day_night`, not that triangle. The blend weight is still held at 0.0685 (`lighting.rs`).
+
 ## Other time terms **[unconfirmed]**
 
 - `FUN_0073C980` and `FUN_0073C9F0` use the same counter with a 503-second wrap and a sine in degrees
