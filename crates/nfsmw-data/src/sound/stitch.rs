@@ -63,16 +63,30 @@ fn pieces_of(refs: &[u8]) -> Vec<StitchPiece> {
         .collect()
 }
 
-/// The stitches of the first bundle of `InGameB.bun` (the collision sounds), by id. Data that does not
+/// Family-zero stitches of `InGameB.bun` (the collision sounds), by id. Data that does not
 /// parse gives an empty list.
 pub fn collision_stitches(ingame_b: &[u8]) -> Vec<Stitch> {
-    let Some(bundle) = chunks(ingame_b).filter_map(Result::ok).find(|c| c.id == BUNDLE) else { return Vec::new() };
-    let children: Vec<_> = bundle.children().filter_map(Result::ok).collect();
-    let data = children.iter().filter(|c| c.id == DATA);
-    let pieces = children.iter().filter(|c| c.id == PIECES);
-    data.zip(pieces)
-        .map(|(d, p)| Stitch { volume: volume(u16_at(d.payload, 4)), pieces: pieces_of(p.payload) })
-        .collect()
+    family_stitches(ingame_b, 0)
+}
+
+/// Whoosh stitches, indexed independently from collision and static stitches.
+pub fn whoosh_stitches(ingame_b: &[u8]) -> Vec<Stitch> {
+    family_stitches(ingame_b, 1)
+}
+
+fn family_stitches(ingame_b: &[u8], family: u8) -> Vec<Stitch> {
+    let mut result = Vec::new();
+    for bundle in chunks(ingame_b).filter_map(Result::ok).filter(|c| c.id == BUNDLE) {
+        let children: Vec<_> = bundle.children().filter_map(Result::ok).collect();
+        for pair in children.windows(2) {
+            let [data, pieces] = pair else { continue };
+            if data.id != DATA || pieces.id != PIECES || data.payload.get(8).copied() != Some(family) {
+                continue;
+            }
+            result.push(Stitch { volume: volume(u16_at(data.payload, 4)), pieces: pieces_of(pieces.payload) });
+        }
+    }
+    result
 }
 
 #[cfg(test)]
@@ -102,5 +116,25 @@ mod tests {
     #[test]
     fn no_bundle_gives_no_stitches() {
         assert!(collision_stitches(&[]).is_empty());
+    }
+
+    #[test]
+    fn independent_stitch_families_are_read_across_all_bundles() {
+        fn chunk(id: u32, payload: &[u8]) -> Vec<u8> {
+            [id.to_le_bytes().as_slice(), (payload.len() as u32).to_le_bytes().as_slice(), payload].concat()
+        }
+        fn bundle(family: u8, sample: u8) -> Vec<u8> {
+            let mut data = [0; 20];
+            data[8] = family;
+            let mut piece = [0; 16];
+            piece[0] = sample;
+            piece[1] = family;
+            chunk(BUNDLE, &[chunk(DATA, &data), chunk(PIECES, &piece)].concat())
+        }
+        let bytes = [bundle(1, 9), bundle(0, 20), bundle(1, 10), bundle(2, 30)].concat();
+        assert_eq!(collision_stitches(&bytes)[0].pieces[0].sample, 20);
+        let whoosh = whoosh_stitches(&bytes);
+        assert_eq!(whoosh.len(), 2);
+        assert_eq!(whoosh.iter().map(|s| s.pieces[0].sample).collect::<Vec<_>>(), [9, 10]);
     }
 }
