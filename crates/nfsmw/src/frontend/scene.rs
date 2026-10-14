@@ -257,6 +257,9 @@ impl Scene for Pausable {
     }
 
     fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {
+        if self.concealed() {
+            return None;
+        }
         self.inner.pursuit_feed()
     }
 
