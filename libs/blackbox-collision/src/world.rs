@@ -12,22 +12,28 @@ use crate::{CollisionPack, Hit, HitKind, RayOptions};
 pub struct CollisionWorld {
     grid: Option<Grid>,
     packs: BTreeMap<u32, CollisionPack>,
+    revision: u64,
 }
 
 impl CollisionWorld {
     /// A world that picks candidates with `grid`, or tests every loaded instance without one.
     pub fn new(grid: Option<Grid>) -> Self {
-        Self { grid, packs: BTreeMap::new() }
+        Self { grid, packs: BTreeMap::new(), revision: 0 }
     }
 
     /// Adds (or replaces) a section's pack, applying the game's post-load exclusion flags.
     pub fn insert(&mut self, mut pack: CollisionPack) {
         pack.apply_group_exclusion();
         self.packs.insert(pack.section, pack);
+        self.revision = self.revision.wrapping_add(1);
     }
 
     pub fn remove(&mut self, section: u32) -> Option<CollisionPack> {
-        self.packs.remove(&section)
+        let removed = self.packs.remove(&section);
+        if removed.is_some() {
+            self.revision = self.revision.wrapping_add(1);
+        }
+        removed
     }
 
     pub fn pack(&self, section: u32) -> Option<&CollisionPack> {
@@ -40,6 +46,14 @@ impl CollisionWorld {
 
     pub fn pack_count(&self) -> usize {
         self.packs.len()
+    }
+
+    pub(crate) fn packs(&self) -> impl Iterator<Item = &CollisionPack> {
+        self.packs.values()
+    }
+
+    pub(crate) fn revision(&self) -> u64 {
+        self.revision
     }
 
     /// Whether every instance referenced by the grid near `point` has a resident pack.

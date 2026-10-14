@@ -68,6 +68,19 @@ fn tuning_scales_both_forces() {
 }
 
 #[test]
+fn all_tuning_positions_preserve_the_drag_downforce_tradeoff() {
+    let base = forces(&spec(), &input(Vec3::new(0.0, 0.0, 20.0)), 1.3, -1.3);
+    let scales = [0.75, 0.80, 0.85, 0.90, 0.95, 1.00, 1.05, 1.10, 1.15, 1.20, 1.25];
+    for (index, scale) in scales.into_iter().enumerate() {
+        let mut frame = input(Vec3::new(0.0, 0.0, 20.0));
+        frame.tuning = (index as f32 - 5.0) / 5.0;
+        let result = forces(&spec(), &frame, 1.3, -1.3);
+        assert!((result.drag.z / base.drag.z - scale).abs() < 1e-5);
+        assert!((result.downforce.y / base.downforce.y - scale).abs() < 1e-5);
+    }
+}
+
+#[test]
 fn an_airborne_car_keeps_only_a_small_share_of_its_downforce() {
     let mut i = input(Vec3::new(0.0, 0.0, 50.0));
     let grounded = forces(&spec(), &i, 1.3, -1.3);

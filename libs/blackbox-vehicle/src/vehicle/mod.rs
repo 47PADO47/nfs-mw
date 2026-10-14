@@ -2,19 +2,32 @@
 //! stepped together at a fixed rate. Spec: all of `docs/specs/vehicle-*.md`.
 
 mod assists;
+mod burnout;
 mod contact;
+mod drift;
+mod drive_assists;
 mod example;
+mod integration;
+mod jump;
+mod maneuver;
+mod reconfigure;
 mod settle;
 mod spec;
 mod state;
 mod step;
+mod wall_steering;
 mod wheels;
 
 #[cfg(test)]
 mod tests;
 
+pub use jump::{
+    AlignmentConfig, GroundReference, JumpConfig, JumpForces, JumpInput, JumpState, LandingConfig, PassiveConfig,
+};
+pub use maneuver::ManeuverAssist;
 pub use spec::{Tunings, VehicleSpec};
 pub use state::{SKID_RANGE, SMOKE_RANGE, WheelState};
+pub use wall_steering::WallSteeringConfig;
 
 use glam::{Mat3, Quat, Vec3};
 
@@ -25,7 +38,7 @@ use crate::math::ramp;
 use crate::rigid_body::{BodyState, RigidBody};
 use crate::steering::{Steering, WheelAngles};
 use crate::suspension::{Corner, Geometry, WheelContact};
-use crate::tires::{Tire, TireParams};
+use crate::tires::{Tire, TireIntegration, TireParams};
 
 /// A drivable car. Create it with [`Vehicle::new`], put it somewhere with [`Vehicle::place`], then call
 /// [`Vehicle::step`] once per fixed step ([`crate::FIXED_STEP`]).
@@ -41,6 +54,16 @@ pub struct Vehicle {
     pub forced_wheel_angles: Option<crate::steering::WheelAngles>,
     /// Engine blown or car destroyed: gas 0, brakes on.
     pub disabled: bool,
+    /// The player's recharge permission; disable while speed breaker is active.
+    pub can_recharge_nos: bool,
+    pub maneuver: ManeuverAssist,
+    pub jump_config: JumpConfig,
+    /// Supplied by a terrain-reference owner, independently of suspension ray hits.
+    pub ground_reference: Option<GroundReference>,
+    pub wall_steering_config: WallSteeringConfig,
+    wall_steering: wall_steering::WallSteering,
+    jump_state: JumpState,
+    body_ground_contact: bool,
     /// Spike-strip damage per tire (see `tires::damage`): a blown tire brakes fully and grips less.
     pub tire_damage: crate::tires::TireDamage,
     body: RigidBody,
@@ -50,6 +73,7 @@ pub struct Vehicle {
     steering: Steering,
     wheel_angles: WheelAngles,
     tires: [Tire; 4],
+    tire_integration: TireIntegration,
     corners: [Corner; 4],
     contacts: [Option<WheelContact>; 4],
     loaded: [bool; 4],
@@ -58,6 +82,8 @@ pub struct Vehicle {
     wheels_on_ground_prev: usize,
     controls: Controls,
     yaw_control: f32,
+    burnout: burnout::Burnout,
+    drift: drift::Drift,
     body_slip: f32,
     collided: bool,
     time: f32,
@@ -93,6 +119,14 @@ impl Vehicle {
             config: ControlConfig::default(),
             forced_wheel_angles: None,
             disabled: false,
+            can_recharge_nos: true,
+            maneuver: ManeuverAssist::default(),
+            jump_config: JumpConfig::default(),
+            ground_reference: None,
+            wall_steering_config: WallSteeringConfig::default(),
+            wall_steering: wall_steering::WallSteering::default(),
+            jump_state: JumpState::default(),
+            body_ground_contact: false,
             tire_damage: crate::tires::TireDamage::default(),
             body,
             geometry,
@@ -101,6 +135,7 @@ impl Vehicle {
             steering: Steering::default(),
             wheel_angles: WheelAngles::default(),
             tires: [Tire::default(); 4],
+            tire_integration: TireIntegration::default(),
             corners: [Corner::default(); 4],
             contacts: [None; 4],
             loaded: [false; 4],
@@ -109,6 +144,8 @@ impl Vehicle {
             wheels_on_ground_prev: 0,
             controls: Controls::default(),
             yaw_control: 1.0,
+            burnout: burnout::Burnout::default(),
+            drift: drift::Drift::default(),
             body_slip: 0.0,
             collided: false,
             time: 0.0,
@@ -175,7 +212,15 @@ impl Vehicle {
     }
 
     fn reset_dynamics(&mut self) {
-        self.tires = [Tire::default(); 4];
+        self.wall_steering = wall_steering::WallSteering::default();
+        self.jump_state = JumpState::default();
+        self.ground_reference = None;
+        self.body_ground_contact = false;
+        self.tires = std::array::from_fn(|_| {
+            let mut tire = Tire::default();
+            tire.integration = self.tire_integration;
+            tire
+        });
         self.corners = [Corner::default(); 4];
         self.contacts = [None; 4];
         self.loaded = [false; 4];
@@ -185,6 +230,8 @@ impl Vehicle {
         self.wheel_angles = WheelAngles::default();
         self.controls = Controls::default();
         self.yaw_control = 1.0;
+        self.burnout = burnout::Burnout::default();
+        self.drift = drift::Drift::default();
         self.body_slip = 0.0;
         self.collided = false;
     }
@@ -312,7 +359,8 @@ impl Vehicle {
             position: self.patch_positions[i],
             radius,
             steer_angle: steer,
-            angular_velocity: tire.display_av(radius),
+            angular_velocity: tire.display_av(radius, self.corners[i].compression > 0.0),
+            simulated_angular_velocity: tire.av,
             compression: self.corners[i].compression,
             on_ground,
             load: tire.load,

@@ -146,3 +146,28 @@ fn output_is_always_bounded() {
         assert!(a.is_finite() && a.abs() <= 45.0 + 1e-3);
     }
 }
+
+#[test]
+fn partial_input_uses_previous_remap_and_averages_rate_coefficients() {
+    let mut s = Steering::default();
+    // First derivative is 0.4 / dt = 24: coefficient 3.1, previous magnitude average 0.
+    let first = s.update(&input(0.4, 0.0));
+    assert!((first - 9.3).abs() < 1e-4, "first {first}");
+    // Last remapped input is 0.16; a change to raw 0.2 gives 2.4/s, coefficient 1.06.
+    // The recorded mean is (3.1 + 1.06)/2, rather than lookup(mean derivatives).
+    let mut i = input(0.2, 0.0);
+    i.tire_steering = 0.1;
+    let second = s.update(&i);
+    let rate = 180.0 * 0.1 * ((3.1 + 1.06) / 2.0) * 1.04;
+    assert!((second - (first - rate * DT)).abs() < 1e-4, "second {second}");
+}
+
+#[test]
+fn fixed_racing_wheel_bypasses_range_changes() {
+    let mut s = Steering::default();
+    s.notify_collision(40.0);
+    let mut i = input(0.5, 100.0);
+    i.device = SteeringDevice::WheelFixed;
+    i.tuning = -1.0;
+    assert!((s.update(&i) - 22.5).abs() < 1e-5);
+}

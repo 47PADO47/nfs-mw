@@ -10,6 +10,8 @@ pub struct WheelState {
     pub steer_angle: f32,
     /// Visual rotation rate (rad/s): 0 when locked, the rolling rate when sliding on the ground.
     pub angular_velocity: f32,
+    /// Raw simulated wheel speed (rad/s), before visual sliding/locking substitution.
+    pub simulated_angular_velocity: f32,
     /// Spring compression in metres.
     pub compression: f32,
     /// Pressed onto the ground with load.

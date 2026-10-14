@@ -5,7 +5,7 @@ use crate::drivetrain::GEAR_FIRST;
 use crate::math::{lerp, ramp};
 
 /// Nitrous parameters (the attribute class `nos`). Speeds in mph, times in seconds.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct NosSpec {
     /// Seconds of full burn of a full tank.
     pub nos_capacity: f32,
@@ -20,10 +20,6 @@ pub struct NosSpec {
     pub recharge_min_speed: f32,
     pub recharge_max_speed: f32,
 }
-
-/// Recharge rate multiplier while drifting or airborne. Kept modest so a tank refills noticeably
-/// faster on a slide or a jump without becoming a free boost.
-pub const STUNT_RECHARGE: f32 = 1.5;
 
 impl NosSpec {
     /// The car has nitrous when both the capacity and the boost are positive.
@@ -46,8 +42,8 @@ pub struct NosInput {
     pub blown: bool,
     /// Tuning slider in [-1, 1].
     pub tuning: f32,
-    /// Drifting or airborne: the tank recharges at [`STUNT_RECHARGE`] times the normal rate.
-    pub stunt: bool,
+    /// The player/session permits tank recharge. Does not prevent burning nitrous.
+    pub can_recharge: bool,
 }
 
 /// Nitrous state.
@@ -75,7 +71,7 @@ impl Nos {
         let t = i.tuning.clamp(-1.0, 1.0);
         let boost_n = spec.torque_boost * (1.0 + 0.25 * t);
         let capacity_n = spec.nos_capacity * (1.0 - 0.25 * t);
-        let was_engaged = self.engaged > 0.0;
+        let was_engaged = self.is_engaged();
 
         let mut engaged = i.held;
         if i.gear < GEAR_FIRST || i.throttle <= 0.0 || i.blown {
@@ -89,33 +85,33 @@ impl Nos {
             *self = Self { capacity: 0.0, engaged: 0.0, boost: 1.0 };
             return;
         }
-        let recharge = if i.speed_mph >= spec.recharge_min_speed && i.gear >= GEAR_FIRST {
-            let seconds = lerp(
+        let mut recharge = 0.0;
+        if i.can_recharge && i.speed_mph >= spec.recharge_min_speed && i.gear >= GEAR_FIRST {
+            recharge = lerp(
                 spec.recharge_min,
                 spec.recharge_max,
                 ramp(i.speed_mph, spec.recharge_min_speed, spec.recharge_max_speed),
             );
-            if i.stunt { seconds / STUNT_RECHARGE } else { seconds }
-        } else {
-            0.0
-        };
+        }
         if engaged && self.capacity > 0.0 {
             self.capacity = (self.capacity - i.dt / capacity_n).max(0.0);
             self.boost = 1.0 + boost_n;
             self.engaged = 1.0;
-        } else if self.engaged > 0.0 && spec.nos_disengage > 0.0 {
-            self.engaged = (self.engaged - i.dt / spec.nos_disengage).max(0.0);
-            self.boost = 1.0;
-        } else if self.capacity < 1.0 && recharge > 0.0 {
-            self.capacity = (self.capacity + i.dt / recharge).min(1.0);
-            self.engaged = 0.0;
-            self.boost = 1.0;
-        } else {
-            self.engaged = 0.0;
-            self.boost = 1.0;
+            return;
         }
+        self.boost = 1.0;
+        if self.engaged > 0.0 && spec.nos_disengage > 0.0 {
+            self.engaged = (self.engaged - i.dt / spec.nos_disengage).max(0.0);
+            return;
+        }
+        if self.capacity < 1.0 && recharge > 0.0 {
+            self.capacity = (self.capacity + i.dt / recharge).min(1.0);
+        }
+        self.engaged = 0.0;
     }
 }
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tuning_tests;
