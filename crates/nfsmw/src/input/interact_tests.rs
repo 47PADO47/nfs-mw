@@ -5,7 +5,7 @@ use bevy_input::{gamepad::GamepadButton, keyboard::KeyCode};
 
 use super::action::Action;
 use super::bindings::Source;
-use super::state::Bindings;
+use super::state::{ActionState, Bindings};
 
 fn sources_for(bindings: &Bindings, action: Action) -> Vec<Source> {
     bindings.0.iter().filter(|b| b.action == action).map(|b| b.source).collect()
@@ -23,6 +23,20 @@ fn interact_is_enter_and_the_pad_south_button() {
 fn the_pad_south_button_also_handbrakes() {
     let bindings = Bindings::default();
     assert!(sources_for(&bindings, Action::Handbrake).contains(&Source::PadButton(GamepadButton::South)));
+}
+
+#[test]
+fn alt_enter_toggles_fullscreen_and_does_not_interact() {
+    let bindings = Bindings::default();
+    let resolve = |keys: &[KeyCode]| {
+        let mut state = ActionState::default();
+        state.update_for_test(&bindings, keys, &[], false);
+        state
+    };
+    assert!(resolve(&[KeyCode::Enter]).pressed(Action::Interact), "Enter alone interacts");
+    assert!(!resolve(&[KeyCode::Enter, KeyCode::AltLeft]).pressed(Action::Interact), "Alt+Enter is the chord");
+    assert!(!resolve(&[KeyCode::Enter, KeyCode::AltRight]).pressed(Action::Interact));
+    assert!(!resolve(&[KeyCode::AltLeft]).pressed(Action::Interact), "Alt alone is nothing");
 }
 
 #[test]
