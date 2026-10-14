@@ -1,12 +1,4 @@
-//! The lamps of a car drawn as glows, at the light markers of the car's solids: the headlights, the tail and brake
-//! lamps, the reverse lamps, the turn signals and the cop light bars. The stock lamp textures are fixed and only the
-//! brake lamp has an `_ON` variant (`docs/specs/car-assembly.md` §7), so the light itself is a camera-facing additive
-//! glow in the effect layer, at the marker.
-//!
-//! The turn signals and the cop bars are approximations: they blink at fixed rates from the steering input and the
-//! cop's role, not from the original's lamp controller, which is not decoded yet. The signals reuse the head and tail
-//! markers of their side, since the car data has no signal markers.
-
+//! Lamp marker roles. Player appearance uses the installed profiles in `car_light_flares`.
 use blackbox_hash::bstring_hash;
 use blackbox_render::{EffectLayer, EffectVertex};
 use glam::{Mat4, Vec3};
@@ -14,10 +6,10 @@ use nfsmw_data::car::CarModel;
 
 use super::vehicle_effects::geometry;
 
-const HEAD_MARKERS: [&str; 2] = ["LEFT_HEADLIGHT", "RIGHT_HEADLIGHT"];
-const TAIL_MARKERS: [&str; 4] = ["LEFT_BRAKELIGHT", "RIGHT_BRAKELIGHT", "BRAKELIGHT_CENTRE", "CENTRE_BRAKELIGHT"];
+const HEAD_MARKERS: [&str; 3] = ["LEFT_HEADLIGHT", "CENTRE_HEADLIGHT", "RIGHT_HEADLIGHT"];
+const TAIL_MARKERS: [&str; 2] = ["LEFT_BRAKELIGHT", "RIGHT_BRAKELIGHT"];
+const CENTRE_MARKERS: [&str; 2] = ["BRAKELIGHT_CENTRE", "CENTRE_BRAKELIGHT"];
 const REVERSE_MARKERS: [&str; 2] = ["LEFT_REVERSE", "RIGHT_REVERSE"];
-/// The side (true for left) of each head and tail lamp a turn signal blinks from.
 const SIGNAL_MARKERS: [(&str, bool); 4] =
     [("LEFT_HEADLIGHT", true), ("RIGHT_HEADLIGHT", false), ("LEFT_BRAKELIGHT", true), ("RIGHT_BRAKELIGHT", false)];
 /// The cop light bar: red lamps and blue lamps.
@@ -39,7 +31,7 @@ const TAIL_COLOUR: [f32; 4] = [1.0, 0.08, 0.04, 1.0];
 const REVERSE_RADIUS: f32 = 0.3;
 const REVERSE_BRIGHTNESS: f32 = 0.8;
 const REVERSE_COLOUR: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
-/// Turn signal: amber, blinking 1.5 times a second while the steering is held past `SIGNAL_STEER`.
+// Existing optional traffic signals; the player flare path does not use them.
 const SIGNAL_RADIUS: f32 = 0.3;
 const SIGNAL_BRIGHTNESS: f32 = 0.9;
 const SIGNAL_COLOUR: [f32; 4] = [1.0, 0.55, 0.05, 1.0];
@@ -62,7 +54,7 @@ pub enum Kind {
     Head,
     Tail,
     Reverse,
-    /// A turn signal on the left (true) or right side.
+    CentreBrake,
     Signal(bool),
     /// A cop light bar lamp: red (true) or blue.
     Siren(bool),
@@ -72,6 +64,7 @@ pub enum Kind {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Lamp {
     pub at: Vec3,
+    pub direction: Vec3,
     pub kind: Kind,
 }
 
@@ -81,7 +74,7 @@ pub struct LampState {
     /// The brake pedal, 0 to 1.
     pub brake: f32,
     pub reverse: bool,
-    /// The steering, -1 to 1; positive steers right, so the right signals blink.
+    /// Driver steering, retained in the feed; it does not control racer lamps.
     pub steer: f32,
     /// The headlights are on.
     pub headlights: bool,
@@ -105,6 +98,7 @@ impl CarLights {
         let tails = TAIL_MARKERS.map(bstring_hash);
         let reverses = REVERSE_MARKERS.map(bstring_hash);
         let signals = SIGNAL_MARKERS.map(|(name, left)| (bstring_hash(name), left));
+        let centres = CENTRE_MARKERS.map(bstring_hash);
         let reds = SIREN_RED.map(bstring_hash);
         let blues = SIREN_BLUE.map(bstring_hash);
         let mut lamps: Vec<Lamp> = Vec::new();
@@ -122,6 +116,9 @@ impl CarLights {
                 if reverses.contains(&hash) {
                     kinds.push(Kind::Reverse);
                 }
+                if centres.contains(&hash) {
+                    kinds.push(Kind::CentreBrake);
+                }
                 if let Some(&(_, left)) = signals.iter().find(|(h, _)| *h == hash) {
                     kinds.push(Kind::Signal(left));
                 }
@@ -131,16 +128,22 @@ impl CarLights {
                 if blues.contains(&hash) {
                     kinds.push(Kind::Siren(false));
                 }
-                let at = (placement.transform * Mat4::from_cols_array(&marker.matrix)).w_axis.truncate();
+                let frame = placement.transform * Mat4::from_cols_array(&marker.matrix);
+                let at = frame.w_axis.truncate();
+                let direction = frame.z_axis.truncate().normalize_or_zero();
                 for kind in kinds {
                     if lamps.iter().any(|l| l.kind == kind && l.at.distance(at) < SAME_LAMP) {
                         continue;
                     }
-                    lamps.push(Lamp { at, kind });
+                    lamps.push(Lamp { at, direction, kind });
                 }
             }
         }
         Self { lamps }
+    }
+
+    pub fn lamps(&self) -> &[Lamp] {
+        &self.lamps
     }
 
     /// Appends a faint additive beam ahead of each headlight, as flat streaks at the lamp's height, for a car whose
@@ -186,7 +189,6 @@ impl CarLights {
 fn look(kind: Kind, state: LampState) -> Option<(f32, [f32; 4], f32)> {
     // NaN counts as released or straight.
     let brake = if state.brake.is_nan() { 0.0 } else { state.brake.clamp(0.0, 1.0) };
-    let steer = if state.steer.is_nan() { 0.0 } else { state.steer.clamp(-1.0, 1.0) };
     match kind {
         Kind::Head => state.headlights.then_some((HEAD_RADIUS, HEAD_COLOUR, HEAD_BRIGHTNESS)),
         Kind::Tail => {
@@ -194,10 +196,12 @@ fn look(kind: Kind, state: LampState) -> Option<(f32, [f32; 4], f32)> {
             Some((TAIL_RADIUS + (TAIL_BRAKE_RADIUS - TAIL_RADIUS) * brake, TAIL_COLOUR, lit))
         }
         Kind::Reverse => state.reverse.then_some((REVERSE_RADIUS, REVERSE_COLOUR, REVERSE_BRIGHTNESS)),
+        Kind::CentreBrake => (brake > 0.0).then_some((TAIL_BRAKE_RADIUS, TAIL_COLOUR, TAIL_BRAKE)),
         Kind::Signal(left) => {
             if !state.turn_signals {
                 return None;
             }
+            let steer = if state.steer.is_nan() { 0.0 } else { state.steer.clamp(-1.0, 1.0) };
             let held = if left { steer < -SIGNAL_STEER } else { steer > SIGNAL_STEER };
             let on = (state.time.max(0.0) % SIGNAL_PERIOD) < SIGNAL_PERIOD / 2.0;
             (held && on).then_some((SIGNAL_RADIUS, SIGNAL_COLOUR, SIGNAL_BRIGHTNESS))
@@ -243,12 +247,12 @@ mod tests {
     }
 
     #[test]
-    fn a_turn_signal_blinks_only_on_its_side_while_steering() {
-        let right_turn = LampState { steer: 0.6, ..RELEASED };
-        assert!(look(Kind::Signal(false), LampState { time: 0.1, ..right_turn }).is_some());
-        assert!(look(Kind::Signal(false), LampState { time: 0.5, ..right_turn }).is_none(), "the off half");
-        assert!(look(Kind::Signal(true), LampState { time: 0.1, ..right_turn }).is_none(), "the other side");
-        assert!(look(Kind::Signal(false), LampState { time: 0.1, ..RELEASED }).is_none(), "straight ahead");
+    fn steering_does_not_change_racer_lamps() {
+        for kind in [Kind::Head, Kind::Tail, Kind::CentreBrake, Kind::Reverse] {
+            assert_eq!(look(kind, RELEASED), look(kind, LampState { steer: 1.0, time: 0.5, ..RELEASED }));
+        }
+        assert!(look(Kind::CentreBrake, RELEASED).is_none());
+        assert!(look(Kind::CentreBrake, LampState { brake: 1.0, ..RELEASED }).is_some());
     }
 
     #[test]
@@ -263,9 +267,9 @@ mod tests {
     #[test]
     fn every_lit_lamp_adds_one_quad() {
         let lights = CarLights::new(vec![
-            Lamp { at: Vec3::new(2.0, 0.5, 0.5), kind: Kind::Head },
-            Lamp { at: Vec3::new(-2.0, 0.5, 0.5), kind: Kind::Tail },
-            Lamp { at: Vec3::new(-2.0, 0.2, 0.5), kind: Kind::Reverse },
+            Lamp { direction: Vec3::X, at: Vec3::new(2.0, 0.5, 0.5), kind: Kind::Head },
+            Lamp { direction: Vec3::X, at: Vec3::new(-2.0, 0.5, 0.5), kind: Kind::Tail },
+            Lamp { direction: Vec3::X, at: Vec3::new(-2.0, 0.2, 0.5), kind: Kind::Reverse },
         ]);
         let camera = Vec3::new(-10.0, 0.0, 1.0);
         let mut out = Vec::new();
@@ -279,9 +283,9 @@ mod tests {
     #[test]
     fn each_headlight_casts_one_beam_quad() {
         let lights = CarLights::new(vec![
-            Lamp { at: Vec3::new(2.0, 0.5, 0.5), kind: Kind::Head },
-            Lamp { at: Vec3::new(2.0, -0.5, 0.5), kind: Kind::Head },
-            Lamp { at: Vec3::new(-2.0, 0.5, 0.5), kind: Kind::Tail },
+            Lamp { direction: Vec3::X, at: Vec3::new(2.0, 0.5, 0.5), kind: Kind::Head },
+            Lamp { direction: Vec3::X, at: Vec3::new(2.0, -0.5, 0.5), kind: Kind::Head },
+            Lamp { direction: Vec3::X, at: Vec3::new(-2.0, 0.5, 0.5), kind: Kind::Tail },
         ]);
         let mut out = Vec::new();
         lights.beams(Mat4::IDENTITY, true, &mut out);
@@ -291,8 +295,8 @@ mod tests {
     #[test]
     fn headlights_off_darkens_the_beams_and_the_head_glows_only() {
         let lights = CarLights::new(vec![
-            Lamp { at: Vec3::new(2.0, 0.5, 0.5), kind: Kind::Head },
-            Lamp { at: Vec3::new(-2.0, 0.5, 0.5), kind: Kind::Tail },
+            Lamp { direction: Vec3::X, at: Vec3::new(2.0, 0.5, 0.5), kind: Kind::Head },
+            Lamp { direction: Vec3::X, at: Vec3::new(-2.0, 0.5, 0.5), kind: Kind::Tail },
         ]);
         let camera = Vec3::new(-10.0, 0.0, 1.0);
         let mut on = Vec::new();

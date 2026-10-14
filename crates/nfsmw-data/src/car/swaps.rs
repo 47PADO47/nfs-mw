@@ -63,6 +63,7 @@ pub const BRAKE_LEFT: &str = "BRAKE_GLOBAL_LEFT";
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TextureSwaps {
+    lamps: HashMap<u32, [u32; 2]>,
     /// Placeholder hash → texture hash to draw instead.
     pub map: HashMap<u32, u32>,
     /// Placeholders whose groups are not drawn.
@@ -70,6 +71,36 @@ pub struct TextureSwaps {
 }
 
 impl TextureSwaps {
+    /// Available state textures are loaded once, including both diffuse and brake glass.
+    pub fn lamp_variants(&self) -> impl Iterator<Item = u32> + '_ {
+        self.lamps.values().flat_map(|states| *states)
+    }
+
+    /// Select existing authored textures. Absent variants retain the current replacement.
+    pub fn with_lamp_state(
+        mut self,
+        headlights: bool,
+        braking: bool,
+        textures: &HashMap<u32, blackbox_tpk::Texture>,
+    ) -> Self {
+        for (kind, enabled, sides) in [
+            ("HEADLIGHT", headlights, &["LEFT", "RIGHT"][..]),
+            ("HEADLIGHT_GLASS", true, &["LEFT", "RIGHT"][..]),
+            ("BRAKELIGHT", braking, &["LEFT", "RIGHT", "CENTRE"][..]),
+            ("BRAKELIGHT_GLASS", braking, &["LEFT", "RIGHT", "CENTRE"][..]),
+        ] {
+            for side in sides {
+                let placeholder = bstring_hash(&format!("{kind}_{side}"));
+                let Some(states) = self.lamps.get(&placeholder) else { continue };
+                let wanted = states[usize::from(enabled)];
+                if textures.contains_key(&wanted) {
+                    self.map.insert(placeholder, wanted);
+                }
+            }
+        }
+        self
+    }
+
     /// Stock swaps for a car type. Traffic (usage 2) shares the global tire atlas;
     /// the original placeholder is based on the type's base model name, not its folder.
     pub fn for_car_type(base_model_name: &str, usage_type: i32) -> Self {
@@ -102,7 +133,19 @@ impl TextureSwaps {
         for window in WINDOWS {
             swap(window, "WINDOW_FRONT");
         }
-        Self { map, hidden: DECAL_PLACEHOLDERS.iter().map(|n| bstring_hash(n)).collect() }
+        let mut lamps = HashMap::new();
+        for (kind, sides) in [
+            ("HEADLIGHT", &["LEFT", "RIGHT"][..]),
+            ("HEADLIGHT_GLASS", &["LEFT", "RIGHT"][..]),
+            ("BRAKELIGHT", &["LEFT", "RIGHT", "CENTRE"][..]),
+            ("BRAKELIGHT_GLASS", &["LEFT", "RIGHT", "CENTRE"][..]),
+        ] {
+            let states = ["OFF", "ON"].map(|state| bstring_hash(&format!("{car}_KIT00_{kind}_{state}")));
+            for side in sides {
+                lamps.insert(bstring_hash(&format!("{kind}_{side}")), states);
+            }
+        }
+        Self { map, lamps, hidden: DECAL_PLACEHOLDERS.iter().map(|n| bstring_hash(n)).collect() }
     }
 
     /// Show the cracked-window texture on these texture hashes (window placeholders or window solids' diffuse

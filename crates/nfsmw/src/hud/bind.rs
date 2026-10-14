@@ -45,14 +45,6 @@ const NEEDLE_START_DEG: f32 = 66.0;
 const NEEDLE_SWEEP_DEG: f32 = 228.0;
 /// The nitrous bar's mask turns from this angle (empty) down to 0 (full).
 const NOS_BAR_EMPTY_DEG: f32 = 175.0;
-/// The speed breaker bar: the FEng object `Speedbreaker_Meter_Multi_Image` (name hash of that string). Its mask turns
-/// from `SPEEDBREAKER_BAR_EMPTY_DEG` (empty) to 0 (full), as the original's meter routine does for `HUD_SingleRace`
-/// (`Hud_SpeedBreakerMeter` update: angle = 175 * (1 - meter)). The drag HUD uses another base.
-const SPEEDBREAKER_BAR: u32 = 0x5DF2_F5B4;
-const SPEEDBREAKER_BAR_EMPTY_DEG: f32 = NOS_BAR_EMPTY_DEG;
-/// The stopwatch icon group under the meter (`SPEEDBREAKER_METER_ICON_GROUP`). It runs the lit script while the meter
-/// holds charge and the reset script when it is empty, as the original update does (`Hud_SpeedBreakerMeter`).
-const SPEEDBREAKER_ICON_GROUP: u32 = 0x1144_8B5C;
 /// The turbo needle swings across this range of angles for a gauge from `TURBO_MIN_PSI` to `TURBO_MAX_PSI`.
 const TURBO_DEG: (f32, f32) = (-45.0, 45.0);
 const TURBO_PSI: (f32, f32) = (-20.0, 20.0);
@@ -87,8 +79,7 @@ pub struct HudBinding {
     shift_light: Option<ObjectRef>,
     nos_icon: Option<ObjectRef>,
     nos_bar: Option<ObjectRef>,
-    speedbreaker_bar: Option<ObjectRef>,
-    speedbreaker_icon: Option<ObjectRef>,
+    speedbreaker: super::speedbreaker::Binding,
     turbo_needle: Option<ObjectRef>,
     /// The pursuit board's timer, `mm:ss.cc`.
     pursuit_timer: Option<ObjectRef>,
@@ -159,8 +150,7 @@ impl HudBinding {
             shift_light: find(rt, package, "Shift_light"),
             nos_icon: rt.find(package, 0x27DD_F583),
             nos_bar: rt.find(package, 0xEDFB_6D37),
-            speedbreaker_bar: rt.find(package, SPEEDBREAKER_BAR),
-            speedbreaker_icon: rt.find(package, SPEEDBREAKER_ICON_GROUP),
+            speedbreaker: super::speedbreaker::Binding::new(rt, package),
             turbo_needle: find(rt, package, "3rdperson_TurboDial"),
             pursuit_timer: find(rt, package, "PursuitTime"),
             cops_taken: find(rt, package, "Cops_TakenOut"),
@@ -236,7 +226,9 @@ impl HudBinding {
         // The mirror's frame rests at full alpha, every frame: its own colour track would otherwise leave it at zero.
         let alpha = mirror_fade_alpha(self.mirror_elapsed);
         for frame in self.mirror_frames.iter().flatten() {
-            rt.set_alpha(*frame, alpha);
+            if !s.speedbreaker_active {
+                rt.set_alpha(*frame, alpha);
+            }
         }
         if let Some((at, minimap)) = map {
             minimap.apply(rt, s, &at);
@@ -246,7 +238,7 @@ impl HudBinding {
         }
         self.speedometer(rt, s);
         self.tachometer(rt, s);
-        self.speedbreaker(rt, s);
+        self.speedbreaker.update(rt, s.speedbreaker, s.speedbreaker_active);
         self.pursuit(rt, s);
         if s.has_nos {
             self.nitrous(rt, s);
@@ -330,17 +322,6 @@ impl HudBinding {
             let width = bar.width * p.evade;
             rt.set_size_xy(bar.object, width, bar.height);
             rt.set_position_xy(bar.object, bar.left + width / 2.0, bar.y);
-        }
-    }
-
-    fn speedbreaker(&mut self, rt: &mut Runtime, s: &HudState) {
-        let meter = s.speedbreaker.clamp(0.0, 1.0);
-        if let Some(o) = self.speedbreaker_bar {
-            rt.set_mask_rotation(o, meter * -SPEEDBREAKER_BAR_EMPTY_DEG + SPEEDBREAKER_BAR_EMPTY_DEG);
-        }
-        if let Some(o) = self.speedbreaker_icon {
-            let script = if meter > 0.0 { SCRIPT_NOS_BURNING } else { SCRIPT_INIT };
-            ensure_script(rt, o, script);
         }
     }
 

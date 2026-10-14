@@ -9,6 +9,7 @@ pub mod customization;
 pub mod damage;
 mod ecar;
 pub mod exhaust;
+pub mod lights;
 mod paint;
 mod parts;
 pub mod physics;
@@ -41,6 +42,7 @@ use crate::read_unwrapped;
 
 /// A car ready to draw: solids placed in car space (+x forward, +y left, +z up).
 pub struct CarModel {
+    pub flare_profiles: lights::FlareProfiles,
     /// Car folder.
     pub name: String,
     /// The car type it was assembled as, if the car tables know the folder.
@@ -159,7 +161,11 @@ pub fn load_customized(
 
     let swaps = TextureSwaps::for_car_type(&car_type.base_model_name, car_type.usage_type);
     let paint = slots[slot::BASE_PAINT].map(|p| Paint::of(t, &p));
-    let mut textures = textures::load_with_shared(dir, car, &wanted_textures(&pool, &swaps), &shared_folders)?;
+    let flare_profiles = lights::FlareProfiles::read(&t.attributes);
+    let mut wanted = wanted_textures(&pool, &swaps);
+    wanted.extend(flare_profiles.textures());
+    wanted.extend(swaps.lamp_variants());
+    let mut textures = textures::load_with_shared(dir, car, &wanted, &shared_folders)?;
     if let (true, Some(paint)) = (car_type.skinnable, &paint) {
         for name in paint::skin_placeholders(&car_type.base_model_name) {
             textures.insert(bstring_hash(&name), paint.texture(&name));
@@ -176,6 +182,7 @@ pub fn load_customized(
         paint.as_ref().map_or("none".into(), |p| format!("{} {}", p.name, p.hex())),
     );
     Ok(CarModel {
+        flare_profiles,
         name: car.to_owned(),
         car_type: Some(car_type.type_name.clone()),
         solids: pool,
@@ -228,7 +235,9 @@ fn unassembled(dir: &GameDir, car: &str, solids: Vec<Solid>, options: &LoadOptio
         .map(|&solid| Placement { solid, transform: Mat4::IDENTITY, left_brake: false, slot: usize::MAX, corner: None })
         .collect();
     let textures = textures::load(dir, car, &wanted_textures(&solids, &swaps))?;
+    let flare_profiles = lights::FlareProfiles::default();
     Ok(CarModel {
+        flare_profiles,
         name: car.to_owned(),
         car_type: None,
         solids,

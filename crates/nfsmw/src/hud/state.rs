@@ -45,6 +45,8 @@ pub struct HudState {
     pub nos: f32,
     /// The speed breaker's meter, 0..1 (`scenes/world/drive/speedbreaker.rs`).
     pub speedbreaker: f32,
+    /// Active Speedbreaker mode: drives the package fade and central meter.
+    pub speedbreaker_active: bool,
     /// The car has forced induction: the turbo gauge is shown.
     pub has_turbo: bool,
     /// Boost gauge, psi (negative in vacuum).
@@ -78,6 +80,7 @@ impl Default for HudState {
             has_nos: false,
             nos: 0.0,
             speedbreaker: 0.0,
+            speedbreaker_active: false,
             has_turbo: false,
             boost_psi: 0.0,
             minimap: None,

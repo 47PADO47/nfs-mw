@@ -22,7 +22,7 @@ impl WorldScene {
             camera_state,
             view_value,
             speedbreaker: self.sound_speedbreaker_active,
-            speedbreaker_pitch: None,
+            speedbreaker_mix: None,
             environment: self
                 .audio_environment
                 .as_ref()

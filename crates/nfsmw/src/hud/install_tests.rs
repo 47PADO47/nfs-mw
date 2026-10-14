@@ -8,6 +8,204 @@ use super::minimap::MinimapBinding;
 use crate::ui::{Catalog, UiAssets};
 
 #[test]
+#[ignore = "needs the game; validates Speedbreaker presenter meshes and screen placement"]
+fn installed_speedbreaker_presenter_draws_bottom_central_pulse_and_hides_normal_gauges() {
+    use super::state::{HudState, MapPosition};
+    use super::viewport::HudViewport;
+    use crate::gui::UiOutput;
+    use crate::settings::HudLayout;
+    use crate::ui::present::{BlackboxPresenter, Screen};
+    use blackbox_feng::NodeKind;
+    use blackbox_gfx::UiTextureId;
+    let root = std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR");
+    let dir = GameDir::open(std::path::PathBuf::from(root)).unwrap();
+    let catalog = Catalog::load(&dir, &["GLOBAL/InGameB.bun", "GLOBAL/INGAMEC.BUN"]);
+    let assets = UiAssets::load(&dir).unwrap();
+    let mut rt = crate::ui::runtime();
+    let id = rt.load(catalog.find("HUD_SingleRace.fng").unwrap().clone());
+    let minimap = MinimapBinding::open_city(&rt, id, &dir, &assets).unwrap();
+    let mut binding = HudBinding::new(&mut rt, id).with_minimap(Some(minimap));
+    let viewport = HudViewport::new(&rt.tree(id), &[]);
+    let state = HudState {
+        speedbreaker: 0.7,
+        speedbreaker_active: true,
+        minimap: Some(MapPosition {
+            position: [1925.0, 1874.0],
+            heading: [1.0, 0.0],
+            orientation: blackbox_minimap::Orientation::North,
+        }),
+        ..Default::default()
+    };
+    for _ in 0..120 {
+        binding.apply(&mut rt, &state);
+        rt.update(1.0 / 60.0);
+    }
+    let tree = rt.tree(id);
+    let pulse = tree.nodes.iter().find(|node| node.name_hash == 0xFC46_5765).unwrap();
+    let NodeKind::Image { texture, .. } = pulse.kind else { panic!("central stopwatch is an image") };
+    let texture_id = UiTextureId((1 << 62) | u64::from(assets.resolve(texture)));
+    let absent_texture_ids: Vec<_> = ["TAC_Lines_7500", "PLAYERCARINDICATOR"]
+        .into_iter()
+        .map(|name| {
+            let node = tree.nodes.iter().find(|node| node.name_hash == fe_hash_upper(name)).unwrap();
+            let NodeKind::Image { texture, .. } = node.kind else { panic!("normal HUD element is an image") };
+            UiTextureId((1 << 62) | u64::from(assets.resolve(texture)))
+        })
+        .collect();
+    for (width, height) in [(1280.0, 720.0), (1440.0, 1080.0), (2560.0, 1080.0)] {
+        for layout in [HudLayout::Pc, HudLayout::Classic, HudLayout::Xbox360] {
+            let screen = Screen { width, height, pixels_per_point: 1.0 };
+            let mut tree = rt.tree(id);
+            viewport.apply(&mut tree, screen, layout);
+            let mut out = UiOutput::default();
+            BlackboxPresenter::default().present(&tree, &assets, screen, &mut out);
+            let layer = out.layer.unwrap();
+            assert!(
+                layer.meshes.iter().all(|mesh| !absent_texture_ids.contains(&mesh.texture)),
+                "presenter emits neither tachometer face nor minimap player arrow while active"
+            );
+            let vertices: Vec<_> =
+                layer.meshes.iter().filter(|mesh| mesh.texture == texture_id).flat_map(|mesh| &mesh.vertices).collect();
+            assert!(!vertices.is_empty(), "actual central pulse mesh is emitted");
+            assert!(
+                vertices.iter().any(|vertex| vertex.color_rgba[..3].iter().any(|channel| *channel > 0)),
+                "pulse vertices carry visible colour"
+            );
+            let left = vertices.iter().map(|vertex| vertex.position[0]).fold(f32::INFINITY, f32::min);
+            let right = vertices.iter().map(|vertex| vertex.position[0]).fold(f32::NEG_INFINITY, f32::max);
+            let top = vertices.iter().map(|vertex| vertex.position[1]).fold(f32::INFINITY, f32::min);
+            let bottom = vertices.iter().map(|vertex| vertex.position[1]).fold(f32::NEG_INFINITY, f32::max);
+            assert!(((left + right) * 0.5 / width - 0.5).abs() < 0.05, "central pulse horizontally centered");
+            assert!(top > height * 0.7 && bottom < height, "central pulse is at the bottom, not mirror position");
+            let gauge = tree.nodes.iter().find(|node| node.name_hash == fe_hash_upper("GaugeCluster")).unwrap();
+            assert!(!gauge.visible || gauge.world_colour[3] == 0, "normal gauge cannot emit visible vertices");
+        }
+    }
+}
+
+#[test]
+#[ignore = "needs the game; validates authored Speedbreaker active and exit layout"]
+fn installed_speedbreaker_active_layout_replaces_normal_gauges_and_restores_them() {
+    use super::state::HudState;
+    let root = std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR");
+    let dir = GameDir::open(std::path::PathBuf::from(root)).unwrap();
+    let catalog = Catalog::load(&dir, &["GLOBAL/InGameB.bun", "GLOBAL/INGAMEC.BUN"]);
+    for fps in [5, 60, 144, 360] {
+        let mut rt = crate::ui::runtime();
+        let id = rt.load(catalog.find("HUD_SingleRace.fng").unwrap().clone());
+        let bar = rt.find(id, super::speedbreaker::LINEAR_BAR).unwrap();
+        let full_width = rt.size(bar).unwrap().x;
+        let mut binding = HudBinding::new(&mut rt, id);
+        let mut state = HudState { speedbreaker: 0.7, ..Default::default() };
+        let step = |rt: &mut Runtime, binding: &mut HudBinding, state: &HudState, count: usize| {
+            for _ in 0..count {
+                binding.apply(rt, state);
+                rt.update(1.0 / fps as f32);
+            }
+        };
+        let alpha = |rt: &Runtime, hash: u32| {
+            let tree = rt.tree(id);
+            let node = tree.nodes.iter().find(|node| node.name_hash == hash).unwrap();
+            match node.visible {
+                true => node.world_colour[3],
+                false => 0,
+            }
+        };
+        step(&mut rt, &mut binding, &state, fps * 2);
+        let gauge = fe_hash_upper("GaugeCluster");
+        assert!(alpha(&rt, gauge) > 0, "inactive gauge at {fps} FPS");
+        state.speedbreaker_active = true;
+        let mut fading_out = false;
+        for _ in 0..fps * 2 {
+            step(&mut rt, &mut binding, &state, 1);
+            fading_out |= (1..255).contains(&alpha(&rt, gauge));
+        }
+        assert!(fading_out, "authored fade has intermediate opacity at {fps}");
+        let group = rt.find(id, super::speedbreaker::LINEAR_GROUP).unwrap();
+        assert_eq!(rt.script_of(group), Some(0x5B0D_9106), "installed ACTIVATE response at {fps}");
+        assert!(alpha(&rt, super::speedbreaker::LINEAR_GROUP) > 0, "active central bar at {fps}");
+        assert_eq!(alpha(&rt, gauge), 0, "normal gauge fades out at {fps}");
+        assert!((rt.size(bar).unwrap().x - full_width * 0.7).abs() < 1e-4);
+        let pulse_hash = 0xFC46_5765;
+        let pulse = rt.find(id, pulse_hash).unwrap();
+        assert_eq!(rt.script_of(pulse), Some(0x0382_6A28), "authored looping icon script");
+        let mut widths = Vec::new();
+        for _ in 0..fps {
+            step(&mut rt, &mut binding, &state, 1);
+            let tree = rt.tree(id);
+            let icon = tree.nodes.iter().find(|node| node.index == pulse.index).unwrap();
+            assert!(icon.visible && icon.world_colour[3] > 0, "active pulse icon visible at {fps}");
+            widths.push(icon.size.x);
+        }
+        let low = widths.iter().copied().fold(f32::INFINITY, f32::min);
+        let high = widths.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+        assert!(high - low > 1.0, "installed icon pulses in size at {fps}");
+        state.speedbreaker_active = false;
+        let mut fading_in = false;
+        for _ in 0..fps * 2 {
+            step(&mut rt, &mut binding, &state, 1);
+            fading_in |= (1..255).contains(&alpha(&rt, gauge));
+        }
+        assert!(fading_in, "authored restoration has intermediate opacity at {fps}");
+        assert!(alpha(&rt, gauge) > 0, "normal gauge restored at {fps}");
+        assert_eq!(alpha(&rt, super::speedbreaker::LINEAR_GROUP), 0, "central bar exits at {fps}");
+        state.speedbreaker_active = true;
+        step(&mut rt, &mut binding, &state, 1);
+        state.speedbreaker_active = false;
+        step(&mut rt, &mut binding, &state, 1);
+        state.speedbreaker_active = true;
+        step(&mut rt, &mut binding, &state, fps * 2);
+        assert!(alpha(&rt, super::speedbreaker::LINEAR_GROUP) > 0, "re-entry central bar at {fps}");
+        assert_eq!(alpha(&rt, gauge), 0, "re-entry normal gauge at {fps}");
+    }
+}
+
+#[test]
+#[ignore = "needs the game; validates default KPH Speedbreaker presentation"]
+fn installed_speedbreaker_is_visible_and_drives_the_default_kph_gauge() {
+    use super::state::HudState;
+    use super::viewport::HudViewport;
+    use blackbox_feng::NodeKind;
+    let root = std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR");
+    let dir = GameDir::open(std::path::PathBuf::from(root)).unwrap();
+    let catalog = Catalog::load(&dir, &["GLOBAL/InGameB.bun", "GLOBAL/INGAMEC.BUN"]);
+    let mut rt = Runtime::new();
+    let id = rt.load(catalog.find("HUD_SingleRace.fng").unwrap().clone());
+    let mut binding = HudBinding::new(&mut rt, id);
+    let icon = rt.find(id, fe_hash_upper(super::speedbreaker::ICON)).unwrap();
+    let viewport = HudViewport::new(&rt.tree(id), &[]);
+    for charge in [1.0, 0.3, 0.1, 0.0] {
+        let state = HudState { speedbreaker: charge, ..Default::default() };
+        assert!(!state.use_mph, "default HUD uses KPH");
+        binding.apply(&mut rt, &state);
+        rt.update(0.1);
+        let mut tree = rt.tree(id);
+        viewport.apply(
+            &mut tree,
+            crate::ui::present::Screen { width: 1920.0, height: 1080.0, pixels_per_point: 1.0 },
+            crate::settings::HudLayout::default(),
+        );
+        for name in [super::speedbreaker::GROUP, super::speedbreaker::MASK] {
+            let node = tree.nodes.iter().find(|n| n.name_hash == fe_hash_upper(name)).unwrap();
+            assert!(node.visible && node.colour[3] > 0, "{name} must be visible at charge{charge}");
+            assert!(node.position.x.abs() < 960.0 && node.position.y.abs() < 540.0, "{name} in viewport");
+        }
+        let mask = tree.nodes.iter().find(|n| n.name_hash == fe_hash_upper(super::speedbreaker::MASK)).unwrap();
+        let NodeKind::Image { mask_rotation, .. } = mask.kind else { panic!("meter mask is an image") };
+        assert!((mask_rotation[2] - 175.0 * (1.0 - charge)).abs() < 1e-4);
+        let expected = match charge > 0.0 {
+            true => 0x7703_1C70,
+            false => blackbox_feng::runtime::INIT_SCRIPT,
+        };
+        assert_eq!(rt.script_of(icon), Some(expected));
+        if charge > 0.0 {
+            let node = tree.nodes.iter().find(|n| n.index == icon.index).unwrap();
+            assert!(node.visible && node.colour[3] > 0, "charged icon visible");
+        }
+    }
+}
+
+#[test]
 #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
 fn the_single_race_hud_has_the_objects_the_binding_drives() {
     let root = std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR");
@@ -31,6 +229,9 @@ fn the_single_race_hud_has_the_objects_the_binding_drives() {
         "RPM_REDLINE",
         "TURBO_GROUP",
         "3rdperson_TurboDial",
+        "Speedbreaker_Meter_Group",
+        "SPEEDBREAKER_METER_ICON_GROUP",
+        "Speedbreaker_Meter_Multi_Image",
     ] {
         assert!(by_name(name), "{name} is missing");
     }

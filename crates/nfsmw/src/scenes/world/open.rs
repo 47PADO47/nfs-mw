@@ -26,6 +26,10 @@ impl WorldScene {
         }
         let globals = load_global_textures(dir)?;
         let gain_map = nfsmw_data::visual_treatment::gain_map(&globals.textures);
+        let breaker_visuals = breaker_visuals::Presentation::new(
+            nfsmw_data::visual_treatment::speedbreaker::load(physics.database()),
+            nfsmw_data::visual_treatment::speedbreaker::mask(&globals.textures),
+        );
         let mut traffic = index.road_network.clone().map(ai::TrafficWorld::new);
         if let Some(world) = traffic.as_mut() {
             world.load_data(physics.database(), index.track_zones.clone());
@@ -91,6 +95,7 @@ impl WorldScene {
             time_of_day,
             camera_views,
             gain_map,
+            breaker_visuals,
             reflection_faces: std::array::from_fn(|_| Vec::new()),
             reflection_last: None,
             clock: 0.0,
@@ -129,21 +134,5 @@ impl WorldScene {
             waiting_since: None,
             camera_mode: CameraMode::default(),
         })
-    }
-}
-
-impl WorldScene {
-    /// Map position (x, y) the streaming follows.
-    pub(super) fn focus(&self) -> [f32; 2] {
-        match (&self.drive, self.view) {
-            (Some(drive), View::Chase) => match drive.waiting_for_road() {
-                Some(request) => request.near,
-                None => {
-                    let p = drive.position();
-                    [p.x, p.y]
-                }
-            },
-            _ => [self.camera.position.x, self.camera.position.y],
-        }
     }
 }

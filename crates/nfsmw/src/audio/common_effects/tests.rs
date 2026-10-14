@@ -2,11 +2,9 @@ use super::*;
 
 #[test]
 fn common_event_ids_inputs_and_class_words_are_distinct() {
-    for (event, input, id) in [
-        (CommonEvent::Speedbreaker, 1, 0),
-        (CommonEvent::PursuitBreakerStart, 3, 2),
-        (CommonEvent::PursuitBreakerEnd, 4, 1),
-    ] {
+    for (event, input, id) in
+        [(CommonEvent::VisualPulse, 1, 0), (CommonEvent::SpeedbreakerBegin, 3, 2), (CommonEvent::SpeedbreakerEnd, 4, 1)]
+    {
         assert_eq!(event.input(), input);
         assert_eq!(event.words(20000), [id, 20000, 0, 0, 0, 0]);
         assert_eq!(event.words(-1)[1], 0);
@@ -25,7 +23,7 @@ fn installed_audio(rate: u32) -> Audio {
 #[test]
 #[ignore = "needs a game install; set NFSMW_GAME_DIR"]
 fn installed_common_events_play_release_and_match_across_render_rates() {
-    for event in [CommonEvent::Speedbreaker, CommonEvent::PursuitBreakerStart, CommonEvent::PursuitBreakerEnd] {
+    for event in [CommonEvent::VisualPulse, CommonEvent::SpeedbreakerBegin, CommonEvent::SpeedbreakerEnd] {
         for rate in [44100usize, 48000] {
             let mut energies = Vec::new();
             for fps in [5usize, 60, 144, 360] {

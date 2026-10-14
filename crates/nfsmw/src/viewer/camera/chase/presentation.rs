@@ -47,6 +47,7 @@ impl ChaseView {
         if let Some(view) = self.shaken {
             lens.view = view;
         }
+        lens.forward = self.forward();
         lens
     }
 

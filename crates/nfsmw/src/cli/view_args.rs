@@ -239,9 +239,9 @@ pub struct ViewArgs {
     /// Which camera gameplay uses: chase, dynamic-fov, bumper, hood, close, far, superfar, drift or pursuit [env NFSMW_CAMERA_MODE; config `camera_mode`; default chase].
     #[arg(long, value_name = "chase|dynamic-fov|bumper|hood|close|far|superfar|drift|pursuit")]
     pub camera_mode: Option<crate::settings::CameraMode>,
-    /// Numbers for a HUD that has no car behind it: "speed_kmh,rpm,max_rpm,gear[,nos_percent[,boost_psi]]" (for
+    /// Numbers for a HUD that has no car behind it: "speed_kmh,rpm,max_rpm,gear[,nos_percent[,boost_psi[,speedbreaker_percent[,speedbreaker_active]]]]" (for
     /// reference screenshots; a nitrous or boost value shows that gauge).
-    #[arg(long, hide = true, value_name = "SPEED,RPM,MAX_RPM,GEAR[,NOS[,PSI]]", value_parser = parse_hud_demo, allow_hyphen_values = true)]
+    #[arg(long, hide = true, value_name = "SPEED,RPM,MAX_RPM,GEAR[,NOS[,PSI[,BREAKER[,ACTIVE]]]]", value_parser = parse_hud_demo, allow_hyphen_values = true)]
     pub hud_demo: Option<crate::hud::HudState>,
 }
 

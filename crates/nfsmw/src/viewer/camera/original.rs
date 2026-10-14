@@ -1,6 +1,6 @@
 //! The original game's gameplay views (bumper, hood, close, far, super far, drift, pursuit): each is placed from the
-//! game's own `camerainfo` values for field of view, height, offset along the car and pitch, interpolated with the
-//! car's speed. The field names and the view order are confirmed against the install; the speed curve, the sign
+//! game's own `camerainfo` values for field of view, height, offset along the car and pitch. The pair selects
+//! fullscreen or horizontal split-screen, not a vehicle speed curve. The sign
 //! of the offset and the meaning of the stiffness are not (see docs/specs/camera-views.md).
 
 use glam::Vec3;
@@ -13,10 +13,6 @@ use crate::settings::CameraMode;
 const NEAR_PLANE: f32 = 0.3;
 /// Distance the view looks along its direction, metres: only sets the target point, not the picture.
 const LOOK_DISTANCE: f32 = 10.0;
-/// The speed (m/s) at which the speed end of each value is reached; faster does not go further. This is the chase
-/// camera's full-speed value, not one confirmed from the game.
-pub const FAST: f32 = 60.0;
-
 /// The index of a view in `nfsmw_data::camera::VIEWS`, for a camera setting. `None` for the two chase cameras.
 pub fn index_of(mode: CameraMode) -> Option<usize> {
     Some(match mode {
@@ -48,16 +44,25 @@ pub struct OriginalView {
 
 impl OriginalView {
     /// The view `view` on a car at `position`, facing `heading` (radians from +X), moving at `speed` m/s.
-    pub fn new(view: &View, position: Vec3, heading: f32, speed: f32, half_length: f32) -> Self {
-        let speed01 = (speed.abs() / FAST).clamp(0.0, 1.0);
-        let lag = View::at(view.lag, speed01);
-        let height = View::at(view.height, speed01);
-        let pitch = View::at(view.angle, speed01).to_radians();
+    pub fn new(view: &View, position: Vec3, heading: f32, _speed: f32, half_length: f32) -> Self {
+        // Single-player uses the fullscreen slot. Native mode TWOH alone uses
+        // the second slot; split-screen is not available in this host.
+        let lag = view.lag[0];
+        let height = view.height[0];
+        let pitch = view.angle[0].to_radians();
         Self {
             eye: position + direction(heading, 0.0) * (lag + forward_from_centre(lag, half_length)) + Vec3::Z * height,
             forward: direction(heading, -pitch),
-            fov_y_degrees: View::at(view.fov, speed01),
+            fov_y_degrees: view.fov[0],
         }
+    }
+
+    /// Native POV target: zoom divides spatial lag and multiplies FOV.
+    pub fn with_zoom(view: &View, position: Vec3, heading: f32, speed: f32, half_length: f32, zoom: f32) -> Self {
+        let mut target = *view;
+        target.lag = target.lag.map(|lag| lag / zoom);
+        target.fov = target.fov.map(|fov| fov * zoom);
+        Self::new(&target, position, heading, speed, half_length)
     }
 }
 
@@ -108,22 +113,38 @@ mod tests {
     }
 
     #[test]
-    fn the_values_follow_the_speed_and_stop_at_the_top_end() {
+    fn fullscreen_values_do_not_interpolate_toward_split_screen_values_at_speed() {
         let at_rest = OriginalView::new(&view(), CAR, 0.0, 0.0, 2.2).lens(1.0);
-        let fast = OriginalView::new(&view(), CAR, 0.0, FAST, 2.2).lens(1.0);
-        let faster = OriginalView::new(&view(), CAR, 0.0, FAST * 3.0, 2.2).lens(1.0);
+        let fast = OriginalView::new(&view(), CAR, 0.0, 60.0, 2.2).lens(1.0);
+        let faster = OriginalView::new(&view(), CAR, 0.0, 180.0, 2.2).lens(1.0);
         assert!((at_rest.fov_y_degrees - 78.0).abs() < 1e-4);
-        assert!((fast.fov_y_degrees - 90.0).abs() < 1e-4);
+        assert_eq!(fast.fov_y_degrees, at_rest.fov_y_degrees);
         assert_eq!(fast.fov_y_degrees, faster.fov_y_degrees);
-        assert!((fast.position.z - (CAR.z + 2.0)).abs() < 1e-4);
+        assert_eq!(fast.position, at_rest.position);
     }
 
     #[test]
     fn a_positive_pitch_looks_down() {
         let level = OriginalView::new(&view(), CAR, 0.0, 0.0, 2.2).lens(1.0);
-        let pitched = OriginalView::new(&view(), CAR, 0.0, FAST, 2.2).lens(1.0);
+        let mut down = view();
+        down.angle = [10.0, 0.0];
+        let pitched = OriginalView::new(&down, CAR, 0.0, 60.0, 2.2).lens(1.0);
         assert!(level.forward.z.abs() < 1e-6);
         assert!(pitched.forward.z < -0.1, "{:?}", pitched.forward);
+    }
+
+    #[test]
+    fn breaker_pov_divides_lag_and_multiplies_fov_without_changing_height_or_angle() {
+        for speed in [0.0, 30.0, 60.0] {
+            let normal = OriginalView::new(&view(), CAR, 0.0, speed, 2.2).lens(1.0);
+            for zoom in [1.0, 0.8, 0.6] {
+                let held = OriginalView::with_zoom(&view(), CAR, 0.0, speed, 2.2, zoom).lens(1.0);
+                assert!((held.position.x - CAR.x - (normal.position.x - CAR.x) / zoom).abs() < 1e-4);
+                assert_eq!(held.position.z, normal.position.z);
+                assert!((held.fov_y_degrees - normal.fov_y_degrees * zoom).abs() < 1e-4);
+                assert_eq!(held.forward, normal.forward);
+            }
+        }
     }
 
     #[test]

@@ -241,10 +241,10 @@ impl CarSim {
             }
             None => Impact::default(),
         };
-        
+
         self.prop_struck |=
             impact.contacts.iter().any(|c| matches!(c.kind, ContactKind::PropRigid | ContactKind::PropMovable));
-      
+
         let body = self.vehicle.body();
         let rotation = body.rotation();
         let bottom_point =

@@ -72,4 +72,5 @@ blend and surface behavior remain unverified.
 
 Remove the procedural radial UI overlay driven by pursuit effect strength.
 It can draw even at zero vehicle speed. Preserve the independent graphics
-speed-lines option and its renderer pass.
+speed-lines option; the selectable upstream streak style uses actual speed,
+not the retained pursuit effect value.

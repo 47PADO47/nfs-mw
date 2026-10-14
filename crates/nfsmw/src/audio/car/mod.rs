@@ -129,6 +129,12 @@ impl Drop for CarAudio {
 impl Audio {
     /// Follow the scene's car: start its sounds when it changes, feed the mixers, silence them when there is no car.
     pub fn drive_car(&mut self, state: Option<&CarSoundState>, dt: f32) {
+        if let Some(state) = state {
+            self.speedbreaker.view = state.view;
+        }
+        if state.is_some() {
+            self.prepare_breaker_moments();
+        }
         self.update_speedbreaker(state.is_some_and(|state| state.view.speedbreaker), dt);
         let Some(state) = state else {
             self.car = None;
@@ -260,5 +266,7 @@ impl Audio {
 mod regression_tests;
 #[cfg(test)]
 mod routing_tests;
+#[cfg(test)]
+mod speedbreaker_engine_tests;
 #[cfg(test)]
 mod tests;

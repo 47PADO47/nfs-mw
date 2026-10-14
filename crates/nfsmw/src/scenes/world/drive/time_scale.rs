@@ -70,6 +70,7 @@ impl Drive {
             .map_or(self.frame_input.speedbreaker, |run| run.script.input_at(run.time).speedbreaker);
         let speed = self.sim.as_ref().map_or(0.0, |sim| sim.speedbreaker_speed());
         let active = self.breaker.step(held, speed, sim_dt, real_dt);
+        self.breaker_camera.update(active, real_dt);
         if let Some(sim) = self.sim.as_mut() {
             sim.set_nos_recharge(!active);
             sim.set_speedbreaker_effect(active, &self.breaker.tuning().physics);

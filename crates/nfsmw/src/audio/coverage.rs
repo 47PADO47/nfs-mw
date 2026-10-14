@@ -21,7 +21,7 @@ pub(super) const FAMILIES: &[Family] = &[
     Family {
         class: "FX_UVES",
         route: "authored",
-        limits: "Speedbreaker activation and pursuit breaker events; music filter and mode volume treatment incomplete",
+        limits: "Speedbreaker begin/end and visual pulse controllers; moment stream callers remain incomplete",
     },
     Family {
         class: "FX_NITROUS",
@@ -64,8 +64,8 @@ pub(super) const FAMILIES: &[Family] = &[
     },
     Family {
         class: "SPEEDBREAKER_AUDIO",
-        route: "authored_pitch",
-        limits: "shared real-time pitch envelope; music filter, mode volume and matched PCM remain open",
+        route: "authored_mode",
+        limits: "shared real-time volume/pitch/filter envelopes and music cutoff; host filter and matched PCM unverified",
     },
     Family { class: "REMOTE_RACER_COP_AUDIO", route: "missing", limits: "remote car sound producers not implemented" },
 ];

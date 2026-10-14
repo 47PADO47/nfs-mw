@@ -67,10 +67,11 @@ fn package() -> Package {
         named(ObjectKind::Group, 21, 0x9EE0_6631, Some(20)),
         named(ObjectKind::Image, 22, 0x5630_E0B9, Some(21)),
         named(ObjectKind::Image, 23, 0x839E_7D77, None),
-        // The speed breaker: its meter group under the cluster, the stopwatch icon group under that, and the bar.
-        named(ObjectKind::Group, 24, 0x8991_BD54, Some(14)),
-        named(ObjectKind::Group, 25, 0x1144_8B5C, Some(24)),
-        named(ObjectKind::MultiImage, 26, 0x5DF2_F5B4, Some(14)),
+        object(ObjectKind::Group, 24, super::speedbreaker::GROUP, None),
+        object(ObjectKind::Group, 25, super::speedbreaker::ICON, Some(24)),
+        object(ObjectKind::MultiImage, 26, super::speedbreaker::MASK, Some(24)),
+        named(ObjectKind::Group, 27, super::speedbreaker::LINEAR_GROUP, None),
+        named(ObjectKind::Image, 28, super::speedbreaker::LINEAR_BAR, Some(27)),
     ];
     Package {
         name: "HUD.fng".into(),
@@ -81,6 +82,51 @@ fn package() -> Package {
         button_count: 0,
         responses: Vec::new(),
         targets: Vec::new(),
+    }
+}
+
+#[test]
+fn speedbreaker_gauge_and_icon_show_and_follow_original_charge_scripts() {
+    let mut package = package();
+    for (guid, ids) in
+        [(25, vec![SCRIPT_INIT, 0x7703_1C70]), (27, vec![0x5B0D_9106]), (28, vec![0x026D_ED57, 0x620E_4851])]
+    {
+        package.objects.iter_mut().find(|o| o.guid == guid).unwrap().scripts =
+            ids.into_iter().map(|id| Script { id, length: 100, ..Default::default() }).collect();
+    }
+    let mut rt = Runtime::new();
+    let id = rt.load(package);
+    let bar = rt.find(id, super::speedbreaker::LINEAR_BAR).unwrap();
+    rt.set_size_xy(bar, 240.0, 12.0);
+    rt.set_position_xy(bar, 139.5, 10.0);
+    let mut binding = HudBinding::new(&mut rt, id);
+    let group = rt.find(id, super::speedbreaker::LINEAR_GROUP).unwrap();
+    rt.run_script(group, 0x5B0D_9106);
+    let icon = rt.find(id, fe_hash_upper(super::speedbreaker::ICON)).unwrap();
+    for charge in [0.0, 0.1, 0.3, 0.300001, 0.7, 1.0] {
+        binding.apply(&mut rt, &HudState { speedbreaker: charge, ..Default::default() });
+        for guid in [24, 25, 26] {
+            assert!(visible(&rt, id, guid), "Speedbreaker object {guid} is visible");
+        }
+        assert!((mask_rotation(&rt, id, 26) - 175.0 * (1.0 - charge)).abs() < 1e-4);
+        assert_eq!(
+            rt.script_of(icon),
+            Some(match charge > 0.0 {
+                true => 0x7703_1C70,
+                false => SCRIPT_INIT,
+            })
+        );
+        assert_eq!(
+            rt.script_of(bar),
+            Some(match charge <= 0.3 {
+                true => 0x026D_ED57,
+                false => 0x620E_4851,
+            })
+        );
+        let size = rt.size(bar).unwrap();
+        let at = rt.position(bar).unwrap();
+        assert!((size.x - 240.0 * charge).abs() < 1e-4);
+        assert!((at.x - size.x / 2.0 - 19.5).abs() < 1e-4, "preserved left edge");
     }
 }
 

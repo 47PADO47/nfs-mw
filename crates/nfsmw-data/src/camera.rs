@@ -24,8 +24,8 @@ pub const VIEWS: [(&str, u32); 7] = [
 /// The index of the view the game uses by default (the car camera), `far`.
 pub const DEFAULT_INDEX: usize = 3;
 
-/// One view's values. Each is a pair: the value at rest and the value at speed (the game interpolates between
-/// them with the car's speed; the exact curve is not confirmed).
+/// One view's values: fullscreen and horizontal split-screen. The native POV
+/// getter selects the second slot only for horizontal split-screen mode.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct View {
     /// Field of view, degrees.
@@ -41,7 +41,8 @@ pub struct View {
 }
 
 impl View {
-    /// The value for a car at `speed01` (0 at rest, 1 at full speed): linear between the two.
+    /// Linear interpolation of a pair for callers that explicitly need it.
+    /// Native camera POV selection uses a discrete viewport-mode index.
     pub fn at(pair: [f32; 2], speed01: f32) -> f32 {
         pair[0] + (pair[1] - pair[0]) * speed01.clamp(0.0, 1.0)
     }
@@ -105,11 +106,11 @@ mod tests {
     }
 
     #[test]
-    fn a_pair_interpolates_between_rest_and_speed() {
+    fn the_optional_pair_interpolation_helper_is_linear() {
         assert_eq!(View::at([78.0, 90.0], 0.0), 78.0);
         assert_eq!(View::at([78.0, 90.0], 1.0), 90.0);
         assert_eq!(View::at([78.0, 90.0], 0.5), 84.0);
-        assert_eq!(View::at([78.0, 90.0], 2.0), 90.0, "faster does not go further");
+        assert_eq!(View::at([78.0, 90.0], 2.0), 90.0, "fractions are clamped");
     }
 
     #[test]

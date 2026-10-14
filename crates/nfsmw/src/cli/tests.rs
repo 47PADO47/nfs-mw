@@ -13,7 +13,10 @@ fn the_hud_demo_takes_optional_gauges() {
     let both = parse_hud_demo("100,4000,8000,3,60,-5").unwrap();
     assert!(both.has_turbo && both.boost_psi == -5.0);
     assert!(parse_hud_demo("100,4000,8000").is_err());
-    assert!(parse_hud_demo("1,2,3,4,5,6,7").is_err());
+    let breaker = parse_hud_demo("140,5000,8000,3,0,0,70,1").unwrap();
+    assert_eq!(breaker.speedbreaker, 0.7);
+    assert!(breaker.speedbreaker_active);
+    assert!(parse_hud_demo("1,2,3,4,5,6,7,8,9").is_err());
 }
 
 #[test]

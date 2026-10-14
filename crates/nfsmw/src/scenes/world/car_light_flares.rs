@@ -1,0 +1,198 @@
+//! Player lens flares from installed profiles and marker directions.
+
+use blackbox_gfx::{BlendMode, EffectLayer, RenderBackend, TextureHandle, TexturedEffect};
+use glam::{Mat4, Vec3};
+use nfsmw_data::car::{CarModel, lights::FlareProfile};
+
+use super::car_lights::{CarLights, Kind, LampState};
+
+#[derive(Clone)]
+struct Profile {
+    kind: Kind,
+    spec: FlareProfile,
+    texture: TextureHandle,
+}
+
+#[derive(Clone, Default)]
+pub struct CarLightFlares {
+    profiles: Vec<Profile>,
+    textures: Vec<TextureHandle>,
+}
+
+pub struct FlareView {
+    pub camera: Vec3,
+    pub forward: Vec3,
+    pub fov_degrees: f32,
+    pub height: u32,
+}
+
+impl CarLightFlares {
+    pub fn upload(renderer: &mut dyn RenderBackend, model: &CarModel) -> Self {
+        let mut set = Self::default();
+        let mut uploaded = std::collections::HashMap::new();
+        for (kind, profiles) in [
+            (Kind::Head, &model.flare_profiles.head),
+            (Kind::Tail, &model.flare_profiles.brake),
+            (Kind::Reverse, &model.flare_profiles.reverse),
+        ] {
+            for spec in profiles {
+                let Some(texture) = model.textures.get(&spec.texture) else { continue };
+                let handle = match uploaded.get(&spec.texture) {
+                    Some(&handle) => handle,
+                    None => {
+                        let Some(handle) = blackbox_scene::upload_texture(renderer, texture) else { continue };
+                        uploaded.insert(spec.texture, handle);
+                        set.textures.push(handle);
+                        handle
+                    }
+                };
+                set.profiles.push(Profile { kind, spec: spec.clone(), texture: handle });
+            }
+        }
+        set
+    }
+
+    pub fn release(self, renderer: &mut dyn RenderBackend) {
+        for texture in self.textures {
+            renderer.destroy_texture(texture);
+        }
+    }
+
+    pub fn draw(
+        &self,
+        lamps: &CarLights,
+        world: Mat4,
+        state: LampState,
+        view: FlareView,
+        out: &mut Vec<TexturedEffect>,
+    ) {
+        let FlareView { camera, forward, fov_degrees, height } = view;
+        let Some(focal) = focal_scale(height, fov_degrees) else { return };
+        let right = forward.cross(Vec3::Z).normalize_or(Vec3::Y);
+        let up = right.cross(forward).normalize_or(Vec3::Z);
+        for profile in &self.profiles {
+            let mut vertices = Vec::new();
+            for lamp in lamps.lamps() {
+                let kind = match lamp.kind {
+                    Kind::CentreBrake => Kind::Tail,
+                    other => other,
+                };
+                if kind != profile.kind {
+                    continue;
+                }
+                let intensity = match lamp.kind {
+                    Kind::Head => u8::from(state.headlights) as f32,
+                    Kind::Tail => {
+                        if state.brake > 0.0 {
+                            1.0
+                        } else {
+                            0.5
+                        }
+                    }
+                    Kind::CentreBrake => u8::from(state.brake > 0.0) as f32,
+                    Kind::Reverse => u8::from(state.reverse) as f32,
+                    _ => 0.0,
+                };
+                let at = world.transform_point3(lamp.at);
+                let to_eye = camera - at;
+                let depth = (-to_eye).dot(forward);
+                if depth <= 0.3 || !depth.is_finite() {
+                    continue;
+                }
+                let facing =
+                    world.transform_vector3(lamp.direction).normalize_or_zero().dot(to_eye.normalize_or_zero());
+                let Some((radius, color)) =
+                    appearance(&profile.spec, intensity, facing, depth / focal, to_eye.length_squared())
+                else {
+                    continue;
+                };
+                let at = at + to_eye.normalize_or_zero() * profile.spec.z_bias;
+                let x = right * radius;
+                let y = up * radius;
+                EffectLayer::particle_quad(
+                    &mut vertices,
+                    [at - x + y, at + x + y, at + x - y, at - x - y],
+                    color,
+                    [0.0; 2],
+                );
+            }
+            if !vertices.is_empty() {
+                out.push(TexturedEffect { texture: profile.texture, blend: BlendMode::Additive, vertices });
+            }
+        }
+    }
+}
+
+fn focal_scale(height: u32, fov_degrees: f32) -> Option<f32> {
+    if height == 0 || !fov_degrees.is_finite() || !(0.0..180.0).contains(&fov_degrees) {
+        return None;
+    }
+    let focal = height as f32 * 0.5 / (fov_degrees.to_radians() * 0.5).tan();
+    (focal.is_finite() && focal > 0.0).then_some(focal)
+}
+
+fn appearance(
+    p: &FlareProfile,
+    intensity: f32,
+    facing: f32,
+    depth_scale: f32,
+    distance_squared: f32,
+) -> Option<(f32, [u8; 4])> {
+    if intensity <= 0.0 || facing <= 0.0 || distance_squared >= 40000.0 {
+        return None;
+    }
+    let intensity = (intensity * facing.powf(p.power)).clamp(0.0, 1.0);
+    // The original applies ordered bounds even when the installed minimum exceeds the maximum.
+    let scale = depth_scale.max(p.scale[0]).min(p.scale[1]);
+    let radius = (p.size[0] + (p.size[1] - p.size[0]) * intensity) * scale;
+    let fade = ((40000.0 - distance_squared) / 8000.0).clamp(0.0, 1.0);
+    let color = std::array::from_fn(|i| {
+        let factor = if i == 3 { 2.0 * fade } else { 1.0 };
+        (p.color[i] * intensity * factor * 255.0).clamp(0.0, 255.0) as u8
+    });
+    (radius > 0.0 && color[3] > 0).then_some((radius, color))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn profile() -> FlareProfile {
+        FlareProfile {
+            size: [20.0, 30.0],
+            scale: [0.01, 0.04],
+            power: 1.0,
+            z_bias: 0.3,
+            color: [1.0, 0.1, 0.1, 0.2],
+            texture: 0,
+        }
+    }
+    #[test]
+    fn facing_and_range_reject_hidden_flares() {
+        for facing in [-1.0, 0.0] {
+            assert!(appearance(&profile(), 1.0, facing, 0.02, 36.0).is_none());
+        }
+        assert!(appearance(&profile(), 1.0, 1.0, 0.02, 40000.0).is_none());
+        let a = appearance(&profile(), 1.0, 1.0, 0.02, 36.0).unwrap();
+        let b = appearance(&profile(), 1.0, 0.5, 0.02, 36.0).unwrap();
+        assert!(b.0 < a.0 && b.1[3] < a.1[3]);
+        assert!(appearance(&profile(), 1.0, 1.0, 0.02, 36000.0).unwrap().1[3] < a.1[3]);
+    }
+    #[test]
+    fn inverted_authored_scale_uses_ordered_bounds() {
+        let p = FlareProfile { scale: [1.0, 0.015], ..profile() };
+        assert_eq!(appearance(&p, 1.0, 1.0, 0.001, 36.0), appearance(&p, 1.0, 1.0, 0.1, 36.0));
+    }
+    #[test]
+    fn projection_uses_actual_output_size_and_camera_fov() {
+        assert!((focal_scale(720, 90.0).unwrap() - 360.0).abs() < 0.001);
+        assert!((focal_scale(2160, 90.0).unwrap() - 1080.0).abs() < 0.001);
+        assert_eq!(focal_scale(0, 70.0), None);
+        for fov in [0.0, -1.0, 180.0, f32::NAN] {
+            assert_eq!(focal_scale(720, fov), None);
+        }
+        let p = FlareProfile { size: [20.0; 2], scale: [0.001, 1.0], ..profile() };
+        let low = appearance(&p, 1.0, 1.0, 6.0 / focal_scale(720, 90.0).unwrap(), 36.0).unwrap();
+        let high = appearance(&p, 1.0, 1.0, 6.0 / focal_scale(2160, 90.0).unwrap(), 36.0).unwrap();
+        assert!((low.0 - high.0 * 3.0).abs() < 0.0001);
+    }
+}
