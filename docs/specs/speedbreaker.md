@@ -82,8 +82,35 @@ The PC begin/end event also sets the player's collision mass override to twice
 the original mass while active and clears the override on exit. The reference
 suspension applies two extra downward g, reduces aerodynamic drag to 25 percent,
 increases front-wheel grip by `1 + 0.75 * abs(steering_input)`, and moves the
-steering target toward `steering_input * 60` degrees. These are additional
-vehicle effects; a changed clock alone does not establish their parity.
+steering target toward `steering_input * 60` degrees.
+
+Status of these vehicle effects [built; partly verified]:
+
+- Built. `drive/sim/performance.rs` maps the tunables to a `blackbox_vehicle::ManeuverAssist`
+  while the breaker is active, and to the neutral assist otherwise. The vehicle step applies each field:
+  downforce (`apply_aero`), drag scale (`apply_aero`), tire steering drag (`begin_tires`), front
+  grip (`tune_tires`), collision mass (`modify_object_hit`) and steering angle (`update_steering`).
+  Unit tests cover each effect and its return to neutral on exit.
+- Reference check (CC0 `SuspensionRacer.cpp`, the repo the spec cites). Its GameBreaker path has
+  `Tweak_GameBreakerExtraGs = -2.0` (times weight, mass and 9.81), steer drag `Lerp(0.15, 1.0, weight)`,
+  aero `drag_pct = 1 - 0.75 * weight`, front grip `weight * abs(steer) * 0.75 + 1` on the front tires, and steering
+  `Lerp(newsteer, steer * 60, weight)`. At full weight these match the built values. The built
+  gravity uses the PC `GRAVITY` 9.8128, which the reference rounds to 9.81.
+- Not matched: the reference ramps the weight down after exit at 1/3 per physics second, so every effect above
+  fades over about 0.33 s. The remake switches them off at once. The collision mass is binary in the PC
+  path as far as the spec shows, so only the other effects would need the fade.
+- PC Ghidra (`speed.exe`): the constants are present in the PC data (`0.25`, `0.75`, `25.0`, `60.0`, `2.0`), and
+  `60.0` at `0x8905F8` has code references; the one routine read (`0x4120CF`) is not the steering or event code,
+  as far as it was read. The event function was not located, so the per-effect PC mapping is verified only against the reference.
+
+Configuration. Each tunable reads from `NFSMWSpeedFixerSettings.ini` next to the config file, with the mod's
+keys and units (see `docs/mods/nfsmwspeedfixer.md`). The reader is `libs/ini-tuning`; the NFS:MW schema and the vanilla
+values are `crates/nfsmw/src/settings/speedbreaker.rs`. Missing or malformed values are vanilla. Out-of-range values
+clamp. Two keys follow the mod's omission rules: an absent `maxDuration` is unlimited, and passive recharge is off
+when both of its keys are absent. Our clamp ranges are our choice where the mod gives none. Unit conversions: km/h to
+m/s at the boundary, percent to fraction, and `timeScale` as the divisor of the multiplier (4 gives 0.25). `gravityScale`
+is the total gravity multiple, so the extra downforce is `(gravityScale - 1) g`, and `slipGripReduction` is the tire steer-drag
+coefficient (15 percent normal, 100 percent active).
 
 ## 4. The HUD bar [built; not checked on screen]
 

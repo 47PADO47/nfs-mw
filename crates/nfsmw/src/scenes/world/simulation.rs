@@ -11,6 +11,11 @@ const BATCH_STEPS: u32 = 6;
 impl WorldScene {
     pub(super) fn update_simulation(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) -> f32 {
         self.prepare_traffic(renderer);
+        let speedbreaker = self.tuning.speedbreaker;
+        self.speedbreaker_clock.set_dilation(speedbreaker.dilation);
+        if let Some(drive) = self.drive.as_mut() {
+            drive.set_speedbreaker_tuning(speedbreaker);
+        }
         let driving = self.view == View::Chase;
         if let Some(drive) = self.drive.as_mut()
             && driving

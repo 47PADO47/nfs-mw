@@ -6,23 +6,29 @@ use crate::input::{Action, ActionState};
 #[derive(Debug)]
 pub(in crate::scenes::world) struct SpeedbreakerClock {
     multiplier: f64,
+    dilation: crate::settings::speedbreaker::Dilation,
 }
 
 impl Default for SpeedbreakerClock {
     fn default() -> Self {
-        Self { multiplier: 1.0 }
+        Self { multiplier: 1.0, dilation: crate::settings::speedbreaker::Dilation::default() }
     }
 }
 
 impl SpeedbreakerClock {
+    /// The entry target and entry/exit rates. Set from the world settings each frame.
+    pub fn set_dilation(&mut self, dilation: crate::settings::speedbreaker::Dilation) {
+        self.dilation = dilation;
+    }
+
     /// Simulation seconds over this frame, including the linear entry/exit ramp.
     pub fn advance(&mut self, active: bool, real_dt: f32) -> f32 {
         if !real_dt.is_finite() || real_dt <= 0.0 {
             return 0.0;
         }
         let (target, rate) = match active {
-            true => (0.25, 2.0),
-            false => (1.0, 0.5),
+            true => (f64::from(self.dilation.target), f64::from(self.dilation.enter_rate)),
+            false => (1.0, f64::from(self.dilation.exit_rate)),
         };
         let dt = f64::from(real_dt);
         let ramp = dt.min((target - self.multiplier).abs() / rate);
@@ -34,6 +40,11 @@ impl SpeedbreakerClock {
 }
 
 impl Drive {
+    /// The Speedbreaker tunables the meter and the physics read. Set from the world settings each frame.
+    pub fn set_speedbreaker_tuning(&mut self, tuning: crate::settings::SpeedbreakerTuning) {
+        self.breaker.set_tuning(tuning);
+    }
+
     /// Meter/button edges run every loaded frame, including frames with no 60 Hz tick.
     pub fn prepare_time(&mut self) -> bool {
         if self.request.is_some() || self.sim.is_none() || (self.batch_run && self.script_finished()) {
@@ -61,7 +72,7 @@ impl Drive {
         let active = self.breaker.step(held, speed, sim_dt, real_dt);
         if let Some(sim) = self.sim.as_mut() {
             sim.set_nos_recharge(!active);
-            sim.set_speedbreaker_effect(active);
+            sim.set_speedbreaker_effect(active, &self.breaker.tuning().physics);
         }
         let scale = match real_dt > 0.0 {
             true => sim_dt / real_dt,

@@ -18,6 +18,13 @@
   batches. Synthetic tests compare 5/30/60/120/144/240 FPS tick counts,
   transition integrals, real-time depletion on zero-tick frames and clock pause
   preservation. This wiring was implemented from the existing spec only.
+- **Vehicle effects (E11):** the mass, downforce, drag, front-grip, tire-drag and steering effects are applied
+  through `ManeuverAssist` only while active. The CC0 `SuspensionRacer.cpp` GameBreaker path matches their full-weight
+  values. Ghidra on `speed.exe` found the PC constants (`0.25`, `0.75`, `25.0`, `60.0`, `2.0`) in the data table and
+  one code reference to `60.0`, but not the begin/end event, so the PC mapping is not verified in the binary. The
+  reference's 1/3 s weight ramp-out after exit is not implemented.
+- **Configuration (E11):** `NFSMWSpeedFixerSettings.ini` with the mod's keys and units; clamps and vanilla fallback
+  are unit-tested. The keys and the omission rules follow the NFSMWSpeedFixer mod. Spec: [speedbreaker](../specs/speedbreaker.md).
 - **Limits:** no live original-game driving measurement; cinematic/multiplayer
   gates, audio/camera treatment, suspension/grip/collision-mass and drift
   recharge need separate integration/verification. Full parity is not claimed.
