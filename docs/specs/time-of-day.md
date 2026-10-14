@@ -244,6 +244,11 @@ with the original game is not verified.
 
 - **Sky.** The sky is scenery models (`SKYDOME`, `SKYDOME_XENON`) with textures in `InGameA.bun`. Their colour is
   not set by the lighting object, so there is no verified sky-colour path yet. The horizon colour follows the fog.
+  - **E1 sky-colour TODO, status:** the shared models of `InGameA.bun` now load (`GLOBAL_MODEL_FILES`), so the
+    sky domes can resolve. The dome colour is still not tied to the time of day: `SKYDOME` uses effect 0, which
+    takes no lighting (see above), and the lighting-driven sky colour is `FFSKYCOLOR` / `SUNCOLOR` in the skybox
+    effects. The code that writes those from the lighting object is not found yet (Ghidra, `speed.exe`:
+    `FUN_006C3D20` registers the names, `FUN_006D6000` sets up the 31 effect slots). Open.
 - **Colour grade.** The grade is `visuallook` `default` (`ColourBloomTint`, curves). It is not driven by the time
   of day in any state checked, and the time-of-day blend does not reach it yet.
 - **Scalar fields** (fog distance, sun intensity and similar). Their names are not matched, so fog distances stay

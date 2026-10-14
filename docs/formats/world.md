@@ -84,7 +84,13 @@ bounds, surface types and the query rules are in [collision.md](collision.md).
   - `SKYDOME_XENON` uses effect 19, the only 44-byte vertex format in the stream: the common 36 bytes
     (white vertex colour) plus a second UV pair at 36. It draws the detailed next-gen clouds.
   - `SKY_SPECULAR` (textured `SKY_REFSKYSPECULARB`) looks like a layer for reflections. Drawing it in
-    the player view darkens the whole dome **[unconfirmed]**.
+    the player view darkens the whole dome **[unconfirmed]**. Still skipped by the renderer
+    (`SKIPPED_MODELS` in `scenes/world/resident.rs`); not checked against the game.
+  - The shared models of `InGameA.bun` are read and uploaded with the shared sets (`GLOBAL_MODEL_FILES`).
+    The `SKYDOME` shading is still the prelit, unfogged `Shading::Sky` by name prefix.
+  - Ghidra (speed.exe): the skybox effect constants `FFSKYCOLOR` and `SUNCOLOR` exist, and the effect table
+    has `skyshader`. Which code feeds them from the lighting is not pinned
+    ([provenance](../provenance/ingamea-sky-models.md)).
 - Lighting/TOD data: AttribSys `timeofdaylighting` (13 fields, 8 collections), `visuallook`,
   `visuallookeffect`, `visuallooktransition`, `visualrgbtweaker`; plus `SunInfos`
   ([attributes.md](attributes.md)). Rain: `world`, `CARSFX_Rain`, `RainDropShader`.
