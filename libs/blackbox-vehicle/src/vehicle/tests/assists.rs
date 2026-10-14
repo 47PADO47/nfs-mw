@@ -55,6 +55,43 @@ fn maneuver_scales_aero_and_steering_without_changing_dynamic_mass() {
 }
 
 #[test]
+fn every_maneuver_modifier_matches_the_neutral_vehicle_after_exit() {
+    let mut neutral = Vehicle::new(VehicleSpec::example());
+    neutral.body.linear_velocity = Vec3::new(0.0, 0.0, 20.0);
+    neutral.controls.gas = 1.0;
+    neutral.controls.steering = 1.0;
+    let mut car = neutral.clone();
+    car.maneuver = crate::ManeuverAssist {
+        extra_downward_acceleration: 19.62,
+        tire_steering_drag: Some(1.0),
+        collision_mass_scale: Some(2.0),
+        drag_scale: 0.25,
+        front_grip_gain: 0.75,
+        steering_degrees: Some(60.0),
+    };
+    car.begin_tires(20.0);
+    car.update_steering(FIXED_STEP, 20.0);
+    neutral.update_steering(FIXED_STEP, 20.0);
+    assert_ne!(car.wheel_angles.right, neutral.wheel_angles.right, "the active assist changes the steering");
+    // Steering keeps state across steps, so both vehicles take the same number of them.
+    car.maneuver = Default::default();
+    car.begin_tires(20.0);
+    neutral.begin_tires(20.0);
+    let (spin_car, spin_neutral) = (car.body.angular_velocity, neutral.body.angular_velocity);
+    car.tune_tires(FIXED_STEP, 20.0, spin_car);
+    neutral.tune_tires(FIXED_STEP, 20.0, spin_neutral);
+    car.update_steering(FIXED_STEP, 20.0);
+    neutral.update_steering(FIXED_STEP, 20.0);
+    car.apply_aero();
+    neutral.apply_aero();
+    assert_eq!(car.body.pending_force(), neutral.body.pending_force(), "downforce and drag return to neutral");
+    assert_eq!(car.wheel_angles.right, neutral.wheel_angles.right, "steering returns to the normal shaping");
+    assert_eq!(car.tires[0].drag_reduction, neutral.tires[0].drag_reduction, "tire steering drag returns to normal");
+    assert_eq!(car.tires[0].lateral_boost, neutral.tires[0].lateral_boost, "front grip returns to neutral");
+    assert_eq!(car.body.mass(), neutral.body.mass(), "the dynamic mass never changes");
+}
+
+#[test]
 fn reference_sleep_damps_net_force_and_preserves_gravity_support() {
     let mut car = Vehicle::new(VehicleSpec::example());
     car.set_tire_integration(crate::tires::TireIntegration::Reference);
