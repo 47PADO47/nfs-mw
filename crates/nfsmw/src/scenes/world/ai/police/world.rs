@@ -64,18 +64,12 @@ impl super::super::TrafficWorld {
             formation_gap: self.formation_gap(at, player.forward),
             support_random: self.rng.next_f32(),
         };
-        let rig = self.cop_rig("copheli");
-        self.police.set_rig(rig);
+        self.police.set_rig(self.helicopter_rig.clone());
         let evaded = self.police.update_in_world(dt, pursuing, player, sensed, clear);
         if evaded {
             log::info!("the player got away: the cops give up");
             self.stop_pursuit();
         }
-    }
-
-    /// The loaded model of the cop car named `name`, if it is loaded.
-    pub(super) fn cop_rig(&self, name: &str) -> Option<Rc<CarRig>> {
-        self.cop_models.iter().find(|m| m.model.name.eq_ignore_ascii_case(name)).map(|m| m.model.rig.clone())
     }
 
     /// Whether a physics-space point is inside a hiding spot: in a HIDDEN zone, at its height (`HIDDEN_HEIGHT`).

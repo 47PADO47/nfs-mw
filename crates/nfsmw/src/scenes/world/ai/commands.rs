@@ -4,7 +4,7 @@ use blackbox_gfx::RenderBackend;
 use blackbox_vehicle::performance::Performance;
 use nfsmw_data::pursuit::heat_row;
 
-use super::models::load_cop_models;
+use super::models::{load_cop_models, load_helicopter_model};
 use super::traffic_events::{Sighting, starts_pursuit};
 use crate::scenes::world::WorldScene;
 
@@ -88,9 +88,9 @@ fn begin_pursuit(
     let row = heat_row(scene.physics.database(), heat).ok_or("no cop table for that heat")?;
     let names: Vec<String> = row.cops.iter().filter(|c| c.name != "copheli").map(|c| c.name.clone()).collect();
     load_cop_models(scene, renderer, &names)?;
-    // The helicopter is not a car of the wave, but it is drawn from the same model. A model that fails to load only
-    // leaves the helicopter out of the picture.
-    if let Err(e) = load_cop_models(scene, renderer, &["copheli".to_owned()]) {
+    // The helicopter is not a car of the wave: it is only drawn, so it loads a rig and no physics. A model that fails
+    // to load leaves the helicopter out of the picture.
+    if let Err(e) = load_helicopter_model(scene, renderer) {
         log::warn!("the police helicopter has no model: {e}");
     }
     let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
