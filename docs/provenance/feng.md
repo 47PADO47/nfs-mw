@@ -38,4 +38,10 @@ The game side is `crates/nfsmw/src/hud/`.
   - Multi images draw through their mask as the product of alphas (inferred from the gauge textures, see the runtime spec).
   - List boxes, code list boxes, movies and the mouse are not implemented (none occur in the HUD, no list type
     occurs in any package).
-  - The tick rate (960 per second) is inferred, not read.
+- **PC clock correction (2026-10-14):** matching PC UI service and frontend
+  manager callers read real frame time, multiply by 1200 and convert to ticks.
+  Nine isolated unchanged conversion vectors verify this rate. The previous
+  960-tick inference was wrong. The game now supplies 1200 to a configurable
+  generic runtime; fractional carry preserves elapsed time at high FPS.
+  Original conversion truncates each frame, so carrying fractions is an
+  intentional correction rather than a claim of identical rounding.

@@ -5,7 +5,8 @@ Sources: original PC 1.3 executable inspected locally; and
 reference behavior in `LocalPlayer.cpp`, `PInput.cpp`, `QuickGame.h` and
 `SuspensionRacer.cpp`. Read for behavior only; no decompiled expression copied.
 The action, meter and HUD bar are built. PC meter/time behavior below was
-researched on 2026-10-13. The HUD geometry still needs visual comparison.
+researched on 2026-10-13. Native HUD arithmetic and scripts were checked on
+2026-10-14; rendered geometry still needs visual comparison.
 
 ## 1. The action [built]
 
@@ -112,7 +113,7 @@ m/s at the boundary, percent to fraction, and `timeScale` as the divisor of the 
 is the total gravity multiple, so the extra downforce is `(gravityScale - 1) g`, and `slipGripReduction` is the tire steer-drag
 coefficient (15 percent normal, 100 percent active).
 
-## 4. The HUD bar [built; not checked on screen]
+## 4. The HUD bar [built; PC arithmetic checked]
 
 The speedometer's gauge is in `HUD_SingleRace.fng`. From the package's names (found with Ghidra, from the strings
 `Speedbreaker_Meter_Multi_Image`, `Speedbreaker_Meter_Group`, `SPEEDBREAKER_METER_ICON_GROUP`, and their FEng name hashes
@@ -124,27 +125,31 @@ from `blackbox_feng::fe_hash_upper`):
 | meter group | `Speedbreaker_Meter_Group` | `0x8991BD54` | the group (group `0xEC1BD`) |
 | meter bar | `Speedbreaker_Meter_Multi_Image` | `0x5DF2F5B4` | the MultiImage that rotates (`0xE3778`, `Meter_Backing2.tga`) |
 
-`hud/bind.rs` binds the bar by `SPEEDBREAKER_BAR` and rotates it by the meter, like the nitrous bar
-(`SPEEDBREAKER_BAR_EMPTY_DEG`, which is assumed to equal the nitrous bar's 175°). The meter reaches the HUD through
+`hud/speedbreaker.rs` binds and exposes the meter/icon groups. Native HUD update
+confirms a 175-degree empty mask, its linear fill's fixed left edge, low-charge
+threshold at 0.3 and charge icon scripts. The drag package uses -48 degrees.
+Thirteen isolated original-code cases cover charge thresholds and package modes;
+FEng accessors are synthetic. The meter reaches the HUD through
 `HudState::speedbreaker`, which the drive scene fills from `Drive::breaker`.
+Rendered layout equivalence remains separate. Audio and further presentation
+contracts are in [speedbreaker-audio.md](speedbreaker-audio.md).
 
-Original behaviour [binary, Ghidra on `speed.exe`]:
-
-- The meter class is `Hud_SpeedBreakerMeter`, built by the race HUD constructor (`0x005a6600`) in HUD modes 1 and 2
-  (constructor at `0x0059e420`). It is created with the race cluster and is never hidden: no code in the class calls a
-  hide, and the group hash is not a code constant. The group and its bar show for the whole race, whatever the charge.
-- Bar (`0x00568460`, update): angle = base * (1 - meter), with base 175 on `HUD_SingleRace` and -3 on `HUD_Drag`.
-  The remake's `meter * -175 + 175` is the same formula for the single race.
-- Icon: the stopwatch group runs the lit script (`0x77031C70`) while the meter is above 0, and the reset script
-  (`0x001744B3`) at 0.
-- Update only runs when the meter's dirty flag is set; the thresholds (0 and 0.5) are read from the executable.
-
-Remaining: a look at the bar and the icon on a run with a car, against the third screenshot.
+An active-state edge also supplies the original package fade and ACTIVATE
+messages; exit supplies fade-in and DEACTIVATE. The package animates the normal
+HUD away and brings in the bottom central horizontal charge meter. The charged
+circular icon is the inactive HUD indicator, not a replacement for this active
+layout. The original camera transition changes both spatial lag and FOV;
+see the paired contract in [speedbreaker-audio.md](speedbreaker-audio.md).
 
 The race timer ("00:00.00", `0xE1AA7`) is a different timer, at the top right of the screen.
 
 ## 5. Remaining comparison
 
+- Camera and transition timing still differ in gameplay comparisons. The
+  corrected scalar and HUD animation clocks do not establish a matched complete
+  transition. Chase is a custom camera; the other views also retain native
+  follow, obstruction, noise and framing gaps documented in
+  [camera-views.md](camera-views.md).
 - Compare live PC activation, depletion and clock transitions with the remake.
 - Validate remaining collision mass/inertia paths and scheduler integration.
 - Compare audio treatment and camera/visual effects.
