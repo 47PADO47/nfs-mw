@@ -1,8 +1,9 @@
 //! ICE camera, EAGL animation and WorldAnim chunk ids.
 //!
-//! Status: taken from `tools/bchunk_names.py` (CC0 `dbalatoni13/nfsmw` chunk list). NOT yet verified
-//! against the Ghidra dispatch in `speed.exe`; each id still needs that check before the readers
-//! depend on it. Layouts: `docs/formats/animation.md`.
+//! Status: names are taken from `tools/bchunk_names.py` (CC0 `dbalatoni13/nfsmw` chunk list).
+//! `ICE_SHAKE_TRACKS` and `ICE_NIS_CAMERAS`..`ICE_REPLAY_CAMERAS` are confirmed as immediates in the
+//! `speed.exe` dispatch (see `docs/provenance/ice-camera-dispatch.md`). The rest are unverified.
+//! Layouts: `docs/formats/animation.md`.
 
 /// `ICECatalog`: the ICE camera catalogue.
 pub const ICE_CATALOG: u32 = 0x0003_B200;

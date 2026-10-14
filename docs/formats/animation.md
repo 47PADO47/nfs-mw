@@ -137,10 +137,64 @@ The handler then loops over the records. Each record goes through `0x004786E0`, 
 | 2 | `+0x1C` | 50 (`0x32`) |
 | 3 | `+0x20` | 50 |
 
-**Not pinned down:** the record byte layout. The handler strides by `0x84` per camera entry, and the
-shake handler at `0x00478890` walks entries with a 12-byte header, but the field offsets and the record
-size of the ICE pack payloads are still unknown. A reader needs those first. Chunk-level framing is
-the standard bChunk header (`[id u32 LE][size u32 LE]`, payload at `+8`), as the handler reads it.
+### ICE camera records **[verified: Ghidra, speed.exe 1.3]**
+
+All offsets are payload-relative (payload = chunk header `+8`). Decoded from `0x004787C0` (camera
+packs), `0x004786E0` (entry append), `0x0046E760` (duplicate-key lookup), `0x004789C0` /
+`0x0046D2E0` / `0x00477EE0` (time search and evaluator), and `0x0047F9F0` (teardown).
+
+**Pack (chunk `0x8003B200..0x8003B203`, `kind = id - 0x8003B200`).** The payload is a sequence of
+standard chunks (`id`, `size`, payload). The engine ignores their ids. Each sub-chunk payload is:
+
+| Offset | Type | Field |
+|---|---|---|
+| `+0x00` | u32 | Dedup key. Passed to `0x46E760`; a key already registered is merged into the existing entry |
+| `+0x04` | i32 | Record count `N`. `N <= 0` means no records |
+| `+0x08` | | `N` camera records, back to back |
+
+**Camera record** (header `0x28` bytes, then elements):
+
+| Offset | Type | Field |
+|---|---|---|
+| `+0x00..+0x08` | | Runtime list links, written by the engine (`0x004787C0`) |
+| `+0x08` | | Runtime owner pointer (written on link) |
+| `+0x14` | i16 (signed) | Element count `M`. Read with `MOVSX` |
+| `+0x16` | u8 | Read by the teardown `0x47F9F0` as an "owned" flag before `free`. Not confirmed as a file byte |
+| `+0x28` | | `M` elements, stride `0x84` |
+
+The next record starts at `record + 0x28 + M*0x84`. A record with a negative `M` would walk backward,
+so the reader rejects it.
+
+**Camera element** (stride `0x84`, element `i` at `record + 0x28 + i*0x84`):
+
+| Offset | Type | Field |
+|---|---|---|
+| `+0x00` | u8 | Enabled flag. The evaluator skips the element when this byte is zero (`0x4789C0`) |
+| `+0x10` | f32 | Time key. `0x46D2E0` scans backward for the last element with key `<=` the current time |
+| `+0x14`, `+0x4C`, `+0x54` | f32 | Read by `0x477EE0` in a component-wise difference test. Meaning not confirmed |
+
+Position, target and FOV are not pinned yet. The fields that interpolate between keys are the ones
+the evaluator calls, and their offsets are not confirmed here. Other bytes are left raw.
+
+**Shake tracks (`0x0003B211`, handler `0x00478890`).** The payload starts with `u32 N` at `+0x00`.
+Records start at `+0x04`. Each record has a `0x20`-byte header:
+
+| Offset | Type | Field |
+|---|---|---|
+| `+0x00..+0x0C` | | Runtime links and owner, written by the engine |
+| `+0x0C` | i16 (signed) | Element count `M` |
+| `+0x20` | | `M` elements, stride `0x18` (24 bytes) |
+
+The next record starts at `record + 0x20 + M*0x18`. The shake walker does not call the duplicate
+lookup. It links into the owner object at `manager+0x10`.
+
+**Not pinned:** the meaning of the camera element's `+0x14`/`+0x4C`/`+0x54` floats and the rest of
+the `0x84` element. The 24-byte shake element is also undecoded. The reader in
+`libs/blackbox-chunk/src/ice/` exposes these as raw bytes.
+
+**Known gaps in the dispatch:** `0x0047FB6F` (the shake branch of the second dispatch) is not read.
+`0x0047FB40` is not a function start in the Ghidra database, so the second site was not fully
+decoded.
 
 ## Looking at it yourself
 
