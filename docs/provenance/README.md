@@ -48,6 +48,7 @@ a record. Process: [licensing.md § Spec-first](../licensing.md#spec-first).
 | [Exhaust flames](exhaust-flames.md) | [specs/exhaust-flames.md](../specs/exhaust-flames.md) | dbalatoni13/nfsmw `World/CarRenderConn.cpp`, `VehicleRenderConn.cpp`, `CarRender.cpp`, `Ecstasy/EmitterSystem.cpp`, `Physics/Behaviors/DrawCar.cpp`, AttribSys class headers (decompiled, CC0) |
 | [Weather](weather.md) | [specs/weather.md](../specs/weather.md) | `speed.exe` (original PC build) decompiled and disassembled in Ghidra; name-hash scan of the install's data files |
 | [Day-night clock](day-night-clock.md) | [specs/time-of-day.md](../specs/time-of-day.md) | `speed.exe` (original PC build) disassembled in Ghidra for the clock counter writer and the sun integrator; the day-night key names from the repository's note of the behaviour (no mod code) |
+| [World map screen](world-map-ghidra.md) | [specs/world-map.md](../specs/world-map.md) | `speed.exe` decompiled in Ghidra (the world map controller and its screen), read-only |
 
 ## Template
 
