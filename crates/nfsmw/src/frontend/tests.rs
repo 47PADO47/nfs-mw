@@ -117,12 +117,14 @@ fn controls_icon_opens_the_key_list_and_control_options_the_sensitivity_rows() {
                 tree.nodes.iter().any(|n| n.name_hash == super::ids::ICON_TITLE && n.text.as_deref() == Some(text))
             })
         };
-        // Audio, Video, Gameplay, Player (greyed out), then Controls: the key list replaces the categories.
-        for _ in 0..4 {
+        // Audio, Video, Gameplay, then Controls: the key list replaces the categories. The main menu's list also has
+        // Player (greyed out) before Controls; the pause menu has no Player entry (docs/specs/frontend-menus.md, 2.2).
+        let to_controls = if pause { 3 } else { 4 };
+        for _ in 0..to_controls {
             h.press(pad::RIGHT);
         }
         h.wait(0.5);
-        assert!(title_is(&h, "Controls"), "{menu}: the fifth category must be Controls");
+        assert!(title_is(&h, "Controls"), "{menu}: the Controls category");
         // Hold A through the switch. The next screen must not accept the same gesture again.
         h.run(pad::ACCEPT, 120);
         h.run(0, 3);

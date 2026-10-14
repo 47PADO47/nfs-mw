@@ -7,7 +7,7 @@ use blackbox_feng::ObjectRef;
 use glam::Vec2;
 
 use super::confirm::Confirm;
-use super::icon_items::{Icon, Id, icons};
+use super::icon_items::{Icon, Id, draw_scale, icons};
 use super::icon_window;
 use super::ids::{self, screen};
 use super::logic::{Args, Category, Command, Cx, ScreenLogic};
@@ -280,8 +280,9 @@ impl IconMenu {
             let visible = x >= self.center.x - half && x <= self.center.x + half;
             cx.rt.set_hidden(slot.obj, !visible);
             let s = s * fade;
+            let art = self.icon_at(self.base + k).map_or(1.0, |i| draw_scale(&self.icons[i]));
             cx.rt.set_position_xy(slot.obj, x, self.center.y);
-            cx.rt.set_size_xy(slot.obj, slot.size.x * s, slot.size.y * s);
+            cx.rt.set_size_xy(slot.obj, slot.size.x * s * art, slot.size.y * s * art);
             let mut colour = scroller::fade_colour(self.colours.0, self.colours.1, s);
             if self.icon_at(self.base + k).is_some_and(|i| !self.icons[i].enabled) {
                 colour[3] = colour[3].min(150);
