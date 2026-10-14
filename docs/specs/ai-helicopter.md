@@ -339,6 +339,50 @@ State `seek up -> seek car -> fly out`.
   collisions; give it the object-collision weight of 20 000 kg.
 - Keep the skid-hit state machine data-driven by `AirSupportOptions` containing `SKID_HIT`.
 
+## 10. Tuning file and the air-support feed (E9)
+
+The helicopter's numbers come from `NFSMWHelicopterSettings.ini`, next to the config file (`crates/nfsmw/src/settings/helicopter.rs`,
+read with `libs/ini-tuning`). Keys are the mod-style sections `[Helicopter:<Name>]`: `default`, `heat01` to `heat10` and `race01`
+to `race10`. A `default` line sets each level without its own line; with neither, the vanilla value of section 2.3 and section 8
+applies. Values are clamped to a range; a malformed value is vanilla; a missing file is vanilla throughout. The file is read
+when a track opens.
+
+| Key | Applied | Vanilla (heat 1 to 10) |
+|---|---|---|
+| `Helicopter:FuelTime` | yes | 10, 10, 10, 60, 90, 180, 10, 75, 120, 400 s (race: 10, 20, 60, 80, 120, 120, 220, 75, 120, 120) |
+| `Helicopter:Respawning` (`TimeBetweenHeliActive`) | yes | 0, 0, 120, 180, 180, 180, 180, 120, 60, 5 s (race: 120 s) |
+| `Helicopter:LineOfSight` (`heliLOSdistance`) | yes | 251 for heat 1 to 7, 301 for heat 8 to 10 (race: the same) |
+| `Helicopter:SpawnDistance` | yes | 250 m behind the player on the road, +20 m up |
+| `Helicopter:DespawnDistance` | yes | 600 m (not in the spec; the police code's value, not verified) |
+| `Helicopter:SpeedCap` | yes | 100 m/s (`MAX_SPEED_MPS`) |
+| `Helicopter:FlySpeed` | yes | 100 m/s, the skid hit and the exit |
+| `Helicopter:SearchSpeed` | yes | 70 m/s, the search |
+| `Helicopter:AttackDuration` | yes | 8 s, the skid-hit timer |
+| `Helicopter:AllAroundSight` | yes | 75 m, the visual sphere |
+| `Helicopter:FrontSightOnly` | yes (switch) | on: beyond the sphere only the front half space counts; off: the whole line-of-sight range |
+| `Helicopter:HidingSpots` | yes (switch) | on: a hiding spot hides the player from the helicopter; off: the spots are ignored |
+| `Helicopter:HeliSheet` | yes (switch) | on: the track's height sheet floors the helicopter; off: a flat floor |
+| `Helicopter:IgnoreHeliSheetDistance` | read, not applied | 0 m; the spec's `CheckHeliSheet` has no distance gate to put it in yet |
+| `Leading`, `ClosingSpeed`, `SearchRadius`, `Turning`, `Acceleration`, `Brake` | not read | the spec's constants stay in code: lead 0.45 s and 30/45 m, closing 3 m/s and the 1.55 divisor, search 1000 m, yaw and accel clamps, the 80 m/s^2 limit |
+
+The race table (`raceNN`) is read and used by `Levels::at(level, racing)`, but no race code calls the police yet, so the chase
+always reads the heat table (`RACING` in `police/heli.rs`).
+
+**Hidden zones (section 3, now implemented).** A HIDDEN track zone hides the player from cars unless its first data word is the
+name hash of `"Heli"`, and from helicopters unless it is the hash of `"Car"`. The installed zones all have data word 0, so they
+hide from both, as before. Hiding from helicopters uses the zone's height test. A TUNNEL zone (kind 3) stops the helicopter
+seeing the player, tested at the player's place (the spec tests the game camera; the camera is not in the police state).
+
+**PursuitFeed for the air-support lines (`audio/interactive/state.rs`).** The feed carries `heli_present` (a helicopter is in the
+chase, flying or leaving), `rain_intensity` (the scene's eased rain, 0 to 1; the scene fills it), `roadblock_active` (a roadblock of
+this chase stands), `player_hit` (traffic was hit within its hit memory) and `cops_destroyed`. Not added: a been-hit flag (no
+state records the player being hit by a cop or the helicopter) and an escaped-cars count (no memory of cars that got away). The
+`chase/` cues that use them are not wired yet.
+
+**Reversal status.** The per-level values are section 2.3's, tagged [verified] there. Re-checking them in `speed.exe` (Ghidra) for
+`CanSeeTarget`, `BeginHelicopter`'s fuel, `MAX_SPEED_MPS` and the hidden-zone data words was not done in this pass; see
+[provenance/ai-helicopter-tuning.md](../provenance/ai-helicopter-tuning.md).
+
 ## Rewrite status
 
 Implemented in `libs/blackbox-pursuit/src/helicopter/` (sight, flight model, controller, behaviours) and wired in
