@@ -3,8 +3,11 @@
 //! ([`helicopter`]). Nothing here reads a world or a clock: the caller measures the player each frame and applies
 //! the decisions. The values that differ between games (fines, cop waves, per-level settings) come from the caller.
 //!
-//! Specs: `docs/specs/ai-pursuit-heat.md`, `docs/specs/ai-pursuit-tactics.md`, `docs/specs/ai-helicopter.md`.
+//! The busted meter ([`busted`]) fills while a cop is close, level and the player is slow.
+//!
+//! Specs: `docs/specs/ai-pursuit.md` sections 4.4 and 5, `docs/specs/ai-pursuit-heat.md`, `docs/specs/ai-pursuit-tactics.md`, `docs/specs/ai-helicopter.md`.
 
+pub mod busted;
 pub mod evade;
 pub mod formation;
 pub mod heat;
@@ -17,6 +20,7 @@ pub mod support;
 pub mod tactics;
 pub mod wave;
 
+pub use busted::Busted;
 pub use evade::Evade;
 pub use heat::Heat;
 pub use infraction::{Fines, Infraction, InfractionLog};
