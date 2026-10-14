@@ -65,3 +65,71 @@ impl WorldScene {
         drive.set_headlights(on);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::drive::SpeedbreakerClock;
+    use super::*;
+
+    /// The default config: 150 real seconds per game hour, starting at noon.
+    fn clock() -> DayClock {
+        DayClock::new(DayNightConfig::default())
+    }
+
+    /// One real frame at 60 Hz: the speedbreaker-dilated delta times GameSpeed, the same product
+    /// `update_simulation` returns as `sim_dt`.
+    fn sim_frame(breaker: &mut SpeedbreakerClock, active: bool, game_speed: f32) -> f32 {
+        breaker.advance(active, 1.0 / 60.0) * game_speed
+    }
+
+    /// Pause, loading and the garage all hand the day clock a zero `sim_dt` (see `update_simulation` and the
+    /// `Pausable` early return, whose own test lives in `frontend/scene.rs`). A zero delta must not move the day.
+    #[test]
+    fn a_zero_simulation_delta_does_not_advance_the_day() {
+        let mut day = clock();
+        let before = day.hour();
+        for _ in 0..3600 {
+            day.advance(0.0);
+        }
+        assert_eq!(day.hour(), before);
+        assert_eq!(day.seconds, 0.0);
+    }
+
+    /// Unscaled, one game hour is 150 real seconds: 150 simulated seconds take noon to 13:00.
+    #[test]
+    fn normal_speed_runs_the_day_unscaled() {
+        let mut day = clock();
+        let mut breaker = SpeedbreakerClock::default();
+        for _ in 0..(150 * 60) {
+            day.advance(sim_frame(&mut breaker, false, 1.0));
+        }
+        assert!((day.seconds - 150.0).abs() < 1e-2, "{}", day.seconds);
+        assert!((day.hour() - 13.0).abs() < 1e-4, "{}", day.hour());
+    }
+
+    /// Active speedbreaker: after the entry ramp the clock runs at the quarter-speed dilation, so 60 real
+    /// seconds give 15.140625 simulated seconds (0.234375 across the ramp, then 0.25 per second).
+    #[test]
+    fn an_active_speedbreaker_dilates_the_day_clock() {
+        let mut day = clock();
+        let mut breaker = SpeedbreakerClock::default();
+        for _ in 0..3600 {
+            day.advance(sim_frame(&mut breaker, true, 1.0));
+        }
+        assert!((day.seconds - 15.140_625).abs() < 1e-2, "{}", day.seconds);
+    }
+
+    /// GameSpeed multiplies the delta before the day clock, so the day moves in proportion to it.
+    #[test]
+    fn game_speed_scales_the_day_clock_linearly() {
+        let mut slow = clock();
+        let mut fast = clock();
+        let mut slow_breaker = SpeedbreakerClock::default();
+        let mut fast_breaker = SpeedbreakerClock::default();
+        for _ in 0..600 {
+            slow.advance(sim_frame(&mut slow_breaker, false, 0.5));
+            fast.advance(sim_frame(&mut fast_breaker, false, 2.0));
+        }
+        assert!((fast.seconds - 4.0 * slow.seconds).abs() < 1e-2, "{} vs {}", fast.seconds, slow.seconds);
+    }
+}
