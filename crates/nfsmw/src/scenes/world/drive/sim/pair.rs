@@ -53,8 +53,9 @@ impl CarSim {
         let b = object_shapes(other.body(), other.geometry_frame());
         let contact = a
             .iter()
-            .flat_map(|a| b.iter().filter_map(move |b| a.contact(b)))
-            .max_by(|a, b| a.overlap.total_cmp(&b.overlap))?;
+            .flat_map(|a| b.iter().filter_map(move |b| a.contact(b).map(|c| (c, a.surface, b.surface))))
+            .max_by(|a, b| a.0.overlap.total_cmp(&b.0.overlap))?;
+        let (contact, surface_a, surface_b) = contact;
         let material_a = self.vehicle.body().spec().objects;
         let material_b = other.vehicle.body().spec().objects;
         let grounded = self.vehicle.wheels_on_ground() > 2 && other.vehicle.wheels_on_ground() > 2;
@@ -70,12 +71,43 @@ impl CarSim {
             grounded,
             self.collision_role.player || self.collision_racer,
         );
-        let closing = (self.body().point_velocity(contact.point) - other.body().point_velocity(contact.point)).length();
+        let relative = self.body().point_velocity(contact.point) - other.body().point_velocity(contact.point);
+        let closing = relative.length();
+        let sound = crate::audio::CarContact {
+            source: crate::audio::ContactSource::Object,
+            identity: other.sound_identity,
+            surface: surface_b,
+            point: contact.point,
+            normal: contact.normal,
+            velocity: relative,
+            delta_v: 0.0,
+            front: contact.normal.dot(self.body().rotation().z_axis).abs()
+                > contact.normal.dot(self.body().rotation().x_axis).abs(),
+            bottom: false,
+        };
+        let other_sound = crate::audio::CarContact {
+            identity: self.sound_identity,
+            surface: surface_a,
+            normal: -sound.normal,
+            velocity: -relative,
+            front: contact.normal.dot(other.body().rotation().z_axis).abs()
+                > contact.normal.dot(other.body().rotation().x_axis).abs(),
+            ..sound
+        };
         let damage_a = DamageHit::capture(self.body(), contact.point, contact.normal, closing, other.collision_role);
         let damage_b = DamageHit::capture(other.body(), contact.point, -contact.normal, closing, self.collision_role);
         let (a, b) = (self.vehicle.body_mut(), other.vehicle.body_mut());
         let body = BodyContact::from_geometry(contact, material_a.friction_with(&material_b));
         let response = resolve_bodies(a, b, &body, &hit_a, &hit_b, Separation::Mass)?;
+        if self.collision_role.player {
+            self.pending_sound_contacts
+                .push(crate::audio::CarContact { delta_v: response.impulse_delta_v[0], ..sound });
+        }
+        if other.collision_role.player {
+            other
+                .pending_sound_contacts
+                .push(crate::audio::CarContact { delta_v: response.impulse_delta_v[1], ..other_sound });
+        }
         let damage_a = damage_a.resolved(a, true);
         let damage_b = damage_b.resolved(b, true);
         if let Some(events) = self.events.as_mut() {

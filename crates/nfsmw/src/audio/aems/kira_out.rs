@@ -6,7 +6,7 @@ use kira::sound::PlaybackState;
 use kira::sound::static_sound::{StaticSoundData, StaticSoundHandle};
 use kira::{PlaybackRate, Tween};
 
-use super::host::{Sampler, Voice, VoiceStatus};
+use super::host::{Sampler, Voice, VoiceEffects, VoiceStatus};
 use crate::audio::volume::decibels;
 use crate::audio::{Audio, Group};
 
@@ -21,11 +21,14 @@ fn tween(duration: Duration) -> Tween {
 
 /// The game's sound output as a [`Sampler`]: voices go to the engine group.
 pub struct KiraSampler<'a>(pub &'a mut Audio);
+pub struct EffectSampler<'a>(pub &'a mut Audio, pub Group);
 
 struct KiraVoice {
     handle: StaticSoundHandle,
     looping: bool,
     seconds: f64,
+    filters: Option<(crate::audio::filter::CutoffHandle, crate::audio::filter::CutoffHandle)>,
+    effects: Option<VoiceEffects>,
 }
 
 impl Sampler for KiraSampler<'_> {
@@ -34,19 +37,49 @@ impl Sampler for KiraSampler<'_> {
     }
 
     fn start(&mut self, data: StaticSoundData, gain: f32, rate: f32) -> Option<Box<dyn Voice>> {
-        let (looping, seconds) = (data.settings.loop_region.is_some(), data.duration().as_secs_f64());
-        let data = data.volume(decibels(gain)).playback_rate(f64::from(rate));
-        match self.0.play(Group::Engine, data) {
-            Ok(handle) => Some(Box::new(KiraVoice { handle, looping, seconds })),
-            Err(e) => {
-                log::debug!("sample layer: {e}");
-                None
-            }
-        }
+        start(self.0, Group::Engine, data, gain, rate)
     }
 }
 
+impl Sampler for EffectSampler<'_> {
+    fn sound(&mut self, bank: &str, index: usize) -> Result<StaticSoundData, String> {
+        self.0.bank_sound(bank, index)
+    }
+    fn start(&mut self, data: StaticSoundData, gain: f32, rate: f32) -> Option<Box<dyn Voice>> {
+        start(self.0, self.1, data, gain, rate)
+    }
+}
+
+fn start(audio: &mut Audio, group: Group, data: StaticSoundData, gain: f32, rate: f32) -> Option<Box<dyn Voice>> {
+    let (looping, seconds) = (data.settings.loop_region.is_some(), data.duration().as_secs_f64());
+    let data = data.volume(decibels(gain)).playback_rate(f64::from(rate));
+    let shaped = match audio.play_shaped(group, data) {
+        Ok(handle) => handle,
+        Err(e) => {
+            log::debug!("sample layer: {e}");
+            return None;
+        }
+    };
+    Some(Box::new(KiraVoice {
+        handle: shaped.voice,
+        looping,
+        seconds,
+        filters: Some((shaped.low, shaped.high)),
+        effects: None,
+    }))
+}
+
 impl Voice for KiraVoice {
+    fn set_effects(&mut self, effects: VoiceEffects) {
+        if self.effects == Some(effects) {
+            return;
+        }
+        self.handle.set_panning(crate::audio::shaped::pan(effects.azimuth), tween(SMOOTH));
+        if let Some((low, high)) = &mut self.filters {
+            crate::audio::shaped::set_filters(low, high, effects.low_pass, effects.high_pass);
+        }
+        self.effects = Some(effects);
+    }
     fn set_gain(&mut self, gain: f32) {
         self.handle.set_volume(decibels(gain), tween(SMOOTH));
     }

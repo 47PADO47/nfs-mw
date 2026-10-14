@@ -40,13 +40,23 @@ fn q15(fraction: f32) -> i32 {
 }
 
 /// The `CAR` parameters (the engine's sample layer) for this frame. `class` is the engine set's `CarID`.
+#[cfg(test)]
 pub fn engine(class: u32, out: &EngineOutput, levels: &Levels) -> [i32; CAR_PARAMS] {
+    engine_with_frequency(class, out, levels, None)
+}
+
+pub fn engine_with_frequency(
+    class: u32,
+    out: &EngineOutput,
+    levels: &Levels,
+    frequency: Option<f32>,
+) -> [i32; CAR_PARAMS] {
     let mut p = [0; CAR_PARAMS];
     let layer = out.aems_volume * levels.engine_samples;
     // 0 is full volume, -32767 silence.
     let attenuation = q15(layer) - 32767;
     p[car::CLASS] = class as i32;
-    p[car::RPM] = out.ginsu_frequency.round() as i32;
+    p[car::RPM] = frequency.unwrap_or(out.ginsu_frequency).round() as i32;
     p[car::TORQUE] = out.aems_torque.round() as i32;
     p[car::VOL_ENG] = attenuation;
     p[car::VOL_EXH] = attenuation;

@@ -120,6 +120,7 @@ fn drive(audio: &mut Audio, car: &str, path: SamplePath) -> [Stage; 3] {
                 volume: out.decel_volume * levels.engine_volume,
                 pitch: out.decel_loop.playback_rate,
             },
+            low_pass_hz: out.low_pass_hz,
         });
         levels = dynamic.update(
             TICK,

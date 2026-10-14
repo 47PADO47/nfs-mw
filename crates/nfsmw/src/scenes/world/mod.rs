@@ -461,7 +461,23 @@ impl Scene for WorldScene {
         if self.garage_open {
             return None;
         }
-        self.drive.as_mut()?.car_sound()
+        let lens = self.gameplay_lens(1.0);
+        let pose = self.drive.as_ref()?.pose();
+        let mut state = self.drive.as_mut()?.car_sound()?;
+        let (camera_state, view_value) = match self.camera_mode {
+            CameraMode::Bumper => (1, 0),
+            CameraMode::Hood => (2, 4000),
+            _ => (0, 32767),
+        };
+        state.view = crate::audio::AudioView {
+            car_position: pose.position,
+            car_forward: pose.rotation * glam::Vec3::X,
+            camera_position: lens.position,
+            camera_forward: lens.forward,
+            camera_state,
+            view_value,
+        };
+        Some(state)
     }
 
     fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {

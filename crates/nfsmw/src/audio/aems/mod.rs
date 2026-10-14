@@ -18,20 +18,20 @@ use blackbox_carsound::EngineOutput;
 use nfsmw_data::sound::{CarSound, ENGINE_DIR};
 
 pub use self::host::{PartHost, Sampler, Voices};
-pub use self::kira_out::KiraSampler;
+pub use self::kira_out::{EffectSampler, KiraSampler};
 use super::Audio;
 use super::mixer::Levels;
 
 /// The update tick of the modules, ms. The original uses the sound system's variable timer; this is the car
 /// sound's own 60 Hz.
 const TICK_MS: f32 = 1000.0 / 60.0;
-/// Most ticks run in one frame; a longer frame drops the rest.
+/// Most ticks run in one frame; excess elapsed time remains owed.
 const MAX_TICKS: u32 = 4;
 /// The `car id` the sputter is told it belongs to (it only tells its output object apart).
 const SPUTTER_ID: u32 = 1;
 
 /// One running module and its voices.
-struct Part {
+pub(super) struct Part {
     instance: Instance,
     /// The module's bank, relative to `SOUND/`.
     bank: String,
@@ -39,7 +39,7 @@ struct Part {
 }
 
 impl Part {
-    fn load(audio: &mut Audio, bank: &str, class: &str, seed: u32) -> Result<Part, String> {
+    pub(super) fn load(audio: &mut Audio, bank: &str, class: &str, seed: u32) -> Result<Part, String> {
         let bytes = audio.bank_bytes(bank)?;
         let parsed = ModuleBank::parse(&bytes).map_err(|e| format!("{bank}: {e}"))?;
         let module = parsed.module_of(class).ok_or_else(|| format!("{bank} has no {class} module"))?;
@@ -48,7 +48,7 @@ impl Part {
     }
 
     /// Sets the class data and runs one tick; `false` when the module failed (it is then left alone).
-    fn tick(&mut self, sampler: &mut dyn Sampler, params: &[i32], makeup: f32) -> bool {
+    pub(super) fn tick(&mut self, sampler: &mut dyn Sampler, params: &[i32], makeup: f32) -> bool {
         self.instance.set_class_data(params);
         let mut host = PartHost { sampler, bank: &self.bank, voices: &mut self.voices, makeup };
         match self.instance.update(TICK_MS, &mut host) {
@@ -58,6 +58,46 @@ impl Part {
                 false
             }
         }
+    }
+
+    pub(super) fn stop(&mut self) {
+        for voice in self.voices.slots.iter_mut().flatten() {
+            voice.stop();
+        }
+        self.voices.slots.clear();
+    }
+}
+
+/// One authored continuous effect, using the same interpreter/host as the engine modules.
+pub(super) struct EffectModule {
+    part: Part,
+    clock: f32,
+}
+
+impl EffectModule {
+    pub fn load(audio: &mut Audio, bank: &str, class: &str, seed: u32) -> Result<Self, String> {
+        Ok(Self { part: Part::load(audio, bank, class, seed)?, clock: 0.0 })
+    }
+    pub fn update(&mut self, sampler: &mut dyn Sampler, dt: f32, params: &[i32]) -> bool {
+        if !dt.is_finite() {
+            return true;
+        }
+        self.clock += dt.max(0.0) * 1000.0;
+        let mut ticks = 0;
+        while self.clock + 0.001 >= TICK_MS && ticks < 12 {
+            self.clock = (self.clock - TICK_MS).max(0.0);
+            ticks += 1;
+            if !self.part.tick(sampler, params, 1.0) || self.part.voices.failed {
+                return false;
+            }
+        }
+        true
+    }
+}
+
+impl Drop for EffectModule {
+    fn drop(&mut self) {
+        self.part.stop();
     }
 }
 
@@ -75,6 +115,7 @@ pub struct AemsLayer {
     sputter_volume: i32,
     /// Milliseconds of time not yet run as ticks.
     clock: f32,
+    synth_frequency: Option<f32>,
 }
 
 fn bank_path(name: &str) -> String {
@@ -99,6 +140,7 @@ impl AemsLayer {
             class: engine.car_id,
             sputter_volume: engine.sputter_volume,
             clock: 0.0,
+            synth_frequency: None,
         })
     }
 
@@ -119,6 +161,10 @@ impl AemsLayer {
         self.engine.as_ref().is_some_and(|p| !p.instance.is_destroyed() && !p.voices.failed)
     }
 
+    pub fn set_synth_frequency(&mut self, frequency: f32) {
+        self.synth_frequency = (frequency.is_finite() && frequency > 0.0).then_some(frequency);
+    }
+
     /// The number of voices playing: the engine's, then the sputter's.
     #[cfg(test)]
     pub fn voices(&self) -> (usize, usize) {
@@ -128,11 +174,14 @@ impl AemsLayer {
 
     /// Runs the ticks `dt` seconds make with the parameters of this frame.
     pub fn update(&mut self, sampler: &mut dyn Sampler, dt: f32, feed: &Feed<'_>) {
+        if !dt.is_finite() {
+            return;
+        }
         self.clock += dt.max(0.0) * 1000.0;
         let ticks = ((self.clock / TICK_MS) as u32).min(MAX_TICKS);
-        self.clock = if self.clock / TICK_MS > MAX_TICKS as f32 { 0.0 } else { self.clock - ticks as f32 * TICK_MS };
+        self.clock -= ticks as f32 * TICK_MS;
         let makeup = feed.levels.makeup;
-        let engine = params::engine(self.class, feed.engine, feed.levels);
+        let engine = params::engine_with_frequency(self.class, feed.engine, feed.levels, self.synth_frequency);
         let sputter = params::sputter(self.class, SPUTTER_ID, self.sputter_volume, feed.engine, feed.levels);
         for _ in 0..ticks {
             if let Some(part) = self.engine.as_mut()

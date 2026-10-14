@@ -5,8 +5,16 @@
 //! call fails with a message, so the game runs silent instead of stopping.
 
 mod aems;
+#[cfg(test)]
+mod capture;
 mod car;
 mod chase;
+mod filter;
+#[cfg(test)]
+mod replay;
+mod shaped;
+mod view;
+pub use view::AudioView;
 pub mod commands;
 mod engine;
 mod fx;
@@ -32,7 +40,7 @@ use kira::track::{TrackBuilder, TrackHandle};
 use kira::{AudioManager, AudioManagerSettings, DefaultBackend, Tween};
 use nfsmw_data::sound::{CarSound, EngineLoops, SoundUpgrades};
 
-pub use car::{CarEvent, CarSoundState};
+pub use car::{CarContact, CarEvent, CarSoundState, CarSoundTick, ContactSource};
 pub use engine::{EngineHandle, EngineMix, EngineVoice, LoopMix};
 pub use interactive::{MusicInput, PursuitFeed};
 pub use plugin::AudioPlugin;
@@ -40,10 +48,33 @@ pub use radio::NowPlaying;
 pub use volume::{Group, Volumes};
 
 struct Output {
-    manager: AudioManager<DefaultBackend>,
+    manager: OutputManager,
     sfx: TrackHandle,
     music: TrackHandle,
     engine: TrackHandle,
+}
+
+enum OutputManager {
+    Device(Box<AudioManager<DefaultBackend>>),
+    #[cfg(test)]
+    Replay(Box<AudioManager<replay::ReplayBackend>>),
+}
+
+impl OutputManager {
+    fn add_sub_track(&mut self, builder: TrackBuilder) -> Result<TrackHandle, String> {
+        match self {
+            Self::Device(manager) => manager.add_sub_track(builder).map_err(|e| e.to_string()),
+            #[cfg(test)]
+            Self::Replay(manager) => manager.add_sub_track(builder).map_err(|e| e.to_string()),
+        }
+    }
+    fn volume(&mut self, volume: kira::Decibels, tween: Tween) {
+        match self {
+            Self::Device(manager) => manager.main_track().set_volume(volume, tween),
+            #[cfg(test)]
+            Self::Replay(manager) => manager.main_track().set_volume(volume, tween),
+        }
+    }
 }
 
 pub struct Audio {
@@ -102,6 +133,10 @@ impl Audio {
                 None
             }
         };
+        Self::with_output(dir, volumes, output)
+    }
+
+    fn with_output(dir: GameDir, volumes: Volumes, output: Option<Output>) -> Self {
         let mut audio = Self {
             output,
             dir,
@@ -137,7 +172,7 @@ impl Audio {
         self.volumes = volumes;
         let Some(out) = self.output.as_mut() else { return };
         let tween = Tween::default();
-        out.manager.main_track().set_volume(volume::decibels(volumes.master), tween);
+        out.manager.volume(volume::decibels(volumes.master), tween);
         out.sfx.set_volume(volume::decibels(volumes.sfx), tween);
         out.music.set_volume(volume::decibels(volumes.music), tween);
         out.engine.set_volume(volume::decibels(volumes.engine), tween);
@@ -241,6 +276,6 @@ impl Output {
             AudioManager::<DefaultBackend>::new(AudioManagerSettings::default()).map_err(|e| e.to_string())?;
         let mut track = || manager.add_sub_track(TrackBuilder::new()).map_err(|e| e.to_string());
         let (sfx, music, engine) = (track()?, track()?, track()?);
-        Ok(Self { manager, sfx, music, engine })
+        Ok(Self { manager: OutputManager::Device(Box::new(manager)), sfx, music, engine })
     }
 }

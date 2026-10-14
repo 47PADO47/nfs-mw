@@ -8,7 +8,7 @@ use blackbox_carsound::{ImpactRequest, SoundCommand, SoundRef};
 use kira::sound::static_sound::StaticSoundData;
 use kira::{PlaybackRate, StartTime, Tween};
 use nfsmw_data::car::physics::SurfaceTable;
-use nfsmw_data::sound::{EventKind, Stitch, collision_stitches};
+use nfsmw_data::sound::{Stitch, collision_stitches};
 
 use super::car::{CarAudio, CarEvent};
 use super::refs::{self, COLLISION_BANK};
@@ -61,7 +61,10 @@ impl Audio {
         match command {
             SoundCommand::Play { sound, volume, pitch } => {
                 let Some((data, group)) = self.effect_data(car, sound) else { return };
-                let data = data.volume(decibels(volume)).playback_rate(f64::from(pitch));
+                let data = data
+                    .volume(decibels(volume))
+                    .playback_rate(f64::from(pitch))
+                    .start_time(StartTime::Delayed(Duration::from_secs_f32(car.event_delay)));
                 if let Err(e) = self.play(group, data) {
                     log::debug!("{sound:?}: {e}");
                 }
@@ -104,28 +107,56 @@ impl Audio {
 
     /// A hit: pick the collection of the car for the kind of hit and surface, the stitch by magnitude, and play
     /// its pieces one after the other.
-    pub(super) fn play_impact(&mut self, car: &mut CarAudio, event: &CarEvent) {
+    pub(super) fn play_impact(
+        &mut self,
+        car: &mut CarAudio,
+        event: &CarEvent,
+        input: &blackbox_carsound::CarInput,
+        view: &super::AudioView,
+    ) {
         let default = SurfaceTable::hash_of("default");
         let Some(sound) = car.sound.collision.pick(event.kind, event.surface, default, event.front) else { return };
         let lengths = std::array::from_fn(|i| sound.levels[i].len() as u32);
-        let volumes = std::array::from_fn(|i| (sound.volumes[i] * 32767.0) as u32);
+        let volumes = std::array::from_fn(|i| (sound.volumes[i] * 32768.0).round() as u32);
         let tuning =
             blackbox_carsound::CollisionTuning { level_lengths: lengths, volumes, stream_thresholds: Vec::new() };
-        let request = ImpactRequest { magnitude: event.magnitude, light_wall: event.smackable, tuning: &tuning };
+        let request = ImpactRequest {
+            magnitude: event.magnitude,
+            light_wall: sound.has("WALL") && sound.has("SMOKABLE"),
+            tuning: &tuning,
+        };
         let Some(play) = car.effects.impact(&request) else { return };
         log::debug!("{:?} impact {:.2} -> level {} sample {}", event.kind, event.magnitude, play.level, play.index);
         let Some(&id) = sound.levels[play.level].get(play.index) else { return };
         let stitches = self.stitches();
         let Some(stitch) = stitches.get(id as usize) else { return };
-        let mut start = 0.0f64;
+        let levels = car.mixer.as_ref().map(|m| {
+            m.collision().update(
+                1.0 / 60.0,
+                super::mixer::collision::CollisionFrame {
+                    sound,
+                    magnitude: event.magnitude,
+                    point: event.position,
+                    view,
+                    input,
+                    scrape: false,
+                },
+            )
+        });
+        let mut start = f64::from(car.event_delay);
         for piece in &stitch.pieces {
             let index = usize::from(piece.sample) + 1;
             let Ok(data) = self.bank_sound(COLLISION_BANK, index) else { continue };
-            let level = if event.kind == EventKind::BottomOut { car.levels.landing } else { 1.0 };
-            let volume = (stitch.volume * piece.volume * play.volume * level).clamp(0.0, 1.0);
+            let map_volume = (levels.map_or(1.0, |l| l.volume) * 32767.0).round() as u32;
+            let event_volume = ((sound.volumes[play.level] * 32768.0).round() as u32).min(32767);
+            let gain = ((map_volume * event_volume) >> 15) as f32 / 32767.0;
+            let volume = (stitch.volume * piece.volume * gain).clamp(0.0, 1.0);
             let rate = f64::from(data.sample_rate.max(1));
-            let data =
-                data.volume(decibels(volume)).start_time(StartTime::Delayed(Duration::from_secs_f64(start.max(0.0))));
+            let data = data
+                .volume(decibels(volume))
+                .playback_rate(f64::from(levels.map_or(1.0, |l| l.pitch)))
+                .panning(super::shaped::pan(levels.map_or(0, |l| l.azimuth)))
+                .start_time(StartTime::Delayed(Duration::from_secs_f64(start.max(0.0))));
             if let Err(e) = self.play(Group::Sfx, data) {
                 log::debug!("collision sound: {e}");
                 return;

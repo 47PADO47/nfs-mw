@@ -2,6 +2,8 @@
 //! every frame and hands back the levels of the engine and the effects. Specs: `docs/specs/dynamic-mixer.md`
 //! (the evaluator, `blackbox-mixmap`) and `docs/specs/car-sound-mixer.md` (this wiring).
 
+pub(super) mod ambient;
+pub(super) mod collision;
 mod feed;
 mod ids;
 mod levels;
@@ -26,6 +28,8 @@ const MAP: &str = "SOUND/MIXMAPS/MAPOUTPUT.mxb";
 pub struct CarMixer {
     mixer: Mixer,
     dual: bool,
+    map: Arc<MixMap>,
+    view: super::AudioView,
 }
 
 impl CarMixer {
@@ -42,7 +46,7 @@ impl CarMixer {
         let mut instances = [0u8; 13];
         instances[usize::from(MAIN)] = 1;
         instances[usize::from(PLAYER)] = 1;
-        let mut mixer = Mixer::new(map, &instances);
+        let mut mixer = Mixer::new(map.clone(), &instances);
         let engine = if dual { object::ENGINE_DUAL } else { object::ENGINE_SINGLE };
         for o in [engine, object::SHIFT, object::TURBO, object::NITROUS, object::SPARKS, object::SKIDS] {
             mixer.attach(player_object(o), true);
@@ -50,13 +54,22 @@ impl CarMixer {
         for o in [object::ROAD, object::WIND, object::BOTTOM_OUT] {
             mixer.attach(player_object(o), true);
         }
-        Self { mixer, dual }
+        Self { mixer, dual, map, view: Default::default() }
     }
 
     /// Publishes `frame`, advances by `dt` seconds and returns the levels for the next frame.
     pub fn update(&mut self, dt: f32, frame: &Frame<'_>) -> Levels {
-        feed::publish(&mut self.mixer, frame);
+        feed::publish(&mut self.mixer, frame, &self.view);
         self.mixer.process(dt);
         Levels::read(&self.mixer, self.dual)
+    }
+
+    pub fn set_view(&mut self, view: super::AudioView) {
+        self.mixer.set_camera(view.camera_state);
+        self.view = view;
+    }
+
+    pub(super) fn collision(&self) -> collision::CollisionMixer {
+        collision::CollisionMixer::new(self.map.clone())
     }
 }

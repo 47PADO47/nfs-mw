@@ -9,10 +9,6 @@ use super::ids::{controller, object, player_controller, player_object_input};
 const FULL: i32 = 0x7FFF;
 /// The audio upgrade level of the engine: level 2 in the original (`m_EngUGL`), 21844 of 32767.
 const ENGINE_UPGRADE_LEVEL: i32 = 21_844;
-/// Chase camera distance behind the car at rest and at 60 m/s (`viewer/camera/chase.rs`), metres.
-const CAMERA_NEAR: f32 = 5.6;
-const CAMERA_FAR: f32 = 7.0;
-const CAMERA_FAST: f32 = 60.0;
 /// Where the rear position object sits behind the car, and how far a wheel is from the car's axis, metres.
 const REAR_OFFSET: f32 = 2.0;
 const WHEEL_SIDE: f32 = 0.9;
@@ -36,13 +32,6 @@ pub struct Frame<'a> {
     pub sparks: bool,
 }
 
-/// A 16-bit angle of the original for `radians` counter-clockwise of straight ahead: the angle itself to the
-/// right, its complement to the left (the position controller negates what is on the left of the reference).
-fn angle(radians: f32) -> i32 {
-    let turn = (radians.abs() / std::f32::consts::TAU * 65536.0) as i32 & 0xFFFF;
-    if radians > 0.0 { !turn & 0xFFFF } else { turn }
-}
-
 /// Where a 3D object is, for the controls that roll it off.
 #[derive(Debug, Clone, Copy)]
 struct Place {
@@ -54,15 +43,9 @@ struct Place {
 
 impl Place {
     /// A point at `(x, y)` metres from the car (x ahead, y to the left) seen from a camera `camera` metres behind it.
-    fn at(x: f32, y: f32, camera: f32) -> Self {
-        let to_car = x.hypot(y);
-        let (cx, cy) = (x + camera, y);
-        Place {
-            to_car_cm: (to_car * 100.0) as i32,
-            to_camera_cm: (cx.hypot(cy) * 100.0) as i32,
-            azimuth_car: angle(y.atan2(x)),
-            azimuth_camera: angle(cy.atan2(cx)),
-        }
+    fn at(x: f32, y: f32, view: &crate::audio::AudioView) -> Self {
+        let [to_car_cm, to_camera_cm, azimuth_car, azimuth_camera] = view.distances(view.point(x, y));
+        Place { to_car_cm, to_camera_cm, azimuth_car, azimuth_camera }
     }
 }
 
@@ -78,15 +61,9 @@ fn q15(value: f32) -> i32 {
     (value as i32).clamp(0, FULL)
 }
 
-/// The distance from the chase camera to the car.
-pub fn camera_distance(speed_mps: f32) -> f32 {
-    CAMERA_NEAR + (CAMERA_FAR - CAMERA_NEAR) * (speed_mps.abs() / CAMERA_FAST).clamp(0.0, 1.0)
-}
-
-pub fn publish(m: &mut Mixer, f: &Frame<'_>) {
+pub fn publish(m: &mut Mixer, f: &Frame<'_>, view: &crate::audio::AudioView) {
     let (input, engine) = (f.input, f.engine);
-    let camera = camera_distance(input.speed);
-    physics(m, input, engine);
+    physics(m, input, engine, view);
     set(m, controller::ENGINE, 0, ENGINE_UPGRADE_LEVEL);
     set(m, controller::ENGINE, 1, flag(engine.events.compression_bump));
     set(m, controller::ENGINE, 2, f.master_volume as i32);
@@ -106,10 +83,10 @@ pub fn publish(m: &mut Mixer, f: &Frame<'_>) {
     object_input(m, object::SKIDS, 1, q15(skids.skid_side));
     object_input(m, object::SKIDS, 3, q15(skids.skid_load));
     object_input(m, object::ROAD, 0, flag(skids.road_changed));
-    positions(m, camera, input.speed.abs());
+    positions(m, view, input.speed.abs());
 }
 
-fn physics(m: &mut Mixer, input: &CarInput, engine: &EngineOutput) {
+fn physics(m: &mut Mixer, input: &CarInput, engine: &EngineOutput, view: &crate::audio::AudioView) {
     let mph = input.speed_mph();
     for (index, scale) in [1092.2334, 546.1167, 327.67, 234.05].into_iter().enumerate() {
         set(m, controller::PHYSICS, index as u8, q15(mph * scale));
@@ -117,21 +94,22 @@ fn physics(m: &mut Mixer, input: &CarInput, engine: &EngineOutput) {
     set(m, controller::PHYSICS, 4, q15((10_000.0 - engine.physics_rpm) * 3.640_777_8));
     set(m, controller::PHYSICS, 5, q15(input.wheels_on_ground() as f32 / 4.0 * FULL as f32));
     // The chase camera: neither the bumper (0) nor the hood (4000) view.
-    set(m, controller::PHYSICS, 6, FULL);
+    set(m, controller::PHYSICS, 6, view.view_value);
     set(m, controller::PHYSICS, 10, flag(engine.accelerating));
 }
 
-fn positions(m: &mut Mixer, camera: f32, speed: f32) {
+fn positions(m: &mut Mixer, view: &crate::audio::AudioView, speed: f32) {
+    let speed = if speed > WIND_FASTEST { 39.95 } else { speed };
     let ratio = (speed.clamp(WIND_SLOWEST, WIND_FASTEST)) / WIND_FASTEST;
     let radius = ((1.0 - ratio) * WIND_RADIUS).max(WIND_MIN_RADIUS);
     let spread = (WIND_ANGLE_MIN + ratio * WIND_ANGLE_SPAN) / 65536.0 * std::f32::consts::TAU;
-    let wind = |side: f32| Place::at(radius * spread.cos(), side * radius * spread.sin(), camera);
+    let wind = |side: f32| Place::at(radius * spread.cos(), side * radius * spread.sin(), view);
     let places = [
-        (controller::CAR_POSITION, Place::at(0.0, 0.0, camera)),
-        (controller::REAR_POSITION, Place::at(-REAR_OFFSET, 0.0, camera)),
-        (controller::OBJECT_POSITION, Place::at(0.0, 0.0, camera)),
-        (controller::RIGHT_WHEEL, Place::at(0.0, -WHEEL_SIDE, camera)),
-        (controller::LEFT_WHEEL, Place::at(0.0, WHEEL_SIDE, camera)),
+        (controller::CAR_POSITION, Place::at(0.0, 0.0, view)),
+        (controller::REAR_POSITION, Place::at(-REAR_OFFSET, 0.0, view)),
+        (controller::OBJECT_POSITION, Place::at(0.0, 0.0, view)),
+        (controller::RIGHT_WHEEL, Place::at(0.0, -WHEEL_SIDE, view)),
+        (controller::LEFT_WHEEL, Place::at(0.0, WHEEL_SIDE, view)),
         (controller::LEFT_WIND, wind(1.0)),
         (controller::RIGHT_WIND, wind(-1.0)),
     ];

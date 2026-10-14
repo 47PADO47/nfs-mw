@@ -14,6 +14,7 @@ pub struct VoiceStatus {
 
 /// One playing sound. Dropping it ends the sound.
 pub trait Voice {
+    fn set_effects(&mut self, _effects: VoiceEffects) {}
     fn set_gain(&mut self, gain: f32);
     /// The playback rate, 1 = natural.
     fn set_rate(&mut self, rate: f32);
@@ -21,6 +22,28 @@ pub trait Voice {
     fn resume(&mut self);
     fn stop(&mut self);
     fn status(&self) -> VoiceStatus;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct VoiceEffects {
+    pub azimuth: u16,
+    pub low_pass: f32,
+    pub high_pass: f32,
+    pub dry: f32,
+    pub wet: f32,
+}
+
+impl VoiceEffects {
+    fn read(inputs: &PlayerInputs) -> Self {
+        let gain = |kind| inputs.get(kind).map_or(1.0, |v| v.clamp(0, 32767) as f32 / 32767.0);
+        Self {
+            azimuth: inputs.get(input::AZIMUTH).unwrap_or(0) as u16,
+            low_pass: inputs.get(input::LOW_PASS).unwrap_or(25_000).clamp(0, 25_000) as f32,
+            high_pass: inputs.get(input::HIGH_PASS).unwrap_or(0).clamp(0, 25_000) as f32,
+            dry: gain(input::DRY),
+            wet: inputs.get(input::REVERB).unwrap_or(0).clamp(0, 32767) as f32 / 32767.0,
+        }
+    }
 }
 
 /// The sound output the modules play through.
@@ -96,10 +119,11 @@ impl Host for PartHost<'_> {
             self.voices.failed = true;
             return false;
         }
-        let Some(voice) = self.sampler.start(data, self.gain(inputs), rate(inputs)) else {
+        let Some(mut voice) = self.sampler.start(data, self.gain(inputs), rate(inputs)) else {
             self.voices.failed = true;
             return false;
         };
+        voice.set_effects(VoiceEffects::read(inputs));
         if self.voices.slots.len() <= player {
             self.voices.slots.resize_with(player + 1, || None);
         }
@@ -128,6 +152,7 @@ impl Host for PartHost<'_> {
         let Some(Some(voice)) = self.voices.slots.get_mut(player) else { return };
         voice.set_gain(gain);
         voice.set_rate(rate);
+        voice.set_effects(VoiceEffects::read(inputs));
         voice.resume();
     }
 
@@ -140,6 +165,7 @@ impl Host for PartHost<'_> {
         if inputs.changed(input::PITCH) {
             voice.set_rate(rate);
         }
+        voice.set_effects(VoiceEffects::read(inputs));
         let status = voice.status();
         if !status.playing {
             self.voices.slots[player] = None;

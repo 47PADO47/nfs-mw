@@ -2,9 +2,10 @@
 //! decelerate loop) and resamples their output to the device. The game thread sets the mix through an
 //! [`EngineHandle`]; the audio thread reads it once per callback.
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::{Arc, Mutex};
 
+use super::filter::{CutoffHandle, VoiceFilter};
 use blackbox_ginsu::{GinsuData, GinsuSynth, SynthParams};
 use kira::Frame;
 use kira::info::Info;
@@ -33,10 +34,17 @@ impl Default for LoopMix {
 
 /// What the engine should sound like right now, from the sound mix controller: one drive per loop. The
 /// controller decides how they relate (the original hands both loops the same frequency and pitch).
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct EngineMix {
     pub accel: LoopMix,
     pub decel: LoopMix,
+    pub low_pass_hz: f32,
+}
+
+impl Default for EngineMix {
+    fn default() -> Self {
+        Self::shared(0.0, 1.0, 0.0, 0.0)
+    }
 }
 
 impl EngineMix {
@@ -45,6 +53,7 @@ impl EngineMix {
         Self {
             accel: LoopMix { frequency, volume: accel_volume, pitch },
             decel: LoopMix { frequency, volume: decel_volume, pitch },
+            low_pass_hz: 25_000.0,
         }
     }
 }
@@ -63,36 +72,19 @@ impl Cell {
     }
 }
 
-struct LoopControl {
-    frequency: Cell,
-    volume: Cell,
-    pitch: Cell,
+#[derive(Clone, Copy)]
+struct Request {
+    mix: EngineMix,
+    revision: u64,
 }
 
-impl LoopControl {
-    fn new(mix: LoopMix) -> Self {
-        Self { frequency: Cell::new(mix.frequency), volume: Cell::new(mix.volume), pitch: Cell::new(mix.pitch) }
-    }
-
-    fn set(&self, mix: LoopMix) {
-        self.frequency.set(mix.frequency);
-        self.volume.set(mix.volume);
-        self.pitch.set(mix.pitch);
-    }
-
-    /// The values to render with, each finite and in range.
-    fn read(&self) -> LoopMix {
-        LoopMix {
-            frequency: clean(self.frequency.get(), 0.0, 100_000.0),
-            volume: clean(self.volume.get(), 0.0, 4.0),
-            pitch: clean(self.pitch.get(), 0.05, 8.0),
-        }
-    }
+struct Requests {
+    latest: Request,
 }
 
 struct Control {
-    accel: LoopControl,
-    decel: LoopControl,
+    request: Mutex<Requests>,
+    frequency: Cell,
     closed: AtomicBool,
 }
 
@@ -101,8 +93,22 @@ pub struct EngineHandle(Arc<Control>);
 
 impl EngineHandle {
     pub fn set(&self, mix: EngineMix) {
-        self.0.accel.set(mix.accel);
-        self.0.decel.set(mix.decel);
+        if let Ok(mut request) = self.0.request.lock() {
+            let next = Request { mix, revision: request.latest.revision.wrapping_add(1) };
+            request.latest = next;
+        }
+    }
+
+    pub fn set_tick(&self, mix: EngineMix, revision: u64) {
+        if let Ok(mut request) = self.0.request.lock() {
+            let next = Request { mix, revision };
+            request.latest = next;
+        }
+    }
+
+    /// Latest completed synthesis frequency, before device-rate/dynamic-pitch resampling.
+    pub fn current_frequency(&self) -> f32 {
+        self.0.frequency.get()
     }
 }
 
@@ -124,14 +130,29 @@ impl SoundData for EngineVoice {
     type Handle = EngineHandle;
 
     fn into_sound(self) -> Result<(Box<dyn Sound>, Self::Handle), Self::Error> {
-        let control = Arc::new(Control {
-            accel: LoopControl::new(self.start.accel),
-            decel: LoopControl::new(self.start.decel),
-            closed: AtomicBool::new(false),
-        });
         let accel = Stream::new(self.accel, self.start.accel.frequency)?;
         let decel = self.decel.map(|d| Stream::new(d, self.start.decel.frequency)).transpose()?;
-        Ok((Box::new(EngineSound { control: control.clone(), accel, decel }), EngineHandle(control)))
+        let request = Request { mix: self.start, revision: 0 };
+        let control = Arc::new(Control {
+            request: Mutex::new(Requests { latest: request }),
+            frequency: Cell::new(accel.synth.current_frequency()),
+            closed: AtomicBool::new(false),
+        });
+        let (filter, filter_handle) = VoiceFilter::new(false);
+        Ok((
+            Box::new(EngineSound {
+                control: control.clone(),
+                request,
+                accel,
+                decel,
+                revision: None,
+                filter,
+                filter_handle,
+                control_left: 0.0,
+                release_left: 0.12,
+            }),
+            EngineHandle(control),
+        ))
     }
 }
 
@@ -175,6 +196,12 @@ struct EngineSound {
     control: Arc<Control>,
     accel: Stream,
     decel: Option<Stream>,
+    request: Request,
+    revision: Option<u64>,
+    filter: VoiceFilter,
+    filter_handle: CutoffHandle,
+    control_left: f64,
+    release_left: f64,
 }
 
 /// A finite, sane value in `lo..=hi` (NaN counts as `lo`).
@@ -183,19 +210,58 @@ fn clean(v: f32, lo: f32, hi: f32) -> f32 {
 }
 
 impl Sound for EngineSound {
-    fn process(&mut self, out: &mut [Frame], dt: f64, _info: &Info) {
-        let (accel, decel) = (self.control.accel.read(), self.control.decel.read());
-        for frame in out.iter_mut() {
-            let mut sample = self.accel.sample(accel, dt);
-            if let Some(decel_stream) = &mut self.decel {
-                sample += decel_stream.sample(decel, dt);
+    fn process(&mut self, out: &mut [Frame], dt: f64, info: &Info) {
+        if !dt.is_finite() || dt <= 0.0 {
+            out.fill(Frame::ZERO);
+            return;
+        }
+        let sane = |mix: LoopMix| LoopMix {
+            frequency: clean(mix.frequency, 0.0, 100_000.0),
+            volume: clean(mix.volume, 0.0, 4.0),
+            pitch: clean(mix.pitch, 0.05, 8.0),
+        };
+        let mut written = 0;
+        while written < out.len() {
+            if self.control_left <= dt * 0.001 {
+                // Retarget from the latest coherent controller state; never accumulate permanent latency after a stalled callback.
+                if let Ok(requests) = self.control.request.try_lock() {
+                    self.request = requests.latest;
+                }
+                self.control_left += 1.0 / 60.0;
             }
-            *frame = Frame::from_mono(sample);
+            let (accel, decel) = (sane(self.request.mix.accel), sane(self.request.mix.decel));
+            if self.revision != Some(self.request.revision) {
+                self.accel.synth.update_frequency(accel.frequency, 60.0);
+                if let Some(stream) = &mut self.decel {
+                    stream.synth.update_frequency(decel.frequency, 60.0);
+                }
+                self.revision = Some(self.request.revision);
+            }
+            let take = ((self.control_left / dt - 1e-9).ceil() as usize).max(1).min(out.len() - written);
+            let chunk = &mut out[written..written + take];
+            let closed = self.control.closed.load(Ordering::Relaxed);
+            for frame in chunk.iter_mut() {
+                let mut sample = self.accel.sample(accel, dt);
+                if let Some(stream) = &mut self.decel {
+                    sample += stream.sample(decel, dt);
+                }
+                if closed {
+                    self.release_left = (self.release_left - dt).max(0.0);
+                    sample *= (self.release_left / 0.12) as f32;
+                }
+                *frame = Frame::from_mono(sample);
+            }
+            let cutoff = clean(self.request.mix.low_pass_hz, 0.0, 25_000.0);
+            self.filter_handle.set(cutoff);
+            self.filter.process(chunk, dt, info);
+            self.control.frequency.set(self.accel.synth.current_frequency());
+            self.control_left = (self.control_left - take as f64 * dt).max(0.0);
+            written += take;
         }
     }
 
     fn finished(&self) -> bool {
-        self.control.closed.load(Ordering::Relaxed)
+        self.control.closed.load(Ordering::Relaxed) && self.release_left <= 0.0
     }
 }
 
@@ -281,6 +347,7 @@ mod tests {
         let drive = |accel_hz: f32, decel_hz: f32, accel_vol: f32, decel_vol: f32| EngineMix {
             accel: LoopMix { frequency: accel_hz * 120.0, volume: accel_vol, pitch: 1.0 },
             decel: LoopMix { frequency: decel_hz * 120.0, volume: decel_vol, pitch: 1.0 },
+            ..Default::default()
         };
         // Only the decelerate loop is audible: its pitch is the one asked of it, not the accelerate loop's.
         let voice = EngineVoice { accel: d.clone(), decel: Some(d.clone()), start: EngineMix::default() };
@@ -300,6 +367,7 @@ mod tests {
         let mix = EngineMix {
             accel: LoopMix { frequency: 200.0 * 120.0, volume: 0.0, pitch: 1.0 },
             decel: LoopMix { frequency: 200.0 * 120.0, volume: 1.0, pitch: 1.5 },
+            ..Default::default()
         };
         let voice = EngineVoice { accel: d.clone(), decel: Some(d), start: EngineMix::default() };
         let samples = render(voice, &[(mix, 48_000)], 48_000.0);
@@ -321,9 +389,36 @@ mod tests {
     #[test]
     fn dropping_the_handle_finishes_the_voice() {
         let voice = EngineVoice { accel: data(), decel: None, start: EngineMix::default() };
-        let (sound, handle) = voice.into_sound().unwrap();
+        let (mut sound, handle) = voice.into_sound().unwrap();
         assert!(!sound.finished());
         drop(handle);
+        assert!(!sound.finished(), "a changed car releases without an abrupt cut");
+        let info = kira::info::MockInfoBuilder::new().build();
+        sound.process(&mut [Frame::ZERO; 6400], 1.0 / 48_000.0, &info);
         assert!(sound.finished());
+    }
+
+    #[test]
+    fn a_stalled_callback_resumes_at_the_latest_request_without_permanent_backlog() {
+        for rate in [44_100.0, 48_000.0, 96_000.0] {
+            for block in [32, 128, 1024] {
+                let voice = EngineVoice { accel: data(), decel: None, start: mix(150.0, 1.0) };
+                let (mut sound, handle) = voice.into_sound().unwrap();
+                assert!(handle.current_frequency() > 0.0);
+                for revision in 1..=600 {
+                    handle.set_tick(mix(150.0, 1.0), revision);
+                }
+                handle.set_tick(mix(350.0, 1.5), 601);
+                let info = kira::info::MockInfoBuilder::new().build();
+                let mut frames = vec![Frame::ZERO; block];
+                for _ in 0..(rate as usize * 2).div_ceil(block) {
+                    sound.process(&mut frames, 1.0 / rate, &info);
+                    assert!(frames.iter().all(|f| f.left.is_finite()));
+                }
+                let actual = handle.current_frequency();
+                assert!((actual - 350.0 * 120.0).abs() < 1000.0, "actual synthesis must catch up: {actual}");
+                assert!(actual < 400.0 * 120.0, "dynamic playback pitch is separate from feedback");
+            }
+        }
     }
 }

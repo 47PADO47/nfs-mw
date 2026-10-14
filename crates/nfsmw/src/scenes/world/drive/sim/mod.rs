@@ -82,6 +82,8 @@ pub struct CarSim {
     before_velocity: Vec3,
     ground_reference: blackbox_collision::ground_reference::GroundReferenceCache,
     wheel_ground: std::cell::RefCell<[blackbox_collision::ground_reference::GroundFaceCache; 4]>,
+    pending_sound_contacts: Vec<crate::audio::CarContact>,
+    sound_identity: u64,
 }
 
 /// A vector from physics space to render space axes: `(x, y, z) -> (z, -x, y)`.
@@ -127,6 +129,8 @@ impl CarSim {
             before_velocity: Vec3::ZERO,
             ground_reference: Default::default(),
             wheel_ground: Default::default(),
+            pending_sound_contacts: Vec::new(),
+            sound_identity: next_sound_identity(),
         }
     }
 
@@ -209,7 +213,7 @@ impl CarSim {
             }
         }
         self.step_with_ground(&input, ground, world.is_some());
-        let impact = match world {
+        let mut impact = match world {
             Some((collision, props)) => {
                 let frame = self
                     .geometry
@@ -228,10 +232,29 @@ impl CarSim {
                 impact.impulse = impact.impulse.max(objects.impulse);
                 impact.contacts.extend(objects.contacts);
                 impact.damage.splice(0..0, objects.damage);
+                impact.sounds.extend(objects.sounds);
                 impact
             }
             None => Impact::default(),
         };
+        let body = self.vehicle.body();
+        let rotation = body.rotation();
+        let bottom_point =
+            body.position - rotation.y_axis * body.dimension().y - rotation.z_axis * (body.dimension().z * 0.75);
+        impact.sounds.extend(self.vehicle.body_contacts().iter().filter(|c| c.impulse_delta_v > 0.0).map(|c| {
+            let bottom = self.vehicle.wheels_on_ground() > 2 && rotation.y_axis.dot(c.normal) > 0.2;
+            crate::audio::CarContact {
+                source: crate::audio::ContactSource::Ground,
+                identity: 0,
+                surface: c.surface,
+                point: if bottom { bottom_point } else { c.point },
+                normal: c.normal,
+                velocity: c.velocity,
+                delta_v: c.impulse_delta_v,
+                front: false,
+                bottom,
+            }
+        }));
         if let Some(events) = self.events.as_mut() {
             for &hit in &impact.damage {
                 events.hit(hit);
@@ -241,6 +264,10 @@ impl CarSim {
             *spin += self.vehicle.wheel(physics).angular_velocity * FIXED_STEP;
         }
         impact
+    }
+
+    pub fn take_sound_contacts(&mut self) -> Vec<crate::audio::CarContact> {
+        std::mem::take(&mut self.pending_sound_contacts)
     }
 
     /// The wheels as the car sound reads them, in the model's wheel order (front left, front right, rear
@@ -410,6 +437,11 @@ impl CarSim {
             boost_psi: v.boost_psi(),
         }
     }
+}
+
+fn next_sound_identity() -> u64 {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    (1 << 63) | NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
 mod ai;
