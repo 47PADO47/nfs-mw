@@ -1,9 +1,8 @@
 //! The whole car: every class `pvehicle` links to, in the vehicle library's `VehicleSpec`.
 
 use anyhow::{Context, Result};
-use blackbox_attrib::{Database, Value};
+use blackbox_attrib::Database;
 use blackbox_vehicle::VehicleSpec;
-use blackbox_vehicle::nos::NosSpec;
 use std::sync::Arc;
 
 use super::fields::Fields;
@@ -16,6 +15,8 @@ use super::{
 #[derive(Debug, Clone)]
 pub struct CarPhysics {
     pub spec: VehicleSpec,
+    pub tire_integration: blackbox_vehicle::tires::TireIntegration,
+    pub jump_config: blackbox_vehicle::vehicle::JumpConfig,
     /// The collision box and where its centre is relative to the car model's origin (physics axes).
     pub bounds: CarBounds,
     /// How the car reacts to walls.
@@ -27,8 +28,8 @@ pub struct CarPhysics {
 
 /// The physics of car type `type_name` (e.g. `BMWM3GTR`), read from `db` (`attributes.bin`).
 ///
-/// Every class is the stock (first) collection `pvehicle` links to, except the nitrous: a stock car
-/// often has none, so the first level that has any is used, so the nitrous key does something.
+/// Every class is the original-equipment collection `pvehicle` links to. Upgrades are resolved
+/// explicitly through `performance::apply`; stock cars do not receive an automatic nitrous kit.
 pub fn car_physics(db: &Database, type_name: &str, bounds: CarBounds) -> Result<CarPhysics> {
     let name = type_name.to_ascii_lowercase();
     let pvehicle = db.collection("pvehicle", &name).with_context(|| format!("no vehicle record named {name}"))?;
@@ -51,24 +52,18 @@ pub fn car_physics(db: &Database, type_name: &str, bounds: CarBounds) -> Result<
         transmission: pvehicle.follow("transmission").map_or_else(no_transmission, |c| transmission(Fields(c))),
         // Cars without an induction link (the traffic cars) are naturally aspirated.
         induction: pvehicle.follow("induction").map(Fields).map(induction).unwrap_or_default(),
-        nos: first_nitrous(db, Fields(pvehicle)),
+        nos: pvehicle.follow("nos").map(Fields).map(nos).unwrap_or_default(),
         aero: aero(chassis_fields),
     };
     let reactions = AiCollisionReactions::read(db, pvehicle).map(Arc::new);
-    Ok(CarPhysics { spec, bounds, walls, geometry: None, events: None, reactions })
-}
-
-/// The first nitrous level of the car that has a tank (the stock level when it has one).
-fn first_nitrous(db: &Database, pvehicle: Fields<'_>) -> NosSpec {
-    let levels = match pvehicle.0.get("nos") {
-        Some(Value::Array(items)) => items.as_slice(),
-        _ => &[],
-    };
-    levels
-        .iter()
-        .filter_map(Value::as_ref_spec)
-        .filter_map(|r| db.resolve(r))
-        .map(|c| nos(Fields(c)))
-        .find(NosSpec::present)
-        .unwrap_or_else(|| nos(Fields(db.collection("nos", "default").unwrap_or(pvehicle.0))))
+    Ok(CarPhysics {
+        spec,
+        bounds,
+        walls,
+        geometry: None,
+        events: None,
+        reactions,
+        tire_integration: blackbox_vehicle::tires::TireIntegration::Reference,
+        jump_config: super::jump_config(),
+    })
 }

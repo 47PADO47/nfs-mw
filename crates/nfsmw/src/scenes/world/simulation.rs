@@ -9,16 +9,13 @@ use crate::input::ActionState;
 const BATCH_STEPS: u32 = 6;
 
 impl WorldScene {
-    pub(super) fn update_simulation(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
+    pub(super) fn update_simulation(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) -> f32 {
         self.prepare_traffic(renderer);
         let driving = self.view == View::Chase;
-        if let Some(drive) = self.drive.as_mut() {
-            if driving {
-                drive.prepare_frame(input, dt);
-            }
-            if !driving || drive.waiting_for_road().is_some() {
-                drive.age_effects(dt);
-            }
+        if let Some(drive) = self.drive.as_mut()
+            && driving
+        {
+            drive.prepare_frame(input, dt);
         }
         let batch = dt == 0.0
             && ((driving && self.drive.as_ref().is_some_and(|d| d.needs_batch()))
@@ -26,11 +23,26 @@ impl WorldScene {
         // Only missing local world data pauses simulation, not loading distant visible scenery.
         let speed = self.drive.as_ref().map_or(0.0, |drive| drive.speed().abs());
         let loaded = self.residency.simulation_ready(self.focus(), 20.0 + speed * dt.max(STEP));
-        let steps = match (loaded, batch) {
-            (false, _) => 0,
-            (true, true) => BATCH_STEPS,
-            (true, false) => self.physics_clock.advance(dt * self.tuning.game_speed),
+        let real_dt = match batch {
+            true => BATCH_STEPS as f32 * STEP,
+            false => dt,
         };
+        let sim_dt = match loaded {
+            false => 0.0,
+            true => {
+                let active = self.drive.as_mut().filter(|_| driving).is_some_and(|drive| drive.prepare_time());
+                self.speedbreaker_clock.advance(active, real_dt) * self.tuning.game_speed
+            }
+        };
+        if loaded && let Some(drive) = self.drive.as_mut().filter(|_| driving) {
+            drive.finish_time(input, sim_dt, real_dt);
+        }
+        if let Some(drive) = self.drive.as_mut()
+            && (!driving || drive.waiting_for_road().is_some())
+        {
+            drive.age_effects(sim_dt);
+        }
+        let steps = self.physics_clock.advance(sim_dt);
         let look = self.drive.as_mut().map_or((0.0, 0.0), |drive| drive.take_look(steps));
         for _ in 0..steps {
             self.physics_step(driving, look);
@@ -48,7 +60,7 @@ impl WorldScene {
                 let view = drive.player_view();
                 let cast = super::drive::walls::world_cast(collision);
                 let clear = |from: glam::Vec3, to: glam::Vec3| cast(from, to).is_none();
-                traffic.update_police(dt, &view, &clear);
+                traffic.update_police(sim_dt, &view, &clear);
                 // A support roll asked for a roadblock: the world places it, and the chase keeps no second one.
                 if traffic.take_roadblock_request() {
                     match traffic.place_roadblock(view, collision, &self.physics.surfaces) {
@@ -77,6 +89,7 @@ impl WorldScene {
             });
             drive.trace_frame(dt, steps, loaded, self.residency.complete());
         }
+        sim_dt
     }
 
     /// Every moving car integrates before pair contacts, and every pose is captured after those contacts.

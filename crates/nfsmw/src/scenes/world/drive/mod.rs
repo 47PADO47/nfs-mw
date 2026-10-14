@@ -7,6 +7,7 @@ mod clock;
 mod debug;
 mod effect_feed;
 mod fall;
+mod garage;
 mod ground;
 mod input;
 mod look;
@@ -19,6 +20,7 @@ mod sim;
 mod simulation;
 mod sound;
 mod speedbreaker;
+mod time_scale;
 mod trace;
 mod visual_tires;
 pub(super) mod walls;
@@ -47,6 +49,7 @@ pub use script::DriveScript;
 pub(super) use sim::CarSim;
 use sim::Telemetry;
 use sound::SoundFeed;
+pub(super) use time_scale::SpeedbreakerClock;
 #[cfg(test)]
 pub(super) use walls::ContactKind;
 pub(super) use walls::VisualContact;
@@ -73,6 +76,9 @@ const GOOD_SPOT_STEPS: u32 = 30;
 
 pub struct Drive {
     pub car_name: String,
+    pub performance: nfsmw_data::car::physics::PerformancePackage,
+    pub tuning: nfsmw_data::car::physics::tuning::TuningSelection,
+    tunings: blackbox_vehicle::Tunings,
     pub effects: TireEffects,
     /// The brake pedal as the lamps see it, 0 to 1.
     pub brake_lamp: f32,
@@ -149,6 +155,9 @@ impl Drive {
             headlights: true,
             vehicle_effects: VehicleEffects::new(visuals),
             flames: ExhaustFlames::default(),
+            performance: Default::default(),
+            tuning: Default::default(),
+            tunings: Default::default(),
             rig,
             physics,
             sim: None,
@@ -402,7 +411,7 @@ impl Drive {
     /// What the car sound needs of the drive; `None` while there is no car yet.
     pub fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
         self.sim.as_ref()?;
-        Some(self.sound.state(&self.car_name, &self.telemetry))
+        Some(self.sound.state(&self.car_name, &self.telemetry, self.performance))
     }
 
     /// The readout lines at this level: one for `Minimal`, the numbers of the HUD and the run for `Full`.

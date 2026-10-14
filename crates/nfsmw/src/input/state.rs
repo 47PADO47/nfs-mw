@@ -25,6 +25,20 @@ impl Default for ActionState {
 }
 
 impl ActionState {
+    /// Let an overlay claim this frame, including the frame it opened or closed.
+    pub fn capture_ui(&mut self) {
+        self.typing = true;
+        for action in Action::ALL {
+            if !action.works_in_ui() {
+                self.now[action.index()] = 0.0;
+            }
+        }
+    }
+
+    /// A handled press must not also pause or quit later in the frame.
+    pub fn consume(&mut self, action: Action) {
+        self.now[action.index()] = 0.0;
+    }
     /// Resolve the actions from the keys held and the analog button pulls, for tests of code that reads actions.
     #[cfg(test)]
     pub fn update_for_test(
@@ -246,7 +260,7 @@ mod tests {
         state.update(&bindings, &snap, false);
         assert!(!state.just_pressed(Action::ShiftUp));
         snap.keys.clear();
-        snap.keys.insert(KeyCode::ControlLeft);
+        snap.keys.insert(KeyCode::ControlRight);
         state.update(&bindings, &snap, false);
         assert!(state.just_pressed(Action::ShiftDown));
     }

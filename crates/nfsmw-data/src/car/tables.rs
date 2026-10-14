@@ -32,6 +32,7 @@ pub mod slot {
     pub const DAMAGE0_REAR_LEFT: usize = 50;
     pub const DAMAGE0_REAR_RIGHT: usize = 51;
     pub const ROOF: usize = 62;
+    pub const HOOD: usize = 63;
     pub const FRONT_WHEEL: usize = 66;
     pub const REAR_WHEEL: usize = 67;
     pub const LICENSE_PLATE: usize = 69;

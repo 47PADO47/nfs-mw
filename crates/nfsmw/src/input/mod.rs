@@ -18,12 +18,14 @@ mod presentation_tests;
 mod remap;
 mod slots;
 mod snapshot;
-mod vk;
+#[cfg(test)]
+pub(crate) use snapshot::Snapshot;
 #[cfg(test)]
 mod headlights_tests;
 mod source;
 mod state;
 mod systems;
+mod vk;
 
 pub use action::Action;
 pub(crate) use bindings::Source;

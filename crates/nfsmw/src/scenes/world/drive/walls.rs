@@ -116,12 +116,11 @@ pub type Cast<'a> = &'a dyn Fn(Vec3, Vec3) -> Option<Hit>;
 
 /// Ray casts against the resident collision packs: faces and barriers.
 ///
-/// Scenery-group geometry is left out: the original excludes it for vehicles (the road blocks and gates of
-/// races and pursuits, which are off in free roam), and it is 18 % of all the barriers, many of them
-/// across open road. A barrier is a wall from its front side only unless it is marked two-sided; a ray that
+/// The caller supplies the body's driver mask; scenery groups are independently inactive in free roam.
+/// A barrier is a wall from its front side only unless it is marked two-sided; a ray that
 /// reaches it from behind passes (`docs/formats/collision.md`, "Query semantics" 6).
-pub fn world_cast(collision: &CollisionWorld) -> impl Fn(Vec3, Vec3) -> Option<Hit> + '_ {
-    let options = RayOptions { exclude: u32::from(GROUP_EXCLUSION), ..RayOptions::default() };
+pub fn world_cast_with_mask(collision: &CollisionWorld, exclusion: u16) -> impl Fn(Vec3, Vec3) -> Option<Hit> + '_ {
+    let options = RayOptions { exclude: u32::from(exclusion), skip_groups: true, ..RayOptions::default() };
     move |from, to| {
         let hit = collision.ray_cast_filtered(from.to_array(), to.to_array(), &options, eligible)?;
         let info = HitInfo {
@@ -132,6 +131,11 @@ pub fn world_cast(collision: &CollisionWorld) -> impl Fn(Vec3, Vec3) -> Option<H
         };
         Some(Hit { point: Vec3::from(hit.point), normal: Vec3::from(hit.normal), prop: None, info: Some(info) })
     }
+}
+
+/// Existing visibility queries keep their own exclusion policy, independently of body collision.
+pub fn world_cast(collision: &CollisionWorld) -> impl Fn(Vec3, Vec3) -> Option<Hit> + '_ {
+    world_cast_with_mask(collision, u16::from(GROUP_EXCLUSION))
 }
 
 /// Reject floors and rear-facing one-way barriers before they can hide a valid wall farther along
@@ -328,7 +332,12 @@ pub fn resolve(vehicle: &mut Vehicle, cast: Cast<'_>, props: PropQuery<'_>, wall
             vehicle.body().point_velocity(c.point).length(),
             OtherBody::default(),
         );
+        let body_velocity = vehicle.body().linear_velocity;
+        let closing_velocity = vehicle.body().point_velocity(c.point);
         if let Some(reaction) = vehicle.body_mut().react_plane(&plane, &params) {
+            if c.prop.is_none() {
+                vehicle.notify_wall_contact(c.point, n, closing_velocity, body_velocity);
+            }
             impact.damage.push(damage.resolved(vehicle.body(), false));
             impact.impulse = impact.impulse.max(reaction.impulse);
             if let Some(visual) = impact.visuals.get_mut(index) {
@@ -350,5 +359,7 @@ mod regression_tests;
 #[cfg(test)]
 mod visual_tests;
 
+#[cfg(test)]
+mod steering_tests;
 #[cfg(test)]
 mod tests;

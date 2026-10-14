@@ -71,8 +71,8 @@ pub struct Audio {
     interactive: interactive::Interactive,
     /// Bank sounds that could not be loaded, so each is reported once.
     missing: HashSet<(String, usize)>,
-    /// The car whose sound could not be loaded, so the failure is not repeated every frame.
-    failed: Option<String>,
+    /// The car and upgrade selectors whose sound failed, avoiding repeated loads every frame.
+    failed: Option<(String, SoundUpgrades)>,
     /// The scene's soundtrack that is playing, kept so it can be stopped when the scene goes.
     music: Option<StaticSoundHandle>,
 }
@@ -215,9 +215,13 @@ impl Audio {
 
     /// The engine sound of car type `car` (`BMWM3GTR`) at stock levels: its Ginsu loops, decoded.
     pub fn load_car_engine(&mut self, car: &str) -> Result<CarEngine, String> {
+        self.load_car_engine_upgraded(car, SoundUpgrades::default())
+    }
+
+    /// The engine and effects sound set selected by the installed performance levels.
+    pub fn load_car_engine_upgraded(&mut self, car: &str, upgrades: SoundUpgrades) -> Result<CarEngine, String> {
         let db = self.database()?;
-        let set =
-            nfsmw_data::sound::car_sound(&db, car, SoundUpgrades::default()).map_err(|e| format!("{car}: {e:#}"))?;
+        let set = nfsmw_data::sound::car_sound(&db, car, upgrades).map_err(|e| format!("{car}: {e:#}"))?;
         let loops = EngineLoops::load(&self.dir, &set.engine).map_err(|e| format!("{car}: {e:#}"))?;
         let accel = loops.accel.ok_or_else(|| format!("{car} has no Ginsu engine loop"))?;
         let voice = EngineVoice { accel, decel: loops.decel, start: EngineMix::default() };

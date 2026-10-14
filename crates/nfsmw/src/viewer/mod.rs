@@ -28,6 +28,15 @@ pub struct Fullscreen {
 }
 
 pub trait Scene {
+    /// Installed car choices for the runtime garage; scenes without driving return None.
+    fn garage(&mut self) -> Option<&mut crate::garage::Model> {
+        None
+    }
+    fn apply_garage(&mut self, _renderer: &mut dyn RenderBackend, _selection: crate::garage::Selection) -> Result<()> {
+        anyhow::bail!("this scene has no garage")
+    }
+    /// Freeze driving while the garage owns the controls, allowing streaming and placement to continue.
+    fn set_garage_open(&mut self, _open: bool) {}
     fn title(&self) -> String;
     /// Upload the initial resources.
     fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()>;

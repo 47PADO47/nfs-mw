@@ -6,6 +6,7 @@ mod cli;
 mod commands;
 mod devtools;
 mod frontend;
+mod garage;
 mod gui;
 mod hud;
 mod input;

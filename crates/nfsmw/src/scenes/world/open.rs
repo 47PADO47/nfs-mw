@@ -49,6 +49,9 @@ impl WorldScene {
             })
             .transpose()?;
         Ok(Self {
+            garage: garage::catalog(dir, &physics)?,
+            garage_parts: None,
+            garage_open: false,
             dir: dir.clone(),
             track: index.track.clone(),
             camera,
@@ -71,6 +74,7 @@ impl WorldScene {
             sun: sun::Sun::new(),
             physics_aspect: 16.0 / 9.0,
             physics_clock: drive::FixedClock::default(),
+            speedbreaker_clock: drive::SpeedbreakerClock::default(),
             view: if pending_car.is_some() { View::Chase } else { View::Fly },
             last_car: pending_car.as_ref().map_or_else(|| DEFAULT_CAR.to_owned(), |c| c.name.clone()),
             pending_car,

@@ -93,7 +93,8 @@ pub(super) fn load_cop_models(
         let car_type = model.car_type.clone().unwrap_or_else(|| name.clone());
         let physics = scene.physics_of(&model).map_err(|e| format!("{name}: {e:#}"))?;
         let ai = ai_vehicle(scene.physics.database(), &car_type);
-        let performance = blackbox_vehicle::performance::measure(&physics.spec);
+        let performance =
+            blackbox_vehicle::performance::measure_with_integration(&physics.spec, physics.tire_integration);
         log::info!(
             "cop car {folder}: top speed {:.0} m/s, grip {:.2} to {:.2}, AI limit {:.0} km/h x{} x{}",
             performance.top_speed,

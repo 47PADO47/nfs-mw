@@ -2,8 +2,8 @@
 //! it last asked, and the scrape going on.
 
 use blackbox_carsound::{CarInput, ScrapeKind};
-use nfsmw_data::car::physics::SurfaceTable;
-use nfsmw_data::sound::EventKind;
+use nfsmw_data::car::physics::{PerformanceCategory, PerformancePackage, SurfaceTable};
+use nfsmw_data::sound::{EventKind, SoundUpgrades};
 
 use super::input::DriveInput;
 use super::sim::{CarSim, Telemetry};
@@ -87,7 +87,7 @@ impl SoundFeed {
     }
 
     /// The state for the car sound. The events are handed over once.
-    pub fn state(&mut self, car: &str, t: &Telemetry) -> CarSoundState {
+    pub fn state(&mut self, car: &str, t: &Telemetry, performance: PerformancePackage) -> CarSoundState {
         let span = t.red_line - t.idle;
         let input = CarInput {
             rpm_pct: if span > 0.0 { ((t.rpm - t.idle) / span).clamp(0.0, 1.0) } else { 0.0 },
@@ -106,10 +106,32 @@ impl SoundFeed {
         };
         CarSoundState {
             car: car.to_owned(),
+            upgrades: sound_upgrades(performance),
             input,
             events: std::mem::take(&mut self.events),
             scrape: self.scrape,
             surface: self.surface,
         }
+    }
+}
+
+fn sound_upgrades(performance: PerformancePackage) -> SoundUpgrades {
+    SoundUpgrades {
+        engine: i32::from(performance.get(PerformanceCategory::Engine)),
+        transmission: i32::from(performance.get(PerformanceCategory::Transmission)),
+        induction: i32::from(performance.get(PerformanceCategory::Induction)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn installed_engine_transmission_and_induction_select_the_sound_set() {
+        let package = PerformancePackage { levels: [4, 3, 2, 1, 2, 3, 4], junkman: 0x7f };
+        assert_eq!(sound_upgrades(package), SoundUpgrades { engine: 2, transmission: 1, induction: 3 });
+        let unrelated = PerformancePackage { levels: [4, 4, 4, 0, 0, 0, 4], junkman: 0x7f };
+        assert_eq!(sound_upgrades(unrelated), SoundUpgrades::default());
     }
 }

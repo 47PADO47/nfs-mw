@@ -11,8 +11,8 @@ use glam::{Mat4, Vec3};
 use game_install::GameDir;
 use nfsmw_data::car::LoadOptions;
 
-use crate::input::ActionState;
 use super::room::Room;
+use crate::input::ActionState;
 use crate::scenes::car::CarScene;
 use crate::viewer::{Fullscreen, Scene};
 
@@ -137,6 +137,17 @@ impl Pausable {
 }
 
 impl Scene for Pausable {
+    fn garage(&mut self) -> Option<&mut crate::garage::Model> {
+        self.inner.garage()
+    }
+
+    fn apply_garage(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
+        self.inner.apply_garage(renderer, selection)
+    }
+
+    fn set_garage_open(&mut self, open: bool) {
+        self.inner.set_garage_open(open);
+    }
     fn title(&self) -> String {
         self.inner.title()
     }
@@ -212,7 +223,7 @@ impl Scene for Pausable {
     }
 
     fn paused(&self) -> bool {
-        self.paused.get()
+        self.paused.get() || self.inner.paused()
     }
 
     fn set_tire_effects(&mut self, smoke: bool, marks: bool) {

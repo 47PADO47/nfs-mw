@@ -372,6 +372,7 @@ impl PropWorld {
                     );
                     let mut car = contact::material(vehicle.body(), hit.normal);
                     car.immobile = spec.no_car_effect && !p.attached && !spec.immobile;
+                    vehicle.modify_object_hit(&mut car);
                     let prop = contact::parameters(&p.rigid, -hit.normal, spec, p.attached);
                     let response = contact::resolve(vehicle.body_mut(), &mut p.rigid, hit, car, prop, Separation::Mass);
                     let Some(response) = response else { continue };

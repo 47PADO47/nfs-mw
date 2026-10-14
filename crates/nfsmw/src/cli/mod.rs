@@ -251,6 +251,13 @@ pub struct ViewArgs {
     /// Start with the developer console open.
     #[arg(long, hide = true)]
     pub open_console: bool,
+    /// Start with the runtime garage overlay open (world and driving scenes).
+    #[arg(long)]
+    pub open_garage: bool,
+    /// Initial garage tab when opening the overlay at startup.
+    #[arg(long, value_enum)]
+    #[arg(default_value = "performance", requires = "open_garage")]
+    pub garage_tab: crate::garage::OptionsTab,
     /// Play no sound (no output device is opened).
     #[arg(long)]
     pub no_sound: bool,
@@ -419,6 +426,8 @@ impl ViewArgs {
             bench_seconds: self.bench_seconds,
             exec: self.exec.clone(),
             open_console: self.open_console,
+            open_garage: self.open_garage,
+            garage_tab: self.garage_tab,
             hud: (self.hud || hud_default || self.hud_demo.is_some()).then(|| dir.clone()),
             hud_demo: self.hud_demo.clone(),
             // A screenshot run has no sound unless the radio is asked for: the radio's songs drive the chyron.

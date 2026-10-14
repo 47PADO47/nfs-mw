@@ -148,6 +148,7 @@ impl SharedAssets {
             }
         }
         CarModel {
+            paintable: false,
             name: asset.solid.name.clone(),
             car_type: None,
             solids: HashMap::from([(hash, solid)]),

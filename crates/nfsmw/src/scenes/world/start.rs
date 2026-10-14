@@ -24,13 +24,13 @@ impl WorldScene {
         script: Option<DriveScript>,
     ) -> Result<()> {
         let physics = self.physics_of(&model)?;
+        self.discover_garage_parts(&name)?;
         let visuals = nfsmw_data::vehicle_effects::VisualEffectsData::read(
             self.physics.database(),
             model.car_type.as_deref().unwrap_or(&name),
         );
-        if let Some(views) = nfsmw_data::camera::load_car(self.physics.database(), &name) {
-            self.camera_views = Some(views);
-        }
+        self.camera_views = nfsmw_data::camera::load_car(self.physics.database(), &name)
+            .or_else(|| nfsmw_data::camera::load(self.physics.database()));
         let rig = CarRig::upload(renderer, keys::PLAYER_CAR, model, self.car_shading, sun::to_sun());
         let [x, y] = self.focus();
         match self.drive.as_mut() {
@@ -45,6 +45,12 @@ impl WorldScene {
             }
         }
         self.last_car = name;
+        self.garage.applied =
+            crate::garage::Selection { car: self.last_car.clone(), color: None, ..Default::default() };
+        self.garage.draft = self.garage.applied.clone();
+        if let Some(car) = self.garage.selected() {
+            self.garage.category = car.category;
+        }
         if let Some(drive) = self.drive.as_mut() {
             drive.effects.set_enabled(self.tire_effects[0], self.tire_effects[1]);
             drive.effects.set_quality(self.smoke_quality);

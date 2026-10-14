@@ -5,25 +5,26 @@ mod camera_choice;
 mod car_lights;
 mod car_loader;
 mod cargo;
-mod damage_marks;
 mod commands;
+mod damage_marks;
 mod drive;
 mod drive_input;
 mod effects;
 mod events;
 mod exhaust;
+mod garage;
 mod ground;
 mod hud;
 mod keys;
 mod lighting;
 use car_loader::load_car;
 mod object_geometry;
+mod open;
 mod props;
 mod rear_view;
 mod reflections;
 mod residency;
 mod resident;
-mod open;
 mod road;
 mod sign_lamps;
 mod simulation;
@@ -86,6 +87,9 @@ struct PendingCar {
 }
 
 pub struct WorldScene {
+    garage: crate::garage::Model,
+    garage_parts: Option<nfsmw_data::car::customization::Inventory>,
+    garage_open: bool,
     dir: GameDir,
     track: String,
     camera: FlyCamera,
@@ -114,6 +118,7 @@ pub struct WorldScene {
     physics_aspect: f32,
     /// The one fixed timeline of the player, the traffic and the object contacts (see `update_simulation`).
     physics_clock: drive::FixedClock,
+    speedbreaker_clock: drive::SpeedbreakerClock,
     view: View,
     pending_car: Option<PendingCar>,
     drive: Option<Drive>,
@@ -175,6 +180,21 @@ impl WorldScene {
 }
 
 impl Scene for WorldScene {
+    fn garage(&mut self) -> Option<&mut crate::garage::Model> {
+        Some(&mut self.garage)
+    }
+
+    fn apply_garage(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
+        self.apply_garage_selection(renderer, selection)
+    }
+
+    fn set_garage_open(&mut self, open: bool) {
+        self.garage_open = open;
+    }
+
+    fn paused(&self) -> bool {
+        self.garage_open
+    }
     fn captures_mouse(&self) -> bool {
         // The mouse looks round the car too, on the chase camera.
         true
@@ -193,6 +213,15 @@ impl Scene for WorldScene {
     }
 
     fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
+        let idle = ActionState::default();
+        let input = match self.garage_open {
+            true => &idle,
+            false => input,
+        };
+        let dt = match self.garage_open {
+            true => 0.0,
+            false => dt,
+        };
         if let Some(drive) = self.drive.as_mut() {
             drive.set_car_shading(renderer, self.car_shading, self.sun.to_sun());
             drive.set_damaged_windows(renderer, self.sun.to_sun());
@@ -210,21 +239,23 @@ impl Scene for WorldScene {
             (View::Chase, Some(drive)) => drive.camera().position,
             _ => self.camera.position,
         };
-        self.rain.update(dt, camera);
         if input.just_pressed(Action::ToggleCamera) && self.drive.is_some() {
             log::info!("{}", self.toggle_view());
         }
         let [x, y] = self.focus();
         self.residency.update(renderer, x, y);
-        self.clock += dt * self.tuning.animation_speed;
-        self.sun.advance(dt);
+        self.prepare_drive();
+        let sim_dt = match self.garage_open {
+            true => 0.0,
+            false => self.update_simulation(renderer, input, dt),
+        };
+        self.rain.update(sim_dt, camera);
+        self.clock += sim_dt * self.tuning.animation_speed;
+        self.sun.advance(sim_dt);
         self.residency.animate(renderer, self.clock);
         if self.view == View::Fly {
-            self.camera.update(input, dt);
+            self.camera.update(input, sim_dt);
         }
-        self.prepare_drive();
-        self.update_simulation(renderer, input, dt);
-        self.sun.advance(dt);
         if !self.grounded && self.residency.complete() {
             self.grounded = true;
             let estimate = ground::height_near(self.residency.placed(), self.start[0], self.start[1], 150.0);
@@ -414,6 +445,9 @@ impl Scene for WorldScene {
     }
 
     fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
+        if self.garage_open {
+            return None;
+        }
         self.drive.as_mut()?.car_sound()
     }
 
