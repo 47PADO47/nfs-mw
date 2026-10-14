@@ -14,8 +14,8 @@ use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
 use crate::settings::availability;
 use crate::settings::{
-    CameraMode, HudLayout, MinimapMode, Partial, Percent, RadioHudStyle, RenderScale, Settings, SmokeQuality,
-    Transmission, UpscaleMode, WindowMode,
+    CameraMode, HudLayout, MinimapMode, Partial, Percent, RadioHudStyle, Settings, SmokeQuality, Transmission,
+    UpscaleMode, WindowMode,
 };
 use blackbox_gfx::Capabilities;
 
@@ -41,6 +41,8 @@ pub enum Setting {
     SmokeQuality,
     Transmission,
     Camera,
+    Discord,
+    DiscordTimePlayed,
     Input(InputSetting),
     Post(PostSetting),
     Graphics(GraphicsSetting),
@@ -90,6 +92,10 @@ const fn row(setting: Setting, title: Title) -> Row {
 mod category_rows;
 pub use category_rows::rows;
 
+#[path = "options_steps.rs"]
+mod steps;
+use steps::{cycle, next_scale, nudge};
+
 /// The original's Transmission row: its title and the two values (docs/specs/vehicle-manual-shifting.md, section 1).
 const LABEL_TRANSMISSION: u32 = 0xD314_07E7;
 const LABEL_AUTOMATIC: u32 = 0x8CD5_32A0;
@@ -97,8 +103,6 @@ const LABEL_MANUAL: u32 = 0x317D_3005;
 
 /// Frame limits the row cycles through.
 const FRAME_LIMITS: [&str; 6] = ["unlocked", "30", "60", "120", "144", "240"];
-/// Render scales (percent) the row cycles through: FSR 1's quality modes and a few supersampling steps.
-const RENDER_SCALES: [u16; 9] = [50, 59, 67, 77, 85, 100, 125, 150, 200];
 const UPSCALERS: [UpscaleMode; 6] = [
     UpscaleMode::Off,
     UpscaleMode::Bilinear,
@@ -111,9 +115,6 @@ const METRICS: [ShowMetrics; 3] = [ShowMetrics::Off, ShowMetrics::Basic, ShowMet
 const WINDOW_MODES: [WindowMode; 3] = [WindowMode::Windowed, WindowMode::Borderless, WindowMode::Exclusive];
 /// The most values any row cycles through; `advance` gives up after that many steps.
 const MAX_VALUES: usize = 8;
-/// A slider press moves the volume by this many percent.
-const VOLUME_STEP: u8 = 10;
-
 fn on_off(on: bool) -> Data {
     Data::Label(if on { LABEL_ON } else { LABEL_OFF })
 }
@@ -145,6 +146,8 @@ impl Setting {
             Setting::Graphics(setting) => setting.enabled(s),
             Setting::Post(PostSetting::Aa) => !s.upscaler.upscaler().is_temporal(),
             Setting::SmokeQuality => s.tire_smoke,
+            // The time played is part of the Discord presence, so it is dimmed while that is off.
+            Setting::DiscordTimePlayed => s.discord,
             Setting::RenderScale => matches!(s.upscaler, UpscaleMode::Bilinear | UpscaleMode::Fsr1),
             Setting::UpscaleSharpness => s.upscaler == UpscaleMode::Fsr1,
             Setting::Renderer(RendererSetting::UpscaleQuality) => s.upscaler.upscaler().is_temporal(),
@@ -212,6 +215,8 @@ impl Setting {
             Setting::SpeedTrails => on_off(s.speed_trails),
             Setting::ExhaustFlames => on_off(s.exhaust_flames),
             Setting::RearViewMirror => on_off(s.rear_view_mirror),
+            Setting::Discord => on_off(s.discord),
+            Setting::DiscordTimePlayed => on_off(s.discord_time_played),
             Setting::SmokeQuality => Data::Text(
                 match s.smoke_quality {
                     SmokeQuality::Standard => "Standard",
@@ -433,6 +438,14 @@ impl Setting {
                 s.rear_view_mirror = !s.rear_view_mirror;
                 changed.rear_view_mirror = Some(s.rear_view_mirror);
             }
+            Setting::Discord => {
+                s.discord = !s.discord;
+                changed.discord = Some(s.discord);
+            }
+            Setting::DiscordTimePlayed => {
+                s.discord_time_played = !s.discord_time_played;
+                changed.discord_time_played = Some(s.discord_time_played);
+            }
             Setting::Transmission => {
                 s.transmission = s.transmission.other();
                 changed.transmission = Some(s.transmission);
@@ -470,28 +483,6 @@ impl Setting {
         }
         before != *s
     }
-}
-
-fn nudge(p: Percent, forward: bool) -> Percent {
-    let v = if forward { p.0.saturating_add(VOLUME_STEP).min(100) } else { p.0.saturating_sub(VOLUME_STEP) };
-    Percent(v)
-}
-
-/// The next preset above (`forward`) or below the scale, wrapping around; a scale between presets (set from the
-/// console or the config file) moves to the closest preset in that direction.
-fn next_scale(current: RenderScale, forward: bool) -> RenderScale {
-    let now = current.percent();
-    let next = match forward {
-        true => RENDER_SCALES.iter().copied().find(|p| *p > now).unwrap_or(RENDER_SCALES[0]),
-        false => {
-            RENDER_SCALES.iter().rev().copied().find(|p| *p < now).unwrap_or(RENDER_SCALES[RENDER_SCALES.len() - 1])
-        }
-    };
-    RenderScale::new(next).unwrap_or(current)
-}
-
-fn cycle(at: usize, len: usize, forward: bool) -> usize {
-    if forward { (at + 1) % len } else { (at + len - 1) % len }
 }
 
 #[cfg(test)]

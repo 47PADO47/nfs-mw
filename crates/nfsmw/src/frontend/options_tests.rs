@@ -48,7 +48,7 @@ fn toggles_flip_and_cycle_and_record_the_change() {
 fn every_category_has_rows() {
     assert_eq!(rows(Category::Audio, &crate::settings::test_caps::native()).len(), 5);
     assert_eq!(rows(Category::Video, &crate::settings::test_caps::native()).len(), 25);
-    assert_eq!(rows(Category::Gameplay, &crate::settings::test_caps::native()).len(), 7);
+    assert_eq!(rows(Category::Gameplay, &crate::settings::test_caps::native()).len(), 9);
     assert_eq!(rows(Category::Controls, &crate::settings::test_caps::native()).len(), 10);
 }
 #[test]
@@ -99,4 +99,22 @@ fn minimap_menu_cycles_both_directions_and_records_the_selection() {
     }
     assert!(Setting::Minimap.step(&mut s, &mut changes, false));
     assert_eq!(s.minimap, MinimapMode::Off);
+}
+#[test]
+fn discord_toggles_record_their_changes_and_time_played_is_dimmed_while_discord_is_off() {
+    let (mut s, mut changes) = (defaults(), Partial::default());
+    assert!(s.discord && s.discord_time_played);
+    assert!(Setting::DiscordTimePlayed.enabled(&s));
+    Setting::Discord.step(&mut s, &mut changes, true);
+    assert_eq!((s.discord, changes.discord), (false, Some(false)));
+    assert_eq!(Setting::Discord.data(&s), Data::Label(LABEL_OFF));
+    assert!(!Setting::DiscordTimePlayed.enabled(&s), "dimmed while Discord is off");
+    assert!(!Setting::DiscordTimePlayed.step(&mut s, &mut changes, true), "a dimmed row ignores left and right");
+    assert!(s.discord_time_played);
+    assert_eq!(changes.discord_time_played, None);
+    Setting::Discord.step(&mut s, &mut changes, true);
+    assert!(Setting::DiscordTimePlayed.enabled(&s));
+    Setting::DiscordTimePlayed.step(&mut s, &mut changes, true);
+    assert_eq!((s.discord_time_played, changes.discord_time_played), (false, Some(false)));
+    assert_eq!(Setting::DiscordTimePlayed.data(&s), Data::Label(LABEL_OFF));
 }
