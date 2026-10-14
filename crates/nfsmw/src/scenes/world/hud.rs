@@ -4,9 +4,17 @@ use glam::Vec3;
 use nfsmw_data::gameplay::{self, ActivityKind, ActivityMarker, GameplayData, Placement, Race, RaceType};
 
 use super::{View, WorldScene, space};
+use crate::audio::PursuitFeed;
 use crate::hud::{
-    AUTO_SHOP, MapBlip, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP, RACE_SPRINT, RACE_TOLLBOOTH, SAFE_HOUSE,
+    AUTO_SHOP, MapBlip, PursuitHud, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP, RACE_SPRINT,
+    RACE_TOLLBOOTH, SAFE_HOUSE,
 };
+
+/// The chase as the pursuit board shows it. The evade share is the part of the evade timeout already done (the feed
+/// gives what is left of it).
+fn pursuit_hud(feed: PursuitFeed) -> PursuitHud {
+    PursuitHud::from_evade_time(feed.secs, feed.secs_to_evade, blackbox_pursuit::evade::timeout(feed.heat))
+}
 
 impl WorldScene {
     /// The HUD for this frame. Hidden in the fly view and while there is no car yet.
@@ -22,6 +30,7 @@ impl WorldScene {
                 traffic.map_blips(&mut state.blips);
                 // The radar's green laser shows while cops chase the player.
                 state.cop_nearby = traffic.is_pursuing();
+                state.pursuit = traffic.pursuit_feed().map(pursuit_hud);
             }
             state.blips.extend_from_slice(&self.map_blips);
         }
