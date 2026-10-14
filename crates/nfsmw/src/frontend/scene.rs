@@ -221,6 +221,10 @@ impl Scene for Pausable {
         self.inner.ready()
     }
 
+    fn benchmark_ready(&self) -> bool {
+        self.inner.benchmark_ready()
+    }
+
     fn captures_mouse(&self) -> bool {
         !self.paused.get() && !self.concealed() && self.inner.captures_mouse()
     }

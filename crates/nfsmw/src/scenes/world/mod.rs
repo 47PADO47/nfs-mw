@@ -17,6 +17,7 @@ mod entry_zones;
 mod entry_zones_tests;
 mod events;
 mod exhaust;
+mod frame;
 mod garage;
 mod ground;
 mod hud;
@@ -26,12 +27,16 @@ use car_loader::load_car;
 mod focus;
 mod object_geometry;
 mod open;
+#[cfg(test)]
+mod performance_tests;
 mod props;
+mod readiness;
 mod rear_view;
 mod reflections;
 mod residency;
 mod resident;
 mod road;
+mod shadow_feed;
 mod sign_lamps;
 mod simulation;
 mod sound;
@@ -44,7 +49,6 @@ mod visibility;
 mod zone;
 
 use anyhow::{Context, Result};
-use blackbox_gfx::Fog;
 use blackbox_gfx::{FrameParams, Instance, RenderBackend};
 use game_install::GameDir;
 use glam::Vec3;
@@ -115,6 +119,8 @@ pub struct WorldScene {
     visible: Vec<Instance>,
     /// What the rear-view mirror sees: the same world, without the player's car.
     rear_visible: Vec<Instance>,
+    shadow_casters: Vec<Instance>,
+    original_shadows: bool,
     colour_treatment: Option<blackbox_gfx::ColourTreatment>,
     time_of_day: Option<nfsmw_data::time_of_day::Presets>,
     /// The seven original gameplay views, from the install's `camerainfo` data.
@@ -252,7 +258,10 @@ impl Scene for WorldScene {
         self.update_entry(input, dt);
         self.rain.update(sim_dt, camera);
         self.clock += sim_dt * self.tuning.animation_speed;
+      
+        self.sun.update(sim_dt, renderer.render_experiments().freeze_sun);
         self.update_day(sim_dt);
+      
         self.residency.animate(renderer, self.clock);
         if self.view == View::Fly {
             self.camera.update(input, sim_dt);
@@ -271,7 +280,9 @@ impl Scene for WorldScene {
             );
         }
         self.upload_effects(renderer);
+        self.original_shadows = renderer.render_experiments().original_shadows;
         self.update_reflections(renderer);
+        self.update_shadow_casters(renderer);
     }
 
     fn ui(&mut self, ctx: &egui::Context) -> f32 {
@@ -349,42 +360,7 @@ impl Scene for WorldScene {
     }
 
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
-        let lens = self.gameplay_lens(aspect);
-        let fog_end = self.fog_distance;
-        let cull = visibility::Camera {
-            view_proj: lens.view_proj(),
-            position: lens.position.to_array(),
-            forward: lens.forward.to_array(),
-            fov_y_radians: lens.fov_y_degrees.to_radians(),
-        };
-        let rules = &blackbox_scenery::layout::MOST_WANTED.lod;
-        visibility::collect(self.residency.placed(), &cull, rules, self.residency.props(), &mut self.visible);
-        self.residency.props().fragment_instances(&mut self.visible);
-        if let Some(traffic) = &self.traffic {
-            traffic.instances(&mut self.visible);
-            let lamps = self.lamp_meshes.as_ref().filter(|_| self.traffic_setting.lights);
-            traffic.lamp_instances(lamps, lens.position, &mut self.visible);
-        }
-        if let Some(drive) = &self.drive {
-            drive.instances(&mut self.visible);
-            if let (true, Some(meshes)) = (self.markers_on, &self.marker_meshes) {
-                drive.marker_instances(meshes, &mut self.visible);
-            }
-        }
-        let drive_cut = self.drive.as_mut().is_some_and(|drive| drive.take_camera_cut());
-        let camera_cut = self.cut.take() | drive_cut;
-        let params = FrameParams {
-            view: lens.view,
-            projection: lens.projection,
-            camera_position: lens.position,
-            light_dir: self.sun.direction(),
-            clear_color: self.fog_colour(),
-            fog: Some(Fog { start: fog_end * 0.5, end: fog_end }),
-            scattering: self.scattering(),
-            surface_light: self.surface_light(),
-            camera_cut,
-        };
-        (params, &self.visible)
+        self.world_frame(aspect)
     }
 
     fn rear_view(&mut self, aspect: f32) -> Option<(FrameParams, &[Instance])> {
@@ -392,14 +368,10 @@ impl Scene for WorldScene {
     }
 
     fn ready(&self) -> bool {
-        if self.traffic.as_ref().is_some_and(|t| !t.settled()) {
-            return false;
-        }
-        match &self.drive {
-            Some(drive) => self.residency.complete() && drive.waiting_for_road().is_none() && drive.script_finished(),
-            None if self.wait_for_load => self.grounded && self.residency.complete(),
-            None => self.residency.counts().2,
-        }
+        self.ready_for_capture()
+    }
+    fn benchmark_ready(&self) -> bool {
+        self.ready_for_benchmark()
     }
 
     fn status(&self) -> Option<String> {

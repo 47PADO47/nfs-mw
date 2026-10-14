@@ -1570,6 +1570,7 @@ dependencies = [
  "naga",
  "pollster",
  "raw-window-handle",
+ "smaa",
  "thiserror 2.0.21",
  "wgpu",
 ]
@@ -3524,6 +3525,7 @@ dependencies = [
  "naga-types",
  "num-traits",
  "once_cell",
+ "pp-rs",
  "rustc-hash 1.1.0",
  "spirv",
  "thiserror 2.0.21",
@@ -4326,6 +4328,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "pp-rs"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb458bb7f6e250e6eb79d5026badc10a3ebb8f9a15d1fff0f13d17c71f4d6dee"
+dependencies = [
+ "unicode-xid",
+]
+
+[[package]]
 name = "presser"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4784,6 +4795,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bdd58c3c93c3d278ca835519292445cb4b0d4dc59ccfdf7ceadaab3f8aeb4038"
 dependencies = [
  "version_check",
+]
+
+[[package]]
+name = "smaa"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "70f1733b8fc96f93ad2ed99e81f6a3f1fc58a23ad1d8d764ed70016911005c27"
+dependencies = [
+ "wgpu",
 ]
 
 [[package]]

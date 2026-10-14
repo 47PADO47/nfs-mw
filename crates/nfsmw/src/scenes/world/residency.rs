@@ -264,6 +264,19 @@ impl Residency {
 
     /// Placed instances to draw: the shared sets' and those of the resident tiles the zone draws
     /// (plus the previous zone's while the current one loads).
+    /// All resident geometry can cast, even when its tile is outside the camera zone.
+    pub fn shadow_placed(&self) -> impl Iterator<Item = &Placed> {
+        let tiles = self
+            .tiles
+            .values()
+            .filter_map(|state| match state {
+                TileState::Resident { placed, .. } => Some(placed.iter()),
+                _ => None,
+            })
+            .flatten();
+        self.shared_placed.iter().chain(tiles)
+    }
+
     pub fn placed(&self) -> impl Iterator<Item = &Placed> {
         let drawn = |i: &usize| self.drawn.contains(i) || self.previous.contains(i);
         let tiles = self.tiles.iter().filter(move |(i, _)| drawn(i)).flat_map(|(_, s)| match s {

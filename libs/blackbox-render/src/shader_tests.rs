@@ -2,11 +2,22 @@
 
 use naga::valid::{Capabilities, ValidationFlags, Validator};
 
-const SHADERS: [(&str, &str); 2] =
-    [("scene", include_str!("shaders/scene.wgsl")), ("resolve", include_str!("shaders/resolve.wgsl"))];
+const SHADERS: [(&str, &str); 6] = [
+    ("scene", include_str!("shaders/scene.wgsl")),
+    ("resolve", include_str!("shaders/resolve.wgsl")),
+    ("contact", include_str!("shaders/contact.wgsl")),
+    ("contact prepass", include_str!("shaders/contact_prepass.wgsl")),
+    ("irradiance", include_str!("shaders/irradiance.wgsl")),
+    ("shadow depth", include_str!("shaders/shadow_depth.wgsl")),
+];
 
 fn entry_points(name: &str) -> Vec<String> {
     let source = SHADERS.iter().find(|(n, _)| *n == name).expect("known shader").1;
+    let source = match name {
+        "scene" => format!("{}\n{}", source, include_str!("shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "2")),
+        _ => source.to_string(),
+    };
+    let source = source.as_str();
     let module =
         naga::front::wgsl::parse_str(source).unwrap_or_else(|e| panic!("{name}: {}", e.emit_to_string(source)));
     Validator::new(ValidationFlags::all(), Capabilities::default())

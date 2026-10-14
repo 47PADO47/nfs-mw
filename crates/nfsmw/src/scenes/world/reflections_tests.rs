@@ -52,6 +52,23 @@ fn streaming_refreshes_a_paused_low_quality_capture() {
     world.update(&mut renderer, &ActionState::default(), 0.0);
     assert_eq!(world.reflection_last, unchanged, "an unchanged low-quality view does not need another capture");
 
+    let authored: std::collections::HashSet<_> =
+        world.residency.placed().filter(|p| p.original_shadow).map(|p| p.key).collect();
+    assert!(!authored.is_empty(), "real assets contain identified shadow overlays");
+    let before_faces: usize = world.reflection_faces.iter().map(Vec::len).sum();
+    let mut experiments = renderer.render_experiments();
+    experiments.original_shadows = false;
+    renderer.set_render_experiments(experiments);
+    world.update(&mut renderer, &ActionState::default(), 0.0);
+    assert_ne!(world.reflection_last, unchanged, "toggling overlays invalidates a paused capture");
+    assert!(world.reflection_faces.iter().map(Vec::len).sum::<usize>() < before_faces);
+    assert!(world.reflection_faces.iter().flatten().all(|i| !authored.contains(&i.key)));
+    assert!(world.frame(1.0).1.iter().all(|i| !authored.contains(&i.key)), "main view omits the same overlays");
+    experiments.original_shadows = true;
+    renderer.set_render_experiments(experiments);
+    world.update(&mut renderer, &ActionState::default(), 0.0);
+    assert_eq!(world.reflection_faces.iter().map(Vec::len).sum::<usize>(), before_faces);
+
     graphics.reflections = ReflectionQuality::High;
     renderer.apply_graphics(&graphics);
     world.update(&mut renderer, &ActionState::default(), 0.0);
@@ -60,4 +77,26 @@ fn streaming_refreshes_a_paused_low_quality_capture() {
     renderer.apply_graphics(&graphics);
     world.update(&mut renderer, &ActionState::default(), 0.0);
     assert!(world.reflection_last.is_none(), "disabling clears the cached snapshot");
+
+    experiments.sun_shadows = true;
+    experiments.freeze_sun = true;
+    renderer.set_render_experiments(experiments);
+    world.view = super::super::View::Fly;
+    world.update_shadow_casters(&mut renderer);
+    let identities = |world: &WorldScene| {
+        let mut ids: Vec<_> = world.shadow_casters.iter().map(|i| (i.mesh, i.key)).collect();
+        ids.sort_unstable();
+        ids
+    };
+    let before = identities(&world);
+    let overlays: std::collections::HashSet<_> =
+        world.residency.shadow_placed().filter(|p| p.original_shadow).map(|p| p.key).collect();
+    assert!(world.shadow_casters.iter().all(|i| !overlays.contains(&i.key)), "authored overlays never cast");
+    world.camera.position += glam::Vec3::new(2.0, -2.0, 0.0);
+    world.update_shadow_casters(&mut renderer);
+    assert_eq!(identities(&world), before, "small camera movement preserves every resident caster silhouette");
+    let direction = world.sun.to_sun();
+    world.update(&mut renderer, &ActionState::default(), 1.0 / 60.0);
+    assert_eq!(world.sun.to_sun(), direction, "freeze holds the scene lighting while its clock advances");
+    assert!(world.clock > 0.0);
 }

@@ -1,8 +1,9 @@
 # Experimental ambient occlusion
 
-An isolated depth-only GTAO experiment in the native `blackbox-render` backend.
-It uses the existing reverse-Z depth buffer, with no normal buffer, geometry
-pass, motion vectors or temporal history. It is off by default. Other backends
+Spatial GTAO in the native `blackbox-render` backend. AO and contact shadows share
+a reverse-Z depth/world-normal prepass. AO produces an ambient visibility mask
+before colour shading, with no motion vectors or temporal history. It is off by
+default in normal settings; the Graphics Lab launcher selects Medium. Other backends
 and adapters without compute support report an unsupported-setting downgrade.
 
 ## Try it
@@ -52,23 +53,27 @@ The provided [Quasar SSAO shader](https://github.com/dev25bansal-ops/quasar/blob
 (MIT) was considered as a hemisphere-kernel reference. Its position and normal
 inputs would require additional scene outputs here. No Quasar code is copied.
 
-Three passes sit between scene geometry and effect particles:
+One shared geometry prepass precedes three AO passes and the colour draw:
 
-1. Reconstruct view positions and edge-aware normals from depth. Search nearby
+1. Reconstruct view positions from depth and transform authored world normals into
+   view space. Missing normals use edge-aware depth reconstruction. Search nearby
    horizons with a static 4-by-4 stratification of slice angles and radial offsets.
    Neighbouring pixels cover different samples, avoiding repeated hard bands around
    wide occluders. Store visibility, view depth and an octahedral normal in RGBA16F.
 2. Denoise with a 5-by-5 spatial filter. Plane distance and normal agreement reject
    samples across silhouettes rather than blurring them into foreground objects.
-3. Reconstruct full-resolution normals and bilaterally upsample four nearby AO
-   samples. Multiply the existing scene colour; keep colour alpha unchanged.
+3. Bilaterally upsample four nearby AO samples into a full-resolution R8 visibility
+   mask. Scene shaders apply it to ambient lighting before fog. Direct sunlight,
+   sun highlights, environment reflections and blended surfaces are unchanged.
 
 The default contact radius is 1.25 world units, capped at 96 screen pixels. A
 short range falloff and thickness heuristic limit distant silhouette occlusion.
 Depth bias rejects coplanar self-occlusion. Visibility is normalized against an
 unobstructed slice so open roads and slopes stay bright. AO fades between 40 and
-100 view-space units and fades with scene fog. Full intensity removes at most
-45% of the existing light; the default 75% intensity caps that at 33.75%.
+100 view-space units; scene fog is applied after lighting. Full intensity removes
+at most 45% of ambient light; default 75% intensity caps that at 33.75%.
+The prelit world's ambient share remains an approximation (35% of its lighting).
+For the original car rig, fill/back lights are treated as ambient illumination.
 
 Static sampling avoids animated grain. There is no accumulation to ghost behind
 cars or survive a camera cut. Smoke, sparks, other effect particles and the UI
@@ -80,15 +85,22 @@ an extra offscreen scene-colour image.
 Screen-space depth cannot see offscreen or hidden occluders. Thin objects and
 normals inferred at depth discontinuities remain approximations. Fixed sampling
 can alias as geometry moves between pixels, especially at Low quality. It does
-not establish perfect stability at speed. This experiment multiplies finished
-geometry colour, including baked shadows and reflections, rather than separately
-shading ambient light. Keep the intensity conservative on already dark assets.
+not establish perfect stability at speed. Authored texture/vertex lighting is
+retained, so baked occlusion can still overlap AO. Keep intensity conservative
+on already dark assets. Reflection captures omit screen-space AO.
+
+Depth/normals cost eight bytes per scene pixel, shared with contact shadows.
+The full-resolution R8 mask costs one byte per scene pixel; raw and filtered
+RGBA16F textures total sixteen bytes per AO pixel. Disabling AO releases its
+images and rebinds a tiny placeholder; the prepass remains only if contacts need it.
 
 Shader validation runs without a GPU. Explicit GPU regression tests check
 contact shading and smooth raised-body ground gradients, small camera-move stability,
 bounded darkening, unchanged open planes and sky, unchanged UI,
 fog suppression, identical repeated frames and camera-return captures, exact
-on/off round trips, odd sizes, render scaling and 2D projection bypass.
+on/off round trips, odd sizes, render scaling and 2D projection bypass. Integration
+tests distinguish direct-only and ambient-only surfaces, preserve glossy highlights
+and reflections, and exercise combined AO/contact/SMAA resize and live toggles.
 
 ```sh
 cargo test -p blackbox-render gpu::ao::tests -- --ignored --nocapture

@@ -81,7 +81,7 @@ pub fn update(
         if garage_had_it {
             actions.consume(Action::Cancel);
         }
-    } else if uses_mouse && !console.open && !garage.had_input && mouse.just_pressed(MouseButton::Left) {
+    } else if uses_mouse && !console.open && !focus.0 && !garage.had_input && mouse.just_pressed(MouseButton::Left) {
         capture.0 = true;
     }
     if *was_focused && !window.focused {

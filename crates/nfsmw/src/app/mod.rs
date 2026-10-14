@@ -11,7 +11,7 @@ mod graphics;
 mod host;
 mod mirror;
 pub mod pacing;
-mod render;
+pub(crate) mod render;
 mod screenshot;
 mod streaks;
 #[cfg(test)]

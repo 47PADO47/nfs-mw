@@ -6,10 +6,13 @@ pub(super) use blackbox_gpu_passes::{DEPTH_FORMAT, Globals, WorldBindings, creat
 pub(super) struct Shared {
     pub bindings: WorldBindings,
     pub glossy: super::glossy::Layouts,
+    pub shadows: super::shadows::maps::Maps,
 }
 
 impl Shared {
     pub(super) fn new(device: &wgpu::Device) -> Self {
-        Self { bindings: WorldBindings::new(device), glossy: super::glossy::Layouts::new(device) }
+        let glossy = super::glossy::Layouts::new(device);
+        let shadows = super::shadows::maps::Maps::new(device, &glossy.material, 1, None, None);
+        Self { bindings: WorldBindings::new(device), glossy, shadows }
     }
 }

@@ -57,14 +57,16 @@ setting.
 | Upscalers `off`, `bilinear`, `fsr1` | yes | yes |
 | Anti-aliasing `fxaa` | yes | yes |
 | Bloom, tone mapping `aces` | yes | yes |
-| Anti-aliasing `smaa`, `taa` | no | yes (TAA on Vulkan and DX12) |
+| Anti-aliasing `smaa` | yes (Vulkan, DX12) | yes |
+| Anti-aliasing `taa` | no | yes (Vulkan and DX12) |
 | Upscaler `fsr3` (temporal, any GPU) | no | yes (Vulkan, DX12) |
 | Upscaler `fsr4` (experimental) | no | DX12, Radeon RX 7000 and 9000 only |
 | Upscaler `dlss` | no | Vulkan, NVIDIA RTX only |
 | `ray_tracing` | no | GPUs with ray queries; noisy without DLSS Ray Reconstruction |
 | Graphics APIs | Vulkan, DX12, OpenGL | Vulkan, DX12 |
 
-`blackbox` is the renderer for OpenGL and for low-end PCs and its feature set is frozen.
+`blackbox` supports OpenGL and low-end PCs. Native Vulkan/DX12 also offer spatial SMAA
+and the optional [graphics lab prototypes](graphics-lab.md).
 `dlss` needs the NVIDIA DLSS SDK at build time, so it is a separate build option. `fsr4` has no
 tester yet. Frame generation and DLSS 5 are not planned.
 
@@ -94,7 +96,7 @@ a warning and the next layer decides.
   (`auto` is `quality`). They take their size from it and ignore `render_scale`. `render_scale` and
   `upscale_sharpness` belong to `bilinear` and `fsr1`. See [upscaling.md](upscaling.md).
 - A temporal upscaler does its own anti-aliasing, so it replaces `post_aa`.
-- `smaa` and `taa` are anti-aliasing methods of the Bevy renderer only.
+- `smaa` is spatial AA on native Vulkan/DX12 and Bevy; `taa` is Bevy-only.
 
 ### What needs a restart
 
@@ -141,7 +143,7 @@ renderer:     blackbox
 graphics api: vulkan (requested backend: auto)
 adapter:      <your GPU>
 capabilities:
-  anti-aliasing: off, fxaa
+  anti-aliasing: off, fxaa, smaa
   upscalers:     off, bilinear, fsr1
   tone mapping:  off, aces
   bloom:         yes

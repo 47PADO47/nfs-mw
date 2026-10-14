@@ -60,7 +60,7 @@ struct VsIn {
 };
 
 struct VsOut {
-    @builtin(position) clip: vec4<f32>,
+    @invariant @builtin(position) clip: vec4<f32>,
     @location(0) normal: vec3<f32>,
     @location(1) color: vec4<f32>,
     @location(2) uv: vec2<f32>,
@@ -80,11 +80,18 @@ fn vs_main(v: VsIn) -> VsOut {
     return out;
 }
 
-fn shade(in: VsOut) -> vec4<f32> {
+fn shade(in: VsOut, receive_ao: bool) -> vec4<f32> {
     let base = textureSampleBias(diffuse, diffuse_sampler, in.uv, globals.fog_range.z) * in.color;
+    let receiver = receiver_normal(in.world, in.normal);
+    if FOG && globals.fog_range.w < 0.5 && shadow_data.debug.x > 0.5 {
+        return vec4<f32>(lighting_debug_colour(in.world, receiver, in.clip.xy), base.a);
+    }
     var lit: vec3<f32>;
+    var ao = 1.0;
+    if receive_ao && FOG && globals.fog_range.w < 0.5 { ao = ambient_visibility(in.clip.xy); }
     if PRELIT {
         lit = min(base.rgb * 2.0, vec3<f32>(1.0));
+        if FOG { lit *= prelit_illumination(in.color.rgb, receiver, ao, scene_visibility(in.world, receiver, in.clip.xy)); }
     } else {
         let n = normalize(in.normal);
         let diffuse_light = max(dot(n, -globals.light_dir.xyz), 0.0);
@@ -94,7 +101,7 @@ fn shade(in: VsOut) -> vec4<f32> {
         let on = globals.surface_ambient.w > 0.5;
         let ambient = select(vec3<f32>(0.35), globals.surface_ambient.xyz, on);
         let diffuse = select(vec3<f32>(0.65), globals.surface_diffuse.xyz, on);
-        lit = base.rgb * (ambient + diffuse * diffuse_light + back_light);
+        lit = base.rgb * (ambient * ao + diffuse * diffuse_light * scene_visibility(in.world, receiver, in.clip.xy) + back_light * ao);
     }
     let distance = length(in.world - globals.camera_pos.xyz);
     var fog = clamp((distance - globals.fog_range.x) / max(globals.fog_range.y - globals.fog_range.x, 0.001), 0.0, 1.0);
@@ -107,14 +114,35 @@ fn shade(in: VsOut) -> vec4<f32> {
     return vec4<f32>(mix(lit, globals.fog_color.rgb, fog), base.a);
 }
 
+// Baked vertex illumination already contains shade. Reserve more of dark authored art for
+// ambient light instead of applying a second full-strength sun shadow over it. No albedo unbaking.
+fn prelit_illumination(authored: vec3<f32>, normal: vec3<f32>, ao: f32, visibility: f32) -> vec3<f32> {
+    if shadow_data.world.x < 0.5 {
+        return vec3<f32>(pow(0.35 * ao + 0.65 * visibility, 1.0 / 2.2));
+    }
+    let baked_luma = dot(max(authored * 2.0, vec3<f32>(0.0)), vec3<f32>(0.2126, 0.7152, 0.0722));
+    let baked_shade = 1.0 - smoothstep(0.2, 0.9, baked_luma);
+    let ambient_share = mix(shadow_data.world.y, 0.9, baked_shade);
+    var illumination = vec3<f32>(ambient_share * ao + (1.0 - ambient_share) * visibility);
+    if globals.surface_ambient.w > 0.5 {
+        let ambient = max(globals.surface_ambient.xyz, vec3<f32>(0.0));
+        let luma = dot(ambient, vec3<f32>(0.2126, 0.7152, 0.0722));
+        let tint = mix(vec3<f32>(1.0), clamp(ambient / max(luma, 0.001), vec3<f32>(0.65), vec3<f32>(1.35)), smoothstep(0.001, 0.01, luma));
+        let sky_facing = 0.5 + 0.5 * clamp(normal.z, -1.0, 1.0);
+        let weight = (1.0 - visibility) * shadow_data.world.z * sky_facing;
+        illumination += ambient_share * ao * (tint - vec3<f32>(1.0)) * weight;
+    }
+    return pow(clamp(illumination, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(1.0 / 2.2));
+}
+
 @fragment
 fn fs_opaque(in: VsOut) -> @location(0) vec4<f32> {
-    return vec4<f32>(shade(in).rgb, 1.0);
+    return vec4<f32>(shade(in, true).rgb, 1.0);
 }
 
 @fragment
 fn fs_alpha_test(in: VsOut) -> @location(0) vec4<f32> {
-    let c = shade(in);
+    let c = shade(in, true);
     if c.a < 0.5 {
         discard;
     }
@@ -123,5 +151,10 @@ fn fs_alpha_test(in: VsOut) -> @location(0) vec4<f32> {
 
 @fragment
 fn fs_blend(in: VsOut) -> @location(0) vec4<f32> {
-    return shade(in);
+    return shade(in, false);
+}
+
+fn scene_visibility(world: vec3<f32>, n: vec3<f32>, pixel: vec2<f32>) -> f32 {
+    if globals.fog_range.w > 0.5 { return 1.0; }
+    return direct_visibility(world, n, pixel);
 }

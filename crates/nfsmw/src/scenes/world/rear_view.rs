@@ -19,7 +19,14 @@ impl WorldScene {
         };
         let rules = &blackbox_scenery::layout::MOST_WANTED.lod;
         self.rear_visible.clear();
-        visibility::collect(self.residency.placed(), &cull, rules, self.residency.props(), &mut self.rear_visible);
+        let original = self.original_shadows;
+        visibility::collect(
+            self.residency.placed().filter(|p| original || !p.original_shadow),
+            &cull,
+            rules,
+            self.residency.props(),
+            &mut self.rear_visible,
+        );
         self.residency.props().fragment_instances(&mut self.rear_visible);
         if let Some(traffic) = &self.traffic {
             traffic.instances(&mut self.rear_visible);
