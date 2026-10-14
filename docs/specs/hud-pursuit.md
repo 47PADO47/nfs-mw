@@ -54,10 +54,10 @@ Driven by `HudState::pursuit` (`Option<PursuitHud>`, `None` while no cop chases 
   scripts (`0x033113ac`, `0x5079c8f8`, `0x13f51124`) start on messages this build does not raise (the cool-down group
   has `on 0x3c97521a`) **[verified]**. The fade is skipped, as for the mirror.
 - **The timer**: `secs` (the feed's seconds since the chase began) as `mm:ss.cc`, the package's template **[verified]**.
-- **The cool-down bar**: shown when the evaded share is at least 0.05 (the spec's `evade_level >= 0.05`, ai-pursuit.md
-  section 4.4 **[decomp]**). Its fill grows from the left end: width = full width × evaded share. The share is
-  `1 − secs_to_evade / timeout(heat)` (`blackbox_pursuit::evade::timeout`), which is the progress the world already
-  computes **[decomp]** (`scenes/world/ai/police/world.rs`, `pursuit_feed`). Shown on screen: the fill starts at the
+- **The cool-down bar**: shown when the cool-down meter is at least 0.05 (the spec's `evade_level >= 0.05`, ai-pursuit.md
+  section 6 **[decomp]**). Its fill grows from the left end: width = full width × the meter. The meter is
+  `TrafficWorld::evade_level()` (`blackbox_pursuit::Cooldown`, which decays by 0.93 while a cop sees the player). The
+  feed's `secs_to_evade` still gives the timeout's progress for the audio. Shown on screen: the fill starts at the
   left end and grows right **[verified, offscreen screenshot]**.
 - The cool-down group is inside the radar group in the package, so the layout decides it on its own flag, and the
   hiding parts and the bounty row are held hidden under any feature that shows around them.

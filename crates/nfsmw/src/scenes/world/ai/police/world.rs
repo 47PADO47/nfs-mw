@@ -3,6 +3,7 @@
 
 use super::busted::bust_speed;
 use super::*;
+use crate::hud::PursuitEndCard;
 use blackbox_pursuit::busted::BustInput;
 
 impl super::super::TrafficWorld {
@@ -75,17 +76,43 @@ impl super::super::TrafficWorld {
             flashing: false,
         };
         self.police.set_rig(self.helicopter_rig.clone());
+        // Busted first: a busted frame does not tick the escape. `is_busted` stays set until the next chase.
+        let busted = self.police.tick_busted(dt, pursuing, bust);
         let evaded = self.police.update_in_world(dt, pursuing, player, sensed, clear);
-        if evaded {
-            log::info!("the player got away: the cops give up");
-            self.stop_pursuit();
+        if busted {
+            log::info!("the player is busted: the pursuit ends");
+            self.end_pursuit(EndReason::Busted);
             return;
         }
-        // The arrest scene (E8f) hangs off this: the pursuit ends busted and `is_busted` stays set until the next chase.
-        if self.police.tick_busted(dt, pursuing, bust) {
-            log::info!("the player is busted: the pursuit ends");
-            self.stop_pursuit();
+        if evaded {
+            log::info!("the player got away: the cops give up");
+            self.end_pursuit(EndReason::Evaded);
         }
+    }
+
+    /// How the last chase ended, for the camera (`EndReason::None` while one runs, and before any chase).
+    #[allow(dead_code)] // read by the camera (E8f), not built yet
+    pub fn end_reason(&self) -> EndReason {
+        self.police.end_reason()
+    }
+
+    /// The cool-down meter, 0 to 1, for the pursuit board's bar.
+    pub fn evade_level(&self) -> f32 {
+        self.police.evade_level()
+    }
+
+    /// The end-of-pursuit card, while a chase ended busted or evaded. `None` otherwise.
+    pub fn pursuit_end_card(&self) -> Option<PursuitEndCard> {
+        let reason = self.police.end_reason();
+        if reason == EndReason::None {
+            return None;
+        }
+        Some(PursuitEndCard {
+            reason,
+            cops_destroyed: self.police.cops_destroyed(),
+            secs: self.police.pursuit_time,
+            since_end: self.police.since_end(),
+        })
     }
 
     /// Whether a physics-space point is inside a hiding spot: in a HIDDEN zone, at its height (`HIDDEN_HEIGHT`).
@@ -109,13 +136,12 @@ impl super::super::TrafficWorld {
     pub fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {
         let pursuit = self.pursuit.as_ref()?;
         let heat = self.police.level().unwrap_or(pursuit.heat);
-        let progress = self.police.evade.progress();
         let limit = blackbox_pursuit::evade::timeout(heat);
         Some(crate::audio::PursuitFeed {
             heat,
-            intensity: chase_intensity(self.police.seen, progress, limit),
+            intensity: chase_intensity(self.police.seen, self.police.escape_progress(), limit),
             secs: self.police.pursuit_time,
-            secs_to_evade: (limit - progress).max(0.0),
+            secs_to_evade: self.police.secs_to_evade(),
             player_mph: self.player_speed / super::super::traffic::MPH,
         })
     }

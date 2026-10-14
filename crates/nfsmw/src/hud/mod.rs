@@ -28,6 +28,7 @@ mod minimap;
 mod minimap_tests;
 mod plugin;
 mod pursuit;
+mod pursuit_end;
 #[cfg(test)]
 mod pursuit_tests;
 mod radio;
@@ -46,5 +47,6 @@ pub use blip_styles::{
 pub use interact_prompt::{InteractPopup, Prompt, show as show_interact_prompt};
 pub use plugin::HudPlugin;
 pub use pursuit::PursuitHud;
+pub use pursuit_end::{PursuitEndCard, show as show_pursuit_end};
 pub use radio::{RadioHud, show as show_radio};
 pub use state::{HudState, MapPosition};
