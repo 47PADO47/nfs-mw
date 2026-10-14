@@ -64,6 +64,7 @@ pub struct Vehicle {
     wall_steering: wall_steering::WallSteering,
     jump_state: JumpState,
     body_ground_contact: bool,
+    body_contacts: Vec<crate::rigid_body::GroundContact>,
     /// Spike-strip damage per tire (see `tires::damage`): a blown tire brakes fully and grips less.
     pub tire_damage: crate::tires::TireDamage,
     body: RigidBody,
@@ -127,6 +128,7 @@ impl Vehicle {
             wall_steering: wall_steering::WallSteering::default(),
             jump_state: JumpState::default(),
             body_ground_contact: false,
+            body_contacts: Vec::new(),
             tire_damage: crate::tires::TireDamage::default(),
             body,
             geometry,
@@ -155,6 +157,11 @@ impl Vehicle {
 
     pub fn spec(&self) -> &VehicleSpec {
         &self.spec
+    }
+
+    /// Body-ground observations from the latest tick, including material and pre-response velocity.
+    pub fn body_contacts(&self) -> &[crate::rigid_body::GroundContact] {
+        &self.body_contacts
     }
 
     /// Resets every dynamic state and puts the body at `position` with `orientation`, at rest.
@@ -216,6 +223,7 @@ impl Vehicle {
         self.jump_state = JumpState::default();
         self.ground_reference = None;
         self.body_ground_contact = false;
+        self.body_contacts.clear();
         self.tires = std::array::from_fn(|_| {
             let mut tire = Tire::default();
             tire.integration = self.tire_integration;

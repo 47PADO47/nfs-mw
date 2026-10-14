@@ -26,6 +26,7 @@ impl Vehicle {
             return;
         }
         self.tire_damage.advance(dt);
+        self.body_contacts.clear();
         self.body.begin_frame(dt);
         self.time += dt;
         match self.body.state {
