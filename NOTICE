@@ -84,6 +84,13 @@ VP6 video decoder, linked as a git dependency of libs/blackbox-movie (not vendor
     them. Pinned to commit 12d0bdf10a85641dc2de3d6900c747894431ed77. Only this subset is
     MIT: the rest of NihAV is AGPL-3.0 and is not used.
 
+Icons
+
+  Discord mark (assets/discord/discord.png) — Simple Icons, https://simpleicons.org — CC0-1.0
+    https://cdn.simpleicons.org/discord rasterised to 128x128 white on transparent. The Discord name
+    and logo are trademarks of Discord Inc., used only to label the Discord settings; not endorsed by
+    Discord. See assets/discord/README.md.
+
 Rust dependencies are fetched by Cargo and keep their own licenses; see
 Cargo.lock and `cargo deny check licenses`. Binary releases will include a
 generated third-party license file.
