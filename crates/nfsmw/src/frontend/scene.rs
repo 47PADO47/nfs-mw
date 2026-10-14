@@ -256,6 +256,10 @@ impl Scene for Pausable {
         self.inner.car_sound()
     }
 
+    fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {
+        self.inner.pursuit_feed()
+    }
+
     fn paused(&self) -> bool {
         self.paused.get()
     }

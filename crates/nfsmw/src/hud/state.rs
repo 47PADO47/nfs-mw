@@ -52,8 +52,7 @@ pub struct HudState {
     pub minimap: Option<MapPosition>,
     /// The cops, racers, checkpoint and helicopter on the map (`docs/specs/hud-minimap.md` section 7).
     pub blips: Vec<MapBlip>,
-    /// A police car is near: the radar's green laser shows over the base radar. Nothing sets it yet (the sensor is
-    /// not wired), so it stays off.
+    /// A police car is near: the radar's green laser shows over the base radar. The world sets it while a chase is on.
     pub cop_nearby: bool,
 }
 

@@ -206,3 +206,26 @@ fn the_tables_cover_their_levels() {
     assert_eq!(respawn_time(10), 5.0);
     assert_eq!(time_per_level(0), 600.0, "levels are clamped to 1");
 }
+
+#[test]
+fn the_chase_is_tense_while_seen_and_calms_as_the_cops_lose_the_player() {
+    use super::world::chase_intensity;
+    assert_eq!(chase_intensity(true, 0.0, 20.0), 1.0);
+    assert_eq!(chase_intensity(true, 15.0, 20.0), 1.0, "being seen is full intensity whatever the progress");
+    assert_eq!(chase_intensity(false, 0.0, 20.0), 1.0);
+    assert_eq!(chase_intensity(false, 5.0, 20.0), 0.75);
+    assert_eq!(chase_intensity(false, 20.0, 20.0), 0.0);
+    assert_eq!(chase_intensity(false, 99.0, 20.0), 0.0, "past the timeout it stays at zero");
+    assert_eq!(chase_intensity(false, 1.0, 0.0), 0.0, "a zero timeout does not divide by zero");
+}
+
+#[test]
+fn a_chase_counts_its_seconds_only_while_it_runs() {
+    let mut police = Police::default();
+    police.begin(1);
+    police.update(2.0, true, &view(0.0), sensed(false));
+    assert_eq!(police.pursuit_time, 2.0);
+    police.end();
+    police.update(2.0, false, &view(0.0), sensed(false));
+    assert_eq!(police.pursuit_time, 2.0, "no clock runs without a chase");
+}

@@ -64,7 +64,7 @@ fn sync_radio(settings: Res<Settings>, mut audio: NonSendMut<Audio>, mut applied
 fn drive_car(
     mut host: NonSendMut<Host>,
     time: Res<Time>,
-    music: Res<MusicInput>,
+    mut music: ResMut<MusicInput>,
     mut audio: NonSendMut<Audio>,
     mut seen: Local<u32>,
 ) {
@@ -86,7 +86,10 @@ fn drive_car(
     }
     // The pause menu freezes the car (no sound) but the game goes on, and so does the radio.
     let driving = car.is_some() || host.scene.paused();
-    // The pursuit music takes the songs' place while a chase is on and for a while after it.
+    // The chase of the world reaches the music and the speech; the pursuit music takes the songs' place while a chase
+    // is on and for a while after it.
+    let chase = host.scene.pursuit_feed();
+    audio.follow_chase(&mut music, chase.as_ref());
     let songs_free = audio.update_interactive(&music.state(), driving, time.delta_secs());
     audio.update_radio(driving && songs_free);
     if let Some(clip) = host.scene.take_clip()

@@ -26,4 +26,4 @@ mod tests;
 
 pub use glue::{Interactive, command};
 #[allow(unused_imports)] // for the pursuit and race code of milestone 7
-pub use state::{MusicInput, MusicState, Pursuit, pursuit_set_for_heat};
+pub use state::{MusicInput, MusicState, Pursuit, PursuitFeed, pursuit_set_for_heat};

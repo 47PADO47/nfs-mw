@@ -213,8 +213,9 @@ impl TrafficWorld {
         let cops: Vec<String> = self.cars.iter().filter(|c| c.is_cop()).map(|c| c.name.clone()).collect();
         let infractions: Vec<String> = self.police.infractions().iter().map(|i| format!("{i:?}")).collect();
         let formation = self.police.last_formation().map_or("none yet".to_owned(), |f| format!("{f:?}"));
+        let to_evade = self.pursuit_feed().map_or(0.0, |feed| feed.secs_to_evade);
         format!(
-            "heat {}: {} of {} cops ({}); formation {formation}; infractions {} for ${}{}",
+            "heat {}: {} of {} cops ({}); formation {formation}; evade in {to_evade:.0} s; infractions {} for ${}{}",
             p.heat,
             cops.len(),
             p.wanted(),
