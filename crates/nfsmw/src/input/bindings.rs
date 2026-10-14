@@ -161,6 +161,7 @@ pub fn defaults() -> Vec<Binding> {
         Binding::new(Cancel, key(KeyCode::Escape), 1.0),
         Binding::new(Console, key(KeyCode::F12), 1.0),
         Binding::new(Garage, key(KeyCode::F6), 1.0),
+        Binding::new(Map, key(KeyCode::KeyM), 1.0),
         // Mouse.
         Binding::new(LookX, motion(false, Gate::Look), 1.0),
         Binding::new(LookY, motion(true, Gate::Look), 1.0),
@@ -189,15 +190,15 @@ pub fn defaults() -> Vec<Binding> {
     .collect()
 }
 
-/// The radio: M pauses and resumes, `.` is the next song and `,` the previous one (the media keys do the same). On a
+/// The radio: N pauses and resumes, `.` is the next song and `,` the previous one (the media keys do the same). On a
 /// pad the right stick's click pauses and resumes, the D-pad's right and left are next and previous. The game
-/// ignores them in the pause menu, which uses the D-pad itself.
+/// ignores them in the pause menu, which uses the D-pad itself. M is the world map (`Action::Map`), not the radio.
 fn radio() -> Vec<Binding> {
     use Action::*;
     let key = Source::Key;
     let button = Source::PadButton;
     vec![
-        Binding::new(RadioToggle, key(KeyCode::KeyM), 1.0),
+        Binding::new(RadioToggle, key(KeyCode::KeyN), 1.0),
         Binding::new(RadioToggle, key(KeyCode::MediaPlayPause), 1.0),
         Binding::new(RadioToggle, button(GamepadButton::RightThumb), 1.0),
         Binding::new(RadioNext, key(KeyCode::Period), 1.0),
