@@ -69,7 +69,7 @@ fn a_road_seen_from_below_is_not_a_wall_for_a_tilted_body() {
         )
         .unwrap();
     assert_eq!(raw.normal, [0.0, -1.0, 0.0], "the raw normal correctly faces the origin below the road");
-    assert!(find(&world_cast(&collision), &no_props, position, rotation, half).is_empty());
+    assert!(find(&world_cast_with_mask(&collision, 0), &no_props, position, rotation, half).is_empty());
     // The generic cast contract also handles callers with their own origin-facing floor normals.
     let cast =
         |from: Vec3, to: Vec3| Some(Hit { point: from.lerp(to, 0.5), normal: Vec3::NEG_Y, prop: None, info: None });
@@ -79,18 +79,18 @@ fn a_road_seen_from_below_is_not_a_wall_for_a_tilted_body() {
 #[test]
 fn vehicle_query_sees_the_front_wall_after_a_rear_one_way_barrier() {
     let collision = world(false, vec![barrier(1.0, false, false), barrier(2.0, true, false)]);
-    let hit = world_cast(&collision)(Vec3::ZERO, Vec3::new(3.0, 0.0, 0.0)).unwrap();
+    let hit = world_cast_with_mask(&collision, 0)(Vec3::ZERO, Vec3::new(3.0, 0.0, 0.0)).unwrap();
     assert_eq!(hit.point, Vec3::new(2.0, 0.0, 0.0));
     assert_eq!(hit.normal, Vec3::NEG_X);
     assert!(hit.info.unwrap().barrier);
-    let reverse = world_cast(&collision)(Vec3::new(3.0, 0.0, 0.0), Vec3::ZERO).unwrap();
+    let reverse = world_cast_with_mask(&collision, 0)(Vec3::new(3.0, 0.0, 0.0), Vec3::ZERO).unwrap();
     assert_eq!(reverse.point, Vec3::new(1.0, 0.0, 0.0));
 }
 
 #[test]
 fn vehicle_query_keeps_two_sided_walls_but_looks_past_floors() {
     let collision = world(true, vec![barrier(2.0, false, true)]);
-    let hit = world_cast(&collision)(Vec3::new(0.0, -0.5, 0.0), Vec3::new(3.0, 1.0, 0.0)).unwrap();
+    let hit = world_cast_with_mask(&collision, 0)(Vec3::new(0.0, -0.5, 0.0), Vec3::new(3.0, 1.0, 0.0)).unwrap();
     assert_eq!(hit.point, Vec3::new(2.0, 0.5, 0.0));
     assert_eq!(hit.normal, Vec3::NEG_X);
 }

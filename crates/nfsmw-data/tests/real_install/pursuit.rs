@@ -7,6 +7,19 @@ use crate::install;
 
 #[test]
 #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_helicopter_record_has_no_car_links() {
+    let Some(dir) = install() else { return };
+    let db = Database::open(&dir.read("GLOBAL/ATTRIBUTES.BIN").unwrap()).expect("attributes.bin");
+    let heli = db.collection("pvehicle", "copheli").expect("the copheli record");
+    for link in ["chassis", "tires", "brakes"] {
+        assert!(heli.follow(link).is_none(), "copheli has a {link} link");
+    }
+    let car = db.collection("pvehicle", "bmwm3gtr").expect("the bmwm3gtr record");
+    assert!(car.follow("chassis").is_some(), "a car has a chassis link");
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
 fn the_cop_waves_match_the_documented_table() {
     let Some(dir) = install() else { return };
     let db = Database::open(&dir.read("GLOBAL/ATTRIBUTES.BIN").unwrap()).expect("attributes.bin");

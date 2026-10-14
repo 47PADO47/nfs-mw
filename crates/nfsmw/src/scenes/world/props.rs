@@ -19,6 +19,7 @@ use super::drive::walls::{ContactKind, ContactPoint, Impact};
 use super::events::{DamageHit, OtherBody};
 use super::object_geometry::{BodyGeometryFrame, primitive_at};
 use super::{resident::Placed, space};
+use crate::audio::{CarContact, ContactSource};
 use blackbox_scene::Aabb;
 use blackbox_vehicle::{
     Ground, Vehicle,
@@ -299,26 +300,35 @@ impl PropWorld {
             }
         }
         for (a, b) in pairs {
-            let [Some(ca), Some(cb)] = self.colliders.get_disjoint_mut([&a, &b]) else { continue };
-            let (Some(pa), Some(pb)) = (&mut ca.body, &mut cb.body) else { continue };
-            let (Some(sa), Some(sb)) = (&ca.shape.dynamics, &cb.shape.dynamics) else { continue };
-            let Some(c) = contact::prop_contact(pa, pb) else { continue };
-            let attached = [pa.attached, pb.attached];
-            let closing = (pa.rigid.point_velocity(c.point) - pb.rigid.point_velocity(c.point)).length();
-            let ha = contact::parameters(&pa.rigid, c.normal, sa, pa.attached);
-            let hb = contact::parameters(&pb.rigid, -c.normal, sb, pb.attached);
-            if let Some(response) = contact::resolve(&mut pa.rigid, &mut pb.rigid, c, ha, hb, Separation::NormalSpeed) {
-                pa.lifetime.activate(sa);
-                pb.lifetime.activate(sb);
-                pa.object_contact = true;
-                pb.object_contact = true;
-                let [ia, ib] = response.immobile;
-                pa.attached &= ia;
-                pb.attached &= ib;
-                pa.moved |= !ia;
-                pb.moved |= !ib;
-                self.contact_event(a, attached[0], closing);
-                self.contact_event(b, attached[1], closing);
+            let (Some(pa), Some(pb)) = (&self.colliders[&a].body, &self.colliders[&b].body) else { continue };
+            let counts =
+                [contact::shape_count(Some(pa.geometry_frame())), contact::shape_count(Some(pb.geometry_frame()))];
+            for i in 0..counts[0] {
+                for j in 0..counts[1] {
+                    let [Some(ca), Some(cb)] = self.colliders.get_disjoint_mut([&a, &b]) else { continue };
+                    let (Some(pa), Some(pb)) = (&mut ca.body, &mut cb.body) else { continue };
+                    let (Some(sa), Some(sb)) = (&ca.shape.dynamics, &cb.shape.dynamics) else { continue };
+                    let first = contact::shape(&pa.rigid, Some(pa.geometry_frame()), i).unwrap();
+                    let second = contact::shape(&pb.rigid, Some(pb.geometry_frame()), j).unwrap();
+                    let Some(c) = first.contact(&second) else { continue };
+                    let attached = [pa.attached, pb.attached];
+                    let closing = (pa.rigid.point_velocity(c.point) - pb.rigid.point_velocity(c.point)).length();
+                    let ha = contact::parameters(&pa.rigid, c.normal, sa, pa.attached);
+                    let hb = contact::parameters(&pb.rigid, -c.normal, sb, pb.attached);
+                    let response = contact::resolve(&mut pa.rigid, &mut pb.rigid, c, ha, hb, Separation::NormalSpeed);
+                    let Some(response) = response else { continue };
+                    pa.lifetime.activate(sa);
+                    pb.lifetime.activate(sb);
+                    pa.object_contact = true;
+                    pb.object_contact = true;
+                    let [ia, ib] = response.immobile;
+                    pa.attached &= ia;
+                    pb.attached &= ib;
+                    pa.moved |= !ia;
+                    pb.moved |= !ib;
+                    self.contact_event(a, attached[0], closing);
+                    self.contact_event(b, attached[1], closing);
+                }
             }
             self.regrid(a);
             self.regrid(b);
@@ -339,44 +349,80 @@ impl PropWorld {
         let previous = geometry.map_or(centre, |g| space::to_render(g.previous.0.to_array()));
         let bounds = Aabb::new(centre.min(previous) - radius, centre.max(previous) + radius);
         for id in self.candidates(&bounds) {
-            let c = self.colliders.get_mut(&id).unwrap();
-            let Some(p) = c.body.as_mut() else { continue };
-            let Some(spec) = &c.shape.dynamics else { continue };
-            let Some((hit, _surface)) = contact::car_contact(vehicle.body(), geometry, p) else { continue };
-            let velocity = vehicle.body().point_velocity(hit.point);
-            let was_attached = p.attached;
-            let closing = (velocity - p.rigid.point_velocity(hit.point)).length();
-            let damage = DamageHit::capture(
-                vehicle.body(),
-                hit.point,
-                hit.normal,
-                closing,
-                OtherBody { no_car_effect: spec.no_car_effect, ..Default::default() },
-            );
-            let mut car = contact::material(vehicle.body(), hit.normal);
-            car.immobile = spec.no_car_effect && !p.attached && !spec.immobile;
-            let prop = contact::parameters(&p.rigid, -hit.normal, spec, p.attached);
-            let response = contact::resolve(vehicle.body_mut(), &mut p.rigid, hit, car, prop, Separation::Mass);
-            if let Some(ref response) = response {
-                p.lifetime.activate(spec);
-                p.object_contact = true;
-                let prop_immobile = response.immobile[1];
-                impact.damage.push(damage.resolved(vehicle.body(), true));
-                p.attached &= prop_immobile;
-                p.moved |= !prop_immobile;
-                let delta_v = response.impulse_delta_v[0];
-                let kind = match prop_immobile {
-                    true => ContactKind::PropRigid,
-                    false => ContactKind::PropMovable,
-                };
-                impact.impulse = impact.impulse.max(delta_v * vehicle.body().mass());
-                impact.contacts.push(ContactPoint { point: hit.point, normal: hit.normal, kind });
-                if delta_v > 0.0 {
-                    vehicle.notify_collision(delta_v);
+            let Some(p) = self.colliders[&id].body.as_ref() else { continue };
+            let counts = [contact::shape_count(geometry), contact::shape_count(Some(p.geometry_frame()))];
+            for i in 0..counts[0] {
+                for j in 0..counts[1] {
+                    let c = self.colliders.get_mut(&id).unwrap();
+                    let Some(p) = c.body.as_mut() else { continue };
+                    let Some(spec) = &c.shape.dynamics else { continue };
+                    // Separation updates both prepared centres before the next primitive pair.
+                    let first = contact::shape(vehicle.body(), geometry, i).unwrap();
+                    let second = contact::shape(&p.rigid, Some(p.geometry_frame()), j).unwrap();
+                    let Some(hit) = first.contact(&second) else { continue };
+                    let _surface = second.surface;
+                    let velocity = vehicle.body().point_velocity(hit.point);
+                    let was_attached = p.attached;
+                    let closing = (velocity - p.rigid.point_velocity(hit.point)).length();
+                    let damage = DamageHit::capture(
+                        vehicle.body(),
+                        hit.point,
+                        hit.normal,
+                        closing,
+                        OtherBody { no_car_effect: spec.no_car_effect, ..Default::default() },
+                    );
+                    let mut car = contact::material(vehicle.body(), hit.normal);
+                    car.immobile = spec.no_car_effect && !p.attached && !spec.immobile;
+                    vehicle.modify_object_hit(&mut car);
+                    let prop = contact::parameters(&p.rigid, -hit.normal, spec, p.attached);
+                    let relative = vehicle.body().point_velocity(hit.point) - p.rigid.point_velocity(hit.point);
+                    let rot = vehicle.body().rotation();
+                    let sound = CarContact {
+                        sound_profile: 0,
+                        detached: false,
+                        source: ContactSource::Object,
+                        identity: u64::from(id),
+                        surface: second.surface,
+                        point: hit.point,
+                        normal: hit.normal,
+                        velocity: relative,
+                        delta_v: 0.0,
+                        front: hit.normal.dot(rot.z_axis).abs() > hit.normal.dot(rot.x_axis).abs(),
+                        bottom: false,
+                    };
+                    let response = contact::resolve(vehicle.body_mut(), &mut p.rigid, hit, car, prop, Separation::Mass);
+                    let Some(response) = response else { continue };
+                    p.lifetime.activate(spec);
+                    p.object_contact = true;
+                    let prop_immobile = response.immobile[1];
+                    impact.damage.push(damage.resolved(vehicle.body(), true));
+                    p.attached &= prop_immobile;
+                    p.moved |= !prop_immobile;
+                    let delta_v = response.impulse_delta_v[0];
+                    impact.sounds.push(CarContact { delta_v, ..sound });
+                    if spec.sound_profile != 0 {
+                        impact.sounds.push(CarContact {
+                            sound_profile: spec.sound_profile,
+                            detached: was_attached && !p.attached,
+                            surface: first.surface,
+                            normal: -hit.normal,
+                            velocity: -relative,
+                            delta_v: response.impulse_delta_v[1],
+                            front: false,
+                            ..sound
+                        });
+                    }
+                    let kind = match prop_immobile {
+                        true => ContactKind::PropRigid,
+                        false => ContactKind::PropMovable,
+                    };
+                    impact.impulse = impact.impulse.max(delta_v * vehicle.body().mass());
+                    impact.contacts.push(ContactPoint { point: hit.point, normal: hit.normal, kind });
+                    if delta_v > 0.0 {
+                        vehicle.notify_collision(delta_v);
+                    }
+                    self.contact_event(id, was_attached, closing);
                 }
-            }
-            if response.is_some() {
-                self.contact_event(id, was_attached, closing);
             }
             self.regrid(id);
         }

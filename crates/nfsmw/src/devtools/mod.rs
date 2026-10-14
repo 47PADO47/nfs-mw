@@ -30,6 +30,7 @@ impl Plugin for DevToolsPlugin {
         console::build(app);
         graphics_lab::build(app);
         app.init_resource::<Metrics>()
+            .init_resource::<crate::garage::Overlay>()
             .add_systems(Update, run_ui.in_set(crate::app::FrameSet::Ui))
             .add_systems(Last, metrics::collect);
     }
@@ -50,6 +51,9 @@ fn run_ui(
     hud: Option<Res<crate::hud::HudState>>,
     radio: Option<Res<crate::hud::RadioHud>>,
     mut host: NonSendMut<crate::app::Host>,
+    mut garage: ResMut<crate::garage::Overlay>,
+    mut capture: ResMut<crate::input::MouseCapture>,
+    mut focus: ResMut<crate::input::UiFocus>,
 ) {
     let (width, height) = (window.width(), window.height());
     let raw = egui::RawInput {
@@ -78,5 +82,26 @@ fn run_ui(
         overlay::show(ctx, settings.show_metrics, &metrics, left);
         console::show(ctx, &mut console);
         graphics_lab::show(ctx, &mut lab, &mut settings, &metrics);
+        if garage.open {
+            let mut open = true;
+            let request =
+                host.scene.garage().and_then(|model| crate::garage::show(ctx, &mut open, model, &mut settings));
+            if let Some(selection) = request {
+                let host = &mut *host;
+                if let Some(renderer) = host.renderer.as_mut() {
+                    let result = host
+                        .scene
+                        .apply_garage(renderer.as_mut(), selection)
+                        .map(|_| "Car and paint applied".to_owned())
+                        .map_err(|e| format!("{e:#}"));
+                    if let Some(model) = host.scene.garage() {
+                        model.message = Some(result);
+                    }
+                }
+            }
+            if !open {
+                garage.set_open(false, &mut capture, &mut focus);
+            }
+        }
     });
 }

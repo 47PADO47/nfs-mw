@@ -5,7 +5,9 @@ mod build;
 mod event;
 mod frame;
 mod output;
+mod shared;
 mod spatial;
+pub use shared::EventOutput;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -173,6 +175,8 @@ pub struct Mixer {
     pub(crate) blocks: Vec<Block>,
     input_index: HashMap<InputKey, usize>,
     block_index: HashMap<ObjectRef, usize>,
+    event_index: HashMap<(u8, u8, u8), usize>,
+    event_overrides: HashMap<usize, EventOutput>,
     camera: u8,
 }
 

@@ -24,6 +24,7 @@ build **[install]**. Findings:
   faster, so later instants differ by more). The coast-down from 38.8 m/s matches to within 0.2 m/s. The step
   response of the wheel angle (about 0.15 s to 40 degrees) matches the capture.
 
-So the tire, load and steering model reproduces the original on flat ground; what remains is the world (surface
-faces, collision), input shaping and the camera.
+This is partial validation of one car on flat ground. Rear-force and load errors
+remain, and sustained trajectories diverge. It does not establish complete
+handling parity across cars, upgrades, terrain, wall contacts or Speedbreaker.
 

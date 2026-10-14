@@ -1,8 +1,8 @@
 //! Independently licensed input glyphs. See assets/input-prompts/README.md.
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 
-use super::assets::Image;
+use super::assets::{Image, decode_png_rgba};
 
 pub const ATLAS: u32 = 0xE0C0_0001;
 
@@ -47,13 +47,7 @@ impl Glyph {
 }
 
 pub fn load() -> Result<Image> {
-    let data = include_bytes!("../../../../assets/input-prompts/kenney-xbox.png");
-    let mut reader = png::Decoder::new(std::io::Cursor::new(data)).read_info()?;
-    let mut rgba = vec![0; reader.output_buffer_size().context("input atlas dimensions")?];
-    let frame = reader.next_frame(&mut rgba)?;
-    anyhow::ensure!(frame.color_type == png::ColorType::Rgba, "input atlas must be RGBA");
-    rgba.truncate(frame.buffer_size());
-    Ok(Image { width: frame.width, height: frame.height, rgba, blend: 1 })
+    decode_png_rgba(include_bytes!("../../../../assets/input-prompts/kenney-xbox.png"))
 }
 
 #[cfg(test)]

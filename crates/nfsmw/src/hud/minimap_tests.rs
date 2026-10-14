@@ -17,7 +17,7 @@ const GROUP_AT: [f32; 2] = [-221.0, 139.0];
 const WINDOWS: [[f32; 4]; 4] =
     [[-0.5, -0.5, 0.5, 0.5], [0.5, -0.5, 1.5, 0.5], [-0.5, 0.5, 0.5, 1.5], [0.5, 0.5, 1.5, 1.5]];
 
-fn object(kind: ObjectKind, guid: u32, name: &str, parent: Option<u32>, at: [f32; 2]) -> ObjectDef {
+pub(super) fn object(kind: ObjectKind, guid: u32, name: &str, parent: Option<u32>, at: [f32; 2]) -> ObjectDef {
     let mut words = vec![0u32; if kind == ObjectKind::MultiImage { 36 } else { 17 }];
     for (i, v) in [255i32, 255, 255, 255].iter().enumerate() {
         words[i] = *v as u32;
@@ -45,7 +45,7 @@ fn object(kind: ObjectKind, guid: u32, name: &str, parent: Option<u32>, at: [f32
     }
 }
 
-fn package() -> Package {
+pub(super) fn package() -> Package {
     let mut objects = vec![
         object(ObjectKind::Group, 1, "SpeedometerGroup", None, [0.0; 2]),
         object(ObjectKind::Group, 5, "GaugeCluster", None, [0.0; 2]),

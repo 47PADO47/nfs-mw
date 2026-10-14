@@ -18,6 +18,8 @@ const AHEAD: f32 = 200.0;
 const SPREAD: f32 = 50.0;
 /// The wedge ahead the point is chosen in: plus or minus this many radians (45 degrees).
 const WEDGE: f32 = std::f32::consts::FRAC_PI_4;
+/// The final lane position must stay this far from the player or free camera, horizontally.
+const MIN_FOCUS_GAP: f32 = 150.0;
 /// No new car closer than this to another one; a trailer adds half its length to the distance, on either side.
 const MIN_GAP: f32 = 20.0;
 /// How far ahead of the car the cursor starts.
@@ -70,11 +72,8 @@ impl TrafficWorld {
             return false;
         }
         let length = model.trailer.as_ref().map_or(0.0, |t| 2.0 * t.physics.spec.dimension.z);
-        if self
-            .cars
-            .iter()
-            .any(|c| c.physics_position().distance(nav.position) < MIN_GAP + 0.5 * (length + c.trailer_length()))
-        {
+        let others = self.cars.iter().map(|c| (c.physics_position(), c.trailer_length()));
+        if !clear_spawn(nav.position, focus, length, others) {
             return false;
         }
         let render = space::to_render(nav.position.to_array());
@@ -98,3 +97,16 @@ impl TrafficWorld {
         true
     }
 }
+
+/// Checks the final lane position, after the random probe has been projected onto the road.
+fn clear_spawn(position: Vec3, focus: Focus, length: f32, others: impl Iterator<Item = (Vec3, f32)>) -> bool {
+    let centre = Vec3::from(space::to_physics(Vec3::new(focus.position[0], focus.position[1], 0.0)));
+    let planar_distance = |other: Vec3| (position.x - other.x).hypot(position.z - other.z);
+    if planar_distance(centre) < MIN_FOCUS_GAP {
+        return false;
+    }
+    !others.into_iter().any(|(other, trailer)| planar_distance(other) < MIN_GAP + 0.5 * (length + trailer))
+}
+
+#[cfg(test)]
+mod tests;

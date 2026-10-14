@@ -10,6 +10,8 @@ use nfsmw_data::car::{
 };
 use nfsmw_data::world::{DEFAULT_TRACK, WorldIndex};
 
+mod visuals;
+
 fn installed() -> Option<(GameDir, PhysicsData)> {
     let _ = env_logger::try_init();
     let path = std::env::var_os("NFSMW_GAME_DIR")?;
@@ -23,7 +25,16 @@ fn striker() -> CarSim {
     let spec = VehicleSpec::example();
     let bounds = CarBounds { half_dimensions: spec.dimension, pivot: Vec3::ZERO };
     CarSim::new(
-        CarPhysics { spec, bounds, walls: WallSpec::default(), geometry: None, events: None, reactions: None },
+        CarPhysics {
+            tire_integration: Default::default(),
+            jump_config: Default::default(),
+            spec,
+            bounds,
+            walls: WallSpec::default(),
+            geometry: None,
+            events: None,
+            reactions: None,
+        },
         [0.2; 4],
     )
 }

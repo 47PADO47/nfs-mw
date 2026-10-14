@@ -5,6 +5,7 @@ use blackbox_gfx::{EffectLayer, RenderBackend};
 
 use super::super::damage_marks::Mark;
 use super::super::{View, WorldScene};
+use super::entry_marks;
 
 /// Rain streaks: a pale blue, dim enough to read as water rather than light.
 const RAIN_COLOUR: [u8; 4] = [180, 200, 255, 90];
@@ -24,11 +25,15 @@ impl WorldScene {
             View::Chase => (drive.camera().position, drive.camera().forward()),
             View::Fly => (self.camera.position, self.camera.forward()),
         };
+        let car = drive.position();
         let (pose, bounds) = drive.spark_body();
         drive.vehicle_effects.set_body(pose, bounds);
         let (lamps, lamp_frame, lamp_state) = drive.lamp_source();
         let damage = drive.damage_quads();
         let layer = drive.effects.build(position, forward);
+        if self.view == View::Chase {
+            entry_marks::push_discs(&self.entry.zones, car, self.clock, &mut layer.surfaces);
+        }
         drive.vehicle_effects.geometry(position, forward, matches!(self.view, View::Chase), &mut layer.streaks);
         drive.vehicle_effects.glows(position, forward, &mut layer.glows);
         lamps.glows(lamp_frame, lamp_state, position, forward, &mut layer.glows);

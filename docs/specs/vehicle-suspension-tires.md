@@ -174,7 +174,8 @@ probe tolerance = min( max(-point_vel.y*dT, 0) + radius + |point_vel.xz|*dT , bo
 The probe asks the collision/world query for the surface below `position`: a unit normal `n` and a signed
 penetration `n.w` (metres the point is below the surface, positive = under the surface) plus the road
 surface record (§ 3.9). The probe caches last step's polygon when the wheel was on the ground
-(`usecache`). The world-query internals (`WWorldPos`) are not specified here; see open question 3.
+(`usecache`). [vehicle-ground-reference.md](vehicle-ground-reference.md) specifies the shared body list,
+independent wheel-face history, miss retention and global instance query.
 
 ### 2.3 Compression [decomp]
 
@@ -351,8 +352,11 @@ Inputs: `lat_vel`, `fwd_vel` (contact patch velocity in the wheel's frame, m/s),
    Otherwise `ground_friction = 0`, `dyn = 1`.
 6. **Branch by last step's `traction`:**
    - sliding (`traction < 1` or locked): `Fx = ground_friction * slip`, `Fy = -ground_friction * lat_vel`;
-     if `body_speed < 1 mph` and `dyn > 0.1`, both are divided by `dyn`; `Fx` is then limited in magnitude
-     to `|total_torque| / radius`.
+     if `body_speed < 1 mph` and `dyn > 0.1`, both are divided by `dyn`; the PC longitudinal limit applies
+     only when `Fx * (total_torque / radius) > 0`. In that case cap its magnitude
+     to `|total_torque| / radius`, retaining its sign. Opposite-sign forces are
+     unchanged; zero total torque does not zero sliding friction. Confirmed
+     from the PC loaded-tire routine on 2026-10-13. **[decomp]**
    - gripping: `brake_locked = false`; `Fx = total_torque / radius` (drive plus brake, all of it);
      `Fy = lateral_curve(load, |slip_angle|)` (§ 3.3) with sign opposing `lat_vel` (negative when
      `lat_vel > 0`).
@@ -457,8 +461,8 @@ the tire code; `STICK` is kept in the wheel record but unused here (open questio
 2. **PC lateral force.** Resolved: the extra multiplier is the integer 1, the scale is 2500.0, the curve table
    in `speed.exe` equals § 3.3. Whatever makes the car feel different from the original is elsewhere (loads,
    `GRIP_SCALE`/`STATIC_GRIP` values, slip angle, boosts); calibrate against a skidpad measurement.
-3. **Ground probe.** `WWorldPos` (surface query, cached polygon, smoothing flag, the meaning of
-   `normal.w` and how tolerance is used) was not read.
+3. **Ground probe.** Cached wheel/body planes and sleeping/global queries are now specified in
+   [vehicle-ground-reference.md](vehicle-ground-reference.md), with original numerical fixtures.
 4. **`dimension`.** Whether it is half-extent (assumed) or full size; `arm.y = -dim.y` and `dim.y*2` as
    vehicle height suggest half-extent.
 5. **`STICK` / `WORLD_FRICTION`** of `simsurface`: not read by the tire code; used elsewhere (body

@@ -38,9 +38,29 @@ pub struct GroundHit {
     pub surface: SurfaceGrip,
 }
 
+/// A persistent ground-plane provider's result, including retained planes after misses.
+#[derive(Clone, Copy, Debug)]
+pub struct WheelPlane {
+    pub normal: Vec3,
+    /// Signed perpendicular separation: positive when the wheel is below the plane.
+    pub separation: f32,
+    pub surface: SurfaceGrip,
+}
+
 /// The world as the vehicle sees it. Implement this over your collision data; `blackbox-collision` has a
 /// ray cast that fits.
 pub trait Ground {
+    /// Optional prepared terrain plane. `None` requests the ordinary ray-probe fallback.
+    /// Implementations keep each wheel's face history independent; reuse reflects prior compression.
+    fn wheel_plane(&self, _wheel: usize, _point: Vec3, _tolerance: f32, _reuse: bool) -> Option<WheelPlane> {
+        None
+    }
+
+    /// Grip properties associated with an opaque surface key from a prepared face.
+    fn surface_grip(&self, tag: u32) -> SurfaceGrip {
+        SurfaceGrip { tag, ..SurfaceGrip::DEFAULT }
+    }
+
     /// Body friction multiplier for an opaque surface tag; independent of tyre grip.
     fn body_friction(&self, _surface: u32) -> f32 {
         1.0

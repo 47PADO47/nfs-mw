@@ -33,8 +33,8 @@ fn section(action: Action) -> Section {
     use Action::*;
     match action {
         Throttle | Brake | Steer | Handbrake | ShiftUp | ShiftDown | GearReverse | GearNeutral | Gear1 | Gear2
-        | Gear3 | Gear4 | Gear5 | Gear6 | Gear7 | Clutch | Nos | Speedbreaker | ResetCar | ToggleCamera | CycleCamera
-        | ToggleHeadlights | LookBack => Section::Driving,
+        | Gear3 | Gear4 | Gear5 | Gear6 | Gear7 | Clutch | Nos | Speedbreaker | ResetCar | ToggleCamera
+        | CycleCamera | ToggleHeadlights | LookBack | Garage | Interact => Section::Driving,
         MoveForward | MoveRight | MoveUp | LookX | LookY | OrbitX | OrbitY | Zoom | Boost => Section::FreeCamera,
         MenuUp | MenuDown | MenuLeft | MenuRight | MenuAccept | MenuBack | MenuStart | MenuQuit | Click => {
             Section::Menus
@@ -58,6 +58,7 @@ fn labels(action: Action) -> (&'static str, &'static str) {
         Boost => ("Fly fast", ""),
         Cancel => ("Back out (release mouse, pause, quit)", ""),
         Console => ("Developer console", ""),
+        Garage => ("Garage overlay", ""),
         Throttle => ("Accelerate", ""),
         Brake => ("Brake, then reverse", ""),
         Steer => ("Steer right", "Steer left"),
@@ -75,12 +76,13 @@ fn labels(action: Action) -> (&'static str, &'static str) {
         Gear7 => ("Select gear 7 (manual transmission)", ""),
         Clutch => ("Clutch pedal (with the clutch setting on)", ""),
         Nos => ("Nitrous", ""),
-        Speedbreaker => ("Speedbreaker", ""),
+        Speedbreaker => ("Speedbreaker (press to toggle)", ""),
         ResetCar => ("Reset the car onto the road", ""),
         ToggleCamera => ("Chase camera / free camera", ""),
         CycleCamera => ("Change camera (chase, dynamic FOV, then the original views)", "C"),
         ToggleHeadlights => ("Headlights on / off", "H"),
         LookBack => ("Look back (hold)", "B"),
+        Interact => ("Interact (enter a race, safe house or shop)", ""),
         MenuUp => ("Menu up", ""),
         MenuDown => ("Menu down", ""),
         MenuLeft => ("Menu left", ""),

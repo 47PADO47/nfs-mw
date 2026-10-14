@@ -33,13 +33,16 @@ pub fn records(level: u32) -> &'static [Record] {
     }
     const HEAT_1: [Record; 1] = [r(RollingBlock, 40.0, 100.0)];
     const HEAT_2: [Record; 1] = [r(BoxIn, 40.0, 100.0)];
-    const HEAT_3: [Record; 4] = [r(BoxIn, 40.0, 25.0), r(Pit, 40.0, 60.0), r(RollingBlock, 40.0, 20.0), r(Herd, 40.0, 40.0)];
-    const HEAT_4: [Record; 4] = [r(Pit, 40.0, 50.0), r(BoxIn, 40.0, 50.0), r(Herd, 40.0, 30.0), r(RollingBlock, 40.0, 50.0)];
+    const HEAT_3: [Record; 4] =
+        [r(BoxIn, 40.0, 25.0), r(Pit, 40.0, 60.0), r(RollingBlock, 40.0, 20.0), r(Herd, 40.0, 40.0)];
+    const HEAT_4: [Record; 4] =
+        [r(Pit, 40.0, 50.0), r(BoxIn, 40.0, 50.0), r(Herd, 40.0, 30.0), r(RollingBlock, 40.0, 50.0)];
     const HEAT_5: [Record; 4] =
         [r(RollingBlock, 40.0, 50.0), r(BoxIn, 40.0, 50.0), r(Pit, 40.0, 50.0), r(Herd, 40.0, 50.0)];
     const HEAT_6: [Record; 3] = [r(RollingBlock, 40.0, 60.0), r(BoxIn, 40.0, 50.0), r(Herd, 40.0, 50.0)];
     const HEAT_7: [Record; 2] = [r(BoxIn, 40.0, 10.0), r(RollingBlock, 40.0, 60.0)];
-    const HEAT_8: [Record; 4] = [r(BoxIn, 30.0, 60.0), r(RollingBlock, 20.0, 40.0), r(Pit, 30.0, 70.0), r(Herd, 30.0, 50.0)];
+    const HEAT_8: [Record; 4] =
+        [r(BoxIn, 30.0, 60.0), r(RollingBlock, 20.0, 40.0), r(Pit, 30.0, 70.0), r(Herd, 30.0, 50.0)];
     const HEAT_9: [Record; 1] = [r(Pit, 40.0, 100.0)];
     const HEAT_10: [Record; 1] = [r(Follow, 10.0, 100.0)];
     match level.clamp(1, 10) {
@@ -97,7 +100,14 @@ impl Picker {
     /// `allowed` is false while a finisher runs, the player is busted or bailed, or the cops' speech is still going.
     /// `follow_forced` is true with a roadblock standing that has not been dodged. `random` holds two uniform
     /// numbers in `0..=1`: the first picks the weighted record, the second the random part of the next timer.
-    pub fn tick(&mut self, dt: f32, level: u32, allowed: bool, follow_forced: bool, random: [f32; 2]) -> Option<Choice> {
+    pub fn tick(
+        &mut self,
+        dt: f32,
+        level: u32,
+        allowed: bool,
+        follow_forced: bool,
+        random: [f32; 2],
+    ) -> Option<Choice> {
         self.timer -= dt;
         if self.timer > 0.0 || !allowed {
             return None;

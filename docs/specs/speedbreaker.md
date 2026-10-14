@@ -1,8 +1,11 @@
 # Speedbreaker
 
-Status: the action, the meter and the HUD bar are built. The meter's constants are placeholders, the slowdown is not
-applied, and the bar's geometry is not checked on screen. Decided by the user: the Speedbreaker is a new action with a
-control of its own, and it is wired to the speedometer HUD.
+Sources: original PC 1.3 executable inspected locally; and
+[dbalatoni13/nfsmw](https://github.com/dbalatoni13/nfsmw), CC0 declarations and
+reference behavior in `LocalPlayer.cpp`, `PInput.cpp`, `QuickGame.h` and
+`SuspensionRacer.cpp`. Read for behavior only; no decompiled expression copied.
+The action, meter and HUD bar are built. PC meter/time behavior below was
+researched on 2026-10-13. The HUD geometry still needs visual comparison.
 
 ## 1. The action [built]
 
@@ -10,28 +13,77 @@ control of its own, and it is wired to the speedometer HUD.
   (`input/describe.rs`).
 - Default keyboard binding: **Left Ctrl** (`input/bindings.rs`). The original's Speedbreaker is on Ctrl in its own
   keyboard screen (the first screenshot), so the default follows it.
+- The remake additionally defaults to mouse **Back** and gamepad **East**
+  (Xbox B / PlayStation Circle). These are host choices, not original PC defaults.
+  Left Ctrl is reserved for Speedbreaker; Right Ctrl remains a downshift key.
+  A normalized wheel East button works through the same gamepad binding, and
+  device-specific buttons/axes/pedals can be rebound and saved.
 - The controls list's "Speedbreaker" row changes this action. It used to change `Boost` (Shift), which was wrong:
   Boost is the free camera's "fly fast" and is not the original's Speedbreaker.
 
-## 2. The meter [built; constants are placeholders]
+## 2. The meter [decomp, PC constants verified]
 
-`scenes/world/drive/speedbreaker.rs`: `SpeedBreaker { meter }`, from 0 to 1, a new car starts full.
+`scenes/world/drive/speedbreaker.rs` holds charge from zero to one and the active
+flag. A reset can restore a full meter and always deactivates the breaker.
 
-- While the action is held and the meter is above zero, the meter drains: `DRAIN_SECONDS` (5 s) to empty.
-- Otherwise, while the car is below `RECHARGE_BELOW_MPS` (100 km/h), it recharges: `RECHARGE_SECONDS` (10 s) to full.
-- `step` returns whether the breaker is in use (held, with charge).
+- The action toggles on a button press. Releasing it does not deactivate the
+  breaker. A second press toggles it off.
+- Activation needs positive charge and at least 30 mph on the speedometer.
+  Falling below 30 mph deactivates it. The original also disallows activation
+  during loading, staging, animation, a cinematic or multiplayer.
+- While active, charge drains at 0.1 per **real second** (ten seconds full to
+  empty), then deactivates at zero. The infinite-breaker cheat skips depletion.
+- While inactive, normal recharge occurs only strictly **above 100 mph** and
+  adds `simulation_delta / 25`. These are PC globals, not vehicle attributes.
+- A separate drift recharge adds `simulation_delta * 0.5 * drift_strength`
+  when inactive, speed is strictly above 35 mph and absolute slip/yaw is
+  strictly above 30 degrees. Charge is capped at one.
+  This producer runs once per successful player physics tick, after the drift
+  strength updates, using physical chassis speed and body slip rather than the
+  wheel-based speedometer. The exact PC thresholds are in
+  [final audit corrections](vehicle-final-audit.md).
+- Nitrous recharge is denied while the player breaker is active.
 
-These three constants are **our placeholders**. The mod's keys (`SBRechargeTime`, `SBRechargeSpeedLimit`,
-`SBMassMultiplier`, see [extra-options.md](extra-options.md)) are not the game's attribute names, and a probe of
-`GLOBAL/ATTRIBUTES.BIN` by those names found nothing. The original's values are not read.
+The original values were read from the PC executable and checked against the
+meter routines. Mod option keys are separate configuration inputs and do not
+identify AttribSys fields.
 
-The meter steps once per physics tick (`scenes/world/drive/simulation.rs`), with the input flag `DriveInput::speedbreaker`
-and the car's speed.
+The meter processes button edges once per loaded render frame, with the input
+flag `DriveInput::speedbreaker` and the speedometer speed. Recharge uses that
+frame's simulation delta; depletion uses its real delta. Frames that produce
+no physics tick still consume real-time charge. The garage and unavailable
+local road data freeze both meter and clock progression.
 
-## 3. The slowdown [not built]
+## 3. Global time and vehicle effects [decomp]
 
-The breaker is "in use" but nothing slows yet. The effect the original has is a slower world clock (the physics clock,
-which `game_speed` multiplies). Which objects slow, and by how much, is not read yet.
+The single-player time manager targets a simulation-speed multiplier of 0.25
+while active. It moves the current multiplier toward 0.25 by two per real
+second, taking 0.375 seconds to enter from normal speed. On exit it moves toward
+one by 0.5 per real second, taking 1.5 seconds from quarter speed. World physics
+uses this simulation clock; charge depletion still uses the real clock.
+The multiplier transition flag remains set through the return to normal speed.
+Separate cinematic time overrides and multiplayer mode are outside this meter.
+
+The remake integrates the linear ramp over each frame, then feeds the resulting
+simulation delta to the shared 60 Hz accumulator. Player, AI, props, contacts,
+police timers, rain, scenery animation and day progression use this clock.
+Chase-camera frame input is scaled before accumulation across fixed ticks.
+The generic GameSpeed setting remains a separate multiplier. Screenshot batches
+use six fixed-step durations as a synthetic real frame, so scripts advance
+deterministically through the same shared clock without wall-time dependence.
+These integration choices have synthetic frame-rate and transition coverage;
+they have not been compared against a live PC driving capture.
+The final PC scheduler audit found an architectural difference: the original
+updates the multiplier once per 60 Hz real-time tick, then advances physics by
+that tick's duration times the final multiplier. The remake's frame integral
+and fixed simulation-time accumulator are not equivalent during Speedbreaker.
+
+The PC begin/end event also sets the player's collision mass override to twice
+the original mass while active and clears the override on exit. The reference
+suspension applies two extra downward g, reduces aerodynamic drag to 25 percent,
+increases front-wheel grip by `1 + 0.75 * abs(steering_input)`, and moves the
+steering target toward `steering_input * 60` degrees. These are additional
+vehicle effects; a changed clock alone does not establish their parity.
 
 ## 4. The HUD bar [built; not checked on screen]
 
@@ -54,16 +106,9 @@ original does (the bar is only driven, not shown or hidden). The next step is a 
 
 The race timer ("00:00.00", `0xE1AA7`) is a different timer, at the top right of the screen.
 
-## 5. Open
+## 5. Remaining comparison
 
-- **The original's name is "GameBreaker".** Ghidra's strings for the Speedbreaker are `GAMEACTION_GAMEBREAKER`
-  (`0x008A6600`), `GAME_ACTION_GAMEBREAKER` (`0x008A5A24`), `StartBreaker` (`0x008A78E8`) and `TIP_SPEEDBREAKER`
-  (`0x008A005C`). Neither action string has a direct cross-reference, so the code reaches them through a table.
-  The function that reads the constants and runs the meter is not found yet.
-  Searched the code (Ghidra `search_byte_patterns`) for the FEng hashes of these names (`GAMEBREAKER` `0x266E53F5`,
-  `SPEEDBREAKER` `0x1731352C`, `GAMEACTION_GAMEBREAKER` `0x1970C22C`, `StartBreaker` `0xCAE8D0C9`): no match. So the game
-  does not reach these names through the FEng hash in code; it uses another key (the attribute or string hash). That
-  key is the next thing to find.
-- The original's constants (`DRAIN`, `RECHARGE`, the speed limit) and its recharge rule.
-- The slowdown: what it slows, and how much.
-- The bar's geometry against the screen, and whether the icon group should show only while the car has the breaker.
+- Compare live PC activation, depletion and clock transitions with the remake.
+- Validate remaining collision mass/inertia paths and scheduler integration.
+- Compare audio treatment and camera/visual effects.
+- Check HUD bar geometry, direction and icon visibility against the original.

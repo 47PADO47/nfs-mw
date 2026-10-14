@@ -31,6 +31,7 @@ impl Tire {
     /// Updates a tire pressed onto the ground and returns the lateral force (N, negative when the patch
     /// moves to the right). The longitudinal force is left in [`Tire::longitudinal_force`].
     pub fn update_loaded(&mut self, p: &TireParams, i: &LoadedInput) -> f32 {
+        let reference = self.integration == super::TireIntegration::Reference;
         let r = p.radius;
         let dt = i.dt;
         let (fwd, lat) = (i.fwd_vel, i.lat_vel);
@@ -39,8 +40,10 @@ impl Tire {
         if self.load <= 0.0 && !self.brake_locked {
             self.av = fwd / r;
             // Forget the speed and spin acceleration from before the wheel left the ground.
-            self.road_speed = fwd;
-            self.angular_acc = 0.0;
+            if !reference {
+                self.road_speed = fwd;
+                self.angular_acc = 0.0;
+            }
         }
         let fwd_acc = (fwd - self.road_speed) / dt;
         self.road_speed = fwd;
@@ -53,12 +56,17 @@ impl Tire {
         let bt = self.brake * p.brake_spec;
         let ebt = self.ebrake * p.ebrake_spec;
         let mut brake_torque = 0.0;
-        if fwd.abs() < 1.0 {
+        if reference && self.brake_locked {
+            self.drive_torque = 0.0;
+        } else if fwd.abs() < 1.0 {
             // A viscous stop proportional to load and speed. Capped so a quarter of the body cannot be
             // pushed through zero speed in one step.
             let viscous = -(self.brake + self.ebrake) * load * fwd / r;
             let cap = i.quarter_mass * fwd.abs() / dt * r;
-            brake_torque = viscous.clamp(-cap, cap);
+            brake_torque = match reference {
+                true => viscous,
+                false => viscous.clamp(-cap, cap),
+            };
             self.drive_torque -= self.drive_torque * self.ebrake.clamp(0.0, 1.0);
         } else if !self.brake_locked {
             brake_torque = if self.av > 0.0 { -(bt + ebt) } else { bt + ebt };
@@ -75,17 +83,24 @@ impl Tire {
         let (mut dyn_grip, mut ground_friction, mut ground_force) = (1.0, 0.0, 0.0);
         if skid > EPS && patch_speed > EPS {
             dyn_grip = p.dynamic_grip * self.traction_boost * pilot;
-            ground_friction = load * dyn_grip / skid.max(SKID_FLOOR);
+            let divisor = match reference {
+                true => skid,
+                false => skid.max(SKID_FLOOR),
+            };
+            ground_friction = load * dyn_grip / divisor;
             ground_force = fwd.abs() * load * dyn_grip / patch_speed;
         }
 
         // Brake lock test.
         let available = (self.brake * p.brake_lock_spec + self.ebrake * p.ebrake_spec) * LOCK_RATIO;
-        let locked = if available > ground_force * r + self.av.abs() * LOCK_AV_FACTOR {
-            self.av = 0.0;
-            available > 1.0
-        } else {
-            false
+        let test_lock = !reference || (skid > EPS && patch_speed > EPS);
+        let locked = match (test_lock, available > ground_force * r + self.av.abs() * LOCK_AV_FACTOR) {
+            (false, _) => self.brake_locked,
+            (_, true) => {
+                self.av = 0.0;
+                available > 1.0
+            }
+            _ => false,
         };
         self.brake_locked = locked;
 
@@ -95,7 +110,8 @@ impl Tire {
             slide_x /= dyn_grip;
             slide_y /= dyn_grip;
         }
-        if !locked {
+        let reference_limit = reference && slide_x * total_torque > 0.0;
+        if reference_limit || (!reference && !locked) {
             let limit = total_torque.abs() / r;
             slide_x = slide_x.clamp(-limit, limit);
         }
@@ -111,7 +127,11 @@ impl Tire {
         let grip_x = total_torque / r + (self.angular_acc * r - fwd_acc) * WHEEL_INERTIA / r;
         // The original picks one branch by last step's traction, which makes a tire at its limit flip
         // between the two every step. Blending by that traction settles on the friction limit instead.
-        let w = if locked { 0.0 } else { self.traction.clamp(0.0, 1.0) };
+        let w = match (locked, reference, self.traction >= 1.0) {
+            (true, _, _) | (_, true, false) => 0.0,
+            (_, true, true) => 1.0,
+            _ => self.traction.clamp(0.0, 1.0),
+        };
         let mut fx = w * grip_x + (1.0 - w) * slide_x;
         let mut fy = (w * grip_y + (1.0 - w) * slide_y) * self.lateral_boost;
 
@@ -162,7 +182,7 @@ impl Tire {
                 let eff = torque - self.av * ROLLING_FRICTION * i.surface.rolling;
                 self.angular_acc = eff / WHEEL_INERTIA - self.traction * slip / (r * dt);
             }
-            if self.traction >= 1.0 {
+            if !reference && self.traction >= 1.0 {
                 // A gripping wheel follows the ground, and also sheds any slip left over from the last
                 // step (a constant offset made the gripping and sliding branches alternate at the limit).
                 self.angular_acc = fwd_acc / r - slip / (r * dt);

@@ -211,7 +211,7 @@ exactly.
 | 0x14 | f32 | elevation (m); heights for tunnels, overpasses, garages |
 | 0x18 | i8 | source (1 for elevation zones, 0 for the others here) |
 | 0x19 | i8 | cached index (runtime) |
-| 0x1A | i16 | visit info (runtime) |
+| 0x1A | i16 | visit info (runtime); retained by the reader; selected dynamic enclosure rejects value1 |
 | 0x1C | u32 | user-data pointer (runtime) |
 | 0x20 | f32[2] ×2 | bounding box min, max |
 | 0x30 | i32[4] | data |

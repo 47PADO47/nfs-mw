@@ -63,6 +63,10 @@ clear the miss-shift flag
   [inferred]. A stock engine of a car that can be upgraded gives no flame at a shift; a car with
   `engine_upgrades = 0` (BMW M3 GTR, FXX Evo, SF90, SL 65, Camaro, Corvette C6.R, Porsche 911 GT2 and the career
   start BMW M3 E46 among them) always has it; every upgrade level above 0 turns it on. [verified values]
+  The remake updates this ordinary engine level from the garage's installed
+  package when the package changes. Junkman flags do not change that ordinary
+  level. This replaces the diagnostic console-only default; the existing
+  eligibility equation and loaded emitter data remain the same.
 - **`shifting`** (a float, 0 when idle): set to `+1` by an up-shift event and `-1` by a down-shift event
   (`VehicleRenderConn::E_UPSHIFT = 3`, `E_DOWNSHIFT = 4`; `E_MISS_SHIFT = 0`), through
   `CarRenderConn::OnEvent`. **Who raises these events is [not found]**: nothing in the sources calls

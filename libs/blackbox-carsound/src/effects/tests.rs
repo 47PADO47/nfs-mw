@@ -32,7 +32,7 @@ fn turbo_tuning() -> CarSoundTuning {
         charge_time: 15.0,
         leak_rate: 0.5,
         blowoff_volume: [20000, 24000],
-        blowoff_seconds: 1.0,
+        blowoff_seconds: [1.0; 3],
     };
     CarSoundTuning { turbo: Some(turbo), ..tuning() }
 }
@@ -241,6 +241,34 @@ fn a_landing_after_a_jump_reports_how_hard() {
     assert!(rig.landings.is_empty());
 }
 
+#[test]
+fn a_single_wheel_cannot_complete_a_landing_and_front_intensity_ignores_rear_compression() {
+    let mut rig = Rig::new(tuning());
+    let air = CarInput { wheels: [WheelInput { on_ground: false, ..Default::default() }; 4], ..driving(20.0) };
+    rig.run(0.2, air);
+    let mut one = air;
+    one.wheels[0].on_ground = true;
+    rig.run(0.05, one);
+    assert!(rig.landings.is_empty(), "both wheels must touch to complete their pair");
+    let mut front = one;
+    front.wheels[0].compression = 0.01;
+    front.wheels[1] = WheelInput { on_ground: true, compression: 0.01, ..Default::default() };
+    front.wheels[2].compression = 0.65;
+    front.wheels[3].compression = 0.65;
+    rig.run(TICK_SECONDS, front);
+    assert_eq!(rig.landings.len(), 1);
+    assert!(rig.landings[0].magnitude < 0.1, "front landing must use the front axle's own compression");
+}
+
+#[test]
+fn an_empty_impact_level_ends_the_authored_level_range() {
+    let mut fx = EffectsMixer::new(&tuning());
+    let selected =
+        fx.impact(&ImpactRequest { magnitude: 1.0, light_wall: false, tuning: &tune([2, 0, 2, 2]) }).unwrap();
+    assert_eq!(selected.level, 0);
+    assert!(fx.impact(&ImpactRequest { magnitude: 1.0, light_wall: false, tuning: &tune([0, 2, 2, 2]) }).is_none());
+}
+
 fn tune(lengths: [u32; 4]) -> CollisionTuning {
     CollisionTuning { level_lengths: lengths, volumes: [10000, 15000, 20000, 25000], stream_thresholds: vec![] }
 }
@@ -254,7 +282,7 @@ fn an_impact_picks_a_level_by_magnitude_and_walks_the_samples() {
     let hard = fx.impact(&hit(1.0)).unwrap();
     assert_eq!((soft.level, hard.level), (0, 3));
     assert!(hard.volume > soft.volume);
-    assert_eq!((soft.index, hard.index), (0, 1), "the counter moves on");
+    assert_eq!((soft.index, hard.index), (1, 2), "the counter increments before selection");
     let mid = fx.impact(&hit(0.5)).unwrap();
     assert!((1..=2).contains(&mid.level));
     // Two lists in use: the loudest hit uses the second.

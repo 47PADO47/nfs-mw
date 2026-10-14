@@ -226,7 +226,12 @@ pub fn in_position_offsets(formation: Formation, t: f32) -> Option<Vec<Vec2>> {
         Formation::Pit => Some(vec![Vec2::new(-10.0, -2.7), Vec2::new(10.0, -2.7)]),
         Formation::BoxIn => {
             let (foff, s) = (2.0 - 5.0 * t, 0.7 - 0.5 * t);
-            Some(vec![Vec2::new(0.0, foff), Vec2::new(-3.5 * s, 0.0), Vec2::new(3.5 * s, 0.0), Vec2::new(0.0, -7.5 * s)])
+            Some(vec![
+                Vec2::new(0.0, foff),
+                Vec2::new(-3.5 * s, 0.0),
+                Vec2::new(3.5 * s, 0.0),
+                Vec2::new(0.0, -7.5 * s),
+            ])
         }
         Formation::RollingBlock => {
             let (foff, s) = (2.0 - 5.0 * t, 1.0 - 0.8 * t);

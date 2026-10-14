@@ -5,6 +5,17 @@ Licensed under MIT OR Apache-2.0 (see LICENSE-MIT and LICENSE-APACHE).
 This repository contains no game assets and no decompiled code. The game is read
 at runtime from the user's own installation.
 
+Performance package resolution: original PC 1.3 upgrade behavior inspected
+locally, with dbalatoni13/nfsmw CC0 declarations as a reference.
+  https://github.com/dbalatoni13/nfsmw
+  Spec-first implementation; no decompiled code or game values copied.
+
+Performance tuning: original PC 1.3 limits, equipment gates, profile retention
+and induction/nitrous/cache behavior inspected locally; dbalatoni13/nfsmw CC0
+frontend and physics declarations used as references.
+  https://github.com/dbalatoni13/nfsmw
+  Independent spec-first implementation; no game assets or decompiled code included.
+
 Controller prompt artwork: Kenney Input Prompts 1.5A — CC0 1.0 Universal.
   https://kenney.nl/assets/input-prompts
   https://creativecommons.org/publicdomain/zero/1.0/
@@ -84,6 +95,13 @@ VP6 video decoder, linked as a git dependency of libs/blackbox-movie (not vendor
     them. Pinned to commit 12d0bdf10a85641dc2de3d6900c747894431ed77. Only this subset is
     MIT: the rest of NihAV is AGPL-3.0 and is not used.
 
+Icons
+
+  Discord mark (assets/discord/discord.png) — Simple Icons, https://simpleicons.org — CC0-1.0
+    https://cdn.simpleicons.org/discord rasterised to 128x128 white on transparent. The Discord name
+    and logo are trademarks of Discord Inc., used only to label the Discord settings; not endorsed by
+    Discord. See assets/discord/README.md.
+
 Rust dependencies are fetched by Cargo and keep their own licenses; see
 Cargo.lock and `cargo deny check licenses`. Binary releases will include a
 generated third-party license file.
@@ -131,6 +149,10 @@ Engines, viewers and hook projects
   codepdbh/nfsmw-android — https://github.com/codepdbh/nfsmw-android — GPL-3.0, read only.
     Xbox 360 native renderer and reflection synchronization notes considered as context.
     No code or assets copied; see docs/provenance/car-reflections.md.
+  hedge-dev/XenosRecomp (copied in codepdbh/nfsmw-android/shaders/XenosRecomp) — MIT,
+  Copyright (c) 2025 hedge-dev and contributors — https://github.com/hedge-dev/XenosRecomp — read only.
+    Xbox 360 shader translator: the control-flow and container design was read for ideas. No code copied.
+    See docs/xenos-shaders/README.md. The fork's own files in that folder are GPL-3.0 (see above).
   berkayylmao/NFSPluginSDK — BSD-3-Clause. gaycoderprincess/nya-common-nfsmw — MPL-2.0.
   ThirteenAG/WidescreenFixesPack — MIT (registry key, camera, aspect-aware HUD placement).
     https://github.com/ThirteenAG/WidescreenFixesPack — reference only; no code copied.

@@ -17,6 +17,10 @@ Reader for the **collision data** of EA Black Box games (Need for Speed: Most Wa
   Rejected hits cannot hide another hit in the same article or a different instance. The predicate sees
   world-space hit data, including its section and instance; ordinary `ray_cast` remains unfiltered.
 - `carp`: the generic `UGroup` tree the packs and the grid are made of.
+- `ground_reference::GroundReferenceCache`: persistent ordered face selection
+  with a predictive candidate region and retained terrain plane. Query settings
+  and scenery-group state come from the caller; streaming revisions rebuild
+  candidates. Behavior is specified in `docs/specs/vehicle-ground-reference.md`.
 
 Takes bytes, never opens files. Coordinates are the game's physics space (x right, y up, z forward).
 

@@ -14,6 +14,8 @@ use super::resident::{Placed, SectionResources, place};
 use super::zone::Zones;
 
 #[cfg(test)]
+mod installed_tests;
+#[cfg(test)]
 mod tests;
 
 /// Requests in flight at once.

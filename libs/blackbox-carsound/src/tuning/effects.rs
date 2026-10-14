@@ -12,12 +12,12 @@ pub struct TurboTuning {
     /// Blow-off volumes (`Vol_Blowoff1`, `Vol_Blowoff2`), 0 to 32767; 0 means none.
     pub blowoff_volume: [u32; 2],
     /// How long the blow-off sample plays, seconds (the game fills it with the decoded length).
-    pub blowoff_seconds: f32,
+    pub blowoff_seconds: [f32; 3],
 }
 
 impl Default for TurboTuning {
     fn default() -> Self {
-        Self { spool_volume: 0, charge_time: 20.0, leak_rate: 0.5, blowoff_volume: [0, 0], blowoff_seconds: 1.5 }
+        Self { spool_volume: 0, charge_time: 20.0, leak_rate: 0.5, blowoff_volume: [0, 0], blowoff_seconds: [1.5; 3] }
     }
 }
 

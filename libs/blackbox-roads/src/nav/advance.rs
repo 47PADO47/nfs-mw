@@ -4,7 +4,7 @@
 use glam::Vec3;
 
 use super::next::Step;
-use super::{RandomSource, RoadNav};
+use super::{NavKind, RandomSource, RoadNav};
 use crate::{MIN_CHORD, RoadNetwork};
 
 /// Guards against a pathological graph: segments crossed by one advance.
@@ -61,11 +61,16 @@ impl RoadNav {
             match self.next_segment(net, toward, rng) {
                 Step::Stay => self.dead_end = true,
                 Step::To { segment, node_ind, lane } => {
+                    let start = self.line.end();
+                    let bounds = self.trail().map(|_| self.bound_lines(net).map(|line| line.end()));
                     self.segment = segment;
                     self.node_ind = node_ind;
                     self.lane = lane;
                     self.t = 0.0;
-                    self.rebuild(net);
+                    match self.kind {
+                        NavKind::Traffic => self.continue_from_end(net, start, bounds),
+                        _ => self.rebuild(net),
+                    }
                 }
             }
         }

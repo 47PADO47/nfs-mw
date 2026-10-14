@@ -12,12 +12,14 @@
 //! - [`sound`]: a car's engine sound set (`.gin` loops, banks and mix tuning) from the attribute database;
 //! - [`speech`]: the scheduling data of the police dispatch's speech events from the attribute database.
 //! - [`time_of_day`]: the 8 lighting presets from the attribute database and the blend between two (no clock yet).
+//! - [`gameplay`]: the race events, their box triggers (start, finish, checkpoints) and the auto shop and safe house zones.
 
 pub mod camera;
 pub mod car;
 mod files;
 pub mod fog;
 pub mod game;
+pub mod gameplay;
 pub mod minimap;
 pub mod music;
 pub mod pursuit;

@@ -84,9 +84,7 @@ impl Audio {
         }
     }
 
-    /// Ask for a speech event (by its `SpeechID`) to be said by `speaker` (1 to 9; 0 for any). This is what gameplay
-    /// calls; nothing does yet, because there are no pursuits.
-    #[allow(dead_code)]
+    /// Ask for a speech event (by its `SpeechID`) to be said by `speaker` (1 to 9; 0 for any).
     pub fn say(&mut self, event: u32, speaker: u16) -> Result<Outcome, String> {
         if self.speech.volume <= super::AUDIBLE {
             return Ok(Outcome::Muted);
@@ -94,9 +92,22 @@ impl Audio {
         Ok(self.speech()?.request(event, speaker))
     }
 
+    /// Ask for the speech event with this name (case does not matter), if the tables have one.
+    pub fn say_named(&mut self, name: &str, speaker: u16) -> Result<Outcome, String> {
+        if self.speech.volume <= super::AUDIBLE {
+            return Ok(Outcome::Muted);
+        }
+        let id = self
+            .speech()?
+            .dispatcher()
+            .find(name)
+            .map(|e| e.id)
+            .ok_or_else(|| format!("no speech event named {name:?}"))?;
+        self.say(id, speaker)
+    }
+
     /// The state of the pursuit the speech rules look at: the wanted level, the player's speed in miles per hour
-    /// and how long the pursuit has lasted. Nothing sets it yet.
-    #[allow(dead_code)]
+    /// and how long the pursuit has lasted. Set every frame by the chase (see `chase.rs`).
     pub fn set_speech_context(&mut self, heat: i32, player_mph: f32, pursuit_secs: f32) {
         self.speech.context = Context { heat, player_speed: player_mph };
         self.speech.pursuit_secs = pursuit_secs;

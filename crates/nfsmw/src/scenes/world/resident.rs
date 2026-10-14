@@ -163,10 +163,8 @@ pub fn place(
                 continue;
             }
             let spawner = hooks.get(&instance).and_then(|id| spawners.get(id)).copied();
-            let prop = match spawner {
-                Some(spawn) => props.for_spawner(&info.name, spawn),
-                None => props.shape(&info.name),
-            };
+            // Static solidity comes from authored world collision, not a model-name bounds guess.
+            let prop = spawner.and_then(|spawn| props.for_spawner(&info.name, spawn));
             if spawner.is_some() && prop.is_none() {
                 log::debug!("no physics bounds/attributes for placed {}", info.name);
             }

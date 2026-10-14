@@ -41,6 +41,11 @@ Levels are hundredths of a dB (-10000 = silence) inside the graph and Q15 (`0x7F
 filter slots; pitch slots hold cents. `q15_from_db`, `db_from_q15`, `curve`, `curve_db` and `pitch_ratio` are
 public.
 
+`event_output(state, instance, event)` returns a Q15 position and signed level.
+`override_event` lets independently clocked instances consume that snapshot,
+skipping local event advancement. Unknown events and invalid Q15 positions are
+rejected. Pass `None` to resume local evaluation.
+
 ## Tests
 
 `cargo test -p blackbox-mixmap`: the shapes and conversions (round trips, end points, monotonicity), the ids,

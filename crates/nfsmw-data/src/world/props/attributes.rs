@@ -9,6 +9,7 @@ use crate::car::physics::{Fields, rigid_body_spec};
 
 #[derive(Debug, Clone)]
 pub struct PropDynamics {
+    pub sound_profile: u32,
     pub mass: f32,
     pub tensor_scale: Vec3,
     pub body: RigidBodySpec,
@@ -41,6 +42,7 @@ impl PropDynamics {
             false => 2.0,
         }));
         Some(Self {
+            sound_profile: collection.key(),
             mass,
             tensor_scale,
             body: rigid_body_spec(body),

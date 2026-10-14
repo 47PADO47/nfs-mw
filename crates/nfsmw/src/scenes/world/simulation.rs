@@ -4,22 +4,18 @@ use blackbox_gfx::RenderBackend;
 
 use super::{View, WorldScene, ai, drive::STEP};
 use crate::input::ActionState;
-use crate::viewer::camera::Camera;
 
 /// A screenshot update has no elapsed frame time, so it runs this many shared ticks.
 const BATCH_STEPS: u32 = 6;
 
 impl WorldScene {
-    pub(super) fn update_simulation(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
+    pub(super) fn update_simulation(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) -> f32 {
         self.prepare_traffic(renderer);
         let driving = self.view == View::Chase;
-        if let Some(drive) = self.drive.as_mut() {
-            if driving {
-                drive.prepare_frame(input, dt);
-            }
-            if !driving || drive.waiting_for_road().is_some() {
-                drive.age_effects(dt);
-            }
+        if let Some(drive) = self.drive.as_mut()
+            && driving
+        {
+            drive.prepare_frame(input, dt);
         }
         let batch = dt == 0.0
             && ((driving && self.drive.as_ref().is_some_and(|d| d.needs_batch()))
@@ -27,11 +23,26 @@ impl WorldScene {
         // Only missing local world data pauses simulation, not loading distant visible scenery.
         let speed = self.drive.as_ref().map_or(0.0, |drive| drive.speed().abs());
         let loaded = self.residency.simulation_ready(self.focus(), 20.0 + speed * dt.max(STEP));
-        let steps = match (loaded, batch) {
-            (false, _) => 0,
-            (true, true) => BATCH_STEPS,
-            (true, false) => self.physics_clock.advance(dt * self.tuning.game_speed),
+        let real_dt = match batch {
+            true => BATCH_STEPS as f32 * STEP,
+            false => dt,
         };
+        let sim_dt = match loaded {
+            false => 0.0,
+            true => {
+                let active = self.drive.as_mut().filter(|_| driving).is_some_and(|drive| drive.prepare_time());
+                self.speedbreaker_clock.advance(active, real_dt) * self.tuning.game_speed
+            }
+        };
+        if loaded && let Some(drive) = self.drive.as_mut().filter(|_| driving) {
+            drive.finish_time(input, sim_dt, real_dt);
+        }
+        if let Some(drive) = self.drive.as_mut()
+            && (!driving || drive.waiting_for_road().is_some())
+        {
+            drive.age_effects(sim_dt);
+        }
+        let steps = self.physics_clock.advance(sim_dt);
         let look = self.drive.as_mut().map_or((0.0, 0.0), |drive| drive.take_look(steps));
         for _ in 0..steps {
             self.physics_step(driving, look);
@@ -49,7 +60,9 @@ impl WorldScene {
                 let view = drive.player_view();
                 let cast = super::drive::walls::world_cast(collision);
                 let clear = |from: glam::Vec3, to: glam::Vec3| cast(from, to).is_none();
-                traffic.update_police(dt, &view, &clear);
+                // The simulated time of this update, as the traffic gets it: a screenshot run has no frame time, so
+                // a per-frame dt would stop the police clock offscreen.
+                traffic.update_police(steps as f32 * STEP, &view, &clear);
                 // A support roll asked for a roadblock: the world places it, and the chase keeps no second one.
                 if traffic.take_roadblock_request() {
                     match traffic.place_roadblock(view, collision, &self.physics.surfaces) {
@@ -78,11 +91,19 @@ impl WorldScene {
             });
             drive.trace_frame(dt, steps, loaded, self.residency.complete());
         }
+        let speedbreaker_active = driving && self.drive.as_ref().is_some_and(|drive| drive.speedbreaker_active());
+        if speedbreaker_active && !self.sound_speedbreaker_active {
+            self.common_sounds.push(crate::audio::CommonEvent::Speedbreaker);
+        }
+        self.sound_speedbreaker_active = speedbreaker_active;
+        self.common_sounds.extend(self.residency.world_parts().1.take_common_sounds());
+        sim_dt
     }
 
     /// Every moving car integrates before pair contacts, and every pose is captured after those contacts.
     fn physics_step(&mut self, driving: bool, look: (f32, f32)) {
         let focus = self.traffic_focus();
+        let event_view = self.simulation_lens(self.physics_aspect).position;
         let (collision, props) = self.residency.world_parts();
         let surfaces = &self.physics.surfaces;
         props.step(&super::drive::WorldGround { collision, surfaces }, STEP);
@@ -94,11 +115,11 @@ impl WorldScene {
             traffic.step(focus, collision, props, surfaces);
             let player = self.drive.as_mut().filter(|_| player_step.is_some()).and_then(|d| d.sim_mut());
             traffic.collide(player);
-            traffic.update_events(props, &self.physics, self.camera.position);
+            traffic.update_events(props, &self.physics, event_view);
             traffic.finish_step(focus, collision, surfaces);
         }
         if let (Some(drive), Some(step)) = (self.drive.as_mut(), player_step) {
-            drive.update_events(props, &self.physics, self.camera.position);
+            drive.update_events(props, &self.physics, event_view);
             drive.finish_step(collision, surfaces, step);
         }
         let stops = props.update_scenery(&self.physics);
@@ -108,10 +129,8 @@ impl WorldScene {
         if let Some(drive) = self.drive.as_mut().filter(|_| driving) {
             drive.follow(collision, look, STEP);
         }
-        let view = match self.drive.as_ref().filter(|_| self.view == View::Chase) {
-            Some(drive) => drive.physics_camera().view_proj(self.physics_aspect),
-            None => self.camera.lens(self.physics_aspect).view_proj(),
-        };
+        let view = self.simulation_lens(self.physics_aspect).view_proj();
+        let (collision, props) = self.residency.world_parts();
         props.update_lifetimes(&super::drive::WorldGround { collision, surfaces }, view, STEP);
     }
 }

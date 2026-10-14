@@ -8,6 +8,7 @@ use blackbox_feng::{PackageId, Runtime};
 use game_install::GameDir;
 
 use super::bind::HudBinding;
+use super::blip_styles;
 use super::minimap::MinimapBinding;
 use super::radio::RadioHud;
 use super::state::{HudState, MapPosition};
@@ -62,8 +63,12 @@ impl Plugin for HudPlugin {
         }
         let package = runtime.load(package);
         let minimap = MinimapBinding::open_city(&runtime, package, &self.dir, &assets);
-        let binding = HudBinding::new(&mut runtime, package).with_minimap(minimap);
-        let viewport = HudViewport::new(&runtime.tree(package));
+        let mut binding = HudBinding::new(&mut runtime, package).with_minimap(minimap);
+        // Before the viewport: its icons take the minimap's side with the others.
+        for style in blip_styles::map_icon_styles() {
+            binding.add_blip_style(&mut runtime, package, style);
+        }
+        let viewport = HudViewport::new(&runtime.tree(package), &binding.blip_icon_hashes());
         let trax = trax::load(&self.dir, &mut runtime);
         app.insert_resource(Hud { runtime, package, binding, viewport, trax })
             .insert_resource(self.initial.clone())

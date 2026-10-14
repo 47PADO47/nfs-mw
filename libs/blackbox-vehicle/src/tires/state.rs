@@ -41,6 +41,7 @@ pub struct LoadedInput {
 /// State and per-step modifiers of one tire. The tire carries no mass; the wheel inertia is a constant.
 #[derive(Clone, Copy, Debug)]
 pub struct Tire {
+    pub integration: super::TireIntegration,
     /// Rotation speed (rad/s), + when rolling forward.
     pub av: f32,
     pub load: f32,
@@ -76,6 +77,7 @@ pub struct Tire {
 impl Default for Tire {
     fn default() -> Self {
         Self {
+            integration: super::TireIntegration::default(),
             av: 0.0,
             load: 0.0,
             lateral_force: 0.0,
@@ -123,7 +125,7 @@ impl Tire {
     /// follows with a small dead band.
     pub(super) fn check_sign(&mut self) {
         const DEAD_BAND: f32 = 1e-6;
-        if (self.last_sign > 0 && self.av < -DEAD_BAND) || (self.last_sign < 0 && self.av > DEAD_BAND) {
+        if (self.last_sign > 0 && self.av < 0.0) || (self.last_sign < 0 && self.av > 0.0) {
             self.av = 0.0;
         }
         self.last_sign = if self.av > DEAD_BAND {
@@ -135,11 +137,15 @@ impl Tire {
         };
     }
 
-    /// Rolling rate for display: 0 when locked, the ground rate when sliding on the ground, else the wheel speed.
-    pub fn display_av(&self, radius: f32) -> f32 {
+    /// Reported rate: locked wheels return zero. Reference feedback uses ground rate while gripping,
+    /// raw rate while spinning. Regularized visual feedback retains its sliding-ground substitution.
+    pub fn display_av(&self, radius: f32, compressed: bool) -> f32 {
         if self.brake_locked {
             0.0
-        } else if self.load > 0.0 && self.traction < 1.0 {
+        } else if match self.integration {
+            super::TireIntegration::Reference => compressed && self.traction >= 1.0,
+            super::TireIntegration::Regularized => self.load > 0.0 && self.traction < 1.0,
+        } {
             self.road_speed / radius
         } else {
             self.av

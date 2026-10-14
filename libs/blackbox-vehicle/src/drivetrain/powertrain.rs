@@ -1,8 +1,10 @@
+mod reconfigure;
+
 use super::gearbox::{ShiftPoints, ShiftPotential};
 use super::spec::{GEAR_FIRST, GEAR_NEUTRAL, GEAR_REVERSE, TransmissionSpec};
 use crate::engine::{Clutch, EngineSpec};
 use crate::induction::{Induction, InductionInput, InductionSpec};
-use crate::math::{clamp_signed, mph_to_ms, rad_to_rpm, ramp, rpm_to_rad};
+use crate::math::{FT_LB_TO_NM, clamp_signed, mph_to_ms, rad_to_rpm, ramp, rpm_to_rad};
 use crate::nos::{Nos, NosInput, NosSpec};
 
 /// Seconds a manual shift in automatic mode holds the automatic logic off.
@@ -18,6 +20,8 @@ pub struct TickInput<'a> {
     /// Gas pedal, 0..1.
     pub gas: f32,
     pub nos_held: bool,
+    /// Whether the player currently permits tank recharge (disabled during speed breaker).
+    pub can_recharge_nos: bool,
     /// Engine blown (throttle 0, no nitrous).
     pub blown: bool,
     /// The gearbox shifts by itself.
@@ -68,6 +72,7 @@ pub struct Powertrain {
     pub(super) prev_rpm_diff: f32,
     pub(super) drive_torque: f32,
     pub(super) engine_braking: bool,
+    pub(super) wheel_written: [bool; 4],
 }
 
 impl Powertrain {
@@ -101,6 +106,7 @@ impl Powertrain {
             prev_rpm_diff: 0.0,
             drive_torque: 0.0,
             engine_braking: false,
+            wheel_written: [false; 4],
             engine,
             trans,
             induction_spec,
@@ -109,17 +115,21 @@ impl Powertrain {
     }
 
     fn scan_peak(engine: &EngineSpec, induction: &InductionSpec) -> (f32, f32) {
+        if engine.torque.len() < 2 {
+            return (0.0, engine.idle);
+        }
         let (mut best, mut best_rpm) = (0.0_f32, engine.idle);
         let mut rpm = engine.idle;
-        while rpm <= engine.red_line {
-            let t = engine.torque_nm(rpm) * (1.0 + induction.full_boost(rpm, engine.idle, engine.red_line));
+        let step = (engine.max_rpm - engine.idle) / (engine.torque.len() - 1) as f32;
+        for torque in &engine.torque {
+            let t = torque * (1.0 + induction.full_boost(rpm, engine.idle, engine.red_line));
             if t > best {
                 best = t;
                 best_rpm = rpm;
             }
-            rpm += 50.0;
+            rpm += step;
         }
-        (best, best_rpm)
+        (best * FT_LB_TO_NM, best_rpm.clamp(engine.idle, engine.red_line.max(engine.idle)))
     }
 
     /// Resets to the spawn state: idle, clutch engaged, first gear, nothing spooled.
@@ -135,6 +145,7 @@ impl Powertrain {
         self.induction = Induction::default();
         self.nos = Nos::new(&self.nos_spec);
         self.drive_torque = 0.0;
+        self.wheel_written = [false; 4];
     }
 
     /// The car has a nitrous system (a tank and a boost).
@@ -181,6 +192,11 @@ impl Powertrain {
     /// Drive torque handed to the chassis last step (N m at the wheels, gear ratio included).
     pub fn drive_torque(&self) -> f32 {
         self.drive_torque
+    }
+
+    /// Wheels explicitly changed by the last torque loop, rather than merely read for feedback.
+    pub fn wheel_writes(&self) -> [bool; 4] {
+        self.wheel_written
     }
 
     /// Peak engine torque (N m, with full induction boost) and its rpm.
@@ -327,7 +343,7 @@ impl Powertrain {
                 speed_mph,
                 blown: i.blown,
                 tuning: i.nos_tuning,
-                stunt: i.drifting || i.grounded.iter().all(|g| !*g),
+                can_recharge: i.can_recharge_nos,
             },
         );
 
@@ -368,6 +384,7 @@ impl Powertrain {
             drive_slip: i.drive_slip,
             speed: i.speed,
         };
+        self.wheel_written = [false; 4];
         self.drive_torque = clamp_signed(self.torque_loop(&mut ctx), 1.0e6);
         self.smooth_rpm(dt);
         self.drive_torque

@@ -5,7 +5,19 @@ use super::*;
 impl WorldScene {
     pub fn open(dir: &GameDir, options: Options) -> Result<Self> {
         let index = WorldIndex::open(dir, DEFAULT_TRACK)?;
-        let physics = PhysicsData::load(dir)?;
+        let audio_environment = nfsmw_data::read_unwrapped(dir, &format!("TRACKS/{DEFAULT_TRACK}.BUN"))
+            .and_then(|bytes| crate::audio::environment_context::EnvironmentMap::read(&bytes))
+            .map_err(|e| log::warn!("audio environment unavailable: {e:#}"))
+            .ok();
+        if let Some(environment) = &audio_environment {
+            log::info!(
+                "audio environment: map {}, zones {}",
+                environment.map_available(),
+                environment.zones_available()
+            );
+        }
+        let mut physics = PhysicsData::load(dir)?;
+        physics.set_sequences(index.sequences.clone());
         let colour_treatment = nfsmw_data::visual_treatment::midday(physics.database());
         let time_of_day = nfsmw_data::time_of_day::load(physics.database());
         let camera_views = nfsmw_data::camera::load(physics.database());
@@ -25,7 +37,8 @@ impl WorldScene {
                 Err(e) => log::warn!("helicopter sheet: {e}; the helicopter flies at a flat floor"),
             }
         }
-        let props = PropCatalog::new(index.prop_bounds.clone(), physics.database());
+        let props = PropCatalog::new(index.prop_bounds.clone(), physics.database())
+            .with_hierarchies(index.model_hierarchies.clone());
         log::info!("{} props have collision bounds", props.len());
         let stream = dir.resolve(&index.stream_file).with_context(|| format!("{} is missing", index.stream_file))?;
         let threads = std::thread::available_parallelism().map_or(4, |n| n.get().clamp(2, 6));
@@ -46,7 +59,20 @@ impl WorldScene {
                 Ok::<_, anyhow::Error>(PendingCar { name, model, script })
             })
             .transpose()?;
+        let (map_blips, entry_zones) = match nfsmw_data::gameplay::load(dir) {
+            Ok(data) => (super::hud::static_blips(&data), entry_zones::EntryZones::from_data(&data)),
+            Err(e) => {
+                log::warn!("race and interior blips and entry zones are off: {e:#}");
+                (Vec::new(), entry_zones::EntryZones::default())
+            }
+        };
         Ok(Self {
+            garage: garage::catalog(dir, &physics)?,
+            garage_parts: None,
+            garage_open: false,
+            audio_environment,
+            common_sounds: Vec::new(),
+            sound_speedbreaker_active: false,
             dir: dir.clone(),
             track: index.track.clone(),
             camera,
@@ -71,12 +97,14 @@ impl WorldScene {
             sun: sun::Sun::new(),
             physics_aspect: 16.0 / 9.0,
             physics_clock: drive::FixedClock::default(),
+            speedbreaker_clock: drive::SpeedbreakerClock::default(),
             view: if pending_car.is_some() { View::Chase } else { View::Fly },
             last_car: pending_car.as_ref().map_or_else(|| DEFAULT_CAR.to_owned(), |c| c.name.clone()),
             pending_car,
             drive: None,
             traffic,
-            map_blips: Vec::new(),
+            map_blips,
+            entry: entry::Entry { zones: entry_zones, popup: Default::default() },
             traffic_setting: crate::settings::TrafficSettings {
                 cars: 0,
                 cop_share: crate::settings::Percent(0),
@@ -99,5 +127,21 @@ impl WorldScene {
             waiting_since: None,
             camera_mode: CameraMode::default(),
         })
+    }
+}
+
+impl WorldScene {
+    /// Map position (x, y) the streaming follows.
+    pub(super) fn focus(&self) -> [f32; 2] {
+        match (&self.drive, self.view) {
+            (Some(drive), View::Chase) => match drive.waiting_for_road() {
+                Some(request) => request.near,
+                None => {
+                    let p = drive.position();
+                    [p.x, p.y]
+                }
+            },
+            _ => [self.camera.position.x, self.camera.position.y],
+        }
     }
 }

@@ -4,6 +4,10 @@ Plain-language specifications of game behaviour (physics, AI, pursuit, streaming
 before the Rust implementation. Required wherever the only source is decompiled code; see
 [licensing.md § Spec-first](../licensing.md#spec-first).
 
+Driving extensions: [performance-upgrades.md](performance-upgrades.md),
+[speedbreaker.md](speedbreaker.md), [vehicle-jump-stabilizers.md](vehicle-jump-stabilizers.md),
+and [vehicle-ground-reference.md](vehicle-ground-reference.md) (persistent body terrain queries).
+
 Written so far: [scenery-visibility.md](scenery-visibility.md) (exclude flags),
 [scenery-lod.md](scenery-lod.md) (level of detail), [visible-sections.md](visible-sections.md) (which world
 sections are loaded and drawn) and [car-assembly.md](car-assembly.md) (stock parts, wheels, brakes, paint,
@@ -36,6 +40,8 @@ Weather: [weather.md](weather.md) (the rain target from the script hook and the 
 textured sparks and contact glow separately from the experimental restoration.
 
 [Post-processing](post-processing.md) specifies the optional bloom, tone mapping and FXAA passes (new design).
+
+[Contrast-adaptive sharpening](cas-sharpening.md) specifies a CAS pass for native resolution, from AMD's MIT algorithm as read in a ReShade pack (new design; overlaps RCAS, see the spec).
 
 [Controller settings](controller-settings.md) specifies rewrite response options and saved rebinding.
 
@@ -78,5 +84,13 @@ consuming the vehicle's existing intensities. Its appearance and lifetime are ne
 
 ## Police and high-speed effects
 
+[Final driving audit](vehicle-final-audit.md) records confirmed corrections and
+remaining clock, geometry, context and live-comparison limits.
+
 - [police-tactics.md](police-tactics.md): the aim of each cop (block, pit, ram) and what the rule leaves out.
 - [speed-effects.md](speed-effects.md): the high-speed screen effects; the curves are in `libs/blackbox-speedfx`.
+
+## World entries
+
+- [world-markers.md](world-markers.md): the ground disc at each auto shop, safe house and race start, the drive-over
+  zone, and the interact card with its stub entry (the destinations are not built yet).

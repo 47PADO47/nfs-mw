@@ -65,3 +65,5 @@ embedded in `speed.exe` as Win32 resources. Each material in a solid selects an 
   note) is an independent WebGL re-implementation, not a port of these effects.
 - For a rewrite: extract the 31 blobs, disassemble them with the DirectX SDK (`fxc /dumpbin` or
   `D3DXDisassembleEffect`), and re-express them in WGSL/GLSL. **[unconfirmed workflow]**
+- The Xbox 360 build has its own shader containers and translator, which do not apply to these PC effects. Its
+  survey, with the reusable ideas, is in [xenos-shaders](../xenos-shaders/README.md).

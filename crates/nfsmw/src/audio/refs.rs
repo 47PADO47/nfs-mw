@@ -31,7 +31,8 @@ fn at(dir: &str, bank: &str, index: usize, group: Group) -> Option<BankRef> {
 pub fn resolve(car: &CarSound, sound: SoundRef) -> Option<BankRef> {
     let engine = &car.engine;
     match sound {
-        SoundRef::GearClunk { up } => at(SHIFTING_DIR, &car.shift.bank, if up { 1 } else { 2 }, Group::Sfx),
+        // Original FX_SHIFTING_01 id1 is up, id0 down; direct playback remains an explicit fallback.
+        SoundRef::GearClunk { up } => at(SHIFTING_DIR, &car.shift.bank, if up { 2 } else { 1 }, Group::Sfx),
         SoundRef::BrakeMash => at(SHIFTING_DIR, &car.shift.bank, 3, Group::Sfx),
         // `CAR_SWTN` plays bank sound `id + 1` (verified by running its module, docs/specs/engine-sound-aems.md §4):
         // id 0 is the 73 ms sound 1, id 1 the 147 ms sound 2.

@@ -1,30 +1,42 @@
 //! Original contact materials, attachment and no-car-effect overrides.
 
+use blackbox_collision::{Shape, bounds_flags};
 use blackbox_vehicle::rigid_body::{
     BodyContact, BodyHit, BodyReaction, ObbContact, RigidBody, Separation, resolve_bodies,
 };
 use glam::Vec3;
 use nfsmw_data::world::PropDynamics;
 
-use super::body::PropBody;
-use crate::scenes::world::object_geometry::{BodyGeometryFrame, object_shapes};
+use crate::scenes::world::object_geometry::{BodyGeometryFrame, ObjectGeometry, primitive_at};
 
-pub(super) fn car_contact(
-    car: &RigidBody,
-    geometry: Option<BodyGeometryFrame<'_>>,
-    prop: &PropBody,
-) -> Option<(ObbContact, u32)> {
-    let shapes = object_shapes(car, geometry);
-    object_shapes(&prop.rigid, Some(prop.geometry_frame()))
-        .iter()
-        .flat_map(|p| shapes.iter().filter_map(move |a| Some((a.contact(p)?, p.surface))))
-        .max_by(|a, b| a.0.overlap.total_cmp(&b.0.overlap))
+pub(super) fn shape_count(frame: Option<BodyGeometryFrame<'_>>) -> usize {
+    frame.map_or(1, |f| f.geometry.primitives.iter().filter(|p| p.collides(bounds_flags::PRIM_VS_OBJECTS)).count())
 }
 
-pub(super) fn prop_contact(a: &PropBody, b: &PropBody) -> Option<ObbContact> {
-    let aa = object_shapes(&a.rigid, Some(a.geometry_frame()));
-    let bb = object_shapes(&b.rigid, Some(b.geometry_frame()));
-    aa.iter().flat_map(|a| bb.iter().filter_map(move |b| a.contact(b))).max_by(|a, b| a.overlap.total_cmp(&b.overlap))
+/// Prepare only the primitive being visited, retaining its fixed-tick previous centre.
+pub(super) fn shape(body: &RigidBody, frame: Option<BodyGeometryFrame<'_>>, index: usize) -> Option<ObjectGeometry> {
+    let Some(frame) = frame else {
+        return (index == 0).then(|| ObjectGeometry {
+            bounds: blackbox_vehicle::rigid_body::Obb {
+                centre: body.position,
+                axes: body.rotation(),
+                half: body.dimension(),
+            },
+            shape: Shape::Box,
+            travel: Vec3::ZERO,
+            surface: 0,
+        });
+    };
+    let primitive =
+        frame.geometry.primitives.iter().filter(|p| p.collides(bounds_flags::PRIM_VS_OBJECTS)).nth(index)?;
+    let bounds = primitive_at(primitive, (body.position, body.orientation));
+    let previous = primitive_at(primitive, frame.previous).centre;
+    Some(ObjectGeometry {
+        travel: bounds.centre - previous,
+        bounds,
+        shape: primitive.shape,
+        surface: primitive.surface,
+    })
 }
 
 pub(super) fn parameters(body: &RigidBody, normal: Vec3, spec: &PropDynamics, attached: bool) -> BodyHit {

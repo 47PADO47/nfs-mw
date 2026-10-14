@@ -2,7 +2,7 @@
 
 use super::super::director::control_value;
 use super::super::glue::percent;
-use super::super::state::{MusicInput, MusicState, PURSUIT_SETS, Pursuit, pursuit_set_for_heat};
+use super::super::state::{MusicInput, MusicState, PURSUIT_SETS, Pursuit, PursuitFeed, pursuit_set_for_heat};
 
 #[test]
 fn a_pursuit_is_clamped_to_what_the_music_accepts() {
@@ -49,6 +49,32 @@ fn heat_picks_a_set_from_one_to_four() {
     assert_eq!(pursuit_set_for_heat(0.0), 1);
     assert_eq!(pursuit_set_for_heat(99.0), PURSUIT_SETS);
     assert_eq!(pursuit_set_for_heat(f32::NAN), 1);
+}
+
+fn chase(heat: u32, intensity: f32) -> PursuitFeed {
+    PursuitFeed { heat, intensity, secs: 12.0, secs_to_evade: 30.0, player_mph: 80.0 }
+}
+
+#[test]
+fn a_chase_starts_the_pursuit_with_its_heat_set_and_steers_it_after() {
+    let mut input = MusicInput::default();
+    assert!(input.follow(Some(&chase(1, 0.25))), "the first frame of a chase reports its start");
+    assert_eq!(input.state().pursuit, Some(Pursuit { set: 1, intensity: 0.25 }));
+
+    assert!(!input.follow(Some(&chase(5, 0.75))), "a chase going on is not a start");
+    assert_eq!(input.state().pursuit, Some(Pursuit { set: 4, intensity: 0.75 }), "heat 5 is the top set");
+}
+
+#[test]
+fn no_chase_ends_the_pursuit_and_is_quiet_outside_one() {
+    let mut input = MusicInput::default();
+    assert!(!input.follow(None));
+    assert_eq!(input.state().pursuit, None);
+
+    input.follow(Some(&chase(3, 1.0)));
+    assert!(!input.follow(None));
+    assert_eq!(input.state().pursuit, None, "the cops gave up: the pursuit is over");
+    assert!(input.follow(Some(&chase(3, 1.0))), "a new chase after one ended starts again");
 }
 
 #[test]

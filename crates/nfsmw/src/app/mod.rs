@@ -81,6 +81,9 @@ pub struct RunOptions {
     pub exec: Vec<String>,
     /// Start with the console open.
     pub open_console: bool,
+    /// Start with the runtime garage open when the scene supports it.
+    pub open_garage: bool,
+    pub garage_tab: crate::garage::OptionsTab,
     /// Show the in-game HUD, reading its data from this install.
     pub hud: Option<game_install::GameDir>,
     /// Numbers the HUD shows until the scene supplies its own (`--hud-demo`).
@@ -103,6 +106,8 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
         screenshot_interval,
         exec,
         open_console,
+        open_garage,
+        garage_tab,
         hud,
         hud_demo,
         audio,
@@ -190,11 +195,15 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
     if let Some(dir) = audio {
         app.add_plugins(crate::audio::AudioPlugin { dir });
     }
+    app.add_plugins(crate::discord::DiscordPlugin);
     app.add_plugins(crate::movie::FullscreenPlugin);
     if let Some(plugin) = frontend {
         app.add_plugins(plugin);
     }
     crate::devtools::start_console(&mut app, exec, open_console);
+    if open_garage && !open_console {
+        crate::garage::start(&mut app, garage_tab);
+    }
 
     match app.run() {
         AppExit::Success => error.take().map_or(Ok(()), Err),

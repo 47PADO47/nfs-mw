@@ -53,6 +53,8 @@ pub struct RoadNav {
     /// Planar curvature at the cursor, positive when turning right.
     pub curvature: f32,
     line: Bezier,
+    /// Corridor endpoints carried across a traffic join, when the cursor has a trail.
+    bound_starts: Option<[Vec3; 2]>,
     /// The look-ahead trail, when the car steers by one.
     trail: Option<Trail>,
     /// The segments of a path nav, start first.

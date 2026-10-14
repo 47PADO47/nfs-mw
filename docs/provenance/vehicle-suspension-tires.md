@@ -1,5 +1,14 @@
 # Vehicle suspension, tires, steering and aero
 
+The 2026-10-13 [driving corrections](vehicle-driving-corrections.md) supersede the older drift
+and axle traction-control omissions below, restore original airborne downforce through the
+game adapter and clarify steering history. The reference profile supersedes the
+historical regularizations below. Wall steering, jump stabilizers, terrain caches
+and the [final audit](../specs/vehicle-final-audit.md) document their current
+implementation and PC numerical evidence. Historical omissions below describe
+the 2026-10-08 implementation, not the complete current feature set. Remaining
+world geometry/context and live driving comparison limits still apply.
+
 Modules: [`libs/blackbox-vehicle`](../../libs/blackbox-vehicle): `suspension` (springs, dampers, anti-roll,
 probe, geometry), `tires`, `steering` (Ackermann and the shaping), `aero`, and the per-step assembly in
 `vehicle`. Driven by AttribSys data read through `nfsmw-data`.

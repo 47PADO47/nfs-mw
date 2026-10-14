@@ -17,26 +17,17 @@ use crate::scenes::world::car_lights::LampState;
 use crate::scenes::world::drive::{CarPose, CarRig, CarSim, DriveInput, STEP, WorldGround};
 use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::road::Spawn;
-use crate::scenes::world::space;
+use crate::scenes::world::{keys, space};
 
+mod accident;
 mod setup;
 mod sound;
 mod towing;
 
 pub use setup::{Ctx, Role, Start};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// How a crash with the player went for a traffic car.
-enum Accident {
-    None,
-    /// No pedals and full lock, for this many more thinks.
-    InProgress(u32),
-    /// Braking to a halt with the wheels still turned.
-    Over,
-}
+use accident::Accident;
 
-/// Thinks an accident lasts (the original counts thinks where it probably meant seconds).
-const ACCIDENT_THINKS: u32 = 3;
 /// A hit shorter than this change of speed (m/s) does not shock the car, and the level falls over this long.
 const SHOCK_MIN_SPEED_CHANGE: f32 = 2.0;
 const SHOCK_FORCE: f32 = 10.0;
@@ -63,6 +54,8 @@ fn shift(sim: &mut CarSim, gear: Option<GearRequest>) {
 pub struct AiCar {
     pub name: String,
     rig: Rc<CarRig>,
+    /// This physical vehicle's identity, independent of its shared model rig.
+    render_id: u32,
     sim: CarSim,
     /// The trailer of a semi tractor, hitched or loose.
     trailer: Option<TrailerCar>,
@@ -96,6 +89,7 @@ pub struct AiCar {
     /// 0..1: hit hard enough to lose control for a moment.
     shock: f32,
     accident: Accident,
+    tractor: bool,
     cruise: Cruise,
     patrol: bool,
     /// Seconds the car has been out of the player's view.
@@ -107,8 +101,8 @@ pub struct AiCar {
     roadblock: bool,
     /// The light bars of a cop car, when it has them.
     cop_lights: Option<super::cop_lights::CopLightRun>,
-    /// The horn sound (`HornType`) of this car.
-    pub horn: u32,
+    /// Installed authored traffic sound class IDs.
+    pub audio_profile: crate::audio::traffic::TrafficProfile,
     /// Seconds until the car may play a near miss or a horn again (`traffic_events::EventTuning::cooldown`).
     quiet: f32,
 }
@@ -128,7 +122,7 @@ impl AiCar {
         let mut sim = CarSim::for_rig(physics.clone(), &rig);
         sim.configure_ai();
         sim.collision_role.cop = start.patrol || matches!(role, Role::Cop(_));
-        if !sim.place_moving(ground, spawn, start.speed) {
+        if !sim.place_traffic_moving(ground, spawn, start.speed) {
             return None;
         }
         let trailer = match &model.trailer {
@@ -140,6 +134,7 @@ impl AiCar {
         Some(Self {
             name,
             rig,
+            render_id: keys::next_car(),
             sim,
             trailer,
             driver: Driver::new(
@@ -168,6 +163,7 @@ impl AiCar {
             airborne: 0.0,
             shock: 0.0,
             accident: Accident::None,
+            tractor: model.tractor,
             cruise: start.cruise,
             patrol: start.patrol,
             offscreen: 0.0,
@@ -175,7 +171,7 @@ impl AiCar {
             arrived: false,
             roadblock: false,
             cop_lights: model.cop_lights.clone().map(super::cop_lights::CopLightRun::new),
-            horn: model.horn,
+            audio_profile: model.audio_profile,
             quiet: 0.0,
         })
     }
@@ -344,14 +340,8 @@ impl AiCar {
         let request = DriveRequest { target: self.target, speed: wanted, flags };
         let clock = self.steps as f32 * STEP;
         self.controls = self.driver.step(&view, &request, STEP, clock);
-        match self.accident {
-            Accident::None => {}
-            Accident::InProgress(_) => {
-                self.controls = AiControls { steer: 1.0, ..AiControls::default() };
-            }
-            Accident::Over => {
-                self.controls = AiControls { brake: 1.0, steer: 1.0, ..AiControls::default() };
-            }
+        if let Some(controls) = self.accident.controls(self.tractor) {
+            self.controls = controls;
         }
         if self.breaker_stop {
             self.controls = AiControls { brake: 1.0, ..AiControls::default() };
@@ -404,16 +394,12 @@ impl AiCar {
             forward_speed: view.forward_speed,
             radius: self.radius,
             mass: self.mass,
+            tractor: self.tractor,
             stop: None,
         };
         match &mut self.role {
             Role::Traffic => {
-                if let Accident::InProgress(left) = self.accident {
-                    self.accident = match left {
-                        0 | 1 => Accident::Over,
-                        n => Accident::InProgress(n - 1),
-                    };
-                }
+                self.accident.think();
                 // Patrol cops obey the lights too; only a cop in a chase does not.
                 state.stop =
                     ctx.lights.and_then(|l| stop::find(&l, ctx.net, &self.nav, &state.body, &mut self.stop_memory));
@@ -481,8 +467,8 @@ impl AiCar {
         if by_player {
             log::info!("traffic: {} was hit by the player (impulse {impulse:.0} N s)", self.name);
         }
-        if by_player && self.accident == Accident::None {
-            self.accident = Accident::InProgress(ACCIDENT_THINKS);
+        if by_player {
+            self.accident.on_hit(matches!(self.role, Role::Traffic) && !self.patrol, self.tractor);
         }
     }
 

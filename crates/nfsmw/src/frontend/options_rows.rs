@@ -63,5 +63,10 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
         Category::Controls => {
             InputSetting::ALL.into_iter().map(|setting| row(Setting::Input(setting), setting.title())).collect()
         }
+        // The Discord Rich Presence toggles (`discord/`); the time played is dimmed while Discord is off.
+        Category::Discord => vec![
+            row(Setting::Discord, Title::Text("Discord Rich Presence")),
+            row(Setting::DiscordTimePlayed, Title::Text("Show Time Played")),
+        ],
     }
 }

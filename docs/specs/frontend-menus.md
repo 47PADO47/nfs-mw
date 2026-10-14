@@ -47,9 +47,10 @@ selects it again when the screen returns (`FEngGetLastButton`); the icon menus s
 
 ## 2. Icon menus (`MainMenu`, `MainMenu_Sub`, `Pause_Main`)
 
-A row of icons that scrolls under a fixed cursor. The package has up to 10 or 11 image buttons named
-`OPTION_1` .. `OPTION_n` (the buttons are `AffectAllScripts | IsButton | DontNavigate`; their positions in the file
-are placeholders), a string `ICON_TITLE` (hash `0x5E7B09C9`) with its shadow `0x0DFB7A2E`, the region
+A row of icons that scrolls under a fixed cursor. The package has image buttons named `OPTION_1` .. `OPTION_n`
+(the buttons are `AffectAllScripts | IsButton | DontNavigate`; their positions in the file are placeholders):
+**11** in `MainMenu.fng`, **12** in `MainMenu_Sub.fng` and **10** in `Pause_Main.fng` **[verified, `nfsmw dump-screen`]**.
+The package also has a string `ICON_TITLE` (hash `0x5E7B09C9`) with its shadow `0x0DFB7A2E`, the region
 `ICON_SCROLL_REGION` and the master `OPTION_MASTER`.
 
 **Setup [decomp].** Each option has a texture, a name label and a description label. The screen puts two *book
@@ -60,6 +61,15 @@ image's texture is swapped, `FEngSetTextureHash`), and an x offset: the offsets 
 is selected. The decomp takes the centre `(cx, cy)` from `ICON_SCROLL_REGION`, which is then hidden. **Ours:** the
 position of `OPTION_MASTER` instead: the cursor brackets sit on it, and the region is 17 units to the left of it in
 `MainMenu.fng` (7 in `MainMenu_Sub.fng`), which left the selected icon off-centre in its brackets.
+
+**Windowing (ours).** A menu may list more icons than its package has objects. The strip is the book ends and the
+icons as above, and the row shows a window of the package's objects over it (`icon_window.rs`). The window is
+centred on the selection, `base = min(max(selected - slots / 2, 0), strip - slots)`, so the three icons either side
+of the selection always have objects (the scroller's edge is about three pitches from the centre). Sliding the window
+rebinds each object's texture and picture rectangle and moves the scroll by `(base_new - base_old)` pitches
+(`scroller.rs`, `Scroll::shift`), so no icon moves on screen. A strip that fits the objects is not windowed, which
+is every menu but the main menu: its eleven objects hold the eight icons of 2.1 plus the two book ends each side
+(12 strip entries), so the main menu slides by one. Before this the row warned and dropped the icons that did not fit.
 
 **Every tick [decomp].** The scroll value moves towards `-offset(selected)` over 0.2 s with a cubic ease. For
 each icon, with `x = cx + scroll + offset`:
@@ -103,11 +113,19 @@ uses the same slot animation as the installed icons.
 
 ### 2.1 Main menu entries [decomp]
 
-Entries this rewrite cannot do yet (Challenge Series, My Cars, the profile manager) are greyed out (alpha 150, never
+Entries this rewrite cannot do yet (Challenge Series, My Cars, Online, LAN, Alias Manager) are greyed out (alpha 150, never
 selected). `MainMenu.fng` options, in order, as `(name label, icon texture)`: Career (`0x5815A2B5`, `0x03704F3D`),
 Challenge Series (`0xCC8CB746`, `0x9A962438`), Quick Race (`0x54020A7A`, `0x4E6FBB02`), My Cars
-(`0x1AFD5BE6`, `0xB0C46023`), Profile Manager (memory card builds only), Options (`0x19A8C0AF`,
-`0x3058FE37`). The title is the label `0xB24AAE58` on `TITLE_GROUP` (`0xB71B576D`). With no profile loaded the
+(`0x1AFD5BE6`, `0xB0C46023`), Online (`0x7D347E05`, `0x5A5E5137`), LAN (`0x03F6F2BF`, none), Alias Manager
+(`0xBCB18F38`, `0x6B303856`), Options (`0x19A8C0AF`, `0x3058FE37`). **Eight entries** (`icons(Kind::Main)`).
+**[decomp]** `UIMain::Setup` (the non-Mike-Mann branch) adds Alias Manager only when `IsMemcardEnabled` is nonzero;
+whether the PC build sets that flag is **[unconfirmed]**, so the rewrite shows the entry greyed out. The label
+`0xBCB18F38` reads "Alias Manager" **[verified]** (`nfsmw strings`). The same decompiled setup adds no Online or LAN
+entry to the main menu **[decomp]**. Online and LAN are listed anyway, disabled, at the user's request **[ours]**.
+Online takes the texture of the option list's Online entry (`0x5A5E5137`, below) and the label `0x7D347E05`, whose
+text is "Online Options" **[verified]**. LAN takes the main-menu LAN label `0x03F6F2BF`, "LAN main menu"
+**[verified]**; no LAN picture is recorded, so its icon is blank (texture 0, as Credits and EA Trax are). Both are
+greyed out (alpha 150) and do nothing on accept (`act()` has no arm for them). The title is the label `0xB24AAE58` on `TITLE_GROUP` (`0xB71B576D`). With no profile loaded the
 screen hides the player name group (`0xFB80CDAC`) and the game-statistics hint (`0x8913E195`). A `Quit` button (the
 object `0xC0A32823`, label `0xC51FBF74`, keyboard hint `Q`) lives in the package and answers a mouse release
 with the message `0x62799A4C` for the game **[verified, name unknown]**; this rewrite has no mouse, so the `Q` key
@@ -120,11 +138,50 @@ Selecting Options sets the game mode to options and switches to `MainMenu_Sub.fn
 
 Found in the dump of `MainMenu_Sub.fng` (`nfsmw dump-screen`): twelve option buttons `OPTION_1`..`OPTION_12`
 (name hashes `0x4B4E3888`..`0x4B4E3890`, `0xB51549B8`..`0xB51549BA`). The rewrite now lists the original's
-categories in order: Audio, Video, Gameplay, Player (`0xF760EABE` "Player"), Controls (`0x04DC6DB5`), and, outside
-the pause menu, EA Trax (`0xDCFB6B36`) and Credits (`0x0905101F`). Player, EA Trax and Credits are greyed out:
-the rewrite has no screen for them. **[ours]** Their icon textures are not read yet, so they show no picture.
-The spec's `0xD708EFEF` and `0xA04A7B26` are the buttons' name hashes; the text labels above are what the game
-displays (found with `nfsmw strings`).
+categories in order: Audio, Video, Gameplay, Player (label `0xF760EABE` "Player"), Controls (`0x04DC6DB5`), and,
+outside the pause menu, EA Trax (`0xDCFB6B36`) and Credits (`0x0905101F`). Player, EA Trax and Credits are greyed out:
+the rewrite has no screen for them. The labels are what the game displays (`nfsmw strings`) **[verified]**.
+
+**Controls split (ours).** The Controls icon opens the keyboard list (`Options_PC_Controller.fng`, `controls_screen.rs`)
+directly, with the original's controller picture. Control Options (a title we chose; the original has no such entry)
+sits beside it and opens the sensitivity and camera rows (`Options.fng`, category Controls): Deadzone Mode to Invert
+Camera Y, then Save Alias and Load Alias. That list has no Keyboard Bindings row (`InputSetting::ALL`). Both icons leave
+with the usual animation. Back on the key list returns to the categories (`Command::Switch`), which restore the icon
+they remember, so the key list sits on no screen beneath it. The pause menu has the same six icons, Player greyed out.
+
+**Online is not listed (decomp, ours).** The original adds Online only in online mode, which this build never is, so
+the offline list is Audio to Credits, without Online, plus Control Options and Discord (below). The greyed-out Online
+entry (texture `0x5A5E5137`, `OMOnline`) is therefore gone; the main menu lists it instead (2.1). `MainMenu_Sub.fng`
+has twelve option objects. With nine entries and the four book ends the strip is 13 entries long, so the row windows
+over the objects (see "Windowing" in section 2). The pause menu's seven entries window too wherever its package has
+fewer objects than the strip has entries (eleven).
+
+**Discord category (ours).** Discord Rich Presence has its own category after Control Options, with its own icon: a
+white Discord mark (`assets/discord/discord.png`, Simple Icons, CC0; see NOTICE), bundled and registered as texture
+`0xE0C0_0002` (`ui/discord_icon.rs`, next to the input atlas `0xE0C0_0001`). Its header reads "Discord". The icon
+opens `Options.fng` (pause: `Pause_Options.fng`) with category `Discord`, which shows the two toggles: Discord Rich
+Presence (`discord`) and Show Time Played (`discord_time_played`, dimmed while Discord is off). These rows left the
+Gameplay category (`options_rows.rs`); the toggles themselves are unchanged. The mark is drawn whole (full-image uv).
+
+**Icon textures.** `UIOptionsMain::Setup` adds each category as `OMxxx(texture, label, 0)`:
+`OMAudio(0xF37AF144, 0xE76CD783, 0)` and `OMPlayer(0xD708EFEF, 0xF760EABE, 0)` **[decomp]**. The Audio pair is the one
+the rewrite already draws, so the first argument is the texture: **Player's icon texture is `0xD708EFEF`** (set in
+`icon_menu.rs`; `nfsmw view-screen MainMenu_Sub.fng --options --ui-script "wait 1;right;right;right;wait 1"` shows its
+picture, dimmed). The earlier note that `0xD708EFEF` is a button name hash was wrong.
+The same reading gives Online texture `0x5A5E5137` (`OMOnline`, win32 online mode) **[decomp]**; the rewrite does not
+list Online (see above). EA Trax `0xC52CCBF6` and Credits `0x51009E20` **[decomp]** are not applied yet; they have no
+texture in the rewrite and show none. `OMController` gives texture `0xA04A7B26` **[decomp; picture verified on screen]**:
+`nfsmw view-screen MainMenu_Sub.fng --options --ui-script "wait 1;right;right;right;right;wait 1"` draws a gear-shift
+picture in the Controls slot, which the rewrite uses for the Controls icon. Control Options draws the input glyph atlas
+(`input_icons::ATLAS`, `Glyph::Controller`), the picture the Controls icon had before the split.
+
+**LAN.** The strings `LAN main menu` (`0x03F6F2BF`) and `LAN options` (`0x19889765`) exist **[verified]**, but neither
+`UIMain::Setup` nor `UIOptionsMain::Setup` adds a LAN icon **[decomp]**, so the original has no LAN entry. The
+main menu lists a disabled one anyway (2.1), at the user's request **[ours]**; the category list has none.
+
+**Ghidra.** `/speed.exe` has no function names, and the byte search needed to find the code that adds these
+entries was not available in this pass. The hashes above come from the decompiled source; the Player texture was
+checked on screen (a wrong hash would draw no picture).
 
 [decomp] `MainMenu_Sub.fng` as `UIOptionsMain`: options Audio (`0xE76CD783`, icon `0xF37AF144`), Video (`0x8A006328`),
 Gameplay (`0x4DF98FB2`), Player (`0xD708EFEF`), Controller (`0xA04A7B26`), then EA Trax and Credits when not
@@ -181,7 +238,8 @@ data string that cycles through values) or a *slider*.
   highlight script and, through the row messages, shows the arrows and moves the cursor group (`POSn`). The data
   string and the slider objects get `HIGHLIGHT` / `UNHIGHLIGHT` from the screen.
 - **Header.** `HEADERTEXT` (`0x42ADB44C`) gets the category title label (Audio `0x3932C2E4`, Video `0x48478029`,
-  Gameplay `0x01CCE8C2`; from the pause menu `0xB1426DFA`, `0xD94EA03F`, `0x3936D9F8`).
+  Gameplay `0x01CCE8C2`; from the pause menu `0xB1426DFA`, `0xD94EA03F`, `0x3936D9F8`). Controls and Discord have no
+  label: their header is text (`Control Options`, `Discord`).
 
 The original audio rows are: Sound Effects Volume (`0xFD487543`), Car Volume (`0x218E4B08`), Speech Volume
 (`0x9E5FB82A`), Menu Music Volume (`0x418E681D`), Game Music Volume (`0xDF21EAC2`), Interactive Music
@@ -207,6 +265,8 @@ screens, labels and behaviour where a label exists:
 | Video | Performance Overlay | none, plain text | `show_metrics` (Off, Basic, Advanced) |
 | Gameplay | Gauges | `0xAC148579` | `hud` (On / Off) |
 | Gameplay | Transmission | `0xD31407E7` | `transmission` (Auto `0x8CD532A0` / Manual `0x317D3005`; left and right both toggle) |
+| Discord | Discord Rich Presence | none, plain text | `discord` (On / Off; ours) |
+| Discord | Show Time Played | none, plain text | `discord_time_played` (On / Off, dimmed while `discord` is off; ours) |
 
 A row can be disabled by its setting's `enabled` rule (`frontend/options.rs`). A disabled row stays selectable and shows its value dimmed (alpha 110), but left and right do nothing and nothing is saved. Frame Limit is disabled while Vsync is on.
 
@@ -229,7 +289,8 @@ same for any window wider than 1.4:1 (the 4:3 package is for the rest), so the a
 bars at its sides. A mouse click counts as accept on the boot movies and the title screen. The memory-card screens between splash and main menu (`MC_Main_GC.fng`) do not apply on the PC.
 
 **Free roam [decomp, ours].** The career starts in free roam in the original; this rewrite has no career, so
-Career and Quick Race both start free roam with the stock car.
+Career and Quick Race both start free roam with the stock car. Free roam starts behind the loading screen
+(`WS_Loading.fng`) and shows the world only once it is ready; see [loading-screen.md](loading-screen.md).
 
 ## How to check it
 
@@ -238,3 +299,8 @@ Career and Quick Race both start free roam with the stock car.
 2. `nfsmw view-screen Options.fng` for the rows (the screen needs its category: `--category audio`).
 3. Compare with the running original at the same window size (not done): icon sizes and positions after a scroll,
    row positions of the option screens.
+4. `nfsmw view-screen MainMenu_Sub.fng --options --ui-script "wait 1;right;right;right;right;accept;wait 3"` shows the
+   keyboard list (Controls). With one more `right` and `accept` instead, the sensitivity rows show (Control Options).
+5. `nfsmw view-screen MainMenu_Sub.fng --options --ui-script "wait 1;right;right;right;right;right;right;wait 1"` shows
+   the Discord icon selected in the strip (titled "Discord"). With `accept` added before the last wait, the Discord
+   sub-screen shows its two toggles (`nfsmw view-screen Options.fng --category discord` opens it directly).

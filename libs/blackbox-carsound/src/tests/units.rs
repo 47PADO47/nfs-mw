@@ -87,9 +87,18 @@ fn the_ticker_runs_whole_ticks_and_carries_the_remainder() {
     assert_eq!(t.advance(TICK_SECONDS * 0.4), 1, "1.2 ticks accumulated");
     assert_eq!(t.advance(TICK_SECONDS * 3.0), 3);
     assert_eq!(t.advance(10.0), MAX_TICKS_PER_UPDATE, "a stall is capped");
-    assert_eq!(t.advance(0.0), 0, "and its excess is dropped");
-    assert_eq!(t.advance(f32::NAN), 0);
-    assert_eq!(t.advance(-1.0), 0);
+    let mut total = MAX_TICKS_PER_UPDATE;
+    loop {
+        let ticks = t.advance(0.0);
+        total += ticks;
+        if ticks == 0 {
+            break;
+        }
+    }
+    assert_eq!(total, 600, "capped work must retain elapsed time");
+    let mut invalid = Ticker::default();
+    assert_eq!(invalid.advance(f32::NAN), 0);
+    assert_eq!(invalid.advance(-1.0), 0);
 }
 
 #[test]

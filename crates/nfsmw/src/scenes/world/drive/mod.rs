@@ -7,6 +7,7 @@ mod clock;
 mod debug;
 mod effect_feed;
 mod fall;
+mod garage;
 mod ground;
 mod input;
 mod look;
@@ -15,10 +16,11 @@ mod placement;
 mod presentation_tests;
 mod rig;
 mod script;
-mod speedbreaker;
 mod sim;
 mod simulation;
 mod sound;
+mod speedbreaker;
+mod time_scale;
 mod trace;
 mod visual_tires;
 pub(super) mod walls;
@@ -47,6 +49,7 @@ pub use script::DriveScript;
 pub(super) use sim::CarSim;
 use sim::Telemetry;
 use sound::SoundFeed;
+pub(super) use time_scale::SpeedbreakerClock;
 #[cfg(test)]
 pub(super) use walls::ContactKind;
 pub(super) use walls::VisualContact;
@@ -73,6 +76,9 @@ const GOOD_SPOT_STEPS: u32 = 30;
 
 pub struct Drive {
     pub car_name: String,
+    pub performance: nfsmw_data::car::physics::PerformancePackage,
+    pub tuning: nfsmw_data::car::physics::tuning::TuningSelection,
+    tunings: blackbox_vehicle::Tunings,
     pub effects: TireEffects,
     /// The brake pedal as the lamps see it, 0 to 1.
     pub brake_lamp: f32,
@@ -149,6 +155,9 @@ impl Drive {
             headlights: true,
             vehicle_effects: VehicleEffects::new(visuals),
             flames: ExhaustFlames::default(),
+            performance: Default::default(),
+            tuning: Default::default(),
+            tunings: Default::default(),
             rig,
             physics,
             sim: None,
@@ -292,6 +301,11 @@ impl Drive {
         self.previous.lerp(&self.current, self.alpha)
     }
 
+    /// The live physical pose, including contacts not yet published to the render poses.
+    pub fn physics_pose(&self) -> CarPose {
+        self.sim.as_ref().map_or(self.current, CarSim::pose)
+    }
+
     /// The car as the police and the high-speed effects see it. Nitrous is 0 without the part.
     pub fn player_view(&self) -> crate::scenes::world::ai::PlayerView {
         let forward = self.pose().rotation * Vec3::X;
@@ -397,9 +411,12 @@ impl Drive {
     /// What the car sound needs of the drive; `None` while there is no car yet.
     pub fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
         self.sim.as_ref()?;
-        Some(self.sound.state(&self.car_name, &self.telemetry))
+        Some(self.sound.state(&self.car_name, &self.telemetry, self.performance))
     }
 
+    pub(super) fn speedbreaker_active(&self) -> bool {
+        self.breaker.active()
+    }
     /// The readout lines at this level: one for `Minimal`, the numbers of the HUD and the run for `Full`.
     pub fn readout(&self, level: crate::devtools::ShowReadout) -> String {
         if self.sim.is_none() || self.request.is_some() {

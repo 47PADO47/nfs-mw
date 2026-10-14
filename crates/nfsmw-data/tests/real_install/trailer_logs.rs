@@ -47,7 +47,18 @@ fn damagespecs_layout_offsets_of_the_dz_fields() {
     let Some(dir) = crate::install() else { return };
     let data = PhysicsData::load(&dir).unwrap();
     let class = data.database().class("damagespecs").expect("no damagespecs class");
-    let names = ["DZ_FRONT", "DZ_REAR", "DZ_LEFT", "DZ_RIGHT", "DZ_LFRONT", "DZ_RFRONT", "DZ_LREAR", "DZ_RREAR", "DZ_TOP", "DZ_BOTTOM"];
+    let names = [
+        "DZ_FRONT",
+        "DZ_REAR",
+        "DZ_LEFT",
+        "DZ_RIGHT",
+        "DZ_LFRONT",
+        "DZ_RFRONT",
+        "DZ_LREAR",
+        "DZ_RREAR",
+        "DZ_TOP",
+        "DZ_BOTTOM",
+    ];
     for name in names {
         let key = blackbox_attrib::vlt_hash(name);
         match class.field_by_key(key) {
@@ -66,7 +77,9 @@ fn damage_both_floats_of_a_car_and_the_trailer() {
     let Some(dir) = crate::install() else { return };
     let data = PhysicsData::load(&dir).unwrap();
     for name in ["BMWM3GTR", "TRAILERLOG"] {
-        let Some(damage) = data.database().collection("pvehicle", &name.to_ascii_lowercase()).and_then(|v| v.follow("damagespecs")) else {
+        let Some(damage) =
+            data.database().collection("pvehicle", &name.to_ascii_lowercase()).and_then(|v| v.follow("damagespecs"))
+        else {
             println!("{name}: no damagespecs");
             continue;
         };

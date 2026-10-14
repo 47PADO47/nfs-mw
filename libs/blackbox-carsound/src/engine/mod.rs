@@ -25,7 +25,7 @@ use crate::tuning::{AccelTransition, CarSoundTuning, EngineTuning, ShiftTuning};
 pub const TICK_HZ: f32 = 60.0;
 /// Length of one tick, seconds.
 pub const TICK_SECONDS: f32 = 1.0 / TICK_HZ;
-/// Most ticks one update runs; the time beyond that is dropped so a stall cannot cause a burst.
+/// Most ticks one update runs; remaining time is retained for the next update.
 pub const MAX_TICKS_PER_UPDATE: u32 = 10;
 
 /// The stage of a gear shift.
@@ -100,6 +100,8 @@ impl LoopDrive {
 /// The engine sound of the latest tick.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct EngineOutput {
+    /// Controller revision, independent of render callbacks and audio buffer sizes.
+    pub tick_revision: u64,
     /// The Ginsu target frequency (before any per-loop minimum).
     pub ginsu_frequency: f32,
     /// Playback-rate ratio of the accelerate loop (`pitch1 * pitch multiplier`).
@@ -158,6 +160,7 @@ pub(crate) struct TickContext<'a> {
 /// The engine controllers of one car, ticked at the fixed rate.
 #[derive(Debug, Clone)]
 pub(crate) struct EngineCore {
+    revision: u64,
     tuning: EngineTuning,
     shift_tuning: ShiftTuning,
     accel_tuning: AccelTransition,
@@ -176,6 +179,7 @@ pub(crate) struct EngineCore {
 impl EngineCore {
     pub fn new(tuning: &CarSoundTuning) -> Self {
         Self {
+            revision: 0,
             tuning: tuning.engine.clone(),
             shift_tuning: tuning.shift.clone(),
             accel_tuning: tuning.accel_transition,
@@ -194,6 +198,7 @@ impl EngineCore {
 
     /// Runs one tick; the happenings of the tick are added to `events`.
     pub fn tick(&mut self, input: &CarInput, events: &mut EngineEvents) {
+        self.revision = self.revision.wrapping_add(1);
         self.time += TICK_SECONDS;
         let pitch = finite(input.pitch_multiplier);
         self.pitch_multiplier = if pitch > 0.0 { pitch } else { 1.0 };
@@ -225,6 +230,7 @@ impl EngineCore {
         // The original derives the frequency and the playback ratio once, from the accelerate loop's lowest
         // frequency, and hands the same two values to the decelerate loop (spec: engine-sound.md §6).
         EngineOutput {
+            tick_revision: self.revision,
             ginsu_frequency: mix.ginsu_frequency,
             playback_rate: accel_loop.playback_rate,
             accel_loop,
@@ -264,7 +270,7 @@ impl Ticker {
         self.accumulated += finite(dt).max(0.0);
         let whole = (self.accumulated / TICK_SECONDS + 1e-3).floor();
         if whole > MAX_TICKS_PER_UPDATE as f32 {
-            self.accumulated = 0.0;
+            self.accumulated -= MAX_TICKS_PER_UPDATE as f32 * TICK_SECONDS;
             return MAX_TICKS_PER_UPDATE;
         }
         let ticks = whole as u32;

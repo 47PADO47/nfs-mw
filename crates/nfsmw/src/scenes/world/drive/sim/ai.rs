@@ -1,13 +1,47 @@
 //! What a computer driver needs of the car: its controls set-up, a view of the state and gear changes.
 
-use blackbox_vehicle::ControlConfig;
 use blackbox_vehicle::drivetrain::{GEAR_FIRST, GEAR_NEUTRAL, GEAR_REVERSE};
 use blackbox_vehicle::steering::{ABSOLUTE_MAX_STEERING, SteeringDevice};
-use glam::Vec3;
+use blackbox_vehicle::{ControlConfig, Ground};
+use glam::{Mat3, Quat, Vec3};
 
 use super::CarSim;
+use crate::scenes::world::{road::Spawn, space};
 
 impl CarSim {
+    /// Traffic starts supported by the road, including its bank and slope, with tangent velocity.
+    /// Spec: `docs/specs/ai-traffic-spawning.md` section 12.
+    pub fn place_traffic_moving(&mut self, ground: &dyn Ground, spawn: Spawn, speed: f32) -> bool {
+        let [x, _, z] = space::to_physics(spawn.position);
+        let top = spawn.position.z + 2.0;
+        let Some(hit) = ground.hit(Vec3::new(x, top, z), Vec3::NEG_Y, 100.0) else { return false };
+        let Some(up) = hit.normal.try_normalize() else { return false };
+        if up.y <= f32::EPSILON || !hit.distance.is_finite() || !speed.is_finite() || !spawn.heading.is_finite() {
+            return false;
+        }
+        let heading = Quat::from_rotation_y(-spawn.heading) * Vec3::Z;
+        let forward = Vec3::new(heading.x, -(up.x * heading.x + up.z * heading.z) / up.y, heading.z).normalize();
+        let right = up.cross(forward).normalize();
+        let orientation = Quat::from_mat3(&Mat3::from_cols(right, up, forward));
+        let spec = self.vehicle.spec();
+        let ride = spec
+            .chassis
+            .axle(0, self.vehicle.tunings.ride_height)
+            .ride
+            .max(spec.chassis.axle(1, self.vehicle.tunings.ride_height).ride);
+        let position = Vec3::new(x, top - hit.distance + (spec.dimension.y + ride) / up.y, z);
+        if !position.is_finite() || !orientation.is_finite() {
+            return false;
+        }
+        self.spin = [0.0; 4];
+        match speed > 0.0 {
+            true => self.vehicle.place_moving(position, orientation, speed),
+            false => self.vehicle.place(position, orientation),
+        }
+        self.previous_contact_pose = (self.vehicle.position(), self.vehicle.body().orientation);
+        true
+    }
+
     /// Makes the car take its controls from an AI: no dead zone, no automatic reverse or idle braking,
     /// the full steering angle for the input, and the gearbox shifts by itself.
     pub fn configure_ai(&mut self) {

@@ -13,6 +13,7 @@ use nfsmw_data::car::physics::SurfaceTable;
 use super::TrafficModel;
 use super::hitch::{Hitch, Posture, Release};
 use crate::scenes::world::drive::{CarPose, CarRig, CarSim, DriveInput, STEP, WorldGround};
+use crate::scenes::world::keys;
 use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::road::Spawn;
 
@@ -98,6 +99,8 @@ impl Coupling {
 
 pub struct TrailerCar {
     rig: Rc<CarRig>,
+    /// This trailer's identity, independent of other copies of its shared rig.
+    render_id: u32,
     sim: CarSim,
     coupling: Coupling,
     previous: CarPose,
@@ -127,7 +130,7 @@ impl TrailerCar {
         let back = coupling.joint.anchor_b.z - coupling.joint.anchor_a.z;
         let (sin, cos) = spawn.heading.sin_cos();
         let position = spawn.position - Vec3::new(cos * back, sin * back, 0.0);
-        if !sim.place_moving(ground, Spawn { position, heading: spawn.heading }, speed) {
+        if !sim.place_traffic_moving(ground, Spawn { position, heading: spawn.heading }, speed) {
             return None;
         }
         // The two roads under them may differ a little: start exactly hitched.
@@ -135,6 +138,7 @@ impl TrailerCar {
         let pose = sim.pose();
         Some(Self {
             rig: model.rig.clone(),
+            render_id: keys::next_car(),
             sim,
             coupling,
             previous: pose,
@@ -194,7 +198,13 @@ impl TrailerCar {
 
     pub fn instances(&self, alpha: f32, out: &mut Vec<blackbox_render::Instance>) {
         let revealed = self.sim.events.as_ref().map(|e| e.revealed_slots()).unwrap_or_default();
-        self.rig.instances(&self.pose(alpha), self.sim.events.as_ref().map(|e| &e.hidden_slots), &revealed, out);
+        self.rig.instances_for(
+            self.render_id,
+            &self.pose(alpha),
+            self.sim.events.as_ref().map(|e| &e.hidden_slots),
+            &revealed,
+            out,
+        );
     }
 
     pub fn update_events(&mut self, props: &mut PropWorld, data: &nfsmw_data::car::physics::PhysicsData, view: Vec3) {

@@ -8,6 +8,11 @@ a record. Process: [licensing.md § Spec-first](../licensing.md#spec-first).
 
 | Module | Spec | Restricted sources read |
 |---|---|---|
+| [Cached terrain reference](vehicle-ground-reference.md) | [specs/vehicle-ground-reference.md](../specs/vehicle-ground-reference.md) | Original PC body triangle-list/query cache and CC0 world collision lifecycle |
+| [Jump stabilizers](vehicle-jump-stabilizers.md) | [specs/vehicle-jump-stabilizers.md](../specs/vehicle-jump-stabilizers.md) | Original PC chassis/world-position routines and CC0 rigid-body cache lifecycle |
+| [Speedbreaker](speedbreaker.md) | [specs/speedbreaker.md](../specs/speedbreaker.md) | Original PC 1.3 meter/time manager and CC0 player/suspension reference |
+| [Performance tuning](performance-tuning.md) | [specs/performance-tuning.md](../specs/performance-tuning.md) | Original PC 1.3 slider limits/gates, installed help, CC0 frontend/physics declarations |
+| [Performance packages](performance-upgrades.md) | [specs/performance-upgrades.md](../specs/performance-upgrades.md) | Original PC 1.3 upgrade routines; CC0 category and attribute declarations |
 | [Contact camera shake](contact-camera-shake.md) | [specs/contact-camera-shake.md](../specs/contact-camera-shake.md) | Original PC 1.3 isolated shaker routines and CC0 Rumble behavior |
 | [Pursuit breakers](pursuit-breakers.md) | [specs/pursuit-breakers.md](../specs/pursuit-breakers.md) | Original PC 1.3 event dispatch, explosions, models and installed hierarchies |
 | [Trailer constraints](trailer-constraints.md) | [specs/trailer-constraints.md](../specs/trailer-constraints.md) | Original PC 1.3 isolated joint/angle routines and installed bounds |
@@ -37,7 +42,18 @@ a record. Process: [licensing.md § Spec-first](../licensing.md#spec-first).
 | [Exhaust flames](exhaust-flames.md) | [specs/exhaust-flames.md](../specs/exhaust-flames.md) | dbalatoni13/nfsmw `World/CarRenderConn.cpp`, `VehicleRenderConn.cpp`, `CarRender.cpp`, `Ecstasy/EmitterSystem.cpp`, `Physics/Behaviors/DrawCar.cpp`, AttribSys class headers (decompiled, CC0) |
 | [Weather](weather.md) | [specs/weather.md](../specs/weather.md) | `speed.exe` (original PC build) decompiled and disassembled in Ghidra; name-hash scan of the install's data files |
 
+Audio extensions: [power effects](car-audio-power-effects.md),
+[authored traffic](authored-traffic-audio.md), [common events](common-audio-events.md),
+[spatial maps](spatial-parameter-maps.md), [FXEDIT](fxedit-processor.md), and
+[routing, tracing and output](car-audio-output.md). The
+[Speedbreaker pitch](speedbreaker-audio.md) record covers its shared authored envelope. The
+[coverage ledger](../car-audio-coverage.md) records unresolved boundaries.
+
 ## Template
+
+[Car audio integration](car-audio-integration.md) records the contact, playback,
+authored scrape/wind/road and engine synchronization changes, with their remaining
+original-game fidelity boundaries.
 
 [Tire effects](tire-effects.md) records the existing source inputs and the new procedural visual design.
 

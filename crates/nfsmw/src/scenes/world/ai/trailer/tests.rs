@@ -8,6 +8,8 @@ use std::sync::Arc;
 use super::*;
 
 mod clock;
+mod installed_spawn;
+mod startup;
 
 fn physics(spec: VehicleSpec, male: bool) -> CarPhysics {
     let bounds = CarBounds { half_dimensions: spec.dimension, pivot: Vec3::new(0.0, spec.dimension.y, 0.0) };
@@ -47,7 +49,16 @@ fn physics(spec: VehicleSpec, male: bool) -> CarPhysics {
     let geometry =
         CarGeometry::read(Arc::new(BoundsSet { name_hash: 1, nodes: vec![root, joint], point_clouds: vec![] }), None)
             .map(Arc::new);
-    CarPhysics { spec, bounds, walls: WallSpec::default(), geometry, events: None, reactions: None }
+    CarPhysics {
+        tire_integration: Default::default(),
+        jump_config: Default::default(),
+        spec,
+        bounds,
+        walls: WallSpec::default(),
+        geometry,
+        events: None,
+        reactions: None,
+    }
 }
 
 fn tractor() -> CarSim {

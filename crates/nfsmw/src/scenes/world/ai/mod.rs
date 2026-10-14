@@ -4,9 +4,9 @@
 
 mod car;
 mod collide;
-mod cop_aims;
 mod commands;
 mod cop;
+mod cop_aims;
 mod cop_lights;
 mod data;
 mod hitch;
@@ -18,11 +18,11 @@ mod police;
 mod population;
 mod pursuit;
 mod roadblock;
-mod support;
 mod scene;
 mod simulation;
 mod spawn;
 mod stop;
+mod support;
 mod traffic;
 #[allow(dead_code)] // the hooks in collide.rs and cop.rs are not wired yet (docs/specs/traffic-sound-events.md §4)
 mod traffic_events;
@@ -44,8 +44,8 @@ pub use lamps::LampMeshes;
 use manager::TypeTimers;
 pub(super) use models::load_requested;
 pub use pattern::{Pattern, Patterns};
-pub use population::{ModelRequest, PatrolPlan};
 pub use police::PlayerView;
+pub use population::{ModelRequest, PatrolPlan};
 pub use pursuit::{CopModel, Pursuit};
 
 /// The traffic manager runs twice a second.
@@ -69,12 +69,14 @@ pub struct TrafficModel {
     pub name: String,
     pub rig: Rc<CarRig>,
     pub physics: CarPhysics,
+    /// Its installed rigid-body behaviour is a tractor, whether or not it currently tows a trailer.
+    pub tractor: bool,
     /// The trailer a semi tractor pulls.
     pub trailer: Option<Box<TrafficModel>>,
     /// A cop model's light bars (`None` for traffic).
     pub cop_lights: Option<Rc<cop_lights::CopLightSet>>,
-    /// The `pvehicle` `HornType`: the sound number of its horn in `IG_GLOBAL/TRAFFIC_MB.abk`.
-    pub horn: u32,
+    /// Installed class IDs for the authored traffic producers.
+    pub audio_profile: crate::audio::traffic::TrafficProfile,
 }
 
 pub struct TrafficWorld {
@@ -87,6 +89,8 @@ pub struct TrafficWorld {
     lights_on: bool,
     models: Vec<TrafficModel>,
     cop_models: Vec<CopModel>,
+    /// The police helicopter's rig. It is not a car, so it has no `CarPhysics` (`models.rs`).
+    helicopter_rig: Option<Rc<CarRig>>,
     pursuit: Option<Pursuit>,
     police: police::Police,
     cars: Vec<AiCar>,
@@ -146,6 +150,7 @@ impl TrafficWorld {
             index,
             models: Vec::new(),
             cop_models: Vec::new(),
+            helicopter_rig: None,
             pursuit: None,
             police: police::Police::default(),
             cars: Vec::new(),

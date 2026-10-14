@@ -3,7 +3,7 @@
 Status: wired, not yet checked in the game. The keyboard slots (`input/slots.rs`) take a `Control` (an action, or one
 direction of an axis). `frontend/controls_screen.rs` maps the 16 buttons to the eight rows. A press sends
 `Command::Remap`, the frontend takes the next key (Escape cancels) in `plugin.rs` and saves it with
-`Bindings::save_to`. The Controls category has a "Keyboard Bindings" row (`input_options.rs`) that pushes this screen (`WidgetMenu::change`).
+`Bindings::save_to`. The Controls icon of the option categories opens this screen directly (`icon_menu.rs`); the Control Options list (`input_options.rs`) has no bindings row.
 **Drawn (checked offscreen, `nfsmw view-screen Options_PC_Controller.fng --screenshot`):** the title "Keyboard
 Configuration" and the "Primary" and "Secondary" headers come from the package itself. The eight row titles are the
 package's `option_data` text objects at x = -298 (`TITLE` in `controls_screen.rs`); `ControlsLogic::start` sets them

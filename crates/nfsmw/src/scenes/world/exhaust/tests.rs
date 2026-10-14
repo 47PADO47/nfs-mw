@@ -110,10 +110,21 @@ fn a_gear_change_flames_only_where_the_engine_allows_it() {
     assert_eq!(stock.live(), 0);
 
     // After an engine upgrade it does.
-    stock.command(&["engine", "1"]).unwrap();
+    let mut performance = nfsmw_data::car::physics::PerformancePackage::default();
+    performance.levels[4] = 1;
+    stock.set_performance(performance);
     run(&mut stock, 5, &car(4));
     run(&mut stock, 3, &car(5));
     assert!(stock.live() > 0);
+
+    // Removing the engine package stops subsequent shift emission, even if
+    // unrelated upgrades or Junkman modifiers remain installed.
+    stock.clear();
+    stock
+        .set_performance(nfsmw_data::car::physics::PerformancePackage { levels: [3, 3, 3, 3, 0, 3, 3], junkman: 0x7f });
+    run(&mut stock, 5, &car(3));
+    run(&mut stock, 3, &car(4));
+    assert_eq!(stock.live(), 0);
 }
 
 #[test]

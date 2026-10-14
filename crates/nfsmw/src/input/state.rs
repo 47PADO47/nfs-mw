@@ -1,9 +1,10 @@
 //! The resolved value of every action for this frame.
 
 use bevy_ecs::resource::Resource;
+use bevy_input::keyboard::KeyCode;
 
 use super::Action;
-use super::bindings::{self, Binding};
+use super::bindings::{self, Binding, Source};
 use super::snapshot::Snapshot;
 
 /// A button counts as pressed above this value.
@@ -25,6 +26,20 @@ impl Default for ActionState {
 }
 
 impl ActionState {
+    /// Let an overlay claim this frame, including the frame it opened or closed.
+    pub fn capture_ui(&mut self) {
+        self.typing = true;
+        for action in Action::ALL {
+            if !action.works_in_ui() {
+                self.now[action.index()] = 0.0;
+            }
+        }
+    }
+
+    /// A handled press must not also pause or quit later in the frame.
+    pub fn consume(&mut self, action: Action) {
+        self.now[action.index()] = 0.0;
+    }
     /// Resolve the actions from the keys held and the analog button pulls, for tests of code that reads actions.
     #[cfg(test)]
     pub fn update_for_test(
@@ -66,6 +81,10 @@ impl ActionState {
         self.typing = ui_focus;
         self.now = [0.0; Action::ALL.len()];
         for b in &bindings.0 {
+            // Alt+Enter is the fullscreen chord (`app/window/hotkey.rs`): the Enter in it is not the interact press.
+            if b.action == Action::Interact && is_alt_enter(b, snapshot) {
+                continue;
+            }
             if matches!(b.action, Action::MenuUp | Action::MenuDown | Action::MenuLeft | Action::MenuRight)
                 && let super::bindings::Source::PadAxis(axis) = b.source
             {
@@ -85,6 +104,13 @@ impl ActionState {
             }
         }
     }
+}
+
+/// Whether this binding is the Enter key while Alt is held.
+fn is_alt_enter(binding: &Binding, snapshot: &Snapshot) -> bool {
+    let enter = matches!(binding.source, Source::Key(KeyCode::Enter | KeyCode::NumpadEnter));
+    let alt = snapshot.keys.contains(&KeyCode::AltLeft) || snapshot.keys.contains(&KeyCode::AltRight);
+    enter && alt
 }
 
 /// The active key, button and stick assignments.
@@ -246,7 +272,7 @@ mod tests {
         state.update(&bindings, &snap, false);
         assert!(!state.just_pressed(Action::ShiftUp));
         snap.keys.clear();
-        snap.keys.insert(KeyCode::ControlLeft);
+        snap.keys.insert(KeyCode::ControlRight);
         state.update(&bindings, &snap, false);
         assert!(state.just_pressed(Action::ShiftDown));
     }

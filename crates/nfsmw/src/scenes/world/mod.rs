@@ -10,9 +10,14 @@ mod damage_marks;
 mod drive;
 mod drive_input;
 mod effects;
+mod entry;
+mod entry_zones;
+#[cfg(test)]
+mod entry_zones_tests;
 mod events;
 mod exhaust;
 mod frame;
+mod garage;
 mod ground;
 mod hud;
 mod keys;
@@ -32,6 +37,7 @@ mod road;
 mod shadow_feed;
 mod sign_lamps;
 mod simulation;
+mod sound;
 mod space;
 mod start;
 mod sun;
@@ -90,6 +96,12 @@ struct PendingCar {
 }
 
 pub struct WorldScene {
+    garage: crate::garage::Model,
+    garage_parts: Option<nfsmw_data::car::customization::Inventory>,
+    garage_open: bool,
+    audio_environment: Option<crate::audio::environment_context::EnvironmentMap>,
+    common_sounds: Vec<crate::audio::CommonEvent>,
+    sound_speedbreaker_active: bool,
     dir: GameDir,
     track: String,
     camera: FlyCamera,
@@ -120,13 +132,17 @@ pub struct WorldScene {
     physics_aspect: f32,
     /// The one fixed timeline of the player, the traffic and the object contacts (see `update_simulation`).
     physics_clock: drive::FixedClock,
+    speedbreaker_clock: drive::SpeedbreakerClock,
     view: View,
     pending_car: Option<PendingCar>,
     drive: Option<Drive>,
     /// Computer-driven cars, when the track has a road network.
     traffic: Option<ai::TrafficWorld>,
-    /// Other minimap blips (racers, checkpoint, helicopter) that a system sets each frame; nothing sets them yet.
+    /// Minimap blips that do not come from the traffic: the race starts and the interiors, made once at open
+    /// (`hud::static_blips`). Nothing clears this list, so a later addition stays until it is removed here.
     pub map_blips: Vec<crate::hud::MapBlip>,
+    /// The entry zones (auto shops, safe houses, race starts) and the interact card (`entry.rs`).
+    entry: entry::Entry,
     /// The `traffic`, `cop_share` settings as last told, and a count typed in the console that replaces them.
     traffic_setting: crate::settings::TrafficSettings,
     lamp_meshes: Option<ai::LampMeshes>,
@@ -164,23 +180,22 @@ const CLEAR: [f32; 3] = [0.55, 0.63, 0.72];
 /// The car `drive` picks when none was named.
 pub const DEFAULT_CAR: &str = "BMWM3GTR";
 
-impl WorldScene {
-    /// Map position (x, y) the streaming follows.
-    fn focus(&self) -> [f32; 2] {
-        match (&self.drive, self.view) {
-            (Some(drive), View::Chase) => match drive.waiting_for_road() {
-                Some(request) => request.near,
-                None => {
-                    let p = drive.position();
-                    [p.x, p.y]
-                }
-            },
-            _ => [self.camera.position.x, self.camera.position.y],
-        }
-    }
-}
-
 impl Scene for WorldScene {
+    fn garage(&mut self) -> Option<&mut crate::garage::Model> {
+        Some(&mut self.garage)
+    }
+
+    fn apply_garage(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
+        self.apply_garage_selection(renderer, selection)
+    }
+
+    fn set_garage_open(&mut self, open: bool) {
+        self.garage_open = open;
+    }
+
+    fn paused(&self) -> bool {
+        self.garage_open
+    }
     fn captures_mouse(&self) -> bool {
         // The mouse looks round the car too, on the chase camera.
         true
@@ -199,6 +214,15 @@ impl Scene for WorldScene {
     }
 
     fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
+        let idle = ActionState::default();
+        let input = match self.garage_open {
+            true => &idle,
+            false => input,
+        };
+        let dt = match self.garage_open {
+            true => 0.0,
+            false => dt,
+        };
         if let Some(drive) = self.drive.as_mut() {
             drive.set_car_shading(renderer, self.car_shading, self.sun.to_sun());
             drive.set_damaged_windows(renderer, self.sun.to_sun());
@@ -216,20 +240,24 @@ impl Scene for WorldScene {
             (View::Chase, Some(drive)) => drive.camera().position,
             _ => self.camera.position,
         };
-        self.rain.update(dt, camera);
         if input.just_pressed(Action::ToggleCamera) && self.drive.is_some() {
             log::info!("{}", self.toggle_view());
         }
         let [x, y] = self.focus();
         self.residency.update(renderer, x, y);
-        self.clock += dt * self.tuning.animation_speed;
-        self.sun.update(dt, renderer.render_experiments().freeze_sun);
+        self.prepare_drive();
+        let sim_dt = match self.garage_open {
+            true => 0.0,
+            false => self.update_simulation(renderer, input, dt),
+        };
+        self.update_entry(input, dt);
+        self.rain.update(sim_dt, camera);
+        self.clock += sim_dt * self.tuning.animation_speed;
+        self.sun.update(sim_dt, renderer.render_experiments().freeze_sun);
         self.residency.animate(renderer, self.clock);
         if self.view == View::Fly {
-            self.camera.update(input, dt);
+            self.camera.update(input, sim_dt);
         }
-        self.prepare_drive();
-        self.update_simulation(renderer, input, dt);
         if !self.grounded && self.residency.complete() {
             self.grounded = true;
             let estimate = ground::height_near(self.residency.placed(), self.start[0], self.start[1], 150.0);
@@ -247,6 +275,11 @@ impl Scene for WorldScene {
         self.original_shadows = renderer.render_experiments().original_shadows;
         self.update_reflections(renderer);
         self.update_shadow_casters(renderer);
+    }
+
+    fn ui(&mut self, ctx: &egui::Context) -> f32 {
+        crate::hud::show_interact_prompt(ctx, &self.entry.popup);
+        0.0
     }
 
     fn set_tire_effects(&mut self, smoke: bool, skid_marks: bool) {
@@ -382,7 +415,15 @@ impl Scene for WorldScene {
     }
 
     fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
-        self.drive.as_mut()?.car_sound()
+        self.audio_state()
+    }
+
+    fn take_common_sounds(&mut self) -> Vec<crate::audio::CommonEvent> {
+        std::mem::take(&mut self.common_sounds)
+    }
+
+    fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {
+        self.traffic.as_ref()?.pursuit_feed()
     }
 
     fn take_traffic_sounds(&mut self) -> Vec<crate::audio::traffic::TrafficSound> {

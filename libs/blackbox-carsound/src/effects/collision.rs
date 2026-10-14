@@ -60,13 +60,13 @@ impl CollisionFx {
             return None;
         }
         let lengths = &request.tuning.level_lengths;
-        let used = lengths.iter().filter(|&&n| n > 0).count();
+        let used = lengths.iter().take_while(|&&n| n > 0).count();
         if used == 0 {
             return None;
         }
         let level = ((magnitude * (used - 1) as f32 + 0.5) as usize).min(used - 1);
-        let index = (self.counter % lengths[level].max(1)) as usize;
         self.counter = self.counter.wrapping_add(1);
+        let index = (self.counter % lengths[level]) as usize;
         Some(ImpactPlay { level, index, volume: q15_gain(request.tuning.volumes[level] as f32) })
     }
 

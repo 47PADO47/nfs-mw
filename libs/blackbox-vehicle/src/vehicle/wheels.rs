@@ -5,7 +5,7 @@ use glam::Vec3;
 
 use super::Vehicle;
 use crate::ground::Ground;
-use crate::suspension::{Side, SpringInput, compression, probe, spring_force};
+use crate::suspension::{Side, SpringInput, WheelContact, compression, probe, spring_force};
 use crate::tires::LoadedInput;
 
 /// Sum over the four wheels.
@@ -19,7 +19,7 @@ pub(super) struct WheelOutput {
 impl Vehicle {
     /// Probes the ground under each wheel, updates springs and tires, and returns the summed force and
     /// torque about the centre of gravity (not yet applied to the body).
-    pub(super) fn wheel_forces(&mut self, dt: f32, ground: &dyn Ground) -> WheelOutput {
+    pub(super) fn wheel_forces(&mut self, dt: f32, ground: &dyn Ground, angular_velocity: Vec3) -> WheelOutput {
         let rot = self.body.rotation();
         let up = rot.y_axis;
         let pos = self.body.position;
@@ -40,13 +40,21 @@ impl Vehicle {
             let a = &axles[axle];
             let arm_world = rot * self.geometry.arms[i];
             let point = pos + arm_world;
-            let point_vel = velocity + self.body.angular_velocity.cross(arm_world - cog_world);
+            let point_vel = velocity + angular_velocity.cross(arm_world - cog_world);
             let tolerance = ((-point_vel.y * dt).max(0.0)
                 + self.geometry.radius[i]
                 + Vec3::new(point_vel.x, 0.0, point_vel.z).length() * dt)
                 .min(self.spec.dimension.y);
 
-            let contact = probe(ground, point, tolerance);
+            let contact = ground
+                .wheel_plane(i, point, tolerance, old_compression[i] > 0.0)
+                .map(|plane| WheelContact {
+                    point: point + plane.normal * plane.separation,
+                    normal: plane.normal,
+                    penetration: plane.separation,
+                    surface: plane.surface,
+                })
+                .or_else(|| probe(ground, point, tolerance));
             self.contacts[i] = contact;
             let c_old = old_compression[i];
             let comp = contact.map(|c| compression(a.ride, a.travel, c.normal.dot(up).clamp(0.0, 1.0), c.penetration));
