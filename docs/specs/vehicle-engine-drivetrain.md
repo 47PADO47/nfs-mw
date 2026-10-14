@@ -2,8 +2,8 @@
 
 How NFS: Most Wanted turns pedals into wheel torque: the engine's torque curve and revs, throttle and rev
 limiter, clutch and automatic gearbox, forced induction, nitrous, the differentials, brake torque, and how
-raw controls become throttle, brake and steering numbers. Tyre forces, suspension and the rigid body are out
-of scope (they belong to `vehicle-physics.md`); this spec stops where torque is handed to a wheel and starts
+raw controls become throttle, brake and steering numbers. Tyre forces, suspension and the rigid body are out of scope
+(they belong to `vehicle-physics.md`); this spec stops where torque is handed to a wheel and starts
 where controls are read.
 
 - **Sources read:**
@@ -142,9 +142,10 @@ negative sign is later flipped when the driven wheels spin the wrong way (§3).
 ### Cached values
 
 At spawn and on `Reset` the game computes once [decomp]: the shift points (§7.1), the peak torque and its
-RPM, and the peak power `mMaxHP`. The helpers that scan the curve for the peak (`MaxInductedTorque`,
-`MaxInductedPower`) are not in the sources read here: take them as "sample the curve, including the full
-induction boost, over idle..redline and keep the maximum" and verify (Q2).
+RPM, and the peak power `mMaxHP`. PC `MaxInductedTorque` was inspected and executed:
+visit raw TORQUE samples evenly over idle..MAX_RPM with full induction boost,
+keeping the first strict maximum. Above-redline samples participate; clamp only returned RPM to idle..redline.
+Fewer than two samples return zero torque and idle RPM. Convert ft*lb to N m; peak-power helper remains unverified.
 
 ## 3. Engine speed, clutch and the torque loop
 
@@ -391,9 +392,8 @@ shift_down[j+1] = shift_up[j] * g2/g1                    # 0 if g1 ~ 0
 shift_up[top] = REDLINE
 ```
 
-The decompiled call multiplies by an induction term whose argument order looks swapped; the net effect is
-that the induction multiplier evaluates to exactly 1 (Q3), so shift points use the *naturally aspirated*
-curve. If there are more gears than ten, no shift points are computed.
+The PC call swaps RPM/spool arguments: induction contributes no boost and shift points use the naturally aspirated curve.
+Isolated replay on 2026-10-13 confirmed this (Q3 resolved). More than ten gears yields no computed shift points.
 
 ### 7.2 Gear change
 

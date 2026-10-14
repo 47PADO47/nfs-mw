@@ -126,6 +126,46 @@ fn real_install_traffic_cursors_never_dead_end_early() {
     assert!(dead * 20 < runs, "{dead} of {runs} cursors dead-ended: {:?}", &stuck_at[..stuck_at.len().min(10)]);
 }
 
+/// Even when the road tangents or lane layouts differ, entering the next segment must not move
+/// the start of the driven lane away from the previous lane's endpoint (navigator spec section 4.1).
+#[test]
+#[ignore = "needs a game install; set NFSMW_GAME_DIR"]
+fn real_install_traffic_lane_transitions_are_continuous() {
+    use crate::{RoadNav, SplitMix, forward_traffic_lanes};
+    let Some(net) = network() else { return };
+    let mut rng = SplitMix(7);
+    let mut checked = 0;
+    let mut worst = (0.0_f32, 0_u16, 0_usize, 0_u16, 0_usize);
+    for segment in 0..net.segments.len() as u16 {
+        let seg = net.segment(segment);
+        if seg.is_decision() || seg.has(flags::NO_TRAFFIC) {
+            continue;
+        }
+        for node_ind in 0..2 {
+            if node_ind == 0 && seg.is_one_way() {
+                continue;
+            }
+            for lane in forward_traffic_lanes(&travel_profile(&net, segment, node_ind, true)) {
+                let mut nav = RoadNav::traffic();
+                nav.place(&net, segment, node_ind, lane, 1.0);
+                let previous_end = nav.position;
+                nav.advance(&net, 0.01, Vec3::ZERO, &mut rng);
+                if nav.dead_end || nav.segment == segment {
+                    continue;
+                }
+                checked += 1;
+                let gap = previous_end.distance(nav.lane_line().start());
+                if gap > worst.0 {
+                    worst = (gap, segment, lane, nav.segment, nav.lane);
+                }
+            }
+        }
+    }
+    eprintln!("{checked} installed transitions, worst endpoint gap {worst:?}");
+    assert!(checked > 5000, "{checked} transitions");
+    assert!(worst.0 < 1e-4, "lane endpoint discontinuity {worst:?}");
+}
+
 /// Routes between far apart nodes are connected walks; ordinary routes never chain two junction
 /// connectors, and are not much longer than the straight line (spec §9).
 #[test]

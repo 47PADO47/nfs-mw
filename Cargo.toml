@@ -22,6 +22,8 @@ default-members = [
     "libs/blackbox-hash",
     "libs/blackbox-minimap",
     "libs/blackbox-mixmap",
+    "libs/blackbox-paramap",
+    "libs/blackbox-fxedit",
     "libs/blackbox-pursuit",
     "libs/blackbox-speedfx",
     "libs/blackbox-movie",
@@ -33,6 +35,7 @@ default-members = [
     "libs/blackbox-text",
     "libs/blackbox-tpk",
     "libs/blackbox-vehicle",
+    "libs/ini-tuning",
     "libs/ea-audio",
     "libs/ea-compress",
     "libs/game-install",
@@ -67,6 +70,8 @@ blackbox-gpu-passes = { path = "libs/blackbox-gpu-passes" }
 blackbox-hash = { path = "libs/blackbox-hash" }
 blackbox-minimap = { path = "libs/blackbox-minimap" }
 blackbox-mixmap = { path = "libs/blackbox-mixmap" }
+blackbox-paramap = { path = "libs/blackbox-paramap" }
+blackbox-fxedit = { path = "libs/blackbox-fxedit" }
 blackbox-pursuit = { path = "libs/blackbox-pursuit" }
 blackbox-speedfx = { path = "libs/blackbox-speedfx" }
 blackbox-movie = { path = "libs/blackbox-movie" }
@@ -81,6 +86,7 @@ blackbox-streaming = { path = "libs/blackbox-streaming" }
 blackbox-text = { path = "libs/blackbox-text" }
 blackbox-tpk = { path = "libs/blackbox-tpk" }
 blackbox-vehicle = { path = "libs/blackbox-vehicle" }
+ini-tuning = { path = "libs/ini-tuning" }
 ea-audio = { path = "libs/ea-audio" }
 ea-compress = { path = "libs/ea-compress" }
 fsr3-wgpu = { path = "libs/fsr3-wgpu" }
@@ -122,6 +128,7 @@ anyhow = "1"
 bytemuck = { version = "1", features = ["derive"] }
 clap = { version = "4", features = ["derive"] }
 directories = "6"
+discord-rich-presence = "=1.1.0"
 egui = "0.36"
 env_logger = "0.11"
 glam = { version = "0.34", features = ["bytemuck"] }

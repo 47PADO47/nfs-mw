@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use blackbox_gfx::{BlendMode, InstanceKey, MeshHandle, RenderBackend, Shading, TextureHandle};
 use blackbox_scene::{Aabb, blend_mode, upload_solid, upload_texture};
 use blackbox_scenery::LodModel;
+use blackbox_solid::Solid;
 use glam::Mat4;
 use nfsmw_data::world::{PropCatalog, PropShape, SectionData};
 use std::sync::Arc;
@@ -28,6 +29,8 @@ pub struct Placed {
     pub prop_id: u32,
     /// Its name for the renderer, from the tile and its place in the tile's list (see [`super::keys`]).
     pub key: InstanceKey,
+    /// Authored shadow-only scenery, identified in this game's asset names.
+    pub original_shadow: bool,
     /// Original physics pose and stable identity, when this instance has a spawner.
     pub spawner: Option<blackbox_scenery::ObjectSpawner>,
     pub parts: Option<Arc<super::props::scenery::ModelParts>>,
@@ -50,6 +53,7 @@ impl Placed {
             prop: Some(shape),
             prop_id: 0,
             key: InstanceKey::TRANSIENT,
+            original_shadow: false,
             spawner: None,
             parts: None,
             curve_lamp: None,
@@ -61,7 +65,7 @@ impl Placed {
 #[derive(Default)]
 pub struct SectionResources {
     pub materials: HashMap<u32, (TextureHandle, BlendMode)>,
-    pub meshes: HashMap<u32, (MeshHandle, LodModel)>,
+    pub meshes: HashMap<u32, (MeshHandle, LodModel, bool)>,
     /// Animated textures defined here; frames may live here or in the shared sets.
     pub anims: Vec<blackbox_tpk::TextureAnim>,
 }
@@ -85,12 +89,27 @@ impl SectionResources {
 
     /// Upload solids, resolving textures here first and then in `fallback` (the shared sets).
     pub fn upload_meshes(&mut self, renderer: &mut dyn RenderBackend, data: &SectionData, fallback: &SectionResources) {
+        self.upload_solid_list(renderer, &data.solids, fallback, false);
+    }
+
+    /// Upload solids, resolving textures here first and then in `fallback`. With `keep_existing`, a solid whose
+    /// name hash is already resident is skipped (the first upload wins, as the textures do).
+    pub fn upload_solid_list(
+        &mut self,
+        renderer: &mut dyn RenderBackend,
+        solids: &[Solid],
+        fallback: &SectionResources,
+        keep_existing: bool,
+    ) {
         let lookup = |hash: u32| self.materials.get(&hash).or_else(|| fallback.materials.get(&hash)).copied();
         let mut meshes = Vec::new();
-        for solid in &data.solids {
+        for solid in solids {
+            if keep_existing && self.meshes.contains_key(&solid.name_hash) {
+                continue;
+            }
             if let Some(mesh) = upload_solid(renderer, solid, &lookup, shading_for(&solid.name)) {
                 let lod = LodModel { num_polys: solid.num_polys, density: solid.density };
-                meshes.push((solid.name_hash, (mesh, lod)));
+                meshes.push((solid.name_hash, (mesh, lod, solid.name.starts_with("SHD_"))));
             }
         }
         self.meshes.extend(meshes);
@@ -107,11 +126,11 @@ impl SectionResources {
     }
 
     pub fn mesh(&self, hash: u32, fallback: &SectionResources) -> Option<(MeshHandle, LodModel)> {
-        self.meshes.get(&hash).or_else(|| fallback.meshes.get(&hash)).copied()
+        self.meshes.get(&hash).or_else(|| fallback.meshes.get(&hash)).map(|&(mesh, lod, _)| (mesh, lod))
     }
 
     pub fn release(self, renderer: &mut dyn RenderBackend) {
-        for (mesh, _) in self.meshes.into_values() {
+        for (mesh, _, _) in self.meshes.into_values() {
             renderer.destroy_mesh(mesh);
         }
         for (texture, _) in self.materials.into_values() {
@@ -160,14 +179,19 @@ pub fn place(
                 continue;
             }
             let spawner = hooks.get(&instance).and_then(|id| spawners.get(id)).copied();
-            let prop = match spawner {
-                Some(spawn) => props.for_spawner(&info.name, spawn),
-                None => props.shape(&info.name),
-            };
+            // Static solidity comes from authored world collision, not a model-name bounds guess.
+            let prop = spawner.and_then(|spawn| props.for_spawner(&info.name, spawn));
             if spawner.is_some() && prop.is_none() {
                 log::debug!("no physics bounds/attributes for placed {}", info.name);
             }
             placed.push(Placed {
+                original_shadow: info.name.starts_with("SHD_")
+                    || resolved.iter().enumerate().filter(|(_, mesh)| mesh.is_some()).all(|(i, _)| {
+                        own.meshes
+                            .get(&info.solid_keys[i])
+                            .or_else(|| shared.meshes.get(&info.solid_keys[i]))
+                            .is_some_and(|model| model.2)
+                    }),
                 lods: std::array::from_fn(|i| resolved.get(i).copied().flatten().map(|(m, _)| m)),
                 detailed: resolved.first().copied().flatten().map(|(_, lod)| lod),
                 transform: Mat4::from_cols_array_2d(&inst.matrix_columns()),

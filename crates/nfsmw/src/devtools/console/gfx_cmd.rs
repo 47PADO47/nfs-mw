@@ -133,7 +133,7 @@ mod tests {
             "graphics api: vulkan (requested backend: auto)",
             "adapter:      Test GPU (driver 1.2.3)",
             "  upscalers:     off, bilinear, fsr1",
-            "  anti-aliasing: off, fxaa",
+            "  anti-aliasing: off, fxaa, smaa",
             "  ray tracing:   no",
             "  needs restart: nothing",
             "  upscaler        fsr1      -> fsr1",

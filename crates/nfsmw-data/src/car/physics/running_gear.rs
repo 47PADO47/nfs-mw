@@ -4,13 +4,13 @@
 use blackbox_vehicle::brakes::BrakeSpec;
 use blackbox_vehicle::tires::TireSpec;
 
-use super::fields::Fields;
+use super::performance::fields::PerformanceFields;
 
-pub fn brakes(c: Fields<'_>) -> BrakeSpec {
+pub fn brakes(c: impl PerformanceFields) -> BrakeSpec {
     BrakeSpec { brakes: c.axle_pair("BRAKES"), brake_lock: c.axle_pair("BRAKE_LOCK"), ebrake: c.f32("EBRAKE") }
 }
 
-pub fn tires(c: Fields<'_>) -> TireSpec {
+pub fn tires(c: impl PerformanceFields) -> TireSpec {
     TireSpec {
         rim_size: c.axle_pair("RIM_SIZE"),
         section_width: c.axle_pair("SECTION_WIDTH"),

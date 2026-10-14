@@ -65,9 +65,9 @@ impl Paint {
     }
 }
 
-/// The skin placeholders a skinnable car's body uses (`<CAR>_SKIN1`, `GLOBAL_SKIN1`).
-pub fn skin_placeholders(base_model_name: &str) -> [String; 2] {
-    [format!("{base_model_name}_SKIN1"), "GLOBAL_SKIN1".to_owned()]
+/// Body and paintable accessory placeholders share the selected body colour.
+pub fn skin_placeholders(base_model_name: &str) -> [String; 4] {
+    [format!("{base_model_name}_SKIN1"), "GLOBAL_SKIN1".to_owned(), "SPOILER_SKIN1".to_owned(), "ROOF_SKIN".to_owned()]
 }
 
 #[cfg(test)]

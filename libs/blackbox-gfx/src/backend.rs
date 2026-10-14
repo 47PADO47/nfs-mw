@@ -50,6 +50,16 @@ pub trait RenderBackend {
     /// render scale.
     fn render_size(&self) -> [u32; 2];
 
+    /// Session-only prototypes; unsupported renderers keep defaults.
+    fn set_render_experiments(&mut self, _options: crate::RenderExperiments) {}
+    fn render_experiments(&self) -> crate::RenderExperiments {
+        Default::default()
+    }
+    fn experiment_stats(&self) -> crate::ExperimentStats {
+        Default::default()
+    }
+    fn set_shadow_casters(&mut self, _casters: Option<&[Instance]>) {}
+
     // --- resources -------------------------------------------------------------------------------
 
     fn create_texture(&mut self, desc: &TextureDesc<'_>) -> TextureHandle;

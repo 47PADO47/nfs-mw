@@ -2,6 +2,7 @@
 
 use super::*;
 mod installed;
+mod poles;
 
 #[test]
 fn offscreen_release_resets_hidden_parts_and_invalidates_fragment_owners() {

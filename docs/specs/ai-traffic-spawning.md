@@ -19,7 +19,8 @@ meanings, see [evidence tags](../README.md#evidence-tags).
   the install with throwaway scripts.
 
 Everything is **[decomp]** unless marked. The decompiled sources are the GameCube build; the PC build is assumed to
-share the logic, and no value below was measured in the running game.
+share the logic, and no value below was measured in the running game. The manager's task registration and scheduler
+rate interpretation were checked statically in PC 1.3 on 2026-10-12; see the provenance record.
 
 ## 1. The manager and its tick
 
@@ -27,12 +28,14 @@ One activity, `AITrafficManager`, is created when a game session loads (the quic
 next to the cop manager, the avoidable manager, the parked-car spawner, the path finder and the GPS). It is not
 created when the debug option "skip front end, disable traffic" is set.
 
-- It runs as a frame-variable task at **0.5 s** (offset 0.5 s). Call that tick `dT` (about 0.5 s).
+- It runs as a frame-variable task with **rate 0.5** and accumulator offset 0.5: approximately every two
+  rendered frames, not every half second. The callback's `dT` is accumulated elapsed frame time.
 - It owns a **pool** of traffic vehicles (`vehicles` below): every car it ever created, active or not. Despawning
   only deactivates a car; the car stays in the pool and can be reused for the same model.
 - Per tick, in order: compute the density; if it is above zero and a pattern is valid, advance the type timers,
   advance the new-instance timer and make **one** spawn attempt; then check every active pool car for removal.
-- One attempt per tick means at most one new car per 0.5 s, whatever the density.
+- One attempt per task invocation bounds activation attempts; new vehicle creation also obeys the separate
+  four-second instance timer (§7), while reusing inactive cars does not.
 
 State: the pattern in use, ten type timers `timer[0..9]` (seconds-equivalents, see section 5), a round-robin cursor
 `cursor`, the new-instance timer, a scratch road cursor `nav` used for spawn probing.
@@ -186,8 +189,8 @@ return none
 - When a car is actually spawned, the `timer[i]` of every record whose model equals the spawned car is set to 0.
 - Worked rate example: at density 1.0 the multiplier is 8, so a `Rate 3` entry is eligible 0.375 s after its last
   spawn and a `Rate 60` entry after 7.5 s; at density 0.5 (multiplier 0.4) they take 7.5 s and 150 s; at the quick
-  race "Light" setting (0.1, multiplier 0.05) they take 60 s and 1200 s. Because only one car can spawn per
-  0.5 s tick and the cap below applies, high densities mostly fill the 10-vehicle budget at the tick rate.
+  race "Light" setting (0.1, multiplier 0.05) they take 60 s and 1200 s. Only one activation is attempted per
+  manager invocation; the four-second new-instance timer, pool reuse and population cap also apply.
 
 **Population cap (`needs_traffic`).** A spawn is only attempted while
 
@@ -300,7 +303,7 @@ presumably race start, cutscenes and resets).
 
 | Value | Meaning | Tag |
 |---|---|---|
-| 0.5 s | manager tick | **[decomp]** |
+| 0.5 | frame-variable manager task rate, approximately two rendered frames | **[decomp, verified PC scheduler]** |
 | 10 | maximum number of active vehicles in the world for a spawn; also the base of the percent cap | **[decomp]** |
 | 10 | maximum record count read from a pattern (timers) | **[decomp]** |
 | 4 s | pattern `SpawnTime`, all patterns | **[verified]** |
@@ -317,6 +320,10 @@ presumably race start, cutscenes and resets).
 a value (`trafha`, `semilog`); no source read uses any of them, and a header constant `MAX_TRAFFIC_CARS = 19`
 is also unused **[verified, decomp]**. The real limits are the hard-coded ones above (10 active vehicles, 150 m).
 A rewrite may expose them as settings, but the originals are not tunable from data.
+
+**Rewrite timing:** the current manager runs every 0.5 simulated seconds on the shared physics clock,
+and models are cached without an inactive vehicle pool. This differs from the original variable-frame
+scheduler and its four-second limit on creating a new vehicle instance; full population timing parity is pending.
 
 ## 10. How to check it
 
@@ -343,3 +350,23 @@ In the original (PC build):
 - Whether the vehicle count used by the cap (`Count(ALL)`) includes inactive cop/helicopter pool cars and trailers.
 - Whether the first-match zone search (file order) is the same in the PC build.
 - Who calls `flush_all_traffic`.
+
+## 12. Rewrite ground placement
+
+**[verified remake fault]** Upright, centre-only placement on a sloping highway
+can start a long vehicle below the road and its trailer more than a metre away
+vertically at the hitch. Installed car-carrier and log-truck probes reproduce
+large first-tick suspension loads without any driver input or body impact. A
+matching infinite slope reproduces the fault; flat ground does not.
+
+Traffic placement uses the supporting surface normal as its up axis and preserves
+the requested heading in the horizontal plane. The forward velocity follows the
+resulting road tangent. Preserve the existing unloaded ride clearance, measured
+normal to the surface: raise the centre vertically by clearance divided by the
+normal's up component. Reject missing, nonfinite or non-upward support. Reset the
+contact-history pose to this final placement before the first sweep. Place the
+trailer the same way, then check support after horizontal hitch alignment.
+
+This is a correction to the remake's spawn adapter, not a recovered original
+ground-placement algorithm. The original traffic-specific suspension, curved
+support fitting and matched driving comparisons remain separate parity work.

@@ -36,6 +36,10 @@ impl<T> Slots<T> {
         self.items.get(index)?.as_ref()
     }
 
+    pub(super) fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
+        self.items.iter_mut().filter_map(Option::as_mut)
+    }
+
     /// Number of live items.
     pub(super) fn len(&self) -> usize {
         self.items.len() - self.free.len()

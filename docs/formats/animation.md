@@ -104,6 +104,98 @@ NIS file uses **[verified]**. The structs are presumably in `src/Speed/Indep/Src
 `AnimDirectorySceneLoadData` (18,440 B) and `0x00037070` `AnimDirectorySceneMappingData` (4,180 B)
 **[decomp names; sizes verified]**.
 
+## ICE chunk dispatch (speed.exe 1.3) **[verified: Ghidra]**
+
+The ICE chunk ids are consumed by two identical dispatch functions in `speed.exe`
+(image base `0x400000`). Each one takes the chunk header pointer as its stack argument and reads the
+id from `[arg]`:
+
+| Site | Test | Action |
+|---|---|---|
+| `0x004788E0` (compare at `0x4788E6`) | `id == 0x0003B211` | `CALL 0x00478890` (shake tracks) |
+| same | `0x8003B200 <= id <= 0x8003B203` | `CALL 0x004787C0` (camera packs, `ECX = 0x008EE320`) |
+| `0x0047FB40` (compare at `0x47FB46`) | `0x8003B200 <= id <= 0x8003B203` | `CALL 0x0047F9F0` (the `0x3B211` branch goes to `0x47FB6F`, not yet read) |
+
+Confirmed ids, all checked as immediates in the dispatch: **`0x0003B211` ICEShakeTracks** and the four
+camera packs **`0x8003B200`, `0x8003B201`, `0x8003B202`, `0x8003B203`** (the range test).
+
+**Not confirmed as immediates in `speed.exe`** (searched, no hits): `0x0003B200`, `0x8003B204`
+(Generic, outside the range test), `0x8003B209` (CameraShakeData) and `0x0003B210` (ICECameraGroup).
+They may use another dispatch or live in `server.dll`; open question.
+
+Pack kind inside `0x004787C0`: the handler computes `id - 0x8003B200` and jumps through a 4-entry table at
+`0x00478874` for indices 0..3. Entries map to `kind = 0, 1, 2, 3` and anything else to `kind = 4`. The
+decomp names for those kinds (NIS, FMV, MKR, Replay, Generic) are not checked here.
+
+The handler then loops over the records. Each record goes through `0x004786E0`, which appends a
+20-byte entry (pointer plus kind) to one of four arrays on the manager object at `ECX`:
+
+| Kind | Count field (offset in manager) | Limit |
+|---|---|---|
+| 0 | `+0x14` | 256 (`0x100`) |
+| 1 | `+0x18` | 10 |
+| 2 | `+0x1C` | 50 (`0x32`) |
+| 3 | `+0x20` | 50 |
+
+### ICE camera records **[verified: Ghidra, speed.exe 1.3]**
+
+All offsets are payload-relative (payload = chunk header `+8`). Decoded from `0x004787C0` (camera
+packs), `0x004786E0` (entry append), `0x0046E760` (duplicate-key lookup), `0x004789C0` /
+`0x0046D2E0` / `0x00477EE0` (time search and evaluator), and `0x0047F9F0` (teardown).
+
+**Pack (chunk `0x8003B200..0x8003B203`, `kind = id - 0x8003B200`).** The payload is a sequence of
+standard chunks (`id`, `size`, payload). The engine ignores their ids. Each sub-chunk payload is:
+
+| Offset | Type | Field |
+|---|---|---|
+| `+0x00` | u32 | Dedup key. Passed to `0x46E760`; a key already registered is merged into the existing entry |
+| `+0x04` | i32 | Record count `N`. `N <= 0` means no records |
+| `+0x08` | | `N` camera records, back to back |
+
+**Camera record** (header `0x28` bytes, then elements):
+
+| Offset | Type | Field |
+|---|---|---|
+| `+0x00..+0x08` | | Runtime list links, written by the engine (`0x004787C0`) |
+| `+0x08` | | Runtime owner pointer (written on link) |
+| `+0x14` | i16 (signed) | Element count `M`. Read with `MOVSX` |
+| `+0x16` | u8 | Read by the teardown `0x47F9F0` as an "owned" flag before `free`. Not confirmed as a file byte |
+| `+0x28` | | `M` elements, stride `0x84` |
+
+The next record starts at `record + 0x28 + M*0x84`. A record with a negative `M` would walk backward,
+so the reader rejects it.
+
+**Camera element** (stride `0x84`, element `i` at `record + 0x28 + i*0x84`):
+
+| Offset | Type | Field |
+|---|---|---|
+| `+0x00` | u8 | Enabled flag. The evaluator skips the element when this byte is zero (`0x4789C0`) |
+| `+0x10` | f32 | Time key. `0x46D2E0` scans backward for the last element with key `<=` the current time |
+| `+0x14`, `+0x4C`, `+0x54` | f32 | Read by `0x477EE0` in a component-wise difference test. Meaning not confirmed |
+
+Position, target and FOV are not pinned yet. The fields that interpolate between keys are the ones
+the evaluator calls, and their offsets are not confirmed here. Other bytes are left raw.
+
+**Shake tracks (`0x0003B211`, handler `0x00478890`).** The payload starts with `u32 N` at `+0x00`.
+Records start at `+0x04`. Each record has a `0x20`-byte header:
+
+| Offset | Type | Field |
+|---|---|---|
+| `+0x00..+0x0C` | | Runtime links and owner, written by the engine |
+| `+0x0C` | i16 (signed) | Element count `M` |
+| `+0x20` | | `M` elements, stride `0x18` (24 bytes) |
+
+The next record starts at `record + 0x20 + M*0x18`. The shake walker does not call the duplicate
+lookup. It links into the owner object at `manager+0x10`.
+
+**Not pinned:** the meaning of the camera element's `+0x14`/`+0x4C`/`+0x54` floats and the rest of
+the `0x84` element. The 24-byte shake element is also undecoded. The reader in
+`libs/blackbox-chunk/src/ice/` exposes these as raw bytes.
+
+**Known gaps in the dispatch:** `0x0047FB6F` (the shake branch of the second dispatch) is not read.
+`0x0047FB40` is not a function start in the Ghidra database, so the second site was not fully
+decoded.
+
 ## Looking at it yourself
 
 Extract one animation bank and read it with standard ELF tools:

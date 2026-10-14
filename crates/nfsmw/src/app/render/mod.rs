@@ -117,6 +117,7 @@ pub fn update_scene(
     actions: Res<ActionState>,
     time: Res<Time>,
     mut settings: ResMut<Settings>,
+    garage: Res<crate::garage::Overlay>,
 ) {
     let host = &mut *host;
     let Some(renderer) = host.renderer.as_mut() else { return };
@@ -137,6 +138,7 @@ pub fn update_scene(
     if host.screenshot.is_some() && host.frames == 0 {
         screenshot::wait_ready(host.scene.as_mut(), renderer.as_mut());
     }
+    host.scene.set_garage_open(garage.open);
     host.scene.update(renderer.as_mut(), &actions, time.delta_secs().min(MAX_STEP));
 }
 

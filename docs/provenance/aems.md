@@ -1,5 +1,33 @@
 # AEMS module banks
 
+PC release-path refinement, 2026-10-14: matched-PC dispatch, complete native
+routine replays and sentinel-guarded synthetic class state confirm the capped
+addition (node 30), floored subtraction (node 31), class-data output layout and
+destructor callback contract described in [aems.md §1](../specs/aems.md#1-instances-and-the-update).
+Addition wraps before applying the upper cap; subtraction wraps before applying
+the lower floor. Eleven arithmetic/data vectors and callback counts 0, 3 and 11
+were checked; neither callback rewrites unrelated graph state.
+
+A bounded replay also executed the installed road-noise module and every numeric
+PC node, with synthetic player and destroy boundaries. After one initial update,
+an ID-zero loop with fixed parameters reached the authored destroy condition
+after fifteen release updates. Releasing before its first update did not reach
+that condition within 180 updates under the same host. These observations require
+separate constructor and initialized-release tests; they do not establish live
+voice timing, playback envelopes, host lifetime or complete original-game parity.
+Executable identity, installed bytes, machine addresses and replay output remain
+private. No original code or data is included.
+
+PC bank-volume refinement, 2026-10-14: an original PC1.3 runtime capture paired
+1,923 AEMS bank starts with their native play options. All paired starts used the
+clamped Q15 volume shifted right eight bits for the seven-bit option. Matched PC
+bank-start and update routines establish that start remembers the inputs, while
+changed updates and unpause retain full Q15 precision. The descriptive contract
+is in [aems.md §5](../specs/aems.md#5-player). A scrape118→235 counterexample spans
+eighteen milliseconds. Raw traces and executable identity remain private; no
+original code or assets are included. Playback envelopes and wet DSP remain
+unverified by this parameter-level evidence.
+
 Module: [`libs/blackbox-aems`](../../libs/blackbox-aems) (the bank reader and the module interpreter) and the
 `audio::aems` module of [`crates/nfsmw`](../../crates/nfsmw) (the engine's sample layer, the sputters and the
 sweeteners).
@@ -12,7 +40,7 @@ sweeteners).
   saemstimupdt.c,sndcmn.h}`; `src/Speed/Indep/Src/EAXSound/CARSFX/CARSFX_{Engine,SparkChatter,Shifting}.cpp`,
   `SND_GEN/ENGINES_AEMS2.h`, `UG/NFSUG_CarsSFXLoadData.cpp`. Read for understanding only; no code copied. The PC
   `speed.exe` was disassembled (a local, untracked copy of the user's own install) for the function table of the
-  node numbers: functions 0 to 3, 7, 11, 14 to 16, 21, 28, 29, 31 and 35 were read to confirm the numbering, the node
+  node numbers: functions 0 to 3, 7, 11, 14 to 16, 21, 28 to 31 and 35 were read to confirm the numbering, the node
   layouts and that float results are rounded to nearest (`fistp`) where the GameCube sources truncate;
   nothing from it is in the repository beyond the facts in the specs.
 - **Install probes (no game data copied):** all 301 `.abk` banks were walked: headers, modules, the code of every

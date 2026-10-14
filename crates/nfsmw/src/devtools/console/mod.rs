@@ -93,7 +93,11 @@ fn toggle(
     actions: Res<ActionState>,
     mut capture: ResMut<MouseCapture>,
     mut focus: ResMut<UiFocus>,
+    garage: Res<crate::garage::Overlay>,
 ) {
+    if garage.open {
+        return;
+    }
     if actions.just_pressed(Action::Console) {
         let open = !console.open;
         console.set_open(open, &mut capture, &mut focus);

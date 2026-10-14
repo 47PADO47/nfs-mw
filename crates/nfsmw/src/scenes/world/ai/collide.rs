@@ -1,10 +1,11 @@
-//! Cars hitting each other and the player's car, and the sounds those hits and close passes make.
+//! Vehicle contacts and ordered moving traffic audio snapshots.
 
+use blackbox_pursuit::sight;
 use glam::Vec3;
 
 use super::TrafficWorld;
-use super::traffic_events::{crash_horn, near_miss};
-use crate::audio::traffic::TrafficSound;
+
+use crate::audio::traffic::{TrafficFrame, TrafficSound};
 use crate::scenes::world::drive::walls::Cast;
 use crate::scenes::world::drive::{CarSim, STEP};
 
@@ -12,11 +13,6 @@ use crate::scenes::world::drive::{CarSim, STEP};
 const EYE: Vec3 = Vec3::new(0.0, 0.5, 0.0);
 /// A hit this close to the far end is the target itself, not an obstacle.
 const SIGHT_SLACK: f32 = 0.05;
-
-/// Horn volume for a hit this strong (N s) and above: full. Weaker hits play quieter, down to a third.
-const HORN_FULL_IMPULSE: f32 = 10_000.0;
-/// Near-miss whoosh volume (design value; the original's level is **[unconfirmed]**).
-const NEAR_MISS_VOLUME: f32 = 0.6;
 
 /// One body that can be hit: a car or the trailer it tows.
 struct Part<'a> {
@@ -27,11 +23,14 @@ struct Part<'a> {
     sim: &'a mut CarSim,
 }
 
-/// A hit, remembered until the cars can be told: the car, the impulse (N s) and whether the player did it.
+/// A hit, remembered until the cars can be told: the car, the impulse (N s), where it touched (physics space), whether
+/// the player did it, and how far the car is from the player (metres).
 struct Hit {
     owner: usize,
     impulse: f32,
+    point: Vec3,
     by_player: bool,
+    from_camera: f32,
 }
 
 /// A close pass of the player past a traffic car: the car, the distance between their centres (m) and how fast the
@@ -42,25 +41,38 @@ struct Pass {
     relative_speed: f32,
 }
 
+/// What the player struck since the police last read it: a cop for the first time (an assault), or a prop (a breakable).
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct Strikes {
+    pub cop: bool,
+    pub property: bool,
+}
+
 /// Whether the bounding spheres of two bodies touch, a cheap test before the box test.
 fn near(a: &CarSim, b: &CarSim) -> bool {
+    if !a.is_finite() || !b.is_finite() {
+        return false;
+    }
     a.body().position.distance(b.body().position) < a.collision_sweep_radius() + b.collision_sweep_radius()
 }
 
-fn horn_volume(impulse: f32) -> f32 {
-    (impulse / HORN_FULL_IMPULSE).clamp(1.0 / 3.0, 1.0)
+fn planar_relative_speed(a: Vec3, b: Vec3) -> f32 {
+    let velocity = a - b;
+    velocity.x.hypot(velocity.z)
 }
 
 impl TrafficWorld {
     /// Lets the cars hit each other and the player's car (`player`). A tractor and the trailer hitched to it do
     /// not hit each other; a trailer that came loose is a body like any other. Also decides the sounds of the step:
-    /// a horn for each car in a hit, a whoosh for a close pass.
+    /// an authored whoosh for a close pass. Autonomous horns belong to the audio producer.
     pub fn collide(&mut self, mut player: Option<&mut CarSim>) {
         self.hit_timer = (self.hit_timer - STEP).max(0.0);
         for car in &mut self.cars {
             car.tick_quiet();
         }
         let events = self.events;
+        let focus = player.as_deref().map(|p| p.body().position);
+        let far = |sim: &CarSim| focus.map_or(f32::INFINITY, |f| f.distance(sim.body().position));
         let mut parts: Vec<Part<'_>> = Vec::new();
         for (owner, car) in self.cars.iter_mut().enumerate() {
             let coupled = car.is_coupled();
@@ -85,12 +97,22 @@ impl TrafficWorld {
                 if near(player, part.sim)
                     && let Some(hit) = player.collide_with(part.sim)
                 {
-                    hits.push(Hit { owner: part.owner, impulse: hit.impulse, by_player: true });
+                    let from_camera = far(&*part.sim);
+                    hits.push(Hit {
+                        owner: part.owner,
+                        impulse: hit.impulse,
+                        point: hit.point,
+                        by_player: true,
+                        from_camera,
+                    });
                 } else if distance < events.near_miss_distance {
                     passes.push(Pass {
                         owner: part.owner,
                         distance,
-                        relative_speed: (player.body().linear_velocity - part.sim.body().linear_velocity).length(),
+                        relative_speed: planar_relative_speed(
+                            player.body().linear_velocity,
+                            part.sim.body().linear_velocity,
+                        ),
                     });
                 }
             }
@@ -102,52 +124,92 @@ impl TrafficWorld {
                     continue;
                 }
                 if let Some(hit) = part.sim.collide_with(other.sim) {
-                    hits.push(Hit { owner: part.owner, impulse: hit.impulse, by_player: false });
-                    hits.push(Hit { owner: other.owner, impulse: hit.impulse, by_player: false });
+                    let (near_a, near_b) = (far(&*part.sim), far(&*other.sim));
+                    hits.push(Hit {
+                        owner: part.owner,
+                        impulse: hit.impulse,
+                        point: hit.point,
+                        by_player: false,
+                        from_camera: near_a,
+                    });
+                    hits.push(Hit {
+                        owner: other.owner,
+                        impulse: hit.impulse,
+                        point: hit.point,
+                        by_player: false,
+                        from_camera: near_b,
+                    });
                 }
             }
         }
         drop(parts);
         for hit in &hits {
-            let car = &mut self.cars[hit.owner];
-            if crash_horn(true, car.ready()) {
-                car.sounded(events.cooldown);
-                self.sounds.push(TrafficSound::Horn { index: car.horn as usize, volume: horn_volume(hit.impulse) });
-            }
             if hit.by_player {
                 self.hit_timer = events.hit_memory;
             }
         }
         for hit in hits {
-            self.cars[hit.owner].on_hit(hit.impulse, hit.by_player);
+            let first_damage = self.cars[hit.owner].on_hit(hit.impulse, hit.by_player, hit.point, hit.from_camera);
+            self.strikes.cop |= first_damage;
+        }
+        if let Some(player) = player.as_deref_mut() {
+            self.strikes.property |= player.take_prop_struck();
+            self.spike_player(player);
         }
         for pass in passes {
             let car = &mut self.cars[pass.owner];
-            if near_miss(&events, pass.relative_speed, pass.distance, false, car.ready()) {
+            if pass.relative_speed > 10.0 && pass.distance < 10.0 && car.ready() {
                 car.sounded(events.cooldown);
-                self.sounds.push(TrafficSound::NearMiss { volume: NEAR_MISS_VOLUME });
+                self.sounds.push(TrafficSound::NearMiss {
+                    emitter: car.audio_emitter().id,
+                    relative_speed: pass.relative_speed,
+                });
             }
+        }
+        if let Some(player) = player.as_deref() {
+            let body = player.body();
+            use crate::scenes::world::space;
+            self.sounds.push(TrafficSound::Frame(TrafficFrame {
+                dt: STEP,
+                listener_position: space::to_render(body.position.to_array()),
+                listener_forward: space::to_render((body.orientation * Vec3::Z).to_array()),
+                listener_velocity: space::to_render(body.linear_velocity.to_array()),
+                emitters: self.cars.iter().map(|car| car.audio_emitter()).collect(),
+            }));
         }
         self.player_speed = player.as_deref().map_or(0.0, |p| p.body().linear_velocity.length());
         self.player_position = player.as_deref().map(|p| p.body().position);
     }
 
-    /// Whether a patrol cop can see the player: within `cop_sight` and with nothing solid between their eyes. The
-    /// test is a ray from the cop's eyes to the player's (`CanSeeTarget`, ai-pursuit §4.1). The front and rear cone
-    /// does not matter at heat 1 to 7, where both ranges are 151 m.
-    pub fn update_sight(&mut self, cast: Cast<'_>) {
+    /// What the player struck since the last call: a cop for the first time, or a prop. The police read it once a frame.
+    pub fn take_strikes(&mut self) -> Strikes {
+        std::mem::take(&mut self.strikes)
+    }
+
+    /// Whether a cop sees the player, tested every `TEST_PERIOD` seconds of simulated time (`CanSeeTarget`, ai-pursuit
+    /// section 4.1). Every cop car counts: patrol cars, the chase's cops and the roadblock's. A cop sees the player when
+    /// the heat's range and rear cone allow it and the world's faces do not block the line from its eyes to the
+    /// player's. Between tests the last answer holds.
+    pub fn update_sight(&mut self, dt: f32, cast: Cast<'_>) {
+        self.sight_clock += dt;
+        if self.sight_clock < sight::TEST_PERIOD {
+            return;
+        }
+        self.sight_clock = self.sight_clock.rem_euclid(sight::TEST_PERIOD);
         let Some(player) = self.player_position else {
-            self.seen_by_patrol = false;
+            self.seen_by_cops = false;
             return;
         };
+        let level = self.police.level().unwrap_or(1);
         let eye = player + EYE;
-        let range = self.events.cop_sight;
-        self.seen_by_patrol = self.cars.iter().any(|car| {
-            if !car.is_patrol() {
+        self.seen_by_cops = self.cars.iter().any(|car| {
+            if !(car.is_patrol() || car.is_cop() || car.is_roadblock()) {
                 return false;
             }
             let cop = car.physics_position();
-            cop.distance(player) < range && clear(cast, cop + EYE, eye)
+            let to_player = (player - cop).try_normalize().unwrap_or(Vec3::ZERO);
+            let facing = car.physics_forward().dot(to_player);
+            !sight::out_of_range(level, cop.distance(player), facing) && clear(cast, cop + EYE, eye)
         });
     }
 }
@@ -188,3 +250,6 @@ mod sight_tests {
         assert!(clear(&at_target, Vec3::new(0.0, 0.5, 0.0), target));
     }
 }
+
+#[cfg(test)]
+mod tests;

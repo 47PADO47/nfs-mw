@@ -70,6 +70,11 @@ impl VehicleEvents {
         }
     }
 
+    #[cfg(test)]
+    pub(in crate::scenes::world) fn pending_hits(&self) -> &[DamageHit] {
+        &self.hits
+    }
+
     pub fn tick(&mut self, view_distance: f32) -> Vec<Effect> {
         if self.failed {
             return Vec::new();

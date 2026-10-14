@@ -145,6 +145,7 @@ pub(super) struct SceneryEvents {
     pending: VecDeque<Stimulus>,
     waves: Vec<explosion::Wave>,
     stops: Vec<StopArea>,
+    common_sounds: Vec<crate::audio::CommonEvent>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -155,6 +156,10 @@ pub struct StopArea {
 }
 
 impl PropWorld {
+    pub fn take_common_sounds(&mut self) -> Vec<crate::audio::CommonEvent> {
+        std::mem::take(&mut self.scenery.common_sounds)
+    }
+
     pub fn model_instances(&self, id: u32, transform: Mat4, out: &mut Vec<Instance>) -> bool {
         let Some(model) = self.scenery.models.get(&id) else {
             return false;

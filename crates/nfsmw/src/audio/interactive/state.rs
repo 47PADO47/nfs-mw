@@ -1,8 +1,8 @@
 //! What the music is told about the game, and the hooks the pursuit and race code calls.
 //!
-//! The pursuit and the races arrive with milestone 7; until then nothing writes to [`MusicInput`] but the `music`
-//! console command (which overrides it). The methods below are the whole contract: when the AI and the race
-//! rules exist they call these from their own systems.
+//! The chase reaches [`MusicInput`] every frame through [`MusicInput::follow`], fed by the world's
+//! `pursuit_feed`. The `music` console command overrides it. The races have no caller yet; their hooks stay for
+//! when they do.
 
 use bevy_ecs::resource::Resource;
 
@@ -45,9 +45,34 @@ impl Pursuit {
     }
 }
 
+/// The chase as the sound reads it each frame, from the world. `None` while no cops chase. The air-support fields are
+/// what the helicopter lines need; the world fills them (`scenes/world/ai/police/world.rs`).
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct PursuitFeed {
+    /// The heat level of the chase, 1 to 10.
+    pub heat: u32,
+    /// How tense the chase is, 0 (the cops lost the player) to 1 (they see it).
+    pub intensity: f32,
+    /// Seconds since the chase began.
+    pub secs: f32,
+    /// Seconds of unseen time left before the cops give up.
+    pub secs_to_evade: f32,
+    /// The player's speed, miles per hour.
+    pub player_mph: f32,
+    /// A police helicopter is in the chase, flying or leaving.
+    pub heli_present: bool,
+    /// The rain, 0 (dry) to 1 (heavy), from the scene's weather. Set by the scene, not the traffic.
+    pub rain_intensity: f32,
+    /// A roadblock of this chase stands.
+    pub roadblock_active: bool,
+    /// The player hit traffic within the traffic's hit memory.
+    pub player_hit: bool,
+    /// The cop cars wrecked in the chase.
+    pub cops_destroyed: u32,
+}
+
 /// The pursuit set for a heat level, 1 (lowest) up. **[guess]**: the four sets are spread evenly over heat levels 1
 /// to 5, the range of the original's heat; the data does not say how the original chooses.
-#[allow(dead_code)] // for the pursuit code of milestone 7
 pub fn pursuit_set_for_heat(heat: f32) -> u8 {
     let heat = if heat.is_nan() { 1.0 } else { heat.clamp(1.0, 5.0) };
     let share = (heat - 1.0) / 4.0;
@@ -60,10 +85,26 @@ pub struct MusicInput {
     state: MusicState,
 }
 
-#[allow(dead_code)] // the hooks are called by the pursuit and race code of milestone 7
 impl MusicInput {
     pub fn state(&self) -> MusicState {
         self.state
+    }
+
+    /// Makes the music follow the chase of this frame: a chase on sets its pursuit set and intensity, and no chase
+    /// ends the pursuit. Returns true when a chase has just begun, which is when the speech opens it.
+    pub fn follow(&mut self, chase: Option<&PursuitFeed>) -> bool {
+        let Some(chase) = chase else {
+            self.end_pursuit();
+            return false;
+        };
+        let set = pursuit_set_for_heat(chase.heat as f32);
+        if self.state.pursuit.is_none() {
+            self.start_pursuit(set, chase.intensity);
+            return true;
+        }
+        self.set_pursuit_set(set);
+        self.set_pursuit_intensity(chase.intensity);
+        false
     }
 
     /// Cops started chasing: the pursuit music of `set` begins, at `intensity` (0 to 1).
@@ -88,10 +129,12 @@ impl MusicInput {
         self.state.pursuit = None;
     }
 
+    #[allow(dead_code)] // the race code has no caller yet
     pub fn start_race(&mut self) {
         self.state.racing = true;
     }
 
+    #[allow(dead_code)] // the race code has no caller yet
     pub fn end_race(&mut self) {
         self.state.racing = false;
     }

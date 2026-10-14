@@ -17,7 +17,7 @@ struct Tables {
     gain: [i32; 602],
     /// `floor(602 * log2(1 + m / 512))` for the 9-bit mantissa `m`.
     mantissa_db: [i32; 512],
-    /// `floor(32767 * cos(i * pi / 1024))` for `i` in 0..=513.
+    /// `floor(32767 * cos(i * pi / 1022))` for `i` in 0..=513, clamped at zero.
     cosine: [i32; 514],
 }
 
@@ -32,7 +32,7 @@ fn tables() -> &'static Tables {
             *d = (f64::from(STEP) * (1.0 + m as f64 / 512.0).log2() + 1e-9).floor() as i32;
         }
         for (i, c) in t.cosine.iter_mut().enumerate() {
-            *c = (32767.0 * (i as f64 * std::f64::consts::PI / 1024.0).cos() + 1e-9).floor().max(0.0) as i32;
+            *c = (32767.0 * (i as f64 * std::f64::consts::PI / 1022.0).cos() + 1e-9).floor().max(0.0) as i32;
         }
         t
     })
@@ -134,6 +134,13 @@ pub fn pitch_ratio(cents: i32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn cosine_endpoint_preserves_full_complementary_gain() {
+        assert_eq!(tables().cosine[511], 0);
+        assert_eq!(tables().cosine[512], 0);
+        assert_eq!(curve(4, 0), UNITY);
+        assert_eq!(curve_db(6, 0), -2);
+    }
 
     #[test]
     fn the_conversions_are_inverse_within_a_unit() {
@@ -174,7 +181,7 @@ mod tests {
         let t = &tables().cosine;
         assert_eq!(t[0], 32767);
         assert_eq!(t[1], 32766);
-        assert_eq!(t[511], 100);
+        assert_eq!(t[511], 0);
         assert_eq!(t[512], 0);
     }
 

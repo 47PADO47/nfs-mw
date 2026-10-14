@@ -43,11 +43,15 @@ Headless: `--exec "traffic 24" --exec "traffic warmup 25" --screenshot out.png`.
 
 ## What traffic does
 
-- **Spawning follows the original's manager** ([ai-traffic-spawning](specs/ai-traffic-spawning.md)): twice a second
+- **Spawning uses the original's pattern rules** ([ai-traffic-spawning](specs/ai-traffic-spawning.md)): twice a simulated second
   it advances the type timers (faster with density), picks the next car type by the rules of the pattern of the
   neighbourhood under you (`Rate`, `MaxInstances`, `Percent`), and adds one car 150 to 250 m ahead in a wedge in
   front of you, oncoming when you stand still and half and half when you are fast. The number of cars is the
   `traffic` setting; a pursuit takes a quarter of the density away.
+- The driver thinks every ten physics ticks (6 Hz on the shared 60 Hz clock). This is deterministic
+  across render rates. The original variable tasks count rendered frames: approximately ten for the
+  driver and two for the manager. The rewrite's slower manager and absence of an inactive vehicle pool
+  remain population timing differences.
 - **The pattern** (which cars, 35/55 mph speeds) comes from the `trafficpattern` records of the install and the
   pattern zone under the player (`TrackPathZones` type 9). Models load on demand, one per frame.
 - **Patrol cops** are cop cars of the heat 1 wave that drive like traffic at the search-mode speeds of the install
@@ -114,7 +118,7 @@ pattern each resolves to match its §3.
 | Road network, lanes, curves, closest segment, navigator (traffic and direction), A* paths | done |
 | Look-ahead trail, car-ahead avoidance, steering point, curvature | done (the spec marks hole punching and curvature as unfinished in the original: this is a reading of it) |
 | Simple (traffic) and adaptive-PID (cop) controllers, reverse, stuck recovery | done |
-| Traffic: patterns by zone, type timers, caps, density, 10 Hz think, posted speeds, accident and shock | done |
+| Traffic: patterns by zone, type timers, caps, density, ten-tick think, posted speeds, accident and shock | done |
 | Automatic spawn and removal around the player, `traffic` and `cop_share` settings | done |
 | Traffic lights at junctions of three or more roads, `traffic_lights` setting | done, a rewrite extension (the original has none) |
 | Patrol cops among the traffic | done (they cruise; see below) |

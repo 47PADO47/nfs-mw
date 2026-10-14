@@ -48,8 +48,9 @@ fn ao_gpu_timings() {
         usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
         mapped_at_creation: false,
     });
-    let mut ao = AmbientOcclusion::new(&device);
+    let mut ao = AmbientOcclusion::new(&device, (1, 1));
     for size in [(1920, 1080), (3840, 2160)] {
+        let normals = crate::gpu::surface::targets::Targets::new(&device, size).normals;
         let (color, depth) = fixture(&device, &queue, size);
         let frame = FrameParams {
             view: Mat4::IDENTITY,
@@ -79,7 +80,7 @@ fn ao_gpu_timings() {
                         target: &color,
                         depth: &depth,
                         size,
-                        format: wgpu::TextureFormat::Rgba8Unorm,
+                        normals: &normals,
                         frame: &frame,
                         settings: AoSettings { quality, ..Default::default() },
                     },
@@ -122,7 +123,7 @@ fn fixture(device: &wgpu::Device, queue: &wgpu::Queue, size: (u32, u32)) -> (wgp
             })
             .create_view(&Default::default())
     };
-    let color = texture(wgpu::TextureFormat::Rgba8Unorm, wgpu::TextureUsages::RENDER_ATTACHMENT);
+    let color = texture(wgpu::TextureFormat::R8Unorm, wgpu::TextureUsages::RENDER_ATTACHMENT);
     let depth = texture(
         wgpu::TextureFormat::Depth32Float,
         wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,

@@ -341,8 +341,15 @@ wrecked, stops nearby cops. In the sources the whole mechanism is one message an
   the simulation keeps braking). Roadblock cars are not in the pursuit's cop list.
 - **Trigger:** the `roadblock` console command only. The support request that asks for one in a chase (section 6 of the
   formations spec) is not built.
-- **Not built:** barriers and spike strips (they need props), the overlap check against other cars, and the lifetime,
-  dodging and clean-up of section 5.
+- **Spike layouts** (section 2.3, roll by `roadblockspikechance`): `blackbox_pursuit::roadblock::takes_spikes` rolls the
+  heat's chance; a successful roll picks from `SPIKES` with no fallback to the plain list, as the spec says. The strips
+  are kept as `blackbox_pursuit::spikes::Strip` and cleared when the chase ends. **[unconfirmed]** The strip's size (2 m
+  across, 0.5 m deep) is a design value, since the prop's collision box is not read.
+- **Spike puncture** (section 6): a grounded tire whose patch overlaps a strip is punctured through the tire model
+  (`CarSim::puncture_wheel`, the blow-out follows the tire model's fuse). Only the player's car is spiked; racers are not.
+  The wheel's patch is taken from the vehicle's contact patch, assumed to be in physics space.
+- **Not built:** barriers (sawhorses need their props), the overlap check against other cars, and the lifetime, dodging
+  and clean-up of section 5. The spike strips therefore last until the chase ends, not 120 s.
 - **Not verified in the game:** the placement compiles, but it has not been run yet. The game binary currently fails to
   build because of unrelated uncommitted changes in `frontend/flow.rs` and `saves.rs`.
 

@@ -59,6 +59,10 @@ impl Steering {
         self.prev_angle
     }
 
+    pub(crate) fn average_input(&self) -> f32 {
+        self.avg_input.mean()
+    }
+
     /// A hard hit with the given change of speed (m/s) limits steering for up to a second.
     pub fn notify_collision(&mut self, impulse: f32) {
         if impulse > 10.0 {
@@ -80,14 +84,8 @@ impl Steering {
         let v = i.forward_speed;
         self.collision_timer = (self.collision_timer - i.dt).max(0.0);
 
-        // Averages of the (remapped) input and of how fast it moves.
-        let remap = input_remap();
-        let remapped = table(&remap, -1.0, 1.0, u);
-        self.avg_input.push(remapped);
+        // Range uses the previous history; rate averages coefficients, not input derivatives.
         let avg = self.avg_input.mean().abs();
-        self.input_speed.push(((u - self.last_input) / i.dt).abs());
-        self.last_input = u;
-        let input_speed = self.input_speed.mean();
 
         let range = match i.device {
             SteeringDevice::Pad => table(&RANGE_PAD, 0.0, MAX_SPEED_AXIS, v),
@@ -117,19 +115,27 @@ impl Steering {
             max = max.max(self.last_max);
         }
         max = max.min(ABSOLUTE_MAX_STEERING);
+        if i.device == SteeringDevice::WheelFixed {
+            max = ABSOLUTE_MAX_STEERING;
+        }
         self.last_max = max;
 
         let target = (u * max * i.tire_steering).clamp(-ABSOLUTE_MAX_STEERING, ABSOLUTE_MAX_STEERING);
         self.prev_angle = if i.device == SteeringDevice::Pad {
-            let rate = 180.0
-                * i.tire_steering
-                * speed_coef
-                * table(&INPUT_SPEED_COEF, 0.0, 10.0, input_speed)
-                * table(&INPUT_COEF, 0.0, 1.0, avg);
+            let input_speed = ((u - self.last_input) / i.dt).abs();
+            self.input_speed.push(table(&INPUT_SPEED_COEF, 0.0, 10.0, input_speed));
+            let rate =
+                180.0 * i.tire_steering * speed_coef * self.input_speed.mean() * table(&INPUT_COEF, 0.0, 1.0, avg);
             target.clamp(self.prev_angle - rate * i.dt, self.prev_angle + rate * i.dt)
         } else {
             target
         };
+        let recorded = match i.device {
+            SteeringDevice::Pad => table(&input_remap(), -1.0, 1.0, u),
+            _ => u,
+        };
+        self.last_input = recorded;
+        self.avg_input.push(recorded);
         self.prev_angle
     }
 }

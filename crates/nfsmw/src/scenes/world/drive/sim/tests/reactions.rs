@@ -2,6 +2,26 @@ use nfsmw_data::car::physics::{AiCollisionReactions, CollisionReaction, Collisio
 
 use super::*;
 
+#[test]
+fn speedbreaker_collision_override_scales_temporary_mass_and_inertia_and_restores() {
+    let mut player = sim();
+    let normal = Vec3::NEG_Z;
+    let base = player.object_hit(Vec3::Z, normal, false, true);
+    let mass = player.body().mass();
+    let inertia = player.body().inertia();
+    let physics = crate::settings::speedbreaker::PhysicsModifiers::default();
+    player.set_speedbreaker_effect(true, &physics);
+    let active = player.object_hit(Vec3::Z, normal, false, true);
+    assert_eq!(active.mass_scale, 2.0);
+    assert_eq!(active.inertia_scale, base.inertia_scale * (2.0 / base.mass_scale));
+    assert_eq!(player.body().mass(), mass);
+    assert_eq!(player.body().inertia(), inertia);
+    player.set_speedbreaker_effect(false, &physics);
+    let restored = player.object_hit(Vec3::Z, normal, false, true);
+    assert_eq!(restored.mass_scale, base.mass_scale);
+    assert_eq!(restored.inertia_scale, base.inertia_scale);
+}
+
 pub(super) fn install(sim: &mut CarSim) {
     let reaction = |scale, roll, bias, elasticity| CollisionReaction {
         mass_scale: scale,

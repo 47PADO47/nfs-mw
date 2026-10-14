@@ -70,6 +70,35 @@ and draw from the subtree's frame, preserving the mesh's original world pose.
 Hide only the parent part requested by the event, retaining it on failed spawn.
 Keep detached bodies collidable, renderable and owned after their truck moves.
 
+### Runtime fragment attachment
+
+The PC fragment event handler (`0x63B320`) creates its smackable descriptor
+(`0x62B370`) with the virgin-placement flag cleared. The factory (`0x6895A0`)
+forwards that flag to smackable construction (`0x688660`). The behavior-change
+callback (`0x684DF0`) applies world attachment only to a virgin placement whose
+`DETACH_FORCE` is nonzero. A runtime fragment therefore starts **unattached**,
+even when its own attributes contain a positive or negative detach threshold.
+That threshold still applies to authored placements; it must not pin a newly
+released child. Positive inherited-velocity factors multiply both captured
+linear and angular velocity before the child advances on the physics clock.
+
+Attachment and material immobility are separate. Do not clear an authored
+`IMMOBILE` attribute when constructing a fragment. No-physics pieces remain
+visual only, with neither collision nor integration. Their event handler takes
+a separate visual-model branch, so missing rigid-body attributes must not be a
+prerequisite for drawing them. The remake still requires fragment dynamics
+before reaching that branch; handling attribute-free visual pieces is a
+separate unresolved adapter gap. Joint-bearing and simple-physics fragments
+retain their documented unsupported or approximate behavior.
+
+An installed traffic-light and street-light sequence both replace their
+detached assembly with a full-pole fragment using movable `largemetalpost`
+attributes: mass 200 kg and `DETACH_FORCE` 7500. Applying placement attachment
+to that child prevents its gravity and motion updates, leaving the replacement
+mesh upright. Regression coverage must retain attachment for placed poles,
+release these runtime children, preserve an immobile foundation, and leave
+no-physics pieces noncollidable and unintegrated.
+
 The PC DrawVehicle routine (`0x6B0500`) permits a spawn while the global vehicle
 fragment count is below 121 and the model count is below 2297. The unfinished
 reference's 61/434 limits belong to a different build and are not the PC limits. Its
@@ -116,8 +145,16 @@ otherwise the fallback is a box. COLLISION_BOX_PAD expands every collision box
 uses the body's BASE_MATERIAL. Sphere orientation is identity.
 
 Scenery's placement transform (`0x66B520`) places the body's centre at the
-spawner position plus its rotated root pivot. Its orientation is the spawner's
-orientation. Rendering retains the original visual matrix through the inverse
+spawner position plus its transformed root pivot. The quaternion-to-matrix
+routine (`0x5CA910`) expands the **stored quaternion without normalization**.
+For quaternion vector part `u`, scalar part `w`, and pivot `p`, that transform is
+`p + 2*w*(u cross p) + 2*u cross (u cross p)`. Some installed quaternions are
+not unit length, so normalizing before transforming the pivot changes the
+body's position. Smackable construction (`0x688660`) passes the resulting
+matrix translation directly to RigidBody construction (`0x6B59F0`), which
+copies it unchanged. Keep this authored centre when using a unit quaternion
+for the remake's rigid rotation; do not use a nonorthonormal matrix as an OBB
+basis. Rendering retains the original visual matrix through the inverse
 initial body transform. Root dimensions have a minimum half extent of 0.025 m
 in the smackable constructor. A fallback-only body has a zero local centre of
 gravity. Explicit primitive offsets determine the volume-weighted centre.

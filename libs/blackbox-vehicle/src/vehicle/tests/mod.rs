@@ -1,13 +1,16 @@
 //! Whole-vehicle behaviour tests on flat ground.
 
+mod assists;
 mod basics;
 mod driving;
 mod feel;
 mod hitch;
 mod manual;
+mod parity_audit;
 mod puncture;
 mod rev_limit;
 mod robustness;
+mod tuning;
 mod wheel;
 
 use glam::{Quat, Vec3};

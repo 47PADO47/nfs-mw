@@ -4,9 +4,9 @@
 use blackbox_vehicle::aero::AeroSpec;
 use blackbox_vehicle::suspension::ChassisSpec;
 
-use super::fields::Fields;
+use super::performance::fields::PerformanceFields;
 
-pub fn chassis(c: Fields<'_>) -> ChassisSpec {
+pub fn chassis(c: impl PerformanceFields) -> ChassisSpec {
     ChassisSpec {
         spring_stiffness: c.axle_pair("SPRING_STIFFNESS"),
         spring_progression: c.axle_pair("SPRING_PROGRESSION"),
@@ -26,11 +26,12 @@ pub fn chassis(c: Fields<'_>) -> ChassisSpec {
     }
 }
 
-pub fn aero(c: Fields<'_>) -> AeroSpec {
+pub fn aero(c: impl PerformanceFields) -> AeroSpec {
     AeroSpec {
         drag_coefficient: c.f32("DRAG_COEFFICIENT"),
         aero_coefficient: c.f32("AERO_COEFFICIENT"),
         aero_cg: c.f32("AERO_CG"),
-        ..AeroSpec::default()
+        // Racer chassis keeps 80% of downforce in the air (chassis spec §5).
+        airborne_scale: 0.8,
     }
 }

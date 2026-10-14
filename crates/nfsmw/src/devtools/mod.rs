@@ -2,6 +2,7 @@
 //! panels that draw it are thin egui views, so a full Bevy move changes the views, not the tools.
 
 mod console;
+mod graphics_lab;
 mod logbuf;
 mod logfile;
 mod metrics;
@@ -27,7 +28,9 @@ pub struct DevToolsPlugin;
 impl Plugin for DevToolsPlugin {
     fn build(&self, app: &mut App) {
         console::build(app);
+        graphics_lab::build(app);
         app.init_resource::<Metrics>()
+            .init_resource::<crate::garage::Overlay>()
             .add_systems(Update, run_ui.in_set(crate::app::FrameSet::Ui))
             .add_systems(Last, metrics::collect);
     }
@@ -41,12 +44,16 @@ fn run_ui(
     mut out: ResMut<UiOutput>,
     window: Single<&Window, With<PrimaryWindow>>,
     time: Res<Time<Real>>,
-    settings: Res<Settings>,
+    mut settings: ResMut<Settings>,
+    mut lab: ResMut<graphics_lab::GraphicsLab>,
     metrics: Res<Metrics>,
     mut console: ResMut<Console>,
     hud: Option<Res<crate::hud::HudState>>,
     radio: Option<Res<crate::hud::RadioHud>>,
     mut host: NonSendMut<crate::app::Host>,
+    mut garage: ResMut<crate::garage::Overlay>,
+    mut capture: ResMut<crate::input::MouseCapture>,
+    mut focus: ResMut<crate::input::UiFocus>,
 ) {
     let (width, height) = (window.width(), window.height());
     let raw = egui::RawInput {
@@ -74,5 +81,27 @@ fn run_ui(
         let left = host.scene.ui(ctx);
         overlay::show(ctx, settings.show_metrics, &metrics, left);
         console::show(ctx, &mut console);
+        graphics_lab::show(ctx, &mut lab, &mut settings, &metrics);
+        if garage.open {
+            let mut open = true;
+            let request =
+                host.scene.garage().and_then(|model| crate::garage::show(ctx, &mut open, model, &mut settings));
+            if let Some(selection) = request {
+                let host = &mut *host;
+                if let Some(renderer) = host.renderer.as_mut() {
+                    let result = host
+                        .scene
+                        .apply_garage(renderer.as_mut(), selection)
+                        .map(|_| "Car and paint applied".to_owned())
+                        .map_err(|e| format!("{e:#}"));
+                    if let Some(model) = host.scene.garage() {
+                        model.message = Some(result);
+                    }
+                }
+            }
+            if !open {
+                garage.set_open(false, &mut capture, &mut focus);
+            }
+        }
     });
 }

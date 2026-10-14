@@ -11,6 +11,7 @@
 
 mod chunk;
 mod error;
+pub mod ice;
 pub mod ids;
 mod iter;
 mod search;

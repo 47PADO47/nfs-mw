@@ -6,8 +6,9 @@ use glam::Vec3;
 
 use super::blip_style::BlipStyle;
 use super::blips::BlipBinding;
-use super::elements::Layout;
+use super::elements::{Layout, Shown};
 use super::minimap::MinimapBinding;
+use super::pursuit::timer_text;
 use super::skin::{fill_texture, needle_texture, tach_face_texture};
 use super::state::{HudState, redline_rotation};
 
@@ -44,15 +45,28 @@ const NEEDLE_START_DEG: f32 = 66.0;
 const NEEDLE_SWEEP_DEG: f32 = 228.0;
 /// The nitrous bar's mask turns from this angle (empty) down to 0 (full).
 const NOS_BAR_EMPTY_DEG: f32 = 175.0;
-/// The speed breaker bar: the FEng object `Speedbreaker_Meter_Multi_Image` (name hash of that string). Its geometry is
-/// assumed to match the nitrous bar's (not checked on screen yet).
+/// The speed breaker bar: the FEng object `Speedbreaker_Meter_Multi_Image` (name hash of that string). Its mask turns
+/// from `SPEEDBREAKER_BAR_EMPTY_DEG` (empty) to 0 (full), as the original's meter routine does for `HUD_SingleRace`
+/// (`Hud_SpeedBreakerMeter` update: angle = 175 * (1 - meter)). The drag HUD uses another base.
 const SPEEDBREAKER_BAR: u32 = 0x5DF2_F5B4;
 const SPEEDBREAKER_BAR_EMPTY_DEG: f32 = NOS_BAR_EMPTY_DEG;
+/// The stopwatch icon group under the meter (`SPEEDBREAKER_METER_ICON_GROUP`). It runs the lit script while the meter
+/// holds charge and the reset script when it is empty, as the original update does (`Hud_SpeedBreakerMeter`).
+const SPEEDBREAKER_ICON_GROUP: u32 = 0x1144_8B5C;
 /// The turbo needle swings across this range of angles for a gauge from `TURBO_MIN_PSI` to `TURBO_MAX_PSI`.
 const TURBO_DEG: (f32, f32) = (-45.0, 45.0);
 const TURBO_PSI: (f32, f32) = (-20.0, 20.0);
 /// The gear digit's alpha while a gear change is in progress.
 const GEAR_SHIFTING_ALPHA: u8 = 0x88;
+/// The cool-down bar's fill (`BasePoly`, pivot at its left end): its width is the share of the evade done. Its track
+/// (`BasePoly_Add`) stays at full width behind it.
+const COOLDOWN_FILL: u32 = 0xCF81_7638;
+/// The pursuit board's group (`PursuitBoardGroup`) and the cool-down bar's group (`Cooldown_Meter_Group`).
+const PURSUIT_BOARD_GROUP: u32 = 0xDE89_E070;
+const COOLDOWN_GROUP: u32 = 0x84A2_26EC;
+/// The cops group (`0xE0B1430B`, the parent of the cops counters): its icons and the taken-out count beside them.
+/// Its fade-in is a script on a message this build does not raise, so it is held at full alpha during a chase too.
+const COPS_GROUP: u32 = 0xE0B1_430B;
 
 /// The objects of the package the HUD drives, found once.
 pub struct HudBinding {
@@ -74,7 +88,16 @@ pub struct HudBinding {
     nos_icon: Option<ObjectRef>,
     nos_bar: Option<ObjectRef>,
     speedbreaker_bar: Option<ObjectRef>,
+    speedbreaker_icon: Option<ObjectRef>,
     turbo_needle: Option<ObjectRef>,
+    /// The pursuit board's timer, `mm:ss.cc`.
+    pursuit_timer: Option<ObjectRef>,
+    /// The cops taken out in the chase (`Cops_TakenOut`, beside `Cops_TakenOut_Icon`): the wrecked count.
+    cops_taken: Option<ObjectRef>,
+    /// The cool-down bar's fill, with its full width and height.
+    cooldown_bar: Option<CooldownBar>,
+    /// The pursuit board's group and the cool-down bar's group, held at full alpha during a chase (see `pursuit`).
+    pursuit_frames: Vec<ObjectRef>,
     /// The minimap, once the host has given it a map (see [`HudBinding::with_minimap`]).
     minimap: Option<MinimapBinding>,
     /// The cop, racer, checkpoint and helicopter objects on the map.
@@ -87,6 +110,24 @@ pub struct HudBinding {
 
 fn find(rt: &Runtime, package: PackageId, name: &str) -> Option<ObjectRef> {
     rt.find(package, fe_hash_upper(name))
+}
+
+/// The cool-down bar's fill as the package has it: its centre, and its full size.
+#[derive(Clone, Copy)]
+struct CooldownBar {
+    object: ObjectRef,
+    /// The left end of the full bar, in the fill's parent's space.
+    left: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+}
+
+fn cooldown_fill(rt: &Runtime, package: PackageId) -> Option<CooldownBar> {
+    let object = rt.find(package, COOLDOWN_FILL)?;
+    let size = rt.size(object)?;
+    let at = rt.position(object)?;
+    Some(CooldownBar { object, left: at.x - size.x / 2.0, y: at.y, width: size.x, height: size.y })
 }
 
 /// Starts `script` on `o` unless it is the one playing.
@@ -119,14 +160,22 @@ impl HudBinding {
             nos_icon: rt.find(package, 0x27DD_F583),
             nos_bar: rt.find(package, 0xEDFB_6D37),
             speedbreaker_bar: rt.find(package, SPEEDBREAKER_BAR),
+            speedbreaker_icon: rt.find(package, SPEEDBREAKER_ICON_GROUP),
             turbo_needle: find(rt, package, "3rdperson_TurboDial"),
+            pursuit_timer: find(rt, package, "PursuitTime"),
+            cops_taken: find(rt, package, "Cops_TakenOut"),
+            cooldown_bar: cooldown_fill(rt, package),
+            pursuit_frames: [PURSUIT_BOARD_GROUP, COOLDOWN_GROUP, COPS_GROUP]
+                .iter()
+                .filter_map(|h| rt.find(package, *h))
+                .collect(),
             minimap: None,
             blips: BlipBinding::builtin(rt, package),
             shift_on: false,
             last_nos: 0.0,
             applied_face: None,
         };
-        b.layout.update(rt, false, false, false, false, true);
+        b.layout.update(rt, Shown { mirror: true, speedbreaker: true, ..Default::default() });
         // The mirror's frame rests fully visible. The game fades it in from a script on an event this build does
         // not raise, so the fade is skipped here.
         b.mirror_frames =
@@ -143,11 +192,15 @@ impl HudBinding {
 
     /// Gives the HUD a minimap (built from the package's objects and the map's calibration). Without one the
     /// minimap objects stay hidden.
-    /// Registers a custom map blip style (see [`BlipStyle`]); its objects come from the package by its icon names.
-    /// No caller yet: the extension point for custom blips.
-    #[allow(dead_code)]
+    /// Registers a map blip style (see [`BlipStyle`]); its objects come from the package by its icon names. Call it
+    /// before the viewport is built (`HudViewport::new` takes the icons from `blip_icon_hashes`).
     pub fn add_blip_style(&mut self, rt: &mut Runtime, package: PackageId, style: Box<dyn BlipStyle>) {
         self.blips.add(rt, package, style);
+    }
+
+    /// The name hashes of the map blips' pool objects, for `HudViewport::new`.
+    pub fn blip_icon_hashes(&self) -> Vec<u32> {
+        self.blips.icon_hashes()
     }
 
     pub fn with_minimap(mut self, minimap: Option<MinimapBinding>) -> Self {
@@ -168,7 +221,18 @@ impl HudBinding {
 
     pub fn apply(&mut self, rt: &mut Runtime, s: &HudState) {
         let map = s.minimap.zip(self.minimap.as_ref());
-        self.layout.update(rt, s.has_nos, s.has_turbo, map.is_some(), s.cop_nearby, self.mirror_shown);
+        let shown = Shown {
+            nitrous: s.has_nos,
+            turbo: s.has_turbo,
+            // The race HUD always carries the speed breaker meter; its charge only moves the bar and the icon.
+            speedbreaker: true,
+            minimap: map.is_some(),
+            laser: s.cop_nearby,
+            mirror: self.mirror_shown,
+            pursuit: s.pursuit.is_some(),
+            cooldown: s.pursuit.is_some_and(|p| p.cooldown_shown()),
+        };
+        self.layout.update(rt, shown);
         // The mirror's frame rests at full alpha, every frame: its own colour track would otherwise leave it at zero.
         let alpha = mirror_fade_alpha(self.mirror_elapsed);
         for frame in self.mirror_frames.iter().flatten() {
@@ -183,6 +247,7 @@ impl HudBinding {
         self.speedometer(rt, s);
         self.tachometer(rt, s);
         self.speedbreaker(rt, s);
+        self.pursuit(rt, s);
         if s.has_nos {
             self.nitrous(rt, s);
         }
@@ -246,10 +311,36 @@ impl HudBinding {
         }
     }
 
+    /// The pursuit board's timer and the width of the cool-down bar, while a chase runs. The board and the bar fade
+    /// in from scripts the game starts on a message this build does not raise, so their groups are held at full
+    /// alpha here instead (as the mirror is, see `apply`).
+    fn pursuit(&self, rt: &mut Runtime, s: &HudState) {
+        let Some(p) = s.pursuit else { return };
+        for frame in &self.pursuit_frames {
+            rt.set_alpha(*frame, 255);
+        }
+        if let Some(o) = self.pursuit_timer {
+            rt.set_text(o, timer_text(p.secs));
+        }
+        if let Some(o) = self.cops_taken {
+            rt.set_text(o, p.cops_destroyed.to_string());
+        }
+        if let Some(bar) = self.cooldown_bar {
+            // The fill keeps its left end where the package has it: it grows to the right.
+            let width = bar.width * p.evade;
+            rt.set_size_xy(bar.object, width, bar.height);
+            rt.set_position_xy(bar.object, bar.left + width / 2.0, bar.y);
+        }
+    }
+
     fn speedbreaker(&mut self, rt: &mut Runtime, s: &HudState) {
+        let meter = s.speedbreaker.clamp(0.0, 1.0);
         if let Some(o) = self.speedbreaker_bar {
-            let meter = s.speedbreaker.clamp(0.0, 1.0);
             rt.set_mask_rotation(o, meter * -SPEEDBREAKER_BAR_EMPTY_DEG + SPEEDBREAKER_BAR_EMPTY_DEG);
+        }
+        if let Some(o) = self.speedbreaker_icon {
+            let script = if meter > 0.0 { SCRIPT_NOS_BURNING } else { SCRIPT_INIT };
+            ensure_script(rt, o, script);
         }
     }
 

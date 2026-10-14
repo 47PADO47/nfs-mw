@@ -49,7 +49,7 @@ const ADDITIVE: wgpu::BlendState = wgpu::BlendState {
     alpha: wgpu::BlendComponent::OVER,
 };
 
-const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 4] =
+pub(super) const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 4] =
     wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Unorm8x4, 3 => Float32x2];
 
 impl Pipelines {
@@ -57,11 +57,22 @@ impl Pipelines {
     pub(super) fn new(device: &wgpu::Device, format: wgpu::TextureFormat, shared: &Shared) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("scene shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/scene.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(
+                format!(
+                    "{}\n{}",
+                    include_str!("../shaders/scene.wgsl"),
+                    include_str!("../shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "2")
+                )
+                .into(),
+            ),
         });
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("scene"),
-            bind_group_layouts: &[Some(&shared.bindings.globals_layout), Some(&shared.bindings.texture_layout)],
+            bind_group_layouts: &[
+                Some(&shared.bindings.globals_layout),
+                Some(&shared.bindings.texture_layout),
+                Some(&shared.glossy.material),
+            ],
             immediate_size: 0,
         });
         let mut pipelines = Self {
@@ -110,7 +121,14 @@ impl Pipelines {
     fn glossy_module(&self, device: &wgpu::Device) -> Module {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("glossy shader"),
-            source: wgpu::ShaderSource::Wgsl(super::glossy::SHADER.into()),
+            source: wgpu::ShaderSource::Wgsl(
+                format!(
+                    "{}\n{}",
+                    super::glossy::SHADER,
+                    include_str!("../shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "3")
+                )
+                .into(),
+            ),
         });
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("glossy"),

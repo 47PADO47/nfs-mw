@@ -6,6 +6,7 @@
 //! the car model has 2 rear right, 3 rear left.
 
 use blackbox_collision::CollisionWorld;
+mod audio;
 use blackbox_vehicle::induction::InductionKind;
 use blackbox_vehicle::{FIXED_STEP, Ground, InputState, Vehicle};
 use glam::{Mat3, Quat, Vec3};
@@ -15,7 +16,7 @@ use std::sync::Arc;
 
 use super::input::DriveInput;
 use super::rig::CarPose;
-use super::walls::{self, Impact};
+use super::walls::{self, ContactKind, Impact};
 use crate::scenes::world::effects::{self, Contact};
 use crate::scenes::world::events::{OtherBody, VehicleEvents};
 use crate::scenes::world::object_geometry::{BodyGeometryFrame, BodyPose};
@@ -80,6 +81,12 @@ pub struct CarSim {
     pub(in crate::scenes::world) collision_racer: bool,
     previous_contact_pose: BodyPose,
     before_velocity: Vec3,
+    ground_reference: blackbox_collision::ground_reference::GroundReferenceCache,
+    wheel_ground: std::cell::RefCell<[blackbox_collision::ground_reference::GroundFaceCache; 4]>,
+    /// The car touched a prop (a fixed or a movable one) this step; read once by the traffic (`take_prop_struck`).
+    prop_struck: bool,
+    pending_sound_contacts: Vec<crate::audio::CarContact>,
+    sound_identity: u64,
 }
 
 /// A vector from physics space to render space axes: `(x, y, z) -> (z, -x, y)`.
@@ -96,8 +103,15 @@ impl CarSim {
             physics.spec.dimension,
             physics.bounds.pivot
         );
+        let mut vehicle = Vehicle::new(physics.spec);
+        vehicle.set_tire_integration(physics.tire_integration);
+        vehicle.jump_config = physics.jump_config;
+        if physics.tire_integration == blackbox_vehicle::tires::TireIntegration::Reference {
+            vehicle.wall_steering_config = nfsmw_data::car::physics::wall_steering_config();
+        }
         Self {
-            vehicle: Vehicle::new(physics.spec),
+            vehicle,
+            prop_struck: false,
             pivot: physics.bounds.pivot,
             rest_height,
             spin: [0.0; 4],
@@ -117,6 +131,10 @@ impl CarSim {
             collision_racer: false,
             previous_contact_pose: (Vec3::ZERO, Quat::IDENTITY),
             before_velocity: Vec3::ZERO,
+            ground_reference: Default::default(),
+            wheel_ground: Default::default(),
+            pending_sound_contacts: Vec::new(),
+            sound_identity: next_sound_identity(),
         }
     }
 
@@ -131,6 +149,10 @@ impl CarSim {
         self.visual_tires = tires;
     }
 
+    pub(super) fn set_rest_heights(&mut self, heights: [f32; 4]) {
+        self.rest_height = heights;
+    }
+
     /// Put the car on the road at `spawn`, standing still. False when `ground` has nothing there.
     pub fn place(&mut self, ground: &dyn Ground, spawn: Spawn) -> bool {
         self.place_moving(ground, spawn, 0.0)
@@ -139,6 +161,10 @@ impl CarSim {
     /// Put the car on the road at `spawn`, already rolling forward at `speed` m/s.
     pub fn place_moving(&mut self, ground: &dyn Ground, spawn: Spawn, speed: f32) -> bool {
         self.spin = [0.0; 4];
+        self.ground_reference.clear();
+        for wheel in self.wheel_ground.get_mut() {
+            wheel.clear();
+        }
         let [x, _, z] = space::to_physics(spawn.position);
         // The heading is counter-clockwise from +X in the world; the library's yaw is about the up axis
         // from +z, which is the other way round.
@@ -167,6 +193,7 @@ impl CarSim {
         ground: &dyn Ground,
         mut world: Option<(&CollisionWorld, &mut PropWorld)>,
     ) -> Impact {
+        self.refresh_ground_reference(world.as_ref().map(|(collision, _)| *collision));
         self.before_velocity = self.vehicle.body().linear_velocity;
         let input = InputState {
             throttle: input.throttle,
@@ -189,24 +216,55 @@ impl CarSim {
                 self.vehicle.tire_damage.puncture(wheel);
             }
         }
-        self.vehicle.step(FIXED_STEP, &input, ground);
-        let impact = match world {
+        self.step_with_ground(&input, ground, world.is_some());
+        let mut impact = match world {
             Some((collision, props)) => {
-                let mut impact = walls::resolve(
-                    &mut self.vehicle,
-                    &walls::world_cast(collision),
-                    &walls::world_props(props),
-                    &self.walls,
-                );
                 let frame = self
                     .geometry
                     .as_ref()
                     .map(|g| BodyGeometryFrame { geometry: &g.body, previous: self.previous_contact_pose });
-                props.collide_vehicle(&mut self.vehicle, frame, &mut impact);
+                // The original prunes object pairs before its end-frame world collision callback.
+                let mut objects = Impact::default();
+                props.collide_vehicle(&mut self.vehicle, frame, &mut objects);
+                let wall_exclusion = self.terrain_exclusion();
+                let mut impact = walls::resolve(
+                    &mut self.vehicle,
+                    &walls::world_cast_with_mask(collision, wall_exclusion),
+                    &walls::world_props(props),
+                    &self.walls,
+                );
+                impact.impulse = impact.impulse.max(objects.impulse);
+                impact.contacts.extend(objects.contacts);
+                impact.damage.splice(0..0, objects.damage);
+                impact.sounds.extend(objects.sounds);
                 impact
             }
             None => Impact::default(),
         };
+
+        self.prop_struck |=
+            impact.contacts.iter().any(|c| matches!(c.kind, ContactKind::PropRigid | ContactKind::PropMovable));
+
+        let body = self.vehicle.body();
+        let rotation = body.rotation();
+        let bottom_point =
+            body.position - rotation.y_axis * body.dimension().y - rotation.z_axis * (body.dimension().z * 0.75);
+        impact.sounds.extend(self.vehicle.body_contacts().iter().filter(|c| c.impulse_delta_v > 0.0).map(|c| {
+            let bottom = self.vehicle.wheels_on_ground() > 2 && rotation.y_axis.dot(c.normal) > 0.2;
+            crate::audio::CarContact {
+                sound_profile: 0,
+                detached: false,
+                source: crate::audio::ContactSource::Ground,
+                identity: 0,
+                surface: c.surface,
+                point: if bottom { bottom_point } else { c.point },
+                normal: c.normal,
+                velocity: c.velocity,
+                delta_v: c.impulse_delta_v,
+                front: false,
+                bottom,
+            }
+        }));
         if let Some(events) = self.events.as_mut() {
             for &hit in &impact.damage {
                 events.hit(hit);
@@ -218,6 +276,10 @@ impl CarSim {
         impact
     }
 
+    pub fn take_sound_contacts(&mut self) -> Vec<crate::audio::CarContact> {
+        std::mem::take(&mut self.pending_sound_contacts)
+    }
+
     /// The wheels as the car sound reads them, in the model's wheel order (front left, front right, rear
     /// right, rear left).
     pub fn wheel_sounds(&self, surfaces: &SurfaceTable) -> [blackbox_carsound::WheelInput; 4] {
@@ -227,7 +289,7 @@ impl CarSim {
             let audio = v.wheel_surface_tag(PHYSICS_WHEEL[i]).map(|tag| surfaces.audio(tag));
             // The tire reports how fast the patch slides over the road and how much of that is wheel spin; the
             // rest is sideways.
-            let sideways = (w.slide_speed * w.slide_speed - w.slip * w.slip).max(0.0).sqrt();
+            let sideways = w.lateral_speed;
             blackbox_carsound::WheelInput {
                 on_ground: w.on_ground,
                 slip: w.slip,
@@ -245,6 +307,28 @@ impl CarSim {
 
     /// Where each tyre's ray met the road in the last step and the surface normal there (physics space), for
     /// the `debug collisions` view.
+    /// The four wheels' contact patches on the road plane, in physics wheel order, for the spike strips (`spikes.rs`).
+    pub fn wheel_patches(&self) -> [blackbox_pursuit::spikes::Patch; 4] {
+        std::array::from_fn(|i| {
+            let wheel = self.vehicle.wheel(i);
+            blackbox_pursuit::spikes::Patch {
+                position: glam::Vec2::new(wheel.position.x, wheel.position.z),
+                radius: wheel.radius,
+                on_ground: wheel.on_ground,
+            }
+        })
+    }
+
+    /// Punctures tire `wheel` (physics order) on the tire model. Returns whether it was intact.
+    pub fn puncture_wheel(&mut self, wheel: usize) -> bool {
+        self.vehicle.tire_damage.puncture(wheel)
+    }
+
+    /// Whether the car touched a prop since the last call.
+    pub fn take_prop_struck(&mut self) -> bool {
+        std::mem::take(&mut self.prop_struck)
+    }
+
     pub fn tyre_hits(&self) -> impl Iterator<Item = (Vec3, Vec3)> + '_ {
         (0..4).filter_map(|i| self.vehicle.wheel_ground_hit(i))
     }
@@ -387,9 +471,16 @@ impl CarSim {
     }
 }
 
+fn next_sound_identity() -> u64 {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    (1 << 63) | NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+}
+
 mod ai;
 mod camera;
 mod pair;
+mod performance;
+mod terrain;
 mod trailer;
 
 #[cfg(test)]

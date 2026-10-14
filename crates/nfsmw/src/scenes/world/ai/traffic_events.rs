@@ -20,20 +20,11 @@ pub struct EventTuning {
     pub cooldown: f32,
     /// Seconds a traffic hit still counts as recent.
     pub hit_memory: f32,
-    /// Metres within which a patrol cop can see the player (heat 1 to 7 front sight, ai-pursuit §4.1).
-    pub cop_sight: f32,
 }
 
 impl Default for EventTuning {
     fn default() -> Self {
-        Self {
-            speeding: SPEEDING_MPS,
-            near_miss_speed: 15.0,
-            near_miss_distance: 12.0,
-            cooldown: 3.0,
-            hit_memory: 1.0,
-            cop_sight: 151.0,
-        }
+        Self { speeding: SPEEDING_MPS, near_miss_speed: 15.0, near_miss_distance: 12.0, cooldown: 3.0, hit_memory: 1.0 }
     }
 }
 

@@ -2,8 +2,6 @@
 //! cars in the install (their wheels turn and the front pair steers); `view-assets` lists the shared scenery
 //! models of a track (poles, cones, bins...). Clicking a name in the list shows it.
 
-mod panel;
-
 use std::f32::consts::TAU;
 
 use anyhow::{Result, anyhow};
@@ -13,12 +11,11 @@ use nfsmw_data::car::{CarModel, LoadOptions};
 use nfsmw_data::world::{DEFAULT_TRACK, SharedAssets};
 
 use super::car::CarScene;
+use super::sidebar;
 use crate::input::ActionState;
 use crate::settings::CarShading;
 use crate::viewer::Scene;
 
-/// The share of the window the list takes, on the left; the model is centred in the rest.
-const PANEL_FRACTION: f32 = 0.3;
 /// Wheel roll in radians per second (about two turns a second).
 const SPIN_RATE: f32 = 12.0;
 /// The front wheels' steer: this many radians either side, swept at `STEER_RATE` radians per second.
@@ -45,10 +42,12 @@ pub struct AssetScene {
     selected: usize,
     /// A name clicked in the last UI pass; loaded on the next update, which has the renderer.
     requested: Option<usize>,
-    panel: panel::Panel,
+    panel: sidebar::Panel,
     /// Whether the pointer is over the list: the camera ignores it there, so a drag over the list does not turn
     /// the model.
     over_panel: bool,
+    /// Whether Ctrl+B has hidden the list. The model then recentres on the whole window.
+    collapsed: bool,
     /// Why the last click did not load its model.
     error: Option<String>,
     car: CarScene,
@@ -91,15 +90,16 @@ impl AssetScene {
     }
 
     fn start(source: Source, noun: &'static str, names: Vec<String>, selected: usize, mut car: CarScene) -> Self {
-        car.view_offset = PANEL_FRACTION;
+        car.view_offset = sidebar::PANEL_FRACTION;
         Self {
             source,
             noun,
             names,
             selected,
             requested: None,
-            panel: panel::Panel::default(),
+            panel: sidebar::Panel::default(),
             over_panel: false,
+            collapsed: false,
             error: None,
             car,
             clock: 0.0,
@@ -179,12 +179,22 @@ impl Scene for AssetScene {
     }
 
     fn ui(&mut self, ctx: &egui::Context) -> f32 {
-        let clicked = panel::show(ctx, &mut self.panel, &self.names, self.selected, self.error.as_deref(), self.noun);
+        if sidebar::toggle_pressed(ctx) {
+            self.collapsed = !self.collapsed;
+        }
+        if self.collapsed {
+            // No list to be over, and the model sits in the middle of the window.
+            self.over_panel = false;
+            self.car.view_offset = 0.0;
+            return 0.0;
+        }
+        self.car.view_offset = sidebar::PANEL_FRACTION;
+        let clicked = sidebar::show(ctx, &mut self.panel, &self.names, self.selected, self.error.as_deref(), self.noun);
         if let Some(index) = clicked {
             self.requested = Some(index);
         }
         self.over_panel = ctx.is_pointer_over_egui();
-        panel::width(ctx)
+        sidebar::width(ctx)
     }
 
     fn commands(&self) -> &'static [(&'static str, &'static str)] {

@@ -44,7 +44,7 @@ fn turning_vsync_off_enables_the_frame_limit_again() {
 #[test]
 fn the_other_rows_are_always_enabled() {
     for s in [settings(true), settings(false)] {
-        for category in [Category::Audio, Category::Video, Category::Gameplay] {
+        for category in [Category::Audio, Category::Video, Category::Gameplay, Category::Discord] {
             for row in rows(category, &crate::settings::test_caps::native()) {
                 if !matches!(row.setting, Setting::MaxFps | Setting::Renderer(_) | Setting::Graphics(_)) {
                     assert!(row.setting.enabled(&s), "{:?}", row.setting);
@@ -98,4 +98,15 @@ fn temporal_upscaling_owns_resolution_and_anti_aliasing_on_a_supported_renderer(
     assert!(Setting::UpscaleSharpness.advance(&mut s, &mut changes, true, &native));
     assert_eq!(changes.upscale_sharpness, Some(crate::settings::Percent(90)));
     assert_eq!(s.upscaler, UpscaleMode::Dlss, "a separate preference stays stored");
+}
+
+#[test]
+fn the_discord_category_holds_the_two_toggles_and_the_time_played_dims_while_discord_is_off() {
+    let caps = crate::settings::test_caps::native();
+    let toggles: Vec<Setting> = rows(Category::Discord, &caps).iter().map(|row| row.setting).collect();
+    assert_eq!(toggles, [Setting::Discord, Setting::DiscordTimePlayed]);
+    let gameplay = rows(Category::Gameplay, &caps);
+    assert!(!gameplay.iter().any(|row| matches!(row.setting, Setting::Discord | Setting::DiscordTimePlayed)));
+    assert!(!Setting::DiscordTimePlayed.enabled(&Settings { discord: false, ..settings(true) }));
+    assert!(Setting::DiscordTimePlayed.enabled(&Settings { discord: true, ..settings(true) }));
 }

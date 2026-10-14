@@ -13,10 +13,19 @@ const UNKNOWN: &str = "unknown";
 
 /// What a surface sounds like: the `Aud_Skid_Type` (which skid loops) and `Aud_Roadnoise_LOOP` (which road
 /// noise loop, 0 = none) fields of `simsurface`. Spec: `docs/specs/engine-sound-effects.md` §7 and §9.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SurfaceAudio {
     pub skid_type: u8,
     pub road_loop: u8,
+    pub transition_on: i32,
+    pub transition_off: i32,
+    pub secondary: bool,
+}
+
+impl Default for SurfaceAudio {
+    fn default() -> Self {
+        Self { skid_type: 0, road_loop: 0, transition_on: -1, transition_off: -1, secondary: false }
+    }
 }
 
 /// The `simsurface` collections by name hash. Every [`SurfaceGrip`] it hands out carries that hash as its `tag`,
@@ -42,7 +51,16 @@ impl SurfaceTable {
             .collections_of("simsurface")
             .map(|c| {
                 let byte = |name: &str| c.get_u32(name).unwrap_or(0).min(u32::from(u8::MAX)) as u8;
-                (c.key(), SurfaceAudio { skid_type: byte("Aud_Skid_Type"), road_loop: byte("Aud_Roadnoise_LOOP") })
+                (
+                    c.key(),
+                    SurfaceAudio {
+                        skid_type: byte("Aud_Skid_Type"),
+                        road_loop: byte("Aud_Roadnoise_LOOP"),
+                        transition_on: c.get_u32("Aud_RoadNoise_TransON").map_or(-1, |value| value as i32),
+                        transition_off: c.get_u32("Aud_RoadNoise_TransOFF").map_or(-1, |value| value as i32),
+                        secondary: [vlt_hash("dirt"), vlt_hash("gravel")].contains(&c.key()),
+                    },
+                )
             })
             .collect();
         let unknown = db.collection("simsurface", UNKNOWN).map_or(SurfaceGrip::DEFAULT, |c| read(Fields(c)));
@@ -92,7 +110,7 @@ mod tests {
     fn unknown_hashes_fall_back_to_the_unknown_surface() {
         let table = SurfaceTable {
             grips: HashMap::from([(7, SurfaceGrip { lateral: 0.5, drive: 0.6, rolling: 2.0, tag: 7 })]),
-            audio: HashMap::from([(7, SurfaceAudio { skid_type: 1, road_loop: 3 })]),
+            audio: HashMap::from([(7, SurfaceAudio { skid_type: 1, road_loop: 3, ..Default::default() })]),
             body_friction: HashMap::from([(7, 0.3)]),
             unknown: SurfaceGrip { lateral: 0.9, drive: 0.9, rolling: 1.0, tag: 0 },
         };
@@ -100,7 +118,7 @@ mod tests {
         assert_eq!(table.grip(0).lateral, 0.9);
         assert_eq!(table.grip(12345).drive, 0.9);
         assert!(table.knows(7) && !table.knows(0));
-        assert_eq!(table.audio(7), SurfaceAudio { skid_type: 1, road_loop: 3 });
+        assert_eq!(table.audio(7), SurfaceAudio { skid_type: 1, road_loop: 3, ..Default::default() });
         assert_eq!(table.audio(99), SurfaceAudio::default());
     }
 }

@@ -109,6 +109,12 @@ bound). Every field documents its unit. The player sliders are `Tunings`; the pe
 Each is a deliberate choice where the spec was ambiguous, or where a literal reading was unstable at
 60 Hz. All are recorded in `docs/provenance/vehicle-*.md`.
 
+Items 1–7 describe the generic `TireIntegration::Regularized` default. The optional
+`Reference` profile follows the original force branch, wheel histories, sign-dependent force bound,
+reported wheel speeds, net-force sleep and asymmetric burnout instead. The game can select that
+profile; see [tire profiles](../../docs/specs/vehicle-tire-profiles.md) and
+[validation/provenance](../../docs/provenance/vehicle-driving-corrections.md).
+
 1. **Tire branches are blended.** The spec picks the gripping or the sliding force by last step's
    `traction` being below 1. A tire at its limit then alternates between the two every step and loses half
    its force. Here the two are mixed by that traction, which settles on the friction limit.
@@ -139,9 +145,9 @@ Each is a deliberate choice where the spec was ambiguous, or where a literal rea
     can. A sleeping car wakes on throttle or handbrake.
 14. **Airborne downforce.** The original keeps 0.8 of the downforce in the air; with real aero coefficients
     that pulls a car down about twice as hard as gravity at jump speeds. `AeroSpec::airborne_scale` (default
-    0.1) lets a car float over a crest. A tuning of this library, not game data.
-15. **Clutch torque is capped** at the peak engine torque while it slips. The uncapped spring dumped the
-    flywheel into the wheels after every shift (a 12 kN m spike and a two-step oscillation).
+    0.1) is an optional library tuning. The game adapter explicitly supplies the original 0.8.
+15. **Clutch torque follows the original spring coupling** while re-engaging, without an artificial
+    peak-engine-torque cap. Gear changes can transfer stored flywheel energy to the wheels.
 16. **Gear ratios** are used as magnitudes; shift points are not computed for more than 10 gear entries.
 
 ## Tire marks and smoke
@@ -159,19 +165,27 @@ iterated object response with separate per-body restitution and effective mass/i
 fixed centres and break thresholds. The caller supplies geometry and gameplay overrides.
 See [object contact verification](../../docs/provenance/pc-object-contact.md).
 
-Still missing here: invulnerability and reset-to-road, burnout
-and fishtail, drift state and its yaw damping, the axle traction control, wall steer, the airborne
-stabilisers, speed-break, perfect launch and drag shift quality, engine heat and sabotage, blown tires,
+Wall steering and airborne stabilizers now have caller-supplied configuration and
+original numeric vectors. Their world geometry and context producers need further comparison.
+Still missing here: invulnerability and reset-to-road, perfect launch and drag shift quality, engine heat and sabotage,
 catch-up cheats, forced stops, the understeer and oversteer read-outs, and the traffic and AI chassis
 variants. The yaw-control boost assumes the stability setting is on.
+
+Ordinary racer drift friction/yaw damping and axle traction control follow the
+published chassis specification. The reference profile includes asymmetric burnout/fishtail.
+`ManeuverAssist` accepts coupled temporary gravity, drag, grip and steering values from the caller;
+clock changes and meter state belong to the game. A supplied collision override
+scales temporary object-contact mass and inertia without changing the real body.
+Drag staging remains absent.
+Steering history follows [the documented ordering](../../docs/specs/vehicle-steering-history.md).
 
 ## What needs calibration
 
 The object-response kernel matches 13 synthetic measurements of the original PC machine code.
 Full driving and collision scenarios still need comparison against the running game.
 
-- **Tire force scale.** The lateral table is the console build's; the PC build has an extra multiplier
-  (spec open question 2). Calibrate with a skidpad run. `StepScales` and the 1.5 ellipse stretch (kept in the
+- **Tire force scale.** The PC lateral multiplier is covered by the current tire specification;
+  complete live skidpad/trajectory equality remains unverified. `StepScales` and the 1.5 ellipse stretch (kept in the
   clipped case, so a driven wheel can exceed `torque / r`) are the other grip knobs.
 - **Steering tables** are indexed by forward speed over 0..160 assumed to be m/s (question 6).
 - **Brake torque units** (`BRAKES * 1.3558 * 4`, `EBRAKE * 1.3558 * 10`) look like tuning fudge (question 8).

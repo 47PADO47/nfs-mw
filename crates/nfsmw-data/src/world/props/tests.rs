@@ -3,6 +3,8 @@ use blackbox_vehicle::rigid_body::RigidBodySpec;
 
 use super::*;
 
+mod duplicates;
+
 #[test]
 fn models_sharing_original_physics_keys_keep_their_own_identity() {
     let bounds = Arc::new(BoundsSet {
@@ -23,6 +25,7 @@ fn models_sharing_original_physics_keys_keep_their_own_identity() {
         point_clouds: vec![],
     });
     let dynamics = Arc::new(PropDynamics {
+        sound_profile: 0,
         mass: 10000.0,
         tensor_scale: Vec3::splat(2.0),
         body: RigidBodySpec::default(),

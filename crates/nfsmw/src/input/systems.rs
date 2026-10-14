@@ -40,7 +40,7 @@ impl Plugin for InputLayerPlugin {
 const PIXELS_PER_LINE: f32 = 60.0;
 
 #[allow(clippy::too_many_arguments)]
-fn update_actions(
+pub(crate) fn update_actions(
     keys: Res<ButtonInput<KeyCode>>,
     buttons: Res<ButtonInput<MouseButton>>,
     motion: Res<AccumulatedMouseMotion>,
@@ -75,7 +75,7 @@ fn update_actions(
         // Keep a complete down/up pulse visible for one action frame, even when the key is no
         // longer held by the time this system runs (console/camera/gear shortcuts need the edge).
         keys: keys.get_pressed().chain(keys.get_just_pressed()).copied().collect(),
-        buttons: buttons.get_pressed().copied().collect(),
+        buttons: buttons.get_pressed().chain(buttons.get_just_pressed()).copied().collect(),
         mouse_delta: (motion.delta.x, motion.delta.y),
         scroll: match scroll.unit {
             MouseScrollUnit::Line => scroll.delta.y,

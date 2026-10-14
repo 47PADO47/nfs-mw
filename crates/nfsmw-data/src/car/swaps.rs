@@ -70,6 +70,17 @@ pub struct TextureSwaps {
 }
 
 impl TextureSwaps {
+    /// Stock swaps for a car type. Traffic (usage 2) shares the global tire atlas;
+    /// the original placeholder is based on the type's base model name, not its folder.
+    pub fn for_car_type(base_model_name: &str, usage_type: i32) -> Self {
+        let mut swaps = Self::for_car(base_model_name);
+        if usage_type != 2 {
+            return swaps;
+        }
+        swaps.map.insert(bstring_hash(&format!("{base_model_name}_TIRE")), bstring_hash("TRAFFIC_TIRE"));
+        swaps
+    }
+
     /// The swaps of a car with base model name `car` (stock lights: headlights on, brake
     /// lights off).
     pub fn for_car(car: &str) -> Self {
@@ -128,5 +139,18 @@ mod tests {
         assert_eq!(s.resolve_for(bstring_hash(BRAKE), false), bstring_hash(BRAKE));
         assert!(s.hidden.contains(&bstring_hash("LEFT_DOOR_DECAL")));
         assert_eq!(DECAL_PLACEHOLDERS.len(), 8 + 26);
+    }
+
+    #[test]
+    fn shared_tire_atlas_is_scoped_to_traffic_usage() {
+        let original = bstring_hash("TRAILERLOG_TIRE");
+        for usage in [0, 1, 3, 4] {
+            assert_eq!(TextureSwaps::for_car_type("TRAILERLOG", usage).resolve(original), original);
+        }
+        let swaps = TextureSwaps::for_car_type("TRAILERLOG", 2);
+        assert_eq!(swaps.resolve(original), bstring_hash("TRAFFIC_TIRE"));
+        assert_eq!(swaps.resolve(bstring_hash("OTHER_TIRE")), bstring_hash("OTHER_TIRE"));
+        assert_eq!(swaps.resolve(bstring_hash("WINDOW_REAR")), bstring_hash("WINDOW_FRONT"));
+        assert!(swaps.hidden.contains(&bstring_hash("LEFT_DOOR_DECAL")));
     }
 }

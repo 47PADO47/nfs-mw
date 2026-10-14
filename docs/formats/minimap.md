@@ -89,7 +89,7 @@ The package is `HUD_SingleRace.fng` (`GLOBAL/InGameB.bun`, [frontend.md](fronten
 | `PLAYERCARINDICATOR` (`0xdd9ef5ff`) | image `Minimap_Icon_Car` at (-222, 139, 20), 14 x 16: the player's arrow |
 | `PLAYERCARINDICATOR2` (`0x917db611`) | second player (split screen); not in this package's tree (the game finds nothing) |
 | `MINIMAP_NORTH_INDICATOR`, `MAP_COLOR_TINT` | looked up by the game; absent from this package |
-| `HELICOPTER_ICON_GROUP`, `MMICON_COPCAR_0..7`, `MMICON_AIRACER_0..7`, `MMICON_CHECKPOINT`, `Minimap_Icon_*` | the blips (cops, racers, event and shop icons); they need the race and pursuit state and are out of scope |
+| `HELICOPTER_ICON_GROUP`, `MMICON_COPCAR_0..7`, `MMICON_AIRACER_0..7`, `MMICON_CHECKPOINT`, `MMICON_<TYPE>_0..7` (race events), `SHOP_0..7` (auto shops), `SAFEHOUSEINDICATOR_0..3` (safe houses), `Minimap_Icon_*` | the blips (cops, racers, event and shop icons). The cop, helicopter and race-start/interior blips are bound; the racers and the checkpoint await race mode ([hud-minimap.md](../specs/hud-minimap.md) section 7) |
 
 The group `0x157c5b37` and `TRACK_MAP` both answer the messages `FADEIN` and `FADEOUT` with a 600-tick colour
 fade (scripts `0x5b0d9106` / `0xbcbfcc87`).

@@ -11,13 +11,17 @@
 //! - [`music`]: the licensed songs of the radio, from the attribute database;
 //! - [`sound`]: a car's engine sound set (`.gin` loops, banks and mix tuning) from the attribute database;
 //! - [`speech`]: the scheduling data of the police dispatch's speech events from the attribute database.
-//! - [`time_of_day`]: the 8 lighting presets from the attribute database and the blend between two (no clock yet).
+//! - [`time_of_day`]: the 8 lighting presets from the attribute database and the blend between two; the day-night clock that picks the sun and the lights is in [`day_night`].
+//! - [`day_night`]: the day-night clock's curves (hour, sun phase, lights on and off) and its settings.
+//! - [`gameplay`]: the race events, their box triggers (start, finish, checkpoints) and the auto shop and safe house zones.
 
 pub mod camera;
 pub mod car;
+pub mod day_night;
 mod files;
 pub mod fog;
 pub mod game;
+pub mod gameplay;
 pub mod minimap;
 pub mod music;
 pub mod pursuit;

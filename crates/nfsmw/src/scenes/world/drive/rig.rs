@@ -49,7 +49,7 @@ struct Part {
 }
 
 pub struct CarRig {
-    /// Which car this is, for the instance keys.
+    /// Default instance identity; actors that share the uploaded rig supply their own identity.
     car: u32,
     model: CarModel,
     /// Sorted by mesh, as the renderer wants instances of one mesh together.
@@ -65,6 +65,17 @@ pub struct CarRig {
 }
 
 impl CarRig {
+    /// Reuse the loaded geometry while a color picker is dragged.
+    pub fn recolor(&mut self, renderer: &mut dyn RenderBackend, rgb: [u8; 3], sun: Vec3) -> anyhow::Result<()> {
+        self.model.set_body_color(rgb)?;
+        let (parts, meshes, materials) = upload_parts(renderer, &self.model, &self.swaps(), self.shading, sun);
+        for mesh in self.meshes.drain(..) {
+            renderer.destroy_mesh(mesh);
+        }
+        std::mem::replace(&mut self.materials, materials).destroy(renderer);
+        (self.parts, self.meshes) = (parts, meshes);
+        Ok(())
+    }
     /// Upload `model` with `shading`, lit by a sun in direction `to_sun` from the car.
     pub fn upload(
         renderer: &mut dyn RenderBackend,
@@ -166,6 +177,18 @@ impl CarRig {
         revealed: &std::collections::BTreeSet<usize>,
         out: &mut Vec<Instance>,
     ) {
+        self.instances_for(self.car, pose, hidden, revealed, out);
+    }
+
+    /// Draw one physical vehicle while retaining the rig's shared meshes and materials.
+    pub fn instances_for(
+        &self,
+        car: u32,
+        pose: &CarPose,
+        hidden: Option<&std::collections::BTreeSet<usize>>,
+        revealed: &std::collections::BTreeSet<usize>,
+        out: &mut Vec<Instance>,
+    ) {
         let world = pose.transform() * Mat4::from_scale(Vec3::splat(self.scale));
         let posed: Option<[(Mat4, Mat4); 4]> =
             self.model.corners.as_ref().map(|c| std::array::from_fn(|i| c[i].posed(pose.wheels[i])));
@@ -184,7 +207,7 @@ impl CarRig {
                 }
                 _ => placement.transform,
             };
-            out.push(Instance::keyed(part.mesh, world * local, keys::car_part(self.car, part.placement)));
+            out.push(Instance::keyed(part.mesh, world * local, keys::car_part(car, part.placement)));
         }
     }
 

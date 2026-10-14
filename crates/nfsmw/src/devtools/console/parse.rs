@@ -36,7 +36,7 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 44] = [
+pub const BUILT_IN: [(&str, &str); 45] = [
     ("bind <action> <input>", "replace one device family's action assignments; keys lists action names"),
     ("addbind <action> <input>", "add another physical input to an action"),
     ("unbind <action> [keyboard|mouse|gamepad|all]", "remove action assignments"),
@@ -76,7 +76,8 @@ pub const BUILT_IN: [(&str, &str); 44] = [
     ("ao_compare <on|off>", "same-frame comparison: left off, right on"),
     ("collision_sparks <on|off>", "change collision sparks"),
     ("spark_style <original-pc|restored-experimental>", "select stock or experimental collision particles"),
-    ("speed_trails <on|off>", "change experimental high-speed wind trails"),
+    ("speed_trails <on|off>", "change experimental high-speed effect"),
+    ("speed_trail_style <streaks|car>", "choose the high-speed effect: view streaks or the car only"),
     ("exhaust_flames <on|off>", "change the tail-pipe flames (shift blow-off, lift-off backfire)"),
     ("volume <0-100>", "master volume (same as set volume)"),
     ("sound [bank [index]]", "list the sounds of a bank (IG_GLOBAL/Siren_MB.abk) or play one"),
@@ -90,7 +91,7 @@ pub const BUILT_IN: [(&str, &str); 44] = [
 ];
 
 /// Further shorthands for `set`: `vsync off` is `set vsync off`.
-const SET_SHORTHANDS: [&str; 32] = [
+const SET_SHORTHANDS: [&str; 33] = [
     "fps",
     "renderer",
     "vsync",
@@ -104,6 +105,7 @@ const SET_SHORTHANDS: [&str; 32] = [
     "collision_sparks",
     "spark_style",
     "speed_trails",
+    "speed_trail_style",
     "exhaust_flames",
     "smoke_quality",
     "car_shading",

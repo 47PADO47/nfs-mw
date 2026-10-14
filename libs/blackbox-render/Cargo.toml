@@ -17,6 +17,7 @@ pollster.workspace = true
 raw-window-handle.workspace = true
 thiserror.workspace = true
 wgpu.workspace = true
+smaa = "=0.21.0"
 
 [dev-dependencies]
 # Synthetic scenes, image metrics and digests for the native regression guard.

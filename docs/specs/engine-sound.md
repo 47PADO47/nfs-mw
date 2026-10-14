@@ -101,6 +101,14 @@ and its turbo set are cached and reused for later cars of the session (`g_ShiftI
 
 ### 2.2 Which banks load for the player's car
 
+The garage's installed performance package supplies the engine, transmission and
+induction levels to these existing rules. Changing one of those levels reloads
+the car's sound set, controllers and voices; other performance categories and
+Junkman modifiers do not select different banks. This is the remake's integration
+policy based on the selectors above, rather than a claim about original live
+garage transition timing. Failed loads are remembered per car and these three
+levels, so selecting a valid package after a missing upgraded sound can retry.
+
 `SetupLoadData` of each sound object **[decomp]**:
 
 | Object | Loads |

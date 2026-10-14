@@ -54,6 +54,25 @@ pub fn lane_line(net: &RoadNetwork, segment: u16, node_ind: NodeInd, lane: usize
     lane_line_shifted(net, segment, node_ind, lane, 0.0)
 }
 
+/// The next traffic lane begins at the previous lane's endpoint, with the new segment's handles.
+pub(crate) fn lane_line_from_start(
+    net: &RoadNetwork,
+    segment: u16,
+    node_ind: NodeInd,
+    lane: usize,
+    delta: f32,
+    start: Vec3,
+) -> Bezier {
+    let end = lane_line_shifted(net, segment, node_ind, lane, delta).end();
+    if !net.segment(segment).has(flags::CURVED) {
+        return Bezier::line(start, end);
+    }
+    let centre = centre_line(net, segment, node_ind);
+    let [p0, p1, p2, p3] = centre.points;
+    let scale = start.distance(end) / p0.distance(p3).max(MIN_CHORD);
+    Bezier::with_handles(start, (p1 - p0) * scale, (p2 - p3) * scale, end)
+}
+
 /// The lane line moved `delta` metres to the right of travel (to the left when negative): the bounds of
 /// the corridor round a lane.
 pub fn lane_line_shifted(net: &RoadNetwork, segment: u16, node_ind: NodeInd, lane: usize, delta: f32) -> Bezier {

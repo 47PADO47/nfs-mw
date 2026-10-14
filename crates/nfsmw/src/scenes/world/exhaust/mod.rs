@@ -84,7 +84,7 @@ pub struct ExhaustFlames {
     state: State,
     /// GPU textures to free at the next chance (a renderer is needed).
     stale: Vec<TextureHandle>,
-    /// The installed engine upgrade level (the career will supply it; for now a console setting).
+    /// The installed engine upgrade level, supplied by the garage or a diagnostic override.
     engine_level: i32,
     /// Sputter pops reported since the last physics step.
     pops: u32,
@@ -187,6 +187,11 @@ impl Active {
 }
 
 impl ExhaustFlames {
+    /// Follow the installed engine level without changing loaded emitters or textures.
+    pub fn set_performance(&mut self, performance: nfsmw_data::car::physics::PerformancePackage) {
+        self.engine_level = i32::from(performance.get(nfsmw_data::car::physics::PerformanceCategory::Engine));
+    }
+
     #[cfg(test)]
     pub fn enabled(&self) -> bool {
         self.enabled

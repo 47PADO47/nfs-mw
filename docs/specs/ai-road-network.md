@@ -164,6 +164,14 @@ current path's segments (straight-line distance) and starts there, with the dire
   ending at the new segment's far end at that lane offset), set `T = 0` and carry on with the remaining
   distance. If the function returns the same segment and direction the cursor sets `dead_end = 1`; a traffic
   cursor then stops where it is.
+- **[verified PC routine, static]** Traffic always carries the previous lane endpoint into the next
+  segment's start, including the left and right corridor endpoints. It selects the destination traffic lane
+  using the new segment's **far-node profile**, counted from the centre or curb as described below. Both
+  control handles come from the new segment and are scaled by the carried start-to-end chord divided by
+  that segment's node-to-node chord. This keeps position continuous when tangents, lane counts or zone
+  indices change at a join; tangent continuity is not guaranteed. Direction/path navigators can instead
+  request a fresh start when they turn around or reset their lane. This distinction was inspected in the
+  original PC navigation routines; it is not a running-game measurement.
 - With a cookie trail the step is split into pieces of at most `1.1 × cookie_gap` and a cookie is recorded
   after each piece. `cookie_gap` is 3 m, or `clamp(max_lookahead / 26, 1, 3)` when a look-ahead is given.
 

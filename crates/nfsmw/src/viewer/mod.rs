@@ -28,6 +28,15 @@ pub struct Fullscreen {
 }
 
 pub trait Scene {
+    /// Installed car choices for the runtime garage; scenes without driving return None.
+    fn garage(&mut self) -> Option<&mut crate::garage::Model> {
+        None
+    }
+    fn apply_garage(&mut self, _renderer: &mut dyn RenderBackend, _selection: crate::garage::Selection) -> Result<()> {
+        anyhow::bail!("this scene has no garage")
+    }
+    /// Freeze driving while the garage owns the controls, allowing streaming and placement to continue.
+    fn set_garage_open(&mut self, _open: bool) {}
     fn title(&self) -> String;
     /// Upload the initial resources.
     fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()>;
@@ -48,7 +57,7 @@ pub trait Scene {
     fn ready(&self) -> bool {
         true
     }
-    /// Benchmarks need loaded assets while a scripted drive is still moving; captures may wait for its end.
+    /// Start timing once resources are ready, even while a scripted route is still moving.
     fn benchmark_ready(&self) -> bool {
         self.ready()
     }
@@ -96,6 +105,10 @@ pub trait Scene {
     fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
         None
     }
+    /// The chase the cops run this frame, for the pursuit music and the speech; `None` without one.
+    fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {
+        None
+    }
     /// The game is on but frozen (the pause menu is up): there is no car sound, yet the game is still being
     /// played, so the radio goes on.
     fn paused(&self) -> bool {
@@ -106,6 +119,8 @@ pub trait Scene {
     /// Apply optional collision sparks and high-speed wind trails.
     fn set_vehicle_effects(&mut self, _sparks: bool, _trails: bool) {}
     fn set_spark_style(&mut self, _style: crate::settings::SparkStyle) {}
+    /// Which high-speed effect the speed trails setting shows. Scenes without a car ignore it.
+    fn set_speed_trail_style(&mut self, _style: crate::settings::SpeedTrailStyle) {}
     /// Show the flames at the car's tail pipes (the `exhaust_flames` setting). Scenes without a car ignore it.
     fn set_exhaust_flames(&mut self, _on: bool) {}
     /// The sound's sputter module started `pops` pops since the last call (the lift-off backfire follows them).
@@ -130,6 +145,10 @@ pub trait Scene {
     }
     /// The one-shot sounds the traffic cars asked for since the last call (horns, near-miss whooshes).
     fn take_traffic_sounds(&mut self) -> Vec<crate::audio::traffic::TrafficSound> {
+        Vec::new()
+    }
+    /// Ordered global sound events since the last update.
+    fn take_common_sounds(&mut self) -> Vec<crate::audio::CommonEvent> {
         Vec::new()
     }
     /// The scene is over: the app quits.

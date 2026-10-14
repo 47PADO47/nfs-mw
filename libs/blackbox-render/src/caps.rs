@@ -19,7 +19,10 @@ pub(crate) fn native_capabilities(
         api,
         compressed_bc,
         hdr_targets,
-        antialiasing: AaSet::of(&[Antialiasing::Off, Antialiasing::Fxaa]),
+        antialiasing: match api {
+            GraphicsApi::Gl => AaSet::of(&[Antialiasing::Off, Antialiasing::Fxaa]),
+            _ => AaSet::of(&[Antialiasing::Off, Antialiasing::Fxaa, Antialiasing::Smaa]),
+        },
         upscalers: UpscalerSet::of(&[Upscaler::Off, Upscaler::Bilinear, Upscaler::Fsr1]),
         tonemaps: TonemapSet::all(),
         bloom: true,
@@ -46,7 +49,7 @@ mod tests {
     fn the_feature_set_is_exactly_the_frozen_one() {
         let caps = caps();
         assert_eq!(caps.renderer, "blackbox");
-        assert_eq!(caps.antialiasing, AaSet::of(&[Antialiasing::Off, Antialiasing::Fxaa]));
+        assert_eq!(caps.antialiasing, AaSet::of(&[Antialiasing::Off, Antialiasing::Fxaa, Antialiasing::Smaa]));
         assert_eq!(caps.upscalers, UpscalerSet::of(&[Upscaler::Off, Upscaler::Bilinear, Upscaler::Fsr1]));
         assert_eq!(caps.tonemaps, TonemapSet::all());
         assert!(caps.bloom);
@@ -116,11 +119,13 @@ mod tests {
     }
 
     #[test]
-    fn smaa_falls_back_to_fxaa() {
+    fn spatial_smaa_is_honoured() {
         let wanted = GraphicsSettings {
             post: PostSettings { antialiasing: Antialiasing::Smaa, ..PostSettings::default() },
             ..GraphicsSettings::default()
         };
-        assert_eq!(resolve(&wanted, &caps()).effective.post.antialiasing, Antialiasing::Fxaa);
+        let resolved = resolve(&wanted, &caps());
+        assert!(resolved.is_exact());
+        assert_eq!(resolved.effective.post.antialiasing, Antialiasing::Smaa);
     }
 }

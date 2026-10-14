@@ -28,7 +28,10 @@ pub fn read(dir: &GameDir, stream_file: &str) -> io::Result<HeliSheet> {
         let id = u32::from_le_bytes(header[0..4].try_into().expect("four bytes"));
         let size = u64::from(u32::from_le_bytes(header[4..8].try_into().expect("four bytes")));
         if id == BARE_JDLZ {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "compressed chunks at the top level are not walked"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "compressed chunks at the top level are not walked",
+            ));
         }
         if at + HEADER + size > len {
             return Err(io::Error::new(io::ErrorKind::InvalidData, format!("chunk at {at} overruns the file")));

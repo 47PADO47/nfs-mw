@@ -3,7 +3,6 @@
 use blackbox_feng::ObjectRef;
 use glam::Vec2;
 
-
 /// The objects of one row.
 pub(super) struct RowObjects {
     pub(super) name: ObjectRef,
@@ -27,4 +26,3 @@ pub(super) struct Layout {
     pub(super) title_object: ObjectRef,
     pub(super) data_object: ObjectRef,
 }
-

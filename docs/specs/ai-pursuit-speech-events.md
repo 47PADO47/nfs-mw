@@ -324,6 +324,57 @@ the event's parameters. The prefix of a collection name is the game's grouping o
 group is the collection `d_day` (the scripted "D-Day" race, priority 100, interrupt). The event `heatjump` (220) and
 `dispjurisshift` (223) are the radio's reaction to the heat reaching 2, 3, 4 and 5 (speech spec section 6).
 
+## 5. Lines wired to the chase (Rust port)
+
+Checked in `/speed.exe` (Ghidra, base `0x400000`): the collection names are present as strings, `AnytimeEvents_LostVisual`
+at `0x008b1588`, `AnytimeEvents_RegainVisual` at `0x008b156c`, `AnytimeEvents_HeatJump` at `0x008b1354`, `Setup_InitPursuit`
+at `0x008b1c38`. The numeric `SpeechID`s are fields of the attribute database, not code constants, so they are read from the
+install (section 4 above); the names are confirmed in the binary, the numbers in the data.
+
+| Chase edge (`audio/chase/cues.rs`) | Collection | id | Rule in the port |
+|---|---|---|---|
+| chase starts | `setup_initpursuit` | 61 | said once at the start (existing) |
+| cops unseen for 2 s (`NoLOSCommentaryTime`) | `lostvisual` | 106 | once per unseen spell; sight is `intensity >= 1` in the feed |
+| sight regained after a lost | `regainvisual` | 107 | only after a `lostvisual` in the chase |
+| heat rises across 2, 3, 4 or 5, after 5 s of chase | `heatjump` | 220 | coin flip at 50 %; one line per crossing (the radio's heat reaction, section 8 of ai-pursuit-speech.md) |
+| lost spell's evade time runs out (`secs_to_evade` reaches 0) | `disptimeexpired` | 180 | once per lost spell; the "time expired" of section 6.2 (cool-down complete). Gated by the `[Pilot] SearchPattern` switch (see below) |
+| rain rises to 0.5 or more during the chase (`rain_intensity`) | `weatherreport` | 219 | rising edge; first frame of a chase only records. Gated by `[Pilot] WeatherReport`. **[guess]** the 0.5 threshold (`RAIN_THRESHOLD`) |
+| a roadblock appears (`roadblock_active` rises) | `callforrb` | 76 | rising edge. Gated by `[Pilot] RoadblockCall`. The roadblock call line; the dispatch's reply and the strategy lines are not wired |
+| the player hits traffic (`player_hit` rises) | `collisionworld` | 98 | rising edge. Gated by `[Pilot] BeenHit`. **[guess]** the collection name for the been-hit line: the mod's `BeenHit` is "lines when the player's car is hit", and `collisionworld` is the world-collision row; the other collision rows (`collworld_civi` 210, `collworld_air` 212, `collworld_flip` 213, `collworld_spin` 98) are not chosen |
+| the cops lose the player while a helicopter is in the chase | `helilostvisual` | 169 | the `Lost` edge with `heli_present`. Gated by `[Pilot] Reacquire` (the mod's reacquire line) |
+| the cops regain the player while a helicopter is in the chase | `spotted` | 214 | the `Regained` edge with `heli_present`. Gated by `[Pilot] SpottedAgain` |
+| a cop car is wrecked (`cops_destroyed` goes up) | `unitdisabled` | 164 | one line per increase. Gated by `[Pilot] KillShot`. **[guess]** the mod's `KillShot` is described as a "kill-shot" line, which may be the helicopter's kill call rather than the cop-down line; the mapping is ours, to check in play |
+
+Ghidra (`/speed.exe`, base `0x400000`) confirms these collection names as strings: `AnytimeEvents_WeatherReport` at `0x008b136c`,
+`AnytimeEvents_IntentToRam` at `0x008b1464`, `AnytimeEvents_DispTimeExpired` at `0x008b1514`, `AnytimeEvents_LostSuspect` at
+`0x008b1550`, `Setup_VehicleReport` at `0x008b1bf8` (and `Setup_VehicleReportTag` at `0x008b1be0`). The air-support pass
+(second) confirmed, by the same search: `HeliSpecific_HeliLostVisual` at `0x008b12dc`, `AnytimeEvents_Spotted` at `0x008b13a4`,
+`AnytimeEvents_UnitDisabled` at `0x008b14b4`, `AnytimeEvents_CollWorld_Spin` at `0x008b16cc`, `AnytimeEvents_CollWorld_Civi` at
+`0x008b16ec`, `AnytimeEvents_CollWorld_Air` at `0x008b16b0`, `AnytimeEvents_CollWorld_Flip` at `0x008b1690`,
+`AnytimeEvents_CollisionWorld` at `0x008b170c`, `StaticRoadblock_CallForRB` at `0x008b19ec` and `StaticRoadblock_CallForRB_sub` at
+`0x008b18dc`. No string for a rain flag, a been-hit line, or a kill-shot line is in the binary under those names, so those rest on
+the spec table, not on a second check. The numbers come from the attribute data (section 4): `intenttoram` 113, `vehiclereport` 155,
+`weatherreport` 219, `lostsuspect` 108, `spotted` 214, `helilostvisual` 169, `spotterwanted` 216, `callforrb` 76, `unitdisabled` 164,
+`collisionworld` 98.
+
+### 5.1 Air-support switches (RevisedAirSupport keys)
+
+The keys of the RevisedAirSupport mod, as a config (`audio/chase/air_support.rs`, file `NFSMWAirSupportSettings.ini` next to the
+config file, `ini-tuning` syntax). Sections `[Pilot]`: `RamLines`, `SearchPattern`, `SpottedAgain`, `VehicleReport`, `EscapedCar`,
+`Reacquire`, `BeenHit`, `KillShot`, `DeadHeliSilence`, `RoadblockCall`, `WeatherReport`, `Answer911`, `HoldOn`, `AttackMissed`.
+`[Radio]`: `RainFlag`, `FastAirRequest`, `FastAirReminder`, `NoSpeechDropoff`. All default on; a malformed value is on.
+Gated lines (each switch suppresses only its own line): `SearchPattern` (`disptimeexpired`), `WeatherReport` (`weatherreport`),
+`RoadblockCall` (`callforrb`), `BeenHit` (`collisionworld`), `Reacquire` (`helilostvisual`), `SpottedAgain` (`spotted`),
+`KillShot` (`unitdisabled`). The mapping of the switches to lines is our reading of the mod's descriptions, not a game fact; check
+it in play. The other switches are read and held, their lines are not wired (state needed per line: see the TODO list in
+`audio/chase.rs`).
+
+Not wired, with the reason in `audio/chase.rs`: the helicopter's other lines (`DeadHeliSilence`, `HoldOn`, the heli search call; no
+heli sight or health in the feed), ram and attempt-missed (no ram state), vehicle report and escaped car, the strategy lines, `RainFlag`
+(no collection of that name in the binary), 911 answer, fast air, and the lost-suspect line on termination. Also not wired:
+`disppursuitescalation` (70), `dispjurisshift` (223). The port uses the chase time (`PursuitFeed.secs`) for the heat delay, not the
+original's strategy-focus gate, which the feed does not carry.
+
 ## Open questions
 
 - The `.evt`, `.idx` and `.csi` layouts, and therefore how a sentence function plus its parameters pick the stitched samples,

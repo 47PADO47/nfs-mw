@@ -14,6 +14,31 @@ use blackbox_gfx::{
 use super::Renderer;
 
 impl RenderBackend for Renderer {
+    fn set_render_experiments(&mut self, options: blackbox_gfx::RenderExperiments) {
+        self.experiments = options.sanitized();
+    }
+    fn render_experiments(&self) -> blackbox_gfx::RenderExperiments {
+        self.experiments
+    }
+    fn experiment_stats(&self) -> blackbox_gfx::ExperimentStats {
+        let mut stats = self.experiment_stats;
+        if let Some(sample) = self.timing.as_ref().and_then(|t| t.latest) {
+            stats.gpu_frame_ms = Some(sample[0]);
+            stats.gpu_shadow_ms = Some(sample[1]);
+            stats.gpu_contact_ms = Some(sample[2]);
+            stats.gpu_ao_ms = Some(sample[3]);
+        }
+        stats
+    }
+    fn set_shadow_casters(&mut self, casters: Option<&[Instance]>) {
+        if let Some(casters) = casters {
+            let stored = self.shadow_casters.get_or_insert_with(Vec::new);
+            stored.clear();
+            stored.extend_from_slice(casters);
+            return;
+        }
+        self.shadow_casters = None;
+    }
     fn set_colour_treatment(&mut self, profile: Option<&blackbox_gfx::ColourTreatment>, gain: Option<&RgbaImage>) {
         self.set_scene_treatment(profile, gain);
     }

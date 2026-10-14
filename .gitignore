@@ -53,6 +53,10 @@
 !/assets/input-prompts/kenney-xbox.png
 !/assets/input-prompts/*.md
 
+# Reviewed, independently licensed Discord mark (CC0 Simple Icons glyph).
+!/assets/discord/discord.png
+!/assets/discord/*.md
+
 # Never, even if a pattern above matches.
 /target/
 .env

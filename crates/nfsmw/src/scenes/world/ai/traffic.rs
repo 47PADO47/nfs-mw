@@ -9,10 +9,11 @@ use glam::Vec3;
 
 use super::stop::StopLine;
 
-/// The traffic AI thinks at 10 Hz: every this many physics steps.
+/// Ten ticks on the shared physics clock (6 Hz at 60 Hz). The original variable task's rate 0.1
+/// counts rendered frames, not seconds; this adapter keeps decisions independent of render rate.
 pub const THINK_STEPS: u32 = 10;
 /// Seconds between thinks.
-pub const THINK_PERIOD: f32 = THINK_STEPS as f32 / 60.0;
+pub const THINK_PERIOD: f32 = THINK_STEPS as f32 * crate::scenes::world::drive::STEP;
 
 /// Posted speeds in metres per second: 35 mph on streets, 55 mph where there are four or more traffic
 /// lanes.
@@ -90,7 +91,9 @@ pub struct CarState {
     pub forward_speed: f32,
     /// Bounding radius, metres.
     pub radius: f32,
+    /// Physical body mass; the following-distance calculation separately accounts for tractors.
     pub mass: f32,
+    pub tractor: bool,
     /// The next stop line of a signalled junction ahead, when lights are on and the car obeys them.
     pub stop: Option<StopLine>,
 }
@@ -108,6 +111,14 @@ pub struct Think {
 /// The stopping distance behind a car ahead: 3 m when slow up to 50 m at the top of the table.
 pub(super) fn stopping_distance(speed: f32, mass: f32) -> f32 {
     3.0 + 47.0 * (speed * (mass * 0.0005).max(1.0) / 80.0).clamp(0.0, 1.0)
+}
+
+/// The effective mass used only when slowing for a vehicle ahead, not by the rigid body.
+fn following_mass(car: &CarState) -> f32 {
+    match car.tractor {
+        true => car.mass * 2.0,
+        false => car.mass,
+    }
 }
 
 /// The traffic think: keep the cursor ahead of the car, find the steering point past other cars and pick
@@ -163,7 +174,7 @@ fn compute_speed(
         if o.avoidable != 0 && !o.from_behind {
             let length = 2.0 * car.radius;
             let distance = (o.apex.distance(car.body.position) - length).max(0.0);
-            let stop = stopping_distance(current, car.mass);
+            let stop = stopping_distance(current, following_mass(car));
             if distance < stop {
                 desired = (o.trail_speed * distance / stop).clamp(0.0, desired).min(current);
             }
@@ -215,7 +226,7 @@ mod tests {
             half_width: 0.9,
             half_length: 2.2,
         };
-        CarState { body, forward_speed: speed, radius: 2.6, mass: 1680.0, stop: None }
+        CarState { body, forward_speed: speed, radius: 2.6, mass: 1680.0, tractor: false, stop: None }
     }
 
     fn lane_nav(net: &RoadNetwork, z_t: f32) -> RoadNav {
@@ -223,6 +234,45 @@ mod tests {
         nav.init_in_lane(net, 0, 1, z_t);
         nav.enable_trail(net);
         nav
+    }
+
+    #[test]
+    fn a_tractor_uses_the_longer_following_distance_without_changing_its_physical_mass() {
+        use crate::scenes::world::drive::CarSim;
+        use blackbox_vehicle::VehicleSpec;
+        use nfsmw_data::car::physics::{CarBounds, CarPhysics, WallSpec};
+
+        let net = straight_net();
+        let spec = VehicleSpec { mass: 10_000.0, ..VehicleSpec::example() };
+        let bounds = CarBounds { half_dimensions: spec.dimension, pivot: Vec3::ZERO };
+        let mut sim = CarSim::new(
+            CarPhysics {
+                tire_integration: Default::default(),
+                jump_config: Default::default(),
+                spec,
+                bounds,
+                walls: WallSpec::default(),
+                geometry: None,
+                events: None,
+                reactions: None,
+            },
+            [0.2; 4],
+        );
+        sim.configure_ai();
+        let physical_mass = sim.body().mass();
+        assert_eq!(physical_mass, 10_000.0);
+        let street = CarState { mass: physical_mass, ..car_at(40.0, 10.0) };
+        let tractor = CarState { tractor: true, ..street };
+        assert_eq!(stopping_distance(street.forward_speed, following_mass(&street)), 32.375);
+        assert_eq!(stopping_distance(tractor.forward_speed, following_mass(&tractor)), 50.0);
+        for car in [street, tractor] {
+            let mut nav = lane_nav(&net, 0.1);
+            for _ in 0..3 {
+                think(&net, &mut nav, &car, &[], false, &mut SplitMix(1), &Cruise::default());
+            }
+            assert_eq!(car.mass, 10_000.0);
+            assert_eq!(sim.body().mass(), physical_mass);
+        }
     }
 
     #[test]

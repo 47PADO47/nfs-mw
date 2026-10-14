@@ -31,7 +31,7 @@ pub enum PostBloom {
 }
 
 /// The `post_aa` setting: anti-aliasing of the 3D scene (the HUD and menus are never touched). `smaa` and `taa`
-/// only exist on the Bevy renderer; the native one runs them as `fxaa` (docs/renderers.md).
+/// are spatial and temporal respectively; native supports SMAA 1x and falls back for TAA.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum PostAa {
     #[default]

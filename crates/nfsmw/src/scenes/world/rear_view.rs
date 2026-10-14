@@ -20,8 +20,9 @@ impl WorldScene {
         };
         let rules = &blackbox_scenery::layout::MOST_WANTED.lod;
         self.rear_visible.clear();
+        let original = self.original_shadows;
         visibility::collect_with_shadows(
-            self.residency.placed(),
+            self.residency.placed().filter(|p| original || !p.original_shadow),
             &cull,
             rules,
             self.residency.props(),

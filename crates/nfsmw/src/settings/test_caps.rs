@@ -27,7 +27,7 @@ pub fn native() -> Capabilities {
         api: GraphicsApi::Vulkan,
         compressed_bc: true,
         hdr_targets: true,
-        antialiasing: AaSet::of(&[Antialiasing::Off, Antialiasing::Fxaa]),
+        antialiasing: AaSet::of(&[Antialiasing::Off, Antialiasing::Fxaa, Antialiasing::Smaa]),
         upscalers: UpscalerSet::of(&[Upscaler::Off, Upscaler::Bilinear, Upscaler::Fsr1]),
         tonemaps: TonemapSet::all(),
         bloom: true,

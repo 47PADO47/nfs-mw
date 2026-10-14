@@ -19,7 +19,10 @@ pub struct StepScales {
 impl StepScales {
     pub fn new(speed: f32, reverse: bool) -> Self {
         let r = ramp(speed, 0.0, mph_to_ms(85.0));
-        let max_slip = 0.5 + ramp(speed, 10.0, 71.0);
+        let max_slip = match reverse {
+            true => 71.0,
+            false => 0.5 + ramp(speed, 10.0, 71.0),
+        };
         let traction_scale = if reverse { 2.0 } else { table(&TRACTION_TABLE, 0.0, 1.0, r) * 1.1 };
         Self { max_slip, grip_scale: table(&GRIP_TABLE, 0.0, 1.0, r) * 1.2, traction_scale }
     }
@@ -43,5 +46,13 @@ mod tests {
     #[test]
     fn reverse_has_double_traction() {
         assert_eq!(StepScales::new(3.0, true).traction_scale, 2.0);
+    }
+
+    #[test]
+    fn reverse_slip_limit_is_independent_of_speed() {
+        for speed in [0.0, 3.0, 20.0, 80.0] {
+            assert_eq!(StepScales::new(speed, true).max_slip, 71.0);
+            assert!(StepScales::new(speed, false).max_slip <= 1.5);
+        }
     }
 }

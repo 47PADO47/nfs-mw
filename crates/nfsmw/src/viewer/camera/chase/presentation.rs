@@ -31,6 +31,16 @@ impl ChaseView {
         self.fov_degrees
     }
 
+    /// The point the view looks at.
+    pub fn target(&self) -> Vec3 {
+        self.target
+    }
+
+    /// The view re-aimed by a pursuit shot. It has no shake: the shake was for the chase pose.
+    pub fn reframed(position: Vec3, target: Vec3, fov_degrees: f32) -> Self {
+        Self { position, target, fov_degrees, shaken: None }
+    }
+
     /// The lens with a given field of view; a shaken view keeps its shake.
     pub fn lens_with_fov(&self, aspect: f32, fov_y_degrees: f32) -> Lens {
         let mut lens = Lens::look_at(self.position, self.target, fov_y_degrees, NEAR_PLANE, aspect);
@@ -56,6 +66,7 @@ impl ChaseView {
         (self.target - self.position).normalize_or_zero()
     }
 
+    #[cfg(test)]
     pub fn view_proj(&self, aspect: f32) -> Mat4 {
         let projection =
             glam::camera::rh::proj::directx::perspective_infinite_reverse(self.fov_degrees.to_radians(), aspect, 0.3);

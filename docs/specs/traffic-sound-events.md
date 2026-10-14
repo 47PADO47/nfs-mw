@@ -383,6 +383,15 @@ first wave (`data.rs`). `recent_hit` is a 1 s timer set when the player hits a t
 
 ## 4. Implementation status
 
+The original sample-guess implementation described below is superseded by
+[authored traffic audio](authored-traffic-audio.md). Traffic engine loops use
+`FX_TRAFFIC`; horns use `ENV_STATIC` in the common bank, including truck horn
+class 11. Passing sounds use family-1 authored stitches and their moving source.
+The older 12 m/15 m/s event is a generic drive-by rule, whereas the dedicated
+traffic whoosh producer uses 10 m/10 m/s. The old collision-only horn trigger
+and fixed horn/whoosh volume guesses have been removed. Keep the historical
+findings below as provenance, not as the current playback contract.
+
 | Part | State |
 |---|---|
 | Rules (`traffic_events.rs`) | done, 7 unit tests |

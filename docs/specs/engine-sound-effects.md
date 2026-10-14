@@ -1,3 +1,7 @@
+> Matched PC class IDs and authored power-effect playback supersede the older
+> sample-routing assumptions below. See
+> [car-audio-power-effects.md](car-audio-power-effects.md).
+
 # Car sound effects: shifting, accelerate transitions, turbo, nitrous, skids, collisions
 
 How the original triggers the effects around the engine, which banks they come from and which numbers
@@ -227,8 +231,9 @@ linkage records) **[decomp]**.
   `SIDE` 0x100, `EVENT` 0x400; flag 0x1 means the camera's target car is involved; 0x200 marks a scrape.
   Impacts with `WALL` and `SMOKABLE` together at `intensity <= 9` are dropped.
 - **Impact:** the collection has up to four lists `STITCH_LEVEL_0..3` of stitch sample ids and
-  `Volumes.Vol1..Vol4`. `n` = the number of non-empty lists; `level = clamp(int(magnitude * (n - 1) + 0.5), 0, n - 1)`;
-  the sample is `STITCH_LEVEL_<level>[counter % len]` with a running counter; the volume is `Vol<level+1>`.
+    `Volumes.Vol1..Vol4`. `n` counts consecutive lists until the first empty one;
+    `level = clamp(int(magnitude * (n - 1) + 0.5), 0, n - 1)`; increment the shared
+    counter before selecting `STITCH_LEVEL_<level>[counter % len]`. The volume is `Vol<level+1>`.
   The sample is played by the stitch system from `IG_GLOBAL/Stich_Collision_MB.abk` (171 sounds **[verified]**)
   with the stitch tables in `GLOBAL/InGameB.bun` (720 `SndStichData`, undocumented).
 - **Volume slot** (a mixer output; the maps decide the level): `SMOKABLE | CAR | EVENT (0x412)` smackable car;
@@ -329,7 +334,11 @@ Implemented in `libs/blackbox-carsound` (`EffectsMixer`) and `crates/nfsmw/src/a
   silent, hits closer than 0.2 s are one), the front or side of the car, and the light props it knocks over (a
   `HitWorld` of 0.15 to 0.6 by mass). A scrape is a wall rubbed at more than 3 m/s. The stitch is looked up in
   `InGameB.bun` (Q3 answered, see [audio.md](../formats/audio.md#sound-stitches)); `StreamSweetner` is read nowhere.
-- **Landings** play the `OnBottomOut` collection of the surface under the car.
+- **Landings** use dedicated stitches: soft `81 + 4*intensity_band + counter%4`,
+  hard `93 + counter%4`, a separate three-voice pool and object13 landing gain.
+  Both wheels of a pair must return; intensity uses the axle that completed its
+  landing, rather than the larger compression of either axle. Actual body impacts
+  keep their independent `OnBottomOut` surface route.
 - **Loops** (turbo, nitrous, tires, road, wind, scrape, reverse) keep one voice each; a change of volume or pitch
   is smoothed over 60 ms and a stop fades over 120 ms.
 - **Mixer levels.** Every command's volume and pitch is multiplied by the level the mixer map gives that sound

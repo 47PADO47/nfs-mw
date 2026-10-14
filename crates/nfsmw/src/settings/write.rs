@@ -114,11 +114,23 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.speed_trails {
         put("speed_trails", Value::Boolean(v));
     }
+    if let Some(v) = changes.speed_trail_style {
+        put("speed_trail_style", Value::String(v.to_string()));
+    }
     if let Some(v) = changes.exhaust_flames {
         put("exhaust_flames", Value::Boolean(v));
     }
+    if let Some(v) = changes.turn_signals {
+        put("turn_signals", Value::Boolean(v));
+    }
     if let Some(v) = changes.rear_view_mirror {
         put("rear_view_mirror", Value::Boolean(v));
+    }
+    if let Some(v) = changes.discord {
+        put("discord", Value::Boolean(v));
+    }
+    if let Some(v) = changes.discord_time_played {
+        put("discord_time_played", Value::Boolean(v));
     }
     if let Some(v) = changes.graphics_preset {
         put("graphics_preset", Value::String(v.to_string()));

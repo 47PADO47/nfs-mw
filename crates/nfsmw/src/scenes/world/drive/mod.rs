@@ -7,6 +7,7 @@ mod clock;
 mod debug;
 mod effect_feed;
 mod fall;
+mod garage;
 mod ground;
 mod input;
 mod look;
@@ -15,10 +16,12 @@ mod placement;
 mod presentation_tests;
 mod rig;
 mod script;
-mod speedbreaker;
+pub(super) mod sight;
 mod sim;
 mod simulation;
 mod sound;
+mod speedbreaker;
+mod time_scale;
 mod trace;
 mod visual_tires;
 pub(super) mod walls;
@@ -34,7 +37,7 @@ use super::road::{self, Spawn};
 use super::space;
 use super::vehicle_effects::VehicleEffects;
 use crate::settings::{Transmission, WheelOptions};
-use crate::viewer::camera::{CameraCut, ChaseCamera, ChaseView, Followed};
+use crate::viewer::camera::{CameraCut, ChaseCamera, ChaseView, Followed, PursuitCamera, PursuitFeed};
 pub(super) use clock::{FixedClock, STEP};
 pub(super) use debug::upload_box;
 pub use debug::{ContactMarkers, LEGEND as MARKER_LEGEND, MarkerMeshes};
@@ -47,6 +50,7 @@ pub use script::DriveScript;
 pub(super) use sim::CarSim;
 use sim::Telemetry;
 use sound::SoundFeed;
+pub(super) use time_scale::SpeedbreakerClock;
 #[cfg(test)]
 pub(super) use walls::ContactKind;
 pub(super) use walls::VisualContact;
@@ -73,6 +77,9 @@ const GOOD_SPOT_STEPS: u32 = 30;
 
 pub struct Drive {
     pub car_name: String,
+    pub performance: nfsmw_data::car::physics::PerformancePackage,
+    pub tuning: nfsmw_data::car::physics::tuning::TuningSelection,
+    tunings: blackbox_vehicle::Tunings,
     pub effects: TireEffects,
     /// The brake pedal as the lamps see it, 0 to 1.
     pub brake_lamp: f32,
@@ -98,6 +105,8 @@ pub struct Drive {
     /// What the car sound hears of the drive.
     sound: SoundFeed,
     chase: ChaseCamera,
+    /// The caught pan and the arrest framing, blended over the chase view (`viewer/camera/pursuit`).
+    pursuit: PursuitCamera,
     /// Console hits given before the car exists; applied when it is placed.
     queued_hits: Vec<(usize, u8, bool)>,
     /// The chase camera jumped to the car (it was placed on the road).
@@ -108,6 +117,8 @@ pub struct Drive {
     batch_run: bool,
     /// Physics steps run since the car was last placed, for the once-a-second trace of a scripted run.
     steps: u32,
+    /// Manual resets (the reset key) since the scene last took them; the police start their post-reset blink on them.
+    manual_resets: u32,
     /// The last place the car stood on a road with its wheels down: `reset` and falling off the map
     /// bring it back here when no road is near.
     last_good: Option<Spawn>,
@@ -149,6 +160,9 @@ impl Drive {
             headlights: true,
             vehicle_effects: VehicleEffects::new(visuals),
             flames: ExhaustFlames::default(),
+            performance: Default::default(),
+            tuning: Default::default(),
+            tunings: Default::default(),
             rig,
             physics,
             sim: None,
@@ -161,12 +175,14 @@ impl Drive {
             breaker: speedbreaker::SpeedBreaker::default(),
             sound: SoundFeed::default(),
             chase: ChaseCamera::default(),
+            pursuit: PursuitCamera::default(),
             queued_hits: Vec::new(),
             cut: CameraCut::default(),
             look: look::PendingLook::default(),
             script: script.map(|script| ScriptRun { script, time: 0.0 }),
             batch_run: false,
             steps: 0,
+            manual_resets: 0,
             last_good: None,
             fall: FallWatch::default(),
             last_check: 0,
@@ -195,6 +211,7 @@ impl Drive {
             reverse,
             steer: self.steer_lamp,
             headlights: self.headlights,
+            turn_signals: false,
             siren: false,
             time: self.lamp_time,
         };
@@ -245,6 +262,11 @@ impl Drive {
         self.headlights
     }
 
+    /// Set the headlights on or off, as the day-night clock does at its lights-on and lights-off hours.
+    pub fn set_headlights(&mut self, on: bool) {
+        self.headlights = on;
+    }
+
     /// The visible damage over the car, as world-space quads (see `damage_marks`).
     pub fn damage_quads(&self) -> Vec<crate::scenes::world::damage_marks::MarkQuad> {
         let Some(sim) = &self.sim else { return Vec::new() };
@@ -292,6 +314,11 @@ impl Drive {
         self.previous.lerp(&self.current, self.alpha)
     }
 
+    /// The live physical pose, including contacts not yet published to the render poses.
+    pub fn physics_pose(&self) -> CarPose {
+        self.sim.as_ref().map_or(self.current, CarSim::pose)
+    }
+
     /// The car as the police and the high-speed effects see it. Nitrous is 0 without the part.
     pub fn player_view(&self) -> crate::scenes::world::ai::PlayerView {
         let forward = self.pose().rotation * Vec3::X;
@@ -330,13 +357,23 @@ impl Drive {
         self.chase.looking_back()
     }
 
+    /// Advances the pursuit camera's caught pan and arrest framing by `dt` of simulated time, with the chase's feed.
+    pub fn update_pursuit(&mut self, dt: f32, feed: PursuitFeed) {
+        self.pursuit.update(dt, feed);
+    }
+
     pub fn camera(&self) -> ChaseView {
-        self.chase.sample(self.alpha)
+        self.pursuit.shot(self.chase.sample(self.alpha))
     }
 
     /// Cleanup and other simulation queries use the current tick, independently of rendering.
     pub fn physics_camera(&self) -> ChaseView {
-        self.chase.view()
+        self.pursuit.shot(self.chase.view())
+    }
+
+    /// The manual resets since the last call, for the police's post-reset blink.
+    pub fn take_manual_resets(&mut self) -> u32 {
+        std::mem::take(&mut self.manual_resets)
     }
 
     pub fn take_look(&mut self, steps: u32) -> (f32, f32) {
@@ -397,9 +434,12 @@ impl Drive {
     /// What the car sound needs of the drive; `None` while there is no car yet.
     pub fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
         self.sim.as_ref()?;
-        Some(self.sound.state(&self.car_name, &self.telemetry))
+        Some(self.sound.state(&self.car_name, &self.telemetry, self.performance))
     }
 
+    pub(super) fn speedbreaker_active(&self) -> bool {
+        self.breaker.active()
+    }
     /// The readout lines at this level: one for `Minimal`, the numbers of the HUD and the run for `Full`.
     pub fn readout(&self, level: crate::devtools::ShowReadout) -> String {
         if self.sim.is_none() || self.request.is_some() {

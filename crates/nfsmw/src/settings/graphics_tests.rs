@@ -51,16 +51,17 @@ fn with_aa(aa: PostAa) -> GraphicsSettings {
 }
 
 #[test]
-fn smaa_and_taa_are_requests_the_native_renderer_runs_as_fxaa() {
-    for (aa, wanted) in [(PostAa::Smaa, Antialiasing::Smaa), (PostAa::Taa, Antialiasing::Taa)] {
-        let asked = with_aa(aa);
-        assert_eq!(asked.post.antialiasing, wanted);
-        let native = resolve(&asked, &test_caps::native());
-        assert_eq!(native.effective.post.antialiasing, Antialiasing::Fxaa);
-        let downgrade = native.downgrade_of(Setting::Antialiasing).expect("a logged downgrade");
-        assert_eq!((downgrade.requested.as_str(), downgrade.effective.as_str()), (wanted.name(), "fxaa"));
-        assert!(resolve(&asked, &test_caps::full()).is_exact(), "a full renderer runs {aa}");
-    }
+fn native_smaa_is_spatial_and_taa_still_falls_back() {
+    let smaa = resolve(&with_aa(PostAa::Smaa), &test_caps::native());
+    assert!(smaa.is_exact());
+    assert_eq!(smaa.effective.post.antialiasing, Antialiasing::Smaa);
+    let asked = with_aa(PostAa::Taa);
+    assert_eq!(asked.post.antialiasing, Antialiasing::Taa);
+    let native = resolve(&asked, &test_caps::native());
+    assert_eq!(native.effective.post.antialiasing, Antialiasing::Fxaa);
+    let downgrade = native.downgrade_of(Setting::Antialiasing).expect("a logged downgrade");
+    assert_eq!((downgrade.requested.as_str(), downgrade.effective.as_str()), ("taa", "fxaa"));
+    assert!(resolve(&asked, &test_caps::full()).is_exact());
 }
 
 #[test]

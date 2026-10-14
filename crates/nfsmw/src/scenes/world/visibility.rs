@@ -144,6 +144,7 @@ mod tests {
             prop: None,
             prop_id: 0,
             key: InstanceKey::new(1, 1),
+            original_shadow: false,
             spawner: None,
             parts: None,
             curve_lamp: None,

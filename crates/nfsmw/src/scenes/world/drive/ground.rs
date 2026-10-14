@@ -5,6 +5,9 @@ use blackbox_vehicle::ground::{Ground, GroundHit};
 use glam::Vec3;
 use nfsmw_data::car::physics::SurfaceTable;
 
+#[cfg(test)]
+mod tests;
+
 /// Ray casts against the resident collision packs. Both sides use physics space (x right, y up, z
 /// forward), so no conversion is needed here.
 pub struct WorldGround<'a> {
@@ -13,6 +16,10 @@ pub struct WorldGround<'a> {
 }
 
 impl Ground for WorldGround<'_> {
+    fn surface_grip(&self, tag: u32) -> blackbox_vehicle::ground::SurfaceGrip {
+        self.surfaces.grip(tag)
+    }
+
     fn body_friction(&self, surface: u32) -> f32 {
         self.surfaces.body_friction(surface)
     }
@@ -22,6 +29,7 @@ impl Ground for WorldGround<'_> {
         // original's ground-height queries skip them), and scenery-group geometry is off in free roam.
         let options = RayOptions {
             barriers: false,
+            skip_groups: true,
             exclude: u32::from(SURFACE_NO_GROUND) | u32::from(GROUP_EXCLUSION),
             ..RayOptions::default()
         };

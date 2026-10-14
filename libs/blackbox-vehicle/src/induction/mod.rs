@@ -4,7 +4,7 @@
 use crate::math::ramp;
 
 /// Induction parameters (the attribute class `induction`). All zero means naturally aspirated.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct InductionSpec {
     /// Boost (torque fraction) at the start of the boosting range.
     pub low_boost: f32,
@@ -131,3 +131,5 @@ impl Induction {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tuning_tests;
