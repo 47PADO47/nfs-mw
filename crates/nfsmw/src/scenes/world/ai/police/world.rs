@@ -62,7 +62,9 @@ impl super::super::TrafficWorld {
             on_road: self.near_road(at),
             nearest_cop: self.nearest_cop(at),
             hit_traffic: self.sighting(level).recent_hit,
-            hidden: self.hidden_at(at),
+            hidden: self.hidden_from_cars(at),
+            hidden_from_heli: self.hidden_from_helicopters(at),
+            in_tunnel: self.in_tunnel(at),
             formation_random: [self.rng.next_f32(), self.rng.next_f32()],
             formation_gap: self.formation_gap(at, player.forward),
             support_random: self.rng.next_f32(),
@@ -115,10 +117,29 @@ impl super::super::TrafficWorld {
         })
     }
 
-    /// Whether a physics-space point is inside a hiding spot: in a HIDDEN zone, at its height (`HIDDEN_HEIGHT`).
-    fn hidden_at(&self, at: Vec3) -> bool {
+    /// Whether a physics-space point is in a HIDDEN zone that hides it from cars: any zone but one flagged `Heli`.
+    fn hidden_from_cars(&self, at: Vec3) -> bool {
+        self.in_hidden_zone(at, |zone| zone.data[0] as u32 != HELI_HASH)
+    }
+
+    /// Whether a physics-space point is in a HIDDEN zone that hides it from helicopters: any zone but one flagged `Car`.
+    fn hidden_from_helicopters(&self, at: Vec3) -> bool {
+        self.in_hidden_zone(at, |zone| zone.data[0] as u32 != CAR_HASH)
+    }
+
+    /// Whether `at` is inside a HIDDEN zone at its height (`HIDDEN_HEIGHT`) that `hides` accepts.
+    fn in_hidden_zone(&self, at: Vec3, hides: impl Fn(&TrackZone) -> bool) -> bool {
         let zone_point = to_zone_space(at);
-        self.police.hidden_zones.iter().any(|z| z.contains(zone_point) && (at.y - z.elevation).abs() < HIDDEN_HEIGHT)
+        self.police
+            .hidden_zones
+            .iter()
+            .any(|z| hides(z) && z.contains(zone_point) && (at.y - z.elevation).abs() < HIDDEN_HEIGHT)
+    }
+
+    /// Whether a physics-space point is inside a tunnel zone. The zones have no height test: a tunnel is its outline.
+    fn in_tunnel(&self, at: Vec3) -> bool {
+        let zone_point = to_zone_space(at);
+        self.police.tunnel_zones.iter().any(|z| z.contains(zone_point))
     }
 
     /// Whether a physics-space point is within `ROAD_EDGE` of a road centreline, horizontally.
@@ -133,16 +154,23 @@ impl super::super::TrafficWorld {
     }
 
     /// The chase as the audio and the speech read it each frame; `None` with no chase on.
+    /// The scene sets `rain_intensity` (the traffic does not hold the weather, so it reads 0 here).
     pub fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {
         let pursuit = self.pursuit.as_ref()?;
         let heat = self.police.level().unwrap_or(pursuit.heat);
         let limit = blackbox_pursuit::evade::timeout(heat);
+        let level = self.police.level().unwrap_or(1);
         Some(crate::audio::PursuitFeed {
             heat,
             intensity: chase_intensity(self.police.seen, self.police.escape_progress(), limit),
             secs: self.police.pursuit_time,
             secs_to_evade: self.police.secs_to_evade(),
             player_mph: self.player_speed / super::super::traffic::MPH,
+            heli_present: self.police.helicopter_present(),
+            rain_intensity: 0.0,
+            roadblock_active: self.police.roadblock_standing(),
+            player_hit: self.sighting(level).recent_hit,
+            cops_destroyed: self.police.cops_destroyed(),
         })
     }
 

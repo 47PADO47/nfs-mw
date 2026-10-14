@@ -201,7 +201,6 @@ impl Scene for WorldScene {
     fn set_garage_open(&mut self, open: bool) {
         self.garage_open = open;
     }
-
     fn paused(&self) -> bool {
         self.garage_open
     }
@@ -469,7 +468,8 @@ impl Scene for WorldScene {
     }
 
     fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {
-        self.traffic.as_ref()?.pursuit_feed()
+        let rain = self.rain.intensity();
+        self.traffic.as_ref()?.pursuit_feed().map(|feed| crate::audio::PursuitFeed { rain_intensity: rain, ..feed })
     }
 
     fn take_traffic_sounds(&mut self) -> Vec<crate::audio::traffic::TrafficSound> {

@@ -15,6 +15,8 @@ fn sensed(seen: bool) -> Sensed {
         nearest_cop: 10.0,
         hit_traffic: false,
         hidden: false,
+        hidden_from_heli: false,
+        in_tunnel: false,
         formation_random: [0.5, 0.5],
         formation_gap: None,
         support_random: 0.5,
@@ -218,9 +220,40 @@ fn a_nose_along_physics_z_is_render_forward_and_up_stays_up() {
 #[test]
 fn the_tables_cover_their_levels() {
     assert_eq!(time_per_level(10), 2000.0);
-    assert_eq!(fuel_time(10), 400.0);
-    assert_eq!(respawn_time(10), 5.0);
     assert_eq!(time_per_level(0), 600.0, "levels are clamped to 1");
+}
+
+#[test]
+fn the_helicopter_reports_present_once_it_has_joined() {
+    let mut police = Police::default();
+    police.begin(5);
+    assert!(!police.helicopter_present());
+    police.heli_wait = 0.0;
+    police.try_join(&view(5.0));
+    assert!(police.helicopter_present());
+}
+
+#[test]
+fn a_roadblock_reports_standing_once_placed() {
+    let mut police = Police::default();
+    police.begin(7);
+    assert!(!police.roadblock_standing());
+    police.roadblock_placed();
+    assert!(police.roadblock_standing());
+}
+
+#[test]
+fn the_helicopter_takes_its_spawn_distance_and_fuel_from_the_settings() {
+    let mut police = Police::default();
+    let mut settings = HeliSettings::default();
+    settings.spawn_distance = crate::settings::helicopter::Levels::flat(120.0);
+    police.set_heli_settings(settings);
+    police.begin(8);
+    police.heli_wait = 0.0;
+    police.try_join(&view(5.0));
+    let heli = police.heli.expect("joined");
+    assert!(heli.body.position.z < -110.0 && heli.body.position.z > -130.0, "120 m behind: {:?}", heli.body.position);
+    assert_eq!(heli.fuel, 75.0, "heat 8 fuel from the install table");
 }
 
 #[test]

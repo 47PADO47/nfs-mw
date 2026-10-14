@@ -45,8 +45,9 @@ impl Pursuit {
     }
 }
 
-/// The chase as the sound reads it each frame, from the world. `None` while no cops chase.
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// The chase as the sound reads it each frame, from the world. `None` while no cops chase. The air-support fields are
+/// what the helicopter lines need; the world fills them (`scenes/world/ai/police/world.rs`).
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct PursuitFeed {
     /// The heat level of the chase, 1 to 10.
     pub heat: u32,
@@ -58,6 +59,16 @@ pub struct PursuitFeed {
     pub secs_to_evade: f32,
     /// The player's speed, miles per hour.
     pub player_mph: f32,
+    /// A police helicopter is in the chase, flying or leaving.
+    pub heli_present: bool,
+    /// The rain, 0 (dry) to 1 (heavy), from the scene's weather. Set by the scene, not the traffic.
+    pub rain_intensity: f32,
+    /// A roadblock of this chase stands.
+    pub roadblock_active: bool,
+    /// The player hit traffic within the traffic's hit memory.
+    pub player_hit: bool,
+    /// The cop cars wrecked in the chase.
+    pub cops_destroyed: u32,
 }
 
 /// The pursuit set for a heat level, 1 (lowest) up. **[guess]**: the four sets are spread evenly over heat levels 1

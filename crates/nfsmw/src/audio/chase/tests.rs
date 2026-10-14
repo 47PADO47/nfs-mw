@@ -9,7 +9,7 @@ const SEEN: f32 = 1.0;
 const UNSEEN: f32 = 0.5;
 
 fn feed(heat: u32, intensity: f32, secs: f32) -> PursuitFeed {
-    PursuitFeed { heat, intensity, secs, secs_to_evade: 30.0, player_mph: 80.0 }
+    PursuitFeed { heat, intensity, secs, secs_to_evade: 30.0, player_mph: 80.0, ..Default::default() }
 }
 
 /// Run `frames` of one chase state, one frame per 0.1 s from `from`, collecting the cues.
@@ -144,7 +144,7 @@ fn each_cue_names_its_speech_event() {
 
 /// A feed with the evade time given, for the time-expired edge.
 fn feed_evade(intensity: f32, secs: f32, secs_to_evade: f32) -> PursuitFeed {
-    PursuitFeed { heat: 1, intensity, secs, secs_to_evade, player_mph: 80.0 }
+    PursuitFeed { heat: 1, intensity, secs, secs_to_evade, player_mph: 80.0, ..Default::default() }
 }
 
 #[test]

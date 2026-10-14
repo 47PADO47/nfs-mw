@@ -52,7 +52,7 @@ fn heat_picks_a_set_from_one_to_four() {
 }
 
 fn chase(heat: u32, intensity: f32) -> PursuitFeed {
-    PursuitFeed { heat, intensity, secs: 12.0, secs_to_evade: 30.0, player_mph: 80.0 }
+    PursuitFeed { heat, intensity, secs: 12.0, secs_to_evade: 30.0, player_mph: 80.0, ..Default::default() }
 }
 
 #[test]

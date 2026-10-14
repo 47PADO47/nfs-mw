@@ -17,8 +17,12 @@ pub struct Look {
     pub heli: Vec3,
     pub forward: Vec3,
     pub target: Vec3,
-    /// `heliLOSdistance` of the level: how far the helicopter sees to its front, metres.
+    /// `heliLOSdistance` of the level: how far the helicopter sees, metres.
     pub range: f32,
+    /// The radius (m) within which it sees the target whatever its direction (`AllAroundSight`, 75 in the game).
+    pub sphere: f32,
+    /// Beyond the sphere only the half space in front counts (`FrontSightOnly`). Off, the whole range counts.
+    pub front_only: bool,
     /// The target is in a zone hidden from helicopters.
     pub hidden: bool,
     /// The game camera is in a tunnel.
@@ -55,8 +59,9 @@ impl Sight {
 
     /// The direct test: near enough, or in front and within range, with a clear line and out of a tunnel.
     fn in_view(&mut self, look: &Look, dist: f32, to: Vec3, clear: impl FnOnce() -> bool) -> bool {
-        let near = dist <= VISUAL_SPHERE;
-        let ahead = dist < look.range && look.forward.dot(to.normalize_or_zero()) > 0.0;
+        let near = dist <= look.sphere;
+        let facing = !look.front_only || look.forward.dot(to.normalize_or_zero()) > 0.0;
+        let ahead = dist < look.range && facing;
         if !(near || ahead) {
             return false;
         }
@@ -79,7 +84,32 @@ mod tests {
     use super::*;
 
     fn look(target: Vec3) -> Look {
-        Look { heli: Vec3::ZERO, forward: Vec3::X, target, range: 251.0, hidden: false, in_tunnel: false }
+        Look {
+            heli: Vec3::ZERO,
+            forward: Vec3::X,
+            target,
+            range: 251.0,
+            sphere: VISUAL_SPHERE,
+            front_only: true,
+            hidden: false,
+            in_tunnel: false,
+        }
+    }
+
+    #[test]
+    fn all_around_sight_sees_behind_within_range() {
+        let mut sight = Sight::default();
+        let behind = Look { front_only: false, ..look(Vec3::new(-120.0, 0.0, 0.0)) };
+        assert!(sight.can_see(&behind, || true), "the whole range counts when front-only is off");
+        let beyond = Look { front_only: false, ..look(Vec3::new(-300.0, 0.0, 0.0)) };
+        assert!(!sight.can_see(&beyond, || true), "still no farther than the range");
+    }
+
+    #[test]
+    fn the_sphere_is_the_tuned_radius() {
+        let mut sight = Sight::default();
+        let wide = Look { sphere: 120.0, ..look(Vec3::new(-110.0, 0.0, 0.0)) };
+        assert!(sight.can_see(&wide, || true), "a 120 m sphere sees 110 m behind");
     }
 
     #[test]
