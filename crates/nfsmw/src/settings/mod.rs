@@ -7,6 +7,7 @@
 mod names;
 
 pub mod availability;
+pub mod bartender;
 mod camera_mode;
 mod car_shading;
 #[cfg(test)]
