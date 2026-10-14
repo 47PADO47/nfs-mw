@@ -47,9 +47,10 @@ selects it again when the screen returns (`FEngGetLastButton`); the icon menus s
 
 ## 2. Icon menus (`MainMenu`, `MainMenu_Sub`, `Pause_Main`)
 
-A row of icons that scrolls under a fixed cursor. The package has up to 10 or 11 image buttons named
-`OPTION_1` .. `OPTION_n` (the buttons are `AffectAllScripts | IsButton | DontNavigate`; their positions in the file
-are placeholders), a string `ICON_TITLE` (hash `0x5E7B09C9`) with its shadow `0x0DFB7A2E`, the region
+A row of icons that scrolls under a fixed cursor. The package has image buttons named `OPTION_1` .. `OPTION_n`
+(the buttons are `AffectAllScripts | IsButton | DontNavigate`; their positions in the file are placeholders):
+**11** in `MainMenu.fng`, **12** in `MainMenu_Sub.fng` and **10** in `Pause_Main.fng` **[verified, `nfsmw dump-screen`]**.
+The package also has a string `ICON_TITLE` (hash `0x5E7B09C9`) with its shadow `0x0DFB7A2E`, the region
 `ICON_SCROLL_REGION` and the master `OPTION_MASTER`.
 
 **Setup [decomp].** Each option has a texture, a name label and a description label. The screen puts two *book
@@ -60,6 +61,15 @@ image's texture is swapped, `FEngSetTextureHash`), and an x offset: the offsets 
 is selected. The decomp takes the centre `(cx, cy)` from `ICON_SCROLL_REGION`, which is then hidden. **Ours:** the
 position of `OPTION_MASTER` instead: the cursor brackets sit on it, and the region is 17 units to the left of it in
 `MainMenu.fng` (7 in `MainMenu_Sub.fng`), which left the selected icon off-centre in its brackets.
+
+**Windowing (ours).** A menu may list more icons than its package has objects. The strip is the book ends and the
+icons as above, and the row shows a window of the package's objects over it (`icon_window.rs`). The window is
+centred on the selection, `base = min(max(selected - slots / 2, 0), strip - slots)`, so the three icons either side
+of the selection always have objects (the scroller's edge is about three pitches from the centre). Sliding the window
+rebinds each object's texture and picture rectangle and moves the scroll by `(base_new - base_old)` pitches
+(`scroller.rs`, `Scroll::shift`), so no icon moves on screen. A strip that fits the objects is not windowed, which
+is every menu but the main menu: its eleven objects hold the eight icons of 2.1 plus the two book ends each side
+(12 strip entries), so the main menu slides by one. Before this the row warned and dropped the icons that did not fit.
 
 **Every tick [decomp].** The scroll value moves towards `-offset(selected)` over 0.2 s with a cubic ease. For
 each icon, with `x = cx + scroll + offset`:
@@ -103,14 +113,19 @@ uses the same slot animation as the installed icons.
 
 ### 2.1 Main menu entries [decomp]
 
-Entries this rewrite cannot do yet (Challenge Series, My Cars, Alias Manager) are greyed out (alpha 150, never
+Entries this rewrite cannot do yet (Challenge Series, My Cars, Online, LAN, Alias Manager) are greyed out (alpha 150, never
 selected). `MainMenu.fng` options, in order, as `(name label, icon texture)`: Career (`0x5815A2B5`, `0x03704F3D`),
 Challenge Series (`0xCC8CB746`, `0x9A962438`), Quick Race (`0x54020A7A`, `0x4E6FBB02`), My Cars
-(`0x1AFD5BE6`, `0xB0C46023`), Alias Manager (`0xBCB18F38`, `0x6B303856`), Options (`0x19A8C0AF`, `0x3058FE37`).
+(`0x1AFD5BE6`, `0xB0C46023`), Online (`0x7D347E05`, `0x5A5E5137`), LAN (`0x03F6F2BF`, none), Alias Manager
+(`0xBCB18F38`, `0x6B303856`), Options (`0x19A8C0AF`, `0x3058FE37`). **Eight entries** (`icons(Kind::Main)`).
 **[decomp]** `UIMain::Setup` (the non-Mike-Mann branch) adds Alias Manager only when `IsMemcardEnabled` is nonzero;
 whether the PC build sets that flag is **[unconfirmed]**, so the rewrite shows the entry greyed out. The label
 `0xBCB18F38` reads "Alias Manager" **[verified]** (`nfsmw strings`). The same decompiled setup adds no Online or LAN
-entry to the main menu **[decomp]**. The title is the label `0xB24AAE58` on `TITLE_GROUP` (`0xB71B576D`). With no profile loaded the
+entry to the main menu **[decomp]**. Online and LAN are listed anyway, disabled, at the user's request **[ours]**.
+Online takes the texture of the option list's Online entry (`0x5A5E5137`, below) and the label `0x7D347E05`, whose
+text is "Online Options" **[verified]**. LAN takes the main-menu LAN label `0x03F6F2BF`, "LAN main menu"
+**[verified]**; no LAN picture is recorded, so its icon is blank (texture 0, as Credits and EA Trax are). Both are
+greyed out (alpha 150) and do nothing on accept (`act()` has no arm for them). The title is the label `0xB24AAE58` on `TITLE_GROUP` (`0xB71B576D`). With no profile loaded the
 screen hides the player name group (`0xFB80CDAC`) and the game-statistics hint (`0x8913E195`). A `Quit` button (the
 object `0xC0A32823`, label `0xC51FBF74`, keyboard hint `Q`) lives in the package and answers a mouse release
 with the message `0x62799A4C` for the game **[verified, name unknown]**; this rewrite has no mouse, so the `Q` key
@@ -137,8 +152,8 @@ they remember, so the key list sits on no screen beneath it. The pause menu has 
 **Online is not listed (decomp, ours).** The original adds Online only in online mode, which this build never is, so
 the offline list is Audio to Credits, without Online, plus Control Options. `MainMenu_Sub.fng` has twelve option
 objects: two book ends at each end and eight entries, which this list fills exactly. The greyed-out Online entry
-(texture `0x5A5E5137`, `OMOnline`) is therefore gone; a longer list has no slot for it (`icon_menu.rs` warns and
-panics if a package has fewer slots than entries).
+(texture `0x5A5E5137`, `OMOnline`) is therefore gone; the main menu lists it instead (2.1). The categories fill
+`MainMenu_Sub.fng`'s twelve objects exactly, so they do not window; a longer list would window over them (see "Windowing" in section 2).
 
 **Icon textures.** `UIOptionsMain::Setup` adds each category as `OMxxx(texture, label, 0)`:
 `OMAudio(0xF37AF144, 0xE76CD783, 0)` and `OMPlayer(0xD708EFEF, 0xF760EABE, 0)` **[decomp]**. The Audio pair is the one
@@ -153,7 +168,8 @@ picture in the Controls slot, which the rewrite uses for the Controls icon. Cont
 (`input_icons::ATLAS`, `Glyph::Controller`), the picture the Controls icon had before the split.
 
 **LAN.** The strings `LAN main menu` (`0x03F6F2BF`) and `LAN options` (`0x19889765`) exist **[verified]**, but neither
-`UIMain::Setup` nor `UIOptionsMain::Setup` adds a LAN icon **[decomp]**, so the rewrite has no LAN entry.
+`UIMain::Setup` nor `UIOptionsMain::Setup` adds a LAN icon **[decomp]**, so the original has no LAN entry. The
+main menu lists a disabled one anyway (2.1), at the user's request **[ours]**; the category list has none.
 
 **Ghidra.** `/speed.exe` has no function names, and the byte search needed to find the code that adds these
 entries was not available in this pass. The hashes above come from the decompiled source; the Player texture was
