@@ -5,11 +5,13 @@
 //! are listed. They were checked on NFS: Most Wanted; most are shared by the
 //! other EA Black Box games.
 
+mod animation;
 mod car;
 mod geometry;
 mod texture;
 mod world;
 
+pub use animation::*;
 pub use car::*;
 pub use geometry::*;
 pub use texture::*;
