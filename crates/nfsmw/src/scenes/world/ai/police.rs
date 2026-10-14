@@ -15,7 +15,7 @@ use blackbox_pursuit::formation::{Formation, Picker};
 use blackbox_pursuit::helicopter::Helicopter;
 use blackbox_pursuit::rules::{self, Contact};
 use blackbox_pursuit::support::Strategy;
-use blackbox_pursuit::{Busted, Cooldown, EndReason, Fines, Heat, Infraction, InfractionLog};
+use blackbox_pursuit::{Busted, Cooldown, EndReason, Heat, Infraction, InfractionLog};
 use blackbox_render::Instance;
 use blackbox_roads::{HeliSheet, RandomSource, SegmentFilter, TrackZone, closest_segment, to_zone_space};
 use blackbox_speedfx::{Effects, SpeedFx, Tuning as SpeedTuning};
@@ -24,10 +24,10 @@ use glam::{Vec2, Vec3};
 use super::traffic_events::SPEEDING_MPS;
 use crate::scenes::world::drive::{CarPose, CarRig};
 use crate::scenes::world::space;
+use crate::settings::bartender::BartenderSettings;
+use crate::settings::fairbusts::{FairBustsSettings, ResetPenalty};
 use crate::settings::helicopter::HeliSettings;
 
-/// Seconds of heat per level, 1 to 10 (`ai-pursuit-heat.md` §3.2, with the bin-independent values).
-const TIME_PER_LEVEL: [f32; 10] = [600.0, 600.0, 600.0, 600.0, 600.0, 600.0, 600.0, 780.0, 820.0, 2000.0];
 /// The helicopter takes its first join this long after a chase starts (`mSpawnHeliTimer`).
 const FIRST_JOIN: f32 = 10.0;
 /// Seconds between support checks (`support_check_timer`, spec section 6).
@@ -40,8 +40,6 @@ const HELI_HASH: u32 = blackbox_hash::bstring_hash("Heli");
 /// The track zone kind of a tunnel (`TUNNEL`, `pursuit-data.md`: type 3).
 pub const TUNNEL_ZONE: u32 = 3;
 
-/// The car's heat after an escape: `EvadeSuccessHeatAdjust` of the default collection (install-verified, `ai-pursuit-heat.md` §3.3).
-const EVADE_HEAT_ADJUST: f32 = 0.95;
 /// The track path zone kind of a hiding spot (`pursuit-data.md` §5: type 8 HIDDEN).
 pub const HIDDEN_ZONE: u32 = 8;
 /// How far (metres) the player's height may be from a hiding zone's elevation to count as inside it (spec §5).
@@ -53,9 +51,6 @@ const DELIBERATE_THROTTLE: f32 = 0.5;
 /// How far from a road centreline (metres, horizontally) the player still counts as on the road. Unconfirmed: about a
 /// road's half width and a margin.
 const ROAD_EDGE: f32 = 9.0;
-
-/// The fines of the infractions, in [`Infraction::ALL`] order (`infractions`, [verified]).
-const FINES: Fines = Fines::new([150, 350, 1000, 350, 300, 100, 300, 75]);
 
 /// The player's car as the police see it this frame, in render space.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -112,6 +107,13 @@ pub struct Police {
     heli: Option<Helicopter>,
     /// The helicopter's tuning per level, from `NFSMWHelicopterSettings.ini` (vanilla until it is loaded).
     heli_settings: HeliSettings,
+    /// The pursuit tunables from `NFSMWBartenderSettings.ini`: cop cap, heat growth, bust rules and fines (vanilla until
+    /// it is loaded).
+    settings: BartenderSettings,
+    /// The reset penalty of a manual reset, from `NFSMWFairBustsSettings.ini` (FairBusts' default until it is loaded).
+    reset_penalty: ResetPenalty,
+    /// Seconds of the post-reset blink left (`busted::RESET_BLINK` after a manual reset); 0 when not flashing.
+    reset_blink: f32,
     /// Seconds until the next helicopter may join.
     heli_wait: f32,
     /// Seconds of think time not yet spent on the helicopter.
@@ -163,6 +165,9 @@ impl Default for Police {
             infractions: InfractionLog::default(),
             heli: None,
             heli_settings: HeliSettings::default(),
+            settings: BartenderSettings::default(),
+            reset_penalty: FairBustsSettings::default().penalty(BartenderSettings::default().busted.reach),
+            reset_blink: 0.0,
             heli_wait: 0.0,
             heli_clock: 0.0,
             seen: false,
@@ -191,6 +196,23 @@ impl Default for Police {
 }
 
 impl Police {
+    /// Replaces the pursuit tunables and the FairBusts penalty (read from their files when the track opens). The reset
+    /// penalty takes the Bartender file's normal reach, which a fair reset uses.
+    pub fn set_settings(&mut self, settings: BartenderSettings, fairbusts: FairBustsSettings) {
+        self.reset_penalty = fairbusts.penalty(settings.busted.reach);
+        self.settings = settings;
+    }
+
+    /// The pursuit tunables in force.
+    pub fn settings(&self) -> &BartenderSettings {
+        &self.settings
+    }
+
+    /// The reset penalty in force (FairBusts, or the stock penalty when it is disabled).
+    pub fn reset_penalty(&self) -> ResetPenalty {
+        self.reset_penalty
+    }
+
     /// A chase starts at `level`: the heat is at least the base and at least `level`, the infraction log empties and
     /// the helicopter's first join is set.
     pub fn begin(&mut self, level: u32) {
@@ -210,6 +232,7 @@ impl Police {
         self.roadblock_requested = false;
         self.roadblock_standing = false;
         self.busted.reset();
+        self.reset_blink = 0.0;
         self.cops_destroyed = 0;
     }
 
@@ -308,12 +331,13 @@ impl Police {
         clear: &dyn Fn(Vec3, Vec3) -> bool,
     ) -> bool {
         self.speed_fx.update(player.speed, player.nitrous, dt);
+        self.reset_blink = (self.reset_blink - dt).max(0.0);
         self.heli_wait = (self.heli_wait - dt).max(0.0);
         let mut evaded = false;
         if pursuing && self.heat.is_some() {
             self.record_infractions(player, sensed);
             if let Some(heat) = self.heat.as_mut() {
-                heat.grow(dt, time_per_level(heat.level()));
+                heat.grow(dt, self.settings.time_per_level(heat.level()));
             }
             let level = self.level().unwrap_or(1);
             self.tick_formations(dt, level, sensed.formation_random);
@@ -321,7 +345,7 @@ impl Police {
             self.tick_support(dt, sensed.seen, level, sensed.support_random);
             evaded = self.tick_cooldown(dt, sensed, level);
             if let (true, Some(heat)) = (evaded, self.heat) {
-                self.carried_heat = heat.value() * EVADE_HEAT_ADJUST;
+                self.carried_heat = heat.value() * self.settings.evade_heat_adjust;
             }
         }
         if !pursuing {
@@ -407,10 +431,10 @@ impl Police {
     /// The offences of this frame: speeding, and losing the cops (resisting arrest).
     fn record_infractions(&mut self, player: &PlayerView, sensed: Sensed) {
         if rules::speeding(player.speed, SPEEDING_MPS) {
-            self.infractions.record(Infraction::Speeding, &FINES);
+            self.infractions.record(Infraction::Speeding, &self.settings.fines);
         }
         if rules::off_road(sensed.on_road, sensed.seen, sensed.nearest_cop) {
-            self.infractions.record(Infraction::OffRoad, &FINES);
+            self.infractions.record(Infraction::OffRoad, &self.settings.fines);
         }
         if sensed.hit_traffic {
             self.record_contact(rules::Target::Traffic, player, sensed, false);
@@ -422,7 +446,7 @@ impl Police {
             self.record_contact(rules::Target::Breakable, player, sensed, false);
         }
         if rules::lost_sight(self.seen, sensed.seen) {
-            self.infractions.record(Infraction::ResistingArrest, &FINES);
+            self.infractions.record(Infraction::ResistingArrest, &self.settings.fines);
         }
         self.seen = sensed.seen;
     }
@@ -439,7 +463,7 @@ impl Police {
             first_damage,
         };
         let Some(infraction) = rules::contact_infraction(&contact) else { return };
-        self.infractions.record(infraction, &FINES);
+        self.infractions.record(infraction, &self.settings.fines);
     }
 }
 
@@ -453,4 +477,4 @@ mod heli;
 mod helpers;
 mod world;
 
-use helpers::{horizontal, render_rotation, time_per_level};
+use helpers::{horizontal, render_rotation};

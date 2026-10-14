@@ -103,6 +103,7 @@ impl Drive {
             log::info!("tire effects at script end: {}", self.effects.status());
         }
         if input.reset {
+            self.manual_resets += 1;
             let at = self.current.position;
             log::info!("reset at ({:.0}, {:.0}, {:.0})", at.x, at.y, at.z);
             self.respawn_near([at.x, at.y], Some(self.heading()));

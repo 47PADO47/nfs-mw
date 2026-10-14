@@ -117,6 +117,8 @@ pub struct Drive {
     batch_run: bool,
     /// Physics steps run since the car was last placed, for the once-a-second trace of a scripted run.
     steps: u32,
+    /// Manual resets (the reset key) since the scene last took them; the police start their post-reset blink on them.
+    manual_resets: u32,
     /// The last place the car stood on a road with its wheels down: `reset` and falling off the map
     /// bring it back here when no road is near.
     last_good: Option<Spawn>,
@@ -180,6 +182,7 @@ impl Drive {
             script: script.map(|script| ScriptRun { script, time: 0.0 }),
             batch_run: false,
             steps: 0,
+            manual_resets: 0,
             last_good: None,
             fall: FallWatch::default(),
             last_check: 0,
@@ -366,6 +369,11 @@ impl Drive {
     /// Cleanup and other simulation queries use the current tick, independently of rendering.
     pub fn physics_camera(&self) -> ChaseView {
         self.pursuit.shot(self.chase.view())
+    }
+
+    /// The manual resets since the last call, for the police's post-reset blink.
+    pub fn take_manual_resets(&mut self) -> u32 {
+        std::mem::take(&mut self.manual_resets)
     }
 
     pub fn take_look(&mut self, steps: u32) -> (f32, f32) {

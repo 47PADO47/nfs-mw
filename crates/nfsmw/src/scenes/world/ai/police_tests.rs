@@ -28,7 +28,7 @@ fn sensed(seen: bool) -> Sensed {
 #[test]
 fn a_chase_starts_at_its_level_and_clears_the_log() {
     let mut police = Police::default();
-    police.infractions.record(Infraction::Racing, &FINES);
+    police.infractions.record(Infraction::Racing, &BartenderSettings::default().fines);
     police.begin(4);
     assert_eq!(police.level(), Some(4));
     assert_eq!(police.infractions().count(), 0);
@@ -260,8 +260,9 @@ fn a_nose_along_physics_z_is_render_forward_and_up_stays_up() {
 
 #[test]
 fn the_tables_cover_their_levels() {
-    assert_eq!(time_per_level(10), 2000.0);
-    assert_eq!(time_per_level(0), 600.0, "levels are clamped to 1");
+    let settings = BartenderSettings::default();
+    assert_eq!(settings.time_per_level(10), 2000.0);
+    assert_eq!(settings.time_per_level(0), 600.0, "levels are clamped to 1");
 }
 
 #[test]
@@ -358,4 +359,112 @@ fn a_bust_ends_the_chase_busted_and_the_escape_does_not_tick() {
     }
     assert!(!evaded, "a busted chase does not evade");
     assert_eq!(police.escape_progress(), -5.0, "the escape stayed at its start");
+}
+
+/// Runs a flashing chase for `seconds` at `distance` metres and `speed` m/s; whether the player is busted in that time.
+fn busted_while_flashing(police: &mut Police, distance: f32, speed: f32, seconds: f32) -> bool {
+    use blackbox_pursuit::busted::BustInput;
+    police.begin(1);
+    let input = BustInput { cop_distance: distance, seen: true, player_speed: speed, slow_speed: 2.5, flashing: true };
+    (0..(seconds / 0.1) as u32).any(|_| police.tick_busted(0.1, true, input))
+}
+
+#[test]
+fn the_settings_set_the_growth_the_bust_speed_and_the_fines() {
+    let mut police = Police::default();
+    let bartender = crate::settings::bartender::parse(
+        "[Heat1]
+TimePerLevel = 100
+BustSpeed = 36
+[Fines]
+Speeding = 999
+",
+    );
+    police.set_settings(bartender, FairBustsSettings::default());
+    assert_eq!(police.bust_speed(1), 10.0, "36 km/h is 10 m/s");
+    assert_eq!(police.settings().time_per_level(1), 100.0);
+    police.begin(1);
+    police.update(0.1, true, &view(40.0), sensed(true));
+    assert_eq!(police.infractions().total_fines(), 999, "speeding is fined at the configured amount");
+}
+
+#[test]
+fn the_default_reset_penalty_is_fairbusts_normal_reach_with_the_gate() {
+    let police = Police::default();
+    let t = police.bust_tuning();
+    assert_eq!((t.flashing_reach, t.flashing_speed_gate, t.flashing_multiplier), (15.0, true, 4.0));
+}
+
+#[test]
+fn a_disabled_fairbusts_gives_the_stock_reset_penalty() {
+    let mut police = Police::default();
+    let off = FairBustsSettings { enabled: false, ..FairBustsSettings::default() };
+    police.set_settings(BartenderSettings::default(), off);
+    let t = police.bust_tuning();
+    assert_eq!((t.flashing_reach, t.flashing_speed_gate, t.flashing_multiplier), (90.0, false, 4.0));
+}
+
+#[test]
+fn reset_auto_bust_and_the_multiplier_reach_the_timer() {
+    let mut police = Police::default();
+    let stock_reach =
+        FairBustsSettings { reset_auto_bust: true, reset_bust_multiplier: 2.0, ..FairBustsSettings::default() };
+    police.set_settings(BartenderSettings::default(), stock_reach);
+    let t = police.bust_tuning();
+    assert_eq!((t.flashing_reach, t.flashing_speed_gate, t.flashing_multiplier), (90.0, false, 2.0));
+}
+
+#[test]
+fn a_fair_reset_does_not_bust_a_fast_player_far_away_but_the_stock_one_does() {
+    let mut fair = Police::default();
+    assert!(
+        !busted_while_flashing(&mut fair, 60.0, 20.0, 10.0),
+        "60 m is out of the 15 m fair reach, and the speed gate holds"
+    );
+    let mut stock = Police::default();
+    stock.set_settings(
+        BartenderSettings::default(),
+        FairBustsSettings { enabled: false, ..FairBustsSettings::default() },
+    );
+    assert!(
+        busted_while_flashing(&mut stock, 60.0, 20.0, 3.0),
+        "stock flashing reaches 90 m with no gate and fills 4x"
+    );
+}
+
+#[test]
+fn a_fair_reset_still_fills_fast_when_the_player_is_slow_and_close() {
+    let mut fair = Police::default();
+    assert!(
+        busted_while_flashing(&mut fair, 10.0, 0.0, 3.0),
+        "slow and in reach: four times the fill busts in about 1.3 s"
+    );
+}
+
+#[test]
+fn a_multiplier_of_one_is_the_normal_fill() {
+    let mut police = Police::default();
+    let one = FairBustsSettings { reset_bust_multiplier: 1.0, ..FairBustsSettings::default() };
+    police.set_settings(BartenderSettings::default(), one);
+    assert!(!busted_while_flashing(&mut police, 10.0, 0.0, 4.0), "at 1x the timer is still under its 5 s timeout");
+    assert!(busted_while_flashing(&mut police, 10.0, 0.0, 6.0), "at 1x it busts by 6 s");
+}
+
+#[test]
+fn a_manual_reset_flashes_for_two_seconds_and_a_new_chase_clears_it() {
+    let mut police = Police::default();
+    police.begin(1);
+    police.note_manual_reset();
+    assert!(police.flashing());
+    for _ in 0..15 {
+        police.update(0.1, true, &view(0.0), sensed(true));
+    }
+    assert!(police.flashing(), "1.5 s into the 2 s blink");
+    for _ in 0..10 {
+        police.update(0.1, true, &view(0.0), sensed(true));
+    }
+    assert!(!police.flashing(), "past the 2 s blink");
+    police.note_manual_reset();
+    police.begin(1);
+    assert!(!police.flashing(), "a new chase starts without the blink");
 }

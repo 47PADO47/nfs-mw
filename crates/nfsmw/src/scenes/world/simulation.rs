@@ -79,6 +79,10 @@ impl WorldScene {
             let (collision, _) = self.residency.world_parts();
             if let (Some(drive), Some(traffic)) = (self.drive.as_mut(), self.traffic.as_mut()) {
                 let view = drive.player_view();
+                // The reset key starts the post-reset blink, which the busted timer reads this frame.
+                if drive.take_manual_resets() > 0 {
+                    traffic.note_manual_reset();
+                }
                 let cast = super::drive::walls::world_cast(collision);
                 let clear = |from: glam::Vec3, to: glam::Vec3| cast(from, to).is_none();
                 // The simulated time of this update, as the traffic gets it: a screenshot run has no frame time, so

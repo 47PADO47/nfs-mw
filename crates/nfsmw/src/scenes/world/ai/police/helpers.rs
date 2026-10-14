@@ -8,7 +8,6 @@ use blackbox_roads::HeliSheet;
 use glam::{Mat3, Quat, Vec3};
 
 use super::PlayerView;
-use super::TIME_PER_LEVEL;
 use crate::scenes::world::space;
 
 /// A physics-frame orientation as a render-frame one. The nose is the physics X axis, up is Y; render space has x
@@ -18,11 +17,6 @@ pub(super) fn render_rotation(orientation: Quat) -> Quat {
     let up = space::to_render((orientation * Vec3::Y).to_array());
     let left = up.cross(nose);
     Quat::from_mat3(&Mat3::from_cols(nose, left, up))
-}
-
-/// Seconds of heat growth per level: `TIME_PER_LEVEL` for the level the heat is at.
-pub(super) fn time_per_level(level: u32) -> f32 {
-    TIME_PER_LEVEL[(level as usize).clamp(1, TIME_PER_LEVEL.len()) - 1]
 }
 
 /// `v` with its height removed.

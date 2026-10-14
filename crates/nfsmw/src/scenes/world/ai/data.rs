@@ -57,6 +57,7 @@ impl TrafficWorld {
         self.police.set_hidden_zones(of_kind(super::police::HIDDEN_ZONE));
         self.police.set_tunnel_zones(of_kind(super::police::TUNNEL_ZONE));
         self.police.set_heli_settings(crate::settings::helicopter::load());
+        self.police.set_settings(crate::settings::bartender::load(), crate::settings::fairbusts::load());
         match build_patterns(db, zones) {
             Some(patterns) => self.set_patterns(patterns),
             None => log::warn!("traffic: the install has no traffic patterns, so no traffic will spawn"),

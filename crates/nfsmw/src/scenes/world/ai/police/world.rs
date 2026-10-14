@@ -1,7 +1,6 @@
 //! The traffic world's side of the police: the per-frame update that reads the cars, the roads, the zones and the
 //! formation, and the helicopter's minimap blip. Child of `police`, so it reads the police state directly.
 
-use super::busted::bust_speed;
 use super::*;
 use crate::hud::PursuitEndCard;
 use blackbox_pursuit::busted::BustInput;
@@ -47,6 +46,11 @@ impl super::super::TrafficWorld {
         self.police.roadblock_placed();
     }
 
+    /// The player pressed the reset key: the post-reset blink starts (the reset penalty applies while it runs).
+    pub fn note_manual_reset(&mut self) {
+        self.police.note_manual_reset();
+    }
+
     /// Gives the helicopter the track's height sheet (read once when the track opens).
     pub fn set_heli_sheet(&mut self, sheet: HeliSheet) {
         self.police.set_heli_sheet(sheet);
@@ -72,13 +76,13 @@ impl super::super::TrafficWorld {
             formation_gap: self.formation_gap(at, player.forward),
             support_random: self.rng.next_f32(),
         };
-        // The busted timer's inputs. `flashing` stays false until the post-reset blink exists (FairBusts, E12).
+        // The busted timer's inputs. `flashing` is the post-reset blink, started by a manual reset (FairBusts' penalty).
         let bust = BustInput {
             cop_distance: self.nearest_matched_cop(at),
             seen: sensed.seen,
             player_speed: player.speed.abs(),
-            slow_speed: bust_speed(level),
-            flashing: false,
+            slow_speed: self.police.bust_speed(level),
+            flashing: self.police.flashing(),
         };
         self.police.set_rig(self.helicopter_rig.clone());
         // Busted first: a busted frame does not tick the escape. `is_busted` stays set until the next chase.

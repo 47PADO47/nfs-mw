@@ -19,9 +19,8 @@ use super::{Focus, TrafficModel, TrafficWorld};
 use crate::scenes::world::drive::{CarRig, WorldGround};
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::space;
+use crate::settings::bartender::BartenderSettings;
 
-/// Cop cars chasing at once, at most.
-const MAX_COPS: usize = 8;
 /// Spawn distance from the player, metres.
 const MIN_DISTANCE: f32 = 150.0;
 const MAX_DISTANCE: f32 = 400.0;
@@ -75,11 +74,13 @@ impl Pursuit {
         self.row().into_iter().flat_map(ground_cops).map(|c| (c.name.as_str(), c.count, c.chance))
     }
 
-    /// How many cops the chase wants now: the whole wave, but no more than the cops still to evade.
-    pub fn wanted(&self) -> usize {
+    /// How many cops the chase wants now: the whole wave, but no more than the cops still to evade (the level's cap
+    /// from the Bartender file, or the install's value without one), and no more than the chase's cop limit.
+    pub fn wanted(&self, settings: &BartenderSettings) -> usize {
         let Some(row) = self.row() else { return 0 };
         let nominal: u32 = self.wave().map(|w| w.1).sum();
-        (nominal.min(row.full_engagement_cops.max(1)) as usize).min(MAX_COPS)
+        let cap = settings.cop_cap(self.heat).unwrap_or(row.full_engagement_cops).max(1);
+        (nominal.min(cap) as usize).min(settings.max_cops as usize)
     }
 }
 
@@ -144,7 +145,7 @@ impl TrafficWorld {
         }
         pursuit.spawn_timer -= sim_dt;
         let alive = self.cars.iter().filter(|c| c.is_cop()).count();
-        if alive >= pursuit.wanted() || pursuit.spawn_timer > 0.0 {
+        if alive >= pursuit.wanted(self.police.settings()) || pursuit.spawn_timer > 0.0 {
             return;
         }
         // The next type of the current wave, weighted by its chance among those the wave still needs.
@@ -240,7 +241,7 @@ impl TrafficWorld {
             "heat {}: {} of {} cops ({}); formation {formation}; evade in {to_evade:.0} s; infractions {} for ${}{}",
             p.heat,
             cops.len(),
-            p.wanted(),
+            p.wanted(self.police.settings()),
             cops.join(", "),
             infractions.len(),
             self.police.infractions().total_fines(),
