@@ -91,6 +91,12 @@ impl WorldScene {
             });
             drive.trace_frame(dt, steps, loaded, self.residency.complete());
         }
+        let speedbreaker_active = driving && self.drive.as_ref().is_some_and(|drive| drive.speedbreaker_active());
+        if speedbreaker_active && !self.sound_speedbreaker_active {
+            self.common_sounds.push(crate::audio::CommonEvent::Speedbreaker);
+        }
+        self.sound_speedbreaker_active = speedbreaker_active;
+        self.common_sounds.extend(self.residency.world_parts().1.take_common_sounds());
         sim_dt
     }
 

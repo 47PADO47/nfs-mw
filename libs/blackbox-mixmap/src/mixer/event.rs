@@ -13,6 +13,11 @@ struct Out {
 
 pub(super) fn update(m: &mut Mixer, ms: f32) {
     for i in 0..m.events.len() {
+        if let Some(output) = m.event_overrides.get(&i) {
+            m.graph.event_q[i] = output.position;
+            m.graph.event_db[i] = output.level;
+            continue;
+        }
         let trigger = m.graph.read(m.events[i].trigger);
         let previous = Out { level: m.graph.event_db[i], q: m.graph.event_q[i] };
         let node = &mut m.events[i];

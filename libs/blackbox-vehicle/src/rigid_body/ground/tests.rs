@@ -75,7 +75,13 @@ fn surface_friction_changes_body_sliding_without_retuning_its_spec() {
     let collide = |friction| {
         let mut body = body.clone();
         body.linear_velocity = Vec3::new(30.0, -12.0, 0.0);
-        body.resolve_ground(&mut [GroundContact { point: Vec3::ZERO, normal: Vec3::Y, depth: 0.1, friction }]);
+        body.resolve_ground(&mut [GroundContact {
+            point: Vec3::ZERO,
+            normal: Vec3::Y,
+            depth: 0.1,
+            friction,
+            ..Default::default()
+        }]);
         assert_eq!(body.spec().ground_friction, [0.8, 0.6]);
         body.linear_velocity.x
     };

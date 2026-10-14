@@ -71,19 +71,7 @@ fn script(t: f32) -> (f32, f32, i32) {
 }
 
 fn write_wav(path: &std::path::Path, samples: &[f32]) {
-    let data: Vec<u8> = samples.iter().flat_map(|s| ((s.clamp(-1.0, 1.0) * 32767.0) as i16).to_le_bytes()).collect();
-    let mut wav = Vec::new();
-    wav.extend(b"RIFF");
-    wav.extend((36 + data.len() as u32).to_le_bytes());
-    wav.extend(b"WAVEfmt ");
-    wav.extend([16u32.to_le_bytes().as_slice(), &1u16.to_le_bytes(), &1u16.to_le_bytes()].concat());
-    wav.extend((RATE as u32).to_le_bytes());
-    wav.extend((RATE as u32 * 2).to_le_bytes());
-    wav.extend([2u16.to_le_bytes().as_slice(), &16u16.to_le_bytes()].concat());
-    wav.extend(b"data");
-    wav.extend((data.len() as u32).to_le_bytes());
-    wav.extend(data);
-    std::fs::write(path, wav).unwrap();
+    crate::audio::capture::write_float(path, samples, RATE as u32, 1);
 }
 
 /// Renders a drive of the M3 GTR (idle, a pull with two shifts, a lift) through the mixer, the engine voice and
@@ -119,6 +107,8 @@ fn a_scripted_drive_sounds_like_an_engine() {
                 volume: o.decel_volume * gain,
                 pitch: o.decel_loop.playback_rate,
             },
+            low_pass_hz: o.low_pass_hz,
+            ..Default::default()
         });
         let frame = crate::audio::mixer::Frame {
             input: &input,
@@ -218,10 +208,11 @@ fn a_hand_shifted_drive_plays_the_shift_sounds() {
 
 /// Every effect of a car with a turbo and one without resolves to a sound its bank really has.
 #[test]
+#[ignore = "requires NFSMW_GAME_DIR"]
 fn every_effect_resolves_to_a_sound_in_its_bank() {
     use blackbox_carsound::{ScrapeKind, SoundRef};
 
-    let Some(mut audio) = audio() else { return };
+    let mut audio = audio().expect("NFSMW_GAME_DIR must name an installed game");
     let mut effects = vec![
         SoundRef::GearClunk { up: true },
         SoundRef::GearClunk { up: false },
@@ -241,7 +232,7 @@ fn every_effect_resolves_to_a_sound_in_its_bank() {
     }
     let mut turbo = vec![SoundRef::TurboSpool];
     turbo.extend((0..3).map(SoundRef::TurboBlowoff));
-    for (name, with_turbo) in [("BMWM3GTR", false), ("SKYLINEZT", true)] {
+    for (name, with_turbo) in [("BMWM3GTR", false), ("LANCEREVO8", true)] {
         let car = audio.load_car_engine(name).unwrap_or_else(|e| panic!("{name}: {e}"));
         let wanted = effects.iter().copied().chain(if with_turbo { turbo.clone() } else { Vec::new() });
         for effect in wanted {

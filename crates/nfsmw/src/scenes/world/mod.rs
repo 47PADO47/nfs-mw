@@ -32,6 +32,7 @@ mod resident;
 mod road;
 mod sign_lamps;
 mod simulation;
+mod sound;
 mod space;
 mod start;
 mod sun;
@@ -94,6 +95,9 @@ pub struct WorldScene {
     garage: crate::garage::Model,
     garage_parts: Option<nfsmw_data::car::customization::Inventory>,
     garage_open: bool,
+    audio_environment: Option<crate::audio::environment_context::EnvironmentMap>,
+    common_sounds: Vec<crate::audio::CommonEvent>,
+    sound_speedbreaker_active: bool,
     dir: GameDir,
     track: String,
     camera: FlyCamera,
@@ -169,22 +173,6 @@ const CLEAR: [f32; 3] = [0.55, 0.63, 0.72];
 
 /// The car `drive` picks when none was named.
 pub const DEFAULT_CAR: &str = "BMWM3GTR";
-
-impl WorldScene {
-    /// Map position (x, y) the streaming follows.
-    fn focus(&self) -> [f32; 2] {
-        match (&self.drive, self.view) {
-            (Some(drive), View::Chase) => match drive.waiting_for_road() {
-                Some(request) => request.near,
-                None => {
-                    let p = drive.position();
-                    [p.x, p.y]
-                }
-            },
-            _ => [self.camera.position.x, self.camera.position.y],
-        }
-    }
-}
 
 impl Scene for WorldScene {
     fn garage(&mut self) -> Option<&mut crate::garage::Model> {
@@ -458,10 +446,11 @@ impl Scene for WorldScene {
     }
 
     fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
-        if self.garage_open {
-            return None;
-        }
-        self.drive.as_mut()?.car_sound()
+        self.audio_state()
+    }
+
+    fn take_common_sounds(&mut self) -> Vec<crate::audio::CommonEvent> {
+        std::mem::take(&mut self.common_sounds)
     }
 
     fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {

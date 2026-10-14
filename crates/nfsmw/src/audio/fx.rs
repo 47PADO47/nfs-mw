@@ -8,10 +8,10 @@ use blackbox_carsound::{ImpactRequest, SoundCommand, SoundRef};
 use kira::sound::static_sound::StaticSoundData;
 use kira::{PlaybackRate, StartTime, Tween};
 use nfsmw_data::car::physics::SurfaceTable;
-use nfsmw_data::sound::{EventKind, Stitch, collision_stitches};
+use nfsmw_data::sound::{Stitch, collision_stitches};
 
 use super::car::{CarAudio, CarEvent};
-use super::refs::{self, COLLISION_BANK};
+use super::refs;
 use super::volume::decibels;
 use super::{Audio, Group};
 
@@ -25,8 +25,15 @@ fn tween(duration: Duration) -> Tween {
 }
 
 impl Audio {
+    pub(super) fn play_landing(&mut self, car: &mut CarAudio, landing: blackbox_carsound::Landing) {
+        let Some(index) = car.impacts.landing_index(landing.magnitude, landing.hard) else { return };
+        let stitches = self.stitches();
+        let Some(stitch) = stitches.get(index) else { return };
+        let bucket = (((landing.magnitude.clamp(0.0, 1.0) * 127.0) as usize) >> 5).min(3);
+        car.impacts.landing(self, stitch, [13000, 15000, 24000, 32767][bucket]);
+    }
     /// The collision stitches of `InGameB.bun`, read once (empty when the file cannot be read).
-    fn stitches(&mut self) -> Arc<Vec<Stitch>> {
+    pub(super) fn stitches(&mut self) -> Arc<Vec<Stitch>> {
         if let Some(stitches) = &self.stitches {
             return stitches.clone();
         }
@@ -58,10 +65,22 @@ impl Audio {
 
     /// Carry out one command of the effects mixer.
     pub(super) fn apply(&mut self, car: &mut CarAudio, command: SoundCommand) {
+        if self.trace.enabled() {
+            self.trace.record(super::trace::Record {
+                event: "fallback_command",
+                class: super::car::routing::command_family(command),
+                logical_ms: self.trace.now_ms(),
+                detail: &format!("car={} command={command:?}", car.car),
+                ..Default::default()
+            });
+        }
         match command {
             SoundCommand::Play { sound, volume, pitch } => {
                 let Some((data, group)) = self.effect_data(car, sound) else { return };
-                let data = data.volume(decibels(volume)).playback_rate(f64::from(pitch));
+                let data = data
+                    .volume(decibels(volume))
+                    .playback_rate(f64::from(pitch))
+                    .start_time(StartTime::Delayed(Duration::from_secs_f32(car.event_delay)));
                 if let Err(e) = self.play(group, data) {
                     log::debug!("{sound:?}: {e}");
                 }
@@ -103,34 +122,42 @@ impl Audio {
     }
 
     /// A hit: pick the collection of the car for the kind of hit and surface, the stitch by magnitude, and play
-    /// its pieces one after the other.
-    pub(super) fn play_impact(&mut self, car: &mut CarAudio, event: &CarEvent) {
+    /// its pieces through their authored module with independent offsets.
+    pub(super) fn play_impact(
+        &mut self,
+        car: &mut CarAudio,
+        event: &CarEvent,
+        _input: &blackbox_carsound::CarInput,
+        _view: &super::AudioView,
+    ) {
         let default = SurfaceTable::hash_of("default");
-        let Some(sound) = car.sound.collision.pick(event.kind, event.surface, default, event.front) else { return };
+        let owned = match event.sound_profile {
+            0 => None,
+            profile => self.prop_sound(profile),
+        };
+        if event.sound_profile != 0 && owned.is_none() {
+            return;
+        }
+        let rules = owned.as_deref().unwrap_or(&car.sound.collision);
+        let Some(sound) = rules.pick(event.kind, event.surface, default, event.front) else { return };
         let lengths = std::array::from_fn(|i| sound.levels[i].len() as u32);
-        let volumes = std::array::from_fn(|i| (sound.volumes[i] * 32767.0) as u32);
+        let volumes = std::array::from_fn(|i| (sound.volumes[i] * 32768.0).round() as u32);
         let tuning =
             blackbox_carsound::CollisionTuning { level_lengths: lengths, volumes, stream_thresholds: Vec::new() };
-        let request = ImpactRequest { magnitude: event.magnitude, light_wall: event.smackable, tuning: &tuning };
+        let request = ImpactRequest {
+            magnitude: event.magnitude,
+            light_wall: sound.has("WALL") && sound.has("SMOKABLE"),
+            tuning: &tuning,
+        };
         let Some(play) = car.effects.impact(&request) else { return };
-        log::debug!("{:?} impact {:.2} -> level {} sample {}", event.kind, event.magnitude, play.level, play.index);
-        let Some(&id) = sound.levels[play.level].get(play.index) else { return };
         let stitches = self.stitches();
-        let Some(stitch) = stitches.get(id as usize) else { return };
-        let mut start = 0.0f64;
-        for piece in &stitch.pieces {
-            let index = usize::from(piece.sample) + 1;
-            let Ok(data) = self.bank_sound(COLLISION_BANK, index) else { continue };
-            let level = if event.kind == EventKind::BottomOut { car.levels.landing } else { 1.0 };
-            let volume = (stitch.volume * piece.volume * play.volume * level).clamp(0.0, 1.0);
-            let rate = f64::from(data.sample_rate.max(1));
-            let data =
-                data.volume(decibels(volume)).start_time(StartTime::Delayed(Duration::from_secs_f64(start.max(0.0))));
-            if let Err(e) = self.play(Group::Sfx, data) {
-                log::debug!("collision sound: {e}");
-                return;
-            }
-            start += f64::from(piece.advance) / rate;
-        }
+        self.impact_counter = self.impact_counter.wrapping_add(1);
+        let index = self.impact_counter as usize % sound.levels[play.level].len();
+        log::debug!("{:?} impact {:.2} -> level {} sample {}", event.kind, event.magnitude, play.level, index);
+        let Some(stitch) = sound.levels[play.level].get(index).and_then(|id| stitches.get(*id as usize)) else {
+            return;
+        };
+        let volume = ((sound.volumes[play.level] * 32768.0).round() as i32).clamp(0, 32767);
+        car.impacts.collision(self, stitch, sound, *event, car.mixer.as_ref(), volume);
     }
 }

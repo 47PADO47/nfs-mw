@@ -24,7 +24,7 @@ pub use collision::{CollisionSounds, EventKind, ImpactSound};
 pub use engine::{DecelWindow, EngineGroup, EngineMix, EngineSound, MixLevels};
 pub use load::{EngineLoops, load_loop};
 pub use shift::{ShiftSound, ShiftStage, Wobble};
-pub use stitch::{Stitch, StitchPiece, collision_stitches};
+pub use stitch::{Stitch, StitchPiece, collision_stitches, whoosh_stitches};
 pub use turbo::TurboSound;
 
 /// Install folder of the `.gin` loops, the engine banks and the sweetener banks.

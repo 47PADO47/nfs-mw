@@ -35,6 +35,28 @@ fn an_event_at_rest_reads_zero() {
 }
 
 #[test]
+fn shared_event_output_keeps_one_clock_and_new_instances_inherit_its_phase() {
+    let state = event_state(0x2000_0000, -1200, 0);
+    let mut owner = mixer(vec![(0, state.clone())], &[1]);
+    trigger(&mut owner, 32767);
+    owner.process(0.1);
+    let snapshot = owner.event_output(0, 0, 0).unwrap();
+    assert!(snapshot.level < 0);
+    for dt in [0.0, 0.001, 0.25, 4.0] {
+        let mut local = mixer(vec![(0, state.clone())], &[1]);
+        assert!(local.override_event(0, 0, 0, Some(snapshot)));
+        local.process(dt);
+        assert_eq!(local.event_output(0, 0, 0), Some(snapshot));
+        assert_eq!(level(&local), snapshot.level);
+        assert!(!local.override_event(0, 0, 99, Some(snapshot)));
+        assert!(!local.override_event(0, 0, 0, Some(crate::EventOutput { position: -1, level: 0 })));
+        assert!(local.override_event(0, 0, 0, None));
+        local.process(1.0);
+        assert_eq!(local.event_output(0, 0, 0).unwrap().level, 0);
+    }
+}
+
+#[test]
 fn the_kinds_come_from_the_id() {
     assert_eq!(
         Event { id: SourceId(0xA200_3000), swing: 0, trigger: SourceId(0), params: [0; 3], scales: vec![] }.kind(),

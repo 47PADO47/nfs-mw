@@ -40,18 +40,32 @@ fn q15(fraction: f32) -> i32 {
 }
 
 /// The `CAR` parameters (the engine's sample layer) for this frame. `class` is the engine set's `CarID`.
+#[cfg(test)]
 pub fn engine(class: u32, out: &EngineOutput, levels: &Levels) -> [i32; CAR_PARAMS] {
+    engine_with_frequency(class, out, levels, None)
+}
+
+pub fn engine_with_frequency(
+    class: u32,
+    out: &EngineOutput,
+    levels: &Levels,
+    frequency: Option<f32>,
+) -> [i32; CAR_PARAMS] {
     let mut p = [0; CAR_PARAMS];
     let layer = out.aems_volume * levels.engine_samples;
     // 0 is full volume, -32767 silence.
     let attenuation = q15(layer) - 32767;
     p[car::CLASS] = class as i32;
-    p[car::RPM] = out.ginsu_frequency.round() as i32;
+    p[car::RPM] = frequency.unwrap_or(out.ginsu_frequency).round() as i32;
     p[car::TORQUE] = out.aems_torque.round() as i32;
     p[car::VOL_ENG] = attenuation;
     p[car::VOL_EXH] = attenuation;
     p[car::SPU_OR_EE] = 1;
-    p[car::PITCH_OFFSET] = (levels.engine_pitch * 16383.0) as i32 - 0x3FFF;
+    p[car::PITCH_OFFSET] = ((levels.engine_pitch * 16383.0) as i32 - 0x3FFF).clamp(-16383, 16383);
+    p[13] = (levels.environment.aems_dry - 32767).clamp(-32767, 0);
+    p[14] = ((i64::from(levels.environment.aems_wet) * i64::from(q15(levels.engine_samples))) >> 15) as i32;
+    p[15] = levels.engine_azimuth;
+    p[21] = (levels.engine_low_pass_hz as i32).min(levels.engine_distance_filter).clamp(0, 25000);
     p[car::MAX_RPM] = q15(out.redline_sample_volume * levels.engine_samples);
     p
 }
@@ -72,6 +86,18 @@ pub fn sputter(class: u32, id: u32, volume: i32, out: &EngineOutput, levels: &Le
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn environment_fields_use_signed_dry_attenuation_and_graph_filter_inputs() {
+        let mut levels =
+            Levels { engine_samples: 0.5, engine_azimuth: 16384, engine_distance_filter: 7398, ..Levels::unmixed() };
+        levels.environment.aems_dry = 25998;
+        levels.environment.aems_wet = 9223;
+        let words = engine(66, &output(), &levels);
+        assert_eq!(words[13], -6769);
+        assert_eq!(words[14], (9223 * 16384) >> 15);
+        assert_eq!(words[15], 16384);
+        assert_eq!(&words[21..25], &[7398, 0, 0, 0]);
+    }
 
     fn output() -> EngineOutput {
         EngineOutput {

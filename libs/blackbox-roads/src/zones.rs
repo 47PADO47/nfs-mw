@@ -34,6 +34,8 @@ pub struct TrackZone {
     pub position: Vec2,
     pub direction: Vec2,
     pub elevation: f32,
+    /// Mutable visit state; enclosure audio rejects a selected dynamic zone at1.
+    pub visit_info: i16,
     /// Type-specific words; a traffic-pattern zone holds the hash of the pattern name in `data[0]`.
     pub data: [i32; 4],
     pub bbox_min: Vec2,
@@ -57,6 +59,7 @@ impl TrackZone {
             position: vec2(0x04)?,
             direction: vec2(0x0C)?,
             elevation: r.f32(0x14)?,
+            visit_info: r.i16(0x1A)?,
             data: [r.u32(0x30)? as i32, r.u32(0x34)? as i32, r.u32(0x38)? as i32, r.u32(0x3C)? as i32],
             bbox_min: vec2(0x20)?,
             bbox_max: vec2(0x28)?,

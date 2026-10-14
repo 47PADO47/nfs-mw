@@ -19,3 +19,17 @@ impl AiCar {
         self.quiet = (self.quiet - STEP).max(0.0);
     }
 }
+
+impl AiCar {
+    pub fn audio_emitter(&self) -> crate::audio::traffic::TrafficEmitter {
+        use crate::scenes::world::space;
+        let body = self.sim.body();
+        crate::audio::traffic::TrafficEmitter {
+            id: self.render_id,
+            profile: self.audio_profile,
+            position: space::to_render(body.position.to_array()),
+            forward: space::to_render((body.orientation * glam::Vec3::Z).to_array()),
+            velocity: space::to_render(body.linear_velocity.to_array()),
+        }
+    }
+}

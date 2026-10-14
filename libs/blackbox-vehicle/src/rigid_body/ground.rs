@@ -18,12 +18,15 @@ pub const BOX_CORNERS: [Vec3; 8] = [
     Vec3::new(-1.0, 1.0, -1.0),
 ];
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct GroundContact {
     pub point: Vec3,
     pub normal: Vec3,
     pub depth: f32,
     pub friction: f32,
+    pub surface: u32,
+    pub velocity: Vec3,
+    pub impulse_delta_v: f32,
 }
 
 impl RigidBody {
@@ -46,14 +49,22 @@ impl RigidBody {
         if !normal.is_finite() || !depth.is_finite() || depth <= 0.000001 {
             return None;
         }
-        Some(GroundContact { point, normal, depth, friction: ground.body_friction(hit.surface.tag) })
+        Some(GroundContact {
+            point,
+            normal,
+            depth,
+            friction: ground.body_friction(hit.surface.tag),
+            surface: hit.surface.tag,
+            velocity: self.point_velocity(point),
+            impulse_delta_v: 0.0,
+        })
     }
 
     /// The first successful contact changes velocities; the deepest retained penetration moves the body.
     pub fn resolve_ground(&mut self, contacts: &mut [GroundContact]) {
         contacts.sort_by(|a, b| b.depth.total_cmp(&a.depth));
         let spec = *self.spec();
-        for c in contacts.iter() {
+        for c in contacts.iter_mut() {
             let local = self.rotation().transpose() * c.normal;
             let params = ContactParams {
                 restitution: (local * spec.ground_elasticity).length(),
@@ -65,7 +76,8 @@ impl RigidBody {
                 friction_static: spec.ground_friction[0] * c.friction,
                 friction_kinetic: spec.ground_friction[1].min(spec.ground_friction[0]) * c.friction,
             };
-            if self.react_plane(&plane, &params).is_some() {
+            if let Some(reaction) = self.react_plane(&plane, &params) {
+                c.impulse_delta_v = reaction.impulse / self.mass();
                 break;
             }
         }

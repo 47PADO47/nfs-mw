@@ -75,8 +75,8 @@ pub struct TrafficModel {
     pub trailer: Option<Box<TrafficModel>>,
     /// A cop model's light bars (`None` for traffic).
     pub cop_lights: Option<Rc<cop_lights::CopLightSet>>,
-    /// The `pvehicle` `HornType`: the sound number of its horn in `IG_GLOBAL/TRAFFIC_MB.abk`.
-    pub horn: u32,
+    /// Installed class IDs for the authored traffic producers.
+    pub audio_profile: crate::audio::traffic::TrafficProfile,
 }
 
 pub struct TrafficWorld {

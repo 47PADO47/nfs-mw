@@ -120,6 +120,8 @@ fn drive(audio: &mut Audio, car: &str, path: SamplePath) -> [Stage; 3] {
                 volume: out.decel_volume * levels.engine_volume,
                 pitch: out.decel_loop.playback_rate,
             },
+            low_pass_hz: out.low_pass_hz,
+            ..Default::default()
         });
         levels = dynamic.update(
             TICK,
@@ -225,7 +227,12 @@ fn missing_and_failed_sample_layers_keep_real_engine_loops_audible() {
     for path in [SamplePath::Missing, SamplePath::Lost, SamplePath::Destroyed] {
         let stages = drive(&mut audio, "BMWM3GTR", path);
         report("BMWM3GTR", &stages);
-        assert!(stages[1].loops.rms() > 0.05, "the real Ginsu loop keeps its normal level without a replacement");
+        // Compare against the same engine's normal output: authored unity gain
+        // replaces the earlier 1.5 makeup, so a fixed RMS threshold is invalid.
+        assert!(
+            stages[1].loops.rms() > stages[0].loops.rms() * 0.8,
+            "the real Ginsu loop keeps its normal level without a replacement"
+        );
         if matches!(path, SamplePath::Missing | SamplePath::Destroyed) {
             assert_eq!(stages[1].sample_layer.rms(), 0.0);
         }

@@ -28,11 +28,17 @@ fn road_graph(mph: f32) -> f32 {
 }
 
 /// One side of the car.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 struct Side {
     playing: bool,
     /// The loop of the last update.
     loop_id: u8,
+}
+
+impl Default for Side {
+    fn default() -> Self {
+        Self { playing: false, loop_id: NO_ROAD_NOISE }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -77,15 +83,19 @@ impl RoadFx {
         let pitch0 = 1500.0 + 3000.0 * (mph / 100.0).clamp(0.0, 1.0);
         for side in 0..2 {
             let id = LoopId::Road(side as u8);
-            let grounded = side_wheels(input, side).into_iter().find(|w| w.on_ground);
-            let loop_id = grounded.map_or(NO_ROAD_NOISE, |w| w.road_noise_loop);
+            let wheels = side_wheels(input, side);
+            let grounded = wheels.iter().any(|w| w.on_ground);
+            let mut loop_id = self.sides[side].loop_id;
+            if wheels[0].road_noise_loop == wheels[1].road_noise_loop {
+                loop_id = wheels[0].road_noise_loop;
+            }
             self.changed |= std::mem::replace(&mut self.sides[side].loop_id, loop_id) != loop_id;
             let (slip, traction) = (self.slip[side], self.traction[side]);
             // Only the left side's volume has the traction term (kept from the original).
             let traction_gain = if side == 0 { 1.0 + (traction * 0.1).min(0.1) } else { 1.1 };
             let volume = (base * (1.0 + (slip * 0.01).min(0.15)) * traction_gain).min(32000.0) / 32767.0;
             let pitch = (pitch0 * (1.0 + (slip * 0.01).min(0.2)) * (1.0 + (traction * 0.15).min(0.15))).min(6000.0);
-            if loop_id == NO_ROAD_NOISE || volume <= 0.0 {
+            if !grounded || loop_id == NO_ROAD_NOISE || volume <= 0.0 {
                 if std::mem::take(&mut self.sides[side].playing) {
                     out.push(SoundCommand::StopLoop(id));
                 }
@@ -96,9 +106,8 @@ impl RoadFx {
                 id,
                 sound: SoundRef::RoadNoise(loop_id),
                 volume,
-                // The data's pitch is on a 4096 = 1 scale around the speed-dependent value; as a ratio it
-                // runs from 0.75 to 1.5 over the speed range.
-                pitch: (pitch / 3000.0).clamp(0.5, 2.0),
+                // The authored graph takes Q12 pitch (4096 = unchanged).
+                pitch: pitch / 4096.0,
             });
         }
     }

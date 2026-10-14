@@ -4,6 +4,12 @@ use nfsmw_data::car::physics::{CarBounds, CarPhysics, WallSpec};
 
 use super::*;
 
+#[test]
+fn vertical_jump_velocity_does_not_trigger_a_traffic_driveby() {
+    assert_eq!(planar_relative_speed(Vec3::Y * 50.0, Vec3::ZERO), 0.0);
+    assert_eq!(planar_relative_speed(Vec3::new(3.0, 50.0, 4.0), Vec3::ZERO), 5.0);
+}
+
 fn sim(at: Vec3) -> CarSim {
     let spec = VehicleSpec::example();
     let bounds = CarBounds { half_dimensions: spec.dimension, pivot: Vec3::ZERO };

@@ -1,10 +1,10 @@
-//! Cars hitting each other and the player's car, and the sounds those hits and close passes make.
+//! Vehicle contacts and ordered moving traffic audio snapshots.
 
 use glam::Vec3;
 
 use super::TrafficWorld;
-use super::traffic_events::{crash_horn, near_miss};
-use crate::audio::traffic::TrafficSound;
+
+use crate::audio::traffic::{TrafficFrame, TrafficSound};
 use crate::scenes::world::drive::walls::Cast;
 use crate::scenes::world::drive::{CarSim, STEP};
 
@@ -12,11 +12,6 @@ use crate::scenes::world::drive::{CarSim, STEP};
 const EYE: Vec3 = Vec3::new(0.0, 0.5, 0.0);
 /// A hit this close to the far end is the target itself, not an obstacle.
 const SIGHT_SLACK: f32 = 0.05;
-
-/// Horn volume for a hit this strong (N s) and above: full. Weaker hits play quieter, down to a third.
-const HORN_FULL_IMPULSE: f32 = 10_000.0;
-/// Near-miss whoosh volume (design value; the original's level is **[unconfirmed]**).
-const NEAR_MISS_VOLUME: f32 = 0.6;
 
 /// One body that can be hit: a car or the trailer it tows.
 struct Part<'a> {
@@ -50,14 +45,15 @@ fn near(a: &CarSim, b: &CarSim) -> bool {
     a.body().position.distance(b.body().position) < a.collision_sweep_radius() + b.collision_sweep_radius()
 }
 
-fn horn_volume(impulse: f32) -> f32 {
-    (impulse / HORN_FULL_IMPULSE).clamp(1.0 / 3.0, 1.0)
+fn planar_relative_speed(a: Vec3, b: Vec3) -> f32 {
+    let velocity = a - b;
+    velocity.x.hypot(velocity.z)
 }
 
 impl TrafficWorld {
     /// Lets the cars hit each other and the player's car (`player`). A tractor and the trailer hitched to it do
     /// not hit each other; a trailer that came loose is a body like any other. Also decides the sounds of the step:
-    /// a horn for each car in a hit, a whoosh for a close pass.
+    /// an authored whoosh for a close pass. Autonomous horns belong to the audio producer.
     pub fn collide(&mut self, mut player: Option<&mut CarSim>) {
         self.hit_timer = (self.hit_timer - STEP).max(0.0);
         for car in &mut self.cars {
@@ -93,7 +89,10 @@ impl TrafficWorld {
                     passes.push(Pass {
                         owner: part.owner,
                         distance,
-                        relative_speed: (player.body().linear_velocity - part.sim.body().linear_velocity).length(),
+                        relative_speed: planar_relative_speed(
+                            player.body().linear_velocity,
+                            part.sim.body().linear_velocity,
+                        ),
                     });
                 }
             }
@@ -112,11 +111,6 @@ impl TrafficWorld {
         }
         drop(parts);
         for hit in &hits {
-            let car = &mut self.cars[hit.owner];
-            if crash_horn(true, car.ready()) {
-                car.sounded(events.cooldown);
-                self.sounds.push(TrafficSound::Horn { index: car.horn as usize, volume: horn_volume(hit.impulse) });
-            }
             if hit.by_player {
                 self.hit_timer = events.hit_memory;
             }
@@ -126,10 +120,24 @@ impl TrafficWorld {
         }
         for pass in passes {
             let car = &mut self.cars[pass.owner];
-            if near_miss(&events, pass.relative_speed, pass.distance, false, car.ready()) {
+            if pass.relative_speed > 10.0 && pass.distance < 10.0 && car.ready() {
                 car.sounded(events.cooldown);
-                self.sounds.push(TrafficSound::NearMiss { volume: NEAR_MISS_VOLUME });
+                self.sounds.push(TrafficSound::NearMiss {
+                    emitter: car.audio_emitter().id,
+                    relative_speed: pass.relative_speed,
+                });
             }
+        }
+        if let Some(player) = player.as_deref() {
+            let body = player.body();
+            use crate::scenes::world::space;
+            self.sounds.push(TrafficSound::Frame(TrafficFrame {
+                dt: STEP,
+                listener_position: space::to_render(body.position.to_array()),
+                listener_forward: space::to_render((body.orientation * Vec3::Z).to_array()),
+                listener_velocity: space::to_render(body.linear_velocity.to_array()),
+                emitters: self.cars.iter().map(|car| car.audio_emitter()).collect(),
+            }));
         }
         self.player_speed = player.as_deref().map_or(0.0, |p| p.body().linear_velocity.length());
         self.player_position = player.as_deref().map(|p| p.body().position);

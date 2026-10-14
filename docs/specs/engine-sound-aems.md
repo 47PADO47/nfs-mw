@@ -1,3 +1,8 @@
+> Current power-effect integration supersedes the historical raw sweetener/whine
+> route below: see [car-audio-power-effects.md](car-audio-power-effects.md).
+> Current spatial/environment wiring is described in
+> [car-audio-environment.md](car-audio-environment.md).
+
 # Car sound through AEMS: the sample layer of the engine, the sputters and the sweeteners
 
 Which AEMS classes the car sound creates, what it feeds them every update and what the graphs then do. The
