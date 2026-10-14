@@ -1,58 +1,63 @@
 # World map (M)
 
-The full-screen map the player opens from free roam with M. Epic E5. Status: the pure state is built and tested
-(`crates/nfsmw/src/frontend/world_map/`); the screen, the picture and the GPS route are not.
+The full-screen map the player opens from free roam with M. Epic E5. Status: M opens the map, which zooms, pans,
+filters, lists and attaches the cursor to blips. Activating GPS is a stub. The package's names are in
+`docs/provenance/world-map-screen.md`.
 
 ## Keys
 
-- **M** opens and closes the world map (`Action::Map`, `input/bindings.rs`). Before this change M was the radio's
-  pause key. The radio now pauses and resumes on **N** (`Action::RadioToggle`, `audio/radio/input.rs`); `.` and `,`
-  are still next and previous. The change is the only rebind: the media keys and the right stick are unchanged.
-- The original M key binding (VK 0x4D) is not reversed here. The radio's M was this port's choice, not a reading of
-  the executable, so moving it is not a fidelity change to a verified binding.
+- **M** opens the map from free roam and closes it again (`Action::Map`, `input/bindings.rs`). Before this, M was the
+  radio's pause key. The radio now pauses and resumes on **N** (`Action::RadioToggle`); `.` and `,` are still next
+  and previous. The media keys and the right stick are unchanged.
+- In the map: **scroll** (or the pad's D-pad up and down) zooms; **Z** is Zoom All (the whole picture); a **drag** (the
+  mouse's orbit drag, or the right stick) pans; **A / D** or the arrows change the tab; **Enter** or a **left click**
+  on a blip asks "Activate GPS?", and a second Enter confirms; **right click** asks the same question; **Esc** or
+  **M** cancels the question, or closes the map.
 
-## Layout (from the first reference screenshot)
+## Layout
 
-- The full picture fills the screen on the left. The right side has a **LOCATIONS** tab with a legend (Shop, Safe
-  House, Car Lot), a **Toggle Icon Visibility** control, an **Activate GPS** control, **Zoom All** and **Back**.
-- The filter tabs cycle the blip type. The map opens on **Locations**. The other tab is **Races** (the six race
-  styles of `hud/blip_styles.rs`).
-- The right-side list shows every blip of the selected type.
+The picture is a square on the left. On the right, a list of every blip of the selected type, with each one's name
+and distance. The attached blip is highlighted in the list and has a card under the picture with its name and
+distance. The title is WORLD MAP; the hints are along the bottom. The look follows the first reference screenshot,
+drawn with egui, not with the FEng screen (below).
 
-## Behaviour (implemented in `world_map/`)
+## Behaviour (`frontend/world_map/`)
 
-- **Filter** (`filter.rs`): `Filter::Locations` (auto shop, safe house, car lot) and `Filter::Races` (the six race
-  styles). `next` and `previous` wrap. The blip colours and icons are the HUD's own styles, by name.
-- **Camera** (`camera.rs`): zoom is 1 for "Zoom All" (the whole picture) up to `MAX_ZOOM` (8). Each scroll line
-  multiplies the zoom by 1.25. The view can never leave the picture: zooming out to 1 recentres, and a pan is
-  clamped to the picture's edges. Pan is in view units, so a drag moves the picture with the pointer.
-- **Attach** (`pick.rs`, `session.rs`): the cursor attaches to the nearest blip of the current filter within
-  `PICK_RADIUS` (0.06 of a view width). A blip of another filter is never attached, even when nearer. Nothing is
-  attached outside the radius. A frame with no cursor (a key press, or the pointer outside the map) keeps the current
-  attachment, so Enter works from the keyboard; the next hover picks again.
-- **GPS prompt** (`session.rs`): Enter or right click, with a blip attached, opens the prompt. Enter while the prompt
-  is open gives `Outcome::ActivateGps(index)`, and the caller closes the map. Back cancels the prompt; back with no
-  prompt closes the map. The attachment is frozen while the prompt is open, so it names the blip it asked about.
-- **Tab switch** drops the prompt and the attachment.
-- **Distance**: straight-line metres from the player to the attached blip (`distance_metres`), both in render space.
+- **Filter** (`filter.rs`): `Locations` (auto shop, safe house, car lot; the default) and `Races` (the six race
+  styles). `next` and `previous` wrap.
+- **Camera** (`camera.rs`): zoom 1 is Zoom All; each scroll line multiplies it by 1.25, up to 8. The view can never
+  leave the picture. Pan is clamped to the picture's edges.
+- **Attach** (`pick.rs`, `session.rs`): the cursor attaches to the nearest blip of the current filter within 0.06 of
+  the picture's width. A frame with no cursor (a key press) keeps the attachment. The prompt keeps its blip even when
+  the cursor moves away.
+- **Blips** (`overlay.rs`): read from the world's HUD blips when the map opens, placed on the picture with the
+  minimap's city calibration (`nfsmw_data::minimap::open_city_calibration`). The world is frozen while the map is
+  open, and a paused scene reports no blips, so they are read before the freeze.
+- **Icons and colours** (`control.rs`): the package's own `Minimap_Icon_*` textures; the interiors take the HUD's
+  tints (auto shop yellow, car lot blue, safe house green). The races have no tint.
+- **Picture** (`overlay.rs`, `view.rs`): `TRACK_MAP.tga`, the world-map screen's own texture (resource 17 of
+  `WorldMapMain.fng`), so `TrackMaps.bin` is not needed for the base picture. Zoom and pan are a UV crop of it.
+- **Flow** (`control.rs`, `flow.rs` `Stage::Map`, `plugin.rs`): M in free roam sets the stage to Map and pauses the
+  world; the map's input runs each frame and its outcome closes the map and resumes free roam.
+- **Drawing** (`devtools/mod.rs` egui pass calls `world_map::show`): the same pass that draws the garage and the
+  radio card.
 
 ## GPS (stub)
 
 `activate_gps` (`world_map/gps.rs`) logs and does nothing. The route is the pathfinder's GPS target
 (`docs/specs/ai-pathfinder.md` section 7), not yet built. The map closes after the call either way.
 
-## Not built, and why
+## Not done, and why
 
-- **The screen.** `WorldMapMain.fng` is not dumped, so its object, tab, list and cursor names are unknown. The
-  screen logic, its catalog entry and its flow stage (a `Stage` beside `Paused` in `frontend/flow.rs`) are the next
-  step. Until then `world_map` is `#[allow(dead_code)]` and nothing opens it.
-- **The picture.** `TrackMaps.bin` (`docs/formats/world.md`, a 63.5 MB TPK, the world-map screen's picture) has no
-  reader. `blackbox-tpk` is the existing TPK reader; a `&[u8]` loader for the picture belongs there or in a new lib,
-  with no NFS:MW names. Its layout is not reversed in this change.
-- **Reversal of the screen's zoom, pan, filter and list behaviour** from the executable (Ghidra, base 0x400000) is
-  not done. The behaviour above is the design from the reference screenshot, not a verified reading.
-
-## Projection
-
-A blip's place on the picture is `blackbox_minimap::Calibration::to_map` of its world position. The picture is square,
-0..1 on both axes. The HUD's minimap uses the same projection (`docs/specs/hud-minimap.md` section 3).
+- **The FEng screen is not opened.** `WorldMapMain.fng` is dumped and its names are in the provenance note. Its
+  blip pools are fixed off-screen objects, and its list and info rows are off-screen too, so the port draws the map
+  with egui (the same pass as the garage). A future FEng path would drive those objects; `frontend/ids.rs` and the
+  catalog are not changed.
+- **The list names.** A blip has no name in the data, so the list shows its style's name ("Auto shop", "Sprint"),
+  not the place's.
+- **The race icons.** The race styles use the generic event icon, except the speed trap and the circuit. The
+  per-type race icon pools are not mapped.
+- **The placement.** The picture's place and the blip positions use the city calibration the minimap uses. This is
+  not checked against a rendered frame.
+- **Behaviour not reversed.** The zoom, pan, filter and list behaviour is from the first reference screenshot, not
+  from the executable (Ghidra).
