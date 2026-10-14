@@ -51,7 +51,8 @@ impl WorldScene {
         if self.drive.is_some() {
             let (collision, _) = self.residency.world_parts();
             if let Some(traffic) = self.traffic.as_mut() {
-                traffic.update_sight(&super::drive::walls::world_cast(collision));
+                let cast = super::drive::sight::sight_cast(collision);
+                traffic.update_sight(steps as f32 * STEP, &cast);
             }
             ai::speeding_pursuit(self, renderer);
             // The helicopter's sight asks the world whether the line to the player is clear.

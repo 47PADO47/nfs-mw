@@ -476,4 +476,10 @@ impl AiCar {
     pub fn physics_position(&self) -> Vec3 {
         Vec3::from(space::to_physics(self.current.position))
     }
+
+    /// Which way the car faces, in physics space (unit length): the axis of its rear cone of sight.
+    pub fn physics_forward(&self) -> Vec3 {
+        let forward = Vec3::from(space::to_physics(self.sim.driver_view().forward));
+        forward.try_normalize().unwrap_or(Vec3::Z)
+    }
 }
