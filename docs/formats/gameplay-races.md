@@ -219,7 +219,7 @@ Zones are sphere triggers, not boxes. Each zone collection inherits `zonetrigger
 |---|---|---|---|
 | `menu_gate_customshop` | `customshop` (the auto shop) | `zone_customshop_1` .. `_8` (8) | `ZoneList` names all 8 |
 | `menu_gate_safehouse` | `safehouse` | `zone_safehouse_1`, `_2`, `_4`, `_5` (4) | no `_3` in the install; `ZoneList` names 4 |
-| `menu_gate_carlot` | `carlot` | `zone_carlot_1` .. `_3` | not read by the reader (car lot, not in scope) |
+| `menu_gate_carlot` | `carlot` | `zone_carlot_1` .. `_3` (3) | read as `ActivityKind::CarLot`; a map blip only (its zones are not entered yet) |
 
 Per zone:
 

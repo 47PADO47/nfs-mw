@@ -51,14 +51,14 @@ pub struct EntryZones {
 impl EntryZones {
     /// The zones of the loaded gameplay data: the auto shops and safe houses, then the race starts.
     pub fn from_data(data: &GameplayData) -> Self {
-        let interiors = data.markers.iter().map(|m| Zone {
-            kind: match m.kind {
+        // Car lots are not entered yet: their zones are not entry zones (the stub is for shops and safe houses).
+        let interiors = data.markers.iter().filter_map(|m| {
+            let kind = match m.kind {
                 ActivityKind::AutoShop => ZoneKind::AutoShop,
                 ActivityKind::SafeHouse => ZoneKind::SafeHouse,
-            },
-            name: m.name.clone(),
-            centre: render(m.position),
-            radius: m.radius,
+                ActivityKind::CarLot => return None,
+            };
+            Some(Zone { kind, name: m.name.clone(), centre: render(m.position), radius: m.radius })
         });
         let races = data.races.iter().filter_map(|race| race.start.map(|start| (race, start))).map(|(race, start)| {
             Zone { kind: ZoneKind::Race, name: race.name.clone(), centre: render(start.position), radius: RACE_RADIUS }
