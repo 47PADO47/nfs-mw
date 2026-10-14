@@ -229,23 +229,6 @@ fn the_main_menu_starts_free_roam_from_career_and_quick_race() {
 }
 
 #[test]
-fn every_icon_of_the_main_menu_can_be_selected_but_only_the_working_ones_do_anything() {
-    let Some(mut h) = Harness::open(screen::MAIN_MENU, Args::default()) else { return };
-    h.wait(1.0);
-    h.press(pad::RIGHT);
-    h.press(pad::ACCEPT);
-    h.wait(1.5);
-    assert!(h.commands.is_empty(), "the challenge series do nothing yet: {:?}", h.commands);
-    assert_eq!(h.screens.top(), Some(screen::MAIN_MENU));
-    for _ in 0..4 {
-        h.press(pad::RIGHT);
-    }
-    h.press(pad::ACCEPT);
-    h.wait(1.5);
-    assert_eq!(h.screens.top(), Some(screen::MAIN_MENU_SUB), "five steps right is Options");
-}
-
-#[test]
 fn the_quit_button_of_the_main_menu_quits() {
     let Some(mut h) = Harness::open(screen::MAIN_MENU, Args::default()) else { return };
     h.wait(1.0);
@@ -267,22 +250,6 @@ fn a_click_focuses_the_visible_button_under_the_pointer() {
     assert!(h.screens.focus_button_at(centre), "the centre of a visible button is on it");
     assert_eq!(h.screens.focused_button(), Some(button));
     assert!(!h.screens.focus_button_at(glam::Vec2::new(-600.0, 0.0)), "far off every button");
-}
-
-#[test]
-fn options_and_back_move_between_the_main_menu_and_the_categories() {
-    let Some(mut h) = Harness::open(screen::MAIN_MENU, Args::default()) else { return };
-    h.wait(1.0);
-    for _ in 0..5 {
-        h.press(pad::RIGHT);
-    }
-    h.press(pad::ACCEPT);
-    h.wait(1.5);
-    assert_eq!(h.screens.top(), Some(screen::MAIN_MENU_SUB));
-    h.wait(1.0);
-    h.press(pad::BACK);
-    h.wait(1.5);
-    assert_eq!(h.screens.top(), Some(screen::MAIN_MENU), "{:?}", h.commands);
 }
 
 #[test]

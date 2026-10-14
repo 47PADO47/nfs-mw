@@ -100,6 +100,12 @@ impl Scroll {
         self.t = 0.0;
     }
 
+    /// Moves the value by `delta`, the target with it, so a scroll in motion keeps its path.
+    pub fn shift(&mut self, delta: f32) {
+        self.from += delta;
+        self.to += delta;
+    }
+
     pub fn update(&mut self, dt: f32) {
         self.t = (self.t + dt / SCROLL_SECONDS).min(1.0);
     }

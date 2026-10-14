@@ -1,9 +1,13 @@
-//! Installed icon rows must shrink during exit, including the embedded Controls icon.
+//! Installed icon rows must shrink during exit, including the embedded Controls icon. The menus' lists come from
+//! `icon_items.rs`, so the counts and presses below are read from there rather than written out.
 
 use blackbox_feng::{NodeKind, fe_hash_upper};
 use glam::Vec2;
 
 use super::*;
+use crate::frontend::icon_items::{Id, icons};
+use crate::frontend::icon_menu::Kind;
+use crate::frontend::ids;
 
 #[derive(Clone, Copy, Debug)]
 struct Pose {
@@ -21,6 +25,12 @@ fn row(h: &Harness, count: usize) -> Vec<Pose> {
             Pose { size: n.size.abs().truncate(), center: n.local_position.truncate(), alpha: n.world_colour[3] }
         })
         .collect()
+}
+
+/// The number of icons in a menu, and how many right presses reach `id` from its first icon.
+fn reach(kind: Kind, id: Id) -> (usize, usize) {
+    let list = icons(kind);
+    (list.len(), list.iter().position(|i| i.id == id).expect("the icon is in the menu"))
 }
 
 fn assert_exit(h: &mut Harness, count: usize, button: u32) {
@@ -56,18 +66,25 @@ fn assert_exit(h: &mut Harness, count: usize, button: u32) {
 #[test]
 #[ignore = "requires installed menu packages; set NFSMW_GAME_DIR"]
 fn all_icon_menus_shrink_on_native_accept_back_and_start() {
-    for (name, pause, options, count, button, steps) in [
-        (screen::MAIN_MENU, false, false, 5, pad::ACCEPT, 4),
-        (screen::MAIN_MENU_SUB, false, true, 4, pad::ACCEPT, 2),
-        (screen::MAIN_MENU_SUB, false, true, 4, pad::BACK, 0),
-        (screen::PAUSE_MENU, true, false, 3, pad::ACCEPT, 1),
-        (screen::PAUSE_MENU, true, false, 3, pad::BACK, 0),
-        (screen::PAUSE_MENU, true, false, 3, pad::START, 0),
-        (screen::PAUSE_MENU, true, true, 4, pad::ACCEPT, 3),
-        (screen::PAUSE_MENU, true, true, 4, pad::BACK, 0),
-        (screen::PAUSE_MENU, true, true, 4, pad::START, 0),
+    let main = Kind::Main;
+    let cats = Kind::Categories { pause: false };
+    let pause_cats = Kind::Categories { pause: true };
+    let sub = Args { options: true, ..Args::default() };
+    let pause = Args { pause: true, ..Args::default() };
+    let pause_sub = Args { pause: true, options: true, ..Args::default() };
+    for (name, args, kind, id, button) in [
+        (screen::MAIN_MENU, Args::default(), main, Id::QuickRace, pad::ACCEPT),
+        (screen::MAIN_MENU_SUB, sub, cats, Id::Category(Category::Gameplay), pad::ACCEPT),
+        (screen::MAIN_MENU_SUB, sub, cats, Id::Category(Category::Audio), pad::BACK),
+        (screen::PAUSE_MENU, pause, Kind::Pause, Id::Options, pad::ACCEPT),
+        (screen::PAUSE_MENU, pause, Kind::Pause, Id::Resume, pad::BACK),
+        (screen::PAUSE_MENU, pause, Kind::Pause, Id::Resume, pad::START),
+        (screen::PAUSE_MENU, pause_sub, pause_cats, Id::Controls, pad::ACCEPT),
+        (screen::PAUSE_MENU, pause_sub, pause_cats, Id::Category(Category::Audio), pad::BACK),
+        (screen::PAUSE_MENU, pause_sub, pause_cats, Id::Category(Category::Audio), pad::START),
     ] {
-        let mut h = Harness::open(name, Args { pause, options, ..Args::default() }).unwrap();
+        let (count, steps) = reach(kind, id);
+        let mut h = Harness::open(name, args).unwrap();
         h.wait(1.0);
         for _ in 0..steps {
             h.press(pad::RIGHT);
@@ -79,21 +96,24 @@ fn all_icon_menus_shrink_on_native_accept_back_and_start() {
 #[test]
 #[ignore = "requires installed menu packages; set NFSMW_GAME_DIR"]
 fn the_controller_icon_grows_on_return_and_shares_the_row_exit_factor() {
+    let (count, control) = reach(Kind::Categories { pause: true }, Id::ControlOptions);
     let mut h = Harness::open(screen::PAUSE_MENU, Args { pause: true, options: true, ..Args::default() }).unwrap();
-    assert!(row(&h, 4).iter().all(|p| p.size.x == 0.0 && p.alpha == 0));
+    assert!(row(&h, count).iter().all(|p| p.size.x == 0.0 && p.alpha == 0));
     h.wait(1.0);
-    for _ in 0..3 {
+    for _ in 0..control {
         h.press(pad::RIGHT);
     }
     h.wait(0.5);
     let tree = h.screens.trees().pop().unwrap();
-    let controller = tree.nodes.iter().find(|n| n.name_hash == fe_hash_upper("OPTION_6")).unwrap();
+    // The strip's first icon is the third object (`OPTION_3`), as in `row`.
+    let controller = tree.nodes.iter().find(|n| n.name_hash == fe_hash_upper(&format!("OPTION_{}", 3 + control)));
+    let controller = controller.unwrap();
     assert!(matches!(controller.kind, NodeKind::Image { texture: crate::ui::input_icons::ATLAS, .. }));
-    let full = row(&h, 4);
+    let full = row(&h, count);
     h.run(pad::ACCEPT, 1);
     h.run(0, 3);
-    let current = row(&h, 4);
-    let factor = current[3].size.x / full[3].size.x;
+    let current = row(&h, count);
+    let factor = current[control].size.x / full[control].size.x;
     assert!(factor > 0.0 && factor < 1.0);
     for (p, idle) in current.iter().zip(&full).filter(|(_, idle)| idle.size.x > 1.0) {
         assert!((p.size.x / idle.size.x - factor).abs() < 0.001);
@@ -109,10 +129,97 @@ fn the_controller_icon_grows_on_return_and_shares_the_row_exit_factor() {
         }
     }
     assert_eq!(h.screens.top(), Some(screen::PAUSE_MENU));
-    assert!(row(&h, 4).iter().all(|p| p.size.x == 0.0 && p.alpha == 0), "return must start at zero");
+    assert!(row(&h, count).iter().all(|p| p.size.x == 0.0 && p.alpha == 0), "return must start at zero");
     h.run(0, 3);
-    let small = row(&h, 4)[3];
+    let small = row(&h, count)[control];
     assert!(small.size.x > 0.0 && small.size.x < 60.0);
     h.wait(1.0);
-    assert!(row(&h, 4)[3].size.x > 60.0, "remembered Controls selection must finish growing");
+    assert!(row(&h, count)[control].size.x > 60.0, "remembered Control Options selection must finish growing");
+}
+
+/// The main menu has eight icons over eleven package objects, so its row is windowed: the selected icon is drawn
+/// once, on the cursor, from whichever object the window put it on.
+#[test]
+#[ignore = "requires installed menu packages; set NFSMW_GAME_DIR"]
+fn the_main_menu_windows_its_icons_over_its_objects() {
+    let (_, options) = reach(Kind::Main, Id::Options);
+    let mut h = Harness::open(screen::MAIN_MENU, Args::default()).unwrap();
+    h.wait(1.0);
+    for _ in 0..options {
+        h.press(pad::RIGHT);
+    }
+    h.wait(0.5);
+    let tree = h.screens.trees().pop().unwrap();
+    let node = |hash: u32| tree.nodes.iter().find(|n| n.name_hash == hash).unwrap();
+    let master_x = node(ids::OPTION_MASTER).local_position.x;
+    let objects: Vec<_> = (1..=11).map(|i| node(fe_hash_upper(&format!("OPTION_{i}")))).collect();
+    let drawn: Vec<_> = objects
+        .iter()
+        .filter(|n| matches!(n.kind, NodeKind::Image { texture, .. } if texture == 0x3058_FE37))
+        .collect();
+    assert_eq!(drawn.len(), 1, "the Options icon is on exactly one object");
+    assert!((drawn[0].local_position.x - master_x).abs() < 1.0, "the selected icon sits on the cursor");
+}
+
+/// Online is listed in the main menu but has no screen: it is dimmed, and it is drawn on the cursor when selected.
+#[test]
+#[ignore = "requires installed menu packages; set NFSMW_GAME_DIR"]
+fn the_main_menu_lists_online_dimmed() {
+    let (_, online) = reach(Kind::Main, Id::Online);
+    let mut h = Harness::open(screen::MAIN_MENU, Args::default()).unwrap();
+    h.wait(1.0);
+    for _ in 0..online {
+        h.press(pad::RIGHT);
+    }
+    h.wait(0.5);
+    let tree = h.screens.trees().pop().unwrap();
+    let drawn = tree
+        .nodes
+        .iter()
+        .find(|n| matches!(n.kind, NodeKind::Image { texture: 0x5A5E_5137, .. }))
+        .expect("the Online icon is on a package object");
+    assert!(drawn.world_colour[3] > 0 && drawn.world_colour[3] <= 150, "dimmed, but drawn");
+    let master = tree.nodes.iter().find(|n| n.name_hash == ids::OPTION_MASTER).unwrap();
+    assert!((drawn.local_position.x - master.local_position.x).abs() < 1.0);
+}
+
+/// The main menu's Options icon, as the number of right presses from its first icon.
+fn main_options_steps() -> usize {
+    icons(Kind::Main).iter().position(|i| i.id == Id::Options).expect("the main menu has Options")
+}
+
+#[test]
+#[ignore = "requires installed menu packages; set NFSMW_GAME_DIR"]
+fn every_icon_of_the_main_menu_can_be_selected_but_only_the_working_ones_do_anything() {
+    let Some(mut h) = Harness::open(screen::MAIN_MENU, Args::default()) else { return };
+    h.wait(1.0);
+    h.press(pad::RIGHT);
+    h.press(pad::ACCEPT);
+    h.wait(1.5);
+    assert!(h.commands.is_empty(), "the challenge series do nothing yet: {:?}", h.commands);
+    assert_eq!(h.screens.top(), Some(screen::MAIN_MENU));
+    // Online and LAN come before Options, and are greyed out too: the row is walked through them.
+    for _ in 1..main_options_steps() {
+        h.press(pad::RIGHT);
+    }
+    h.press(pad::ACCEPT);
+    h.wait(1.5);
+    assert_eq!(h.screens.top(), Some(screen::MAIN_MENU_SUB), "the steps right reach Options");
+}
+
+#[test]
+#[ignore = "requires installed menu packages; set NFSMW_GAME_DIR"]
+fn options_and_back_move_between_the_main_menu_and_the_categories() {
+    let Some(mut h) = Harness::open(screen::MAIN_MENU, Args::default()) else { return };
+    h.wait(1.0);
+    for _ in 0..main_options_steps() {
+        h.press(pad::RIGHT);
+    }
+    h.press(pad::ACCEPT);
+    h.wait(1.5);
+    assert_eq!(h.screens.top(), Some(screen::MAIN_MENU_SUB));
+    h.wait(1.0);
+    h.press(pad::BACK);
+    h.wait(1.5);
+    assert_eq!(h.screens.top(), Some(screen::MAIN_MENU), "{:?}", h.commands);
 }
