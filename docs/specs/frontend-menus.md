@@ -293,8 +293,39 @@ same for any window wider than 1.4:1 (the 4:3 package is for the rest), so the a
 bars at its sides. A mouse click counts as accept on the boot movies and the title screen. The memory-card screens between splash and main menu (`MC_Main_GC.fng`) do not apply on the PC.
 
 **Free roam [decomp, ours].** The career starts in free roam in the original; this rewrite has no career, so
-Career and Quick Race both start free roam with the stock car. Free roam starts behind the loading screen
+Career starts free roam with the stock car. Free roam starts behind the loading screen
 (`WS_Loading.fng`) and shows the world only once it is ready; see [loading-screen.md](loading-screen.md).
+
+**Quick Race [decomp, ours].** Quick Race no longer starts free roam: it opens the track list, then the track's
+options (section 5). Nothing starts a race yet.
+
+## 5. Quick Race screens
+
+Packages `Track_Select.fng` (classes `UIQRTrackSelect`) and `Track_Options.fng` (`UIQRTrackOptions`), both in
+`FRONTEND/FrontB.lzc`. Logic: `track_select.rs` and `track_options.rs`; routing from the main menu in
+`icon_menu.rs` (`Pending::Pressed(Id::QuickRace)` switches to `Track_Select.fng`).
+
+- **Track_Select** (117 objects, no buttons of its own). Accept (`PAD_ACCEPT` `0x406415E3`, sent to the game at
+  once) runs the event handler's forward script (`0xDE6EFF34` on the `Event Handler` object, hash `0x47FF4E7C`):
+  it sends `EXIT_COMPLETE` after 600 ticks, and then the screen opens `Track_Options.fng`. Back (`PAD_BACK`
+  `0x911AB364`, reaches the game after the package's own 600-tick animation) returns to the main menu.
+  Left and right (`0x9120409E`, `0xB5971BF1`) reach the game and do nothing: the track list is not populated.
+  Group names are hashes only: the accept group is `0x73DCB662` (label `Accepteren`), the back group is
+  `0xC0A32823` (label `Back`).
+- **Track_Options** (104 objects, 9 buttons). Its event handler is the object the dump names
+  `Options_Event_Handler` (hash `0x6B7A94E9`; its `FORWARD` script `0xDE6EFF34` plays the accept animation and
+  sends `PAD_ACCEPT` and `EXIT_COMPLETE` to the game after 300 ticks). Groups: `Back` (`0xC0A32823`,
+  `Back`, sends `PAD_BACK` at once), accept (`0x73DCB662`, `Accepteren`), and `Defaults` (`0xD6463100`,
+  `Defaults`, sends `0xC519BFC4`). The package's own back script (`0x1335F0`, 300 ticks) sends `PAD_BACK` to
+  the game at its end, so the screen returns to Track_Select at once.
+  **Accept starts nothing**: the logic ignores `PAD_ACCEPT` and `EXIT_COMPLETE`. The race needs the race engine.
+- Track list and option rows: not populated. The original's track source (`UIQRTrackSelect`, the track table
+  behind `cFrontendDatabase`) was not read. Track names in the list would be language labels once it is found.
+
+Message hashes were checked against `bStringHash` of the upper-cased names (`PAD_BACK`, `PAD_ACCEPT`,
+`LEAVE_SCREEN`, `EXIT_COMPLETE`, `MOUSE_LEFT_RELEASED`, `PAD_LEFT`, `PAD_RIGHT`, `PAD_UP`, `PAD_DOWN`).
+Object names are not recovered (they are only known as hashes; the names above come from the string texts of
+the dump, not the object names).
 
 ## How to check it
 

@@ -41,7 +41,7 @@ Stage::Boot(..) ──► Stage::Menus ──► Stage::Playing ⇄ Stage::Pause
 | `Boot` | Queue of `Boot` items: `ealogo` movie, `psa` movie (has a `bypass` flag), then the `Splash` screen | Movies play through the movie scene (`movie/`, `blackbox-movie`). |
 | `Menus` | Main menu (`IconMenu`), option categories, `WidgetMenu` rows | Run as the game's own FEng screens. |
 | `Loading` | The original `WS_Loading.fng` screen over an empty window while free roam streams in | The world is built and updated but hidden and silent until `Scene::ready()`; then `Playing`. See [specs/loading-screen.md](specs/loading-screen.md). |
-| `Playing` | Free roam: the world scene, with the HUD | Career and Quick Race both go here today. |
+| `Playing` | Free roam: the world scene, with the HUD | Career goes here today. |
 | `Paused` | Pause menu over the world | The world is wrapped in `Pausable`, so it freezes. Escape or Start opens it. |
 
 Your sequence (video, splash, main menu, world) is exactly `Boot` → `Menus` → `Playing`.
@@ -144,5 +144,6 @@ nfsmw play --skip-boot                                       # the flow from the
 ## Open items
 
 - Confirm in code that the Bevy renderer skips the HUD and menu layers (documented, not checked).
-- Career and Quick Race still go to free roam.
+- Career still goes to free roam. Quick Race opens the track list (`Track_Select.fng`) and then the track options
+  (`Track_Options.fng`); accepting there starts nothing yet, since there is no race engine.
 - Full list of unrun screens: [specs/frontend-menus.md](specs/frontend-menus.md).
