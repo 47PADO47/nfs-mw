@@ -62,6 +62,7 @@ fn q15(value: f32) -> i32 {
 }
 
 pub fn publish(m: &mut Mixer, f: &Frame<'_>, view: &crate::audio::AudioView) {
+    m.override_event(0, 0, 2, view.speedbreaker_pitch);
     let (input, engine) = (f.input, f.engine);
     physics(m, input, engine, view);
     set(m, controller::ENGINE, 0, ENGINE_UPGRADE_LEVEL);

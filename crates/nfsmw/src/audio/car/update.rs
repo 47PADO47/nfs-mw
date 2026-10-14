@@ -4,6 +4,7 @@ use super::*;
 impl Audio {
     pub(super) fn advance_car(&mut self, car: &mut CarAudio, frame: &DriveFrame<'_>) {
         let view = super::super::AudioView {
+            speedbreaker_pitch: self.speedbreaker.output(),
             environment: frame.telemetry.environment.unwrap_or(frame.view.environment),
             ..*frame.view
         };

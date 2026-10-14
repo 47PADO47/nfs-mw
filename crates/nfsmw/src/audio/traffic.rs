@@ -56,7 +56,8 @@ pub enum TrafficSound {
 }
 
 impl Audio {
-    pub fn update_traffic(&mut self, sounds: Vec<TrafficSound>, view: AudioView) {
+    pub fn update_traffic(&mut self, sounds: Vec<TrafficSound>, mut view: AudioView) {
+        view.speedbreaker_pitch = self.speedbreaker.output();
         let mut traffic = std::mem::take(&mut self.traffic);
         traffic.update(self, sounds, view);
         self.traffic = traffic;

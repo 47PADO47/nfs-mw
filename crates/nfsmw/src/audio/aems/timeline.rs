@@ -5,7 +5,7 @@ const STEP: f64 = 1.0 / 60.0;
 const EPSILON: f64 = 1e-7;
 
 #[derive(Default)]
-pub(super) struct Timeline {
+pub(in crate::audio) struct Timeline {
     submitted: f64,
     consumed: u64,
     segments: VecDeque<(f64, Vec<i32>)>,

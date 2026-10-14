@@ -10,6 +10,8 @@ pub struct AudioView {
     pub camera_state: u8,
     pub view_value: i32,
     pub environment: super::environment::EnvironmentContext,
+    pub speedbreaker: bool,
+    pub(crate) speedbreaker_pitch: Option<blackbox_mixmap::EventOutput>,
 }
 
 impl Default for AudioView {
@@ -22,6 +24,8 @@ impl Default for AudioView {
             camera_state: 0,
             view_value: 32767,
             environment: Default::default(),
+            speedbreaker: false,
+            speedbreaker_pitch: None,
         }
     }
 }

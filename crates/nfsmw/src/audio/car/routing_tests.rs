@@ -4,12 +4,22 @@ use super::*;
 #[test]
 #[ignore = "requires installed car banks; set NFSMW_GAME_DIR"]
 fn installed_ordered_controller_trace_has_no_duplicate_power_fallbacks() {
+    replay(false);
+}
+
+#[test]
+#[ignore = "requires installed car banks; set NFSMW_GAME_DIR"]
+fn installed_speedbreaker_reaches_authored_nitrous_voices_without_duplicate_pitch() {
+    replay(true);
+}
+
+fn replay(speedbreaker: bool) {
     let install = std::env::var_os("NFSMW_GAME_DIR").expect("installed trace replay requires NFSMW_GAME_DIR");
     let evidence = std::env::var_os("NFSMW_AUDIO_EVIDENCE_DIR").map(std::path::PathBuf::from);
     for fps in [5usize, 60, 144, 360] {
         let path = evidence.as_ref().map_or_else(
-            || std::env::temp_dir().join(format!("nfsmw-routing-{}-{fps}.jsonl", std::process::id())),
-            |dir| dir.join(format!("routing-{fps}.jsonl")),
+            || std::env::temp_dir().join(format!("nfsmw-routing-{}-{fps}-{speedbreaker}.jsonl", std::process::id())),
+            |dir| dir.join(format!("routing-{fps}-{speedbreaker}.jsonl")),
         );
         let dir = game_install::GameDir::open(std::path::PathBuf::from(&install)).unwrap();
         let mut audio = Audio::replay(dir, 48000);
@@ -58,7 +68,10 @@ fn installed_ordered_controller_trace_has_no_duplicate_power_fallbacks() {
                 scrape: None,
                 surface: 0,
                 ticks,
-                view: Default::default(),
+                view: crate::audio::AudioView {
+                    speedbreaker: speedbreaker && (fps..fps * 4).contains(&frame),
+                    ..Default::default()
+                },
             };
             audio.drive_car(Some(&state), 1.0 / fps as f32);
             audio.trace.advance(1.0 / fps as f32);
@@ -71,6 +84,28 @@ fn installed_ordered_controller_trace_has_no_duplicate_power_fallbacks() {
         audio.drive_car(None, 0.0);
         audio.trace.stop();
         let trace = std::fs::read_to_string(&path).unwrap();
+        if speedbreaker {
+            assert!(trace.contains("\"class\":\"SPEEDBREAKER_AUDIO\""));
+            assert!(
+                trace
+                    .lines()
+                    .filter(
+                        |line| line.contains("\"class\":\"FX_NITROUS\"") && line.contains("\"event\":\"module_tick\"")
+                    )
+                    .filter_map(|line| line
+                        .split("\"params\":[")
+                        .nth(1)?
+                        .split(']')
+                        .next()?
+                        .split(',')
+                        .nth(4)?
+                        .trim()
+                        .parse::<i32>()
+                        .ok())
+                    .any(|pitch| pitch > 0 && pitch < 4096),
+                "authored pitch must reach the module at {fps} FPS"
+            );
+        }
         for class in ["FX_NITROUS", "FX_PURGE", "FX_SHIFTING_01", "CAR_SWTN", "FX_TURBO_01", "CAR_WHINE"] {
             assert!(
                 trace.lines().any(|line| line.contains("\"event\":\"voice_start\"")

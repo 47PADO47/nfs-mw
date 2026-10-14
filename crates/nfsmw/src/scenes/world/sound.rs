@@ -21,6 +21,8 @@ impl WorldScene {
             camera_forward: lens.forward,
             camera_state,
             view_value,
+            speedbreaker: self.sound_speedbreaker_active,
+            speedbreaker_pitch: None,
             environment: self
                 .audio_environment
                 .as_ref()

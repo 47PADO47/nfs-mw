@@ -12,7 +12,7 @@ mod params;
 pub(super) mod soft;
 #[cfg(test)]
 mod tests;
-mod timeline;
+pub(in crate::audio) mod timeline;
 
 use blackbox_aems::{Instance, ModuleBank};
 use blackbox_carsound::EngineOutput;

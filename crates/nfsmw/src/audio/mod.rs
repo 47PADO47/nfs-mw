@@ -18,6 +18,7 @@ mod filter;
 mod replay;
 mod shaped;
 mod spatial;
+mod speedbreaker;
 mod view;
 mod wet;
 pub use view::AudioView;
@@ -94,6 +95,7 @@ pub struct Audio {
     traffic: traffic::TrafficAudio,
     common: common_effects::CommonPlayback,
     wet: wet::Slot,
+    speedbreaker: speedbreaker::Slot,
     dir: GameDir,
     volumes: Volumes,
     /// The bytes of the banks read so far, by path under `SOUND/`.
@@ -170,6 +172,7 @@ impl Audio {
             traffic: traffic::TrafficAudio::default(),
             common: common_effects::CommonPlayback::default(),
             wet: wet::Slot::default(),
+            speedbreaker: speedbreaker::Slot::default(),
             dir,
             volumes,
             banks: HashMap::new(),
