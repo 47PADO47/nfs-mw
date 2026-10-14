@@ -68,6 +68,8 @@ pub struct Audio {
     radio_wanted: bool,
     /// The police dispatch's speech, loaded when first needed.
     speech: speech::SpeechSlot,
+    /// The mid-chase cues the speech reacts to: a sighting lost or regained, the heat jumping.
+    chase_cues: chase::Cues,
     /// The pursuit music, which takes the songs' place while a chase is on.
     interactive: interactive::Interactive,
     /// Bank sounds that could not be loaded, so each is reported once.
@@ -115,6 +117,7 @@ impl Audio {
             radio: radio::RadioSlot::default(),
             radio_wanted: true,
             speech: speech::SpeechSlot::default(),
+            chase_cues: chase::Cues::new(speech::random::Rng::from_clock()),
             interactive: interactive::Interactive::default(),
             missing: HashSet::new(),
             failed: None,

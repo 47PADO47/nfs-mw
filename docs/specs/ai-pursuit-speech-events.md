@@ -324,6 +324,25 @@ the event's parameters. The prefix of a collection name is the game's grouping o
 group is the collection `d_day` (the scripted "D-Day" race, priority 100, interrupt). The event `heatjump` (220) and
 `dispjurisshift` (223) are the radio's reaction to the heat reaching 2, 3, 4 and 5 (speech spec section 6).
 
+## 5. Lines wired to the chase (Rust port)
+
+Checked in `/speed.exe` (Ghidra, base `0x400000`): the collection names are present as strings, `AnytimeEvents_LostVisual`
+at `0x008b1588`, `AnytimeEvents_RegainVisual` at `0x008b156c`, `AnytimeEvents_HeatJump` at `0x008b1354`, `Setup_InitPursuit`
+at `0x008b1c38`. The numeric `SpeechID`s are fields of the attribute database, not code constants, so they are read from the
+install (section 4 above); the names are confirmed in the binary, the numbers in the data.
+
+| Chase edge (`audio/chase/cues.rs`) | Collection | id | Rule in the port |
+|---|---|---|---|
+| chase starts | `setup_initpursuit` | 61 | said once at the start (existing) |
+| cops unseen for 2 s (`NoLOSCommentaryTime`) | `lostvisual` | 106 | once per unseen spell; sight is `intensity >= 1` in the feed |
+| sight regained after a lost | `regainvisual` | 107 | only after a `lostvisual` in the chase |
+| heat rises across 2, 3, 4 or 5, after 5 s of chase | `heatjump` | 220 | coin flip at 50 %; one line per crossing (the radio's heat reaction, section 8 of ai-pursuit-speech.md) |
+
+Deferred, with a TODO in `audio/chase.rs`: roadblock calls and the strategy lines (no roadblock state in the feed), a cop hit
+or rammed (no hit state), the busted line, and the dead-heli or kill lines (their state is built by sibling epics).
+Also not wired: `disppursuitescalation` (70), `dispjurisshift` (223), `intenttoram` (113). The port uses the chase time
+(`PursuitFeed.secs`) for the heat delay, not the original's strategy-focus gate, which the feed does not carry.
+
 ## Open questions
 
 - The `.evt`, `.idx` and `.csi` layouts, and therefore how a sentence function plus its parameters pick the stitched samples,

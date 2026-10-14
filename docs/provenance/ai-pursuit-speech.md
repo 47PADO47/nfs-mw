@@ -13,7 +13,12 @@ Planned module: a `pursuit_speech` layer of milestone 7 that emits speech reques
   on 2026-10-09; the event table in the events spec is a compact summary of those collections (numbers only).
 - **Gaps in the sources:** the sentence-selection data (`.evt`, `.idx`, `.csi` layouts) and the generated sentence functions that map event parameters to
   samples; the road speech id table; the SPAM map used for off-road moments; most of `EAXAirSupport.cpp` and `MiscSpeech.cpp` was only skimmed.
-- **Implemented:** not yet.
+- **Implemented:** partly. The opening line (`setup_initpursuit`), the lost and regained sight (`lostvisual`, `regainvisual`) and
+  the heat jump (`heatjump`) are requested from the chase in `crates/nfsmw/src/audio/chase.rs` and `audio/chase/cues.rs`. Roadblock,
+  cop-hit, busted and kill lines are not (see the TODO in `chase.rs` and events spec section 5). Sight is read from the feed's
+  `intensity` (1 while seen), not a seen flag.
+- **Event names confirmed in `/speed.exe`:** `Setup_InitPursuit`, `AnytimeEvents_LostVisual`, `AnytimeEvents_RegainVisual`,
+  `AnytimeEvents_HeatJump` (Ghidra strings, base `0x400000`).
 - **Checked against the game by:** pending (the spec lists a play-through checklist: opening line, stop branch, assault restart, lost-contact sequence, arrest
   bullhorn, 911 call).
 - **Known differences from the original:** none yet.
