@@ -65,6 +65,17 @@ impl super::super::TrafficWorld {
             .fold(f32::INFINITY, f32::min)
     }
 
+    /// The position (physics space) of the nearest cop whose height matches the player's, the one
+    /// `nearest_matched_cop` measures; `None` with none. The pursuit camera frames it.
+    pub fn nearest_matched_cop_position(&self, at: Vec3) -> Option<Vec3> {
+        self.cars
+            .iter()
+            .filter(|car| car.is_cop())
+            .filter(|car| height_matches(car.avoidable().position.y - at.y, BUST_TUNING.height_gate))
+            .map(|car| car.avoidable().position)
+            .min_by(|a, b| horizontal(*a - at).length().total_cmp(&horizontal(*b - at).length()))
+    }
+
     /// The busted meter for the HUD, 0 to 1.
     pub fn busted_meter(&self) -> f32 {
         self.police.busted_meter()
