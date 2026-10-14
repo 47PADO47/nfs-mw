@@ -45,10 +45,14 @@ const NEEDLE_START_DEG: f32 = 66.0;
 const NEEDLE_SWEEP_DEG: f32 = 228.0;
 /// The nitrous bar's mask turns from this angle (empty) down to 0 (full).
 const NOS_BAR_EMPTY_DEG: f32 = 175.0;
-/// The speed breaker bar: the FEng object `Speedbreaker_Meter_Multi_Image` (name hash of that string). Its geometry is
-/// assumed to match the nitrous bar's (not checked on screen yet).
+/// The speed breaker bar: the FEng object `Speedbreaker_Meter_Multi_Image` (name hash of that string). Its mask turns
+/// from `SPEEDBREAKER_BAR_EMPTY_DEG` (empty) to 0 (full), as the original's meter routine does for `HUD_SingleRace`
+/// (`Hud_SpeedBreakerMeter` update: angle = 175 * (1 - meter)). The drag HUD uses another base.
 const SPEEDBREAKER_BAR: u32 = 0x5DF2_F5B4;
 const SPEEDBREAKER_BAR_EMPTY_DEG: f32 = NOS_BAR_EMPTY_DEG;
+/// The stopwatch icon group under the meter (`SPEEDBREAKER_METER_ICON_GROUP`). It runs the lit script while the meter
+/// holds charge and the reset script when it is empty, as the original update does (`Hud_SpeedBreakerMeter`).
+const SPEEDBREAKER_ICON_GROUP: u32 = 0x1144_8B5C;
 /// The turbo needle swings across this range of angles for a gauge from `TURBO_MIN_PSI` to `TURBO_MAX_PSI`.
 const TURBO_DEG: (f32, f32) = (-45.0, 45.0);
 const TURBO_PSI: (f32, f32) = (-20.0, 20.0);
@@ -81,6 +85,7 @@ pub struct HudBinding {
     nos_icon: Option<ObjectRef>,
     nos_bar: Option<ObjectRef>,
     speedbreaker_bar: Option<ObjectRef>,
+    speedbreaker_icon: Option<ObjectRef>,
     turbo_needle: Option<ObjectRef>,
     /// The pursuit board's timer, `mm:ss.cc`.
     pursuit_timer: Option<ObjectRef>,
@@ -150,6 +155,7 @@ impl HudBinding {
             nos_icon: rt.find(package, 0x27DD_F583),
             nos_bar: rt.find(package, 0xEDFB_6D37),
             speedbreaker_bar: rt.find(package, SPEEDBREAKER_BAR),
+            speedbreaker_icon: rt.find(package, SPEEDBREAKER_ICON_GROUP),
             turbo_needle: find(rt, package, "3rdperson_TurboDial"),
             pursuit_timer: find(rt, package, "PursuitTime"),
             cooldown_bar: cooldown_fill(rt, package),
@@ -160,7 +166,7 @@ impl HudBinding {
             last_nos: 0.0,
             applied_face: None,
         };
-        b.layout.update(rt, Shown { mirror: true, ..Default::default() });
+        b.layout.update(rt, Shown { mirror: true, speedbreaker: true, ..Default::default() });
         // The mirror's frame rests fully visible. The game fades it in from a script on an event this build does
         // not raise, so the fade is skipped here.
         b.mirror_frames =
@@ -209,6 +215,8 @@ impl HudBinding {
         let shown = Shown {
             nitrous: s.has_nos,
             turbo: s.has_turbo,
+            // The race HUD always carries the speed breaker meter; its charge only moves the bar and the icon.
+            speedbreaker: true,
             minimap: map.is_some(),
             laser: s.cop_nearby,
             mirror: self.mirror_shown,
@@ -314,9 +322,13 @@ impl HudBinding {
     }
 
     fn speedbreaker(&mut self, rt: &mut Runtime, s: &HudState) {
+        let meter = s.speedbreaker.clamp(0.0, 1.0);
         if let Some(o) = self.speedbreaker_bar {
-            let meter = s.speedbreaker.clamp(0.0, 1.0);
             rt.set_mask_rotation(o, meter * -SPEEDBREAKER_BAR_EMPTY_DEG + SPEEDBREAKER_BAR_EMPTY_DEG);
+        }
+        if let Some(o) = self.speedbreaker_icon {
+            let script = if meter > 0.0 { SCRIPT_NOS_BURNING } else { SCRIPT_INIT };
+            ensure_script(rt, o, script);
         }
     }
 

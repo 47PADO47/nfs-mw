@@ -128,8 +128,18 @@ from `blackbox_feng::fe_hash_upper`):
 (`SPEEDBREAKER_BAR_EMPTY_DEG`, which is assumed to equal the nitrous bar's 175°). The meter reaches the HUD through
 `HudState::speedbreaker`, which the drive scene fills from `Drive::breaker`.
 
-Not checked: the bar turns the right way and the right amount on screen, and the icon group shows and hides as the
-original does (the bar is only driven, not shown or hidden). The next step is a run with a car, and a look at the bar.
+Original behaviour [binary, Ghidra on `speed.exe`]:
+
+- The meter class is `Hud_SpeedBreakerMeter`, built by the race HUD constructor (`0x005a6600`) in HUD modes 1 and 2
+  (constructor at `0x0059e420`). It is created with the race cluster and is never hidden: no code in the class calls a
+  hide, and the group hash is not a code constant. The group and its bar show for the whole race, whatever the charge.
+- Bar (`0x00568460`, update): angle = base * (1 - meter), with base 175 on `HUD_SingleRace` and -3 on `HUD_Drag`.
+  The remake's `meter * -175 + 175` is the same formula for the single race.
+- Icon: the stopwatch group runs the lit script (`0x77031C70`) while the meter is above 0, and the reset script
+  (`0x001744B3`) at 0.
+- Update only runs when the meter's dirty flag is set; the thresholds (0 and 0.5) are read from the executable.
+
+Remaining: a look at the bar and the icon on a run with a car, against the third screenshot.
 
 The race timer ("00:00.00", `0xE1AA7`) is a different timer, at the top right of the screen.
 
