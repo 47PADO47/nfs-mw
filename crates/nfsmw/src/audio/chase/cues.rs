@@ -26,6 +26,9 @@ pub enum Cue {
     Regained,
     /// The heat rose across one of `JUMP_LEVELS`.
     HeatJump,
+    /// The search cooled down while the cops still had no sight: the feed's `secs_to_evade` ran out in a lost spell.
+    /// Once per lost spell (the original's "time expired" once the cool-down is complete).
+    TimeExpired,
 }
 
 /// The state of the chase the edges are found from. Kept across frames by the audio.
@@ -36,12 +39,14 @@ pub struct Cues {
     unseen_since: Option<f32>,
     /// A `Lost` was said and no `Regained` has been since.
     lost_said: bool,
+    /// A `TimeExpired` was said in this lost spell.
+    expired_said: bool,
     rng: Rng,
 }
 
 impl Cues {
     pub fn new(rng: Rng) -> Self {
-        Self { heat: None, unseen_since: None, lost_said: false, rng }
+        Self { heat: None, unseen_since: None, lost_said: false, expired_said: false, rng }
     }
 
     /// Once per frame: the cues of this frame. `None` (no chase) forgets the chase, so the next one starts fresh.
@@ -52,6 +57,7 @@ impl Cues {
         };
         let mut cues = Vec::new();
         cues.extend(self.sight(chase));
+        cues.extend(self.time_expired(chase));
         cues.extend(self.heat_jump(chase));
         cues
     }
@@ -60,6 +66,16 @@ impl Cues {
         self.heat = None;
         self.unseen_since = None;
         self.lost_said = false;
+        self.expired_said = false;
+    }
+
+    /// The search's end: once a lost spell has run its evade time out (`secs_to_evade` reaches 0), said once.
+    fn time_expired(&mut self, chase: &PursuitFeed) -> Option<Cue> {
+        if !self.lost_said || self.expired_said || chase.secs_to_evade > 0.0 {
+            return None;
+        }
+        self.expired_said = true;
+        Some(Cue::TimeExpired)
     }
 
     /// The sight edges: `Lost` once the player has been unseen for `NO_CONTACT_SECS`, `Regained` when seen again
@@ -82,6 +98,7 @@ impl Cues {
             return None;
         }
         self.lost_said = false;
+        self.expired_said = false;
         Some(Cue::Regained)
     }
 
