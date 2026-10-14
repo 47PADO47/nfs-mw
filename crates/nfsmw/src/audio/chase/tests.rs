@@ -139,4 +139,56 @@ fn each_cue_names_its_speech_event() {
     assert_eq!(cue_line(Cue::Lost), "lostvisual");
     assert_eq!(cue_line(Cue::Regained), "regainvisual");
     assert_eq!(cue_line(Cue::HeatJump), "heatjump");
+    assert_eq!(cue_line(Cue::TimeExpired), "disptimeexpired");
+}
+
+/// A feed with the evade time given, for the time-expired edge.
+fn feed_evade(intensity: f32, secs: f32, secs_to_evade: f32) -> PursuitFeed {
+    PursuitFeed { heat: 1, intensity, secs, secs_to_evade, player_mph: 80.0 }
+}
+
+#[test]
+fn the_time_expired_line_is_said_once_when_the_evade_timer_runs_out_in_a_lost_spell() {
+    let mut c = cues();
+    run(&mut c, 1, SEEN, 0.0, 10);
+    let mut expired = Vec::new();
+    for i in 0..80 {
+        let secs = 1.0 + i as f32 * 0.1;
+        let left = (4.0 - secs).max(0.0);
+        for cue in c.step(Some(&feed_evade(UNSEEN, secs, left))) {
+            if cue == Cue::TimeExpired {
+                expired.push(secs);
+            }
+        }
+    }
+    assert_eq!(expired.len(), 1, "one time-expired cue, not one per frame: {expired:?}");
+    assert!(expired[0] >= 4.0 - 0.11, "said before the timer ran out at {}", expired[0]);
+}
+
+#[test]
+fn no_time_expired_without_a_lost_spell() {
+    let mut c = cues();
+    for i in 0..50 {
+        let cue = c.step(Some(&feed_evade(SEEN, i as f32 * 0.1, 0.0)));
+        assert!(!cue.contains(&Cue::TimeExpired), "seen cops, no expiry: {cue:?}");
+    }
+}
+
+#[test]
+fn a_regained_sight_rearms_the_time_expired_line_for_the_next_lost_spell() {
+    let mut c = cues();
+    run(&mut c, 1, SEEN, 0.0, 10);
+    let mut count = 0;
+    for spell in 0..2 {
+        let from = 1.0 + spell as f32 * 10.0;
+        for i in 0..40 {
+            let secs = from + i as f32 * 0.1;
+            let unseen = i < 30;
+            let intensity = if unseen { UNSEEN } else { SEEN };
+            let left = if unseen { 0.0 } else { 30.0 };
+            count +=
+                c.step(Some(&feed_evade(intensity, secs, left))).iter().filter(|x| **x == Cue::TimeExpired).count();
+        }
+    }
+    assert_eq!(count, 2, "one per lost spell");
 }

@@ -337,11 +337,29 @@ install (section 4 above); the names are confirmed in the binary, the numbers in
 | cops unseen for 2 s (`NoLOSCommentaryTime`) | `lostvisual` | 106 | once per unseen spell; sight is `intensity >= 1` in the feed |
 | sight regained after a lost | `regainvisual` | 107 | only after a `lostvisual` in the chase |
 | heat rises across 2, 3, 4 or 5, after 5 s of chase | `heatjump` | 220 | coin flip at 50 %; one line per crossing (the radio's heat reaction, section 8 of ai-pursuit-speech.md) |
+| lost spell's evade time runs out (`secs_to_evade` reaches 0) | `disptimeexpired` | 180 | once per lost spell; the "time expired" of section 6.2 (cool-down complete). Gated by the `[Pilot] SearchPattern` switch (see below) |
 
-Deferred, with a TODO in `audio/chase.rs`: roadblock calls and the strategy lines (no roadblock state in the feed), a cop hit
-or rammed (no hit state), the busted line, and the dead-heli or kill lines (their state is built by sibling epics).
-Also not wired: `disppursuitescalation` (70), `dispjurisshift` (223), `intenttoram` (113). The port uses the chase time
-(`PursuitFeed.secs`) for the heat delay, not the original's strategy-focus gate, which the feed does not carry.
+Ghidra (`/speed.exe`, base `0x400000`) confirms these collection names as strings: `AnytimeEvents_WeatherReport` at `0x008b136c`,
+`AnytimeEvents_IntentToRam` at `0x008b1464`, `AnytimeEvents_DispTimeExpired` at `0x008b1514`, `AnytimeEvents_LostSuspect` at
+`0x008b1550`, `Setup_VehicleReport` at `0x008b1bf8` (and `Setup_VehicleReportTag` at `0x008b1be0`). The numbers come from the
+attribute data (section 4): `intenttoram` 113, `vehiclereport` 155, `weatherreport` 219, `lostsuspect` 108, `spotted` 214,
+`helilostvisual` 169, `spotterwanted` 216.
+
+### 5.1 Air-support switches (RevisedAirSupport keys)
+
+The keys of the RevisedAirSupport mod, as a config (`audio/chase/air_support.rs`, file `NFSMWAirSupportSettings.ini` next to the
+config file, `ini-tuning` syntax). Sections `[Pilot]`: `RamLines`, `SearchPattern`, `SpottedAgain`, `VehicleReport`, `EscapedCar`,
+`Reacquire`, `BeenHit`, `KillShot`, `DeadHeliSilence`, `RoadblockCall`, `WeatherReport`, `Answer911`, `HoldOn`, `AttackMissed`.
+`[Radio]`: `RainFlag`, `FastAirRequest`, `FastAirReminder`, `NoSpeechDropoff`. All default on; a malformed value is on.
+Only `SearchPattern` gates a line in this batch (`disptimeexpired`). The mapping is our reading of the mod's description
+("search pattern when the chase cools down"), not a game fact; check it in play. The other switches are read and held,
+their lines are not wired (state needed per line: see the TODO list in `audio/chase.rs`).
+
+Not wired, with the reason in `audio/chase.rs`: the helicopter lines (no helicopter state in the feed), ram and attempt-missed
+(no ram state), vehicle report and escaped car, been-hit, roadblock calls and the strategy lines, weather (the rain is in the
+scene, not the feed), 911 answer, hold-on, fast air, and the lost-suspect line on termination. Also not wired: `disppursuitescalation`
+(70), `dispjurisshift` (223). The port uses the chase time (`PursuitFeed.secs`) for the heat delay, not the original's strategy-focus
+gate, which the feed does not carry.
 
 ## Open questions
 
