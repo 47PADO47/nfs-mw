@@ -37,7 +37,7 @@ use super::road::{self, Spawn};
 use super::space;
 use super::vehicle_effects::VehicleEffects;
 use crate::settings::{Transmission, WheelOptions};
-use crate::viewer::camera::{CameraCut, ChaseCamera, ChaseView, Followed};
+use crate::viewer::camera::{CameraCut, ChaseCamera, ChaseView, Followed, PursuitCamera, PursuitFeed};
 pub(super) use clock::{FixedClock, STEP};
 pub(super) use debug::upload_box;
 pub use debug::{ContactMarkers, LEGEND as MARKER_LEGEND, MarkerMeshes};
@@ -105,6 +105,8 @@ pub struct Drive {
     /// What the car sound hears of the drive.
     sound: SoundFeed,
     chase: ChaseCamera,
+    /// The caught pan and the arrest framing, blended over the chase view (`viewer/camera/pursuit`).
+    pursuit: PursuitCamera,
     /// Console hits given before the car exists; applied when it is placed.
     queued_hits: Vec<(usize, u8, bool)>,
     /// The chase camera jumped to the car (it was placed on the road).
@@ -171,6 +173,7 @@ impl Drive {
             breaker: speedbreaker::SpeedBreaker::default(),
             sound: SoundFeed::default(),
             chase: ChaseCamera::default(),
+            pursuit: PursuitCamera::default(),
             queued_hits: Vec::new(),
             cut: CameraCut::default(),
             look: look::PendingLook::default(),
@@ -350,13 +353,18 @@ impl Drive {
         self.chase.looking_back()
     }
 
+    /// Advances the pursuit camera's caught pan and arrest framing by `dt` of simulated time, with the chase's feed.
+    pub fn update_pursuit(&mut self, dt: f32, feed: PursuitFeed) {
+        self.pursuit.update(dt, feed);
+    }
+
     pub fn camera(&self) -> ChaseView {
-        self.chase.sample(self.alpha)
+        self.pursuit.shot(self.chase.sample(self.alpha))
     }
 
     /// Cleanup and other simulation queries use the current tick, independently of rendering.
     pub fn physics_camera(&self) -> ChaseView {
-        self.chase.view()
+        self.pursuit.shot(self.chase.view())
     }
 
     pub fn take_look(&mut self, steps: u32) -> (f32, f32) {

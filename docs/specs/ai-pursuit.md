@@ -338,7 +338,7 @@ when no race is running or when the race is a pursuit race (`AllowStatsToAccumul
   heli involved, pending rep, cost to state (heat spec section 7).
 - Busted (implemented, E8a): the timer is `blackbox_pursuit::Busted` (`libs/blackbox-pursuit/src/busted.rs`) with the
   constants in `crates/nfsmw/src/scenes/world/ai/police/busted.rs`. The world ends the pursuit on the bust frame and
-  keeps `is_busted` until the next chase. The HUD gets the meter as `HudState::busted`. The arrest camera and scene
+  keeps `is_busted` until the next chase. The HUD gets the meter as `HudState::busted`. The arrest camera (procedural, see [camera-views.md](camera-views.md#pursuit-camera-caught-pan-and-arrest-procedural)) is built; the arrest scene
   (E8f) and the FairBusts reset state (E12, `flashing`) are not built. Values and gaps: `docs/provenance/ai-pursuit-busted.md`.
 - Escape (implemented, E8e): the cool-down state machine is `blackbox_pursuit::Cooldown` (`libs/blackbox-pursuit/src/cooldown.rs`)
   with the install's per-heat tables in `evade.rs` and the outcome in `end.rs` (`EndReason::{None, Busted, Evaded}`).
