@@ -45,13 +45,47 @@
 - The string `DriveInMoment` is at `0x00893270`. No code refers to it by address; it may be a class or debug name, or a
   hashed name. Not resolved.
 
-## Where the object might be (next steps)
+## Second pass: uncatalogued packages, the marker lead, the routine
 
-1. The state record's object at `[state+0x0c]` is created by the caller of the routine at `0x0057bde0` (the entry of the
-   handler table at `0x008a2508`). Defining the function there in the Ghidra project would show who creates it and with
-   which name. Not done: this pass did not change the shared Ghidra project.
-2. Ghidra's string search on `ENTER`, `Enter`, `DRIVE` (upper and lower case) across `speed.exe` and `server.dll` for
-   FEng object names that the code hashes at run time, rather than as literal strings in the FEng data.
-3. The catalogue (`nfsmw list-screens`) reads 197 packages from 6 files, and all of them were dumped here. If the icon is
-   not in any of them, it is either in a package the catalogue does not read (for example `InGameSplitScreen.bun`, not
-   checked) or it is not a FEng object at all (a drawn image in code). Checking those is the next step.
+**Uncatalogued packages.** The loader (`ui/catalog.rs`, `SCREEN_FILES`) reads 6 files. A throwaway test (not committed)
+loaded the other install packages through the same loader and listed their resources:
+
+- `GLOBAL/Ingameb.lzc` (lower case, 2019): 59 FEng packages in all, including a second copy of the HUD set
+  (`HUD_SingleRace.fng`, 372 objects, same textures), `Pause_*`, `InGameBounty`, `WorldMapMain` and the in-game screens.
+  No enter texture.
+- `GLOBAL/InGameSplitScreen.bun`: `HUD_Player1.fng` (95 objects), `HUD_Player2.fng` (57), the split-screen drag HUDs.
+  No enter texture.
+- `GLOBAL/THINSCREEN_GLOBAL.BUN`, `GLOBAL/DEMO_GLOBAL.BUN`, `FRONTEND/DEMO_FRONTEND.BUN`: loading screens, the demo
+  car select (`Cshop_Load.tga`), marketing and demo overlays. No enter texture.
+- `GLOBAL/InGameA.bun` (5.9 MB) yields no packages through the loader; its contents were not decoded.
+- Across the 198 unique texture names of these packages, the car or arrow names are the minimap cars, `Shift_Up_Icon`,
+  `Radar_DirectionArrow`, `Arrow` and `Arrow_Glow` (generic arrows of the pause and bounty screens).
+
+**The SafehouseMarkers lead.** `Generic_AddCar.tga` (75 x 40) is used once, in `SafehouseMarkers.fng` (the Kamikaze
+marker chooser, with `Choose Markers`). It is a car with an add mark, not an enter prompt. Not wired.
+
+**The routine, decompiled.** The Ghidra project had no function at `0x0057bde0`; this pass defined one there
+(`FUN_0057bde0`, `create_function`, in the shared project). Its body:
+
+- `this` is the zone state. It sets `[this+0x1d] = 1` and `[this+0x14] = param` (the zone type hash, see above).
+- If `[this+0x0c]` (an FEng object) is set, it runs script `0x5079c8f8` on it, unless the object runs it already and
+  unless it runs `0x0280164f` (then it does nothing).
+- It looks up the object named `0x0a729b1b` through `FUN_00524850` (the manager at `[this-0x20]`). If found and not
+  running `0x5079c8f8`, it runs that script on it and calls `FUN_004ae8f0(DAT_00911fa8, 0x13)`.
+- It sends the zone type hash (`FUN_0056e100`) to the object at `[this+0x0c]` (`FUN_00515b90`).
+
+**The object `0x0a729b1b`.** It is `Image button_ring.tga` in `HUD_SingleRace.fng` (guid `0xe43a0`, size 32 x 43, alpha
+80, rotated 90 degrees). Three more `button_ring` images sit at (+23, 0), (-23, 0) and (0, +23) in group `0x35236dbe`,
+with `outter_ring.tga` (74 x 74) at the centre. That group is under `0x3345911d` at (3, -189, 50), the same spot as
+`Mode_Icon_Circuit.tga` and `Generic_Infraction.tga`: the race-mode badge. So the ring object looks like the race-mode
+frame, not the zone icon. **[unconfirmed]** The routine may be shared by more than one prompt.
+
+**Still open.** The object at `[this+0x0c]` (the one that gets the zone hash message) is set by the code that creates the
+zone state. The vtable table around `0x008a24f0` has no cross-references, so the constructor was not found. The icon's
+cars and up arrow are not in any dumped group. The remaining steps:
+
+1. Find the creator of the zone state (a `new` of a class whose vtable starts at `0x008a24f0`, or a call that stores
+   an object at `+0x0c`). The class name may be `DriveInMoment` (the string at `0x00893270`, no direct xrefs).
+2. Read the car and arrow pieces of the icon in the game's own screenshot and match them to a group in the packages
+   above. The screenshot was not available to this pass.
+3. `InGameA.bun` (5.9 MB, not decoded): decode it with `ea_compress::unwrap` and read its packages.
