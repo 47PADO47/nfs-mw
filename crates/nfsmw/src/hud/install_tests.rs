@@ -60,6 +60,28 @@ fn the_minimap_finds_its_objects_and_its_tiles_in_the_install() {
 }
 
 #[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_pursuit_board_and_cooldown_bar_are_objects_of_the_single_race_hud() {
+    let root = std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR");
+    let dir = GameDir::open(std::path::PathBuf::from(root)).unwrap();
+    let catalog = Catalog::load(&dir, &["GLOBAL/InGameB.bun", "GLOBAL/INGAMEC.BUN"]);
+    let package = catalog.find("HUD_SingleRace.fng").expect("HUD_SingleRace.fng").clone();
+    let mut rt = Runtime::new();
+    let id = rt.load(package);
+    // The pursuit board, its timer, the bounty row and the heat meter; the cool-down bar and its fill (BasePoly).
+    for name in ["PursuitBoardGroup", "PursuitTime", "Cooldown_Meter_Group", "Heat_Meter_Group"] {
+        assert!(rt.find(id, fe_hash_upper(name)).is_some(), "{name} is missing");
+    }
+    for hash in [0x8674_e6d4u32, 0xcf81_7638, 0x60b4_5523, 0x3807_4901] {
+        assert!(rt.find(id, hash).is_some(), "{hash:#x} is missing");
+    }
+    // The bar's fill has the width the binding sets it to.
+    let bar = rt.find(id, 0xcf81_7638).unwrap();
+    assert!(rt.size(bar).is_some_and(|s| s.x > 0.0), "the cool-down fill has a width");
+    let _ = HudBinding::new(&mut rt, id);
+}
+
+#[test]
 #[ignore = "needs the game (set NFSMW_GAME_DIR); reports presenter timing"]
 fn the_minimap_reuses_stationary_pixels_and_bounds_its_moving_cache() {
     use std::time::Instant;

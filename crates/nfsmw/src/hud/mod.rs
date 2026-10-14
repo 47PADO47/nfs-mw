@@ -24,6 +24,9 @@ mod minimap;
 #[cfg(test)]
 mod minimap_tests;
 mod plugin;
+mod pursuit;
+#[cfg(test)]
+mod pursuit_tests;
 mod radio;
 mod skin;
 mod state;
@@ -38,5 +41,6 @@ pub use blip_styles::{
     SAFE_HOUSE,
 };
 pub use plugin::HudPlugin;
+pub use pursuit::PursuitHud;
 pub use radio::{RadioHud, show as show_radio};
 pub use state::{HudState, MapPosition};
