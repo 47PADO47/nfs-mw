@@ -262,7 +262,8 @@ same for any window wider than 1.4:1 (the 4:3 package is for the rest), so the a
 bars at its sides. A mouse click counts as accept on the boot movies and the title screen. The memory-card screens between splash and main menu (`MC_Main_GC.fng`) do not apply on the PC.
 
 **Free roam [decomp, ours].** The career starts in free roam in the original; this rewrite has no career, so
-Career and Quick Race both start free roam with the stock car.
+Career and Quick Race both start free roam with the stock car. Free roam starts behind the loading screen
+(`WS_Loading.fng`) and shows the world only once it is ready; see [loading-screen.md](loading-screen.md).
 
 ## How to check it
 

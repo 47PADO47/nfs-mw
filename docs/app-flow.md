@@ -40,6 +40,7 @@ Stage::Boot(..) ──► Stage::Menus ──► Stage::Playing ⇄ Stage::Pause
 |---|---|---|
 | `Boot` | Queue of `Boot` items: `ealogo` movie, `psa` movie (has a `bypass` flag), then the `Splash` screen | Movies play through the movie scene (`movie/`, `blackbox-movie`). |
 | `Menus` | Main menu (`IconMenu`), option categories, `WidgetMenu` rows | Run as the game's own FEng screens. |
+| `Loading` | The original `WS_Loading.fng` screen over an empty window while free roam streams in | The world is built and updated but hidden and silent until `Scene::ready()`; then `Playing`. See [specs/loading-screen.md](specs/loading-screen.md). |
 | `Playing` | Free roam: the world scene, with the HUD | Career and Quick Race both go here today. |
 | `Paused` | Pause menu over the world | The world is wrapped in `Pausable`, so it freezes. Escape or Start opens it. |
 
