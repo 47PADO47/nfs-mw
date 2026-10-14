@@ -81,10 +81,12 @@ pub struct LampState {
     /// The brake pedal, 0 to 1.
     pub brake: f32,
     pub reverse: bool,
-    /// The steering, -1 to 1; positive steers left, so the left signals blink.
+    /// The steering, -1 to 1; positive steers right, so the right signals blink.
     pub steer: f32,
     /// The headlights are on.
     pub headlights: bool,
+    /// Turn signals are enabled (the `turn_signals` setting).
+    pub turn_signals: bool,
     /// The cop light bar is on.
     pub siren: bool,
     /// Simulated seconds, for the blinking.
@@ -193,7 +195,10 @@ fn look(kind: Kind, state: LampState) -> Option<(f32, [f32; 4], f32)> {
         }
         Kind::Reverse => state.reverse.then_some((REVERSE_RADIUS, REVERSE_COLOUR, REVERSE_BRIGHTNESS)),
         Kind::Signal(left) => {
-            let held = if left { steer > SIGNAL_STEER } else { steer < -SIGNAL_STEER };
+            if !state.turn_signals {
+                return None;
+            }
+            let held = if left { steer < -SIGNAL_STEER } else { steer > SIGNAL_STEER };
             let on = (state.time.max(0.0) % SIGNAL_PERIOD) < SIGNAL_PERIOD / 2.0;
             (held && on).then_some((SIGNAL_RADIUS, SIGNAL_COLOUR, SIGNAL_BRIGHTNESS))
         }
@@ -211,7 +216,7 @@ mod tests {
     use super::*;
 
     const RELEASED: LampState =
-        LampState { brake: 0.0, reverse: false, steer: 0.0, headlights: true, siren: false, time: 0.0 };
+        LampState { brake: 0.0, reverse: false, steer: 0.0, headlights: true, turn_signals: true, siren: false, time: 0.0 };
 
     #[test]
     fn braking_brightens_and_widens_only_the_tail_lamps() {
@@ -232,11 +237,11 @@ mod tests {
 
     #[test]
     fn a_turn_signal_blinks_only_on_its_side_while_steering() {
-        let left_turn = LampState { steer: 0.6, ..RELEASED };
-        assert!(look(Kind::Signal(true), LampState { time: 0.1, ..left_turn }).is_some());
-        assert!(look(Kind::Signal(true), LampState { time: 0.5, ..left_turn }).is_none(), "the off half");
-        assert!(look(Kind::Signal(false), LampState { time: 0.1, ..left_turn }).is_none(), "the other side");
-        assert!(look(Kind::Signal(true), LampState { time: 0.1, ..RELEASED }).is_none(), "straight ahead");
+        let right_turn = LampState { steer: 0.6, ..RELEASED };
+        assert!(look(Kind::Signal(false), LampState { time: 0.1, ..right_turn }).is_some());
+        assert!(look(Kind::Signal(false), LampState { time: 0.5, ..right_turn }).is_none(), "the off half");
+        assert!(look(Kind::Signal(true), LampState { time: 0.1, ..right_turn }).is_none(), "the other side");
+        assert!(look(Kind::Signal(false), LampState { time: 0.1, ..RELEASED }).is_none(), "straight ahead");
     }
 
     #[test]

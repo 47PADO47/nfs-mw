@@ -38,6 +38,7 @@ pub enum Setting {
     SpeedTrails,
     SpeedTrailStyle,
     ExhaustFlames,
+    TurnSignals,
     RearViewMirror,
     SmokeQuality,
     Transmission,
@@ -216,6 +217,7 @@ impl Setting {
             Setting::SpeedTrails => on_off(s.speed_trails),
             Setting::SpeedTrailStyle => Data::Text(s.speed_trail_style.label().into()),
             Setting::ExhaustFlames => on_off(s.exhaust_flames),
+            Setting::TurnSignals => on_off(s.turn_signals),
             Setting::RearViewMirror => on_off(s.rear_view_mirror),
             Setting::Discord => on_off(s.discord),
             Setting::DiscordTimePlayed => on_off(s.discord_time_played),
@@ -428,10 +430,7 @@ impl Setting {
                 changed.collision_sparks = Some(s.collision_sparks);
                 changed.spark_style = Some(s.spark_style);
             }
-            Setting::SpeedTrails => {
-                s.speed_trails = !s.speed_trails;
-                changed.speed_trails = Some(s.speed_trails);
-            }
+            Setting::SpeedTrails => { s.speed_trails = !s.speed_trails; changed.speed_trails = Some(s.speed_trails); }
             Setting::SpeedTrailStyle => {
                 s.speed_trail_style = match s.speed_trail_style {
                     crate::settings::SpeedTrailStyle::Streaks => crate::settings::SpeedTrailStyle::Car,
@@ -439,14 +438,9 @@ impl Setting {
                 };
                 changed.speed_trail_style = Some(s.speed_trail_style);
             }
-            Setting::ExhaustFlames => {
-                s.exhaust_flames = !s.exhaust_flames;
-                changed.exhaust_flames = Some(s.exhaust_flames);
-            }
-            Setting::RearViewMirror => {
-                s.rear_view_mirror = !s.rear_view_mirror;
-                changed.rear_view_mirror = Some(s.rear_view_mirror);
-            }
+            Setting::ExhaustFlames => { s.exhaust_flames = !s.exhaust_flames; changed.exhaust_flames = Some(s.exhaust_flames); }
+            Setting::TurnSignals => { s.turn_signals = !s.turn_signals; changed.turn_signals = Some(s.turn_signals); }
+            Setting::RearViewMirror => { s.rear_view_mirror = !s.rear_view_mirror; changed.rear_view_mirror = Some(s.rear_view_mirror); }
             Setting::Discord => {
                 s.discord = !s.discord;
                 changed.discord = Some(s.discord);

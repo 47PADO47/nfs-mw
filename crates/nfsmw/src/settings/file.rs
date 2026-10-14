@@ -107,6 +107,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
             super::SpeedTrailStyle::from_str(text_of(v)?)
         }),
         exhaust_flames: field(&table, origin, "exhaust_flames", boolean),
+        turn_signals: field(&table, origin, "turn_signals", boolean),
         rear_view_mirror: field(&table, origin, "rear_view_mirror", boolean),
         discord: field(&table, origin, "discord", boolean),
         discord_time_played: field(&table, origin, "discord_time_played", boolean),

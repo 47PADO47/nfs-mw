@@ -96,6 +96,8 @@ pub struct Partial {
     pub speed_trails: Option<bool>,
     pub speed_trail_style: Option<super::SpeedTrailStyle>,
     pub exhaust_flames: Option<bool>,
+    /// Show turn signals on cars while steering (`[Gameplay] ShowTurnSignals`); off by default.
+    pub turn_signals: Option<bool>,
     pub rear_view_mirror: Option<bool>,
     pub discord: Option<bool>,
     pub discord_time_played: Option<bool>,
@@ -174,6 +176,7 @@ impl Partial {
             speed_trails: self.speed_trails.or(lower.speed_trails),
             speed_trail_style: self.speed_trail_style.or(lower.speed_trail_style),
             exhaust_flames: self.exhaust_flames.or(lower.exhaust_flames),
+            turn_signals: self.turn_signals.or(lower.turn_signals),
             rear_view_mirror: self.rear_view_mirror.or(lower.rear_view_mirror),
             discord: self.discord.or(lower.discord),
             discord_time_played: self.discord_time_played.or(lower.discord_time_played),

@@ -207,6 +207,8 @@ pub struct Settings {
     pub speed_trail_style: SpeedTrailStyle,
     /// Flames at the tail pipes: gear-change blow-off and lift-off backfire. Nothing is loaded when off.
     pub exhaust_flames: bool,
+    /// Show turn signals on cars while steering (a rewrite extension, off by default).
+    pub turn_signals: bool,
     /// The rear-view mirror in the HUD (the rear view captured from the car, with the radar under it).
     pub rear_view_mirror: bool,
     /// Show the game in Discord Rich Presence (the local Discord client; silently skipped when it is not running).
@@ -306,6 +308,7 @@ impl From<Partial> for Settings {
             speed_trails: p.speed_trails.unwrap_or(false),
             speed_trail_style: p.speed_trail_style.unwrap_or_default(),
             exhaust_flames: p.exhaust_flames.unwrap_or(true),
+            turn_signals: p.turn_signals.unwrap_or(false),
             rear_view_mirror: p.rear_view_mirror.unwrap_or(true),
             discord: p.discord.unwrap_or(true),
             discord_time_played: p.discord_time_played.unwrap_or(true),
@@ -389,6 +392,8 @@ pub struct WorldTuning {
     pub show_hud_on_look_back: bool,
     /// Lift the engine's rev limiter (Extra Options `NoRevLimiter`).
     pub no_rev_limiter: bool,
+    /// Show turn signals on cars while steering.
+    pub turn_signals: bool,
     /// The Speedbreaker tunables (`NFSMWSpeedFixerSettings.ini`).
     pub speedbreaker: SpeedbreakerTuning,
 }
@@ -401,6 +406,7 @@ impl Default for WorldTuning {
             show_hud_on_look_back: DEFAULT_SHOW_HUD_ON_LOOK_BACK,
             car_scale: DEFAULT_CAR_SCALE,
             no_rev_limiter: DEFAULT_NO_REV_LIMITER,
+            turn_signals: false,
             speedbreaker: SpeedbreakerTuning::default(),
         }
     }
@@ -414,6 +420,7 @@ impl From<&Settings> for WorldTuning {
             show_hud_on_look_back: s.show_hud_on_look_back,
             car_scale: s.car_scale,
             no_rev_limiter: s.no_rev_limiter,
+            turn_signals: s.turn_signals,
             speedbreaker: s.speedbreaker,
         }
     }

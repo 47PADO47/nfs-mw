@@ -208,6 +208,7 @@ impl Drive {
             reverse,
             steer: self.steer_lamp,
             headlights: self.headlights,
+            turn_signals: false,
             siren: false,
             time: self.lamp_time,
         };

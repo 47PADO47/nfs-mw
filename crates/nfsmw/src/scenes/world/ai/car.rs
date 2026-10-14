@@ -195,6 +195,7 @@ impl AiCar {
         &self,
         alpha: f32,
         time: f32,
+        turn_signals: bool,
         camera: Vec3,
         forward: Vec3,
         out: &mut Vec<blackbox_render::EffectVertex>,
@@ -204,6 +205,7 @@ impl AiCar {
             reverse: self.sim.telemetry().gear < 0,
             steer: self.controls.steer,
             headlights: true,
+            turn_signals,
             siren: self.is_cop(),
             time,
         };
