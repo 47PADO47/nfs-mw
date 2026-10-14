@@ -174,22 +174,6 @@ const CLEAR: [f32; 3] = [0.55, 0.63, 0.72];
 /// The car `drive` picks when none was named.
 pub const DEFAULT_CAR: &str = "BMWM3GTR";
 
-impl WorldScene {
-    /// Map position (x, y) the streaming follows.
-    fn focus(&self) -> [f32; 2] {
-        match (&self.drive, self.view) {
-            (Some(drive), View::Chase) => match drive.waiting_for_road() {
-                Some(request) => request.near,
-                None => {
-                    let p = drive.position();
-                    [p.x, p.y]
-                }
-            },
-            _ => [self.camera.position.x, self.camera.position.y],
-        }
-    }
-}
-
 impl Scene for WorldScene {
     fn garage(&mut self) -> Option<&mut crate::garage::Model> {
         Some(&mut self.garage)
