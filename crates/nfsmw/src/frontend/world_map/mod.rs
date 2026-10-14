@@ -16,8 +16,7 @@ mod session;
 #[cfg(test)]
 mod tests;
 
-#[allow(unused_imports)]
-pub use camera::{Camera, MAX_ZOOM};
+pub use camera::Camera;
 pub use filter::Filter;
 pub use frame::WorldMapFrame;
 pub use gps::activate_gps;

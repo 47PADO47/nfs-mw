@@ -215,8 +215,15 @@ fn look(kind: Kind, state: LampState) -> Option<(f32, [f32; 4], f32)> {
 mod tests {
     use super::*;
 
-    const RELEASED: LampState =
-        LampState { brake: 0.0, reverse: false, steer: 0.0, headlights: true, turn_signals: true, siren: false, time: 0.0 };
+    const RELEASED: LampState = LampState {
+        brake: 0.0,
+        reverse: false,
+        steer: 0.0,
+        headlights: true,
+        turn_signals: true,
+        siren: false,
+        time: 0.0,
+    };
 
     #[test]
     fn braking_brightens_and_widens_only_the_tail_lamps() {

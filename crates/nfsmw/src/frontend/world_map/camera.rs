@@ -5,8 +5,8 @@
 
 /// The zoom of each level, from Zoom All.
 pub const ZOOMS: [f32; 4] = [1.0, 2.0, 3.3, 5.0];
-/// The most the map zooms in.
-pub const MAX_ZOOM: f32 = ZOOMS[ZOOMS.len() - 1];
+#[cfg(test)]
+pub(super) const MAX_ZOOM: f32 = ZOOMS[ZOOMS.len() - 1];
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Camera {
@@ -30,8 +30,9 @@ impl Camera {
         Self { level: 0, carry: 0.0, centre: [0.5, 0.5] }
     }
 
-    /// A view at a zoom level, on a centre (clamped to the picture). Used by tests and by a screen that opens zoomed.
-    pub fn at_level(level: usize, centre: [f32; 2]) -> Self {
+    /// A view at a zoom level, on a centre (clamped to the picture).
+    #[cfg(test)]
+    pub(crate) fn at_level(level: usize, centre: [f32; 2]) -> Self {
         let mut camera = Self { level: level.min(ZOOMS.len() - 1), carry: 0.0, centre };
         camera.clamp_centre();
         camera

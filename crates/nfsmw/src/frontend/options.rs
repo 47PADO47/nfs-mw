@@ -331,6 +331,12 @@ impl Setting {
     }
 
     fn step_value(self, s: &mut Settings, changed: &mut Partial, forward: bool) -> bool {
+        macro_rules! toggle {
+            ($s:ident, $c:ident, $field:ident) => {{
+                $s.$field = !$s.$field;
+                $c.$field = Some($s.$field);
+            }};
+        }
         if let Setting::Input(setting) = self {
             return setting.step(s, changed, forward);
         }
@@ -399,22 +405,10 @@ impl Setting {
                 s.speech_volume = nudge(s.speech_volume, forward);
                 changed.speech_volume = Some(s.speech_volume);
             }
-            Setting::Vsync => {
-                s.vsync = !s.vsync;
-                changed.vsync = Some(s.vsync);
-            }
-            Setting::Hud => {
-                s.hud = !s.hud;
-                changed.hud = Some(s.hud);
-            }
-            Setting::TireSmoke => {
-                s.tire_smoke = !s.tire_smoke;
-                changed.tire_smoke = Some(s.tire_smoke);
-            }
-            Setting::SkidMarks => {
-                s.skid_marks = !s.skid_marks;
-                changed.skid_marks = Some(s.skid_marks);
-            }
+            Setting::Vsync => toggle!(s, changed, vsync),
+            Setting::Hud => toggle!(s, changed, hud),
+            Setting::TireSmoke => toggle!(s, changed, tire_smoke),
+            Setting::SkidMarks => toggle!(s, changed, skid_marks),
             Setting::CollisionSparks => {
                 let at = match (s.collision_sparks, s.spark_style) {
                     (false, _) => 0,
@@ -430,7 +424,7 @@ impl Setting {
                 changed.collision_sparks = Some(s.collision_sparks);
                 changed.spark_style = Some(s.spark_style);
             }
-            Setting::SpeedTrails => { s.speed_trails = !s.speed_trails; changed.speed_trails = Some(s.speed_trails); }
+            Setting::SpeedTrails => toggle!(s, changed, speed_trails),
             Setting::SpeedTrailStyle => {
                 s.speed_trail_style = match s.speed_trail_style {
                     crate::settings::SpeedTrailStyle::Streaks => crate::settings::SpeedTrailStyle::Car,
@@ -438,17 +432,11 @@ impl Setting {
                 };
                 changed.speed_trail_style = Some(s.speed_trail_style);
             }
-            Setting::ExhaustFlames => { s.exhaust_flames = !s.exhaust_flames; changed.exhaust_flames = Some(s.exhaust_flames); }
-            Setting::TurnSignals => { s.turn_signals = !s.turn_signals; changed.turn_signals = Some(s.turn_signals); }
-            Setting::RearViewMirror => { s.rear_view_mirror = !s.rear_view_mirror; changed.rear_view_mirror = Some(s.rear_view_mirror); }
-            Setting::Discord => {
-                s.discord = !s.discord;
-                changed.discord = Some(s.discord);
-            }
-            Setting::DiscordTimePlayed => {
-                s.discord_time_played = !s.discord_time_played;
-                changed.discord_time_played = Some(s.discord_time_played);
-            }
+            Setting::ExhaustFlames => toggle!(s, changed, exhaust_flames),
+            Setting::TurnSignals => toggle!(s, changed, turn_signals),
+            Setting::RearViewMirror => toggle!(s, changed, rear_view_mirror),
+            Setting::Discord => toggle!(s, changed, discord),
+            Setting::DiscordTimePlayed => toggle!(s, changed, discord_time_played),
             Setting::Transmission => {
                 s.transmission = s.transmission.other();
                 changed.transmission = Some(s.transmission);

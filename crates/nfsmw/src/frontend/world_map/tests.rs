@@ -1,3 +1,4 @@
+use super::camera::MAX_ZOOM;
 use super::*;
 use crate::hud::{AUTO_SHOP, CAR_LOT, RACE_SPRINT, SAFE_HOUSE};
 
