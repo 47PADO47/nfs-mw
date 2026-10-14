@@ -10,6 +10,7 @@ a record. Process: [licensing.md § Spec-first](../licensing.md#spec-first).
 |---|---|---|
 | [Cached terrain reference](vehicle-ground-reference.md) | [specs/vehicle-ground-reference.md](../specs/vehicle-ground-reference.md) | Original PC body triangle-list/query cache and CC0 world collision lifecycle |
 | [Jump stabilizers](vehicle-jump-stabilizers.md) | [specs/vehicle-jump-stabilizers.md](../specs/vehicle-jump-stabilizers.md) | Original PC chassis/world-position routines and CC0 rigid-body cache lifecycle |
+| [Controls list packages](controls-packages.md) | [specs/controls-remap.md](../specs/controls-remap.md) | The install's own `Options_PC_Controller.fng` and `Pause_PC_Controller.fng` object tables (`nfsmw dump-screen`) |
 | [Speedbreaker](speedbreaker.md) | [specs/speedbreaker.md](../specs/speedbreaker.md) | Original PC 1.3 meter/time manager and CC0 player/suspension reference |
 | [Performance tuning](performance-tuning.md) | [specs/performance-tuning.md](../specs/performance-tuning.md) | Original PC 1.3 slider limits/gates, installed help, CC0 frontend/physics declarations |
 | [Performance packages](performance-upgrades.md) | [specs/performance-upgrades.md](../specs/performance-upgrades.md) | Original PC 1.3 upgrade routines; CC0 category and attribute declarations |
