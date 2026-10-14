@@ -143,6 +143,7 @@ pub fn partial_of(s: &Settings) -> Partial {
         radio: Some(s.radio),
         skip_intro: Some(s.skip_intro),
         graphics_preset: Some(s.graphics_preset),
+        shadows: Some(s.shadows),
         car_shading: Some(s.car_shading),
         traffic: Some(s.traffic),
         cop_share: Some(s.cop_share),

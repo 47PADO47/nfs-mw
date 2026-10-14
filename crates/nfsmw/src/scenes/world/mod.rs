@@ -166,6 +166,7 @@ pub struct WorldScene {
     /// The physics clock multiplier (Extra Options `GameSpeed`).
     tuning: crate::settings::WorldTuning,
     car_shading: crate::settings::CarShading,
+    shadow_quality: blackbox_gfx::ShadowQuality,
     /// `debug collisions` is on: the car's contact points are drawn.
     markers_on: bool,
     /// The meshes of the contact markers, uploaded the first time they are asked for.
@@ -219,6 +220,7 @@ impl Scene for WorldScene {
     }
 
     fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
+        self.shadow_quality = renderer.graphics().shadows;
         let idle = ActionState::default();
         let input = match self.garage_open {
             true => &idle,
@@ -258,10 +260,10 @@ impl Scene for WorldScene {
         self.update_entry(input, dt);
         self.rain.update(sim_dt, camera);
         self.clock += sim_dt * self.tuning.animation_speed;
-      
+
         self.sun.update(sim_dt, renderer.render_experiments().freeze_sun);
         self.update_day(sim_dt);
-      
+
         self.residency.animate(renderer, self.clock);
         if self.view == View::Fly {
             self.camera.update(input, sim_dt);

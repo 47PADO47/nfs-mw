@@ -85,6 +85,7 @@ impl WorldScene {
             fog_distance: options.fog_distance,
             visible: Vec::new(),
             rear_visible: Vec::new(),
+            shadow_quality: blackbox_gfx::ShadowQuality::Off,
             shadow_casters: Vec::new(),
             original_shadows: true,
             colour_treatment,
@@ -129,21 +130,5 @@ impl WorldScene {
             waiting_since: None,
             camera_mode: CameraMode::default(),
         })
-    }
-}
-
-impl WorldScene {
-    /// Map position (x, y) the streaming follows.
-    pub(super) fn focus(&self) -> [f32; 2] {
-        match (&self.drive, self.view) {
-            (Some(drive), View::Chase) => match drive.waiting_for_road() {
-                Some(request) => request.near,
-                None => {
-                    let p = drive.position();
-                    [p.x, p.y]
-                }
-            },
-            _ => [self.camera.position.x, self.camera.position.y],
-        }
     }
 }

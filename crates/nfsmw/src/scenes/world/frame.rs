@@ -11,14 +11,16 @@ impl WorldScene {
             position: lens.position.to_array(),
             forward: lens.forward.to_array(),
             fov_y_radians: lens.fov_y_degrees.to_radians(),
+            light_dir: self.sun.direction().to_array(),
         };
         let rules = &blackbox_scenery::layout::MOST_WANTED.lod;
         let original = self.original_shadows;
-        visibility::collect(
+        visibility::collect_with_shadows(
             self.residency.placed().filter(|p| original || !p.original_shadow),
             &cull,
             rules,
             self.residency.props(),
+            self.shadow_quality.sampling().2,
             &mut self.visible,
         );
         self.residency.props().fragment_instances(&mut self.visible);

@@ -25,6 +25,7 @@ impl Settings {
             post_bloom: if run.post.bloom_intensity > 0.0 { self.post_bloom } else { PostBloom::Off },
             ray_tracing: ray_tracing(run.ray_tracing),
             reflections: run.reflections,
+            shadows: run.shadows,
             ao: run.ao.quality,
             ..*self
         }

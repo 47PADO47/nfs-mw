@@ -10,6 +10,7 @@ pub mod capture;
 pub mod environment;
 pub mod instances;
 pub mod redirects;
+pub mod shadows;
 pub mod state;
 
 use bevy_camera::RenderTarget;
@@ -42,8 +43,9 @@ pub fn apply(
     mut placed: instances::PlacedQuery,
     mut windows: Query<&mut Window, With<PrimaryWindow>>,
 ) {
-    let started = std::time::Instant::now();
+    let started = log::log_enabled!(log::Level::Debug).then(std::time::Instant::now);
     apply_queue(&bridge, &mut state, &mut stores, &mut commands, &mut placed, &mut windows);
+    let Some(started) = started else { return };
     timer.total += started.elapsed();
     timer.frames += 1;
     if timer.frames < REPORT_EVERY {
@@ -78,6 +80,16 @@ fn apply_queue(
         assets::apply_op(state, stores, op);
     }
 
+    let shadow_frame = state
+        .capture
+        .as_ref()
+        .map(|c| &c.data.frame)
+        .or_else(|| request.as_ref().map(|c| &c.data.frame))
+        .or_else(|| frame.as_ref().map(|f| &f.frame));
+    if let Some(frame) = shadow_frame {
+        shadows::sync(commands, &mut state.sun, frame, settings.shadows);
+    }
+
     if let Some(request) = request {
         state.capture = Some(capture::begin(commands, &mut stores.images, request, &settings));
     }
@@ -85,7 +97,7 @@ fn apply_queue(
     // A running capture decides what the world shows until it is done.
     if let Some(mut active) = state.capture.take() {
         let data = active.data.clone();
-        draw(state, stores, commands, placed, &data);
+        draw(state, stores, commands, placed, &data, settings.post.tonemap);
         camera::follow(commands, active.camera, &data.frame, &settings);
         let size = capture_size(stores, &active);
         let done = capture::advance(commands, &mut active, &bridge.share(), size);
@@ -94,7 +106,7 @@ fn apply_queue(
     }
 
     let Some(data) = frame else { return };
-    draw(state, stores, commands, placed, &data);
+    draw(state, stores, commands, placed, &data, settings.post.tonemap);
     drive_screen(state, commands, windows, &data, &settings, surface);
 }
 
@@ -105,8 +117,9 @@ fn draw(
     commands: &mut Commands,
     placed: &mut instances::PlacedQuery,
     data: &FrameData,
+    tonemap: blackbox_gfx::Tonemap,
 ) {
-    assets::sync_params(state, stores, Params::of(&data.frame));
+    assets::sync_params(state, stores, Params::with_tonemap(&data.frame, tonemap));
     assets::sync_rig_environment(state, stores);
     instances::sync(state, stores, commands, placed, &data.instances);
 }

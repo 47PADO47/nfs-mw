@@ -77,8 +77,8 @@ pub(crate) mod write;
 
 use blackbox_gfx::GraphicsApi;
 
-pub use blackbox_gfx::AoQuality;
 pub use blackbox_gfx::ReflectionQuality;
+pub use blackbox_gfx::{AoQuality, ShadowQuality};
 pub use camera_mode::CameraMode;
 pub use car_shading::CarShading;
 pub use controls::{Controls, Deadzone, DeadzoneMode, Sensitivity};
@@ -233,6 +233,7 @@ pub struct Settings {
     pub visual_treatment: VisualTreatment,
     pub reflections: ReflectionQuality,
     /// Experimental contact occlusion; presets never enable it implicitly.
+    pub shadows: ShadowQuality,
     pub ao: AoQuality,
     pub ao_intensity: Percent,
     pub ao_compare: bool,
@@ -324,6 +325,7 @@ impl From<Partial> for Settings {
             post_aa: p.post_aa.unwrap_or_default(),
             visual_treatment: p.visual_treatment.unwrap_or_default(),
             reflections: p.reflections.unwrap_or(ReflectionQuality::Medium),
+            shadows: p.shadows.unwrap_or_default(),
             ao: p.ao.unwrap_or_default(),
             ao_intensity: p.ao_intensity.unwrap_or(Percent(75)),
             ao_compare: p.ao_compare.unwrap_or(false),

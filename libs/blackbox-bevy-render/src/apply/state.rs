@@ -13,6 +13,7 @@ use crate::material::{BlackboxMaterial, BlendKind, GlossyUniform, Params, RigUni
 /// One draw range of a registered mesh, ready to give an entity.
 pub struct RangeEntry {
     pub mesh: Handle<Mesh>,
+    pub aabb: bevy_camera::primitives::Aabb,
     /// The caller's texture number, or `None` for the white texture.
     pub texture: Option<usize>,
     pub blend: BlendKind,
@@ -78,6 +79,7 @@ pub struct ScreenCamera {
 
 #[derive(Resource, Default)]
 pub struct WorldState {
+    pub sun: Option<super::shadows::Sun>,
     pub textures: HashMap<usize, Handle<Image>>,
     /// Texture number to redirect to, keyed by the texture number draws still ask for.
     pub redirects: HashMap<usize, usize>,

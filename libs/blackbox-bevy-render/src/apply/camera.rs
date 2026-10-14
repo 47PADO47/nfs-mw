@@ -40,9 +40,9 @@ pub fn lens(frame: &FrameParams) -> Projection {
 }
 
 /// The clear colour: the frame's gamma-space values, which the sRGB target encodes back to the same bytes.
-pub fn clear(frame: &FrameParams) -> ClearColorConfig {
-    let [r, g, b] = frame.clear_color;
-    ClearColorConfig::Custom(Color::srgb(r, g, b))
+pub fn clear(frame: &FrameParams, settings: &CameraSettings) -> ClearColorConfig {
+    let [r, g, b] = crate::material::color::scene_rgb(frame.clear_color, settings.post.tonemap);
+    ClearColorConfig::Custom(Color::linear_rgb(r, g, b))
 }
 
 /// The pixel size the scene is drawn at when it is not `target`'s own (see
@@ -63,7 +63,7 @@ pub fn bundle(frame: &FrameParams, target: RenderTarget, settings: &CameraSettin
             ),
             ..Camera3d::default()
         },
-        Camera { clear_color: clear(frame), ..Default::default() },
+        Camera { clear_color: clear(frame, settings), ..Default::default() },
         target,
         lens(frame),
         pose(frame),
@@ -83,7 +83,7 @@ pub fn follow(commands: &mut Commands, camera: Entity, frame: &FrameParams, sett
     let mut entity = commands.entity(camera);
     entity.insert((lens(frame), pose(frame), MipBias(settings.mip_bias)));
     entity.entry::<Camera>().and_modify({
-        let clear = clear(frame);
+        let clear = clear(frame, settings);
         move |mut camera| camera.clear_color = clear
     });
     crate::post::taa::reset_on_cut(
@@ -104,4 +104,5 @@ pub fn follow(commands: &mut Commands, camera: Entity, frame: &FrameParams, sett
 /// on the render-world view every frame instead, from the same [`CameraSettings`] read through the bridge.
 pub fn set_post(commands: &mut Commands, camera: Entity, settings: &CameraSettings) {
     crate::post::set(commands, camera, settings);
+    commands.entity(camera).insert(bevy_light::ShadowFilteringMethod::Gaussian);
 }

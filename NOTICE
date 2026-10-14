@@ -5,6 +5,12 @@ Licensed under MIT OR Apache-2.0 (see LICENSE-MIT and LICENSE-APACHE).
 This repository contains no game assets and no decompiled code. The game is read
 at runtime from the user's own installation.
 
+Bevy 0.20 — MIT OR Apache-2.0 (dependency).
+  https://github.com/bevyengine/bevy
+  Dynamic soft shadows use Bevy's cascaded shadow maps and Gaussian PCF filtering.
+  The ACES SDR-reference calibration derives the inverse neutral RRT/ODT fit from
+  Bevy's tone mapping shader; no upstream shader is copied.
+  See docs/soft-shadows.md.
 Performance package resolution: original PC 1.3 upgrade behavior inspected
 locally, with dbalatoni13/nfsmw CC0 declarations as a reference.
   https://github.com/dbalatoni13/nfsmw
