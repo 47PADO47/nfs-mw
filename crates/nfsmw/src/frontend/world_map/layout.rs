@@ -1,16 +1,30 @@
-//! Where the map's picture sits in the window, in points: a square on the left, the list of blips on its right.
+//! Where the map's picture sits on the FEng screen, in FEng units: the origin is the middle of the screen, y points
+//! down and the screen is 480 units tall. The picture is the package's map object (`WorldMapMain.fng`, guid 0xF9984),
+//! centred on [`PICTURE_CENTRE`] and [`PICTURE_SIDE`] wide.
 
-/// The picture's rectangle `[x, y, side, side]` in points for a window of `width` by `height`. It is as tall as the
-/// window allows (with room for the title and hints) and at most 60% of the width, so the list has the rest.
-pub fn picture_rect(width: f32, height: f32) -> [f32; 4] {
-    let side = (height * 0.86).min(width * 0.6).max(1.0);
-    [width * 0.05, (height - side) * 0.5, side, side]
+use glam::Vec2;
+
+/// The centre of the picture, in FEng units (`docs/provenance/world-map-screen.md`).
+pub const PICTURE_CENTRE: [f32; 2] = [-111.0, 11.0];
+/// The picture's side, in FEng units.
+pub const PICTURE_SIDE: f32 = 340.0;
+
+/// The top left corner of the picture, in FEng units.
+pub fn picture_origin() -> [f32; 2] {
+    [PICTURE_CENTRE[0] - PICTURE_SIDE * 0.5, PICTURE_CENTRE[1] - PICTURE_SIDE * 0.5]
 }
 
-/// A window point `(x, y)` as a view position of the picture rectangle: `(0, 0)` its top left, `(1, 1)` its bottom
-/// right. Outside the rectangle the values are below 0 or above 1.
-pub fn view_of(x: f32, y: f32, rect: [f32; 4]) -> [f32; 2] {
-    [(x - rect[0]) / rect[2], (y - rect[1]) / rect[3]]
+/// A screen point (FEng units) as a view position of the picture: `(0, 0)` its top left, `(1, 1)` its bottom right.
+/// Outside the picture the values are below 0 or above 1.
+pub fn view_of(point: Vec2) -> [f32; 2] {
+    let origin = picture_origin();
+    [(point.x - origin[0]) / PICTURE_SIDE, (point.y - origin[1]) / PICTURE_SIDE]
+}
+
+/// A view position of the picture as a screen point (FEng units).
+pub fn point_of(view: [f32; 2]) -> [f32; 2] {
+    let origin = picture_origin();
+    [origin[0] + view[0] * PICTURE_SIDE, origin[1] + view[1] * PICTURE_SIDE]
 }
 
 #[cfg(test)]
@@ -18,19 +32,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_picture_is_a_square_inside_the_window_on_the_left() {
-        for (w, h) in [(1920.0, 1080.0), (1280.0, 1024.0), (800.0, 600.0)] {
-            let [x, y, side, side_h] = picture_rect(w, h);
-            assert_eq!(side, side_h);
-            assert!(x >= 0.0 && y >= 0.0 && x + side < w * 0.7 && y + side <= h, "{w}x{h}: {:?}", [x, y, side]);
-        }
+    fn the_picture_is_centred_on_its_object() {
+        assert_eq!(point_of([0.5, 0.5]), PICTURE_CENTRE);
+        assert_eq!(point_of([0.0, 0.0]), picture_origin());
+        assert_eq!(point_of([1.0, 1.0]), [PICTURE_CENTRE[0] + 170.0, PICTURE_CENTRE[1] + 170.0]);
     }
 
     #[test]
-    fn a_window_point_maps_to_the_view() {
-        let rect = [10.0, 20.0, 100.0, 100.0];
-        assert_eq!(view_of(10.0, 20.0, rect), [0.0, 0.0]);
-        assert_eq!(view_of(110.0, 120.0, rect), [1.0, 1.0]);
-        assert!(view_of(5.0, 50.0, rect)[0] < 0.0, "left of the picture");
+    fn a_screen_point_maps_to_the_view_and_back() {
+        for view in [[0.0, 0.0], [0.25, 0.75], [1.0, 1.0]] {
+            let back = view_of(Vec2::from(point_of(view)));
+            assert!((back[0] - view[0]).abs() < 1e-5 && (back[1] - view[1]).abs() < 1e-5, "{view:?}");
+        }
+        assert!(view_of(Vec2::new(0.0, 300.0))[1] > 1.0, "below the picture");
     }
 }

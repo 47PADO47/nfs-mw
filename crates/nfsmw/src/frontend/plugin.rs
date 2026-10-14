@@ -26,7 +26,7 @@ use crate::devtools::Console;
 use crate::gui::UiOutput;
 use crate::input::{Action, ActionState, Bindings, InputDevice, InputPresentation, MouseCapture};
 use crate::settings::Settings;
-use crate::ui::present::Screen;
+use crate::ui::present::{FENG_HEIGHT, Screen};
 use crate::ui::{Catalog, Presenter, SCREEN_FILES, SharedAssets};
 
 /// Longest step the screens' clock takes, so a stall does not skip animations.
@@ -117,7 +117,6 @@ fn press_at(fe: &mut Frontend, point: Vec2, bindings: &Bindings, device: InputDe
 #[derive(SystemParam)]
 struct MapParams<'w> {
     overlay: ResMut<'w, WorldMapOverlay>,
-    shared: Res<'w, SharedAssets>,
     mouse: Res<'w, ButtonInput<MouseButton>>,
 }
 
@@ -253,14 +252,14 @@ fn update(
                 fe.pause(host, &mut env);
             }
             if !pause && !console_had_it && actions.just_pressed(Action::Map) {
-                control::open(fe, &mut map.overlay, map.shared.0.as_ref(), host);
+                control::open(fe, &mut map.overlay, host, &mut env);
             }
         }
         Stage::Map => {
-            let rect = layout::picture_rect(window.width(), window.height());
-            let cursor = window.cursor_position().map(|c| layout::view_of(c.x, c.y, rect));
-            let input = control::input(&actions, &keys, &map.mouse, cursor, rect[2]);
-            control::step(fe, &mut map.overlay, input);
+            let side = layout::PICTURE_SIDE * window.height() / FENG_HEIGHT;
+            let cursor = feng_point(&window).map(layout::view_of);
+            let input = control::input(&actions, &keys, &map.mouse, cursor, side);
+            control::step(fe, &mut map.overlay, input, dt, host, &mut env);
         }
         Stage::Boot(Boot::Splash) | Stage::Menus | Stage::Paused => {
             if (actions.just_pressed(Action::MenuQuit) || press_quit)

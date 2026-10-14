@@ -1,20 +1,22 @@
 //! The map's inputs and the open and close flow: what the keys, the mouse and the wheel ask for this frame, and the
-//! frontend stage the map runs in (the world is paused behind it, as behind the pause menu).
+//! frontend stage the map runs in (the world is paused behind it, as behind the pause menu). The map's screen is
+//! `WorldMapMain.fng` (`screen/`), opened as a screen over the frozen world.
 
 use bevy_input::ButtonInput;
 use bevy_input::keyboard::KeyCode;
 use bevy_input::mouse::MouseButton;
 
+use super::screen::WorldMapLogic;
 use super::{MapInput, Outcome, activate_gps};
 use crate::app::Host;
 use crate::frontend::flow::{Frontend, Stage};
+use crate::frontend::logic::Env;
 use crate::frontend::world_map::overlay::WorldMapOverlay;
 use crate::hud::{
     AUTO_SHOP, AUTO_SHOP_TINT, CAR_LOT, CAR_LOT_TINT, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP,
     RACE_SPRINT, RACE_TOLLBOOTH, SAFE_HOUSE, SAFE_HOUSE_TINT,
 };
 use crate::input::{Action, ActionState};
-use crate::ui::UiAssets;
 
 /// This frame's map input. `cursor` is the cursor in view units (see [`super::layout::view_of`]), `side` the picture's
 /// size in points (a drag of that many points pans a full view).
@@ -54,16 +56,6 @@ pub fn icon_name(style: &str) -> &'static str {
     }
 }
 
-/// Every icon file [`icon_name`] can return.
-pub const ICONS: [&str; 6] = [
-    "Minimap_Icon_Chop_Shop.tga",
-    "Minimap_Icon_Car_Lot.tga",
-    "Minimap_Icon_Safe_House.tga",
-    "Minimap_Icon_Speedtrap.tga",
-    "Minimap_Icon_Circuit.tga",
-    "Minimap_Icon_Event.tga",
-];
-
 /// The tint of a blip style: the HUD's own colours for the interiors (`hud/blip_styles.rs`), none for the races.
 pub fn tint_of(style: &str) -> Option<[u8; 3]> {
     let rgba = match style {
@@ -101,7 +93,7 @@ pub fn format_metres(metres: f32) -> String {
 
 /// Opens the map over the frozen world. The blips and the player are read before the world freezes (a paused scene
 /// reports no blips), and stay as they were while it is paused.
-pub fn open(fe: &mut Frontend, overlay: &mut WorldMapOverlay, assets: &UiAssets, host: &mut Host) {
+pub fn open(fe: &mut Frontend, overlay: &mut WorldMapOverlay, host: &mut Host, env: &mut Env) {
     let (blips, player) = match host.scene.hud_state() {
         Some(hud) => (hud.blips.clone(), hud.minimap.as_ref().map(|m| m.position)),
         None => (Vec::new(), None),
@@ -113,18 +105,25 @@ pub fn open(fe: &mut Frontend, overlay: &mut WorldMapOverlay, assets: &UiAssets,
             None
         }
     };
-    overlay.open(calibration, assets);
+    overlay.open(calibration);
     overlay.refresh(&blips, player);
     log::info!("world map open: {} blips", overlay.blips.len());
-    fe.paused.set(true);
-    fe.stage = Stage::Map;
+    fe.open_map(Box::new(WorldMapLogic), host, env);
 }
 
-/// One frame of the open map: the input goes to the session, and its outcome closes the map or sets the GPS.
-pub fn step(fe: &mut Frontend, overlay: &mut WorldMapOverlay, input: MapInput) {
+/// One frame of the open map: the input goes to the session, and its outcome closes the map, sets the GPS, or draws
+/// the map's screen with the session's new state.
+pub fn step(
+    fe: &mut Frontend,
+    overlay: &mut WorldMapOverlay,
+    input: MapInput,
+    dt: f32,
+    host: &mut Host,
+    env: &mut Env,
+) {
     let outcome = overlay.session.frame(&input, &overlay.blips);
     match outcome {
-        Outcome::Stay => {}
+        Outcome::Stay => draw(fe, overlay, dt, host, env),
         Outcome::Close => close(fe, overlay),
         Outcome::ActivateGps(index) => {
             if let Some(blip) = overlay.blips.get(index) {
@@ -135,9 +134,21 @@ pub fn step(fe: &mut Frontend, overlay: &mut WorldMapOverlay, input: MapInput) {
     }
 }
 
+/// Gives the map's screen this frame's state and runs the screens one step (the package's animations and the logic
+/// that writes the state into its objects).
+fn draw(fe: &mut Frontend, overlay: &WorldMapOverlay, dt: f32, host: &mut Host, env: &mut Env) {
+    if !matches!(fe.stage, Stage::Map) {
+        return;
+    }
+    fe.screens.set_world_map(Some(overlay.frame()));
+    let commands = fe.screens.update(dt, 0, env);
+    fe.apply(commands, host, env);
+}
+
 fn close(fe: &mut Frontend, overlay: &mut WorldMapOverlay) {
     log::info!("world map closed");
     overlay.close();
+    fe.screens.set_world_map(None);
     fe.resume();
 }
 
@@ -146,9 +157,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn every_icon_a_style_can_use_is_in_the_list() {
+    fn every_style_has_a_map_icon_file() {
         for style in [AUTO_SHOP, CAR_LOT, SAFE_HOUSE, RACE_SPRINT, RACE_SPEEDTRAP, RACE_CIRCUIT, RACE_DRAG] {
-            assert!(ICONS.contains(&icon_name(style)), "{style}");
+            assert!(icon_name(style).starts_with("Minimap_Icon_") && icon_name(style).ends_with(".tga"), "{style}");
         }
     }
 

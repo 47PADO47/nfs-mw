@@ -59,12 +59,12 @@ fn zoom_all_is_the_whole_picture_and_zooming_stays_inside_it() {
     let mut camera = Camera::zoom_all();
     assert_eq!(camera.to_view([0.25, 0.75]), [0.25, 0.75]);
     camera.step(4.0);
-    assert!(camera.zoom > 1.0);
+    assert!(camera.zoom() > 1.0);
     camera.step(-100.0);
-    assert_eq!(camera.zoom, 1.0, "zooming out stops at Zoom All");
+    assert_eq!(camera.zoom(), 1.0, "zooming out stops at Zoom All");
     camera.step(1000.0);
-    assert_eq!(camera.zoom, MAX_ZOOM, "zooming in stops at the maximum");
-    let half = 0.5 / camera.zoom;
+    assert_eq!(camera.zoom(), MAX_ZOOM, "zooming in stops at the maximum");
+    let half = 0.5 / camera.zoom();
     assert!(camera.centre.iter().all(|c| *c >= half - 1e-6 && *c <= 1.0 - half + 1e-6));
 }
 
@@ -73,7 +73,7 @@ fn panning_cannot_leave_the_picture() {
     let mut camera = Camera::zoom_all();
     camera.step(3.0);
     camera.pan([-50.0, 50.0]);
-    let half = 0.5 / camera.zoom;
+    let half = 0.5 / camera.zoom();
     assert!((camera.centre[0] - half).abs() < 1e-6, "dragged to the left edge");
     assert!((camera.centre[1] - (1.0 - half)).abs() < 1e-6, "dragged to the top edge");
 }
@@ -162,7 +162,7 @@ fn switching_the_tab_drops_the_prompt_and_the_attachment() {
 fn zoom_all_puts_the_camera_back() {
     let mut map = WorldMap::new();
     map.frame(&MapInput { zoom_lines: 3.0, ..Default::default() }, &blips());
-    assert!(map.camera.zoom > 1.0);
+    assert!(map.camera.zoom() > 1.0);
     map.frame(&MapInput { zoom_all: true, ..Default::default() }, &blips());
     assert_eq!(map.camera, Camera::zoom_all());
 }
