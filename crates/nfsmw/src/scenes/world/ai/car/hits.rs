@@ -44,14 +44,15 @@ fn tuning_for(model: &str) -> WreckTuning {
 
 impl AiCar {
     /// A hit of `impulse` N s at `point` (physics space), from `from_camera` metres away from the player: the traffic
-    /// shock, the accident of a hit by the player, and a cop's damage.
+    /// shock, the accident of a hit by the player, and a cop's damage. Returns whether the hit is the player's first that
+    /// damages this cop (an assault, see `rules::contact_infraction`).
     pub(in crate::scenes::world::ai) fn on_hit(
         &mut self,
         impulse: f32,
         by_player: bool,
         point: Vec3,
         from_camera: f32,
-    ) {
+    ) -> bool {
         let speed_change = impulse / self.mass.max(1.0);
         if speed_change > SHOCK_MIN_SPEED_CHANGE {
             self.shock = self.shock.max((speed_change / SHOCK_FORCE).min(1.0));
@@ -60,7 +61,7 @@ impl AiCar {
             log::info!("traffic: {} was hit by the player (impulse {impulse:.0} N s)", self.name);
             self.accident.on_hit(matches!(self.role, Role::Traffic) && !self.patrol, self.tractor);
         }
-        self.wreck_hit(impulse, point, by_player, from_camera);
+        self.wreck_hit(impulse, point, by_player, from_camera)
     }
 
     /// Whether the car is a cop that the damage has wrecked.
@@ -74,9 +75,10 @@ impl AiCar {
     }
 
     /// The impact on a cop: the arm from the car's centre in its frame gives the zone, and the zone's scale and the
-    /// impulse give the damage. A traffic car has no damage state and nothing happens.
-    pub(super) fn wreck_hit(&mut self, impulse: f32, point: Vec3, by_player: bool, from_camera: f32) {
-        let Some(damage) = self.damage.as_mut() else { return };
+    /// impulse give the damage. A traffic car has no damage state and nothing happens. Returns whether this hit by the
+    /// player is the first to damage the cop (its damage was zero before and is over zero after).
+    pub(super) fn wreck_hit(&mut self, impulse: f32, point: Vec3, by_player: bool, from_camera: f32) -> bool {
+        let Some(damage) = self.damage.as_mut() else { return false };
         // The contact's normal is not carried by the hit, so the zone is the front, rear or side (see `zone_of`).
         let view = self.sim.driver_view();
         let side = Vec3::Y.cross(view.forward).normalize_or_zero();
@@ -88,9 +90,11 @@ impl AiCar {
         }
         let closing = impulse / self.mass.max(1.0);
         damage.wreck.set_shock(impulse, self.mass);
+        let before = damage.wreck.damage();
         if damage.wreck.impact(&damage.tuning, impulse, closing, scale, from_camera) {
             damage.pending = true;
         }
+        by_player && before <= 0.0 && damage.wreck.damage() > 0.0
     }
 
     /// One physics step after the car moved: the shock decays, the flipped check runs, and the time since the player

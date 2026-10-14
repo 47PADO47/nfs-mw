@@ -100,6 +100,7 @@ impl TrafficWorld {
         self.pursuit = None;
         self.police.end(reason);
         self.cars.retain(|c| !c.is_cop());
+        self.clear_spikes();
     }
 
     pub fn add_cop_model(&mut self, model: CopModel) {
