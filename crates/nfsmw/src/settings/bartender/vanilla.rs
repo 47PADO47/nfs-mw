@@ -12,11 +12,11 @@ pub const BUST_SPEED_KPH: [f32; 10] = [9.0, 12.0, 19.0, 20.0, 25.0, 25.0, 19.0, 
 pub const FINES: [u32; 8] = [150, 350, 1000, 350, 300, 100, 300, 75];
 
 /// The heat a chase keeps after an escape, as a share of the heat it had (`EvadeSuccessHeatAdjust` of the default
-/// collection, `ai-pursuit-heat.md` 3.3).
+/// collection, `ai-pursuit-heat.md` 2.3).
 pub const EVADE_HEAT_ADJUST: f32 = 0.95;
 
-/// Cop cars chasing at once, at most. The stock car loader caps spawns at 8 (`ai-pursuit-heat.md` 2.7 and the mod
-/// notes); the rewrite keeps 8 until a config says otherwise.
+/// Cop cars chasing at once, at most. The rewrite's cap since the cop manager was built; the Bartender notes give the
+/// stock car loader's limit as 8 (`docs/mods/nfsmwbartender.md` section 4). A config may set another value.
 pub const MAX_COPS: u32 = 8;
 
 /// Seconds past which the busted timer busts the player (`kBustedTimeout`, `ai-pursuit.md` 5.1).

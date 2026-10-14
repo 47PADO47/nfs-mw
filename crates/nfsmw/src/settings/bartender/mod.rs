@@ -135,16 +135,8 @@ const METRES: Range = Range { min: 1.0, max: 500.0 };
 const HEIGHT: Range = Range { min: 0.1, max: 10.0 };
 
 /// The infraction keys of `[Fines]`, in `Infraction::ALL` order.
-const FINE_KEYS: [&str; 8] = [
-    "Speeding",
-    "Racing",
-    "RecklessDriving",
-    "Assault",
-    "HitAndRun",
-    "DamageToProperty",
-    "ResistingArrest",
-    "OffRoad",
-];
+const FINE_KEYS: [&str; 8] =
+    ["Speeding", "Racing", "RecklessDriving", "Assault", "HitAndRun", "DamageToProperty", "ResistingArrest", "OffRoad"];
 
 /// The settings in the file next to the config file. A missing file is the vanilla tuning.
 pub fn load() -> BartenderSettings {

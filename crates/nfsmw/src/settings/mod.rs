@@ -22,6 +22,7 @@ mod env;
 #[cfg(test)]
 mod exhaust_flames_tests;
 mod extra_options;
+pub mod fairbusts;
 pub(crate) mod file;
 mod graphics;
 mod graphics_preset;
@@ -29,7 +30,6 @@ mod graphics_preset;
 mod graphics_preset_tests;
 #[cfg(test)]
 mod graphics_tests;
-pub mod fairbusts;
 pub mod helicopter;
 mod hud_layout;
 #[cfg(test)]

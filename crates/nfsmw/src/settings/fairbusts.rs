@@ -73,16 +73,10 @@ impl FairBustsSettings {
             return ResetPenalty::STOCK;
         }
         match self.reset_auto_bust {
-            true => ResetPenalty {
-                reach: STOCK_RESET_REACH,
-                speed_gate: false,
-                multiplier: self.reset_bust_multiplier,
-            },
-            false => ResetPenalty {
-                reach: normal_reach,
-                speed_gate: true,
-                multiplier: self.reset_bust_multiplier,
-            },
+            true => {
+                ResetPenalty { reach: STOCK_RESET_REACH, speed_gate: false, multiplier: self.reset_bust_multiplier }
+            }
+            false => ResetPenalty { reach: normal_reach, speed_gate: true, multiplier: self.reset_bust_multiplier },
         }
     }
 }
