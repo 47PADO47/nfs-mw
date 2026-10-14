@@ -46,6 +46,7 @@ Audio extensions: [power effects](car-audio-power-effects.md),
 [authored traffic](authored-traffic-audio.md), [common events](common-audio-events.md),
 [spatial maps](spatial-parameter-maps.md), [FXEDIT](fxedit-processor.md), and
 [routing, tracing and output](car-audio-output.md). The
+[Speedbreaker pitch](speedbreaker-audio.md) record covers its shared authored envelope. The
 [coverage ledger](../car-audio-coverage.md) records unresolved boundaries.
 
 ## Template

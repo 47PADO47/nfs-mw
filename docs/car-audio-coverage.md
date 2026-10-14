@@ -13,7 +13,7 @@ not establish complete audible parity with an independent original-game drive.
 | Traffic | Moving traffic engines, ENV_STATIC horns, authored near-miss whooshes, installed vehicle profiles and source lifecycle | Original RNG, camera velocity averaging, additional AI requests, truck auxiliary/scenery drive-bys |
 | Environment | Installed spatial Reverb map and tunnel/overpass/garage zone selection; authored patch transitions | Dynamic zone visit mutations, occlusion and tunnel drive-by producers |
 | Reverb | Installed FXEDIT processor graphs and shared pre-pan mono wet bus at device sample rate | Stereo wet downmix, final output quantization, fixed 16-sample wet FIFO delay, matched live driving comparison |
-| Common events | Speedbreaker activation and pursuit-breaker start/end modules | Global Speedbreaker audio clock/pitch treatment |
+| Common events | Speedbreaker activation, shared authored pitch envelope on real audio time, pursuit-breaker start/end modules | Original music filter and additional mode-dependent volume treatment; matched driving PCM |
 | Other callers | Explicit coverage inventory | Remote racer/cop engine producers; static radio chirps and other environmental attachments |
 
 ## Evidence available
@@ -51,4 +51,5 @@ PCM. Record a regression and update both this ledger and the runtime inventory.
 Contracts: [ownership and tracing](specs/car-audio-observability.md),
 [output](specs/car-audio-output.md), [power effects](specs/car-audio-power-effects.md),
 [traffic](specs/authored-traffic-audio.md), [spatial maps](specs/spatial-parameter-maps.md),
-[common events](specs/common-audio-events.md), [FXEDIT](specs/fxedit-processor.md).
+[common events](specs/common-audio-events.md), [FXEDIT](specs/fxedit-processor.md),
+[Speedbreaker pitch](specs/speedbreaker-audio.md).

@@ -112,6 +112,7 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | [specs/spatial-parameter-maps.md](specs/spatial-parameter-maps.md) | Spatial Reverb map and enclosure zone context | Reader and PC lookup vectors |
 | [specs/fxedit-processor.md](specs/fxedit-processor.md) | Authored effect graph parsing and processing | All installed patches; isolated PC PCM comparison |
 | [specs/car-audio-output.md](specs/car-audio-output.md) | Shared wet bus and dry/pan/send ordering | Device-rate and irregular-block regressions |
+| [specs/speedbreaker-audio.md](specs/speedbreaker-audio.md) | Shared real-time Speedbreaker pitch envelope | Original producer and installed routing checks |
 | [formats/aems.md](formats/aems.md) | AEMS module banks: the dataflow graphs and code inside `.abk` files | Verified on all 301 banks; Rust reader |
 | [formats/mixmap.md](formats/mixmap.md) | Dynamic-mixer maps (`MIXMAPS/*.mxb`): states, controls, events, 3D controls, channels, presets | Verified; Rust reader |
 | [formats/video.md](formats/video.md) | EA VP6 container and decoder options | Complete |
