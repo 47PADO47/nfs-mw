@@ -113,6 +113,16 @@ fn sounds_of<'a>(db: &'a Database, wrapper: CollectionRef<'a>) -> Vec<Collection
         .collect()
 }
 
+/// The `audioimpact` collection with a stitch and the flag `flag` (`WALL`, ...) that has the most stitches: the
+/// heaviest hit of that kind. `None` when no collection with the flag has a stitch.
+pub fn heaviest_impact(db: &Database, flag: &str) -> Option<ImpactSound> {
+    db.collections_of("audioimpact")
+        .map(ImpactSound::read)
+        .filter(|s| s.has(flag))
+        .filter(|s| s.levels.iter().any(|l| !l.is_empty()))
+        .max_by_key(|s| s.levels.iter().map(Vec::len).sum::<usize>())
+}
+
 /// A link: the surface (or object) it applies to and the collection it names.
 #[derive(Debug, Clone, PartialEq)]
 struct Link {
