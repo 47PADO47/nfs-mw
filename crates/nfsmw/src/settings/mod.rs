@@ -28,6 +28,7 @@ mod graphics_preset;
 mod graphics_preset_tests;
 #[cfg(test)]
 mod graphics_tests;
+pub mod helicopter;
 mod hud_layout;
 #[cfg(test)]
 mod hud_layout_tests;
@@ -98,7 +99,6 @@ pub use write::write as write_file;
 
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
-
 /// Computer-driven cars kept on the road by default (the original keeps fewer than 10 vehicles active).
 pub const DEFAULT_TRAFFIC: u32 = 10;
 /// The default share of those cars that are patrol cops: 5 percent, one in twenty.
