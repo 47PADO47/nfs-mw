@@ -104,6 +104,44 @@ NIS file uses **[verified]**. The structs are presumably in `src/Speed/Indep/Src
 `AnimDirectorySceneLoadData` (18,440 B) and `0x00037070` `AnimDirectorySceneMappingData` (4,180 B)
 **[decomp names; sizes verified]**.
 
+## ICE chunk dispatch (speed.exe 1.3) **[verified: Ghidra]**
+
+The ICE chunk ids are consumed by two identical dispatch functions in `speed.exe`
+(image base `0x400000`). Each one takes the chunk header pointer as its stack argument and reads the
+id from `[arg]`:
+
+| Site | Test | Action |
+|---|---|---|
+| `0x004788E0` (compare at `0x4788E6`) | `id == 0x0003B211` | `CALL 0x00478890` (shake tracks) |
+| same | `0x8003B200 <= id <= 0x8003B203` | `CALL 0x004787C0` (camera packs, `ECX = 0x008EE320`) |
+| `0x0047FB40` (compare at `0x47FB46`) | `0x8003B200 <= id <= 0x8003B203` | `CALL 0x0047F9F0` (the `0x3B211` branch goes to `0x47FB6F`, not yet read) |
+
+Confirmed ids, all checked as immediates in the dispatch: **`0x0003B211` ICEShakeTracks** and the four
+camera packs **`0x8003B200`, `0x8003B201`, `0x8003B202`, `0x8003B203`** (the range test).
+
+**Not confirmed as immediates in `speed.exe`** (searched, no hits): `0x0003B200`, `0x8003B204`
+(Generic, outside the range test), `0x8003B209` (CameraShakeData) and `0x0003B210` (ICECameraGroup).
+They may use another dispatch or live in `server.dll`; open question.
+
+Pack kind inside `0x004787C0`: the handler computes `id - 0x8003B200` and jumps through a 4-entry table at
+`0x00478874` for indices 0..3. Entries map to `kind = 0, 1, 2, 3` and anything else to `kind = 4`. The
+decomp names for those kinds (NIS, FMV, MKR, Replay, Generic) are not checked here.
+
+The handler then loops over the records. Each record goes through `0x004786E0`, which appends a
+20-byte entry (pointer plus kind) to one of four arrays on the manager object at `ECX`:
+
+| Kind | Count field (offset in manager) | Limit |
+|---|---|---|
+| 0 | `+0x14` | 256 (`0x100`) |
+| 1 | `+0x18` | 10 |
+| 2 | `+0x1C` | 50 (`0x32`) |
+| 3 | `+0x20` | 50 |
+
+**Not pinned down:** the record byte layout. The handler strides by `0x84` per camera entry, and the
+shake handler at `0x00478890` walks entries with a 12-byte header, but the field offsets and the record
+size of the ICE pack payloads are still unknown. A reader needs those first. Chunk-level framing is
+the standard bChunk header (`[id u32 LE][size u32 LE]`, payload at `+8`), as the handler reads it.
+
 ## Looking at it yourself
 
 Extract one animation bank and read it with standard ELF tools:
