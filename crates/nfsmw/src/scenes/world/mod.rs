@@ -263,10 +263,9 @@ impl Scene for WorldScene {
         renderer.set_focus_filter(self.breaker_visuals.update(self.sound_speedbreaker_active, sim_dt));
         self.rain.update(sim_dt, camera);
         self.clock += sim_dt * self.tuning.animation_speed;
-      
-        self.sun.update(sim_dt, renderer.render_experiments().freeze_sun);
-        self.update_day(sim_dt);
-      
+
+        self.update_day(sim_dt, renderer.render_experiments().freeze_sun);
+
         self.residency.animate(renderer, self.clock);
         if self.view == View::Fly {
             self.camera.update(input, sim_dt);
