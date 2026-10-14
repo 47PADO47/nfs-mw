@@ -23,7 +23,7 @@ impl Backend for ReplayBackend {
 }
 
 impl ReplayBackend {
-    fn render(&mut self, frames: usize) -> &[f32] {
+    pub(in crate::audio) fn render(&mut self, frames: usize) -> &[f32] {
         self.samples.resize(frames * 2, 0.0);
         let renderer = self.renderer.as_mut().expect("initialized replay backend");
         renderer.on_start_processing();
@@ -34,9 +34,14 @@ impl ReplayBackend {
 
 impl Audio {
     pub(super) fn replay(dir: GameDir, rate: u32) -> Self {
-        let mut manager =
-            AudioManager::<ReplayBackend>::new(AudioManagerSettings { backend_settings: rate, ..Default::default() })
-                .unwrap();
+        let mut main = kira::track::MainTrackBuilder::new();
+        let wet = main.add_effect(super::wet::Bus::builder());
+        let mut manager = AudioManager::<ReplayBackend>::new(AudioManagerSettings {
+            backend_settings: rate,
+            main_track_builder: main,
+            ..Default::default()
+        })
+        .unwrap();
         let (sfx, music, engine) = (
             manager.add_sub_track(TrackBuilder::new()).unwrap(),
             manager.add_sub_track(TrackBuilder::new()).unwrap(),
@@ -45,7 +50,7 @@ impl Audio {
         Self::with_output(
             dir,
             Volumes::default(),
-            Some(Output { manager: OutputManager::Replay(Box::new(manager)), sfx, music, engine }),
+            Some(Output { manager: OutputManager::Replay(Box::new(manager)), sfx, music, engine, wet }),
         )
     }
 

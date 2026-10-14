@@ -12,12 +12,15 @@ use nfsmw_data::sound::{CarSound, EventKind, SoundUpgrades};
 
 use super::LoopMix;
 use super::aems::{AemsLayer, Feed, KiraSampler};
-use super::mixer::{CarMixer, Frame, Levels, scale_command};
+use super::mixer::{CarMixer, Frame, Levels};
 use super::tuning::tuning;
 use super::{Audio, EngineHandle, EngineMix};
 
 pub(super) mod ambient;
+pub(super) mod power_effects;
+pub(super) mod routing;
 mod telemetry;
+mod update;
 pub use ambient::{RoadContext, RoadTerrain};
 pub use telemetry::CarAudioTelemetry;
 mod contact;
@@ -97,6 +100,7 @@ pub(super) struct CarAudio {
     ambient: ambient::AmbientPlayback,
     tyres: tyres::TyrePlayback,
     transmission: transmission::TransmissionPlayback,
+    power: power_effects::PowerPlayback,
     pub(super) event_delay: f32,
 }
 
@@ -198,119 +202,6 @@ impl Audio {
         self.car = Some(car);
     }
 
-    fn advance_car(&mut self, car: &mut CarAudio, frame: &DriveFrame<'_>) {
-        car.event_delay = frame.delay;
-        let sample_available = car.aems.as_ref().is_some_and(AemsLayer::engine_available);
-        if car.sample_available && !sample_available {
-            log::warn!("{}: engine sample layer failed; Ginsu remains audible at the limiter", car.car);
-        }
-        car.sample_available = sample_available;
-        car.engine.set_redline_sample_available(sample_available);
-        // Keep the recording-range ratio separate from the dynamic mixer's pitch.
-        let input = CarInput { pitch_multiplier: 1.0, ..*frame.input };
-        let out = car.engine.update(frame.dt, &input);
-        let mut commands = std::mem::take(&mut car.commands);
-        commands.clear();
-        let landing = car.effects.update(frame.dt, &input, &out, &mut commands);
-        if let Some(mixer) = car.mixer.as_mut() {
-            mixer.set_view(*frame.view);
-            mixer.set_landing(landing);
-            let sparks = car.aems.as_ref().is_some_and(AemsLayer::sparks);
-            car.levels = mixer.update(
-                frame.dt,
-                &Frame {
-                    input: &input,
-                    engine: &out,
-                    effects: car.effects.signals(),
-                    master_volume: car.master_volume,
-                    sparks,
-                },
-            );
-        }
-        let levels = car.levels;
-        car.handle.set_tick(
-            EngineMix {
-                accel: LoopMix {
-                    frequency: out.accel_loop.frequency,
-                    volume: out.accel_volume * levels.engine_volume,
-                    pitch: out.accel_loop.playback_rate * levels.engine_pitch,
-                },
-                decel: LoopMix {
-                    frequency: out.decel_loop.frequency,
-                    volume: out.decel_volume * levels.engine_volume,
-                    pitch: out.decel_loop.playback_rate * levels.engine_pitch,
-                },
-                low_pass_hz: out.low_pass_hz.min(levels.engine_low_pass_hz),
-                azimuth: levels.engine_azimuth as u16,
-                dry: (levels.environment.ginsu_dry.clamp(0, 32767) >> 8) as f32 / 127.0,
-            },
-            out.tick_revision,
-        );
-        if out.redlining != car.redlining {
-            car.redlining = out.redlining;
-            log::debug!("{}: engine limiter {}", car.car, if out.redlining { "starts" } else { "ends" });
-        }
-        if let Some(layer) = car.aems.as_mut() {
-            let below_min = if out.accel_loop.frequency > 0.0 {
-                (out.ginsu_frequency / out.accel_loop.frequency).min(1.0)
-            } else {
-                1.0
-            };
-            layer.set_synth_frequency(car.handle.current_frequency() * below_min);
-            layer.update(&mut KiraSampler(self), frame.dt, &Feed { engine: &out, levels: &levels });
-        }
-        let hits = car.contacts.observe(self, &car.sound, car.mixer.as_ref(), frame.contacts, frame.sim_dt);
-        for event in hits.iter().chain(frame.events) {
-            self.play_impact(car, event, &input, frame.view);
-        }
-        if let Some(landing) = landing {
-            self.play_landing(car, landing);
-        }
-        let landing_level = car.mixer.as_ref().map_or((1.0, 0), CarMixer::landing_level);
-        car.impacts.update(self, frame.dt, frame.delay, &input, frame.view, landing_level);
-        car.contacts.update(self, frame.dt, &input, frame.view);
-        let tyre_frame = tyres::TyreFrame {
-            understeer: frame.telemetry.understeer,
-            oversteer: frame.telemetry.oversteer,
-            side_surface: [[0, 3], [1, 2]]
-                .map(|side| side.into_iter().map(|i| i32::from(input.wheels[i].skid_surface)).max().unwrap_or(0)),
-            skid_type: 0,
-        };
-        if car.tyres.update(self, &car.sound, &input, tyre_frame, car.mixer.as_ref().map(CarMixer::tyres), frame.dt) {
-            for side in 0..2 {
-                self.apply(car, SoundCommand::StopLoop(LoopId::Skid(side)));
-            }
-            tyres::TyrePlayback::consume(&mut commands);
-        }
-        car.transmission.update(
-            self,
-            &car.sound,
-            transmission::TransmissionFrame {
-                forward_speed: frame.telemetry.forward_speed,
-                shifting: out.shift_state != blackbox_carsound::ShiftState::None,
-            },
-            car.mixer.as_ref().map(CarMixer::transmission),
-            frame.dt,
-        );
-        car.ambient.update_with_context(
-            self,
-            &input,
-            &mut commands,
-            car.mixer.as_ref().map_or_else(Default::default, CarMixer::ambient),
-            frame.dt,
-            frame.telemetry.road.as_ref(),
-        );
-        for id in [LoopId::Wind, LoopId::Road(0), LoopId::Road(1)] {
-            if car.ambient.owns_loop(id) {
-                self.apply(car, SoundCommand::StopLoop(id));
-            }
-        }
-        for command in commands.drain(..) {
-            self.apply(car, scale_command(&levels, command));
-        }
-        car.commands = commands;
-    }
-
     /// The pops of the car's sputter since the last call (0 without a car, a sample layer or sputters).
     pub fn take_sputter_pops(&mut self) -> u32 {
         self.car.as_mut().and_then(|car| car.aems.as_mut()).map_or(0, AemsLayer::take_pops)
@@ -358,6 +249,7 @@ impl Audio {
             ambient: ambient::AmbientPlayback::default(),
             tyres: tyres::TyrePlayback::default(),
             transmission: transmission::TransmissionPlayback::default(),
+            power: power_effects::PowerPlayback::default(),
             event_delay: 0.0,
         })
     }
@@ -365,5 +257,7 @@ impl Audio {
 
 #[cfg(test)]
 mod regression_tests;
+#[cfg(test)]
+mod routing_tests;
 #[cfg(test)]
 mod tests;

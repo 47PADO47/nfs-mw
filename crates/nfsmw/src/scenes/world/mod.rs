@@ -32,6 +32,7 @@ mod resident;
 mod road;
 mod sign_lamps;
 mod simulation;
+mod sound;
 mod space;
 mod start;
 mod sun;
@@ -94,6 +95,9 @@ pub struct WorldScene {
     garage: crate::garage::Model,
     garage_parts: Option<nfsmw_data::car::customization::Inventory>,
     garage_open: bool,
+    audio_environment: Option<crate::audio::environment_context::EnvironmentMap>,
+    common_sounds: Vec<crate::audio::CommonEvent>,
+    sound_speedbreaker_active: bool,
     dir: GameDir,
     track: String,
     camera: FlyCamera,
@@ -458,27 +462,11 @@ impl Scene for WorldScene {
     }
 
     fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
-        if self.garage_open {
-            return None;
-        }
-        let lens = self.gameplay_lens(1.0);
-        let pose = self.drive.as_ref()?.pose();
-        let mut state = self.drive.as_mut()?.car_sound()?;
-        let (camera_state, view_value) = match self.camera_mode {
-            CameraMode::Bumper => (1, 0),
-            CameraMode::Hood => (2, 4000),
-            _ => (0, 32767),
-        };
-        state.view = crate::audio::AudioView {
-            car_position: pose.position,
-            car_forward: pose.rotation * glam::Vec3::X,
-            camera_position: lens.position,
-            camera_forward: lens.forward,
-            camera_state,
-            view_value,
-            environment: Default::default(),
-        };
-        Some(state)
+        self.audio_state()
+    }
+
+    fn take_common_sounds(&mut self) -> Vec<crate::audio::CommonEvent> {
+        std::mem::take(&mut self.common_sounds)
     }
 
     fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {

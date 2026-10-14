@@ -1,5 +1,7 @@
 //! Signed tyre telemetry into the installed FX_SKID graph. Spec: car-audio-tyres-transmission.md.
-use blackbox_carsound::{CarInput, LoopId, SoundCommand, WheelInput};
+use blackbox_carsound::{CarInput, WheelInput};
+#[cfg(test)]
+use blackbox_carsound::{LoopId, SoundCommand};
 use nfsmw_data::sound::CarSound;
 
 use crate::audio::aems::{EffectModule, EffectSampler};
@@ -152,6 +154,7 @@ impl TyrePlayback {
     }
 
     /// Invoke only after update succeeds; on failure leave all legacy commands intact.
+    #[cfg(test)]
     pub fn consume(commands: &mut Vec<SoundCommand>) {
         commands.retain(|command| {
             !matches!(

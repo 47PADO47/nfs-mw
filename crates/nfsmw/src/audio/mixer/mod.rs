@@ -8,6 +8,7 @@ pub(super) mod collision;
 mod feed;
 mod ids;
 mod levels;
+mod power;
 mod scale;
 #[cfg(test)]
 mod tests;

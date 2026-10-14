@@ -1,59 +1,68 @@
-//! The one-shot sounds of the traffic cars: their horns on a crash and the whoosh of a near miss. The scene reports
-//! them; the mixer plays them. Spec: `docs/specs/traffic-sound-events.md` §4.
+//! Ordered traffic producers and their authored modules. Spec: authored-traffic-audio.md.
+mod controller;
+mod emitter;
+mod mixer;
+mod selection;
+#[cfg(test)]
+mod tests;
 
-use kira::sound::static_sound::StaticSoundData;
+use super::{Audio, AudioView};
+pub(super) use controller::TrafficAudio;
+use glam::Vec3;
 
-use super::volume::decibels;
-use super::{Audio, Group};
-
-/// The traffic car horns: `HornType` is the sound number in this bank (`docs/specs/ai-traffic-world.md` §3.2).
-pub const HORN_BANK: &str = "IG_GLOBAL/TRAFFIC_MB.abk";
-/// The near-miss whoosh bank. Which sound number is the whoosh is **[unconfirmed]**; 1 is a guess.
+pub const HORN_BANK: &str = "IG_GLOBAL/ENV_COMMON_MB.abk";
 pub const WHOOSH_BANK: &str = "IG_GLOBAL/Stitch_Whoosh_MB.abk";
-const WHOOSH_INDEX: usize = 1;
+const ENGINE_BANK: &str = "IG_GLOBAL/TRAFFIC_MB.abk";
 
-/// A one-shot the traffic cars asked for.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum TrafficSound {
-    /// A car's horn: `index` is its `HornType`.
-    Horn { index: usize, volume: f32 },
-    /// A traffic car passed the player close by.
-    NearMiss { volume: f32 },
+/// Installed IDs belong to class data, never directly to a bank sample index.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TrafficProfile {
+    pub horn: Option<u32>,
+    pub engine: Option<u32>,
+    pub whoosh: Option<u32>,
 }
 
-impl TrafficSound {
-    /// The bank and sound number this one plays.
-    pub fn source(self) -> (&'static str, usize) {
-        match self {
-            Self::Horn { index, .. } => (HORN_BANK, index),
-            Self::NearMiss { .. } => (WHOOSH_BANK, WHOOSH_INDEX),
-        }
-    }
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TrafficEmitter {
+    pub id: u32,
+    pub profile: TrafficProfile,
+    pub position: Vec3,
+    pub forward: Vec3,
+    pub velocity: Vec3,
+}
 
-    /// The linear volume it plays at.
-    pub fn volume(self) -> f32 {
-        match self {
-            Self::Horn { volume, .. } | Self::NearMiss { volume } => volume,
-        }
-    }
+#[derive(Debug, Clone, PartialEq)]
+pub struct TrafficFrame {
+    pub dt: f32,
+    pub listener_position: Vec3,
+    pub listener_forward: Vec3,
+    pub listener_velocity: Vec3,
+    pub emitters: Vec<TrafficEmitter>,
+}
+
+/// Ordered events followed by a complete snapshot of the same simulation step.
+#[derive(Debug, Clone, PartialEq)]
+pub enum TrafficSound {
+    #[cfg(test)]
+    Horn {
+        emitter: u32,
+        duration: f32,
+    },
+    NearMiss {
+        emitter: u32,
+        relative_speed: f32,
+    },
+    Frame(TrafficFrame),
 }
 
 impl Audio {
-    /// Plays a traffic one-shot. A sound that cannot be read is logged once and then dropped.
-    pub fn play_traffic(&mut self, sound: TrafficSound) {
-        let (bank, index) = sound.source();
-        let data: StaticSoundData = match self.bank_sound(bank, index) {
-            Ok(data) => data,
-            Err(e) => {
-                if self.missing.insert((bank.to_owned(), index)) {
-                    log::warn!("no traffic sound {sound:?}: {e}");
-                }
-                return;
-            }
-        };
-        let data = data.volume(decibels(sound.volume()));
-        if let Err(e) = self.play(Group::Sfx, data) {
-            log::debug!("traffic sound {sound:?}: {e}");
-        }
+    pub fn update_traffic(&mut self, sounds: Vec<TrafficSound>, view: AudioView) {
+        let mut traffic = std::mem::take(&mut self.traffic);
+        traffic.update(self, sounds, view);
+        self.traffic = traffic;
+    }
+
+    pub fn stop_traffic(&mut self) {
+        self.traffic = TrafficAudio::default();
     }
 }

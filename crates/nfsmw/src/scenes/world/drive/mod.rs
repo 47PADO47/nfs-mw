@@ -414,6 +414,9 @@ impl Drive {
         Some(self.sound.state(&self.car_name, &self.telemetry, self.performance))
     }
 
+    pub(super) fn speedbreaker_active(&self) -> bool {
+        self.breaker.active()
+    }
     /// The readout lines at this level: one for `Minimal`, the numbers of the HUD and the run for `Full`.
     pub fn readout(&self, level: crate::devtools::ShowReadout) -> String {
         if self.sim.is_none() || self.request.is_some() {

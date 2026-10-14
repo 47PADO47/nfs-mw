@@ -104,7 +104,7 @@ impl AmbientPlayback {
         &mut self,
         audio: &mut Audio,
         input: &CarInput,
-        commands: &mut Vec<SoundCommand>,
+        commands: &[SoundCommand],
         levels: AmbientLevels,
         dt: f32,
     ) {
@@ -115,7 +115,7 @@ impl AmbientPlayback {
         &mut self,
         audio: &mut Audio,
         input: &CarInput,
-        commands: &mut Vec<SoundCommand>,
+        commands: &[SoundCommand],
         levels: AmbientLevels,
         dt: f32,
         context: Option<&RoadContext>,
@@ -199,17 +199,6 @@ impl AmbientPlayback {
                 levels.road_wet,
             );
         }
-        commands.retain(|command| match command {
-            SoundCommand::SetLoop { id: LoopId::Wind | LoopId::Road(_), .. }
-            | SoundCommand::StopLoop(LoopId::Wind | LoopId::Road(_)) => {
-                let id = match command {
-                    SoundCommand::SetLoop { id, .. } | SoundCommand::StopLoop(id) => *id,
-                    _ => unreachable!(),
-                };
-                !self.owns_loop(id)
-            }
-            _ => true,
-        });
     }
 
     fn select(&mut self, audio: &mut Audio, side: usize, id: Option<u8>) {

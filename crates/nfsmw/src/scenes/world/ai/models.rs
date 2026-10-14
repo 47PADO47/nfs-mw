@@ -26,10 +26,14 @@ fn folders(cars: &[String], vehicle: &str, lineage: &[String]) -> Vec<String> {
     found
 }
 
-/// The horn sound of a `pvehicle` (`HornType`). 5 when the record has none: 5 is the first horn the spec verified.
-fn horn_of(db: &blackbox_attrib::Database, vehicle: &str) -> u32 {
-    const DEFAULT_HORN: u32 = 5;
-    db.collection("pvehicle", &vehicle.to_ascii_lowercase()).and_then(|c| c.get_u32("HornType")).unwrap_or(DEFAULT_HORN)
+/// Installed class IDs; missing fields remain explicitly unavailable.
+fn audio_profile(db: &blackbox_attrib::Database, vehicle: &str) -> crate::audio::traffic::TrafficProfile {
+    let collection = db.collection("pvehicle", &vehicle.to_ascii_lowercase());
+    crate::audio::traffic::TrafficProfile {
+        horn: collection.as_ref().and_then(|c| c.get_u32("HornType")),
+        engine: collection.as_ref().and_then(|c| c.get_u32("TrafficEngType")),
+        whoosh: collection.as_ref().and_then(|c| c.get_u32("WooshType")),
+    }
 }
 
 /// Loads the model and physics of one `pvehicle`, without the trailer it may pull.
@@ -51,7 +55,7 @@ fn load_body(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, vehicle: 
             .or_else(|_| scene.physics_of(&model))
             .map_err(|e| format!("{vehicle} has no physics: {e:#}"))?;
         let rig = std::rc::Rc::new(CarRig::upload(renderer, keys::next_car(), model, scene.car_shading, sun::to_sun()));
-        let horn = horn_of(scene.physics.database(), vehicle);
+        let audio_profile = audio_profile(scene.physics.database(), vehicle);
         let tractor = scene.physics.is_tractor(vehicle);
         return Ok(TrafficModel {
             name: vehicle.to_ascii_uppercase(),
@@ -60,7 +64,7 @@ fn load_body(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, vehicle: 
             tractor,
             trailer: None,
             cop_lights: None,
-            horn,
+            audio_profile,
         });
     }
     Err(last)
@@ -120,7 +124,7 @@ pub(super) fn load_cop_models(
                 tractor: scene.physics.is_tractor(&car_type),
                 trailer: None,
                 cop_lights,
-                horn: horn_of(scene.physics.database(), &name.to_ascii_lowercase()),
+                audio_profile: audio_profile(scene.physics.database(), &car_type),
             },
             car: CopCar { performance, ai },
         });

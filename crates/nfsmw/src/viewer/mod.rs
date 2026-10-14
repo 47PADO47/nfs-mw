@@ -141,6 +141,10 @@ pub trait Scene {
     fn take_traffic_sounds(&mut self) -> Vec<crate::audio::traffic::TrafficSound> {
         Vec::new()
     }
+    /// Ordered global sound events since the last update.
+    fn take_common_sounds(&mut self) -> Vec<crate::audio::CommonEvent> {
+        Vec::new()
+    }
     /// The scene is over: the app quits.
     fn finished(&self) -> bool {
         false

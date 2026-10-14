@@ -129,7 +129,7 @@ fn installed_road_graph_replaces_releases_and_keeps_unchanged_instance() {
         game_install::GameDir::open(std::path::PathBuf::from(std::env::var_os("NFSMW_GAME_DIR").unwrap())).unwrap();
     let mut audio = Audio::replay(dir, 48_000);
     let mut playback = AmbientPlayback::default();
-    playback.update(&mut audio, &input(0), &mut commands(0), Default::default(), 1.0 / 60.0);
+    playback.update(&mut audio, &input(0), &commands(0), Default::default(), 1.0 / 60.0);
     assert!(playback.available());
     assert!(playback.owns_loop(LoopId::Wind));
     playback.select(&mut audio, 0, Some(0));
@@ -146,7 +146,7 @@ fn installed_road_graph_replaces_releases_and_keeps_unchanged_instance() {
     let mut silent = input(NO_ROAD_NOISE);
     silent.speed = 0.0;
     for _ in 0..180 {
-        playback.update(&mut audio, &silent, &mut Vec::new(), Default::default(), 1.0 / 60.0);
+        playback.update(&mut audio, &silent, &Vec::new(), Default::default(), 1.0 / 60.0);
         audio.render_replay(800);
     }
     assert!(
@@ -164,11 +164,11 @@ fn installed_road_graph_replaces_releases_and_keeps_unchanged_instance() {
     playback.road[1].module = None;
     playback.road[1].failed = true;
     playback.ids[1] = Some(1);
-    let mut fallback = vec![
+    let fallback = vec![
         SoundCommand::SetLoop { id: LoopId::Wind, sound: SoundRef::Wind, volume: 0.5, pitch: 1.0 },
         SoundCommand::SetLoop { id: LoopId::Road(1), sound: SoundRef::RoadNoise(1), volume: 0.5, pitch: 1.0 },
     ];
-    playback.update(&mut audio, &input(1), &mut fallback, Default::default(), 1.0 / 60.0);
+    playback.update(&mut audio, &input(1), &fallback, Default::default(), 1.0 / 60.0);
     assert_eq!(fallback.len(), 2, "actual failures preserve generic loop commands");
     assert!(!playback.owns_loop(LoopId::Wind));
     assert!(!playback.owns_loop(LoopId::Road(1)));
@@ -189,9 +189,9 @@ fn installed_transition_weather_and_stitch_profiles_are_usable() {
         ..Default::default()
     };
     let mut context = RoadContext::default();
-    playback.update_with_context(&mut audio, &input(0), &mut commands(0), levels, 1.0 / 60.0, Some(&context));
+    playback.update_with_context(&mut audio, &input(0), &commands(0), levels, 1.0 / 60.0, Some(&context));
     context.terrain[0] = RoadTerrain { key: 1, transition_on: 0, ..Default::default() };
-    playback.update_with_context(&mut audio, &input(1), &mut commands(1), levels, 1.0 / 60.0, Some(&context));
+    playback.update_with_context(&mut audio, &input(1), &commands(1), levels, 1.0 / 60.0, Some(&context));
     assert!(!playback.transition[0].failed);
     assert_eq!(playback.transition[0].params[0], 0);
     assert!(!playback.weather.failed && playback.weather.module.is_some());
@@ -207,7 +207,7 @@ fn installed_transition_weather_and_stitch_profiles_are_usable() {
     assert!(playback.owns_loop(LoopId::Road(0)), "resolved profile must also load its piece modules");
     let mut recorded = Vec::new();
     for _ in 0..120 {
-        playback.update(&mut audio, &input(8), &mut commands(8), levels, 1.0 / 60.0);
+        playback.update(&mut audio, &input(8), &commands(8), levels, 1.0 / 60.0);
         recorded.extend_from_slice(audio.render_replay(800));
     }
     assert!(playback.owns_loop(LoopId::Road(0)), "piece updates must remain usable");

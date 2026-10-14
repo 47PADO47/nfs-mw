@@ -31,6 +31,9 @@ impl CarSim {
         });
         CarAudioTelemetry {
             forward_speed: v.forward_speed(),
+            max_physics_rpm: v.powertrain().engine_spec().max_rpm,
+            physics_position: Some(v.position()),
+            environment: None,
             understeer,
             oversteer,
             road: Some(RoadContext { terrain, damage: [0; 4] }),

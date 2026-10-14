@@ -16,6 +16,8 @@ pub struct EnvironmentContext {
     pub tunnel: bool,
     pub overpass: bool,
     pub garage: bool,
+    /// Dynamic enclosure: garage patch, ordinary enclosed mixer input.
+    pub dynamic: bool,
     pub occluded: bool,
 }
 
@@ -27,16 +29,20 @@ impl EnvironmentContext {
         if self.overpass {
             return Some(6);
         }
-        if self.garage {
+        if self.garage || self.dynamic {
             return Some(3);
         }
         self.zone.map(|zone| if zone < 12 { zone } else { 9 })
     }
 
+    fn enclosed(self) -> bool {
+        self.tunnel || self.overpass || self.garage || self.dynamic
+    }
+
     /// Player tunnel-controller inputs0..6, before the dynamic mixer update.
     pub fn mixer_inputs(self, levels: EnvironmentValues) -> [i32; 7] {
         let flag = |value: bool| i32::from(value) * FULL;
-        let enclosed = self.tunnel || self.overpass || self.garage;
+        let enclosed = self.enclosed();
         [
             flag(enclosed && !self.overpass && !self.garage),
             flag(enclosed && self.overpass && !self.garage),
@@ -106,6 +112,9 @@ pub struct EnvironmentController {
     debt: f64,
     current_zone: u8,
     selected_zone: Option<u8>,
+    last_map_zone: Option<u8>,
+    was_enclosed: bool,
+    was_ramping: bool,
     wet_offset_db: i32,
     phase: Phase,
     elapsed: f64,
@@ -123,6 +132,9 @@ impl Default for EnvironmentController {
             // The original controller starts on this row with neutral gains.
             current_zone: 5,
             selected_zone: None,
+            last_map_zone: None,
+            was_enclosed: false,
+            was_ramping: false,
             wet_offset_db: 0,
             phase: Phase::Steady,
             elapsed: 0.0,
@@ -166,6 +178,9 @@ impl EnvironmentController {
     fn unavailable(&mut self) {
         self.current_zone = 5;
         self.selected_zone = None;
+        self.last_map_zone = None;
+        self.was_enclosed = false;
+        self.was_ramping = false;
         self.phase = Phase::Steady;
         self.current = NEUTRAL;
         self.target = NEUTRAL;
@@ -174,13 +189,25 @@ impl EnvironmentController {
     }
 
     fn tick(&mut self, context: EnvironmentContext) {
-        let Some(zone) = context.selected_zone() else {
+        let Some(context_zone) = context.selected_zone() else {
             self.unavailable();
             return;
         };
-        if self.selected_zone != Some(zone) {
+        let map_zone = context.zone.map(|zone| if zone < 12 { zone } else { 9 });
+        let enclosed = context.enclosed();
+        let request = match (self.selected_zone, self.was_enclosed, enclosed) {
+            (None, _, _) | (_, false, true) => Some((context_zone, if enclosed { 0 } else { context.wet_offset_db })),
+            (_, true, false) => {
+                Some((map_zone.unwrap_or(9), if self.last_map_zone != map_zone { context.wet_offset_db } else { 0 }))
+            }
+            (_, false, false) if self.last_map_zone != map_zone => Some((context_zone, context.wet_offset_db)),
+            _ => None,
+        };
+        self.last_map_zone = map_zone;
+        self.was_enclosed = enclosed;
+        if let Some((zone, offset)) = request {
             self.selected_zone = Some(zone);
-            self.wet_offset_db = context.wet_offset_db;
+            self.wet_offset_db = offset;
             self.phase = Phase::FadeOut;
             self.elapsed = 0.0;
             self.duration = f64::from(TARGETS[usize::from(self.current_zone)][4]) * 0.001;
@@ -190,8 +217,9 @@ impl EnvironmentController {
             self.wet_offset_db = context.wet_offset_db;
             self.target = targets(self.current_zone, self.wet_offset_db);
         }
+        let zone = self.selected_zone.unwrap_or(context_zone);
         self.elapsed += TICK;
-        if self.phase == Phase::FadeOut && self.elapsed + 1e-9 >= self.duration {
+        if self.phase == Phase::FadeOut && self.elapsed + 1e-9 >= self.duration && !self.was_ramping {
             self.current = self.target;
             self.current_zone = zone;
             self.target = targets(zone, self.wet_offset_db);
@@ -227,6 +255,7 @@ impl EnvironmentController {
             self.values.aems_wet = (self.values.aems_wet + 1).min(FULL);
         }
         self.alternate = !self.alternate;
+        self.was_ramping = self.elapsed + 1e-9 < self.duration;
     }
 }
 
@@ -273,7 +302,9 @@ mod tests {
         let early = controller.update(0.25, context(9));
         assert_eq!(early.requested_patch, None);
         assert!(early.aems_wet <= 1);
-        let switch = controller.update(0.05, context(9));
+        let endpoint = controller.update(0.05, context(9));
+        assert!(!endpoint.patch_changed, "native switch waits until the previous ramping flag clears");
+        let switch = controller.update(1.0 / 60.0, context(9));
         assert_eq!(switch.requested_patch, Some(9));
         assert!(switch.patch_changed && !switch.wet_supported);
         assert!(switch.aems_wet <= 1);
@@ -344,5 +375,53 @@ mod tests {
         assert_eq!(garage.mixer_inputs(levels), [0, 0, FULL, FULL, FULL, 12345, 6789]);
         let open = context(9);
         assert_eq!(open.mixer_inputs(levels), [0, 0, 0, 0, 0, 12345, 6789]);
+    }
+
+    #[test]
+    fn contiguous_enclosures_keep_entry_patch_until_exit() {
+        let mut controller = EnvironmentController::new();
+        let tunnel = EnvironmentContext { tunnel: true, ..context(9) };
+        assert_eq!(controller.update(1.0, tunnel).requested_patch, Some(5));
+        let garage = EnvironmentContext { garage: true, ..context(10) };
+        let contiguous = controller.update(1.0, garage);
+        assert_eq!(contiguous.requested_patch, Some(5));
+        assert!(!contiguous.patch_changed);
+        let exit = controller.update(1.0, context(10));
+        assert_eq!(exit.requested_patch, Some(10));
+        assert!(exit.patch_changed);
+    }
+
+    #[test]
+    fn enclosure_entry_offset_is_zero_then_city_offset_applies_when_steady() {
+        let mut controller = EnvironmentController::new();
+        let tunnel = EnvironmentContext { tunnel: true, wet_offset_db: -1200, ..context(8) };
+        let switch = controller.update(0.3 + 1.0 / 60.0, tunnel);
+        assert_eq!(switch.requested_patch, Some(5));
+        assert!(switch.aems_wet <= 1);
+        let fading = controller.update(0.1, tunnel);
+        assert!(fading.aems_wet > 20000);
+        let steady = controller.update(1.0, tunnel);
+        assert!(steady.aems_wet < 10000);
+    }
+
+    #[test]
+    fn original_fade_vectors_preserve_endpoint_switch_order_and_bounded_q15_conversion() {
+        let mut controller = EnvironmentController::new();
+        for tick in 1..=30 {
+            let values = controller.update(1.0 / 60.0, context(9));
+            assert_eq!(values.patch_changed, tick == 19, "tick{tick}");
+            let original = match tick {
+                18 => Some(1),
+                19 => Some(0),
+                20 => Some(1613),
+                26 => Some(11290),
+                27 => Some(11612),
+                28 => Some(11613),
+                _ => None,
+            };
+            if let Some(original) = original {
+                assert!((values.aems_wet - original).abs() <= 3, "tick{tick}: {} versus{original}", values.aems_wet);
+            }
+        }
     }
 }

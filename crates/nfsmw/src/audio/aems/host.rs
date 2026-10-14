@@ -1,7 +1,47 @@
 //! What the AEMS modules ask of the sound output: bank sounds played as voices.
 
+use crate::audio::trace::{Record, Trace};
 use blackbox_aems::{ClassCall, Host, PlayerInputs, SampleEntry, VoiceState, input};
 use kira::sound::static_sound::StaticSoundData;
+
+pub(super) struct ModuleTrace {
+    sink: Trace,
+    instance: u64,
+    bank: String,
+    class: String,
+    logical_ms: f64,
+}
+
+impl ModuleTrace {
+    pub fn new(sink: Trace, bank: &str, class: &str) -> Self {
+        let value =
+            Self { instance: sink.instance(), logical_ms: sink.now_ms(), sink, bank: bank.into(), class: class.into() };
+        value.event("module_create", None, None, None, "", &[]);
+        value
+    }
+    fn event(
+        &self,
+        event: &str,
+        player: Option<usize>,
+        inputs: Option<&PlayerInputs>,
+        success: Option<bool>,
+        detail: &str,
+        params: &[i32],
+    ) {
+        self.sink.record(Record {
+            event,
+            instance: self.instance,
+            bank: &self.bank,
+            class: &self.class,
+            logical_ms: self.logical_ms,
+            params,
+            player,
+            inputs,
+            success,
+            detail,
+        });
+    }
+}
 
 /// How a voice is doing.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -56,6 +96,19 @@ pub trait Sampler {
     fn sound(&mut self, bank: &str, index: usize) -> Result<StaticSoundData, String>;
     /// Starts `data` at `gain` (linear) and playback rate `rate`.
     fn start(&mut self, data: StaticSoundData, gain: f32, rate: f32) -> Option<Box<dyn Voice>>;
+    fn start_with(
+        &mut self,
+        data: StaticSoundData,
+        gain: f32,
+        rate: f32,
+        channels: u16,
+        effects: VoiceEffects,
+    ) -> Option<Box<dyn Voice>> {
+        let mut voice = self.start(data, gain, rate)?;
+        voice.set_channels(channels);
+        voice.set_effects(effects);
+        Some(voice)
+    }
 }
 
 /// The slowest playback the voices are asked for (an input of 0 would stop time).
@@ -64,6 +117,7 @@ const MIN_RATE: f32 = 0.01;
 /// The voices and the object of one running module.
 #[derive(Default)]
 pub struct Voices {
+    pub(super) trace: Option<ModuleTrace>,
     pub slots: Vec<Option<Box<dyn Voice>>>,
     /// The parameters of the object the module's class controller made (the sputter's output), if it exists.
     pub object: Option<Vec<i32>>,
@@ -76,6 +130,24 @@ pub struct Voices {
 }
 
 impl Voices {
+    pub(super) fn trace_tick(&mut self, params: &[i32]) {
+        if let Some(trace) = &mut self.trace {
+            trace.logical_ms += 1000.0 / 60.0;
+            trace.event("module_tick", None, None, None, "", params);
+        }
+    }
+    pub(super) fn trace_event(
+        &self,
+        event: &str,
+        player: Option<usize>,
+        inputs: Option<&PlayerInputs>,
+        success: Option<bool>,
+        detail: &str,
+    ) {
+        if let Some(trace) = &self.trace {
+            trace.event(event, player, inputs, success, detail, &[]);
+        }
+    }
     #[cfg(test)]
     pub(super) fn counts(&self) -> (u32, usize) {
         (self.started, self.slots.iter().flatten().filter(|voice| voice.status().playing).count())
@@ -119,12 +191,20 @@ fn rate(inputs: &PlayerInputs) -> f32 {
 impl Host for PartHost<'_> {
     fn play(&mut self, player: usize, entry: &SampleEntry, inputs: &PlayerInputs) -> bool {
         if entry.kind != 0 {
+            self.voices.trace_event(
+                "voice_failure",
+                Some(player),
+                Some(inputs),
+                Some(false),
+                "unsupported recording kind",
+            );
             self.voices.failed = true;
             return false;
         }
         let data = match self.sampler.sound(self.bank, entry.index as usize) {
             Ok(data) => data,
             Err(e) => {
+                self.voices.trace_event("voice_failure", Some(player), Some(inputs), Some(false), &e);
                 self.voices.failed = true;
                 if !self.voices.reported.contains(&entry.index) {
                     self.voices.reported.push(entry.index);
@@ -134,10 +214,25 @@ impl Host for PartHost<'_> {
             }
         };
         if data.frames.is_empty() || data.sample_rate == 0 {
+            self.voices.trace_event(
+                "voice_failure",
+                Some(player),
+                Some(inputs),
+                Some(false),
+                "empty recording or zero sample rate",
+            );
             self.voices.failed = true;
             return false;
         }
-        let Some(mut voice) = self.sampler.start(data, self.initial_gain(inputs), rate(inputs)) else {
+        let channels = self.sampler.channels(self.bank, entry.index as usize);
+        let Some(mut voice) = self.sampler.start_with(
+            data,
+            self.initial_gain(inputs),
+            rate(inputs),
+            channels,
+            VoiceEffects::read(inputs),
+        ) else {
+            self.voices.trace_event("voice_failure", Some(player), Some(inputs), Some(false), "backend start failed");
             self.voices.failed = true;
             return false;
         };
@@ -148,10 +243,24 @@ impl Host for PartHost<'_> {
         }
         self.voices.slots[player] = Some(voice);
         self.voices.started = self.voices.started.saturating_add(1);
+        self.voices.trace_event(
+            "voice_start",
+            Some(player),
+            Some(inputs),
+            Some(true),
+            &format!(
+                "sample={} creation_gain={} makeup={} rate={}",
+                entry.index,
+                self.initial_gain(inputs),
+                self.makeup,
+                rate(inputs)
+            ),
+        );
         true
     }
 
     fn stop(&mut self, player: usize) {
+        self.voices.trace_event("voice_stop", Some(player), None, None, "");
         if let Some(Some(voice)) = self.voices.slots.get_mut(player) {
             voice.stop();
         }
@@ -161,12 +270,14 @@ impl Host for PartHost<'_> {
     }
 
     fn pause(&mut self, player: usize) {
+        self.voices.trace_event("voice_pause", Some(player), None, None, "");
         if let Some(Some(voice)) = self.voices.slots.get_mut(player) {
             voice.pause();
         }
     }
 
     fn resume(&mut self, player: usize, inputs: &PlayerInputs) {
+        self.voices.trace_event("voice_resume", Some(player), Some(inputs), None, "");
         let (gain, rate) = (self.gain(inputs), rate(inputs));
         let Some(Some(voice)) = self.voices.slots.get_mut(player) else { return };
         voice.set_gain(gain);
@@ -176,6 +287,7 @@ impl Host for PartHost<'_> {
     }
 
     fn update(&mut self, player: usize, inputs: &PlayerInputs) -> VoiceState {
+        self.voices.trace_event("voice_update", Some(player), Some(inputs), None, "");
         let (gain, rate) = (self.gain(inputs), rate(inputs));
         let Some(Some(voice)) = self.voices.slots.get_mut(player) else { return VoiceState::GONE };
         if inputs.changed(input::VOLUME) {
@@ -187,6 +299,7 @@ impl Host for PartHost<'_> {
         voice.set_effects(VoiceEffects::read(inputs));
         let status = voice.status();
         if !status.playing {
+            self.voices.trace_event("voice_end", Some(player), Some(inputs), Some(true), "backend completed");
             self.voices.slots[player] = None;
             return VoiceState::GONE;
         }
@@ -194,6 +307,16 @@ impl Host for PartHost<'_> {
     }
 
     fn class_call(&mut self, call: &ClassCall<'_>) -> i32 {
+        if let Some(trace) = &self.voices.trace {
+            trace.event(
+                "class_object",
+                Some(call.controller),
+                None,
+                None,
+                if call.released { "released" } else { "created or updated" },
+                call.params,
+            );
+        }
         self.voices.object = match call.released {
             true => None,
             false => Some(call.params.to_vec()),

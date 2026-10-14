@@ -12,6 +12,7 @@ mod params;
 pub(super) mod soft;
 #[cfg(test)]
 mod tests;
+mod timeline;
 
 use blackbox_aems::{Instance, ModuleBank};
 use blackbox_carsound::EngineOutput;
@@ -40,15 +41,32 @@ pub(super) struct Part {
 
 impl Part {
     pub(super) fn load(audio: &mut Audio, bank: &str, class: &str, seed: u32) -> Result<Part, String> {
-        let bytes = audio.bank_bytes(bank)?;
-        let parsed = ModuleBank::parse(&bytes).map_err(|e| format!("{bank}: {e}"))?;
-        let module = parsed.module_of(class).ok_or_else(|| format!("{bank} has no {class} module"))?;
-        let instance = Instance::new(&parsed, module, seed).map_err(|e| format!("{bank}: {e}"))?;
-        Ok(Part { instance, bank: bank.to_owned(), voices: Voices::default() })
+        let result: Result<Part, String> = (|| {
+            let bytes = audio.bank_bytes(bank)?;
+            let parsed = ModuleBank::parse(&bytes).map_err(|e| format!("{bank}: {e}"))?;
+            let module = parsed.module_of(class).ok_or_else(|| format!("{bank} has no {class} module"))?;
+            let instance = Instance::new(&parsed, module, seed).map_err(|e| format!("{bank}: {e}"))?;
+            let mut voices = Voices::default();
+            voices.trace = Some(host::ModuleTrace::new(audio.trace.clone(), bank, class));
+            Ok(Part { instance, bank: bank.to_owned(), voices })
+        })();
+        if let Err(error) = &result {
+            audio.trace.record(crate::audio::trace::Record {
+                event: "module_failure",
+                bank,
+                class,
+                logical_ms: audio.trace.now_ms(),
+                success: Some(false),
+                detail: error,
+                ..Default::default()
+            });
+        }
+        result
     }
 
     /// Sets the class data and runs one tick; `false` when the module failed (it is then left alone).
     pub(super) fn tick(&mut self, sampler: &mut dyn Sampler, params: &[i32], makeup: f32) -> bool {
+        self.voices.trace_tick(params);
         self.instance.set_class_data(params);
         let mut host = PartHost { sampler, bank: &self.bank, voices: &mut self.voices, makeup };
         match self.instance.update(TICK_MS, &mut host) {
@@ -61,6 +79,7 @@ impl Part {
     }
 
     pub(super) fn stop(&mut self) {
+        self.voices.trace_event("module_drop", None, None, None, "");
         for voice in self.voices.slots.iter_mut().flatten() {
             voice.stop();
         }
@@ -71,7 +90,8 @@ impl Part {
 /// One authored continuous effect, using the same interpreter/host as the engine modules.
 pub(super) struct EffectModule {
     part: Part,
-    clock: f32,
+    timeline: timeline::Timeline,
+    release_at: Option<f64>,
     has_ticked: bool,
     discarded: bool,
 }
@@ -83,7 +103,8 @@ impl EffectModule {
             self.discarded = true;
             return;
         }
-        self.part.instance.request_destroy();
+        self.release_at = Some(self.timeline.submitted());
+        self.part.voices.trace_event("module_release", None, None, None, "");
     }
     #[cfg(test)]
     pub fn voice_counts(&self) -> (u32, usize) {
@@ -93,7 +114,13 @@ impl EffectModule {
         self.discarded || self.part.instance.is_destroyed()
     }
     pub fn load(audio: &mut Audio, bank: &str, class: &str, seed: u32) -> Result<Self, String> {
-        Ok(Self { part: Part::load(audio, bank, class, seed)?, clock: 0.0, has_ticked: false, discarded: false })
+        Ok(Self {
+            part: Part::load(audio, bank, class, seed)?,
+            timeline: timeline::Timeline::default(),
+            release_at: None,
+            has_ticked: false,
+            discarded: false,
+        })
     }
     pub fn update(&mut self, sampler: &mut dyn Sampler, dt: f32, params: &[i32]) -> bool {
         if self.discarded {
@@ -102,23 +129,34 @@ impl EffectModule {
         if !dt.is_finite() {
             return true;
         }
-        self.clock += dt.max(0.0) * 1000.0;
-        let mut ticks = 0;
-        while self.clock + 0.001 >= TICK_MS && ticks < 12 {
-            self.clock = (self.clock - TICK_MS).max(0.0);
-            ticks += 1;
+        self.timeline.push(dt, params);
+        for _ in 0..12 {
+            let Some((at, words)) = self.timeline.next() else { break };
+            if self.release_at.is_some_and(|when| at + 1e-7 >= when) {
+                self.part.instance.request_destroy();
+                self.release_at = None;
+            }
             self.has_ticked = true;
-            if !self.part.tick(sampler, params, 1.0) || self.part.voices.failed {
+            if !self.part.tick(sampler, &words, 1.0) || self.part.voices.failed {
                 return false;
             }
+        }
+        if self.timeline.pending() >= 1.0 / 60.0 {
+            self.part.voices.trace_event(
+                "clock_debt",
+                None,
+                None,
+                None,
+                &format!("{} seconds", self.timeline.pending()),
+            );
         }
         true
     }
 }
 
-impl Drop for EffectModule {
+impl Drop for Part {
     fn drop(&mut self) {
-        self.part.stop();
+        self.stop();
     }
 }
 
@@ -135,7 +173,7 @@ pub struct AemsLayer {
     class: u32,
     sputter_volume: i32,
     /// Milliseconds of time not yet run as ticks.
-    clock: f32,
+    timeline: timeline::Timeline,
     synth_frequency: Option<f32>,
 }
 
@@ -160,7 +198,7 @@ impl AemsLayer {
             sputter,
             class: engine.car_id,
             sputter_volume: engine.sputter_volume,
-            clock: 0.0,
+            timeline: timeline::Timeline::default(),
             synth_frequency: None,
         })
     }
@@ -198,20 +236,22 @@ impl AemsLayer {
         if !dt.is_finite() {
             return;
         }
-        self.clock += dt.max(0.0) * 1000.0;
-        let ticks = ((self.clock / TICK_MS) as u32).min(MAX_TICKS);
-        self.clock -= ticks as f32 * TICK_MS;
-        let makeup = feed.levels.makeup;
         let engine = params::engine_with_frequency(self.class, feed.engine, feed.levels, self.synth_frequency);
         let sputter = params::sputter(self.class, SPUTTER_ID, self.sputter_volume, feed.engine, feed.levels);
-        for _ in 0..ticks {
+        let mut words = engine.to_vec();
+        words.extend(sputter);
+        words.push(feed.levels.makeup.to_bits() as i32);
+        self.timeline.push(dt, &words);
+        for _ in 0..MAX_TICKS {
+            let Some((_, words)) = self.timeline.next() else { break };
+            let makeup = f32::from_bits(words[params::CAR_PARAMS + params::SPUTTER_PARAMS] as u32);
             if let Some(part) = self.engine.as_mut()
-                && !part.tick(sampler, &engine, makeup)
+                && !part.tick(sampler, &words[..params::CAR_PARAMS], makeup)
             {
                 self.engine = None;
             }
             if let Some(part) = self.sputter.as_mut()
-                && !part.tick(sampler, &sputter, makeup)
+                && !part.tick(sampler, &words[params::CAR_PARAMS..params::CAR_PARAMS + params::SPUTTER_PARAMS], makeup)
             {
                 self.sputter = None;
             }

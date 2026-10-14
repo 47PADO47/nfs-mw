@@ -65,6 +65,15 @@ impl Audio {
 
     /// Carry out one command of the effects mixer.
     pub(super) fn apply(&mut self, car: &mut CarAudio, command: SoundCommand) {
+        if self.trace.enabled() {
+            self.trace.record(super::trace::Record {
+                event: "fallback_command",
+                class: super::car::routing::command_family(command),
+                logical_ms: self.trace.now_ms(),
+                detail: &format!("car={} command={command:?}", car.car),
+                ..Default::default()
+            });
+        }
         match command {
             SoundCommand::Play { sound, volume, pitch } => {
                 let Some((data, group)) = self.effect_data(car, sound) else { return };

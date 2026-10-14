@@ -2,7 +2,7 @@
 //! decelerate loop) and resamples their output to the device. The game thread sets the mix through an
 //! [`EngineHandle`]; the audio thread reads it once per callback.
 
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use super::filter::{CutoffHandle, VoiceFilter};
@@ -90,12 +90,24 @@ struct Control {
     request: Mutex<Requests>,
     frequency: Cell,
     closed: AtomicBool,
+    consumed_revision: AtomicU64,
+    wet_sender: Mutex<Option<super::wet::Sender>>,
+    wet_gain: Cell,
 }
 
 /// The game's end of a playing engine voice. Dropping it ends the voice.
 pub struct EngineHandle(Arc<Control>);
 
 impl EngineHandle {
+    pub(super) fn set_wet_sender(&self, sender: super::wet::Sender) {
+        if let Ok(mut slot) = self.0.wet_sender.lock() {
+            *slot = Some(sender);
+        }
+    }
+    pub(super) fn set_wet_gain(&self, gain: f32) {
+        self.0.wet_gain.set(gain.clamp(0.0, 1.0));
+    }
+
     pub fn set(&self, mix: EngineMix) {
         if let Ok(mut request) = self.0.request.lock() {
             let next = Request { mix, revision: request.latest.revision.wrapping_add(1) };
@@ -111,6 +123,10 @@ impl EngineHandle {
     }
 
     /// Latest completed synthesis frequency, before device-rate/dynamic-pitch resampling.
+    pub fn consumed_revision(&self) -> Option<u64> {
+        let revision = self.0.consumed_revision.load(Ordering::Relaxed);
+        (revision != u64::MAX).then_some(revision)
+    }
     pub fn current_frequency(&self) -> f32 {
         self.0.frequency.get()
     }
@@ -141,6 +157,9 @@ impl SoundData for EngineVoice {
             request: Mutex::new(Requests { latest: request }),
             frequency: Cell::new(accel.synth.current_frequency()),
             closed: AtomicBool::new(false),
+            consumed_revision: AtomicU64::new(u64::MAX),
+            wet_sender: Mutex::new(None),
+            wet_gain: Cell::new(0.0),
         });
         let (filter, filter_handle) = VoiceFilter::new(false);
         Ok((
@@ -154,6 +173,7 @@ impl SoundData for EngineVoice {
                 filter_handle,
                 control_left: 0.0,
                 release_left: 0.12,
+                wet_sender: None,
             }),
             EngineHandle(control),
         ))
@@ -206,6 +226,7 @@ struct EngineSound {
     filter_handle: CutoffHandle,
     control_left: f64,
     release_left: f64,
+    wet_sender: Option<super::wet::Sender>,
 }
 
 /// A finite, sane value in `lo..=hi` (NaN counts as `lo`).
@@ -224,6 +245,11 @@ impl Sound for EngineSound {
             volume: clean(mix.volume, 0.0, 4.0),
             pitch: clean(mix.pitch, 0.05, 8.0),
         };
+        if self.wet_sender.is_none()
+            && let Ok(sender) = self.control.wet_sender.try_lock()
+        {
+            self.wet_sender = sender.clone();
+        }
         let mut written = 0;
         while written < out.len() {
             if self.control_left <= dt * 0.001 {
@@ -240,8 +266,9 @@ impl Sound for EngineSound {
                     stream.synth.update_frequency(decel.frequency, 60.0);
                 }
                 self.revision = Some(self.request.revision);
+                self.control.consumed_revision.store(self.request.revision, Ordering::Relaxed);
             }
-            let take = ((self.control_left / dt - 1e-9).ceil() as usize).max(1).min(out.len() - written);
+            let take = ((self.control_left / dt - 1e-9).ceil() as usize).max(1).min(out.len() - written).min(256);
             let chunk = &mut out[written..written + take];
             let closed = self.control.closed.load(Ordering::Relaxed);
             let pan = (f32::from(self.request.mix.azimuth) / 65536.0 * std::f32::consts::TAU).sin();
@@ -258,11 +285,21 @@ impl Sound for EngineSound {
                     sample *= (self.release_left / 0.12) as f32;
                 }
                 // Constant-power pan normalized to the established centre gain.
-                *frame = Frame { left: sample * left_gain, right: sample * right_gain };
+                *frame = Frame::from_mono(sample);
             }
             let cutoff = clean(self.request.mix.low_pass_hz, 0.0, 25_000.0);
             self.filter_handle.set(cutoff);
             self.filter.process(chunk, dt, info);
+            let mut wet = [0.0_f32; 256];
+            let wet_gain = self.control.wet_gain.get();
+            for (i, frame) in chunk.iter_mut().enumerate() {
+                wet[i] = (frame.left + frame.right) * 0.5 * wet_gain;
+                frame.left *= left_gain;
+                frame.right *= right_gain;
+            }
+            if let Some(sender) = &self.wet_sender {
+                sender.mono(written, &wet[..chunk.len()]);
+            }
             self.control.frequency.set(self.accel.synth.current_frequency());
             self.control_left = (self.control_left - take as f64 * dt).max(0.0);
             written += take;
@@ -275,185 +312,4 @@ impl Sound for EngineSound {
 }
 
 #[cfg(test)]
-mod tests {
-    use blackbox_ginsu::GinsuTables;
-
-    use super::*;
-
-    const RATE: u32 = 32_000;
-
-    /// A loop whose recording is a sine rising from 100 to 400 Hz, like a rev sweep, with the tables built
-    /// from it: cycle starts at every zero turn and 50 frequency segments.
-    fn data() -> Arc<GinsuData> {
-        let n = (RATE as usize) * 2;
-        let (mut pcm, mut phase) = (Vec::with_capacity(n), 0.0f32);
-        let (mut cycle_pos, mut freq_at) = (vec![0u32], Vec::with_capacity(n));
-        for i in 0..n {
-            let hz = 100.0 + 300.0 * i as f32 / n as f32;
-            let before = phase;
-            phase += hz / RATE as f32;
-            if phase.floor() > before.floor() {
-                cycle_pos.push(i as u32);
-            }
-            freq_at.push(hz * 120.0);
-            pcm.push((phase * std::f32::consts::TAU).sin() * 0.5);
-        }
-        let (lo, hi) = (freq_at[0], *freq_at.last().unwrap());
-        let freq_pos = (0..=50)
-            .map(|s| {
-                let f = lo + (hi - lo) * s as f32 / 50.0;
-                freq_at.iter().position(|&x| x >= f).unwrap_or(n - 1) as u32
-            })
-            .collect();
-        let tables = GinsuTables::new(lo, hi, RATE, n as u32, freq_pos, cycle_pos).expect("tables");
-        Arc::new(GinsuData::new(tables, pcm).expect("data"))
-    }
-
-    fn render(voice: EngineVoice, mixes: &[(EngineMix, usize)], out_rate: f64) -> Vec<f32> {
-        let (mut sound, handle) = voice.into_sound().unwrap();
-        let info = kira::info::MockInfoBuilder::new().build();
-        let mut out = Vec::new();
-        for &(mix, frames) in mixes {
-            handle.set(mix);
-            let mut block = vec![Frame::ZERO; frames];
-            sound.process(&mut block, 1.0 / out_rate, &info);
-            out.extend(block.iter().map(|f| f.left));
-        }
-        out
-    }
-
-    fn rising_zero_crossings_hz(samples: &[f32], rate: f64) -> f64 {
-        let crossings = samples.windows(2).filter(|w| w[0] <= 0.0 && w[1] > 0.0).count();
-        crossings as f64 / (samples.len() as f64 / rate)
-    }
-
-    fn mix(hz: f32, pitch: f32) -> EngineMix {
-        EngineMix::shared(hz * 120.0, pitch, 1.0, 0.0)
-    }
-
-    #[test]
-    fn spatial_engine_control_preserves_centre_energy_and_applies_dry_gain() {
-        let sample = |azimuth, dry| {
-            let voice = EngineVoice { accel: data(), decel: None, start: EngineMix::default() };
-            let (mut sound, handle) = voice.into_sound().unwrap();
-            let mut mix = mix(200.0, 1.0);
-            mix.azimuth = azimuth;
-            mix.dry = dry;
-            handle.set(mix);
-            let mut out = vec![Frame::ZERO; 48000];
-            sound.process(&mut out, 1.0 / 48000.0, &kira::info::MockInfoBuilder::new().build());
-            out[24000..].iter().fold([0.0f64; 2], |mut energy, frame| {
-                energy[0] += f64::from(frame.left).powi(2);
-                energy[1] += f64::from(frame.right).powi(2);
-                energy
-            })
-        };
-        let centre = sample(0, 1.0);
-        let right = sample(16384, 1.0);
-        let dry = sample(0, 0.5);
-        assert!(centre[0] > 0.01 && (centre[0] - centre[1]).abs() < 1e-9);
-        assert_eq!(right[0], 0.0);
-        assert!((right[1] / (centre[0] + centre[1]) - 1.0).abs() < 0.001);
-        assert!((dry[0] / centre[0] - 0.25).abs() < 0.001);
-    }
-
-    #[test]
-    fn the_pitch_follows_the_requested_frequency_at_the_device_rate() {
-        let d = data();
-        for hz in [150.0f32, 250.0, 350.0] {
-            let voice = EngineVoice { accel: d.clone(), decel: None, start: EngineMix::default() };
-            let samples = render(voice, &[(mix(hz, 1.0), 48_000)], 48_000.0);
-            let measured = rising_zero_crossings_hz(&samples[24_000..], 48_000.0);
-            assert!((measured - f64::from(hz)).abs() < f64::from(hz) * 0.1, "asked {hz} Hz, heard {measured:.1} Hz");
-        }
-    }
-
-    #[test]
-    fn a_playback_rate_shifts_the_pitch() {
-        let voice = EngineVoice { accel: data(), decel: None, start: EngineMix::default() };
-        let samples = render(voice, &[(mix(200.0, 1.5), 48_000)], 48_000.0);
-        let measured = rising_zero_crossings_hz(&samples[24_000..], 48_000.0);
-        assert!((measured - 300.0).abs() < 30.0, "{measured}");
-    }
-
-    #[test]
-    fn each_loop_follows_its_own_drive() {
-        let d = data();
-        let drive = |accel_hz: f32, decel_hz: f32, accel_vol: f32, decel_vol: f32| EngineMix {
-            accel: LoopMix { frequency: accel_hz * 120.0, volume: accel_vol, pitch: 1.0 },
-            decel: LoopMix { frequency: decel_hz * 120.0, volume: decel_vol, pitch: 1.0 },
-            ..Default::default()
-        };
-        // Only the decelerate loop is audible: its pitch is the one asked of it, not the accelerate loop's.
-        let voice = EngineVoice { accel: d.clone(), decel: Some(d.clone()), start: EngineMix::default() };
-        let samples = render(voice, &[(drive(150.0, 350.0, 0.0, 1.0), 48_000)], 48_000.0);
-        let measured = rising_zero_crossings_hz(&samples[24_000..], 48_000.0);
-        assert!((measured - 350.0).abs() < 35.0, "heard {measured:.1} Hz");
-        // And the accelerate loop alone plays its own.
-        let voice = EngineVoice { accel: d.clone(), decel: Some(d), start: EngineMix::default() };
-        let samples = render(voice, &[(drive(150.0, 350.0, 1.0, 0.0), 48_000)], 48_000.0);
-        let measured = rising_zero_crossings_hz(&samples[24_000..], 48_000.0);
-        assert!((measured - 150.0).abs() < 15.0, "heard {measured:.1} Hz");
-    }
-
-    #[test]
-    fn a_loop_pitch_is_its_own() {
-        let d = data();
-        let mix = EngineMix {
-            accel: LoopMix { frequency: 200.0 * 120.0, volume: 0.0, pitch: 1.0 },
-            decel: LoopMix { frequency: 200.0 * 120.0, volume: 1.0, pitch: 1.5 },
-            ..Default::default()
-        };
-        let voice = EngineVoice { accel: d.clone(), decel: Some(d), start: EngineMix::default() };
-        let samples = render(voice, &[(mix, 48_000)], 48_000.0);
-        let measured = rising_zero_crossings_hz(&samples[24_000..], 48_000.0);
-        assert!((measured - 300.0).abs() < 30.0, "heard {measured:.1} Hz");
-    }
-
-    #[test]
-    fn zero_volume_is_silence_and_bad_numbers_do_not_poison_the_output() {
-        let d = data();
-        let voice = EngineVoice { accel: d.clone(), decel: Some(d), start: EngineMix::default() };
-        let quiet = EngineMix::shared(200.0 * 120.0, 1.0, 0.0, 0.0);
-        let bad = EngineMix::shared(f32::NAN, f32::NAN, f32::INFINITY, -3.0);
-        let out = render(voice, &[(quiet, 8_000), (bad, 8_000)], 48_000.0);
-        assert!(out[2_000..8_000].iter().all(|s| s.abs() < 1e-3), "silent at zero volume");
-        assert!(out.iter().all(|s| s.is_finite() && s.abs() <= 8.0));
-    }
-
-    #[test]
-    fn dropping_the_handle_finishes_the_voice() {
-        let voice = EngineVoice { accel: data(), decel: None, start: EngineMix::default() };
-        let (mut sound, handle) = voice.into_sound().unwrap();
-        assert!(!sound.finished());
-        drop(handle);
-        assert!(!sound.finished(), "a changed car releases without an abrupt cut");
-        let info = kira::info::MockInfoBuilder::new().build();
-        sound.process(&mut [Frame::ZERO; 6400], 1.0 / 48_000.0, &info);
-        assert!(sound.finished());
-    }
-
-    #[test]
-    fn a_stalled_callback_resumes_at_the_latest_request_without_permanent_backlog() {
-        for rate in [44_100.0, 48_000.0, 96_000.0] {
-            for block in [32, 128, 1024] {
-                let voice = EngineVoice { accel: data(), decel: None, start: mix(150.0, 1.0) };
-                let (mut sound, handle) = voice.into_sound().unwrap();
-                assert!(handle.current_frequency() > 0.0);
-                for revision in 1..=600 {
-                    handle.set_tick(mix(150.0, 1.0), revision);
-                }
-                handle.set_tick(mix(350.0, 1.5), 601);
-                let info = kira::info::MockInfoBuilder::new().build();
-                let mut frames = vec![Frame::ZERO; block];
-                for _ in 0..(rate as usize * 2).div_ceil(block) {
-                    sound.process(&mut frames, 1.0 / rate, &info);
-                    assert!(frames.iter().all(|f| f.left.is_finite()));
-                }
-                let actual = handle.current_frequency();
-                assert!((actual - 350.0 * 120.0).abs() < 1000.0, "actual synthesis must catch up: {actual}");
-                assert!(actual < 400.0 * 120.0, "dynamic playback pitch is separate from feedback");
-            }
-        }
-    }
-}
+mod tests;

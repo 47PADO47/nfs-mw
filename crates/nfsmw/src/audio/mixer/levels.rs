@@ -4,10 +4,9 @@ use blackbox_mixmap::Mixer;
 
 use super::ids::{object, player_object, slot};
 
-/// The slot levels are relative; how loud the original's full scale is, is the sound system's business. All
-/// gains are multiplied by this so the engine (about -9.6 dB in the map) stays as loud as it was before the maps
-/// were read.
-pub const MAKEUP: f32 = 1.5;
+/// Preserve the authored levels. The earlier 1.5 gain compensated for the old
+/// implementation's loudness rather than an original-game producer.
+pub const MAKEUP: f32 = 1.0;
 
 /// Gains (1 = unchanged; the makeup is included) and pitch ratios for the sounds of the car.
 #[derive(Debug, Clone, Copy, PartialEq)]

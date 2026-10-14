@@ -203,7 +203,7 @@ fn installed_authored_wind_and_road_modules_render_all_ordinary_terrain_ids() {
         let input = CarInput { speed: 30.0, ..Default::default() };
         let mut recorded = Vec::new();
         for _ in 0..120 {
-            let mut commands = (0..2)
+            let commands: Vec<_> = (0..2)
                 .map(|side| SoundCommand::SetLoop {
                     id: LoopId::Road(side),
                     sound: SoundRef::RoadNoise(terrain),
@@ -211,8 +211,11 @@ fn installed_authored_wind_and_road_modules_render_all_ordinary_terrain_ids() {
                     pitch: 0.9,
                 })
                 .collect();
-            playback.update(&mut audio, &input, &mut commands, Default::default(), 1.0 / 60.0);
-            assert!(commands.is_empty(), "authored graphs replace ordinary raw loops");
+            playback.update(&mut audio, &input, &commands, Default::default(), 1.0 / 60.0);
+            assert!(
+                (0..2).all(|side| playback.owns_loop(LoopId::Road(side))),
+                "authored graphs own ordinary road loops"
+            );
             recorded.extend_from_slice(audio.render_replay(800));
         }
         assert!(playback.available(), "wind and both road modules remain usable for {terrain}");

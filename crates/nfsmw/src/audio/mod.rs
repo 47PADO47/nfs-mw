@@ -9,14 +9,20 @@ mod aems;
 mod capture;
 mod car;
 mod chase;
+pub mod common_effects;
+pub use common_effects::CommonEvent;
 pub mod environment;
+pub mod environment_context;
 mod filter;
 #[cfg(test)]
 mod replay;
 mod shaped;
+mod spatial;
 mod view;
+mod wet;
 pub use view::AudioView;
 pub mod commands;
+mod coverage;
 mod engine;
 mod fx;
 mod interactive;
@@ -26,6 +32,7 @@ mod plugin;
 mod radio;
 mod refs;
 mod speech;
+mod trace;
 pub mod traffic;
 mod tuning;
 mod volume;
@@ -55,6 +62,7 @@ struct Output {
     sfx: TrackHandle,
     music: TrackHandle,
     engine: TrackHandle,
+    wet: wet::Bus,
 }
 
 enum OutputManager {
@@ -82,6 +90,10 @@ impl OutputManager {
 
 pub struct Audio {
     output: Option<Output>,
+    trace: trace::Trace,
+    traffic: traffic::TrafficAudio,
+    common: common_effects::CommonPlayback,
+    wet: wet::Slot,
     dir: GameDir,
     volumes: Volumes,
     /// The bytes of the banks read so far, by path under `SOUND/`.
@@ -154,6 +166,10 @@ impl Audio {
     fn with_output(dir: GameDir, volumes: Volumes, output: Option<Output>) -> Self {
         let mut audio = Self {
             output,
+            trace: trace::Trace::default(),
+            traffic: traffic::TrafficAudio::default(),
+            common: common_effects::CommonPlayback::default(),
+            wet: wet::Slot::default(),
             dir,
             volumes,
             banks: HashMap::new(),
@@ -173,6 +189,11 @@ impl Audio {
             failed: None,
             music: None,
         };
+        if let Some(path) = std::env::var_os("NFSMW_AUDIO_TRACE")
+            && let Err(error) = audio.start_trace(std::path::Path::new(&path))
+        {
+            log::warn!("{error}");
+        }
         audio.set_volumes(volumes);
         audio
     }
@@ -189,6 +210,7 @@ impl Audio {
     pub fn set_volumes(&mut self, volumes: Volumes) {
         self.volumes = volumes;
         let Some(out) = self.output.as_mut() else { return };
+        out.wet.volumes(volumes);
         let tween = Tween::default();
         out.manager.volume(volume::decibels(volumes.master), tween);
         out.sfx.set_volume(volume::decibels(volumes.sfx), tween);
@@ -285,16 +307,34 @@ impl Audio {
 
     /// Start an engine voice; drop the handle to stop it.
     pub fn start_engine(&mut self, voice: EngineVoice) -> Result<EngineHandle, String> {
-        self.output()?.engine.play(voice).map_err(|e| e.to_string())
+        let output = self.output()?;
+        let handle = output.engine.play(voice).map_err(|e| e.to_string())?;
+        handle.set_wet_sender(output.wet.sender(Group::Engine));
+        Ok(handle)
     }
 }
 
 impl Output {
     fn open() -> Result<Self, String> {
-        let mut manager =
-            AudioManager::<DefaultBackend>::new(AudioManagerSettings::default()).map_err(|e| e.to_string())?;
+        let mut main = kira::track::MainTrackBuilder::new();
+        let wet = main.add_effect(wet::Bus::builder());
+        let mut manager = AudioManager::<DefaultBackend>::new(AudioManagerSettings {
+            main_track_builder: main,
+            ..Default::default()
+        })
+        .map_err(|e| e.to_string())?;
         let mut track = || manager.add_sub_track(TrackBuilder::new()).map_err(|e| e.to_string());
         let (sfx, music, engine) = (track()?, track()?, track()?);
-        Ok(Self { manager: OutputManager::Device(Box::new(manager)), sfx, music, engine })
+        Ok(Self { manager: OutputManager::Device(Box::new(manager)), sfx, music, engine, wet })
+    }
+}
+
+impl Drop for Audio {
+    fn drop(&mut self) {
+        self.car = None;
+        self.traffic = Default::default();
+        self.common = Default::default();
+        self.test_engine = None;
+        self.trace.stop();
     }
 }
