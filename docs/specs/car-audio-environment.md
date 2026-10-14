@@ -1,5 +1,12 @@
 # Car engine environment, requested sends and output DSP
 
+The environment lookup and wet output contract is extended by
+[spatial parameter maps](spatial-parameter-maps.md),
+[FXEDIT processing](fxedit-processor.md) and
+[shared output](car-audio-output.md). Older pending-output notes below describe
+the initial producer audit; current implementation limits live in the
+[coverage ledger](../car-audio-coverage.md).
+
 This separates the game's environment producers, the sample graphs' requested
 voice properties, and the output processor that renders wet audio. A nonzero
 requested send is not evidence that the original output actually processed it.
@@ -122,7 +129,8 @@ Apply the spatial parameter-map offset to wet only, bound−10000..0 before
 conversion. Targets do not mean wet and dry are complementary mix percentages.
 
 Changing environment starts a linear fade to wet0/dry1, using the current
-row's fade-out time. When complete, the lead controller requests a global
+row's fade-out time. Once complete and the preceding update's ramping flag
+has cleared, the lead controller requests a global
 processor reset/patch switch, starts the destination fade-in, and targets the
 new row. Outside transitions, each current level approaches its target by up
 to0.25 linear gain per controller update. Quantize interpolated levels toQ15.
@@ -146,8 +154,9 @@ back to small car-show in front-end, otherwise open city.
 The tunnel mixer controller publishes tunnel/overpass/garage and in-tunnel
 flags, occlusion, and player AEMS dry/wet. AI-racer/cop occlusion is a separate
 bounded world-line test. Do not infer these from wheel surface or an arbitrary
-height/roof heuristic. Until the authored zone/map adapter exists, carry an
-explicit unavailable or neutral context instead of claiming world parity.
+height/roof heuristic. The spatial map/zone adapter is specified in
+[spatial-parameter-maps.md](spatial-parameter-maps.md). A failed metadata load
+still carries explicit unavailable context rather than an invented enclosure.
 
 ## 6. Requested wet versus effective processing **[decomp, bounded]**
 
@@ -190,7 +199,14 @@ constructor0 and24 is0. Environment requests use fixed60Hz updates with
 retained fractional time/debt; unavailable spatial context is dry32767/wet0,
 with no requested patch. Completing an authored fade-out publishes the patch
 request and starts fade-in; wet capability remains false until a matching
-processor is available. Actual installed spatial context is a separate adapter.
+processor is available. Actual installed spatial context is read by
+[`environment_context`](spatial-parameter-maps.md) from the Reverb layer and
+track-zone polygons. Dynamic enclosures use the garage patch but ordinary
+enclosed mixer input0, not the garage input2. Enter/exit transitions select a
+patch; a different enclosure kind while continuously enclosed preserves the
+entry patch. Entering an enclosure begins with wet offset0; city-map offsets
+apply after the fade reaches steady state. The shared controller preserves
+these transitions independently of render rate.
 
 ## Validation
 

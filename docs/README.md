@@ -103,7 +103,15 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | [formats/audio.md](formats/audio.md) | Sound banks, GIN engine loops, MPF/MUS music, speech, reverb | Codecs known; speech `.idx` verified, `.evt` and `.csi` partial |
 | [specs/car-audio-tyres-transmission.md](specs/car-audio-tyres-transmission.md) | Authored skid and transmission producers | PC bounds and installed playback regressions |
 | [specs/car-audio-road-weather.md](specs/car-audio-road-weather.md) | Road transitions, stitch road and weather wind | PC parameters; render-clock policy explicit |
-| [specs/car-audio-environment.md](specs/car-audio-environment.md) | Engine environment, distance filtering and software effects | Producers checked; world zones and wet processing pending |
+| [specs/car-audio-environment.md](specs/car-audio-environment.md) | Engine environment, distance filtering and software effects | Authored spatial maps, zone selection and FXEDIT wet bus; backend limits explicit |
+| [car-audio-coverage.md](car-audio-coverage.md) | Audio coverage, verification boundaries and remaining gaps | Runtime audit and trace comparison tool |
+| [specs/car-audio-observability.md](specs/car-audio-observability.md) | Single-owner routing, retained controller history and bounded tracing | Event and voice lifecycle regressions |
+| [specs/car-audio-power-effects.md](specs/car-audio-power-effects.md) | Nitrous, purge, shift, sweetener, turbo and whine controllers | PC contracts and installed playback |
+| [specs/authored-traffic-audio.md](specs/authored-traffic-audio.md) | Moving engines, horns and passing whooshes | Installed profiles and cadence checks |
+| [specs/common-audio-events.md](specs/common-audio-events.md) | Speedbreaker activation and pursuit breaker modules | PC slots and retained event timing |
+| [specs/spatial-parameter-maps.md](specs/spatial-parameter-maps.md) | Spatial Reverb map and enclosure zone context | Reader and PC lookup vectors |
+| [specs/fxedit-processor.md](specs/fxedit-processor.md) | Authored effect graph parsing and processing | All installed patches; isolated PC PCM comparison |
+| [specs/car-audio-output.md](specs/car-audio-output.md) | Shared wet bus and dry/pan/send ordering | Device-rate and irregular-block regressions |
 | [formats/aems.md](formats/aems.md) | AEMS module banks: the dataflow graphs and code inside `.abk` files | Verified on all 301 banks; Rust reader |
 | [formats/mixmap.md](formats/mixmap.md) | Dynamic-mixer maps (`MIXMAPS/*.mxb`): states, controls, events, 3D controls, channels, presets | Verified; Rust reader |
 | [formats/video.md](formats/video.md) | EA VP6 container and decoder options | Complete |

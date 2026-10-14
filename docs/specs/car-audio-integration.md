@@ -126,7 +126,7 @@ rule and per-prop response delta-v. Do not substitute a wall sound for a missing
 object rule. PC confirms these paths and the carbody selector. This batch handles
 player-prop contacts; other prop-ground and prop-prop sound producers remain open.
 The AEMS direct route applies its dry word at seven-bit precision and azimuth
-only to mono samples. Environmental wet playback remains a separate gap.
+only to mono samples. Wet playback now follows the shared output contract described below.
 
 Native mono uses equal-power speaker gains; Kira's pan range is -1..+1, centre0.
 Convert azimuth with signed sine and compensate Kira's sqrt(2) speaker boost.
@@ -158,16 +158,6 @@ Export unclipped float evidence before integer WAV quantization. Measure
 combined headroom and voice failures, rather than using audibility as proof
 that the mix cannot clip.
 
-Exact PC spatial attenuation, environmental reflections/reverb, Speedbreaker
-audio treatment and unsupported gameplay state producers remain separate
-research questions. Unknown behavior is documented, not replaced with an
-unlabeled parity claim.
+This initial integration contract is extended by [authored power effects](car-audio-power-effects.md), [traffic](authored-traffic-audio.md), [spatial maps](spatial-parameter-maps.md), [common events](common-audio-events.md), [FXEDIT processing](fxedit-processor.md) and [shared output](car-audio-output.md). Skids, transmission, road transitions and wet-road layers have their own authored producers.
 
-The host applies azimuth panning and guarded low/high-pass filters. Authored
-dry/wet words are retained but environmental reverb is not yet rendered. Kira's
-filter transfer function is a backend approximation, not a measured PC match.
-Skids, transmission/whine, road transitions, wet-road layers and component-specific
-upgrade crossfades remain outside this batch. Discrete one-shots are delayed by
-their position within the ordered render batch. Continuous authored modules still
-receive batched parameter updates on the game thread; their exact within-frame
-waveform at very low render FPS has not been established as an original match.
+The shared output now renders installed environmental patches. The host retains bounded pan/filter/pitch and stereo-downmix differences. Discrete events retain their ordered batch offsets. Continuous controllers retain historical inputs while repaying clock debt; exact within-frame live waveform equivalence at low render FPS is still unverified. Global Speedbreaker audio treatment and missing gameplay callers remain listed in the [coverage ledger](../car-audio-coverage.md).

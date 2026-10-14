@@ -42,6 +42,12 @@ a record. Process: [licensing.md § Spec-first](../licensing.md#spec-first).
 | [Exhaust flames](exhaust-flames.md) | [specs/exhaust-flames.md](../specs/exhaust-flames.md) | dbalatoni13/nfsmw `World/CarRenderConn.cpp`, `VehicleRenderConn.cpp`, `CarRender.cpp`, `Ecstasy/EmitterSystem.cpp`, `Physics/Behaviors/DrawCar.cpp`, AttribSys class headers (decompiled, CC0) |
 | [Weather](weather.md) | [specs/weather.md](../specs/weather.md) | `speed.exe` (original PC build) decompiled and disassembled in Ghidra; name-hash scan of the install's data files |
 
+Audio extensions: [power effects](car-audio-power-effects.md),
+[authored traffic](authored-traffic-audio.md), [common events](common-audio-events.md),
+[spatial maps](spatial-parameter-maps.md), [FXEDIT](fxedit-processor.md), and
+[routing, tracing and output](car-audio-output.md). The
+[coverage ledger](../car-audio-coverage.md) records unresolved boundaries.
+
 ## Template
 
 [Car audio integration](car-audio-integration.md) records the contact, playback,

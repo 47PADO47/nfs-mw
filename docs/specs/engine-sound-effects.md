@@ -1,3 +1,7 @@
+> Matched PC class IDs and authored power-effect playback supersede the older
+> sample-routing assumptions below. See
+> [car-audio-power-effects.md](car-audio-power-effects.md).
+
 # Car sound effects: shifting, accelerate transitions, turbo, nitrous, skids, collisions
 
 How the original triggers the effects around the engine, which banks they come from and which numbers

@@ -1,3 +1,7 @@
+> The historical 1.5 output makeup described below has been removed. Current
+> playback preserves authored gains; see
+> [car-audio-observability.md](car-audio-observability.md).
+
 # The car sound and the dynamic mixer
 
 What the car sound publishes to the mixer map and which outputs it reads. The evaluator is in
