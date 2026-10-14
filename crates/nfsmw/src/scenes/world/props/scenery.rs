@@ -144,6 +144,8 @@ pub(super) struct SceneryEvents {
     pub models: BTreeMap<u32, SceneryModel>,
     pending: VecDeque<Stimulus>,
     waves: Vec<explosion::Wave>,
+    /// Points where a petrol-station explosion started since the world last drained them.
+    blasts: Vec<Vec3>,
     stops: Vec<StopArea>,
 }
 

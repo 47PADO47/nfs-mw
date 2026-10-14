@@ -4,6 +4,7 @@ use super::PropWorld;
 use blackbox_attrib::vlt_hash;
 use blackbox_vehicle::rigid_body::RigidBody;
 use glam::Vec3;
+use nfsmw_data::world::explosion_fx::is_petrol_station_sequence;
 use nfsmw_data::world::sequences::Explosion;
 use std::{
     collections::BTreeSet,
@@ -29,6 +30,7 @@ impl PropWorld {
             log::debug!("scenery {id}: unresolved explosion marker {:08X}", spec.position);
             return;
         };
+        let petrol = self.scenery.models.get(&id).is_some_and(|m| is_petrol_station_sequence(m.key));
         self.scenery.waves.push(Wave {
             source: id,
             position,
@@ -38,6 +40,14 @@ impl PropWorld {
             bodies: BTreeSet::new(),
             vehicles: Vec::new(),
         });
+        if petrol {
+            self.scenery.blasts.push(position);
+        }
+    }
+
+    /// The points where petrol-station explosions started since the last call, for the world's blast effect.
+    pub fn take_blasts(&mut self) -> Vec<Vec3> {
+        std::mem::take(&mut self.scenery.blasts)
     }
 
     pub(in super::super) fn advance_explosions(&mut self, dt: f32) {
