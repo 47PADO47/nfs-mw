@@ -28,11 +28,14 @@ struct Part<'a> {
     sim: &'a mut CarSim,
 }
 
-/// A hit, remembered until the cars can be told: the car, the impulse (N s) and whether the player did it.
+/// A hit, remembered until the cars can be told: the car, the impulse (N s), where it touched (physics space), whether
+/// the player did it, and how far the car is from the player (metres).
 struct Hit {
     owner: usize,
     impulse: f32,
+    point: Vec3,
     by_player: bool,
+    from_camera: f32,
 }
 
 /// A close pass of the player past a traffic car: the car, the distance between their centres (m) and how fast the
@@ -65,6 +68,8 @@ impl TrafficWorld {
             car.tick_quiet();
         }
         let events = self.events;
+        let focus = player.as_deref().map(|p| p.body().position);
+        let far = |sim: &CarSim| focus.map_or(f32::INFINITY, |f| f.distance(sim.body().position));
         let mut parts: Vec<Part<'_>> = Vec::new();
         for (owner, car) in self.cars.iter_mut().enumerate() {
             let coupled = car.is_coupled();
@@ -89,7 +94,14 @@ impl TrafficWorld {
                 if near(player, part.sim)
                     && let Some(hit) = player.collide_with(part.sim)
                 {
-                    hits.push(Hit { owner: part.owner, impulse: hit.impulse, by_player: true });
+                    let from_camera = far(&*part.sim);
+                    hits.push(Hit {
+                        owner: part.owner,
+                        impulse: hit.impulse,
+                        point: hit.point,
+                        by_player: true,
+                        from_camera,
+                    });
                 } else if distance < events.near_miss_distance {
                     passes.push(Pass {
                         owner: part.owner,
@@ -106,8 +118,21 @@ impl TrafficWorld {
                     continue;
                 }
                 if let Some(hit) = part.sim.collide_with(other.sim) {
-                    hits.push(Hit { owner: part.owner, impulse: hit.impulse, by_player: false });
-                    hits.push(Hit { owner: other.owner, impulse: hit.impulse, by_player: false });
+                    let (near_a, near_b) = (far(&*part.sim), far(&*other.sim));
+                    hits.push(Hit {
+                        owner: part.owner,
+                        impulse: hit.impulse,
+                        point: hit.point,
+                        by_player: false,
+                        from_camera: near_a,
+                    });
+                    hits.push(Hit {
+                        owner: other.owner,
+                        impulse: hit.impulse,
+                        point: hit.point,
+                        by_player: false,
+                        from_camera: near_b,
+                    });
                 }
             }
         }
@@ -123,7 +148,7 @@ impl TrafficWorld {
             }
         }
         for hit in hits {
-            self.cars[hit.owner].on_hit(hit.impulse, hit.by_player);
+            self.cars[hit.owner].on_hit(hit.impulse, hit.by_player, hit.point, hit.from_camera);
         }
         for pass in passes {
             let car = &mut self.cars[pass.owner];

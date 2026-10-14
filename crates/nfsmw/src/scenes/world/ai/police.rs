@@ -142,6 +142,8 @@ pub struct Police {
     heli_sheet: Option<HeliSheet>,
     /// The busted timer of the chase (`blackbox_pursuit::Busted`); reset when a chase starts, kept after it ends.
     busted: Busted,
+    /// The cop cars wrecked in this chase (`IncNumCopsDestroyed`); reset when a chase starts, kept after it ends.
+    cops_destroyed: u32,
 }
 
 impl Default for Police {
@@ -169,6 +171,7 @@ impl Default for Police {
             hidden_zones: Vec::new(),
             heli_sheet: None,
             busted: Busted::default(),
+            cops_destroyed: 0,
         }
     }
 }
@@ -191,6 +194,21 @@ impl Police {
         self.roadblock_requested = false;
         self.roadblock_standing = false;
         self.busted.reset();
+        self.cops_destroyed = 0;
+    }
+
+    /// A cop car was wrecked. Only a chase counts it. The rep points of the wreck (`RepPointsForDestroying[heat]`,
+    /// `docs/specs/ai-pursuit-heat.md`) are not paid yet: the economy is not built, so this is the hook they go in.
+    pub fn record_wreck(&mut self) {
+        if self.heat.is_none() {
+            return;
+        }
+        self.cops_destroyed += 1;
+    }
+
+    /// The cop cars wrecked in the chase.
+    pub fn cops_destroyed(&self) -> u32 {
+        self.cops_destroyed
     }
 
     /// The chase is over: the helicopter, if any, leaves.

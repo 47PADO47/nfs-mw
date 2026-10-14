@@ -100,6 +100,11 @@ impl super::super::TrafficWorld {
             .is_some_and(|hit| horizontal(hit.point - at).length() <= ROAD_EDGE)
     }
 
+    /// The cop cars wrecked in the chase, for the pursuit board.
+    pub fn cops_destroyed(&self) -> u32 {
+        self.police.cops_destroyed()
+    }
+
     /// The chase as the audio and the speech read it each frame; `None` with no chase on.
     pub fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {
         let pursuit = self.pursuit.as_ref()?;
