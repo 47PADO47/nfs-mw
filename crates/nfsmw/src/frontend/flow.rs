@@ -55,6 +55,8 @@ pub enum Stage {
     Loading,
     Playing,
     Paused,
+    /// The world map is open over the frozen game (`world_map/control.rs`).
+    Map,
 }
 
 use super::confirm::{Alert, AlertLogic};
@@ -81,7 +83,7 @@ pub(super) fn free_roam_options() -> Options {
 #[derive(Resource)]
 pub struct Frontend {
     pub(super) screens: Screens,
-    dir: GameDir,
+    pub(super) dir: GameDir,
     start: Option<Start>,
     pub(super) stage: Stage,
     boot: VecDeque<Boot>,
@@ -260,7 +262,7 @@ impl Frontend {
         self.apply(commands, host, env);
     }
 
-    fn resume(&mut self) {
+    pub(super) fn resume(&mut self) {
         self.latch = true;
         self.screens.clear();
         self.paused.set(false);

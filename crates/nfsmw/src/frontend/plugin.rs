@@ -3,9 +3,11 @@
 use bevy_app::{App, AppExit, Plugin, Update};
 use bevy_asset::Assets;
 use bevy_ecs::prelude::*;
+use bevy_ecs::system::SystemParam;
 use bevy_image::Image;
 use bevy_input::ButtonInput;
 use bevy_input::keyboard::KeyCode;
+use bevy_input::mouse::MouseButton;
 use bevy_time::Time;
 use bevy_window::{PrimaryWindow, Window};
 use blackbox_feng::runtime::pad;
@@ -18,6 +20,7 @@ use super::logic::{Command, Env};
 use super::pointer::{self, feng_point};
 use super::screens::Screens;
 use super::script::{self, UiScript};
+use super::world_map::{WorldMapOverlay, control, layout};
 use crate::app::{FrameSet, Host};
 use crate::devtools::Console;
 use crate::gui::UiOutput;
@@ -46,6 +49,7 @@ impl Plugin for FrontendPlugin {
         let mut frontend = Frontend::new(screens, self.dir.clone(), self.start.clone(), self.script.clone());
         frontend.browse = self.browse.clone();
         app.insert_resource(frontend)
+            .init_resource::<WorldMapOverlay>()
             .init_resource::<Assets<Image>>()
             .add_systems(Update, update.in_set(FrameSet::Frontend))
             .add_systems(Update, present.in_set(FrameSet::Hud))
@@ -109,6 +113,14 @@ fn press_at(fe: &mut Frontend, point: Vec2, bindings: &Bindings, device: InputDe
     Press::Nothing
 }
 
+/// What the world map needs, grouped so the frame system stays within Bevy's parameter limit.
+#[derive(SystemParam)]
+struct MapParams<'w> {
+    overlay: ResMut<'w, WorldMapOverlay>,
+    shared: Res<'w, SharedAssets>,
+    mouse: Res<'w, ButtonInput<MouseButton>>,
+}
+
 #[allow(clippy::too_many_arguments)]
 fn update(
     mut fe: ResMut<Frontend>,
@@ -126,6 +138,7 @@ fn update(
     mut clicking: Local<bool>,
     mut wheel: Local<f32>,
     garage: Res<crate::garage::Overlay>,
+    mut map: MapParams,
 ) {
     if garage.open || garage.had_input {
         *clicking = false;
@@ -239,6 +252,15 @@ fn update(
                 capture.0 = false;
                 fe.pause(host, &mut env);
             }
+            if !pause && !console_had_it && actions.just_pressed(Action::Map) {
+                control::open(fe, &mut map.overlay, map.shared.0.as_ref(), host);
+            }
+        }
+        Stage::Map => {
+            let rect = layout::picture_rect(window.width(), window.height());
+            let cursor = window.cursor_position().map(|c| layout::view_of(c.x, c.y, rect));
+            let input = control::input(&actions, &keys, &map.mouse, cursor, rect[2]);
+            control::step(fe, &mut map.overlay, input);
         }
         Stage::Boot(Boot::Splash) | Stage::Menus | Stage::Paused => {
             if (actions.just_pressed(Action::MenuQuit) || press_quit)

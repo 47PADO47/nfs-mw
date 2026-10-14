@@ -90,6 +90,8 @@ pub enum Action {
     RadioPrevious,
     /// Button: open or close the runtime garage overlay.
     Garage,
+    /// Button: open or close the full-screen world map, from free roam (`frontend/world_map`).
+    Map,
 }
 
 impl Action {
@@ -143,6 +145,7 @@ impl Action {
             "radio_next",
             "radio_previous",
             "garage",
+            "map",
         ];
         NAMES[self.index()]
     }
@@ -154,7 +157,7 @@ impl Action {
             .find(|a| a.name() == name)
             .ok_or_else(|| format!("unknown action {name:?}; use keys to list actions"))
     }
-    pub const ALL: [Action; 48] = [
+    pub const ALL: [Action; 49] = [
         Action::MoveForward,
         Action::MoveRight,
         Action::MoveUp,
@@ -203,6 +206,7 @@ impl Action {
         Action::RadioNext,
         Action::RadioPrevious,
         Action::Garage,
+        Action::Map,
     ];
 
     /// Actions that still work while the UI has the keyboard.
