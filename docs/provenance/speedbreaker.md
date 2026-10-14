@@ -28,3 +28,12 @@
 - **Limits:** no live original-game driving measurement; cinematic/multiplayer
   gates, audio/camera treatment, suspension/grip/collision-mass and drift
   recharge need separate integration/verification. Full parity is not claimed.
+
+## HUD meter (Hud_SpeedBreakerMeter)
+
+- Read from the original `speed.exe` 1.3 in Ghidra: the constructor `0x0059e420`, the race HUD constructor
+  `0x005a6600` (modes 1 and 2), and the update `0x00568460` (bar angle 175 * (1 - meter), icon scripts, thresholds
+  0 and 0.5). The package objects were read with `nfsmw dump-screen HUD_SingleRace.fng`.
+- Implemented in `hud/elements.rs` (meter group and bar always shown in the race) and `hud/bind.rs`
+  (bar angle, icon script). Tests in `hud/bind_tests.rs`.
+- Not yet compared on screen with the original.
