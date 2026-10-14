@@ -157,6 +157,31 @@ by its name hash. [package] = the object exists in the package; [exe] = the form
 | auto shop | `SHOP_0..7` (texture `Minimap_Icon_Chop_Shop.tga`) | [package] 8 objects, one per shop zone. No `SHOP_%d` format string in `speed.exe` (Ghidra finds only `EN_Chopshop_*` and `customshop`), so the name is the hash match only |
 | safe house | `SAFEHOUSEINDICATOR_0..3` (texture `Safehouse_Icon.tga`) | [package] 4 objects; [exe] `SAFEHOUSEINDICATOR_%d` at `008a01ec` |
 
+**Colours.** The package's interior objects are plain white. `FUN_00530df0` (the icon builder, `speed.exe`) tints an
+icon only for its table keys 1, 4 and 0x20 (`0xffabda4d`, `0xffffffff`, `0xffffed00`, the last also a roadblock's
+icon). The race, shop, car lot and safe house rows take the package object's own colour (`FUN_0051a180`), so the
+original has **no** tint for them in code. The colour decoder `FUN_005b2d50` reads ARGB; the cop cycle is
+`0xff0000ff` blue, `0xffcccccc` grey, `0xffa00000` red **[exe]**. The rewrite therefore keeps the package colour
+and tints a white object only where the screenshot legend says: shop `0xffffed00` yellow (the game's yellow),
+car lot `0xff0000ff` blue (the game's blue), safe house `0x00ff00` green **[screenshot legend, not in `speed.exe`]**.
+Race blips keep the package colour: their own colours are not known **[unconfirmed]**. The tint is set only on a
+plain white object (`blip_style::colour_to_apply`), so a package colour is never overwritten.
+
+**Visibility.** Shops, car lots and safe houses are always eligible. Race blips are drawn only while the view covers
+their zone: the blip's own place is inside the disc, not pinned to its rim (`Blip::inside` in
+`libs/blackbox-minimap`). Ghidra: the interior builder `FUN_005486a0` (types 8, 11, 12, from `FUN_00548810`) walks
+the element list that `FUN_005e4940` returns. That list keeps the elements whose flag byte has bits 0 and 1 set and
+is sorted by distance from the player. It contains no `Region` string and no distance cut-off. The writer of those
+flag bits is not located, so the game's own zone gate is **[unconfirmed]**; the rule above is the rewrite's choice.
+
+**Nearest.** Only the nearest shop and the nearest car lot are drawn (`nearest_blip`, from the player's place each
+frame). Ghidra shows the interior list is distance-sorted, but the builder makes one icon per listed element (pool
+limited), so the single-nearest rule is the requested behaviour **[unconfirmed in code]**.
+
+Car lots use the pool `CAR_LOT_0..3` (`Minimap_Icon_Car_Lot.tga`; [package] 4 objects, found by name hash; the
+`CAR_LOT_` format is not in `speed.exe`, so the name is the hash match only). The index of an icon is not tied to its
+zone.
+
 Race types with no icon object in the package (challenge, checkpoint race, cash grab, speed trap jump, milestone
 jump) have no blip. A race's blip sits at its start (`racestart`), heading along the grid. Race starts are not
 active, so they show with no race mode. An interior's icon does not turn, and its index is not tied to its zone
@@ -166,8 +191,8 @@ Positions come from `nfsmw_data::gameplay` (physics space) and go to render spac
 these positions that is the map's own coordinates. The world builds the blips once, when it opens
 (`scenes/world/hud.rs`, `static_blips`), and `hud_frame` adds them to the minimap's list next to the traffic's. A
 blip takes a pool object only when it is drawn, so a blip off the disc cannot use up the pool. The install has 213
-race starts, 8 auto shops and 4 safe houses. Open: the race icons are drawn pinned to the disc's rim at the test
-location; their look and the shop icon's size have not been compared with a capture of the original.
+race starts, 8 auto shops and 4 safe houses. Open: race icons are now drawn only inside the disc (zone-gated, above), not pinned to its rim; their look and the
+shop icon's size have not been compared with a capture of the original.
 
 ## 8. Widescreen
 

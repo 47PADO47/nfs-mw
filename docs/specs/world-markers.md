@@ -19,7 +19,8 @@ Each entry zone gets a flat disc on the road, centred on the zone.
   **[unconfirmed]**, the same as the interiors' usual radius, and the disc is drawn at that radius too.
 - **Height.** The disc is laid 0.15 m above the zone centre, so it does not fight the road for depth **[unconfirmed]**.
 - **Colour.** Amber for auto shops `(255, 176, 0)`, cyan for safe houses `(64, 200, 255)`, white for races
-  **[unconfirmed]**. The original's blip icons are textures (`SHOP_*`, `SAFEHOUSEINDICATOR_*`, see `hud/blip_styles`),
+  **[unconfirmed]**. These are the ground discs only. The minimap blips of the same places have their own colours,
+  verified in part from `speed.exe`, in [hud-minimap.md](hud-minimap.md) section 7. The original's blip icons are textures (`SHOP_*`, `SAFEHOUSEINDICATOR_*`, see `hud/blip_styles`),
   so their colour is not stored as a number; the disc colour is a guess that matches the kind, not a value read from
   the game.
 - **Fade.** Opacity is `PEAK` (0.45) at the centre and 0 at the rim, a fan of 24 triangles; the rim is at the
