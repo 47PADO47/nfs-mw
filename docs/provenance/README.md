@@ -44,6 +44,10 @@ a record. Process: [licensing.md § Spec-first](../licensing.md#spec-first).
 
 ## Template
 
+[Car audio integration](car-audio-integration.md) records the contact, playback,
+authored scrape/wind/road and engine synchronization changes, with their remaining
+original-game fidelity boundaries.
+
 [Tire effects](tire-effects.md) records the existing source inputs and the new procedural visual design.
 
 ```markdown
