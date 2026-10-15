@@ -190,7 +190,15 @@ impl Radio {
     /// when the game ends (unless the player started it by hand). A song on the air goes on when the music volume
     /// is turned to zero (it is silent, not skipped), so moving the slider does not lose it; only a new song waits
     /// for the music to be audible.
+    #[cfg(test)]
     pub fn update(&mut self, driving: bool, audible: bool, music: &mut impl Player) {
+        self.update_held(driving, false, audible, music);
+    }
+
+    /// `update`, with `held`: a pursuit has the songs' place for now (its music plays instead). That is not the game
+    /// ending, so the play list and the history stay. The song on the air stops, unless the player paused it: a held
+    /// paused song stays where it is and goes on only when the player resumes it.
+    pub fn update_held(&mut self, driving: bool, held: bool, audible: bool, music: &mut impl Player) {
         if driving != self.driving {
             self.driving = driving;
             self.manual = false;
@@ -203,6 +211,12 @@ impl Radio {
         }
         if !(self.enabled && (driving || self.manual)) {
             return self.stop();
+        }
+        if held {
+            if !self.paused {
+                self.stop();
+            }
+            return;
         }
         if self.playing.is_none() && audible && self.broken.is_none() {
             let started = self.start_next(music);

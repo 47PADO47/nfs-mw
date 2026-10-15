@@ -59,8 +59,9 @@ impl Audio {
     }
 
     /// Once per frame: `driving` is true while a car is being driven. Starts the radio when driving begins and moves
-    /// on to the next song when one ends. Does nothing before the first drive unless the player used `radio`.
-    pub fn update_radio(&mut self, driving: bool) {
+    /// on to the next song when one ends. `held` is true while a pursuit has the songs' place. Does nothing before the
+    /// first drive unless the player used `radio`.
+    pub fn update_radio(&mut self, driving: bool, held: bool) {
         let loaded = matches!(self.radio, RadioSlot::Ready(_));
         if !loaded && (!driving || !self.radio_wanted) {
             return;
@@ -70,7 +71,7 @@ impl Audio {
             return;
         }
         let (Some(out), RadioSlot::Ready(radio)) = (self.output.as_mut(), &mut self.radio) else { return };
-        radio.update(driving, audible, &mut out.music);
+        radio.update_held(driving, held, audible, &mut out.music);
     }
 
     /// The `radio` setting: off keeps the radio from loading and silences a loaded one; on lets it play again.

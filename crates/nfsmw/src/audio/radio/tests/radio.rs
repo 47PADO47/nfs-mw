@@ -167,6 +167,31 @@ fn leaving_the_game_stops_the_song_and_driving_again_starts_one() {
 }
 
 #[test]
+fn a_paused_song_stays_paused_through_a_pursuit_and_goes_on_only_when_resumed() {
+    let (mut radio, mut mixer, opened) = radio();
+    radio.update(true, true, &mut mixer);
+    radio.pause().unwrap();
+    // A pursuit takes the songs' place: the held radio neither starts a song nor drops the paused one.
+    radio.update_held(true, true, true, &mut mixer);
+    radio.update_held(true, true, true, &mut mixer);
+    assert_eq!((title(&radio), paused(&radio)), (Some("B"), true));
+    radio.update_held(true, false, true, &mut mixer);
+    assert_eq!((title(&radio), paused(&radio), opened.load(Ordering::Relaxed)), (Some("B"), true, 1));
+    assert_eq!(radio.resume().unwrap(), "resumed");
+    assert!(!paused(&radio));
+}
+
+#[test]
+fn a_pursuit_stops_a_playing_song_and_the_next_one_starts_after_it() {
+    let (mut radio, mut mixer, _) = radio();
+    radio.update(true, true, &mut mixer);
+    radio.update_held(true, true, true, &mut mixer);
+    assert_eq!(title(&radio), None);
+    radio.update_held(true, false, true, &mut mixer);
+    assert_eq!(title(&radio), Some("C"));
+}
+
+#[test]
 fn off_stops_the_radio_and_on_brings_it_back() {
     let (mut radio, mut mixer, _) = radio();
     radio.update(true, true, &mut mixer);

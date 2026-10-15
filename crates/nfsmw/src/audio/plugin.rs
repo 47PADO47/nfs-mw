@@ -103,7 +103,7 @@ fn drive_car(
     let chase = host.scene.pursuit_feed();
     audio.follow_chase(&mut music, chase.as_ref());
     let songs_free = audio.update_interactive(&music.state(), driving, time.delta_secs());
-    audio.update_radio(driving && songs_free);
+    audio.update_radio(driving, !songs_free);
     if let Some(clip) = host.scene.take_clip()
         && let Err(e) = audio.play_music(super::pcm::sound(&clip))
     {
