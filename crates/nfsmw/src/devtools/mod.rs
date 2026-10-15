@@ -16,6 +16,7 @@ use bevy_window::{PrimaryWindow, Window};
 
 use crate::gui::{Gui, GuiInput, UiOutput};
 use crate::settings::Settings;
+pub(crate) use graphics_lab::GraphicsLab;
 pub use logbuf::install as install_logging;
 use metrics::Metrics;
 pub use metrics::ShowMetrics;
@@ -81,7 +82,7 @@ fn run_ui(
         let left = host.scene.ui(ctx);
         overlay::show(ctx, settings.show_metrics, &metrics, left);
         console::show(ctx, &mut console);
-        graphics_lab::show(ctx, &mut lab, &mut settings, &metrics);
+        graphics_lab::show_world(ctx, &mut lab, &mut settings, &metrics, host.scene.as_mut());
         if garage.open {
             let mut open = true;
             let request =

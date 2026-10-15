@@ -3,6 +3,8 @@
 //! The console's state is the [`Console`] resource and the log buffer, both plain data. Typed lines are
 //! parsed into [`parse::Command`]s and run by [`exec`]; [`view`] is the thin egui panel over all of it.
 
+#[cfg(test)]
+mod environment_sync_tests;
 mod exec;
 #[cfg(test)]
 mod exhaust_flames_tests;
@@ -94,11 +96,15 @@ fn toggle(
     mut capture: ResMut<MouseCapture>,
     mut focus: ResMut<UiFocus>,
     garage: Res<crate::garage::Overlay>,
+    mut lab: Option<ResMut<super::GraphicsLab>>,
 ) {
     if garage.open {
         return;
     }
     if actions.just_pressed(Action::Console) {
+        if let Some(lab) = lab.as_mut() {
+            lab.close(&mut capture, &mut focus);
+        }
         let open = !console.open;
         console.set_open(open, &mut capture, &mut focus);
     }

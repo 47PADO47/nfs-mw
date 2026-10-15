@@ -186,6 +186,12 @@ fn help(scene: &[(&str, &str)]) -> String {
 
 /// Push changed settings into the parts that hold them: the frame limiter and the swapchain.
 pub fn sync_settings(settings: Res<Settings>, mut host: NonSendMut<Host>, mut applied: Local<Option<Settings>>) {
+    if applied
+        .as_ref()
+        .is_none_or(|before| before.always_rain != settings.always_rain || before.rain_amount != settings.rain_amount)
+    {
+        host.set_rain(settings.always_rain, settings.rain_amount.amplitude());
+    }
     if applied.as_ref().is_none_or(|before| before.spark_style != settings.spark_style) {
         host.set_spark_style(settings.spark_style);
     }

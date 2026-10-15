@@ -151,6 +151,11 @@ impl Host {
         self.scene.set_tire_effects(smoke, marks);
     }
 
+    pub fn set_rain(&mut self, always: bool, amount: f32) {
+        self.rain = (always, amount);
+        self.scene.set_rain(always, amount);
+    }
+
     pub fn set_smoke_quality(&mut self, quality: SmokeQuality) {
         self.smoke_quality = quality;
         self.scene.set_smoke_quality(quality);
