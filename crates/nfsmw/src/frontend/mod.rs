@@ -62,4 +62,6 @@ pub use flow::Start;
 pub use logic::{Args, Category};
 pub use plugin::FrontendPlugin;
 pub use scene::MenuScene;
+#[cfg(test)]
+pub(crate) use scene::{Pausable, PauseFlag};
 pub use script::UiScript;

@@ -346,12 +346,19 @@ impl ScreenLogic for WidgetMenu {
             (super::logic::Category::Audio, false) => 0x3932_C2E4,
             (super::logic::Category::Video, false) => 0x4847_8029,
             (super::logic::Category::Gameplay, false) => 0x01CC_E8C2,
+            (super::logic::Category::Player, false) => 0xC055_165F,
             (super::logic::Category::Audio, true) => 0xB142_6DFA,
             (super::logic::Category::Video, true) => 0xD94E_A03F,
             (super::logic::Category::Gameplay, true) => 0x3936_D9F8,
+            (super::logic::Category::Player, true) => 0xD9DC_2F12,
             (super::logic::Category::Controls | super::logic::Category::Discord, _) => 0,
         };
         cx.label_group(ids::HEADER_TEXT, title);
+        if self.args.category == super::logic::Category::Player
+            && let Some(icon) = cx.object(0x0800_7B4C)
+        {
+            cx.rt.set_texture(icon, 0xD708_EFEF);
+        }
         match self.args.category {
             // The Controls icon opens the key list; this list is the Control Options item.
             super::logic::Category::Controls => cx.text_group(ids::HEADER_TEXT, "Control Options"),

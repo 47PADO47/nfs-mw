@@ -3,9 +3,9 @@ use super::options::{Control, Data, Setting, Title, rows};
 use crate::settings::{HudLayout, Partial, Settings};
 
 #[test]
-fn hud_layout_row_follows_transmission_and_keeps_the_hud_enabled() {
+fn hud_layout_starts_gameplay_options_and_keeps_the_hud_enabled() {
     let rows = rows(Category::Gameplay, &crate::settings::test_caps::native());
-    let index = rows.iter().position(|row| row.setting == Setting::Transmission).unwrap() + 1;
+    let index = 0;
     assert_eq!(rows[index].setting, Setting::HudLayout);
     assert_eq!(rows[index].title, Title::Text("HUD Layout"));
     let (mut settings, mut changes) = (Settings::from(Partial::default()), Partial::default());
@@ -57,15 +57,11 @@ fn hud_layout_main_and_pause_rows_show_cycle_and_request_saving() {
             Env { settings: &mut settings, changed: &mut changes, caps: crate::settings::test_caps::native() };
         screens.open(name, Args { pause, category: Category::Gameplay, ..Args::default() }, true, &mut env);
         run(&mut screens, &mut env, 0, 60);
-        for _ in 0..2 {
-            run(&mut screens, &mut env, pad::DOWN, 3);
-            run(&mut screens, &mut env, 0, 3);
-        }
         run(&mut screens, &mut env, pad::RIGHT, 3);
         run(&mut screens, &mut env, 0, 3);
         assert_eq!(env.settings.hud_layout, HudLayout::Classic);
         let tree = screens.trees().pop().unwrap();
-        for (object, text) in [("OPTION_NAME_3", "HUD Layout"), ("OPTION_DATA_3", "Centered")] {
+        for (object, text) in [("OPTION_NAME_1", "HUD Layout"), ("OPTION_DATA_1", "Centered")] {
             let node = tree.nodes.iter().find(|node| node.name_hash == fe_hash_upper(object) && node.visible).unwrap();
             assert_eq!(node.text.as_deref(), Some(text), "{name}");
         }

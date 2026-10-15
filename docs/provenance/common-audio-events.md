@@ -16,3 +16,7 @@
   extracted bank data is included.
 - Limits: original sound-clock dilation and full DSP/PCM equality remain
   unverified; authored module routing does not establish these behaviors.
+- The normal-play delivery regression is based on remake source inspection:
+  its pause wrapper omitted the common-event forwarding method and inherited
+  the trait's empty queue. This is a host integration correction, not a new
+  original sound or a change to the authored gain, bank, IDs or mixer slots.

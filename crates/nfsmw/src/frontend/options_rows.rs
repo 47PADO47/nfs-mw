@@ -53,14 +53,16 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
             ])
             .collect(),
         Category::Gameplay => vec![
-            row(Setting::Hud, Title::Label(0xAC14_8579)),
-            row(Setting::Transmission, Title::Label(LABEL_TRANSMISSION)),
             row(Setting::HudLayout, Title::Text("HUD Layout")),
             row(Setting::RadioHud, Title::Text("Radio HUD")),
             row(Setting::Minimap, Title::Text("Minimap")),
             row(Setting::RearViewMirror, Title::Text("Rear-View Mirror")),
             row(Setting::TurnSignals, Title::Text("Turn Signals")),
-            row(Setting::Camera, Title::Text("Camera")),
+        ],
+        Category::Player => vec![
+            row(Setting::Transmission, Title::Label(LABEL_TRANSMISSION)),
+            row(Setting::Camera, Title::Label(0xF6CC_DC5F)),
+            row(Setting::Hud, Title::Label(0xAC14_8579)),
         ],
         Category::Controls => {
             InputSetting::ALL.into_iter().map(|setting| row(Setting::Input(setting), setting.title())).collect()

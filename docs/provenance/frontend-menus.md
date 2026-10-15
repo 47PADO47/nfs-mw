@@ -19,6 +19,9 @@ assets, presenter).
     `OPTION_NAME_n`, `BASE_SLIDER_n`, `OPTION_n` hash to the ids found in the packages; label hashes resolve to the
     strings the specs name. The dumps are not part of the repository.
 - **Implemented:** 2026-10-08, from the specs.
+- **Player category corrected:** Transmission, Camera and Gauges now use the
+  original Player route in main and pause options, with installed header/Camera
+  language labels. See [Player options provenance](player-options.md).
 - **Icon transitions checked:** 2026-10-09, re-read the reference scroller's fade state, positioning and
   `EXIT_STARTED` handling, plus its header's fade-start methods. Verified the exit event at the beginning of
   the installed packages' leave scripts. Recorded the behavior in spec section 2 before implementing the

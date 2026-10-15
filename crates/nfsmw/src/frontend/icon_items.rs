@@ -16,7 +16,6 @@ pub enum Id {
     LanPlay,
     AliasManager,
     Options,
-    Player,
     /// The key list (`controls_screen.rs`).
     Controls,
     /// The sensitivity and camera rows (`widget_menu.rs`).
@@ -75,8 +74,8 @@ pub fn icons(kind: Kind) -> Vec<Icon> {
             icon(Id::AliasManager, 0x6B30_3856, 0xBCB1_8F38, false),
             icon(Id::Options, 0x3058_FE37, 0x19A8_C0AF, true),
         ],
-        // The original's option list (docs/specs/frontend-menus.md, 2.2): Player, EA Trax and Credits have no screen
-        // here yet, so they are greyed out; Player is left out in the pause menu, and EA Trax and Credits too. Online
+        // The original's option list (docs/specs/frontend-menus.md, 2.2): EA Trax and Credits have no screen
+        // here yet, so they are greyed out and left out in the pause menu. Online
         // is left out as well: the original shows it only in online mode, which this build never is.
         // Controls opens the key list; Control Options (the sensitivity and camera rows) sits beside it. Discord
         // Rich Presence has its own icon (a bundled mark, `ui/discord_icon.rs`) and its toggles.
@@ -85,10 +84,8 @@ pub fn icons(kind: Kind) -> Vec<Icon> {
                 icon(Id::Category(Category::Audio), 0xF37A_F144, 0xE76C_D783, true),
                 icon(Id::Category(Category::Video), 0x8A00_6328, 0xE8E2_4508, true),
                 icon(Id::Category(Category::Gameplay), 0x4DF9_8FB2, 0xD0CF_6EE1, true),
+                icon(Id::Category(Category::Player), 0xD708_EFEF, 0xF760_EABE, true),
             ];
-            if !pause {
-                list.push(icon(Id::Player, 0xD708_EFEF, 0xF760_EABE, false));
-            }
             list.push(icon(Id::Controls, 0xA04A_7B26, 0x04DC_6DB5, true));
             list.push(icon(Id::ControlOptions, crate::ui::input_icons::ATLAS, 0, true));
             list.push(icon(Id::Category(Category::Discord), crate::ui::discord_icon::TEXTURE, 0, true));
@@ -130,11 +127,13 @@ mod tests {
         assert_eq!(controls.texture, 0xA04A_7B26, "OMController's picture (docs/specs/frontend-menus.md, 2.2)");
         let options = categories.iter().position(|i| i.id == Id::ControlOptions).expect("Control Options");
         assert_eq!(categories[options - 1].id, Id::Controls, "Control Options follows Controls");
-        let player = categories.iter().find(|i| i.id == Id::Player).expect("the Player category");
+        let player = categories.iter().find(|i| i.id == Id::Category(Category::Player)).expect("the Player category");
         assert_eq!((player.texture, player.name), (0xD708_EFEF, 0xF760_EABE), "the original's Player icon");
+        assert!(player.enabled);
         let pause = icons(Kind::Categories { pause: true });
-        assert_eq!(pause.len(), 6, "no Player, EA Trax or Credits in the pause menu");
-        assert!(pause.iter().all(|i| i.id != Id::Player), "the pause menu has no Player entry");
+        assert_eq!(pause.len(), 7, "Player is available; EA Trax and Credits remain absent in pause");
+        assert_eq!(pause[3].id, Id::Category(Category::Player));
+        assert!(pause[3].enabled);
         assert_eq!(icons(Kind::Pause)[0].name, 0x01BD_185C, "Resume Free Roam");
     }
 

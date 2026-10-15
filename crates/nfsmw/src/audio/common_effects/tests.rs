@@ -1,5 +1,7 @@
 use super::*;
 
+mod delivery;
+
 #[test]
 fn common_event_ids_inputs_and_class_words_are_distinct() {
     for (event, input, id) in
