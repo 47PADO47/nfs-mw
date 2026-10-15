@@ -4,4 +4,5 @@ pub mod assets;
 pub mod car;
 pub mod feng;
 pub mod sidebar;
+pub mod sounds;
 pub mod world;

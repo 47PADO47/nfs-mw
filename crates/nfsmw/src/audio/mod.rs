@@ -30,6 +30,8 @@ mod interactive;
 mod mixer;
 mod pcm;
 mod plugin;
+pub mod preview;
+pub mod preview_play;
 mod radio;
 mod refs;
 mod speech;

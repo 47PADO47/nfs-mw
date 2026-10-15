@@ -167,6 +167,10 @@ pub trait Scene {
     fn take_explosions(&mut self) -> u32 {
         0
     }
+    /// The sound viewer's transport, when the scene has one: the audio plugin plays what it asks for.
+    fn sound_preview(&self) -> Option<crate::audio::preview::Preview> {
+        None
+    }
     /// Ordered global sound events since the last update.
     fn take_common_sounds(&mut self) -> Vec<crate::audio::CommonEvent> {
         Vec::new()

@@ -110,6 +110,15 @@ pub enum Command {
         #[command(flatten)]
         view: ViewArgs,
     },
+    /// Browse every sound of the install: a searchable list on the left, and a mini player at the bottom (previous, next,
+    /// pause or play, and a slider that follows the sound). Clicking a sound plays it; Space pauses, Left and Right step.
+    /// `nfsmw sound-viewer FE_MB.abk` starts on that bank (Esc quits).
+    SoundViewer {
+        /// The bank to start on, with or without its folder, in any case; the first sound when left out.
+        bank: Option<String>,
+        #[command(flatten)]
+        view: ViewArgs,
+    },
     /// List the FEng screens (menus, in-game screens) in the install.
     ListScreens,
     /// Search the English language table: text containing FILTER, or one label as 0xHASH.

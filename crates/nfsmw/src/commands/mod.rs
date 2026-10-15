@@ -122,6 +122,12 @@ pub fn run(cli: Cli) -> Result<()> {
             options.frontend = Some(plugin);
             crate::app::run(Box::new(scene), &Settings::load(view.settings_layer()), options)
         }
+        Command::SoundViewer { bank, view } => {
+            let dir = open_install(game_dir)?;
+            let scene = crate::scenes::sounds::SoundsScene::open(&dir, bank.as_deref())?;
+            let run_options = view.run_options(&dir, false);
+            crate::app::run(Box::new(scene), &Settings::load(view.settings_layer()), run_options)
+        }
         Command::PlayMovie { name, start, view } => {
             let dir = open_install(game_dir)?;
             let scene = crate::movie::MovieScene::open(&dir, &name, f64::from(start))?;
