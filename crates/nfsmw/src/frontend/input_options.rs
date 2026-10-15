@@ -13,14 +13,10 @@ pub enum InputSetting {
     CameraSensitivity,
     MouseSensitivity,
     InvertCameraY,
-    /// Saves the alias index through `saves` (`saves::save_default_alias`); it does not change a value.
-    SaveAlias,
-    /// Reads the alias index back (`saves::load_aliases`) and says whether there is one; it does not change a value.
-    LoadAlias,
 }
 
 impl InputSetting {
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 8] = [
         Self::DeadzoneMode,
         Self::SteeringDeadzone,
         Self::CameraDeadzone,
@@ -29,8 +25,6 @@ impl InputSetting {
         Self::CameraSensitivity,
         Self::MouseSensitivity,
         Self::InvertCameraY,
-        Self::SaveAlias,
-        Self::LoadAlias,
     ];
     pub fn title(self) -> Title {
         Title::Text(match self {
@@ -42,8 +36,6 @@ impl InputSetting {
             Self::CameraSensitivity => "Camera Sensitivity",
             Self::MouseSensitivity => "Mouse Sensitivity",
             Self::InvertCameraY => "Invert Camera Y",
-            Self::SaveAlias => "Save Alias",
-            Self::LoadAlias => "Load Alias",
         })
     }
     pub fn data(self, s: &Settings) -> Data {
@@ -62,8 +54,6 @@ impl InputSetting {
                 true => "On".to_owned(),
                 false => "Off".to_owned(),
             },
-            Self::SaveAlias => "Save".to_owned(),
-            Self::LoadAlias => "Load".to_owned(),
         };
         Data::Text(value)
     }
@@ -105,7 +95,6 @@ impl InputSetting {
                 s.controls.invert_camera_y = !s.controls.invert_camera_y;
                 changed.invert_camera_y = Some(s.controls.invert_camera_y);
             }
-            Self::SaveAlias | Self::LoadAlias => {}
         }
         before != s.controls
     }

@@ -1,5 +1,6 @@
 //! Category layout for the option screens.
 use super::{LABEL_TRANSMISSION, Row, Setting, Title, row};
+use crate::frontend::alias_options::AliasSetting;
 use crate::frontend::graphics_options::GraphicsSetting;
 use crate::frontend::input_options::InputSetting;
 use crate::frontend::logic::Category;
@@ -67,6 +68,10 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
         Category::Controls => {
             InputSetting::ALL.into_iter().map(|setting| row(Setting::Input(setting), setting.title())).collect()
         }
+        Category::AliasManager => AliasSetting::ALL
+            .into_iter()
+            .map(|setting| row(Setting::Alias(setting), Title::Text(setting.title())))
+            .collect(),
         // The Discord Rich Presence toggles (`discord/`); the time played is dimmed while Discord is off.
         Category::Discord => vec![
             row(Setting::Discord, Title::Text("Discord Rich Presence")),

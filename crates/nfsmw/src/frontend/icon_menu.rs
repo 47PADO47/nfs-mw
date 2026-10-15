@@ -236,6 +236,10 @@ impl IconMenu {
             (Kind::Main, Pending::Pressed(Id::Options)) => {
                 cx.send(Command::Switch(screen::MAIN_MENU_SUB.into(), Args { options: true, ..self.args }));
             }
+            (Kind::Main, Pending::Pressed(Id::AliasManager)) => {
+                let args = Args { category: Category::AliasManager, options: true, ..self.args };
+                cx.send(Command::Switch(screen::OPTIONS.into(), args));
+            }
             (Kind::Categories { .. }, Pending::Pressed(Id::Category(category))) => self.open_options(cx, category),
             (Kind::Categories { .. }, Pending::Pressed(Id::Controls)) => self.open_controls(cx),
             (Kind::Categories { .. }, Pending::Pressed(Id::ControlOptions)) => {

@@ -6,8 +6,8 @@ use blackbox_feng::ids::{BUTTON_PRESSED, PAD_ACCEPT, PAD_BACK, PAD_DOWN, PAD_LEF
 use blackbox_feng::{ObjectRef, Runtime, fe_hash_upper};
 use glam::{Vec2, Vec3};
 
+use super::alias_options::AliasSetting;
 use super::ids::{self, screen};
-use super::input_options::InputSetting;
 use super::logic::{Args, Command, Cx, ScreenLogic};
 use super::options::{self, Control, Data, Row, Title};
 use super::widget_layout::{Layout, RowObjects};
@@ -297,11 +297,11 @@ impl WidgetMenu {
         if self.leaving {
             return;
         }
-        if row.setting == options::Setting::Input(InputSetting::SaveAlias) {
+        if row.setting == options::Setting::Alias(AliasSetting::Save) {
             cx.send(Command::SaveAlias);
             return;
         }
-        if row.setting == options::Setting::Input(InputSetting::LoadAlias) {
+        if row.setting == options::Setting::Alias(AliasSetting::Load) {
             cx.send(Command::LoadAlias);
             return;
         }
@@ -320,10 +320,11 @@ impl WidgetMenu {
     /// Back to the screen the options were opened from.
     fn finish(&mut self, cx: &mut Cx) {
         cx.send(Command::SaveSettings);
-        let next = if self.args.pause {
-            Command::Switch(screen::PAUSE_MENU.into(), Args { pause: true, options: true, ..self.args })
-        } else {
-            Command::Switch(screen::MAIN_MENU_SUB.into(), Args { options: true, ..self.args })
+        let next = match (self.args.pause, self.args.category) {
+            (true, _) => Command::Switch(screen::PAUSE_MENU.into(), Args { pause: true, options: true, ..self.args }),
+            // The alias manager is a main menu icon of its own, so it returns to the main menu, not the categories.
+            (false, super::logic::Category::AliasManager) => Command::Switch(screen::MAIN_MENU.into(), Args::default()),
+            (false, _) => Command::Switch(screen::MAIN_MENU_SUB.into(), Args { options: true, ..self.args }),
         };
         cx.send(next);
     }
@@ -351,6 +352,8 @@ impl ScreenLogic for WidgetMenu {
             (super::logic::Category::Video, true) => 0xD94E_A03F,
             (super::logic::Category::Gameplay, true) => 0x3936_D9F8,
             (super::logic::Category::Player, true) => 0xD9DC_2F12,
+            // The original's profile manager title ("alias manager", docs/specs/save-alias-manager.md, section 1).
+            (super::logic::Category::AliasManager, _) => 0x1B76_F2CE,
             (super::logic::Category::Controls | super::logic::Category::Discord, _) => 0,
         };
         cx.label_group(ids::HEADER_TEXT, title);

@@ -22,6 +22,8 @@ pub enum Category {
     Controls,
     /// Discord Rich Presence: its own icon and sub-screen (the toggles are `options_rows.rs`'s rows).
     Discord,
+    /// The alias manager, opened from the main menu's Alias Manager icon: save and load (`alias_options.rs`).
+    AliasManager,
 }
 
 /// What a screen is opened with (the original passes an argument and reads the game mode).
