@@ -71,13 +71,19 @@ impl Scene for MenuScene {
                 return Ok(());
             }
         };
+        let room = match Room::load(renderer, dir) {
+            Ok(room) => Some(room),
+            Err(e) => {
+                log::warn!("the menu room is not drawn: {e:#}");
+                None
+            }
+        };
         let mut car = CarScene::new(model, 0.0);
+        // The room has its own floor at the same height; the car's placeholder floor would z-fight with it.
+        car.placeholder_floor = room.is_none();
         car.init(renderer)?;
         self.car = Some(car);
-        match Room::load(renderer, dir) {
-            Ok(room) => self.room = Some(room),
-            Err(e) => log::warn!("the menu room is not drawn: {e:#}"),
-        }
+        self.room = room;
         Ok(())
     }
 

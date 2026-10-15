@@ -60,6 +60,9 @@ pub struct CarScene {
     pub(crate) solid_shading: Shading,
     /// Texture animations of the model on the floor (scenery only).
     pub(crate) texture_anims: Vec<blackbox_tpk::TextureAnim>,
+    /// Whether the plain placeholder floor is drawn under a car. A scene with its own floor turns it off, since
+    /// two coplanar floors flicker where they overlap.
+    pub(crate) placeholder_floor: bool,
 }
 
 impl CarScene {
@@ -80,6 +83,7 @@ impl CarScene {
             view_offset: 0.0,
             solid_shading: Shading::Lit,
             texture_anims: Vec::new(),
+            placeholder_floor: true,
         }
     }
 
@@ -133,7 +137,7 @@ impl CarScene {
             }
         }
         self.meshes.extend(cache.into_values().flatten());
-        if self.model.car_type.is_some() {
+        if self.model.car_type.is_some() && self.placeholder_floor {
             let floor = floor::upload(renderer);
             self.meshes.push(floor);
             self.instances.push(Instance::keyed(floor, Mat4::IDENTITY, InstanceKey::new(self.car, FLOOR_PART)));
