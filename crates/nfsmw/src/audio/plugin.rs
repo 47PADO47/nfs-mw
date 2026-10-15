@@ -5,6 +5,7 @@ use bevy_ecs::prelude::*;
 use bevy_time::Time;
 use game_install::GameDir;
 
+use super::preview_play::PreviewPlayer;
 use super::{Audio, MusicInput, Volumes};
 use crate::app::FrameSet;
 use crate::app::Host;
@@ -35,6 +36,7 @@ impl Plugin for AudioPlugin {
                 (sync_volumes, sync_radio).in_set(FrameSet::Prepare),
                 super::radio::input::radio_input.in_set(FrameSet::Ui),
                 drive_car.in_set(FrameSet::Ui),
+                play_preview.in_set(FrameSet::Ui),
             ),
         );
         super::speech::add_systems(app);
@@ -60,6 +62,15 @@ fn sync_radio(settings: Res<Settings>, mut audio: NonSendMut<Audio>, mut applied
     }
     *applied = Some(settings.radio);
     audio.set_radio_wanted(settings.radio);
+}
+
+/// The sound viewer's transport: what the scene asks for plays, and its playhead is reported back. A scene without one
+/// stops what it had started.
+fn play_preview(host: NonSendMut<Host>, mut audio: NonSendMut<Audio>, mut player: Local<PreviewPlayer>) {
+    match host.scene.sound_preview() {
+        Some(preview) => player.service(&mut audio, &preview),
+        None => player.stop(),
+    }
 }
 
 /// The scene's car plays its engine.
@@ -103,7 +114,7 @@ fn drive_car(
     let chase = host.scene.pursuit_feed();
     audio.follow_chase(&mut music, chase.as_ref());
     let songs_free = audio.update_interactive(&music.state(), driving, time.delta_secs());
-    audio.update_radio(driving && songs_free);
+    audio.update_radio(driving, !songs_free);
     if let Some(clip) = host.scene.take_clip()
         && let Err(e) = audio.play_music(super::pcm::sound(&clip))
     {

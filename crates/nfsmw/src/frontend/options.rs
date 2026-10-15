@@ -3,6 +3,7 @@
 
 use std::str::FromStr;
 
+use super::alias_options::AliasSetting;
 use super::graphics_options::GraphicsSetting;
 use super::ids::{LABEL_OFF, LABEL_ON};
 use super::input_options::InputSetting;
@@ -46,6 +47,7 @@ pub enum Setting {
     Discord,
     DiscordTimePlayed,
     Input(InputSetting),
+    Alias(AliasSetting),
     Post(PostSetting),
     Graphics(GraphicsSetting),
     Renderer(RendererSetting),
@@ -170,6 +172,7 @@ impl Setting {
     pub fn data(self, s: &Settings) -> Data {
         match self {
             Setting::Input(setting) => setting.data(s),
+            Setting::Alias(setting) => Data::Text(setting.data().to_owned()),
             Setting::Post(setting) => setting.data(s),
             Setting::Graphics(setting) => setting.data(s),
             Setting::Renderer(setting) => setting.data(s),
@@ -352,8 +355,8 @@ impl Setting {
         }
         let before = *s;
         match self {
-            Setting::Input(_) | Setting::Post(_) | Setting::Graphics(_) | Setting::Renderer(_) => {
-                unreachable!("input, post, graphics and renderer settings are handled above")
+            Setting::Input(_) | Setting::Alias(_) | Setting::Post(_) | Setting::Graphics(_) | Setting::Renderer(_) => {
+                unreachable!("input, alias, post, graphics and renderer settings are handled above")
             }
             Setting::HudLayout => {
                 let layouts = [HudLayout::Pc, HudLayout::Classic, HudLayout::Xbox360];

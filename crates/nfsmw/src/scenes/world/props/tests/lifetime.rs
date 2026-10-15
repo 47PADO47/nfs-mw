@@ -78,6 +78,8 @@ fn sink_trace(frames: &[f32]) -> Vec<(u32, u32, bool, bool)> {
     body.moved = true;
     let spec = world.colliders[&id].shape.dynamics.clone().unwrap();
     world.colliders.get_mut(&id).unwrap().body.as_mut().unwrap().lifetime.activate(&spec);
+    // The view is off-screen, so the dropout clock may start.
+    let view = Mat4::from_translation(Vec3::X * 1000.0);
     let mut clock = FixedClock::default();
     let mut trace = Vec::new();
     let mut frame = 0;
@@ -87,7 +89,7 @@ fn sink_trace(frames: &[f32]) -> Vec<(u32, u32, bool, bool)> {
                 break;
             }
             world.step(&FlatGround::new(0.0), 1.0 / 60.0);
-            world.update_lifetimes(&FlatGround::new(0.0), Mat4::IDENTITY, 1.0 / 60.0);
+            world.update_lifetimes(&FlatGround::new(0.0), view, 1.0 / 60.0);
             let c = &world.colliders[&id];
             let b = c.body.as_ref().unwrap();
             trace.push((b.rigid.position.y.to_bits(), c.cells.len() as u32, b.lifetime.sinking, b.moved));
@@ -95,6 +97,32 @@ fn sink_trace(frames: &[f32]) -> Vec<(u32, u32, bool, bool)> {
         frame += 1;
     }
     trace
+}
+
+#[test]
+fn a_visible_resting_prop_with_dropout_does_not_sink_or_restore() {
+    let (mut world, _, _, id) = hit(false, 0.0, 20.0);
+    let spec = world.colliders[&id].shape.dynamics.clone().unwrap();
+    let spec = Arc::new({
+        let mut s = spec.as_ref().clone();
+        s.dropout = [0.5, 2.0];
+        s.kill_off_screen = 0.0;
+        s
+    });
+    // The identity view frustum contains the origin, so this prop stays visible.
+    let b = world.colliders.get_mut(&id).unwrap().body.as_mut().unwrap();
+    b.rigid.place(Vec3::new(0.0, 0.5, 0.0), Quat::IDENTITY);
+    b.rigid.state = BodyState::Asleep;
+    b.moved = true;
+    b.lifetime.activate(&spec);
+    for _ in 0..240 {
+        world.step(&FlatGround::new(0.0), 1.0 / 60.0);
+        world.update_lifetimes(&FlatGround::new(0.0), Mat4::IDENTITY, 1.0 / 60.0);
+    }
+    let b = world.colliders[&id].body.as_ref().unwrap();
+    assert!(!b.lifetime.sinking);
+    assert_eq!(b.rigid.position, Vec3::new(0.0, 0.5, 0.0));
+    assert!(b.moved);
 }
 
 #[test]

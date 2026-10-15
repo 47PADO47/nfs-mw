@@ -103,12 +103,28 @@ pub fn load(dir: &GameDir, car: &str, options: &LoadOptions) -> Result<CarModel>
     load_customized(dir, car, options, &customization::Selection::default())
 }
 
+/// Load a car for driving: the stock car plus its driver, who sits in the cockpit. The front end never
+/// draws the driver (docs/specs/car-assembly.md §5).
+pub fn load_driving(dir: &GameDir, car: &str, options: &LoadOptions) -> Result<CarModel> {
+    load_with(dir, car, options, &customization::Selection::default(), true)
+}
+
 /// Assemble compatible model replacements over stock parts, without editing the install.
 pub fn load_customized(
     dir: &GameDir,
     car: &str,
     options: &LoadOptions,
     customization: &customization::Selection,
+) -> Result<CarModel> {
+    load_with(dir, car, options, customization, false)
+}
+
+fn load_with(
+    dir: &GameDir,
+    car: &str,
+    options: &LoadOptions,
+    customization: &customization::Selection,
+    driver: bool,
 ) -> Result<CarModel> {
     if !customization.is_stock() && (options.all_parts || options.preset.is_some()) {
         bail!("custom parts require stock assembly, without a preset or all-parts mode");
@@ -152,7 +168,7 @@ pub fn load_customized(
     if setup.is_none() {
         log::warn!("{car}: no ecar record for {}; wheels are not placed", car_type.base_model_name);
     }
-    let (placements, corners) = assemble::assemble(t, &slots, &pool, setup.as_ref(), lod);
+    let (placements, corners) = assemble::assemble(t, &slots, &pool, setup.as_ref(), lod, driver);
     customization::validate_placements(customization, &placements)?;
     let used: HashSet<u32> = placements.iter().map(|p| p.solid).collect();
     pool.retain(|h, _| used.contains(h));

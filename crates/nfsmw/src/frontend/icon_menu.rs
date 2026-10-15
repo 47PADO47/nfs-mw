@@ -236,6 +236,10 @@ impl IconMenu {
             (Kind::Main, Pending::Pressed(Id::Options)) => {
                 cx.send(Command::Switch(screen::MAIN_MENU_SUB.into(), Args { options: true, ..self.args }));
             }
+            (Kind::Main, Pending::Pressed(Id::AliasManager)) => {
+                let args = Args { category: Category::AliasManager, options: true, ..self.args };
+                cx.send(Command::Switch(screen::OPTIONS.into(), args));
+            }
             (Kind::Categories { .. }, Pending::Pressed(Id::Category(category))) => self.open_options(cx, category),
             (Kind::Categories { .. }, Pending::Pressed(Id::Controls)) => self.open_controls(cx),
             (Kind::Categories { .. }, Pending::Pressed(Id::ControlOptions)) => {
@@ -254,7 +258,6 @@ impl IconMenu {
             (Kind::Pause, Pending::Pressed(Id::Options)) => {
                 cx.send(Command::Switch(screen::PAUSE_MENU.into(), Args { pause: true, options: true, ..self.args }));
             }
-            (Kind::Pause, Pending::Pressed(Id::QuitToMenu)) => cx.send(Command::Confirm(Confirm::quit_to_menu())),
             _ => {}
         }
     }
@@ -382,6 +385,12 @@ impl ScreenLogic for IconMenu {
                 }
                 cx.memory.insert(self.memory_key(cx), i);
                 let id = self.icons[i].id;
+                // Quit asks at once, without the pause menu leaving: its icons stay as they are, so the menu still
+                // reacts when the question is answered No or dismissed.
+                if self.pause() && matches!(id, Id::QuitToMenu) {
+                    cx.send(Command::Confirm(Confirm::quit_to_menu()));
+                    return;
+                }
                 // The pause package has no leave message: its screens run the event handler's script themselves.
                 if self.pause() {
                     self.leave_by_script(cx, Pending::Pressed(id));

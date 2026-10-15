@@ -107,6 +107,9 @@ impl SectionResources {
             if keep_existing && self.meshes.contains_key(&solid.name_hash) {
                 continue;
             }
+            if is_tunnel_shadow(&solid.name) {
+                continue;
+            }
             if let Some(mesh) = upload_solid(renderer, solid, &lookup, shading_for(&solid.name)) {
                 let lod = LodModel { num_polys: solid.num_polys, density: solid.density };
                 meshes.push((solid.name_hash, (mesh, lod, solid.name.starts_with("SHD_"))));
@@ -148,6 +151,26 @@ fn shading_for(solid_name: &str) -> Shading {
 /// Scenery we can't draw correctly yet: `SKY_SPECULAR`, a sky layer textured
 /// `SKY_REFSKYSPECULARB` that darkens the whole dome in the player view (apparently for reflections).
 const SKIPPED_MODELS: &[&str] = &["SKY_SPECULAR"];
+
+/// Tunnel shadow solids (`SHADOW_TUNNELWALLB01_*`, `SHADOW_TUNNELROOFA01`). Their copy-mode textures
+/// decode to opaque near-black, not to a shadow alpha, so drawn they blank out whole tunnel walls.
+/// They are skipped until the game's shadow blend is decoded.
+fn is_tunnel_shadow(solid_name: &str) -> bool {
+    solid_name.starts_with("SHADOW_")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tunnel_shadow_solids_are_not_uploaded_but_other_overlays_are() {
+        assert!(is_tunnel_shadow("SHADOW_TUNNELWALLB01_DEINST1_I4"));
+        assert!(is_tunnel_shadow("SHADOW_TUNNELROOFA01"));
+        assert!(!is_tunnel_shadow("SHD_CP_BE_ROAD_A_02A"));
+        assert!(!is_tunnel_shadow("TRN_CT_Road_Highway4_XX"));
+    }
+}
 
 /// Turn a section's scenery into placed meshes, dropping instances the player
 /// view excludes (`docs/specs/scenery-visibility.md`).

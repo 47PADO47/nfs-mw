@@ -227,7 +227,9 @@ The first payload is the **alias index**: `saves::save_aliases` and `saves::load
 not TOML, a value that is not a string, or a slot name that is not valid is refused. Tests cover the round trip and the
 refusals.
 
-**The screen (my decision, not yours):** the Controls category has a "Save Alias" row (`input_options.rs`,
+**The screen (moved, see section 13):** the rows now sit on the alias manager list, which the main menu's Alias
+Manager icon opens (`alias_options.rs`, `Category::AliasManager`). They were first put in the Control Options list
+(`input_options.rs`, now removed from there;
 `InputSetting::SaveAlias`). Pressing it sends `Command::SaveAlias`, and `Frontend::save_alias` (`flow.rs`) calls
 `saves::save_new_alias` on the `saves` folder next to the config file. Each press makes a new named alias, `Save N`, with the
 slot `save-N`. The index is saved in the slot `aliases`, and the alert says "Save N saved." (or the error) in an
@@ -243,7 +245,7 @@ changed, so they reach the config file like any other change. The round trip is 
 Several aliases exist, but Load reads only the latest: choosing one needs a list screen, which is not built. The names are fixed (`Save N`), because the game has no text entry here.
 
 **Career data is not in an alias yet**: the rewrite does not read or write career data, so there is nothing to save.
-`settings/mod.rs` made `file` and `write` `pub(crate)` for this. Load is wired to the Controls row "Load Alias".
+`settings/mod.rs` made `file` and `write` `pub(crate)` for this. Load is wired to the alias manager row "Load Alias".
 
 
 ## 11. The alert [drawn, checked offscreen]
@@ -265,7 +267,8 @@ The screenshot shows the save/load alert ("Alias saved.", one Continue button) o
 written to `<config folder>/saves/aliases.sav`; on the test machine that was `AppData\Roaming\nfsmw\config\saves\`, and it
 holds the 16-byte digest, `Game`, the version `8`, then the settings as TOML.
 
-**Load Alias** is the eleventh row (`InputSetting::LoadAlias`, `Command::LoadAlias`, `Frontend::load_alias`). It reads
+**Load Alias** is a row of the alias manager list (`Setting::Alias(AliasSetting::Load)`, section 13; the checks below were
+run when it was the eleventh Control Options row, `Command::LoadAlias`, `Frontend::load_alias`). It reads
 the alias index with `saves::load_aliases` and shows "Alias loaded." when the default alias is there, "No alias is saved
 yet." when the slot is missing, or the error. Checked live the same way (`--ui-script` with ten `down`s, then `right`).
 It restores **only the alias list**: no game state is loaded, because no game state is saved yet.
@@ -274,6 +277,30 @@ Still not checked live with a real keyboard: the Save and Load flow. The remap c
 Note for anyone repeating these checks: `cargo test` does not rebuild `target/debug/nfsmw.exe`; run `cargo build -p nfsmw`
 first, or the screenshot shows the old binary. The options icon menu needed longer waits than `view-screen` does, so opening the
 Controls category from the main menu by script is not reliable yet.
+
+## 13. Where the rows live now (user request) [built, unit-tested; not run live]
+
+The user asked for the save and load entries to leave the controls menu and sit under the main menu's alias manager,
+as in the original. Done:
+
+- Main menu: the Alias Manager icon (`icon_items.rs`) is enabled. Pressing it (`icon_menu.rs`) opens `Options.fng` with
+  `Category::AliasManager`. Its title is the original's "alias manager" label `0x1B76F2CE` (section 1).
+- The list has two rows, Save Alias and Load Alias (`alias_options.rs`, `Setting::Alias`). They reuse the option
+  screen and the same `Command::SaveAlias` / `Command::LoadAlias` as before.
+- Back from that list returns to the main menu, not to the option categories (`widget_menu.rs`, `finish`).
+- Control Options no longer has the two rows; `InputSetting` holds the eight value rows only.
+
+Tests: `options_tests.rs` (row counts per category), `icon_items.rs` (Alias Manager enabled in the main menu),
+`controls_tests.rs` (value rows only). The full `nfsmw` suite passes (1417 tests).
+
+Not yet checked: that the original's main menu gates this icon on the memory card. Reversing so far [decomp, speed.exe
+v1.3, Ghidra]:
+
+- The screen name `MC_ProfileManager.fng` (`0x0089E418`) is referenced by the screen table entry (`0x008F4868`, the
+  table's xref list is empty, so the table is read by index, not by a direct reference) and by two data references at
+  `0x0055A170` and `0x005435A9`. Ghidra reports no function at either address, so the function that owns them is not
+  yet identified. Next step: find the function boundary (`create_function` or the containing code), then read the
+  main menu's item handler for the memory-card test. Nothing here is verified yet.
 
 ## 6. Plan
 

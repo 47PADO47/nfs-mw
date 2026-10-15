@@ -57,8 +57,9 @@ const fn icon(id: Id, texture: u32, name: u32, enabled: bool) -> Icon {
 /// The icons of a menu: `(texture, name label)` as the original screens give them.
 pub fn icons(kind: Kind) -> Vec<Icon> {
     match kind {
-        // Career and Quick Race both start free roam here. Challenge Series, My Cars, Online, LAN and Alias Manager
-        // (the original's profile manager, which it adds only when the memory card is enabled) are greyed out.
+        // Career and Quick Race both start free roam here. Challenge Series, My Cars, Online and LAN are greyed out.
+        // Alias Manager (the original's profile manager, which it adds only when the memory card is enabled) opens
+        // the save and load rows (`alias_options.rs`).
         // Online and LAN are not in this build's original main menu; the user asked for them, so they are listed
         // without a screen (docs/specs/frontend-menus.md, 2.1). The main menu has eleven objects, so the row
         // windows over them (`icon_window.rs`).
@@ -71,7 +72,7 @@ pub fn icons(kind: Kind) -> Vec<Icon> {
             icon(Id::Online, 0x5A5E_5137, 0x7D34_7E05, false),
             // The main menu's LAN label. No picture for it is recorded, so the icon is blank.
             icon(Id::LanPlay, 0, 0x03F6_F2BF, false),
-            icon(Id::AliasManager, 0x6B30_3856, 0xBCB1_8F38, false),
+            icon(Id::AliasManager, 0x6B30_3856, 0xBCB1_8F38, true),
             icon(Id::Options, 0x3058_FE37, 0x19A8_C0AF, true),
         ],
         // The original's option list (docs/specs/frontend-menus.md, 2.2): EA Trax and Credits have no screen
@@ -112,9 +113,11 @@ mod tests {
         let main = icons(Kind::Main);
         assert_eq!(main.len(), 8, "the original's main menu, Alias Manager included, plus LAN and Online");
         assert!(main[0].enabled && !main[1].enabled, "career works, the challenge series do not exist yet");
+        let alias = main.iter().find(|i| i.id == Id::AliasManager).expect("Alias Manager");
+        assert!(alias.enabled, "Alias Manager opens the save and load rows");
         assert!(
             main.iter()
-                .filter(|i| i.id != Id::Career && i.id != Id::QuickRace && i.id != Id::Options)
+                .filter(|i| ![Id::Career, Id::QuickRace, Id::Options, Id::AliasManager].contains(&i.id))
                 .all(|i| !i.enabled)
         );
         let categories = icons(Kind::Categories { pause: false });

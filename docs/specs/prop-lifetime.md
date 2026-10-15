@@ -19,7 +19,8 @@ does not restore the parent's hidden mesh or spawn another load.
 
 For a sleeping, unattached scenery body without a new object contact, the
 original waits 0.125 seconds before ending simulation. A positive `DROPOUT[0]`
-starts a sinking phase: disable modeling/triggering, move the body downward by
+starts a sinking phase only while the body is off-screen (a rewrite gate: a visible
+prop that comes to rest keeps its pose, so a displaced prop never snaps back in view): disable modeling/triggering, move the body downward by
 `dt * DROPOUT[1]` per update, then kill the simulation when its remaining time is
 nonpositive. A body with no dropout may retain its final pose as static scenery;
 its simulation offscreen countdown stops. Subsequent contact can reactivate it.

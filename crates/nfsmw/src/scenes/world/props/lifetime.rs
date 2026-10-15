@@ -99,7 +99,8 @@ impl Lifetime {
             self.rest -= dt;
             return Change::Keep;
         }
-        if spec.dropout[0] > 0.0 {
+        // A rewrite choice: a visible prop stays where it came to rest, so the sink and placement restore wait for it to leave the view.
+        if spec.dropout[0] > 0.0 && !view.visible {
             self.sinking = true;
             self.sink = spec.dropout[0];
             return Change::Keep;

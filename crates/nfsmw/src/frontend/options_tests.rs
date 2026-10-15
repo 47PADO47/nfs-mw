@@ -50,7 +50,8 @@ fn every_category_has_rows() {
     assert_eq!(rows(Category::Video, &crate::settings::test_caps::native()).len(), 26);
     assert_eq!(rows(Category::Gameplay, &crate::settings::test_caps::native()).len(), 5);
     assert_eq!(rows(Category::Player, &crate::settings::test_caps::native()).len(), 3);
-    assert_eq!(rows(Category::Controls, &crate::settings::test_caps::native()).len(), 10);
+    assert_eq!(rows(Category::Controls, &crate::settings::test_caps::native()).len(), 8);
+    assert_eq!(rows(Category::AliasManager, &crate::settings::test_caps::native()).len(), 2);
     assert_eq!(rows(Category::Discord, &crate::settings::test_caps::native()).len(), 2);
 }
 #[test]

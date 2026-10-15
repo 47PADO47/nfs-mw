@@ -34,10 +34,11 @@ impl Placement {
     }
 }
 
-/// Whether a model slot is drawn in the front end, where it isn't placed specially.
-fn drawn_in_body_frame(s: usize, slots: &Slots) -> bool {
+/// Whether a model slot is drawn in the car's body frame. The driver is drawn only when driving.
+fn drawn_in_body_frame(s: usize, slots: &Slots, driver: bool) -> bool {
     match s {
-        slot::DRIVER | slot::LICENSE_PLATE => false,
+        slot::DRIVER => driver,
+        slot::LICENSE_PLATE => false,
         slot::FRONT_WHEEL | slot::REAR_WHEEL | slot::FRONT_BRAKE | slot::REAR_BRAKE => false,
         slot::UNIVERSAL_SPOILER_BASE => slots[slot::SPOILER].is_some_and(|p| p.upgrade_level != 0),
         // Corner damage is placed but the renderer keeps it hidden until its zone is damaged
@@ -54,12 +55,13 @@ pub fn assemble(
     solids: &HashMap<u32, Solid>,
     setup: Option<&WheelSetup>,
     lod: usize,
+    driver: bool,
 ) -> (Vec<Placement>, Option<[Corner; 4]>) {
     let model = |part: &Option<Part>| part.and_then(|p| t.parts.model_hash(&p, lod)).filter(|h| solids.contains_key(h));
     let base = model(&slots[slot::BASE]).and_then(|h| solids.get(&h));
     let mut out = Vec::new();
 
-    for s in (0..slot::MODELS).filter(|&s| drawn_in_body_frame(s, slots)) {
+    for s in (0..slot::MODELS).filter(|&s| drawn_in_body_frame(s, slots, driver)) {
         let Some(part) = slots[s] else { continue };
         let Some(hash) = model(&slots[s]) else { continue };
         let transform = match (s, part.upgrade_level) {
