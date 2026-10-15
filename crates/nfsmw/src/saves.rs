@@ -116,6 +116,7 @@ pub fn store() -> Option<SaveStore> {
 pub fn partial_of(s: &Settings) -> Partial {
     let c = &s.controls;
     Partial {
+        appearance: Some(s.appearance),
         deadzone_mode: Some(c.deadzone_mode),
         steering_deadzone: Some(c.steering_deadzone),
         camera_deadzone: Some(c.camera_deadzone),
@@ -213,8 +214,10 @@ fn extra_table(s: &Settings) -> toml::Table {
 /// The settings as TOML text, the payload of an alias: the config's keys, then the extra keys.
 pub fn settings_payload(s: &Settings) -> Result<Vec<u8>, SaveError> {
     let config = crate::settings::write::merge("", &partial_of(s)).map_err(|e| SaveError::Payload(format!("{e:#}")))?;
-    let extra = toml::to_string(&extra_table(s)).map_err(|e| SaveError::Payload(e.to_string()))?;
-    Ok(format!("{config}{extra}").into_bytes())
+    let mut table: toml::Table = config.parse().map_err(|e: toml::de::Error| SaveError::Payload(e.to_string()))?;
+    table.extend(extra_table(s));
+    let text = toml::to_string(&table).map_err(|e| SaveError::Payload(e.to_string()))?;
+    Ok(text.into_bytes())
 }
 
 /// The settings read back from a payload. A key the payload lacks takes its default.

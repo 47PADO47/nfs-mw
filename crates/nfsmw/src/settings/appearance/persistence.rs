@@ -1,0 +1,91 @@
+//! Versioned stable lighting data. Runtime clock/debug state is never saved.
+use super::*;
+use serde::{Deserialize, Serialize};
+
+macro_rules! lighting {
+    ($($field:ident : $kind:ty),* $(,)?) => {
+        #[derive(Serialize, Deserialize)]
+        #[serde(default)]
+        struct Lighting { $($field: $kind,)* }
+        impl Default for Lighting { fn default() -> Self { Self::from(RenderExperiments::default()) } }
+        impl From<RenderExperiments> for Lighting {
+            fn from(v: RenderExperiments) -> Self { Self { $($field: v.$field,)* } }
+        }
+        impl From<Lighting> for RenderExperiments {
+            fn from(v: Lighting) -> Self { Self { $($field: v.$field,)* ..Self::default() }.sanitized() }
+        }
+    }
+}
+lighting! {
+    sun_shadows: bool, far_shadows: bool, contact_shadows: bool, clearcoat: bool,
+    car_skylight: bool, world_ambient: bool, world_ambient_share: f32, world_ambient_tint: f32,
+    sky_strength: f32, ground_strength: f32, soft_shadows: bool, original_shadows: bool,
+    sun_angle: f32, shadow_resolution: u32, shadow_distance: f32, shadow_filter: f32, contact_length: f32,
+}
+#[derive(Serialize, Deserialize)]
+#[serde(default)]
+struct Stored {
+    version: u32,
+    style: VisualStyle,
+    quality: Quality,
+    treatment_strength: Option<f32>,
+    lighting: Lighting,
+}
+impl Default for Stored {
+    fn default() -> Self {
+        Self {
+            version: 1,
+            style: VisualStyle::Custom,
+            quality: Quality::High,
+            treatment_strength: None,
+            lighting: Default::default(),
+        }
+    }
+}
+pub(super) fn read(value: &toml::Value, origin: &str) -> Option<Appearance> {
+    let stored: Stored = match value.clone().try_into() {
+        Ok(v) => v,
+        Err(error) => {
+            log::warn!("{origin}: invalid appearance settings: {error}");
+            return None;
+        }
+    };
+    if stored.version != 1 {
+        log::warn!("{origin}: unsupported appearance schema {}", stored.version);
+        return None;
+    }
+    Some(Appearance {
+        style: stored.style,
+        quality: stored.quality,
+        treatment_strength: stored.treatment_strength.filter(|v| v.is_finite()).map(|v| v.clamp(0.0, 1.0)),
+        lighting: stored.lighting.into(),
+    })
+}
+pub(super) fn value(value: Appearance) -> anyhow::Result<toml::Value> {
+    Ok(toml::Value::try_from(Stored {
+        version: 1,
+        style: value.style,
+        quality: value.quality,
+        treatment_strength: value.treatment_strength.filter(|v| v.is_finite()).map(|v| v.clamp(0.0, 1.0)),
+        lighting: value.lighting.sanitized().into(),
+    })?)
+}
+
+pub(super) fn merge(existing: Option<&toml::Value>, update: toml::Value) -> anyhow::Result<toml::Value> {
+    if let Some(version) = existing.and_then(|v| v.get("version")) {
+        anyhow::ensure!(
+            version.as_integer() == Some(1),
+            "appearance has an unsupported schema; refusing to overwrite it"
+        );
+    }
+    fn combine(old: Option<&toml::Value>, update: toml::Value) -> toml::Value {
+        let toml::Value::Table(update) = update else { return update };
+        let mut table = old.and_then(toml::Value::as_table).cloned().unwrap_or_default();
+        for (key, value) in update {
+            let value = combine(table.get(&key), value);
+            table.insert(key, value);
+        }
+        toml::Value::Table(table)
+    }
+    Ok(combine(existing, update))
+}

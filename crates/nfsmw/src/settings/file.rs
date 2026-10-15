@@ -41,6 +41,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         }
     };
     Partial {
+        appearance: table.get("appearance").and_then(|v| super::Appearance::read(v, origin)),
         always_rain: None,
         rain_amount: None,
         game_speed: None,

@@ -73,6 +73,7 @@ pub const H_SHIFTER: &str = "NFSMW_H_SHIFTER";
 /// does not parse is reported and ignored.
 pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
     Partial {
+        appearance: None,
         always_rain: None,
         rain_amount: None,
         game_speed: None,

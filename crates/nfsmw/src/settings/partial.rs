@@ -47,6 +47,7 @@ impl std::fmt::Display for Percent {
 /// through to the next layer.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Partial {
+    pub appearance: Option<super::Appearance>,
     pub deadzone_mode: Option<super::DeadzoneMode>,
     pub steering_deadzone: Option<Deadzone>,
     pub camera_deadzone: Option<Deadzone>,
@@ -132,6 +133,7 @@ impl Partial {
     /// This layer, with `lower` filling the fields it leaves unset.
     pub fn or(self, lower: Partial) -> Partial {
         Partial {
+            appearance: self.appearance.or(lower.appearance),
             deadzone_mode: self.deadzone_mode.or(lower.deadzone_mode),
             steering_deadzone: self.steering_deadzone.or(lower.steering_deadzone),
             camera_deadzone: self.camera_deadzone.or(lower.camera_deadzone),

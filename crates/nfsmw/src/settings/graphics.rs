@@ -12,7 +12,12 @@ impl Settings {
     pub fn graphics(&self) -> GraphicsSettings {
         GraphicsSettings {
             reflections: self.reflections,
-            shadows: self.shadows,
+            shadows: match self.renderer {
+                super::RendererKind::Blackbox if self.appearance.lighting.sun_shadows => {
+                    blackbox_gfx::ShadowQuality::Off
+                }
+                _ => self.shadows,
+            },
             post: post_effects(self),
             upscaler: self.upscaler.upscaler(),
             render_scale: self.render_scale.factor(),

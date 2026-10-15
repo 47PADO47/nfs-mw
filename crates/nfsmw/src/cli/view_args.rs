@@ -273,6 +273,7 @@ impl ViewArgs {
     /// The command-line layer of the settings: the top layer, above the environment and the config file.
     pub fn settings_layer(&self) -> Partial {
         Partial {
+            appearance: None,
             backend: self.backend,
             renderer: self.renderer,
             vsync: self.no_vsync.then_some(false),

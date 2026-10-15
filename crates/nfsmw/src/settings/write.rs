@@ -15,9 +15,13 @@ use super::partial::Partial;
 /// A file that is not valid TOML is an error: it is better left alone than overwritten.
 pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     let mut table: Table = existing.parse().context("the config file is not valid TOML")?;
+    let appearance = changes.appearance.map(|v| v.merge(table.get("appearance"))).transpose()?;
     let mut put = |key: &str, value: Value| {
         table.insert(key.to_owned(), value);
     };
+    if let Some(v) = appearance {
+        put("appearance", v);
+    }
     if let Some(v) = changes.deadzone_mode {
         put("deadzone_mode", Value::String(v.to_string()));
     }

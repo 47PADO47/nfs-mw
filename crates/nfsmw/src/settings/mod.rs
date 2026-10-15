@@ -6,6 +6,8 @@
 #[macro_use]
 mod names;
 
+pub mod appearance;
+pub use appearance::{Appearance, Quality as GraphicsQuality, VisualStyle};
 pub mod availability;
 pub mod bartender;
 mod camera_mode;
@@ -145,6 +147,7 @@ impl From<&Settings> for TrafficSettings {
 /// The resolved settings.
 #[derive(bevy_ecs::resource::Resource, Debug, Clone, Copy, PartialEq)]
 pub struct Settings {
+    pub appearance: Appearance,
     pub controls: Controls,
     pub backend: GraphicsApi,
     /// Who draws: the native `blackbox` renderer (default) or `bevy`; applies after a restart.
@@ -264,6 +267,7 @@ impl From<Partial> for Settings {
         let requested = p.graphics_preset.unwrap_or_default();
         let p = p.or(requested.layer());
         let mut settings = Self {
+            appearance: p.appearance.unwrap_or_default(),
             graphics_preset: requested,
             controls: Controls {
                 deadzone_mode: p.deadzone_mode.unwrap_or_default(),

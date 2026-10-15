@@ -56,7 +56,11 @@ impl PostBloom {
 /// What the renderer is asked to run for `settings`.
 pub fn post_effects(settings: &Settings) -> PostSettings {
     PostSettings {
-        colour_treatment: settings.visual_treatment.strength(),
+        colour_treatment: settings
+            .appearance
+            .treatment_strength
+            .unwrap_or_else(|| settings.visual_treatment.strength())
+            .clamp(0.0, 1.0),
         tonemap: match settings.post_tonemap {
             PostTonemap::Off => Tonemap::Off,
             PostTonemap::Aces => Tonemap::Aces,
