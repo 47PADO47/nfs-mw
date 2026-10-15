@@ -87,5 +87,10 @@ pub(super) fn merge(existing: Option<&toml::Value>, update: toml::Value) -> anyh
         }
         toml::Value::Table(table)
     }
-    Ok(combine(existing, update))
+    let clear_strength = update.get("treatment_strength").is_none();
+    let mut merged = combine(existing, update);
+    if clear_strength && let Some(table) = merged.as_table_mut() {
+        table.remove("treatment_strength");
+    }
+    Ok(merged)
 }

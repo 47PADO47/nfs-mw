@@ -146,3 +146,18 @@ fn save_payload_keeps_gameplay_values_at_root_when_profile_tables_are_present() 
     assert_eq!(restored.always_rain, s.always_rain);
     assert_eq!(restored.rain_amount, s.rain_amount);
 }
+
+#[test]
+fn saving_a_baseline_removes_the_previous_treatment_override() {
+    let mut s = settings();
+    s.select_visual_style(VisualStyle::Enhanced);
+    s.appearance.treatment_strength = Some(0.73);
+    let custom = super::super::write::merge("", &s.appearance_layer()).unwrap();
+    assert!(custom.contains("treatment_strength"));
+    s.select_visual_style(VisualStyle::OriginalPc);
+    let reset = super::super::write::merge(&custom, &s.appearance_layer()).unwrap();
+    assert!(!reset.contains("treatment_strength"));
+    let loaded = Settings::from(super::super::file::parse(&reset, "test"));
+    assert_eq!(loaded.appearance.treatment_strength, None);
+    assert_eq!(loaded.visual_style(), VisualStyle::OriginalPc);
+}
