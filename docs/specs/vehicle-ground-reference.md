@@ -88,6 +88,25 @@ saved_normal`. A reused face keeps its normal; a search with the prior body poin
 still inside the previous face also keeps the prior normal, matching the inspected
 update's recalculation return flag even when a search was explicitly forced.
 
+## Fresh point height over a prepared region
+
+A caller may prepare the same ordered triangle region around one center while
+querying height at another point. Region prediction and streaming invalidation
+are retained; selected-face history starts invalid for each such query.
+Apply the existing horizontal containment, vertical tolerance, minimum
+separation and continuation-mask rules. Return the selected face's plane
+height at the query's horizontal coordinates, or no height on a miss.
+There is no finite downward-ray endpoint and no vertical-distance cutoff in
+candidate collection. All region sizing and face-selection constants remain
+caller supplied. The query does not mutate the body's selected-face history.
+
+The native driving-camera floor consumer uses this form: collider collection
+is centered between geometry anchor and eye, then a fresh world-position
+query samples the eye's horizontal location. Its request radius is half the
+anchor-eye distance plus half a meter, capped at 24.9 m. The shared predictive
+region policy still applies. Camera tolerance is 0.025 m and minimum accepted
+separation is -1 m, permitting faces up to 1.025 m above the unlifted point.
+
 ## Global point and sleeping-body path
 
 The no-collider path queries only the point's grid cell, with instance radius

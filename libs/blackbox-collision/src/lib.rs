@@ -15,6 +15,7 @@ mod article;
 mod body_geometry;
 mod bounds;
 mod bytes;
+mod camera_query;
 pub mod carp;
 mod error;
 mod grid;

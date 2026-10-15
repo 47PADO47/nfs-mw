@@ -106,8 +106,47 @@ impl GroundReferenceCache {
         settings: &GroundReferenceSettings,
         group_enabled: impl FnMut(u16) -> bool,
     ) -> GroundPlane {
-        if !position.into_iter().all(f32::is_finite) || !requested_radius.is_finite() || requested_radius < 0.0 {
+        if !self.prepare(world, position, requested_radius, settings, group_enabled) {
             return self.plane;
+        }
+        self.select(position, settings);
+        self.plane
+    }
+
+    /// A fresh selected face at `position` over a retained region centered elsewhere.
+    /// No finite ray depth is used. Body selected-face history is left unchanged.
+    pub fn point_height(
+        &mut self,
+        world: &CollisionWorld,
+        position: Vec3,
+        collection_center: Vec3,
+        requested_radius: f32,
+        settings: &GroundReferenceSettings,
+        group_enabled: impl FnMut(u16) -> bool,
+    ) -> Option<f32> {
+        if !position.into_iter().all(f32::is_finite)
+            || !self.prepare(world, collection_center, requested_radius, settings, group_enabled)
+        {
+            return None;
+        }
+        let mut selected = None;
+        let mut plane = GroundPlane::default();
+        face::select(&mut selected, &mut plane, &self.candidates, position, settings);
+        let face = selected?;
+        let normal = geometry::normal(face.triangle.pts, settings.maximum_normal_y);
+        Some(geometry::height(face.triangle.pts[0], normal, position))
+    }
+
+    fn prepare(
+        &mut self,
+        world: &CollisionWorld,
+        position: Vec3,
+        requested_radius: f32,
+        settings: &GroundReferenceSettings,
+        group_enabled: impl FnMut(u16) -> bool,
+    ) -> bool {
+        if !position.into_iter().all(f32::is_finite) || !requested_radius.is_finite() || requested_radius < 0.0 {
+            return false;
         }
         let changed = self.revision != Some(world.revision()) || self.settings != Some(*settings);
         if self.region.refresh(position, requested_radius, &settings.region, changed) {
@@ -116,8 +155,7 @@ impl GroundReferenceCache {
             self.revision = Some(world.revision());
             self.settings = Some(*settings);
         }
-        self.select(position, settings);
-        self.plane
+        true
     }
 
     fn select(&mut self, position: Vec3, settings: &GroundReferenceSettings) {
