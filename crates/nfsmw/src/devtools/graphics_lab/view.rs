@@ -29,34 +29,36 @@ pub(super) fn show(
                 ));
                 ui.weak("F8 / Esc to close");
             });
-            ui.small("Changes apply immediately for this session. Close the panel to drive.");
+            ui.small("Changes preview immediately. Save profile keeps graphics for the next launch.");
+            profiles::header(ui, lab, settings);
             presets::show(ui, lab, settings);
             ui.separator();
-            let height = (ui.available_height() - 12.0).max(200.0);
-            if ui.available_width() < 650.0 {
-                egui::ScrollArea::vertical().id_salt("lab_narrow").max_height(height).show(ui, |ui| {
-                    ui.heading("Lighting experiments");
-                    experiments(ui, lab);
-                    ui.separator();
-                    ui.heading("Image settings");
-                    appearance(ui, settings);
-                    environment::show(ui, lab, settings);
-                });
-                return;
-            }
-            ui.columns(2, |columns| {
-                egui::ScrollArea::vertical().id_salt("lab_experiments").max_height(height).show(
-                    &mut columns[0],
-                    |ui| {
-                        ui.heading("Lighting experiments");
-                        experiments(ui, lab);
-                    },
-                );
-                egui::ScrollArea::vertical().id_salt("lab_image").max_height(height).show(&mut columns[1], |ui| {
-                    ui.heading("Image settings");
-                    appearance(ui, settings);
-                    environment::show(ui, lab, settings);
-                });
+            ui.horizontal_wrapped(|ui| {
+                for tab in profiles::Tab::ALL { ui.selectable_value(&mut lab.tab, tab, tab.label()); }
+            });
+            ui.separator();
+            egui::ScrollArea::vertical().id_salt(("graphics_section", lab.tab as u8)).max_height((ui.available_height()-8.0).max(120.0)).show(ui, |ui| {
+                match lab.tab {
+                    profiles::Tab::Look => appearance(ui, settings),
+                    profiles::Tab::Lighting => experiments(ui, lab),
+                    profiles::Tab::Materials => {
+                        choice(ui,"Car shading",&mut settings.car_shading,&[crate::settings::CarShading::Simple,crate::settings::CarShading::Glossy]);
+                        ui.add_enabled_ui(lab.caps.is_none_or(|c| c.local_reflections), |ui| {
+                            choice(ui,"Car reflections",&mut settings.reflections,&[ReflectionQuality::Off,ReflectionQuality::Low,ReflectionQuality::Medium,ReflectionQuality::High]);
+                        });
+                        ui.small("Original-style captures; resolution/update budgets are custom. Wet-road/water reflection parity remains missing.");
+                    }
+                    profiles::Tab::Effects => {
+                        ui.add_enabled_ui(lab.caps.is_none_or(|c| c.ambient_occlusion), |ui| {
+                            choice(ui,"Ambient occlusion",&mut settings.ao,&[AoQuality::Off,AoQuality::Low,AoQuality::Medium,AoQuality::High]);
+                            ui.add(egui::Slider::new(&mut settings.ao_intensity.0,0..=100).text("AO intensity %"));
+                            ui.checkbox(&mut settings.ao_compare,"AO split comparison");
+                        });
+                        ui.small("GTAO is a custom enhancement. Particle preferences remain in the Video menu and are not reset by style/quality.");
+                    }
+                    profiles::Tab::Environment => environment::show(ui,lab,settings),
+                    profiles::Tab::Diagnostics => profiles::diagnostics(ui),
+                }
             });
         });
     lab.open = open;
@@ -136,35 +138,36 @@ fn experiments(ui: &mut egui::Ui, lab: &mut GraphicsLab) {
 }
 
 fn appearance(ui: &mut egui::Ui, settings: &mut Settings) {
-    choice(
-        ui,
-        "Car reflections",
-        &mut settings.reflections,
-        &[ReflectionQuality::Off, ReflectionQuality::Low, ReflectionQuality::Medium, ReflectionQuality::High],
-    );
-    choice(
-        ui,
-        "Ambient occlusion",
-        &mut settings.ao,
-        &[AoQuality::Off, AoQuality::Low, AoQuality::Medium, AoQuality::High],
-    );
     choice(ui, "Tone mapping", &mut settings.post_tonemap, &[PostTonemap::Off, PostTonemap::Aces]);
-    ui.small("AO affects ambient light; sunlight and reflections stay intact.");
-    ui.checkbox(&mut settings.ao_compare, "AO split comparison");
-    ui.add(egui::Slider::new(&mut settings.ao_intensity.0, 0..=100).text("AO intensity %"));
     choice(
         ui,
         "Bloom",
         &mut settings.post_bloom,
         &[PostBloom::Off, PostBloom::Low, PostBloom::Medium, PostBloom::High],
     );
-    choice(ui, "AA", &mut settings.post_aa, &[PostAa::Off, PostAa::Fxaa, PostAa::Smaa]);
-    choice(
-        ui,
-        "Visual Treatment",
-        &mut settings.visual_treatment,
-        &[VisualTreatment::Off, VisualTreatment::Low, VisualTreatment::High],
-    );
+    choice(ui, "AA", &mut settings.post_aa, &[PostAa::Off, PostAa::Fxaa, PostAa::Smaa, PostAa::Taa]);
+    ui.horizontal_wrapped(|ui| {
+        ui.label("Visual Treatment:");
+        for (label, value) in
+            [("Off", VisualTreatment::Off), ("Subtle", VisualTreatment::Low), ("Original", VisualTreatment::High)]
+        {
+            if ui
+                .selectable_label(
+                    settings.appearance.treatment_strength.is_none() && settings.visual_treatment == value,
+                    label,
+                )
+                .clicked()
+            {
+                settings.visual_treatment = value;
+                settings.appearance.treatment_strength = None;
+            }
+        }
+    });
+    let mut strength = settings.appearance.treatment_strength.unwrap_or_else(|| settings.visual_treatment.strength());
+    if ui.add(egui::Slider::new(&mut strength, 0.0..=1.0).text("Treatment strength")).changed() {
+        settings.appearance.treatment_strength = Some(strength);
+    }
+    ui.small("Original midday profile only. Tunnel/pursuit look selection and original Over Bright remain incomplete; current bloom and ACES are custom.");
 }
 fn choice<T: Copy + PartialEq + std::fmt::Display>(ui: &mut egui::Ui, label: &str, value: &mut T, choices: &[T]) {
     egui::ComboBox::from_label(label).selected_text(value.to_string()).show_ui(ui, |ui| {

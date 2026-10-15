@@ -10,7 +10,7 @@ mod controls_screen;
 pub mod dump;
 mod factory;
 mod flow;
-mod graphics_options;
+pub(crate) mod graphics_options;
 mod icon_items;
 mod icon_menu;
 mod icon_window;

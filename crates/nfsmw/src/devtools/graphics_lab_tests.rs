@@ -146,9 +146,11 @@ fn real_panel_buttons_switch_presets_swap_and_restore_without_touching_gameplay(
     };
     let mut settings = Settings::from(crate::settings::Partial::default());
     let startup = settings;
+    click(&ctx, &mut lab, &mut settings, "Lighting");
     click(&ctx, &mut lab, &mut settings, "Sun");
     assert!(lab.options.sun_shadows && !lab.options.far_shadows);
     assert!(lab.options.world_ambient);
+    click(&ctx, &mut lab, &mut settings, "Lighting");
     click(&ctx, &mut lab, &mut settings, "Freeze sun");
     assert!(lab.options.freeze_sun);
     assert_eq!(lab.options.shadow_resolution, 2048);
@@ -184,6 +186,7 @@ fn panel_accepts_option_clicks_without_alt() {
         ..Default::default()
     };
     let mut settings = Settings::from(crate::settings::Partial::default());
+    click(&ctx, &mut lab, &mut settings, "Lighting");
     click(&ctx, &mut lab, &mut settings, "Sun");
     assert!(lab.options.sun_shadows);
 }
@@ -215,7 +218,7 @@ fn quality_shortcuts_only_apply_in_f8_and_restore_graphics_without_changing_driv
 }
 
 #[test]
-fn high_and_low_buttons_switch_lighting_and_image_settings_together() {
+fn quality_buttons_change_cost_and_preserve_the_enhanced_art_treatment() {
     let ctx = egui::Context::default();
     let mut lab = GraphicsLab {
         open: true,
@@ -223,6 +226,7 @@ fn high_and_low_buttons_switch_lighting_and_image_settings_together() {
         ..Default::default()
     };
     let mut settings = Settings::from(crate::settings::Partial::default());
+    click(&ctx, &mut lab, &mut settings, "Enhanced");
     click(&ctx, &mut lab, &mut settings, "High · 3");
     assert_eq!(lab.options.shadow_resolution, 4096);
     assert!(lab.options.contact_shadows && lab.options.clearcoat && lab.options.soft_shadows);
@@ -231,8 +235,8 @@ fn high_and_low_buttons_switch_lighting_and_image_settings_together() {
     assert_eq!(settings.post_bloom, PostBloom::Off);
     click(&ctx, &mut lab, &mut settings, "Low · 1");
     assert_eq!(lab.options.shadow_resolution, 1024);
-    assert!(!lab.options.contact_shadows && !lab.options.clearcoat && !lab.options.soft_shadows);
-    assert_eq!(settings.ao, AoQuality::Off);
+    assert!(!lab.options.contact_shadows && lab.options.clearcoat && !lab.options.soft_shadows);
+    assert_eq!(settings.ao, AoQuality::Low);
     assert_eq!(settings.post_tonemap, PostTonemap::Aces);
 }
 
@@ -247,6 +251,7 @@ fn environment_buttons_select_time_rain_and_freeze_without_resetting_gameplay() 
     let mut settings = Settings::from(crate::settings::Partial::default());
     settings.rain_amount.0 = 0;
     let camera = settings.camera_mode;
+    click(&ctx, &mut lab, &mut settings, "Environment");
     click(&ctx, &mut lab, &mut settings, "Dusk");
     assert_eq!(lab.environment_change.unwrap().hour, 18.0);
     click(&ctx, &mut lab, &mut settings, "Freeze time");
@@ -262,4 +267,59 @@ fn environment_buttons_select_time_rain_and_freeze_without_resetting_gameplay() 
     assert!(lab.options.freeze_sun, "quality must preserve a frozen environment");
     assert!(!settings.always_rain);
     assert_eq!(lab.environment.unwrap().hour, 18.0);
+}
+
+#[test]
+fn menu_and_f8_share_profile_requests_and_overrides_survive_preview() {
+    use crate::frontend::graphics_options::GraphicsSetting;
+    use crate::settings::{GraphicsQuality, Partial, VisualStyle};
+    let ctx = egui::Context::default();
+    let mut lab = GraphicsLab {
+        open: true,
+        stats: ExperimentStats { supported: true, ..Default::default() },
+        ..Default::default()
+    };
+    let mut settings = Settings::from(Partial::default());
+    let mut changed = Partial::default();
+    assert!(GraphicsSetting::Style.step(&mut settings, &mut changed, true));
+    assert_eq!(settings.visual_style(), VisualStyle::OriginalPc);
+    pass(&ctx, &mut lab, &mut settings, vec![]);
+    assert!(lab.options.original_shadows && !lab.options.sun_shadows);
+    click(&ctx, &mut lab, &mut settings, "Enhanced");
+    assert_eq!(settings.visual_style(), VisualStyle::Enhanced);
+    assert!(settings.appearance.lighting.sun_shadows);
+    click(&ctx, &mut lab, &mut settings, "Low · 1");
+    assert_eq!(settings.appearance.quality, GraphicsQuality::Low);
+    assert_eq!(settings.visual_style(), VisualStyle::Enhanced);
+    click(&ctx, &mut lab, &mut settings, "Lighting");
+    click(&ctx, &mut lab, &mut settings, "Sun shadows");
+    assert!(!settings.appearance.lighting.sun_shadows);
+    assert_eq!(settings.visual_style(), VisualStyle::Custom);
+    lab.open = false;
+    pass(&ctx, &mut lab, &mut settings, vec![]);
+    assert!(!settings.appearance.lighting.sun_shadows, "closed lab must not restore stale options");
+    assert_eq!(settings.shadows, crate::settings::ShadowQuality::Off);
+}
+
+#[test]
+fn restore_uses_canonical_startup_lighting_and_profile_load_only_owns_appearance() {
+    let mut settings = Settings::from(crate::settings::Partial::default());
+    settings.select_visual_style(crate::settings::VisualStyle::Enhanced);
+    let startup = settings;
+    let mut lab = GraphicsLab { options: Default::default(), ..Default::default() };
+    lab.remember_startup(&settings);
+    settings.select_visual_style(crate::settings::VisualStyle::OriginalPc);
+    lab.restore_startup(&mut settings);
+    assert_eq!(settings.appearance, startup.appearance);
+    assert_eq!(settings.shadows, startup.shadows);
+    assert_eq!(lab.options, startup.appearance.lighting);
+    let mut saved = startup;
+    saved.select_visual_style(crate::settings::VisualStyle::OriginalPc);
+    settings.tire_smoke = !saved.tire_smoke;
+    settings.always_rain = !saved.always_rain;
+    presets::restore_appearance(&mut settings, &saved);
+    assert_eq!(settings.appearance, saved.appearance);
+    assert_eq!(settings.shadows, saved.shadows);
+    assert_ne!(settings.tire_smoke, saved.tire_smoke);
+    assert_ne!(settings.always_rain, saved.always_rain);
 }

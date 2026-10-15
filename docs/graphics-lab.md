@@ -4,35 +4,44 @@ Press **F8** to open the resizable graphics lab. It frees the mouse and takes
 input like the F6 garage; no modifier needs to remain held. **F8**, **Esc** or
 the close button returns to driving and restores the prior mouse capture.
 Opening F6 or the console transfers input ownership to that panel.
-Changes apply immediately for this session and do not write the config file.
+Changes preview immediately. Save profile writes the owned graphics request.
 
-Quick quality buttons offer **Low (1)**, **Balanced (2)** and **High (3)** covering
-both lighting experiments and image settings. **Restore startup (0)** restores
-the original graphics and experiment selections. Number shortcuts work only
-while the panel is open and no text field owns the keyboard. **Store A** and
-**Swap A/B** compare graphics snapshots without changing gameplay settings.
-The lighting experiments and image settings have separate scroll panes in a
-wide window; a narrow window uses a single scroll area.
+The menu and overlay share one persistent graphics request. Choose **Original PC
+(incomplete)**, **Enhanced** or **Custom** as the visual style. Quality buttons
+**Low (1)**, **Balanced (2)** and **High (3)** change cost without resetting the
+colour grade, tone mapping, AA or gameplay preferences. Original PC selects the
+available original midday treatment and authored overlays; it does not claim
+complete original materials, lighting, shadows or weather. Enhanced preserves
+the existing modern art baseline. Manual edits show Custom while keeping the
+base style for later quality changes.
 
-The High profile follows the supplied tuning reference. All three profiles use
-100% render scale, ACES, FXAA, low Visual Treatment and no bloom. Camera, audio,
-driving options and frame limits remain unchanged. Profiles replace their owned
-settings, including debug/split modes, so selecting Low after High removes the
-extra shadow and AO costs. Particle settings remain the user's choice.
+F8 has **Look**, **Lighting**, **Materials**, **Effects**, **Environment** and
+**Diagnostics** tabs. Look exposes Off/Subtle/Original treatment and a continuous
+strength override. Lighting contains the existing shadow/ambient controls;
+Materials contains car shading/reflections; Effects contains AO tuning.
+Diagnostics lists the source, implementation coverage and missing work for each
+feature. Backend downgrades are displayed without erasing stored requests.
 
-| Profile | Shadow map / range | PCSS / contact detail / clearcoat | Reflections | AO |
-| --- | --- | --- | --- | --- |
-| Low | 1024 / 120 m | Off / Off / Off | Low | Off |
-| Balanced | 2048 / 200 m | On / On (0.30 m) / On | Medium | Medium |
-| High | 4096 / 320 m | On / On (0.425 m) / On | High | High |
+**Save profile** persists owned graphics fields, **Load saved** reloads them,
+**Restore startup (0)** reverts the initial request, **Reset section** resets only
+the selected graphics domain, and **Store A / Swap A/B** compares snapshots.
+Environment overrides remain independent. Freeze time and surface-debug state
+are session diagnostics and are not saved. Existing configuration without the
+versioned appearance table keeps its previous settings; no style is auto-applied.
+The Video menu offers the same style/quality selectors, native enhanced sun
+shadows and an **Advanced Graphics** action opening F8. AO intensity/comparison
+live in F8. The overlay consumes input before the menus can process clicks.
 
-All use filter width 0.70, sun radius 0.51 degrees, car skylight 0.32 and ground
-bounce 0.55. Distant shadow coverage, world ambient and original shadow overlays
-are off. These are session enhancement profiles. Their names describe cost
-and feature choices, not measured FPS targets or original-game visual parity.
-`NFSMW_LAB_QUALITY=low|balanced|high` applies the same profile once at startup;
-`NFSMW_LAB_OVERLAY=0` keeps the panel closed. Normal launches have no profile
-request and preserve saved preferences.
+Quality budgets are 1024/120 m, 2048/200 m and 4096/320 m for Low/Balanced/High
+shadow maps/range, with progressively higher reflection/AO budgets. Quality keeps
+the chosen lighting family and manual colour treatment. Original-style shadow
+rendering remains incomplete; `SHD_` overlays are original scenery art rather
+than an original dynamic-shadow pass. See [coverage](graphics-coverage.md) and
+[the shared-settings contract](specs/graphics-profiles.md).
+
+The preferred comparison may use a modded PC game for effects reproducible with
+stock assets. Extra mod textures, shaders and packs are not runtime requirements.
+Configured mod presence alone does not prove which effect rendered a frame.
 
 The native Vulkan and DX12 renderer offers these independent prototypes:
 
@@ -65,14 +74,14 @@ preset restores those overlays. **4096** is available for quality comparisons;
 sun angular radius controls the PCSS penumbra. Vertex lighting remains intact.
 **Store A** saves the current graphics selection, **Swap A/B** exchanges it with
 the live selection, and **Restore startup** restores the initial graphics settings
-and disables the prototypes. Gameplay settings are excluded from these restores.
+including whichever prototypes were enabled at startup. Gameplay settings are excluded from these restores.
 
 The same panel exposes existing car reflections, AO, tone mapping, bloom, AA and
 Visual Treatment. Native Vulkan/DX12 now support genuine **SMAA 1x**, using the
 MIT-licensed [smaa-rs](https://codeberg.org/fintelia/smaa-rs) dependency (0.21.0).
 It detects edges, computes spatial blend weights and resolves the current frame
 before drawing the UI. It has no jitter, reprojection or frame-history input.
-OpenGL retains its existing FXAA fallback. The lab deliberately offers no TAA.
+OpenGL retains its existing FXAA fallback. Native TAA requests report their backend downgrade; temporal AA is not implemented there.
 
 ## Pipeline and costs
 

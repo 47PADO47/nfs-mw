@@ -4,9 +4,9 @@ use super::*;
 
 impl GraphicsLab {
     pub(super) fn remember_startup(&mut self, settings: &Settings) {
-        self.original.get_or_insert((self.options, *settings));
+        self.original.get_or_insert((settings.appearance.lighting, *settings));
     }
-    fn restore_startup(&mut self, settings: &mut Settings) {
+    pub(super) fn restore_startup(&mut self, settings: &mut Settings) {
         let Some((options, snapshot)) = self.original else { return };
         self.options = options;
         restore_graphics(settings, &snapshot);
@@ -59,21 +59,23 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
             lab.restore_startup(settings);
         }
     });
-    ui.horizontal_wrapped(|ui| {
-        ui.label("Experiments:");
-        for (name, preset) in [
-            ("Off", "baseline"),
-            ("Sky", "ambient"),
-            ("Sun", "shadows"),
-            ("Far", "distance"),
-            ("Detail", "detail"),
-            ("Coat", "modern"),
-        ] {
-            if ui.button(name).clicked() {
-                lab.experiment_preset(preset);
+    if lab.tab == profiles::Tab::Lighting {
+        ui.horizontal_wrapped(|ui| {
+            ui.label("Lighting presets:");
+            for (name, preset) in [
+                ("Off", "baseline"),
+                ("Sky", "ambient"),
+                ("Sun", "shadows"),
+                ("Far", "distance"),
+                ("Detail", "detail"),
+                ("Coat", "modern"),
+            ] {
+                if ui.button(name).clicked() {
+                    lab.experiment_preset(preset);
+                }
             }
-        }
-    });
+        });
+    }
     ui.horizontal_wrapped(|ui| {
         if ui.button("Store A").clicked() {
             lab.saved = Some((lab.options, *settings));
@@ -87,8 +89,7 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
 }
 
 pub(super) fn restore_graphics(settings: &mut Settings, snapshot: &Settings) {
-    settings.graphics_preset = snapshot.graphics_preset;
-    settings.car_shading = snapshot.car_shading;
+    restore_appearance(settings, snapshot);
     settings.render_scale = snapshot.render_scale;
     settings.upscaler = snapshot.upscaler;
     settings.ray_tracing = snapshot.ray_tracing;
@@ -97,6 +98,13 @@ pub(super) fn restore_graphics(settings: &mut Settings, snapshot: &Settings) {
     settings.smoke_quality = snapshot.smoke_quality;
     settings.collision_sparks = snapshot.collision_sparks;
     settings.speed_trails = snapshot.speed_trails;
+}
+
+pub(super) fn restore_appearance(settings: &mut Settings, snapshot: &Settings) {
+    settings.appearance = snapshot.appearance;
+    settings.graphics_preset = snapshot.graphics_preset;
+    settings.car_shading = snapshot.car_shading;
+    settings.shadows = snapshot.shadows;
     settings.reflections = snapshot.reflections;
     settings.ao = snapshot.ao;
     settings.ao_intensity = snapshot.ao_intensity;

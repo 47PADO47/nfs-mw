@@ -9,6 +9,8 @@ use crate::settings::{
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GraphicsSetting {
+    Style,
+    Quality,
     Preset,
     CarShading,
     VisualTreatment,
@@ -20,7 +22,9 @@ pub enum GraphicsSetting {
 }
 
 impl GraphicsSetting {
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 10] = [
+        Self::Style,
+        Self::Quality,
         Self::Preset,
         Self::CarShading,
         Self::VisualTreatment,
@@ -33,11 +37,13 @@ impl GraphicsSetting {
 
     pub fn shown(self, caps: &Capabilities) -> bool {
         match self {
-            Self::Shadows => caps.soft_shadows,
+            Self::Shadows => {
+                caps.soft_shadows || (caps.renderer == "blackbox" && caps.api != blackbox_gfx::GraphicsApi::Gl)
+            }
             Self::VisualTreatment => caps.scene_treatment,
             Self::Reflections => caps.local_reflections,
             Self::AmbientOcclusion | Self::AoIntensity | Self::AoComparison => caps.ambient_occlusion,
-            Self::Preset | Self::CarShading => true,
+            Self::Style | Self::Quality | Self::Preset | Self::CarShading => true,
         }
     }
 
@@ -45,17 +51,25 @@ impl GraphicsSetting {
         match self {
             Self::Reflections => s.car_shading == CarShading::Glossy,
             Self::AoIntensity | Self::AoComparison => s.ao != AoQuality::Off,
-            Self::Preset | Self::CarShading | Self::VisualTreatment | Self::AmbientOcclusion | Self::Shadows => true,
+            Self::Style
+            | Self::Quality
+            | Self::Preset
+            | Self::CarShading
+            | Self::VisualTreatment
+            | Self::AmbientOcclusion
+            | Self::Shadows => true,
         }
     }
 
     pub fn title(self) -> Title {
         Title::Text(match self {
+            Self::Style => "Visual Style",
+            Self::Quality => "Graphics Quality",
             Self::Preset => "Graphics Preset",
             Self::CarShading => "Car Shading",
             Self::VisualTreatment => "Visual Treatment (Experimental)",
             Self::Reflections => "Car Reflections",
-            Self::Shadows => "Dynamic Soft Shadows",
+            Self::Shadows => "Enhanced Sun Shadows",
             Self::AmbientOcclusion => "Ambient Occlusion (Experimental)",
             Self::AoIntensity => "AO Intensity",
             Self::AoComparison => "AO Comparison",
@@ -63,11 +77,18 @@ impl GraphicsSetting {
     }
 
     pub fn data(self, s: &Settings) -> Data {
+        if self == Self::VisualTreatment
+            && let Some(strength) = s.appearance.treatment_strength
+        {
+            return Data::Text(format!("Custom ({:.0}%)", strength * 100.0));
+        }
         if self == Self::AoIntensity {
             return Data::Text(format!("{}%", s.ao_intensity.0));
         }
         Data::Text(
             match self {
+                Self::Style => s.visual_style().label(),
+                Self::Quality => s.appearance.quality.label(),
                 Self::Preset => match s.graphics_preset {
                     GraphicsPreset::Custom => "Custom",
                     GraphicsPreset::Low => "Low",
@@ -90,11 +111,11 @@ impl GraphicsSetting {
                     CarShading::Simple => "Simple",
                     CarShading::Glossy => "Glossy",
                 },
-                Self::Shadows => match s.shadows {
-                    crate::settings::ShadowQuality::Off => "Off",
-                    crate::settings::ShadowQuality::Low => "Low",
-                    crate::settings::ShadowQuality::Medium => "Medium",
-                    crate::settings::ShadowQuality::High => "High",
+                Self::Shadows => match (s.appearance.lighting.sun_shadows, s.appearance.lighting.shadow_resolution) {
+                    (false, _) => "Off",
+                    (true, 0..=1024) => "Low",
+                    (true, 1025..=2048) => "Medium",
+                    (true, _) => "High",
                 },
                 Self::AmbientOcclusion => match s.ao {
                     AoQuality::Off => "Off",
@@ -119,6 +140,17 @@ impl GraphicsSetting {
         }
         let before = *s;
         match self {
+            Self::Style => {
+                let next = super::post_options::pick(&crate::settings::VisualStyle::ALL, s.visual_style(), forward);
+                s.select_visual_style(next);
+                *changed = s.appearance_layer().or(*changed);
+            }
+            Self::Quality => {
+                let next =
+                    super::post_options::pick(&crate::settings::GraphicsQuality::ALL, s.appearance.quality, forward);
+                s.select_graphics_quality(next);
+                *changed = s.appearance_layer().or(*changed);
+            }
             Self::Preset => {
                 let all = GraphicsPreset::ALL;
                 let at = all.iter().position(|p| *p == s.graphics_preset).unwrap_or(0);
@@ -129,6 +161,8 @@ impl GraphicsSetting {
             }
             Self::VisualTreatment => {
                 s.visual_treatment = super::post_options::pick(&VisualTreatment::ALL, s.visual_treatment, forward);
+                s.appearance.treatment_strength = None;
+                changed.appearance = Some(s.appearance);
                 changed.visual_treatment = Some(s.visual_treatment);
             }
             Self::Reflections => {
@@ -150,6 +184,16 @@ impl GraphicsSetting {
             }
             Self::Shadows => {
                 s.shadows = super::post_options::pick(&crate::settings::ShadowQuality::ALL, s.shadows, forward);
+                s.appearance.lighting.sun_shadows = s.shadows != crate::settings::ShadowQuality::Off;
+                let (size, range) = match s.shadows {
+                    crate::settings::ShadowQuality::Off => (2048, 160.0),
+                    crate::settings::ShadowQuality::Low => (1024, 120.0),
+                    crate::settings::ShadowQuality::Medium => (2048, 200.0),
+                    crate::settings::ShadowQuality::High => (4096, 320.0),
+                };
+                s.appearance.lighting.shadow_resolution = size;
+                s.appearance.lighting.shadow_distance = range;
+                changed.appearance = Some(s.appearance);
                 changed.shadows = Some(s.shadows);
             }
             Self::AmbientOcclusion => {
@@ -186,7 +230,7 @@ mod tests {
     fn shadows_are_shown_only_on_supported_renderers_and_record_changes() {
         let mut s = Settings::from(Partial::default());
         let mut changed = Partial::default();
-        assert!(!GraphicsSetting::Shadows.shown(&crate::settings::test_caps::native()));
+        assert!(GraphicsSetting::Shadows.shown(&crate::settings::test_caps::native()));
         assert!(GraphicsSetting::Shadows.shown(&crate::settings::test_caps::full()));
         assert!(GraphicsSetting::Shadows.step(&mut s, &mut changed, true));
         assert_eq!(s.shadows, crate::settings::ShadowQuality::Low);
@@ -259,5 +303,32 @@ mod tests {
         s.apply_preset(GraphicsPreset::Low);
         Setting::Vsync.step(&mut s, &mut changes, true);
         assert_eq!((s.graphics_preset, changes.graphics_preset), (GraphicsPreset::Low, None), "unrelated rows keep it");
+    }
+}
+
+#[cfg(test)]
+mod shared_profile_tests {
+    use super::*;
+    use crate::settings::{GraphicsQuality, VisualStyle};
+    #[test]
+    fn normal_menu_style_quality_and_shadows_update_the_shared_request() {
+        let caps = crate::settings::test_caps::native();
+        let mut s = Settings::from(Partial::default());
+        let mut changes = Partial::default();
+        assert!(GraphicsSetting::Style.step(&mut s, &mut changes, true));
+        assert_eq!(s.visual_style(), VisualStyle::OriginalPc);
+        assert_eq!(changes.appearance, Some(s.appearance));
+        let art = (s.post_aa, s.post_tonemap, s.visual_treatment);
+        assert!(GraphicsSetting::Quality.step(&mut s, &mut changes, true));
+        assert_eq!(s.appearance.quality, GraphicsQuality::Low);
+        assert_eq!((s.post_aa, s.post_tonemap, s.visual_treatment), art);
+        assert!(super::super::options::Setting::Graphics(GraphicsSetting::Shadows).advance(
+            &mut s,
+            &mut changes,
+            true,
+            &caps
+        ));
+        assert!(s.appearance.lighting.sun_shadows, "native shadows must reach the active experiment channel");
+        assert_eq!(s.visual_style(), VisualStyle::Custom);
     }
 }

@@ -26,8 +26,8 @@ fn text(s: &'static str) -> Title {
 #[test]
 fn the_native_renderer_hides_ray_tracing_and_the_quality_mode_but_has_the_renderer_row() {
     let video = titles(Category::Video, &test_caps::native());
-    assert_eq!(video.len(), 26);
-    for hidden in ["Ray Tracing", "Upscale Quality", "Dynamic Soft Shadows"] {
+    assert_eq!(video.len(), 27);
+    for hidden in ["Ray Tracing", "Upscale Quality"] {
         assert!(!video.contains(&text(hidden)), "{hidden} needs a renderer that offers it");
     }
     assert_eq!(
@@ -35,7 +35,10 @@ fn the_native_renderer_hides_ray_tracing_and_the_quality_mode_but_has_the_render
         [text("Renderer (After Restart)"), text("Graphics API (After Restart)")],
         "renderer choices sit with the display controls"
     );
-    assert_eq!(video[5], text("Graphics Preset"));
+    assert_eq!(video[5], text("Visual Style"));
+    assert_eq!(video[6], text("Graphics Quality"));
+    assert_eq!(video[7], text("Advanced Graphics"));
+    assert!(video.contains(&text("Enhanced Sun Shadows")));
     assert_eq!(titles(Category::Audio, &test_caps::native()).len(), 5);
     assert_eq!(titles(Category::Gameplay, &test_caps::native()).len(), 5);
     assert_eq!(titles(Category::Player, &test_caps::native()).len(), 3);
@@ -50,7 +53,7 @@ fn a_full_renderer_has_every_row_next_to_the_setting_it_belongs_with() {
         |name: &'static str| video.iter().position(|t| *t == text(name)).unwrap_or_else(|| panic!("no {name} row"));
     assert_eq!(at("Upscale Quality"), at("Upscaler") + 1);
     assert_eq!(at("Ray Tracing"), at("Bloom") + 1);
-    assert_eq!(at("Dynamic Soft Shadows"), at("Car Reflections") + 1);
+    assert_eq!(at("Enhanced Sun Shadows"), at("Car Reflections") + 1);
     assert_eq!(at("Renderer (After Restart)"), 1);
     assert_eq!(at("Graphics API (After Restart)"), 2);
     assert_eq!(titles(Category::Audio, &test_caps::full()).len(), 5, "only the Video screen has them");
@@ -202,9 +205,11 @@ fn ao_rows_follow_support_and_keep_disabled_preferences() {
     use crate::settings::{AoQuality, Percent};
     let native = test_caps::native();
     let unsupported = blackbox_gfx::Capabilities { ambient_occlusion: false, ..native };
-    for title in ["Ambient Occlusion (Experimental)", "AO Intensity", "AO Comparison"] {
-        assert!(titles(Category::Video, &native).contains(&text(title)));
-        assert!(!titles(Category::Video, &unsupported).contains(&text(title)));
+    let title = "Ambient Occlusion (Experimental)";
+    assert!(titles(Category::Video, &native).contains(&text(title)));
+    assert!(!titles(Category::Video, &unsupported).contains(&text(title)));
+    for title in ["AO Intensity", "AO Comparison"] {
+        assert!(!titles(Category::Video, &native).contains(&text(title)), "advanced tuning belongs in F8");
     }
     let mut s = Settings { ao: AoQuality::Off, ao_intensity: Percent(65), ao_compare: true, ..defaults() };
     let before = s;

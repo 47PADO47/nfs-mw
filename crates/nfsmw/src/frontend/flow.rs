@@ -97,6 +97,8 @@ pub struct Frontend {
     pub(super) latch: bool,
     pub(super) console_was_open: bool,
     pub(super) quit: bool,
+    pub(super) graphics_requested: bool,
+    pub(super) graphics_visible: bool,
     /// Settings are written to the config file (not in screenshot runs).
     save: bool,
     /// The pad mask of the last frame, for the start press that pauses.
@@ -122,6 +124,8 @@ impl Frontend {
             latch: true,
             console_was_open: false,
             quit: false,
+            graphics_requested: false,
+            graphics_visible: false,
             save: true,
             last_mask: 0,
             remap: None,
@@ -297,6 +301,7 @@ impl Frontend {
                 }
                 Command::NextBootStep => self.next_boot(host, env),
                 Command::SaveSettings => self.save_settings(env.changed),
+                Command::OpenGraphics => self.graphics_requested = true,
                 Command::Remap(control, slot) => {
                     log::info!("remap: waiting for a key for {control:?} slot {slot}");
                     self.remap = Some((control, slot));
@@ -345,7 +350,7 @@ impl Frontend {
         self.apply(commands, host, env);
     }
 
-    fn save_settings(&self, changed: &mut Partial) {
+    pub(super) fn save_settings(&self, changed: &mut Partial) {
         if !self.save || *changed == Partial::default() {
             return;
         }

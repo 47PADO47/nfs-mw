@@ -1,11 +1,12 @@
 use super::*;
-use crate::settings::Partial;
+use crate::settings::{Partial, Percent, RenderScale, VisualStyle};
 
 #[test]
-fn high_matches_the_supplied_reference_controls_and_resets_leftover_diagnostics() {
+fn enhanced_high_matches_the_supplied_reference_controls() {
     let mut settings = Settings::from(Partial::default());
     settings.ao_compare = true;
     settings.post_bloom = PostBloom::High;
+    settings.select_visual_style(VisualStyle::Enhanced);
     let options = Quality::High.apply(&mut settings);
     assert!(
         options.sun_shadows
@@ -32,7 +33,8 @@ fn high_matches_the_supplied_reference_controls_and_resets_leftover_diagnostics(
 
 #[test]
 fn high_to_low_and_balanced_replaces_all_profile_fields_without_altering_driving() {
-    let baseline = Settings::from(Partial::default());
+    let mut baseline = Settings::from(Partial::default());
+    baseline.select_visual_style(VisualStyle::Enhanced);
     for lower in [Quality::Low, Quality::Balanced] {
         let mut direct = baseline;
         let expected = lower.apply(&mut direct);
@@ -44,7 +46,7 @@ fn high_to_low_and_balanced_replaces_all_profile_fields_without_altering_driving
         assert_eq!(after.reflections, direct.reflections);
         assert_eq!(after.ao, direct.ao);
         assert_eq!(after.post_tonemap, direct.post_tonemap);
-        assert!(!after.ao_compare);
+        assert!(after.ao_compare, "cost selection preserves the active comparison");
         assert_eq!(after.camera_mode, baseline.camera_mode);
         assert_eq!(after.transmission, baseline.transmission);
         assert_eq!(after.render_scale, RenderScale::new(100).unwrap());
@@ -56,6 +58,7 @@ fn startup_request_uses_the_same_profile_as_live_selection_and_runs_once() {
     let mut app = App::new();
     let baseline = Settings::from(Partial::default());
     let mut expected = baseline;
+    expected.select_visual_style(VisualStyle::Enhanced);
     let options = Quality::High.apply(&mut expected);
     app.insert_resource(baseline)
         .insert_resource(GraphicsLab { startup_quality: Some(Quality::High), ..Default::default() })

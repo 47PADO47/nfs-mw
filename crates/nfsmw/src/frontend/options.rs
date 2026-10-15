@@ -23,6 +23,7 @@ use blackbox_gfx::Capabilities;
 /// A setting a row edits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Setting {
+    AdvancedGraphics,
     MasterVolume,
     SfxVolume,
     EngineVolume,
@@ -171,6 +172,7 @@ impl Setting {
     /// What the data string shows for a toggle.
     pub fn data(self, s: &Settings) -> Data {
         match self {
+            Setting::AdvancedGraphics => Data::Text("Open F8".into()),
             Setting::Input(setting) => setting.data(s),
             Setting::Alias(setting) => Data::Text(setting.data().to_owned()),
             Setting::Post(setting) => setting.data(s),
@@ -276,6 +278,9 @@ impl Setting {
     /// What the data string shows on a renderer with these capabilities: the value it actually runs, so a stored
     /// `taa` reads FXAA on a renderer that has no TAA.
     pub fn data_in(self, s: &Settings, caps: &Capabilities) -> Data {
+        if matches!(self, Setting::Graphics(GraphicsSetting::Style | GraphicsSetting::Quality)) {
+            return self.data(s);
+        }
         self.data(&s.effective(caps))
     }
 
@@ -297,6 +302,12 @@ impl Setting {
 
     /// Whether the renderer can run the setting's current value.
     pub fn offered(self, s: &Settings, caps: &Capabilities) -> bool {
+        if self == Setting::Graphics(GraphicsSetting::Shadows)
+            && caps.renderer == "blackbox"
+            && caps.api != blackbox_gfx::GraphicsApi::Gl
+        {
+            return true;
+        }
         self.key().is_none_or(|key| availability::is_offered(key, s, caps))
     }
 
@@ -323,6 +334,9 @@ impl Setting {
     /// Returns whether the value changed (a slider at its end does not).
     #[cfg(test)]
     pub fn step(self, s: &mut Settings, changed: &mut Partial, forward: bool) -> bool {
+        if self == Setting::AdvancedGraphics {
+            return false;
+        }
         if !self.enabled(s) {
             return false;
         }
@@ -358,6 +372,7 @@ impl Setting {
             Setting::Input(_) | Setting::Alias(_) | Setting::Post(_) | Setting::Graphics(_) | Setting::Renderer(_) => {
                 unreachable!("input, alias, post, graphics and renderer settings are handled above")
             }
+            Setting::AdvancedGraphics => return false,
             Setting::HudLayout => {
                 let layouts = [HudLayout::Pc, HudLayout::Classic, HudLayout::Xbox360];
                 let at = layouts.iter().position(|layout| *layout == s.hud_layout).unwrap_or(0);
