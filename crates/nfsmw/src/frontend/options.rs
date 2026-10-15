@@ -275,15 +275,6 @@ impl Setting {
         }
     }
 
-    /// What the data string shows on a renderer with these capabilities: the value it actually runs, so a stored
-    /// `taa` reads FXAA on a renderer that has no TAA.
-    pub fn data_in(self, s: &Settings, caps: &Capabilities) -> Data {
-        if matches!(self, Setting::Graphics(GraphicsSetting::Style | GraphicsSetting::Quality)) {
-            return self.data(s);
-        }
-        self.data(&s.effective(caps))
-    }
-
     /// The config key of a setting a renderer may not be able to run.
     fn key(self) -> Option<&'static str> {
         match self {
@@ -498,3 +489,6 @@ impl Setting {
 #[cfg(test)]
 #[path = "options_tests.rs"]
 mod tests;
+
+#[path = "options_effective.rs"]
+mod effective;

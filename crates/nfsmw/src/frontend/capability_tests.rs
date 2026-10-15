@@ -231,3 +231,19 @@ fn ao_rows_follow_support_and_keep_disabled_preferences() {
         Data::Text("Off".into())
     );
 }
+
+#[test]
+fn profile_menu_reports_backend_shadow_and_treatment_results_without_erasing_requests() {
+    let mut s = defaults();
+    s.renderer = crate::settings::RendererKind::Bevy;
+    s.shadows = crate::settings::ShadowQuality::High;
+    s.appearance.treatment_strength = Some(0.73);
+    let before = s;
+    let shadows = Setting::Graphics(GraphicsSetting::Shadows);
+    assert_eq!(shadows.data_in(&s, &test_caps::full()), Data::Text("High".into()));
+    let unsupported = blackbox_gfx::Capabilities { soft_shadows: false, scene_treatment: false, ..test_caps::full() };
+    assert_eq!(shadows.data_in(&s, &unsupported), Data::Text("Off".into()));
+    let treatment = Setting::Graphics(GraphicsSetting::VisualTreatment);
+    assert_eq!(treatment.data_in(&s, &unsupported), Data::Text("Off".into()));
+    assert_eq!(s, before);
+}
