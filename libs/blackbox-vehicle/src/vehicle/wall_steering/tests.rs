@@ -93,3 +93,29 @@ fn neutral_config_disables_contacts_hardware_preserves_pending_and_placement_cle
     assert_eq!(car.wall_steering.side, 0.0);
     assert_eq!(car.wall_steering_config, config());
 }
+
+fn wall_params() -> ContactParams {
+    ContactParams { restitution: 0.4, inertia_scale: Vec3::ONE }
+}
+
+#[test]
+fn wall_reaction_takes_the_impact_at_origin_height_and_is_inelastic() {
+    let mut car = car();
+    car.body.position = Vec3::Y * 3.0;
+    car.body.orientation = Quat::from_rotation_x(0.2);
+    let cog = car.body.world_cog();
+    let (centre, params) = car.wall_reaction(Vec3::X, wall_params());
+    assert_eq!(centre, Vec3::new(cog.x, 3.0, cog.z));
+    assert_eq!(params.restitution, 0.0);
+}
+
+#[test]
+fn head_on_hit_at_speed_gains_yaw_inertia_and_a_scrape_does_not() {
+    let mut car = car();
+    car.body.linear_velocity = Vec3::Z * 10.0;
+    let (_, head_on) = car.wall_reaction(Vec3::NEG_Z, wall_params());
+    assert!((head_on.inertia_scale.y - 9.0).abs() < 1e-6);
+    assert_eq!(head_on.inertia_scale.x, 1.0);
+    let (_, scrape) = car.wall_reaction(Vec3::X, wall_params());
+    assert!((scrape.inertia_scale.y - 1.0).abs() < 1e-6);
+}

@@ -4,6 +4,7 @@ use glam::Vec3;
 
 use super::Vehicle;
 use crate::drivetrain::GEAR_REVERSE;
+use crate::rigid_body::ContactParams;
 
 /// Optional escape assistance, disabled by neutral defaults.
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
@@ -74,6 +75,23 @@ impl Vehicle {
         {
             self.wall_steering.side = lateral;
         }
+    }
+
+    /// The vehicle tweaks to a static wall reaction (`vehicle-rigid-body.md` §4.3, `RBVehicle`): the
+    /// impact is taken at the body's height of the origin rather than the centre of gravity, and it is
+    /// perfectly inelastic. A nose-first hit at speed also gains yaw inertia, so the car spins less.
+    /// `normal` faces the body. Returns the lever-arm centre and the adjusted parameters.
+    pub fn wall_reaction(&self, normal: Vec3, params: ContactParams) -> (Vec3, ContactParams) {
+        let cog = self.body.world_cog();
+        let centre = Vec3::new(cog.x, self.body.position.y, cog.z);
+        let forward = self.body.rotation().z_axis;
+        let nose = -normal.dot(forward);
+        let closing = (-normal.dot(self.body.linear_velocity) / 5.0).clamp(0.0, 1.0);
+        let damp = ((nose + 1.0) / 2.0).clamp(0.0, 1.0);
+        let mut adjusted = params;
+        adjusted.restitution = 0.0;
+        adjusted.inertia_scale.y *= 1.0 + closing * damp * 8.0;
+        (centre, adjusted)
     }
 
     pub(super) fn apply_wall_steering(&mut self) {

@@ -362,7 +362,8 @@ pub fn resolve(vehicle: &mut Vehicle, cast: Cast<'_>, props: PropQuery<'_>, wall
         );
         let body_velocity = vehicle.body().linear_velocity;
         let closing_velocity = vehicle.body().point_velocity(c.point);
-        if let Some(reaction) = vehicle.body_mut().react_plane(&plane, &params) {
+        let (centre, params) = vehicle.wall_reaction(n, params);
+        if let Some(reaction) = vehicle.body_mut().react_plane_at(&plane, &params, Some(centre)) {
             if c.prop.is_none() {
                 vehicle.notify_wall_contact(c.point, n, closing_velocity, body_velocity);
             }

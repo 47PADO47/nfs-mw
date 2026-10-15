@@ -47,12 +47,23 @@ impl RigidBody {
     /// Resolves an immovable plane with 16 moment iterations. Restitution affects the output
     /// velocities while the reported normal impulse excludes restitution.
     pub fn react_plane(&mut self, contact: &PlaneContact, params: &ContactParams) -> Option<Reaction> {
+        self.react_plane_at(contact, params, None)
+    }
+
+    /// As [`Self::react_plane`], with the lever arm taken from `centre` instead of the centre of gravity.
+    pub fn react_plane_at(
+        &mut self,
+        contact: &PlaneContact,
+        params: &ContactParams,
+        centre: Option<Vec3>,
+    ) -> Option<Reaction> {
         if self.state == BodyState::Frozen {
             return None;
         }
         let mut body = self.contact_moment(&super::BodyHit {
             restitution: params.restitution,
             inertia_scale: params.inertia_scale,
+            centre,
             ..Default::default()
         });
         let mut surface = super::ContactMoment {
