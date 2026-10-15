@@ -3,7 +3,7 @@
 use super::Drive;
 use crate::input::{Action, ActionState};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub(in crate::scenes::world) struct SpeedbreakerClock {
     multiplier: f64,
     dilation: crate::settings::speedbreaker::Dilation,

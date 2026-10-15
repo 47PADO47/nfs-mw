@@ -35,6 +35,7 @@ pub struct SurfaceTable {
     grips: HashMap<u32, SurfaceGrip>,
     audio: HashMap<u32, SurfaceAudio>,
     body_friction: HashMap<u32, f32>,
+    camera_noise: HashMap<u32, [f32; 2]>,
     unknown: SurfaceGrip,
 }
 
@@ -66,11 +67,17 @@ impl SurfaceTable {
         let unknown = db.collection("simsurface", UNKNOWN).map_or(SurfaceGrip::DEFAULT, |c| read(Fields(c)));
         let body_friction =
             db.collections_of("simsurface").map(|c| (c.key(), c.get_f32("GROUND_FRICTION").unwrap_or(1.0))).collect();
-        Self { grips, audio, body_friction, unknown }
+        let camera_noise = db.collections_of("simsurface").map(|c| (c.key(), camera_pair(c))).collect();
+        Self { grips, audio, body_friction, camera_noise, unknown }
     }
 
     pub fn body_friction(&self, hash: u32) -> f32 {
         self.body_friction.get(&hash).or_else(|| self.body_friction.get(&self.unknown.tag)).copied().unwrap_or(1.0)
+    }
+
+    /// Native terrain-camera values for a contact surface, or the installed unknown surface.
+    pub fn camera_noise(&self, hash: u32) -> [f32; 2] {
+        self.camera_noise.get(&hash).or_else(|| self.camera_noise.get(&self.unknown.tag)).copied().unwrap_or([0.0; 2])
     }
 
     /// The sounds of a surface by name hash (`unknown` for one without a collection).
@@ -102,6 +109,12 @@ impl SurfaceTable {
     }
 }
 
+fn camera_pair(surface: blackbox_attrib::CollectionRef<'_>) -> [f32; 2] {
+    std::array::from_fn(|index| {
+        surface.get_at("CAMERA_NOISE", index).and_then(blackbox_attrib::Value::as_f32).unwrap_or(0.0)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -112,6 +125,7 @@ mod tests {
             grips: HashMap::from([(7, SurfaceGrip { lateral: 0.5, drive: 0.6, rolling: 2.0, tag: 7 })]),
             audio: HashMap::from([(7, SurfaceAudio { skid_type: 1, road_loop: 3, ..Default::default() })]),
             body_friction: HashMap::from([(7, 0.3)]),
+            camera_noise: HashMap::from([(7, [0.6, 0.1]), (0, [0.2, 0.3])]),
             unknown: SurfaceGrip { lateral: 0.9, drive: 0.9, rolling: 1.0, tag: 0 },
         };
         assert_eq!(table.grip(7).lateral, 0.5);
@@ -120,5 +134,24 @@ mod tests {
         assert!(table.knows(7) && !table.knows(0));
         assert_eq!(table.audio(7), SurfaceAudio { skid_type: 1, road_loop: 3, ..Default::default() });
         assert_eq!(table.audio(99), SurfaceAudio::default());
+        assert_eq!(table.camera_noise(7), [0.6, 0.1]);
+        assert_eq!(table.camera_noise(99), [0.2, 0.3]);
+        assert_eq!(SurfaceTable::default().camera_noise(99), [0.0; 2]);
+    }
+
+    #[test]
+    #[ignore = "needs the base-game install selected by NFSMW_GAME_DIR"]
+    fn installed_camera_noise_preserves_each_surface_pair() {
+        let dir = game_install::GameDir::open(std::env::var("NFSMW_GAME_DIR").unwrap()).unwrap();
+        let db = Database::open(&dir.read("GLOBAL/ATTRIBUTES.BIN").unwrap()).unwrap();
+        let table = SurfaceTable::from_database(&db);
+        let mut count = 0;
+        for surface in db.collections_of("simsurface") {
+            let expected =
+                std::array::from_fn(|index| surface.get_at("CAMERA_NOISE", index).unwrap().as_f32().unwrap());
+            assert_eq!(table.camera_noise(surface.key()), expected);
+            count += 1;
+        }
+        assert!(count > 0, "selected no surface camera records");
     }
 }

@@ -21,6 +21,7 @@ use crate::scenes::world::{keys, space};
 
 mod accident;
 mod hits;
+mod original_camera;
 mod setup;
 mod sound;
 mod towing;

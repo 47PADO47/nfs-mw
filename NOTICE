@@ -162,6 +162,10 @@ Engines, viewers and hook projects
   berkayylmao/NFSPluginSDK — BSD-3-Clause. gaycoderprincess/nya-common-nfsmw — MPL-2.0.
   ThirteenAG/WidescreenFixesPack — MIT (registry key, camera, aspect-aware HUD placement).
     https://github.com/ThirteenAG/WidescreenFixesPack — reference only; no code copied.
+    Original gameplay camera widescreen projection equations follow the official
+    Rendering.ixx FixFOV=1/Scaling=0 behavior at commit
+    708f7528fb8b54c79d4ac3c6071ea7ccc01ae162; independently written Rust adapter.
+    Copyright (c) 2018 ThirteenAG. See docs/provenance/original-camera-data.md.
   rng-guy/NFSMWBartender — CC0-1.0.
   Xbox 360 Stuff Pack — https://nfsmods.xyz/mod/1200 — reference only.
     elaymm4 and ToruTheRedFox; installed configuration and binary corroborate
@@ -224,3 +228,10 @@ Graphics lab ambient lighting
     https://developer.nvidia.com/gpugems/gpugems2/part-ii-shading-lighting-and-shadows/chapter-10-real-time-computation-dynamic
     Diffuse irradiance convolution with spherical harmonics. The projection and
     evaluation shaders are original implementations of the mathematical method.
+
+Original gameplay camera behavior: locally inspected PC 1.3 routines and runtime
+attribute data; independent spec-first implementation, with CC0 declarations
+from dbalatoni13/nfsmw used for names and interface layout only.
+  https://github.com/dbalatoni13/nfsmw
+  See docs/specs/camera-views.md and docs/provenance/original-camera-*.md.
+  No original executable bytes, assets or decompiled code are included.

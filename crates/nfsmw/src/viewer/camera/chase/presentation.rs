@@ -86,3 +86,26 @@ impl ChaseView {
         self
     }
 }
+
+impl super::ChaseCamera {
+    /// Raw action state, without the custom controller's lingering return swing.
+    pub fn look_back_held(&self) -> bool {
+        self.looking_back
+    }
+}
+
+#[cfg(test)]
+mod action_tests {
+    use super::super::{ChaseCamera, Followed};
+    use glam::Vec3;
+    #[test]
+    fn native_action_releases_immediately_while_custom_swing_returns_smoothly() {
+        let mut camera = ChaseCamera::default();
+        camera.set_look_back(true);
+        camera.update(Followed { position: Vec3::ZERO, heading: 0.0, speed: 0.0 }, 1.0, |_, _| None);
+        assert!(camera.look_back_held());
+        camera.set_look_back(false);
+        assert!(!camera.look_back_held());
+        assert!(camera.looking_back());
+    }
+}

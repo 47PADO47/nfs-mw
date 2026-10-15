@@ -72,13 +72,18 @@ impl WorldScene {
 
     /// Switch between the chase camera and the free camera (the car waits while you fly).
     pub(super) fn toggle_view(&mut self) -> &'static str {
+        let original = crate::viewer::camera::original::index_of(self.camera_mode)
+            .map(|_| self.gameplay_lens(self.physics_aspect));
         let Some(drive) = self.drive.as_mut() else { return "not driving (use the drive command)" };
         self.cut.arm();
+        self.original_camera.reset();
+        self.original_player_step = None;
         match self.view {
             View::Chase => {
                 let camera = drive.camera();
-                let look = (drive.position() - camera.position).normalize_or_zero();
-                self.camera.position = camera.position;
+                let look = original
+                    .map_or_else(|| (drive.position() - camera.position).normalize_or_zero(), |lens| lens.forward);
+                self.camera.position = original.map_or(camera.position, |lens| lens.position);
                 self.camera.yaw = look.y.atan2(look.x);
                 self.camera.pitch = look.z.clamp(-1.0, 1.0).asin();
                 self.view = View::Fly;

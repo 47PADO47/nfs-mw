@@ -13,6 +13,7 @@ mod hitch;
 mod lamps;
 mod manager;
 mod models;
+mod original_camera;
 mod pattern;
 mod police;
 mod population;

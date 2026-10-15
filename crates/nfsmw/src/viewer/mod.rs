@@ -27,7 +27,19 @@ pub struct Fullscreen {
     pub rgba: Option<Vec<u8>>,
 }
 
+/// Session-local world clock controls. The existing sky is not a full night renderer.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Environment {
+    pub hour: f32,
+    pub seconds_per_hour: f32,
+}
+
 pub trait Scene {
+    fn environment(&self) -> Option<Environment> {
+        None
+    }
+    fn set_environment(&mut self, _value: Environment) {}
+
     /// Installed car choices for the runtime garage; scenes without driving return None.
     fn garage(&mut self) -> Option<&mut crate::garage::Model> {
         None
@@ -87,6 +99,10 @@ pub trait Scene {
     fn set_transmission(&mut self, _transmission: crate::settings::Transmission) {}
     /// Which gameplay camera to use (the camera setting), told every frame; scenes without a chase camera ignore it.
     fn set_camera_mode(&mut self, _mode: crate::settings::CameraMode) {}
+    /// Next camera accepted by this scene's ordinary gameplay cycle. Direct selections remain available.
+    fn next_camera_mode(&self, current: crate::settings::CameraMode) -> crate::settings::CameraMode {
+        current.next()
+    }
     /// Whether the camera hotkey changes the gameplay camera now (only while driving).
     fn takes_camera_setting(&self) -> bool {
         false

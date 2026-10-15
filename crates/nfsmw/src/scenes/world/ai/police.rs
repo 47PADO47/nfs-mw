@@ -475,6 +475,7 @@ mod busted;
 mod escape;
 mod heli;
 mod helpers;
+mod original_camera;
 mod world;
 
 use helpers::{horizontal, render_rotation};

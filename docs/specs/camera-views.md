@@ -1,154 +1,62 @@
 # Camera views
 
-- **Sources read:** `GLOBAL/attributes.bin` of the install (the `camerainfo` class and the `ecar` class, read with
-  the `blackbox-attrib` reader); `speed.exe` in Ghidra: the `CDActionDrive` constructor (`FUN_00484c20`), the
-  camera setup (`FUN_00481bd0`) and the view selection (`FUN_004713c0`, which switches on the view index and
-  looks up each view by name hash); `docs/specs/dynamic-mixer.md` and `docs/specs/car-sound-mixer.md` (the audio
-  camera states, which agree with the views below).
-- **Data inputs:** the `camerainfo` collections (one per view) and the `ecar` references to them (one per view,
-  per car).
+## Gameplay controllers
 
-## Status
+The seven original profile slots are Bumper, Hood, Close, Far, SuperFar, Drift
+and Pursuit. They resolve the car's inherited `ecar.CameraInfo_*` references;
+they are not constructed from guessed collection names. Ordinary hotkey cycling
+respects the fullscreen `SELECTABLE` flags. Direct selection keeps all seven
+profiles available. The existing custom Chase and Dynamic FOV controllers remain
+independent, including the user's Chase default.
 
-The original game has seven gameplay views, all now in the game as settings: **bumper**, **hood**, **close**,
-**far**, **superfar**, **drift** and **pursuit**. The game's default is **far**. They are placed from the install's
-own values. The chase and dynamic-FOV cameras are the game's earlier settings and are kept.
+The implementation and evidence are split by contract:
 
-PC recheck on 2026-10-14 corrected a previous interpretation: the two values
-are fullscreen and horizontal split-screen, not rest and speed endpoints.
-The current single-player host selects slot zero at every vehicle speed.
-Native GetPov divides spatial LAG by Speedbreaker zoom and multiplies FOV by
-it. The Cubic target consumer uses LAG as forward eye offset; both changes
-are required together. The custom chase adapter applies this paired target
-change to its existing horizontal offset, without claiming native Cubic follow.
+| Contract | Specification |
+|---|---|
+| Per-car references, viewport fields and optical axes | [Original camera data](original-camera-data.md) |
+| Rolling cubic follow, speed/acceleration/slip inputs and transitions | [Original camera follow](original-camera-follow.md) |
+| Terrain, engine, NOS, brake and helicopter noise | [Original camera noise](original-camera-noise.md) |
+| Impact and gear-change local offset pulses | [Camera transients](original-camera-transients.md) |
+| Wall, road and body clearance, look-back and visibility | [Original camera obstruction](original-camera-obstruction.md) |
+| Camera clock, physics history and display interpolation | [Original camera host](original-camera-host.md) |
+| Runtime terrain and prop data | [Camera environment data](original-camera-environment-data.md) |
 
-Still unconfirmed (see [Unconfirmed](#unconfirmed)): native speed-dependent follow/noise graphs, the sign
-of the offset, whether the field of view is vertical, what two of the fields and one zero field do, and the use of
-stiffness. Those are the first things to check in the game.
+These replace the former static placement, heading-only rotation, vertical-FOV
+assumption, guessed positive-LAG bumper offset and missing obstruction handling.
+The camera anchor is the physical body position plus rotated CG with its lateral
+component removed; model pivot corrections belong to rendering, not this anchor.
+Bumper and Hood attach to the full body rotation. Outside views retain native
+rolling cubic state and velocity-dependent direction rather than snapping to the
+car heading. Outside-to-outside profile changes preserve that state; switching
+to or from an attached view snaps. Look-back reverses local horizontal offsets
+immediately. Bumper hides the player; Hood hides it only while looking back.
 
-## The seven views
+The original FOV is a whole binary angle. The delivered optical adapter matches
+the selected playable reference's WidescreenFix `FixFOV=1, Scaling=0` framing,
+preserving vertical framing while expanding horizontally with display aspect.
+The unmodified PC optical axes remain separately verified by native vectors.
+Both retain the original 0.5 m near plane. Custom camera projection is unchanged.
+Speedbreaker divides profile LAG and multiplies FOV by its real-time zoom ramp;
+NOS adds the native outside-view angle before cubic smoothing. The two values
+in each profile field select viewport mode, never vehicle speed endpoints.
+`STIFFNESS` is read but is not consumed by the checked native Cubic path.
 
-Index order is the one the camera code switches on (`FUN_004713c0`): the index is set from the car's camera
-(the `ecar` field for that view) and selects the view's collection.
+## Timing and validation boundary
 
-| Index | View (camera setting) | `camerainfo` collection | `ecar` field (name hash) | Collection key |
-|---|---|---|---|---|
-| 0 | bumper | `bumper` | `0x585517F3` | `0x1F4B1746` |
-| 1 | hood | `hood` | `0xD74C1435` | `0x201893D0` |
-| 2 | close | `close` | `0x0C2DA793` | `0xC6ECEB8C` |
-| 3 | far (the default) | `far` | `0xCCF03CB3` | `0x18EC50C6` |
-| 4 | superfar | `superfar` | `0x10204A90` | `0x32C8A5FF` |
-| 5 | drift | `drift` | `0x4B675DC8` | `0x29076EF4` |
-| 6 | pursuit | `pursuit` | `0xD76A6FAD` | `0xDAA252C2` |
+Native per-update filters run on an unscaled 60 Hz camera clock. Retained
+physical input keys are sampled through the same Speedbreaker time integral as
+the world, preserving intermediate inputs during slow render frames. Displayed
+camera offsets interpolate with the displayed car anchor; rendering never
+advances camera state. This deliberately preserves the original 60 FPS response
+at high render rates rather than making native update-count filters stronger.
 
-The default case in `FUN_004713c0` sets the index to 3 (`far`) when the requested view is not one of the seven.
-The mapping was checked on all 100 `ecar` collections: their 700 camera references each resolve to the view in
-the table, either to the generic collection or to a car-specific variant of it (for example `bmwm3gtr_hood` or
-`van_close`). The code uses the car's own variant of each view when the install has one, and the generic view otherwise.
-
-## Fields **[PC viewport selection checked, follow incomplete]**
-
-Each view collection holds nine attributes. Five are the camera's values and are used by the game (the field names
-below were resolved by matching the field's `vlt_hash` against these names; see [Names](#names)). Each of the five
-is a pair: the fullscreen value and the horizontal split-screen value.
-
-| Field | Pair values by view: bumper / hood / close / far / superfar / drift / pursuit | Used as |
-|---|---|---|
-| `FOV` | 83, 90 / 80, 90 / 78, 78 / 90, 90 / 78, 78 / 29.71, 86.04 / 65, 86.04 | field of view, degrees |
-| `HEIGHT` | 0.746, 0.61 / 1.397, 1.2 / 1.62, 1.7 / 1.7, 1.85 / 5.0, 1.85 / 2.04, 3.23 / 1.5, 3.23 | height above the car, metres |
-| `LAG` | 0.5, 0.716 / 0.24, 0.25 / -4.7, -6.8 / -5.44, -8.2 / -20, -8.2 / -15.49, -8.2 / -9, -8.2 | offset along the car, metres |
-| `ANGLE` | 1.5, 0.03 / 2.8, 3.08 / 0, 0 / 0, 0 / 0, 0 / 0, 11.13 / 0, 11.13 | pitch, degrees |
-| `STIFFNESS` | 0.5, 0.5 / 0.98, 0.96 / 0.5, 0.5 / 0.5, 0.5 / 0.5, 0.5 / 0.5, 0.5 / 0.5, 0.5 | the stiffness of the view, 0..1 |
-
-The default view `default` (the fallback in the game's code) has the values FOV 78/78, HEIGHT 2.0/1.0, LAG -10/-10
-and ANGLE 0/0. It is not one of the seven views and is not selected by the camera setting.
-
-Other attributes of each view, with values the same for every view or unconfirmed:
-
-| Field | Values | Status |
-|---|---|---|
-| `0x2FC5F041` | 0, 0 in every view | unnamed; zero everywhere, so unused in the views seen |
-| `0x665F4D74` (bool) | true, true in every view | unnamed |
-| `0x40E94F86` (bool) | false in `default`, `drift`, `pursuit`, `superfar`; true in `far`, `close`, `bumper`, `hood` | unnamed; differs by view |
-| `0x9CA1C8F9` (text) | the view's name | the collection name |
-
-## Behaviour
-
-### Choosing a view
-
-The camera setting cycles through, in order: chase, dynamic-fov, bumper, hood, close, far, superfar, drift,
-pursuit, then wraps. The options row shows Chase, Dynamic FOV, Bumper, Hood, Close, Far, Super far, Drift and
-Pursuit. File and environment names are `bumper`, `hood`, `close`, `far`, `superfar`, `drift` and `pursuit`.
-
-The camera hotkey changes the setting only while driving (the existing rule). An original view applies only in
-the chase view of a car; with no car the free camera is used. If the install's views cannot be loaded, the
-setting falls back to the chase camera.
-
-### Placing a view
-
-The views are loaded for the car that starts driving: its own `<car>_<view>` collection where one exists
-(the car's name in lower case), otherwise the generic view. A car not in the install uses the generic views.
-
-For a car at its interpolated pose (model origin `position`, heading `heading` from +X, speed `v` in m/s):
-
-1. The current fullscreen host selects slot zero. Original horizontal split-screen
-   selects slot one; other viewport modes select slot zero.
-2. Read that slot without speed interpolation. Speedbreaker factor divides LAG
-   and multiplies FOV; ANGLE and HEIGHT keep the selected values.
-3. The eye is `position + (cos heading, sin heading, 0) * (LAG + start) + (0, 0, HEIGHT)`, where `start` is 0 for a
-   negative `LAG` and the car's half length (the physics box's `half_extents().1`, about 2.2 m) for a positive `LAG`.
-   The positive case is inferred from screenshots: with `start` at 0 the bumper and hood views sat inside the car's
-   body (the dashboard and windscreen filled the picture). Starting them at the front bumper put both outside the
-   body, with the bumper low and the hood higher. The far, close and superfar views (negative `LAG`) show the car
-   from behind, as expected. The bumper's `LAG` of 0.5 m and the hood's 0.24 m are measured from the front bumper,
-   which the game's own data does not state.
-4. The view points along `(cos heading, sin heading, -sin ANGLE)`, so a positive `ANGLE` looks down.
-5. The lens uses the FOV, the near plane of 0.3 m and the window's aspect ratio.
-
-There is no smoothing, no obstacle handling and no use of `STIFFNESS` yet.
-
-## Names
-
-The names were resolved by matching the `vlt_hash` (Jenkins' `lookup2`, initval `0xABCDEF00`, the crate's
-`vlt_hash`) of candidate names against the class's field keys. Only uppercase forms matched: `FOV`, `HEIGHT`,
-`LAG`, `STIFFNESS` and `ANGLE`. The per-car `ecar` fields for the seven views were matched by resolving their
-`RefSpec` values to the collection names above. The view order was taken from the getter functions in the game's
-code (`FUN_00467d70` to `FUN_00467e30`), which pass each view's name hash to the lookup.
-
-## Constants
-
-| Constant | Value | Source |
-|---|---|---|
-| Horizontal split-screen pair index | 1 | native GetPov viewport-mode branch |
-| Near plane | 0.3 m | the chase camera's `NEAR_PLANE` |
-
-## Unconfirmed
-
-- **Native follow graphs.** The native Cubic mover applies separate speed/physics modifiers and temporal filters;
-  these are not the paired `camerainfo` values and remain unimplemented.
-- **Where positive `LAG` starts.** Positive values are taken to start at the front bumper (see step 3). This is
-  inferred from screenshots of the bumper and hood views, not from the game's code. Check it against the original.
-- **Field of view.** Taken as vertical degrees. The game may use horizontal degrees.
-- **`ANGLE` sign.** Taken as a pitch down for positive values. The values are small, so this is worth checking.
-- **`STIFFNESS`.** Not used. Its use in the game (probably how firmly the view follows the car) is not known.
-- **The unnamed fields.** The zero field and the two booleans are not used.
-
-## Known gaps
-
-- **The car body may hide the view.** The car model is drawn opaque, so the bumper, hood and close views may show the
-  car's own body from inside. Not handled.
-- **No obstacle handling.** A view can clip through a wall or the ground, unlike the chase camera.
-- **Not checked in the game.** The values and the mapping are from the install's data and the game's code. Nothing
-  here has been seen in the running game yet.
-
-## How to check it
-
-1. Cycle the camera setting in the game with a car and compare each view with the original game. The bumper, hood and
-   far views are the easiest to tell apart.
-2. For the sign of `LAG` and the field of view, compare the framing of the far view (default) at rest and at speed.
-3. For native follow/noise graphs, compare camera motion at several speeds;
-   the pairs above select viewport mode and must not be treated as speed endpoints.
-4. Record each result here, with the setting used and the car.
+Isolated unchanged PC routines establish the arithmetic contracts, with
+synthetic regressions for the high-FPS adaptation. Installed-data checks cover
+profile references and physical/render anchor integration. This is not a claim
+of complete live visual parity: special floor-state ownership, body registration
+order, absolute original noise phase and cinematic/ICE camera tracks still need
+matched-scene evidence. See each specification's limits rather than treating
+individual helper checks as a whole-game comparison.
 
 ## Pursuit camera (caught pan and arrest, procedural)
 
@@ -170,3 +78,14 @@ Built in `crates/nfsmw/src/viewer/camera/pursuit/`. `Drive::update_pursuit` adva
   original.
 - **Guesses:** the 2.5 s pan, the 3.0 s arrest (the busted HUD time), the 0.6 s blend, the 48 degree field of view, and
   the 6 to 16 m side distance. The shot does not avoid walls, so the framing can clip scenery.
+
+### Custom Chase Speedbreaker response
+
+Chase and Dynamic FOV keep their free orbit. At the retained unscaled 60 Hz
+camera tick, a custom adapter uses half the native zoom target strength: vertical
+FOV approaches 80% and horizontal lag approaches 125%, rather than 60% and
+167%. Far's existing speed-dependent eye/FOV spline durations smooth both
+entry and exit. Height, orientation and free orbit remain unchanged; shared
+obstruction and final clearance run after the transform. Physics samples carry
+unzoomed custom intent so slowed simulation cannot apply the effect twice.
+This is custom tuning, not a claim that Chase exists in the original game.

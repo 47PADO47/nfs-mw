@@ -6,6 +6,7 @@ mod fragments;
 mod ground;
 mod lifetime;
 mod obb;
+mod original_camera;
 pub(super) mod scenery;
 #[cfg(test)]
 mod tests;

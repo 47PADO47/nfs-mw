@@ -11,7 +11,7 @@ use super::WorldScene;
 pub(super) struct DayClock {
     cfg: DayNightConfig,
     /// Simulated seconds since the world started.
-    seconds: f32,
+    seconds: f64,
     /// The lights state last applied to the drive, so a manual headlight toggle holds until the next switch.
     lights: Option<bool>,
 }
@@ -23,7 +23,9 @@ impl DayClock {
 
     /// Moves the clock on by `dt` simulated seconds.
     pub(super) fn advance(&mut self, dt: f32) {
-        self.seconds += dt;
+        if dt.is_finite() && dt > 0.0 {
+            self.seconds += f64::from(dt);
+        }
     }
 
     /// The lab freezes the lighting clock without accruing a catch-up step.
@@ -36,7 +38,21 @@ impl DayClock {
 
     /// The hour of day now.
     pub(super) fn hour(&self) -> f32 {
-        day_night::clock_hour(&self.cfg, self.seconds)
+        day_night::clock_hour(&self.cfg, self.seconds as f32)
+    }
+
+    pub(super) fn environment(&self) -> crate::viewer::Environment {
+        crate::viewer::Environment { hour: self.hour(), seconds_per_hour: self.cfg.seconds_per_hour }
+    }
+
+    pub(super) fn configure(&mut self, value: crate::viewer::Environment) {
+        if !value.hour.is_finite() || !value.seconds_per_hour.is_finite() {
+            return;
+        }
+        self.cfg.start_hour = day_night::wrap_hour(value.hour);
+        self.cfg.seconds_per_hour = value.seconds_per_hour.clamp(10.0, 3600.0);
+        self.cfg.force_time = None;
+        self.seconds = 0.0;
     }
 
     /// The sun's phase for the hour.
@@ -58,6 +74,12 @@ impl DayClock {
 }
 
 impl WorldScene {
+    pub(super) fn configure_day(&mut self, value: crate::viewer::Environment) {
+        self.day.configure(value);
+        self.update_day(0.0, true);
+        self.reflection_last = None;
+    }
+
     /// Moves the day clock on by `sim_dt`, sets the sun for the hour, and switches the headlights when the clock
     /// crosses the lights-on or lights-off hour. A drive that is not yet placed keeps its own state.
     pub(super) fn update_day(&mut self, sim_dt: f32, frozen: bool) {
@@ -152,5 +174,47 @@ mod tests {
             fast.advance(sim_frame(&mut fast_breaker, false, 2.0));
         }
         assert!((fast.seconds - 4.0 * slow.seconds).abs() < 1e-2, "{} vs {}", fast.seconds, slow.seconds);
+    }
+}
+
+#[cfg(test)]
+mod control_tests {
+    use super::*;
+
+    #[test]
+    fn manual_time_and_rate_override_a_forced_clock_without_catching_up() {
+        let mut day = DayClock::new(DayNightConfig { force_time: Some(3.0), ..Default::default() });
+        day.advance(90.0);
+        assert_eq!(day.hour(), 3.0);
+        day.configure(crate::viewer::Environment { hour: 22.0, seconds_per_hour: 60.0 });
+        assert_eq!(day.hour(), 22.0);
+        assert!(day.lights_on());
+        day.update(600.0, true);
+        assert_eq!(day.hour(), 22.0);
+        day.update(120.0, false);
+        assert_eq!(day.hour(), 0.0);
+        let mut value = day.environment();
+        value.seconds_per_hour = 30.0;
+        day.configure(value);
+        assert_eq!(day.hour(), 0.0);
+        day.advance(30.0);
+        assert_eq!(day.hour(), 1.0);
+        assert!(!day_night::lights_on(12.0, &DayNightConfig::default()));
+    }
+
+    #[test]
+    fn clock_controls_are_finite_and_frame_rate_independent() {
+        for fps in [5, 30, 60, 144, 360] {
+            let mut day = DayClock::new(DayNightConfig::default());
+            day.configure(crate::viewer::Environment { hour: 18.0, seconds_per_hour: 60.0 });
+            for _ in 0..fps * 120 {
+                day.advance(1.0 / fps as f32);
+            }
+            assert!((day.hour() - 20.0).abs() < 1e-5, "fps {fps}: {}", day.hour());
+            let before = day.environment();
+            day.configure(crate::viewer::Environment { hour: f32::NAN, seconds_per_hour: 0.0 });
+            day.advance(f32::INFINITY);
+            assert_eq!(day.environment(), before);
+        }
     }
 }

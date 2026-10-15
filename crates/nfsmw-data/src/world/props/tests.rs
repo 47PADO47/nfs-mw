@@ -6,6 +6,20 @@ use super::*;
 mod duplicates;
 
 #[test]
+#[ignore = "needs the base-game install selected by NFSMW_GAME_DIR"]
+fn installed_props_preserve_the_camera_avoidance_flag() {
+    let dir = game_install::GameDir::open(std::env::var("NFSMW_GAME_DIR").unwrap()).unwrap();
+    let db = blackbox_attrib::Database::open(&dir.read("GLOBAL/ATTRIBUTES.BIN").unwrap()).unwrap();
+    let mut count = 0;
+    for collection in db.collections_of("smackable") {
+        let Some(dynamics) = PropDynamics::read(collection) else { continue };
+        assert_eq!(dynamics.camera_avoidable, collection.get_bool("CAMERA_AVOIDABLE").unwrap_or(false));
+        count += 1;
+    }
+    assert!(count > 0, "selected no prop camera records");
+}
+
+#[test]
 fn models_sharing_original_physics_keys_keep_their_own_identity() {
     let bounds = Arc::new(BoundsSet {
         name_hash: 1,
@@ -33,6 +47,7 @@ fn models_sharing_original_physics_keys_keep_their_own_identity() {
         base_surface: 0,
         detach_impulse: -1.0,
         no_car_effect: false,
+        camera_avoidable: false,
         immobile: false,
         respawn_time: 120.0,
         kill_off_screen: 8.0,

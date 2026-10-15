@@ -14,6 +14,7 @@ mod input;
 #[cfg(test)]
 mod lamp_tests;
 mod look;
+mod original_camera;
 mod placement;
 #[cfg(test)]
 mod presentation_tests;
@@ -37,7 +38,6 @@ use nfsmw_data::car::physics::CarPhysics;
 use super::effects::TireEffects;
 use super::exhaust::ExhaustFlames;
 use super::road::{self, Spawn};
-use super::space;
 use super::vehicle_effects::VehicleEffects;
 use crate::settings::{Transmission, WheelOptions};
 use crate::viewer::camera::{CameraCut, ChaseCamera, ChaseView, Followed, PursuitCamera, PursuitFeed};
@@ -320,6 +320,7 @@ impl Drive {
     }
 
     /// The live physical pose, including contacts not yet published to the render poses.
+    #[cfg(test)]
     pub fn physics_pose(&self) -> CarPose {
         self.sim.as_ref().map_or(self.current, CarSim::pose)
     }
@@ -339,7 +340,7 @@ impl Drive {
 
     /// Move the chase camera; `look` is the player's look input (the right stick or the mouse), which
     /// orbits the camera round the car.
-    pub fn follow(&mut self, collision: &CollisionWorld, look: (f32, f32), dt: f32) {
+    pub fn follow(&mut self, _collision: &CollisionWorld, look: (f32, f32), dt: f32) {
         if dt == 0.0 {
             // A screenshot run has no frame time: put the camera where it belongs at once.
             self.chase.snap();
@@ -349,7 +350,8 @@ impl Drive {
         let forward = pose.rotation * Vec3::X;
         let followed =
             Followed { position: pose.position, heading: forward.y.atan2(forward.x), speed: self.telemetry.speed_mps };
-        self.chase.update(followed, dt, |from, to| blocked(collision, from, to));
+        // World presentation applies shared wall/floor/body clearance after zoom.
+        self.chase.update(followed, dt, |_, _| None);
     }
 
     /// Hold or release the look-back control (see `ChaseCamera::set_look_back`).
@@ -483,15 +485,4 @@ impl Drive {
             p.z
         )
     }
-}
-
-/// How far (0..1) along `from`-`to` (render space) the first wall or surface is.
-fn blocked(collision: &CollisionWorld, from: Vec3, to: Vec3) -> Option<f32> {
-    // Scenery-group geometry (road blocks that are off in free roam) does not stop the camera either.
-    let options = blackbox_collision::RayOptions {
-        exclude: u32::from(blackbox_collision::GROUP_EXCLUSION),
-        ..blackbox_collision::RayOptions::default()
-    };
-    let hit = collision.ray_cast(space::to_physics(from), space::to_physics(to), &options)?;
-    Some(hit.t)
 }

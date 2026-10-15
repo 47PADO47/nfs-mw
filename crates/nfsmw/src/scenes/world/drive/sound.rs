@@ -2,7 +2,7 @@
 use super::input::DriveInput;
 use super::sim::{CarSim, Telemetry};
 use super::walls::Impact;
-use crate::audio::{CarSoundState, CarSoundTick};
+use crate::audio::{CarContact, CarSoundState, CarSoundTick};
 use blackbox_carsound::CarInput;
 use nfsmw_data::car::physics::{PerformanceCategory, PerformancePackage, SurfaceTable};
 use nfsmw_data::sound::SoundUpgrades;
@@ -10,6 +10,7 @@ use nfsmw_data::sound::SoundUpgrades;
 #[derive(Debug, Default)]
 pub struct SoundFeed {
     ticks: Vec<CarSoundTick>,
+    camera_contacts: Vec<CarContact>,
     latest: CarInput,
     telemetry: crate::audio::CarAudioTelemetry,
     surface: u32,
@@ -42,12 +43,18 @@ impl SoundFeed {
         self.telemetry = sim.audio_telemetry(surfaces);
         let mut contacts = impact.sounds.clone();
         contacts.extend(sim.take_sound_contacts());
+        self.camera_contacts.clone_from(&contacts);
         self.ticks.push(CarSoundTick {
             telemetry: self.telemetry,
             input: self.latest,
             contacts,
             surface: self.surface,
         });
+    }
+
+    /// Latest completed physics tick, retained independently of the audio drain.
+    pub(super) fn camera_contacts(&self) -> &[CarContact] {
+        &self.camera_contacts
     }
 
     /// Reading the latest state never repeats contacts from an earlier physics tick.

@@ -31,6 +31,7 @@ fn attached_pole() -> Placed {
     });
     let dynamics = Arc::new(PropDynamics {
         sound_profile: 0,
+        camera_avoidable: false,
         mass: 200.0,
         tensor_scale: Vec3::ONE,
         body: Default::default(),

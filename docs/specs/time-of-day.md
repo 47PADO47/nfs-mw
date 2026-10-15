@@ -288,7 +288,7 @@ with the original game is not verified.
    (`crates/nfsmw/src/scenes/world/day.rs`) advances the clock and sets the phase with
    `nfsmw_data::day_night::sun_phase`: sunrise `06:00` to sunset `18:00` runs the phase from the low limit to the
    high limit, and the night holds the limit reached. Default start is noon (`12:00`) and one game hour is 150
-   real seconds (our choice, not an install value). The traffic cars and reflections still use the noon sun.
+   real seconds (our choice, not an install value). Traffic cars still use the noon sun. Reflection captures follow the active world sun and lighting.
 2. **Day-night clock and lights** (done, own config). `DayNightConfig` in `crates/nfsmw-data/src/day_night.rs`
    (serde, defaults above): `force_time` (`ForceTime`), `real_time` and `random_startup_time` (read, not applied),
    `sun_rise`, `sun_set`, `lights_on`, `lights_off`, `sun_azimuth` (the orbit's `+0x0C` angle `a`, our mapping).
@@ -308,3 +308,15 @@ sample, unit length, the bounces, and the 18-minute half cycle.
 - Unit tests on the formula, the integrator and the clock.
 - The live sample above, from CheatEngine on the running game (`p`, the sun vector, `a`, `b`).
 - Not yet verified: the sun's look against a screenshot of the game at a known phase, and the night.
+
+## Session controls
+
+F8 reads and writes the active world clock through the scene interface, including
+normal Play's pause wrapper. Manual hour/rate changes rebase elapsed time and
+clear a forced hour, keeping the requested current hour when the rate changes.
+Freeze time shares Freeze sun; resumed time does not catch up. Elapsed simulated
+seconds accumulate in double precision for stable high-frame-rate clock motion.
+Manual changes refresh player light state and invalidate reflection captures.
+Clear/Rain and rain amount forward through live settings and replacement scenes.
+These controls expose the existing custom host curves; they do not complete the
+unimplemented sky, world light or regional weather behavior described above.

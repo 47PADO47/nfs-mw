@@ -29,8 +29,10 @@ impl WorldScene {
             self.physics.database(),
             model.car_type.as_deref().unwrap_or(&name),
         );
-        self.camera_views = nfsmw_data::camera::load_car(self.physics.database(), &name)
+        self.camera_environment.views = nfsmw_data::camera::load_car(self.physics.database(), &name)
             .or_else(|| nfsmw_data::camera::load(self.physics.database()));
+        self.original_camera.reset();
+        self.original_player_step = None;
         let rig = CarRig::upload(renderer, keys::PLAYER_CAR, model, self.car_shading, sun::to_sun());
         let [x, y] = self.focus();
         match self.drive.as_mut() {
