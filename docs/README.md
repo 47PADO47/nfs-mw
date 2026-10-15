@@ -168,3 +168,5 @@ contract has a companion provenance record and an explicit validation boundary.
 | What the subtractive / overbright blend types look like in the game | the effects in `speed.exe` |
 
 Camera audit coverage and remaining scene-validation boundaries: [original gameplay camera coverage](specs/original-camera-coverage.md).
+
+Graphics profiles and missing original-rendering coverage: [coverage ledger](graphics-coverage.md), [settings contract](specs/graphics-profiles.md).
