@@ -374,6 +374,10 @@ fn the_pause_menu_resumes_opens_the_options_and_quits() {
     h.wait(1.5);
     assert_eq!(h.screens.top(), Some(screen::PAUSE_MENU), "no keeps the game paused");
     assert!(!h.said(&Command::QuitToMenu), "{:?}", h.commands);
+    // The pause menu still reacts after the question: Start resumes.
+    h.press(pad::START);
+    h.wait(1.5);
+    assert!(h.said(&Command::Resume), "the pause menu froze after No: {:?}", h.commands);
 
     // Yes quits to the main menu.
     let mut h = Harness::open(screen::PAUSE_MENU, pause).unwrap();
