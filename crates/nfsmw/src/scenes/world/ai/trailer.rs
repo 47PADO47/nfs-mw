@@ -17,6 +17,8 @@ use crate::scenes::world::keys;
 use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::road::Spawn;
 
+mod original_camera;
+
 /// Solver passes of the joint per physics step.
 const SOLVER_PASSES: usize = 32;
 /// Below this speed (m/s) a body counts as standing still.

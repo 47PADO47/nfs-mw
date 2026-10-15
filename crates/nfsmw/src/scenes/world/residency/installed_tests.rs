@@ -118,7 +118,7 @@ fn installed_simulation_camera_honours_every_selected_view_without_render_interp
     let (_, model) = super::super::load_car(&dir, "BMWM3GTR").unwrap();
     let mut renderer = NullBackend::new(Capabilities::baseline("null", GraphicsApi::Vulkan));
     scene.start_driving(&mut renderer, "BMWM3GTR".into(), model, None).unwrap();
-    assert!(scene.camera_views.is_some(), "fixture must have all installed camera views");
+    assert!(scene.camera_environment.views.is_some(), "fixture must have all installed camera views");
     let collision = flat_road();
     let drive = scene.drive.as_mut().unwrap();
     assert!(drive.spawn(Spawn { position: Vec3::ZERO, heading: 0.0 }, &collision, &scene.physics.surfaces));
@@ -147,20 +147,14 @@ fn installed_simulation_camera_honours_every_selected_view_without_render_interp
     let aspect = scene.physics_aspect;
     for mode in CameraMode::ALL {
         scene.camera_mode = mode;
+        scene.original_player_step = None;
+        scene.seed_original_camera();
+        scene.original_camera.reset();
+        scene.update_original_camera(super::super::drive::STEP, 0.0, Default::default(), false);
         let drive = scene.drive.as_ref().unwrap();
         let chase = drive.physics_camera();
         let expected = match original::index_of(mode) {
-            Some(index) => {
-                let forward = physical.rotation * Vec3::X;
-                original::OriginalView::new(
-                    &scene.camera_views.as_ref().unwrap().views[index],
-                    physical.position,
-                    forward.y.atan2(forward.x),
-                    drive.speed(),
-                    drive.half_extents().1,
-                )
-                .lens(aspect)
-            }
+            Some(_) => scene.original_camera.lens(drive.original_body(false).unwrap(), aspect, false).unwrap(),
             None if mode == CameraMode::DynamicFov => {
                 DynamicFov { chase: &chase, speed: drive.speed().abs(), kick }.lens(aspect)
             }
@@ -168,7 +162,10 @@ fn installed_simulation_camera_honours_every_selected_view_without_render_interp
         };
         for alpha in [0.0, 0.25, 0.5, 1.0] {
             scene.drive.as_mut().unwrap().set_alpha(alpha);
-            assert_eq!(scene.simulation_lens(aspect), expected, "{mode:?} at render alpha {alpha}");
+            let actual = scene.simulation_lens(aspect);
+            assert!((actual.position - expected.position).length() < 1e-4, "{mode:?} at render alpha {alpha}");
+            assert!(actual.view.abs_diff_eq(expected.view, 1e-4), "{mode:?} view at render alpha {alpha}");
+            assert!(actual.projection.matrix().abs_diff_eq(expected.projection.matrix(), 1e-4), "{mode:?} projection");
         }
         scene.drive.as_mut().unwrap().set_alpha(0.0);
         let before = scene.gameplay_lens(aspect);

@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn panel_stays_interactive_when_renderer_requests_mouse_capture_after_startup() {
-    let mut lab = GraphicsLab { open: true, interacting: true, ..Default::default() };
+    let mut lab = GraphicsLab { open: true, ..Default::default() };
     let mut capture = MouseCapture(false);
     let mut focus = UiFocus(false);
     lab.sync_focus(&mut capture, &mut focus);
@@ -14,43 +14,56 @@ fn panel_stays_interactive_when_renderer_requests_mouse_capture_after_startup() 
     assert!(capture.0 && !focus.0);
 }
 
-#[test]
-fn visible_overlay_preserves_driving_and_alt_only_captures_controls_while_held() {
+fn input_app() -> App {
     let mut app = App::new();
     app.insert_resource(GraphicsLab { open: false, ..Default::default() })
         .init_resource::<ButtonInput<KeyCode>>()
         .init_resource::<crate::devtools::Console>()
+        .init_resource::<crate::garage::Overlay>()
         .insert_resource(MouseCapture(true))
         .insert_resource(UiFocus(false))
         .add_systems(PreUpdate, toggle);
+    app
+}
+
+#[test]
+fn f8_takes_mouse_and_controls_without_alt_and_escape_restores_them() {
+    let mut app = input_app();
     app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(KeyCode::F8);
     app.update();
     assert!(app.world().resource::<GraphicsLab>().open);
-    assert!(!app.world().resource::<UiFocus>().0);
-    assert!(app.world().resource::<MouseCapture>().0);
-    assert!(throttle(&app) > 0.9);
-    app.world_mut().resource_mut::<ButtonInput<KeyCode>>().reset_all();
-    app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(KeyCode::AltLeft);
-    app.update();
     assert!(app.world().resource::<UiFocus>().0);
     assert!(!app.world().resource::<MouseCapture>().0);
     assert_eq!(throttle(&app), 0.0);
     app.world_mut().resource_mut::<ButtonInput<KeyCode>>().reset_all();
     app.update();
-    assert!(app.world().resource::<GraphicsLab>().open);
-    assert!(!app.world().resource::<UiFocus>().0);
-    assert!(app.world().resource::<MouseCapture>().0);
-    assert!(throttle(&app) > 0.9);
-    app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(KeyCode::Escape);
-    app.update();
-    assert!(app.world().resource::<GraphicsLab>().open, "passive Escape belongs to the game");
-    assert!(app.world().resource::<ButtonInput<KeyCode>>().just_pressed(KeyCode::Escape));
-    app.world_mut().resource_mut::<ButtonInput<KeyCode>>().reset_all();
-    app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(KeyCode::AltRight);
+    assert!(app.world().resource::<UiFocus>().0, "no modifier needs to remain held");
     app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(KeyCode::Escape);
     app.update();
     assert!(!app.world().resource::<GraphicsLab>().open);
+    assert!(!app.world().resource::<UiFocus>().0);
+    assert!(app.world().resource::<MouseCapture>().0);
+    assert!(throttle(&app) > 0.9);
     assert!(!app.world().resource::<ButtonInput<KeyCode>>().just_pressed(KeyCode::Escape));
+}
+
+#[test]
+fn switching_from_garage_to_f8_transfers_and_restores_the_original_capture() {
+    let mut app = input_app();
+    let mut capture = MouseCapture(true);
+    let mut focus = UiFocus(false);
+    app.world_mut().resource_mut::<crate::garage::Overlay>().set_open(true, &mut capture, &mut focus);
+    app.insert_resource(capture).insert_resource(focus);
+    app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(KeyCode::F8);
+    app.update();
+    assert!(!app.world().resource::<crate::garage::Overlay>().open);
+    assert!(app.world().resource::<GraphicsLab>().open);
+    assert!(app.world().resource::<UiFocus>().0);
+    app.world_mut().resource_mut::<ButtonInput<KeyCode>>().reset_all();
+    app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(KeyCode::F8);
+    app.update();
+    assert!(!app.world().resource::<UiFocus>().0);
+    assert!(app.world().resource::<MouseCapture>().0);
 }
 
 fn throttle(app: &App) -> f32 {
@@ -126,7 +139,7 @@ fn real_panel_buttons_switch_presets_swap_and_restore_without_touching_gameplay(
     let ctx = egui::Context::default();
     let mut lab = GraphicsLab {
         open: true,
-        interacting: true,
+
         options: Default::default(),
         stats: ExperimentStats { supported: true, ..Default::default() },
         ..Default::default()
@@ -155,14 +168,14 @@ fn real_panel_buttons_switch_presets_swap_and_restore_without_touching_gameplay(
     assert!(lab.options.clearcoat);
     assert_eq!(settings.post_aa, PostAa::Off);
     settings.hud = !startup.hud;
-    click(&ctx, &mut lab, &mut settings, "Restore startup");
+    click(&ctx, &mut lab, &mut settings, "Restore startup · 0");
     assert_eq!(lab.options, RenderExperiments::default());
     assert_eq!(settings.post_aa, startup.post_aa);
     assert_eq!(settings.hud, !startup.hud);
 }
 
 #[test]
-fn passive_panel_does_not_accept_option_clicks() {
+fn panel_accepts_option_clicks_without_alt() {
     let ctx = egui::Context::default();
     let mut lab = GraphicsLab {
         open: true,
@@ -172,5 +185,81 @@ fn passive_panel_does_not_accept_option_clicks() {
     };
     let mut settings = Settings::from(crate::settings::Partial::default());
     click(&ctx, &mut lab, &mut settings, "Sun");
-    assert!(!lab.options.sun_shadows);
+    assert!(lab.options.sun_shadows);
+}
+
+#[test]
+fn quality_shortcuts_only_apply_in_f8_and_restore_graphics_without_changing_driving() {
+    use crate::settings::{CarShading, GraphicsPreset, Partial, Transmission};
+    let mut app = input_app();
+    let startup = Settings::from(Partial::default());
+    app.insert_resource(startup).add_systems(PreUpdate, presets::hotkeys.after(toggle));
+    app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(KeyCode::Digit1);
+    app.update();
+    assert_eq!(app.world().resource::<Settings>().car_shading, startup.car_shading);
+    app.world_mut().resource_mut::<ButtonInput<KeyCode>>().reset_all();
+    app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(KeyCode::F8);
+    app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(KeyCode::Digit1);
+    app.update();
+    assert_eq!(app.world().resource::<Settings>().graphics_preset, GraphicsPreset::Custom);
+    assert_eq!(app.world().resource::<Settings>().car_shading, CarShading::Glossy);
+    assert_eq!(app.world().resource::<GraphicsLab>().options.shadow_resolution, 1024);
+    app.world_mut().resource_mut::<Settings>().transmission = Transmission::Manual;
+    app.world_mut().resource_mut::<ButtonInput<KeyCode>>().reset_all();
+    app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(KeyCode::Digit0);
+    app.update();
+    let result = app.world().resource::<Settings>();
+    assert_eq!(result.car_shading, startup.car_shading);
+    assert_eq!(result.render_scale, startup.render_scale);
+    assert_eq!(result.transmission, Transmission::Manual);
+}
+
+#[test]
+fn high_and_low_buttons_switch_lighting_and_image_settings_together() {
+    let ctx = egui::Context::default();
+    let mut lab = GraphicsLab {
+        open: true,
+        stats: ExperimentStats { supported: true, ..Default::default() },
+        ..Default::default()
+    };
+    let mut settings = Settings::from(crate::settings::Partial::default());
+    click(&ctx, &mut lab, &mut settings, "High · 3");
+    assert_eq!(lab.options.shadow_resolution, 4096);
+    assert!(lab.options.contact_shadows && lab.options.clearcoat && lab.options.soft_shadows);
+    assert_eq!(settings.ao, AoQuality::High);
+    assert_eq!(settings.post_tonemap, PostTonemap::Aces);
+    assert_eq!(settings.post_bloom, PostBloom::Off);
+    click(&ctx, &mut lab, &mut settings, "Low · 1");
+    assert_eq!(lab.options.shadow_resolution, 1024);
+    assert!(!lab.options.contact_shadows && !lab.options.clearcoat && !lab.options.soft_shadows);
+    assert_eq!(settings.ao, AoQuality::Off);
+    assert_eq!(settings.post_tonemap, PostTonemap::Aces);
+}
+
+#[test]
+fn environment_buttons_select_time_rain_and_freeze_without_resetting_gameplay() {
+    let ctx = egui::Context::default();
+    let mut lab = GraphicsLab {
+        open: true,
+        environment: Some(crate::viewer::Environment { hour: 12.0, seconds_per_hour: 150.0 }),
+        ..Default::default()
+    };
+    let mut settings = Settings::from(crate::settings::Partial::default());
+    settings.rain_amount.0 = 0;
+    let camera = settings.camera_mode;
+    click(&ctx, &mut lab, &mut settings, "Dusk");
+    assert_eq!(lab.environment_change.unwrap().hour, 18.0);
+    click(&ctx, &mut lab, &mut settings, "Freeze time");
+    assert!(lab.options.freeze_sun);
+    click(&ctx, &mut lab, &mut settings, "Rain");
+    assert!(settings.always_rain);
+    assert_eq!(settings.rain_amount.0, 100);
+    click(&ctx, &mut lab, &mut settings, "Clear");
+    assert!(!settings.always_rain);
+    assert_eq!(settings.camera_mode, camera);
+    assert_eq!(lab.environment.unwrap().hour, 18.0);
+    click(&ctx, &mut lab, &mut settings, "High · 3");
+    assert!(lab.options.freeze_sun, "quality must preserve a frozen environment");
+    assert!(!settings.always_rain);
+    assert_eq!(lab.environment.unwrap().hour, 18.0);
 }

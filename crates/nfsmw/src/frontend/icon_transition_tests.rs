@@ -5,7 +5,7 @@ use blackbox_feng::{NodeKind, fe_hash_upper};
 use glam::Vec2;
 
 use super::*;
-use crate::frontend::icon_items::{Id, icons};
+use crate::frontend::icon_items::{Icon, Id, draw_scale, icons};
 use crate::frontend::icon_menu::Kind;
 use crate::frontend::ids;
 
@@ -33,10 +33,29 @@ fn reach(kind: Kind, id: Id) -> (usize, usize) {
     (list.len(), list.iter().position(|i| i.id == id).expect("the icon is in the menu"))
 }
 
-fn assert_exit(h: &mut Harness, count: usize, button: u32) {
+fn assert_exit(h: &mut Harness, count: usize, icon: Icon, button: u32) {
     h.wait(0.5);
     let full = row(h, count);
-    assert!(full.iter().any(|p| p.size.x > 60.0));
+    // Discord deliberately occupies65% of a slot. Verify the selected artwork's
+    // authored full size instead of assuming every selection grows past60px.
+    let tree = h.screens.trees().pop().unwrap();
+    let master = tree.nodes.iter().find(|n| n.name_hash == ids::OPTION_MASTER).unwrap();
+    let selected = tree
+        .nodes
+        .iter()
+        .find(|n| {
+            n.visible
+                && matches!(n.kind, NodeKind::Image { texture, .. } if texture == icon.texture)
+                && (n.local_position.truncate() - master.local_position.truncate()).length() < 0.001
+        })
+        .expect("the selected icon is drawn at the cursor");
+    let expected = master.size.abs().truncate() * draw_scale(&icon);
+    assert!(
+        (selected.size.abs().truncate() - expected).length() < 0.001,
+        "selected artwork must finish entering: {:?} {:?}, expected{expected:?}",
+        icon.id,
+        selected.size
+    );
     let mut previous = full.clone();
     let mut shrunk = false;
     // Observe the native leave script before EXIT_COMPLETE can unload the screen.
@@ -75,12 +94,14 @@ fn all_icon_menus_shrink_on_native_accept_back_and_start() {
     for (name, args, kind, id, button) in [
         (screen::MAIN_MENU, Args::default(), main, Id::QuickRace, pad::ACCEPT),
         (screen::MAIN_MENU_SUB, sub, cats, Id::Category(Category::Gameplay), pad::ACCEPT),
+        (screen::MAIN_MENU_SUB, sub, cats, Id::Category(Category::Player), pad::ACCEPT),
         (screen::MAIN_MENU_SUB, sub, cats, Id::Category(Category::Audio), pad::BACK),
         (screen::MAIN_MENU_SUB, sub, cats, Id::Category(Category::Discord), pad::ACCEPT),
         (screen::PAUSE_MENU, pause, Kind::Pause, Id::Options, pad::ACCEPT),
         (screen::PAUSE_MENU, pause, Kind::Pause, Id::Resume, pad::BACK),
         (screen::PAUSE_MENU, pause, Kind::Pause, Id::Resume, pad::START),
         (screen::PAUSE_MENU, pause_sub, pause_cats, Id::Controls, pad::ACCEPT),
+        (screen::PAUSE_MENU, pause_sub, pause_cats, Id::Category(Category::Player), pad::ACCEPT),
         (screen::PAUSE_MENU, pause_sub, pause_cats, Id::Category(Category::Audio), pad::BACK),
         (screen::PAUSE_MENU, pause_sub, pause_cats, Id::Category(Category::Audio), pad::START),
     ] {
@@ -90,7 +111,8 @@ fn all_icon_menus_shrink_on_native_accept_back_and_start() {
         for _ in 0..steps {
             h.press(pad::RIGHT);
         }
-        assert_exit(&mut h, count, button);
+        let icon = icons(kind).into_iter().find(|icon| icon.id == id).unwrap();
+        assert_exit(&mut h, count, icon, button);
     }
 }
 

@@ -29,6 +29,7 @@ pub(super) fn placement(id: u32, at: Vec3, mass: f32, no_car_effect: bool, detac
     };
     let dynamics = PropDynamics {
         sound_profile: 0,
+        camera_avoidable: false,
         mass,
         tensor_scale: Vec3::splat(3.0),
         body: RigidBodySpec::default(),

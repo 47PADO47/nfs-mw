@@ -17,6 +17,8 @@ pub struct PropDynamics {
     pub base_surface: u32,
     pub detach_impulse: f32,
     pub no_car_effect: bool,
+    /// Eligible for the native camera's object-avoidance query.
+    pub camera_avoidable: bool,
     pub immobile: bool,
     pub respawn_time: f32,
     pub kill_off_screen: f32,
@@ -53,6 +55,7 @@ impl PropDynamics {
             base_surface: body.0.get_string_key("BASE_MATERIAL").map_or(0, |k| k.hash32),
             detach_impulse: fields.f32("DETACH_FORCE"),
             no_car_effect: fields.bool("NO_CAR_EFFECT"),
+            camera_avoidable: fields.bool("CAMERA_AVOIDABLE"),
             immobile: body.bool("IMMOBILE_OBJECT_COLLISIONS"),
             respawn_time: fields.f32("RESPAWN_TIME"),
             kill_off_screen: fields.f32("KILL_OFF_SCREEN"),

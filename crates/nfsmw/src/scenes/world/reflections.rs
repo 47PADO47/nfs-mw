@@ -2,7 +2,7 @@
 use blackbox_gfx::{Fog, FrameParams, ReflectionQuality, ReflectionScene, RenderBackend, reflection::face_frame};
 use glam::Vec3;
 
-use super::{CLEAR, WorldScene, sun, visibility};
+use super::{WorldScene, visibility};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct CaptureStamp {
@@ -48,17 +48,17 @@ impl WorldScene {
             view: glam::Mat4::IDENTITY,
             projection: blackbox_gfx::Projection::Identity,
             camera_position: origin,
-            light_dir: sun::DIRECTION,
-            clear_color: CLEAR,
+            light_dir: self.sun.direction(),
+            clear_color: self.fog_colour(),
             fog: Some(Fog { start: self.fog_distance * 0.5, end: self.fog_distance }),
-            scattering: None,
-            surface_light: None,
+            scattering: self.scattering(),
+            surface_light: self.surface_light(),
             camera_cut: true,
         };
         for face in 0..6 {
             let frame = face_frame(origin, face, &template);
             let camera = visibility::Camera {
-                light_dir: super::sun::DIRECTION.to_array(),
+                light_dir: self.sun.direction().to_array(),
                 view_proj: frame.view_proj(),
                 position: origin.to_array(),
                 forward: frame.view.inverse().transform_vector3(Vec3::NEG_Z).to_array(),

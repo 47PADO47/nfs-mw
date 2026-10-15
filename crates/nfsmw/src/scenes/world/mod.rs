@@ -3,6 +3,8 @@
 mod ai;
 mod breaker_visuals;
 mod camera_choice;
+mod camera_cycle;
+mod camera_original;
 mod car_light_flares;
 mod car_lights;
 mod car_loader;
@@ -127,7 +129,10 @@ pub struct WorldScene {
     colour_treatment: Option<blackbox_gfx::ColourTreatment>,
     time_of_day: Option<nfsmw_data::time_of_day::Presets>,
     /// The seven original gameplay views, from the install's `camerainfo` data.
-    camera_views: Option<nfsmw_data::camera::Views>,
+    camera_environment: camera_original::Environment,
+    original_camera: crate::viewer::camera::original::Timeline,
+    camera_ground: blackbox_collision::ground_reference::GroundReferenceCache,
+    original_player_step: Option<u32>,
     gain_map: Option<blackbox_gfx::RgbaImage>,
     breaker_visuals: breaker_visuals::Presentation,
     reflection_faces: [Vec<Instance>; 6],
@@ -308,6 +313,8 @@ impl Scene for WorldScene {
     }
 
     fn refresh_effects(&mut self, renderer: &mut dyn RenderBackend) {
+        self.update_shadow_casters(renderer);
+        self.update_reflections(renderer);
         self.upload_effects(renderer);
     }
 
@@ -342,7 +349,19 @@ impl Scene for WorldScene {
     }
 
     fn set_camera_mode(&mut self, mode: CameraMode) {
-        self.camera_mode = mode;
+        self.change_camera_mode(mode);
+    }
+
+    fn environment(&self) -> Option<crate::viewer::Environment> {
+        Some(self.day.environment())
+    }
+
+    fn set_environment(&mut self, value: crate::viewer::Environment) {
+        self.configure_day(value);
+    }
+
+    fn next_camera_mode(&self, current: CameraMode) -> CameraMode {
+        camera_cycle::next_mode(current, self.camera_environment.views.as_ref())
     }
 
     fn takes_camera_setting(&self) -> bool {
@@ -428,7 +447,7 @@ impl Scene for WorldScene {
     }
 
     fn hud_state(&self) -> Option<crate::hud::HudState> {
-        let looking_back = self.drive.as_ref().is_some_and(|d| d.looking_back());
+        let looking_back = self.drive.as_ref().is_some_and(|d| d.camera_looking_back(self.camera_mode));
         if looking_back && !self.tuning.show_hud_on_look_back {
             return None;
         }

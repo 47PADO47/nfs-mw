@@ -17,10 +17,16 @@ Reader for the **collision data** of EA Black Box games (Need for Speed: Most Wa
   Rejected hits cannot hide another hit in the same article or a different instance. The predicate sees
   world-space hit data, including its section and instance; ordinary `ray_cast` remains unfiltered.
 - `carp`: the generic `UGroup` tree the packs and the grid are made of.
+- `world.camera_ray_cast(from, to, group_enabled)` preserves the original
+  camera's barrier-only segment contract, raw determinant endpoint tolerance,
+  stored-radius broad phase and authored world-horizontal normal scale.
+  Its spec is `docs/specs/camera-barrier-query.md`; vehicle rays are unchanged.
 - `ground_reference::GroundReferenceCache`: persistent ordered face selection
   with a predictive candidate region and retained terrain plane. Query settings
   and scenery-group state come from the caller; streaming revisions rebuild
   candidates. Behavior is specified in `docs/specs/vehicle-ground-reference.md`.
+  Its `point_height` query samples a fresh face at a separate point over that
+  retained region, with caller-supplied tolerance and no arbitrary ray depth.
 
 Takes bytes, never opens files. Coordinates are the game's physics space (x right, y up, z forward).
 

@@ -1,6 +1,8 @@
 use super::*;
 use crate::{Article, CollisionPack, Instance, PackedVert, Strip};
 
+mod point_height;
+
 fn settings() -> GroundReferenceSettings {
     GroundReferenceSettings {
         region: RegionSettings {

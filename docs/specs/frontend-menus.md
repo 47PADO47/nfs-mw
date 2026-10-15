@@ -139,17 +139,19 @@ Selecting Options sets the game mode to options and switches to `MainMenu_Sub.fn
 Found in the dump of `MainMenu_Sub.fng` (`nfsmw dump-screen`): twelve option buttons `OPTION_1`..`OPTION_12`
 (name hashes `0x4B4E3888`..`0x4B4E3890`, `0xB51549B8`..`0xB51549BA`). The rewrite now lists the original's
 categories in order: Audio, Video, Gameplay, Player (label `0xF760EABE` "Player"), Controls (`0x04DC6DB5`), and,
-outside the pause menu, EA Trax (`0xDCFB6B36`) and Credits (`0x0905101F`). Player, EA Trax and Credits are greyed out:
-the rewrite has no screen for them. The labels are what the game displays (`nfsmw strings`) **[verified]**.
+outside the pause menu, EA Trax (`0xDCFB6B36`) and Credits (`0x0905101F`). Player is enabled and opens its
+implemented Transmission, Camera and Gauges controls; see [Player options](player-options.md). EA Trax and
+Credits remain greyed out. The labels are what the game displays (`nfsmw strings`) **[verified]**.
 
 **Controls split (ours).** The Controls icon opens the keyboard list (`Options_PC_Controller.fng`, `controls_screen.rs`)
 directly, with the original's controller picture. Control Options (a title we chose; the original has no such entry)
 sits beside it and opens the sensitivity and camera rows (`Options.fng`, category Controls): Deadzone Mode to Invert
 Camera Y, then Save Alias and Load Alias. That list has no Keyboard Bindings row (`InputSetting::ALL`). Both icons leave
 with the usual animation. Back on the key list returns to the categories (`Command::Switch`), which restore the icon
-they remember, so the key list sits on no screen beneath it. The pause menu has six icons: Audio, Video, Gameplay,
-Controls, Control Options and Discord. **Player is left out of the pause menu ([ours]).** The original adds it there
-too (`[decomp]` below); the user asked for it to be gone from pause, and the main menu's Options keeps it greyed out.
+they remember, so the key list sits on no screen beneath it. The pause menu has seven icons: Audio, Video,
+Gameplay, Player, Controls, Control Options and Discord. Player is available in both routes, matching the
+original category order and the user's request to put the camera setting on its Player screen. This replaces
+the earlier host choice to omit Player from pause while that screen had no implemented controls.
 
 **Online is not listed (decomp, ours).** The original adds Online only in online mode, which this build never is, so
 the offline list is Audio to Credits, without Online, plus Control Options and Discord (below). The greyed-out Online
@@ -242,7 +244,8 @@ data string that cycles through values) or a *slider*.
   highlight script and, through the row messages, shows the arrows and moves the cursor group (`POSn`). The data
   string and the slider objects get `HIGHLIGHT` / `UNHIGHLIGHT` from the screen.
 - **Header.** `HEADERTEXT` (`0x42ADB44C`) gets the category title label (Audio `0x3932C2E4`, Video `0x48478029`,
-  Gameplay `0x01CCE8C2`; from the pause menu `0xB1426DFA`, `0xD94EA03F`, `0x3936D9F8`). Controls and Discord have no
+  Gameplay `0x01CCE8C2`, Player `0xC055165F`; from the pause menu `0xB1426DFA`, `0xD94EA03F`, `0x3936D9F8`,
+  Player `0xD9DC2F12`). Controls and Discord have no
   label: their header is text (`Control Options`, `Discord`).
 
 The original audio rows are: Sound Effects Volume (`0xFD487543`), Car Volume (`0x218E4B08`), Speech Volume
@@ -250,7 +253,7 @@ The original audio rows are: Sound Effects Volume (`0xFD487543`), Car Volume (`0
 (`0xA3DBB390`), EA Trax mode (`0xDCFB6B36`) and, in the front end, Audio Mode (`0x2881AB87`); video has
 Widescreen (`0xD3588630`); gameplay has Autosave, Game Moment Camera (`0xF26A5CBF`), Car Damage (`0x1582ADFF`),
 Rearview Mirror (`0x85A6CE05`), Units (`0x01E19173`; Imperial `0xFBD74FC5`, Metric `0xAF70E736`) and the map
-settings; the player screen has Gauges (`0xAC148579`) and more.
+settings; the Player screen starts with Transmission, Camera (`0xF6CCDC5F`) and Gauges (`0xAC148579`).
 
 ### 3.1 What this rewrite shows [ours]
 
@@ -267,8 +270,9 @@ screens, labels and behaviour where a label exists:
 | Video | Vsync | `0x6CEB9CB6` | `vsync` (On / Off) |
 | Video | Frame Limit | none in the language table, plain text | `max_fps` (Unlocked, 30, 60, 120, 144, 240) |
 | Video | Performance Overlay | none, plain text | `show_metrics` (Off, Basic, Advanced) |
-| Gameplay | Gauges | `0xAC148579` | `hud` (On / Off) |
-| Gameplay | Transmission | `0xD31407E7` | `transmission` (Auto `0x8CD532A0` / Manual `0x317D3005`; left and right both toggle) |
+| Player | Transmission | `0xD31407E7` | `transmission` (Auto `0x8CD532A0` / Manual `0x317D3005`; left and right both toggle) |
+| Player | Camera | `0xF6CCDC5F` | `camera_mode` (existing original and custom camera selections) |
+| Player | Gauges | `0xAC148579` | `hud` (On / Off) |
 | Discord | Discord Rich Presence | none, plain text | `discord` (On / Off; ours) |
 | Discord | Show Time Played | none, plain text | `discord_time_played` (On / Off, dimmed while `discord` is off; ours) |
 

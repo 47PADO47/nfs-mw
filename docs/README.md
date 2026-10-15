@@ -121,6 +121,12 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | [formats/shaders.md](formats/shaders.md) | The 31 D3DX effects embedded in `speed.exe` | Located; not decompiled |
 | [formats/saves.md](formats/saves.md) | Save files: header, MD5, payload order | Partial |
 
+## Original gameplay cameras
+
+[Camera views](specs/camera-views.md) indexes native profile resolution, rolling
+follow, projection, noise, clearance and stable high-FPS host timing. Each
+contract has a companion provenance record and an explicit validation boundary.
+
 ## Project tools
 
 - **Rust:** `nfsmw check-install | list-cars | view-car | view-world` (see the [root README](../README.md)).
@@ -160,3 +166,5 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | How the `CarShader` paint, reflections and lighting work | the `fx_2_0` effects in `speed.exe` ([formats/shaders.md](formats/shaders.md)) |
 | Water animation and reflections (`ANM_WATERA_` frames, `SKY_POND_REFLECTION`) | `TextureAnimPack` `0xB0300100`, the effects in `speed.exe` |
 | What the subtractive / overbright blend types look like in the game | the effects in `speed.exe` |
+
+Camera audit coverage and remaining scene-validation boundaries: [original gameplay camera coverage](specs/original-camera-coverage.md).

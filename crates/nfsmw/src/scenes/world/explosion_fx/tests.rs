@@ -9,7 +9,7 @@ fn a_blast_spawns_while_it_runs_and_is_spent_after_its_particles_die() {
     let templates = [(0, spec())];
     let mut blast = Blast::new(&templates, Vec3::ZERO, 1);
     blast.step(0.1);
-    assert!(blast.emitters[0].len() > 0, "a running blast spawns particles");
+    assert!(!blast.emitters[0].is_empty(), "a running blast spawns particles");
     assert!(blast.alive());
     while blast.age < BLAST_SECONDS {
         blast.step(0.1);

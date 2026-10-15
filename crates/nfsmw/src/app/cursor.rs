@@ -49,6 +49,7 @@ pub fn update(
     mut focus: ResMut<UiFocus>,
     mut console: ResMut<Console>,
     mut garage: ResMut<crate::garage::Overlay>,
+    mut lab: Option<ResMut<crate::devtools::GraphicsLab>>,
     window: Single<(&Window, &mut CursorOptions), With<PrimaryWindow>>,
     mut was_focused: Local<bool>,
     mut exit: MessageWriter<AppExit>,
@@ -69,6 +70,9 @@ pub fn update(
         actions.consume(Action::Garage);
     }
     if actions.just_pressed(Action::Garage) && !console.open {
+        if let Some(lab) = lab.as_mut() {
+            lab.close(&mut capture, &mut focus);
+        }
         toggle_garage(&mut host, &mut garage, &mut capture, &mut focus);
     }
     if garage.had_input {

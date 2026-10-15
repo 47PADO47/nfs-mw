@@ -1,5 +1,7 @@
 //! Main-view selection and per-frame lighting inputs.
-use super::{WorldScene, visibility};
+use super::{View, WorldScene, visibility};
+use crate::settings::CameraMode;
+use crate::viewer::camera::original;
 use blackbox_gfx::{Fog, FrameParams, Instance};
 
 impl WorldScene {
@@ -30,7 +32,9 @@ impl WorldScene {
             traffic.lamp_instances(lamps, lens.position, &mut self.visible);
         }
         if let Some(drive) = &self.drive {
-            drive.instances(&mut self.visible);
+            if render_player(self.view, self.camera_mode, drive.camera_looking_back(self.camera_mode)) {
+                drive.instances(&mut self.visible);
+            }
             if let (true, Some(meshes)) = (self.markers_on, &self.marker_meshes) {
                 drive.marker_instances(meshes, &mut self.visible);
             }
@@ -49,5 +53,43 @@ impl WorldScene {
             camera_cut,
         };
         (params, &self.visible)
+    }
+}
+
+fn render_player(view: View, mode: CameraMode, look_back: bool) -> bool {
+    view != View::Chase || original::renders_car(mode, look_back)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn native_body_gates_apply_only_to_the_driving_main_view() {
+        assert!(!render_player(View::Chase, CameraMode::Bumper, false));
+        assert!(!render_player(View::Chase, CameraMode::Bumper, true));
+        assert!(render_player(View::Chase, CameraMode::Hood, false));
+        assert!(!render_player(View::Chase, CameraMode::Hood, true));
+        for mode in CameraMode::ALL {
+            for look_back in [false, true] {
+                assert!(render_player(View::Fly, mode, look_back));
+            }
+        }
+    }
+
+    #[test]
+    fn outside_and_custom_cameras_keep_the_player_visible() {
+        for mode in [
+            CameraMode::Chase,
+            CameraMode::DynamicFov,
+            CameraMode::Close,
+            CameraMode::Far,
+            CameraMode::SuperFar,
+            CameraMode::Drift,
+            CameraMode::Pursuit,
+        ] {
+            assert!(render_player(View::Chase, mode, false));
+            assert!(render_player(View::Chase, mode, true));
+        }
     }
 }

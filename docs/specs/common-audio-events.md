@@ -17,9 +17,9 @@ stitches. This class belongs to global common speedbreaker/pursuit events.
 
 | Semantic event | Message input | FX_UVES ID | Main object4 volume slot |
 |---|---|---|---|
-| Speedbreaker activation | 1 | 0 | 2 |
-| Pursuit-breaker start | 3 | 2 | 3 |
-| Pursuit-breaker end | 4 | 1 | 4 |
+| Visual UVES pulse | 1 | 0 | 2 |
+| Player Speedbreaker begin | 3 | 2 | 3 |
+| Player Speedbreaker end | 4 | 1 | 4 |
 
 The global bank is `IG_GLOBAL/FX_Misc_MB.abk`. Class words are ID, volume,
 width, pitch offset, intensity and stop. Constructor values are the selected
@@ -42,6 +42,11 @@ or mixer is reported as unavailable; no unrelated raw sample is substituted.
 
 Validation requires nonzero installed class starts and PCM for all three IDs,
 finite output, graph release and stable timing/levels across render rates.
+Exercise the normal play scene wrapper before calling `Audio::update_common`:
+the scene's begin/end queue must survive that wrapper, be consumed once and
+reach the authored controller. Testing `CommonPlayback::trigger` directly
+does not check this delivery boundary. Paused or concealed scenes drain their
+pending events without playing them, preventing stale sounds after resuming.
 This verifies implemented selection/lifecycle, not original global audio
 time dilation or callback/DSP equivalence. Camera shot/radar effects and
 world ambient/static callers remain separate families.

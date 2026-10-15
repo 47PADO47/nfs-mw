@@ -1,12 +1,38 @@
 # Graphics lab prototypes
 
-Press **F8** to show or hide the separate graphics lab overlay. Driving controls
-stay active while the panel is visible. **Hold Alt** to free the mouse and adjust
-options; releasing Alt restores the prior mouse capture and driving controls.
-**Alt+Esc** closes the panel while adjusting. Ordinary Esc continues to work in
-the game while the panel is passive. The
-regular settings menu gains no rows. Changes last for this session and do not
-write the configuration file.
+Press **F8** to open the resizable graphics lab. It frees the mouse and takes
+input like the F6 garage; no modifier needs to remain held. **F8**, **Esc** or
+the close button returns to driving and restores the prior mouse capture.
+Opening F6 or the console transfers input ownership to that panel.
+Changes apply immediately for this session and do not write the config file.
+
+Quick quality buttons offer **Low (1)**, **Balanced (2)** and **High (3)** covering
+both lighting experiments and image settings. **Restore startup (0)** restores
+the original graphics and experiment selections. Number shortcuts work only
+while the panel is open and no text field owns the keyboard. **Store A** and
+**Swap A/B** compare graphics snapshots without changing gameplay settings.
+The lighting experiments and image settings have separate scroll panes in a
+wide window; a narrow window uses a single scroll area.
+
+The High profile follows the supplied tuning reference. All three profiles use
+100% render scale, ACES, FXAA, low Visual Treatment and no bloom. Camera, audio,
+driving options and frame limits remain unchanged. Profiles replace their owned
+settings, including debug/split modes, so selecting Low after High removes the
+extra shadow and AO costs. Particle settings remain the user's choice.
+
+| Profile | Shadow map / range | PCSS / contact detail / clearcoat | Reflections | AO |
+| --- | --- | --- | --- | --- |
+| Low | 1024 / 120 m | Off / Off / Off | Low | Off |
+| Balanced | 2048 / 200 m | On / On (0.30 m) / On | Medium | Medium |
+| High | 4096 / 320 m | On / On (0.425 m) / On | High | High |
+
+All use filter width 0.70, sun radius 0.51 degrees, car skylight 0.32 and ground
+bounce 0.55. Distant shadow coverage, world ambient and original shadow overlays
+are off. These are session enhancement profiles. Their names describe cost
+and feature choices, not measured FPS targets or original-game visual parity.
+`NFSMW_LAB_QUALITY=low|balanced|high` applies the same profile once at startup;
+`NFSMW_LAB_OVERLAY=0` keeps the panel closed. Normal launches have no profile
+request and preserve saved preferences.
 
 The native Vulkan and DX12 renderer offers these independent prototypes:
 
@@ -173,3 +199,18 @@ selects a preset at startup, and `NFSMW_LAB_OVERLAY=0` hides the panel. These
 developer switches do not extend the saved settings schema.
 `NFSMW_LAB_FROZEN_SUN=1`, `NFSMW_LAB_DEBUG=sun|ao|cascades` and
 `NFSMW_LAB_WORLD_AMBIENT=0` provide deterministic diagnostic startup overrides.
+
+## Time and weather
+
+F8 exposes the active world's hour, Dawn/Morning/Noon/Dusk/Night shortcuts,
+clock rate and Freeze time (the same clock as Freeze sun). Changes apply live,
+including through the pause menu, without advancing physics. Manual time
+changes refresh headlights, lighting and car reflection captures. Time and rate
+are session-local. Clear/Rain and rain amount use the existing rain settings;
+rain eases during simulated time and remains paused with the game. Quality
+profiles do not change the chosen hour, rate or weather.
+
+The clock is a custom host feature, not original-game day/night parity. Night
+currently holds dusk lighting; the sky and street lights are not time driven.
+Rain uses the existing drop pool; regional storm selection and cloud animation
+are not implemented. No new weather assets or speed-line effects are added.

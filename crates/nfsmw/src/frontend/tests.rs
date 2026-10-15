@@ -23,6 +23,9 @@ mod click_tests;
 #[path = "icon_transition_tests.rs"]
 mod icon_transition_tests;
 
+#[path = "player_options_tests.rs"]
+mod player_options_tests;
+
 #[test]
 fn authored_right_arrow_mirrors_and_cursor_brackets_pulse() {
     use glam::Vec3;
@@ -46,7 +49,14 @@ fn every_option_category_has_current_prompts_and_no_legacy_duplicates() {
     use crate::ui::input_icons::{ATLAS, Glyph};
     use blackbox_feng::NodeKind;
     for (name, pause) in [(screen::OPTIONS, false), (screen::PAUSE_OPTIONS, true)] {
-        for category in [Category::Audio, Category::Video, Category::Gameplay, Category::Controls, Category::Discord] {
+        for category in [
+            Category::Audio,
+            Category::Video,
+            Category::Gameplay,
+            Category::Player,
+            Category::Controls,
+            Category::Discord,
+        ] {
             let Some(mut h) = Harness::open(name, Args { pause, category, ..Args::default() }) else { return };
             h.wait(1.0);
             let mut bindings = Bindings::default();
@@ -117,9 +127,8 @@ fn controls_icon_opens_the_key_list_and_control_options_the_sensitivity_rows() {
                 tree.nodes.iter().any(|n| n.name_hash == super::ids::ICON_TITLE && n.text.as_deref() == Some(text))
             })
         };
-        // Audio, Video, Gameplay, then Controls: the key list replaces the categories. The main menu's list also has
-        // Player (greyed out) before Controls; the pause menu has no Player entry (docs/specs/frontend-menus.md, 2.2).
-        let to_controls = if pause { 3 } else { 4 };
+        // Audio, Video, Gameplay, Player, then Controls in both category strips.
+        let to_controls = 4;
         for _ in 0..to_controls {
             h.press(pad::RIGHT);
         }
@@ -309,19 +318,20 @@ fn the_video_rows_change_vsync_and_the_hud_row_the_hud() {
     }
     h.press(pad::RIGHT);
     assert!(h.changed.window_mode.is_some(), "the selection wrapped to the first row: window mode changes");
-    let args = Args { category: Category::Gameplay, ..Args::default() };
+    let args = Args { category: Category::Player, ..Args::default() };
     let mut h = Harness::open(screen::OPTIONS, args).unwrap();
     h.wait(1.0);
+    // Player starts with Transmission, then Camera and Gauges.
+    assert_eq!(h.settings.transmission, crate::settings::Transmission::Automatic);
+    h.press(pad::RIGHT);
+    assert_eq!(h.settings.transmission, crate::settings::Transmission::Manual);
+    assert_eq!(h.changed.transmission, Some(crate::settings::Transmission::Manual));
+    h.press(pad::DOWN);
+    h.press(pad::DOWN);
     assert!(h.settings.hud);
     h.press(pad::LEFT);
     assert!(!h.settings.hud);
     assert_eq!(h.changed.hud, Some(false));
-    // The second gameplay row is the transmission: automatic until toggled.
-    assert_eq!(h.settings.transmission, crate::settings::Transmission::Automatic);
-    h.press(pad::DOWN);
-    h.press(pad::RIGHT);
-    assert_eq!(h.settings.transmission, crate::settings::Transmission::Manual);
-    assert_eq!(h.changed.transmission, Some(crate::settings::Transmission::Manual));
 }
 
 #[test]

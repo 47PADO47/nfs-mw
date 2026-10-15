@@ -18,6 +18,7 @@ pub enum Category {
     Audio,
     Video,
     Gameplay,
+    Player,
     Controls,
     /// Discord Rich Presence: its own icon and sub-screen (the toggles are `options_rows.rs`'s rows).
     Discord,

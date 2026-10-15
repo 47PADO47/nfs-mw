@@ -42,7 +42,8 @@ pub struct Hit {
     pub t: f32,
     /// World-space hit point.
     pub point: Vec3,
-    /// World-space unit normal, on the side of the segment's start.
+    /// World-space normal, on the side of the segment's start. Ordinary casts normalize it;
+    /// `camera_ray_cast` preserves the original barrier's authored inverse-length scaling.
     pub normal: Vec3,
     pub kind: HitKind,
     /// The segment started on the side the surface's own normal points to. For a barrier that is its front:

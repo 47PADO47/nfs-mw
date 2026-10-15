@@ -123,7 +123,7 @@ pub fn update_scene(
     let Some(renderer) = host.renderer.as_mut() else { return };
     // The camera hotkey changes the setting in memory (not the config file); the scene follows it below.
     if actions.just_pressed(Action::CycleCamera) && host.scene.takes_camera_setting() {
-        settings.camera_mode = settings.camera_mode.next();
+        settings.camera_mode = host.scene.next_camera_mode(settings.camera_mode);
     }
     host.transmission = settings.transmission;
     host.camera_mode = settings.camera_mode;
