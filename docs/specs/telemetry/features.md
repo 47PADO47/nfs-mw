@@ -72,7 +72,7 @@ Status words: **built** (the value exists in code now), **partial** (some of it 
 | ID | P | Feature | Notes |
 |---|---|---|---|
 | F-30 | P0 | Start and stop a recording to a local JSON-lines file | one line per sample: sim time, frame index, tick, chosen channels; the channel set and rate are chosen at start |
-| F-31 | P0 | CSV export of a recording | flat columns, a header line, the same units as the catalogue |
+| F-31 | P0 | CSV export of a recording | flat columns, a header line, the same units as the catalogue; a read-only conversion on download ([api](api.md) section 2.4) |
 | F-32 | P1 | Session summary written at stop | top speed, max rpm, max heat, pursuits started, busted count, infractions, distance, time driven |
 | F-33 | P1 | Replay file: 60 Hz state and input samples | JSON lines first; a binary layout is P2 |
 | F-34 | P2 | Replay playback in the viewer (`view-world`) | needs F-33 and a playback mode in the viewer |
@@ -144,8 +144,10 @@ multiplayer (10, 11), the mod API (12). The tyre temperature has no milestone ye
 
 ## 5. Open questions
 
-1. Does the server thread model use one listener thread with a poll loop, or a thread per client? Decide in an ADR
-   with the HTTP and WebSocket crate choice. Any crate must pass `cargo deny check licenses`.
+1. ~~Does the server thread model use one listener thread with a poll loop, or a thread per client?~~ Decided in
+   [ADR 0007](../../decisions/0007-telemetry-server.md): a thread per connection with hard caps, plus one acceptor
+   and one pump thread; `std::net` with `httparse` and `tungstenite`. Every crate still has to pass
+   `cargo deny check licenses` in the first implementation PR.
 2. Do snapshots carry strings (radio title, scene name) at the full rate? Proposal: no. Strings go in the 1 Hz
    snapshot and in events only.
 3. Should the sim-racing UDP feed use a published, stable schema from the start? Proposal: yes, version 1 with the

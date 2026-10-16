@@ -13,10 +13,15 @@ Read in this order:
    the 0.2 ms game-thread budget, privacy defaults and origin checks.
 4. [control.md](control.md): the opt-in write endpoints, the shared command table, and how it ties to the mod
    API (milestone 12).
-5. [multiplayer-reuse.md](multiplayer-reuse.md): what carries over to LAN and online play, and what must be
-   decided now so that it does.
+5. [api.md](api.md): the endpoint catalogue (resources, parameters, response shapes, stream topics, errors,
+   pagination) and the OpenAPI 3.1 sketch.
+6. [multiplayer-reuse.md](multiplayer-reuse.md): what carries over to LAN and online play through the shared crate
+   `libs/blackbox-net-core`, and what must be decided now so that it does.
 
-Related: [roadmap](../../roadmap.md) (milestones 12, 13 and 9 to 11), [LAN server launcher](../lan-server.md)
+The architecture decision (crate split, threads, HTTP stack and licences, OpenAPI, auth, limits, versioning, budget,
+failure isolation) is [ADR 0007](../../decisions/0007-telemetry-server.md).
+
+Related: [ADR 0007](../../decisions/0007-telemetry-server.md), [roadmap](../../roadmap.md) (milestones 12, 13 and 9 to 11), [LAN server launcher](../lan-server.md)
 (the original `server.dll` lobby, a different protocol), [architecture](../../architecture.md) (crate layout).
 
 Rules that apply here: the game data sources are named from the code as it is today. A channel that has no

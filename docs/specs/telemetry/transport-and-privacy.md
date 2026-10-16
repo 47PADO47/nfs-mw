@@ -36,18 +36,22 @@ drops to the consumer: a gap means the consumer missed events.
 **Command queue.** Bounded (64 entries). A full queue refuses the new command with `busy`. Results come back in a
 reply slot keyed by the command id.
 
-**Server threads.** One listener thread that accepts connections; each accepted connection is handled on a worker
-from a small pool, or a single poll loop (open question 1 of [features](features.md)). Recording writes happen on a
-server-side writer thread with a buffered file, so disk speed never reaches the game thread.
+**Server threads** (decided in [ADR 0007](../../decisions/0007-telemetry-server.md), sections 3 and 4). One acceptor
+thread; one pump thread that drains the event ring, the command results and the recorder tap every 4 ms; one thread
+per connection, capped at 16 connections and 4 streams; one writer thread while a recording runs, with a buffered
+file, so disk speed never reaches the game thread. No async runtime.
 
-**Library split.** Engine-generic parts go in `libs/` with no NFS:MW names and no Bevy: the triple buffer, the event
-ring, the command queue, the JSON-lines writer, the HTTP and WebSocket server. The channel catalogue, the code that
-fills the snapshot from the scene, the redaction rules and the command table go in `crates/nfsmw` (for example a
-`telemetry` module next to `devtools`). `crates/` depends on `libs/`, never the reverse. The libraries stay Bevy-free.
+**Library split.** Engine-generic parts go in `libs/` with no NFS:MW names and no Bevy. `libs/blackbox-net-core`
+holds the triple buffer, the event ring, the command queue, ids, sim time, the token and the rate limiter
+(shared with multiplayer, see [multiplayer reuse](multiplayer-reuse.md)). `libs/blackbox-telemetry` holds the
+catalogue types, the JSON-lines writer and the HTTP and WebSocket server. The channel catalogue, the code that fills
+the snapshot from the scene, the redaction rules and the command table go in `crates/nfsmw/src/telemetry/`, behind
+the `telemetry` cargo feature (off by default). `crates/` depends on `libs/`, never the reverse.
 
 ## 2. Endpoints and formats
 
-The API is versioned in the path (`/v1`). Every response is JSON with a `schema` number (see section 2.5).
+The API is versioned in the path (`/v1`). Every response is JSON with a `schema` number (see section 2.5). The full
+catalogue (parameters, response shapes, errors, pagination, OpenAPI) is in [api](api.md); this section is the summary.
 
 ### 2.1 REST (GET, read-only)
 
@@ -58,18 +62,20 @@ The API is versioned in the path (`/v1`). Every response is JSON with a `schema`
 | `GET /v1/snapshot?groups=veh,wheel,pur` | the latest snapshot for the chosen groups (default: all built groups) | the triple buffer |
 | `GET /v1/events?since=<seq>&limit=<n>` | events after `seq`, oldest first, at most `limit` (default 100, max 1000) | the event ring's history window |
 | `GET /v1/commands` | the command table with argument schemas (see [control](control.md)) | a constant table |
-| `GET /v1/commands/<id>` | the result of an earlier write | the reply slot |
-| `GET /v1/recordings` | file names, sizes, start and stop times of recordings in the data folder | the folder listing (names only) |
+| `GET /v1/control/<id>` | the result of an earlier write | the server's result map, fed from the reply queue |
+| `GET /v1/recordings` | recordings in the data folder, cursor-paginated, names only | the folder listing |
+| `GET /v1/entities`, `GET /v1/openapi.json` | entity ids; the generated OpenAPI document | the frame; the types |
 
 A snapshot GET costs one copy of a few kilobytes plus the JSON. Nothing waits for the game. Responses carry
 `Cache-Control: no-store`.
 
 ### 2.2 Streams (WebSocket, read-only)
 
-`GET /v1/stream` upgrades to a WebSocket. The client sends one subscription message:
+`GET /v1/stream` upgrades to a WebSocket (and `GET /v1/stream/sse` gives the same as server-sent events). The client
+subscribes in the URL query or with one message (message shapes are in [api](api.md) section 2.3):
 
 ```
-{"groups": ["veh", "wheel"], "rate_hz": 30, "events": true}
+{"op": "subscribe", "groups": ["veh", "wheel"], "rate_hz": 30, "events": true}
 ```
 
 The server sends one frame per sample at the requested rate, capped at the channel's maximum (60 Hz for vehicle
@@ -109,8 +115,9 @@ depend on the clock on the PC.
   the rate, start time as wall clock once). Then one line per sample: `t`, `tick`, `frame`, the values in header
   order. Events are interleaved as their own lines with `"kind": "event"`. Size: 60 channels at 60 Hz is about 0.6
   MB per minute of JSON at 60 Hz (estimate, to measure); the recorder lets the user choose fewer channels or a lower rate.
-- **CSV export**: converted from a recording by a command, not live: one column per channel, one row per sample
-  at the chosen rate, events in a separate file.
+- **CSV export**: converted from a recording when it is downloaded (`GET /v1/recordings/{id}/data?format=csv`), a
+  read-only conversion that writes nothing to disk: one column per channel, one row per sample at the chosen rate,
+  events with `part=events`.
 - **UDP sim-racing feed (F-43)**: one datagram per sample at the chosen rate, JSON with a `schema` field and a fixed
   key order. Datagrams are at most 1200 bytes; a group that does not fit is split and marked. The sender targets
   `127.0.0.1` by default; any other destination is an explicit setting.
@@ -156,8 +163,9 @@ thread, and if its queue fills the recording stops with a `recording.stopped` ev
   console prints a warning when it is set. There is no IPv6 wildcard default.
 - **No outbound traffic.** The server never connects out. No update check, no analytics, no crash report, no DNS
   lookup. The UDP feed sends to the configured target only, default `127.0.0.1`.
-- **Read-only.** Every endpoint in section 2 is GET. Writes are the subject of [control](control.md) and are off
-  unless the user enables them.
+- **Read-only.** Every endpoint in section 2 is GET. Starting a recording needs `telemetry.control = record`, and game
+  commands need `write` ([control](control.md)); both are off unless the user enables them, and both are refused on a
+  non-loopback bind.
 
 ### 4.2 What is never exported
 
@@ -185,14 +193,22 @@ A web page the user opens in a browser can try to read `http://127.0.0.1:<port>`
 - **REST responses** carry no `Access-Control-Allow-Origin` header by default, so a page on another origin cannot
   read them with `fetch`. The overlay page is served from the same origin and needs no CORS.
 
+- **`Host` header** must be on an allowlist (`127.0.0.1:<port>`, `localhost:<port>`, `[::1]:<port>` and the bound LAN
+  address), else `421`. This stops DNS rebinding: a hostile page whose own name resolves to `127.0.0.1` would be
+  same-origin and could read the API without any CORS header. The `Origin` check alone does not cover it.
+- **CORS** is opt-in per origin (`telemetry.origins`); other origins get no CORS headers and a `403` on `OPTIONS`.
+
 Writes also require the `Origin` check and the token; a cross-origin `POST` without the token is refused before
-any body is read.
+any body is read. Writes must send `Content-Type: application/json`, which forces a browser preflight.
 
 ### 4.5 Write token
 
 - A random 128-bit token, created at each launch, held in memory and written to a file in the per-user data folder
   that the OS restricts to the user where it can.
-- Required as `Authorization: Bearer <token>` on every write. Read endpoints need no token on `127.0.0.1`.
+- Required as `Authorization: Bearer <token>` on every write and recording start. Read endpoints need no token on
+  `127.0.0.1`. On a non-loopback bind the token is required on **every** request, reads included, and writes and
+  recordings are refused (there is no TLS, so the token would cross the LAN in clear).
+- A browser WebSocket sends it as the sub-protocol `nfsmw.token.<hex>`, never in the URL.
 - Never logged, never in a recording, never in the status page.
 
 ### 4.6 Minimisation

@@ -6,8 +6,9 @@ mod API (milestone 12). Companion of [features](features.md) (F-50 to F-55) and 
 
 ## 1. Principles
 
-1. **Read-only by default.** When the server is on, every endpoint is GET. Writes exist only when the user sets
-   `telemetry.control = write`.
+1. **Read-only by default.** When the server is on, every endpoint is GET. Starting recordings exists only when the
+   user sets `telemetry.control = record` or `write`; game commands exist only with `write`. Neither exists on a
+   non-loopback bind (no TLS, see [ADR 0007](../../decisions/0007-telemetry-server.md), section 6).
 2. **One command table.** A write is a console command line, parsed and run by the same dispatcher the F12 console
    uses (`crates/nfsmw/src/scenes/world/commands.rs`, function `run`). The server adds no second implementation of
    teleport, spawn or reset. A fix to the console fixes the server too.
@@ -22,13 +23,16 @@ mod API (milestone 12). Companion of [features](features.md) (F-50 to F-55) and 
 | Setting | Values | Default | Effect |
 |---|---|---|---|
 | `telemetry.enabled` | `false`, `true` | `false` | the server runs; all endpoints are GET |
-| `telemetry.control` | `off`, `write` | `off` | `write` accepts `POST /v1/control` with a valid token |
-| `telemetry.bind` | address | `127.0.0.1` | where the listener binds |
+| `telemetry.control` | `off`, `record`, `write` | `off` | `record` accepts the recording endpoints ([api](api.md) section 2.4) with a valid token; `write` also accepts `POST /v1/control` |
+| `telemetry.bind` | address | `127.0.0.1` | where the listener binds; a non-loopback address forces `control` to `off` |
+| `telemetry.port` | port | 7708 (proposal) | the listener port |
+| `telemetry.origins` | list of origins | empty | extra origins allowed for WebSocket upgrades, writes and CORS |
 | `telemetry.token` | (none) | created per launch | the write token is generated at launch; no setting holds a token |
 
 Settings come from the layered settings (command line, environment, config file, defaults). Changing
 `telemetry.control` takes effect at the next launch, so a running session cannot turn writes on through the server
-itself. The status page then reads `control: off` or `control: write`.
+itself. The status page then reads `control: off`, `record` or `write`. A command's scope is `control` and a
+recording's scope is `record` in [api](api.md) section 1.
 
 ## 3. The write endpoint
 
@@ -38,8 +42,11 @@ Authorization: Bearer <token>
 Origin: http://127.0.0.1:<port>      (or an allowlisted origin)
 Content-Type: application/json
 
-{"command": "tp", "args": ["120", "-40"]}
+{"command": "player.teleport", "args": {"x": 120, "y": -40}}
 ```
+
+`command` is the server name from the table in section 4 (not the console name). `args` is an object of named,
+typed values checked against the command's schema; the server turns it into the console line (`tp 120 -40`) itself.
 
 Response, `202 Accepted`:
 
@@ -47,7 +54,7 @@ Response, `202 Accepted`:
 {"id": 17, "state": "queued"}
 ```
 
-Then `GET /v1/commands/17` returns `{"id": 17, "state": "done", "ok": true, "text": "looking for a road near (120, -40)"}`
+Then `GET /v1/control/17` returns `{"id": 17, "state": "done", "ok": true, "text": "looking for a road near (120, -40)"}`
 or `{"state": "done", "ok": false, "text": "not driving (use the drive command, or goto for the camera)"}`. The text
 is the command's own message, unchanged.
 
@@ -56,8 +63,8 @@ Refusals before the queue:
 | Code | When |
 |---|---|
 | `401` | token missing or wrong |
-| `403` | `Origin` not allowed, or `telemetry.control` is `off` |
-| `400` | command unknown, or the arguments do not match the schema (the table gives the schema) |
+| `403` | `Origin` not allowed, or `telemetry.control` is not `write` (`scope_disabled`), or the bind is not loopback |
+| `400` | command unknown, or the arguments do not match the schema (the table gives the schema); unknown keys are refused |
 | `429` | more than 10 accepted writes in one second |
 | `503` | the command queue is full (`busy`) |
 
