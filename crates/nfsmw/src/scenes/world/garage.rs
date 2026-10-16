@@ -144,7 +144,7 @@ impl WorldScene {
             return Ok(());
         }
         let folder = selection.car.clone();
-        let mut model = nfsmw_data::car::load_customized(
+        let mut model = nfsmw_data::car::load_customized_driving(
             &self.dir,
             &folder,
             &nfsmw_data::car::LoadOptions { lod: 'A', all_parts: false, preset: None },
