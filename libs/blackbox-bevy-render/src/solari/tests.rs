@@ -3,6 +3,8 @@
 
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{Assets, Handle, RenderAssetUsages};
+use bevy_camera::primitives::Aabb;
+use bevy_ecs::world::{CommandQueue, World};
 use bevy_image::Image;
 use bevy_material::OpaqueRendererMethod;
 use bevy_mesh::{Indices, Mesh, PrimitiveTopology, VertexAttributeValues};
@@ -18,6 +20,7 @@ use glam::{Mat4, Vec3};
 use super::*;
 use crate::apply::instances::{StandInCache, StandIns};
 use crate::material::{BlendKind, ShadingKind};
+use crate::mesh::{ATTRIBUTE_COLOR_BGRA, RangeData};
 use crate::ops::{BlackboxBridge, Op};
 use crate::plugin::{BlackboxBevyRenderPlugin, backend};
 use crate::probe::probe_with;
@@ -120,10 +123,67 @@ fn a_world_mesh_is_prepared_for_solari() {
     assert_eq!(tangents.len(), 4);
 }
 
+/// A world mesh as the Blackbox crate builds it: the vertex colour is there too (`mesh.rs`).
+fn blackbox_mesh() -> Mesh {
+    let mut mesh = world_mesh();
+    mesh.insert_attribute(ATTRIBUTE_COLOR_BGRA, VertexAttributeValues::Unorm8x4(vec![[1, 2, 3, 4]; 4]));
+    mesh
+}
+
+fn range(mesh: Mesh, blend: BlendMode, shading: Shading) -> RangeData {
+    RangeData { mesh, texture: None, blend, shading, aabb: Aabb::from_min_max([0.0; 3].into(), [1.0; 3].into()) }
+}
+
+#[test]
+fn a_traced_mesh_has_exactly_the_four_attributes_solari_takes() {
+    let mut mesh = blackbox_mesh();
+    prepare_mesh(&mut mesh);
+    let ids: Vec<_> = mesh.attributes().map(|(attribute, _)| attribute.id).collect();
+    assert_eq!(
+        ids,
+        [Mesh::ATTRIBUTE_POSITION.id, Mesh::ATTRIBUTE_NORMAL.id, Mesh::ATTRIBUTE_UV_0.id, Mesh::ATTRIBUTE_TANGENT.id]
+    );
+}
+
+#[test]
+fn only_the_stand_in_ranges_are_prepared_and_lose_the_vertex_colour() {
+    let op = Op::AddMesh {
+        handle: MeshHandle::from_raw(2),
+        ranges: vec![
+            range(blackbox_mesh(), BlendMode::Opaque, Shading::Lit),
+            range(blackbox_mesh(), BlendMode::AlphaTest, Shading::Prelit),
+        ],
+    };
+    let Op::AddMesh { ranges, .. } = prepare_op(op) else { panic!("an AddMesh op stays an AddMesh op") };
+    assert!(ranges[0].mesh.attribute(Mesh::ATTRIBUTE_TANGENT).is_some(), "a stand-in is prepared");
+    assert!(ranges[0].mesh.attribute(ATTRIBUTE_COLOR_BGRA).is_none(), "and drops the vertex colour");
+    assert!(ranges[1].mesh.attribute(ATTRIBUTE_COLOR_BGRA).is_some(), "an alpha-tested range keeps its colour");
+    assert!(ranges[1].mesh.attribute(Mesh::ATTRIBUTE_TANGENT).is_none(), "and is not prepared");
+}
+
 #[test]
 fn only_mesh_ops_are_prepared() {
     let op = Op::RemoveMesh(MeshHandle::from_raw(1));
     assert!(matches!(prepare_op(op), Op::RemoveMesh(_)));
+}
+
+#[test]
+fn a_camera_cut_resets_the_solari_history_and_nothing_else_does() {
+    let mut world = World::new();
+    let camera = world.spawn(SolariLighting { reset: false, ..Default::default() }).id();
+    let mut queue = CommandQueue::default();
+    {
+        let mut commands = Commands::new(&mut queue, &world);
+        reset_on_cut(&mut commands, camera, false);
+    }
+    queue.apply(&mut world);
+    assert!(!world.get::<SolariLighting>(camera).unwrap().reset, "no cut, no reset");
+    {
+        let mut commands = Commands::new(&mut queue, &world);
+        reset_on_cut(&mut commands, camera, true);
+    }
+    queue.apply(&mut world);
+    assert!(world.get::<SolariLighting>(camera).unwrap().reset, "a cut sets the reset");
 }
 
 fn write_png(path: &std::path::Path, image: &blackbox_gfx::RgbaImage) {
@@ -202,10 +262,11 @@ fn solari_starts_and_draws_a_capture_on_a_ray_tracing_gpu() {
     let path = dir.join("solari_cuboid.png");
     write_png(&path, &image);
     eprintln!("solari capture written to {}", path.display());
-    // Open: the picture is only the clear colour on the RTX card (the stand-in draws when forward, so it is
-    // spawned; the Solari lighting pass shows nothing). This test checks the start-up and the capture, and
-    // prints the colour count so a run can be compared with the fix; it does not assert on the picture yet.
+    // Solari lights the stand-in only when its mesh is traceable (`prepare_mesh`). Without that, Solari's lighting
+    // node skips, and its `SkipDeferredLighting` turns Bevy's own deferred lighting off too, so the picture is only
+    // the clear colour. The cuboid's faces are the other colours.
     let distinct: std::collections::HashSet<[u8; 3]> =
         image.rgba.as_chunks::<4>().0.iter().map(|p| [p[0], p[1], p[2]]).collect();
     eprintln!("solari capture: {} distinct colours", distinct.len());
+    assert!(distinct.len() > 2, "the cuboid is in the picture, not only the clear colour");
 }

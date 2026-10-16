@@ -455,7 +455,7 @@ is allocated when off", `docs/plans/gfx-renderers/upscalers-settings.md` §5): n
   are wrong (their shared shaders only branch on `is_srgb`, not "linear HDR") — not caught by the PR 10
   tests, which use testkit scenes without an effect or UI layer. A follow-up needs a third entry-point
   variant in `blackbox-gpu-passes` for a linear, non-sRGB target.
-- Temporal upscalers (FSR 3/4) need PR 13b; DLSS needs the DLSS SDK (PR 11); Solari (PR 12) draws only the clear colour on the RTX card, status.md section 3d.
+- Temporal upscalers (FSR 3/4) need PR 13b; DLSS needs the DLSS SDK (PR 11); Solari (PR 12) lights opaque world stand-ins on an RTX card; untextured stand-ins draw white because traced meshes carry no vertex colour (status.md section 3d).
 - No hitch measurement for tile streaming, and the frame-time/CPU/memory table above is still Iris Xe
   only; PR 9 was functionally verified (testkit parity, a driving screenshot, the main menu) on an NVIDIA
   RTX 4070 SUPER over Vulkan, but the benchmark was not repeated there; PR 10's own testing was GPU-test

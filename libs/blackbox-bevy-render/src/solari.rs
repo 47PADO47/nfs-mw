@@ -26,8 +26,9 @@ use bevy_camera::{Camera3d, CameraMainTextureUsages, Hdr};
 use bevy_core_pipeline::prepass::{DeferredPrepass, DepthPrepass, MotionVectorPrepass};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::query::With;
+use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
-use bevy_ecs::system::{Commands, Local, Query, Res};
+use bevy_ecs::system::{Commands, Local, Query, Res, ResMut};
 use bevy_image::Image;
 use bevy_light::DirectionalLight;
 use bevy_light::light_consts::lux;
@@ -45,6 +46,7 @@ use wgpu::TextureUsages;
 use crate::apply::apply;
 use crate::apply::instances::{StandInCache, StandIns};
 use crate::material::{BlendKind, ShadingKind};
+use crate::mesh::ATTRIBUTE_COLOR_BGRA;
 use crate::ops::{BlackboxBridge, Op};
 
 /// Whether Solari is wanted and the adapter can run it. Pure, so the rule is testable. `adapter` holds the
@@ -98,7 +100,8 @@ pub fn install(app: &mut App, requested: bool, api: GraphicsApi, force_fallback:
     app.add_plugins(SolariPlugins);
     app.insert_resource(DefaultOpaqueRendererMethod::forward());
     app.init_resource::<StandInCache>();
-    app.add_systems(PostUpdate, (sync_sun.before(apply), sync_cameras.after(apply)));
+    app.init_resource::<CameraCut>();
+    app.add_systems(PostUpdate, (sync_sun.before(apply), note_camera_cut.before(apply), sync_cameras.after(apply)));
     #[cfg(all(feature = "dlss", not(feature = "dlss-mock")))]
     app.add_systems(PostUpdate, sync_denoiser.after(apply));
     log::info!("ray tracing: Solari added (the adapter has the ray query and binding array features)");
@@ -159,11 +162,14 @@ pub fn spawn_stand_in(
         .id()
 }
 
-/// Make a mesh one Solari can trace: `Indices::U32` (Solari's requirement), tangents (its vertex set is
-/// POSITION, NORMAL, UV_0 and TANGENT) and the ray-tracing flag. Meshes are prepared before they are added (see
+/// Make a mesh one Solari can trace: `Indices::U32` (Solari's requirement), tangents, and the ray-tracing flag.
+/// Solari accepts a mesh only when its attributes are exactly POSITION, NORMAL, UV_0 and TANGENT (Bevy's
+/// `is_mesh_raytracing_compatible`), so the Blackbox vertex colour goes: a stand-in never draws the Blackbox
+/// material, which is the only thing that reads it. Meshes are prepared before they are added (see
 /// [`prepare_op`]), because Bevy drops a `RENDER_WORLD` mesh from the main world once it is extracted.
 pub fn prepare_mesh(mesh: &mut Mesh) {
     mesh.enable_raytracing = true;
+    mesh.remove_attribute(ATTRIBUTE_COLOR_BGRA.id);
     let wide = match mesh.indices() {
         Some(Indices::U16(indices)) => Some(indices.iter().map(|&i| u32::from(i)).collect::<Vec<u32>>()),
         _ => None,
@@ -179,11 +185,17 @@ pub fn prepare_mesh(mesh: &mut Mesh) {
     }
 }
 
-/// Prepare the meshes of an `AddMesh` op for Solari. Every other op passes through unchanged.
+/// Prepare the ranges of an `AddMesh` op that a stand-in draws (see [`eligible`]). A range that stays on the
+/// Blackbox material keeps its vertex colour, because that material needs it. Every other op passes through.
 pub fn prepare_op(op: Op) -> Op {
     match op {
         Op::AddMesh { handle, mut ranges } => {
             for range in &mut ranges {
+                let blend = BlendKind::from(range.blend);
+                let shading = ShadingKind::of(range.shading);
+                if !eligible(blend, shading) {
+                    continue;
+                }
                 prepare_mesh(&mut range.mesh);
             }
             Op::AddMesh { handle, ranges }
@@ -219,22 +231,53 @@ fn sync_sun(mut commands: Commands, bridge: Res<BlackboxBridge>, mut sun: Local<
     *sun = Some((entity, direction));
 }
 
+/// Whether this tick's frame is a camera cut. `apply` takes the frame, so this is read before it ([`note_camera_cut`]).
+#[derive(Resource, Default)]
+struct CameraCut(bool);
+
+/// Read the frame's `camera_cut` flag while the frame is still in the bridge, before `apply` takes it.
+fn note_camera_cut(bridge: Res<BlackboxBridge>, mut cut: ResMut<CameraCut>) {
+    cut.0 = bridge.lock().frame.as_ref().is_some_and(|f| f.frame.camera_cut);
+}
+
 /// Every camera draws with Solari. Components are added only when missing. `apply` may remove the prepasses or
 /// HDR when the post settings change, and this puts them back after it. Solari writes the main texture from a
-/// compute shader, so that texture needs `STORAGE_BINDING` (Solari's own requirement). The temporal history is
-/// not reset on a camera cut yet (docs/bevy-backend.md, known gaps).
-fn sync_cameras(mut commands: Commands, cameras: Query<Entity, With<Camera3d>>) {
-    let main_texture = CameraMainTextureUsages::default().with(TextureUsages::STORAGE_BINDING);
-    for camera in &cameras {
+/// compute shader, so that texture needs `STORAGE_BINDING` (Solari's own requirement). `Camera` already requires a
+/// default `CameraMainTextureUsages` without it, so that one is set when the flag is missing rather than inserted
+/// only when absent. On a camera cut the temporal history is reset, so the next frame does not blend with the old view.
+fn sync_cameras(
+    mut commands: Commands,
+    cameras: Query<(Entity, Option<&CameraMainTextureUsages>), With<Camera3d>>,
+    cut: Res<CameraCut>,
+) {
+    for (camera, usages) in &cameras {
         commands.entity(camera).insert_if_new((
             SolariLighting::default(),
             DeferredPrepass,
             DepthPrepass,
             MotionVectorPrepass,
             Hdr,
-            main_texture,
         ));
+        if !has_storage(usages) {
+            let main_texture = CameraMainTextureUsages::default().with(TextureUsages::STORAGE_BINDING);
+            commands.entity(camera).insert(main_texture);
+        }
+        reset_on_cut(&mut commands, camera, cut.0);
     }
+}
+
+/// Whether a camera's main texture already has the storage usage Solari writes through.
+fn has_storage(usages: Option<&CameraMainTextureUsages>) -> bool {
+    usages.is_some_and(|usages| usages.0.contains(TextureUsages::STORAGE_BINDING))
+}
+
+/// Reset the Solari history on a camera cut, the way `post::taa::reset_on_cut` does for TAA. A no-op when this frame
+/// is not a cut. Solari clears `reset` itself at extraction (`extract_solari_lighting`), so this only sets it.
+pub fn reset_on_cut(commands: &mut Commands, camera: Entity, camera_cut: bool) {
+    if !camera_cut {
+        return;
+    }
+    commands.entity(camera).entry::<SolariLighting>().and_modify(|mut solari| solari.reset = true);
 }
 
 /// DLSS Ray Reconstruction on every camera, once Bevy reports it. Not run in the development environment (no
