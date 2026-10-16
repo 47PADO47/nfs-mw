@@ -20,6 +20,7 @@ mod infractions;
 pub(crate) mod input_options;
 mod loading;
 mod logic;
+mod mod_options;
 mod options;
 mod plugin;
 mod pointer;

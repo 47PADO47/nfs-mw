@@ -48,6 +48,7 @@ impl Harness {
             memory: &mut memory,
             key_texts: &[],
             world_map: Some(frame),
+            mods: None,
             name: WORLD_MAP,
         };
         WorldMapLogic.tick(&mut cx, 1.0 / 60.0);

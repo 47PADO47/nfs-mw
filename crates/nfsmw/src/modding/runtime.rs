@@ -41,6 +41,11 @@ impl Mods {
         self.runtime.rejected()
     }
 
+    /// The bridge the mods' calls go through, for the options page's rows.
+    pub fn bridge(&self) -> &Bridge {
+        &self.bridge
+    }
+
     /// Copy the scene's clock in, before the mods run this frame.
     pub fn sync(&self, scene: &dyn Scene) {
         self.bridge.sync(scene);

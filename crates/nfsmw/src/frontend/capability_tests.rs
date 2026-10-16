@@ -26,7 +26,7 @@ fn text(s: &'static str) -> Title {
 #[test]
 fn the_native_renderer_hides_ray_tracing_and_the_quality_mode_but_has_the_renderer_row() {
     let video = titles(Category::Video, &test_caps::native());
-    assert_eq!(video.len(), 33);
+    assert_eq!(video.len(), 37);
     for hidden in ["Ray Tracing", "Upscale Quality", "Dynamic Soft Shadows"] {
         assert!(!video.contains(&text(hidden)), "{hidden} needs a renderer that offers it");
     }
@@ -45,13 +45,28 @@ fn the_native_renderer_hides_ray_tracing_and_the_quality_mode_but_has_the_render
 #[test]
 fn a_full_renderer_has_every_row_next_to_the_setting_it_belongs_with() {
     let video = titles(Category::Video, &test_caps::full());
-    assert_eq!(video.len(), 36);
+    assert_eq!(video.len(), 41);
     let at =
         |name: &'static str| video.iter().position(|t| *t == text(name)).unwrap_or_else(|| panic!("no {name} row"));
+    assert_eq!(
+        at("Front-End Shadows"),
+        at("Dynamic Soft Shadows") + 1,
+        "the front-end row sits beside the shadows row"
+    );
     assert_eq!(at("Upscale Quality"), at("Upscaler") + 1);
     assert_eq!(at("Ray Tracing"), at("Motion Blur Strength") + 1, "ray tracing follows the post-processing rows");
-    assert_eq!(at("Car Reflection Size"), at("Car Reflections") + 1, "the HD reflection rows follow the reflection row");
+    assert_eq!(
+        at("Car Reflection Size"),
+        at("Car Reflections") + 1,
+        "the HD reflection rows follow the reflection row"
+    );
     assert_eq!(at("Dynamic Soft Shadows"), at("Mirror Tint") + 1);
+    assert_eq!(at("Vehicle Reflection Brightness"), at("Power-of-Two Cube Size") + 1, "beside the cube rows");
+    assert_eq!(
+        at("Mirror Reflection Size"),
+        at("Reflection Distance") + 1,
+        "the reach row sits beside the mirror size"
+    );
     assert_eq!(at("Renderer (After Restart)"), 1);
     assert_eq!(at("Graphics API (After Restart)"), 2);
     assert_eq!(titles(Category::Audio, &test_caps::full()).len(), 5, "only the Video screen has them");

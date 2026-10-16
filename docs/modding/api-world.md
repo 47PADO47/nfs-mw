@@ -29,8 +29,20 @@ Coordinates are the map's own (render space metres), the same numbers as the `tp
 
 ## Menus
 
-`bb.menus`. The front end is hard-coded FEng screens (`frontend/factory.rs`, `screens.rs`, `options_rows.rs`).
-The first delivery gives mods **rows and pages the host draws in the game's style**, not raw FEng access:
+**Delivered (`bb.menus` 1.0): rows on a Mods page.** A mod registers rows (`register`) and the game lists them on
+the Options page under "Mods". The page's icon appears only while at least one mod has a row, on the main menu's
+Options and on the pause menu's. A row is a toggle (on or off), a slider (from `min` to `max` in steps of `step`,
+a step of 0 meaning a tenth of the range), a list (one of its texts), or a button (pressed, calls back with 0).
+A player's change goes to the row, is saved, and calls the mod's callback with the new value. A mod reads and sets
+a row's value with `get` and `set` (`set` saves but does not call back). Values are saved per mod in the config file
+under `[mod_values."<id>"]`, one key per row name. The table is not `[mods.<id>]`: `mods` is the mod mode key.
+Rows the mod does not remove are removed when it unloads. Not yet: pages of their own, the SDK wrapper for the
+calls (a mod calls the table through `query_interface` until then), read-only text rows, sub-pages, and disabling
+or hiding a row.
+
+The rest of this section is the plan for the later deliveries. The front end is hard-coded FEng screens
+(`frontend/factory.rs`, `screens.rs`, `options_rows.rs`). Those deliveries give mods **rows and pages the host draws
+in the game's style**, not raw FEng access:
 
 1. extra rows in the existing option categories (`Category::{Audio, Video, ...}` in `frontend/logic.rs`) and a
    new "Mods" category where a mod's rows live by default;

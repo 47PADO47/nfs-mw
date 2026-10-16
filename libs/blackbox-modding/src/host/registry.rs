@@ -9,12 +9,12 @@ use std::rc::Rc;
 use super::manifest::InterfaceVersion;
 use super::offer::InterfaceOffer;
 use super::table::{
-    Attached, CommandsBackend, InputBackend, MapBackend, TimeBackend, attach_commands, attach_input, attach_map,
-    attach_time,
+    Attached, CommandsBackend, InputBackend, MapBackend, MenusBackend, TimeBackend, attach_commands, attach_input,
+    attach_map, attach_menus, attach_time,
 };
 use crate::abi::{
-    IFACE_COMMANDS, IFACE_COMMANDS_VERSION, IFACE_INPUT, IFACE_INPUT_VERSION, IFACE_MAP, IFACE_MAP_VERSION, IFACE_TIME,
-    IFACE_TIME_VERSION,
+    IFACE_COMMANDS, IFACE_COMMANDS_VERSION, IFACE_INPUT, IFACE_INPUT_VERSION, IFACE_MAP, IFACE_MAP_VERSION,
+    IFACE_MENUS, IFACE_MENUS_VERSION, IFACE_TIME, IFACE_TIME_VERSION,
 };
 
 /// Makes the table of one interface for the mod named by the argument.
@@ -61,6 +61,12 @@ impl InterfaceRegistry {
     pub fn add_map(&mut self, backend: Rc<dyn MapBackend>) -> &mut Self {
         let build: Build = Box::new(move |owner: &str| attach_map(backend.clone(), owner));
         self.push(IFACE_MAP, IFACE_MAP_VERSION, build)
+    }
+
+    /// Offer `bb.menus`, implemented by `backend`.
+    pub fn add_menus(&mut self, backend: Rc<dyn MenusBackend>) -> &mut Self {
+        let build: Build = Box::new(move |owner: &str| attach_menus(backend.clone(), owner));
+        self.push(IFACE_MENUS, IFACE_MENUS_VERSION, build)
     }
 
     /// The interfaces offered, for the host's offer (the manifest checks read it).

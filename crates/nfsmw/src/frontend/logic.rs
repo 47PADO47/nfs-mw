@@ -24,6 +24,8 @@ pub enum Category {
     Discord,
     /// The alias manager, opened from the main menu's Alias Manager icon: save and load (`alias_options.rs`).
     AliasManager,
+    /// The rows the mods registered (`bb.menus`): listed on the page only when a mod has rows (`mod_options.rs`).
+    Mods,
 }
 
 /// What a screen is opened with (the original passes an argument and reads the game mode).
@@ -84,6 +86,8 @@ pub struct Env<'a> {
     pub settings: &'a mut Settings,
     pub changed: &'a mut Partial,
     pub caps: Capabilities,
+    /// The mods' bridge while the mods run (`bb.menus` rows); `None` without mods.
+    pub mods: Option<&'a crate::modding::Bridge>,
 }
 
 /// What a screen can touch while it handles a message.
@@ -103,6 +107,8 @@ pub struct Cx<'a> {
     pub key_texts: &'a [[String; 2]],
     /// The world map's frame while the map is open (`world_map/screen`); `None` on every other screen.
     pub world_map: Option<&'a WorldMapFrame>,
+    /// The mods' bridge, for the Mods page's rows; `None` without mods.
+    pub mods: Option<&'a crate::modding::Bridge>,
     pub name: &'a str,
 }
 

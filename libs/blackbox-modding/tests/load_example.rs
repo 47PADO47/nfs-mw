@@ -217,7 +217,9 @@ fn hello_reads_the_clock_through_the_host_interface() {
     let mut runtime =
         ModRuntime::start_with(offer(), registry, &Policy::All, &[scratch.path().to_owned()], RunMode::Normal);
     assert_eq!(runtime.loaded().len(), 1, "rejected: {:?}", runtime.rejected());
-    assert_eq!(clock.reads.get(), 1, "the mod reads the clock once, on load");
+    assert_eq!(clock.reads.get(), 0, "load does not read the clock: no scene exists yet");
+    runtime.dispatch(7, 1);
+    assert_eq!(clock.reads.get(), 1, "the mod reads the clock once, on its first event");
 
     runtime.unload_all();
     let line = "[example.hello] hello: time 13.50 h, 60 s per hour, frozen false";

@@ -12,10 +12,29 @@ fn ids_and_versions_are_locked() {
     assert_eq!(IFACE_INPUT, "bb.input");
     assert_eq!(IFACE_TIME, "bb.time");
     assert_eq!(IFACE_MAP, "bb.map");
+    assert_eq!(IFACE_MENUS, "bb.menus");
     assert_eq!(
-        [IFACE_COMMANDS_VERSION, IFACE_INPUT_VERSION, IFACE_TIME_VERSION, IFACE_MAP_VERSION],
-        [(1, 0), (1, 0), (1, 0), (1, 0)]
+        [IFACE_COMMANDS_VERSION, IFACE_INPUT_VERSION, IFACE_TIME_VERSION, IFACE_MAP_VERSION, IFACE_MENUS_VERSION],
+        [(1, 0), (1, 0), (1, 0), (1, 0), (1, 0)]
     );
+}
+
+#[test]
+fn menus_table_and_row() {
+    assert_eq!(size_of::<BbMenuRow>(), 72);
+    assert_eq!(offset_of!(BbMenuRow, name), 8);
+    assert_eq!(offset_of!(BbMenuRow, label), 24);
+    assert_eq!(offset_of!(BbMenuRow, min), 40);
+    assert_eq!(offset_of!(BbMenuRow, default), 52);
+    assert_eq!(offset_of!(BbMenuRow, choices), 56);
+    assert_eq!(offset_of!(BbMenuRow, choice_count), 64);
+    assert_eq!(size_of::<BbMenus>(), 48);
+    assert_eq!(offset_of!(BbMenus, ctx), 8);
+    assert_eq!(offset_of!(BbMenus, register), 16);
+    assert_eq!(offset_of!(BbMenus, unregister), 24);
+    assert_eq!(offset_of!(BbMenus, get), 32);
+    assert_eq!(offset_of!(BbMenus, set), 40);
+    assert_eq!([BB_MENU_TOGGLE, BB_MENU_SLIDER, BB_MENU_LIST, BB_MENU_BUTTON], [0, 1, 2, 3]);
 }
 
 #[test]

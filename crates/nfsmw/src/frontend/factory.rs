@@ -13,7 +13,7 @@ use crate::ui::Text;
 
 /// The logic for the package called `name` (its file name, any case). A package without logic of its own runs
 /// as it is.
-pub fn make(name: &str, args: Args) -> Box<dyn ScreenLogic> {
+pub fn make(name: &str, args: Args, mod_rows: bool) -> Box<dyn ScreenLogic> {
     let name = name.to_ascii_lowercase();
     let is = |file: &str| name == file.to_ascii_lowercase();
     if is(screen::SPLASH) || is("WS_MW_LS_Splash.fng") {
@@ -23,10 +23,10 @@ pub fn make(name: &str, args: Args) -> Box<dyn ScreenLogic> {
         return Box::new(IconMenu::new(Kind::Main, args));
     }
     if is(screen::MAIN_MENU_SUB) {
-        return Box::new(IconMenu::new(Kind::Categories { pause: false }, args));
+        return Box::new(IconMenu::new(Kind::Categories { pause: false, mods: mod_rows }, args));
     }
     if is(screen::PAUSE_MENU) {
-        let kind = if args.options { Kind::Categories { pause: true } } else { Kind::Pause };
+        let kind = if args.options { Kind::Categories { pause: true, mods: mod_rows } } else { Kind::Pause };
         return Box::new(IconMenu::new(kind, args));
     }
     if is(screen::OPTIONS) || is(screen::PAUSE_OPTIONS) {

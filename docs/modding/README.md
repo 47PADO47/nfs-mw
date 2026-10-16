@@ -4,7 +4,7 @@ Native plugin mods for the Rust rewrite of NFS: Most Wanted and, later, other Bl
 its reasons are in [ADR 0005](../decisions/0005-native-mod-plugins.md). This folder is the catalogue of what a
 mod can do.
 
-Status: **partly built**. `bb.commands`, `bb.input`, `bb.time` and `bb.map` work in NFS:MW (see
+Status: **partly built**. `bb.commands`, `bb.input`, `bb.time`, `bb.map` and `bb.menus` work in NFS:MW (see
 [Using mods](#using-mods)). The rest of the catalogue is design only: every "Implemented in" cell names the game
 module that will implement the entry (a path that exists today) or says "new" when the module is new.
 
@@ -120,7 +120,10 @@ downloads or fetches a mod.
   - `bb.time`: `get`, `set_hour` (wrapped into 0 to 24), `set_day_length` (a rate clamped to 10 to 3600 real seconds
     per hour; `0` holds the hour) and `freeze`. The clock is the world's day clock, and a menu has none, so a call
     there is `not ready`. A mod's read at load is `not ready` too: the mods start before the scene exists, so the
-    clock is first copied in at the first frame.
+    clock is first copied in at the first frame. A mod reads it on its first event, as `examples/mods/hello` does.
+  - `bb.menus`: `register` adds a row to a Mods page under Options, which is listed only while a mod has rows. A row
+    is a toggle, a slider, a list or a button. A change is saved under `[mod_values."<id>"]` in the config file and
+    calls the mod back. Pages of their own and the SDK wrapper are not offered yet.
   - `bb.map`: `add`, `update` and `remove` blips for the cop, helicopter, race (sprint, drag, circuit, knockout,
-    tollbooth, speed trap), auto shop, car lot and safe house styles. The blips show on the minimap and the world
-    map. The icon points forward, as `bb.map` has no heading. The racer and checkpoint styles are not offered yet.
+    tollbooth, speed trap), auto shop, car lot, safe house, racer and checkpoint styles. The blips show on the minimap and the world
+    map. The icon points forward, as `bb.map` has no heading.

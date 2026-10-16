@@ -205,6 +205,14 @@ mod), then the functions below in this order. Every function takes `ctx` first a
 | `bb.input` (1.0) | `register_hotkey(name, label, default_binding, user, callback, out_id)`, `unregister(id)` |
 | `bb.time` (1.0) | `get(out)`, `set_hour(hour)`, `set_day_length(seconds_per_hour)`, `freeze(on)` |
 | `bb.map` (1.0) | `add(blip, out_id)`, `update(id, blip)`, `remove(id)` |
+| `bb.menus` (1.0) | `register(row, user, callback, out_id)`, `unregister(id)`, `get(id, out)`, `set(id, value)` |
 
 `bb.time`'s "set speed" is `set_day_length`, the day-length form of the table above. `bb.map`'s blip is
 `BbBlip { size, active, _pad, style, position }`.
+
+`bb.menus` (ids `IFACE_MENUS`, version `IFACE_MENUS_VERSION`). Its table `BbMenus` is 48 bytes: `head` at 0, `ctx` at 8,
+`register` at 16, `unregister` at 24, `get` at 32, `set` at 40. A row, `BbMenuRow`, is 72 bytes: `size` at 0, `kind`
+at 4 (`BB_MENU_TOGGLE` 0, `BB_MENU_SLIDER` 1, `BB_MENU_LIST` 2, `BB_MENU_BUTTON` 3), `name` at 8, `label` at 24,
+`min`, `max`, `step` and `default` as `f32` at 40, 44, 48 and 52, `choices` (a `*const BbStr`) at 56 and
+`choice_count` (`u64`) at 64. The callback is `BbMenuCallbackFn(user, value: f32)`; a button calls it with 0.
+Layout is locked by `abi/iface/tests.rs`.

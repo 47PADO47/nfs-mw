@@ -11,6 +11,9 @@
 mod commands;
 mod input;
 mod map;
+mod menus;
+#[cfg(test)]
+mod menus_tests;
 mod slot;
 #[cfg(test)]
 mod tests;
@@ -33,12 +36,14 @@ use super::registry::InterfaceRegistry;
 pub(crate) use commands::attach as attach_commands;
 pub(crate) use input::attach as attach_input;
 pub(crate) use map::attach as attach_map;
+pub(crate) use menus::attach as attach_menus;
 pub(crate) use slot::Attached;
 pub(crate) use time::attach as attach_time;
 
 pub use commands::{CommandHandler, CommandsBackend};
 pub use input::{HotkeyHandler, InputBackend};
 pub use map::{BlipSpec, MapBackend};
+pub use menus::{MAX_CHOICES, MenuHandler, MenuKind, MenuRowSpec, MenusBackend};
 pub use time::TimeBackend;
 
 /// What a backend method returns: its value, or the status the mod sees.

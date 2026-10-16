@@ -1,10 +1,13 @@
 //! Test doubles for the backend tests: a scene that keeps what the backends set on it, and a log that tests can read.
 
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::{Mutex, Once};
 
 use anyhow::Result;
 use blackbox_gfx::{FrameParams, Instance, RenderBackend};
 
+use super::menu_store::ValueStore;
 use crate::hud::MapBlip;
 use crate::input::ActionState;
 use crate::viewer::{Environment, Scene};
@@ -91,4 +94,39 @@ pub(crate) fn captured_log() -> Vec<String> {
         }
     });
     LINES.lock().unwrap_or_else(|e| e.into_inner()).clone()
+}
+
+/// Row values kept in memory, for the tests that must not write the config file: `(owner, name, value)`, newest last.
+#[derive(Default)]
+pub(crate) struct MemoryStore {
+    pub values: RefCell<Vec<(String, String, toml::Value)>>,
+}
+
+impl ValueStore for MemoryStore {
+    fn saved(&self, owner: &str, name: &str) -> Option<f32> {
+        let values = self.values.borrow();
+        let (_, _, value) = values.iter().rev().find(|(known, row, _)| known == owner && row == name)?;
+        match value {
+            toml::Value::Boolean(on) => Some(f32::from(u8::from(*on))),
+            toml::Value::Integer(number) => Some(*number as f32),
+            toml::Value::Float(number) => Some(*number as f32),
+            _ => None,
+        }
+    }
+
+    fn save(&self, owner: &str, name: &str, value: toml::Value) -> Result<(), String> {
+        self.values.borrow_mut().push((owner.to_owned(), name.to_owned(), value));
+        Ok(())
+    }
+}
+
+/// A shared store: the test keeps one handle and the bridge gets the other.
+impl<T: ValueStore + ?Sized> ValueStore for Rc<T> {
+    fn saved(&self, owner: &str, name: &str) -> Option<f32> {
+        (**self).saved(owner, name)
+    }
+
+    fn save(&self, owner: &str, name: &str, value: toml::Value) -> Result<(), String> {
+        (**self).save(owner, name, value)
+    }
 }

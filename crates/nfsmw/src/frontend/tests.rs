@@ -184,14 +184,15 @@ impl Harness {
             changed: Partial::default(),
             commands: Vec::new(),
         };
-        let mut env = Env { settings: &mut h.settings, changed: &mut h.changed, caps: test_caps::native() };
+        let mut env = Env { settings: &mut h.settings, changed: &mut h.changed, caps: test_caps::native(), mods: None };
         h.commands = h.screens.open(name, args, true, &mut env);
         Some(h)
     }
 
     fn run(&mut self, mask: u32, frames: usize) {
         for _ in 0..frames {
-            let mut env = Env { settings: &mut self.settings, changed: &mut self.changed, caps: test_caps::native() };
+            let mut env =
+                Env { settings: &mut self.settings, changed: &mut self.changed, caps: test_caps::native(), mods: None };
             self.commands.extend(self.screens.update(FRAME, mask, &mut env));
         }
     }

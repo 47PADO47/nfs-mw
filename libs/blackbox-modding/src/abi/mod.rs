@@ -48,10 +48,12 @@ pub use host::{
     BB_LOG_DEBUG, BB_LOG_ERROR, BB_LOG_INFO, BB_LOG_TRACE, BB_LOG_WARN, BbHost, BbLogFn, BbQueryInterfaceFn,
 };
 pub use iface::{
-    BbBlip, BbCommandCallbackFn, BbCommands, BbCommandsRegisterFn, BbCommandsRunFn, BbCommandsUnregisterFn, BbHotkeyFn,
-    BbIface, BbInput, BbInputRegisterFn, BbInputUnregisterFn, BbMap, BbMapAddFn, BbMapRemoveFn, BbMapUpdateFn, BbRgba,
-    BbTime, BbTimeFreezeFn, BbTimeGetFn, BbTimeOfDay, BbTimeSetDayLengthFn, BbTimeSetHourFn, IFACE_COMMANDS,
-    IFACE_COMMANDS_VERSION, IFACE_INPUT, IFACE_INPUT_VERSION, IFACE_MAP, IFACE_MAP_VERSION, IFACE_TIME,
+    BB_MENU_BUTTON, BB_MENU_LIST, BB_MENU_SLIDER, BB_MENU_TOGGLE, BbBlip, BbCommandCallbackFn, BbCommands,
+    BbCommandsRegisterFn, BbCommandsRunFn, BbCommandsUnregisterFn, BbHotkeyFn, BbIface, BbInput, BbInputRegisterFn,
+    BbInputUnregisterFn, BbMap, BbMapAddFn, BbMapRemoveFn, BbMapUpdateFn, BbMenuCallbackFn, BbMenuRow, BbMenus,
+    BbMenusGetFn, BbMenusRegisterFn, BbMenusSetFn, BbMenusUnregisterFn, BbRgba, BbTime, BbTimeFreezeFn, BbTimeGetFn,
+    BbTimeOfDay, BbTimeSetDayLengthFn, BbTimeSetHourFn, IFACE_COMMANDS, IFACE_COMMANDS_VERSION, IFACE_INPUT,
+    IFACE_INPUT_VERSION, IFACE_MAP, IFACE_MAP_VERSION, IFACE_MENUS, IFACE_MENUS_VERSION, IFACE_TIME,
     IFACE_TIME_VERSION,
 };
 pub use module::{

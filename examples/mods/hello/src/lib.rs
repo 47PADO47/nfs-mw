@@ -1,6 +1,9 @@
-//! `hello`: the smallest mod. It logs when it loads, reads the clock when the host offers `bb.time` (an optional
-//! interface: the mod says so and goes on when it is absent), counts the events it receives and logs each one, and logs
-//! when it unloads. It needs no other interface, so it runs in any host that offers a `*` game.
+//! `hello`: the smallest mod. It logs when it loads, counts the events it receives and logs each one, reads the clock on
+//! its first event when the host offers `bb.time` (an optional interface: the mod says so and goes on when it is absent),
+//! and logs when it unloads. It needs no other interface, so it runs in any host that offers a `*` game.
+//!
+//! The clock is read on the first event, not at load: the host copies the scene's clock in at the start of the first
+//! frame, and a mod that reads at load (before any scene exists) gets "not ready".
 
 use blackbox_modding::sdk::{Ctx, Event, Level, Mod, ModResult, declare_mod};
 
@@ -12,7 +15,6 @@ pub struct Hello {
 impl Mod for Hello {
     fn load(ctx: &mut Ctx) -> ModResult<Self> {
         ctx.log(Level::Info, "hello: loaded");
-        log_clock(ctx);
         Ok(Hello { seen: 0 })
     }
 
@@ -22,6 +24,9 @@ impl Mod for Hello {
             Level::Info,
             &format!("hello: event {} at frame {} (count {})", event.kind(), event.frame(), self.seen),
         );
+        if self.seen == 1 {
+            log_clock(ctx);
+        }
     }
 
     fn unload(&mut self, ctx: &mut Ctx) {

@@ -11,12 +11,12 @@ use blackbox_modding::host::{BackendResult, BlipSpec, MapBackend};
 
 use super::bridge::Bridge;
 use crate::hud::{
-    AUTO_SHOP, CAR_LOT, COP, HELICOPTER, MapBlip, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP, RACE_SPRINT,
-    RACE_TOLLBOOTH, SAFE_HOUSE,
+    AUTO_SHOP, CAR_LOT, CHECKPOINT, COP, HELICOPTER, MapBlip, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP,
+    RACE_SPRINT, RACE_TOLLBOOTH, RACER, SAFE_HOUSE,
 };
 
-/// The styles a mod may use: the ones `hud` re-exports. The game's racer and checkpoint styles are not among them.
-const STYLES: [&str; 11] = [
+/// The styles a mod may use: the game's blip styles, as `hud` re-exports them.
+const STYLES: [&str; 13] = [
     COP,
     HELICOPTER,
     RACE_SPRINT,
@@ -28,6 +28,8 @@ const STYLES: [&str; 11] = [
     AUTO_SHOP,
     CAR_LOT,
     SAFE_HOUSE,
+    RACER,
+    CHECKPOINT,
 ];
 
 /// The `bb.map` port of the game: one per mod table, sharing the bridge.

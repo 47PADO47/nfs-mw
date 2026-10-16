@@ -61,25 +61,26 @@ fn the_hello_mod_loads_and_receives_the_frame_events() {
         .expect("copy the manifest");
     fs::copy(&library, folder.join(library_file_name())).expect("copy the library");
 
-    // The game offers its four interfaces. This test copies a clock in before the mods start, so hello's read at load
-    // gets 13:30 at 150 real seconds per hour. A real launch has no scene clock yet at load (the mods start before the
-    // scene exists), so there hello's read at load is `not ready` until the first frame copies the clock in.
+    // The game offers its four interfaces. Hello reads the clock on its first event, and the frame copies the scene's
+    // clock in before the mods run, so this test copies a clock in before the first frame: 13:30 at 150 real seconds
+    // per hour.
     support::captured_log();
     let interfaces = backends::interfaces();
-    interfaces.bridge.sync(&support::Recorder::at(13.5, 150.0));
+    let bridge = interfaces.bridge.clone();
     let mut mods = Mods::start(policy::offer(), interfaces, &Policy::All, std::slice::from_ref(&root), RunMode::Normal);
 
     let loaded = mods.loaded();
     assert_eq!(loaded.len(), 1, "rejected: {:?}", mods.rejected());
     assert_eq!(loaded[0].id, "example.hello");
+    bridge.sync(&support::Recorder::at(13.5, 150.0));
+    let frame = mods.frame_start(1.0 / 60.0);
+    assert_eq!((frame.delivered, frame.faults), (1, 0), "FRAME_START reaches the mod");
     let read = support::captured_log().into_iter().find(|line| line.starts_with("[example.hello] hello: time"));
     assert_eq!(
         read.as_deref(),
         Some("[example.hello] hello: time 13.50 h, 150 s per hour, frozen false"),
-        "hello reads the clock through bb.time at load"
+        "hello reads the clock through bb.time on its first event"
     );
-    let frame = mods.frame_start(1.0 / 60.0);
-    assert_eq!((frame.delivered, frame.faults), (1, 0), "FRAME_START reaches the mod");
     let tick = mods.scene_tick(1.0 / 60.0, 1.0, false);
     assert_eq!((tick.delivered, tick.faults), (1, 0), "SCENE_TICK reaches the mod");
 

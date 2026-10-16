@@ -14,6 +14,9 @@ use nfsmw_data::car::LoadOptions;
 use super::room::Room;
 use crate::input::ActionState;
 use crate::scenes::car::CarScene;
+use crate::scenes::car::FLOOR_PART;
+use crate::scenes::car::shadows::{Part, shadowed};
+use crate::settings::fe_shadows;
 use crate::viewer::{Fullscreen, Scene};
 
 /// The stock car the menus turn on their backdrop. [ours] The original shows the car on a platform stage
@@ -53,6 +56,7 @@ pub(super) fn flat_frame() -> FrameParams {
         surface_light: None,
         // Nothing 3D is drawn, so there is no camera to follow from frame to frame.
         camera_cut: true,
+        shadow_tuning: None,
     }
 }
 
@@ -99,18 +103,29 @@ impl Scene for MenuScene {
     }
 
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
+        let options = fe_shadows::active();
         let Self { car, room, parts, .. } = self;
-        let (params, car_parts) = match car {
+        let (mut params, car_parts) = match car {
             Some(car) => car.frame(aspect),
             None => (flat_frame(), &[] as &[Instance]),
         };
-        let Some(room) = room else { return (params, car_parts) };
+        params.shadow_tuning = fe_shadows::tuning(options);
         parts.clear();
-        parts.extend_from_slice(car_parts);
-        parts.extend_from_slice(room.instances());
+        parts.extend(car_parts.iter().map(|i| shadowed(*i, car_part(i), options.options)));
+        if let Some(room) = room {
+            parts.extend(room.instances().iter().map(|i| shadowed(*i, Part::Room, options.options)));
+        }
         // The renderer wants instances of one mesh next to each other.
         parts.sort_by_key(|i| i.mesh);
         (params, parts.as_slice())
+    }
+}
+
+/// The part of the car an instance belongs to: the placeholder floor is keyed with its own part number.
+fn car_part(instance: &Instance) -> Part {
+    match instance.key.parts().1 == FLOOR_PART {
+        true => Part::CarFloor,
+        false => Part::Car,
     }
 }
 

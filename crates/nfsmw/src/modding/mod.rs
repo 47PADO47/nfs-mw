@@ -20,6 +20,8 @@ mod hello_tests;
 #[cfg(test)]
 mod tests;
 
+pub use backends::Bridge;
+pub use backends::menus::{RowInfo, any_row as has_menu_rows, change as change_menu_row, rows as menu_rows};
 pub use console::{has_command, help_entries, listing, run_command};
 pub use open::open_install;
 pub use plugin::ModsPlugin;

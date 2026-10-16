@@ -9,6 +9,8 @@ mod bridge;
 pub mod commands;
 mod input;
 mod map;
+pub mod menu_store;
+pub mod menus;
 mod time;
 
 #[cfg(test)]
@@ -19,6 +21,8 @@ mod commands_tests;
 mod input_tests;
 #[cfg(test)]
 mod map_tests;
+#[cfg(test)]
+mod menus_tests;
 #[cfg(test)]
 pub(crate) mod support;
 #[cfg(test)]
@@ -44,7 +48,8 @@ pub fn interfaces() -> Interfaces {
         .add_commands(Rc::new(commands::CommandsPort(bridge.clone())))
         .add_input(Rc::new(input::InputPort(bridge.clone())))
         .add_time(Rc::new(time::TimePort(bridge.clone())))
-        .add_map(Rc::new(map::MapPort(bridge.clone())));
+        .add_map(Rc::new(map::MapPort(bridge.clone())))
+        .add_menus(Rc::new(menus::MenusPort(bridge.clone())));
     Interfaces { registry, bridge }
 }
 

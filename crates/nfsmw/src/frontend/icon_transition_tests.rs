@@ -86,8 +86,8 @@ fn assert_exit(h: &mut Harness, count: usize, icon: Icon, button: u32) {
 #[ignore = "requires installed menu packages; set NFSMW_GAME_DIR"]
 fn all_icon_menus_shrink_on_native_accept_back_and_start() {
     let main = Kind::Main;
-    let cats = Kind::Categories { pause: false };
-    let pause_cats = Kind::Categories { pause: true };
+    let cats = Kind::Categories { pause: false, mods: false };
+    let pause_cats = Kind::Categories { pause: true, mods: false };
     let sub = Args { options: true, ..Args::default() };
     let pause = Args { pause: true, ..Args::default() };
     let pause_sub = Args { pause: true, options: true, ..Args::default() };
@@ -134,7 +134,7 @@ fn controller_at(h: &Harness, count: usize) -> usize {
 #[test]
 #[ignore = "requires installed menu packages; set NFSMW_GAME_DIR"]
 fn the_controller_icon_grows_on_return_and_shares_the_row_exit_factor() {
-    let (count, control) = reach(Kind::Categories { pause: true }, Id::ControlOptions);
+    let (count, control) = reach(Kind::Categories { pause: true, mods: false }, Id::ControlOptions);
     let mut h = Harness::open(screen::PAUSE_MENU, Args { pause: true, options: true, ..Args::default() }).unwrap();
     assert!(row(&h, count).iter().all(|p| p.size.x == 0.0 && p.alpha == 0));
     h.wait(1.0);

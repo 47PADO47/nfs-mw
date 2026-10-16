@@ -59,6 +59,8 @@ pub enum Setting {
     RenderScale,
     Upscaler,
     UpscaleSharpness,
+    /// A row a mod added to the Mods page (`bb.menus`), by its handle; its label, value and control come from the bridge.
+    Mod(u64),
 }
 
 /// What a row's title shows.
@@ -359,6 +361,8 @@ impl Setting {
         }
         let before = *s;
         match self {
+            // A Mods row's value lives in its mod (`mod_options.rs`), not in the settings.
+            Setting::Mod(_) => return false,
             Setting::Input(_) | Setting::Alias(_) | Setting::Post(_) | Setting::Graphics(_) | Setting::Renderer(_) => {
                 unreachable!("input, alias, post, graphics and renderer settings are handled above")
             }

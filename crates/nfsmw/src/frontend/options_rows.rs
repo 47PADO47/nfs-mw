@@ -74,6 +74,8 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
             .into_iter()
             .map(|setting| row(Setting::Alias(setting), Title::Text(setting.title())))
             .collect(),
+        // The rows of the Mods page are the mods' own (`bb.menus`), read from the bridge by `widget_menu.rs`.
+        Category::Mods => Vec::new(),
         // The Discord Rich Presence toggles (`discord/`); the time played is dimmed while Discord is off.
         Category::Discord => vec![
             row(Setting::Discord, Title::Text("Discord Rich Presence")),

@@ -43,5 +43,6 @@ pub use registry::InterfaceRegistry;
 pub use reject::{RejectReason, Rejected};
 pub use runtime::{DispatchReport, ModRuntime, ModSummary, ReloadError, RunMode};
 pub use table::{
-    BackendResult, BlipSpec, CommandHandler, CommandsBackend, HotkeyHandler, InputBackend, MapBackend, TimeBackend,
+    BackendResult, BlipSpec, CommandHandler, CommandsBackend, HotkeyHandler, InputBackend, MAX_CHOICES, MapBackend,
+    MenuHandler, MenuKind, MenuRowSpec, MenusBackend, TimeBackend,
 };

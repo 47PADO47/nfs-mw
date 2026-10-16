@@ -8,6 +8,7 @@
 mod commands;
 mod input;
 mod map;
+mod menus;
 mod time;
 
 #[cfg(test)]
@@ -16,6 +17,10 @@ mod tests;
 pub use commands::{BbCommandCallbackFn, BbCommands, BbCommandsRegisterFn, BbCommandsRunFn, BbCommandsUnregisterFn};
 pub use input::{BbHotkeyFn, BbInput, BbInputRegisterFn, BbInputUnregisterFn};
 pub use map::{BbBlip, BbMap, BbMapAddFn, BbMapRemoveFn, BbMapUpdateFn, BbRgba};
+pub use menus::{
+    BB_MENU_BUTTON, BB_MENU_LIST, BB_MENU_SLIDER, BB_MENU_TOGGLE, BbMenuCallbackFn, BbMenuRow, BbMenus, BbMenusGetFn,
+    BbMenusRegisterFn, BbMenusSetFn, BbMenusUnregisterFn,
+};
 pub use time::{BbTime, BbTimeFreezeFn, BbTimeGetFn, BbTimeOfDay, BbTimeSetDayLengthFn, BbTimeSetHourFn};
 
 /// The header of an interface table. Its `size` says how many bytes the host filled in, and `major` and `minor` are
@@ -50,3 +55,8 @@ pub const IFACE_TIME_VERSION: (u16, u16) = (1, 0);
 pub const IFACE_MAP: &str = "bb.map";
 /// The version the host implements for [`IFACE_MAP`], as `(major, minor)`.
 pub const IFACE_MAP_VERSION: (u16, u16) = (1, 0);
+
+/// Id of the menus interface: rows on the Mods page of the options.
+pub const IFACE_MENUS: &str = "bb.menus";
+/// The version the host implements for [`IFACE_MENUS`], as `(major, minor)`.
+pub const IFACE_MENUS_VERSION: (u16, u16) = (1, 0);

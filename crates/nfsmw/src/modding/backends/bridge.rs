@@ -14,11 +14,12 @@ use blackbox_modding::host::HotkeyHandler;
 use super::commands::ModCommand;
 use super::input::Hotkey;
 use super::map::{self, ModBlip};
+use super::menu_store::{ConfigFile, ValueStore};
+use super::menus::MenuRow;
 use super::time::{self, Clock, ClockRequest};
 use crate::devtools::Console;
 use crate::viewer::Scene;
 
-#[derive(Default)]
 pub struct Bridge {
     /// The last handle given out. Handles start at 1; 0 means none.
     last_handle: Cell<u64>,
@@ -34,9 +35,35 @@ pub struct Bridge {
     pub(super) clock_requests: RefCell<Vec<ClockRequest>>,
     /// The minimap blips the mods placed.
     pub(super) blips: RefCell<Vec<ModBlip>>,
+    /// The rows the mods added to the Mods page of the options.
+    pub(super) menu_rows: RefCell<Vec<MenuRow>>,
+    /// Where the rows' values are saved.
+    pub(super) store: Box<dyn ValueStore>,
+}
+
+impl Default for Bridge {
+    /// The bridge of a game run: the rows' values go to the config file.
+    fn default() -> Self {
+        Self::with_store(Box::new(ConfigFile))
+    }
 }
 
 impl Bridge {
+    /// A bridge whose rows save their values in `store`.
+    pub fn with_store(store: Box<dyn ValueStore>) -> Self {
+        Self {
+            last_handle: Cell::new(0),
+            commands: RefCell::default(),
+            queued_lines: RefCell::default(),
+            hotkeys: RefCell::default(),
+            clock: Cell::new(None),
+            clock_requests: RefCell::default(),
+            blips: RefCell::default(),
+            menu_rows: RefCell::default(),
+            store,
+        }
+    }
+
     /// A handle nobody has been given yet.
     pub(super) fn next_handle(&self) -> u64 {
         let handle = self.last_handle.get() + 1;

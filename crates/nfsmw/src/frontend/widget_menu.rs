@@ -9,6 +9,7 @@ use glam::{Vec2, Vec3};
 use super::alias_options::AliasSetting;
 use super::ids::{self, screen};
 use super::logic::{Args, Command, Cx, ScreenLogic};
+use super::mod_options;
 use super::options::{self, Control, Data, Row, Title};
 use super::widget_layout::{Layout, RowObjects};
 
@@ -126,11 +127,12 @@ impl WidgetMenu {
     /// Writes the title, the value and the slider of a row from the settings.
     fn draw_row(&self, cx: &mut Cx, index: usize, slot: usize) {
         let (Some(row), Some(r)) = (self.rows.get(index), self.objects.get(slot)) else { return };
-        match row.title {
-            Title::Label(label) => cx.rt.set_label(r.name, label),
-            Title::Text(text) => cx.rt.set_text(r.name, text),
+        match (mod_options::shown(cx.mods, row.setting), row.title) {
+            (Some(shown), _) => cx.rt.set_text(r.name, &shown.label),
+            (None, Title::Label(label)) => cx.rt.set_label(r.name, label),
+            (None, Title::Text(text)) => cx.rt.set_text(r.name, text),
         }
-        let control = row.setting.control(cx.settings);
+        let control = control_of(cx, row.setting);
         let slider = matches!(control, Control::Slider(_));
         for o in [r.data, r.left, r.right].into_iter().flatten() {
             // A slider row has no data string; its arrows stay.
@@ -145,7 +147,7 @@ impl WidgetMenu {
         match control {
             Control::Toggle => {
                 let Some(data) = r.data else { return };
-                match row.setting.data_in(cx.settings, &cx.caps) {
+                match data_of(cx, row.setting) {
                     Data::Label(label) => cx.rt.set_label(data, label),
                     Data::Text(text) => cx.rt.set_text(data, text),
                 }
@@ -305,6 +307,11 @@ impl WidgetMenu {
             cx.send(Command::LoadAlias);
             return;
         }
+        if let options::Setting::Mod(_) = row.setting {
+            mod_options::change(cx.mods, row.setting, forward);
+            self.draw_visible(cx);
+            return;
+        }
         row.setting.advance(cx.settings, cx.changed, forward, &cx.caps);
         self.draw_visible(cx);
     }
@@ -333,9 +340,22 @@ impl WidgetMenu {
 /// The group whose scripts `POS1` .. `POSn` move the cursor to a row slot (its name is only known as a hash).
 const CURSOR: u32 = 0x0674_5352;
 
+/// The control of a row: a Mods row's from the bridge, any other row's from the settings.
+fn control_of(cx: &Cx<'_>, setting: options::Setting) -> Control {
+    mod_options::shown(cx.mods, setting).map_or_else(|| setting.control(&*cx.settings), |shown| shown.control)
+}
+
+/// The data of a row: a Mods row's from the bridge, any other row's from the settings.
+fn data_of(cx: &Cx<'_>, setting: options::Setting) -> Data {
+    mod_options::shown(cx.mods, setting).map_or_else(|| setting.data_in(&*cx.settings, &cx.caps), |shown| shown.data)
+}
+
 impl ScreenLogic for WidgetMenu {
     fn start(&mut self, cx: &mut Cx) {
-        self.rows = options::rows(self.args.category, &cx.caps);
+        self.rows = match self.args.category {
+            super::logic::Category::Mods => mod_options::rows(cx.mods),
+            category => options::rows(category, &cx.caps),
+        };
         self.find_rows(cx);
         // Packages supply reusable screen slots, not one object for every logical setting.
         self.on_screen = self.on_screen.min(self.objects.len());
@@ -354,7 +374,7 @@ impl ScreenLogic for WidgetMenu {
             (super::logic::Category::Player, true) => 0xD9DC_2F12,
             // The original's profile manager title ("alias manager", docs/specs/save-alias-manager.md, section 1).
             (super::logic::Category::AliasManager, _) => 0x1B76_F2CE,
-            (super::logic::Category::Controls | super::logic::Category::Discord, _) => 0,
+            (super::logic::Category::Controls | super::logic::Category::Discord | super::logic::Category::Mods, _) => 0,
         };
         cx.label_group(ids::HEADER_TEXT, title);
         if self.args.category == super::logic::Category::Player
@@ -366,6 +386,7 @@ impl ScreenLogic for WidgetMenu {
             // The Controls icon opens the key list; this list is the Control Options item.
             super::logic::Category::Controls => cx.text_group(ids::HEADER_TEXT, "Control Options"),
             super::logic::Category::Discord => cx.text_group(ids::HEADER_TEXT, "Discord"),
+            super::logic::Category::Mods => cx.text_group(ids::HEADER_TEXT, "Mods"),
             _ => {}
         }
         self.layout_rows(cx);
@@ -408,7 +429,7 @@ impl ScreenLogic for WidgetMenu {
             let slot = index - first;
             self.place(cx, slot);
             let (Some(row), Some(r)) = (self.rows.get(index), self.objects.get(slot)) else { continue };
-            if let Control::Slider(percent) = row.setting.control(cx.settings) {
+            if let Control::Slider(percent) = control_of(cx, row.setting) {
                 self.draw_slider(cx, r, f32::from(percent) / 100.0);
             }
             // The package's scripts reset the title's alpha, so a disabled row is dimmed every frame.
@@ -427,70 +448,5 @@ const SCROLL_ARROW_1: u32 = 0x4449_69FD;
 const SCROLL_ARROW_2: u32 = 0x4449_69FE;
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use blackbox_feng::Runtime;
-    use game_install::GameDir;
-    use std::collections::HashMap;
-
-    use crate::settings::{Partial, Settings};
-    use crate::ui::{Catalog, SCREEN_FILES, UiAssets};
-
-    #[test]
-    #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
-    fn vehicle_effects_retail_title_animation_matches_the_unmodified_asset() {
-        let dir = GameDir::open(std::path::PathBuf::from(std::env::var_os("NFSMW_GAME_DIR").unwrap())).unwrap();
-        let catalog = Catalog::load(&dir, &SCREEN_FILES);
-        let assets = UiAssets::load(&dir).unwrap();
-        for (name, pause) in [(screen::OPTIONS, false), (screen::PAUSE_OPTIONS, true)] {
-            let package = catalog.find(name).unwrap().clone();
-            let (mut baseline, mut bound) = (Runtime::new(), Runtime::new());
-            let baseline_id = baseline.load(package.clone());
-            let bound_id = bound.load(package);
-            // Finish the enter scripts before explicitly starting the retail title's highlight.
-            // The pause package can clear its initial focus during those scripts.
-            for _ in 0..120 {
-                baseline.update(1.0 / 60.0);
-                bound.update(1.0 / 60.0);
-            }
-            let hash = fe_hash_upper("OPTION_NAME_1");
-            let original = baseline.find(baseline_id, hash).unwrap();
-            let tested = bound.find(bound_id, hash).unwrap();
-            baseline.run_script(original, ids::SCRIPT_HIGHLIGHT);
-            bound.run_script(tested, ids::SCRIPT_HIGHLIGHT);
-            let mut menu =
-                WidgetMenu::new(Args { pause, category: super::super::logic::Category::Video, ..Args::default() });
-            let (mut settings, mut changed) = (Settings::from(Partial::default()), Partial::default());
-            let (mut commands, mut memory) = (Vec::new(), HashMap::new());
-            let mut cx = Cx {
-                rt: &mut bound,
-                package: bound_id,
-                assets: &assets,
-                settings: &mut settings,
-                changed: &mut changed,
-                caps: crate::settings::test_caps::native(),
-                commands: &mut commands,
-                memory: &mut memory,
-                key_texts: &[],
-                world_map: None,
-                name,
-            };
-            menu.find_rows(&mut cx);
-            let (mut min_alpha, mut max_alpha) = (255, 0);
-            for frame in 0..160 {
-                baseline.update(1.0 / 60.0);
-                cx.rt.update(1.0 / 60.0);
-                menu.keep_selected_title_readable(&mut cx);
-                let expected = baseline.object(original).unwrap().data.colour_rgba();
-                let actual = cx.rt.object(tested).unwrap().data.colour_rgba();
-                min_alpha = min_alpha.min(expected[3]);
-                max_alpha = max_alpha.max(expected[3]);
-                assert_eq!(actual, expected, "{name}, frame {frame}: retail RGBA must match the untouched asset");
-            }
-            assert!(
-                min_alpha < max_alpha,
-                "{name}: explicitly highlighted baseline must exercise animation (min {min_alpha}, max {max_alpha})"
-            );
-        }
-    }
-}
+#[path = "widget_menu_tests.rs"]
+mod tests;
