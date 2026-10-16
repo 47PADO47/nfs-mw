@@ -347,7 +347,7 @@ mod tests {
 
     #[test]
     fn the_radio_mask_has_its_28_bits() {
-        let jukebox = Jukebox::defaults(&vec![(true, true); 30]);
+        let jukebox = Jukebox::defaults(&[(true, true); 30]);
         assert_eq!(jukebox.mask(0), (1u32 << 28) - 1);
     }
 }
