@@ -67,7 +67,7 @@ renderer behind a cargo feature and a runtime switch.**
    |---|---|---|
    | FXAA, bloom, ACES, render scale, bilinear, FSR 1 | both | the native set; shared passes |
    | SMAA, TAA | Bevy | |
-   | FSR 3.1 | Bevy, via `libs/fsr3-wgpu` | WGSL port of the MIT upscaler; Vulkan and DX12, any vendor; the crate is backend-agnostic |
+   | FSR 3.1 | both, via `libs/fsr3-wgpu` | WGSL port of the MIT upscaler; Vulkan and DX12, any vendor; the crate is backend-agnostic. Bevy first (PR 13b), then the native renderer |
    | FSR 4 | Bevy, via `libs/ffx-api-wgpu` | **experimental**, DX12 only, AMD's DLL; cut-able; no hardware to verify |
    | DLSS Super Resolution | Bevy `dlss` feature | Vulkan, NVIDIA RTX; default off; SDK never in the repo |
    | Solari ray tracing | Bevy `ray-tracing` feature | startup-gated; DLSS-RR as denoiser on NVIDIA |
@@ -177,7 +177,8 @@ here; they stay open until the owner answers them.
    city or only nearby tiles and cars.
 6. The MSRV rise to 1.97.1 if the pin bump needs it.
 7. Accept "DLSS 5 not planned", with its revisit trigger.
-8. Whether FSR 3 may later be enabled on the native backend.
+8. ~~Whether FSR 3 may later be enabled on the native backend.~~ Done: the native renderer runs `libs/fsr3-wgpu` too
+   (see [upscaling.md](../upscaling.md)); it offers FSR 3 on Vulkan and DX12 devices with the storage limits it needs.
 
 The full list of risks and open decisions is in [plan §9](../plans/gfx-renderers/verification-risks.md).
 

@@ -102,8 +102,8 @@ Windows the usual C++ build tools (MSVC) are needed as well.
   - `dlss-mock`: compiles the DLSS code without the SDK. CI uses it to check that the code compiles.
   - `ray-tracing`: Solari ray tracing. It is set at startup and uses DLSS Ray Reconstruction as its denoiser
     when `dlss` is also built.
-  - `fsr3`: the FSR 3 temporal upscaler, in the default build. It needs none of the SDKs above and runs on Vulkan
-    and DX12.
+  - `fsr3`: the FSR 3 temporal upscaler on the Bevy renderer, in the default build. It needs none of the SDKs above
+    and runs on Vulkan and DX12. The native renderer has FSR 3 in every build (no feature).
 
   A build with DLSS and ray tracing: `cargo run -p nfsmw --features dlss,ray-tracing`, then start with
   `--renderer bevy`.

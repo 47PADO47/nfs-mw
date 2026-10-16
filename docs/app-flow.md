@@ -122,7 +122,8 @@ What the Bevy renderer does and does not do (status as of the spike; see
 |---|---|---|
 | World meshes, textures, fog, alpha test, blending, sky | yes | yes |
 | Anti-aliasing `smaa`, `taa` | no | yes |
-| Upscaler `fsr3`, `dlss`, `fsr4` | no | yes (Vulkan/DX12; `dlss` NVIDIA RTX only, separate build option; `fsr4` DX12 RX 7000/9000 only) |
+| Upscaler `fsr3` | yes (Vulkan/DX12) | yes (Vulkan/DX12) |
+| Upscaler `dlss`, `fsr4` | no | yes (Vulkan/DX12; `dlss` NVIDIA RTX only, separate build option; `fsr4` DX12 RX 7000/9000 only) |
 | Ray tracing | no | yes, on GPUs with ray queries |
 | Car reflection captures | yes | no (static sky) |
 | HUD, menus, UI layer | native UI layer | **not drawn through the Bevy renderer yet** (docs say the spike draws the world only; not verified in code) |

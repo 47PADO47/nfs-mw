@@ -158,8 +158,8 @@ pub struct ViewArgs {
     #[arg(long, value_name = "50-200")]
     pub render_scale: Option<crate::settings::RenderScale>,
     /// How the scene is scaled up: fsr1 (FidelityFX Super Resolution 1), bilinear, or off (the render scale is
-    /// ignored); fsr3, fsr4 and dlss are temporal upscalers of the bevy renderer and run as fsr1 without it
-    /// [env NFSMW_UPSCALER; config `upscaler`; default fsr1].
+    /// ignored); fsr3 is temporal and runs on both renderers, fsr4 and dlss only on the bevy renderer; a renderer
+    /// without the one asked for runs the next best [env NFSMW_UPSCALER; config `upscaler`; default fsr1].
     #[arg(long, value_name = "off|bilinear|fsr1|fsr3|fsr4|dlss")]
     pub upscaler: Option<crate::settings::UpscaleMode>,
     /// FSR 1 sharpening, 0 (off) to 100 [env NFSMW_UPSCALE_SHARPNESS; config `upscale_sharpness`; default 80].

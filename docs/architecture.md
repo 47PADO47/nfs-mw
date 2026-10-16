@@ -46,7 +46,7 @@ backends, multi-platform support and testing. The structure follows [vladtrc/iw4
 | [`blackbox-gpu-passes`](../libs/blackbox-gpu-passes) | Reusable wgpu passes (UI layer, world effects, soft particles, fullscreen filter, FSR 1) that any render loop can call with its own encoder | — |
 | [`blackbox-render`](../libs/blackbox-render) | Backend-neutral renderer (wgpu inside); implements the `blackbox-gfx` types and `RenderBackend`; headless mode | — |
 | [`blackbox-bevy-render`](../libs/blackbox-bevy-render) | Optional Bevy 0.20 renderer implementing `RenderBackend` as plugins of the game's `App` (world path only so far, [bevy-backend.md](bevy-backend.md)); a leaf crate behind the `renderer-bevy` feature | Bevy render crates |
-| [`fsr3-wgpu`](../libs/fsr3-wgpu) | AMD FidelityFX Super Resolution 3.1 temporal upscaler in WGSL for wgpu (fp32, no subgroup operations); standalone, not used by a renderer yet | — |
+| [`fsr3-wgpu`](../libs/fsr3-wgpu) | AMD FidelityFX Super Resolution 3.1 temporal upscaler in WGSL for wgpu (fp32, no subgroup operations); used by the native renderer (`blackbox-render`) and the Bevy renderer | — |
 | [`blackbox-roads`](../libs/blackbox-roads) | The road network (`RNgp`: nodes, segments, lane profiles, roads), lane geometry, closest-segment search and the road navigator (a cursor that follows a lane through junctions) | — (one format version) |
 | [`blackbox-driver`](../libs/blackbox-driver) | Controllers of computer-driven cars: the simple traffic driver, the adaptive-PID racer driver, reverse logic, stuck detection; plain numbers in, gas/brake/steer out | — (tuning passed by the caller) |
 | [`blackbox-scene`](../libs/blackbox-scene) | Uploading solids and textures to the renderer; boxes; frustum culling | — |

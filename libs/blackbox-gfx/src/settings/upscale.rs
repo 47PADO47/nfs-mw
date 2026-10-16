@@ -7,7 +7,8 @@ use super::render_scale::{DEFAULT_RENDER_SCALE, clamp_render_scale};
 /// is copied (or, when supersampled, filtered down) by the final resolve pass.
 ///
 /// Which upscalers exist depends on the renderer (its `Capabilities::upscalers`): the native renderer
-/// has [`Off`](Self::Off), [`Bilinear`](Self::Bilinear) and [`Fsr1`](Self::Fsr1).
+/// has [`Off`](Self::Off), [`Bilinear`](Self::Bilinear) and [`Fsr1`](Self::Fsr1), and [`Fsr3`](Self::Fsr3) on a
+/// device that can run it.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum Upscaler {
     /// No upscaling: the scene is drawn at the output size, whatever the render scale says.

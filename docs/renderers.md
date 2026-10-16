@@ -60,7 +60,7 @@ setting.
 | Bloom, tone mapping `aces` | yes | yes |
 | Anti-aliasing `smaa` | yes (Vulkan, DX12) | yes |
 | Anti-aliasing `taa` | no | yes (Vulkan and DX12) |
-| Upscaler `fsr3` (temporal, any GPU) | no | yes (Vulkan, DX12; `fsr3` build) |
+| Upscaler `fsr3` (temporal, any GPU) | yes (Vulkan, DX12; a device with 4 storage textures and 8 storage buffers per stage) | yes (Vulkan, DX12; `fsr3` build) |
 | Upscaler `fsr4` (experimental) | no | not built yet (no tester) |
 | Upscaler `dlss` | no | Vulkan, NVIDIA RTX only (`dlss` build; `dlss-mock` runs it as TAA plus FSR 1) |
 | `ray_tracing` | no | GPUs with ray queries (Solari, `ray-tracing` build; works on RTX, the look is a stand-in); noisy without DLSS Ray Reconstruction |
@@ -122,16 +122,16 @@ a warning and the next layer decides.
 A preset is a set of *requests*. What a renderer runs is decided afterwards from what it can do, so
 **`ultra` on `blackbox` is `high`**: the `taa` and `medium` ray tracing it asks for are downgraded (to
 `fxaa` and `off`) with a log line. `ultra` asks for no temporal upscaler on purpose: `dlss` versus `fsr3`
-depends on your GPU, and asking for either would make the native renderer draw at two thirds
-resolution. Choose a temporal upscaler yourself.
+depends on your GPU, and asking for either would make the renderer draw at two thirds resolution.
+Choose a temporal upscaler yourself.
 
 ## When a renderer cannot do what you asked
 
 The settings are what you *request*; the renderer maps them onto what it can run:
 
 - A missing upscaler falls back along `fsr4 > fsr3 > fsr1 > bilinear > off` and `dlss > fsr3 > fsr1 >
-  bilinear > off`. A temporal upscaler requested on `blackbox` therefore runs as `fsr1` at the render
-  size of its quality mode (`dlss` at `quality` is `fsr1` at 67 %).
+  bilinear > off`. `dlss` or `fsr4` requested on `blackbox` therefore runs as `fsr3` on a device that can
+  (else as `fsr1`), at the render size of its quality mode (`dlss` at `quality` is `fsr3` at 67 %).
 - A temporal upscaler turns `post_aa` off (it does its own anti-aliasing). A missing `taa` or `smaa`
   becomes `fxaa`, then `off`.
 - Ray tracing the renderer lacks is `off`; without a denoiser it is allowed but noisy.

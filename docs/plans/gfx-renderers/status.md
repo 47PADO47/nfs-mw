@@ -31,6 +31,7 @@ All branches are in one GitHub stack (stack #23, draft PRs, each based on the pr
 | 12 | `feat/gfx-bevy-solari` | | **done on the RTX card**: startup gate, caps, stand-ins, cameras, sun, camera-cut reset, game wiring; the stand-in look is white (open, §3d) |
 | 13a | `feat/gfx-fsr3-core` | #41 | done: `libs/fsr3-wgpu`, not used by a renderer yet |
 | 13b | `feat/gfx-fsr3` | | **wired, verified on the RTX card**: `fsr3` feature in `blackbox-bevy-render` (`src/fsr3/`), caps offer FSR 3 when the device can run it; the world material now writes depth and motion vectors (section 3e), so the moving-camera picture follows the native one; quality vs AMD not measured |
+| 13c | `feat/native-fsr3` | | **written, not yet run**: FSR 3 on the native renderer (`blackbox-render`): its own jitter, a motion-vector pass with per-instance history, the upscale first in the post chain, caps from the device limits; GPU tests are written and have not been run; see [upscaling.md](../../upscaling.md#fsr-3-on-the-native-renderer) |
 | 14 | `feat/gfx-bevy-fsr4` | | **not started**, experimental, needs an RX 7000/9000 tester |
 
 The status PR itself is the top of the stack (see the PR list on GitHub). Not part of the stack: exhaust flames (#31, against `main`).
