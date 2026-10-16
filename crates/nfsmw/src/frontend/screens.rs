@@ -125,13 +125,17 @@ impl Screens {
         commands
     }
 
-    /// Unloads the top screen.
+    /// Unloads the top screen. The screen below gets its buttons back: the press that opened the screen on top
+    /// (a quit question, say) switched them off, as a package does while it leaves.
     pub fn pop(&mut self) {
         if let Some(old) = self.stack.pop() {
             self.runtime.unload(old.id);
         }
         self.await_release = true;
         self.give_control();
+        if let Some(top) = self.stack.last() {
+            self.runtime.set_input_enabled(top.id, true);
+        }
     }
 
     /// Only the screen on top takes pad input.
