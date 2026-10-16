@@ -2,7 +2,9 @@
 //! that actually makes the main pass draw smaller than the surface.
 
 use bevy_camera::MainPassResolutionOverride;
+use bevy_core_pipeline::prepass::MotionVectorPrepass;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::query::Has;
 use bevy_ecs::system::{Commands, Res};
 use bevy_render::camera::ExtractedCamera;
 use bevy_render::renderer::ViewQuery;
@@ -53,14 +55,19 @@ pub fn render_size(target: [u32; 2], render_scale: f32) -> Option<(u32, u32)> {
 /// The `dlss-mock` build keeps using the render scale, since its DLSS request is TAA plus FSR 1.
 pub fn apply_resolution_override(
     bridge: Res<BlackboxBridge>,
-    view: ViewQuery<(Entity, &ExtractedCamera)>,
+    view: ViewQuery<(Entity, &ExtractedCamera, Has<MotionVectorPrepass>)>,
     mut commands: Commands,
 ) {
-    let (entity, camera) = view.into_inner();
+    let (entity, camera, temporal) = view.into_inner();
     let Some(target) = camera.physical_target_size else { return };
     let settings = bridge.lock().settings;
     #[cfg(all(feature = "dlss", not(feature = "dlss-mock")))]
     if settings.upscaler == blackbox_gfx::Upscaler::Dlss {
+        return;
+    }
+    // FSR 3 upscales only the cameras it was set up on (`fsr3::set` gives them the motion-vector prepass, which
+    // no other camera on this path has). A capture draws at its own size, as it does on DLSS.
+    if settings.upscaler == blackbox_gfx::Upscaler::Fsr3 && !temporal {
         return;
     }
     let mut entity = commands.entity(entity);

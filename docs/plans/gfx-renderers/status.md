@@ -30,7 +30,7 @@ All branches are in one GitHub stack (stack #23, draft PRs, each based on the pr
 | 11 | `feat/gfx-bevy-dlss` | | **not started**, needs the NVIDIA PC |
 | 12 | `feat/gfx-bevy-solari` | | **done on the RTX card**: startup gate, caps, stand-ins, cameras, sun, camera-cut reset, game wiring; the stand-in look is white (open, §3d) |
 | 13a | `feat/gfx-fsr3-core` | #41 | done: `libs/fsr3-wgpu`, not used by a renderer yet |
-| 13b | `feat/gfx-fsr3` | | **not started** |
+| 13b | `feat/gfx-fsr3` | | **wired, partly verified**: `fsr3` feature in `blackbox-bevy-render` (`src/fsr3/`), caps offer FSR 3 when the device can run it, static-scene GPU test passes on the RTX card; **open**: `BlackboxMaterial` has no prepass (`enable_prepass` false), so world depth and motion vectors are empty and moving-camera reprojection is wrong until the material writes them (outside PR 13b's files); quality vs AMD not measured |
 | 14 | `feat/gfx-bevy-fsr4` | | **not started**, experimental, needs an RX 7000/9000 tester |
 
 The status PR itself is the top of the stack (see the PR list on GitHub). Not part of the stack: exhaust flames (#31, against `main`).

@@ -19,7 +19,7 @@ setting.
 - **Render scale** is the scene's width and height as a percent of the window's, 50 to 200. `67`,
   `67%` and `0.67` all mean the same.
 - **Upscaler** is `fsr1`, `bilinear` or `off` on the native renderer. `fsr3`, `fsr4` and `dlss` are temporal
-  upscalers that only the Bevy renderer will have; the native renderer runs them as `fsr1` (`dlss`, `fsr4` fall
+  upscalers that only the Bevy renderer offers (`fsr3` on an `fsr3` build); the native renderer runs them as `fsr1` (`dlss`, `fsr4` fall
   back through `fsr3`) and logs the downgrade. See [renderers.md](renderers.md).
 - **Upscale quality** is `auto`, `native`, `quality`, `balanced`, `performance` or `ultra_performance`. It only
   matters for the temporal upscalers, whose render size it sets (100, 67, 59, 50 and 33 %; `auto` is `quality`);
@@ -129,9 +129,22 @@ FSR 3 frame generation, FSR 4 and Streamline are not reachable through wgpu and 
 ### FSR 3.1 temporal upscaler (`libs/fsr3-wgpu`)
 
 [`libs/fsr3-wgpu`](../libs/fsr3-wgpu) is a standalone WGSL port of AMD's FSR 3.1 temporal upscaler (MIT,
-from the FidelityFX SDK v1.1.4; frame generation is not included). It is **not wired into any renderer
-yet**: it depends only on `wgpu`, so a backend can add it on Vulkan and DirectX 12 (and Metal) without
-subgroup operations or vendor code. It needs the inputs of the table above: the jittered colour at the
+from the FidelityFX SDK v1.1.4; frame generation is not included). It depends only on `wgpu`, so a backend can
+add it on Vulkan and DirectX 12 (and Metal) without subgroup operations or vendor code.
+
+**Bevy renderer (PR 13b).** The Bevy renderer offers it on a build with the `fsr3` feature (`cargo build -p nfsmw
+--features fsr3`, which implies `renderer-bevy`), when the device has the storage limits its passes use. The wiring is in
+`libs/blackbox-bevy-render/src/fsr3/`: the screen camera gets the depth and motion-vector prepasses, the jitter, `Hdr`
+and the temporal mip bias; the render-world node sets the jitter on the projection, runs the upscale in place of TAA,
+and blits the display-size result into the view target before bloom and tone mapping. The render size comes from the
+shared quality table. The static-scene GPU test passes on an RTX 4070 SUPER over Vulkan
+(`cargo test -p blackbox-bevy-render --features fsr3 --lib fsr3 -- --ignored`). **Not yet right:** the Blackbox
+material has `enable_prepass() == false` (`libs/blackbox-bevy-render/src/material/mod.rs`), so world geometry is
+never drawn into the depth or motion-vector prepass. The upscaler then sees an empty depth buffer and no motion for the
+world, and a moving camera does not reproject its history. This is the open follow-up for PR 13b; the upscaler and its
+wiring do not need changing for it. Quality against AMD's output has not been measured.
+
+It needs the inputs of the table above: the jittered colour at the
 render size, the reverse-Z depth (the crate takes the reverse infinite convention as a flag), motion
 vectors, the Halton(2,3) jitter (`fsr3_wgpu::jitter`), the texture LOD bias `log2(1 / ratio) - 1`
 (`QualityMode::mip_bias`) and a reset on camera cuts. The per-axis ratios are AMD's: native 1.0, quality

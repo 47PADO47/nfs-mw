@@ -165,6 +165,9 @@ fn drive_screen(
     // Every frame, after `set_post`: it can take the prepasses that DLSS needs away, so they go back on here.
     #[cfg(all(feature = "dlss", not(feature = "dlss-mock")))]
     crate::dlss::sdk::set(commands, screen.entity, settings, data.frame.camera_cut);
+    // The same for FSR 3 (`fsr3::set`): its prepasses, jitter, `Hdr` and the camera-cut reset.
+    #[cfg(feature = "fsr3")]
+    crate::fsr3::set(commands, screen.entity, settings, data.frame.camera_cut);
     if screen.vsync != Some(settings.vsync) {
         // Mailbox, not AutoNoVsync: Bevy's no-vsync fallback list tries Immediate first, which on Mesa under
         // Wayland and Xwayland still ran at the display rate (60 fps) where Mailbox ran unthrottled; wgpu's own

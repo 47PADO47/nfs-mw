@@ -6,10 +6,10 @@
 use std::sync::{Arc, Mutex};
 
 use blackbox_gfx::{
-    BackendInfo, Capabilities, CaptureId, EffectLayer, Environment, FocusFilter, FrameParams, FrameStatus, GlossyMaterial,
-    GlossyMaterialHandle, GraphicsSettings, Instance, LightingRig, MeshDesc, MeshHandle, RenderBackend, RenderError,
-    RenderStats, Resolved, RgbaImage, SkyGradient, TextureDesc, TextureHandle, UiLayer, UiTextureId, UiTexturePatch,
-    resolve, scaled_size,
+    BackendInfo, Capabilities, CaptureId, EffectLayer, Environment, FocusFilter, FrameParams, FrameStatus,
+    GlossyMaterial, GlossyMaterialHandle, GraphicsSettings, Instance, LightingRig, MeshDesc, MeshHandle, RenderBackend,
+    RenderError, RenderStats, Resolved, RgbaImage, SkyGradient, TextureDesc, TextureHandle, UiLayer, UiTextureId,
+    UiTexturePatch, resolve, scaled_size,
 };
 
 use crate::ops::{CameraSettings, CaptureRequest, FrameData, Op, Shared, UiOp, lock};

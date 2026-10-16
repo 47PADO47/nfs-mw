@@ -104,6 +104,18 @@ fn ray_tracing_of(_device: &RenderDevice, _rr_supported: bool) -> RtSupport {
     RtSupport::None
 }
 
+/// Whether the device can run FSR 3 (`fsr3::support`). Without the `fsr3` feature nothing is offered.
+#[cfg(feature = "fsr3")]
+fn fsr3_of(device: &RenderDevice) -> bool {
+    crate::fsr3::support(device)
+}
+
+/// Without the `fsr3` feature there is no FSR 3 to offer.
+#[cfg(not(feature = "fsr3"))]
+fn fsr3_of(_device: &RenderDevice) -> bool {
+    false
+}
+
 impl Plugin for BlackboxBevyRenderPlugin {
     fn build(&self, app: &mut App) {
         let settings = WgpuSettings {
@@ -153,6 +165,10 @@ impl Plugin for BlackboxBevyRenderPlugin {
             PbrPlugin { prepass_enabled: solari, add_default_deferred_lighting_plugin: false, ..PbrPlugin::default() },
             MaterialPlugin::<BlackboxMaterial>::default(),
         ));
+        // FSR 3 (`fsr3.rs`): the render-world jitter and upscale, and the `Fsr3Upscale` sync. Added with the other
+        // render-world systems; it needs the blit pipeline and the effect layer (`systems::effects`) that are above.
+        #[cfg(feature = "fsr3")]
+        crate::fsr3::install(app);
         app.init_resource::<BlackboxBridge>().init_resource::<WorldState>().add_systems(
             PostUpdate,
             apply::apply
@@ -244,6 +260,7 @@ fn backend_with_dlss(
         driver: format!("{} {}", adapter.driver, adapter.driver_info).trim().to_owned(),
     };
     let ray_tracing = ray_tracing_of(device, rr_supported);
-    let caps = crate::caps::capabilities_with_ray_tracing(api, compressed_bc, dlss_supported, ray_tracing);
+    let fsr3 = fsr3_of(device);
+    let caps = crate::caps::capabilities_with_ray_tracing(api, compressed_bc, dlss_supported, ray_tracing, fsr3);
     BevyBackend::new(bridge.share(), info, caps, size)
 }

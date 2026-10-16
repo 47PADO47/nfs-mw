@@ -1,7 +1,8 @@
 //! What the Bevy renderer can run. PR 9 drew the world path (glossy shading, redirects, the effect and UI
 //! layers); PR 10 adds bloom, tone mapping, FXAA, SMAA, TAA and the FSR 1 pass; PR 11 adds DLSS Super Resolution
 //! (`dlss.rs`, offered only where Bevy supports it, or always on `dlss-mock`); PR 12 reports ray tracing from the
-//! device's features (`solari.rs`). FSR 3/4 still arrives with later PRs.
+//! device's features (`solari.rs`); PR 13b offers FSR 3 on an `fsr3` build when the device can run it (`fsr3.rs`).
+//! FSR 4 still arrives with a later PR.
 
 use blackbox_gfx::{
     AaSet, Antialiasing, Capabilities, GraphicsApi, MIN_RENDER_SCALE, RestartSet, RtSupport, Setting, Tonemap,
@@ -15,21 +16,25 @@ pub fn capabilities(api: GraphicsApi, compressed_bc: bool) -> Capabilities {
 }
 
 /// The capabilities on `api`. `dlss_supported` is whether Bevy found DLSS Super Resolution on this machine; the
-/// `dlss-mock` build offers DLSS regardless. No ray tracing. The factory uses [`capabilities_with_ray_tracing`].
+/// `dlss-mock` build offers DLSS regardless. No ray tracing and no FSR 3. The factory uses
+/// [`capabilities_with_ray_tracing`].
 #[cfg(test)]
 pub fn capabilities_with_dlss(api: GraphicsApi, compressed_bc: bool, dlss_supported: bool) -> Capabilities {
-    capabilities_with_ray_tracing(api, compressed_bc, dlss_supported, RtSupport::None)
+    capabilities_with_ray_tracing(api, compressed_bc, dlss_supported, RtSupport::None, false)
 }
 
-/// The capabilities on `api` with `ray_tracing` as the device reports it (see `solari::support`).
+/// The capabilities on `api` with `ray_tracing` as the device reports it (see `solari::support`), and FSR 3 offered
+/// when `fsr3_supported` (`fsr3::support`, only ever true in an `fsr3` build).
 pub fn capabilities_with_ray_tracing(
     api: GraphicsApi,
     compressed_bc: bool,
     dlss_supported: bool,
     ray_tracing: RtSupport,
+    fsr3_supported: bool,
 ) -> Capabilities {
     let mut upscalers = UpscalerSet::of(&[Upscaler::Off, Upscaler::Bilinear, Upscaler::Fsr1]);
     offer_dlss(&mut upscalers, dlss_supported);
+    offer_fsr3(&mut upscalers, fsr3_supported);
     Capabilities {
         renderer: "bevy",
         api,
@@ -63,6 +68,16 @@ fn offer_dlss(upscalers: &mut UpscalerSet, supported: bool) {
 #[cfg(not(any(feature = "dlss", feature = "dlss-mock")))]
 fn offer_dlss(_upscalers: &mut UpscalerSet, _supported: bool) {}
 
+/// FSR 3 is offered when the build has it and the device can run it (`fsr3::support`).
+#[cfg(feature = "fsr3")]
+fn offer_fsr3(upscalers: &mut UpscalerSet, supported: bool) {
+    crate::fsr3::offer(upscalers, supported);
+}
+
+/// Builds without FSR 3 offer nothing extra.
+#[cfg(not(feature = "fsr3"))]
+fn offer_fsr3(_upscalers: &mut UpscalerSet, _supported: bool) {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -71,10 +86,14 @@ mod tests {
     #[test]
     fn ray_tracing_is_reported_as_the_device_offers_it() {
         let offered = RtSupport::Available { denoiser: Some(Denoiser::DlssRr) };
-        let caps = capabilities_with_ray_tracing(GraphicsApi::Vulkan, true, false, offered);
+        let caps = capabilities_with_ray_tracing(GraphicsApi::Vulkan, true, false, offered, false);
         assert_eq!(caps.ray_tracing, offered);
         // The default constructors never offer it: nothing said the device has the features.
         assert_eq!(capabilities(GraphicsApi::Vulkan, true).ray_tracing, RtSupport::None);
+        assert_eq!(
+            capabilities_with_ray_tracing(GraphicsApi::Vulkan, true, false, offered, false).ray_tracing,
+            offered
+        );
         assert_eq!(capabilities_with_dlss(GraphicsApi::Vulkan, true, true).ray_tracing, RtSupport::None);
     }
 
@@ -110,8 +129,9 @@ mod tests {
             ..GraphicsSettings::default()
         };
         let resolved = resolve(&wanted, &caps);
-        // FSR 3 is not offered yet, so it falls back along the chain to FSR 1, the next best spatial
-        // upscaler this renderer now has; TAA and ACES are both offered too and go straight through.
+        // These caps do not offer FSR 3 (only the device-checked factory path does, see `capabilities_with_ray_tracing`),
+        // so it falls back along the chain to FSR 1, the next best upscaler this renderer has; TAA and ACES are both
+        // offered too and go straight through.
         assert_eq!(resolved.effective.upscaler, Upscaler::Fsr1);
         assert_eq!(resolved.effective.post.tonemap, Tonemap::Aces);
         assert_eq!(resolved.effective.post.antialiasing, Antialiasing::Taa);
