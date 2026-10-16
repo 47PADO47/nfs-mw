@@ -45,6 +45,33 @@ Use the same tags as [docs/formats](formats): **[verified]** (matched against ga
   the port's reader gave the right values.
 - A material name that looks like a shading parameter can be a lookup key. Hash the name with
   `bstring_hash` and match it against the light-material hashes to find the group it drives.
+- When `get_xrefs_to` is missing (it showed as callable in `search_tools` but the calls failed), use `get_functions`
+  with `fields=refs` on candidate functions: `refs` lists every address a function touches, so a string or pool word
+  can be matched without an xref search. `fields=callers` gives the direct callers.
+- Float constants: `read_memory` in blocks of 128 to 448 bytes, then decode the hex with `BitConverter.ToSingle` in
+  PowerShell. Hand decoding of singles gave wrong values in planning; the script is a minute's work.
+- Packed name lists (behaviour names, vehicle classes, AI class names) are 4-byte aligned strings with no pointers.
+  A `read_memory` around them shows that before you expect any xref to the string.
+- Two callers of one pool helper can be different features. Tell them apart by the counter they bump (`+0x94` for
+  ground cops, `+0x9C` for helicopters in `speed.exe`) and by the spawn distance (60 or 80 m versus 250 m), not by the helper.
+- A decompile may show a register argument as a return address (`unaff_retaddr`). Treat it as unresolved and say so.
+- `list_class_members` on a class name and `list_program_items` with `kind=classes` show no AI classes in this binary:
+  there are no RTTI names, so class lookup by name is not a route here.
+- In a stripped binary, names and strings find nothing (no "offscreen" or "despawn" anywhere). Start from a
+  class-name string that a constructor uses as a task key, then read the object's vtable table at the address the
+  constructor stores. The task callback is a vtable slot of the object the task was given.
+- A task or callback object often stores its id at a fixed offset and checks it before forwarding. Read the raw
+  bytes of a short callback when Ghidra has no function there; the forwarded call's target is the real tick.
+- Ghidra may have no function at a known address (`Function not found`) even when the bytes are code. Read the bytes,
+  then `create_function` at the entry, and only then decompile.
+- Lookup tables in this binary are a struct of {count, x0, unused, 1 / step, data pointer}. Read the struct, then the
+  float array, and match the values to the spec table before trusting either. Little-endian floats are easy to
+  misread by hand; decode them with a script in the scratchpad.
+- A small data object with a vtable and a flag at +4 can be a visitor query: the matching child sets the flag. Find
+  the predicate slot of the child class before naming the flag.
+- Two programs named the same can be open. Pass the full project path (`/speed.exe`) to every call.
+- Function-level callers come from `get_functions` with `fields=callers`. In this session the xref and call-graph
+  tools were not callable, so data references need another route.
 
 ## Shader-parameter class (narrowed)
 
@@ -97,6 +124,10 @@ Use the same tags as [docs/formats](formats): **[verified]** (matched against ga
   [docs/specs/car-cullable-parts.md](specs/car-cullable-parts.md).
 
 ## Dead ends (don't repeat)
+
+- Traffic despawn: name searches and string searches for offscreen, despawn, visible and inview return nothing in
+  `speed.exe`. Use the task callback chain instead (see [provenance/ai-traffic.md](provenance/ai-traffic.md)).
+- Some manager vtable slots are a stub (`xor al,al; ret 8`), not a feature.
 
 - Per-draw setters in the class's vtable (`006c60f0`, `006c6450`) set car-level values (sun, ambient, fog,
   and sky constants from a global lighting state). They don't take a light material, so they aren't the
