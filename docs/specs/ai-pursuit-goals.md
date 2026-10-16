@@ -374,6 +374,30 @@ These are not changed here; the owners should check them.
 - Keep the pull-over checks (name, aggression, arrival threshold, detour gate) in one place so that the ring code can call
   them with `GoalKind::PullOver`.
 
+## Port status
+
+The goal rules are in `libs/blackbox-pursuit/src/goals/`. The world drives them in `crates/nfsmw/src/scenes/world/ai/`:
+`goal_aims.rs` (the mapping, the target and vehicle values, one step of a goal), `cop_aims.rs` (which cop takes which
+goal) and `car/goal_drive.rs` (the per-cop limiter and command, the speed override and the full brake).
+
+- **Finisher goals.** While the finisher runs, each cop that holds a formation slot takes the goal of its formation: pit,
+  box-in or rolling block. Its aim is the in-position point of the slot's record. Other formations give no goal.
+- **Pull-over.** While the collapse is on (a formation is set and the player is under the collapse speed), cops in ring
+  slots take the pull-over goal. The aim is the detour point or the ring slot; an arrived cop holds the full brake.
+- **Other cops** keep the chase's aim, the chase's speed and the 2 m slot test.
+
+Approximations in the port (none is a rule change):
+
+- The target's top speed and acceleration table are the cop's own `Performance`. The player's is private to
+  `pursuit.rs`; exposing it would make this exact.
+- The target's jerk flag is off. The world does not read `IsAJerk` yet.
+- Tightness and durations are the spec defaults (0.5 and 2.0). The level rows are not read yet.
+- The pull-over separation is zero. The driver has no vehicle separation vector yet.
+- The aim the cop paths to is the slot point. The lead steering point (`GoalCommand::target_point`) sets no steering;
+  only the speed and the arrival come from the goal.
+- The limiter steps once per physics step (`dt` = one step), not once per think.
+- The ring slots keep the collapse's existing frame (the player's heading), not the motion vector of section 2.4.
+
 ## Next leads
 
 1. The setter that writes the car's goal kind (`0x108`): find the indirect call that reaches the goal factory

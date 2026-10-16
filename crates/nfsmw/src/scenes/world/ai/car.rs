@@ -1,5 +1,6 @@
 //! One computer-driven car: the physics, the driver and the road cursor it follows.
 
+use std::cell::Cell;
 use std::rc::{Rc, Weak};
 
 use blackbox_collision::CollisionWorld;
@@ -20,6 +21,7 @@ use crate::scenes::world::road::Spawn;
 use crate::scenes::world::{keys, space};
 
 mod accident;
+mod goal_drive;
 mod hits;
 mod original_camera;
 mod setup;
@@ -29,14 +31,13 @@ mod towing;
 pub use setup::{Ctx, Role, Start};
 
 use accident::Accident;
+use goal_drive::GoalDrive;
 use hits::CopDamage;
 
 /// A hit shorter than this change of speed (m/s) does not shock the car, and the level falls over this long.
 const SHOCK_MIN_SPEED_CHANGE: f32 = 2.0;
 const SHOCK_FORCE: f32 = 10.0;
 const SHOCK_TIME: f32 = 3.0;
-/// A cop this close (metres, horizontally) to its formation or collapse slot has arrived and brakes there (unconfirmed).
-const SLOT_ARRIVAL: f32 = 2.0;
 
 /// A cop stuck against something backs up for this long (s) asking for this speed (m/s).
 const RECOVERY_SECONDS: f32 = 2.0;
@@ -100,6 +101,9 @@ pub struct AiCar {
     breaker_stop: bool,
     /// A cop that has reached its slot holds the handbrake (the pull-over).
     arrived: bool,
+    /// The goal a cop car drives by this step (`ai/goal_aims.rs`): its command and the limiter it carries. Set through a
+    /// shared borrow, as the world reads the aims that way.
+    goal: Cell<GoalDrive>,
     /// A roadblock car: it holds its place with the brakes on whatever the chase does (`AIGoalStaticRoadBlock`).
     roadblock: bool,
     /// The light bars of a cop car, when it has them.
@@ -177,6 +181,7 @@ impl AiCar {
             offscreen: 0.0,
             breaker_stop: false,
             arrived: false,
+            goal: Cell::new(GoalDrive::default()),
             roadblock: false,
             cop_lights: model.cop_lights.clone().map(super::cop_lights::CopLightRun::new),
             audio_profile: model.audio_profile,
@@ -365,6 +370,7 @@ impl AiCar {
         if let Some(controls) = self.accident.controls(self.tractor) {
             self.controls = controls;
         }
+        self.hold_goal_brake();
         if self.breaker_stop || self.is_wrecked() {
             self.controls = AiControls { brake: 1.0, ..AiControls::default() };
         }
@@ -469,13 +475,7 @@ impl AiCar {
                 let aim = ctx.aims.get(ctx.me).copied().flatten();
                 let think = cop.think(ctx, &mut self.nav, &state, &Target { body: player, aim }, &traffic);
                 self.target = think.target;
-                // A cop that has reached its slot (a collapse or formation point) stops there: the pull-over goal's brake.
-                let arrived = aim.is_some_and(|a| {
-                    let d = a - state.body.position;
-                    Vec2::new(d.x, d.z).length() <= SLOT_ARRIVAL
-                });
-                self.arrived = arrived;
-                self.speed = if arrived { 0.0 } else { think.speed };
+                self.think_goal(aim, state.body.position, think.speed);
             }
         }
     }

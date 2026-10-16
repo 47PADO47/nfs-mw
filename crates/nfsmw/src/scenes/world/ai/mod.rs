@@ -9,6 +9,7 @@ mod cop;
 mod cop_aims;
 mod cop_lights;
 mod data;
+mod goal_aims;
 mod hitch;
 mod lamps;
 mod manager;
