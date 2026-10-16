@@ -28,6 +28,7 @@ pub(crate) struct Recorder {
     pub camera_mode: Option<CameraMode>,
     pub rain: Option<(bool, f32)>,
     pub traffic: Option<(u32, u8)>,
+    pub spawns: Vec<([f32; 2], f32)>,
 }
 
 impl Recorder {
@@ -131,6 +132,11 @@ impl Scene for Recorder {
 
     fn set_traffic_density(&mut self, cars: u32, cop_share: u8) {
         self.traffic = Some((cars, cop_share));
+    }
+
+    fn spawn_traffic_at(&mut self, at: [f32; 2], heading: f32) -> bool {
+        self.spawns.push((at, heading));
+        true
     }
 }
 

@@ -3,7 +3,7 @@
 
 use std::rc::Rc;
 
-use blackbox_modding::abi::{BB_ERR_ARG, BB_ERR_NOT_FOUND, BB_ERR_NOT_READY, BB_ERR_UNSUPPORTED};
+use blackbox_modding::abi::{BB_ERR_ARG, BB_ERR_NOT_FOUND, BB_ERR_NOT_READY};
 use blackbox_modding::host::{AudioBackend, HudBackend, MessageStyle, WorldBackend};
 
 use super::audio::AudioPort;
@@ -79,6 +79,7 @@ fn a_hud_message_is_queued_and_shown_until_it_is_hidden() {
 }
 
 #[test]
-fn the_audio_table_answers_unsupported_until_event_names_are_looked_up() {
-    assert_eq!(AudioPort.play("example.a", "IG_GLOBAL", "Siren", 0.5), Err(BB_ERR_UNSUPPORTED));
+fn the_audio_table_queues_a_sound_by_its_index() {
+    let id = AudioPort.play("example.a", "IG_GLOBAL", "3", 0.5).expect("the sound is queued");
+    assert!(id >= 1);
 }

@@ -47,3 +47,39 @@ fn spacing_from_existing_vehicles_is_planar_and_keeps_trailer_room() {
     assert!(!clear_spawn(at, focus(), 12.0, [(at + Vec3::Z * 29.0, 8.0)].into_iter()));
     assert!(clear_spawn(at, focus(), 12.0, [(at + Vec3::Z * 30.0, 8.0)].into_iter()));
 }
+
+fn straight_road() -> RoadNetwork {
+    let lane = |offset| Zone { kind: zone::TRAFFIC, width: 4.0, offset };
+    let node = |z| RoadNode { position: Vec3::new(0.0, 0.0, z), profile: 0, segments: vec![0] };
+    RoadNetwork {
+        nodes: vec![node(0.0), node(140.0)],
+        segments: vec![RoadSegment {
+            nodes: [0, 1],
+            length: 140.0,
+            road: Some(0),
+            flags: 0,
+            start_handle: Vec3::ZERO,
+            end_handle: Vec3::ZERO,
+        }],
+        profiles: vec![RoadProfile { middle: 1, zones: vec![lane(2.0), lane(2.0)] }],
+        roads: vec![Road { scale: 1.0, speech_id: 0 }],
+    }
+}
+
+#[test]
+fn a_point_spawn_finds_a_traffic_lane_at_the_point() {
+    let net = straight_road();
+    let point = Vec3::new(0.0, 0.0, 50.0);
+    let mut nav = RoadNav::new(NavKind::Direction, LaneType::Racing, SegmentFilter::default());
+    assert!(nav.init_at_point(&net, &SegmentIndex::build(&net), point, -Vec3::Z, false));
+    assert!(nav.can_traffic_spawn(&net, &mut SplitMix(1)));
+    assert!((nav.position - point).length() < 10.0, "the lane is at the point: {:?}", nav.position);
+}
+
+#[test]
+fn a_point_spawn_may_be_near_the_player_but_keeps_its_spacing_from_cars() {
+    let at = Vec3::new(0.0, 0.0, 60.0);
+    assert!(!clear_spawn(at, focus(), 0.0, std::iter::empty()), "the manager keeps its cars out of view");
+    assert!(clear_of_cars(at, 0.0, std::iter::empty()), "a point spawn only has to keep the spacing");
+    assert!(!clear_of_cars(at, 0.0, [(at + Vec3::Z * 10.0, 0.0)].into_iter()));
+}

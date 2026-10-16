@@ -1,6 +1,7 @@
 //! The cop waves the mods set for the next chase (`nfsmw.pursuit` `cop_table_set`). A wave a mod sets is kept for the session,
-//! and a chase that starts takes it in place of the install's row for that heat (`TrafficWorld::start_pursuit`). A chase
-//! that is running keeps its rows. This module also converts a wave between the install's form and the ABI's.
+//! and a chase that starts takes it in place of the install's row for that heat (`ai/commands.rs` `begin_pursuit`, which
+//! also loads the cop cars the waves name). A chase that is running keeps its rows. This module also converts a wave
+//! between the install's form and the ABI's.
 
 use std::cell::RefCell;
 use std::mem::size_of;
@@ -56,6 +57,19 @@ pub(crate) fn with_heat_overrides(mut rows: Vec<HeatRow>) -> Vec<HeatRow> {
             }
         }
     });
+    rows
+}
+
+/// The rows without the cop records of the car types in `missing` (compared without case). A chase leaves out the wave
+/// entries whose model did not load, so the picker never asks for a car that cannot spawn. The helicopter is not a car
+/// and stays in its wave.
+pub(crate) fn without_models(mut rows: Vec<HeatRow>, missing: &[String]) -> Vec<HeatRow> {
+    if missing.is_empty() {
+        return rows;
+    }
+    for row in &mut rows {
+        row.cops.retain(|cop| !missing.iter().any(|name| name.eq_ignore_ascii_case(&cop.name)));
+    }
     rows
 }
 

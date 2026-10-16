@@ -100,4 +100,16 @@ impl WorldScene {
         let setting = TrafficSettings { cars, cop_share: Percent(cop_share), ..self.traffic_setting };
         self.apply_traffic_setting(setting);
     }
+
+    /// Put a traffic car on the road at `at`, facing `heading`, for a mod. Refused without a road network or a loaded
+    /// traffic model; a point near the player is placed and logged (`TrafficWorld::spawn_traffic_at`).
+    pub(super) fn spawn_traffic_to(&mut self, at: [f32; 2], heading: f32) -> bool {
+        let focus = self.traffic_focus();
+        let (collision, _) = self.residency.world_parts();
+        let surfaces = &self.physics.surfaces;
+        let Some(traffic) = self.traffic.as_mut() else {
+            return false;
+        };
+        traffic.spawn_traffic_at(at, heading, focus, collision, surfaces)
+    }
 }

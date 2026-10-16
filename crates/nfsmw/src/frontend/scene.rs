@@ -307,6 +307,10 @@ impl Scene for Pausable {
         self.inner.set_traffic_density(cars, cop_share);
     }
 
+    fn spawn_traffic_at(&mut self, at: [f32; 2], heading: f32) -> bool {
+        self.inner.spawn_traffic_at(at, heading)
+    }
+
     fn set_rain(&mut self, always: bool, amount: f32) {
         self.inner.set_rain(always, amount);
         self.effects_dirty = true;

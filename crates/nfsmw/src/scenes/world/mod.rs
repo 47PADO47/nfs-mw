@@ -344,6 +344,9 @@ impl Scene for WorldScene {
     fn set_traffic_density(&mut self, cars: u32, cop_share: u8) {
         self.set_traffic_density_to(cars, cop_share);
     }
+    fn spawn_traffic_at(&mut self, at: [f32; 2], heading: f32) -> bool {
+        self.spawn_traffic_to(at, heading)
+    }
 
     fn next_camera_mode(&self, current: CameraMode) -> CameraMode {
         camera_cycle::next_mode(current, self.camera_environment.views.as_ref())

@@ -1,9 +1,9 @@
-//! `bb.vehicles` on the game side: the state is the car the bridge read at the sync, a move and a repair are queued for the
-//! scene in order, and a traffic spawn is unsupported.
+//! `bb.vehicles` on the game side: the state is the car the bridge read at the sync, a move, a repair and a traffic spawn
+//! are queued for the scene in order, and a spawn needs a loaded world.
 
 use std::rc::Rc;
 
-use blackbox_modding::abi::{BB_ERR_NOT_READY, BB_ERR_UNSUPPORTED};
+use blackbox_modding::abi::BB_ERR_NOT_READY;
 use blackbox_modding::host::VehiclesBackend;
 
 use super::bridge::Bridge;
@@ -51,8 +51,17 @@ fn a_move_and_a_repair_reach_the_scene_in_order() {
 }
 
 #[test]
-fn spawning_traffic_is_unsupported_in_1_0() {
+fn a_traffic_spawn_needs_a_world_and_is_queued_with_a_handle() {
     let (bridge, port) = port();
+    bridge.sync(&mut Recorder::without_clock());
+    assert_eq!(port.spawn_traffic("example.a", [0.0; 3], 0.0), Err(BB_ERR_NOT_READY));
+    assert!(bridge.world_requests.borrow().is_empty(), "a refused spawn queues nothing");
+
     bridge.sync(&mut Recorder::driving([0.0; 3], 0.0));
-    assert_eq!(port.spawn_traffic("example.a", [0.0; 3], 0.0), Err(BB_ERR_UNSUPPORTED));
+    let first = port.spawn_traffic("example.a", [40.0, -12.0, 3.0], 1.5).expect("a world is loaded");
+    let second = port.spawn_traffic("example.a", [50.0, 0.0, 0.0], 0.0).expect("a world is loaded");
+    assert!(second > first, "each spawn has its own handle");
+    let mut scene = Recorder::driving([0.0; 3], 0.0);
+    apply(std::mem::take(&mut *bridge.world_requests.borrow_mut()), &mut scene);
+    assert_eq!(scene.spawns, vec![([40.0, -12.0], 1.5), ([50.0, 0.0], 0.0)]);
 }

@@ -81,11 +81,17 @@ The wire layouts are in [api.md](api.md#wire-numbers-abi-01).
 
 `bb.vehicles`. A vehicle handle can be the player's car, a traffic car, a cop or a racer.
 
-**Delivered (1.0):** the player's car only. `state` reads a snapshot taken at the start of the frame (position, velocity,
+**Delivered (1.0):** the player's car, and a traffic spawn at a point (below). `state` reads a snapshot taken at the start of the frame (position, velocity,
 heading, speed, rpm, gear, nitrous, damage), `teleport` queues a move to the road nearest the horizontal position (the
 height is not used), and `repair` queues a repair. Both queued calls run after the mods, like the other world changes.
-`spawn_traffic` is **open**: the game places traffic ahead of the player (`scenes/world/ai/spawn.rs`) and has no call to
-spawn one at a point, so it answers `BB_ERR_UNSUPPORTED`. The traffic density (`set_traffic`) is in `bb.world`, below.
+**Delivered (1.0, `spawn_traffic`):** a traffic car at a point. The call answers a handle and queues the spawn; the scene
+places it in the same frame, after the mods have run (`WorldRequest::SpawnTraffic`, `Scene::spawn_traffic_at`, and
+`TrafficWorld::spawn_traffic_at`). The car is a random loaded traffic model on the nearest lane that can take a car, with
+the spacing of the manager from the other cars. A point within 150 m of the player is placed and logged, since a mod asked
+for it (the manager's own cars stay out of view). The heading is in radians, as the car's `heading` reads. The position's height
+is not used. A call with no world loaded answers `BB_ERR_NOT_READY`; a spawn the road or the traffic models refuse is
+logged, not returned, and the handle does not yet name a car (no tracking, so no despawn by handle). No traffic model is
+loaded until the manager asks for one, so an early spawn can be refused. The traffic density (`set_traffic`) is in `bb.world`, below.
 
 **Open:** handles for other vehicles (traffic, cops, racers) and every call on them, `despawn`, `set_player_car`, the
 AI goals, `near`, `set_velocity`, `add_nos` and `set_nos`, `set_tuning`, `damage`, lights, horn and siren.
@@ -131,9 +137,15 @@ world is up. **Open:** the interact prompt, meters, hiding HUD parts, screen tex
 `bb.audio`. Sounds come from the mod's overlay in formats `libs/ea-audio` decodes, or from the install by
 the sound's name.
 
-**Delivered (1.0):** the table is offered, with `play(bank, event, volume)`, so mods can be written against it. Every
-play answers `BB_ERR_UNSUPPORTED`: the sound viewer plays by bank and index, and there is no lookup by event name yet.
-**Open:** the lookup, mod overlay sounds, `stop`, music, bus volumes, the engine pitch and speech.
+**Delivered (1.0):** `play(bank, event, volume)` plays one sound on the sound-effects group, by bank and index. The game
+has no lookup from an event name to a sound (the sound viewer also plays by bank and index), so the sound is named by its
+index: `event` is the index as text (`"3"`), or `bank` is `"FE_MB.abk:3"` with `event` empty. A bank name with no dot is
+that bank (`IG_GLOBAL` is `IG_GLOBAL.abk`); a bank name without a folder is looked up in the sound folders in the order
+`ENGINE`, `FE`, `GLOBAL`, `IG_GLOBAL`, `NOS`, `SHIFTING`, `SKIDS`, `TURBO`. The call answers an id, queued for the audio
+plugin (`audio/oneshot.rs`), which plays it in the frame it takes it. A name that is not an index, a bank that is not a `.abk`
+file, or a volume that is not zero or more answers `BB_ERR_ARG`. A sound the install does not have is logged, not returned,
+and there is no way to stop a one-shot yet. **Open:** the lookup by event name (the `.csi` tables), mod overlay sounds,
+`stop`, music, bus volumes, the engine pitch and speech.
 
 | Entry | Signature sketch | Scope | Implemented in |
 |---|---|---|---|

@@ -107,6 +107,10 @@ pub trait Scene {
     }
     /// Keep `cars` computer-driven cars on the road, `cop_share` percent of them patrol cops.
     fn set_traffic_density(&mut self, _cars: u32, _cop_share: u8) {}
+    /// Put a traffic car on the road at `at` (x, y), facing `heading`. Returns whether a car was placed.
+    fn spawn_traffic_at(&mut self, _at: [f32; 2], _heading: f32) -> bool {
+        false
+    }
 
     /// Installed car choices for the runtime garage; scenes without driving return None.
     fn garage(&mut self) -> Option<&mut crate::garage::Model> {

@@ -23,6 +23,8 @@ pub enum WorldRequest {
     Camera(CameraMode),
     /// Keep it raining (`always`), or leave it to the weather, at `amount`.
     Rain { always: bool, amount: f32 },
+    /// Put a traffic car on the road at `at` (x, y), facing `heading` (`bb.vehicles` spawn_traffic).
+    SpawnTraffic { at: [f32; 2], heading: f32 },
     /// Keep `cars` traffic cars, `cop_share` percent of them cops.
     Traffic { cars: u32, cop_share: u8 },
     /// Show a HUD message for `secs` seconds.
@@ -61,6 +63,11 @@ pub fn apply(requests: Vec<WorldRequest>, scene: &mut dyn Scene) {
             }
             WorldRequest::Camera(mode) => scene.set_camera_mode(mode),
             WorldRequest::Rain { always, amount } => scene.set_rain(always, amount),
+            WorldRequest::SpawnTraffic { at, heading } => {
+                if !scene.spawn_traffic_at(at, heading) {
+                    log::warn!("bb.vehicles spawn_traffic at ({:.0}, {:.0}): no car placed", at[0], at[1]);
+                }
+            }
             WorldRequest::Traffic { cars, cop_share } => scene.set_traffic_density(cars, cop_share),
             WorldRequest::Message { text, tone, secs } => crate::hud::set_mod_message(&text, tone, secs),
             WorldRequest::HideMessage => crate::hud::hide_mod_message(),

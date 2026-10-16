@@ -4,7 +4,7 @@
 use nfsmw_data::pursuit::{CopRecord, HeatRow};
 use nfsmw_modding::abi::CopTable;
 
-use super::{get, row_of, set, spec_of, with_heat_overrides};
+use super::{get, row_of, set, spec_of, with_heat_overrides, without_models};
 
 fn row(name: &str, count: u32) -> HeatRow {
     HeatRow {
@@ -45,4 +45,29 @@ fn a_wave_converts_to_the_abi_form_and_back() {
     assert_eq!((spec.row.patrol_cars, spec.row.full_engagement_cops), (2, 4));
     assert_eq!((spec.row.first_four_interval, spec.row.spawn_interval), (3.0, 9.0));
     assert_eq!(row_of(&spec), Some(original));
+}
+
+#[test]
+fn a_mod_wave_names_its_car_so_the_chase_loads_it() {
+    set(CopTable::Roam, 2, row("copmod", 2));
+    let rows = with_heat_overrides(vec![row("copcheap", 1), row("copmidsize", 1)]);
+    let names = nfsmw_data::pursuit::wave_names(&rows);
+    assert_eq!(names, vec!["copcheap", "copmod"], "the car the mod named is one to load");
+}
+
+#[test]
+fn a_car_that_did_not_load_leaves_its_entries_out_and_keeps_the_helicopter() {
+    let mut wave = row("copcheap", 1);
+    wave.cops.push(CopRecord { name: "copbad".to_owned(), count: 3, chance: 50 });
+    wave.cops.push(CopRecord { name: "copheli".to_owned(), count: 1, chance: 100 });
+    let rows = without_models(vec![wave.clone()], &["COPBAD".to_owned()]);
+    let names: Vec<&str> = rows[0].cops.iter().map(|c| c.name.as_str()).collect();
+    assert_eq!(names, vec!["copcheap", "copheli"]);
+    assert_eq!(rows[0].patrol_cars, wave.patrol_cars, "the rest of the row is kept");
+}
+
+#[test]
+fn nothing_missing_leaves_the_rows_as_they_are() {
+    let rows = vec![row("copcheap", 1), row("copmidsize", 2)];
+    assert_eq!(without_models(rows.clone(), &[]), rows);
 }

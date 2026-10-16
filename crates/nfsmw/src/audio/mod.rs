@@ -30,6 +30,7 @@ mod fx;
 mod heli;
 mod interactive;
 mod mixer;
+pub mod oneshot;
 mod pcm;
 mod plugin;
 pub mod preview;

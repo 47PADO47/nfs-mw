@@ -102,10 +102,9 @@ impl Pursuit {
 }
 
 impl TrafficWorld {
-    /// Starts a chase at `heat` with the wave rows `rows` (one per level); `player` is how the player's car performs.
+    /// Starts a chase at `heat` with the wave rows `rows` (one per level); `player` is how the player's car performs. The
+    /// rows are the ones `ai/commands.rs` `begin_pursuit` prepared: the mods' waves applied, the cars of them loaded.
     pub fn start_pursuit(&mut self, heat: u32, rows: Vec<HeatRow>, player: Performance) {
-        // The cop waves the mods set for the session take the install's rows here, so the next chase uses them.
-        let rows = crate::modding::cop_rows::with_heat_overrides(rows);
         self.pursuit = Some(Pursuit::new(heat, rows, player));
         self.police.begin(heat);
     }
