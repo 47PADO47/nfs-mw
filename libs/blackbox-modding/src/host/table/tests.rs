@@ -5,7 +5,7 @@ use std::cell::{Cell, RefCell};
 use std::ffi::c_void;
 use std::rc::Rc;
 
-use super::{Attached, BlipSpec, CommandHandler, CommandsBackend, InputBackend, MapBackend, TimeBackend};
+use super::{Attached, BlipSpec, CommandHandler, CommandsBackend, HostTable, InputBackend, MapBackend, TimeBackend};
 use super::{attach_commands, attach_input, attach_map, attach_time};
 use crate::abi::*;
 use crate::host::BackendResult;
@@ -351,4 +351,63 @@ fn a_registry_offers_each_interface_only_at_its_version() {
     assert!(registry.build("m", IFACE_TIME, 1, 1).is_none(), "minor 0 is older than the request");
     assert!(registry.build("m", IFACE_TIME, 2, 0).is_none(), "major differs");
     assert!(registry.build("m", IFACE_MAP, 1, 0).is_none(), "not offered");
+}
+
+/// A table an outside crate builds: its header first, then a value the test reads back.
+#[repr(C)]
+struct ExternalTable {
+    head: BbIface,
+    value: u32,
+}
+
+/// The id of the external interface the test offers.
+const EXTERNAL_ID: &str = "test.external";
+
+#[test]
+fn an_external_provider_is_built_per_mod_and_queried_through_the_host() {
+    let mut registry = InterfaceRegistry::new();
+    registry.add_commands(Rc::new(FakeCommands::default()));
+    registry.add_provider(EXTERNAL_ID, (1, 2), |ctx| {
+        // The value is the length of the owner's id, so the test sees which mod the table was built for.
+        let table = Box::new(ExternalTable {
+            head: BbIface { size: core::mem::size_of::<ExternalTable>() as u32, major: 1, minor: 2 },
+            value: ctx.owner().len() as u32,
+        });
+        let header = core::ptr::from_ref(&table.head);
+        Attached::from_owned(EXTERNAL_ID, (1, 2), header, table)
+    });
+    let offered: Vec<String> = registry.offers().into_iter().map(|offer| offer.id).collect();
+    assert_eq!(offered, [IFACE_COMMANDS, EXTERNAL_ID]);
+
+    let offer = crate::host::HostOffer::new("testgame", "test");
+    let host = HostTable::new("example.one", &offer, Rc::new(registry));
+    let table = host.as_ptr();
+    // SAFETY: the host table lives for the test, and `HostTable::new` sets its `ctx` and `query_interface`.
+    let (ctx, query) = unsafe { ((*table).ctx, (*table).query_interface) };
+    let query = query.expect("the host sets query_interface");
+
+    // SAFETY: the id is valid for the call; the host builds the table on first use and keeps it while `host` lives.
+    let header = unsafe { query(ctx, BbStr::new(EXTERNAL_ID), 1, 2) };
+    assert!(!header.is_null(), "the external interface is offered at its version");
+    // SAFETY: the header is the first field of the `ExternalTable` the provider boxed, kept alive by the host table.
+    let value = unsafe { (*header.cast::<ExternalTable>()).value };
+    assert_eq!(value, "example.one".len() as u32, "the provider saw the mod it was built for");
+
+    // SAFETY: as above.
+    let newer_minor = unsafe { query(ctx, BbStr::new(EXTERNAL_ID), 1, 3) };
+    assert!(newer_minor.is_null(), "a minor older than the request is refused");
+    // SAFETY: as above.
+    let other_major = unsafe { query(ctx, BbStr::new(EXTERNAL_ID), 2, 0) };
+    assert!(other_major.is_null(), "another major is refused");
+    // SAFETY: as above.
+    let absent = unsafe { query(ctx, BbStr::new("test.absent"), 1, 0) };
+    assert!(absent.is_null(), "an interface nobody offers gives null");
+}
+
+#[test]
+fn an_internal_provider_still_builds_its_table_for_its_owner() {
+    let mut registry = InterfaceRegistry::new();
+    registry.add_time(Rc::new(FakeTime::default()));
+    let attached = registry.build("example.two", IFACE_TIME, 1, 0).expect("bb.time is offered");
+    assert_eq!((attached.id(), attached.version()), (IFACE_TIME, IFACE_TIME_VERSION));
 }

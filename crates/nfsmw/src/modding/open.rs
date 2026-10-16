@@ -6,12 +6,13 @@ use anyhow::Result;
 use game_install::GameDir;
 
 use super::backends;
-use super::{Mods, layers, policy};
+use super::{Mods, content, layers, policy};
 use crate::cli::ViewArgs;
 use crate::settings::Settings;
 use crate::settings::mods::ModsSettings;
 
-/// Open the install, start the mods, and add the `files/` folder of each loaded mod to the install as a layer.
+/// Open the install, start the mods, and add the `files/` folder of each loaded mod to the install as a layer. Then the
+/// cars and music the mods declare are read and sealed ([`content`]), against the layers just added.
 ///
 /// The mods start first, and the layers are in place before the install is returned, so every scene that clones the
 /// install sees them. A mod that fails does not stop the game.
@@ -25,5 +26,6 @@ pub fn open_install(game_dir: Option<&Path>, view: &ViewArgs) -> Result<(GameDir
     let loaded: Vec<String> = mods.loaded().into_iter().map(|summary| summary.id).collect();
     let discovery = blackbox_modding::host::discover(&roots, &policy, &policy::offer());
     layers::apply(&mut dir, &layers::plan(&loaded, &discovery.candidates));
+    content::register(&dir, &content::plan(&loaded, &discovery.candidates));
     Ok((dir, mods))
 }

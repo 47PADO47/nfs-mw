@@ -63,6 +63,7 @@ glam.workspace = true
 kira.workspace = true
 log.workspace = true
 nfsmw-data.workspace = true
+nfsmw-modding = { workspace = true, features = ["host"] }
 png.workspace = true
 raw-window-handle.workspace = true
 serde.workspace = true

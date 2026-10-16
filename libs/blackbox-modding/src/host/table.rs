@@ -37,7 +37,7 @@ pub(crate) use commands::attach as attach_commands;
 pub(crate) use input::attach as attach_input;
 pub(crate) use map::attach as attach_map;
 pub(crate) use menus::attach as attach_menus;
-pub(crate) use slot::Attached;
+pub use slot::Attached;
 pub(crate) use time::attach as attach_time;
 
 pub use commands::{CommandHandler, CommandsBackend};

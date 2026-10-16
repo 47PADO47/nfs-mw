@@ -6,7 +6,10 @@ game id is `nfsmw`. A mod that uses it lists the interfaces in `[requires]` or `
 `supported = ["nfsmw"]`. Conventions are in [api.md](api.md#how-to-read-an-entry); **W** marks a write that is
 denied in an online session.
 
-Status of the game side: the pursuit (heat, cops, roadblocks, busted, evade, helicopter) exists in code. The
+Status of the game side: the game offers `nfsmw.pursuit` (heat, the chase, busted, the events) and the mods can use it,
+except the cop tables, which answer `BB_ERR_UNSUPPORTED` for now. `nfsmw.career` and `nfsmw.races` are offered with no
+state behind them, so every call answers `BB_ERR_UNSUPPORTED` and a mod can detect them. The roadblocks, spikes, the
+helicopter calls and the rest of the pursuit tables are not wired yet. The
 **career** (bounty, rap sheet, blacklist, milestones, cash, shops, safe houses) has no runtime state yet; the
 tables below are the contract the career work will implement. Field lists marked [unconfirmed] must be checked
 against the specs (`docs/specs/`, `docs/formats/`) when each part is built.
@@ -198,8 +201,8 @@ Names are inline (`BbName { len: u32, bytes: [u8; 128] }`), so no pointer the ho
 |---|---|---|---|---|---|
 | 16 | `heat_get` | `out: *mut f32` | no | supported | `heat()` |
 | 24 | `heat_set` | `heat: f32` (clamped by the game) | yes | supported | `set_heat(heat)` |
-| 32 | `cop_table_get` | `table: u32, level: u32, out: *mut BbHeatRow, cops: *mut BbCopRecord, cops_cap: u32` | no | supported | `cop_table(table, level)` |
-| 40 | `cop_table_set` | `table: u32, level: u32, row: *const BbHeatRow, cops: *const BbCopRecord, cops_len: u32` | yes | supported | `set_cop_table(table, level, &row)` |
+| 32 | `cop_table_get` | `table: u32, level: u32, out: *mut BbHeatRow, cops: *mut BbCopRecord, cops_cap: u32` | no | unsupported in 0.1 | `cop_table(table, level)` |
+| 40 | `cop_table_set` | `table: u32, level: u32, row: *const BbHeatRow, cops: *const BbCopRecord, cops_len: u32` | yes | unsupported in 0.1 | `set_cop_table(table, level, &row)` |
 | 48 | `start` | `level: u32, near: u64` (0 for none) | yes | supported | `start(level, near)` |
 | 56 | `end` | `mode: u32` (0 evade, 1 bust, 2 abort) | yes | supported | `end(mode)` |
 | 64 | `is_pursuing` | `out: *mut u8` | no | supported | `is_pursuing()` |
@@ -211,6 +214,19 @@ spawn_interval: f32 }` (24 bytes) followed by `cop_count` records of `BbCopRecor
 bytes). The read takes two calls: the first, with `cops_cap = 0`, learns `cop_count`. `table` is `0` (roam, `heattable`)
 or `1` (race, `racetable`). A set needs `cop_count == cops_len`, a chance of at most 100, and a name that is UTF-8 and not
 empty. The new wave applies to the next pursuit. A stale `near` handle answers `BB_ERR_STALE`.
+
+How the game answers in 0.1:
+
+- The reads are from the chase as the world last published it, once a frame. `heat_get`, `heat_set` and `end` answer
+  `BB_ERR_NOT_READY` while no chase is on. `is_pursuing` is 0 then, `busted_get` keeps the meter after a chase (the
+  game's own rule) and `cops_in_pursuit` is 0.
+- `heat_set` is applied in the next police update, and the game keeps the value in the chase's range. `heat_get` shows
+  the value of the frame before, so a mod that sets the heat reads it back a frame later.
+- `start(level, near)` runs the console's `pursuit <level>` command at the next frame, the same path the player's console
+  takes. A `near` vehicle is not used yet; the cops are placed the way the command places them. A start the command
+  refuses (no car to drive, for example) is logged by the game, not returned to the mod.
+- `end` applies in the next police update. `Evade` ends the chase as evaded, `Bust` runs the bust sequence and ends it
+  busted, and `Abort` ends it with no result (the `pursuit off` outcome).
 
 Not in 0.1: the heat range and time per level, the busted and cool-down scales, the evade and sight rules, the cop list
 as vehicles, spawn and dismiss cop, support, roadblock, spikes, the helicopter calls, the infraction list and fines,
@@ -303,15 +319,27 @@ covers it.
 | `0x1005` | `INFRACTION_RECORDED` | `infraction: u32` (4; the `Infraction` number 0 to 7), `fine: u32` (8); 12 bytes |
 
 The game builds the payload and dispatches it with `ModRuntime::dispatch_event` (`nfsmw_modding::host::mw_event`). The SDK
-decodes the bytes with `MwEvent::decode`. The other MW events of the table above (cop spawn and wreck, the cancelable
-requests, and the career and race events) are not in 0.1.
+decodes the bytes with `MwEvent::decode`: a mod's `Mod::event` receives an `Event::Unknown` whose `payload` holds the
+bytes of the event, and it decodes them with the frame and the kind. The other MW events of the table above (cop spawn
+and wreck, the cancelable requests, and the career and race events) are not in 0.1.
+
+When the events go out, and what they carry in the game:
+
+- The chase is read once a frame in the police update. `PURSUIT_STARTED` is sent in the frame the chase is first seen,
+  with the cops of its first wave. `HEAT_CHANGED` is sent when the heat level (the integer part) moves, not on every
+  growth of the value; the two heat values are the ones either side of the move.
+- `BUSTED` is sent in the frame the bust happens. `PURSUIT_ENDED` follows in the next frame, with the reason. A chase
+  that is evaded sends `ESCAPED` and then `PURSUIT_ENDED` (reason 0) in the frame after the cops give up.
+- `PURSUIT_ENDED` with reason 2 is a chase that was stopped with no result (the `pursuit off` command, or `end(Abort)`).
+- `bounty` is the total of the fines of the chase's infractions. The game has no other bounty counter in 0.1.
+- `INFRACTION_RECORDED` is sent once for each offence of the chase, in the frame it is recorded.
+- The events go out in the `ModsPost` step, after the scene has updated, so the frame number is the one of that frame.
 
 ### Open items for 0.1
 
-- **Registration.** The generic `InterfaceRegistry` cannot take these tables: its provider and attachment types are
-  `pub(crate)` in `blackbox-modding`. The builders return an owner with `header()`. The game can offer `nfsmw.*` once
-  `blackbox-modding` has a public provider hook.
-- **Event payloads.** `Event::Unknown` in `blackbox-modding` carries no payload bytes, so a mod cannot yet call
-  `MwEvent::decode` from `Mod::event`. The decoder is ready; the generic SDK must pass the bytes on.
+- **Cop tables.** The waves are read from the install when a chase starts (`TrafficWorld::start_pursuit`), and the rows
+  are not kept after that. The game answers `cop_table_get` and `cop_table_set` with `BB_ERR_UNSUPPORTED` until the
+  pursuit exposes the install's rows to the world's snapshot, and the table set applies to the next chase.
 - **Data.** `nfsmw-modding` does not depend on `nfsmw-data`, so the install stack stays out of mods. The game converts
   `nfsmw_data::pursuit::HeatRow` into `BbHeatRow` and `BbCopRecord` in its facade.
+- **Career and races.** Offered, with no state. Their tables are the contract the career and race work implements.

@@ -4,9 +4,12 @@ Native plugin mods for the Rust rewrite of NFS: Most Wanted and, later, other Bl
 its reasons are in [ADR 0005](../decisions/0005-native-mod-plugins.md). This folder is the catalogue of what a
 mod can do.
 
-Status: **partly built**. `bb.commands`, `bb.input`, `bb.time`, `bb.map` and `bb.menus` work in NFS:MW (see
-[Using mods](#using-mods)). The rest of the catalogue is design only: every "Implemented in" cell names the game
-module that will implement the entry (a path that exists today) or says "new" when the module is new.
+Status: **partly built**. `bb.commands`, `bb.input`, `bb.time`, `bb.map` and `bb.menus` work in NFS:MW, and so does
+`nfsmw.pursuit` (heat, the chase, busted, and the `nfsmw.*` events; the cop tables are not wired yet). `nfsmw.career`
+and `nfsmw.races` are offered with no state, so a mod can detect them. Content mods also work: cars and music files declared in a mod's `cars/` folder and `[music]` table (see
+[Using mods](#using-mods) and [api-content.md](api-content.md#cars)). The rest of the catalogue is design only: every
+"Implemented in" cell names the game module that will implement the entry (a path that exists today) or says "new"
+when the module is new.
 
 ## Files
 
@@ -34,8 +37,10 @@ implement; a mod asks for them with `[requires]` or `[optional]` and must cope w
 mods/<id>/
   mod.toml        manifest (required)
   <library>       .dll / .so (optional: a content-only mod has none)
-  files/          VFS overlay, mirrors the install layout
-  content/        declarative registrations (TOML)
+  files/          VFS overlay, mirrors the install layout (CARS/MYCAR/..., MUSIC/...)
+  cars/           one <id>.toml per car the mod adds (clone, role, heat); see api-content.md#cars
+  music/          audio files and .m3u playlists; the contexts are in [music] of mod.toml
+  content/        other declarative registrations (TOML), planned
   config.toml     the mod's own settings, managed through bb.config
 ```
 
@@ -107,9 +112,17 @@ downloads or fetches a mod.
   the same path in the install or in a lower layer, and a new path adds one. Layers order by `[content] priority`
   (higher wins), then by load order (a later mod wins a tie). Mods do not write to the
   install.
+- **Content:** a mod's `cars/<id>.toml` files add cars, each a copy of a stock car with the mod's own `files/CARS/<ID>/`
+  folder, as player cars, cop cars, or both. A mod's `music/` folder joins the custom music library in the contexts
+  its `[music]` table names, and plays even with the custom music setting off when `always = true`. A car or a track
+  that fails a check is logged with its reason and left out. The cars are registered once, at start-up, and a change
+  needs a restart. The garage does not yet use a mod's display name or hide its cop-only cars.
 - **Now:** a mod gets the frame events (`FRAME_START` in the start of the frame, `SCENE_TICK` after the scene's
-  update, and `MOD_UNLOADING` at exit), and its `files/` layer. It also gets four interfaces. A mod that requires an
-  interface the game does not offer is refused with its reason.
+  update, and `MOD_UNLOADING` at exit), and its `files/` layer. It also gets the game's interfaces. A mod that requires an
+  interface the game does not offer is refused with its reason. In NFS:MW the `nfsmw.*` events of the chase (pursuit
+  started and ended, heat changed, busted, escaped, infraction recorded) go out in the same step, just before
+  `SCENE_TICK`; see
+  [api-nfsmw.md](api-nfsmw.md#events-01).
   - `bb.commands`: `register` adds a console command. It shows in `help` under the mod's id, runs after the built-in
     commands and before the scene's, and is removed when the mod unloads. Tab completion does not list it yet.
     `run` queues a console line for the next frame; its output goes to the F12 log, not back to the mod.

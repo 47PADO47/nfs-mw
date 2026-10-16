@@ -32,7 +32,27 @@ pub(crate) unsafe fn decode<'a>(raw: *const BbEvent) -> Option<Event<'a>> {
     }
     // SAFETY: the payload is null or valid for its own size (see `# Safety`).
     let typed = unsafe { decode_payload(kind, frame, payload) };
-    Some(typed.unwrap_or(Event::Unknown { kind, frame }))
+    if let Some(typed) = typed {
+        return Some(typed);
+    }
+    // SAFETY: as above; the bytes an unknown event carries are the ones its own size word declares.
+    let bytes = unsafe { payload_bytes(payload) };
+    Some(Event::Unknown { kind, frame, payload: bytes })
+}
+
+/// The bytes a payload carries, as its own size word declares them: the whole payload, size word included. Empty for a
+/// null payload.
+///
+/// # Safety
+/// `payload` must be null, or valid for reads of the bytes its size word declares.
+unsafe fn payload_bytes<'a>(payload: *const c_void) -> &'a [u8] {
+    if payload.is_null() {
+        return &[];
+    }
+    // SAFETY: every payload starts with its size word (see `# Safety`).
+    let size = unsafe { payload.cast::<u32>().read_unaligned() } as usize;
+    // SAFETY: the size word declares `size` bytes that are readable from `payload` (see `# Safety`).
+    unsafe { core::slice::from_raw_parts(payload.cast::<u8>(), size) }
 }
 
 /// Read the payload of `kind` and build the typed event. `None` when the kind is unknown or the payload is missing,

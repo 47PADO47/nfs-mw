@@ -12,6 +12,33 @@ fn header(kind: u32, frame: u64, payload: *const c_void) -> BbEvent {
     BbEvent { size: size_of::<BbEvent>() as u32, kind, frame, payload }
 }
 
+/// The bytes of `value` as they sit in memory: the layout a host payload has.
+fn bytes_of<T>(value: &T) -> &[u8] {
+    // SAFETY: `value` is a live `T`, so `size_of::<T>()` bytes from its address are readable.
+    unsafe { core::slice::from_raw_parts(ptr::from_ref(value).cast::<u8>(), size_of::<T>()) }
+}
+
+/// A payload of a kind this SDK does not describe: a size word, then two fields.
+#[repr(C)]
+struct ModPayload {
+    size: u32,
+    count: u32,
+    weight: f32,
+}
+
+#[test]
+fn an_unknown_kind_hands_its_payload_bytes_to_the_mod() {
+    let payload = ModPayload { size: size_of::<ModPayload>() as u32, count: 7, weight: 1.5 };
+    let event = header(0x1234, 15, ptr::addr_of!(payload).cast());
+    // SAFETY: the payload lives for the call and its size word covers all of it.
+    let decoded = unsafe { decode(&event) };
+    assert_eq!(decoded, Some(Event::Unknown { kind: 0x1234, frame: 15, payload: bytes_of(&payload) }));
+    let Some(Event::Unknown { payload: bytes, .. }) = decoded else {
+        panic!("expected Unknown, got {decoded:?}");
+    };
+    assert_eq!(&bytes[4..8], &7u32.to_ne_bytes(), "the field after the size word arrives as the host wrote it");
+}
+
 #[test]
 fn a_null_event_or_a_short_header_is_refused() {
     // SAFETY: a null pointer is rejected before any read.
@@ -24,7 +51,7 @@ fn a_null_event_or_a_short_header_is_refused() {
         payload: ptr::null(),
     };
     // SAFETY: the event lives for the call; its size covers the fields it is read for.
-    assert_eq!(unsafe { decode(&short) }, Some(Event::Unknown { kind: BB_EVENT_FRAME_START, frame: 1 }));
+    assert_eq!(unsafe { decode(&short) }, Some(Event::Unknown { kind: BB_EVENT_FRAME_START, frame: 1, payload: &[] }));
     let too_short = BbEvent { size: 8, kind: 1, frame: 0, payload: ptr::null() };
     // SAFETY: as above.
     assert_eq!(unsafe { decode(&too_short) }, None);
@@ -34,14 +61,17 @@ fn a_null_event_or_a_short_header_is_refused() {
 fn an_unknown_kind_decodes_as_unknown_with_its_kind() {
     let event = header(9_999, 42, ptr::null());
     // SAFETY: the event lives for the call.
-    assert_eq!(unsafe { decode(&event) }, Some(Event::Unknown { kind: 9_999, frame: 42 }));
+    assert_eq!(unsafe { decode(&event) }, Some(Event::Unknown { kind: 9_999, frame: 42, payload: &[] }));
 }
 
 #[test]
 fn a_payload_kind_without_a_payload_is_unknown() {
     let event = header(BB_EVENT_VEHICLE_SPAWNED, 5, ptr::null());
     // SAFETY: the event lives for the call.
-    assert_eq!(unsafe { decode(&event) }, Some(Event::Unknown { kind: BB_EVENT_VEHICLE_SPAWNED, frame: 5 }));
+    assert_eq!(
+        unsafe { decode(&event) },
+        Some(Event::Unknown { kind: BB_EVENT_VEHICLE_SPAWNED, frame: 5, payload: &[] })
+    );
 }
 
 #[test]
@@ -49,7 +79,10 @@ fn a_payload_shorter_than_the_struct_is_unknown() {
     let payload = BbFrameStart { size: 4, dt_real: 0.5 };
     let event = header(BB_EVENT_FRAME_START, 6, ptr::addr_of!(payload).cast());
     // SAFETY: the payload lives for the call and its size word says four bytes, so nothing beyond is read.
-    assert_eq!(unsafe { decode(&event) }, Some(Event::Unknown { kind: BB_EVENT_FRAME_START, frame: 6 }));
+    assert_eq!(
+        unsafe { decode(&event) },
+        Some(Event::Unknown { kind: BB_EVENT_FRAME_START, frame: 6, payload: &4u32.to_ne_bytes()[..] })
+    );
 }
 
 #[test]
@@ -108,7 +141,10 @@ fn an_unknown_role_makes_the_event_unknown_not_wrong() {
     let spawned = BbVehicleSpawned { size: size_of::<BbVehicleSpawned>() as u32, role: 99, vehicle: 1, car_id: 0 };
     let event = header(BB_EVENT_VEHICLE_SPAWNED, 11, ptr::addr_of!(spawned).cast());
     // SAFETY: the payload lives for the call.
-    assert_eq!(unsafe { decode(&event) }, Some(Event::Unknown { kind: BB_EVENT_VEHICLE_SPAWNED, frame: 11 }));
+    assert_eq!(
+        unsafe { decode(&event) },
+        Some(Event::Unknown { kind: BB_EVENT_VEHICLE_SPAWNED, frame: 11, payload: bytes_of(&spawned) })
+    );
 }
 
 #[test]
@@ -136,5 +172,5 @@ fn kind_and_frame_accessors_match_the_decoded_event() {
     // SAFETY: the payload lives for the call.
     let decoded = unsafe { decode(&event) }.expect("an hour event decodes");
     assert_eq!((decoded.kind(), decoded.frame()), (BB_EVENT_HOUR_CHANGED, 14));
-    assert_eq!(Event::Unknown { kind: 500, frame: 3 }.kind(), 500);
+    assert_eq!(Event::Unknown { kind: 500, frame: 3, payload: &[] }.kind(), 500);
 }

@@ -100,7 +100,7 @@ pub(crate) fn caught<T>(body: impl FnOnce() -> Result<T, BbStatus>) -> Result<T,
 
 /// One interface table handed to one mod. Owns the table and the release callback. Dropping it removes what the mod
 /// still has registered, and only then frees the table.
-pub(crate) struct Attached {
+pub struct Attached {
     id: &'static str,
     major: u16,
     minor: u16,
@@ -110,6 +110,14 @@ pub(crate) struct Attached {
 }
 
 impl Attached {
+    /// An interface table a provider built itself (see `InterfaceRegistry::add_provider`). `header` points at the table's
+    /// first field, the [`BbIface`] header, and `owner` keeps the table alive: the attachment drops it when the mod unloads.
+    /// The host never reads through `header`; the mod does, so the table in `owner` must stay where it is while `owner`
+    /// lives, which a boxed table does.
+    pub fn from_owned(id: &'static str, version: (u16, u16), header: *const BbIface, owner: Box<dyn Any>) -> Self {
+        Attached { id, major: version.0, minor: version.1, header, release: Box::new(|| {}), _table: owner }
+    }
+
     /// Wrap `table`, whose first field is the [`BbIface`] header, for interface `id` at `version`.
     pub(crate) fn new<T: 'static>(
         id: &'static str,

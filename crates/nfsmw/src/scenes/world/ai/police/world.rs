@@ -57,6 +57,7 @@ impl super::super::TrafficWorld {
     }
 
     pub fn update_police(&mut self, dt: f32, player: &PlayerView, clear: &dyn Fn(Vec3, Vec3) -> bool) {
+        self.apply_mod_requests();
         let pursuing = self.is_pursuing();
         self.police.tick_bust(dt);
         let level = self.police.level().unwrap_or(1);
@@ -89,6 +90,7 @@ impl super::super::TrafficWorld {
         // Busted first: a busted frame does not tick the escape. `is_busted` stays set until the next chase.
         let busted = self.police.tick_busted(dt, pursuing, bust);
         let evaded = self.police.update_in_world(dt, pursuing, player, sensed, clear);
+        self.publish_to_mods();
         if busted {
             log::info!("the player is busted: the pursuit ends");
             self.police.start_bust(self.rng.next_f32());

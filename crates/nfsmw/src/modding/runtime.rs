@@ -12,6 +12,8 @@ use blackbox_modding::host::{DispatchReport, HostOffer, ModRuntime, ModSummary, 
 
 use super::backends::{Bridge, Interfaces, commands};
 use super::events::{frame_start_payload, scene_tick_payload, unloading_payload};
+use super::mw_events;
+use super::pursuit_feed::Notice;
 use crate::devtools::Console;
 use crate::viewer::Scene;
 
@@ -85,6 +87,15 @@ impl Mods {
     /// The scene has updated (the `ModsPost` set). Sends `SCENE_TICK`.
     pub fn scene_tick(&mut self, dt_real: f32, game_speed: f32, paused: bool) -> DispatchReport {
         self.deliver(BB_EVENT_SCENE_TICK, &scene_tick_payload(dt_real, game_speed, paused))
+    }
+
+    /// Send the `nfsmw.*` notices of this frame to every loaded mod, in order (the `ModsPost` set).
+    pub fn dispatch_notices(&mut self, notices: &[Notice]) {
+        let frame = self.frame;
+        let runtime = &mut self.runtime;
+        mw_events::send_all(notices, frame, &mut |event| {
+            runtime.dispatch_event(event);
+        });
     }
 
     /// Send one event with a payload to every loaded mod, in load order.

@@ -5,7 +5,7 @@ use bevy_ecs::prelude::*;
 use bevy_input::{ButtonInput, keyboard::KeyCode};
 use bevy_time::Time;
 
-use super::Mods;
+use super::{Mods, outbox};
 use crate::app::{FrameSet, Host};
 use crate::devtools::Console;
 use crate::input::ActionState;
@@ -49,10 +49,13 @@ fn scene_tick(
     time: Res<Time>,
     mut console: ResMut<Console>,
 ) {
+    // The outbox is drained even without mods, so a session that starts none does not keep its notices.
+    let notices = outbox::drain_notices();
     let Some(mut mods) = mods else {
         return;
     };
     mods.sync(&*host.scene);
+    mods.dispatch_notices(&notices);
     mods.scene_tick(time.delta_secs(), settings.game_speed, host.scene.paused());
     mods.apply(&mut *host.scene, &mut console);
 }

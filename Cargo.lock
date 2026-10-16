@@ -3770,6 +3770,7 @@ dependencies = [
  "kira",
  "log",
  "nfsmw-data",
+ "nfsmw-modding",
  "png",
  "raw-window-handle",
  "save-store",

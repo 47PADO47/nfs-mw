@@ -472,6 +472,7 @@ mod busted;
 mod escape;
 mod heli;
 mod helpers;
+mod mod_feed;
 mod original_camera;
 mod roll;
 mod world;

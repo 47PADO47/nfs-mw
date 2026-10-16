@@ -182,12 +182,16 @@ pub enum Event<'a> {
         /// The id of the mod being unloaded.
         mod_id: &'a str,
     },
-    /// An event this SDK does not describe: an unknown kind, or a payload the host did not fill in far enough.
+    /// An event this SDK does not describe: an unknown kind, or a payload the host did not fill in far enough. The
+    /// payload's bytes come with it, so a mod can decode a kind of its own (an `nfsmw.*` event, for example).
     Unknown {
         /// The kind as the host sent it.
         kind: u32,
         /// Frame number.
         frame: u64,
+        /// The payload as the host filled it in: the bytes its size word declares, starting with that word. Empty when
+        /// the event carries no payload. Valid for the callback only; copy what you keep.
+        payload: &'a [u8],
     },
 }
 
