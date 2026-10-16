@@ -218,7 +218,7 @@ impl Radio {
     /// The next track the play lists choose (not from the history), and advances the list it came from.
     fn pick_fresh(&mut self) -> Option<Entry> {
         let list = self.context().index();
-        let has_trax = self.lists[list].len() > 0;
+        let has_trax = !self.lists[list].is_empty();
         match self.custom.choose(list, has_trax)? {
             Source::Trax => {
                 let mode = self.mode;

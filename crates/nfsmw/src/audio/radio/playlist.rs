@@ -38,7 +38,7 @@ impl Playlist {
         self.mask.count_ones() as usize
     }
 
-    #[cfg(test)]
+    /// Whether no song may play.
     pub fn is_empty(&self) -> bool {
         self.mask == 0
     }

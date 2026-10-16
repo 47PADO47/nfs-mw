@@ -106,7 +106,7 @@ mod tests {
         let placed = search.place(Search::heavy_distance, |d| (d < 330.0).then_some(d));
         assert_eq!(placed, Some(320.0));
         assert_eq!(search.k(), 2);
-        let second = search.place(Search::heavy_distance, |d| Some(d));
+        let second = search.place(Search::heavy_distance, Some);
         assert_eq!(second, Some(320.0), "the second car's first try is where the first ended");
     }
 
