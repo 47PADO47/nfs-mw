@@ -2,15 +2,22 @@
 //! Options mod), read as the lowest settings layer. Only the options this port implements are
 //! applied; the rest are logged once so nothing is silently dropped. Spec: `docs/specs/extra-options.md`.
 
+mod breaker;
 mod ini;
+mod pursuit;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_breaker;
+#[cfg(test)]
+mod tests_pursuit;
 
 pub use ini::{entries, number, switch};
 
 use std::path::Path;
+use std::sync::OnceLock;
 
-use super::{Partial, Percent};
+use super::{Partial, Percent, Settings};
 
 /// The mod's default `WorldAnimationSpeed`, which is the original rate in its own unit.
 const MOD_ANIMATION_DEFAULT: f32 = 45.0;
@@ -26,6 +33,19 @@ pub fn read(path: &Path) -> Partial {
         log::info!("extra options not implemented, ignored: {}", parsed.unsupported.join(", "));
     }
     parsed.options.layer()
+}
+
+/// The options from the file next to the config file, read once. The Speedbreaker and the pursuit take their values
+/// from here, not from a settings layer. A missing file, or no config folder, leaves every option unset.
+pub(crate) fn active() -> ExtraOptions {
+    static ACTIVE: OnceLock<ExtraOptions> = OnceLock::new();
+    *ACTIVE.get_or_init(|| read_active().unwrap_or_default())
+}
+
+fn read_active() -> Option<ExtraOptions> {
+    let path = Settings::config_path()?.parent()?.join(FILE_NAME);
+    let text = std::fs::read_to_string(path).ok()?;
+    Some(ExtraOptions::parse(&text).options)
 }
 
 /// The options this port applies. `None` means the file left it unset.
@@ -54,6 +74,21 @@ pub struct ExtraOptions {
     /// `[Misc] EnableSound` and `EnableMusic`: `Some(false)` mutes everything or the music.
     pub sound: Option<bool>,
     pub music: Option<bool>,
+    /// `[Gameplay] SBRechargeTime`: seconds for a Speedbreaker recharge to fill the meter.
+    pub sb_recharge_seconds: Option<f32>,
+    /// `[Gameplay] SBRechargeSpeedLimit`: the speed in mph above which the Speedbreaker recharges.
+    pub sb_recharge_mph: Option<f32>,
+    /// `[Gameplay] SBMassMultiplier`: the car's collision mass scale while the Speedbreaker is active.
+    pub sb_mass_multiplier: Option<f32>,
+    /// `[Pursuit] HeatLevelOverride`: force the heat range of every chase.
+    pub heat_override: Option<bool>,
+    /// `[Pursuit] MinimumHeatLevel` and `MaximumHeatLevel`: the forced heat range, when the override is on.
+    pub heat_min: Option<f32>,
+    pub heat_max: Option<f32>,
+    /// `[Pursuit] SpeedingLimit`: the speed (m/s) over which the Speeding infraction is recorded.
+    pub speeding_limit_mps: Option<f32>,
+    /// `[Pursuit] RecklessDrivingLimit`: the speed (m/s) over which the Reckless Driving infraction is recorded.
+    pub reckless_limit_mps: Option<f32>,
 }
 
 /// The file's keys that name an option this port does not implement yet, in file order.
@@ -84,6 +119,14 @@ impl ExtraOptions {
                 ("Gameplay", "ShowTurnSignals") => options.turn_signals = switch(&entry.value),
                 ("Hotkeys", "Headlights") => options.headlights_key = number(&entry.value).map(|code| code as u32),
                 ("Gameplay", "CarScale") => options.car_scale = number(&entry.value),
+                ("Gameplay", "SBRechargeTime") => options.sb_recharge_seconds = number(&entry.value),
+                ("Gameplay", "SBRechargeSpeedLimit") => options.sb_recharge_mph = number(&entry.value),
+                ("Gameplay", "SBMassMultiplier") => options.sb_mass_multiplier = number(&entry.value),
+                ("Pursuit", "HeatLevelOverride") => options.heat_override = switch(&entry.value),
+                ("Pursuit", "MinimumHeatLevel") => options.heat_min = number(&entry.value),
+                ("Pursuit", "MaximumHeatLevel") => options.heat_max = number(&entry.value),
+                ("Pursuit", "SpeedingLimit") => options.speeding_limit_mps = number(&entry.value),
+                ("Pursuit", "RecklessDrivingLimit") => options.reckless_limit_mps = number(&entry.value),
                 _ => parsed.unsupported.push(format!("{}.{}", entry.section, entry.key)),
             }
         }

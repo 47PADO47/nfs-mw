@@ -10,6 +10,8 @@ use std::path::Path;
 
 use ini_tuning::{Entry, Range, Read, entries, read_number};
 
+use super::extra_options;
+
 /// The file's name, next to the config file (the mod's own name for it).
 pub const FILE_NAME: &str = "NFSMWSpeedFixerSettings.ini";
 
@@ -150,6 +152,16 @@ impl Default for SpeedbreakerTuning {
     }
 }
 
+/// Values the Extra Options file sets in place of the vanilla ones. They fill in only the keys the SpeedFixer file
+/// leaves out: the file's own keys win.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct Overrides {
+    /// Passive recharge. Set, it stands in for the vanilla recharge, and with no SpeedFixer keys it turns recharge on.
+    pub recharge: Option<Recharge>,
+    /// Collision mass scale, in place of the vanilla value.
+    pub mass_scale: Option<f32>,
+}
+
 /// Km/h, the mod's speed unit.
 const KPH: Range = Range { min: 0.0, max: 1000.0 };
 /// Seconds. The floor keeps a zero duration from dividing by zero.
@@ -158,26 +170,47 @@ const DEGREES: Range = Range { min: 0.0, max: 90.0 };
 const PERCENT: Range = Range { min: 0.0, max: 500.0 };
 const SCALE: Range = Range { min: 0.01, max: 100.0 };
 
-/// The settings file in `dir`, read with the rules above. A missing file is the vanilla tuning.
+/// The settings file at `path`, read with the rules above, and the Extra Options values as the fallbacks. A missing
+/// file is the vanilla tuning, or the Extra Options values where they set one.
 pub fn read(path: &Path) -> SpeedbreakerTuning {
+    let overrides = extra_options::active().speedbreaker();
     match std::fs::read_to_string(path) {
-        Ok(text) => parse(&text),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => SpeedbreakerTuning::default(),
+        Ok(text) => parse_over(&text, &overrides),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => defaults_over(&overrides),
         Err(e) => {
             log::warn!("cannot read {}: {e}", path.display());
-            SpeedbreakerTuning::default()
+            defaults_over(&overrides)
         }
     }
 }
 
-/// The tuning from the text of the settings file.
+/// The tuning from the text of the settings file, with the vanilla values for the keys it leaves out.
+#[cfg(test)]
 pub fn parse(text: &str) -> SpeedbreakerTuning {
-    let e = entries(text);
+    parse_over(text, &Overrides::default())
+}
+
+/// The tuning with no file: the vanilla values, with `overrides` in place of them.
+fn defaults_over(overrides: &Overrides) -> SpeedbreakerTuning {
     let d = SpeedbreakerTuning::default();
+    SpeedbreakerTuning {
+        passive: overrides.recharge.or(d.passive),
+        physics: PhysicsModifiers {
+            car_mass_scale: overrides.mass_scale.unwrap_or(d.physics.car_mass_scale),
+            ..d.physics
+        },
+        ..d
+    }
+}
+
+/// The tuning from the text of the settings file, with `overrides` in place of the vanilla values it leaves out.
+pub fn parse_over(text: &str, overrides: &Overrides) -> SpeedbreakerTuning {
+    let e = entries(text);
+    let d = defaults_over(overrides);
     SpeedbreakerTuning {
         min_speed: kph(&e, "Activation", "minCarSpeed", d.min_speed),
         max_duration: max_duration(&e),
-        passive: passive(&e),
+        passive: passive(&e, overrides),
         drift: DriftRecharge {
             min_speed: kph(&e, "Recharging", "minDriftSpeed", d.drift.min_speed),
             min_slip: pick(&e, "Recharging", "minSlipAngle", DEGREES, d.drift.min_slip, f32::to_radians),
@@ -249,18 +282,21 @@ fn max_duration(e: &[Entry]) -> Option<f32> {
     }
 }
 
-/// The mod's rule: passive recharge is disabled when both of its keys are absent.
-fn passive(e: &[Entry]) -> Option<Recharge> {
+/// The mod's rule: passive recharge is disabled when both of its keys are absent, unless the Extra Options set it.
+fn passive(e: &[Entry], overrides: &Overrides) -> Option<Recharge> {
     let speed = read_number(e, "Recharging", "minCarSpeed", KPH);
     let seconds = read_number(e, "Recharging", "passiveTime", SECONDS);
     if speed == Read::Absent && seconds == Read::Absent {
-        return None;
+        return overrides.recharge;
     }
     note("Recharging", "minCarSpeed", speed);
     note("Recharging", "passiveTime", seconds);
+    let base = overrides
+        .recharge
+        .unwrap_or(Recharge { min_speed: vanilla::RECHARGE_ABOVE_MPS, seconds: vanilla::RECHARGE_SECONDS });
     Some(Recharge {
-        min_speed: speed.value().map_or(vanilla::RECHARGE_ABOVE_MPS, |kph| kph / KPH_PER_MPS),
-        seconds: seconds.value().unwrap_or(vanilla::RECHARGE_SECONDS),
+        min_speed: speed.value().map_or(base.min_speed, |kph| kph / KPH_PER_MPS),
+        seconds: seconds.value().unwrap_or(base.seconds),
     })
 }
 
