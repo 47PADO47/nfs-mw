@@ -14,6 +14,7 @@ mod blip_styles;
 mod blips;
 #[cfg(test)]
 mod blips_tests;
+mod busted_overlay;
 mod cop_blip;
 #[cfg(test)]
 mod cop_blip_tests;

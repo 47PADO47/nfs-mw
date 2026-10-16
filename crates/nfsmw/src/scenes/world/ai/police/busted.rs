@@ -5,7 +5,18 @@
 //! directly. Spec: `docs/specs/ai-pursuit.md` sections 4.4 and 5, `docs/specs/fairbusts-reset.md`.
 
 use super::*;
+use blackbox_pursuit::Infraction;
 use blackbox_pursuit::busted::{BustInput, BustTuning, height_matches};
+
+// The bust sequence after the meter fills (`docs/specs/busted-sequence.md`): the arrest scene, the flow and the ticket.
+mod arrest;
+mod flow;
+
+pub(super) use flow::{BustFlow, BustReport, Payment};
+
+/// The perp's class for the arrest scene chooser (0 to 3). The original reads it through the perp car's interface; the
+/// port has no such value, so the bust uses class 0 until it does (`busted-sequence.md` section 4.1).
+const ARREST_CLASS: u8 = 0;
 
 /// Seconds of the post-reset blink after a manual reset: the player flashes (the reset penalty applies) while it runs.
 /// A reset sets the invulnerability timer to 2 s (`docs/specs/vehicle-rigid-body.md` section 7).
@@ -69,6 +80,23 @@ impl Police {
     pub fn is_busted(&self) -> bool {
         self.busted.is_busted()
     }
+
+    /// Starts the bust sequence for the bust that just happened: the infractions so far are the ticket. The chase is in
+    /// free roam (the port has no race mode yet). `roll` in `0..1` picks the arrest scene.
+    pub(super) fn start_bust(&mut self, roll: f32) -> bool {
+        let report = BustReport::from_log(&self.infractions, &self.settings.fines);
+        let started = self.bust.start(false, ARREST_CLASS, roll, report);
+        log::info!(
+            "busted: arrest scene {} (the NIS player is not in the port yet)",
+            self.bust.arrest_scene().unwrap_or("none")
+        );
+        started
+    }
+
+    /// Advances the bust sequence's clock one frame.
+    pub(super) fn tick_bust(&mut self, dt: f32) {
+        let _ = self.bust.tick(dt);
+    }
 }
 
 impl super::super::TrafficWorld {
@@ -105,5 +133,42 @@ impl super::super::TrafficWorld {
     #[allow(dead_code)] // read by the arrest scene (E8f), not built yet
     pub fn is_busted(&self) -> bool {
         self.police.is_busted()
+    }
+
+    /// The bust sequence's ticket, once, when the front end should show it: this chase's infractions and their fines.
+    pub fn take_bust_ticket(&mut self) -> Option<Vec<(Infraction, u32)>> {
+        let report = self.police.bust.take_request()?;
+        Some(report.lines.iter().map(|line| (line.infraction, line.fine)).collect())
+    }
+
+    /// The player pays the bust's fines (`marker`: with a marker). `true` when the bust took the payment.
+    pub fn pay_bust(&mut self, marker: bool) -> bool {
+        let payment = if marker { Payment::Marker } else { Payment::Cash };
+        // The port has no career state, so no markers are in stock.
+        self.police.bust.pay(payment, 0).is_ok()
+    }
+
+    /// Whether the busted overlay (`BUSTED_OVERLAY.fng`) is up: the arrest shot has run and its time has not.
+    pub fn busted_overlay(&self) -> bool {
+        self.police.bust.overlay_shown()
+    }
+}
+
+#[cfg(test)]
+mod bust_sequence_tests {
+    use super::*;
+
+    #[test]
+    fn a_bust_runs_its_clock_hands_the_ticket_over_once_and_takes_the_payment() {
+        let mut police = Police::default();
+        assert!(police.start_bust(0.0), "a bust starts");
+        assert!(!police.bust.overlay_shown());
+        police.tick_bust(flow::SHOT_SECS + 0.1);
+        assert!(police.bust.overlay_shown(), "the overlay follows the arrest shot");
+        police.tick_bust(flow::SHOT_SECS + 0.1);
+        assert!(!police.bust.overlay_shown(), "the overlay runs its time");
+        assert!(police.bust.take_request().is_some(), "the ticket is up for the front end");
+        assert!(police.bust.take_request().is_none(), "and handed over once");
+        assert!(police.bust.pay(Payment::Cash, 0).is_ok(), "the payment is taken on the ticket");
     }
 }

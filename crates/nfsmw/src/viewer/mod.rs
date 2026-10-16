@@ -125,6 +125,15 @@ pub trait Scene {
     fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {
         None
     }
+    /// The bust sequence's infractions ticket, once, when the front end should show it (`(infraction, fine)` lines);
+    /// `None` otherwise.
+    fn take_bust_ticket(&mut self) -> Option<Vec<(blackbox_pursuit::Infraction, u32)>> {
+        None
+    }
+    /// The player pays the bust's fines on the ticket (`marker`: with a marker). `true` when the bust took the payment.
+    fn pay_bust(&mut self, _marker: bool) -> bool {
+        false
+    }
     /// The game is on but frozen (the pause menu is up): there is no car sound, yet the game is still being
     /// played, so the radio goes on.
     fn paused(&self) -> bool {

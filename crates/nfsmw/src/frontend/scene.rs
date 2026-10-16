@@ -314,6 +314,17 @@ impl Scene for Pausable {
         self.inner.pursuit_feed()
     }
 
+    fn take_bust_ticket(&mut self) -> Option<Vec<(blackbox_pursuit::Infraction, u32)>> {
+        if self.concealed() {
+            return None;
+        }
+        self.inner.take_bust_ticket()
+    }
+
+    fn pay_bust(&mut self, marker: bool) -> bool {
+        self.inner.pay_bust(marker)
+    }
+
     fn paused(&self) -> bool {
         self.paused.get() || self.inner.paused()
     }

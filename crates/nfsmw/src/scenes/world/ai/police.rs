@@ -160,6 +160,8 @@ pub struct Police {
     busted: Busted,
     /// The cop cars wrecked in this chase (`IncNumCopsDestroyed`); reset when a chase starts, kept after it ends.
     cops_destroyed: u32,
+    /// The bust sequence after the meter fills (`police/busted/flow.rs`); reset when a chase starts.
+    bust: busted::BustFlow,
 }
 
 impl Default for Police {
@@ -167,6 +169,7 @@ impl Default for Police {
         Self {
             heat: None,
             infractions: InfractionLog::default(),
+            bust: busted::BustFlow::default(),
             heli: None,
             heli_settings: HeliSettings::default(),
             settings: BartenderSettings::default(),
@@ -230,6 +233,7 @@ impl Police {
         heat.raise_to(level as f32);
         self.heat = Some(heat);
         self.infractions.clear();
+        self.bust.reset();
         self.heli_wait = FIRST_JOIN;
         self.seen = true;
         self.cooldown = Cooldown::default();

@@ -313,15 +313,66 @@ The four pursuit-end card texts pick a reason line by type (**[verified]** strin
 The mapping from the last infraction (or the bust cause) to these lines is **[unconfirmed]**; the names suggest speeding,
 dangerous driving (assault and hit and run), custody (resisting arrest after roadblocks or spikes), and reckless.
 
-## 10. What the rewrite has and lacks
+## 10. Port status
 
-- Has (in the port): the meter, the bust timer, the procedural arrest framing, the post-reset blink, the end card
-  (`hud/pursuit_end.rs`). See [ai-pursuit.md](ai-pursuit.md) and [camera-views.md](camera-views.md).
-- Lacks: the arrest NIS (the 26 bundles play through the NIS system the rewrite does not yet run), the arrest spot
-  search, the infractions and payment screens, the bust dialog, the overlay, the impound and strike state, and the
-  rap sheet entry for a bust.
-- The rewrite can use the screen data above (labels, texts, placeholder positions) and the key names, without any
-  binary code.
+What the rewrite has, what is built but not wired, and what is missing. The original's behaviour is in sections 0 to 9.
+
+### 10.1 Has (in the port)
+
+- The meter, the bust timer, the procedural arrest framing, the post-reset blink, the end card (`hud/pursuit_end.rs`).
+  See [ai-pursuit.md](ai-pursuit.md) and [camera-views.md](camera-views.md).
+- Infraction log and fines per chase (`blackbox-pursuit::infraction`, the `[Fines]` table of the Bartender file).
+
+### 10.2 Wired (free roam)
+
+The bust sequence runs in the world from the bust to the payment. It is not checked in the running game (no window
+runs were allowed in this pass); its parts have unit tests.
+
+- **The bust sequence** (`scenes/world/ai/police/busted/flow.rs`). A state machine: the arrest shot (3 s), the busted
+  overlay (3 s), then the infractions ticket. `Police::start_bust` starts it when the busted meter fills, with the
+  chase's infraction log as the ticket; `Police::tick_bust` runs its clock each frame; `reset` runs at each new chase.
+  A bust starts once per chase. The ticket is handed over once (`take_request`). Cash ends the sequence; a marker needs
+  one in stock (the port has none, so the marker is refused). The race branch exists in the flow, but the port has no
+  race mode, so every bust takes the free-roam branch.
+- **Ticket hand-over.** The front end polls the scene each frame in free roam (`frontend/flow.rs` `poll_bust`). When the
+  bust has a ticket, the stage goes to `Paused` (the world freezes, as for the pause menu) and `Infractions.fng` opens
+  over it. The payment is a `Command::PayBust { marker }`; `flow.rs` `pay_bust` asks the scene (`Scene::pay_bust`), and
+  the bust takes it or refuses it. A taken payment resumes the game. The hooks are `Scene::take_bust_ticket` and
+  `Scene::pay_bust`, with defaults that do nothing (`viewer/mod.rs`), implemented by the world (`scenes/world/mod.rs`)
+  and passed through the pause wrapper (`frontend/scene.rs`). This replaces the shared payment flag the first plan
+  named: the scene hooks are the channel the front end already uses for the HUD and the pursuit feed.
+- **The end card** is suppressed for a free-roam bust (`TrafficWorld::pursuit_end_card` returns `None` while the
+  sequence replaces it), so the ticket is the only bust screen.
+- **The busted overlay** (`hud/busted_overlay.rs`). `BUSTED_OVERLAY.fng` from `GLOBAL/InGameB.bun` is loaded into the
+  HUD's runtime while `HudState::busted_overlay` is set; the world sets the flag from `busted_overlay()` in
+  `scenes/world/hud.rs`. It is unloaded when the flag clears, so its fades run again on each bust. It is drawn over the
+  HUD in the full frame, not in the HUD's viewport; the layout at other aspect ratios is not checked. The package has no
+  data binding.
+- **The arrest scene chooser** (`scenes/world/ai/police/busted/arrest.rs`). Section 4.1's table: 16 scenes reachable.
+  The variant comes from a roll in `0..1`, taken from the world's seeded random source. The class is fixed at 0
+  (`ARREST_CLASS`): the original reads it through the perp car's interface, which the port does not have. The chosen
+  scene is logged and kept (`arrest_scene()`) for the NIS player. An ignored test checks that the 16 bundles exist.
+- **The infractions ticket** (`frontend/infractions.rs`, `Infractions.fng`). It shows this chase's count and fines, the
+  unserved count and fines (0, the port has no career state), and the total due. The package has no row per infraction,
+  so the offences are listed on the "Violation:" line (layout unverified). Pay with Cash and Pay with Marker send
+  `PayBust`. Pay with Marker is dimmed and refused with no marker. Which of the two package messages is which button is
+  inferred from the button positions and focus, not checked in game.
+
+### 10.3 Missing
+
+- **The NIS player.** NIS player needed. The 26 `Arrest*` bundles (`NIS/Scene_Arrest*_BundleB.bun`) play through a
+  scene player that does not exist in the port: `blackbox-chunk` only reads the EAGL and camera chunk ids, and
+  `blackbox-sequence` is the CARP event runtime, not a scene player. Until it exists the arrest stays on the procedural
+  arrest camera, which is the stand-in. The player needs to load a bundle's EAGL skeletons, animations, event sequence
+  and `AnimScene` root, play the chosen scene at the arrest spot, and bind the perp car as the actor. `arrest_scene()`
+  already gives the name.
+- **The arrest spot** (section 4.2). The spot search is not built. The NIS path needs it; the flow always takes the
+  free-roam or race route.
+- **Career state.** The port has no cash, markers, unserved infractions, impound strikes or impound flag. So Pay with
+  Cash does not deduct a fine, and the strike and impound rules of section 7 are not done. The marker's effect on the
+  strikes is open (section 7).
+- **The race pause** (section 2 step 6c). The port has no race mode, so the race branch of the flow (it ends after the arrest shot, and
+  the end card stays) is not reached yet. The request object the original makes for a race is not decoded and not built.
 
 ## 11. Open questions
 

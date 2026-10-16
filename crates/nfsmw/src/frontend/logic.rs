@@ -58,6 +58,11 @@ pub enum Command {
     StartFreeRoam,
     /// Close the pause menu and go on driving.
     Resume,
+    /// Pay the bust's fines on the infractions ticket, with a marker or with cash. The bust takes it (`flow.rs`); the
+    /// game goes on driving when it does.
+    PayBust {
+        marker: bool,
+    },
     /// Leave the game in progress for the main menu.
     QuitToMenu,
     QuitGame,

@@ -58,6 +58,7 @@ impl super::super::TrafficWorld {
 
     pub fn update_police(&mut self, dt: f32, player: &PlayerView, clear: &dyn Fn(Vec3, Vec3) -> bool) {
         let pursuing = self.is_pursuing();
+        self.police.tick_bust(dt);
         let level = self.police.level().unwrap_or(1);
         let at = Vec3::from_array(space::to_physics(player.position));
         let strikes = self.take_strikes();
@@ -90,6 +91,7 @@ impl super::super::TrafficWorld {
         let evaded = self.police.update_in_world(dt, pursuing, player, sensed, clear);
         if busted {
             log::info!("the player is busted: the pursuit ends");
+            self.police.start_bust(self.rng.next_f32());
             self.end_pursuit(EndReason::Busted);
             return;
         }
@@ -112,6 +114,10 @@ impl super::super::TrafficWorld {
 
     /// The end-of-pursuit card, while a chase ended busted or evaded. `None` otherwise.
     pub fn pursuit_end_card(&self) -> Option<PursuitEndCard> {
+        // A free-roam bust shows its ticket instead of the card (`busted/flow.rs`).
+        if self.police.bust.replaces_end_card() {
+            return None;
+        }
         let reason = self.police.end_reason();
         if reason == EndReason::None {
             return None;

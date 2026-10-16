@@ -193,6 +193,8 @@ pub struct WorldScene {
     waiting_since: Option<std::time::Instant>,
     /// The gameplay camera the setting picked; only used while driving.
     camera_mode: CameraMode,
+    /// The cop health bars: their state, the bars of the last step and their texture (`effects/cop_health.rs`).
+    cop_health: effects::cop_health::CopHealthBars,
 }
 
 /// Leaving the free camera more than this far (metres) from the car brings the car to the camera.
@@ -407,6 +409,14 @@ impl Scene for WorldScene {
     fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {
         let rain = self.rain.intensity();
         self.traffic.as_ref()?.pursuit_feed().map(|feed| crate::audio::PursuitFeed { rain_intensity: rain, ..feed })
+    }
+
+    fn take_bust_ticket(&mut self) -> Option<Vec<(blackbox_pursuit::Infraction, u32)>> {
+        self.traffic.as_mut()?.take_bust_ticket()
+    }
+
+    fn pay_bust(&mut self, marker: bool) -> bool {
+        self.traffic.as_mut().is_some_and(|traffic| traffic.pay_bust(marker))
     }
 
     fn take_traffic_sounds(&mut self) -> Vec<crate::audio::traffic::TrafficSound> {
