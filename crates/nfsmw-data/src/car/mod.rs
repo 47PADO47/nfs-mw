@@ -109,6 +109,16 @@ pub fn load_driving(dir: &GameDir, car: &str, options: &LoadOptions) -> Result<C
     load_with(dir, car, options, &customization::Selection::default(), true)
 }
 
+/// Load a customized car for driving, with its driver in the cockpit (see [`load_driving`]).
+pub fn load_customized_driving(
+    dir: &GameDir,
+    car: &str,
+    options: &LoadOptions,
+    customization: &customization::Selection,
+) -> Result<CarModel> {
+    load_with(dir, car, options, customization, true)
+}
+
 /// Assemble compatible model replacements over stock parts, without editing the install.
 pub fn load_customized(
     dir: &GameDir,
