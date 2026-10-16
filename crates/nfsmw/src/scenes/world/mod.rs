@@ -30,6 +30,7 @@ mod keys;
 mod lighting;
 use car_loader::load_car;
 mod focus;
+mod focus_feed;
 mod object_geometry;
 mod open;
 #[cfg(test)]
@@ -41,6 +42,7 @@ mod reflections;
 mod residency;
 mod resident;
 mod road;
+mod rotor;
 mod shadow_feed;
 mod sign_lamps;
 mod simulation;
@@ -49,6 +51,7 @@ mod space;
 mod speed_trails;
 mod start;
 mod sun;
+mod update;
 mod vehicle_effects;
 mod visibility;
 mod zone;
@@ -61,7 +64,7 @@ use nfsmw_data::car::CarModel;
 use nfsmw_data::car::physics::PhysicsData;
 use nfsmw_data::world::{DEFAULT_TRACK, PropCatalog, Streamer, WorldIndex, load_global_textures};
 
-use crate::input::{Action, ActionState};
+use crate::input::ActionState;
 use crate::settings::CameraMode;
 use crate::viewer::Scene;
 use crate::viewer::camera::{CameraCut, FlyCamera};
@@ -152,6 +155,8 @@ pub struct WorldScene {
     drive: Option<Drive>,
     /// Computer-driven cars, when the track has a road network.
     traffic: Option<ai::TrafficWorld>,
+    /// The police helicopter's position at the last rotor frame, for its velocity (`rotor_frame`).
+    rotor_previous: Option<Vec3>,
     /// Minimap blips that do not come from the traffic: the race starts and the interiors, made once at open
     /// (`hud::static_blips`). Nothing clears this list, so a later addition stays until it is removed here.
     pub map_blips: Vec<crate::hud::MapBlip>,
@@ -225,6 +230,7 @@ impl Scene for WorldScene {
     fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
         renderer.set_colour_treatment(self.colour_treatment.as_ref(), self.gain_map.as_ref());
         self.breaker_visuals.init(renderer);
+        Self::note_radial_blur_support(renderer);
         if let Some(PendingCar { name, model, script }) = self.pending_car.take() {
             self.start_driving(renderer, name, model, script)?;
         }
@@ -232,71 +238,7 @@ impl Scene for WorldScene {
     }
 
     fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
-        self.shadow_quality = renderer.graphics().shadows;
-        let idle = ActionState::default();
-        let input = match self.garage_open {
-            true => &idle,
-            false => input,
-        };
-        let dt = match self.garage_open {
-            true => 0.0,
-            false => dt,
-        };
-        if let Some(drive) = self.drive.as_mut() {
-            drive.set_car_shading(renderer, self.car_shading, self.sun.to_sun());
-            drive.set_damaged_windows(renderer, self.sun.to_sun());
-            drive.set_car_scale(self.tuning.car_scale);
-            drive.set_no_rev_limiter(self.tuning.no_rev_limiter);
-            drive.set_look_back(input.pressed(Action::LookBack));
-        }
-        if input.just_pressed(Action::ToggleHeadlights)
-            && let Some(drive) = self.drive.as_mut()
-        {
-            let on = drive.toggle_headlights();
-            log::info!("headlights {}", if on { "on" } else { "off" });
-        }
-        let camera = match (self.view, self.drive.as_ref()) {
-            (View::Chase, Some(drive)) => drive.camera().position,
-            _ => self.camera.position,
-        };
-        if input.just_pressed(Action::ToggleCamera) && self.drive.is_some() {
-            log::info!("{}", self.toggle_view());
-        }
-        let [x, y] = self.focus();
-        self.residency.update(renderer, x, y);
-        self.prepare_drive();
-        let sim_dt = match self.garage_open {
-            true => 0.0,
-            false => self.update_simulation(renderer, input, dt),
-        };
-        self.update_entry(input, dt);
-        renderer.set_focus_filter(self.breaker_visuals.update(self.sound_speedbreaker_active, sim_dt));
-        self.rain.update(sim_dt, camera);
-        self.clock += sim_dt * self.tuning.animation_speed;
-
-        self.update_day(sim_dt, renderer.render_experiments().freeze_sun);
-
-        self.residency.animate(renderer, self.clock);
-        if self.view == View::Fly {
-            self.camera.update(input, sim_dt);
-        }
-        if !self.grounded && self.residency.complete() {
-            self.grounded = true;
-            let estimate = ground::height_near(self.residency.placed(), self.start[0], self.start[1], 150.0);
-            // The collision surface just under the estimate is the real road; the estimate is only a guess.
-            let top = estimate.unwrap_or(0.0) + 30.0;
-            let road = space::ground_below(self.residency.collision(), self.start[0], self.start[1], top, top - 120.0);
-            self.camera.position.z = road.or(estimate).unwrap_or(0.0) + self.start_height;
-            self.cut.arm();
-            log::info!(
-                "ground near the start: scenery estimate {estimate:?}, collision {road:?}; camera at z = {:.0}",
-                self.camera.position.z
-            );
-        }
-        self.upload_effects(renderer);
-        self.original_shadows = renderer.render_experiments().original_shadows;
-        self.update_reflections(renderer);
-        self.update_shadow_casters(renderer);
+        self.update_frame(renderer, input, dt);
     }
 
     fn ui(&mut self, ctx: &egui::Context) -> f32 {
@@ -469,6 +411,11 @@ impl Scene for WorldScene {
 
     fn take_traffic_sounds(&mut self) -> Vec<crate::audio::traffic::TrafficSound> {
         self.traffic.as_mut().map(|t| t.take_sounds()).unwrap_or_default()
+    }
+
+    /// The helicopter's rotor for the audio this frame (see `rotor.rs`).
+    fn rotor_frame(&mut self, dt: f32) -> Option<crate::audio::HeliFrame> {
+        self.rotor_frame_now(dt)
     }
 
     fn take_explosions(&mut self) -> u32 {

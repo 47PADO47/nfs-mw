@@ -1,0 +1,77 @@
+//! The per-frame update of the world scene, kept out of `mod.rs` so the scene's trait impl stays short.
+
+use blackbox_gfx::RenderBackend;
+
+use super::{View, WorldScene, ground, space};
+use crate::input::{Action, ActionState};
+
+impl WorldScene {
+    /// Advance the scene by one frame: input, streaming, simulation, effects and captures.
+    pub(super) fn update_frame(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
+        self.shadow_quality = renderer.graphics().shadows;
+        let idle = ActionState::default();
+        let input = match self.garage_open {
+            true => &idle,
+            false => input,
+        };
+        let dt = match self.garage_open {
+            true => 0.0,
+            false => dt,
+        };
+        if let Some(drive) = self.drive.as_mut() {
+            drive.set_car_shading(renderer, self.car_shading, self.sun.to_sun());
+            drive.set_damaged_windows(renderer, self.sun.to_sun());
+            drive.set_car_scale(self.tuning.car_scale);
+            drive.set_no_rev_limiter(self.tuning.no_rev_limiter);
+            drive.set_look_back(input.pressed(Action::LookBack));
+        }
+        if input.just_pressed(Action::ToggleHeadlights)
+            && let Some(drive) = self.drive.as_mut()
+        {
+            let on = drive.toggle_headlights();
+            log::info!("headlights {}", if on { "on" } else { "off" });
+        }
+        let camera = match (self.view, self.drive.as_ref()) {
+            (View::Chase, Some(drive)) => drive.camera().position,
+            _ => self.camera.position,
+        };
+        if input.just_pressed(Action::ToggleCamera) && self.drive.is_some() {
+            log::info!("{}", self.toggle_view());
+        }
+        let [x, y] = self.focus();
+        self.residency.update(renderer, x, y);
+        self.prepare_drive();
+        let sim_dt = match self.garage_open {
+            true => 0.0,
+            false => self.update_simulation(renderer, input, dt),
+        };
+        self.update_entry(input, dt);
+        self.feed_focus(renderer, sim_dt);
+        self.rain.update(sim_dt, camera);
+        self.clock += sim_dt * self.tuning.animation_speed;
+
+        self.update_day(sim_dt, renderer.render_experiments().freeze_sun);
+
+        self.residency.animate(renderer, self.clock);
+        if self.view == View::Fly {
+            self.camera.update(input, sim_dt);
+        }
+        if !self.grounded && self.residency.complete() {
+            self.grounded = true;
+            let estimate = ground::height_near(self.residency.placed(), self.start[0], self.start[1], 150.0);
+            // The collision surface just under the estimate is the real road; the estimate is only a guess.
+            let top = estimate.unwrap_or(0.0) + 30.0;
+            let road = space::ground_below(self.residency.collision(), self.start[0], self.start[1], top, top - 120.0);
+            self.camera.position.z = road.or(estimate).unwrap_or(0.0) + self.start_height;
+            self.cut.arm();
+            log::info!(
+                "ground near the start: scenery estimate {estimate:?}, collision {road:?}; camera at z = {:.0}",
+                self.camera.position.z
+            );
+        }
+        self.upload_effects(renderer);
+        self.original_shadows = renderer.render_experiments().original_shadows;
+        self.update_reflections(renderer);
+        self.update_shadow_casters(renderer);
+    }
+}
