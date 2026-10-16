@@ -2,6 +2,7 @@
 
 use blackbox_gfx::GraphicsApi;
 
+use super::hd_content::HdContentLayer;
 use super::{
     CameraMode, CarShading, Deadzone, GraphicsPreset, HudLayout, MinimapMode, Monitor, PostAa, PostBloom, PostTonemap,
     RadioHudStyle, RenderScale, RendererKind, Resolution, Sensitivity, SmokeQuality, Transmission, UpscaleMode,
@@ -126,6 +127,12 @@ pub struct Partial {
     pub paddle_down: Option<u32>,
     pub manual_clutch: Option<bool>,
     pub h_shifter: Option<bool>,
+    /// The high-speed radial blur on or off (`motion_blur`).
+    pub motion_blur: Option<bool>,
+    /// The radial blur's strength multiplier, 0 to 2 (`motion_blur_strength`).
+    pub motion_blur_strength: Option<f32>,
+    /// The HD content options (`[hd_content]`).
+    pub hd_content: HdContentLayer,
 }
 
 impl Partial {
@@ -205,6 +212,9 @@ impl Partial {
             paddle_down: self.paddle_down.or(lower.paddle_down),
             manual_clutch: self.manual_clutch.or(lower.manual_clutch),
             h_shifter: self.h_shifter.or(lower.h_shifter),
+            motion_blur: self.motion_blur.or(lower.motion_blur),
+            motion_blur_strength: self.motion_blur_strength.or(lower.motion_blur_strength),
+            hd_content: self.hd_content.or(lower.hd_content),
         }
     }
 }

@@ -9,6 +9,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use toml::{Table, Value};
 
+use super::hd_content;
 use super::partial::Partial;
 
 /// The text of the file after `changes` are applied to the table in `existing` (empty text is an empty file).
@@ -210,6 +211,13 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.h_shifter {
         put("h_shifter", Value::Boolean(v));
     }
+    if let Some(v) = changes.motion_blur {
+        put("motion_blur", Value::Boolean(v));
+    }
+    if let Some(v) = changes.motion_blur_strength {
+        put("motion_blur_strength", Value::Float(f64::from(v)));
+    }
+    hd_content::merge_into(&mut table, &changes.hd_content);
     toml::to_string(&table).context("serializing the config file")
 }
 

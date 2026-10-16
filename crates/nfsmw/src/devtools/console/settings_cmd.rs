@@ -6,6 +6,7 @@ use std::str::FromStr;
 use super::settings_keys::KEYS;
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
+use crate::settings::hd_content;
 use crate::settings::{
     CameraMode, HudLayout, MinimapMode, Percent, PostAa, PostBloom, PostTonemap, RadioHudStyle, RenderScale,
     RendererKind, Settings, Transmission, parse_bool,
@@ -59,6 +60,9 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "radio_hud" | "radio-hud" => settings.radio_hud.to_string(),
         "manual_clutch" => on_off(settings.manual_clutch).to_owned(),
         "h_shifter" => on_off(settings.h_shifter).to_owned(),
+        key if hd_content::is_key(key) => hd_content::get(&settings.hd_content, key),
+        "motion_blur" => on_off(settings.motion_blur).to_owned(),
+        "motion_blur_strength" => settings.motion_blur_strength.to_string(),
         "post_tonemap" => settings.post_tonemap.to_string(),
         "post_bloom" => settings.post_bloom.to_string(),
         "post_aa" => settings.post_aa.to_string(),
@@ -136,6 +140,8 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "radio_hud" | "radio-hud" => settings.radio_hud = RadioHudStyle::from_str(value)?,
         "manual_clutch" => settings.manual_clutch = parse_bool(value)?,
         "h_shifter" => settings.h_shifter = parse_bool(value)?,
+        "motion_blur" => settings.motion_blur = parse_bool(value)?,
+        "motion_blur_strength" => settings.motion_blur_strength = crate::settings::motion_blur::parse_strength(value)?,
         "post_tonemap" => settings.post_tonemap = PostTonemap::from_str(value)?,
         "post_bloom" => settings.post_bloom = PostBloom::from_str(value)?,
         "post_aa" => settings.post_aa = PostAa::from_str(value)?,
@@ -150,6 +156,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "upscale_sharpness" => settings.upscale_sharpness = Percent::from_str(value)?,
         "upscale_quality" => settings.upscale_quality = value.parse()?,
         "ray_tracing" => settings.ray_tracing = value.parse()?,
+        key if hd_content::is_key(key) => hd_content::set(&mut settings.hd_content, key, value)?,
         "backend" => return Err("the graphics backend cannot change while running; restart with --backend".into()),
         other => return Err(unknown(other)),
     }
@@ -176,9 +183,10 @@ fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
         "radio" => Some(&mut settings.radio),
         "manual_clutch" => Some(&mut settings.manual_clutch),
         "h_shifter" => Some(&mut settings.h_shifter),
+        "motion_blur" => Some(&mut settings.motion_blur),
         "ao_compare" => Some(&mut settings.ao_compare),
         "traffic_lights" => Some(&mut settings.traffic_lights),
-        _ => None,
+        _ => hd_content::flag(&mut settings.hd_content, key),
     }
 }
 
@@ -221,6 +229,7 @@ fn syntax(key: &str) -> Option<&'static str> {
         "ray_tracing" => "<off|low|medium|high>",
         "traffic" => "<cars, 0 = off>",
         "cop_share" => "<0-100>",
+        "motion_blur_strength" => "<0-2>",
         _ => return None,
     })
 }

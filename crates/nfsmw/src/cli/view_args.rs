@@ -165,6 +165,18 @@ pub struct ViewArgs {
     /// Traffic ignores junctions, as in the original game.
     #[arg(long)]
     pub no_traffic_lights: bool,
+    /// Draw the high-speed radial blur [env NFSMW_MOTION_BLUR; config `motion_blur`; default on].
+    #[arg(long, conflicts_with = "no_motion_blur")]
+    pub motion_blur: bool,
+    /// Draw no high-speed radial blur.
+    #[arg(long)]
+    pub no_motion_blur: bool,
+    /// The high-speed radial blur's strength, 0 to 2; 1 is the curve as it is
+    /// [env NFSMW_MOTION_BLUR_STRENGTH; config `motion_blur_strength`; default 1].
+    #[arg(long, value_name = "0-2")]
+    pub motion_blur_strength: Option<f32>,
+    #[command(flatten)]
+    pub hd_content: crate::settings::hd_content::HdContentArgs,
     /// Enable skid marks [env NFSMW_SKID_MARKS; config `skid_marks`; default on].
     #[arg(long, conflicts_with = "no_skid_marks")]
     pub skid_marks: bool,
@@ -295,6 +307,9 @@ impl ViewArgs {
             traffic: if self.no_traffic { Some(0) } else { self.traffic },
             cop_share: self.cop_share,
             traffic_lights: switch(self.traffic_lights, self.no_traffic_lights),
+            motion_blur: switch(self.motion_blur, self.no_motion_blur),
+            motion_blur_strength: self.motion_blur_strength,
+            hd_content: self.hd_content.layer(),
             skid_marks: switch(self.skid_marks, self.no_skid_marks),
             collision_sparks: switch(self.collision_sparks, self.no_collision_sparks),
             spark_style: self.spark_style,

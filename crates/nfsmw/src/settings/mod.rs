@@ -15,13 +15,14 @@ mod car_shading_tests;
 mod controls;
 #[cfg(test)]
 mod controls_tests;
+pub mod custom_music;
 #[cfg(test)]
 mod discord_tests;
 mod effective;
 mod env;
 #[cfg(test)]
 mod exhaust_flames_tests;
-mod extra_options;
+pub(crate) mod extra_options;
 pub mod fairbusts;
 pub(crate) mod file;
 mod graphics;
@@ -30,11 +31,15 @@ mod graphics_preset;
 mod graphics_preset_tests;
 #[cfg(test)]
 mod graphics_tests;
+pub mod hd_content;
 pub mod helicopter;
 mod hud_layout;
 #[cfg(test)]
 mod hud_layout_tests;
 mod minimap;
+pub mod motion_blur;
+#[cfg(test)]
+mod motion_blur_tests;
 mod partial;
 mod post;
 #[cfg(test)]
@@ -85,8 +90,10 @@ pub use controls::{Controls, Deadzone, DeadzoneMode, Sensitivity};
 pub use graphics_preset::GraphicsPreset;
 pub use hud_layout::HudLayout;
 pub use minimap::MinimapMode;
+pub use motion_blur::MotionBlur;
 pub use partial::{Partial, Percent, parse_bool};
 pub use post::{PostAa, PostBloom, PostTonemap, VisualTreatment, post_effects};
+pub use custom_music::{CustomContext, CustomMode, CustomMusic, Sources as CustomSources};
 pub use radio_hud::RadioHudStyle;
 pub use ray_tracing::RayTracingLevel;
 pub use renderer::RendererKind;
@@ -255,6 +262,12 @@ pub struct Settings {
     pub manual_clutch: bool,
     /// A gear selector that holds a gear (an H-pattern shifter) is bound to the `gear_*` actions. Off by default.
     pub h_shifter: bool,
+    /// The high-speed radial blur on or off (`motion_blur`); off draws none.
+    pub motion_blur: bool,
+    /// The radial blur's strength multiplier, 0 to 2 (`motion_blur_strength`); 1 is the curve as it is.
+    pub motion_blur_strength: f32,
+    /// The HD content options: HD font glyphs, the HD pointer hotspot and HD movie framing (`[hd_content]`).
+    pub hd_content: hd_content::HdContent,
 }
 
 impl From<Partial> for Settings {
@@ -339,6 +352,12 @@ impl From<Partial> for Settings {
             paddle_down: p.paddle_down,
             manual_clutch: p.manual_clutch.unwrap_or(false),
             h_shifter: p.h_shifter.unwrap_or(false),
+            motion_blur: p.motion_blur.unwrap_or(motion_blur::DEFAULT_MOTION_BLUR),
+            motion_blur_strength: p
+                .motion_blur_strength
+                .unwrap_or(motion_blur::DEFAULT_MOTION_BLUR_STRENGTH)
+                .clamp(motion_blur::MOTION_BLUR_STRENGTH_RANGE.0, motion_blur::MOTION_BLUR_STRENGTH_RANGE.1),
+            hd_content: hd_content::HdContent::from_layer(p.hd_content),
             speedbreaker: SpeedbreakerTuning::default(),
         };
         settings.settle_preset();
@@ -400,6 +419,8 @@ pub struct WorldTuning {
     pub turn_signals: bool,
     /// The Speedbreaker tunables (`NFSMWSpeedFixerSettings.ini`).
     pub speedbreaker: SpeedbreakerTuning,
+    /// The high-speed radial blur: on or off, and its strength.
+    pub motion_blur: MotionBlur,
 }
 
 impl Default for WorldTuning {
@@ -412,6 +433,7 @@ impl Default for WorldTuning {
             no_rev_limiter: DEFAULT_NO_REV_LIMITER,
             turn_signals: false,
             speedbreaker: SpeedbreakerTuning::default(),
+            motion_blur: MotionBlur::default(),
         }
     }
 }
@@ -426,6 +448,7 @@ impl From<&Settings> for WorldTuning {
             no_rev_limiter: s.no_rev_limiter,
             turn_signals: s.turn_signals,
             speedbreaker: s.speedbreaker,
+            motion_blur: MotionBlur::from(s),
         }
     }
 }

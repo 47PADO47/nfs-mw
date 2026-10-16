@@ -8,6 +8,7 @@ use std::str::FromStr;
 
 use toml::{Table, Value};
 
+use super::hd_content;
 use super::partial::{Partial, Percent};
 use super::{
     CameraMode, CarShading, Deadzone, GraphicsPreset, HudLayout, MinimapMode, RadioHudStyle, Sensitivity, Transmission,
@@ -138,6 +139,9 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         paddle_down: field(&table, origin, "paddle_down", button_code),
         manual_clutch: field(&table, origin, "manual_clutch", boolean),
         h_shifter: field(&table, origin, "h_shifter", boolean),
+        motion_blur: field(&table, origin, "motion_blur", boolean),
+        motion_blur_strength: field(&table, origin, "motion_blur_strength", number),
+        hd_content: hd_content::read(&table),
     }
 }
 
@@ -148,6 +152,16 @@ fn field<T>(table: &Table, origin: &str, key: &str, convert: impl Fn(&Value) -> 
 
 fn boolean(v: &Value) -> Result<bool, String> {
     v.as_bool().ok_or_else(|| "expected true or false".to_owned())
+}
+
+/// A plain number, whole or fractional.
+fn number(v: &Value) -> Result<f32, String> {
+    let n = match v {
+        Value::Integer(n) => *n as f64,
+        Value::Float(f) => *f,
+        _ => return Err("expected a number".to_owned()),
+    };
+    Ok(n as f32)
 }
 
 /// A volume written as a number (`70`, `0.7`) or a string (`"70%"`).
