@@ -406,11 +406,12 @@ written against an older config and are not confirmed against this one.
 The DLL also has a small scripting syntax (`if`, `include`, variables), with a table at `0x10029AF0`. The
 README lists the keys found there. Not studied further.
 
-### COb datagram codec (wrong layout)
+### Peer datagram codec
 
-`tools/lan_udp_codec.py` implements a 29-byte `COb` layout (tag at 4, flag at 28), read before the client path
-was traced. The real layout is 25 bytes with the tag at offset 0. The codec must be changed to match or removed.
-Its self-test checks only its own layout, so it proves nothing about the game.
+`tools/lan_udp_codec.py` encodes and decodes the peer datagrams as traced in the client path: the 25-byte `COb`
+(tag at 0, flag at 3, 20-byte name at 4..23, heard-before flag at 24), the 4-byte `PNG` and `DSC`, and the
+6-byte `MIC` header with an opaque payload (channel byte at offset 4). `--selftest` checks lengths, round trips
+and rejection of malformed input. It checks the tool against this description only, not against a capture.
 
 ### HTTP framing tool
 

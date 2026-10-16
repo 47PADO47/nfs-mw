@@ -62,8 +62,8 @@ payload from `+0x36`), `+0x435` pending byte, `+0x43c` previous send tick, `+0x4
 - Name match, `0x00865540`: compares `param_2+8`, which is datagram offset 4, with peer `+0x10`.
 
 Conclusion: both sides use 25 bytes with the tag at offset 0. The earlier reading (tag at offset 4, flag at 28,
-29 bytes) took the handler's `param_3` as the datagram start. `tools/lan_udp_codec.py` implements that wrong
-layout and needs changing or removal (the orchestrator decides; it was outside this task's file list).
+29 bytes) took the handler's `param_3` as the datagram start. `tools/lan_udp_codec.py` was rewritten to the
+25-byte layout on 2026-10-16.
 
 ## Keep-alive and data timing
 
