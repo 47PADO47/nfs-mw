@@ -13,12 +13,13 @@ use blackbox_gfx::{Antialiasing, scaled_size, suggested_temporal_texture_lod_bia
 use crate::ops::BlackboxBridge;
 
 /// The texture LOD bias that keeps mip selection matched to the render scale: one mip sharper while a
-/// temporal method (today, only [`Antialiasing::Taa`]) accumulates samples over time, the plain spatial
+/// temporal anti-aliasing method ([`Antialiasing::Taa`]) accumulates samples over time, the plain spatial
 /// bias otherwise. `libs/blackbox-gfx` computes both curves; this just picks between them.
 ///
-/// A temporal *upscaler* (FSR 3/4, DLSS) would use the same temporal curve, but none of them are offered
-/// by this renderer yet (`caps.rs`), so [`Upscaler::is_temporal`](blackbox_gfx::Upscaler::is_temporal)
-/// never matters here today. The day one lands, pass its `effective.upscaler` in here too.
+/// This takes only the anti-aliasing. A temporal *upscaler* (FSR 3, DLSS; see
+/// [`Upscaler::is_temporal`](blackbox_gfx::Upscaler::is_temporal)) needs the same temporal curve, and the
+/// caller applies that rule: `facade.rs` `mip_bias` checks the upscaler first and only then calls this.
+/// Callers that build a bias for a temporal upscaler must do the same, or the texture detail is wrong.
 pub fn mip_bias(antialiasing: Antialiasing, render_scale: f32) -> f32 {
     match antialiasing {
         Antialiasing::Taa => suggested_temporal_texture_lod_bias(render_scale),

@@ -50,6 +50,7 @@ pub enum Setting {
     DiscordTimePlayed,
     Input(InputSetting),
     Alias(AliasSetting),
+    Hd(hd_options::HdSetting),
     Post(PostSetting),
     Graphics(GraphicsSetting),
     Renderer(RendererSetting),
@@ -99,6 +100,9 @@ const fn row(setting: Setting, title: Title) -> Row {
 #[path = "options_rows.rs"]
 mod category_rows;
 pub use category_rows::rows;
+
+#[path = "hd_options.rs"]
+mod hd_options;
 
 #[path = "options_steps.rs"]
 mod steps;
@@ -180,6 +184,7 @@ impl Setting {
             Setting::Post(setting) => setting.data(s),
             Setting::Graphics(setting) => setting.data(s),
             Setting::Renderer(setting) => setting.data(s),
+            Setting::Hd(setting) => setting.data(s),
             Setting::HudLayout => Data::Text(
                 match s.hud_layout {
                     HudLayout::Pc => "PC",
@@ -347,25 +352,16 @@ impl Setting {
                 $c.$field = Some($s.$field);
             }};
         }
-        if let Setting::Input(setting) = self {
-            return setting.step(s, changed, forward);
-        }
-        if let Setting::Post(setting) = self {
-            return setting.step(s, changed, forward);
-        }
-        if let Setting::Graphics(setting) = self {
-            return setting.step(s, changed, forward);
-        }
-        if let Setting::Renderer(setting) = self {
-            return setting.step(s, changed, forward);
-        }
         let before = *s;
         match self {
             // A Mods row's value lives in its mod (`mod_options.rs`), not in the settings.
             Setting::Mod(_) => return false,
-            Setting::Input(_) | Setting::Alias(_) | Setting::Post(_) | Setting::Graphics(_) | Setting::Renderer(_) => {
-                unreachable!("input, alias, post, graphics and renderer settings are handled above")
-            }
+            Setting::Input(setting) => return setting.step(s, changed, forward),
+            Setting::Post(setting) => return setting.step(s, changed, forward),
+            Setting::Graphics(setting) => return setting.step(s, changed, forward),
+            Setting::Renderer(setting) => return setting.step(s, changed, forward),
+            Setting::Hd(setting) => return setting.step(s, changed, forward),
+            Setting::Alias(_) => unreachable!("alias rows never reach the settings step"),
             Setting::HudLayout => {
                 let layouts = [HudLayout::Pc, HudLayout::Classic, HudLayout::Xbox360];
                 let at = layouts.iter().position(|layout| *layout == s.hud_layout).unwrap_or(0);

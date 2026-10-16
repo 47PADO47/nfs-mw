@@ -8,8 +8,9 @@ Two things decide how the game is drawn, and they are separate settings:
   row **Graphics API (After Restart)** cycles only through the APIs this PC has a GPU for (`auto` is always there),
   and the Bevy renderer skips `gl`.
 
-The Bevy renderer is a **spike**: it draws the world (meshes, textures, fog, alpha test, blending, sky) and
-nothing else yet, and it only exists in builds made with `--features renderer-bevy`. The settings, menu rows
+The Bevy renderer is a **spike**: it draws the world (meshes, textures, fog, alpha test, blending, sky), the post
+chain (bloom, tone mapping, FXAA, SMAA, TAA, FSR 1), and the temporal and ray-traced options its build includes
+(`fsr3`, `dlss` or `dlss-mock`, `ray-tracing`). It only exists in builds made with `--features renderer-bevy`. The settings, menu rows
 and checks described here work the same way for either renderer. What it draws, how it was measured and what
 is missing: [bevy-backend.md](bevy-backend.md). The design is in
 [the plan](plans/gfx-renderers/README.md) and [ADR 0004](decisions/0004-swappable-renderers.md).
@@ -52,23 +53,24 @@ setting.
 
 ## What each renderer can do
 
-| Feature | `blackbox` | `bevy` (planned) |
+| Feature | `blackbox` | `bevy` |
 |---|---|---|
 | Upscalers `off`, `bilinear`, `fsr1` | yes | yes |
 | Anti-aliasing `fxaa` | yes | yes |
 | Bloom, tone mapping `aces` | yes | yes |
 | Anti-aliasing `smaa` | yes (Vulkan, DX12) | yes |
 | Anti-aliasing `taa` | no | yes (Vulkan and DX12) |
-| Upscaler `fsr3` (temporal, any GPU) | no | yes (Vulkan, DX12) |
-| Upscaler `fsr4` (experimental) | no | DX12, Radeon RX 7000 and 9000 only |
-| Upscaler `dlss` | no | Vulkan, NVIDIA RTX only |
-| `ray_tracing` | no | GPUs with ray queries; noisy without DLSS Ray Reconstruction |
+| Upscaler `fsr3` (temporal, any GPU) | no | yes (Vulkan, DX12; `fsr3` build) |
+| Upscaler `fsr4` (experimental) | no | not built yet (no tester) |
+| Upscaler `dlss` | no | Vulkan, NVIDIA RTX only (`dlss` build; `dlss-mock` runs it as TAA plus FSR 1) |
+| `ray_tracing` | no | GPUs with ray queries (Solari, `ray-tracing` build; works on RTX, the look is a stand-in); noisy without DLSS Ray Reconstruction |
 | Graphics APIs | Vulkan, DX12, OpenGL | Vulkan, DX12 |
 
 `blackbox` supports OpenGL and low-end PCs. Native Vulkan/DX12 also offer spatial SMAA
 and the optional [graphics lab prototypes](graphics-lab.md).
-`dlss` needs the NVIDIA DLSS SDK at build time, so it is a separate build option. `fsr4` has no
-tester yet. Frame generation and DLSS 5 are not planned.
+`dlss` needs the NVIDIA DLSS SDK at build time, so it is a separate build option. `dlss-mock` builds without
+the SDK. `fsr4` has no tester yet. Frame generation and DLSS 5 are not planned.
+Status of each: [upscaling.md](upscaling.md#status) and [status.md](plans/gfx-renderers/status.md).
 
 ## The settings
 

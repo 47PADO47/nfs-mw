@@ -1,4 +1,5 @@
 //! Category layout for the option screens.
+use super::hd_options::HdSetting;
 use super::{LABEL_TRANSMISSION, Row, Setting, Title, row};
 use crate::frontend::alias_options::AliasSetting;
 use crate::frontend::graphics_options::GraphicsSetting;
@@ -51,6 +52,9 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
                 row(Setting::SpeedTrailStyle, Title::Text("Speed Trail Style")),
                 row(Setting::ExhaustFlames, Title::Text("Exhaust Flames")),
                 row(Setting::CustomFonts, Title::Text("Custom Fonts")),
+                row(Setting::Hd(HdSetting::Fonts), HdSetting::Fonts.title()),
+                row(Setting::Hd(HdSetting::Cursor), HdSetting::Cursor.title()),
+                row(Setting::Hd(HdSetting::Movies), HdSetting::Movies.title()),
                 row(Setting::Metrics, Title::Text("Performance Overlay")),
             ])
             .collect(),

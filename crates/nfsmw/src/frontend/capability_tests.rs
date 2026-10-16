@@ -26,7 +26,7 @@ fn text(s: &'static str) -> Title {
 #[test]
 fn the_native_renderer_hides_ray_tracing_and_the_quality_mode_but_has_the_renderer_row() {
     let video = titles(Category::Video, &test_caps::native());
-    assert_eq!(video.len(), 37);
+    assert_eq!(video.len(), 40);
     for hidden in ["Ray Tracing", "Upscale Quality", "Dynamic Soft Shadows"] {
         assert!(!video.contains(&text(hidden)), "{hidden} needs a renderer that offers it");
     }
@@ -45,7 +45,7 @@ fn the_native_renderer_hides_ray_tracing_and_the_quality_mode_but_has_the_render
 #[test]
 fn a_full_renderer_has_every_row_next_to_the_setting_it_belongs_with() {
     let video = titles(Category::Video, &test_caps::full());
-    assert_eq!(video.len(), 41);
+    assert_eq!(video.len(), 44);
     let at =
         |name: &'static str| video.iter().position(|t| *t == text(name)).unwrap_or_else(|| panic!("no {name} row"));
     assert_eq!(
@@ -54,6 +54,8 @@ fn a_full_renderer_has_every_row_next_to_the_setting_it_belongs_with() {
         "the front-end row sits beside the shadows row"
     );
     assert_eq!(at("Upscale Quality"), at("Upscaler") + 1);
+    assert_eq!(at("HD Fonts"), at("Custom Fonts") + 1, "the HD content rows follow the custom fonts row");
+    assert_eq!(at("HD Movies"), at("HD Fonts") + 2);
     assert_eq!(at("Ray Tracing"), at("Motion Blur Strength") + 1, "ray tracing follows the post-processing rows");
     assert_eq!(
         at("Car Reflection Size"),
@@ -99,6 +101,29 @@ fn the_upscaler_row_cycles_all_six_on_a_full_renderer() {
         Setting::Upscaler.advance(&mut s, &mut c, true, &caps);
         assert_eq!(Setting::Upscaler.data_in(&s, &caps), Data::Text(name.into()));
     }
+}
+
+#[test]
+fn a_dlss_renderer_shows_the_temporal_rows_and_cycles_only_what_it_runs() {
+    let dlss = blackbox_gfx::Capabilities::mock_dlss("bevy", blackbox_gfx::GraphicsApi::Vulkan);
+    let video = titles(Category::Video, &dlss);
+    assert!(video.contains(&text("Upscale Quality")) && video.contains(&text("Ray Tracing")));
+    let (mut s, mut c) = (defaults(), Partial::default());
+    let mut seen = Vec::new();
+    for _ in 0..4 {
+        Setting::Upscaler.advance(&mut s, &mut c, true, &dlss);
+        seen.push(Setting::Upscaler.data_in(&s, &dlss));
+    }
+    assert_eq!(
+        seen,
+        [
+            Data::Text("DLSS".into()),
+            Data::Text("Off".into()),
+            Data::Text("Bilinear".into()),
+            Data::Text("FSR 1".into())
+        ],
+        "FSR 3 and FSR 4 are skipped: the DLSS mock's caps do not list them"
+    );
 }
 
 #[test]

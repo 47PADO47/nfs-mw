@@ -4,6 +4,16 @@ The 3D scene can be drawn at a different size than the window, then scaled to th
 upscaler. Drawing fewer pixels costs less GPU time; the HUD, menus and console are drawn after the
 upscale at the window's own resolution, so they stay sharp. Nothing changes at the default of 100 %.
 
+## Status
+
+- **DLSS** (`dlss`, `dlss-mock`): tested through the mock in the Bevy renderer. The real path is written but has
+  not been compiled, because no NVIDIA DLSS SDK is installed where it was written. See [DLSS status](#dlss-status).
+- **FSR 3** (`fsr3`): wired into the Bevy renderer, with the world's depth and motion-vector prepass fixed.
+  Measured against native in [status.md](plans/gfx-renderers/status.md), section 3e. Quality against AMD's
+  output is not measured yet.
+- **Solari** (ray tracing, not an upscaler): works on an RTX card with colour stand-ins for the materials, so
+  its look is not final. [status.md](plans/gfx-renderers/status.md), section 3d.
+
 ## Controls
 
 Settings resolve independently: CLI, environment, per-user TOML, then defaults, like every other
@@ -18,9 +28,10 @@ setting.
 
 - **Render scale** is the scene's width and height as a percent of the window's, 50 to 200. `67`,
   `67%` and `0.67` all mean the same.
-- **Upscaler** is `fsr1`, `bilinear` or `off` on the native renderer. `fsr3`, `fsr4` and `dlss` are temporal
-  upscalers that only the Bevy renderer offers (`fsr3` on an `fsr3` build); the native renderer runs them as `fsr1` (`dlss`, `fsr4` fall
-  back through `fsr3`) and logs the downgrade. See [renderers.md](renderers.md).
+- **Upscaler** is `fsr1`, `bilinear` or `off` on the native renderer. `fsr3` and `dlss` are temporal upscalers that
+  only the Bevy renderer offers, and only in builds with the `fsr3` feature (FSR 3) or the `dlss` or `dlss-mock`
+  feature (DLSS). `fsr4` is not built yet. The native renderer runs the temporal ones as `fsr1` at the render size
+  of their quality mode, and logs the downgrade. See [renderers.md](renderers.md).
 - **Upscale quality** is `auto`, `native`, `quality`, `balanced`, `performance` or `ultra_performance`. It only
   matters for the temporal upscalers, whose render size it sets (100, 67, 59, 50 and 33 %; `auto` is `quality`);
   `render_scale` is then ignored. So `dlss` at `quality` on the native renderer is `fsr1` at 67 %.
@@ -107,24 +118,26 @@ for the matching bias. `crates/nfsmw/src/settings/graphics.rs` builds the reques
 sends it through `RenderBackend::apply_graphics`. See the
 `blackbox-render` README for the post chain.
 
-### Seams for DLSS and other temporal upscalers (not implemented)
+### Temporal upscaler inputs
 
-The architecture decision for milestone 8 (ADR 0003, "the renderer after milestone 8") keeps NVIDIA
-DLSS Super Resolution for after the milestone, as an optional, default-off Cargo feature that wraps
-`dlss_wgpu` (Vulkan only, NVIDIA RTX). What a temporal upscaler needs, and where this code stands:
+DLSS Super Resolution is an optional, default-off Cargo feature (`dlss`, or `dlss-mock` without the SDK), built on
+Bevy's DLSS camera component. It is offered on Vulkan and NVIDIA RTX only. A temporal upscaler needs the inputs
+below. The native renderer has none of the temporal ones yet; the Bevy renderer has them, which is what FSR 3 and
+DLSS run on.
 
-| Input | Status |
-|---|---|
-| Colour at the render size | Done: the scene image, at `render_size()`. |
-| Output at the window size | Done: upscale passes write the output size (`Extent::Output`). |
-| Depth | Done: `Depth32Float` at the render size, reverse-Z (1 at the near plane, 0 far; no far plane), already bindable as a sampled texture. A reverse-depth flag is all the SDK needs. |
-| Mip bias | Done: `set_texture_lod_bias`; temporal upscalers use `log2(scale) - 1`. |
-| Projection jitter | Missing: `FrameParams` (`view`, `projection`) is not jittered; needs a per-frame sub-pixel offset (a Halton sequence) in the projection and its value passed to the upscaler. |
-| Motion vectors | Missing: instances carry only the current transform. It needs a per-instance previous transform, a previous view-projection, and a second colour output for the vectors. Skinned or animated parts (wheels, the sky) need care. |
-| Hook into device creation | Missing: `dlss_wgpu` creates the instance and device itself, replacing the calls in `gpu/init.rs` when the feature is on. |
+| Input | Native renderer | Bevy renderer |
+|---|---|---|
+| Colour at the render size | Done: the scene image, at `render_size()`. | Done. |
+| Output at the window size | Done: upscale passes write the output size (`Extent::Output`). | Done. |
+| Depth | Done: `Depth32Float` at the render size, reverse-Z, bindable as a sampled texture. | Done: the world material writes depth in its prepass (PR 13b). |
+| Mip bias | Done: `set_texture_lod_bias`; a temporal upscaler uses `log2(scale) - 1`. | Done: `facade.rs` gives a temporal upscaler the temporal curve. |
+| Projection jitter | Missing: `FrameParams` is not jittered. | Done for FSR 3 (Halton(2,3) on the projection). DLSS gets its jitter from Bevy. |
+| Motion vectors | Missing: instances carry only the current transform. | Done: the world material writes motion vectors in its prepass, from Bevy's previous transforms. |
+| Device creation | Missing: the native renderer would need `dlss_wgpu` to create the device. | Done by Bevy: the `dlss` build adds `DlssInitPlugin` before `RenderPlugin`. |
 
-FSR 2 and later temporal upscalers need the same inputs and are future work. DLSS frame generation,
-FSR 3 frame generation, FSR 4 and Streamline are not reachable through wgpu and are not planned.
+FSR 2 needs the same inputs and is not planned: FSR 3.1 is built instead. Frame generation (DLSS and FSR 3) and
+Streamline are not planned. FSR 4 is not built: it needs DX12 and a Radeon RX 7000 or 9000 to test, and there is
+no tester yet ([status.md](plans/gfx-renderers/status.md), PR 14).
 
 ### FSR 3.1 temporal upscaler (`libs/fsr3-wgpu`)
 
@@ -138,11 +151,14 @@ add it on Vulkan and DirectX 12 (and Metal) without subgroup operations or vendo
 and the temporal mip bias; the render-world node sets the jitter on the projection, runs the upscale in place of TAA,
 and blits the display-size result into the view target before bloom and tone mapping. The render size comes from the
 shared quality table. The static-scene GPU test passes on an RTX 4070 SUPER over Vulkan
-(`cargo test -p blackbox-bevy-render --features fsr3 --lib fsr3 -- --ignored`). **Not yet right:** the Blackbox
-material has `enable_prepass() == false` (`libs/blackbox-bevy-render/src/material/mod.rs`), so world geometry is
-never drawn into the depth or motion-vector prepass. The upscaler then sees an empty depth buffer and no motion for the
-world, and a moving camera does not reproject its history. This is the open follow-up for PR 13b; the upscaler and its
-wiring do not need changing for it. Quality against AMD's output has not been measured.
+(`cargo test -p blackbox-bevy-render --features fsr3 --lib fsr3 -- --ignored`).
+
+**Prepass (fixed in PR 13b).** The Blackbox material now writes depth and motion vectors in its prepass
+(`libs/blackbox-bevy-render/src/material/`). Before that, the upscaler saw an empty depth buffer and no motion for the
+world. On the moving-camera test (FSR 3 Quality against native, 160x90, 30 frames, RTX 4070 SUPER, Vulkan) the mean
+sample difference fell from 10.84 to 6.53 (p99 89 to 65). The full table and the method are in
+[status.md](plans/gfx-renderers/status.md), section 3e. Quality against AMD's output has not been measured; check the
+moving camera by eye with `view-world --upscaler fsr3` on a Vulkan or DX12 card.
 
 It needs the inputs of the table above: the jittered colour at the
 render size, the reverse-Z depth (the crate takes the reverse infinite convention as a flag), motion
