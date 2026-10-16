@@ -71,7 +71,11 @@ impl ReflectionCapture {
             cube,
             faces,
             views: std::array::from_fn(|_| CaptureView::new(device, layout)),
-            scene: SceneTargets::Offscreen(FrameTargets::new(device, wgpu::TextureFormat::Rgba8Unorm, (size, size))),
+            scene: SceneTargets::Offscreen(Box::new(FrameTargets::new(
+                device,
+                wgpu::TextureFormat::Rgba8Unorm,
+                (size, size),
+            ))),
             store: Filter::new(device, "environment cube store", &filter_source(REFLECTION_STORE_WGSL)),
         }
     }

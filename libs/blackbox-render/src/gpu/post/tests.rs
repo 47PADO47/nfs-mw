@@ -215,9 +215,12 @@ fn check(backend: wgpu::Backends) {
     );
 }
 
+/// The name of a pass, the size of its input and the size of its output.
+type Seen = Vec<(&'static str, (u32, u32), (u32, u32))>;
+
 /// Records the sizes of the images it is given, and writes a constant.
 struct Sizes {
-    seen: Rc<RefCell<Vec<(&'static str, (u32, u32), (u32, u32))>>>,
+    seen: Rc<RefCell<Seen>>,
     name: &'static str,
     extent: super::Extent,
 }

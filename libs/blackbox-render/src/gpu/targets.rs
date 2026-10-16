@@ -140,16 +140,16 @@ pub(super) enum SceneTargets {
     /// The scene goes straight into the output image; only a depth buffer is allocated.
     Direct { depth_view: wgpu::TextureView, format: wgpu::TextureFormat, size: (u32, u32) },
     /// The scene goes into an offscreen image that the post chain reads.
-    Offscreen(FrameTargets),
+    Offscreen(Box<FrameTargets>),
 }
 
 impl SceneTargets {
     pub(super) fn new(device: &wgpu::Device, plan: &ScenePlan) -> Self {
         if plan.motion {
-            return Self::Offscreen(FrameTargets::with_motion(device, plan.format, plan.size));
+            return Self::Offscreen(Box::new(FrameTargets::with_motion(device, plan.format, plan.size)));
         }
         if !plan.direct {
-            return Self::Offscreen(FrameTargets::new(device, plan.format, plan.size));
+            return Self::Offscreen(Box::new(FrameTargets::new(device, plan.format, plan.size)));
         }
         let size = (plan.size.0.max(1), plan.size.1.max(1));
         Self::Direct { depth_view: create_depth(device, size.0, size.1), format: plan.format, size }
@@ -191,7 +191,7 @@ impl SceneTargets {
     pub(super) fn offscreen(&self) -> Option<&FrameTargets> {
         match self {
             Self::Direct { .. } => None,
-            Self::Offscreen(targets) => Some(targets),
+            Self::Offscreen(targets) => Some(&**targets),
         }
     }
 }

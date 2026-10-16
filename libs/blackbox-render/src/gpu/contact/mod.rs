@@ -13,6 +13,14 @@ struct Params {
     screen: [f32; 4],
 }
 
+/// What one ray march needs of the camera and the sun: the matrix that takes the world to the clip space the depth was
+/// drawn in (jittered, when a temporal upscaler runs) and how far the march reaches.
+#[derive(Clone, Copy)]
+struct March {
+    view_proj: glam::Mat4,
+    length: f32,
+}
+
 pub(super) struct Contact {
     buffer: wgpu::Buffer,
     layout: wgpu::BindGroupLayout,
@@ -111,10 +119,10 @@ impl Contact {
         queue: &wgpu::Queue,
         encoder: &mut wgpu::CommandEncoder,
         frame: &FrameParams,
-        view_proj: glam::Mat4,
-        length: f32,
+        march: March,
         surfaces: &Targets,
     ) {
+        let March { view_proj, length } = march;
         let Projection::PerspectiveInfiniteReverse { near, fov_y, .. } = frame.projection else { return };
         let size = self.size;
         let params = Params {
@@ -175,8 +183,7 @@ impl Renderer {
                 &self.queue,
                 encoder,
                 frame,
-                view_proj,
-                self.experiments.contact_length,
+                March { view_proj, length: self.experiments.contact_length },
                 &surfaces.targets,
             );
         }
