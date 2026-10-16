@@ -364,6 +364,16 @@ impl Drive {
         self.chase.looking_back()
     }
 
+    /// Whether a caught pan or an arrest framing is running this tick (`PursuitCamera::shot_running`).
+    pub fn pursuit_shot_running(&self) -> bool {
+        self.pursuit.shot_running()
+    }
+
+    /// Whether a car is simulated, which is when the HUD has a state (`hud_state`).
+    pub fn has_sim(&self) -> bool {
+        self.sim.is_some()
+    }
+
     /// Advances the pursuit camera's caught pan and arrest framing by `dt` of simulated time, with the chase's feed.
     pub fn update_pursuit(&mut self, dt: f32, feed: PursuitFeed) {
         self.pursuit.update(dt, feed);

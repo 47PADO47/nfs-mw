@@ -1,6 +1,7 @@
 //! A single 60 Hz timeline for the player, traffic, object contacts and world timers.
 
 use blackbox_gfx::RenderBackend;
+use blackbox_pursuit::health_bar::{Frame, Gates};
 
 use glam::Vec3;
 
@@ -101,6 +102,19 @@ impl WorldScene {
                     }
                 }
             }
+            // The cop health bars step on the same clock as the police, after its tick (`effects/cop_health.rs`). The
+            // traffic reads the chase gate itself, so `pursuing` here is not used.
+            let camera = self.simulation_lens(self.physics_aspect);
+            let frame = Frame {
+                camera_pos: camera.position,
+                camera_forward: camera.forward,
+                gates: Gates {
+                    pursuing: false,
+                    shot_running: self.drive.as_ref().is_some_and(|drive| drive.pursuit_shot_running()),
+                    hud_visible: self.hud_shown(),
+                },
+            };
+            self.cop_health.step(self.traffic.as_ref(), frame, steps as f32 * STEP);
         }
         // A loading pause holds the last displayed phase instead of jumping ahead and rewinding.
         let alpha = match batch || dt == 0.0 {

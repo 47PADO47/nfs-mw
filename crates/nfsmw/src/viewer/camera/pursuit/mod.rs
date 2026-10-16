@@ -86,6 +86,11 @@ impl PursuitCamera {
         self.shot = self.current_shot(feed.player);
     }
 
+    /// Whether a caught pan or an arrest framing is on screen this tick (the cop health bars hide during one).
+    pub fn shot_running(&self) -> bool {
+        self.shot.is_some_and(|shot| shot.weight > 0.0)
+    }
+
     /// The chase view with this tick's pursuit shot blended in; the chase view unchanged with no shot running.
     pub fn shot(&self, base: ChaseView) -> ChaseView {
         let Some(shot) = self.shot.filter(|shot| shot.weight > 0.0) else {

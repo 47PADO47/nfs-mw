@@ -123,6 +123,7 @@ impl WorldScene {
                 cars: 0,
                 cop_share: crate::settings::Percent(0),
                 lights: false,
+                avoidance: false,
             },
             lamp_meshes: None,
             traffic_manual: None,
@@ -142,6 +143,7 @@ impl WorldScene {
             cut: CameraCut::default(),
             waiting_since: None,
             camera_mode: CameraMode::default(),
+            cop_health: Default::default(),
         })
     }
 }

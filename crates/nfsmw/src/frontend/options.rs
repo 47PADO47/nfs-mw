@@ -40,6 +40,7 @@ pub enum Setting {
     SpeedTrailStyle,
     ExhaustFlames,
     TurnSignals,
+    CopHealthBars,
     RearViewMirror,
     SmokeQuality,
     Transmission,
@@ -221,6 +222,7 @@ impl Setting {
             Setting::SpeedTrailStyle => Data::Text(s.speed_trail_style.label().into()),
             Setting::ExhaustFlames => on_off(s.exhaust_flames),
             Setting::TurnSignals => on_off(s.turn_signals),
+            Setting::CopHealthBars => on_off(s.cop_health_bars),
             Setting::RearViewMirror => on_off(s.rear_view_mirror),
             Setting::Discord => on_off(s.discord),
             Setting::DiscordTimePlayed => on_off(s.discord_time_played),
@@ -438,6 +440,7 @@ impl Setting {
             }
             Setting::ExhaustFlames => toggle!(s, changed, exhaust_flames),
             Setting::TurnSignals => toggle!(s, changed, turn_signals),
+            Setting::CopHealthBars => toggle!(s, changed, cop_health_bars),
             Setting::RearViewMirror => toggle!(s, changed, rear_view_mirror),
             Setting::Discord => toggle!(s, changed, discord),
             Setting::DiscordTimePlayed => toggle!(s, changed, discord_time_played),

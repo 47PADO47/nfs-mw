@@ -422,6 +422,30 @@ Pure functions, in `libs/blackbox-pursuit/src/health_bar/` tests:
 8. Whether roadblock cars (`Role::Traffic`, placed by `ai/roadblock.rs`) should get a bar. The mod's table is the cop
    cars, and a roadblock car is a cop car, but it is not chasing. This spec gives them none.
 
+## Port status
+
+What is in the tree, and what is not yet wired.
+
+- **Rules.** `libs/blackbox-pursuit/src/health_bar/` (sections 3 to 11 and 14). Pure, tested.
+- **Samples.** `AiCar::cop_health_sample` (`scenes/world/ai/car/hits.rs`) gives a sample for `Role::Cop` only, wrecked
+  ones included. `TrafficWorld::cop_health_samples` and `TrafficWorld::cop_health_bars` (`scenes/world/ai/cop_health.rs`)
+  gather the samples and step the bars.
+- **Key.** The key is `AiCar::render_id`, not a new `serial` field (section 12.4). It comes from `keys::next_car()`, is
+  unique per placed car, and does not change while the car is alive, so `car.rs` and `pursuit.rs` are not edited.
+- **Quads.** `scenes/world/effects/cop_health.rs`: `CopHealthBars` holds the bar state, the last step's bars and the
+  white texture (`TextureDesc`, 1 x 1, `Rgba8`, created on first use). Each bar is emitted as `segment_quads` in one
+  `TexturedEffect` with `BlendMode::AlphaBlend`, from `upload_effects`. The vertex colours are sRGB bytes: the effect
+  shaders decode them on an sRGB target, so the linear rule colours are encoded back on the way out.
+- **Setting.** `cop_health_bars`, default off, in `Settings` and `WorldTuning`: TOML, `NFSMW_COP_HEALTH_BARS`,
+  `--cop-health-bars` / `--no-cop-health-bars`, console `get` / `set` / flip, and the Gameplay options row "Cop Health
+  Bars". The console `KEYS` array is `[&str; 65]`. The setting only gates the emit; the state keeps stepping.
+- **Wired.** The per-step call is in `scenes/world/simulation.rs`, after `update_police`, with the sim `dt` (section
+  13.2 step 3). The gates are built there: the shot gate from `Drive::pursuit_shot_running()` (`PursuitCamera::shot_running`,
+  `viewer/camera/pursuit/mod.rs`), and the HUD gate from `WorldScene::hud_shown()` (`scenes/world/hud.rs`), which applies
+  the look-back rule without building the HUD frame each step.
+- **Not checked by eye.** The colours, thresholds, flash period and fade are the design values of sections 4 to 7 and
+  have not been seen in a run.
+
 ## Next leads
 
 1. Play the port with the bars on and check the tier thresholds and the flash period by eye, then change the design

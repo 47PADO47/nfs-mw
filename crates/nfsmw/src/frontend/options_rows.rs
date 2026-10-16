@@ -59,6 +59,7 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
             row(Setting::Minimap, Title::Text("Minimap")),
             row(Setting::RearViewMirror, Title::Text("Rear-View Mirror")),
             row(Setting::TurnSignals, Title::Text("Turn Signals")),
+            row(Setting::CopHealthBars, Title::Text("Cop Health Bars")),
         ],
         Category::Player => vec![
             row(Setting::Transmission, Title::Label(LABEL_TRANSMISSION)),

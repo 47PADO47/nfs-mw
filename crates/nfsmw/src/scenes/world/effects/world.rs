@@ -67,6 +67,7 @@ impl WorldScene {
             traffic.cop_particles(position, forward, &mut layer.textured);
             traffic.lamp_glows(position, forward, self.residency.props(), &mut layer.glows);
         }
+        self.cop_health.emit(renderer, self.tuning.cop_health_bars, &mut layer.textured);
         drive.vehicle_effects.textured(forward, &self.residency.shared.materials, &mut layer.textured);
         drive.flames.geometry(position, forward, layer);
         self.explosions.textured(position, forward, &mut layer.textured);

@@ -20,6 +20,18 @@ fn pursuit_hud(feed: PursuitFeed, cops_destroyed: u32) -> PursuitHud {
 }
 
 impl WorldScene {
+    /// Whether the HUD is drawn this frame: the rule of `hud_state` and `hud_frame`, without building the frame.
+    pub(super) fn hud_shown(&self) -> bool {
+        if self.view == View::Fly {
+            return false;
+        }
+        let Some(drive) = self.drive.as_ref() else { return false };
+        if drive.camera_looking_back(self.camera_mode) && !self.tuning.show_hud_on_look_back {
+            return false;
+        }
+        drive.has_sim()
+    }
+
     /// The HUD for this frame. Hidden in the fly view and while there is no car yet.
     pub(super) fn hud_frame(&self) -> Option<crate::hud::HudState> {
         let hidden = Some(crate::hud::HudState { visible: false, ..Default::default() });
@@ -40,6 +52,7 @@ impl WorldScene {
                     .pursuit_feed()
                     .map(|feed| PursuitHud { evade: traffic.evade_level(), ..pursuit_hud(feed, wrecked) });
                 state.busted = traffic.busted_meter();
+                state.busted_overlay = traffic.busted_overlay();
             }
             state.blips.extend_from_slice(&self.map_blips);
         }
