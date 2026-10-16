@@ -117,6 +117,23 @@ pub struct ViewArgs {
     /// Local car reflections [env NFSMW_REFLECTIONS; config `reflections`; default medium].
     #[arg(long, value_name = "off|low|medium|high")]
     pub reflections: Option<crate::settings::ReflectionQuality>,
+    /// Car cube face size: auto, a percentage of the quality's face (25% to 400%) or pixels [env NFSMW_REFLECTION_CUBE_SIZE;
+    /// config `reflection_cube_size`; default 100%].
+    #[arg(long, value_name = "auto|25%-400%|px")]
+    pub reflection_cube_size: Option<crate::settings::ReflectionSize>,
+    /// Rear-view mirror picture size, the same forms as the cube face; the width keeps the bezel's shape
+    /// [env NFSMW_REFLECTION_MIRROR_SIZE; config `reflection_mirror_size`; default 100%].
+    #[arg(long, value_name = "auto|25%-400%|px")]
+    pub reflection_mirror_size: Option<crate::settings::ReflectionSize>,
+    /// Round car cube faces down to a power of two [env NFSMW_REFLECTION_POW2; config `reflection_pow2`; default off].
+    #[arg(long, conflicts_with = "no_reflection_pow2")]
+    pub reflection_pow2: bool,
+    /// Do not round car cube faces to a power of two.
+    #[arg(long)]
+    pub no_reflection_pow2: bool,
+    /// Mirror tint: off, on (the stock tint), #rrggbb or r,g,b [env NFSMW_MIRROR_TINT; config `mirror_tint`; default off].
+    #[arg(long, value_name = "off|on|#rrggbb")]
+    pub mirror_tint: Option<crate::settings::MirrorTint>,
     /// Smoke presentation: standard or high [env NFSMW_SMOKE_QUALITY; config `smoke_quality`; default standard].
     #[arg(long, value_name = "standard|high")]
     pub smoke_quality: Option<crate::settings::SmokeQuality>,
@@ -165,6 +182,13 @@ pub struct ViewArgs {
     /// Traffic ignores junctions, as in the original game.
     #[arg(long)]
     pub no_traffic_lights: bool,
+    /// Draw a health bar above each cop car that chases you (a rewrite extension: the original shows none)
+    /// [env NFSMW_COP_HEALTH_BARS; config `cop_health_bars`; default off].
+    #[arg(long, conflicts_with = "no_cop_health_bars")]
+    pub cop_health_bars: bool,
+    /// Draw no cop health bars.
+    #[arg(long)]
+    pub no_cop_health_bars: bool,
     /// Draw the high-speed radial blur [env NFSMW_MOTION_BLUR; config `motion_blur`; default on].
     #[arg(long, conflicts_with = "no_motion_blur")]
     pub motion_blur: bool,
@@ -258,6 +282,15 @@ pub struct ViewArgs {
     /// reference screenshots; a nitrous or boost value shows that gauge).
     #[arg(long, hide = true, value_name = "SPEED,RPM,MAX_RPM,GEAR[,NOS[,PSI[,BREAKER[,ACTIVE]]]]", value_parser = parse_hud_demo, allow_hyphen_values = true)]
     pub hud_demo: Option<crate::hud::HudState>,
+    /// Load no mods, native ones included: the same as `mods = off` (ADR 0005 section 6) [env NFSMW_MODS].
+    #[arg(long)]
+    pub no_mods: bool,
+    /// A developer run: mods load from copies in the cache, so a rebuilt library can replace the original.
+    #[arg(long)]
+    pub mod_dev: bool,
+    /// A second folder of mods to load, besides the mods folder in the config directory.
+    #[arg(long, value_name = "PATH")]
+    pub mods_dir: Option<PathBuf>,
 }
 
 impl ViewArgs {
@@ -279,6 +312,7 @@ impl ViewArgs {
             // A screenshot run has no sound unless the radio is asked for: the radio's songs drive the chyron.
             audio: (!self.no_sound && (self.screenshot.is_none() || self.radio)).then(|| dir.clone()),
             frontend: None,
+            mods: None,
         }
     }
 
@@ -302,11 +336,16 @@ impl ViewArgs {
             graphics_preset: self.graphics_preset,
             car_shading: self.car_shading,
             reflections: self.reflections,
+            reflection_cube_size: self.reflection_cube_size,
+            reflection_mirror_size: self.reflection_mirror_size,
+            reflection_pow2: switch(self.reflection_pow2, self.no_reflection_pow2),
+            mirror_tint: self.mirror_tint,
             smoke_quality: self.smoke_quality,
             radio: switch(self.radio, self.no_radio),
             traffic: if self.no_traffic { Some(0) } else { self.traffic },
             cop_share: self.cop_share,
             traffic_lights: switch(self.traffic_lights, self.no_traffic_lights),
+            cop_health_bars: switch(self.cop_health_bars, self.no_cop_health_bars),
             motion_blur: switch(self.motion_blur, self.no_motion_blur),
             motion_blur_strength: self.motion_blur_strength,
             hd_content: self.hd_content.layer(),
@@ -318,6 +357,7 @@ impl ViewArgs {
             rear_view_mirror: switch(self.rear_view_mirror, self.no_rear_view_mirror),
             discord: switch(self.discord, self.no_discord),
             discord_time_played: switch(self.discord_time_played, self.no_discord_time_played),
+            mods: self.no_mods.then_some(crate::settings::mods::ModsMode::Off),
             transmission: self.transmission,
             camera_mode: self.camera_mode,
             post_tonemap: self.post_tonemap,

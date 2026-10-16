@@ -103,6 +103,12 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.traffic_lights {
         put("traffic_lights", Value::Boolean(v));
     }
+    if let Some(v) = changes.traffic_avoidance {
+        put("traffic_avoidance", Value::Boolean(v));
+    }
+    if let Some(v) = changes.cop_health_bars {
+        put("cop_health_bars", Value::Boolean(v));
+    }
     if let Some(v) = changes.skid_marks {
         put("skid_marks", Value::Boolean(v));
     }
@@ -168,6 +174,18 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     }
     if let Some(v) = changes.reflections {
         put("reflections", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.reflection_cube_size {
+        put("reflection_cube_size", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.reflection_mirror_size {
+        put("reflection_mirror_size", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.reflection_pow2 {
+        put("reflection_pow2", Value::Boolean(v));
+    }
+    if let Some(v) = changes.mirror_tint {
+        put("mirror_tint", Value::String(v.to_string()));
     }
     if let Some(v) = changes.shadows {
         put("shadows", Value::String(v.to_string()));
@@ -325,6 +343,7 @@ mod tests {
             hud: Some(false),
             radio: Some(false),
             traffic_lights: Some(false),
+            cop_health_bars: Some(true),
             transmission: Some(crate::settings::Transmission::Manual),
             minimap: Some(crate::settings::MinimapMode::Rotating),
             paddle_up: Some(5),
