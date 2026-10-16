@@ -30,7 +30,7 @@ All branches are in one GitHub stack (stack #23, draft PRs, each based on the pr
 | 11 | `feat/gfx-bevy-dlss` | | **not started**, needs the NVIDIA PC |
 | 12 | `feat/gfx-bevy-solari` | | **done on the RTX card**: startup gate, caps, stand-ins, cameras, sun, camera-cut reset, game wiring; the stand-in look is white (open, §3d) |
 | 13a | `feat/gfx-fsr3-core` | #41 | done: `libs/fsr3-wgpu`, not used by a renderer yet |
-| 13b | `feat/gfx-fsr3` | | **wired, partly verified**: `fsr3` feature in `blackbox-bevy-render` (`src/fsr3/`), caps offer FSR 3 when the device can run it, static-scene GPU test passes on the RTX card; **open**: `BlackboxMaterial` has no prepass (`enable_prepass` false), so world depth and motion vectors are empty and moving-camera reprojection is wrong until the material writes them (outside PR 13b's files); quality vs AMD not measured |
+| 13b | `feat/gfx-fsr3` | | **wired, verified on the RTX card**: `fsr3` feature in `blackbox-bevy-render` (`src/fsr3/`), caps offer FSR 3 when the device can run it; the world material now writes depth and motion vectors (section 3e), so the moving-camera picture follows the native one; quality vs AMD not measured |
 | 14 | `feat/gfx-bevy-fsr4` | | **not started**, experimental, needs an RX 7000/9000 tester |
 
 The status PR itself is the top of the stack (see the PR list on GitHub). Not part of the stack: exhaust flames (#31, against `main`).
@@ -250,6 +250,49 @@ intensity; whether hidden stand-ins are still traced; the `nfsmw` build (blocked
 
 Next leads: a per-colour stand-in for untextured prelit geometry; keep `sync_denoiser` off capture cameras; check
 hidden stand-ins; tune the sun.
+
+## 3e. PR 13b: the world's prepass and motion vectors (FSR 3, TAA)
+
+Until this fix the world material had no prepass (`enable_prepass` false). The motion-vector and depth textures
+existed but stayed zero, so FSR 3 reprojected a moving camera with no motion, and a flip of the motion sign changed
+nothing.
+
+- **Material** (`libs/blackbox-bevy-render/src/material/`): `enable_prepass` is true. `prepass.wesl` (replaces
+  `shadow.wesl`, `prepass.rs` replaces `shadow.rs`) serves the camera's depth prepass, its motion-vector prepass and the
+  shadow maps. It transforms like the colour pass (the jittered clip position, so depth matches). Motion vectors are
+  Bevy's convention: this frame's unjittered clip position minus last frame's (`previous_view_uniforms`, the previous
+  model matrix), halved and V-flipped. Alpha-tested draws discard with the colour pass's texture alpha, sampled with the
+  same mip bias. Blended and additive draws are not queued in any prepass (Bevy queues opaque and alpha-mask only). The
+  material stays forward (Solari sets the default opaque method to forward), so no deferred prepass reaches it.
+- **Previous transforms**: nothing to add. Bevy's `update_mesh_previous_global_transforms` gives every `Mesh3d` entity a
+  `PreviousGlobalTransform`, and `apply/instances.rs` writes `GlobalTransform` only on a move, so `instances.rs` is
+  unchanged.
+- **Mip bias** (`facade.rs`): a temporal upscaler (FSR 3, DLSS) takes the temporal curve, as TAA does.
+- **Tests**: `material/prepass_tests.rs` (GPU, ignored): a still scene writes zero motion vectors, a moving box and a
+  moving camera write some. The motion texture has no `COPY_SRC`, so the render world blits it into a readable image.
+  The `fsr3::gpu_tests` moving-camera test is a measurement (it prints; it does not gate).
+
+Harness lesson: a pose set between updates (outside `App::update`) is seen by `PreUpdate` as this frame's pose, so
+the previous view equals the current one and motion is zero. Set the camera in `PostUpdate` (as `apply::apply` does)
+and request a readback before the frame it should read: the copy happens in that update, and a readback requested
+after a frame reads a later, still one.
+
+Moving-camera numbers, FSR 3 against native (same camera slide, 30 frames, 160x90, RTX 4070 SUPER, Vulkan; mean and
+p99 of the 0-255 sample difference):
+
+| Motion | FSR 3 Quality vs native | FSR 3 native ratio vs native |
+|---|---|---|
+| prepass off (before) | mean 10.84, p99 89 | mean 8.40, p99 79 |
+| prepass on, motion sign as written | mean 6.53, p99 65 | mean 3.49, p99 43 |
+| prepass on, motion sign flipped (experiment) | mean 8.31, p99 74 | mean 5.18, p99 54 |
+
+The sign flip changes the output and the written sign is the better match, so the motion vectors now reach the
+upscaler. The numbers in the previous agent's notes (7.7 / p99 72, and 4.5) are not in the repo; the "before" row is
+this harness's measurement with the prepass off. Quality against AMD's output is still not measured.
+
+Next leads: check the moving-camera picture by eye on the RTX card (`view-world` at `--upscaler fsr3`); the
+stand-in comment in `post/scale.rs` and the "not yet right" paragraph in `docs/upscaling.md` still describe the old
+state (outside this PR's files).
 
 ## 4. Handoff: building the remaining PRs
 

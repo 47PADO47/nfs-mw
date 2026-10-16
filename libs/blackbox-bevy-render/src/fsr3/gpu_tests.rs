@@ -15,8 +15,10 @@ use bevy_ecs::system::{Commands, Res, RunSystemOnce};
 use bevy_image::Image;
 use bevy_render::gpu_readback::{ReadbackComplete, ReadbackOnce};
 use blackbox_gfx::{FrameParams, GraphicsApi, GraphicsSettings, RenderBackend, RgbaImage, UpscaleQuality, Upscaler};
+use blackbox_gfx_testkit::camera::Camera;
 use blackbox_gfx_testkit::{Mask, SceneId, compare};
 use blackbox_gpu_passes::test_support::serial;
+use glam::Vec3;
 use wgpu::{TextureFormat, TextureUsages};
 
 use crate::HeadlessBevy;
@@ -84,13 +86,19 @@ fn drain_pending_readbacks(mut commands: Commands, pending: Res<PendingReadbacks
     }
 }
 
-/// Read `image` back once, pumped until it resolves.
-fn readback(app: &mut App, image: &Handle<Image>) -> RgbaImage {
+/// Ask for a readback of `image` at the next update, which makes the copy. Ask before the frame whose output should be
+/// read: a readback requested after a frame copies a later frame.
+fn request_readback(app: &mut App, image: &Handle<Image>) -> Arc<Mutex<Option<Vec<u8>>>> {
     if !app.world().contains_resource::<PendingReadbacks>() {
         app.init_resource::<PendingReadbacks>().add_systems(PostUpdate, drain_pending_readbacks);
     }
     let done: Arc<Mutex<Option<Vec<u8>>>> = Arc::default();
     app.world().resource::<PendingReadbacks>().0.lock().unwrap().push((image.clone(), done.clone()));
+    done
+}
+
+/// Pump the app until the readback asked for by [`request_readback`] has arrived.
+fn wait_readback(app: &mut App, done: &Arc<Mutex<Option<Vec<u8>>>>) -> RgbaImage {
     for _ in 0..60 {
         if let Some(data) = done.lock().unwrap().clone() {
             return unpad(&data, SIZE);
@@ -98,6 +106,12 @@ fn readback(app: &mut App, image: &Handle<Image>) -> RgbaImage {
         app.update();
     }
     panic!("the readback did not complete in time");
+}
+
+/// Read `image` back once, pumped until it resolves.
+fn readback(app: &mut App, image: &Handle<Image>) -> RgbaImage {
+    let done = request_readback(app, image);
+    wait_readback(app, &done)
 }
 
 /// Unpad a readback's rows (the same maths as `apply::capture`).
@@ -144,4 +158,66 @@ fn fsr3_converges_on_a_static_scene() {
     let diff = compare(&frame_n, &frame_n_plus_16, &Mask::all()).expect("same size");
     eprintln!("fsr3 convergence, frame N vs N+16: {diff}");
     assert!(diff.mean < 2.0 && diff.p99 <= 16, "a settled FSR 3 picture should barely change 16 frames later: {diff}");
+}
+
+/// The camera of frame `k` of the slide: 0.05 m sideways a frame, looking at the same place, so the whole world moves
+/// across the picture and FSR 3 has motion to follow (the same look as the Grid scene's own camera).
+fn slid(k: usize, base: &FrameParams) -> FrameParams {
+    let x = 0.05 * k as f32;
+    let aspect = SIZE[0] as f32 / SIZE[1] as f32;
+    let fog = base.fog.as_ref().map(|f| (f.start, f.end));
+    Camera::new(Vec3::new(x, -6.0, 4.5), Vec3::new(x, 14.0, 0.0)).frame(aspect, base.clear_color, fog)
+}
+
+/// The camera of the slide for the next update. It is set in `PostUpdate`, where `apply::apply` sets it in a window:
+/// the previous view (which FSR 3 reprojects with) is taken in `PreUpdate`, so it must still be last frame's pose
+/// when this frame's pose goes in. Set outside an update, the previous and current views would be the same.
+#[derive(Resource)]
+struct NextFrame {
+    camera: Entity,
+    frame: FrameParams,
+    settings: CameraSettings,
+}
+
+fn follow_next_frame(mut commands: Commands, next: Res<NextFrame>) {
+    blackbox_camera::follow(&mut commands, next.camera, &next.frame, &next.settings);
+}
+
+/// Draw `frames` frames of the slide with `settings` on a fresh renderer and return the last picture. The last
+/// frame's readback is requested before that frame, so the picture is that frame's own.
+fn slide(settings: &GraphicsSettings, frames: usize) -> Option<RgbaImage> {
+    let mut bevy = bevy()?;
+    bevy.apply_graphics(settings);
+    let camera_settings = current_settings(&bevy);
+    let built = SceneId::Grid.build(&mut bevy, SIZE);
+    built.apply_layers(&mut bevy);
+    let (camera, image) = spawn_camera(bevy.app_mut(), &built.frame, &camera_settings);
+    bevy.app_mut().add_systems(PostUpdate, follow_next_frame);
+    let mut last = None;
+    for k in 0..frames {
+        let frame = slid(k, &built.frame);
+        bevy.app_mut().insert_resource(NextFrame { camera, frame, settings: camera_settings });
+        last = (k + 1 == frames).then(|| request_readback(bevy.app_mut(), &image));
+        bevy.render(&frame, &built.instances).expect("render");
+    }
+    let picture = last.map(|done| wait_readback(bevy.app_mut(), &done));
+    built.release(&mut bevy);
+    picture
+}
+
+/// FSR 3 on a moving camera against the native picture of the same camera (no upscaler, no anti-aliasing). Prints
+/// the difference for FSR 3 at Quality and at the native ratio; it is a measurement, not a gate. Needs a GPU, and
+/// `--nocapture` to see the numbers: `cargo test -p blackbox-bevy-render --features fsr3 --lib
+/// fsr3_on_a_moving_camera -- --ignored --nocapture`.
+#[test]
+#[ignore = "needs a GPU; prints the moving-camera numbers"]
+fn fsr3_on_a_moving_camera_tracks_the_native_picture() {
+    let _gpu = serial();
+    let frames = 30;
+    let Some(native) = slide(&GraphicsSettings::default(), frames) else { return };
+    for (label, quality) in [("quality", UpscaleQuality::Quality), ("native ratio", UpscaleQuality::Native)] {
+        let Some(upscaled) = slide(&fsr3_settings(quality), frames) else { return };
+        let diff = compare(&native, &upscaled, &Mask::all()).expect("same size");
+        eprintln!("fsr3 moving camera, {label} vs native: {diff}");
+    }
 }

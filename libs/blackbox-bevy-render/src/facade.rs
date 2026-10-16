@@ -9,7 +9,7 @@ use blackbox_gfx::{
     BackendInfo, Capabilities, CaptureId, EffectLayer, Environment, FocusFilter, FrameParams, FrameStatus,
     GlossyMaterial, GlossyMaterialHandle, GraphicsSettings, Instance, LightingRig, MeshDesc, MeshHandle, RenderBackend,
     RenderError, RenderStats, Resolved, RgbaImage, SkyGradient, TextureDesc, TextureHandle, UiLayer, UiTextureId,
-    UiTexturePatch, resolve, scaled_size,
+    UiTexturePatch, resolve, scaled_size, suggested_temporal_texture_lod_bias,
 };
 
 use crate::ops::{CameraSettings, CaptureRequest, FrameData, Op, Shared, UiOp, lock};
@@ -88,6 +88,15 @@ impl BevyBackend {
     }
 }
 
+/// The texture LOD bias for the resolved settings: the temporal curve while a temporal method accumulates samples
+/// over frames (TAA, or a temporal upscaler: FSR 3, DLSS), the plain spatial curve otherwise.
+fn mip_bias(graphics: &GraphicsSettings) -> f32 {
+    if graphics.upscaler.is_temporal() {
+        return suggested_temporal_texture_lod_bias(graphics.render_scale);
+    }
+    crate::post::scale::mip_bias(graphics.post.antialiasing, graphics.render_scale)
+}
+
 /// Say that something is not drawn yet, the first time only.
 fn once(flag: &mut bool, what: &str) {
     if std::mem::replace(flag, true) {
@@ -130,7 +139,7 @@ impl RenderBackend for BevyBackend {
             settings.upscaler = effective.upscaler;
             settings.upscale_sharpness = effective.upscale_sharpness;
             settings.render_scale = effective.render_scale;
-            settings.mip_bias = crate::post::scale::mip_bias(effective.post.antialiasing, effective.render_scale);
+            settings.mip_bias = mip_bias(&effective);
         });
         self.graphics = effective;
         resolved

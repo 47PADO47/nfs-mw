@@ -1,4 +1,5 @@
-//! Shadow pipelines have their own vertex layout and no colour target.
+//! The prepass pipelines (depth for shadow maps and the camera, motion vectors for the temporal upscalers) have their
+//! own vertex layout and no colour target, except the motion-vector target Bevy adds for a camera that has one.
 
 use bevy_mesh::{Mesh, MeshVertexBufferLayoutRef};
 use bevy_render::render_resource::{RenderPipelineDescriptor, SpecializedMeshPipelineError};
@@ -9,7 +10,7 @@ use crate::mesh::ATTRIBUTE_COLOR_BGRA;
 
 pub(super) fn shader() -> ShaderRef {
     ShaderRef::Path(
-        bevy_asset::AssetPath::from_path_buf(bevy_asset::embedded_path!("shadow.wesl")).with_source("embedded"),
+        bevy_asset::AssetPath::from_path_buf(bevy_asset::embedded_path!("prepass.wesl")).with_source("embedded"),
     )
 }
 
