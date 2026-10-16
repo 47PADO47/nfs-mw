@@ -34,6 +34,7 @@ use state::Playing;
 use stream::StreamData;
 
 use crate::settings::CustomMusic;
+use crate::settings::eatrax::Jukebox;
 use custom::{Custom, CustomTrack, Source};
 
 /// Which play list is in use.
@@ -127,6 +128,20 @@ impl Radio {
             broken: None,
             now: None,
         }
+    }
+
+    /// Uses the jukebox's table: each list plays the songs of its mode in the table's order, and the order flag picks
+    /// random or sequential play. Songs the backend has no chain for never play (`docs/specs/eatrax-jukebox.md`, 11).
+    pub fn set_jukebox(&mut self, jukebox: &Jukebox) {
+        let known: Vec<bool> = (0..self.songs.len()).map(|n| self.backend.chain(self.songs[n].event).is_ok()).collect();
+        let list = |index: usize| {
+            let order = jukebox.order(index);
+            let enabled: Vec<usize> =
+                order.iter().copied().filter(|&n| known.get(n).copied().unwrap_or(false)).collect();
+            Playlist::with_order(enabled, order)
+        };
+        self.lists = [list(0), list(1)];
+        self.mode = if jukebox.random { Mode::Shuffle } else { Mode::Ordered };
     }
 
     #[cfg(test)]

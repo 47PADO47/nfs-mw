@@ -208,3 +208,56 @@ Lessons, pass 2:
   That is the quickest way to the EA Trax init handler and the skip handler.
 - Plan for the permission check: the reads that worked in pass 1 were refused in pass 2. Record what is pending and stop
   rather than look for another route to the same data.
+
+## Pass 3 (blocked again)
+
+- The coordinator relayed a user approval for `create_function` and `read_memory`. The auto-mode permission check
+  still refused `mcp__ghidra-mcp__create_function` (at 0x004DF420) and `mcp__ghidra-mcp__get_xrefs_to` (for the
+  callers of 0x005ACB70: 0x005ACDD0, 0x005ACE40). No Ghidra call succeeded in this pass, and no function was created.
+- A relayed approval does not change the classifier's rule. Needed: a permission rule in the user's settings for
+  `mcp__ghidra-mcp__create_function`, `mcp__ghidra-mcp__read_memory` and `mcp__ghidra-mcp__get_xrefs_to`, or the user
+  runs the three calls. Open until then: the EATraxInit body (0x004DF420), the mask field of the 0x414 save block,
+  the mask writer, and the jukebox message handler.
+- The I part was not started: the toggle rule and the mask storage are still unknown.
+
+## Pass 4 (the handler, the list builder and the save side)
+
+Calls run by the orchestrator, with the user's approval (the classifier had refused them to this agent). Findings
+read back by this agent; no further Ghidra calls here.
+
+- `0x004DF420` is now a Ghidra function, named `EATraxInitHandler` by the orchestrator (created from the bytes of the
+  pass-2 handler address). The `EATraxInit` event handler: when the event's +0x14 field is -1 it plays the song at the
+  object's +0x13C index (times 0x74, plus 0x4C) through `0x00829310`, then calls the list builder with reset on; else
+  with reset off.
+- `0x004DF330` is the list builder. Source: the profile object (global `0x0091CF90`, its +0x10). Song table at profile
+  +0x324, 8-byte entries (`u32` song index, `u8` mode at +4); count in global `0x008F42C4`. Mode 1 sets the bit in list 0,
+  mode 2 in list 1, mode 3 in both, 0 is off. Counts per list. Profile +0x7C goes to both lists' +0x14. Reset sets both
+  cursors (+0xC) to -1.
+- List objects: two 24-byte records at `0x008F2080` and `0x008F2098` (+0 full mask, +4 remaining mask, +8 count, +0xC
+  cursor, +0x10 current song, -1 none, +0x14 order flag).
+- `0x004F4CD0` picks the next song for the list index held by the caller's +0x150. Refill when empty; random draw
+  through `0x004AECF0(count)` when the order flag is set; table-order walk from cursor + 1 otherwise. Last bit refills
+  and the just-played bit is xored out of the new round.
+- Save side: `0x005ACB70` (profile block loader, pass 2) is called from `0x005ACDD0` (called from `0x00526C90`) and
+  `0x005ACE40` (called from `0x00526C90`, `0x00562FF0`, `0x00563380`). `0x00562FF0` calls the list builder with reset on
+  after a load.
+
+Not yet read: the message routine of the jukebox package object (the game-side `game` handler). The EATraxInit path
+gives the model, not the button handler. Dead ends and open items stay in the sections above.
+
+## Pass 5 (the port, I part)
+
+The port's choices, where the original's button mapping is not confirmed (spec section 12):
+
+- Accept cycles the mode of the highlighted song (off, menus, in game, both). Natural reading; the original's button
+  is not identified.
+- Re-Order (`0xC519BFC4`, PAD_BUTTON5) turns re-order on and off. With it on, up and down move the song.
+- L1 (`0x5073EF13`) and R1 (`0xD9FEEC59`) set the order to random or sequential. The order line is the word on
+  the screen.
+- Prev (`0xC519BFC3`, PAD_BUTTON4) moves the highlight up. The package labels the key "Prev".
+- Left and right turn the page. Back (`0x911AB364`) saves and returns to the audio category.
+- The message `0x7EABCA56` is named `MOUSE_LEFT_RELEASED` in `frontend/ids.rs` (the port's own name); the screen does
+  not use it.
+- The song list is read from `GLOBAL/ATTRIBUTES.BIN` once, when the front end is built (`frontend/jukebox.rs`
+  `prime`), with the existing `nfsmw_data::music::songs`.
+- The jukebox file is `eatrax_jukebox.toml` next to the config file, its own file (the config writer is not used).

@@ -19,6 +19,7 @@ pub mod custom_fonts;
 pub mod custom_music;
 #[cfg(test)]
 mod discord_tests;
+pub mod eatrax;
 mod effective;
 mod env;
 #[cfg(test)]

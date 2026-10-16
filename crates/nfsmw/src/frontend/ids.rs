@@ -26,6 +26,8 @@ pub mod screen {
     pub const WORLD_MAP: &str = "WorldMapMain.fng";
     /// The ticket after a bust in free roam (`infractions.rs`). Opened by the bust sequence, not by a menu.
     pub const INFRACTIONS: &str = "Infractions.fng";
+    /// The EA Trax playlist screen (`jukebox.rs`), opened from the audio category.
+    pub const EA_TRAX_JUKEBOX: &str = "EA_Trax_Jukebox.fng";
 }
 
 // Messages.

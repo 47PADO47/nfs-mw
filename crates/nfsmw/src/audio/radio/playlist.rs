@@ -1,7 +1,8 @@
 //! Which song plays next: the original's play list rules (spec `docs/specs/music-graph.md` §6).
 //!
 //! A [`Playlist`] holds one bit per song: `mask` for the songs that may play and `unplayed` for those not yet
-//! played in this round. Ordered mode takes the next song after the last one; shuffle mode picks one of the
+//! played in this round. Ordered mode takes the next song after the last one in the list's order (the song numbers,
+//! or the jukebox's table order, `docs/specs/eatrax-jukebox.md` section 11); shuffle mode picks one of the
 //! unplayed at random. When a round is over the mask is copied back, so every song plays once before any plays
 //! again, and a song that ends a round does not start the next one.
 
@@ -24,13 +25,32 @@ pub struct Playlist {
     mask: u32,
     unplayed: u32,
     last: Option<usize>,
+    /// The enabled songs in the order ordered mode plays them.
+    order: Vec<usize>,
 }
 
 impl Playlist {
-    /// A list over the songs whose number is in `enabled` (numbers from `MAX_SONGS` up are ignored).
+    /// A list over the songs whose number is in `enabled` (numbers from `MAX_SONGS` up are ignored), in number order.
     pub fn new(enabled: impl IntoIterator<Item = usize>) -> Self {
+        Self::with_order(enabled, 0..MAX_SONGS)
+    }
+
+    /// A list over the songs in `enabled`, played in the order of `order`. Songs of `order` that are not enabled are
+    /// skipped; enabled songs that `order` leaves out follow in number order.
+    pub fn with_order(enabled: impl IntoIterator<Item = usize>, order: impl IntoIterator<Item = usize>) -> Self {
         let mask = enabled.into_iter().filter(|&n| n < MAX_SONGS).fold(0u32, |m, n| m | 1 << n);
-        Self { mask, unplayed: mask, last: None }
+        let mut sequence: Vec<usize> = Vec::with_capacity(mask.count_ones() as usize);
+        for n in order.into_iter().filter(|&n| n < MAX_SONGS) {
+            if mask & (1 << n) != 0 && !sequence.contains(&n) {
+                sequence.push(n);
+            }
+        }
+        for n in 0..MAX_SONGS {
+            if mask & (1 << n) != 0 && !sequence.contains(&n) {
+                sequence.push(n);
+            }
+        }
+        Self { mask, unplayed: mask, last: None, order: sequence }
     }
 
     /// How many songs may play.
@@ -76,15 +96,16 @@ impl Playlist {
         Some(pick)
     }
 
-    /// The first unplayed song after the last one; after the end of the list, the first unplayed song.
+    /// The first unplayed song after the last one in the list's order; after the end of the list, the first unplayed
+    /// song.
     fn ordered(&mut self) -> usize {
-        let from = self.last.map_or(0, |n| n + 1);
-        let after = (from..MAX_SONGS).find(|&n| self.unplayed & (1 << n) != 0);
+        let from = self.last.and_then(|last| self.order.iter().position(|&n| n == last)).map_or(0, |p| p + 1);
+        let after = self.order[from..].iter().copied().find(|&n| self.unplayed & (1 << n) != 0);
         if let Some(n) = after {
             return n;
         }
         self.reset();
-        (0..MAX_SONGS).find(|&n| self.unplayed & (1 << n) != 0).unwrap_or(0)
+        self.order.iter().copied().find(|&n| self.unplayed & (1 << n) != 0).unwrap_or(0)
     }
 
     /// The k-th unplayed song for a random k.

@@ -244,6 +244,7 @@ impl IconMenu {
             }
             (Kind::Categories { .. }, Pending::Pressed(Id::Category(category))) => self.open_options(cx, category),
             (Kind::Categories { .. }, Pending::Pressed(Id::Controls)) => self.open_controls(cx),
+            (Kind::Categories { .. }, Pending::Pressed(Id::EaTrax)) => self.open_jukebox(cx),
             (Kind::Categories { .. }, Pending::Pressed(Id::ControlOptions)) => {
                 self.open_options(cx, Category::Controls)
             }
@@ -274,6 +275,11 @@ impl IconMenu {
     fn open_controls(&self, cx: &mut Cx) {
         let name = if self.pause() { screen::PAUSE_CONTROLS } else { screen::CONTROLS };
         cx.send(Command::Switch(name.into(), Args { options: true, ..self.args }));
+    }
+
+    /// The EA Trax jukebox (`jukebox.rs`), which goes back to these categories when it is left.
+    fn open_jukebox(&self, cx: &mut Cx) {
+        cx.send(Command::Switch(screen::EA_TRAX_JUKEBOX.into(), Args { options: true, ..self.args }));
     }
 
     /// Writes where each icon is, how big and how opaque, from the scroll value and the clock.

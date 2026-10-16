@@ -75,8 +75,8 @@ pub fn icons(kind: Kind) -> Vec<Icon> {
             icon(Id::AliasManager, 0x6B30_3856, 0xBCB1_8F38, true),
             icon(Id::Options, 0x3058_FE37, 0x19A8_C0AF, true),
         ],
-        // The original's option list (docs/specs/frontend-menus.md, 2.2): EA Trax and Credits have no screen
-        // here yet, so they are greyed out and left out in the pause menu. Online
+        // The original's option list (docs/specs/frontend-menus.md, 2.2): Credits has no screen here yet, so it is
+        // greyed out; EA Trax opens the jukebox (`jukebox.rs`). Both are left out in the pause menu. Online
         // is left out as well: the original shows it only in online mode, which this build never is.
         // Controls opens the key list; Control Options (the sensitivity and camera rows) sits beside it. Discord
         // Rich Presence has its own icon (a bundled mark, `ui/discord_icon.rs`) and its toggles.
@@ -95,7 +95,7 @@ pub fn icons(kind: Kind) -> Vec<Icon> {
                 list.push(icon(Id::Category(Category::Mods), 0, 0, true));
             }
             if !pause {
-                list.push(icon(Id::EaTrax, 0, 0xDCFB_6B36, false));
+                list.push(icon(Id::EaTrax, 0, 0xDCFB_6B36, true));
                 list.push(icon(Id::Credits, 0, 0x0905_101F, false));
             }
             list

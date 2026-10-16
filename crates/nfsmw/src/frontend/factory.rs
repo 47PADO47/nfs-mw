@@ -4,6 +4,7 @@ use super::confirm::{Alert, AlertLogic};
 use super::controls_screen::ControlsLogic;
 use super::icon_menu::{IconMenu, Kind};
 use super::ids::screen;
+use super::jukebox::JukeboxLogic;
 use super::logic::{Args, Plain, ScreenLogic};
 use super::splash::Splash;
 use super::track_options::TrackOptions;
@@ -44,6 +45,9 @@ pub fn make(name: &str, args: Args, mod_rows: bool) -> Box<dyn ScreenLogic> {
     }
     if is(screen::TRACK_OPTIONS) {
         return Box::new(TrackOptions);
+    }
+    if is(screen::EA_TRAX_JUKEBOX) {
+        return Box::new(JukeboxLogic::new());
     }
     Box::new(Plain)
 }

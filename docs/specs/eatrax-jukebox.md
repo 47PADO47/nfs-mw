@@ -5,9 +5,9 @@ may play in the menus and in the game. Companion of [music-graph.md](music-graph
 the 28-bit masks), [custom-music.md](custom-music.md) (its section 8 names this screen as not done) and
 [frontend-menus.md](frontend-menus.md) (section 2.2, the option list where the entry sits).
 
-- **Status:** not implemented. The entry `Id::EaTrax` in `crates/nfsmw/src/frontend/icon_items.rs` stays greyed.
-  This spec is the R part only (see section 9): the package contract is known, the game-side handler and the
-  place where the masks are written are not yet found.
+- **Status:** implemented in the port (pass 5, the I part). The entry `Id::EaTrax` in the audio category opens the
+  jukebox; its choices are in `eatrax_jukebox.toml` next to the config file. Section 12 lists the port's decisions.
+  Sections 2 to 11 are the R part's findings.
 - **Sources read:**
   - The install's package `EA_Trax_Jukebox.fng` (`FRONTEND/FrontB.lzc`), read with `nfsmw dump-screen`. Its objects,
     texts, scripts and message responses are facts of the install **[verified]**.
@@ -139,7 +139,7 @@ the candidate matches the id in the package exactly; the rest stay unnamed.
 | `0x704`, `0x148CD7`, `0x0018C32A`, `0x039FEFFD` | UP, DOWN, LEFT, RIGHT | the feng messages of the pad |
 | `0x406415E3`, `0x911AB364`, `0x9120409E`, `0xB5971BF1`, `0x5073EF13`, `0xD9FEEC59`, `0x72619778`, `0x911C0A4B`, `0xC519BFC3`, `0xC519BFC4` | PAD_ACCEPT, PAD_BACK, PAD_LEFT, PAD_RIGHT, PAD_LTRIGGER, PAD_RTRIGGER, PAD_UP, PAD_DOWN, PAD_BUTTON4, PAD_BUTTON5 | pad messages (section 3.1) |
 
-Not named (three hash passes, about 140,000 candidate names, found no match): `0x7EABCA56` (the button activate
+Not named by the three hash passes (about 140,000 candidate names; the port names `0x7EABCA56` MOUSE_LEFT_RELEASED in its ids): `0x7EABCA56` is listed here only as the package's button message (the button activate
 message), `0x97BDB465` and `0xF459B307` (the list's update and release messages), `0xCFEBE0DF` and `0xB841EA36`
 (state messages of the rows), `0xADE14EC3`, `0x33BC8B0B`, `0x3C2DE6D8`, `0x1A1533D5`, `0x34737EA6` to `0x34737EA9`,
 `0xB919404C`, `0x1C3553EF`, `0x3E75F58D`, `0x6B945D70`, `0xC3D2AACE`, `0xBAF366F1`, `0xCCD64A6E`, `0x84378BEF`,
@@ -260,6 +260,64 @@ pad mapping, but not the toggle rule that the spec's section 7 leaves open.
 - **Access stopped.** In this pass the Ghidra calls `create_function` and `read_memory` were refused by the permission
   check ("Modify Shared Resources"). No further Ghidra calls were made, and no function was created. The EATraxInit
   body (0x004DF420), the mask field and the handler slot need those calls or a permission rule for them.
+
+## 11. Pass 3: the model, from the EATraxInit path [decomp, orchestrator-run calls]
+
+This section replaces the open points of section 8 that the handler and the mask writer answered.
+
+- **The handler (0x004DF420, `EATraxInit`).** When the event's field at +0x14 is -1, it plays the song held in the
+  EA Trax object at +0x13C (an index times 0x74, plus 0x4C) through 0x00829310, then rebuilds the play lists with
+  reset on. Otherwise it rebuilds them with reset off.
+- **The list builder (0x004DF330).** Its source is the profile object (the global at 0x0091CF90, whose +0x10 is the
+  profile). The profile holds a song table at +0x324: 8-byte entries, each a `u32` song index at +0 and a `u8` mode at
+  +4. The count is the global at 0x008F42C4. The modes are:
+  - 0: the song is off;
+  - 1: list 0 (the front-end list, the menus) gets the song's bit;
+  - 2: list 1 (the in-game list) gets it;
+  - 3: both lists get it.
+  Each list keeps its count. The profile byte at +0x7C is copied into both lists' order flag. With reset on, both
+  lists' cursors (+0xC) are set to -1.
+- **The list objects.** Two 24-byte records at 0x008F2080 and 0x008F2098: +0 the full mask (low 28 bits), +4 the
+  remaining mask, +8 the song count, +0xC the cursor, +0x10 the current song (-1 for none), +0x14 the order flag.
+- **Pick the next song (0x004F4CD0)**, with the caller's +0x150 naming the active list. When the remaining mask is
+  empty it refills from the full mask. With the order flag set it draws a random remaining song (the generator at
+  0x004AECF0 takes the count) and clears its bit. With the flag clear it walks the profile table in table order from
+  the cursor + 1 and takes the first entry whose bit is still in the remaining mask. So "sequential" means the profile
+  table's order, and re-ordering the table changes the play order. When the last bit goes, the mask refills, and the
+  just-played bit is excluded from the first pick of the new round (an xor).
+- **Save.** The song table and the order flag sit in the profile save block. The block loader (0x005ACB70) is
+  called from 0x005ACDD0 and from 0x005ACE40. Those are called from 0x00526C90, and 0x005ACE40 also from 0x00562FF0
+  and 0x00563380 (front-end flow and save screens). 0x00562FF0 rebuilds the lists (reset on) after a load.
+
+So the model is: per song, one of four modes (off, menu list, in-game list, both); a table order (re-order changes
+it); and one order flag (sequential or random), which the "Squential" line with L1 and R1 sets. What is still
+[unconfirmed]: which key cycles the mode, and what re-order does exactly; the port uses the natural reading (see the
+port's record of the choice, `docs/provenance/eatrax-jukebox.md`, pass 4).
+
+## 12. The port (I part)
+
+- **Files.** `settings/eatrax.rs` (the model and its file), `audio/radio/playlist.rs` (`Playlist::with_order`: the
+  ordered play follows the table), `audio/radio/mod.rs` (`Radio::set_jukebox`), `audio/radio/glue.rs` (loads the
+  jukebox with the radio), `frontend/jukebox.rs` (the screen), `frontend/factory.rs`, `frontend/ids.rs`,
+  `frontend/icon_menu.rs` (the icon opens the screen), `frontend/icon_items.rs` (the entry is no longer greyed),
+  `frontend/plugin.rs` (reads the song list once, `jukebox::prime`).
+- **Model.** Each song has a mode: off, menus (list 0), in game (list 1), or both. The table is in play order. The order
+  flag is random or sequential. The masks are the lists' 28-bit masks; the order of each list is the table order.
+- **Defaults.** Without the file, each song has the mode its `DefPlay` gives (`FE`: menus, `IG`: in game, `AL`: both,
+  other: off), in number order, sequential. So an install with no file plays as before.
+- **File.** `eatrax_jukebox.toml`: `random = false` and `songs = [[song, mode], ...]` in table order (mode 0 off, 1
+  menus, 2 in game, 3 both). A bad file is the defaults; out-of-range or repeated songs are dropped; songs the file
+  leaves out follow in default order.
+- **Screen.** Four rows per page with the artist, the title (with the mode in brackets) and the album; the number of
+  the row is the table position. Up and down move the highlight. Left and right turn the page. Accept cycles the mode
+  of the highlighted song. Re-Order (PAD_BUTTON5) turns re-order on: then up and down move the song, and the highlight
+  follows it; off again, the order is kept. L1 and R1 set the order line to Random or Sequential. Prev (PAD_BUTTON4)
+  moves the highlight up. Back saves and returns to the audio category. Every change is saved at once.
+- **Radio.** The radio reads the file when it loads. The jukebox's order flag wins over the config's `shuffle` for
+  the EA Trax songs (the order is set after the custom sources). Custom tracks are not on the screen.
+- **Limits.** A change made after the radio has loaded (a drive started earlier in the session) takes effect when
+  the radio next loads, not at once. The meaning of the Prev key and of the re-order key is the port's reading of
+  section 8 [ours]. Nothing has been listened to.
 
 ## Dead ends (don't repeat)
 

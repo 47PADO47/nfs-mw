@@ -304,7 +304,7 @@ config reader is `settings/custom_music.rs`; the radio's custom side is `audio/r
 | 2.2 race context | **not played.** The port has no race mode: Quick Race stops at its options screen (`frontend/track_options.rs`) | none |
 | 2.8 config read at the first drive | done | `audio/radio/glue.rs` `load_radio` |
 | 4 formats (mp3, ogg, flac, wav) | done through symphonia; the decoder streams blocks | `custom/decode.rs` |
-| EA Trax playlist screen (`frontend-menus.md` 2.2) | **not done; the entry stays greyed.** The package `EA_Trax_Jukebox.fng` (`FRONTEND/FrontB.lzc`, 120 objects) is in the install and loads (`nfsmw list-screens`). Driving it needs its game-side contract: the `game` and `sound` responses (for example `0x911AB364`, `0xC519BFC3`, `0xC519BFC4`, `0x5073EF13`, `0xB5971BF1`, `0xD9FEEC59`) and what they read and write. No spec defines them, so the port would have to reverse them first (a new R task). Custom rows also need objects that the package does not have: it has fixed rows | `frontend/icon_items.rs` (`Id::EaTrax`, greyed) |
+| EA Trax playlist screen (`frontend-menus.md` 2.2) | **done for stock songs**: the jukebox screen drives `EA_Trax_Jukebox.fng` with the four-state song mode, table order and random flag reversed from `speed.exe` ([eatrax-jukebox.md](eatrax-jukebox.md)). Custom tracks are not listed: the package has four fixed rows | `frontend/jukebox.rs`, `settings/eatrax.rs` |
 | 7 per-track amplitude and loop points | **not done, and no source defines them.** The M3U `#EXTINF` line gives only the length and the text, and this spec has no sidecar format. Stays deferred | none |
 
 Tests in this pass: `tests/custom.rs` (the 5 s default fade), `tests/stream.rs` (the zero fade). The earlier tests of
