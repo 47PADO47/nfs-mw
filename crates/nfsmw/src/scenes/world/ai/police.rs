@@ -59,7 +59,7 @@ pub struct PlayerView {
     pub forward: Vec3,
     /// Speed along the car, m/s (negative in reverse).
     pub speed: f32,
-    /// Nitrous left, 0 to 1 (0 without the part).
+    /// Nitrous burning, 0 to 1 (0 while it does not burn and without the part).
     pub nitrous: f32,
     /// The throttle held this frame, 0 to 1. A hit with the throttle down counts as deliberate (a proxy: the install's
     /// rule is not read yet).

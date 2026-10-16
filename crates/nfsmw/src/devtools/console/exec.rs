@@ -13,7 +13,7 @@ use crate::app::window::WindowModes;
 use crate::audio::Audio;
 use crate::devtools::logbuf;
 use crate::input::Bindings;
-use crate::settings::{RendererKind, Settings, availability};
+use crate::settings::{RendererKind, Settings, WorldTuning, availability};
 
 /// Run the lines typed since last frame and print what they say.
 #[allow(clippy::too_many_arguments)]
@@ -211,6 +211,7 @@ pub fn sync_settings(settings: Res<Settings>, mut host: NonSendMut<Host>, mut ap
     {
         host.set_rain(settings.always_rain, settings.rain_amount.amplitude());
     }
+    host.set_world_tuning(WorldTuning::from(&*settings));
     if applied.as_ref().is_none_or(|before| before.spark_style != settings.spark_style) {
         host.set_spark_style(settings.spark_style);
     }
