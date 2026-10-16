@@ -157,6 +157,21 @@ fn the_reflection_sizes_and_mirror_tint_are_set_by_name_and_validated() {
 }
 
 #[test]
+fn the_reflection_reach_detail_content_and_brightness_are_set_by_name_and_validated() {
+    let mut s = defaults();
+    assert_eq!(get(&s, "reflection_distance").unwrap(), "reflection_distance = unlimited");
+    assert_eq!(set(&mut s, "reflection_distance", "original").unwrap(), "reflection_distance = original");
+    assert_eq!(set(&mut s, "reflection_lod", "view").unwrap(), "reflection_lod = view");
+    assert_eq!(set(&mut s, "reflection_content", "restored").unwrap(), "reflection_content = restored");
+    assert_eq!(set(&mut s, "vehicle_reflection_brightness", "150").unwrap(), "vehicle_reflection_brightness = 150%");
+    let before = s;
+    assert!(set(&mut s, "reflection_distance", "far").is_err());
+    assert!(set(&mut s, "reflection_lod", "480").is_err());
+    assert!(set(&mut s, "vehicle_reflection_brightness", "301").is_err());
+    assert_eq!(s, before);
+}
+
+#[test]
 fn a_preset_sets_its_keys_and_changing_one_makes_it_custom() {
     let mut s = defaults();
     assert_eq!(get(&s, "graphics_preset").unwrap(), "graphics_preset = custom");
@@ -229,4 +244,19 @@ fn control_changes_are_validated_and_invalid_edit_is_atomic() {
     assert!(set(&mut s, "trigger_deadzone", "100").is_err());
     assert!(set(&mut s, "mouse_sensitivity", "0").is_err());
     assert_eq!(s, before);
+}
+
+#[test]
+fn the_front_end_shadow_keys_set_and_read_back() {
+    let mut s = defaults();
+    assert_eq!(set(&mut s, "fe_shadows", "on").unwrap(), "fe_shadows = on");
+    assert!(s.fe_shadows.enabled);
+    assert_eq!(get(&s, "fe_shadows").unwrap(), "fe_shadows = on");
+    assert_eq!(set(&mut s, "fe_shadows_cars", "off").unwrap(), "fe_shadows_cars = off");
+    assert!(!s.fe_shadows.cars);
+    assert_eq!(set(&mut s, "fe_shadows_bias", "9").unwrap(), "fe_shadows_bias = 4");
+    assert_eq!(set(&mut s, "fe_shadows_divider", "4").unwrap(), "fe_shadows_divider = 4");
+    assert!(set(&mut s, "fe_shadows_divider", "8").is_err());
+    assert_eq!(s.fe_shadows.divider, 4, "a rejected value changes nothing");
+    assert!(set(&mut s, "fe_shadows", "sometimes").is_err());
 }

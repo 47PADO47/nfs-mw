@@ -25,6 +25,9 @@ mod env;
 mod exhaust_flames_tests;
 pub(crate) mod extra_options;
 pub mod fairbusts;
+pub mod fe_shadows;
+#[cfg(test)]
+mod fe_shadows_tests;
 pub(crate) mod file;
 mod graphics;
 mod graphics_preset;
@@ -52,6 +55,7 @@ mod ray_tracing;
 mod ray_tracing_tests;
 #[cfg(test)]
 mod rear_view_mirror_tests;
+pub mod reflection_extra;
 pub mod reflection_res;
 #[cfg(test)]
 mod reflection_res_tests;
@@ -262,6 +266,7 @@ pub struct Settings {
     pub reflection_pow2: bool,
     /// Multiplies the rear-view mirror picture: off, or a colour.
     pub mirror_tint: MirrorTint,
+    pub reflection_extra: reflection_extra::ReflectionExtra,
     /// Experimental contact occlusion; presets never enable it implicitly.
     pub shadows: ShadowQuality,
     pub ao: AoQuality,
@@ -293,6 +298,8 @@ pub struct Settings {
     pub hd_content: hd_content::HdContent,
     /// The custom fonts: fonts from a folder, per resolution tier (`[custom_fonts]`, `docs/specs/custom-fonts.md`).
     pub custom_fonts: custom_fonts::CustomFonts,
+    /// The front-end shadows: a sun shadow pass in the menu backdrop, off by default (`docs/specs/fe-shadows.md`).
+    pub fe_shadows: fe_shadows::FeShadows,
 }
 
 impl From<Partial> for Settings {
@@ -369,6 +376,7 @@ impl From<Partial> for Settings {
             reflection_mirror_size: p.reflection_mirror_size.unwrap_or_default(),
             reflection_pow2: p.reflection_pow2.unwrap_or(false),
             mirror_tint: p.mirror_tint.unwrap_or_default(),
+            reflection_extra: reflection_extra::ReflectionExtra::from_partial(&p),
             shadows: p.shadows.unwrap_or_default(),
             ao: p.ao.unwrap_or_default(),
             ao_intensity: p.ao_intensity.unwrap_or(Percent(75)),
@@ -390,6 +398,7 @@ impl From<Partial> for Settings {
                 .clamp(motion_blur::MOTION_BLUR_STRENGTH_RANGE.0, motion_blur::MOTION_BLUR_STRENGTH_RANGE.1),
             hd_content: hd_content::HdContent::from_layer(p.hd_content),
             custom_fonts: custom_fonts::CustomFonts::from_layer(p.custom_fonts),
+            fe_shadows: fe_shadows::FeShadows::from_layer(p.fe_shadows),
             speedbreaker: SpeedbreakerTuning::default(),
         };
         settings.settle_preset();

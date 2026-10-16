@@ -7,6 +7,7 @@ use super::settings_keys::KEYS;
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
 use crate::settings::custom_fonts;
+use crate::settings::fe_shadows;
 use crate::settings::hd_content;
 use crate::settings::{
     CameraMode, HudLayout, MinimapMode, Percent, PostAa, PostBloom, PostTonemap, RadioHudStyle, RenderScale,
@@ -65,6 +66,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "h_shifter" => on_off(settings.h_shifter).to_owned(),
         key if hd_content::is_key(key) => hd_content::get(&settings.hd_content, key),
         key if custom_fonts::is_key(key) => custom_fonts::get(&settings.custom_fonts, key),
+        key if fe_shadows::is_key(key) => fe_shadows::get(&settings.fe_shadows, key),
         "motion_blur" => on_off(settings.motion_blur).to_owned(),
         "motion_blur_strength" => settings.motion_blur_strength.to_string(),
         "post_tonemap" => settings.post_tonemap.to_string(),
@@ -76,6 +78,10 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "reflection_mirror_size" => settings.reflection_mirror_size.to_string(),
         "reflection_pow2" => on_off(settings.reflection_pow2).to_owned(),
         "mirror_tint" => settings.mirror_tint.to_string(),
+        "reflection_distance" => settings.reflection_extra.distance.to_string(),
+        "reflection_lod" => settings.reflection_extra.lod.to_string(),
+        "reflection_content" => settings.reflection_extra.content.to_string(),
+        "vehicle_reflection_brightness" => settings.reflection_extra.brightness.to_string(),
         "shadows" => settings.shadows.to_string(),
         "ao" => settings.ao.to_string(),
         "ao_intensity" => settings.ao_intensity.to_string(),
@@ -161,6 +167,10 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "reflection_mirror_size" => settings.reflection_mirror_size = value.parse()?,
         "reflection_pow2" => settings.reflection_pow2 = parse_bool(value)?,
         "mirror_tint" => settings.mirror_tint = value.parse()?,
+        "reflection_distance" => settings.reflection_extra.distance = value.parse()?,
+        "reflection_lod" => settings.reflection_extra.lod = value.parse()?,
+        "reflection_content" => settings.reflection_extra.content = value.parse()?,
+        "vehicle_reflection_brightness" => settings.reflection_extra.brightness = value.parse()?,
         "shadows" => settings.shadows = value.parse()?,
         "ao" => settings.ao = value.parse()?,
         "ao_intensity" => settings.ao_intensity = value.parse()?,
@@ -172,6 +182,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "ray_tracing" => settings.ray_tracing = value.parse()?,
         key if hd_content::is_key(key) => hd_content::set(&mut settings.hd_content, key, value)?,
         key if custom_fonts::is_key(key) => custom_fonts::set(&mut settings.custom_fonts, key, value)?,
+        key if fe_shadows::is_key(key) => fe_shadows::set(&mut settings.fe_shadows, key, value)?,
         "backend" => return Err("the graphics backend cannot change while running; restart with --backend".into()),
         other => return Err(unknown(other)),
     }
@@ -205,6 +216,7 @@ fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
         "traffic_avoidance" => Some(&mut settings.traffic_avoidance),
         "cop_health_bars" => Some(&mut settings.cop_health_bars),
         key if custom_fonts::is_key(key) => custom_fonts::flag(&mut settings.custom_fonts, key),
+        key if fe_shadows::is_key(key) => fe_shadows::flag(&mut settings.fe_shadows, key),
         _ => hd_content::flag(&mut settings.hd_content, key),
     }
 }
@@ -220,6 +232,8 @@ fn syntax(key: &str) -> Option<&'static str> {
         "readout" | "show_readout" => "<off|minimal|full>",
         "window_mode" => "<windowed|borderless|exclusive>",
         "renderer" => "<blackbox|bevy>",
+        "fe_shadows_bias" => "<0.25-4>",
+        "fe_shadows_divider" => "<1|2|4>",
         "monitor" => "<current|primary|index>",
         "resolution" => "<WIDTHxHEIGHT|native>",
         "volume" | "master_volume" | "music_volume" | "sfx_volume" | "engine_volume" | "speech_volume" => "<0-100>",
@@ -240,6 +254,10 @@ fn syntax(key: &str) -> Option<&'static str> {
         "reflections" => "<off|low|medium|high>",
         "reflection_cube_size" | "reflection_mirror_size" => "<auto|25%-400%|pixels>",
         "mirror_tint" => "<off|on|#rrggbb|r g b>",
+        "reflection_distance" => "<unlimited|original>",
+        "reflection_lod" => "<capture|view>",
+        "reflection_content" => "<original|restored>",
+        "vehicle_reflection_brightness" => "<0%-300%>",
         "shadows" => "<off|low|medium|high>",
         "ao" => "<off|low|medium|high>",
         "ao_intensity" => "<0-100>",

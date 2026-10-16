@@ -9,6 +9,7 @@ use std::str::FromStr;
 use toml::{Table, Value};
 
 use super::custom_fonts;
+use super::fe_shadows;
 use super::hd_content;
 use super::partial::{Partial, Percent};
 use super::{
@@ -130,6 +131,21 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         reflection_mirror_size: field(&table, origin, "reflection_mirror_size", super::reflection_res::size_from_toml),
         reflection_pow2: field(&table, origin, "reflection_pow2", boolean),
         mirror_tint: field(&table, origin, "mirror_tint", super::reflection_res::tint_from_toml),
+        reflection_distance: field(&table, origin, "reflection_distance", |v| {
+            blackbox_gfx::reflection::distance::ReflectionDistance::from_str(text_of(v)?)
+        }),
+        reflection_lod: field(&table, origin, "reflection_lod", |v| {
+            blackbox_gfx::reflection::lod::ReflectionLod::from_str(text_of(v)?)
+        }),
+        reflection_content: field(&table, origin, "reflection_content", |v| {
+            blackbox_gfx::reflection::content::ReflectionContent::from_str(text_of(v)?)
+        }),
+        vehicle_reflection_brightness: field(
+            &table,
+            origin,
+            "vehicle_reflection_brightness",
+            super::reflection_extra::brightness_from_toml,
+        ),
         shadows: field(&table, origin, "shadows", |v| super::ShadowQuality::from_str(text_of(v)?)),
         ao: field(&table, origin, "ao", |v| super::AoQuality::from_str(text_of(v)?)),
         ao_intensity: field(&table, origin, "ao_intensity", percent),
@@ -151,6 +167,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         motion_blur_strength: field(&table, origin, "motion_blur_strength", number),
         hd_content: hd_content::read(&table),
         custom_fonts: custom_fonts::read(&table),
+        fe_shadows: fe_shadows::read(&table, origin),
     }
 }
 

@@ -121,6 +121,14 @@ pub struct Partial {
     pub reflection_mirror_size: Option<super::ReflectionSize>,
     pub reflection_pow2: Option<bool>,
     pub mirror_tint: Option<super::MirrorTint>,
+    /// How far the reflection captures reach (`reflection_distance`).
+    pub reflection_distance: Option<blackbox_gfx::reflection::distance::ReflectionDistance>,
+    /// The car cube's scenery detail: its own face or the main view's (`reflection_lod`).
+    pub reflection_lod: Option<blackbox_gfx::reflection::lod::ReflectionLod>,
+    /// What the car cube adds to the scenery (`reflection_content`).
+    pub reflection_content: Option<blackbox_gfx::reflection::content::ReflectionContent>,
+    /// The vehicles' environment reflection brightness, a factor (`vehicle_reflection_brightness`).
+    pub vehicle_reflection_brightness: Option<blackbox_gfx::reflection::brightness::VehicleBrightness>,
     pub shadows: Option<super::ShadowQuality>,
     pub ao: Option<super::AoQuality>,
     pub ao_intensity: Option<Percent>,
@@ -144,6 +152,8 @@ pub struct Partial {
     pub hd_content: HdContentLayer,
     /// The custom fonts (`[custom_fonts]`).
     pub custom_fonts: CustomFontsLayer,
+    /// The front-end shadows (`fe_shadows*`).
+    pub fe_shadows: super::fe_shadows::FeShadowsLayer,
 }
 
 impl Partial {
@@ -216,6 +226,10 @@ impl Partial {
             reflection_mirror_size: self.reflection_mirror_size.or(lower.reflection_mirror_size),
             reflection_pow2: self.reflection_pow2.or(lower.reflection_pow2),
             mirror_tint: self.mirror_tint.or(lower.mirror_tint),
+            reflection_distance: self.reflection_distance.or(lower.reflection_distance),
+            reflection_lod: self.reflection_lod.or(lower.reflection_lod),
+            reflection_content: self.reflection_content.or(lower.reflection_content),
+            vehicle_reflection_brightness: self.vehicle_reflection_brightness.or(lower.vehicle_reflection_brightness),
             shadows: self.shadows.or(lower.shadows),
             ao: self.ao.or(lower.ao),
             ao_intensity: self.ao_intensity.or(lower.ao_intensity),
@@ -234,6 +248,7 @@ impl Partial {
             motion_blur_strength: self.motion_blur_strength.or(lower.motion_blur_strength),
             hd_content: self.hd_content.or(lower.hd_content),
             custom_fonts: self.custom_fonts.or(lower.custom_fonts),
+            fe_shadows: self.fe_shadows.or(lower.fe_shadows),
         }
     }
 }

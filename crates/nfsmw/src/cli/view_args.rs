@@ -134,6 +134,22 @@ pub struct ViewArgs {
     /// Mirror tint: off, on (the stock tint), #rrggbb or r,g,b [env NFSMW_MIRROR_TINT; config `mirror_tint`; default off].
     #[arg(long, value_name = "off|on|#rrggbb")]
     pub mirror_tint: Option<crate::settings::MirrorTint>,
+    /// Reach of the car cube and the mirror: unlimited, or original (100 m and 192 m) [env NFSMW_REFLECTION_DISTANCE;
+    /// config `reflection_distance`; default unlimited].
+    #[arg(long, value_name = "unlimited|original")]
+    pub reflection_distance: Option<blackbox_gfx::reflection::distance::ReflectionDistance>,
+    /// Scenery detail of the car cube: its own face (capture) or the main view's rule (view) [env NFSMW_REFLECTION_LOD;
+    /// config `reflection_lod`; default capture].
+    #[arg(long, value_name = "capture|view")]
+    pub reflection_lod: Option<blackbox_gfx::reflection::lod::ReflectionLod>,
+    /// What the car cube adds: original, or restored (traffic cars) [env NFSMW_REFLECTION_CONTENT; config
+    /// `reflection_content`; default original].
+    #[arg(long, value_name = "original|restored")]
+    pub reflection_content: Option<blackbox_gfx::reflection::content::ReflectionContent>,
+    /// Environment reflection of the vehicles, a percentage from 0 to 300 [env NFSMW_VEHICLE_REFLECTION_BRIGHTNESS;
+    /// config `vehicle_reflection_brightness`; default 100%].
+    #[arg(long, value_name = "0%-300%")]
+    pub vehicle_reflection_brightness: Option<blackbox_gfx::reflection::brightness::VehicleBrightness>,
     /// Smoke presentation: standard or high [env NFSMW_SMOKE_QUALITY; config `smoke_quality`; default standard].
     #[arg(long, value_name = "standard|high")]
     pub smoke_quality: Option<crate::settings::SmokeQuality>,
@@ -203,6 +219,8 @@ pub struct ViewArgs {
     pub hd_content: crate::settings::hd_content::HdContentArgs,
     #[command(flatten)]
     pub custom_fonts: crate::settings::custom_fonts::CustomFontsArgs,
+    #[command(flatten)]
+    pub fe_shadows: crate::settings::fe_shadows::FeShadowsArgs,
     /// Enable skid marks [env NFSMW_SKID_MARKS; config `skid_marks`; default on].
     #[arg(long, conflicts_with = "no_skid_marks")]
     pub skid_marks: bool,
@@ -342,6 +360,10 @@ impl ViewArgs {
             reflection_mirror_size: self.reflection_mirror_size,
             reflection_pow2: switch(self.reflection_pow2, self.no_reflection_pow2),
             mirror_tint: self.mirror_tint,
+            reflection_distance: self.reflection_distance,
+            reflection_lod: self.reflection_lod,
+            reflection_content: self.reflection_content,
+            vehicle_reflection_brightness: self.vehicle_reflection_brightness,
             smoke_quality: self.smoke_quality,
             radio: switch(self.radio, self.no_radio),
             traffic: if self.no_traffic { Some(0) } else { self.traffic },
@@ -352,6 +374,7 @@ impl ViewArgs {
             motion_blur_strength: self.motion_blur_strength,
             hd_content: self.hd_content.layer(),
             custom_fonts: self.custom_fonts.layer(),
+            fe_shadows: self.fe_shadows.layer(),
             skid_marks: switch(self.skid_marks, self.no_skid_marks),
             collision_sparks: switch(self.collision_sparks, self.no_collision_sparks),
             spark_style: self.spark_style,

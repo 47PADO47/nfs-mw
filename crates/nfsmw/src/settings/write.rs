@@ -10,6 +10,7 @@ use anyhow::{Context, Result};
 use toml::{Table, Value};
 
 use super::custom_fonts;
+use super::fe_shadows;
 use super::hd_content;
 use super::partial::Partial;
 
@@ -188,6 +189,18 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.mirror_tint {
         put("mirror_tint", Value::String(v.to_string()));
     }
+    if let Some(v) = changes.reflection_distance {
+        put("reflection_distance", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.reflection_lod {
+        put("reflection_lod", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.reflection_content {
+        put("reflection_content", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.vehicle_reflection_brightness {
+        put("vehicle_reflection_brightness", Value::String(v.to_string()));
+    }
     if let Some(v) = changes.shadows {
         put("shadows", Value::String(v.to_string()));
     }
@@ -236,6 +249,7 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.motion_blur_strength {
         put("motion_blur_strength", Value::Float(f64::from(v)));
     }
+    fe_shadows::put_into(&changes.fe_shadows, &mut put);
     hd_content::merge_into(&mut table, &changes.hd_content);
     custom_fonts::merge_into(&mut table, &changes.custom_fonts);
     toml::to_string(&table).context("serializing the config file")

@@ -3,6 +3,7 @@
 use std::str::FromStr;
 
 use super::custom_fonts;
+use super::fe_shadows;
 use super::hd_content;
 use super::partial::{Partial, Percent, parse_bool};
 use super::{
@@ -63,6 +64,10 @@ pub const REFLECTION_CUBE_SIZE: &str = "NFSMW_REFLECTION_CUBE_SIZE";
 pub const REFLECTION_MIRROR_SIZE: &str = "NFSMW_REFLECTION_MIRROR_SIZE";
 pub const REFLECTION_POW2: &str = "NFSMW_REFLECTION_POW2";
 pub const MIRROR_TINT: &str = "NFSMW_MIRROR_TINT";
+pub const REFLECTION_DISTANCE: &str = "NFSMW_REFLECTION_DISTANCE";
+pub const REFLECTION_LOD: &str = "NFSMW_REFLECTION_LOD";
+pub const REFLECTION_CONTENT: &str = "NFSMW_REFLECTION_CONTENT";
+pub const VEHICLE_REFLECTION_BRIGHTNESS: &str = "NFSMW_VEHICLE_REFLECTION_BRIGHTNESS";
 pub const SHADOWS: &str = "NFSMW_SHADOWS";
 pub const AO: &str = "NFSMW_AO";
 pub const AO_INTENSITY: &str = "NFSMW_AO_INTENSITY";
@@ -151,6 +156,22 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         reflection_mirror_size: value(&get, REFLECTION_MIRROR_SIZE, super::ReflectionSize::from_str),
         reflection_pow2: value(&get, REFLECTION_POW2, parse_bool),
         mirror_tint: value(&get, MIRROR_TINT, super::MirrorTint::from_str),
+        reflection_distance: value(
+            &get,
+            REFLECTION_DISTANCE,
+            blackbox_gfx::reflection::distance::ReflectionDistance::from_str,
+        ),
+        reflection_lod: value(&get, REFLECTION_LOD, blackbox_gfx::reflection::lod::ReflectionLod::from_str),
+        reflection_content: value(
+            &get,
+            REFLECTION_CONTENT,
+            blackbox_gfx::reflection::content::ReflectionContent::from_str,
+        ),
+        vehicle_reflection_brightness: value(
+            &get,
+            VEHICLE_REFLECTION_BRIGHTNESS,
+            blackbox_gfx::reflection::brightness::VehicleBrightness::from_str,
+        ),
         shadows: value(&get, SHADOWS, super::ShadowQuality::from_str),
         ao: value(&get, AO, super::AoQuality::from_str),
         ao_intensity: value(&get, AO_INTENSITY, Percent::from_str),
@@ -168,6 +189,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         motion_blur_strength: value(&get, MOTION_BLUR_STRENGTH, |s| s.trim().parse::<f32>().map_err(|e| e.to_string())),
         hd_content: hd_content::from_env(&get),
         custom_fonts: custom_fonts::from_env(&get),
+        fe_shadows: fe_shadows::from_env(&get),
     }
 }
 
