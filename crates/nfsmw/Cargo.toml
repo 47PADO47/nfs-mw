@@ -3,7 +3,8 @@ name = "nfsmw"
 description = "NFS: Most Wanted rewrite: the launcher and viewers. Reads data from the user's own install."
 version.workspace = true
 edition.workspace = true
-rust-version.workspace = true
+# The default features build the Bevy renderer, whose shader stack needs 1.97.1; `--no-default-features` builds on 1.95.
+rust-version = "1.97.1"
 license.workspace = true
 publish.workspace = true
 
@@ -72,8 +73,10 @@ toml.workspace = true
 wgpu.workspace = true
 
 [features]
-# The optional Bevy renderer (docs/renderers.md, docs/bevy-backend.md). The default build never has it, so it
-# never compiles bevy_render.
+# The Bevy renderer and the FSR 3 upscaler are in the default build. `--no-default-features` leaves them out: the game
+# is then the native renderer alone (FSR 1 is its best upscaler) and never compiles bevy_render.
+default = ["renderer-bevy", "fsr3"]
+# The Bevy renderer (docs/renderers.md, docs/bevy-backend.md).
 renderer-bevy = ["dep:blackbox-bevy-render"]
 # Tracy profiling of the Bevy renderer (docs/bevy-backend.md). Implies renderer-bevy.
 trace = ["renderer-bevy", "blackbox-bevy-render/trace"]
