@@ -97,3 +97,34 @@ remaining clock, geometry, context and live-comparison limits.
 
 - [world-markers.md](world-markers.md): the ground disc at each auto shop, safe house and race start, the drive-over
   zone, and the interact card with its stub entry (the destinations are not built yet).
+
+## Pursuit, traffic and the busted sequence
+
+- [ai-pursuit-goals.md](ai-pursuit-goals.md): the cop goals that drive at a slot around the player: pit, ram (box-in and
+  rolling block) and pull-over.
+- [ai-pursuit-support.md](ai-pursuit-support.md): the support cars of a pursuit: heavy SUVs (ram, roadblock) and the cross cars.
+- [ai-traffic-obstacles.md](ai-traffic-obstacles.md): what an ordinary traffic car does when a car, wreck, roadblock or the
+  player is in its lane, and how it recovers when stuck.
+- [busted-sequence.md](busted-sequence.md): from the busted meter filling to the career screen (arrest scene, packages, choices).
+- [cop-health-bars.md](cop-health-bars.md): an optional health bar above each police car that is chasing the player.
+
+## Vehicles
+
+- [vehicle-decomp-audit.md](vehicle-decomp-audit.md): the port's vehicle physics checked against the PC decompilation, with the
+  corrections it implies.
+
+## Front end, audio and world content
+
+- [custom-fonts.md](custom-fonts.md): optional replacement FEng fonts from a user folder, per render height, with scaling.
+- [fe-shadows.md](fe-shadows.md): an optional front-end shadow pass (off by default; the original draws none).
+- [hd-content-support.md](hd-content-support.md): HD font glyphs, the mouse pointer and full-motion video at the right size.
+- [hd-reflections.md](hd-reflections.md): optional HD reflection options, with the original defaults.
+- [custom-music.md](custom-music.md): the player's own audio folders and M3U playlists on the radio, next to the EA Trax songs.
+- [mod-world-content.md](mod-world-content.md): proposed scenery packs and interiors, the concrete form of ADR 0005 for the world.
+
+## Multiplayer and telemetry (designs, not built)
+
+- [multiplayer/README.md](multiplayer/README.md): LAN and online multiplayer (milestones 10 and 11): requirements, protocol,
+  sync model, bandwidth, transport, integration, online phases and the security design (see its own index).
+- [telemetry/README.md](telemetry/README.md): the optional telemetry server (milestone 13): channels, transport and privacy,
+  control endpoints, the HTTP API and what carries over to multiplayer (see its own index).

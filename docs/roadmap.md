@@ -15,8 +15,8 @@ The milestones of the rewrite, and what is done in each. The architecture is in 
 | 9 | Discord Rich Presence | |
 | 10 | Lan multiplayer: one host-authoritative server over our own UDP layer ([ADR 0006](decisions/0006-multiplayer-netcode.md); [specs](specs/multiplayer/README.md); the original LAN client path in [lan-server](specs/lan-server.md)) | designed (2026-10-16), not built |
 | 11 | Online multiplayer: the same server on the internet, with the phases in [online](specs/multiplayer/online.md) ([ADR 0006](decisions/0006-multiplayer-netcode.md); [specs](specs/multiplayer/README.md)) | designed (2026-10-16), not built |
-| 12 | scripting API for mods | |
-| 13 | Websocket/server/something for telemetry/api info on player career etc | |
+| 12 | Native mod API: mods are `cdylib` plugins behind a stable C ABI, replacing the scripting API ([ADR 0005](decisions/0005-native-mod-plugins.md); [modding](modding/README.md); crate `libs/blackbox-modding`) | in progress |
+| 13 | Telemetry server: a local REST snapshot, live streams and opt-in control endpoints for player career and session data ([ADR 0007](decisions/0007-telemetry-server.md); [specs](specs/telemetry/README.md)) | designed (2026-10-16), not built |
 | 14 | Drift mode: a handling variant with more controlled sliding at lower speeds (its own tire and assist tuning in `blackbox-vehicle`, the original has burnout and drift assists that are not modelled yet) | |
 
 Why this order:
