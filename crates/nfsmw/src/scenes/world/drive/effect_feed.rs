@@ -34,5 +34,5 @@ impl Drive {
 
 /// What the flames need of the car after a physics step.
 pub(super) fn car_state(pose: &CarPose, t: &Telemetry, velocity: Vec3, throttle: f32) -> CarState {
-    CarState { to_world: pose.transform(), velocity, gear: t.gear, throttle }
+    CarState { to_world: pose.transform(), velocity, gear: t.gear, throttle, nitrous: t.nitrous_burn() > 0.0 }
 }

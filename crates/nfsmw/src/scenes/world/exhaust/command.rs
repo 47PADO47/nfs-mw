@@ -54,8 +54,8 @@ impl ExhaustFlames {
             active.engine_upgrades,
             word(blowoff_allowed(self.engine_level, active.engine_upgrades)),
             active.live,
-            active.pipes.len() * active.lanes.len() * EMITTER_LIMIT,
-            match active.intensity > 0.0 {
+            active.pipes.len() * active.lane_count() * EMITTER_LIMIT,
+            match active.intensity > 0.0 || active.nitrous {
                 true => "flaming",
                 false => "quiet",
             }

@@ -452,8 +452,8 @@ Everything in this section is the rewrite's own design **[decision]** unless it 
 
 A pipe flames, in this order of strength, when:
 
-1. **The nitrous is not flamed.** The original's nitrous effect differs from the one used here; it is left for later
-   and the group is not played while the nitrous burns.
+1. **The nitrous burns** (`Telemetry::nitrous_burn`): the group runs continuously in blue, in place of the orange
+   flames below (the rewrite's own: red and blue of each particle swap; the original's nitrous effect differs).
 2. **A gear-change blow-off runs** on an engine that allows it: the group at full intensity (section 2).
 3. **A sputter pops while the driver is off the throttle** (the *lift-off backfire*): the group at intensity 0.5 for
    `BACKFIRE_SECONDS` (0.06 s, about the life of one fire particle) after each pop.

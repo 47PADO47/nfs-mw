@@ -1,8 +1,8 @@
 # Exhaust flames
 
 Flames at the car's tail pipes: for a moment after a gear change on an upgraded engine, and as a short
-backfire each time the engine sound's sputter pops after you lift off the throttle. The nitrous does not flame
-yet: the original's nitrous effect differs and will come later.
+backfire each time the engine sound's sputter pops after you lift off the throttle. While the nitrous burns the
+pipes flame blue instead, for as long as it burns (the same flame with its red and blue swapped).
 Everything is read from your own install at run time (the pipe markers of the car, its particle group and the
 flame textures); nothing of the game is stored in this repository. How the original does it, and what the
 rewrite decided for itself, is in the [spec](specs/exhaust-flames.md).
@@ -28,6 +28,7 @@ The usual order applies: command line, then environment, then the config file, t
 
 | Trigger | What you see | Needs |
 |---|---|---|
+| The nitrous burns | The same flame in blue, without a break, in place of the two below | a car with nitrous |
 | Gear change (up or down) above 10 m/s | The full flame for 0.06 to 0.3 s (the car's own pitch time) | an upgraded engine, or a car whose engine cannot be upgraded |
 | A sputter pop with the throttle released | A half-strength flame for 0.06 s per pop | the sound running (not `--no-sound`) |
 

@@ -4,7 +4,7 @@ use glam::{Mat4, Vec3, Vec4};
 
 use super::load::lane;
 use super::trigger::{BACKFIRE_SECONDS, ShiftTiming};
-use super::{Active, CarState, EMITTER_LIMIT, ExhaustFlames, SpriteTexture, State};
+use super::{Active, CarState, EMITTER_LIMIT, ExhaustFlames, SpriteTexture, State, tint_blue};
 
 const STEP: f32 = 1.0 / 60.0;
 
@@ -44,6 +44,7 @@ fn car(gear: i32) -> CarState {
         velocity: Vec3::new(40.0, 0.0, 0.0),
         gear,
         throttle: 1.0,
+        nitrous: false,
     }
 }
 
@@ -317,4 +318,22 @@ fn only_the_additive_lane_is_brightened() {
     assert!(fire > smoke && f32::from(smoke) * super::ADDITIVE_GAIN - 4.0 <= f32::from(fire), "{fire} {smoke}");
     assert_eq!(smoke, 40);
     assert_eq!(fire, 160);
+}
+
+#[test]
+fn the_burning_nitrous_flames_blue_in_place_of_the_orange_flame_and_stops_with_it() {
+    let mut fx = flames(0);
+    let burning = CarState { nitrous: true, ..car(3) };
+    run(&mut fx, 6, &burning);
+    let count = |lanes: &[super::Lane]| lanes.iter().flat_map(|l| &l.emitters).map(|e| e.len()).sum::<usize>();
+    assert!(count(&active(&fx).blue) > 0, "the nitrous spawns blue particles");
+    assert_eq!(count(&active(&fx).lanes), 0, "and no orange ones");
+    assert!(fx.live() > 0);
+    run(&mut fx, 1, &car(3));
+    assert!(active(&fx).blue.iter().flat_map(|l| &l.emitters).all(|e| !e.enabled()), "no new blue ones without it");
+}
+
+#[test]
+fn blue_swaps_red_and_blue_and_keeps_the_alpha() {
+    assert_eq!(tint_blue([250, 120, 10, 77]), [10, 120, 250, 77]);
 }
