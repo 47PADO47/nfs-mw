@@ -22,6 +22,8 @@ Read in this order:
 7. [integration.md](integration.md): the threads, the Bevy shell pieces, the crates, the extraction of the headless world, and the
    order of work for milestone 10.
 
+Milestone 11 (online) on the same base: [online.md](online.md) covers dedicated hosting, the master service, relay, accounts, persistence, operations and the phases.
+
 Security, written separately:
 
 - [security.md](security.md): threat model, the Noise handshake and sealed packets, identity, trust on first use, the room password,

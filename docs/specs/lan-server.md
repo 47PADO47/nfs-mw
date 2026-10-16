@@ -6,12 +6,13 @@ implemented in the rewrite. This is a reference for a future decision (see [Rele
 
 ## Status
 
-Closed at **unverified**, by the project owner's decision. Traced and recorded: the request and reply path,
-the HTTP framing, the peer lookup (`peerIP`, `peerPort`), the UDP receive and dispatch, and the ack
-mechanism. Not verified: the 25-byte packet layout (the sender's 25 bytes and the receiver's 29-byte `COb`
-layout disagree) and any wire-level behaviour. No protocol client or server exists. The tools here are a
-patch-set checker, an HTTP framing probe and an unverified datagram codec. A capture of a real session
-would resolve the open layout question.
+Closed at **unverified**, by the project owner's decision. Re-read on 2026-10-16: the client path is in
+[Client path](#client-path-2026-10-16). Traced and recorded: the request and reply path, the HTTP framing,
+the peer lookup (`peerIP`, `peerPort`), the UDP receive and dispatch, and the ack mechanism. Resolved in code:
+the datagram layout is 25 bytes on both sides. Not verified: any wire-level behaviour, since no capture
+exists. No protocol client or server exists. The tools here are a patch-set checker, an HTTP framing probe
+and a datagram codec whose layout is wrong (see [its note](#cob-datagram-codec-wrong-layout)). A capture of
+a real session would confirm the layout and the game payload.
 
 ## Sources read
 
@@ -213,13 +214,11 @@ Ghidra check on the stock PC `speed.exe` **[verified]**:
   **[verified in disassembly]**. The 4-byte messages are probably acknowledgements or keep-alives, which
   matches the `PINGTIME`/`PINGWAIT` keys in `server.cfg`. This is inferred, not confirmed. The caller at
   `0x00865020` calls a function pointer at `+0x08` of a socket object, a generic callback path. The
-  framing of the 25-byte datagram is still not traced.
-- **Scheduler, `0x00865470`** **[verified in disassembly]**: for a peer record, if `+0x28` is non-zero it
-  compares the current tick with the last-sent value at `+0x440`. When the gap is more than `0x1F4` (500)
-  it sends the 25-byte datagram (`0x00864D30`, which passes the peer's `+0x28` mode), otherwise the 4-byte
-  one (`0x00864DD0`). The 500 unit threshold reads as milliseconds. This matches a periodic status packet
-  and a short acknowledgement, which is the shape the `PINGTIME`/`PINGWAIT` keys suggest. Inferred, not
-  confirmed against traffic.
+  framing of the 25-byte datagram was traced on 2026-10-16 (see [Client path](#client-path-2026-10-16)).
+- **Scheduler, `0x00865490`** (earlier note said `0x00865470`, which is inside the handler's tail). For a peer
+  record, if `+0x28` is non-zero and more than `0x1F4` (500) ms have passed since the last send, it sends the
+  25-byte identity datagram in state 1 (`0x00864D30`) or the 4-byte keep-alive otherwise (`0x00864DD0`).
+  Confirmed in code on 2026-10-16; the 4-byte tag is `PNG`, not `DSC`.
 - **Field lookup, `0x0083A670`** **[verified in disassembly]**: finds a `KEY=VALUE` pair in a text
   payload. It compares keys case-insensitively through a fold table at `0x008C6508`, skips spaces around
   the key, and returns a pointer to the value after the `=`, or zero when the key is absent. So the reply
@@ -330,6 +329,43 @@ Still open: which field of the request carries the SKU (the builder's argument o
 the table that the registry loader searches (its string contents and the `EDI` default), and where the reply
 carrying the lobby address is parsed. Next step: trace the builder's arguments at `0x007948A0` and the reply parser.
 
+## Client path (2026-10-16)
+
+A Ghidra pass on the stock `speed.exe`, to test the reasons in [ADR 0006](../decisions/0006-multiplayer-netcode.md)
+section 15. Trail and addresses: [provenance/lan-client.md](../provenance/lan-client.md).
+
+**Discovery.**
+- The stock client has no UDP 9901 responder, no `LOCAL?` string and no `YESIMLOCAL` hash constant. Byte searches
+  for both hashes and for the port in the usual immediate forms found nothing **[verified]**.
+- Server lookup is the HTTP GET above, and its reply gives `peerIP` and `peerPort` **[verified]**. The default host
+  is a dead EA name; `NetworkLobbyIP` replaces it **[verified]**.
+- The peer socket is a plain UDP socket bound to `0.0.0.0` on a local port, non-blocking. The connect routine binds
+  the literal port 6000 **[decomp]**. No broadcast option is set on this path **[decomp]**, so no LAN broadcast
+  discovery is visible here.
+
+**Datagrams after the join.** Tag at offset 0 **[decomp]**. The scheduler is at `0x00865490`, not `0x00865470`.
+
+| Tag | Size | Sent when | Content |
+|---|---|---|---|
+| `COb` | 25 B | every 500 ms of silence while the peer is in state 1 | byte 3: session flag (1); bytes 4 to 23: the sender's 20-byte name; byte 24: 1 once the sender has heard from the peer |
+| `PNG` | 4 B | every 500 ms of silence once acknowledged | keep-alive |
+| `DSC` | 4 B | disconnect, or a reply to an unknown non-`COb` sender | none |
+| `MIC` | 6 + n B | queued data; at once if the pending byte is 1, else after 99 ms | tag, channel byte (0), two bytes, then n payload bytes (about 1,060 at most) |
+
+- **The layout is 25 bytes on both sides.** The receiver's pointer sits 4 bytes before the datagram, so the earlier
+  29-byte reading was a misreading. This refutes the layout premise of ADR 0006 section 15, reason 1.
+- **Handshake.** Peers start in state 1. A `COb` with byte 24 set, from a peer in state 1, moves it to state 2. A
+  `DSC` drops the peer. A peer silent for 10 s in state 1 is dropped; in state 2 the timeout is the session value at
+  `+0x40` (not yet traced).
+- **Game state.** No car state, inputs or snapshots appear in `COb`, `PNG` or `DSC`. `MIC` is an opaque payload
+  handed to a session callback. Its content and rate per message type are unknown.
+- **Authentication.** None. A known peer is matched by source IP and port. An unknown sender is accepted only with a
+  `COb` whose name equals a peer name already in the table. Names are plain text, with no key, MAC or nonce, so a
+  host that can send UDP with a known peer's source address can forge its datagrams **[decomp]**.
+
+The consequences for ADR 0006 are in the reverse-engineering note of
+[integration](multiplayer/integration.md). Open items are at the end of this file.
+
 ## Configuration
 
 `server.cfg`, read by `server.dll`. The install ships one (**[verified]**, read locally, not copied into the
@@ -370,16 +406,11 @@ written against an older config and are not confirmed against this one.
 The DLL also has a small scripting syntax (`if`, `include`, variables), with a table at `0x10029AF0`. The
 README lists the keys found there. Not studied further.
 
-### COb datagram codec (unverified)
+### COb datagram codec (wrong layout)
 
-`tools/lan_udp_codec.py` encodes and decodes the `COb` layout recorded above: header bytes 0 to 3 (not
-identified, written as zero), tag `COb` at 4, five little-endian dwords at 8, and a flag byte at 28, for 29
-bytes in total. Its self-test checks the round trip and the rejection of bad tags and short datagrams.
-
-**Not verified against the game.** It is an implementation of an inferred layout. It does not match the
-25-byte size that the sender builds at `0x00864D8F`, so the two readings of the packet disagree. Resolving that
-is the main open item. The codec must not be used as a client against a real server until a capture confirms
-it.
+`tools/lan_udp_codec.py` implements a 29-byte `COb` layout (tag at 4, flag at 28), read before the client path
+was traced. The real layout is 25 bytes with the tag at offset 0. The codec must be changed to match or removed.
+Its self-test checks only its own layout, so it proves nothing about the game.
 
 ### HTTP framing tool
 
@@ -443,3 +474,8 @@ the input, and a provenance record in [docs/provenance/](../provenance/README.md
 - What the server does with the `who_func` and `packet_buffer` globals (`1000AAD0`, `10058A5C`). The launcher
   declares them and never uses them.
 - Whether the server's DNS and host-name keys are needed for the public lobby.
+- **Client path, open:** which game system writes the `MIC` payload (its length at peer `+0x2c`, pending byte at
+  `+0x435`) and what it carries: car state, events, or nothing. Start from the peer table at session `+0x14`.
+- The rate of the peer scheduler (its caller) and the timeout at session `+0x40`, which is not yet traced.
+- The targets of the session callbacks (receive at `+0x04`, acknowledge at `+0x08`).
+- The `sock` word (`0x736f636b`) sent on the connect path, and whether it is a second channel.

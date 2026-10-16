@@ -125,3 +125,12 @@ Steps 1 and 2 can run in parallel with step 0.
    types today; proposal: no Bevy in the server.
 3. Does the dedicated server load the whole city's collision at start (memory) or by player area (complexity)? Proposal:
    by player area, with a minimum of the spawn areas, reusing the residency logic without the GPU side.
+
+**Reverse-engineering note (2026-10-16).** The stock client's UDP path was read in Ghidra ([LAN server](../lan-server.md),
+client path; trail in [provenance](../../provenance/lan-client.md)). It bears on [ADR 0006](../../decisions/0006-multiplayer-netcode.md)
+section 15, which is not edited here. Reason 1 (25 against 29 bytes) does not hold in code: both sides use 25 bytes, and the
+29-byte reading was a pointer error. Reason 2 holds for the lobby (an HTTP lookup against EA hosts that no longer run), but
+the UDP layer is a generic peer channel with an opaque data message (`MIC`), so "not a game-sync protocol" is unproven: its
+payload is not yet identified. Reason 4 holds: there is no authentication, only plain-text names and source addresses. The
+decision not to keep the protocol stands, because no car state or input has been found in it and nothing from the client is
+copied. Its keep-alive timing (500 ms of silence) is a behaviour fact, and this design does not depend on it.
