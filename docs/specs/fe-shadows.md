@@ -253,3 +253,34 @@ Screenshot (offscreen, never focus):
 7. Map the front-end light block in `0x006e6e40` (constants `450`, `19`, `190`, `89`).
 8. Check in game (not in the spec) whether the global `shadows` setting already shadows the crib on Bevy. This
    decides how much of section 8 is new work.
+
+## Port status
+
+Built on Bevy. Verified by unit tests; not yet checked in game or on a screenshot. [ours]
+
+- Settings and menu: `fe_shadows` (default off), `fe_shadows_cars` (default on, as proposed), `fe_shadows_bias` (0.25 to
+  4.0), `fe_shadows_divider` (1, 2 or 4), env `NFSMW_FE_SHADOWS`, `--fe-shadows`/`--no-fe-shadows`, console keys
+  (help text in `devtools/console/parse.rs`), and one Video row "Front-End Shadows" (Bevy only). Native forces the switch
+  off (`Settings::effective`). The settings are published each frame (`settings/fe_shadows.rs`, `publish`), as
+  `custom_fonts` does.
+- Off: every menu instance is `ShadowFlags { cast: false, receive: false }`, so the menu casts nothing. The sun takes
+  the world's tuning, so the world is unchanged. [ours]
+- On: the car casts and receives when `fe_shadows_cars` is on. The placeholder floor and the room receive only. The
+  room does not cast: with all its solids casting, its floor shaded itself and the whole backdrop went dark in the
+  first screenshot (see Open). The sun takes `FrameParams::shadow_tuning`: quality is the world's, or Medium when the
+  world's is off; bias scales the sun's depth and normal bias; the divider cuts the map edge, never below 512. The
+  world's frames set no tuning, so the sun returns to the world's size and bias after the menu.
+- Renderer: `Instance` carries `ShadowFlags` (`libs/blackbox-gfx/src/frame.rs`). Bevy spawns `NotShadowCaster` for a
+  non-casting instance and `NotShadowReceiver` for a non-receiving one. The blackbox shader skips the sun for an
+  instance without Bevy's shadow-receiver mesh flag (`material/blackbox.wesl`).
+- Keys: an instance's key carries the menu's mode in the top bits of its group (`scenes/car/shadows.rs`). A change of
+  switch or cars gives the parts new keys, so the pool spawns them again with their new flags. The pool keeps an
+  entity's flags from its first spawn; the key change is what makes the toggle apply.
+- Native: "Bevy only". The row is hidden and the setting is forced off there.
+
+Open, not decided or not verified:
+- The room does not cast. The spec wants walls and fixtures to cast; the room has no floor marker, so walls cannot be
+  picked out from the floor yet. A room that casts only its walls needs that marker in `frontend/room.rs`.
+- The car's own shadow on the floor and any room ceiling at the fixed sun angle are unchecked (spec section 11).
+- No offscreen screenshot yet. `nfsmw view-screen` is not documented in `docs/testing.md`.
+- Default of `fe_shadows_cars`: on (accepted by the orchestrator).

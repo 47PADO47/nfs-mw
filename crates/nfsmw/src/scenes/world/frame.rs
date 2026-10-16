@@ -53,6 +53,7 @@ impl WorldScene {
             scattering: self.scattering(),
             surface_light: self.surface_light(),
             camera_cut,
+            shadow_tuning: None,
         };
         (params, &self.visible)
     }

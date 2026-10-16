@@ -66,6 +66,7 @@ fn ao_gpu_timings() {
             scattering: None,
             surface_light: None,
             camera_cut: false,
+            shadow_tuning: None,
         };
         for quality in [AoQuality::Low, AoQuality::Medium, AoQuality::High] {
             let mut times = Vec::new();

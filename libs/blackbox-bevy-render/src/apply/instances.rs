@@ -29,10 +29,13 @@ use super::state::{GRACE_FRAMES, Placed, PoolKey, WorldState};
 /// The components the pool changes on entities that already exist.
 pub type PlacedQuery<'w, 's> = Query<'w, 's, (&'static mut GlobalTransform, &'static mut Visibility)>;
 
-/// The Solari stand-ins by texture number (see `solari.rs`). The resource exists only when Solari was added at
+/// A stand-in's key: its texture number (`None` for the white texture) and its quantised colour (see `solari.rs`).
+pub type StandInKey = (Option<usize>, [u8; 3]);
+
+/// The Solari stand-ins by [`StandInKey`] (see `solari.rs`). The resource exists only when Solari was added at
 /// startup, so its presence is what turns the stand-in path on.
 #[derive(Resource, Default)]
-pub struct StandInCache(pub HashMap<Option<usize>, Handle<StandardMaterial>>);
+pub struct StandInCache(pub HashMap<StandInKey, Handle<StandardMaterial>>);
 
 /// What the stand-in path needs, borrowed for one tick: the material store and the cache.
 pub struct StandIns<'a> {
@@ -168,39 +171,34 @@ enum Surface {
     Solari(Handle<StandardMaterial>),
 }
 
-/// The surface of a draw. An opaque, non-sky draw becomes a stand-in when Solari is on (`solari.rs`).
-#[cfg(feature = "ray-tracing")]
-fn surface_for(
-    state: &mut WorldState,
-    stores: &mut Stores,
-    stand_ins: Option<&mut StandIns>,
+/// What one draw range is drawn with, from its registered range.
+struct Draw {
     texture: Option<usize>,
     blend: BlendKind,
     shading: ShadingKind,
     glossy: Option<usize>,
-) -> Surface {
+    /// Read by the Solari stand-in only.
+    #[cfg_attr(not(feature = "ray-tracing"), allow(dead_code))]
+    colour: [u8; 3],
+}
+
+/// The surface of a draw. An opaque, non-sky draw becomes a stand-in when Solari is on (`solari.rs`).
+#[cfg(feature = "ray-tracing")]
+fn surface_for(state: &mut WorldState, stores: &mut Stores, stand_ins: Option<&mut StandIns>, draw: &Draw) -> Surface {
     if let Some(stand_ins) = stand_ins {
-        let key = texture.map(|t| redirects::resolve(state, t));
+        let key = draw.texture.map(|t| redirects::resolve(state, t));
         let image = key.and_then(|k| state.textures.get(&k).cloned());
-        if let Some(material) = crate::solari::stand_in(stand_ins, image, key, blend, shading) {
+        if let Some(material) = crate::solari::stand_in(stand_ins, image, key, draw.colour, draw.blend, draw.shading) {
             return Surface::Solari(material);
         }
     }
-    Surface::Blackbox(material_for(state, stores, texture, blend, shading, glossy))
+    Surface::Blackbox(material_for(state, stores, draw.texture, draw.blend, draw.shading, draw.glossy))
 }
 
 /// Without Solari every draw uses the Blackbox material.
 #[cfg(not(feature = "ray-tracing"))]
-fn surface_for(
-    state: &mut WorldState,
-    stores: &mut Stores,
-    _stand_ins: Option<&mut StandIns>,
-    texture: Option<usize>,
-    blend: BlendKind,
-    shading: ShadingKind,
-    glossy: Option<usize>,
-) -> Surface {
-    Surface::Blackbox(material_for(state, stores, texture, blend, shading, glossy))
+fn surface_for(state: &mut WorldState, stores: &mut Stores, _stand_ins: Option<&mut StandIns>, draw: &Draw) -> Surface {
+    Surface::Blackbox(material_for(state, stores, draw.texture, draw.blend, draw.shading, draw.glossy))
 }
 
 fn spawn(
@@ -217,12 +215,18 @@ fn spawn(
     let ranges: Vec<_> = state.meshes[&mesh]
         .ranges
         .iter()
-        .map(|r| (r.mesh.clone(), r.aabb, r.texture, r.blend, r.shading, r.glossy))
+        .map(|r| {
+            let draw =
+                Draw { texture: r.texture, blend: r.blend, shading: r.shading, glossy: r.glossy, colour: r.colour };
+            (r.mesh.clone(), r.aabb, draw)
+        })
         .collect();
     let mut entities: Vec<Entity> = Vec::with_capacity(ranges.len());
     let mut batches = Vec::with_capacity(ranges.len());
-    for (bevy_mesh, aabb, texture, blend, shading, glossy) in ranges {
-        let surface = surface_for(state, stores, stand_ins.as_deref_mut(), texture, blend, shading, glossy);
+    for (bevy_mesh, aabb, draw) in ranges {
+        let surface = surface_for(state, stores, stand_ins.as_deref_mut(), &draw);
+        let shading = draw.shading;
+        let blend = draw.blend;
         let mesh_id = bevy_mesh.id();
         let (entity, batch) = match surface {
             Surface::Blackbox(material) => {
@@ -237,8 +241,11 @@ fn spawn(
                 (crate::solari::spawn_stand_in(commands, bevy_mesh, material, aabb, transform), None)
             }
         };
-        if !super::shadows::casts(shading, blend) {
+        if !super::shadows::casts(shading, blend) || !instance.shadow.cast {
             commands.entity(entity).insert(bevy_light::NotShadowCaster);
+        }
+        if !instance.shadow.receive {
+            commands.entity(entity).insert(bevy_light::NotShadowReceiver);
         }
         entities.push(entity);
         batches.extend(batch);

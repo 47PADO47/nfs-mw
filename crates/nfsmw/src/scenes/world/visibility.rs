@@ -163,6 +163,7 @@ mod tests {
                 scattering: None,
                 surface_light: None,
                 camera_cut: false,
+                shadow_tuning: None,
             },
         );
         let camera = Camera {

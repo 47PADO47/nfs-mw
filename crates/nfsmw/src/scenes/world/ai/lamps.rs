@@ -179,6 +179,7 @@ impl TrafficWorld {
                         Vec3::splat(HEAD_SIZE),
                     ),
                     key: blackbox_gfx::InstanceKey::TRANSIENT,
+                    shadow: Default::default(),
                 });
             }
             if !shown.post {
@@ -195,11 +196,13 @@ impl TrafficWorld {
                 mesh: meshes.post,
                 transform: oriented_box(post, up, heading, Vec3::new(POST_HEIGHT, POST_WIDTH, POST_WIDTH)),
                 key: blackbox_gfx::InstanceKey::TRANSIENT,
+                shadow: Default::default(),
             });
             out.push(Instance {
                 mesh: meshes.lamp(light),
                 transform: oriented_box(post + up * POST_HEIGHT, up, heading, Vec3::splat(LAMP_SIZE)),
                 key: blackbox_gfx::InstanceKey::TRANSIENT,
+                shadow: Default::default(),
             });
             // The bar runs from the centre line to the kerb, just above the surface.
             out.push(Instance {
@@ -211,6 +214,7 @@ impl TrafficWorld {
                     Vec3::new(approach.kerb, BAR_DEPTH, BAR_HEIGHT),
                 ),
                 key: blackbox_gfx::InstanceKey::TRANSIENT,
+                shadow: Default::default(),
             });
         }
     }

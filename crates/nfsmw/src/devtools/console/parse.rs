@@ -38,7 +38,7 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 46] = [
+pub const BUILT_IN: [(&str, &str); 50] = [
     ("bind <action> <input>", "replace one device family's action assignments; keys lists action names"),
     ("addbind <action> <input>", "add another physical input to an action"),
     ("unbind <action> [keyboard|mouse|gamepad|all]", "remove action assignments"),
@@ -74,6 +74,10 @@ pub const BUILT_IN: [(&str, &str); 46] = [
     ("visual_treatment <off|low|high>", "installed midday colour look (native renderer)"),
     ("reflections <off|low|medium|high>", "local car reflections; off restores the static sky"),
     ("shadows <off|low|medium|high>", "dynamic soft sun shadows (Bevy renderer)"),
+    ("fe_shadows <on|off>", "sun shadows in the menu backdrop (Bevy renderer; off matches the original)"),
+    ("fe_shadows_cars <on|off>", "the car casts and takes the menu's sun shadows"),
+    ("fe_shadows_bias <0.25-4>", "bias multiplier of the menu's sun shadows"),
+    ("fe_shadows_divider <1|2|4>", "divides the menu's shadow map edge"),
     ("ao <off|low|medium|high>", "experimental contact occlusion; off releases its resources"),
     ("ao_intensity <0-100>", "contact occlusion strength"),
     ("ao_compare <on|off>", "same-frame comparison: left off, right on"),

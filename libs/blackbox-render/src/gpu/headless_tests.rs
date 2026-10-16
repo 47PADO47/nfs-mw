@@ -18,6 +18,7 @@ fn clear_frame(color: [f32; 3]) -> FrameParams {
         scattering: None,
         surface_light: None,
         camera_cut: false,
+        shadow_tuning: None,
     }
 }
 

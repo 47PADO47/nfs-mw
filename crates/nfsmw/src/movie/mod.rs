@@ -147,6 +147,7 @@ impl Scene for MovieScene {
             surface_light: None,
             // Nothing 3D is drawn, so there is no camera to follow from frame to frame.
             camera_cut: true,
+            shadow_tuning: None,
         };
         (params, &[])
     }

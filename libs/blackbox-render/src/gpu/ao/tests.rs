@@ -51,6 +51,7 @@ pub(super) fn scene_shading(
         scattering: None,
         surface_light: None,
         camera_cut: false,
+        shadow_tuning: None,
     };
     (frame, vec![Instance::new(handle, Mat4::IDENTITY)])
 }

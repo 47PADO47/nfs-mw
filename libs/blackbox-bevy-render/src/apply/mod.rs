@@ -97,7 +97,8 @@ fn apply_queue(
         .or_else(|| request.as_ref().map(|c| &c.data.frame))
         .or_else(|| frame.as_ref().map(|f| &f.frame));
     if let Some(frame) = shadow_frame {
-        shadows::sync(commands, &mut state.sun, frame, settings.shadows);
+        let tuning = frame.shadow_tuning.unwrap_or(blackbox_gfx::settings::ShadowTuning::world(settings.shadows));
+        shadows::sync(commands, &mut state.sun, frame, tuning);
     }
 
     if let Some(request) = request {

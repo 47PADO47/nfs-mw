@@ -43,6 +43,20 @@ impl InstanceKey {
     }
 }
 
+/// Whether an instance casts a shadow onto the sun's shadow map, and whether it takes the sun's shadow. Both are on
+/// unless a scene turns one off.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ShadowFlags {
+    pub cast: bool,
+    pub receive: bool,
+}
+
+impl Default for ShadowFlags {
+    fn default() -> Self {
+        Self { cast: true, receive: true }
+    }
+}
+
 /// One placed copy of a mesh.
 #[derive(Debug, Clone, Copy)]
 pub struct Instance {
@@ -51,17 +65,24 @@ pub struct Instance {
     pub transform: Mat4,
     /// Which object this is, from frame to frame.
     pub key: InstanceKey,
+    /// Whether it casts and receives the sun's shadow. A renderer without shadows ignores this.
+    pub shadow: ShadowFlags,
 }
 
 impl Instance {
     /// An instance with no identity ([`InstanceKey::TRANSIENT`]).
     pub const fn new(mesh: MeshHandle, transform: Mat4) -> Self {
-        Self { mesh, transform, key: InstanceKey::TRANSIENT }
+        Self { mesh, transform, key: InstanceKey::TRANSIENT, shadow: ShadowFlags { cast: true, receive: true } }
     }
 
     /// An instance that keeps `key` from frame to frame.
     pub const fn keyed(mesh: MeshHandle, transform: Mat4, key: InstanceKey) -> Self {
-        Self { mesh, transform, key }
+        Self { mesh, transform, key, shadow: ShadowFlags { cast: true, receive: true } }
+    }
+
+    /// The same instance with these shadow flags.
+    pub const fn with_shadow(self, shadow: ShadowFlags) -> Self {
+        Self { shadow, ..self }
     }
 }
 
@@ -143,6 +164,8 @@ pub struct FrameParams {
     /// The camera jumped (a teleport, a scene or camera switch): a renderer that reuses the last
     /// frame (temporal anti-aliasing, temporal upscalers) drops its history.
     pub camera_cut: bool,
+    /// The sun's shadow settings for this frame, or `None` for the world's (the quality setting, the renderer's bias).
+    pub shadow_tuning: Option<crate::settings::ShadowTuning>,
 }
 
 impl FrameParams {
@@ -195,6 +218,7 @@ mod tests {
             scattering: None,
             surface_light: None,
             camera_cut: false,
+            shadow_tuning: None,
         };
         assert_eq!(frame.view_proj(), projection.matrix() * view);
         let ndc = frame.view_proj() * Vec3::new(0.0, -4.0, 1.0).extend(1.0);
@@ -213,6 +237,7 @@ mod tests {
             scattering: None,
             surface_light: None,
             camera_cut: false,
+            shadow_tuning: None,
         };
         assert_eq!(frame.view_proj(), Mat4::IDENTITY);
     }
@@ -229,6 +254,7 @@ mod tests {
             scattering: None,
             surface_light: None,
             camera_cut: false,
+            shadow_tuning: None,
         };
         assert_eq!(frame.fog_range(), [f32::MAX; 2]);
         frame.fog = Some(Fog { start: 5.0, end: 9.0 });
