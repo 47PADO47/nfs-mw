@@ -17,13 +17,15 @@ use sight::{Look, Sight};
 /// The settings of one heat level that change how the helicopter behaves. The defaults are the game's own values.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Tuning {
-    /// Metres along the road behind the target where it spawns (`SpawnPursuitHelicopter`: 250).
+    /// Metres along the road behind the target where it spawns (`SpawnPursuitHelicopter`: 250). [decomp] pool;
+    /// the +20 m height is pool (applied by the game layer).
     pub spawn_distance: f32,
     /// Seconds its fuel lasts after it spawns (`HeliFuelTime`).
     pub fuel_time: f32,
     /// Metres it sees to its front (`heliLOSdistance`: 251 or 301).
     pub line_of_sight: f32,
-    /// Metres from the player at which it leaves (600; 375 for ground units).
+    /// Metres from the player at which it leaves (600; 375 for ground units). [unconfirmed]: the police code's value, not
+    /// found in the pool (spec section 10).
     pub despawn_distance: f32,
     /// Top speed, m/s (`chopperspecs` `MAX_SPEED_MPS`: 100).
     pub speed_cap: f32,
@@ -62,7 +64,7 @@ impl Default for Tuning {
     }
 }
 
-/// The seconds between two thinks: the helicopter thinks every 0.125 s (the spec's think period).
+/// The seconds between two thinks: the helicopter thinks every 0.125 s. [decomp] pool and.
 pub const THINK_PERIOD: f32 = 0.125;
 
 /// What the helicopter is doing.
@@ -232,6 +234,7 @@ impl Helicopter {
 
     fn step(&mut self, dt: f32, goal: Goal, heights: &dyn Heights, specs: &Specs) {
         let desired = control::desired(self.body.position, self.body.velocity, &goal, heights);
+        self.body.velocity = desired.body_velocity.unwrap_or(self.body.velocity);
         self.body.step(dt, desired.velocity, goal.look_at - self.body.position, desired.max_decel, specs);
     }
 }

@@ -416,6 +416,11 @@ floor (`SheetFloor` in `ai/police.rs`; a flat floor when the sheet is missing). 
 documented 51 504 triangles (`tests/real_install/heli_sheet.rs`). Not yet seen in a running game. Rotor sound: `audio/heli` plays it, fed by the scene's `rotor_frame`.
 Not yet heard in a running game. Open: the rotor's word meanings, the chopper's real heading (the feed uses a flat
 velocity heading), and the spotlight/rotor wash effects. The shipped numbers are the spec's; the controller is the spec's, not the decompilation's code.
+Pass 3 (D15): `control.rs` now has the `CheckHeliSheet` steering (look-ahead point, rising-roof and lead-point rules, body
+velocity kick, section 4.2) and the destination lift follows the spec (the old lift raised the destination to the floor
+under the work point even when that floor was lower). The two rules' side push and the lead shortening are [unconfirmed]
+readings. The sheet gives elevation only, so the side push is zero in play until the sheet lookup returns normals (a
+`Heights::floor` override in `ai/police/helpers.rs`). Constants carry tags and pool addresses in the source.
 
 ## Verified in `speed.exe` (Ghidra, PC v1.3)
 
@@ -443,9 +448,9 @@ constants sit in one cluster at `0x00890828` to `0x00890868` (values below). Use
 | Constant | Value | Pool address | Meaning | Port |
 |---|---|---|---|---|
 | Work lead | 0.45 s | 0x890840 | `work` and `dest` lead (section 4) | `control.rs` `WORK_LEAD` |
-| Look-ahead lead | 0.65 s | 0x890844 | the `ahead` point of `CheckHeliSheet` | not in port |
-| Sheet steer gains | 0.3, 0.4 | 0x890848, 0x89084C (also 0x8905D0) | sliding around a roof and a wall | not in port |
-| Camera avoid | lead 0.2 s, sphere 7 m, kick 1.2 | 0x8905CC, 0x8905F0 (7), 0x890860 (1.2) | `AvoidCamera` | not in port |
+| Look-ahead lead | 0.65 s | 0x890844 | the `ahead` point of `CheckHeliSheet` | `control.rs` `ahead_point` |
+| Sheet steer gains | 0.3, 0.4 | 0x890848, 0x89084C (also 0x8905D0) | sliding around a roof and a wall | `control.rs` `ahead_roof`, `lead_roof` |
+| Camera avoid | lead 0.2 s, sphere 7 m, kick 1.2 | 0x8905CC, 0x8905F0 (7), 0x890860 (1.2) | `AvoidCamera` | not ported (no camera) |
 | Response ratio | 2 | 0x890628 | desired accel = 2 x velocity error | `flight.rs` |
 | Accel limit | `min(80, 0.6 v + 30)` | 0x89062C (0.6), 0x890620 (80), 0x890820 (30) | section 5 | `flight.rs` |
 | Closing / brake | closing > 3; speed cut 0.4; brake at 15 m | 0x8905DC, 0x890690 (3); 0x8905D0 (0.4); 0x890668 (15) | section 4 | `control.rs` |
@@ -468,8 +473,8 @@ constants sit in one cluster at `0x00890828` to `0x00890868` (values below). Use
 1.3 (yaw clamp), 1.8 and 4.8 (skid lift), 1.9 (strike across), 0.7, 1.14, 35 (skid window), 75 (visual sphere), 85 (exit
 seek), 600 (despawn). They may be immediate operands in code. Their values are the spec's, not confirmed in `speed.exe`.
 
-**Port gaps** from this comparison: `control.rs` has the floor lift but not the `CheckHeliSheet` steering (0.3, 0.4, the
-`ahead` point at 0.65 s), and it has no `AvoidCamera`. The port has no camera, so the camera avoid is unported by design.
+**Port gaps** (the sheet steering was closed in pass 3, see Rewrite status): `AvoidCamera` stays unported, since the port has
+no camera. Still open: the search arrival rule (section 6.1, a new point within 30 m; the port takes the angle from the caller).
 
 ## Next leads
 

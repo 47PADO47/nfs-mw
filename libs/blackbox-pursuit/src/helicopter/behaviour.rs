@@ -5,17 +5,18 @@ use glam::{Vec2, Vec3};
 
 use super::control::Goal;
 
-/// The speed (m/s) the helicopter flies at when it follows, searches or strikes (`drive_speed = 100` for the skid).
+/// The speed (m/s) the skid hit and the exit fly at (`drive_speed = 100`). [decomp] 100, pool and.
 pub const STRIKE_SPEED: f32 = 100.0;
-/// The speed the search flies at, m/s.
+/// The speed the search flies at, m/s. [decomp] 70, pool.
 pub const SEARCH_SPEED: f32 = 70.0;
-/// Seconds a skid hit's approach lasts before the timer can run out.
+/// Seconds a skid hit's approach lasts before the timer can run out. [decomp] 8, pool.
 pub const SKID_TIMER: f32 = 8.0;
-/// The helicopter is within this window of the player (horizontal metres) to start a skid hit.
+/// Horizontal window (m) from the player in which a skid hit can start. [decomp] 5 to 35: the lower bound is pool
+/// (5); the upper bound 35 has no pool word, [unconfirmed].
 pub const SKID_WINDOW: (f32, f32) = (5.0, 35.0);
-/// Height (m) above the player within which a skid hit can start.
+/// Height (m) above the player within which a skid hit can start. [decomp] 13, pool.
 pub const SKID_HEIGHT: f32 = 13.0;
-/// Exit: height (m) above the player it climbs to.
+/// Exit: height (m) above the player it climbs to. [decomp] 25, pool.
 pub const EXIT_HEIGHT: f32 = 25.0;
 
 /// The player's car as the helicopter sees it this think.
@@ -49,14 +50,7 @@ pub fn follow(heli: Vec3, player: &Player, skid_timer: f32, skid_ready: bool) ->
     }
     let mut seek = player.position + player.forward * lead;
     let dist = horizontal_distance(heli, player.position);
-    let height = if skid_timer > 0.0 {
-        2.0
-    } else if dist > 55.0 || skid_timer > -5.0 {
-        12.0
-    } else {
-        6.0
-    };
-    seek.y = player.position.y + height;
+    seek.y = player.position.y + follow_height(dist, skid_timer);
 
     let d = horizontal_distance(heli, seek);
     let to_seek = (seek - heli).normalize_or_zero();
@@ -64,15 +58,36 @@ pub fn follow(heli: Vec3, player: &Player, skid_timer: f32, skid_ready: bool) ->
     if along < 0.0 {
         along *= 0.5;
     }
-    let close = if d > 15.0 {
-        if d > 300.0 { 50.0 } else { 30.0 }
-    } else if d > 3.0 {
-        20.0
-    } else {
-        d
-    };
+    let close = follow_speed(d);
     let look_at = if d < 5.0 && speed < 15.0 { player.position } else { seek };
     Goal { drive: seek, speed: close + along, dest_velocity: player.velocity, look_at }
+}
+
+/// The height above the player the follow aims for: 2 m during a skid hit, 12 m when far or in the skid cooldown, else 6 m.
+/// Spec §6.1 (pool = 2, = 12, = 6, = 55 cluster-only, [decomp]).
+fn follow_height(dist: f32, skid_timer: f32) -> f32 {
+    if skid_timer > 0.0 {
+        return 2.0;
+    }
+    if dist > 55.0 || skid_timer > -5.0 {
+        return 12.0;
+    }
+    6.0
+}
+
+/// The speed the follow flies at for a horizontal gap `d`: 50 m/s beyond 300 m, 30 m/s beyond 15 m, 20 m/s beyond 3 m,
+/// else the gap itself. Spec §6.1 (pool = 50, = 300, = 20; no word found for 30, 15 or 3).
+fn follow_speed(d: f32) -> f32 {
+    if d > 300.0 {
+        return 50.0;
+    }
+    if d > 15.0 {
+        return 30.0;
+    }
+    if d > 3.0 {
+        return 20.0;
+    }
+    d
 }
 
 /// Whether the helicopter is in the spot where a skid hit can start: in the window, ahead of the player's motion
@@ -85,6 +100,7 @@ pub fn skid_can_start(heli: Vec3, player: &Player) -> bool {
         return false;
     }
     let moving = Vec3::new(player.velocity.x, 0.0, player.velocity.z).normalize_or_zero();
+    // 0.707 (cos 45 degrees) is the spec's value, [unconfirmed]: no pool word.
     let ahead = Vec3::new(to.x, 0.0, to.z).dot(moving) / dist > 0.707;
     ahead && to.y < SKID_HEIGHT
 }
@@ -97,6 +113,8 @@ pub fn skid_side(heli: Vec3, player: &Player) -> f32 {
 
 /// The skid approach goal: slide in 6 m beside the player at its height plus about 2 m.
 pub fn skid_approach(heli: Vec3, player: &Player, side: f32, speed: f32) -> Goal {
+    // Lift 1.8 m, or 4.8 m when under 2 m (spec §6.1): [unconfirmed], no pool word. The 6 m side is pool and
+    // the 0.23 s is pool, both [decomp].
     let lift = if heli.y - player.position.y < 2.0 { 4.8 } else { 1.8 };
     let seek = player.position + player.right() * (6.0 * side) + player.velocity * 0.23 + Vec3::new(0.0, lift, 0.0);
     Goal { drive: seek, speed, dest_velocity: player.velocity, look_at: player.position + player.velocity }
@@ -106,12 +124,14 @@ pub fn skid_approach(heli: Vec3, player: &Player, side: f32, speed: f32) -> Goal
 pub fn skid_strikes(heli: Vec3, player: &Player, side: f32) -> bool {
     let seek = player.position + player.right() * (6.0 * side) + player.velocity * 0.23;
     let across = (heli - player.position).dot(player.right()).abs();
+    // 4 m is pool [decomp]; the 1.9 m across is the spec's value, [unconfirmed]: no pool word.
     horizontal_distance(heli, seek) < 4.0 && across > 1.9
 }
 
 /// The strike: slide sideways into the car at its own height.
 pub fn skid_strike(player: &Player, side: f32, speed: f32) -> Goal {
     let offset = player.right() * (6.0 * side);
+    // 0.4 m height is pool [decomp]; the 0.092 s lead and the half side offset are spec values, [unconfirmed].
     let seek = player.position + player.velocity * 0.092 - 0.5 * offset + Vec3::new(0.0, 0.4, 0.0);
     Goal { drive: seek, speed, dest_velocity: player.velocity, look_at: player.position + player.velocity }
 }
@@ -121,12 +141,14 @@ pub fn skid_aborts(heli: Vec3, player: &Player) -> bool {
     let to = heli - player.position;
     let dist = horizontal_distance(heli, player.position);
     let ahead = to.dot(player.forward) > 0.0;
+    // 40 m ahead and 12 m behind are spec values, [unconfirmed]: no pool word.
     (ahead && dist > 40.0) || heli.y < player.position.y || (!ahead && dist > 12.0)
 }
 
 /// The search point: `distance` between 0.2 and 0.9 of `radius` from `centre` at `angle` turns, at the floor (if
 /// the heli sheet covers it, never below `centre`'s height) plus 5 m. `unit_random` in `0..=1` picks the distance.
 pub fn search_point(centre: Vec3, angle_turns: f32, unit_random: f32, radius: f32, floor: Option<f32>) -> Vec3 {
+    // The 0.2 and 0.7 of the radius are spec §6.1 [decomp]; the 1000 m radius is pool; the 5 m has no word.
     let dist = unit_random.clamp(0.0, 1.0) * 0.7 * radius + 0.2 * radius;
     let angle = angle_turns * std::f32::consts::TAU;
     let base = match floor {
@@ -168,12 +190,15 @@ impl Exit {
     /// Advances the stage from the helicopter and the player, then returns the goal for this think.
     pub fn think(&mut self, heli: Vec3, heli_velocity: Vec3, player: &Player, speed: f32) -> Goal {
         match self.stage {
+            // 15 m is pool [decomp]. The 85 m lead has no pool word, [unconfirmed].
             ExitStage::SeekUp if heli.y - player.position.y >= 15.0 => {
                 self.seek = player.position + player.forward * 85.0 + Vec3::new(0.0, EXIT_HEIGHT, 0.0);
                 self.stage = ExitStage::SeekCar;
             }
             ExitStage::SeekCar if (heli - self.seek).length() < 5.0 => {
                 let right = player.right();
+                // The 200 m dive is pool [decomp]; the side (-9 or 3) and the 30 m height are spec values,
+                // [unconfirmed]: no pool word.
                 let side = if right.dot(heli_velocity) >= 0.0 { -9.0 } else { 3.0 };
                 let direction = player.forward + right * side;
                 self.seek = player.position - direction * 200.0 + Vec3::new(0.0, 30.0, 0.0);
