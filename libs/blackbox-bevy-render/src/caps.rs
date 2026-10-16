@@ -1,14 +1,24 @@
 //! What the Bevy renderer can run. PR 9 drew the world path (glossy shading, redirects, the effect and UI
-//! layers); PR 10 adds bloom, tone mapping, FXAA, SMAA, TAA and the FSR 1 pass. Temporal upscalers and ray
-//! tracing still arrive with later PRs.
+//! layers); PR 10 adds bloom, tone mapping, FXAA, SMAA, TAA and the FSR 1 pass; PR 11 adds DLSS Super Resolution
+//! (`dlss.rs`, offered only where Bevy supports it, or always on `dlss-mock`). FSR 3/4 and ray tracing still
+//! arrive with later PRs.
 
 use blackbox_gfx::{
     AaSet, Antialiasing, Capabilities, GraphicsApi, MIN_RENDER_SCALE, RestartSet, RtSupport, Setting, Tonemap,
     TonemapSet, Upscaler, UpscalerSet,
 };
 
-/// The capabilities on `api`; `compressed_bc` comes from the device.
+/// The capabilities on `api` without DLSS, for tests; the factory uses [`capabilities_with_dlss`].
+#[cfg(test)]
 pub fn capabilities(api: GraphicsApi, compressed_bc: bool) -> Capabilities {
+    capabilities_with_dlss(api, compressed_bc, false)
+}
+
+/// The capabilities on `api`. `dlss_supported` is whether Bevy found DLSS Super Resolution on this machine; the
+/// `dlss-mock` build offers DLSS regardless.
+pub fn capabilities_with_dlss(api: GraphicsApi, compressed_bc: bool, dlss_supported: bool) -> Capabilities {
+    let mut upscalers = UpscalerSet::of(&[Upscaler::Off, Upscaler::Bilinear, Upscaler::Fsr1]);
+    offer_dlss(&mut upscalers, dlss_supported);
     Capabilities {
         renderer: "bevy",
         api,
@@ -16,7 +26,7 @@ pub fn capabilities(api: GraphicsApi, compressed_bc: bool) -> Capabilities {
         // Bloom and tone mapping need an `Hdr` camera (`PostSettings::needs_hdr`); set only when either runs.
         hdr_targets: true,
         antialiasing: AaSet::of(&[Antialiasing::Off, Antialiasing::Fxaa, Antialiasing::Smaa, Antialiasing::Taa]),
-        upscalers: UpscalerSet::of(&[Upscaler::Off, Upscaler::Bilinear, Upscaler::Fsr1]),
+        upscalers,
         tonemaps: TonemapSet::of(&[Tonemap::Off, Tonemap::Aces]),
         bloom: true,
         scene_treatment: false,
@@ -31,6 +41,15 @@ pub fn capabilities(api: GraphicsApi, compressed_bc: bool) -> Capabilities {
     }
 }
 
+#[cfg(any(feature = "dlss", feature = "dlss-mock"))]
+fn offer_dlss(upscalers: &mut UpscalerSet, supported: bool) {
+    crate::dlss::offer(upscalers, supported);
+}
+
+/// Builds without DLSS offer nothing extra.
+#[cfg(not(any(feature = "dlss", feature = "dlss-mock")))]
+fn offer_dlss(_upscalers: &mut UpscalerSet, _supported: bool) {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -44,7 +63,12 @@ mod tests {
             caps.antialiasing,
             AaSet::of(&[Antialiasing::Off, Antialiasing::Fxaa, Antialiasing::Smaa, Antialiasing::Taa])
         );
-        assert_eq!(caps.upscalers, UpscalerSet::of(&[Upscaler::Off, Upscaler::Bilinear, Upscaler::Fsr1]));
+        // The `dlss-mock` build also offers DLSS (`dlss::offer`); no build offers it without a supporting GPU here.
+        let mut upscalers = UpscalerSet::of(&[Upscaler::Off, Upscaler::Bilinear, Upscaler::Fsr1]);
+        if cfg!(feature = "dlss-mock") {
+            upscalers.insert(Upscaler::Dlss);
+        }
+        assert_eq!(caps.upscalers, upscalers);
         assert_eq!(caps.tonemaps, TonemapSet::of(&[Tonemap::Off, Tonemap::Aces]));
         assert!(caps.bloom && caps.hdr_targets);
         assert!(!caps.ray_tracing.is_available());

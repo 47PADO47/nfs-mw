@@ -76,6 +76,9 @@ fn apply_queue(
         };
         (std::mem::take(&mut shared.ops), shared.frame.take(), request, shared.settings, shared.surface)
     };
+    // The `dlss-mock` build draws a DLSS request as TAA plus FSR 1 (`dlss::mock`); everything below sees that.
+    #[cfg(feature = "dlss-mock")]
+    let settings = crate::dlss::mock::stand_in(settings);
     for op in ops {
         assets::apply_op(state, stores, op);
     }
@@ -151,6 +154,9 @@ fn drive_screen(
         screen.applied = Some(*settings);
         screen.render_size = render_size;
     }
+    // Every frame, after `set_post`: it can take the prepasses that DLSS needs away, so they go back on here.
+    #[cfg(all(feature = "dlss", not(feature = "dlss-mock")))]
+    crate::dlss::sdk::set(commands, screen.entity, settings, data.frame.camera_cut);
     if screen.vsync != Some(settings.vsync) {
         // Mailbox, not AutoNoVsync: Bevy's no-vsync fallback list tries Immediate first, which on Mesa under
         // Wayland and Xwayland still ran at the display rate (60 fps) where Mailbox ran unthrottled; wgpu's own

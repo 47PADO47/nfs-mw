@@ -7,6 +7,8 @@
 //! the plugin is added to the `App` before `run()`, and the backend is created in a system once `RenderDevice`
 //! is in the main world (after the plugins' `finish`).
 
+#[cfg(all(feature = "dlss", not(feature = "dlss-mock")))]
+use bevy_anti_alias::dlss::{DlssInitPlugin, DlssSuperResolutionSupported as DlssSupport};
 use bevy_app::{App, Plugin, PostUpdate};
 use bevy_asset::{AssetEventSystems, AssetPlugin};
 use bevy_camera::CameraPlugin;
@@ -14,6 +16,7 @@ use bevy_camera::visibility::VisibilitySystems;
 use bevy_core_pipeline::upscaling::upscaling;
 use bevy_core_pipeline::{Core3d, Core3dSystems, CorePipelinePlugin};
 use bevy_diagnostic::FrameCountPlugin;
+use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Res, SystemParam};
 use bevy_image::ImagePlugin;
@@ -34,6 +37,11 @@ use crate::post::fsr1::{self, Fsr1Render};
 use crate::probe::{api_of, backends_for};
 use crate::systems::effects::{self, EffectsRender};
 use crate::systems::ui::{self, UiRender};
+
+/// Without the DLSS SDK path there is no Bevy resource to find: this is never inserted, so the factory sees no DLSS.
+#[cfg(not(all(feature = "dlss", not(feature = "dlss-mock"))))]
+#[derive(Resource)]
+struct DlssSupport;
 
 /// Adds the Black Box renderer to an `App` that already has the task pool, time and window plugins.
 #[derive(Debug, Clone, Copy)]
@@ -70,6 +78,13 @@ impl Plugin for BlackboxBevyRenderPlugin {
         }
         if !app.is_plugin_added::<ImagePlugin>() {
             app.add_plugins(ImagePlugin::default());
+        }
+        // DLSS configures the instance and device creation that `RenderPlugin` runs, so it is added first, and it
+        // reads the project id from the app when it is built.
+        #[cfg(all(feature = "dlss", not(feature = "dlss-mock")))]
+        {
+            app.insert_resource(crate::dlss::sdk::project_id());
+            app.add_plugins(DlssInitPlugin);
         }
         app.add_plugins((
             RenderPlugin {
@@ -142,21 +157,34 @@ pub struct BackendFactory<'w> {
     bridge: Res<'w, BlackboxBridge>,
     device: Res<'w, RenderDevice>,
     adapter: Res<'w, RenderAdapterInfo>,
+    /// Present when Bevy found DLSS Super Resolution on this machine (`DlssPlugin::finish`).
+    dlss: Option<Res<'w, DlssSupport>>,
 }
 
 impl BackendFactory<'_> {
     /// The backend for a surface of `size` pixels. The world draws into the primary window.
     pub fn create(&self, size: [u32; 2]) -> BevyBackend {
-        backend(&self.bridge, &self.device, &self.adapter, size)
+        backend_with_dlss(&self.bridge, &self.device, &self.adapter, size, self.dlss.is_some())
     }
 }
 
-/// The backend for `bridge`, on the device and adapter Bevy created.
+/// The backend for `bridge`, on the device and adapter Bevy created. It does not offer DLSS: the factory knows
+/// whether Bevy supports it, a bare harness does not look (the `dlss-mock` build offers it anyway).
 pub fn backend(
     bridge: &BlackboxBridge,
     device: &RenderDevice,
     adapter: &RenderAdapterInfo,
     size: [u32; 2],
+) -> BevyBackend {
+    backend_with_dlss(bridge, device, adapter, size, false)
+}
+
+fn backend_with_dlss(
+    bridge: &BlackboxBridge,
+    device: &RenderDevice,
+    adapter: &RenderAdapterInfo,
+    size: [u32; 2],
+    dlss_supported: bool,
 ) -> BevyBackend {
     let api = api_of(adapter.backend);
     let compressed_bc = device.features().contains(wgpu::Features::TEXTURE_COMPRESSION_BC);
@@ -166,5 +194,6 @@ pub fn backend(
         adapter: adapter.name.clone(),
         driver: format!("{} {}", adapter.driver, adapter.driver_info).trim().to_owned(),
     };
-    BevyBackend::new(bridge.share(), info, crate::caps::capabilities(api, compressed_bc), size)
+    let caps = crate::caps::capabilities_with_dlss(api, compressed_bc, dlss_supported);
+    BevyBackend::new(bridge.share(), info, caps, size)
 }
