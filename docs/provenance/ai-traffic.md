@@ -83,3 +83,52 @@ The adapter preserves horizontal heading, uses tangent velocity and updates
 contact history. This follows the observed remake fault and geometric support
 requirements, not copied original code. It does not establish complete original
 traffic suspension or turning behavior.
+
+## Traffic removal rule, 2026-10-16
+
+Read-only static analysis of the original PC 1.3 executable (`speed.exe`, same SHA-256 as above), in
+Ghidra project `nfsmw`, program `/speed.exe`. Symbols are stripped, so every address below is a
+Ghidra address (image base `0x00400000`). The rule is written in [specs/ai-traffic-spawning.md section 8](../specs/ai-traffic-spawning.md#8-removing-cars).
+
+Found by this chain:
+
+| Address | Role | How found |
+|---|---|---|
+| `0x004418d0` | traffic manager constructor; sets its vtables (`0x0089221c` primary, `0x00892214` at object offset 8) and registers its task with class key `AITrafficManager` (string `0x00892228`) | string xref by reading the vtable table at `0x00892200` |
+| `0x006ee9b0`, `0x006ed0f0`, `0x006eccd0` | task registration: rate 0.5, offset 0.5, the callback object is manager offset 8, the task id is stored at manager offset `0x5c` | callees of the constructor |
+| `0x006ecd90` | scheduler step: calls the callback object's vtable slot 1 with the task id and the frame time | task object layout (the step is the one in the 2026-10-12 record) |
+| `0x00439cd0` | callback: vtable slot 1 of `0x00892214`; returns 1 and forwards to the tick only when the id matches the manager's stored id | bytes read at `0x00439cd0` (Ghidra had no function there) |
+| `0x00439bb0` | manager tick (created as a function in the Ghidra project, which had none there): density, timers, one spawn attempt, then the removal loop over active pool cars | target of the callback |
+| `0x00410b00` | removal validity test (recursive: trailer child, detached parts) | callee of the tick loop |
+| `0x0041ec20` | density (passed to the validity test) | callee of the tick |
+| `0x004307c0` | pattern selection and traffic-centre mean position (vector at `0x0092fe24`) | callee of the tick |
+| `0x006533b0` | piecewise-linear table lookup used for the rate and the removal limits | callee of the tick and the validity test |
+| table structs `0x008eb358` (distance) and `0x008eb36c` (time), data `0x00890564` and `0x00890590` | D(d) and T(d) values, 11 points, index = d * 10 | data read from the struct and the data arrays |
+| `0x006ed550`, `0x006ece90` | distance `min(|p - P1|, k |p - P0|)` on global `DAT_009885e0` (3D) | callee of the validity test |
+| `0x00404f90` and query vtable `0x00890c10` | visitor: sets the query's flag at +4 when a child matches the predicate; used for the detached-part keep test | callee of the validity test |
+| `0x005d59f0` with key `0x004040d0` | attached child lookup (trailer role, unconfirmed) | callee of the validity test |
+| `0x00406600` | stub that returns false (`xor al,al; ret 8`), a vtable slot of the manager | read at the vtable |
+
+Other callers of the distance function: `0x00420040` (80 m test on a per-car record), `0x005e8960`
+(4 s and 100 m test), `0x0066a200` (a per-car ratio), `0x0069c030` (a region code test with 0.8 margins; not
+traffic-specific as far as read). Only `0x005e8960` is near the removal limits and it is a lead, not confirmed.
+
+Dead ends and checks:
+
+- No string contains `offscreen`, `despawn`, `visible` or `inview` (`search_strings` on the whole binary).
+  The only traffic strings are the class and message names (`AITrafficManager`, `AIVehicleTraffic`,
+  `SetTrafficSpeed`, `TRAFFIC_PATTERN`, `DRIVER_TYPE_TRAFFIC_CAR`, `TrafficLevel`).
+- Name-based function searches (`find_functions` with patterns for offscreen, despawn, visibility, traffic) and
+  class-member lists for `AITrafficManager` and `IVehicle` return nothing: the program has no class names.
+- The cross-reference tools (`get_xrefs_to`, `get_function_call_graph`) were not callable in this session. Function
+  callers were taken with `get_functions` and `fields=callers` instead; data references to a string or global
+  were not searched.
+- Two programs named `speed.exe` are open (`/New Traces/pydbg/speed.exe` and `/speed.exe`). Calls must pass
+  `/speed.exe`.
+- Vtable slots at `0x00433030` and `0x00433040` and the tick's neighbours have no function in the project; the
+  manager vtable beyond slot 0 is mostly stubs or undefined.
+
+Open items are listed as "Next leads" in the spec. The main ones: the identity of the view object
+`DAT_009885e0` (it is also the scheduler object that the task registration uses, so the identity is not obvious),
+the writer of the car's off-screen time (where any in-view test must be), the car class's vtable slots, and the
+predicate of the detached-part visitor.

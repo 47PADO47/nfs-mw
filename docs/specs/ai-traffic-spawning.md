@@ -278,19 +278,42 @@ Every tick, every **active** pool car is validated; an invalid one is **unspawne
 vehicle is deactivated; it stays in the pool):
 
 ```
-invalid = car.is_off_world()
-if not invalid and car.offscreen_time > T(density):
-    invalid = distance_to_camera(car.position) > D(density)
-if invalid and car is a tractor with a trailer and the trailer is VALID by this same test:  keep
-if invalid and any child part of the car's model (detached pieces) is in view:               keep
-remove if invalid
+valid(car, d):                      # d = the density computed this tick
+    if car.off_world:              # [unconfirmed] flag name; no time or distance test
+        removable = true
+    else:
+        removable = car.offscreen_time > T(d) and dist(car.position) > D(d)
+    if not removable:
+        return VALID
+    if car has an attached trailer child and valid(trailer, d):   return VALID
+    if any detached part of the car's model reports its visible flag:   return VALID
+    return INVALID                 # the tick unspawns the car
 ```
 
-- `offscreen_time` is the number of seconds the car has not been in view; `is_off_world` means the car has left the
-  playable world (fell off, no ground). Their implementers are not in the sources read: **[unconfirmed]**.
-- With `D(d)`, `T(d)` of section 2: at free roam (density 1) a car is removed once it has been out of view for 4 s and
-  is more than 40 m from the camera; at density 0 (also used while a cutscene or a cop request makes the density 0)
-  the limits are 12 s and 130 m. Cars that are always in view are never removed by distance.
+- **Tick placement [decomp].** Removal runs after the spawn attempt, for active cars only, once per tick. The
+  density passed in is the tick's `d` (section 2), so it is 0 during a cutscene or a cop request. No separate
+  camera read is made by this test.
+- **Off-screen time [decomp input, writer not found].** The test reads a per-car accumulated time. The code that
+  writes it, and any cone, frustum or FOV test that decides "in view", is **not** in this path. The
+  "in view" test of the port (a 60 degree cone around the player) and the camera-frustum claim of the earlier
+  text are therefore **[unconfirmed]**. A car whose time stays at or below `T(d)` is never removed by distance.
+- **Limits [decomp, table values read from the PC binary].** The PC data equals the `D(d)` and `T(d)` columns of
+  section 2 (130 m down to 40 m, 12 s down to 4 s, same 11 points, same linear interpolation, clamped at both
+  ends). At density 1 a car is removed when it has been off-screen for more than 4 s and is more than 40 m away;
+  at density 0 the limits are 12 s and 130 m.
+- **Distance [decomp; origin unconfirmed].** `dist(p) = min(|p - P1|, k * |p - P0|)`, a **3D** distance (height
+  counts), taken from one global view object in the PC binary. `P0`, `P1` and `k` are three values stored on that
+  object. Whether `P0` is the camera eye and `P1` the focus (or the player) is **[unconfirmed]**. The rewrite
+  uses a horizontal (2D) distance from the player, which differs from this in both origin and metric.
+- **Keep-alive checks [decomp].** Only a removable car gets these. (1) Trailer: the car's attached child in the
+  trailer role (looked up by a fixed per-role key; the key is not named yet, so a tractor-only reading is
+  **[unconfirmed]**) is validated by the same rule, recursively; if it is valid the car is kept. (2) Detached
+  parts: every part of the car's model is asked a predicate through a visitor that stops at the first match; a
+  match keeps the car. The predicate is the part class's slot for a visible-type flag **[unconfirmed]**
+  (`visible` in the port's sense is not proven). Both checks are needed only when the car is removable.
+- **No maximum-distance despawn [decomp].** The removal path has no absolute distance rule. The rewrite's 350 m
+  limit, its airborne limit and its idle or stuck limit have no counterpart here. Other original code may apply
+  such limits elsewhere (not found).
 - A traffic centre also blocks a spawn within 150 m (section 6), so a car cannot normally be removed and respawned in
   the same place.
 
@@ -343,8 +366,8 @@ In the original (PC build):
 
 ## 11. Open questions
 
-- Who implements the traffic centres (all local cameras? the player cars?) and what `is_off_world` and
-  `offscreen_time` measure exactly.
+- Who implements the traffic centres (all local cameras? the player cars?), who writes a car's off-screen time and
+  what sets its off-world flag, and what the view object's `P0`, `P1` and `k` are (section 8).
 - How `TrafficLevel` / `ForceTrafficDensity` of a race become `traffic_density` (which wins, and the scaling): the
   code that reads them is stripped from the decompiled sources.
 - Whether the vehicle count used by the cap (`Count(ALL)`) includes inactive cop/helicopter pool cars and trailers.
@@ -370,3 +393,18 @@ trailer the same way, then check support after horizontal hitch alignment.
 This is a correction to the remake's spawn adapter, not a recovered original
 ground-placement algorithm. The original traffic-specific suspension, curved
 support fitting and matched driving comparisons remain separate parity work.
+
+## Next leads (removal, section 8)
+
+1. Identify the global view object (the PC binary's `DAT_009885e0`): find the code that writes its reference points and
+   scale, and check whether it is the camera or a camera manager (the binary has camera class strings).
+2. Find the writer of a car's off-screen time: start from the car class's implementation of the time query, and find
+   the per-frame update that resets it (the in-view test should be there).
+3. Name the car-class slots used by the removal test (off-world flag, position, off-screen time, active flag, unspawn,
+   attached child, model access) by reading the car class's vtable and its constructor.
+4. Name the per-role key of the trailer lookup and the part predicate. The key next to it in the driver code gives a
+   second sample for comparison.
+5. The `0x5e8960` caller uses the same 4 s and 100 m limits with the same distance function. Check whether it is a
+   separate original rule (cop or pedestrian) and whether it uses the same view object.
+6. Several entries of the manager's vtable point at undefined code. Create functions where the bytes are code,
+   before reading the rest of the vtable.
