@@ -46,6 +46,11 @@ pub fn render_size(target: [u32; 2], render_scale: f32) -> Option<(u32, u32)> {
 /// (before this fix) measured a softer-looking but **wrongly framed** image, not just a blurrier one:
 /// EASU was upscaling a render that was never actually downscaled, from the wrong assumed input size.
 /// Scheduled in `Core3dSystems::Prepass`, before the main pass whose size it controls.
+///
+/// On the real DLSS build this stays out of the way while DLSS is the upscaler: Bevy's `prepare_dlss` sets the
+/// override from the SDK's render resolution, and removing it here would undo that. Capture cameras draw at their
+/// own full size on that path too (they never run DLSS, see `apply/capture.rs`), so they are not shrunk here either.
+/// The `dlss-mock` build keeps using the render scale, since its DLSS request is TAA plus FSR 1.
 pub fn apply_resolution_override(
     bridge: Res<BlackboxBridge>,
     view: ViewQuery<(Entity, &ExtractedCamera)>,
@@ -53,9 +58,13 @@ pub fn apply_resolution_override(
 ) {
     let (entity, camera) = view.into_inner();
     let Some(target) = camera.physical_target_size else { return };
-    let render_scale = bridge.lock().settings.render_scale;
+    let settings = bridge.lock().settings;
+    #[cfg(all(feature = "dlss", not(feature = "dlss-mock")))]
+    if settings.upscaler == blackbox_gfx::Upscaler::Dlss {
+        return;
+    }
     let mut entity = commands.entity(entity);
-    match render_size([target.x, target.y], render_scale) {
+    match render_size([target.x, target.y], settings.render_scale) {
         Some((w, h)) => entity.insert(MainPassResolutionOverride(bevy_math::UVec2::new(w, h))),
         None => entity.remove::<MainPassResolutionOverride>(),
     };

@@ -81,6 +81,24 @@ softer than AMD's reference value.
 - **Alt+Tab, resizing and moving between monitors** keep the setting; the scene images are recreated
   at the new size.
 
+## DLSS status
+
+DLSS Super Resolution is offered by the Bevy renderer only (`libs/blackbox-bevy-render`). It has two builds:
+
+- `dlss-mock` is what has been tested here. A DLSS request runs as TAA plus the FSR 1 pass at the same render
+  scale, so the caps, settings and apply path are exercised without an RTX GPU. The picture is not DLSS's.
+  `cargo test -p blackbox-bevy-render --features dlss-mock --lib`.
+- `dlss` is the real path: Bevy's `Dlss` camera component, written against `bevy_anti_alias` 0.20.0 and
+  `dlss_wgpu` 6.0.0. It is **not compiled on the development PC**, because the NVIDIA DLSS SDK is not installed
+  there. Treat it as unverified until it builds and runs on an RTX machine. It is offered only when Bevy finds
+  DLSS Super Resolution.
+
+On the real path, Bevy sets the render size of the main pass from the SDK, so `post::scale` leaves
+`MainPassResolutionOverride` alone while DLSS is the upscaler. Capture cameras (reflection and mirror pictures) do
+not use DLSS and draw at their full size. The DLSS quality modes map to the shared render-scale table
+(`UpscaleQuality::render_scale`), so Balanced renders at 1/1.7 (about 59 %) where NVIDIA's own Balanced ratio is
+0.58.
+
 ## For developers
 
 `blackbox-render` exposes `Renderer::set_render_scale`, `set_upscaler(Upscaler::{Bilinear, Fsr1})`,

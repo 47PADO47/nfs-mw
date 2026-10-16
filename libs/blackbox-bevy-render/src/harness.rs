@@ -27,6 +27,10 @@ pub struct HeadlessBevy {
 impl HeadlessBevy {
     /// A renderer for `size`-pixel captures on `api`, or why this machine cannot run one. With
     /// `force_fallback_adapter` the API's software adapter is used (lavapipe, WARP).
+    ///
+    /// DLSS: this backend never offers it on the real `dlss` build. The harness does not look for Bevy's DLSS
+    /// support (no `DlssPlugin` is added here, and no SDK is initialised for a headless run), so `plugin::backend`
+    /// leaves it out of the caps. The `dlss-mock` build offers it anyway, as its TAA plus FSR 1 stand-in.
     pub fn new(size: [u32; 2], api: GraphicsApi, force_fallback_adapter: bool) -> Result<Self, ProbeError> {
         // Bevy panics when it finds no adapter once the app is being built, so look first.
         probe_with(api, force_fallback_adapter)?;
