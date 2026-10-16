@@ -233,6 +233,8 @@ struct Vitals {
     offscreen: f32,
     /// A detached part of the car is in view: the car stays (spec §8).
     detached_seen: bool,
+    /// A traffic car blocked and standing for `ai-traffic-obstacles.md` §10.4's 60 s, with the avoidance setting on.
+    stuck: bool,
 }
 
 impl Vitals {
@@ -244,6 +246,7 @@ impl Vitals {
             idle: car.idle_time(),
             offscreen: car.offscreen_time(),
             detached_seen,
+            stuck: car.blocked_clock().is_some_and(|clock| clock.stuck()),
         }
     }
 
@@ -256,13 +259,15 @@ impl Vitals {
             offscreen: trailer.offscreen_time(),
             // Trailers have no part owner of their own in this port (spec §8 keep-alive is for the car's model).
             detached_seen: false,
+            stuck: false,
         }
     }
 
     /// Whether the car may stay. A visible detached part keeps it. A seen car always stays (its off-screen time is
     /// 0 after this tick's update). An unseen car is removed by the original's rule (unseen longer than
     /// `limits.time` and more than `limits.distance` away), or by the rewrite's extra rules: airborne, far beyond
-    /// 350 m, or stuck.
+    /// 350 m, or stuck. A stuck car (blocked and standing for 60 s, `ai-traffic-obstacles.md` §10.4) has met the time
+    /// half of the rule, so it goes once it is also past `limits.distance`; it is never removed in view.
     fn valid(&self, view: &Viewing, limits: Limits) -> bool {
         if !self.finite {
             return false;
@@ -276,7 +281,8 @@ impl Vitals {
         let gone = self.airborne >= MAX_AIRBORNE
             || view.away(self.position) >= DESPAWN_DISTANCE
             || (self.idle > STUCK_TIME && view.away(self.position) > STUCK_DISTANCE);
-        let unseen_too_long = self.offscreen > limits.time && view.distance(self.position) > limits.distance;
+        let unseen_too_long =
+            (self.offscreen > limits.time || self.stuck) && view.distance(self.position) > limits.distance;
         !(gone || unseen_too_long)
     }
 }
@@ -301,7 +307,7 @@ mod tests {
     }
 
     fn car_at(position: Vec3, offscreen: f32, airborne: f32) -> Vitals {
-        Vitals { position, finite: true, airborne, idle: 0.0, offscreen, detached_seen: false }
+        Vitals { position, finite: true, airborne, idle: 0.0, offscreen, detached_seen: false, stuck: false }
     }
 
     fn limits(density: f32) -> Limits {
@@ -348,6 +354,21 @@ mod tests {
         // The part is a sphere (render space) in front of the camera, which is what `parts_seen` tests.
         assert!(view.sees(Vec3::new(0.0, 20.0, 0.0), 1.0), "a part ahead is in view");
         assert!(!view.sees(Vec3::new(0.0, -50.0, 0.0), 1.0), "a part behind is not");
+    }
+
+    #[test]
+    fn a_stuck_car_goes_once_unseen_and_past_the_distance_only() {
+        let view = Viewing::new(&camera_north(), free_focus());
+        let stuck = |position: Vec3, offscreen: f32| Vitals { stuck: true, ..car_at(position, offscreen, 0.0) };
+        let behind = Vec3::new(0.0, -50.0, 0.0);
+        assert!(!view.sees(behind, CAR_RADIUS));
+        assert!(!stuck(behind, 0.5).valid(&view, limits(1.0)), "unseen, stuck and past 40 m: removable at once");
+        let near = Vec3::new(0.0, -10.0, 0.0);
+        assert!(stuck(near, 0.5).valid(&view, limits(1.0)), "inside the distance rule it stays");
+        let seen = Vec3::new(0.0, 50.0, 0.0);
+        assert!(view.sees(seen, CAR_RADIUS));
+        assert!(Vitals { stuck: true, ..car_at(seen, 0.0, 0.0) }.valid(&view, limits(1.0)), "never removed in view");
+        assert!(car_at(behind, 0.5, 0.0).valid(&view, limits(1.0)), "not stuck: the time rule still applies");
     }
 
     #[test]

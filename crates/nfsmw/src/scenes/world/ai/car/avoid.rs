@@ -4,12 +4,19 @@
 //! `blackbox_roads::{Blocked, LaneChange, lane_clear}`; this file feeds them the car's neighbours and moves the navigator.
 
 use blackbox_roads::{
-    Blocked, Body, Command, LaneChange, Other, Phase, RoadNav, RoadNetwork, SegmentIndex, Situation, adjacent_lanes,
-    lane_clear, right_of, travel_profile,
+    Blocked, Body, Command, Crossing, LaneChange, Other, Phase, RoadNav, RoadNetwork, SegmentIndex, Situation,
+    adjacent_lanes, lane_clear, right_of, travel_profile,
 };
 use glam::Vec3;
 
+use super::super::stop::{Lights, StopLine, yield_to_oncoming};
 use super::super::traffic::THINK_PERIOD;
+use super::AiCar;
+
+/// Seconds the horn of a blocked car sounds.
+const HONK_SECONDS: f32 = 1.5;
+/// Metres from the player within which a blocked car sounds its horn: the horn is for the player to hear.
+const HONK_RANGE: f32 = 20.0;
 
 /// The avoidance state of one traffic car.
 #[derive(Debug, Default)]
@@ -18,11 +25,50 @@ pub(super) struct Avoid {
     enabled: bool,
     blocked: Blocked,
     change: LaneChange,
+    /// How long the car has waited for an oncoming car at its green line (`stop::yield_to_oncoming`).
+    crossing: Crossing,
 }
 
 impl Avoid {
     pub(super) fn set_enabled(&mut self, on: bool) {
         self.enabled = on;
+    }
+
+    /// The blocked clock, when the setting is on. Off, the clock never runs and nothing reads it.
+    pub(super) fn blocked_clock(&self) -> Option<Blocked> {
+        self.enabled.then_some(self.blocked)
+    }
+
+    /// The horn this car sounds now, as its duration in seconds, or `None`. It sounds once per blocked episode
+    /// (`Blocked::take_honk`), only with the setting on and the player within [`HONK_RANGE`] metres (`player_distance`;
+    /// infinite when there is no player).
+    pub(super) fn honk(&mut self, player_distance: f32) -> Option<f32> {
+        if !self.enabled || player_distance > HONK_RANGE {
+            return None;
+        }
+        self.blocked.take_honk().then_some(HONK_SECONDS)
+    }
+
+    /// The oncoming-gap rule for the car's stop line: a green line may be held like a red one while an oncoming car
+    /// nears the junction. `approach` is the signalled approach the line is on (the car's `stop_memory`, which
+    /// `stop::find` sets with the line). Off with the setting, and the line is returned unchanged. The
+    /// think in `car.rs` calls it between the `before_think` and the `traffic::think` lines.
+    pub(super) fn yield_at(
+        &mut self,
+        net: &RoadNetwork,
+        lights: Option<Lights<'_>>,
+        stop: Option<StopLine>,
+        approach: Option<usize>,
+        others: &[Body],
+    ) -> Option<StopLine> {
+        if !self.enabled {
+            return stop;
+        }
+        let (Some(lights), Some(stop), Some(approach)) = (lights, stop, approach) else {
+            self.crossing = Crossing::default();
+            return stop;
+        };
+        Some(yield_to_oncoming(&lights, net, stop, approach, &mut self.crossing, THINK_PERIOD, others))
     }
 
     /// Runs the lane rules for one think, before the car's speed is decided: the blocked clock runs, and the car may
@@ -81,6 +127,19 @@ impl Avoid {
     /// Adds the distance the car drove since the last physics step, for the blend.
     pub(super) fn advance(&mut self, metres: f32) {
         self.change.advance(metres);
+    }
+}
+
+impl AiCar {
+    /// The horn duration of this car if it sounds its horn now (see [`Avoid::honk`]); `player_distance` is the
+    /// distance to the player in metres, infinite without one.
+    pub(in crate::scenes::world::ai) fn take_honk(&mut self, player_distance: f32) -> Option<f32> {
+        self.avoid.honk(player_distance)
+    }
+
+    /// The blocked clock of this car (`Blocked::stuck` says whether it is stuck), when the rewrite's avoidance is on.
+    pub fn blocked_clock(&self) -> Option<Blocked> {
+        self.avoid.blocked_clock()
     }
 }
 
@@ -211,6 +270,44 @@ mod tests {
             avoid.before_think(&net, &index, &mut nav, &car_at(10.0, 9.0), &[stopped_at(40.0)], true);
         }
         assert_eq!(nav.lane, 1, "above 5 m/s it does not move over");
+    }
+
+    #[test]
+    fn a_blocked_car_honks_once_per_episode_when_the_player_is_near() {
+        let mut avoid = enabled();
+        for _ in 0..10 {
+            avoid.blocked.tick(0.5, true, 0.0);
+        }
+        assert_eq!(avoid.honk(10.0), Some(HONK_SECONDS));
+        assert_eq!(avoid.honk(10.0), None, "already honked this episode");
+    }
+
+    #[test]
+    fn a_far_player_gets_no_horn_and_the_horn_waits_for_one() {
+        let mut avoid = enabled();
+        avoid.blocked.tick(blackbox_roads::HONK_AFTER + 0.5, true, 0.0);
+        assert_eq!(avoid.honk(HONK_RANGE + 1.0), None, "the player is out of range");
+        assert_eq!(avoid.honk(HONK_RANGE), Some(HONK_SECONDS), "still due: the episode did not use it up");
+    }
+
+    #[test]
+    fn with_the_setting_off_there_is_no_horn_and_no_blocked_clock() {
+        let mut avoid = Avoid::default();
+        avoid.blocked.tick(10.0, true, 0.0);
+        assert_eq!(avoid.honk(0.0), None);
+        assert_eq!(avoid.blocked_clock(), None);
+        assert_eq!(enabled().blocked_clock(), Some(Blocked::default()));
+    }
+
+    #[test]
+    fn with_the_setting_off_a_green_line_is_not_held() {
+        let net = two_lanes();
+        let mut avoid = Avoid::default();
+        let line = StopLine { distance: 5.0, light: blackbox_roads::Light::Green };
+        let controller = blackbox_roads::SignalController::new(&net);
+        let lights = Lights { controller: &controller, time: 0.0 };
+        assert_eq!(avoid.yield_at(&net, Some(lights), Some(line), Some(0), &[]), Some(line));
+        assert_eq!(avoid.yield_at(&net, None, None, None, &[]), None);
     }
 
     #[test]

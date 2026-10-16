@@ -328,19 +328,21 @@ way the traffic-light extension is ([ai-traffic-world.md §8](ai-traffic-world.m
 ## 12. Port status
 
 What the port does now, against §9 and §10. Settings: `traffic_avoidance` (default **off**; TOML key of the same name,
-`NFSMW_TRAFFIC_AVOIDANCE`, console `set traffic_avoidance on`). The pure rules are in `libs/blackbox-roads/src/avoidance/`;
-the game wiring is `crates/nfsmw/src/scenes/world/ai/car/avoid.rs`.
+`NFSMW_TRAFFIC_AVOIDANCE`, console `set traffic_avoidance on`). The pure rules are in `libs/blackbox-roads/src/avoidance/`
+and `libs/blackbox-roads/src/junction_crossing.rs`; the game wiring is in `crates/nfsmw/src/scenes/world/ai/`
+(`car/avoid.rs`, `stop.rs`, `collide.rs`, `car/hits.rs`, `population.rs`) and the traffic sound path in
+`crates/nfsmw/src/audio/traffic/`.
 
 | Item | Status | Where |
 |---|---|---|
-| §9.1 (a)1 crash restart from over | done: a hit by the player at 5 mph or more restarts an "over" car; a hit while in progress restarts the three thinks | `car/accident.rs` `on_hit(traffic, tractor, fast)`, `car/hits.rs` |
-| §9.1 (a)2 crash gate | done for the player: the hit must be by the player and within 80 m of the view. The class gate is "human only": AI cop and racer hits do not reach the trigger yet, because `collide.rs` does not pass the other party's class | `car/hits.rs` `starts_crash`, `is_fast` |
+| §9.1 (a)1 crash restart from over | done: a hit by a human, cop or racer at 5 mph or more restarts an "over" car; a hit while in progress restarts the three thinks | `car/accident.rs` `on_hit(traffic, tractor, fast)`, `car/hits.rs` `on_hit` |
+| §9.1 (a)2 crash gate | done: the class of the party that hit the car must be human, cop or racer (classes 0, 2, 3), so traffic against traffic does not start a crash; the 80 m view gate and the 5 mph rule use the hitter's speed. `collide.rs` passes each party's class and speed with the hit. The port has no AI racer, so class 3 does not occur yet | `collide.rs` `DriverClass` and `Hit`, `car/hits.rs` `starts_crash`, `driver_class` |
 | §9.1 (a)3 tractor steering in the crash | done: a tractor keeps the steering it had in both phases | `car/accident.rs` `controls(tractor, held_steer)` |
 | §9.1 (a)4 stopping distance (`/80` vs `/20`) | **not changed**. The port still uses `/80`. Decide after §11 check 1 in the game | `traffic.rs` `stopping_distance` |
 | §10.1 lane change to the next lane, same direction | done behind the setting (see the notes below) | `avoidance/change.rs`, `avoidance/gap.rs`, `avoidance/blend.rs`, `car/avoid.rs` |
-| §10.2 wait for an oncoming gap at a crossing | **rule only**: `Crossing` and `time_to_closest` with the 3 s threshold and 8 s timeout are tested, but nothing calls them, because the port does not yet find the crossing point of a decision segment | `avoidance/crossing.rs` |
-| §10.3 honk when blocked | **rule only**: `Blocked::take_honk` (once per blocked episode, at 3 s as the brief asks, not the 2 s and 20 m of the spec). The sound is not wired: `TrafficSound::Horn` exists only under `cfg(test)` in `audio/traffic.rs`, so a production horn event is a follow-up | `avoidance/blocked.rs` |
-| §10.4 stuck timeout (60 s) | **rule only**: `Blocked::stuck`. Removal is not wired. Two steps remain: the car must expose its `Blocked` clock (today `car/avoid.rs` keeps it private), and `population.rs` `Vitals::valid` must treat a stuck car as removable. That check stays off-screen only, as the rewrite's other removal rules are. The rewrite's existing rule there (idle 20 s and more than 40 m away) is not the 60 s timeout | `avoidance/blocked.rs` |
+| §10.2 wait for an oncoming gap at a crossing | **built, one call pending**. `junction_crossing.rs` gives the crossing point and the earliest oncoming car; `stop.rs` `yield_to_oncoming` holds a green line as a red one while an oncoming car will reach the crossing within 3 s, and goes after 8 s (`Crossing`, the existing rule). `car/avoid.rs` `yield_at` is the entry point, off with the setting. Nothing calls it yet (see "Not in this pass") | `libs/blackbox-roads/src/junction_crossing.rs`, `avoidance/crossing.rs`, `stop.rs`, `car/avoid.rs` |
+| §10.3 honk when blocked | done: a blocked car honks once per blocked episode, 3 s after it is blocked, with the player within 20 m. The horn is the car's own horn sample, played by the traffic emitter for 1.5 s. Sound only. The shared 3 s horn cooldown of the authored traffic audio applies | `avoidance/blocked.rs` `take_honk`, `car/avoid.rs` `honk`, `collide.rs` (the `TrafficSound::Horn` event), `audio/traffic/controller.rs` `horn_allowed` |
+| §10.4 stuck timeout (60 s) | done with the setting on: `Blocked::stuck` (60 s blocked and standing) makes an unseen car removable once it is also past the manager's distance, so the time part of the rule is met by the stuck clock. A car in view is never removed by it | `avoidance/blocked.rs`, `car/avoid.rs` `blocked_clock`, `population.rs` `Vitals::valid` |
 
 Notes on the lane change (§10.1), where the implementation chose:
 
@@ -358,8 +360,27 @@ Notes on the lane change (§10.1), where the implementation chose:
   waits. After 15 m clear of the blocker in the new lane, it moves home if the home gap is clear.
 - **Off by default.** With the setting off no rule runs and the car never leaves its lane (checked in a unit test).
 
-Not in this pass: the cars do not yet read the other party's driver class for the crash gate (§9.1 (a)2), and nothing
-in the simulation calls the crossing, honk or stuck rules (§10.2 to §10.4 above).
+Notes on the other rules:
+
+- **Oncoming cars.** A car going the same way as the waiting car (heading within 45 degrees) is behind it and does not
+  count. Cars crossing at a right angle and cars coming the other way do. A standing car does not count.
+- **Crossing point.** The centre of the junction: the mean of its nodes. The data gives no lane-level crossings, so this
+  is exact for a four-way junction and an estimate for a T junction. Unsignalled junctions have no rule.
+- **Every car, not only turners.** The rule holds every car at a green signalled line, because the turn a car will make
+  is not known at the stop line. The spec's "turning car" is therefore wider here than in §10.2.
+- **Honk range.** The player's distance is the distance between the car and the player in physics space. The horn
+  duration (1.5 s) is the implementation's choice; the spec gives none.
+
+Not in this pass:
+
+- **The oncoming-gap rule needs one line in `car.rs`**, which is outside this pass's file list. In `AiCar::think`, after
+  the `self.avoid.before_think(...)` call and before `traffic::think`, add
+  `state.stop = self.avoid.yield_at(ctx.net, ctx.lights, state.stop, self.stop_memory, &others);`. The
+  `#[allow(dead_code)]` on `yield_at` (`car/avoid.rs`) goes with that call. Until then §10.2 is inert.
+- **Stuck removal is off-screen only, and needs the distance.** A stuck car far from the player is removed; a stuck car
+  near the player is kept, as the rewrite's other removal rules keep near cars. The rewrite's own idle rule (20 s and
+  more than 40 m away) is unchanged.
+- **§10.2's "turning car" and the exact lane crossing** are not modelled (see the notes above).
 
 ## Next leads
 

@@ -7,6 +7,7 @@ use blackbox_pursuit::wreck::{Wreck, WreckTuning, is_flipped, zone_of};
 use glam::Vec3;
 
 use super::{AiCar, Role, SHOCK_FORCE, SHOCK_MIN_SPEED_CHANGE};
+use crate::scenes::world::ai::collide::DriverClass;
 
 /// Seconds after a hit by the player's car that the car still counts as moved by it (the causality chain;
 /// design value, unconfirmed).
@@ -17,10 +18,10 @@ const CRASH_VIEW: f32 = 80.0;
 /// 5 mph in metres per second: a vehicle at this speed or faster starts a crash again when the car is already over.
 const CRASH_MIN_SPEED: f32 = 2.235_15;
 
-/// Whether a hit starts a crash: only a hit by the player does it in this port, and only within the view distance. The
-/// other party is a human (the class gate); AI cop and racer hits do not reach here as player hits yet.
-pub(super) fn starts_crash(by_player: bool, from_camera: f32) -> bool {
-    by_player && from_camera <= CRASH_VIEW
+/// Whether a hit starts a crash (`ai-traffic-obstacles.md` section 5.1): the party that hit the car is a human, a cop
+/// or a racer (classes 0, 2 and 3), not traffic, and the hit is within the view distance.
+pub(super) fn starts_crash(striker: DriverClass, from_camera: f32) -> bool {
+    striker != DriverClass::Traffic && from_camera <= CRASH_VIEW
 }
 
 /// Whether a car at `speed` (m/s, either sign) is moving fast enough to start a crash that is over.
@@ -69,12 +70,15 @@ fn cop_sample(is_cop: bool, key: u32, position: Vec3, damage: f32, destroyed: bo
 
 impl AiCar {
     /// A hit of `impulse` N s at `point` (physics space), from `from_camera` metres away from the player: the traffic
-    /// shock, the accident of a hit by the player, and a cop's damage. Returns whether the hit is the player's first that
-    /// damages this cop (an assault, see `rules::contact_infraction`).
+    /// shock, the accident of a hit by a human, cop or racer, and a cop's damage. `striker` and `speed` (m/s) are the
+    /// class and the speed of the party that hit the car; the player's speed is the one the world sets. Returns whether
+    /// the hit is the player's first that damages this cop (an assault, see `rules::contact_infraction`).
     pub(in crate::scenes::world::ai) fn on_hit(
         &mut self,
         impulse: f32,
         by_player: bool,
+        striker: DriverClass,
+        speed: f32,
         point: Vec3,
         from_camera: f32,
     ) -> bool {
@@ -82,9 +86,13 @@ impl AiCar {
         if speed_change > SHOCK_MIN_SPEED_CHANGE {
             self.shock = self.shock.max((speed_change / SHOCK_FORCE).min(1.0));
         }
-        if starts_crash(by_player, from_camera) {
-            log::info!("traffic: {} was hit by the player (impulse {impulse:.0} N s)", self.name);
-            let fast = is_fast(self.player_speed);
+        if starts_crash(striker, from_camera) {
+            log::info!("traffic: {} was hit by a {striker:?} (impulse {impulse:.0} N s)", self.name);
+            let hitter_speed = match by_player {
+                true => self.player_speed,
+                false => speed,
+            };
+            let fast = is_fast(hitter_speed);
             self.accident.on_hit(matches!(self.role, Role::Traffic) && !self.patrol, self.tractor, fast);
         }
         self.wreck_hit(impulse, point, by_player, from_camera)
@@ -123,6 +131,14 @@ impl AiCar {
         by_player && before <= 0.0 && damage.wreck.damage() > 0.0
     }
 
+    /// The driver class of this car (see `DriverClass`): a cop, a patrol car or a roadblock car is a cop, else traffic.
+    pub(in crate::scenes::world::ai) fn driver_class(&self) -> DriverClass {
+        match matches!(self.role, Role::Cop(_)) || self.patrol || self.roadblock {
+            true => DriverClass::Cop,
+            false => DriverClass::Traffic,
+        }
+    }
+
     /// The car as a cop health bar sees it (`docs/specs/cop-health-bars.md` section 13.2). The key is the car's render
     /// identity, which is stable for the car's life. `None` for traffic, patrol and roadblock cars.
     pub(in crate::scenes::world::ai) fn cop_health_sample(&self) -> Option<Sample> {
@@ -150,6 +166,7 @@ impl AiCar {
 #[cfg(test)]
 mod tests {
     use super::{cop_sample, is_fast, starts_crash, tuning_for};
+    use crate::scenes::world::ai::collide::DriverClass;
     use glam::Vec3;
 
     #[test]
@@ -176,10 +193,20 @@ mod tests {
     }
 
     #[test]
-    fn a_crash_needs_a_hit_by_the_player_within_eighty_metres() {
-        assert!(starts_crash(true, 80.0));
-        assert!(!starts_crash(true, 80.5), "beyond the view gate");
-        assert!(!starts_crash(false, 10.0), "not the player's car");
+    fn a_crash_needs_a_hit_by_a_human_cop_or_racer_within_eighty_metres() {
+        assert!(starts_crash(DriverClass::Human, 80.0));
+        assert!(!starts_crash(DriverClass::Human, 80.5), "beyond the view gate");
+        assert!(starts_crash(DriverClass::Cop, 40.0), "an AI cop's hit starts it too");
+        assert!(!starts_crash(DriverClass::Traffic, 10.0), "traffic against traffic does not");
+    }
+
+    #[test]
+    fn only_traffic_is_left_out_of_the_crash_gate() {
+        let crashes: Vec<bool> = [DriverClass::Human, DriverClass::Cop, DriverClass::Traffic]
+            .into_iter()
+            .map(|class| starts_crash(class, 0.0))
+            .collect();
+        assert_eq!(crashes, [true, true, false]);
     }
 
     #[test]

@@ -349,6 +349,7 @@ impl AiCar {
                     ctx.bodies.iter().enumerate().filter(|&(i, _)| i != ctx.me).map(|(_, b)| b.0).collect();
                 others.extend(ctx.player);
                 self.avoid.before_think(ctx.net, ctx.index, &mut self.nav, &state.body, &others, self.blocked);
+                state.stop = self.avoid.yield_at(ctx.net, ctx.lights, state.stop, self.stop_memory, &others);
                 let think =
                     traffic::think(ctx.net, &mut self.nav, &state, &others, self.blocked, ctx.rng, &self.cruise);
                 self.target = think.target;

@@ -6,6 +6,14 @@ use glam::Vec3;
 use nfsmw_data::sound::{Stitch, whoosh_stitches};
 use std::{collections::BTreeMap, sync::Arc};
 
+/// Seconds after one horn before another may sound, for the autonomous and the requested horns alike.
+const HORN_COOLDOWN: f32 = 3.0;
+
+/// Whether a horn requested at `now` (seconds) may sound, given the time of the last one that did.
+fn horn_allowed(now: f32, last_horn: f32) -> bool {
+    now > last_horn + HORN_COOLDOWN
+}
+
 #[derive(Default)]
 pub(in crate::audio) struct TrafficAudio {
     map: Option<Arc<MixMap>>,
@@ -105,18 +113,21 @@ impl TrafficAudio {
         }
         for event in self.pending.drain(..) {
             match event {
-                #[cfg(test)]
                 TrafficSound::Horn { emitter, duration } => {
+                    // The horns share one clock with the autonomous ones: a horn within the cooldown is not played.
+                    if !horn_allowed(self.time, self.last_horn) {
+                        continue;
+                    }
+                    let Some(emitter) = self.emitters.get_mut(&emitter) else { continue };
+                    self.last_horn = self.time;
                     audio.trace.record(Record {
                         event: "traffic_horn",
-                        instance: u64::from(emitter),
+                        instance: u64::from(emitter.state.id),
                         logical_ms: audio.trace.now_ms(),
                         detail: "authored ENV_STATIC common horn",
                         ..Default::default()
                     });
-                    if let Some(emitter) = self.emitters.get_mut(&emitter) {
-                        emitter.horn(audio, duration);
-                    }
+                    emitter.horn(audio, duration);
                 }
                 TrafficSound::NearMiss { emitter, relative_speed } => {
                     let Some(emitter) = self.emitters.get_mut(&emitter) else { continue };
@@ -148,5 +159,18 @@ impl TrafficAudio {
             );
             emitter.update(audio, frame.dt, delay, self.time, view, [frame.listener_velocity, camera_velocity]);
         }
+    }
+}
+
+#[cfg(test)]
+mod horn_cooldown_tests {
+    use super::horn_allowed;
+
+    #[test]
+    fn a_horn_waits_three_seconds_after_the_last_one() {
+        assert!(horn_allowed(10.0, 0.0), "the last horn is long past");
+        assert!(!horn_allowed(2.9, 0.0), "inside the cooldown");
+        assert!(horn_allowed(3.1, 0.0), "past the cooldown");
+        assert!(!horn_allowed(12.0, 10.0), "a horn just before was the shared one");
     }
 }
