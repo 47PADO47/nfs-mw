@@ -1,6 +1,6 @@
 //! One computer-driven car: the physics, the driver and the road cursor it follows.
 
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 use blackbox_collision::CollisionWorld;
 use blackbox_driver::{AiControls, ControllerKind, DriveFlags, DriveRequest, Driver, GearRequest};
@@ -323,6 +323,16 @@ impl AiCar {
 
     pub fn offscreen_time(&self) -> f32 {
         self.offscreen
+    }
+
+    /// Half the car's diagonal (metres): the radius of its bounding sphere.
+    pub fn bounding_radius(&self) -> f32 {
+        self.radius
+    }
+
+    /// The owner handle of the car's detached parts (`props::fragments`): they live while it does.
+    pub fn part_owner(&self) -> Option<Weak<()>> {
+        self.sim.events.as_ref().map(|events| Rc::downgrade(&events.owner))
     }
 
     /// One physics step: think when it is this car's turn, then drive.

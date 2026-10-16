@@ -89,12 +89,14 @@ impl AiCar {
         }
     }
 
-    /// Follows which part of the car the player can see: `in_view` is asked for the position (render space)
-    /// of the car and of its trailer.
-    pub fn note_views(&mut self, dt: f32, in_view: impl Fn(Vec3) -> bool) {
-        self.note_view(in_view(self.current.position), dt);
+    /// Follows which part of the car the player can see: `in_view` is asked for the position (render space) and
+    /// the bounding radius (metres) of the car and of its trailer.
+    pub fn note_views(&mut self, dt: f32, in_view: impl Fn(Vec3, f32) -> bool) {
+        let radius = self.bounding_radius();
+        self.note_view(in_view(self.current.position, radius), dt);
         if let Some(trailer) = self.trailer.as_mut() {
-            trailer.note_view(in_view(trailer.position()), dt);
+            let radius = trailer.half_dimensions().length();
+            trailer.note_view(in_view(trailer.position(), radius), dt);
         }
     }
 

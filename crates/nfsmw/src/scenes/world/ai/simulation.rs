@@ -66,8 +66,16 @@ impl TrafficWorld {
     }
 
     /// Commit contact poses and advance every gameplay timer by exactly one tick. `camera` is the lens the
-    /// player sees the traffic through (the simulation camera), which decides what counts as seen.
-    pub fn finish_step(&mut self, focus: Focus, camera: &Lens, collision: &CollisionWorld, surfaces: &SurfaceTable) {
+    /// player sees the traffic through (the simulation camera), which decides what counts as seen; `props` holds
+    /// the detached parts of the cars.
+    pub fn finish_step(
+        &mut self,
+        focus: Focus,
+        camera: &Lens,
+        props: &PropWorld,
+        collision: &CollisionWorld,
+        surfaces: &SurfaceTable,
+    ) {
         for car in &mut self.cars {
             car.sync_contacts();
         }
@@ -82,7 +90,7 @@ impl TrafficWorld {
         if finishing {
             log::info!("traffic after the screenshot warm-up: {}", self.status(focus));
         }
-        self.recycle(STEP, focus, camera);
+        self.recycle(STEP, focus, camera, props);
         self.spawn_timer += STEP;
         if self.spawn_timer >= MANAGER_PERIOD && self.target > 0 {
             self.spawn_timer -= MANAGER_PERIOD;

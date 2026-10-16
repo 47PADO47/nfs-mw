@@ -8,8 +8,6 @@ use super::super::Focus;
 use crate::scenes::world::space;
 use crate::viewer::camera::Lens;
 
-/// Each part of a car (the tractor, a trailer) is a sphere of this radius (metres) around its centre.
-pub const PART_RADIUS: f32 = 6.0;
 /// Extra reach (metres) on every sphere, so a part just outside the frustum edge still counts as seen.
 const MARGIN: f32 = 2.0;
 /// Weight `k` of the camera-eye distance in `min(|p - P1|, k |p - P0|)` (spec §8). It is 1 until the original's
@@ -38,9 +36,9 @@ impl Viewing {
         Self { frustum: Frustum::from_view_proj(&camera.view_proj()), eye, player, focus: focus.position }
     }
 
-    /// Whether a car part centred at `centre` (render space) is in the camera's view.
-    pub fn sees(&self, centre: Vec3) -> bool {
-        sphere_seen(&self.frustum, centre, PART_RADIUS)
+    /// Whether a sphere of `radius` (metres) around `centre` (render space) reaches the camera's view.
+    pub fn sees(&self, centre: Vec3, radius: f32) -> bool {
+        sphere_seen(&self.frustum, centre, radius)
     }
 
     /// 3D distance (metres) from the nearer of the player's car and the camera eye.

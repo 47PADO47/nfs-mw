@@ -152,7 +152,7 @@ impl WorldScene {
             let player = self.drive.as_mut().filter(|_| player_step.is_some()).and_then(|d| d.sim_mut());
             traffic.collide(player);
             traffic.update_events(props, &self.physics, event_view);
-            traffic.finish_step(focus, &camera, collision, surfaces);
+            traffic.finish_step(focus, &camera, props, collision, surfaces);
         }
         if let (Some(drive), Some(step)) = (self.drive.as_mut(), player_step) {
             drive.update_events(props, &self.physics, event_view);

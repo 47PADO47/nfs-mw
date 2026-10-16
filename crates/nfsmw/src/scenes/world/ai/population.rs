@@ -10,6 +10,7 @@ use super::manager::{self, Census, TypeTimers};
 use super::spawn::Pick;
 use super::traffic::{Cruise, MPH};
 use super::{Focus, Patterns, TrafficWorld};
+use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::space;
 use crate::viewer::camera::Lens;
 
@@ -188,9 +189,9 @@ impl TrafficWorld {
 
     /// Follows which parts of the cars the camera sees, then removes the cars that are gone for good (spec §8):
     /// unseen for longer than the density's time and farther than its distance, or, while unseen, the rewrite's
-    /// extra rules. A tractor that is gone stays while its trailer is not, and a trailer that came loose and is
-    /// gone is dropped on its own.
-    pub(super) fn recycle(&mut self, dt: f32, focus: Focus, camera: &Lens) {
+    /// extra rules. A car with a detached part in view stays. A tractor that is gone stays while its trailer is
+    /// not, and a trailer that came loose and is gone is dropped on its own.
+    pub(super) fn recycle(&mut self, dt: f32, focus: Focus, camera: &Lens, props: &PropWorld) {
         let density = manager::density(self.target > 0, self.pursuit.is_some());
         let limits = Limits { time: manager::offscreen_time(density), distance: manager::offscreen_distance(density) };
         let view = Viewing::new(camera, focus);
@@ -198,15 +199,21 @@ impl TrafficWorld {
             if car.is_cop() {
                 return car.is_finite();
             }
-            car.note_views(dt, |p| view.sees(p));
+            car.note_views(dt, |p, radius| view.sees(p, radius));
             if car.loose_trailer().is_some_and(|t| !Vitals::of_trailer(t).valid(&view, limits)) {
                 car.drop_trailer();
             }
+            let parts = parts_seen(car, props, &view);
             car.is_finite()
-                && (Vitals::of_car(car).valid(&view, limits)
+                && (Vitals::of_car(car, parts).valid(&view, limits)
                     || car.trailer().is_some_and(|t| Vitals::of_trailer(t).valid(&view, limits)))
         });
     }
+}
+
+/// Whether a detached part of the car is in the camera's view (its parts live in the prop world).
+fn parts_seen(car: &super::AiCar, props: &PropWorld, view: &Viewing) -> bool {
+    car.part_owner().is_some_and(|owner| props.fragment_spheres(&owner).into_iter().any(|(c, r)| view.sees(c, r)))
 }
 
 /// How long out of view and how far away a body may be before it is removed.
@@ -224,16 +231,19 @@ struct Vitals {
     airborne: f32,
     idle: f32,
     offscreen: f32,
+    /// A detached part of the car is in view: the car stays (spec §8).
+    detached_seen: bool,
 }
 
 impl Vitals {
-    fn of_car(car: &super::AiCar) -> Self {
+    fn of_car(car: &super::AiCar, detached_seen: bool) -> Self {
         Self {
             position: car.position(),
             finite: car.is_finite(),
             airborne: car.airborne_time(),
             idle: car.idle_time(),
             offscreen: car.offscreen_time(),
+            detached_seen,
         }
     }
 
@@ -244,15 +254,21 @@ impl Vitals {
             airborne: trailer.airborne_time(),
             idle: trailer.idle_time(),
             offscreen: trailer.offscreen_time(),
+            // Trailers have no part owner of their own in this port (spec §8 keep-alive is for the car's model).
+            detached_seen: false,
         }
     }
 
-    /// Whether the car may stay. A seen car always stays (its off-screen time is 0 after this tick's update). An
-    /// unseen car is removed by the original's rule (unseen longer than `limits.time` and more than
-    /// `limits.distance` away), or by the rewrite's extra rules: airborne, far beyond 350 m, or stuck.
+    /// Whether the car may stay. A visible detached part keeps it. A seen car always stays (its off-screen time is
+    /// 0 after this tick's update). An unseen car is removed by the original's rule (unseen longer than
+    /// `limits.time` and more than `limits.distance` away), or by the rewrite's extra rules: airborne, far beyond
+    /// 350 m, or stuck.
     fn valid(&self, view: &Viewing, limits: Limits) -> bool {
         if !self.finite {
             return false;
+        }
+        if self.detached_seen {
+            return true;
         }
         if self.offscreen <= 0.0 {
             return true;
@@ -272,6 +288,9 @@ mod tests {
 
     use super::*;
 
+    /// The bounding radius a test car uses (metres): about a sedan's half-diagonal.
+    const CAR_RADIUS: f32 = 3.0;
+
     /// The free camera: eye at the origin, looking along +Y (render space, Z up), no car driven.
     fn camera_north() -> Lens {
         Lens::look_at(Vec3::ZERO, Vec3::Y, 90.0, 0.1, 1.0)
@@ -282,7 +301,7 @@ mod tests {
     }
 
     fn car_at(position: Vec3, offscreen: f32, airborne: f32) -> Vitals {
-        Vitals { position, finite: true, airborne, idle: 0.0, offscreen }
+        Vitals { position, finite: true, airborne, idle: 0.0, offscreen, detached_seen: false }
     }
 
     fn limits(density: f32) -> Limits {
@@ -294,7 +313,7 @@ mod tests {
         let view = Viewing::new(&camera_north(), free_focus());
         // Behind the camera, so out of view; 50 m from the eye. At density 1 the limits are 4 s and 40 m.
         let behind = Vec3::new(0.0, -50.0, 0.0);
-        assert!(!view.sees(behind));
+        assert!(!view.sees(behind, CAR_RADIUS));
         assert!(!car_at(behind, 5.0, 0.0).valid(&view, limits(1.0)));
         assert!(car_at(behind, 3.0, 0.0).valid(&view, limits(1.0)), "not yet 4 s");
     }
@@ -303,7 +322,7 @@ mod tests {
     fn a_visible_car_at_400_metres_is_not_removed() {
         let view = Viewing::new(&camera_north(), free_focus());
         let ahead = Vec3::new(0.0, 400.0, 0.0);
-        assert!(view.sees(ahead));
+        assert!(view.sees(ahead, CAR_RADIUS));
         // The timer is 0 while the car is seen (note_views resets it), so the rewrite's 350 m rule does not apply.
         assert!(car_at(ahead, 0.0, 0.0).valid(&view, limits(1.0)));
         assert!(car_at(ahead, 0.0, 10.0).valid(&view, limits(1.0)), "airborne but seen");
@@ -315,6 +334,20 @@ mod tests {
         let behind_far = Vec3::new(0.0, -400.0, 0.0);
         assert!(!car_at(behind_far, 0.5, 0.0).valid(&view, limits(1.0)), "unseen beyond 350 m");
         assert!(!car_at(behind_far, 0.5, 4.0).valid(&view, limits(1.0)), "unseen and airborne");
+    }
+
+    #[test]
+    fn a_detached_part_in_view_keeps_an_otherwise_removable_car() {
+        let view = Viewing::new(&camera_north(), free_focus());
+        // The car is behind the camera, unseen 5 s at 50 m: removable at density 1 without a visible part.
+        let behind = Vec3::new(0.0, -50.0, 0.0);
+        let bare = car_at(behind, 5.0, 0.0);
+        let with_part = Vitals { detached_seen: true, ..car_at(behind, 5.0, 0.0) };
+        assert!(!bare.valid(&view, limits(1.0)), "removed when no part is in view");
+        assert!(with_part.valid(&view, limits(1.0)), "a visible detached part keeps it");
+        // The part is a sphere (render space) in front of the camera, which is what `parts_seen` tests.
+        assert!(view.sees(Vec3::new(0.0, 20.0, 0.0), 1.0), "a part ahead is in view");
+        assert!(!view.sees(Vec3::new(0.0, -50.0, 0.0), 1.0), "a part behind is not");
     }
 
     #[test]
@@ -337,7 +370,7 @@ mod tests {
         let view = Viewing::new(&camera, focus);
         // 4 m behind the player, between the camera and the car: behind the player, in the chase frustum.
         let behind_player = Vec3::new(96.0, 0.0, 0.0);
-        assert!(view.sees(behind_player));
+        assert!(view.sees(behind_player, CAR_RADIUS));
         assert!(car_at(behind_player, 0.0, 0.0).valid(&view, limits(1.0)));
     }
 
