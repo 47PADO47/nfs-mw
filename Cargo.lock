@@ -1639,6 +1639,7 @@ dependencies = [
  "blackbox-gfx-testkit",
  "blackbox-gpu-passes",
  "bytemuck",
+ "fsr3-wgpu",
  "glam 0.34.1",
  "log",
  "naga",
