@@ -4,6 +4,7 @@
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{Assets, Handle, RenderAssetUsages};
 use bevy_camera::primitives::Aabb;
+use bevy_color::{Color, LinearRgba};
 use bevy_ecs::world::{CommandQueue, World};
 use bevy_image::Image;
 use bevy_material::OpaqueRendererMethod;
@@ -72,26 +73,68 @@ fn a_stand_in_is_one_deferred_material_per_texture_and_carries_the_texture() {
     let mut standard = Assets::<StandardMaterial>::default();
     let mut cache = StandInCache::default();
     let image = Handle::<Image>::default();
+    let colour = [200, 120, 80];
     let mut stand_ins = StandIns { standard: &mut standard, cache: &mut cache };
 
-    let first = stand_in(&mut stand_ins, Some(image.clone()), Some(3), BlendKind::Opaque, ShadingKind::Prelit)
+    let first = stand_in(&mut stand_ins, Some(image.clone()), Some(3), colour, BlendKind::Opaque, ShadingKind::Lit)
         .expect("an opaque draw is a stand-in");
-    let again = stand_in(&mut stand_ins, Some(image.clone()), Some(3), BlendKind::Opaque, ShadingKind::Lit)
-        .expect("the same texture gives the same stand-in");
+    let again = stand_in(&mut stand_ins, Some(image.clone()), Some(3), colour, BlendKind::Opaque, ShadingKind::Lit)
+        .expect("the same texture and colour give the same stand-in");
     assert_eq!(first, again);
 
-    let other = stand_in(&mut stand_ins, None, None, BlendKind::Opaque, ShadingKind::Prelit);
+    let other = stand_in(&mut stand_ins, None, None, colour, BlendKind::Opaque, ShadingKind::Lit);
     assert_ne!(other, Some(first.clone()), "another texture is another material");
 
-    let blended = stand_in(&mut stand_ins, Some(image.clone()), Some(4), BlendKind::AlphaTest, ShadingKind::Prelit);
+    let blended =
+        stand_in(&mut stand_ins, Some(image.clone()), Some(4), colour, BlendKind::AlphaTest, ShadingKind::Lit);
     assert!(blended.is_none(), "alpha-tested draws keep the Blackbox material");
-    let sky = stand_in(&mut stand_ins, Some(image), Some(5), BlendKind::Opaque, ShadingKind::Sky);
+    let sky = stand_in(&mut stand_ins, Some(image), Some(5), colour, BlendKind::Opaque, ShadingKind::Sky);
     assert!(sky.is_none(), "sky keeps the Blackbox material");
 
     let material = stand_ins.standard.get(&first).expect("the material is in the store");
     assert_eq!(material.opaque_render_method, OpaqueRendererMethod::Deferred);
     assert!(material.base_color_texture.is_some());
     assert_eq!(stand_ins.cache.0.len(), 2, "only the eligible draws were cached");
+}
+
+#[test]
+fn stand_ins_share_a_material_only_when_their_quantised_colours_match() {
+    assert_eq!(quantise([200, 120, 80]), [200, 120, 88], "bucket centres");
+    assert_eq!(quantise([207, 127, 87]), quantise([200, 120, 80]), "same 16-step bucket");
+    assert_ne!(quantise([208, 120, 80]), quantise([200, 120, 80]), "next bucket");
+
+    let mut standard = Assets::<StandardMaterial>::default();
+    let mut cache = StandInCache::default();
+    let mut stand_ins = StandIns { standard: &mut standard, cache: &mut cache };
+    let near = stand_in(&mut stand_ins, None, None, [207, 127, 87], BlendKind::Opaque, ShadingKind::Lit);
+    let same = stand_in(&mut stand_ins, None, None, [200, 120, 80], BlendKind::Opaque, ShadingKind::Lit);
+    assert_eq!(near, same, "a near colour reuses the material");
+    let far = stand_in(&mut stand_ins, None, None, [208, 120, 80], BlendKind::Opaque, ShadingKind::Lit);
+    assert_ne!(far, same, "a colour in another bucket gets its own material");
+    assert_eq!(stand_ins.cache.0.len(), 2);
+}
+
+#[test]
+fn a_lit_stand_in_is_its_colour_and_a_prelit_one_is_emitted_with_no_base() {
+    let mut standard = Assets::<StandardMaterial>::default();
+    let mut cache = StandInCache::default();
+    let mut stand_ins = StandIns { standard: &mut standard, cache: &mut cache };
+    let lit = stand_in(&mut stand_ins, None, None, [200, 120, 80], BlendKind::Opaque, ShadingKind::Lit).unwrap();
+    let prelit =
+        stand_in(&mut stand_ins, None, Some(1), [200, 120, 80], BlendKind::Opaque, ShadingKind::Prelit).unwrap();
+
+    let lit = stand_ins.standard.get(&lit).unwrap();
+    let want = Color::srgb(200.0 / 255.0, 120.0 / 255.0, 88.0 / 255.0);
+    assert_eq!(lit.base_color, want, "the quantised average is the base colour");
+    assert_eq!(lit.emissive, LinearRgba::BLACK, "a lit draw is not emitted");
+
+    // The pre-lit gain applies to the quantised colour (200, 120, 88): 2x, clamped.
+    let prelit = stand_ins.standard.get(&prelit).unwrap();
+    assert_eq!(prelit.base_color, Color::BLACK, "the sun adds nothing to a pre-lit draw");
+    let gain = Color::srgb(1.0, 240.0 / 255.0, 176.0 / 255.0).to_linear();
+    assert!((prelit.emissive.red - gain.red).abs() < 1e-6, "red is clamped to full");
+    assert!((prelit.emissive.green - gain.green).abs() < 1e-6);
+    assert!((prelit.emissive.blue - gain.blue).abs() < 1e-6);
 }
 
 /// A world mesh the way the crate builds one: u16 indices, no tangents.
@@ -131,7 +174,8 @@ fn blackbox_mesh() -> Mesh {
 }
 
 fn range(mesh: Mesh, blend: BlendMode, shading: Shading) -> RangeData {
-    RangeData { mesh, texture: None, blend, shading, aabb: Aabb::from_min_max([0.0; 3].into(), [1.0; 3].into()) }
+    let aabb = Aabb::from_min_max([0.0; 3].into(), [1.0; 3].into());
+    RangeData { mesh, texture: None, blend, shading, aabb, colour: [200, 120, 80] }
 }
 
 #[test]
@@ -241,7 +285,9 @@ fn solari_starts_and_draws_a_capture_on_a_ray_tracing_gpu() {
     // Lit, not prelit: a prelit draw with no texture does not show in this renderer (checked with the
     // rasterised path, `docs/bevy-backend.md` known gaps). The stand-in ignores the shading anyway.
     let mut mesh = MeshBuilder::new();
-    mesh.state(None, BlendMode::Opaque, Shading::Lit).cuboid(Vec3::splat(-1.0), Vec3::splat(1.0), [200, 120, 80, 255]);
+    let authored = [200u8, 120, 80];
+    let rgba = [authored[0], authored[1], authored[2], 255];
+    mesh.state(None, BlendMode::Opaque, Shading::Lit).cuboid(Vec3::splat(-1.0), Vec3::splat(1.0), rgba);
     let handle = mesh.finish().upload(&mut backend, "solari_cuboid");
     let instances = [Instance::new(handle, Mat4::IDENTITY)];
     let camera = Camera::new(Vec3::new(4.0, -5.0, 3.0), Vec3::ZERO);
@@ -269,4 +315,30 @@ fn solari_starts_and_draws_a_capture_on_a_ray_tracing_gpu() {
         image.rgba.as_chunks::<4>().0.iter().map(|p| [p[0], p[1], p[2]]).collect();
     eprintln!("solari capture: {} distinct colours", distinct.len());
     assert!(distinct.len() > 2, "the cuboid is in the picture, not only the clear colour");
+    // The dominant colour of the picture that is not the clear colour: the most populated 16-step bin of the
+    // other pixels, averaged. The corner pixel is the clear colour (nothing draws there).
+    let background_bin = [image.rgba[0] >> 4, image.rgba[1] >> 4, image.rgba[2] >> 4];
+    let mut bins: std::collections::HashMap<[u8; 3], (usize, [u64; 3])> = Default::default();
+    for p in image.rgba.as_chunks::<4>().0 {
+        let rgb = [p[0], p[1], p[2]];
+        let bin = rgb.map(|c| c >> 4);
+        if bin == background_bin {
+            continue;
+        }
+        let entry = bins.entry(bin).or_default();
+        entry.0 += 1;
+        for (sum, c) in entry.1.iter_mut().zip(rgb) {
+            *sum += u64::from(c);
+        }
+    }
+    let Some((count, sums)) = bins.values().max_by_key(|(n, _)| *n) else {
+        panic!("the picture has no cuboid pixels");
+    };
+    let dominant = sums.map(|s| (s / *count as u64) as u8);
+    eprintln!("solari dominant colour {dominant:?} over {count} px, authored {authored:?}");
+    assert!(*count > 1000, "the cuboid covers a useful part of the picture");
+    // One 16-step bin of quantisation (the stand-in's colour moves up to 8 levels) plus the sun's light, which
+    // darkens a face by a few levels.
+    let worst = dominant.iter().zip(authored).map(|(&d, a)| d.abs_diff(a)).max().unwrap_or(u8::MAX);
+    assert!(worst <= 12, "the dominant colour {dominant:?} is near the authored {authored:?} (worst channel {worst})");
 }

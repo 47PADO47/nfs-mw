@@ -190,10 +190,11 @@ What it does:
   `denoiser: Some(DlssRr)` only in the `dlss` build when Bevy's `DlssRayReconstructionSupported` resource exists.
   Otherwise `None`.
 - **Stand-ins.** Each opaque, non-sky draw becomes an entity with `Mesh3d` and `RaytracingMesh3d` on the same mesh,
-  and a `MeshMaterial3d<StandardMaterial>` that carries the base colour texture only, one per texture number. The
-  stand-in uses `OpaqueRendererMethod::Deferred`. Alpha-tested, blended and additive draws keep the Blackbox material
-  and are not traced (Solari 0.20 has no alpha masks). Sky stays on the Blackbox material. Emissive is not carried
-  over (ADR 0004, open decision 5).
+  and a `MeshMaterial3d<StandardMaterial>`, one per texture number and quantised colour (16 steps per channel). A lit
+  stand-in keeps the texture and takes the range's average vertex colour as its base colour. A pre-lit stand-in is
+  emitted instead (see Look). The stand-in uses `OpaqueRendererMethod::Deferred`. Alpha-tested, blended and additive
+  draws keep the Blackbox material and are not traced (Solari 0.20 has no alpha masks). Sky stays on the Blackbox
+  material.
 - **Meshes.** Only the ranges a stand-in draws are prepared, as they are added: `Indices::U32`, tangents, the
   ray-tracing flag, and the vertex colour removed. Solari builds a BLAS only for a mesh whose attributes are exactly
   POSITION, NORMAL, UV_0 and TANGENT (`is_mesh_raytracing_compatible`), and a Blackbox range always carries the colour.
@@ -208,10 +209,10 @@ What it does:
   itself at extraction.
 - **Captures** are lit by Solari too. `apply/capture.rs` removes the temporal parts only in the `dlss` build, and
   `sync_cameras` puts back the prepasses Solari needs after `apply`, so a capture keeps them.
-- **DLSS-RR.** `sync_denoiser` (the `dlss` build only) inserts `Dlss<DlssRayReconstructionFeature>` on every camera
-  once Bevy reports Ray Reconstruction. Not compiled here: the DLSS SDK is not installed. It is not yet reconciled
-  with the DLSS super resolution component `dlss/sdk.rs` adds on the same camera, and it also reaches capture cameras,
-  which `apply/capture.rs` says never run DLSS.
+- **DLSS-RR.** `sync_denoiser` (the `dlss` build only) inserts `Dlss<DlssRayReconstructionFeature>` on every window
+  camera (`RenderTarget::Window`) once Bevy reports Ray Reconstruction. Capture cameras (`RenderTarget::Image`) are
+  skipped, as `apply/capture.rs` requires. Not compiled here: the DLSS SDK is not installed. It is not yet reconciled
+  with the DLSS super resolution component `dlss/sdk.rs` adds on the same camera.
 
 **Root cause of the clear-colour picture (fixed).** Solari's lighting node needs the scene bind group, which needs a
 TLAS, which needs a BLAS per instance. No BLAS was built for any Blackbox range, because each carried
@@ -227,10 +228,21 @@ with a validation error on the capture target.
 Game wiring: `add_plugin` passes `ray_tracing` from `Settings::ray_tracing` (anything but `off`). The setting
 is read when the App is built, so a change takes effect on the next start.
 
-Look (open, a decision for ADR 0004): the cuboid is lit but renders white, not the authored colour. A traced mesh
-has exactly four attributes, so Solari reads no per-vertex colour. A stand-in with no texture falls back to the
-default white base colour. Carrying the colour needs a per-colour stand-in material (the cache is keyed by texture
-number), or a texture, and is not done.
+Look (fixed, approximation): a traced mesh has exactly four attributes, so Solari reads no per-vertex colour, and a
+stand-in drew white. The colour now travels with the range: `mesh::build` computes the average vertex colour
+(`average_colour`, gamma bytes, BGRA read as RGB) at AddMesh, into `RangeData::colour` and then `RangeEntry::colour`
+(`apply/state.rs`, `apply/assets.rs`). The stand-in's base colour is that average, quantised to 16 steps per channel
+(`solari::quantise`), so the material cache is keyed by (texture number, quantised colour). The Blackbox shader
+multiplies texture by vertex colour in gamma space, so a lit stand-in keeps the texture and multiplies by the colour
+the same way (base colour x texture). Pre-lit draws have no direct light in the Blackbox shader, so the stand-in has
+base black and emission = quantised colour x 2, clamped (the pre-lit gain), in linear light. The sun adds nothing on
+top. The emission scale is not calibrated against the sun: the approximation is the rule, not a measured match.
+
+Measured (RTX 4070 SUPER, Vulkan, `solari_starts_and_draws_a_capture_on_a_ray_tracing_gpu`, a lit cuboid authored
+[200, 120, 80]): the picture shows the cuboid in its authored orange, with three shaded faces. The most populated
+non-background colour bin (16 steps) averages to [195, 117, 88] over 6185 px. The test asserts a worst channel
+difference of at most 12: the blue offset of 8 is the quantisation (80 moves to 88), and the red and green offsets (5
+and 3) are the sun's lighting on that face. The top face is brighter: its bin averages to [255, 185, 140] over 2750 px.
 
 Verified (RTX 4070 SUPER, Vulkan):
 
@@ -245,11 +257,19 @@ Verified (RTX 4070 SUPER, Vulkan):
 - `cargo check -p nfsmw --features ray-tracing` fails in files this change does not touch (`saves.rs`: a missing
   `mods` field; `scenes/world/effects/world.rs`: a missing `cop_health_bars` field). No error is reported in `bevy.rs`.
 
-Not verified: DLSS-RR (no SDK, and the capture-camera overlap above); DX12; the look (white, see above); the sun's
-intensity; whether hidden stand-ins are still traced; the `nfsmw` build (blocked by the errors above).
+Also verified in the same pass: `cargo test -p blackbox-bevy-render --lib` (default: 54 pass, 25 ignored) and with
+`--features ray-tracing` (66 pass, 26 ignored); `cargo clippy -p blackbox-bevy-render --all-targets -- -D warnings`
+with and without `ray-tracing`: clean; rustfmt clean for the files this pass touched. CPU tests: `average_colour`
+(RGB order, rounding, empty), the quantisation and cache keying (a near colour reuses, another bucket is another
+material), and the lit versus pre-lit material shape.
 
-Next leads: a per-colour stand-in for untextured prelit geometry; keep `sync_denoiser` off capture cameras; check
-hidden stand-ins; tune the sun.
+Not verified: the pre-lit emission on the GPU (only its material values are tested; the GPU test draws a lit
+cuboid); the emission scale against the sun; DLSS-RR (no SDK; the `sync_denoiser` window-camera filter is written but
+not compiled, the `dlss` cfg is off here); DX12; the sun's intensity; whether hidden stand-ins are still traced; the
+`nfsmw` build (blocked by the errors above).
+
+Next leads: a GPU check of a pre-lit cuboid and calibrating its emission against a lit one; check hidden stand-ins;
+tune the sun; compile the `dlss` build on a machine with the SDK.
 
 ## 3e. PR 13b: the world's prepass and motion vectors (FSR 3, TAA)
 

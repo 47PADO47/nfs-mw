@@ -23,6 +23,7 @@ use bevy_asset::Handle;
 use bevy_camera::primitives::Aabb;
 use bevy_camera::visibility::Visibility;
 use bevy_camera::{Camera3d, CameraMainTextureUsages, Hdr};
+use bevy_color::Color;
 use bevy_core_pipeline::prepass::{DeferredPrepass, DepthPrepass, MotionVectorPrepass};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::query::With;
@@ -114,28 +115,61 @@ pub fn eligible(blend: BlendKind, shading: ShadingKind) -> bool {
     blend == BlendKind::Opaque && shading != ShadingKind::Sky
 }
 
+/// The colour a stand-in is keyed and drawn with: each gamma byte moves to the centre of its 16-step bucket, so
+/// ranges with nearly the same colour share one material.
+pub fn quantise(colour: [u8; 3]) -> [u8; 3] {
+    colour.map(|c| (c & 0xF0) | 0x08)
+}
+
 /// The stand-in material for a draw, or `None` when the draw stays on the Blackbox material. One material per
-/// texture number, shared by every draw that uses it; `image` is the texture the number resolves to.
+/// texture number and quantised colour, shared by every draw that uses them; `image` is the texture the number
+/// resolves to, and `colour` the range's average vertex colour.
 pub fn stand_in(
     stand_ins: &mut StandIns,
     image: Option<Handle<Image>>,
     key: Option<usize>,
+    colour: [u8; 3],
     blend: BlendKind,
     shading: ShadingKind,
 ) -> Option<Handle<StandardMaterial>> {
     if !eligible(blend, shading) {
         return None;
     }
-    if let Some(handle) = stand_ins.cache.0.get(&key) {
+    let colour = quantise(colour);
+    if let Some(handle) = stand_ins.cache.0.get(&(key, colour)) {
         return Some(handle.clone());
     }
-    let handle = stand_ins.standard.add(StandardMaterial {
-        base_color_texture: image,
-        opaque_render_method: OpaqueRendererMethod::Deferred,
-        ..Default::default()
-    });
-    stand_ins.cache.0.insert(key, handle.clone());
+    let handle = stand_ins.standard.add(stand_in_material(image, colour, shading));
+    stand_ins.cache.0.insert((key, colour), handle.clone());
     Some(handle)
+}
+
+/// The PBR material for a stand-in. The Blackbox shader multiplies the texture by the vertex colour (in gamma
+/// space), so a lit stand-in takes the colour as its base colour and keeps the texture. Solari has no vertex colour,
+/// so the average stands in for it. A pre-lit draw has no direct light of its own: it is emitted instead, with the
+/// shader's pre-lit gain of 2 applied and clamped, and its base is black so the sun adds nothing on top. The
+/// emission is not calibrated against the sun (an approximation, `docs/plans/gfx-renderers/status.md` 3d).
+fn stand_in_material(image: Option<Handle<Image>>, colour: [u8; 3], shading: ShadingKind) -> StandardMaterial {
+    let [r, g, b] = colour.map(|c| f32::from(c) / 255.0);
+    let opaque_render_method = OpaqueRendererMethod::Deferred;
+    match shading {
+        ShadingKind::Prelit => {
+            let emitted = Color::srgb((r * 2.0).min(1.0), (g * 2.0).min(1.0), (b * 2.0).min(1.0)).to_linear();
+            StandardMaterial {
+                base_color: Color::BLACK,
+                emissive: emitted,
+                emissive_texture: image,
+                opaque_render_method,
+                ..Default::default()
+            }
+        }
+        _ => StandardMaterial {
+            base_color: Color::srgb(r, g, b),
+            base_color_texture: image,
+            opaque_render_method,
+            ..Default::default()
+        },
+    }
 }
 
 /// Spawn one stand-in entity: the rasterised copy that the deferred prepass draws, and the `RaytracingMesh3d`
@@ -280,18 +314,21 @@ pub fn reset_on_cut(commands: &mut Commands, camera: Entity, camera_cut: bool) {
     commands.entity(camera).entry::<SolariLighting>().and_modify(|mut solari| solari.reset = true);
 }
 
-/// DLSS Ray Reconstruction on every camera, once Bevy reports it. Not run in the development environment (no
-/// DLSS SDK).
+/// DLSS Ray Reconstruction on every window camera, once Bevy reports it. Capture cameras (render target = image)
+/// never run DLSS (`apply/capture.rs`). Not run in the development environment (no DLSS SDK).
 #[cfg(all(feature = "dlss", not(feature = "dlss-mock")))]
 fn sync_denoiser(
     mut commands: Commands,
-    cameras: Query<Entity, With<Camera3d>>,
+    cameras: Query<(Entity, &bevy_camera::RenderTarget), With<Camera3d>>,
     rr: Option<Res<bevy_anti_alias::dlss::DlssRayReconstructionSupported>>,
 ) {
     if rr.is_none() {
         return;
     }
-    for camera in &cameras {
+    for (camera, target) in &cameras {
+        if !matches!(target, bevy_camera::RenderTarget::Window(_)) {
+            continue;
+        }
         let denoiser = bevy_anti_alias::dlss::Dlss::<bevy_anti_alias::dlss::DlssRayReconstructionFeature>::default();
         commands.entity(camera).insert_if_new(denoiser);
     }
