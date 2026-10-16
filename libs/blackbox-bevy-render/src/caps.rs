@@ -30,6 +30,8 @@ pub fn capabilities_with_dlss(api: GraphicsApi, compressed_bc: bool, dlss_suppor
         tonemaps: TonemapSet::of(&[Tonemap::Off, Tonemap::Aces]),
         bloom: true,
         scene_treatment: false,
+        // The radial blur is drawn only by the native renderer for now (see `BevyBackend::set_focus_filter`).
+        radial_blur: false,
         local_reflections: false,
         ambient_occlusion: false,
         soft_shadows: !matches!(api, GraphicsApi::Gl),

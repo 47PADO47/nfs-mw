@@ -36,6 +36,7 @@ its own encoder. No pass creates a device, a surface or an encoder, and none sub
 | Textured effects | `TexturedEffects` (inside `Effects`) | `TexturedEffect` batches, alpha or additive | the same pass, a texture lookup |
 | Soft particles | `SoftParticles` (inside `Effects`) | detailed particles faded against the finished depth | the finished colour image and a sampleable depth view |
 | Filter | `Filter`, `Draw`, `Blend`, `Params` | one fullscreen draw reading `src` and `src2`, writing a target | a fragment shader built with `filter_source` |
+| Radial blur | `RadialBlur` (`RadialBlurSettings`, `RadialBlurIo`) | a fullscreen blur towards a UV centre: `taps` weighted samples per pixel, reach from `inner` to `strength`; nothing drawn at zero strength | the input view, the output view and its format |
 | FSR 1 | `Fsr1Pass` (`fsr1_passes`) | EASU upscale, then optional RCAS sharpen | a display-referred, anti-aliased input image |
 
 ### A frame, in order
@@ -97,7 +98,7 @@ target, format, blend })`. `Blend::Replace` clears the target, `Blend::Add` load
 
 ## Shaders
 
-`src/shaders/`: `ui.wgsl`, `effects.wgsl` (`EFFECTS_WGSL`, for renderers that build their own effect
+`src/shaders/`: `radial_blur.wgsl` (the `fs_radial` stage of the radial blur), `ui.wgsl`, `effects.wgsl` (`EFFECTS_WGSL`, for renderers that build their own effect
 pipelines), `soft_particles.wgsl`, `post_common.wgsl` and `fsr1.wgsl` (AMD's MIT notice at the top). Vertex
 layouts: `EFFECT_VERTEX_ATTRIBUTES` for `EffectVertex`; the UI vertex is `blackbox_gfx::UiVertex`.
 

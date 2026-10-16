@@ -27,6 +27,7 @@ pub(crate) fn native_capabilities(
         tonemaps: TonemapSet::all(),
         bloom: true,
         scene_treatment: true,
+        radial_blur: true,
         local_reflections: true,
         ambient_occlusion,
         soft_shadows: false,

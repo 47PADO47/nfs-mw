@@ -86,11 +86,13 @@ pub trait RenderBackend {
     /// Set the current scene's colour profile and optional gain map; `None` clears it.
     /// The gain map is display-space RGBA: blue multiplies colour. Other channels are reserved.
     fn set_colour_treatment(&mut self, _profile: Option<&crate::ColourTreatment>, _gain: Option<&RgbaImage>) {}
-    /// Install a scene mask for radial/vignette filtering; `None` releases it.
-    /// Mask alpha weights neutral darkening and radial blur; packed RGB is ignored.
-    /// Transparent texels preserve the source; the UI follows.
+    /// Install a scene mask for the vignette; `None` releases it.
+    /// The mask's green times its blue adds the vignette; red and alpha are ignored.
+    /// Texels with zero green preserve the source; the UI follows.
     fn set_focus_mask(&mut self, _mask: Option<&RgbaImage>) {}
-    /// Update retained parameters without replacing textures or pipelines.
+    /// Update retained parameters without replacing textures or pipelines: the vignette weight and the
+    /// radial blur (strength and centre). A backend without the blur ignores it; `Capabilities::radial_blur`
+    /// says whether it draws it.
     fn set_focus_filter(&mut self, _filter: crate::FocusFilter) {}
     /// Capture local surroundings for glossy surfaces, or restore the supplied static environment.
     /// Backends without local captures keep their static environment.

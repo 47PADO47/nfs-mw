@@ -52,6 +52,8 @@ pub struct Capabilities {
     pub bloom: bool,
     /// Display-space colour grading.
     pub scene_treatment: bool,
+    /// The speed and pursuit radial blur ([`FocusFilter::radial_blur`](crate::FocusFilter)).
+    pub radial_blur: bool,
     /// Scenery captures for local environment-map reflections.
     pub local_reflections: bool,
     pub ambient_occlusion: bool,
@@ -77,6 +79,7 @@ impl Capabilities {
             tonemaps: TonemapSet::of(&[Tonemap::Off]),
             bloom: false,
             scene_treatment: false,
+            radial_blur: false,
             local_reflections: false,
             ambient_occlusion: false,
             soft_shadows: false,

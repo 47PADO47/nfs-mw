@@ -44,7 +44,7 @@ impl RenderBackend for Renderer {
         self.refresh_targets();
     }
     fn set_focus_filter(&mut self, filter: blackbox_gfx::FocusFilter) {
-        self.post.set_focus_filter(filter);
+        self.post.set_focus_filter(&self.device, filter);
     }
     fn set_colour_treatment(&mut self, profile: Option<&blackbox_gfx::ColourTreatment>, gain: Option<&RgbaImage>) {
         self.set_scene_treatment(profile, gain);

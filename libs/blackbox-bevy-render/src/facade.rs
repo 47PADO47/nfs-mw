@@ -6,7 +6,7 @@
 use std::sync::{Arc, Mutex};
 
 use blackbox_gfx::{
-    BackendInfo, Capabilities, CaptureId, EffectLayer, Environment, FrameParams, FrameStatus, GlossyMaterial,
+    BackendInfo, Capabilities, CaptureId, EffectLayer, Environment, FocusFilter, FrameParams, FrameStatus, GlossyMaterial,
     GlossyMaterialHandle, GraphicsSettings, Instance, LightingRig, MeshDesc, MeshHandle, RenderBackend, RenderError,
     RenderStats, Resolved, RgbaImage, SkyGradient, TextureDesc, TextureHandle, UiLayer, UiTextureId, UiTexturePatch,
     resolve, scaled_size,
@@ -208,6 +208,10 @@ impl RenderBackend for BevyBackend {
     fn set_effects(&mut self, layer: &EffectLayer) {
         lock(&self.shared).effects = layer.clone();
     }
+
+    /// The speed and pursuit radial blur is drawn only by the native renderer for now. This backend accepts
+    /// the value and draws nothing; its capabilities report `radial_blur: false`.
+    fn set_focus_filter(&mut self, _filter: FocusFilter) {}
 
     fn update_ui_texture(&mut self, patch: &UiTexturePatch<'_>) {
         let op = UiOp::Update { id: patch.id, offset: patch.offset, size: patch.size, rgba: patch.rgba.to_vec() };

@@ -17,6 +17,9 @@ mod fsr1;
 mod fsr1_tests;
 mod fxaa;
 mod plan;
+mod radial_blur;
+#[cfg(test)]
+mod radial_blur_tests;
 mod resolve;
 #[cfg(test)]
 mod tests;

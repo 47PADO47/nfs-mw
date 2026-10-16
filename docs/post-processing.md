@@ -44,7 +44,9 @@ The Anti-Aliasing menu row cycles only the values the renderer can run. The sepa
   on the display image after upscaling. It has no jitter or frame history. The UI is drawn afterwards.
 
 The effects run in a fixed order: bloom, tone mapping, anti-aliasing. Anti-aliasing comes last so it
-sees the final colours. Each effect that is off costs nothing: no pass is created for it. With all
+sees the final colours. The speed and pursuit radial blur is not a setting: the game drives it each frame,
+and it runs after these effects, before the speedbreaker vignette and the HUD. It is in the chain only
+while the blur is on, so it costs nothing otherwise (see [speed effects](specs/speed-effects.md), section 4a). Each effect that is off costs nothing: no pass is created for it. With all
 three off the scene is drawn straight into the window; bloom and tone mapping draw it in a 16-bit float
 image (twice the memory and bandwidth), FXAA alone in the window's own format.
 

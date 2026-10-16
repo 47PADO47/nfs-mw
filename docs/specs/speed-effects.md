@@ -4,7 +4,7 @@ Status: **partly implemented**. The curves are in `libs/blackbox-speedfx`; the n
 camera. The automatic pursuit-driven HUD streak feed was removed because it
 could remain visible at rest. The independent graphics speed-lines option
 remains available and follows actual vehicle speed.
-The radial blur is computed but not drawn yet.
+The radial blur is drawn by the native renderer as a screen pass; the Bevy backend does not draw it yet.
 
 ## 1. What is in the rewrite already
 
@@ -43,11 +43,30 @@ them; the search is open).
 - The police state holds the effects (`ai/police.rs`), updated each frame from the drive. It lives on the traffic
   world, so the effects only run on tracks that have a road network.
 
+## 4a. Radial blur pass (native)
+
+- **Feed.** The police state's blur (section 2) goes to the backend each frame as `FocusFilter::radial_blur`, with
+  `FocusFilter::radial_centre` at the middle of the screen. It is the same retained filter the speedbreaker vignette
+  uses, so there is one screen-effect hook, not a second one.
+- **Pass.** `blackbox-gpu-passes` `RadialBlur`: a pixel averages `taps` samples on the ray from itself to the
+  centre. The sample at position `t` (0 at the pixel, 1 at the far end) weighs `1 - t / 2`, and the weights are
+  normalised to sum to one. The reach is 0 inside `inner` (UV from the centre) and rises to `strength` at the
+  corners. Defaults: `inner` 0.25 and 12 taps, both **[unconfirmed]** tuning, not read from the install.
+- **Position.** After the post effects (bloom, tone mapping, FXAA) and before the speedbreaker mask and `resolve`,
+  so the blur smears the finished frame, and the vignette adds on top of it. Blurring before bloom would glow the
+  smeared highlights instead; that was not chosen.
+- **Cost.** At zero strength the pass is not in the chain: no pass, no scratch image.
+- **Source.** No sampling kernel for the speed blur is recorded yet. The speedbreaker spec says a radial scalar alone
+  does not establish a kernel, and that other original blur passes need active-path evidence first
+  ([speedbreaker-visuals.md](speedbreaker-visuals.md)). So the sampling above is the rewrite's own choice, not a
+  reproduction of the original.
+
 ## 4. Open
 
 - The prototype pursuit-driven HUD streak feed was removed. Optional streaks
   now follow actual speed rather than retained pursuit state. See
   [player-car-lights.md](player-car-lights.md).
-- Radial blur: not drawn. It is a screen pass in `blackbox-gpu-passes`, reading the frame before the HUD.
+- Radial blur, Bevy: not drawn. The native renderer draws it (section 4a); the Bevy backend accepts the value
+  and reports `radial_blur: false` in its capabilities.
 - Apply the shake amplitude to the chase camera.
 - Read the install's values for the streaks and the blur, if they are in the data.

@@ -197,6 +197,11 @@ impl super::super::TrafficWorld {
         self.police.effects().fov_kick_deg
     }
 
+    /// The radial blur the high-speed effects add, 0 to 1, from the screen centre (`FocusFilter::radial_blur`).
+    pub fn radial_blur(&self) -> f32 {
+        self.police.effects().blur
+    }
+
     /// The helicopter's minimap blip, while it flies.
     pub(in crate::scenes::world::ai) fn helicopter_blips(&self, pursuing: bool, out: &mut Vec<crate::hud::MapBlip>) {
         let Some((position, heading)) = self.police.helicopter_blip() else { return };
