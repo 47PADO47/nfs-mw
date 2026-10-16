@@ -1,7 +1,7 @@
 //! Choosing the upscaler and keeping the post chain and the texture sampling in step with it.
 
 use super::Renderer;
-use super::post::{FSR1_EASU, FSR1_RCAS, RcasScale, fsr1_passes};
+use super::post::{FSR1_EASU, FSR1_RCAS, Fsr3Pass, RcasScale, fsr1_passes};
 use blackbox_gfx::{fsr1_active, rcas_stops};
 
 use crate::{DEFAULT_UPSCALE_SHARPNESS, Upscaler, clamp_texture_lod_bias, clamp_upscale_sharpness};
@@ -28,7 +28,10 @@ impl Default for Upscale {
 
 impl Renderer {
     /// Choose how a scene drawn below the surface size (a render scale under 1.0) is brought back up.
-    /// [`Upscaler::Bilinear`] is the default. At a render scale of 1.0 or more no upscaler runs.
+    /// [`Upscaler::Bilinear`] is the default. At a render scale of 1.0 or more no spatial upscaler runs.
+    /// [`Upscaler::Fsr3`] is temporal: it jitters every frame, anti-aliases the scene and takes its render
+    /// size from the render scale like the others (the quality modes map to scales, see `UpscaleQuality`).
+    /// A renderer that cannot run it draws as `Bilinear` would.
     pub fn set_upscaler(&mut self, upscaler: Upscaler) {
         if upscaler == self.upscale.upscaler {
             return;
@@ -80,7 +83,24 @@ impl Renderer {
     /// targets with the chain.
     pub(super) fn sync_upscale_passes(&mut self) {
         self.sync_fsr1_passes();
+        self.sync_temporal_pass();
         self.refresh_targets();
+    }
+
+    /// Keep the FSR 3 pass in the chain exactly while FSR 3 is the upscaler and the device can run it.
+    fn sync_temporal_pass(&mut self) {
+        let wanted = self.temporal_wanted();
+        if wanted == self.post.has_temporal() {
+            return;
+        }
+        if !wanted {
+            self.post.set_temporal(None);
+            return;
+        }
+        match Fsr3Pass::new(&self.device) {
+            Ok(pass) => self.post.set_temporal(Some(Box::new(pass))),
+            Err(error) => log::error!("fsr3: the upscaler could not be created, drawing without it: {error}"),
+        }
     }
 
     fn sync_fsr1_passes(&mut self) {

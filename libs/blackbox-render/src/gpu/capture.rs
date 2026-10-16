@@ -71,7 +71,7 @@ impl Renderer {
             view_formats: &[],
         });
         let view = target.create_view(&wgpu::TextureViewDescriptor::default());
-        let scene = SceneTargets::new(&self.device, &self.scene_plan((width, height)));
+        let scene = SceneTargets::new(&self.device, &self.scene_plan((width, height), false));
         self.submit_frame(Some(&scene), &view, (width, height), frame, instances);
         self.read_texture_bytes(&target, (width, height))
     }

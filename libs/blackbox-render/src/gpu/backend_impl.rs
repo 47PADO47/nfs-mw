@@ -8,7 +8,7 @@ use blackbox_gfx::{
     BackendInfo, Capabilities, CaptureId, EffectLayer, Environment, FrameParams, FrameStatus, GlossyMaterial,
     GlossyMaterialHandle, GraphicsSettings, Instance, LightingRig, MeshDesc, MeshHandle, RenderBackend, RenderError,
     RenderStats, Resolved, RgbaImage, TextureDesc, TextureHandle, UiLayer, UiTextureId, UiTexturePatch, resolve,
-    suggested_texture_lod_bias,
+    suggested_temporal_texture_lod_bias, suggested_texture_lod_bias,
 };
 
 use super::Renderer;
@@ -75,7 +75,8 @@ impl RenderBackend for Renderer {
 
     /// Resolves `requested` against [`Capabilities`] and applies the effective settings to the
     /// post chain, the render scale, the upscaler and its sharpness. The world's texture LOD bias
-    /// follows the effective render scale, as the app does for a spatial upscaler.
+    /// follows the effective render scale: the spatial bias for a spatial upscaler, and one mip sharper for a
+    /// temporal one, whose history supplies the samples.
     fn apply_graphics(&mut self, requested: &GraphicsSettings) -> Resolved {
         let resolved = resolve(requested, &self.caps);
         let effective = resolved.effective;
@@ -83,7 +84,11 @@ impl RenderBackend for Renderer {
         Renderer::set_upscaler(self, effective.upscaler);
         Renderer::set_upscale_sharpness(self, effective.upscale_sharpness);
         Renderer::set_render_scale(self, effective.render_scale);
-        Renderer::set_texture_lod_bias(self, suggested_texture_lod_bias(effective.render_scale));
+        let bias = match effective.upscaler.is_temporal() {
+            true => suggested_temporal_texture_lod_bias(effective.render_scale),
+            false => suggested_texture_lod_bias(effective.render_scale),
+        };
+        Renderer::set_texture_lod_bias(self, bias);
         if !effective.ao.active() {
             self.ao = None;
         }

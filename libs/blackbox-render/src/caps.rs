@@ -6,14 +6,20 @@ use blackbox_gfx::{
 
 /// The native renderer's capabilities on `api`.
 ///
-/// `compressed_bc` and `hdr_targets` come from the adapter. Nothing needs a restart: every option the
-/// renderer has is applied to the live chain. There is no ray tracing and no temporal method.
+/// `compressed_bc` and `hdr_targets` come from the adapter, and so does `temporal`: whether it can run the FSR 3
+/// upscaler, the one temporal method (see `gpu::init`). Nothing needs a restart: every option the renderer has is
+/// applied to the live chain. There is no ray tracing.
 pub(crate) fn native_capabilities(
     api: GraphicsApi,
     compressed_bc: bool,
     hdr_targets: bool,
     ambient_occlusion: bool,
+    temporal: bool,
 ) -> Capabilities {
+    let mut upscalers = UpscalerSet::of(&[Upscaler::Off, Upscaler::Bilinear, Upscaler::Fsr1]);
+    if temporal {
+        upscalers.insert(Upscaler::Fsr3);
+    }
     Capabilities {
         renderer: "blackbox",
         api,
@@ -23,7 +29,7 @@ pub(crate) fn native_capabilities(
             GraphicsApi::Gl => AaSet::of(&[Antialiasing::Off, Antialiasing::Fxaa]),
             _ => AaSet::of(&[Antialiasing::Off, Antialiasing::Fxaa, Antialiasing::Smaa]),
         },
-        upscalers: UpscalerSet::of(&[Upscaler::Off, Upscaler::Bilinear, Upscaler::Fsr1]),
+        upscalers,
         tonemaps: TonemapSet::all(),
         bloom: true,
         scene_treatment: true,
@@ -43,7 +49,12 @@ mod tests {
     use blackbox_gfx::{GraphicsSettings, PostSettings, RayTracing, Setting, Tonemap, UpscaleQuality, resolve};
 
     fn caps() -> Capabilities {
-        native_capabilities(GraphicsApi::Vulkan, true, true, true)
+        native_capabilities(GraphicsApi::Vulkan, true, true, true, false)
+    }
+
+    /// The same renderer on a device that can run the FSR 3 upscaler.
+    fn temporal_caps() -> Capabilities {
+        native_capabilities(GraphicsApi::Vulkan, true, true, true, true)
     }
 
     #[test]
@@ -61,7 +72,7 @@ mod tests {
 
     #[test]
     fn the_adapter_decides_compressed_textures_and_hdr() {
-        let weak = native_capabilities(GraphicsApi::Gl, false, false, false);
+        let weak = native_capabilities(GraphicsApi::Gl, false, false, false, false);
         assert!(!weak.compressed_bc && !weak.hdr_targets);
         assert_eq!(weak.api, GraphicsApi::Gl);
         assert!(caps().compressed_bc && caps().hdr_targets);
@@ -117,6 +128,32 @@ mod tests {
         let resolved = resolve(&wanted, &caps());
         assert_eq!(resolved.effective.upscaler, Upscaler::Fsr1);
         assert_eq!(resolved.effective.render_scale, UpscaleQuality::Performance.render_scale());
+    }
+
+    #[test]
+    fn fsr3_is_offered_only_where_the_device_can_run_it() {
+        assert!(temporal_caps().upscalers.contains(Upscaler::Fsr3));
+        assert!(!caps().upscalers.contains(Upscaler::Fsr3));
+        let wanted = GraphicsSettings {
+            post: PostSettings { antialiasing: Antialiasing::Fxaa, ..PostSettings::default() },
+            upscaler: Upscaler::Fsr3,
+            upscale_quality: UpscaleQuality::Performance,
+            ..GraphicsSettings::default()
+        };
+        let resolved = resolve(&wanted, &temporal_caps());
+        assert_eq!(resolved.effective.upscaler, Upscaler::Fsr3);
+        assert_eq!(resolved.effective.render_scale, UpscaleQuality::Performance.render_scale());
+        assert_eq!(resolved.effective.post.antialiasing, Antialiasing::Off, "FSR 3 does its own anti-aliasing");
+        assert!(resolved.downgrade_of(Setting::Upscaler).is_none(), "{:?}", resolved.downgrades);
+        assert!(resolved.downgrade_of(Setting::Antialiasing).is_some());
+    }
+
+    #[test]
+    fn dlss_falls_back_to_fsr3_where_the_device_offers_it() {
+        let wanted = GraphicsSettings { upscaler: Upscaler::Dlss, ..GraphicsSettings::default() };
+        let resolved = resolve(&wanted, &temporal_caps());
+        assert_eq!(resolved.effective.upscaler, Upscaler::Fsr3, "dlss > fsr3 > fsr1");
+        assert_eq!(resolve(&wanted, &caps()).effective.upscaler, Upscaler::Fsr1);
     }
 
     #[test]
