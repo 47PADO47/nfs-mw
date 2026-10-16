@@ -15,6 +15,7 @@ use bevy_app::{App, Plugin, PostUpdate};
 use bevy_asset::{AssetEventSystems, AssetPlugin};
 use bevy_camera::CameraPlugin;
 use bevy_camera::visibility::VisibilitySystems;
+use bevy_core_pipeline::tonemapping::tonemapping;
 use bevy_core_pipeline::upscaling::upscaling;
 use bevy_core_pipeline::{Core3d, Core3dSystems, CorePipelinePlugin};
 use bevy_diagnostic::FrameCountPlugin;
@@ -36,6 +37,7 @@ use crate::material::BlackboxMaterial;
 use crate::ops::BlackboxBridge;
 use crate::post;
 use crate::post::fsr1::{self, Fsr1Render};
+use crate::post::radial_blur::{self, RadialBlurRender};
 use crate::probe::{api_of, backends_for};
 use crate::systems::effects::{self, EffectsRender};
 use crate::systems::ui::{self, UiRender};
@@ -187,6 +189,7 @@ impl Plugin for BlackboxBevyRenderPlugin {
             .init_resource::<EffectsRender>()
             .init_resource::<UiRender>()
             .init_resource::<Fsr1Render>()
+            .init_resource::<RadialBlurRender>()
             .init_resource::<effects::ExtractedWorld>()
             .add_systems(ExtractSchedule, effects::extract_world)
             .add_systems(
@@ -201,6 +204,9 @@ impl Plugin for BlackboxBevyRenderPlugin {
                     (effects::effects_main_pass, effects::effects_soft_pass)
                         .chain()
                         .in_set(Core3dSystems::EarlyPostProcess),
+                    // The speed blur smears the finished frame (after tone mapping, before the upscale and the
+                    // HUD), like native's radial blur pass; it does nothing at strength 0.
+                    radial_blur::radial_blur_pass.in_set(Core3dSystems::PostProcess).after(tonemapping),
                     // FSR 1 replaces Bevy's own bilinear blit when it is the active upscaler (see
                     // `post/fsr1.rs` for why it runs after, not instead of, `upscaling` rather than
                     // suppressing it); the UI layer draws last, at the output's own resolution, whichever

@@ -46,8 +46,8 @@ pub fn capabilities_with_ray_tracing(
         tonemaps: TonemapSet::of(&[Tonemap::Off, Tonemap::Aces]),
         bloom: true,
         scene_treatment: false,
-        // The radial blur is drawn only by the native renderer for now (see `BevyBackend::set_focus_filter`).
-        radial_blur: false,
+        // The speed and pursuit blur is a post pass here too (`post::radial_blur`).
+        radial_blur: true,
         local_reflections: false,
         ambient_occlusion: false,
         soft_shadows: !matches!(api, GraphicsApi::Gl),

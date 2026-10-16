@@ -88,16 +88,37 @@ pub struct RadialBlurIo<'a> {
     pub output_format: wgpu::TextureFormat,
 }
 
+/// The part of the input, from its top-left corner, that holds the image, on each axis: 1 for an input that is the
+/// image. A value that is not in `(0, 1]` counts as 1.
+fn content_scale(scale: [f32; 2]) -> [f32; 2] {
+    scale.map(|v| match v.is_finite() && v > 0.0 {
+        true => v.min(1.0),
+        false => 1.0,
+    })
+}
+
 /// The radial blur pass: a pipeline per output format, built the first time it draws into one.
 pub struct RadialBlur {
     filter: Filter,
     settings: RadialBlurSettings,
+    content: [f32; 2],
 }
 
 impl RadialBlur {
     pub fn new(device: &wgpu::Device) -> Self {
         let source = filter_source(include_str!("shaders/radial_blur.wgsl"));
-        Self { filter: Filter::new(device, "radial blur", &source), settings: RadialBlurSettings::default() }
+        Self {
+            filter: Filter::new(device, "radial blur", &source),
+            settings: RadialBlurSettings::default(),
+            content: [1.0; 2],
+        }
+    }
+
+    /// Say that the input holds the image only in the top-left part of it (a scene drawn at a render scale into a
+    /// texture of the output's size): the centre, the reach and the samples are then those of the image, not of the
+    /// whole texture. The default is the whole texture.
+    pub fn set_content_scale(&mut self, scale: [f32; 2]) {
+        self.content = content_scale(scale);
     }
 
     /// Replace the settings (sanitised). Takes effect on the next [`Self::encode`].
@@ -122,7 +143,9 @@ impl RadialBlur {
         if self.settings.is_identity() {
             return;
         }
-        self.filter.set_params(queue, &params(self.settings));
+        let mut block = params(self.settings);
+        block.b[2..4].copy_from_slice(&self.content);
+        self.filter.set_params(queue, &block);
         self.filter.draw(
             device,
             encoder,
@@ -135,5 +158,18 @@ impl RadialBlur {
                 blend: Blend::Replace,
             },
         );
+    }
+}
+
+#[cfg(test)]
+mod content_tests {
+    use super::content_scale;
+
+    #[test]
+    fn the_content_part_is_kept_in_range_and_defaults_to_the_whole_texture() {
+        assert_eq!(content_scale([1.0, 1.0]), [1.0, 1.0]);
+        assert_eq!(content_scale([0.5, 0.67]), [0.5, 0.67]);
+        assert_eq!(content_scale([2.0, 0.0]), [1.0, 1.0]);
+        assert_eq!(content_scale([f32::NAN, -1.0]), [1.0, 1.0]);
     }
 }

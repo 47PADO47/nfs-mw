@@ -14,6 +14,7 @@
 //! its actual source first" caveat for it suggested might be necessary.
 
 pub mod fsr1;
+pub mod radial_blur;
 pub mod scale;
 pub mod taa;
 

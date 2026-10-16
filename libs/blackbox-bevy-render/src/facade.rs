@@ -218,9 +218,11 @@ impl RenderBackend for BevyBackend {
         lock(&self.shared).effects = layer.clone();
     }
 
-    /// The speed and pursuit radial blur is drawn only by the native renderer for now. This backend accepts
-    /// the value and draws nothing; its capabilities report `radial_blur: false`.
-    fn set_focus_filter(&mut self, _filter: FocusFilter) {}
+    /// The speed and pursuit radial blur: kept for the radial blur pass (`post::radial_blur`). The speedbreaker's
+    /// vignette is not drawn by this backend yet.
+    fn set_focus_filter(&mut self, filter: FocusFilter) {
+        lock(&self.shared).focus = filter;
+    }
 
     fn update_ui_texture(&mut self, patch: &UiTexturePatch<'_>) {
         let op = UiOp::Update { id: patch.id, offset: patch.offset, size: patch.size, rgba: patch.rgba.to_vec() };
