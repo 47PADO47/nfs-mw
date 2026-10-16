@@ -17,14 +17,14 @@ follow-up; it would live in `libs/blackbox-chunk`).
 
 | Entry | Signature sketch | Scope | Implemented in |
 |---|---|---|---|
-| Layer stack | `GameDir::with_layers(install, &[Layer { root, priority, owner }])` | G | `libs/game-install/src/vfs.rs` (extend) |
+| Layer stack | `GameDir::add_overlay(install, &[Layer { root, priority, owner }])` | G | `libs/game-install/src/vfs.rs` (extend) |
 | Exists | `vfs.exists(path: &str) -> bool` | G | same |
 | Read | `vfs.read(path: &str, sink: impl FnMut(&[u8])) -> Result<u64>` streams the winning file's bytes | G | same, through `modding/vfs.rs` (new) |
 | Size | `vfs.size(path: &str) -> Result<u64>` | G | same |
 | List | `vfs.list(dir: &str) -> Result<Vec<String>>` the union over layers | G | same |
 | Who provides | `vfs.provider(path: &str) -> Option<Provider { Install or Mod(String) }>` | G | same |
 | Layers | `vfs.layers() -> Vec<LayerInfo { owner, priority, files }>` | G | same |
-| Add layer | `vfs.add_layer(dir: &str, priority: i32) -> Result<()>` for a folder a mod generates; `Load` only | G | same |
+| Add layer | `vfs.add_overlay(dir: &str, priority: i32) -> Result<()>` for a folder a mod generates; `Load` only | G | same |
 | Mod data dir | `ctx.data_dir() -> PathBuf` a writable folder for the mod (`<local data dir>/<app>/mod-data/<id>/`) | G | `modding/runtime.rs` (new), `libs/game-install/src/discover/config.rs` for the base dir |
 
 The console command `vfs <path>` (new, host) prints which layer provides a path; `mods` lists the layers.
