@@ -1584,6 +1584,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "blackbox-modding"
+version = "0.1.0"
+
+[[package]]
 name = "blackbox-movie"
 version = "0.1.0"
 dependencies = [

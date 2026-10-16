@@ -1,0 +1,18 @@
+[package]
+name = "blackbox-modding"
+description = "Native mod plugins for Black Box games: the versioned C ABI, the mod SDK and (later) the host loader."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# `host` is reserved for the loader (ADR 0005 section 2). It adds no code yet.
+[features]
+default = ["abi"]
+abi = []
+sdk = ["abi"]
+host = ["abi"]
+
+[lints]
+workspace = true
