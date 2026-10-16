@@ -35,7 +35,8 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
                 row(Setting::Upscaler, Title::Text("Upscaler")),
             ])
             .chain(offered(RendererSetting::UpscaleQuality))
-            .chain([row(Setting::UpscaleSharpness, Title::Text("Upscale Sharpness"))])
+            .chain([row(Setting::UpscaleSharpness, Title::Text("Sharpening"))])
+            .chain(offered(RendererSetting::FrameGeneration))
             .chain(PostSetting::ALL.into_iter().map(|setting| row(Setting::Post(setting), setting.title())))
             .chain([renderer_row(RendererSetting::RayTracing)])
             .chain(

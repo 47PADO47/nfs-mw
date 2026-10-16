@@ -8,13 +8,16 @@ use blackbox_gfx::{Capabilities, GraphicsApi, Upscaler};
 
 use super::options::{Data, Title};
 use super::post_options::pick;
-use crate::settings::{Partial, RayTracingLevel, RendererKind, Settings, UpscaleQuality};
+use crate::settings::{Partial, RayTracingLevel, RendererKind, Settings, UpscaleMode, UpscaleQuality};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RendererSetting {
     Renderer,
     GraphicsApi,
     UpscaleQuality,
+    /// Frame generation, for the temporal upscalers. Nothing stores a value yet: the row is dimmed and reads
+    /// "Unavailable" until a renderer reports `Capabilities::frame_generation`.
+    FrameGeneration,
     RayTracing,
 }
 
@@ -24,6 +27,7 @@ impl RendererSetting {
             Self::Renderer => "Renderer (After Restart)",
             Self::GraphicsApi => "Graphics API (After Restart)",
             Self::UpscaleQuality => "Upscale Quality",
+            Self::FrameGeneration => "Frame Generation",
             Self::RayTracing => "Ray Tracing",
         })
     }
@@ -34,7 +38,7 @@ impl RendererSetting {
     pub fn shown(self, caps: &Capabilities) -> bool {
         match self {
             Self::Renderer | Self::GraphicsApi | Self::RayTracing => true,
-            Self::UpscaleQuality => caps.upscalers.iter().any(Upscaler::is_temporal),
+            Self::UpscaleQuality | Self::FrameGeneration => caps.upscalers.iter().any(Upscaler::is_temporal),
         }
     }
 
@@ -53,12 +57,15 @@ impl RendererSetting {
                 },
                 Self::UpscaleQuality => match s.upscale_quality {
                     UpscaleQuality::Auto => "Auto",
+                    // DLSS at the output size is DLAA: it anti-aliases and does not upscale.
+                    UpscaleQuality::Native if s.upscaler == UpscaleMode::Dlss => "DLAA",
                     UpscaleQuality::Native => "Native",
                     UpscaleQuality::Quality => "Quality",
                     UpscaleQuality::Balanced => "Balanced",
                     UpscaleQuality::Performance => "Performance",
                     UpscaleQuality::UltraPerformance => "Ultra Performance",
                 },
+                Self::FrameGeneration => "Off",
                 Self::RayTracing => match s.ray_tracing {
                     RayTracingLevel::Off => "Off",
                     RayTracingLevel::Low => "Low",
@@ -95,6 +102,7 @@ impl RendererSetting {
                 s.upscale_quality = pick(&all, s.upscale_quality, forward);
                 changed.upscale_quality = Some(s.upscale_quality);
             }
+            Self::FrameGeneration => {}
             Self::RayTracing => {
                 let all = [RayTracingLevel::Off, RayTracingLevel::Low, RayTracingLevel::Medium, RayTracingLevel::High];
                 s.ray_tracing = pick(&all, s.ray_tracing, forward);

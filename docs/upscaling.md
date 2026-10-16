@@ -38,11 +38,14 @@ setting.
 - **Upscale quality** is `auto`, `native`, `quality`, `balanced`, `performance` or `ultra_performance`. It only
   matters for the temporal upscalers, whose render size it sets (100, 67, 59, 50 and 33 %; `auto` is `quality`);
   `render_scale` is then ignored. So `dlss` at `quality` on a native renderer without FSR 3 is `fsr1` at 67 %.
-- **Upscale sharpness** is 0 to 100. It only affects `fsr1`; 0 turns its sharpening pass off.
+- **Upscale sharpness** is 0 to 100. It affects `fsr1` and `fsr3` (DLSS has no sharpening pass here); 0 turns the
+  sharpening pass off. The menu row, Sharpening, steps through Off (0), Medium (50) and High (80).
 
 Video options in the main menu and the pause menu have rows for Render Scale (presets 50, 59, 67,
-77, 85, 100, 125, 150 and 200 %), Upscaler and Upscale Sharpness (plus Upscale Quality on a renderer
-with temporal upscalers). The Upscaler row cycles only what the running renderer can do. Changes apply at once and are
+77, 85, 100, 125, 150 and 200 %), Upscaler and Sharpening (plus Upscale Quality and Frame Generation on a renderer
+with temporal upscalers). Upscale Quality at Native is DLAA with DLSS (it anti-aliases and does not upscale) and
+native anti-aliasing with FSR 3. Frame Generation reads Unavailable: neither DLSS (`dlss_wgpu` 6.0 has Super
+Resolution and Ray Reconstruction only) nor `fsr3-wgpu` has it yet. The Upscaler row cycles only what the running renderer can do. Changes apply at once and are
 saved when you leave the settings screen. In the F12 console, `get render_scale`,
 `set render_scale 67`, `set upscaler bilinear` and `set upscale_sharpness 50` read or change the
 same settings for the run. `--screenshot` captures the final, upscaled image.

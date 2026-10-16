@@ -54,7 +54,7 @@ fn the_native_renderer_hides_the_quality_mode_and_dims_ray_tracing() {
 #[test]
 fn a_full_renderer_has_every_row_next_to_the_setting_it_belongs_with() {
     let video = titles(Category::Video, &test_caps::full());
-    assert_eq!(video.len(), 44);
+    assert_eq!(video.len(), 45);
     let at =
         |name: &'static str| video.iter().position(|t| *t == text(name)).unwrap_or_else(|| panic!("no {name} row"));
     assert_eq!(
@@ -217,7 +217,7 @@ fn the_renderer_rows_cycle_and_record_only_their_own_change() {
     let quality = Setting::Renderer(RendererSetting::UpscaleQuality);
     s.upscaler = UpscaleMode::Dlss;
     assert_eq!(quality.data_in(&s, &full), Data::Text("Quality".into()));
-    for name in ["Balanced", "Performance", "Ultra Performance", "Auto", "Native", "Quality"] {
+    for name in ["Balanced", "Performance", "Ultra Performance", "Auto", "DLAA", "Quality"] {
         quality.advance(&mut s, &mut c, true, &full);
         assert_eq!(quality.data_in(&s, &full), Data::Text(name.into()));
     }
@@ -295,4 +295,41 @@ fn ao_rows_follow_support_and_keep_disabled_preferences() {
         Setting::Graphics(GraphicsSetting::AmbientOcclusion).data_in(&s, &unsupported),
         Data::Text("Off".into())
     );
+}
+
+#[test]
+fn the_temporal_upscalers_have_sharpening_frame_generation_and_dlaa_rows() {
+    let sharpening = Setting::UpscaleSharpness;
+    let frame_generation = Setting::Renderer(RendererSetting::FrameGeneration);
+    let quality = Setting::Renderer(RendererSetting::UpscaleQuality);
+
+    // Without a temporal upscaler there is no frame generation row; with one, the order is quality, sharpening,
+    // frame generation.
+    assert!(!titles(Category::Video, &test_caps::native()).contains(&text("Frame Generation")));
+    let full = test_caps::full();
+    let video = titles(Category::Video, &full);
+    let at = |name: &'static str| video.iter().position(|t| *t == text(name)).unwrap_or_else(|| panic!("no {name}"));
+    assert_eq!((at("Sharpening"), at("Frame Generation")), (at("Upscale Quality") + 1, at("Upscale Quality") + 2));
+
+    // FSR 3 sharpens, so the row is live for it as for FSR 1; DLSS has no sharpening pass of its own.
+    let mut s = Settings { upscaler: UpscaleMode::Fsr3, ..defaults() };
+    assert!(sharpening.enabled_in(&s, &full));
+    s.upscaler = UpscaleMode::Dlss;
+    assert!(!sharpening.enabled_in(&s, &full));
+
+    // No renderer has frame generation yet: the row is dimmed, reads Unavailable and changes nothing.
+    let mut c = Partial::default();
+    assert!(!frame_generation.enabled_in(&s, &full));
+    assert_eq!(frame_generation.data_in(&s, &full), Data::Text("Unavailable".into()));
+    assert!(!frame_generation.advance(&mut s, &mut c, true, &full));
+    assert_eq!(c, Partial::default());
+
+    // DLSS at the output size is DLAA.
+    s.upscale_quality = UpscaleQuality::Native;
+    assert_eq!(quality.data_in(&s, &full), Data::Text("DLAA".into()));
+    s.upscaler = UpscaleMode::Fsr3;
+    assert_eq!(quality.data_in(&s, &full), Data::Text("Native".into()));
+    s.upscaler = UpscaleMode::Dlss;
+    s.upscale_quality = UpscaleQuality::Quality;
+    assert_eq!(quality.data_in(&s, &full), Data::Text("Quality".into()));
 }

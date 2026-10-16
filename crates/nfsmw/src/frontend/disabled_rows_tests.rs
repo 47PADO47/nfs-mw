@@ -96,7 +96,7 @@ fn temporal_upscaling_owns_resolution_and_anti_aliasing_on_a_supported_renderer(
     assert_eq!(changes, Partial::default());
     assert!(Setting::Post(PostSetting::Aa).advance(&mut s, &mut changes, true, &native));
     assert!(Setting::UpscaleSharpness.advance(&mut s, &mut changes, true, &native));
-    assert_eq!(changes.upscale_sharpness, Some(crate::settings::Percent(90)));
+    assert_eq!(changes.upscale_sharpness, Some(crate::settings::Percent(0)), "High is followed by Off");
     assert_eq!(s.upscaler, UpscaleMode::Dlss, "a separate preference stays stored");
 }
 
