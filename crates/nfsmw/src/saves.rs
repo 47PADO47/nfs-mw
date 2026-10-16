@@ -213,11 +213,12 @@ fn extra_table(s: &Settings) -> toml::Table {
     t
 }
 
-/// The settings as TOML text, the payload of an alias: the config's keys, then the extra keys.
+/// The settings as TOML text, the payload of an alias: the extra keys, then the config's keys. The extra keys
+/// come first because the config can end in a table (`[hd_content]`), which would otherwise swallow them.
 pub fn settings_payload(s: &Settings) -> Result<Vec<u8>, SaveError> {
     let config = crate::settings::write::merge("", &partial_of(s)).map_err(|e| SaveError::Payload(format!("{e:#}")))?;
     let extra = toml::to_string(&extra_table(s)).map_err(|e| SaveError::Payload(e.to_string()))?;
-    Ok(format!("{config}{extra}").into_bytes())
+    Ok(format!("{extra}{config}").into_bytes())
 }
 
 /// The settings read back from a payload. A key the payload lacks takes its default.
