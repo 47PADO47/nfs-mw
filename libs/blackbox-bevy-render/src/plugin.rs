@@ -19,7 +19,6 @@ use bevy_core_pipeline::tonemapping::tonemapping;
 use bevy_core_pipeline::upscaling::upscaling;
 use bevy_core_pipeline::{Core3d, Core3dSystems, CorePipelinePlugin};
 use bevy_diagnostic::FrameCountPlugin;
-use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Res, SystemParam};
 use bevy_image::ImagePlugin;
