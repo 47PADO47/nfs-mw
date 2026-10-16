@@ -1,6 +1,6 @@
 # HD content support: behaviour spec for an optional port feature
 
-Status: **specification, not implemented.** Written before any code. The feature makes HD replacement content display
+Status: **specification, partly implemented** (see Port status at the end). The feature makes HD replacement content display
 at the right size in three places: the FEng font glyphs, the mouse pointer and the full-motion videos (FMV).
 
 Sources and licence rule:
@@ -261,3 +261,33 @@ places as with the stock texture. The pointer with a 32 x 32 texture. A film mov
 7. **Independence of the options.** The reference mod gates each feature with its own flag and its own hook sites
    **[community]**. Our three options are independent by design (section 5). Confirm with a test that each option
    changes only its own output.
+
+## Port status
+
+Implemented (code and unit tests; the in-game checks of section 9 are not run yet):
+
+- **Fonts (`hd.fonts`).** `libs/blackbox-feng/src/font/native_size.rs` (`uv_size`) chooses the glyph divisor. The game side
+  (`crates/nfsmw/src/ui/assets.rs`) reads the stock size of each font texture from the install's own packs, and takes
+  the built-in table only when the font's texture is loaded but has no stock copy (a replacement). `texture_size` returns
+  the divisor, so the layouts in `text.rs`, `present/blackbox.rs` and `frontend/prompts.rs` needed no change.
+  Stock content: the native and loaded sizes are equal for every font that is loaded, so the output does not change.
+- **Pointer (`hd.cursor`).** `frontend/pointer.rs`: `hotspot(size, hd_cursor)` scales the (2, 2) tip when the texture is
+  larger than 16 x 16 and clamps it inside the texture. `apply` sets the cursor again when the option changes.
+- **Movies (`hd.fmv`).** `movie/mod.rs`: `framing(file, size, hd_fmv)` frames every film as 1024 x 512 (rows 64 to 448).
+  The logo is unchanged. `fit_rect` is the on-screen rectangle (pure, tested).
+- **Settings.** `settings/hd_content.rs`: `[hd_content]` keys `fonts`, `cursor`, `fmv`; env `NFSMW_HD_FONTS`,
+  `NFSMW_HD_CURSOR`, `NFSMW_HD_FMV`; flags `--hd-fonts` / `--no-hd-fonts` (and cursor, fmv); console `set hd_fonts off`
+  (`hd_cursor`, `hd_fmv`). All default on. Registration lines were added to the shared settings files, `saves.rs`, the
+  view arguments, the console key list and `app/mod.rs` (a `publish` system copies the settings to the UI each frame).
+
+Not done or different from the text above:
+
+- **No menu rows.** The Graphics page rows ("HD fonts", "HD cursor", "HD movies") need `frontend/graphics_options.rs`,
+  which was outside the task's file list.
+- **No `hd` console command.** The console uses the flat `set` form with keys `hd_fonts`, `hd_cursor`, `hd_fmv`.
+  `hd status` is not implemented.
+- **Native sizes are read from the install's packs only.** A font texture served by an overlay has no stock size in the
+  install's packs, so the table is used for it (for `FONT_MW_BODY` that is 256 x 256, verified).
+- **Unverified rows.** `tac_numbers`, `arial` and `arial12` are table values only. `tac_numbers` takes the table only when
+  its texture is loaded as a replacement, so a stock copy in a pack that is not scanned cannot change.
+- **Section 10 open questions** stay open. Question 1 (custom fonts with HD fonts) depends on the custom-fonts work.

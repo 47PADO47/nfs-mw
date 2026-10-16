@@ -1,16 +1,19 @@
 //! What the FEng screens read from the install besides their packages: the fonts, the textures and the language
 //! strings. Shared by the HUD and the menus.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use anyhow::{Context, Result};
 use blackbox_chunk::find_all;
+use blackbox_feng::font::uv_size;
 use blackbox_feng::package::ResourceKind;
 use blackbox_feng::{Font, Package, fe_hash_upper};
 use blackbox_text::StringTable;
 use blackbox_tpk::{Texture, decode_rgba8, read_texture_packs};
-use game_install::GameDir;
+use game_install::{GameDir, Provider};
 use nfsmw_data::read_unwrapped;
+
+use crate::settings::hd_content;
 
 const FENG_FONT: u32 = 0x0003_0201;
 
@@ -39,6 +42,46 @@ const ALIASES: [(&str, &str); 6] = [
     ("7500_LINES_00", "7000_LINES_00"),
 ];
 
+/// The stock sizes of the font textures, by font name: the built-in table of `docs/specs/hd-content-support.md`, section
+/// 2.2. Used only for a font whose texture is loaded but has no stock copy in the install's packs (so a replacement).
+/// The rows for `font_mw_body`, `font_mw_title` and `font_mw_custom_numbers` agree with the install.
+const FONT_TABLE: [(&str, (u32, u32)); 6] = [
+    ("font_mw_body", (256, 256)),
+    ("font_mw_title", (512, 512)),
+    ("font_mw_custom_numbers", (128, 64)),
+    ("tac_numbers", (128, 64)),
+    ("arial", (256, 256)),
+    ("arial12", (256, 256)),
+];
+
+/// The table's size for a font, by its name hash.
+fn table_size(font_hash: u32) -> Option<(u32, u32)> {
+    FONT_TABLE.iter().find(|(name, _)| fe_hash_upper(name) == font_hash).map(|(_, size)| *size)
+}
+
+/// A font texture's native size: the stock texture's size when the install has one, else the table's. `None` when
+/// neither knows it.
+pub fn native_size(stock: Option<(u32, u32)>, table: Option<(u32, u32)>) -> Option<(u32, u32)> {
+    stock.or(table)
+}
+
+/// The native size of each font's texture (see [`native_size`]). The table is consulted only when the texture is
+/// loaded: a loaded texture that is not a stock copy is a replacement, and its stock size is what the table gives.
+fn native_font_sizes(
+    fonts: &HashMap<u32, Font>,
+    stock: &HashMap<u32, (u32, u32)>,
+    textures: &HashMap<u32, Texture>,
+) -> HashMap<u32, (u32, u32)> {
+    fonts
+        .values()
+        .filter_map(|font| {
+            let table = textures.contains_key(&font.texture_hash).then(|| table_size(font.hash)).flatten();
+            let size = native_size(stock.get(&font.texture_hash).copied(), table)?;
+            Some((font.texture_hash, size))
+        })
+        .collect()
+}
+
 /// A decoded texture, straight (not premultiplied) RGBA.
 pub struct Image {
     pub width: u32,
@@ -62,6 +105,8 @@ pub struct UiAssets {
     fonts: HashMap<u32, Font>,
     textures: HashMap<u32, Texture>,
     aliases: HashMap<u32, u32>,
+    /// The stock size of each font texture, by texture hash, where known (see [`native_size`]).
+    font_native: HashMap<u32, (u32, u32)>,
     input_atlas: Image,
     discord_mark: Image,
     pub strings: Option<StringTable>,
@@ -82,12 +127,20 @@ impl UiAssets {
             }
         }
 
+        // The stock sizes of the font textures come from the install's own packs, not from an overlay (which may hold an
+        // HD copy): only a pack the install serves counts. The first such pack wins, as in the loaded textures below.
+        let font_textures: HashSet<u32> = fonts.values().map(|f| f.texture_hash).collect();
+        let mut stock: HashMap<u32, (u32, u32)> = HashMap::new();
         let mut textures: HashMap<u32, Texture> = HashMap::new();
         for rel in TEXTURE_FILES {
             let Ok(data) = read_unwrapped(dir, rel) else { continue };
+            let from_install = matches!(dir.provider(rel), Some(Provider::Install));
             match read_texture_packs(&data) {
                 Ok(packs) => {
                     for t in packs.into_iter().flat_map(|p| p.textures) {
+                        if from_install && font_textures.contains(&t.name_hash) {
+                            stock.entry(t.name_hash).or_insert((t.width, t.height));
+                        }
                         textures.entry(t.name_hash).or_insert(t);
                     }
                 }
@@ -109,10 +162,11 @@ impl UiAssets {
             .ok()
             .and_then(|d| StringTable::from_file(&d).map_err(|e| log::warn!("English.bin: {e}")).ok());
 
+        let font_native = native_font_sizes(&fonts, &stock, &textures);
         let aliases = ALIASES.iter().map(|(a, b)| (fe_hash_upper(a), fe_hash_upper(b))).collect();
         let input_atlas = super::input_icons::load()?;
         let discord_mark = super::discord_icon::load()?;
-        let assets = Self { fonts, textures, aliases, strings, input_atlas, discord_mark };
+        let assets = Self { fonts, textures, aliases, font_native, strings, input_atlas, discord_mark };
         log::info!("UI: {} fonts, {} textures", assets.fonts.len(), assets.textures.len());
         Ok(assets)
     }
@@ -171,9 +225,12 @@ impl UiAssets {
         Some(Image { width: t.width, height: t.height, rgba, blend: t.alpha_blend })
     }
 
-    /// Size of a texture in pixels.
+    /// The size a font texture's glyph coordinates are divided by (the layout's texture size): its native (stock) size
+    /// under the HD fonts option, else the loaded texture's size. The font layouts are its only users.
     pub fn texture_size(&self, hash: u32) -> Option<(u32, u32)> {
-        self.texture(hash).map(|t| (t.width, t.height)).or((hash == fe_hash_upper("BASEPOLY")).then_some((2, 2)))
+        let loaded = self.texture(hash).map(|t| (t.width, t.height));
+        let loaded = loaded.or((hash == fe_hash_upper("BASEPOLY")).then_some((2, 2)))?;
+        Some(uv_size(hd_content::active().fonts, self.font_native.get(&hash).copied(), loaded))
     }
 }
 

@@ -73,6 +73,7 @@ fn masked_and_unmasked_presenter_uploads_apply_alpha_coverage_once() {
             fonts: HashMap::new(),
             textures: HashMap::from([(1, picture), (2, mask)]),
             aliases: HashMap::new(),
+            font_native: HashMap::new(),
             input_atlas: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
             discord_mark: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
             strings: None,
@@ -97,5 +98,38 @@ fn masked_and_unmasked_presenter_uploads_apply_alpha_coverage_once() {
         let mut cached = UiOutput::default();
         presenter.present(&tree, &assets, screen, &mut cached);
         assert!(cached.patches.is_empty(), "the same composed texture must not be uploaded every frame");
+    }
+}
+
+#[test]
+fn a_stock_size_beats_the_table_and_the_table_fills_the_gap() {
+    assert_eq!(native_size(Some((256, 256)), Some((128, 64))), Some((256, 256)));
+    assert_eq!(native_size(None, Some((128, 64))), Some((128, 64)));
+    assert_eq!(native_size(None, None), None);
+}
+
+#[test]
+fn the_table_is_found_by_font_name_in_any_case() {
+    assert_eq!(table_size(fe_hash_upper("FONT_MW_BODY")), Some((256, 256)));
+    assert_eq!(table_size(fe_hash_upper("font_mw_body")), Some((256, 256)));
+    assert_eq!(table_size(fe_hash_upper("not_a_font")), None);
+}
+
+#[test]
+#[ignore = "requires an unmodified base PC install; set NFSMW_GAME_DIR"]
+fn the_verified_table_rows_match_the_install_and_stock_fonts_keep_their_size() {
+    let path = std::env::var("NFSMW_GAME_DIR").expect("set NFSMW_GAME_DIR to an unmodified base PC install");
+    let dir = GameDir::open(path).unwrap();
+    let assets = UiAssets::load(&dir).unwrap();
+    for (name, size) in
+        [("FONT_MW_BODY", (256, 256)), ("FONT_MW_TITLE", (512, 512)), ("FONT_MW_CUSTOM_NUMBERS", (128, 64))]
+    {
+        let hash = fe_hash_upper(name);
+        assert_eq!(assets.font_native.get(&hash), Some(&size), "{name}: the install's stock size");
+        assert_eq!(
+            assets.texture_size(hash),
+            assets.texture(hash).map(|t| (t.width, t.height)),
+            "{name}: stock output"
+        );
     }
 }

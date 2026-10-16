@@ -134,3 +134,21 @@ fn word_wrap_breaks_at_a_space() {
     assert_eq!(wrapped.quads.len(), 5, "the space draws a quad too");
     assert!(ys[3] > ys[1], "second word wrapped: {ys:?}");
 }
+
+#[test]
+fn uv_size_uses_the_native_size_only_when_asked_and_known() {
+    assert_eq!(uv_size(false, Some((256, 256)), (512, 512)), (512, 512));
+    assert_eq!(uv_size(true, Some((256, 256)), (512, 512)), (256, 256));
+    assert_eq!(uv_size(true, None, (512, 512)), (512, 512));
+    assert_eq!(uv_size(true, Some((0, 256)), (512, 512)), (512, 512));
+}
+
+#[test]
+fn a_larger_replacement_lays_out_where_the_stock_texture_does() {
+    let f = sample();
+    let stock = f.layout("AB", TextStyle::default(), (256, 128));
+    let hd = f.layout("AB", TextStyle::default(), uv_size(true, Some((256, 128)), (512, 256)));
+    assert_eq!(hd.quads, stock.quads);
+    let loaded = f.layout("AB", TextStyle::default(), (512, 256));
+    assert_ne!(loaded.quads[0].u0, stock.quads[0].u0, "the loaded size alone moves the glyphs");
+}

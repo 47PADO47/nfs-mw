@@ -181,7 +181,8 @@ impl Layouter<'_> {
 }
 
 impl Font {
-    /// Lays out `text` the way the game does. `texture_size` is the size of the font texture in pixels.
+    /// Lays out `text` the way the game does. `texture_size` is the size the glyph coordinates are divided by: the
+    /// font's native (stock) texture size, or the loaded texture's size when that is the choice (see [`super::uv_size`]).
     /// `$NAME$` button-icon sequences are skipped (no icon is drawn).
     pub fn layout(&self, text: &str, style: TextStyle, texture_size: (u32, u32)) -> TextLayout {
         let (baseline, leading_scale) = EXTRA.iter().find(|e| e.0 == self.hash).map_or((0.0, 1.0), |e| (e.1, e.2));
