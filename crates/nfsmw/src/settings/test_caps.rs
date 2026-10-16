@@ -20,7 +20,8 @@ pub fn full() -> Capabilities {
     }
 }
 
-/// What the native `blackbox` renderer reports on Vulkan: FXAA, bloom, tone mapping, bilinear and FSR 1.
+/// What the native `blackbox` renderer reports on Vulkan with the storage limits of FSR 3 missing: FXAA, bloom, tone
+/// mapping, bilinear and FSR 1. [`native_fsr3`] is the same renderer on a device that has them.
 pub fn native() -> Capabilities {
     Capabilities {
         renderer: "blackbox",
@@ -40,4 +41,12 @@ pub fn native() -> Capabilities {
         render_scale: Capabilities::full_render_scale(),
         restart_required: RestartSet::empty(),
     }
+}
+
+/// The native renderer on a device that can run the FSR 3 upscaler (any Vulkan or DirectX 12 GPU of this decade):
+/// [`native`] plus the temporal method.
+pub fn native_fsr3() -> Capabilities {
+    let mut caps = native();
+    caps.upscalers.insert(Upscaler::Fsr3);
+    caps
 }

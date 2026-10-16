@@ -104,6 +104,23 @@ fn the_upscaler_row_cycles_only_what_the_native_renderer_runs() {
 }
 
 #[test]
+fn a_native_renderer_with_fsr3_cycles_it_and_shows_the_quality_mode() {
+    let caps = test_caps::native_fsr3();
+    let video = titles(Category::Video, &caps);
+    assert!(video.contains(&text("Upscale Quality")), "a temporal upscaler brings its quality row");
+    let (mut s, mut c) = (defaults(), Partial::default());
+    for name in ["FSR 3", "Off", "Bilinear", "FSR 1"] {
+        assert!(Setting::Upscaler.advance(&mut s, &mut c, true, &caps));
+        assert_eq!(Setting::Upscaler.data_in(&s, &caps), Data::Text(name.into()));
+    }
+    Setting::Upscaler.advance(&mut s, &mut c, false, &caps);
+    assert_eq!(s.upscaler, UpscaleMode::Bilinear, "left from FSR 1 goes back one");
+    s.upscaler = UpscaleMode::Fsr3;
+    assert!(Setting::Renderer(RendererSetting::UpscaleQuality).enabled_in(&s, &caps));
+    assert!(!Setting::Post(PostSetting::Aa).enabled_in(&s, &caps), "FSR 3 does its own anti-aliasing");
+}
+
+#[test]
 fn the_upscaler_row_cycles_all_six_on_a_full_renderer() {
     let (mut s, mut c, caps) = (defaults(), Partial::default(), test_caps::full());
     for name in ["FSR 3", "FSR 4", "DLSS", "Off", "Bilinear", "FSR 1"] {
