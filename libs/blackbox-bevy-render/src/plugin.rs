@@ -8,7 +8,9 @@
 //! is in the main world (after the plugins' `finish`).
 
 #[cfg(all(feature = "dlss", not(feature = "dlss-mock")))]
-use bevy_anti_alias::dlss::{DlssInitPlugin, DlssSuperResolutionSupported as DlssSupport};
+use bevy_anti_alias::dlss::{
+    DlssInitPlugin, DlssRayReconstructionSupported as RrSupport, DlssSuperResolutionSupported as DlssSupport,
+};
 use bevy_app::{App, Plugin, PostUpdate};
 use bevy_asset::{AssetEventSystems, AssetPlugin};
 use bevy_camera::CameraPlugin;
@@ -26,7 +28,7 @@ use bevy_pbr::{MaterialPlugin, PbrPlugin};
 use bevy_render::renderer::{RenderAdapterInfo, RenderDevice};
 use bevy_render::settings::{RenderCreation, WgpuSettings};
 use bevy_render::{ExtractSchedule, RenderApp, RenderPlugin};
-use blackbox_gfx::{BackendInfo, GraphicsApi};
+use blackbox_gfx::{BackendInfo, GraphicsApi, RtSupport};
 
 use crate::apply::{self, WorldState};
 use crate::facade::BevyBackend;
@@ -43,6 +45,11 @@ use crate::systems::ui::{self, UiRender};
 #[derive(Resource)]
 struct DlssSupport;
 
+/// Without the DLSS SDK path there is no Bevy resource to find for Ray Reconstruction either.
+#[cfg(not(all(feature = "dlss", not(feature = "dlss-mock"))))]
+#[derive(Resource)]
+struct RrSupport;
+
 /// Adds the Black Box renderer to an `App` that already has the task pool, time and window plugins.
 #[derive(Debug, Clone, Copy)]
 pub struct BlackboxBevyRenderPlugin {
@@ -53,12 +60,48 @@ pub struct BlackboxBevyRenderPlugin {
     /// Wait for pipeline compilation instead of skipping draws. Needed for reproducible captures and
     /// tests; the live window sets it false so steady-state frames never block on compilation.
     pub synchronous_pipeline_compilation: bool,
+    /// Ray-traced lighting (Solari) from the start. The Solari plugins are added only when this is set and the
+    /// adapter has the features they need (`solari::install`); the setting is restart-required for that reason.
+    /// Without the `ray-tracing` feature it does nothing but log.
+    pub ray_tracing: bool,
 }
 
 impl Default for BlackboxBevyRenderPlugin {
     fn default() -> Self {
-        Self { api: GraphicsApi::Auto, force_fallback_adapter: false, synchronous_pipeline_compilation: true }
+        Self {
+            api: GraphicsApi::Auto,
+            force_fallback_adapter: false,
+            synchronous_pipeline_compilation: true,
+            ray_tracing: false,
+        }
     }
+}
+
+/// Add Solari when it is requested and the adapter can run it (`solari.rs`). Returns whether it was added.
+#[cfg(feature = "ray-tracing")]
+fn install_solari(app: &mut App, requested: bool, api: GraphicsApi, force_fallback: bool) -> bool {
+    crate::solari::install(app, requested, api, force_fallback)
+}
+
+/// Without the `ray-tracing` feature there is no Solari to add.
+#[cfg(not(feature = "ray-tracing"))]
+fn install_solari(_app: &mut App, requested: bool, _api: GraphicsApi, _force_fallback: bool) -> bool {
+    if requested {
+        log::warn!("ray tracing: this build has no Solari (it needs the ray-tracing cargo feature)");
+    }
+    false
+}
+
+/// The ray tracing the device offers, for the caps (`solari::support`).
+#[cfg(feature = "ray-tracing")]
+fn ray_tracing_of(device: &RenderDevice, rr_supported: bool) -> RtSupport {
+    crate::solari::support(device.features(), rr_supported)
+}
+
+/// Without the `ray-tracing` feature the device offers no ray tracing.
+#[cfg(not(feature = "ray-tracing"))]
+fn ray_tracing_of(_device: &RenderDevice, _rr_supported: bool) -> RtSupport {
+    RtSupport::None
 }
 
 impl Plugin for BlackboxBevyRenderPlugin {
@@ -101,10 +144,13 @@ impl Plugin for BlackboxBevyRenderPlugin {
             // used (`post/mod.rs`), but the plugin adds all of them, and the others stay dormant unused.
             bevy_post_process::PostProcessPlugin,
         ));
+        // After the render plugin (Solari reads the device's features when it is built), before the PBR plugin
+        // (Solari's deferred path needs its prepasses).
+        let solari = install_solari(app, self.ray_tracing, self.api, self.force_fallback_adapter);
         // Before the material plugin: it starts loading the shader when it is built.
         crate::material::load_shaders(app);
         app.add_plugins((
-            PbrPlugin { prepass_enabled: false, add_default_deferred_lighting_plugin: false, ..PbrPlugin::default() },
+            PbrPlugin { prepass_enabled: solari, add_default_deferred_lighting_plugin: false, ..PbrPlugin::default() },
             MaterialPlugin::<BlackboxMaterial>::default(),
         ));
         app.init_resource::<BlackboxBridge>().init_resource::<WorldState>().add_systems(
@@ -159,12 +205,14 @@ pub struct BackendFactory<'w> {
     adapter: Res<'w, RenderAdapterInfo>,
     /// Present when Bevy found DLSS Super Resolution on this machine (`DlssPlugin::finish`).
     dlss: Option<Res<'w, DlssSupport>>,
+    /// Present when Bevy found DLSS Ray Reconstruction on this machine (the DLSS-RR denoiser for Solari).
+    rr: Option<Res<'w, RrSupport>>,
 }
 
 impl BackendFactory<'_> {
     /// The backend for a surface of `size` pixels. The world draws into the primary window.
     pub fn create(&self, size: [u32; 2]) -> BevyBackend {
-        backend_with_dlss(&self.bridge, &self.device, &self.adapter, size, self.dlss.is_some())
+        backend_with_dlss(&self.bridge, &self.device, &self.adapter, size, self.dlss.is_some(), self.rr.is_some())
     }
 }
 
@@ -176,7 +224,7 @@ pub fn backend(
     adapter: &RenderAdapterInfo,
     size: [u32; 2],
 ) -> BevyBackend {
-    backend_with_dlss(bridge, device, adapter, size, false)
+    backend_with_dlss(bridge, device, adapter, size, false, false)
 }
 
 fn backend_with_dlss(
@@ -185,6 +233,7 @@ fn backend_with_dlss(
     adapter: &RenderAdapterInfo,
     size: [u32; 2],
     dlss_supported: bool,
+    rr_supported: bool,
 ) -> BevyBackend {
     let api = api_of(adapter.backend);
     let compressed_bc = device.features().contains(wgpu::Features::TEXTURE_COMPRESSION_BC);
@@ -194,6 +243,7 @@ fn backend_with_dlss(
         adapter: adapter.name.clone(),
         driver: format!("{} {}", adapter.driver, adapter.driver_info).trim().to_owned(),
     };
-    let caps = crate::caps::capabilities_with_dlss(api, compressed_bc, dlss_supported);
+    let ray_tracing = ray_tracing_of(device, rr_supported);
+    let caps = crate::caps::capabilities_with_ray_tracing(api, compressed_bc, dlss_supported, ray_tracing);
     BevyBackend::new(bridge.share(), info, caps, size)
 }

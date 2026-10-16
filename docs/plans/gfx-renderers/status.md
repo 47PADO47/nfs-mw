@@ -28,7 +28,7 @@ All branches are in one GitHub stack (stack #23, draft PRs, each based on the pr
 | 9 | `feat/gfx-bevy-scene` | | done: glossy shading, the lighting rig and environment, texture redirects, the effect layer, the UI layer; see §3a |
 | 10 | `feat/gfx-bevy-post` | | done: bloom, tone mapping, FXAA, SMAA, TAA, render scale, FSR 1; see §3b |
 | 11 | `feat/gfx-bevy-dlss` | | **not started**, needs the NVIDIA PC |
-| 12 | `feat/gfx-bevy-solari` | | **not started**, needs the NVIDIA PC |
+| 12 | `feat/gfx-bevy-solari` | | **partly done**: startup gate, caps, stand-ins, cameras, sun; the picture is only the clear colour on the RTX card (open, §3d) |
 | 13a | `feat/gfx-fsr3-core` | #41 | done: `libs/fsr3-wgpu`, not used by a renderer yet |
 | 13b | `feat/gfx-fsr3` | | **not started** |
 | 14 | `feat/gfx-bevy-fsr4` | | **not started**, experimental, needs an RX 7000/9000 tester |
@@ -171,6 +171,73 @@ numbers, and all 63 of `blackbox-bevy-render`'s tests — including every ignore
 and the "real city" flyover table never drives a car (no `--drive`) while the city's own traffic and
 scenery never request `Shading::Glossy` (`crates/nfsmw/src/scenes/world/resident.rs` only ever asks for
 `Prelit`/`Sky`), so neither table ever touched a glossy material in the first place.
+
+## 3d. PR 12: Solari ray tracing (partly done; the picture is not right yet)
+
+Code in `libs/blackbox-bevy-render/src/solari.rs` (tests in `solari/tests.rs`), behind `ray-tracing`, with hooks in
+`plugin.rs`, `apply/instances.rs`, `apply/mod.rs` and the caps in `caps.rs`.
+
+What it does:
+
+- **Startup gate.** `BlackboxBevyRenderPlugin::ray_tracing` (default off). `solari::install` adds `SolariPlugins` only
+  when that is set and the adapter reports the five features Solari needs. Otherwise it logs a warning and the
+  lighting stays rasterised. Deliberate deviation from the brief: the plugins are added only when requested, not
+  whenever the feature is compiled. Solari's build turns `DefaultOpaqueRendererMethod` to deferred, so the Blackbox
+  materials would move to the deferred path in every build. `install` sets it back to forward.
+- **Caps.** `RtSupport::Available` when the device has the Solari features (`solari::support`), with
+  `denoiser: Some(DlssRr)` only in the `dlss` build when Bevy's `DlssRayReconstructionSupported` resource exists.
+  Otherwise `None`. The setting stays restart-required.
+- **Stand-ins.** Each opaque, non-sky draw becomes an entity with `Mesh3d` and `RaytracingMesh3d` on the same mesh,
+  and a `MeshMaterial3d<StandardMaterial>` that carries the base colour texture only, one per texture number. The
+  stand-in uses `OpaqueRendererMethod::Deferred`. Alpha-tested, blended and additive draws keep the Blackbox material
+  and are not traced (Solari 0.20 has no alpha masks). Sky stays on the Blackbox material. Vertex colour and emissive
+  are not carried over (ADR 0004, open decision 5).
+- **Meshes.** Prepared as they are added: `Indices::U32`, tangents, `enable_raytracing`. This has to happen before the
+  add, because Bevy drops a `RENDER_WORLD` mesh from the main world once it is extracted.
+- **Light.** A shadowless sun (`lux::AMBIENT_DAYLIGHT`, a guess to tune) follows the frame's light direction. There is
+  no sky or environment light yet, so unlit parts are dark.
+- **Cameras.** Every `Camera3d` gets `SolariLighting`, the deferred, depth and motion prepasses, `Hdr`, and
+  `CameraMainTextureUsages` with `STORAGE_BINDING` (Solari writes the main texture from a compute shader).
+- **DLSS-RR.** `sync_denoiser` (the `dlss` build only) inserts `Dlss<DlssRayReconstructionFeature>` on every camera
+  once Bevy reports Ray Reconstruction. Not compiled here: the DLSS SDK is not installed. It is not yet reconciled
+  with the DLSS super resolution component `dlss/sdk.rs` adds on the same camera.
+
+Not wired yet:
+
+- **The game cannot turn it on.** `crates/nfsmw/src/app/render/bevy.rs` (`add_plugin`) does not pass `ray_tracing`, so
+  the `ray_tracing` setting does not start Solari. That is a one-line change in nfsmw, outside this task's file list.
+- **Runtime toggle.** The setting is decided at startup. The caps can report ray tracing as available and
+  `graphics()` can show the resolved level while the picture is not traced until a restart. Fixing that needs the
+  setting in `CameraSettings` (`ops.rs`, `facade.rs`), not done here.
+- **Camera cuts** do not reset Solari's history (`SolariLighting::reset`). **Redirects:** a stand-in keeps the image it
+  was made with when a texture redirect changes.
+
+Verified (RTX 4070 SUPER, Vulkan, driver 617.42):
+
+- `cargo test -p blackbox-bevy-render --features ray-tracing --lib`: 59 pass, including the gate, caps, stand-in
+  rules and mesh preparation. Without the feature: 52 pass.
+- `cargo clippy -p blackbox-bevy-render -- -D warnings` (default and `--features ray-tracing`, all targets): clean.
+  rustfmt is clean for the files this PR touches. `cargo fmt -p blackbox-bevy-render --check` still reports
+  `src/facade.rs`, which this PR does not touch.
+- The ignored GPU test `solari::tests::solari_starts_and_draws_a_capture_on_a_ray_tracing_gpu` (run with
+  `--ignored`): Solari is added (`ray tracing: Solari added`), the caps report `Available { denoiser: None }`, the
+  device has the five features, no `SolariLightingPlugin not loaded` warning appears, and the capture completes and
+  is written as a PNG (under `BLACKBOX_DUMP_DIR`).
+
+**Open: the picture is only the clear colour.** The stand-in is spawned and visible (one mesh entity, visible to the
+capture camera). With the stand-in forced to forward rendering for one run, the cuboid appears, so the entity and its
+mesh draw correctly. With the deferred path plus Solari, nothing appears. The likely place is Solari's
+`solari_lighting` node, which returns early when its scene bind group (the TLAS) or its deferred view is missing. That
+was not confirmed. A raster control (ray tracing off, `Shading::Lit`, through the same harness) draws the cuboid.
+Note: a `Prelit` cuboid with no texture drew nothing even in that raster control (two colours against four for `Lit`);
+that was not investigated.
+
+Next leads: log the count of `RaytracingMesh3d` entities in the render world and whether `RaytracingSceneBindings`
+gets a bind group each frame; check `ViewPrepassTextures` for the capture view; compare with Bevy's own Solari example
+(same components, `Msaa::Off`, `shadow_maps_enabled: false`); then the prelit no-texture case.
+
+Not verified: DLSS-RR (no SDK); DX12; the look, the sun's intensity, and whether culled (hidden) stand-ins are still
+traced; the `nfsmw` wiring.
 
 ## 4. Handoff: building the remaining PRs
 

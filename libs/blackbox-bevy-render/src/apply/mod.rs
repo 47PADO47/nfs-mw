@@ -40,11 +40,11 @@ pub fn apply(
     mut state: ResMut<WorldState>,
     mut stores: Stores,
     mut commands: Commands,
-    mut placed: instances::PlacedQuery,
+    mut surfaces: instances::Surfaces,
     mut windows: Query<&mut Window, With<PrimaryWindow>>,
 ) {
     let started = log::log_enabled!(log::Level::Debug).then(std::time::Instant::now);
-    apply_queue(&bridge, &mut state, &mut stores, &mut commands, &mut placed, &mut windows);
+    apply_queue(&bridge, &mut state, &mut stores, &mut commands, &mut surfaces, &mut windows);
     let Some(started) = started else { return };
     timer.total += started.elapsed();
     timer.frames += 1;
@@ -65,7 +65,7 @@ fn apply_queue(
     state: &mut WorldState,
     stores: &mut Stores,
     commands: &mut Commands,
-    placed: &mut instances::PlacedQuery,
+    surfaces: &mut instances::Surfaces,
     windows: &mut Query<&mut Window, With<PrimaryWindow>>,
 ) {
     let (ops, frame, request, settings, surface) = {
@@ -79,9 +79,16 @@ fn apply_queue(
     // The `dlss-mock` build draws a DLSS request as TAA plus FSR 1 (`dlss::mock`); everything below sees that.
     #[cfg(feature = "dlss-mock")]
     let settings = crate::dlss::mock::stand_in(settings);
+    // Solari is on when the stand-in cache exists (`solari::install` at startup): its meshes are prepared as
+    // they are added, and its stand-ins are drawn from the stores below.
+    let solari = surfaces.cache.is_some();
     for op in ops {
-        assets::apply_op(state, stores, op);
+        assets::apply_op(state, stores, instances::prepare_op(op, solari));
     }
+    let mut stand_ins = match surfaces.cache.as_deref_mut() {
+        Some(cache) => Some(instances::StandIns { standard: &mut surfaces.standard, cache }),
+        None => None,
+    };
 
     let shadow_frame = state
         .capture
@@ -100,7 +107,7 @@ fn apply_queue(
     // A running capture decides what the world shows until it is done.
     if let Some(mut active) = state.capture.take() {
         let data = active.data.clone();
-        draw(state, stores, commands, placed, &data, settings.post.tonemap);
+        draw(state, stores, commands, &mut surfaces.placed, stand_ins.as_mut(), &data, settings.post.tonemap);
         camera::follow(commands, active.camera, &data.frame, &settings);
         let size = capture_size(stores, &active);
         let done = capture::advance(commands, &mut active, &bridge.share(), size);
@@ -109,7 +116,7 @@ fn apply_queue(
     }
 
     let Some(data) = frame else { return };
-    draw(state, stores, commands, placed, &data, settings.post.tonemap);
+    draw(state, stores, commands, &mut surfaces.placed, stand_ins.as_mut(), &data, settings.post.tonemap);
     drive_screen(state, commands, windows, &data, &settings, surface);
 }
 
@@ -119,12 +126,13 @@ fn draw(
     stores: &mut Stores,
     commands: &mut Commands,
     placed: &mut instances::PlacedQuery,
+    stand_ins: Option<&mut instances::StandIns>,
     data: &FrameData,
     tonemap: blackbox_gfx::Tonemap,
 ) {
     assets::sync_params(state, stores, Params::with_tonemap(&data.frame, tonemap));
     assets::sync_rig_environment(state, stores);
-    instances::sync(state, stores, commands, placed, &data.instances);
+    instances::sync(state, stores, commands, placed, &data.instances, stand_ins);
 }
 
 /// The pixel size of a capture's image.

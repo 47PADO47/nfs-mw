@@ -10,8 +10,8 @@ missing. The decision it feeds is in [ADR 0004](decisions/0004-swappable-rendere
 blending, sky, headless capture) has glossy shading, the lighting rig and environment, texture redirects,
 the world effect layer and the UI layer (PR 9), and now bloom, tone mapping, FXAA, SMAA, TAA (jitter,
 motion vectors, `camera_cut`), the render scale and FSR 1 (PR 10); see "PR 9" and "PR 10" below. Temporal
-upscalers (FSR 3/4, DLSS) and ray tracing still belong to later PRs; the facade accepts those calls, logs
-once that they are ignored, and draws nothing for them.
+upscalers (FSR 3/4) still belong to later PRs; ray tracing (PR 12, Solari, `solari.rs`) is startup-gated, see
+status.md section 3d. The facade logs once that other calls are ignored, and draws nothing for them.
 
 ```sh
 cargo run --release -p nfsmw --features renderer-bevy -- view-world --renderer bevy
@@ -455,7 +455,7 @@ is allocated when off", `docs/plans/gfx-renderers/upscalers-settings.md` §5): n
   are wrong (their shared shaders only branch on `is_srgb`, not "linear HDR") — not caught by the PR 10
   tests, which use testkit scenes without an effect or UI layer. A follow-up needs a third entry-point
   variant in `blackbox-gpu-passes` for a linear, non-sRGB target.
-- Temporal upscalers (FSR 3/4) and DLSS, which need PR 11, 13b and the DLSS SDK; ray tracing needs PR 12.
+- Temporal upscalers (FSR 3/4) need PR 13b; DLSS needs the DLSS SDK (PR 11); Solari (PR 12) draws only the clear colour on the RTX card, status.md section 3d.
 - No hitch measurement for tile streaming, and the frame-time/CPU/memory table above is still Iris Xe
   only; PR 9 was functionally verified (testkit parity, a driving screenshot, the main menu) on an NVIDIA
   RTX 4070 SUPER over Vulkan, but the benchmark was not repeated there; PR 10's own testing was GPU-test
