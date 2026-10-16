@@ -73,6 +73,14 @@ wgpu.workspace = true
 renderer-bevy = ["dep:blackbox-bevy-render"]
 # Tracy profiling of the Bevy renderer (docs/bevy-backend.md). Implies renderer-bevy.
 trace = ["renderer-bevy", "blackbox-bevy-render/trace"]
+# DLSS Super Resolution (needs the NVIDIA DLSS SDK at build time; docs/setup.md). Implies renderer-bevy.
+dlss = ["renderer-bevy", "blackbox-bevy-render/dlss"]
+# DLSS code path with no SDK, for CI and tests. Implies renderer-bevy.
+dlss-mock = ["renderer-bevy", "blackbox-bevy-render/dlss-mock"]
+# Solari ray tracing (Vulkan, RTX-class GPU). Implies renderer-bevy.
+ray-tracing = ["renderer-bevy", "blackbox-bevy-render/ray-tracing"]
+# FSR 3.1 temporal upscaler on the Bevy renderer. Implies renderer-bevy.
+fsr3 = ["renderer-bevy", "blackbox-bevy-render/fsr3"]
 
 [lints]
 workspace = true
