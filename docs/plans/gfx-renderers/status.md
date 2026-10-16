@@ -1,5 +1,10 @@
 # Status and handoff (2026-10-09)
 
+**Update 2026-10-16:** [ADR 0004](../../decisions/0004-swappable-renderers.md) is accepted by the project owner.
+It was proposed on 2026-10-09. The ADR now also states the DLSS target (the newest DLSS 4.x Super Resolution and Ray
+Reconstruction transformer preset in the SDK bundled with `dlss_wgpu` 6.0.0; the exact preset is unconfirmed).
+DLSS 5 and frame generation stay out of scope and are tracked as a follow-up.
+
 Where the swappable-renderers plan stands, what changed from the plan while building it, and what is left for a
 machine with the right hardware (an NVIDIA RTX PC). The rest of the plan is unchanged; section numbers (`§N`)
 refer to it. Everything here was built and tested on an Intel Iris Xe laptop (Vulkan, Mesa); no NVIDIA, AMD or
@@ -12,7 +17,7 @@ All branches are in one GitHub stack (stack #23, draft PRs, each based on the pr
 | Plan PR | Branch | GitHub | State |
 |---|---|---|---|
 | (milestone 8) render pipeline, car shader, post-processing, FSR 1, ADR 0003, ReShade docs, low-end options | `feat/m8-render-pipeline` ... `feat/m8-low-end-options` | #17 to #22, #30 | done, draft |
-| 1 | `docs/gfx-adr-0004` | #32 | done: ADR 0004 (proposed) and this plan |
+| 1 | `docs/gfx-adr-0004` | #32 | done: ADR 0004 (accepted 2026-10-16) and this plan |
 | 2 | `build/bevy-0.20-final` | #33 | done: pins `=0.20.0`, workspace MSRV stays 1.95 |
 | 3 | `feat/gfx-interface` | #34 | done: `libs/blackbox-gfx` |
 | 4 | `feat/gfx-native-backend` | #35 | done: `impl RenderBackend for Renderer`, headless, testkit, digests |
@@ -201,7 +206,8 @@ Notes that save time:
 ## 5. Open owner decisions
 
 Answered: Solari is out of milestone 8 (a gated later spike), DLSS bundling is deferred, DLSS 5 is not reachable.
-Still open: accept ADR 0004 and the `libs/` rule change; reword the ADR 0003 trigger; the preset deviations in §2;
+ADR 0004 and the `libs/` rule change were accepted on 2026-10-16.
+Still open: reword the ADR 0003 trigger; the preset deviations in §2;
 raise the workspace MSRV or keep the Bevy crate on 1.97.1 only; whether releases include `renderer-bevy`; bundling
 the DLSS and FSR 4 DLLs; an FSR 4 tester or cutting PR 14; the ray-tracing look (pre-lit vertex colours as albedo
 darkening, whole city or only nearby tiles); `exhaust_flames` default (on in #31).

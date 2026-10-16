@@ -1,6 +1,6 @@
 # 0004 — Two renderers behind one interface
 
-- **Status:** proposed (2026-10-09), for the project owner to accept. Supersedes the "Decision" of
+- **Status:** accepted (2026-10-16) by the project owner. Proposed 2026-10-09. Supersedes the "Decision" of
   [0003](0003-renderer-after-milestone-8.md) (keep only `blackbox-render`) and its "What each milestone 8 item
   becomes" rows for DLSS, temporal upscalers and Bevy Solari. Amends the rule of [0001](0001-bevy.md) that
   `libs/` stays Bevy-free.
@@ -73,7 +73,13 @@ renderer behind a cargo feature and a runtime switch.**
    | Solari ray tracing | Bevy `ray-tracing` feature | startup-gated; DLSS-RR as denoiser on NVIDIA |
 
 8. **Not reachable, not planned:** DLSS 5 (Streamline, not NGX Super Resolution) and frame generation (DLSS FG,
-   FSR 3 FG).
+   FSR 3 FG). DLSS 5 and frame generation are out of scope here and tracked as a follow-up, not as work in this
+   plan.
+9. **DLSS target** (added on acceptance, 2026-10-16): the `dlss` feature targets the newest DLSS Super Resolution
+   and Ray Reconstruction transformer model preset that the DLSS SDK bundled with `dlss_wgpu` 6.0.0 exposes. That
+   is a DLSS 4.x model. [unconfirmed]: that SDK 310.9.1 exposes the transformer presets, and which 4.x preset is
+   the newest (the "4.5" name comes second hand from the 310.5.0 release notes). Check the SDK's own release
+   notes on the RTX PC before the default is set.
 9. **Settings** follow the existing layering (CLI > env > TOML > defaults): `renderer`, `post_aa` extended with
    `smaa` and `taa`, `upscaler` (`off|bilinear|fsr1|fsr3|fsr4|dlss`), `upscale_quality`, `ray_tracing`, and
    the in-flight `graphics_preset`. Unavailable values are rejected with a message in the console, hidden in
@@ -159,7 +165,10 @@ Default builds are unaffected either way: renderer `blackbox`, no `bevy_render` 
 
 ## Owner decisions this ADR asks for
 
-1. Accept this ADR and the `libs/` rule change.
+Item 1 is recorded as done: the owner accepted the ADR on 2026-10-16. Items 2 to 8 are not recorded as decided
+here; they stay open until the owner answers them.
+
+1. Accept this ADR and the `libs/` rule change. (Accepted 2026-10-16.)
 2. Keep `blackbox` the default until the Bevy backend reaches parity (recommended); decide whether release
    builds include `renderer-bevy`.
 3. Whether releases bundle the DLSS DLL and the FSR 4 DLL.
