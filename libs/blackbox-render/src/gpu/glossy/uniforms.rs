@@ -34,7 +34,8 @@ pub(super) struct MaterialUniform {
 }
 
 impl MaterialUniform {
-    pub(super) fn new(m: &GlossyMaterial) -> Self {
+    /// `brightness` multiplies the environment term only (`envmap_power`); 1.0 is the material's own value.
+    pub(super) fn new(m: &GlossyMaterial, brightness: f32) -> Self {
         let [r, g, b] = m.specular_min;
         let [dr, dg, db] = m.specular_range;
         Self {
@@ -42,7 +43,7 @@ impl MaterialUniform {
             diffuse_range: m.diffuse_range,
             specular_min: [r, g, b, 0.0],
             specular_range: [dr, dg, db, 0.0],
-            params: [m.specular_power, m.envmap_min, m.envmap_range, m.envmap_power],
+            params: [m.specular_power, m.envmap_min, m.envmap_range, m.envmap_power * brightness],
         }
     }
 }
@@ -87,8 +88,19 @@ mod tests {
             specular_min: [0.7; 3],
             ..Default::default()
         };
-        let u = MaterialUniform::new(&m);
+        let u = MaterialUniform::new(&m, 1.0);
         assert_eq!(u.params, [3.0, 3.5, -3.3, 0.15]);
         assert_eq!(u.specular_min, [0.7, 0.7, 0.7, 0.0]);
+    }
+
+    #[test]
+    fn brightness_scales_only_the_environment_term() {
+        let m = GlossyMaterial { envmap_power: 0.2, specular_power: 3.0, ..Default::default() };
+        let dim = MaterialUniform::new(&m, 0.5);
+        let bright = MaterialUniform::new(&m, 2.0);
+        assert!((dim.params[3] - 0.1).abs() < 1e-6);
+        assert!((bright.params[3] - 0.4).abs() < 1e-6);
+        assert_eq!((dim.params[0], dim.specular_min), (bright.params[0], bright.specular_min));
+        assert_eq!(MaterialUniform::new(&m, 0.0).params[3], 0.0, "zero turns the environment off");
     }
 }

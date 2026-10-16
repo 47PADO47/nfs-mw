@@ -351,7 +351,8 @@ reflection key; road and front-end keys stay hidden until their pass exists.
 
 ## 17. Port status
 
-Part 1 of the implementation (sections 2, 3, 5 and 10). Everything else in this spec is still open.
+Part 1 (sections 2, 3, 5, 10) and part 2 (sections 6, 7, 8 traffic, 9; 12 documented) of the implementation.
+Road, front-end cube (sections 4, 13) and the rest of section 8 are still open.
 
 | Item | Status | Where |
 |---|---|---|
@@ -360,7 +361,12 @@ Part 1 of the implementation (sections 2, 3, 5 and 10). Everything else in this 
 | Power-of-two cube faces (section 5) | Done, cube faces only | `reflection_pow2` |
 | Mirror tint (section 10) | Done, applied to every renderer's picture | `mirror_tint`; `tint_rgba` in `libs/blackbox-gfx/src/reflection.rs`, called in `crates/nfsmw/src/app/mirror.rs` before the bezel clip |
 | Reflection LOD threshold follows the face (section 6, partial) | Done | `crates/nfsmw/src/scenes/world/reflections.rs` uses the resolved face size |
-| Road, front-end cube, LOD option, distance caps, content, brightness, culling (sections 4, 6-9, 12, 13) | Not started | part 2 |
+| Reflection LOD option (section 6) | Done, native | `reflection_lod`; the car cube takes the main view's 480 px rule with `visibility::collect_with_shadows` |
+| Distance caps (section 7) | Done, native and bevy mirror | `reflection_distance`; `within` and `cull_instances` in `libs/blackbox-gfx/src/reflection/distance.rs` |
+| Restored content: traffic in the car cube (section 8, traffic only) | Done, native | `reflection_content`; `scenes/world/reflections.rs` |
+| Vehicle reflection brightness (section 9) | Done, native | `vehicle_reflection_brightness`; `MaterialUniform::new` and `Glossy::sync_brightness` |
+| Backface culling (section 12) | Documented, not changed | 17.8 |
+| Road, front-end cube (sections 4, 13); lights, flares, particles (section 8) | Not started | 17.10 |
 
 ### 17.1 Settings as built
 
@@ -422,6 +428,54 @@ applies on bevy too if the mirror runs there (still unconfirmed).
 
 ### 17.6 Open after part 1
 
-- `crates/nfsmw/src/devtools/console/parse.rs` has a fixed list of completion names. The four new keys are not in it.
+- `crates/nfsmw/src/devtools/console/parse.rs` has a fixed list of completion names. The eight part-1 and part-2 keys are not in it.
   That file was outside this task, and its completion test asserts the `re` prefix set.
 - The menu has no rows for the custom tint colour or fixed pixel sizes. Those are set through the config file or console.
+
+### 17.7 Part 2 settings as built
+
+Values follow part 1's text rules. Every key is native-only in effect; the menu rows use `caps.local_reflections`.
+
+| Key | Default | Values | Env | CLI | Console | Menu row (Video options) |
+|---|---|---|---|---|---|---|
+| `reflection_distance` | `unlimited` | `unlimited`, `original` | `NFSMW_REFLECTION_DISTANCE` | `--reflection-distance` | yes | Reflection Distance |
+| `reflection_lod` | `capture` | `capture`, `view` | `NFSMW_REFLECTION_LOD` | `--reflection-lod` | yes | Reflection Detail |
+| `reflection_content` | `original` | `original`, `restored` | `NFSMW_REFLECTION_CONTENT` | `--reflection-content` | yes | Reflection Content |
+| `vehicle_reflection_brightness` | `100%` | `N%` or `N`, 0 to 300 | `NFSMW_VEHICLE_REFLECTION_BRIGHTNESS` | `--vehicle-reflection-brightness` | yes | Vehicle Reflection Brightness |
+
+The four rows sit after Power-of-Two Cube Size and before Mirror Reflection Size. Brightness needs glossy cars; detail and
+content also need the car cube on.
+
+### 17.8 Part 2 choices and deviations
+
+- Defaults keep today's picture (unlimited, capture, original, 100%). The proposed defaults in sections 7 and 6 would change it.
+- LOD values are `capture` and `view`, not the proposed `original` and `high`: the request asked for the main view's rule.
+- Distance is a cull, not a far plane. `Projection` (`libs/blackbox-gfx/src/frame.rs`) has no far variant, and that file is
+  outside part 2. The limit tests each object's origin: 100 m from the cube origin for the car cube, 192 m from the mirror
+  eye for the mirror (`app/mirror.rs`, so bevy's mirror path gets it too). Objects straddling the limit are kept or dropped whole.
+  The cube's near plane stays 0.25 m; the original's 0.5 m is not applied, to keep the default.
+- Content: `restored` adds the traffic cars to the car cube. Each face keeps the cars inside its frustum, using a 4 m half-box.
+  The mirror already drew traffic. Lights, flares and particles are not added: the cube capture takes only placed scenery,
+  props and traffic, and no list of lights, flares or particles reaches it. That is a new input, not a cheap flag.
+- Brightness multiplies `envmap_power`. Each material keeps its source value, and `Glossy::sync_brightness` packs the
+  block again when the value changes. It runs from `set_lighting_rig`, which the world calls every frame.
+- Backface culling: `libs/blackbox-render/src/gpu/pipelines.rs` line 186 is in `Pipelines::make`, which builds every scene
+  pipeline (blend modes by Lit, Prelit, Sky and Glossy). So `cull_mode: None` covers all scene draws, not only the car, and
+  the car cube and mirror captures use the same pipelines (`encode_scene_mode`). A car-only setting needs a second pipeline
+  variant, and the original's culling state is still unconfirmed, so `off` would equal today's state. Nothing changed.
+
+### 17.9 Part 2 verification
+
+- `cargo test -p blackbox-gfx --lib` 117 passed; `cargo test -p blackbox-render --lib` 39 passed; `cargo test -p nfsmw`
+  1690 passed, 113 ignored (game or GPU needed). Clippy with `-D warnings` is clean for the three crates.
+- Pure rules and settings are tested in the files named in 17.7 (text, clamps, cycles, labels, config round trip, environment
+  over file, console get and set, Video row counts and placement).
+- Not verified in game: the picture. Compare on the installed game (section 15).
+
+### 17.10 Open after part 2
+
+- A true far clip needs a `Projection` far variant in `libs/blackbox-gfx/src/frame.rs`. Origin culling stands in for it.
+- Lights, flares and particles in the car cube (section 8) need a scene list passed to the capture.
+- Car and front-end backface culling (section 12) needs a second pipeline variant and the original's culling state.
+- Road reflection and front-end cube (sections 4, 13) are not started.
+- `crates/nfsmw/src/settings/mod.rs` is at 499 lines. The next key should go in a sub-struct, as `ReflectionExtra` does.

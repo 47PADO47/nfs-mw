@@ -1,6 +1,7 @@
 //! The rear-view mirror's picture. Each frame the scene's rear view is captured offscreen and uploaded as the
 //! mirror's UI texture; the HUD presenter draws it under the mirror's bezel (`ui::present::blackbox`).
 
+use blackbox_gfx::reflection::distance::cull_instances;
 use blackbox_gfx::reflection::{PLANAR_MAX, tint_rgba};
 use blackbox_gfx::{CaptureId, RenderBackend, UiLayer, UiTexturePatch};
 
@@ -37,6 +38,7 @@ impl MirrorOverlay {
     /// Collect a finished capture, then ask for the next one when the scene has a rear view.
     pub fn update(&mut self, renderer: &mut dyn RenderBackend, scene: &mut dyn Scene) {
         let tint = renderer.graphics().mirror_tint;
+        let distance = renderer.graphics().reflection_distance;
         if !self.uploaded {
             // Until the first capture the bezel's picture is clear, so the frame shows the glass only.
             renderer.update_ui_texture(&UiTexturePatch {
@@ -68,9 +70,11 @@ impl MirrorOverlay {
         let size = resolution.mirror_size(BASE, renderer.surface_size(), PLANAR_MAX);
         let aspect = size[0] as f32 / size[1] as f32;
         let Some((params, instances)) = scene.rear_view(aspect) else { return };
+        // The original's mirror far plane (192 m) is applied to the object origins, as the setting says.
+        let instances = cull_instances(instances, params.camera_position, distance.mirror_far());
         // The capture draws the UI like the screen does; the mirror shows the road, so the HUD is left out.
         renderer.set_ui_layer(UiLayer::default());
-        let started = renderer.request_capture(size, &params, instances);
+        let started = renderer.request_capture(size, &params, &instances);
         if let Some(layer) = &self.layer {
             renderer.set_ui_layer(layer.clone());
         }

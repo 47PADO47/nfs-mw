@@ -1,5 +1,10 @@
 //! Local environment captures, in the same game axes as glossy reflection sampling.
 
+pub mod brightness;
+pub mod content;
+pub mod distance;
+pub mod lod;
+
 use glam::Vec3;
 
 use crate::{FrameParams, Instance, Projection};
@@ -297,6 +302,7 @@ pub fn face_frame(origin: Vec3, face: usize, template: &FrameParams) -> FramePar
         },
         camera_position: origin,
         camera_cut: true,
+        shadow_tuning: None,
         ..*template
     }
 }
@@ -317,6 +323,7 @@ mod tests {
             scattering: None,
             surface_light: None,
             camera_cut: false,
+            shadow_tuning: None,
         };
         for (face, direction) in
             [Vec3::X, Vec3::NEG_X, Vec3::Y, Vec3::NEG_Y, Vec3::Z, Vec3::NEG_Z].into_iter().enumerate()
