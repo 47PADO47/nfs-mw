@@ -136,15 +136,23 @@ fn declared_entry_points_round_trip() {
 }
 
 #[test]
-fn create_accepts_a_minor_newer_or_older_than_the_mod() {
-    for minor in [0, ABI_MINOR, ABI_MINOR + 1] {
+fn create_requires_the_same_minor_while_the_major_is_zero() {
+    // The mod is built for 0.ABI_MINOR. While the major is 0, a host on any other minor is refused.
+    let mut host = fake_host();
+    host.abi_minor = ABI_MINOR;
+    let mut api = empty_api();
+    // SAFETY: both pointers are valid for the call.
+    let status = unsafe { create::<Refuses>(&host, &mut api) };
+    // The handshake passed and `load` ran, so the mod's own error comes back.
+    assert_eq!(status, BB_ERR_DENIED);
+
+    for minor in [0, ABI_MINOR + 1] {
         let mut host = fake_host();
         host.abi_minor = minor;
         let mut api = empty_api();
         // SAFETY: both pointers are valid for the call.
-        let status = unsafe { create::<Refuses>(&host, &mut api) };
-        // The handshake passed and `load` ran, so the mod's own error comes back.
-        assert_eq!(status, BB_ERR_DENIED, "host minor {minor}");
+        assert_eq!(unsafe { create::<Refuses>(&host, &mut api) }, BB_ERR_ABI, "host minor {minor}");
+        assert_eq!(api.size, 0, "the mod table must stay untouched");
     }
 }
 

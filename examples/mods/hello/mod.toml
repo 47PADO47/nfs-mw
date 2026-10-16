@@ -1,0 +1,17 @@
+[mod]
+id = "example.hello"
+name = "Hello"
+version = "0.1.0"
+authors = ["nfs-mw contributors"]
+license = "MIT OR Apache-2.0"
+
+[api]
+blackbox_modding = "0.1"
+
+[games]
+supported = ["*"]
+
+[library]
+windows = "hello_mod.dll"
+linux = "libhello_mod.so"
+macos = "libhello_mod.dylib"

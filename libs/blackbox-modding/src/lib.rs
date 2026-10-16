@@ -8,13 +8,17 @@
 //!   Plain data only; see [`abi`].
 //! - `sdk`: what a mod links. The `Mod` trait, the `declare_mod!` macro that exports the entry symbols, a
 //!   panic guard around every callback, and safe wrappers over the host table. Needs only `abi`; see [`sdk`].
-//! - `host`: the loader and dispatcher (manifest, discovery, handshake, quarantine). Reserved; not written yet.
+//! - `host`: the loader and dispatcher (manifest, discovery, ordering, loading, quarantine, dev reload). Pulls in
+//!   `libloading`, `semver`, `toml`, `serde`, `sha2`, `log` and `thiserror`; see [`host`].
 //!
 //! This crate is engine-generic. It names no game. A game offers its own interfaces through the query
-//! mechanism (ADR 0005 section 8). `unsafe` is confined to `abi`, `sdk::ffi` and, later, the host loader.
+//! mechanism (ADR 0005 section 8). `unsafe` is confined to `abi`, `sdk::ffi`, `host::table` and `host::loader`.
 
 #[cfg(feature = "abi")]
 pub mod abi;
 
 #[cfg(feature = "sdk")]
 pub mod sdk;
+
+#[cfg(feature = "host")]
+pub mod host;
