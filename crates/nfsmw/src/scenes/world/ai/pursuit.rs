@@ -31,11 +31,21 @@ const MIN_GAP: f32 = 40.0;
 /// A cop this far from the player is taken out and spawned again closer.
 const LOST_DISTANCE: f32 = 500.0;
 /// A cop starts rolling at this speed, m/s.
-const START_SPEED: f32 = 15.0;
+pub(super) const START_SPEED: f32 = 15.0;
 /// A cop car model with what limits how fast an AI drives it.
 pub struct CopModel {
     pub model: TrafficModel,
     pub car: CopCar,
+}
+
+/// Where one cop car is put: the point on its road, what it faces, its rolling speed and the player's performance (the
+/// cop's pursuit tuning).
+#[derive(Debug, Clone, Copy)]
+pub(super) struct CopSpot {
+    pub at: Vec3,
+    pub target: Vec3,
+    pub speed: f32,
+    pub player: Performance,
 }
 
 /// The chase: the heat rows of all levels, the heat it is at, and the spawn bookkeeping. The wave is the row of the
@@ -47,11 +57,18 @@ pub struct Pursuit {
     player: Performance,
     spawn_timer: f32,
     involved: u32,
+    /// The chase's support request and the cars it took (`support`).
+    pub(super) support: super::support::Session,
 }
 
 impl Pursuit {
     pub fn new(heat: u32, rows: Vec<HeatRow>, player: Performance) -> Self {
-        Self { heat, rows, player, spawn_timer: 0.0, involved: 0 }
+        Self { heat, rows, player, spawn_timer: 0.0, involved: 0, support: Default::default() }
+    }
+
+    /// How the player's car performs, for the cops that chase it.
+    pub(super) fn performance(&self) -> Performance {
+        self.player
     }
 
     /// The row of the heat the chase is at now; `None` when there are no rows.
@@ -135,6 +152,7 @@ impl TrafficWorld {
             let p = car.position();
             !car.is_cop() || (p.x - focus.position[0]).hypot(p.y - focus.position[1]) < LOST_DISTANCE
         });
+        self.update_support(sim_dt, focus, collision, surfaces);
         let level = self.police.level();
         let Some(pursuit) = self.pursuit.as_mut() else { return };
         if let Some(level) = level
@@ -186,14 +204,28 @@ impl TrafficWorld {
         collision: &CollisionWorld,
         surfaces: &SurfaceTable,
     ) -> bool {
-        let Some(model) = self.cop_models.iter().find(|m| m.model.name.eq_ignore_ascii_case(name)) else {
-            return false;
-        };
         let rng = &mut self.rng;
         let distance = MIN_DISTANCE + rng.next_f32() * (MAX_DISTANCE - MIN_DISTANCE);
         let angle = focus.heading + (rng.next_f32() * 2.0 - 1.0) * SPREAD;
         let at = Vec3::new(focus.position[0] + distance * angle.cos(), focus.position[1] + distance * angle.sin(), 0.0);
         let physics_at = Vec3::from(space::to_physics(at));
+        let spot = CopSpot { at: physics_at, target, speed: START_SPEED, player };
+        self.spawn_cop_at(name, spot, collision, surfaces)
+    }
+
+    /// Puts a cop car of `name` on the cop road at `spot.at`, rolling at `spot.speed` and facing `spot.target`. The spawn path
+    /// of every cop, the wave's and the support cars' (`ai/support/spawn.rs`). Returns whether the car stands.
+    pub(super) fn spawn_cop_at(
+        &mut self,
+        name: &str,
+        spot: CopSpot,
+        collision: &CollisionWorld,
+        surfaces: &SurfaceTable,
+    ) -> bool {
+        let CopSpot { at: physics_at, target, speed, player } = spot;
+        let Some(model) = self.cop_models.iter().find(|m| m.model.name.eq_ignore_ascii_case(name)) else {
+            return false;
+        };
         let toward = Vec3::new(target.x - physics_at.x, 0.0, target.z - physics_at.z);
         let filter = SegmentFilter { cop: true, no_decision: true, ..SegmentFilter::default() };
         let mut nav = RoadNav::new(NavKind::Direction, LaneType::Cop, filter);
@@ -208,13 +240,9 @@ impl TrafficWorld {
         let spawn = Spawn { position: render, heading: facing.y.atan2(facing.x) };
         nav.half_width = model.model.physics.spec.dimension.x;
         nav.enable_trail(&self.network);
-        let state = CopState::new(model.car, player, START_SPEED);
-        let start = Start {
-            stagger: (rng.next_f32() * 8.0) as u32,
-            speed: START_SPEED,
-            cruise: Cruise::default(),
-            patrol: false,
-        };
+        let state = CopState::new(model.car, player, speed);
+        let start =
+            Start { stagger: (self.rng.next_f32() * 8.0) as u32, speed, cruise: Cruise::default(), patrol: false };
         let Some(car) = AiCar::place(
             &model.model,
             Role::Cop(Box::new(state)),
@@ -225,7 +253,13 @@ impl TrafficWorld {
         ) else {
             return false;
         };
-        log::info!("pursuit: {} at ({:.0}, {:.0}), {:.0} m from the player", car.name, render.x, render.y, distance);
+        log::info!(
+            "pursuit: {} at ({:.0}, {:.0}), {:.0} m from the player",
+            car.name,
+            render.x,
+            render.y,
+            toward.length()
+        );
         self.cars.push(car);
         true
     }

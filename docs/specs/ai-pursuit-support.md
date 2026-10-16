@@ -247,3 +247,32 @@ says the same).
 - Read the action vtable slots 2 to 6 (can-be-attempted, start, finish) to confirm the ram action's attempt and finish
   rules directly, not through the tactics spec.
 - Read `0x00413320` (the desired-speed helper) and `0x00418200` (the intercept) to confirm the tactics spec's formulas.
+
+## Port status
+
+- **Pure rules (`libs/blackbox-pursuit/src/support/`):** `order.rs` is the request's state (pending, active for the option's
+  duration, denied tries counted); `cars.rs` is the car each slot takes (cars per strategy, the SUV roll with `ChanceBigSUV`,
+  the leader's cross car and two V cars); `placement.rs` is the search (heavy `400 - (60 + 10 k)` ahead, leader `-(150 + 10 k)`
+  behind, the try counter kept across the cars, the pursuit offsets `(0,-20)`, `(-4,-24)`, `(4,-24)`); `delay.rs` is the shared
+  3.0 s ram timer; `ram.rs` is the head-on drive (intercept from the spec's quadratic, 27.78 m/s, start speed of 5.2).
+- **Game (`crates/nfsmw/.../ai/support/`, `ai/car/support_drive.rs`):** a request is run each tick from the cop pursuit
+  (`session.rs`). Its cars are taken, then placed through the cop spawn path (`spawn_cop_at` in `pursuit.rs`, shared with the
+  wave), tagged with the request's serial. A ram SUV drives at its intercept; a leader car holds its close-chase point; the
+  others chase. A request ends when its timer runs out or when none of its cars is left, and the cars return to the chase.
+  Support cars count in the chase's cop count (they are cops).
+- **The roll (`ai/police/roll.rs`):** the check every 10 s, the priority check of the leader options once per heat, then the
+  base roll over the heavy and leader options. A heavy roadblock goes to the world as before. A ram or leader request is
+  handed over on the next step (`take_support_request`, then `TrafficWorld::ask_support`). The roll uses one uniform number
+  for both its priority check and its base roll (the binary draws one each): a deviation, unconfirmed in effect.
+- **Formation exclusion (`ai/cop_aims.rs`):** support cars are left out of the formation, finisher and collapse cop list
+  (section 3 of the formations spec), so they keep the chase's aim or their own drive.
+- **Not built:** the flee of the support cars when the perpetrator is lost or a collapse begins (formations spec section 6),
+  and the roadblock's request path (it stays with `ai/roadblock.rs`).
+- **Unconfirmed, chosen in the port:** (a) the ram's start gate reads "start only while the target is below 26.82 m/s"; the
+  spec gives 26.82 only as the start speed cap. (b) The try counter stops at `k = 7` for every later try of a request. (c) A
+  ram that finds no target goes back to the start gate; the spec never finishes it while the target exists. (d) The
+  `ChanceBigSUV` of heat 3's rows is read as 0 (the rows give none in brackets). (e) A request whose intercept has no real
+  root takes `t = 0`. (f) A refused placement is retried on each step with no limit (the binary's `ReqDenied` repeats).
+- **Verified:** `cargo test -p blackbox-pursuit` passes (the support module's 38 tests) and clippy with `-D warnings` is clean.
+  The game side has no run yet: the tests and the spawn and drive in the chase need a headless run.
+

@@ -1,6 +1,19 @@
-//! Ground support requests: the roll that picks the support a chase asks for (spec `ai-pursuit-formations.md` section 6).
+//! Ground support requests: the roll that picks the support a chase asks for (spec `ai-pursuit-formations.md` section 6),
+//! the request's state ([`order`]), the cars it takes ([`cars`]), where they stand ([`placement`]), the shared ram delay
+//! ([`delay`]) and the head-on ram's drive ([`ram`]). Spec `ai-pursuit-support.md`.
 //! The per-level options are the install's data and come from the caller; this module applies the order of the rolls.
-//! The cars themselves (SUVs, cross cars) and their spawn points are not here.
+//! Spawning the cars and driving them through the world is in the game (`crates/nfsmw/.../ai/support`).
+
+pub mod cars;
+pub mod delay;
+pub mod order;
+pub mod placement;
+pub mod ram;
+
+pub use cars::Car;
+pub use delay::RamDelay;
+pub use order::{Order, State};
+pub use placement::Search;
 
 /// The support strategies of the spec's table.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

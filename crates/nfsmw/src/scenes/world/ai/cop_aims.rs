@@ -59,7 +59,11 @@ impl super::TrafficWorld {
     fn cop_plans(&self, player: &Body) -> Vec<Plan> {
         let mut plans = vec![Plan::Chase(None); self.cars.len()];
         let Some(level) = self.police.level() else { return plans };
-        let cops: Vec<usize> = (0..self.cars.len()).filter(|&i| self.cars[i].is_cop()).collect();
+        // Support cars take no formation slot, the finisher or the collapse: they keep the plan they start with (the chase's
+        // aim, or their own goal in `car/support_drive.rs`). Spec `ai-pursuit-formations.md` section 3.
+        let cops: Vec<usize> = (0..self.cars.len())
+            .filter(|&i| self.cars[i].is_cop() && self.cars[i].support_serial().is_none())
+            .collect();
         let positions: Vec<Vec2> = cops
             .iter()
             .map(|&i| {

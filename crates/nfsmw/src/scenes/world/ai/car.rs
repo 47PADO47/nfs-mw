@@ -26,6 +26,7 @@ mod hits;
 mod original_camera;
 mod setup;
 mod sound;
+pub(super) mod support_drive;
 mod towing;
 
 pub use setup::{Ctx, Role, Start};
@@ -116,6 +117,8 @@ pub struct AiCar {
     dim: Vec3,
     /// A cop's damage (`hits`); `None` for traffic.
     damage: Option<CopDamage>,
+    /// The request this support car belongs to and its goal (`car/support_drive.rs`); `None` for other cars.
+    support: Option<support_drive::SupportCar>,
 }
 
 impl AiCar {
@@ -188,6 +191,7 @@ impl AiCar {
             quiet: 0.0,
             dim: physics.spec.dimension,
             damage,
+            support: None,
         })
     }
 
@@ -472,10 +476,11 @@ impl AiCar {
                     }
                     shift(&mut self.sim, Some(gear));
                 }
-                let aim = ctx.aims.get(ctx.me).copied().flatten();
+                let aim = support_drive::aim(self.support, &player, ctx.aims.get(ctx.me).copied().flatten());
                 let think = cop.think(ctx, &mut self.nav, &state, &Target { body: player, aim }, &traffic);
                 self.target = think.target;
                 self.think_goal(aim, state.body.position, think.speed);
+                self.support_drive(&player);
             }
         }
     }
