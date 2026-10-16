@@ -16,6 +16,7 @@ pub mod cooldown;
 pub mod end;
 pub mod evade;
 pub mod formation;
+pub mod goals;
 pub mod heat;
 pub mod helicopter;
 pub mod infraction;
