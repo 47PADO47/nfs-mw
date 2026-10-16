@@ -29,6 +29,8 @@ struct Shared {
     stop: AtomicBool,
     /// Asked by the game thread: hold the stream where it is (silent) until this is cleared.
     pause: AtomicBool,
+    /// How long a stopped sound fades out, in seconds, as the bits of an `f32`; 0 cuts it at once.
+    fade_out: AtomicU32,
     /// Set by the audio thread once every block has been played.
     ended: AtomicBool,
     /// Frames of the stream played so far.
@@ -59,6 +61,12 @@ impl StreamHandle {
         self.shared.pause.store(paused, Ordering::Relaxed);
     }
 
+    /// How long the sound fades out once it is dropped, in seconds (0 cuts it). The default is the short fade that
+    /// the EA Trax songs use.
+    pub fn set_fade_out(&self, secs: f32) {
+        self.shared.fade_out.store(secs.max(0.0).to_bits(), Ordering::Relaxed);
+    }
+
     /// How often playback ran dry because the decoder was late.
     pub fn underruns(&self) -> u32 {
         self.shared.underruns.load(Ordering::Relaxed)
@@ -82,7 +90,7 @@ impl SoundData for StreamData {
     type Handle = StreamHandle;
 
     fn into_sound(self) -> Result<(Box<dyn Sound>, StreamHandle), Infallible> {
-        let shared = Arc::new(Shared::default());
+        let shared = Arc::new(Shared { fade_out: AtomicU32::new(FADE_OUT.to_bits()), ..Shared::default() });
         let handle = StreamHandle { shared: shared.clone(), sample_rate: self.sample_rate };
         let sound = StreamSound {
             shared,
@@ -148,7 +156,12 @@ impl Sound for StreamSound {
     fn process(&mut self, out: &mut [Frame], dt: f64, _info: &Info) {
         let step = self.rate * dt;
         let stopping = self.shared.stop.load(Ordering::Relaxed);
-        let fade = if stopping { dt as f32 / FADE_OUT } else { 0.0 };
+        let fade_secs = f32::from_bits(self.shared.fade_out.load(Ordering::Relaxed));
+        let fade = match (stopping, fade_secs > 0.0) {
+            (false, _) => 0.0,
+            (true, true) => dt as f32 / fade_secs,
+            (true, false) => 1.0,
+        };
         // A stopped sound fades out even when it was paused, so it can end.
         let paused = self.shared.pause.load(Ordering::Relaxed) && !stopping;
         let pause_step = dt as f32 / PAUSE_FADE;

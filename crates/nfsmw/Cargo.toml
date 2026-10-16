@@ -34,6 +34,7 @@ blackbox-feng.workspace = true
 blackbox-gfx.workspace = true
 ini-tuning.workspace = true
 blackbox-minimap.workspace = true
+blackbox-playlist.workspace = true
 blackbox-mixmap.workspace = true
 blackbox-paramap.workspace = true
 blackbox-fxedit.workspace = true
@@ -64,6 +65,7 @@ nfsmw-data.workspace = true
 png.workspace = true
 raw-window-handle.workspace = true
 serde.workspace = true
+symphonia.workspace = true
 toml.workspace = true
 wgpu.workspace = true
 

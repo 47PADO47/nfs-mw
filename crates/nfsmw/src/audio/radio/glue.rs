@@ -2,8 +2,10 @@
 
 use kira::track::TrackHandle;
 
+use super::custom::Library;
 use super::{Control, NowPlaying, Radio};
 use crate::audio::Audio;
+use crate::settings::CustomMusic;
 
 /// The radio of an [`Audio`]: not loaded yet, failed to load, or ready.
 #[derive(Default)]
@@ -48,7 +50,10 @@ impl Audio {
         }
         let map = self.dir.read(MAP).map_err(|e| format!("{MAP}: {e}"))?;
         let mus = self.dir.resolve(STREAMS).ok_or_else(|| format!("{STREAMS} is not in the install"))?;
-        Radio::from_files(songs, &map, mus.to_path_buf())
+        let mut radio = Radio::from_files(songs, &map, mus.to_path_buf())?;
+        let config = CustomMusic::load();
+        radio.set_custom(&config, Library::build(&config));
+        Ok(radio)
     }
 
     /// The radio and the music track, for the commands. The track is `None` without a sound device.

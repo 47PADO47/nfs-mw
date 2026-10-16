@@ -1,0 +1,11 @@
+[package]
+name = "blackbox-playlist"
+description = "M3U and M3U8 playlists and the choice of audio files in a folder: pure functions over bytes and names."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true

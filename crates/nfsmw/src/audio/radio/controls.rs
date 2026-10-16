@@ -4,7 +4,7 @@
 //! and the pause are the rewrite's own. The history holds the songs played in this session, so `previous` goes back
 //! through them and `next` goes forward through them again before the play list picks anything new.
 
-use super::{Player, Radio};
+use super::{Entry, Player, Radio};
 
 /// A request from the keyboard, the pad or the console.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -33,9 +33,9 @@ impl Radio {
     }
 
     /// Note that song `n` began by choice or by the play list: whatever the player had gone back over is forgotten.
-    pub(super) fn record(&mut self, n: usize) {
+    pub(super) fn record(&mut self, entry: Entry) {
         self.history.truncate(self.cursor);
-        self.history.push(n);
+        self.history.push(entry);
         if self.history.len() > HISTORY_LIMIT {
             self.history.remove(0);
         }
@@ -94,13 +94,13 @@ impl Radio {
         }
         let played = self.now.as_ref().map_or(f32::MAX, |now| now.elapsed_secs);
         let cursor = if self.cursor >= 2 && played <= RESTART_AFTER { self.cursor - 1 } else { self.cursor };
-        let n = self.history[cursor - 1];
+        let entry = self.history[cursor - 1];
         self.broken = None;
         self.manual = !self.driving;
         self.stop();
-        self.start(n, music)?;
+        self.start_entry(entry, music)?;
         self.cursor = cursor;
-        Ok(self.songs[n].title.clone())
+        Ok(self.on_air_title())
     }
 
     /// Show the pause state of the song on the air to the HUD (a new `serial` makes it announce itself again).

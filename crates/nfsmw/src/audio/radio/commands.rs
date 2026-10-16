@@ -2,7 +2,7 @@
 
 use super::playlist::Mode;
 use super::state::clock;
-use super::{Context, Player, Radio};
+use super::{Context, Entry, Player, Radio};
 use crate::audio::Audio;
 
 /// Usage line for `help`.
@@ -66,7 +66,7 @@ impl Radio {
         self.enabled = true;
         self.stop();
         self.start(n, music)?;
-        self.record(n);
+        self.record(Entry::Song(n));
         Ok(format!("radio: {}", self.songs[n].title))
     }
 
@@ -90,7 +90,21 @@ impl Radio {
         let broken = self.broken.as_ref().map(|e| format!("\n  last error: {e}")).unwrap_or_default();
         let underruns = self.playing.as_ref().map(|p| p.handle.underruns()).unwrap_or(0);
         let late = if underruns > 0 { format!("\n  the decoder was late {underruns} times") } else { String::new() };
-        format!("radio {state}{device}\n  lists: {lists}; {mode}{broken}{late}")
+        let custom = if self.custom.is_empty() {
+            String::new()
+        } else {
+            let how = match self.custom.mode() {
+                crate::settings::CustomMode::Replace => "replaces the songs",
+                crate::settings::CustomMode::Mix => "mixed with the songs",
+            };
+            format!(
+                "\n  custom tracks: {} ({} front end, {} in game), {how}",
+                self.custom.track_count(),
+                self.custom.list(0).len(),
+                self.custom.list(1).len()
+            )
+        };
+        format!("radio {state}{device}\n  lists: {lists}; {mode}{custom}{broken}{late}")
     }
 
     pub(super) fn list(&self) -> String {

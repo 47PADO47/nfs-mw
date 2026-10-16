@@ -9,6 +9,7 @@
 mod backend;
 mod commands;
 mod controls;
+mod custom;
 pub(in crate::audio) mod feeder;
 mod glue;
 pub mod input;
@@ -25,11 +26,15 @@ use nfsmw_data::music::Song;
 pub use backend::{Backend, Files, Player};
 pub use commands::command;
 pub use controls::Control;
+pub use custom::Library;
 pub use glue::RadioSlot;
 pub use playlist::{Mode, Playlist, Random};
 pub use state::NowPlaying;
 use state::Playing;
 use stream::StreamData;
+
+use crate::settings::CustomMusic;
+use custom::{Custom, CustomTrack, Source};
 
 /// Which play list is in use.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,6 +61,14 @@ impl Context {
     }
 }
 
+/// One track of the radio's history: an EA Trax song (its index in the song list) or a custom track (its number in
+/// the library).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Entry {
+    Song(usize),
+    Custom(usize),
+}
+
 pub struct Radio {
     songs: Vec<Song>,
     backend: Box<dyn Backend>,
@@ -70,10 +83,12 @@ pub struct Radio {
     playing: Option<Playing>,
     /// The song on the air is held (paused); cleared whenever it stops.
     paused: bool,
-    /// The songs played this session, oldest first, so `previous` can go back and `next` forward again.
-    history: Vec<usize>,
-    /// How many entries of `history` are behind and including the song on the air; the next one is `history[cursor]`.
+    /// The tracks played this session, oldest first, so `previous` can go back and `next` forward again.
+    history: Vec<Entry>,
+    /// How many entries of `history` are behind and including the track on the air; the next one is `history[cursor]`.
     cursor: usize,
+    /// The player's own tracks (`custom/`); empty unless the config turns them on.
+    custom: Custom,
     /// Counts what the HUD should announce (a song starting, a pause, a resume).
     serial: u32,
     /// Why songs stopped starting (cleared by the next command), so the failure is not retried every frame.
@@ -107,6 +122,7 @@ impl Radio {
             paused: false,
             history: Vec::new(),
             cursor: 0,
+            custom: Custom::default(),
             serial: 0,
             broken: None,
             now: None,
@@ -168,21 +184,92 @@ impl Radio {
         Ok(())
     }
 
-    /// Start the next song: the one after the song on the air in the history when the player went back, else the
-    /// one the play list names. `None` when no song may play in this context.
-    pub fn start_next(&mut self, music: &mut impl Player) -> Result<Option<usize>, String> {
-        if let Some(&n) = self.history.get(self.cursor) {
-            self.start(n, music)?;
+    /// Start the next track: the one after the track on the air in the history when the player went back, else the
+    /// one the play lists name. `None` when no track may play in this context.
+    ///
+    /// A custom track that will not open is skipped for the next one (at most once per custom track); an EA Trax song
+    /// that will not start is an error, as before.
+    pub fn start_next(&mut self, music: &mut impl Player) -> Result<Option<Entry>, String> {
+        if let Some(&entry) = self.history.get(self.cursor) {
+            self.start_entry(entry, music)?;
             self.cursor += 1;
-            return Ok(Some(n));
+            return Ok(Some(entry));
         }
+        let mut attempts = 0;
+        loop {
+            let Some(entry) = self.pick_fresh() else { return Ok(None) };
+            match self.start_entry(entry, music) {
+                Ok(()) => {
+                    self.record(entry);
+                    return Ok(Some(entry));
+                }
+                Err(e) => {
+                    attempts += 1;
+                    let custom = matches!(entry, Entry::Custom(_));
+                    if !custom || attempts > self.custom.track_count() {
+                        return Err(e);
+                    }
+                    log::warn!("custom music: {e}; trying the next track");
+                }
+            }
+        }
+    }
+
+    /// The next track the play lists choose (not from the history), and advances the list it came from.
+    fn pick_fresh(&mut self) -> Option<Entry> {
         let list = self.context().index();
-        let mode = self.mode;
-        let random = &mut self.random;
-        let Some(n) = self.lists[list].next(mode, &mut |count| random.below(count)) else { return Ok(None) };
-        self.start(n, music)?;
-        self.record(n);
-        Ok(Some(n))
+        let has_trax = self.lists[list].len() > 0;
+        match self.custom.choose(list, has_trax)? {
+            Source::Trax => {
+                let mode = self.mode;
+                let random = &mut self.random;
+                self.lists[list].next(mode, &mut |count| random.below(count)).map(Entry::Song)
+            }
+            Source::Custom => {
+                let mode = self.mode;
+                let random = &mut self.random;
+                self.custom.next_track(list, mode, &mut |count| random.below(count)).map(Entry::Custom)
+            }
+        }
+    }
+
+    /// Start a track of either kind.
+    fn start_entry(&mut self, entry: Entry, music: &mut impl Player) -> Result<(), String> {
+        match entry {
+            Entry::Song(n) => self.start(n, music),
+            Entry::Custom(n) => self.start_custom(n, music),
+        }
+    }
+
+    /// Start custom track `n` on `music`, replacing the one on the air. Its fade is the config's `fade_ms`.
+    fn start_custom(&mut self, n: usize, music: &mut impl Player) -> Result<(), String> {
+        let track: CustomTrack = self.custom.track(n).ok_or_else(|| format!("no custom track {n}"))?.clone();
+        let opened = custom::open(&track.path)?;
+        let caption = custom::caption(&track, &opened.tags);
+        let length_secs = opened.length_secs.or(track.length_secs).unwrap_or(0.0);
+        let handle = music.play(StreamData { blocks: opened.blocks, sample_rate: opened.sample_rate })?;
+        handle.set_fade_out(self.custom.fade_secs());
+        log::info!("radio: {} - {} (custom, {:.1} s)", caption.artist, caption.title, length_secs);
+        self.serial = self.serial.wrapping_add(1);
+        self.now = Some(NowPlaying::custom(&caption, length_secs, self.serial));
+        self.paused = false;
+        self.playing = Some(Playing { handle });
+        Ok(())
+    }
+
+    /// The title of the track on the air, for the console's answers.
+    fn on_air_title(&self) -> String {
+        self.now.as_ref().map(|now| now.title.clone()).unwrap_or_default()
+    }
+
+    /// Give the radio the player's own tracks. `config` says the mode, the starting order and the fade. An empty
+    /// library (the feature is off, or nothing was found) leaves the radio as it was.
+    pub fn set_custom(&mut self, config: &CustomMusic, library: Library) {
+        if library.is_empty() {
+            return;
+        }
+        self.custom = Custom::new(library, config.mode, config.fade_ms as f32 / 1000.0);
+        self.mode = if config.shuffle { Mode::Shuffle } else { Mode::Ordered };
     }
 
     /// Once per frame: tell the radio whether the game is being played (driving, or paused in the game) and
@@ -237,7 +324,7 @@ impl Radio {
         self.broken = None;
         self.manual = !self.driving;
         self.stop();
-        let n = self.start_next(music)?.ok_or_else(|| format!("no songs in the {} list", self.context().name()))?;
-        Ok(self.songs[n].title.clone())
+        self.start_next(music)?.ok_or_else(|| format!("no songs in the {} list", self.context().name()))?;
+        Ok(self.on_air_title())
     }
 }
