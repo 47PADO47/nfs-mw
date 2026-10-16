@@ -373,7 +373,7 @@ every `unsafe` block has a `// SAFETY:` comment. The game crate itself keeps the
 - **ABI snapshot test:** `size_of`, `align_of` and `offset_of` of every table and payload are asserted against
   numbers in the test; changing one needs a deliberate edit and a version bump.
 - **Integration test** (`libs/blackbox-modding/tests/load_example.rs`): builds the `hello` example with
-  `cargo build -p example-mod-hello` (the test runs the `CARGO` binary), loads the produced library with the real
+  `cargo build -p hello-mod` (the test runs the `CARGO` binary), loads the produced library with the real
   loader against a **fake host** (a test implementation of the backend traits), and checks: the handshake, a
   registered command runs, a subscribed event arrives, `destroy` runs. Further cases: the `panics` fixture is
   quarantined after 5 faults while the host keeps running; the `future-abi` fixture is rejected with a reason;

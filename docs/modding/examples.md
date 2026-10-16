@@ -1,0 +1,399 @@
+# Mod examples
+
+Four small mods, each a folder you can copy, using the 0.1 SDK: the generic `libs/blackbox-modding` interfaces and,
+in the last one, the NFS:MW extension in `crates/nfsmw-modding`. The catalogue is in [api.md](api.md) and the pages it
+links.
+
+The one example CI builds is [`examples/mods/hello`](../../examples/mods/hello). The four below are sketches written
+against the same APIs. They are **not built by CI**; each heading says so. Where a sketch goes past what the SDK
+wraps, it says so.
+
+## Build and install
+
+Each Rust mod is a `cdylib` whose `Cargo.toml` follows [`examples/mods/hello/Cargo.toml`](../../examples/mods/hello/Cargo.toml),
+with its own package name and any extra dependency. Inside the repository, the folder goes under `examples/mods/<name>/`
+and into the root `Cargo.toml` members, as `hello` is. The workspace denies `unsafe_code`, so an item that uses
+`unsafe` carries `#[allow(unsafe_code)]`.
+
+Build from the repository root with the package name, for example `cargo build -p hello-mod` (the ADR says
+`example-mod-hello`; the file says `hello-mod`, and that is what builds). The library is `target\debug\hello_mod.dll`,
+or `libhello_mod.so` on Linux.
+
+Install by copying `mod.toml`, the library (named by `[library]`) and any `files/`, `cars/` and `music/` folders into
+`%APPDATA%\nfsmw\config\mods\<id>\`, where `<id>` is the `id` in `[mod]`. The start-up log names each loaded mod, and
+each refused mod with its reason. The F12 command `mods` shows the same in the game. Use `--no-mods` when you report a bug.
+
+## 1. Hello hotkey (generic, not built by CI)
+
+Works in any game that offers `bb.commands` and `bb.input`. The hotkey `F5` and the console command `hello` both show a
+message and move one blip to the player's car. Based on the APIs in the 0.1 ABI.
+
+Layout: `examples/mods/hotkey/` with `Cargo.toml`, `mod.toml` and `src/lib.rs`.
+
+`mod.toml`:
+
+```toml
+[mod]
+id = "example.hotkey"
+name = "Hello Hotkey"
+version = "0.1.0"
+
+[api]
+blackbox_modding = "0.1"
+
+[games]
+supported = ["*"]
+
+[requires.interfaces]
+"bb.commands" = "1.0"
+"bb.input" = "1.0"
+
+[optional.interfaces]
+"bb.hud" = "1.0"
+"bb.map" = "1.0"
+"bb.vehicles" = "1.0"
+
+[library]
+windows = "hotkey_mod.dll"
+linux = "libhotkey_mod.so"
+```
+
+`Cargo.toml`: as hello, with `name = "hotkey-mod"`.
+
+`src/lib.rs`:
+
+```rust
+use std::cell::Cell;
+use std::rc::Rc;
+
+use blackbox_modding::sdk::{BlipId, Ctx, Level, MessageStyle, Mod, ModResult, declare_mod};
+
+/// A blip style the game names. NFS:MW's list is in `crates/nfsmw/src/hud/blip_styles.rs`.
+const BLIP_STYLE: &str = "checkpoint";
+
+/// The mod keeps no state of its own. The blip it last placed sits in a cell the hotkey and the command share.
+pub struct HelloHotkey;
+
+impl Mod for HelloHotkey {
+    fn load(ctx: &mut Ctx) -> ModResult<Self> {
+        let blip: Rc<Cell<Option<BlipId>>> = Rc::new(Cell::new(None));
+
+        if let Some(commands) = ctx.commands() {
+            let shared = Rc::clone(&blip);
+            commands.register("hello", "Show the hello message and move the blip to the car", move |ctx, _args| {
+                say_hello(ctx, &shared)
+            })?;
+        }
+        if let Some(input) = ctx.input() {
+            let shared = Rc::clone(&blip);
+            input.register("say_hello", "Say hello", "key:F5", move |ctx| {
+                if let Err(error) = say_hello(ctx, &shared) {
+                    ctx.log(Level::Warn, &format!("hello: {error}"));
+                }
+            })?;
+        }
+        Ok(HelloHotkey)
+    }
+}
+
+/// Show the message and put the blip at the player's car. The command and the hotkey both call this.
+fn say_hello(ctx: &mut Ctx, blip: &Cell<Option<BlipId>>) -> ModResult<String> {
+    if let Some(hud) = ctx.hud() {
+        hud.message("Hello from the hotkey mod", MessageStyle::Info, 4.0)?;
+    }
+    let Some(vehicles) = ctx.vehicles() else {
+        return Ok("hello: bb.vehicles absent, no blip".to_owned());
+    };
+    let Some(map) = ctx.map() else {
+        return Ok("hello: bb.map absent, no blip".to_owned());
+    };
+    let car = vehicles.player()?;
+    if let Some(old) = blip.take() {
+        // A blip the game already dropped is stale: not an error here.
+        let _ = map.remove(old);
+    }
+    blip.set(Some(map.add(BLIP_STYLE, car.position, true)?));
+    Ok(format!("hello: blip at {:?}", car.position))
+}
+
+declare_mod!(HelloHotkey);
+```
+
+- The binding is the form the `bind` command reads (`key:F5`). A blip style is a name the game registers; NFS:MW's are in
+  `crates/nfsmw/src/hud/blip_styles.rs`. `vehicles.player()` answers `NotReady` with no world up.
+
+## 2. Fast clock (generic, not built by CI)
+
+A Mods-page slider sets the real seconds per in-world hour through `bb.time` (10 fast, 600 slow, 60 the default).
+`bb.menus` has no SDK wrapper yet, so this calls the raw table from `blackbox_modding::abi`
+(see [api-world.md](api-world.md#menus)). It is the only unsafe code in these examples. Based on the 0.1 ABI.
+
+Layout: `examples/mods/fastclock/` with `Cargo.toml`, `mod.toml` and `src/lib.rs`.
+
+`mod.toml`:
+
+```toml
+[mod]
+id = "example.fastclock"
+name = "Fast Clock"
+version = "0.1.0"
+
+[api]
+blackbox_modding = "0.1"
+
+[games]
+supported = ["*"]
+
+[requires.interfaces]
+"bb.time" = "1.0"
+
+[optional.interfaces]
+"bb.menus" = "1.0"
+
+[library]
+windows = "fastclock_mod.dll"
+linux = "libfastclock_mod.so"
+```
+
+`Cargo.toml`: as hello, with `name = "fast-clock-mod"`.
+
+`src/lib.rs`:
+
+```rust
+use core::ffi::c_void;
+use core::mem::size_of;
+use core::ptr::null_mut;
+use core::sync::atomic::{AtomicU32, Ordering};
+
+use blackbox_modding::abi::{
+    BB_EVENT_FRAME_START, BB_MENU_SLIDER, BB_OK, BbMenuRow, BbMenus, BbStr, IFACE_MENUS, IFACE_MENUS_VERSION,
+};
+use blackbox_modding::sdk::{Ctx, Event, Level, Mod, ModResult, declare_mod};
+
+/// The slider's value, real seconds per in-world hour, as `f32` bits. The menu callback writes it and the mod
+/// reads it on the next frame. Zero means the player has not moved the slider.
+static SECONDS_PER_HOUR: AtomicU32 = AtomicU32::new(0);
+
+pub struct FastClock {
+    applied: f32,
+}
+
+impl Mod for FastClock {
+    fn load(ctx: &mut Ctx) -> ModResult<Self> {
+        register_slider(ctx);
+        Ok(FastClock { applied: 0.0 })
+    }
+
+    fn event(&mut self, ctx: &mut Ctx, event: &Event<'_>) {
+        if event.kind() != BB_EVENT_FRAME_START {
+            return;
+        }
+        let wanted = f32::from_bits(SECONDS_PER_HOUR.load(Ordering::Relaxed));
+        if wanted == 0.0 || wanted == self.applied {
+            return;
+        }
+        let Some(time) = ctx.time() else { return };
+        if time.set_day_length(wanted).is_ok() {
+            self.applied = wanted;
+        }
+    }
+}
+
+/// Add the slider to the Mods page through the raw `bb.menus` table.
+#[allow(unsafe_code)]
+fn register_slider(ctx: &Ctx) {
+    let Some(interface) = ctx.query_interface(IFACE_MENUS, IFACE_MENUS_VERSION.0, IFACE_MENUS_VERSION.1) else {
+        ctx.log(Level::Info, "fast clock: bb.menus absent, no slider");
+        return;
+    };
+    let row = BbMenuRow {
+        size: size_of::<BbMenuRow>() as u32,
+        kind: BB_MENU_SLIDER,
+        name: BbStr::new("seconds_per_hour"),
+        label: BbStr::new("Seconds per hour"),
+        min: 10.0,
+        max: 600.0,
+        step: 10.0,
+        default: 60.0,
+        choices: core::ptr::null(),
+        choice_count: 0,
+    };
+    // SAFETY: the host keeps the table valid while the mod is loaded; `row` and its strings last for this call.
+    let table = unsafe { &*interface.as_ptr().cast::<BbMenus>() };
+    let Some(register) = table.register else { return };
+    let mut id = 0u64;
+    // SAFETY: as above. The callback takes no user data, so the pointer is null.
+    let status = unsafe { register(table.ctx, &row, null_mut(), Some(on_slider), &mut id) };
+    if status != BB_OK {
+        ctx.log(Level::Warn, &format!("fast clock: slider refused with status {status}"));
+    }
+}
+
+/// The host calls this with the new value when the player moves the slider.
+#[allow(unsafe_code)]
+unsafe extern "C" fn on_slider(_user: *mut c_void, value: f32) {
+    SECONDS_PER_HOUR.store(value.to_bits(), Ordering::Relaxed);
+}
+
+declare_mod!(FastClock);
+```
+
+- A value saved by an earlier run (under `[mod_values."example.fastclock"]`) is not applied at start-up here. A fuller
+  version would call the table's `get` on the first frame.
+
+## 3. Content pack: a car clone and music (NFS:MW, not built by CI)
+
+A content-only mod has no library and no code: a car that copies a stock NFS:MW car, and music in two contexts. The
+repository ships no game assets, so the car's files are yours to make in the install's format
+([licensing.md](../licensing.md) applies before you share them).
+
+Layout:
+
+```
+mods/example.pack/
+  mod.toml
+  cars/fastcoupe.toml
+  files/CARS/FASTCOUPE/GEOMETRY.BIN     your geometry, in the install's format
+  files/CARS/FASTCOUPE/TEXTURES.BIN     your textures
+  music/track01.ogg
+  music/track02.mp3
+  music/mix.m3u                         a playlist; its entries are relative to it
+```
+
+`mod.toml` (no `[library]`):
+
+```toml
+[mod]
+id = "example.pack"
+name = "Example Pack"
+version = "0.1.0"
+
+[api]
+blackbox_modding = "0.1"
+
+[games]
+supported = ["nfsmw"]
+
+[music]
+contexts = ["menu", "free_roam"]    # the default; "race" and "pursuit" wait until the radio has them
+always = false                      # true: play even when the custom music setting is off
+```
+
+`cars/fastcoupe.toml`:
+
+```toml
+clone = "CAMARO"        # a stock car: the new car keeps its record, parts, physics and sound
+role = "both"           # player, cop or both (default: player)
+heat = [2, 3, 4]        # cop waves that may use it; allowed only with a cop role; left out means every level
+name = "Fast Coupe"     # optional display name
+manufacturer = "Acme"   # optional brand
+```
+
+- The car id is the file name in upper case (`FASTCOUPE`), and its geometry must sit in the mod's own
+  `files/CARS/FASTCOUPE/`. An unknown key, such as `[override]`, refuses the car. Cars are registered at start-up, so a
+  change needs a restart.
+- Without `always = true`, the tracks play only while the custom music setting is on.
+
+Install: copy the folder to `%APPDATA%\nfsmw\config\mods\example.pack\`. No build step is needed.
+
+## 4. Bounty hunter (NFS:MW, not built by CI)
+
+NFS:MW only. On `F6` it raises the heat of a chase, and it logs each step of the chase and its result. The `nfsmw.*`
+events arrive as `Event::Unknown` with their payload bytes, and `MwEvent::decode` types them. Based on the 0.1 ABI.
+
+Layout: `examples/mods/bounty/` with `Cargo.toml`, `mod.toml` and `src/lib.rs`.
+
+`mod.toml`:
+
+```toml
+[mod]
+id = "example.bounty"
+name = "Bounty Hunter"
+version = "0.1.0"
+
+[api]
+blackbox_modding = "0.1"
+
+[games]
+supported = ["nfsmw"]
+
+[requires.interfaces]
+"bb.input" = "1.0"
+"nfsmw.pursuit" = "0.1"
+
+[library]
+windows = "bounty_mod.dll"
+linux = "libbounty_mod.so"
+```
+
+`Cargo.toml`: as hello, with `name = "bounty-mod"` and this extra dependency:
+
+```toml
+nfsmw-modding = { path = "../../../crates/nfsmw-modding", features = ["sdk"] }
+```
+
+`src/lib.rs`:
+
+```rust
+use blackbox_modding::sdk::{Ctx, Event, Level, Mod, ModResult, declare_mod};
+use nfsmw_modding::sdk::{MwEvent, NfsmwExt};
+
+pub struct Bounty;
+
+impl Mod for Bounty {
+    fn load(ctx: &mut Ctx) -> ModResult<Self> {
+        if let Some(input) = ctx.input() {
+            input.register("raise_heat", "Raise the heat", "key:F6", |ctx| {
+                if let Err(error) = raise_heat(ctx) {
+                    ctx.log(Level::Warn, &format!("bounty: {error}"));
+                }
+            })?;
+        }
+        Ok(Bounty)
+    }
+
+    fn event(&mut self, ctx: &mut Ctx, event: &Event<'_>) {
+        let Event::Unknown { kind, frame, payload } = *event else { return };
+        let line = match MwEvent::decode(kind, frame, payload) {
+            MwEvent::PursuitStarted { level, cops, heat, .. } => {
+                format!("chase began at level {level}, {cops} cops, heat {heat:.2}")
+            }
+            MwEvent::HeatChanged { level, old_heat, new_heat, .. } => {
+                format!("heat {old_heat:.2} to {new_heat:.2}, level {level}")
+            }
+            MwEvent::Busted { level, bounty, .. } => format!("busted at level {level}, bounty {bounty}"),
+            MwEvent::Escaped { level, duration, .. } => format!("escaped at level {level} after {duration:.1} s"),
+            MwEvent::PursuitEnded { reason, bounty, duration, .. } => {
+                format!("chase ended ({reason:?}), bounty {bounty}, {duration:.1} s")
+            }
+            _ => return,
+        };
+        ctx.log(Level::Info, &format!("bounty: {line}"));
+    }
+}
+
+/// Raise the heat of the running chase by one level. With no chase running, start one at level 1.
+fn raise_heat(ctx: &mut Ctx) -> ModResult<()> {
+    let Some(pursuit) = ctx.nfsmw_pursuit() else {
+        ctx.log(Level::Info, "bounty: nfsmw.pursuit absent");
+        return Ok(());
+    };
+    if !pursuit.is_pursuing()? {
+        return pursuit.start(1, None);
+    }
+    let heat = pursuit.heat()?;
+    pursuit.set_heat(heat + 1.0)
+}
+
+declare_mod!(Bounty);
+```
+
+- `heat` and `set_heat` answer `NotReady` with no chase, so the key starts one first; the chase appears a frame later.
+  `heat` reads the frame before, and `add_heat` is not in 0.1.
+- To change the cop wave, use `cop_table` and `set_cop_table` before the first pursuit
+  ([api-nfsmw.md](api-nfsmw.md#cop-tables)).
+
+## Gaps the sketches run into (0.1)
+
+- **No `bb.menus` wrapper.** Example 2 calls the raw table and needs its `unsafe`.
+- **No subscription.** A mod receives the events the host sends; `nfsmw.*` ones are decoded with `MwEvent::decode`.

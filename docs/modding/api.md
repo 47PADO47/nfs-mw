@@ -4,6 +4,10 @@ Part of the [modding catalogue](README.md); decision in [ADR 0005](../decisions/
 This page: conventions, lifecycle, events, commands, hotkeys and abilities, time of day. The other areas are in
 [api-world.md](api-world.md), [api-content.md](api-content.md) and [api-nfsmw.md](api-nfsmw.md).
 
+> **Status (2026-10-16).** This catalogue is the plan. What the SDK offers today is the wire table section below and
+> the safe wrappers in `libs/blackbox-modding/src/sdk/`; entries such as `ctx.events()`, `ctx.timers()` or
+> `ctx.reply()` are planned and not in the SDK yet. [examples.md](examples.md) uses only the calls that exist.
+
 ## How to read an entry
 
 Each table row is `entry | signature sketch | scope | implemented in`.

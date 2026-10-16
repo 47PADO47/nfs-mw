@@ -23,6 +23,7 @@ when the module is new.
 | [api-world.md](api-world.md) | Map blips and the world map, menus, game interaction (vehicles, player, HUD, audio, camera, world) |
 | [api-content.md](api-content.md) | The VFS overlay, content registries (cars, cop waves, music, fonts, scenery, interiors), settings storage |
 | [api-nfsmw.md](api-nfsmw.md) | The NFS:MW-only extension: career, heat and pursuit, cop tables, race events |
+| [examples.md](examples.md) | Four example mods (hotkey, fast clock, car and music pack, bounty hunter), with layout, manifest, build and install |
 
 ## Two layers
 
@@ -59,7 +60,7 @@ id = "example.hello"
 name = "Hello"
 version = "0.1.0"
 [api]
-blackbox_modding = "1.0"
+blackbox_modding = "0.1"
 [games]
 supported = ["*"]
 [library]
