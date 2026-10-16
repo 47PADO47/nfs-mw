@@ -36,7 +36,10 @@ pub const HELICOPTER: &str = "copheli";
 
 /// The row for heat level `heat` (1…10), outside races (`heattable`).
 pub fn heat_row(db: &Database, heat: u32) -> Option<HeatRow> {
-    heat_row_in(db, "heattable", heat)
+    let mut row = heat_row_in(db, "heattable", heat)?;
+    // The cop rows that mods add to this level (car/mods.rs); none without mods.
+    crate::car::mods::add_cop_rows(crate::car::mods::sealed(), heat.clamp(1, HEAT_LEVELS), &mut row);
+    Some(row)
 }
 
 /// The row for heat level `heat` (1…10) while racing a race event (`racetable`).

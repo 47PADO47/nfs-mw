@@ -22,3 +22,8 @@ pub mod sdk;
 
 #[cfg(feature = "host")]
 pub mod host;
+
+/// Content manifests (ADR 0005 section 5): the `cars/` files and the `[music]` table of a mod. Read by the host's
+/// game side, so it needs the same TOML and serde the host does.
+#[cfg(feature = "host")]
+pub mod content;

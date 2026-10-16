@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use blackbox_playlist::{Entry, parse, resolve, select};
 
 use super::CustomTrack;
+use crate::modding::content::{MusicSource, music_sources};
 use crate::settings::{CustomContext, CustomMusic, CustomSources};
 
 /// The extensions a folder source may hold: the formats the decoder reads.
@@ -23,15 +24,32 @@ pub struct Library {
 }
 
 impl Library {
-    /// The library `config` describes. Empty when the feature is off, so nothing is read from disk.
+    /// The library `config` describes, with the music of the loaded mods. Empty when the feature is off and no mod asks
+    /// for its music, so nothing is read from disk.
     pub fn build(config: &CustomMusic) -> Self {
-        if !config.enabled {
-            return Self::default();
-        }
+        Self::build_with(config, music_sources())
+    }
+
+    /// [`Library::build`] with the mods' sources given. The player's own folders and playlists are read only when the
+    /// feature is on. A mod's music is read when the feature is on, or when the mod sets `always`.
+    pub fn build_with(config: &CustomMusic, mods: &[MusicSource]) -> Self {
         let mut builder = Builder::default();
-        let front_end = builder.add_sources(config.sources_for(CustomContext::Menu));
-        let in_game = builder.add_sources(config.sources_for(CustomContext::FreeRoam));
-        Self { tracks: builder.tracks, lists: [front_end, in_game] }
+        let mut lists: [Vec<usize>; 2] = [Vec::new(), Vec::new()];
+        if config.enabled {
+            lists[0] = builder.add_sources(config.sources_for(CustomContext::Menu));
+            lists[1] = builder.add_sources(config.sources_for(CustomContext::FreeRoam));
+        }
+        for source in mods.iter().filter(|source| config.enabled || source.always) {
+            let numbers = builder.add_mod(source);
+            for context in &source.contexts {
+                let list = match context {
+                    CustomContext::Menu => 0,
+                    CustomContext::FreeRoam => 1,
+                };
+                extend_unique(&mut lists[list], &numbers);
+            }
+        }
+        Self { tracks: builder.tracks, lists }
     }
 
     /// The track numbers of list `list` (0 front end, 1 in game).
@@ -44,6 +62,15 @@ impl Library {
 
     pub fn is_empty(&self) -> bool {
         self.tracks.is_empty()
+    }
+}
+
+/// Append the numbers of `numbers` that `list` does not have yet, in order.
+fn extend_unique(list: &mut Vec<usize>, numbers: &[usize]) {
+    for &number in numbers {
+        if !list.contains(&number) {
+            list.push(number);
+        }
     }
 }
 
@@ -67,6 +94,17 @@ impl Builder {
         }
         let mut seen = HashSet::new();
         numbers.into_iter().filter(|n| seen.insert(*n)).collect()
+    }
+
+    /// The track numbers of one mod: its `music/` folder, then its playlists, each track once.
+    fn add_mod(&mut self, source: &MusicSource) -> Vec<usize> {
+        let mut numbers = self.add_folder(&source.folder);
+        for playlist in &source.playlists {
+            numbers.extend(self.add_playlist(playlist));
+        }
+        let mut unique = Vec::new();
+        extend_unique(&mut unique, &numbers);
+        unique
     }
 
     fn add_folder(&mut self, folder: &Path) -> Vec<usize> {
@@ -228,5 +266,43 @@ mod tests {
         let library = Library::build(&config);
         assert_eq!(names(&library, 0), ["menu.mp3"]);
         assert_eq!(names(&library, 1), ["everywhere.mp3"]);
+    }
+
+    /// A mod's source over a temp `music/` folder with one track and one playlist that names it.
+    fn mod_source(name: &str, contexts: Vec<CustomContext>, always: bool) -> MusicSource {
+        let dir = scratch(name);
+        fs::write(dir.join("mod.mp3"), b"x").unwrap();
+        fs::write(dir.join("set.m3u"), "#EXTINF:30,Band - Set\nmod.mp3\n").unwrap();
+        MusicSource { id: name.to_owned(), folder: dir.clone(), playlists: vec![dir.join("set.m3u")], contexts, always }
+    }
+
+    #[test]
+    fn a_mod_source_is_read_when_custom_music_is_off_only_if_it_asks_for_it() {
+        let quiet = config(Vec::new(), Vec::new());
+        let off = Library::build_with(
+            &CustomMusic { enabled: false, ..quiet.clone() },
+            &[mod_source("off", vec![CustomContext::Menu], false)],
+        );
+        assert!(off.is_empty());
+        let always = Library::build_with(
+            &CustomMusic { enabled: false, ..quiet },
+            &[mod_source("always", vec![CustomContext::FreeRoam], true)],
+        );
+        assert_eq!(names(&always, 1), ["mod.mp3"]);
+        assert!(always.list(0).is_empty());
+        assert_eq!(always.tracks[0].title.as_deref(), Some("Set"), "the playlist caption is kept");
+    }
+
+    #[test]
+    fn a_mod_source_joins_the_contexts_it_names_once_each() {
+        let contexts = vec![CustomContext::Menu, CustomContext::FreeRoam];
+        let own = scratch("joins-own");
+        fs::write(own.join("mine.mp3"), b"x").unwrap();
+        let mut config = config(Vec::new(), Vec::new());
+        config.menu = CustomSources { folders: vec![own], playlists: Vec::new() };
+        let library = Library::build_with(&config, &[mod_source("joins", contexts, false)]);
+        assert_eq!(names(&library, 0), ["mine.mp3", "mod.mp3"]);
+        assert_eq!(names(&library, 1), ["mod.mp3"]);
+        assert_eq!(library.tracks.len(), 2, "the mod's file is one track in both lists");
     }
 }

@@ -63,8 +63,11 @@ impl CarTables {
     pub fn load(dir: &GameDir) -> Result<Self> {
         let globalb = read_unwrapped(dir, "GLOBAL/GLOBALB.LZC")?;
         let attributes = dir.read("GLOBAL/ATTRIBUTES.BIN")?;
+        // The stock car types first, so a stock folder always finds its own type; the mod cars follow (car/mods.rs).
+        let mut types = blackbox_carparts::read_car_types(&globalb, LAYOUT);
+        types.extend(super::mods::car_types());
         Ok(Self {
-            types: blackbox_carparts::read_car_types(&globalb, LAYOUT),
+            types,
             parts: blackbox_carparts::read_parts_db(&globalb, LAYOUT).context("reading the parts database")?,
             slot_types: blackbox_carparts::read_slot_types(&globalb, LAYOUT),
             presets: blackbox_carparts::read_preset_rides(&globalb, LAYOUT),
