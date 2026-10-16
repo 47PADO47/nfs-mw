@@ -335,7 +335,7 @@ reflection key; road and front-end keys stay hidden until their pass exists.
    globals (the registry writer's callers).
 2. The meaning of the car environment option value. It selects the cube size when non-zero (256). Whether
    the value is also a level (for example, 1 or 2) is not confirmed. Next lead: the readers of the same global
-   (`FUN_006bd0d0`, `FUN_006bd4b0`).
+   (`0x006bd0d0`, `0x006bd4b0`).
 3. The front-end cube size: whether the 256 px routine is used for the front end too. Next lead: callers of the
    cube routine during the front end.
 4. The 384 value of Aero's mirror distance is not found in the executable. Next lead: find float constants near

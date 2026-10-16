@@ -5,7 +5,7 @@ close-chase steering, the path-following chase, ramming, the stop and retire act
 a cop's performance is tied to the target's car. Formations (box-in, pit, herd, ...) and the heavy/leader support
 vehicles are in [ai-pursuit-formations.md](ai-pursuit-formations.md); roadblocks, spike strips and pursuit breakers in
 [ai-pursuit-roadblocks.md](ai-pursuit-roadblocks.md); sight, the jerk rule, damage and per-car tuning in
-[ai-pursuit-cop-cars.md](ai-pursuit-cop-cars.md); the helicopter in [ai-helicopter.md](ai-helicopter.md).
+[ai-pursuit-cop-cars.md](ai-pursuit-cop-cars.md); the helicopter in [ai-helicopter.md](ai-helicopter.md). The pit, ram, box-in, rolling-block and pull-over goals, goal by goal, are in [ai-pursuit-goals.md](ai-pursuit-goals.md).
 
 - **Sources read:** [dbalatoni13/nfsmw](https://github.com/dbalatoni13/nfsmw) (CC0-1.0, decompiled; GameCube build), under
   `src/Speed/Indep/Src`: `AI/AIAction.h`, `AI/Common/AIAction.cpp`, `AIGoal.cpp`, `AI/Actions/AIAction{PursuitOffRoad,
