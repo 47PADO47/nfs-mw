@@ -11,18 +11,21 @@ use super::spawn::Pick;
 use super::traffic::{Cruise, MPH};
 use super::{Focus, Patterns, TrafficWorld};
 use crate::scenes::world::space;
+use crate::viewer::camera::Lens;
 
-/// Cars farther than this from the player (metres) are removed whether they are seen or not.
+mod visibility;
+use visibility::Viewing;
+
+// The rewrite's own removal rules (spec §8 says the original has none of them). They apply only while the car is
+// unseen, so a visible car is never removed by them.
+/// Rewrite extension: an unseen car farther than this from the player (metres) is removed.
 const DESPAWN_DISTANCE: f32 = 350.0;
-/// A car with no wheel on the ground for this long (seconds) fell off the map and is removed.
+/// Rewrite extension: an unseen car with no wheel on the ground for this long (seconds) fell off the map.
 const MAX_AIRBORNE: f32 = 4.0;
-/// A car standing this long (seconds) is removed when it is more than `STUCK_DISTANCE` metres from the player.
+/// Rewrite extension: an unseen car standing this long (seconds) is removed when it is more than
+/// `STUCK_DISTANCE` metres from the player.
 const STUCK_TIME: f32 = 20.0;
 const STUCK_DISTANCE: f32 = 40.0;
-/// A car within this distance (metres) counts as seen, and one further off within `VIEW_HALF_ANGLE` of the
-/// way the player faces.
-const ALWAYS_SEEN: f32 = 15.0;
-const VIEW_HALF_ANGLE: f32 = 1.05;
 
 /// A car model the manager needs the scene to load.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -183,24 +186,25 @@ impl TrafficWorld {
         self.spawn_one(Pick::Patrol(i), cruise, focus, collision, surfaces);
     }
 
-    /// Follows which cars the player can see and removes the ones that are gone for good: far away, seen by
-    /// nobody for a while, fallen off the map, or stuck. A tractor that is gone stays while its trailer is not
-    /// (spec §8), and a trailer that came loose and is gone is dropped on its own.
-    pub(super) fn recycle(&mut self, dt: f32, focus: Focus) {
+    /// Follows which parts of the cars the camera sees, then removes the cars that are gone for good (spec §8):
+    /// unseen for longer than the density's time and farther than its distance, or, while unseen, the rewrite's
+    /// extra rules. A tractor that is gone stays while its trailer is not, and a trailer that came loose and is
+    /// gone is dropped on its own.
+    pub(super) fn recycle(&mut self, dt: f32, focus: Focus, camera: &Lens) {
         let density = manager::density(self.target > 0, self.pursuit.is_some());
-        let (distance, time) = (manager::offscreen_distance(density), manager::offscreen_time(density));
+        let limits = Limits { time: manager::offscreen_time(density), distance: manager::offscreen_distance(density) };
+        let view = Viewing::new(camera, focus);
         self.cars.retain_mut(|car| {
             if car.is_cop() {
                 return car.is_finite();
             }
-            car.note_views(dt, |p| in_view(focus, p.x, p.y, away(focus, p)));
-            let limits = Limits { time, distance };
-            if car.loose_trailer().is_some_and(|t| !Vitals::of_trailer(t).valid(focus, limits)) {
+            car.note_views(dt, |p| view.sees(p));
+            if car.loose_trailer().is_some_and(|t| !Vitals::of_trailer(t).valid(&view, limits)) {
                 car.drop_trailer();
             }
             car.is_finite()
-                && (Vitals::of_car(car).valid(focus, limits)
-                    || car.trailer().is_some_and(|t| Vitals::of_trailer(t).valid(focus, limits)))
+                && (Vitals::of_car(car).valid(&view, limits)
+                    || car.trailer().is_some_and(|t| Vitals::of_trailer(t).valid(&view, limits)))
         });
     }
 }
@@ -243,50 +247,98 @@ impl Vitals {
         }
     }
 
-    fn valid(&self, focus: Focus, limits: Limits) -> bool {
-        let away = away(focus, self.position);
-        self.finite
-            && self.airborne < MAX_AIRBORNE
-            && away < DESPAWN_DISTANCE
-            && !(self.idle > STUCK_TIME && away > STUCK_DISTANCE)
-            && !(self.offscreen > limits.time && away > limits.distance)
+    /// Whether the car may stay. A seen car always stays (its off-screen time is 0 after this tick's update). An
+    /// unseen car is removed by the original's rule (unseen longer than `limits.time` and more than
+    /// `limits.distance` away), or by the rewrite's extra rules: airborne, far beyond 350 m, or stuck.
+    fn valid(&self, view: &Viewing, limits: Limits) -> bool {
+        if !self.finite {
+            return false;
+        }
+        if self.offscreen <= 0.0 {
+            return true;
+        }
+        let gone = self.airborne >= MAX_AIRBORNE
+            || view.away(self.position) >= DESPAWN_DISTANCE
+            || (self.idle > STUCK_TIME && view.away(self.position) > STUCK_DISTANCE);
+        let unseen_too_long = self.offscreen > limits.time && view.distance(self.position) > limits.distance;
+        !(gone || unseen_too_long)
     }
-}
-
-/// Distance from the player to `p` (render space) on the map, metres.
-fn away(focus: Focus, p: Vec3) -> f32 {
-    (p.x - focus.position[0]).hypot(p.y - focus.position[1])
-}
-
-/// Whether a car at map position `(x, y)`, `away` metres from the player, is in the player's view: close by,
-/// or in the cone the player faces.
-fn in_view(focus: Focus, x: f32, y: f32, away: f32) -> bool {
-    if away < ALWAYS_SEEN {
-        return true;
-    }
-    let to_car = (y - focus.position[1]).atan2(x - focus.position[0]);
-    let mut diff = (to_car - focus.heading).rem_euclid(std::f32::consts::TAU);
-    if diff > std::f32::consts::PI {
-        diff -= std::f32::consts::TAU;
-    }
-    diff.abs() < VIEW_HALF_ANGLE
 }
 
 #[cfg(test)]
 mod tests {
+    use blackbox_roads::Body;
+    use glam::Vec2;
+
     use super::*;
 
-    fn focus() -> Focus {
+    /// The free camera: eye at the origin, looking along +Y (render space, Z up), no car driven.
+    fn camera_north() -> Lens {
+        Lens::look_at(Vec3::ZERO, Vec3::Y, 90.0, 0.1, 1.0)
+    }
+
+    fn free_focus() -> Focus {
         Focus { position: [0.0, 0.0], heading: 0.0, speed: 0.0, body: None }
     }
 
+    fn car_at(position: Vec3, offscreen: f32, airborne: f32) -> Vitals {
+        Vitals { position, finite: true, airborne, idle: 0.0, offscreen }
+    }
+
+    fn limits(density: f32) -> Limits {
+        Limits { time: manager::offscreen_time(density), distance: manager::offscreen_distance(density) }
+    }
+
     #[test]
-    fn close_cars_and_cars_ahead_are_seen() {
-        let f = focus();
-        assert!(in_view(f, 5.0, 5.0, 7.0), "close");
-        assert!(in_view(f, 100.0, 10.0, 100.5), "ahead");
-        assert!(!in_view(f, -100.0, 0.0, 100.0), "behind");
-        assert!(!in_view(f, 0.0, 100.0, 100.0), "to the side");
+    fn a_car_unseen_for_five_seconds_at_fifty_metres_is_removed() {
+        let view = Viewing::new(&camera_north(), free_focus());
+        // Behind the camera, so out of view; 50 m from the eye. At density 1 the limits are 4 s and 40 m.
+        let behind = Vec3::new(0.0, -50.0, 0.0);
+        assert!(!view.sees(behind));
+        assert!(!car_at(behind, 5.0, 0.0).valid(&view, limits(1.0)));
+        assert!(car_at(behind, 3.0, 0.0).valid(&view, limits(1.0)), "not yet 4 s");
+    }
+
+    #[test]
+    fn a_visible_car_at_400_metres_is_not_removed() {
+        let view = Viewing::new(&camera_north(), free_focus());
+        let ahead = Vec3::new(0.0, 400.0, 0.0);
+        assert!(view.sees(ahead));
+        // The timer is 0 while the car is seen (note_views resets it), so the rewrite's 350 m rule does not apply.
+        assert!(car_at(ahead, 0.0, 0.0).valid(&view, limits(1.0)));
+        assert!(car_at(ahead, 0.0, 10.0).valid(&view, limits(1.0)), "airborne but seen");
+    }
+
+    #[test]
+    fn the_rewrite_rules_apply_only_while_unseen() {
+        let view = Viewing::new(&camera_north(), free_focus());
+        let behind_far = Vec3::new(0.0, -400.0, 0.0);
+        assert!(!car_at(behind_far, 0.5, 0.0).valid(&view, limits(1.0)), "unseen beyond 350 m");
+        assert!(!car_at(behind_far, 0.5, 4.0).valid(&view, limits(1.0)), "unseen and airborne");
+    }
+
+    #[test]
+    fn a_car_behind_the_player_stays_while_the_chase_camera_sees_it() {
+        // The player drives east at (100, 0, 0). The chase camera sits 8 m behind it and 3 m up, looking at it.
+        let player = Vec3::new(100.0, 0.0, 0.0);
+        let camera = Lens::look_at(Vec3::new(92.0, 0.0, 3.0), player, 60.0, 0.1, 1.0);
+        let focus = Focus {
+            position: [100.0, 0.0],
+            heading: 0.0,
+            speed: 20.0,
+            body: Some(Body {
+                position: Vec3::from(space::to_physics(player)),
+                velocity: Vec3::new(0.0, 0.0, 20.0),
+                forward: Vec2::X,
+                half_width: 1.0,
+                half_length: 2.5,
+            }),
+        };
+        let view = Viewing::new(&camera, focus);
+        // 4 m behind the player, between the camera and the car: behind the player, in the chase frustum.
+        let behind_player = Vec3::new(96.0, 0.0, 0.0);
+        assert!(view.sees(behind_player));
+        assert!(car_at(behind_player, 0.0, 0.0).valid(&view, limits(1.0)));
     }
 
     #[test]

@@ -136,7 +136,8 @@ impl WorldScene {
     /// Every moving car integrates before pair contacts, and every pose is captured after those contacts.
     fn physics_step(&mut self, driving: bool, look: (f32, f32)) {
         let focus = self.traffic_focus();
-        let event_view = self.simulation_lens(self.physics_aspect).position;
+        let camera = self.simulation_lens(self.physics_aspect);
+        let event_view = camera.position;
         let (collision, props) = self.residency.world_parts();
         let surfaces = &self.physics.surfaces;
         props.step(&super::drive::WorldGround { collision, surfaces }, STEP);
@@ -151,7 +152,7 @@ impl WorldScene {
             let player = self.drive.as_mut().filter(|_| player_step.is_some()).and_then(|d| d.sim_mut());
             traffic.collide(player);
             traffic.update_events(props, &self.physics, event_view);
-            traffic.finish_step(focus, collision, surfaces);
+            traffic.finish_step(focus, &camera, collision, surfaces);
         }
         if let (Some(drive), Some(step)) = (self.drive.as_mut(), player_step) {
             drive.update_events(props, &self.physics, event_view);
