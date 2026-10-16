@@ -74,6 +74,7 @@ fn masked_and_unmasked_presenter_uploads_apply_alpha_coverage_once() {
             textures: HashMap::from([(1, picture), (2, mask)]),
             aliases: HashMap::new(),
             font_native: HashMap::new(),
+            custom: CustomFontSet::default(),
             input_atlas: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
             discord_mark: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
             strings: None,

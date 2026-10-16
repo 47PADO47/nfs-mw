@@ -13,6 +13,9 @@ use blackbox_tpk::{Texture, decode_rgba8, read_texture_packs};
 use game_install::{GameDir, Provider};
 use nfsmw_data::read_unwrapped;
 
+use super::fonts::CustomFontSet;
+use super::fonts::tier::Tier;
+use crate::settings::custom_fonts;
 use crate::settings::hd_content;
 
 const FENG_FONT: u32 = 0x0003_0201;
@@ -107,13 +110,23 @@ pub struct UiAssets {
     aliases: HashMap<u32, u32>,
     /// The stock size of each font texture, by texture hash, where known (see [`native_size`]).
     font_native: HashMap<u32, (u32, u32)>,
+    /// The user's custom fonts (`ui/fonts`). They win over the stock fonts and textures of the same name while the
+    /// custom fonts are on (see [`UiAssets::font`]).
+    custom: CustomFontSet,
     input_atlas: Image,
     discord_mark: Image,
     pub strings: Option<StringTable>,
 }
 
 impl UiAssets {
+    /// The stock assets alone, with no custom fonts (the tests' fixture; the app uses [`UiAssets::load_with`]).
+    #[cfg(test)]
     pub fn load(dir: &GameDir) -> Result<Self> {
+        Self::load_with(dir, CustomFontSet::default())
+    }
+
+    /// Loads the stock assets and keeps `custom` as the user's font set.
+    pub fn load_with(dir: &GameDir, custom: CustomFontSet) -> Result<Self> {
         let mut fonts = HashMap::new();
         for rel in FONT_FILES {
             let Ok(data) = read_unwrapped(dir, rel) else { continue };
@@ -166,7 +179,7 @@ impl UiAssets {
         let aliases = ALIASES.iter().map(|(a, b)| (fe_hash_upper(a), fe_hash_upper(b))).collect();
         let input_atlas = super::input_icons::load()?;
         let discord_mark = super::discord_icon::load()?;
-        let assets = Self { fonts, textures, aliases, font_native, strings, input_atlas, discord_mark };
+        let assets = Self { fonts, textures, aliases, font_native, custom, strings, input_atlas, discord_mark };
         log::info!("UI: {} fonts, {} textures", assets.fonts.len(), assets.textures.len());
         Ok(assets)
     }
@@ -178,25 +191,56 @@ impl UiAssets {
             .resources
             .iter()
             .filter(|r| match r.kind {
-                ResourceKind::Font => !self.fonts.contains_key(&r.handle),
+                ResourceKind::Font => self.font(r.handle).is_none(),
                 _ => r.handle != basepoly && self.texture(r.handle).is_none(),
             })
             .map(|r| r.name.as_str())
             .collect()
     }
 
+    /// The font for a name hash: the custom font for the current tier when the custom fonts are on and a file supplies
+    /// one, else the stock font.
     pub fn font(&self, hash: u32) -> Option<&Font> {
-        self.fonts.get(&hash)
+        self.custom_font(hash).map(|(_, font)| font).or_else(|| self.fonts.get(&hash))
     }
 
-    /// The raw texture for a key, following the run-time swaps.
+    /// The custom font for a name hash in use now, with its tier. `None` when the custom fonts are off or no file has it.
+    fn custom_font(&self, hash: u32) -> Option<(Tier, &Font)> {
+        let active = custom_fonts::active();
+        if !active.enabled {
+            return None;
+        }
+        self.custom.font(hash, active.tier)
+    }
+
+    /// The scale a font is drawn at: the custom font's tier scale when a custom font is in use, else 1.0.
+    pub fn font_scale(&self, hash: u32) -> f32 {
+        match self.custom_font(hash) {
+            Some((tier, _)) => custom_fonts::active().scale_of(tier),
+            None => 1.0,
+        }
+    }
+
+    /// The raw texture for a key, following the custom fonts and the run-time swaps.
     pub fn texture(&self, hash: u32) -> Option<&Texture> {
-        self.textures.get(&hash).or_else(|| self.aliases.get(&hash).and_then(|a| self.textures.get(a)))
+        self.custom_texture(hash)
+            .or_else(|| self.textures.get(&hash))
+            .or_else(|| self.aliases.get(&hash).and_then(|a| self.textures.get(a)))
+    }
+
+    /// The custom texture for a key in use now (a custom font's own texture), if any.
+    fn custom_texture(&self, hash: u32) -> Option<&Texture> {
+        let active = custom_fonts::active();
+        if !active.enabled {
+            return None;
+        }
+        self.custom.texture(hash, active.tier)
     }
 
     /// The texture key that finally supplies a key (after aliases).
     pub fn resolve(&self, hash: u32) -> u32 {
-        if self.textures.contains_key(&hash) { hash } else { self.aliases.get(&hash).copied().unwrap_or(hash) }
+        let known = self.textures.contains_key(&hash) || self.custom_texture(hash).is_some();
+        if known { hash } else { self.aliases.get(&hash).copied().unwrap_or(hash) }
     }
 
     /// Decodes a texture to RGBA. `BASEPOLY` (a plain coloured polygon, not in any pack) is white.
@@ -230,7 +274,12 @@ impl UiAssets {
     pub fn texture_size(&self, hash: u32) -> Option<(u32, u32)> {
         let loaded = self.texture(hash).map(|t| (t.width, t.height));
         let loaded = loaded.or((hash == fe_hash_upper("BASEPOLY")).then_some((2, 2)))?;
-        Some(uv_size(hd_content::active().fonts, self.font_native.get(&hash).copied(), loaded))
+        // A custom font's texture is the font's own: its glyphs are laid out on its own size, not the stock one.
+        let native = match self.custom_texture(hash) {
+            Some(_) => None,
+            None => self.font_native.get(&hash).copied(),
+        };
+        Some(uv_size(hd_content::active().fonts, native, loaded))
     }
 }
 

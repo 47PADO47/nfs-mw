@@ -201,6 +201,8 @@ pub struct ViewArgs {
     pub motion_blur_strength: Option<f32>,
     #[command(flatten)]
     pub hd_content: crate::settings::hd_content::HdContentArgs,
+    #[command(flatten)]
+    pub custom_fonts: crate::settings::custom_fonts::CustomFontsArgs,
     /// Enable skid marks [env NFSMW_SKID_MARKS; config `skid_marks`; default on].
     #[arg(long, conflicts_with = "no_skid_marks")]
     pub skid_marks: bool,
@@ -349,6 +351,7 @@ impl ViewArgs {
             motion_blur: switch(self.motion_blur, self.no_motion_blur),
             motion_blur_strength: self.motion_blur_strength,
             hd_content: self.hd_content.layer(),
+            custom_fonts: self.custom_fonts.layer(),
             skid_marks: switch(self.skid_marks, self.no_skid_marks),
             collision_sparks: switch(self.collision_sparks, self.no_collision_sparks),
             spark_style: self.spark_style,

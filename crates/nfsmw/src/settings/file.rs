@@ -8,6 +8,7 @@ use std::str::FromStr;
 
 use toml::{Table, Value};
 
+use super::custom_fonts;
 use super::hd_content;
 use super::partial::{Partial, Percent};
 use super::{
@@ -149,6 +150,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         motion_blur: field(&table, origin, "motion_blur", boolean),
         motion_blur_strength: field(&table, origin, "motion_blur_strength", number),
         hd_content: hd_content::read(&table),
+        custom_fonts: custom_fonts::read(&table),
     }
 }
 

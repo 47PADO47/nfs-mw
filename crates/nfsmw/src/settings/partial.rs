@@ -2,6 +2,7 @@
 
 use blackbox_gfx::GraphicsApi;
 
+use super::custom_fonts::CustomFontsLayer;
 use super::hd_content::HdContentLayer;
 use super::{
     CameraMode, CarShading, Deadzone, GraphicsPreset, HudLayout, MinimapMode, Monitor, PostAa, PostBloom, PostTonemap,
@@ -141,6 +142,8 @@ pub struct Partial {
     pub motion_blur_strength: Option<f32>,
     /// The HD content options (`[hd_content]`).
     pub hd_content: HdContentLayer,
+    /// The custom fonts (`[custom_fonts]`).
+    pub custom_fonts: CustomFontsLayer,
 }
 
 impl Partial {
@@ -230,6 +233,7 @@ impl Partial {
             motion_blur: self.motion_blur.or(lower.motion_blur),
             motion_blur_strength: self.motion_blur_strength.or(lower.motion_blur_strength),
             hd_content: self.hd_content.or(lower.hd_content),
+            custom_fonts: self.custom_fonts.or(lower.custom_fonts),
         }
     }
 }

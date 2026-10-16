@@ -151,6 +151,7 @@ pub fn partial_of(s: &Settings) -> Partial {
         motion_blur: Some(s.motion_blur),
         motion_blur_strength: Some(s.motion_blur_strength),
         hd_content: s.hd_content.into(),
+        custom_fonts: s.custom_fonts.into(),
         rain_amount: Some(s.rain_amount),
         game_speed: Some(s.game_speed),
         animation_speed: Some(s.animation_speed),

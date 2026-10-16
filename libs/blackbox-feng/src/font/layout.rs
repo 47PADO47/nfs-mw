@@ -64,6 +64,11 @@ struct Layouter<'a> {
     height: f32,
     baseline: f32,
     leading: i32,
+    /// The maximum width in font pixels: `style.max_width` divided by the scale. Wrapping compares unscaled advances
+    /// with it, so the break falls where the scaled text would break (`docs/specs/custom-fonts.md`, 6.3).
+    max_width: f32,
+    /// Whether a maximum width is set (`style.max_width` is not 0).
+    limited: bool,
 }
 
 impl Layouter<'_> {
@@ -84,7 +89,7 @@ impl Layouter<'_> {
     /// before the maximum width.
     fn line_width(&self, start: usize) -> f32 {
         let wrap = self.style.justification & WRAP != 0;
-        let max = self.style.max_width as f32;
+        let max = self.max_width;
         let (mut width, mut last_space) = (0.0, 0.0);
         let mut k = 0;
         let mut i = start;
@@ -98,7 +103,7 @@ impl Layouter<'_> {
             }
             let prev = if k == 0 { 0 } else { self.at(i - 1) };
             width += self.width_of(c, prev);
-            if self.style.max_width != 0 && max < width && wrap {
+            if self.limited && max < width && wrap {
                 if last_space > 0.0 {
                     width = last_space;
                 }
@@ -126,7 +131,7 @@ impl Layouter<'_> {
     }
 
     fn text_height(&self) -> f32 {
-        let wrap = self.style.justification & WRAP != 0 && self.style.max_width != 0;
+        let wrap = self.style.justification & WRAP != 0 && self.limited;
         let (mut height, mut line_width, mut last_not_return) = (0.0, 0.0, true);
         let mut prev = 0;
         for (i, &c) in self.text.iter().enumerate() {
@@ -141,7 +146,7 @@ impl Layouter<'_> {
                     last_not_return = true;
                 }
                 if wrap {
-                    if c == b' ' as u16 && (self.style.max_width as f32) < line_width + self.next_word_width(i) {
+                    if c == b' ' as u16 && self.max_width < line_width + self.next_word_width(i) {
                         new_line = true;
                     }
                     line_width += self.width_of(c, prev);
@@ -185,6 +190,15 @@ impl Font {
     /// font's native (stock) texture size, or the loaded texture's size when that is the choice (see [`super::uv_size`]).
     /// `$NAME$` button-icon sequences are skipped (no icon is drawn).
     pub fn layout(&self, text: &str, style: TextStyle, texture_size: (u32, u32)) -> TextLayout {
+        self.layout_scaled(text, style, texture_size, 1.0)
+    }
+
+    /// [`Font::layout`] with the font drawn `scale` times its size. The text is laid out in font pixels, with the
+    /// stock rules, and the result (quads, width, height) is multiplied by `scale`. The maximum width is in scaled
+    /// pixels, so wrapping breaks where the scaled text would. At scale 1.0 the result equals [`Font::layout`]. A scale
+    /// that is not a positive finite number counts as 1.0.
+    pub fn layout_scaled(&self, text: &str, style: TextStyle, texture_size: (u32, u32), scale: f32) -> TextLayout {
+        let scale = Some(scale).filter(|s| s.is_finite() && *s > 0.0).unwrap_or(1.0);
         let (baseline, leading_scale) = EXTRA.iter().find(|e| e.0 == self.hash).map_or((0.0, 1.0), |e| (e.1, e.2));
         let mut units: Vec<u16> = Vec::new();
         let mut in_icon = false;
@@ -214,6 +228,8 @@ impl Font {
             height: self.height(),
             baseline,
             leading: (style.leading as f32 * leading_scale) as i32,
+            max_width: style.max_width as f32 / scale,
+            limited: style.max_width != 0,
         };
         let wrap = style.justification & WRAP != 0;
         let total_height = l.text_height();
@@ -235,9 +251,9 @@ impl Font {
                     y += l.height + l.leading as f32;
                     line_start = x;
                 } else {
-                    if style.max_width != 0 && c == b' ' as u16 && wrap {
+                    if l.limited && c == b' ' as u16 && wrap {
                         let word = l.next_word_width(i);
-                        if (x - line_start) + word > style.max_width as f32 {
+                        if (x - line_start) + word > l.max_width {
                             x = l.x_offset(l.line_width(i + 1));
                             y += l.height + l.leading as f32;
                             line_start = x;
@@ -267,6 +283,19 @@ impl Font {
             }
             i += 1;
         }
+        scale_layout(&mut out, scale);
         out
     }
+}
+
+/// Multiplies a layout made in font pixels by `scale`: every quad rectangle, the width and the height.
+fn scale_layout(out: &mut TextLayout, scale: f32) {
+    for q in &mut out.quads {
+        q.x0 *= scale;
+        q.y0 *= scale;
+        q.x1 *= scale;
+        q.y1 *= scale;
+    }
+    out.width *= scale;
+    out.height *= scale;
 }

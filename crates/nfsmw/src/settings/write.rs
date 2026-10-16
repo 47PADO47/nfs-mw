@@ -9,6 +9,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use toml::{Table, Value};
 
+use super::custom_fonts;
 use super::hd_content;
 use super::partial::Partial;
 
@@ -236,6 +237,7 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
         put("motion_blur_strength", Value::Float(f64::from(v)));
     }
     hd_content::merge_into(&mut table, &changes.hd_content);
+    custom_fonts::merge_into(&mut table, &changes.custom_fonts);
     toml::to_string(&table).context("serializing the config file")
 }
 

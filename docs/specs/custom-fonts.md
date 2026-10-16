@@ -1,6 +1,6 @@
 # Custom fonts: behaviour spec for an optional port feature
 
-Status: **specification, not implemented.** Written before any code. The feature lets a player replace the
+Status: **specification, partly implemented** (see Port status at the end). The feature lets a player replace the
 FEng bitmap fonts with files from a user folder, choose a set per render height and scale each font.
 
 Sources and licence rule:
@@ -348,3 +348,47 @@ menu), at 1080 and 1440 height, and a long string in a wrapped box at scale 1.25
   reader that sets the 480-unit scale is not pinned).
 - Confirm the glyph UV `u - 1` by a pixel comparison of one glyph in a render.
 - Check the stock behaviour at a tier boundary with the game's own resolution setting, if the game has one.
+
+## Port status
+
+Implemented (code and unit tests; the in-game checks of section 11 are not run yet):
+
+- **Loader.** `crates/nfsmw/src/ui/fonts/` (`folder.rs` scans the folder, `set.rs` parses the files, `tier.rs` picks the
+  tier). A file is one bChunk with an `FEngFont` chunk (`blackbox_feng::Font::parse`) and optionally a texture pack
+  (`blackbox_tpk::read_texture_packs`). A file that cannot be read or parsed is skipped with a warning, so the stock font
+  stays. The parsers are shared; nothing in `libs/` names the game.
+- **Tiers.** `Tier::chain` gives the lookup order: the tier, then each lower one. Thresholds 1200 and 960, the boundary in
+  the upper tier. Files directly in the folder count as Mid.
+- **Stock override.** `UiAssets::font` and `UiAssets::texture` return the custom font or texture for a name hash when the
+  feature is on and a file has it. The stock chunks are still loaded, so turning the feature off restores the stock
+  fonts at once (no restart). The override matches the chunk's own name hash, not the file name.
+- **Scale and wrap.** `Font::layout_scaled` (`libs/blackbox-feng/src/font/layout.rs`) lays out in font pixels and
+  multiplies the quads, width and height by the scale. Word wrap compares the advances with the maximum width divided by
+  the scale, so the break falls where the scaled text would break. At scale 1.0 it equals `Font::layout` (tests in
+  `libs/blackbox-feng/src/font/tests.rs`). The text, prompt and presenter layouts use `UiAssets::font_scale`.
+- **Texture size.** A custom font's own texture is laid out on its own size (section 2 of `hd-content-support.md`), not the
+  stock size.
+- **Settings.** `crates/nfsmw/src/settings/custom_fonts.rs`: `[custom_fonts]` with `enabled`, `tier`, `scale.high`,
+  `scale.mid`, `scale.low` (scales outside (0, 4] are reported and ignored); `folder` is read from the config file at start-up
+  (default `fonts` in the config folder). Env `NFSMW_CUSTOM_FONTS`; flags `--custom-fonts` / `--no-custom-fonts`; console
+  `set custom_fonts on|off`; one row "Custom Fonts" on the Video screen. Default off. The row and the console key are
+  registered in `frontend/options*.rs`, `devtools/console/settings_*.rs`, and the saves payload.
+- **Tier.** `publish` (each frame) computes the tier from the primary window's physical height, so a resize takes effect
+  without a reload.
+
+Not done, or different from the text above:
+
+- **Per-font scale table.** The scale is one value per tier (`scale.high/mid/low`), for every custom font. The per-name
+  table of section 8 is not in the port.
+- **Thresholds are fixed.** `high_min_height` and `mid_min_height` are not config keys.
+- **No `fonts` console commands** (`reload`, `tier`, `list`), no Reload row, no Font tier row, and no Graphics page placement.
+  The tier can be set only in the config file (`tier = "auto" | "high" | "mid" | "low"`).
+- **No reload.** All files are parsed at start-up; a tier change needs no reload, and a file added to the folder after
+  start-up is not seen until the next start.
+- **Glyph UV start (section 9.1, item 1) not changed.** The layout still uses `u / width`, not `(u - 1) / width`. This is a
+  pixel change for stock and custom fonts alike and needs a render check first.
+- **Chunk-level tests against the install** (section 11, item 13) are not written.
+- **Override test.** The unit tests check the lookup by name hash and the tier order on the set (`ui/fonts/set.rs`). The
+  `UiAssets` path is not tested with a real install.
+- **Console completion.** `devtools/console/parse.rs` (shared with another area) does not list `custom_fonts` for
+  completion; `set custom_fonts` works through the generic `set` command.

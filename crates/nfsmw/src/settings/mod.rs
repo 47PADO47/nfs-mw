@@ -15,6 +15,7 @@ mod car_shading_tests;
 mod controls;
 #[cfg(test)]
 mod controls_tests;
+pub mod custom_fonts;
 pub mod custom_music;
 #[cfg(test)]
 mod discord_tests;
@@ -290,6 +291,8 @@ pub struct Settings {
     pub motion_blur_strength: f32,
     /// The HD content options: HD font glyphs, the HD pointer hotspot and HD movie framing (`[hd_content]`).
     pub hd_content: hd_content::HdContent,
+    /// The custom fonts: fonts from a folder, per resolution tier (`[custom_fonts]`, `docs/specs/custom-fonts.md`).
+    pub custom_fonts: custom_fonts::CustomFonts,
 }
 
 impl From<Partial> for Settings {
@@ -386,6 +389,7 @@ impl From<Partial> for Settings {
                 .unwrap_or(motion_blur::DEFAULT_MOTION_BLUR_STRENGTH)
                 .clamp(motion_blur::MOTION_BLUR_STRENGTH_RANGE.0, motion_blur::MOTION_BLUR_STRENGTH_RANGE.1),
             hd_content: hd_content::HdContent::from_layer(p.hd_content),
+            custom_fonts: custom_fonts::CustomFonts::from_layer(p.custom_fonts),
             speedbreaker: SpeedbreakerTuning::default(),
         };
         settings.settle_preset();

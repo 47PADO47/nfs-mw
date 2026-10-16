@@ -39,6 +39,7 @@ pub enum Setting {
     SpeedTrails,
     SpeedTrailStyle,
     ExhaustFlames,
+    CustomFonts,
     TurnSignals,
     CopHealthBars,
     RearViewMirror,
@@ -221,6 +222,7 @@ impl Setting {
             Setting::SpeedTrails => on_off(s.speed_trails),
             Setting::SpeedTrailStyle => Data::Text(s.speed_trail_style.label().into()),
             Setting::ExhaustFlames => on_off(s.exhaust_flames),
+            Setting::CustomFonts => on_off(s.custom_fonts.enabled),
             Setting::TurnSignals => on_off(s.turn_signals),
             Setting::CopHealthBars => on_off(s.cop_health_bars),
             Setting::RearViewMirror => on_off(s.rear_view_mirror),
@@ -439,6 +441,10 @@ impl Setting {
                 changed.speed_trail_style = Some(s.speed_trail_style);
             }
             Setting::ExhaustFlames => toggle!(s, changed, exhaust_flames),
+            Setting::CustomFonts => {
+                s.custom_fonts.enabled = !s.custom_fonts.enabled;
+                changed.custom_fonts.enabled = Some(s.custom_fonts.enabled);
+            }
             Setting::TurnSignals => toggle!(s, changed, turn_signals),
             Setting::CopHealthBars => toggle!(s, changed, cop_health_bars),
             Setting::RearViewMirror => toggle!(s, changed, rear_view_mirror),

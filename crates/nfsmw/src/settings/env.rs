@@ -2,6 +2,7 @@
 
 use std::str::FromStr;
 
+use super::custom_fonts;
 use super::hd_content;
 use super::partial::{Partial, Percent, parse_bool};
 use super::{
@@ -166,6 +167,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         motion_blur: value(&get, MOTION_BLUR, parse_bool),
         motion_blur_strength: value(&get, MOTION_BLUR_STRENGTH, |s| s.trim().parse::<f32>().map_err(|e| e.to_string())),
         hd_content: hd_content::from_env(&get),
+        custom_fonts: custom_fonts::from_env(&get),
     }
 }
 
