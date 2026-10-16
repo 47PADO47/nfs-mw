@@ -9,8 +9,9 @@ use crate::frontend::post_options::PostSetting;
 use crate::frontend::renderer_options::RendererSetting;
 use blackbox_gfx::Capabilities;
 
-/// The rows of a category on a renderer with these capabilities. A row the renderer cannot do (ray tracing, the
-/// temporal upscalers' quality mode) is left out; dependencies of supported options can still be dimmed.
+/// The rows of a category on a renderer with these capabilities. A row the renderer cannot do (the temporal
+/// upscalers' quality mode) is left out; ray tracing is always listed, dimmed and reading "Unavailable" on a
+/// renderer without it, so that the player can see it exists. Dependencies of supported options can be dimmed too.
 pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
     let renderer_row = |setting: RendererSetting| row(Setting::Renderer(setting), setting.title());
     let offered = |setting: RendererSetting| setting.shown(caps).then(|| renderer_row(setting));
@@ -36,7 +37,7 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
             .chain(offered(RendererSetting::UpscaleQuality))
             .chain([row(Setting::UpscaleSharpness, Title::Text("Upscale Sharpness"))])
             .chain(PostSetting::ALL.into_iter().map(|setting| row(Setting::Post(setting), setting.title())))
-            .chain(offered(RendererSetting::RayTracing))
+            .chain([renderer_row(RendererSetting::RayTracing)])
             .chain(
                 GraphicsSetting::ALL
                     .into_iter()

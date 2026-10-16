@@ -1,6 +1,6 @@
 //! The renderer rows of the Video options (docs/renderers.md): which renderer, the graphics API it uses, the
-//! temporal upscalers' quality mode, and ray tracing. The last two only exist on a renderer that offers them (a
-//! menu row has no greyed-out state, so the row is left out instead).
+//! temporal upscalers' quality mode, and ray tracing. The quality mode only exists on a renderer that offers a
+//! temporal upscaler, and is left out otherwise. Ray tracing is always listed: a renderer without it dims the row.
 
 use std::sync::OnceLock;
 
@@ -29,12 +29,12 @@ impl RendererSetting {
     }
 
     /// Whether the renderer has this row at all. The renderer and graphics API choices are always there: they
-    /// take effect after a restart, so the renderer that is running cannot show them as unavailable.
+    /// take effect after a restart, so the renderer that is running cannot show them as unavailable. Ray tracing
+    /// is always there too, dimmed when the renderer cannot run it (`Setting::enabled_in`).
     pub fn shown(self, caps: &Capabilities) -> bool {
         match self {
-            Self::Renderer | Self::GraphicsApi => true,
+            Self::Renderer | Self::GraphicsApi | Self::RayTracing => true,
             Self::UpscaleQuality => caps.upscalers.iter().any(Upscaler::is_temporal),
-            Self::RayTracing => caps.ray_tracing.is_available(),
         }
     }
 

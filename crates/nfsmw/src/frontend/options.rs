@@ -173,6 +173,9 @@ impl Setting {
             // Even a temporal request falling back to FSR 1 takes its size from Upscale Quality.
             return self.enabled(s);
         }
+        if self == Setting::Renderer(RendererSetting::RayTracing) && !caps.ray_tracing.is_available() {
+            return false;
+        }
         self.enabled(&s.effective(caps))
     }
 
@@ -287,6 +290,9 @@ impl Setting {
     /// What the data string shows on a renderer with these capabilities: the value it actually runs, so a stored
     /// `taa` reads FXAA on a renderer that has no TAA.
     pub fn data_in(self, s: &Settings, caps: &Capabilities) -> Data {
+        if self == Setting::Renderer(RendererSetting::RayTracing) && !caps.ray_tracing.is_available() {
+            return Data::Text("Unavailable".into());
+        }
         self.data(&s.effective(caps))
     }
 

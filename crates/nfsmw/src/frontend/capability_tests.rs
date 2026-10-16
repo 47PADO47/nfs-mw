@@ -24,12 +24,21 @@ fn text(s: &'static str) -> Title {
 }
 
 #[test]
-fn the_native_renderer_hides_ray_tracing_and_the_quality_mode_but_has_the_renderer_row() {
-    let video = titles(Category::Video, &test_caps::native());
-    assert_eq!(video.len(), 40);
-    for hidden in ["Ray Tracing", "Upscale Quality", "Dynamic Soft Shadows"] {
+fn the_native_renderer_hides_the_quality_mode_and_dims_ray_tracing() {
+    let native = test_caps::native();
+    let video = titles(Category::Video, &native);
+    assert_eq!(video.len(), 41);
+    for hidden in ["Upscale Quality", "Dynamic Soft Shadows"] {
         assert!(!video.contains(&text(hidden)), "{hidden} needs a renderer that offers it");
     }
+    let rt = Setting::Renderer(RendererSetting::RayTracing);
+    assert!(video.contains(&text("Ray Tracing")), "ray tracing is listed on every renderer");
+    assert!(!rt.enabled_in(&defaults(), &native), "but it is dimmed where it cannot run");
+    assert_eq!(rt.data_in(&defaults(), &native), Data::Text("Unavailable".into()));
+    let (mut s, mut c) = (defaults(), Partial::default());
+    assert!(!rt.advance(&mut s, &mut c, true, &native), "and it does not change");
+    assert_eq!(c, Partial::default());
+    assert!(rt.enabled_in(&defaults(), &test_caps::full()), "a renderer with ray tracing lets it change");
     assert_eq!(
         video[1..3],
         [text("Renderer (After Restart)"), text("Graphics API (After Restart)")],
@@ -160,7 +169,10 @@ fn a_value_stored_for_another_renderer_shows_as_what_runs_and_moves_to_a_value_t
     let aa = Setting::Post(PostSetting::Aa);
     assert_eq!(aa.data_in(&stored, &native), Data::Text("FXAA".into()));
     assert_eq!(Setting::Upscaler.data_in(&stored, &native), Data::Text("FSR 1".into()));
-    assert_eq!(Setting::Renderer(RendererSetting::RayTracing).data_in(&stored, &native), Data::Text("Off".into()));
+    assert_eq!(
+        Setting::Renderer(RendererSetting::RayTracing).data_in(&stored, &native),
+        Data::Text("Unavailable".into())
+    );
     assert!(!aa.offered(&stored, &native) && !Setting::Upscaler.offered(&stored, &native));
     let (mut s, mut c) = (stored, Partial::default());
     aa.advance(&mut s, &mut c, true, &native);
