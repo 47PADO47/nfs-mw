@@ -1,26 +1,34 @@
-//! The mods the game runs: the runtime, the frame counter, and the sending of the events.
+//! The mods the game runs: the runtime, the frame counter, the bridge the mods' calls go through, and the sending of the
+//! events.
 
 use std::ffi::c_void;
 use std::mem::size_of;
 use std::path::PathBuf;
+use std::rc::Rc;
 
+use bevy_input::keyboard::KeyCode;
 use blackbox_modding::abi::{BB_EVENT_FRAME_START, BB_EVENT_MOD_UNLOADING, BB_EVENT_SCENE_TICK, BbEvent};
 use blackbox_modding::host::{DispatchReport, HostOffer, ModRuntime, ModSummary, Policy, Rejected, RunMode};
 
+use super::backends::{Bridge, Interfaces, commands};
 use super::events::{frame_start_payload, scene_tick_payload, unloading_payload};
+use crate::devtools::Console;
+use crate::viewer::Scene;
 
-/// The loaded mods, with the frame counter the events carry. It is a `NonSend` resource: the mods run on the main
-/// thread, and the runtime holds `Rc`s.
+/// The loaded mods, with the frame counter the events carry, and the bridge their calls read and write. It is a `NonSend`
+/// resource: the mods run on the main thread, and the runtime holds `Rc`s.
 pub struct Mods {
     runtime: ModRuntime,
     frame: u64,
+    bridge: Rc<Bridge>,
 }
 
 impl Mods {
-    /// Discover, order and load the mods in `roots` (see [`ModRuntime::start`]). A mod that fails is recorded, and the
-    /// game starts without it.
-    pub fn start(offer: HostOffer, policy: &Policy, roots: &[PathBuf], mode: RunMode) -> Self {
-        Self { runtime: ModRuntime::start(offer, policy, roots, mode), frame: 0 }
+    /// Discover, order and load the mods in `roots` (see [`ModRuntime::start`]), offering the interfaces of `interfaces`.
+    /// A mod that fails is recorded, and the game starts without it.
+    pub fn start(offer: HostOffer, interfaces: Interfaces, policy: &Policy, roots: &[PathBuf], mode: RunMode) -> Self {
+        let Interfaces { registry, bridge } = interfaces;
+        Self { runtime: ModRuntime::start_with(offer, registry, policy, roots, mode), frame: 0, bridge }
     }
 
     /// The loaded mods, in load order.
@@ -31,6 +39,36 @@ impl Mods {
     /// The mods refused, with their reasons.
     pub fn rejected(&self) -> &[Rejected] {
         self.runtime.rejected()
+    }
+
+    /// Copy the scene's clock in, before the mods run this frame.
+    pub fn sync(&self, scene: &dyn Scene) {
+        self.bridge.sync(scene);
+    }
+
+    /// Fire the hotkeys `pressed` reports as pressed (see [`Bridge::press`]).
+    pub fn press(&self, pressed: impl Fn(KeyCode) -> bool) {
+        self.bridge.press(pressed);
+    }
+
+    /// Make the scene and the console take what the mods asked for (see [`Bridge::apply`]).
+    pub fn apply(&self, scene: &mut dyn Scene, console: &mut Console) {
+        self.bridge.apply(scene, console);
+    }
+
+    /// The mod commands for `help`: (usage, description) pairs.
+    pub fn command_help(&self) -> Vec<(String, String)> {
+        commands::listing(&self.bridge)
+    }
+
+    /// Whether a mod registered a console command called `name` (lower case).
+    pub fn has_command(&self, name: &str) -> bool {
+        commands::is_registered(&self.bridge, name)
+    }
+
+    /// Run a mod's console command (see [`commands::run_mod_command`]).
+    pub fn run_command(&self, name: &str, args: &[&str]) -> Result<String, String> {
+        commands::run_mod_command(&self.bridge, name, args)
     }
 
     /// A frame begins (the `ModsPre` set). Counts the frame, then sends `FRAME_START`.

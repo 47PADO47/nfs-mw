@@ -160,6 +160,8 @@ pub struct WorldScene {
     /// Minimap blips that do not come from the traffic: the race starts and the interiors, made once at open
     /// (`hud::static_blips`). Nothing clears this list, so a later addition stays until it is removed here.
     pub map_blips: Vec<crate::hud::MapBlip>,
+    /// Minimap blips the mods placed (`bb.map`), set each frame by the mods' systems and merged after `map_blips`.
+    pub mod_blips: Vec<crate::hud::MapBlip>,
     /// The entry zones (auto shops, safe houses, race starts) and the interact card (`entry.rs`).
     entry: entry::Entry,
     /// The `traffic`, `cop_share` settings as last told, and a count typed in the console that replaces them.
@@ -302,6 +304,19 @@ impl Scene for WorldScene {
 
     fn set_environment(&mut self, value: crate::viewer::Environment) {
         self.configure_day(value);
+    }
+
+    fn time_held(&self) -> bool {
+        self.day.held()
+    }
+
+    fn set_time_held(&mut self, held: bool) {
+        self.day.set_held(held);
+    }
+
+    fn set_mod_blips(&mut self, blips: &[crate::hud::MapBlip]) {
+        self.mod_blips.clear();
+        self.mod_blips.extend_from_slice(blips);
     }
 
     fn next_camera_mode(&self, current: CameraMode) -> CameraMode {

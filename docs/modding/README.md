@@ -4,8 +4,9 @@ Native plugin mods for the Rust rewrite of NFS: Most Wanted and, later, other Bl
 its reasons are in [ADR 0005](../decisions/0005-native-mod-plugins.md). This folder is the catalogue of what a
 mod can do.
 
-Status: **design only**. Nothing in the catalogue exists in code yet; every "Implemented in" cell names the
-game module that will implement the entry (a path that exists today) or says "new" when the module is new.
+Status: **partly built**. `bb.commands`, `bb.input`, `bb.time` and `bb.map` work in NFS:MW (see
+[Using mods](#using-mods)). The rest of the catalogue is design only: every "Implemented in" cell names the game
+module that will implement the entry (a path that exists today) or says "new" when the module is new.
 
 ## Files
 
@@ -107,5 +108,19 @@ downloads or fetches a mod.
   (higher wins), then by load order (a later mod wins a tie). Mods do not write to the
   install.
 - **Now:** a mod gets the frame events (`FRAME_START` in the start of the frame, `SCENE_TICK` after the scene's
-  update, and `MOD_UNLOADING` at exit), and its `files/` layer. The interface tables (commands, input, time, map and
-  the rest) are not offered yet, so a mod that requires one is refused with its reason.
+  update, and `MOD_UNLOADING` at exit), and its `files/` layer. It also gets four interfaces. A mod that requires an
+  interface the game does not offer is refused with its reason.
+  - `bb.commands`: `register` adds a console command. It shows in `help` under the mod's id, runs after the built-in
+    commands and before the scene's, and is removed when the mod unloads. Tab completion does not list it yet.
+    `run` queues a console line for the next frame; its output goes to the F12 log, not back to the mod.
+  - `bb.input`: `register_hotkey` takes a keyboard key as its default binding (`key:F5`, the text the `bind` command
+    takes). The callback runs in the frame the key goes down, unless the console has the keyboard. The hotkey is not
+    in `keys` or the remap screen yet, and an empty binding leaves it unbound. Abilities (`bb.abilities`) are not
+    offered.
+  - `bb.time`: `get`, `set_hour` (wrapped into 0 to 24), `set_day_length` (a rate clamped to 10 to 3600 real seconds
+    per hour; `0` holds the hour) and `freeze`. The clock is the world's day clock, and a menu has none, so a call
+    there is `not ready`. A mod's read at load is `not ready` too: the mods start before the scene exists, so the
+    clock is first copied in at the first frame.
+  - `bb.map`: `add`, `update` and `remove` blips for the cop, helicopter, race (sprint, drag, circuit, knockout,
+    tollbooth, speed trap), auto shop, car lot and safe house styles. The blips show on the minimap and the world
+    map. The icon points forward, as `bb.map` has no heading. The racer and checkpoint styles are not offered yet.

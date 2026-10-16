@@ -12,7 +12,8 @@ pub const GAME_ID: &str = "nfsmw";
 /// The folder under the config directory that holds the mods (ADR 0005 section 3).
 pub const MODS_FOLDER: &str = "mods";
 
-/// The host's offer. No interface is offered yet, so a mod that requires one does not load.
+/// The host's offer. The interfaces are added when the runtime starts (`ModRuntime::start_with`), so a mod that requires
+/// one of them loads only when the game offers it.
 pub fn offer() -> HostOffer {
     HostOffer::new(GAME_ID, env!("CARGO_PKG_VERSION"))
 }

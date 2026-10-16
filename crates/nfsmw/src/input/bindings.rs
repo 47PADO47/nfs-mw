@@ -134,6 +134,17 @@ fn deadzone(v: f32) -> f32 {
     crate::settings::Deadzone::default().apply(v)
 }
 
+impl super::state::Bindings {
+    /// The key a mod hotkey's default binding names, read as the `bind` command reads an input (`key:F5`). Only a
+    /// keyboard key can be a hotkey; any other input is an error.
+    pub fn hotkey_key(text: &str) -> Result<KeyCode, String> {
+        match super::source::parse(Action::Console, text)?.source {
+            Source::Key(key) => Ok(key),
+            _ => Err("a mod hotkey takes a keyboard key, such as key:F5".into()),
+        }
+    }
+}
+
 /// Mouse pixels per second a fully pushed stick turns the camera by.
 const STICK_LOOK_PIXELS: f32 = 700.0;
 /// Scroll lines per second while a button is held.

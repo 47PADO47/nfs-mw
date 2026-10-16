@@ -14,11 +14,22 @@ pub(super) struct DayClock {
     seconds: f64,
     /// The lights state last applied to the drive, so a manual headlight toggle holds until the next switch.
     lights: Option<bool>,
+    /// A mod has held the hour (`bb.time` freeze). The clock stops as it does for the lab's freeze.
+    held: bool,
 }
 
 impl DayClock {
     pub(super) fn new(cfg: DayNightConfig) -> Self {
-        Self { cfg, seconds: 0.0, lights: None }
+        Self { cfg, seconds: 0.0, lights: None, held: false }
+    }
+
+    /// Whether a mod has held the hour.
+    pub(super) fn held(&self) -> bool {
+        self.held
+    }
+
+    pub(super) fn set_held(&mut self, held: bool) {
+        self.held = held;
     }
 
     /// Moves the clock on by `dt` simulated seconds.
@@ -83,7 +94,8 @@ impl WorldScene {
     /// Moves the day clock on by `sim_dt`, sets the sun for the hour, and switches the headlights when the clock
     /// crosses the lights-on or lights-off hour. A drive that is not yet placed keeps its own state.
     pub(super) fn update_day(&mut self, sim_dt: f32, frozen: bool) {
-        self.day.update(sim_dt, frozen);
+        let held = frozen || self.day.held();
+        self.day.update(sim_dt, held);
         self.sun.set_phase(self.day.sun_phase());
         let on = self.day.lights_on();
         let Some(drive) = self.drive.as_mut() else {

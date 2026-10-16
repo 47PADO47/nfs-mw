@@ -256,6 +256,18 @@ impl Scene for Pausable {
         self.effects_dirty = true;
     }
 
+    fn time_held(&self) -> bool {
+        self.inner.time_held()
+    }
+
+    fn set_time_held(&mut self, held: bool) {
+        self.inner.set_time_held(held);
+    }
+
+    fn set_mod_blips(&mut self, blips: &[crate::hud::MapBlip]) {
+        self.inner.set_mod_blips(blips);
+    }
+
     fn set_rain(&mut self, always: bool, amount: f32) {
         self.inner.set_rain(always, amount);
         self.effects_dirty = true;

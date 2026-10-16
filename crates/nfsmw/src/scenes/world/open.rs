@@ -118,6 +118,7 @@ impl WorldScene {
             drive: None,
             traffic,
             map_blips,
+            mod_blips: Vec::new(),
             entry: entry::Entry { zones: entry_zones, popup: Default::default() },
             traffic_setting: crate::settings::TrafficSettings {
                 cars: 0,

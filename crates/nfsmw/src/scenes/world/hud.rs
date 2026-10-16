@@ -55,6 +55,7 @@ impl WorldScene {
                 state.busted_overlay = traffic.busted_overlay();
             }
             state.blips.extend_from_slice(&self.map_blips);
+            state.blips.extend_from_slice(&self.mod_blips);
         }
         hud
     }

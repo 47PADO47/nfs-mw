@@ -6,6 +6,7 @@ pub mod camera;
 use anyhow::Result;
 use blackbox_gfx::{FrameParams, Instance, RenderBackend};
 
+use crate::hud::MapBlip;
 use crate::input::ActionState;
 
 /// How a [`Fullscreen`] picture meets the window.
@@ -39,6 +40,13 @@ pub trait Scene {
         None
     }
     fn set_environment(&mut self, _value: Environment) {}
+    /// Whether a mod has held the hour (`bb.time` freeze). Scenes without a clock report false.
+    fn time_held(&self) -> bool {
+        false
+    }
+    fn set_time_held(&mut self, _held: bool) {}
+    /// The minimap blips the mods placed (`bb.map`), merged into the scene's own. Scenes without a minimap ignore them.
+    fn set_mod_blips(&mut self, _blips: &[MapBlip]) {}
 
     /// Installed car choices for the runtime garage; scenes without driving return None.
     fn garage(&mut self) -> Option<&mut crate::garage::Model> {

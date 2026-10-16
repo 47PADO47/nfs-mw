@@ -22,6 +22,24 @@ pub fn lines(loaded: &[ModSummary], rejected: &[Rejected]) -> String {
     lines.join("\n")
 }
 
+/// The mods' console commands for `help`, as (usage, description) pairs. None without mods.
+pub fn help_entries(mods: Option<&Mods>) -> Vec<(String, String)> {
+    mods.map_or_else(Vec::new, Mods::command_help)
+}
+
+/// Whether a loaded mod registered a console command called `name` (lower case).
+pub fn has_command(mods: Option<&Mods>, name: &str) -> bool {
+    mods.is_some_and(|mods| mods.has_command(name))
+}
+
+/// Run a mod's console command, and give its output or its error.
+pub fn run_command(mods: Option<&Mods>, name: &str, args: &[&str]) -> Result<String, String> {
+    let Some(mods) = mods else {
+        return Err(format!("unknown command {name:?}"));
+    };
+    mods.run_command(name, args)
+}
+
 fn loaded_line(summary: &ModSummary) -> String {
     if summary.quarantined {
         return format!("{} {} quarantined after {} faults", summary.id, summary.version, summary.faults);
