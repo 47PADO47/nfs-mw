@@ -48,6 +48,7 @@ pub fn capabilities_with_ray_tracing(
         scene_treatment: false,
         // The speed and pursuit blur is a post pass here too (`post::radial_blur`).
         radial_blur: true,
+        frame_generation: false,
         local_reflections: false,
         ambient_occlusion: false,
         soft_shadows: !matches!(api, GraphicsApi::Gl),

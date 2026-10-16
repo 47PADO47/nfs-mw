@@ -34,6 +34,7 @@ pub(crate) fn native_capabilities(
         bloom: true,
         scene_treatment: true,
         radial_blur: true,
+        frame_generation: false,
         local_reflections: true,
         ambient_occlusion,
         soft_shadows: false,

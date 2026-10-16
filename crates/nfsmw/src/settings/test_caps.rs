@@ -34,6 +34,7 @@ pub fn native() -> Capabilities {
         bloom: true,
         scene_treatment: true,
         radial_blur: true,
+        frame_generation: false,
         local_reflections: true,
         ambient_occlusion: true,
         soft_shadows: false,
