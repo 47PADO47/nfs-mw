@@ -8,6 +8,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
 
 use crate::abi::{BB_ERR_ARG, BB_ERR_PANIC, BB_OK, BbIface, BbSinkFn, BbStatus, BbStr, MAX_NAME_BYTES};
+use crate::host::gate;
 
 /// One interface table's state. The table's `ctx` is `Rc::as_ptr` of a `Slot`, so every trampoline reads the backend and
 /// the owner from it. The `Rc` is also held by the table's release callback, so the slot outlives the table.
@@ -132,8 +133,10 @@ pub(crate) fn guard(body: impl FnOnce() -> Result<(), BbStatus>) -> BbStatus {
     }
 }
 
-/// Run a body that yields a value. A panic becomes `Err(BB_ERR_PANIC)`.
+/// Run a body that yields a value. A call outside a mod callback, or off the main thread, is refused before the body runs
+/// (ADR 0005 section 4, see [`gate`]). A panic becomes `Err(BB_ERR_PANIC)`.
 pub(crate) fn caught<T>(body: impl FnOnce() -> Result<T, BbStatus>) -> Result<T, BbStatus> {
+    gate::check()?;
     catch_unwind(AssertUnwindSafe(body)).unwrap_or(Err(BB_ERR_PANIC))
 }
 

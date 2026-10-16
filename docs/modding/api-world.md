@@ -36,9 +36,9 @@ a step of 0 meaning a tenth of the range), a list (one of its texts), or a butto
 A player's change goes to the row, is saved, and calls the mod's callback with the new value. A mod reads and sets
 a row's value with `get` and `set` (`set` saves but does not call back). Values are saved per mod in the config file
 under `[mod_values."<id>"]`, one key per row name. The table is not `[mods.<id>]`: `mods` is the mod mode key.
-Rows the mod does not remove are removed when it unloads. Not yet: pages of their own, the SDK wrapper for the
-calls (a mod calls the table through `query_interface` until then), read-only text rows, sub-pages, and disabling
-or hiding a row.
+Rows the mod does not remove are removed when it unloads. The SDK wrapper is `ctx.menus()`: `toggle`, `slider`,
+`list` and `button` take a Rust closure for the row's changes, and `get`, `set` and `unregister` take the row's id.
+Not yet: pages of their own, read-only text rows, sub-pages, and disabling or hiding a row.
 
 The rest of this section is the plan for the later deliveries. The front end is hard-coded FEng screens
 (`frontend/factory.rs`, `screens.rs`, `options_rows.rs`). Those deliveries give mods **rows and pages the host draws

@@ -18,6 +18,7 @@
 
 pub mod discovery;
 pub mod fault;
+pub mod gate;
 pub mod loader;
 pub mod manifest;
 pub mod offer;

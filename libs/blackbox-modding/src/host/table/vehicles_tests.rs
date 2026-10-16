@@ -1,6 +1,7 @@
 //! `bb.vehicles` called directly with a fake backend: the state is written up to the size the mod allows, moves reach the
 //! backend checked, and a non-finite value or an unsupported spawn is answered with its status.
 
+use crate::host::test_support::callback_on_main;
 use std::cell::RefCell;
 use std::mem::size_of;
 use std::rc::Rc;
@@ -65,6 +66,7 @@ fn whole_state() -> BbVehicleState {
 
 #[test]
 fn state_is_written_in_full_when_the_size_allows() {
+    let _scope = callback_on_main();
     let (_fake, attached) = fixture();
     let table = table_of(&attached);
     let mut out = whole_state();
@@ -79,6 +81,7 @@ fn state_is_written_in_full_when_the_size_allows() {
 
 #[test]
 fn state_stops_at_the_size_the_caller_allows() {
+    let _scope = callback_on_main();
     let (_fake, attached) = fixture();
     let table = table_of(&attached);
     // A caller built for the first two fields only: the size word and the gear.
@@ -91,6 +94,7 @@ fn state_stops_at_the_size_the_caller_allows() {
 
 #[test]
 fn a_size_below_the_size_word_is_refused() {
+    let _scope = callback_on_main();
     let (_fake, attached) = fixture();
     let table = table_of(&attached);
     let mut out = BbVehicleState { size: 2, ..BbVehicleState::default() };
@@ -101,6 +105,7 @@ fn a_size_below_the_size_word_is_refused() {
 
 #[test]
 fn teleport_reaches_the_backend_once_the_point_is_finite() {
+    let _scope = callback_on_main();
     let (fake, attached) = fixture();
     let table = table_of(&attached);
     let teleport = table.teleport.expect("teleport is offered");
@@ -113,6 +118,7 @@ fn teleport_reaches_the_backend_once_the_point_is_finite() {
 
 #[test]
 fn repair_reaches_the_backend() {
+    let _scope = callback_on_main();
     let (fake, attached) = fixture();
     let table = table_of(&attached);
     let repair = table.repair.expect("repair is offered");
@@ -122,6 +128,7 @@ fn repair_reaches_the_backend() {
 
 #[test]
 fn spawning_traffic_answers_unsupported_in_1_0() {
+    let _scope = callback_on_main();
     let (_fake, attached) = fixture();
     let table = table_of(&attached);
     let spawn = table.spawn_traffic.expect("spawn_traffic is offered");

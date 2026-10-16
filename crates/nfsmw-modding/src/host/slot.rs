@@ -8,6 +8,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
 
 use blackbox_modding::abi::{BB_ERR_ARG, BB_ERR_PANIC, BB_OK, BbStatus, BbStr};
+use blackbox_modding::host::gate;
 
 /// One table's state. The table's `ctx` is `Rc::as_ptr` of its slot, so every trampoline reads the backend and the owner
 /// from it. The table's owner keeps the `Rc` alive as long as the table is in use.
@@ -64,7 +65,10 @@ pub(crate) fn guard(body: impl FnOnce() -> Result<(), BbStatus>) -> BbStatus {
     }
 }
 
-/// Run a body that yields a value. A panic becomes `Err(BB_ERR_PANIC)`, so it never unwinds past the boundary.
+/// Run a body that yields a value. A call outside a mod callback, or off the main thread, is refused before the body runs
+/// (ADR 0005 section 4, see `blackbox_modding::host::gate`). A panic becomes `Err(BB_ERR_PANIC)`, so it never unwinds past
+/// the boundary.
 pub(crate) fn caught<T>(body: impl FnOnce() -> Result<T, BbStatus>) -> Result<T, BbStatus> {
+    gate::check()?;
     catch_unwind(AssertUnwindSafe(body)).unwrap_or(Err(BB_ERR_PANIC))
 }

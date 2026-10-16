@@ -151,6 +151,27 @@ unsafe fn decode_payload<'a>(kind: u32, frame: u64, payload: *const c_void) -> O
             let mod_id = unsafe { p.mod_id.as_str() }?;
             Some(Event::ModUnloading { frame, mod_id })
         }
+        BB_EVENT_INTERIOR_ENTERING
+        | BB_EVENT_INTERIOR_ENTERED
+        | BB_EVENT_INTERIOR_EXITING
+        | BB_EVENT_INTERIOR_EXITED => {
+            // SAFETY: as above.
+            let p = unsafe { payload_of::<BbInteriorEvent>(payload) }?;
+            // SAFETY: the host's key is valid for this call (ADR 0005 section 4).
+            let interior = unsafe { p.interior.as_str() }?;
+            interior_event(kind, frame, interior, p.position)
+        }
+        _ => None,
+    }
+}
+
+/// The interior event of `kind` (one of the four `BB_EVENT_INTERIOR_*` kinds), or `None` for any other kind.
+fn interior_event<'a>(kind: u32, frame: u64, interior: &'a str, position: [f32; 3]) -> Option<Event<'a>> {
+    match kind {
+        BB_EVENT_INTERIOR_ENTERING => Some(Event::InteriorEntering { frame, interior, position }),
+        BB_EVENT_INTERIOR_ENTERED => Some(Event::InteriorEntered { frame, interior, position }),
+        BB_EVENT_INTERIOR_EXITING => Some(Event::InteriorExiting { frame, interior, position }),
+        BB_EVENT_INTERIOR_EXITED => Some(Event::InteriorExited { frame, interior, position }),
         _ => None,
     }
 }

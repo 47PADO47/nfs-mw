@@ -10,7 +10,9 @@ chase). The game interaction interfaces are partly built: `bb.vehicles` (the pla
 `bb.hud` (a centred message), `bb.camera` (read and the gameplay views) and `bb.world` (track, district, rain, traffic)
 work; `bb.audio` is offered but every play is unsupported until sound names are looked up; traffic spawn at a point is
 unsupported. The status of each row is in [api-world.md](api-world.md#game-interaction). `nfsmw.career`
-and `nfsmw.races` are offered with no state, so a mod can detect them. Content mods also work: cars and music files declared in a mod's `cars/` folder and `[music]` table (see
+and `nfsmw.races` are offered with no state, so a mod can detect them. The four interior events (`INTERIOR_ENTERING`,
+`INTERIOR_ENTERED`, `INTERIOR_EXITING`, `INTERIOR_EXITED`, ABI 14 to 17) are sent for a mod interior; the interior's key
+in them is open until the world names it. Content mods also work: cars and music files declared in a mod's `cars/` folder and `[music]` table (see
 [Using mods](#using-mods) and [api-content.md](api-content.md#cars)). The rest of the catalogue is design only: every
 "Implemented in" cell names the game module that will implement the entry (a path that exists today) or says "new"
 when the module is new.
@@ -141,7 +143,8 @@ downloads or fetches a mod.
     clock is first copied in at the first frame. A mod reads it on its first event, as `examples/mods/hello` does.
   - `bb.menus`: `register` adds a row to a Mods page under Options, which is listed only while a mod has rows. A row
     is a toggle, a slider, a list or a button. A change is saved under `[mod_values."<id>"]` in the config file and
-    calls the mod back. Pages of their own and the SDK wrapper are not offered yet.
+    calls the mod back. `ctx.menus()` in the SDK adds these rows with closures, and reads and sets them. Pages of their
+    own are not offered yet.
   - `bb.map`: `add`, `update` and `remove` blips for the cop, helicopter, race (sprint, drag, circuit, knockout,
     tollbooth, speed trap), auto shop, car lot, safe house, racer and checkpoint styles. The blips show on the minimap and the world
     map. The icon points forward, as `bb.map` has no heading.

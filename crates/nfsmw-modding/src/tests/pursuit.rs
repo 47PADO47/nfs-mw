@@ -6,7 +6,7 @@ use blackbox_modding::abi::make_handle;
 use blackbox_modding::sdk::{Error, VehicleId};
 
 use super::fake::FakePursuit;
-use super::pursuit_of;
+use super::{callback_on_main, pursuit_of};
 use crate::host::pursuit_table;
 use crate::sdk::{CopRecord, CopTable, EndMode, HeatRow};
 
@@ -25,6 +25,7 @@ fn sample_row() -> HeatRow {
 
 #[test]
 fn heat_is_clamped_by_the_backend_and_nan_is_refused_by_the_host() {
+    let _scope = callback_on_main();
     let backend = Rc::new(FakePursuit::default());
     let table = pursuit_table(backend.clone(), "example.mod");
     let pursuit = pursuit_of(table.header());
@@ -37,6 +38,7 @@ fn heat_is_clamped_by_the_backend_and_nan_is_refused_by_the_host() {
 
 #[test]
 fn a_cop_wave_round_trips_and_a_bad_one_is_refused() {
+    let _scope = callback_on_main();
     let backend = Rc::new(FakePursuit::default());
     let table = pursuit_table(backend, "example.mod");
     let pursuit = pursuit_of(table.header());
@@ -55,6 +57,7 @@ fn a_cop_wave_round_trips_and_a_bad_one_is_refused() {
 
 #[test]
 fn a_chase_starts_reports_and_ends_through_the_table() {
+    let _scope = callback_on_main();
     let backend = Rc::new(FakePursuit::default());
     let table = pursuit_table(backend.clone(), "example.mod");
     let pursuit = pursuit_of(table.header());
@@ -77,6 +80,7 @@ fn a_chase_starts_reports_and_ends_through_the_table() {
 
 #[test]
 fn a_panicking_backend_comes_back_as_an_error_and_the_host_goes_on() {
+    let _scope = callback_on_main();
     let backend = Rc::new(FakePursuit { panic_on_heat: true, ..FakePursuit::default() });
     let table = pursuit_table(backend, "example.mod");
     let pursuit = pursuit_of(table.header());

@@ -1,6 +1,7 @@
 //! The `bb.menus` table, called directly with a fake backend: a row's description is read and checked, a change reaches the
 //! mod's callback, values round-trip, and the rows a mod leaves behind are removed when it unloads.
 
+use crate::host::test_support::callback_on_main;
 use std::cell::RefCell;
 use std::ffi::c_void;
 use std::mem::size_of;
@@ -117,6 +118,7 @@ fn register(
 
 #[test]
 fn a_slider_toggle_and_button_register_and_a_change_reaches_the_mod() {
+    let _scope = callback_on_main();
     let backend = Rc::new(FakeMenus::default());
     let attach = attached(&backend);
     let table = table_of(&attach);
@@ -142,6 +144,7 @@ fn a_slider_toggle_and_button_register_and_a_change_reaches_the_mod() {
 
 #[test]
 fn a_list_reads_its_choices() {
+    let _scope = callback_on_main();
     let backend = Rc::new(FakeMenus::default());
     let attach = attached(&backend);
     let texts = [BbStr::new("low"), BbStr::new("high")];
@@ -153,6 +156,7 @@ fn a_list_reads_its_choices() {
 
 #[test]
 fn a_bad_row_is_refused_before_the_backend_sees_it() {
+    let _scope = callback_on_main();
     let backend = Rc::new(FakeMenus::default());
     let attach = attached(&backend);
     let table = table_of(&attach);
@@ -178,6 +182,7 @@ fn a_bad_row_is_refused_before_the_backend_sees_it() {
 
 #[test]
 fn get_and_set_reach_the_backend_and_a_null_out_is_refused() {
+    let _scope = callback_on_main();
     let backend = Rc::new(FakeMenus::default());
     let attach = attached(&backend);
     let table = table_of(&attach);
@@ -201,6 +206,7 @@ fn get_and_set_reach_the_backend_and_a_null_out_is_refused() {
 
 #[test]
 fn rows_a_mod_left_registered_are_removed_when_it_unloads() {
+    let _scope = callback_on_main();
     let backend = Rc::new(FakeMenus::default());
     let attach = attached(&backend);
     let (_, left) = register(table_of(&attach), &row(BB_MENU_TOGGLE), ptr::null_mut(), Some(record));
@@ -214,10 +220,53 @@ fn rows_a_mod_left_registered_are_removed_when_it_unloads() {
 
 #[test]
 fn a_registry_offers_the_menus_interface_at_its_version() {
+    let _scope = callback_on_main();
     let backend: Rc<dyn MenusBackend> = Rc::new(FakeMenus::default());
     let mut registry = InterfaceRegistry::new();
     registry.add_menus(backend);
     assert!(registry.build("example.a", IFACE_MENUS, 1, 0).is_some());
     assert!(registry.build("example.a", IFACE_MENUS, 1, 1).is_none(), "a newer minor is not offered");
     assert!(registry.build("example.a", IFACE_MENUS, 2, 0).is_none(), "another major is not offered");
+}
+
+#[test]
+fn a_call_outside_a_callback_on_the_main_thread_is_refused() {
+    crate::host::gate::mark_main_thread();
+    let backend = Rc::new(FakeMenus::default());
+    let attached = attached(&backend);
+    let (status, _) = register(table_of(&attached), &row(BB_MENU_TOGGLE), ptr::null_mut(), Some(record));
+    assert_eq!(status, BB_ERR_NOT_IN_CALLBACK);
+    assert!(backend.rows.borrow().is_empty(), "the backend never sees a refused row");
+}
+
+#[test]
+fn a_call_from_another_thread_is_refused_even_inside_a_callback_scope() {
+    let backend = Rc::new(FakeMenus::default());
+    let attached = attached(&backend);
+    // The address travels as a number, so the closure is `Send`; the other thread only reads the table.
+    let table = table_of(&attached) as *const BbMenus as usize;
+    let status = std::thread::spawn(move || {
+        // SAFETY: `attached` outlives the thread, which joins below, and the table is only read.
+        let table = unsafe { &*(table as *const BbMenus) };
+        let _scope = crate::host::gate::enter();
+        register(table, &row(BB_MENU_TOGGLE), ptr::null_mut(), Some(record)).0
+    })
+    .join()
+    .expect("the worker thread does not panic");
+    assert_eq!(status, BB_ERR_WRONG_THREAD);
+    assert!(backend.rows.borrow().is_empty(), "the backend never sees a call from another thread");
+}
+
+#[test]
+fn a_call_is_refused_again_once_its_callback_returns() {
+    let backend = Rc::new(FakeMenus::default());
+    let attached = attached(&backend);
+    {
+        let _scope = callback_on_main();
+        let (status, _) = register(table_of(&attached), &row(BB_MENU_TOGGLE), ptr::null_mut(), Some(record));
+        assert_eq!(status, BB_OK);
+    }
+    let (status, _) = register(table_of(&attached), &row(BB_MENU_TOGGLE), ptr::null_mut(), Some(record));
+    assert_eq!(status, BB_ERR_NOT_IN_CALLBACK);
+    assert_eq!(backend.rows.borrow().len(), 1, "only the call inside the callback reached the backend");
 }

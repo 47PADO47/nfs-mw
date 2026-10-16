@@ -1,6 +1,7 @@
 //! `bb.audio` called directly with a fake backend: a play reaches the backend with checked names and volume, and the handle
 //! comes back.
 
+use crate::host::test_support::callback_on_main;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -28,6 +29,7 @@ impl AudioBackend for FakeAudio {
 
 #[test]
 fn a_play_reaches_the_backend_and_returns_its_handle() {
+    let _scope = callback_on_main();
     let fake = Rc::new(FakeAudio::default());
     let attached = attach_audio(fake.clone(), "example.a");
     let table = table_of(&attached);
@@ -41,6 +43,7 @@ fn a_play_reaches_the_backend_and_returns_its_handle() {
 
 #[test]
 fn a_volume_out_of_range_or_a_missing_handle_is_refused() {
+    let _scope = callback_on_main();
     let fake = Rc::new(FakeAudio::default());
     let attached = attach_audio(fake.clone(), "example.a");
     let table = table_of(&attached);

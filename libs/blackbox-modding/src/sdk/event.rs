@@ -3,10 +3,11 @@
 
 use crate::abi::{
     BB_COLLIDE_NONE, BB_COLLIDE_PROP, BB_COLLIDE_VEHICLE, BB_COLLIDE_WALL, BB_EVENT_ABILITY_ACTIVATED,
-    BB_EVENT_ACTION_PRESSED, BB_EVENT_FRAME_START, BB_EVENT_HOUR_CHANGED, BB_EVENT_MENU_CLOSED, BB_EVENT_MENU_OPENED,
-    BB_EVENT_MOD_UNLOADING, BB_EVENT_SCENE_TICK, BB_EVENT_VEHICLE_COLLISION, BB_EVENT_VEHICLE_DESPAWNED,
-    BB_EVENT_VEHICLE_SPAWNED, BB_EVENT_WORLD_LOADED, BB_EVENT_WORLD_UNLOADING, BB_ROLE_COP, BB_ROLE_PLAYER,
-    BB_ROLE_RACER, BB_ROLE_TRAFFIC,
+    BB_EVENT_ACTION_PRESSED, BB_EVENT_FRAME_START, BB_EVENT_HOUR_CHANGED, BB_EVENT_INTERIOR_ENTERED,
+    BB_EVENT_INTERIOR_ENTERING, BB_EVENT_INTERIOR_EXITED, BB_EVENT_INTERIOR_EXITING, BB_EVENT_MENU_CLOSED,
+    BB_EVENT_MENU_OPENED, BB_EVENT_MOD_UNLOADING, BB_EVENT_SCENE_TICK, BB_EVENT_VEHICLE_COLLISION,
+    BB_EVENT_VEHICLE_DESPAWNED, BB_EVENT_VEHICLE_SPAWNED, BB_EVENT_WORLD_LOADED, BB_EVENT_WORLD_UNLOADING, BB_ROLE_COP,
+    BB_ROLE_PLAYER, BB_ROLE_RACER, BB_ROLE_TRAFFIC,
 };
 
 use super::{AbilityId, ActionId, MenuId, VehicleId, WorldId};
@@ -182,6 +183,43 @@ pub enum Event<'a> {
         /// The id of the mod being unloaded.
         mod_id: &'a str,
     },
+    /// The player has started going into a mod interior. `position` is where the car stands now.
+    InteriorEntering {
+        /// Frame number.
+        frame: u64,
+        /// The interior's key (its manifest's file name).
+        interior: &'a str,
+        /// Render space (x forward, y left, z up), metres.
+        position: [f32; 3],
+    },
+    /// The player is inside a mod interior, at its spawn.
+    InteriorEntered {
+        /// Frame number.
+        frame: u64,
+        /// The interior's key.
+        interior: &'a str,
+        /// The spawn inside, render space, metres.
+        position: [f32; 3],
+    },
+    /// The player has started leaving a mod interior, from its spawn.
+    InteriorExiting {
+        /// Frame number.
+        frame: u64,
+        /// The interior's key.
+        interior: &'a str,
+        /// The spawn inside, render space, metres.
+        position: [f32; 3],
+    },
+    /// The player is back outside. An entry cancelled before the player got in ends here too, straight after
+    /// `InteriorEntering`.
+    InteriorExited {
+        /// Frame number.
+        frame: u64,
+        /// The interior's key.
+        interior: &'a str,
+        /// Where the car returns to outside, render space, metres.
+        position: [f32; 3],
+    },
     /// An event this SDK does not describe: an unknown kind, or a payload the host did not fill in far enough. The
     /// payload's bytes come with it, so a mod can decode a kind of its own (an `nfsmw.*` event, for example).
     Unknown {
@@ -212,6 +250,10 @@ impl Event<'_> {
             Event::ActionPressed { .. } => BB_EVENT_ACTION_PRESSED,
             Event::AbilityActivated { .. } => BB_EVENT_ABILITY_ACTIVATED,
             Event::ModUnloading { .. } => BB_EVENT_MOD_UNLOADING,
+            Event::InteriorEntering { .. } => BB_EVENT_INTERIOR_ENTERING,
+            Event::InteriorEntered { .. } => BB_EVENT_INTERIOR_ENTERED,
+            Event::InteriorExiting { .. } => BB_EVENT_INTERIOR_EXITING,
+            Event::InteriorExited { .. } => BB_EVENT_INTERIOR_EXITED,
             Event::Unknown { kind, .. } => *kind,
         }
     }
@@ -232,6 +274,10 @@ impl Event<'_> {
             | Event::ActionPressed { frame, .. }
             | Event::AbilityActivated { frame, .. }
             | Event::ModUnloading { frame, .. }
+            | Event::InteriorEntering { frame, .. }
+            | Event::InteriorEntered { frame, .. }
+            | Event::InteriorExiting { frame, .. }
+            | Event::InteriorExited { frame, .. }
             | Event::Unknown { frame, .. } => *frame,
         }
     }

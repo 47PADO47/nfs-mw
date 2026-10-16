@@ -33,3 +33,10 @@ pub(crate) fn races_of(header: *const BbIface) -> Races {
     // SAFETY: as for `pursuit_of`.
     Races::new(unsafe { ffi::races::read_raw(header, size_of::<BbNfsmwRaces>() as u32) })
 }
+
+/// The call state of a mod callback on this test thread: the thread is marked as the main thread and a callback is
+/// running. Keep the scope alive while the tests call the tables.
+pub(crate) fn callback_on_main() -> blackbox_modding::host::gate::CallScope {
+    blackbox_modding::host::gate::mark_main_thread();
+    blackbox_modding::host::gate::enter()
+}

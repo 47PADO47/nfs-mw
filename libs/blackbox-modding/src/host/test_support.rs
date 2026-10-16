@@ -48,6 +48,13 @@ impl Drop for Scratch {
     }
 }
 
+/// The call state of a mod callback on this test thread: the thread is the main thread and a callback is running. Keep the
+/// scope alive for as long as the test calls host tables; a test of the refusals leaves it out.
+pub fn callback_on_main() -> crate::host::gate::CallScope {
+    crate::host::gate::mark_main_thread();
+    crate::host::gate::enter()
+}
+
 /// The manifest text of a mod that supports every game and needs nothing, with the given id and version. `extra` is
 /// appended, so a test can add sections.
 pub fn manifest_text(id: &str, version: &str, extra: &str) -> String {

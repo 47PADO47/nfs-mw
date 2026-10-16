@@ -7,7 +7,7 @@ use std::rc::Rc;
 use blackbox_modding::sdk::Error;
 
 use super::fake::{FakeCareer, FakeRaces};
-use super::{career_of, races_of};
+use super::{callback_on_main, career_of, races_of};
 use crate::abi::BbMilestoneDef;
 use crate::host::career::{CareerBackend, career_table};
 use crate::host::races::{RacesBackend, races_table};
@@ -25,6 +25,7 @@ impl RacesBackend for NoRaces {}
 
 #[test]
 fn unbuilt_career_and_races_answer_unsupported() {
+    let _scope = callback_on_main();
     let career_host = career_table(Rc::new(NoCareer), "example.mod");
     let career = career_of(career_host.header());
     assert_eq!(career.cash(), Err(Error::Unsupported));
@@ -42,6 +43,7 @@ fn unbuilt_career_and_races_answer_unsupported() {
 
 #[test]
 fn cash_and_a_milestone_definition_round_trip() {
+    let _scope = callback_on_main();
     let backend = Rc::new(FakeCareer::default());
     let table = career_table(backend.clone(), "example.mod");
     let career = career_of(table.header());
@@ -62,6 +64,7 @@ fn cash_and_a_milestone_definition_round_trip() {
 
 #[test]
 fn a_name_longer_than_the_host_takes_is_refused_before_the_call() {
+    let _scope = callback_on_main();
     let backend = Rc::new(FakeCareer::default());
     let table = career_table(backend.clone(), "example.mod");
     let career = career_of(table.header());
@@ -73,6 +76,7 @@ fn a_name_longer_than_the_host_takes_is_refused_before_the_call() {
 
 #[test]
 fn a_garage_car_comes_back_as_an_owned_value() {
+    let _scope = callback_on_main();
     let backend = Rc::new(FakeCareer::default());
     let table = career_table(backend, "example.mod");
     let career = career_of(table.header());
@@ -82,6 +86,7 @@ fn a_garage_car_comes_back_as_an_owned_value() {
 
 #[test]
 fn a_custom_race_and_the_running_race_round_trip() {
+    let _scope = callback_on_main();
     let backend = Rc::new(FakeRaces::default());
     let table = races_table(backend.clone(), "example.mod");
     let races = races_of(table.header());
@@ -102,4 +107,12 @@ fn a_custom_race_and_the_running_race_round_trip() {
 
     let running = races.current();
     assert_eq!(running, Ok(Some(RaceState { id: 9, lap: 2, checkpoint: 3, position: 1, elapsed: 12.5 })));
+}
+
+#[test]
+fn a_call_outside_a_callback_on_the_main_thread_is_refused() {
+    blackbox_modding::host::gate::mark_main_thread();
+    let table = career_table(Rc::new(FakeCareer::default()), "example.mod");
+    let career = career_of(table.header());
+    assert_eq!(career.cash(), Err(Error::NotInCallback));
 }

@@ -216,7 +216,7 @@ kind = "area"                            # optional; the only kind in this deliv
   The car, the traffic and the clock come back on exit. A chase is not resumed.
 - `lights` in `time` is checked and logged, but not applied yet: the headlights follow the hour.
 - `kind` `"page"`, `"shop"`, `"safehouse"` and `"scene"` are refused in this delivery.
-- Status, and what is open (the fade overlay, the bb.world events, the `interior check` command, the quarantine exit):
+- Status, and what is open (the fade overlay, `world.add_box_trigger`, the `interior check` command, the quarantine exit):
   [mod-world-content.md section 9](../specs/mod-world-content.md#9-port-status-b15-2026-10-16).
 
 ### Planned interior form (not built)

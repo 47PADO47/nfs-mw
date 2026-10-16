@@ -2,7 +2,10 @@
 
 use blackbox_pursuit::{EndReason, Fines};
 
-use super::{MAX_NOTICES, drain_notices, publish, take_requests, view};
+use super::{
+    InteriorNotice, MAX_INTERIOR, MAX_NOTICES, drain_interior, drain_notices, publish, push_interior, take_requests,
+    view,
+};
 use crate::modding::pursuit_feed::{Notice, PursuitRequest, PursuitView};
 
 fn fines() -> Fines {
@@ -44,4 +47,16 @@ fn an_undrained_queue_keeps_only_its_newest_notices() {
         publish(PursuitView { pursuing: step % 2 == 0, end_reason: EndReason::None, ..chase(1.0) });
     }
     assert_eq!(drain_notices().len(), MAX_NOTICES, "the queue is bounded");
+}
+
+#[test]
+fn interior_steps_are_drained_in_order_and_the_oldest_go_first() {
+    drain_interior();
+    for index in 0..MAX_INTERIOR + 3 {
+        push_interior(InteriorNotice { kind: 14, interior: format!("k{index}"), position: [0.0; 3] });
+    }
+    let steps = drain_interior();
+    assert_eq!(steps.len(), MAX_INTERIOR);
+    assert_eq!(steps[0].interior, "k3", "the three oldest steps were dropped");
+    assert!(drain_interior().is_empty(), "a drain empties the queue");
 }

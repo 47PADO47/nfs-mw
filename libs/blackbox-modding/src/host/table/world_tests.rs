@@ -1,6 +1,7 @@
 //! `bb.world` called directly with a fake backend: the track and the district reach the sink, the rain and the traffic reach
 //! the backend checked, and the sink-less call and the bad values are refused.
 
+use crate::host::test_support::callback_on_main;
 use std::cell::RefCell;
 use std::ffi::c_void;
 use std::rc::Rc;
@@ -50,6 +51,7 @@ unsafe extern "C" fn collect(user: *mut c_void, text: BbStr) {
 
 #[test]
 fn the_track_and_the_section_reach_the_sink() {
+    let _scope = callback_on_main();
     let attached = attach_world(Rc::new(FakeWorld::default()), "example.a");
     let table = table_of(&attached);
     let track = table.track.expect("track is offered");
@@ -66,6 +68,7 @@ fn the_track_and_the_section_reach_the_sink() {
 
 #[test]
 fn rain_and_traffic_reach_the_backend_checked() {
+    let _scope = callback_on_main();
     let fake = Rc::new(FakeWorld::default());
     let attached = attach_world(fake.clone(), "example.a");
     let table = table_of(&attached);

@@ -14,6 +14,17 @@ use super::pursuit_feed::{Notice, PursuitRequest, PursuitView, observe};
 const MAX_NOTICES: usize = 256;
 /// Most requests kept while nothing applies them.
 const MAX_REQUESTS: usize = 256;
+/// Most interior steps kept while nothing drains them.
+const MAX_INTERIOR: usize = 64;
+
+/// One step of a mod interior's entry or exit, as the mods hear it: the event kind (`BB_EVENT_INTERIOR_*`), the
+/// interior's key and the place the event is about (render space, metres).
+#[derive(Debug, Clone, PartialEq)]
+pub struct InteriorNotice {
+    pub kind: u32,
+    pub interior: String,
+    pub position: [f32; 3],
+}
 
 #[derive(Default)]
 struct Outbox {
@@ -21,6 +32,7 @@ struct Outbox {
     view: Option<PursuitView>,
     notices: Vec<Notice>,
     requests: Vec<PursuitRequest>,
+    interior: Vec<InteriorNotice>,
 }
 
 thread_local! {
@@ -57,6 +69,17 @@ pub fn take_requests() -> Vec<PursuitRequest> {
 /// The notices queued since the last call, in order. The `ModsPost` system sends them to the mods.
 pub fn drain_notices() -> Vec<Notice> {
     OUTBOX.with(|outbox| std::mem::take(&mut outbox.borrow_mut().notices))
+}
+
+/// Queue one step of a mod interior's entry or exit. The interior machine calls this as it changes stage; the `ModsPost`
+/// system sends it to the mods.
+pub fn push_interior(notice: InteriorNotice) {
+    OUTBOX.with(|outbox| push_bounded(&mut outbox.borrow_mut().interior, vec![notice], MAX_INTERIOR));
+}
+
+/// The interior steps queued since the last call, in order.
+pub fn drain_interior() -> Vec<InteriorNotice> {
+    OUTBOX.with(|outbox| std::mem::take(&mut outbox.borrow_mut().interior))
 }
 
 /// Append `items` to `queue`, then drop the oldest entries beyond `limit`.

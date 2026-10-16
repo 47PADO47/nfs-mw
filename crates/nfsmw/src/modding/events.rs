@@ -5,7 +5,7 @@
 
 use std::mem::size_of;
 
-use blackbox_modding::abi::{BbFrameStart, BbModUnloading, BbSceneTick, BbStr};
+use blackbox_modding::abi::{BbFrameStart, BbInteriorEvent, BbModUnloading, BbSceneTick, BbStr};
 
 /// `FRAME_START`: a frame begins, before the scene updates.
 pub fn frame_start_payload(dt_real: f32) -> BbFrameStart {
@@ -31,4 +31,16 @@ pub fn scene_tick_payload(dt_real: f32, game_speed: f32, paused: bool) -> BbScen
 /// `MOD_UNLOADING`: the mod `mod_id` is about to unload. The payload borrows `mod_id`, so it must outlive the call.
 pub fn unloading_payload(mod_id: &str) -> BbModUnloading {
     BbModUnloading { size: size_of::<BbModUnloading>() as u32, _pad: 0, mod_id: BbStr::new(mod_id) }
+}
+
+/// `INTERIOR_ENTERING`, `INTERIOR_ENTERED`, `INTERIOR_EXITING` and `INTERIOR_EXITED`: one step of a mod interior's entry or
+/// exit. The payload borrows `interior`, so it must outlive the call.
+pub fn interior_payload(interior: &str, position: [f32; 3]) -> BbInteriorEvent {
+    BbInteriorEvent {
+        size: size_of::<BbInteriorEvent>() as u32,
+        _pad: 0,
+        interior: BbStr::new(interior),
+        position,
+        _pad2: 0,
+    }
 }

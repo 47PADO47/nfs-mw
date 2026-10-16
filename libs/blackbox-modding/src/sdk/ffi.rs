@@ -13,6 +13,9 @@ mod event;
 pub(crate) mod hud;
 pub(crate) mod input;
 pub(crate) mod map;
+pub(crate) mod menus;
+#[cfg(all(test, feature = "host"))]
+mod menus_tests;
 pub(crate) mod time;
 pub(crate) mod vehicles;
 pub(crate) mod world;

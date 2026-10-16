@@ -21,6 +21,7 @@ use crate::abi::{
     BbModInfoFn, BbOnEventFn, BbStatus, MOD_CREATE_SYMBOL, MOD_INFO_SYMBOL, check_handshake, has_field,
 };
 
+use super::gate;
 use super::offer::HostOffer;
 use super::registry::InterfaceRegistry;
 use super::table::HostTable;
@@ -120,6 +121,7 @@ impl Module {
             return None;
         }
         let on_event = self.on_event?;
+        let _scope = gate::enter();
         // SAFETY: `state` is the pointer `bb_mod_create` returned, and `destroy` has not run (checked above). `event` is
         // valid for the call. The host does not call into the mod from another thread (ADR 0005 section 4).
         Some(unsafe { on_event(self.state, event) })
@@ -135,6 +137,7 @@ impl Module {
             log::warn!("mod {} has no destroy callback; its state is leaked", self.id);
             return;
         };
+        let _scope = gate::enter();
         // SAFETY: `state` came from `bb_mod_create` and this is the only call that passes it to `destroy` (the
         // `destroyed` flag guards a second call).
         unsafe { destroy(self.state) };
@@ -206,10 +209,12 @@ fn call_create(library: &Library, host: *const BbHost) -> Result<Callbacks, Load
         .map_err(|_| LoadError::MissingSymbol(MOD_CREATE_SYMBOL))?;
     let create: BbModCreateFn = *symbol;
     let mut out = MaybeUninit::<BbModApi>::uninit();
+    let scope = gate::enter();
     // SAFETY: `host` is the table the caller keeps alive while the mod is loaded. `out` is valid for one write of a
     // `BbModApi`. The handshake ran first, so a mod built for a newer minor (which could write a larger table) was
     // refused before this call.
     let status = unsafe { create(host, out.as_mut_ptr()) };
+    drop(scope);
     if status != BB_OK {
         return Err(LoadError::Create(status));
     }

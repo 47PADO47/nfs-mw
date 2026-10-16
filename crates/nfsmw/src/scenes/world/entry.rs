@@ -136,6 +136,7 @@ impl WorldScene {
         let plan = Plan { tile: interior.tile, spawn: interior.spawn, time: interior.time, suspend: interior.suspend };
         log::info!("entering interior {} of mod {}", interior.key, interior.owner);
         self.entry.current = Some(index);
+        self.entry.interior.set_key(&interior.key);
         let commands = self.entry.interior.begin(plan, saved);
         self.run_interior(commands);
     }

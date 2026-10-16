@@ -25,7 +25,7 @@ Each table row is `entry | signature sketch | scope | implemented in`.
 
 | Topic | Rule |
 |---|---|
-| Thread | Main thread, inside a mod callback only (`BB_ERR_NOT_IN_CALLBACK`, `BB_ERR_WRONG_THREAD` otherwise) |
+| Thread | Main thread, inside a mod callback only (`BB_ERR_NOT_IN_CALLBACK`, `BB_ERR_WRONG_THREAD` otherwise). The runtime marks the thread that starts it as the main thread, and wraps every mod call (`bb_mod_create`, `event`, `destroy`) in a callback scope (`host/gate.rs`). The `bb.*` and `nfsmw.*` interface tables check both |
 | Strings | UTF-8 `BbStr { ptr, len: u64 }`, valid for the call; names at most 128 bytes, messages 1024, paths 512 |
 | Units | Metres, seconds, radians, kilometres per hour only where a name says `kph`. Render space: x forward, y left, z up |
 | Vectors | `Vec3 { x, y, z }`, `Vec2 { x, y }`, plain `f32` `#[repr(C)]` structs |
@@ -97,7 +97,7 @@ event with `cancelled = true`. Events are queued by the scene during its update 
 | `HourChanged` | `hour` (whole hours) | no | G | `scenes/world/day.rs` |
 | `LightsChanged` | `on` (headlights switch hour) | no | G | `scenes/world/day.rs` |
 | `ZoneEntered`, `ZoneExited` | `zone`, `vehicle` | no | G | `scenes/world/entry_zones.rs` and mod triggers |
-| `InteriorEntered`, `InteriorExited` | `interior` | no | G | `scenes/world/entry.rs` |
+| `InteriorEntering`, `InteriorEntered`, `InteriorExiting`, `InteriorExited` | `interior` (the key), `position` (metres, render space); see [wire numbers](#wire-numbers-abi-01) | no | G | `modding/content/interior/machine.rs`, queued in `modding/outbox.rs`, sent in `ModsPost` |
 | `MenuOpened`, `MenuClosed` | `menu` (a screen id or a mod page) | no | G | `frontend/flow.rs` |
 | `MenuRowChanged` | `row`, `value` | no | G | `frontend/options.rs` |
 | `MenuButton` | `row` (a mod button was activated) | no | G | `frontend/` mod page |
@@ -196,6 +196,10 @@ appended.
 | `ACTION_PRESSED` | 11 | `BbActionPressed`: `_pad`, `action`, `name` |
 | `ABILITY_ACTIVATED` | 12 | `BbAbilityActivated`: `_pad`, `ability` |
 | `MOD_UNLOADING` | 13 | `BbModUnloading`: `_pad`, `mod_id` |
+| `INTERIOR_ENTERING` (the fade out has begun; `position` is where the car stands) | 14 | `BbInteriorEvent`: `_pad`, `interior` (a `BbStr`, the key), `position` (`[f32; 3]`), `_pad2`. 40 bytes; `interior` at 8, `position` at 24 |
+| `INTERIOR_ENTERED` (inside, at the spawn) | 15 | `BbInteriorEvent` (same layout) |
+| `INTERIOR_EXITING` (the fade out to leave has begun; `position` is the spawn) | 16 | `BbInteriorEvent` |
+| `INTERIOR_EXITED` (back outside; `position` is where the car returns to). An entry cancelled before the player got in sends `ENTERING` then `EXITED` | 17 | `BbInteriorEvent` |
 
 Enumerations inside payloads: `BB_ROLE_*` = 0 player, 1 traffic, 2 cop, 3 racer; `BB_COLLIDE_*` = 0 vehicle,
 1 prop, 2 wall, 3 none. Handles are `u64`: low 32 bits the slot, high 32 bits the generation (from 1); `0` is none.

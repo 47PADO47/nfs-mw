@@ -11,8 +11,9 @@ use blackbox_modding::abi::{BB_EVENT_FRAME_START, BB_EVENT_MOD_UNLOADING, BB_EVE
 use blackbox_modding::host::{DispatchReport, HostOffer, ModRuntime, ModSummary, Policy, Rejected, RunMode};
 
 use super::backends::{Bridge, Interfaces, commands};
-use super::events::{frame_start_payload, scene_tick_payload, unloading_payload};
+use super::events::{frame_start_payload, interior_payload, scene_tick_payload, unloading_payload};
 use super::mw_events;
+use super::outbox::InteriorNotice;
 use super::pursuit_feed::Notice;
 use crate::devtools::Console;
 use crate::viewer::Scene;
@@ -102,6 +103,14 @@ impl Mods {
         mw_events::send_all(notices, frame, &mut |event| {
             runtime.dispatch_event(event);
         });
+    }
+
+    /// Send the interior steps of this frame to every loaded mod, in order (the `ModsPost` set).
+    pub fn dispatch_interior(&mut self, notices: &[InteriorNotice]) {
+        for notice in notices {
+            let payload = interior_payload(&notice.interior, notice.position);
+            self.deliver(notice.kind, &payload);
+        }
     }
 
     /// Send one event with a payload to every loaded mod, in load order.

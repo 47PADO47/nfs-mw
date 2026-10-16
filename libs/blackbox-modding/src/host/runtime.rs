@@ -10,6 +10,7 @@ use crate::abi::{BB_EVENT_CANCEL, BB_OK, BbEvent};
 
 use super::discovery::{Candidate, discover};
 use super::fault::FaultCounter;
+use super::gate;
 use super::loader::{LoadError, Module};
 use super::offer::HostOffer;
 use super::order::resolve;
@@ -116,6 +117,9 @@ impl ModRuntime {
         roots: &[PathBuf],
         mode: RunMode,
     ) -> ModRuntime {
+        // The thread that starts the runtime is the game's main thread: the mods' host calls are valid there only
+        // (ADR 0005 section 4, see `gate`).
+        gate::mark_main_thread();
         offer.interfaces.extend(registry.offers());
         let dev = dev_cache(mode);
         let mut runtime =

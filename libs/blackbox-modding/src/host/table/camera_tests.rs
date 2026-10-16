@@ -1,6 +1,7 @@
 //! `bb.camera` called directly with a fake backend: the camera is written up to the mod's size, a view is chosen by its
 //! number, and an unknown number is refused before the backend.
 
+use crate::host::test_support::callback_on_main;
 use std::cell::RefCell;
 use std::mem::size_of;
 use std::rc::Rc;
@@ -33,6 +34,7 @@ impl CameraBackend for FakeCamera {
 
 #[test]
 fn the_camera_is_written_in_full() {
+    let _scope = callback_on_main();
     let attached = attach_camera(Rc::new(FakeCamera::default()), "example.a");
     let table = table_of(&attached);
     let mut out = BbCameraState { size: size_of::<BbCameraState>() as u32, ..BbCameraState::default() };
@@ -46,6 +48,7 @@ fn the_camera_is_written_in_full() {
 
 #[test]
 fn set_mode_takes_a_known_view_and_refuses_the_rest() {
+    let _scope = callback_on_main();
     let fake = Rc::new(FakeCamera::default());
     let attached = attach_camera(fake.clone(), "example.a");
     let table = table_of(&attached);
@@ -57,6 +60,7 @@ fn set_mode_takes_a_known_view_and_refuses_the_rest() {
 
 #[test]
 fn every_view_number_round_trips() {
+    let _scope = callback_on_main();
     let numbers = [
         BB_CAMERA_CHASE,
         BB_CAMERA_DYNAMIC_FOV,

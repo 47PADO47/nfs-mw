@@ -22,8 +22,12 @@ fn generic_event_kinds_are_locked() {
             BB_EVENT_ACTION_PRESSED,
             BB_EVENT_ABILITY_ACTIVATED,
             BB_EVENT_MOD_UNLOADING,
+            BB_EVENT_INTERIOR_ENTERING,
+            BB_EVENT_INTERIOR_ENTERED,
+            BB_EVENT_INTERIOR_EXITING,
+            BB_EVENT_INTERIOR_EXITED,
         ],
-        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
     );
 }
 
@@ -107,5 +111,13 @@ mod layout64 {
         assert_eq!(offset_of!(BbAbilityActivated, ability), 8);
         assert_eq!(size_of::<BbModUnloading>(), 24);
         assert_eq!(offset_of!(BbModUnloading, mod_id), 8);
+    }
+
+    #[test]
+    fn interior_events() {
+        assert_eq!(size_of::<BbInteriorEvent>(), 40);
+        assert_eq!(align_of::<BbInteriorEvent>(), 8);
+        assert_eq!(offset_of!(BbInteriorEvent, interior), 8);
+        assert_eq!(offset_of!(BbInteriorEvent, position), 24);
     }
 }

@@ -125,8 +125,8 @@ declare_mod!(HelloHotkey);
 ## 2. Fast clock (generic, not built by CI)
 
 A Mods-page slider sets the real seconds per in-world hour through `bb.time` (10 fast, 600 slow, 60 the default).
-`bb.menus` has no SDK wrapper yet, so this calls the raw table from `blackbox_modding::abi`
-(see [api-world.md](api-world.md#menus)). It is the only unsafe code in these examples. Based on the 0.1 ABI.
+The slider is added with `ctx.menus()`, the SDK wrapper of `bb.menus` (see [api-world.md](api-world.md#menus)), so the
+mod has no `unsafe`. Based on the 0.1 ABI.
 
 Layout: `examples/mods/fastclock/` with `Cargo.toml`, `mod.toml` and `src/lib.rs`.
 
@@ -160,35 +160,31 @@ linux = "libfastclock_mod.so"
 `src/lib.rs`:
 
 ```rust
-use core::ffi::c_void;
-use core::mem::size_of;
-use core::ptr::null_mut;
-use core::sync::atomic::{AtomicU32, Ordering};
+use std::cell::Cell;
+use std::rc::Rc;
 
-use blackbox_modding::abi::{
-    BB_EVENT_FRAME_START, BB_MENU_SLIDER, BB_OK, BbMenuRow, BbMenus, BbStr, IFACE_MENUS, IFACE_MENUS_VERSION,
-};
-use blackbox_modding::sdk::{Ctx, Event, Level, Mod, ModResult, declare_mod};
-
-/// The slider's value, real seconds per in-world hour, as `f32` bits. The menu callback writes it and the mod
-/// reads it on the next frame. Zero means the player has not moved the slider.
-static SECONDS_PER_HOUR: AtomicU32 = AtomicU32::new(0);
+use blackbox_modding::abi::BB_EVENT_FRAME_START;
+use blackbox_modding::sdk::{Ctx, Event, Level, Mod, ModResult, SliderRange, declare_mod};
 
 pub struct FastClock {
+    /// The slider's value, real seconds per in-world hour. The row's closure writes it and the mod reads it on the next
+    /// frame. Zero means the player has not moved the slider.
+    seconds_per_hour: Rc<Cell<f32>>,
     applied: f32,
 }
 
 impl Mod for FastClock {
     fn load(ctx: &mut Ctx) -> ModResult<Self> {
-        register_slider(ctx);
-        Ok(FastClock { applied: 0.0 })
+        let seconds_per_hour = Rc::new(Cell::new(0.0));
+        register_slider(ctx, Rc::clone(&seconds_per_hour));
+        Ok(FastClock { seconds_per_hour, applied: 0.0 })
     }
 
     fn event(&mut self, ctx: &mut Ctx, event: &Event<'_>) {
         if event.kind() != BB_EVENT_FRAME_START {
             return;
         }
-        let wanted = f32::from_bits(SECONDS_PER_HOUR.load(Ordering::Relaxed));
+        let wanted = self.seconds_per_hour.get();
         if wanted == 0.0 || wanted == self.applied {
             return;
         }
@@ -199,47 +195,26 @@ impl Mod for FastClock {
     }
 }
 
-/// Add the slider to the Mods page through the raw `bb.menus` table.
-#[allow(unsafe_code)]
-fn register_slider(ctx: &Ctx) {
-    let Some(interface) = ctx.query_interface(IFACE_MENUS, IFACE_MENUS_VERSION.0, IFACE_MENUS_VERSION.1) else {
+/// Add the slider to the Mods page. Its closure keeps the new value in `seconds_per_hour`.
+fn register_slider(ctx: &Ctx, seconds_per_hour: Rc<Cell<f32>>) {
+    let Some(menus) = ctx.menus() else {
         ctx.log(Level::Info, "fast clock: bb.menus absent, no slider");
         return;
     };
-    let row = BbMenuRow {
-        size: size_of::<BbMenuRow>() as u32,
-        kind: BB_MENU_SLIDER,
-        name: BbStr::new("seconds_per_hour"),
-        label: BbStr::new("Seconds per hour"),
-        min: 10.0,
-        max: 600.0,
-        step: 10.0,
-        default: 60.0,
-        choices: core::ptr::null(),
-        choice_count: 0,
-    };
-    // SAFETY: the host keeps the table valid while the mod is loaded; `row` and its strings last for this call.
-    let table = unsafe { &*interface.as_ptr().cast::<BbMenus>() };
-    let Some(register) = table.register else { return };
-    let mut id = 0u64;
-    // SAFETY: as above. The callback takes no user data, so the pointer is null.
-    let status = unsafe { register(table.ctx, &row, null_mut(), Some(on_slider), &mut id) };
-    if status != BB_OK {
-        ctx.log(Level::Warn, &format!("fast clock: slider refused with status {status}"));
+    let range = SliderRange { min: 10.0, max: 600.0, step: 10.0 };
+    let added = menus.slider("seconds_per_hour", "Seconds per hour", range, 60.0, move |_ctx, value| {
+        seconds_per_hour.set(value)
+    });
+    if let Err(error) = added {
+        ctx.log(Level::Warn, &format!("fast clock: slider refused: {error}"));
     }
-}
-
-/// The host calls this with the new value when the player moves the slider.
-#[allow(unsafe_code)]
-unsafe extern "C" fn on_slider(_user: *mut c_void, value: f32) {
-    SECONDS_PER_HOUR.store(value.to_bits(), Ordering::Relaxed);
 }
 
 declare_mod!(FastClock);
 ```
 
 - A value saved by an earlier run (under `[mod_values."example.fastclock"]`) is not applied at start-up here. A fuller
-  version would call the table's `get` on the first frame.
+  version would read the row with `Menus::get` on the first frame, using the handle `slider` returns.
 
 ## 3. Content pack: a car clone and music (NFS:MW, not built by CI)
 
@@ -395,5 +370,4 @@ declare_mod!(Bounty);
 
 ## Gaps the sketches run into (0.1)
 
-- **No `bb.menus` wrapper.** Example 2 calls the raw table and needs its `unsafe`.
 - **No subscription.** A mod receives the events the host sends; `nfsmw.*` ones are decoded with `MwEvent::decode`.

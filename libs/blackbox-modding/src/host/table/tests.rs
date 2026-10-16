@@ -1,6 +1,7 @@
 //! The host's interface tables, called directly with fake backends (no cdylib): arguments are checked, output reaches the
 //! sink, a panic comes back as `BB_ERR_PANIC`, and the registrations a mod leaves behind are removed when it unloads.
 
+use crate::host::test_support::callback_on_main;
 use std::cell::{Cell, RefCell};
 use std::ffi::c_void;
 use std::rc::Rc;
@@ -81,6 +82,7 @@ fn run_line(table: &BbCommands, line: &str) -> (BbStatus, String) {
 
 #[test]
 fn run_writes_the_output_to_the_sink() {
+    let _scope = callback_on_main();
     let attached = attach_commands(Rc::new(FakeCommands::default()), "example.hello");
     let (status, out) = run_line(table_of(&attached), "drive");
     assert_eq!((status, out.as_str()), (BB_OK, "example.hello ran drive"));
@@ -88,6 +90,7 @@ fn run_writes_the_output_to_the_sink() {
 
 #[test]
 fn run_without_a_sink_is_an_argument_error() {
+    let _scope = callback_on_main();
     let attached = attach_commands(Rc::new(FakeCommands::default()), "example.hello");
     let table: &BbCommands = table_of(&attached);
     let run = table.run.expect("run");
@@ -98,6 +101,7 @@ fn run_without_a_sink_is_an_argument_error() {
 
 #[test]
 fn a_panicking_backend_comes_back_as_a_status() {
+    let _scope = callback_on_main();
     let backend = FakeCommands { panic_on_run: true, ..FakeCommands::default() };
     let attached = attach_commands(Rc::new(backend), "example.hello");
     assert_eq!(run_line(table_of(&attached), "drive").0, BB_ERR_PANIC);
@@ -105,6 +109,7 @@ fn a_panicking_backend_comes_back_as_a_status() {
 
 #[test]
 fn a_registered_command_calls_the_mod_callback_and_can_be_removed() {
+    let _scope = callback_on_main();
     let backend = Rc::new(FakeCommands::default());
     let attached = attach_commands(backend.clone(), "example.hello");
     let table: &BbCommands = table_of(&attached);
@@ -138,6 +143,7 @@ fn a_registered_command_calls_the_mod_callback_and_can_be_removed() {
 
 #[test]
 fn a_long_command_name_is_refused() {
+    let _scope = callback_on_main();
     let attached = attach_commands(Rc::new(FakeCommands::default()), "example.hello");
     let table: &BbCommands = table_of(&attached);
     let long = "x".repeat(MAX_NAME_BYTES + 1);
@@ -151,6 +157,7 @@ fn a_long_command_name_is_refused() {
 
 #[test]
 fn what_a_mod_left_registered_is_removed_when_it_unloads() {
+    let _scope = callback_on_main();
     let backend = Rc::new(FakeCommands::default());
     let attached = attach_commands(backend.clone(), "example.hello");
     let table: &BbCommands = table_of(&attached);
@@ -210,6 +217,7 @@ impl InputBackend for FakeInput {
 
 #[test]
 fn a_hotkey_is_registered_with_its_default_binding() {
+    let _scope = callback_on_main();
     let backend = Rc::new(FakeInput::default());
     let attached = attach_input(backend.clone(), "example.hello");
     let table: &BbInput = table_of(&attached);
@@ -269,6 +277,7 @@ impl TimeBackend for FakeTime {
 
 #[test]
 fn the_clock_round_trips_and_bad_values_are_refused() {
+    let _scope = callback_on_main();
     let backend = Rc::new(FakeTime::default());
     let attached = attach_time(backend.clone(), "example.hello");
     let table: &BbTime = table_of(&attached);
@@ -315,6 +324,7 @@ impl MapBackend for FakeMap {
 
 #[test]
 fn a_blip_is_read_by_its_size_and_non_finite_positions_are_refused() {
+    let _scope = callback_on_main();
     let backend = Rc::new(FakeMap::default());
     let attached = attach_map(backend.clone(), "example.hello");
     let table: &BbMap = table_of(&attached);
@@ -343,6 +353,7 @@ fn a_blip_is_read_by_its_size_and_non_finite_positions_are_refused() {
 
 #[test]
 fn a_registry_offers_each_interface_only_at_its_version() {
+    let _scope = callback_on_main();
     let mut registry = InterfaceRegistry::new();
     registry.add_time(Rc::new(FakeTime::default()));
     let offered: Vec<String> = registry.offers().into_iter().map(|offer| offer.id).collect();
@@ -365,6 +376,7 @@ const EXTERNAL_ID: &str = "test.external";
 
 #[test]
 fn an_external_provider_is_built_per_mod_and_queried_through_the_host() {
+    let _scope = callback_on_main();
     let mut registry = InterfaceRegistry::new();
     registry.add_commands(Rc::new(FakeCommands::default()));
     registry.add_provider(EXTERNAL_ID, (1, 2), |ctx| {
@@ -406,6 +418,7 @@ fn an_external_provider_is_built_per_mod_and_queried_through_the_host() {
 
 #[test]
 fn an_internal_provider_still_builds_its_table_for_its_owner() {
+    let _scope = callback_on_main();
     let mut registry = InterfaceRegistry::new();
     registry.add_time(Rc::new(FakeTime::default()));
     let attached = registry.build("example.two", IFACE_TIME, 1, 0).expect("bb.time is offered");

@@ -35,6 +35,15 @@ pub const BB_EVENT_ACTION_PRESSED: u32 = 11;
 pub const BB_EVENT_ABILITY_ACTIVATED: u32 = 12;
 /// `BbModUnloading`: a mod is about to be unloaded. Every loaded mod receives it, including the one that unloads.
 pub const BB_EVENT_MOD_UNLOADING: u32 = 13;
+/// `BbInteriorEvent`: the player has started going into a mod interior (the fade has begun).
+pub const BB_EVENT_INTERIOR_ENTERING: u32 = 14;
+/// `BbInteriorEvent`: the player is inside a mod interior, standing at its spawn.
+pub const BB_EVENT_INTERIOR_ENTERED: u32 = 15;
+/// `BbInteriorEvent`: the player has started leaving a mod interior (the fade has begun).
+pub const BB_EVENT_INTERIOR_EXITING: u32 = 16;
+/// `BbInteriorEvent`: the player is back outside. An entry cancelled before the player got in sends `EXITED` straight
+/// after `ENTERING`, with no `ENTERED` and no `EXITING` between.
+pub const BB_EVENT_INTERIOR_EXITED: u32 = 17;
 
 /// `BbVehicleSpawned::role` and `BbVehicleDespawned::role`: the player's car.
 pub const BB_ROLE_PLAYER: u32 = 0;
@@ -208,4 +217,23 @@ pub struct BbModUnloading {
     pub _pad: u32,
     /// Id of the mod being unloaded, valid for the call.
     pub mod_id: crate::abi::BbStr,
+}
+
+/// Payload of `BB_EVENT_INTERIOR_ENTERING`, `BB_EVENT_INTERIOR_ENTERED`, `BB_EVENT_INTERIOR_EXITING` and
+/// `BB_EVENT_INTERIOR_EXITED`. The layout is 40 bytes: `size` at 0, `interior` at 8, `position` at 24.
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct BbInteriorEvent {
+    /// Bytes the host filled in.
+    pub size: u32,
+    /// Padding, zero.
+    pub _pad: u32,
+    /// The interior's key (its manifest's file name), valid for the call.
+    pub interior: crate::abi::BbStr,
+    /// The place the event is about, render space (x forward, y left, z up), metres: where the car stands when the
+    /// entry begins (`ENTERING`), the spawn inside (`ENTERED`, `EXITING`), or the place outside the car returns to
+    /// (`EXITED`).
+    pub position: [f32; 3],
+    /// Padding, zero.
+    pub _pad2: u32,
 }

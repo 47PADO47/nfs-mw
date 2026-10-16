@@ -1,3 +1,6 @@
+use blackbox_modding::abi::{
+    BB_EVENT_INTERIOR_ENTERED, BB_EVENT_INTERIOR_ENTERING, BB_EVENT_INTERIOR_EXITED, BB_EVENT_INTERIOR_EXITING,
+};
 use blackbox_modding::content::{Pose, Suspend, TimeOverride};
 
 use super::machine::{Clock, Command, FADE_SECS, LOAD_LIMIT_SECS, Machine, Plan, Snapshot, traffic_while_inside};
@@ -138,4 +141,35 @@ fn traffic_while_inside_stops_the_named_parts_and_keeps_the_rest() {
     let kept = traffic_while_inside(traffic(), cops_only);
     assert_eq!(kept.cars, 12, "traffic runs when it is not named");
     assert_eq!(kept.cop_share, Percent(0));
+}
+
+#[test]
+fn an_entry_and_its_exit_send_the_four_interior_steps_in_order() {
+    crate::modding::outbox::drain_interior();
+    let mut machine = Machine::default();
+    machine.set_key("harbour_office");
+    enter(&mut machine);
+    machine.leave();
+    machine.tick(FADE_SECS, true);
+    let steps = crate::modding::outbox::drain_interior();
+    let kinds: Vec<u32> = steps.iter().map(|step| step.kind).collect();
+    assert_eq!(
+        kinds,
+        [BB_EVENT_INTERIOR_ENTERING, BB_EVENT_INTERIOR_ENTERED, BB_EVENT_INTERIOR_EXITING, BB_EVENT_INTERIOR_EXITED]
+    );
+    assert!(steps.iter().all(|step| step.interior == "harbour_office"));
+    let places: Vec<[f32; 3]> = steps.iter().map(|step| step.position).collect();
+    assert_eq!(places, [snapshot().pos, plan().spawn.pos, plan().spawn.pos, snapshot().pos]);
+}
+
+#[test]
+fn a_cancelled_entry_sends_entering_then_exited_and_nothing_inside() {
+    crate::modding::outbox::drain_interior();
+    let mut machine = Machine::default();
+    machine.set_key("harbour_office");
+    machine.begin(plan(), snapshot());
+    machine.tick(FADE_SECS, false);
+    machine.tick(LOAD_LIMIT_SECS, false);
+    let kinds: Vec<u32> = crate::modding::outbox::drain_interior().iter().map(|step| step.kind).collect();
+    assert_eq!(kinds, [BB_EVENT_INTERIOR_ENTERING, BB_EVENT_INTERIOR_EXITED]);
 }

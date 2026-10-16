@@ -174,3 +174,58 @@ fn kind_and_frame_accessors_match_the_decoded_event() {
     assert_eq!((decoded.kind(), decoded.frame()), (BB_EVENT_HOUR_CHANGED, 14));
     assert_eq!(Event::Unknown { kind: 500, frame: 3, payload: &[] }.kind(), 500);
 }
+
+#[test]
+fn interior_events_decode_their_key_and_position() {
+    let payload = BbInteriorEvent {
+        size: size_of::<BbInteriorEvent>() as u32,
+        _pad: 0,
+        interior: BbStr::new("harbour_office"),
+        position: [12.5, -3.0, 0.25],
+        _pad2: 0,
+    };
+    let cases = [
+        (
+            BB_EVENT_INTERIOR_ENTERING,
+            Event::InteriorEntering { frame: 20, interior: "harbour_office", position: payload.position },
+        ),
+        (
+            BB_EVENT_INTERIOR_ENTERED,
+            Event::InteriorEntered { frame: 20, interior: "harbour_office", position: payload.position },
+        ),
+        (
+            BB_EVENT_INTERIOR_EXITING,
+            Event::InteriorExiting { frame: 20, interior: "harbour_office", position: payload.position },
+        ),
+        (
+            BB_EVENT_INTERIOR_EXITED,
+            Event::InteriorExited { frame: 20, interior: "harbour_office", position: payload.position },
+        ),
+    ];
+    for (kind, expected) in cases {
+        let event = header(kind, 20, ptr::addr_of!(payload).cast());
+        // SAFETY: the payload and the key it borrows live for the call.
+        assert_eq!(unsafe { decode(&event) }, Some(expected));
+    }
+}
+
+#[test]
+fn an_interior_event_with_a_short_payload_is_unknown() {
+    let short = BbInteriorEvent {
+        size: offset_of!(BbInteriorEvent, position) as u32,
+        _pad: 0,
+        interior: BbStr::new("x"),
+        position: [0.0; 3],
+        _pad2: 0,
+    };
+    let event = header(BB_EVENT_INTERIOR_ENTERED, 21, ptr::addr_of!(short).cast());
+    // SAFETY: the payload lives for the call and its size word declares the bytes it is read for.
+    let decoded = unsafe { decode(&event) };
+    assert!(matches!(decoded, Some(Event::Unknown { kind: BB_EVENT_INTERIOR_ENTERED, frame: 21, .. })));
+}
+
+#[test]
+fn interior_events_report_their_kind_and_frame() {
+    let event = Event::InteriorExited { frame: 9, interior: "k", position: [0.0; 3] };
+    assert_eq!((event.kind(), event.frame()), (BB_EVENT_INTERIOR_EXITED, 9));
+}

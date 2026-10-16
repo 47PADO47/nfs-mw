@@ -1,6 +1,7 @@
 //! `bb.hud` called directly with a fake backend: a message reaches the backend with its text, style and time checked, and a
 //! hide reaches it too.
 
+use crate::host::test_support::callback_on_main;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -34,6 +35,7 @@ impl HudBackend for FakeHud {
 
 #[test]
 fn a_message_reaches_the_backend_with_its_style_and_time() {
+    let _scope = callback_on_main();
     let fake = Rc::new(FakeHud::default());
     let attached = attach_hud(fake.clone(), "example.a");
     let table = table_of(&attached);
@@ -46,6 +48,7 @@ fn a_message_reaches_the_backend_with_its_style_and_time() {
 
 #[test]
 fn bad_style_time_or_text_is_refused_before_the_backend() {
+    let _scope = callback_on_main();
     let fake = Rc::new(FakeHud::default());
     let attached = attach_hud(fake.clone(), "example.a");
     let table = table_of(&attached);
@@ -62,6 +65,7 @@ fn bad_style_time_or_text_is_refused_before_the_backend() {
 
 #[test]
 fn hide_reaches_the_backend() {
+    let _scope = callback_on_main();
     let fake = Rc::new(FakeHud::default());
     let attached = attach_hud(fake.clone(), "example.a");
     let table = table_of(&attached);
