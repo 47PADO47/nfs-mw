@@ -128,7 +128,59 @@ Dead ends and checks:
 - Vtable slots at `0x00433030` and `0x00433040` and the tick's neighbours have no function in the project; the
   manager vtable beyond slot 0 is mostly stubs or undefined.
 
-Open items are listed as "Next leads" in the spec. The main ones: the identity of the view object
-`DAT_009885e0` (it is also the scheduler object that the task registration uses, so the identity is not obvious),
-the writer of the car's off-screen time (where any in-view test must be), the car class's vtable slots, and the
-predicate of the detached-part visitor.
+Open items are listed as "Next leads" in the spec. The main ones: the writer of the car's off-screen time, the car
+class's vtable (not yet located), and the meaning of the detached-part predicate. The view object is now read
+(second pass below).
+
+### Second pass, 2026-10-16: view object, car slots, 4 s / 100 m rule
+
+Same method and binary as above. Ghidra xref tools were used (`get_xrefs_to`, `get_function_call_graph`,
+`disassemble_bytes` for undefined code). Spec section 8 carries the results and a Correction line.
+
+| Address | Role | How found |
+|---|---|---|
+| `0x009885e0` | view object `V` (0x90 bytes). Created in `0x006fc3a0` (session init, reached through a table at `0x006595e0`), freed in `0x006fabb0`. Vtable `0x008b0600` (final), base `0x00890970`. Slot 0 `0x006f8cb0` (deleting dtor), slot 1 `0x006f0eb0` (task callback) | global xrefs; constructor `0x006f0c80`; teardown; vtable read at `0x008b0600` |
+| `0x006f0eb0` | `V` slot 1: scheduler callback. Compares the task id with `V+0x44` (view update, calls `0x006ecf20`), `V+0x40`, `V+0x48`, `V+0x4c` (other tasks). Ids are the returns of the four task registrations in the constructor (`0x006ed0f0`) | vtable slot 1 bytes |
+| `0x006ecf20` | **view update** (per rendered frame, task id `V+0x44`, rate 1.0). Copies the constant bank `0x008a2fc0` into `V+0x64..0x70`, then: `k` (`V+0x70`) = 1.0; `P0` = `(-y, z, x)` of the first entry of list `0x00919694` (entry object `-4`, subject at `+0x1c`, position `+0x40..+0x48`); `V+0x84` = that entry's slot-4 result `+0x94`. Same for `P1` from list `0x00919704` into `V+0x74..0x7c` (`V+0x80` = 1.0, `V+0x88` from its slot 4). If a list is empty the copy stays | callee of `0x006f0eb0`; FPU stack traced by hand |
+| `0x006ecd90`, `0x006ed070` | scheduler step (node: rate, callback at `+4`, accumulator `+8`, flags `+0x18`, task id `+0x20`); task list head `0x009885d0` | callees of the view update path |
+| `0x006ece90`, `0x006ed550` | distance `min(|p - P1|, k |p - P0|)` (3D, `sqrt` at `0x005c5e80`); returns `0x00890968` (0.0) when `V` is null | read in full |
+| `0x008a2fc0` (16 bytes) | constant bank, zero in the install; read by the constructor and by `0x006ecf20`; no writer found | read_memory; xrefs (all READ) |
+| `0x00410b00` | removal test, read in full (stack args at entry+4 and +8; locals reused): off-world `slot 0xc4` true → removable; else time `slot 0x60` > `T(d)` (`0x008eb36c`) and distance > `D(d)` (`0x008eb358`) → removable; then trailer (`[car+4]`, key `0x004040d0` via `0x005d59f0`, value `slot 1`, recursive) and parts (`car slot 1` → `obj slot 0x80` → `model slot 0x48` visitor `0x00404f90`, query vtable `0x00890c10`, flag `+4`; predicate `part slot 0x2c`) | disassembly |
+| `0x00439bb0` | tick, read in full: density (`0x0041ec20`), timers at manager `+0x64..+0x88` (ten) and new-instance timer `+0x8c`, spawn `0x00439a10`, then the pool list at `+0x94`: active (`car slot 0x88`) cars go to `0x00410b00`; invalid ones: `car slot 0xac` → sub-object → `slot 0x8c` | disassembly |
+| `0x00439a10` | spawn attempt: `new-instance timer > SpawnTime` (`0x00403af0`) passed to `0x00426380`; placement: sub-object `slot 0x58` with the probe cursor; loading = `car slot 0x5c` | disassembly |
+| `0x00426380` | pool lookup (car slot `0x88`, `0x5c`, type key `0x50`); creates a car through the factory with class name `PVehicle` (`0x0089121c`) and hash `0xa6b47fac` when the allow flag is set | disassembly |
+| `0x005e8960` | 4 s (`0x008a3724` = 4.0) and 100 m (`0x008a3720` = 100.0) test. Returns true (free) when inactive, not in the entry list, or in it and time > 4 s and distance > 100 m | disassembly |
+| `0x005e8a20` | caller of `0x005e8960`; manager method (no Ghidra function at its start; `disassemble_bytes`); checks `[this+0x1960] == 1` and a global at `0x0092c67c` | disassembly |
+
+Lessons (method):
+
+- The global's xref list shows only absolute references. Writes through a loaded pointer are invisible to it. The
+  writer was found through the object's own vtable: slot 1 is the scheduler callback, and it calls the update.
+  Read the constructor's vtable pointer and then the slot functions.
+- A zero constant bank read by a constructor and by the update is a default value. Check the update before
+  reading a constructor's zeros as final values.
+- FPU order: write the stack after each `FLD`/`FSTP`. The first reading of the view update was wrong (it gave
+  `(-y, x, z)`); the `FXCH` order gives `(-y, z, x)`.
+- Argument offsets: derive them from the pushes. In `0x00410b00` the stack slots of the two arguments are reused
+  as locals (`T` and `D` are stored there), so a reading of `[esp+N]` must follow the push count.
+- `search_instructions` with a common operand (`+ 0x64]`) scans about 877,000 instructions and returns 100 hits in
+  unrelated classes. Use it only with a function filter.
+- `disassemble_bytes` reads code Ghidra has not defined (the manager's and the view's vtable slots, the cop
+  method at `0x005e8a20`). It does not create functions.
+
+Dead ends:
+
+- The 23 readers of the view global: all are constructors, getters (`0x006e8d80`, `0x006e8dc0` read the view's
+  `+0x24` float or `0x00988dec`), the teardown, the scheduler and the view's own update path. None writes
+  `+0x64..+0x80` except through the update in `0x006ecf20`.
+- `0x006f0f80` toggles a flag at each object's `+0x3c` and walks lists; `0x006f6cf0` is the view's per-frame
+  driver (timers at `0x009885d4`, `0x009885d8`; calls the scheduler step through `0x006ed070`). Neither writes
+  the car's time.
+- `0x00404f90` (the visitor) has one data reference, the query vtable `0x00890c10`. Its uses are not found outside
+  the removal test.
+- The car class's vtable is not located. The factory path in `0x00426380` builds the object; its constructor was
+  not followed.
+- As read, the update's slot-4 call on an empty list (`0x006ecfc1`, `0x006ed03b`) would dereference a null
+  pointer. The original must keep both lists non-empty during play, or the code path is not reached. **[unconfirmed]**.
+
+Next leads: spec section 8, "Next leads (removal, section 8)" (items 1 to 7).

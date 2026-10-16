@@ -283,13 +283,15 @@ The cop manager asks the same for its own cars; none of the other callers (cutsc
 > The writer of a car's off-screen time is still not found.
 
 **Port status (rewrite).** The port takes the camera lens the traffic is seen through (the simulation camera of
-the world scene) and does the following. "Seen" is a sphere of radius 6 m around each part (the tractor, a trailer)
-reaching the camera's frustum, with a 2 m margin; the sphere test runs against its enclosing box, a superset. A seen
-part resets its off-screen timer. Distance is the 3D `min(|p - P1|, |p - P0|)` with `P1` the player's car (the eye
-when no car is driven) and `P0` the camera eye, `k = 1` (open question, section 11). The rule above is applied as
-written. The rewrite's own rules (350 m, airborne 4 s, stuck 20 s and 40 m) apply only to an unseen car, so a
-visible car is never removed by them. Not yet ported: the detached-part keep-alive (below), which needs the
-fragments of a car's owner from the prop world; the trailer keep-alive is in place.
+the world scene) and the prop world, and does the following. "Seen" is a sphere around each part reaching the
+camera's frustum, with a 2 m margin; the sphere test runs against its enclosing box, a superset. A part's radius is
+its own bounding radius: the car's half-diagonal, a trailer's half-diagonal, and for a detached part the half-diagonal
+of its world bounds. A seen part resets its off-screen timer. Distance is the 3D `min(|p - P1|, |p - P0|)` with `P1`
+the player's car (the eye when no car is driven) and `P0` the camera eye, `k = 1` (open question, section 11). The
+rule above is applied as written. The rewrite's own rules (350 m, airborne 4 s, stuck 20 s and 40 m) apply only to an
+unseen car, so a visible car is never removed by them. Keep-alives: a car with a detached part in view stays (the
+parts are the prop-world fragments whose owner is the car's vehicle events); a tractor stays while its trailer is
+valid. Trailer detached parts are not checked yet.
 
 Every tick, every **active** pool car is validated; an invalid one is **unspawned** (the goal is cleared and the
 vehicle is deactivated; it stays in the pool):
@@ -399,7 +401,8 @@ In the original (PC build):
 ## 11. Open questions
 
 - Who implements the traffic centres (all local cameras? the player cars?), who writes a car's off-screen time and
-  what sets its off-world flag, and what the view object's `P0`, `P1` and `k` are (section 8).
+  what sets its off-world flag (section 8). The view object's `k` (1.0) and its two positions are now read; which
+  of the two lists (`0x00919694`, `0x00919704`) is the camera and which the player is open.
 - How `TrafficLevel` / `ForceTrafficDensity` of a race become `traffic_density` (which wins, and the scaling): the
   code that reads them is stripped from the decompiled sources.
 - Whether the vehicle count used by the cap (`Count(ALL)`) includes inactive cop/helicopter pool cars and trailers.
@@ -428,15 +431,19 @@ support fitting and matched driving comparisons remain separate parity work.
 
 ## Next leads (removal, section 8)
 
-1. Identify the global view object (the PC binary's `0x009885e0`): find the code that writes its reference points and
-   scale, and check whether it is the camera or a camera manager (the binary has camera class strings).
-2. Find the writer of a car's off-screen time: start from the car class's implementation of the time query, and find
-   the per-frame update that resets it (the in-view test should be there).
-3. Name the car-class slots used by the removal test (off-world flag, position, off-screen time, active flag, unspawn,
-   attached child, model access) by reading the car class's vtable and its constructor.
-4. Name the per-role key of the trailer lookup and the part predicate. The key next to it in the driver code gives a
-   second sample for comparison.
-5. The `0x5e8960` caller uses the same 4 s and 100 m limits with the same distance function. Check whether it is a
-   separate original rule (cop or pedestrian) and whether it uses the same view object.
-6. Several entries of the manager's vtable point at undefined code. Create functions where the bytes are code,
+1. Find the writer of a car's off-screen time (getter at car slot 24). First locate the car class's vtable: the
+   pool-car factory path at `0x00426380` builds a `PVehicle`-keyed object (name at `0x0089121c`, hash `0xa6b47fac`);
+   follow its constructor. Then look for the per-frame update that increments or resets the time.
+2. Decide which of the two view lists (`0x00919694` for `P0`, `0x00919704` for `P1`) is the camera and which the
+   player, from the list entries' class and the readers of those globals (for example `0x004ba050`, `0x004ba140`,
+   `0x00744c00`, `0x00750e20`, `0x006cfa10`).
+3. Check whether the view subjects' `(-y, z, x)` mapping matches the frame of a car's position (slot 3), by
+   comparing with the traffic-centre basis in section 6 and with a car's position at a known road point.
+4. Name the car-class slots used here (1, 3, 20, 23, 24, 34, 43, 49, plus sub-object slots 22 and 35) from the
+   class's constructor and the callers in the spawn function (`0x00439a10`).
+5. Identify the manager of `0x005e8a20` (cop or other) and its entry list (`+0x1958`, `+0x1960`), and why the
+   time is 4 s here and 5 s in the cop spec.
+6. Name the trailer key `0x004040d0` and the part predicate (part slot 11): the key next to it in the driver code
+   gives a second sample.
+7. Several entries of the manager's vtable point at undefined code. Create functions where the bytes are code,
    before reading the rest of the vtable.
