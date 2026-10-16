@@ -162,19 +162,6 @@ fn is_tunnel_shadow(solid_name: &str) -> bool {
     solid_name.starts_with("SHADOW_")
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn tunnel_shadow_solids_are_not_uploaded_but_other_overlays_are() {
-        assert!(is_tunnel_shadow("SHADOW_TUNNELWALLB01_DEINST1_I4"));
-        assert!(is_tunnel_shadow("SHADOW_TUNNELROOFA01"));
-        assert!(!is_tunnel_shadow("SHD_CP_BE_ROAD_A_02A"));
-        assert!(!is_tunnel_shadow("TRN_CT_Road_Highway4_XX"));
-    }
-}
-
 /// Turn a section's scenery into placed meshes, dropping instances the player
 /// view excludes (`docs/specs/scenery-visibility.md`).
 pub fn place(
@@ -248,4 +235,17 @@ pub fn place(
         }
     }
     (placed, unresolved)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tunnel_shadow_solids_are_not_uploaded_but_other_overlays_are() {
+        assert!(is_tunnel_shadow("SHADOW_TUNNELWALLB01_DEINST1_I4"));
+        assert!(is_tunnel_shadow("SHADOW_TUNNELROOFA01"));
+        assert!(!is_tunnel_shadow("SHD_CP_BE_ROAD_A_02A"));
+        assert!(!is_tunnel_shadow("TRN_CT_Road_Highway4_XX"));
+    }
 }
