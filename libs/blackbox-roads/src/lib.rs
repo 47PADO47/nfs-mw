@@ -24,6 +24,7 @@ mod profile;
 mod road;
 mod segment;
 mod signal;
+mod signal_props;
 mod trail;
 mod zones;
 
@@ -47,6 +48,7 @@ pub use signal::{
     ALL_RED_TIME, AMBER_TIME, Approach, DEFAULT_KERB, GREEN_TIME, Junction, Light, MIN_SIGNAL_APPROACHES,
     OFFSET_PER_JUNCTION, PHASE_ALIGNMENT, PHASES, STOP_LINE_DISTANCE, SignalController, Timing,
 };
+pub use signal_props::{MatchParams, PropPose, match_props};
 pub use trail::Body;
 pub use trail::{
     Avoidable, CAPACITY as TRAIL_CAPACITY, CUT, CUT_BEHIND, Cookie, DEFAULT_GAP, Occlusion, Trail, trail_curvature,
