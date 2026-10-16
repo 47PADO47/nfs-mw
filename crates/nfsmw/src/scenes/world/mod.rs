@@ -28,6 +28,7 @@ mod ground;
 mod hud;
 mod keys;
 mod lighting;
+mod mod_hooks;
 use car_loader::load_car;
 mod focus;
 mod focus_feed;
@@ -247,6 +248,7 @@ impl Scene for WorldScene {
 
     fn ui(&mut self, ctx: &egui::Context) -> f32 {
         crate::hud::show_interact_prompt(ctx, &self.entry.popup);
+        crate::hud::show_mod_message(ctx);
         self.show_pursuit_end(ctx);
         0.0
     }
@@ -317,6 +319,30 @@ impl Scene for WorldScene {
     fn set_mod_blips(&mut self, blips: &[crate::hud::MapBlip]) {
         self.mod_blips.clear();
         self.mod_blips.extend_from_slice(blips);
+    }
+
+    fn player_car(&mut self) -> Option<crate::viewer::PlayerCar> {
+        self.player_car_state()
+    }
+
+    fn camera_readout(&self) -> Option<crate::viewer::CameraReadout> {
+        Some(self.camera_now())
+    }
+
+    fn world_info(&self) -> Option<crate::viewer::WorldInfo> {
+        Some(self.world_now())
+    }
+
+    fn move_player(&mut self, at: [f32; 2], heading: f32) -> bool {
+        self.move_player_to(at, heading)
+    }
+
+    fn repair_player(&mut self) -> bool {
+        self.repair_player_car()
+    }
+
+    fn set_traffic_density(&mut self, cars: u32, cop_share: u8) {
+        self.set_traffic_density_to(cars, cop_share);
     }
 
     fn next_camera_mode(&self, current: CameraMode) -> CameraMode {

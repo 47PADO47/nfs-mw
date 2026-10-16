@@ -72,7 +72,7 @@ fn the_hello_mod_loads_and_receives_the_frame_events() {
     let loaded = mods.loaded();
     assert_eq!(loaded.len(), 1, "rejected: {:?}", mods.rejected());
     assert_eq!(loaded[0].id, "example.hello");
-    bridge.sync(&support::Recorder::at(13.5, 150.0));
+    bridge.sync(&mut support::Recorder::at(13.5, 150.0));
     let frame = mods.frame_start(1.0 / 60.0);
     assert_eq!((frame.delivered, frame.faults), (1, 0), "FRAME_START reaches the mod");
     let read = support::captured_log().into_iter().find(|line| line.starts_with("[example.hello] hello: time"));
@@ -83,6 +83,20 @@ fn the_hello_mod_loads_and_receives_the_frame_events() {
     );
     let tick = mods.scene_tick(1.0 / 60.0, 1.0, false);
     assert_eq!((tick.delivered, tick.faults), (1, 0), "SCENE_TICK reaches the mod");
+
+    // Hello logs the player's speed on frame 100 through bb.vehicles. A car on the road is copied in, and the frames run on
+    // to 100 (the first one is above).
+    bridge.sync(&mut support::Recorder::driving([0.0, 0.0, 0.0], 0.0));
+    for _ in 2..=100 {
+        mods.frame_start(1.0 / 60.0);
+    }
+    let speed =
+        support::captured_log().into_iter().find(|line| line.starts_with("[example.hello] hello: player speed"));
+    assert_eq!(
+        speed.as_deref(),
+        Some("[example.hello] hello: player speed 20.00 m/s at frame 100"),
+        "hello reads the player's speed through bb.vehicles on frame 100"
+    );
 
     // Dropping the mods sends MOD_UNLOADING, then destroys the mod.
     drop(mods);

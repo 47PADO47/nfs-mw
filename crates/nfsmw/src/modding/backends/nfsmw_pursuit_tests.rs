@@ -1,11 +1,12 @@
 //! The `nfsmw.pursuit` port: reads come from the published chase, changes are queued for the world or the console.
 
+use std::mem::size_of;
 use std::rc::Rc;
 
-use blackbox_modding::abi::{BB_ERR_NOT_READY, BB_ERR_UNSUPPORTED};
+use blackbox_modding::abi::BB_ERR_NOT_READY;
 use blackbox_pursuit::Fines;
-use nfsmw_modding::abi::{CopTable, EndMode};
-use nfsmw_modding::host::PursuitBackend;
+use nfsmw_modding::abi::{BbCopRecord, BbHeatRow, CopTable, EndMode};
+use nfsmw_modding::host::{HeatRowSpec, PursuitBackend};
 
 use super::bridge::Bridge;
 use super::nfsmw_pursuit::PursuitPort;
@@ -74,8 +75,45 @@ fn a_start_runs_the_console_pursuit_command_next_frame() {
     assert_eq!(bridge.queued_lines.borrow().as_slice(), ["pursuit 4".to_owned()]);
 }
 
+/// A wave of one car, with the header the ABI carries.
+fn wave(car: &str, count: u32) -> HeatRowSpec {
+    HeatRowSpec {
+        row: BbHeatRow {
+            size: size_of::<BbHeatRow>() as u32,
+            cop_count: 1,
+            patrol_cars: 2,
+            full_engagement_cops: 4,
+            first_four_interval: 3.0,
+            spawn_interval: 9.0,
+        },
+        cops: vec![BbCopRecord::new(car, count, 100).expect("a short name")],
+    }
+}
+
 #[test]
-fn the_cop_tables_are_not_wired_yet() {
+fn the_install_waves_are_not_ready_without_an_install() {
     let (port, _bridge) = port();
-    assert_eq!(port.cop_table_get("m", CopTable::Roam, 1).err(), Some(BB_ERR_UNSUPPORTED));
+    assert_eq!(port.cop_table_get("m", CopTable::Roam, 1).err(), Some(BB_ERR_NOT_READY));
+    assert_eq!(port.cop_table_get("m", CopTable::Race, 1).err(), Some(BB_ERR_NOT_READY));
+}
+
+#[test]
+fn a_wave_a_mod_sets_is_read_back_for_its_table_and_level_only() {
+    let (port, _bridge) = port();
+    assert_eq!(port.cop_table_set("m", CopTable::Roam, 2, &wave("copmidsize", 5)), Ok(()));
+    let read = port.cop_table_get("m", CopTable::Roam, 2).expect("the set wave is read back");
+    assert_eq!(read.row.cop_count, 1);
+    assert_eq!((read.row.patrol_cars, read.row.full_engagement_cops), (2, 4));
+    assert_eq!((read.row.first_four_interval, read.row.spawn_interval), (3.0, 9.0));
+    assert_eq!(read.cops, wave("copmidsize", 5).cops);
+    assert_eq!(port.cop_table_get("m", CopTable::Race, 2).err(), Some(BB_ERR_NOT_READY), "the race table is its own");
+}
+
+#[test]
+fn a_wave_without_records_is_kept_with_no_cop_count() {
+    let (port, _bridge) = port();
+    let empty = HeatRowSpec { cops: Vec::new(), ..wave("copmidsize", 1) };
+    assert_eq!(port.cop_table_set("m", CopTable::Roam, 9, &empty), Ok(()));
+    let read = port.cop_table_get("m", CopTable::Roam, 9).expect("the set wave is read back");
+    assert_eq!((read.row.cop_count, read.cops.len()), (0, 0));
 }

@@ -7,9 +7,12 @@ game id is `nfsmw`. A mod that uses it lists the interfaces in `[requires]` or `
 denied in an online session.
 
 Status of the game side: the game offers `nfsmw.pursuit` (heat, the chase, busted, the events) and the mods can use it,
-except the cop tables, which answer `BB_ERR_UNSUPPORTED` for now. `nfsmw.career` and `nfsmw.races` are offered with no
-state behind them, so every call answers `BB_ERR_UNSUPPORTED` and a mod can detect them. The roadblocks, spikes, the
-helicopter calls and the rest of the pursuit tables are not wired yet. The
+including the cop tables: `cop_table_get` reads a wave (a wave a mod set first, else the install's, read from
+`ATTRIBUTES.BIN` once the layers are in place) and `cop_table_set` keeps a wave for the session. A set wave takes effect
+on the next chase that starts; a chase that is running keeps its rows. A new car type in a wave needs its model loaded,
+which the chase does only for the install's waves, so a mod's new car is not spawned yet. `nfsmw.career` and
+`nfsmw.races` are offered with no state behind them, so every call answers `BB_ERR_UNSUPPORTED` and a mod can detect
+them. The roadblocks, spikes, the helicopter calls and the rest of the pursuit tables are not wired yet. The
 **career** (bounty, rap sheet, blacklist, milestones, cash, shops, safe houses) has no runtime state yet; the
 tables below are the contract the career work will implement. Field lists marked [unconfirmed] must be checked
 against the specs (`docs/specs/`, `docs/formats/`) when each part is built.
@@ -66,7 +69,7 @@ A mod edits the table **before the first pursuit**; after that the new rows appl
 | Entry | Signature sketch | Scope | Implemented in |
 |---|---|---|---|
 | Read row | `pursuit.cop_table(Table { Roam or Race }, level: u32) -> Result<HeatRow { cops: Vec<CopRecord { car: CarId, count: u32, chance: u32 }>, patrol_cars: u32, full_engagement: u32, first_four_interval: f32, spawn_interval: f32 }>` | MW | `nfsmw-data/src/pursuit.rs` (`HeatRow`, `CopRecord`) |
-| Replace row | `pursuit.set_cop_table(table, level, HeatRow) -> Result<()>` **W** | MW | same, applied in `scenes/world/ai/data.rs` |
+| Replace row | `pursuit.set_cop_table(table, level, HeatRow) -> Result<()>` **W** | MW | `modding/cop_rows.rs`, applied in `scenes/world/ai/pursuit.rs` (`start_pursuit`) |
 | Add cop to a level | `pursuit.add_cop(table, level, CopRecord)`; the car must have role `cop` (see `bb.content`) | MW | same |
 | Remove cop | `pursuit.remove_cop(table, level, car: CarId)` | MW | same |
 | Helicopter | `pursuit.set_helicopter(table, level, Option<u32>)` places `copheli` in a wave or removes it | MW | same |
@@ -201,8 +204,8 @@ Names are inline (`BbName { len: u32, bytes: [u8; 128] }`), so no pointer the ho
 |---|---|---|---|---|---|
 | 16 | `heat_get` | `out: *mut f32` | no | supported | `heat()` |
 | 24 | `heat_set` | `heat: f32` (clamped by the game) | yes | supported | `set_heat(heat)` |
-| 32 | `cop_table_get` | `table: u32, level: u32, out: *mut BbHeatRow, cops: *mut BbCopRecord, cops_cap: u32` | no | unsupported in 0.1 | `cop_table(table, level)` |
-| 40 | `cop_table_set` | `table: u32, level: u32, row: *const BbHeatRow, cops: *const BbCopRecord, cops_len: u32` | yes | unsupported in 0.1 | `set_cop_table(table, level, &row)` |
+| 32 | `cop_table_get` | `table: u32, level: u32, out: *mut BbHeatRow, cops: *mut BbCopRecord, cops_cap: u32` | no | supported (install or a set wave; not ready without an install) | `cop_table(table, level)` |
+| 40 | `cop_table_set` | `table: u32, level: u32, row: *const BbHeatRow, cops: *const BbCopRecord, cops_len: u32` | yes | supported (applies to the next chase) | `set_cop_table(table, level, &row)` |
 | 48 | `start` | `level: u32, near: u64` (0 for none) | yes | supported | `start(level, near)` |
 | 56 | `end` | `mode: u32` (0 evade, 1 bust, 2 abort) | yes | supported | `end(mode)` |
 | 64 | `is_pursuing` | `out: *mut u8` | no | supported | `is_pursuing()` |
@@ -337,9 +340,10 @@ When the events go out, and what they carry in the game:
 
 ### Open items for 0.1
 
-- **Cop tables.** The waves are read from the install when a chase starts (`TrafficWorld::start_pursuit`), and the rows
-  are not kept after that. The game answers `cop_table_get` and `cop_table_set` with `BB_ERR_UNSUPPORTED` until the
-  pursuit exposes the install's rows to the world's snapshot, and the table set applies to the next chase.
+- **Cop tables.** Delivered for the heat table and the race table as data: the install's wave is read from
+  `ATTRIBUTES.BIN` (not from the running chase, which exists only during a chase), and a set wave replaces the row of
+  its level in the next chase (`TrafficWorld::start_pursuit`). The race table is kept but no race runs the waves yet.
+  Open: a new car type's model is loaded only for the install's waves.
 - **Data.** `nfsmw-modding` does not depend on `nfsmw-data`, so the install stack stays out of mods. The game converts
   `nfsmw_data::pursuit::HeatRow` into `BbHeatRow` and `BbCopRecord` in its facade.
 - **Career and races.** Offered, with no state. Their tables are the contract the career and race work implements.

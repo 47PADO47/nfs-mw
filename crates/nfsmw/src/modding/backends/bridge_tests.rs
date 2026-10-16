@@ -15,7 +15,7 @@ fn a_frame_copies_the_clock_in_and_hands_the_changes_back_to_the_scene() {
     let time = TimePort(bridge.clone());
     let map = MapPort(bridge.clone());
 
-    bridge.sync(&Recorder::at(9.0, 150.0));
+    bridge.sync(&mut Recorder::at(9.0, 150.0));
     assert_eq!(time.get("example.a").unwrap().hour, 9.0, "the mods read the scene's clock");
 
     time.set_hour("example.a", 20.0).unwrap();
@@ -36,7 +36,7 @@ fn a_frame_copies_the_clock_in_and_hands_the_changes_back_to_the_scene() {
 #[test]
 fn a_scene_without_a_clock_leaves_the_mods_with_no_time() {
     let bridge = Rc::new(Bridge::default());
-    bridge.sync(&Recorder::without_clock());
+    bridge.sync(&mut Recorder::without_clock());
     assert!(bridge.clock.get().is_none());
     let mut scene = Recorder::without_clock();
     bridge.apply(&mut scene, &mut Console::default());

@@ -36,7 +36,7 @@ fn frame_start(
     let Some(mut mods) = mods else {
         return;
     };
-    mods.sync(&*host.scene);
+    mods.sync(&mut *host.scene);
     mods.press(|key| keys.just_pressed(key) && !actions.typing());
     mods.frame_start(time.delta_secs());
     mods.apply(&mut *host.scene, &mut console);
@@ -54,7 +54,7 @@ fn scene_tick(
     let Some(mut mods) = mods else {
         return;
     };
-    mods.sync(&*host.scene);
+    mods.sync(&mut *host.scene);
     mods.dispatch_notices(&notices);
     mods.scene_tick(time.delta_secs(), settings.game_speed, host.scene.paused());
     mods.apply(&mut *host.scene, &mut console);

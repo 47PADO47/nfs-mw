@@ -6,11 +6,16 @@
 
 #![allow(unsafe_code)] // ADR 0005 section 8: `unsafe` is confined to `abi`, `host::loader` and `sdk::ffi`.
 
+pub(crate) mod audio;
+pub(crate) mod camera;
 pub(crate) mod commands;
 mod event;
+pub(crate) mod hud;
 pub(crate) mod input;
 pub(crate) mod map;
 pub(crate) mod time;
+pub(crate) mod vehicles;
+pub(crate) mod world;
 
 use core::ffi::c_void;
 use core::mem::{offset_of, size_of};

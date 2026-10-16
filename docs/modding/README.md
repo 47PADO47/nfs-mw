@@ -5,7 +5,11 @@ its reasons are in [ADR 0005](../decisions/0005-native-mod-plugins.md). This fol
 mod can do.
 
 Status: **partly built**. `bb.commands`, `bb.input`, `bb.time`, `bb.map` and `bb.menus` work in NFS:MW, and so does
-`nfsmw.pursuit` (heat, the chase, busted, and the `nfsmw.*` events; the cop tables are not wired yet). `nfsmw.career`
+`nfsmw.pursuit` (heat, the chase, busted, the `nfsmw.*` events, and the cop tables: a wave a mod sets applies to the next
+chase). The game interaction interfaces are partly built: `bb.vehicles` (the player's car: state, teleport, repair),
+`bb.hud` (a centred message), `bb.camera` (read and the gameplay views) and `bb.world` (track, district, rain, traffic)
+work; `bb.audio` is offered but every play is unsupported until sound names are looked up; traffic spawn at a point is
+unsupported. The status of each row is in [api-world.md](api-world.md#game-interaction). `nfsmw.career`
 and `nfsmw.races` are offered with no state, so a mod can detect them. Content mods also work: cars and music files declared in a mod's `cars/` folder and `[music]` table (see
 [Using mods](#using-mods) and [api-content.md](api-content.md#cars)). The rest of the catalogue is design only: every
 "Implemented in" cell names the game module that will implement the entry (a path that exists today) or says "new"

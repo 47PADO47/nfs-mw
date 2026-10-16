@@ -72,9 +72,23 @@ its own font through `bb.content`.
 
 ## Game interaction
 
+Status of the five interfaces (ids `bb.vehicles`, `bb.hud`, `bb.camera`, `bb.audio`, `bb.world`, all 1.0). The rows below
+say what each delivers; the rest of each table is still the plan. A call the game cannot serve answers
+`BB_ERR_UNSUPPORTED`, and a call that needs a world or a car answers `BB_ERR_NOT_READY` while none is loaded.
+The wire layouts are in [api.md](api.md#wire-numbers-abi-01).
+
 ### Vehicles and the player
 
 `bb.vehicles`. A vehicle handle can be the player's car, a traffic car, a cop or a racer.
+
+**Delivered (1.0):** the player's car only. `state` reads a snapshot taken at the start of the frame (position, velocity,
+heading, speed, rpm, gear, nitrous, damage), `teleport` queues a move to the road nearest the horizontal position (the
+height is not used), and `repair` queues a repair. Both queued calls run after the mods, like the other world changes.
+`spawn_traffic` is **open**: the game places traffic ahead of the player (`scenes/world/ai/spawn.rs`) and has no call to
+spawn one at a point, so it answers `BB_ERR_UNSUPPORTED`. The traffic density (`set_traffic`) is in `bb.world`, below.
+
+**Open:** handles for other vehicles (traffic, cops, racers) and every call on them, `despawn`, `set_player_car`, the
+AI goals, `near`, `set_velocity`, `add_nos` and `set_nos`, `set_tuning`, `damage`, lights, horn and siren.
 
 | Entry | Signature sketch | Scope | Implemented in |
 |---|---|---|---|
@@ -98,6 +112,10 @@ its own font through `bb.content`.
 
 `bb.hud`.
 
+**Delivered (1.0):** `message` shows one centred line for the given seconds (plain, warning or big) and replaces the
+line on screen; `hide` takes it down. The line is drawn by the world's card (`hud/message.rs`), so it shows while a
+world is up. **Open:** the interact prompt, meters, hiding HUD parts, screen text and the HUD size.
+
 | Entry | Signature sketch | Scope | Implemented in |
 |---|---|---|---|
 | Message | `hud.message(text: &str, style: MessageStyle { Info, Warning, Big }, secs: f32)` | G | `hud/elements.rs`, `hud/state.rs` (`HudState`) |
@@ -113,6 +131,10 @@ its own font through `bb.content`.
 `bb.audio`. Sounds come from the mod's overlay in formats `libs/ea-audio` decodes, or from the install by
 the sound's name.
 
+**Delivered (1.0):** the table is offered, with `play(bank, event, volume)`, so mods can be written against it. Every
+play answers `BB_ERR_UNSUPPORTED`: the sound viewer plays by bank and index, and there is no lookup by event name yet.
+**Open:** the lookup, mod overlay sounds, `stop`, music, bus volumes, the engine pitch and speech.
+
 | Entry | Signature sketch | Scope | Implemented in |
 |---|---|---|---|
 | Play sound | `audio.play(SoundRef { Install(&str) or Mod(&str) }, volume: f32, pos: Option<Vec3>) -> Result<SoundId>` | G | `audio/mod.rs`, `audio/fx.rs`, `audio/common_effects.rs`, `libs/ea-audio` |
@@ -125,6 +147,10 @@ the sound's name.
 ### Camera
 
 `bb.camera`. Camera modes are the settings `CameraMode` and the gameplay cycle (`Scene::next_camera_mode`).
+
+**Delivered (1.0):** `get` reads the camera the player sees (position, forward, vertical field of view, and the view);
+`set_mode` changes to one of the nine gameplay views (`BB_CAMERA_*`), queued. The free camera is not a gameplay view:
+it is **open**, with `override_pose`, `release`, `shake`, the field-of-view scale and the photo path.
 
 | Entry | Signature sketch | Scope | Implemented in |
 |---|---|---|---|
@@ -139,6 +165,12 @@ the sound's name.
 ### World state
 
 `bb.world`.
+
+**Delivered (1.0):** `track` (the track's name) and `section` (the district at the player) through a sink; `set_rain`
+(keep it raining, or leave it to the weather, at an amount); and `set_traffic` (the car count and the cop share in
+percent, keeping the lights and avoidance settings). The reads are the frame's copy of the scene. The two setters are
+queued. **Open:** the time scale, pause, trigger zones, ground height, road position, props, fog and sun, and the
+random seed.
 
 | Entry | Signature sketch | Scope | Implemented in |
 |---|---|---|---|

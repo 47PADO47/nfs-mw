@@ -10,14 +10,24 @@ use blackbox_gfx::{FrameParams, Instance, RenderBackend};
 use super::menu_store::ValueStore;
 use crate::hud::MapBlip;
 use crate::input::ActionState;
-use crate::viewer::{Environment, Scene};
+use crate::settings::CameraMode;
+use crate::viewer::{CameraReadout, Environment, PlayerCar, Scene, WorldInfo};
 
-/// A scene with a clock it keeps, and a record of what the backends set on it. It draws nothing.
+/// A scene with a clock it keeps, and a record of what the backends set on it. It draws nothing. The car, the camera and
+/// the track are what the scene reports; the moves, the repairs and the settings are what the backends asked for.
 #[derive(Default)]
 pub(crate) struct Recorder {
     pub clock: Option<Environment>,
     pub held: bool,
     pub blips: Vec<MapBlip>,
+    pub car: Option<PlayerCar>,
+    pub camera: Option<CameraReadout>,
+    pub track: Option<WorldInfo>,
+    pub moves: Vec<([f32; 2], f32)>,
+    pub repairs: u32,
+    pub camera_mode: Option<CameraMode>,
+    pub rain: Option<(bool, f32)>,
+    pub traffic: Option<(u32, u8)>,
 }
 
 impl Recorder {
@@ -29,6 +39,28 @@ impl Recorder {
     /// A scene with no clock, as the menus have.
     pub(crate) fn without_clock() -> Self {
         Self::default()
+    }
+
+    /// A driving scene: a car at `position`, facing `heading`, and a camera and a track of its own.
+    pub(crate) fn driving(position: [f32; 3], heading: f32) -> Self {
+        let car = PlayerCar {
+            position,
+            velocity: [20.0, 0.0, 0.0],
+            heading,
+            speed: 20.0,
+            rpm: 3500.0,
+            gear: 3,
+            nos: 0.25,
+            damage: 0.0,
+        };
+        let camera = CameraReadout {
+            mode: CameraMode::Chase,
+            position: [position[0] - 6.0, position[1], position[2] + 2.0],
+            forward: [1.0, 0.0, 0.0],
+            fov: 70.0,
+        };
+        let track = WorldInfo { track: "Bayview".to_owned(), section: Some("Harbor".to_owned()) };
+        Self { car: Some(car), camera: Some(camera), track: Some(track), ..Self::default() }
     }
 }
 
@@ -65,6 +97,40 @@ impl Scene for Recorder {
 
     fn set_mod_blips(&mut self, blips: &[MapBlip]) {
         self.blips = blips.to_vec();
+    }
+
+    fn player_car(&mut self) -> Option<PlayerCar> {
+        self.car
+    }
+
+    fn camera_readout(&self) -> Option<CameraReadout> {
+        self.camera
+    }
+
+    fn world_info(&self) -> Option<WorldInfo> {
+        self.track.clone()
+    }
+
+    fn move_player(&mut self, at: [f32; 2], heading: f32) -> bool {
+        self.moves.push((at, heading));
+        self.car.is_some()
+    }
+
+    fn repair_player(&mut self) -> bool {
+        self.repairs += 1;
+        self.car.is_some()
+    }
+
+    fn set_camera_mode(&mut self, mode: CameraMode) {
+        self.camera_mode = Some(mode);
+    }
+
+    fn set_rain(&mut self, always: bool, amount: f32) {
+        self.rain = Some((always, amount));
+    }
+
+    fn set_traffic_density(&mut self, cars: u32, cop_share: u8) {
+        self.traffic = Some((cars, cop_share));
     }
 }
 

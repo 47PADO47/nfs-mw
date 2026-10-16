@@ -1,11 +1,16 @@
 //! `hello`: the smallest mod. It logs when it loads, counts the events it receives and logs each one, reads the clock on
 //! its first event when the host offers `bb.time` (an optional interface: the mod says so and goes on when it is absent),
-//! and logs when it unloads. It needs no other interface, so it runs in any host that offers a `*` game.
+//! logs the player's speed on frame 100 when the host offers `bb.vehicles`, and logs when it unloads. It needs no other
+//! interface, so it runs in any host that offers a `*` game.
 //!
 //! The clock is read on the first event, not at load: the host copies the scene's clock in at the start of the first
 //! frame, and a mod that reads at load (before any scene exists) gets "not ready".
 
+use blackbox_modding::abi::BB_EVENT_FRAME_START;
 use blackbox_modding::sdk::{Ctx, Event, Level, Mod, ModResult, declare_mod};
+
+/// The frame whose player speed `hello` logs.
+const SPEED_FRAME: u64 = 100;
 
 /// The mod's state: how many events it has seen.
 pub struct Hello {
@@ -27,6 +32,9 @@ impl Mod for Hello {
         if self.seen == 1 {
             log_clock(ctx);
         }
+        if event.kind() == BB_EVENT_FRAME_START && event.frame() == SPEED_FRAME {
+            log_speed(ctx);
+        }
     }
 
     fn unload(&mut self, ctx: &mut Ctx) {
@@ -46,6 +54,18 @@ fn log_clock(ctx: &Ctx) {
             &format!("hello: time {:.2} h, {} s per hour, frozen {}", clock.hour, clock.seconds_per_hour, clock.frozen),
         ),
         Err(error) => ctx.log(Level::Warn, &format!("hello: bb.time read failed: {error}")),
+    }
+}
+
+/// Log the player's speed through `bb.vehicles`. A host without the interface is not an error.
+fn log_speed(ctx: &Ctx) {
+    let Some(vehicles) = ctx.vehicles() else {
+        ctx.log(Level::Info, "hello: bb.vehicles absent");
+        return;
+    };
+    match vehicles.player() {
+        Ok(car) => ctx.log(Level::Info, &format!("hello: player speed {:.2} m/s at frame {SPEED_FRAME}", car.speed)),
+        Err(error) => ctx.log(Level::Warn, &format!("hello: bb.vehicles read failed: {error}")),
     }
 }
 

@@ -43,6 +43,8 @@ pub use registry::{HostCtx, InterfaceRegistry};
 pub use reject::{RejectReason, Rejected};
 pub use runtime::{DispatchReport, ModRuntime, ModSummary, ReloadError, RunMode};
 pub use table::{
-    Attached, BackendResult, BlipSpec, CommandHandler, CommandsBackend, HotkeyHandler, InputBackend, MAX_CHOICES,
-    MapBackend, MenuHandler, MenuKind, MenuRowSpec, MenusBackend, TimeBackend,
+    Attached, AudioBackend, BackendResult, BlipSpec, CameraBackend, CameraKind, CameraState, CommandHandler,
+    CommandsBackend, HotkeyHandler, HudBackend, InputBackend, MAX_CHOICES, MAX_COP_SHARE, MAX_MESSAGE_SECS, MapBackend,
+    MenuHandler, MenuKind, MenuRowSpec, MenusBackend, MessageStyle, TimeBackend, VehicleState, VehiclesBackend,
+    WorldBackend,
 };

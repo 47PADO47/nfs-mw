@@ -206,9 +206,42 @@ mod), then the functions below in this order. Every function takes `ctx` first a
 | `bb.time` (1.0) | `get(out)`, `set_hour(hour)`, `set_day_length(seconds_per_hour)`, `freeze(on)` |
 | `bb.map` (1.0) | `add(blip, out_id)`, `update(id, blip)`, `remove(id)` |
 | `bb.menus` (1.0) | `register(row, user, callback, out_id)`, `unregister(id)`, `get(id, out)`, `set(id, value)` |
+| `bb.vehicles` (1.0) | `state(out)`, `teleport(position, heading)`, `repair()`, `spawn_traffic(position, heading, out_id)` |
+| `bb.hud` (1.0) | `message(text, style, secs)`, `hide()` |
+| `bb.camera` (1.0) | `get(out)`, `set_mode(mode)` |
+| `bb.audio` (1.0) | `play(bank, event, volume, out_id)` |
+| `bb.world` (1.0) | `track(sink, sink_user)`, `section(sink, sink_user)`, `set_rain(always, amount)`, `set_traffic(cars, cop_share)` |
 
 `bb.time`'s "set speed" is `set_day_length`, the day-length form of the table above. `bb.map`'s blip is
 `BbBlip { size, active, _pad, style, position }`.
+
+Vectors in the game interfaces are `BbVec3 { x, y, z }`, three `f32` (12 bytes, align 4), in render space. A call that
+writes a struct the mod owns (`state`, `get`) reads the mod's `size` word first and writes only the bytes that word
+allows, so an older mod gets the fields it knows. A text the host produces (`track`, `section`) goes to a sink, valid
+for the call, as `bb.commands.run` does.
+
+`bb.vehicles` (ids `IFACE_VEHICLES`, version `IFACE_VEHICLES_VERSION`). `BbVehicles` is 48 bytes: `head` at 0, `ctx`
+at 8, `state` at 16, `teleport` at 24, `repair` at 32, `spawn_traffic` at 40. `BbVehicleState` is 52 bytes: `size` at 0,
+`gear` (`i32`, -1 reverse, 0 neutral, 1 and up) at 4, `position` at 8, `velocity` at 20, `heading` (radians) at 32,
+`speed` (m/s, signed) at 36, `rpm` at 40, `nos` (0 to 1) at 44, `damage` (0 to 1) at 48. Only the player's car is
+offered in 1.0.
+
+`bb.hud` (ids `IFACE_HUD`, version `IFACE_HUD_VERSION`). `BbHud` is 32 bytes: `head` at 0, `ctx` at 8, `message` at 16,
+`hide` at 24. The styles are `BB_HUD_INFO` 0, `BB_HUD_WARNING` 1 and `BB_HUD_BIG` 2. A message's text is at most 1024
+bytes, its time above zero and at most an hour.
+
+`bb.camera` (ids `IFACE_CAMERA`, version `IFACE_CAMERA_VERSION`). `BbCamera` is 32 bytes: `head` at 0, `ctx` at 8, `get`
+at 16, `set_mode` at 24. `BbCameraState` is 36 bytes: `size` at 0, `mode` at 4, `position` at 8, `forward` at 20 (unit
+length), `fov` (degrees, vertical) at 32. The modes are `BB_CAMERA_CHASE` 0, `BB_CAMERA_DYNAMIC_FOV` 1, `BB_CAMERA_BUMPER` 2,
+`BB_CAMERA_HOOD` 3, `BB_CAMERA_CLOSE` 4, `BB_CAMERA_FAR` 5, `BB_CAMERA_SUPER_FAR` 6, `BB_CAMERA_DRIFT` 7 and
+`BB_CAMERA_PURSUIT` 8.
+
+`bb.audio` (ids `IFACE_AUDIO`, version `IFACE_AUDIO_VERSION`). `BbAudio` is 24 bytes: `head` at 0, `ctx` at 8, `play` at 16.
+
+`bb.world` (ids `IFACE_WORLD`, version `IFACE_WORLD_VERSION`). `BbWorld` is 48 bytes: `head` at 0, `ctx` at 8, `track` at 16,
+`section` at 24, `set_rain` at 32, `set_traffic` at 40. A cop share above 100 percent is refused.
+
+Layouts of the five are locked by `abi/iface/tests.rs`.
 
 `bb.menus` (ids `IFACE_MENUS`, version `IFACE_MENUS_VERSION`). Its table `BbMenus` is 48 bytes: `head` at 0, `ctx` at 8,
 `register` at 16, `unregister` at 24, `get` at 32, `set` at 40. A row, `BbMenuRow`, is 72 bytes: `size` at 0, `kind`

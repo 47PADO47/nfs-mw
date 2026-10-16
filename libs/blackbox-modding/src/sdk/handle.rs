@@ -5,6 +5,7 @@
 //! - `ActionId`: an input action (a hotkey a mod registered, or a vanilla action).
 //! - `CommandId`: a console command the mod registered.
 //! - `BlipId`: a map blip the mod added.
+//! - `SoundId`: a one-shot sound the mod started.
 
 macro_rules! handle {
     ($($name:ident),* $(,)?) => {
@@ -28,4 +29,4 @@ macro_rules! handle {
     };
 }
 
-handle!(VehicleId, WorldId, MenuId, AbilityId, ActionId, CommandId, BlipId);
+handle!(VehicleId, WorldId, MenuId, AbilityId, ActionId, CommandId, BlipId, SoundId);

@@ -283,6 +283,30 @@ impl Scene for Pausable {
         self.inner.set_mod_blips(blips);
     }
 
+    fn player_car(&mut self) -> Option<crate::viewer::PlayerCar> {
+        self.inner.player_car()
+    }
+
+    fn camera_readout(&self) -> Option<crate::viewer::CameraReadout> {
+        self.inner.camera_readout()
+    }
+
+    fn world_info(&self) -> Option<crate::viewer::WorldInfo> {
+        self.inner.world_info()
+    }
+
+    fn move_player(&mut self, at: [f32; 2], heading: f32) -> bool {
+        self.inner.move_player(at, heading)
+    }
+
+    fn repair_player(&mut self) -> bool {
+        self.inner.repair_player()
+    }
+
+    fn set_traffic_density(&mut self, cars: u32, cop_share: u8) {
+        self.inner.set_traffic_density(cars, cop_share);
+    }
+
     fn set_rain(&mut self, always: bool, amount: f32) {
         self.inner.set_rain(always, amount);
         self.effects_dirty = true;

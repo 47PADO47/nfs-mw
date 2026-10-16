@@ -48,9 +48,15 @@ impl Mods {
         &self.bridge
     }
 
-    /// Copy the scene's clock in, before the mods run this frame.
-    pub fn sync(&self, scene: &dyn Scene) {
+    /// Copy the scene's clock, car, camera and track in, before the mods run this frame. The scene is mutable because
+    /// reading the car goes through its physics.
+    pub fn sync(&self, scene: &mut dyn Scene) {
         self.bridge.sync(scene);
+    }
+
+    /// Give the mods the install, once its layers are in place (the cop waves are read through it).
+    pub fn set_install(&self, dir: &game_install::GameDir) {
+        self.bridge.set_install(dir.clone());
     }
 
     /// Fire the hotkeys `pressed` reports as pressed (see [`Bridge::press`]).

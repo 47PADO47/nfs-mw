@@ -5,11 +5,12 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::ffi::{self, HostTable};
-use super::{Commands, Input, Interface, Map, ModResult, Time};
+use super::{Audio, Camera, Commands, Hud, Input, Interface, Map, ModResult, Time, Vehicles, World};
 use crate::abi::{
-    AbiVersion, BB_LOG_DEBUG, BB_LOG_ERROR, BB_LOG_INFO, BB_LOG_TRACE, BB_LOG_WARN, IFACE_COMMANDS,
-    IFACE_COMMANDS_VERSION, IFACE_INPUT, IFACE_INPUT_VERSION, IFACE_MAP, IFACE_MAP_VERSION, IFACE_TIME,
-    IFACE_TIME_VERSION,
+    AbiVersion, BB_LOG_DEBUG, BB_LOG_ERROR, BB_LOG_INFO, BB_LOG_TRACE, BB_LOG_WARN, IFACE_AUDIO, IFACE_AUDIO_VERSION,
+    IFACE_CAMERA, IFACE_CAMERA_VERSION, IFACE_COMMANDS, IFACE_COMMANDS_VERSION, IFACE_HUD, IFACE_HUD_VERSION,
+    IFACE_INPUT, IFACE_INPUT_VERSION, IFACE_MAP, IFACE_MAP_VERSION, IFACE_TIME, IFACE_TIME_VERSION, IFACE_VEHICLES,
+    IFACE_VEHICLES_VERSION, IFACE_WORLD, IFACE_WORLD_VERSION,
 };
 
 /// The longest message the host takes in one line (ADR 0005 section 4). Longer text is cut at a character boundary.
@@ -96,6 +97,36 @@ impl Ctx {
     pub fn map(&self) -> Option<Map> {
         let iface = self.query_interface(IFACE_MAP, IFACE_MAP_VERSION.0, IFACE_MAP_VERSION.1)?;
         Some(Map::new(ffi::map::read(iface)))
+    }
+
+    /// The vehicles interface (`bb.vehicles`), when the host offers it.
+    pub fn vehicles(&self) -> Option<Vehicles> {
+        let iface = self.query_interface(IFACE_VEHICLES, IFACE_VEHICLES_VERSION.0, IFACE_VEHICLES_VERSION.1)?;
+        Some(Vehicles::new(ffi::vehicles::read(iface)))
+    }
+
+    /// The HUD interface (`bb.hud`), when the host offers it.
+    pub fn hud(&self) -> Option<Hud> {
+        let iface = self.query_interface(IFACE_HUD, IFACE_HUD_VERSION.0, IFACE_HUD_VERSION.1)?;
+        Some(Hud::new(ffi::hud::read(iface)))
+    }
+
+    /// The camera interface (`bb.camera`), when the host offers it.
+    pub fn camera(&self) -> Option<Camera> {
+        let iface = self.query_interface(IFACE_CAMERA, IFACE_CAMERA_VERSION.0, IFACE_CAMERA_VERSION.1)?;
+        Some(Camera::new(ffi::camera::read(iface)))
+    }
+
+    /// The audio interface (`bb.audio`), when the host offers it.
+    pub fn audio(&self) -> Option<Audio> {
+        let iface = self.query_interface(IFACE_AUDIO, IFACE_AUDIO_VERSION.0, IFACE_AUDIO_VERSION.1)?;
+        Some(Audio::new(ffi::audio::read(iface)))
+    }
+
+    /// The world interface (`bb.world`), when the host offers it.
+    pub fn world(&self) -> Option<World> {
+        let iface = self.query_interface(IFACE_WORLD, IFACE_WORLD_VERSION.0, IFACE_WORLD_VERSION.1)?;
+        Some(World::new(ffi::world::read(iface)))
     }
 }
 

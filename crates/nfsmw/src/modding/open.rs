@@ -27,5 +27,6 @@ pub fn open_install(game_dir: Option<&Path>, view: &ViewArgs) -> Result<(GameDir
     let discovery = blackbox_modding::host::discover(&roots, &policy, &policy::offer());
     layers::apply(&mut dir, &layers::plan(&loaded, &discovery.candidates));
     content::register(&dir, &content::plan(&loaded, &discovery.candidates));
+    mods.set_install(&dir);
     Ok((dir, mods))
 }

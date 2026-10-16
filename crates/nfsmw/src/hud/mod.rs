@@ -24,6 +24,9 @@ mod install_tests;
 mod interact_prompt;
 #[cfg(test)]
 mod interact_prompt_tests;
+mod message;
+#[cfg(test)]
+mod message_tests;
 mod minimap;
 #[cfg(test)]
 mod minimap_tests;
@@ -47,6 +50,9 @@ pub use blip_styles::{
     RACE_KNOCKOUT, RACE_SPEEDTRAP, RACE_SPRINT, RACE_TOLLBOOTH, RACER, SAFE_HOUSE, SAFE_HOUSE_TINT,
 };
 pub use interact_prompt::{InteractPopup, Prompt, show as show_interact_prompt};
+#[cfg(test)]
+pub use message::current as current_mod_message;
+pub use message::{Tone as ModMessageTone, hide as hide_mod_message, set as set_mod_message, show as show_mod_message};
 pub use plugin::HudPlugin;
 pub use pursuit::PursuitHud;
 pub use pursuit_end::{PursuitEndCard, show as show_pursuit_end};

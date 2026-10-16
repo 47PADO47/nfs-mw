@@ -12,6 +12,7 @@
 mod backends;
 mod console;
 pub(crate) mod content;
+pub(crate) mod cop_rows;
 mod events;
 mod layers;
 mod mw_events;

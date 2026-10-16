@@ -8,7 +8,16 @@
 
 #![allow(unsafe_code)] // ADR 0005 section 8: `unsafe` is confined to `abi`, `host::table`, `host::loader` and `sdk::ffi`.
 
+mod audio;
+#[cfg(test)]
+mod audio_tests;
+mod camera;
+#[cfg(test)]
+mod camera_tests;
 mod commands;
+mod hud;
+#[cfg(test)]
+mod hud_tests;
 mod input;
 mod map;
 mod menus;
@@ -18,6 +27,12 @@ mod slot;
 #[cfg(test)]
 mod tests;
 mod time;
+mod vehicles;
+#[cfg(test)]
+mod vehicles_tests;
+mod world;
+#[cfg(test)]
+mod world_tests;
 
 use core::ffi::c_void;
 use core::ptr;
@@ -33,18 +48,28 @@ use crate::abi::{
 use super::offer::HostOffer;
 use super::registry::InterfaceRegistry;
 
+pub(crate) use audio::attach as attach_audio;
+pub(crate) use camera::attach as attach_camera;
 pub(crate) use commands::attach as attach_commands;
+pub(crate) use hud::attach as attach_hud;
 pub(crate) use input::attach as attach_input;
 pub(crate) use map::attach as attach_map;
 pub(crate) use menus::attach as attach_menus;
 pub use slot::Attached;
 pub(crate) use time::attach as attach_time;
+pub(crate) use vehicles::attach as attach_vehicles;
+pub(crate) use world::attach as attach_world;
 
+pub use audio::AudioBackend;
+pub use camera::{CameraBackend, CameraKind, CameraState};
 pub use commands::{CommandHandler, CommandsBackend};
+pub use hud::{HudBackend, MAX_MESSAGE_SECS, MessageStyle};
 pub use input::{HotkeyHandler, InputBackend};
 pub use map::{BlipSpec, MapBackend};
 pub use menus::{MAX_CHOICES, MenuHandler, MenuKind, MenuRowSpec, MenusBackend};
 pub use time::TimeBackend;
+pub use vehicles::{VehicleState, VehiclesBackend};
+pub use world::{MAX_COP_SHARE, WorldBackend};
 
 /// What a backend method returns: its value, or the status the mod sees.
 pub type BackendResult<T> = Result<T, BbStatus>;

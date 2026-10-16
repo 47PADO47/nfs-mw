@@ -17,6 +17,79 @@ fn ids_and_versions_are_locked() {
         [IFACE_COMMANDS_VERSION, IFACE_INPUT_VERSION, IFACE_TIME_VERSION, IFACE_MAP_VERSION, IFACE_MENUS_VERSION],
         [(1, 0), (1, 0), (1, 0), (1, 0), (1, 0)]
     );
+    assert_eq!(
+        [IFACE_VEHICLES, IFACE_HUD, IFACE_CAMERA, IFACE_AUDIO, IFACE_WORLD],
+        ["bb.vehicles", "bb.hud", "bb.camera", "bb.audio", "bb.world"]
+    );
+    assert_eq!(
+        [IFACE_VEHICLES_VERSION, IFACE_HUD_VERSION, IFACE_CAMERA_VERSION, IFACE_AUDIO_VERSION, IFACE_WORLD_VERSION],
+        [(1, 0); 5]
+    );
+}
+
+#[test]
+fn vehicles_table_and_state() {
+    assert_eq!(size_of::<BbVec3>(), 12);
+    assert_eq!(size_of::<BbVehicles>(), 48);
+    assert_eq!(offset_of!(BbVehicles, ctx), 8);
+    assert_eq!(offset_of!(BbVehicles, state), 16);
+    assert_eq!(offset_of!(BbVehicles, teleport), 24);
+    assert_eq!(offset_of!(BbVehicles, repair), 32);
+    assert_eq!(offset_of!(BbVehicles, spawn_traffic), 40);
+    assert_eq!(size_of::<BbVehicleState>(), 52);
+    assert_eq!(offset_of!(BbVehicleState, gear), 4);
+    assert_eq!(offset_of!(BbVehicleState, position), 8);
+    assert_eq!(offset_of!(BbVehicleState, velocity), 20);
+    assert_eq!(offset_of!(BbVehicleState, heading), 32);
+    assert_eq!(offset_of!(BbVehicleState, speed), 36);
+    assert_eq!(offset_of!(BbVehicleState, rpm), 40);
+    assert_eq!(offset_of!(BbVehicleState, nos), 44);
+    assert_eq!(offset_of!(BbVehicleState, damage), 48);
+}
+
+#[test]
+fn hud_and_message_styles() {
+    assert_eq!(size_of::<BbHud>(), 32);
+    assert_eq!(offset_of!(BbHud, message), 16);
+    assert_eq!(offset_of!(BbHud, hide), 24);
+    assert_eq!([BB_HUD_INFO, BB_HUD_WARNING, BB_HUD_BIG], [0, 1, 2]);
+}
+
+#[test]
+fn camera_table_state_and_modes() {
+    assert_eq!(size_of::<BbCamera>(), 32);
+    assert_eq!(offset_of!(BbCamera, get), 16);
+    assert_eq!(offset_of!(BbCamera, set_mode), 24);
+    assert_eq!(size_of::<BbCameraState>(), 36);
+    assert_eq!(offset_of!(BbCameraState, mode), 4);
+    assert_eq!(offset_of!(BbCameraState, position), 8);
+    assert_eq!(offset_of!(BbCameraState, forward), 20);
+    assert_eq!(offset_of!(BbCameraState, fov), 32);
+    assert_eq!(
+        [
+            BB_CAMERA_CHASE,
+            BB_CAMERA_DYNAMIC_FOV,
+            BB_CAMERA_BUMPER,
+            BB_CAMERA_HOOD,
+            BB_CAMERA_CLOSE,
+            BB_CAMERA_FAR,
+            BB_CAMERA_SUPER_FAR,
+            BB_CAMERA_DRIFT,
+            BB_CAMERA_PURSUIT
+        ],
+        [0, 1, 2, 3, 4, 5, 6, 7, 8]
+    );
+}
+
+#[test]
+fn audio_and_world_tables() {
+    assert_eq!(size_of::<BbAudio>(), 24);
+    assert_eq!(offset_of!(BbAudio, play), 16);
+    assert_eq!(size_of::<BbWorld>(), 48);
+    assert_eq!(offset_of!(BbWorld, track), 16);
+    assert_eq!(offset_of!(BbWorld, section), 24);
+    assert_eq!(offset_of!(BbWorld, set_rain), 32);
+    assert_eq!(offset_of!(BbWorld, set_traffic), 40);
 }
 
 #[test]

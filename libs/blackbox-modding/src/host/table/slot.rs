@@ -7,7 +7,7 @@ use std::cell::RefCell;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
 
-use crate::abi::{BB_ERR_ARG, BB_ERR_PANIC, BB_OK, BbIface, BbStatus, BbStr, MAX_NAME_BYTES};
+use crate::abi::{BB_ERR_ARG, BB_ERR_PANIC, BB_OK, BbIface, BbSinkFn, BbStatus, BbStr, MAX_NAME_BYTES};
 
 /// One interface table's state. The table's `ctx` is `Rc::as_ptr` of a `Slot`, so every trampoline reads the backend and
 /// the owner from it. The `Rc` is also held by the table's release callback, so the slot outlives the table.
@@ -83,6 +83,45 @@ pub(crate) unsafe fn text_within<'a>(text: BbStr, max: usize) -> Result<&'a str,
 pub(crate) unsafe fn name_of<'a>(name: BbStr) -> Result<&'a str, BbStatus> {
     // SAFETY: forwarded to the caller's guarantee.
     unsafe { text_within(name, MAX_NAME_BYTES) }
+}
+
+/// Write `value` to a size-prefixed struct the caller owns. Its first field is the `size` word the caller filled in, and
+/// the host writes only the bytes that word allows, so a caller built for an older layout gets the fields it knows. The
+/// size word itself is left as the caller wrote it. A size below the word itself is refused.
+///
+/// # Safety
+/// `out` must be null or valid for writes of the bytes its own size word declares (ADR 0005 section 4).
+pub(crate) unsafe fn write_prefixed<T: Copy>(out: *mut T, value: &T) -> Result<(), BbStatus> {
+    if out.is_null() {
+        return Err(BB_ERR_ARG);
+    }
+    // SAFETY: the size word is the first field of the struct, and the caller guarantees it is readable.
+    let allowed = unsafe { out.cast::<u32>().read_unaligned() } as usize;
+    let word = core::mem::size_of::<u32>();
+    if allowed < word {
+        return Err(BB_ERR_ARG);
+    }
+    let len = allowed.min(core::mem::size_of::<T>());
+    // SAFETY: `value` is a live `T`, and `out` is valid for `len` bytes (checked against the size word above).
+    unsafe {
+        core::ptr::copy_nonoverlapping(
+            core::ptr::from_ref(value).cast::<u8>().add(word),
+            out.cast::<u8>().add(word),
+            len - word,
+        );
+    }
+    Ok(())
+}
+
+/// Write a text the host produced to a sink the caller gave. The sink takes it for the duration of the call.
+///
+/// # Safety
+/// `sink` and `user` are the caller's, valid for this call (ADR 0005 section 4).
+pub(crate) unsafe fn emit_text(sink: Option<BbSinkFn>, user: *mut c_void, text: &str) -> Result<(), BbStatus> {
+    let sink = sink.ok_or(BB_ERR_ARG)?;
+    // SAFETY: the caller's sink takes a string that is valid for the call, which `text` is.
+    unsafe { sink(user, BbStr::new(text)) };
+    Ok(())
 }
 
 /// Run a trampoline body. A panic becomes `BB_ERR_PANIC`; an error becomes its status; success becomes `BB_OK`.

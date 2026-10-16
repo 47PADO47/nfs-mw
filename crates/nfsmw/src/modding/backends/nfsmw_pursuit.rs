@@ -1,15 +1,17 @@
 //! `nfsmw.pursuit` on the game side. Reads come from the world's last published snapshot (`outbox::view`); changes are
 //! queued as requests the world applies in its police update, or, for a chase start, as a console line that runs the
 //! `pursuit` command the player has (the same path as typing it). A call that needs a chase answers `BB_ERR_NOT_READY`
-//! while none is on. The cop waves are not wired yet: they answer `BB_ERR_UNSUPPORTED`.
+//! while none is on. The cop waves are read from the install (or the wave a mod set) and set for the next chase
+//! (`crate::modding::cop_rows`).
 
 use std::rc::Rc;
 
-use blackbox_modding::abi::{BB_ERR_NOT_READY, BB_ERR_UNSUPPORTED, BbStatus};
-use nfsmw_modding::abi::EndMode;
+use blackbox_modding::abi::{BB_ERR_ARG, BB_ERR_NOT_READY};
+use nfsmw_modding::abi::{CopTable, EndMode};
 use nfsmw_modding::host::{BackendResult, HeatRowSpec, PursuitBackend};
 
 use super::bridge::Bridge;
+use crate::modding::cop_rows;
 use crate::modding::outbox;
 use crate::modding::pursuit_feed::{PursuitRequest, PursuitView};
 
@@ -24,11 +26,6 @@ fn running() -> BackendResult<PursuitView> {
     }
 }
 
-/// The status of a cop table call: the game does not expose the install's waves to mods yet.
-fn no_cop_tables() -> BbStatus {
-    BB_ERR_UNSUPPORTED
-}
-
 impl PursuitBackend for PursuitPort {
     fn heat_get(&self, _owner: &str) -> BackendResult<f32> {
         Ok(running()?.heat)
@@ -40,23 +37,20 @@ impl PursuitBackend for PursuitPort {
         Ok(())
     }
 
-    fn cop_table_get(
-        &self,
-        _owner: &str,
-        _table: nfsmw_modding::abi::CopTable,
-        _level: u32,
-    ) -> BackendResult<HeatRowSpec> {
-        Err(no_cop_tables())
+    fn cop_table_get(&self, _owner: &str, table: CopTable, level: u32) -> BackendResult<HeatRowSpec> {
+        // A wave a mod set for the session answers first; otherwise the install's wave answers.
+        let row = match cop_rows::get(table, level) {
+            Some(row) => row,
+            None => self.0.install_row(table, level)?,
+        };
+        Ok(cop_rows::spec_of(&row))
     }
 
-    fn cop_table_set(
-        &self,
-        _owner: &str,
-        _table: nfsmw_modding::abi::CopTable,
-        _level: u32,
-        _spec: &HeatRowSpec,
-    ) -> BackendResult<()> {
-        Err(no_cop_tables())
+    fn cop_table_set(&self, _owner: &str, table: CopTable, level: u32, spec: &HeatRowSpec) -> BackendResult<()> {
+        // The wave applies to the next chase (`TrafficWorld::start_pursuit`); a running one keeps its rows.
+        let row = cop_rows::row_of(spec).ok_or(BB_ERR_ARG)?;
+        cop_rows::set(table, level, row);
+        Ok(())
     }
 
     fn start(&self, _owner: &str, level: u32, _near: Option<u64>) -> BackendResult<()> {

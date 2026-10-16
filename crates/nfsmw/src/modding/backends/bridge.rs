@@ -1,15 +1,20 @@
 //! The per-frame context the mods' calls read and write.
 //!
 //! The ports in this folder read it and queue their writes in it, all on the main thread, inside a mod callback. The frame
-//! systems in `plugin.rs` do the rest: [`Bridge::sync`] copies the scene's clock in before the mods run, [`Bridge::press`]
-//! fires the hotkeys that were pressed, and [`Bridge::apply`] makes the scene and the console take what the mods asked
-//! for. Nothing here is a global: the bridge belongs to the `Mods` resource, and the ports hold an `Rc` to it.
+//! systems in `plugin.rs` do the rest: [`Bridge::sync`] copies the scene's clock, car, camera and track in before the mods
+//! run, [`Bridge::press`] fires the hotkeys that were pressed, and [`Bridge::apply`] makes the scene and the console take
+//! what the mods asked for. Nothing here is a global: the bridge belongs to the `Mods` resource, and the ports hold an `Rc`
+//! to it.
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use bevy_input::keyboard::KeyCode;
+use blackbox_attrib::Database;
 use blackbox_modding::host::HotkeyHandler;
+use game_install::GameDir;
+use nfsmw_data::pursuit::{HeatRow, heat_row, race_heat_row};
+use nfsmw_modding::abi::CopTable;
 
 use super::commands::ModCommand;
 use super::input::Hotkey;
@@ -17,8 +22,9 @@ use super::map::{self, ModBlip};
 use super::menu_store::{ConfigFile, ValueStore};
 use super::menus::MenuRow;
 use super::time::{self, Clock, ClockRequest};
+use super::world::{self, WorldRequest};
 use crate::devtools::Console;
-use crate::viewer::Scene;
+use crate::viewer::{CameraReadout, PlayerCar, Scene, WorldInfo};
 
 pub struct Bridge {
     /// The last handle given out. Handles start at 1; 0 means none.
@@ -33,12 +39,25 @@ pub struct Bridge {
     pub(super) clock: Cell<Option<Clock>>,
     /// Clock changes the mods asked for, applied to the scene in order by [`Bridge::apply`].
     pub(super) clock_requests: RefCell<Vec<ClockRequest>>,
+    /// The player's car as the mods see it this frame, or `None` when no car is driven.
+    pub(super) vehicle: Cell<Option<PlayerCar>>,
+    /// The camera as the mods see it this frame, or `None` where the scene has none.
+    pub(super) camera: Cell<Option<CameraReadout>>,
+    /// The track and the district this frame, or `None` where no world is loaded.
+    pub(super) world: RefCell<Option<WorldInfo>>,
+    /// Changes to the car, the camera, the weather, the traffic and the HUD message the mods asked for, applied to the
+    /// scene in order by [`Bridge::apply`].
+    pub(super) world_requests: RefCell<Vec<WorldRequest>>,
     /// The minimap blips the mods placed.
     pub(super) blips: RefCell<Vec<ModBlip>>,
     /// The rows the mods added to the Mods page of the options.
     pub(super) menu_rows: RefCell<Vec<MenuRow>>,
     /// Where the rows' values are saved.
     pub(super) store: Box<dyn ValueStore>,
+    /// The install, once the layers are in place (see `open.rs`). The cop waves of the install are read through it.
+    install: RefCell<Option<GameDir>>,
+    /// The install's attribute database, read on the first cop-wave call that needs it.
+    database: RefCell<Option<Rc<Database>>>,
 }
 
 impl Default for Bridge {
@@ -58,9 +77,15 @@ impl Bridge {
             hotkeys: RefCell::default(),
             clock: Cell::new(None),
             clock_requests: RefCell::default(),
+            vehicle: Cell::new(None),
+            camera: Cell::new(None),
+            world: RefCell::default(),
+            world_requests: RefCell::default(),
             blips: RefCell::default(),
             menu_rows: RefCell::default(),
             store,
+            install: RefCell::default(),
+            database: RefCell::default(),
         }
     }
 
@@ -71,9 +96,43 @@ impl Bridge {
         handle
     }
 
-    /// Copy the scene's clock in, so the mods read this frame's time. Called before the mods run.
-    pub fn sync(&self, scene: &dyn Scene) {
+    /// Give the bridge the install, with its layers in place. The cop waves read the install's attributes through it.
+    pub fn set_install(&self, dir: GameDir) {
+        *self.install.borrow_mut() = Some(dir);
+    }
+
+    /// The install's wave of `table` at `level`, as the install defines it. `NotReady` until the install is known,
+    /// `NotFound` for a level the install has no wave for.
+    pub(super) fn install_row(&self, table: CopTable, level: u32) -> Result<HeatRow, blackbox_modding::abi::BbStatus> {
+        let db = self.database()?;
+        let row = match table {
+            CopTable::Roam => heat_row(&db, level),
+            CopTable::Race => race_heat_row(&db, level),
+        };
+        row.ok_or(blackbox_modding::abi::BB_ERR_NOT_FOUND)
+    }
+
+    /// The install's attribute database, read once.
+    fn database(&self) -> Result<Rc<Database>, blackbox_modding::abi::BbStatus> {
+        if let Some(db) = self.database.borrow().as_ref() {
+            return Ok(db.clone());
+        }
+        let loaded = {
+            let install = self.install.borrow();
+            let dir = install.as_ref().ok_or(blackbox_modding::abi::BB_ERR_NOT_READY)?;
+            let bytes = dir.read("GLOBAL/ATTRIBUTES.BIN").map_err(|_| blackbox_modding::abi::BB_ERR_HOST)?;
+            Rc::new(Database::open(&bytes).map_err(|_| blackbox_modding::abi::BB_ERR_HOST)?)
+        };
+        *self.database.borrow_mut() = Some(loaded.clone());
+        Ok(loaded)
+    }
+
+    /// Copy the scene's clock, car, camera and track in, so the mods read this frame's state. Called before the mods run.
+    pub fn sync(&self, scene: &mut dyn Scene) {
         self.clock.set(time::read(scene));
+        self.vehicle.set(scene.player_car());
+        self.camera.set(scene.camera_readout());
+        *self.world.borrow_mut() = scene.world_info();
     }
 
     /// Fire the hotkeys `pressed` reports as pressed this frame. The callbacks run one by one, with no borrow of the
@@ -91,11 +150,13 @@ impl Bridge {
         }
     }
 
-    /// Make the scene and the console take what the mods asked for this frame: the clock changes, the blips, and the
-    /// console lines, which run from the next frame on.
+    /// Make the scene and the console take what the mods asked for this frame: the clock changes, the world changes, the
+    /// blips, and the console lines, which run from the next frame on.
     pub fn apply(&self, scene: &mut dyn Scene, console: &mut Console) {
         let requests = std::mem::take(&mut *self.clock_requests.borrow_mut());
         time::apply(requests, scene);
+        let requests = std::mem::take(&mut *self.world_requests.borrow_mut());
+        world::apply(requests, scene);
         scene.set_mod_blips(&map::minimap_blips(self));
         let lines = std::mem::take(&mut *self.queued_lines.borrow_mut());
         console.queue_lines(lines);

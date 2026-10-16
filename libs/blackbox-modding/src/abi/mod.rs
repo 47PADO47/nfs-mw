@@ -48,6 +48,15 @@ pub use host::{
     BB_LOG_DEBUG, BB_LOG_ERROR, BB_LOG_INFO, BB_LOG_TRACE, BB_LOG_WARN, BbHost, BbLogFn, BbQueryInterfaceFn,
 };
 pub use iface::{
+    BB_CAMERA_BUMPER, BB_CAMERA_CHASE, BB_CAMERA_CLOSE, BB_CAMERA_DRIFT, BB_CAMERA_DYNAMIC_FOV, BB_CAMERA_FAR,
+    BB_CAMERA_HOOD, BB_CAMERA_PURSUIT, BB_CAMERA_SUPER_FAR, BB_HUD_BIG, BB_HUD_INFO, BB_HUD_WARNING, BbAudio,
+    BbAudioPlayFn, BbCamera, BbCameraGetFn, BbCameraSetModeFn, BbCameraState, BbHud, BbHudHideFn, BbHudMessageFn,
+    BbVec3, BbVehicleRepairFn, BbVehicleSpawnTrafficFn, BbVehicleState, BbVehicleStateFn, BbVehicleTeleportFn,
+    BbVehicles, BbWorld, BbWorldSetRainFn, BbWorldSetTrafficFn, BbWorldTextFn, IFACE_AUDIO, IFACE_AUDIO_VERSION,
+    IFACE_CAMERA, IFACE_CAMERA_VERSION, IFACE_HUD, IFACE_HUD_VERSION, IFACE_VEHICLES, IFACE_VEHICLES_VERSION,
+    IFACE_WORLD, IFACE_WORLD_VERSION,
+};
+pub use iface::{
     BB_MENU_BUTTON, BB_MENU_LIST, BB_MENU_SLIDER, BB_MENU_TOGGLE, BbBlip, BbCommandCallbackFn, BbCommands,
     BbCommandsRegisterFn, BbCommandsRunFn, BbCommandsUnregisterFn, BbHotkeyFn, BbIface, BbInput, BbInputRegisterFn,
     BbInputUnregisterFn, BbMap, BbMapAddFn, BbMapRemoveFn, BbMapUpdateFn, BbMenuCallbackFn, BbMenuRow, BbMenus,
