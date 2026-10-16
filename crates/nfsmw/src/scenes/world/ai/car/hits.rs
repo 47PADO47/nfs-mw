@@ -2,6 +2,7 @@
 //! hit points, flipped timer and shock are the rules of `blackbox_pursuit::wreck`; this file reads the car and the hit.
 //! Spec: `docs/specs/ai-pursuit-cop-cars.md` section 6.
 
+use blackbox_pursuit::health_bar::Sample;
 use blackbox_pursuit::wreck::{Wreck, WreckTuning, is_flipped, zone_of};
 use glam::Vec3;
 
@@ -10,6 +11,22 @@ use super::{AiCar, Role, SHOCK_FORCE, SHOCK_MIN_SPEED_CHANGE};
 /// Seconds after a hit by the player's car that the car still counts as moved by it (the causality chain;
 /// design value, unconfirmed).
 const PLAYER_CAUSE: f32 = 2.0;
+/// The camera distance (metres) within which a hit by the player starts a crash (the original's view gate:
+/// `ai-traffic-obstacles.md` §5.1).
+const CRASH_VIEW: f32 = 80.0;
+/// 5 mph in metres per second: a vehicle at this speed or faster starts a crash again when the car is already over.
+const CRASH_MIN_SPEED: f32 = 2.235_15;
+
+/// Whether a hit starts a crash: only a hit by the player does it in this port, and only within the view distance. The
+/// other party is a human (the class gate); AI cop and racer hits do not reach here as player hits yet.
+pub(super) fn starts_crash(by_player: bool, from_camera: f32) -> bool {
+    by_player && from_camera <= CRASH_VIEW
+}
+
+/// Whether a car at `speed` (m/s, either sign) is moving fast enough to start a crash that is over.
+pub(super) fn is_fast(speed: f32) -> bool {
+    speed.abs() >= CRASH_MIN_SPEED
+}
 
 /// The damage state of a cop car: its numbers, the wreck, and whether a new wreck waits to be counted.
 pub(super) struct CopDamage {
@@ -42,6 +59,14 @@ fn tuning_for(model: &str) -> WreckTuning {
     WreckTuning { hit_points, threshold, suppress_dist, front_rear_scale }
 }
 
+/// The health sample of a car: only a cop (`Role::Cop`, wrecked or not) gets one, with its damage and destruction.
+fn cop_sample(is_cop: bool, key: u32, position: Vec3, damage: f32, destroyed: bool) -> Option<Sample> {
+    if !is_cop {
+        return None;
+    }
+    Some(Sample { key, position, damage, destroyed })
+}
+
 impl AiCar {
     /// A hit of `impulse` N s at `point` (physics space), from `from_camera` metres away from the player: the traffic
     /// shock, the accident of a hit by the player, and a cop's damage. Returns whether the hit is the player's first that
@@ -57,9 +82,10 @@ impl AiCar {
         if speed_change > SHOCK_MIN_SPEED_CHANGE {
             self.shock = self.shock.max((speed_change / SHOCK_FORCE).min(1.0));
         }
-        if by_player {
+        if starts_crash(by_player, from_camera) {
             log::info!("traffic: {} was hit by the player (impulse {impulse:.0} N s)", self.name);
-            self.accident.on_hit(matches!(self.role, Role::Traffic) && !self.patrol, self.tractor);
+            let fast = is_fast(self.player_speed);
+            self.accident.on_hit(matches!(self.role, Role::Traffic) && !self.patrol, self.tractor, fast);
         }
         self.wreck_hit(impulse, point, by_player, from_camera)
     }
@@ -97,6 +123,14 @@ impl AiCar {
         by_player && before <= 0.0 && damage.wreck.damage() > 0.0
     }
 
+    /// The car as a cop health bar sees it (`docs/specs/cop-health-bars.md` section 13.2). The key is the car's render
+    /// identity, which is stable for the car's life. `None` for traffic, patrol and roadblock cars.
+    pub(in crate::scenes::world::ai) fn cop_health_sample(&self) -> Option<Sample> {
+        let damage = self.damage.as_ref()?;
+        let is_cop = matches!(self.role, Role::Cop(_));
+        cop_sample(is_cop, self.render_id, self.position(), damage.wreck.damage(), damage.wreck.is_destroyed())
+    }
+
     /// One physics step after the car moved: the shock decays, the flipped check runs, and the time since the player
     /// last hit the car goes on. The car is flipped when not every wheel is down and its body is turned over.
     pub(super) fn wreck_step(&mut self, dt: f32) {
@@ -115,7 +149,18 @@ impl AiCar {
 
 #[cfg(test)]
 mod tests {
-    use super::tuning_for;
+    use super::{cop_sample, is_fast, starts_crash, tuning_for};
+    use glam::Vec3;
+
+    #[test]
+    fn a_cop_gets_a_health_sample_wrecked_or_not_and_traffic_gets_none() {
+        let at = Vec3::new(1.0, 2.0, 3.0);
+        let live = cop_sample(true, 7, at, 0.2, false).unwrap();
+        assert_eq!((live.key, live.position, live.damage, live.destroyed), (7, at, 0.2, false));
+        let wrecked = cop_sample(true, 7, at, 0.4, true).unwrap();
+        assert!(wrecked.destroyed, "a wrecked cop keeps its bar");
+        assert!(cop_sample(false, 7, at, 0.2, false).is_none(), "traffic, patrol and roadblock cars get none");
+    }
 
     #[test]
     fn the_cop_sets_have_the_spec_numbers() {
@@ -128,5 +173,19 @@ mod tests {
         assert_eq!((cross.hit_points, cross.threshold, cross.suppress_dist), (400.0, 10.0, 25.0));
         assert_eq!(cross.front_rear_scale, 1.0);
         assert_eq!(base.front_rear_scale, 0.5);
+    }
+
+    #[test]
+    fn a_crash_needs_a_hit_by_the_player_within_eighty_metres() {
+        assert!(starts_crash(true, 80.0));
+        assert!(!starts_crash(true, 80.5), "beyond the view gate");
+        assert!(!starts_crash(false, 10.0), "not the player's car");
+    }
+
+    #[test]
+    fn the_restart_speed_is_five_miles_an_hour() {
+        assert!(!is_fast(2.2));
+        assert!(is_fast(2.24));
+        assert!(is_fast(-3.0), "reverse counts by its size");
     }
 }

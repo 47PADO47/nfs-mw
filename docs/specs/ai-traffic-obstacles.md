@@ -325,6 +325,42 @@ way the traffic-light extension is ([ai-traffic-world.md §8](ai-traffic-world.m
 - Whether the head-on wait in §8.2 appears in measurement, and how long it lasts.
 - The class numbering of driver classes 0 to 3 (§5.1) is inferred from three sets, not from a name table.
 
+## 12. Port status
+
+What the port does now, against §9 and §10. Settings: `traffic_avoidance` (default **off**; TOML key of the same name,
+`NFSMW_TRAFFIC_AVOIDANCE`, console `set traffic_avoidance on`). The pure rules are in `libs/blackbox-roads/src/avoidance/`;
+the game wiring is `crates/nfsmw/src/scenes/world/ai/car/avoid.rs`.
+
+| Item | Status | Where |
+|---|---|---|
+| §9.1 (a)1 crash restart from over | done: a hit by the player at 5 mph or more restarts an "over" car; a hit while in progress restarts the three thinks | `car/accident.rs` `on_hit(traffic, tractor, fast)`, `car/hits.rs` |
+| §9.1 (a)2 crash gate | done for the player: the hit must be by the player and within 80 m of the view. The class gate is "human only": AI cop and racer hits do not reach the trigger yet, because `collide.rs` does not pass the other party's class | `car/hits.rs` `starts_crash`, `is_fast` |
+| §9.1 (a)3 tractor steering in the crash | done: a tractor keeps the steering it had in both phases | `car/accident.rs` `controls(tractor, held_steer)` |
+| §9.1 (a)4 stopping distance (`/80` vs `/20`) | **not changed**. The port still uses `/80`. Decide after §11 check 1 in the game | `traffic.rs` `stopping_distance` |
+| §10.1 lane change to the next lane, same direction | done behind the setting (see the notes below) | `avoidance/change.rs`, `avoidance/gap.rs`, `avoidance/blend.rs`, `car/avoid.rs` |
+| §10.2 wait for an oncoming gap at a crossing | **rule only**: `Crossing` and `time_to_closest` with the 3 s threshold and 8 s timeout are tested, but nothing calls them, because the port does not yet find the crossing point of a decision segment | `avoidance/crossing.rs` |
+| §10.3 honk when blocked | **rule only**: `Blocked::take_honk` (once per blocked episode, at 3 s as the brief asks, not the 2 s and 20 m of the spec). The sound is not wired: `TrafficSound::Horn` exists only under `cfg(test)` in `audio/traffic.rs`, so a production horn event is a follow-up | `avoidance/blocked.rs` |
+| §10.4 stuck timeout (60 s) | **rule only**: `Blocked::stuck`. Removal is not wired. Two steps remain: the car must expose its `Blocked` clock (today `car/avoid.rs` keeps it private), and `population.rs` `Vitals::valid` must treat a stuck car as removable. That check stays off-screen only, as the rewrite's other removal rules are. The rewrite's existing rule there (idle 20 s and more than 40 m away) is not the 60 s timeout | `avoidance/blocked.rs` |
+
+Notes on the lane change (§10.1), where the implementation chose:
+
+- **Trigger.** Blocked for 3 s of thinks (6 Hz, so the clock moves in steps of 0.167 s), and speed under 5 m/s. The
+  blocked flag is the one the last think found, as in `traffic.rs`.
+- **Lanes.** The next traffic lane towards the centre, then the one towards the kerb; the first one with a clear gap.
+  Lanes come from the travel-frame profile (`forward_traffic_lanes`), so the same-direction rule holds by construction.
+- **Gap.** A car in the target lane blocks it when it is inside the gap (10 m behind to 2 s × speed + 15 m ahead) and
+  it is not moving away: a car ahead that is slower than the changing car, or a car behind that is faster. The spec's
+  "not closing faster than the car is moving" is read this way.
+- **Blend.** The steering target starts at the car's own place and closes on the new lane's centre with a smooth step
+  over 2 s × max(speed, 3 m/s), driven by the distance driven per physics step. The 3 m/s floor is the implementation's
+  choice: at a standstill the spec's 2 s × speed would be a step.
+- **Abort and return.** A car that finds another car in the new lane during the blend goes back to its old lane and
+  waits. After 15 m clear of the blocker in the new lane, it moves home if the home gap is clear.
+- **Off by default.** With the setting off no rule runs and the car never leaves its lane (checked in a unit test).
+
+Not in this pass: the cars do not yet read the other party's driver class for the crash gate (§9.1 (a)2), and nothing
+in the simulation calls the crossing, honk or stuck rules (§10.2 to §10.4 above).
+
 ## Next leads
 
 1. **Confirm the stopping table scale.** The table record is at `0x008eb394` (count 2, scale 0.05, data at

@@ -9,6 +9,7 @@
 //! Coordinates are the game's physics space: x right, y up, z forward, metres. This crate never
 //! touches the filesystem: it takes bytes.
 
+mod avoidance;
 mod bytes;
 mod curve;
 mod error;
@@ -31,6 +32,11 @@ mod zones;
 #[cfg(test)]
 mod tests;
 
+pub use avoidance::{
+    AHEAD_EXTRA, AHEAD_SECONDS, BEHIND, BLEND_SECONDS, Blend, Blocked, CHANGE_AFTER, Command, Crossing, GIVE_UP_AFTER,
+    Gate, HONK_AFTER, LaneChange, MIN_BLEND_SPEED, Other, Phase, RETURN_AFTER, SLOW, STANDING, STUCK_AFTER, Situation,
+    WAIT_FOR_GAP, adjacent_lanes, blend_length, lane_clear, smoothstep, time_to_closest,
+};
 pub use curve::{Bezier, MIN_CHORD};
 pub use error::{Error, Result};
 pub use heli_sheet::{HeliSheet, Triangle as HeliTriangle};

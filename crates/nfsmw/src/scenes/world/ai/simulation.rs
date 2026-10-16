@@ -42,6 +42,8 @@ impl TrafficWorld {
                             && breaker::inside(Vec2::new(area.position.x, area.position.z), area.radius, point)
                     }));
             car.set_breaker_stop(stop);
+            car.set_avoidance(self.avoidance);
+            car.set_player_speed(focus.body.map_or(0.0, |b| b.velocity.length()));
             let mut ctx = Ctx {
                 net: &self.network,
                 index: &self.index,
