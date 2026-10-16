@@ -26,6 +26,7 @@ pub fn execute(
     mut window: Single<&mut Window, With<PrimaryWindow>>,
     (modes, mut bindings): (Res<WindowModes>, ResMut<Bindings>),
     mut exit: MessageWriter<AppExit>,
+    mods: Option<NonSend<crate::modding::Mods>>,
 ) {
     let host = &mut *host;
     console.scene_commands = host.scene.commands();
@@ -53,6 +54,7 @@ pub fn execute(
         let result = match parse::parse(&line) {
             Ok(None) => continue,
             Ok(Some(Command::Keys)) => Ok(bindings.describe()),
+            Ok(Some(Command::Mods)) => Ok(crate::modding::listing(mods.as_deref())),
             Ok(Some(Command::Bindings { name, args })) => {
                 crate::input::commands::run(&mut bindings, &settings, &name, &args)
             }
@@ -94,6 +96,7 @@ fn run(
         Command::Monitors => Ok(modes.monitors.clone()),
         Command::Gfx => gfx(settings, host),
         Command::Keys => Err("keys is answered by the console before commands run".into()),
+        Command::Mods => Err("mods is answered by the console before commands run".into()),
         Command::Bindings { .. } => Err("bindings are answered by the console before commands run".into()),
         Command::Set { key, value } => set_live(settings, host, &key, &value),
         Command::Resolution { width, height } => {

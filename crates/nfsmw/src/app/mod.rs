@@ -53,9 +53,13 @@ pub enum FrameSet {
     Prepare,
     /// Apply console commands and live settings before scene simulation.
     Commands,
+    /// Mods see the frame start: the frame event, then the mods' own commands and timers.
+    ModsPre,
     /// The front end: menus, pause, switching scenes.
     Frontend,
     SceneUpdate,
+    /// Mods see the scene's update: the tick event and the events the scene queued.
+    ModsPost,
     /// Build the UI (overlay, console).
     Ui,
     /// The HUD goes under the UI layer.
@@ -94,6 +98,16 @@ pub struct RunOptions {
     pub frontend: Option<crate::frontend::FrontendPlugin>,
     /// Measure frame times for this many seconds once the scene is loaded, print them and exit (`--bench-seconds`).
     pub bench_seconds: Option<f32>,
+    /// The mods the install was opened with (see [`crate::modding::open_install`]); `None` runs without them.
+    pub mods: Option<crate::modding::Mods>,
+}
+
+impl RunOptions {
+    /// Run with the mods `mods` loaded (they were started before the install was opened).
+    pub fn with_mods(mut self, mods: crate::modding::Mods) -> Self {
+        self.mods = Some(mods);
+        self
+    }
 }
 
 /// Open a window and run `scene` until the user quits (or write the screenshot and exit).
@@ -113,6 +127,7 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
         audio,
         frontend,
         bench_seconds,
+        mods,
     } = options;
     let plan = screenshot
         .clone()
@@ -157,8 +172,10 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
         (
             FrameSet::Prepare,
             FrameSet::Commands,
+            FrameSet::ModsPre,
             FrameSet::Frontend,
             FrameSet::SceneUpdate,
+            FrameSet::ModsPost,
             FrameSet::Ui,
             FrameSet::Hud,
             FrameSet::Draw,
@@ -198,6 +215,10 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
     }
     app.add_plugins(crate::discord::DiscordPlugin);
     app.add_plugins(crate::movie::FullscreenPlugin);
+    app.add_plugins(crate::modding::ModsPlugin);
+    if let Some(mods) = mods {
+        app.insert_non_send(mods);
+    }
     if let Some(plugin) = frontend {
         app.add_plugins(plugin);
     }

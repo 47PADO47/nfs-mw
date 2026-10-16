@@ -85,3 +85,27 @@ Summary of ADR sections 1 and 4; the details are in [api.md](api.md#conventions)
 - Units: metres, seconds, radians, render space (x forward, y left, z up).
 - A panic in mod code is caught by the SDK and counts as a fault; five faults quarantine the mod.
 - Native mods are fully trusted code. Install only mods you trust. `--no-mods` turns all of them off.
+
+## Using mods
+
+Mods are native libraries that run with your privileges. Install only mods you trust. Nothing in the game
+downloads or fetches a mod.
+
+- **Where:** one folder per mod under the config folder of the game: `%APPDATA%\nfsmw\config\mods\<id>\` on
+  Windows, `~/.config/nfsmw/mods/<id>/` on Linux. The folder holds `mod.toml`, the library and `files/` (see
+  [Folder layout](#folder-layout-of-a-mod)). `--mods-dir <path>` adds a second folder to search.
+- **Which load:** the `mods` setting is `all` by default (every mod in the folders), `allowlist` (only the ids in
+  `mods_allowlist`, a list in `config.toml`) or `off`. Set it in `config.toml` (`mods = "allowlist"`) or in the
+  environment (`NFSMW_MODS=off`). `--no-mods` loads none, native mods included; use it first when reporting a bug.
+- **Developer runs:** `--mod-dev` loads copies of the libraries from the local data folder, so a rebuilt library can
+  replace the original while the game is running. Reloading a mod during a run is not in the console yet.
+- **Checking:** the start-up log names each loaded mod, its version and the SHA-256 of its library, and each refused
+  mod with the reason. The F12 console command `mods` lists the same: each loaded mod with its state (`loaded`, or
+  `quarantined` after five faults) and each refused mod.
+- **Files:** each mod's `files/` folder is added to the game's install as a layer. A file in it replaces the file of
+  the same path in the install or in a lower layer, and a new path adds one. Layers order by `[content] priority`
+  (higher wins), then by load order (a later mod wins a tie). Mods do not write to the
+  install.
+- **Now:** a mod gets the frame events (`FRAME_START` in the start of the frame, `SCENE_TICK` after the scene's
+  update, and `MOD_UNLOADING` at exit), and its `files/` layer. The interface tables (commands, input, time, map and
+  the rest) are not offered yet, so a mod that requires one is refused with its reason.

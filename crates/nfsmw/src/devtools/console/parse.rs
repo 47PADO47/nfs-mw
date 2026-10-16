@@ -13,6 +13,8 @@ pub enum Command {
     Gfx,
     /// Every key, button and stick binding.
     Keys,
+    /// The mods the game loaded or refused.
+    Mods,
     Bindings {
         name: String,
         args: Vec<String>,
@@ -36,7 +38,7 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 45] = [
+pub const BUILT_IN: [(&str, &str); 46] = [
     ("bind <action> <input>", "replace one device family's action assignments; keys lists action names"),
     ("addbind <action> <input>", "add another physical input to an action"),
     ("unbind <action> [keyboard|mouse|gamepad|all]", "remove action assignments"),
@@ -56,6 +58,7 @@ pub const BUILT_IN: [(&str, &str); 45] = [
     ("monitors", "list available monitors and their indices"),
     ("gfx", "show the renderer, graphics API, capabilities and requested vs effective graphics settings"),
     ("keys", "list every key, button and stick binding"),
+    ("mods", "list the mods: id, version and state, then the ones refused and why"),
     ("graphics_preset <custom|low|medium|high|ultra>", "set the graphics settings a preset stands for"),
     ("car_shading <simple|glossy>", "car shading: glossy or the cheap single-light look"),
     ("smoke_quality <standard|high>", "change tire smoke presentation quality"),
@@ -144,6 +147,7 @@ pub fn parse(line: &str) -> Result<Option<Command>, String> {
         "monitors" => Command::Monitors,
         "gfx" => Command::Gfx,
         "keys" | "bindings" | "controls" => Command::Keys,
+        "mods" => Command::Mods,
         "get" => match args.as_slice() {
             [] => Command::Get(None),
             [key] => Command::Get(Some((*key).to_owned())),
@@ -221,6 +225,7 @@ mod tests {
         assert_eq!(ok("get"), Command::Get(None));
         assert_eq!(ok("get fps"), Command::Get(Some("fps".into())));
         assert_eq!(ok("set Vsync off"), Command::Set { key: "vsync".into(), value: "off".into() });
+        assert_eq!(ok("mods"), Command::Mods);
     }
 
     #[test]

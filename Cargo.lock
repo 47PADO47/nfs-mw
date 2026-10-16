@@ -3742,6 +3742,7 @@ dependencies = [
  "blackbox-hash",
  "blackbox-minimap",
  "blackbox-mixmap",
+ "blackbox-modding",
  "blackbox-movie",
  "blackbox-paramap",
  "blackbox-particles",
