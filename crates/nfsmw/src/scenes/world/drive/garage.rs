@@ -61,6 +61,8 @@ impl Drive {
             sim.set_visual_tires(rig.visual_tires());
         }
         std::mem::replace(&mut self.rig, rig).release(renderer);
+        // The flames were read from the old model's pipes; the next frame reads the new ones.
+        self.flames.unload();
         self.set_damaged_windows(renderer, sun);
     }
 }
