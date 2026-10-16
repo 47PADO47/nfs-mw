@@ -122,6 +122,25 @@ pub(in crate::scenes::world) fn speeding_pursuit(scene: &mut WorldScene, rendere
     }
 }
 
+/// `signals props|synthetic on|off`: the traffic lights of the signalled approaches, matched to the real traffic-light
+/// props of the map or not. `synthetic on` also draws the synthetic post and bar of every approach (a debug aid).
+pub(in crate::scenes::world) fn signals_command(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
+    const USAGE: &str = "usage: signals props|synthetic on|off";
+    let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
+    match args {
+        [] | ["props"] => Ok(traffic.signal_props_status()),
+        ["synthetic", "on"] => {
+            traffic.set_synthetic_posts(true);
+            Ok("synthetic posts drawn for every approach".into())
+        }
+        ["synthetic", "off"] => {
+            traffic.set_synthetic_posts(false);
+            Ok("synthetic posts only where no real light matches".into())
+        }
+        _ => Err(USAGE.into()),
+    }
+}
+
 /// `roadblock`: lays a roadblock of cop cars across the road 250 m ahead (a test of the placement; the support request
 /// that asks for one in a chase is not built, `docs/specs/ai-pursuit-formations.md` section 6). The outcome also goes to
 /// the log file, so a headless run shows it (the console keeps its own buffer).

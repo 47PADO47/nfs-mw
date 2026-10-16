@@ -148,6 +148,7 @@ mod tests {
             spawner: None,
             parts: None,
             curve_lamp: None,
+            signal: None,
         };
         let lens = blackbox_gfx::reflection::face_frame(
             Vec3::ZERO,

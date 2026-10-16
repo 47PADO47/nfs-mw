@@ -200,3 +200,30 @@ type has an "is parked car" query. Neither is in the sources read, so parked car
 - Read `HornType`, `TrafficEngType`, `WooshType` from the car's `pvehicle` and pass them on as sample ids.
 - Scripted drag traffic can wait until race events exist; the ambient traffic of the `drag` pattern works from
   [ai-traffic-spawning.md](ai-traffic-spawning.md) alone.
+
+## 9. Signals on real props
+
+Status: built and drawn. The matching runs when the scenery changes; the lamps on the matched heads and the synthetic
+markers for the rest are drawn. Code: `world/ai/signal_props.rs` (names, heads, matching, state),
+`world/ai/lamps.rs` (drawing), `world/resident.rs` (the head of each placed light).
+
+- **Which props.** Placed scenery named `XO_TrafficLightA`, `C` or `D` (poles), `XO_TrafficLightB` (pole with an arm
+  over the road, `mast_arm`), `XO_TrafficLightCableB` (a cable across the road, `mast_arm`) or `SGN_Trafficlights_Pole`
+  (pole). Arrow and cross signs (`XS_TrafficSignal*`, `SGN_Signal_*`) are lane-control signs over the lanes and are not
+  candidates. **Open question:** whether they should be; they are left as scenery until the data says otherwise.
+- **Lamp head.** A per-model offset in model axes (`lamp_left` along y, `lamp_up` above the origin), placed with the
+  instance transform. Values: poles 4.5 m, the arm of B 7.5 m at 1.7 m along the arm, the cable 6.0 m. **[unverified]**:
+  the arm's extent (about 3.5 m from the pole) is from the `nfsmw-data` shapes test; the heights are estimates. Calibrate
+  them on a screenshot of a junction.
+- **Facing.** The model's +X axis turned by the instance rotation (`signal_props::facing`). Scenery models are x
+  forward, y left, z up. **[unverified]**: the sign of `LAMP_FACING`. A debug run at the city centre matched 17 of 2560
+  approaches to 30 placed lights with +X, so the sign is not wrong outright; a comparison with -X was not run.
+- **Matching.** Poses are converted to physics space and given to `blackbox_roads::match_props` when the residency's
+  `visual_revision` changes. Each approach gets at most one light; a mast arm may serve several approaches of one
+  direction group. A light is matched once per build, so a light that drives out of range drops its match at the next build.
+- **Knocked props.** A knocked-over prop is hidden (`PropWorld::hidden`). While it is hidden, the matched approach draws
+  nothing: neither the head lamp nor the synthetic post. It is drawn again when the prop stands again. Knock-over does
+  not change `visual_revision`, so the check runs at draw time. The cars still obey the signal while its pole is down.
+- **Drawing.** A matched approach shows its state colour (box and glow) at the lamp head and drops the stop-line bar.
+  Unmatched approaches keep the synthetic post, lamp and bar. Console: `signals props` prints the approach counts;
+  `signals synthetic on|off` draws the synthetic marker for every approach as a debug aid.
