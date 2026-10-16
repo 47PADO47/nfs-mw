@@ -86,7 +86,8 @@ it filters the console.
 ## DLSS and ray tracing builds
 
 DLSS and ray tracing are on the Bevy renderer (see [the graphics plan](plans/gfx-renderers/status.md)), behind the
-cargo features below. The default build has none of them. This section lists what a build with them needs. On
+cargo features below, which a default build does not have, except `fsr3` (the default build has the Bevy renderer
+and FSR 3; `--no-default-features` leaves them out). This section lists what the others need. On
 Windows the usual C++ build tools (MSVC) are needed as well.
 
 - **GPU and API:** an NVIDIA RTX GPU with a current driver. DLSS and Solari run on Vulkan only.
@@ -101,7 +102,8 @@ Windows the usual C++ build tools (MSVC) are needed as well.
   - `dlss-mock`: compiles the DLSS code without the SDK. CI uses it to check that the code compiles.
   - `ray-tracing`: Solari ray tracing. It is set at startup and uses DLSS Ray Reconstruction as its denoiser
     when `dlss` is also built.
-  - `fsr3`: the FSR 3 temporal upscaler. It needs none of the SDKs above and runs on Vulkan and DX12.
+  - `fsr3`: the FSR 3 temporal upscaler, in the default build. It needs none of the SDKs above and runs on Vulkan
+    and DX12.
 
   A build with DLSS and ray tracing: `cargo run -p nfsmw --features dlss,ray-tracing`, then start with
   `--renderer bevy`.

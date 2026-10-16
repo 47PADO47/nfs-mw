@@ -2,7 +2,7 @@
 
 `libs/blackbox-bevy-render` is an optional renderer for the games that implements the same
 [`RenderBackend`](../libs/blackbox-gfx) trait as the native `blackbox-render`. It runs inside the game's own
-Bevy `App`, behind the `renderer-bevy` cargo feature of `nfsmw` (off by default), and is chosen with the
+Bevy `App`, behind the `renderer-bevy` cargo feature of `nfsmw` (on by default; `--no-default-features` leaves it out), and is chosen with the
 [`renderer`](renderers.md) setting. This page is for developers: how it works, how it was measured, what is
 missing. The decision it feeds is in [ADR 0004](decisions/0004-swappable-renderers.md).
 
@@ -476,11 +476,10 @@ is allocated when off", `docs/plans/gfx-renderers/upscalers-settings.md` §5): n
   `detailed_particles`, and that scene's digests are pinned for the native renderer (changing it needs
   regenerating those on the recorded hardware, which this session doesn't have) — a gap for the next PR
   that actually turns detailed particles on (`smoke-quality high`).
-- **MSRV:** `cargo +1.95.0 check -p nfsmw --features renderer-bevy` **fails**: Bevy 0.20's WESL stack (`wesl`,
-  `wesl-core`, `wesl-macros`, `wgsl-parse`, `wgsl-types` 0.6) requires rustc 1.97.1. The default build
-  (`cargo +1.95.0 check -p nfsmw`) still passes. So only `blackbox-bevy-render` declares
-  `rust-version = "1.97.1"`; the workspace stays on 1.95 because nothing else depends on the crate. Whether to
-  raise the whole workspace is an owner decision (it would be needed to check `--workspace` on 1.95).
+- **MSRV:** Bevy 0.20's WESL stack (`wesl`, `wesl-core`, `wesl-macros`, `wgsl-parse`, `wgsl-types` 0.6) requires
+  rustc 1.97.1. `nfsmw` builds the Bevy renderer by default now, so it declares `rust-version = "1.97.1"` too; the
+  workspace stays on 1.95 for the other crates, and `cargo +1.95.0 check -p nfsmw --no-default-features` is the
+  build without the renderer.
 - **Compile time and binary size deltas:** measured above.
 - **How Bevy gets the existing window:** it does not need to be given one; see "The window".
 

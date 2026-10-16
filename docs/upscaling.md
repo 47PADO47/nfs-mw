@@ -29,8 +29,8 @@ setting.
 - **Render scale** is the scene's width and height as a percent of the window's, 50 to 200. `67`,
   `67%` and `0.67` all mean the same.
 - **Upscaler** is `fsr1`, `bilinear` or `off` on the native renderer. `fsr3` and `dlss` are temporal upscalers that
-  only the Bevy renderer offers, and only in builds with the `fsr3` feature (FSR 3) or the `dlss` or `dlss-mock`
-  feature (DLSS). `fsr4` is not built yet. The native renderer runs the temporal ones as `fsr1` at the render size
+  only the Bevy renderer offers: FSR 3 is in the default build (the `fsr3` feature), DLSS needs the `dlss` or
+  `dlss-mock` feature. `fsr4` is not built yet. The native renderer runs the temporal ones as `fsr1` at the render size
   of their quality mode, and logs the downgrade. See [renderers.md](renderers.md).
 - **Upscale quality** is `auto`, `native`, `quality`, `balanced`, `performance` or `ultra_performance`. It only
   matters for the temporal upscalers, whose render size it sets (100, 67, 59, 50 and 33 %; `auto` is `quality`);
@@ -145,8 +145,8 @@ no tester yet ([status.md](plans/gfx-renderers/status.md), PR 14).
 from the FidelityFX SDK v1.1.4; frame generation is not included). It depends only on `wgpu`, so a backend can
 add it on Vulkan and DirectX 12 (and Metal) without subgroup operations or vendor code.
 
-**Bevy renderer (PR 13b).** The Bevy renderer offers it on a build with the `fsr3` feature (`cargo build -p nfsmw
---features fsr3`, which implies `renderer-bevy`), when the device has the storage limits its passes use. The wiring is in
+**Bevy renderer (PR 13b).** The Bevy renderer offers it on a build with the `fsr3` feature (a default build has it; `fsr3`
+implies `renderer-bevy`), when the device has the storage limits its passes use. The wiring is in
 `libs/blackbox-bevy-render/src/fsr3/`: the screen camera gets the depth and motion-vector prepasses, the jitter, `Hdr`
 and the temporal mip bias; the render-world node sets the jitter on the projection, runs the upscale in place of TAA,
 and blits the display-size result into the view target before bloom and tone mapping. The render size comes from the

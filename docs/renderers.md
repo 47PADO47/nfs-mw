@@ -10,7 +10,7 @@ Two things decide how the game is drawn, and they are separate settings:
 
 The Bevy renderer is a **spike**: it draws the world (meshes, textures, fog, alpha test, blending, sky), the post
 chain (bloom, tone mapping, FXAA, SMAA, TAA, FSR 1), and the temporal and ray-traced options its build includes
-(`fsr3`, `dlss` or `dlss-mock`, `ray-tracing`). It only exists in builds made with `--features renderer-bevy`. The settings, menu rows
+(`fsr3`, `dlss` or `dlss-mock`, `ray-tracing`). It is in the default build, with FSR 3; `--no-default-features` leaves both out. The settings, menu rows
 and checks described here work the same way for either renderer. What it draws, how it was measured and what
 is missing: [bevy-backend.md](bevy-backend.md). The design is in
 [the plan](plans/gfx-renderers/README.md) and [ADR 0004](decisions/0004-swappable-renderers.md).
@@ -47,7 +47,7 @@ row at the bottom of the Video options (in the main menu and the pause menu). Th
 after a restart**; the console and the menu say so.
 
 If you ask for `bevy` and this build does not have it (it needs the `renderer-bevy` cargo feature, which
-is off by default), or this PC has no usable Vulkan or Direct3D 12 adapter (the Bevy renderer has no
+is on by default, so only a `--no-default-features` build lacks it), or this PC has no usable Vulkan or Direct3D 12 adapter (the Bevy renderer has no
 OpenGL), the game logs why and starts `blackbox` instead. It never fails to start because of the
 setting.
 
