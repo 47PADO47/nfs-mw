@@ -3810,6 +3810,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "nfsmw-modding"
+version = "0.1.0"
+dependencies = [
+ "blackbox-modding",
+]
+
+[[package]]
 name = "nihav_codec_support"
 version = "0.1.0"
 source = "git+https://github.com/ruffle-rs/nihav-vp6?rev=12d0bdf10a85641dc2de3d6900c747894431ed77#12d0bdf10a85641dc2de3d6900c747894431ed77"

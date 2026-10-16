@@ -13,9 +13,12 @@ against the specs (`docs/specs/`, `docs/formats/`) when each part is built.
 
 | Interface | Version | Contents |
 |---|---|---|
-| `nfsmw.pursuit` | 1.0 | pursuit state, heat, cops, support, cop tables |
-| `nfsmw.career` | 1.0 | cash, bounty, rap sheet, blacklist, milestones, safe houses, shops |
-| `nfsmw.races` | 1.0 | race events: list, start, control, custom races |
+| `nfsmw.pursuit` | 0.1 | pursuit state, heat, cops, support, cop tables |
+| `nfsmw.career` | 0.1 | cash, bounty, rap sheet, blacklist, milestones, safe houses, shops |
+| `nfsmw.races` | 0.1 | race events: list, start, control, custom races |
+
+The wire numbers and the status of each entry in 0.1 are in [Wire numbers and status](#wire-numbers-and-status-01)
+below. An entry that is not listed there is not in 0.1; it is appended in a later minor once the game can do it.
 
 ## Pursuit and heat (`nfsmw.pursuit`)
 
@@ -172,3 +175,143 @@ the table is the plan.
 - Changing the physics model itself (only per-vehicle scales in `bb.vehicles`).
 - Replacing the AI driving controller (mods can steer a vehicle through `set_ai` goals only).
 - Raw access to FEng objects and to the attribute database; both are reachable only through the typed calls.
+
+## Wire numbers and status (0.1)
+
+Code: `crates/nfsmw-modding` (`abi`, `host`, `sdk`). Each table is `#[repr(C)]` and starts with `head: BbIface` and `ctx`.
+Its functions are `Option<fn>` slots, so the `n`th function (0 based) sits at byte `16 + 8 n`. Every record and payload
+starts with `size`, the bytes its writer filled in. Functions take `ctx` first and return a `BbStatus`; the statuses are
+the `BB_ERR_*` of `blackbox-modding`. The three interfaces are all at 0.1. That is an interface version, not an ABI version.
+
+| Interface | Id | Version | Table size (bytes) |
+|---|---|---|---|
+| Pursuit | `nfsmw.pursuit` | 0.1 | 88 |
+| Career | `nfsmw.career` | 0.1 | 328 |
+| Races | `nfsmw.races` | 0.1 | 104 |
+
+Limits the host checks: heat levels `1..=10`; at most 64 cop records in one wave; at most 256 checkpoints in one race.
+Names are inline (`BbName { len: u32, bytes: [u8; 128] }`), so no pointer the host keeps outlives a call.
+
+### Pursuit (`nfsmw.pursuit` 0.1)
+
+| Offset | Slot | Arguments after `ctx` | Writes | Status | SDK |
+|---|---|---|---|---|---|
+| 16 | `heat_get` | `out: *mut f32` | no | supported | `heat()` |
+| 24 | `heat_set` | `heat: f32` (clamped by the game) | yes | supported | `set_heat(heat)` |
+| 32 | `cop_table_get` | `table: u32, level: u32, out: *mut BbHeatRow, cops: *mut BbCopRecord, cops_cap: u32` | no | supported | `cop_table(table, level)` |
+| 40 | `cop_table_set` | `table: u32, level: u32, row: *const BbHeatRow, cops: *const BbCopRecord, cops_len: u32` | yes | supported | `set_cop_table(table, level, &row)` |
+| 48 | `start` | `level: u32, near: u64` (0 for none) | yes | supported | `start(level, near)` |
+| 56 | `end` | `mode: u32` (0 evade, 1 bust, 2 abort) | yes | supported | `end(mode)` |
+| 64 | `is_pursuing` | `out: *mut u8` | no | supported | `is_pursuing()` |
+| 72 | `busted_get` | `out: *mut f32` | no | supported | `busted()` |
+| 80 | `cops_in_pursuit` | `out: *mut u32` | no | supported | `cops()` |
+
+A cop wave is a `BbHeatRow { size, cop_count, patrol_cars, full_engagement_cops, first_four_interval: f32,
+spawn_interval: f32 }` (24 bytes) followed by `cop_count` records of `BbCopRecord { count, chance, name: BbName }` (140
+bytes). The read takes two calls: the first, with `cops_cap = 0`, learns `cop_count`. `table` is `0` (roam, `heattable`)
+or `1` (race, `racetable`). A set needs `cop_count == cops_len`, a chance of at most 100, and a name that is UTF-8 and not
+empty. The new wave applies to the next pursuit. A stale `near` handle answers `BB_ERR_STALE`.
+
+Not in 0.1: the heat range and time per level, the busted and cool-down scales, the evade and sight rules, the cop list
+as vehicles, spawn and dismiss cop, support, roadblock, spikes, the helicopter calls, the infraction list and fines,
+bounty in the chase, the dev toggle, formations, patrol speeds, the AI profile, and adding or removing one cop or the
+helicopter in a wave. In 0.1 a mod sets the whole wave with `cop_table_set`.
+
+### Career (`nfsmw.career` 0.1)
+
+The career has no state in the port yet, so every slot answers `BB_ERR_UNSUPPORTED`. The layout is fixed now. The field
+lists and the stat numbers are [unconfirmed] until the career spec exists.
+
+| Offset | Slot | Arguments after `ctx` | Writes | SDK |
+|---|---|---|---|---|
+| 16 | `cash_get` | `out: *mut i64` | no | `cash()` |
+| 24 | `cash_add` | `delta: i64, reason: BbStr` | yes | `add_cash(delta, reason)` |
+| 32 | `cash_set` | `value: i64` | yes | `set_cash(value)` |
+| 40 | `bounty_get` | `out: *mut u64` | no | `bounty()` |
+| 48 | `bounty_add` | `delta: u64` | yes | `add_bounty(delta)` |
+| 56 | `bounty_set` | `value: u64` | yes | `set_bounty(value)` |
+| 64 | `rap_sheet_get` | `out: *mut BbRapSheet` [unconfirmed fields] | no | `rap_sheet()` |
+| 72 | `rap_sheet_set_stat` | `stat: u32, value: u64` | yes | `set_stat(stat, value)` |
+| 80 | `rap_sheet_add_stat` | `stat: u32, delta: u64` | yes | `add_stat(stat, delta)` |
+| 88 | `rival_count` | `out: *mut u32` | no | `blacklist()` (count, then `rival_at`) |
+| 96 | `rival_at` | `index: u32, out: *mut BbRival` | no | `blacklist()` |
+| 104 | `rival_defeat` | `rank: u32` | yes | `defeat_rival(rank)` |
+| 112 | `rival_set_locked` | `rank: u32, locked: u8` | yes | `set_rival_locked(rank, locked)` |
+| 120 | `milestone_count` | `out: *mut u32` | no | `milestones()` |
+| 128 | `milestone_at` | `index: u32, out: *mut BbMilestone` | no | `milestones()` |
+| 136 | `milestone_complete` | `id: u32` | yes | `complete_milestone(id)` |
+| 144 | `milestone_register` | `def: *const BbMilestoneDef, out_id: *mut u32` | yes | `register_milestone(&def)` |
+| 152 | `milestone_progress` | `id: u32, progress: f32` | yes | `set_milestone_progress(id, progress)` |
+| 160 | `stage_get` | `out: *mut u32` | no | `stage()` |
+| 168 | `garage_count` | `out: *mut u32` | no | `garage()` |
+| 176 | `garage_at` | `index: u32, out: *mut BbOwnedCar` | no | `garage()` |
+| 184 | `give_car` | `car: u64` | yes | `give_car(car)` |
+| 192 | `remove_car` | `car: u64` | yes | `remove_car(car)` |
+| 200 | `current_car_get` | `out: *mut u64` (0 for none) | no | `current_car()` |
+| 208 | `current_car_set` | `car: u64` | yes | `set_current_car(car)` |
+| 216 | `save` | none | no | `save()` |
+| 224 | `slot_get` | `out: *mut u32` (0 for none) | no | `slot()` |
+| 232 | `safehouse_count` | `out: *mut u32` | no | `safehouses()` |
+| 240 | `safehouse_at` | `index: u32, out: *mut BbSafehouse` | no | `safehouses()` |
+| 248 | `safehouse_set_unlocked` | `id: u32, unlocked: u8` | yes | `set_safehouse_unlocked(id, unlocked)` |
+| 256 | `safehouse_register` | `interior: u64, out_id: *mut u32` | yes | `register_safehouse(interior)` |
+| 264 | `safehouse_set_cools_heat` | `on: u8` | yes | `set_safehouse_cools_heat(on)` |
+| 272 | `shop_count` | `out: *mut u32` | no | `shops()` |
+| 280 | `shop_at` | `index: u32, out: *mut BbShop` | no | `shops()` |
+| 288 | `shop_stock_count` | `shop: u32, out: *mut u32` | no | `shop_stock(shop)` |
+| 296 | `shop_stock_at` | `shop: u32, index: u32, out: *mut BbShopItem` | no | `shop_stock(shop)` |
+| 304 | `shop_add_item` | `shop: u32, def: *const BbShopItemDef, out_id: *mut u32` | yes | `shop_add_item(shop, &def)` |
+| 312 | `shop_remove_item` | `shop: u32, item: u32` | yes | `shop_remove_item(shop, item)` |
+| 320 | `shop_set_price` | `shop: u32, item: u32, cash: u32` | yes | `set_price(shop, item, cash)` |
+
+Not in 0.1: the career events (`BountyChanged`, `CashChanged`, `MilestoneCompleted`, the blacklist, safe-house and shop
+events, the save events) and the cancelable purchase request.
+
+### Races (`nfsmw.races` 0.1)
+
+The race runtime is not built, so every slot answers `BB_ERR_UNSUPPORTED`.
+
+| Offset | Slot | Arguments after `ctx` | Writes | SDK |
+|---|---|---|---|---|
+| 16 | `race_count` | `out: *mut u32` | no | `list()` |
+| 24 | `race_at` | `index: u32, out: *mut BbRaceInfo` | no | `list()` |
+| 32 | `race_checkpoint_count` | `id: u32, out: *mut u32` | no | `checkpoints(id)` |
+| 40 | `race_checkpoint_at` | `id: u32, index: u32, out: *mut BbVec3` | no | `checkpoints(id)` |
+| 48 | `race_start` | `id: u32` | yes | `start(id)` |
+| 56 | `race_abort` | none | yes | `abort()` |
+| 64 | `race_current` | `out: *mut BbRaceState` (`active` 0 when none) | no | `current()` |
+| 72 | `race_register` | `def: *const BbRaceDef, checkpoints: *const BbVec3, checkpoint_count: u32, out_id: *mut u32` | yes | `register(&def, &checkpoints)` |
+| 80 | `race_set_opponent_skill` | `id: u32, skill: f32` | yes | `set_opponent_skill(id, skill)` |
+| 88 | `race_set_reward` | `id: u32, cash: u32` | yes | `set_reward(id, cash)` |
+| 96 | `race_results` | `id: u32, out: *mut BbRaceResult` (`BB_ERR_NOT_FOUND` when none) | no | `results(id)` |
+
+Race kinds are numbers; the list is [unconfirmed] against `nfsmw-data/src/gameplay/races.rs`. The opponents of a custom
+race and the race events are not in 0.1.
+
+### Events (0.1)
+
+The kinds are in the MW range from `0x1000`. Each payload starts with `size`, and a reader uses a field only when `size`
+covers it.
+
+| Kind | Name | Payload fields after `size` (byte offset) |
+|---|---|---|
+| `0x1000` | `PURSUIT_STARTED` | `level: u32` (4), `cops: u32` (8), `heat: f32` (12); 16 bytes |
+| `0x1001` | `PURSUIT_ENDED` | `reason: u32` (4; 0 evaded, 1 busted, 2 aborted), `bounty: u64` (8), `duration: f32` (16); 24 bytes |
+| `0x1002` | `HEAT_CHANGED` | `level: u32` (4), `old_heat: f32` (8), `new_heat: f32` (12); 16 bytes |
+| `0x1003` | `BUSTED` | `level: u32` (4), `bounty: u64` (8); 16 bytes |
+| `0x1004` | `ESCAPED` | `level: u32` (4), `duration: f32` (8); 12 bytes |
+| `0x1005` | `INFRACTION_RECORDED` | `infraction: u32` (4; the `Infraction` number 0 to 7), `fine: u32` (8); 12 bytes |
+
+The game builds the payload and dispatches it with `ModRuntime::dispatch_event` (`nfsmw_modding::host::mw_event`). The SDK
+decodes the bytes with `MwEvent::decode`. The other MW events of the table above (cop spawn and wreck, the cancelable
+requests, and the career and race events) are not in 0.1.
+
+### Open items for 0.1
+
+- **Registration.** The generic `InterfaceRegistry` cannot take these tables: its provider and attachment types are
+  `pub(crate)` in `blackbox-modding`. The builders return an owner with `header()`. The game can offer `nfsmw.*` once
+  `blackbox-modding` has a public provider hook.
+- **Event payloads.** `Event::Unknown` in `blackbox-modding` carries no payload bytes, so a mod cannot yet call
+  `MwEvent::decode` from `Mod::event`. The decoder is ready; the generic SDK must pass the bytes on.
+- **Data.** `nfsmw-modding` does not depend on `nfsmw-data`, so the install stack stays out of mods. The game converts
+  `nfsmw_data::pursuit::HeatRow` into `BbHeatRow` and `BbCopRecord` in its facade.
