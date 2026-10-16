@@ -371,6 +371,14 @@ impl Scene for Pausable {
         sounds
     }
 
+    fn rotor_frame(&mut self, dt: f32) -> Option<crate::audio::HeliFrame> {
+        let frame = self.inner.rotor_frame(dt);
+        if self.concealed() {
+            return None;
+        }
+        frame
+    }
+
     fn take_explosions(&mut self) -> u32 {
         self.inner.take_explosions()
     }

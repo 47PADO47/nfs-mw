@@ -11,6 +11,7 @@ mod car;
 mod chase;
 pub mod common_effects;
 pub use common_effects::CommonEvent;
+pub use heli::HeliFrame;
 pub mod environment;
 pub mod environment_context;
 mod filter;
@@ -26,6 +27,7 @@ pub mod commands;
 mod coverage;
 mod engine;
 mod fx;
+mod heli;
 mod interactive;
 mod mixer;
 mod pcm;
@@ -96,6 +98,7 @@ pub struct Audio {
     output: Option<Output>,
     trace: trace::Trace,
     traffic: traffic::TrafficAudio,
+    heli: heli::Slot,
     common: common_effects::CommonPlayback,
     wet: wet::Slot,
     speedbreaker: speedbreaker::Slot,
@@ -177,6 +180,7 @@ impl Audio {
             output,
             trace: trace::Trace::default(),
             traffic: traffic::TrafficAudio::default(),
+            heli: heli::Slot::default(),
             common: common_effects::CommonPlayback::default(),
             wet: wet::Slot::default(),
             speedbreaker: speedbreaker::Slot::default(),
@@ -348,6 +352,7 @@ impl Drop for Audio {
     fn drop(&mut self) {
         self.car = None;
         self.traffic = Default::default();
+        self.heli = Default::default();
         self.common = Default::default();
         self.test_engine = None;
         self.trace.stop();

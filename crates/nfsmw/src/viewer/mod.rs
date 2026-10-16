@@ -163,6 +163,10 @@ pub trait Scene {
     fn take_traffic_sounds(&mut self) -> Vec<crate::audio::traffic::TrafficSound> {
         Vec::new()
     }
+    /// The police helicopter's rotor for this frame (`dt` seconds since the last one), or `None` without one.
+    fn rotor_frame(&mut self, _dt: f32) -> Option<crate::audio::HeliFrame> {
+        None
+    }
     /// How many explosions (petrol-station blasts) started since the last call; each one plays its sound.
     fn take_explosions(&mut self) -> u32 {
         0

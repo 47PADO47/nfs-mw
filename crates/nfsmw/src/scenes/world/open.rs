@@ -76,6 +76,7 @@ impl WorldScene {
             garage_open: false,
             audio_environment,
             common_sounds: Vec::new(),
+            rotor_previous: None,
             sound_speedbreaker_active: false,
             dir: dir.clone(),
             track: index.track.clone(),

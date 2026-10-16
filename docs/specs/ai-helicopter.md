@@ -289,6 +289,23 @@ State `seek up -> seek car -> fly out`.
   ground at the heli's xz), placed on the ground at the heli's xz with the ground normal, paused above 30 m or off valid ground.
 - There is no searchlight, no gun, no muzzle flash and no spike drop in the code (`SPIKE_DROP` and the "heli spike strip"
   counter exist only as statistics). [decomp]
+- **Rotor bank and class [verified: install files, speed.exe].** The rotor is the `FX_Helicopter` AEMS class of
+  `IG_GLOBAL/FX_Helicopter_MB.abk` (87 304 bytes on the Black Edition install), registered in the sound manager at
+  `0x004ac950`. Its mixer state is 11, the helicopter state of the map ([formats/mixmap.md](../formats/mixmap.md)). The
+  publisher `0x004d7810` stores twelve words in the class object at +4 to +0x30 and clamps them: word 0 to 32767, 1 to
+  plus or minus 8192, 2 to 0..1, 3 to 32767, 4 to 65535, 5 to 1024, 6 to plus or minus 100 (the distance), 7 and 8 to
+  25000, 9 and 10 to 32767, 11 to 1023 (the speed). The sound object's constructor `0x004dfce0` passes it twelve fields
+  and sets the parent's ready flag. Meanings of words 0 to 5 and 7 to 10: [unconfirmed]. Words 6 and 11 match the rules
+  above.
+- **Not found:** the update that fills those twelve fields. `0x004dfce0` is in the sound class's vtable (`0x008999b0`),
+  but the other slots are not function starts for the decompiler. The sources of the rotor's volume, pitch and azimuth
+  (the mixer outputs) are open, see Q4.
+- **Mixer [verified: installed `MAPOUTPUT.mxb`].** State 11, object 0: the volume master writes slot 1 (azimuth slot 0),
+  the pitch master writes slot 2. Its inputs are one 3D control (spatial object 1, which reads controller 1: distances to
+  the car and camera at 0 and 1, azimuths at 2 and 3, the has-position flag at 15), the state's sub-mix (events only)
+  and state 0 events. The map does the distance rolloff, so the words carry no extra falloff.
+- **Rust.** `audio/heli` plays the module with the words above. The scene's `rotor_frame` gives the frame: position from the
+  traffic's chopper, velocity by finite difference, a flat heading. The rotor stops on pause or with no car.
 
 ## 8. Constants not in AttribSys
 
@@ -326,7 +343,9 @@ State `seek up -> seek car -> fly out`.
   "low-pass" is just a gain of 0.2. This might be a decompilation artefact; the visual effect (body lean) would differ
   slightly. Compare lean angles in the running game.
 - **Q3** `AIGoalHeliRoadBlock` is not defined; `roadblockhelichance` is 0 everywhere. Not implemented in the original.
-- **Q4** The mixer outputs for the rotor sound (`DMX_*`) come from the dynamic mixer map for the helicopter, not specified here.
+- **Q4** Narrowed. Known: the bank, the class, the twelve clamped words, state 11, its output slots (volume 1, azimuth 0,
+  pitch 2) and its controller (1), all from the map and the publisher (section 7). Open: the meanings of words 0 to 5 and
+  7 to 10, and the update that fills the words.
 - **Q5** How `StartPathToPlayerCar` is used (the result is not read by any mode).
 
 ## Rust implementation notes
@@ -394,8 +413,9 @@ and up). Sight uses the world's ray cast (the line from the helicopter to the pl
 (section 1 of `docs/formats/pursuit-data.md`). The sheet is read from `STREAML2RA.BUN` when the track opens
 (`crates/nfsmw-data/src/world/heli_sheet.rs`, a header walk: the 532 MB file is not read whole) and is the helicopter's
 floor (`SheetFloor` in `ai/police.rs`; a flat floor when the sheet is missing). On the install the walk gives the
-documented 51 504 triangles (`tests/real_install/heli_sheet.rs`). Not yet seen in a running game. Open: that wiring, rotor sound, and the spotlight/rotor
-wash effects. The shipped numbers are the spec's; the controller is the spec's, not the decompilation's code.
+documented 51 504 triangles (`tests/real_install/heli_sheet.rs`). Not yet seen in a running game. Rotor sound: `audio/heli` plays it, fed by the scene's `rotor_frame`.
+Not yet heard in a running game. Open: the rotor's word meanings, the chopper's real heading (the feed uses a flat
+velocity heading), and the spotlight/rotor wash effects. The shipped numbers are the spec's; the controller is the spec's, not the decompilation's code.
 
 ## Verified in `speed.exe` (Ghidra, PC v1.3)
 
@@ -461,3 +481,8 @@ seek), 600 (despawn). They may be immediate operands in code. Their values are t
 5. Search immediates (not the pool) for 1.55, 0.035, 0.092, 1.3, 1.8, 35, 75, 85, 600 once a byte-pattern search is
    available (none in this session).
 6. The words at 0x00890CE0 are code pointers into 0x0040xxxx; not yet identified (possibly a dispatch table).
+7. Find the update that fills the rotor sound object's fields +0x28 to +0x54 (the constructor `0x004dfce0` is in the vtable
+   at `0x008999b0`; find the vtable's per-tick slot and the sound manager's call to it). Needs `get_xrefs_to` on 0x008999b0.
+8. Done: state 11's output slots and controller are in section 7 ([verified] in `MAPOUTPUT.mxb`).
+9. Open: an accessor on the chopper for its real orientation (`Chopper.orientation`, physics space, `space::to_render`).
+   The feed now uses a flat heading from the velocity. Needs `ai/police/heli.rs` (not in the rotor's file list).

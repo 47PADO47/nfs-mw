@@ -98,6 +98,12 @@ fn drive_car(
     if car.is_none() {
         audio.stop_traffic();
     }
+    // The helicopter's rotor follows the same car: it stops with the pause (no car state) and when the car is gone.
+    let heli = host.scene.rotor_frame(time.delta_secs());
+    match &car {
+        Some(state) => audio.update_heli(heli, state.view),
+        None => audio.stop_heli(),
+    }
     // Each petrol-station blast of this frame plays its explosion.
     for _ in 0..host.scene.take_explosions() {
         audio.play_explosion();

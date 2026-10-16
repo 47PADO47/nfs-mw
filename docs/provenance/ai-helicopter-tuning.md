@@ -75,3 +75,64 @@ and mixed strings; they are not decoded as floats.
 
 **Next leads.** See the spec's "Next leads". The main one is an xref tool: rerun the cluster search (refs containing
 0x00890828 to 0x00890868) and the factory-caller search (callers of `0x005CC240` with `0x00893070`) once the xref group loads.
+
+## Pass 3: the rotor sound (Ghidra, speed.exe, PC v1.3)
+
+Question: how the original drives the `FX_Helicopter` rotor (spec section 7, Q4). Budget about 22 Ghidra calls. The xref
+group loaded this time (`ToolSearch` for `get_xrefs_to`, `get_xrefs_from`, `get_assembly_context`, call graph tools),
+so pass 2's dead end on xrefs did not apply.
+
+**Found** (all `[decomp]` or `[verified]` where marked):
+
+| Address | What | Evidence |
+|---|---|---|
+| 0x004AC950 | registers the AEMS class names in the sound manager (`FX_NITROUS` ... `FX_Scrape`); `FX_Helicopter` goes to the manager handle at 0x009148CC | decomp; one caller, 0x004D02E0 |
+| 0x004D7810 | publisher of the rotor's twelve class words: stores them at +4 to +0x30 of the object and looks up or creates `FX_Helicopter` | decomp; clamps are in spec section 7 |
+| 0x004DFCE0 | constructor of the rotor sound object (0x34 bytes): calls the publisher with the object's fields +0x28 to +0x54, keeps the object at +0x58, sets the parent's flag at +0x3C to 1 | decomp; vtable slot 10 of 0x008999B0 |
+| 0x004DFDA0 | vtable slot 7: keeps a vehicle pointer at +0x5C when the vehicle's flag bits 4 to 15 are clear | decomp |
+| 0x008999B0 | vtable of the rotor sound class (data): slots 4 to 22 hold 0x004DFC80, 0x004DFC90, 0x004DFD90, 0x004DFDA0, 0x004DFCA0, 0x004B32C0, 0x004DFCE0, 0x004E7D00, ... | read_memory, little-endian by hand |
+
+String refs (all `[verified]` as strings; the code that reads them is noted): `CSFXCTL_Helicopter` 0x00896567 has no
+xref (RTTI only); `HeliSoundConn` 0x00896878 is read at 0x00693F8A and 0x004AE6FA; `FX_Helicopter` 0x00897BD4 is reached
+through the pointer 0x008F0308 by 0x004AC950 and 0x004D7810; `SFXObj_Helicopter` 0x00897FD8 through 0x008EFD6C; `SoundHeli`
+0x008ADE80 through 0x00888A70, read by 0x008EAB30.
+
+**Not found:** the per-tick update that writes the rotor object's fields +0x28 to +0x54. So the source of the twelve words
+(the volume, pitch and azimuth outputs of the mixer) is open. The constructor is the only caller of the publisher found.
+
+**Dead ends (do not repeat).**
+- The vtable targets 0x004DFC80, 0x004DFC90, 0x004DFD90, 0x004DFCA0, 0x004DFDF0 and 0x004DFE10: `force_decompile` says
+  "No function at address". They are inside other functions, or not function starts. Only the targets of slots 7 and 10
+  decompile.
+- `get_function_call_graph` (callers) of the constructor returns nothing: it is entered through the vtable, not by a direct call.
+- `get_assembly_context` on the xref sources returned empty bodies this time. Plain `get_xrefs_to` plus `force_decompile` was enough.
+- `CSFXCTL_Helicopter` has no xref, so the class that computes the words cannot be found from its name.
+
+**Lessons.**
+- A string that a publisher reads is usually reached through a pointer table (`PTR_s_...`). Find the pointer word, then its
+  xrefs, then the function that reads it.
+- A vtable in the data region can be decoded by hand from `read_memory` (little-endian dwords). Its slots that decompile are the
+  real methods; the others are data or mid-function addresses.
+- A clamp table in a publisher gives the parameter ranges even when the meaning of each word is unknown. Here it confirmed the
+  spec's distance clamp (plus or minus 100) and speed range (0 to 1023), and gave 12 words, not 10 as the traffic modules use.
+- Install check: `NFSMW_GAME_DIR` must be `D:\Need For Speed Most Wanted Black Edition` (loose `SOUND/IG_GLOBAL/*.abk`). The
+  folder `D:\Need for Speed - Most Wanted` is a bundled install (`*.BNDL`) where the bank reader finds nothing.
+
+**Implementation pointer.** The rotor module is `crates/nfsmw/src/audio/heli/`. Its unit tests cover the mapping; the ignored
+test `installed_rotor_module_loads_plays_and_stops` loads `IG_GLOBAL/FX_Helicopter_MB.abk` and the mixer map, and passed on the
+Black Edition install.
+
+**Pass 3b: the map (data, no Ghidra).** `MixMap::state(11)` on the installed `SOUND/MIXMAPS/MAPOUTPUT.mxb` settles the
+mixer side: the volume master writes slot 1 (azimuth slot 0), the pitch master writes slot 2, and the rotor's only 3D
+control is spatial object 1, so it reads controller 1 (not 0). A dump of state 5 (traffic) confirms the traffic module's
+slots (volume 1, pitch 4) that the traffic code already uses. The first guesses (pitch slot 4, controller 0) were wrong;
+the dump corrected them. The map does the distance rolloff, so the rotor's Rust side no longer applies its own falloff.
+
+**Dead end.** A speed-to-pitch multiplier (0.9 to 1.1) was invented as a fallback and then removed: the map's pitch
+master is the rotor's pitch, and the original's speed effect is in the bank via word 11.
+
+**Lesson.** Read the data before guessing an output slot: one dump of the installed map answers slot, controller and
+rolloff questions that a guess would get wrong.
+
+The installed test `installed_map_routes_the_rotor_to_the_slots_the_mixer_reads` pins these values. Words 0 to 5 and 7 to 10
+remain `[unconfirmed]` (see `audio/heli/params.rs`).
