@@ -5,7 +5,7 @@ use crate::host::manifest::InterfaceVersion;
 use crate::host::test_support::{Scratch, manifest_text};
 
 fn host() -> HostOffer {
-    HostOffer::new("nfsmw", "test")
+    HostOffer::new("testgame", "test")
 }
 
 fn all(roots: &[PathBuf]) -> Discovery {
@@ -105,12 +105,12 @@ fn a_future_abi_is_refused_with_a_reason() {
 #[test]
 fn a_game_the_host_does_not_run_is_refused() {
     let scratch = Scratch::new("game");
-    let text = manifest_text("game.mod", "1.0.0", "").replace("supported = [\"*\"]", "supported = [\"nfsu2\"]");
+    let text = manifest_text("game.mod", "1.0.0", "").replace("supported = [\"*\"]", "supported = [\"othergame\"]");
     fs::write(scratch.folder("game").join(MANIFEST_FILE), text).expect("manifest");
     let found = all(&[scratch.path().to_owned()]);
     assert_eq!(
         rejected_ids(&found),
-        [("game.mod".to_owned(), RejectReason::GameUnsupported { host: "nfsmw".to_owned() })]
+        [("game.mod".to_owned(), RejectReason::GameUnsupported { host: "testgame".to_owned() })]
     );
 }
 
@@ -127,7 +127,7 @@ fn a_required_interface_must_be_offered_at_a_high_enough_minor() {
         [("need.mod".to_owned(), RejectReason::InterfaceMissing { id: "bb.commands".to_owned() })]
     );
 
-    let old = HostOffer::new("nfsmw", "test").with_interface("bb.commands", InterfaceVersion { major: 1, minor: 1 });
+    let old = HostOffer::new("testgame", "test").with_interface("bb.commands", InterfaceVersion { major: 1, minor: 1 });
     let too_old = discover(&root, &Policy::All, &old);
     assert_eq!(
         rejected_ids(&too_old),
@@ -141,13 +141,14 @@ fn a_required_interface_must_be_offered_at_a_high_enough_minor() {
         )]
     );
 
-    let enough = HostOffer::new("nfsmw", "test").with_interface("bb.commands", InterfaceVersion { major: 1, minor: 3 });
+    let enough =
+        HostOffer::new("testgame", "test").with_interface("bb.commands", InterfaceVersion { major: 1, minor: 3 });
     assert_eq!(discover(&root, &Policy::All, &enough).candidates.len(), 1);
 }
 
 #[test]
 fn an_optional_interface_never_rejects_a_mod() {
-    let text = manifest_text("opt.mod", "1.0.0", "[optional.interfaces]\n\"nfsmw.pursuit\" = \"1.0\"\n");
+    let text = manifest_text("opt.mod", "1.0.0", "[optional.interfaces]\n\"bb.extra\" = \"1.0\"\n");
     let scratch = Scratch::new("optional");
     fs::write(scratch.folder("opt").join(MANIFEST_FILE), text).expect("manifest");
     assert_eq!(all(&[scratch.path().to_owned()]).candidates.len(), 1);
@@ -200,9 +201,12 @@ fn an_equal_version_keeps_the_first_root() {
 
 #[test]
 fn the_game_list_is_checked_against_the_offer() {
-    let text = manifest_text("g.mod", "1.0.0", "").replace("supported = [\"*\"]", "supported = [\"nfsmw\"]");
+    let text = manifest_text("g.mod", "1.0.0", "").replace("supported = [\"*\"]", "supported = [\"testgame\"]");
     let manifest = crate::host::manifest::parse(&text).expect("manifest");
-    let other_game = HostOffer::new("nfsu2", "test");
-    assert_eq!(check_offer(&manifest, &other_game), Err(RejectReason::GameUnsupported { host: "nfsu2".to_owned() }));
+    let other_game = HostOffer::new("othergame", "test");
+    assert_eq!(
+        check_offer(&manifest, &other_game),
+        Err(RejectReason::GameUnsupported { host: "othergame".to_owned() })
+    );
     assert_eq!(check_offer(&manifest, &host()), Ok(()));
 }

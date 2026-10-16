@@ -1,15 +1,25 @@
 //! The only SDK code that handles raw pointers or calls host function pointers (ADR 0005 sections 1 and 3).
 //!
 //! The trust boundary is the host table. Its fields are read only after the size check, and its function pointers
-//! are called only while the mod is loaded. Everything a mod sees is safe Rust built on top of this module.
+//! are called only while the mod is loaded. Each interface table is read the same way (see [`read_or`]). Everything a
+//! mod sees is safe Rust built on top of this module.
 
 #![allow(unsafe_code)] // ADR 0005 section 8: `unsafe` is confined to `abi`, `host::loader` and `sdk::ffi`.
+
+pub(crate) mod commands;
+mod event;
+pub(crate) mod input;
+pub(crate) mod map;
+pub(crate) mod time;
 
 use core::ffi::c_void;
 use core::mem::{offset_of, size_of};
 use core::ptr::{self, NonNull, addr_of};
+use std::cell::RefCell;
+use std::rc::Rc;
 
-use super::{Ctx, Error, Event, Interface, Mod, ModResult, guard};
+use super::ctx::Keep;
+use super::{Ctx, Error, Interface, Mod, ModResult, guard};
 use crate::abi::{
     ABI_MAJOR, ABI_MINOR, ABI_VERSION, AbiVersion, BB_ERR_ABI, BB_ERR_ARG, BB_EVENT_CONTINUE, BB_LOG_ERROR, BB_OK,
     BbEvent, BbEventResult, BbHost, BbIface, BbLogFn, BbModApi, BbQueryInterfaceFn, BbStatus, BbStr, check_handshake,
@@ -91,11 +101,31 @@ impl HostTable {
     }
 }
 
+/// Read one field of an interface table, or `absent` when the table's size does not cover it.
+///
+/// # Safety
+/// `iface` must be a table the host offered, which stays valid while the mod is loaded. The field at `offset` must be
+/// of type `T` in that table's layout.
+pub(crate) unsafe fn read_or<T: Copy>(iface: &Interface, offset: usize, absent: T) -> T {
+    if !iface.has_field(offset + size_of::<T>()) {
+        return absent;
+    }
+    // SAFETY: the table covers the field (checked above) and stays valid while the mod is loaded (see `# Safety`).
+    unsafe { iface.as_ptr().cast::<u8>().add(offset).cast::<T>().read_unaligned() }
+}
+
+/// Turn a host status into the SDK's result: a non-negative status is success.
+pub(crate) fn status_result(status: BbStatus) -> ModResult<()> {
+    match Error::from_status(status) {
+        Some(error) => Err(error),
+        None => Ok(()),
+    }
+}
+
 /// Write one log line through the host. A host without a log function drops the line.
 pub(crate) fn log(host: HostTable, level: u32, msg: &str) {
-    let logger = match host.logger() {
-        Some(logger) => logger,
-        None => return,
+    let Some(logger) = host.logger() else {
+        return;
     };
     // SAFETY: the host's log function takes the host's own context pointer and a string valid for the call. `msg`
     // outlives the call.
@@ -113,9 +143,8 @@ pub(crate) fn game_version(host: HostTable) -> ModResult<String> {
 }
 
 fn owned_text(text: Option<BbStr>) -> ModResult<String> {
-    let text = match text {
-        Some(text) => text,
-        None => return Err(Error::Unsupported),
+    let Some(text) = text else {
+        return Err(Error::Unsupported);
     };
     // SAFETY: the host keeps its strings valid while the mod is loaded; the copy is taken inside this call.
     let borrowed = unsafe { text.as_str() };
@@ -141,6 +170,14 @@ pub(crate) fn query_interface(host: HostTable, id: &str, major: u16, min_minor: 
     Some(Interface::new(table, header))
 }
 
+/// What `BbModApi::state` points to: the mod, the host table its callbacks need, and the closures it keeps alive for
+/// the host.
+struct Slot<M> {
+    host: HostTable,
+    module: M,
+    keep: Keep,
+}
+
 /// The body of `bb_mod_create` for the mod type `M`.
 ///
 /// It checks the arguments and the handshake, then loads the mod inside the panic guard. It writes the mod table to
@@ -150,9 +187,8 @@ pub(crate) fn query_interface(host: HostTable, id: &str, major: u16, min_minor: 
 /// `host` must be null or point to a host table that stays valid while the mod is loaded. `out` must be null or
 /// valid for one write of a `BbModApi`.
 pub unsafe fn create<M: Mod>(host: *const BbHost, out: *mut BbModApi) -> BbStatus {
-    let host = match NonNull::new(host.cast_mut()) {
-        Some(host) => host,
-        None => return BB_ERR_ARG,
+    let Some(host) = NonNull::new(host.cast_mut()) else {
+        return BB_ERR_ARG;
     };
     if out.is_null() {
         return BB_ERR_ARG;
@@ -162,12 +198,18 @@ pub unsafe fn create<M: Mod>(host: *const BbHost, out: *mut BbModApi) -> BbStatu
     if check_handshake(host.version(), ABI_VERSION).is_err() {
         return BB_ERR_ABI;
     }
-    let loaded = guard::run(|| M::load(&mut Ctx::new(host)));
+    let keep: Keep = Rc::new(RefCell::new(Vec::new()));
+    let loaded = guard::run(|| M::load(&mut Ctx::new(host, keep.clone())));
     let module = match finish(host, "load", loaded) {
         Ok(module) => module,
-        Err(error) => return error.code(),
+        Err(error) => {
+            // The closures of a refused mod are dropped now; the host has not called them, and it removes its
+            // registrations when it drops this mod's table.
+            keep.borrow_mut().clear();
+            return error.code();
+        }
     };
-    let slot = Box::into_raw(Box::new(Slot { host, module }));
+    let slot = Box::into_raw(Box::new(Slot { host, module, keep }));
     let table = BbModApi {
         size: size_of::<BbModApi>() as u32,
         abi_major: ABI_MAJOR,
@@ -179,12 +221,6 @@ pub unsafe fn create<M: Mod>(host: *const BbHost, out: *mut BbModApi) -> BbStatu
     // SAFETY: `out` is non-null and valid for one write (see `# Safety`).
     unsafe { out.write(table) };
     BB_OK
-}
-
-/// What `BbModApi::state` points to: the mod and the host table its callbacks need.
-struct Slot<M> {
-    host: HostTable,
-    module: M,
 }
 
 /// The `on_event` trampoline for the mod type `M`.
@@ -200,13 +236,13 @@ unsafe extern "C" fn on_event<M: Mod>(state: *mut c_void, event: *const BbEvent)
     // this one runs, so the reference is unique.
     let slot = unsafe { &mut *state.cast::<Slot<M>>() };
     // SAFETY: `event` is valid for this call (see `# Safety`).
-    let event = match unsafe { read_event(event) } {
-        Some(event) => event,
-        None => return BB_ERR_ARG,
+    let Some(event) = (unsafe { event::decode(event) }) else {
+        return BB_ERR_ARG;
     };
     let host = slot.host;
+    let keep = slot.keep.clone();
     let result = guard::run(|| {
-        let mut ctx = Ctx::new(host);
+        let mut ctx = Ctx::new(host, keep);
         slot.module.event(&mut ctx, &event);
         Ok(())
     });
@@ -216,7 +252,7 @@ unsafe extern "C" fn on_event<M: Mod>(state: *mut c_void, event: *const BbEvent)
     }
 }
 
-/// The `destroy` trampoline for the mod type `M`: unloads the mod and frees its state.
+/// The `destroy` trampoline for the mod type `M`: unloads the mod, drops what it kept for the host, and frees its state.
 ///
 /// # Safety
 /// `state` must be the pointer `create::<M>` produced, passed here exactly once.
@@ -228,28 +264,15 @@ unsafe extern "C" fn destroy<M: Mod>(state: *mut c_void) {
     // once.
     let mut slot = unsafe { Box::from_raw(state.cast::<Slot<M>>()) };
     let host = slot.host;
+    let keep = slot.keep.clone();
     let result = guard::run(|| {
-        let mut ctx = Ctx::new(host);
+        let mut ctx = Ctx::new(host, keep);
         slot.module.unload(&mut ctx);
         Ok(())
     });
     // `destroy` returns nothing to the host; a panic has already been logged by `finish`.
     let _ = finish(host, "unload", result);
-}
-
-/// Read the header fields of an event. Only the fields the event's own `size` covers are read.
-///
-/// # Safety
-/// `raw` must be valid for reads of the bytes its `size` field declares, and at least the size word itself.
-unsafe fn read_event(raw: *const BbEvent) -> Option<Event> {
-    // SAFETY: the size word is present in every version of the event (ADR 0005 section 1).
-    let size = unsafe { addr_of!((*raw).size).read() };
-    if !has_field(size, offset_of!(BbEvent, frame) + size_of::<u64>()) {
-        return None;
-    }
-    // SAFETY: the event's `size` covers `kind` and `frame` (checked above).
-    let (kind, frame) = unsafe { (addr_of!((*raw).kind).read(), addr_of!((*raw).frame).read()) };
-    Some(Event::new(kind, frame))
+    slot.keep.borrow_mut().clear();
 }
 
 /// Log a caught panic through the host, then pass the result on.

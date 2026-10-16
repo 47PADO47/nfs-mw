@@ -9,7 +9,7 @@ use super::manifest::InterfaceVersion;
 /// The host's side of the compatibility check.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct HostOffer {
-    /// The game id, for example `nfsmw`. Compared with `games.supported`.
+    /// The game id, for example `mygame`. Compared with `games.supported`.
     pub game_id: String,
     /// The game version, for diagnostics.
     pub game_version: String,

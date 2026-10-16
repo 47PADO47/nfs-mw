@@ -6,6 +6,9 @@ use core::mem::{offset_of, size_of};
 use core::ptr::{self, NonNull};
 use core::sync::atomic::{AtomicU32, AtomicU64, Ordering::Relaxed};
 
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use super::{HostTable, create};
 use crate::abi::{
     ABI_MAJOR, ABI_MINOR, BB_ERR_ABI, BB_ERR_ARG, BB_ERR_DENIED, BB_ERR_PANIC, BB_EVENT_CONTINUE, BB_OK, BbEvent,
@@ -104,6 +107,11 @@ fn empty_api() -> BbModApi {
 fn host_table(host: &BbHost) -> HostTable {
     // SAFETY: `host` is a live reference for the whole test, and its header is readable.
     unsafe { HostTable::new(NonNull::from(host)) }
+}
+
+/// A `Ctx` over the fake host, with an empty keep-alive list.
+fn test_ctx(host: &BbHost) -> Ctx {
+    Ctx::new(host_table(host), Rc::new(RefCell::new(Vec::new())))
 }
 
 #[test]
@@ -229,7 +237,7 @@ fn an_event_too_short_for_its_frame_is_refused_before_dispatch() {
 #[test]
 fn query_interface_hands_out_only_a_matching_version() {
     let host = fake_host();
-    let ctx = Ctx::new(host_table(&host));
+    let ctx = test_ctx(&host);
     let iface = ctx.query_interface("known", 1, 2).expect("offered at 1.2");
     assert_eq!((iface.major(), iface.minor()), (1, 2));
     assert!(ctx.query_interface("known", 1, 3).is_none(), "minor too old");
@@ -241,7 +249,7 @@ fn query_interface_hands_out_only_a_matching_version() {
 fn a_short_host_table_hides_the_fields_it_does_not_have() {
     let mut host = fake_host();
     host.size = offset_of!(BbHost, query_interface) as u32;
-    let ctx = Ctx::new(host_table(&host));
+    let ctx = test_ctx(&host);
     assert!(ctx.query_interface("known", 1, 0).is_none());
     assert_eq!(ctx.game_id(), Ok("testgame".to_owned()));
     ctx.log(Level::Info, "still logs: the log field is covered");
@@ -250,7 +258,7 @@ fn a_short_host_table_hides_the_fields_it_does_not_have() {
 #[test]
 fn game_id_and_version_are_copied_from_the_host() {
     let host = fake_host();
-    let ctx = Ctx::new(host_table(&host));
+    let ctx = test_ctx(&host);
     assert_eq!(ctx.game_id(), Ok("testgame".to_owned()));
     assert_eq!(ctx.game_version(), Ok("1.0".to_owned()));
 }

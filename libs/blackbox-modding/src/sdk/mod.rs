@@ -22,22 +22,32 @@
 #[cfg(panic = "abort")]
 compile_error!("blackbox-modding mods must be built with panic = \"unwind\"; a panic has to reach the SDK guard");
 
+mod commands;
 mod ctx;
 mod error;
 mod event;
 #[doc(hidden)]
 pub mod ffi;
 mod guard;
+mod handle;
 mod iface;
+mod input;
 mod macros;
+mod map;
 mod module;
+mod time;
 
 pub use crate::declare_mod;
+pub use commands::Commands;
 pub use ctx::{Ctx, Level, MAX_MESSAGE_BYTES};
 pub use error::{Error, ModResult};
-pub use event::Event;
+pub use event::{Collider, Event, Role};
+pub use handle::{AbilityId, ActionId, BlipId, CommandId, MenuId, VehicleId, WorldId};
 pub use iface::Interface;
+pub use input::Input;
+pub use map::Map;
 pub use module::Mod;
+pub use time::{Time, TimeOfDay};
 
 /// The SDK version, reported to the host by `bb_mod_info`.
 pub const SDK_VERSION: &str = env!("CARGO_PKG_VERSION");

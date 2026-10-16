@@ -4,6 +4,7 @@
 use std::mem::size_of;
 use std::path::{Path, PathBuf};
 use std::ptr;
+use std::rc::Rc;
 
 use crate::abi::{BB_EVENT_CANCEL, BB_OK, BbEvent};
 
@@ -13,6 +14,7 @@ use super::loader::{LoadError, Module};
 use super::offer::HostOffer;
 use super::order::resolve;
 use super::policy::Policy;
+use super::registry::InterfaceRegistry;
 use super::reject::{RejectReason, Rejected};
 use super::reload::{purge, shadow_copy};
 
@@ -87,6 +89,7 @@ pub enum ReloadError {
 /// The loaded mods, the rejected ones and, in a developer run, the shadow-copy cache.
 pub struct ModRuntime {
     offer: HostOffer,
+    registry: Rc<InterfaceRegistry>,
     loaded: Vec<Loaded>,
     rejected: Vec<Rejected>,
     dev: Option<DevCache>,
@@ -101,8 +104,22 @@ impl ModRuntime {
     /// Discover, order and load the mods in `roots`. Nothing here stops start-up: a mod that fails is recorded and
     /// logged, and the others load. With [`Policy::Off`] nothing is scanned.
     pub fn start(offer: HostOffer, policy: &Policy, roots: &[PathBuf], mode: RunMode) -> ModRuntime {
+        Self::start_with(offer, InterfaceRegistry::new(), policy, roots, mode)
+    }
+
+    /// Like [`ModRuntime::start`], with the interfaces of `registry` offered to the mods. The registry's interfaces are
+    /// added to the offer, so a manifest that requires one of them can load.
+    pub fn start_with(
+        mut offer: HostOffer,
+        registry: InterfaceRegistry,
+        policy: &Policy,
+        roots: &[PathBuf],
+        mode: RunMode,
+    ) -> ModRuntime {
+        offer.interfaces.extend(registry.offers());
         let dev = dev_cache(mode);
-        let mut runtime = ModRuntime { offer, loaded: Vec::new(), rejected: Vec::new(), dev };
+        let mut runtime =
+            ModRuntime { offer, registry: Rc::new(registry), loaded: Vec::new(), rejected: Vec::new(), dev };
         if *policy == Policy::Off {
             return runtime;
         }
@@ -132,6 +149,12 @@ impl ModRuntime {
     /// negative status gets one fault; the fifth quarantines it.
     pub fn dispatch(&mut self, kind: u32, frame: u64) -> DispatchReport {
         let event = BbEvent { size: size_of::<BbEvent>() as u32, kind, frame, payload: ptr::null() };
+        self.dispatch_event(&event)
+    }
+
+    /// Deliver one event built by the game, payload included, to every loaded mod in load order. The payload pointer
+    /// must stay valid for the call. Fault and quarantine rules are those of [`ModRuntime::dispatch`].
+    pub fn dispatch_event(&mut self, event: &BbEvent) -> DispatchReport {
         let mut report = DispatchReport::default();
         for loaded in &mut self.loaded {
             if loaded.faults.is_quarantined() {
@@ -140,7 +163,7 @@ impl ModRuntime {
             let Some(module) = loaded.module.as_mut() else {
                 continue;
             };
-            let Some(status) = module.deliver(&event) else {
+            let Some(status) = module.deliver(event) else {
                 continue;
             };
             report.delivered += 1;
@@ -177,7 +200,7 @@ impl ModRuntime {
         let old = self.loaded.remove(index);
         let Loaded { candidate, module, faults: _ } = old;
         drop(module);
-        match Module::load(&copy, id, &self.offer) {
+        match Module::load(&copy, id, &self.offer, self.registry.clone()) {
             Ok(module) => {
                 self.loaded.insert(index, Loaded { candidate, module: Some(module), faults: FaultCounter::default() });
                 log::info!("reloaded mod {id}");
@@ -216,7 +239,7 @@ impl ModRuntime {
             Ok(file) => file,
             Err(reason) => return self.refuse(candidate, reason),
         };
-        match Module::load(&file, &id, &self.offer) {
+        match Module::load(&file, &id, &self.offer, self.registry.clone()) {
             Ok(module) => self.accept(candidate, Some(module)),
             Err(error) => self.refuse(candidate, RejectReason::LoadFailed(error.to_string())),
         }

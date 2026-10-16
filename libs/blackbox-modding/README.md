@@ -9,9 +9,10 @@ Features:
 
 - `abi` (default): `#[repr(C)]` tables, status codes, the ABI version and the entry-symbol names. Layout is
   locked by snapshot tests.
-- `sdk`: the `Mod` trait, `declare_mod!`, the panic guard, and the host-table wrappers (logging, game id,
-  interface query).
-- `host`: reserved for the loader.
+- `sdk`: the `Mod` trait, `declare_mod!`, the panic guard, the typed `Event`, and the host-table wrappers (logging,
+  game id, interface query, and `ctx.commands()`, `ctx.input()`, `ctx.time()`, `ctx.map()`).
+- `host`: the loader, the dispatcher (`dispatch` and `dispatch_event`), and the `InterfaceRegistry` that gives each mod
+  its `bb.commands`, `bb.input`, `bb.time` and `bb.map` tables from the game's backend traits.
 
 The crate is engine-generic: no game names, paths or defaults. `unsafe` is allowed only in `abi` and
-`sdk::ffi`.
+`sdk::ffi`, and in the host table modules (`host::table`, `host::loader`).

@@ -10,7 +10,11 @@
 //! - [`runtime`]: the start-up sequence, event dispatch with the fault counter ([`fault`]), dev reload ([`reload`]) and
 //!   unload.
 //!
-//! The host names no game. The game supplies its identity and offer, and its interface tables (later).
+//! The host names no game. The game supplies its identity and offer, and the backends of the generic interfaces it
+//! implements, through an [`InterfaceRegistry`].
+//!
+//! - [`registry`]: the interfaces the host offers, and the per-mod tables it builds for them.
+//! - `table`: the host table of each mod, `query_interface`, and the trampolines behind the interface tables.
 
 pub mod discovery;
 pub mod fault;
@@ -19,6 +23,7 @@ pub mod manifest;
 pub mod offer;
 pub mod order;
 pub mod policy;
+pub mod registry;
 pub mod reject;
 pub mod reload;
 pub mod runtime;
@@ -34,5 +39,9 @@ pub use manifest::{MANIFEST_FILE, Manifest, ManifestError, parse};
 pub use offer::{HostOffer, InterfaceOffer};
 pub use order::{Resolution, resolve};
 pub use policy::Policy;
+pub use registry::InterfaceRegistry;
 pub use reject::{RejectReason, Rejected};
 pub use runtime::{DispatchReport, ModRuntime, ModSummary, ReloadError, RunMode};
+pub use table::{
+    BackendResult, BlipSpec, CommandHandler, CommandsBackend, HotkeyHandler, InputBackend, MapBackend, TimeBackend,
+};

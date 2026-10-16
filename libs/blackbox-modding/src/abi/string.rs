@@ -1,5 +1,18 @@
 //! `BbStr`: the UTF-8 string that crosses the boundary (ADR 0005 section 4).
 
+use core::ffi::c_void;
+
+/// Longest name the host accepts (a mod id, command, hotkey, action, blip style), in bytes.
+pub const MAX_NAME_BYTES: usize = 128;
+/// Longest message or help text the host accepts in one call, in bytes.
+pub const MAX_MESSAGE_BYTES: usize = 1024;
+/// Longest path the host accepts, in bytes.
+pub const MAX_PATH_BYTES: usize = 512;
+
+/// Receives text that a host call produces. The host calls it during that call, with a string valid only for the
+/// duration of the call. `user` is the receiver's own pointer, passed back unchanged. The receiver copies what it keeps.
+pub type BbSinkFn = unsafe extern "C" fn(user: *mut c_void, text: BbStr);
+
 /// A UTF-8 string passed across the boundary: a pointer and a byte length.
 ///
 /// The bytes are not NUL-terminated and are valid only for the call that carries the `BbStr`. The receiver

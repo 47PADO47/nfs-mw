@@ -4,14 +4,19 @@
 
 #![cfg(feature = "host")]
 
+use std::cell::Cell;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::rc::Rc;
 use std::sync::Mutex;
 use std::sync::Once;
 
-use blackbox_modding::host::{HostOffer, ModRuntime, Policy, RejectReason, ReloadError, RunMode};
+use blackbox_modding::abi::BbTimeOfDay;
+use blackbox_modding::host::{
+    BackendResult, HostOffer, InterfaceRegistry, ModRuntime, Policy, RejectReason, ReloadError, RunMode, TimeBackend,
+};
 use log::{Log, Metadata, Record};
 
 /// Every line the `log` crate receives while the tests run. The host and the mod both log through it.
@@ -137,7 +142,7 @@ fn write_manifest(root: &Path, folder: &str, text: &str) {
 }
 
 fn offer() -> HostOffer {
-    HostOffer::new("nfsmw", "test")
+    HostOffer::new("testgame", "test")
 }
 
 #[test]
@@ -165,10 +170,58 @@ fn hello_loads_receives_events_and_is_destroyed_on_unload() {
     let lines = captured();
     let has = |needle: &str| lines.iter().any(|line| line.contains(needle));
     assert!(has("[example.hello] hello: loaded"), "load log missing");
+    assert!(has("[example.hello] hello: bb.time absent"), "an absent optional interface must not stop the mod");
     assert!(has("[example.hello] hello: event 7 at frame 1 (count 1)"), "first event missing");
     assert!(has("[example.hello] hello: event 8 at frame 2 (count 2)"), "second event missing");
     assert!(has("[example.hello] hello: unloaded after 2 events"), "destroy did not run");
     assert!(has(&format!("sha256={sha}")), "the startup log does not name the hash");
+}
+
+/// A clock the test owns. The mod reads it through the real `bb.time` table, so a value the test sets must come back
+/// through the mod's log line: host to mod and back.
+struct FakeTime {
+    hour: Cell<f32>,
+    reads: Cell<u32>,
+}
+
+impl TimeBackend for FakeTime {
+    fn get(&self, _owner: &str) -> BackendResult<BbTimeOfDay> {
+        self.reads.set(self.reads.get() + 1);
+        Ok(BbTimeOfDay { hour: self.hour.get(), seconds_per_hour: 60.0, frozen: 0, lights_on: 1, _pad: [0; 2] })
+    }
+
+    fn set_hour(&self, _owner: &str, hour: f32) -> BackendResult<()> {
+        self.hour.set(hour);
+        Ok(())
+    }
+
+    fn set_day_length(&self, _owner: &str, _seconds_per_hour: f32) -> BackendResult<()> {
+        Ok(())
+    }
+
+    fn freeze(&self, _owner: &str, _on: bool) -> BackendResult<()> {
+        Ok(())
+    }
+}
+
+#[test]
+fn hello_reads_the_clock_through_the_host_interface() {
+    install_logger();
+    let library = build_hello();
+    let scratch = Scratch::new("clock");
+    install_hello(scratch.path(), &library);
+    let clock = Rc::new(FakeTime { hour: Cell::new(13.5), reads: Cell::new(0) });
+    let mut registry = InterfaceRegistry::new();
+    registry.add_time(clock.clone());
+
+    let mut runtime =
+        ModRuntime::start_with(offer(), registry, &Policy::All, &[scratch.path().to_owned()], RunMode::Normal);
+    assert_eq!(runtime.loaded().len(), 1, "rejected: {:?}", runtime.rejected());
+    assert_eq!(clock.reads.get(), 1, "the mod reads the clock once, on load");
+
+    runtime.unload_all();
+    let line = "[example.hello] hello: time 13.50 h, 60 s per hour, frozen false";
+    assert!(captured().iter().any(|logged| logged == line), "the clock value did not come back through the mod");
 }
 
 #[test]

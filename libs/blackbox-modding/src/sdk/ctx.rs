@@ -1,11 +1,23 @@
 //! `Ctx`: the mod's view of the host, handed to every callback.
 
+use core::any::Any;
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use super::ffi::{self, HostTable};
-use super::{Interface, ModResult};
-use crate::abi::{AbiVersion, BB_LOG_DEBUG, BB_LOG_ERROR, BB_LOG_INFO, BB_LOG_TRACE, BB_LOG_WARN};
+use super::{Commands, Input, Interface, Map, ModResult, Time};
+use crate::abi::{
+    AbiVersion, BB_LOG_DEBUG, BB_LOG_ERROR, BB_LOG_INFO, BB_LOG_TRACE, BB_LOG_WARN, IFACE_COMMANDS,
+    IFACE_COMMANDS_VERSION, IFACE_INPUT, IFACE_INPUT_VERSION, IFACE_MAP, IFACE_MAP_VERSION, IFACE_TIME,
+    IFACE_TIME_VERSION,
+};
 
 /// The longest message the host takes in one line (ADR 0005 section 4). Longer text is cut at a character boundary.
 pub const MAX_MESSAGE_BYTES: usize = 1024;
+
+/// Everything a mod keeps alive for the host: the Rust closures behind its registered commands and hotkeys. The host
+/// calls them through C trampolines, so they must live until the mod unloads. The mod's slot clears them at `destroy`.
+pub(crate) type Keep = Rc<RefCell<Vec<Box<dyn Any>>>>;
 
 /// Log severity. Maps to the host's `BB_LOG_*` levels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -27,12 +39,13 @@ pub enum Level {
 /// valid only for the callback that received it.
 pub struct Ctx {
     host: HostTable,
+    keep: Keep,
 }
 
 impl Ctx {
     /// Wrap the host table of the current mod.
-    pub(crate) fn new(host: HostTable) -> Self {
-        Ctx { host }
+    pub(crate) fn new(host: HostTable, keep: Keep) -> Self {
+        Ctx { host, keep }
     }
 
     /// The ABI version the host reports (the one the handshake accepted).
@@ -59,6 +72,30 @@ impl Ctx {
     /// a minor below `min_minor`. A mod must cope with `None` for an optional interface.
     pub fn query_interface(&self, id: &str, major: u16, min_minor: u16) -> Option<Interface> {
         ffi::query_interface(self.host, id, major, min_minor)
+    }
+
+    /// The console commands interface (`bb.commands`), when the host offers it.
+    pub fn commands(&self) -> Option<Commands> {
+        let iface = self.query_interface(IFACE_COMMANDS, IFACE_COMMANDS_VERSION.0, IFACE_COMMANDS_VERSION.1)?;
+        Some(Commands::new(ffi::commands::read(iface), self.host, self.keep.clone()))
+    }
+
+    /// The hotkey interface (`bb.input`), when the host offers it.
+    pub fn input(&self) -> Option<Input> {
+        let iface = self.query_interface(IFACE_INPUT, IFACE_INPUT_VERSION.0, IFACE_INPUT_VERSION.1)?;
+        Some(Input::new(ffi::input::read(iface), self.host, self.keep.clone()))
+    }
+
+    /// The time-of-day interface (`bb.time`), when the host offers it.
+    pub fn time(&self) -> Option<Time> {
+        let iface = self.query_interface(IFACE_TIME, IFACE_TIME_VERSION.0, IFACE_TIME_VERSION.1)?;
+        Some(Time::new(ffi::time::read(iface)))
+    }
+
+    /// The map interface (`bb.map`), when the host offers it.
+    pub fn map(&self) -> Option<Map> {
+        let iface = self.query_interface(IFACE_MAP, IFACE_MAP_VERSION.0, IFACE_MAP_VERSION.1)?;
+        Some(Map::new(ffi::map::read(iface)))
     }
 }
 

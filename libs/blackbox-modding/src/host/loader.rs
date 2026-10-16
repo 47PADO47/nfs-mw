@@ -11,6 +11,7 @@ use core::mem::{MaybeUninit, offset_of, size_of};
 use core::ptr::addr_of;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 use libloading::{Library, Symbol};
 use sha2::{Digest, Sha256};
@@ -21,6 +22,7 @@ use crate::abi::{
 };
 
 use super::offer::HostOffer;
+use super::registry::InterfaceRegistry;
 use super::table::HostTable;
 
 /// Why a library could not be loaded. Each variant ends the load of that mod only.
@@ -68,7 +70,12 @@ pub struct Module {
 impl Module {
     /// Load the library at `path` for mod `id`. The library is opened only after its bytes are hashed, and its ABI is
     /// checked before the host table is built.
-    pub fn load(path: &Path, id: &str, offer: &HostOffer) -> Result<Module, LoadError> {
+    pub fn load(
+        path: &Path,
+        id: &str,
+        offer: &HostOffer,
+        registry: Rc<InterfaceRegistry>,
+    ) -> Result<Module, LoadError> {
         let bytes = fs::read(path).map_err(|error| LoadError::Io(error.to_string()))?;
         let sha256 = sha256_hex(&bytes);
         // SAFETY: opening a library runs its initialisers. The library is a mod the user put in the mods folder, and
@@ -76,7 +83,7 @@ impl Module {
         let library = unsafe { Library::new(path) }.map_err(|error| LoadError::Open(error.to_string()))?;
         let declared = read_info(&library)?;
         check_mod_abi(declared)?;
-        let host = HostTable::new(id, offer);
+        let host = HostTable::new(id, offer, registry);
         let callbacks = call_create(&library, host.as_ptr())?;
         Ok(Module {
             id: id.to_owned(),

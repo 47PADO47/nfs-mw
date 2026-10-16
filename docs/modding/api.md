@@ -170,3 +170,41 @@ the hour changes lights, sun and shadow, not every sky detail.
 | Wall clock | `time.local_hour() -> f32` the player's real local hour, for "match real time" mods | G | `modding/runtime.rs` (new) |
 
 Related: `world.set_time_scale` (slow motion) is in [api-world.md](api-world.md#world-state).
+
+## Wire numbers (ABI 0.1)
+
+The numbers below are the ones in `libs/blackbox-modding/src/abi`. Each is locked by a snapshot test
+(`abi/event_tests.rs`, `abi/iface/tests.rs`). Every payload and table starts with its `size`, and new fields are only
+appended.
+
+| Event kind (`BB_EVENT_*`) | No. | Payload struct and fields after `size` |
+|---|---|---|
+| `FRAME_START` (before the scene updates) | 1 | `BbFrameStart`: `dt_real` |
+| `SCENE_TICK` (after the scene updates) | 2 | `BbSceneTick`: `dt_sim`, `time_scale`, `paused`, `_pad` |
+| `WORLD_LOADED` | 3 | `BbWorldLoaded`: `streaming_ready`, `_pad`, `world` |
+| `WORLD_UNLOADING` | 4 | `BbWorldUnloading`: `_pad`, `world` |
+| `VEHICLE_SPAWNED` | 5 | `BbVehicleSpawned`: `role`, `vehicle`, `car_id` |
+| `VEHICLE_DESPAWNED` | 6 | `BbVehicleDespawned`: `role`, `vehicle` |
+| `VEHICLE_COLLISION` | 7 | `BbVehicleCollision`: `other_kind`, `vehicle`, `other_id`, `point`, `impulse` |
+| `HOUR_CHANGED` | 8 | `BbHourChanged`: `hour` |
+| `MENU_OPENED` | 9 | `BbMenuEvent`: `_pad`, `menu` (also used by 10) |
+| `MENU_CLOSED` | 10 | `BbMenuEvent` |
+| `ACTION_PRESSED` | 11 | `BbActionPressed`: `_pad`, `action`, `name` |
+| `ABILITY_ACTIVATED` | 12 | `BbAbilityActivated`: `_pad`, `ability` |
+| `MOD_UNLOADING` | 13 | `BbModUnloading`: `_pad`, `mod_id` |
+
+Enumerations inside payloads: `BB_ROLE_*` = 0 player, 1 traffic, 2 cop, 3 racer; `BB_COLLIDE_*` = 0 vehicle,
+1 prop, 2 wall, 3 none. Handles are `u64`: low 32 bits the slot, high 32 bits the generation (from 1); `0` is none.
+
+Interface tables. Each starts with `head: BbIface { size, major, minor }`, then `ctx` (the host's pointer for that
+mod), then the functions below in this order. Every function takes `ctx` first and returns a `BbStatus`.
+
+| Interface (version) | Functions after `ctx`, in order |
+|---|---|
+| `bb.commands` (1.0) | `run(line, sink, sink_user)`, `register(name, help, user, callback, out_id)`, `unregister(id)` |
+| `bb.input` (1.0) | `register_hotkey(name, label, default_binding, user, callback, out_id)`, `unregister(id)` |
+| `bb.time` (1.0) | `get(out)`, `set_hour(hour)`, `set_day_length(seconds_per_hour)`, `freeze(on)` |
+| `bb.map` (1.0) | `add(blip, out_id)`, `update(id, blip)`, `remove(id)` |
+
+`bb.time`'s "set speed" is `set_day_length`, the day-length form of the table above. `bb.map`'s blip is
+`BbBlip { size, active, _pad, style, position }`.

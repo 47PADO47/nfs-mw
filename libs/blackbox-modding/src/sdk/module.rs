@@ -12,7 +12,7 @@ pub trait Mod: Sized {
     fn load(ctx: &mut Ctx) -> ModResult<Self>;
 
     /// Runs for each event the mod receives. The default does nothing.
-    fn event(&mut self, _ctx: &mut Ctx, _event: &Event) {}
+    fn event(&mut self, _ctx: &mut Ctx, _event: &Event<'_>) {}
 
     /// Runs once before the mod is removed. The default does nothing.
     fn unload(&mut self, _ctx: &mut Ctx) {}

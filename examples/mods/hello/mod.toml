@@ -11,6 +11,9 @@ blackbox_modding = "0.1"
 [games]
 supported = ["*"]
 
+[optional.interfaces]
+"bb.time" = "1.0"
+
 [library]
 windows = "hello_mod.dll"
 linux = "libhello_mod.so"

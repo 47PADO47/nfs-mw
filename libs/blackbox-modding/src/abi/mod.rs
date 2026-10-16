@@ -19,6 +19,8 @@
 
 #![allow(unsafe_code)] // ADR 0005 section 8: `unsafe` is confined to `abi`, `host::loader` and `sdk::ffi`.
 
+mod event;
+mod handle;
 mod host;
 mod iface;
 mod module;
@@ -28,12 +30,30 @@ mod string;
 mod version;
 
 #[cfg(test)]
+mod event_tests;
+#[cfg(test)]
 mod tests;
 
+pub use event::{
+    BB_COLLIDE_NONE, BB_COLLIDE_PROP, BB_COLLIDE_VEHICLE, BB_COLLIDE_WALL, BB_EVENT_ABILITY_ACTIVATED,
+    BB_EVENT_ACTION_PRESSED, BB_EVENT_FRAME_START, BB_EVENT_HOUR_CHANGED, BB_EVENT_MENU_CLOSED, BB_EVENT_MENU_OPENED,
+    BB_EVENT_MOD_UNLOADING, BB_EVENT_SCENE_TICK, BB_EVENT_VEHICLE_COLLISION, BB_EVENT_VEHICLE_DESPAWNED,
+    BB_EVENT_VEHICLE_SPAWNED, BB_EVENT_WORLD_LOADED, BB_EVENT_WORLD_UNLOADING, BB_ROLE_COP, BB_ROLE_PLAYER,
+    BB_ROLE_RACER, BB_ROLE_TRAFFIC, BbAbilityActivated, BbActionPressed, BbFrameStart, BbHourChanged, BbMenuEvent,
+    BbModUnloading, BbSceneTick, BbVehicleCollision, BbVehicleDespawned, BbVehicleSpawned, BbWorldLoaded,
+    BbWorldUnloading,
+};
+pub use handle::{BB_NULL_HANDLE, handle_generation, handle_index, make_handle};
 pub use host::{
     BB_LOG_DEBUG, BB_LOG_ERROR, BB_LOG_INFO, BB_LOG_TRACE, BB_LOG_WARN, BbHost, BbLogFn, BbQueryInterfaceFn,
 };
-pub use iface::BbIface;
+pub use iface::{
+    BbBlip, BbCommandCallbackFn, BbCommands, BbCommandsRegisterFn, BbCommandsRunFn, BbCommandsUnregisterFn, BbHotkeyFn,
+    BbIface, BbInput, BbInputRegisterFn, BbInputUnregisterFn, BbMap, BbMapAddFn, BbMapRemoveFn, BbMapUpdateFn, BbRgba,
+    BbTime, BbTimeFreezeFn, BbTimeGetFn, BbTimeOfDay, BbTimeSetDayLengthFn, BbTimeSetHourFn, IFACE_COMMANDS,
+    IFACE_COMMANDS_VERSION, IFACE_INPUT, IFACE_INPUT_VERSION, IFACE_MAP, IFACE_MAP_VERSION, IFACE_TIME,
+    IFACE_TIME_VERSION,
+};
 pub use module::{
     BB_EVENT_CANCEL, BB_EVENT_CONTINUE, BbDestroyFn, BbEvent, BbEventResult, BbModApi, BbModCreateFn, BbModInfo,
     BbModInfoFn, BbOnEventFn, MOD_CREATE_SYMBOL, MOD_INFO_SYMBOL,
@@ -44,5 +64,5 @@ pub use status::{
     BB_ERR_NOT_READY, BB_ERR_PANIC, BB_ERR_PHASE, BB_ERR_REMOVED, BB_ERR_STALE, BB_ERR_UNSUPPORTED,
     BB_ERR_WRONG_THREAD, BB_OK, BbStatus,
 };
-pub use string::BbStr;
+pub use string::{BbSinkFn, BbStr, MAX_MESSAGE_BYTES, MAX_NAME_BYTES, MAX_PATH_BYTES};
 pub use version::{ABI_MAJOR, ABI_MINOR, ABI_VERSION, AbiMismatch, AbiVersion, check_handshake};

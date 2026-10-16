@@ -8,7 +8,7 @@ use crate::host::manifest::MANIFEST_FILE;
 use crate::host::test_support::{Scratch, manifest_text};
 
 fn offer() -> HostOffer {
-    HostOffer::new("nfsmw", "test")
+    HostOffer::new("testgame", "test")
 }
 
 fn write_mod(scratch: &Scratch, folder: &str, text: &str) -> PathBuf {

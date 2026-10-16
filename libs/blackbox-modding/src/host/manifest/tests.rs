@@ -42,7 +42,7 @@ macos = "libhello.dylib"
 [requires.interfaces]
 "bb.commands" = "1.0"
 [optional.interfaces]
-"nfsmw.pursuit" = "1.2"
+"bb.extra" = "1.2"
 [dependencies]
 "example.base" = ">=1.2, <2"
 [load]
@@ -73,10 +73,10 @@ priority = 5
 
 #[test]
 fn a_named_game_list_is_kept() {
-    let text = MINIMAL.replace(r#"supported = ["*"]"#, r#"supported = ["nfsmw", "nfsu2"]"#);
+    let text = MINIMAL.replace(r#"supported = ["*"]"#, r#"supported = ["testgame", "othergame"]"#);
     let manifest = parse(&text).expect("named games");
-    assert!(manifest.games.supports("nfsmw"));
-    assert!(!manifest.games.supports("nfsc"));
+    assert!(manifest.games.supports("testgame"));
+    assert!(!manifest.games.supports("other"));
     assert!(GameSupport::Any.supports("anything"));
 }
 
@@ -143,10 +143,10 @@ fn a_bad_dependency_requirement_is_rejected() {
 fn an_empty_or_malformed_game_list_is_rejected() {
     let empty = MINIMAL.replace(r#"supported = ["*"]"#, "supported = []");
     assert_eq!(parse(&empty), Err(ManifestError::NoGames));
-    let star_with_others = MINIMAL.replace(r#"supported = ["*"]"#, r#"supported = ["*", "nfsmw"]"#);
+    let star_with_others = MINIMAL.replace(r#"supported = ["*"]"#, r#"supported = ["*", "testgame"]"#);
     assert_eq!(parse(&star_with_others), Err(ManifestError::InvalidGame("*".to_owned())));
-    let upper = MINIMAL.replace(r#"supported = ["*"]"#, r#"supported = ["NFSMW"]"#);
-    assert_eq!(parse(&upper), Err(ManifestError::InvalidGame("NFSMW".to_owned())));
+    let upper = MINIMAL.replace(r#"supported = ["*"]"#, r#"supported = ["TESTGAME"]"#);
+    assert_eq!(parse(&upper), Err(ManifestError::InvalidGame("TESTGAME".to_owned())));
 }
 
 #[test]
