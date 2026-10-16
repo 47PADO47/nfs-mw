@@ -89,6 +89,39 @@ fn a_track_that_will_not_open_is_skipped_for_the_next() {
 }
 
 #[test]
+fn a_skipped_custom_track_fades_out_over_the_default_five_seconds() {
+    let dir = folder("fade");
+    // Ten seconds each, so neither track ends during the test.
+    write_wav(&dir, "tune1", RATE, 1, 10 * RATE);
+    write_wav(&dir, "tune2", RATE, 1, 10 * RATE);
+    let config = CustomMusic {
+        enabled: true,
+        mode: CustomMode::Replace,
+        global: CustomSources { folders: vec![dir.clone()], playlists: Vec::new() },
+        ..CustomMusic::default()
+    };
+    let (mut radio, mut mixer, _) = radio();
+    radio.set_custom(&config, Library::build(&config));
+    radio.update(true, true, &mut mixer);
+    assert_eq!(title(&radio), Some("tune1"));
+    radio.skip(&mut mixer).unwrap();
+    assert_eq!(title(&radio), Some("tune2"));
+    assert_eq!(mixer.sounds.len(), 2, "the skipped track fades while the new one plays");
+    // 80 ms would have ended the skipped track by now; the default 5000 ms has not.
+    mixer.run(1000);
+    assert_eq!(mixer.sounds.len(), 2, "still fading after one second");
+    // Up to 10 s of frames: the fade is 5 s, and a stream that is waiting for its decoder does not fade meanwhile.
+    for _ in 0..100 {
+        if mixer.sounds.len() == 1 {
+            break;
+        }
+        mixer.run(100);
+    }
+    assert_eq!(mixer.sounds.len(), 1, "the skipped track has faded out");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
 fn a_config_with_no_tracks_leaves_the_songs_alone() {
     let dir = folder("empty");
     let (mut radio, mut mixer) = radio_with(&dir, CustomMode::Replace);

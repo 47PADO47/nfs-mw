@@ -67,7 +67,7 @@ impl Backend for Fake {
 /// Plays into nothing; `run` advances the sounds the way the mixer would.
 #[derive(Default)]
 pub(super) struct Mixer {
-    sounds: Vec<Box<dyn Sound>>,
+    pub(super) sounds: Vec<Box<dyn Sound>>,
 }
 
 impl Player for Mixer {

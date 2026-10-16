@@ -286,10 +286,36 @@ milliseconds). Blocks are sent through a bounded channel, so the thread runs at 
 - Metadata written by a tool with a non-Latin-1 legacy code page in an M3U: the Latin-1 rule reads it as mojibake.
   Windows-1252 would read the 0x80 to 0x9F range correctly. [deferred]
 
-## 8. Next leads
+## 8. Port status
+
+What the port does now, against sections 1 to 7. The feature is off unless `[custom_music] enabled = true`. The
+config reader is `settings/custom_music.rs`; the radio's custom side is `audio/radio/custom/`.
+
+| Item | Status | Where |
+|---|---|---|
+| 2.6 fade of a stopped custom track | done: the track's stream is given `fade_ms` (default 5000) when it starts; dropping its handle fades it over that time. Every early stop goes through `Radio::stop`: next, previous, radio off, leaving the game, and a pursuit holding the radio. A track that ends by itself is not faded. EA Trax songs keep their 80 ms fade | `audio/radio/mod.rs` `start_custom`, `stream.rs` `set_fade_out`; tests `tests/custom.rs` (default 5 s), `tests/stream.rs` (`fade_ms = 0` cuts at once) |
+| 2.5 controls | done, no new binding was needed: `RadioToggle` (N), `RadioNext` (`.`, media next, pad D-pad right), `RadioPrevious` (`,`, media previous, pad D-pad left) are in `input/bindings.rs` and change with `bind`. Note: `music-graph.md` section 7 still names M for the toggle; the bound key is N | `input/action.rs`, `input/bindings.rs`, `audio/radio/controls.rs` |
+| 2.2 menu context | done: the menu sources feed the front-end list, which plays on `radio next` outside the game | `custom/library.rs` `Library::build` |
+| 2.2 free roam context | done: the free-roam sources feed the in-game list | `custom/library.rs` |
+| 2.3 replace and mix, 2.4 order | done, with the rules tested | `custom/rotation.rs`, `custom/queue.rs` |
+| 2.5 history across both kinds | done | `audio/radio/mod.rs` `start_entry`, `record`; `controls.rs` |
+| 2.7 failures | done: a custom track that will not open is skipped, at most once per track in one start | `audio/radio/mod.rs` `start_next` |
+| 2.2 pursuit context | **not played (decision needed).** The radio already holds its place while a pursuit has the music (`update_held`, fed by `Scene::is_pursuing`), so no custom track plays in a chase. Playing the pursuit sources would put custom tracks over the pursuit music, which section 1 says they do not replace. Pick one: the pursuit sources play instead of the pursuit music (needs the music's gating changed), or they stay unplayed | `audio/radio/glue.rs` `update_radio`, `audio/plugin.rs` |
+| 2.2 race context | **not played.** The port has no race mode: Quick Race stops at its options screen (`frontend/track_options.rs`) | none |
+| 2.8 config read at the first drive | done | `audio/radio/glue.rs` `load_radio` |
+| 4 formats (mp3, ogg, flac, wav) | done through symphonia; the decoder streams blocks | `custom/decode.rs` |
+| EA Trax playlist screen (`frontend-menus.md` 2.2) | **not done; the entry stays greyed.** The package `EA_Trax_Jukebox.fng` (`FRONTEND/FrontB.lzc`, 120 objects) is in the install and loads (`nfsmw list-screens`). Driving it needs its game-side contract: the `game` and `sound` responses (for example `0x911AB364`, `0xC519BFC3`, `0xC519BFC4`, `0x5073EF13`, `0xB5971BF1`, `0xD9FEEC59`) and what they read and write. No spec defines them, so the port would have to reverse them first (a new R task). Custom rows also need objects that the package does not have: it has fixed rows | `frontend/icon_items.rs` (`Id::EaTrax`, greyed) |
+| 7 per-track amplitude and loop points | **not done, and no source defines them.** The M3U `#EXTINF` line gives only the length and the text, and this spec has no sidecar format. Stays deferred | none |
+
+Tests in this pass: `tests/custom.rs` (the 5 s default fade), `tests/stream.rs` (the zero fade). The earlier tests of
+sections 6 cover the rest.
+
+## 9. Next leads
 
 - Per-track amplitude and loop points in the config (`[custom_music.tracks."<path>"]`), after a decoder that seeks.
-- Race and pursuit contexts: find the radio's hooks for a race start and an end, and the pursuit's own list.
+- Pursuit context: decide the question in section 8 (play over the pursuit music or not). Race context waits for a race mode.
+- EA Trax playlist screen: an R task on `EA_Trax_Jukebox.fng`'s game messages (what each reads and writes, the 28-bit
+  mask and the per-song rows), then an I task to drive it and to add the custom rows.
 - A prefetch of the next track's header on the decoder thread, so a track change never waits on the game thread.
 - Windows-1252 for legacy M3U files.
 - Streams: a network client with a licence check (ureq or reqwest, both MIT or Apache-2.0 with their own dependency
