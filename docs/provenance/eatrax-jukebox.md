@@ -151,3 +151,60 @@ The package's `game` responses include the pad constants. Searching the binary f
   decompile is the expensive part; ask for it only for the few routines that the signature shows are relevant.
 - The option table is a fixed array of 28-byte records. Reading 448 bytes at its start gives the whole id list in
   one call, and the bit values show which rows share a flag word.
+
+## Pass 2 (second R pass)
+
+Calls made, all read-only except where noted:
+
+- Vtable reads: the two destructors' vtables at 0x0089E3C4 (slots: 0x0054EEF0 deleter, 0x00558598 rank routine,
+  0x0050DE70, 0x0054F270, 0x00559920, 0x0050DE70) and 0x0089E3D0 (slots: 0x0054F270 deleter, 0x00559920, 0x0050DE70).
+  The slot at 0x00558598 is inside the routine at 0x005584D0 (1082 bytes; "RANK_%d", "GAMERTAG_%d", "POS%d", and a
+  package load by name). So the classes are online-ranking screens. The slot at 0x00559920 has no Ghidra function.
+  Their destructors are reached from the slot-0 deleters at 0x0054EEF0 and 0x0054F270 (which are the callers the
+  first pass saw as "callers"; they are vtable entries, not calls).
+- `search_instructions` for the pad constants (read-only):
+  - `0xC519BFC4`: 12 hits. Functions: 0x0054ABA0 (212 bytes, pushes the constant), 0x00557E20 (online lobby), 0x0055D360
+    (online game room: `OL_GameRoom_Car_Select.fng`, race list, `UI_OLViewTrack.fng`), 0x005625CD (online lobby),
+    0x007BA1A0 (581 bytes, car select: `ACCELERATION`/`TOPSPEED`/`HANDLING` bars; its caller 0x007BF270 builds the
+    car-select object). Hits without a function: 0x0053E13B, 0x00545A26, 0x00549EF4 (in 0x00549..), 0x0055A005, 0x005A9B2E,
+    0x007AB7D4, 0x007BB390, 0x007BBC30, 0x007BFEE9.
+  - `0xC519BFC3`: 10 hits, the same routines plus 0x00587D30 (974 bytes, a caller of the list routines) and 0x0055B0C0.
+  - `0xD9FEEC59`: 9 hits: 0x0055B0C0 (world map), 0x0055D360, 0x005625CD, plus unanalysed hits at 0x005A9B14, 0x007BD653,
+    0x007BE0E6, 0x007C04FF, 0x007C091A, 0x007C162C.
+- `get_functions` on the unanalysed hits: no function at or containing 0x0053E0E4, 0x00545A26, 0x00549EF4, 0x0055A005,
+  0x0055A504, 0x005A9B2E, 0x007AB7D4, 0x007BB390, 0x007BBC30, 0x007BFEE9.
+- The PathFinder/EA Trax constructor FUN_004F8830 (0x004F8830, 641 bytes, vtable 0x00899B80, caller 0x004F9CA0). It
+  calls the event registration routine (0x004EB180) for: `Pathfinder5` -> 0x004E7BC0; `EATraxInit` -> 0x004DF420;
+  `Event` -> 0x004F0770; `Control` -> 0x004DFB80; `PartUpdate` -> 0x004DFBE0; `InteractiveDone` -> 0x004DFC30; `Swap` ->
+  0x004DFC40. A second registration (0x004EB210) takes the data at 0x004DFC20 for the hash 0x20D60DBF. The constructor
+  also sets `DAT_009142D8`, `DAT_009142DC` and the object's counters, and uses `FUN_0045DA30(4)` for a 2-bit random index.
+- The profile block loader FUN_005ACB70 (0x005ACB70, 597 bytes; callers 0x005ACDD0 and 0x005ACE40). Decompiled. With
+  flag `param_4 == 0` it copies the blocks described in spec section 10, sets the bits 0x20000 (once, when the option
+  check `FUN_006530A0(...,5)` passes) and 0x40000 (when the check with 4 passes) in the profile word at +0xAC, and posts
+  the event `EATraxInit` (hash `0x005CC240`, then `0x0065FAF0`) when the argument `param_3` is non-zero. Its first copy
+  is 8 words to the object; the 0x2332-word block at +0x414 is the largest and the best candidate for the song masks.
+
+Blocked:
+
+- `EATraxInit` handler at 0x004DF420 is not a Ghidra function. `create_function` on it was refused by the auto-mode
+  permission check (rule "Modify Shared Resources"). A `read_memory` of its bytes was then refused by the same check.
+  Neither was retried by another route. The handler body, the mask field and the jukebox's message slot are open until
+  the user allows these calls or adds a permission rule for `mcp__ghidra-mcp__create_function` and
+  `mcp__ghidra-mcp__read_memory`.
+
+Dead ends, pass 2:
+
+- The destructors at 0x0054EEF0 and 0x0054F270 are not option screens. They are deleters of the online-ranking
+  classes (their vtable slot 0).
+- The routines at 0x0055D360 (online game room) and 0x007BA1A0 (car select) compare the pad constants but are not this
+  screen. Do not read them again for the jukebox.
+- The profile block loader is the EA Trax save block reader, not the jukebox screen. It is a lead for the mask.
+
+Lessons, pass 2:
+
+- A vtable address read from a constructor is a good key: the slots name the class's methods, and a slot that is a
+  deleter gives the class's own callers at once. Read the vtable before following "callers" of a destructor.
+- An event-name table in a constructor (hash of the name to a handler) lists every handler of the object in one call.
+  That is the quickest way to the EA Trax init handler and the skip handler.
+- Plan for the permission check: the reads that worked in pass 1 were refused in pass 2. Record what is pending and stop
+  rather than look for another route to the same data.

@@ -170,9 +170,10 @@ The package name `EA_Trax_Jukebox.fng` is loaded by one routine (called the load
 
 What calls the loader [decomp]:
 
-- Two routines of the option screens (their vtables are at 0x0089E3C4 and 0x0089E3D0). Both call the loader and
-  then release their own members, so they are destructor-like. The loader is therefore run when an option screen is
-  left as well as when the package is opened [unconfirmed: the reason is not known].
+- Two destructors (vtables at 0x0089E3C4 and 0x0089E3D0). Pass 2 corrected the screen kind: their vtables hold the
+  online rank-list routine at 0x005584D0 ("RANK_%d", "GAMERTAG_%d", "POS%d"), so these are online-ranking screen
+  classes, not option screens. Each calls the loader before its base cleanup. So the jukebox package is also loaded
+  when those online screens are destroyed [decomp; the reason is not known, unconfirmed].
 - The option row dispatcher (the routine that handles the rows of the option screens). It reads each row's option
   id and value. The option with id `0x27` calls the loader when its value is 1.0. The option with id `0x28` sets a
   flag to 1 or 0 by the same test. The option table at 0x008F3428 holds 28-byte records (seven `u32`: the id, a
@@ -182,8 +183,8 @@ What calls the loader [decomp]:
   of the ids and the row names; check it in the option table's labels].
 
 So the audio option row (id `0x27`, probably "EA Trax mode") loads the jukebox when it is set to 1. The loader is also
-reached from the two option-screen routines of this section. No call from the main menu or the pause menu was found in
-this pass [unconfirmed]. The entry `Id::EaTrax` in the port's option list is still greyed.
+reached from the two online-ranking destructors of this section. No call from the main menu or the pause menu was
+found [unconfirmed]. The entry `Id::EaTrax` in the port's option list is still greyed.
 
 ## 6. The rows: data and fill
 
@@ -234,6 +235,32 @@ row fill. None of the three is found, so the I part is not started. The port kee
 The package contract of sections 2 to 4 is enough to write a screen that shows the rows, the hints and the
 pad mapping, but not the toggle rule that the spec's section 7 leaves open.
 
+## 10. Pass 2: the handler and the save block [decomp, partial]
+
+- **Blocker 1 (the game-message handler): still open.** The jukebox object's handler slot was not found. Checks:
+  - The two destructors of section 5 are online-ranking classes (their vtable slot 1 is the rank-list routine).
+  - The search for the PAD_BUTTON5 constant (`0xC519BFC4`) gives 12 instructions; the functions among them are the
+    online lobby, the world map, the online game room (its car select and race list), and the car-select screen
+    (`ACCELERATION`, `TOPSPEED`, `HANDLING` bars). None is this screen.
+  - The PAD_BUTTON4 search (`0xC519BFC3`) and the RIGHT trigger search (`0xD9FEEC59`) give the same set plus
+    unanalysed code near 0x007B.... The unanalysed hits do not start a Ghidra function, so their owner is unknown.
+- **The PathFinder and EA Trax object.** The constructor at 0x004F8830 (vtable 0x00899B80) registers its event
+  handlers by the hash of the event name: `Pathfinder5` goes to 0x004E7BC0, `EATraxInit` to 0x004DF420, `Event` to
+  0x004F0770, `Control` to 0x004DFB80, `PartUpdate` to 0x004DFBE0, `InteractiveDone` to 0x004DFC30 and `Swap` to
+  0x004DFC40. The hash 0x20D60DBF is registered with the data at 0x004DFC20, not a handler label.
+- **The EATraxInit handler (0x004DF420)** is the target of the `EATraxInit` event that the profile loader posts. It is
+  not a Ghidra function yet; the body was not read.
+- **The profile block loader (0x005ACB70)** reads the EA Trax save data from a buffer. It copies 8 words into the
+  object, 0x3C words to +0x324, 0x21 words to +0x24, 0x2332 words to +0x414, one byte to +0x90DC and 0x2F6 words to
+  +0x90E0, and it fills 18 entries of a table in the game-state object. It sets the flag bits 0x20000 and 0x40000 in
+  the profile word at +0xAC, and posts `EATraxInit` when its flag argument is set. The song mask is probably in the
+  +0x414 or +0x90E0 block; the field is not identified. Its callers are 0x005ACDD0 and 0x005ACE40 (not read).
+- **Blocker 2 (the mask writer): still open.** The mask field is not yet pinned to a byte of the save block, so the
+  writer is not known.
+- **Access stopped.** In this pass the Ghidra calls `create_function` and `read_memory` were refused by the permission
+  check ("Modify Shared Resources"). No further Ghidra calls were made, and no function was created. The EATraxInit
+  body (0x004DF420), the mask field and the handler slot need those calls or a permission rule for them.
+
 ## Dead ends (don't repeat)
 
 - The routines that compare the pad constants `0x911AB364`, `0xC519BFC3` and `0xC519BFC4`: the hits are the
@@ -246,6 +273,9 @@ pad mapping, but not the toggle rule that the spec's section 7 leaves open.
 
 ## Next leads
 
+0. Pass 2 is blocked by the permission check (section 10). With `create_function` and `read_memory` allowed: read the
+   EATraxInit handler at 0x004DF420 (the event body: play-list setup and the mask), then the profile block of
+   0x005ACB70 for the writer of the mask field, and the callers 0x005ACDD0 and 0x005ACE40 for the save side.
 1. Find the `game` message handler of this package. Start from the screen object created by the loader (the
    package's manager, not the option screens), then read the class's message routine for `0x0C407210` (BUTTON_PRESSED)
    and `0x7EABCA56`.
