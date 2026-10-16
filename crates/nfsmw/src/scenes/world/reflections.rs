@@ -1,5 +1,6 @@
 //! The original local car environment capture. This is separate from wet-road reflections.
-use blackbox_gfx::{Fog, FrameParams, ReflectionQuality, ReflectionScene, RenderBackend, reflection::face_frame};
+use blackbox_gfx::reflection::{PLANAR_MAX, face_frame};
+use blackbox_gfx::{Fog, FrameParams, ReflectionQuality, ReflectionScene, RenderBackend};
 use glam::Vec3;
 
 use super::{WorldScene, visibility};
@@ -55,6 +56,10 @@ impl WorldScene {
             surface_light: self.surface_light(),
             camera_cut: true,
         };
+        // The cube face size the renderer captures at, so the detail threshold follows the capture.
+        let output_height = renderer.surface_size()[1];
+        let face_size =
+            renderer.graphics().reflection_resolution.cube_face(quality.size(), output_height, PLANAR_MAX) as f32;
         for face in 0..6 {
             let frame = face_frame(origin, face, &template);
             let camera = visibility::Camera {
@@ -69,7 +74,7 @@ impl WorldScene {
                 &camera,
                 &blackbox_scenery::layout::MOST_WANTED.lod,
                 self.residency.props(),
-                quality.size() as f32,
+                face_size,
                 &mut self.reflection_faces[face],
             );
         }

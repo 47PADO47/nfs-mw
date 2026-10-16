@@ -12,6 +12,12 @@ impl Settings {
     pub fn graphics(&self) -> GraphicsSettings {
         GraphicsSettings {
             reflections: self.reflections,
+            reflection_resolution: blackbox_gfx::reflection::ReflectionResolution {
+                cube: self.reflection_cube_size,
+                mirror: self.reflection_mirror_size,
+                pow2: self.reflection_pow2,
+            },
+            mirror_tint: self.mirror_tint,
             shadows: self.shadows,
             post: post_effects(self),
             upscaler: self.upscaler.upscaler(),

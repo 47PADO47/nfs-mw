@@ -87,7 +87,12 @@ impl Renderer {
             }
             return;
         };
-        let size = scene.quality.size();
+        let (_, output_height) = self.surface_size();
+        let size = self.graphics.reflection_resolution.cube_face(
+            scene.quality.size(),
+            output_height,
+            blackbox_gfx::reflection::PLANAR_MAX,
+        );
         let mut capture = self
             .reflections
             .take()

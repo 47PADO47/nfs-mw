@@ -33,6 +33,10 @@ pub struct GraphicsSettings {
     /// Post effects, including the anti-aliasing method.
     pub post: PostSettings,
     pub reflections: crate::ReflectionQuality,
+    /// Size of the car cube faces and the rear-view mirror picture, and power-of-two rounding of the faces.
+    pub reflection_resolution: crate::reflection::ReflectionResolution,
+    /// Multiplies the rear-view mirror picture; [`MirrorTint::NONE`](crate::MirrorTint::NONE) leaves it as captured.
+    pub mirror_tint: crate::reflection::MirrorTint,
     pub ao: AoSettings,
     pub shadows: ShadowQuality,
     pub upscaler: Upscaler,
@@ -50,6 +54,8 @@ impl Default for GraphicsSettings {
         Self {
             post: PostSettings::default(),
             reflections: crate::ReflectionQuality::Off,
+            reflection_resolution: crate::reflection::ReflectionResolution::default(),
+            mirror_tint: crate::reflection::MirrorTint::NONE,
             ao: AoSettings::default(),
             shadows: ShadowQuality::Off,
             upscaler: Upscaler::default(),
@@ -69,6 +75,7 @@ impl GraphicsSettings {
             ao: self.ao.sanitized(),
             render_scale: clamp_render_scale(self.render_scale),
             upscale_sharpness: clamp_upscale_sharpness(self.upscale_sharpness),
+            reflection_resolution: self.reflection_resolution.sanitized(),
             ..self
         }
     }

@@ -3,6 +3,7 @@
 use blackbox_gfx::Capabilities;
 
 use super::options::{Data, Title};
+use crate::settings::reflection_res::{size_label, step_size, step_tint, tint_label};
 use crate::settings::{
     AoQuality, CarShading, GraphicsPreset, Partial, Percent, ReflectionQuality, Settings, VisualTreatment,
 };
@@ -13,6 +14,10 @@ pub enum GraphicsSetting {
     CarShading,
     VisualTreatment,
     Reflections,
+    CubeSize,
+    Pow2,
+    MirrorSize,
+    MirrorTint,
     Shadows,
     AmbientOcclusion,
     AoIntensity,
@@ -20,11 +25,15 @@ pub enum GraphicsSetting {
 }
 
 impl GraphicsSetting {
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 12] = [
         Self::Preset,
         Self::CarShading,
         Self::VisualTreatment,
         Self::Reflections,
+        Self::CubeSize,
+        Self::Pow2,
+        Self::MirrorSize,
+        Self::MirrorTint,
         Self::Shadows,
         Self::AmbientOcclusion,
         Self::AoIntensity,
@@ -35,7 +44,9 @@ impl GraphicsSetting {
         match self {
             Self::Shadows => caps.soft_shadows,
             Self::VisualTreatment => caps.scene_treatment,
-            Self::Reflections => caps.local_reflections,
+            Self::Reflections | Self::CubeSize | Self::Pow2 | Self::MirrorSize | Self::MirrorTint => {
+                caps.local_reflections
+            }
             Self::AmbientOcclusion | Self::AoIntensity | Self::AoComparison => caps.ambient_occlusion,
             Self::Preset | Self::CarShading => true,
         }
@@ -44,6 +55,10 @@ impl GraphicsSetting {
     pub fn enabled(self, s: &Settings) -> bool {
         match self {
             Self::Reflections => s.car_shading == CarShading::Glossy,
+            Self::CubeSize | Self::Pow2 => {
+                s.car_shading == CarShading::Glossy && s.reflections != ReflectionQuality::Off
+            }
+            Self::MirrorSize | Self::MirrorTint => true,
             Self::AoIntensity | Self::AoComparison => s.ao != AoQuality::Off,
             Self::Preset | Self::CarShading | Self::VisualTreatment | Self::AmbientOcclusion | Self::Shadows => true,
         }
@@ -55,6 +70,10 @@ impl GraphicsSetting {
             Self::CarShading => "Car Shading",
             Self::VisualTreatment => "Visual Treatment (Experimental)",
             Self::Reflections => "Car Reflections",
+            Self::CubeSize => "Car Reflection Size",
+            Self::Pow2 => "Power-of-Two Cube Size",
+            Self::MirrorSize => "Mirror Reflection Size",
+            Self::MirrorTint => "Mirror Tint",
             Self::Shadows => "Dynamic Soft Shadows",
             Self::AmbientOcclusion => "Ambient Occlusion (Experimental)",
             Self::AoIntensity => "AO Intensity",
@@ -65,6 +84,12 @@ impl GraphicsSetting {
     pub fn data(self, s: &Settings) -> Data {
         if self == Self::AoIntensity {
             return Data::Text(format!("{}%", s.ao_intensity.0));
+        }
+        if self == Self::CubeSize {
+            return Data::Text(size_label(s.reflection_cube_size));
+        }
+        if self == Self::MirrorSize {
+            return Data::Text(size_label(s.reflection_mirror_size));
         }
         Data::Text(
             match self {
@@ -86,6 +111,12 @@ impl GraphicsSetting {
                     ReflectionQuality::Medium => "Medium",
                     ReflectionQuality::High => "High",
                 },
+                Self::CubeSize | Self::MirrorSize => unreachable!("labelled above"),
+                Self::Pow2 => match s.reflection_pow2 {
+                    true => "On",
+                    false => "Off",
+                },
+                Self::MirrorTint => tint_label(s.mirror_tint),
                 Self::CarShading => match s.car_shading {
                     CarShading::Simple => "Simple",
                     CarShading::Glossy => "Glossy",
@@ -141,6 +172,22 @@ impl GraphicsSetting {
                 s.reflections = all[(at + offset) % all.len()];
                 changed.reflections = Some(s.reflections);
             }
+            Self::CubeSize => {
+                s.reflection_cube_size = step_size(s.reflection_cube_size, forward);
+                changed.reflection_cube_size = Some(s.reflection_cube_size);
+            }
+            Self::MirrorSize => {
+                s.reflection_mirror_size = step_size(s.reflection_mirror_size, forward);
+                changed.reflection_mirror_size = Some(s.reflection_mirror_size);
+            }
+            Self::Pow2 => {
+                s.reflection_pow2 = !s.reflection_pow2;
+                changed.reflection_pow2 = Some(s.reflection_pow2);
+            }
+            Self::MirrorTint => {
+                s.mirror_tint = step_tint(s.mirror_tint);
+                changed.mirror_tint = Some(s.mirror_tint);
+            }
             Self::CarShading => {
                 s.car_shading = match s.car_shading {
                     CarShading::Simple => CarShading::Glossy,
@@ -181,6 +228,7 @@ impl GraphicsSetting {
 mod tests {
     use super::super::options::Setting;
     use super::*;
+    use crate::settings::ReflectionSize;
 
     #[test]
     fn shadows_are_shown_only_on_supported_renderers_and_record_changes() {
@@ -234,6 +282,21 @@ mod tests {
         assert!(GraphicsSetting::Preset.step(&mut s, &mut changed, false));
         assert_eq!(s.graphics_preset, GraphicsPreset::Custom);
         assert_eq!(s.car_shading, CarShading::Simple, "custom keeps what the last preset set");
+    }
+
+    #[test]
+    fn the_reflection_rows_step_and_follow_car_reflections() {
+        let mut s = Settings::from(Partial::default());
+        let mut changed = Partial::default();
+        assert_eq!(GraphicsSetting::CubeSize.data(&s), Data::Text("100%".into()));
+        assert!(GraphicsSetting::CubeSize.step(&mut s, &mut changed, true));
+        assert_eq!(s.reflection_cube_size, ReflectionSize::Scale(1.5));
+        assert_eq!(changed.reflection_cube_size, Some(ReflectionSize::Scale(1.5)));
+        assert!(GraphicsSetting::MirrorTint.step(&mut s, &mut changed, true));
+        assert_eq!(GraphicsSetting::MirrorTint.data(&s), Data::Text("Stock".into()));
+        s.reflections = ReflectionQuality::Off;
+        assert!(!GraphicsSetting::Pow2.enabled(&s), "no cube capture to round");
+        assert!(GraphicsSetting::MirrorSize.enabled(&s), "the mirror does not need car reflections");
     }
 
     #[test]

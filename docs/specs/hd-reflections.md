@@ -348,3 +348,80 @@ reflection key; road and front-end keys stay hidden until their pass exists.
 8. The port's reflection mirror picture: the RVM mask and mirror shape are not part of this spec (see
    docs/specs/rear-view-mirror.md).
 9. Bevy mirror support: unchecked. Next lead: whether `request_capture` runs the mirror path in the Bevy harness.
+
+## 17. Port status
+
+Part 1 of the implementation (sections 2, 3, 5 and 10). Everything else in this spec is still open.
+
+| Item | Status | Where |
+|---|---|---|
+| Car cube face size (section 2, 5) | Done, native only | `reflection_cube_size`; `ReflectionResolution::cube_face` in `libs/blackbox-gfx/src/reflection.rs`, used by `libs/blackbox-render/src/gpu/reflections.rs` |
+| Rear mirror size (section 3, 5) | Done, native and bevy | `reflection_mirror_size`; `ReflectionResolution::mirror_size`, used by `crates/nfsmw/src/app/mirror.rs` |
+| Power-of-two cube faces (section 5) | Done, cube faces only | `reflection_pow2` |
+| Mirror tint (section 10) | Done, applied to every renderer's picture | `mirror_tint`; `tint_rgba` in `libs/blackbox-gfx/src/reflection.rs`, called in `crates/nfsmw/src/app/mirror.rs` before the bezel clip |
+| Reflection LOD threshold follows the face (section 6, partial) | Done | `crates/nfsmw/src/scenes/world/reflections.rs` uses the resolved face size |
+| Road, front-end cube, LOD option, distance caps, content, brightness, culling (sections 4, 6-9, 12, 13) | Not started | part 2 |
+
+### 17.1 Settings as built
+
+Each size is one value: `auto`, a percentage (`150%`, 25% to 400%, out of range is an error as for `render_scale`), or
+pixels (`256`). This replaces the proposed `reflection_car_scale`, `reflection_mirror_scale` and `reflection_auto_size`.
+
+| Key | Default | Values | Env | CLI | Console | Menu row (Video options) |
+|---|---|---|---|---|---|---|
+| `reflection_cube_size` | `100%` | `auto`, `N%`, `N` px | `NFSMW_REFLECTION_CUBE_SIZE` | `--reflection-cube-size` | yes | Car Reflection Size |
+| `reflection_mirror_size` | `100%` | `auto`, `N%`, `N` px (height) | `NFSMW_REFLECTION_MIRROR_SIZE` | `--reflection-mirror-size` | yes | Mirror Reflection Size |
+| `reflection_pow2` | off | on, off | `NFSMW_REFLECTION_POW2` | `--reflection-pow2` / `--no-reflection-pow2` | yes | Power-of-Two Cube Size |
+| `mirror_tint` | off | `off`, `on`, `#rrggbb`, `r g b` | `NFSMW_MIRROR_TINT` | `--mirror-tint` | yes | Mirror Tint (off or stock) |
+
+The defaults keep today's picture. A 100% cube is the quality preset's face (128 at medium, 256 at high). A 100% mirror is
+the bezel's 384 x 131. The tint default is off, which is the port's current look.
+
+### 17.2 Rules
+
+- Cube face: `auto` is the output height; `N%` multiplies the quality preset's face; `N` is pixels. Clamped to 16 to 1024,
+  then rounded down to a power of two when `reflection_pow2` is on.
+- Mirror: `auto` is the output height over 6; `N%` multiplies the base height 131; `N` is the height in pixels. The width
+  always follows the bezel's aspect (384 : 131). The height is clamped to at least 64 and the width to at most 2048.
+- Tint: `on` is 150 per channel (sniten's value). Its multiply keeps alpha. It is a CPU step on the captured picture, not a
+  change to the HUD shader.
+- Device limit: the rules take the largest texture edge. The native renderer and the mirror pass 2048 (`PLANAR_MAX`), the
+  wgpu downlevel minimum, so no device query is needed.
+
+### 17.3 Choices and deviations
+
+- The auto mirror uses the output (surface) height. Section 5 says "after render scale"; the choice here is the output
+  height, not the internal render height. Using the internal size would only change the `output_height` argument.
+- The car cube and the LOD threshold read the same resolved face size, so the detail threshold follows the capture
+  (section 6).
+- Menu rows show only where the renderer has car reflections (`caps.local_reflections`). That gates the mirror rows too,
+  as a proxy: the mirror is HUD-fed and its bevy path is not checked (section 3, lead 9). Cube and power-of-two rows are
+  also greyed out when car reflections are off or car shading is simple.
+- The menu steps size rows through 50%, 100%, 150% and 200% (plus `auto`). A value outside that list steps from `auto`.
+  The tint row toggles off and stock.
+
+### 17.4 Bevy
+
+`libs/blackbox-bevy-render/src/apply/capture.rs` was not changed. Its `begin` takes the size from the capture request, so
+the mirror size reaches the bevy capture path as it is. Bevy reports `local_reflections: false`, so there is no car cube
+capture there: the cube size is native only. The mirror tint is applied before the picture reaches the renderer, so it
+applies on bevy too if the mirror runs there (still unconfirmed).
+
+### 17.5 Verification
+
+- Unit tests (pure rules): `libs/blackbox-gfx/src/reflection.rs` covers size text, cube and mirror resolution, auto, scale,
+  power-of-two, device clamps, sanitizing, tint text and tint maths.
+- Settings tests: `crates/nfsmw/src/settings/reflection_res_tests.rs` covers defaults, menu cycle and labels, config round
+  trip through `write::merge` and `file::parse`, whole-pixel and channel-array forms, and environment layers.
+- Console and menu: `settings_cmd.rs` covers get, set and validation; `graphics_options.rs` covers the new rows.
+- Results: `cargo test -p blackbox-gfx --lib` 103 passed; `cargo test -p blackbox-render --lib` 38 passed;
+  `cargo test -p nfsmw -- settings::` 241 passed; `saves::` and the reflection and console filters pass.
+  `cargo clippy -p blackbox-gfx -p blackbox-render -p nfsmw -- -D warnings` is clean.
+- Not verified: the picture in game. The user compares the mirror, car reflection and road reflection on the installed
+  game with each setting (section 15). No window was launched.
+
+### 17.6 Open after part 1
+
+- `crates/nfsmw/src/devtools/console/parse.rs` has a fixed list of completion names. The four new keys are not in it.
+  That file was outside this task, and its completion test asserts the `re` prefix set.
+- The menu has no rows for the custom tint colour or fixed pixel sizes. Those are set through the config file or console.
