@@ -1,6 +1,6 @@
 # Mod world content: scenery packs and interiors
 
-- **Status:** proposal (task B14, 2026-10-16). Not implemented. It makes [ADR 0005](../decisions/0005-native-mod-plugins.md)
+- **Status:** partly built (task B14 proposal, 2026-10-16; port in B15, see section 9). It makes [ADR 0005](../decisions/0005-native-mod-plugins.md)
   and [api-content.md](../modding/api-content.md) concrete for two things: map packs (new scenery placed in the city or
   outside it) and interiors (an entry zone that leads to a place the car or player can go).
 - **Evidence tags** as in [docs/README.md](../README.md#evidence-tags). **[verified]** = matched against the install's
@@ -111,7 +111,7 @@ The design rests on these facts. Each is the reason for a choice in sections 2 a
 | File | Format | Read by (reused) | Notes |
 |---|---|---|---|
 | `files/SCENERY/<pack>.BUN` | bChunk section: `TexturePack` (`B3300000`), `GeometryPack` (`80134000`) with solids, optional `BoundsPack` (`8003B900`), optional `CarpWCollisionPack` (`0003B801`) | `nfsmw-data::world::parse_section(index, &[u8])` and the `blackbox-tpk`, `-solid`, `-collision`, `-scenery` readers | A pack is a section file. No new binary format. |
-| `content/scenery/<pack>.toml` | TOML manifest: anchor, placements, LOD, collision, visibility | new reader in `blackbox-scenery` (a `manifest` module), no game names | Parsed at Load. Built into memory (2.4). |
+| `scenery/<pack>.toml` (mod root, as `cars/` is) | TOML manifest: anchor, placements, LOD, collision, visibility | reader in `blackbox-modding` (`content/scenery.rs`), no game names; the build is `blackbox-scenery` (`build.rs`) | Parsed when a world opens, built into memory (2.4). |
 
 The overlay (`GameDir`, [api-content.md](../modding/api-content.md#vfs-overlay)) gives the pack its path. A mod that
 replaces `TRACKS/STREAML2RA.BUN` is out of scope; that is file-level replacement and is the install's data.
@@ -426,3 +426,31 @@ Manual, against the original (to record in the provenance file):
 8. The visible-section overlay reader (`0x00034158`) and the code that applies `AddRemove` entries while a flyby runs.
 9. The streamer's budget. No cap was found in the index loader. Find the memory or count limit in the section queue
    before the port's `MAX_IN_FLIGHT` is judged against the original.
+
+## 9. Port status (B15, 2026-10-16)
+
+What is built, where, and what is still open. Tests are in the files named; the game-side checks of section 6 (16 to 19)
+are not run yet, because they need the install and an offscreen render.
+
+| Part | State | Where |
+|---|---|---|
+| Manifests (2.2, 3.1) | Built. The folder is the mod root, as `cars/` is: `scenery/<pack>.toml`, `interiors/<id>.toml`. `[pack] key` and `[interior] key` are optional and must equal the file name. Unknown keys refuse the file. | `libs/blackbox-modding/src/content/{scenery,interior}.rs` |
+| Section numbers (1.3, 2.6) | Built: the free bands, the remap rule (last two digits 0 to 39 or 80 to 99), a number of the install's index, and a number another pack took. The band check is game-side, so the lib stays free of section rules. | `crates/nfsmw/src/modding/content/scenery.rs` |
+| Model file (2.1) | Built: the file must be in the mod's own `files/` layer. It is parsed with the install's section parser; a file that fails, or a placement that names a model not in it, refuses the pack (warn, the game goes on). | same |
+| Placements into a section (2.4) | Built in memory: yaw or matrix, scale, coarse and mirror slots, boost and exclude flags. Nothing is written to disk. Bounds come from the solid. | `libs/blackbox-scenery/src/build.rs`, `assemble` in `scenery.rs` |
+| Route A (2.5) | Built: each pack is a spatial streaming entry with its own streamer (one section per file, read from offset 0). It loads inside its anchor plus 150 m, or while an interior pins it. Its drawn objects bypass the zone lists. | `crates/nfsmw/src/scenes/world/residency/mod_tiles.rs` |
+| Route B (2.5), route C | Not built. The manifest refuses `route` other than `"tile"`. | |
+| Collision (2.3, 2.7) | `static`: the pack's own collision is inserted with `CollisionWorld::insert_ungridded` and tested by every query. It is decided per pack: when any placement says `static`. A per-placement choice needs the pack's collision split, which is open. `none`: nothing. `prop`: refused by the game for now (it needs the prop catalogue wired to the pack). | `libs/blackbox-collision/src/world.rs` |
+| Cull and LOD distances (2.3) | Parsed and checked (`lod_m` not beyond `draw_m`). Not applied: the LOD choice has no per-instance distance yet. | open |
+| Interior entry and exit (3.2, 3.3) | Built for `kind = "area"`: sphere and box zones (`Shape::contains`), the entry card and the exit card, the steps of 3.3 in `machine.rs` (pure, tested), and the teleport to the exact spawn (no road search). An entry with no ground under the spawn leaves again at once. | `crates/nfsmw/src/modding/content/interior/`, `crates/nfsmw/src/scenes/world/entry.rs` |
+| Fade (3.3 steps 3 and 5) | The order and the times are kept (0.4 s out, the wait, in). No fade overlay exists, so the fade is not drawn yet. | open |
+| Wait for the pack (3.3 step 4) | Built: up to 10 s, then the entry is cancelled with a card. | `machine.rs` |
+| Traffic, cops, pursuit (3.5) | Built: traffic count and cop share go to 0 for the names listed in `suspend`. The chase is stopped when `cops` or `pursuit` is listed, since cops leave with it. A chase is not resumed on exit. | `entry.rs`, `machine.rs` (`traffic_while_inside`) |
+| Time (3.5) | Built: the hour and the hold of the clock. On exit the clock returns to the hour it had at entry (time spent inside does not count). `lights` is parsed and logged; it is not applied, because the headlights follow the hour. | `entry.rs` |
+| Restore paths (3.7) | The exit zone restores the car, the traffic and the clock. Not wired: quarantine of a mod, a pack unloaded by its mod, and the car despawned. The machine has no forced exit yet, so these are open. | open |
+| Events and the bb.world table (3.3, 4) | Not built. `InteriorEntering`, `InteriorEntered`, `InteriorExiting`, `InteriorExited` and `world.add_box_trigger` are not appended to the ABI, so no mod sees them. A table change needs the ADR 0005 section 7 check first. | open |
+| Veto and online denial (3.3 step 2, 3.7) | Not built: an entry is not vetoable, and an online session does not refuse an interior. | open |
+| `interior check` (3.4) | Not built. An interior whose spawn has no ground is found only when entered. | open |
+| Reuse kinds (3.6) | Refused in v1: `kind` must be `"area"`. | |
+| Name clashes of solids with the install (2.6) | Not checked. The install's solid wins, as the first upload does. | open |
+| Tests | Built: the manifest parsers (both files, with the refusals of 2.3 and 3.1), the placement build (yaw, rows, scale, bounds, component limit), the ungridded collision (hit, removal, the gridded pack kept), the zone shapes, the section bands, and the entry steps (order, suspended traffic and clock, restore on exit, the load timeout, the cancelled entry). The fake-host integration of section 6 (10 to 15) is not written. | see the files above |

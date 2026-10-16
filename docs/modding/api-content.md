@@ -125,6 +125,49 @@ always = true                      # play even when the custom music setting is 
 
 ### Scenery and map packs
 
+#### Scenery pack manifest (built)
+
+A mod adds objects with a model file and one manifest, at the mod root next to `cars/` and `music/`:
+
+```
+mods/example.pack/
+  files/SCENERY/MONUMENT.BUN     the models: a section file in the install's formats (bChunk solids and textures)
+  scenery/monument.toml          the placements
+```
+
+```toml
+# scenery/monument.toml
+[pack]
+file = "SCENERY/MONUMENT.BUN"    # under this mod's files/, ends in .BUN; no .., no drive
+section = 1100                   # a free number: K 1100-1199, N 1400-1499, U 2100-2199, W 2300-2399, 2700 and up;
+                                 # the last two digits 0-39 or 80-99
+anchor = [1200.0, -900.0, 40.0, 180.0]   # render space: centre x, y, z and radius, metres
+source_game = "nfsmw"            # optional; the running game when left out
+
+[[place]]
+model = "MON_ARCH_A"             # a solid of the pack file
+pos = [1200.0, -900.0, 0.0]      # render space, metres
+yaw = 90.0                       # degrees about up, or rotation = [[...], [...], [...]] (not both)
+scale = 1.0                      # above 0, at most 4
+coarse = "MON_ARCH_C"            # optional low-detail model of the player view
+mirror = "MON_ARCH_B"            # optional model of the mirror and reflections
+collision = "static"             # "none" (default), "static" (the pack's collision), "prop" (refused for now)
+boost = false                    # optional
+exclude = 0x60                   # optional raw flags; the game's default is 0x60
+draw_m = 900.0                   # checked; not applied yet
+lod_m = 300.0                    # checked, must not exceed draw_m; not applied yet
+```
+
+- The file name is the pack key. A `key` in `[pack]` is optional and must equal it.
+- Only `route = "tile"` (the default) exists. Routes B and C are not in this delivery.
+- The pack loads while the camera is within 150 m of its anchor, or while an interior holds it. It never displaces an
+  install tile.
+- A pack that fails a check is logged with its reason and left out: a bad manifest, a section number that is taken or
+  not free, a model file that does not parse, or a placement that names a model not in the file.
+- Status and open items: [mod-world-content.md section 9](../specs/mod-world-content.md#9-port-status-b15-2026-10-16).
+
+#### Planned code form (not built)
+
 The city is streamed from section files through `libs/blackbox-streaming` and `libs/blackbox-scenery`. A
 **scenery pack** is a set of section files in the overlay plus an index entry; a **map pack** is a pack that also
 adds roads, zones and a spawn area. The first delivery supports:
@@ -148,6 +191,35 @@ Cross-game: scenery from another Black Box game works only where `libs/blackbox-
 `blackbox-scenery` have a layout table for that game's version. The mod, or a tool, converts anything else.
 
 ## Interiors
+
+### Interior manifest (built)
+
+An interior is an entry zone, a prompt and a place. The place is a scenery pack of the same mod, so a mod that has an
+interior has two manifests:
+
+```toml
+# interiors/hideout.toml
+[interior]
+label = "Hideout"
+prompt = "Press Enter to go in"          # optional
+zone = { shape = "sphere", pos = [1520.0, -840.0, 12.0], radius = 6.0 }   # or shape = "box", half = [2.0, 2.0, 2.0], yaw = 0.0
+pack = "hideout"                         # scenery/hideout.toml of this mod: the place
+spawn = { pos = [3010.0, 4020.0, 0.0], heading = 90.0 }   # render space, metres; heading in degrees
+exit = { shape = "sphere", pos = [3016.0, 4020.0, 0.0], radius = 3.0, prompt = "Press Enter to leave" }
+time = { hour = 22.0, freeze = true }    # optional; the clock returns to its entry hour on exit
+suspend = ["traffic", "cops", "pursuit"] # optional; default is all three
+kind = "area"                            # optional; the only kind in this delivery
+```
+
+- The file name is the key. A `key` in `[interior]` is optional and must equal it.
+- Inside: traffic count and cop share go to 0 for the names listed, and a chase stops when `cops` or `pursuit` is listed.
+  The car, the traffic and the clock come back on exit. A chase is not resumed.
+- `lights` in `time` is checked and logged, but not applied yet: the headlights follow the hour.
+- `kind` `"page"`, `"shop"`, `"safehouse"` and `"scene"` are refused in this delivery.
+- Status, and what is open (the fade overlay, the bb.world events, the `interior check` command, the quarantine exit):
+  [mod-world-content.md section 9](../specs/mod-world-content.md#9-port-status-b15-2026-10-16).
+
+### Planned interior form (not built)
 
 An interior is a place the player enters from the open world. In NFS:MW the three kinds today are auto shops,
 safe houses and race starts (`ZoneKind` in `scenes/world/entry_zones.rs`); each is an entry sphere with a map
