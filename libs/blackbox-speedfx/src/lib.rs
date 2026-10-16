@@ -40,7 +40,7 @@ pub struct Tuning {
 impl Default for Tuning {
     fn default() -> Self {
         Self {
-            blur_from: 55.0,
+            blur_from: 40.0,
             blur_to: 95.0,
             shake_from: 45.0,
             shake_to: 85.0,
