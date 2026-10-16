@@ -240,7 +240,8 @@ fn quick_race_opens_the_track_select_screen() {
     h.press(pad::RIGHT);
     h.press(pad::ACCEPT);
     h.wait(1.5);
-    assert!(h.said(&Command::Switch(screen::TRACK_SELECT.into(), Args::default())), "quick race: {:?}", h.commands);
+    // The screens carry out the switch themselves, so it is the screen on top that shows it happened.
+    assert_eq!(h.screens.top(), Some(screen::TRACK_SELECT), "quick race: {:?}", h.commands);
     assert!(!h.said(&Command::StartFreeRoam), "quick race must not start a race: {:?}", h.commands);
 }
 
