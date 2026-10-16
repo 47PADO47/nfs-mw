@@ -4,7 +4,7 @@ Status: **partly implemented**. The curves are in `libs/blackbox-speedfx`; the n
 camera. The automatic pursuit-driven HUD streak feed was removed because it
 could remain visible at rest. The independent graphics speed-lines option
 remains available and follows actual vehicle speed.
-The radial blur is drawn by the native renderer as a screen pass; the Bevy backend does not draw it yet.
+The radial blur is drawn as a screen pass by the native renderer and by the Bevy backend (the same pass, section 4a).
 
 ## 1. What is in the rewrite already
 
@@ -21,9 +21,12 @@ Each effect is a ramp of the speed (m/s, either direction), plus nitrous:
 
 | Effect | Ramp (m/s) | Maximum | Nitrous |
 |---|---|---|---|
-| Radial blur | 55 to 95 | 1 | adds 0.4 at full nitrous |
+| Radial blur | 40 to 95 | 1 | adds 0.4 at full nitrous |
 | Camera shake | 45 to 85 | 0.04 m | none |
 | Field-of-view kick | none | 8 degrees | linear in nitrous |
+
+The blur starts at 40 m/s (144 km/h) so that a car at 200 km/h (56 m/s) already shows a little of it, about a
+quarter of the full blur, which it reaches at 95 m/s.
 
 The blur, shake and field-of-view kick rise towards their target at 6 per second and fall at 2.5 per second (exponential
 approach), so a gear change or a nitrous press does not jump. A non-positive step changes nothing.
@@ -78,7 +81,7 @@ curve in section 2, drawn by section 4a. The settings below scale that curve. Ea
   (default 0.25, vanilla 1.0) has the same reference point, but the numbers do not transfer: the mod scales the
   original binary's blur, and the port scales its own.
 - **Minimum speed (not applied yet).** The mod's `MotionBlurMinEffectiveSpeed` maps to a planned `motion_blur_min_speed`
-  (m/s). The default would be the curve's own start, 55 m/s (`Tuning::default().blur_from`), not the mod's 25 m/s,
+  (m/s). The default would be the curve's own start, 40 m/s (`Tuning::default().blur_from`), not the mod's 25 m/s,
   so nothing changes by default. `Tuning::with_blur_start` moves the start and keeps the ramp width. It is not wired:
   the curve is built and smoothed in `ai/police.rs`, so the setting needs that file to take the tuning, and a live
   setter on the traffic world. It is left out of the settings until then, so nothing silently ignores it.
@@ -90,7 +93,8 @@ curve in section 2, drawn by section 4a. The settings below scale that curve. Ea
 - The prototype pursuit-driven HUD streak feed was removed. Optional streaks
   now follow actual speed rather than retained pursuit state. See
   [player-car-lights.md](player-car-lights.md).
-- Radial blur, Bevy: not drawn. The native renderer draws it (section 4a); the Bevy backend accepts the value
-  and reports `radial_blur: false` in its capabilities.
+- Radial blur, Bevy: drawn by `post/radial_blur.rs` of `blackbox-bevy-render`, after tone mapping and before the
+  upscale and the HUD, with the same `blackbox-gpu-passes` pass as native. At a render scale below 1 the pass is told
+  which corner of the output-sized texture holds the scene. Not yet looked at in a running game.
 - Apply the shake amplitude to the chase camera.
 - Read the install's values for the streaks and the blur, if they are in the data.
