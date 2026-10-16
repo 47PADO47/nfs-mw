@@ -396,7 +396,7 @@ support fitting and matched driving comparisons remain separate parity work.
 
 ## Next leads (removal, section 8)
 
-1. Identify the global view object (the PC binary's `DAT_009885e0`): find the code that writes its reference points and
+1. Identify the global view object (the PC binary's `0x009885e0`): find the code that writes its reference points and
    scale, and check whether it is the camera or a camera manager (the binary has camera class strings).
 2. Find the writer of a car's off-screen time: start from the car class's implementation of the time query, and find
    the per-frame update that resets it (the in-view test should be there).
