@@ -78,6 +78,17 @@ GPUOpen-LibrariesAndSDKs/FidelityFX-SDK — https://github.com/GPUOpen-Libraries
   for the bindings. The MIT notice is kept at the top of every file in libs/fsr3-wgpu/src/shaders/. The
   upstream files are not vendored; the list is in libs/fsr3-wgpu/README.md.
 
+iryoku/smaa — https://github.com/iryoku/smaa — SMAA licence (MIT-style)
+  Copyright (C) 2013 Jorge Jimenez, Jose I. Echevarria, Belen Masia, Fernando Navarro, Diego Gutierrez
+  Portions ported into libs/blackbox-smaa: SMAA 1x at the HIGH preset rewritten in WGSL (src/shaders/*.wgsl)
+  from SMAA.hlsl, and the area and search tables generated from Scripts/AreaTex.py and Scripts/SearchTex.py
+  (src/area.rs, src/area_diag.rs, src/search.rs). The notice is kept at the top of each shader file.
+
+codeberg.org/fintelia/smaa-rs (smaa crate 0.21.0) — MIT
+  Copyright (c) 2018 Jonathan Behrens
+  The Rust runner of libs/blackbox-smaa (target, frame, bindings, pipelines, resources) follows its
+  src/lib.rs. The notice is kept at the top of each of those files. Full texts: libs/blackbox-smaa/LICENSE-SMAA.
+
 daddesio/utkencode — https://github.com/daddesio/utkencode — Unlicense (public domain)
   Original of the MicroTalk (UTK) decoder that vgmstream's utkdec.c derives from.
   Credited in libs/ea-audio/src/codec/microtalk/.
@@ -213,7 +224,7 @@ giovannosaur/MWDynamicFOV — https://github.com/giovannosaur/MWDynamicFOV — n
 
 Graphics lab prototypes
   smaa-rs 0.21.0 - https://codeberg.org/fintelia/smaa-rs - MIT.
-    SMAA 1x implementation and its included permissively licensed reference lookup data.
+    Test-only dependency: the reference that libs/blackbox-smaa's parity test compares against.
     Used as a dependency, without temporal resolve.
   Microsoft Cascaded Shadow Maps - reference only; no code copied.
     https://learn.microsoft.com/en-us/windows/win32/dxtecharts/cascaded-shadow-maps

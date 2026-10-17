@@ -1,9 +1,9 @@
-//! SMAA 1x on the display image, before UI. The dependency owns only spatial edge/weight buffers.
+//! SMAA 1x on the display image, before UI. The `blackbox_smaa` target owns the spatial edge and weight buffers.
 use super::{Renderer, targets::SceneTargets};
 use blackbox_gfx::{Antialiasing, FrameParams, Instance};
 
 pub(super) struct SpatialAa {
-    target: smaa::SmaaTarget,
+    target: blackbox_smaa::SmaaTarget,
     size: (u32, u32),
     format: wgpu::TextureFormat,
 }
@@ -41,8 +41,17 @@ impl Renderer {
             return;
         }
         let format = self.output.format();
+        let cache = self.pipeline_cache.as_ref();
         let mut aa = self.smaa.take().filter(|aa| aa.format == format).unwrap_or_else(|| SpatialAa {
-            target: smaa::SmaaTarget::new(&device, &queue, size.0, size.1, format, smaa::SmaaMode::Smaa1X),
+            target: blackbox_smaa::SmaaTarget::new_cached(
+                &device,
+                &queue,
+                size.0,
+                size.1,
+                format,
+                blackbox_smaa::SmaaMode::Smaa1X,
+                cache,
+            ),
             size,
             format,
         });

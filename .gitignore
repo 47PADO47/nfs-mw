@@ -31,6 +31,8 @@
 !/Cargo.lock
 !/libs/*/Cargo.toml
 !/libs/*/README.md
+# Per-crate licence texts for ported third-party code (e.g. libs/blackbox-smaa/LICENSE-SMAA).
+!/libs/*/LICENSE-*
 !/libs/*/src/**/*.rs
 !/libs/*/src/**/*.wgsl
 !/libs/*/src/**/*.wesl

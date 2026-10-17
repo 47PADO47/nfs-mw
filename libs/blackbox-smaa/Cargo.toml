@@ -1,0 +1,23 @@
+[package]
+name = "blackbox-smaa"
+description = "SMAA 1x (preset HIGH) post-process antialiasing for wgpu, ported to WGSL so its pipelines can use a wgpu::PipelineCache. The SMAA reference (MIT-style) and the smaa crate 0.21.0 (MIT) are the sources; see LICENSE-SMAA."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+wgpu.workspace = true
+
+[dev-dependencies]
+# Validates the WGSL sources without a GPU.
+naga.workspace = true
+# The GPU parity test (`parity_tests.rs`) compares against the crate this port follows. The pin is the one
+# blackbox-render used before it switched to this crate.
+smaa = "=0.21.0"
+# Blocks on the adapter and device requests in the parity test.
+pollster.workspace = true
+
+[lints]
+workspace = true
