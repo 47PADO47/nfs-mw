@@ -151,6 +151,15 @@ impl Host {
         self.scene.set_tire_effects(smoke, marks);
     }
 
+    /// Gives the scene the world settings (game speed, car scale, the motion blur ...) when they changed.
+    pub fn set_world_tuning(&mut self, tuning: crate::settings::WorldTuning) {
+        if self.world == tuning {
+            return;
+        }
+        self.world = tuning;
+        self.scene.set_world_tuning(tuning);
+    }
+
     pub fn set_rain(&mut self, always: bool, amount: f32) {
         self.rain = (always, amount);
         self.scene.set_rain(always, amount);

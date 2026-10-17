@@ -9,6 +9,8 @@ use crate::audio::traffic::{TrafficFrame, TrafficSound};
 use crate::scenes::world::drive::walls::Cast;
 use crate::scenes::world::drive::{CarSim, STEP};
 
+use super::car::AiCar;
+
 /// Eye height of a cop and of the player, in metres above the body's centre.
 const EYE: Vec3 = Vec3::new(0.0, 0.5, 0.0);
 /// A hit this close to the far end is the target itself, not an obstacle.
@@ -23,14 +25,27 @@ struct Part<'a> {
     sim: &'a mut CarSim,
 }
 
+/// The driver of a car, as the crash gate reads it (`ai-traffic-obstacles.md` section 5.1): the player is `Human`
+/// (class 0), a car cruising the streets is `Traffic` (class 1), and a cop is `Cop` (class 2): a chasing cop, a patrol
+/// car or a roadblock car. The original's racer (class 3) has no car in this port.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum DriverClass {
+    Human,
+    Traffic,
+    Cop,
+}
+
 /// A hit, remembered until the cars can be told: the car, the impulse (N s), where it touched (physics space), whether
-/// the player did it, and how far the car is from the player (metres).
+/// the player did it, how far the car is from the player (metres), and the class and speed (m/s) of the party that hit
+/// it.
 struct Hit {
     owner: usize,
     impulse: f32,
     point: Vec3,
     by_player: bool,
     from_camera: f32,
+    striker: DriverClass,
+    speed: f32,
 }
 
 /// A close pass of the player past a traffic car: the car, the distance between their centres (m) and how fast the
@@ -72,6 +87,7 @@ impl TrafficWorld {
         }
         let events = self.events;
         let focus = player.as_deref().map(|p| p.body().position);
+        let classes: Vec<DriverClass> = self.cars.iter().map(AiCar::driver_class).collect();
         let far = |sim: &CarSim| focus.map_or(f32::INFINITY, |f| f.distance(sim.body().position));
         let mut parts: Vec<Part<'_>> = Vec::new();
         for (owner, car) in self.cars.iter_mut().enumerate() {
@@ -94,6 +110,7 @@ impl TrafficWorld {
             if let Some(player) = player.as_deref_mut() {
                 // A pass is judged on the centres, which can be further apart than the bounding spheres touch.
                 let distance = player.body().position.distance(part.sim.body().position);
+                let player_speed = player.body().linear_velocity.length();
                 if near(player, part.sim)
                     && let Some(hit) = player.collide_with(part.sim)
                 {
@@ -104,6 +121,8 @@ impl TrafficWorld {
                         point: hit.point,
                         by_player: true,
                         from_camera,
+                        striker: DriverClass::Human,
+                        speed: player_speed,
                     });
                 } else if distance < events.near_miss_distance {
                     passes.push(Pass {
@@ -123,6 +142,8 @@ impl TrafficWorld {
                 if !near(part.sim, other.sim) {
                     continue;
                 }
+                let speed_a = part.sim.body().linear_velocity.length();
+                let speed_b = other.sim.body().linear_velocity.length();
                 if let Some(hit) = part.sim.collide_with(other.sim) {
                     let (near_a, near_b) = (far(&*part.sim), far(&*other.sim));
                     hits.push(Hit {
@@ -131,6 +152,8 @@ impl TrafficWorld {
                         point: hit.point,
                         by_player: false,
                         from_camera: near_a,
+                        striker: classes[other.owner],
+                        speed: speed_b,
                     });
                     hits.push(Hit {
                         owner: other.owner,
@@ -138,6 +161,8 @@ impl TrafficWorld {
                         point: hit.point,
                         by_player: false,
                         from_camera: near_b,
+                        striker: classes[part.owner],
+                        speed: speed_a,
                     });
                 }
             }
@@ -149,8 +174,20 @@ impl TrafficWorld {
             }
         }
         for hit in hits {
-            let first_damage = self.cars[hit.owner].on_hit(hit.impulse, hit.by_player, hit.point, hit.from_camera);
+            let first_damage = self.cars[hit.owner].on_hit(
+                hit.impulse,
+                hit.by_player,
+                hit.striker,
+                hit.speed,
+                hit.point,
+                hit.from_camera,
+            );
             self.strikes.cop |= first_damage;
+        }
+        for car in &mut self.cars {
+            let distance = focus.map_or(f32::INFINITY, |f| f.distance(car.physics_position()));
+            let Some(duration) = car.take_honk(distance) else { continue };
+            self.sounds.push(TrafficSound::Horn { emitter: car.audio_emitter().id, duration });
         }
         if let Some(player) = player.as_deref_mut() {
             self.strikes.property |= player.take_prop_struck();

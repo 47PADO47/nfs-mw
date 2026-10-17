@@ -2,12 +2,16 @@
 
 use nfsmw_data::music::Song;
 
+use super::custom::Caption;
 use super::stream::StreamHandle;
+
+/// The `song` of a custom track: no EA Trax song has this index.
+pub const NO_SONG: usize = usize::MAX;
 
 /// The song on the air, as the HUD shows it (artist and title; the original also shows the album).
 #[derive(Debug, Clone, PartialEq)]
 pub struct NowPlaying {
-    /// Index in the song list.
+    /// Index in the song list, or [`NO_SONG`] for a custom track.
     pub song: usize,
     pub artist: String,
     pub title: String,
@@ -23,6 +27,20 @@ pub struct NowPlaying {
 }
 
 impl NowPlaying {
+    /// The card of a custom track: its caption and length, with no album line unless the file has one.
+    pub(super) fn custom(caption: &Caption, length_secs: f32, serial: u32) -> Self {
+        Self {
+            song: NO_SONG,
+            artist: caption.artist.clone(),
+            title: caption.title.clone(),
+            album: caption.album.clone(),
+            elapsed_secs: 0.0,
+            length_secs,
+            paused: false,
+            serial,
+        }
+    }
+
     pub(super) fn new(index: usize, song: &Song, length_secs: f32, serial: u32) -> Self {
         Self {
             song: index,

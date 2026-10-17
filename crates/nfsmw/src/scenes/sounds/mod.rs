@@ -5,6 +5,8 @@
 mod entries;
 mod transport;
 
+pub use entries::BANK_FOLDERS;
+
 use anyhow::{Result, anyhow, bail};
 use blackbox_gfx::{FrameParams, Instance, RenderBackend};
 use game_install::GameDir;

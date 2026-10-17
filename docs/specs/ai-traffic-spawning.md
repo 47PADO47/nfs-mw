@@ -274,23 +274,80 @@ The cop manager asks the same for its own cars; none of the other callers (cutsc
 
 ## 8. Removing cars
 
+> **Correction (2026-10-16, static read of `speed.exe`; see [provenance](../provenance/ai-traffic.md)).**
+> (1) `k` is **1.0**: the view object writes it on every rendered frame, overwriting the zero of its
+> construction. (2) `P0` and `P1` are **not shown** to be the eye and the focus. Each is a position computed
+> from the first entry of one of two global lists, mapped to `(-y, z, x)` (see "Distance" below). Which list is
+> the camera and which is the player is open. (3) The removal path has **no frustum, cone or field-of-view test**.
+> A camera-frustum or 60-degree "in view" test is not the original rule; the port's test is a rewrite choice.
+> The writer of a car's off-screen time is still not found.
+
+**Port status (rewrite).** The port takes the camera lens the traffic is seen through (the simulation camera of
+the world scene) and the prop world, and does the following. "Seen" is a sphere around each part reaching the
+camera's frustum, with a 2 m margin; the sphere test runs against its enclosing box, a superset. A part's radius is
+its own bounding radius: the car's half-diagonal, a trailer's half-diagonal, and for a detached part the half-diagonal
+of its world bounds. A seen part resets its off-screen timer. Distance is the 3D `min(|p - P1|, |p - P0|)` with `P1`
+the player's car (the eye when no car is driven) and `P0` the camera eye, `k = 1` (open question, section 11). The
+rule above is applied as written. The rewrite's own rules (350 m, airborne 4 s, stuck 20 s and 40 m) apply only to an
+unseen car, so a visible car is never removed by them. Keep-alives: a car with a detached part in view stays (the
+parts are the prop-world fragments whose owner is the car's vehicle events); a tractor stays while its trailer is
+valid. Trailer detached parts are not checked yet.
+
 Every tick, every **active** pool car is validated; an invalid one is **unspawned** (the goal is cleared and the
 vehicle is deactivated; it stays in the pool):
 
 ```
-invalid = car.is_off_world()
-if not invalid and car.offscreen_time > T(density):
-    invalid = distance_to_camera(car.position) > D(density)
-if invalid and car is a tractor with a trailer and the trailer is VALID by this same test:  keep
-if invalid and any child part of the car's model (detached pieces) is in view:               keep
-remove if invalid
+valid(car, d):                      # d = the density computed this tick
+    if car.is_off_world():         # car vtable slot 49 (0x00c4) [decomp]; body not read
+        removable = true
+    else:
+        removable = car.offscreen_time() > T(d) and dist(car.position()) > D(d)
+                                   # slot 24 (0x0060) and slot 3 (0x000c) [decomp]
+    if not removable:
+        return VALID
+    if car has an attached trailer child and valid(trailer, d):   return VALID
+    if any detached part's predicate (part slot 11, 0x002c) is true:   return VALID
+    return INVALID                 # the tick unspawns the car
 ```
 
-- `offscreen_time` is the number of seconds the car has not been in view; `is_off_world` means the car has left the
-  playable world (fell off, no ground). Their implementers are not in the sources read: **[unconfirmed]**.
-- With `D(d)`, `T(d)` of section 2: at free roam (density 1) a car is removed once it has been out of view for 4 s and
-  is more than 40 m from the camera; at density 0 (also used while a cutscene or a cop request makes the density 0)
-  the limits are 12 s and 130 m. Cars that are always in view are never removed by distance.
+- **Tick placement [decomp].** Removal runs after the spawn attempt, for active cars only, once per tick. The
+  density passed in is the tick's `d` (section 2), so it is 0 during a cutscene or a cop request. No separate
+  camera read is made by this test.
+- **Off-screen time [decomp input; writer not found].** The test reads the car's accumulated time through its
+  getter (slot 24). No in-view test sits in this path. The code that increments or resets the time is not
+  located, so what counts as "seen" is **[unconfirmed]**. A car whose time stays at or below `T(d)` is never
+  removed by distance.
+- **Limits [decomp, table values read from the PC binary].** The PC data equals the `D(d)` and `T(d)` columns of
+  section 2 (130 m down to 40 m, 12 s down to 4 s, same 11 points, same linear interpolation, clamped at both
+  ends). At density 1 a car is removed when it has been off-screen for more than 4 s and is more than 40 m away;
+  at density 0 the limits are 12 s and 130 m.
+- **Distance [decomp].** `dist(p) = min(|p - P1|, k * |p - P0|)`, a **3D** distance (height counts), read from one
+  global view object (`0x009885e0`), created at session start and freed at its end. Its own scheduler task
+  (the first task it registers, rate 1.0, so about once per rendered frame) runs each frame and sets
+  `k = 1.0`, and sets `P0 = (-y, z, x)` of the subject position of the first entry of list A (global
+  `0x00919694`), and `P1` the same from list B (`0x00919704`). A subject is the entry object's `+0x1c`; its
+  position is the three floats at `+0x40`, `+0x44`, `+0x48` (x, y, z). If a list is empty, its point keeps the
+  constructed value, which is zero in the install. With no view object the distance is 0, so nothing is removed
+  by distance. The car position used here (slot 3, not transformed) may not share the mapped frame of `P0`
+  and `P1`: this is **[unconfirmed]**. The rewrite uses a horizontal (2D) distance from the player, which differs
+  in origin and metric.
+- **Keep-alive checks [decomp].** Only a removable car gets these. (1) Trailer: the car's attachment container
+  (car `+0x04`) is searched for the record with key `0x004040d0`; the record's value, through its slot 1, is the
+  child car, validated by the same rule, recursively. If it is valid the car is kept. The key's role name is not
+  known, so a tractor-only reading is **[unconfirmed]**. (2) Detached parts: the car's slot 1 gives an object, its
+  slot 32 (`0x0080`) the model's part list, and the list is visited with a visitor (vtable `0x00890c10`). A part
+  whose slot 11 (`0x002c`) returns true keeps the car. Whether slot 11 is a "visible" query is **[unconfirmed]**
+  (`visible` in the port's sense is not proven). Both checks run only when the car is removable.
+- **Second rule, 4 s and 100 m [decomp].** Function `0x005e8960`, called from a manager method at `0x005e8a20`,
+  returns "free" (true) when the car is inactive, when it is not in the manager's entry list (entries of 0x194
+  bytes from `+0x18`, count at `+0x1958`, matched through the car's `+0x04` object), or when it is in the list
+  and its off-screen time is above 4 s and its distance (the same function) above 100 m. Its shape matches the
+  cop manager's "free a slot" rule, but the manager's identity is **[unconfirmed]**; the cop spec states 5 s, not 4 s.
+- **Unspawn [decomp].** For an invalid car the tick calls the car's slot 43 (`0x00ac`) to get a sub-object and
+  its slot 35 (`0x008c`) to unspawn. The slot names are roles, not the original names.
+- **No maximum-distance despawn [decomp].** The removal path has no absolute distance rule. The rewrite's 350 m
+  limit, its airborne limit and its idle or stuck limit have no counterpart here. Other original code may apply
+  such limits elsewhere (not found).
 - A traffic centre also blocks a spawn within 150 m (section 6), so a car cannot normally be removed and respawned in
   the same place.
 
@@ -343,8 +400,9 @@ In the original (PC build):
 
 ## 11. Open questions
 
-- Who implements the traffic centres (all local cameras? the player cars?) and what `is_off_world` and
-  `offscreen_time` measure exactly.
+- Who implements the traffic centres (all local cameras? the player cars?), who writes a car's off-screen time and
+  what sets its off-world flag (section 8). The view object's `k` (1.0) and its two positions are now read; which
+  of the two lists (`0x00919694`, `0x00919704`) is the camera and which the player is open.
 - How `TrafficLevel` / `ForceTrafficDensity` of a race become `traffic_density` (which wins, and the scaling): the
   code that reads them is stripped from the decompiled sources.
 - Whether the vehicle count used by the cap (`Count(ALL)`) includes inactive cop/helicopter pool cars and trailers.
@@ -370,3 +428,22 @@ trailer the same way, then check support after horizontal hitch alignment.
 This is a correction to the remake's spawn adapter, not a recovered original
 ground-placement algorithm. The original traffic-specific suspension, curved
 support fitting and matched driving comparisons remain separate parity work.
+
+## Next leads (removal, section 8)
+
+1. Find the writer of a car's off-screen time (getter at car slot 24). First locate the car class's vtable: the
+   pool-car factory path at `0x00426380` builds a `PVehicle`-keyed object (name at `0x0089121c`, hash `0xa6b47fac`);
+   follow its constructor. Then look for the per-frame update that increments or resets the time.
+2. Decide which of the two view lists (`0x00919694` for `P0`, `0x00919704` for `P1`) is the camera and which the
+   player, from the list entries' class and the readers of those globals (for example `0x004ba050`, `0x004ba140`,
+   `0x00744c00`, `0x00750e20`, `0x006cfa10`).
+3. Check whether the view subjects' `(-y, z, x)` mapping matches the frame of a car's position (slot 3), by
+   comparing with the traffic-centre basis in section 6 and with a car's position at a known road point.
+4. Name the car-class slots used here (1, 3, 20, 23, 24, 34, 43, 49, plus sub-object slots 22 and 35) from the
+   class's constructor and the callers in the spawn function (`0x00439a10`).
+5. Identify the manager of `0x005e8a20` (cop or other) and its entry list (`+0x1958`, `+0x1960`), and why the
+   time is 4 s here and 5 s in the cop spec.
+6. Name the trailer key `0x004040d0` and the part predicate (part slot 11): the key next to it in the driver code
+   gives a second sample.
+7. Several entries of the manager's vtable point at undefined code. Create functions where the bytes are code,
+   before reading the rest of the vtable.

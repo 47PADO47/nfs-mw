@@ -134,3 +134,58 @@ fn word_wrap_breaks_at_a_space() {
     assert_eq!(wrapped.quads.len(), 5, "the space draws a quad too");
     assert!(ys[3] > ys[1], "second word wrapped: {ys:?}");
 }
+
+#[test]
+fn uv_size_uses_the_native_size_only_when_asked_and_known() {
+    assert_eq!(uv_size(false, Some((256, 256)), (512, 512)), (512, 512));
+    assert_eq!(uv_size(true, Some((256, 256)), (512, 512)), (256, 256));
+    assert_eq!(uv_size(true, None, (512, 512)), (512, 512));
+    assert_eq!(uv_size(true, Some((0, 256)), (512, 512)), (512, 512));
+}
+
+#[test]
+fn a_larger_replacement_lays_out_where_the_stock_texture_does() {
+    let f = sample();
+    let stock = f.layout("AB", TextStyle::default(), (256, 128));
+    let hd = f.layout("AB", TextStyle::default(), uv_size(true, Some((256, 128)), (512, 256)));
+    assert_eq!(hd.quads, stock.quads);
+    let loaded = f.layout("AB", TextStyle::default(), (512, 256));
+    assert_ne!(loaded.quads[0].u0, stock.quads[0].u0, "the loaded size alone moves the glyphs");
+}
+
+#[test]
+fn a_scale_of_one_is_the_stock_layout() {
+    let f = sample();
+    let style = TextStyle { justification: 0x10 | 1, max_width: 30, leading: 2 };
+    let stock = f.layout("AA AA^B A", style, (256, 128));
+    let scaled = f.layout_scaled("AA AA^B A", style, (256, 128), 1.0);
+    assert_eq!(scaled.quads, stock.quads);
+    assert_eq!((scaled.width, scaled.height), (stock.width, stock.height));
+    let not_a_scale = f.layout_scaled("AA AA^B A", style, (256, 128), 0.0);
+    assert_eq!(not_a_scale.quads, stock.quads);
+}
+
+#[test]
+fn scaled_text_wraps_where_the_stock_text_does() {
+    let f = sample();
+    let stock = f.layout("AA AA", TextStyle { justification: 0x10, max_width: 30, leading: 0 }, (256, 128));
+    let scaled =
+        f.layout_scaled("AA AA", TextStyle { justification: 0x10, max_width: 60, leading: 0 }, (256, 128), 2.0);
+    assert_eq!(scaled.quads.len(), stock.quads.len());
+    for (s, q) in scaled.quads.iter().zip(&stock.quads) {
+        assert_eq!((s.x0, s.y0, s.x1, s.y1), (q.x0 * 2.0, q.y0 * 2.0, q.x1 * 2.0, q.y1 * 2.0));
+        assert_eq!((s.u0, s.v0, s.u1, s.v1), (q.u0, q.v0, q.u1, q.v1));
+    }
+    assert_eq!((scaled.width, scaled.height), (stock.width * 2.0, stock.height * 2.0));
+}
+
+#[test]
+fn scaled_text_measures_what_it_draws() {
+    let f = sample();
+    let l = f.layout_scaled("AB", TextStyle { justification: 1, ..Default::default() }, (256, 128), 1.5);
+    let left = l.quads.iter().map(|q| q.x0).fold(f32::MAX, f32::min);
+    let right = l.quads.iter().map(|q| q.x1).fold(f32::MIN, f32::max);
+    assert_eq!(l.width, 20.0 * 1.5);
+    assert_eq!(l.height, 18.0 * 1.5);
+    assert!(left >= -l.width / 2.0 && right <= l.width / 2.0 + 1e-3, "quads {left}..{right} in width {}", l.width);
+}

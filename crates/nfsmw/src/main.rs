@@ -11,6 +11,7 @@ mod garage;
 mod gui;
 mod hud;
 mod input;
+mod modding;
 mod movie;
 mod save_format;
 mod saves;

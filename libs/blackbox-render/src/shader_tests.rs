@@ -2,13 +2,14 @@
 
 use naga::valid::{Capabilities, ValidationFlags, Validator};
 
-const SHADERS: [(&str, &str); 6] = [
+const SHADERS: [(&str, &str); 7] = [
     ("scene", include_str!("shaders/scene.wgsl")),
     ("resolve", include_str!("shaders/resolve.wgsl")),
     ("contact", include_str!("shaders/contact.wgsl")),
     ("contact prepass", include_str!("shaders/contact_prepass.wgsl")),
     ("irradiance", include_str!("shaders/irradiance.wgsl")),
     ("shadow depth", include_str!("shaders/shadow_depth.wgsl")),
+    ("motion", include_str!("shaders/motion.wgsl")),
 ];
 
 fn entry_points(name: &str) -> Vec<String> {

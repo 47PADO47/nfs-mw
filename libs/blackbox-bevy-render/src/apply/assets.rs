@@ -40,6 +40,7 @@ pub fn apply_op(state: &mut WorldState, stores: &mut Stores, op: Op) {
                         blackbox_gfx::Shading::Glossy(handle) => Some(handle.raw()),
                         _ => None,
                     },
+                    colour: range.colour,
                 })
                 .collect();
             state.meshes.insert(handle.raw(), MeshEntry { ranges });

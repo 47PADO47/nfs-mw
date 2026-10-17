@@ -75,12 +75,12 @@ pub fn icons(kind: Kind) -> Vec<Icon> {
             icon(Id::AliasManager, 0x6B30_3856, 0xBCB1_8F38, true),
             icon(Id::Options, 0x3058_FE37, 0x19A8_C0AF, true),
         ],
-        // The original's option list (docs/specs/frontend-menus.md, 2.2): EA Trax and Credits have no screen
-        // here yet, so they are greyed out and left out in the pause menu. Online
+        // The original's option list (docs/specs/frontend-menus.md, 2.2): Credits has no screen here yet, so it is
+        // greyed out; EA Trax opens the jukebox (`jukebox.rs`). Both are left out in the pause menu. Online
         // is left out as well: the original shows it only in online mode, which this build never is.
         // Controls opens the key list; Control Options (the sensitivity and camera rows) sits beside it. Discord
         // Rich Presence has its own icon (a bundled mark, `ui/discord_icon.rs`) and its toggles.
-        Kind::Categories { pause } => {
+        Kind::Categories { pause, mods } => {
             let mut list = vec![
                 icon(Id::Category(Category::Audio), 0xF37A_F144, 0xE76C_D783, true),
                 icon(Id::Category(Category::Video), 0x8A00_6328, 0xE8E2_4508, true),
@@ -90,8 +90,12 @@ pub fn icons(kind: Kind) -> Vec<Icon> {
             list.push(icon(Id::Controls, 0xA04A_7B26, 0x04DC_6DB5, true));
             list.push(icon(Id::ControlOptions, crate::ui::input_icons::ATLAS, 0, true));
             list.push(icon(Id::Category(Category::Discord), crate::ui::discord_icon::TEXTURE, 0, true));
+            // The Mods page is listed only when a mod has rows (`bb.menus`); its icon has no picture, so the title names it.
+            if mods {
+                list.push(icon(Id::Category(Category::Mods), 0, 0, true));
+            }
             if !pause {
-                list.push(icon(Id::EaTrax, 0, 0xDCFB_6B36, false));
+                list.push(icon(Id::EaTrax, 0, 0xDCFB_6B36, true));
                 list.push(icon(Id::Credits, 0, 0x0905_101F, false));
             }
             list
@@ -120,7 +124,7 @@ mod tests {
                 .filter(|i| ![Id::Career, Id::QuickRace, Id::Options, Id::AliasManager].contains(&i.id))
                 .all(|i| !i.enabled)
         );
-        let categories = icons(Kind::Categories { pause: false });
+        let categories = icons(Kind::Categories { pause: false, mods: false });
         assert_eq!(
             categories.len(),
             9,
@@ -133,7 +137,7 @@ mod tests {
         let player = categories.iter().find(|i| i.id == Id::Category(Category::Player)).expect("the Player category");
         assert_eq!((player.texture, player.name), (0xD708_EFEF, 0xF760_EABE), "the original's Player icon");
         assert!(player.enabled);
-        let pause = icons(Kind::Categories { pause: true });
+        let pause = icons(Kind::Categories { pause: true, mods: false });
         assert_eq!(pause.len(), 7, "Player is available; EA Trax and Credits remain absent in pause");
         assert_eq!(pause[3].id, Id::Category(Category::Player));
         assert!(pause[3].enabled);
@@ -143,7 +147,7 @@ mod tests {
     #[test]
     fn discord_has_its_own_category_icon_with_the_bundled_mark() {
         for pause in [false, true] {
-            let categories = icons(Kind::Categories { pause });
+            let categories = icons(Kind::Categories { pause, mods: false });
             let discord =
                 categories.iter().find(|i| i.id == Id::Category(Category::Discord)).expect("the Discord category icon");
             assert_eq!(discord.texture, crate::ui::discord_icon::TEXTURE);
@@ -152,8 +156,20 @@ mod tests {
     }
 
     #[test]
+    fn the_mods_page_is_listed_only_when_a_mod_has_rows() {
+        for pause in [false, true] {
+            let without = icons(Kind::Categories { pause, mods: false });
+            assert!(without.iter().all(|i| i.id != Id::Category(Category::Mods)));
+            let with = icons(Kind::Categories { pause, mods: true });
+            let mods = with.iter().find(|i| i.id == Id::Category(Category::Mods)).expect("the Mods category icon");
+            assert!(mods.enabled);
+            assert_eq!(with.len(), without.len() + 1);
+        }
+    }
+
+    #[test]
     fn the_discord_mark_is_drawn_smaller_than_its_slot() {
-        let categories = icons(Kind::Categories { pause: false });
+        let categories = icons(Kind::Categories { pause: false, mods: false });
         let discord = categories.iter().find(|i| i.id == Id::Category(Category::Discord)).expect("Discord");
         assert!(draw_scale(discord) < 1.0, "the mark fills the slot unless it is drawn smaller");
         assert!((draw_scale(discord) - DISCORD_DRAW_SCALE).abs() < f32::EPSILON);

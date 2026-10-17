@@ -12,13 +12,16 @@ use crate::{CollisionPack, Hit, HitKind, RayOptions};
 pub struct CollisionWorld {
     grid: Option<Grid>,
     packs: BTreeMap<u32, CollisionPack>,
+    /// Packs the grid does not index (a mod's static collision outside the install's grid). Every query tests them, after
+    /// the grid's candidates, since no grid cell names them.
+    ungridded: Vec<CollisionPack>,
     revision: u64,
 }
 
 impl CollisionWorld {
     /// A world that picks candidates with `grid`, or tests every loaded instance without one.
     pub fn new(grid: Option<Grid>) -> Self {
-        Self { grid, packs: BTreeMap::new(), revision: 0 }
+        Self { grid, packs: BTreeMap::new(), ungridded: Vec::new(), revision: 0 }
     }
 
     /// Adds (or replaces) a section's pack, applying the game's post-load exclusion flags.
@@ -26,6 +29,20 @@ impl CollisionWorld {
         pack.apply_group_exclusion();
         self.packs.insert(pack.section, pack);
         self.revision = self.revision.wrapping_add(1);
+    }
+
+    /// Adds a pack outside the grid: every ray cast and ground query tests it. The list is small, so it is tested in turn.
+    pub fn insert_ungridded(&mut self, mut pack: CollisionPack) {
+        pack.apply_group_exclusion();
+        self.ungridded.push(pack);
+        self.revision = self.revision.wrapping_add(1);
+    }
+
+    /// Removes the first ungridded pack of `section`, if there is one.
+    pub fn remove_ungridded(&mut self, section: u32) -> Option<CollisionPack> {
+        let at = self.ungridded.iter().position(|pack| pack.section == section)?;
+        self.revision = self.revision.wrapping_add(1);
+        Some(self.ungridded.remove(at))
     }
 
     pub fn remove(&mut self, section: u32) -> Option<CollisionPack> {
@@ -114,6 +131,11 @@ impl CollisionWorld {
                         test(pack, index);
                     }
                 }
+            }
+        }
+        for pack in &self.ungridded {
+            for index in 0..pack.instances.len() {
+                test(pack, index);
             }
         }
         best

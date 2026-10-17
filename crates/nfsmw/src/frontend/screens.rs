@@ -78,7 +78,8 @@ impl Screens {
     /// Loads a screen on top of the stack; `replace` first unloads the one that is there. Commands the new
     /// screen queues while starting are returned.
     pub fn open(&mut self, name: &str, args: Args, replace: bool, env: &mut Env) -> Vec<Command> {
-        self.open_with(name, factory::make(name, args), replace, env)
+        let mod_rows = env.mods.is_some_and(crate::modding::has_menu_rows);
+        self.open_with(name, factory::make(name, args, mod_rows), replace, env)
     }
 
     /// Like [`Self::open`], with the logic already chosen (a confirmation dialog carries its question).
@@ -114,6 +115,7 @@ impl Screens {
             memory: &mut self.memory,
             key_texts: &self.key_texts,
             world_map: self.world_map.as_ref(),
+            mods: env.mods,
             name: &file_name,
         };
         logic.start(&mut cx);
@@ -123,13 +125,17 @@ impl Screens {
         commands
     }
 
-    /// Unloads the top screen.
+    /// Unloads the top screen. The screen below gets its buttons back: the press that opened the screen on top
+    /// (a quit question, say) switched them off, as a package does while it leaves.
     pub fn pop(&mut self) {
         if let Some(old) = self.stack.pop() {
             self.runtime.unload(old.id);
         }
         self.await_release = true;
         self.give_control();
+        if let Some(top) = self.stack.last() {
+            self.runtime.set_input_enabled(top.id, true);
+        }
     }
 
     /// Only the screen on top takes pad input.
@@ -170,7 +176,7 @@ impl Screens {
     fn deliver(&mut self, package: PackageId, message: u32, env: &mut Env, out: &mut Vec<Command>) {
         let Self { runtime, assets, stack, memory, key_texts, world_map, .. } = self;
         let Some(screen) = stack.iter_mut().find(|s| s.id == package) else { return };
-        let (settings, changed, caps) = (&mut *env.settings, &mut *env.changed, env.caps);
+        let (settings, changed, caps, mods) = (&mut *env.settings, &mut *env.changed, env.caps, env.mods);
         let name = &screen.name;
         let mut cx = Cx {
             rt: runtime,
@@ -183,6 +189,7 @@ impl Screens {
             memory,
             key_texts,
             world_map: world_map.as_ref(),
+            mods,
             name,
         };
         screen.logic.message(&mut cx, message);
@@ -191,7 +198,7 @@ impl Screens {
     fn deliver_tick(&mut self, package: PackageId, dt: f32, env: &mut Env, out: &mut Vec<Command>) {
         let Self { runtime, assets, stack, memory, key_texts, world_map, .. } = self;
         let Some(screen) = stack.iter_mut().find(|s| s.id == package) else { return };
-        let (settings, changed, caps) = (&mut *env.settings, &mut *env.changed, env.caps);
+        let (settings, changed, caps, mods) = (&mut *env.settings, &mut *env.changed, env.caps, env.mods);
         let name = &screen.name;
         let mut cx = Cx {
             rt: runtime,
@@ -204,6 +211,7 @@ impl Screens {
             memory,
             key_texts,
             world_map: world_map.as_ref(),
+            mods,
             name,
         };
         screen.logic.tick(&mut cx, dt);
@@ -302,7 +310,7 @@ impl Screens {
     ) -> Option<(bool, Vec<Command>)> {
         let Self { runtime, assets, stack, memory, key_texts, world_map, .. } = self;
         let screen = stack.last_mut()?;
-        let (settings, changed, caps) = (&mut *env.settings, &mut *env.changed, env.caps);
+        let (settings, changed, caps, mods) = (&mut *env.settings, &mut *env.changed, env.caps, env.mods);
         let mut commands = Vec::new();
         let mut cx = Cx {
             rt: runtime,
@@ -315,6 +323,7 @@ impl Screens {
             memory,
             key_texts,
             world_map: world_map.as_ref(),
+            mods,
             name: &screen.name,
         };
         let taken = act(screen.logic.as_mut(), &mut cx);

@@ -20,6 +20,9 @@ pub struct RangeEntry {
     pub shading: ShadingKind,
     /// The glossy material number, when `shading` is [`ShadingKind::Glossy`].
     pub glossy: Option<usize>,
+    /// The average vertex colour (gamma bytes). The Solari stand-in uses it as its base colour, since the traced
+    /// mesh has lost the vertex colour itself.
+    pub colour: [u8; 3],
 }
 
 /// A registered mesh: one Bevy mesh per draw range.

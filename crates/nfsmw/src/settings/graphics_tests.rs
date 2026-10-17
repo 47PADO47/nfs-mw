@@ -88,6 +88,19 @@ fn fsr3_and_fsr4_fall_back_along_the_chain_on_a_renderer_that_lacks_them() {
 }
 
 #[test]
+fn fsr3_on_a_native_renderer_that_offers_it_is_kept_and_sized_by_its_quality_mode() {
+    let asked =
+        Settings { upscale_quality: UpscaleQuality::Performance, ..settings(100, UpscaleMode::Fsr3) }.graphics();
+    let native = resolve(&asked, &test_caps::native_fsr3());
+    assert_eq!(native.effective.upscaler, Upscaler::Fsr3);
+    assert_eq!(native.effective.render_scale, 0.5, "the quality mode sets the render size");
+    assert!(native.downgrade_of(Setting::Upscaler).is_none(), "{:?}", native.downgrades);
+    let lacking = resolve(&asked, &test_caps::native());
+    assert_eq!(lacking.effective.upscaler, Upscaler::Fsr1, "without the device limits it is FSR 1 at the same size");
+    assert_eq!(lacking.effective.render_scale, 0.5);
+}
+
+#[test]
 fn the_graphics_request_carries_ao_quality_intensity_and_comparison() {
     let stored = Settings::from(Partial {
         ao: Some(AoQuality::High),

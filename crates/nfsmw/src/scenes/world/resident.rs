@@ -36,6 +36,8 @@ pub struct Placed {
     pub parts: Option<Arc<super::props::scenery::ModelParts>>,
     /// The flashing lamp on a curve warning sign: its place in the world, or `None` for other objects.
     pub curve_lamp: Option<glam::Vec3>,
+    /// The lamp head of a real traffic light (`ai/signal_props.rs`), or `None` for other objects.
+    pub signal: Option<super::ai::signal_props::SignalHead>,
 }
 
 #[cfg(test)]
@@ -57,6 +59,7 @@ impl Placed {
             spawner: None,
             parts: None,
             curve_lamp: None,
+            signal: None,
         }
     }
 }
@@ -159,19 +162,6 @@ fn is_tunnel_shadow(solid_name: &str) -> bool {
     solid_name.starts_with("SHADOW_")
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn tunnel_shadow_solids_are_not_uploaded_but_other_overlays_are() {
-        assert!(is_tunnel_shadow("SHADOW_TUNNELWALLB01_DEINST1_I4"));
-        assert!(is_tunnel_shadow("SHADOW_TUNNELROOFA01"));
-        assert!(!is_tunnel_shadow("SHD_CP_BE_ROAD_A_02A"));
-        assert!(!is_tunnel_shadow("TRN_CT_Road_Highway4_XX"));
-    }
-}
-
 /// Turn a section's scenery into placed meshes, dropping instances the player
 /// view excludes (`docs/specs/scenery-visibility.md`).
 pub fn place(
@@ -201,6 +191,7 @@ pub fn place(
                 unresolved += 1;
                 continue;
             }
+            let transform = Mat4::from_cols_array_2d(&inst.matrix_columns());
             let spawner = hooks.get(&instance).and_then(|id| spawners.get(id)).copied();
             // Static solidity comes from authored world collision, not a model-name bounds guess.
             let prop = spawner.and_then(|spawn| props.for_spawner(&info.name, spawn));
@@ -217,7 +208,7 @@ pub fn place(
                     }),
                 lods: std::array::from_fn(|i| resolved.get(i).copied().flatten().map(|(m, _)| m)),
                 detailed: resolved.first().copied().flatten().map(|(_, lod)| lod),
-                transform: Mat4::from_cols_array_2d(&inst.matrix_columns()),
+                transform,
                 bounds: Aabb::new(inst.bbox_min, inst.bbox_max),
                 radius: info.radius,
                 flags: inst.exclude_flags,
@@ -226,6 +217,7 @@ pub fn place(
                 key: InstanceKey::TRANSIENT,
                 spawner: spawner.copied(),
                 curve_lamp: super::sign_lamps::lamp_point(&info.name, Aabb::new(inst.bbox_min, inst.bbox_max)),
+                signal: super::ai::signal_props::signal_head(&info.name, transform),
                 parts: props.hierarchy(info.hierarchy_hash).map(|hierarchy| {
                     let meshes: std::collections::BTreeMap<_, _> = hierarchy
                         .nodes
@@ -243,4 +235,17 @@ pub fn place(
         }
     }
     (placed, unresolved)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tunnel_shadow_solids_are_not_uploaded_but_other_overlays_are() {
+        assert!(is_tunnel_shadow("SHADOW_TUNNELWALLB01_DEINST1_I4"));
+        assert!(is_tunnel_shadow("SHADOW_TUNNELROOFA01"));
+        assert!(!is_tunnel_shadow("SHD_CP_BE_ROAD_A_02A"));
+        assert!(!is_tunnel_shadow("TRN_CT_Road_Highway4_XX"));
+    }
 }

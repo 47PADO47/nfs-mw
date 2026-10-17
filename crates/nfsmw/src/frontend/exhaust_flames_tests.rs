@@ -68,8 +68,12 @@ fn main_and_pause_video_screens_show_the_exhaust_flames_row_and_save_it() {
     for (name, pause) in [(screen::OPTIONS, false), (screen::PAUSE_OPTIONS, true)] {
         let mut screens = Screens::new(Catalog::load(&dir, &SCREEN_FILES), assets.clone());
         let (mut settings, mut changes) = (Settings::from(Partial::default()), Partial::default());
-        let mut env =
-            Env { settings: &mut settings, changed: &mut changes, caps: crate::settings::test_caps::native() };
+        let mut env = Env {
+            settings: &mut settings,
+            changed: &mut changes,
+            caps: crate::settings::test_caps::native(),
+            mods: None,
+        };
         screens.open(name, Args { pause, category: Category::Video, ..Args::default() }, true, &mut env);
         run(&mut screens, &mut env, 0, 60);
         let at = rows(Category::Video, &crate::settings::test_caps::native())

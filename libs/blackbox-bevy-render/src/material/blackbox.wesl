@@ -9,6 +9,8 @@
 
 import bevy_pbr::render::{
     mesh_functions::{get_world_from_local, mesh_position_local_to_world, mesh_normal_local_to_world},
+    mesh_bindings::mesh,
+    mesh_types::MESH_FLAGS_SHADOW_RECEIVER_BIT,
     mesh_view_bindings::{view, lights},
     view_transformations::position_world_to_clip,
     shadows::fetch_directional_shadow,
@@ -70,6 +72,8 @@ struct VertexOutput {
     @location(1) normal: vec3<f32>,
     @location(2) uv: vec2<f32>,
     @location(3) color: vec4<f32>,
+    // 1 when the instance takes the sun's shadow (Bevy's shadow-receiver mesh flag, `NotShadowReceiver` clears it).
+    @location(4) receive: f32,
 };
 
 @vertex
@@ -82,6 +86,7 @@ fn vertex(v: Vertex) -> VertexOutput {
     out.normal = mesh_normal_local_to_world(v.normal, v.instance_index);
     out.uv = v.uv;
     out.color = v.color_bgra.zyxw;
+    out.receive = select(0.0, 1.0, (mesh[v.instance_index].flags & MESH_FLAGS_SHADOW_RECEIVER_BIT) != 0u);
     return out;
 }
 
@@ -128,6 +133,10 @@ fn sun_visibility(in: VertexOutput) -> f32 {
         return 1.0;
     }
     @else {
+    // An instance that does not receive the sun (`ShadowFlags::receive` off) keeps full light.
+    if in.receive < 0.5 {
+        return 1.0;
+    }
     if lights.n_directional_lights == 0u {
         return 1.0;
     }

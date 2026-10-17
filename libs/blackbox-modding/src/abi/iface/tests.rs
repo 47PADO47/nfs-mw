@@ -1,0 +1,155 @@
+//! Layout snapshot of the interface tables (ADR 0005 section 9). Changing a number here is an ABI change.
+
+#![cfg(target_pointer_width = "64")]
+
+use core::mem::{align_of, offset_of, size_of};
+
+use crate::abi::*;
+
+#[test]
+fn ids_and_versions_are_locked() {
+    assert_eq!(IFACE_COMMANDS, "bb.commands");
+    assert_eq!(IFACE_INPUT, "bb.input");
+    assert_eq!(IFACE_TIME, "bb.time");
+    assert_eq!(IFACE_MAP, "bb.map");
+    assert_eq!(IFACE_MENUS, "bb.menus");
+    assert_eq!(
+        [IFACE_COMMANDS_VERSION, IFACE_INPUT_VERSION, IFACE_TIME_VERSION, IFACE_MAP_VERSION, IFACE_MENUS_VERSION],
+        [(1, 0), (1, 0), (1, 0), (1, 0), (1, 0)]
+    );
+    assert_eq!(
+        [IFACE_VEHICLES, IFACE_HUD, IFACE_CAMERA, IFACE_AUDIO, IFACE_WORLD],
+        ["bb.vehicles", "bb.hud", "bb.camera", "bb.audio", "bb.world"]
+    );
+    assert_eq!(
+        [IFACE_VEHICLES_VERSION, IFACE_HUD_VERSION, IFACE_CAMERA_VERSION, IFACE_AUDIO_VERSION, IFACE_WORLD_VERSION],
+        [(1, 0); 5]
+    );
+}
+
+#[test]
+fn vehicles_table_and_state() {
+    assert_eq!(size_of::<BbVec3>(), 12);
+    assert_eq!(size_of::<BbVehicles>(), 48);
+    assert_eq!(offset_of!(BbVehicles, ctx), 8);
+    assert_eq!(offset_of!(BbVehicles, state), 16);
+    assert_eq!(offset_of!(BbVehicles, teleport), 24);
+    assert_eq!(offset_of!(BbVehicles, repair), 32);
+    assert_eq!(offset_of!(BbVehicles, spawn_traffic), 40);
+    assert_eq!(size_of::<BbVehicleState>(), 52);
+    assert_eq!(offset_of!(BbVehicleState, gear), 4);
+    assert_eq!(offset_of!(BbVehicleState, position), 8);
+    assert_eq!(offset_of!(BbVehicleState, velocity), 20);
+    assert_eq!(offset_of!(BbVehicleState, heading), 32);
+    assert_eq!(offset_of!(BbVehicleState, speed), 36);
+    assert_eq!(offset_of!(BbVehicleState, rpm), 40);
+    assert_eq!(offset_of!(BbVehicleState, nos), 44);
+    assert_eq!(offset_of!(BbVehicleState, damage), 48);
+}
+
+#[test]
+fn hud_and_message_styles() {
+    assert_eq!(size_of::<BbHud>(), 32);
+    assert_eq!(offset_of!(BbHud, message), 16);
+    assert_eq!(offset_of!(BbHud, hide), 24);
+    assert_eq!([BB_HUD_INFO, BB_HUD_WARNING, BB_HUD_BIG], [0, 1, 2]);
+}
+
+#[test]
+fn camera_table_state_and_modes() {
+    assert_eq!(size_of::<BbCamera>(), 32);
+    assert_eq!(offset_of!(BbCamera, get), 16);
+    assert_eq!(offset_of!(BbCamera, set_mode), 24);
+    assert_eq!(size_of::<BbCameraState>(), 36);
+    assert_eq!(offset_of!(BbCameraState, mode), 4);
+    assert_eq!(offset_of!(BbCameraState, position), 8);
+    assert_eq!(offset_of!(BbCameraState, forward), 20);
+    assert_eq!(offset_of!(BbCameraState, fov), 32);
+    assert_eq!(
+        [
+            BB_CAMERA_CHASE,
+            BB_CAMERA_DYNAMIC_FOV,
+            BB_CAMERA_BUMPER,
+            BB_CAMERA_HOOD,
+            BB_CAMERA_CLOSE,
+            BB_CAMERA_FAR,
+            BB_CAMERA_SUPER_FAR,
+            BB_CAMERA_DRIFT,
+            BB_CAMERA_PURSUIT
+        ],
+        [0, 1, 2, 3, 4, 5, 6, 7, 8]
+    );
+}
+
+#[test]
+fn audio_and_world_tables() {
+    assert_eq!(size_of::<BbAudio>(), 24);
+    assert_eq!(offset_of!(BbAudio, play), 16);
+    assert_eq!(size_of::<BbWorld>(), 48);
+    assert_eq!(offset_of!(BbWorld, track), 16);
+    assert_eq!(offset_of!(BbWorld, section), 24);
+    assert_eq!(offset_of!(BbWorld, set_rain), 32);
+    assert_eq!(offset_of!(BbWorld, set_traffic), 40);
+}
+
+#[test]
+fn menus_table_and_row() {
+    assert_eq!(size_of::<BbMenuRow>(), 72);
+    assert_eq!(offset_of!(BbMenuRow, name), 8);
+    assert_eq!(offset_of!(BbMenuRow, label), 24);
+    assert_eq!(offset_of!(BbMenuRow, min), 40);
+    assert_eq!(offset_of!(BbMenuRow, default), 52);
+    assert_eq!(offset_of!(BbMenuRow, choices), 56);
+    assert_eq!(offset_of!(BbMenuRow, choice_count), 64);
+    assert_eq!(size_of::<BbMenus>(), 48);
+    assert_eq!(offset_of!(BbMenus, ctx), 8);
+    assert_eq!(offset_of!(BbMenus, register), 16);
+    assert_eq!(offset_of!(BbMenus, unregister), 24);
+    assert_eq!(offset_of!(BbMenus, get), 32);
+    assert_eq!(offset_of!(BbMenus, set), 40);
+    assert_eq!([BB_MENU_TOGGLE, BB_MENU_SLIDER, BB_MENU_LIST, BB_MENU_BUTTON], [0, 1, 2, 3]);
+}
+
+#[test]
+fn commands_table() {
+    assert_eq!(size_of::<BbCommands>(), 40);
+    assert_eq!(align_of::<BbCommands>(), 8);
+    assert_eq!(offset_of!(BbCommands, head), 0);
+    assert_eq!(offset_of!(BbCommands, ctx), 8);
+    assert_eq!(offset_of!(BbCommands, run), 16);
+    assert_eq!(offset_of!(BbCommands, register), 24);
+    assert_eq!(offset_of!(BbCommands, unregister), 32);
+}
+
+#[test]
+fn input_table() {
+    assert_eq!(size_of::<BbInput>(), 32);
+    assert_eq!(offset_of!(BbInput, ctx), 8);
+    assert_eq!(offset_of!(BbInput, register_hotkey), 16);
+    assert_eq!(offset_of!(BbInput, unregister), 24);
+}
+
+#[test]
+fn time_table_and_clock() {
+    assert_eq!(size_of::<BbTime>(), 48);
+    assert_eq!(offset_of!(BbTime, get), 16);
+    assert_eq!(offset_of!(BbTime, set_hour), 24);
+    assert_eq!(offset_of!(BbTime, set_day_length), 32);
+    assert_eq!(offset_of!(BbTime, freeze), 40);
+    assert_eq!(size_of::<BbTimeOfDay>(), 12);
+    assert_eq!(offset_of!(BbTimeOfDay, frozen), 8);
+    assert_eq!(offset_of!(BbTimeOfDay, lights_on), 9);
+}
+
+#[test]
+fn map_table_and_blip() {
+    assert_eq!(size_of::<BbMap>(), 40);
+    assert_eq!(offset_of!(BbMap, add), 16);
+    assert_eq!(offset_of!(BbMap, update), 24);
+    assert_eq!(offset_of!(BbMap, remove), 32);
+    assert_eq!(size_of::<BbRgba>(), 4);
+    assert_eq!(size_of::<BbBlip>(), 40);
+    assert_eq!(offset_of!(BbBlip, active), 4);
+    assert_eq!(offset_of!(BbBlip, style), 8);
+    assert_eq!(offset_of!(BbBlip, position), 24);
+}

@@ -22,4 +22,4 @@ mod vfs;
 pub use discover::{DiscoverError, Discovered, Source, config_file_path, discover, log_dir};
 pub use spec::{GameSpec, KnownBuild, RegistryValue};
 pub use validate::Validation;
-pub use vfs::{GameDir, OpenError};
+pub use vfs::{GameDir, LayerError, LayerInfo, OpenError, Provider};

@@ -22,6 +22,7 @@ fn frame(axis: Vec3) -> FrameParams {
         surface_light: None,
         clear_color: [0.0; 3],
         camera_cut: true,
+        shadow_tuning: None,
     }
 }
 

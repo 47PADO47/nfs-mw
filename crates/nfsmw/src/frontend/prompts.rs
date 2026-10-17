@@ -110,10 +110,11 @@ fn hint_width(keys: &[Prompt], label: &str, assets: &UiAssets) -> f32 {
 fn text_width(text: &str, assets: &UiAssets) -> f32 {
     use blackbox_feng::font::TextStyle;
     let Some(font) = assets.font(FONT) else { return text.len() as f32 * 8.0 };
-    font.layout(
+    font.layout_scaled(
         text,
         TextStyle { justification: 0, leading: 0, max_width: 0 },
         assets.texture_size(font.texture_hash).unwrap_or((256, 256)),
+        assets.font_scale(font.hash),
     )
     .width
 }
@@ -219,10 +220,11 @@ fn image(tree: &mut UiTree, glyph: Glyph, x: f32, y: f32, size: f32) {
 fn text(tree: &mut UiTree, text: &str, x: f32, y: f32, scale: f32, colour: [u8; 4], assets: &UiAssets) {
     use blackbox_feng::font::TextStyle;
     let offset = assets.font(FONT).map_or(0.0, |font| {
-        let layout = font.layout(
+        let layout = font.layout_scaled(
             text,
             TextStyle { justification: 4, leading: 0, max_width: 0 },
             assets.texture_size(font.texture_hash).unwrap_or((256, 256)),
+            assets.font_scale(font.hash),
         );
         let top = layout.quads.iter().map(|q| q.y0).reduce(f32::min).unwrap_or(0.0);
         let bottom = layout.quads.iter().map(|q| q.y1).reduce(f32::max).unwrap_or(0.0);

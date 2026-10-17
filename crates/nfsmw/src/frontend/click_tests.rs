@@ -5,7 +5,8 @@ use super::*;
 impl Harness {
     /// A click at a point of the screen, as the front end hands it over; false when the screen does not take it.
     fn click(&mut self, point: glam::Vec2) -> bool {
-        let mut env = Env { settings: &mut self.settings, changed: &mut self.changed, caps: test_caps::native() };
+        let mut env =
+            Env { settings: &mut self.settings, changed: &mut self.changed, caps: test_caps::native(), mods: None };
         let Some(commands) = self.screens.click(point, &mut env) else { return false };
         self.commands.extend(commands);
         true
@@ -13,7 +14,8 @@ impl Harness {
 
     /// `steps` notches of the mouse wheel (positive is up).
     fn scroll(&mut self, steps: i32) {
-        let mut env = Env { settings: &mut self.settings, changed: &mut self.changed, caps: test_caps::native() };
+        let mut env =
+            Env { settings: &mut self.settings, changed: &mut self.changed, caps: test_caps::native(), mods: None };
         let commands = self.screens.scroll(steps, &mut env);
         self.commands.extend(commands);
     }

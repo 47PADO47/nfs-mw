@@ -122,6 +122,7 @@ mod tests {
             scattering: None,
             surface_light: None,
             camera_cut: false,
+            shadow_tuning: None,
         };
         let before = fit(&frame, RenderExperiments::default()).unwrap();
         frame.view *= Mat4::from_translation(Vec3::new(-0.00001, 0.0, 0.0));
@@ -147,6 +148,7 @@ mod tests {
                 scattering: None,
                 surface_light: None,
                 camera_cut: false,
+                shadow_tuning: None,
             };
             for resolution in [512, 4096] {
                 let fit = fit(

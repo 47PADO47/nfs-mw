@@ -202,4 +202,23 @@ mod tests {
         assert!(needs_restart(&caps, &graphics("high"), &graphics("off")));
         assert!(!needs_restart(&native, &graphics("off"), &graphics("high")), "the native renderer never asks");
     }
+
+    #[test]
+    fn dlss_and_ray_tracing_are_offered_exactly_where_the_renderer_has_them() {
+        let dlss = blackbox_gfx::Capabilities::mock_dlss("bevy", blackbox_gfx::GraphicsApi::Vulkan);
+        let native = test_caps::native();
+        let with = |upscaler: UpscaleMode| Settings { upscaler, ray_tracing: RayTracingLevel::High, ..settings() };
+        let s = with(UpscaleMode::Dlss);
+        assert!(is_offered("upscaler", &s, &dlss) && is_offered("ray_tracing", &s, &dlss));
+        assert!(!is_offered("upscaler", &s, &native) && !is_offered("ray_tracing", &s, &native));
+        assert!(check("upscaler", &s, &dlss).is_ok() && check("ray_tracing", &s, &dlss).is_ok());
+        assert_eq!(
+            check("upscaler", &with(UpscaleMode::Fsr3), &dlss).unwrap_err(),
+            "fsr3 is not available with the bevy renderer (available: off, bilinear, fsr1, dlss)"
+        );
+        assert_eq!(
+            check("ray_tracing", &with(UpscaleMode::Dlss), &native).unwrap_err(),
+            "high is not available with the blackbox renderer (available: off)"
+        );
+    }
 }

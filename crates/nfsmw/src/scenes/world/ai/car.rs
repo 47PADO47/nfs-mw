@@ -1,6 +1,7 @@
 //! One computer-driven car: the physics, the driver and the road cursor it follows.
 
-use std::rc::Rc;
+use std::cell::Cell;
+use std::rc::{Rc, Weak};
 
 use blackbox_collision::CollisionWorld;
 use blackbox_driver::{AiControls, ControllerKind, DriveFlags, DriveRequest, Driver, GearRequest};
@@ -19,24 +20,27 @@ use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::{keys, space};
 
+mod accessors;
 mod accident;
+mod avoid;
+mod goal_drive;
 mod hits;
 mod original_camera;
 mod setup;
 mod sound;
+pub(super) mod support_drive;
 mod towing;
 
 pub use setup::{Ctx, Role, Start};
 
 use accident::Accident;
+use goal_drive::GoalDrive;
 use hits::CopDamage;
 
 /// A hit shorter than this change of speed (m/s) does not shock the car, and the level falls over this long.
 const SHOCK_MIN_SPEED_CHANGE: f32 = 2.0;
 const SHOCK_FORCE: f32 = 10.0;
 const SHOCK_TIME: f32 = 3.0;
-/// A cop this close (metres, horizontally) to its formation or collapse slot has arrived and brakes there (unconfirmed).
-const SLOT_ARRIVAL: f32 = 2.0;
 
 /// A cop stuck against something backs up for this long (s) asking for this speed (m/s).
 const RECOVERY_SECONDS: f32 = 2.0;
@@ -100,6 +104,9 @@ pub struct AiCar {
     breaker_stop: bool,
     /// A cop that has reached its slot holds the handbrake (the pull-over).
     arrived: bool,
+    /// The goal a cop car drives by this step (`ai/goal_aims.rs`): its command and the limiter it carries. Set through a
+    /// shared borrow, as the world reads the aims that way.
+    goal: Cell<GoalDrive>,
     /// A roadblock car: it holds its place with the brakes on whatever the chase does (`AIGoalStaticRoadBlock`).
     roadblock: bool,
     /// The light bars of a cop car, when it has them.
@@ -112,6 +119,12 @@ pub struct AiCar {
     dim: Vec3,
     /// A cop's damage (`hits`); `None` for traffic.
     damage: Option<CopDamage>,
+    /// The request this support car belongs to and its goal (`car/support_drive.rs`); `None` for other cars.
+    support: Option<support_drive::SupportCar>,
+    /// The lane rules of a blocked traffic car (`car/avoid.rs`).
+    avoid: avoid::Avoid,
+    /// The player car's speed (m/s) at the last physics step: the crash gate of `hits.rs` reads it.
+    player_speed: f32,
 }
 
 impl AiCar {
@@ -177,12 +190,16 @@ impl AiCar {
             offscreen: 0.0,
             breaker_stop: false,
             arrived: false,
+            goal: Cell::new(GoalDrive::default()),
             roadblock: false,
             cop_lights: model.cop_lights.clone().map(super::cop_lights::CopLightRun::new),
             audio_profile: model.audio_profile,
             quiet: 0.0,
             dim: physics.spec.dimension,
             damage,
+            support: None,
+            avoid: avoid::Avoid::default(),
+            player_speed: 0.0,
         })
     }
 
@@ -232,99 +249,6 @@ impl AiCar {
         }
     }
 
-    /// Makes this car a roadblock car: it stays where it was placed with the brakes on.
-    pub fn set_roadblock(&mut self) {
-        self.roadblock = true;
-        self.breaker_stop = true;
-    }
-
-    /// Whether this car is part of a roadblock (and so holds its place).
-    pub fn is_roadblock(&self) -> bool {
-        self.roadblock
-    }
-
-    pub fn set_breaker_stop(&mut self, stop: bool) {
-        self.breaker_stop = stop;
-    }
-
-    pub fn pose(&self, alpha: f32) -> CarPose {
-        self.previous.lerp(&self.current, alpha)
-    }
-
-    /// Collision separation belongs to this tick's displayed pose too.
-    pub fn sync_contacts(&mut self) {
-        if let Some(trailer) = self.trailer.as_mut() {
-            trailer.sync_contacts(&mut self.sim);
-        }
-        self.current = self.sim.pose();
-    }
-
-    pub fn is_finite(&self) -> bool {
-        self.sim.is_finite()
-    }
-
-    /// Seconds the car has had no wheel on the ground (it fell off the map, or flew).
-    pub fn airborne_time(&self) -> f32 {
-        self.airborne
-    }
-
-    /// Seconds the car has been standing still.
-    pub fn idle_time(&self) -> f32 {
-        self.idle
-    }
-
-    /// Speed along the car, m/s.
-    pub fn speed(&self) -> f32 {
-        self.sim.telemetry().speed_mps
-    }
-
-    /// A line about what the car is doing, for the `traffic status` command.
-    pub fn debug(&self) -> String {
-        format!(
-            "{} segment {} lane {} t {:.2}{}{}{}, wants {:.1} m/s",
-            if self.is_cop() {
-                "cop"
-            } else if self.patrol {
-                "patrol"
-            } else {
-                "traffic"
-            },
-            self.nav.segment,
-            self.nav.lane,
-            self.nav.t,
-            if self.blocked { ", blocked" } else { "" },
-            if self.waiting { ", waits for a light" } else { "" },
-            if self.nav.dead_end { ", dead end" } else { "" },
-            self.speed
-        )
-    }
-
-    pub fn controls(&self) -> AiControls {
-        self.controls
-    }
-
-    /// A cop chasing the player.
-    pub fn is_cop(&self) -> bool {
-        matches!(self.role, Role::Cop(_)) && !self.is_wrecked()
-    }
-
-    /// A cop car cruising like traffic.
-    pub fn is_patrol(&self) -> bool {
-        self.patrol
-    }
-
-    /// Adds `dt` to the time the car has been out of view, or clears it when it is in view.
-    pub fn note_view(&mut self, in_view: bool, dt: f32) {
-        self.offscreen = match in_view {
-            true => 0.0,
-            false => self.offscreen + dt,
-        };
-    }
-
-    pub fn offscreen_time(&self) -> f32 {
-        self.offscreen
-    }
-
     /// One physics step: think when it is this car's turn, then drive.
     pub fn step<R: RandomSource>(
         &mut self,
@@ -349,12 +273,15 @@ impl AiCar {
             _ => DriveFlags::SIMPLE,
         };
         let wanted = if reversing { RECOVERY_SPEED } else { self.speed };
-        let request = DriveRequest { target: self.target, speed: wanted, flags };
+        let target = self.target + self.avoid.steer_offset(&self.nav, view.position);
+        let request = DriveRequest { target, speed: wanted, flags };
         let clock = self.steps as f32 * STEP;
+        let held = self.controls.steer;
         self.controls = self.driver.step(&view, &request, STEP, clock);
-        if let Some(controls) = self.accident.controls(self.tractor) {
+        if let Some(controls) = self.accident.controls(self.tractor, held) {
             self.controls = controls;
         }
+        self.hold_goal_brake();
         if self.breaker_stop || self.is_wrecked() {
             self.controls = AiControls { brake: 1.0, ..AiControls::default() };
         }
@@ -368,6 +295,7 @@ impl AiCar {
             ..DriveInput::default()
         };
         self.sim.step(&input, &WorldGround { collision, surfaces }, Some((collision, props)));
+        self.avoid.advance(self.speed().abs() * STEP);
         if let Some(trailer) = self.trailer.as_mut() {
             let brakes = Brakes { brake: self.controls.brake, handbrake: self.controls.handbrake > 0.5 };
             trailer.step(&mut self.sim, brakes, collision, props, surfaces);
@@ -420,6 +348,8 @@ impl AiCar {
                 let mut others: Vec<Body> =
                     ctx.bodies.iter().enumerate().filter(|&(i, _)| i != ctx.me).map(|(_, b)| b.0).collect();
                 others.extend(ctx.player);
+                self.avoid.before_think(ctx.net, ctx.index, &mut self.nav, &state.body, &others, self.blocked);
+                state.stop = self.avoid.yield_at(ctx.net, ctx.lights, state.stop, self.stop_memory, &others);
                 let think =
                     traffic::think(ctx.net, &mut self.nav, &state, &others, self.blocked, ctx.rng, &self.cruise);
                 self.target = think.target;
@@ -456,16 +386,11 @@ impl AiCar {
                     }
                     shift(&mut self.sim, Some(gear));
                 }
-                let aim = ctx.aims.get(ctx.me).copied().flatten();
+                let aim = support_drive::aim(self.support, &player, ctx.aims.get(ctx.me).copied().flatten());
                 let think = cop.think(ctx, &mut self.nav, &state, &Target { body: player, aim }, &traffic);
                 self.target = think.target;
-                // A cop that has reached its slot (a collapse or formation point) stops there: the pull-over goal's brake.
-                let arrived = aim.is_some_and(|a| {
-                    let d = a - state.body.position;
-                    Vec2::new(d.x, d.z).length() <= SLOT_ARRIVAL
-                });
-                self.arrived = arrived;
-                self.speed = if arrived { 0.0 } else { think.speed };
+                self.think_goal(aim, state.body.position, think.speed);
+                self.support_drive(&player);
             }
         }
     }

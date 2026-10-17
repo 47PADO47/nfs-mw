@@ -45,8 +45,24 @@ tracing = { version = "0.1", default-features = false, optional = true }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["registry"], optional = true }
 tracing-tracy = { version = "0.12", optional = true }
 wgpu.workspace = true
+# Solari ray tracing, behind `ray-tracing`.
+bevy_solari = { workspace = true, optional = true }
+# FSR 3.1 temporal upscaler, behind `fsr3`.
+fsr3-wgpu = { workspace = true, optional = true }
 
 [features]
+# DLSS Super Resolution through Bevy's `dlss` feature, which wraps `dlss_wgpu`. Needs the NVIDIA DLSS SDK at build
+# time (DLSS_SDK, VULKAN_SDK, clang). Vulkan and NVIDIA RTX only. The `bevy_solari?/dlss` part turns on DLSS Ray
+# Reconstruction as the Solari denoiser when `ray-tracing` is also built. docs/upscaling.md, docs/setup.md.
+dlss = ["bevy_anti_alias/dlss", "bevy_solari?/dlss"]
+# No SDK: compiles the DLSS code path against a stand-in (CI and tests). Maps Bevy's `force_disable_dlss`, which
+# only has an effect together with `dlss`, so this feature alone compiles without the SDK.
+dlss-mock = ["bevy_anti_alias/force_disable_dlss"]
+# Solari ray tracing (startup-gated, needs the wgpu ray-query features). bevy_solari turns on bevy_pbr's `dfg_lut`,
+# which turns on bevy_image's `zstd` without a backend; `zstd_rust` (pure Rust, no C compiler) supplies one.
+ray-tracing = ["dep:bevy_solari", "bevy_image/zstd_rust"]
+# FSR 3.1 temporal upscaler (libs/fsr3-wgpu), Vulkan and DX12.
+fsr3 = ["dep:fsr3-wgpu"]
 # Tracy profiling: emit Bevy's per-system `tracing` spans and install a Tracy subscriber. Build via
 # nfsmw's `trace` feature and run with the Tracy client attached. See docs/bevy-backend.md.
 trace = [

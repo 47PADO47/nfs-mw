@@ -12,9 +12,11 @@ use super::keys;
 use super::props::PropWorld;
 use super::resident::{Placed, SectionResources, place};
 use super::zone::Zones;
+use crate::modding::content::scenery::MapPack;
 
 #[cfg(test)]
 mod installed_tests;
+mod mod_tiles;
 #[cfg(test)]
 mod tests;
 
@@ -62,25 +64,41 @@ pub struct Residency {
     catalog: PropCatalog,
     /// Changes when the scenery available to a view changes, including while the clock is paused.
     visual_revision: u64,
+    /// The first residency index of a mod's map pack: the install's sections come before it.
+    mod_base: usize,
+    /// The mods' map packs, by `index - mod_base`, and one streamer each for their files.
+    mod_packs: Vec<MapPack>,
+    mod_streamers: Vec<Streamer>,
+    /// The map packs the camera wants (near an anchor, or pinned), as residency indices.
+    mod_wanted: Vec<usize>,
+    /// Map packs an interior holds loaded (`pin`).
+    pinned: HashSet<usize>,
 }
 
 impl Residency {
     pub fn new(
-        sections: Vec<StreamingSection>,
+        mut sections: Vec<StreamingSection>,
         visible: VisibleSections,
         streamer: Streamer,
         globals: GlobalTextures,
         collision_grid: Option<Grid>,
         catalog: PropCatalog,
+        mod_packs: Vec<MapPack>,
     ) -> Self {
         // Every shared set stays loaded: V/X/Y hold models and textures only, Z0 the sky.
         let shared: Vec<usize> = (0..sections.len()).filter(|&i| !sections[i].is_spatial()).collect();
         for &i in &shared {
             streamer.request(i);
         }
+        let mod_base = sections.len();
+        let zones = Zones::new(visible, &sections);
+        // A mod pack is a section of its own file: its streamer reads that file from offset 0, as entry 0.
+        let mod_streamers =
+            mod_packs.iter().map(|pack| Streamer::spawn(pack.path.clone(), vec![pack.section.clone()], 1)).collect();
+        sections.extend(mod_packs.iter().map(|pack| pack.section.clone()));
         Self {
             shared_total: shared.len(),
-            zones: Zones::new(visible, &sections),
+            zones,
             sections,
             streamer,
             shared_pending: Vec::new(),
@@ -98,6 +116,11 @@ impl Residency {
             props: PropWorld::default(),
             catalog,
             visual_revision: 0,
+            mod_base,
+            mod_packs,
+            mod_streamers,
+            mod_wanted: Vec::new(),
+            pinned: HashSet::new(),
         }
     }
 
@@ -111,9 +134,11 @@ impl Residency {
         if self.zones.update(x, y) {
             self.switch_zone(x, y);
         }
+        self.update_mod_wanted(x, y);
         self.upload_arrived(renderer);
         self.unload_unwanted(renderer);
         self.request_wanted();
+        self.request_mod();
     }
 
     fn switch_zone(&mut self, x: f32, y: f32) {
@@ -127,29 +152,34 @@ impl Residency {
             ka.0.cmp(&kb.0).then(ka.1.total_cmp(&kb.1))
         });
         // Requests the new zone doesn't need are dropped; they are ignored when they arrive.
+        // Map packs are not in any zone's list: they are kept by their own wants (`mod_tiles.rs`).
         let wanted: HashSet<usize> = self.wanted.iter().copied().collect();
-        self.tiles.retain(|i, s| wanted.contains(i) || matches!(s, TileState::Resident { .. }));
+        let base = self.mod_base;
+        self.tiles.retain(|i, s| wanted.contains(i) || *i >= base || matches!(s, TileState::Resident { .. }));
         log::debug!("zone {:?}: {} tiles drawn, {} loaded", self.zones.name(), self.drawn.len(), self.wanted.len());
     }
 
     fn receive(&mut self) {
         while let Some(event) = self.streamer.poll() {
-            match event {
-                StreamerEvent::Loaded(data) if !self.sections[data.index].is_spatial() => {
-                    self.shared_pending.push(*data)
+            self.handle(event);
+        }
+        self.receive_mod();
+    }
+
+    fn handle(&mut self, event: StreamerEvent) {
+        match event {
+            StreamerEvent::Loaded(data) if !self.sections[data.index].is_spatial() => self.shared_pending.push(*data),
+            StreamerEvent::Loaded(data) => self.arrived.push(*data),
+            StreamerEvent::Failed { index, error } => {
+                log::error!("section {}: {error}", self.sections[index].name);
+                if self.sections[index].is_spatial() {
+                    self.tiles.insert(
+                        index,
+                        TileState::Resident { resources: Default::default(), placed: vec![], packs: vec![] },
+                    );
+                    return;
                 }
-                StreamerEvent::Loaded(data) => self.arrived.push(*data),
-                StreamerEvent::Failed { index, error } => {
-                    log::error!("section {}: {error}", self.sections[index].name);
-                    if self.sections[index].is_spatial() {
-                        self.tiles.insert(
-                            index,
-                            TileState::Resident { resources: Default::default(), placed: vec![], packs: vec![] },
-                        );
-                    } else {
-                        self.shared_total -= 1;
-                    }
-                }
+                self.shared_total -= 1;
             }
         }
     }
@@ -205,7 +235,7 @@ impl Residency {
             self.unresolved += unresolved;
             let packs = data.collision.iter().map(|p| p.section).collect();
             for pack in data.collision {
-                self.collision.insert(pack);
+                self.insert_collision(pack, data.index);
             }
             self.tiles.insert(data.index, TileState::Resident { resources, placed, packs });
             self.visual_revision = self.visual_revision.wrapping_add(1);
@@ -222,7 +252,7 @@ impl Residency {
             self.visual_revision = self.visual_revision.wrapping_add(1);
             self.previous.clear();
         }
-        let wanted: HashSet<usize> = self.wanted.iter().copied().collect();
+        let wanted: HashSet<usize> = self.wanted.iter().chain(&self.mod_wanted).copied().collect();
         let unwanted: Vec<usize> = self.tiles.keys().copied().filter(|i| !wanted.contains(i)).collect();
         for i in unwanted {
             if let Some(TileState::Resident { resources, packs, .. }) = self.tiles.remove(&i) {
@@ -230,7 +260,7 @@ impl Residency {
                 resources.release(renderer);
                 self.props.remove_tile(i);
                 for section in packs {
-                    self.collision.remove(section);
+                    self.remove_collision(section, i);
                 }
             }
         }
@@ -278,7 +308,9 @@ impl Residency {
     }
 
     pub fn placed(&self) -> impl Iterator<Item = &Placed> {
-        let drawn = |i: &usize| self.drawn.contains(i) || self.previous.contains(i);
+        // A resident map pack is drawn whatever the zone: no zone's list names it.
+        let base = self.mod_base;
+        let drawn = move |i: &usize| self.drawn.contains(i) || self.previous.contains(i) || *i >= base;
         let tiles = self.tiles.iter().filter(move |(i, _)| drawn(i)).flat_map(|(_, s)| match s {
             TileState::Resident { placed, .. } => placed.as_slice(),
             TileState::Requested => &[],

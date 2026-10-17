@@ -7,8 +7,10 @@ mod collide;
 mod commands;
 mod cop;
 mod cop_aims;
+mod cop_health;
 mod cop_lights;
 mod data;
+mod goal_aims;
 mod hitch;
 mod lamps;
 mod manager;
@@ -20,6 +22,7 @@ mod population;
 mod pursuit;
 mod roadblock;
 mod scene;
+pub(super) mod signal_props;
 mod simulation;
 mod spawn;
 mod spikes;
@@ -40,7 +43,7 @@ use nfsmw_data::car::physics::CarPhysics;
 
 use super::drive::CarRig;
 use car::AiCar;
-pub(super) use commands::{pursuit_command, roadblock_command, speeding_pursuit, traffic_command};
+pub(super) use commands::{pursuit_command, roadblock_command, signals_command, speeding_pursuit, traffic_command};
 pub use cop::CopCar;
 pub use lamps::LampMeshes;
 use manager::TypeTimers;
@@ -87,8 +90,12 @@ pub struct TrafficWorld {
     /// The signals of the junctions and the simulated seconds on their clock.
     signals: SignalController,
     signal_time: f32,
+    /// The real traffic-light props that serve the approaches, and the debug switch (`signal_props.rs`).
+    signal_lamps: signal_props::SignalLamps,
     /// Cars stop for the lights (the `traffic_lights` setting).
     lights_on: bool,
+    /// Cars go round a car that blocks their lane (the `traffic_avoidance` setting; `car/avoid.rs`).
+    avoidance: bool,
     models: Vec<TrafficModel>,
     cop_models: Vec<CopModel>,
     /// The police helicopter's rig. It is not a car, so it has no `CarPhysics` (`models.rs`).
@@ -154,7 +161,9 @@ impl TrafficWorld {
         Self {
             signals: SignalController::new(&network),
             signal_time: 0.0,
+            signal_lamps: signal_props::SignalLamps::default(),
             lights_on: false,
+            avoidance: false,
             network,
             index,
             models: Vec::new(),
@@ -227,6 +236,11 @@ impl TrafficWorld {
     /// Whether the cars stop for the traffic lights (a rewrite extension: the original has none).
     pub fn set_lights(&mut self, on: bool) {
         self.lights_on = on;
+    }
+
+    /// Whether the cars go round a car that blocks their lane (a rewrite extension: the original does not).
+    pub fn set_avoidance(&mut self, on: bool) {
+        self.avoidance = on;
     }
 
     /// Asks a screenshot run to simulate `seconds` before it captures.

@@ -14,6 +14,7 @@ mod blip_styles;
 mod blips;
 #[cfg(test)]
 mod blips_tests;
+mod busted_overlay;
 mod cop_blip;
 #[cfg(test)]
 mod cop_blip_tests;
@@ -23,6 +24,9 @@ mod install_tests;
 mod interact_prompt;
 #[cfg(test)]
 mod interact_prompt_tests;
+mod message;
+#[cfg(test)]
+mod message_tests;
 mod minimap;
 #[cfg(test)]
 mod minimap_tests;
@@ -42,10 +46,13 @@ mod viewport_tests;
 
 pub use blip_style::MapBlip;
 pub use blip_styles::{
-    AUTO_SHOP, AUTO_SHOP_TINT, CAR_LOT, CAR_LOT_TINT, COP, HELICOPTER, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT,
-    RACE_SPEEDTRAP, RACE_SPRINT, RACE_TOLLBOOTH, SAFE_HOUSE, SAFE_HOUSE_TINT,
+    AUTO_SHOP, AUTO_SHOP_TINT, CAR_LOT, CAR_LOT_TINT, CHECKPOINT, COP, HELICOPTER, RACE_CIRCUIT, RACE_DRAG,
+    RACE_KNOCKOUT, RACE_SPEEDTRAP, RACE_SPRINT, RACE_TOLLBOOTH, RACER, SAFE_HOUSE, SAFE_HOUSE_TINT,
 };
 pub use interact_prompt::{InteractPopup, Prompt, show as show_interact_prompt};
+#[cfg(test)]
+pub use message::current as current_mod_message;
+pub use message::{Tone as ModMessageTone, hide as hide_mod_message, set as set_mod_message, show as show_mod_message};
 pub use plugin::HudPlugin;
 pub use pursuit::PursuitHud;
 pub use pursuit_end::{PursuitEndCard, show as show_pursuit_end};

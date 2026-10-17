@@ -3,6 +3,7 @@
 use anyhow::{Context, Result, ensure};
 use blackbox_gfx::RenderBackend;
 use game_install::GameDir;
+use nfsmw_data::car::mods as car_mods;
 use nfsmw_data::car::{
     CarTables, Paint, customization,
     physics::{PerformanceCatalog, PhysicsData},
@@ -26,6 +27,10 @@ pub(super) fn catalog(dir: &GameDir, physics: &PhysicsData) -> Result<Model> {
         // Shared accessory folders have geometry but are not vehicle types.
         let Some(car_type) = tables.car_type_for_folder(&folder) else { continue };
         let Some(category) = Category::from_usage(car_type.usage_type) else { continue };
+        // A mod's cop-only car is not a player car (car/mods.rs).
+        if !car_mods::is_player_car(&folder) {
+            continue;
+        }
         let Ok(data) = physics.car(&car_type.type_name) else { continue };
         if data.spec.engine.torque.len() < 2
             || !data.spec.engine.torque.iter().any(|t| *t > 0.0)
@@ -35,8 +40,11 @@ pub(super) fn catalog(dir: &GameDir, physics: &PhysicsData) -> Result<Model> {
         {
             continue;
         }
-        let (name, manufacturer) =
+        let (mut name, manufacturer) =
             names::display(&car_type.type_name, &car_type.manufacturer, &brands, strings.as_ref());
+        if let Some(own) = car_mods::display_name(&folder) {
+            name = own.to_owned();
+        }
         let original_color = stock_parts(&tables, car_type)[slot::BASE_PAINT].map(|part| Paint::of(&tables, &part).rgb);
         cars.push(Car {
             folder,

@@ -13,6 +13,8 @@ mod gfx_cmd;
 mod gfx_tests;
 #[cfg(test)]
 mod hud_layout_tests;
+#[cfg(test)]
+mod motion_blur_sync_tests;
 mod parse;
 mod settings_cmd;
 mod settings_keys;

@@ -45,9 +45,10 @@ inputs; the application chooses presentation quality and emission budgets.
 them). The game and `blackbox-scene` only use the trait; `nfsmw`'s `app/render/native.rs` is the one place
 that names this crate.
 
-- `capabilities()` is fixed for the renderer: anti-aliasing `{Off, Fxaa, Smaa}` on Vulkan/DX12 (`{Off, Fxaa}` on GL), upscalers `{Off, Bilinear, Fsr1}`,
+- `capabilities()` is fixed for the renderer: anti-aliasing `{Off, Fxaa, Smaa}` on Vulkan/DX12 (`{Off, Fxaa}` on GL), upscalers `{Off, Bilinear, Fsr1}` plus `Fsr3` on a Vulkan or DX12 device with the storage limits it needs,
   every tone map, bloom, no ray tracing, a render scale of 0.25 to 2.0 and nothing that needs a restart.
-  `compressed_bc` and `hdr_targets` come from the adapter.
+  `compressed_bc` and `hdr_targets` come from the adapter, and so does FSR 3 (the device is created asking for the
+  compute limits it runs within, as far as the adapter has them).
 - Session-only raster shadows, contact detail, diffuse environment lighting, baked-light calibration and clearcoat are described in
   [the graphics lab](../../docs/graphics-lab.md). These default off and use the separate
   `set_render_experiments` and `set_shadow_casters` inputs.
@@ -154,5 +155,11 @@ When the render scale is below 1.0 the scene is brought back to the output size 
 - `set_texture_lod_bias(bias)` adds a mip bias to the world's texture samples; `suggested_texture_lod_bias(scale)` is
   `log2(scale)` below native, 0.0 otherwise. Particles and the UI are not biased.
 
-Not done, for DLSS and other temporal upscalers (docs/upscaling.md): projection jitter, previous transforms and a
-motion-vector output. The depth buffer is already reverse-Z `Depth32Float`.
+`Upscaler::Fsr3` is temporal (`gpu/temporal/`, `gpu/post/fsr3.rs`; docs/upscaling.md): the renderer jitters the
+projection itself (`FrameParams` stays unjittered), a motion pass after the scene pass writes `Rg16Float` vectors from the
+previous frame's matrix and the previous transform of each keyed instance (`InstanceKey`), and `libs/fsr3-wgpu` runs
+first in the post chain so bloom and tone mapping see the upscaled image. The scene is HDR, the render size comes
+from the quality mode through `apply_graphics`, and captures (screenshots, the mirror) are drawn at the output size
+without it.
+
+Not done, for DLSS and other temporal upscalers: they need the device created by their own SDK.

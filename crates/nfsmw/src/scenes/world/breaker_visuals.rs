@@ -62,7 +62,7 @@ impl Presentation {
     }
 
     fn filter(&self, _p: Profile) -> FocusFilter {
-        FocusFilter { vignette: self.current.clamp(0.0, 1.0) }
+        FocusFilter { vignette: self.current.clamp(0.0, 1.0), ..Default::default() }
     }
 }
 

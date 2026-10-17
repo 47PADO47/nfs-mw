@@ -104,6 +104,22 @@ fn dropping_the_handle_fades_the_sound_out_and_ends_it() {
 }
 
 #[test]
+fn a_zero_fade_cuts_a_dropped_sound_at_once() {
+    let (tx, mut sound, handle) = open(1000);
+    for _ in 0..5 {
+        tx.send(vec![Frame::new(0.5, 0.5); 100]).unwrap();
+    }
+    let before = render(sound.as_mut(), 100, 1000.0);
+    assert!((before[99].left - 0.5).abs() < 1e-6);
+    handle.set_fade_out(0.0);
+    drop(handle);
+    let out = render(sound.as_mut(), 10, 1000.0);
+    assert!(out.iter().all(|f| *f == Frame::ZERO), "cut to silence on the first frame");
+    assert!(sound.finished());
+    drop(tx);
+}
+
+#[test]
 fn a_dropped_sender_with_no_blocks_ends_at_once() {
     let (tx, mut sound, handle) = open(36_000);
     drop(tx);

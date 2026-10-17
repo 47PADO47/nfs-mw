@@ -57,8 +57,9 @@ impl fmt::Display for RenderScale {
 }
 
 /// How the scene is brought back to the output size when the render scale is below 100. The temporal upscalers
-/// (`fsr3`, `fsr4`, `dlss`) only exist on the Bevy renderer and take their render size from `upscale_quality`;
-/// the native renderer runs them as the best spatial one it has (docs/renderers.md).
+/// (`fsr3`, `fsr4`, `dlss`) take their render size from `upscale_quality`. `fsr3` runs on both renderers (on the native
+/// one when the device has the storage limits it needs); a renderer without the one asked for runs the best one it
+/// has (docs/renderers.md).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum UpscaleMode {
     /// No scaling: the render scale is ignored and the scene is drawn at the output size.

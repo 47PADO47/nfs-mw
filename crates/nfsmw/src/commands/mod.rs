@@ -14,12 +14,13 @@ use crate::settings::{Partial, Settings};
 /// Runs the window with the front end on top of an empty backdrop.
 fn run_front_end(
     dir: &game_install::GameDir,
+    mods: crate::modding::Mods,
     start: crate::frontend::Start,
     script: Option<&str>,
     view: &crate::cli::ViewArgs,
 ) -> Result<()> {
     let script = script.map(crate::frontend::UiScript::parse).transpose().map_err(anyhow::Error::msg)?;
-    let mut options = view.run_options(dir, true);
+    let mut options = view.run_options(dir, true).with_mods(mods);
     options.frontend = Some(crate::frontend::FrontendPlugin { dir: dir.clone(), start, script, browse: None });
     crate::app::run(
         Box::new(crate::frontend::MenuScene::new(Some(dir.clone()))),
@@ -80,17 +81,17 @@ pub fn run(cli: Cli) -> Result<()> {
             Ok(())
         }
         Command::Play { skip_boot, drive, ui_script, view } => {
-            let dir = open_install(game_dir)?;
+            let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
             let skip_intro = crate::settings::Settings::load(view.settings_layer()).skip_intro;
             let start = match (drive, skip_boot || skip_intro || ui_script.is_some()) {
                 (true, _) => crate::frontend::Start::Drive,
                 (false, true) => crate::frontend::Start::Menu,
                 (false, false) => crate::frontend::Start::Boot,
             };
-            run_front_end(&dir, start, ui_script.as_deref(), &view)
+            run_front_end(&dir, mods, start, ui_script.as_deref(), &view)
         }
         Command::ViewScreen { name, pause, options, category, ui_script, view } => {
-            let dir = open_install(game_dir)?;
+            let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
             let category = match category.to_ascii_lowercase().as_str() {
                 "audio" => crate::frontend::Category::Audio,
                 "video" => crate::frontend::Category::Video,
@@ -107,10 +108,10 @@ pub fn run(cli: Cli) -> Result<()> {
             }
             let start = crate::frontend::Start::Screen(name, crate::frontend::Args { pause, options, category });
             let settle = view.screenshot.is_some().then_some("wait 2");
-            run_front_end(&dir, start, ui_script.as_deref().or(settle), &view)
+            run_front_end(&dir, mods, start, ui_script.as_deref().or(settle), &view)
         }
         Command::FengViewer { name, view } => {
-            let dir = open_install(game_dir)?;
+            let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
             let scene = crate::scenes::feng::FengViewerScene::open(&dir, name.as_deref())?;
             let start = crate::frontend::Start::Browse(scene.start_name().to_owned());
             // A screenshot waits for the screen to settle, as view-screen's does.
@@ -118,27 +119,27 @@ pub fn run(cli: Cli) -> Result<()> {
             let script = settle.map(crate::frontend::UiScript::parse).transpose().map_err(anyhow::Error::msg)?;
             let plugin =
                 crate::frontend::FrontendPlugin { dir: dir.clone(), start, script, browse: Some(scene.browse()) };
-            let mut options = view.run_options(&dir, true);
+            let mut options = view.run_options(&dir, true).with_mods(mods);
             options.frontend = Some(plugin);
             crate::app::run(Box::new(scene), &Settings::load(view.settings_layer()), options)
         }
         Command::SoundViewer { bank, view } => {
-            let dir = open_install(game_dir)?;
+            let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
             let scene = crate::scenes::sounds::SoundsScene::open(&dir, bank.as_deref())?;
-            let run_options = view.run_options(&dir, false);
+            let run_options = view.run_options(&dir, false).with_mods(mods);
             crate::app::run(Box::new(scene), &Settings::load(view.settings_layer()), run_options)
         }
         Command::PlayMovie { name, start, view } => {
-            let dir = open_install(game_dir)?;
+            let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
             let scene = crate::movie::MovieScene::open(&dir, &name, f64::from(start))?;
-            let run_options = view.run_options(&dir, false);
+            let run_options = view.run_options(&dir, false).with_mods(mods);
             crate::app::run(Box::new(scene), &Settings::load(view.settings_layer()), run_options)
         }
         Command::ViewCar { car, lod, all_parts, preset, yaw, view } => {
-            let dir = open_install(game_dir)?;
+            let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
             let options = nfsmw_data::car::LoadOptions { lod, all_parts, preset };
             let model = nfsmw_data::car::load(&dir, &car, &options)?;
-            let run_options = view.run_options(&dir, false);
+            let run_options = view.run_options(&dir, false).with_mods(mods);
             crate::app::run(
                 Box::new(CarScene::new(model, yaw).with_source(dir, options)),
                 &Settings::load(view.settings_layer()),
@@ -146,17 +147,19 @@ pub fn run(cli: Cli) -> Result<()> {
             )
         }
         Command::AssetViewer { car, view } => {
-            let dir = open_install(game_dir)?;
+            let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
             let scene = crate::scenes::assets::AssetScene::open_cars(&dir, &car)?;
-            crate::app::run(Box::new(scene), &Settings::load(view.settings_layer()), view.run_options(&dir, false))
+            let run_options = view.run_options(&dir, false).with_mods(mods);
+            crate::app::run(Box::new(scene), &Settings::load(view.settings_layer()), run_options)
         }
         Command::ViewAssets { name, view } => {
-            let dir = open_install(game_dir)?;
+            let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
             let scene = crate::scenes::assets::AssetScene::open_scenery(&dir, name.as_deref())?;
-            crate::app::run(Box::new(scene), &Settings::load(view.settings_layer()), view.run_options(&dir, false))
+            let run_options = view.run_options(&dir, false).with_mods(mods);
+            crate::app::run(Box::new(scene), &Settings::load(view.settings_layer()), run_options)
         }
         Command::ViewWorld { at, height, heading, pitch, fog_distance, wait_for_load, drive, drive_script, view } => {
-            let dir = open_install(game_dir)?;
+            let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
             let driving = drive.is_some();
             let drive = drive.map(|car| crate::scenes::world::DriveOptions { car, script: drive_script });
             let options =
@@ -164,7 +167,7 @@ pub fn run(cli: Cli) -> Result<()> {
             crate::app::run(
                 Box::new(WorldScene::open(&dir, options)?),
                 &Settings::load(view.settings_layer()),
-                view.run_options(&dir, driving),
+                view.run_options(&dir, driving).with_mods(mods),
             )
         }
     }

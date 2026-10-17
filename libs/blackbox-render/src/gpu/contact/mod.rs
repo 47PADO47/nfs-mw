@@ -13,6 +13,14 @@ struct Params {
     screen: [f32; 4],
 }
 
+/// What one ray march needs of the camera and the sun: the matrix that takes the world to the clip space the depth was
+/// drawn in (jittered, when a temporal upscaler runs) and how far the march reaches.
+#[derive(Clone, Copy)]
+struct March {
+    view_proj: glam::Mat4,
+    length: f32,
+}
+
 pub(super) struct Contact {
     buffer: wgpu::Buffer,
     layout: wgpu::BindGroupLayout,
@@ -111,14 +119,15 @@ impl Contact {
         queue: &wgpu::Queue,
         encoder: &mut wgpu::CommandEncoder,
         frame: &FrameParams,
-        length: f32,
+        march: March,
         surfaces: &Targets,
     ) {
+        let March { view_proj, length } = march;
         let Projection::PerspectiveInfiniteReverse { near, fov_y, .. } = frame.projection else { return };
         let size = self.size;
         let params = Params {
-            inverse: frame.view_proj().inverse().to_cols_array(),
-            view_proj: frame.view_proj().to_cols_array(),
+            inverse: view_proj.inverse().to_cols_array(),
+            view_proj: view_proj.to_cols_array(),
             sun: (-frame.light_dir).normalize_or_zero().extend(length).to_array(),
             screen: [size.0 as f32, size.1 as f32, near, 2.0 * (fov_y * 0.5).tan() / size.1 as f32],
         };
@@ -156,6 +165,7 @@ impl Renderer {
         if !self.experiments.contact_shadows || !self.screen_lighting_active(frame) {
             return;
         }
+        let view_proj = self.world_to_clip(frame);
         let mut contact = self.contact.take().unwrap_or_else(|| Contact::new(&self.device, size));
         if contact.size() != size {
             contact.mask = super::surface::mask(&self.device, size, "contact visibility");
@@ -173,7 +183,7 @@ impl Renderer {
                 &self.queue,
                 encoder,
                 frame,
-                self.experiments.contact_length,
+                March { view_proj, length: self.experiments.contact_length },
                 &surfaces.targets,
             );
         }

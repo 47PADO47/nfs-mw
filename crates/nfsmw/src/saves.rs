@@ -148,6 +148,11 @@ pub fn partial_of(s: &Settings) -> Partial {
         traffic: Some(s.traffic),
         cop_share: Some(s.cop_share),
         always_rain: Some(s.always_rain),
+        motion_blur: Some(s.motion_blur),
+        motion_blur_strength: Some(s.motion_blur_strength),
+        hd_content: s.hd_content.into(),
+        custom_fonts: s.custom_fonts.into(),
+        fe_shadows: s.fe_shadows.into(),
         rain_amount: Some(s.rain_amount),
         game_speed: Some(s.game_speed),
         animation_speed: Some(s.animation_speed),
@@ -155,6 +160,8 @@ pub fn partial_of(s: &Settings) -> Partial {
         no_rev_limiter: Some(s.no_rev_limiter),
         show_hud_on_look_back: Some(s.show_hud_on_look_back),
         traffic_lights: Some(s.traffic_lights),
+        traffic_avoidance: Some(s.traffic_avoidance),
+        cop_health_bars: Some(s.cop_health_bars),
         smoke_quality: Some(s.smoke_quality),
         skid_marks: Some(s.skid_marks),
         collision_sparks: Some(s.collision_sparks),
@@ -166,6 +173,7 @@ pub fn partial_of(s: &Settings) -> Partial {
         rear_view_mirror: Some(s.rear_view_mirror),
         discord: Some(s.discord),
         discord_time_played: Some(s.discord_time_played),
+        mods: None,
         transmission: Some(s.transmission),
         camera_mode: Some(s.camera_mode),
         minimap: Some(s.minimap),
@@ -176,6 +184,14 @@ pub fn partial_of(s: &Settings) -> Partial {
         post_aa: Some(s.post_aa),
         visual_treatment: Some(s.visual_treatment),
         reflections: Some(s.reflections),
+        reflection_cube_size: Some(s.reflection_cube_size),
+        reflection_mirror_size: Some(s.reflection_mirror_size),
+        reflection_pow2: Some(s.reflection_pow2),
+        mirror_tint: Some(s.mirror_tint),
+        reflection_distance: Some(s.reflection_extra.distance),
+        reflection_lod: Some(s.reflection_extra.lod),
+        reflection_content: Some(s.reflection_extra.content),
+        vehicle_reflection_brightness: Some(s.reflection_extra.brightness),
         ao: Some(s.ao),
         ao_intensity: Some(s.ao_intensity),
         ao_compare: Some(s.ao_compare),
@@ -210,11 +226,12 @@ fn extra_table(s: &Settings) -> toml::Table {
     t
 }
 
-/// The settings as TOML text, the payload of an alias: the config's keys, then the extra keys.
+/// The settings as TOML text, the payload of an alias: the extra keys, then the config's keys. The extra keys
+/// come first because the config can end in a table (`[hd_content]`), which would otherwise swallow them.
 pub fn settings_payload(s: &Settings) -> Result<Vec<u8>, SaveError> {
     let config = crate::settings::write::merge("", &partial_of(s)).map_err(|e| SaveError::Payload(format!("{e:#}")))?;
     let extra = toml::to_string(&extra_table(s)).map_err(|e| SaveError::Payload(e.to_string()))?;
-    Ok(format!("{config}{extra}").into_bytes())
+    Ok(format!("{extra}{config}").into_bytes())
 }
 
 /// The settings read back from a payload. A key the payload lacks takes its default.

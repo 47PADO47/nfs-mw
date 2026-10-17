@@ -307,7 +307,7 @@ impl BlackboxPresenter {
         let (Some(font), Some(text)) = (assets.font(font_key), node.text.as_deref()) else { return };
         let Some((id, additive)) = self.ensure(font.texture_hash, assets, out) else { return };
         let size = assets.texture_size(assets.resolve(font.texture_hash)).unwrap_or((256, 256));
-        let layout = font.layout(text, style, size);
+        let layout = font.layout_scaled(text, style, size, assets.font_scale(font.hash));
         // A line wider than the maximum width is squeezed unless the string wraps.
         let squeeze =
             if style.max_width != 0 && style.justification & 0x10 == 0 && layout.width > style.max_width as f32 {

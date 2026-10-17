@@ -14,6 +14,9 @@ use nfsmw_data::car::LoadOptions;
 use super::room::Room;
 use crate::input::ActionState;
 use crate::scenes::car::CarScene;
+use crate::scenes::car::FLOOR_PART;
+use crate::scenes::car::shadows::{Part, shadowed};
+use crate::settings::fe_shadows;
 use crate::viewer::{Fullscreen, Scene};
 
 /// The stock car the menus turn on their backdrop. [ours] The original shows the car on a platform stage
@@ -53,6 +56,7 @@ pub(super) fn flat_frame() -> FrameParams {
         surface_light: None,
         // Nothing 3D is drawn, so there is no camera to follow from frame to frame.
         camera_cut: true,
+        shadow_tuning: None,
     }
 }
 
@@ -99,18 +103,29 @@ impl Scene for MenuScene {
     }
 
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
+        let options = fe_shadows::active();
         let Self { car, room, parts, .. } = self;
-        let (params, car_parts) = match car {
+        let (mut params, car_parts) = match car {
             Some(car) => car.frame(aspect),
             None => (flat_frame(), &[] as &[Instance]),
         };
-        let Some(room) = room else { return (params, car_parts) };
+        params.shadow_tuning = fe_shadows::tuning(options);
         parts.clear();
-        parts.extend_from_slice(car_parts);
-        parts.extend_from_slice(room.instances());
+        parts.extend(car_parts.iter().map(|i| shadowed(*i, car_part(i), options.options)));
+        if let Some(room) = room {
+            parts.extend(room.instances().iter().map(|i| shadowed(*i, Part::Room, options.options)));
+        }
         // The renderer wants instances of one mesh next to each other.
         parts.sort_by_key(|i| i.mesh);
         (params, parts.as_slice())
+    }
+}
+
+/// The part of the car an instance belongs to: the placeholder floor is keyed with its own part number.
+fn car_part(instance: &Instance) -> Part {
+    match instance.key.parts().1 == FLOOR_PART {
+        true => Part::CarFloor,
+        false => Part::Car,
     }
 }
 
@@ -256,6 +271,46 @@ impl Scene for Pausable {
         self.effects_dirty = true;
     }
 
+    fn time_held(&self) -> bool {
+        self.inner.time_held()
+    }
+
+    fn set_time_held(&mut self, held: bool) {
+        self.inner.set_time_held(held);
+    }
+
+    fn set_mod_blips(&mut self, blips: &[crate::hud::MapBlip]) {
+        self.inner.set_mod_blips(blips);
+    }
+
+    fn player_car(&mut self) -> Option<crate::viewer::PlayerCar> {
+        self.inner.player_car()
+    }
+
+    fn camera_readout(&self) -> Option<crate::viewer::CameraReadout> {
+        self.inner.camera_readout()
+    }
+
+    fn world_info(&self) -> Option<crate::viewer::WorldInfo> {
+        self.inner.world_info()
+    }
+
+    fn move_player(&mut self, at: [f32; 2], heading: f32) -> bool {
+        self.inner.move_player(at, heading)
+    }
+
+    fn repair_player(&mut self) -> bool {
+        self.inner.repair_player()
+    }
+
+    fn set_traffic_density(&mut self, cars: u32, cop_share: u8) {
+        self.inner.set_traffic_density(cars, cop_share);
+    }
+
+    fn spawn_traffic_at(&mut self, at: [f32; 2], heading: f32) -> bool {
+        self.inner.spawn_traffic_at(at, heading)
+    }
+
     fn set_rain(&mut self, always: bool, amount: f32) {
         self.inner.set_rain(always, amount);
         self.effects_dirty = true;
@@ -314,6 +369,17 @@ impl Scene for Pausable {
         self.inner.pursuit_feed()
     }
 
+    fn take_bust_ticket(&mut self) -> Option<Vec<(blackbox_pursuit::Infraction, u32)>> {
+        if self.concealed() {
+            return None;
+        }
+        self.inner.take_bust_ticket()
+    }
+
+    fn pay_bust(&mut self, marker: bool) -> bool {
+        self.inner.pay_bust(marker)
+    }
+
     fn paused(&self) -> bool {
         self.paused.get() || self.inner.paused()
     }
@@ -369,6 +435,14 @@ impl Scene for Pausable {
             return Vec::new();
         }
         sounds
+    }
+
+    fn rotor_frame(&mut self, dt: f32) -> Option<crate::audio::HeliFrame> {
+        let frame = self.inner.rotor_frame(dt);
+        if self.concealed() {
+            return None;
+        }
+        frame
     }
 
     fn take_explosions(&mut self) -> u32 {

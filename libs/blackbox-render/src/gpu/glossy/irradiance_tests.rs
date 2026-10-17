@@ -48,6 +48,7 @@ fn fixture(r: &mut Renderer) -> (FrameParams, Vec<Instance>) {
             scattering: None,
             surface_light: None,
             camera_cut: false,
+            shadow_tuning: None,
         },
         vec![Instance::new(mesh, Mat4::IDENTITY)],
     )

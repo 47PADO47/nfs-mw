@@ -6,7 +6,7 @@
 pub mod ao;
 pub use ao::{AoQuality, AoSettings};
 pub mod shadows;
-pub use shadows::ShadowQuality;
+pub use shadows::{ShadowQuality, ShadowTuning};
 pub mod post;
 pub mod ray_tracing;
 pub mod render_scale;
@@ -33,6 +33,18 @@ pub struct GraphicsSettings {
     /// Post effects, including the anti-aliasing method.
     pub post: PostSettings,
     pub reflections: crate::ReflectionQuality,
+    /// Size of the car cube faces and the rear-view mirror picture, and power-of-two rounding of the faces.
+    pub reflection_resolution: crate::reflection::ReflectionResolution,
+    /// Multiplies the rear-view mirror picture; [`MirrorTint::NONE`](crate::MirrorTint::NONE) leaves it as captured.
+    pub mirror_tint: crate::reflection::MirrorTint,
+    /// How far the car cube and the mirror reach: unlimited, or the original's 100 m and 192 m.
+    pub reflection_distance: crate::reflection::distance::ReflectionDistance,
+    /// Which screen height the car cube's scenery detail follows: its own face, or the main view's.
+    pub reflection_lod: crate::reflection::lod::ReflectionLod,
+    /// What the car cube adds to the scenery: nothing, or the traffic cars.
+    pub reflection_content: crate::reflection::content::ReflectionContent,
+    /// Multiplies the environment reflection on the vehicles' glossy material.
+    pub vehicle_reflection_brightness: crate::reflection::brightness::VehicleBrightness,
     pub ao: AoSettings,
     pub shadows: ShadowQuality,
     pub upscaler: Upscaler,
@@ -50,6 +62,12 @@ impl Default for GraphicsSettings {
         Self {
             post: PostSettings::default(),
             reflections: crate::ReflectionQuality::Off,
+            reflection_resolution: crate::reflection::ReflectionResolution::default(),
+            mirror_tint: crate::reflection::MirrorTint::NONE,
+            reflection_distance: Default::default(),
+            reflection_lod: Default::default(),
+            reflection_content: Default::default(),
+            vehicle_reflection_brightness: Default::default(),
             ao: AoSettings::default(),
             shadows: ShadowQuality::Off,
             upscaler: Upscaler::default(),
@@ -69,6 +87,8 @@ impl GraphicsSettings {
             ao: self.ao.sanitized(),
             render_scale: clamp_render_scale(self.render_scale),
             upscale_sharpness: clamp_upscale_sharpness(self.upscale_sharpness),
+            reflection_resolution: self.reflection_resolution.sanitized(),
+            vehicle_reflection_brightness: self.vehicle_reflection_brightness.sanitized(),
             ..self
         }
     }
@@ -92,11 +112,22 @@ mod tests {
             post: PostSettings { exposure: 100.0, ..PostSettings::default() },
             render_scale: 9.0,
             upscale_sharpness: f32::NAN,
+            vehicle_reflection_brightness: crate::reflection::brightness::VehicleBrightness(9.0),
             ..GraphicsSettings::default()
         };
         let clean = wild.sanitized();
         assert_eq!(clean.post.exposure, MAX_EXPOSURE);
         assert_eq!(clean.render_scale, MAX_RENDER_SCALE);
         assert_eq!(clean.upscale_sharpness, DEFAULT_UPSCALE_SHARPNESS);
+        assert_eq!(clean.vehicle_reflection_brightness.0, 3.0);
+    }
+
+    #[test]
+    fn the_reflection_extras_default_to_the_port_picture() {
+        let s = GraphicsSettings::default();
+        assert_eq!(s.reflection_distance, crate::reflection::distance::ReflectionDistance::Unlimited);
+        assert_eq!(s.reflection_lod, crate::reflection::lod::ReflectionLod::Capture);
+        assert_eq!(s.reflection_content, crate::reflection::content::ReflectionContent::Original);
+        assert_eq!(s.vehicle_reflection_brightness.0, 1.0);
     }
 }

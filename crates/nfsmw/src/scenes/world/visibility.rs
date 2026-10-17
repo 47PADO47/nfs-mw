@@ -148,6 +148,7 @@ mod tests {
             spawner: None,
             parts: None,
             curve_lamp: None,
+            signal: None,
         };
         let lens = blackbox_gfx::reflection::face_frame(
             Vec3::ZERO,
@@ -162,6 +163,7 @@ mod tests {
                 scattering: None,
                 surface_light: None,
                 camera_cut: false,
+                shadow_tuning: None,
             },
         );
         let camera = Camera {

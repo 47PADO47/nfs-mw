@@ -26,6 +26,7 @@ impl Settings {
             ray_tracing: ray_tracing(run.ray_tracing),
             reflections: run.reflections,
             shadows: run.shadows,
+            fe_shadows: self.fe_shadows.on_renderer(caps.soft_shadows),
             ao: run.ao.quality,
             ..*self
         }

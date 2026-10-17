@@ -3,7 +3,7 @@ resolver = "3"
 # libs/   engine-generic libraries (EA Black Box formats, codecs, install discovery, rendering).
 #         No NFS:MW-specific code: they are meant to move to a shared utilities monorepo.
 # crates/ the NFS:MW game itself.
-members = ["libs/*", "crates/*", "xtask"]
+members = ["libs/*", "crates/*", "xtask", "examples/mods/hello"]
 # Every lib except the optional Bevy renderer, so a plain `cargo build` at the root never compiles bevy_render
 # (`--workspace` and `-p blackbox-bevy-render` still reach it). Add new libs here.
 default-members = [
@@ -22,8 +22,10 @@ default-members = [
     "libs/blackbox-hash",
     "libs/blackbox-minimap",
     "libs/blackbox-mixmap",
+    "libs/blackbox-modding",
     "libs/blackbox-paramap",
     "libs/blackbox-fxedit",
+    "libs/blackbox-playlist",
     "libs/blackbox-pursuit",
     "libs/blackbox-speedfx",
     "libs/blackbox-movie",
@@ -69,6 +71,8 @@ blackbox-ginsu = { path = "libs/blackbox-ginsu" }
 blackbox-gpu-passes = { path = "libs/blackbox-gpu-passes" }
 blackbox-hash = { path = "libs/blackbox-hash" }
 blackbox-minimap = { path = "libs/blackbox-minimap" }
+blackbox-modding = { path = "libs/blackbox-modding" }
+blackbox-playlist = { path = "libs/blackbox-playlist" }
 blackbox-mixmap = { path = "libs/blackbox-mixmap" }
 blackbox-paramap = { path = "libs/blackbox-paramap" }
 blackbox-fxedit = { path = "libs/blackbox-fxedit" }
@@ -94,6 +98,7 @@ game-install = { path = "libs/game-install" }
 save-store = { path = "libs/save-store" }
 # NFS:MW (crates/)
 nfsmw-data = { path = "crates/nfsmw-data" }
+nfsmw-modding = { path = "crates/nfsmw-modding" }
 
 # Third-party (see docs/rust-stack.md for why each was picked)
 # Bevy: the ECS shell (docs/decisions/0001-bevy.md), plus the render crates only blackbox-bevy-render uses
@@ -118,6 +123,8 @@ bevy_post_process = "=0.20.0"
 bevy_reflect = "=0.20.0"
 bevy_render = "=0.20.0"
 bevy_shader = "=0.20.0"
+# Solari ray tracing (ADR 0004, `ray-tracing` feature of blackbox-bevy-render). Exists on crates.io for 0.20.0.
+bevy_solari = "=0.20.0"
 bevy_transform = "=0.20.0"
 bevy_gilrs = "=0.20.0"
 bevy_input = { version = "=0.20.0", features = ["serialize"] }
@@ -133,14 +140,17 @@ egui = "0.36"
 env_logger = "0.11"
 glam = { version = "0.34", features = ["bytemuck"] }
 kira = { version = "0.12", default-features = false, features = ["cpal"] }
+libloading = "0.8"
 log = "0.4"
 naga = { version = "30", default-features = false, features = ["wgsl-in"] }
 png = "0.18"
 pollster = "0.4"
 raw-window-handle = "0.6"
+semver = "1"
 serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"
 texture2ddecoder = "0.1"
+symphonia = { version = "0.6", default-features = false, features = ["mp3", "ogg", "vorbis", "flac", "wav", "pcm", "id3v2", "id3v1", "ape"] }
 thiserror = "2"
 toml = "0.9"
 wgpu = "30"

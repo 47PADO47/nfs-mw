@@ -325,10 +325,10 @@ impl Drive {
         self.sim.as_ref().map_or(self.current, CarSim::pose)
     }
 
-    /// The car as the police and the high-speed effects see it. Nitrous is 0 without the part.
+    /// The car as the police and the high-speed effects see it. Nitrous is 1 while it burns, else 0.
     pub fn player_view(&self) -> crate::scenes::world::ai::PlayerView {
         let forward = self.pose().rotation * Vec3::X;
-        let nitrous = if self.telemetry.has_nos { self.telemetry.nos } else { 0.0 };
+        let nitrous = self.telemetry.nitrous_burn();
         crate::scenes::world::ai::PlayerView {
             position: self.pose().position,
             forward,
@@ -362,6 +362,16 @@ impl Drive {
     /// Whether the camera is looking back at the car.
     pub fn looking_back(&self) -> bool {
         self.chase.looking_back()
+    }
+
+    /// Whether a caught pan or an arrest framing is running this tick (`PursuitCamera::shot_running`).
+    pub fn pursuit_shot_running(&self) -> bool {
+        self.pursuit.shot_running()
+    }
+
+    /// Whether a car is simulated, which is when the HUD has a state (`hud_state`).
+    pub fn has_sim(&self) -> bool {
+        self.sim.is_some()
     }
 
     /// Advances the pursuit camera's caught pan and arrest framing by `dt` of simulated time, with the chase's feed.

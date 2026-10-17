@@ -90,8 +90,12 @@ fn vehicle_effects_main_and_pause_video_rows_show_toggle_and_save() {
             ..Partial::default()
         });
         let (mut settings, mut changes) = (initial, Partial::default());
-        let mut env =
-            Env { settings: &mut settings, changed: &mut changes, caps: crate::settings::test_caps::native() };
+        let mut env = Env {
+            settings: &mut settings,
+            changed: &mut changes,
+            caps: crate::settings::test_caps::native(),
+            mods: None,
+        };
         screens.open(name, Args { pause, category: Category::Video, ..Args::default() }, true, &mut env);
         run(&mut screens, &mut env, 0, 60);
         let at =

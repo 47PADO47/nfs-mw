@@ -8,7 +8,7 @@ use glam::Vec3;
 use super::bind::HudBinding;
 use super::minimap::MinimapBinding;
 use super::state::{HudState, MapPosition};
-use super::viewport::HudViewport;
+use super::viewport::{HudViewport, parameters};
 use crate::settings::HudLayout;
 use crate::ui::present::Screen;
 
@@ -260,6 +260,139 @@ fn viewport_agrees_with_the_installs_authored_wide_gauge_and_backing_positions()
             let expected = b.world.transform_point3(corner);
             close(actual.x, expected.x);
             close(actual.y, expected.y);
+        }
+    }
+}
+
+/// Window sizes checked against `docs/specs/hud-viewport.md`: name, width, height, then the spec's offset for `Pc`
+/// and for `Xbox360` (before its scale), and that scale. Windows at 4:3 and narrower are unscaled and unshifted.
+const ASPECTS: [(&str, f32, f32, f32, f32, f32); 9] = [
+    ("4:3", 1440.0, 1080.0, 0.0, 0.0, 1.0),
+    ("5:4", 1350.0, 1080.0, 0.0, 0.0, 1.0),
+    ("16:10", 1920.0, 1200.0, 72.0, 72.0, 0.92),
+    ("16:9", 1920.0, 1080.0, 120.0, 120.0, 0.92),
+    ("21:9 2560x1080", 2560.0, 1080.0, 262.2222, 274.5894, 0.92),
+    ("21:9 3440x1440", 3440.0, 1440.0, 266.6667, 279.4203, 0.92),
+    ("32:9", 5120.0, 1440.0, 546.6667, 583.7681, 0.92),
+    ("1:1", 1080.0, 1080.0, 0.0, 0.0, 1.0),
+    ("9:16 portrait", 1080.0, 1920.0, 0.0, 0.0, 1.0),
+];
+
+const LAYOUTS: [HudLayout; 2] = [HudLayout::Pc, HudLayout::Xbox360];
+
+fn close_in(what: &str, got: f32, expected: f32) {
+    assert!((got - expected).abs() < 0.01, "{what}: {got} vs {expected}");
+}
+
+fn world_x(tree: &UiTree, name: &str) -> f32 {
+    let node = tree.nodes.iter().find(|n| n.name_hash == fe_hash_upper(name)).unwrap();
+    node.world.transform_point3(Vec3::ZERO).x
+}
+
+/// The spec's `(offset, scale)` for a row of `ASPECTS` under a preset.
+fn spec(layout: HudLayout, row: (&str, f32, f32, f32, f32, f32)) -> (f32, f32) {
+    let (_, _, _, pc, xbox, xbox_scale) = row;
+    match layout {
+        HudLayout::Xbox360 => (xbox, xbox_scale),
+        _ => (pc, 1.0),
+    }
+}
+
+#[test]
+fn parameters_match_the_spec_at_each_aspect_ratio() {
+    for row in ASPECTS {
+        let (name, w, h, ..) = row;
+        for layout in LAYOUTS {
+            let (offset, scale) = spec(layout, row);
+            let (got_scale, got_offset) = parameters(screen(w, h), layout);
+            close_in(&format!("{name} {layout} offset"), got_offset, offset);
+            close_in(&format!("{name} {layout} scale"), got_scale, scale);
+        }
+    }
+}
+
+#[test]
+fn side_groups_and_minimap_centres_follow_the_spec_at_each_aspect_ratio() {
+    let mut rt = Runtime::new();
+    let id = rt.load(package());
+    let before = rt.tree(id);
+    let viewport = HudViewport::new(&before, &[]);
+    for layout in LAYOUTS {
+        for row in ASPECTS {
+            let (name, w, h, ..) = row;
+            let (offset, scale) = spec(layout, row);
+            let mut tree = before.clone();
+            viewport.apply(&mut tree, screen(w, h), layout);
+            let what = format!("{name} {layout}");
+            close_in(&format!("{what} left group"), world_x(&tree, "Backing"), scale * (-221.0 - offset));
+            close_in(&format!("{what} right group"), world_x(&tree, "Face"), scale * (221.0 + offset));
+            close_in(&format!("{what} minimap"), world_x(&tree, "TRACK_MAP"), scale * (-221.0 - offset));
+            close_in(&format!("{what} arrow"), world_x(&tree, "PLAYERCARINDICATOR"), scale * (-222.0 - offset));
+            close_in(&format!("{what} centred"), world_x(&tree, "Centered"), 0.0);
+        }
+    }
+}
+
+#[test]
+fn minimap_and_arrow_stay_anchored_to_the_left_group_at_each_aspect_ratio() {
+    let mut rt = Runtime::new();
+    let id = rt.load(package());
+    let before = rt.tree(id);
+    let viewport = HudViewport::new(&before, &[]);
+    for layout in LAYOUTS {
+        for row in ASPECTS {
+            let (name, w, h, ..) = row;
+            let (_, scale) = spec(layout, row);
+            let mut tree = before.clone();
+            viewport.apply(&mut tree, screen(w, h), layout);
+            let what = format!("{name} {layout}");
+            close_in(&format!("{what} map on backing"), world_x(&tree, "TRACK_MAP"), world_x(&tree, "Backing"));
+            let arrow_gap = world_x(&tree, "PLAYERCARINDICATOR") - world_x(&tree, "TRACK_MAP");
+            close_in(&format!("{what} arrow gap"), arrow_gap, -scale);
+        }
+    }
+}
+
+#[test]
+fn side_groups_mirror_each_other_about_the_window_centre_at_each_aspect_ratio() {
+    let mut rt = Runtime::new();
+    let id = rt.load(package());
+    let before = rt.tree(id);
+    let viewport = HudViewport::new(&before, &[]);
+    for layout in LAYOUTS {
+        for row in ASPECTS {
+            let (name, w, h, ..) = row;
+            let s = screen(w, h);
+            let mut tree = before.clone();
+            viewport.apply(&mut tree, s, layout);
+            let left = point(&tree, "Backing", Vec3::ZERO, s).x;
+            let right = point(&tree, "Face", Vec3::ZERO, s).x;
+            close_in(&format!("{name} {layout} mirror"), left + right, w);
+        }
+    }
+}
+
+#[test]
+fn side_groups_and_minimap_stay_on_screen_at_every_wide_aspect_ratio() {
+    let mut rt = Runtime::new();
+    let id = rt.load(package());
+    let before = rt.tree(id);
+    let viewport = HudViewport::new(&before, &[]);
+    for layout in LAYOUTS {
+        for row in ASPECTS.into_iter().filter(|row| row.1 / row.2 > 4.0 / 3.0) {
+            let (name, w, h, ..) = row;
+            let s = screen(w, h);
+            let mut tree = before.clone();
+            viewport.apply(&mut tree, s, layout);
+            let what = format!("{name} {layout}");
+            let backing_left = point(&tree, "Backing", Vec3::new(-0.5, 0.0, 0.0), s).x;
+            let face_right = point(&tree, "Face", Vec3::new(0.5, 0.0, 0.0), s).x;
+            assert!(backing_left >= 0.0, "{what}: Backing left edge at {backing_left}");
+            assert!(face_right <= w, "{what}: Face right edge at {face_right} of {w}");
+            for piece in ["TRACK_MAP", "PLAYERCARINDICATOR"] {
+                let p = point(&tree, piece, Vec3::ZERO, s);
+                assert!(p.x > 0.0 && p.x < w && p.y > 0.0 && p.y < h, "{what}: {piece} at {p:?}");
+            }
         }
     }
 }

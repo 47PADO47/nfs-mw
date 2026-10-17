@@ -15,14 +15,20 @@ mod car_shading_tests;
 mod controls;
 #[cfg(test)]
 mod controls_tests;
+pub mod custom_fonts;
+pub mod custom_music;
 #[cfg(test)]
 mod discord_tests;
+pub mod eatrax;
 mod effective;
 mod env;
 #[cfg(test)]
 mod exhaust_flames_tests;
-mod extra_options;
+pub(crate) mod extra_options;
 pub mod fairbusts;
+pub mod fe_shadows;
+#[cfg(test)]
+mod fe_shadows_tests;
 pub(crate) mod file;
 mod graphics;
 mod graphics_preset;
@@ -30,11 +36,16 @@ mod graphics_preset;
 mod graphics_preset_tests;
 #[cfg(test)]
 mod graphics_tests;
+pub mod hd_content;
 pub mod helicopter;
 mod hud_layout;
 #[cfg(test)]
 mod hud_layout_tests;
 mod minimap;
+pub mod mods;
+pub mod motion_blur;
+#[cfg(test)]
+mod motion_blur_tests;
 mod partial;
 mod post;
 #[cfg(test)]
@@ -45,6 +56,10 @@ mod ray_tracing;
 mod ray_tracing_tests;
 #[cfg(test)]
 mod rear_view_mirror_tests;
+pub mod reflection_extra;
+pub mod reflection_res;
+#[cfg(test)]
+mod reflection_res_tests;
 mod renderer;
 #[cfg(test)]
 mod renderer_tests;
@@ -60,6 +75,7 @@ mod speedbreaker_tests;
 pub(crate) mod test_caps;
 #[cfg(test)]
 mod tire_tests;
+mod traffic_avoidance;
 mod transmission;
 #[cfg(test)]
 mod treatment_tests;
@@ -78,13 +94,16 @@ pub(crate) mod write;
 use blackbox_gfx::GraphicsApi;
 
 pub use blackbox_gfx::ReflectionQuality;
+pub use blackbox_gfx::reflection::{MirrorTint, ReflectionSize};
 pub use blackbox_gfx::{AoQuality, ShadowQuality};
 pub use camera_mode::CameraMode;
 pub use car_shading::CarShading;
 pub use controls::{Controls, Deadzone, DeadzoneMode, Sensitivity};
+pub use custom_music::{CustomContext, CustomMode, CustomMusic, Sources as CustomSources};
 pub use graphics_preset::GraphicsPreset;
 pub use hud_layout::HudLayout;
 pub use minimap::MinimapMode;
+pub use motion_blur::MotionBlur;
 pub use partial::{Partial, Percent, parse_bool};
 pub use post::{PostAa, PostBloom, PostTonemap, VisualTreatment, post_effects};
 pub use radio_hud::RadioHudStyle;
@@ -110,6 +129,9 @@ pub const DEFAULT_COP_SHARE: Percent = Percent(5);
 /// Whether traffic stops at red lights by default. The original game has no traffic lights: this is a rewrite
 /// extension, on because it was asked for.
 pub const DEFAULT_TRAFFIC_LIGHTS: bool = true;
+/// Whether a health bar is drawn above each cop car that chases the player. A rewrite extension: the original shows no
+/// per-car bar, so it is off by default.
+pub const DEFAULT_COP_HEALTH_BARS: bool = false;
 /// Rain on every track, as the Extra Options `[Weather] AlwaysRain` switch (off by default).
 pub const DEFAULT_ALWAYS_RAIN: bool = false;
 /// The rain amount: 100 percent is the original amount.
@@ -134,11 +156,13 @@ pub struct TrafficSettings {
     pub cop_share: Percent,
     /// Whether they obey traffic lights.
     pub lights: bool,
+    /// Whether they go round a car that blocks their lane (`traffic_avoidance`).
+    pub avoidance: bool,
 }
 
 impl From<&Settings> for TrafficSettings {
     fn from(s: &Settings) -> Self {
-        Self { cars: s.traffic, cop_share: s.cop_share, lights: s.traffic_lights }
+        Self { cars: s.traffic, cop_share: s.cop_share, lights: s.traffic_lights, avoidance: s.traffic_avoidance }
     }
 }
 
@@ -183,6 +207,10 @@ pub struct Settings {
     pub cop_share: Percent,
     /// Whether the traffic obeys traffic lights at junctions (a rewrite extension: the original has none).
     pub traffic_lights: bool,
+    /// Whether the traffic goes round a car that blocks its lane (a rewrite extension: the original does not).
+    pub traffic_avoidance: bool,
+    /// A health bar above each cop car that chases the player (a rewrite extension; off by default).
+    pub cop_health_bars: bool,
     /// Rain on every track (Extra Options `AlwaysRain`).
     pub always_rain: bool,
     /// The rain amount, 0 to 100 percent of the original.
@@ -232,6 +260,14 @@ pub struct Settings {
     pub post_aa: PostAa,
     pub visual_treatment: VisualTreatment,
     pub reflections: ReflectionQuality,
+    /// Car cube face size and rear-view mirror picture size: auto, a percentage of the base, or pixels.
+    pub reflection_cube_size: ReflectionSize,
+    pub reflection_mirror_size: ReflectionSize,
+    /// Round the car cube faces down to a power of two.
+    pub reflection_pow2: bool,
+    /// Multiplies the rear-view mirror picture: off, or a colour.
+    pub mirror_tint: MirrorTint,
+    pub reflection_extra: reflection_extra::ReflectionExtra,
     /// Experimental contact occlusion; presets never enable it implicitly.
     pub shadows: ShadowQuality,
     pub ao: AoQuality,
@@ -255,6 +291,16 @@ pub struct Settings {
     pub manual_clutch: bool,
     /// A gear selector that holds a gear (an H-pattern shifter) is bound to the `gear_*` actions. Off by default.
     pub h_shifter: bool,
+    /// The high-speed radial blur on or off (`motion_blur`); off draws none.
+    pub motion_blur: bool,
+    /// The radial blur's strength multiplier, 0 to 2 (`motion_blur_strength`); 1 is the curve as it is.
+    pub motion_blur_strength: f32,
+    /// The HD content options: HD font glyphs, the HD pointer hotspot and HD movie framing (`[hd_content]`).
+    pub hd_content: hd_content::HdContent,
+    /// The custom fonts: fonts from a folder, per resolution tier (`[custom_fonts]`, `docs/specs/custom-fonts.md`).
+    pub custom_fonts: custom_fonts::CustomFonts,
+    /// The front-end shadows: a sun shadow pass in the menu backdrop, off by default (`docs/specs/fe-shadows.md`).
+    pub fe_shadows: fe_shadows::FeShadows,
 }
 
 impl From<Partial> for Settings {
@@ -304,6 +350,8 @@ impl From<Partial> for Settings {
             car_scale: p.car_scale.unwrap_or(DEFAULT_CAR_SCALE).clamp(0.25, 4.0),
             no_rev_limiter: p.no_rev_limiter.unwrap_or(DEFAULT_NO_REV_LIMITER),
             traffic_lights: p.traffic_lights.unwrap_or(DEFAULT_TRAFFIC_LIGHTS),
+            traffic_avoidance: p.traffic_avoidance.unwrap_or(traffic_avoidance::DEFAULT_TRAFFIC_AVOIDANCE),
+            cop_health_bars: p.cop_health_bars.unwrap_or(DEFAULT_COP_HEALTH_BARS),
             smoke_quality: p.smoke_quality.unwrap_or_default(),
             skid_marks: p.skid_marks.unwrap_or(true),
             collision_sparks: p.collision_sparks.unwrap_or(false),
@@ -325,6 +373,11 @@ impl From<Partial> for Settings {
             post_aa: p.post_aa.unwrap_or_default(),
             visual_treatment: p.visual_treatment.unwrap_or_default(),
             reflections: p.reflections.unwrap_or(ReflectionQuality::Medium),
+            reflection_cube_size: p.reflection_cube_size.unwrap_or_default(),
+            reflection_mirror_size: p.reflection_mirror_size.unwrap_or_default(),
+            reflection_pow2: p.reflection_pow2.unwrap_or(false),
+            mirror_tint: p.mirror_tint.unwrap_or_default(),
+            reflection_extra: reflection_extra::ReflectionExtra::from_partial(&p),
             shadows: p.shadows.unwrap_or_default(),
             ao: p.ao.unwrap_or_default(),
             ao_intensity: p.ao_intensity.unwrap_or(Percent(75)),
@@ -339,6 +392,14 @@ impl From<Partial> for Settings {
             paddle_down: p.paddle_down,
             manual_clutch: p.manual_clutch.unwrap_or(false),
             h_shifter: p.h_shifter.unwrap_or(false),
+            motion_blur: p.motion_blur.unwrap_or(motion_blur::DEFAULT_MOTION_BLUR),
+            motion_blur_strength: p
+                .motion_blur_strength
+                .unwrap_or(motion_blur::DEFAULT_MOTION_BLUR_STRENGTH)
+                .clamp(motion_blur::MOTION_BLUR_STRENGTH_RANGE.0, motion_blur::MOTION_BLUR_STRENGTH_RANGE.1),
+            hd_content: hd_content::HdContent::from_layer(p.hd_content),
+            custom_fonts: custom_fonts::CustomFonts::from_layer(p.custom_fonts),
+            fe_shadows: fe_shadows::FeShadows::from_layer(p.fe_shadows),
             speedbreaker: SpeedbreakerTuning::default(),
         };
         settings.settle_preset();
@@ -398,8 +459,12 @@ pub struct WorldTuning {
     pub no_rev_limiter: bool,
     /// Show turn signals on cars while steering.
     pub turn_signals: bool,
+    /// Draw the cop health bars (`Settings::cop_health_bars`).
+    pub cop_health_bars: bool,
     /// The Speedbreaker tunables (`NFSMWSpeedFixerSettings.ini`).
     pub speedbreaker: SpeedbreakerTuning,
+    /// The high-speed radial blur: on or off, and its strength.
+    pub motion_blur: MotionBlur,
 }
 
 impl Default for WorldTuning {
@@ -411,7 +476,9 @@ impl Default for WorldTuning {
             car_scale: DEFAULT_CAR_SCALE,
             no_rev_limiter: DEFAULT_NO_REV_LIMITER,
             turn_signals: false,
+            cop_health_bars: DEFAULT_COP_HEALTH_BARS,
             speedbreaker: SpeedbreakerTuning::default(),
+            motion_blur: MotionBlur::default(),
         }
     }
 }
@@ -425,7 +492,9 @@ impl From<&Settings> for WorldTuning {
             car_scale: s.car_scale,
             no_rev_limiter: s.no_rev_limiter,
             turn_signals: s.turn_signals,
+            cop_health_bars: s.cop_health_bars,
             speedbreaker: s.speedbreaker,
+            motion_blur: MotionBlur::from(s),
         }
     }
 }

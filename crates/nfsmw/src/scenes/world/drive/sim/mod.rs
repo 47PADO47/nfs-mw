@@ -55,6 +55,17 @@ pub struct Telemetry {
     pub boost_psi: f32,
 }
 
+impl Telemetry {
+    /// The nitrous as the high-speed effects (blur, field-of-view kick) see it: 1 while it burns, else 0. A full
+    /// tank that is not burning adds nothing.
+    pub fn nitrous_burn(&self) -> f32 {
+        match self.has_nos && self.nos_burning {
+            true => 1.0,
+            false => 0.0,
+        }
+    }
+}
+
 /// Wheel spin (m/s) the tire sound ignores: the dead zone is a fifth of it.
 const SLIP_TOLERANCE: f32 = 0.5;
 /// Library wheel index of each model wheel.

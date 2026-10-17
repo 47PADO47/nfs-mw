@@ -95,3 +95,15 @@ fn the_generator_stays_in_range_and_moves() {
     assert_eq!(random.below(0), 0);
     assert_eq!(random.below(1), 0);
 }
+
+#[test]
+fn the_table_order_sets_the_ordered_play() {
+    let mut list = Playlist::with_order([0, 1, 2], [2, 0, 1]);
+    assert_eq!(take(&mut list, Mode::Ordered, 4), vec![2, 0, 1, 2]);
+}
+
+#[test]
+fn songs_the_table_leaves_out_follow_in_number_order() {
+    let mut list = Playlist::with_order([0, 1, 2, 3], [3, 9]);
+    assert_eq!(take(&mut list, Mode::Ordered, 4), vec![3, 0, 1, 2]);
+}

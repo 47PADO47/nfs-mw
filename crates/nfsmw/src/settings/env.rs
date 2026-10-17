@@ -2,6 +2,9 @@
 
 use std::str::FromStr;
 
+use super::custom_fonts;
+use super::fe_shadows;
+use super::hd_content;
 use super::partial::{Partial, Percent, parse_bool};
 use super::{
     CameraMode, CarShading, Deadzone, GraphicsPreset, HudLayout, MinimapMode, RadioHudStyle, Sensitivity, Transmission,
@@ -36,6 +39,8 @@ pub const CAR_SHADING: &str = "NFSMW_CAR_SHADING";
 pub const TRAFFIC: &str = "NFSMW_TRAFFIC";
 pub const COP_SHARE: &str = "NFSMW_COP_SHARE";
 pub const TRAFFIC_LIGHTS: &str = "NFSMW_TRAFFIC_LIGHTS";
+pub const TRAFFIC_AVOIDANCE: &str = "NFSMW_TRAFFIC_AVOIDANCE";
+pub const COP_HEALTH_BARS: &str = "NFSMW_COP_HEALTH_BARS";
 pub const SMOKE_QUALITY: &str = "NFSMW_SMOKE_QUALITY";
 pub const SKID_MARKS: &str = "NFSMW_SKID_MARKS";
 pub const COLLISION_SPARKS: &str = "NFSMW_COLLISION_SPARKS";
@@ -46,6 +51,7 @@ pub const EXHAUST_FLAMES: &str = "NFSMW_EXHAUST_FLAMES";
 pub const REAR_VIEW_MIRROR: &str = "NFSMW_REAR_VIEW_MIRROR";
 pub const DISCORD: &str = "NFSMW_DISCORD";
 pub const DISCORD_TIME_PLAYED: &str = "NFSMW_DISCORD_TIME_PLAYED";
+pub const MODS: &str = "NFSMW_MODS";
 pub const TRANSMISSION: &str = "NFSMW_TRANSMISSION";
 pub const CAMERA_MODE: &str = "NFSMW_CAMERA_MODE";
 pub const MINIMAP: &str = "NFSMW_MINIMAP";
@@ -54,6 +60,14 @@ pub const RADIO_HUD: &str = "NFSMW_RADIO_HUD";
 pub const POST_TONEMAP: &str = "NFSMW_POST_TONEMAP";
 pub const POST_BLOOM: &str = "NFSMW_POST_BLOOM";
 pub const REFLECTIONS: &str = "NFSMW_REFLECTIONS";
+pub const REFLECTION_CUBE_SIZE: &str = "NFSMW_REFLECTION_CUBE_SIZE";
+pub const REFLECTION_MIRROR_SIZE: &str = "NFSMW_REFLECTION_MIRROR_SIZE";
+pub const REFLECTION_POW2: &str = "NFSMW_REFLECTION_POW2";
+pub const MIRROR_TINT: &str = "NFSMW_MIRROR_TINT";
+pub const REFLECTION_DISTANCE: &str = "NFSMW_REFLECTION_DISTANCE";
+pub const REFLECTION_LOD: &str = "NFSMW_REFLECTION_LOD";
+pub const REFLECTION_CONTENT: &str = "NFSMW_REFLECTION_CONTENT";
+pub const VEHICLE_REFLECTION_BRIGHTNESS: &str = "NFSMW_VEHICLE_REFLECTION_BRIGHTNESS";
 pub const SHADOWS: &str = "NFSMW_SHADOWS";
 pub const AO: &str = "NFSMW_AO";
 pub const AO_INTENSITY: &str = "NFSMW_AO_INTENSITY";
@@ -68,6 +82,8 @@ pub const PADDLE_UP: &str = "NFSMW_PADDLE_UP";
 pub const PADDLE_DOWN: &str = "NFSMW_PADDLE_DOWN";
 pub const MANUAL_CLUTCH: &str = "NFSMW_MANUAL_CLUTCH";
 pub const H_SHIFTER: &str = "NFSMW_H_SHIFTER";
+pub const MOTION_BLUR: &str = "NFSMW_MOTION_BLUR";
+pub const MOTION_BLUR_STRENGTH: &str = "NFSMW_MOTION_BLUR_STRENGTH";
 
 /// Read the layer through `get`, so tests need not touch the process environment. A value that
 /// does not parse is reported and ignored.
@@ -112,6 +128,8 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         traffic: value(&get, TRAFFIC, |s| s.trim().parse::<u32>().map_err(|e| e.to_string())),
         cop_share: value(&get, COP_SHARE, Percent::from_str),
         traffic_lights: value(&get, TRAFFIC_LIGHTS, parse_bool),
+        traffic_avoidance: value(&get, TRAFFIC_AVOIDANCE, parse_bool),
+        cop_health_bars: value(&get, COP_HEALTH_BARS, parse_bool),
         smoke_quality: value(&get, SMOKE_QUALITY, SmokeQuality::from_str),
         skid_marks: value(&get, SKID_MARKS, parse_bool),
         collision_sparks: value(&get, COLLISION_SPARKS, parse_bool),
@@ -123,6 +141,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         rear_view_mirror: value(&get, REAR_VIEW_MIRROR, parse_bool),
         discord: value(&get, DISCORD, parse_bool),
         discord_time_played: value(&get, DISCORD_TIME_PLAYED, parse_bool),
+        mods: value(&get, MODS, super::mods::ModsMode::from_str),
         transmission: value(&get, TRANSMISSION, Transmission::from_str),
         camera_mode: value(&get, CAMERA_MODE, CameraMode::from_str),
         minimap: value(&get, MINIMAP, MinimapMode::from_str),
@@ -133,6 +152,26 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         visual_treatment: value(&get, "NFSMW_VISUAL_TREATMENT", super::VisualTreatment::from_str),
         post_aa: value(&get, POST_AA, PostAa::from_str),
         reflections: value(&get, REFLECTIONS, super::ReflectionQuality::from_str),
+        reflection_cube_size: value(&get, REFLECTION_CUBE_SIZE, super::ReflectionSize::from_str),
+        reflection_mirror_size: value(&get, REFLECTION_MIRROR_SIZE, super::ReflectionSize::from_str),
+        reflection_pow2: value(&get, REFLECTION_POW2, parse_bool),
+        mirror_tint: value(&get, MIRROR_TINT, super::MirrorTint::from_str),
+        reflection_distance: value(
+            &get,
+            REFLECTION_DISTANCE,
+            blackbox_gfx::reflection::distance::ReflectionDistance::from_str,
+        ),
+        reflection_lod: value(&get, REFLECTION_LOD, blackbox_gfx::reflection::lod::ReflectionLod::from_str),
+        reflection_content: value(
+            &get,
+            REFLECTION_CONTENT,
+            blackbox_gfx::reflection::content::ReflectionContent::from_str,
+        ),
+        vehicle_reflection_brightness: value(
+            &get,
+            VEHICLE_REFLECTION_BRIGHTNESS,
+            blackbox_gfx::reflection::brightness::VehicleBrightness::from_str,
+        ),
         shadows: value(&get, SHADOWS, super::ShadowQuality::from_str),
         ao: value(&get, AO, super::AoQuality::from_str),
         ao_intensity: value(&get, AO_INTENSITY, Percent::from_str),
@@ -146,6 +185,11 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         paddle_down: value(&get, PADDLE_DOWN, |s| s.trim().parse::<u32>().map_err(|e| e.to_string())),
         manual_clutch: value(&get, MANUAL_CLUTCH, parse_bool),
         h_shifter: value(&get, H_SHIFTER, parse_bool),
+        motion_blur: value(&get, MOTION_BLUR, parse_bool),
+        motion_blur_strength: value(&get, MOTION_BLUR_STRENGTH, |s| s.trim().parse::<f32>().map_err(|e| e.to_string())),
+        hd_content: hd_content::from_env(&get),
+        custom_fonts: custom_fonts::from_env(&get),
+        fe_shadows: fe_shadows::from_env(&get),
     }
 }
 

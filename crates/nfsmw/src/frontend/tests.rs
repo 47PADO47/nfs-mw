@@ -184,14 +184,15 @@ impl Harness {
             changed: Partial::default(),
             commands: Vec::new(),
         };
-        let mut env = Env { settings: &mut h.settings, changed: &mut h.changed, caps: test_caps::native() };
+        let mut env = Env { settings: &mut h.settings, changed: &mut h.changed, caps: test_caps::native(), mods: None };
         h.commands = h.screens.open(name, args, true, &mut env);
         Some(h)
     }
 
     fn run(&mut self, mask: u32, frames: usize) {
         for _ in 0..frames {
-            let mut env = Env { settings: &mut self.settings, changed: &mut self.changed, caps: test_caps::native() };
+            let mut env =
+                Env { settings: &mut self.settings, changed: &mut self.changed, caps: test_caps::native(), mods: None };
             self.commands.extend(self.screens.update(FRAME, mask, &mut env));
         }
     }
@@ -239,7 +240,8 @@ fn quick_race_opens_the_track_select_screen() {
     h.press(pad::RIGHT);
     h.press(pad::ACCEPT);
     h.wait(1.5);
-    assert!(h.said(&Command::Switch(screen::TRACK_SELECT.into(), Args::default())), "quick race: {:?}", h.commands);
+    // The screens carry out the switch themselves, so it is the screen on top that shows it happened.
+    assert_eq!(h.screens.top(), Some(screen::TRACK_SELECT), "quick race: {:?}", h.commands);
     assert!(!h.said(&Command::StartFreeRoam), "quick race must not start a race: {:?}", h.commands);
 }
 

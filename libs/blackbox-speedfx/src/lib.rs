@@ -40,7 +40,7 @@ pub struct Tuning {
 impl Default for Tuning {
     fn default() -> Self {
         Self {
-            blur_from: 55.0,
+            blur_from: 40.0,
             blur_to: 95.0,
             shake_from: 45.0,
             shake_to: 85.0,
@@ -51,6 +51,24 @@ impl Default for Tuning {
             fall_per_second: 2.5,
         }
     }
+}
+
+impl Tuning {
+    /// The same blur curve with its speed start moved to `min_speed`: the ramp keeps its width, so `blur_to` moves
+    /// with it. At the tuning's own start the curve is unchanged.
+    pub fn with_blur_start(self, min_speed: f32) -> Self {
+        let width = self.blur_to - self.blur_from;
+        Self { blur_from: min_speed, blur_to: min_speed + width, ..self }
+    }
+}
+
+/// The radial blur the caller draws, from the curve's blur (0 to 1) and a strength multiplier: scaled, then clamped
+/// to 0..=1. A non-positive or non-finite strength draws none.
+pub fn scale_blur(blur: f32, strength: f32) -> f32 {
+    if !(strength > 0.0 && strength.is_finite()) {
+        return 0.0;
+    }
+    (blur * strength).clamp(0.0, 1.0)
 }
 
 /// The linear ramp from 0 at `from` to 1 at `to`, clamped. A `to` at or below `from` is a step at `from`.
@@ -217,5 +235,37 @@ mod tests {
         fx.update(90.0, 1.0, f32::NAN);
         fx.update(90.0, 1.0, -1.0);
         assert_eq!(fx.effects(), Effects::default());
+    }
+
+    #[test]
+    fn moving_the_blur_start_keeps_the_ramp_width() {
+        let moved = T.with_blur_start(70.0);
+        assert_eq!((moved.blur_from, moved.blur_to), (70.0, 110.0));
+        assert_eq!(moved.shake_from, T.shake_from, "only the blur moves");
+        assert_eq!(T.with_blur_start(T.blur_from), T, "the tuning's own start changes nothing");
+        assert_eq!(target(&moved, 60.0, 0.0).blur, 0.0, "below the new start there is no speed blur");
+        assert!((target(&moved, 90.0, 0.0).blur - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn the_default_start_is_unchanged_by_the_remap() {
+        let default = Tuning::default();
+        assert_eq!(default.with_blur_start(default.blur_from), default);
+    }
+
+    #[test]
+    fn strength_scales_and_clamps_the_blur() {
+        assert_eq!(scale_blur(0.5, 1.0), 0.5, "strength 1 is the curve as it is");
+        assert!((scale_blur(0.5, 0.5) - 0.25).abs() < 1e-6);
+        assert_eq!(scale_blur(0.8, 2.0), 1.0, "clamped to the full blur");
+        assert_eq!(scale_blur(0.0, 2.0), 0.0);
+    }
+
+    #[test]
+    fn a_zero_or_bad_strength_draws_no_blur() {
+        assert_eq!(scale_blur(1.0, 0.0), 0.0);
+        assert_eq!(scale_blur(1.0, -1.0), 0.0);
+        assert_eq!(scale_blur(1.0, f32::NAN), 0.0);
+        assert_eq!(scale_blur(1.0, f32::INFINITY), 0.0);
     }
 }

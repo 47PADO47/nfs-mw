@@ -289,6 +289,23 @@ State `seek up -> seek car -> fly out`.
   ground at the heli's xz), placed on the ground at the heli's xz with the ground normal, paused above 30 m or off valid ground.
 - There is no searchlight, no gun, no muzzle flash and no spike drop in the code (`SPIKE_DROP` and the "heli spike strip"
   counter exist only as statistics). [decomp]
+- **Rotor bank and class [verified: install files, speed.exe].** The rotor is the `FX_Helicopter` AEMS class of
+  `IG_GLOBAL/FX_Helicopter_MB.abk` (87 304 bytes on the Black Edition install), registered in the sound manager at
+  `0x004ac950`. Its mixer state is 11, the helicopter state of the map ([formats/mixmap.md](../formats/mixmap.md)). The
+  publisher `0x004d7810` stores twelve words in the class object at +4 to +0x30 and clamps them: word 0 to 32767, 1 to
+  plus or minus 8192, 2 to 0..1, 3 to 32767, 4 to 65535, 5 to 1024, 6 to plus or minus 100 (the distance), 7 and 8 to
+  25000, 9 and 10 to 32767, 11 to 1023 (the speed). The sound object's constructor `0x004dfce0` passes it twelve fields
+  and sets the parent's ready flag. Meanings of words 0 to 5 and 7 to 10: [unconfirmed]. Words 6 and 11 match the rules
+  above.
+- **Not found:** the update that fills those twelve fields. `0x004dfce0` is in the sound class's vtable (`0x008999b0`),
+  but the other slots are not function starts for the decompiler. The sources of the rotor's volume, pitch and azimuth
+  (the mixer outputs) are open, see Q4.
+- **Mixer [verified: installed `MAPOUTPUT.mxb`].** State 11, object 0: the volume master writes slot 1 (azimuth slot 0),
+  the pitch master writes slot 2. Its inputs are one 3D control (spatial object 1, which reads controller 1: distances to
+  the car and camera at 0 and 1, azimuths at 2 and 3, the has-position flag at 15), the state's sub-mix (events only)
+  and state 0 events. The map does the distance rolloff, so the words carry no extra falloff.
+- **Rust.** `audio/heli` plays the module with the words above. The scene's `rotor_frame` gives the frame: position from the
+  traffic's chopper, velocity by finite difference, a flat heading. The rotor stops on pause or with no car.
 
 ## 8. Constants not in AttribSys
 
@@ -326,7 +343,9 @@ State `seek up -> seek car -> fly out`.
   "low-pass" is just a gain of 0.2. This might be a decompilation artefact; the visual effect (body lean) would differ
   slightly. Compare lean angles in the running game.
 - **Q3** `AIGoalHeliRoadBlock` is not defined; `roadblockhelichance` is 0 everywhere. Not implemented in the original.
-- **Q4** The mixer outputs for the rotor sound (`DMX_*`) come from the dynamic mixer map for the helicopter, not specified here.
+- **Q4** Narrowed. Known: the bank, the class, the twelve clamped words, state 11, its output slots (volume 1, azimuth 0,
+  pitch 2) and its controller (1), all from the map and the publisher (section 7). Open: the meanings of words 0 to 5 and
+  7 to 10, and the update that fills the words.
 - **Q5** How `StartPathToPlayerCar` is used (the result is not read by any mode).
 
 ## Rust implementation notes
@@ -394,8 +413,14 @@ and up). Sight uses the world's ray cast (the line from the helicopter to the pl
 (section 1 of `docs/formats/pursuit-data.md`). The sheet is read from `STREAML2RA.BUN` when the track opens
 (`crates/nfsmw-data/src/world/heli_sheet.rs`, a header walk: the 532 MB file is not read whole) and is the helicopter's
 floor (`SheetFloor` in `ai/police.rs`; a flat floor when the sheet is missing). On the install the walk gives the
-documented 51 504 triangles (`tests/real_install/heli_sheet.rs`). Not yet seen in a running game. Open: that wiring, rotor sound, and the spotlight/rotor
-wash effects. The shipped numbers are the spec's; the controller is the spec's, not the decompilation's code.
+documented 51 504 triangles (`tests/real_install/heli_sheet.rs`). Not yet seen in a running game. Rotor sound: `audio/heli` plays it, fed by the scene's `rotor_frame`.
+Not yet heard in a running game. Open: the rotor's word meanings, the chopper's real heading (the feed uses a flat
+velocity heading), and the spotlight/rotor wash effects. The shipped numbers are the spec's; the controller is the spec's, not the decompilation's code.
+Pass 3 (D15): `control.rs` now has the `CheckHeliSheet` steering (look-ahead point, rising-roof and lead-point rules, body
+velocity kick, section 4.2) and the destination lift follows the spec (the old lift raised the destination to the floor
+under the work point even when that floor was lower). The two rules' side push and the lead shortening are [unconfirmed]
+readings. The sheet gives elevation only, so the side push is zero in play until the sheet lookup returns normals (a
+`Heights::floor` override in `ai/police/helpers.rs`). Constants carry tags and pool addresses in the source.
 
 ## Verified in `speed.exe` (Ghidra, PC v1.3)
 
@@ -409,5 +434,60 @@ The binary has no symbols; these were found from the strings and their reference
 | One helicopter at a time, a free one is reused | `0x00426610` (an inactive `copheli` in the vehicle pool) | filters the pool by the `copheli` type name, returns the first not spawned |
 | Cop manager asks for a helicopter | `0x0043E8D0` (the cop manager's update) | compares the cop type's hash with `copheli` (`0x008915DC`) and calls `0x004269A0` |
 
-Not yet checked against the binary: the controller constants (section 4), the visual sphere (75 m), the fuel and respawn
-tables (2.3), the skid-hit rules (6.1) and the exit (6.2). The function holding `DoDriving` is not located yet.
+Pass 2 (below, "Constants in speed.exe") checked the constants against the float pool. The function holding
+`DoDriving` and the helicopter's `Update` is still not located, so the rules of sections 4, 5 and 6 are not yet tied to
+code addresses.
+
+## Constants in speed.exe (pass 2)
+
+Source: the float pool of `speed.exe` at `0x00890500` to `0x00890E8F` (PC v1.3), decoded as IEEE singles. The heli
+constants sit in one cluster at `0x00890828` to `0x00890868` (values below). Use sites are not found, so the value is
+**[decomp]** and the link to the helicopter is **[unconfirmed]** (cluster only). Method and addresses are in
+[provenance/ai-helicopter-tuning.md](../provenance/ai-helicopter-tuning.md).
+
+| Constant | Value | Pool address | Meaning | Port |
+|---|---|---|---|---|
+| Work lead | 0.45 s | 0x890840 | `work` and `dest` lead (section 4) | `control.rs` `WORK_LEAD` |
+| Look-ahead lead | 0.65 s | 0x890844 | the `ahead` point of `CheckHeliSheet` | `control.rs` `ahead_point` |
+| Sheet steer gains | 0.3, 0.4 | 0x890848, 0x89084C (also 0x8905D0) | sliding around a roof and a wall | `control.rs` `ahead_roof`, `lead_roof` |
+| Camera avoid | lead 0.2 s, sphere 7 m, kick 1.2 | 0x8905CC, 0x8905F0 (7), 0x890860 (1.2) | `AvoidCamera` | not ported (no camera) |
+| Response ratio | 2 | 0x890628 | desired accel = 2 x velocity error | `flight.rs` |
+| Accel limit | `min(80, 0.6 v + 30)` | 0x89062C (0.6), 0x890620 (80), 0x890820 (30) | section 5 | `flight.rs` |
+| Closing / brake | closing > 3; speed cut 0.4; brake at 15 m | 0x8905DC, 0x890690 (3); 0x8905D0 (0.4); 0x890668 (15) | section 4 | `control.rs` |
+| Braking divisor | 1.55 | not in 0x890500-0x890E8F | section 4 | `control.rs` (no PC source) |
+| Vertical | climb x5 below 7 m; descend x3 above -5 m; add 2 x target vy | 0x8905E0 (5), 0x8905F0 (7), 0x8905F4 (3), 0x890DB8 (-5) | section 4 | `control.rs` `vertical` |
+| Follow lead | 30 + 0.4 v, cap 45 | 0x89052C (30), 0x89055C / 0x890658 (45) | section 6.1 | `behaviour.rs` `follow` |
+| Follow speed | 50 / 30 / 20 m/s at 300 / 15 / 3 m | 0x890558 (50), 0x890544 (300), 0x890678 (10), 0x89067C (20) | section 6.1 | `behaviour.rs` `follow` |
+| Follow heights | +6, +12 m; 2 m (skid); 55 m split | 0x8905A8 (6), 0x890590 (12), 0x890628 (2), 0x890584 (55) | section 6.1 | `behaviour.rs` `follow` |
+| Skid | height 13 m; approach 0.23 s; window 5 m; timer 8 s; cooldown -5 s; side 6 m | 0x890648, 0x89064C, 0x890654, 0x89059C (8), 0x8905A8 (6) | section 6.1 | `behaviour.rs` |
+| Strike | 4 m; 0.4 m height; speed 100 m/s | 0x89065C (4), 0x8905D0 (0.4), 0x890530 / 0x890664 (100) | section 6.1 | `behaviour.rs` |
+| Search | radius 1000 m; arrival 30 m; speed 70 m/s; +5 m | 0x890538 (1000), 0x890820 (30), 0x89057C (70) | section 6.1 | `behaviour.rs` |
+| Exit | height 25 m; seek up at 15 m; 200 m dive | 0x890DC0 (25), 0x890DAC (15), 0x8908BC (200) | section 6.2 | `behaviour.rs` `Exit` |
+| Sight | grace 150 m, 20 m | 0x89076C (150), 0x890560 (20, also spawn) | section 3 | `sight.rs` |
+| Spawn | 250 m back, +20 m, backward (-1) | 0x890560 (20, verified in code), 0x890DA8 (-1, verified), 0x890854 (250) | section 2.2 | `mod.rs` `spawn_distance` |
+| Think period | 0.125 s | 0x8905C8, 0x890830 | section 1 | `mod.rs` `THINK_PERIOD` |
+| Yaw gain / lean | 8; lean 9/80 and 12/80; clamp 0.1 | 0x8905E4 (8), 0x890598 (9), 0x890590 (12), 0x8905C4 (0.1) | section 5 | `flight.rs` |
+| Smoothing | 1/8 new, 7/8 old | 0x8905F0 (7), 0x8908C8 (0.125) | section 5 | `flight.rs` |
+
+**Not found** in the pool read (0x00890500 to 0x00890E8F): 1.55 (braking), 0.035 (pitch gain), 0.092 (strike lead),
+1.3 (yaw clamp), 1.8 and 4.8 (skid lift), 1.9 (strike across), 0.7, 1.14, 35 (skid window), 75 (visual sphere), 85 (exit
+seek), 600 (despawn). They may be immediate operands in code. Their values are the spec's, not confirmed in `speed.exe`.
+
+**Port gaps** (the sheet steering was closed in pass 3, see Rewrite status): `AvoidCamera` stays unported, since the port has
+no camera. Still open: the search arrival rule (section 6.1, a new point within 30 m; the port takes the angle from the caller).
+
+## Next leads
+
+1. Find `AIVehicleHelicopter::Update` and `OnDriving` by the vtable of the heli object. The pool helper 0x426610 and the
+   vehicle slot 0x80 are the anchors. Needs xref tools (get_xrefs_to), which were not callable in pass 2.
+2. Find the functions whose `refs` contain 0x890828 to 0x890868: the cluster's users are the controller.
+3. Find who passes `"AIVehicleHelicopter"` (0x893070) to the class factory `0x5CC240`: that caller builds the heli AI.
+4. Identify the class tags `0x4037E0`, `0x4038C0`, `0x4038E0` used by `0x5D59F0` (casts) to tell heli from cop.
+5. Search immediates (not the pool) for 1.55, 0.035, 0.092, 1.3, 1.8, 35, 75, 85, 600 once a byte-pattern search is
+   available (none in this session).
+6. The words at 0x00890CE0 are code pointers into 0x0040xxxx; not yet identified (possibly a dispatch table).
+7. Find the update that fills the rotor sound object's fields +0x28 to +0x54 (the constructor `0x004dfce0` is in the vtable
+   at `0x008999b0`; find the vtable's per-tick slot and the sound manager's call to it). Needs `get_xrefs_to` on 0x008999b0.
+8. Done: state 11's output slots and controller are in section 7 ([verified] in `MAPOUTPUT.mxb`).
+9. Open: an accessor on the chopper for its real orientation (`Chopper.orientation`, physics space, `space::to_render`).
+   The feed now uses a flat heading from the velocity. Needs `ai/police/heli.rs` (not in the rotor's file list).

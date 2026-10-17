@@ -61,6 +61,9 @@ pub struct HudState {
     pub pursuit: Option<PursuitHud>,
     /// The busted meter, 0 to 1: the share of the busted timer filled, 1 once the player is busted. Zero with no chase.
     pub busted: f32,
+    /// The busted overlay (`BUSTED_OVERLAY.fng`) is up: the surveillance-camera look after the arrest shot. The world sets
+    /// it while the bust sequence shows the overlay (`scenes/world/ai/police/busted/flow.rs`).
+    pub busted_overlay: bool,
 }
 
 impl Default for HudState {
@@ -68,6 +71,7 @@ impl Default for HudState {
         Self {
             visible: true,
             busted: 0.0,
+            busted_overlay: false,
             speed: 0.0,
             use_mph: false,
             rpm: 0.0,

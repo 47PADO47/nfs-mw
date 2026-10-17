@@ -8,6 +8,9 @@ use std::str::FromStr;
 
 use toml::{Table, Value};
 
+use super::custom_fonts;
+use super::fe_shadows;
+use super::hd_content;
 use super::partial::{Partial, Percent};
 use super::{
     CameraMode, CarShading, Deadzone, GraphicsPreset, HudLayout, MinimapMode, RadioHudStyle, Sensitivity, Transmission,
@@ -98,6 +101,8 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         traffic: field(&table, origin, "traffic", count),
         cop_share: field(&table, origin, "cop_share", percent),
         traffic_lights: field(&table, origin, "traffic_lights", boolean),
+        traffic_avoidance: field(&table, origin, "traffic_avoidance", boolean),
+        cop_health_bars: field(&table, origin, "cop_health_bars", boolean),
         smoke_quality: field(&table, origin, "smoke_quality", |v| SmokeQuality::from_str(text_of(v)?)),
         skid_marks: field(&table, origin, "skid_marks", boolean),
         collision_sparks: field(&table, origin, "collision_sparks", boolean),
@@ -111,6 +116,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         rear_view_mirror: field(&table, origin, "rear_view_mirror", boolean),
         discord: field(&table, origin, "discord", boolean),
         discord_time_played: field(&table, origin, "discord_time_played", boolean),
+        mods: field(&table, origin, "mods", |v| super::mods::ModsMode::from_str(text_of(v)?)),
         transmission: field(&table, origin, "transmission", |v| Transmission::from_str(text_of(v)?)),
         camera_mode: field(&table, origin, "camera_mode", |v| CameraMode::from_str(text_of(v)?)),
         minimap: field(&table, origin, "minimap", |v| MinimapMode::from_str(text_of(v)?)),
@@ -121,6 +127,25 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         visual_treatment: field(&table, origin, "visual_treatment", |v| super::VisualTreatment::from_str(text_of(v)?)),
         post_aa: field(&table, origin, "post_aa", |v| PostAa::from_str(text_of(v)?)),
         reflections: field(&table, origin, "reflections", |v| super::ReflectionQuality::from_str(text_of(v)?)),
+        reflection_cube_size: field(&table, origin, "reflection_cube_size", super::reflection_res::size_from_toml),
+        reflection_mirror_size: field(&table, origin, "reflection_mirror_size", super::reflection_res::size_from_toml),
+        reflection_pow2: field(&table, origin, "reflection_pow2", boolean),
+        mirror_tint: field(&table, origin, "mirror_tint", super::reflection_res::tint_from_toml),
+        reflection_distance: field(&table, origin, "reflection_distance", |v| {
+            blackbox_gfx::reflection::distance::ReflectionDistance::from_str(text_of(v)?)
+        }),
+        reflection_lod: field(&table, origin, "reflection_lod", |v| {
+            blackbox_gfx::reflection::lod::ReflectionLod::from_str(text_of(v)?)
+        }),
+        reflection_content: field(&table, origin, "reflection_content", |v| {
+            blackbox_gfx::reflection::content::ReflectionContent::from_str(text_of(v)?)
+        }),
+        vehicle_reflection_brightness: field(
+            &table,
+            origin,
+            "vehicle_reflection_brightness",
+            super::reflection_extra::brightness_from_toml,
+        ),
         shadows: field(&table, origin, "shadows", |v| super::ShadowQuality::from_str(text_of(v)?)),
         ao: field(&table, origin, "ao", |v| super::AoQuality::from_str(text_of(v)?)),
         ao_intensity: field(&table, origin, "ao_intensity", percent),
@@ -138,6 +163,11 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         paddle_down: field(&table, origin, "paddle_down", button_code),
         manual_clutch: field(&table, origin, "manual_clutch", boolean),
         h_shifter: field(&table, origin, "h_shifter", boolean),
+        motion_blur: field(&table, origin, "motion_blur", boolean),
+        motion_blur_strength: field(&table, origin, "motion_blur_strength", number),
+        hd_content: hd_content::read(&table),
+        custom_fonts: custom_fonts::read(&table),
+        fe_shadows: fe_shadows::read(&table, origin),
     }
 }
 
@@ -148,6 +178,16 @@ fn field<T>(table: &Table, origin: &str, key: &str, convert: impl Fn(&Value) -> 
 
 fn boolean(v: &Value) -> Result<bool, String> {
     v.as_bool().ok_or_else(|| "expected true or false".to_owned())
+}
+
+/// A plain number, whole or fractional.
+fn number(v: &Value) -> Result<f32, String> {
+    let n = match v {
+        Value::Integer(n) => *n as f64,
+        Value::Float(f) => *f,
+        _ => return Err("expected a number".to_owned()),
+    };
+    Ok(n as f32)
 }
 
 /// A volume written as a number (`70`, `0.7`) or a string (`"70%"`).

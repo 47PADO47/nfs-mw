@@ -59,6 +59,7 @@ pub(super) fn run(
         "traffic" => ai::traffic_command(scene, args),
         "pursuit" => ai::pursuit_command(scene, renderer, args),
         "roadblock" => ai::roadblock_command(scene, args),
+        "signals" => ai::signals_command(scene, args),
         "tire-effects" => tire_effects(scene, renderer, args),
         "vehicle-effects" => vehicle_effects(scene, renderer, args),
         "exhaust-flames" => exhaust_flames(scene, args),

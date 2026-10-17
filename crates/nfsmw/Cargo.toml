@@ -3,7 +3,8 @@ name = "nfsmw"
 description = "NFS: Most Wanted rewrite: the launcher and viewers. Reads data from the user's own install."
 version.workspace = true
 edition.workspace = true
-rust-version.workspace = true
+# The default features build the Bevy renderer, whose shader stack needs 1.97.1; `--no-default-features` builds on 1.95.
+rust-version = "1.97.1"
 license.workspace = true
 publish.workspace = true
 
@@ -34,7 +35,9 @@ blackbox-feng.workspace = true
 blackbox-gfx.workspace = true
 ini-tuning.workspace = true
 blackbox-minimap.workspace = true
+blackbox-playlist.workspace = true
 blackbox-mixmap.workspace = true
+blackbox-modding = { workspace = true, features = ["host"] }
 blackbox-paramap.workspace = true
 blackbox-fxedit.workspace = true
 blackbox-movie.workspace = true
@@ -61,18 +64,30 @@ glam.workspace = true
 kira.workspace = true
 log.workspace = true
 nfsmw-data.workspace = true
+nfsmw-modding = { workspace = true, features = ["host"] }
 png.workspace = true
 raw-window-handle.workspace = true
 serde.workspace = true
+symphonia.workspace = true
 toml.workspace = true
 wgpu.workspace = true
 
 [features]
-# The optional Bevy renderer (docs/renderers.md, docs/bevy-backend.md). The default build never has it, so it
-# never compiles bevy_render.
+# The Bevy renderer and the FSR 3 upscaler are in the default build. `--no-default-features` leaves them out: the game
+# is then the native renderer alone (FSR 1 is its best upscaler) and never compiles bevy_render.
+default = ["renderer-bevy", "fsr3"]
+# The Bevy renderer (docs/renderers.md, docs/bevy-backend.md).
 renderer-bevy = ["dep:blackbox-bevy-render"]
 # Tracy profiling of the Bevy renderer (docs/bevy-backend.md). Implies renderer-bevy.
 trace = ["renderer-bevy", "blackbox-bevy-render/trace"]
+# DLSS Super Resolution (needs the NVIDIA DLSS SDK at build time; docs/setup.md). Implies renderer-bevy.
+dlss = ["renderer-bevy", "blackbox-bevy-render/dlss"]
+# DLSS code path with no SDK, for CI and tests. Implies renderer-bevy.
+dlss-mock = ["renderer-bevy", "blackbox-bevy-render/dlss-mock"]
+# Solari ray tracing (Vulkan, RTX-class GPU). Implies renderer-bevy.
+ray-tracing = ["renderer-bevy", "blackbox-bevy-render/ray-tracing"]
+# FSR 3.1 temporal upscaler on the Bevy renderer. Implies renderer-bevy.
+fsr3 = ["renderer-bevy", "blackbox-bevy-render/fsr3"]
 
 [lints]
 workspace = true

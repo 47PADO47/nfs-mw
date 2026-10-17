@@ -2,8 +2,11 @@
 
 use kira::track::TrackHandle;
 
+use super::custom::Library;
 use super::{Control, NowPlaying, Radio};
 use crate::audio::Audio;
+use crate::settings::CustomMusic;
+use crate::settings::eatrax::Jukebox;
 
 /// The radio of an [`Audio`]: not loaded yet, failed to load, or ready.
 #[derive(Default)]
@@ -48,7 +51,13 @@ impl Audio {
         }
         let map = self.dir.read(MAP).map_err(|e| format!("{MAP}: {e}"))?;
         let mus = self.dir.resolve(STREAMS).ok_or_else(|| format!("{STREAMS} is not in the install"))?;
-        Radio::from_files(songs, &map, mus.to_path_buf())
+        let jukebox = Jukebox::load(&Jukebox::defaults_for(&songs));
+        let mut radio = Radio::from_files(songs, &map, mus.to_path_buf())?;
+        let config = CustomMusic::load();
+        radio.set_custom(&config, Library::build(&config));
+        // After the custom sources: the jukebox's order flag is the EA Trax order, and it wins over `shuffle`.
+        radio.set_jukebox(&jukebox);
+        Ok(radio)
     }
 
     /// The radio and the music track, for the commands. The track is `None` without a sound device.

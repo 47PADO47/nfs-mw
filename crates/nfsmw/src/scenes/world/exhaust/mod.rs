@@ -35,6 +35,8 @@ pub struct CarState {
     pub gear: i32,
     /// The throttle pedal, 0 to 1.
     pub throttle: f32,
+    /// The nitrous burns: the pipes flame blue for as long as it does.
+    pub nitrous: bool,
 }
 
 /// A particle texture on the GPU and how it blends.
@@ -57,6 +59,9 @@ struct Active {
     /// Each pipe's frame in the car model's space.
     pipes: Vec<Mat4>,
     lanes: Vec<Lane>,
+    /// The same emitters again for the nitrous, drawn in blue (see [`tint_blue`]). Their particles keep their
+    /// colour to the end of their short life when the nitrous stops.
+    blue: Vec<Lane>,
     textures: Vec<SpriteTexture>,
     timing: ShiftTiming,
     engine_upgrades: i32,
@@ -64,6 +69,8 @@ struct Active {
     backfire: Backfire,
     /// How strongly the pipes spawned in the latest step, 0 when quiet.
     intensity: f32,
+    /// The nitrous burned in the latest step.
+    nitrous: bool,
     /// Live particles after the latest step.
     live: usize,
     order: Vec<(f32, [Vec3; 4], [u8; 4])>,
@@ -99,9 +106,35 @@ impl Default for ExhaustFlames {
     }
 }
 
+/// Lane `index` of the orange lanes followed by the blue ones. It takes the two lists, not the `Active`, so that
+/// the other fields stay free to use while the lane is borrowed.
+fn lane_of<'a>(orange: &'a mut [Lane], blue: &'a mut [Lane], index: usize) -> &'a mut Lane {
+    match index < orange.len() {
+        true => &mut orange[index],
+        false => &mut blue[index - orange.len()],
+    }
+}
+
+/// The flame in blue: red and blue swap, so the fire keeps its shape and brightness and the nitrous reads cold.
+fn tint_blue(color: [u8; 4]) -> [u8; 4] {
+    [color[2], color[1], color[0], color[3]]
+}
+
 impl Active {
     fn live(&self) -> usize {
-        self.lanes.iter().flat_map(|l| &l.emitters).map(Emitter::len).sum()
+        self.lanes.iter().chain(&self.blue).flat_map(|l| &l.emitters).map(Emitter::len).sum()
+    }
+
+    /// The orange lanes, then the blue ones: the order the batches are numbered in.
+    fn lane_count(&self) -> usize {
+        self.lanes.len() + self.blue.len()
+    }
+
+    fn lane(&self, index: usize) -> &Lane {
+        match index < self.lanes.len() {
+            true => &self.lanes[index],
+            false => &self.blue[index - self.lanes.len()],
+        }
     }
 
     /// One physics step: the shift event and the backfire, then every pipe's emitters (spawning while the pipes
@@ -116,15 +149,20 @@ impl Active {
         let blowoff = blowoff_allowed(engine_level, self.engine_upgrades);
         self.intensity = flame_intensity(blowoff, &self.shift, &self.backfire);
         self.backfire.advance(dt);
-        if self.intensity == 0.0 && self.live == 0 {
+        self.nitrous = car.nitrous;
+        if self.intensity == 0.0 && !self.nitrous && self.live == 0 {
             return;
         }
-        for lane in &mut self.lanes {
-            for (emitter, pipe) in lane.emitters.iter_mut().zip(&self.pipes) {
-                emitter.set_enabled(self.intensity > 0.0);
-                let frame =
-                    Frame { to_world: car.to_world * *pipe, inherit_velocity: car.velocity, intensity: self.intensity };
-                emitter.step(dt, &frame);
+        // The burning nitrous flames blue in place of the orange blow-off and backfire.
+        let orange = if self.nitrous { 0.0 } else { self.intensity };
+        let blue = if self.nitrous { 1.0 } else { 0.0 };
+        for (lanes, intensity) in [(&mut self.lanes, orange), (&mut self.blue, blue)] {
+            for lane in lanes {
+                for (emitter, pipe) in lane.emitters.iter_mut().zip(&self.pipes) {
+                    emitter.set_enabled(intensity > 0.0);
+                    let frame = Frame { to_world: car.to_world * *pipe, inherit_velocity: car.velocity, intensity };
+                    emitter.step(dt, &frame);
+                }
             }
         }
         self.live = self.live();
@@ -132,10 +170,11 @@ impl Active {
 
     fn age(&mut self, dt: f32) {
         self.intensity = 0.0;
+        self.nitrous = false;
         if self.live == 0 {
             return;
         }
-        for emitter in self.lanes.iter_mut().flat_map(|l| l.emitters.iter_mut()) {
+        for emitter in self.lanes.iter_mut().chain(&mut self.blue).flat_map(|l| l.emitters.iter_mut()) {
             emitter.set_enabled(false);
             emitter.step(dt, &Frame::default());
         }
@@ -146,12 +185,13 @@ impl Active {
         self.shift.reset();
         self.backfire.reset();
         self.intensity = 0.0;
+        self.nitrous = false;
     }
 
     #[cfg(test)]
     fn clear(&mut self) {
         self.disconnect();
-        for emitter in self.lanes.iter_mut().flat_map(|l| l.emitters.iter_mut()) {
+        for emitter in self.lanes.iter_mut().chain(&mut self.blue).flat_map(|l| l.emitters.iter_mut()) {
             emitter.clear();
         }
         self.live = 0;
@@ -161,16 +201,20 @@ impl Active {
     fn quads(&mut self, lane: usize, camera: Vec3, forward: Vec3) -> bool {
         let right = forward.cross(Vec3::Z).normalize_or(Vec3::X);
         let up = right.cross(forward).normalize_or(Vec3::Z);
-        let gain = match self.textures[self.lanes[lane].texture].blend {
+        let blue = lane >= self.lanes.len();
+        let gain = match self.textures[self.lane(lane).texture].blend {
             BlendMode::Additive => ADDITIVE_GAIN,
             _ => 1.0,
         };
-        let lane = &mut self.lanes[lane];
+        let lane = lane_of(&mut self.lanes, &mut self.blue, lane);
         self.order.clear();
         lane.vertices.clear();
         for sprite in lane.emitters.iter().flat_map(Emitter::sprites) {
             let corners = sprite.corners(right, up, forward);
             let mut color = sprite.color;
+            if blue {
+                color = tint_blue(color);
+            }
             color[3] = (f32::from(color[3]) * gain).min(255.0) as u8;
             self.order.push(((sprite.position - camera).dot(forward), corners, color));
         }
@@ -288,13 +332,13 @@ impl ExhaustFlames {
         if active.live == 0 {
             return;
         }
-        for lane in 0..active.lanes.len() {
-            let texture = &active.textures[active.lanes[lane].texture];
+        for lane in 0..active.lane_count() {
+            let texture = &active.textures[active.lane(lane).texture];
             let (blend, Some(handle)) = (texture.blend, texture.handle) else { continue };
             if !active.quads(lane, camera, forward) {
                 continue;
             }
-            let vertices = std::mem::take(&mut active.lanes[lane].vertices);
+            let vertices = std::mem::take(&mut lane_of(&mut active.lanes, &mut active.blue, lane).vertices);
             active.handed.push((lane, handle, layer.textured.len()));
             layer.textured.push(TexturedEffect { texture: handle, blend, vertices });
         }
@@ -305,7 +349,7 @@ impl ExhaustFlames {
         let State::Ready(active) = &mut self.state else { return };
         for (lane, handle, index) in active.handed.drain(..) {
             let Some(batch) = layer.textured.get_mut(index).filter(|b| b.texture == handle) else { continue };
-            active.lanes[lane].vertices = std::mem::take(&mut batch.vertices);
+            lane_of(&mut active.lanes, &mut active.blue, lane).vertices = std::mem::take(&mut batch.vertices);
         }
     }
 }

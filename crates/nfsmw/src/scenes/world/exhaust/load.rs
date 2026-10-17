@@ -11,6 +11,9 @@ use nfsmw_data::car::exhaust::{ADDITIVE_BLEND, ExhaustFx, particle_textures};
 use super::trigger::ShiftTiming;
 use super::{Active, EMITTER_LIMIT, ExhaustFlames, Lane, MAX_PIPES, SpriteTexture, State};
 
+/// The first random seed of the blue lanes, apart from the orange ones.
+const BLUE_SEED: u64 = 0x424c_5545;
+
 impl ExhaustFlames {
     /// Load the flames of `model` if the setting is on and they are not loaded: its pipes, particle group and
     /// textures, uploaded to `renderer`. A car without pipes or data gets none (nothing is drawn).
@@ -99,6 +102,23 @@ pub(super) fn lane(spec: &blackbox_particles::EmitterSpec, index: usize, pipes: 
     Lane { texture, emitters, vertices: Vec::new() }
 }
 
+impl Lane {
+    /// The same emitters with a state of their own, for the nitrous flame that is drawn in blue.
+    fn blue_copy(&self) -> Lane {
+        let emitters = self
+            .emitters
+            .iter()
+            .enumerate()
+            .map(|(pipe, source)| {
+                let mut emitter = Emitter::new(source.spec().clone(), BLUE_SEED + (self.texture * 16 + pipe) as u64);
+                emitter.set_limit(EMITTER_LIMIT);
+                emitter
+            })
+            .collect();
+        Lane { texture: self.texture, emitters, vertices: Vec::new() }
+    }
+}
+
 impl Active {
     pub(super) fn new(
         pipes: Vec<glam::Mat4>,
@@ -107,15 +127,18 @@ impl Active {
         timing: ShiftTiming,
         engine_upgrades: i32,
     ) -> Self {
+        let blue = lanes.iter().map(Lane::blue_copy).collect();
         Self {
             pipes,
             lanes,
+            blue,
             textures,
             timing,
             engine_upgrades,
             shift: Default::default(),
             backfire: Default::default(),
             intensity: 0.0,
+            nitrous: false,
             live: 0,
             order: Vec::new(),
             handed: Vec::new(),

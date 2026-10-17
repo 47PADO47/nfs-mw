@@ -1,13 +1,16 @@
 //! The rear-view mirror's picture. Each frame the scene's rear view is captured offscreen and uploaded as the
 //! mirror's UI texture; the HUD presenter draws it under the mirror's bezel (`ui::present::blackbox`).
 
+use blackbox_gfx::reflection::distance::cull_instances;
+use blackbox_gfx::reflection::{PLANAR_MAX, tint_rgba};
 use blackbox_gfx::{CaptureId, RenderBackend, UiLayer, UiTexturePatch};
 
 use crate::ui::present::blackbox::MIRROR_TEXTURE;
 use crate::viewer::Scene;
 
-/// Capture size in pixels: the bezel's proportions (about 256 by 87 HUD units).
-const SIZE: [u32; 2] = [384, 131];
+/// The bezel's proportions in pixels (about 256 by 87 HUD units): the base of the mirror picture's size. The
+/// setting scales it; the width always keeps this aspect.
+const BASE: [u32; 2] = [384, 131];
 /// Inset of the picture from the captured image's edge, in pixels, so the clip does not cut the bezel's edge.
 const INSET: f32 = 2.0;
 
@@ -34,6 +37,8 @@ impl MirrorOverlay {
 
     /// Collect a finished capture, then ask for the next one when the scene has a rear view.
     pub fn update(&mut self, renderer: &mut dyn RenderBackend, scene: &mut dyn Scene) {
+        let tint = renderer.graphics().mirror_tint;
+        let distance = renderer.graphics().reflection_distance;
         if !self.uploaded {
             // Until the first capture the bezel's picture is clear, so the frame shows the glass only.
             renderer.update_ui_texture(&UiTexturePatch {
@@ -48,6 +53,7 @@ impl MirrorOverlay {
             match renderer.poll_capture(id) {
                 None => return,
                 Some(Ok(mut image)) => {
+                    tint_rgba(&mut image.rgba, tint);
                     clip_to_bezel(&mut image.rgba, image.width, image.height);
                     renderer.update_ui_texture(&UiTexturePatch {
                         id: MIRROR_TEXTURE,
@@ -60,11 +66,15 @@ impl MirrorOverlay {
             }
             self.pending = None;
         }
-        let aspect = SIZE[0] as f32 / SIZE[1] as f32;
+        let resolution = renderer.graphics().reflection_resolution;
+        let size = resolution.mirror_size(BASE, renderer.surface_size(), PLANAR_MAX);
+        let aspect = size[0] as f32 / size[1] as f32;
         let Some((params, instances)) = scene.rear_view(aspect) else { return };
+        // The original's mirror far plane (192 m) is applied to the object origins, as the setting says.
+        let instances = cull_instances(instances, params.camera_position, distance.mirror_far());
         // The capture draws the UI like the screen does; the mirror shows the road, so the HUD is left out.
         renderer.set_ui_layer(UiLayer::default());
-        let started = renderer.request_capture(SIZE, &params, instances);
+        let started = renderer.request_capture(size, &params, &instances);
         if let Some(layer) = &self.layer {
             renderer.set_ui_layer(layer.clone());
         }
@@ -103,7 +113,7 @@ mod tests {
 
     #[test]
     fn clip_keeps_the_middle_and_drops_the_corners() {
-        let (w, h) = (SIZE[0], SIZE[1]);
+        let (w, h) = (BASE[0], BASE[1]);
         let mut rgba = vec![200u8; (w * h * 4) as usize];
         clip_to_bezel(&mut rgba, w, h);
         let alpha = |x: u32, y: u32| rgba[((y * w + x) * 4 + 3) as usize];

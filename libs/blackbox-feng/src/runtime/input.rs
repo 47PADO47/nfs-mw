@@ -122,6 +122,14 @@ impl Runtime {
         }
     }
 
+    /// Switches a package's buttons on or off. A package switches them off itself when a button is pressed (it is
+    /// leaving), so a host that stays on the screen has to switch them on again.
+    pub fn set_input_enabled(&mut self, package: PackageId, enabled: bool) {
+        if let Some(p) = self.running_mut(package) {
+            p.input_enabled = enabled;
+        }
+    }
+
     /// With this on, a start press also counts as accept for the package.
     pub fn set_start_equals_accept(&mut self, package: PackageId, on: bool) {
         if let Some(p) = self.running_mut(package) {

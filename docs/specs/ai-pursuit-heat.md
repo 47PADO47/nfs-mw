@@ -329,8 +329,12 @@ car select screen (x0.95); get busted three times and confirm the impound.
   multiplier applies while the player is in a HIDDEN track zone (kind 8, `TrackZones` from the track's metadata) at its
   height, within 1.25 m (the spec's rule, section 5 of `docs/formats/pursuit-data.md`). **[unconfirmed]** the zone's
   `elevation` is read as a physics height; that unit is not checked against the install.
-- **Busted** (the bust meter, `BustSpeed`, `MeterDeadZoneBustedDistance`): not implemented. The fields are read here, but
-  the meter's rule (what fills it and what the player must do) is not in this spec yet.
+- **Busted** (the bust meter, `BustSpeed`, `MeterDeadZoneBustedDistance`): the busted timer and its HUD value are
+  implemented. The rule is in [ai-pursuit.md](ai-pursuit.md) section 5 and `libs/blackbox-pursuit/src/busted.rs`;
+  the bust speed comes from the Bartender file. Not implemented: the five-segment bar (`PursuitMeter`, section 4.4 of
+  ai-pursuit.md), whose formula uses `MeterDeadZoneBustedDistance` and which the code does not have, and drawing a bar
+  on screen. See
+  [provenance](../provenance/ai-pursuit-busted.md).
 - **Heat growth** (section 3.2): done with the bin-free times per level; the career bins are not read.
 - **Evade heat** (section 3.3): an escape multiplies the heat by 0.95 and the value carries into the next chase, as the
   start heat (`max(heat, base)`). The rewrite has one car and no career, so this is that car's heat only

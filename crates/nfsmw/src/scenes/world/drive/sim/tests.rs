@@ -158,3 +158,11 @@ fn a_car_driving_into_a_standing_one_pushes_it_and_loses_speed() {
     let (a, b) = (chaser.collision_box(), target.collision_box());
     assert!(blackbox_vehicle::rigid_body::obb_contact(&a, &b).is_none_or(|c| c.overlap < 0.05));
 }
+
+#[test]
+fn a_full_tank_that_does_not_burn_adds_no_nitrous_effect() {
+    let tank = Telemetry { has_nos: true, nos: 1.0, ..Default::default() };
+    assert_eq!(tank.nitrous_burn(), 0.0);
+    assert_eq!(Telemetry { nos_burning: true, ..tank }.nitrous_burn(), 1.0);
+    assert_eq!(Telemetry { has_nos: false, nos_burning: true, ..tank }.nitrous_burn(), 0.0);
+}

@@ -5,6 +5,7 @@ mod floor;
 pub(crate) mod lighting;
 pub(crate) mod materials;
 mod shading;
+pub(crate) mod shadows;
 mod texture_anim;
 mod wheels;
 
@@ -28,7 +29,7 @@ use materials::CarMaterials;
 const LIGHT_DIR: Vec3 = Vec3::new(-0.4, -0.3, -1.0);
 
 /// The floor's part number in the instance keys (cars have fewer parts than this).
-const FLOOR_PART: u32 = u32::MAX - 1;
+pub(crate) const FLOOR_PART: u32 = u32::MAX - 1;
 
 /// Where cars come from, so the console can switch to another one.
 struct Source {
@@ -234,6 +235,7 @@ impl Scene for CarScene {
             scattering: None,
             surface_light: None,
             camera_cut: self.cut.take(),
+            shadow_tuning: None,
         };
         (params, &self.instances)
     }

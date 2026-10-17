@@ -3,6 +3,7 @@ mod install;
 mod nav;
 mod path;
 mod signal;
+mod signal_props;
 mod synth;
 mod trail;
 mod zones;

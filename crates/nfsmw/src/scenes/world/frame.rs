@@ -26,10 +26,12 @@ impl WorldScene {
             &mut self.visible,
         );
         self.residency.props().fragment_instances(&mut self.visible);
-        if let Some(traffic) = &self.traffic {
+        if let Some(traffic) = &mut self.traffic {
+            let placed = self.residency.placed().filter_map(super::ai::signal_props::candidate);
+            traffic.update_signal_props(self.residency.visual_revision(), placed);
             traffic.instances(&mut self.visible);
             let lamps = self.lamp_meshes.as_ref().filter(|_| self.traffic_setting.lights);
-            traffic.lamp_instances(lamps, lens.position, &mut self.visible);
+            traffic.lamp_instances(lamps, lens.position, self.residency.props(), &mut self.visible);
         }
         if let Some(drive) = &self.drive {
             if render_player(self.view, self.camera_mode, drive.camera_looking_back(self.camera_mode)) {
@@ -51,6 +53,7 @@ impl WorldScene {
             scattering: self.scattering(),
             surface_light: self.surface_light(),
             camera_cut,
+            shadow_tuning: None,
         };
         (params, &self.visible)
     }

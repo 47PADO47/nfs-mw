@@ -35,6 +35,7 @@ fn scene(renderer: &mut Renderer) -> (FrameParams, Vec<Instance>, Vec<Instance>)
         scattering: None,
         surface_light: None,
         camera_cut: false,
+        shadow_tuning: None,
     };
     (frame, vec![Instance::new(ground, Mat4::IDENTITY)], vec![Instance::new(caster, Mat4::IDENTITY)])
 }

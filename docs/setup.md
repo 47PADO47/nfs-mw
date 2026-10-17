@@ -82,3 +82,30 @@ it filters the console.
   elsewhere. Run `nfsmw check-install` to see which config file and folder it uses.
 - **Build fails with `libudev` or `alsa` not found** (Linux): install the development packages, for example
   `libudev-dev` and `libasound2-dev` on Debian and Ubuntu based systems, then build again.
+
+## DLSS and ray tracing builds
+
+DLSS and ray tracing are on the Bevy renderer (see [the graphics plan](plans/gfx-renderers/status.md)), behind the
+cargo features below, which a default build does not have, except `fsr3` (the default build has the Bevy renderer
+and FSR 3; `--no-default-features` leaves them out). This section lists what the others need. On
+Windows the usual C++ build tools (MSVC) are needed as well.
+
+- **GPU and API:** an NVIDIA RTX GPU with a current driver. DLSS and Solari run on Vulkan only.
+- **DLSS SDK 310.9.1.** This is the SDK version that `dlss_wgpu` 6.0.0 wraps. Get it from NVIDIA's DLSS
+  repository and read its licence first. The SDK is never stored in this repository. Point `DLSS_SDK` at the
+  SDK folder.
+- **Vulkan SDK.** Install it and point `VULKAN_SDK` at the install folder.
+- **clang and libclang.** Install LLVM, so that `clang` is on `PATH`. Point `LIBCLANG_PATH` at the folder that
+  holds `libclang.dll` (Windows) or `libclang.so` (Linux).
+- **Cargo features:**
+  - `dlss`: DLSS Super Resolution and Ray Reconstruction. Needs the SDK at build time.
+  - `dlss-mock`: compiles the DLSS code without the SDK. CI uses it to check that the code compiles.
+  - `ray-tracing`: Solari ray tracing. It is set at startup and uses DLSS Ray Reconstruction as its denoiser
+    when `dlss` is also built.
+  - `fsr3`: the FSR 3 temporal upscaler on the Bevy renderer, in the default build. It needs none of the SDKs above
+    and runs on Vulkan and DX12. The native renderer has FSR 3 in every build (no feature).
+
+  A build with DLSS and ray tracing: `cargo run -p nfsmw --features dlss,ray-tracing`, then start with
+  `--renderer bevy`.
+- **Licence:** the NVIDIA RTX SDK terms apply to any DLSS build. [docs/licensing.md](licensing.md) does not record
+  them yet, so do not distribute a DLSS build until it does.

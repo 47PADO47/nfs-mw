@@ -5,6 +5,7 @@ use bevy_ecs::prelude::*;
 use bevy_time::Time;
 use game_install::GameDir;
 
+use super::oneshot::{self, OneShotPlayer};
 use super::preview_play::PreviewPlayer;
 use super::{Audio, MusicInput, Volumes};
 use crate::app::FrameSet;
@@ -37,6 +38,7 @@ impl Plugin for AudioPlugin {
                 super::radio::input::radio_input.in_set(FrameSet::Ui),
                 drive_car.in_set(FrameSet::Ui),
                 play_preview.in_set(FrameSet::Ui),
+                play_one_shots.in_set(FrameSet::Ui),
             ),
         );
         super::speech::add_systems(app);
@@ -73,6 +75,11 @@ fn play_preview(host: NonSendMut<Host>, mut audio: NonSendMut<Audio>, mut player
     }
 }
 
+/// The one-shot sounds the mods asked for (`bb.audio` `play`) since the last frame.
+fn play_one_shots(mut audio: NonSendMut<Audio>, mut player: Local<OneShotPlayer>) {
+    oneshot::service(&mut audio, &mut player);
+}
+
 /// The scene's car plays its engine.
 fn drive_car(
     mut host: NonSendMut<Host>,
@@ -97,6 +104,12 @@ fn drive_car(
     }
     if car.is_none() {
         audio.stop_traffic();
+    }
+    // The helicopter's rotor follows the same car: it stops with the pause (no car state) and when the car is gone.
+    let heli = host.scene.rotor_frame(time.delta_secs());
+    match &car {
+        Some(state) => audio.update_heli(heli, state.view),
+        None => audio.stop_heli(),
     }
     // Each petrol-station blast of this frame plays its explosion.
     for _ in 0..host.scene.take_explosions() {

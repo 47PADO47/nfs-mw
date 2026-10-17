@@ -246,6 +246,9 @@ and race levels 1 to 3 have none (all chances 0 or duration 0); heat 3 gets a `H
 40, 0, 0 percent; the `copcross` leader appears from heat 5 (5 percent, 2000 s) with a priority roll at 120 s, heat 6
 (priority 100 percent at 60 s) and heat 9 (100 percent, 30 s). [decomp][verified]
 
+The binary's support executor, the car acquisition and placement, the ram SUV's goal and action, and the cross cars'
+pursuit offsets are in [ai-pursuit-support.md](ai-pursuit-support.md) (D1 reversal).
+
 ## 7. Helicopters in the formation
 
 Helicopters are never given slots. Each tick a helicopter that is not already exiting and not part of a roadblock attempt
