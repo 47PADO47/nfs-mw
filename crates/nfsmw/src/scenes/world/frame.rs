@@ -18,12 +18,16 @@ impl WorldScene {
         };
         let rules = &blackbox_scenery::layout::MOST_WANTED.lod;
         let original = self.original_shadows;
+        let caster_distance = match self.shadow_feed.fed {
+            true => 0.0,
+            false => self.shadow_quality.sampling().2,
+        };
         visibility::collect_unsorted_with_shadows(
             self.residency.placed().filter(|p| original || !p.original_shadow),
             &cull,
             rules,
             self.residency.props(),
-            self.shadow_quality.sampling().2,
+            caster_distance,
             &mut self.visible,
         );
         self.residency.props().fragment_instances(&mut self.visible);

@@ -122,7 +122,7 @@ pub struct WorldScene {
     visible: Vec<Instance>,
     /// What the rear-view mirror sees: the same world, without the player's car.
     rear_visible: Vec<Instance>,
-    shadow_casters: Vec<Instance>,
+    shadow_feed: shadow_feed::ShadowFeed,
     original_shadows: bool,
     colour_treatment: Option<blackbox_gfx::ColourTreatment>,
     time_of_day: Option<nfsmw_data::time_of_day::Presets>,

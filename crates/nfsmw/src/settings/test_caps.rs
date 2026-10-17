@@ -12,6 +12,8 @@ pub fn full() -> Capabilities {
     Capabilities {
         renderer: "bevy",
         soft_shadows: true,
+        separate_shadow_casters: false,
+        view_capture_without_ui: false,
         antialiasing: AaSet::all(),
         upscalers: UpscalerSet::all(),
         ray_tracing: RtSupport::Available { denoiser: Some(Denoiser::DlssRr) },
@@ -38,6 +40,8 @@ pub fn native() -> Capabilities {
         local_reflections: true,
         ambient_occlusion: true,
         soft_shadows: false,
+        separate_shadow_casters: true,
+        view_capture_without_ui: true,
         ray_tracing: RtSupport::None,
         render_scale: Capabilities::full_render_scale(),
         restart_required: RestartSet::empty(),

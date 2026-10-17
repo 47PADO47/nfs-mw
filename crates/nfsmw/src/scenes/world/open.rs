@@ -116,7 +116,7 @@ impl WorldScene {
             visible: Vec::new(),
             rear_visible: Vec::new(),
             shadow_quality: blackbox_gfx::ShadowQuality::Off,
-            shadow_casters: Vec::new(),
+            shadow_feed: Default::default(),
             original_shadows: true,
             colour_treatment,
             time_of_day,

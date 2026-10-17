@@ -38,6 +38,11 @@ pub(crate) fn native_capabilities(
         local_reflections: true,
         ambient_occlusion,
         soft_shadows: false,
+        // The sun shadows read the list given to `set_shadow_casters` (gpu/shadows/mod.rs). Only a renderer that was
+        // never fed falls back to the frame list, so a scene that feeds it may leave off-screen casters out of the
+        // frame. A scene that does not feed it must keep them, because the shadows then come from the frame list.
+        separate_shadow_casters: true,
+        view_capture_without_ui: true,
         ray_tracing: RtSupport::None,
         render_scale: Capabilities::full_render_scale(),
         restart_required: RestartSet::empty(),
@@ -69,6 +74,8 @@ mod tests {
         assert_eq!(caps.ray_tracing, RtSupport::None);
         assert!(caps.restart_required.is_empty());
         assert_eq!(caps.render_scale, Capabilities::full_render_scale());
+        assert!(caps.separate_shadow_casters);
+        assert!(caps.view_capture_without_ui);
     }
 
     #[test]

@@ -58,9 +58,10 @@ pub fn mesh(size: [f32; 2], strength: f32, time: f32) -> Option<UiMesh> {
 
 /// The HUD layer with the streak mesh drawn over it.
 pub fn compose(base: &UiLayer, streaks: UiMesh) -> UiLayer {
-    let mut layer = base.clone();
-    layer.meshes.push(streaks);
-    layer
+    let mut meshes = Vec::with_capacity(base.meshes.len() + 1);
+    meshes.extend_from_slice(&base.meshes);
+    meshes.push(streaks);
+    UiLayer { pixels_per_point: base.pixels_per_point, meshes }
 }
 
 /// Holds the streaks' texture and whether the last frame drew them, so the HUD layer is restored when they stop.

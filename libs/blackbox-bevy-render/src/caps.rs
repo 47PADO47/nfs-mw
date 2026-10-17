@@ -52,6 +52,9 @@ pub fn capabilities_with_ray_tracing(
         local_reflections: false,
         ambient_occlusion: false,
         soft_shadows: !matches!(api, GraphicsApi::Gl),
+        // Bevy builds its sun shadows from the main list, so its off-screen casters must stay in it.
+        separate_shadow_casters: false,
+        view_capture_without_ui: false,
         ray_tracing,
         // Rendering above the surface size is not wired up.
         render_scale: (MIN_RENDER_SCALE, 1.0),

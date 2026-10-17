@@ -127,6 +127,7 @@ pub trait RenderBackend {
     /// Start rendering a picture shown inside the game (a rear-view mirror) off-screen at `size`; poll it with
     /// [`poll_capture`](Self::poll_capture). Unlike [`request_capture`](Self::request_capture) the backend may leave
     /// out screen-space effects, shadows and the UI, and may finish it a few frames later. Defaults to a full capture.
+    /// Backends that never draw the UI here report it in [`Capabilities::view_capture_without_ui`](crate::Capabilities).
     fn request_view_capture(
         &mut self,
         size: [u32; 2],
