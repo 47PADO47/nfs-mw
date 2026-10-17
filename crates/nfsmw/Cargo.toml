@@ -65,6 +65,7 @@ save-store.workspace = true
 glam.workspace = true
 kira.workspace = true
 log.workspace = true
+mimalloc = { workspace = true, optional = true }
 nfsmw-data.workspace = true
 nfsmw-modding = { workspace = true, features = ["host"] }
 png.workspace = true
@@ -75,6 +76,8 @@ toml.workspace = true
 wgpu.workspace = true
 
 [features]
+# mimalloc as the global allocator (src/main.rs). Off by default until measured; `--features nfsmw/mimalloc` enables it.
+mimalloc = ["dep:mimalloc"]
 # The Bevy renderer and the FSR 3 upscaler are in the default build. `--no-default-features` leaves them out: the game
 # is then the native renderer alone (FSR 1 is its best upscaler) and never compiles bevy_render.
 default = ["renderer-bevy", "fsr3"]

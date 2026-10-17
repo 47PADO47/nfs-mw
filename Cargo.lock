@@ -3745,6 +3745,7 @@ dependencies = [
  "bevy_gilrs",
  "bevy_image",
  "bevy_input",
+ "bevy_log",
  "bevy_time",
  "bevy_window",
  "bevy_winit",
