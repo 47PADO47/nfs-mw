@@ -41,11 +41,10 @@ impl TrafficAudio {
             return true;
         }
         let result = (|| {
-            let bytes = nfsmw_data::shared::map_output(&audio.dir).map_err(|e| e.to_string())?;
-            let map = MixMap::parse(&bytes).map_err(|e| e.to_string())?;
+            let map = crate::audio::mixer::mix_map(&audio.dir).map_err(|e| format!("{e:#}"))?;
             let bytes = nfsmw_data::shared::ingame_b(&audio.dir).map_err(|e| e.to_string())?;
             self.stitches = whoosh_stitches(&bytes);
-            self.map = Some(Arc::new(map));
+            self.map = Some(map);
             Ok::<_, String>(())
         })();
         if let Err(error) = result {

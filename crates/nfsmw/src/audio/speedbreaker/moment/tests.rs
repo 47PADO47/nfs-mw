@@ -1,4 +1,6 @@
 use super::*;
+use blackbox_mixmap::MixMap;
+use std::sync::Arc;
 
 #[test]
 #[ignore = "requires NFSMW_GAME_DIR; original Speedbreaker moment recordings"]

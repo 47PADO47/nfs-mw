@@ -4,7 +4,9 @@ use crate::audio::{
     mixer::{CarMixer, Frame},
 };
 use blackbox_carsound::{CarInput, EngineOutput};
+use blackbox_mixmap::MixMap;
 use blackbox_mixmap::ObjectRef;
+use std::sync::Arc;
 
 #[test]
 fn absent_map_starts_with_neutral_pitch() {

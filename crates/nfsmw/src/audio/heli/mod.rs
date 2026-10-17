@@ -131,6 +131,5 @@ impl Slot {
 }
 
 fn load_map(audio: &mut Audio) -> Result<Arc<MixMap>, String> {
-    let bytes = nfsmw_data::shared::map_output(&audio.dir).map_err(|e| format!("{MAP}: {e}"))?;
-    MixMap::parse(&bytes).map(Arc::new).map_err(|e| format!("{MAP}: {e}"))
+    crate::audio::mixer::mix_map(&audio.dir).map_err(|e| format!("{MAP}: {e:#}"))
 }

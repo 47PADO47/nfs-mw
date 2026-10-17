@@ -26,6 +26,20 @@ pub use self::scale::scale as scale_command;
 /// The map for circuit races and free roam.
 const MAP: &str = "SOUND/MIXMAPS/MAPOUTPUT.mxb";
 
+/// The parsed `MAPOUTPUT.mxb`, parsed once per session: later calls return the same map. Every reader of the map
+/// shares it, so a caller that needs to change it must clone it first.
+pub(in crate::audio) fn mix_map(dir: &GameDir) -> anyhow::Result<Arc<MixMap>> {
+    let hit = nfsmw_data::memo(dir, &[nfsmw_data::shared::MAP_OUTPUT_FILE], || {
+        let bytes = nfsmw_data::shared::map_output(dir)?;
+        let map = MixMap::parse(&bytes)?;
+        Ok(ParsedMap(Arc::new(map)))
+    })?;
+    Ok(Arc::clone(&hit.0))
+}
+
+/// The memo entry of [`mix_map`]. Its own type keeps it apart from any other memo of a `MixMap`.
+struct ParsedMap(Arc<MixMap>);
+
 /// The mixer of the player's car.
 pub struct CarMixer {
     mixer: Mixer,
@@ -59,9 +73,8 @@ impl CarMixer {
     /// Reads the map from the install. `dual` says the car plays the two-loop engine (object 2), else the
     /// single one (object 1).
     pub fn load(dir: &GameDir, dual: bool) -> Result<Self, String> {
-        let bytes = nfsmw_data::shared::map_output(dir).map_err(|e| format!("{MAP}: {e:#}"))?;
-        let map = MixMap::parse(&bytes).map_err(|e| format!("{MAP}: {e}"))?;
-        Ok(Self::new(Arc::new(map), dual))
+        let map = mix_map(dir).map_err(|e| format!("{MAP}: {e:#}"))?;
+        Ok(Self::new(map, dual))
     }
 
     /// A mixer over `map`: one main state and the player's car.
