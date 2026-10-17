@@ -57,7 +57,7 @@ backends, multi-platform support and testing. The structure follows [vladtrc/iw4
 | Crate | Job |
 |---|---|
 | [`nfsmw-data`](../crates/nfsmw-data) | MW's `GameSpec`; car assembly (stock and preset parts, wheel and brake placement, paint, texture swaps); the world: streaming index, section parsing, a background section loader. Renderer-free. |
-| [`nfsmw-career`](../crates/nfsmw-career) | The career rules, spec-first and pure (no Bevy, no I/O): settings and flags, the car stable and its career records, the pursuit recorder, fines and impound strikes, the SMS inbox and delivery, and the profile file glue (checksums, MD5, byte-exact in-place rewrite). Specs: [specs/career.md](specs/career.md). |
+| [`nfsmw-career`](../crates/nfsmw-career) | The career rules, spec-first and pure (no Bevy, no I/O): settings and flags, the car stable and its career records, the pursuit recorder, fines and impound strikes, the SMS inbox and delivery, the safe house flow (zones, engage, menu and sequence order, respawn marker, heat between worlds, Resume Free Roam), and the profile file glue (checksums, MD5, byte-exact in-place rewrite). Specs: [specs/career.md](specs/career.md). |
 | [`nfsmw`](../crates/nfsmw) | The binary: CLI (`commands/`), layered `settings/`, the Bevy `app/` (window, loop, render bridge, cursor, pacing, screenshots), the `input/` action layer, the `ui/` (the shared FEng host layer: packages, assets, presenter), the `hud/` (the in-game HUD), the `frontend/` (menus and the game flow), the `audio/` (sound output), the `viewer/` cameras and `Scene` trait, and the scenes (`scenes/car/`, `scenes/world/`). |
 | [`xtask`](../xtask) | `cargo xtask check` (leak check + file-size check), `install-hooks` |
 

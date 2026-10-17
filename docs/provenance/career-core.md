@@ -3,14 +3,17 @@
 - **Spec:** [formats/career-save.md](../formats/career-save.md), [formats/career-state.md](../formats/career-state.md),
   [specs/career-economy.md](../specs/career-economy.md), [specs/career-economy-flows.md](../specs/career-economy-flows.md),
   [specs/career-phone.md](../specs/career-phone.md), [specs/career-text-2.md](../specs/career-text-2.md) (the SMS sender
-  table), [specs/career-flow.md](../specs/career-flow.md) (new career defaults). Their own records:
+  table), [specs/career-flow.md](../specs/career-flow.md) (new career defaults, safe house front end, saving), and for
+  the `safehouse` module [specs/career-safehouse.md](../specs/career-safehouse.md),
+  [specs/career-safehouse-2.md](../specs/career-safehouse-2.md) and section 4 of
+  [specs/career-scripts.md](../specs/career-scripts.md). Their own records:
   [career-economy](career-economy.md), [career-phone](career-phone.md), [career-flow](career-flow.md),
-  [career-text](career-text.md).
+  [career-text](career-text.md), [career-safehouse](career-safehouse.md).
 - **Sources read for this module:** the repository specs above and the repo's own `libs/save-store` (`digest::md5`). No
   decompiled code, no Ghidra session and no scratchpad dump were open while writing it (spec-first,
   [licensing.md](../licensing.md#spec-first)). The three development saves were opened read only for the optional test
   and for the CRC check; no save bytes are in the repository.
-- **Implemented:** 2026-10-17, from the specs only, in `crates/nfsmw-career`.
+- **Implemented:** 2026-10-17, from the specs only, in `crates/nfsmw-career` (second pass: the `safehouse` module).
 - **Checked against the game by:** nothing was run in the original. Checked against the three development saves
   (`NAME`, `mwo`, `stock`): every file parses, passes the container checksums, the profile MD5 and the gameplay blob
   MD5, and is rewritten byte for byte after the settings and the stable were parsed and written back
@@ -28,6 +31,10 @@
 | `economy` (`pursuit`, `infractions_screen`, `cash`, `infraction`) | economy 1.4, economy-flows 2, 3.4, 6.1, 6.2, 6.4, 7 |
 | `phone` (`ids`, `queue`, `inbox`, `voice`) | career-phone 1 to 4, career-text-2 1.1 and 1.2 (sender ids only) |
 | `save` (`ProfileSave`, `container_crc`) | career-save 1, 2 and 7 |
+| `safehouse::zone`, `engage` | safehouse 2, 3.1 to 3.5 |
+| `safehouse::respawn`, `first_visit`, `resume` | safehouse 3.5, 3.6, 4, 5.3 (first visit); safehouse-2 6, 7.3, 7.4, 9 |
+| `safehouse::menu`, `stepper`, `autosave`, `phone` | safehouse 5.1, 5.3; career-flow 7.2, 8; career-phone 3.5 |
+| `safehouse::heat` | safehouse-2 8; economy-flows 4 |
 
 ## Choices where the specs are silent, ambiguous or marked unconfirmed
 
@@ -69,3 +76,25 @@ Each is also a doc comment at the code. Nothing here is a new game constant.
   queueing it is the caller's job.
 - **Sender and subject text:** only the numeric sender per id is in the code. Subjects, senders and bodies are read at
   run time from the install language table by label (`SMS_MESSAGE_<n>`, `_FROM`, `_SUBJECT`).
+
+## Safe house module: choices and gaps
+
+| Where | Choice | Why |
+|---|---|---|
+| `safehouse::engage` | the engage decision reads a prompt-ready flag (property `0x0280164F`) and a node flag (`0x2B1F54F6`) as plain booleans | their meaning is unconfirmed in the spec; the input struct names them without interpreting them |
+| `safehouse::engage` | a zone string of no known kind posts no zone message (`PostEnterMessage(None)`) | safehouse 3.2: engage zone only posts for the three kinds |
+| `safehouse::heat` | factors are parameters; the 0.95, 0.94 and 0.93 constants are named defaults | the values come from the install `pursuitlevels/default`; the milestone pairing is unconfirmed in economy-flows 4 |
+| `safehouse::heat::unload_world` | writes only in a career context and only when the current car has a record; a NaN heat is written as 5.0 | safehouse-2 8.3; the NaN case is not in the spec |
+| `safehouse::heat::spawn_heat` | 1.0 when the car has no record or the context is not career | safehouse-2 7.5 gives the default 1.0 outside a career; the no-record career case is not stated |
+| `safehouse::respawn::heading_rotation` | returns `heading * (-1/360)` and builds no direction vector | the spec gives the factor but not the rotation axis or unit |
+| `safehouse::respawn::Respawn::select_key` | the fallback key becomes `home`; collection existence and the name hash are caller closures | safehouse-2 9.3; the hash of collection keys is the attribute-system hash, not implemented here |
+| `safehouse::first_visit` | stage 16 to 15 only; no SMS, no flag | safehouse 5.3 lists no SMS or flag for this step (bin 15 has no entry message, career-scripts 3.3); nodes, rewards and manager updates of the enter-bin routine are the progress slice's |
+| `safehouse::stepper` | only the counter rule; where the stepper resumes after the first-visit bio is not modelled | safehouse 5.3: unconfirmed. Step 7 is reached on any call after step 6; the spec does not say what calls it after the stage 15 overview |
+| `safehouse::autosave` | one gate for both uses; a refused request is dropped, not retried | safehouse 5.3 (`autosave possible`) and career-flow 8 describe two overlapping tests; no retry is documented |
+| `safehouse::phone` | in the safe house nothing is delivered (all flush conditions false) | not stated in the safe house specs; it follows from career-phone 3.5 (flush needs the game state 6) |
+| `safehouse::resume` | with the debug byte set the prologue check is skipped; a custom start position, the `+0x2D4` byte and the previous node are inputs | safehouse-2 6.1, 7.3 |
+
+Not modelled in `safehouse`: the front-end request resolver of safehouse section 4 beyond the respawn flag rule, the
+pause menu path that clears event states (3.6), the marker choice screen, the region unlock screen, the rap sheet
+screens, the car-select flow, the world loader and the per-frame pursuit/results screen plumbing. No spec file was
+edited.
