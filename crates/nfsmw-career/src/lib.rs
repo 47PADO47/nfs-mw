@@ -9,7 +9,9 @@
 //! the most conservative reading and says so next to it; `docs/provenance/career-core.md` lists those choices.
 
 mod bytes;
+pub mod economy;
 mod error;
 pub mod settings;
+pub mod stable;
 
 pub use error::LayoutError;
