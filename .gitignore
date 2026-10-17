@@ -61,6 +61,10 @@
 !/assets/input-prompts/kenney-xbox.png
 !/assets/input-prompts/*.md
 
+# Reviewed original icons for the mod manager (no game textures).
+!/assets/mods/*.png
+!/assets/mods/*.md
+
 # Reviewed, independently licensed Discord mark (CC0 Simple Icons glyph).
 !/assets/discord/discord.png
 !/assets/discord/*.md

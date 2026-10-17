@@ -116,6 +116,7 @@ pub struct UiAssets {
     custom: CustomFontSet,
     input_atlas: Image,
     discord_mark: Image,
+    mod_mark: Image,
     pub strings: Option<StringTable>,
 }
 
@@ -180,7 +181,9 @@ impl UiAssets {
         let aliases = ALIASES.iter().map(|(a, b)| (fe_hash_upper(a), fe_hash_upper(b))).collect();
         let input_atlas = super::input_icons::load()?;
         let discord_mark = super::discord_icon::load()?;
-        let assets = Self { fonts, textures, aliases, font_native, custom, strings, input_atlas, discord_mark };
+        let mod_mark = super::mod_icon::load()?;
+        let assets =
+            Self { fonts, textures, aliases, font_native, custom, strings, input_atlas, discord_mark, mod_mark };
         log::info!("UI: {} fonts, {} textures", assets.fonts.len(), assets.textures.len());
         Ok(assets)
     }
@@ -251,6 +254,14 @@ impl UiAssets {
                 width: self.input_atlas.width,
                 height: self.input_atlas.height,
                 rgba: self.input_atlas.rgba.clone(),
+                blend: 1,
+            });
+        }
+        if hash == super::mod_icon::TEXTURE {
+            return Some(Image {
+                width: self.mod_mark.width,
+                height: self.mod_mark.height,
+                rgba: self.mod_mark.rgba.clone(),
                 blend: 1,
             });
         }

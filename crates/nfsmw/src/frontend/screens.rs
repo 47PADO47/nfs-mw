@@ -78,7 +78,7 @@ impl Screens {
     /// Loads a screen on top of the stack; `replace` first unloads the one that is there. Commands the new
     /// screen queues while starting are returned.
     pub fn open(&mut self, name: &str, args: Args, replace: bool, env: &mut Env) -> Vec<Command> {
-        let mod_rows = env.mods.is_some_and(crate::modding::has_menu_rows);
+        let mod_rows = env.mods.is_some_and(crate::modding::Mods::has_mods_page);
         self.open_with(name, factory::make(name, args, mod_rows), replace, env)
     }
 
