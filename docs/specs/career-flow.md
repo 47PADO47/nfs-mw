@@ -2,7 +2,8 @@
 
 How the original gets from the main menu into a career, what a new career starts with, what the safe house front end does,
 and when it saves. The car lot and the car rules are in [career-car-lot.md](career-car-lot.md); the byte layout of the
-saved state is in [career-save.md](../formats/career-save.md). Addresses, Ghidra names and dead ends are in the
+saved state is in [career-save.md](../formats/career-save.md). The texts the screens show (rivals, messages, tips, labels) are in
+[career-text.md](career-text.md). Addresses, Ghidra names and dead ends are in the
 [provenance file](../provenance/career-flow.md).
 
 - **Sources:** `speed.exe` (Black Edition PC v1.3, image base `0x00400000`) through the Ghidra MCP; the install at

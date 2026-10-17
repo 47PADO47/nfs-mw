@@ -139,9 +139,13 @@ start and appear in the quick-race lists once available. Availability uses the *
 - The rival cars have handles that are the name hashes of the presets **`BL2` to `BL15`** (the Blacklist ranks). Rival `n`'s
   car is available when the stage is **below `n`**, i.e. after rival `n` has been beaten (`BL15` once stage <= 14, `BL2` once
   stage <= 1). Rival 1's car is not in this list.
-- Bonus presets behind settings flag bits ([career-save.md](../formats/career-save.md) 3.3): bit 14 unlocks `0x2CF370F0`
-  and `0x03A94520` (the E3 demo BMW), bit 15 `0xCB6AAF2F`, bit 16 `0x2CF385B2`, bit 18 `0x34498EB2`.
-- Other bonus presets (ten hashes, from the Black Edition set) are available only when the install holds the file
+- Bonus presets behind settings flag bits ([career-save.md](../formats/career-save.md) 3.3): bit 14 unlocks `BONUS_C6R`
+  (`0x2CF370F0`) and `E3_DEMO_BMW` (`0x03A94520`), bit 15 `BONUS_SL65` (`0xCB6AAF2F`), bit 16 `BONUS_GT2` (`0x2CF385B2`),
+  bit 18 an unnamed preset (`0x34498EB2`). The locked-car messages say how: event 68 of the Challenge Series (SL65), every
+  Challenge Series event (GT2), winning the career (E3 BMW), 100 percent game complete (C6R)
+  ([career-text.md](career-text.md) 5.3).
+- Other bonus presets (ten hashes, the Collector's Edition presets `CE_ELISE`, `CE_SL500`, `CE_SUPRA`, `CE_CAMARO`,
+  `CE_CORVETTE`, `CE_997S`, `CE_SL65`, `CE_GT2`, `CE_C6R` and one unresolved) are available only when the install holds the file
   `GLOBAL/INGAMEC.BUN` (a probe at start-up).
 - If the profile's "career completed at least once" byte is set, or the debug flag is set, everything is available in the
   non-career modes.
