@@ -15,8 +15,9 @@ of that chase. `nfsmw.career` and
 `nfsmw.races` are offered with no state behind them, so every call answers `BB_ERR_UNSUPPORTED` and a mod can detect
 them. The roadblocks, spikes, the helicopter calls and the rest of the pursuit tables are not wired yet. The
 **career** (bounty, rap sheet, blacklist, milestones, cash, shops, safe houses) has no runtime state yet; the
-tables below are the contract the career work will implement. Field lists marked [unconfirmed] must be checked
-against the specs (`docs/specs/`, `docs/formats/`) when each part is built.
+tables below are the contract the career work will implement. The original's career is now specified
+([specs/career.md](../specs/career.md)); the rules a backend must follow, and where the original differs from the
+sketches below, are in [Original career rules](#original-career-rules). The wire layout is unchanged.
 
 | Interface | Version | Contents |
 |---|---|---|
@@ -122,8 +123,8 @@ Delivered like the generic events ([api.md](api.md#events)).
 
 The career is the player's progress: cash, bounty, rap sheet, the blacklist of 15 rivals, milestones, owned
 cars, and the safe houses and shops they unlock. Storage is the save file (`save_format.rs`, `saves.rs`,
-`libs/save-store`); the data it reads is in `nfsmw-data/src/gameplay/`. [unconfirmed]: the exact stat list and
-milestone ids until the career spec exists.
+`libs/save-store`); the data it reads is in `nfsmw-data/src/gameplay/`. The stat list, the milestone ids and the
+rival table are fixed by the original: see [Original career rules](#original-career-rules).
 
 | Entry | Signature sketch | Scope | Implemented in |
 |---|---|---|---|
@@ -156,6 +157,64 @@ milestone ids until the career spec exists.
 | Remove item | `career.shop_remove_item(ShopId, ItemId)` | MW | same |
 | Price | `career.set_price(ShopId, ItemId, cash: u32)` **W** | MW | same |
 | Heat in safe house | `career.set_safehouse_cools_heat(bool)` **W** | MW | `ai/pursuit.rs` |
+
+## Original career rules
+
+What the original does, from [specs/career.md](../specs/career.md) (read in `speed.exe`, `gameplay.bin` and its Lua
+scripts, the language table and three saves; not tested in game). A backend that implements `nfsmw.career` should
+follow these; the places where the sketches above differ are listed last.
+
+**Cash.** One `u32` in the career settings (profile `+0xB4`). Spending clamps at 0 and no cap was found. A race win adds
+the event's cash value on every win. A car sells for half its price and is bought at its price.
+[career-economy-flows.md](../specs/career-economy-flows.md).
+
+**Bounty.** Stored per owned car (the car's career record) plus one base for cars that were sold or removed; the player's
+bounty is the sum. An escaped pursuit adds the pursuit's reputation points to the car driven; a bust adds none.
+Milestones pay **bounty**, not cash. `set_bounty` therefore needs a target (the current car's record); the sketch's single
+value maps to "set the total by adjusting the current car". [career-economy.md](../specs/career-economy.md).
+
+**Rap sheet.** Eight raw sums over non-busted pursuits, in this stat order: 0 pursuit length, 1 cops involved, 2 cops
+damaged, 3 cops destroyed, 4 tire spikes dodged, 5 roadblocks dodged, 6 helicopters involved, 7 cost to state; 8 (total
+infractions, both sets) and 9 (total bounty) are computed. Pursuits evaded and times busted are per-car counters summed
+over the stable (`pursuits` in the sketch is their sum; `cops_wrecked` is stat 3). Infractions are 8 kinds, counter
+index = bit position of the pursuit's infraction mask, each with a fixed fine, in two sets: **unserved** (since the last
+payment) and **served**. [career-economy.md](../specs/career-economy.md), [career-text-2.md](../specs/career-text-2.md).
+
+**Busted and impound.** Each car has a strike count, a limit (3, at most 5), a state and a countdown. Paying the fines
+with cash adds a strike; a marker pays without one. At the limit the car is impounded and returns after a number of
+events or for a release fee (a quarter of its cost). The game is over only when no free car and no release marker is left.
+
+**Stage and blacklist.** The stage is the bin number: 16 is the prologue, then 15 down to 1 (1 is the last rival). Rival
+rank = bin number. Each bin is a state graph (`initial`, `unlock_races`, `introduce_rival`, `check_rival`,
+`rival_locked` or `rival_unlocked`, `done`), so `defeated` and `locked` are derived from the graph state, not stored
+flags. A rival challenge opens when races won, challenges passed (milestones plus speed traps of the bin) and total
+bounty all reach the bin's requirements; the counters are recomputed, never stored. Nothing in the exe or the scripts
+advances the stage after bin 15 (open question): `defeat_rival` should enter bin N-1. The career-complete flag is set
+by winning event 1.8.1. [career-blacklist.md](../specs/career-blacklist.md),
+[career-scripts.md](../specs/career-scripts.md).
+
+**Milestones.** 55 milestones and 39 speed traps, fixed by `gameplay.bin`, 30 statistic kinds. States: locked, active,
+at stake, done. A reached milestone is at stake until the pursuit ends: an escape banks it and pays bounty, a bust
+returns it to active. Milestones are checked in free roam only. [career-milestones.md](../specs/career-milestones.md).
+
+**Garage.** 200 car records, at most 25 with a career record. The car lot refuses a purchase at 10 owned cars; selling
+refuses an impounded car and the last car. [career-car-lot.md](../specs/career-car-lot.md).
+
+**Safe house and shops.** The safe house menu is Resume Free Roam, Blacklist, Car Select, Rap Sheet (once unlocked) and
+Save. No script resets heat or cops on entry, and no native heat reset was found; the sketch's "heat reset on entry" for
+`register_safehouse` and `set_safehouse_cools_heat` is a rewrite feature, not original behaviour. Autosave runs at
+free-roam start and after races. [career-flow.md](../specs/career-flow.md).
+
+**Differences to apply to the sketches above**
+
+| Sketch | Original | Action |
+|---|---|---|
+| `MilestoneDef.reward_cash` | milestones pay bounty | keep the field for mod milestones, document it as cash; the 55 built-in milestones report their bounty through `BountyChanged` |
+| `Rival.rank` 1..15 and `stage() -> u8` | bin number, 16 = prologue | allow 16 in `stage()`; ranks stay 1..15 |
+| `Rival.defeated`, `locked` | derived from the bin graph state | compute, do not store |
+| `RapSheet.infractions: [u32; 8]` | two sets of 8 (unserved, served) | report the sum; add the unserved set later |
+| `add_bounty(u64)` | per-car `u32` | clamp at `u32::MAX` per car |
+| `CashChanged.reason`, `BountyChanged.reason` | cash: race win, sale, purchase, fine, release fee; bounty: escape, milestone, speed trap, script award | use these as the reason strings |
 
 ## Races (`nfsmw.races`)
 
@@ -239,8 +298,9 @@ helicopter in a wave. In 0.1 a mod sets the whole wave with `cop_table_set`.
 
 ### Career (`nfsmw.career` 0.1)
 
-The career has no state in the port yet, so every slot answers `BB_ERR_UNSUPPORTED`. The layout is fixed now. The field
-lists and the stat numbers are [unconfirmed] until the career spec exists.
+The career has no state in the port yet, so every slot answers `BB_ERR_UNSUPPORTED`. The layout is fixed now. The stat
+numbers of `rap_sheet_set_stat` and `rap_sheet_add_stat` follow the original's rap sheet index (below); the field lists
+of `BbRapSheet`, `BbRival` and `BbMilestone` are checked against the specs when the state lands.
 
 | Offset | Slot | Arguments after `ctx` | Writes | SDK |
 |---|---|---|---|---|
