@@ -328,6 +328,7 @@ impl CarSim {
             let wheel = self.vehicle.wheel(i);
             blackbox_pursuit::spikes::Patch {
                 position: glam::Vec2::new(wheel.position.x, wheel.position.z),
+                elevation: wheel.position.y,
                 radius: wheel.radius,
                 on_ground: wheel.on_ground,
             }

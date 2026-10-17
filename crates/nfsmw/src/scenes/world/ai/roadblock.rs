@@ -65,7 +65,7 @@ impl TrafficWorld {
                     }
                 }
                 Element::Spike => {
-                    self.spikes.push(Strip { position: Vec2::new(at.x, at.z), heading: slot.heading });
+                    self.spikes.push(Strip { position: Vec2::new(at.x, at.z), elevation: at.y, heading: slot.heading });
                     strips += 1;
                 }
                 // Sawhorse barriers need their props, which are not spawned yet.
