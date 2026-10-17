@@ -139,7 +139,7 @@ for pursuits that were **not busted** (the history routine tests the same slot a
 | `+0xa2c` | 5 entries of 0x38 bytes: best pursuits by bounty, sorted descending (a new one is inserted before the first entry with smaller bounty, the rest shift down, the fifth falls out) |
 | `+0xb44` | `u32[8]` sums for indices 0 to 7 |
 | `+0xb64` | 10 pairs `{car key, best value}` for indices 0 to 9 (best single pursuit) |
-| `+0xbb4`..`+0xbd0` | 8 further sums (`+0xbb4` slot `+0xa8`, `+0xbb8` `+0xb4`, `+0xbbc` `+0xbc`, `+0xbc0` `+0xc0`, `+0xbc4` `+0xc4`, `+0xbc8` `+0xc8`, `+0xbcc` `+0xac`, `+0xbd0` `+0xb0`); meaning not matched to a label |
+| `+0xbb4`..`+0xbd0` | 8 further sums (`+0xbb4` slot `+0xa8`, `+0xbb8` `+0xb4`, `+0xbbc` `+0xbc`, `+0xbc0` `+0xc0`, `+0xbc4` `+0xc4`, `+0xbc8` `+0xc8`, `+0xbcc` `+0xac`, `+0xbd0` `+0xb0`); in that order: roadblocks deployed, traffic cars hit, spike strips, helicopter spike strips, patrol cars, support vehicles, property damage value, property damage count ([career-rapsheet-2.md](career-rapsheet-2.md) section 2) |
 | `+0xbd4` | key of the car of the last pursuit |
 
 Top-5 entry (0x38): `+0` case number text `MW-` plus 8 random characters alternating digit and capital letter (12 bytes
@@ -167,9 +167,9 @@ single pursuit; the `_in_pursuit` collections hold the thresholds for a single p
 
 Single-pursuit thresholds: `pursuit_length_in_pursuit` 1800, 1680, 1560, 1200, 900, 600, 540, 480, 420, 360, 300, 240, 180,
 120, 60; `bounty_in_pursuit` 1500000, 1250000, 1000000, 750000, 500000, 300000, 200000, 150000, 100000, 75000, 50000,
-25000, 10000, 5000, 1000 (the other `_in_pursuit` tables were not dumped). The rankings screen multiplies statistic 0 by
-the static float `0.00025` before display; why is not understood **[unconfirmed]** (the thresholds compare with the raw
-integer, so the raw unit is probably not seconds).
+25000, 10000, 5000, 1000 (the other `_in_pursuit` tables are in [career-rapsheet-2.md](career-rapsheet-2.md) 1.5). Statistic 0 is
+stored in ticks of 1/4000 s and the table is in seconds: the rank code multiplies the threshold by 4000 and the detail
+screen multiplies the stored value by the float `0.00025` for display (same file, 1.3).
 
 ## 6. Busted consequences and impound
 
@@ -269,7 +269,8 @@ No cash cap was found in the code read. **[unconfirmed]** The static dword `9900
 | `RapSheetMain.fng` | menu of the sheets | profile flag `0x10` unlocks it |
 | `RapSheetVD.fng` (vehicle database) | one row per owned car: `CAR`, `BOUNTY`, `FINES` (fine of unserved counters), `UNSERVED` (count), status, `EVADED`, `BUSTED` | status text: impounded when state is not 0; "confirmed to drive" when busted count is not 0; else "suspected to drive" |
 | `RapSheetRS.fng` | totals: bounty, fines due, fines paid, unserved, served, times busted | stable sums |
-| `RapSheetUS.fng` / CTS | infractions by kind (`INFRACTION_TYPE_%d`), unserved or served toggle | per-kind sums |
+| `RapSheetUS.fng` | infractions by kind (`INFRACTION_TYPE_%d`), unserved or served toggle | per-kind sums |
+| `RapSheetCTS.fng` | nine cost lines (quantity, unit price, cost) | pursuit history sums, [career-rapsheet.md](career-rapsheet.md) section 7 |
 | `RapSheetTEP.fng` | per-pursuit entries (top-5 table) and the "clean record" text | history `+0xa2c` |
 | `RapSheetPD.fng` | one pursuit's detail | |
 | `RapSheetRankings.fng`, `RapSheetRankingsDetail.fng` | section 5.3 | |
@@ -288,7 +289,7 @@ The UI glue functions are `0x0052ca00`, `0x0052cbc0`, `0x0052cf40`, `0x0052e750`
 
 1. Run-time value of the divisor `D` of `AwardPlayerBounty` (3.4) and what writes `0x008f5a4c`.
 2. Whether slot `+0x74` of the pursuit interface is really "busted" (2.2).
-3. Unit of `pursuit_length` (the `0.00025` factor, 5.3) and the meaning of the eight extra sums (5.2).
+3. (Answered in [career-rapsheet-2.md](career-rapsheet-2.md): ticks of 1/4000 s, and the eight extra sums, section 2.)
 4. The sender of the vtable method `0x00411070`; the player index is fixed to 0 there (co-op/split screen?).
 5. Which check produces `SB_GAME_OVER`; whether cash can ever block game over.
 6. Message kind `0x18` listeners: per-car or total bounty.
