@@ -3,10 +3,12 @@ pub(super) struct Irradiance {
     pub buffer: wgpu::Buffer,
     pipeline: Option<wgpu::ComputePipeline>,
     pub dirty: bool,
+    /// Used by the pipeline, which is built the first time the cube is projected.
+    cache: Option<wgpu::PipelineCache>,
 }
 
 impl Irradiance {
-    pub fn new(device: &wgpu::Device) -> Self {
+    pub fn new(device: &wgpu::Device, cache: Option<&wgpu::PipelineCache>) -> Self {
         Self {
             buffer: device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("sky and ground irradiance SH"),
@@ -16,6 +18,7 @@ impl Irradiance {
             }),
             pipeline: None,
             dirty: true,
+            cache: cache.cloned(),
         }
     }
 
@@ -40,7 +43,7 @@ impl Irradiance {
                 module: &shader,
                 entry_point: Some("project"),
                 compilation_options: Default::default(),
-                cache: None,
+                cache: self.cache.as_ref(),
             })
         });
         let inputs = device.create_bind_group(&wgpu::BindGroupDescriptor {

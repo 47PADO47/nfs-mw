@@ -19,6 +19,7 @@ mod meshes;
 mod output;
 #[cfg(test)]
 mod parity;
+mod pipeline_cache;
 mod pipelines;
 mod post;
 #[cfg(test)]
@@ -100,6 +101,14 @@ pub struct Renderer {
     redirects: std::collections::HashMap<usize, usize>,
     /// The colour pass's draws, bucketed by pipeline. Rebuilt by each scene pass; kept for its capacity.
     draw_list: draw_list::DrawList,
+    /// The driver's pipeline cache (Vulkan), which every pipeline built by this renderer takes.
+    pipeline_cache: Option<wgpu::PipelineCache>,
+    /// The file `pipeline_cache` is saved to, when `RendererOptions::pipeline_cache_dir` gave a directory.
+    pipeline_cache_path: Option<std::path::PathBuf>,
+    /// The adapter the device came from: the FSR 3 upscaler asks it which formats it can store.
+    adapter: wgpu::Adapter,
+    /// Frames drawn so far. The pipeline cache is saved once the first ones have built their pipelines.
+    frames: u32,
 }
 
 impl Renderer {
@@ -195,8 +204,9 @@ impl Renderer {
         self.targets.offscreen().is_none()
     }
 
-    /// The post-process passes that run each frame, in order, ending with the built-in `resolve`. They only
-    /// run while the scene is drawn offscreen ([`Self::draws_directly`] is false).
+    /// The post-process passes that run each frame, in order. The last one writes the output; the built-in
+    /// output copy that follows them is not listed. They only run while the scene is drawn offscreen
+    /// ([`Self::draws_directly`] is false).
     pub fn post_passes(&self) -> Vec<&'static str> {
         self.post.names()
     }

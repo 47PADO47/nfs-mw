@@ -53,7 +53,7 @@ impl EffectsRender {
     fn get_or_init(&mut self, device: &RenderDevice, format: wgpu::TextureFormat) -> &mut Inner {
         self.0.get_or_insert_with(|| {
             let bindings = WorldBindings::new(device.wgpu_device());
-            let effects = Effects::new(device.wgpu_device(), format, &bindings);
+            let effects = Effects::new(device.wgpu_device(), format, &bindings, None);
             Inner { bindings, effects, textured: HashMap::new() }
         })
     }

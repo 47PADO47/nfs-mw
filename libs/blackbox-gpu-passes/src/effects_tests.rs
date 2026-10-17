@@ -35,7 +35,7 @@ impl Bench {
     fn new(backend: wgpu::Backends) -> Self {
         let gpu = Gpu::new(backend);
         let bindings = WorldBindings::new(&gpu.device);
-        let effects = Effects::new(&gpu.device, wgpu::TextureFormat::Rgba8Unorm, &bindings);
+        let effects = Effects::new(&gpu.device, wgpu::TextureFormat::Rgba8Unorm, &bindings, None);
         Self { gpu, bindings, effects, textures: Vec::new() }
     }
 

@@ -62,13 +62,18 @@ pub(super) struct TreatmentPass {
 }
 
 impl TreatmentPass {
-    pub(super) fn new(device: &wgpu::Device, settings: &PostSettings, profile: &Profile) -> Self {
+    pub(super) fn new(
+        device: &wgpu::Device,
+        settings: &PostSettings,
+        profile: &Profile,
+        cache: Option<&wgpu::PipelineCache>,
+    ) -> Self {
         let mut params = Params::default();
         params.b[..3].copy_from_slice(&profile.settings.luminance);
         Self {
-            filter: Filter::new(device, "scene treatment blur", &filter_wgsl()),
+            filter: Filter::new(device, "scene treatment blur", &filter_wgsl()).with_pipeline_cache(cache.cloned()),
             params,
-            composite: Composite::new(device, settings, Some(&profile.settings)),
+            composite: Composite::new(device, settings, Some(&profile.settings), cache),
             gain: profile.gain.clone(),
             luma_format: profile.luma_format,
             targets: SizedPair::new(),

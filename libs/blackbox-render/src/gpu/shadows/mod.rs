@@ -92,8 +92,9 @@ impl Renderer {
             self.experiment_stats = stats;
             return;
         };
-        let shadows =
-            self.shadows.get_or_insert_with(|| Shadows::new(&self.device, &self.shared.bindings.texture_layout));
+        let shadows = self.shadows.get_or_insert_with(|| {
+            Shadows::new(&self.device, &self.shared.bindings.texture_layout, self.pipeline_cache.as_ref())
+        });
         let casters = self.shadow_casters.as_deref().unwrap_or(visible);
         stats.cascades = fit.count as u32;
         shadows.bounds.clear();

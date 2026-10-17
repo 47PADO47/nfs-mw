@@ -13,7 +13,12 @@ fn installed_upgraded_elise_nitrous_input_drives_both_visuals() {
     let size = (640, 360);
     let mut renderer = Renderer::headless(
         size,
-        RendererOptions { backend: blackbox_gfx::GraphicsApi::Vulkan, vsync: false, force_fallback_adapter: false },
+        RendererOptions {
+            backend: blackbox_gfx::GraphicsApi::Vulkan,
+            vsync: false,
+            force_fallback_adapter: false,
+            pipeline_cache_dir: None,
+        },
     )
     .unwrap();
     let mut scene = WorldScene::open(

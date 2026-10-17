@@ -41,10 +41,17 @@ pub(super) struct Composite {
     sampler: wgpu::Sampler,
     uniform: wgpu::Buffer,
     pipelines: HashMap<wgpu::TextureFormat, wgpu::RenderPipeline>,
+    /// Used by the pipeline built per output format.
+    cache: Option<wgpu::PipelineCache>,
 }
 
 impl Composite {
-    pub(super) fn new(device: &wgpu::Device, settings: &PostSettings, profile: Option<&ColourTreatment>) -> Self {
+    pub(super) fn new(
+        device: &wgpu::Device,
+        settings: &PostSettings,
+        profile: Option<&ColourTreatment>,
+        cache: Option<&wgpu::PipelineCache>,
+    ) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("colour treatment composite"),
             source: wgpu::ShaderSource::Wgsl(SOURCE.into()),
@@ -96,7 +103,7 @@ impl Composite {
             contents: bytemuck::bytes_of(&parameters(settings, profile)),
             usage: wgpu::BufferUsages::UNIFORM,
         });
-        Self { shader, layout, pipeline_layout, sampler, uniform, pipelines: HashMap::new() }
+        Self { shader, layout, pipeline_layout, sampler, uniform, pipelines: HashMap::new(), cache: cache.cloned() }
     }
 
     pub(super) fn draw(
@@ -145,7 +152,7 @@ impl Composite {
                     })],
                 }),
                 multiview_mask: None,
-                cache: None,
+                cache: self.cache.as_ref(),
             })
         });
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {

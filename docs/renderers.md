@@ -177,6 +177,26 @@ toggles skip values it cannot run: the Anti-Aliasing row of `blackbox` cycles `o
 back; only the *effective* value changes, and the rows show that (a stored `taa` reads as FXAA on
 `blackbox`). Changing a hidden row's value is not possible; picking a preset does rewrite the keys it sets.
 
+## The Vulkan pipeline cache
+
+The native renderer keeps the driver's compiled pipelines in a file, so the next start compiles fewer of them and
+the first use of an effect or a car shader hitches less (see [low-end.md](low-end.md), "Start-up and first use").
+
+- **Where:** per user, in `<local data dir>/nfsmw/cache/pipelines/`: `%LOCALAPPDATA%\nfsmw\data\cache\pipelines\`
+  on Windows, `~/.local/share/nfsmw/cache/pipelines/` on Linux. `BLACKBOX_PROFILE_DIR` moves it to
+  `<root>/nfsmw/cache/pipelines/`.
+- **Which file:** one per GPU, named `wgpu_pipeline_cache_vulkan_<vendor>_<device>`. The driver checks its own header
+  (driver version and UUID) and starts empty on a mismatch or a damaged file, so a stale file costs only the compile
+  time it would have saved.
+- **When it is written:** after the 300th frame, and when the renderer is dropped. The data goes to a `.tmp` file that
+  is renamed over the old one. A crash before the 300th frame keeps the previous file.
+- **Backends:** Vulkan only. Direct3D 12 and OpenGL have no such file (the driver keeps its own cache), so nothing is
+  read or written there.
+- **Safe to delete:** it is derived data and is rebuilt on the next start. Never ship it, copy it to another machine or
+  sync it (see [licensing.md](licensing.md)): it belongs to one GPU and one driver.
+- **For developers:** `RendererOptions::pipeline_cache_dir` names the directory. Tools and tests pass `None`, which
+  keeps no cache. `Renderer::save_pipeline_cache` saves on demand.
+
 ## Checking it
 
 ```sh

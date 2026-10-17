@@ -29,10 +29,10 @@ fn retained_focus_dx12() {
 fn check(backend: wgpu::Backends) {
     let _guard = crate::gpu::test_support::serial();
     let gpu = Gpu::new(backend);
-    let mut chain = PostChain::new(&gpu.device);
+    let mut chain = PostChain::new(&gpu.device, None);
     let mask = RgbaImage::new(1, 1, vec![255, 128, 128, 0]).unwrap();
     chain.set_focus_mask(&gpu.device, &gpu.queue, Some(&mask));
-    assert_eq!(chain.names(), ["screen mask", "resolve"]);
+    assert_eq!(chain.names(), ["screen mask"]);
     for size in [(64, 64), (13, 7), (1, 1)] {
         let body = "return vec4<f32>(0.6,0.4,0.2,1.0);";
         chain.set_focus_filter(&gpu.device, FocusFilter::default());
@@ -79,11 +79,11 @@ fn check(backend: wgpu::Backends) {
     assert_ne!(held, off, "green/blue contribution brightens the dark samples");
     assert!(held.iter().all(|p| near(*p, [64, 64, 64, 255], 1) || near(*p, [255; 4], 1)));
     chain.set_effects(&gpu.device, PostSettings { antialiasing: Antialiasing::Fxaa, ..Default::default() });
-    assert_eq!(chain.names(), ["fxaa", "screen mask", "resolve"]);
+    assert_eq!(chain.names(), ["fxaa", "screen mask"]);
     chain.set_effects(&gpu.device, PostSettings::default());
-    assert_eq!(chain.names(), ["screen mask", "resolve"]);
+    assert_eq!(chain.names(), ["screen mask"]);
     assert_eq!(held, gpu.run(&mut chain, (64, 64), stripes), "profile and uniforms survive settings changes");
     chain.set_focus_mask(&gpu.device, &gpu.queue, None);
-    assert_eq!(chain.names(), ["resolve"]);
+    assert!(chain.names().is_empty());
     assert_eq!(off, gpu.run(&mut chain, (64, 64), stripes), "scene-resource removal restores original rendering");
 }

@@ -43,7 +43,12 @@ pub(super) struct ReflectionCapture {
 }
 
 impl ReflectionCapture {
-    fn new(device: &wgpu::Device, layout: &wgpu::BindGroupLayout, size: u32) -> Self {
+    fn new(
+        device: &wgpu::Device,
+        layout: &wgpu::BindGroupLayout,
+        size: u32,
+        cache: Option<&wgpu::PipelineCache>,
+    ) -> Self {
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("local environment cube"),
             size: wgpu::Extent3d { width: size, height: size, depth_or_array_layers: 6 },
@@ -76,7 +81,8 @@ impl ReflectionCapture {
                 wgpu::TextureFormat::Rgba8Unorm,
                 (size, size),
             ))),
-            store: Filter::new(device, "environment cube store", &filter_source(REFLECTION_STORE_WGSL)),
+            store: Filter::new(device, "environment cube store", &filter_source(REFLECTION_STORE_WGSL))
+                .with_pipeline_cache(cache.cloned()),
         }
     }
 }
@@ -97,11 +103,10 @@ impl Renderer {
             output_height,
             blackbox_gfx::reflection::PLANAR_MAX,
         );
-        let mut capture = self
-            .reflections
-            .take()
-            .filter(|p| p.size == size)
-            .unwrap_or_else(|| ReflectionCapture::new(&self.device, &self.shared.bindings.globals_layout, size));
+        let mut capture = self.reflections.take().filter(|p| p.size == size).unwrap_or_else(|| {
+            let layout = &self.shared.bindings.globals_layout;
+            ReflectionCapture::new(&self.device, layout, size, self.pipeline_cache.as_ref())
+        });
         let mut encoder =
             self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("environment capture") });
         for face in 0..6 {

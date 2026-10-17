@@ -187,9 +187,9 @@ fn check(backend: wgpu::Backends) {
     let gpu = Gpu::new(backend);
     let hdr = wgpu::Color { r: 1.5, g: 0.5, b: 0.25, a: 0.3 };
 
-    // The resolve pass alone clamps HDR to the output range and forces opaque alpha.
-    let mut chain = PostChain::new(&gpu.device);
-    assert_eq!(chain.names(), ["resolve"]);
+    // With no pass the output copy alone clamps HDR to the output range and forces opaque alpha.
+    let mut chain = PostChain::new(&gpu.device, None);
+    assert!(chain.names().is_empty());
     let same = gpu.run(&mut chain, (4, 4), hdr, (4, 4));
     assert!(same.iter().all(|&p| near(p, [255, 128, 64, 255])), "{same:?}");
 
@@ -198,7 +198,7 @@ fn check(backend: wgpu::Backends) {
     assert_eq!(scaled.len(), 64);
     assert!(scaled.iter().all(|&p| near(p, [255, 128, 64, 255])), "{scaled:?}");
 
-    // Inserted passes run in order before the resolve pass, through the scratch images.
+    // Inserted passes run in order through the scratch images, and the last one writes the output itself.
     let log = Rc::new(RefCell::new(Vec::new()));
     let pass = |name, g| {
         Box::new(Constant { colour: wgpu::Color { r: 0.0, g, b: 0.0, a: 1.0 }, log: log.clone(), name })
@@ -206,12 +206,12 @@ fn check(backend: wgpu::Backends) {
     };
     chain.insert(0, pass("first", 0.25));
     chain.insert(99, pass("second", 0.5));
-    assert_eq!(chain.names(), ["first", "second", "resolve"]);
+    assert_eq!(chain.names(), ["first", "second"]);
     let chained = gpu.run(&mut chain, (4, 4), hdr, (4, 4));
     assert_eq!(*log.borrow(), ["first", "second"]);
     assert!(
         chained.iter().all(|&p| near(p, [0, 128, 0, 255])),
-        "the last inserted pass feeds the resolve: {chained:?}"
+        "the last inserted pass writes the output: {chained:?}"
     );
 }
 
@@ -261,11 +261,11 @@ fn a_temporal_upscaler_runs_first_and_the_effects_after_it_write_the_output_size
     let gpu = Gpu::new(wgpu::Backends::VULKAN);
     let seen = Rc::new(RefCell::new(Vec::new()));
     let pass = |name, extent| Box::new(Sizes { seen: seen.clone(), name, extent }) as Box<dyn PostPass>;
-    let mut chain = PostChain::new(&gpu.device);
+    let mut chain = PostChain::new(&gpu.device, None);
     chain.insert(0, pass("effect", super::Extent::Render));
     chain.set_temporal(Some(pass("upscale", super::Extent::Output)));
     assert!(chain.has_temporal() && chain.has_passes());
-    assert_eq!(chain.names(), ["upscale", "effect", "resolve"]);
+    assert_eq!(chain.names(), ["upscale", "effect"]);
 
     // With temporal data the upscaler reads the render-size scene and the effect works on the output size.
     gpu.run_with(&mut chain, (4, 4), wgpu::Color::BLACK, (8, 8), Some(&temporal_frame()));
@@ -278,5 +278,5 @@ fn a_temporal_upscaler_runs_first_and_the_effects_after_it_write_the_output_size
 
     chain.set_temporal(None);
     assert!(!chain.has_temporal());
-    assert_eq!(chain.names(), ["effect", "resolve"]);
+    assert_eq!(chain.names(), ["effect"]);
 }

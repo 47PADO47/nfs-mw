@@ -14,8 +14,8 @@ pub(super) struct RadialBlurPass {
 }
 
 impl RadialBlurPass {
-    fn new(device: &wgpu::Device) -> Self {
-        Self { blur: RadialBlur::new(device) }
+    fn new(device: &wgpu::Device, cache: Option<&wgpu::PipelineCache>) -> Self {
+        Self { blur: RadialBlur::new(device).with_pipeline_cache(cache.cloned()) }
     }
 }
 
@@ -47,6 +47,6 @@ impl PostChain {
         if self.has(NAME) {
             return;
         }
-        self.insert(self.effect_count, Box::new(RadialBlurPass::new(device)));
+        self.insert(self.effect_count, Box::new(RadialBlurPass::new(device, self.cache.as_ref())));
     }
 }

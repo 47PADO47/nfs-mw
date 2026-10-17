@@ -104,12 +104,12 @@ fn check(backend: wgpu::Backends) {
     let (dark, light) = (64u8, 191u8);
 
     // EASU alone: flat areas stay exactly flat, the edge stays monotonic and never overshoots.
-    let mut chain = PostChain::new(&gpu.device);
+    let mut chain = PostChain::new(&gpu.device, None);
     chain.insert(0, Box::new(Pattern(None)));
-    for pass in fsr1_passes(&gpu.device, &rcas, false) {
+    for pass in fsr1_passes(&gpu.device, &rcas, false, None) {
         chain.insert(usize::MAX, pass);
     }
-    assert_eq!(chain.names(), ["pattern", "fsr1-easu", "resolve"]);
+    assert_eq!(chain.names(), ["pattern", "fsr1-easu"]);
     let rows = upscale(&gpu, &mut chain);
     let first = &rows[0];
     assert!(rows.iter().all(|r| r == first), "a vertical edge looks the same on every row: {rows:?}");
@@ -120,12 +120,12 @@ fn check(backend: wgpu::Backends) {
 
     // With RCAS the edge is sharper: it overshoots the two levels, and the flat areas are untouched.
     rcas.set_stops(0.0);
-    let mut chain = PostChain::new(&gpu.device);
+    let mut chain = PostChain::new(&gpu.device, None);
     chain.insert(0, Box::new(Pattern(None)));
-    for pass in fsr1_passes(&gpu.device, &rcas, true) {
+    for pass in fsr1_passes(&gpu.device, &rcas, true, None) {
         chain.insert(usize::MAX, pass);
     }
-    assert_eq!(chain.names(), ["pattern", "fsr1-easu", "fsr1-rcas", "resolve"]);
+    assert_eq!(chain.names(), ["pattern", "fsr1-easu", "fsr1-rcas"]);
     let sharp = &upscale(&gpu, &mut chain)[0];
     assert!(near([sharp[0], 0, 0, 0], [dark, 0, 0, 0]) && near([sharp[15], 0, 0, 0], [light, 0, 0, 0]), "{sharp:?}");
     assert!(sharp[1..7].iter().any(|&v| v < dark) || sharp[9..15].iter().any(|&v| v > light), "{sharp:?}");

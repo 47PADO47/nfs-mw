@@ -3,7 +3,7 @@
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 use super::output::Output;
-use super::{Renderer, capture, instances, pipelines, post, resources, slots::Slots, targets};
+use super::{Renderer, capture, instances, pipeline_cache, pipelines, post, resources, slots::Slots, targets};
 use crate::caps::native_capabilities;
 use crate::{Backend, DEFAULT_RENDER_SCALE, PixelFormat, RenderError, RendererOptions, TextureDesc};
 use blackbox_gfx::{BackendInfo, GraphicsApi, GraphicsSettings};
@@ -40,7 +40,7 @@ where
     let instance = wgpu::Instance::new(desc);
     let surface = instance.create_surface(window).map_err(|e| RenderError::Surface(e.to_string()))?;
 
-    let adapter = request_adapter(&instance, Some(&surface), options)?;
+    let adapter = request_adapter(&instance, Some(&surface), &options)?;
     let (device, queue) = request_device(&adapter)?;
 
     let mut config = surface
@@ -54,23 +54,25 @@ where
     config.present_mode = if options.vsync { wgpu::PresentMode::AutoVsync } else { wgpu::PresentMode::AutoNoVsync };
     surface.configure(&device, &config);
 
-    Ok(assemble(Output::Window { surface, config }, &adapter, device, queue))
+    let cache = pipeline_cache::open(&device, &adapter.get_info(), options.pipeline_cache_dir.as_deref());
+    Ok(assemble(Output::Window { surface, config }, &adapter, device, queue, cache))
 }
 
 pub(super) fn create_headless(size: (u32, u32), options: RendererOptions) -> Result<Renderer, RenderError> {
     let mut desc = wgpu::InstanceDescriptor::new_without_display_handle();
     desc.backends = wgpu_backends(options.backend);
     let instance = wgpu::Instance::new(desc);
-    let adapter = request_adapter(&instance, None, options)?;
+    let adapter = request_adapter(&instance, None, &options)?;
     let (device, queue) = request_device(&adapter)?;
+    let cache = pipeline_cache::open(&device, &adapter.get_info(), options.pipeline_cache_dir.as_deref());
     let output = Output::texture(&device, size);
-    Ok(assemble(output, &adapter, device, queue))
+    Ok(assemble(output, &adapter, device, queue, cache))
 }
 
 fn request_adapter(
     instance: &wgpu::Instance,
     surface: Option<&wgpu::Surface<'_>>,
-    options: RendererOptions,
+    options: &RendererOptions,
 ) -> Result<wgpu::Adapter, RenderError> {
     pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
         power_preference: wgpu::PowerPreference::HighPerformance,
@@ -90,6 +92,11 @@ fn request_device(adapter: &wgpu::Adapter) -> Result<(wgpu::Device, wgpu::Queue)
     if adapter.features().contains(super::timing::FEATURES) {
         required_features |= super::timing::FEATURES;
     }
+    if adapter.features().contains(wgpu::Features::PIPELINE_CACHE) {
+        required_features |= wgpu::Features::PIPELINE_CACHE;
+    }
+    // The FSR 3 upscaler stores its 16-bit intermediates in 16-bit formats where the adapter allows it.
+    required_features |= adapter.features() & wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES;
     let mut limits = wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits());
     if adapter.get_downlevel_capabilities().flags.contains(wgpu::DownlevelFlags::COMPUTE_SHADERS) {
         // The compute limits the optional AO pass and the FSR 3 upscaler need, as far as the adapter has them.
@@ -144,8 +151,15 @@ fn supports_temporal(limits: &wgpu::Limits) -> bool {
 }
 
 /// Build the renderer around a ready device and output.
-fn assemble(output: Output, adapter: &wgpu::Adapter, device: wgpu::Device, queue: wgpu::Queue) -> Renderer {
+fn assemble(
+    output: Output,
+    adapter: &wgpu::Adapter,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    cache: Option<(wgpu::PipelineCache, std::path::PathBuf)>,
+) -> Renderer {
     let adapter_info = adapter.get_info();
+    let (pipeline_cache, pipeline_cache_path) = cache.unzip();
     let supports_bc = device.features().contains(wgpu::Features::TEXTURE_COMPRESSION_BC);
     let shared = resources::Shared::new(&device);
     // With nothing but the plain resolve in the chain the scene draws straight into the output, like
@@ -162,13 +176,13 @@ fn assemble(output: Output, adapter: &wgpu::Adapter, device: wgpu::Device, queue
         surface_format: format,
         hdr_format,
     });
-    let pipelines = pipelines::Pipelines::new(&device, plan.format, &shared);
+    let pipelines = pipelines::Pipelines::new(&device, plan.format, &shared, pipeline_cache.as_ref());
     let targets = targets::SceneTargets::new(&device, &plan);
-    let post = post::PostChain::new(&device);
+    let post = post::PostChain::new(&device, pipeline_cache.as_ref());
     let instances = instances::InstanceBuffer::new(&device);
-    let mut ui = super::ui::Ui::new(&device);
+    let mut ui = super::ui::Ui::new(&device, pipeline_cache.as_ref());
     ui.use_format(&device, format);
-    let effects = super::effects::Effects::new(&device, plan.format, &shared.bindings);
+    let effects = super::effects::Effects::new(&device, plan.format, &shared.bindings, pipeline_cache.as_ref());
 
     let api = api_of(adapter_info.backend);
     let info = BackendInfo {
@@ -225,6 +239,10 @@ fn assemble(output: Output, adapter: &wgpu::Adapter, device: wgpu::Device, queue
         ui,
         redirects: Default::default(),
         draw_list: Default::default(),
+        pipeline_cache,
+        pipeline_cache_path,
+        adapter: adapter.clone(),
+        frames: 0,
     };
     let white = [255u8; 4];
     renderer.create_texture(&TextureDesc {

@@ -25,6 +25,17 @@ pub fn log_dir(spec: &GameSpec) -> Option<PathBuf> {
     directories::ProjectDirs::from("", "", spec.app_dir).map(|d| d.data_local_dir().join("logs"))
 }
 
+/// Per-user cache folder for derived data that can be rebuilt, such as the GPU pipeline cache:
+/// `<local data dir>/<app_dir>/cache` (`%LOCALAPPDATA%\<app_dir>\data\cache` on Windows,
+/// `~/.local/share/<app_dir>/cache` on Linux). It is never shipped or synced. The folder may not exist yet.
+/// `BLACKBOX_PROFILE_DIR` overrides this with `<root>/<app_dir>/cache`.
+pub fn cache_dir(spec: &GameSpec) -> Option<PathBuf> {
+    if let Some(root) = std::env::var_os("BLACKBOX_PROFILE_DIR") {
+        return profile_dir(Path::new(&root), spec.app_dir, "cache");
+    }
+    directories::ProjectDirs::from("", "", spec.app_dir).map(|d| d.data_local_dir().join("cache"))
+}
+
 /// Reject a relative override instead of silently writing into the normal profile.
 fn profile_dir(root: &Path, app_dir: &str, subdir: &str) -> Option<PathBuf> {
     root.is_absolute().then(|| root.join(app_dir).join(subdir))
@@ -56,6 +67,8 @@ mod tests {
         let root = std::env::temp_dir().join("isolated-profile");
         let config = profile_dir(&root, "example-game", "config").unwrap().join("config.toml");
         let logs = profile_dir(&root, "example-game", "logs").unwrap();
+        let cache = profile_dir(&root, "example-game", "cache").unwrap();
+        assert_eq!(cache, root.join("example-game/cache"));
         assert_eq!(config, root.join("example-game/config/config.toml"));
         assert_eq!(logs, root.join("example-game/logs"));
         assert!(config.starts_with(&root));

@@ -44,10 +44,17 @@ pub struct Effects {
     detailed: bool,
     soft_distance: f32,
     textured: TexturedEffects,
+    /// Used by the pipelines built per format.
+    cache: Option<wgpu::PipelineCache>,
 }
 
 impl Effects {
-    pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat, bindings: &WorldBindings) -> Self {
+    pub fn new(
+        device: &wgpu::Device,
+        format: wgpu::TextureFormat,
+        bindings: &WorldBindings,
+        cache: Option<&wgpu::PipelineCache>,
+    ) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("world effects"),
             source: wgpu::ShaderSource::Wgsl(EFFECTS_WGSL.into()),
@@ -63,10 +70,11 @@ impl Effects {
             layout,
             pipelines: HashMap::new(),
             format,
-            soft: SoftParticles::new(device, format, bindings),
+            soft: SoftParticles::new(device, format, bindings, cache),
             detailed: false,
             soft_distance: DEFAULT_SOFT_DISTANCE,
-            textured: TexturedEffects::new(device, format, bindings),
+            textured: TexturedEffects::new(device, format, bindings, cache),
+            cache: cache.cloned(),
         };
         effects.use_format(device, format);
         effects
@@ -138,7 +146,7 @@ impl Effects {
                     })],
                 }),
                 multiview_mask: None,
-                cache: None,
+                cache: self.cache.as_ref(),
             })
         })
     }

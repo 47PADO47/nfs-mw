@@ -269,7 +269,7 @@ impl Gpu {
     }
 
     fn chain_with(&self, settings: PostSettings) -> PostChain {
-        let mut chain = PostChain::new(&self.device);
+        let mut chain = PostChain::new(&self.device, None);
         chain.set_effects(&self.device, settings);
         chain
     }
@@ -294,9 +294,9 @@ fn check(backend: wgpu::Backends) {
     let size = (64, 64);
     let flat = "return vec4<f32>(1.5, 0.5, 0.25, 0.3);";
 
-    // The default settings add no pass: only the resolve pass runs, and it clamps.
+    // The default settings add no pass: only the output copy runs, and it clamps.
     let mut chain = gpu.chain_with(PostSettings::default());
-    assert_eq!(chain.names(), ["resolve"]);
+    assert!(chain.names().is_empty());
     let plain = gpu.run(&mut chain, size, flat);
     assert!(plain.iter().all(|&p| near(p, [255, 128, 64, 255], 1)), "{:?}", plain[0]);
 
@@ -304,7 +304,7 @@ fn check(backend: wgpu::Backends) {
     for exposure in [1.0, 2.0, 0.5] {
         let settings = PostSettings { tonemap: Tonemap::Aces, exposure, ..PostSettings::default() };
         let mut chain = gpu.chain_with(settings);
-        assert_eq!(chain.names(), ["tonemap", "resolve"]);
+        assert_eq!(chain.names(), ["tonemap"]);
         let expected = [byte(aces(1.5 * exposure)), byte(aces(0.5 * exposure)), byte(aces(0.25 * exposure)), 255];
         let mapped = gpu.run(&mut chain, size, flat);
         assert!(mapped.iter().all(|&p| near(p, expected, 2)), "exposure {exposure}: {:?} vs {expected:?}", mapped[0]);
@@ -315,7 +315,7 @@ fn check(backend: wgpu::Backends) {
                   return select(vec4<f32>(0.0, 0.0, 0.0, 1.0), vec4<f32>(4.0, 4.0, 4.0, 1.0), on);";
     let settings = PostSettings { bloom_intensity: 1.0, ..PostSettings::default() };
     let mut chain = gpu.chain_with(settings);
-    assert_eq!(chain.names(), ["bloom", "resolve"]);
+    assert_eq!(chain.names(), ["bloom"]);
     let image = gpu.run(&mut chain, size, square);
     let at = |x: usize, y: usize| image[y * 64 + x];
     assert_eq!(at(32, 32)[0], 255, "the square stays white");
@@ -334,7 +334,7 @@ fn check(backend: wgpu::Backends) {
     let aliased = gpu.run(&mut gpu.chain_with(PostSettings::default()), size, slanted);
     let settings = PostSettings { antialiasing: Antialiasing::Fxaa, ..PostSettings::default() };
     let mut chain = gpu.chain_with(settings);
-    assert_eq!(chain.names(), ["fxaa", "resolve"]);
+    assert_eq!(chain.names(), ["fxaa"]);
     let smoothed = gpu.run(&mut chain, size, slanted);
     assert_eq!(grey_pixels(&aliased), 0, "the source has hard edges only");
     assert!(grey_pixels(&smoothed) >= 40, "FXAA smooths the edge: {}", grey_pixels(&smoothed));
@@ -351,14 +351,14 @@ fn check(backend: wgpu::Backends) {
         ..PostSettings::default()
     };
     let mut chain = gpu.chain_with(all);
-    assert_eq!(chain.names(), ["bloom", "tonemap", "fxaa", "resolve"]);
+    assert_eq!(chain.names(), ["bloom", "tonemap", "fxaa"]);
     chain.insert(0, Box::new(Marker));
-    assert_eq!(chain.names(), ["bloom", "tonemap", "fxaa", "marker", "resolve"]);
+    assert_eq!(chain.names(), ["bloom", "tonemap", "fxaa", "marker"]);
     let stacked = gpu.run(&mut chain, size, square);
     assert_eq!(stacked.len(), 64 * 64);
     assert!(chain.set_effects(&gpu.device, PostSettings { tonemap: Tonemap::Off, ..all }));
-    assert_eq!(chain.names(), ["bloom", "fxaa", "marker", "resolve"]);
+    assert_eq!(chain.names(), ["bloom", "fxaa", "marker"]);
     assert!(!chain.set_effects(&gpu.device, PostSettings { tonemap: Tonemap::Off, ..all }), "same settings, no change");
     assert!(chain.set_effects(&gpu.device, PostSettings::default()));
-    assert_eq!(chain.names(), ["marker", "resolve"]);
+    assert_eq!(chain.names(), ["marker"]);
 }

@@ -48,7 +48,7 @@ fn ao_gpu_timings() {
         usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
         mapped_at_creation: false,
     });
-    let mut ao = AmbientOcclusion::new(&device, (1, 1));
+    let mut ao = AmbientOcclusion::new(&device, (1, 1), None);
     for size in [(1920, 1080), (3840, 2160)] {
         let normals = crate::gpu::surface::targets::Targets::new(&device, size).normals;
         let (color, depth) = fixture(&device, &queue, size);

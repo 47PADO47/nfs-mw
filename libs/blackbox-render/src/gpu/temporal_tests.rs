@@ -35,13 +35,13 @@ fn renderer() -> Option<(std::sync::MutexGuard<'static, ()>, Renderer)> {
 #[ignore = "needs a GPU"]
 fn fsr3_is_offered_and_leads_the_chain_while_it_is_chosen() {
     let Some((_gpu, mut renderer)) = renderer() else { return };
-    assert_eq!(renderer.post_passes(), ["resolve"]);
+    assert!(renderer.post_passes().is_empty());
     assert!(renderer.draws_directly(), "the default build draws straight into the output");
 
     let resolved = renderer.apply_graphics(&fsr3(UpscaleQuality::Quality));
     assert!(resolved.is_exact(), "{:?}", resolved.downgrades);
     let scale = UpscaleQuality::Quality.render_scale();
-    assert_eq!(renderer.post_passes(), ["fsr3", "resolve"]);
+    assert_eq!(renderer.post_passes(), ["fsr3"]);
     assert!(!renderer.draws_directly() && renderer.is_hdr(), "FSR 3 takes the scene as HDR");
     assert_eq!(renderer.render_size(), scaled_size(SIZE, scale));
     assert_eq!(renderer.texture_lod_bias(), suggested_temporal_texture_lod_bias(scale));
@@ -50,7 +50,7 @@ fn fsr3_is_offered_and_leads_the_chain_while_it_is_chosen() {
     renderer.apply_graphics(&GraphicsSettings { upscaler: Upscaler::Fsr1, render_scale: 0.5, ..Default::default() });
     assert!(renderer.fsr1_active() && !renderer.post_passes().contains(&"fsr3"));
     renderer.apply_graphics(&GraphicsSettings::default());
-    assert_eq!(renderer.post_passes(), ["resolve"]);
+    assert!(renderer.post_passes().is_empty());
     assert!(renderer.draws_directly(), "choosing something else puts the default path back");
 }
 

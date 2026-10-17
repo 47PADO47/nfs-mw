@@ -60,6 +60,7 @@ fn native(size: [u32; 2]) -> Option<blackbox_render::Renderer> {
         backend: GraphicsApi::Vulkan,
         vsync: false,
         force_fallback_adapter: fallback(),
+        pipeline_cache_dir: None,
     };
     match blackbox_render::Renderer::headless((size[0], size[1]), options) {
         Ok(renderer) => Some(renderer),

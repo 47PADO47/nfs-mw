@@ -28,10 +28,17 @@ pub struct SoftParticles {
     layout: wgpu::BindGroupLayout,
     parameters: wgpu::Buffer,
     binding: Option<(wgpu::TextureView, wgpu::BindGroup)>,
+    /// Used by the pipeline built per format.
+    cache: Option<wgpu::PipelineCache>,
 }
 
 impl SoftParticles {
-    pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat, bindings: &WorldBindings) -> Self {
+    pub fn new(
+        device: &wgpu::Device,
+        format: wgpu::TextureFormat,
+        bindings: &WorldBindings,
+        cache: Option<&wgpu::PipelineCache>,
+    ) -> Self {
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("soft particle depth"),
             entries: &[
@@ -72,8 +79,16 @@ impl SoftParticles {
             label: Some("procedural soft particles"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shaders/soft_particles.wgsl").into()),
         });
-        let mut soft =
-            Self { shader, pipeline_layout, pipelines: HashMap::new(), format, layout, parameters, binding: None };
+        let mut soft = Self {
+            shader,
+            pipeline_layout,
+            pipelines: HashMap::new(),
+            format,
+            layout,
+            parameters,
+            binding: None,
+            cache: cache.cloned(),
+        };
         soft.use_format(device, format);
         soft
     }
@@ -112,7 +127,7 @@ impl SoftParticles {
                 })],
             }),
             multiview_mask: None,
-            cache: None,
+            cache: self.cache.as_ref(),
         });
         self.pipelines.insert(format, pipeline);
     }

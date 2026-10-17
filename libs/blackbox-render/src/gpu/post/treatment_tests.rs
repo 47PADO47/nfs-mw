@@ -47,7 +47,7 @@ fn scene_treatment_dx12() {
 fn check(backend: wgpu::Backends) {
     let _guard = crate::gpu::test_support::serial();
     let gpu = Gpu::new(backend);
-    let mut chain = PostChain::new(&gpu.device);
+    let mut chain = PostChain::new(&gpu.device, None);
     chain.set_treatment(
         &gpu.device,
         Some(treatment::Profile {
@@ -73,7 +73,7 @@ fn check(backend: wgpu::Backends) {
     // A missing profile bypasses grading, and gain-map orientation follows the original UV flip.
     chain.set_treatment(&gpu.device, None);
     chain.set_effects(&gpu.device, settings(true));
-    assert_eq!(chain.names(), ["resolve"], "missing profile adds no colour pass");
+    assert!(chain.names().is_empty(), "missing profile adds no colour pass");
     assert!(gpu.run(&mut chain, (16, 16), flat).iter().all(|&p| near(p, [153, 102, 51, 255], 1)));
     chain.set_effects(&gpu.device, PostSettings { tonemap: Tonemap::Aces, ..settings(true) });
     let hdr = gpu.run(&mut chain, (16, 16), "return vec4<f32>(1.5,1.5,1.5,1.0);");

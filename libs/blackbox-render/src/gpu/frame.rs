@@ -40,6 +40,7 @@ impl Renderer {
             // Nothing presents a headless frame, so let the device retire finished work itself.
             None => drop(self.device.poll(wgpu::PollType::Poll)),
         }
+        self.count_frame();
         Ok(true)
     }
 
@@ -211,7 +212,7 @@ impl Renderer {
             if reflection && matches!(shading, Shading::Glossy(_)) {
                 continue;
             }
-            let Some(pipeline) = self.pipelines.get(mode, shading) else { continue };
+            let Some(pipeline) = self.pipelines.get(mode, shading, prepared_depth) else { continue };
             pass.set_pipeline(pipeline);
             if !matches!(shading, Shading::Glossy(_)) {
                 pass.set_bind_group(2, &self.shared.shadows.fallback, &[]);

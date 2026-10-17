@@ -47,7 +47,7 @@ impl Fsr1Render {
     fn get_or_init(&mut self, device: &wgpu::Device, sharpen: bool) -> &mut Inner {
         let stale = !matches!(&self.inner, Some(inner) if inner.passes.len() == usize::from(sharpen) + 1);
         if stale {
-            self.inner = Some(Inner { passes: fsr1_passes(device, &self.rcas, sharpen), scratch: None });
+            self.inner = Some(Inner { passes: fsr1_passes(device, &self.rcas, sharpen, None), scratch: None });
         }
         self.inner.as_mut().expect("just set")
     }

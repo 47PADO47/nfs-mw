@@ -73,9 +73,9 @@ pub(super) struct Draw<'a> {
 }
 
 impl AmbientOcclusion {
-    pub(super) fn new(device: &wgpu::Device, size: (u32, u32)) -> Self {
+    pub(super) fn new(device: &wgpu::Device, size: (u32, u32), cache: Option<&wgpu::PipelineCache>) -> Self {
         Self {
-            pipelines: Pipelines::new(device),
+            pipelines: Pipelines::new(device, cache),
             params: device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("AO params"),
                 size: std::mem::size_of::<Params>() as u64,

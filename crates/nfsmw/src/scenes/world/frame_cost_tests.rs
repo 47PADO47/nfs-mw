@@ -38,7 +38,8 @@ fn world_frame_costs() {
 /// Sets up one run and times its measured frames. Returns the CPU ms of each timed frame, and the GPU ms of each
 /// frame the renderer reported (none when timestamps are unsupported).
 fn measure(dir: &GameDir, api: blackbox_gfx::GraphicsApi, at: [f32; 2], mirror_on: bool) -> (Vec<f32>, Vec<f32>) {
-    let options = RendererOptions { backend: api, vsync: false, force_fallback_adapter: false };
+    let options =
+        RendererOptions { backend: api, vsync: false, force_fallback_adapter: false, pipeline_cache_dir: None };
     let mut renderer = Renderer::headless(SIZE, options).unwrap();
     let mut world = WorldScene::open(
         dir,

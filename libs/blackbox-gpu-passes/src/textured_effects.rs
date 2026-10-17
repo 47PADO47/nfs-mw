@@ -17,10 +17,17 @@ pub struct TexturedEffects {
     format: wgpu::TextureFormat,
     batches: Vec<(Batch, TextureHandle, BlendMode)>,
     count: usize,
+    /// Used by the pipelines built per format.
+    cache: Option<wgpu::PipelineCache>,
 }
 
 impl TexturedEffects {
-    pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat, bindings: &WorldBindings) -> Self {
+    pub fn new(
+        device: &wgpu::Device,
+        format: wgpu::TextureFormat,
+        bindings: &WorldBindings,
+        cache: Option<&wgpu::PipelineCache>,
+    ) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("textured world effects"),
             source: wgpu::ShaderSource::Wgsl(crate::EFFECTS_WGSL.into()),
@@ -30,7 +37,15 @@ impl TexturedEffects {
             bind_group_layouts: &[Some(&bindings.globals_layout), Some(&bindings.texture_layout)],
             immediate_size: 0,
         });
-        let mut effects = Self { shader, layout, pipelines: HashMap::new(), format, batches: Vec::new(), count: 0 };
+        let mut effects = Self {
+            shader,
+            layout,
+            pipelines: HashMap::new(),
+            format,
+            batches: Vec::new(),
+            count: 0,
+            cache: cache.cloned(),
+        };
         effects.use_format(device, format);
         effects
     }
@@ -94,7 +109,7 @@ impl TexturedEffects {
                     })],
                 }),
                 multiview_mask: None,
-                cache: None,
+                cache: self.cache.as_ref(),
             })
         })
     }

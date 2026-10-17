@@ -97,7 +97,7 @@ impl Renderer {
             self.post.set_temporal(None);
             return;
         }
-        match Fsr3Pass::new(&self.device) {
+        match Fsr3Pass::new(&self.device, &self.adapter, self.pipeline_cache.as_ref()) {
             Ok(pass) => self.post.set_temporal(Some(Box::new(pass))),
             Err(error) => log::error!("fsr3: the upscaler could not be created, drawing without it: {error}"),
         }
@@ -118,7 +118,7 @@ impl Renderer {
         if !active {
             return;
         }
-        for pass in fsr1_passes(&self.device, &self.upscale.rcas, sharpen) {
+        for pass in fsr1_passes(&self.device, &self.upscale.rcas, sharpen, self.pipeline_cache.as_ref()) {
             self.post.insert(usize::MAX, pass);
         }
     }

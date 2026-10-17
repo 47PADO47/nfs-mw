@@ -19,7 +19,7 @@ mod spec;
 mod validate;
 mod vfs;
 
-pub use discover::{DiscoverError, Discovered, Source, config_file_path, discover, log_dir};
+pub use discover::{DiscoverError, Discovered, Source, cache_dir, config_file_path, discover, log_dir};
 pub use spec::{GameSpec, KnownBuild, RegistryValue};
 pub use validate::Validation;
 pub use vfs::{GameDir, LayerError, LayerInfo, OpenError, Provider};

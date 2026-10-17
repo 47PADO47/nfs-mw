@@ -59,6 +59,8 @@ pub struct Filter {
     pipelines: HashMap<(&'static str, wgpu::TextureFormat, Blend), wgpu::RenderPipeline>,
     /// Bind groups per pair of input views: the sampler and the parameter buffer never change.
     bind_groups: BindCache<wgpu::TextureView, wgpu::BindGroup>,
+    /// Used by the pipelines this filter builds when a draw first needs them.
+    cache: Option<wgpu::PipelineCache>,
 }
 
 fn texture_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
@@ -132,7 +134,14 @@ impl Filter {
             params,
             pipelines: HashMap::new(),
             bind_groups: BindCache::default(),
+            cache: None,
         }
+    }
+
+    /// Build this filter's pipelines with `cache` (a `wgpu::PipelineCache`). Without one they compile from scratch.
+    pub fn with_pipeline_cache(mut self, cache: Option<wgpu::PipelineCache>) -> Self {
+        self.cache = cache;
+        self
     }
 
     /// Upload the parameters every draw of this frame's encode reads. Queue writes land before the
@@ -162,10 +171,9 @@ impl Filter {
             Blend::Add => wgpu::LoadOp::Load,
         };
         let key = (draw.entry, draw.format, draw.blend);
-        let pipeline = self
-            .pipelines
-            .entry(key)
-            .or_insert_with(|| build_pipeline(device, self.label, &self.shader, &self.pipeline_layout, draw));
+        let pipeline = self.pipelines.entry(key).or_insert_with(|| {
+            build_pipeline(device, self.cache.as_ref(), self.label, &self.shader, &self.pipeline_layout, draw)
+        });
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some(draw.entry),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -188,6 +196,7 @@ impl Filter {
 /// The pipeline of one draw: the filter's shader, the draw's fragment entry point, format and blend.
 fn build_pipeline(
     device: &wgpu::Device,
+    cache: Option<&wgpu::PipelineCache>,
     label: &'static str,
     shader: &wgpu::ShaderModule,
     pipeline_layout: &wgpu::PipelineLayout,
@@ -227,6 +236,6 @@ fn build_pipeline(
             targets: &[Some(wgpu::ColorTargetState { format: draw.format, blend, write_mask: wgpu::ColorWrites::ALL })],
         }),
         multiview_mask: None,
-        cache: None,
+        cache,
     })
 }

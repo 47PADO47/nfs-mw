@@ -31,7 +31,7 @@ pub fn ui_pass(
     let Some(size) = camera.physical_target_size else { return };
     let format = target.out_texture_view_format().unwrap_or_else(|| target.main_texture_format());
 
-    let pass = render.0.get_or_insert_with(|| UiPass::new(device.wgpu_device()));
+    let pass = render.0.get_or_insert_with(|| UiPass::new(device.wgpu_device(), None));
 
     let (ops, layer) = {
         let mut shared = bridge.lock();

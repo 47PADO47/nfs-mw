@@ -30,7 +30,7 @@ pub(super) struct Contact {
 }
 
 impl Contact {
-    fn new(device: &wgpu::Device, size: (u32, u32)) -> Self {
+    fn new(device: &wgpu::Device, size: (u32, u32), cache: Option<&wgpu::PipelineCache>) -> Self {
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("contact inputs"),
             entries: &[
@@ -104,7 +104,7 @@ impl Contact {
                 })],
             }),
             multiview_mask: None,
-            cache: None,
+            cache,
         });
         Self { buffer, layout, pipeline, mask: super::surface::mask(device, size, "contact visibility"), size }
     }
@@ -166,7 +166,8 @@ impl Renderer {
             return;
         }
         let view_proj = self.world_to_clip(frame);
-        let mut contact = self.contact.take().unwrap_or_else(|| Contact::new(&self.device, size));
+        let mut contact =
+            self.contact.take().unwrap_or_else(|| Contact::new(&self.device, size, self.pipeline_cache.as_ref()));
         if contact.size() != size {
             contact.mask = super::surface::mask(&self.device, size, "contact visibility");
             contact.size = size;

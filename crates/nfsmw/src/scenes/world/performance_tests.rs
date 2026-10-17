@@ -21,9 +21,11 @@ fn world_gpu_timings() {
     let max_quality = std::env::var("NFSMW_PERF_MAX").as_deref() == Ok("1");
     let size = (3840, 2160);
     for (name, at) in [("hill", [556.0, 1802.0]), ("city", [2150.0, 1399.0])] {
-        let mut renderer =
-            Renderer::headless(size, RendererOptions { backend: api, vsync: false, force_fallback_adapter: false })
-                .unwrap();
+        let mut renderer = Renderer::headless(
+            size,
+            RendererOptions { backend: api, vsync: false, force_fallback_adapter: false, pipeline_cache_dir: None },
+        )
+        .unwrap();
         let mut graphics = *renderer.graphics();
         graphics.reflections = ReflectionQuality::Medium;
         graphics.post.antialiasing = Antialiasing::Smaa;

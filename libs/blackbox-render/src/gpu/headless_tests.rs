@@ -3,7 +3,7 @@
 use glam::{Mat4, Vec3};
 
 use super::test_support;
-use crate::{FrameParams, Renderer};
+use crate::{FrameParams, Renderer, RendererOptions};
 use blackbox_gfx::Projection;
 use blackbox_gfx::{FrameStatus, RenderBackend};
 
@@ -84,4 +84,34 @@ fn the_trait_reports_the_adapter_and_status() {
     let status = backend.render(&clear_frame([0.0; 3]), &[]).unwrap();
     assert_eq!(status, FrameStatus::Presented);
     let _: &Renderer = &renderer;
+}
+
+#[test]
+#[ignore = "needs a GPU"]
+fn the_vulkan_pipeline_cache_is_saved_and_read_back() {
+    let _gpu = test_support::serial();
+    let dir = std::env::temp_dir().join(format!("blackbox-pipeline-cache-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let with_dir =
+        |dir: &std::path::Path| RendererOptions { pipeline_cache_dir: Some(dir.to_owned()), ..test_support::options() };
+    let mut renderer = match Renderer::headless((64, 36), with_dir(dir.as_path())) {
+        Ok(renderer) => renderer,
+        Err(e) => return eprintln!("skipping: {e}"),
+    };
+    renderer.render(&clear_frame([0.2, 0.4, 0.6]), &[]).unwrap();
+    if renderer.adapter_info.backend != wgpu::Backend::Vulkan || renderer.pipeline_cache.is_none() {
+        return eprintln!("skipping: this adapter has no Vulkan pipeline cache");
+    }
+
+    renderer.save_pipeline_cache();
+    let path = renderer.pipeline_cache_path.clone().expect("a cache has a file");
+    let size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+    assert!(size > 0, "the pipeline cache is saved to {}", path.display());
+    drop(renderer);
+
+    // A second renderer reads the saved file back without error.
+    let second = Renderer::headless((64, 36), with_dir(dir.as_path())).expect("a second renderer on the same adapter");
+    assert!(second.pipeline_cache.is_some());
+    drop(second);
+    let _ = std::fs::remove_dir_all(&dir);
 }

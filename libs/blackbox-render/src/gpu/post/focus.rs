@@ -14,9 +14,9 @@ pub(super) struct FocusPass {
 }
 
 impl FocusPass {
-    fn new(device: &wgpu::Device, queue: &wgpu::Queue, mask: &RgbaImage) -> Self {
+    fn new(device: &wgpu::Device, queue: &wgpu::Queue, mask: &RgbaImage, cache: Option<&wgpu::PipelineCache>) -> Self {
         Self {
-            filter: Filter::new(device, "screen mask", &source()),
+            filter: Filter::new(device, "screen mask", &source()).with_pipeline_cache(cache.cloned()),
             mask: super::treatment::gain_texture(device, queue, Some(mask)),
             params: Params::default(),
         }
@@ -64,7 +64,7 @@ impl PostChain {
         if let Some(mask) = mask {
             // After the radial blur when that is in the chain, so the mask adds to the blurred frame.
             let index = self.effect_count + usize::from(self.has(super::radial_blur::NAME));
-            self.insert(index, Box::new(FocusPass::new(device, queue, mask)));
+            self.insert(index, Box::new(FocusPass::new(device, queue, mask, self.cache.as_ref())));
         }
     }
 

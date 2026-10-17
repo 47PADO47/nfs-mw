@@ -38,7 +38,7 @@ fn check(backend: wgpu::Backends) {
         surface_diffuse: [0.0; 4],
     };
     queue.write_buffer(&shared.globals, 0, bytemuck::bytes_of(&globals));
-    let mut soft = SoftParticles::new(&device, wgpu::TextureFormat::Rgba8Unorm, &shared);
+    let mut soft = SoftParticles::new(&device, wgpu::TextureFormat::Rgba8Unorm, &shared, None);
     let mut vertices = Vec::new();
     EffectLayer::particle_quad(
         &mut vertices,

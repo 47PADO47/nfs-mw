@@ -40,12 +40,17 @@ struct UiTexture {
     size: [u32; 2],
 }
 
+/// One draw: the texture, the scissor `(x, y, width, height)` in pixels, the indices and the base vertex.
+type Draw = (UiTextureId, (u32, u32, u32, u32), std::ops::Range<u32>, i32);
+
 /// Draws [`UiLayer`]s: textured, clipped, premultiplied-alpha triangles in points.
 ///
 /// Typical use from any render loop:
 /// 1. [`Self::update_texture`] / [`Self::free_texture`] as the UI's textures change;
 /// 2. [`Self::set_layer`] with the layer to draw;
 /// 3. [`Self::encode`] once per frame, after everything else has been drawn into the target.
+///
+/// The vertices and indices are uploaded only when the layer differs from the one already on the GPU.
 pub struct UiPass {
     shader: wgpu::ShaderModule,
     pipeline_layout: wgpu::PipelineLayout,
@@ -59,6 +64,15 @@ pub struct UiPass {
     vertices: wgpu::Buffer,
     indices: wgpu::Buffer,
     layer: UiLayer,
+    /// The vertex and index buffers do not hold the current `layer` yet.
+    stale: bool,
+    /// Reused by every upload, so a steady layer allocates nothing.
+    vertex_staging: Vec<UiVertex>,
+    index_staging: Vec<u32>,
+    /// Reused by every encode.
+    draws: Vec<Draw>,
+    /// Used by the pipelines built per format.
+    cache: Option<wgpu::PipelineCache>,
 }
 
 fn buffer(device: &wgpu::Device, usage: wgpu::BufferUsages, bytes: u64) -> wgpu::Buffer {
@@ -73,7 +87,7 @@ fn buffer(device: &wgpu::Device, usage: wgpu::BufferUsages, bytes: u64) -> wgpu:
 impl UiPass {
     /// A pass with no pipelines yet: they are built per target format by [`Self::use_format`] or the
     /// first [`Self::encode`] into that format.
-    pub fn new(device: &wgpu::Device) -> Self {
+    pub fn new(device: &wgpu::Device, cache: Option<&wgpu::PipelineCache>) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("ui shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shaders/ui.wgsl").into()),
@@ -126,6 +140,11 @@ impl UiPass {
             vertices: buffer(device, wgpu::BufferUsages::VERTEX, 0),
             indices: buffer(device, wgpu::BufferUsages::INDEX, 0),
             layer: UiLayer::default(),
+            stale: false,
+            vertex_staging: Vec::new(),
+            index_staging: Vec::new(),
+            draws: Vec::new(),
+            cache: cache.cloned(),
         }
     }
 
@@ -162,7 +181,7 @@ impl UiPass {
                 })],
             }),
             multiview_mask: None,
-            cache: None,
+            cache: self.cache.as_ref(),
         });
         self.pipelines.insert(format, pipeline);
     }
@@ -234,8 +253,13 @@ impl UiPass {
     }
 
     /// The UI to draw on every following [`Self::encode`], until replaced. An empty layer draws nothing.
+    /// A layer equal to the current one changes nothing, so the next encode does not upload it again.
     pub fn set_layer(&mut self, layer: UiLayer) {
+        if layer == self.layer {
+            return;
+        }
         self.layer = layer;
+        self.stale = true;
     }
 
     /// Draw the layer into `target` (an image of `format`, `size` pixels) on top of what is already there.
@@ -260,25 +284,17 @@ impl UiPass {
         let index_bytes = (index_count * 4) as u64;
         if vertex_bytes > self.vertices.size() {
             self.vertices = buffer(device, wgpu::BufferUsages::VERTEX, vertex_bytes);
+            self.stale = true;
         }
         if index_bytes > self.indices.size() {
             self.indices = buffer(device, wgpu::BufferUsages::INDEX, index_bytes);
+            self.stale = true;
         }
-        let (mut vertices, mut indices) = (Vec::with_capacity(vertex_count), Vec::with_capacity(index_count));
-        let mut draws = Vec::with_capacity(self.layer.meshes.len());
-        for mesh in &self.layer.meshes {
-            let Some(rect) = scissor(mesh.clip, ppp, size) else { continue };
-            draws.push((
-                mesh.texture,
-                rect,
-                indices.len() as u32..(indices.len() + mesh.indices.len()) as u32,
-                vertices.len() as i32,
-            ));
-            vertices.extend_from_slice(&mesh.vertices);
-            indices.extend_from_slice(&mesh.indices);
+        if self.stale {
+            self.upload(queue);
+            self.stale = false;
         }
-        queue.write_buffer(&self.vertices, 0, bytemuck::cast_slice(&vertices));
-        queue.write_buffer(&self.indices, 0, bytemuck::cast_slice(&indices));
+        self.collect_draws(ppp, size);
         let screen = [size.0 as f32 / ppp, size.1 as f32 / ppp, 0.0, 0.0];
         queue.write_buffer(&self.globals, 0, bytemuck::cast_slice(&screen));
 
@@ -299,11 +315,39 @@ impl UiPass {
         pass.set_bind_group(0, &self.globals_bind_group, &[]);
         pass.set_vertex_buffer(0, self.vertices.slice(..));
         pass.set_index_buffer(self.indices.slice(..), wgpu::IndexFormat::Uint32);
-        for (texture, (x, y, w, h), range, base_vertex) in draws {
+        for (texture, (x, y, w, h), range, base_vertex) in &self.draws {
             let Some(t) = self.textures.get(&texture.raw()) else { continue };
-            pass.set_scissor_rect(x, y, w, h);
+            pass.set_scissor_rect(*x, *y, *w, *h);
             pass.set_bind_group(1, &t.bind_group, &[]);
-            pass.draw_indexed(range, base_vertex, 0..1);
+            pass.draw_indexed(range.clone(), *base_vertex, 0..1);
+        }
+    }
+
+    /// Copy every mesh of the layer, in order, into the vertex and index buffers.
+    fn upload(&mut self, queue: &wgpu::Queue) {
+        self.vertex_staging.clear();
+        self.index_staging.clear();
+        for mesh in &self.layer.meshes {
+            self.vertex_staging.extend_from_slice(&mesh.vertices);
+            self.index_staging.extend_from_slice(&mesh.indices);
+        }
+        queue.write_buffer(&self.vertices, 0, bytemuck::cast_slice(&self.vertex_staging));
+        queue.write_buffer(&self.indices, 0, bytemuck::cast_slice(&self.index_staging));
+    }
+
+    /// The draws for a target of `size` pixels: every mesh with a clip that is left on the target, with its
+    /// indices and base vertex in the buffers. The buffers hold all the meshes, in layer order, so they do not
+    /// depend on the target and need no upload when only the size changes.
+    fn collect_draws(&mut self, ppp: f32, size: (u32, u32)) {
+        self.draws.clear();
+        let (mut first_vertex, mut first_index) = (0usize, 0usize);
+        for mesh in &self.layer.meshes {
+            let indices = first_index as u32..(first_index + mesh.indices.len()) as u32;
+            let base_vertex = first_vertex as i32;
+            first_vertex += mesh.vertices.len();
+            first_index += mesh.indices.len();
+            let Some(rect) = scissor(mesh.clip, ppp, size) else { continue };
+            self.draws.push((mesh.texture, rect, indices, base_vertex));
         }
     }
 }
