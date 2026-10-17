@@ -111,6 +111,9 @@ fn press_at(fe: &mut Frontend, point: Vec2, bindings: &Bindings, device: InputDe
     if fe.screens.focus_button_at(point) {
         return Press::Accept;
     }
+    if fe.screens.release_at(point, super::ids::MOUSE_LEFT_RELEASED) {
+        return Press::Nothing;
+    }
     Press::Nothing
 }
 
