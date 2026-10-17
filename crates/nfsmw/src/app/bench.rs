@@ -78,6 +78,9 @@ pub struct Bench {
     measuring_since: Option<Instant>,
     last: Instant,
     times: Vec<f64>,
+    /// Every frame since the bench started, warm-up included: (ms since start, frame ms). Written out when
+    /// `NFSMW_BENCH_SERIES` names a file, for finding hitches the percentiles hide.
+    series: Vec<(f64, f64)>,
     cpu_start: Option<f64>,
 }
 
@@ -91,6 +94,7 @@ impl Bench {
             measuring_since: None,
             last: now,
             times: Vec::new(),
+            series: Vec::new(),
             cpu_start: None,
         }
     }
@@ -100,6 +104,7 @@ impl Bench {
         let now = Instant::now();
         let dt = now - self.last;
         self.last = now;
+        self.series.push(((now - self.created).as_secs_f64() * 1000.0, dt.as_secs_f64() * 1000.0));
         if scene_ready || now - self.created > READY_TIMEOUT {
             self.ready_at.get_or_insert(now);
         }
@@ -121,6 +126,12 @@ impl Bench {
             self.cpu_start.zip(cpu_seconds()).map(|(a, b)| (b - a) * 1000.0 / self.times.len() as f64);
         report.rss_mib = status_mib("VmRSS:");
         report.peak_rss_mib = status_mib("VmHWM:");
+        if let Ok(path) = std::env::var("NFSMW_BENCH_SERIES") {
+            let csv: String = self.series.iter().map(|(t, dt)| format!("{t:.3},{dt:.3}\n")).collect();
+            if let Err(e) = std::fs::write(&path, format!("ms_since_start,frame_ms\n{csv}")) {
+                log::warn!("bench: cannot write {path}: {e}");
+            }
+        }
         Some(report)
     }
 }
