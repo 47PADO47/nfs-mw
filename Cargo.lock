@@ -1643,6 +1643,7 @@ dependencies = [
  "bytemuck",
  "fsr3-wgpu",
  "glam 0.34.1",
+ "half",
  "log",
  "naga",
  "pollster",

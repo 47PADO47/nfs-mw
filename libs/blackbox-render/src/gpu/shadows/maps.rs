@@ -4,6 +4,7 @@ use wgpu::util::DeviceExt;
 
 pub(in crate::gpu) struct Maps {
     pub resolution: u32,
+    pub layer_count: u32,
     pub buffer: wgpu::Buffer,
     pub view: wgpu::TextureView,
     pub layers: Vec<wgpu::TextureView>,
@@ -19,6 +20,7 @@ impl Maps {
         device: &wgpu::Device,
         layout: &wgpu::BindGroupLayout,
         resolution: u32,
+        layer_count: u32,
         contact: Option<wgpu::TextureView>,
         ambient: Option<wgpu::TextureView>,
     ) -> Self {
@@ -39,7 +41,7 @@ impl Maps {
         let ambient = ambient.unwrap_or_else(|| crate::gpu::surface::mask(device, (1, 1), "disabled ambient mask"));
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("prototype shadow atlas"),
-            size: wgpu::Extent3d { width: resolution, height: resolution, depth_or_array_layers: 4 },
+            size: wgpu::Extent3d { width: resolution, height: resolution, depth_or_array_layers: layer_count },
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
@@ -51,7 +53,7 @@ impl Maps {
             dimension: Some(wgpu::TextureViewDimension::D2Array),
             ..Default::default()
         });
-        let layers = (0..4)
+        let layers = (0..layer_count)
             .map(|i| {
                 texture.create_view(&wgpu::TextureViewDescriptor {
                     dimension: Some(wgpu::TextureViewDimension::D2),
@@ -79,7 +81,7 @@ impl Maps {
             usage: wgpu::BufferUsages::UNIFORM,
         });
         let fallback = group(device, layout, &dummy, &buffer, &view, &sampler, (&contact, &ambient));
-        Self { resolution, buffer, view, layers, sampler, fallback, contact, ambient, dummy }
+        Self { resolution, layer_count, buffer, view, layers, sampler, fallback, contact, ambient, dummy }
     }
 
     pub(in crate::gpu) fn material_group(

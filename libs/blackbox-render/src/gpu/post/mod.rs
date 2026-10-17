@@ -12,6 +12,11 @@
 //! other passes ([`PostChain::set_temporal`]) and skipped for a frame that has no temporal data.
 
 mod bloom;
+pub(in crate::gpu) mod display;
+#[cfg(test)]
+mod display_tests;
+#[cfg(test)]
+mod display_vectors;
 #[cfg(test)]
 mod effect_tests;
 mod effects;
@@ -75,6 +80,7 @@ pub(super) struct PassIo<'a> {
 pub(super) trait PostPass {
     fn name(&self) -> &'static str;
     fn set_focus(&mut self, _settings: blackbox_gfx::FocusFilter) {}
+    fn set_display(&mut self, _mapping: Option<display::Mapping>) {}
 
     /// The size of the image this pass writes when it is not the last one.
     fn extent(&self) -> Extent {
@@ -82,6 +88,9 @@ pub(super) trait PostPass {
     }
 
     fn encode(&mut self, ctx: &PassContext<'_>, io: &PassIo<'_>, encoder: &mut wgpu::CommandEncoder);
+    fn encode_diagnostic(&mut self, ctx: &PassContext<'_>, io: &PassIo<'_>, encoder: &mut wgpu::CommandEncoder) {
+        self.encode(ctx, io, encoder);
+    }
 }
 
 /// A ping-pong image between two passes.
@@ -112,7 +121,8 @@ impl Scratch {
 }
 
 pub(super) struct PostChain {
-    /// The post effects and the other passes, in order. The output copy is not one of them.
+    /// The post effects and the other passes, in order. The output copy is not one of them. The final
+    /// display pass (see `display.rs`), when there is one, is the last of them.
     passes: Vec<Box<dyn PostPass>>,
     /// The copy to the output, run after `passes` only when the last pass cannot write the output itself.
     resolve: resolve::Resolve,
@@ -126,6 +136,8 @@ pub(super) struct PostChain {
     profile: Option<treatment::Profile>,
     /// Used by the effect passes built when the settings or the profile change.
     cache: Option<wgpu::PipelineCache>,
+    /// The display mapping (HDR output or SDR preview) the chain was given, if any. See `display.rs`.
+    pub(in crate::gpu) display: Option<display::Mapping>,
 }
 
 impl PostChain {
@@ -133,6 +145,7 @@ impl PostChain {
         Self {
             passes: Vec::new(),
             resolve: resolve::Resolve::new(device, cache),
+            display: None,
             temporal: None,
             scratch: [SizedPair::new(), SizedPair::new()],
             effect_count: 0,
@@ -142,13 +155,16 @@ impl PostChain {
         }
     }
 
-    /// Insert `pass` so it runs at `index` among the passes (0 = first). Past-the-end indices put it
-    /// at the end. The post effects stay in front of every inserted pass, and a pass that writes the
-    /// output size ignores the index and goes last, so it follows every render-size pass.
-    pub(super) fn insert(&mut self, index: usize, pass: Box<dyn PostPass>) {
+    /// Insert `pass` so it runs at `index` among the passes (0 = first). Past-the-end indices put it at the
+    /// end, or right before the display pass when there is one, which always stays last. The post effects
+    /// stay in front of every inserted pass, and a pass that writes the output size ignores the index and
+    /// goes last (before the display pass), so it follows every render-size pass.
+    pub(super) fn insert(&mut self, index: usize, mut pass: Box<dyn PostPass>) {
+        pass.set_display(self.display);
         let extents: Vec<Extent> = self.passes.iter().map(|p| p.extent()).collect();
         let index = plan::insert_index(&extents, index.max(self.effect_count), pass.extent());
-        self.passes.insert(index, pass);
+        let last_scene = self.passes.iter().position(|p| p.name() == "hdr-display").unwrap_or(self.passes.len());
+        self.passes.insert(index.min(last_scene), pass);
     }
 
     /// Whether a pass named `name` is in the chain.
@@ -209,6 +225,10 @@ impl PostChain {
             output_format: output.1,
             output_size: ctx.output_size,
         };
+        if let Some(pass) = self.passes.iter_mut().find(|p| p.name() == "hdr-display") {
+            pass.encode_diagnostic(ctx, &io, encoder);
+            return;
+        }
         self.resolve.encode(ctx, &io, encoder);
     }
 

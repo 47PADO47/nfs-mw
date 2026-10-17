@@ -34,6 +34,14 @@ impl WorldScene {
             &mut self.rear_visible,
         );
         self.residency.props().fragment_instances(&mut self.rear_visible);
+        if self.original_sky {
+            self.residency.sky.place(
+                &self.residency.shared,
+                &mut self.rear_visible,
+                lens.position,
+                super::sky::View::Mirror,
+            );
+        }
         if let Some(traffic) = &self.traffic {
             traffic.instances(&mut self.rear_visible);
         }

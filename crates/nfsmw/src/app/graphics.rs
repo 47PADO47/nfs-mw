@@ -22,6 +22,7 @@ impl Applied {
     /// Give the renderer the graphics settings. A request it already has is not sent again. Returns whether it
     /// was sent. The renderer also sharpens the world's textures to match a lower resolution.
     pub fn apply(&mut self, renderer: &mut dyn RenderBackend, settings: &Settings) -> bool {
+        renderer.set_display_settings(settings.appearance.display.request());
         self.apply_with(settings.graphics(), |request| renderer.apply_graphics(request))
     }
 

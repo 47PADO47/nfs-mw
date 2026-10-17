@@ -30,7 +30,9 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
             .chain([
                 row(Setting::Vsync, Title::Label(0x6CEB_9CB6)),
                 row(Setting::MaxFps, Title::Text("Frame Limit")),
-                row(Setting::Graphics(GraphicsSetting::Preset), GraphicsSetting::Preset.title()),
+                row(Setting::Graphics(GraphicsSetting::Style), GraphicsSetting::Style.title()),
+                row(Setting::Graphics(GraphicsSetting::Quality), GraphicsSetting::Quality.title()),
+                row(Setting::AdvancedGraphics, Title::Text("Advanced Graphics")),
                 row(Setting::RenderScale, Title::Text("Render Scale")),
                 row(Setting::Upscaler, Title::Text("Upscaler")),
             ])
@@ -42,7 +44,16 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
             .chain(
                 GraphicsSetting::ALL
                     .into_iter()
-                    .filter(|setting| *setting != GraphicsSetting::Preset && setting.shown(caps))
+                    .filter(|setting| {
+                        !matches!(
+                            setting,
+                            GraphicsSetting::Preset
+                                | GraphicsSetting::Style
+                                | GraphicsSetting::Quality
+                                | GraphicsSetting::AoIntensity
+                                | GraphicsSetting::AoComparison
+                        ) && setting.shown(caps)
+                    })
                     .map(|setting| row(Setting::Graphics(setting), setting.title())),
             )
             .chain([

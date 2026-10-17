@@ -9,6 +9,11 @@ use blackbox_solid::Solid;
 use glam::Mat4;
 use nfsmw_data::world::{PropCatalog, PropShape, SectionData};
 use std::sync::Arc;
+mod reflections;
+mod shadow_policy;
+pub(super) use reflections::{ReflectionPlaced, place_reflections};
+#[cfg(test)]
+mod mesh_lifetime_tests;
 
 /// One placed scenery object: up to four LOD meshes, chosen per frame
 /// (`docs/specs/scenery-lod.md`).
@@ -31,6 +36,8 @@ pub struct Placed {
     pub key: InstanceKey,
     /// Authored shadow-only scenery, identified in this game's asset names.
     pub original_shadow: bool,
+    /// Physical sun occluder; independent of background colour placement.
+    pub casts_sun_shadow: bool,
     /// Original physics pose and stable identity, when this instance has a spawner.
     pub spawner: Option<blackbox_scenery::ObjectSpawner>,
     pub parts: Option<Arc<super::props::scenery::ModelParts>>,
@@ -56,6 +63,7 @@ impl Placed {
             prop_id: 0,
             key: InstanceKey::TRANSIENT,
             original_shadow: false,
+            casts_sun_shadow: true,
             spawner: None,
             parts: None,
             curve_lamp: None,
@@ -67,6 +75,11 @@ impl Placed {
 /// Textures and meshes of a section, by name hash.
 #[derive(Default)]
 pub struct SectionResources {
+    /// Authored road-view placements; never mixed into the player or shadow feed.
+    pub(super) reflection_placed: Vec<ReflectionPlaced>,
+    pub(super) normal_materials:
+        HashMap<(blackbox_gfx::NormalModel, [TextureHandle; 3]), blackbox_gfx::NormalMaterialHandle>,
+    pub(super) window_materials: HashMap<[TextureHandle; 2], blackbox_gfx::WindowMaterialHandle>,
     pub materials: HashMap<u32, (TextureHandle, BlendMode)>,
     pub meshes: HashMap<u32, (MeshHandle, LodModel, bool)>,
     /// Animated textures defined here; frames may live here or in the shared sets.
@@ -124,17 +137,30 @@ impl SectionResources {
             if is_tunnel_shadow(&solid.name) {
                 continue;
             }
+            let mut normal_materials =
+                super::materials::normal_materials(renderer, solid, &lookup, &mut self.normal_materials);
+            let windows = super::materials::window_materials(renderer, solid, &lookup, &mut self.window_materials);
+            for (material, window) in normal_materials.iter_mut().zip(windows) {
+                if window.is_some() {
+                    *material = window;
+                }
+            }
+            let materials = super::materials::Lookup(&lookup, solid.name.starts_with("SKY"), normal_materials);
             let shading = shading_for(&solid.name);
             let mesh = match vertices {
-                Some(prepared) => upload_prepared(renderer, solid, &prepared[i], &lookup, shading),
-                None => upload_solid(renderer, solid, &lookup, shading),
+                Some(prepared) => upload_prepared(renderer, solid, &prepared[i], &materials, shading),
+                None => upload_solid(renderer, solid, &materials, shading),
             };
             if let Some(mesh) = mesh {
                 let lod = LodModel { num_polys: solid.num_polys, density: solid.density };
                 meshes.push((solid.name_hash, (mesh, lod, solid.name.starts_with("SHD_"))));
             }
         }
-        self.meshes.extend(meshes);
+        for (hash, mesh) in meshes {
+            if let Some(previous) = self.meshes.insert(hash, mesh) {
+                renderer.destroy_mesh(previous.0);
+            }
+        }
     }
 
     /// Show each animation's current frame (`seconds` since the scene started).
@@ -151,9 +177,24 @@ impl SectionResources {
         self.meshes.get(&hash).or_else(|| fallback.meshes.get(&hash)).map(|&(mesh, lod, _)| (mesh, lod))
     }
 
+    pub(super) fn release_normal_materials(&mut self, renderer: &mut dyn RenderBackend) {
+        for material in self.normal_materials.drain().map(|(_, handle)| handle) {
+            renderer.destroy_normal_material(material);
+        }
+        for material in self.window_materials.drain().map(|(_, handle)| handle) {
+            renderer.destroy_window_material(material);
+        }
+    }
+
     pub fn release(self, renderer: &mut dyn RenderBackend) {
         for (mesh, _, _) in self.meshes.into_values() {
             renderer.destroy_mesh(mesh);
+        }
+        for material in self.normal_materials.into_values() {
+            renderer.destroy_normal_material(material);
+        }
+        for material in self.window_materials.into_values() {
+            renderer.destroy_window_material(material);
         }
         for (texture, _) in self.materials.into_values() {
             renderer.destroy_texture(texture);
@@ -174,7 +215,14 @@ fn upload_prepared(
         return None;
     }
     let draws = solid_mesh(solid, materials, shading);
-    Some(renderer.create_mesh(&MeshDesc { label: &solid.name, vertices, indices: &solid.indices, draws }))
+    Some(renderer.create_mesh(&MeshDesc {
+        label: &solid.name,
+        vertices,
+        secondary_uvs: Some(&solid.secondary_uvs),
+        tangents: Some(&solid.tangents),
+        indices: &solid.indices,
+        draws,
+    }))
 }
 
 /// Sky domes (`SKYDOME`, `SKYDOME_XENON`, `SKY_SPECULAR`) are world-space models
@@ -232,6 +280,7 @@ pub fn place(
                 log::debug!("no physics bounds/attributes for placed {}", info.name);
             }
             placed.push(Placed {
+                casts_sun_shadow: shadow_policy::casts_sun(&info.name),
                 original_shadow: info.name.starts_with("SHD_")
                     || resolved.iter().enumerate().filter(|(_, mesh)| mesh.is_some()).all(|(i, _)| {
                         own.meshes

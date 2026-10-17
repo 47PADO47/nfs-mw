@@ -116,25 +116,25 @@ impl Host {
     }
 
     /// Puts another scene in the window: it is initialised with the renderer, and in a screenshot run it is given
-    /// the time to load. The scene it replaces is released.
+    /// the time to load. The scene it replaces is closed.
     pub fn replace_scene(&mut self, scene: Box<dyn Scene>) -> anyhow::Result<()> {
         let mut old = self.install(scene)?;
-        self.release_scene(old.as_mut());
+        self.close_scene(old.as_mut());
         Ok(())
     }
 
     /// Like [`Host::replace_scene`], but the scene it replaces is parked for [`Host::restore_parked_menu`] instead of
-    /// released. Only one scene is parked: a menu parked before is released now.
+    /// closed. Only one scene is parked: a menu parked before is closed now.
     pub fn replace_scene_parking_old(&mut self, scene: Box<dyn Scene>) -> anyhow::Result<()> {
         let old = self.install(scene)?;
         let stale = self.parked_menu.replace(old);
         if let Some(mut stale) = stale {
-            self.release_scene(stale.as_mut());
+            self.close_scene(stale.as_mut());
         }
         Ok(())
     }
 
-    /// Puts the parked menu back in the window in place of the scene there, which is released. The menu keeps the
+    /// Puts the parked menu back in the window in place of the scene there, which is closed. The menu keeps the
     /// resources it was built with, so it is not initialised again; it is told it is back on screen (`Scene::reattached`).
     /// Returns `false`, with nothing changed, when no menu is parked.
     pub fn restore_parked_menu(&mut self) -> bool {
@@ -148,14 +148,15 @@ impl Host {
         renderer.set_colour_treatment(None, None);
         renderer.set_focus_mask(None);
         renderer.set_reflection_scene(None);
+        renderer.set_projected_reflection_scene(None);
         let mut old = std::mem::replace(&mut self.scene, menu);
         self.scene_changes += 1;
-        old.release(renderer.as_mut());
+        old.close(renderer.as_mut());
         self.scene.reattached(renderer.as_mut());
         true
     }
 
-    /// Initialises `scene` and puts it in the window. Returns the scene it replaced, which the caller releases or
+    /// Initialises `scene` and puts it in the window. Returns the scene it replaced, which the caller closes or
     /// parks. On error the window keeps its scene.
     fn install(&mut self, mut scene: Box<dyn Scene>) -> anyhow::Result<Box<dyn Scene>> {
         self.apply_scene_settings(scene.as_mut());
@@ -174,8 +175,9 @@ impl Host {
         renderer.set_focus_mask(None);
         // A local environment belongs to the old scene; menus and viewers must not inherit its capture.
         renderer.set_reflection_scene(None);
+        renderer.set_projected_reflection_scene(None);
         if let Err(e) = scene.init(renderer.as_mut()) {
-            scene.release(renderer.as_mut());
+            scene.close(renderer.as_mut());
             return Err(e);
         }
         Ok(())
@@ -190,9 +192,9 @@ impl Host {
     }
 
     /// Frees what a scene leaving the window uploaded.
-    fn release_scene(&mut self, scene: &mut dyn Scene) {
+    fn close_scene(&mut self, scene: &mut dyn Scene) {
         let Some(renderer) = self.renderer.as_mut() else { return };
-        scene.release(renderer.as_mut());
+        scene.close(renderer.as_mut());
     }
 
     /// The settings every scene is given before its init, as the host holds them now.

@@ -48,7 +48,14 @@ fn environment_and_live_rain_reach_paused_play_and_replacement() {
     let flag = PauseFlag::default();
     flag.set(true);
     let mut scene = Pausable::new(Box::new(World(seen.clone())), flag.clone());
-    let value = Environment { hour: 18.0, seconds_per_hour: 60.0 };
+    let value = Environment {
+        hour: 18.0,
+        seconds_per_hour: 60.0,
+        sun_mode: crate::viewer::SunMode::FixedPhase,
+        sun_phase: 0.3,
+        cloud_override: Some(0.5),
+        ..Default::default()
+    };
     scene.set_environment(value);
     assert_eq!(scene.environment(), Some(value));
     let settings = Settings::from(Partial::default());

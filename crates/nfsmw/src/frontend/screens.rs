@@ -272,6 +272,15 @@ impl Screens {
         true
     }
 
+    /// Sends a mouse release of `message` to the object of the top screen under a point, when one answers it.
+    /// Returns whether a message was sent.
+    pub fn release_at(&mut self, point: Vec2, message: u32) -> bool {
+        let Some(top) = self.stack.last() else { return false };
+        let Some(target) = self.runtime.mouse_target_at(top.id, point, message) else { return false };
+        self.runtime.post(top.id, message, Some(target));
+        true
+    }
+
     /// Hands a click at a point of the top screen to its logic. `None` when the screen does not take it.
     pub fn click(&mut self, point: Vec2, env: &mut Env) -> Option<Vec<Command>> {
         let (taken, commands) = self.on_top(env, |logic, cx| logic.click(cx, point))?;

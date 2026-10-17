@@ -28,12 +28,8 @@ pub struct Fullscreen {
     pub rgba: Option<Vec<u8>>,
 }
 
-/// Session-local world clock controls. The existing sky is not a full night renderer.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Environment {
-    pub hour: f32,
-    pub seconds_per_hour: f32,
-}
+mod environment;
+pub use environment::{Environment, SunMode};
 
 /// The player's car at one moment, in render space (x forward, y left, z up; metres and seconds).
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -124,15 +120,24 @@ pub trait Scene {
     fn title(&self) -> String;
     /// Upload the initial resources.
     fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()>;
-    /// Free this scene's GPU resources before it is dropped. The host calls it when the scene leaves the window,
-    /// unless the scene is parked for reuse.
-    fn release(&mut self, _renderer: &mut dyn RenderBackend) {}
+    /// Release scene-owned resources before replacement; free this scene's GPU resources before it is dropped. The
+    /// host calls it when the scene leaves the window, unless the scene is parked for reuse. Repeated calls must be
+    /// harmless.
+    fn close(&mut self, _renderer: &mut dyn RenderBackend) {}
     /// The scene is put back in the window after another scene had it: re-apply the renderer state it relies on.
     fn reattached(&mut self, _renderer: &mut dyn RenderBackend) {}
     /// Advance by `dt` seconds: camera, streaming, uploads.
     fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32);
     /// The frame to draw. Instances of the same mesh should be adjacent.
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]);
+    /// Refresh view-dependent offscreen captures before borrowing the main instance list.
+    fn prepare_frame(&mut self, _renderer: &mut dyn RenderBackend, _aspect: f32) {}
+    fn set_road_reflections(
+        &mut self,
+        _quality: crate::settings::RoadReflections,
+        _resolution: crate::settings::RoadReflectionResolution,
+    ) {
+    }
     /// The rear-view mirror's frame, when the scene has a car to look back from. The mirror is drawn
     /// offscreen and shown in the HUD; the car itself is left out of it.
     /// The high-speed streaks' strength, 0 to 1 (`docs/specs/speed-effects.md`).
@@ -149,6 +154,11 @@ pub trait Scene {
     /// Start timing once resources are ready, even while a scripted route is still moving.
     fn benchmark_ready(&self) -> bool {
         self.ready()
+    }
+    /// Whether the radio plays while this scene is shown without a car (the main menu's backdrop). Driving scenes
+    /// leave it off: the radio plays there only while a car is driven.
+    fn radio_on_menus(&self) -> bool {
+        false
     }
     /// Mouse look: hide and hold the cursor so mouse motion always turns the camera.
     /// Esc releases the cursor and a click captures it again.

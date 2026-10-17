@@ -21,6 +21,9 @@ use crate::scenes::world::{WorldScene, keys, sun};
 const INSTALLS_PER_FRAME: usize = 2;
 const NO_ROADS: &str = "this track has no road network";
 
+#[cfg(test)]
+mod shading_tests;
+
 /// The car folders to try for the `pvehicle` `vehicle`, best first: its own name, that name without the `traf`
 /// prefix (`traftaxi` is the folder `TAXI`), then the records it inherits from that are folders themselves
 /// (`semib` has no model of its own and uses the tractor's, `SEMI`). `cars` are the folders of the install and

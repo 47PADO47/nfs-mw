@@ -17,6 +17,7 @@ License: MIT OR Apache-2.0.
 | `mesh`, `texture`, `material`, `frame` | the 36-byte `Vertex`, `MeshDesc`, `DrawRange`, `BlendMode`, `Shading`, `TextureDesc`, glossy materials and the lighting rig, `FrameParams`, `Instance`, `FrameStatus` |
 | `effects`, `ui` | the world `EffectLayer` and the 2D `UiLayer` (textured, clipped, premultiplied-alpha triangles) |
 | `reflection` | `ReflectionScene`: six scenery lists and a shared origin; `ReflectionQuality` and RH cube cameras |
+| `projected` | `ProjectedReflectionScene`: caller-defined 2D capture view, retained scene instances, dimensions and optional separable blur |
 | `handles`, `error`, `capture`, `stats` | opaque resource handles, `RenderError`, `RgbaImage`, `BackendInfo` and `RenderStats` |
 
 ## The trait
@@ -72,3 +73,7 @@ implementation.
 - No wgpu, Bevy or `raw-window-handle` dependency. Backends convert at their own boundary.
 - Engine-generic: nothing here may name a specific game.
 - Handles carry a number only their backend understands (`from_raw` / `raw` are for backends).
+
+`GraphicsSettings::texture_filtering` requests Trilinear, 8x or 16x scene sampling.
+Capabilities report the maximum anisotropy and whether a change needs restart.
+Resolution preserves the saved request and reports unsupported selections.

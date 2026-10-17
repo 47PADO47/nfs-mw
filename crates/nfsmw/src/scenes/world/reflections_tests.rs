@@ -146,7 +146,7 @@ fn live_environment_changes_lighting_and_invalidates_frozen_reflections() {
     world.update(&mut renderer, &ActionState::default(), 0.0);
     assert!(world.reflection_last.is_some());
     let noon = world.sun.direction();
-    world.set_environment(crate::viewer::Environment { hour: 18.0, seconds_per_hour: 60.0 });
+    world.set_environment(crate::viewer::Environment { hour: 18.0, seconds_per_hour: 60.0, ..Default::default() });
     assert_eq!(world.environment().unwrap().hour, 18.0);
     assert!(world.reflection_last.is_none(), "a manual jump invalidates even a frozen capture");
     assert_ne!(world.sun.direction(), noon);

@@ -132,14 +132,29 @@ pub struct Scattering {
     pub mie: [f32; 3],
     pub g: f32,
     pub to_sun: Vec3,
+    /// Scales view distance before extinction and in-scattering, bounded by the surface shader.
+    pub distance_scale: f32,
+    /// Authored multiplier of the in-scattered light.
+    pub in_scatter_scale: f32,
 }
 
-/// The colours of the world surfaces' light: the ambient colour and the diffuse colour (scaled by the sun's
-/// direction). Used in place of the fixed ambient and diffuse terms when set.
+/// Scene surface lighting. Materials select the ambient, diffuse and specular terms they support.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SurfaceLight {
+    /// Directional shadow strength, separate from diffuse and ambient intensity.
+    pub shadow_strength: f32,
     pub ambient: [f32; 3],
+    /// Authored ambient intensity, separate from the presence of this light.
+    pub ambient_alpha: f32,
     pub diffuse: [f32; 3],
+    /// Highlight colour used by material families with a specular response.
+    pub specular: [f32; 3],
+    /// Exponent of the material's specular response; supplied by the game, not a renderer default.
+    pub specular_power: f32,
+    /// Intensity of a supplied projected reflection; independent of highlight RGB.
+    pub reflection_scale: f32,
+    /// Highlight attenuation for the reflective surface family, independent of wet reflections.
+    pub reflective_specular_scale: f32,
 }
 
 /// Per-frame scene parameters.
@@ -159,7 +174,7 @@ pub struct FrameParams {
     pub fog: Option<Fog>,
     /// Scattering fog for the world surfaces, or `None` to use `fog`.
     pub scattering: Option<Scattering>,
-    /// Ambient and diffuse colours of the world surfaces, or `None` for the fixed terms.
+    /// Surface light colours and specular response, or `None` for the fixed terms.
     pub surface_light: Option<SurfaceLight>,
     /// The camera jumped (a teleport, a scene or camera switch): a renderer that reuses the last
     /// frame (temporal anti-aliasing, temporal upscalers) drops its history.

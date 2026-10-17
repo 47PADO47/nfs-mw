@@ -23,12 +23,12 @@ mod shader_tests;
 pub use blackbox_gfx::{
     Antialiasing, Backend, BlendMode, DEFAULT_BLOOM_THRESHOLD, DEFAULT_RENDER_SCALE, DEFAULT_SOFT_DISTANCE,
     DEFAULT_UPSCALE_SHARPNESS, DirectionalLight, DrawRange, EffectLayer, EffectVertex, FrameParams, GlossyMaterial,
-    GlossyMaterialHandle, GraphicsApi, Instance, LightingRig, MAX_BLOOM_INTENSITY, MAX_BLOOM_THRESHOLD, MAX_EXPOSURE,
-    MAX_RENDER_SCALE, MAX_TEXTURE_LOD_BIAS, MIN_EXPOSURE, MIN_RENDER_SCALE, MIN_TEXTURE_LOD_BIAS, MeshDesc, MeshHandle,
-    ParseBackendError, ParseGraphicsApiError, PixelFormat, PostEffect, PostSettings, RenderError, Shading, SkyGradient,
-    TextureDesc, TextureHandle, TexturedEffect, Tonemap, UiLayer, UiMesh, UiTextureId, UiTexturePatch, UiVertex,
-    Upscaler, Vertex, clamp_render_scale, clamp_texture_lod_bias, clamp_upscale_sharpness, scaled_size,
-    suggested_temporal_texture_lod_bias, suggested_texture_lod_bias,
+    GlossyMaterialHandle, GlossyModel, GraphicsApi, Instance, LightingRig, MAX_BLOOM_INTENSITY, MAX_BLOOM_THRESHOLD,
+    MAX_EXPOSURE, MAX_RENDER_SCALE, MAX_TEXTURE_LOD_BIAS, MIN_EXPOSURE, MIN_RENDER_SCALE, MIN_TEXTURE_LOD_BIAS,
+    MeshDesc, MeshHandle, ParseBackendError, ParseGraphicsApiError, PixelFormat, PostEffect, PostSettings, RenderError,
+    Shading, SkyGradient, TextureDesc, TextureHandle, TexturedEffect, Tonemap, UiLayer, UiMesh, UiTextureId,
+    UiTexturePatch, UiVertex, Upscaler, Vertex, clamp_render_scale, clamp_texture_lod_bias, clamp_upscale_sharpness,
+    scaled_size, suggested_temporal_texture_lod_bias, suggested_texture_lod_bias,
 };
 pub use gpu::{Renderer, available_apis};
 pub use options::RendererOptions;

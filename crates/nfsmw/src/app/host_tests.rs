@@ -38,8 +38,8 @@ impl Scene for Probe {
         }
         Ok(())
     }
-    fn release(&mut self, _: &mut dyn RenderBackend) {
-        self.note("release");
+    fn close(&mut self, _: &mut dyn RenderBackend) {
+        self.note("close");
     }
     fn reattached(&mut self, _: &mut dyn RenderBackend) {
         self.note("shown");
@@ -63,7 +63,7 @@ fn a_replaced_scene_is_released() {
     let log = Log::default();
     let mut host = host_showing(Probe::boxed("a", &log));
     host.replace_scene(Probe::boxed("b", &log)).unwrap();
-    assert_eq!(*log.lock().unwrap(), ["b: init", "a: release"]);
+    assert_eq!(*log.lock().unwrap(), ["b: init", "a: close"]);
     assert_eq!(host.scene.title(), "b");
     assert_eq!(host.scene_changes, 1);
 }
@@ -77,7 +77,7 @@ fn a_parked_scene_is_kept_and_comes_back_without_init() {
     assert!(host.parked_menu.is_some());
 
     assert!(host.restore_parked_menu());
-    assert_eq!(*log.lock().unwrap(), ["world: init", "world: release", "menu: shown"]);
+    assert_eq!(*log.lock().unwrap(), ["world: init", "world: close", "menu: shown"]);
     assert_eq!(host.scene.title(), "menu");
     assert!(host.parked_menu.is_none());
     assert_eq!(host.scene_changes, 2, "the audio hears the menu come back");
@@ -101,7 +101,7 @@ fn a_second_parked_scene_releases_the_first() {
     host.replace_scene_parking_old(Probe::boxed("other", &log)).unwrap();
     assert_eq!(
         *log.lock().unwrap(),
-        ["world: init", "other: init", "menu: release"],
+        ["world: init", "other: init", "menu: close"],
         "the world is parked now, so the menu parked before is the one released"
     );
 }
@@ -112,7 +112,7 @@ fn a_scene_that_fails_to_start_is_released_and_the_window_keeps_its_scene() {
     let mut host = host_showing(Probe::boxed("menu", &log));
     let failing = Box::new(Probe { name: "world", log: log.clone(), init_fails: true });
     assert!(host.replace_scene(failing).is_err());
-    assert_eq!(*log.lock().unwrap(), ["world: init", "world: release"]);
+    assert_eq!(*log.lock().unwrap(), ["world: init", "world: close"]);
     assert_eq!(host.scene.title(), "menu");
     assert_eq!(host.scene_changes, 0);
 }

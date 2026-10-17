@@ -18,7 +18,7 @@ impl PostSetting {
 
     pub fn title(self) -> Title {
         Title::Text(match self {
-            Self::Tonemap => "Tone Mapping",
+            Self::Tonemap => "SDR Tone Mapping",
             Self::Bloom => "Bloom",
             Self::Aa => "Anti-Aliasing",
             Self::MotionBlur => "Motion Blur (High Speed)",

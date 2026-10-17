@@ -34,7 +34,7 @@ pub(crate) struct Recorder {
 impl Recorder {
     /// A scene whose clock stands at `hour`, running at `seconds_per_hour`.
     pub(crate) fn at(hour: f32, seconds_per_hour: f32) -> Self {
-        Self { clock: Some(Environment { hour, seconds_per_hour }), ..Self::default() }
+        Self { clock: Some(Environment { hour, seconds_per_hour, ..Default::default() }), ..Self::default() }
     }
 
     /// A scene with no clock, as the menus have.

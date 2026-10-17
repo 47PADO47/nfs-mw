@@ -65,8 +65,15 @@ This corrects [formats/frontend.md](../formats/frontend.md), which lists `Platfo
 
 - `MenuScene::new(Some(dir))` loads `BMWM3GTR` at LOD A with `nfsmw_data::car::load` and shows it with the car
   viewer's floor (`CarScene`). If the car cannot be loaded, the menus fall back to the flat dark backdrop.
-- The car turns 12° a second (`TURN_RATE`) by moving the orbit camera's yaw (`CarScene::turn`); input does not move
-  it. The rate and the car are guesses, not read from the original.
+- The car stands still. The camera settles once, when the menus come up, from 30° round and 1.5× further out onto
+  its rest pose over 0.5 s (`INTRO_SECONDS`, `INTRO_YAW_DEGREES`, `INTRO_DISTANCE_SCALE`). The 0.5 s is the original's
+  camera move length (the float at `DAT_00905E28`, read with Ghidra); the start pose is ours.
+- The original's camera is not a turntable. `FUN_007B9EA0` and `FUN_007A2310` run a timeline of camera moves (the
+  `CubicCameraMover` path): each shot holds for 300 ticks (`DAT_00905E24`), and a move eases the camera from its
+  old pose to the new one over the move length. The shots themselves are authored data, not read yet.
+- The room's solids are drawn pre-lit (`Shading::Prelit`), as the world's scenery is; the stage's vertex colours
+  carry the light.
+- The radio plays on the menus (`Scene::radio_on_menus`), from the front-end list, when the `radio` setting is on.
 - The picture was checked offscreen (`nfsmw view-screen MainMenu.fng --screenshot …`): the car sits behind the
   title, Career and the footer hints.
 

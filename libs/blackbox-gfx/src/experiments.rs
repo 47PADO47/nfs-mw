@@ -23,7 +23,11 @@ impl std::fmt::Display for LightingDebug {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RenderExperiments {
+    /// Reconstructed authored world material families instead of legacy prelit fallback.
+    pub original_world_materials: bool,
     pub sun_shadows: bool,
+    /// None uses custom cascades; Some fits one perspective shadow projection.
+    pub shadow_projection: Option<crate::ShadowProjection>,
     pub far_shadows: bool,
     pub contact_shadows: bool,
     pub clearcoat: bool,
@@ -50,7 +54,9 @@ pub struct RenderExperiments {
 impl Default for RenderExperiments {
     fn default() -> Self {
         Self {
+            original_world_materials: false,
             sun_shadows: false,
+            shadow_projection: None,
             far_shadows: false,
             contact_shadows: false,
             clearcoat: false,
@@ -92,6 +98,9 @@ impl RenderExperiments {
     pub fn caster_distance(self) -> f32 {
         if !self.sun_shadows {
             return 0.0;
+        }
+        if let Some(projection) = self.shadow_projection {
+            return projection.frustum[1];
         }
         self.shadow_distance
             * match self.far_shadows {

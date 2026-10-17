@@ -66,6 +66,7 @@ mod tests {
         world.init_resource::<Assets<Image>>();
         world.init_resource::<Assets<Mesh>>();
         world.init_resource::<Assets<BlackboxMaterial>>();
+        world.init_resource::<Assets<bevy_render::storage::ShaderBuffer>>();
         world
     }
 

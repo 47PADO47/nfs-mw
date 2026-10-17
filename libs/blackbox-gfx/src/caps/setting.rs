@@ -17,13 +17,14 @@ pub enum Setting {
     Bloom,
     ColourTreatment,
     Reflections,
+    TextureFiltering,
     AmbientOcclusion,
     Shadows,
     RayTracing,
 }
 
 impl Setting {
-    pub const ALL: [Setting; 11] = [
+    pub const ALL: [Setting; 12] = [
         Setting::Antialiasing,
         Setting::Upscaler,
         Setting::UpscaleQuality,
@@ -32,6 +33,7 @@ impl Setting {
         Setting::Bloom,
         Setting::ColourTreatment,
         Setting::Reflections,
+        Setting::TextureFiltering,
         Setting::AmbientOcclusion,
         Setting::Shadows,
         Setting::RayTracing,
@@ -47,6 +49,7 @@ impl Setting {
             Self::Bloom => "bloom",
             Self::ColourTreatment => "colour treatment",
             Self::Reflections => "car reflections",
+            Self::TextureFiltering => "texture filtering",
             Self::AmbientOcclusion => "ambient occlusion",
             Self::Shadows => "soft shadows",
             Self::RayTracing => "ray tracing",
@@ -76,8 +79,13 @@ impl GraphicsSettings {
         note(Setting::RenderScale, self.render_scale != other.render_scale);
         note(Setting::Tonemap, self.post.tonemap != other.post.tonemap);
         note(Setting::Bloom, (self.post.bloom_intensity > 0.0) != (other.post.bloom_intensity > 0.0));
-        note(Setting::ColourTreatment, self.post.colour_treatment != other.post.colour_treatment);
+        note(
+            Setting::ColourTreatment,
+            self.post.colour_treatment != other.post.colour_treatment
+                || self.post.colour_treatment_override != other.post.colour_treatment_override,
+        );
         note(Setting::Reflections, self.reflections != other.reflections);
+        note(Setting::TextureFiltering, self.texture_filtering != other.texture_filtering);
         note(Setting::AmbientOcclusion, self.ao != other.ao);
         note(Setting::Shadows, self.shadows != other.shadows);
         note(Setting::RayTracing, self.ray_tracing != other.ray_tracing);
@@ -89,6 +97,22 @@ impl GraphicsSettings {
 mod tests {
     use super::*;
     use crate::{Antialiasing, RayTracing, Upscaler};
+
+    #[test]
+    fn treatment_parameter_selection_is_a_live_colour_setting_change() {
+        let base = GraphicsSettings {
+            post: crate::PostSettings { colour_treatment: 1.0, ..Default::default() },
+            ..Default::default()
+        };
+        let mut other = base;
+        other.post.colour_treatment_override = Some(crate::ColourTreatmentOverride {
+            tint: [0.1, 0.2, 0.3],
+            desaturation: 0.4,
+            black_intensity: 0.5,
+            colour_intensity: 0.6,
+        });
+        assert!(base.changed_settings(&other).contains(Setting::ColourTreatment));
+    }
 
     #[test]
     fn identical_settings_have_no_changes() {

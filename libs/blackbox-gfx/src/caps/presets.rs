@@ -14,6 +14,7 @@ impl Capabilities {
     pub fn mock_dlss(renderer: &'static str, api: GraphicsApi) -> Self {
         Self {
             compressed_bc: true,
+            max_texture_anisotropy: 16,
             hdr_targets: true,
             antialiasing: AaSet::all(),
             upscalers: UpscalerSet::of(&[Upscaler::Off, Upscaler::Bilinear, Upscaler::Fsr1, Upscaler::Dlss]),

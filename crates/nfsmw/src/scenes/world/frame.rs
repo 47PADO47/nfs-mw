@@ -31,6 +31,9 @@ impl WorldScene {
             &mut self.visible,
         );
         self.residency.props().fragment_instances(&mut self.visible);
+        if self.original_sky {
+            self.residency.sky.place(&self.residency.shared, &mut self.visible, lens.position, super::sky::View::Main);
+        }
         if let Some(traffic) = &mut self.traffic {
             let placed = self.residency.placed().filter_map(super::ai::signal_props::candidate);
             traffic.update_signal_props(self.residency.visual_revision(), placed);

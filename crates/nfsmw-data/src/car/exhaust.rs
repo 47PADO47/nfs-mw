@@ -170,6 +170,8 @@ mod tests {
 
     fn solid_with_markers(name: &str, markers: &[(&str, [f32; 3])]) -> Solid {
         Solid {
+            secondary_uvs: Vec::new(),
+            tangents: Vec::new(),
             name: name.into(),
             name_hash: bstring_hash(name),
             version: 0,

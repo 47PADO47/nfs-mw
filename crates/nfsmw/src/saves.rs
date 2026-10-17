@@ -116,6 +116,7 @@ pub fn store() -> Option<SaveStore> {
 pub fn partial_of(s: &Settings) -> Partial {
     let c = &s.controls;
     Partial {
+        appearance: Some(s.appearance),
         deadzone_mode: Some(c.deadzone_mode),
         steering_deadzone: Some(c.steering_deadzone),
         camera_deadzone: Some(c.camera_deadzone),
@@ -145,6 +146,8 @@ pub fn partial_of(s: &Settings) -> Partial {
         graphics_preset: Some(s.graphics_preset),
         shadows: Some(s.shadows),
         car_shading: Some(s.car_shading),
+        road_reflections: Some(s.road_reflections),
+        road_reflection_resolution: Some(s.road_reflection_resolution),
         traffic: Some(s.traffic),
         cop_share: Some(s.cop_share),
         always_rain: Some(s.always_rain),
@@ -182,6 +185,7 @@ pub fn partial_of(s: &Settings) -> Partial {
         post_tonemap: Some(s.post_tonemap),
         post_bloom: Some(s.post_bloom),
         post_aa: Some(s.post_aa),
+        texture_filtering: Some(s.texture_filtering),
         visual_treatment: Some(s.visual_treatment),
         reflections: Some(s.reflections),
         reflection_cube_size: Some(s.reflection_cube_size),
@@ -230,8 +234,10 @@ fn extra_table(s: &Settings) -> toml::Table {
 /// come first because the config can end in a table (`[hd_content]`), which would otherwise swallow them.
 pub fn settings_payload(s: &Settings) -> Result<Vec<u8>, SaveError> {
     let config = crate::settings::write::merge("", &partial_of(s)).map_err(|e| SaveError::Payload(format!("{e:#}")))?;
-    let extra = toml::to_string(&extra_table(s)).map_err(|e| SaveError::Payload(e.to_string()))?;
-    Ok(format!("{extra}{config}").into_bytes())
+    let mut table: toml::Table = config.parse().map_err(|e: toml::de::Error| SaveError::Payload(e.to_string()))?;
+    table.extend(extra_table(s));
+    let text = toml::to_string(&table).map_err(|e| SaveError::Payload(e.to_string()))?;
+    Ok(text.into_bytes())
 }
 
 /// The settings read back from a payload. A key the payload lacks takes its default.

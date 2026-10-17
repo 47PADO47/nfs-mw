@@ -88,6 +88,8 @@ pub struct CameraSettings {
     pub render_scale: f32,
     pub post: PostSettings,
     pub shadows: blackbox_gfx::ShadowQuality,
+    pub texture_filtering: blackbox_gfx::TextureFiltering,
+    pub original_world_materials: bool,
     pub upscaler: Upscaler,
     /// FSR 1's RCAS sharpening strength, 0.0 (off) to 1.0 (strongest); meaningless for other upscalers.
     pub upscale_sharpness: f32,
@@ -101,6 +103,8 @@ impl Default for CameraSettings {
             render_scale: 1.0,
             post: PostSettings::default(),
             shadows: blackbox_gfx::ShadowQuality::Off,
+            texture_filtering: blackbox_gfx::TextureFiltering::default(),
+            original_world_materials: false,
             upscaler: Upscaler::default(),
             upscale_sharpness: DEFAULT_UPSCALE_SHARPNESS,
         }

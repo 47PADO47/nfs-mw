@@ -15,6 +15,8 @@ enum Mode {
     Copy,
     /// Different sizes: bilinear filtering.
     Scaled,
+    CopyHdr,
+    ScaledHdr,
 }
 
 impl Mode {
@@ -22,6 +24,8 @@ impl Mode {
         match self {
             Self::Copy => "fs_copy",
             Self::Scaled => "fs_scaled",
+            Self::CopyHdr => "fs_copy_hdr",
+            Self::ScaledHdr => "fs_scaled_hdr",
         }
     }
 }
@@ -128,9 +132,11 @@ impl PostPass for Resolve {
     }
 
     fn encode(&mut self, ctx: &PassContext<'_>, io: &PassIo<'_>, encoder: &mut wgpu::CommandEncoder) {
-        let mode = match io.input_size == io.output_size {
-            true => Mode::Copy,
-            false => Mode::Scaled,
+        let mode = match (io.input_size == io.output_size, io.output_format == wgpu::TextureFormat::Rgba16Float) {
+            (true, true) => Mode::CopyHdr,
+            (false, true) => Mode::ScaledHdr,
+            (true, false) => Mode::Copy,
+            (false, false) => Mode::Scaled,
         };
         // One input: the same view is the cache key twice.
         let bind_group = self.bind_groups.get_or_insert_with(io.input, io.input, || {

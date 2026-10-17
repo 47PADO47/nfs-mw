@@ -3,7 +3,7 @@
 
 use blackbox_gfx::Capabilities;
 
-use super::{Data, MAX_VALUES, Setting};
+use super::{MAX_VALUES, Setting};
 use crate::frontend::graphics_options::GraphicsSetting;
 use crate::frontend::post_options::PostSetting;
 use crate::frontend::renderer_options::RendererSetting;
@@ -26,23 +26,13 @@ impl Setting {
         self.enabled(&s.effective(caps))
     }
 
-    /// What the data string shows on a renderer with these capabilities: the value it actually runs, so a stored
-    /// `taa` reads FXAA on a renderer that has no TAA.
-    pub fn data_in(self, s: &Settings, caps: &Capabilities) -> Data {
-        if self == Setting::Renderer(RendererSetting::RayTracing) && !caps.ray_tracing.is_available() {
-            return Data::Text("Unavailable".into());
-        }
-        if self == Setting::Renderer(RendererSetting::FrameGeneration) && !caps.frame_generation {
-            return Data::Text("Unavailable".into());
-        }
-        self.data(&s.effective(caps))
-    }
-
     /// The config key of a setting a renderer may not be able to run.
     fn key(self) -> Option<&'static str> {
         match self {
             Setting::Graphics(GraphicsSetting::VisualTreatment) => Some("visual_treatment"),
             Setting::Graphics(GraphicsSetting::Reflections) => Some("reflections"),
+            Setting::Graphics(GraphicsSetting::RoadReflections) => Some("road_reflections"),
+            Setting::Graphics(GraphicsSetting::TextureFiltering) => Some("texture_filtering"),
             Setting::Graphics(GraphicsSetting::Shadows) => Some("shadows"),
             Setting::Graphics(GraphicsSetting::AmbientOcclusion) => Some("ao"),
             Setting::Upscaler => Some("upscaler"),
@@ -56,6 +46,12 @@ impl Setting {
 
     /// Whether the renderer can run the setting's current value.
     pub fn offered(self, s: &Settings, caps: &Capabilities) -> bool {
+        if self == Setting::Graphics(GraphicsSetting::Shadows)
+            && caps.renderer == "blackbox"
+            && caps.api != blackbox_gfx::GraphicsApi::Gl
+        {
+            return true;
+        }
         self.key().is_none_or(|key| availability::is_offered(key, s, caps))
     }
 

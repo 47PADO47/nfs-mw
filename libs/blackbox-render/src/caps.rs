@@ -24,6 +24,7 @@ pub(crate) fn native_capabilities(
         renderer: "blackbox",
         api,
         compressed_bc,
+        max_texture_anisotropy: 16,
         hdr_targets,
         antialiasing: match api {
             GraphicsApi::Gl => AaSet::of(&[Antialiasing::Off, Antialiasing::Fxaa]),
@@ -36,6 +37,7 @@ pub(crate) fn native_capabilities(
         radial_blur: true,
         frame_generation: false,
         local_reflections: true,
+        projected_reflections: api != GraphicsApi::Gl,
         ambient_occlusion,
         soft_shadows: false,
         // The sun shadows read the list given to `set_shadow_casters` (gpu/shadows/mod.rs). Only a renderer that was

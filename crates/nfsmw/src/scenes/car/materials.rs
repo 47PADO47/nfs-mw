@@ -4,14 +4,18 @@
 
 use std::collections::{HashMap, HashSet};
 
-use blackbox_gfx::{BlendMode, GlossyMaterial, GlossyMaterialHandle, RenderBackend, Shading, TextureHandle};
+use blackbox_gfx::{
+    BlendMode, GlossyMaterial, GlossyMaterialHandle, GlossyModel, RenderBackend, Shading, TextureHandle,
+};
 use blackbox_scene::{MaterialLookup, blend_mode, upload_texture};
 use glam::Vec3;
 use nfsmw_data::car::{CARSKIN, CarModel, TextureSwaps};
 
 use super::lighting;
-use super::shading::glossy_material;
+use super::shading::{glossy_material, original_material};
 use crate::settings::CarShading;
+
+const WINDSHIELD: u32 = blackbox_hash::bstring_hash("WINDSHIELD");
 
 pub struct CarMaterials {
     uploaded: HashMap<u32, (TextureHandle, BlendMode)>,
@@ -21,6 +25,7 @@ pub struct CarMaterials {
     fallback: Option<GlossyMaterialHandle>,
     /// The light material that stands in for `CARSKIN`.
     paint: Option<u32>,
+    window_tint: Option<u32>,
 }
 
 impl CarMaterials {
@@ -35,19 +40,40 @@ impl CarMaterials {
         let paint = model.paint.as_ref().and_then(|p| p.light_material);
         set_lighting(renderer, shading, to_sun);
         if shading == CarShading::Simple {
-            return Self { uploaded, glossy: HashMap::new(), fallback: None, paint };
+            return Self { uploaded, glossy: HashMap::new(), fallback: None, paint, window_tint: None };
         }
-        let used: HashSet<u32> =
-            model.solids.values().flat_map(|s| s.light_material_hashes.iter().copied()).chain(paint).collect();
+        let rig = match shading.is_original() {
+            true => super::original_lighting::gameplay(to_sun, 1.0),
+            false => lighting::rig(to_sun),
+        };
+        renderer.set_lighting_rig(&rig);
+        let model_kind = match shading {
+            CarShading::Original => GlossyModel::Shadowed,
+            CarShading::OriginalUnshadowed => GlossyModel::VertexLit,
+            _ => GlossyModel::Custom,
+        };
+        let window_tint = model.window_tint_material.filter(|_| shading.is_original());
+        let used: HashSet<u32> = model
+            .solids
+            .values()
+            .flat_map(|s| s.light_material_hashes.iter().copied())
+            .chain(paint)
+            .chain(window_tint)
+            .collect();
         let glossy = used
             .into_iter()
             .filter_map(|hash| {
                 let material = model.light_materials.get(&hash)?;
-                Some((hash, renderer.create_glossy_material(&glossy_material(material))))
+                let material = match shading.is_original() {
+                    true => original_material(material, model_kind),
+                    false => glossy_material(material),
+                };
+                Some((hash, renderer.create_glossy_material(&material)))
             })
             .collect();
-        let fallback = Some(renderer.create_glossy_material(&GlossyMaterial::default()));
-        Self { uploaded, glossy, fallback, paint }
+        let fallback =
+            Some(renderer.create_glossy_material(&GlossyMaterial { model: model_kind, ..Default::default() }));
+        Self { uploaded, glossy, fallback, paint, window_tint }
     }
 
     /// The uploaded texture with this name hash, if the car draws it.
@@ -71,6 +97,8 @@ impl CarMaterials {
     }
 }
 
+#[cfg(test)]
+mod tests;
 /// Light the car's glossy surfaces by a sun in direction `to_sun` from the car. Simple shading keeps the
 /// renderer's own single light, so nothing is set.
 pub fn set_lighting(renderer: &mut dyn RenderBackend, shading: CarShading, to_sun: Vec3) {
@@ -102,8 +130,9 @@ impl MaterialLookup for Lookup<'_> {
     fn shading(&self, light_material_hash: u32) -> Option<Shading> {
         let materials = self.materials;
         let fallback = materials.fallback?;
-        let hash = match (light_material_hash == CARSKIN, materials.paint) {
-            (true, Some(paint)) => paint,
+        let hash = match light_material_hash {
+            CARSKIN => materials.paint.unwrap_or(light_material_hash),
+            WINDSHIELD => materials.window_tint.unwrap_or(light_material_hash),
             _ => light_material_hash,
         };
         Some(Shading::Glossy(materials.glossy.get(&hash).copied().unwrap_or(fallback)))

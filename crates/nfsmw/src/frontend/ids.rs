@@ -28,6 +28,8 @@ pub mod screen {
     pub const INFRACTIONS: &str = "Infractions.fng";
     /// The EA Trax playlist screen (`jukebox.rs`), opened from the audio category.
     pub const EA_TRAX_JUKEBOX: &str = "EA_Trax_Jukebox.fng";
+    /// The credits roll (`credits.rs`), opened from the option categories.
+    pub const CREDITS: &str = "Credits.fng";
 }
 
 // Messages.

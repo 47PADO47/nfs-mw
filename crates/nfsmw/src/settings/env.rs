@@ -73,6 +73,7 @@ pub const AO: &str = "NFSMW_AO";
 pub const AO_INTENSITY: &str = "NFSMW_AO_INTENSITY";
 pub const AO_COMPARE: &str = "NFSMW_AO_COMPARE";
 pub const POST_AA: &str = "NFSMW_POST_AA";
+pub const TEXTURE_FILTERING: &str = "NFSMW_TEXTURE_FILTERING";
 pub const RENDER_SCALE: &str = "NFSMW_RENDER_SCALE";
 pub const UPSCALER: &str = "NFSMW_UPSCALER";
 pub const UPSCALE_SHARPNESS: &str = "NFSMW_UPSCALE_SHARPNESS";
@@ -89,6 +90,7 @@ pub const MOTION_BLUR_STRENGTH: &str = "NFSMW_MOTION_BLUR_STRENGTH";
 /// does not parse is reported and ignored.
 pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
     Partial {
+        appearance: None,
         always_rain: None,
         rain_amount: None,
         game_speed: None,
@@ -151,7 +153,14 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         post_bloom: value(&get, POST_BLOOM, PostBloom::from_str),
         visual_treatment: value(&get, "NFSMW_VISUAL_TREATMENT", super::VisualTreatment::from_str),
         post_aa: value(&get, POST_AA, PostAa::from_str),
+        texture_filtering: value(&get, TEXTURE_FILTERING, super::TextureFiltering::from_str),
         reflections: value(&get, REFLECTIONS, super::ReflectionQuality::from_str),
+        road_reflections: value(&get, "NFSMW_ROAD_REFLECTIONS", super::RoadReflections::from_str),
+        road_reflection_resolution: value(
+            &get,
+            "NFSMW_ROAD_REFLECTION_RESOLUTION",
+            super::RoadReflectionResolution::from_str,
+        ),
         reflection_cube_size: value(&get, REFLECTION_CUBE_SIZE, super::ReflectionSize::from_str),
         reflection_mirror_size: value(&get, REFLECTION_MIRROR_SIZE, super::ReflectionSize::from_str),
         reflection_pow2: value(&get, REFLECTION_POW2, parse_bool),

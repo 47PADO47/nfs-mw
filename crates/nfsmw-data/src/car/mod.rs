@@ -57,6 +57,8 @@ pub struct CarModel {
     pub textures: HashMap<u32, Texture>,
     pub swaps: TextureSwaps,
     pub paint: Option<Paint>,
+    /// The selected stock/preset window tint's light material (original shading only).
+    pub window_tint_material: Option<u32>,
     /// The assembled body uses generated paint textures, rather than a fixed livery.
     pub paintable: bool,
     /// Shading constants of the car materials, by name hash (empty when the car tables are not read).
@@ -192,6 +194,8 @@ fn load_with(
 
     let swaps = TextureSwaps::for_car_type(&car_type.base_model_name, car_type.usage_type);
     let paint = slots[slot::BASE_PAINT].map(|p| Paint::of(t, &p));
+    let window_tint_material =
+        slots[slot::WINDOW_TINT].and_then(|part| t.parts.attribute(&part, "LIGHT_MATERIAL_NAME"));
     let flare_profiles = lights::FlareProfiles::read(&t.attributes);
     let mut wanted = wanted_textures(pool.values().map(Arc::as_ref), &swaps);
     wanted.extend(flare_profiles.textures());
@@ -221,6 +225,7 @@ fn load_with(
         textures,
         swaps,
         paint,
+        window_tint_material,
         paintable: car_type.skinnable,
         light_materials: t.light_materials.iter().map(|m| (m.name_hash, m.clone())).collect(),
         floor_height: setup.as_ref().map_or(0.0, wheels::floor_height),
@@ -275,6 +280,7 @@ fn unassembled(dir: &GameDir, car: &str, solids: Vec<Solid>, options: &LoadOptio
         textures,
         swaps,
         paint: None,
+        window_tint_material: None,
         paintable: false,
         light_materials: HashMap::new(),
         floor_height: 0.0,

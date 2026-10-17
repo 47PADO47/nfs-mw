@@ -54,8 +54,9 @@ pub(super) fn written_extent(upscaled: bool, extent: Extent) -> Extent {
     }
 }
 
-/// Whether a fragment written straight into `format` is clamped to [0, 1] on the way, as the resolve copy
-/// clamps it: true for the 8-bit normalised formats. A float target keeps the HDR range the copy would clamp.
+/// Whether a fragment written straight into `format` is clamped to [0, 1] on the way, as the SDR resolve copy
+/// clamps it: true for the 8-bit normalised formats. A float target is not clamped, so it always takes the copy,
+/// whose HDR entry point passes the range through.
 pub(super) fn clamps_on_write(format: wgpu::TextureFormat) -> bool {
     matches!(
         format,
@@ -69,7 +70,7 @@ pub(super) fn clamps_on_write(format: wgpu::TextureFormat) -> bool {
 /// Whether the output needs the resolve copy after the chain whose passes write `extents`. Without any pass the
 /// copy is the whole chain. A temporal upscaler last (`temporal_last`) keeps its copy (`post/fsr3.rs`). Any other
 /// last pass writes the output itself when that is exact: it is output-sized (an upscaler scales its own input), or
-/// it reads an image already the output size, and the output format clamps on write like the copy does.
+/// it reads an image already the output size, and the output format clamps on write like the SDR copy does.
 /// `render` is the size of the scene, `output` the size of the output.
 pub(super) fn needs_resolve(
     extents: &[Extent],
@@ -179,6 +180,6 @@ mod tests {
         assert!(!needs_resolve(&[Render, Output, Render], false, small, big, rgba), "its input is output-sized");
         assert!(needs_resolve(&[Output], true, small, big, rgba), "a temporal last pass keeps its copy");
         let float = wgpu::TextureFormat::Rgba16Float;
-        assert!(needs_resolve(&[Render], false, small, small, float), "a float output keeps its clamp");
+        assert!(needs_resolve(&[Render], false, small, small, float), "a float output takes the copy's HDR path");
     }
 }

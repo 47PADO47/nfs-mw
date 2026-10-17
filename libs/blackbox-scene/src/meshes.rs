@@ -19,6 +19,16 @@ pub trait MaterialLookup {
     fn shading(&self, _light_material_hash: u32) -> Option<Shading> {
         None
     }
+
+    /// A game's effect-index routing, used when no light-material override exists.
+    /// Effect numbers have no renderer-wide meaning; callers provide the mapping.
+    fn group_shading(&self, _group_index: usize) -> Option<Shading> {
+        None
+    }
+
+    fn effect_shading(&self, _effect_id: u32) -> Option<Shading> {
+        None
+    }
 }
 
 impl<F: Fn(u32) -> Option<(TextureHandle, BlendMode)>> MaterialLookup for F {
@@ -43,11 +53,16 @@ pub fn solid_mesh(solid: &Solid, materials: &impl MaterialLookup, shading: Shadi
     solid
         .groups
         .iter()
-        .filter(|g| g.diffuse_texture(solid).is_none_or(|h| materials.draws(h)))
-        .map(|g| {
+        .enumerate()
+        .filter(|(_, g)| g.diffuse_texture(solid).is_none_or(|h| materials.draws(h)))
+        .map(|(index, g)| {
             let material = g.diffuse_texture(solid).and_then(|h| materials.material(h));
             let light_material = solid.light_material_hashes.get(usize::from(g.light_material)).copied();
-            let shading = light_material.and_then(|h| materials.shading(h)).unwrap_or(shading);
+            let shading = light_material
+                .and_then(|h| materials.shading(h))
+                .or_else(|| materials.group_shading(index))
+                .or_else(|| materials.effect_shading(g.effect_id))
+                .unwrap_or(shading);
             DrawRange {
                 first_index: g.first_index,
                 index_count: g.num_indices,
@@ -72,7 +87,14 @@ pub fn upload_solid(
     }
     let vertices = solid_vertices(solid);
     let draws = solid_mesh(solid, materials, shading);
-    Some(backend.create_mesh(&MeshDesc { label: &solid.name, vertices: &vertices, indices: &solid.indices, draws }))
+    Some(backend.create_mesh(&MeshDesc {
+        label: &solid.name,
+        vertices: &vertices,
+        secondary_uvs: Some(&solid.secondary_uvs),
+        tangents: Some(&solid.tangents),
+        indices: &solid.indices,
+        draws,
+    }))
 }
 
 #[cfg(test)]
@@ -100,6 +122,8 @@ mod tests {
 
     fn solid() -> Solid {
         Solid {
+            secondary_uvs: Vec::new(),
+            tangents: Vec::new(),
             name: "TEST".into(),
             name_hash: 0,
             version: 0,
@@ -141,5 +165,36 @@ mod tests {
         let draws = solid_mesh(&solid(), &Shiny, Shading::Lit);
         let shadings: Vec<Shading> = draws.iter().map(|d| d.shading).collect();
         assert_eq!(shadings, [Shading::Lit, Shading::Sky, Shading::Lit]);
+    }
+
+    struct Effects;
+
+    impl MaterialLookup for Effects {
+        fn material(&self, _texture_hash: u32) -> Option<(TextureHandle, BlendMode)> {
+            Some((TextureHandle::from_raw(17), BlendMode::AlphaBlend))
+        }
+
+        fn shading(&self, hash: u32) -> Option<Shading> {
+            (hash == 0xBBBB).then_some(Shading::Lit)
+        }
+
+        fn effect_shading(&self, effect: u32) -> Option<Shading> {
+            (effect == 22).then_some(Shading::Sky)
+        }
+    }
+
+    #[test]
+    fn effect_routing_is_per_group_and_preserves_texture_blend_and_material_precedence() {
+        let mut solid = solid();
+        solid.texture_hashes.push(42);
+        for group in &mut solid.groups {
+            group.texture_slots[0] = 0;
+            group.effect_id = 22;
+        }
+        solid.groups[2].effect_id = 99;
+        let draws = solid_mesh(&solid, &Effects, Shading::Prelit);
+        assert_eq!(draws.iter().map(|d| d.shading).collect::<Vec<_>>(), [Shading::Sky, Shading::Lit, Shading::Prelit]);
+        assert!(draws.iter().all(|d| d.texture == Some(TextureHandle::from_raw(17))));
+        assert!(draws.iter().all(|d| d.blend == BlendMode::AlphaBlend));
     }
 }

@@ -35,7 +35,7 @@ pub(super) fn read_mesh(mesh: Chunk<'_>, layout: &SolidLayout, solid: &mut Solid
         .filter(|c| c.id == ids::MESH_VERTEX_BUFFER)
         .map(|c| c.aligned_payload(layout.vertices_align))
         .collect();
-    read_vertex_buffers(&buffers, solid)?;
+    read_vertex_buffers(&buffers, layout, solid)?;
     check_index_ranges(solid)
 }
 
@@ -58,7 +58,7 @@ fn read_group(r: &[u8], l: &GroupLayout) -> ShadingGroup {
 }
 
 /// Assign groups to buffers (one buffer per run of equal effect ids), decode every buffer.
-fn read_vertex_buffers(buffers: &[&[u8]], solid: &mut Solid) -> Result<(), String> {
+fn read_vertex_buffers(buffers: &[&[u8]], layout: &SolidLayout, solid: &mut Solid) -> Result<(), String> {
     let mut runs: Vec<std::ops::Range<usize>> = Vec::new();
     for (i, g) in solid.groups.iter().enumerate() {
         match runs.last_mut() {
@@ -81,12 +81,24 @@ fn read_vertex_buffers(buffers: &[&[u8]], solid: &mut Solid) -> Result<(), Strin
         if stride < BASE_VERTEX_STRIDE {
             return Err(format!("vertex buffer {index}: unexpected stride {stride}"));
         }
+        let tangent = stride == 60 && layout.tangent_effects.contains(&solid.groups[run.start].effect_id);
         let first_vertex = solid.vertices.len() as u32;
         for g in &mut solid.groups[run] {
             g.vertex_buffer = index as u32;
             g.base_vertex = first_vertex;
         }
-        solid.vertices.extend(data.chunks_exact(stride).map(read_vertex));
+        for vertex in data.chunks_exact(stride) {
+            solid.vertices.push(read_vertex(vertex));
+            let secondary = match (stride, tangent) {
+                (44, _) | (60, true) => [f32_at(vertex, 36), f32_at(vertex, 40)],
+                _ => [f32_at(vertex, 28), f32_at(vertex, 32)],
+            };
+            solid.secondary_uvs.push(secondary);
+            solid.tangents.push(match tangent {
+                true => [f32_at(vertex, 44), f32_at(vertex, 48), f32_at(vertex, 52), f32_at(vertex, 56)],
+                false => [0.0; 4],
+            });
+        }
         solid.vertex_buffers.push(VertexBuffer { stride, first_vertex, vertex_count: count });
     }
     Ok(())

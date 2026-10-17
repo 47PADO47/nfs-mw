@@ -55,7 +55,8 @@ pub struct UiPass {
     shader: wgpu::ShaderModule,
     pipeline_layout: wgpu::PipelineLayout,
     /// Per target format, built the first time the UI is drawn into it.
-    pipelines: HashMap<wgpu::TextureFormat, wgpu::RenderPipeline>,
+    pipelines: HashMap<(wgpu::TextureFormat, bool), wgpu::RenderPipeline>,
+    hdr_white: Option<f32>,
     globals: wgpu::Buffer,
     globals_bind_group: wgpu::BindGroup,
     texture_layout: wgpu::BindGroupLayout,
@@ -132,6 +133,7 @@ impl UiPass {
             shader,
             pipeline_layout,
             pipelines: HashMap::new(),
+            hdr_white: None,
             globals,
             globals_bind_group,
             texture_layout,
@@ -150,10 +152,15 @@ impl UiPass {
 
     /// Build the pipeline for targets of `format` now (it is otherwise built by the first draw into it).
     pub fn use_format(&mut self, device: &wgpu::Device, format: wgpu::TextureFormat) {
-        if self.pipelines.contains_key(&format) {
+        let key = (format, self.hdr_white.is_some());
+        if self.pipelines.contains_key(&key) {
             return;
         }
-        let entry_point = if crate::world::is_srgb(format) { "fs_main_srgb" } else { "fs_main" };
+        let entry_point = match (self.hdr_white.is_some(), crate::world::is_srgb(format)) {
+            (true, _) => "fs_main_hdr",
+            (false, true) => "fs_main_srgb",
+            (false, false) => "fs_main",
+        };
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("ui"),
             layout: Some(&self.pipeline_layout),
@@ -183,7 +190,7 @@ impl UiPass {
             multiview_mask: None,
             cache: self.cache.as_ref(),
         });
-        self.pipelines.insert(format, pipeline);
+        self.pipelines.insert(key, pipeline);
     }
 
     /// Create, replace or update a UI texture. A bad patch (wrong byte count, a region outside the
@@ -262,6 +269,14 @@ impl UiPass {
         self.stale = true;
     }
 
+    /// UI reference white in absolute nits for a linear scRGB target; None retains SDR.
+    pub fn set_hdr_white(&mut self, nits: Option<f32>) {
+        self.hdr_white = nits.filter(|v| v.is_finite()).map(|v| v.clamp(16.0, 10000.0));
+    }
+    pub fn hdr_white(&self) -> Option<f32> {
+        self.hdr_white
+    }
+
     /// Draw the layer into `target` (an image of `format`, `size` pixels) on top of what is already there.
     /// Records nothing for an empty layer. One render pass, `LoadOp::Load`, no depth.
     pub fn encode(
@@ -295,7 +310,7 @@ impl UiPass {
             self.stale = false;
         }
         self.collect_draws(ppp, size);
-        let screen = [size.0 as f32 / ppp, size.1 as f32 / ppp, 0.0, 0.0];
+        let screen = [size.0 as f32 / ppp, size.1 as f32 / ppp, self.hdr_white.unwrap_or(80.0) / 80.0, 0.0];
         queue.write_buffer(&self.globals, 0, bytemuck::cast_slice(&screen));
 
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -311,7 +326,7 @@ impl UiPass {
             occlusion_query_set: None,
             multiview_mask: None,
         });
-        pass.set_pipeline(&self.pipelines[&format]);
+        pass.set_pipeline(&self.pipelines[&(format, self.hdr_white.is_some())]);
         pass.set_bind_group(0, &self.globals_bind_group, &[]);
         pass.set_vertex_buffer(0, self.vertices.slice(..));
         pass.set_index_buffer(self.indices.slice(..), wgpu::IndexFormat::Uint32);

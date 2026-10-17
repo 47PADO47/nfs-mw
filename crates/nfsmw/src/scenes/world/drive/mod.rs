@@ -21,6 +21,7 @@ mod placement;
 mod presentation_tests;
 mod release;
 mod rig;
+mod road_reflection;
 mod script;
 pub(super) mod sight;
 mod sim;
@@ -426,7 +427,6 @@ impl Drive {
         }
     }
 
-    /// What the in-game HUD shows; `None` while there is no car yet.
     pub fn hud_state(&self) -> Option<crate::hud::HudState> {
         self.sim.as_ref()?;
         let t = &self.telemetry;

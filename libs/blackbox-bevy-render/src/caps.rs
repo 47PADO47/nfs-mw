@@ -39,6 +39,7 @@ pub fn capabilities_with_ray_tracing(
         renderer: "bevy",
         api,
         compressed_bc,
+        max_texture_anisotropy: 16,
         // Bloom and tone mapping need an `Hdr` camera (`PostSettings::needs_hdr`); set only when either runs.
         hdr_targets: true,
         antialiasing: AaSet::of(&[Antialiasing::Off, Antialiasing::Fxaa, Antialiasing::Smaa, Antialiasing::Taa]),
@@ -50,6 +51,7 @@ pub fn capabilities_with_ray_tracing(
         radial_blur: true,
         frame_generation: false,
         local_reflections: false,
+        projected_reflections: false,
         ambient_occlusion: false,
         soft_shadows: !matches!(api, GraphicsApi::Gl),
         // Bevy builds its sun shadows from the main list, so its off-screen casters must stay in it.
@@ -58,8 +60,8 @@ pub fn capabilities_with_ray_tracing(
         ray_tracing,
         // Rendering above the surface size is not wired up.
         render_scale: (MIN_RENDER_SCALE, 1.0),
-        // Ray tracing is chosen when the device is created (PR 12); nothing else needs a restart.
-        restart_required: RestartSet::of(&[Setting::RayTracing]),
+        // Texture samplers are fixed before render-only image uploads; ray tracing also needs a new device.
+        restart_required: RestartSet::of(&[Setting::RayTracing, Setting::TextureFiltering]),
     }
 }
 
@@ -118,7 +120,7 @@ mod tests {
         assert_eq!(caps.tonemaps, TonemapSet::of(&[Tonemap::Off, Tonemap::Aces]));
         assert!(caps.bloom && caps.hdr_targets);
         assert!(!caps.ray_tracing.is_available());
-        assert_eq!(caps.restart_required, RestartSet::of(&[Setting::RayTracing]));
+        assert_eq!(caps.restart_required, RestartSet::of(&[Setting::RayTracing, Setting::TextureFiltering]));
         assert!(caps.compressed_bc && !capabilities(GraphicsApi::Vulkan, false).compressed_bc);
     }
 

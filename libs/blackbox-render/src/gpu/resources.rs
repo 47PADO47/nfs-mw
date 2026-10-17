@@ -12,7 +12,7 @@ pub(super) struct Shared {
 impl Shared {
     pub(super) fn new(device: &wgpu::Device) -> Self {
         let glossy = super::glossy::Layouts::new(device);
-        let shadows = super::shadows::maps::Maps::new(device, &glossy.material, 1, None, None);
+        let shadows = super::shadows::maps::Maps::new(device, &glossy.material, 1, 4, None, None);
         Self { bindings: WorldBindings::new(device), glossy, shadows }
     }
 }

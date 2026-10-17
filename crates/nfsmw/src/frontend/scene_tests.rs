@@ -171,3 +171,49 @@ fn global_sound_events_pass_through_play_wrapper_once_and_never_replay_after_loa
         assert_eq!(scene.take_common_sounds(), vec![SpeedbreakerEnd]);
     }
 }
+
+#[test]
+fn paused_car_shading_change_refreshes_without_advancing_simulation() {
+    use crate::app::test_backend::NullBackend;
+    use crate::settings::CarShading;
+    use std::sync::Mutex;
+    #[derive(Default)]
+    struct Seen {
+        wanted: Option<CarShading>,
+        applied: Option<CarShading>,
+        refreshes: usize,
+    }
+    struct Observed(Arc<Mutex<Seen>>);
+    impl Scene for Observed {
+        fn title(&self) -> String {
+            String::new()
+        }
+        fn init(&mut self, _: &mut dyn RenderBackend) -> Result<()> {
+            Ok(())
+        }
+        fn update(&mut self, _: &mut dyn RenderBackend, _: &ActionState, _: f32) {
+            panic!("paused material refresh must not advance simulation");
+        }
+        fn frame(&mut self, _: f32) -> (FrameParams, &[Instance]) {
+            (flat_frame(), &[])
+        }
+        fn set_car_shading(&mut self, mode: CarShading) {
+            self.0.lock().unwrap().wanted = Some(mode);
+        }
+        fn refresh_effects(&mut self, _: &mut dyn RenderBackend) {
+            let mut state = self.0.lock().unwrap();
+            state.applied = state.wanted;
+            state.refreshes += 1;
+        }
+    }
+    let flag = PauseFlag::default();
+    flag.set(true);
+    let seen = Arc::new(Mutex::new(Seen::default()));
+    let mut paused = Pausable::new(Box::new(Observed(seen.clone())), flag);
+    let mut renderer = NullBackend::new(crate::settings::test_caps::native());
+    paused.set_car_shading(CarShading::Original);
+    paused.update(&mut renderer, &ActionState::default(), 1.0 / 240.0);
+    assert_eq!(seen.lock().unwrap().applied, Some(CarShading::Original));
+    paused.update(&mut renderer, &ActionState::default(), 1.0 / 240.0);
+    assert_eq!(seen.lock().unwrap().refreshes, 1, "the paused refresh is consumed once");
+}

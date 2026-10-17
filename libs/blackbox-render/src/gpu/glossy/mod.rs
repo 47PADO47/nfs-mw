@@ -5,6 +5,8 @@ mod irradiance;
 #[cfg(test)]
 mod irradiance_tests;
 mod layout;
+#[cfg(test)]
+mod original_tests;
 mod uniforms;
 #[cfg(test)]
 mod validation_tests;
@@ -41,6 +43,7 @@ pub(super) struct Glossy {
 }
 
 struct Material {
+    original: bool,
     buffer: wgpu::Buffer,
     group: wgpu::BindGroup,
     /// The material as registered, so its block can be packed again when the brightness changes.
@@ -48,6 +51,10 @@ struct Material {
 }
 
 impl Glossy {
+    pub(super) fn original_material(&self, handle: GlossyMaterialHandle) -> bool {
+        self.materials.get(handle.raw()).is_some_and(|m| m.original)
+    }
+
     pub(super) fn has_material(&self, handle: GlossyMaterialHandle) -> bool {
         self.materials.get(handle.raw()).is_some()
     }
@@ -72,9 +79,9 @@ impl Glossy {
             ..Default::default()
         });
         let faces = env::sky_faces(&SkyGradient::default(), SKY_FACE_SIZE);
-        let view = environment_view(device, queue, SKY_FACE_SIZE, &faces.each_ref().map(Vec::as_slice));
+        let (view, face_view) = environment_view(device, queue, SKY_FACE_SIZE, &faces.each_ref().map(Vec::as_slice));
         let irradiance = irradiance::Irradiance::new(device, cache);
-        let scene = scene_group(device, &layouts, &rig, &view, &sampler, &irradiance.buffer);
+        let scene = scene_group(device, &layouts, &rig, &view, &face_view, &sampler, &irradiance.buffer);
         Self {
             layouts,
             rig,
@@ -90,8 +97,14 @@ impl Glossy {
     }
 
     /// Bind the rig and the environment; call after setting a glossy pipeline.
-    pub(super) fn use_environment(&mut self, device: &wgpu::Device, view: &wgpu::TextureView) {
-        self.scene = scene_group(device, &self.layouts, &self.rig, view, &self.sampler, &self.irradiance.buffer);
+    pub(super) fn use_environment(
+        &mut self,
+        device: &wgpu::Device,
+        view: &wgpu::TextureView,
+        face_view: &wgpu::TextureView,
+    ) {
+        self.scene =
+            scene_group(device, &self.layouts, &self.rig, view, face_view, &self.sampler, &self.irradiance.buffer);
         self.environment = view.clone();
         self.irradiance.dirty = true;
     }
@@ -139,6 +152,7 @@ fn scene_group(
     layouts: &Layouts,
     rig: &wgpu::Buffer,
     environment: &wgpu::TextureView,
+    face_view: &wgpu::TextureView,
     sampler: &wgpu::Sampler,
     irradiance: &wgpu::Buffer,
 ) -> wgpu::BindGroup {
@@ -150,12 +164,18 @@ fn scene_group(
             wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(environment) },
             wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Sampler(sampler) },
             wgpu::BindGroupEntry { binding: 3, resource: irradiance.as_entire_binding() },
+            wgpu::BindGroupEntry { binding: 4, resource: wgpu::BindingResource::TextureView(face_view) },
         ],
     })
 }
 
-/// A cube map view from six RGBA8 faces of `size` × `size` texels (+x, -x, +y, -y, +z, -z).
-fn environment_view(device: &wgpu::Device, queue: &wgpu::Queue, size: u32, faces: &[&[u8]; 6]) -> wgpu::TextureView {
+/// A cube map view from six RGBA8 faces of `size` x `size` texels (+x, -x, +y, -y, +z, -z).
+fn environment_view(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    size: u32,
+    faces: &[&[u8]; 6],
+) -> (wgpu::TextureView, wgpu::TextureView) {
     let extent = wgpu::Extent3d { width: size, height: size, depth_or_array_layers: 6 };
     let texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("glossy environment"),
@@ -180,10 +200,15 @@ fn environment_view(device: &wgpu::Device, queue: &wgpu::Queue, size: u32, faces
             wgpu::Extent3d { width: size, height: size, depth_or_array_layers: 1 },
         );
     }
-    texture.create_view(&wgpu::TextureViewDescriptor {
+    let cube = texture.create_view(&wgpu::TextureViewDescriptor {
         dimension: Some(wgpu::TextureViewDimension::Cube),
         ..Default::default()
-    })
+    });
+    let faces = texture.create_view(&wgpu::TextureViewDescriptor {
+        dimension: Some(wgpu::TextureViewDimension::D2Array),
+        ..Default::default()
+    });
+    (cube, faces)
 }
 
 /// The glossy state, created on first use.
@@ -239,7 +264,7 @@ impl Renderer {
         self.set_environment_faces(SKY_FACE_SIZE, faces.each_ref().map(Vec::as_slice));
     }
 
-    /// Reflect a cube map in glossy surfaces: six RGBA8 faces of `size` × `size` texels in the
+    /// Reflect a cube map in glossy surfaces: six RGBA8 faces of `size` x `size` texels in the
     /// order +x, -x, +y, -y, +z, -z, addressed by world-space direction.
     pub fn set_environment_faces(&mut self, size: u32, faces: [&[u8]; 6]) {
         let size = size.max(1);
@@ -250,9 +275,16 @@ impl Renderer {
         }
         let glossy =
             ensure(&mut self.glossy, &self.device, &self.queue, &self.shared.glossy, self.pipeline_cache.as_ref());
-        let view = environment_view(&self.device, &self.queue, size, &faces.map(|f| &f[..texel_bytes]));
-        glossy.scene =
-            scene_group(&self.device, &glossy.layouts, &glossy.rig, &view, &glossy.sampler, &glossy.irradiance.buffer);
+        let (view, face_view) = environment_view(&self.device, &self.queue, size, &faces.map(|f| &f[..texel_bytes]));
+        glossy.scene = scene_group(
+            &self.device,
+            &glossy.layouts,
+            &glossy.rig,
+            &view,
+            &face_view,
+            &glossy.sampler,
+            &glossy.irradiance.buffer,
+        );
         glossy.environment = view.clone();
         glossy.static_environment = view;
         glossy.irradiance.dirty = true;
@@ -270,8 +302,12 @@ impl Renderer {
             usage: wgpu::BufferUsages::UNIFORM,
         });
         let group = self.shared.shadows.material_group(&self.device, &glossy.layouts.material, &buffer);
-        let source = *material;
-        GlossyMaterialHandle::from_raw(glossy.materials.insert(Material { buffer, group, source }))
+        GlossyMaterialHandle::from_raw(glossy.materials.insert(Material {
+            original: material.model != blackbox_gfx::GlossyModel::Custom,
+            source: *material,
+            buffer,
+            group,
+        }))
     }
 
     /// Free a material. Draws that still use it are skipped.

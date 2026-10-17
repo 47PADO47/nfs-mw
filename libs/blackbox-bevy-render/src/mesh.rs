@@ -7,7 +7,7 @@
 use bevy_asset::RenderAssetUsages;
 use bevy_camera::primitives::Aabb;
 use bevy_mesh::{Indices, Mesh, MeshVertexAttribute, PrimitiveTopology, VertexAttributeValues, VertexFormat};
-use blackbox_gfx::{BlendMode, DrawRange, MeshDesc, Shading, TextureHandle, Vertex};
+use blackbox_gfx::{BlendMode, DrawRange, MeshDesc, Shading, TextureHandle};
 
 /// The vertex colour, `Unorm8x4` in the games' D3DCOLOR byte order (B, G, R, A), so the shader swizzles it.
 pub const ATTRIBUTE_COLOR_BGRA: MeshVertexAttribute =
@@ -67,11 +67,12 @@ fn range_mesh(desc: &MeshDesc<'_>, range: &DrawRange) -> Option<RangeData> {
         log::warn!("{}: draw range {first}..{end} indexes outside the {} vertices", desc.label, desc.vertices.len());
         return None;
     };
-    Some(build(desc.vertices, &resolved, range))
+    Some(build(desc, &resolved, range))
 }
 
 /// Compact: the used vertices keep their order, so the vertex cache locality of the source survives.
-fn build(vertices: &[Vertex], resolved: &[usize], range: &DrawRange) -> RangeData {
+fn build(desc: &MeshDesc<'_>, resolved: &[usize], range: &DrawRange) -> RangeData {
+    let vertices = desc.vertices;
     let mut remap = vec![u32::MAX; vertices.len()];
     let mut used = Vec::new();
     for &v in resolved {
@@ -88,6 +89,7 @@ fn build(vertices: &[Vertex], resolved: &[usize], range: &DrawRange) -> RangeDat
     let mut positions = Vec::with_capacity(used.len());
     let mut normals = Vec::with_capacity(used.len());
     let mut uvs = Vec::with_capacity(used.len());
+    let mut secondary_uvs = Vec::with_capacity(used.len());
     let mut colors = Vec::with_capacity(used.len());
     let (mut min, mut max) = ([f32::MAX; 3], [f32::MIN; 3]);
     for &old in &used {
@@ -95,6 +97,7 @@ fn build(vertices: &[Vertex], resolved: &[usize], range: &DrawRange) -> RangeDat
         positions.push(v.position);
         normals.push(v.normal);
         uvs.push(v.uv);
+        secondary_uvs.push(desc.secondary_uvs.and_then(|uvs| uvs.get(old)).copied().unwrap_or(v.uv));
         colors.push(v.color_bgra);
         for axis in 0..3 {
             min[axis] = min[axis].min(v.position[axis]);
@@ -108,6 +111,7 @@ fn build(vertices: &[Vertex], resolved: &[usize], range: &DrawRange) -> RangeDat
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
     mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
     mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_1, secondary_uvs);
     let aabb = Aabb::from_min_max(min.into(), max.into());
     let colour = average_colour(&colors);
     mesh.insert_attribute(ATTRIBUTE_COLOR_BGRA, VertexAttributeValues::Unorm8x4(colors));
@@ -118,6 +122,7 @@ fn build(vertices: &[Vertex], resolved: &[usize], range: &DrawRange) -> RangeDat
 #[cfg(test)]
 mod tests {
     use super::*;
+    use blackbox_gfx::Vertex;
 
     fn vertex(x: f32) -> Vertex {
         Vertex { position: [x, x + 1.0, x + 2.0], normal: [0.0, 0.0, 1.0], color_bgra: [1, 2, 3, 4], uv: [x, 0.0] }
@@ -135,7 +140,7 @@ mod tests {
     }
 
     fn desc<'a>(vertices: &'a [Vertex], indices: &'a [u16], draws: Vec<DrawRange>) -> MeshDesc<'a> {
-        MeshDesc { label: "test", vertices, indices, draws }
+        MeshDesc { secondary_uvs: None, tangents: None, label: "test", vertices, indices, draws }
     }
 
     #[test]
@@ -184,6 +189,19 @@ mod tests {
             other => panic!("{other:?}"),
         };
         assert_eq!(uv, [3.0, 0.0], "base_vertex 3 picks vertex 3 for index 0");
+    }
+
+    #[test]
+    fn independent_uv_channel_compacts_with_vertices_and_missing_entries_use_primary() {
+        let vertices: Vec<Vertex> = (0..6).map(|i| vertex(i as f32)).collect();
+        let uvs = [[0.0, 9.0], [1.0, 9.0], [2.0, 9.0], [3.0, 9.0], [4.0, 9.0]];
+        let mut desc = desc(&vertices, &[0, 1, 2], vec![range(0, 3, 3)]);
+        desc.secondary_uvs = Some(&uvs);
+        let parts = split(&desc);
+        match parts[0].mesh.attribute(Mesh::ATTRIBUTE_UV_1) {
+            Some(VertexAttributeValues::Float32x2(uv)) => assert_eq!(uv, &[[3.0, 9.0], [4.0, 9.0], [5.0, 0.0]]),
+            other => panic!("{other:?}"),
+        }
     }
 
     #[test]

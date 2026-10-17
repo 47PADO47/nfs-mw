@@ -138,6 +138,7 @@ fn cop_model(renderer: &mut NullBackend, player: Performance) -> CopModel {
     let model = CarModel {
         flare_profiles: Default::default(),
         name: "copx".into(),
+        window_tint_material: None,
         car_type: None,
         solids: HashMap::new(),
         placements: Vec::new(),

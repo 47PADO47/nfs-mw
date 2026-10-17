@@ -24,7 +24,14 @@ fn a_section_frees_the_meshes_and_textures_it_uploaded() {
         format: PixelFormat::Rgba8,
         mips: vec![&WHITE[..]],
     });
-    let mesh = renderer.create_mesh(&MeshDesc { label: "section", vertices: &[], indices: &[], draws: Vec::new() });
+    let mesh = renderer.create_mesh(&MeshDesc {
+        label: "section",
+        vertices: &[],
+        indices: &[],
+        draws: Vec::new(),
+        tangents: None,
+        secondary_uvs: None,
+    });
     let mut section = SectionResources::default();
     section.materials.insert(1, (texture, BlendMode::Opaque));
     section.meshes.insert(2, (mesh, LodModel { num_polys: 4, density: 1.0 }, false));

@@ -14,6 +14,7 @@ pub struct UiVertex {
     pub position: [f32; 2],
     pub uv: [f32; 2],
     /// RGBA with **premultiplied** alpha, in the same (gamma) space as the texture.
+    /// Nonzero RGB with zero alpha encodes additive colour, not transparency.
     pub color_rgba: [u8; 4],
 }
 

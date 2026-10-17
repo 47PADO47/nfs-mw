@@ -86,3 +86,16 @@ fn a_change_with_no_scene_clock_is_dropped() {
     time::apply(vec![time::ClockRequest::SetHour(3.0)], &mut scene);
     assert!(scene.clock.is_none(), "a scene without a clock is not given one");
 }
+
+#[test]
+fn clock_requests_preserve_the_scene_weather_and_sun_comparison_settings() {
+    let mut scene = Recorder::at(9.0, 150.0);
+    let env = scene.clock.as_mut().unwrap();
+    env.sun_mode = crate::viewer::SunMode::FixedPhase;
+    env.sun_phase = 0.3;
+    env.cloud_override = Some(0.7);
+    env.road_wetness_override = Some(0.6);
+    let before = *env;
+    time::apply(vec![time::ClockRequest::SetHour(14.0), time::ClockRequest::SetRate(30.0)], &mut scene);
+    assert_eq!(scene.clock.unwrap(), crate::viewer::Environment { hour: 14.0, seconds_per_hour: 30.0, ..before });
+}

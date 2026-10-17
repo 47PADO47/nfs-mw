@@ -10,6 +10,7 @@ pub mod backend;
 mod backend_tests;
 pub mod caps;
 pub mod capture;
+pub mod display;
 pub mod effects;
 pub mod error;
 pub mod experiments;
@@ -19,12 +20,18 @@ pub use experiments::{ExperimentStats, LightingDebug, RenderExperiments};
 pub mod handles;
 pub mod material;
 pub mod mesh;
+pub mod normal;
+pub mod projected;
 pub mod reflection;
+pub use projected::ProjectedReflectionScene;
 pub mod settings;
+pub mod shadow;
+pub mod sky;
 pub mod stats;
 pub mod texture;
 pub mod treatment;
 pub mod ui;
+pub mod window;
 
 pub use api::{GraphicsApi, ParseGraphicsApiError};
 pub use backend::RenderBackend;
@@ -33,17 +40,21 @@ pub use caps::{
     TonemapSet, UpscalerSet, resolve,
 };
 pub use capture::RgbaImage;
+pub use display::{DisplaySettings, DisplayStatus, HdrMode};
 pub use effects::{DEFAULT_SOFT_DISTANCE, EffectLayer, EffectVertex, TexturedEffect};
 pub use error::RenderError;
 pub use focus::FocusFilter;
 pub use frame::{
     Fog, FrameParams, FrameStatus, Instance, InstanceKey, Projection, Scattering, ShadowFlags, SurfaceLight,
 };
-pub use handles::{CaptureId, GlossyMaterialHandle, MeshHandle, TextureHandle, UiTextureId};
-pub use material::{DirectionalLight, Environment, GlossyMaterial, LightingRig, SkyGradient};
+pub use handles::{
+    CaptureId, GlossyMaterialHandle, MeshHandle, NormalMaterialHandle, SkyMaterialHandle, TextureHandle, UiTextureId,
+    WindowMaterialHandle,
+};
+pub use material::{DirectionalLight, Environment, GlossyMaterial, GlossyModel, LightingRig, SkyGradient};
 pub use mesh::{BlendMode, DrawRange, MeshDesc, Shading, Vertex};
+pub use normal::{NormalMaterialDesc, NormalModel};
 pub use reflection::{ReflectionQuality, ReflectionScene};
-pub use settings::ShadowQuality;
 pub use settings::{
     Antialiasing, AoQuality, AoSettings, DEFAULT_BLOOM_THRESHOLD, DEFAULT_RENDER_SCALE, DEFAULT_UPSCALE_SHARPNESS,
     GraphicsSettings, MAX_BLOOM_INTENSITY, MAX_BLOOM_THRESHOLD, MAX_EXPOSURE, MAX_RENDER_SCALE, MAX_TEXTURE_LOD_BIAS,
@@ -51,10 +62,14 @@ pub use settings::{
     UpscaleQuality, Upscaler, clamp_render_scale, clamp_texture_lod_bias, clamp_upscale_sharpness, fsr1_active,
     rcas_stops, scaled_size, suggested_temporal_texture_lod_bias, suggested_texture_lod_bias,
 };
+pub use settings::{ShadowQuality, TextureFiltering};
+pub use shadow::ShadowProjection;
+pub use sky::{SkyLayerKind, SkyMaterialDesc, SkyState};
 pub use stats::{BackendInfo, RenderStats};
 pub use texture::{PixelFormat, TextureDesc};
-pub use treatment::ColourTreatment;
+pub use treatment::{ColourTreatment, ColourTreatmentOverride};
 pub use ui::{UiLayer, UiMesh, UiTexturePatch, UiVertex};
+pub use window::WindowMaterialDesc;
 
 /// The former name of [`GraphicsApi`], kept so existing callers compile unchanged.
 pub type Backend = GraphicsApi;

@@ -18,6 +18,14 @@ pub(super) fn combinations() -> impl Iterator<Item = (BlendMode, Shading)> {
     BLEND_ORDER.into_iter().flat_map(|b| SHADINGS.into_iter().map(move |s| (b, s)))
 }
 
+/// Whether a draw of shading `draw` belongs in the bucket of pipeline `bucket`: the draws that share it, and the
+/// neighbours a view may borrow (the frame's draw rules pick among them).
+pub(super) fn takes(draw: Shading, bucket: Shading) -> bool {
+    draw.same_pipeline(bucket)
+        || (bucket == Shading::WorldNoFog && matches!(draw, Shading::World | Shading::WorldNormal(_)))
+        || (bucket == Shading::Prelit && matches!(draw, Shading::WorldNormal(_) | Shading::WorldWindow(_)))
+}
+
 /// One draw of one run of instances, ready to bind and draw.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct Cmd {
@@ -96,7 +104,7 @@ impl DrawList {
             let Some(texture) = texture_of(d.texture) else { continue };
             let cmd = Cmd { mesh, draw: index as u32, texture, instances };
             for (bucket, (blend, shading)) in self.buckets.iter_mut().zip(combinations()) {
-                if d.blend == blend && d.shading.same_pipeline(shading) {
+                if d.blend == blend && takes(d.shading, shading) {
                     bucket.push(cmd);
                 }
             }
@@ -188,7 +196,7 @@ mod tests {
                 let end = start + instances[start..].iter().take_while(|i| i.mesh == mesh).count();
                 let draws = meshes.get(mesh.raw()).and_then(|m| m.as_deref()).unwrap_or(&[]);
                 for (index, d) in draws.iter().enumerate() {
-                    if d.blend != mode || !d.shading.same_pipeline(shading) {
+                    if d.blend != mode || !takes(d.shading, shading) {
                         continue;
                     }
                     let Some(texture) = texture_of(d.texture) else { continue };

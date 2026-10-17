@@ -6,6 +6,7 @@ impl Shadows {
     pub(super) fn new(
         device: &wgpu::Device,
         texture: &wgpu::BindGroupLayout,
+        bias: [f32; 2],
         cache: Option<&wgpu::PipelineCache>,
     ) -> Self {
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -53,7 +54,7 @@ impl Shadows {
                     depth_write_enabled: Some(true),
                     depth_compare: Some(wgpu::CompareFunction::LessEqual),
                     stencil: Default::default(),
-                    bias: wgpu::DepthBiasState { constant: 1, slope_scale: 1.0, clamp: 0.0 },
+                    bias: wgpu::DepthBiasState { constant: bias[0] as i32, slope_scale: bias[1], clamp: 0.0 },
                 }),
                 multisample: Default::default(),
                 fragment: Some(wgpu::FragmentState {
@@ -87,14 +88,18 @@ impl Shadows {
             })
             .collect();
         Self {
+            bias,
             opaque: make("fs_opaque"),
             cutout: make("fs_cutout"),
+            tree_cutout: make("fs_tree_cutout"),
+            prelit_cutout: make("fs_prelit_cutout"),
             buffers,
             groups,
             instances: (0..4).map(|_| crate::gpu::instances::InstanceBuffer::new(device)).collect(),
             bounds: Vec::new(),
             selected: Vec::new(),
             matrices: Vec::new(),
+            fit_points: Vec::new(),
         }
     }
 }

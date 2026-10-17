@@ -14,6 +14,13 @@ the measured results and the known gaps.
 Dynamic cascaded spatially filtered sun shadows are optional through `GraphicsSettings.shadows`; see
 [soft shadows](../../docs/soft-shadows.md) for controls, quality levels and lighting limitations.
 
+The original scenery switch in `RenderExperiments.original_world_materials` selects
+the reconstructed World/Tree vertex lighting and atmospheric interpolation, plus
+explicit no-fog/prelit alpha behavior. It defaults off to preserve legacy rendering.
+Authored ambient intensity is separate from light presence. Normal-mapped/reflected
+world surfaces and complete original sky composition remain incomplete on this backend; see
+[world material routing](../../docs/specs/world-material-routing.md).
+
 ## Using it
 
 ```rust
@@ -43,3 +50,28 @@ is the same renderer in a window-less `App` that runs one update per `render()` 
 | `harness` | `HeadlessBevy` |
 
 License: MIT OR Apache-2.0.
+
+Original World/Tree/NoFog/Prelit variants have shader-fixture coverage. Layered
+PC sky is native-only through the optional sky material API; Bevy keeps the
+camera-relative legacy sky. Blended world surfaces still use the backend's
+linear-space blend after the gamma bridge, which is not original D3D9 gamma-space
+blending. This is an explicit remaining backend parity limit.
+
+Normal-mapped surface registration explicitly returns `None` and logs its
+limitation once. The caller retains the legacy prelit fallback; it does not
+register the normal map as a plain World or glossy material. The shared
+specular colour/exponent and tangent sidecars are not consumed until Bevy
+supports this material family. Native support does not imply Bevy support.
+
+Reflective tangent-space scenery and architectural glass also retain explicit
+legacy fallbacks. Window registration returns `None` with a once-only message;
+its authored 2D reflection cannot be replaced with the car's glossy material.
+
+Original vertex-lit car material families are native-only. Bevy logs its fallback
+once and renders them with its custom glossy shader; it does not claim original
+vertex interpolation, highlight, material-scale, fog or blending parity.
+
+Surface texture filtering is selected at startup (Trilinear, 8x or 16x). Changing
+it after surface uploads requires a renderer restart; streamed images keep the
+active sampler until then. Render-only image ownership is retained. UI, lookup
+and environment samplers are independent. See [texture filtering](../../docs/texture-filtering.md).

@@ -93,11 +93,14 @@ blended layers, is off by up to about 12 levels for that reason. See the results
   `FOG`, `GLOSSY`) by `Opaque`, `AlphaTest` (`Mask(0.5)`, discard in the shader), `AlphaBlend` and
   `Additive` (the exact native blend states, colour written only so captures stay opaque). Culling is off,
   as native. The camera prepass is off; optional shadow depth handles opaque and alpha-tested materials
-  (see [soft shadows](soft-shadows.md)). The uniform holds the fog colour and range
-  and the light direction; it is rewritten on all materials only when a frame's values differ from the
-  last. The native texture LOD bias rides on the camera's `MipBias` (read as `view.mip_bias`). Every
-  material also carries the glossy uniform, the lighting rig and the environment cube map (unused unless
-  the shading is `Glossy`): cheap enough, and keeps one material type instead of two.
+  (see [soft shadows](soft-shadows.md)). The scene's fog, light direction, tone-map flag and glossy lighting rig
+  are not in the material: they live in one shared `ShaderBuffer` (`material/scene.rs`), bound by every material as
+  a read-only storage buffer (binding 0) and rewritten only when a frame's values differ from the last. Its size
+  never changes, so Bevy writes the same GPU buffer in place and touches no material, bind group or entity; the
+  day-night clock changes the values every frame, and copying them into the materials rebuilt every one. The native texture LOD bias rides on the camera's `MipBias` (read as `view.mip_bias`). A
+  material keeps only the texture, the glossy constants (own uniform) and the environment cube map (unused unless
+  the shading is `Glossy`; updated on the glossy materials only when the caller sets a new one): plain per-material
+  data, so it can later be made `#[bindless]`.
 - **`redirect_texture`:** a `HashMap<usize, usize>` in `WorldState`, consulted when a draw becomes a
   material; existing materials keyed on the redirected number are repointed in place, not respawned. See
   "PR 9" for the lighting rig, the environment and the effect and UI layers.

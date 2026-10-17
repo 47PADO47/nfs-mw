@@ -21,8 +21,9 @@ Modules: `blackbox-carparts` (`PartsDb::find`, `PartsDb::model_hash`, `SlotTypes
     ride height), and all 164 aftermarket rim models resolve;
   - every car type with an `ecar` record gets four wheels; renders of the M3 GTR and 911 Turbo.
 - **Known differences from the original:**
-  - the car shader (§8) is not implemented: cars use the generic lit shading with the paint as a flat
-    texture;
+  - Historical assembly baseline: car shading was initially generic. Selectable original PC material
+    families and rigs are now specified in [car material shading](car-material-shading.md) and
+    [car lighting](car-lighting.md); remaining skin composition and reflection/shadow gaps are explicit;
   - no vinyls, decals, damage, spin, steering or suspension travel; trucks' `ExtraRearTireOffset` is
     ignored;
   - cars without an `ecar` record (`BMWM3`) get no wheels;

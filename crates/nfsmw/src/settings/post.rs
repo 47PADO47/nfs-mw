@@ -56,7 +56,12 @@ impl PostBloom {
 /// What the renderer is asked to run for `settings`.
 pub fn post_effects(settings: &Settings) -> PostSettings {
     PostSettings {
-        colour_treatment: settings.visual_treatment.strength(),
+        colour_treatment_override: settings.visual_treatment.parameter_override(),
+        colour_treatment: settings
+            .appearance
+            .treatment_strength
+            .unwrap_or_else(|| settings.visual_treatment.strength())
+            .clamp(0.0, 1.0),
         tonemap: match settings.post_tonemap {
             PostTonemap::Off => Tonemap::Off,
             PostTonemap::Aces => Tonemap::Aces,
@@ -79,18 +84,36 @@ pub enum VisualTreatment {
     Off,
     Low,
     High,
+    /// The user-supplied Extra Options parameter override, separate from stock treatment.
+    Reference,
 }
 impl VisualTreatment {
-    pub const ALL: [Self; 3] = [Self::Off, Self::Low, Self::High];
+    pub const ALL: [Self; 4] = [Self::Off, Self::Low, Self::High, Self::Reference];
+    pub fn parameter_override(self) -> Option<blackbox_gfx::ColourTreatmentOverride> {
+        if self != Self::Reference {
+            return None;
+        }
+        Some(blackbox_gfx::ColourTreatmentOverride {
+            tint: [0.68, 0.62, 0.03],
+            // Extra Options writes its "Saturation" value directly to Desaturation.
+            desaturation: 0.80,
+            colour_intensity: 0.75,
+            black_intensity: 0.40,
+        })
+    }
     pub fn strength(self) -> f32 {
         match self {
             Self::Off => 0.0,
             Self::Low => 0.5,
-            Self::High => 1.0,
+            Self::High | Self::Reference => 1.0,
         }
     }
 }
-names!(VisualTreatment, "off, low or high", [(Self::Off, "off"), (Self::Low, "low"), (Self::High, "high")]);
+names!(
+    VisualTreatment,
+    "off, low, high or reference",
+    [(Self::Off, "off"), (Self::Low, "low"), (Self::High, "high"), (Self::Reference, "reference")]
+);
 
 names!(PostTonemap, "off or aces", [(Self::Off, "off"), (Self::Aces, "aces")]);
 names!(

@@ -27,14 +27,28 @@ pub enum BlendMode {
 /// How a draw is lit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Shading {
-    /// Texture × vertex colour × (ambient + directional light): models without baked lighting (cars).
+    /// Texture Ãƒâ€” vertex colour Ãƒâ€” (ambient + directional light): models without baked lighting (cars).
     Lit,
-    /// Texture × vertex colour × 2, no dynamic light: pre-lit world geometry, whose
+    /// Texture Ãƒâ€” vertex colour Ãƒâ€” 2, no dynamic light: pre-lit world geometry, whose
     /// vertex colours use 0x80 for full brightness.
     Prelit,
+    /// Authored world material: ambient vertex light receives extinction, sun light does not.
+    World,
+    /// Registered tangent-space lit scenery, with diffuse, normal and specular textures.
+    WorldNormal(crate::NormalMaterialHandle),
+    /// Architectural glass with authored two-dimensional reflections.
+    WorldWindow(crate::WindowMaterialHandle),
+    /// Foliage: diffuse light receives extinction, ambient vertex light does not; texture alpha.
+    Tree,
+    /// Unlit, unfogged, doubled RGB and alpha from the authored prelit effect.
+    WorldPrelit,
+    /// Unlit, unfogged doubled RGB with ordinary texture times vertex alpha.
+    WorldNoFog,
     /// Like [`Shading::Prelit`] but never fogged: sky domes, which sit beyond the fog.
     Sky,
-    /// Texture × three-light rig, sun highlight and environment reflection, with the constants
+    /// A registered atmospheric/cloud layer with two authored UV channels.
+    SkyLayer(crate::SkyMaterialHandle),
+    /// Texture Ãƒâ€” three-light rig, sun highlight and environment reflection, with the constants
     /// of a registered material (`create_glossy_material`) and the rig set with `set_lighting_rig`.
     /// Vehicle paint, rims and glass.
     Glossy(GlossyMaterialHandle),
@@ -45,6 +59,9 @@ impl Shading {
     pub fn same_pipeline(self, other: Shading) -> bool {
         match (self, other) {
             (Shading::Glossy(_), Shading::Glossy(_)) => true,
+            (Shading::SkyLayer(_), Shading::SkyLayer(_)) => true,
+            (Shading::WorldNormal(_), Shading::WorldNormal(_)) => true,
+            (Shading::WorldWindow(_), Shading::WorldWindow(_)) => true,
             (a, b) => a == b,
         }
     }
@@ -67,6 +84,10 @@ pub struct DrawRange {
 pub struct MeshDesc<'a> {
     pub label: &'a str,
     pub vertices: &'a [Vertex],
+    /// Independent tangent xyz and handedness. Missing entries are zero.
+    pub tangents: Option<&'a [[f32; 4]]>,
+    /// Independent second UV channel. Missing/short entries use the primary UV.
+    pub secondary_uvs: Option<&'a [[f32; 2]]>,
     pub indices: &'a [u16],
     pub draws: Vec<DrawRange>,
 }

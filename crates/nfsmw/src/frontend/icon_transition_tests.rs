@@ -261,3 +261,102 @@ fn options_and_back_move_between_the_main_menu_and_the_categories() {
     h.wait(1.5);
     assert_eq!(h.screens.top(), Some(screen::MAIN_MENU), "{:?}", h.commands);
 }
+
+/// The Credits icon of the option categories opens the credits screen, and its Back returns to the categories.
+#[test]
+fn credits_icon_opens_the_credits_and_back_returns_to_the_categories() {
+    let Some(mut h) = Harness::open(screen::MAIN_MENU_SUB, Args { options: true, ..Args::default() }) else { return };
+    h.wait(1.0);
+    let (_, credits) = reach(Kind::Categories { pause: false, mods: false }, Id::Credits);
+    for _ in 0..credits {
+        h.press(pad::RIGHT);
+    }
+    h.wait(0.5);
+    h.press(pad::ACCEPT);
+    h.wait(1.5);
+    assert_eq!(h.screens.top(), Some(screen::CREDITS), "credits: {:?}", h.commands);
+    h.press(pad::BACK);
+    h.wait(1.5);
+    assert_eq!(h.screens.top(), Some(screen::MAIN_MENU_SUB), "back from credits: {:?}", h.commands);
+}
+
+/// The Back button of the credits is a group with no mouse answer of its own. Its picture is what the player sees,
+/// so a click on the visible Back label goes back to the categories.
+#[test]
+fn a_click_on_the_credits_back_label_returns_to_the_categories() {
+    let Some(mut h) = Harness::open(screen::MAIN_MENU_SUB, Args { options: true, ..Args::default() }) else { return };
+    h.wait(1.0);
+    let (_, credits) = reach(Kind::Categories { pause: false, mods: false }, Id::Credits);
+    for _ in 0..credits {
+        h.press(pad::RIGHT);
+    }
+    h.wait(0.5);
+    h.press(pad::ACCEPT);
+    h.wait(1.5);
+    assert_eq!(h.screens.top(), Some(screen::CREDITS), "credits: {:?}", h.commands);
+    let tree = h.screens.trees().pop().unwrap();
+    let label = tree.nodes.iter().find(|n| n.guid == 0x000F_8109 && n.visible).expect("the visible Back label");
+    let at = label.world.transform_point3(glam::Vec3::ZERO).truncate() + glam::Vec2::new(-20.0, 0.0);
+    let mut env = Env { settings: &mut h.settings, changed: &mut h.changed, caps: test_caps::native(), mods: None };
+    let commands = h.screens.click(at, &mut env).expect("the credits take the click");
+    h.commands.extend(commands);
+    h.wait(1.5);
+    assert_eq!(h.screens.top(), Some(screen::MAIN_MENU_SUB), "back from credits by mouse: {:?}", h.commands);
+}
+
+/// The jukebox's footer labels take mouse clicks: Re-order turns the order on (a mark appears on the highlighted
+/// song's title). Back is not clicked here: leaving saves the jukebox to the user's config.
+#[test]
+fn the_jukebox_footer_labels_take_mouse_clicks() {
+    let (_, ea_trax) = reach(Kind::Categories { pause: false, mods: false }, Id::EaTrax);
+    let dir =
+        game_install::GameDir::open(std::path::PathBuf::from(std::env::var_os("NFSMW_GAME_DIR").unwrap_or_default()))
+            .ok();
+    if let Some(dir) = &dir {
+        crate::frontend::jukebox::prime(dir);
+    }
+    let Some(mut h) = Harness::open(screen::MAIN_MENU_SUB, Args { options: true, ..Args::default() }) else { return };
+    h.wait(1.0);
+    for _ in 0..ea_trax {
+        h.press(pad::RIGHT);
+    }
+    h.wait(0.5);
+    h.press(pad::ACCEPT);
+    h.wait(1.5);
+    assert_eq!(h.screens.top(), Some(screen::EA_TRAX_JUKEBOX), "EA Trax: {:?}", h.commands);
+    let label = |h: &Harness, name: u32| {
+        let tree = h.screens.trees().pop().unwrap();
+        let n = tree.nodes.iter().find(|n| n.name_hash == name).expect("the footer label");
+        n.world.transform_point3(glam::Vec3::ZERO).truncate() + glam::Vec2::new(20.0, 0.0)
+    };
+    let titles = |h: &Harness| -> Vec<String> {
+        let tree = h.screens.trees().pop().unwrap();
+        tree.nodes
+            .iter()
+            .filter(|n| n.text.is_some() && n.text.as_deref().is_some_and(|t| t.contains('[')))
+            .filter_map(|n| n.text.clone())
+            .collect()
+    };
+    let before = titles(&h);
+    let re_order = label(&h, 0x1F7F_2DE0);
+    let mut env = Env { settings: &mut h.settings, changed: &mut h.changed, caps: test_caps::native(), mods: None };
+    let commands = h.screens.click(re_order, &mut env).expect("the jukebox takes the click on Re-order");
+    h.commands.extend(commands);
+    h.wait(0.5);
+    assert_ne!(titles(&h), before, "Re-order marks the highlighted song");
+    // The right arrow turns the page: the rows change. (L1 and R1 would save the jukebox, so they are not clicked here.)
+    // Re-order is on, and the arrows only turn pages with it off: turn it off again.
+    let mut env = Env { settings: &mut h.settings, changed: &mut h.changed, caps: test_caps::native(), mods: None };
+    let commands = h.screens.click(re_order, &mut env).expect("the jukebox takes the second click on Re-order");
+    h.commands.extend(commands);
+    h.wait(0.5);
+    let page = titles(&h);
+    let arrow = {
+        let tree = h.screens.trees().pop().unwrap();
+        let n = tree.nodes.iter().find(|n| n.guid == 0xF83DE && n.visible).expect("the right arrow");
+        n.world.transform_point3(glam::Vec3::ZERO).truncate()
+    };
+    assert!(h.screens.release_at(arrow, ids::MOUSE_LEFT_RELEASED), "the right arrow takes the click");
+    h.wait(0.5);
+    assert_ne!(titles(&h), page, "the right arrow turns the page");
+}

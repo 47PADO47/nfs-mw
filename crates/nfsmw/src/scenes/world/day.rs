@@ -12,6 +12,9 @@ pub(super) struct DayClock {
     cfg: DayNightConfig,
     /// Simulated seconds since the world started.
     seconds: f64,
+    sun_mode: crate::viewer::SunMode,
+    phase: f64,
+    direction: f64,
     /// The lights state last applied to the drive, so a manual headlight toggle holds until the next switch.
     lights: Option<bool>,
     /// A mod has held the hour (`bb.time` freeze). The clock stops as it does for the lab's freeze.
@@ -20,7 +23,7 @@ pub(super) struct DayClock {
 
 impl DayClock {
     pub(super) fn new(cfg: DayNightConfig) -> Self {
-        Self { cfg, seconds: 0.0, lights: None, held: false }
+        Self { cfg, seconds: 0.0, sun_mode: Default::default(), phase: 0.5, direction: 1.0, lights: None, held: false }
     }
 
     /// Whether a mod has held the hour.
@@ -34,8 +37,28 @@ impl DayClock {
 
     /// Moves the clock on by `dt` simulated seconds.
     pub(super) fn advance(&mut self, dt: f32) {
-        if dt.is_finite() && dt > 0.0 {
-            self.seconds += f64::from(dt);
+        if !dt.is_finite() || dt <= 0.0 {
+            return;
+        }
+        self.seconds += f64::from(dt);
+        if self.sun_mode == crate::viewer::SunMode::OriginalCycle {
+            let lo = f64::from(sun_phase_limit(0));
+            let span = 1.0 - 2.0 * lo;
+            let offset = self.phase - lo;
+            let unfolded = match self.direction > 0.0 {
+                true => offset,
+                false => 2.0 * span - offset,
+            };
+            let at = (unfolded + f64::from(dt) / 1200.0).rem_euclid(2.0 * span);
+            self.direction = match at < span {
+                true => 1.0,
+                false => -1.0,
+            };
+            self.phase = lo
+                + match at < span {
+                    true => at,
+                    false => 2.0 * span - at,
+                };
         }
     }
 
@@ -53,13 +76,21 @@ impl DayClock {
     }
 
     pub(super) fn environment(&self) -> crate::viewer::Environment {
-        crate::viewer::Environment { hour: self.hour(), seconds_per_hour: self.cfg.seconds_per_hour }
+        crate::viewer::Environment {
+            hour: self.hour(),
+            seconds_per_hour: self.cfg.seconds_per_hour,
+            sun_mode: self.sun_mode,
+            sun_phase: self.sun_phase(),
+            ..Default::default()
+        }
     }
 
     pub(super) fn configure(&mut self, value: crate::viewer::Environment) {
-        if !value.hour.is_finite() || !value.seconds_per_hour.is_finite() {
+        if !value.hour.is_finite() || !value.seconds_per_hour.is_finite() || !value.sun_phase.is_finite() {
             return;
         }
+        self.sun_mode = value.sun_mode;
+        self.phase = f64::from(value.sun_phase.clamp(sun_phase_limit(0), 1.0 - sun_phase_limit(0)));
         self.cfg.start_hour = day_night::wrap_hour(value.hour);
         self.cfg.seconds_per_hour = value.seconds_per_hour.clamp(10.0, 3600.0);
         self.cfg.force_time = None;
@@ -68,6 +99,9 @@ impl DayClock {
 
     /// The sun's phase for the hour.
     pub(super) fn sun_phase(&self) -> f32 {
+        if self.sun_mode != crate::viewer::SunMode::CustomClock {
+            return self.phase as f32;
+        }
         day_night::sun_phase(self.hour(), &self.cfg, sun_phase_limit(0))
     }
 
@@ -129,6 +163,22 @@ mod tests {
         expected.advance(1.0);
         assert_eq!(day.hour(), expected.hour());
         assert_eq!(day.sun_phase(), expected.sun_phase());
+    }
+
+    #[test]
+    fn mod_and_lab_freeze_flags_hold_the_original_cycle_without_resetting_its_phase() {
+        let mut day = clock();
+        day.configure(crate::viewer::Environment {
+            sun_mode: crate::viewer::SunMode::OriginalCycle,
+            sun_phase: 0.3,
+            ..Default::default()
+        });
+        day.set_held(true);
+        day.update(600.0, day.held());
+        assert_eq!(day.sun_phase(), 0.3);
+        day.set_held(false);
+        day.update(120.0, day.held());
+        assert!((day.sun_phase() - 0.4).abs() < 1e-6);
     }
 
     /// One real frame at 60 Hz: the speedbreaker-dilated delta times GameSpeed, the same product
@@ -198,7 +248,7 @@ mod control_tests {
         let mut day = DayClock::new(DayNightConfig { force_time: Some(3.0), ..Default::default() });
         day.advance(90.0);
         assert_eq!(day.hour(), 3.0);
-        day.configure(crate::viewer::Environment { hour: 22.0, seconds_per_hour: 60.0 });
+        day.configure(crate::viewer::Environment { hour: 22.0, seconds_per_hour: 60.0, ..Default::default() });
         assert_eq!(day.hour(), 22.0);
         assert!(day.lights_on());
         day.update(600.0, true);
@@ -218,15 +268,61 @@ mod control_tests {
     fn clock_controls_are_finite_and_frame_rate_independent() {
         for fps in [5, 30, 60, 144, 360] {
             let mut day = DayClock::new(DayNightConfig::default());
-            day.configure(crate::viewer::Environment { hour: 18.0, seconds_per_hour: 60.0 });
+            day.configure(crate::viewer::Environment { hour: 18.0, seconds_per_hour: 60.0, ..Default::default() });
             for _ in 0..fps * 120 {
                 day.advance(1.0 / fps as f32);
             }
             assert!((day.hour() - 20.0).abs() < 1e-5, "fps {fps}: {}", day.hour());
             let before = day.environment();
-            day.configure(crate::viewer::Environment { hour: f32::NAN, seconds_per_hour: 0.0 });
+            day.configure(crate::viewer::Environment { hour: f32::NAN, seconds_per_hour: 0.0, ..Default::default() });
             day.advance(f32::INFINITY);
             assert_eq!(day.environment(), before);
         }
+    }
+}
+
+#[cfg(test)]
+mod comparison_tests {
+    use super::*;
+    use crate::viewer::{Environment, SunMode};
+
+    #[test]
+    fn original_cycle_reflects_at_limits_and_matches_high_frame_rates() {
+        let mut expected: Option<f32> = None;
+        for fps in [30, 60, 144, 360] {
+            let mut day = DayClock::new(DayNightConfig::default());
+            day.configure(Environment { sun_mode: SunMode::OriginalCycle, sun_phase: 0.94, ..Default::default() });
+            for _ in 0..fps * 30 {
+                day.update(1.0 / fps as f32, false);
+            }
+            assert!(day.direction < 0.0, "cycle must reverse at the high endpoint");
+            assert!((day.sun_phase() - 0.935).abs() < 1e-6);
+            if let Some(phase) = expected {
+                assert!((day.sun_phase() - phase).abs() < 1e-6);
+            }
+            expected = Some(day.sun_phase());
+            let before = day.sun_phase();
+            day.update(1000.0, true);
+            assert_eq!(day.sun_phase(), before);
+            day.update(1.0, false);
+            assert!((day.sun_phase() - (before - 1.0 / 1200.0)).abs() < 1e-6);
+        }
+    }
+
+    #[test]
+    fn fixed_phase_holds_without_changing_custom_clock_mapping() {
+        let mut day = DayClock::new(DayNightConfig::default());
+        day.configure(Environment { sun_mode: SunMode::FixedPhase, sun_phase: 0.3, ..Default::default() });
+        day.advance(3600.0);
+        assert_eq!(day.sun_phase(), 0.3);
+        let mut value = day.environment();
+        value.sun_mode = SunMode::CustomClock;
+        value.hour = 12.0;
+        day.configure(value);
+        assert_eq!(day.sun_phase(), 0.5);
+        let before = day.environment();
+        value.sun_phase = f32::NAN;
+        day.configure(value);
+        assert_eq!(day.environment(), before);
     }
 }
