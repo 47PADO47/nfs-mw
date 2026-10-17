@@ -11,6 +11,7 @@
 mod bytes;
 pub mod economy;
 mod error;
+pub mod phone;
 pub mod settings;
 pub mod stable;
 
