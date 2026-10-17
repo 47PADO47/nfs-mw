@@ -44,6 +44,7 @@ pub struct FrontendPlugin {
 impl Plugin for FrontendPlugin {
     fn build(&self, app: &mut App) {
         super::jukebox::prime(&self.dir);
+        super::credits::prime(&self.dir);
         let Some(assets) = crate::ui::ensure(app, &self.dir) else { return };
         let catalog = Catalog::load(&self.dir, &SCREEN_FILES);
         let screens = Screens::new(catalog, assets);
@@ -110,6 +111,9 @@ fn press_at(fe: &mut Frontend, point: Vec2, bindings: &Bindings, device: InputDe
     }
     if fe.screens.focus_button_at(point) {
         return Press::Accept;
+    }
+    if fe.screens.release_at(point, super::ids::MOUSE_LEFT_RELEASED) {
+        return Press::Nothing;
     }
     Press::Nothing
 }

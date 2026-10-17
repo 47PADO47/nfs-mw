@@ -13,6 +13,7 @@ use blackbox_feng::ids::{
     PAD_ACCEPT, PAD_BACK, PAD_BUTTON0, PAD_DOWN, PAD_LEFT, PAD_LTRIGGER, PAD_RIGHT, PAD_RTRIGGER, PAD_UP,
 };
 use game_install::GameDir;
+use glam::{Vec2, Vec3};
 use nfsmw_data::music::Song;
 
 use super::ids::{SCRIPT_HIGHLIGHT, SCRIPT_UNHIGHLIGHT, screen};
@@ -48,6 +49,12 @@ const ARTIST: [u32; ROWS] = [0x6664_6FC4, 0x6664_6FC5, 0x6664_6FC6, 0x6664_6FC7]
 const TITLE: [u32; ROWS] = [0x2890_C8AF, 0x2890_C8B0, 0x2890_C8B1, 0x2890_C8B2];
 const ALBUM: [u32; ROWS] = [0x77BD_189E, 0x77BD_189F, 0x77BD_18A0, 0x77BD_18A1];
 const NUMBER: [u32; ROWS] = [0xE454_E9A5, 0xE454_E9A6, 0xE454_E9A7, 0xE454_E9A8];
+/// The footer labels the package draws, with the message each click on them sends. The package has no answer to a mouse
+/// release on them, so the screen takes the click by the label's place (box centre: its origin, a little to the right; half
+/// size below).
+const FOOTER: [(u32, u32); 4] =
+    [(0xD7A4_BD15, PAD_BACK), (0xB941_39F4, PAD_ACCEPT), (0x1F7F_2DE0, RE_ORDER), (0xD8A2_7BE6, PREV)];
+const FOOTER_HALF: Vec2 = Vec2::new(40.0, 14.0);
 /// The play-order line between the L1 and R1 arrows.
 const ORDER_LINE: u32 = 0xCA74_A2FA;
 
@@ -256,6 +263,25 @@ impl ScreenLogic for JukeboxLogic {
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {
+        self.act(cx, message);
+    }
+
+    fn click(&mut self, cx: &mut Cx, point: Vec2) -> bool {
+        let tree = cx.rt.tree(cx.package);
+        for (name, message) in FOOTER {
+            let Some(label) = tree.nodes.iter().find(|n| n.name_hash == name) else { continue };
+            let centre = label.world.transform_point3(Vec3::ZERO).truncate() + Vec2::new(20.0, 0.0);
+            if (point - centre).abs().cmple(FOOTER_HALF).all() {
+                self.act(cx, message);
+                return true;
+            }
+        }
+        false
+    }
+}
+
+impl JukeboxLogic {
+    fn act(&mut self, cx: &mut Cx, message: u32) {
         match self.state.press(message) {
             Action::Nothing => {}
             Action::Moved => self.fill(cx),
