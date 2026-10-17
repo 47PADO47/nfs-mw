@@ -1,7 +1,9 @@
 //! The support request of a chase, run each tick (spec `ai-pursuit-support.md` sections 3 to 7 and 11; formations spec
 //! section 6). A request waits pending while its cars are taken (the ram delay arms per ram car), then its cars are placed
 //! one by one at their points and it turns active for the option's duration. Its cars are released when the timer runs out
-//! or when none of them is left. The roll that makes the request is outside this file.
+//! or when none of them is left. A car whose model is still loading holds the request pending: the request waits and
+//! tries again on a later step. A car whose model failed to load ends the request, and its strategy is refused for the
+//! rest of the chase. The roll that makes the request is outside this file.
 
 use blackbox_collision::CollisionWorld;
 use blackbox_pursuit::support::cars::car_for;
@@ -11,8 +13,8 @@ use blackbox_vehicle::performance::Performance;
 use nfsmw_data::car::physics::SurfaceTable;
 
 use super::super::{Focus, TrafficWorld};
-use super::big_suv_chance;
 use super::spawn::SupportSpot;
+use super::{big_suv_chance, car_model};
 
 /// One chase's support request and the bookkeeping of its cars.
 #[derive(Debug, Default)]
@@ -28,13 +30,21 @@ pub struct Session {
     search: Search,
     /// The shared ram delay (the manager's timer in the binary).
     delay: RamDelay,
+    /// The cop car models of this chase that did not load (names as the loader reports them).
+    failed: Vec<String>,
+    /// The strategies this chase refuses: a request of one of them took a car whose model did not load.
+    dropped: Vec<Strategy>,
 }
 
 impl Session {
-    /// Starts a request from the roll, when no request of this chase is pending or active. A heavy roadblock is not taken
-    /// here: the roadblock is built by its own code (`ai/roadblock.rs`). Returns whether it was taken.
+    /// Starts a request from the roll, when no request of this chase is pending or active. A heavy roadblock is not
+    /// taken here: the roadblock is built by its own code (`ai/roadblock.rs`). A strategy the chase dropped is refused.
+    /// Returns whether it was taken.
     pub fn request(&mut self, request: Request) -> bool {
         if self.order.is_some() || request.strategy == Strategy::HeavyRoadblock {
+            return false;
+        }
+        if self.dropped.contains(&request.strategy) {
             return false;
         }
         self.serial += 1;
@@ -43,6 +53,33 @@ impl Session {
         self.search = Search::default();
         self.order = Some(Order::new(request));
         true
+    }
+
+    /// The pending or active request of the chase, if there is one.
+    pub fn order(&self) -> Option<&Order> {
+        self.order.as_ref()
+    }
+
+    /// A cop model did not load: a request that takes its car is dropped (`takes_failed_model`).
+    pub fn model_failed(&mut self, name: &str) {
+        if self.failed.iter().any(|known| known.eq_ignore_ascii_case(name)) {
+            return;
+        }
+        self.failed.push(name.to_owned());
+    }
+
+    /// Whether a car the request has taken is a model that did not load.
+    fn takes_failed_model(&self) -> bool {
+        self.cars.iter().any(|car| self.failed.iter().any(|name| name.eq_ignore_ascii_case(car_model(*car))))
+    }
+
+    /// Ends the pending request: its strategy is refused for the rest of the chase, and the request forgets its cars.
+    fn drop_order(&mut self) {
+        if let Some(order) = self.order.take() {
+            self.dropped.push(order.strategy());
+        }
+        self.cars.clear();
+        self.placed = 0;
     }
 }
 
@@ -104,14 +141,27 @@ impl TrafficWorld {
                 session.delay.arm();
             }
         }
+        if session.takes_failed_model() {
+            self.drop_request(session);
+            return;
+        }
         if session.delay.is_clear() {
             self.place_support(session, &mut order, step, collision, surfaces);
         }
         session.order = Some(order);
     }
 
+    /// Ends a pending request whose car did not load: the cars it already placed go back to the chase, and its strategy
+    /// is refused for the rest of the chase (the other strategies are not affected).
+    fn drop_request(&mut self, session: &mut Session) {
+        let serial = session.serial;
+        self.release_support(serial);
+        session.drop_order();
+    }
+
     /// Places the cars of a pending request that are not yet placed. A refused spot is counted and the rest wait for the
-    /// next step; when every car stands, the request turns active.
+    /// next step; when every car stands, the request turns active. A car whose model is still loading is not tried: the
+    /// request waits for it, with no denial and no placement search used up.
     fn place_support(
         &mut self,
         session: &mut Session,
@@ -129,6 +179,10 @@ impl TrafficWorld {
         while (session.placed as usize) < session.cars.len() {
             let index = session.placed;
             let car = session.cars[index as usize];
+            if !self.has_cop_model(car_model(car)) {
+                self.request_cop(car_model(car));
+                return;
+            }
             let placed = session.search.place(distance, |at| {
                 let spot = SupportSpot {
                     car,
@@ -200,5 +254,27 @@ mod tests {
         session.request(request(Strategy::CrossFollow));
         assert_eq!(session.serial, 2);
         assert_eq!(session.placed, 0);
+    }
+
+    #[test]
+    fn a_request_whose_car_model_failed_is_dropped_and_its_strategy_refused_for_the_chase() {
+        let mut session = Session::default();
+        session.model_failed("COPCROSS");
+        assert!(session.request(request(Strategy::CrossFollow)));
+        session.cars.push(Car::Cross);
+        assert!(session.takes_failed_model());
+        session.drop_order();
+        assert!(session.order().is_none());
+        assert!(!session.request(request(Strategy::CrossFollow)), "the strategy is refused for the chase");
+        assert!(session.request(request(Strategy::EBrake)), "other support is still taken");
+    }
+
+    #[test]
+    fn a_car_whose_model_only_loads_later_is_not_a_failed_model() {
+        let mut session = Session::default();
+        assert!(session.request(request(Strategy::CrossFollow)));
+        session.cars.push(Car::Cross);
+        assert!(!session.takes_failed_model(), "a model still loading is not a failure");
+        assert!(session.order().is_some(), "the request stays pending");
     }
 }

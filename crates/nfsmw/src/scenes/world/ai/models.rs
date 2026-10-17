@@ -104,6 +104,14 @@ pub(in crate::scenes::world) fn load_requested(
                 let job = Job::Cop(lookup(scene, &name));
                 ask(scene, Request::Cop(name), job);
             }
+            ModelRequest::Support(name) => {
+                // Loaded since it was asked for: a second copy would be installed beside the first.
+                if scene.traffic.as_ref().is_some_and(|t| t.has_cop_model(&name)) {
+                    continue;
+                }
+                let job = Job::Cop(lookup(scene, &name));
+                ask(scene, Request::Cop(name), job);
+            }
         }
     }
     pump(scene, renderer, blocking);
