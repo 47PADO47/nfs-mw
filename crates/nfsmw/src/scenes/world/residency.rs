@@ -1,7 +1,7 @@
 //! Which sections are loaded and drawn: the shared sets once, map tiles by the
 //! camera's zone (`docs/specs/visible-sections.md`).
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use blackbox_collision::{CollisionWorld, Grid};
 use blackbox_gfx::RenderBackend;
@@ -22,8 +22,10 @@ mod tests;
 
 /// Requests in flight at once.
 const MAX_IN_FLIGHT: usize = 8;
-/// Tiles uploaded per frame (uploads run on the render thread).
-const UPLOADS_PER_FRAME: usize = 2;
+/// Bytes of section data uploaded per frame (uploads run on the render thread): textures, vertices and
+/// indices, see `SectionData::upload_bytes`. The first arrived section of a frame always goes through, so a
+/// section bigger than this still loads, one per frame.
+const UPLOAD_BYTES_PER_FRAME: usize = 8 * 1024 * 1024;
 
 enum TileState {
     Requested,
@@ -47,8 +49,11 @@ pub struct Residency {
     pub shared_placed: Vec<Placed>,
     shared_ready: bool,
     tiles: HashMap<usize, TileState>,
-    arrived: Vec<SectionData>,
+    /// Loaded sections waiting for the render thread, oldest first.
+    arrived: VecDeque<SectionData>,
     zones: Zones,
+    /// Whether the camera has been in a zone yet. A zone is never left once entered, so this stays true.
+    has_zone: bool,
     /// Tiles the current zone loads, drawn ones first.
     wanted: Vec<usize>,
     /// Tiles the current zone draws.
@@ -73,6 +78,9 @@ pub struct Residency {
     mod_wanted: Vec<usize>,
     /// Map packs an interior holds loaded (`pin`).
     pinned: HashSet<usize>,
+    /// Scratch for `unload_unwanted`, kept between frames so a frame allocates nothing.
+    keep_scratch: HashSet<usize>,
+    unwanted_scratch: Vec<usize>,
 }
 
 impl Residency {
@@ -107,7 +115,8 @@ impl Residency {
             shared_placed: Vec::new(),
             shared_ready: false,
             tiles: HashMap::new(),
-            arrived: Vec::new(),
+            arrived: VecDeque::new(),
+            has_zone: false,
             wanted: Vec::new(),
             drawn: HashSet::new(),
             previous: HashSet::new(),
@@ -121,23 +130,27 @@ impl Residency {
             mod_streamers,
             mod_wanted: Vec::new(),
             pinned: HashSet::new(),
+            keep_scratch: HashSet::new(),
+            unwanted_scratch: Vec::new(),
         }
     }
 
     /// Request, upload and drop sections for a camera at map position (x, y).
     pub fn update(&mut self, renderer: &mut dyn RenderBackend, x: f32, y: f32) {
+        let _span = bevy_log::info_span!("world::residency").entered();
         self.receive();
         if !self.shared_ready {
             self.finish_shared(renderer);
             return;
         }
         if self.zones.update(x, y) {
+            // A change only ever enters a zone: `Zones::update` keeps the current one when the camera leaves it.
+            self.has_zone = true;
             self.switch_zone(x, y);
         }
         self.update_mod_wanted(x, y);
         self.upload_arrived(renderer);
         self.unload_unwanted(renderer);
-        let _span = bevy_log::info_span!("world::residency").entered();
         self.request_wanted();
         self.request_mod();
     }
@@ -170,7 +183,7 @@ impl Residency {
     fn handle(&mut self, event: StreamerEvent) {
         match event {
             StreamerEvent::Loaded(data) if !self.sections[data.index].is_spatial() => self.shared_pending.push(*data),
-            StreamerEvent::Loaded(data) => self.arrived.push(*data),
+            StreamerEvent::Loaded(data) => self.arrived.push_back(*data),
             StreamerEvent::Failed { index, error } => {
                 log::error!("section {}: {error}", self.sections[index].name);
                 if self.sections[index].is_spatial() {
@@ -203,7 +216,7 @@ impl Residency {
             shared.upload_meshes(renderer, data, &empty);
         }
         // The shared models of InGameA.bun (sky domes and the other SKY_* models); a stream solid of the same name wins.
-        shared.upload_solid_list(renderer, &globals.solids, &empty, true);
+        shared.upload_solid_list(renderer, &globals.solids, None, &empty, true);
         for data in &pending {
             let (placed, unresolved) = place(data, &shared, &empty, &self.catalog);
             self.shared_placed.extend(placed);
@@ -219,28 +232,39 @@ impl Residency {
         self.visual_revision = self.visual_revision.wrapping_add(1);
     }
 
+    /// Upload arrived sections, oldest first, until the frame's byte budget is spent.
     fn upload_arrived(&mut self, renderer: &mut dyn RenderBackend) {
-        let take = self.arrived.len().min(UPLOADS_PER_FRAME);
-        for data in self.arrived.drain(..take).collect::<Vec<_>>() {
+        let mut spent = 0;
+        while let Some(data) = self.arrived.pop_front() {
             if !matches!(self.tiles.get(&data.index), Some(TileState::Requested)) {
                 continue; // no longer wanted
             }
-            let mut resources = SectionResources { anims: data.anims.clone(), ..Default::default() };
-            resources.upload_textures(renderer, &data);
-            resources.upload_meshes(renderer, &data, &self.shared);
-            let (mut placed, unresolved) = place(&data, &resources, &self.shared, &self.catalog);
-            for (index, object) in placed.iter_mut().enumerate() {
-                object.key = keys::tile(data.index, index);
+            let bytes = data.upload_bytes();
+            if spent > 0 && spent + bytes > UPLOAD_BYTES_PER_FRAME {
+                self.arrived.push_front(data);
+                break;
             }
-            self.props.add_tile(data.index, &mut placed);
-            self.unresolved += unresolved;
-            let packs = data.collision.iter().map(|p| p.section).collect();
-            for pack in data.collision {
-                self.insert_collision(pack, data.index);
-            }
-            self.tiles.insert(data.index, TileState::Resident { resources, placed, packs });
-            self.visual_revision = self.visual_revision.wrapping_add(1);
+            spent += bytes;
+            self.upload_tile(renderer, data);
         }
+    }
+
+    fn upload_tile(&mut self, renderer: &mut dyn RenderBackend, mut data: SectionData) {
+        let mut resources = SectionResources { anims: std::mem::take(&mut data.anims), ..Default::default() };
+        resources.upload_textures(renderer, &data);
+        resources.upload_meshes(renderer, &data, &self.shared);
+        let (mut placed, unresolved) = place(&data, &resources, &self.shared, &self.catalog);
+        for (index, object) in placed.iter_mut().enumerate() {
+            object.key = keys::tile(data.index, index);
+        }
+        self.props.add_tile(data.index, &mut placed);
+        self.unresolved += unresolved;
+        let packs = data.collision.iter().map(|p| p.section).collect();
+        for pack in data.collision {
+            self.insert_collision(pack, data.index);
+        }
+        self.tiles.insert(data.index, TileState::Resident { resources, placed, packs });
+        self.visual_revision = self.visual_revision.wrapping_add(1);
     }
 
     /// Free the tiles the zone no longer needs, once everything it needs is resident (so the
@@ -253,9 +277,12 @@ impl Residency {
             self.visual_revision = self.visual_revision.wrapping_add(1);
             self.previous.clear();
         }
-        let wanted: HashSet<usize> = self.wanted.iter().chain(&self.mod_wanted).copied().collect();
-        let unwanted: Vec<usize> = self.tiles.keys().copied().filter(|i| !wanted.contains(i)).collect();
-        for i in unwanted {
+        self.keep_scratch.clear();
+        self.keep_scratch.extend(self.wanted.iter().chain(&self.mod_wanted).copied());
+        let mut unwanted = std::mem::take(&mut self.unwanted_scratch);
+        unwanted.clear();
+        unwanted.extend(self.tiles.keys().copied().filter(|i| !self.keep_scratch.contains(i)));
+        for i in unwanted.drain(..) {
             if let Some(TileState::Resident { resources, packs, .. }) = self.tiles.remove(&i) {
                 self.visual_revision = self.visual_revision.wrapping_add(1);
                 resources.release(renderer);
@@ -265,6 +292,7 @@ impl Residency {
                 }
             }
         }
+        self.unwanted_scratch = unwanted;
     }
 
     fn request_wanted(&mut self) {
@@ -326,13 +354,13 @@ impl Residency {
 
     /// Whether the shared sets and every tile the current zone needs are resident.
     pub fn complete(&self) -> bool {
-        self.shared_ready && self.zones.name().is_some() && self.arrived.is_empty() && self.wanted_resident()
+        self.shared_ready && self.has_zone && self.arrived.is_empty() && self.wanted_resident()
     }
 
     /// Keep driving while distant scenery loads. Actual local collision packs must be resident;
     /// zone names need not have a corresponding tile. Old collision/props stay until the new zone loads.
     pub fn simulation_ready(&self, [x, y]: [f32; 2], margin: f32) -> bool {
-        if !self.shared_ready || self.zones.name().is_none() {
+        if !self.shared_ready || !self.has_zone {
             return false;
         }
         let point = super::space::to_physics(glam::Vec3::new(x, y, 0.0));
