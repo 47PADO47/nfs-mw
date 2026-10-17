@@ -17,6 +17,7 @@ mod geometry;
 mod ginsu;
 mod handling;
 mod heli_sheet;
+mod load_timing;
 mod manual;
 mod minimap;
 mod music;
