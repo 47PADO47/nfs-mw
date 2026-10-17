@@ -55,7 +55,11 @@ fn fs_main_srgb(in: VsOut) -> @location(0) vec4<f32> {
 // Decode straight RGB, then reapply alpha for linear premultiplied compositing.
 @fragment fn fs_main_hdr(in: VsOut) -> @location(0) vec4<f32> {
     let c = textureSample(tex, samp, in.uv) * in.color;
-    if c.a <= 0.0 { return vec4(0.0); }
+    // Zero alpha with nonzero RGB is the UI layer's additive blend encoding,
+    // used by authored map tiles, fonts and egui glows. Zero coverage is black.
+    if c.a <= 0.0 {
+        return vec4(linear_from_gamma(max(c.rgb, vec3(0.0))) * globals.screen.z, 0.0);
+    }
     let straight = max(c.rgb / c.a, vec3(0.0));
     return vec4(linear_from_gamma(straight) * c.a * globals.screen.z, c.a);
 }

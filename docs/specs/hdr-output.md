@@ -35,6 +35,10 @@ The UI is composited last in linear light. Unpremultiply display-encoded UI RGB,
 decode sRGB, multiply by alpha again, and scale by independent UI white / 80.
 Transparent pixels must stay finite. UI brightness is independent of scene
 grading, exposure and peak mapping.
+The shared UI contract also encodes additive colour as nonzero RGB with zero
+alpha (including authored minimap tiles). Decode that RGB
+directly and keep alpha zero, so it adds light without covering the scene.
+Only zero RGB and zero alpha represent empty coverage in this encoding.
 
 The existing FSR1 implementation requires bounded positive input. In HDR only,
 each stage uses reversible `c / (1 + c)` preconditioning on its samples and

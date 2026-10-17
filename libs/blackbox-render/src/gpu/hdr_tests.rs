@@ -90,10 +90,44 @@ fn hdr_ui_unpremultiplies_before_decoding_and_has_its_own_white() {
         let expected = (128.0 / 255.0) * nits / 80.0;
         assert!((pixel[0] - expected).abs() < 0.003, "{nits} nits: {pixel:?} expected {expected}");
     }
-    r.set_ui_layer(layer([255, 255, 255, 0]));
+    r.set_ui_layer(layer([0; 4]));
     for pixel in r.capture_hdr_linear(16, 8, &black, &[]).unwrap() {
         assert!(pixel.iter().all(|v| v.is_finite()));
         assert!(pixel[..3].iter().all(|v| v.abs() < 0.001));
+    }
+}
+
+#[test]
+#[ignore = "requires a real GPU"]
+fn hdr_ui_preserves_additive_colour_and_coverage_without_occluding_the_scene() {
+    let _serial = test_support::serial();
+    let mut r = test_support::headless((16, 8)).expect("additive HDR UI adapter");
+    hdr(&mut r);
+    let background = frame([0.25; 3]);
+    let baseline = r.capture_hdr_linear(16, 8, &background, &[]).unwrap()[64][0];
+    // Authored minimap tiles encode additive blending by clearing alpha
+    // after premultiplying their texture coverage. Egui also uses this encoding.
+    for (texture, vertex, gamma) in [
+        ([255, 128, 64, 0], [255; 4], 1.0_f32),
+        ([128, 64, 32, 0], [255; 4], 128.0 / 255.0),
+        ([255; 4], [128, 64, 32, 0], 128.0 / 255.0),
+        ([0; 4], [255; 4], 0.0),
+    ] {
+        r.update_ui_texture(&UiTexturePatch {
+            id: UiTextureId::from_raw(7),
+            offset: None,
+            size: [1, 1],
+            rgba: &texture,
+        });
+        r.set_ui_layer(layer(vertex));
+        let pixel = r.capture_hdr_linear(16, 8, &background, &[]).unwrap()[64];
+        let linear = match gamma <= 0.04045 {
+            true => gamma / 12.92,
+            false => ((gamma + 0.055) / 1.055).powf(2.4),
+        };
+        let expected = baseline + linear * 203.0 / 80.0;
+        assert!((pixel[0] - expected).abs() < 0.005, "{texture:?}/{vertex:?}: {pixel:?}, expected {expected}");
+        assert!(pixel.iter().all(|value| value.is_finite()));
     }
 }
 
