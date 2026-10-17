@@ -92,6 +92,14 @@ pub fn load_section(file: &mut std::fs::File, index: usize, section: &StreamingS
     parse_section(index, &bytes).with_context(|| format!("parsing section {}", section.name))
 }
 
+/// Read only static physics; traffic support must not decode textures or allocate GPU mesh data.
+pub(super) fn load_collision(file: &mut std::fs::File, section: &StreamingSection) -> Result<Vec<CollisionPack>> {
+    let mut bytes = vec![0; section.size as usize];
+    file.seek(SeekFrom::Start(u64::from(section.file_offset)))?;
+    file.read_exact(&mut bytes).with_context(|| format!("reading collision section {}", section.name))?;
+    blackbox_collision::read_collision_packs(&bytes).context("collision")
+}
+
 #[cfg(test)]
 mod tests {
     use blackbox_tpk::{AlphaUsage, PixelFormat, Texture};

@@ -49,6 +49,7 @@ impl std::fmt::Display for Percent {
 /// through to the next layer.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Partial {
+    pub traffic_policy: Option<super::TrafficPolicy>,
     pub detail: Option<super::DetailSettings>,
     pub appearance: Option<super::Appearance>,
     pub deadzone_mode: Option<super::DeadzoneMode>,
@@ -165,6 +166,7 @@ impl Partial {
     /// This layer, with `lower` filling the fields it leaves unset.
     pub fn or(self, lower: Partial) -> Partial {
         Partial {
+            traffic_policy: self.traffic_policy.or(lower.traffic_policy),
             detail: self.detail.or(lower.detail),
             appearance: self.appearance.or(lower.appearance),
             deadzone_mode: self.deadzone_mode.or(lower.deadzone_mode),

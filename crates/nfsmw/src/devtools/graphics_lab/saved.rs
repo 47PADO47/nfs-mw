@@ -4,6 +4,9 @@ use anyhow::{Context, Result, ensure};
 
 pub(super) fn restore(settings: &mut Settings, text: &str) -> Result<()> {
     let table: toml::Table = text.parse().context("Invalid graphics profile")?;
+    if let Some(value) = table.get("traffic_tuning") {
+        ensure!(crate::settings::TrafficPolicy::read(value, "F8 profile").is_some(), "Invalid traffic tuning");
+    }
     if let Some(value) = table.get("detail") {
         ensure!(crate::settings::DetailSettings::read(value, "graphics profile").is_some(), "Invalid detail settings");
     }

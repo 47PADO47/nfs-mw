@@ -221,9 +221,14 @@ impl Settings {
     }
 
     /// Complete F8 snapshot, including renderer requests that are currently downgraded.
-    /// Renderer/API, window, audio and gameplay preferences remain outside the preset.
+    /// Includes F8 traffic controls; renderer/API, window and audio remain outside the preset.
     pub fn graphics_layer(&self) -> Partial {
         Partial {
+            traffic_policy: Some(self.traffic_policy),
+            traffic: Some(self.traffic),
+            cop_share: Some(self.cop_share),
+            traffic_lights: Some(self.traffic_lights),
+            traffic_avoidance: Some(self.traffic_avoidance),
             reflection_cube_size: Some(self.reflection_cube_size),
             reflection_mirror_size: Some(self.reflection_mirror_size),
             reflection_pow2: Some(self.reflection_pow2),

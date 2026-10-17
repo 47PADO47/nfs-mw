@@ -13,9 +13,6 @@ use crate::scenes::world::drive::WorldGround;
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::space;
 
-/// Spawn distance ahead of the player: 200 m plus or minus 50, plus a second of the player's speed.
-const AHEAD: f32 = 200.0;
-const SPREAD: f32 = 50.0;
 /// The wedge ahead the point is chosen in: plus or minus this many radians (45 degrees).
 const WEDGE: f32 = std::f32::consts::FRAC_PI_4;
 /// The final lane position must stay this far from the player or free camera, horizontally.
@@ -52,12 +49,15 @@ impl TrafficWorld {
             Pick::Traffic(i) => &self.models[i],
             Pick::Patrol(i) => &self.cop_models[i].model,
         };
+        let occupied = self.population_slots(focus);
         let rng = &mut self.rng;
         let angle = focus.heading + (rng.next_f32() * 2.0 - 1.0) * WEDGE;
-        let offset = (rng.next_f32() * 2.0 - 1.0) * SPREAD;
-        let distance = AHEAD + offset + focus.speed.max(0.0);
+        let projected = projected_speed(focus, angle);
+        let distance = self.policy.spawn_min as f32
+            + rng.next_f32() * (self.policy.spawn_max - self.policy.spawn_min) as f32
+            + projected.max(0.0);
         let at = Vec3::new(focus.position[0] + distance * angle.cos(), focus.position[1] + distance * angle.sin(), 0.0);
-        let oncoming = rng.next_f32() <= 1.0 - 0.5 * (focus.speed / SAME_WAY_SPEED).clamp(0.0, 1.0);
+        let oncoming = rng.next_f32() <= 1.0 - 0.5 * (projected / SAME_WAY_SPEED).clamp(0.0, 1.0);
         let dir = match oncoming {
             true => angle + std::f32::consts::PI,
             false => angle,
@@ -71,9 +71,21 @@ impl TrafficWorld {
         {
             return false;
         }
+        let slots = 1 + usize::from(model.trailer.is_some());
+        if occupied + slots > self.target {
+            return false;
+        }
+        if collision.resident_near(nav.position.to_array(), 40.0) == Some(false) {
+            return false;
+        }
+        let render_at = space::to_render(nav.position.to_array());
+        if glam::Vec2::new(render_at.x - focus.position[0], render_at.y - focus.position[1]).length() > distance + 50.0
+        {
+            return false;
+        }
         let length = model.trailer.as_ref().map_or(0.0, |t| 2.0 * t.physics.spec.dimension.z);
         let others = self.cars.iter().map(|c| (c.physics_position(), c.trailer_length()));
-        if !clear_spawn(nav.position, focus, length, others) {
+        if !clear_spawn(nav.position, focus, self.policy.spawn_min as f32, length, others) {
             return false;
         }
         let render = space::to_render(nav.position.to_array());
@@ -101,7 +113,7 @@ impl TrafficWorld {
 impl TrafficWorld {
     /// Puts a traffic car on the road at the map position `at` (x, y), facing `heading` (radians from +X): a random loaded
     /// traffic model, on the nearest lane that can take a car, with the spacing from the other cars that the manager uses.
-    /// This is the mods' spawn (`bb.vehicles` `spawn_traffic`). The manager keeps its cars out of view; a mod asked for this
+    /// This is the mods' spawn (`bb.vehicles` `spawn_traffic`). The manager uses a minimum distance; a mod asked for this
     /// point, so a point nearer than [`MIN_FOCUS_GAP`] to `focus` is allowed, and logged as one that may pop into view.
     /// Returns whether the car stands: `false` while no traffic model is loaded or the road has no place for it.
     pub fn spawn_traffic_at(
@@ -171,11 +183,25 @@ fn clear_of_cars(position: Vec3, length: f32, others: impl Iterator<Item = (Vec3
     !others.into_iter().any(|(other, trailer)| planar_distance(position, other) < MIN_GAP + 0.5 * (length + trailer))
 }
 
+fn projected_speed(focus: Focus, angle: f32) -> f32 {
+    let direction = Vec3::from(space::to_physics(Vec3::new(angle.cos(), angle.sin(), 0.0)));
+    match focus.body {
+        Some(body) => body.velocity.dot(direction),
+        None => focus.speed * (angle - focus.heading).cos(),
+    }
+}
+
 /// Checks the final lane position, after the random probe has been projected onto the road: it is not in the view of the
-/// player, and it keeps the spacing from the other cars.
-fn clear_spawn(position: Vec3, focus: Focus, length: f32, others: impl Iterator<Item = (Vec3, f32)>) -> bool {
+/// player exclusion radius, and it keeps the spacing from the other cars.
+fn clear_spawn(
+    position: Vec3,
+    focus: Focus,
+    minimum: f32,
+    length: f32,
+    others: impl Iterator<Item = (Vec3, f32)>,
+) -> bool {
     let centre = Vec3::from(space::to_physics(Vec3::new(focus.position[0], focus.position[1], 0.0)));
-    if planar_distance(position, centre) < MIN_FOCUS_GAP {
+    if planar_distance(position, centre) < minimum {
         return false;
     }
     clear_of_cars(position, length, others)

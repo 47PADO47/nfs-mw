@@ -1,4 +1,24 @@
 use super::*;
+
+#[test]
+fn f8_traffic_presets_round_trip_without_changing_audio_or_renderer() {
+    let mut settings = Settings::from(Partial::default());
+    settings.select_traffic_preset(crate::settings::TrafficPreset::Extended);
+    settings.traffic = 28;
+    settings.traffic_policy.density_percent = 30;
+    let text = payload(&settings).unwrap();
+    let wanted = settings.graphics_layer();
+    settings.select_traffic_preset(crate::settings::TrafficPreset::Reference);
+    settings.traffic = 5;
+    settings.traffic_policy.density_percent = 100;
+    settings.master_volume = Percent(17);
+    restore(&mut settings, &text).unwrap();
+    assert_eq!(settings.graphics_layer(), wanted);
+    assert_eq!(settings.master_volume, Percent(17));
+    let before = settings;
+    assert!(restore(&mut settings, "[traffic_tuning]\nspawn_max='bad'").is_err());
+    assert_eq!(settings, before, "bad traffic payloads must not partially apply");
+}
 use crate::settings::PostAa;
 use crate::settings::{Partial, Percent, RenderScale, RendererKind, UpscaleMode};
 use blackbox_gfx::ExperimentStats;

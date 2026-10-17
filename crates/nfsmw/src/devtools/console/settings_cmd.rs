@@ -17,6 +17,8 @@ use crate::settings::{
 /// The text for `get <key>`, or an error naming the valid keys.
 pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
     let value = match key {
+        "traffic_preset" => settings.traffic_preset().to_string(),
+        "traffic_density" => settings.traffic_policy.density_percent.to_string(),
         "world_detail" => settings.detail.world.to_string(),
         "car_geometry" => settings.detail.car.to_string(),
         "geometry_range" => settings.detail.geometry_range.to_string(),
@@ -114,6 +116,8 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         return set_without_value(settings, key);
     }
     match key {
+        "traffic_preset" => settings.select_traffic_preset(value.parse()?),
+        "traffic_density" => settings.traffic_policy.density_percent = value.parse::<Percent>()?.0,
         "world_detail" => settings.detail.world = value.parse()?,
         "car_geometry" => settings.detail.car = value.parse()?,
         "geometry_range" => settings.detail.geometry_range = value.parse()?,
@@ -238,6 +242,8 @@ fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
 /// What a setting accepts, for the usage line.
 fn syntax(key: &str) -> Option<&'static str> {
     Some(match key {
+        "traffic_preset" => "<reference|extended|custom>",
+        "traffic_density" => "<0-100>",
         "world_detail" => "<low|medium|high|maximum>",
         "car_geometry" => "<low|high|highest>",
         "geometry_range" | "visibility_range" => "<1x|1.5x|2x>",

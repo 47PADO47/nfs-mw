@@ -162,6 +162,7 @@ impl WorldScene {
                 cop_share: crate::settings::Percent(0),
                 lights: false,
                 avoidance: false,
+                policy: Default::default(),
             },
             lamp_meshes: None,
             traffic_manual: None,

@@ -59,7 +59,9 @@ impl TrafficWorld {
                 aims: &aims,
                 lights,
             };
-            car.step(&mut ctx, collision, props, surfaces);
+            if collision.resident_near(car.physics_position().to_array(), 30.0) != Some(false) {
+                car.step(&mut ctx, collision, props, surfaces);
+            }
             if car.take_wreck() {
                 self.police.record_wreck();
             }

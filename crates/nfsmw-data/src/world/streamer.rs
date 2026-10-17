@@ -13,10 +13,16 @@ use super::{SectionData, load_section};
 pub enum StreamerEvent {
     Loaded(Box<SectionData>),
     Failed { index: usize, error: String },
+    Collision { index: usize, result: Result<Vec<blackbox_collision::CollisionPack>, String> },
+}
+
+enum Request {
+    Full(usize),
+    Collision(usize),
 }
 
 pub struct Streamer {
-    requests: Option<Sender<usize>>,
+    requests: Option<Sender<Request>>,
     results: Receiver<StreamerEvent>,
     workers: Vec<std::thread::JoinHandle<()>>,
     /// Whether the renderer draws block-compressed textures; read by the workers for each section they load.
@@ -27,7 +33,7 @@ impl Streamer {
     /// Start `threads` workers reading from `stream_path`. Until [`Streamer::set_bc_supported`] says otherwise,
     /// the workers assume block-compressed textures can be drawn as they are.
     pub fn spawn(stream_path: PathBuf, sections: Vec<StreamingSection>, threads: usize) -> Self {
-        let (req_tx, req_rx) = channel::<usize>();
+        let (req_tx, req_rx) = channel::<Request>();
         let (res_tx, res_rx) = channel();
         let req_rx = Arc::new(Mutex::new(req_rx));
         let sections = Arc::new(sections);
@@ -53,7 +59,13 @@ impl Streamer {
 
     pub fn request(&self, index: usize) {
         if let Some(tx) = &self.requests {
-            let _ = tx.send(index);
+            let _ = tx.send(Request::Full(index));
+        }
+    }
+
+    pub fn request_collision(&self, index: usize) {
+        if let Some(tx) = &self.requests {
+            let _ = tx.send(Request::Collision(index));
         }
     }
 
@@ -75,7 +87,7 @@ impl Drop for Streamer {
 fn worker(
     path: &std::path::Path,
     sections: &[StreamingSection],
-    requests: &Mutex<Receiver<usize>>,
+    requests: &Mutex<Receiver<Request>>,
     results: &Sender<StreamerEvent>,
     bc_supported: &AtomicBool,
 ) {
@@ -88,7 +100,20 @@ fn worker(
     };
     loop {
         let next = requests.lock().map(|rx| rx.recv());
-        let Ok(Ok(index)) = next else { return };
+        let Ok(Ok(request)) = next else { return };
+        let index = match request {
+            Request::Collision(index) => {
+                let result = sections
+                    .get(index)
+                    .ok_or_else(|| "no such collision section".to_owned())
+                    .and_then(|s| super::section::load_collision(&mut file, s).map_err(|e| format!("{e:#}")));
+                if results.send(StreamerEvent::Collision { index, result }).is_err() {
+                    return;
+                }
+                continue;
+            }
+            Request::Full(index) => index,
+        };
         let event = match sections.get(index).map(|s| load_section(&mut file, index, s)) {
             Some(Ok(mut data)) => {
                 data.decode_for_upload(bc_supported.load(Ordering::Relaxed));

@@ -183,8 +183,8 @@ pub struct ViewArgs {
     /// Turn the radio on (it is on unless the config file or environment turn it off).
     #[arg(long)]
     pub radio: bool,
-    /// Computer-driven cars kept on the road around you; 0 turns traffic off
-    /// [env NFSMW_TRAFFIC; config `traffic`; default 10].
+    /// Active vehicle budget, including player, police and trailers; 0 turns new traffic off
+    /// [env NFSMW_TRAFFIC; config `traffic`; default 20].
     #[arg(long, value_name = "CARS")]
     pub traffic: Option<u32>,
     /// Turn traffic off (the same as `--traffic 0`).

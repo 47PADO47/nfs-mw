@@ -12,6 +12,7 @@ use nfsmw_data::world::{DEFAULT_TRACK, WorldIndex};
 
 mod driving;
 mod materials;
+mod population;
 mod road_reflection;
 mod slope;
 

@@ -19,6 +19,7 @@ mod models;
 mod original_camera;
 mod pattern;
 mod police;
+mod policy;
 mod population;
 mod pursuit;
 mod release;
@@ -113,6 +114,7 @@ pub struct TrafficWorld {
     alpha: f32,
     /// How many cars the manager keeps on the road.
     target: usize,
+    policy: crate::settings::TrafficPolicy,
     /// The share of them that are patrol cops, in percent.
     cop_share: u32,
     /// The patterns of the neighbourhoods, when the install has them, and their type timers.
@@ -191,6 +193,7 @@ impl TrafficWorld {
             rng: SplitMix(0x6E66_736D_7721),
             alpha: 0.0,
             target: 0,
+            policy: Default::default(),
             cop_share: 0,
             patterns: None,
             timers: TypeTimers::default(),
@@ -337,6 +340,15 @@ impl TrafficWorld {
     /// One line per car for the `traffic status` command.
     pub fn status(&self, focus: Focus) -> String {
         let mut lines = vec![format!("{} of {} cars; {}", self.cars.len(), self.target, self.pursuit_status())];
+        lines.push(format!(
+            "range {}-{} m; unseen <= {} m / {} s; density {}%; {} occupied vehicle slots",
+            self.policy.spawn_min,
+            self.policy.spawn_max,
+            self.policy.retire_distance,
+            self.policy.offscreen_seconds,
+            self.policy.density_percent,
+            self.population_slots(focus)
+        ));
         for car in self.cars.iter().take(12) {
             let p = car.position();
             let c = car.controls();

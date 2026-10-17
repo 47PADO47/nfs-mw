@@ -1,6 +1,25 @@
 use super::*;
 
 #[test]
+fn traffic_tab_previews_range_and_density_independently_and_reset_restores_defaults() {
+    let ctx = egui::Context::default();
+    let mut lab = GraphicsLab { open: true, tab: profiles::Tab::Traffic, ..Default::default() };
+    let mut settings = Settings::from(crate::settings::Partial::default());
+    settings.traffic = 28;
+    click(&ctx, &mut lab, &mut settings, "Extended");
+    assert_eq!(settings.traffic_policy.spawn_min, 450);
+    assert_eq!(settings.traffic, 28);
+    click(&ctx, &mut lab, &mut settings, "30%");
+    assert_eq!(settings.traffic_policy.density_percent, 30);
+    click(&ctx, &mut lab, &mut settings, "Reference");
+    assert_eq!(settings.traffic_policy.density_percent, 30);
+    assert_eq!(settings.traffic, 28);
+    click(&ctx, &mut lab, &mut settings, "Reset section");
+    assert_eq!(settings.traffic, crate::settings::DEFAULT_TRAFFIC);
+    assert_eq!(settings.traffic_policy, crate::settings::TrafficPolicy::default());
+}
+
+#[test]
 fn panel_stays_interactive_when_renderer_requests_mouse_capture_after_startup() {
     let mut lab = GraphicsLab { open: true, ..Default::default() };
     let mut capture = MouseCapture(false);

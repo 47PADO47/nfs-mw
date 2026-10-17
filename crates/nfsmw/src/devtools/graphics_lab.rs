@@ -8,6 +8,7 @@ mod profiles;
 mod quality;
 mod roads;
 mod saved;
+mod traffic;
 mod view;
 
 use crate::{
@@ -67,6 +68,7 @@ impl Default for GraphicsLab {
                 Ok("lighting") => profiles::Tab::Lighting,
                 Ok("materials") => profiles::Tab::Materials,
                 Ok("detail") => profiles::Tab::Detail,
+                Ok("traffic") => profiles::Tab::Traffic,
                 Ok("effects") => profiles::Tab::Effects,
                 Ok("environment") => profiles::Tab::Environment,
                 Ok("diagnostics") => profiles::Tab::Diagnostics,

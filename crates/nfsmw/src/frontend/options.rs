@@ -22,6 +22,7 @@ use crate::settings::{
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Setting {
     AdvancedGraphics,
+    TrafficPreset,
     MasterVolume,
     SfxVolume,
     EngineVolume,
@@ -173,6 +174,7 @@ impl Setting {
     pub fn data(self, s: &Settings) -> Data {
         match self {
             Setting::AdvancedGraphics => Data::Text("Open F8".into()),
+            Setting::TrafficPreset => Data::Text(s.traffic_preset().label().into()),
             Setting::Input(setting) => setting.data(s),
             Setting::Alias(setting) => Data::Text(setting.data().to_owned()),
             Setting::Post(setting) => setting.data(s),
@@ -403,6 +405,13 @@ impl Setting {
             Setting::RearViewMirror => toggle!(s, changed, rear_view_mirror),
             Setting::Discord => toggle!(s, changed, discord),
             Setting::DiscordTimePlayed => toggle!(s, changed, discord_time_played),
+            Setting::TrafficPreset => {
+                let choices = crate::settings::TrafficPreset::ALL;
+                let at = choices.iter().position(|p| *p == s.traffic_preset()).unwrap_or(0);
+                s.select_traffic_preset(choices[cycle(at, choices.len(), forward)]);
+                changed.traffic = Some(s.traffic);
+                changed.traffic_policy = Some(s.traffic_policy);
+            }
             Setting::Transmission => {
                 s.transmission = s.transmission.other();
                 changed.transmission = Some(s.transmission);

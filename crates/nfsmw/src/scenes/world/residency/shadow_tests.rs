@@ -190,7 +190,7 @@ fn projected() -> ShadowProjection {
     }
 }
 
-fn fixture() -> (Residency, NullBackend) {
+pub(super) fn fixture() -> (Residency, NullBackend) {
     let sections: Vec<_> = [-20.0, 20.0, 500.0, 30.0]
         .into_iter()
         .enumerate()
