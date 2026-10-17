@@ -1,6 +1,6 @@
 //! When the tail pipes flame (docs/specs/exhaust-flames.md, sections 2 and 8.3): the blow-off after a gear change
-//! of an engine that allows it, and the backfire at a sputter pop while off the throttle. The nitrous does not
-//! flame: its effect in the original differs and is not built yet.
+//! of an engine that allows it, and the backfire at a sputter pop while off the throttle. Engaged nitrous
+//! takes priority over these transient triggers in the caller.
 
 /// Speed (m/s) below which a gear change does not flame.
 pub const MIN_SHIFT_SPEED: f32 = 10.0;

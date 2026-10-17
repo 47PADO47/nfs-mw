@@ -1,5 +1,4 @@
 //! The streamed city: a free-fly camera, or a car to drive with a chase camera.
-
 mod ai;
 mod breaker_visuals;
 mod camera_choice;
@@ -29,6 +28,7 @@ mod hud;
 mod keys;
 mod lighting;
 mod mod_hooks;
+mod tail_light_trails;
 use car_loader::load_car;
 mod focus;
 mod focus_feed;

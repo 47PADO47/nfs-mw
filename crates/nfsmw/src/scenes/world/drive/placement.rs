@@ -12,6 +12,7 @@ use crate::scenes::world::vehicle_effects::VehicleEffects;
 impl Drive {
     /// Ask for the car to be put on the road nearest `near`, keeping `heading` if given.
     pub fn respawn_near(&mut self, near: [f32; 2], heading: Option<f32>) {
+        self.tail_trails.clear();
         self.effects.disconnect();
         self.vehicle_effects.clear();
         self.request = Some(SpawnRequest { near, heading, exact: None });
@@ -25,6 +26,7 @@ impl Drive {
     /// Put the car back where it last stood on a road, if it ever did.
     pub fn restore_last_good(&mut self) -> bool {
         let Some(good) = self.last_good else { return false };
+        self.tail_trails.clear();
         self.effects.disconnect();
         self.vehicle_effects.clear();
         self.request =
@@ -60,6 +62,7 @@ impl Drive {
         }
         self.effects.disconnect();
         let pose = sim.pose();
+        self.tail_trails.clear();
         self.vehicle_effects.clear();
         (self.previous, self.current) = (pose, pose);
         self.telemetry = sim.telemetry();
@@ -85,6 +88,7 @@ impl Drive {
         visuals: nfsmw_data::vehicle_effects::VisualEffectsData,
     ) {
         std::mem::replace(&mut self.rig, rig).release(renderer);
+        self.tail_trails.clear();
         self.vehicle_effects = VehicleEffects::new(visuals);
         self.physics = physics;
         self.performance = Default::default();

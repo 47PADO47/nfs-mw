@@ -87,6 +87,7 @@ impl Drive {
         self.telemetry = sim.telemetry();
         let car = effect_feed::car_state(&self.current, &self.telemetry, sim.effect_velocity(), input.throttle);
         self.flames.step(clock::STEP, &car);
+        self.tail_trails.step(car.to_world, car.nitrous, sim.effect_velocity().length());
         self.sound.after_step(sim, surfaces, &impact, &input, self.telemetry.speed_mps);
         self.chase.impact(sim.camera_acceleration());
         self.steps += 1;
