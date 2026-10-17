@@ -90,7 +90,7 @@ fn every_installed_placement_preserves_its_identity_dynamics_and_initial_visual_
             );
             let bounds = collider.physics_bounds();
             assert!(bounds.min.is_finite() && bounds.max.is_finite());
-            assert!(world.candidates(&bounds).contains(&p.prop_id));
+            assert!(candidate_ids(&world, &bounds).contains(&p.prop_id));
         }
         world.remove_tile(1);
         assert!(world.colliders.is_empty() && world.grid.is_empty());

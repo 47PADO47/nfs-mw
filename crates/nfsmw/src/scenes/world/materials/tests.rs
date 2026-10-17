@@ -72,13 +72,13 @@ fn normal_groups_require_complete_inputs_cache_triplets_and_release_idempotently
     assert_eq!(handles[0], handles[1]);
     assert_eq!(resources.normal_materials.len(), 1);
     let materials = Lookup(lookup, false, handles);
-    let (_, draws) = blackbox_scene::solid_mesh(&model, &materials, Shading::Prelit);
+    let draws = blackbox_scene::solid_mesh(&model, &materials, Shading::Prelit);
     assert!(draws.iter().all(|d| matches!(d.shading, Shading::WorldNormal(_)) && d.blend == BlendMode::AlphaTest));
     model.groups[1].texture_slots[3] = 0xFF;
     let handles = normal_materials(&mut backend, &model, &lookup, &mut resources.normal_materials);
     assert!(handles[0].is_some());
     assert!(handles[1].is_none());
-    let (_, draws) = blackbox_scene::solid_mesh(&model, &Lookup(lookup, false, handles), Shading::Prelit);
+    let draws = blackbox_scene::solid_mesh(&model, &Lookup(lookup, false, handles), Shading::Prelit);
     assert_eq!(draws[1].shading, Shading::Prelit);
     resources.release_normal_materials(&mut backend);
     resources.release_normal_materials(&mut backend);

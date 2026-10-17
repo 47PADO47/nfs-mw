@@ -8,6 +8,8 @@
 
 use std::collections::HashMap;
 
+use crate::bind_cache::BindCache;
+
 /// The shared half of every filter shader: the `Params` block, the bindings and the vertex stage that
 /// draws one oversized triangle.
 pub const POST_COMMON_WGSL: &str = include_str!("shaders/post_common.wgsl");
@@ -55,6 +57,8 @@ pub struct Filter {
     sampler: wgpu::Sampler,
     params: wgpu::Buffer,
     pipelines: HashMap<(&'static str, wgpu::TextureFormat, Blend), wgpu::RenderPipeline>,
+    /// Bind groups per pair of input views: the sampler and the parameter buffer never change.
+    bind_groups: BindCache<wgpu::TextureView, wgpu::BindGroup>,
 }
 
 fn texture_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
@@ -119,7 +123,16 @@ impl Filter {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        Self { label, shader, layout, pipeline_layout, sampler, params, pipelines: HashMap::new() }
+        Self {
+            label,
+            shader,
+            layout,
+            pipeline_layout,
+            sampler,
+            params,
+            pipelines: HashMap::new(),
+            bind_groups: BindCache::default(),
+        }
     }
 
     /// Upload the parameters every draw of this frame's encode reads. Queue writes land before the
@@ -128,69 +141,31 @@ impl Filter {
         queue.write_buffer(&self.params, 0, bytemuck::bytes_of(params));
     }
 
-    fn pipeline(&mut self, device: &wgpu::Device, draw: &Draw<'_>) -> &wgpu::RenderPipeline {
-        let key = (draw.entry, draw.format, draw.blend);
-        self.pipelines.entry(key).or_insert_with(|| {
-            let blend = match draw.blend {
-                Blend::Replace => None,
-                Blend::Add => Some(wgpu::BlendState {
-                    color: wgpu::BlendComponent {
-                        src_factor: wgpu::BlendFactor::One,
-                        dst_factor: wgpu::BlendFactor::One,
-                        operation: wgpu::BlendOperation::Add,
-                    },
-                    alpha: wgpu::BlendComponent {
-                        src_factor: wgpu::BlendFactor::One,
-                        dst_factor: wgpu::BlendFactor::One,
-                        operation: wgpu::BlendOperation::Add,
-                    },
-                }),
-            };
-            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some(self.label),
-                layout: Some(&self.pipeline_layout),
-                vertex: wgpu::VertexState {
-                    module: &self.shader,
-                    entry_point: Some("vs_main"),
-                    compilation_options: Default::default(),
-                    buffers: &[],
-                },
-                primitive: wgpu::PrimitiveState::default(),
-                depth_stencil: None,
-                multisample: Default::default(),
-                fragment: Some(wgpu::FragmentState {
-                    module: &self.shader,
-                    entry_point: Some(draw.entry),
-                    compilation_options: Default::default(),
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format: draw.format,
-                        blend,
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
-                }),
-                multiview_mask: None,
-                cache: None,
-            })
-        })
-    }
-
     /// Record one fullscreen draw into its own render pass.
     pub fn draw(&mut self, device: &wgpu::Device, encoder: &mut wgpu::CommandEncoder, draw: &Draw<'_>) {
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some(self.label),
-            layout: &self.layout,
-            entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(draw.src) },
-                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(draw.src2) },
-                wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Sampler(&self.sampler) },
-                wgpu::BindGroupEntry { binding: 3, resource: self.params.as_entire_binding() },
-            ],
+        // The fields are borrowed one by one, not through `&mut self`, so the bind group and the pipeline
+        // can both stay borrowed until the pass is recorded.
+        let bind_group = self.bind_groups.get_or_insert_with(draw.src, draw.src2, || {
+            device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some(self.label),
+                layout: &self.layout,
+                entries: &[
+                    wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(draw.src) },
+                    wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(draw.src2) },
+                    wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Sampler(&self.sampler) },
+                    wgpu::BindGroupEntry { binding: 3, resource: self.params.as_entire_binding() },
+                ],
+            })
         });
         let load = match draw.blend {
             Blend::Replace => wgpu::LoadOp::Clear(wgpu::Color::BLACK),
             Blend::Add => wgpu::LoadOp::Load,
         };
-        let pipeline = self.pipeline(device, draw);
+        let key = (draw.entry, draw.format, draw.blend);
+        let pipeline = self
+            .pipelines
+            .entry(key)
+            .or_insert_with(|| build_pipeline(device, self.label, &self.shader, &self.pipeline_layout, draw));
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some(draw.entry),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -205,7 +180,53 @@ impl Filter {
             multiview_mask: None,
         });
         pass.set_pipeline(pipeline);
-        pass.set_bind_group(0, &bind_group, &[]);
+        pass.set_bind_group(0, bind_group, &[]);
         pass.draw(0..3, 0..1);
     }
+}
+
+/// The pipeline of one draw: the filter's shader, the draw's fragment entry point, format and blend.
+fn build_pipeline(
+    device: &wgpu::Device,
+    label: &'static str,
+    shader: &wgpu::ShaderModule,
+    pipeline_layout: &wgpu::PipelineLayout,
+    draw: &Draw<'_>,
+) -> wgpu::RenderPipeline {
+    let blend = match draw.blend {
+        Blend::Replace => None,
+        Blend::Add => Some(wgpu::BlendState {
+            color: wgpu::BlendComponent {
+                src_factor: wgpu::BlendFactor::One,
+                dst_factor: wgpu::BlendFactor::One,
+                operation: wgpu::BlendOperation::Add,
+            },
+            alpha: wgpu::BlendComponent {
+                src_factor: wgpu::BlendFactor::One,
+                dst_factor: wgpu::BlendFactor::One,
+                operation: wgpu::BlendOperation::Add,
+            },
+        }),
+    };
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some(label),
+        layout: Some(pipeline_layout),
+        vertex: wgpu::VertexState {
+            module: shader,
+            entry_point: Some("vs_main"),
+            compilation_options: Default::default(),
+            buffers: &[],
+        },
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: None,
+        multisample: Default::default(),
+        fragment: Some(wgpu::FragmentState {
+            module: shader,
+            entry_point: Some(draw.entry),
+            compilation_options: Default::default(),
+            targets: &[Some(wgpu::ColorTargetState { format: draw.format, blend, write_mask: wgpu::ColorWrites::ALL })],
+        }),
+        multiview_mask: None,
+        cache: None,
+    })
 }

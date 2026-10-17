@@ -133,6 +133,7 @@ impl Renderer {
             output,
             &scene.frame,
             scene.instances,
+            false,
             Some(&mut capture.view),
         );
         if let Some(blur) = &mut capture.blur {

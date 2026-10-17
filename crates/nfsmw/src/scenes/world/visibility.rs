@@ -14,6 +14,10 @@ use super::resident::Placed;
 /// Screen height the LOD thresholds are tuned for (`docs/specs/scenery-lod.md`).
 const REFERENCE_HEIGHT: f32 = 480.0;
 
+/// The `prop_id` of a placed object that is not a registered prop. `PropWorld` hands out ids from 1 upwards
+/// (`PropWorld::add_tile`), so no lookup in it ever finds this id.
+pub(super) const NOT_A_PROP: u32 = 0;
+
 pub struct Camera {
     pub view_proj: Mat4,
     pub position: [f32; 3],
@@ -23,7 +27,23 @@ pub struct Camera {
 }
 
 /// Include nearby casters outside the player frustum. Bevy culls these independently for each cascade.
+/// The result is sorted by mesh. The frame paths append more after the scenery and use the unsorted collector.
+#[cfg(test)]
 pub fn collect_with_shadows<'a>(
+    placed: impl Iterator<Item = &'a Placed>,
+    camera: &Camera,
+    rules: &LodRules,
+    props: &PropWorld,
+    shadow_distance: f32,
+    out: &mut Vec<Instance>,
+) {
+    collect_unsorted_with_shadows(placed, camera, rules, props, shadow_distance, out);
+    out.sort_unstable_by_key(|i| i.mesh);
+}
+
+/// [`collect_with_shadows`] without the sort, for a frame that appends more instances after the scenery. The caller
+/// calls [`sort_by_mesh`] once after its last append.
+pub fn collect_unsorted_with_shadows<'a>(
     placed: impl Iterator<Item = &'a Placed>,
     camera: &Camera,
     rules: &LodRules,
@@ -35,6 +55,7 @@ pub fn collect_with_shadows<'a>(
 }
 
 /// A small environment capture needs its own projected-size LOD, rather than the player's 480px rule.
+/// The result is sorted by mesh.
 pub fn collect_for_height<'a>(
     placed: impl Iterator<Item = &'a Placed>,
     camera: &Camera,
@@ -44,6 +65,27 @@ pub fn collect_for_height<'a>(
     out: &mut Vec<Instance>,
 ) {
     collect_inner(placed, camera, rules, props, height, 0.0, out);
+    out.sort_unstable_by_key(|i| i.mesh);
+}
+
+/// Sorts `instances` by mesh: every copy of a mesh ends up adjacent, so the renderer draws each run as one instanced
+/// draw. Call it after the last instance of a frame is appended. Unstable like the scenery sort always was, so it
+/// sorts in place without allocating.
+pub fn sort_by_mesh(instances: &mut [Instance]) {
+    instances.sort_unstable_by_key(|i| i.mesh);
+}
+
+/// Where placed object `p` is drawn this frame, or `None` when its prop is knocked over. A non-prop has no entry in
+/// `props`, so it skips the three lookups.
+pub(super) fn current_pose(p: &Placed, props: &PropWorld) -> Option<(Mat4, blackbox_scene::Aabb)> {
+    if p.prop_id == NOT_A_PROP {
+        return Some((p.transform, p.bounds));
+    }
+    if props.hidden(p.prop_id) {
+        return None;
+    }
+    // A moving prop is drawn where its body is, not where it was placed.
+    Some(props.pose(p.prop_id).unwrap_or((p.transform, p.bounds)))
 }
 
 fn collect_inner<'a>(
@@ -64,11 +106,9 @@ fn collect_inner<'a>(
     };
     out.clear();
     for p in placed {
-        if props.hidden(p.prop_id) {
+        let Some((transform, bounds)) = current_pose(p, props) else {
             continue;
-        }
-        // A moving prop is drawn where its body is, not where it was placed.
-        let (transform, bounds) = props.pose(p.prop_id).unwrap_or((p.transform, p.bounds));
+        };
         let in_view = frustum.intersects(&bounds);
         // A margin along the light ray admits casters beyond the last receiver cascade.
         let caster =
@@ -97,14 +137,13 @@ fn collect_inner<'a>(
         let Some(slot) = visible_lod.or_else(shadow_lod) else {
             continue;
         };
-        if props.model_instances(p.prop_id, transform, out) {
+        if p.prop_id != NOT_A_PROP && props.model_instances(p.prop_id, transform, out) {
             continue;
         }
         if let Some(mesh) = p.lods[slot] {
             out.push(Instance::keyed(mesh, transform, p.key));
         }
     }
-    out.sort_unstable_by_key(|i| i.mesh);
 }
 
 /// Conservative swept bounds reject nearby objects whose shadows cannot reach the camera frustum.
@@ -186,5 +225,20 @@ mod tests {
         collect_with_shadows([&p].into_iter(), &away, rules, &props, 80.0, &mut out);
         assert!(out.is_empty(), "casters pointing away from the receiver view stay culled");
         assert!(!near_caster(&p.bounds, [1000.0; 3], 80.0), "distant scenery stays culled");
+    }
+
+    #[test]
+    fn copies_appended_after_the_scenery_join_their_mesh_run_in_order() {
+        let inst = |mesh: usize, key: u32| {
+            Instance::keyed(MeshHandle::from_raw(mesh), Mat4::IDENTITY, InstanceKey::new(1, key))
+        };
+        // Scenery already sorted by mesh, then traffic and lamps appended after it as world_frame does.
+        let mut list = vec![inst(1, 1), inst(1, 2), inst(2, 3)];
+        list.extend([inst(2, 10), inst(1, 11), inst(3, 12), inst(2, 13)]);
+        sort_by_mesh(&mut list);
+        let meshes: Vec<usize> = list.iter().map(|i| i.mesh.raw()).collect();
+        assert_eq!(meshes, [1, 1, 1, 2, 2, 2, 3], "every copy of a mesh is adjacent");
+        let keys: Vec<u32> = list.iter().map(|i| i.key.parts().1).collect();
+        assert_eq!(keys, [1, 2, 11, 3, 10, 13, 12], "the order inside each mesh is kept");
     }
 }

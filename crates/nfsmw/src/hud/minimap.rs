@@ -2,6 +2,8 @@
 //! (`docs/specs/hud-minimap.md` section 4). The maths is `blackbox-minimap`; this finds the objects, hands them the
 //! tile textures of the view, scrolls and turns the group of pieces, and turns the arrow.
 
+use std::sync::Mutex;
+
 use blackbox_feng::{ObjectRef, PackageId, Runtime, fe_hash_upper};
 use blackbox_minimap::{Blip, Calibration, Orientation, View, place_blip, speed_zoom, tile_name};
 use game_install::GameDir;
@@ -34,6 +36,9 @@ pub struct MinimapBinding {
     /// Where the package puts the group, and the mask rectangle of each piece.
     group_position: Vec3,
     mask_windows: [[f32; 4]; 4],
+    /// The tile number each piece last showed and the texture key hashed from it. A piece is renamed only when its
+    /// tile changes, so a frame on the same tiles formats and hashes nothing.
+    tile_keys: Mutex<[Option<(i32, u32)>; 4]>,
 }
 
 impl MinimapBinding {
@@ -65,6 +70,7 @@ impl MinimapBinding {
             arrow,
             group_position: rt.position(group)?,
             mask_windows,
+            tile_keys: Mutex::new([None; 4]),
         })
     }
 
@@ -122,13 +128,27 @@ impl MinimapBinding {
         [self.group_position.x, self.group_position.y]
     }
 
+    /// The texture key of tile `number` for piece `slot`, hashed again only when that piece's tile changed.
+    fn tile_key(&self, slot: usize, number: i32) -> u32 {
+        // Only the HUD system touches it, so the lock is never contended.
+        let mut keys = self.tile_keys.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some((cached, key)) = keys[slot]
+            && cached == number
+        {
+            return key;
+        }
+        let key = fe_hash_upper(&tile_name(&self.header, number));
+        keys[slot] = Some((number, key));
+        key
+    }
+
     /// Pushes the view into the objects. Call before `Runtime::update`.
     pub fn apply(&self, rt: &mut Runtime, state: &HudState, at: &MapPosition) {
         let view = self.view(state, at);
         let shift = view.mask_shift();
         let rectangles = view.piece_rectangles();
         for (i, piece) in self.pieces.iter().enumerate() {
-            rt.set_texture(*piece, fe_hash_upper(&tile_name(&self.header, view.tiles[i])));
+            rt.set_texture(*piece, self.tile_key(i, view.tiles[i]));
             rt.set_uv(*piece, rectangles[i]);
             let w = self.mask_windows[i];
             rt.set_mask_uv(*piece, [w[0] + shift[0], w[1] + shift[1], w[2] + shift[0], w[3] + shift[1]]);

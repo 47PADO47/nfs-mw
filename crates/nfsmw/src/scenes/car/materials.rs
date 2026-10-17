@@ -38,6 +38,7 @@ impl CarMaterials {
             .filter_map(|(&hash, t)| upload_texture(renderer, t).map(|handle| (hash, (handle, blend_mode(Some(t))))))
             .collect();
         let paint = model.paint.as_ref().and_then(|p| p.light_material);
+        set_lighting(renderer, shading, to_sun);
         if shading == CarShading::Simple {
             return Self { uploaded, glossy: HashMap::new(), fallback: None, paint, window_tint: None };
         }
@@ -98,6 +99,14 @@ impl CarMaterials {
 
 #[cfg(test)]
 mod tests;
+/// Light the car's glossy surfaces by a sun in direction `to_sun` from the car. Simple shading keeps the
+/// renderer's own single light, so nothing is set.
+pub fn set_lighting(renderer: &mut dyn RenderBackend, shading: CarShading, to_sun: Vec3) {
+    if shading == CarShading::Simple {
+        return;
+    }
+    renderer.set_lighting_rig(&lighting::rig(to_sun));
+}
 
 pub struct Lookup<'a> {
     materials: &'a CarMaterials,

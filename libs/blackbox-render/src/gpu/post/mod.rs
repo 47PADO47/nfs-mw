@@ -37,6 +37,7 @@ mod tonemap;
 mod treatment;
 mod treatment_composite;
 
+use super::sized::SizedPair;
 use super::targets::FrameTargets;
 use super::temporal::TemporalFrame;
 use plan::{Source, Target};
@@ -95,9 +96,11 @@ pub(super) trait PostPass {
 struct Scratch {
     _texture: wgpu::Texture,
     view: wgpu::TextureView,
-    size: (u32, u32),
     format: wgpu::TextureFormat,
 }
+
+/// What a ping-pong image was made for: its size and format.
+type ScratchKey = ((u32, u32), wgpu::TextureFormat);
 
 impl Scratch {
     fn new(device: &wgpu::Device, size: (u32, u32), format: wgpu::TextureFormat) -> Self {
@@ -112,7 +115,7 @@ impl Scratch {
             view_formats: &[],
         });
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        Self { _texture: texture, view, size, format }
+        Self { _texture: texture, view, format }
     }
 }
 
@@ -122,7 +125,8 @@ pub(super) struct PostChain {
     passes: Vec<Box<dyn PostPass>>,
     /// The temporal upscaler, which runs before `passes` when the frame has temporal data.
     temporal: Option<Box<dyn PostPass>>,
-    scratch: [Option<Scratch>; 2],
+    /// The ping-pong images, kept for two sizes so a frame at each view size reuses its own.
+    scratch: [SizedPair<ScratchKey, Scratch>; 2],
     /// How many passes at the front of `passes` are the post effects of `settings`.
     effect_count: usize,
     settings: crate::PostSettings,
@@ -135,7 +139,7 @@ impl PostChain {
             display: None,
             passes: vec![Box::new(resolve::Resolve::new(device))],
             temporal: None,
-            scratch: [None, None],
+            scratch: [SizedPair::new(), SizedPair::new()],
             effect_count: 0,
             settings: crate::PostSettings::default(),
             profile: None,
@@ -188,13 +192,15 @@ impl PostChain {
 
     /// Free the ping-pong images (they are recreated when a pass needs them).
     pub(super) fn release_scratch(&mut self) {
-        self.scratch = [None, None];
+        for images in &mut self.scratch {
+            images.clear();
+        }
     }
 
     /// How many ping-pong images are allocated.
     #[cfg(test)]
     pub(super) fn scratch_count(&self) -> usize {
-        self.scratch.iter().flatten().count()
+        self.scratch.iter().map(|images| images.len()).sum()
     }
 
     /// The pass names in execution order.
@@ -243,11 +249,13 @@ impl PostChain {
         }
         let steps = plan::plan(chain.len());
         // A chain that got shorter no longer needs its second (or any) ping-pong image.
-        for (slot, image) in scratch.iter_mut().enumerate() {
+        for (slot, images) in scratch.iter_mut().enumerate() {
             if !steps.iter().any(|step| step.target == Target::Scratch(slot)) {
-                *image = None;
+                images.clear();
             }
         }
+        // The key of the image each slot was last written with in this frame.
+        let mut written: [Option<ScratchKey>; 2] = [None, None];
         // Once a pass has upscaled, every pass after it writes the output size.
         let mut upscaled = false;
         for (pass, step) in chain.into_iter().zip(steps) {
@@ -256,19 +264,22 @@ impl PostChain {
                     Extent::Render => scene.size,
                     Extent::Output => ctx.output_size,
                 };
-                let stale = scratch[slot].as_ref().is_none_or(|s| s.size != size || s.format != scene.color_format);
-                if stale {
-                    scratch[slot] = Some(Scratch::new(ctx.device, size, scene.color_format));
-                }
+                let key = (size, scene.color_format);
+                scratch[slot].get_or_make(key, || Scratch::new(ctx.device, size, scene.color_format));
+                written[slot] = Some(key);
             }
             let (input, input_size) = match step.source {
                 Source::Scene => (&scene.color_view, scene.size),
-                Source::Scratch(slot) => scratch[slot].as_ref().map(|s| (&s.view, s.size)).expect("written earlier"),
+                Source::Scratch(slot) => {
+                    let key = written[slot].expect("written earlier");
+                    scratch[slot].get(key).map(|s| (&s.view, key.0)).expect("written earlier")
+                }
             };
             let (view, format, size) = match step.target {
                 Target::Output => (output.0, output.1, ctx.output_size),
                 Target::Scratch(slot) => {
-                    scratch[slot].as_ref().map(|s| (&s.view, s.format, s.size)).expect("created above")
+                    let key = written[slot].expect("created above");
+                    scratch[slot].get(key).map(|s| (&s.view, s.format, key.0)).expect("created above")
                 }
             };
             let io = PassIo { input, input_size, output: view, output_format: format, output_size: size };

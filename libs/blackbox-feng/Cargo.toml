@@ -10,6 +10,7 @@ publish.workspace = true
 [dependencies]
 blackbox-hash.workspace = true
 ea-compress.workspace = true
+foldhash.workspace = true
 glam.workspace = true
 thiserror.workspace = true
 

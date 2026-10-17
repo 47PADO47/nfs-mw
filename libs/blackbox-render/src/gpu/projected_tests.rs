@@ -295,7 +295,7 @@ fn material_stage_image(r: &mut Renderer, mesh: MeshHandle) -> RgbaImage {
     let instances = [Instance::new(mesh, Mat4::IDENTITY)];
     r.instances.upload_instances(&r.device, &r.queue, &instances);
     let mut encoder = r.device.create_command_encoder(&Default::default());
-    r.encode_scene_mode(&mut encoder, None, &output, &frame(), &instances, None);
+    r.encode_scene_mode(&mut encoder, None, &output, &frame(), &instances, false, None);
     r.queue.submit([encoder.finish()]);
     r.read_output().expect("headless output").unwrap()
 }

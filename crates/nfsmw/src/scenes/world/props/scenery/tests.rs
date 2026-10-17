@@ -49,6 +49,7 @@ fn placed_release_can_remove_later_fragment_ids_during_the_same_cleanup_pass() {
     let owner = world.scenery.models[&id].owner.clone();
     let body = world.colliders.get_mut(&id).unwrap().body.as_mut().unwrap();
     body.lifetime.activate(&spec);
+    crate::scenes::world::props::lifetime::track_lifetime(&mut world.live_lifetimes, id);
     let fragment = super::super::body::PropBody::fragment(
         placed[0].prop.as_ref().unwrap().bounds.as_ref().unwrap(),
         0,

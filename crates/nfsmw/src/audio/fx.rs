@@ -37,7 +37,7 @@ impl Audio {
         if let Some(stitches) = &self.stitches {
             return stitches.clone();
         }
-        let stitches = match nfsmw_data::read_unwrapped(&self.dir, "GLOBAL/InGameB.bun") {
+        let stitches = match nfsmw_data::shared::ingame_b(&self.dir) {
             Ok(bytes) => collision_stitches(&bytes),
             Err(e) => {
                 log::warn!("no collision stitches: {e:#}");

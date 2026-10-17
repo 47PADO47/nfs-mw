@@ -150,6 +150,18 @@ pub trait RenderBackend {
         instances: &[Instance],
     ) -> Result<CaptureId, RenderError>;
 
+    /// Start rendering a picture shown inside the game (a rear-view mirror) off-screen at `size`; poll it with
+    /// [`poll_capture`](Self::poll_capture). Unlike [`request_capture`](Self::request_capture) the backend may leave
+    /// out screen-space effects, shadows and the UI, and may finish it a few frames later. Defaults to a full capture.
+    fn request_view_capture(
+        &mut self,
+        size: [u32; 2],
+        frame: &FrameParams,
+        instances: &[Instance],
+    ) -> Result<CaptureId, RenderError> {
+        self.request_capture(size, frame, instances)
+    }
+
     /// The captured image once it is ready, `None` while the backend is still working. A backend
     /// that completes at once returns it on the first poll; others take a few frames. Each capture
     /// is returned once.

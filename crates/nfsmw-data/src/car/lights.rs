@@ -70,7 +70,7 @@ mod tests {
     #[ignore = "requires an installed game"]
     fn installed_player_lights_use_racer_profiles_and_authored_textures() {
         let dir = game_install::GameDir::open(std::env::var("NFSMW_GAME_DIR").unwrap()).unwrap();
-        let db = Database::open(&dir.read("GLOBAL/ATTRIBUTES.BIN").unwrap()).unwrap();
+        let db = crate::shared::attributes(&dir).unwrap();
         let p = FlareProfiles::read(&db);
         assert_eq!(p.head.len(), 2);
         assert_eq!(p.brake.len(), 1);

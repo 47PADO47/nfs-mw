@@ -20,11 +20,10 @@ use game_install::GameDir;
 use glam::Vec3;
 
 use crate::read_unwrapped;
+use crate::shared;
 
 /// The file with the gameplay collections (the `gameplay` class, all 6,293 of them in NFS: Most Wanted).
 pub const GAMEPLAY_FILE: &str = "GLOBAL/gameplay.bin";
-/// The class definitions; `gameplay.bin` cannot be read without them.
-const ATTRIBUTES_FILE: &str = "GLOBAL/ATTRIBUTES.BIN";
 /// The class holding every collection read here.
 const CLASS: &str = "gameplay";
 
@@ -54,8 +53,9 @@ impl GameplayData {
 /// Read the install's gameplay data: class definitions from `GLOBAL/ATTRIBUTES.BIN`, collections from
 /// `GLOBAL/gameplay.bin`.
 pub fn load(dir: &GameDir) -> Result<GameplayData> {
-    let attributes = dir.read(ATTRIBUTES_FILE).with_context(|| format!("reading {ATTRIBUTES_FILE}"))?;
-    let mut db = Database::open(&attributes).with_context(|| format!("parsing {ATTRIBUTES_FILE}"))?;
+    // The session's class definitions are shared; the collections go into this call's own copy.
+    let attributes = shared::attributes(dir)?;
+    let mut db = Database::clone(&attributes);
     let gameplay = read_unwrapped(dir, GAMEPLAY_FILE)?;
     db.load(&gameplay).with_context(|| format!("parsing {GAMEPLAY_FILE}"))?;
     Ok(GameplayData::from_database(&db))

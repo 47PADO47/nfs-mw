@@ -112,8 +112,6 @@ pub struct Audio {
     sound_channels: HashMap<(String, usize), u16>,
     impact_counter: u32,
     prop_sounds: HashMap<u32, Arc<nfsmw_data::sound::CollisionSounds>>,
-    /// The gameplay database, read when a car's sound is first needed.
-    database: Option<Arc<Database>>,
     /// The engine the `engine` console command plays, with the car it belongs to.
     pub test_engine: Option<(EngineHandle, CarSound)>,
     /// The engine of the car being driven.
@@ -192,7 +190,6 @@ impl Audio {
             sound_channels: HashMap::new(),
             impact_counter: 0,
             prop_sounds: HashMap::new(),
-            database: None,
             test_engine: None,
             car: None,
             stitches: None,
@@ -297,14 +294,9 @@ impl Audio {
         handle.stop(Tween::default());
     }
 
+    /// The gameplay database, shared by the session (see `nfsmw_data::shared::attributes`).
     fn database(&mut self) -> Result<Arc<Database>, String> {
-        if let Some(db) = &self.database {
-            return Ok(db.clone());
-        }
-        let bytes = self.dir.read("GLOBAL/ATTRIBUTES.BIN").map_err(|e| format!("ATTRIBUTES.BIN: {e:#}"))?;
-        let db = Arc::new(Database::open(&bytes).map_err(|e| format!("ATTRIBUTES.BIN: {e}"))?);
-        self.database = Some(db.clone());
-        Ok(db)
+        nfsmw_data::shared::attributes(&self.dir).map_err(|e| format!("ATTRIBUTES.BIN: {e:#}"))
     }
 
     /// The engine sound of car type `car` (`BMWM3GTR`) at stock levels: its Ginsu loops, decoded.

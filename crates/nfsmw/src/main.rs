@@ -1,5 +1,9 @@
 //! `nfsmw`: entry point of the NFS: Most Wanted rewrite.
 
+#[cfg(feature = "mimalloc")]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 mod app;
 mod audio;
 mod cli;

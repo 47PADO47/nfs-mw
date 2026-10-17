@@ -27,8 +27,10 @@ fn installed_shared_traffic_rigs_switch_mode_without_actor_reset() {
     .unwrap();
     let mut renderer =
         NullBackend::new(crate::settings::test_caps::native()).with_mesh_tracking().with_glossy_tracking();
-    let model = load_traffic(&mut scene, &mut renderer, "semilog").unwrap();
-    scene.traffic.as_mut().unwrap().add_model(model);
+    // The same path the game takes: request the model, then serve and install it.
+    let job = traffic_job(&scene, "semilog");
+    ask(&mut scene, Request::Traffic("semilog".to_owned()), job);
+    pump(&mut scene, &mut renderer, true);
     load_cop_models(&mut scene, &mut renderer, &["copmidsize".to_owned()]).unwrap();
     load_helicopter_model(&mut scene, &mut renderer).unwrap();
     let traffic = scene.traffic.as_mut().unwrap();

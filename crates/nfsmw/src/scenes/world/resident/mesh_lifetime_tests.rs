@@ -10,6 +10,7 @@ fn duplicate_hashes_in_one_upload_keep_last_mesh_and_release_every_allocation() 
         resources.upload_solid_list(
             &mut renderer,
             &[solid("first", 1), solid("last", 1), solid("other", 2)],
+            None,
             &SectionResources::default(),
             keep_existing,
         );
@@ -28,9 +29,9 @@ fn duplicate_hashes_in_one_upload_keep_last_mesh_and_release_every_allocation() 
 fn successful_replacement_across_uploads_retires_only_the_old_mesh() {
     let mut renderer = renderer();
     let mut resources = SectionResources::default();
-    resources.upload_solid_list(&mut renderer, &[solid("first", 1)], &SectionResources::default(), false);
+    resources.upload_solid_list(&mut renderer, &[solid("first", 1)], None, &SectionResources::default(), false);
     let old = resources.meshes[&1].0;
-    resources.upload_solid_list(&mut renderer, &[solid("replacement", 1)], &SectionResources::default(), false);
+    resources.upload_solid_list(&mut renderer, &[solid("replacement", 1)], None, &SectionResources::default(), false);
     assert!(!renderer.mesh_labels.contains_key(&old));
     assert_eq!(renderer.resources.lock().unwrap().meshes, 1);
     assert_eq!(renderer.mesh_labels[&resources.meshes[&1].0], "replacement");
@@ -43,13 +44,13 @@ fn successful_replacement_across_uploads_retires_only_the_old_mesh() {
 fn failed_or_skipped_replacement_keeps_the_existing_allocation_alive() {
     let mut renderer = renderer();
     let mut resources = SectionResources::default();
-    resources.upload_solid_list(&mut renderer, &[solid("first", 1)], &SectionResources::default(), false);
+    resources.upload_solid_list(&mut renderer, &[solid("first", 1)], None, &SectionResources::default(), false);
     let old = resources.meshes[&1].0;
     let mut empty = solid("empty", 1);
     empty.indices.clear();
-    resources.upload_solid_list(&mut renderer, &[empty], &SectionResources::default(), false);
+    resources.upload_solid_list(&mut renderer, &[empty], None, &SectionResources::default(), false);
     assert_eq!(resources.meshes[&1].0, old);
-    resources.upload_solid_list(&mut renderer, &[solid("skipped", 1)], &SectionResources::default(), true);
+    resources.upload_solid_list(&mut renderer, &[solid("skipped", 1)], None, &SectionResources::default(), true);
     assert_eq!(resources.meshes[&1].0, old);
     assert_eq!(renderer.mesh_labels[&old], "first");
     assert_eq!(renderer.resources.lock().unwrap().meshes, 1);

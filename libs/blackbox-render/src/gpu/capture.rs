@@ -14,6 +14,15 @@ pub(super) struct Captures {
     done: HashMap<u64, RgbaImage>,
 }
 
+impl Captures {
+    /// A new capture id. Ids are never reused, so a view capture and a sync capture cannot share one.
+    pub(super) fn next_id(&mut self) -> u64 {
+        let id = self.next;
+        self.next += 1;
+        id
+    }
+}
+
 impl Renderer {
     /// Render one frame off-screen at `size` (width, height) like [`Self::capture`] and keep the image
     /// for [`Self::take_capture`].
@@ -29,8 +38,7 @@ impl Renderer {
         }
         let rgba = self.capture(width, height, frame, instances)?;
         let image = RgbaImage::new(width, height, rgba)?;
-        let id = self.captures.next;
-        self.captures.next += 1;
+        let id = self.captures.next_id();
         self.captures.done.insert(id, image);
         Ok(CaptureId::from_raw(id))
     }
@@ -187,11 +195,25 @@ impl Renderer {
         slice.map_async(wgpu::MapMode::Read, |_| {});
         let _ = self.device.poll(wgpu::PollType::wait_indefinitely());
         let mapped = slice.get_mapped_range().map_err(|e| RenderError::Device(format!("capture readback: {e:?}")))?;
-        let mut out = Vec::with_capacity((width * height * bytes_per_pixel) as usize);
-        for y in 0..height as usize {
-            let line = &mapped[y * row as usize..][..(width * bytes_per_pixel) as usize];
-            out.extend_from_slice(line);
-        }
-        Ok(out)
+        Ok(pack_rgba(&mapped, row, width, height, is_bgra(self.output.format())))
     }
+}
+
+/// Whether `format` stores blue first, so its readback needs the red and blue swapped.
+pub(super) fn is_bgra(format: wgpu::TextureFormat) -> bool {
+    matches!(format, wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb)
+}
+
+/// Repack a mapped readback (rows `row` bytes apart, `width` by `height` pixels) as tightly packed RGBA8 with
+/// alpha 255. `bgra` swaps red and blue on the way.
+pub(super) fn pack_rgba(mapped: &[u8], row: u32, width: u32, height: u32, bgra: bool) -> Vec<u8> {
+    let mut out = Vec::with_capacity((width * height * 4) as usize);
+    for y in 0..height as usize {
+        let line = &mapped[y * row as usize..][..width as usize * 4];
+        for px in line.as_chunks::<4>().0 {
+            let (r, b) = if bgra { (px[2], px[0]) } else { (px[0], px[2]) };
+            out.extend_from_slice(&[r, px[1], b, 255]);
+        }
+    }
+    out
 }

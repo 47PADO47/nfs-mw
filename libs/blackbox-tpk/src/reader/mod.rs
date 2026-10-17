@@ -20,10 +20,17 @@ fn cstr(b: &[u8]) -> String {
 /// Compressed packs address their blobs by offset into `file`, so pass the whole
 /// file, not just the pack chunk.
 pub fn read_texture_packs(file: &[u8]) -> Result<Vec<TexturePack>> {
-    blackbox_chunk::find_all(file, ids::TEXTURE_PACK).into_iter().map(|pack| read_pack(file, pack)).collect()
+    read_texture_packs_filtered(file, |_| true)
 }
 
-fn read_pack(file: &[u8], pack: Chunk<'_>) -> Result<TexturePack> {
+/// Like [`read_texture_packs`], but only the textures whose name hash `keep` accepts are
+/// copied or decompressed. A rejected texture is skipped before its pixels are touched,
+/// so it appears in neither `textures` nor `failed`. Everything else is unchanged.
+pub fn read_texture_packs_filtered(file: &[u8], keep: impl Fn(u32) -> bool) -> Result<Vec<TexturePack>> {
+    blackbox_chunk::find_all(file, ids::TEXTURE_PACK).into_iter().map(|pack| read_pack(file, pack, &keep)).collect()
+}
+
+fn read_pack(file: &[u8], pack: Chunk<'_>, keep: &impl Fn(u32) -> bool) -> Result<TexturePack> {
     let err = |detail: &str| Error::Pack { offset: pack.offset, detail: detail.to_owned() };
     let info = pack.child(ids::TEXTURE_PACK_INFO).ok_or_else(|| err("no TexturePackInfo"))?;
     let header = info.child(ids::TEXTURE_PACK_INFO_HEADER).ok_or_else(|| err("no TexturePackInfoHeader"))?;
@@ -42,9 +49,9 @@ fn read_pack(file: &[u8], pack: Chunk<'_>) -> Result<TexturePack> {
     };
 
     if let Some(entries) = info.child(ids::TEXTURE_PACK_INFO_ENTRIES) {
-        compressed::read(file, entries, layout, &mut out);
+        compressed::read(file, entries, layout, keep, &mut out);
     } else {
-        plain::read(pack, info, layout, &mut out).map_err(err)?;
+        plain::read(pack, info, layout, keep, &mut out).map_err(err)?;
     }
     Ok(out)
 }

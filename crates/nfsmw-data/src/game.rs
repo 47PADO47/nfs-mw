@@ -26,17 +26,18 @@ pub const SPEC: GameSpec = GameSpec {
     }],
 };
 
-/// Find, index and validate the install.
+/// Find, index and check the install. Runs on every launch, so it does not hash
+/// `speed.exe`; only `check-install` needs the build identity (see [`GameDir::validate`]).
 pub fn open_install(explicit: Option<&Path>) -> Result<GameDir> {
     let found = game_install::discover(&SPEC, explicit)?;
     log::info!("install: {} (from {})", found.path.display(), found.source);
     let dir = GameDir::open(&found.path).with_context(|| format!("indexing {}", found.path.display()))?;
-    let v = dir.validate(&SPEC);
-    if !v.is_usable() {
+    let missing = dir.missing_files(&SPEC);
+    if !missing.is_empty() {
         bail!(
             "{} does not look like an NFS: Most Wanted install; missing: {}",
             dir.root().display(),
-            v.missing.join(", ")
+            missing.join(", ")
         );
     }
     Ok(dir)

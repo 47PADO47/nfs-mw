@@ -1,6 +1,6 @@
 use super::*;
 use crate::scenes::world::drive::FixedClock;
-use crate::scenes::world::props::lifetime::{Change, Lifetime, Observation};
+use crate::scenes::world::props::lifetime::{Change, Lifetime, Observation, track_lifetime};
 
 fn spec(dropout: [f32; 2], kill: f32) -> Arc<PropDynamics> {
     let p = placement(1, Vec3::Y, 100.0, false, 0.0);
@@ -78,6 +78,7 @@ fn sink_trace(frames: &[f32]) -> Vec<(u32, u32, bool, bool)> {
     body.moved = true;
     let spec = world.colliders[&id].shape.dynamics.clone().unwrap();
     world.colliders.get_mut(&id).unwrap().body.as_mut().unwrap().lifetime.activate(&spec);
+    track_lifetime(&mut world.live_lifetimes, id);
     // The view is off-screen, so the dropout clock may start.
     let view = Mat4::from_translation(Vec3::X * 1000.0);
     let mut clock = FixedClock::default();
@@ -115,6 +116,7 @@ fn a_visible_resting_prop_with_dropout_does_not_sink_or_restore() {
     b.rigid.state = BodyState::Asleep;
     b.moved = true;
     b.lifetime.activate(&spec);
+    track_lifetime(&mut world.live_lifetimes, id);
     for _ in 0..240 {
         world.step(&FlatGround::new(0.0), 1.0 / 60.0);
         world.update_lifetimes(&FlatGround::new(0.0), Mat4::IDENTITY, 1.0 / 60.0);

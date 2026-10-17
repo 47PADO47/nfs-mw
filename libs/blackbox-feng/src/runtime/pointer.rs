@@ -4,6 +4,7 @@
 use glam::{Mat2, Mat4, Vec2};
 
 use super::{ObjectRef, PackageId, Runtime};
+use crate::tree::UiNode;
 
 impl Runtime {
     /// The visible button under a point of the 640 x 480 screen (origin at the centre, y down), the nearest one when
@@ -45,6 +46,29 @@ impl Runtime {
         }
         let (index, _) = best?;
         Some(ObjectRef { package, index })
+    }
+}
+
+impl Runtime {
+    /// The object a mouse release of `message` at a point of the 640 x 480 screen goes to: the nearest visible object
+    /// under the point, or its nearest ancestor, that answers `message`. A group takes the clicks on the pictures and
+    /// text inside it, and a click on an object that answers nothing goes nowhere.
+    pub fn mouse_target_at(&self, package: PackageId, point: Vec2, message: u32) -> Option<ObjectRef> {
+        let p = self.running(package)?;
+        let tree = self.tree(package);
+        let mut hits: Vec<&UiNode> = tree.nodes.iter().filter(|n| n.visible && contains(&n.world, point)).collect();
+        hits.sort_by(|a, b| a.z.total_cmp(&b.z));
+        hits.into_iter().find_map(|hit| {
+            let mut at = Some(hit.index);
+            while let Some(index) = at {
+                let obj = p.def.objects.get(index)?;
+                if obj.responses.iter().any(|r| r.message == message) {
+                    return Some(ObjectRef { package, index });
+                }
+                at = obj.parent.and_then(|guid| p.by_guid.get(&guid).copied());
+            }
+            None
+        })
     }
 }
 

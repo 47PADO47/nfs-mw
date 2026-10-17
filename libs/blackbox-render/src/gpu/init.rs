@@ -203,6 +203,7 @@ fn assemble(output: Output, adapter: &wgpu::Adapter, device: wgpu::Device, queue
         caps,
         graphics: GraphicsSettings::default(),
         captures: capture::Captures::default(),
+        view_capture: None,
         targets,
         hdr_format,
         post,
@@ -234,6 +235,7 @@ fn assemble(output: Output, adapter: &wgpu::Adapter, device: wgpu::Device, queue
         window: None,
         ui,
         redirects: Default::default(),
+        draw_list: Default::default(),
     };
     let white = [255u8; 4];
     renderer.create_texture(&TextureDesc {

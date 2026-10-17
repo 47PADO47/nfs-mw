@@ -103,9 +103,9 @@ fn installed_original_road_and_donut_windows_resolve_materials_and_release() {
         .with_texture_tracking();
     let mut shared = SectionResources::default();
     shared.upload_texture_list(&mut renderer, &textures);
-    shared.upload_solid_list(&mut renderer, &models.solids, &SectionResources::default(), false);
+    shared.upload_solid_list(&mut renderer, &models.solids, None, &SectionResources::default(), false);
     let mut local = SectionResources::default();
-    local.upload_solid_list(&mut renderer, &tile.solids, &shared, false);
+    local.upload_solid_list(&mut renderer, &tile.solids, None, &shared, false);
     let road_mesh = local.meshes[&road.name_hash].0;
     for (i, group) in road.groups.iter().enumerate() {
         let Shading::WorldNormal(handle) = renderer.mesh_draws[&road_mesh][i].shading else {

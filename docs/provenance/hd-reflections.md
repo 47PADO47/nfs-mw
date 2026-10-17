@@ -125,7 +125,7 @@ Defaults and option names as stated by each mod are in the two mod pages. Mapped
 4. The 384 value for the mirror in the camera update, using a byte search.
 5. The scene-object flag list checked by the road state update.
 6. Which pipeline uses `cull_mode: None` in `libs/blackbox-render/src/gpu/pipelines.rs`.
-7. Whether the Bevy `request_capture` path shows the mirror.
+7. Whether the Bevy `request_view_capture` path (which falls back to `request_capture`) shows the mirror.
 
 ## Sources
 

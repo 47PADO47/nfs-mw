@@ -2,7 +2,6 @@
 
 use blackbox_collision::CollisionWorld;
 use blackbox_pursuit::breaker;
-use blackbox_roads::Body;
 use glam::Vec2;
 use nfsmw_data::car::physics::SurfaceTable;
 
@@ -28,10 +27,16 @@ impl TrafficWorld {
     pub fn step(&mut self, focus: Focus, collision: &CollisionWorld, props: &mut PropWorld, surfaces: &SurfaceTable) {
         // Every car as the others' trails see it (a hitched trailer is part of its tractor), with whether it is
         // a cop, then the trailers that came loose.
-        let mut bodies: Vec<(Body, bool)> = self.cars.iter().map(|c| (c.avoidable(), c.is_cop())).collect();
+        let mut bodies = std::mem::take(&mut self.bodies);
+        bodies.clear();
+        bodies.extend(self.cars.iter().map(|c| (c.avoidable(), c.is_cop())));
         bodies.extend(self.cars.iter().filter_map(AiCar::loose_trailer_body).map(|b| (b, false)));
         let lights = self.lights_on.then_some(Lights { controller: &self.signals, time: self.signal_time });
-        let aims = focus.body.as_ref().map(|player| self.cop_aims(player)).unwrap_or_default();
+        let mut aims = std::mem::take(&mut self.aims);
+        aims.clear();
+        if let Some(player) = focus.body.as_ref() {
+            self.cop_aims(player, &mut aims);
+        }
         for (me, car) in self.cars.iter_mut().enumerate() {
             let position = glam::Vec3::from_array(super::super::space::to_physics(car.position()));
             let point = Vec2::new(position.x, position.z);
@@ -60,6 +65,8 @@ impl TrafficWorld {
             }
             car.step_lights();
         }
+        self.bodies = bodies;
+        self.aims = aims;
         self.signal_time += STEP;
         for area in &mut self.breaker_areas {
             area.duration -= STEP;

@@ -186,28 +186,41 @@ pub fn world_props(props: &PropWorld) -> impl Fn(Vec3, Mat3, Vec3) -> Vec<WallCo
 
 /// The probes of a body at `position` with orientation `rot` and half extents `half` that are in a
 /// wall, deepest first. Only barriers, props and steep faces count; the ground is the tyres' business.
+#[cfg(test)]
 pub fn find(cast: Cast<'_>, props: PropQuery<'_>, position: Vec3, rot: Mat3, half: Vec3) -> Vec<WallContact> {
-    let mut found: Vec<WallContact> = probes(half)
-        .iter()
-        .filter_map(|&local| {
-            let probe = position + rot * local;
-            let hit = cast(position, probe)?;
-            if hit.normal.y.abs() > FLOOR_NORMAL && hit.prop.is_none() {
-                return None;
-            }
-            let depth = (hit.point - probe).dot(hit.normal);
-            if depth >= MAX_DEPTH {
-                log::debug!("ignored, too deep ({depth:.2} m): prop {:?} info {:?}", hit.prop, hit.info);
-            }
-            (depth > 1e-4 && depth < MAX_DEPTH).then_some(WallContact {
-                point: hit.point,
-                normal: hit.normal,
-                depth,
-                prop: hit.prop,
-                info: hit.info,
-            })
+    let mut found = Vec::new();
+    find_into(cast, props, position, rot, half, &mut found);
+    found
+}
+
+/// As `find`, but fills `found` (cleared first) so the caller's buffer is reused from step to step.
+pub fn find_into(
+    cast: Cast<'_>,
+    props: PropQuery<'_>,
+    position: Vec3,
+    rot: Mat3,
+    half: Vec3,
+    found: &mut Vec<WallContact>,
+) {
+    found.clear();
+    found.extend(probes(half).iter().filter_map(|&local| {
+        let probe = position + rot * local;
+        let hit = cast(position, probe)?;
+        if hit.normal.y.abs() > FLOOR_NORMAL && hit.prop.is_none() {
+            return None;
+        }
+        let depth = (hit.point - probe).dot(hit.normal);
+        if depth >= MAX_DEPTH {
+            log::debug!("ignored, too deep ({depth:.2} m): prop {:?} info {:?}", hit.prop, hit.info);
+        }
+        (depth > 1e-4 && depth < MAX_DEPTH).then_some(WallContact {
+            point: hit.point,
+            normal: hit.normal,
+            depth,
+            prop: hit.prop,
+            info: hit.info,
         })
-        .collect();
+    }));
     for c in props(position, rot, half) {
         if c.depth >= MAX_DEPTH {
             log::debug!("ignored, too deep ({:.2} m): prop {:?}", c.depth, c.prop);
@@ -216,7 +229,6 @@ pub fn find(cast: Cast<'_>, props: PropQuery<'_>, position: Vec3, rot: Mat3, hal
         found.push(c);
     }
     found.sort_by(|a, b| b.depth.total_cmp(&a.depth));
-    found
 }
 
 /// What a step against the world did.
@@ -270,12 +282,26 @@ fn action(c: &WallContact) -> &'static str {
 
 /// Resolve contacts on `vehicle`. Rigid contacts react with the wall friction and restitution and the
 /// deepest pushes the body out; a light prop only costs the car the momentum it takes to push it away.
+#[cfg(test)]
 pub fn resolve(vehicle: &mut Vehicle, cast: Cast<'_>, props: PropQuery<'_>, walls: &WallSpec) -> Impact {
+    resolve_into(vehicle, cast, props, walls, &mut Vec::new())
+}
+
+/// As `resolve`, with the contact list built in `scratch` (cleared first) so a caller that keeps the buffer does not
+/// allocate per step.
+pub fn resolve_into(
+    vehicle: &mut Vehicle,
+    cast: Cast<'_>,
+    props: PropQuery<'_>,
+    walls: &WallSpec,
+    scratch: &mut Vec<WallContact>,
+) -> Impact {
     let body = vehicle.body();
     let half = body.dimension() + body.spec().collision_box_pad;
     let (position, rot, car_mass) = (body.position, body.rotation(), body.mass());
-    let contacts = find(cast, props, position, rot, half);
-    for c in &contacts {
+    find_into(cast, props, position, rot, half, scratch);
+    let contacts = scratch.as_slice();
+    for c in contacts {
         log::debug!(
             "collision {:?} prop {:?} info {:?} at {:?}: {}",
             ContactPoint::from(c).kind,
@@ -335,15 +361,14 @@ pub fn resolve(vehicle: &mut Vehicle, cast: Cast<'_>, props: PropQuery<'_>, wall
         }
     }
 
-    let rigid: Vec<&WallContact> = contacts.iter().filter(|c| !is_light(c)).collect();
-    let Some(deepest) = rigid.first().map(|c| **c) else {
+    let Some(deepest) = contacts.iter().find(|c| !is_light(c)).copied() else {
         impact.sounds.retain(|c| c.delta_v > 0.0);
         return impact;
     };
-    impact.rigid = rigid.len();
+    impact.rigid = contacts.iter().filter(|c| !is_light(c)).count();
     impact.deepest = Some((deepest.point, deepest.info));
     impact.front = deepest.normal.dot(rot.z_axis).abs() > deepest.normal.dot(rot.x_axis).abs();
-    for (index, c) in rigid.iter().enumerate() {
+    for (index, c) in contacts.iter().filter(|c| !is_light(c)).enumerate() {
         let n = c.normal;
         let e = Vec3::new(n.dot(rot.x_axis), n.dot(rot.y_axis), n.dot(rot.z_axis)) * walls.elasticity;
         let plane = PlaneContact {

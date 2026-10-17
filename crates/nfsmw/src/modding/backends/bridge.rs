@@ -8,6 +8,7 @@
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
+use std::sync::Arc;
 
 use bevy_input::keyboard::KeyCode;
 use blackbox_attrib::Database;
@@ -56,8 +57,6 @@ pub struct Bridge {
     pub(super) store: Box<dyn ValueStore>,
     /// The install, once the layers are in place (see `open.rs`). The cop waves of the install are read through it.
     install: RefCell<Option<GameDir>>,
-    /// The install's attribute database, read on the first cop-wave call that needs it.
-    database: RefCell<Option<Rc<Database>>>,
 }
 
 impl Default for Bridge {
@@ -85,7 +84,6 @@ impl Bridge {
             menu_rows: RefCell::default(),
             store,
             install: RefCell::default(),
-            database: RefCell::default(),
         }
     }
 
@@ -112,19 +110,11 @@ impl Bridge {
         row.ok_or(blackbox_modding::abi::BB_ERR_NOT_FOUND)
     }
 
-    /// The install's attribute database, read once.
-    fn database(&self) -> Result<Rc<Database>, blackbox_modding::abi::BbStatus> {
-        if let Some(db) = self.database.borrow().as_ref() {
-            return Ok(db.clone());
-        }
-        let loaded = {
-            let install = self.install.borrow();
-            let dir = install.as_ref().ok_or(blackbox_modding::abi::BB_ERR_NOT_READY)?;
-            let bytes = dir.read("GLOBAL/ATTRIBUTES.BIN").map_err(|_| blackbox_modding::abi::BB_ERR_HOST)?;
-            Rc::new(Database::open(&bytes).map_err(|_| blackbox_modding::abi::BB_ERR_HOST)?)
-        };
-        *self.database.borrow_mut() = Some(loaded.clone());
-        Ok(loaded)
+    /// The install's attribute database, shared by the session (see `nfsmw_data::shared::attributes`).
+    fn database(&self) -> Result<Arc<Database>, blackbox_modding::abi::BbStatus> {
+        let install = self.install.borrow();
+        let dir = install.as_ref().ok_or(blackbox_modding::abi::BB_ERR_NOT_READY)?;
+        nfsmw_data::shared::attributes(dir).map_err(|_| blackbox_modding::abi::BB_ERR_HOST)
     }
 
     /// Copy the scene's clock, car, camera and track in, so the mods read this frame's state. Called before the mods run.

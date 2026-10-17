@@ -272,9 +272,9 @@ fn installed_surface_run(api: blackbox_gfx::GraphicsApi) {
     assert!(needed.iter().all(|h| textures.iter().any(|t| t.name_hash == *h)));
     let mut shared = SectionResources::default();
     shared.upload_texture_list(&mut renderer, &textures);
-    shared.upload_solid_list(&mut renderer, &shared_data.solids, &SectionResources::default(), false);
+    shared.upload_solid_list(&mut renderer, &shared_data.solids, None, &SectionResources::default(), false);
     let mut local = SectionResources::default();
-    local.upload_solid_list(&mut renderer, &tile.solids, &shared, false);
+    local.upload_solid_list(&mut renderer, &tile.solids, None, &shared, false);
     assert!(!local.normal_materials.is_empty(), "actual road needs registered original material");
     assert!(!shared.window_materials.is_empty(), "actual glass needs registered original material");
     let road = actual_instance(&tile, tile.solids[0].name_hash, local.meshes[&tile.solids[0].name_hash].0);

@@ -135,6 +135,8 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
     // Baked occlusion: vertex colours of one half and above leave the surface unshadowed.
     let occlusion = saturate(2.0 * in.color.r);
 
+    // A reduced view (the rear-view mirror) takes no sun shadow and no AO, as the scene pass does.
+    let reduced = globals.fog_range.w > 0.5;
     let receiver = receiver_normal(in.world, n);
     // Screen masks and the main view's shadow/contact coverage do not describe captures.
     let main_view = globals.fog_range.w < 0.5;

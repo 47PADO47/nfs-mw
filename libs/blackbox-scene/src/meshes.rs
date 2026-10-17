@@ -37,14 +37,20 @@ impl<F: Fn(u32) -> Option<(TextureHandle, BlendMode)>> MaterialLookup for F {
     }
 }
 
-/// The renderer vertices and draw ranges for a solid.
-pub fn solid_mesh(solid: &Solid, materials: &impl MaterialLookup, shading: Shading) -> (Vec<Vertex>, Vec<DrawRange>) {
-    let vertices = solid
+/// The renderer vertices of a solid: the CPU half of an upload, which streamed solids get on their loader
+/// thread (`nfsmw-data`'s `SectionData::solid_vertices`).
+pub fn solid_vertices(solid: &Solid) -> Vec<Vertex> {
+    solid
         .vertices
         .iter()
         .map(|v| Vertex { position: v.position, normal: v.normal, color_bgra: v.color_bgra, uv: v.uv })
-        .collect();
-    let draws = solid
+        .collect()
+}
+
+/// The draw ranges of a solid, indexing the vertices of [`solid_vertices`]. Textures resolve through
+/// `materials`, so this needs the renderer's handles: it runs on the render thread.
+pub fn solid_mesh(solid: &Solid, materials: &impl MaterialLookup, shading: Shading) -> Vec<DrawRange> {
+    solid
         .groups
         .iter()
         .enumerate()
@@ -66,8 +72,7 @@ pub fn solid_mesh(solid: &Solid, materials: &impl MaterialLookup, shading: Shadi
                 shading,
             }
         })
-        .collect();
-    (vertices, draws)
+        .collect()
 }
 
 /// Upload a solid. Returns `None` for solids without geometry.
@@ -80,7 +85,8 @@ pub fn upload_solid(
     if solid.vertices.is_empty() || solid.indices.is_empty() {
         return None;
     }
-    let (vertices, draws) = solid_mesh(solid, materials, shading);
+    let vertices = solid_vertices(solid);
+    let draws = solid_mesh(solid, materials, shading);
     Some(backend.create_mesh(&MeshDesc {
         label: &solid.name,
         vertices: &vertices,
@@ -156,7 +162,7 @@ mod tests {
 
     #[test]
     fn groups_take_the_shading_of_their_light_material() {
-        let (_, draws) = solid_mesh(&solid(), &Shiny, Shading::Lit);
+        let draws = solid_mesh(&solid(), &Shiny, Shading::Lit);
         let shadings: Vec<Shading> = draws.iter().map(|d| d.shading).collect();
         assert_eq!(shadings, [Shading::Lit, Shading::Sky, Shading::Lit]);
     }
@@ -186,7 +192,7 @@ mod tests {
             group.effect_id = 22;
         }
         solid.groups[2].effect_id = 99;
-        let (_, draws) = solid_mesh(&solid, &Effects, Shading::Prelit);
+        let draws = solid_mesh(&solid, &Effects, Shading::Prelit);
         assert_eq!(draws.iter().map(|d| d.shading).collect::<Vec<_>>(), [Shading::Sky, Shading::Lit, Shading::Prelit]);
         assert!(draws.iter().all(|d| d.texture == Some(TextureHandle::from_raw(17))));
         assert!(draws.iter().all(|d| d.blend == BlendMode::AlphaBlend));

@@ -9,7 +9,6 @@ use std::sync::Arc;
 use super::aems::{DelayedSampler, EffectModule};
 use super::{Audio, Group};
 
-const MAP: &str = "SOUND/MIXMAPS/MAPOUTPUT.mxb";
 const BANK: &str = "IG_GLOBAL/FX_Misc_MB.abk";
 const OBJECT: ObjectRef = ObjectRef { state: 0, instance: 0, object: 4 };
 const TICK: f64 = 1.0 / 60.0;
@@ -76,9 +75,7 @@ impl CommonPlayback {
             return false;
         }
         if self.mixer.is_none() {
-            let loaded = audio
-                .dir
-                .read(MAP)
+            let loaded = nfsmw_data::shared::map_output(&audio.dir)
                 .map_err(|error| error.to_string())
                 .and_then(|bytes| MixMap::parse(&bytes).map_err(|error| error.to_string()));
             let map = match loaded {

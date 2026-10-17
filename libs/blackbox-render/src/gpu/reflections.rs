@@ -126,6 +126,7 @@ impl Renderer {
                 output,
                 &frame,
                 scene.faces[face],
+                false,
                 Some(&mut capture.views[face]),
             );
             capture.store.draw(

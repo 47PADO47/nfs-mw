@@ -7,6 +7,7 @@ mod browse;
 mod confirm;
 mod controls_layout;
 mod controls_screen;
+mod credits;
 pub mod dump;
 mod factory;
 mod flow;

@@ -131,6 +131,13 @@ fn attachment_threshold_is_respected_before_no_car_effect() {
     );
 }
 
+/// The broad-phase ids under `bounds`, as the collision code sees them.
+pub(super) fn candidate_ids(world: &PropWorld, bounds: &Aabb) -> Vec<u32> {
+    let mut out = Vec::new();
+    world.candidates(bounds, &mut out);
+    out
+}
+
 #[test]
 fn moving_collision_grid_and_unload_follow_the_prop() {
     let (mut world, _, _, id) = hit(true, 0.0, 20.0);
@@ -138,10 +145,13 @@ fn moving_collision_grid_and_unload_follow_the_prop() {
     prop.rigid.position.z = 50.0;
     world.regrid(id);
     let around = |x: f32| Aabb::new([x - 2.0, -2.0, -2.0], [x + 2.0, 2.0, 2.0]);
-    assert!(world.candidates(&around(50.0)).contains(&id));
-    assert!(world.candidates(&around(0.0)).contains(&id), "the movement path remains in broad phase for this tick");
+    assert!(candidate_ids(&world, &around(50.0)).contains(&id));
+    assert!(
+        candidate_ids(&world, &around(0.0)).contains(&id),
+        "the movement path remains in broad phase for this tick"
+    );
     world.step(&FlatGround::new(0.0), 1.0 / 60.0);
-    assert!(!world.candidates(&around(0.0)).contains(&id));
+    assert!(!candidate_ids(&world, &around(0.0)).contains(&id));
     world.remove_tile(1);
     assert!(world.colliders.is_empty() && world.grid.is_empty());
 }

@@ -218,8 +218,8 @@ Route A is the only one that places objects where no install tile exists. Route 
 ### 2.9 Residency rules for mod tiles
 
 - Mod tiles have their own load and draw budget **[design]**. They never displace install tiles from the visible lists.
-- Uploads run on the render thread and are limited per frame, as install tiles are (`UPLOADS_PER_FRAME`, a port constant,
-  not an original value).
+- Uploads run on the render thread and are limited per frame, as install tiles are (`UPLOAD_BYTES_PER_FRAME`, a port constant of
+  8 MiB, not an original value).
 - Unloading releases the meshes and textures of the tile (`SectionResources::release`). A tile that is still in a
   mod's interior is not unloaded (5.2 and 3.7).
 

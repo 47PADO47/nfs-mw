@@ -2,6 +2,8 @@
 
 use std::collections::HashMap;
 
+use blackbox_gpu_passes::BindCache;
+
 use super::{PassContext, PassIo, PostPass};
 
 /// Which fragment entry point a pipeline uses.
@@ -32,6 +34,8 @@ pub(super) struct Resolve {
     pipeline_layout: wgpu::PipelineLayout,
     sampler: wgpu::Sampler,
     pipelines: HashMap<(Mode, wgpu::TextureFormat), wgpu::RenderPipeline>,
+    /// Bind groups per input view: the sampler and the layout never change.
+    bind_groups: BindCache<wgpu::TextureView, wgpu::BindGroup>,
 }
 
 impl Resolve {
@@ -74,38 +78,39 @@ impl Resolve {
             min_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
-        Self { shader, layout, pipeline_layout, sampler, pipelines: HashMap::new() }
+        Self { shader, layout, pipeline_layout, sampler, pipelines: HashMap::new(), bind_groups: BindCache::default() }
     }
+}
 
-    fn pipeline(&mut self, device: &wgpu::Device, mode: Mode, format: wgpu::TextureFormat) -> &wgpu::RenderPipeline {
-        self.pipelines.entry((mode, format)).or_insert_with(|| {
-            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some("resolve"),
-                layout: Some(&self.pipeline_layout),
-                vertex: wgpu::VertexState {
-                    module: &self.shader,
-                    entry_point: Some("vs_main"),
-                    compilation_options: Default::default(),
-                    buffers: &[],
-                },
-                primitive: wgpu::PrimitiveState::default(),
-                depth_stencil: None,
-                multisample: Default::default(),
-                fragment: Some(wgpu::FragmentState {
-                    module: &self.shader,
-                    entry_point: Some(mode.entry()),
-                    compilation_options: Default::default(),
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format,
-                        blend: None,
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
-                }),
-                multiview_mask: None,
-                cache: None,
-            })
-        })
-    }
+/// The pipeline of one mode writing `format`.
+fn build_pipeline(
+    device: &wgpu::Device,
+    shader: &wgpu::ShaderModule,
+    pipeline_layout: &wgpu::PipelineLayout,
+    mode: Mode,
+    format: wgpu::TextureFormat,
+) -> wgpu::RenderPipeline {
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("resolve"),
+        layout: Some(pipeline_layout),
+        vertex: wgpu::VertexState {
+            module: shader,
+            entry_point: Some("vs_main"),
+            compilation_options: Default::default(),
+            buffers: &[],
+        },
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: None,
+        multisample: Default::default(),
+        fragment: Some(wgpu::FragmentState {
+            module: shader,
+            entry_point: Some(mode.entry()),
+            compilation_options: Default::default(),
+            targets: &[Some(wgpu::ColorTargetState { format, blend: None, write_mask: wgpu::ColorWrites::ALL })],
+        }),
+        multiview_mask: None,
+        cache: None,
+    })
 }
 
 impl PostPass for Resolve {
@@ -120,15 +125,21 @@ impl PostPass for Resolve {
             (true, false) => Mode::Copy,
             (false, false) => Mode::Scaled,
         };
-        let bind_group = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("resolve"),
-            layout: &self.layout,
-            entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(io.input) },
-                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&self.sampler) },
-            ],
+        // One input: the same view is the cache key twice.
+        let bind_group = self.bind_groups.get_or_insert_with(io.input, io.input, || {
+            ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("resolve"),
+                layout: &self.layout,
+                entries: &[
+                    wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(io.input) },
+                    wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&self.sampler) },
+                ],
+            })
         });
-        let pipeline = self.pipeline(ctx.device, mode, io.output_format);
+        let pipeline = self
+            .pipelines
+            .entry((mode, io.output_format))
+            .or_insert_with(|| build_pipeline(ctx.device, &self.shader, &self.pipeline_layout, mode, io.output_format));
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("resolve"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -143,7 +154,7 @@ impl PostPass for Resolve {
             multiview_mask: None,
         });
         pass.set_pipeline(pipeline);
-        pass.set_bind_group(0, &bind_group, &[]);
+        pass.set_bind_group(0, bind_group, &[]);
         pass.draw(0..3, 0..1);
     }
 }
