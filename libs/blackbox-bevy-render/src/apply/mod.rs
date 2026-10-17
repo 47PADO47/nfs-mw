@@ -121,7 +121,7 @@ fn apply_queue(
     drive_screen(state, commands, windows, &data, &settings, surface);
 }
 
-/// Bring the materials and the pool up to date with a frame.
+/// Bring the scene buffer and the pool up to date with a frame.
 fn draw(
     state: &mut WorldState,
     stores: &mut Stores,
@@ -131,8 +131,7 @@ fn draw(
     data: &FrameData,
     tonemap: blackbox_gfx::Tonemap,
 ) {
-    assets::sync_params(state, stores, Params::with_tonemap(&data.frame, tonemap));
-    assets::sync_rig_environment(state, stores);
+    assets::sync_scene(state, stores, Params::with_tonemap(&data.frame, tonemap));
     instances::sync(state, stores, commands, placed, &data.instances, stand_ins);
 }
 

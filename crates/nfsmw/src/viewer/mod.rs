@@ -145,6 +145,11 @@ pub trait Scene {
     fn benchmark_ready(&self) -> bool {
         self.ready()
     }
+    /// Whether the radio plays while this scene is shown without a car (the main menu's backdrop). Driving scenes
+    /// leave it off: the radio plays there only while a car is driven.
+    fn radio_on_menus(&self) -> bool {
+        false
+    }
     /// Mouse look: hide and hold the cursor so mouse motion always turns the camera.
     /// Esc releases the cursor and a click captures it again.
     fn captures_mouse(&self) -> bool {

@@ -23,11 +23,15 @@ use crate::viewer::{Fullscreen, Scene};
 /// (`FRONTEND/PLATFORMS/PLATFORMCRIB.BIN`, see docs/specs/frontend-menus.md); until that stage is read, the car
 /// stands on the car viewer's floor.
 const MENU_CAR: &str = "BMWM3GTR";
-/// Degrees per second the car turns on the backdrop. [ours]
-const TURN_RATE: f32 = 12.0;
+/// Seconds the camera takes to settle on the menu pose after the menus come up. The original's camera mover runs
+/// its moves for 0.5 s (a constant read from the executable); its shots are not read yet, so this one shot is ours.
+const INTRO_SECONDS: f32 = 0.5;
+/// Where the intro starts: the camera swung this far round the car (degrees) and pulled back by this factor. [ours]
+const INTRO_YAW_DEGREES: f32 = -30.0;
+const INTRO_DISTANCE_SCALE: f32 = 1.5;
 
-/// What the menus sit on: a car turning slowly on the car viewer's floor when the install has it, and a dark flat
-/// colour otherwise.
+/// What the menus sit on: the stock car on the car viewer's floor when the install has it, and a dark flat colour
+/// otherwise. The camera settles onto the car once when the menus come up and then holds still.
 #[derive(Default)]
 pub struct MenuScene {
     dir: Option<GameDir>,
@@ -36,11 +40,15 @@ pub struct MenuScene {
     room: Option<Room>,
     /// The car's and the room's parts together, for the frame.
     parts: Vec<Instance>,
+    /// The camera's rest pose (yaw, distance), which the intro settles onto.
+    rest: (f32, f32),
+    /// Seconds since the menus came up, until the intro is over.
+    intro: f32,
 }
 
 impl MenuScene {
     pub fn new(dir: Option<GameDir>) -> Self {
-        Self { dir, car: None, room: None, parts: Vec::new() }
+        Self { dir, car: None, room: None, parts: Vec::new(), rest: (0.0, 0.0), intro: INTRO_SECONDS }
     }
 }
 
@@ -86,6 +94,9 @@ impl Scene for MenuScene {
         // The room has its own floor at the same height; the car's placeholder floor would z-fight with it.
         car.placeholder_floor = room.is_none();
         car.init(renderer)?;
+        let camera = car.camera_mut();
+        self.rest = (camera.yaw, camera.distance);
+        self.intro = 0.0;
         self.car = Some(car);
         self.room = room;
         Ok(())
@@ -93,9 +104,19 @@ impl Scene for MenuScene {
 
     fn update(&mut self, renderer: &mut dyn RenderBackend, _input: &ActionState, dt: f32) {
         let Some(car) = &mut self.car else { return };
-        car.turn((TURN_RATE * dt).to_radians());
-        // The backdrop takes no input: the car is turned by the turntable alone.
+        // The backdrop takes no input and the car stands still: only the camera moves, once, into its rest pose.
+        self.intro = (self.intro + dt).min(INTRO_SECONDS);
+        let (rest_yaw, rest_distance) = self.rest;
+        let t = self.intro / INTRO_SECONDS;
+        let ease = 1.0 - (1.0 - t) * (1.0 - t);
+        let camera = car.camera_mut();
+        camera.yaw = rest_yaw + INTRO_YAW_DEGREES.to_radians() * (1.0 - ease);
+        camera.distance = rest_distance * (1.0 + (INTRO_DISTANCE_SCALE - 1.0) * (1.0 - ease));
         car.update(renderer, &ActionState::default(), dt);
+    }
+
+    fn radio_on_menus(&self) -> bool {
+        true
     }
 
     fn hud_state(&self) -> Option<crate::hud::HudState> {

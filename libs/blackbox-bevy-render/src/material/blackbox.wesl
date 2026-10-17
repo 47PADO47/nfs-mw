@@ -27,9 +27,8 @@ struct Params {
     tone_map: vec4<f32>,
 };
 
-// Glossy shading's own uniforms. Every material carries them (the rig and environment are shared,
-// re-synced like `params`), but only a material drawn with the GLOSSY def reads them; see
-// `material/glossy.rs` and docs/bevy-backend.md.
+// Glossy shading's own uniforms. Every material carries them, but only a material drawn with the GLOSSY def
+// reads them; see `material/glossy.rs` and docs/bevy-backend.md.
 struct GlossyParams {
     diffuse_min: vec4<f32>,
     diffuse_range: vec4<f32>,
@@ -49,11 +48,16 @@ struct Rig {
     ambient: vec4<f32>,
 };
 
-@group(constants::MATERIAL_BIND_GROUP) @binding(0) var<uniform> params: Params;
+// Everything a scene shares, in one storage buffer every material binds (`material/scene.rs`).
+struct Scene {
+    params: Params,
+    rig: Rig,
+};
+
+@group(constants::MATERIAL_BIND_GROUP) @binding(0) var<storage, read> scene: Scene;
 @group(constants::MATERIAL_BIND_GROUP) @binding(1) var diffuse: texture_2d<f32>;
 @group(constants::MATERIAL_BIND_GROUP) @binding(2) var diffuse_sampler: sampler;
 @group(constants::MATERIAL_BIND_GROUP) @binding(3) var<uniform> glossy_params: GlossyParams;
-@group(constants::MATERIAL_BIND_GROUP) @binding(4) var<uniform> rig: Rig;
 @group(constants::MATERIAL_BIND_GROUP) @binding(5) var environment: texture_cube<f32>;
 @group(constants::MATERIAL_BIND_GROUP) @binding(6) var environment_sampler: sampler;
 
@@ -107,7 +111,7 @@ fn gamma_from_linear(c: vec3<f32>) -> vec3<f32> {
 // The neutral RRT/ODT fit is Bevy's ACES fitted curve; see material/color.rs for the CPU clear colour.
 fn scene_from_gamma(gamma: vec3<f32>) -> vec3<f32> {
     let linear = linear_from_gamma(max(gamma, vec3(0.0)));
-    if params.tone_map.x == 0.0 {
+    if scene.params.tone_map.x == 0.0 {
         return linear;
     }
     let y = min(linear, vec3(1.0)) * 0.9;
@@ -170,11 +174,11 @@ fn shade_glossy(in: VertexOutput) -> Shaded {
     let f = max(dot(n, v), 0.01);
     let occlusion = saturate(2.0 * in.color.r);
 
-    var light = rig.ambient.xyz;
+    var light = scene.rig.ambient.xyz;
     let shadow = sun_visibility(in);
-    light += shadow * saturate(dot(n, rig.light0_dir.xyz) + 0.1) * rig.light0_color.xyz;
-    light += saturate(dot(n, rig.light1_dir.xyz) + 0.1) * rig.light1_color.xyz;
-    light += saturate(dot(n, rig.light2_dir.xyz) + 0.1) * rig.light2_color.xyz;
+    light += shadow * saturate(dot(n, scene.rig.light0_dir.xyz) + 0.1) * scene.rig.light0_color.xyz;
+    light += saturate(dot(n, scene.rig.light1_dir.xyz) + 0.1) * scene.rig.light1_color.xyz;
+    light += saturate(dot(n, scene.rig.light2_dir.xyz) + 0.1) * scene.rig.light2_color.xyz;
 
     let diff = glossy_params.diffuse_min + glossy_params.diffuse_range * f;
     let spec = glossy_params.specular_min.xyz + glossy_params.specular_range.xyz * pow(f, glossy_params.params.x);
@@ -182,7 +186,7 @@ fn shade_glossy(in: VertexOutput) -> Shaded {
 
     // Sun highlight: the sun mirrored about the normal, against the view direction. Only for
     // surfaces the sun reaches.
-    let sun = rig.light0_dir.xyz;
+    let sun = scene.rig.light0_dir.xyz;
     let n_sun = dot(n, sun);
     let mirrored = 2.0 * n_sun * n - sun;
     let glint = 2.0 * pow(saturate(dot(mirrored, v)), 16.0) * step(0.0, n_sun);
@@ -204,9 +208,9 @@ fn shade_glossy(in: VertexOutput) -> Shaded {
     var fog = 0.0;
     @if(FOG) {
         let distance = length(in.world - view.world_position);
-        fog = clamp((distance - params.fog_range.x) / max(params.fog_range.y - params.fog_range.x, 0.001), 0.0, 1.0);
+        fog = clamp((distance - scene.params.fog_range.x) / max(scene.params.fog_range.y - scene.params.fog_range.x, 0.001), 0.0, 1.0);
     }
-    out.rgb = mix(out.rgb, params.fog_color.rgb, fog);
+    out.rgb = mix(out.rgb, scene.params.fog_color.rgb, fog);
     return out;
 }
 
@@ -217,7 +221,7 @@ fn shade(in: VertexOutput) -> vec4<f32> {
     @if(PRELIT) {
         // Pre-lit geometry: vertex colours use 0x80 for full brightness.
         lit = min(base.rgb * 2.0, vec3<f32>(1.0));
-        if params.tone_map.x != 0.0 {
+        if scene.params.tone_map.x != 0.0 {
             lit = base.rgb * 2.0;
         }
         @if(FOG) {
@@ -228,17 +232,17 @@ fn shade(in: VertexOutput) -> vec4<f32> {
     }
     @else {
         let n = normalize(in.normal);
-        let diffuse_light = max(dot(n, -params.light_dir.xyz), 0.0);
+        let diffuse_light = max(dot(n, -scene.params.light_dir.xyz), 0.0);
         // Thin parts are often seen from behind: give back faces a little light.
-        let back_light = max(dot(-n, -params.light_dir.xyz), 0.0) * 0.25;
+        let back_light = max(dot(-n, -scene.params.light_dir.xyz), 0.0) * 0.25;
         lit = base.rgb * (0.35 + sun_visibility(in) * (0.65 * diffuse_light + back_light));
     }
     var fog = 0.0;
     @if(FOG) {
         let distance = length(in.world - view.world_position);
-        fog = clamp((distance - params.fog_range.x) / max(params.fog_range.y - params.fog_range.x, 0.001), 0.0, 1.0);
+        fog = clamp((distance - scene.params.fog_range.x) / max(scene.params.fog_range.y - scene.params.fog_range.x, 0.001), 0.0, 1.0);
     }
-    return vec4<f32>(mix(lit, params.fog_color.rgb, fog), base.a);
+    return vec4<f32>(mix(lit, scene.params.fog_color.rgb, fog), base.a);
 }
 
 @fragment
