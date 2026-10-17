@@ -140,8 +140,9 @@ Found in the dump of `MainMenu_Sub.fng` (`nfsmw dump-screen`): twelve option but
 (name hashes `0x4B4E3888`..`0x4B4E3890`, `0xB51549B8`..`0xB51549BA`). The rewrite now lists the original's
 categories in order: Audio, Video, Gameplay, Player (label `0xF760EABE` "Player"), Controls (`0x04DC6DB5`), and,
 outside the pause menu, EA Trax (`0xDCFB6B36`) and Credits (`0x0905101F`). Player is enabled and opens its
-implemented Transmission, Camera and Gauges controls; see [Player options](player-options.md). EA Trax and
-Credits remain greyed out. The labels are what the game displays (`nfsmw strings`) **[verified]**.
+implemented Transmission, Camera and Gauges controls; see [Player options](player-options.md). EA Trax opens the
+jukebox and Credits opens the credits screen (`Credits.fng`, `credits.rs`), which goes back to the categories on Back.
+The labels are what the game displays (`nfsmw strings`) **[verified]**.
 
 **Controls split (ours).** The Controls icon opens the keyboard list (`Options_PC_Controller.fng`, `controls_screen.rs`)
 directly, with the original's controller picture. Control Options (a title we chose; the original has no such entry)
@@ -175,8 +176,8 @@ the rewrite already draws, so the first argument is the texture: **Player's icon
 `icon_menu.rs`; `nfsmw view-screen MainMenu_Sub.fng --options --ui-script "wait 1;right;right;right;wait 1"` shows its
 picture, dimmed). The earlier note that `0xD708EFEF` is a button name hash was wrong.
 The same reading gives Online texture `0x5A5E5137` (`OMOnline`, win32 online mode) **[decomp]**; the rewrite does not
-list Online (see above). EA Trax `0xC52CCBF6` and Credits `0x51009E20` **[decomp]** are not applied yet; they have no
-texture in the rewrite and show none. `OMController` gives texture `0xA04A7B26` **[decomp; picture verified on screen]**:
+list Online (see above). EA Trax `0xC52CCBF6` and Credits `0x51009E20` **[decomp, picture verified on screen]** are
+applied. `OMController` gives texture `0xA04A7B26` **[decomp; picture verified on screen]**:
 `nfsmw view-screen MainMenu_Sub.fng --options --ui-script "wait 1;right;right;right;right;wait 1"` draws a gear-shift
 picture in the Controls slot, which the rewrite uses for the Controls icon. Control Options draws the input glyph atlas
 (`input_icons::ATLAS`, `Glyph::Controller`), the picture the Controls icon had before the split.
@@ -343,3 +344,41 @@ the dump, not the object names).
 5. `nfsmw view-screen MainMenu_Sub.fng --options --ui-script "wait 1;right;right;right;right;right;right;wait 1"` shows
    the Discord icon selected in the strip (titled "Discord"). With `accept` added before the last wait, the Discord
    sub-screen shows its two toggles (`nfsmw view-screen Options.fng --category discord` opens it directly).
+
+## 4. Findings: credits, EA Trax buttons and the mouse (2026-10-17)
+
+Found while making the Credits icon and the EA Trax jukebox work on a click, with the Ghidra project `/speed.exe` open.
+
+**Pictures.** The EA Trax and Credits icons drew nothing: their textures were 0 (section 2.2). They now use `0xC52CCBF6`
+and `0x51009E20`, checked on screen.
+
+**Credits screen (`Credits.fng`, 63 objects, no button flags).**
+- The Credits icon opens `Credits.fng` with `CreditsLogic` (`credits.rs`). Back (`PAD_BACK`) returns to the categories.
+- The package starts with its buttons off. Back does nothing until the logic posts `INPUT_ENABLE`. Verified by test.
+- The roll text is the object `CreditsArea` (name hash `0xE6093486`, the object the package shows as "DEFAULT STRING").
+  Its text is the install's `CREDITS/NA_ENGLISH.TXT` (UTF-16LE). The original roll is driven by scripts of the package
+  (`0x587E5F53`, `0x0F8F52C3`, 5.2 s and 7.2 s); they do not start in this port, so the text sat still.
+- The renderer does not clip text (`UiNode::clip` is always `None`), so a long roll ran out of its box.
+  **Ours:** the logic shows a window of 12 lines, moved down the box at 2 lines a second, with the object held at the box
+  centre (`BOX_CENTRE_Y`). The original's clip rectangle and roll timing are not read yet.
+- The visible Back button is the footer group `0xF8107` ("Back" with a triangle). It has no mouse answer. The package's
+  Back group `0x110749` (answers the mouse with `PAD_BACK`) is hidden when the screen opens. **Ours:** a click inside
+  the visible Back's rectangle (`BACK_CENTRE`, `BACK_HALF`) goes back to the categories.
+- **Not resolved:** the black area behind the credits, where the menu car should show. Hiding the package's full-screen
+  panel (`0xEB4CF244`, name of the 1200 x 516 `BasePoly`) changed nothing in `view-screen`, so that panel is not the
+  cause. The real-game capture for this was not completed (the scripted run timed out in screenshot mode).
+
+**Mouse on packages without button flags (generic, `libs/blackbox-feng`).** The EA Trax and Credits packages have no
+object with the button flag (`IS_BUTTON`, bit 28), so a click never reached them: `button_at` found nothing. Their
+objects do answer `MOUSE_LEFT_RELEASED` in the package data (for example the jukebox's Re-order group `0x104EC5` sends
+`RE_ORDER`, the Back group `0x104E99` sends `PAD_BACK`).
+**Ours:** `Runtime::mouse_target_at` finds the nearest visible object under the click that answers the release, or its
+nearest ancestor that does. The screen posts the release to that object (`Screens::release_at`). A button still takes
+the click first, as before (`focus_button_at`).
+
+**EA Trax jukebox footer (ours).** The footer labels are not buttons either. The jukebox takes a click on a footer
+label by its place: Back (`PAD_BACK`), Accept (`PAD_ACCEPT`), Re-order (`RE_ORDER`) and Preview (`PREV`), each a box
+of 40 x 14 units from the label's origin. Leaving saves the jukebox, so a click on Back is not in the tests.
+
+**Sources.** Ghidra: `"Credits.fng"` is pushed at `0x00532DF4` and `0x00545683`; `"CreditsArea"` is only a string
+(`0x0089DB18`), not a referenced symbol. `speed.exe` has no function names, so the roll code was not located.
