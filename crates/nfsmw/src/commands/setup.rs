@@ -45,11 +45,11 @@ fn ask_game_dir(default: Option<&Path>) -> Result<PathBuf> {
                 continue;
             }
         };
-        let check = dir.validate(&SPEC);
-        if check.is_usable() {
+        let missing = dir.missing_files(&SPEC);
+        if missing.is_empty() {
             return Ok(path);
         }
-        println!("  that folder is missing: {}", check.missing.join(", "));
+        println!("  that folder is missing: {}", missing.join(", "));
     }
 }
 
