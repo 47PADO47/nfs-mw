@@ -2,6 +2,12 @@
 
 For the tag meanings, see [evidence tags](../README.md#evidence-tags).
 
+> **Corrections (2026-10-17):** [career-save.md](career-save.md) supersedes the layout below. Header bytes
+> 0x10 to 0x1B are three CRC-32 values and a block descriptor, not unknown bytes. The profile order is missing the
+> race settings and controller bindings blocks. The editor's "cars" are the per-car career records, and "high scores"
+> is the statistics block. The career settings are 23,033 bytes, not a small struct. The in-memory side is in
+> [career-state.md](career-state.md).
+
 ## Location **[verified]**
 
 `%USERPROFILE%\Documents\NFS Most Wanted\<profile>\<profile>`: one folder per profile holding one
