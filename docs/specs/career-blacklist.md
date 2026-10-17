@@ -20,7 +20,7 @@ are in the other career specs (bounty is only referenced here as an input). The 
 
 1. Career progress is a stack of 15 **race bins** (`race_bin_01` .. `race_bin_15`, rival number = bin number, 15 is
    the first, 1 is Razor), plus bin 16 (the prologue) and four side bins (18 tollbooth challenges, 19 challenge
-   series, 20 "OPM", 21 collectors). Each bin is a Lua state graph: `initial`, `unlock_races`, `introduce_rival`,
+   series, 20 "OPM" (a developer test bin), 21 collectors). Each bin is a Lua state graph: `initial`, `unlock_races`, `introduce_rival`,
    `check_rival`, then `rival_locked` or `rival_unlocked`, then `done`. **[verified]** (scripts) + **[exe]**.
 2. The player has one number, **CurrentBin** (a byte, 16 at the start, counting down to 1). It chooses the minimap
    variant, the closed-off city regions, which rival the rap sheet shows, and which milestone sets are live.
@@ -64,27 +64,27 @@ Fields (names read from the scripts and the code; four fields are still unnamed,
 | `Barriers` | text[] | track barriers closed while this bin is current (section 6) |
 | unlock list (`0xBAF89280`) | key[] | `unlocks/upgrade_*` collections granted on entering the bin (section 5.2) |
 
-Per-bin values (collection names are the developers' names; the shown names come from the language table
-`BLACKLIST_RIVAL_NN_NAME`, not read here). Skill and MinAI are the `boss` collection's `SkillLevel` and
+Per-bin values (collection names are the developers' names; the shown names and aliases are in the table of
+[career-text.md](career-text.md) section 2, and the alias is added in brackets below). Skill and MinAI are the `boss` collection's `SkillLevel` and
 `MinimumAIPerformance`; the boss's car is the preset ride `BLn`.
 
-| Bin | Rival collection | Skill | MinAI | Races won | Challenges | Bounty | World | Boss | Entry call | Rival SMS | Unlock parts |
+| Bin | Rival collection (alias) | Skill | MinAI | Races won | Challenges | Bounty | World | Boss | Entry call (SMS id) | Rival SMS | Unlock parts |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| 15 | tony_ho | 0 | - | 3 | 3 | 20,000 | 3 | 2 | 0 | 20 | 11 |
-| 14 | vince_kilic | 15 | 0.0 | 4 | 3 | 50,000 | 6 | 2 | none | 29 | 6 |
-| 13 | victor_vasquez | 20 | 0.05 | 4 | 3 | 100,000 | 7 | 2 | 30 | 36 | 7 |
-| 12 | isabel_diaz | 25 | 0.1 | 4 | 3 | 180,000 | 7 | 2 | 37 | 41 | 8 |
-| 11 | lou_park | 30 | 0.2 | 5 | 3 | 300,000 | 8 | 2 | 42 | 46 | 6 |
-| 10 | karl_smit | 40 | 0.3 | 5 | 4 | 500,000 | 8 | 2 | 48 | 52 | 6 |
-| 9 | pierre_dupont | 45 | 0.4 | 5 | 4 | 790,000 | 8 | 2 | 54 | 57 | 6 |
-| 8 | jade_barrett | 50 | 0.4 | 5 | 4 | 1,180,000 | 7 | 2 | 58 | 63 | 7 |
-| 7 | kira_nazakato | 55 | 0.5 | 7 | 4 | 1,680,000 | 10 | 2 | 64 | 69 | 5 |
-| 6 | hector_domingo | 60 | 0.5 | 7 | 4 | 2,300,000 | 11 | 2 | 70 | 72 | 2 |
-| 5 | wes_allen | 65 | 0.6 | 7 | 4 | 3,050,000 | 10 | 3 | 73 | 76 | 5 |
-| 4 | joe_vega | 75 | 0.6 | 7 | 5 | 4,050,000 | 11 | 3 | 77 | 79 | 2 |
-| 3 | ronnie_mccrea | 80 | 0.7 | 8 | 5 | 5,550,000 | 12 | 3 | 80 | 84 | 0 |
-| 2 | toro_sato | 80 | 0.8 | 8 | 5 | 7,550,000 | 12 | 3 | 85 | 88 | 2 |
-| 1 | razor_callahan | 80 | 0.9 | 9 | 5 | 10,000,000 | 11 | 6 | 89 | none | 0 |
+| 15 | tony_ho (Sonny) | 0 | - | 3 | 3 | 20,000 | 3 | 2 | 0 | 20 | 11 |
+| 14 | vince_kilic (Taz) | 15 | 0.0 | 4 | 3 | 50,000 | 6 | 2 | none | 29 | 6 |
+| 13 | victor_vasquez (Vic) | 20 | 0.05 | 4 | 3 | 100,000 | 7 | 2 | 30 | 36 | 7 |
+| 12 | isabel_diaz (Izzy) | 25 | 0.1 | 4 | 3 | 180,000 | 7 | 2 | 37 | 41 | 8 |
+| 11 | lou_park (Big Lou) | 30 | 0.2 | 5 | 3 | 300,000 | 8 | 2 | 42 | 46 | 6 |
+| 10 | karl_smit (Baron) | 40 | 0.3 | 5 | 4 | 500,000 | 8 | 2 | 48 | 52 | 6 |
+| 9 | pierre_dupont (Earl) | 45 | 0.4 | 5 | 4 | 790,000 | 8 | 2 | 54 | 57 | 6 |
+| 8 | jade_barrett (Jewels) | 50 | 0.4 | 5 | 4 | 1,180,000 | 7 | 2 | 58 | 63 | 7 |
+| 7 | kira_nazakato (Kaze) | 55 | 0.5 | 7 | 4 | 1,680,000 | 10 | 2 | 64 | 69 | 5 |
+| 6 | hector_domingo (Ming) | 60 | 0.5 | 7 | 4 | 2,300,000 | 11 | 2 | 70 | 72 | 2 |
+| 5 | wes_allen (Webster) | 65 | 0.6 | 7 | 4 | 3,050,000 | 10 | 3 | 73 | 76 | 5 |
+| 4 | joe_vega (JV) | 75 | 0.6 | 7 | 5 | 4,050,000 | 11 | 3 | 77 | 79 | 2 |
+| 3 | ronnie_mccrea (Ronnie) | 80 | 0.7 | 8 | 5 | 5,550,000 | 12 | 3 | 80 | 84 | 0 |
+| 2 | toro_sato (Bull) | 80 | 0.8 | 8 | 5 | 7,550,000 | 12 | 3 | 85 | 88 | 2 |
+| 1 | razor_callahan (Razor) | 80 | 0.9 | 9 | 5 | 10,000,000 | 11 | 6 | 89 | none | 0 |
 
 Notes:
 
@@ -118,11 +118,12 @@ rival_unlocked --(every boss race won)--> done
 
 ### 2.2 `initial`
 
-On enter: if the bin has an `EntryActivity` whose `AutoStart` is true, run it (bin 16 only). If `EntryCellCallID` is
-not 0, queue that message. Then go to `unlock_races`. If the entry activity finishes (message `NotifyFinished` with
-the sender equal to the entry activity) go to `unlock_races`. Bins 13, 14, 15 have override handlers that reset the
-SMS bookkeeping flags (`DoneFirstSMS`, `DoneSecondSMS`, `DoneThirdSMS`), and bin 13 sets the "has rap sheet" flag
-(section 7.2). Bin 14's override also queues messages 125 and 126.
+On enter, with an `EntryActivity` (bin 16 only): if the activity auto-starts, do nothing and wait; otherwise run it
+and wait. Without an entry activity: queue `EntryCellCallID` if it is not 0 and go to `unlock_races`. When the entry
+activity reports `NotifyFinished` (sender equal to it) go to `unlock_races`, and queue `EntryCellCallID` if it is not
+0. Bins 4 to 15 have per-bin copies that reset the SMS bookkeeping flags (`DoneFirstSMS`, `DoneSecondSMS`,
+`DoneThirdSMS`); bin 13 also sets the "has rap sheet" flag (section 7.2); bin 14's copy queues messages 125 and
+126. Per-bin copies run in addition to the generic handler ([career-scripts.md](career-scripts.md) 1.1).
 
 ### 2.3 `unlock_races`
 
@@ -169,9 +170,9 @@ are the lookup2 hash of the current state name (`done` `0x32956993`, `rival_lock
 ### 2.7 Messages and phone calls
 
 `EAddSMS(id)` appends a text message to the in-game inbox; `ECellCall(1, 14)` places a call. The ids above are
-indexes into the phone table, not read here. Bins 4..15 have per-bin handlers that send one or two challenge
-messages when 1 or 3 (bins use their own thresholds, for example `2` for bin 13) challenges are passed.
-Bin 1 queues messages 93 and 94 when its rival unlocks. **[verified]**
+SMS ids (the table with sender and subject is in [career-text-2.md](career-text-2.md) section 1.2). The complete
+per-bin table (race-win and challenge thresholds, world heat steps) is in
+[career-scripts.md](career-scripts.md) section 3.3. **[verified]**
 
 ## 3. The gate for a rival challenge
 
@@ -301,9 +302,11 @@ also marks the rival's `Boss` character and finally refreshes the race-status ob
 ### 5.3 What calls it (open) **[unconfirmed]**
 
 Callers: the first-visit step above; a Lua function named `EEnterBin(n)`; the handler of an event of the same name
-(the event's constructor is an empty stub). No shipped script (259 chunks) and no data in the install contains the
-event hash `0x2AF7332B`. A separate screen-sequence routine runs after the bin changes and reads the new
-CurrentBin (section 5.4), so the trigger is somewhere in the front-end or an unscanned data source.
+(the event's constructor is an empty stub). None of the 258 handlers, no NIS scene, no world event list and no
+other install file refers to it ([career-scripts.md](career-scripts.md) section 5, answer 1). A separate
+screen-sequence routine runs after the bin changes and reads the new CurrentBin (section 5.4). The trigger remains
+unknown; a rewrite should enter bin N-1 when bin N reaches `done` (the shape of the data and the saves, where bins
+2..15 are `done` at CurrentBin 1, is consistent with that).
 
 ### 5.4 Post-bin front-end sequence **[exe]**
 
@@ -396,8 +399,12 @@ state 4 and flags 5).
   Starting a new career loads the preset car `M3GTRCAREERSTART`, clears the race globals, marks event `16.1.0` as
   the current engaged race and starts the game flow (section 5.1). The respawn marker falls back to the collection
   `career_start_l2ra`. **[exe]**
-- After the D-Day intro (`16.2.1`) the done handler calls `JumpToCarLot`: the first real car is chosen at the lot,
-  then bin 16 drives to the safe house (GPS target). **[verified]**
+- The prologue is the chain `16.1.0` -> `16.2.2` -> `16.2.3` -> `16.1.1` -> `16.8.1` (an NIS) -> `16.2.1`, each
+  named in the previous race's `PostRaceActivity` ([career-scripts-events.md](career-scripts-events.md) section 2).
+  After `16.2.1` the done handler calls `JumpToCarLot`: the first real car is chosen at the lot, then bin 16 drives
+  to the safe house (GPS target) and `DoSafeHouseIntro` sets CurrentBin 16. **[verified]**
+- Resuming a career at CurrentBin 16 with `16.2.1` unfinished restarts the prologue; resuming with boss race
+  `1.2.3` completed and the career-completed flag clear forces the player into `1.8.1`. **[exe]**
 - The last race is `1.8.1`; its win trigger needs speed >= 180 km/h and direction cosine >= 0.8, then the NIS
   `EndingNis04` plays and the pursuit is bailed. **[verified]**
 - `RapSheetMain_ENDGAME.fng` / `RapSheetLogin2_ENDGAME.fng` are rap-sheet navigation targets; the strings
@@ -406,8 +413,16 @@ state 4 and flags 5).
 
 ## 10. Open questions
 
-1. What advances CurrentBin after bin 15 (section 5.3).
+1. What advances CurrentBin after bin 15 (section 5.3; searched exhaustively, not found).
 2. Names and effects of attributes `0xB39ED8C3`, `0x39509746`, `0x8CB01ABF`, `0xA4E6FCFD`, `0xE10FB7A3`, `0x1823B89E`.
 3. The consumer of the race `Reputation` value.
-4. What the OPM bin is and when it opens.
+4. What "OPM" stands for. The bin is a developer test bin that nothing opens (career-scripts.md section 5).
 5. Whether `CurrentBin` may differ from the count of `done` bins in a normal game.
+
+## 11. Corrections made in the script pass
+
+- Section 2.2 had the entry-activity rule reversed; fixed above.
+- Section 2.7 now points to the full message table; the earlier text listed the thresholds wrongly.
+- The OPM bin is a developer test bin, not a story bin (it holds test events and is never entered).
+- Milestones are not driven by scripts: the `milestone_challenge` graph has no instance. They are a native table.
+- Per-bin script copies run in addition to the generic handler, not instead of it.
