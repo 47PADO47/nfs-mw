@@ -2,6 +2,7 @@
 
 use super::confirm::{Alert, AlertLogic};
 use super::controls_screen::ControlsLogic;
+use super::credits::CreditsLogic;
 use super::icon_menu::{IconMenu, Kind};
 use super::ids::screen;
 use super::jukebox::JukeboxLogic;
@@ -48,6 +49,9 @@ pub fn make(name: &str, args: Args, mod_rows: bool) -> Box<dyn ScreenLogic> {
     }
     if is(screen::EA_TRAX_JUKEBOX) {
         return Box::new(JukeboxLogic::new());
+    }
+    if is(screen::CREDITS) {
+        return Box::new(CreditsLogic::default());
     }
     Box::new(Plain)
 }

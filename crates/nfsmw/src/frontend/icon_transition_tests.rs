@@ -261,3 +261,45 @@ fn options_and_back_move_between_the_main_menu_and_the_categories() {
     h.wait(1.5);
     assert_eq!(h.screens.top(), Some(screen::MAIN_MENU), "{:?}", h.commands);
 }
+
+/// The Credits icon of the option categories opens the credits screen, and its Back returns to the categories.
+#[test]
+fn credits_icon_opens_the_credits_and_back_returns_to_the_categories() {
+    let Some(mut h) = Harness::open(screen::MAIN_MENU_SUB, Args { options: true, ..Args::default() }) else { return };
+    h.wait(1.0);
+    let (_, credits) = reach(Kind::Categories { pause: false, mods: false }, Id::Credits);
+    for _ in 0..credits {
+        h.press(pad::RIGHT);
+    }
+    h.wait(0.5);
+    h.press(pad::ACCEPT);
+    h.wait(1.5);
+    assert_eq!(h.screens.top(), Some(screen::CREDITS), "credits: {:?}", h.commands);
+    h.press(pad::BACK);
+    h.wait(1.5);
+    assert_eq!(h.screens.top(), Some(screen::MAIN_MENU_SUB), "back from credits: {:?}", h.commands);
+}
+
+/// The Back button of the credits is a group with no mouse answer of its own. Its picture is what the player sees,
+/// so a click on the visible Back label goes back to the categories.
+#[test]
+fn a_click_on_the_credits_back_label_returns_to_the_categories() {
+    let Some(mut h) = Harness::open(screen::MAIN_MENU_SUB, Args { options: true, ..Args::default() }) else { return };
+    h.wait(1.0);
+    let (_, credits) = reach(Kind::Categories { pause: false, mods: false }, Id::Credits);
+    for _ in 0..credits {
+        h.press(pad::RIGHT);
+    }
+    h.wait(0.5);
+    h.press(pad::ACCEPT);
+    h.wait(1.5);
+    assert_eq!(h.screens.top(), Some(screen::CREDITS), "credits: {:?}", h.commands);
+    let tree = h.screens.trees().pop().unwrap();
+    let label = tree.nodes.iter().find(|n| n.guid == 0x000F_8109 && n.visible).expect("the visible Back label");
+    let at = label.world.transform_point3(glam::Vec3::ZERO).truncate() + glam::Vec2::new(-20.0, 0.0);
+    let mut env = Env { settings: &mut h.settings, changed: &mut h.changed, caps: test_caps::native(), mods: None };
+    let commands = h.screens.click(at, &mut env).expect("the credits take the click");
+    h.commands.extend(commands);
+    h.wait(1.5);
+    assert_eq!(h.screens.top(), Some(screen::MAIN_MENU_SUB), "back from credits by mouse: {:?}", h.commands);
+}

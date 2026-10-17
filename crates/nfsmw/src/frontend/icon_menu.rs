@@ -245,6 +245,7 @@ impl IconMenu {
             (Kind::Categories { .. }, Pending::Pressed(Id::Category(category))) => self.open_options(cx, category),
             (Kind::Categories { .. }, Pending::Pressed(Id::Controls)) => self.open_controls(cx),
             (Kind::Categories { .. }, Pending::Pressed(Id::EaTrax)) => self.open_jukebox(cx),
+            (Kind::Categories { .. }, Pending::Pressed(Id::Credits)) => self.open_credits(cx),
             (Kind::Categories { .. }, Pending::Pressed(Id::ControlOptions)) => {
                 self.open_options(cx, Category::Controls)
             }
@@ -280,6 +281,11 @@ impl IconMenu {
     /// The EA Trax jukebox (`jukebox.rs`), which goes back to these categories when it is left.
     fn open_jukebox(&self, cx: &mut Cx) {
         cx.send(Command::Switch(screen::EA_TRAX_JUKEBOX.into(), Args { options: true, ..self.args }));
+    }
+
+    /// The credits roll (`credits.rs`), which goes back to these categories when it is left.
+    fn open_credits(&self, cx: &mut Cx) {
+        cx.send(Command::Switch(screen::CREDITS.into(), Args { options: true, ..self.args }));
     }
 
     /// Writes where each icon is, how big and how opaque, from the scroll value and the clock.
