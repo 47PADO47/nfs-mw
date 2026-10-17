@@ -162,9 +162,10 @@ impl Filter {
             Blend::Add => wgpu::LoadOp::Load,
         };
         let key = (draw.entry, draw.format, draw.blend);
-        let pipeline = self.pipelines.entry(key).or_insert_with(|| {
-            build_pipeline(device, self.label, &self.shader, &self.pipeline_layout, draw)
-        });
+        let pipeline = self
+            .pipelines
+            .entry(key)
+            .or_insert_with(|| build_pipeline(device, self.label, &self.shader, &self.pipeline_layout, draw));
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some(draw.entry),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -223,11 +224,7 @@ fn build_pipeline(
             module: shader,
             entry_point: Some(draw.entry),
             compilation_options: Default::default(),
-            targets: &[Some(wgpu::ColorTargetState {
-                format: draw.format,
-                blend,
-                write_mask: wgpu::ColorWrites::ALL,
-            })],
+            targets: &[Some(wgpu::ColorTargetState { format: draw.format, blend, write_mask: wgpu::ColorWrites::ALL })],
         }),
         multiview_mask: None,
         cache: None,

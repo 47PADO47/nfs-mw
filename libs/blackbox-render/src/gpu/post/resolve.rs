@@ -102,11 +102,7 @@ fn build_pipeline(
             module: shader,
             entry_point: Some(mode.entry()),
             compilation_options: Default::default(),
-            targets: &[Some(wgpu::ColorTargetState {
-                format,
-                blend: None,
-                write_mask: wgpu::ColorWrites::ALL,
-            })],
+            targets: &[Some(wgpu::ColorTargetState { format, blend: None, write_mask: wgpu::ColorWrites::ALL })],
         }),
         multiview_mask: None,
         cache: None,
@@ -134,9 +130,10 @@ impl PostPass for Resolve {
                 ],
             })
         });
-        let pipeline = self.pipelines.entry((mode, io.output_format)).or_insert_with(|| {
-            build_pipeline(ctx.device, &self.shader, &self.pipeline_layout, mode, io.output_format)
-        });
+        let pipeline = self
+            .pipelines
+            .entry((mode, io.output_format))
+            .or_insert_with(|| build_pipeline(ctx.device, &self.shader, &self.pipeline_layout, mode, io.output_format));
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("resolve"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
