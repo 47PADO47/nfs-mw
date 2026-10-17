@@ -83,8 +83,8 @@ wrappers at `0x008F6450`, the event constructors at `0x008F61C8` and the native 
 | `Game.DoSafeHouseIntro(marker)` | stores the respawn marker, sets CurrentBin to 16, opens the safe-house front end |
 | `Game.DoZoneMenuAction(zone)` | stores the respawn marker; zone `safehouse` opens `MainMenu_Sub.fng`, `carlot` opens `Car_Select.fng`, `customshop` opens `CustomizeMain.fng` |
 | `Game.EnterGateZone` / `ExitGateZone` | show or hide the "engage" prompt icon for the zone |
-| `EAddSMS(id)` | adds phone message `id` to the inbox |
-| `ECellCall(id)` | starts a phone call scene |
+| `EAddSMS(id)` | queues text message `id` for the inbox (ids 10 to 14, 95, 96 are delivered at once) |
+| `ECellCall(id)` | a phone call: voice line in five languages, a text message in the five text languages (career-phone.md 3.3); one argument only |
 
 ## 2. Inventory
 
@@ -142,8 +142,8 @@ otherwise); the loading code (`0x0062C2D0` loads the bin's instance when it is n
 ### 3.3 Phone messages and world heat per bin **[verified]**
 
 Per-bin copies fire at these points. "wins n" = the bin's native races-won counter equals n right after a first
-place (any first-place finish in the game triggers the check, so repeated wins at the same count may repeat the
-message **[unconfirmed]**). "challenges >= k" = native challenges-passed counter at least k, each message once
+place (any first-place finish in the game triggers the check, but a message already in the inbox is not sent again:
+career-phone.md 3.1). "challenges >= k" = native challenges-passed counter at least k, each message once
 (flags `DoneFirstSMS`, `DoneSecondSMS`, `DoneThirdSMS`).
 
 | Bin | Entry message | Race wins -> message | Challenges -> message | Rival unlocks |
@@ -165,8 +165,8 @@ message **[unconfirmed]**). "challenges >= k" = native challenges-passed counter
 | 1 | 89 | 4: 90, 6: 91 | none | 93 and 94 (script copy) |
 
 "Entry message" and "Rival unlocks" for bins 2..13 and 15 are the data fields `EntryCellCallID` and
-`SMSRivalChallenge`. Bin 13 also calls `SetHasRapSheet` when it starts. The message ids index the phone table, which
-was not read; the text and sender are therefore unknown. Bin 14 has no `EntryCellCallID` but its start copy queues
+`SMSRivalChallenge`. Bin 13 also calls `SetHasRapSheet` when it starts. The message ids are slots of the 150-slot inbox;
+sender, subject and delivery rules are in [career-phone.md](career-phone.md) and [career-text-2.md](career-text-2.md). Bin 14 has no `EntryCellCallID` but its start copy queues
 two fixed messages. The bin 16 prologue queues message 15 when the drive to the safe house starts and message 121
 after 120 s without arriving (section 6 of the events file).
 

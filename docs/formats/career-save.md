@@ -163,8 +163,10 @@ show which bit means what. Meanings come from the code (section 3.3).
 
 **SMS table** **[exe + verified]**: 150 records `{u8 id, u8 state, u16 sequence}`. `id` is the record's own index, or 0xFF
 when the language table has no `SMS_MESSAGE_<n>` string; 95 of 150 are valid in all three saves. `state` 0 = not delivered,
-2 = delivered (set on delivery together with the next sequence number), 4 seen in `mwo` (80 records) **[unconfirmed:
-read]**. `sequence` is the order of delivery.
+2 = delivered and unread (set on delivery together with the next sequence number), 4 = read (set when the player opens the
+message; 80 records in `mwo`). `sequence` is the order of delivery, newest first in the inbox; it is 0 for calls that
+were written into the inbox without a sequence (ids 10 to 13, 95, 96 in `mwo`). The u16 counter at `+0x26A` holds the
+last sequence given (74 in `mwo`). Deleting a message sets its state back to 0. Rules: [career-phone.md](../specs/career-phone.md).
 
 **Node state list** **[exe + verified]**: a u32 count (255, 256 and 280 in the three saves; the cap is 300) then that many
 `{u32 node hash, u32 state flags, u32, u32}`; the rest of the 4,800 bytes is zero. The nodes are the career graph's

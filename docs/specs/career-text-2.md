@@ -17,13 +17,18 @@ labels, names and ids are quoted; messages and tips are described in one line of
 - The save keeps 150 four-byte slots ([career-save.md](../formats/career-save.md) 3.2). A slot's id byte is its own index
   when the table has `SMS_MESSAGE_<index>`, otherwise 0xFF. The table has **95** messages (ids 10 to 137 with gaps), and
   the three saves have exactly the same 95 valid slots. **[verified]**
-- Delivery sets the slot state to 2 and gives it the next sequence number (the saved counter); messages 10 to 14, 95 and 96
-  are delivered at once, the others are queued and delivered when the game next allows a popup. State 4 appears in the
-  late-game save for 80 slots (read, probably) **[unconfirmed]**.
+- Slot states: 0 not delivered (or deleted), 2 delivered and unread, 4 read (set when the player opens the message in the
+  inbox). Delivery sets state 2 and gives the slot the next sequence number (the saved counter). Messages sent with
+  `EAddSMS` are queued and all delivered together on the first update in which the game is in free roam with no race,
+  overlay, call speaking or pursuit; the ids 10 to 14, 95 and 96 are the exception: `EAddSMS` delivers them at once and
+  starts a call, but no script sends them that way (they arrive as `ECellCall` and are only written into the inbox in the
+  five text languages). The full rules are in [career-phone.md](career-phone.md). **[exe + verified]**
 - The text/voice distinction: the tip says people send both text messages and cell-phone messages (voice). Messages
   from `Rockport PD` and the empty sender `-` (id 122) are system notices.
-- Ids 110, 111, 120 to 130 and 132 to 137 are treated as non-story messages by the list screen (it hides two story
-  widgets for them) **[exe]**: tutorials, impound notices and two extra Earl/Razor texts.
+- Ids 110, 111, 120 to 130 and 132 to 137 are treated as non-story messages: they have their own tab in the inbox, no
+  voice line, and the message screen hides two widgets for them **[exe]**: tutorials, impound notices and two extra
+  Earl/Razor texts. 13 of the 95 messages are never sent in this build (16, 21, 32, 47, 50, 74, 97, 98, 105, 110, 111,
+  122, 129); see career-phone.md section 5.3.
 
 ### 1.2 Who sends what
 
