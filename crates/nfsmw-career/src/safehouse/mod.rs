@@ -7,12 +7,18 @@
 //!
 //! - [`zone`]: `ZoneType` classification and the per-frame entry permissions.
 //! - [`engage`]: the engage button decision, the cool-down path and the evade bookkeeping that follows.
+//! - [`respawn`]: the respawn marker keys, the selector flag and the position and heading helpers.
+//! - [`first_visit`]: the stage 16 to 15 step of the first visit.
+//! - [`resume`]: Resume Free Roam, the pending prologue event and the roaming restart effects.
 //! - [`heat`]: heat written at the world unload and read at the car spawn, and the evade, win and milestone
 //!   factors, with the overwrite quirk made explicit.
 
 pub mod context;
 pub mod engage;
+pub mod first_visit;
 pub mod heat;
+pub mod respawn;
+pub mod resume;
 pub mod zone;
 
 pub use context::FrontEndContext;
@@ -20,8 +26,16 @@ pub use engage::{
     CoolDownEnd, EngageDecision, EngageInput, cooldown_end, engage, finish_cooldown_pursuit,
     finish_cooldown_pursuit_default, results_screen_closed,
 };
+pub use first_visit::{FIRST_VISIT_MOVIE, FirstVisit, bio_screen_opened};
 pub use heat::{
     DEFAULT_EVADE_HEAT_FACTOR, DEFAULT_MILESTONE_HEAT_FACTOR, DEFAULT_RACE_WIN_HEAT_FACTOR, SPAWN_HEAT_FLOOR,
     UNLOAD_HEAT_CAP, apply_heat_factor, spawn_heat, unload_world,
+};
+pub use respawn::{
+    HEADING_FACTOR, MARKER_HEADING_ATTRIBUTE, MARKER_POSITION_ATTRIBUTE, Respawn, StartSource, ZONE_RESPAWN_ATTRIBUTE,
+    career_start_label, engine_position, heading_rotation, start_source,
+};
+pub use resume::{
+    EventProgress, PENDING_NODE_MODE, PROLOGUE_EVENTS, PendingEvent, ResumeOutcome, RoamingRestart, resume_free_roam,
 };
 pub use zone::{EntryPermissions, PursuitPhase, ZoneKind, ZoneOpen};
