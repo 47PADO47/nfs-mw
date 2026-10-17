@@ -163,6 +163,11 @@ impl Cooldown {
         self.since_seen + self.hidden_time
     }
 
+    /// Raw time since a sighting, excluding the extra progress earned in hiding.
+    pub fn since_seen(&self) -> f32 {
+        self.since_seen
+    }
+
     /// The cool-down meter, 0 to 1 (`evade_level`).
     pub fn level(&self) -> f32 {
         self.level
