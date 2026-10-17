@@ -4,6 +4,7 @@
 |---|---|---|---|
 | Unit tests on synthetic bytes | `#[cfg(test)]` / `tests` modules in every crate | no | yes |
 | Real-install tests | [`crates/nfsmw-data/tests/real_install/`](../crates/nfsmw-data/tests/real_install) (`#[ignore]`) | yes | no |
+| Real-save tests | [`crates/nfsmw-career/tests/real_saves.rs`](../crates/nfsmw-career/tests/real_saves.rs) (runs only when `NFSMW_SAVE_DIR` points at the profile folder of the game under Documents, or at a folder of profile files; returns at once without it) | yes (saves) | no |
 | GPU tests (renderer) | `#[ignore = "needs a GPU"]` in `blackbox-render`, scenes from [`blackbox-gfx-testkit`](../libs/blackbox-gfx-testkit); the passes' own in [`blackbox-gpu-passes`](../libs/blackbox-gpu-passes) | no | no (optional job) |
 | Leak + size checks | `cargo xtask check` | no | yes, first job |
 | Python tool tests | [`tests/`](../tests) | no | yes |

@@ -3806,6 +3806,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "nfsmw-career"
+version = "0.1.0"
+dependencies = [
+ "save-store",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "nfsmw-data"
 version = "0.1.0"
 dependencies = [
