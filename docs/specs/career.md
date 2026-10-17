@@ -7,7 +7,7 @@ How the original's career works end to end, and where each part is written down.
   `GLOBAL/gameplay.bin` and `FE_ATTRIB.bin`, and the three saves on the development machine (read only). Each page lists
   its own sources. Nothing was tested in game: the tags are **[exe]**, **[verified]**, **[community]**, **[unconfirmed]**
   ([evidence tags](../README.md#evidence-tags)).
-- **Method and provenance:** [career-economy](../provenance/career-economy.md),
+- **Method and provenance:** [career-scripts](../provenance/career-scripts.md), [career-text](../provenance/career-text.md), [career-economy](../provenance/career-economy.md),
   [career-blacklist](../provenance/career-blacklist.md), [career-milestones](../provenance/career-milestones.md),
   [career-flow](../provenance/career-flow.md).
 
@@ -19,7 +19,9 @@ How the original's career works end to end, and where each part is written down.
 | [formats/career-save.md](../formats/career-save.md) | The save file: header CRCs, block order and sizes, MD5, mapping of the editor offsets |
 | [career-flow.md](career-flow.md) | New and resumed career, front-end context bits, safe house menu, autosave |
 | [career-car-lot.md](career-car-lot.md) | Car catalogue, prices, unlock by stage, buy and sell rules, rival cars |
+| [career-text.md](career-text.md), [career-text-2.md](career-text-2.md) | The language table: rivals, milestone labels, rap sheet, markers and popups, SMS ids, tips, shop unlock table |
 | [career-economy.md](career-economy.md), [career-economy-flows.md](career-economy-flows.md) | Bounty, infractions and their fines, cash, heat, rap sheet statistics, busted and the impound strikes |
+| [career-scripts.md](career-scripts.md), [career-scripts-events.md](career-scripts-events.md) | The compiled Lua state graphs: runtime model, hooks, bin graphs, per-bin SMS and world heat, prologue chain, boss races, final race, challenge ladder, speed traps, OPM |
 | [career-blacklist.md](career-blacklist.md) | The 15 rival bins as state graphs, the challenge gate, races won, regions, the final race |
 | [career-milestones.md](career-milestones.md), [career-milestones-data.md](career-milestones-data.md) | The 30 statistics, 55 milestones and 39 speed traps, states, banking, the tables per bin |
 
@@ -41,7 +43,8 @@ How the original's career works end to end, and where each part is written down.
    all reach the bin's requirements. **[exe]**
 8. Entering a bin (the routine loops down to the target stage) activates its milestones and speed traps, closes or opens
    regions and grants the bin's unlocks and upgrade parts. What moves the stage on after bin 15 in real play is **not
-   found**: the only callers are the first safe house visit and an unused event and script function. **[exe, open]**
+   found**, in the exe or in any script: the only callers are the first safe house visit and an unused event and script
+   wrapper. A rewrite should enter bin N-1 when bin N reaches done (our choice, [unconfirmed]). **[exe, open]**
 9. Winning event `1.8.1` sets the career-complete flag, unlocks every rival challenge and shows the game-won screen. **[exe]**
 10. The safe house saves, changes cars, shows the rap sheet and starts the next challenge; autosave runs at free-roam start
     and after races. **[exe]**
@@ -62,8 +65,8 @@ How the original's career works end to end, and where each part is written down.
 | Question | Where |
 |---|---|
 | The divisor read by the bounty award (5 in the file image, almost certainly 1 at run time) | [career-economy-flows.md](career-economy-flows.md); needs a runtime read |
-| What moves the stage on after bin 15 (only an unused event and a script function were found) | [career-blacklist.md](career-blacklist.md) |
-| The Lua scripts: heat reset in the safe house, intro scenes, unlock timing | [career-flow.md](career-flow.md) |
+| What moves the stage on after bin 15 (no script and no exe path found; see the loop above) | [career-scripts.md](career-scripts.md) |
+| Native code on safe house entry beyond opening the menu (no script resets heat or cops); the meaning of the `SetWorldHeat` values; the phone table behind SMS and call ids | [career-scripts.md](career-scripts.md) |
 | 12 of 30 statistic types have no producer in the exe; two milestone fields are never read | [career-milestones.md](career-milestones.md) |
-| Where "career completed at least once" is stored; the OPM bin; rival display names (language table not read) | [career-blacklist.md](career-blacklist.md) |
+| Where "career completed at least once" is set; what "OPM" stands for (bin 20 is a developer test bin with no way in: [career-scripts-events.md](career-scripts-events.md); rival names are read: [career-text.md](career-text.md)) | [career-blacklist.md](career-blacklist.md) |
 | Meaning of the settings field at `+0x10`, flag bits 6 to 10, 12, 13 and the 8 extra rap sheet sums | [career-state.md](../formats/career-state.md) |
