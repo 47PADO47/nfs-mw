@@ -105,19 +105,16 @@ impl Raw {
     fn read(&self, which: DebugTexture) -> (UVec2, usize, Vec<f32>) {
         let texture = self.ctx.debug_texture(which).unwrap();
         let size = UVec2::new(texture.width(), texture.height());
-        let (texel, channels) = match texture.format() {
-            wgpu::TextureFormat::R32Float => (4, 1),
-            wgpu::TextureFormat::Rg32Float => (8, 2),
-            wgpu::TextureFormat::Rgba16Float => (8, 4),
+        let (texel, channels, half) = match texture.format() {
+            wgpu::TextureFormat::R32Float => (4, 1, false),
+            wgpu::TextureFormat::Rg32Float => (8, 2, false),
+            wgpu::TextureFormat::R16Float => (2, 1, true),
+            wgpu::TextureFormat::Rg16Float => (4, 2, true),
+            wgpu::TextureFormat::Rgba16Float => (8, 4, true),
             other => panic!("{other:?}"),
         };
         let bytes = self.gpu.read_bytes(texture, size, texel);
-        let values = if channels == 4 {
-            bytemuck::cast_slice::<u8, u16>(&bytes).iter().map(|h| common::decode_f16(*h)).collect()
-        } else {
-            bytemuck::cast_slice::<u8, f32>(&bytes).to_vec()
-        };
-        (size, channels, values)
+        (size, channels, common::floats(&bytes, half))
     }
 
     fn frame_info(&self) -> [f32; 4] {

@@ -29,9 +29,9 @@
 // THE SOFTWARE.
 //
 // Changes from the original: the reconstructed depth comes from a buffer (see prepare_inputs.wgsl);
-// the accumulation is 32-bit float and is zero on the first frame after a reset instead of relying on
-// a cleared texture; a flat neighbourhood returns no lock at once rather than dividing by zero; the
-// masks outside their texture read as zero.
+// the accumulation is a single-channel intermediate (SINGLE_FORMAT) and is zero on the first frame after a
+// reset instead of relying on a cleared texture; a flat neighbourhood returns no lock at once rather than
+// dividing by zero; the masks outside their texture read as zero.
 
 @group(0) @binding(1) var dilated_motion_vectors: texture_2d<f32>;
 @group(0) @binding(2) var dilated_depth: texture_2d<f32>;
@@ -43,8 +43,8 @@
 @group(0) @binding(8) var previous_accumulation: texture_2d<f32>;
 @group(0) @binding(9) var<storage, read> frame_info: array<vec4<f32>>;
 @group(0) @binding(10) var out_reactive_masks: texture_storage_2d<rgba16float, write>;
-@group(0) @binding(11) var out_accumulation: texture_storage_2d<r32float, write>;
-@group(0) @binding(12) var new_locks: texture_storage_2d<r32float, read_write>;
+@group(0) @binding(11) var out_accumulation: texture_storage_2d<SINGLE_FORMAT, write>;
+@group(0) @binding(12) var new_locks: texture_storage_2d<LOCK_FORMAT, read_write>;
 
 fn exposure() -> f32 {
     return frame_info[0].x;

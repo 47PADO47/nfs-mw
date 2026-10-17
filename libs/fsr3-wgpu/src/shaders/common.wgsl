@@ -25,9 +25,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 //
-// Changes from the original: fp32 only, no subgroup operations, no 16-bit paths; textures are read
-// with textureLoad and filtered by hand (bilinear taps below), so no sampler is bound and 32-bit float
-// textures need no filtering support; the options of the HLSL permutations are pipeline-overridable
+// Changes from the original: no subgroup operations, no 16-bit math paths (the intermediate images may be
+// 16-bit, see `formats.rs`); textures are read with textureLoad and filtered by hand (bilinear taps below), so
+// no sampler is bound and 32-bit float textures need no filtering support; the options of the HLSL permutations are pipeline-overridable
 // constants. This file is placed in front of every pass: each pass file declares its own bindings from
 // binding 1 on. Binding 0 is the uniform block.
 

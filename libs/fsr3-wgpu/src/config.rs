@@ -93,6 +93,9 @@ pub struct Fsr3Config {
     pub output_format: TextureFormat,
     /// Tuning knobs.
     pub tuning: Tuning,
+    /// The pipeline cache for the upscaler's compute pipelines (`wgpu::PipelineCache`), or `None` to compile them
+    /// from scratch. The caller owns the cache and saves it.
+    pub pipeline_cache: Option<wgpu::PipelineCache>,
 }
 
 impl Fsr3Config {
@@ -110,6 +113,7 @@ impl Fsr3Config {
             motion_vectors: MotionVectorLayout::default(),
             output_format: TextureFormat::Rgba16Float,
             tuning: Tuning::default(),
+            pipeline_cache: None,
         }
     }
 

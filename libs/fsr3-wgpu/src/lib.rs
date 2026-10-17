@@ -2,8 +2,9 @@
 //!
 //! A port to WGSL of the upscaler of the MIT-licensed FidelityFX SDK (v1.1.4, FSR 3.1.4), not of its
 //! frame generation. It runs on every wgpu backend that supports compute shaders (Vulkan, Direct3D 12,
-//! Metal), in 32-bit floats and without subgroup operations. See the README for the pinned SDK files and
-//! the differences from AMD's version.
+//! Metal), in floats and without subgroup operations. The intermediate images are 16-bit where AMD keeps
+//! them in 16 bits and the adapter can store them ([`Fsr3Context::new_for_adapter`]). See the README for
+//! the pinned SDK files and the differences from AMD's version.
 //!
 //! The renderer renders at a lower resolution with a different sub-pixel jitter each frame
 //! ([`jitter`]), samples world textures with the [`QualityMode::mip_bias`], and each frame calls
@@ -15,6 +16,7 @@ mod constants;
 mod context;
 mod debug;
 mod error;
+mod formats;
 mod inputs;
 pub mod jitter;
 mod passes;

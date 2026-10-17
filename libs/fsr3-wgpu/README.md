@@ -6,7 +6,8 @@ motion vectors, and the upscaler accumulates those frames into an image at the o
 the upscaler is ported, not frame generation.
 
 It runs on every wgpu backend with compute shaders (tested on Vulkan, on an Intel Iris Xe and on lavapipe;
-DX12 and Metal are expected to work and are not tested yet), in 32-bit floats, **without subgroup operations**, within wgpu's default limits
+DX12 and Metal are expected to work and are not tested yet), in floats (16-bit for the intermediate images that AMD
+keeps in 16 bits, where the adapter can store them), **without subgroup operations**, within wgpu's default limits
 (4 storage textures per stage, 8 storage buffers). It depends only on `wgpu`, `glam`, `bytemuck` and
 `thiserror`: no Bevy, no renderer of this repository, nothing game-specific.
 
@@ -132,9 +133,14 @@ differences, all deliberate unless marked as a gap:
 - **Jitter cancellation.** The jitter difference of jittered motion vectors is divided by the render
   size (it is in render pixels); AMD divides by the size of the motion vectors, which differs only for
   output-resolution vectors.
-- **Storage formats are 32-bit floats** where AMD uses 8 or 16 bits (accumulation, luma, farthest depth,
-  shading change, luma instability, locks) and 16-bit floats for the dilated reactive masks (AMD: 8-bit
-  unorm); the colour history and the luma history stay 16-bit float, as in AMD. The reconstructed
+- **Storage formats.** The depth images (dilated and farthest depth) are 32-bit floats. The dilated motion
+  vectors and the shading change pyramid are `Rg16Float`; the luma, the shading change, the luma instability,
+  the accumulation and the locks are `R16Float`, as in AMD. These 16-bit formats are chosen by
+  `Fsr3Context::new_for_adapter` only when the device enables `TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES` and
+  the adapter stores them (the locks also read and write in place); otherwise, and always for
+  `Fsr3Context::new`, they are 32-bit floats. The farthest depth stays 32-bit where AMD uses 16 bits. The
+  dilated reactive masks are 16-bit floats (AMD: 8-bit unorm); the colour history and the luma history stay
+  16-bit float, as in AMD. The 16-bit values are clamped to the 16-bit range on the way in. The reconstructed
   previous depth is a buffer of atomics (`atomicMax` of the depth's bits, or of their complement for
   standard depth), not an `R32_UINT` texture with `InterlockedMin/Max`.
 - **Robustness.** The colour input is clamped to `[0, 1e7]`; output and history are clamped to the 16-bit

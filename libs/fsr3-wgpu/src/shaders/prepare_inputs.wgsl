@@ -34,10 +34,10 @@
 @group(0) @binding(1) var input_color: texture_2d<f32>;
 @group(0) @binding(2) var input_depth: texture_2d<f32>;
 @group(0) @binding(3) var input_motion_vectors: texture_2d<f32>;
-@group(0) @binding(4) var out_dilated_motion_vectors: texture_storage_2d<rg32float, write>;
+@group(0) @binding(4) var out_dilated_motion_vectors: texture_storage_2d<PAIR_FORMAT, write>;
 @group(0) @binding(5) var out_dilated_depth: texture_storage_2d<r32float, write>;
 @group(0) @binding(6) var out_farthest_depth: texture_storage_2d<r32float, write>;
-@group(0) @binding(7) var out_current_luma: texture_storage_2d<r32float, write>;
+@group(0) @binding(7) var out_current_luma: texture_storage_2d<SINGLE_FORMAT, write>;
 @group(0) @binding(8) var<storage, read_write> reconstructed_depth: array<atomic<u32>>;
 
 fn load_depth(pos: vec2<i32>) -> f32 {
@@ -152,7 +152,8 @@ fn cs_main(@builtin(global_invocation_id) id: vec3<u32>) {
 
     reconstruct_prev_depth(pos, extents.nearest, dilated_motion);
 
-    textureStore(out_dilated_motion_vectors, pos, vec4<f32>(dilated_motion, 0.0, 0.0));
+    let motion = clamp(dilated_motion, vec2<f32>(-FP16_MAX), vec2<f32>(FP16_MAX));
+    textureStore(out_dilated_motion_vectors, pos, vec4<f32>(motion, 0.0, 0.0));
     textureStore(out_dilated_depth, pos, vec4<f32>(extents.nearest, 0.0, 0.0, 0.0));
 
     let farthest_in_meters = min(get_view_space_depth_in_meters(extents.farthest), FP16_MAX);
@@ -160,5 +161,5 @@ fn cs_main(@builtin(global_invocation_id) id: vec3<u32>) {
 
     // The colour is linear: luma needs no conversion.
     let rgb = sanitize_color(textureLoad(input_color, pos, 0).rgb);
-    textureStore(out_current_luma, pos, vec4<f32>(rgb_to_luma(rgb), 0.0, 0.0, 0.0));
+    textureStore(out_current_luma, pos, vec4<f32>(min(rgb_to_luma(rgb), FP16_MAX), 0.0, 0.0, 0.0));
 }

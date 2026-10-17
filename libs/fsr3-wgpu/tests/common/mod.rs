@@ -101,6 +101,14 @@ impl Gpu {
     }
 }
 
+/// The values of a read-back image: 16-bit floats when `half`, else 32-bit floats.
+pub fn floats(bytes: &[u8], half: bool) -> Vec<f32> {
+    match half {
+        true => bytemuck::cast_slice::<u8, u16>(bytes).iter().map(|h| decode_f16(*h)).collect(),
+        false => bytemuck::cast_slice::<u8, f32>(bytes).to_vec(),
+    }
+}
+
 /// IEEE half to single.
 pub fn decode_f16(bits: u16) -> f32 {
     let sign = if bits & 0x8000 != 0 { -1.0 } else { 1.0 };

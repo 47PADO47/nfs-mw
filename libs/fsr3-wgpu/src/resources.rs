@@ -6,6 +6,8 @@ use wgpu::{
     TextureUsages, TextureView, TextureViewDescriptor, util::DeviceExt,
 };
 
+use crate::formats::Intermediates;
+
 /// Exposure 1 and a log luma that tells the luma pass to take the frame's own value (see the shader).
 const FRAME_INFO_RESET: [f32; 4] = [1.0, 1.0e4, 0.0, 0.0];
 /// The pixels one workgroup of the luma reduction covers along an axis (8 threads of 2 pixels).
@@ -67,7 +69,8 @@ struct Allocator<'a> {
 impl Allocator<'_> {
     fn texture(&mut self, label: &str, size: UVec2, format: TextureFormat) -> TextureView {
         let texel = match format {
-            TextureFormat::R32Float => 4,
+            TextureFormat::R16Float => 2,
+            TextureFormat::R32Float | TextureFormat::Rg16Float => 4,
             TextureFormat::Rg32Float | TextureFormat::Rgba16Float => 8,
             _ => 16,
         };
@@ -104,7 +107,7 @@ fn half(size: UVec2) -> UVec2 {
 }
 
 impl Resources {
-    pub fn new(device: &Device, render: UVec2, output: UVec2) -> Self {
+    pub fn new(device: &Device, render: UVec2, output: UVec2, formats: Intermediates) -> Self {
         let mut a = Allocator { device, bytes: 0 };
         let r32 = TextureFormat::R32Float;
         let rgba16 = TextureFormat::Rgba16Float;
@@ -124,22 +127,22 @@ impl Resources {
         let mut resources = Self {
             render,
             output,
-            dilated_motion_vectors: a.texture("fsr3 dilated motion vectors", render, TextureFormat::Rg32Float),
+            dilated_motion_vectors: a.texture("fsr3 dilated motion vectors", render, formats.pair),
             dilated_depth: a.texture("fsr3 dilated depth", render, r32),
             farthest_depth: a.texture("fsr3 farthest depth", render, r32),
             farthest_depth_mip1: a.texture("fsr3 farthest depth mip 1", half_size, r32),
-            luma_instability: a.texture("fsr3 luma instability", render, r32),
-            shading_change: a.texture("fsr3 shading change", half_size, r32),
+            luma_instability: a.texture("fsr3 luma instability", render, formats.single),
+            shading_change: a.texture("fsr3 shading change", half_size, formats.single),
             reactive_masks: a.texture("fsr3 reactive masks", render, rgba16),
-            new_locks: a.texture("fsr3 new locks", output, r32),
+            new_locks: a.texture("fsr3 new locks", output, formats.lock),
             shading_pyramid: [
-                a.texture("fsr3 shading change level 0", half_size, TextureFormat::Rg32Float),
-                a.texture("fsr3 shading change level 1", level1, TextureFormat::Rg32Float),
-                a.texture("fsr3 shading change level 2", level2, TextureFormat::Rg32Float),
+                a.texture("fsr3 shading change level 0", half_size, formats.pair),
+                a.texture("fsr3 shading change level 1", level1, formats.pair),
+                a.texture("fsr3 shading change level 2", level2, formats.pair),
             ],
             shading_pyramid_sizes: [half_size, level1, level2],
-            luma: a.pair("fsr3 luma", render, r32),
-            accumulation: a.pair("fsr3 accumulation", render, r32),
+            luma: a.pair("fsr3 luma", render, formats.single),
+            accumulation: a.pair("fsr3 accumulation", render, formats.single),
             luma_history: a.pair("fsr3 luma history", render, rgba16),
             history: a.pair("fsr3 history", output, rgba16),
             reconstructed_depth: a.buffer("fsr3 reconstructed depth", pixels * 4, storage),

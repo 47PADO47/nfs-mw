@@ -31,7 +31,7 @@
 @group(0) @binding(1) var pyramid0: texture_2d<f32>;
 @group(0) @binding(2) var pyramid1: texture_2d<f32>;
 @group(0) @binding(3) var pyramid2: texture_2d<f32>;
-@group(0) @binding(4) var out_shading_change: texture_storage_2d<r32float, write>;
+@group(0) @binding(4) var out_shading_change: texture_storage_2d<SINGLE_FORMAT, write>;
 
 // |mean difference * mean sign|: large where the whole neighbourhood changed in one direction.
 fn level_signal(level: texture_2d<f32>, uv: vec2<f32>) -> f32 {
