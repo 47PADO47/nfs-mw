@@ -46,8 +46,9 @@ branch before this; its meaning is not read.
 - **The cop cap (`MAX_COPS`).** The stock car loader's limit of 8 cars is from the Bartender notes, not from a Ghidra
   search in this pass.
 - **Stock `FairBusts` default.** The mod's INI sets `ResetBustMultiplier = 1.0` and documents that as "normal rules". The
-  brief for this rewrite sets the default to 4.0, which is what this implementation uses. A user who wants the mod's
-  behaviour sets `ResetBustMultiplier = 1.0` in `NFSMWFairBustsSettings.ini`.
+  rewrite keeps a default multiplier of 4.0, but the enhancement is now disabled
+  unless the config explicitly enables it. A user who wants the mod's behavior sets
+  `Enabled = 1` and `ResetBustMultiplier = 1.0` in `NFSMWFairBustsSettings.ini`.
 - **The bust rule of the mod's patch.** The mod patches the `JMP` at `0x00444495` (`EB 16`) to `90 90`, so the flashing
   branch also runs the speed gate; this is inferred from the code layout, not tested in the game.
 

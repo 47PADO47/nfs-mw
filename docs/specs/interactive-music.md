@@ -15,8 +15,10 @@ original steers the pursuit music. Companion of [music-graph.md](music-graph.md)
 
 - The pursuit music is the same PathFinder graph as the songs, sections 1 to 4: four **sets**, each of 11
   groups of bars. The game starts it by sending the event `0x026E7282` with a property (1 to 4) that names the
-  set; the event branches to the head of that set. The game's table of start nodes is `0x199, 0x6A, 0x132,
-  0xD5` and a fifth entry, `0`; the four heads are in sections 1 to 4 [confirmed-by-data].
+  set [inferred; full event semantics remain unresolved]. The earlier four-entry start
+  table interpretation was incorrect: 409/106/306/213 are all internal heads of section 1.
+  The host uses the first head in each pursuit section (0/427/755/1127 in the installed
+  PC map). Each sustains repeated intensity-controlled bars in installed tests.
 - A song's last bars contain the same event, so a pursuit can take over from a song at an exit point
   (music-graph.md section 5). The Rust game does not do this: it stops the song and starts the pursuit set.
 - The game steers the music by writing a **control value**, 0 to 127. Each time a bar ends, the node's
@@ -32,12 +34,12 @@ original steers the pursuit music. Companion of [music-graph.md](music-graph.md)
 `MusicInput` (a Bevy resource) holds a `MusicState`: an optional **pursuit** (a set, 1 to 4, and an intensity,
 0 to 1) and a **racing** flag. The code of milestone 7 calls its hooks: `start_pursuit(set, intensity)`,
 `set_pursuit_intensity`, `set_pursuit_set`, `end_pursuit`, `start_race`, `end_race`; `pursuit_set_for_heat` is
-a helper that spreads the four sets over heat levels 1 to 5 **[guess]**. Until milestone 7 nothing calls them. The
+a helper that spreads the four sets over heat levels 1 to 5 **[guess]**. The world's pursuit feed drives them. The
 `music` console command forces a state for testing (`music pursuit 3 80`, `music intensity 20`, `music clear`,
 `music` for the status).
 
 Races play the licensed songs, as free roam does; `racing` is kept for a race-specific behaviour and changes
-nothing yet. The data the hooks need (heat, cops chasing, escape progress) does not exist before milestone 7.
+nothing yet. The world's heat, contact intensity and escape progress supply the pursuit state.
 
 ## 3. The director [design, numbers are guesses]
 
