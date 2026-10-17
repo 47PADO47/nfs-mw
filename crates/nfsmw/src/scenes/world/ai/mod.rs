@@ -14,6 +14,7 @@ mod goal_aims;
 mod hitch;
 mod lamps;
 mod manager;
+mod model_loader;
 mod models;
 mod original_camera;
 mod pattern;
@@ -98,6 +99,8 @@ pub struct TrafficWorld {
     avoidance: bool,
     models: Vec<TrafficModel>,
     cop_models: Vec<CopModel>,
+    /// The worker that reads the car models the traffic asks for, made by its first request (`model_loader.rs`).
+    model_loader: Option<model_loader::ModelLoader>,
     /// The police helicopter's rig. It is not a car, so it has no `CarPhysics` (`models.rs`).
     helicopter_rig: Option<Rc<CarRig>>,
     pursuit: Option<Pursuit>,
@@ -175,6 +178,7 @@ impl TrafficWorld {
             rng: SplitMix(0x6E66_736D_7721),
             alpha: 0.0,
             target: 0,
+            model_loader: None,
             cop_share: 0,
             patterns: None,
             timers: TypeTimers::default(),
@@ -303,11 +307,6 @@ impl TrafficWorld {
     pub fn clear_cars(&mut self) {
         self.cars.clear();
         self.pursuit = None;
-    }
-
-    /// Puts requests the scene has not got to yet back.
-    pub fn requeue(&mut self, requests: Vec<ModelRequest>) {
-        self.requests.extend(requests);
     }
 
     /// Whether the manager is waiting for a model.
