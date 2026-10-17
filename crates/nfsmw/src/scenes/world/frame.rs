@@ -18,7 +18,7 @@ impl WorldScene {
         };
         let rules = &blackbox_scenery::layout::MOST_WANTED.lod;
         let original = self.original_shadows;
-        visibility::collect_with_shadows(
+        visibility::collect_unsorted_with_shadows(
             self.residency.placed().filter(|p| original || !p.original_shadow),
             &cull,
             rules,
@@ -42,6 +42,8 @@ impl WorldScene {
                 drive.marker_instances(meshes, &mut self.visible);
             }
         }
+        // Every source has appended now: one sort puts the copies of each mesh together, traffic included.
+        visibility::sort_by_mesh(&mut self.visible);
         let drive_cut = self.drive.as_mut().is_some_and(|drive| drive.take_camera_cut());
         let camera_cut = self.cut.take() | drive_cut;
         let params = FrameParams {
