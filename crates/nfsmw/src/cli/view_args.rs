@@ -110,13 +110,16 @@ pub struct ViewArgs {
     /// the preset [env NFSMW_GRAPHICS_PRESET; config `graphics_preset`].
     #[arg(long, value_name = "custom|low|medium|high|ultra")]
     pub graphics_preset: Option<crate::settings::GraphicsPreset>,
-    /// Car shading: glossy (three lights, sun highlight, reflections) or simple (one light; the cheap path)
+    /// Car shading: original, original-unshadowed, glossy (custom) or simple (the cheap path)
     /// [env NFSMW_CAR_SHADING; config `car_shading`; default glossy].
-    #[arg(long, value_name = "simple|glossy")]
+    #[arg(long, value_name = "simple|glossy|original|original-unshadowed")]
     pub car_shading: Option<crate::settings::CarShading>,
     /// Local car reflections [env NFSMW_REFLECTIONS; config `reflections`; default medium].
     #[arg(long, value_name = "off|low|medium|high")]
     pub reflections: Option<crate::settings::ReflectionQuality>,
+    /// Surface filtering: trilinear, 8x or 16x [env NFSMW_TEXTURE_FILTERING; config texture_filtering; default 8x].
+    #[arg(long)]
+    pub texture_filtering: Option<crate::settings::TextureFiltering>,
     /// Car cube face size: auto, a percentage of the quality's face (25% to 400%) or pixels [env NFSMW_REFLECTION_CUBE_SIZE;
     /// config `reflection_cube_size`; default 100%].
     #[arg(long, value_name = "auto|25%-400%|px")]
@@ -276,8 +279,8 @@ pub struct ViewArgs {
     /// [env NFSMW_POST_AA; config `post_aa`; default off].
     #[arg(long, value_name = "off|fxaa|smaa|taa")]
     pub post_aa: Option<crate::settings::PostAa>,
-    /// Experimental midday visual treatment: off, low (half strength), or high (original profile).
-    #[arg(long, value_name = "off|low|high")]
+    /// Midday visual treatment: off, low (subtle), high (stock), or reference (supplied mod override).
+    #[arg(long, value_name = "off|low|high|reference")]
     pub visual_treatment: Option<crate::settings::VisualTreatment>,
     /// Dynamic soft sun shadows (Bevy) [env NFSMW_SHADOWS; config `shadows`; default off].
     #[arg(long, value_name = "off|low|medium|high")]
@@ -339,6 +342,7 @@ impl ViewArgs {
     /// The command-line layer of the settings: the top layer, above the environment and the config file.
     pub fn settings_layer(&self) -> Partial {
         Partial {
+            appearance: None,
             backend: self.backend,
             renderer: self.renderer,
             vsync: self.no_vsync.then_some(false),
@@ -356,6 +360,7 @@ impl ViewArgs {
             graphics_preset: self.graphics_preset,
             car_shading: self.car_shading,
             reflections: self.reflections,
+            texture_filtering: self.texture_filtering,
             reflection_cube_size: self.reflection_cube_size,
             reflection_mirror_size: self.reflection_mirror_size,
             reflection_pow2: switch(self.reflection_pow2, self.no_reflection_pow2),

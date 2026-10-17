@@ -99,7 +99,11 @@ mod tests {
     #[test]
     fn the_sun_s_direction_is_in_bevy_axes() {
         // game (0, 0, 1) is straight up; Bevy's up is +y.
-        let rig = LightingRig { lights: [DirectionalLight::new(Vec3::Z, Vec3::ONE); 3], ambient: Vec3::ZERO };
+        let rig = LightingRig {
+            lights: [DirectionalLight::new(Vec3::Z, Vec3::ONE); 3],
+            ambient: Vec3::ZERO,
+            ..Default::default()
+        };
         let u = RigUniform::of(&rig);
         assert!((u.light0_dir.y - 1.0).abs() < 1e-6);
         assert!(u.light0_dir.x.abs() < 1e-6 && u.light0_dir.z.abs() < 1e-6);
@@ -114,6 +118,7 @@ mod tests {
                 DirectionalLight::new(Vec3::Z, Vec3::splat(0.1)),
             ],
             ambient: Vec3::splat(0.2),
+            ..Default::default()
         };
         let u = RigUniform::of(&rig);
         assert_eq!(u.light0_color, Vec4::new(1.0, 0.5, 0.25, 0.0));

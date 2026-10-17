@@ -21,6 +21,7 @@ use crate::settings::{
 /// A setting a row edits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Setting {
+    AdvancedGraphics,
     MasterVolume,
     SfxVolume,
     EngineVolume,
@@ -171,6 +172,7 @@ impl Setting {
     /// What the data string shows for a toggle.
     pub fn data(self, s: &Settings) -> Data {
         match self {
+            Setting::AdvancedGraphics => Data::Text("Open F8".into()),
             Setting::Input(setting) => setting.data(s),
             Setting::Alias(setting) => Data::Text(setting.data().to_owned()),
             Setting::Post(setting) => setting.data(s),
@@ -281,6 +283,9 @@ impl Setting {
     /// Returns whether the value changed (a slider at its end does not).
     #[cfg(test)]
     pub fn step(self, s: &mut Settings, changed: &mut Partial, forward: bool) -> bool {
+        if self == Setting::AdvancedGraphics {
+            return false;
+        }
         if !self.enabled(s) {
             return false;
         }
@@ -301,6 +306,7 @@ impl Setting {
         }
         let before = *s;
         match self {
+            Setting::AdvancedGraphics => return false,
             // A Mods row's value lives in its mod (`mod_options.rs`), not in the settings.
             Setting::Mod(_) => return false,
             Setting::Input(setting) => return setting.step(s, changed, forward),
@@ -439,3 +445,6 @@ impl Setting {
 #[cfg(test)]
 #[path = "options_tests.rs"]
 mod tests;
+
+#[path = "options_effective.rs"]
+mod effective;

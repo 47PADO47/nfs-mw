@@ -7,14 +7,14 @@ fn defaults() -> Settings {
 }
 
 #[test]
-fn the_video_screen_groups_spatial_upscaling_after_the_preset() {
+fn the_video_screen_groups_spatial_upscaling_after_the_profile_controls() {
     let rows = rows(Category::Video, &crate::settings::test_caps::native());
     let titles: Vec<_> = rows.iter().map(|r| r.title).collect();
     let first = titles.iter().position(|t| *t == Title::Text("Render Scale")).expect("render scale row");
     assert_eq!(
         titles[first - 1..first + 3],
         [
-            Title::Text("Graphics Preset"),
+            Title::Text("Advanced Graphics"),
             Title::Text("Render Scale"),
             Title::Text("Upscaler"),
             Title::Text("Sharpening")

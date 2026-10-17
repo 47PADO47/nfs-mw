@@ -19,6 +19,31 @@ fn stock_selection_glow_has_alpha_coverage_despite_white_rgb() {
     assert!(image.rgba.as_chunks::<4>().0.iter().any(|p| p[3] > 0));
 }
 
+#[test]
+#[ignore = "needs the installed game"]
+fn installed_minimap_roads_preserve_additive_colour_for_hdr_ui() {
+    let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+    let assets = UiAssets::load(&dir).unwrap();
+    let name = blackbox_minimap::tile_name(nfsmw_data::minimap::FULL_MAP, 0);
+    let hash = fe_hash_upper(&name);
+    assert_eq!(assets.texture(hash).expect("installed minimap tile").alpha_blend, 2);
+    let mut tile = node(0, None);
+    tile.kind = NodeKind::Image {
+        texture: hash,
+        uv: [0.0, 0.0, 1.0, 1.0],
+        mask: None,
+        mask_rotation: [0.5, 0.5, 0.0],
+        mask_uv: [0.0, 0.0, 1.0, 1.0],
+    };
+    let tree = UiTree { nodes: vec![tile], draw_order: vec![0] };
+    let screen = Screen { width: 640.0, height: 480.0, pixels_per_point: 1.0 };
+    let mut out = UiOutput::default();
+    BlackboxPresenter::default().present(&tree, &assets, screen, &mut out);
+    let patch = out.patches.first().expect("minimap texture upload");
+    assert!(patch.rgba.as_chunks::<4>().0.iter().all(|pixel| pixel[3] == 0));
+    assert!(patch.rgba.as_chunks::<4>().0.iter().any(|pixel| pixel[..3].iter().any(|v| *v > 0)));
+}
+
 fn texture(hash: u32, pixels: [[u8; 4]; 3], blend: u8) -> Texture {
     Texture {
         name: String::new(),

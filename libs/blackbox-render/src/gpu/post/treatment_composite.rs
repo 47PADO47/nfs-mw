@@ -25,7 +25,8 @@ fn parameters(settings: &PostSettings, profile: Option<&ColourTreatment>) -> Par
         black_curve: [0.0; 4],
         colour_curve: [0.0; 4],
     };
-    let Some(p) = profile else { return out };
+    let Some(p) = profile.copied() else { return out };
+    let p = settings.colour_treatment_override.map_or(p, |replacement| replacement.apply(p));
     out.tint[..3].copy_from_slice(&p.tint);
     out.luminance[..3].copy_from_slice(&p.luminance);
     out.strengths = [p.desaturation, p.black_intensity, p.colour_intensity, settings.colour_treatment];
@@ -40,6 +41,7 @@ pub(super) struct Composite {
     pipeline_layout: wgpu::PipelineLayout,
     sampler: wgpu::Sampler,
     uniform: wgpu::Buffer,
+    params: Parameters,
     pipelines: HashMap<wgpu::TextureFormat, wgpu::RenderPipeline>,
 }
 
@@ -94,9 +96,21 @@ impl Composite {
         let uniform = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("colour treatment parameters"),
             contents: bytemuck::bytes_of(&parameters(settings, profile)),
-            usage: wgpu::BufferUsages::UNIFORM,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
-        Self { shader, layout, pipeline_layout, sampler, uniform, pipelines: HashMap::new() }
+        Self {
+            shader,
+            layout,
+            pipeline_layout,
+            sampler,
+            uniform,
+            params: parameters(settings, profile),
+            pipelines: HashMap::new(),
+        }
+    }
+
+    pub(super) fn set_hdr(&mut self, hdr: bool) {
+        self.params.tint[3] = u8::from(hdr) as f32;
     }
 
     pub(super) fn draw(
@@ -106,6 +120,7 @@ impl Composite {
         images: [&wgpu::TextureView; 2],
         encoder: &mut wgpu::CommandEncoder,
     ) {
+        ctx.queue.write_buffer(&self.uniform, 0, bytemuck::bytes_of(&self.params));
         let mut entries: Vec<_> = std::iter::once(io.input)
             .chain(images)
             .enumerate()
@@ -164,5 +179,44 @@ impl Composite {
         pass.set_pipeline(pipeline);
         pass.set_bind_group(0, &group, &[]);
         pass.draw(0..3, 0..1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use blackbox_gfx::ColourTreatmentOverride;
+    #[test]
+    fn parameter_replacements_keep_authored_curves_luminance_and_strength() {
+        let profile = ColourTreatment {
+            tint: [1.0; 3],
+            luminance: [0.2, 0.3, 0.4],
+            desaturation: 0.1,
+            black_intensity: 0.2,
+            colour_intensity: 0.3,
+            black_curve: [0.1, 0.2, 0.3, 0.4],
+            colour_curve: [0.4, 0.3, 0.2, 0.1],
+        };
+        let replacement = ColourTreatmentOverride {
+            tint: [0.12, 0.34, 0.56],
+            desaturation: 0.7,
+            black_intensity: 0.8,
+            colour_intensity: 0.9,
+        };
+        let settings =
+            PostSettings { colour_treatment: 0.65, colour_treatment_override: Some(replacement), ..Default::default() };
+        let actual = parameters(&settings, Some(&profile));
+        assert_eq!(actual.tint[..3], replacement.tint);
+        assert_eq!(actual.strengths, [0.7, 0.8, 0.9, 0.65]);
+        assert_eq!(actual.luminance[..3], profile.luminance);
+        assert_eq!(actual.black_curve, profile.black_curve);
+        assert_eq!(actual.colour_curve, profile.colour_curve);
+        assert_eq!(parameters(&PostSettings::default(), Some(&profile)).tint[..3], profile.tint);
+        assert_eq!(parameters(&settings, None).strengths, [0.0; 4]);
+        let invalid = PostSettings {
+            colour_treatment_override: Some(ColourTreatmentOverride { desaturation: f32::NAN, ..replacement }),
+            ..settings
+        };
+        assert!(invalid.sanitized().colour_treatment_override.is_none());
     }
 }

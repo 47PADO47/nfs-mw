@@ -25,8 +25,12 @@ and `ColourBloomCurve`. Curves are four cubic Bezier ordinates from the y compon
 of each matrix row. Do not embed the authored curve or tint data in source.
 
 Blur scene luminance, using weights (0.6125, 0.5154, 0.0721), without normalization.
-Evaluate both curves at clamped blurred luminance. Desaturate the scene towards
-its luminance. Multiply it by a blend between one and the black curve, then add
+Evaluate both curves at clamped blurred luminance. The historically named
+`Desaturation` attribute is the source-colour coefficient: for source `c`, luminance
+`l = dot(c, weights)` and attribute `d`, the base is `d*c + (1-d)*l`. Thus zero
+is grayscale and one retains source colour. Both original shader families agree;
+do not interpret `d` as the amount of grayscale. Multiply the base by a blend
+between one and the black curve, then add
 scene colour times tint, colour curve and colour intensity. Apply the installed
 gain map's blue channel; the green channel is an optional additive vignette.
 The ordinary look has no additive effect vignette; only blue gain is applied here.
@@ -43,3 +47,36 @@ are not included. No temporal history or frame-rate-dependent state is introduce
 Missing or malformed look data disables grading with a log message. Missing gain map uses unit gain. Scene replacement clears the profile.
 Allocate reusable quarter-size targets only for active effects; recreate on resize.
 Backend capability checks hide unsupported controls and preserve user preferences.
+
+## Supplied mod reference preset
+
+A separate Reference mode applies the user's Extra Options override at full
+strength. Off, Subtle (half stock profile) and Original (full installed profile)
+retain their profile and blend choices. All modes use the verified source-colour
+coefficient above. The reference values are explicit user settings:
+RGB tint (0.68, 0.62, 0.03), colour intensity 0.75, source-colour coefficient 0.80
+and black intensity 0.40. The mod writes its "Saturation" input directly to the
+original `Desaturation` attribute. Preserve that raw value: 0.80 retains 80%
+source colour and adds 20% luminance before the bloom and gain terms.
+EnableVisualTreatmentOverride selects replacement parameters, not a new blend
+amount. Installed luminance weights, curves and gain map remain the source for
+all other parameters.
+
+The renderer accepts an optional generic parameter override independent of the
+profile blend strength. Changing the preset or strength rebuilds only the post
+prefix and preserves the current profile and adapter-selected luminance format.
+A missing/invalid installed profile still bypasses treatment. Save/restore and
+renderer capability resolution preserve the requested Reference choice; a
+backend without scene treatment reports it inactive. Reference reproduces these
+mod parameter overrides, not all modded-game lighting or final-frame effects.
+
+## Asymmetric original-program regression
+
+Original PC black-only and combined treatment programs were executed with
+synthetic source RGB8 (153,102,51), equal luminance weights and neutral bloom/gain.
+Raw coefficients 0, 0.2, 0.8 and 1 produce RGB8 (102,102,102), (112,102,92),
+(143,102,61) and (153,102,51) in both families. A second set exercises the
+supplied mod parameters with constant synthetic curve samples 0.4 and 0.2.
+Its 0.8 result is (124,87,47). These fixtures establish coefficient orientation;
+they do not establish dynamic look selection, exact blur target sizing or the
+complete modded-game frame.

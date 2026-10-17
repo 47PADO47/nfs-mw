@@ -5,6 +5,7 @@ struct ShadowData {
     camera: vec4<f32>, forward: vec4<f32>, sun: vec4<f32>,
     texels: vec4<f32>, depth_spans: vec4<f32>, softness: vec4<f32>, contact: vec4<f32>,
     ambient: vec4<f32>, environment: vec4<f32>, world: vec4<f32>, debug: vec4<f32>,
+    projected: vec4<f32>,
 };
 @group(SHADOW_GROUP) @binding(1) var<uniform> shadow_data: ShadowData;
 @group(SHADOW_GROUP) @binding(2) var shadow_map: texture_depth_2d_array;
@@ -93,6 +94,7 @@ fn cascade_visibility(world: vec3<f32>, normal: vec3<f32>, cascade: u32) -> f32 
 
 fn sun_visibility(world: vec3<f32>, normal: vec3<f32>) -> f32 {
     if shadow_data.options.x < 0.5 { return 1.0; }
+    if shadow_data.projected.x > 0.5 { return projected_visibility(world); }
     let depth = dot(world - shadow_data.camera.xyz, shadow_data.forward.xyz);
     let count = u32(shadow_data.camera.w);
     let last = shadow_data.splits[count - 1u];
@@ -109,6 +111,37 @@ fn sun_visibility(world: vec3<f32>, normal: vec3<f32>) -> f32 {
     }
     if cascade + 1u == count { visibility = mix(visibility, 1.0, transition); }
     return visibility;
+}
+
+// Single fitted perspective map. Half-texel projection follows the supplied map size.
+// Vendor classification and original filter state remain an explicit parity boundary.
+fn projected_samples(world: vec3<f32>) -> vec2<f32> {
+    let p = shadow_data.matrices[0] * vec4<f32>(world,1.0);
+    if p.w <= 0.0 { return vec2<f32>(1.0,0.0); }
+    let uv = vec2<f32>(p.x,-p.y)/p.w*0.5 + vec2<f32>(shadow_data.projected.w);
+    let depth = p.z/p.w;
+    if any(uv < vec2<f32>(0.0)) || any(uv > vec2<f32>(1.0)) || depth<0.0 || depth>1.0 { return vec2<f32>(1.0,0.0); }
+    let size = shadow_data.options.y;
+    var visibility = 0.0;
+    for (var y=0; y<2; y++) {
+        for (var x=0; x<2; x++) {
+            let offset = (vec2<f32>(f32(x),f32(y))-vec2<f32>(0.5))/size;
+            visibility += textureSampleCompareLevel(shadow_map,shadow_sampler,uv+offset,0,depth);
+        }
+    }
+    return vec2<f32>(visibility*0.25,uv.y);
+}
+
+fn projected_visibility(world: vec3<f32>) -> f32 {
+    let samples = projected_samples(world);
+    return clamp(samples.x+clamp((0.2-samples.y)*5.0,0.0,1.0)+shadow_data.projected.y,0.0,1.0);
+}
+
+fn car_direct_visibility(world: vec3<f32>, normal: vec3<f32>, pixel: vec2<f32>) -> f32 {
+    if shadow_data.options.x>0.5 && shadow_data.projected.x>0.5 {
+        return mix(0.2+shadow_data.projected.y,1.0,projected_samples(world).x);
+    }
+    return direct_visibility(world,normal,pixel);
 }
 
 fn direct_visibility(world: vec3<f32>, normal: vec3<f32>, pixel: vec2<f32>) -> f32 {

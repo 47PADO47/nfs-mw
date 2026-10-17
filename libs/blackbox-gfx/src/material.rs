@@ -3,7 +3,7 @@
 //!
 //! A glossy draw lights its texture with three directional lights, adds a sun-style highlight
 //! and mixes in a reflection of the environment cube map, with every ramp driven by how much
-//! the surface faces the viewer. See `docs/specs/car-assembly.md` §8 for the maths.
+//! the surface faces the viewer. See `docs/specs/car-assembly.md` Â§8 for the maths.
 
 use glam::Vec3;
 
@@ -30,6 +30,8 @@ pub struct LightingRig {
     pub lights: [DirectionalLight; 3],
     /// Added to the summed light colour (0 in the original shader; a way to lift shadows).
     pub ambient: Vec3,
+    /// Per-frame specular multiplier of the vertex-lit families; ignored by Custom.
+    pub material_specular_scale: f32,
 }
 
 impl Default for LightingRig {
@@ -43,14 +45,29 @@ impl Default for LightingRig {
                 DirectionalLight::new(Vec3::new(-1.0, -0.5, 0.2), Vec3::new(0.3, 0.3, 0.34)),
             ],
             ambient: Vec3::ZERO,
+            material_specular_scale: 1.0,
         }
     }
+}
+
+/// Arithmetic family of a registered glossy material.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum GlossyModel {
+    /// Existing custom lighting, atmospheric fog and optional enhancements.
+    #[default]
+    Custom,
+    /// Vertex-lit ramps, interpolated half-vector highlight and full environment gain.
+    VertexLit,
+    /// Vertex-lit ramps, reflected-light highlight and half environment gain.
+    /// The current backend's visibility approximates the source projected shadows.
+    Shadowed,
 }
 
 /// Shading constants of one material. Each ramp runs from its `min` where the surface is seen
 /// edge-on to `min + range` where it faces the viewer head-on.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GlossyMaterial {
+    pub model: GlossyModel,
     /// RGBA multiplier of the lit texture; alpha scales the highlight and the reflection, and
     /// the blended draw's opacity.
     pub diffuse_min: [f32; 4],
@@ -70,6 +87,7 @@ impl Default for GlossyMaterial {
     /// A plain, slightly shiny surface.
     fn default() -> Self {
         Self {
+            model: GlossyModel::Custom,
             diffuse_min: [1.0; 4],
             diffuse_range: [0.0; 4],
             specular_min: [0.2; 3],

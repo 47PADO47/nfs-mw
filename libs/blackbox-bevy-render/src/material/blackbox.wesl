@@ -25,6 +25,12 @@ struct Params {
     light_dir: vec4<f32>,
     // x: bridge display-authored colours into the ACES scene range.
     tone_map: vec4<f32>,
+    surface_ambient: vec4<f32>,
+    surface_diffuse: vec4<f32>,
+    scatter_rayleigh: vec4<f32>,
+    scatter_mie: vec4<f32>,
+    to_sun: vec4<f32>,
+    scenery: vec4<f32>,
 };
 
 // Glossy shading's own uniforms. Every material carries them, but only a material drawn with the GLOSSY def
@@ -76,8 +82,11 @@ struct VertexOutput {
     @location(1) normal: vec3<f32>,
     @location(2) uv: vec2<f32>,
     @location(3) color: vec4<f32>,
+    @location(4) ambient: vec3<f32>,
+    @location(5) direct: vec3<f32>,
+    @location(6) scatter: vec3<f32>,
     // 1 when the instance takes the sun's shadow (Bevy's shadow-receiver mesh flag, `NotShadowReceiver` clears it).
-    @location(4) receive: f32,
+    @location(7) @interpolate(flat) receive: f32,
 };
 
 @vertex
@@ -91,6 +100,58 @@ fn vertex(v: Vertex) -> VertexOutput {
     out.uv = v.uv;
     out.color = v.color_bgra.zyxw;
     out.receive = select(0.0, 1.0, (mesh[v.instance_index].flags & MESH_FLAGS_SHADOW_RECEIVER_BIT) != 0u);
+    out.ambient = vec3(0.0);
+    out.direct = vec3(0.0);
+    out.scatter = vec3(0.0);
+    @if(WORLD || TREE) {
+        if scene.params.scenery.x > 0.5 {
+            let atmosphere = scenery_atmosphere(world.xyz);
+            var ambient = scene.params.surface_ambient.rgb * scene.params.surface_ambient.a * out.color.rgb;
+            // Original normals are not renormalized by the vertex program.
+            let raw_normal = (model * vec4(v.normal, 0.0)).xyz;
+            var direct = scene.params.surface_diffuse.rgb * saturate(dot(raw_normal, -scene.params.light_dir.xyz));
+            @if(WORLD) {
+                ambient *= atmosphere.extinction;
+            }
+            @if(TREE) {
+                direct *= atmosphere.extinction;
+            }
+            // Original D3D9 COLOR outputs clamp before perspective interpolation.
+            out.ambient = saturate(ambient);
+            out.direct = saturate(direct);
+            out.scatter = atmosphere.scatter;
+        }
+    }
+    return out;
+}
+
+struct Atmosphere {
+    extinction: vec3<f32>,
+    scatter: vec3<f32>,
+};
+
+fn scenery_atmosphere(world: vec3<f32>) -> Atmosphere {
+    let to_eye = view.world_position - world;
+    let distance = length(to_eye);
+    var out: Atmosphere;
+    let fog = saturate((distance - scene.params.fog_range.x) / max(scene.params.fog_range.y - scene.params.fog_range.x, 0.001));
+    out.extinction = vec3(1.0 - fog);
+    out.scatter = scene.params.fog_color.rgb * fog;
+    if scene.params.scatter_rayleigh.w < 0.5 {
+        return out;
+    }
+    let br = scene.params.scatter_rayleigh.rgb;
+    let bm = scene.params.scatter_mie.rgb;
+    let sum = br + bm;
+    let c = dot(to_eye / max(distance, 1e-4), scene.params.to_sun.xyz);
+    let g = scene.params.scatter_mie.w;
+    let depth = clamp(distance * scene.params.to_sun.w, 0.0, 2500.0);
+    out.extinction = min(exp(-sum * depth), vec3(1.0));
+    let rayleigh = 3.0 / (16.0 * 3.14159265358979) * (1.0 + c * c);
+    let mie = (1.0 - g) * (1.0 - g) /
+        (4.0 * 3.14159265358979 * pow(max(1.0 + g * g - 2.0 * g * c, 1e-6), 1.5));
+    out.scatter = saturate((br * rayleigh + bm * mie) * (vec3(1.0) - out.extinction) /
+        max(sum, vec3(1e-9)) * scene.params.scenery.y);
     return out;
 }
 
@@ -215,6 +276,23 @@ fn shade_glossy(in: VertexOutput) -> Shaded {
 }
 
 fn shade(in: VertexOutput) -> vec4<f32> {
+    @if(WORLD || TREE || WORLD_NO_FOG || WORLD_PRELIT) {
+        if scene.params.scenery.x > 0.5 {
+            let tex = textureSampleBias(diffuse, diffuse_sampler, in.uv, view.mip_bias);
+            var rgb = 2.0 * tex.rgb * in.color.rgb;
+            var alpha = tex.a * in.color.a;
+            @if(WORLD || TREE) {
+                rgb = 2.0 * tex.rgb * (in.ambient + in.direct * sun_visibility(in)) + in.scatter;
+            }
+            @if(TREE) {
+                alpha = tex.a;
+            }
+            @if(WORLD_PRELIT) {
+                alpha *= 2.0;
+            }
+            return clamp(vec4(rgb, alpha), vec4(0.0), vec4(1.0));
+        }
+    }
     // The camera's mip bias carries the native renderer's texture LOD bias.
     let base = textureSampleBias(diffuse, diffuse_sampler, in.uv, view.mip_bias) * in.color;
     var lit: vec3<f32>;

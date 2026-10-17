@@ -132,6 +132,7 @@ pub fn update_scene(
     host.traffic = crate::settings::TrafficSettings::from(&*settings);
     host.scene.set_traffic(host.traffic);
     host.scene.set_camera_mode(settings.camera_mode);
+    host.scene.set_road_reflections(settings.road_reflections, settings.road_reflection_resolution);
     host.rear_view_mirror = settings.rear_view_mirror;
     host.wheel = settings.wheel_options();
     host.scene.set_wheel_options(host.wheel);
@@ -172,6 +173,8 @@ pub fn draw(
     let strength = host.scene.speed_streaks();
     host.streaks.show(renderer.as_mut(), host.mirror.base_layer(), strength, size, time.elapsed_secs());
 
+    let aspect = renderer.aspect_ratio();
+    host.scene.prepare_frame(renderer.as_mut(), aspect);
     let (params, instances) = host.scene.frame(renderer.aspect_ratio());
     let result = if let Some(plan) = host.screenshot.as_mut() {
         host.frames += 1;

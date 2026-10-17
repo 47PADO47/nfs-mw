@@ -16,6 +16,7 @@ impl Settings {
         Settings {
             post_aa: aa(run.post.antialiasing),
             visual_treatment: match run.post.colour_treatment {
+                v if v > 0.0 && run.post.colour_treatment_override.is_some() => super::VisualTreatment::Reference,
                 v if v >= 1.0 => super::VisualTreatment::High,
                 v if v > 0.0 => super::VisualTreatment::Low,
                 _ => super::VisualTreatment::Off,
@@ -25,6 +26,11 @@ impl Settings {
             post_bloom: if run.post.bloom_intensity > 0.0 { self.post_bloom } else { PostBloom::Off },
             ray_tracing: ray_tracing(run.ray_tracing),
             reflections: run.reflections,
+            texture_filtering: run.texture_filtering,
+            road_reflections: match caps.projected_reflections && self.appearance.lighting.original_world_materials {
+                true => self.road_reflections,
+                false => super::RoadReflections::Off,
+            },
             shadows: run.shadows,
             fe_shadows: self.fe_shadows.on_renderer(caps.soft_shadows),
             ao: run.ao.quality,
@@ -116,7 +122,13 @@ mod tests {
         assert_eq!((shown.upscaler, shown.ray_tracing), (UpscaleMode::Dlss, RayTracingLevel::High));
         assert_eq!(shown.post_aa, PostAa::Off, "dlss does its own anti-aliasing");
         let plain = Settings { upscaler: UpscaleMode::Fsr1, ..asked() };
-        assert_eq!(plain.effective(&test_caps::full()), plain);
+        let effective = plain.effective(&test_caps::full());
+        assert_eq!(effective, plain);
+        assert_eq!(
+            plain.road_reflections,
+            super::super::RoadReflections::Vehicles,
+            "authored receivers retain their stored reflection request"
+        );
     }
 
     #[test]

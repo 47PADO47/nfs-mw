@@ -60,7 +60,10 @@ pub const BUILT_IN: [(&str, &str); 66] = [
     ("keys", "list every key, button and stick binding"),
     ("mods", "list the mods: id, version and state, then the ones refused and why"),
     ("graphics_preset <custom|low|medium|high|ultra>", "set the graphics settings a preset stands for"),
-    ("car_shading <simple|glossy>", "car shading: glossy or the cheap single-light look"),
+    (
+        "car_shading <simple|glossy|original|original-unshadowed>",
+        "car shading: original PC families, custom glossy or simple",
+    ),
     ("smoke_quality <standard|high>", "change tire smoke presentation quality"),
     ("hud-layout <pc|classic|xbox360>", "change HUD placement and scale"),
     ("post_tonemap <off|aces>", "filmic tone mapping (darkens the image)"),

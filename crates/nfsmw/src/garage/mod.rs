@@ -7,6 +7,7 @@ mod parts;
 mod performance;
 #[cfg(test)]
 mod performance_tests;
+mod presets;
 #[cfg(test)]
 mod tests;
 mod tuning;
@@ -88,6 +89,7 @@ pub struct Model {
     pub filter: String,
     pub parts_filter: [String; 5],
     pub message: Option<Result<String, String>>,
+    pub preset_picker: crate::preset_store::Picker,
 }
 
 impl Model {

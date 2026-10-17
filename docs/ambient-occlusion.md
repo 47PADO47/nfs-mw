@@ -6,6 +6,10 @@ before colour shading, with no motion vectors or temporal history. It is off by
 default in normal settings; the Graphics Lab launcher selects Medium. Other backends
 and adapters without compute support report an unsupported-setting downgrade.
 
+Authored alpha-tested leaf cards use their camera-facing geometric plane in that
+prepass. Their bent lighting normals stay in the colour pass; treating them as
+surface planes creates false self-occlusion that changes as the camera moves.
+
 ## Try it
 
 ```sh

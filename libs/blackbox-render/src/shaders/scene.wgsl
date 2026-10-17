@@ -6,6 +6,7 @@
 override PRELIT: bool = false;
 // Off for the sky, which sits beyond the fog.
 override FOG: bool = true;
+override WORLD_KIND: u32 = 0u;
 
 struct Globals {
     view_proj: mat4x4<f32>,
@@ -65,6 +66,9 @@ struct VsOut {
     @location(1) color: vec4<f32>,
     @location(2) uv: vec2<f32>,
     @location(3) world: vec3<f32>,
+    @location(4) world_ambient: vec3<f32>,
+    @location(5) world_diffuse: vec3<f32>,
+    @location(6) world_scatter: vec3<f32>,
 };
 
 @vertex
@@ -77,11 +81,19 @@ fn vs_main(v: VsIn) -> VsOut {
     out.color = v.color_bgra.zyxw;
     out.uv = v.uv;
     out.world = world.xyz;
+    let terms = world_vertex(world.xyz, out.normal, out.color.rgb);
+    out.world_ambient = terms.ambient;
+    out.world_diffuse = terms.diffuse;
+    out.world_scatter = terms.scatter;
     return out;
 }
 
 fn shade(in: VsOut, receive_ao: bool) -> vec4<f32> {
-    let base = textureSampleBias(diffuse, diffuse_sampler, in.uv, globals.fog_range.z) * in.color;
+    let texel = textureSampleBias(diffuse, diffuse_sampler, in.uv, globals.fog_range.z);
+    if WORLD_KIND > 0u && globals.light_dir.w > 0.5 {
+        return world_pixel(in, texel, receive_ao);
+    }
+    let base = texel * in.color;
     let receiver = receiver_normal(in.world, in.normal);
     if FOG && globals.fog_range.w < 0.5 && shadow_data.debug.x > 0.5 {
         return vec4<f32>(lighting_debug_colour(in.world, receiver, in.clip.xy), base.a);

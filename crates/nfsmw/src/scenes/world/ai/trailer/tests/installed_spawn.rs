@@ -12,6 +12,7 @@ use nfsmw_data::world::{DEFAULT_TRACK, WorldIndex};
 
 mod driving;
 mod materials;
+mod road_reflection;
 mod slope;
 
 fn model(dir: &GameDir, data: &PhysicsData, name: &str, renderer: &mut NullBackend) -> TrafficModel {
@@ -301,6 +302,19 @@ fn installed_same_model_trucks_and_loads_keep_distinct_stable_render_identities(
         "the Bevy instance pool would overwrite {} truck/load parts between actors: {duplicates:?}",
         duplicates.len()
     );
+
+    let physical = [first.pose(1.0), second.pose(1.0)];
+    let velocities = [first.body().velocity, second.body().velocity];
+    let _ = model.rig.reshade(&mut renderer, CarShading::Original, sun::to_sun());
+    let _ = model.trailer.as_ref().unwrap().rig.reshade(&mut renderer, CarShading::Original, sun::to_sun());
+    assert_eq!(
+        [first.pose(1.0), second.pose(1.0)],
+        physical,
+        "reshading shared templates cannot respawn physical actors"
+    );
+    assert_eq!([first.body().velocity, second.body().velocity], velocities);
+    assert_eq!(keys(&draw(&first)), first_keys);
+    assert_eq!(keys(&draw(&second)), second_keys);
 
     let bodies = [(first.avoidable(), false), (second.avoidable(), false)];
     let mut rng = SplitMix(1);

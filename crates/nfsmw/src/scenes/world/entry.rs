@@ -198,7 +198,11 @@ impl WorldScene {
     /// The hour and whether the clock is held, as the interior sets them. The rate is kept.
     fn set_interior_clock(&mut self, time: TimeOverride) {
         let rate = self.environment().map_or(60.0, |env| env.seconds_per_hour);
-        self.set_environment(Environment { hour: time.hour, seconds_per_hour: rate });
+        self.set_environment(Environment {
+            hour: time.hour,
+            seconds_per_hour: rate,
+            ..self.environment().unwrap_or_default()
+        });
         self.set_time_held(time.freeze);
     }
 
@@ -211,7 +215,7 @@ impl WorldScene {
 
     /// The traffic settings and the clock now.
     fn clock(&self) -> Clock {
-        let env = self.environment().unwrap_or(Environment { hour: 0.0, seconds_per_hour: 60.0 });
+        let env = self.environment().unwrap_or(Environment { hour: 0.0, seconds_per_hour: 60.0, ..Default::default() });
         Clock { env, held: self.time_held() }
     }
 }

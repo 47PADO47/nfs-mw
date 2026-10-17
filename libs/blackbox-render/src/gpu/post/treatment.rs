@@ -99,6 +99,9 @@ impl TreatmentPass {
 }
 
 impl PostPass for TreatmentPass {
+    fn set_display(&mut self, mapping: Option<super::display::Mapping>) {
+        self.composite.set_hdr(mapping.is_some());
+    }
     fn name(&self) -> &'static str {
         "scene treatment"
     }

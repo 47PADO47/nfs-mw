@@ -238,7 +238,7 @@ fn syntax(key: &str) -> Option<&'static str> {
         "resolution" => "<WIDTHxHEIGHT|native>",
         "volume" | "master_volume" | "music_volume" | "sfx_volume" | "engine_volume" | "speech_volume" => "<0-100>",
         "graphics_preset" => "<custom|low|medium|high|ultra>",
-        "car_shading" => "<simple|glossy>",
+        "car_shading" => "<simple|glossy|original|original-unshadowed>",
         "smoke_quality" => "<standard|high>",
         "spark_style" => "<original-pc|restored-experimental>",
         "speed_trail_style" => "<streaks|car>",

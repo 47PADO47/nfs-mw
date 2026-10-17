@@ -36,6 +36,8 @@ mod solari;
 mod stress_tests;
 pub mod systems;
 pub mod texture;
+#[cfg(test)]
+mod world_material_tests;
 
 pub use facade::BevyBackend;
 pub use harness::HeadlessBevy;

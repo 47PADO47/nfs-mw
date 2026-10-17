@@ -36,6 +36,7 @@ fn check(backend: wgpu::Backends) {
         to_sun: [0.0; 4],
         surface_ambient: [0.0; 4],
         surface_diffuse: [0.0; 4],
+        camera_right: [0.0; 4],
     };
     queue.write_buffer(&shared.globals, 0, bytemuck::bytes_of(&globals));
     let mut soft = SoftParticles::new(&device, wgpu::TextureFormat::Rgba8Unorm, &shared);

@@ -108,7 +108,7 @@ fn apply_queue(
     // A running capture decides what the world shows until it is done.
     if let Some(mut active) = state.capture.take() {
         let data = active.data.clone();
-        draw(state, stores, commands, &mut surfaces.placed, stand_ins.as_mut(), &data, settings.post.tonemap);
+        draw(state, stores, commands, &mut surfaces.placed, stand_ins.as_mut(), &data, &settings);
         camera::follow(commands, active.camera, &data.frame, &settings);
         let size = capture_size(stores, &active);
         let done = capture::advance(commands, &mut active, &bridge.share(), size);
@@ -117,7 +117,7 @@ fn apply_queue(
     }
 
     let Some(data) = frame else { return };
-    draw(state, stores, commands, &mut surfaces.placed, stand_ins.as_mut(), &data, settings.post.tonemap);
+    draw(state, stores, commands, &mut surfaces.placed, stand_ins.as_mut(), &data, &settings);
     drive_screen(state, commands, windows, &data, &settings, surface);
 }
 
@@ -129,9 +129,11 @@ fn draw(
     placed: &mut instances::PlacedQuery,
     stand_ins: Option<&mut instances::StandIns>,
     data: &FrameData,
-    tonemap: blackbox_gfx::Tonemap,
+    settings: &crate::ops::CameraSettings,
 ) {
-    assets::sync_scene(state, stores, Params::with_tonemap(&data.frame, tonemap));
+    let params =
+        Params::with_tonemap(&data.frame, settings.post.tonemap).with_original_world(settings.original_world_materials);
+    assets::sync_scene(state, stores, params);
     instances::sync(state, stores, commands, placed, &data.instances, stand_ins);
 }
 

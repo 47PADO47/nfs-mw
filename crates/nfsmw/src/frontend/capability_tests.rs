@@ -27,8 +27,8 @@ fn text(s: &'static str) -> Title {
 fn the_native_renderer_hides_the_quality_mode_and_dims_ray_tracing() {
     let native = test_caps::native();
     let video = titles(Category::Video, &native);
-    assert_eq!(video.len(), 41);
-    for hidden in ["Upscale Quality", "Dynamic Soft Shadows"] {
+    assert_eq!(video.len(), 45);
+    for hidden in ["Upscale Quality", "Front-End Shadows"] {
         assert!(!video.contains(&text(hidden)), "{hidden} needs a renderer that offers it");
     }
     let rt = Setting::Renderer(RendererSetting::RayTracing);
@@ -44,7 +44,10 @@ fn the_native_renderer_hides_the_quality_mode_and_dims_ray_tracing() {
         [text("Renderer (After Restart)"), text("Graphics API (After Restart)")],
         "renderer choices sit with the display controls"
     );
-    assert_eq!(video[5], text("Graphics Preset"));
+    assert_eq!(video[5], text("Visual Style"));
+    assert_eq!(video[6], text("Graphics Quality"));
+    assert_eq!(video[7], text("Advanced Graphics"));
+    assert!(video.contains(&text("Enhanced Sun Shadows")));
     assert_eq!(titles(Category::Audio, &test_caps::native()).len(), 5);
     assert_eq!(titles(Category::Gameplay, &test_caps::native()).len(), 6);
     assert_eq!(titles(Category::Player, &test_caps::native()).len(), 3);
@@ -54,12 +57,12 @@ fn the_native_renderer_hides_the_quality_mode_and_dims_ray_tracing() {
 #[test]
 fn a_full_renderer_has_every_row_next_to_the_setting_it_belongs_with() {
     let video = titles(Category::Video, &test_caps::full());
-    assert_eq!(video.len(), 45);
+    assert_eq!(video.len(), 48);
     let at =
         |name: &'static str| video.iter().position(|t| *t == text(name)).unwrap_or_else(|| panic!("no {name} row"));
     assert_eq!(
         at("Front-End Shadows"),
-        at("Dynamic Soft Shadows") + 1,
+        at("Enhanced Sun Shadows") + 1,
         "the front-end row sits beside the shadows row"
     );
     assert_eq!(at("Upscale Quality"), at("Upscaler") + 1);
@@ -68,10 +71,10 @@ fn a_full_renderer_has_every_row_next_to_the_setting_it_belongs_with() {
     assert_eq!(at("Ray Tracing"), at("Motion Blur Strength") + 1, "ray tracing follows the post-processing rows");
     assert_eq!(
         at("Car Reflection Size"),
-        at("Car Reflections") + 1,
+        at("Road Reflection Detail") + 1,
         "the HD reflection rows follow the reflection row"
     );
-    assert_eq!(at("Dynamic Soft Shadows"), at("Mirror Tint") + 1);
+    assert_eq!(at("Enhanced Sun Shadows"), at("Mirror Tint") + 1);
     assert_eq!(at("Vehicle Reflection Brightness"), at("Power-of-Two Cube Size") + 1, "beside the cube rows");
     assert_eq!(
         at("Mirror Reflection Size"),
@@ -272,9 +275,11 @@ fn ao_rows_follow_support_and_keep_disabled_preferences() {
     use crate::settings::{AoQuality, Percent};
     let native = test_caps::native();
     let unsupported = blackbox_gfx::Capabilities { ambient_occlusion: false, ..native };
-    for title in ["Ambient Occlusion (Experimental)", "AO Intensity", "AO Comparison"] {
-        assert!(titles(Category::Video, &native).contains(&text(title)));
-        assert!(!titles(Category::Video, &unsupported).contains(&text(title)));
+    let title = "Ambient Occlusion (Experimental)";
+    assert!(titles(Category::Video, &native).contains(&text(title)));
+    assert!(!titles(Category::Video, &unsupported).contains(&text(title)));
+    for title in ["AO Intensity", "AO Comparison"] {
+        assert!(!titles(Category::Video, &native).contains(&text(title)), "advanced tuning belongs in F8");
     }
     let mut s = Settings { ao: AoQuality::Off, ao_intensity: Percent(65), ao_compare: true, ..defaults() };
     let before = s;
@@ -295,6 +300,55 @@ fn ao_rows_follow_support_and_keep_disabled_preferences() {
         Setting::Graphics(GraphicsSetting::AmbientOcclusion).data_in(&s, &unsupported),
         Data::Text("Off".into())
     );
+}
+
+#[test]
+fn profile_menu_reports_backend_shadow_and_treatment_results_without_erasing_requests() {
+    let mut s = defaults();
+    s.renderer = crate::settings::RendererKind::Bevy;
+    s.shadows = crate::settings::ShadowQuality::High;
+    s.appearance.treatment_strength = Some(0.73);
+    let before = s;
+    let shadows = Setting::Graphics(GraphicsSetting::Shadows);
+    assert_eq!(shadows.data_in(&s, &test_caps::full()), Data::Text("High".into()));
+    let unsupported = blackbox_gfx::Capabilities { soft_shadows: false, scene_treatment: false, ..test_caps::full() };
+    assert_eq!(shadows.data_in(&s, &unsupported), Data::Text("Off".into()));
+    let treatment = Setting::Graphics(GraphicsSetting::VisualTreatment);
+    assert_eq!(treatment.data_in(&s, &unsupported), Data::Text("Off".into()));
+    assert_eq!(s, before);
+}
+
+#[test]
+fn original_car_requests_explain_the_bevy_shader_fallback_without_changing_preferences() {
+    let mut s = defaults();
+    let row = Setting::Graphics(GraphicsSetting::CarShading);
+    for shading in [crate::settings::CarShading::Original, crate::settings::CarShading::OriginalUnshadowed] {
+        s.car_shading = shading;
+        assert_eq!(row.data_in(&s, &test_caps::native()), Data::Text(shading.label().into()));
+        assert_eq!(row.data_in(&s, &test_caps::full()), Data::Text("Custom shader fallback".into()));
+        assert_eq!(s.car_shading, shading);
+    }
+}
+
+#[test]
+fn filtering_restart_label_follows_the_running_backend_not_the_saved_renderer_request() {
+    use crate::settings::TextureFiltering;
+    let stored = Settings::from(Partial {
+        renderer: Some(RendererKind::Bevy),
+        texture_filtering: Some(TextureFiltering::Anisotropic16),
+        ..Default::default()
+    });
+    let row = Setting::Graphics(GraphicsSetting::TextureFiltering);
+    assert_eq!(row.data_in(&stored, &test_caps::native()), Data::Text("Anisotropic 16x".into()));
+    let bevy = blackbox_gfx::Capabilities {
+        renderer: "bevy",
+        restart_required: blackbox_gfx::RestartSet::of(&[blackbox_gfx::Setting::TextureFiltering]),
+        ..test_caps::native()
+    };
+    let requested_native = Settings { renderer: RendererKind::Blackbox, ..stored };
+    assert_eq!(row.data_in(&requested_native, &bevy), Data::Text("Anisotropic 16x (Restart)".into()));
+    let weak = blackbox_gfx::Capabilities { max_texture_anisotropy: 1, ..test_caps::native() };
+    assert_eq!(row.data_in(&stored, &weak), Data::Text("Trilinear".into()));
 }
 
 #[test]

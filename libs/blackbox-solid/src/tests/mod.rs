@@ -45,6 +45,38 @@ fn effect_runs_share_vertex_buffers() {
 }
 
 #[test]
+fn independent_sky_and_normal_uvs_survive_mixed_buffers() {
+    let groups = [
+        Group { effect: 0, vertices: 3, indices: vec![0, 1, 2] },
+        Group { effect: 19, vertices: 3, indices: vec![0, 1, 2] },
+        Group { effect: 3, vertices: 3, indices: vec![0, 1, 2] },
+    ];
+    let mut sky = vertex_buffer(3, 44, 0.0);
+    for (i, v) in sky.as_chunks_mut::<44>().0.iter_mut().enumerate() {
+        v[28..32].copy_from_slice(&0.25_f32.to_le_bytes());
+        v[36..40].copy_from_slice(&(i as f32 + 0.5).to_le_bytes());
+        v[40..44].copy_from_slice(&0.75_f32.to_le_bytes());
+    }
+    let mut normal = vertex_buffer(3, 60, 0.0);
+    for v in normal.as_chunks_mut::<60>().0 {
+        v[28..32].copy_from_slice(&0.125_f32.to_le_bytes());
+        v[36..40].copy_from_slice(&99.0_f32.to_le_bytes());
+        for (i, value) in [0.25_f32, -0.5, 1.0, -1.0].into_iter().enumerate() {
+            v[44 + i * 4..48 + i * 4].copy_from_slice(&value.to_le_bytes());
+        }
+    }
+    let file = solid_file("UVS", &groups, &[vertex_buffer(3, 36, 0.0), sky, normal]);
+    let solid = &read_solids(&file).unwrap()[0];
+    assert_eq!(solid.secondary_uvs.len(), solid.vertices.len());
+    assert_eq!(solid.secondary_uvs[0], solid.vertices[0].uv);
+    assert_eq!(solid.secondary_uvs[3..6], [[0.5, 0.75], [1.5, 0.75], [2.5, 0.75]]);
+    assert_eq!(solid.secondary_uvs[6], [99.0, 0.0]);
+    assert_eq!(solid.tangents.len(), solid.vertices.len());
+    assert_eq!(&solid.tangents[..6], &[[0.0; 4]; 6]);
+    assert_eq!(&solid.tangents[6..], &[[0.25, -0.5, 1.0, -1.0]; 3]);
+}
+
+#[test]
 fn buffer_count_must_match_effect_runs() {
     let groups = [
         Group { effect: 0, vertices: 3, indices: vec![0, 1, 2] },
@@ -79,4 +111,17 @@ fn position_markers() {
     assert_eq!(s.marker(brake).unwrap().translation(), [0.0, 0.046, 0.0]);
     assert_eq!(s.markers[1].translation(), [1.0, 2.0, 3.0]);
     assert!(s.marker(1).is_none());
+}
+
+#[test]
+fn unknown_wide_declarations_do_not_become_tangent_data() {
+    let mut vertices = vertex_buffer(3, 60, 0.0);
+    for v in vertices.as_chunks_mut::<60>().0 {
+        v[36..40].copy_from_slice(&99.0_f32.to_le_bytes());
+        v[44..48].copy_from_slice(&88.0_f32.to_le_bytes());
+    }
+    let file = solid_file("BONE", &[Group { effect: 2, vertices: 3, indices: vec![0, 1, 2] }], &[vertices]);
+    let solid = &read_solids(&file).unwrap()[0];
+    assert_eq!(solid.secondary_uvs, vec![[0.0; 2]; 3]);
+    assert_eq!(solid.tangents, vec![[0.0; 4]; 3]);
 }

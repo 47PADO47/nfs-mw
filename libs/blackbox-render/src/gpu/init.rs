@@ -177,7 +177,7 @@ fn assemble(output: Output, adapter: &wgpu::Adapter, device: wgpu::Device, queue
         adapter: adapter_info.name.clone(),
         driver: format!("{} {}", adapter_info.driver, adapter_info.driver_info).trim().to_owned(),
     };
-    let caps = native_capabilities(
+    let mut caps = native_capabilities(
         api,
         supports_bc,
         hdr_format == targets::HDR_FORMAT,
@@ -186,8 +186,14 @@ fn assemble(output: Output, adapter: &wgpu::Adapter, device: wgpu::Device, queue
         api != GraphicsApi::Gl && hdr_format == targets::HDR_FORMAT && supports_temporal(&device.limits()),
     );
 
+    if !adapter.get_downlevel_capabilities().flags.contains(wgpu::DownlevelFlags::ANISOTROPIC_FILTERING) {
+        caps.max_texture_anisotropy = 1;
+    }
     let timing = super::timing::Timing::new(&device, &queue);
+    let display = super::display::Display::new(&output, adapter);
     let mut renderer = Renderer {
+        adapter: adapter.clone(),
+        display,
         output,
         device,
         queue,
@@ -202,6 +208,7 @@ fn assemble(output: Output, adapter: &wgpu::Adapter, device: wgpu::Device, queue
         hdr_format,
         post,
         reflections: None,
+        projected: None,
         experiments: Default::default(),
         experiment_stats: blackbox_gfx::ExperimentStats { supported: api != GraphicsApi::Gl, ..Default::default() },
         shadows: None,
@@ -218,10 +225,14 @@ fn assemble(output: Output, adapter: &wgpu::Adapter, device: wgpu::Device, queue
         shared,
         pipelines,
         textures: Slots::new(),
+        texture_views: Default::default(),
         meshes: Slots::new(),
         instances,
         effects,
         glossy: None,
+        sky: None,
+        normal: None,
+        window: None,
         ui,
         redirects: Default::default(),
         draw_list: Default::default(),

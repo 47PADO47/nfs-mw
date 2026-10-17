@@ -1,0 +1,52 @@
+use super::*;
+use nfsmw_data::car::{customization, physics::performance::CategoryOptions};
+
+fn fixture() -> (Model, Selection) {
+    let mut car = crate::garage::Car { folder: "RACER".into(), paintable: true, ..Default::default() };
+    car.performance.categories =
+        [CategoryOptions { max_level: 4, junkman: true, stock_present: true, ..Default::default() }; 7];
+    let mut catalog = customization::Catalog::default();
+    catalog.choices[2].push(customization::Choice {
+        hash: 123,
+        label: "Hood".into(),
+        language_hash: None,
+        carbon: true,
+    });
+    car.parts = Some(catalog);
+    let mut selection = Selection {
+        car: car.folder.clone(),
+        color: Some([1, 100, 230]),
+        performance: PerformancePackage { levels: [3; 7], junkman: 127 },
+        ..Default::default()
+    };
+    selection.tuning.profiles = [[-5; 7], [0; 7], [5; 7]];
+    selection.tuning.active = 2;
+    selection.parts.parts[2] = Some(123);
+    (Model { cars: vec![car], ..Default::default() }, selection)
+}
+
+#[test]
+fn a_car_preset_round_trips_all_fields_including_stock_parts_and_paint() {
+    let (model, mut selection) = fixture();
+    assert_eq!(decode(&encode(&selection).unwrap(), &model).unwrap(), selection);
+    selection.color = None;
+    selection.parts = Default::default();
+    assert_eq!(decode(&encode(&selection).unwrap(), &model).unwrap(), selection);
+}
+
+#[test]
+fn unavailable_equipment_bad_tuning_and_future_schemas_are_rejected() {
+    let (mut model, selection) = fixture();
+    let text = encode(&selection).unwrap();
+    for bad in [
+        text.replace("version = 1", "version = 99"),
+        text.replace("active_tuning = 2", "active_tuning = 9"),
+        text.replace("hash = 123", "hash = 999"),
+        text.replace("car = \"RACER\"", "car = \"MISSING\""),
+    ] {
+        assert!(decode(&bad, &model).is_err());
+    }
+    model.cars[0].performance.categories[0].max_level = 2;
+    assert!(decode(&text, &model).is_err());
+    assert!(model.draft.car.is_empty() && model.applied.car.is_empty());
+}

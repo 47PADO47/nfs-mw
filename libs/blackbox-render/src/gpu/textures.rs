@@ -60,13 +60,16 @@ impl Renderer {
                 },
             ],
         });
-        TextureHandle::from_raw(self.textures.insert(bind_group))
+        let slot = self.textures.insert(bind_group);
+        self.texture_views.insert(slot, view);
+        TextureHandle::from_raw(slot)
     }
 
     /// Free a texture. Draws that still reference it fall back to white.
     pub fn destroy_texture(&mut self, handle: TextureHandle) {
         if handle.raw() != 0 {
             self.textures.remove(handle.raw());
+            self.texture_views.remove(&handle.raw());
             self.redirects.retain(|&from, &mut to| from != handle.raw() && to != handle.raw());
         }
     }

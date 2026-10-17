@@ -2,7 +2,10 @@
 
 The garage applies installed model parts using the existing
 [car assembly rules](car-assembly.md). This is a session-local UI and assembly
-feature, not a career inventory or a new source of performance values.
+feature, not a career inventory or a new source of performance values. Named
+user presets can retain its complete selections across sessions; see
+[garage overlay](../garage-overlay.md). Loading submits the ordinary validated
+replacement transaction and never bypasses installed equipment checks.
 
 ## Offered parts
 

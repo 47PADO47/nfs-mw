@@ -45,6 +45,21 @@ impl GlossyMaterialHandle {
     pub const ANY: Self = Self(usize::MAX);
 }
 
+raw_handle!(
+    /// An authored sky layer registered with `create_sky_material`.
+    SkyMaterialHandle(usize)
+);
+
+raw_handle!(
+    /// A tangent-space scenery material registered with `create_normal_material`.
+    NormalMaterialHandle(usize)
+);
+
+raw_handle!(
+    /// A view-dependent architectural glass material.
+    WindowMaterialHandle(usize)
+);
+
 /// Names a UI texture. Unlike the other handles the *caller* picks the number.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct UiTextureId(pub u64);

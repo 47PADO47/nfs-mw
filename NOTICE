@@ -237,3 +237,49 @@ from dbalatoni13/nfsmw used for names and interface layout only.
   https://github.com/dbalatoni13/nfsmw
   See docs/specs/camera-views.md and docs/provenance/original-camera-*.md.
   No original executable bytes, assets or decompiled code are included.
+
+Original PC world material and atmosphere behavior
+-----------------------------------------------
+The installed PC executable's effect dispatch, embedded D3D9 effects and weather
+logic were inspected as behavioral references, without copying original code,
+bytecode or assets. Independent synthetic D3D9 shader measurements support the
+world/tree/prelit/unfogged, tangent-space normal/specular, reflective scenery,
+architectural glass and sky arithmetic. Reflective road and window shaders were
+measured independently using synthetic inputs; installed material binding and
+weather input logic were inspected separately.
+Specifications and provenance:
+docs/specs/world-material-routing.md, docs/specs/world-atmosphere.md,
+docs/specs/world-sky-shading.md, docs/specs/world-normal-materials.md,
+docs/specs/world-reflect-materials.md, docs/specs/world-window-materials.md and their
+docs/provenance counterparts.
+
+Original PC car material and lighting behavior
+---------------------------------------------
+The installed PC executable's car effect selection, material setup and lighting
+rig setup were inspected as behavioral references. Synthetic D3D9 measurements
+of the original shaders support the independently implemented material equations.
+No original bytecode, decompiled code, game assets or mod assets are included.
+See docs/specs/car-material-shading.md, docs/specs/car-lighting.md and their
+provenance records. Original projected shadow generation remains incomplete.
+
+Extra Options Visual Treatment parameter reference
+--------------------------------------------------
+ExOptsTeam/NFSMWExOpts (GPL-3.0) and the installed plugin were inspected only to
+establish the meaning of user-supplied override parameters. No source was copied
+or ported. See docs/specs/visual-treatment.md and its provenance record.
+  https://github.com/ExOptsTeam/NFSMWExOpts
+
+Original PC projected shadow camera and strength
+-----------------------------------------------
+Locally inspected original routines and receiver shaders are behavioral references.
+Independent synthetic original-instruction fixtures support the camera and strength
+equations. No original code, shaders, bytecode, assets or decompilation are shipped.
+See docs/specs/original-projected-shadows.md and its provenance record.
+
+PsychoV display tone mapper
+--------------------------
+RenoDX / PsychoV by Carlos Lopez Jr. (MIT), pinned at
+83cf7aa5680c7d4ff078ae7bd845d62a2cc8bdea. The specialized test30 WGSL port retains
+the full MIT notice in libs/blackbox-render/src/shaders/psychov/.
+See docs/provenance/psychov.md for defaults, conversion and numerical fixtures.
+  https://github.com/clshortfuse/renodx

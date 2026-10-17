@@ -1,7 +1,7 @@
 //! From the game's light materials to the renderer's glossy materials
 //! (docs/specs/car-assembly.md §8).
 
-use blackbox_gfx::GlossyMaterial;
+use blackbox_gfx::{GlossyMaterial, GlossyModel};
 use nfsmw_data::car::LightMaterial;
 
 /// A material's `min` (edge-on) value and `range` up to its `max` (facing), per channel:
@@ -27,6 +27,7 @@ pub fn glossy_material(m: &LightMaterial) -> GlossyMaterial {
     // The reflection strength is one number: the first channel of the colour.
     let (env_min, env_range) = ramp(m.envmap_min_scale, [m.envmap_min[0]], m.envmap_max_scale, [m.envmap_max[0]]);
     GlossyMaterial {
+        model: GlossyModel::Custom,
         diffuse_min,
         diffuse_range,
         specular_min,
@@ -36,6 +37,14 @@ pub fn glossy_material(m: &LightMaterial) -> GlossyMaterial {
         envmap_range: env_range[0],
         envmap_power: m.envmap_power,
     }
+}
+
+/// The verified original constant setup; custom conversion above remains unchanged.
+pub fn original_material(m: &LightMaterial, model: GlossyModel) -> GlossyMaterial {
+    let mut material = glossy_material(m);
+    material.model = model;
+    material.diffuse_range[3] *= 0.25;
+    material
 }
 
 #[cfg(test)]
@@ -96,5 +105,20 @@ mod tests {
         let m = glossy_material(&light);
         assert_eq!(&m.diffuse_min[..3], &[0.5, 0.25, 0.0]);
         assert!(close(m.diffuse_min[3], 0.4) && close(m.diffuse_range[3], 0.0));
+    }
+
+    #[test]
+    fn original_alpha_range_is_quartered_without_changing_custom_constants() {
+        let mut light = silver();
+        light.diffuse_min_alpha = 0.2;
+        light.diffuse_max_alpha = 1.0;
+        let original = original_material(&light, GlossyModel::Shadowed);
+        assert_eq!(original.model, GlossyModel::Shadowed);
+        assert!(close(original.diffuse_range[3], 0.2));
+        let custom = glossy_material(&light);
+        assert!(close(custom.diffuse_range[3], 0.8));
+        assert_eq!(custom.model, GlossyModel::Custom);
+        assert_eq!(original.specular_min, custom.specular_min);
+        assert_eq!(original.envmap_min, custom.envmap_min);
     }
 }

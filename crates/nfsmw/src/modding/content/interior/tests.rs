@@ -14,7 +14,7 @@ fn traffic() -> TrafficSettings {
 }
 
 fn snapshot() -> Snapshot {
-    let clock = Clock { env: Environment { hour: 14.0, seconds_per_hour: 60.0 }, held: false };
+    let clock = Clock { env: Environment { hour: 14.0, seconds_per_hour: 60.0, ..Default::default() }, held: false };
     Snapshot { pos: [100.0, -50.0, 2.0], heading: 0.5, traffic: traffic(), clock }
 }
 

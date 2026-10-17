@@ -161,6 +161,8 @@ pub struct BuiltMesh {
 impl BuiltMesh {
     pub fn upload(&self, backend: &mut dyn RenderBackend, label: &str) -> MeshHandle {
         backend.create_mesh(&MeshDesc {
+            secondary_uvs: None,
+            tangents: None,
             label,
             vertices: &self.vertices,
             indices: &self.indices,

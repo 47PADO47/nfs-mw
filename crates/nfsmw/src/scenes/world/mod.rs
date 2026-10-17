@@ -18,6 +18,7 @@ mod entry;
 mod entry_zones;
 #[cfg(test)]
 mod entry_zones_tests;
+mod environment;
 mod events;
 mod exhaust;
 mod explosion_fx;
@@ -27,6 +28,7 @@ mod ground;
 mod hud;
 mod keys;
 mod lighting;
+mod materials;
 mod mod_hooks;
 mod tail_light_trails;
 use car_loader::load_car;
@@ -44,9 +46,11 @@ mod residency;
 mod resident;
 mod road;
 mod rotor;
+mod scene;
 mod shadow_feed;
 mod sign_lamps;
 mod simulation;
+mod sky;
 mod sound;
 mod space;
 mod speed_trails;
@@ -55,6 +59,7 @@ mod sun;
 mod update;
 mod vehicle_effects;
 mod visibility;
+mod wet_reflections;
 mod zone;
 
 use anyhow::{Context, Result};
@@ -130,8 +135,10 @@ pub struct WorldScene {
     rear_visible: Vec<Instance>,
     shadow_casters: Vec<Instance>,
     original_shadows: bool,
+    original_sky: bool,
     colour_treatment: Option<blackbox_gfx::ColourTreatment>,
     time_of_day: Option<nfsmw_data::time_of_day::Presets>,
+    atmosphere: lighting::Clouds,
     /// The seven original gameplay views, from the install's `camerainfo` data.
     camera_environment: camera_original::Environment,
     original_camera: crate::viewer::camera::original::Timeline,
@@ -141,6 +148,7 @@ pub struct WorldScene {
     breaker_visuals: breaker_visuals::Presentation,
     reflection_faces: [Vec<Instance>; 6],
     reflection_last: Option<reflections::CaptureStamp>,
+    wet_road: wet_reflections::WetRoad,
     /// Seconds since the scene started, for texture animations.
     clock: f32,
     sun: sun::Sun,
@@ -207,294 +215,3 @@ const CLEAR: [f32; 3] = [0.55, 0.63, 0.72];
 
 /// The car `drive` picks when none was named.
 pub const DEFAULT_CAR: &str = "BMWM3GTR";
-
-impl Scene for WorldScene {
-    fn garage(&mut self) -> Option<&mut crate::garage::Model> {
-        Some(&mut self.garage)
-    }
-
-    fn apply_garage(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
-        self.apply_garage_selection(renderer, selection)
-    }
-
-    fn set_garage_open(&mut self, open: bool) {
-        self.garage_open = open;
-    }
-    fn paused(&self) -> bool {
-        self.garage_open
-    }
-    fn captures_mouse(&self) -> bool {
-        // The mouse looks round the car too, on the chase camera.
-        true
-    }
-
-    fn title(&self) -> String {
-        format!("nfsmw — {}", self.track)
-    }
-
-    fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
-        renderer.set_colour_treatment(self.colour_treatment.as_ref(), self.gain_map.as_ref());
-        self.breaker_visuals.init(renderer);
-        Self::note_radial_blur_support(renderer);
-        if let Some(PendingCar { name, model, script }) = self.pending_car.take() {
-            self.start_driving(renderer, name, model, script)?;
-        }
-        Ok(())
-    }
-
-    fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
-        self.update_frame(renderer, input, dt);
-    }
-
-    fn ui(&mut self, ctx: &egui::Context) -> f32 {
-        crate::hud::show_interact_prompt(ctx, &self.entry.popup);
-        crate::hud::show_mod_message(ctx);
-        self.show_pursuit_end(ctx);
-        0.0
-    }
-
-    fn set_tire_effects(&mut self, smoke: bool, skid_marks: bool) {
-        self.tire_effects = [smoke, skid_marks];
-        if let Some(drive) = self.drive.as_mut() {
-            drive.effects.set_enabled(smoke, skid_marks);
-        }
-    }
-
-    fn refresh_effects(&mut self, renderer: &mut dyn RenderBackend) {
-        self.update_shadow_casters(renderer);
-        self.update_reflections(renderer);
-        self.upload_effects(renderer);
-    }
-
-    fn set_spark_style(&mut self, style: crate::settings::SparkStyle) {
-        self.spark_style = style;
-        if let Some(drive) = self.drive.as_mut() {
-            drive.vehicle_effects.set_style(style);
-        }
-    }
-
-    fn set_vehicle_effects(&mut self, sparks: bool, trails: bool) {
-        self.vehicle_effects = [sparks, trails];
-        self.apply_vehicle_effects();
-    }
-
-    fn set_speed_trail_style(&mut self, style: crate::settings::SpeedTrailStyle) {
-        self.speed_trail_style = style;
-        self.apply_vehicle_effects();
-    }
-
-    fn set_exhaust_flames(&mut self, on: bool) {
-        self.exhaust_flames = on;
-        if let Some(drive) = self.drive.as_mut() {
-            drive.flames.set_enabled(on);
-        }
-    }
-
-    fn note_sputters(&mut self, pops: u32) {
-        if let Some(drive) = self.drive.as_mut() {
-            drive.flames.note_pops(pops);
-        }
-    }
-
-    fn set_camera_mode(&mut self, mode: CameraMode) {
-        self.change_camera_mode(mode);
-    }
-
-    fn environment(&self) -> Option<crate::viewer::Environment> {
-        Some(self.day.environment())
-    }
-
-    fn set_environment(&mut self, value: crate::viewer::Environment) {
-        self.configure_day(value);
-    }
-
-    fn time_held(&self) -> bool {
-        self.day.held()
-    }
-
-    fn set_time_held(&mut self, held: bool) {
-        self.day.set_held(held);
-    }
-
-    fn set_mod_blips(&mut self, blips: &[crate::hud::MapBlip]) {
-        self.mod_blips.clear();
-        self.mod_blips.extend_from_slice(blips);
-    }
-
-    fn player_car(&mut self) -> Option<crate::viewer::PlayerCar> {
-        self.player_car_state()
-    }
-
-    fn camera_readout(&self) -> Option<crate::viewer::CameraReadout> {
-        Some(self.camera_now())
-    }
-
-    fn world_info(&self) -> Option<crate::viewer::WorldInfo> {
-        Some(self.world_now())
-    }
-
-    fn move_player(&mut self, at: [f32; 2], heading: f32) -> bool {
-        self.move_player_to(at, heading)
-    }
-
-    fn repair_player(&mut self) -> bool {
-        self.repair_player_car()
-    }
-
-    fn set_traffic_density(&mut self, cars: u32, cop_share: u8) {
-        self.set_traffic_density_to(cars, cop_share);
-    }
-    fn spawn_traffic_at(&mut self, at: [f32; 2], heading: f32) -> bool {
-        self.spawn_traffic_to(at, heading)
-    }
-
-    fn next_camera_mode(&self, current: CameraMode) -> CameraMode {
-        camera_cycle::next_mode(current, self.camera_environment.views.as_ref())
-    }
-
-    fn takes_camera_setting(&self) -> bool {
-        self.drive.is_some()
-    }
-
-    fn set_car_shading(&mut self, shading: crate::settings::CarShading) {
-        self.car_shading = shading;
-    }
-
-    fn set_rain(&mut self, always: bool, amount: f32) {
-        self.rain.configure(always, amount);
-    }
-
-    fn set_world_tuning(&mut self, tuning: crate::settings::WorldTuning) {
-        self.tuning = tuning;
-    }
-
-    fn set_smoke_quality(&mut self, quality: crate::settings::SmokeQuality) {
-        self.smoke_quality = quality;
-        if let Some(drive) = self.drive.as_mut() {
-            drive.effects.set_quality(quality);
-        }
-    }
-
-    fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
-        self.world_frame(aspect)
-    }
-
-    fn rear_view(&mut self, aspect: f32) -> Option<(FrameParams, &[Instance])> {
-        self.rear_frame(aspect)
-    }
-
-    fn ready(&self) -> bool {
-        self.ready_for_capture()
-    }
-    fn benchmark_ready(&self) -> bool {
-        self.ready_for_benchmark()
-    }
-
-    fn status(&self) -> Option<String> {
-        let (resident, loading, shared) = self.residency.counts();
-        let p = match (&self.drive, self.view) {
-            (Some(drive), View::Chase) => drive.position(),
-            _ => self.camera.position,
-        };
-        let zone = self.residency.zone().unwrap_or_else(|| "-".into());
-        let markers = match (&self.drive, self.markers_on) {
-            (Some(drive), true) => {
-                let (walls, tyres) = drive.marker_counts();
-                format!(", {walls} contacts, {tyres} tyre rays")
-            }
-            _ => String::new(),
-        };
-        Some(format!(
-            "{}zone {zone}, tiles {resident} (+{loading} loading), {} drawn, {} props ({} knocked over), at ({:.0}, {:.0}, {:.0}){markers}",
-            if shared { "" } else { "loading shared sets… " },
-            self.visible.len(),
-            self.residency.props().len(),
-            self.residency.props().knocked_count(),
-            p.x,
-            p.y,
-            p.z
-        ))
-    }
-
-    fn set_transmission(&mut self, transmission: crate::settings::Transmission) {
-        if let Some(drive) = self.drive.as_mut() {
-            drive.set_transmission(transmission);
-        }
-    }
-
-    fn set_wheel_options(&mut self, wheel: crate::settings::WheelOptions) {
-        self.drive.iter_mut().for_each(|drive| drive.set_wheel_options(wheel));
-    }
-
-    fn set_traffic(&mut self, traffic: crate::settings::TrafficSettings) {
-        self.apply_traffic_setting(traffic);
-    }
-
-    fn speed_streaks(&self) -> f32 {
-        self.speed_streak_strength()
-    }
-
-    fn hud_state(&self) -> Option<crate::hud::HudState> {
-        let looking_back = self.drive.as_ref().is_some_and(|d| d.camera_looking_back(self.camera_mode));
-        if looking_back && !self.tuning.show_hud_on_look_back {
-            return None;
-        }
-        self.hud_frame()
-    }
-
-    fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
-        self.audio_state()
-    }
-
-    fn take_common_sounds(&mut self) -> Vec<crate::audio::CommonEvent> {
-        std::mem::take(&mut self.common_sounds)
-    }
-
-    fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {
-        let rain = self.rain.intensity();
-        self.traffic.as_ref()?.pursuit_feed().map(|feed| crate::audio::PursuitFeed { rain_intensity: rain, ..feed })
-    }
-
-    fn take_bust_ticket(&mut self) -> Option<Vec<(blackbox_pursuit::Infraction, u32)>> {
-        self.traffic.as_mut()?.take_bust_ticket()
-    }
-
-    fn pay_bust(&mut self, marker: bool) -> bool {
-        self.traffic.as_mut().is_some_and(|traffic| traffic.pay_bust(marker))
-    }
-
-    fn take_traffic_sounds(&mut self) -> Vec<crate::audio::traffic::TrafficSound> {
-        self.traffic.as_mut().map(|t| t.take_sounds()).unwrap_or_default()
-    }
-
-    /// The helicopter's rotor for the audio this frame (see `rotor.rs`).
-    fn rotor_frame(&mut self, dt: f32) -> Option<crate::audio::HeliFrame> {
-        self.rotor_frame_now(dt)
-    }
-
-    fn take_explosions(&mut self) -> u32 {
-        self.explosions.take_started()
-    }
-
-    fn readout(&self, level: crate::devtools::ShowReadout) -> Option<String> {
-        let drive = self.drive.as_ref()?;
-        let lines = drive.readout(level);
-        Some(match self.view {
-            View::Chase => lines,
-            View::Fly => format!("free camera, the car waits (F to return)\n{lines}"),
-        })
-    }
-
-    fn commands(&self) -> &'static [(&'static str, &'static str)] {
-        commands::LIST
-    }
-
-    fn command(
-        &mut self,
-        renderer: &mut dyn RenderBackend,
-        name: &str,
-        args: &[&str],
-    ) -> Option<Result<String, String>> {
-        commands::run(self, renderer, name, args)
-    }
-}

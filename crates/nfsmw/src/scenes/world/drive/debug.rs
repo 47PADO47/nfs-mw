@@ -103,6 +103,8 @@ pub(in crate::scenes::world) fn upload_box(
         indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
     }
     renderer.create_mesh(&MeshDesc {
+        secondary_uvs: None,
+        tangents: None,
         label,
         vertices: &vertices,
         indices: &indices,

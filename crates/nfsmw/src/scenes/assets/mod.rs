@@ -147,6 +147,10 @@ fn wheel_motion(clock: f32) -> (f32, f32) {
 }
 
 impl Scene for AssetScene {
+    fn close(&mut self, renderer: &mut dyn RenderBackend) {
+        self.car.close(renderer);
+    }
+
     fn title(&self) -> String {
         self.car.title()
     }
@@ -163,15 +167,19 @@ impl Scene for AssetScene {
         if let Some(index) = self.requested.take() {
             self.show(renderer, index);
         }
-        if !self.over_panel {
-            self.car.update(renderer, input, dt);
-        }
+        // The panel suppresses camera input, but material and lighting changes still advance.
+        let idle = ActionState::default();
+        self.car.update(renderer, if self.over_panel { &idle } else { input }, dt);
         // After the car's update, which may re-upload the car with its wheels at rest. A scenery model has no
         // wheels, and the call does nothing for it.
         self.clock += dt;
         self.car.animate_textures(renderer, self.clock);
         let (spin, steer) = wheel_motion(self.clock);
         self.car.pose_wheels(spin, steer);
+    }
+
+    fn refresh_effects(&mut self, renderer: &mut dyn RenderBackend) {
+        self.car.refresh_effects(renderer);
     }
 
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
@@ -214,6 +222,37 @@ impl Scene for AssetScene {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[ignore = "needs installed cars selected by NFSMW_GAME_DIR"]
+    fn installed_asset_preview_applies_shading_over_panel_and_closes_once() {
+        use crate::app::test_backend::NullBackend;
+        use blackbox_gfx::GlossyModel;
+        let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+        let mut scene = AssetScene::open_cars(&dir, "BMWM3GTR").unwrap();
+        let mut renderer = NullBackend::new(crate::settings::test_caps::native())
+            .with_mesh_tracking()
+            .with_texture_tracking()
+            .with_glossy_tracking();
+        scene.init(&mut renderer).unwrap();
+        let before = scene.frame(1.5).0.view;
+        scene.over_panel = true;
+        scene.set_car_shading(CarShading::Original);
+        scene.update(&mut renderer, &ActionState::default(), 1.0 / 240.0);
+        assert_eq!(scene.frame(1.5).0.view, before);
+        assert!(!renderer.glossy_materials.is_empty());
+        assert!(renderer.glossy_materials.values().all(|m| m.model == GlossyModel::Shadowed));
+        assert!(renderer.lighting_updates > 0);
+        scene.close(&mut renderer);
+        assert!(renderer.mesh_labels.is_empty() && renderer.glossy_materials.is_empty());
+        let counts = renderer.resources.lock().unwrap();
+        assert_eq!(counts.textures, 0);
+        let destroyed = (counts.mesh_destructions, counts.texture_destructions, counts.glossy_destructions);
+        drop(counts);
+        scene.close(&mut renderer);
+        let counts = renderer.resources.lock().unwrap();
+        assert_eq!(destroyed, (counts.mesh_destructions, counts.texture_destructions, counts.glossy_destructions));
+    }
 
     #[test]
     fn the_wheels_start_at_rest_and_the_steer_stays_within_its_limit() {

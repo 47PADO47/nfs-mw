@@ -3,7 +3,8 @@
 //! anti-aliasing and right before the final copy.
 //!
 //! The input is expected to be anti-aliased and display-referred (gamma-like, what the final copy writes
-//! to the surface); the shader clamps it to 0..1. The shader is in `shaders/fsr1.wgsl`.
+//! to the surface); SDR clamps it to 0..1. Optional HDR preconditioning compresses positive input
+//! reversibly around each stage instead. The shader is in `shaders/fsr1.wgsl`.
 //!
 //! From any render loop: build [`fsr1_passes`] once, then per frame call [`Fsr1Pass::encode`] on EASU
 //! (render-size image in, output-size image out) and, when the sharpening pass exists, on RCAS (that
@@ -82,6 +83,7 @@ struct Params {
 
 /// One FSR 1 stage with its pipeline cache and parameter buffer.
 pub struct Fsr1Pass {
+    hdr: bool,
     stage: Fsr1Stage,
     shader: wgpu::ShaderModule,
     layout: wgpu::BindGroupLayout,
@@ -104,6 +106,11 @@ pub fn fsr1_passes(device: &wgpu::Device, rcas: &RcasScale, sharpen: bool) -> Ve
 }
 
 impl Fsr1Pass {
+    /// Reversible HDR preconditioning for extended positive scene colours.
+    /// The normal SDR algorithm and fixtures are unchanged when disabled.
+    pub fn set_hdr(&mut self, enabled: bool) {
+        self.hdr = enabled;
+    }
     fn new(device: &wgpu::Device, shader: &wgpu::ShaderModule, stage: Fsr1Stage, rcas: &RcasScale) -> Self {
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some(stage.name()),
@@ -142,6 +149,7 @@ impl Fsr1Pass {
             mapped_at_creation: false,
         });
         Self {
+            hdr: false,
             stage,
             shader: shader.clone(),
             layout,
@@ -223,7 +231,7 @@ impl Fsr1Pass {
             out_size: [io.output_size.0 as f32, io.output_size.1 as f32],
             in_size: [io.input_size.0 as f32, io.input_size.1 as f32],
             rcas: self.rcas.get(),
-            pad: 0.0,
+            pad: u8::from(self.hdr) as f32,
         };
         queue.write_buffer(&self.params, 0, bytemuck::bytes_of(&params));
         // One input: the same view is the cache key twice.

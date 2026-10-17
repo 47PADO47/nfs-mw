@@ -22,6 +22,7 @@ pub(super) struct CaptureStamp {
     origin: Vec3,
     scenery: u64,
     original_shadows: bool,
+    original_sky: bool,
     distance: ReflectionDistance,
     lod: ReflectionLod,
     content: ReflectionContent,
@@ -60,6 +61,7 @@ impl WorldScene {
                 && last.content == content
                 && last.scenery == scenery
                 && last.original_shadows == self.original_shadows
+                && last.original_sky == self.original_sky
                 && self.clock - last.seconds < interval
                 && last.origin.distance_squared(origin) < 4.0
         }) {
@@ -128,6 +130,14 @@ impl WorldScene {
                 &Frustum::from_view_proj(&camera.view_proj),
                 &mut self.reflection_faces[face],
             );
+            if self.original_sky {
+                self.residency.sky.place(
+                    &self.residency.shared,
+                    &mut self.reflection_faces[face],
+                    origin,
+                    super::sky::View::Environment,
+                );
+            }
             visibility::sort_by_mesh(&mut self.reflection_faces[face]);
         }
         renderer.set_reflection_scene(Some(ReflectionScene {
@@ -142,6 +152,7 @@ impl WorldScene {
             origin,
             scenery,
             original_shadows: self.original_shadows,
+            original_sky: self.original_sky,
             distance,
             lod,
             content,

@@ -1,5 +1,6 @@
 //! The car as drawable parts, posed from the physics state each frame.
 
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 
 use blackbox_gfx::{Instance, MeshHandle, RenderBackend, Shading};
@@ -49,16 +50,30 @@ struct Part {
     placement: usize,
 }
 
-pub struct CarRig {
-    /// Default instance identity; actors that share the uploaded rig supply their own identity.
-    car: u32,
-    model: CarModel,
-    /// Sorted by mesh, as the renderer wants instances of one mesh together.
+/// Shared actors retain identity and physics while their uploaded appearance changes.
+struct Appearance {
     parts: Vec<Part>,
     /// Every uploaded mesh, with the solid (by name hash) it draws.
     meshes: Vec<(u32, MeshHandle)>,
     materials: CarMaterials,
     shading: CarShading,
+}
+
+impl Appearance {
+    fn release(self, renderer: &mut dyn RenderBackend) {
+        for (_, mesh) in self.meshes {
+            renderer.destroy_mesh(mesh);
+        }
+        self.materials.destroy(renderer);
+    }
+}
+
+pub struct CarRig {
+    /// Default instance identity; actors that share the uploaded rig supply their own identity.
+    car: u32,
+    model: CarModel,
+    /// Sorted by mesh, as the renderer wants instances of one mesh together.
+    appearance: RefCell<Appearance>,
     lights: CarLights,
     flares: super::super::car_light_flares::CarLightFlares,
     /// The model scale (`CarScale`); 1 is the original size. Only the body parts scale, not the lights.
@@ -71,12 +86,10 @@ impl CarRig {
     /// Reuse the loaded geometry while a color picker is dragged.
     pub fn recolor(&mut self, renderer: &mut dyn RenderBackend, rgb: [u8; 3], sun: Vec3) -> anyhow::Result<()> {
         self.model.set_body_color(rgb)?;
-        let (parts, meshes, materials) = upload_parts(renderer, &self.model, &self.swaps(), self.shading, sun);
-        for (_, mesh) in self.meshes.drain(..) {
-            renderer.destroy_mesh(mesh);
-        }
-        std::mem::replace(&mut self.materials, materials).destroy(renderer);
-        (self.parts, self.meshes) = (parts, meshes);
+        let shading = self.appearance.get_mut().shading;
+        let (parts, meshes, materials) = upload_parts(renderer, &self.model, &self.swaps(), shading, sun);
+        std::mem::replace(self.appearance.get_mut(), Appearance { parts, meshes, materials, shading })
+            .release(renderer);
         Ok(())
     }
     /// Upload `model` with `shading`, lit by a sun in direction `to_sun` from the car.
@@ -91,21 +104,37 @@ impl CarRig {
         let (parts, meshes, materials) = upload_parts(renderer, &model, &swaps, shading, to_sun);
         let lights = CarLights::for_model(&model);
         let flares = super::super::car_light_flares::CarLightFlares::upload(renderer, &model);
-        Self { car, model, parts, meshes, materials, shading, lights, flares, scale: 1.0, cracked_zones: Vec::new() }
+        Self {
+            car,
+            model,
+            appearance: RefCell::new(Appearance { parts, meshes, materials, shading }),
+            lights,
+            flares,
+            scale: 1.0,
+            cracked_zones: Vec::new(),
+        }
     }
 
     /// Upload the car again with `shading` when it differs from the one it has.
-    pub fn reshade(&mut self, renderer: &mut dyn RenderBackend, shading: CarShading, to_sun: Vec3) {
-        if shading == self.shading {
-            return;
-        }
-        for (_, mesh) in self.meshes.drain(..) {
-            renderer.destroy_mesh(mesh);
+    pub fn reshade(
+        &self,
+        renderer: &mut dyn RenderBackend,
+        shading: CarShading,
+        to_sun: Vec3,
+    ) -> Vec<(MeshHandle, MeshHandle)> {
+        if shading == self.appearance.borrow().shading {
+            return Vec::new();
         }
         let swaps = self.swaps();
         let (parts, meshes, materials) = upload_parts(renderer, &self.model, &swaps, shading, to_sun);
-        std::mem::replace(&mut self.materials, materials).destroy(renderer);
-        (self.parts, self.meshes, self.shading) = (parts, meshes, shading);
+        let mut appearance = self.appearance.borrow_mut();
+        let replacements = appearance
+            .parts
+            .iter()
+            .filter_map(|old| parts.iter().find(|new| new.placement == old.placement).map(|new| (old.mesh, new.mesh)))
+            .collect();
+        std::mem::replace(&mut *appearance, Appearance { parts, meshes, materials, shading }).release(renderer);
+        replacements
     }
 
     /// Scale the model about its origin (`CarScale`).
@@ -137,7 +166,8 @@ impl CarRig {
         self.cracked_zones = zones;
         let after = self.swaps();
         let affected = affected_solids(&self.model, &changed_textures(&before, &after));
-        set_lighting(renderer, self.shading, to_sun);
+        let shading = self.appearance.get_mut().shading;
+        set_lighting(renderer, shading, to_sun);
         self.reupload_solids(renderer, &affected, &after);
     }
 
@@ -148,18 +178,19 @@ impl CarRig {
             return;
         }
         let model = &self.model;
-        self.parts.retain(|p| !affected.contains(&model.placements[p.placement].solid));
-        self.meshes.retain(|&(solid, mesh)| {
+        let appearance = self.appearance.get_mut();
+        appearance.parts.retain(|p| !affected.contains(&model.placements[p.placement].solid));
+        appearance.meshes.retain(|&(solid, mesh)| {
             if !affected.contains(&solid) {
                 return true;
             }
             renderer.destroy_mesh(mesh);
             false
         });
-        let (parts, meshes) = upload_solids(renderer, &self.model, swaps, &self.materials, Some(affected));
-        self.parts.extend(parts);
-        self.meshes.extend(meshes);
-        self.parts.sort_by_key(|p| p.mesh);
+        let (parts, meshes) = upload_solids(renderer, model, swaps, &appearance.materials, Some(affected));
+        appearance.parts.extend(parts);
+        appearance.meshes.extend(meshes);
+        appearance.parts.sort_by_key(|p| p.mesh);
     }
 
     /// The lamps of the car, as glows.
@@ -177,10 +208,7 @@ impl CarRig {
     }
 
     pub fn release(self, renderer: &mut dyn RenderBackend) {
-        for (_, mesh) in self.meshes {
-            renderer.destroy_mesh(mesh);
-        }
-        self.materials.destroy(renderer);
+        self.appearance.into_inner().release(renderer);
         self.flares.release(renderer);
     }
 
@@ -233,7 +261,7 @@ impl CarRig {
         let world = pose.transform() * Mat4::from_scale(Vec3::splat(self.scale));
         let posed: Option<[(Mat4, Mat4); 4]> =
             self.model.corners.as_ref().map(|c| std::array::from_fn(|i| c[i].posed(pose.wheels[i])));
-        for part in &self.parts {
+        for part in &self.appearance.borrow().parts {
             let placement = &self.model.placements[part.placement];
             if hidden.is_some_and(|hidden| hidden.contains(&placement.slot)) {
                 continue;
@@ -253,7 +281,9 @@ impl CarRig {
     }
 
     pub fn fragment_instances(&self, slot: usize) -> Vec<Instance> {
-        self.parts
+        self.appearance
+            .borrow()
+            .parts
             .iter()
             .filter_map(|part| {
                 let placement = &self.model.placements[part.placement];
@@ -269,8 +299,13 @@ impl CarRig {
 
 impl super::Drive {
     /// Draw the car with `shading` from now on (it is uploaded again when that changes).
-    pub fn set_car_shading(&mut self, renderer: &mut dyn RenderBackend, shading: CarShading, to_sun: Vec3) {
-        self.rig.reshade(renderer, shading, to_sun);
+    pub fn set_car_shading(
+        &mut self,
+        renderer: &mut dyn RenderBackend,
+        shading: CarShading,
+        to_sun: Vec3,
+    ) -> Vec<(MeshHandle, MeshHandle)> {
+        self.rig.reshade(renderer, shading, to_sun)
     }
 }
 

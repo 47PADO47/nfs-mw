@@ -13,6 +13,9 @@ pub(super) enum Output {
 impl Output {
     /// A texture of `size` (at least 1x1) in [`HEADLESS_FORMAT`] that frames can be drawn to and copied from.
     pub(super) fn texture(device: &wgpu::Device, size: (u32, u32)) -> Self {
+        Self::texture_format(device, size, HEADLESS_FORMAT)
+    }
+    pub(super) fn texture_format(device: &wgpu::Device, size: (u32, u32), format: wgpu::TextureFormat) -> Self {
         let size = (size.0.max(1), size.1.max(1));
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("headless output"),
@@ -20,7 +23,7 @@ impl Output {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: HEADLESS_FORMAT,
+            format,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
             view_formats: &[],
         });
@@ -37,7 +40,7 @@ impl Output {
     pub(super) fn format(&self) -> wgpu::TextureFormat {
         match self {
             Self::Window { config, .. } => config.format,
-            Self::Texture { .. } => HEADLESS_FORMAT,
+            Self::Texture { texture, .. } => texture.format(),
         }
     }
 
@@ -49,7 +52,7 @@ impl Output {
                 config.height = size.1;
                 surface.configure(device, config);
             }
-            Self::Texture { .. } => *self = Self::texture(device, size),
+            Self::Texture { texture, .. } => *self = Self::texture_format(device, size, texture.format()),
         }
     }
 

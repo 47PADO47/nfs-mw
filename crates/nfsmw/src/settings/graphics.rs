@@ -12,6 +12,13 @@ impl Settings {
     pub fn graphics(&self) -> GraphicsSettings {
         GraphicsSettings {
             reflections: self.reflections,
+            texture_filtering: self.texture_filtering,
+            shadows: match self.renderer {
+                super::RendererKind::Blackbox if self.appearance.lighting.sun_shadows => {
+                    blackbox_gfx::ShadowQuality::Off
+                }
+                _ => self.shadows,
+            },
             reflection_resolution: blackbox_gfx::reflection::ReflectionResolution {
                 cube: self.reflection_cube_size,
                 mirror: self.reflection_mirror_size,
@@ -22,7 +29,6 @@ impl Settings {
             reflection_lod: self.reflection_extra.lod,
             reflection_content: self.reflection_extra.content,
             vehicle_reflection_brightness: self.reflection_extra.brightness,
-            shadows: self.shadows,
             post: post_effects(self),
             upscaler: self.upscaler.upscaler(),
             render_scale: self.render_scale.factor(),

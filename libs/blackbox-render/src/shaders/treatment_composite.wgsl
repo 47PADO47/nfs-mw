@@ -2,7 +2,7 @@
 struct Parameters {
     tint: vec4<f32>,
     luminance: vec4<f32>,
-    strengths: vec4<f32>, // desaturation, black, colour, treatment blend
+    strengths: vec4<f32>, // source-colour coefficient, black, colour, treatment blend
     black_curve: vec4<f32>,
     colour_curve: vec4<f32>,
 }
@@ -26,15 +26,19 @@ fn curve(c: vec4<f32>, x: f32) -> f32 {
     return dot(c, vec4<f32>(u*u*u, 3.0*u*u*t, 3.0*u*t*t, t*t*t));
 }
 @fragment fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
-    let c = clamp(textureSampleLevel(scene, samp, in.uv, 0.0).rgb, vec3<f32>(0.0), vec3<f32>(1.0));
+    let raw = textureSampleLevel(scene, samp, in.uv, 0.0).rgb;
+    var c = clamp(raw, vec3<f32>(0.0), vec3<f32>(1.0));
+    if p.tint.w > 0.5 { c = max(raw,vec3(0.0)); }
     var treated = c;
     if p.strengths.w > 0.0 {
         let local_luma = textureSampleLevel(luma, samp, in.uv, 0.0).r;
-        let base = mix(c, vec3<f32>(dot(c, p.luminance.xyz)), p.strengths.x);
+        // The historical Desaturation field weights source colour, not grayscale.
+        let base = mix(vec3<f32>(dot(c, p.luminance.xyz)), c, p.strengths.x);
         let black = mix(1.0, curve(p.black_curve, local_luma), p.strengths.y);
         let colour = curve(p.colour_curve, local_luma) * p.strengths.z;
         let screen_gain = textureSampleLevel(gain, samp, vec2<f32>(in.uv.x, 1.0-in.uv.y), 0.0).b;
         treated = mix(c, (base * black + c * p.tint.xyz * colour) * screen_gain, p.strengths.w);
     }
+    if p.tint.w > 0.5 { return vec4(max(treated,vec3(0.0)),1.0); }
     return vec4<f32>(clamp(treated, vec3<f32>(0.0), vec3<f32>(1.0)), 1.0);
 }

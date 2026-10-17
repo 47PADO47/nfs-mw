@@ -64,6 +64,9 @@ impl Rain {
 
     /// Advance by `dt` seconds with the camera at `camera`.
     pub fn update(&mut self, dt: f32, camera: Vec3) {
+        if !dt.is_finite() || dt <= 0.0 {
+            return;
+        }
         self.weather.step(dt, self.target(), 0.0);
         let tuning = Tuning {
             fall_speed: FALL_SPEED,
@@ -183,5 +186,24 @@ mod tests {
         run(&mut a, 2.0);
         run(&mut b, 2.0);
         assert_eq!(a.pool.drops(), b.pool.drops());
+    }
+}
+
+#[cfg(test)]
+mod paused_tests {
+    use super::*;
+
+    #[test]
+    fn no_simulation_time_holds_rain_and_particles() {
+        let mut rain = Rain::new();
+        rain.configure(true, 1.0);
+        rain.update(0.5, Vec3::ZERO);
+        let before = rain.clone();
+        for dt in [0.0, -1.0, f32::NAN, f32::INFINITY] {
+            rain.update(dt, Vec3::ZERO);
+        }
+        assert_eq!(rain.intensity(), before.intensity());
+        assert_eq!(rain.pool.drops(), before.pool.drops());
+        assert_eq!(rain.seed, before.seed);
     }
 }

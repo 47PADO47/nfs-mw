@@ -15,6 +15,8 @@ pub fn upload(renderer: &mut dyn RenderBackend) -> MeshHandle {
     let vertices = [corner(-1.0, -1.0), corner(1.0, -1.0), corner(1.0, 1.0), corner(-1.0, 1.0)];
     let indices = [0, 1, 2, 0, 2, 3];
     renderer.create_mesh(&MeshDesc {
+        secondary_uvs: None,
+        tangents: None,
         label: "floor",
         vertices: &vertices,
         indices: &indices,

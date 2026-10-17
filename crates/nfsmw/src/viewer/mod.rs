@@ -28,12 +28,8 @@ pub struct Fullscreen {
     pub rgba: Option<Vec<u8>>,
 }
 
-/// Session-local world clock controls. The existing sky is not a full night renderer.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Environment {
-    pub hour: f32,
-    pub seconds_per_hour: f32,
-}
+mod environment;
+pub use environment::{Environment, SunMode};
 
 /// The player's car at one moment, in render space (x forward, y left, z up; metres and seconds).
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -124,10 +120,20 @@ pub trait Scene {
     fn title(&self) -> String;
     /// Upload the initial resources.
     fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()>;
+    /// Release scene-owned resources before replacement. Repeated calls must be harmless.
+    fn close(&mut self, _renderer: &mut dyn RenderBackend) {}
     /// Advance by `dt` seconds: camera, streaming, uploads.
     fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32);
     /// The frame to draw. Instances of the same mesh should be adjacent.
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]);
+    /// Refresh view-dependent offscreen captures before borrowing the main instance list.
+    fn prepare_frame(&mut self, _renderer: &mut dyn RenderBackend, _aspect: f32) {}
+    fn set_road_reflections(
+        &mut self,
+        _quality: crate::settings::RoadReflections,
+        _resolution: crate::settings::RoadReflectionResolution,
+    ) {
+    }
     /// The rear-view mirror's frame, when the scene has a car to look back from. The mirror is drawn
     /// offscreen and shown in the HUD; the car itself is left out of it.
     /// The high-speed streaks' strength, 0 to 1 (`docs/specs/speed-effects.md`).
