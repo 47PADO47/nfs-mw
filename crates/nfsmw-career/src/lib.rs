@@ -2,8 +2,8 @@
 //!
 //! The crate is pure logic: parsers take `&[u8]`, writers return `Vec<u8>`, nothing opens a file and nothing
 //! depends on Bevy. It covers the first slice of the career: the settings and car stable of the profile
-//! ([`settings`], [`stable`]), the pursuit, fine and impound rules ([`economy`]), the SMS inbox ([`phone`]) and
-//! the glue that reads and rewrites a whole profile file ([`save`]). Milestones, the Blacklist graphs, races and
+//! ([`settings`], [`stable`]), the pursuit, fine and impound rules ([`economy`]), the SMS inbox ([`phone`]), the safe
+//! house flow ([`safehouse`]) and the glue that reads and rewrites a whole profile file ([`save`]). Milestones, the Blacklist graphs, races and
 //! screens are later slices.
 //!
 //! Every rule cites its spec in the module docs. Where a spec is silent or marked unconfirmed, the code takes
