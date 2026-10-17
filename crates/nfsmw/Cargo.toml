@@ -64,7 +64,8 @@ game-install.workspace = true
 save-store.workspace = true
 glam.workspace = true
 kira.workspace = true
-log.workspace = true
+# Bevy setup guide: compile out trace/debug logs in debug and info/debug logs in release (Bevy's dependencies log heavily).
+log = { workspace = true, features = ["max_level_debug", "release_max_level_warn"] }
 mimalloc = { workspace = true, optional = true }
 nfsmw-data.workspace = true
 nfsmw-modding = { workspace = true, features = ["host"] }
