@@ -1,7 +1,7 @@
 # Main menu backdrop (the car behind the menus)
 
-Status: a stand-in is in place. `frontend/scene.rs` (`MenuScene`) shows the stock BMW M3 GTR (`BMWM3GTR`) turning
-slowly on the car viewer's floor, with the menu packages on top. The original's stage is not reproduced yet.
+Status: a stand-in is in place. `frontend/scene.rs` (`MenuScene`) shows the career-start M3 GTR (`BMWM3GTRE46`, preset `M3GTRCAREERSTART`) standing still
+on the car viewer's floor, with the menu packages on top. The original's stage is not reproduced yet.
 Tags follow [frontend-menus.md](frontend-menus.md): **[decomp]** read from decompiled code, **[verified]** checked
 against the install data, **[ours]** this rewrite's choice.
 
@@ -63,7 +63,7 @@ This corrects [formats/frontend.md](../formats/frontend.md), which lists `Platfo
 
 ## 2. The stand-in [ours]
 
-- `MenuScene::new(Some(dir))` loads `BMWM3GTR` at LOD A with `nfsmw_data::car::load` and shows it with the car
+- `MenuScene::new(Some(dir))` loads `BMWM3GTRE46` with the `M3GTRCAREERSTART` preset at LOD A with `nfsmw_data::car::load` and shows it with the car
   viewer's floor (`CarScene`). If the car cannot be loaded, the menus fall back to the flat dark backdrop.
 - The car stands still. The camera settles once, when the menus come up, from 30° round and 1.5× further out onto
   its rest pose over 0.5 s (`INTRO_SECONDS`, `INTRO_YAW_DEGREES`, `INTRO_DISTANCE_SCALE`). The 0.5 s is the original's
@@ -154,7 +154,7 @@ This corrects [formats/frontend.md](../formats/frontend.md), which lists `Platfo
   table keyed by hash `0x8D5BEB72`. So the placement is set from the car's own wheels.
 - **Platform:** `FUN_007B9EA0` ends with `FUN_007B40E0()`, which loads the stage (section 1). The car stands on the
   stage's platform.
-- **Rewrite:** `MenuScene` shows `BMWM3GTR` instead. The original shows the frontend's current car. A rewrite
+- **Rewrite:** `MenuScene` shows the career-start preset `M3GTRCAREERSTART` (car type `BMWM3GTRE46`), found in `PresetRides`; the preset must be loaded under its own car type, or its parts do not resolve. The original shows the frontend's current car. A rewrite
   equivalent needs that car selection to exist in the rewrite (none yet), and the wheel placement from the car
   model, which `nfsmw-data`'s `CarModel::corners` already provides.
 - **Not checked:** the frontend's `+0xE0` is set on career and quick-race selection (not traced here). The picture

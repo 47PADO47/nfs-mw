@@ -19,10 +19,11 @@ use crate::scenes::car::shadows::{Part, shadowed};
 use crate::settings::fe_shadows;
 use crate::viewer::{Fullscreen, Scene};
 
-/// The stock car the menus turn on their backdrop. [ours] The original shows the car on a platform stage
-/// (`FRONTEND/PLATFORMS/PLATFORMCRIB.BIN`, see docs/specs/frontend-menus.md); until that stage is read, the car
-/// stands on the car viewer's floor.
-const MENU_CAR: &str = "BMWM3GTR";
+/// The car the menus show: the career-start M3 GTR, a preset of the `BMWM3GTRE46` car type with its livery and
+/// spoiler, as the original's menu shows it. [ours] The original shows it on a platform stage
+/// (`FRONTEND/PLATFORMS/PLATFORMCRIB.BIN`, see docs/specs/frontend-menus.md); here it stands on the car viewer's floor.
+const MENU_CAR: &str = "BMWM3GTRE46";
+const MENU_PRESET: &str = "M3GTRCAREERSTART";
 /// Seconds the camera takes to settle on the menu pose after the menus come up. The original's camera mover runs
 /// its moves for 0.5 s (a constant read from the executable); its shots are not read yet, so this one shot is ours.
 const INTRO_SECONDS: f32 = 0.5;
@@ -75,7 +76,7 @@ impl Scene for MenuScene {
 
     fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
         let Some(dir) = &self.dir else { return Ok(()) };
-        let options = LoadOptions { lod: 'A', all_parts: false, preset: None };
+        let options = LoadOptions { lod: 'A', all_parts: false, preset: Some(MENU_PRESET.to_owned()) };
         let model = match nfsmw_data::car::load(dir, MENU_CAR, &options) {
             Ok(model) => model,
             Err(e) => {
