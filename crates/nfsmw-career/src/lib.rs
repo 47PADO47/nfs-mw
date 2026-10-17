@@ -13,6 +13,7 @@ mod bytes;
 pub mod economy;
 mod error;
 pub mod phone;
+pub mod safehouse;
 pub mod save;
 pub mod settings;
 pub mod stable;
