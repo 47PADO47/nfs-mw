@@ -15,10 +15,7 @@ use glam::{Mat4, Vec3, Vec4};
 
 use super::CarModel;
 use super::assemble::Placement;
-use crate::read_unwrapped;
-
-/// The pack the particle textures are in.
-const PARTICLE_PACK: &str = "GLOBAL/InGameB.bun";
+use crate::shared;
 
 /// The position markers of a tail pipe.
 const PIPE_MARKERS: [&str; 3] = ["EXHAUST", "LEFT_EXHAUST", "RIGHT_EXHAUST"];
@@ -146,8 +143,9 @@ fn emitter_spec(e: CollectionRef<'_>) -> EmitterSpec {
 /// The textures of the particle pack with these name hashes. The blend is in each texture's `alpha_blend`
 /// (2 is additive, 1 alpha blending).
 pub fn particle_textures(dir: &GameDir, hashes: &[u32]) -> Result<Vec<Texture>> {
-    let file = read_unwrapped(dir, PARTICLE_PACK)?;
-    let packs = blackbox_tpk::read_texture_packs(&file).with_context(|| format!("texture packs in {PARTICLE_PACK}"))?;
+    let file = shared::ingame_b(dir)?;
+    let packs = blackbox_tpk::read_texture_packs_filtered(&file, |hash| hashes.contains(&hash))
+        .with_context(|| format!("texture packs in {}", shared::INGAME_B_FILE))?;
     let mut found: Vec<Texture> = Vec::new();
     for texture in packs.into_iter().flat_map(|p| p.textures) {
         if hashes.contains(&texture.name_hash) && !found.iter().any(|t| t.name_hash == texture.name_hash) {

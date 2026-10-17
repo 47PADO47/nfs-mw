@@ -8,11 +8,12 @@ use game_install::GameDir;
 use std::sync::Arc;
 
 use super::{CarEventSpec, CarGeometry, CarPhysics, Fields, SurfaceTable, car_bounds, car_physics, read_car_bounds};
+use crate::shared;
 use crate::world::sequences::SequenceCatalog;
 
 pub struct PhysicsData {
-    db: Database,
-    bounds: Vec<BoundsSet>,
+    db: Arc<Database>,
+    bounds: Arc<Vec<BoundsSet>>,
     sequences: SequenceCatalog,
     /// Grip of each road surface, by name hash (collision hits carry the hash).
     pub surfaces: SurfaceTable,
@@ -20,8 +21,7 @@ pub struct PhysicsData {
 
 impl PhysicsData {
     pub fn load(dir: &GameDir) -> Result<Self> {
-        let db = Database::open(&dir.read("GLOBAL/ATTRIBUTES.BIN").context("reading attributes.bin")?)
-            .context("parsing attributes.bin")?;
+        let db = shared::attributes(dir)?;
         let bounds = read_car_bounds(dir)?;
         let surfaces = SurfaceTable::from_database(&db);
         log::info!("physics data: {} car bounds, {} road surfaces", bounds.len(), surfaces.len());
