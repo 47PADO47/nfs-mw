@@ -69,6 +69,10 @@ pub struct WorldInfo {
 }
 
 pub trait Scene {
+    /// Live population diagnostics for the graphics lab, where a world is present.
+    fn traffic_status(&self) -> Option<String> {
+        None
+    }
     fn environment(&self) -> Option<Environment> {
         None
     }

@@ -21,6 +21,7 @@ mod pattern;
 mod police;
 mod policy;
 mod population;
+mod population_stats;
 mod pursuit;
 mod release;
 mod road_reflection;
@@ -129,6 +130,7 @@ pub struct TrafficWorld {
     /// Last applied appearance mode; live actors share these uploaded rigs.
     shading: Option<crate::settings::CarShading>,
     spawn_timer: f32,
+    population_stats: population_stats::PopulationStats,
     /// Seconds of simulation a screenshot run still has to run in batches (it has no frame time).
     warmup_left: f32,
     /// Simulated seconds since the last debug status line.
@@ -202,6 +204,7 @@ impl TrafficWorld {
             known: HashSet::new(),
             shading: None,
             spawn_timer: 0.0,
+            population_stats: Default::default(),
             warmup_left: 0.0,
             log_timer: 0.0,
             breaker_areas: Vec::new(),
@@ -339,7 +342,7 @@ impl TrafficWorld {
 
     /// One line per car for the `traffic status` command.
     pub fn status(&self, focus: Focus) -> String {
-        let mut lines = vec![format!("{} of {} cars; {}", self.cars.len(), self.target, self.pursuit_status())];
+        let mut lines = vec![self.population_status(focus), self.pursuit_status()];
         lines.push(format!(
             "range {}-{} m; unseen <= {} m / {} s; density {}%; {} occupied vehicle slots",
             self.policy.spawn_min,

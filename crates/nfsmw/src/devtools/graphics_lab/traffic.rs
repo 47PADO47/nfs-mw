@@ -1,7 +1,11 @@
 //! Traffic population, independent of mesh detail and graphics quality presets.
 use crate::settings::{Settings, TrafficPreset};
 
-pub(super) fn show(ui: &mut egui::Ui, settings: &mut Settings) {
+pub(super) fn show(ui: &mut egui::Ui, settings: &mut Settings, status: Option<&str>) {
+    if let Some(status) = status {
+        ui.small(status);
+        ui.separator();
+    }
     ui.horizontal_wrapped(|ui| {
         ui.label("Traffic range preset:");
         for preset in TrafficPreset::ALL {
@@ -25,6 +29,7 @@ pub(super) fn show(ui: &mut egui::Ui, settings: &mut Settings) {
         }
     });
     ui.add(egui::Slider::new(&mut policy.density_percent, 0..=100).text("Context density %"));
+    ui.small("100% is normal free-roam density. A larger budget allows more cars; longer distances place them farther away and can reduce nearby encounters.");
     ui.add(egui::Slider::new(&mut policy.spawn_min, 150..=1200).text("Minimum spawn distance · m"));
     ui.add(egui::Slider::new(&mut policy.spawn_max, (policy.spawn_min + 50)..=1400).text("Maximum spawn probe · m"));
     ui.add(
@@ -32,6 +37,7 @@ pub(super) fn show(ui: &mut egui::Ui, settings: &mut Settings) {
             .text("Maximum unseen range · m"),
     );
     ui.add(egui::Slider::new(&mut policy.offscreen_seconds, 4..=30).text("Offscreen grace · s"));
+    ui.small("Range and grace are visibility controls, not density controls. Maxing every slider is not a maximum-traffic preset.");
     *policy = policy.sanitized();
     if before != (crate::settings::TrafficPolicy { density_percent: before.density_percent, ..settings.traffic_policy })
     {

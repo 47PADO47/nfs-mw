@@ -10,6 +10,7 @@ const MAX_PENDING: usize = 2;
 #[derive(Default)]
 pub(super) struct TrafficSupport {
     focus: Option<(Vec2, f32)>,
+    spawn: Vec2,
     actors: Vec<(Vec2, f32)>,
     pub(super) wanted: HashSet<usize>,
     pub(super) resident: HashMap<usize, Vec<u32>>,
@@ -21,11 +22,13 @@ impl Residency {
     pub(in crate::scenes::world) fn set_traffic_support(
         &mut self,
         focus: [f32; 2],
+        spawn: [f32; 2],
         range: f32,
         actors: Vec<(Vec2, f32)>,
     ) {
         self.traffic_support.focus =
             (range.is_finite() && range > 0.0).then_some((Vec2::from_array(focus), range.min(1600.0)));
+        self.traffic_support.spawn = Vec2::from_array(spawn);
         self.traffic_support.actors = actors;
     }
 
@@ -40,7 +43,13 @@ impl Residency {
             let active = support.actors.iter().any(|(p, r)| centre.distance(*p) <= r + section.radius);
             let distance = support.focus.map_or(f32::INFINITY, |(p, r)| centre.distance(p) - r - section.radius);
             if active || distance <= 0.0 {
-                candidates.push((index, !active, distance));
+                // Keep the bounded cache at the activation band, not filled with the nearest sections
+                // behind it. Live actors and their predicted paths still win over every new activation.
+                let priority = match active {
+                    true => distance,
+                    false => section.distance_to(support.spawn.x, support.spawn.y),
+                };
+                candidates.push((index, !active, priority));
             }
         }
         candidates.sort_unstable_by(|a, b| a.1.cmp(&b.1).then(a.2.total_cmp(&b.2)).then(a.0.cmp(&b.0)));
@@ -66,10 +75,11 @@ impl Residency {
                 let section = &self.sections[i];
                 let centre = Vec2::from_array(section.center);
                 let active = support.actors.iter().any(|(p, r)| centre.distance(*p) <= r + section.radius);
-                (
-                    !active,
-                    section.distance_to(support.focus.map_or(0.0, |v| v.0.x), support.focus.map_or(0.0, |v| v.0.y)),
-                )
+                let target = match active {
+                    true => support.focus.map_or(support.spawn, |v| v.0),
+                    false => support.spawn,
+                };
+                (!active, section.distance_to(target.x, target.y))
             };
             let (ka, da) = score(*a);
             let (kb, db) = score(*b);

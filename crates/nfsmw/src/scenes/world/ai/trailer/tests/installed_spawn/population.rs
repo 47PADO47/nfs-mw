@@ -5,6 +5,67 @@ use crate::settings::TrafficPolicy;
 
 #[test]
 #[ignore = "needs installed traffic and world collision selected by NFSMW_GAME_DIR"]
+fn installed_traffic_population_uses_live_manager_and_collision() {
+    let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR").expect("set NFSMW_GAME_DIR")).unwrap();
+    let index = WorldIndex::open(&dir, DEFAULT_TRACK).unwrap();
+    let data = PhysicsData::load(&dir).unwrap();
+    let mut collision = CollisionWorld::new(index.collision_grid.clone());
+    for section in &index.sections {
+        if !section.is_spatial() {
+            continue;
+        }
+        let bytes = dir.read_range(&index.stream_file, u64::from(section.file_offset), section.size as usize).unwrap();
+        for pack in blackbox_collision::read_collision_packs(&bytes).unwrap() {
+            collision.insert(pack);
+        }
+    }
+    let mut renderer = NullBackend::new(Capabilities::baseline("null", GraphicsApi::Vulkan));
+    for policy in [TrafficPolicy::default(), TrafficPolicy::extended()] {
+        let mut world = TrafficWorld::new(index.road_network.clone().unwrap());
+        world.load_data(data.database(), index.track_zones.clone());
+        let focus = Focus { position: [2395.0, 2913.0], heading: std::f32::consts::FRAC_PI_2, speed: 0.0, body: None };
+        world.configure(64, 0);
+        world.set_policy(policy);
+        world.manage(0.5, focus, &collision, &data.surfaces);
+        for request in world.take_model_requests() {
+            let crate::scenes::world::ai::ModelRequest::Traffic(name) = request else { continue };
+            let mut car = model(&dir, &data, &name, &mut renderer);
+            if let Some(name) = data.trailer_of(&name) {
+                car.trailer = Some(Box::new(model(&dir, &data, &name, &mut renderer)));
+            }
+            world.models.push(car);
+        }
+        let mut props = PropWorld::default();
+        for tick in 0..3600 {
+            // Stationary encounter probe: actual manager, vehicle physics, ground and recycling.
+            let eye = Vec3::new(focus.position[0], focus.position[1] - 8.0, 150.0);
+            let lens = crate::viewer::camera::Lens::look_at(eye, eye + Vec3::Y, 60.0, 0.1, 16.0 / 9.0);
+            world.step(focus, &collision, &mut props, &data.surfaces);
+            world.finish_step(focus, &lens, &props, &collision, &data.surfaces);
+            if tick % 600 == 599 {
+                eprintln!("population {policy:?} t={}: {}", (tick + 1) / 60, world.status(focus));
+            }
+        }
+        assert!(
+            world.population_stats.spawned >= 16,
+            "failed probes must not starve the manager: {}",
+            world.status(focus)
+        );
+        assert_eq!(world.population_stats.waiting_collision, 0, "fixture has complete road collision");
+        let activated = world.population_stats.spawned;
+        world.set_policy(TrafficPolicy { density_percent: 0, ..policy });
+        for _ in 0..600 {
+            let eye = Vec3::new(focus.position[0], focus.position[1] - 8.0, 150.0);
+            let lens = crate::viewer::camera::Lens::look_at(eye, eye + Vec3::Y, 60.0, 0.1, 16.0 / 9.0);
+            world.step(focus, &collision, &mut props, &data.surfaces);
+            world.finish_step(focus, &lens, &props, &collision, &data.surfaces);
+        }
+        assert_eq!(world.population_stats.spawned, activated, "live zero density must stop activations");
+    }
+}
+
+#[test]
+#[ignore = "needs installed traffic and world collision selected by NFSMW_GAME_DIR"]
 fn installed_reference_and_extended_traffic_spawn_within_supported_bands() {
     let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR").expect("set NFSMW_GAME_DIR")).unwrap();
     let index = WorldIndex::open(&dir, DEFAULT_TRACK).unwrap();

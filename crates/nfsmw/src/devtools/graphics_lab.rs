@@ -42,6 +42,7 @@ pub struct GraphicsLab {
     saved: Option<(RenderExperiments, Settings)>,
     environment: Option<crate::viewer::Environment>,
     environment_change: Option<crate::viewer::Environment>,
+    traffic_status: Option<String>,
 }
 
 impl Default for GraphicsLab {
@@ -90,6 +91,7 @@ impl Default for GraphicsLab {
             saved: None,
             environment: None,
             environment_change: None,
+            traffic_status: None,
         }
     }
 }
@@ -212,6 +214,7 @@ pub fn show_world(
     scene: &mut dyn crate::viewer::Scene,
 ) {
     lab.environment = scene.environment();
+    lab.traffic_status = (lab.open && lab.tab == profiles::Tab::Traffic).then(|| scene.traffic_status()).flatten();
     show(ctx, lab, settings, metrics);
     if let Some(value) = lab.environment_change.take() {
         scene.set_environment(value);

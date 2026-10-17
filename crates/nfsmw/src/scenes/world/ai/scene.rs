@@ -66,7 +66,9 @@ impl WorldScene {
             false => 0.0,
         };
         let actors = self.traffic.as_ref().map_or_else(Vec::new, |t| t.collision_anchors());
-        self.residency.set_traffic_support(focus.position, range, actors);
+        let ahead = (policy.spawn_min + policy.spawn_max) as f32 * 0.5 + focus.speed.max(0.0);
+        let spawn = [focus.position[0] + ahead * focus.heading.cos(), focus.position[1] + ahead * focus.heading.sin()];
+        self.residency.set_traffic_support(focus.position, spawn, range, actors);
     }
 
     /// Apply settings and load requested models before any physics tick.

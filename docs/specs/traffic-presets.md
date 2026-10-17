@@ -41,8 +41,11 @@ its factor. Zero density stops new spawns without deleting visible actors.
 Race-specific density/route plumbing remains incomplete in the world adapter;
 presets do not manufacture a fixed race traffic setting.
 
-Keep deterministic 0.5 simulated-second attempts and cached models for this
-milestone. Original frame-scheduled attempts, inactive actor reuse and the
+Keep deterministic 0.5 simulated-second activations and cached models. Each
+activation tries up to four random probes, stopping at the first valid car;
+failed lane/ground probes must not consume another full activation interval.
+This is a bounded remake scheduler correction, not original timing parity.
+Original frame-scheduled attempts, inactive actor reuse and the
 four-second new-instance timer remain timing-parity gaps. No startup or live
 preset change flushes existing traffic. Lower budgets drain through recycling.
 
@@ -73,7 +76,9 @@ Request collision independently of colour visibility and custom shadows.
 Reuse section workers but parse only collision for traffic requests: no texture
 decode, mesh upload or expansion of main-view scenery. Prioritize live actors
 and their short predicted paths, then a focus disk covering the spawn band and
-projected speed. Bound support to 128 extra sections and two requests in flight.
+projected speed. Prioritize sections near the centre of the forward spawn band,
+after live actors, rather than filling the cache with near-player sections
+that cannot host a new car. Bound support to 128 extra sections and two requests in flight.
 Core scenery loading/readiness remains independent of auxiliary requests.
 
 Collision ownership is shared across colour and traffic residency. Retiring
@@ -90,3 +95,7 @@ visible-car protection and collision ownership across scenery retirement.
 Installed checks must exercise real extended-distance ground and cached models
 with ordinary shadow support disabled. A stationary screenshot establishes
 startup/readiness, not absence of pop-in during a route or a performance claim.
+
+F8 reports actual actors, occupied slots, counts within 150/300/600 m, collision
+waits and cumulative activation/rejection counts. Range/grace sliders control
+visibility, not density; increasing every slider can reduce nearby encounters.

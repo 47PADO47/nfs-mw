@@ -103,6 +103,10 @@ impl Scene for WorldScene {
         Some(self.environment_state())
     }
 
+    fn traffic_status(&self) -> Option<String> {
+        self.traffic.as_ref().map(|traffic| traffic.population_status(self.traffic_focus()))
+    }
+
     fn set_environment(&mut self, value: crate::viewer::Environment) {
         self.configure_environment(value);
     }

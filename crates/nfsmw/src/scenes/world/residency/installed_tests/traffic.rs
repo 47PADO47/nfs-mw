@@ -16,7 +16,7 @@ fn installed_traffic_collision_prefetch_does_not_expand_colour_or_gpu_resources(
     }
     let meshes = renderer.mesh_labels.len();
     let drawn = scene.residency.drawn.clone();
-    scene.residency.set_traffic_support([2395.0, 2913.0], 900.0, vec![]);
+    scene.residency.set_traffic_support([2395.0, 2913.0], [2395.0, 2913.0], 900.0, vec![]);
     loop {
         scene.residency.update(&mut renderer, 333.0, 2517.0);
         assert!(scene.residency.complete(), "traffic support must not block ready scenery");

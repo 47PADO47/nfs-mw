@@ -37,6 +37,7 @@ impl TrafficWorld {
         if let Some(player) = focus.body.as_ref() {
             self.cop_aims(player, &mut aims);
         }
+        self.population_stats.waiting_collision = 0;
         for (me, car) in self.cars.iter_mut().enumerate() {
             let position = glam::Vec3::from_array(super::super::space::to_physics(car.position()));
             let point = Vec2::new(position.x, position.z);
@@ -59,7 +60,9 @@ impl TrafficWorld {
                 aims: &aims,
                 lights,
             };
-            if collision.resident_near(car.physics_position().to_array(), 30.0) != Some(false) {
+            let ready = collision.resident_near(car.physics_position().to_array(), 30.0) != Some(false);
+            self.population_stats.waiting_collision += usize::from(!ready);
+            if ready {
                 car.step(&mut ctx, collision, props, surfaces);
             }
             if car.take_wreck() {

@@ -7,6 +7,7 @@ use glam::Vec3;
 use nfsmw_data::car::physics::SurfaceTable;
 
 use super::car::{AiCar, Role, Start};
+use super::population_stats::Rejection;
 use super::traffic::Cruise;
 use super::{Focus, TrafficModel, TrafficWorld};
 use crate::scenes::world::drive::WorldGround;
@@ -25,6 +26,8 @@ const START_LOOK_AHEAD: f32 = 30.0;
 const START_SPEED_FACTOR: f32 = 0.75;
 /// A standing player always gets oncoming traffic; at this speed (m/s) half of it comes the same way.
 const SAME_WAY_SPEED: f32 = 50.0;
+/// Road projection can miss a legal lane; a failed probe must not consume the whole activation interval.
+const PROBES_PER_ACTIVATION: usize = 4;
 
 /// Which car to put on the road.
 #[derive(Debug, Clone, Copy)]
@@ -45,6 +48,32 @@ impl TrafficWorld {
         collision: &CollisionWorld,
         surfaces: &SurfaceTable,
     ) -> bool {
+        for _ in 0..PROBES_PER_ACTIVATION {
+            self.population_stats.attempts += 1;
+            match self.try_spawn_one(pick, cruise, focus, collision, surfaces) {
+                Ok(()) => {
+                    self.population_stats.spawned += 1;
+                    return true;
+                }
+                Err(reason) => {
+                    self.population_stats.rejected[reason as usize] += 1;
+                    if matches!(reason, Rejection::Budget) {
+                        return false;
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    fn try_spawn_one(
+        &mut self,
+        pick: Pick,
+        cruise: Cruise,
+        focus: Focus,
+        collision: &CollisionWorld,
+        surfaces: &SurfaceTable,
+    ) -> Result<(), Rejection> {
         let model: &TrafficModel = match pick {
             Pick::Traffic(i) => &self.models[i],
             Pick::Patrol(i) => &self.cop_models[i].model,
@@ -69,24 +98,24 @@ impl TrafficWorld {
         if !nav.init_at_point(&self.network, &self.index, physics_at, Vec3::from(heading), false)
             || !nav.can_traffic_spawn(&self.network, rng)
         {
-            return false;
+            return Err(Rejection::Lane);
         }
         let slots = 1 + usize::from(model.trailer.is_some());
         if occupied + slots > self.target {
-            return false;
+            return Err(Rejection::Budget);
         }
         if collision.resident_near(nav.position.to_array(), 40.0) == Some(false) {
-            return false;
+            return Err(Rejection::Collision);
         }
         let render_at = space::to_render(nav.position.to_array());
         if glam::Vec2::new(render_at.x - focus.position[0], render_at.y - focus.position[1]).length() > distance + 50.0
         {
-            return false;
+            return Err(Rejection::Projection);
         }
         let length = model.trailer.as_ref().map_or(0.0, |t| 2.0 * t.physics.spec.dimension.z);
         let others = self.cars.iter().map(|c| (c.physics_position(), c.trailer_length()));
         if !clear_spawn(nav.position, focus, self.policy.spawn_min as f32, length, others) {
-            return false;
+            return Err(Rejection::Spacing);
         }
         let render = space::to_render(nav.position.to_array());
         let facing = space::to_render(nav.forward.to_array());
@@ -101,12 +130,12 @@ impl TrafficWorld {
             patrol: matches!(pick, Pick::Patrol(_)),
         };
         let car = AiCar::place(model, Role::Traffic, nav, spawn, start, &WorldGround { collision, surfaces });
-        let Some(car) = car else { return false };
+        let Some(car) = car else { return Err(Rejection::Ground) };
         let towing =
             car.trailer().map_or(String::new(), |t| format!(" with a {:.1} m trailer", 2.0 * t.half_dimensions().z));
         log::info!("traffic: {}{towing} at ({:.0}, {:.0}), {} m ahead", car.name, render.x, render.y, distance as i32);
         self.cars.push(car);
-        true
+        Ok(())
     }
 }
 

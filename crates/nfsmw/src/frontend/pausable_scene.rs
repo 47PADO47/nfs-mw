@@ -93,6 +93,10 @@ impl Scene for Pausable {
         self.inner.environment()
     }
 
+    fn traffic_status(&self) -> Option<String> {
+        self.inner.traffic_status()
+    }
+
     fn set_environment(&mut self, value: crate::viewer::Environment) {
         self.inner.set_environment(value);
         self.effects_dirty = true;
