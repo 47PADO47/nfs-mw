@@ -44,6 +44,7 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | [architecture.md](architecture.md) | `libs/` (engine-generic) vs `crates/` (MW), finding the install, the streamed city, graphics backends, Windows/Linux, roadmap |
 | [world-interactions.md](world-interactions.md) | Contact, dynamic scenery and frame-rate parity work, validation and remaining gaps |
 | [traffic-interactions-audit.md](traffic-interactions-audit.md) | Traffic/cargo merge regressions, verified fixes, collision-placement findings and remaining parity work |
+| [specs/traffic-presets.md](specs/traffic-presets.md) | Reference/Extended traffic ranges, F8 density and budget controls, collision support and remaining parity gaps |
 | [world-interactions-todo.md](world-interactions-todo.md) | Deferred collision, cleanup, trailer and pursuit-breaker work with acceptance checks |
 | [testing.md](testing.md) | the kinds of tests, the real-install tests and how to run them |
 | [profiling.md](profiling.md) | Build profiles (`release`, `profiling`, `dist`) and the mimalloc allocator; the Tracy workflow is in [profiling-bevy.md](profiling-bevy.md) |
