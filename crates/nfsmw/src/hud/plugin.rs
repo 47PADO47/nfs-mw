@@ -117,6 +117,7 @@ fn present(
         trax.apply(&mut hud.runtime, song);
     }
     hud.runtime.update(time.delta_secs());
+    hud.binding.finish_frame(&mut hud.runtime, &state);
     if let Some(trax) = hud.trax.as_ref() {
         trax.keep_text(&mut hud.runtime);
     }

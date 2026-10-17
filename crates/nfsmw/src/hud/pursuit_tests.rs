@@ -1,7 +1,9 @@
 //! The pursuit board and the cool-down bar, bound to a small package with the objects of the real one (names and
 //! parents as in `HUD_SingleRace.fng`, see `docs/specs/hud-pursuit.md`).
 
-use blackbox_feng::package::{ObjectData, ObjectDef, ObjectKind, Package, StringDef};
+use blackbox_feng::package::{
+    Interp, Key, ObjectData, ObjectDef, ObjectKind, Package, ParamType, Script, StringDef, Track,
+};
 use blackbox_feng::{PackageId, Runtime, fe_hash_upper};
 use glam::Vec3;
 
@@ -42,9 +44,43 @@ fn named(kind: ObjectKind, guid: u32, name_hash: u32, parent: Option<u32>, size:
         data: ObjectData { words },
         string: (kind == ObjectKind::String).then(|| StringDef { text: "0".into(), ..Default::default() }),
         multi: None,
-        scripts: Vec::new(),
+        scripts: match name_hash {
+            0x84A2_26EC | 0x839E_7D77 => visibility_scripts(),
+            _ => Vec::new(),
+        },
         responses: Vec::new(),
     }
+}
+
+pub(super) fn visibility_scripts() -> Vec<Script> {
+    [
+        (super::radar::HIDE, 0),
+        (super::radar::APPEAR, 255),
+        (super::radar::LEAVE, 0),
+        (0x9297_5065, 0),
+        (0x13F5_1124, 255),
+    ]
+    .into_iter()
+    .map(|(id, alpha)| Script {
+        id,
+        tracks: vec![Track {
+            param: ParamType::Colour,
+            interp: Interp::Linear,
+            action: 0,
+            length: 0,
+            offset: 0,
+            base: Key { time: -1, value: [255, 255, 255, alpha] },
+            keys: Vec::new(),
+        }],
+        ..Default::default()
+    })
+    .collect()
+}
+
+fn step(rt: &mut Runtime, binding: &mut HudBinding, state: &HudState) {
+    binding.apply(rt, state);
+    rt.update(1.0);
+    binding.finish_frame(rt, state);
 }
 
 fn object(kind: ObjectKind, guid: u32, name: &str, parent: Option<u32>, size: Vec3) -> ObjectDef {
@@ -68,6 +104,11 @@ fn package() -> Package {
         named(ObjectKind::Group, HIDING, 0x60B4_5523, Some(COOLDOWN), none),
         named(ObjectKind::Image, HIDING_ICON, 0x3807_4901, Some(COOLDOWN), none),
         named(ObjectKind::Group, HEAT, 0xC46A_80A9, None, none),
+        named(ObjectKind::String, 20, 0xA81A_2028, Some(HEAT), none),
+        named(ObjectKind::String, 21, 0xA81A_2028, Some(HEAT), none),
+        named(ObjectKind::String, 22, 0x8149_18CA, Some(BOARD), none),
+        named(ObjectKind::String, 23, 0x5FA7_0D4C, Some(BOARD), none),
+        named(ObjectKind::Image, 24, 0x2419_6AD4, Some(RADAR), none),
         object(ObjectKind::Group, SPEEDOMETER, "SpeedometerGroup", None, none),
     ];
     Package {
@@ -105,17 +146,20 @@ fn width(rt: &Runtime, id: PackageId, guid: u32) -> f32 {
 }
 
 fn chase(secs: f32, evade: f32) -> HudState {
-    HudState { pursuit: Some(PursuitHud { secs, evade, cops_destroyed: 0 }), ..Default::default() }
+    HudState {
+        pursuit: Some(PursuitHud { secs, evade, cooldown: evade >= 0.05, ..Default::default() }),
+        ..Default::default()
+    }
 }
 
 #[test]
 fn the_pursuit_board_shows_only_while_pursuing() {
     let (mut rt, id, mut b) = setup();
-    b.apply(&mut rt, &HudState::default());
+    step(&mut rt, &mut b, &HudState::default());
     assert!(!visible(&rt, id, BOARD) && !visible(&rt, id, TIMER), "no chase: the board is hidden");
-    b.apply(&mut rt, &chase(3.0, 0.0));
+    step(&mut rt, &mut b, &chase(3.0, 0.0));
     assert!(visible(&rt, id, BOARD) && visible(&rt, id, TIMER), "a chase shows the board");
-    b.apply(&mut rt, &HudState::default());
+    step(&mut rt, &mut b, &HudState::default());
     assert!(!visible(&rt, id, BOARD) && !visible(&rt, id, TIMER), "the chase over: hidden again");
     assert!(visible(&rt, id, SPEEDOMETER), "the speedometer stays");
 }
@@ -123,14 +167,14 @@ fn the_pursuit_board_shows_only_while_pursuing() {
 #[test]
 fn the_timer_shows_the_chase_time() {
     let (mut rt, id, mut b) = setup();
-    b.apply(&mut rt, &chase(12.345, 0.0));
+    step(&mut rt, &mut b, &chase(12.345, 0.0));
     assert_eq!(text(&rt, id, TIMER), "00:12.34");
 }
 
 #[test]
 fn the_bounty_row_stays_held_hidden_until_the_bounty_is_fed() {
     let (mut rt, id, mut b) = setup();
-    b.apply(&mut rt, &chase(3.0, 0.0));
+    step(&mut rt, &mut b, &chase(3.0, 0.0));
     assert!(!visible(&rt, id, BOUNTY_ROW), "no bounty in the feed");
     assert!(visible(&rt, id, TIMER), "the timer still shows");
 }
@@ -138,21 +182,56 @@ fn the_bounty_row_stays_held_hidden_until_the_bounty_is_fed() {
 #[test]
 fn the_heat_meter_stays_held_hidden() {
     let (mut rt, id, mut b) = setup();
-    b.apply(&mut rt, &chase(3.0, 0.5));
+    step(&mut rt, &mut b, &chase(3.0, 0.5));
     assert!(!visible(&rt, id, HEAT), "its arcs and label are not bound yet");
 }
 
 #[test]
-fn the_cooldown_bar_shows_from_five_per_cent_evaded_and_fills_with_the_share() {
+fn session_heat_drives_both_duplicate_labels_and_counters_replace_placeholders() {
+    let (mut rt, id, mut binding) = setup();
+    let state = HudState { vehicle_heat: 3.8, cops_engaged: 4, cops_damaged: 2, ..chase(10.0, 0.0) };
+    step(&mut rt, &mut binding, &state);
+    assert!(visible(&rt, id, HEAT));
+    assert_eq!(text(&rt, id, 20), "x3");
+    assert_eq!(text(&rt, id, 21), "x3");
+    assert_eq!(text(&rt, id, 22), "4");
+    assert_eq!(text(&rt, id, 23), "2");
+    step(&mut rt, &mut binding, &HudState { vehicle_heat: 2.5, ..Default::default() });
+    assert!(visible(&rt, id, HEAT), "vehicle heat survives outside a pursuit");
+    assert_eq!(text(&rt, id, 20), "x2");
+    assert_eq!(text(&rt, id, 21), "x2");
+}
+
+#[test]
+fn radar_direction_is_hidden_without_a_target_and_shows_for_a_nearby_patrol() {
+    let (mut rt, id, mut binding) = setup();
+    step(&mut rt, &mut binding, &HudState::default());
+    assert!(!visible(&rt, id, 24));
+    step(
+        &mut rt,
+        &mut binding,
+        &HudState {
+            radar: Some(super::RadarHud { angle: 0.5, distance: 30.0 }),
+            cop_nearby: true,
+            ..Default::default()
+        },
+    );
+    assert!(visible(&rt, id, 24));
+    step(&mut rt, &mut binding, &chase(3.0, 0.0));
+    assert!(!visible(&rt, id, 24));
+}
+
+#[test]
+fn the_cooldown_phase_shows_the_bar_and_fills_with_the_supplied_share() {
     let (mut rt, id, mut b) = setup();
-    b.apply(&mut rt, &chase(3.0, 0.04));
-    assert!(!visible(&rt, id, COOLDOWN), "below 5 per cent the bar is not shown");
-    b.apply(&mut rt, &chase(3.0, 0.5));
+    step(&mut rt, &mut b, &chase(3.0, 0.04));
+    assert!(!visible(&rt, id, COOLDOWN), "before cooldown the bar is not shown");
+    step(&mut rt, &mut b, &chase(3.0, 0.5));
     assert!(visible(&rt, id, COOLDOWN) && visible(&rt, id, BAR) && visible(&rt, id, TRACK));
     assert!((width(&rt, id, BAR) - 108.0).abs() < 1e-3, "half evaded is half the 216 width");
-    b.apply(&mut rt, &chase(3.0, 1.0));
+    step(&mut rt, &mut b, &chase(3.0, 1.0));
     assert!((width(&rt, id, BAR) - 216.0).abs() < 1e-3, "all evaded is the full width");
-    b.apply(&mut rt, &HudState::default());
+    step(&mut rt, &mut b, &HudState::default());
     assert!(!visible(&rt, id, COOLDOWN), "no chase: the bar is hidden");
 }
 
@@ -164,9 +243,9 @@ fn the_cooldown_fill_grows_from_its_left_end() {
         let n = tree.nodes.iter().find(|n| n.guid == BAR).unwrap();
         n.position.x - n.size.x / 2.0
     };
-    b.apply(&mut rt, &chase(3.0, 0.25));
+    step(&mut rt, &mut b, &chase(3.0, 0.25));
     let at_quarter = left_edge(&rt);
-    b.apply(&mut rt, &chase(3.0, 1.0));
+    step(&mut rt, &mut b, &chase(3.0, 1.0));
     let full = left_edge(&rt);
     assert!((full - at_quarter).abs() < 1e-3, "the left end stays put as the fill grows: {at_quarter} vs {full}");
 }
@@ -175,8 +254,8 @@ fn the_cooldown_fill_grows_from_its_left_end() {
 fn the_cooldown_bar_shows_on_its_own_flag_without_the_mirror() {
     let (mut rt, id, mut b) = setup();
     b.set_mirror_shown(false);
-    b.apply(&mut rt, &chase(3.0, 0.5));
-    assert!(!visible(&rt, id, RADAR_BACKING), "the radar is off with the mirror");
+    step(&mut rt, &mut b, &chase(3.0, 0.5));
+    assert!(visible(&rt, id, RADAR_BACKING), "cooldown radar remains available without the mirror");
     assert!(visible(&rt, id, COOLDOWN), "the bar is its own part, not the radar's");
     assert!(!visible(&rt, id, HIDING) && !visible(&rt, id, HIDING_ICON), "the hiding part is held hidden");
 }
@@ -184,7 +263,7 @@ fn the_cooldown_bar_shows_on_its_own_flag_without_the_mirror() {
 #[test]
 fn the_cooldown_bar_is_hidden_with_the_mirror_on_before_the_evade() {
     let (mut rt, id, mut b) = setup();
-    b.apply(&mut rt, &HudState::default());
-    assert!(visible(&rt, id, RADAR_BACKING), "the radar shows with the mirror");
+    step(&mut rt, &mut b, &HudState::default());
+    assert!(!visible(&rt, id, RADAR_BACKING), "the mirror supplies its own detector backing");
     assert!(!visible(&rt, id, COOLDOWN), "the radar's group does not bring the bar with it");
 }

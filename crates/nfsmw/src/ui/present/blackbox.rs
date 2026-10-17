@@ -25,8 +25,6 @@ const MASK_STEPS_PER_DEGREE: f32 = 4.0;
 pub const MIRROR_TEXTURE: UiTextureId = UiTextureId(0x4D49_5252_4F52);
 /// Name of the two bezel images of the mirror (`Mirror_Backing_Radar.tga`), in `HUD_SingleRace.fng`.
 const MIRROR_BEZEL: u32 = 0x5630_E0B9;
-/// The radar backing (`0x839e7d77`) and the bezel: the images that fade in with the mirror.
-const FADED_IN: [u32; 2] = [MIRROR_BEZEL, 0x839E_7D77];
 /// The alpha the package gives those two images on their own.
 const MIRROR_OWN_ALPHA: u32 = 200;
 /// The glass inside the bezel, as fractions of the bezel's width and height that are left out on each side.
@@ -120,7 +118,7 @@ impl MeshBuilder {
     }
 }
 
-/// The alpha of a faded-in image: the package's alpha (200 for the bezel and the radar backing) scaled to the full
+/// The alpha of the mirror bezel: the package's alpha (200) scaled to the full
 /// range, so the fade of the group reaches 255 at the end.
 fn faded_alpha(alpha: u8) -> u8 {
     (u32::from(alpha) * 255 / MIRROR_OWN_ALPHA).min(255) as u8
@@ -327,10 +325,10 @@ impl BlackboxPresenter {
         let corner = |x: f32, y: f32| (node.world * Vec4::new(x, y, 0.0, 1.0)).truncate();
         let corners = [corner(-0.5, -0.5), corner(0.5, -0.5), corner(0.5, 0.5), corner(-0.5, 0.5)];
         let uvs = [[uv[0], uv[1]], [uv[2], uv[1]], [uv[2], uv[3]], [uv[0], uv[3]]];
-        // The bezel and the radar backing are drawn at 200 in the package. They fade with the mirror, so their
-        // alpha is scaled up to the full range: a fade to 255 on the group gives full alpha here.
+        // The existing mirror capture compensation applies only to its bezel. Other images,
+        // including the standalone detector backing, keep their authored opacity.
         let mut colour = node.world_colour;
-        if FADED_IN.contains(&node.name_hash) {
+        if node.name_hash == MIRROR_BEZEL {
             colour[3] = faded_alpha(colour[3]);
         }
         builder.quad(id, corners, uvs, vertex_colour(colour, additive), scale, origin);
