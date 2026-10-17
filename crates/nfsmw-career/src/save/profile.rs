@@ -127,6 +127,12 @@ impl ProfileSave {
         Ok(save)
     }
 
+    /// Wraps file bytes whose length is already known to be right, without any other check. The caller (the load
+    /// path) does its own checks in the order of the original.
+    pub(crate) fn from_unchecked(bytes: Vec<u8>) -> ProfileSave {
+        ProfileSave { bytes }
+    }
+
     /// The file bytes as they are now (checksums as loaded, not recomputed).
     pub fn raw(&self) -> &[u8] {
         &self.bytes

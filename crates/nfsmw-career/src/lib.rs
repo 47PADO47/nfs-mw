@@ -16,6 +16,7 @@ pub mod phone;
 pub mod rapsheet;
 pub mod safehouse;
 pub mod save;
+pub mod savefile;
 pub mod settings;
 pub mod stable;
 

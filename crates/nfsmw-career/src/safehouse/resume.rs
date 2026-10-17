@@ -36,7 +36,7 @@ pub struct PendingEvent {
 pub struct RoamingRestart {
     /// Post `EReloadHud`: not when the previous node was `16.2.1`, and not when the manager byte `+0x2D4` is set.
     pub reload_hud: bool,
-    /// Post `EAutoSave` (always; the autosave gate still decides, see [`super::autosave`]).
+    /// Post `EAutoSave` (always; the autosave gate still decides, see [`crate::savefile::autosave`]).
     pub request_autosave: bool,
     /// The rain override is cleared.
     pub clear_rain: bool,

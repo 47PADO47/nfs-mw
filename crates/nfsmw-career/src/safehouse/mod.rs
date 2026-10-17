@@ -13,10 +13,11 @@
 //! - [`resume`]: Resume Free Roam, the pending prologue event and the roaming restart effects.
 //! - [`heat`]: heat written at the world unload and read at the car spawn, and the evade, win and milestone
 //!   factors, with the overwrite quirk made explicit.
-//! - [`autosave`]: the trigger and the gate.
+//! - [`autosave`]: the trigger and the gate (now in [`crate::savefile`]).
 //! - [`phone`]: the phone flush conditions in the safe house and in free roam.
 
-pub mod autosave;
+/// The autosave model moved to [`crate::savefile::autosave`]; this path keeps the old name.
+pub use crate::savefile::autosave;
 pub mod context;
 pub mod engage;
 pub mod first_visit;
@@ -28,7 +29,6 @@ pub mod resume;
 pub mod stepper;
 pub mod zone;
 
-pub use autosave::{AutosaveInputs, AutosaveState, AutosaveTrigger, autosave_possible, trigger_posts_event};
 pub use context::FrontEndContext;
 pub use engage::{
     CoolDownEnd, EngageDecision, EngageInput, cooldown_end, engage, finish_cooldown_pursuit,

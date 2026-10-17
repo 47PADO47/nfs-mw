@@ -56,7 +56,7 @@ impl BlacklistStepper {
         BlacklistStepper { counter: -1 }
     }
 
-    /// The next action. `autosave_possible` is the result of [`super::autosave::autosave_possible`]. The two
+    /// The next action. `autosave_possible` is the result of the gate with `force = false` ([`crate::savefile::AutosaveManager::can_autosave`]; it consumes the skip-once byte, so evaluate it once). The two
     /// effects of step 6 are applied to `settings` and `context` here.
     ///
     /// Where the stepper resumes after the first-visit bio is **unconfirmed** in the spec (the navigation code that
