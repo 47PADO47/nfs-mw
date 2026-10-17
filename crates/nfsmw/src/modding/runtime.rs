@@ -10,8 +10,10 @@ use bevy_input::keyboard::KeyCode;
 use blackbox_modding::abi::{BB_EVENT_FRAME_START, BB_EVENT_MOD_UNLOADING, BB_EVENT_SCENE_TICK, BbEvent};
 use blackbox_modding::host::{DispatchReport, HostOffer, ModRuntime, ModSummary, Policy, Rejected, RunMode};
 
+use super::backends::menus::any_row as has_menu_rows;
 use super::backends::{Bridge, Interfaces, commands};
 use super::events::{frame_start_payload, interior_payload, scene_tick_payload, unloading_payload};
+use super::manager::ModManager;
 use super::mw_events;
 use super::outbox::InteriorNotice;
 use super::pursuit_feed::Notice;
@@ -24,6 +26,8 @@ pub struct Mods {
     runtime: ModRuntime,
     frame: u64,
     bridge: Rc<Bridge>,
+    /// The mods the Mods page lists with their switches. Empty until [`Mods::set_manager`] gives it the settings.
+    manager: ModManager,
 }
 
 impl Mods {
@@ -31,7 +35,23 @@ impl Mods {
     /// A mod that fails is recorded, and the game starts without it.
     pub fn start(offer: HostOffer, interfaces: Interfaces, policy: &Policy, roots: &[PathBuf], mode: RunMode) -> Self {
         let Interfaces { registry, bridge } = interfaces;
-        Self { runtime: ModRuntime::start_with(offer, registry, policy, roots, mode), frame: 0, bridge }
+        let runtime = ModRuntime::start_with(offer, registry, policy, roots, mode);
+        Self { runtime, frame: 0, bridge, manager: ModManager::default() }
+    }
+
+    /// Give the mod manager the mods of this run and the settings its switches edit (see [`ModManager`]).
+    pub fn set_manager(&mut self, manager: ModManager) {
+        self.manager = manager;
+    }
+
+    /// The mod manager: the listed mods and their switches.
+    pub fn manager(&self) -> &ModManager {
+        &self.manager
+    }
+
+    /// Whether the Mods page has anything to show: a listed mod, or a row a mod registered (`bb.menus`).
+    pub fn has_mods_page(&self) -> bool {
+        !self.manager.is_empty() || has_menu_rows(&self.bridge)
     }
 
     /// The loaded mods, in load order.

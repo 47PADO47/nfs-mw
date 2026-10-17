@@ -57,11 +57,16 @@ fn play_layer(args: &[&str]) -> crate::cli::ViewArgs {
 
 #[test]
 fn the_policy_follows_the_mode() {
-    let all = ModsSettings { mode: ModsMode::All, allowlist: vec!["a".into()] };
+    let all = ModsSettings { mode: ModsMode::All, allowlist: vec!["a".into()], disabled: vec![] };
     assert_eq!(policy::policy(&all), Policy::All);
     let off = ModsSettings { mode: ModsMode::Off, ..all.clone() };
     assert_eq!(policy::policy(&off), Policy::Off);
-    let listed = ModsSettings { mode: ModsMode::Allowlist, allowlist: vec!["b".into(), "a".into()] };
+    let switched = ModsSettings { disabled: vec!["c".into()], ..all.clone() };
+    let Policy::Except(ids) = policy::policy(&switched) else {
+        panic!("switched-off mods give an exception policy");
+    };
+    assert_eq!(ids.into_iter().collect::<Vec<_>>(), ["c"]);
+    let listed = ModsSettings { mode: ModsMode::Allowlist, allowlist: vec!["b".into(), "a".into()], disabled: vec![] };
     let Policy::Allowlist(ids) = policy::policy(&listed) else {
         panic!("an allowlist mode gives an allowlist policy");
     };

@@ -51,6 +51,7 @@ fn has_exe_address(line: &str) -> bool {
 const REVIEWED_MEDIA: &[(&str, u64)] = &[
     ("assets/input-prompts/kenney-xbox.png", 0xda7a_10ea_8ad2_ea78),
     ("assets/discord/discord.png", 0xdbef_44cb_d040_d484),
+    ("assets/mods/mod-manager.png", 0xc589_bd95_d57a_200f),
 ];
 
 fn check_file(path: &str, bytes: &[u8]) -> Vec<String> {
@@ -129,6 +130,16 @@ mod tests {
         let mut altered = data.to_vec();
         altered[100] ^= 1;
         assert!(!check_file("assets/input-prompts/kenney-xbox.png", &altered).is_empty());
+    }
+
+    #[test]
+    fn the_reviewed_mod_icon_is_pinned_and_other_pictures_are_not() {
+        let data = include_bytes!("../../assets/mods/mod-manager.png");
+        assert!(check_file("assets/mods/mod-manager.png", data).is_empty());
+        assert!(!check_file("assets/mods/other.png", data).is_empty());
+        let mut altered = data.to_vec();
+        altered[64] ^= 1;
+        assert!(!check_file("assets/mods/mod-manager.png", &altered).is_empty());
     }
 
     #[test]

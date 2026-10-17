@@ -18,11 +18,14 @@ pub fn offer() -> HostOffer {
     HostOffer::new(GAME_ID, env!("CARGO_PKG_VERSION"))
 }
 
-/// The policy the settings ask for: `off` loads nothing, `allowlist` the listed ids, `all` every mod.
+/// The policy the settings ask for: `off` loads nothing, `allowlist` the listed ids, `all` every mod except the ones
+/// switched off in the mod manager (`disabled`). The switched-off list is not used in `allowlist` mode: there the
+/// manager edits the allowlist itself.
 pub fn policy(settings: &ModsSettings) -> Policy {
     match settings.mode {
         ModsMode::Off => Policy::Off,
-        ModsMode::All => Policy::All,
+        ModsMode::All if settings.disabled.is_empty() => Policy::All,
+        ModsMode::All => Policy::Except(settings.disabled.iter().cloned().collect()),
         ModsMode::Allowlist => Policy::Allowlist(settings.allowlist.iter().cloned().collect()),
     }
 }

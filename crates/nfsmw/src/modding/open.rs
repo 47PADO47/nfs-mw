@@ -6,6 +6,7 @@ use anyhow::Result;
 use game_install::GameDir;
 
 use super::backends;
+use super::manager::ModManager;
 use super::{Mods, content, layers, policy};
 use crate::cli::ViewArgs;
 use crate::settings::Settings;
@@ -22,8 +23,11 @@ pub fn open_install(game_dir: Option<&Path>, view: &ViewArgs) -> Result<(GameDir
     let policy = policy::policy(&settings);
     let config_file = Settings::config_path();
     let roots = policy::roots(config_file.as_deref(), view.mods_dir.as_deref());
-    let mods = Mods::start(policy::offer(), backends::interfaces(), &policy, &roots, policy::run_mode(view.mod_dev));
+    let mut mods =
+        Mods::start(policy::offer(), backends::interfaces(), &policy, &roots, policy::run_mode(view.mod_dev));
     let loaded: Vec<String> = mods.loaded().into_iter().map(|summary| summary.id).collect();
+    let refused: Vec<String> = mods.rejected().iter().filter_map(|rejected| rejected.id.clone()).collect();
+    mods.set_manager(ModManager::new(settings, config_file.clone(), &loaded, &refused));
     let discovery = blackbox_modding::host::discover(&roots, &policy, &policy::offer());
     layers::apply(&mut dir, &layers::plan(&loaded, &discovery.candidates));
     content::register(&dir, &content::plan(&loaded, &discovery.candidates));
