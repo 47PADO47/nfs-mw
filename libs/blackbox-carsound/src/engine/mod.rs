@@ -155,6 +155,7 @@ pub(crate) struct TickContext<'a> {
     pub pre_race: bool,
     /// At least one wheel touches the ground.
     pub grounded: bool,
+    pub top_gear: Option<i32>,
 }
 
 /// The engine controllers of one car, ticked at the fixed rate.
@@ -213,6 +214,7 @@ impl EngineCore {
             is_local_player: self.is_local_player,
             pre_race: input.pre_race,
             grounded: input.wheels_on_ground() > 0,
+            top_gear: input.top_gear,
         };
         self.shifting.update(&ctx, &self.shift_tuning, events);
         self.accel.update(&ctx, self.shifting.active(), &self.accel_tuning, events);

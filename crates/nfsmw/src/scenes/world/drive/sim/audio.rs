@@ -4,6 +4,10 @@ use crate::audio::{CarAudioTelemetry, RoadContext, RoadTerrain};
 use nfsmw_data::car::physics::SurfaceTable;
 
 impl CarSim {
+    pub fn sound_top_gear(&self) -> i32 {
+        self.vehicle.powertrain().top_gear() as i32
+    }
+
     pub fn audio_telemetry(&self, surfaces: &SurfaceTable) -> CarAudioTelemetry {
         let v = &self.vehicle;
         let speed = v.speed();

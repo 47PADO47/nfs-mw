@@ -33,6 +33,7 @@ impl SoundFeed {
             throttle: input.throttle,
             brake: input.brake,
             gear: t.gear + 1,
+            top_gear: Some(sim.sound_top_gear()),
             speed: sim.body().linear_velocity.length(),
             nos_active: t.nos_burning,
             nos_empty: input.nos && t.has_nos && t.nos <= 0.0,

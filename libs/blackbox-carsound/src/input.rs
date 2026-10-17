@@ -62,6 +62,8 @@ pub struct CarInput {
     pub brake: f32,
     /// Gear id: [`GEAR_REVERSE`] 0, [`GEAR_NEUTRAL`] 1, first 2, second 3, ...
     pub gear: i32,
+    /// Highest installed gear ID, in the same numbering as `gear`. Unknown preserves limiter eligibility.
+    pub top_gear: Option<i32>,
     /// Speed in metres per second (the sign is ignored).
     pub speed: f32,
     /// Nitrous is engaged.
@@ -86,6 +88,7 @@ impl Default for CarInput {
             throttle: 0.0,
             brake: 0.0,
             gear: GEAR_NEUTRAL,
+            top_gear: None,
             speed: 0.0,
             nos_active: false,
             nos_empty: false,
