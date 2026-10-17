@@ -1,8 +1,8 @@
 # Performance audit, 2026-10-17
 
-The audit of the frame loop and the load paths, the fixes that followed, and what they measured. The raw numbers and
-the setup are in [benchmarks/2026-10-17-perf-sweep.md](benchmarks/2026-10-17-perf-sweep.md). How to profile is in
-[profiling.md](profiling.md) and [profiling-bevy.md](profiling-bevy.md).
+The audit of the frame loop and the load paths, the fixes that followed, and what they measured. The work ran in two
+rounds. The raw numbers and the setup are in [benchmarks/2026-10-17-perf-sweep.md](benchmarks/2026-10-17-perf-sweep.md).
+How to profile is in [profiling.md](profiling.md) and [profiling-bevy.md](profiling-bevy.md).
 
 ## Context
 
@@ -14,7 +14,7 @@ that repeated for each car or each file, and work that ran on the frame thread b
 The "before" numbers are from the sweep's starting point, with only the benchmark tests added. The changes are the
 commits on `perf/sweep` after those tests.
 
-## Findings and fixes
+## Round one: findings and fixes
 
 | Finding | Where | Fix | Commit subject |
 | --- | --- | --- | --- |
@@ -40,7 +40,7 @@ commits on `perf/sweep` after those tests.
 | The menu backdrop was rebuilt when the next screen showed it again. | `crates/nfsmw/src/frontend/flow.rs` | The backdrop is kept. | `perf(nfsmw): keep the menu backdrop when the next screen shows it again` |
 | No profiling profile, no game-side spans, and the system allocator. | `Cargo.toml` (`[profile.profiling]`, `[profile.dist]`), `crates/nfsmw/Cargo.toml`, `crates/nfsmw/src/app/render/mod.rs` and the frame phases | `[profile.profiling]` and `[profile.dist]`. `bevy_log` spans for the frame phases. mimalloc is the default allocator (3-5 % less CPU per frame). | `build: add profiling and dist profiles and an optional mimalloc allocator`; `feat(nfsmw): name the frame phases with profiler spans`; `perf(nfsmw): make mimalloc the default allocator` |
 
-## Measurements
+## Round one: measurements
 
 Headless Vulkan, 1920x1080, release build. The figures are CPU time per frame in milliseconds, p50 and p95. They
 include the world update, the mirror and the render submit. Setup and commands are in
@@ -76,22 +76,45 @@ Load timing (`load_timing`, release build, real install):
 - **Disk cache of decoded assets: no.** Textures are already BC-compressed with stored mips, so a disk cache would
   gain little for textures. Derived data must not be redistributed ([licensing.md](licensing.md)). Mod overlays make
   invalidation risky.
-- **`wgpu::PipelineCache`: deferred.** In wgpu it works on Vulkan only. DX12 has a driver-side cache.
+- **`wgpu::PipelineCache`: added in round two, Vulkan only.** In wgpu it works on Vulkan only. DX12 has a driver-side
+  cache, and DX12 and GL are unchanged. See the round two table below.
 
-## Deferred and follow-ups
+## Round two: findings and fixes
 
-- Drop the final resolve copy in the post chain.
-- FSR 3 intermediates in fp16.
-- Use an `Equal` depth test when the prepass depth is reused.
-- Reuse UI vertices.
-- Use `wgpu::PipelineCache` on Vulkan.
-- Decode CPU textures on the stream workers when BC is not supported.
-- Off-frustum shadow-only casters are still drawn by the native renderer. Bevy needs them. This needs a backend
-  capability flag.
-- Keep the menu scene alive during a race. This needs a `Scene` hook. Menu scenes also never free their GPU resources
-  when they are replaced. That is a leak to fix.
-- Memoise the parsed MixMaps.
-- Traffic think still copies the other bodies for each car.
+Round two takes the items deferred at the end of round one. It also fixes one regression from round one: a cop model
+that failed to load stayed in the running pursuit. The rows are the changes in the tree. The "Where" column names the
+crate or area, not every file.
+
+| Finding | Where | Fix |
+| --- | --- | --- |
+| The post chain ran a final resolve copy after the last pass. | Post chain (`blackbox-render`, `blackbox-gpu-passes`) | The last post pass writes the output. A resolve runs only when the result must convert, scale or follow FSR 3. FXAA alone went from 2 to 1 full-screen passes. FSR 1 went from 3 to 2. |
+| FSR 3 intermediate images were fp32. | `fsr3-wgpu` | Intermediates use fp16 (R16Float and Rg16Float storage) where the adapter supports it. fp32 is the fallback. Depth stays fp32. |
+| Opaque lit draws did not reuse the depth that the prepass had already written. | `blackbox-render` depth passes | When the prepass depth is reused, these draws use an Equal depth test with depth writes off. |
+| The UI pass rebuilt and uploaded its vertices every frame. The mirror did a UI swap even where its view captures never draw UI. | `blackbox-render` UI pass; the mirror in `nfsmw` | The UI pass reuses its staging buffers and skips the upload when the layer is unchanged. The mirror skips its UI swap when the backend reports `Capabilities::view_capture_without_ui`. |
+| Vulkan compiled every pipeline from scratch on each start. | Vulkan: `blackbox-render`, `blackbox-gpu-passes`, `fsr3-wgpu` | `wgpu::PipelineCache`, one file per adapter, under `<local data>/nfsmw/cache/pipelines`. It is saved after frame 300 and when the renderer is dropped. One scoped unsafe call reads back only bytes the renderer wrote. Fallback is on: a driver mismatch or a damaged file starts empty. DX12 and GL are unchanged. |
+| CPU decode of non-BC textures ran on the frame thread. | Stream loading in `nfsmw` | Decode runs on the stream loader threads. |
+| Off-frustum shadow-only casters were added to the main and rear lists. | Native renderer scene lists in `nfsmw` | They are not added when the backend takes a separate caster list (`Capabilities::separate_shadow_casters`, native renderer). |
+| Parsed MixMaps were not kept. | `nfsmw-data`, `blackbox-mixmap` | The parsed MixMap is memoised per session. |
+| Traffic and cop AI copied the other cars for each car. | AI in `nfsmw`; `blackbox-roads` | Other cars are passed as iterators to `lane_clear`, `earliest_oncoming` and the occlusion trail. There are no per-car copies. |
+| GPU resources of a replaced scene were never freed (a leak). The menu scene was reloaded after a race. | Scene lifecycle: menu, world, asset viewer | Resources are freed when a scene is replaced. The menu scene is parked during free roam and restored without a reload. |
+| A cop model that failed to load stayed in the running pursuit. This was a round one regression from async model loading. | Pursuit in `nfsmw` | A failed model is dropped from the running pursuit. |
+
+## Round two: measurements
+
+The round two numbers and the setup are in
+[benchmarks/2026-10-17-perf-sweep.md](benchmarks/2026-10-17-perf-sweep.md#round-two). They come from one session that
+ran the round one tip and round two side by side. With the mirror on, the CPU p50 ranges are lower on both scenes:
+hill 0.739-0.885 ms to 0.707-0.713 ms, and city 1.003-1.126 ms to 0.963-1.089 ms. The city ranges overlap, so the
+gain there is small. The machine was noisier than in round one, so compare within one session. Load timing did not
+change.
+
+## Remaining follow-ups
+
+- Support SUVs (`copsuv`, `copsuvl`, `copcross`) are never requested by the pursuit support path. This was already the
+  case before the sweep.
+- SMAA's own pipelines do not use the pipeline cache. SMAA is an external crate.
+- Bevy's pipelines are not touched by the pipeline cache.
+- Streamed sections requested before the first residency update still decode on the main thread on non-BC GPUs.
 
 ## How to measure
 
