@@ -88,9 +88,9 @@ impl CarScene {
         }
     }
 
-    /// Turns the orbit camera around the car by `radians` (the menus' turntable).
-    pub(crate) fn turn(&mut self, radians: f32) {
-        self.camera.yaw += radians;
+    /// The orbit camera, for a scene that moves it (the menus' camera move).
+    pub(crate) fn camera_mut(&mut self) -> &mut OrbitCamera {
+        &mut self.camera
     }
 
     /// Let the console load other cars from `dir`, with the same options.
