@@ -154,8 +154,12 @@ fn fs_opaque(in: VsOut) -> @location(0) vec4<f32> {
 
 @fragment
 fn fs_alpha_test(in: VsOut) -> @location(0) vec4<f32> {
-    // The same base alpha `shade` returns, so the cutoff runs before the lighting and shadow work.
-    let alpha = (textureSampleBias(diffuse, diffuse_sampler, in.uv, globals.fog_range.z) * in.color).a;
+    // Match each surface family's alpha before the lighting and shadow work.
+    let texture_alpha = textureSampleBias(diffuse, diffuse_sampler, in.uv, globals.fog_range.z).a;
+    var alpha = texture_alpha * in.color.a;
+    if WORLD_KIND > 0u && globals.light_dir.w > 0.5 {
+        alpha = select(alpha, texture_alpha, WORLD_KIND == 2u) * select(1.0, 2.0, WORLD_KIND == 3u);
+    }
     if alpha < 0.5 {
         discard;
     }
