@@ -46,7 +46,8 @@ estimates. Nothing has been compared with the original game's mirror yet.
 - `scenes/world/rear_view.rs`: the world as seen from that camera, using the same visibility path as the main
   view. The player's car is left out; traffic and props are kept.
 - `Scene::rear_view` (`viewer/mod.rs`): optional; `WorldScene` implements it, other scenes return `None`.
-- `app/mirror.rs`: captures the rear view at `384 x 96` through `request_capture`, uploads it as a UI texture,
+- `app/mirror.rs`: captures the rear view at `384 x 96` through `request_view_capture` (a reduced picture that does not block; the
+  default falls back to a full `request_capture`), uploads it as a UI texture,
   and draws it as a quad, 300 points wide, 8 points from the top, over the UI layer. It runs one capture at a
   time: a new one starts when the last one is collected.
 - `app/render/mod.rs`: the overlay is updated before the main frame, and the UI layer is re-sent every frame

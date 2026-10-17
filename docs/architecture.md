@@ -190,7 +190,8 @@ TRACKS/STREAML2RA.BUN ─► loader threads (nfsmw-data::world::Streamer)
   The map is split into 435 2D zones (one per drivable section). The camera's zone names the tiles to
   load (its loading section's union of visible lists, or its own list) and the tiles to draw (its own
   visible list); nothing else is drawn, even when loaded. Tiles are requested drawn ones first, nearest
-  first, at most 8 in flight, on 2–6 worker threads; up to 2 are uploaded per frame. When the zone
+  first, at most 8 in flight, on 2–6 worker threads. The workers also convert the vertices. Uploads on the render
+  thread are limited to a byte budget per frame (8 MiB, at least one section per frame). When the zone
   changes, the previous zone's tiles stay drawn until the new zone's tiles are resident; then the tiles
   it no longer needs are released (GPU meshes and textures freed).
 - **Free camera:** the 66 zones outside the region's drivable list are places a car never reaches, with
