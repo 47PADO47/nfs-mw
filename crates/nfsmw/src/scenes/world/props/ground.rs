@@ -4,21 +4,22 @@
 use blackbox_collision::{Shape, bounds_flags};
 use blackbox_vehicle::{
     Ground,
-    rigid_body::{BOX_CORNERS, BodyState},
+    rigid_body::{BOX_CORNERS, BodyState, GroundContact},
 };
 use glam::Vec3;
 
 use super::body::PropBody;
 
-pub(super) fn step(prop: &mut PropBody, ground: &dyn Ground, dt: f32) {
+/// One body's ground step. `contacts` is the caller's scratch, so a step does not allocate once warm.
+pub(super) fn step(prop: &mut PropBody, ground: &dyn Ground, dt: f32, contacts: &mut Vec<GroundContact>) {
     if prop.attached || prop.rigid.state != BodyState::Awake {
         return;
     }
     prop.rigid.begin_frame(dt);
     prop.rigid.apply_drag();
-    let mut contacts: Vec<_> =
-        points(prop).filter_map(|point| prop.rigid.ground_contact(point, ground, dt)).take(16).collect();
-    prop.rigid.resolve_ground(&mut contacts);
+    contacts.clear();
+    contacts.extend(points(prop).filter_map(|point| prop.rigid.ground_contact(point, ground, dt)).take(16));
+    prop.rigid.resolve_ground(contacts);
     prop.rigid.update_sleep(contacts.len());
 }
 

@@ -59,6 +59,7 @@ ea-audio.workspace = true
 discord-rich-presence.workspace = true
 egui.workspace = true
 env_logger.workspace = true
+foldhash.workspace = true
 game-install.workspace = true
 save-store.workspace = true
 glam.workspace = true

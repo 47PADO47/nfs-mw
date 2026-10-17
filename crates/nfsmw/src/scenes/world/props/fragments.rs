@@ -64,6 +64,7 @@ impl PropWorld {
         };
         collider.original_bounds = collider.physics_bounds();
         self.colliders.insert(id, collider);
+        super::lifetime::track_lifetime(&mut self.live_lifetimes, id);
         self.fragments.insert(id, FragmentVisual { instances, owner, scenery });
         self.regrid(id);
         Some(id)

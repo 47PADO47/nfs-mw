@@ -24,15 +24,17 @@ use crate::audio::{CarContact, ContactSource};
 use blackbox_scene::Aabb;
 use blackbox_vehicle::{
     Ground, Vehicle,
-    rigid_body::{BodyState, Separation},
+    rigid_body::{BodyState, GroundContact, Separation},
 };
 use glam::{Mat4, Vec3};
 use nfsmw_data::world::{PropKind, PropShape};
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 const CELL: f32 = 16.0;
 type Cell = (i32, i32);
+/// Id and cell maps. Every iteration over them is either order-independent or sorted before it affects results.
+type FastMap<K, V> = HashMap<K, V, foldhash::fast::FixedState>;
 
 struct Collider {
     collidable: bool,
@@ -82,26 +84,31 @@ pub const REGENERATE_AFTER: f32 = 6.0;
 
 #[derive(Default)]
 pub struct PropWorld {
-    colliders: HashMap<u32, Collider>,
+    colliders: FastMap<u32, Collider>,
     /// Seconds left before a knocked-over prop is drawn again.
-    knocked: HashMap<u32, f32>,
-    grid: HashMap<Cell, Vec<u32>>,
+    knocked: FastMap<u32, f32>,
+    grid: FastMap<Cell, Vec<u32>>,
     tiles: HashMap<usize, Vec<u32>>,
     next_id: u32,
     alpha: f32,
     fragments: std::collections::BTreeMap<u32, fragments::FragmentVisual>,
     scenery: scenery::SceneryEvents,
+    /// Ids whose lifetime may be active, ascending and unique; `update_lifetimes` prunes the ones that are not.
+    live_lifetimes: Vec<u32>,
+    /// Per-tick scratch lists, kept across ticks so a steady world tick does not allocate.
+    active_scratch: Vec<u32>,
+    pair_scratch: Vec<(u32, u32)>,
+    lifetime_scratch: Vec<u32>,
+    candidate_scratch: Vec<u32>,
+    contact_scratch: Vec<GroundContact>,
 }
 
-fn cells(bounds: &Aabb) -> Vec<Cell> {
+/// The grid cells under `bounds`, x-major, without allocating.
+fn cells(bounds: &Aabb) -> impl Iterator<Item = Cell> {
     let cell = |v: f32| (v / CELL).floor() as i32;
-    let mut out = Vec::new();
-    for x in cell(bounds.min.x)..=cell(bounds.max.x) {
-        for y in cell(bounds.min.y)..=cell(bounds.max.y) {
-            out.push((x, y));
-        }
-    }
-    out
+    let (x0, x1) = (cell(bounds.min.x), cell(bounds.max.x));
+    let (y0, y1) = (cell(bounds.min.y), cell(bounds.max.y));
+    (x0..=x1).flat_map(move |x| (y0..=y1).map(move |y| (x, y)))
 }
 
 impl PropWorld {
@@ -167,30 +174,38 @@ impl PropWorld {
     }
 
     fn regrid(&mut self, id: u32) {
-        let Some(c) = self.colliders.get_mut(&id) else { return };
-        let new = match !c.collidable || c.body.as_ref().is_some_and(|b| b.lifetime.sinking) {
-            true => Vec::new(),
-            false => cells(&c.physics_bounds()),
+        let Some(c) = self.colliders.get(&id) else { return };
+        let bounds = match !c.collidable || c.body.as_ref().is_some_and(|b| b.lifetime.sinking) {
+            true => None,
+            false => Some(c.physics_bounds()),
         };
-        if new == c.cells {
+        // An unchanged footprint is compared in place, so a body that stays in its cells does not allocate.
+        let unchanged = match &bounds {
+            Some(bounds) => cells(bounds).eq(c.cells.iter().copied()),
+            None => c.cells.is_empty(),
+        };
+        if unchanged {
             return;
         }
-        let old = std::mem::replace(&mut c.cells, new.clone());
+        let new: Vec<Cell> = bounds.as_ref().map_or_else(Vec::new, |b| cells(b).collect());
+        let Some(c) = self.colliders.get_mut(&id) else { return };
+        let old = std::mem::replace(&mut c.cells, new);
         self.remove_cells(id, &old);
-        for cell in new {
+        for &cell in &self.colliders[&id].cells {
             self.grid.entry(cell).or_default().push(id);
         }
     }
 
-    fn candidates(&self, bounds: &Aabb) -> BTreeSet<u32> {
+    /// Fills `out` with the ids in the cells under `bounds`: ascending and unique, like the set it replaces.
+    fn candidates(&self, bounds: &Aabb, out: &mut Vec<u32>) {
+        out.clear();
         // A knocked-over prop is hidden, so nothing hits it until it is back.
-        cells(bounds)
-            .into_iter()
-            .filter_map(|cell| self.grid.get(&cell))
-            .flatten()
-            .copied()
-            .filter(|id| !self.hidden(*id))
-            .collect()
+        for cell in cells(bounds) {
+            let Some(ids) = self.grid.get(&cell) else { continue };
+            out.extend(ids.iter().copied().filter(|id| !self.hidden(*id)));
+        }
+        out.sort_unstable();
+        out.dedup();
     }
 
     pub fn len(&self) -> usize {
@@ -241,37 +256,54 @@ impl PropWorld {
     pub fn overlaps(&self, car: &Obb) -> Vec<PropOverlap> {
         let reach = car.half.length();
         let bounds = Aabb::new((car.centre - reach).to_array(), (car.centre + reach).to_array());
-        self.candidates(&bounds)
-            .into_iter()
-            .filter_map(|id| {
-                let c = self.colliders.get(&id)?;
-                if c.body.is_some() {
-                    return None;
+        // `&self` leaves no scratch to fill, so an id in several cells is tested once per cell and the
+        // copies are dropped after sorting by id; each copy is identical, so the result is the same.
+        let mut out: Vec<PropOverlap> = Vec::new();
+        for cell in cells(&bounds) {
+            let Some(ids) = self.grid.get(&cell) else { continue };
+            for &id in ids {
+                // A knocked-over prop is hidden, so nothing hits it until it is back.
+                if self.hidden(id) {
+                    continue;
                 }
-                let deepest = c
-                    .shape
-                    .boxes
-                    .iter()
-                    .filter_map(|b| {
-                        let m = c.transform * Mat4::from_rotation_translation(b.rotation, b.centre);
-                        obb_overlap(car, &Obb::from_matrix(&m, b.half))
-                    })
-                    .max_by(|a, b| a.1.total_cmp(&b.1));
-                let (normal, depth) = deepest?;
-                Some(PropOverlap { id, kind: c.shape.kind, normal, depth })
+                out.extend(self.overlap(id, car));
+            }
+        }
+        out.sort_unstable_by_key(|o| o.id);
+        out.dedup_by_key(|o| o.id);
+        out
+    }
+
+    /// The overlap of the car's box with scenery prop `id`, if it is static and the box really touches it.
+    fn overlap(&self, id: u32, car: &Obb) -> Option<PropOverlap> {
+        let c = self.colliders.get(&id)?;
+        if c.body.is_some() {
+            return None;
+        }
+        let deepest = c
+            .shape
+            .boxes
+            .iter()
+            .filter_map(|b| {
+                let m = c.transform * Mat4::from_rotation_translation(b.rotation, b.centre);
+                obb_overlap(car, &Obb::from_matrix(&m, b.half))
             })
-            .collect()
+            .max_by(|a, b| a.1.total_cmp(&b.1));
+        let (normal, depth) = deepest?;
+        Some(PropOverlap { id, kind: c.shape.kind, normal, depth })
     }
 
     /// One world tick; fallen props keep their render/collision identity.
     pub fn step(&mut self, ground: &dyn Ground, dt: f32) {
+        let _span = bevy_log::info_span!("world::props_step").entered();
         self.knocked.retain(|_, left| {
             *left -= dt;
             *left > 0.0
         });
         self.remove_orphaned_fragments();
         self.advance_explosions(dt);
-        let mut active = Vec::new();
+        let mut active = std::mem::take(&mut self.active_scratch);
+        active.clear();
         for (&id, c) in &mut self.colliders {
             let Some(b) = c.body.as_mut() else { continue };
             b.previous = (b.rigid.position, b.rigid.orientation);
@@ -279,7 +311,7 @@ impl PropWorld {
             if b.rigid.state != BodyState::Awake || b.attached || b.lifetime.sinking {
                 continue;
             }
-            ground::step(b, ground, dt);
+            ground::step(b, ground, dt, &mut self.contact_scratch);
             active.push(id);
         }
         active.sort_unstable();
@@ -287,21 +319,28 @@ impl PropWorld {
             self.regrid(id);
         }
         self.collide_props(&active);
+        self.active_scratch = active;
     }
 
     fn collide_props(&mut self, active: &[u32]) {
-        let mut pairs = BTreeSet::new();
+        // Sorted and deduplicated, so the pair order is the same as the BTreeSet it replaces.
+        let mut pairs = std::mem::take(&mut self.pair_scratch);
+        let mut others = std::mem::take(&mut self.candidate_scratch);
+        pairs.clear();
         for &id in active {
             let bounds = self.colliders[&id].physics_bounds();
-            for other in self.candidates(&bounds) {
+            self.candidates(&bounds, &mut others);
+            for &other in &others {
                 if id == other {
-        let _span = bevy_log::info_span!("world::props_step").entered();
                     continue;
                 }
-                pairs.insert((id.min(other), id.max(other)));
+                pairs.push((id.min(other), id.max(other)));
             }
         }
-        for (a, b) in pairs {
+        self.candidate_scratch = others;
+        pairs.sort_unstable();
+        pairs.dedup();
+        for &(a, b) in &pairs {
             let (Some(pa), Some(pb)) = (&self.colliders[&a].body, &self.colliders[&b].body) else { continue };
             let counts =
                 [contact::shape_count(Some(pa.geometry_frame())), contact::shape_count(Some(pb.geometry_frame()))];
@@ -321,6 +360,8 @@ impl PropWorld {
                     let Some(response) = response else { continue };
                     pa.lifetime.activate(sa);
                     pb.lifetime.activate(sb);
+                    lifetime::track_lifetime(&mut self.live_lifetimes, a);
+                    lifetime::track_lifetime(&mut self.live_lifetimes, b);
                     pa.object_contact = true;
                     pb.object_contact = true;
                     let [ia, ib] = response.immobile;
@@ -335,6 +376,7 @@ impl PropWorld {
             self.regrid(a);
             self.regrid(b);
         }
+        self.pair_scratch = pairs;
     }
 
     /// A vehicle transfers impulses to resident bodies, including previously fallen ones.
@@ -350,7 +392,9 @@ impl PropWorld {
         });
         let previous = geometry.map_or(centre, |g| space::to_render(g.previous.0.to_array()));
         let bounds = Aabb::new(centre.min(previous) - radius, centre.max(previous) + radius);
-        for id in self.candidates(&bounds) {
+        let mut ids = std::mem::take(&mut self.candidate_scratch);
+        self.candidates(&bounds, &mut ids);
+        for &id in &ids {
             let Some(p) = self.colliders[&id].body.as_ref() else { continue };
             let counts = [contact::shape_count(geometry), contact::shape_count(Some(p.geometry_frame()))];
             for i in 0..counts[0] {
@@ -395,6 +439,7 @@ impl PropWorld {
                     let response = contact::resolve(vehicle.body_mut(), &mut p.rigid, hit, car, prop, Separation::Mass);
                     let Some(response) = response else { continue };
                     p.lifetime.activate(spec);
+                    lifetime::track_lifetime(&mut self.live_lifetimes, id);
                     p.object_contact = true;
                     let prop_immobile = response.immobile[1];
                     impact.damage.push(damage.resolved(vehicle.body(), true));
@@ -428,5 +473,6 @@ impl PropWorld {
             }
             self.regrid(id);
         }
+        self.candidate_scratch = ids;
     }
 }
