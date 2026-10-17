@@ -30,8 +30,8 @@ saved state is in [career-save.md](../formats/career-save.md). The texts the scr
    the stage is still 16 (prologue) or the final event is next. **[exe]**
 5. The safe house menu has Resume Free Roam (with a confirmation), Blacklist N, Car Select, Rap Sheet (once unlocked) and
    Save. Cars are bought and sold in the car lot and the safe house Car Select. **[exe]**
-6. The game **autosaves** when free roam starts and when a race ends (except in the opening race), if the autosave option is
-   on and nothing is waiting on screen. **[exe]**
+6. The game **autosaves** when free roam starts, when a race event starts (not the opening race) and when a pursuit is
+   evaded, if the autosave gate allows it and nothing is waiting on screen. **[exe]**
 7. Cash starts at 0. A first profile gets +10,000 if an Underground 2 profile folder exists. **[exe]**
 
 ## 1. The front-end context word **[exe]**
@@ -250,14 +250,16 @@ The details of ranks and rivals are in the Blacklist specs; only the order is re
 
 - **Where:** `Documents\NFS Most Wanted\<alias>\<alias>`; the folder name is the alias; created if missing. The root is the
   user's documents folder plus the name `NFS Most Wanted` (a string at `0x00901748` that mods can change) **[exe + verified]**.
-- **Autosave switch:** the profile option at options +0x14 (profile +0x38), default 1. Autosave is skipped online, when the
-  memory-card layer is off, when no profile has been loaded (unless the manual save flag is on), and while the current event
-  is the final event `1.8.1` or an event whose gameplay data has one particular boolean field set (hash `0xFF5EE5D6`)
-  **[exe, field meaning unconfirmed]**.
-- **Trigger:** an `AutoSave` event (type 0x10) is created by `SetRoaming` (every time free roam starts) and when a race ends,
-  except while the current node is the opening race `16.1.0`. The event only raises a "save pending" bit in the
-  memory-card manager; the save runs on a later frame when the gameplay manager has no pending notification
-  (`GManager` list empty) **[exe]**. The overlay `Autosave_Overlay.fng` is shown.
+- **Autosave switch:** the profile option at options +0x14 (profile +0x38), default 1. The gate is: not forced; not online or
+  LAN; layer present; the option on **or** the manager's "switched off by an error" byte set; the current event is not the
+  final event `1.8.1`; the current event is not a boss race (field `BossRace`, hash `0xFF5EE5D6`). The run additionally needs
+  a loaded profile. A one-shot byte drops the first attempt after a resume into a node other than `16.1.0` **[exe]**.
+  Exact order and the screens: [career-save-screens-2.md](career-save-screens-2.md) section 8.
+- **Trigger:** an `AutoSave` event (type 0x10) is created by `SetRoaming` (every time free roam starts), when an **event
+  starts** (the `StartRace` hook, race-type nodes only and not the opening race `16.1.0`) and when a pursuit is evaded with
+  no event underway. The event only raises a "save pending" bit in the memory-card manager once it is disposed and the
+  gate passes; the save runs on a later in-game frame when the gameplay manager has nothing queued to show **[exe]**. The
+  overlay `Autosave_Overlay.fng` is shown.
 - **Manual save:** the Save button and the MC screens. A save serializes the profile
   ([career-save.md](../formats/career-save.md)) into a buffer and writes it in one pass; a snapshot of the saved buffer is
   kept to detect unsaved changes (the game compares a fresh serialization with it when asking "save the alias?").
@@ -285,6 +287,7 @@ section 2 and a safe house screen with the five buttons of section 7.2.
 1. (Answered.) Entering a safe house does nothing to heat, pursuit or cops in the scripts or the native code; the car is
    rebuilt new from its record at the next world load ([career-safehouse.md](career-safehouse.md)).
 2. Where stage changes from n to n-1 after 15 (16 to 15 is the rival bio screen of the first visit).
-3. The exact set of conditions that block autosave.
+3. (Answered in [career-save-screens-2.md](career-save-screens-2.md) section 8.1.) The meaning of the node flag `0x8CB01ABF`
+   that decides which events autosave at their start.
 4. What the developer flags and the "bonus content" probes read.
 5. Whether the `0x0000801C` shell-folder id in the Underground 2 check is a documents folder or a different one.

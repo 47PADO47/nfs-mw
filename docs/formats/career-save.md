@@ -324,4 +324,5 @@ record and the counter block are open questions.
 3. The creation rule for the flag combinations seen in the saves (section 4.1).
 4. The inner layout of a pursuit record and of the counter block (section 5).
 5. What the two "bonus content" probes test (section 2.3).
-6. Whether a wrong per-buffer checksum in the header really loads (the code path suggests so; not tested).
+6. (Answered in [career-save-screens-2.md](../specs/career-save-screens-2.md) section 9.3: a wrong descriptor or profile-buffer
+   checksum is ignored, checked in the disassembly; not tested in game.)
