@@ -67,6 +67,7 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | [mods/README.md](mods/README.md) | Index of 42 community mod and tool repositories: one page each (mechanism, config, licence, how the rewrite could match it) |
 | [licensing.md](licensing.md) | Project license, what each source license allows, unlicensed repos, the spec-first process |
 | [ai-drivers.md](ai-drivers.md) | The AI drivers in the code: traffic and cops, which spec each layer follows, deliberate differences, what is open |
+| [specs/career.md](specs/career.md) | Career and progression overview: economy, blacklist, milestones, flow, car lot, save; the loop, what the rewrite needs and the open questions |
 | [specs/](specs/README.md) | Behaviour specs written before implementing it from decompiled sources: [scenery visibility](specs/scenery-visibility.md), [scenery LOD](specs/scenery-lod.md), [visible sections](specs/visible-sections.md), [car assembly](specs/car-assembly.md), [FEng input](specs/feng-input.md), [front-end menus](specs/frontend-menus.md), [LAN server](specs/lan-server.md), and the designs [multiplayer](specs/multiplayer/README.md) (milestones 10 and 11) and [telemetry](specs/telemetry/README.md) (milestone 13), not built yet |
 | [provenance/](provenance/README.md) | Records for modules whose behaviour came from restricted sources |
 
@@ -120,7 +121,9 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | [formats/frontend.md](formats/frontend.md) | FEng UI packages, compressed packages, fonts | Packages known; font glyphs open |
 | [formats/text.md](formats/text.md) | Language string blocks, labels, subtitles, memory-card locale files | Mostly verified |
 | [formats/shaders.md](formats/shaders.md) | The 31 D3DX effects embedded in `speed.exe` | Located; not decompiled |
-| [formats/saves.md](formats/saves.md) | Save files: header, MD5, payload order | Partial |
+| [formats/saves.md](formats/saves.md) | Save files: header, MD5, payload order (superseded by career-save.md for the layout) | Partial |
+| [formats/career-save.md](formats/career-save.md) | Save layout: header CRCs, settings, stable, statistics, controls, MD5; editor offsets mapped | Verified on three saves |
+| [formats/career-state.md](formats/career-state.md) | The career in memory: profile, settings, car stable, career records, rap sheet sums, script tables | Read in `speed.exe` |
 
 ## Original gameplay cameras
 
@@ -163,7 +166,8 @@ contract has a companion provenance record and an explicit validation boundary.
 | Where a compressed palettized texture keeps its palette | no example in car packs; check world/frontend streams |
 | Speech sentence rules (`.evt` parameter tests, `.csi` tables), reverb and mix presets | [formats/audio.md](formats/audio.md) |
 | FEngFont glyph format | [formats/frontend.md](formats/frontend.md) |
-| Save header bytes 0x08–0x33 | [formats/saves.md](formats/saves.md) |
+| Save header bytes 0x08–0x33 | answered in [formats/career-save.md](formats/career-save.md) (CRCs and descriptor) |
+| What moves the career stage on after bin 15; the bounty divisor at run time; the Lua rules (safe house heat reset) | [specs/career.md](specs/career.md#open-questions-all-pages) |
 | How the `CarShader` paint, reflections and lighting work | the `fx_2_0` effects in `speed.exe` ([formats/shaders.md](formats/shaders.md)) |
 | Water animation and reflections (`ANM_WATERA_` frames, `SKY_POND_REFLECTION`) | `TextureAnimPack` `0xB0300100`, the effects in `speed.exe` |
 | What the subtractive / overbright blend types look like in the game | the effects in `speed.exe` |

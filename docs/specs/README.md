@@ -98,6 +98,15 @@ remaining clock, geometry, context and live-comparison limits.
 - [world-markers.md](world-markers.md): the ground disc at each auto shop, safe house and race start, the drive-over
   zone, and the interact card with its stub entry (the destinations are not built yet).
 
+## Career and progression
+
+- [career.md](career.md): the overview, the loop and the open questions.
+- [career-economy.md](career-economy.md) and [career-economy-flows.md](career-economy-flows.md): bounty, infractions and fines, cash, heat, rap sheet statistics, busted and the impound strikes.
+- [career-blacklist.md](career-blacklist.md): the 15 rival bins as state graphs, the challenge gate, races won, regions, the final race.
+- [career-milestones.md](career-milestones.md) and [career-milestones-data.md](career-milestones-data.md): the statistics, milestones and speed traps, their states and tables.
+- [career-flow.md](career-flow.md) and [career-car-lot.md](career-car-lot.md): new and resumed career, safe house, autosave, car lot and car rules.
+- Layouts: [../formats/career-state.md](../formats/career-state.md) (memory) and [../formats/career-save.md](../formats/career-save.md) (file).
+
 ## Pursuit, traffic and the busted sequence
 
 - [ai-pursuit-goals.md](ai-pursuit-goals.md): the cop goals that drive at a slot around the player: pit, ram (box-in and
