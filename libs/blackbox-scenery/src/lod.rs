@@ -10,6 +10,40 @@ pub struct LodModel {
     pub density: f32,
 }
 
+/// One instance's authored geometry inputs, independent of the view's policy.
+#[derive(Clone, Copy)]
+pub struct LodObject {
+    pub position: [f32; 3],
+    pub radius: f32,
+    pub flags: u32,
+    pub slots: [bool; 4],
+    pub detailed: Option<LodModel>,
+}
+
+/// Optional view-local quality policy. The default retains the layout's rule.
+#[derive(Clone, Copy)]
+pub struct LodPolicy {
+    pub coarse_only: bool,
+    pub highest: bool,
+    pub geometry_scale: f32,
+    pub visibility_scale: f32,
+    /// Relative density threshold band; zero disables hysteresis.
+    pub hysteresis: f32,
+    pub previous: Option<usize>,
+}
+impl Default for LodPolicy {
+    fn default() -> Self {
+        Self {
+            coarse_only: false,
+            highest: false,
+            geometry_scale: 1.0,
+            visibility_scale: 1.0,
+            hysteresis: 0.0,
+            previous: None,
+        }
+    }
+}
+
 /// The camera, for projected sizes.
 #[derive(Debug, Clone, Copy)]
 pub struct LodView {
@@ -54,25 +88,55 @@ impl LodRules {
         slots: [bool; 4],
         detailed: Option<LodModel>,
     ) -> Option<usize> {
-        let mut size = view.projected_size(position, info_radius + self.radius_pad);
-        if size < self.min_size {
+        self.choose_with(
+            view,
+            LodObject { position, radius: info_radius, flags, slots, detailed },
+            LodPolicy::default(),
+        )
+    }
+
+    pub fn choose_with(&self, view: &LodView, object: LodObject, policy: LodPolicy) -> Option<usize> {
+        let size = view.projected_size(object.position, object.radius + self.radius_pad);
+        let visible = (size as f32 * policy.visibility_scale) as i32;
+        if visible < self.min_size {
             return None;
         }
-        if flags & self.boost_flag != 0 {
-            size += self.boost;
-        }
-        if size <= self.draw_threshold {
+        let boost = match object.flags & self.boost_flag != 0 {
+            true => self.boost,
+            false => 0,
+        };
+        if visible + boost <= self.draw_threshold {
             return None;
         }
-        let score = match detailed {
-            Some(m) if m.num_polys > self.poly_threshold => size as f32 / m.density.max(self.density_floor),
+        if policy.coarse_only {
+            return object.slots[self.coarse_slot].then_some(self.coarse_slot);
+        }
+        if policy.highest {
+            return object.slots[self.detailed_slot].then_some(self.detailed_slot);
+        }
+        let score = match object.detailed {
+            Some(m) if m.num_polys > self.poly_threshold => {
+                (size as f32 * policy.geometry_scale + boost as f32) / m.density.max(self.density_floor)
+            }
+            _ => f32::INFINITY,
+        };
+        let band = policy.hysteresis.clamp(0.0, 0.5);
+        let threshold = match policy.previous {
+            Some(slot) if slot == self.detailed_slot => self.density_threshold * (1.0 - band),
+            Some(slot) if slot == self.coarse_slot => self.density_threshold * (1.0 + band),
             _ => self.density_threshold,
         };
-        let slot = if score < self.density_threshold { self.coarse_slot } else { self.detailed_slot };
-        slots[slot].then_some(slot)
+        let distance_sq: f32 = object.position.iter().zip(view.position).map(|(a, b)| (a - b).powi(2)).sum();
+        if score < threshold && distance_sq >= self.coarse_distance.powi(2) {
+            return object.slots[self.coarse_slot].then_some(self.coarse_slot);
+        }
+        object.slots[self.detailed_slot].then_some(self.detailed_slot)
     }
 }
 
+#[cfg(test)]
+#[path = "lod/policy_tests.rs"]
+mod policy_tests;
 #[cfg(test)]
 mod tests {
     use super::*;

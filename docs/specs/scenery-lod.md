@@ -38,7 +38,10 @@ depend on the window size **[unconfirmed]**.
    long before large buildings.
 4. Otherwise compute a **density score**, 8.7 by default. If slot 0 has a solid with more than 39 polygons,
    the score is `size / max(solid.Density, 6)`.
-5. A score below 8.7 draws **slot 2** (the low-detail model), otherwise **slot 0**. If the chosen slot is
+5. A score below 8.7 at a camera-to-instance centre distance of at least 25 m draws
+   **slot 2** (the low-detail model), otherwise **slot 0**. The distance guard is
+   from the matched PC audit in [original graphics detail](original-graphics-detail.md).
+   If the chosen slot is
    empty, nothing is drawn.
 
 Slots 1 and 3 are only used by other views (reflections, the rear-view mirror, environment maps), which

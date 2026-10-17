@@ -20,6 +20,6 @@ pub use error::{Error, Result};
 pub use hierarchy::{ModelHierarchy, ModelNode, read_model_hierarchies};
 pub use info::SceneryInfo;
 pub use instance::SceneryInstance;
-pub use lod::{LodModel, LodView};
+pub use lod::{LodModel, LodObject, LodPolicy, LodView};
 pub use section::{OverrideHook, ScenerySection, read_scenery_sections};
 pub use spawner::{ObjectSpawner, read_object_spawners};
