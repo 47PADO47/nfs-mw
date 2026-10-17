@@ -86,4 +86,4 @@ The fix is to snapshot everything the render systems read (settings, effects lay
   build processes.
 - Only one scene and one machine. Only two rounds per variant.
 - Hitch analysis covers the first 10 s and the steady state only, not a full first drive through every material.
-- Commit status: the `bench.rs` series dump is uncommitted in the worktree, along with this doc.
+- Commits: the series dump is in `d0214482`, this doc in `d1841db4`, both on `claude/admiring-brattain-c9af02`.
