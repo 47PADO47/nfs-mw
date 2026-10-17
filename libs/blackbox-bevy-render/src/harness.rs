@@ -5,7 +5,7 @@
 //! after a few `render()` calls, which is what `blackbox_gfx_testkit::capture_scene` does.
 
 use bevy_app::{App, TaskPoolPlugin};
-use bevy_render::renderer::{RenderAdapterInfo, RenderDevice};
+use bevy_render::renderer::{RenderAdapter, RenderAdapterInfo, RenderDevice};
 use bevy_time::TimePlugin;
 use bevy_window::{ExitCondition, WindowPlugin};
 use blackbox_gfx::{
@@ -49,6 +49,7 @@ impl HeadlessBevy {
             world.resource::<BlackboxBridge>(),
             world.resource::<RenderDevice>(),
             world.resource::<RenderAdapterInfo>(),
+            world.resource::<RenderAdapter>(),
             size,
         );
         Ok(Self { app, backend })
@@ -98,6 +99,14 @@ impl RenderBackend for HeadlessBevy {
 
     fn graphics(&self) -> &GraphicsSettings {
         self.backend.graphics()
+    }
+
+    fn set_render_experiments(&mut self, options: blackbox_gfx::RenderExperiments) {
+        self.backend.set_render_experiments(options);
+    }
+
+    fn render_experiments(&self) -> blackbox_gfx::RenderExperiments {
+        self.backend.render_experiments()
     }
 
     fn render_size(&self) -> [u32; 2] {

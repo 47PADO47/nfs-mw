@@ -4,6 +4,7 @@ use crate::{GraphicsApi, PostSettings, RayTracing, UpscaleQuality};
 fn native() -> Capabilities {
     Capabilities {
         hdr_targets: true,
+        max_texture_anisotropy: 16,
         antialiasing: AaSet::of(&[Antialiasing::Off, Antialiasing::Fxaa]),
         upscalers: UpscalerSet::of(&[Upscaler::Off, Upscaler::Bilinear, Upscaler::Fsr1]),
         tonemaps: TonemapSet::all(),
@@ -88,14 +89,18 @@ fn a_supported_request_comes_back_unchanged() {
 }
 
 #[test]
-fn the_default_request_resolves_exactly_even_on_the_baseline() {
+fn the_default_filtering_request_downlevels_on_a_trilinear_only_backend() {
     let caps = Capabilities {
         upscalers: UpscalerSet::of(&[Upscaler::Off, Upscaler::Bilinear]),
         ..Capabilities::baseline("minimal", GraphicsApi::Gl)
     };
     let r = resolve(&GraphicsSettings::default(), &caps);
-    assert!(r.is_exact(), "{:?}", r.downgrades);
-    assert_eq!(r.effective, GraphicsSettings::default());
+    assert_eq!(r.downgrades.len(), 1);
+    assert!(r.downgrade_of(Setting::TextureFiltering).is_some());
+    assert_eq!(
+        r.effective,
+        GraphicsSettings { texture_filtering: crate::TextureFiltering::Trilinear, ..Default::default() }
+    );
 }
 
 #[test]
@@ -317,4 +322,21 @@ fn resolving_an_effective_result_again_changes_nothing() {
     let second = resolve(&first.effective, &native());
     assert!(second.is_exact(), "{:?}", second.downgrades);
     assert_eq!(second.effective, first.effective);
+}
+
+#[test]
+fn filtering_downlevels_without_changing_the_saved_request_and_tracks_restart() {
+    let requested =
+        GraphicsSettings { texture_filtering: crate::TextureFiltering::Anisotropic16, ..Default::default() };
+    let full = native();
+    assert_eq!(resolve(&requested, &full).effective.texture_filtering, crate::TextureFiltering::Anisotropic16);
+    let medium = Capabilities { max_texture_anisotropy: 8, ..full };
+    assert_eq!(resolve(&requested, &medium).effective.texture_filtering, crate::TextureFiltering::Anisotropic8);
+    let weak = Capabilities { max_texture_anisotropy: 1, ..full };
+    let result = resolve(&requested, &weak);
+    assert_eq!(result.effective.texture_filtering, crate::TextureFiltering::Trilinear);
+    assert!(result.downgrade_of(Setting::TextureFiltering).is_some());
+    assert_eq!(requested.texture_filtering, crate::TextureFiltering::Anisotropic16);
+    let restart = Capabilities { restart_required: RestartSet::of(&[Setting::TextureFiltering]), ..full };
+    assert!(restart.restart_needed(&GraphicsSettings::default(), &requested).contains(Setting::TextureFiltering));
 }

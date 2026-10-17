@@ -40,8 +40,13 @@ resolution and controls are outside style/quality ownership.
 A versioned appearance table persists stable lighting options. Freeze time and
 surface debug are session diagnostics and are not serialized. Malformed or
 future schemas produce a diagnostic and preserve legacy settings. Writes keep
-unrelated config keys. F8 Save profile writes the owned appearance/post/quality
-request only; environment overrides are excluded. Revert restores the startup
+unrelated config keys. F8 Save profile writes the complete graphics request,
+including scaling, upscaling and effect preferences; environment overrides are
+excluded. Renderer/API, window and gameplay settings are not restored by graphics
+load. Legacy documents leave missing fields at their current values. Named
+snapshots live in a separate versioned user file, support explicit replacement,
+and retain unsupported renderer requests. Invalid/future files are not overwritten.
+Revert restores the startup
 request, A/B swaps owned graphics, and section reset affects only its domain.
 
 ## UI and coverage
@@ -66,3 +71,28 @@ menu-to-F8-to-renderer synchronization, A/B/revert, save/reload and capabilities
 Keep inactive effects neutral. Test live resize, paused world changes and both
 native graphics APIs. Per-frame synchronization must not reset clocks or rebuild
 unchanged renderer resources. Existing high-FPS camera/clock checks remain valid.
+
+## Material-dependent advanced controls
+
+F8 retains every stored graphics request when a selected material family bypasses
+an enhancement. Editing clearcoat and sky/ground probe controls requires Custom
+Glossy car shading; Original PC, Original PC (shadowless) and Simple bypass those
+custom terms. Sky/ground strength sliders additionally require the probe toggle.
+The original rigs and their authored specular scale remain active independently.
+
+World ambient controls calibrate legacy prelit illumination. Disable editing
+while Original world materials is selected and explain that its authored surface
+families use their own ambient terms. Keep existing values for switching back;
+unsupported fallback art can still consume that retained legacy request.
+
+Contact detail remains a screen-space enhancement for direct-lit world surfaces,
+including supported original families. It does not need a sun map. Contact reach
+is editable only when contact detail is enabled. Explain the car boundary:
+Original PC cars bypass this mask when using the original projected map, and the
+shadowless original car family never consumes it. Do not invent contact effects
+in those shaders merely to make a control appear active.
+
+The custom clock's 22:00 shortcut is labelled **Custom night (dusk lighting)**.
+A full-night renderer is an optional enhancement, not missing ordinary retail
+PC parity: the recovered normal sun cycle reverses above the horizon. Scripted
+weather/NIS paths remain separate unresolved behavior.

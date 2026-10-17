@@ -149,7 +149,16 @@ fn calibrated_ambient_preserves_unoccluded_art_and_avoids_double_darkening_baked
         );
     }
     assert!(retention[0] > retention[1] + 0.03, "already shaded art retains more illumination: {retention:?}");
-    frame.surface_light = Some(SurfaceLight { ambient: [0.15, 0.2, 0.3], diffuse: [0.7; 3] });
+    frame.surface_light = Some(SurfaceLight {
+        shadow_strength: 1.0,
+        specular: [0.0; 3],
+        specular_power: 1.0,
+        reflection_scale: 0.0,
+        reflective_specular_scale: 1.0,
+        ambient_alpha: 1.0,
+        ambient: [0.15, 0.2, 0.3],
+        diffuse: [0.7; 3],
+    });
     let tinted = capture(&mut r, &frame, &ground);
     assert!(tinted.as_chunks::<4>().0.iter().filter(|p| p[2] > p[0].saturating_add(2)).count() > 50);
     r.set_shadow_casters(Some(&[]));

@@ -17,7 +17,11 @@ fn fixture(r: &mut Renderer) -> (FrameParams, Vec<Instance>) {
         envmap_min: 0.0,
         ..Default::default()
     });
-    r.set_lighting_rig(&LightingRig { lights: [DirectionalLight::new(Vec3::Z, Vec3::ZERO); 3], ambient: Vec3::ZERO });
+    r.set_lighting_rig(&LightingRig {
+        lights: [DirectionalLight::new(Vec3::Z, Vec3::ZERO); 3],
+        ambient: Vec3::ZERO,
+        ..Default::default()
+    });
     r.set_render_experiments(RenderExperiments {
         car_skylight: true,
         sky_strength: 1.0,

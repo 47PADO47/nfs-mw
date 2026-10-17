@@ -12,8 +12,16 @@ use crate::{BlendMode, GlossyMaterialHandle, Shading, Vertex};
 /// Draw order: opaque and alpha-tested first, blended last.
 pub(super) const BLEND_ORDER: [BlendMode; 4] =
     [BlendMode::Opaque, BlendMode::AlphaTest, BlendMode::AlphaBlend, BlendMode::Additive];
-pub(super) const SHADINGS: [Shading; 4] =
-    [Shading::Lit, Shading::Prelit, Shading::Sky, Shading::Glossy(GlossyMaterialHandle::ANY)];
+pub(super) const SHADINGS: [Shading; 8] = [
+    Shading::Lit,
+    Shading::Prelit,
+    Shading::Sky,
+    Shading::World,
+    Shading::Tree,
+    Shading::WorldNoFog,
+    Shading::WorldPrelit,
+    Shading::Glossy(GlossyMaterialHandle::ANY),
+];
 
 pub(super) struct Pipelines {
     scene: Module,
@@ -59,8 +67,9 @@ impl Pipelines {
             label: Some("scene shader"),
             source: wgpu::ShaderSource::Wgsl(
                 format!(
-                    "{}\n{}",
+                    "{}\n{}\n{}",
                     include_str!("../shaders/scene.wgsl"),
+                    include_str!("../shaders/world_surface.wgsl"),
                     include_str!("../shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "2")
                 )
                 .into(),
@@ -162,9 +171,19 @@ impl Pipelines {
             BlendMode::Additive => ("fs_blend", Some(ADDITIVE), false),
         };
         let label = format!("{blend_mode:?} {shading:?} {format:?}");
-        let prelit = matches!(shading, Shading::Prelit | Shading::Sky);
-        let constants =
-            [("PRELIT", f64::from(u8::from(prelit))), ("FOG", f64::from(u8::from(shading != Shading::Sky)))];
+        let prelit = !matches!(shading, Shading::Lit | Shading::Glossy(_));
+        let world_kind = match shading {
+            Shading::World => 1.0,
+            Shading::Tree => 2.0,
+            Shading::WorldPrelit => 3.0,
+            Shading::WorldNoFog => 4.0,
+            _ => 0.0,
+        };
+        let constants = [
+            ("PRELIT", f64::from(u8::from(prelit))),
+            ("FOG", f64::from(u8::from(shading != Shading::Sky))),
+            ("WORLD_KIND", world_kind),
+        ];
         // The glossy shader has its own module, layout and no overrides.
         let glossy = self.glossy.as_ref().filter(|_| matches!(shading, Shading::Glossy(_)));
         let (module, constants): (_, &[(&str, f64)]) = match glossy {
@@ -177,7 +196,7 @@ impl Pipelines {
             vertex: wgpu::VertexState {
                 module: &module.shader,
                 entry_point: Some("vs_main"),
-                compilation_options: Default::default(),
+                compilation_options: wgpu::PipelineCompilationOptions { constants, ..Default::default() },
                 buffers: &[Some(vertex_layout), Some(INSTANCE_LAYOUT)],
             },
             primitive: wgpu::PrimitiveState {

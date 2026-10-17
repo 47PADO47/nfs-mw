@@ -18,8 +18,10 @@ mod pattern;
 mod police;
 mod population;
 mod pursuit;
+mod road_reflection;
 mod roadblock;
 mod scene;
+mod shading;
 mod simulation;
 mod spawn;
 mod spikes;
@@ -111,6 +113,8 @@ pub struct TrafficWorld {
     requests: Vec<ModelRequest>,
     /// Names already asked for (loaded, loading or failed).
     known: HashSet<String>,
+    /// Last applied appearance mode; live actors share these uploaded rigs.
+    shading: Option<crate::settings::CarShading>,
     spawn_timer: f32,
     /// Seconds of simulation a screenshot run still has to run in batches (it has no frame time).
     warmup_left: f32,
@@ -172,6 +176,7 @@ impl TrafficWorld {
             patrol: None,
             requests: Vec::new(),
             known: HashSet::new(),
+            shading: None,
             spawn_timer: 0.0,
             warmup_left: 0.0,
             log_timer: 0.0,

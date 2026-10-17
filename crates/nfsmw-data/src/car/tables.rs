@@ -45,6 +45,7 @@ pub mod slot {
     pub const VINYL_LAYER: usize = 77;
     pub const VINYL_COLOURS: RangeInclusive<usize> = 79..=82;
     pub const DECAL_TEXTURES: RangeInclusive<usize> = 83..=130;
+    pub const WINDOW_TINT: usize = 131;
     pub const HUD_COLOURS: RangeInclusive<usize> = 133..=135;
 }
 

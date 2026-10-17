@@ -95,7 +95,7 @@ fn pass(
     output
 }
 
-fn click(ctx: &egui::Context, lab: &mut GraphicsLab, settings: &mut Settings, label: &str) {
+pub(super) fn click(ctx: &egui::Context, lab: &mut GraphicsLab, settings: &mut Settings, label: &str) {
     // Let window auto-sizing settle, then hit the actual text drawn by the production panel.
     pass(ctx, lab, settings, vec![]);
     let output = pass(ctx, lab, settings, vec![]);
@@ -171,7 +171,7 @@ fn real_panel_buttons_switch_presets_swap_and_restore_without_touching_gameplay(
     assert_eq!(settings.post_aa, PostAa::Off);
     settings.hud = !startup.hud;
     click(&ctx, &mut lab, &mut settings, "Restore startup · 0");
-    assert_eq!(lab.options, RenderExperiments::default());
+    assert_eq!(lab.options, crate::settings::Appearance::default().lighting);
     assert_eq!(settings.post_aa, startup.post_aa);
     assert_eq!(settings.hud, !startup.hud);
 }
@@ -245,7 +245,7 @@ fn environment_buttons_select_time_rain_and_freeze_without_resetting_gameplay() 
     let ctx = egui::Context::default();
     let mut lab = GraphicsLab {
         open: true,
-        environment: Some(crate::viewer::Environment { hour: 12.0, seconds_per_hour: 150.0 }),
+        environment: Some(crate::viewer::Environment { hour: 12.0, seconds_per_hour: 150.0, ..Default::default() }),
         ..Default::default()
     };
     let mut settings = Settings::from(crate::settings::Partial::default());
@@ -259,7 +259,7 @@ fn environment_buttons_select_time_rain_and_freeze_without_resetting_gameplay() 
     click(&ctx, &mut lab, &mut settings, "Rain");
     assert!(settings.always_rain);
     assert_eq!(settings.rain_amount.0, 100);
-    click(&ctx, &mut lab, &mut settings, "Clear");
+    click(&ctx, &mut lab, &mut settings, "No rain");
     assert!(!settings.always_rain);
     assert_eq!(settings.camera_mode, camera);
     assert_eq!(lab.environment.unwrap().hour, 18.0);
@@ -284,7 +284,7 @@ fn menu_and_f8_share_profile_requests_and_overrides_survive_preview() {
     assert!(GraphicsSetting::Style.step(&mut settings, &mut changed, true));
     assert_eq!(settings.visual_style(), VisualStyle::OriginalPc);
     pass(&ctx, &mut lab, &mut settings, vec![]);
-    assert!(lab.options.original_shadows && !lab.options.sun_shadows);
+    assert!(lab.options.original_shadows && lab.options.sun_shadows && lab.options.shadow_projection.is_some());
     click(&ctx, &mut lab, &mut settings, "Enhanced");
     assert_eq!(settings.visual_style(), VisualStyle::Enhanced);
     assert!(settings.appearance.lighting.sun_shadows);
@@ -322,4 +322,50 @@ fn restore_uses_canonical_startup_lighting_and_profile_load_only_owns_appearance
     assert_eq!(settings.shadows, saved.shadows);
     assert_ne!(settings.tire_smoke, saved.tire_smoke);
     assert_ne!(settings.always_rain, saved.always_rain);
+}
+
+#[test]
+fn section_resets_and_lighting_presets_keep_material_selection_independent() {
+    let ctx = egui::Context::default();
+    let mut lab = GraphicsLab {
+        open: true,
+        stats: ExperimentStats { supported: true, ..Default::default() },
+        ..Default::default()
+    };
+    let mut s = Settings::from(crate::settings::Partial::default());
+    s.select_visual_style(crate::settings::VisualStyle::Enhanced);
+    click(&ctx, &mut lab, &mut s, "Materials");
+    assert!(s.appearance.lighting.original_world_materials);
+    click(&ctx, &mut lab, &mut s, "Lighting");
+    click(&ctx, &mut lab, &mut s, "Sun");
+    assert!(s.appearance.lighting.original_world_materials);
+    click(&ctx, &mut lab, &mut s, "Reset section");
+    assert!(s.appearance.lighting.original_world_materials);
+    click(&ctx, &mut lab, &mut s, "Materials");
+    click(&ctx, &mut lab, &mut s, "Reset section");
+    assert!(s.appearance.lighting.original_world_materials);
+}
+
+#[test]
+fn environment_comparison_presets_are_independent_and_session_local() {
+    use crate::viewer::{Environment, SunMode};
+    let ctx = egui::Context::default();
+    let mut lab = GraphicsLab { open: true, environment: Some(Environment::default()), ..Default::default() };
+    let mut settings = Settings::from(crate::settings::Partial::default());
+    click(&ctx, &mut lab, &mut settings, "Environment");
+    click(&ctx, &mut lab, &mut settings, "Overcast");
+    assert_eq!(lab.environment_change.unwrap().cloud_override, Some(1.0));
+    assert!(!settings.always_rain, "overcast is a cloud comparison, not a rain storm");
+    click(&ctx, &mut lab, &mut settings, "Cloudy");
+    assert_eq!(lab.environment_change.unwrap().cloud_override, Some(0.5));
+    click(&ctx, &mut lab, &mut settings, "Sunny");
+    assert_eq!(lab.environment_change.unwrap().cloud_override, Some(0.0));
+    click(&ctx, &mut lab, &mut settings, "Location");
+    assert_eq!(lab.environment_change.unwrap().cloud_override, None);
+    click(&ctx, &mut lab, &mut settings, "Original cycle");
+    assert_eq!(lab.environment_change.unwrap().sun_mode, SunMode::OriginalCycle);
+    click(&ctx, &mut lab, &mut settings, "Fixed phase");
+    assert_eq!(lab.environment_change.unwrap().sun_mode, SunMode::FixedPhase);
+    click(&ctx, &mut lab, &mut settings, "Settle clouds to target");
+    assert!(lab.environment_change.unwrap().settle_clouds);
 }

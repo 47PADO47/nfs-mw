@@ -26,7 +26,7 @@ fn text(s: &'static str) -> Title {
 #[test]
 fn the_native_renderer_hides_ray_tracing_and_the_quality_mode_but_has_the_renderer_row() {
     let video = titles(Category::Video, &test_caps::native());
-    assert_eq!(video.len(), 27);
+    assert_eq!(video.len(), 30);
     for hidden in ["Ray Tracing", "Upscale Quality"] {
         assert!(!video.contains(&text(hidden)), "{hidden} needs a renderer that offers it");
     }
@@ -48,12 +48,13 @@ fn the_native_renderer_hides_ray_tracing_and_the_quality_mode_but_has_the_render
 #[test]
 fn a_full_renderer_has_every_row_next_to_the_setting_it_belongs_with() {
     let video = titles(Category::Video, &test_caps::full());
-    assert_eq!(video.len(), 29);
+    assert_eq!(video.len(), 32);
     let at =
         |name: &'static str| video.iter().position(|t| *t == text(name)).unwrap_or_else(|| panic!("no {name} row"));
     assert_eq!(at("Upscale Quality"), at("Upscaler") + 1);
     assert_eq!(at("Ray Tracing"), at("Bloom") + 1);
-    assert_eq!(at("Enhanced Sun Shadows"), at("Car Reflections") + 1);
+    assert_eq!(at("Road Reflection Detail"), at("Car Reflections") + 1);
+    assert_eq!(at("Enhanced Sun Shadows"), at("Road Reflection Detail") + 1);
     assert_eq!(at("Renderer (After Restart)"), 1);
     assert_eq!(at("Graphics API (After Restart)"), 2);
     assert_eq!(titles(Category::Audio, &test_caps::full()).len(), 5, "only the Video screen has them");
@@ -246,4 +247,37 @@ fn profile_menu_reports_backend_shadow_and_treatment_results_without_erasing_req
     let treatment = Setting::Graphics(GraphicsSetting::VisualTreatment);
     assert_eq!(treatment.data_in(&s, &unsupported), Data::Text("Off".into()));
     assert_eq!(s, before);
+}
+
+#[test]
+fn original_car_requests_explain_the_bevy_shader_fallback_without_changing_preferences() {
+    let mut s = defaults();
+    let row = Setting::Graphics(GraphicsSetting::CarShading);
+    for shading in [crate::settings::CarShading::Original, crate::settings::CarShading::OriginalUnshadowed] {
+        s.car_shading = shading;
+        assert_eq!(row.data_in(&s, &test_caps::native()), Data::Text(shading.label().into()));
+        assert_eq!(row.data_in(&s, &test_caps::full()), Data::Text("Custom shader fallback".into()));
+        assert_eq!(s.car_shading, shading);
+    }
+}
+
+#[test]
+fn filtering_restart_label_follows_the_running_backend_not_the_saved_renderer_request() {
+    use crate::settings::TextureFiltering;
+    let stored = Settings::from(Partial {
+        renderer: Some(RendererKind::Bevy),
+        texture_filtering: Some(TextureFiltering::Anisotropic16),
+        ..Default::default()
+    });
+    let row = Setting::Graphics(GraphicsSetting::TextureFiltering);
+    assert_eq!(row.data_in(&stored, &test_caps::native()), Data::Text("Anisotropic 16x".into()));
+    let bevy = blackbox_gfx::Capabilities {
+        renderer: "bevy",
+        restart_required: blackbox_gfx::RestartSet::of(&[blackbox_gfx::Setting::TextureFiltering]),
+        ..test_caps::native()
+    };
+    let requested_native = Settings { renderer: RendererKind::Blackbox, ..stored };
+    assert_eq!(row.data_in(&requested_native, &bevy), Data::Text("Anisotropic 16x (Restart)".into()));
+    let weak = blackbox_gfx::Capabilities { max_texture_anisotropy: 1, ..test_caps::native() };
+    assert_eq!(row.data_in(&stored, &weak), Data::Text("Trilinear".into()));
 }

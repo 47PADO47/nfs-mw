@@ -27,7 +27,8 @@ fn original_target_disables_enhancements_but_is_not_claimed_complete() {
     assert!(s.appearance.lighting.sun_shadows && s.appearance.lighting.clearcoat);
     s.select_visual_style(VisualStyle::OriginalPc);
     assert!(
-        !s.appearance.lighting.sun_shadows
+        s.appearance.lighting.sun_shadows
+            && s.appearance.lighting.shadow_projection.is_some()
             && !s.appearance.lighting.contact_shadows
             && !s.appearance.lighting.clearcoat
     );
@@ -83,7 +84,7 @@ reflections='low'
     assert_eq!(s.post_aa, PostAa::Smaa);
     assert_eq!(s.post_tonemap, PostTonemap::Off);
     assert_eq!(s.reflections, ReflectionQuality::Low);
-    assert_eq!(s.appearance.lighting, RenderExperiments::default());
+    assert_eq!(s.appearance.lighting, Appearance::default().lighting);
 }
 #[test]
 fn invalid_and_future_profiles_do_not_destroy_legacy_settings() {
@@ -160,4 +161,34 @@ fn saving_a_baseline_removes_the_previous_treatment_override() {
     let loaded = Settings::from(super::super::file::parse(&reset, "test"));
     assert_eq!(loaded.appearance.treatment_strength, None);
     assert_eq!(loaded.visual_style(), VisualStyle::OriginalPc);
+}
+
+#[test]
+fn original_material_selection_persists_and_quality_never_changes_it() {
+    let mut s = settings();
+    s.select_visual_style(VisualStyle::OriginalPc);
+    assert!(s.appearance.lighting.original_world_materials);
+    assert_eq!(s.car_shading, CarShading::Original);
+    for quality in Quality::ALL {
+        s.select_graphics_quality(quality);
+        assert!(s.appearance.lighting.original_world_materials);
+    }
+    let text = super::super::write::merge("", &s.appearance_layer()).unwrap();
+    let restored = Settings::from(super::super::file::parse(&text, "test"));
+    assert!(restored.appearance.lighting.original_world_materials);
+    assert_eq!(restored.appearance.lighting.shadow_projection, Some(super::shadows::PROJECTION));
+    s.select_visual_style(VisualStyle::Enhanced);
+    assert!(s.appearance.lighting.original_world_materials);
+    assert_eq!(s.appearance.lighting.shadow_projection, None);
+    assert!(s.appearance.lighting.contact_shadows);
+}
+
+#[test]
+fn old_material_profiles_migrate_without_losing_other_tuning() {
+    let text = "post_aa='smaa'\n[appearance]\nversion=1\nstyle='custom'\n[appearance.lighting]\noriginal_world_materials=false\nshadow_distance=237.0\ncontact_length=0.42\n";
+    let s = Settings::from(super::super::file::parse(text, "old profile"));
+    assert!(s.appearance.lighting.original_world_materials);
+    assert_eq!(s.appearance.lighting.shadow_distance, 237.0);
+    assert_eq!(s.appearance.lighting.contact_length, 0.42);
+    assert_eq!(s.post_aa, PostAa::Smaa);
 }

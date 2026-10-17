@@ -121,7 +121,14 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         post_bloom: field(&table, origin, "post_bloom", |v| PostBloom::from_str(text_of(v)?)),
         visual_treatment: field(&table, origin, "visual_treatment", |v| super::VisualTreatment::from_str(text_of(v)?)),
         post_aa: field(&table, origin, "post_aa", |v| PostAa::from_str(text_of(v)?)),
+        texture_filtering: field(&table, origin, "texture_filtering", |v| {
+            super::TextureFiltering::from_str(text_of(v)?)
+        }),
         reflections: field(&table, origin, "reflections", |v| super::ReflectionQuality::from_str(text_of(v)?)),
+        road_reflections: field(&table, origin, "road_reflections", |v| super::RoadReflections::from_str(text_of(v)?)),
+        road_reflection_resolution: field(&table, origin, "road_reflection_resolution", |v| {
+            super::RoadReflectionResolution::from_str(text_of(v)?)
+        }),
         shadows: field(&table, origin, "shadows", |v| super::ShadowQuality::from_str(text_of(v)?)),
         ao: field(&table, origin, "ao", |v| super::AoQuality::from_str(text_of(v)?)),
         ao_intensity: field(&table, origin, "ao_intensity", percent),

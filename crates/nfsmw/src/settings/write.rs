@@ -184,6 +184,15 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.ao_compare {
         put("ao_compare", Value::Boolean(v));
     }
+    if let Some(v) = changes.texture_filtering {
+        put("texture_filtering", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.road_reflections {
+        put("road_reflections", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.road_reflection_resolution {
+        put("road_reflection_resolution", Value::String(v.to_string()));
+    }
     if let Some(v) = changes.post_aa {
         put("post_aa", Value::String(v.to_string()));
     }

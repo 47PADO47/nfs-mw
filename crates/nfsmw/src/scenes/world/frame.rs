@@ -26,6 +26,9 @@ impl WorldScene {
             &mut self.visible,
         );
         self.residency.props().fragment_instances(&mut self.visible);
+        if self.original_sky {
+            self.residency.sky.place(&self.residency.shared, &mut self.visible, lens.position, super::sky::View::Main);
+        }
         if let Some(traffic) = &self.traffic {
             traffic.instances(&mut self.visible);
             let lamps = self.lamp_meshes.as_ref().filter(|_| self.traffic_setting.lights);

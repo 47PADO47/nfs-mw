@@ -51,3 +51,11 @@ fn fs_main_srgb(in: VsOut) -> @location(0) vec4<f32> {
     let c = textureSample(tex, samp, in.uv) * in.color;
     return vec4<f32>(linear_from_gamma(c.rgb), c.a);
 }
+
+// Decode straight RGB, then reapply alpha for linear premultiplied compositing.
+@fragment fn fs_main_hdr(in: VsOut) -> @location(0) vec4<f32> {
+    let c = textureSample(tex, samp, in.uv) * in.color;
+    if c.a <= 0.0 { return vec4(0.0); }
+    let straight = max(c.rgb / c.a, vec3(0.0));
+    return vec4(linear_from_gamma(straight) * c.a * globals.screen.z, c.a);
+}

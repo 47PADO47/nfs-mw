@@ -36,6 +36,14 @@ pub enum ShadingKind {
     Sky,
     /// Three lights, a sun highlight and an environment reflection; see `glossy.rs`.
     Glossy,
+    /// Authored ambient plus direct scenery lighting, with atmospheric extinction.
+    World,
+    /// Tree lighting with texture-only alpha and different atmospheric attenuation.
+    Tree,
+    /// Doubled diffuse/vertex RGB without lighting or atmosphere.
+    WorldNoFog,
+    /// Like `WorldNoFog`, with doubled diffuse/vertex alpha.
+    WorldPrelit,
 }
 
 impl ShadingKind {
@@ -44,8 +52,16 @@ impl ShadingKind {
         match shading {
             Shading::Prelit => Self::Prelit,
             Shading::Sky => Self::Sky,
+            Shading::SkyLayer(_) => Self::Sky,
             Shading::Lit => Self::Lit,
             Shading::Glossy(_) => Self::Glossy,
+            Shading::World => Self::World,
+            // Registration returns None on this backend. Keep externally supplied
+            // unsupported handles on the same explicit legacy fallback.
+            Shading::WorldNormal(_) | Shading::WorldWindow(_) => Self::Prelit,
+            Shading::Tree => Self::Tree,
+            Shading::WorldNoFog => Self::WorldNoFog,
+            Shading::WorldPrelit => Self::WorldPrelit,
         }
     }
 }
@@ -82,6 +98,17 @@ pub struct Params {
     pub light_dir: Vec4,
     /// x = use the ACES reference-colour bridge.
     pub tone_map: Vec4,
+    /// Authored RGB and intensity; presence is separate in `surface_diffuse.w`.
+    pub surface_ambient: Vec4,
+    pub surface_diffuse: Vec4,
+    /// Rayleigh RGB and atmospheric enable flag.
+    pub scatter_rayleigh: Vec4,
+    /// Mie RGB and anisotropy.
+    pub scatter_mie: Vec4,
+    /// Sun direction in Bevy axes, and authored distance scale.
+    pub to_sun: Vec4,
+    /// x = original scenery, y = authored in-scattering multiplier.
+    pub scenery: Vec4,
 }
 
 impl Params {
@@ -90,12 +117,27 @@ impl Params {
         let [start, end] = frame.fog_range();
         let [r, g, b] = frame.clear_color;
         let light = crate::axes::point(frame.light_dir);
-        Self {
+        let mut out = Self {
             fog_color: Vec4::new(r, g, b, 1.0),
             fog_range: Vec4::new(start, end, 0.0, 0.0),
             light_dir: Vec4::new(light.x, light.y, light.z, 0.0),
             tone_map: Vec4::ZERO,
+            ..Self::default()
+        };
+        if let Some(light) = frame.surface_light {
+            out.surface_ambient =
+                Vec4::from_array([light.ambient[0], light.ambient[1], light.ambient[2], light.ambient_alpha]);
+            out.surface_diffuse = Vec4::from_array([light.diffuse[0], light.diffuse[1], light.diffuse[2], 1.0]);
         }
+        if let Some(scatter) = frame.scattering {
+            out.scatter_rayleigh =
+                Vec4::from_array([scatter.rayleigh[0], scatter.rayleigh[1], scatter.rayleigh[2], 1.0]);
+            out.scatter_mie = Vec4::from_array([scatter.mie[0], scatter.mie[1], scatter.mie[2], scatter.g]);
+            let sun = crate::axes::point(scatter.to_sun);
+            out.to_sun = Vec4::new(sun.x, sun.y, sun.z, scatter.distance_scale);
+            out.scenery.y = scatter.in_scatter_scale;
+        }
+        out
     }
 
     pub fn with_tonemap(frame: &FrameParams, tonemap: blackbox_gfx::Tonemap) -> Self {
@@ -103,6 +145,11 @@ impl Params {
             tone_map: Vec4::new(u8::from(tonemap == blackbox_gfx::Tonemap::Aces).into(), 0.0, 0.0, 0.0),
             ..Self::of(frame)
         }
+    }
+
+    pub fn with_original_world(mut self, enabled: bool) -> Self {
+        self.scenery.x = u8::from(enabled).into();
+        self
     }
 }
 
@@ -113,6 +160,12 @@ impl Default for Params {
             fog_range: Vec4::new(f32::MAX, f32::MAX, 0.0, 0.0),
             light_dir: Vec4::new(0.0, -1.0, 0.0, 0.0),
             tone_map: Vec4::ZERO,
+            surface_ambient: Vec4::new(0.35, 0.35, 0.35, 1.0),
+            surface_diffuse: Vec4::new(0.65, 0.65, 0.65, 0.0),
+            scatter_rayleigh: Vec4::ZERO,
+            scatter_mie: Vec4::ZERO,
+            to_sun: Vec4::new(0.0, 1.0, 0.0, 1.0),
+            scenery: Vec4::new(0.0, 1.0, 0.0, 0.0),
         }
     }
 }
@@ -239,6 +292,17 @@ impl Material for BlackboxMaterial {
         if shading != ShadingKind::Sky {
             defs.push("FOG".into());
         }
+        let family = match shading {
+            ShadingKind::World => Some("WORLD"),
+            ShadingKind::Tree => Some("TREE"),
+            ShadingKind::WorldNoFog => Some("WORLD_NO_FOG"),
+            ShadingKind::WorldPrelit => Some("WORLD_PRELIT"),
+            _ => None,
+        };
+        if let Some(family) = family {
+            descriptor.vertex.shader_defs.push(family.into());
+            defs.push(family.into());
+        }
         if blend == BlendKind::AlphaTest {
             defs.push("ALPHA_TEST".into());
         }
@@ -301,6 +365,14 @@ mod tests {
         assert_eq!(ShadingKind::of(Shading::Prelit), ShadingKind::Prelit);
         assert_eq!(ShadingKind::of(Shading::Sky), ShadingKind::Sky);
         assert_eq!(ShadingKind::of(Shading::Lit), ShadingKind::Lit);
+        assert_eq!(ShadingKind::of(Shading::World), ShadingKind::World);
+        assert_eq!(
+            ShadingKind::of(Shading::WorldNormal(blackbox_gfx::NormalMaterialHandle::from_raw(1))),
+            ShadingKind::Prelit
+        );
+        assert_eq!(ShadingKind::of(Shading::Tree), ShadingKind::Tree);
+        assert_eq!(ShadingKind::of(Shading::WorldNoFog), ShadingKind::WorldNoFog);
+        assert_eq!(ShadingKind::of(Shading::WorldPrelit), ShadingKind::WorldPrelit);
         assert_eq!(
             ShadingKind::of(Shading::Glossy(blackbox_gfx::GlossyMaterialHandle::from_raw(1))),
             ShadingKind::Glossy
@@ -319,5 +391,39 @@ mod tests {
             blend: BlendKind::Additive,
         };
         assert_eq!(BlackboxKey::from(&material), BlackboxKey { shading: ShadingKind::Sky, blend: BlendKind::Additive });
+    }
+
+    #[test]
+    fn authored_intensity_and_atmosphere_are_distinct_from_presence_and_style() {
+        let mut frame = frame(None);
+        frame.surface_light = Some(blackbox_gfx::SurfaceLight {
+            shadow_strength: 1.0,
+            specular: [0.0; 3],
+            specular_power: 1.0,
+            reflection_scale: 0.0,
+            reflective_specular_scale: 1.0,
+            ambient: [0.3, 0.2, 0.1],
+            ambient_alpha: 0.4,
+            diffuse: [0.8, 0.7, 0.6],
+        });
+        frame.scattering = Some(blackbox_gfx::Scattering {
+            rayleigh: [0.01, 0.02, 0.03],
+            mie: [0.04, 0.05, 0.06],
+            g: 0.7,
+            to_sun: Vec3::Z,
+            distance_scale: 0.8,
+            in_scatter_scale: 0.9,
+        });
+        let params = Params::of(&frame);
+        assert_eq!(params.surface_ambient.w, 0.4);
+        assert_eq!(params.surface_diffuse.w, 1.0);
+        assert_eq!(params.scatter_rayleigh.w, 1.0);
+        assert_eq!(params.to_sun, Vec4::new(0.0, 1.0, 0.0, 0.8));
+        assert_eq!(params.scenery.y, 0.9);
+        assert_eq!(params.scenery.x, 0.0);
+        let original = params.with_original_world(true);
+        assert_eq!(original.scenery.x, 1.0);
+        assert_eq!(original.surface_ambient, params.surface_ambient);
+        assert_eq!(original.scenery.y, params.scenery.y);
     }
 }

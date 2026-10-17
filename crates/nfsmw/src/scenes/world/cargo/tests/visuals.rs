@@ -19,7 +19,9 @@ fn installed_cargo_release_preserves_uploaded_parts_and_world_pose() {
     let options = LoadOptions { lod: 'A', all_parts: false, preset: None };
     for (name, expected) in [("TRAILERLOG", 7), ("TRAILERB", 3)] {
         let model = nfsmw_data::car::load(&dir, name, &options).unwrap();
-        let mut renderer = NullBackend::new(Capabilities::baseline("null", GraphicsApi::Vulkan));
+        let mut renderer = NullBackend::new(Capabilities::baseline("null", GraphicsApi::Vulkan))
+            .with_mesh_tracking()
+            .with_glossy_tracking();
         let materials = CarMaterials::upload(&mut renderer, &model, CarShading::default(), sun::to_sun());
         for placement in
             model.placements.iter().filter(|p| nfsmw_data::car::LAYOUT.slots[p.slot].name.starts_with("ATTACHMENT"))
@@ -69,6 +71,20 @@ fn installed_cargo_release_preserves_uploaded_parts_and_world_pose() {
         let mut detached = Vec::new();
         props.fragment_instances(&mut detached);
         assert_eq!(detached.len(), expected);
+        let before_reshade = detached.clone();
+        let replacements = rig.reshade(&mut renderer, CarShading::Original, sun::to_sun());
+        props.remap_fragment_meshes(&replacements);
+        detached.clear();
+        props.fragment_instances(&mut detached);
+        assert_eq!(detached.len(), before_reshade.len());
+        for old in &before_reshade {
+            let new_mesh =
+                replacements.iter().find(|(mesh, _)| *mesh == old.mesh).expect("every released mesh is remapped").1;
+            assert!(
+                detached.iter().any(|part| part.mesh == new_mesh && close(part.transform, old.transform)),
+                "reshading preserves released cargo pose"
+            );
+        }
         eprintln!("{name}: {expected} textured cargo meshes preserve their world pose at release");
         drop(sim);
         detached.clear();

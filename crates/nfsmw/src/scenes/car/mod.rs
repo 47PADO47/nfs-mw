@@ -2,8 +2,11 @@
 
 mod commands;
 mod floor;
+#[cfg(test)]
+mod lifecycle_tests;
 pub(crate) mod lighting;
 pub(crate) mod materials;
+pub(crate) mod original_lighting;
 mod shading;
 mod texture_anim;
 mod wheels;
@@ -49,6 +52,8 @@ pub struct CarScene {
     /// The car shading the current car was uploaded with, and the one asked for since.
     shading: CarShading,
     wanted_shading: CarShading,
+    /// Authored presets sampled at this viewer's fixed sun and clear-cloud preview context.
+    preview_lighting: Option<nfsmw_data::time_of_day::Presets>,
     /// Which car is on the floor: another car gets new instance keys.
     car: u32,
     /// The camera jumped (a new scene, another car, the camera toggle).
@@ -78,6 +83,7 @@ impl CarScene {
             materials: None,
             shading: CarShading::default(),
             wanted_shading: CarShading::default(),
+            preview_lighting: None,
             car: 0,
             cut: CameraCut::default(),
             view_offset: 0.0,
@@ -94,8 +100,25 @@ impl CarScene {
 
     /// Let the console load other cars from `dir`, with the same options.
     pub fn with_source(mut self, dir: GameDir, options: LoadOptions) -> Self {
+        self.preview_lighting = dir
+            .read("GLOBAL/ATTRIBUTES.BIN")
+            .ok()
+            .and_then(|bytes| blackbox_attrib::Database::open(&bytes).ok())
+            .and_then(|db| nfsmw_data::time_of_day::load(&db));
         self.source = Some(Source { dir, options });
         self
+    }
+
+    fn update_original_lighting(&self, renderer: &mut dyn RenderBackend) {
+        if !self.shading.is_original() {
+            return;
+        }
+        let scale = self
+            .preview_lighting
+            .as_ref()
+            .and_then(|presets| nfsmw_data::time_of_day::car_specular_scale(presets, 0.0, (-LIGHT_DIR).normalize().z))
+            .unwrap_or(1.0);
+        renderer.set_lighting_rig(&original_lighting::frontend(scale));
     }
 
     /// Car space to world: the car stands on the floor at z = 0.
@@ -143,6 +166,7 @@ impl CarScene {
             self.instances.push(Instance::keyed(floor, Mat4::IDENTITY, InstanceKey::new(self.car, FLOOR_PART)));
         }
         self.materials = Some(materials);
+        self.update_original_lighting(renderer);
         // The renderer wants instances of one mesh next to each other.
         self.instances.sort_by_key(|i| i.mesh);
     }
@@ -182,6 +206,10 @@ fn bounds(model: &CarModel) -> Aabb {
 }
 
 impl Scene for CarScene {
+    fn close(&mut self, renderer: &mut dyn RenderBackend) {
+        self.release(renderer);
+    }
+
     fn title(&self) -> String {
         let paint = self.model.paint.as_ref().map(|p| format!(" — {} {}", p.name, p.hex())).unwrap_or_default();
         format!("nfsmw — {}{paint}", self.model.name)
@@ -201,14 +229,19 @@ impl Scene for CarScene {
     }
 
     fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
-        if self.wanted_shading != self.shading {
-            self.release(renderer);
-            self.upload(renderer);
-        }
+        self.refresh_effects(renderer);
         match &mut self.free {
             Some(free) => free.update(input, dt),
             None => self.camera.update(input),
         }
+    }
+
+    fn refresh_effects(&mut self, renderer: &mut dyn RenderBackend) {
+        if self.wanted_shading != self.shading {
+            self.release(renderer);
+            self.upload(renderer);
+        }
+        self.update_original_lighting(renderer);
     }
 
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {

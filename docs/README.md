@@ -170,3 +170,17 @@ contract has a companion provenance record and an explicit validation boundary.
 Camera audit coverage and remaining scene-validation boundaries: [original gameplay camera coverage](specs/original-camera-coverage.md).
 
 Graphics profiles and missing original-rendering coverage: [coverage ledger](graphics-coverage.md), [settings contract](specs/graphics-profiles.md).
+
+World rendering: [material routing](specs/world-material-routing.md),
+[normal maps](specs/world-normal-materials.md), [atmosphere](specs/world-atmosphere.md),
+[sky shading](specs/world-sky-shading.md).
+
+Road and glass: [reflective surfaces](specs/world-reflect-materials.md),
+[architectural windows](specs/world-window-materials.md),
+[projected wet-road captures](specs/wet-road-reflections.md).
+
+Car rendering: [original material families](specs/car-material-shading.md),
+[light rigs and authored specular scale](specs/car-lighting.md).
+
+Projected shadows: [camera and strength](specs/original-projected-shadows.md),
+[world surface receivers](specs/world-surface-shadow-receivers.md).

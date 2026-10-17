@@ -35,8 +35,14 @@ fn frame_cost(counts: &[u32]) -> Option<Vec<(u32, f64)>> {
         blend: BlendMode::Opaque,
         shading: Shading::Prelit,
     };
-    let mesh =
-        bevy.create_mesh(&MeshDesc { label: "tri", vertices: &vertices, indices: &[0, 1, 2], draws: vec![draw] });
+    let mesh = bevy.create_mesh(&MeshDesc {
+        secondary_uvs: None,
+        tangents: None,
+        label: "tri",
+        vertices: &vertices,
+        indices: &[0, 1, 2],
+        draws: vec![draw],
+    });
     let frame = Camera::new(Vec3::new(0.0, -30.0, 20.0), Vec3::new(0.0, 100.0, 0.0)).frame(16.0 / 9.0, [0.5; 3], None);
     let mut results = Vec::new();
     for &count in counts {

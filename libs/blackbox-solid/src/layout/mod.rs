@@ -69,6 +69,8 @@ pub struct SolidLayout {
     pub groups_align: usize,
     pub indices_align: usize,
     pub vertices_align: usize,
+    /// Effect declarations with UV1 at36 and tangent FLOAT4 at44 in a60-byte vertex.
+    pub tangent_effects: &'static [u32],
 }
 
 /// All supported layouts.

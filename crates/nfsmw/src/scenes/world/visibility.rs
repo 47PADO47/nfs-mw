@@ -145,6 +145,7 @@ mod tests {
             prop_id: 0,
             key: InstanceKey::new(1, 1),
             original_shadow: false,
+            casts_sun_shadow: true,
             spawner: None,
             parts: None,
             curve_lamp: None,

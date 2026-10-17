@@ -10,14 +10,21 @@ use super::{
 };
 
 /// Separate buffers keep all six camera/instance uploads valid in one queue submission.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum CaptureKind {
+    Cube,
+    Projected,
+}
+
 pub(super) struct CaptureView {
+    pub kind: CaptureKind,
     pub globals: wgpu::Buffer,
     pub bind_group: wgpu::BindGroup,
     pub instances: InstanceBuffer,
 }
 
 impl CaptureView {
-    fn new(device: &wgpu::Device, layout: &wgpu::BindGroupLayout) -> Self {
+    pub(super) fn new(device: &wgpu::Device, layout: &wgpu::BindGroupLayout) -> Self {
         let globals = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("reflection globals"),
             size: std::mem::size_of::<Globals>() as u64,
@@ -29,7 +36,7 @@ impl CaptureView {
             layout,
             entries: &[wgpu::BindGroupEntry { binding: 0, resource: globals.as_entire_binding() }],
         });
-        Self { globals, bind_group, instances: InstanceBuffer::new(device) }
+        Self { kind: CaptureKind::Cube, globals, bind_group, instances: InstanceBuffer::new(device) }
     }
 }
 
@@ -37,6 +44,7 @@ pub(super) struct ReflectionCapture {
     size: u32,
     scene: SceneTargets,
     cube: wgpu::TextureView,
+    face_array: wgpu::TextureView,
     faces: [wgpu::TextureView; 6],
     views: [CaptureView; 6],
     store: Filter,
@@ -58,6 +66,10 @@ impl ReflectionCapture {
             dimension: Some(wgpu::TextureViewDimension::Cube),
             ..Default::default()
         });
+        let face_array = texture.create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::D2Array),
+            ..Default::default()
+        });
         let faces = std::array::from_fn(|face| {
             texture.create_view(&wgpu::TextureViewDescriptor {
                 dimension: Some(wgpu::TextureViewDimension::D2),
@@ -69,6 +81,7 @@ impl ReflectionCapture {
         Self {
             size,
             cube,
+            face_array,
             faces,
             views: std::array::from_fn(|_| CaptureView::new(device, layout)),
             scene: SceneTargets::Offscreen(FrameTargets::new(device, wgpu::TextureFormat::Rgba8Unorm, (size, size))),
@@ -122,7 +135,7 @@ impl Renderer {
         // Dedicated face buffers avoid overwriting queued draws, without six separate submissions.
         self.queue.submit([encoder.finish()]);
         if let Some(glossy) = self.glossy.as_mut() {
-            glossy.use_environment(&self.device, &capture.cube);
+            glossy.use_environment(&self.device, &capture.cube, &capture.face_array);
         }
         self.reflections = Some(capture);
     }

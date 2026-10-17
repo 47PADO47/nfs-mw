@@ -7,6 +7,11 @@
 //! the output size (the upscalers) are always kept after the ones that write the render size.
 
 mod bloom;
+pub(in crate::gpu) mod display;
+#[cfg(test)]
+mod display_tests;
+#[cfg(test)]
+mod display_vectors;
 #[cfg(test)]
 mod effect_tests;
 mod effects;
@@ -61,6 +66,7 @@ pub(super) struct PassIo<'a> {
 pub(super) trait PostPass {
     fn name(&self) -> &'static str;
     fn set_focus(&mut self, _settings: blackbox_gfx::FocusFilter) {}
+    fn set_display(&mut self, _mapping: Option<display::Mapping>) {}
 
     /// The size of the image this pass writes when it is not the last one.
     fn extent(&self) -> Extent {
@@ -68,6 +74,9 @@ pub(super) trait PostPass {
     }
 
     fn encode(&mut self, ctx: &PassContext<'_>, io: &PassIo<'_>, encoder: &mut wgpu::CommandEncoder);
+    fn encode_diagnostic(&mut self, ctx: &PassContext<'_>, io: &PassIo<'_>, encoder: &mut wgpu::CommandEncoder) {
+        self.encode(ctx, io, encoder);
+    }
 }
 
 /// A ping-pong image between two passes.
@@ -96,6 +105,7 @@ impl Scratch {
 }
 
 pub(super) struct PostChain {
+    pub(in crate::gpu) display: Option<display::Mapping>,
     /// Never empty: the last pass is the resolve pass.
     passes: Vec<Box<dyn PostPass>>,
     scratch: [Option<Scratch>; 2],
@@ -108,6 +118,7 @@ pub(super) struct PostChain {
 impl PostChain {
     pub(super) fn new(device: &wgpu::Device) -> Self {
         Self {
+            display: None,
             passes: vec![Box::new(resolve::Resolve::new(device))],
             scratch: [None, None],
             effect_count: 0,
@@ -120,10 +131,12 @@ impl PostChain {
     /// it right before the resolve pass, which always stays last. The post effects stay in front of
     /// every inserted pass, and a pass that writes the output size ignores the index and goes right
     /// before the resolve pass, so it follows every render-size pass.
-    pub(super) fn insert(&mut self, index: usize, pass: Box<dyn PostPass>) {
+    pub(super) fn insert(&mut self, index: usize, mut pass: Box<dyn PostPass>) {
+        pass.set_display(self.display);
         let extents: Vec<Extent> = self.passes.iter().map(|p| p.extent()).collect();
         let index = plan::insert_index(&extents, index.max(self.effect_count), pass.extent());
-        self.passes.insert(index, pass);
+        let last_scene = self.passes.iter().position(|p| p.name() == "hdr-display").unwrap_or(self.passes.len() - 1);
+        self.passes.insert(index.min(last_scene), pass);
     }
 
     /// Whether a pass named `name` is in the chain.
@@ -178,6 +191,10 @@ impl PostChain {
             output_format: output.1,
             output_size: ctx.output_size,
         };
+        if let Some(pass) = self.passes.iter_mut().find(|p| p.name() == "hdr-display") {
+            pass.encode_diagnostic(ctx, &io, encoder);
+            return;
+        }
         self.passes.last_mut().expect("final resolve").encode(ctx, &io, encoder);
     }
 

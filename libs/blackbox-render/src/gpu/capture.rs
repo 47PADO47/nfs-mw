@@ -59,6 +59,21 @@ impl Renderer {
         frame: &FrameParams,
         instances: &[Instance],
     ) -> Result<Vec<u8>, RenderError> {
+        if width == 0 || height == 0 {
+            return Err(RenderError::Device("cannot capture an empty image".into()));
+        }
+        // PNG captures have an explicit SDR contract, including when the window is scRGB.
+        let old_output =
+            std::mem::replace(&mut self.output, super::output::Output::texture(&self.device, (width, height)));
+        let old_mapping = self.post.display;
+        let old_ui = self.ui.hdr_white();
+        if old_mapping.is_some() {
+            self.post.set_display(
+                &self.device,
+                Some(super::post::display::Mapping { peak: 1.0, white: 80.0, linear: false }),
+            );
+        }
+        self.ui.set_hdr_white(None);
         let size = wgpu::Extent3d { width, height, depth_or_array_layers: 1 };
         let target = self.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("capture"),
@@ -73,13 +88,80 @@ impl Renderer {
         let view = target.create_view(&wgpu::TextureViewDescriptor::default());
         let scene = SceneTargets::new(&self.device, &self.scene_plan((width, height)));
         self.submit_frame(Some(&scene), &view, (width, height), frame, instances);
-        self.read_texture_bytes(&target, (width, height))
+        let result = self.read_texture_bytes(&target, (width, height));
+        self.output = old_output;
+        self.post.set_display(&self.device, old_mapping);
+        self.ui.set_hdr_white(old_ui);
+        result
     }
 
     /// Copy `texture` (the output format, `size` pixels) to the CPU as tightly packed RGBA8 with alpha 255.
     fn read_texture_bytes(&self, texture: &wgpu::Texture, size: (u32, u32)) -> Result<Vec<u8>, RenderError> {
+        if !matches!(
+            texture.format(),
+            wgpu::TextureFormat::Rgba8Unorm
+                | wgpu::TextureFormat::Bgra8Unorm
+                | wgpu::TextureFormat::Rgba8UnormSrgb
+                | wgpu::TextureFormat::Bgra8UnormSrgb
+        ) {
+            return Err(RenderError::Device("Float output requires an HDR float capture, not RGBA8 readback".into()));
+        }
+        let bytes = self.read_raw_texture(texture, size, 4)?;
+        let bgra = matches!(texture.format(), wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb);
+        let mut out = Vec::with_capacity(bytes.len());
+        for px in bytes.as_chunks::<4>().0 {
+            let (r, b) = match bgra {
+                true => (px[2], px[0]),
+                false => (px[0], px[2]),
+            };
+            out.extend_from_slice(&[r, px[1], b, 255]);
+        }
+        Ok(out)
+    }
+
+    /// Linear BT.709 scRGB values (1.0 = 80 nits), preserving signed and >1 components.
+    pub fn capture_hdr_linear(
+        &mut self,
+        width: u32,
+        height: u32,
+        frame: &FrameParams,
+        instances: &[Instance],
+    ) -> Result<Vec<[f32; 4]>, RenderError> {
+        if width == 0 || height == 0 || !self.post.display.is_some_and(|m| m.linear) {
+            return Err(RenderError::Device(
+                "HDR float capture requires active HDR mapping and a nonempty size".into(),
+            ));
+        }
+        let output =
+            super::output::Output::texture_format(&self.device, (width, height), wgpu::TextureFormat::Rgba16Float);
+        let old = std::mem::replace(&mut self.output, output);
+        let super::output::Output::Texture { texture, .. } = &self.output else { unreachable!() };
+        let target = texture.clone();
+        let view = target.create_view(&Default::default());
+        let scene = SceneTargets::new(&self.device, &self.scene_plan((width, height)));
+        self.submit_frame(Some(&scene), &view, (width, height), frame, instances);
+        let result = self.read_raw_texture(&target, (width, height), 8).map(|bytes| {
+            bytes
+                .as_chunks::<8>()
+                .0
+                .iter()
+                .map(|pixel| {
+                    std::array::from_fn(|i| half::f16::from_le_bytes([pixel[2 * i], pixel[2 * i + 1]]).to_f32())
+                })
+                .collect()
+        });
+        self.output = old;
+        result
+    }
+
+    pub(in crate::gpu) fn read_raw_texture(
+        &self,
+        texture: &wgpu::Texture,
+        size: (u32, u32),
+        bytes_per_pixel: u32,
+    ) -> Result<Vec<u8>, RenderError> {
         let (width, height) = size;
-        let row = (width * 4).next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
+        let row = (width * bytes_per_pixel).next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
         let readback = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("capture readback"),
             size: u64::from(row * height),
@@ -105,15 +187,10 @@ impl Renderer {
         slice.map_async(wgpu::MapMode::Read, |_| {});
         let _ = self.device.poll(wgpu::PollType::wait_indefinitely());
         let mapped = slice.get_mapped_range().map_err(|e| RenderError::Device(format!("capture readback: {e:?}")))?;
-        let bgra =
-            matches!(self.output.format(), wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb);
-        let mut out = Vec::with_capacity((width * height * 4) as usize);
+        let mut out = Vec::with_capacity((width * height * bytes_per_pixel) as usize);
         for y in 0..height as usize {
-            let line = &mapped[y * row as usize..][..width as usize * 4];
-            for px in line.as_chunks::<4>().0 {
-                let (r, b) = if bgra { (px[2], px[0]) } else { (px[0], px[2]) };
-                out.extend_from_slice(&[r, px[1], b, 255]);
-            }
+            let line = &mapped[y * row as usize..][..(width * bytes_per_pixel) as usize];
+            out.extend_from_slice(line);
         }
         Ok(out)
     }

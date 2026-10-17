@@ -26,6 +26,8 @@ mod exhaust_flames_tests;
 mod extra_options;
 pub mod fairbusts;
 pub(crate) mod file;
+#[cfg(test)]
+mod filtering_tests;
 mod graphics;
 mod graphics_preset;
 #[cfg(test)]
@@ -48,6 +50,8 @@ mod ray_tracing_tests;
 #[cfg(test)]
 mod rear_view_mirror_tests;
 mod renderer;
+mod road_reflections;
+pub use road_reflections::{RoadReflectionResolution, RoadReflections};
 #[cfg(test)]
 mod renderer_tests;
 mod smoke_quality;
@@ -80,7 +84,7 @@ pub(crate) mod write;
 use blackbox_gfx::GraphicsApi;
 
 pub use blackbox_gfx::ReflectionQuality;
-pub use blackbox_gfx::{AoQuality, ShadowQuality};
+pub use blackbox_gfx::{AoQuality, ShadowQuality, TextureFiltering};
 pub use camera_mode::CameraMode;
 pub use car_shading::CarShading;
 pub use controls::{Controls, Deadzone, DeadzoneMode, Sensitivity};
@@ -233,6 +237,9 @@ pub struct Settings {
     pub post_tonemap: PostTonemap,
     pub post_bloom: PostBloom,
     pub post_aa: PostAa,
+    pub texture_filtering: TextureFiltering,
+    pub road_reflections: RoadReflections,
+    pub road_reflection_resolution: RoadReflectionResolution,
     pub visual_treatment: VisualTreatment,
     pub reflections: ReflectionQuality,
     /// Experimental contact occlusion; presets never enable it implicitly.
@@ -327,6 +334,9 @@ impl From<Partial> for Settings {
             post_tonemap: p.post_tonemap.unwrap_or_default(),
             post_bloom: p.post_bloom.unwrap_or_default(),
             post_aa: p.post_aa.unwrap_or_default(),
+            texture_filtering: p.texture_filtering.unwrap_or_default(),
+            road_reflections: p.road_reflections.unwrap_or_default(),
+            road_reflection_resolution: p.road_reflection_resolution.unwrap_or_default(),
             visual_treatment: p.visual_treatment.unwrap_or_default(),
             reflections: p.reflections.unwrap_or(ReflectionQuality::Medium),
             shadows: p.shadows.unwrap_or_default(),

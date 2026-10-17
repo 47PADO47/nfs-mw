@@ -1,4 +1,4 @@
-//! Shared quality selection; startup shortcuts explicitly request the Enhanced style.
+//! Shared cost selection; startup shortcuts preserve the saved visual style.
 use super::*;
 pub(super) use crate::settings::appearance::Quality;
 impl Quality {
@@ -19,9 +19,6 @@ pub(super) fn startup(mut lab: ResMut<GraphicsLab>, mut settings: ResMut<Setting
         settings.select_visual_style(style);
     }
     if let Some(quality) = lab.startup_quality.take() {
-        if style.is_none() {
-            settings.select_visual_style(crate::settings::VisualStyle::Enhanced);
-        }
         lab.options = quality.apply(&mut settings);
     }
     lab.options = settings.appearance.lighting;

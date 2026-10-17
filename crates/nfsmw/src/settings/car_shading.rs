@@ -1,6 +1,4 @@
-//! How cars are shaded: the glossy three-light rig with sun highlight and environment reflection
-//! (the default), or the single-light shading everything else in the scene uses. `simple` builds none of
-//! the glossy resources (docs/low-end.md).
+//! Selectable original car material families and retained custom/low-cost shading.
 
 use std::fmt;
 use std::str::FromStr;
@@ -12,6 +10,11 @@ pub enum CarShading {
     /// The glossy car shader of docs/specs/car-assembly.md section 8.
     #[default]
     Glossy,
+    /// Original PC material/light arithmetic used with shadow quality enabled.
+    /// Original projected shadow generation remains incomplete.
+    Original,
+    /// Original PC shadowless material family, including its different reflection/highlight gain.
+    OriginalUnshadowed,
 }
 
 impl FromStr for CarShading {
@@ -21,7 +24,9 @@ impl FromStr for CarShading {
         match s {
             "simple" => Ok(Self::Simple),
             "glossy" => Ok(Self::Glossy),
-            _ => Err(format!("expected simple or glossy, got {s:?}")),
+            "original" => Ok(Self::Original),
+            "original-unshadowed" => Ok(Self::OriginalUnshadowed),
+            _ => Err(format!("expected simple, glossy, original or original-unshadowed, got {s:?}")),
         }
     }
 }
@@ -31,6 +36,23 @@ impl fmt::Display for CarShading {
         f.write_str(match self {
             Self::Simple => "simple",
             Self::Glossy => "glossy",
+            Self::Original => "original",
+            Self::OriginalUnshadowed => "original-unshadowed",
         })
+    }
+}
+
+impl CarShading {
+    pub const ALL: [Self; 4] = [Self::Simple, Self::Glossy, Self::Original, Self::OriginalUnshadowed];
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Simple => "Simple",
+            Self::Glossy => "Custom Glossy",
+            Self::Original => "Original PC",
+            Self::OriginalUnshadowed => "Original PC (shadowless)",
+        }
+    }
+    pub fn is_original(self) -> bool {
+        matches!(self, Self::Original | Self::OriginalUnshadowed)
     }
 }

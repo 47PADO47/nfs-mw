@@ -76,6 +76,13 @@ impl AiCar {
 
     /// Appends the instances of the car and of its trailer.
     pub fn instances(&self, alpha: f32, out: &mut Vec<Instance>) {
+        self.body_instances(alpha, out);
+        if let Some(trailer) = &self.trailer {
+            trailer.instances(alpha, out);
+        }
+    }
+
+    fn body_instances(&self, alpha: f32, out: &mut Vec<Instance>) {
         let revealed = self.sim.events.as_ref().map(|e| e.revealed_slots()).unwrap_or_default();
         self.rig.instances_for(
             self.render_id,
@@ -84,8 +91,15 @@ impl AiCar {
             &revealed,
             out,
         );
+    }
+
+    /// A trailer, including one that came loose, keeps its own root and interpolation.
+    pub(in crate::scenes::world::ai) fn road_reflection_instances(&self, alpha: f32, out: &mut Vec<Instance>) {
+        crate::scenes::world::wet_reflections::vehicles::append(self.pose(alpha).transform(), out, |out| {
+            self.body_instances(alpha, out);
+        });
         if let Some(trailer) = &self.trailer {
-            trailer.instances(alpha, out);
+            trailer.road_reflection_instances(alpha, out);
         }
     }
 

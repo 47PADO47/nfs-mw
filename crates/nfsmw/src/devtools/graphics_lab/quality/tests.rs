@@ -56,9 +56,11 @@ fn high_to_low_and_balanced_replaces_all_profile_fields_without_altering_driving
 #[test]
 fn startup_request_uses_the_same_profile_as_live_selection_and_runs_once() {
     let mut app = App::new();
-    let baseline = Settings::from(Partial::default());
+    let mut baseline = Settings::from(Partial::default());
+    baseline.select_visual_style(VisualStyle::OriginalPc);
+    baseline.visual_treatment = VisualTreatment::Reference;
+    baseline.appearance.treatment_strength = Some(0.63);
     let mut expected = baseline;
-    expected.select_visual_style(VisualStyle::Enhanced);
     let options = Quality::High.apply(&mut expected);
     app.insert_resource(baseline)
         .insert_resource(GraphicsLab { startup_quality: Some(Quality::High), ..Default::default() })
@@ -66,7 +68,20 @@ fn startup_request_uses_the_same_profile_as_live_selection_and_runs_once() {
     app.update();
     assert_eq!(app.world().resource::<GraphicsLab>().options, options);
     assert_eq!(app.world().resource::<Settings>().reflections, expected.reflections);
+    assert_eq!(app.world().resource::<Settings>().appearance, expected.appearance);
+    assert_eq!(app.world().resource::<Settings>().visual_treatment, VisualTreatment::Reference);
     app.world_mut().resource_mut::<Settings>().post_tonemap = PostTonemap::Off;
     app.update();
     assert_eq!(app.world().resource::<Settings>().post_tonemap, PostTonemap::Off);
+}
+
+#[test]
+fn filtering_restore_preserves_snapshot_without_touching_gameplay() {
+    let mut s = Settings::from(crate::settings::Partial::default());
+    let snapshot = s;
+    s.texture_filtering = crate::settings::TextureFiltering::Anisotropic16;
+    s.game_speed = 1.5;
+    crate::devtools::graphics_lab::presets::restore_graphics(&mut s, &snapshot);
+    assert_eq!(s.texture_filtering, snapshot.texture_filtering);
+    assert_eq!(s.game_speed, 1.5);
 }

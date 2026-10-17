@@ -4,6 +4,12 @@
 
 use blackbox_attrib::{Database, Value, vlt_hash};
 
+mod atmosphere;
+pub use atmosphere::{Atmosphere, atmosphere};
+mod car_lighting;
+pub mod shadows;
+pub use car_lighting::{CAR_SPECULAR_SCALE, car_specular_scale};
+
 /// The attribute class of a lighting preset.
 pub const CLASS: &str = "timeofdaylighting";
 /// The 8 presets, by collection name hash, in the order the game loads them.

@@ -1,7 +1,15 @@
 # Time-of-day lighting
 
+**2026-10-15 correction:** the fixed location blend and sampled scattering
+scalars described below are superseded by [world-atmosphere.md](world-atmosphere.md).
+The blend is authored cloud intensity; the free-roam weather clock is one
+second, but its gate also depends on position. The original FPU instructions
+preserve this X-dependent term that the earlier decompiler summary omitted.
+The older runtime observations below remain historical evidence, not current
+implementation or proof that the cloud gate is neutral everywhere.
+
 Status: **sun motion and fog colour implemented, built and tested in the running game** (world tests 230 pass; sun and fog unit tests 17 pass; `nfsmw-data` 69 pass; offscreen screenshot renders). Day-night clock (E1): the clock, the sun phase for the hour, the lights-on and lights-off switch, and their config (`crates/nfsmw-data/src/day_night.rs`, `crates/nfsmw/src/scenes/world/day.rs`) are implemented with unit tests, not yet checked against the original at a known hour. The per-frame sun integrator is gone; the clock sets the sun. The double `sun.advance` noted in the earlier pass was already removed on the current branch. Outstanding: the visual match of the scattering fog and lighting against the original game, which needs a reference frame. Out of scope for this pass and still open: the sky dome, the colour grade's time link, scalar `+0xA0`, and the live blend weight `t` (held at 0.0685).
-world scene (`crates/nfsmw/src/scenes/world/sun.rs`). The night colours are specified too: in the states
+world scene (`crates/nfsmw/src/scenes/world/sun.rs`). The low-sun colours are specified too: in the states
 checked, the preset blend follows a location value, not the clock, and the clock's counter is never written.
 The one open question is who would write that counter in a state that runs it (see below).
 
@@ -155,7 +163,12 @@ The triangle `clock_phase` (the `FUN_00735A30` branch above) is not on this path
   `FUN_00769580`). It eases towards a map target from `FUN_00753AC0`. Whether it is the time of day, a
   tunnel or zone factor, is **[unconfirmed]**.
 
-## Night colours and the preset blend **[verified live]**
+## Historical low-sun preset observations **[superseded]**
+
+These early interpretations are retained as history. The ordinary sun cycle
+reverses above the horizon and does not produce full night. The later
+[atmosphere specification](world-atmosphere.md) establishes cloud-driven
+blending; a custom clock night extension is not missing retail PC behavior.
 
 - The preset pair is chosen by `FUN_006C0A20`: it returns `DAT_00901828 != 0`, which was `1` in free roam, so the
   pair is presets 1 and 3 (`+0xD4` and `+0xFC`), with preset 2 (`+0xE8`) as the third input.

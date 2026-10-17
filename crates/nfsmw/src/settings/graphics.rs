@@ -12,6 +12,7 @@ impl Settings {
     pub fn graphics(&self) -> GraphicsSettings {
         GraphicsSettings {
             reflections: self.reflections,
+            texture_filtering: self.texture_filtering,
             shadows: match self.renderer {
                 super::RendererKind::Blackbox if self.appearance.lighting.sun_shadows => {
                     blackbox_gfx::ShadowQuality::Off

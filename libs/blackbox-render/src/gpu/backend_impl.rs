@@ -14,6 +14,39 @@ use blackbox_gfx::{
 use super::Renderer;
 
 impl RenderBackend for Renderer {
+    fn set_display_settings(&mut self, settings: blackbox_gfx::DisplaySettings) {
+        Renderer::set_display_settings(self, settings);
+    }
+    fn display_status(&self) -> blackbox_gfx::DisplayStatus {
+        Renderer::display_status(self)
+    }
+    fn create_window_material(
+        &mut self,
+        desc: &blackbox_gfx::WindowMaterialDesc,
+    ) -> Option<blackbox_gfx::WindowMaterialHandle> {
+        Renderer::create_window_material(self, desc)
+    }
+    fn destroy_window_material(&mut self, handle: blackbox_gfx::WindowMaterialHandle) {
+        Renderer::destroy_window_material(self, handle);
+    }
+    fn create_normal_material(
+        &mut self,
+        desc: &blackbox_gfx::NormalMaterialDesc,
+    ) -> Option<blackbox_gfx::NormalMaterialHandle> {
+        Renderer::create_normal_material(self, desc)
+    }
+    fn destroy_normal_material(&mut self, handle: blackbox_gfx::NormalMaterialHandle) {
+        Renderer::destroy_normal_material(self, handle)
+    }
+    fn create_sky_material(&mut self, desc: &blackbox_gfx::SkyMaterialDesc) -> Option<blackbox_gfx::SkyMaterialHandle> {
+        Renderer::create_sky_material(self, desc)
+    }
+    fn destroy_sky_material(&mut self, handle: blackbox_gfx::SkyMaterialHandle) {
+        Renderer::destroy_sky_material(self, handle);
+    }
+    fn set_sky_state(&mut self, state: blackbox_gfx::SkyState) {
+        Renderer::set_sky_state(self, state);
+    }
     fn set_render_experiments(&mut self, options: blackbox_gfx::RenderExperiments) {
         self.experiments = options.sanitized();
     }
@@ -49,6 +82,9 @@ impl RenderBackend for Renderer {
     fn set_colour_treatment(&mut self, profile: Option<&blackbox_gfx::ColourTreatment>, gain: Option<&RgbaImage>) {
         self.set_scene_treatment(profile, gain);
     }
+    fn set_projected_reflection_scene(&mut self, scene: Option<blackbox_gfx::ProjectedReflectionScene<'_>>) {
+        self.capture_projected(scene);
+    }
     fn set_reflection_scene(&mut self, scene: Option<blackbox_gfx::ReflectionScene<'_>>) {
         self.capture_reflections(scene);
     }
@@ -79,6 +115,7 @@ impl RenderBackend for Renderer {
     fn apply_graphics(&mut self, requested: &GraphicsSettings) -> Resolved {
         let resolved = resolve(requested, &self.caps);
         let effective = resolved.effective;
+        Renderer::set_texture_filtering(self, effective.texture_filtering);
         Renderer::set_post_effects(self, effective.post);
         Renderer::set_upscaler(self, effective.upscaler);
         Renderer::set_upscale_sharpness(self, effective.upscale_sharpness);

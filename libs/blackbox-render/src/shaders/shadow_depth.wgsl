@@ -18,3 +18,10 @@ struct Out { @builtin(position) position: vec4<f32>, @location(0) uv: vec2<f32>,
 @fragment fn fs_cutout(in: Out) {
     if textureSample(image, image_sampler, in.uv).a * in.alpha < 0.5 { discard; }
 }
+
+@fragment fn fs_tree_cutout(in: Out) {
+    if textureSample(image, image_sampler, in.uv).a < 0.5 { discard; }
+}
+@fragment fn fs_prelit_cutout(in: Out) {
+    if 2.0 * textureSample(image, image_sampler, in.uv).a * in.alpha < 0.5 { discard; }
+}

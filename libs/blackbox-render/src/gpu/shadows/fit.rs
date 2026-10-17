@@ -20,6 +20,7 @@ pub(super) struct Params {
     pub environment: [f32; 4],
     pub world: [f32; 4],
     pub debug: [f32; 4],
+    pub projected: [f32; 4],
 }
 
 pub(super) struct Fit {
@@ -27,15 +28,17 @@ pub(super) struct Fit {
     pub count: usize,
 }
 
-pub(super) fn fit(frame: &FrameParams, settings: RenderExperiments) -> Option<Fit> {
+pub(super) fn fit(frame: &FrameParams, settings: RenderExperiments, casters: &[(usize, Vec3, f32)]) -> Option<Fit> {
     let Projection::PerspectiveInfiniteReverse { fov_y, aspect, near } = frame.projection else { return None };
     let settings = settings.sanitized();
     let inverse = frame.view.inverse();
     let forward = inverse.transform_vector3(Vec3::NEG_Z).normalize_or_zero();
     let sun = (-frame.light_dir).try_normalize().unwrap_or(Vec3::Z);
-    let up = match sun.z.abs() > 0.95 {
-        true => Vec3::Y,
-        false => Vec3::Z,
+    // Keep one continuous daylight basis through the old .95 zenith switch.
+    // This shortest rotation of the world XY axes is singular only at the nadir.
+    let up = match sun.z < -0.9999 {
+        true => Vec3::NEG_Y,
+        false => Vec3::new(-sun.x * sun.y / (1.0 + sun.z), 1.0 - sun.y * sun.y / (1.0 + sun.z), -sun.y),
     };
     let light_rotation = glam::camera::rh::view::look_at_mat4(Vec3::ZERO, -sun, up);
     let distance = settings.shadow_distance;
@@ -71,14 +74,17 @@ pub(super) fn fit(frame: &FrameParams, settings: RenderExperiments) -> Option<Fi
             (light_center.y / texel).round() * texel,
             (light_center.z / texel).round() * texel,
         );
-        let snapped_world = light_rotation.inverse().transform_point3(snapped);
-        // Extra upstream depth includes tall and off-camera casters without changing XY fit.
+        // Preserve stable XY density; expand only depth for upstream resident casters.
         let margin = radius + 180.0;
+        let (bottom, top) = depth_bounds(light_rotation, snapped, radius, margin, casters);
+        let depth = top - bottom;
         texels[i] = texel;
-        depth_spans[i] = 2.0 * margin - 0.1;
-        let view = glam::camera::rh::view::look_at_mat4(snapped_world + sun * margin, snapped_world, up);
+        depth_spans[i] = depth;
+        // Construct from the fixed rotation directly: subtracting eye - sun at
+        // city-sized coordinates would lose direction precision and rotate the grid.
+        let view = Mat4::from_translation(Vec3::new(-snapped.x, -snapped.y, -top - 0.1)) * light_rotation;
         let projection =
-            glam::camera::rh::proj::directx::orthographic(-radius, radius, -radius, radius, 0.1, 2.0 * margin);
+            glam::camera::rh::proj::directx::orthographic(-radius, radius, -radius, radius, 0.1, depth + 0.1);
         matrices[i] = (projection * view).to_cols_array();
     }
     Some(Fit {
@@ -102,14 +108,77 @@ pub(super) fn fit(frame: &FrameParams, settings: RenderExperiments) -> Option<Fi
             environment: [0.0; 4],
             world: [0.0; 4],
             debug: [0.0; 4],
+            projected: [0.0; 4],
         },
         count,
     })
 }
 
+fn depth_bounds(rotation: Mat4, center: Vec3, radius: f32, margin: f32, casters: &[(usize, Vec3, f32)]) -> (f32, f32) {
+    let mut top = center.z + margin;
+    for &(_, position, caster_radius) in casters {
+        let p = rotation.transform_point3(position);
+        if (p.x - center.x).abs() > radius + caster_radius || (p.y - center.y).abs() > radius + caster_radius {
+            continue;
+        }
+        top = top.max(p.z + caster_radius + 1.0);
+    }
+    // Quantise world depth, independently of frame time and candidate iteration order.
+    (((center.z - margin) / 16.0).floor() * 16.0, (top / 16.0).ceil() * 16.0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn frame(sun: Vec3) -> FrameParams {
+        let eye = Vec3::new(3.0, -8.0, 4.0);
+        FrameParams {
+            view: glam::camera::rh::view::look_at_mat4(eye, Vec3::ZERO, Vec3::Z),
+            projection: Projection::PerspectiveInfiniteReverse { fov_y: 1.0, aspect: 1.5, near: 0.1 },
+            camera_position: eye,
+            light_dir: -sun,
+            clear_color: [0.0; 3],
+            fog: None,
+            scattering: None,
+            surface_light: None,
+            camera_cut: false,
+        }
+    }
+
+    #[test]
+    fn upstream_depth_expansion_preserves_xy_resolution_and_ignores_unrelated_casters() {
+        let sun = Vec3::new(0.0, -0.98, 0.2).normalize();
+        let frame = frame(sun);
+        let settings = RenderExperiments::default();
+        let before = fit(&frame, settings, &[]).unwrap();
+        let casters = [(0, sun * 240.0, 3.0), (1, Vec3::splat(10000.0), 1.0)];
+        let after = fit(&frame, settings, &casters).unwrap();
+        let isolated = fit(&frame, settings, &casters[..1]).unwrap();
+        assert_eq!(after.params.matrices, isolated.params.matrices, "unrelated scenery cannot inflate depth");
+        assert_eq!(before.params.texels, after.params.texels, "extra depth must not dilute XY density");
+        let a = Mat4::from_cols_array(&before.params.matrices[0]);
+        let b = Mat4::from_cols_array(&after.params.matrices[0]);
+        assert!(a.transform_point3(casters[0].1).z < 0.0, "old slab excludes upstream caster");
+        assert!((0.0..=1.0).contains(&b.transform_point3(casters[0].1).z));
+        for point in [Vec3::ZERO, Vec3::X * 5.0, Vec3::Y * 5.0] {
+            assert!((a.transform_point3(point).truncate() - b.transform_point3(point).truncate()).length() < 1e-5);
+        }
+        assert_eq!(after.params.matrices, fit(&frame, settings, &[casters[1], casters[0]]).unwrap().params.matrices);
+    }
+
+    #[test]
+    fn daylight_basis_is_continuous_through_the_former_zenith_switch() {
+        let settings = RenderExperiments::default();
+        let coordinates = [0.94999_f32, 0.95001].map(|z| {
+            let fit = fit(&frame(Vec3::new((1.0 - z * z).sqrt(), 0.0, z)), settings, &[]).unwrap();
+            Mat4::from_cols_array(&fit.params.matrices[0]).transform_point3(Vec3::new(1.0, 2.0, 0.0))
+        });
+        assert!(
+            (coordinates[0].truncate() - coordinates[1].truncate()).length() < 0.005,
+            "sun motion must not rotate the texel grid by ninety degrees"
+        );
+    }
+
     #[test]
     fn snapping_stabilizes_lateral_subtexel_movement() {
         let mut frame = FrameParams {
@@ -123,12 +192,12 @@ mod tests {
             surface_light: None,
             camera_cut: false,
         };
-        let before = fit(&frame, RenderExperiments::default()).unwrap();
+        let before = fit(&frame, RenderExperiments::default(), &[]).unwrap();
         frame.view *= Mat4::from_translation(Vec3::new(-0.00001, 0.0, 0.0));
-        let after = fit(&frame, RenderExperiments::default()).unwrap();
+        let after = fit(&frame, RenderExperiments::default(), &[]).unwrap();
         assert_eq!(before.params.matrices, after.params.matrices);
         let far =
-            fit(&frame, RenderExperiments { far_shadows: true, sun_shadows: true, ..Default::default() }).unwrap();
+            fit(&frame, RenderExperiments { far_shadows: true, sun_shadows: true, ..Default::default() }, &[]).unwrap();
         assert_eq!(far.count, 4);
         assert_eq!(far.params.splits[3], 480.0);
     }
@@ -157,6 +226,7 @@ mod tests {
                         shadow_resolution: resolution,
                         ..Default::default()
                     },
+                    &[],
                 )
                 .unwrap();
                 for i in 0..fit.count {

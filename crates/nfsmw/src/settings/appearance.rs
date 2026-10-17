@@ -1,6 +1,8 @@
 //! Canonical style/quality requests shared by the menu, F8 and render bridge.
+pub mod display;
 mod persistence;
 pub mod registry;
+pub(crate) mod shadows;
 #[cfg(test)]
 mod tests;
 
@@ -53,12 +55,24 @@ impl Quality {
         }
     }
 }
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Appearance {
+    pub display: display::DisplayTuning,
     pub style: VisualStyle,
     pub quality: Quality,
     pub lighting: RenderExperiments,
     pub treatment_strength: Option<f32>,
+}
+impl Default for Appearance {
+    fn default() -> Self {
+        Self {
+            display: Default::default(),
+            style: Default::default(),
+            quality: Default::default(),
+            treatment_strength: None,
+            lighting: RenderExperiments { original_world_materials: true, ..Default::default() },
+        }
+    }
 }
 impl Appearance {
     pub(crate) fn read(value: &toml::Value, origin: &str) -> Option<Self> {
@@ -78,8 +92,12 @@ impl Settings {
             return;
         }
         let old = self.appearance.lighting;
-        self.appearance.lighting =
-            RenderExperiments { freeze_sun: old.freeze_sun, lighting_debug: old.lighting_debug, ..Default::default() };
+        self.appearance.lighting = RenderExperiments {
+            original_world_materials: true,
+            freeze_sun: old.freeze_sun,
+            lighting_debug: old.lighting_debug,
+            ..Default::default()
+        };
         self.appearance.treatment_strength = None;
         self.graphics_preset = GraphicsPreset::Custom;
         self.car_shading = CarShading::Glossy;
@@ -88,6 +106,10 @@ impl Settings {
         self.ao_intensity = Percent(100);
         match style {
             VisualStyle::OriginalPc => {
+                self.car_shading = CarShading::Original;
+                self.appearance.lighting.original_world_materials = true;
+                self.appearance.lighting.sun_shadows = true;
+                self.appearance.lighting.shadow_projection = Some(shadows::PROJECTION);
                 self.visual_treatment = VisualTreatment::High;
                 self.post_tonemap = PostTonemap::Off;
                 self.post_aa = PostAa::Off;
@@ -127,7 +149,7 @@ impl Settings {
         light.shadow_distance = range;
         light.contact_length = reach;
         light.soft_shadows = quality != Quality::Low;
-        light.contact_shadows = light.sun_shadows && quality != Quality::Low;
+        light.contact_shadows = light.sun_shadows && light.shadow_projection.is_none() && quality != Quality::Low;
         self.reflections = reflection;
         if self.ao != AoQuality::Off {
             self.ao = ao;
@@ -176,11 +198,35 @@ impl Settings {
             post_bloom: Some(self.post_bloom),
             post_aa: Some(self.post_aa),
             reflections: Some(self.reflections),
+            texture_filtering: Some(self.texture_filtering),
+            road_reflections: Some(self.road_reflections),
+            road_reflection_resolution: Some(self.road_reflection_resolution),
             shadows: Some(self.shadows),
             ao: Some(self.ao),
             ao_intensity: Some(self.ao_intensity),
             ao_compare: Some(self.ao_compare),
             ..Default::default()
+        }
+    }
+
+    /// Complete F8 snapshot, including renderer requests that are currently downgraded.
+    /// Renderer/API, window, audio and gameplay preferences remain outside the preset.
+    pub fn graphics_layer(&self) -> Partial {
+        Partial {
+            render_scale: Some(self.render_scale),
+            upscaler: Some(self.upscaler),
+            upscale_sharpness: Some(self.upscale_sharpness),
+            upscale_quality: Some(self.upscale_quality),
+            ray_tracing: Some(self.ray_tracing),
+            tire_smoke: Some(self.tire_smoke),
+            skid_marks: Some(self.skid_marks),
+            smoke_quality: Some(self.smoke_quality),
+            collision_sparks: Some(self.collision_sparks),
+            spark_style: Some(self.spark_style),
+            speed_trails: Some(self.speed_trails),
+            speed_trail_style: Some(self.speed_trail_style),
+            exhaust_flames: Some(self.exhaust_flames),
+            ..self.appearance_layer()
         }
     }
 }

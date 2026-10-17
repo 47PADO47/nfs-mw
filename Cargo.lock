@@ -1566,6 +1566,7 @@ dependencies = [
  "blackbox-gpu-passes",
  "bytemuck",
  "glam 0.34.1",
+ "half",
  "log",
  "naga",
  "pollster",

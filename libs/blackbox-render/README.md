@@ -104,14 +104,14 @@ intended digest update in the same commit.
   on write always takes the offscreen path, so blending stays linear.
 - **Offscreen.** Any post pass, an upscaler or a render scale other than 1.0 sends the scene into an offscreen
   colour image and a depth buffer, both at the internal render size. The colour image is `Rgba16Float` (HDR)
-  only when bloom or tone mapping runs and the adapter can render to, blend into and filter that format;
-  FXAA, FSR 1 and the bilinear upscale draw into the surface's own 8-bit format instead (half the memory and
+  when bloom, tone mapping or HDR display output runs and the adapter can render to, blend into and filter that format;
+  in SDR, FXAA, FSR 1 and the bilinear upscale can use the surface's own 8-bit format (half the memory and
   bandwidth). An ordered chain of fullscreen post-process passes then reads the scene image (and may sample
   the depth buffer) and writes the surface; intermediate passes ping-pong through scratch images, which are
-  freed when the chain gets shorter. The chain always ends with the built-in `resolve` pass: clamp to the
-  output range, alpha 1, an exact texel copy when the render size equals the output size and bilinear
+  freed when the chain gets shorter. The chain always ends with the built-in `resolve` pass: SDR clamp or
+  unclamped float copy, alpha 1, an exact texel copy when the render size equals the output size and bilinear
   filtering otherwise. The post effects sit at the front (see below) and upscalers are inserted before
-  `resolve` (`gpu/post/`).
+  the display mapper and `resolve` (`gpu/post/`).
 - The UI layer draws on the surface last, at surface resolution: it is never post-processed or upscaled.
 
 Scene pipelines, effect pipelines and the glossy resources are built when first needed: the pipelines per
@@ -132,13 +132,43 @@ The internal render size is the surface size times the render scale, per axis:
 ### Post effects
 
 `Renderer::set_post_effects(PostSettings)` turns on bloom, tone mapping and FXAA (`post_effects()` reads the
-clamped settings back). The default `PostSettings` runs none of them, so the chain is just `resolve` and the
+clamped settings back). With SDR output, the default `PostSettings` runs none of them, so the chain is just `resolve` and the
 frame is unchanged. Enabled effects run at the render size in the fixed order bloom, tone mapping (an ACES fit
 with an exposure), FXAA, then `resolve`; passes inserted by other code stay behind them. Each effect is its own
 pass built on the fullscreen-filter helper of `blackbox-gpu-passes` with one WGSL module (its
 `post_common.wgsl` plus the effect's file here); an effect that is off has no pass. Setting the current value again does nothing; changing it
 rebuilds the effect passes. FXAA is an independent implementation of the published algorithm, not a copy of
 the reference header.
+
+### HDR presentation
+
+`set_display_settings(blackbox_gfx::DisplaySettings)` controls output separately
+from the artistic effects. Auto requires confirmed OS HDR and an RGBA16F scRGB
+surface; On permits unknown OS metadata, while an explicit SDR report retains
+SDR. `display_status()` reports the effective state and reason. Calibration uses
+absolute peak, scene reference white and independent UI white in nits. Zero peak
+selects a valid advisory display value or an explicit 1000-nit fallback.
+
+HDR decodes the extended display-encoded scene and applies pinned MIT PsychoV
+after effects and spatial scaling. The legacy SDR ACES pass is omitted while HDR
+is active; its stored selection returns with SDR. Signed linear BT.709 scRGB
+values survive the final copy (1.0 is 80 nits). SMAA follows display mapping and
+the UI composites last in linear light with correct premultiplication.
+`is_hdr()` only describes the scene target, not the display colour space.
+
+`capture` returns an SDR PNG-ready preview and restores live output state.
+`capture_hdr_linear` returns float scRGB for numerical capture while HDR mapping
+is active. See the [output contract](../../docs/specs/hdr-output.md) and
+[PsychoV provenance](../../docs/provenance/psychov.md) for artistic limits and
+conversion/reference tests. No original-game files are required for this mapper.
+
+On Windows, distribute the official DirectX Shader Compiler `dxcompiler.dll` and
+`dxil.dll` with the executable, along with their license notices. wgpu Auto then
+selects modern DXC. Its legacy FXC fallback can recurse until stack overflow when
+optimizing this renderer's release shaders, including the SDR path. Debug GPU
+tests alone do not cover that failure because FXC optimization is disabled there.
+The HDR runtime bundle was tested with official DXC v1.9.2609 (2026-09-29), from
+[Microsoft's releases](https://github.com/microsoft/DirectXShaderCompiler/releases/tag/v1.9.2609).
 
 ### Upscaling
 
@@ -156,3 +186,22 @@ When the render scale is below 1.0 the scene is brought back to the output size 
 
 Not done, for DLSS and other temporal upscalers (docs/upscaling.md): projection jitter, previous transforms and a
 motion-vector output. The depth buffer is already reverse-Z `Depth32Float`.
+
+Vertex-lit glossy material families are explicit alternatives to `GlossyModel::Custom`.
+Their authored ramps and lighting are evaluated at vertices before interpolation;
+`VertexLit` uses a half-vector highlight, `Shadowed` uses reflected-light shading.
+The latter consumes the custom renderer's visibility as an approximation to
+original projected maps. Both skip custom fog, AO, clearcoat and irradiance.
+See [car material shading](../../docs/specs/car-material-shading.md).
+
+Tangent-space surfaces select `NormalModel::Bump` or `Reflective`; the latter
+has distinct highlight/alpha arithmetic and an optional projected 2D reflection.
+`WindowMaterialDesc` registers architectural glass with an authored 2D reflection
+and view-dependent UVs. Both retain cached resources, share per-frame lighting,
+preserve SDR composition before post-processing, and have independent original
+shader fixtures. Source reflection capture and projected shadows remain separate.
+
+Scene-surface filtering is selectable as Trilinear, Anisotropic 8x or 16x. Native
+changes rebuild retained bind groups live without reuploading textures or changing
+handles. UI, lookup maps, shadow comparisons and environment cubes keep separate
+samplers. See [texture filtering](../../docs/texture-filtering.md).

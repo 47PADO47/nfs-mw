@@ -97,7 +97,7 @@ fn apply_queue(
     // A running capture decides what the world shows until it is done.
     if let Some(mut active) = state.capture.take() {
         let data = active.data.clone();
-        draw(state, stores, commands, placed, &data, settings.post.tonemap);
+        draw(state, stores, commands, placed, &data, &settings);
         camera::follow(commands, active.camera, &data.frame, &settings);
         let size = capture_size(stores, &active);
         let done = capture::advance(commands, &mut active, &bridge.share(), size);
@@ -106,7 +106,7 @@ fn apply_queue(
     }
 
     let Some(data) = frame else { return };
-    draw(state, stores, commands, placed, &data, settings.post.tonemap);
+    draw(state, stores, commands, placed, &data, &settings);
     drive_screen(state, commands, windows, &data, &settings, surface);
 }
 
@@ -117,9 +117,11 @@ fn draw(
     commands: &mut Commands,
     placed: &mut instances::PlacedQuery,
     data: &FrameData,
-    tonemap: blackbox_gfx::Tonemap,
+    settings: &crate::ops::CameraSettings,
 ) {
-    assets::sync_params(state, stores, Params::with_tonemap(&data.frame, tonemap));
+    let params =
+        Params::with_tonemap(&data.frame, settings.post.tonemap).with_original_world(settings.original_world_materials);
+    assets::sync_params(state, stores, params);
     assets::sync_rig_environment(state, stores);
     instances::sync(state, stores, commands, placed, &data.instances);
 }

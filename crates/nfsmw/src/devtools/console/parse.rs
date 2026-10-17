@@ -57,7 +57,10 @@ pub const BUILT_IN: [(&str, &str); 45] = [
     ("gfx", "show the renderer, graphics API, capabilities and requested vs effective graphics settings"),
     ("keys", "list every key, button and stick binding"),
     ("graphics_preset <custom|low|medium|high|ultra>", "set the graphics settings a preset stands for"),
-    ("car_shading <simple|glossy>", "car shading: glossy or the cheap single-light look"),
+    (
+        "car_shading <simple|glossy|original|original-unshadowed>",
+        "car shading: original PC families, custom glossy or simple",
+    ),
     ("smoke_quality <standard|high>", "change tire smoke presentation quality"),
     ("hud-layout <pc|classic|xbox360>", "change HUD placement and scale"),
     ("post_tonemap <off|aces>", "filmic tone mapping (darkens the image)"),

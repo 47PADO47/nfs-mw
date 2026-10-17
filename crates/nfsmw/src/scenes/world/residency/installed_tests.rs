@@ -6,6 +6,9 @@ use nfsmw_data::world::{DEFAULT_TRACK, WorldIndex};
 use super::super::{Options, View, WorldScene};
 
 mod lamps;
+mod materials;
+mod reflections;
+mod shadow_categories;
 
 fn open() -> (GameDir, WorldScene) {
     let path = std::env::var_os("NFSMW_GAME_DIR").expect("set NFSMW_GAME_DIR to run installed tests");

@@ -18,6 +18,7 @@ pub(crate) fn native_capabilities(
         renderer: "blackbox",
         api,
         compressed_bc,
+        max_texture_anisotropy: 16,
         hdr_targets,
         antialiasing: match api {
             GraphicsApi::Gl => AaSet::of(&[Antialiasing::Off, Antialiasing::Fxaa]),
@@ -28,6 +29,7 @@ pub(crate) fn native_capabilities(
         bloom: true,
         scene_treatment: true,
         local_reflections: true,
+        projected_reflections: api != GraphicsApi::Gl,
         ambient_occlusion,
         soft_shadows: false,
         ray_tracing: RtSupport::None,

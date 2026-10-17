@@ -20,6 +20,10 @@ impl WorldScene {
         physics.set_sequences(index.sequences.clone());
         let colour_treatment = nfsmw_data::visual_treatment::midday(physics.database());
         let time_of_day = nfsmw_data::time_of_day::load(physics.database());
+        let atmosphere = nfsmw_data::read_unwrapped(dir, &format!("TRACKS/{DEFAULT_TRACK}.BUN"))
+            .and_then(|bytes| lighting::Clouds::read(&bytes))
+            .map_err(|error| log::warn!("authored cloud map unavailable: {error:#}"))
+            .unwrap_or_default();
         let camera_views = nfsmw_data::camera::load(physics.database());
         if colour_treatment.is_none() {
             log::warn!("midday visual treatment is missing or invalid; grading disabled");
@@ -92,8 +96,10 @@ impl WorldScene {
             shadow_quality: blackbox_gfx::ShadowQuality::Off,
             shadow_casters: Vec::new(),
             original_shadows: true,
+            original_sky: false,
             colour_treatment,
             time_of_day,
+            atmosphere,
             camera_environment: camera_original::Environment::new(
                 camera_views,
                 index.track_zones.clone().unwrap_or_default(),
@@ -133,6 +139,7 @@ impl WorldScene {
             spark_style: crate::settings::SparkStyle::OriginalPc,
             smoke_quality: crate::settings::SmokeQuality::Standard,
             rain: crate::weather::rain::Rain::new(),
+            wet_road: Default::default(),
             explosions: Default::default(),
             tuning: crate::settings::WorldTuning::default(),
             car_shading: crate::settings::CarShading::default(),

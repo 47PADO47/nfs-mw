@@ -12,8 +12,8 @@ use crate::read_unwrapped;
 /// Searched in order; a texture already found is not replaced.
 pub const GLOBAL_TEXTURE_FILES: &[&str] = &["GLOBAL/INGAMEA.BUN", "GLOBAL/GLOBALB.LZC", "GLOBAL/INGAMEB.BUN"];
 
-/// The global packs whose solids (shared models) are loaded. `InGameA.bun` holds the sky domes
-/// (`SKYDOME`, `SKYDOME_XENON`) and the other `SKY_*` models.
+/// The global packs whose solids (shared models) are loaded. Sky dome geometry
+/// comes from the track's shared X0 section; `InGameA.bun` supplies sky textures.
 pub const GLOBAL_MODEL_FILES: &[&str] = &["GLOBAL/INGAMEA.BUN"];
 
 /// Textures, texture animations and shared models from the global packs.

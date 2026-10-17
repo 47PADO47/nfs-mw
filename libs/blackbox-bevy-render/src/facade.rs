@@ -8,8 +8,8 @@ use std::sync::{Arc, Mutex};
 use blackbox_gfx::{
     BackendInfo, Capabilities, CaptureId, EffectLayer, Environment, FrameParams, FrameStatus, GlossyMaterial,
     GlossyMaterialHandle, GraphicsSettings, Instance, LightingRig, MeshDesc, MeshHandle, RenderBackend, RenderError,
-    RenderStats, Resolved, RgbaImage, SkyGradient, TextureDesc, TextureHandle, UiLayer, UiTextureId, UiTexturePatch,
-    resolve, scaled_size,
+    RenderExperiments, RenderStats, Resolved, RgbaImage, SkyGradient, TextureDesc, TextureHandle, UiLayer, UiTextureId,
+    UiTexturePatch, resolve, scaled_size,
 };
 
 use crate::ops::{CameraSettings, CaptureRequest, FrameData, Op, Shared, UiOp, lock};
@@ -18,6 +18,9 @@ use crate::ops::{CameraSettings, CaptureRequest, FrameData, Op, Shared, UiOp, lo
 #[derive(Default)]
 struct Warned {
     environment: bool,
+    normal_material: bool,
+    original_car: bool,
+    window_material: bool,
 }
 
 pub struct BevyBackend {
@@ -25,6 +28,8 @@ pub struct BevyBackend {
     info: BackendInfo,
     caps: Capabilities,
     graphics: GraphicsSettings,
+    original_world_materials: bool,
+    active_filtering: Option<blackbox_gfx::TextureFiltering>,
     next_texture: usize,
     next_mesh: usize,
     next_glossy: usize,
@@ -45,6 +50,8 @@ impl BevyBackend {
             info,
             caps,
             graphics: GraphicsSettings::default(),
+            original_world_materials: false,
+            active_filtering: None,
             // Handle 0 is never handed out, so it can stand for "none" in a caller's tables.
             next_texture: 1,
             next_mesh: 1,
@@ -68,7 +75,7 @@ impl BevyBackend {
 
     /// Native lazily builds a default procedural sky the first time any glossy resource is touched
     /// (`Glossy::new`, `libs/blackbox-render/src/gpu/glossy/mod.rs`), so a caller that never calls
-    /// [`RenderBackend::set_environment`] — true of every scene in `crates/nfsmw` today — still gets a
+    /// [`RenderBackend::set_environment`] â€” true of every scene in `crates/nfsmw` today â€” still gets a
     /// believable, dim reflection instead of no reflection at all. Without an equivalent here, a glossy
     /// material's `environment` field stays `None` forever and Bevy's `AsBindGroup` substitutes its
     /// generic missing-texture fallback: an opaque *white* 1x1 cube (`Image::default()`), not native's
@@ -97,6 +104,13 @@ fn once(flag: &mut bool, what: &str) {
 }
 
 impl RenderBackend for BevyBackend {
+    fn create_window_material(
+        &mut self,
+        _desc: &blackbox_gfx::WindowMaterialDesc,
+    ) -> Option<blackbox_gfx::WindowMaterialHandle> {
+        once(&mut self.warned.window_material, "authored architectural glass; retaining explicit legacy fallback");
+        None
+    }
     fn info(&self) -> &BackendInfo {
         &self.info
     }
@@ -122,10 +136,22 @@ impl RenderBackend for BevyBackend {
     }
 
     fn apply_graphics(&mut self, requested: &GraphicsSettings) -> Resolved {
-        let resolved = resolve(requested, &self.caps);
+        let mut resolved = resolve(requested, &self.caps);
+        if let Some(active) = self.active_filtering
+            && active != resolved.effective.texture_filtering
+        {
+            resolved.downgrades.push(blackbox_gfx::Downgrade {
+                setting: blackbox_gfx::Setting::TextureFiltering,
+                requested: resolved.effective.texture_filtering.to_string(),
+                effective: active.to_string(),
+                reason: "texture filtering changes require a renderer restart".into(),
+            });
+            resolved.effective.texture_filtering = active;
+        }
         let effective = resolved.effective;
         self.set_camera(|settings| {
             settings.post = effective.post;
+            settings.texture_filtering = effective.texture_filtering;
             settings.shadows = effective.shadows;
             settings.upscaler = effective.upscaler;
             settings.upscale_sharpness = effective.upscale_sharpness;
@@ -140,6 +166,28 @@ impl RenderBackend for BevyBackend {
         &self.graphics
     }
 
+    fn set_render_experiments(&mut self, options: RenderExperiments) {
+        self.original_world_materials = options.original_world_materials;
+        self.set_camera(|settings| settings.original_world_materials = options.original_world_materials);
+    }
+
+    fn render_experiments(&self) -> RenderExperiments {
+        RenderExperiments { original_world_materials: self.original_world_materials, ..RenderExperiments::default() }
+    }
+
+    fn create_normal_material(
+        &mut self,
+        _desc: &blackbox_gfx::NormalMaterialDesc,
+    ) -> Option<blackbox_gfx::NormalMaterialHandle> {
+        if !self.warned.normal_material {
+            log::warn!(
+                "normal-mapped world materials are unavailable on Bevy; using the caller's legacy prelit fallback"
+            );
+            self.warned.normal_material = true;
+        }
+        None
+    }
+
     fn render_size(&self) -> [u32; 2] {
         let (width, height) = scaled_size((self.surface[0], self.surface[1]), self.graphics.render_scale);
         [width, height]
@@ -150,7 +198,11 @@ impl RenderBackend for BevyBackend {
         self.next_texture += 1;
         self.textures += 1;
         // A texture that cannot be built stays a handle without an image: draws using it are white.
-        if let Some(image) = crate::texture::image(desc, self.caps.compressed_bc) {
+        let filtering = *self
+            .active_filtering
+            .get_or_insert(self.graphics.texture_filtering.supported(self.caps.max_texture_anisotropy));
+        if let Some(mut image) = crate::texture::image(desc, self.caps.compressed_bc) {
+            image.sampler = crate::texture::world_sampler_for(filtering);
             self.push(Op::AddTexture { handle, image: Box::new(image) });
         }
         handle
@@ -179,6 +231,10 @@ impl RenderBackend for BevyBackend {
     }
 
     fn create_glossy_material(&mut self, material: &GlossyMaterial) -> GlossyMaterialHandle {
+        if material.model != blackbox_gfx::GlossyModel::Custom && !self.warned.original_car {
+            log::warn!("original vertex-lit car materials are unavailable on Bevy; using custom glossy shading");
+            self.warned.original_car = true;
+        }
         self.ensure_default_environment();
         let handle = GlossyMaterialHandle::from_raw(self.next_glossy);
         self.next_glossy += 1;
@@ -275,6 +331,78 @@ mod tests {
         lock(&backend.shared).ops.iter().filter(|op| matches!(op, Op::SetEnvironment(_))).count()
     }
 
+    #[test]
+    fn texture_filtering_startup_and_restart_keep_every_uploaded_image_consistent() {
+        use blackbox_gfx::{PixelFormat, Setting, TextureFiltering};
+        let mut backend = backend();
+        let startup = GraphicsSettings { texture_filtering: TextureFiltering::Anisotropic16, ..Default::default() };
+        assert!(backend.apply_graphics(&startup).is_exact());
+        let desc = TextureDesc {
+            label: "synthetic surface",
+            width: 1,
+            height: 1,
+            format: PixelFormat::Rgba8,
+            mips: vec![&[255; 4]],
+        };
+        backend.create_texture(&desc);
+        let requested = GraphicsSettings { texture_filtering: TextureFiltering::Trilinear, ..startup };
+        let result = backend.apply_graphics(&requested);
+        assert_eq!(result.effective.texture_filtering, TextureFiltering::Anisotropic16);
+        assert!(result.downgrade_of(Setting::TextureFiltering).unwrap().reason.contains("restart"));
+        assert!(backend.capabilities().restart_required.contains(Setting::TextureFiltering));
+        backend.create_texture(&desc);
+        let shared = lock(&backend.shared);
+        let samplers: Vec<_> = shared
+            .ops
+            .iter()
+            .filter_map(|op| {
+                let Op::AddTexture { image, .. } = op else { return None };
+                let bevy_image::ImageSampler::Descriptor(sampler) = &image.sampler else {
+                    panic!("explicit sampler required")
+                };
+                assert_eq!(image.asset_usage, bevy_asset::RenderAssetUsages::RENDER_WORLD);
+                Some(sampler.anisotropy_clamp)
+            })
+            .collect();
+        assert_eq!(samplers, [16, 16]);
+        assert_eq!(backend.graphics().texture_filtering, TextureFiltering::Anisotropic16);
+    }
+
+    #[test]
+    fn original_scenery_switch_reaches_material_settings_without_enabling_native_experiments() {
+        let mut backend = backend();
+        backend.set_render_experiments(RenderExperiments {
+            original_world_materials: true,
+            clearcoat: true,
+            ..RenderExperiments::default()
+        });
+        assert!(backend.render_experiments().original_world_materials);
+        assert!(lock(&backend.shared).settings.original_world_materials);
+        assert!(!backend.render_experiments().clearcoat);
+        backend.set_render_experiments(RenderExperiments::default());
+        assert!(!lock(&backend.shared).settings.original_world_materials);
+    }
+
+    #[test]
+    fn unsupported_normal_material_requests_do_not_queue_incorrect_shader_resources() {
+        let mut backend = backend();
+        let texture = TextureHandle::from_raw(7);
+        let material = blackbox_gfx::NormalMaterialDesc {
+            model: blackbox_gfx::NormalModel::Bump,
+            reflection: None,
+            diffuse: texture,
+            normal: texture,
+            specular: texture,
+            uv_offset: [0.0; 2],
+        };
+        let before = lock(&backend.shared).ops.len();
+        assert!(backend.create_normal_material(&material).is_none());
+        assert!(backend.create_normal_material(&material).is_none());
+        assert!(backend.warned.normal_material);
+        assert_eq!(lock(&backend.shared).ops.len(), before);
+        assert!(!backend.render_experiments().original_world_materials);
+    }
+
     /// Nothing in `crates/nfsmw` ever calls `set_environment` (native gets a default lazily, from
     /// `Glossy::new`; see `ensure_default_environment`'s doc comment). Without a matching default here,
     /// every glossy material's environment field stays `None` forever and samples Bevy's opaque white
@@ -316,5 +444,16 @@ mod tests {
         // One from the lazy default, one from the explicit call; `apply_op` applies them in order, so
         // the explicit one (queued second) is what every material ends up with.
         assert_eq!(environment_ops(&backend), 2);
+    }
+
+    #[test]
+    fn original_car_requests_explicitly_report_custom_backend_fallback() {
+        let mut backend = backend();
+        backend.create_glossy_material(&GlossyMaterial {
+            model: blackbox_gfx::GlossyModel::Shadowed,
+            ..Default::default()
+        });
+        assert!(backend.warned.original_car);
+        assert_eq!(lock(&backend.shared).ops.iter().filter(|op| matches!(op, Op::AddGlossyMaterial { .. })).count(), 1);
     }
 }

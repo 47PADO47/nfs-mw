@@ -19,6 +19,7 @@ mod placement;
 #[cfg(test)]
 mod presentation_tests;
 mod rig;
+mod road_reflection;
 mod script;
 pub(super) mod sight;
 mod sim;

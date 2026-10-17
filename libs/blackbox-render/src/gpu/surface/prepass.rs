@@ -7,6 +7,7 @@ pub(super) struct Prepass {
     opaque: wgpu::RenderPipeline,
     cutout: wgpu::RenderPipeline,
     glossy_cutout: wgpu::RenderPipeline,
+    prelit_cutout: wgpu::RenderPipeline,
     matrix: wgpu::Buffer,
     group: wgpu::BindGroup,
 }
@@ -90,6 +91,7 @@ impl Prepass {
             opaque: make("fs_opaque"),
             cutout: make("fs_cutout"),
             glossy_cutout: make("fs_glossy_cutout"),
+            prelit_cutout: make("fs_prelit_cutout"),
             matrix,
             group,
         }
@@ -134,7 +136,9 @@ impl Prepass {
                 pass.set_vertex_buffer(0, mesh.vertices.slice(..));
                 pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint16);
                 for draw in &mesh.draws {
-                    if draw.shading == Shading::Sky || !matches!(draw.blend, BlendMode::Opaque | BlendMode::AlphaTest) {
+                    if matches!(draw.shading, Shading::Sky | Shading::SkyLayer(_))
+                        || !matches!(draw.blend, BlendMode::Opaque | BlendMode::AlphaTest)
+                    {
                         continue;
                     }
                     if let Shading::Glossy(material) = draw.shading
@@ -142,8 +146,29 @@ impl Prepass {
                     {
                         continue;
                     }
+                    // Original cutouts test the composed vertex-ramp alpha. The
+                    // texture-only prepass cannot reproduce that material-dependent value.
+                    if draw.blend == BlendMode::AlphaTest
+                        && let Shading::Glossy(material) = draw.shading
+                        && renderer.glossy.as_ref().is_some_and(|g| g.original_material(material))
+                    {
+                        continue;
+                    }
                     pass.set_pipeline(match draw.blend {
+                        BlendMode::AlphaTest if renderer.reflective_surface(draw.shading) => &self.opaque,
                         BlendMode::AlphaTest if matches!(draw.shading, Shading::Glossy(_)) => &self.glossy_cutout,
+                        BlendMode::AlphaTest
+                            if renderer.experiments.original_world_materials
+                                && matches!(draw.shading, Shading::WorldWindow(_)) =>
+                        {
+                            &self.glossy_cutout
+                        }
+                        BlendMode::AlphaTest
+                            if renderer.experiments.original_world_materials
+                                && draw.shading == Shading::WorldPrelit =>
+                        {
+                            &self.prelit_cutout
+                        }
                         BlendMode::AlphaTest => &self.cutout,
                         _ => &self.opaque,
                     });

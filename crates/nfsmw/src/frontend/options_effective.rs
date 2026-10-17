@@ -8,7 +8,20 @@ impl Setting {
         if matches!(self, Setting::Graphics(GraphicsSetting::Style | GraphicsSetting::Quality)) {
             return self.data(s);
         }
+        if self == Setting::Graphics(GraphicsSetting::CarShading)
+            && s.car_shading.is_original()
+            && caps.renderer != "blackbox"
+        {
+            return Data::Text("Custom shader fallback".into());
+        }
         let mut shown = s.effective(caps);
+        if self == Setting::Graphics(GraphicsSetting::TextureFiltering) {
+            let suffix = match caps.restart_required.contains(blackbox_gfx::Setting::TextureFiltering) {
+                true => " (Restart)",
+                false => "",
+            };
+            return Data::Text(format!("{}{suffix}", shown.texture_filtering.label()));
+        }
         if self == Setting::Graphics(GraphicsSetting::Shadows) && caps.renderer != "blackbox" {
             return Data::Text(
                 match shown.shadows {

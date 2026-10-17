@@ -6,18 +6,18 @@ macro_rules! lighting {
     ($($field:ident : $kind:ty),* $(,)?) => {
         #[derive(Serialize, Deserialize)]
         #[serde(default)]
-        struct Lighting { $($field: $kind,)* }
+        struct Lighting { projected_shadows: bool, $($field: $kind,)* }
         impl Default for Lighting { fn default() -> Self { Self::from(RenderExperiments::default()) } }
         impl From<RenderExperiments> for Lighting {
-            fn from(v: RenderExperiments) -> Self { Self { $($field: v.$field,)* } }
+            fn from(v: RenderExperiments) -> Self { Self { projected_shadows: v.shadow_projection.is_some(), $($field: v.$field,)* } }
         }
         impl From<Lighting> for RenderExperiments {
-            fn from(v: Lighting) -> Self { Self { $($field: v.$field,)* ..Self::default() }.sanitized() }
+            fn from(v: Lighting) -> Self { Self { shadow_projection: v.projected_shadows.then_some(super::shadows::PROJECTION), $($field: v.$field,)* ..Self::default() }.sanitized() }
         }
     }
 }
 lighting! {
-    sun_shadows: bool, far_shadows: bool, contact_shadows: bool, clearcoat: bool,
+    original_world_materials: bool, sun_shadows: bool, far_shadows: bool, contact_shadows: bool, clearcoat: bool,
     car_skylight: bool, world_ambient: bool, world_ambient_share: f32, world_ambient_tint: f32,
     sky_strength: f32, ground_strength: f32, soft_shadows: bool, original_shadows: bool,
     sun_angle: f32, shadow_resolution: u32, shadow_distance: f32, shadow_filter: f32, contact_length: f32,
@@ -25,6 +25,7 @@ lighting! {
 #[derive(Serialize, Deserialize)]
 #[serde(default)]
 struct Stored {
+    display: super::display::DisplayTuning,
     version: u32,
     style: VisualStyle,
     quality: Quality,
@@ -34,6 +35,7 @@ struct Stored {
 impl Default for Stored {
     fn default() -> Self {
         Self {
+            display: Default::default(),
             version: 1,
             style: VisualStyle::Custom,
             quality: Quality::High,
@@ -55,14 +57,16 @@ pub(super) fn read(value: &toml::Value, origin: &str) -> Option<Appearance> {
         return None;
     }
     Some(Appearance {
+        display: stored.display.sanitized(),
         style: stored.style,
         quality: stored.quality,
         treatment_strength: stored.treatment_strength.filter(|v| v.is_finite()).map(|v| v.clamp(0.0, 1.0)),
-        lighting: stored.lighting.into(),
+        lighting: blackbox_gfx::RenderExperiments { original_world_materials: true, ..stored.lighting.into() },
     })
 }
 pub(super) fn value(value: Appearance) -> anyhow::Result<toml::Value> {
     Ok(toml::Value::try_from(Stored {
+        display: value.display.sanitized(),
         version: 1,
         style: value.style,
         quality: value.quality,

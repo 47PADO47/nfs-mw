@@ -14,7 +14,6 @@ const ROOM_FILE: &str = "FRONTEND/PLATFORMS/PlatformCrib.BIN";
 const ROOM_ID: u32 = u32::MAX - 2;
 
 /// The room's GPU resources and its placed parts.
-#[allow(dead_code)] // `meshes`/`textures` are retained for `destroy`, which callers use once a backdrop is torn down.
 pub struct Room {
     meshes: Vec<MeshHandle>,
     textures: Vec<TextureHandle>,
@@ -64,7 +63,6 @@ impl Room {
     }
 
     /// Frees the room's meshes and textures.
-    #[allow(dead_code)] // Used when a frontend backdrop is torn down (loading screen / feng viewer).
     pub fn destroy(self, renderer: &mut dyn RenderBackend) {
         for mesh in self.meshes {
             renderer.destroy_mesh(mesh);

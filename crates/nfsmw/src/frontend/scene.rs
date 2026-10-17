@@ -14,6 +14,7 @@ use nfsmw_data::car::LoadOptions;
 use super::room::Room;
 use crate::input::ActionState;
 use crate::scenes::car::CarScene;
+use crate::settings::CarShading;
 use crate::viewer::{Fullscreen, Scene};
 
 /// The stock car the menus turn on their backdrop. [ours] The original shows the car on a platform stage
@@ -29,6 +30,7 @@ const TURN_RATE: f32 = 12.0;
 pub struct MenuScene {
     dir: Option<GameDir>,
     car: Option<CarScene>,
+    shading: CarShading,
     /// The stage's room, when the install has it (`room.rs`).
     room: Option<Room>,
     /// The car's and the room's parts together, for the frame.
@@ -37,7 +39,7 @@ pub struct MenuScene {
 
 impl MenuScene {
     pub fn new(dir: Option<GameDir>) -> Self {
-        Self { dir, car: None, room: None, parts: Vec::new() }
+        Self { dir, ..Default::default() }
     }
 }
 
@@ -57,6 +59,29 @@ pub(super) fn flat_frame() -> FrameParams {
 }
 
 impl Scene for MenuScene {
+    fn close(&mut self, renderer: &mut dyn RenderBackend) {
+        if let Some(mut car) = self.car.take() {
+            car.close(renderer);
+        }
+        if let Some(room) = self.room.take() {
+            room.destroy(renderer);
+        }
+        self.parts.clear();
+    }
+
+    fn set_car_shading(&mut self, shading: CarShading) {
+        self.shading = shading;
+        if let Some(car) = &mut self.car {
+            car.set_car_shading(shading);
+        }
+    }
+
+    fn refresh_effects(&mut self, renderer: &mut dyn RenderBackend) {
+        if let Some(car) = &mut self.car {
+            car.refresh_effects(renderer);
+        }
+    }
+
     fn title(&self) -> String {
         "nfsmw".to_owned()
     }
@@ -78,7 +103,8 @@ impl Scene for MenuScene {
                 None
             }
         };
-        let mut car = CarScene::new(model, 0.0);
+        let mut car = CarScene::new(model, 0.0).with_source(dir.clone(), options);
+        car.set_car_shading(self.shading);
         // The room has its own floor at the same height; the car's placeholder floor would z-fight with it.
         car.placeholder_floor = room.is_none();
         car.init(renderer)?;
@@ -169,6 +195,10 @@ impl Pausable {
 }
 
 impl Scene for Pausable {
+    fn close(&mut self, renderer: &mut dyn RenderBackend) {
+        self.inner.close(renderer);
+    }
+
     fn garage(&mut self) -> Option<&mut crate::garage::Model> {
         self.inner.garage()
     }
@@ -285,6 +315,18 @@ impl Scene for Pausable {
         self.inner.set_traffic(traffic);
     }
 
+    fn prepare_frame(&mut self, renderer: &mut dyn RenderBackend, aspect: f32) {
+        self.inner.prepare_frame(renderer, aspect);
+    }
+
+    fn set_road_reflections(
+        &mut self,
+        quality: crate::settings::RoadReflections,
+        resolution: crate::settings::RoadReflectionResolution,
+    ) {
+        self.inner.set_road_reflections(quality, resolution);
+    }
+
     fn hud_state(&self) -> Option<crate::hud::HudState> {
         if self.paused.get() || self.concealed() {
             return Some(crate::hud::HudState { visible: false, ..Default::default() });
@@ -330,6 +372,7 @@ impl Scene for Pausable {
 
     fn set_car_shading(&mut self, shading: crate::settings::CarShading) {
         self.inner.set_car_shading(shading);
+        self.effects_dirty = true;
     }
 
     fn set_vehicle_effects(&mut self, sparks: bool, trails: bool) {

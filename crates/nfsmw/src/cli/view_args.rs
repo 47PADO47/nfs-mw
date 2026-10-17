@@ -110,13 +110,16 @@ pub struct ViewArgs {
     /// the preset [env NFSMW_GRAPHICS_PRESET; config `graphics_preset`].
     #[arg(long, value_name = "custom|low|medium|high|ultra")]
     pub graphics_preset: Option<crate::settings::GraphicsPreset>,
-    /// Car shading: glossy (three lights, sun highlight, reflections) or simple (one light; the cheap path)
+    /// Car shading: original, original-unshadowed, glossy (custom) or simple (the cheap path)
     /// [env NFSMW_CAR_SHADING; config `car_shading`; default glossy].
-    #[arg(long, value_name = "simple|glossy")]
+    #[arg(long, value_name = "simple|glossy|original|original-unshadowed")]
     pub car_shading: Option<crate::settings::CarShading>,
     /// Local car reflections [env NFSMW_REFLECTIONS; config `reflections`; default medium].
     #[arg(long, value_name = "off|low|medium|high")]
     pub reflections: Option<crate::settings::ReflectionQuality>,
+    /// Surface filtering: trilinear, 8x or 16x [env NFSMW_TEXTURE_FILTERING; config texture_filtering; default 8x].
+    #[arg(long)]
+    pub texture_filtering: Option<crate::settings::TextureFiltering>,
     /// Smoke presentation: standard or high [env NFSMW_SMOKE_QUALITY; config `smoke_quality`; default standard].
     #[arg(long, value_name = "standard|high")]
     pub smoke_quality: Option<crate::settings::SmokeQuality>,
@@ -220,8 +223,8 @@ pub struct ViewArgs {
     /// [env NFSMW_POST_AA; config `post_aa`; default off].
     #[arg(long, value_name = "off|fxaa|smaa|taa")]
     pub post_aa: Option<crate::settings::PostAa>,
-    /// Experimental midday visual treatment: off, low (half strength), or high (original profile).
-    #[arg(long, value_name = "off|low|high")]
+    /// Midday visual treatment: off, low (subtle), high (stock), or reference (supplied mod override).
+    #[arg(long, value_name = "off|low|high|reference")]
     pub visual_treatment: Option<crate::settings::VisualTreatment>,
     /// Dynamic soft sun shadows (Bevy) [env NFSMW_SHADOWS; config `shadows`; default off].
     #[arg(long, value_name = "off|low|medium|high")]
@@ -291,6 +294,7 @@ impl ViewArgs {
             graphics_preset: self.graphics_preset,
             car_shading: self.car_shading,
             reflections: self.reflections,
+            texture_filtering: self.texture_filtering,
             smoke_quality: self.smoke_quality,
             radio: switch(self.radio, self.no_radio),
             traffic: if self.no_traffic { Some(0) } else { self.traffic },

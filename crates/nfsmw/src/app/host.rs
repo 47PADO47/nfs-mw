@@ -127,7 +127,11 @@ impl Host {
         renderer.set_colour_treatment(None, None);
         // A local environment belongs to the old scene; menus and viewers must not inherit its capture.
         renderer.set_reflection_scene(None);
-        scene.init(renderer.as_mut())?;
+        renderer.set_projected_reflection_scene(None);
+        if let Err(error) = scene.init(renderer.as_mut()) {
+            scene.close(renderer.as_mut());
+            return Err(error);
+        }
         scene.set_transmission(self.transmission);
         scene.set_camera_mode(self.camera_mode);
         scene.set_wheel_options(self.wheel);
@@ -135,6 +139,7 @@ impl Host {
         if self.screenshot.is_some() {
             super::screenshot::wait_ready(scene.as_mut(), renderer.as_mut());
         }
+        self.scene.close(renderer.as_mut());
         self.scene = scene;
         self.scene_changes += 1;
         Ok(())

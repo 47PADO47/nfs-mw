@@ -20,7 +20,7 @@ use bevy_image::ImagePlugin;
 use bevy_light::LightPlugin;
 use bevy_mesh::MeshPlugin;
 use bevy_pbr::{MaterialPlugin, PbrPlugin};
-use bevy_render::renderer::{RenderAdapterInfo, RenderDevice};
+use bevy_render::renderer::{RenderAdapter, RenderAdapterInfo, RenderDevice};
 use bevy_render::settings::{RenderCreation, WgpuSettings};
 use bevy_render::{ExtractSchedule, RenderApp, RenderPlugin};
 use blackbox_gfx::{BackendInfo, GraphicsApi};
@@ -142,12 +142,13 @@ pub struct BackendFactory<'w> {
     bridge: Res<'w, BlackboxBridge>,
     device: Res<'w, RenderDevice>,
     adapter: Res<'w, RenderAdapterInfo>,
+    render_adapter: Res<'w, RenderAdapter>,
 }
 
 impl BackendFactory<'_> {
     /// The backend for a surface of `size` pixels. The world draws into the primary window.
     pub fn create(&self, size: [u32; 2]) -> BevyBackend {
-        backend(&self.bridge, &self.device, &self.adapter, size)
+        backend(&self.bridge, &self.device, &self.adapter, &self.render_adapter, size)
     }
 }
 
@@ -156,6 +157,7 @@ pub fn backend(
     bridge: &BlackboxBridge,
     device: &RenderDevice,
     adapter: &RenderAdapterInfo,
+    render_adapter: &RenderAdapter,
     size: [u32; 2],
 ) -> BevyBackend {
     let api = api_of(adapter.backend);
@@ -166,5 +168,9 @@ pub fn backend(
         adapter: adapter.name.clone(),
         driver: format!("{} {}", adapter.driver, adapter.driver_info).trim().to_owned(),
     };
-    BevyBackend::new(bridge.share(), info, crate::caps::capabilities(api, compressed_bc), size)
+    let mut caps = crate::caps::capabilities(api, compressed_bc);
+    if !render_adapter.get_downlevel_capabilities().flags.contains(wgpu::DownlevelFlags::ANISOTROPIC_FILTERING) {
+        caps.max_texture_anisotropy = 1;
+    }
+    BevyBackend::new(bridge.share(), info, caps, size)
 }

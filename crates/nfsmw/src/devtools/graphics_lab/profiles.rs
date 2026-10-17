@@ -46,16 +46,9 @@ pub(super) fn header(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Se
             lab.save_requested = true;
         }
         if ui.button("Load saved").clicked() {
-            let result = Settings::config_path().ok_or_else(|| "No settings folder".to_owned()).and_then(|path| {
-                let text = std::fs::read_to_string(&path).map_err(|e| format!("Cannot load saved graphics: {e}"))?;
-                let table: toml::Table = text.parse().map_err(|e| format!("Invalid settings file: {e}"))?;
-                if let Some(value) = table.get("appearance")
-                    && crate::settings::Appearance::read(value, "saved graphics").is_none()
-                {
-                    return Err("Saved graphics use an invalid or unsupported profile schema.".into());
-                }
-                let snapshot = Settings::from(crate::settings::file::parse(&text, "saved graphics"));
-                presets::restore_appearance(settings, &snapshot);
+            let result = lab.profile_path.as_deref().ok_or_else(|| "No settings folder".to_owned()).and_then(|path| {
+                let text = std::fs::read_to_string(path).map_err(|e| format!("Cannot load saved graphics: {e}"))?;
+                saved::restore(settings, &text).map_err(|e| format!("Cannot load saved graphics: {e:#}"))?;
                 lab.options = settings.appearance.lighting;
                 Ok(())
             });
@@ -73,8 +66,15 @@ pub(super) fn header(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Se
     }
     if let Some(caps) = lab.caps {
         let resolved = blackbox_gfx::resolve(&settings.graphics(), &caps);
+        if !resolved.downgrades.is_empty() {
+            ui.small("Renderer limits affect the preview; your requested settings can still be saved and loaded.");
+        }
         for downgrade in resolved.downgrades {
-            ui.colored_label(egui::Color32::YELLOW, downgrade.reason);
+            if downgrade.setting == blackbox_gfx::Setting::Shadows && lab.stats.supported && lab.options.sun_shadows {
+                ui.small("F8 dynamic shadows are active; the separate Video soft-shadow option is unavailable on this renderer.");
+                continue;
+            }
+            ui.colored_label(egui::Color32::YELLOW, format!("{}: {}", downgrade.setting, downgrade.reason));
         }
     }
 }
@@ -87,6 +87,7 @@ fn reset(lab: &mut GraphicsLab, settings: &mut Settings) {
     defaults.select_visual_style(style);
     match lab.tab {
         Tab::Look => {
+            settings.appearance.display = Default::default();
             settings.post_aa = defaults.post_aa;
             settings.post_bloom = defaults.post_bloom;
             settings.post_tonemap = defaults.post_tonemap;
@@ -95,11 +96,16 @@ fn reset(lab: &mut GraphicsLab, settings: &mut Settings) {
         }
         Tab::Lighting => {
             lab.options = defaults.appearance.lighting;
+            lab.options.original_world_materials = settings.appearance.lighting.original_world_materials;
             lab.options.freeze_sun = settings.appearance.lighting.freeze_sun;
             lab.options.lighting_debug = settings.appearance.lighting.lighting_debug;
         }
         Tab::Materials => {
+            settings.texture_filtering = crate::settings::TextureFiltering::default();
+            lab.options.original_world_materials = defaults.appearance.lighting.original_world_materials;
             settings.reflections = defaults.reflections;
+            settings.road_reflections = defaults.road_reflections;
+            settings.road_reflection_resolution = defaults.road_reflection_resolution;
             settings.car_shading = defaults.car_shading;
         }
         Tab::Effects => {
@@ -112,7 +118,8 @@ fn reset(lab: &mut GraphicsLab, settings: &mut Settings) {
             settings.ao_compare = false;
         }
         Tab::Environment => {
-            lab.message = Some("Time/weather overrides are independent; choose a time and Clear/Rain.".into());
+            lab.message =
+                Some("Time/weather overrides are independent; choose sun mode, clouds and rain in Environment.".into());
         }
     }
 }

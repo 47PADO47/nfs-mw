@@ -9,12 +9,15 @@ use crate::settings::{
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GraphicsSetting {
+    Hdr,
     Style,
     Quality,
     Preset,
     CarShading,
     VisualTreatment,
     Reflections,
+    RoadReflections,
+    TextureFiltering,
     Shadows,
     AmbientOcclusion,
     AoIntensity,
@@ -22,13 +25,16 @@ pub enum GraphicsSetting {
 }
 
 impl GraphicsSetting {
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 13] = [
+        Self::Hdr,
         Self::Style,
         Self::Quality,
         Self::Preset,
         Self::CarShading,
         Self::VisualTreatment,
+        Self::TextureFiltering,
         Self::Reflections,
+        Self::RoadReflections,
         Self::Shadows,
         Self::AmbientOcclusion,
         Self::AoIntensity,
@@ -42,33 +48,40 @@ impl GraphicsSetting {
             }
             Self::VisualTreatment => caps.scene_treatment,
             Self::Reflections => caps.local_reflections,
+            Self::RoadReflections => caps.projected_reflections,
             Self::AmbientOcclusion | Self::AoIntensity | Self::AoComparison => caps.ambient_occlusion,
-            Self::Style | Self::Quality | Self::Preset | Self::CarShading => true,
+            Self::Hdr | Self::Style | Self::Quality | Self::Preset | Self::CarShading | Self::TextureFiltering => true,
         }
     }
 
     pub fn enabled(self, s: &Settings) -> bool {
         match self {
-            Self::Reflections => s.car_shading == CarShading::Glossy,
+            Self::Reflections => s.car_shading != CarShading::Simple,
+            Self::RoadReflections => s.appearance.lighting.original_world_materials,
             Self::AoIntensity | Self::AoComparison => s.ao != AoQuality::Off,
             Self::Style
+            | Self::Hdr
             | Self::Quality
             | Self::Preset
             | Self::CarShading
             | Self::VisualTreatment
             | Self::AmbientOcclusion
-            | Self::Shadows => true,
+            | Self::Shadows
+            | Self::TextureFiltering => true,
         }
     }
 
     pub fn title(self) -> Title {
         Title::Text(match self {
+            Self::Hdr => "HDR Output (Auto / On / Off)",
             Self::Style => "Visual Style",
             Self::Quality => "Graphics Quality",
             Self::Preset => "Graphics Preset",
             Self::CarShading => "Car Shading",
             Self::VisualTreatment => "Visual Treatment (Experimental)",
             Self::Reflections => "Car Reflections",
+            Self::RoadReflections => "Road Reflection Detail",
+            Self::TextureFiltering => "Texture Filtering",
             Self::Shadows => "Enhanced Sun Shadows",
             Self::AmbientOcclusion => "Ambient Occlusion (Experimental)",
             Self::AoIntensity => "AO Intensity",
@@ -77,6 +90,9 @@ impl GraphicsSetting {
     }
 
     pub fn data(self, s: &Settings) -> Data {
+        if self == Self::TextureFiltering {
+            return Data::Text(s.texture_filtering.label().into());
+        }
         if self == Self::VisualTreatment
             && let Some(strength) = s.appearance.treatment_strength
         {
@@ -87,6 +103,11 @@ impl GraphicsSetting {
         }
         Data::Text(
             match self {
+                Self::Hdr => match s.appearance.display.mode {
+                    crate::settings::appearance::display::DisplayMode::Off => "Off",
+                    crate::settings::appearance::display::DisplayMode::Auto => "Auto",
+                    crate::settings::appearance::display::DisplayMode::On => "On",
+                },
                 Self::Style => s.visual_style().label(),
                 Self::Quality => s.appearance.quality.label(),
                 Self::Preset => match s.graphics_preset {
@@ -100,6 +121,7 @@ impl GraphicsSetting {
                     VisualTreatment::Off => "Off",
                     VisualTreatment::Low => "Subtle",
                     VisualTreatment::High => "Original",
+                    VisualTreatment::Reference => "Reference (mod)",
                 },
                 Self::Reflections => match s.reflections {
                     ReflectionQuality::Off => "Static Sky",
@@ -107,10 +129,8 @@ impl GraphicsSetting {
                     ReflectionQuality::Medium => "Medium",
                     ReflectionQuality::High => "High",
                 },
-                Self::CarShading => match s.car_shading {
-                    CarShading::Simple => "Simple",
-                    CarShading::Glossy => "Glossy",
-                },
+                Self::CarShading => s.car_shading.label(),
+                Self::RoadReflections => s.road_reflections.label(),
                 Self::Shadows => match (s.appearance.lighting.sun_shadows, s.appearance.lighting.shadow_resolution) {
                     (false, _) => "Off",
                     (true, 0..=1024) => "Low",
@@ -127,7 +147,7 @@ impl GraphicsSetting {
                     true => "Split Screen",
                     false => "Off",
                 },
-                Self::AoIntensity => unreachable!("slider handled above"),
+                Self::AoIntensity | Self::TextureFiltering => unreachable!("special value handled above"),
             }
             .to_owned(),
         )
@@ -140,6 +160,12 @@ impl GraphicsSetting {
         }
         let before = *s;
         match self {
+            Self::Hdr => {
+                use crate::settings::appearance::display::DisplayMode;
+                s.appearance.display.mode =
+                    super::post_options::pick(&DisplayMode::ALL, s.appearance.display.mode, forward);
+                changed.appearance = Some(s.appearance);
+            }
             Self::Style => {
                 let next = super::post_options::pick(&crate::settings::VisualStyle::ALL, s.visual_style(), forward);
                 s.select_visual_style(next);
@@ -175,11 +201,18 @@ impl GraphicsSetting {
                 s.reflections = all[(at + offset) % all.len()];
                 changed.reflections = Some(s.reflections);
             }
+            Self::TextureFiltering => {
+                s.texture_filtering =
+                    super::post_options::pick(&crate::settings::TextureFiltering::ALL, s.texture_filtering, forward);
+                changed.texture_filtering = Some(s.texture_filtering);
+            }
+            Self::RoadReflections => {
+                s.road_reflections =
+                    super::post_options::pick(&crate::settings::RoadReflections::ALL, s.road_reflections, forward);
+                changed.road_reflections = Some(s.road_reflections);
+            }
             Self::CarShading => {
-                s.car_shading = match s.car_shading {
-                    CarShading::Simple => CarShading::Glossy,
-                    CarShading::Glossy => CarShading::Simple,
-                };
+                s.car_shading = super::post_options::pick(&CarShading::ALL, s.car_shading, forward);
                 changed.car_shading = Some(s.car_shading);
             }
             Self::Shadows => {
@@ -284,10 +317,11 @@ mod tests {
     fn car_shading_toggles_and_records_only_its_change() {
         let mut s = Settings::from(Partial::default());
         let mut changed = Partial::default();
-        assert_eq!(GraphicsSetting::CarShading.data(&s), Data::Text("Glossy".into()));
+        assert_eq!(GraphicsSetting::CarShading.data(&s), Data::Text("Custom Glossy".into()));
         assert!(GraphicsSetting::CarShading.step(&mut s, &mut changed, true));
-        assert_eq!(GraphicsSetting::CarShading.data(&s), Data::Text("Simple".into()));
-        assert_eq!(changed, Partial { car_shading: Some(CarShading::Simple), ..Partial::default() });
+        assert_eq!(GraphicsSetting::CarShading.data(&s), Data::Text("Original PC".into()));
+        assert_eq!(changed, Partial { car_shading: Some(CarShading::Original), ..Partial::default() });
+        assert!(GraphicsSetting::Reflections.enabled(&s));
         assert!(GraphicsSetting::CarShading.step(&mut s, &mut changed, false));
         assert_eq!(s.car_shading, CarShading::Glossy);
     }

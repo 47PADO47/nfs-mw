@@ -159,8 +159,14 @@ fn upload(backend: &mut dyn RenderBackend) -> (TextureHandle, MeshHandle) {
         blend: BlendMode::Opaque,
         shading: Shading::Prelit,
     };
-    let mesh =
-        backend.create_mesh(&MeshDesc { label: "m", vertices: &[vertex; 3], indices: &[0, 1, 2], draws: vec![draw] });
+    let mesh = backend.create_mesh(&MeshDesc {
+        secondary_uvs: None,
+        tangents: None,
+        label: "m",
+        vertices: &[vertex; 3],
+        indices: &[0, 1, 2],
+        draws: vec![draw],
+    });
     (texture, mesh)
 }
 

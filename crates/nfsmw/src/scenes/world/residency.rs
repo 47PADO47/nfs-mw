@@ -10,11 +10,14 @@ use nfsmw_data::world::{GlobalTextures, PropCatalog, SectionData, Streamer, Stre
 
 use super::keys;
 use super::props::PropWorld;
-use super::resident::{Placed, SectionResources, place};
+use super::resident::{Placed, ReflectionPlaced, SectionResources, place, place_reflections};
 use super::zone::Zones;
+mod shadow_support;
 
 #[cfg(test)]
 mod installed_tests;
+#[cfg(test)]
+mod shadow_tests;
 #[cfg(test)]
 mod tests;
 
@@ -26,7 +29,7 @@ const UPLOADS_PER_FRAME: usize = 2;
 enum TileState {
     Requested,
     Resident {
-        resources: SectionResources,
+        resources: Box<SectionResources>,
         placed: Vec<Placed>,
         /// Sections of the collision packs this tile put into the collision world.
         packs: Vec<u32>,
@@ -42,6 +45,7 @@ pub struct Residency {
     /// Textures from the global packs, uploaded with the shared sets.
     globals: GlobalTextures,
     pub shared: SectionResources,
+    pub sky: super::sky::Sky,
     pub shared_placed: Vec<Placed>,
     shared_ready: bool,
     tiles: HashMap<usize, TileState>,
@@ -49,6 +53,13 @@ pub struct Residency {
     zones: Zones,
     /// Tiles the current zone loads, drawn ones first.
     wanted: Vec<usize>,
+    /// Additional light support, independent of colour visibility and readiness.
+    shadow_wanted: Vec<usize>,
+    shadow_range: f32,
+    shadow_direction: Option<[f32; 2]>,
+    shadow_extent: [f32; 2],
+    shadow_candidates: Vec<(usize, f32)>,
+    shadow_eligible: usize,
     /// Tiles the current zone draws.
     drawn: HashSet<usize>,
     /// Tiles the previous zone drew, still drawn until the current zone's tiles are all resident,
@@ -65,6 +76,16 @@ pub struct Residency {
 }
 
 impl Residency {
+    /// Release new registered materials on scene replacement as well as tile retirement.
+    pub(super) fn release_normal_materials(&mut self, renderer: &mut dyn RenderBackend) {
+        self.shared.release_normal_materials(renderer);
+        for tile in self.tiles.values_mut() {
+            if let TileState::Resident { resources, .. } = tile {
+                resources.release_normal_materials(renderer);
+            }
+        }
+    }
+
     pub fn new(
         sections: Vec<StreamingSection>,
         visible: VisibleSections,
@@ -73,7 +94,7 @@ impl Residency {
         collision_grid: Option<Grid>,
         catalog: PropCatalog,
     ) -> Self {
-        // Every shared set stays loaded: V/X/Y hold models and textures only, Z0 the sky.
+        // Every shared set stays loaded, including the sky geometry in X0.
         let shared: Vec<usize> = (0..sections.len()).filter(|&i| !sections[i].is_spatial()).collect();
         for &i in &shared {
             streamer.request(i);
@@ -86,11 +107,18 @@ impl Residency {
             shared_pending: Vec::new(),
             globals,
             shared: SectionResources::default(),
+            sky: super::sky::Sky::default(),
             shared_placed: Vec::new(),
             shared_ready: false,
             tiles: HashMap::new(),
             arrived: Vec::new(),
             wanted: Vec::new(),
+            shadow_wanted: Vec::new(),
+            shadow_range: 0.0,
+            shadow_direction: None,
+            shadow_extent: [1.0, 0.0],
+            shadow_candidates: Vec::new(),
+            shadow_eligible: 0,
             drawn: HashSet::new(),
             previous: HashSet::new(),
             unresolved: 0,
@@ -108,15 +136,19 @@ impl Residency {
             self.finish_shared(renderer);
             return;
         }
-        if self.zones.update(x, y) {
-            self.switch_zone(x, y);
+        let changed = self.zones.update(x, y);
+        if changed {
+            self.switch_zone(renderer, x, y);
+        }
+        if !changed {
+            self.update_shadow_support(renderer, [x, y]);
         }
         self.upload_arrived(renderer);
         self.unload_unwanted(renderer);
         self.request_wanted();
     }
 
-    fn switch_zone(&mut self, x: f32, y: f32) {
+    fn switch_zone(&mut self, renderer: &dyn RenderBackend, x: f32, y: f32) {
         self.visual_revision = self.visual_revision.wrapping_add(1);
         self.previous = std::mem::replace(&mut self.drawn, self.zones.drawn());
         self.wanted = self.zones.wanted();
@@ -126,9 +158,19 @@ impl Residency {
             let (ka, kb) = (key(a), key(b));
             ka.0.cmp(&kb.0).then(ka.1.total_cmp(&kb.1))
         });
+        self.update_shadow_support(renderer, [x, y]);
         // Requests the new zone doesn't need are dropped; they are ignored when they arrive.
         let wanted: HashSet<usize> = self.wanted.iter().copied().collect();
-        self.tiles.retain(|i, s| wanted.contains(i) || matches!(s, TileState::Resident { .. }));
+        let retained_requests: Vec<_> = self
+            .shadow_wanted
+            .iter()
+            .copied()
+            .filter(|i| !wanted.contains(i) && matches!(self.tiles.get(i), Some(TileState::Requested)))
+            .take(shadow_support::MAX_SHADOW_IN_FLIGHT)
+            .collect();
+        self.tiles.retain(|i, s| {
+            wanted.contains(i) || retained_requests.contains(i) || matches!(s, TileState::Resident { .. })
+        });
         log::debug!("zone {:?}: {} tiles drawn, {} loaded", self.zones.name(), self.drawn.len(), self.wanted.len());
     }
 
@@ -171,10 +213,21 @@ impl Residency {
         for data in &pending {
             shared.upload_meshes(renderer, data, &empty);
         }
-        // The shared models of InGameA.bun (sky domes and the other SKY_* models); a stream solid of the same name wins.
+        // Additional global shared models; a stream solid of the same name wins.
         shared.upload_solid_list(renderer, &globals.solids, &empty, true);
+        self.sky.release(renderer);
+        self.sky = super::sky::Sky::upload(
+            renderer,
+            pending.iter().flat_map(|data| &data.solids).chain(&globals.solids),
+            &shared,
+        );
         for data in &pending {
             let (placed, unresolved) = place(data, &shared, &empty, &self.catalog);
+            let mut reflected = place_reflections(data, &shared, &empty);
+            for reflected in &mut reflected {
+                reflected.player_index = reflected.player_index.map(|i| i + self.shared_placed.len());
+            }
+            shared.reflection_placed.extend(reflected);
             self.shared_placed.extend(placed);
             self.unresolved += unresolved;
         }
@@ -182,6 +235,9 @@ impl Residency {
             placed.key = keys::shared(index);
         }
         self.props.add_tile(usize::MAX, &mut self.shared_placed);
+        for (index, reflected) in shared.reflection_placed.iter_mut().enumerate() {
+            reflected.bind_player(&self.shared_placed, keys::shared(index | (1 << 31)));
+        }
         log::info!("shared sets resident: {} models, {} textures", shared.meshes.len(), shared.materials.len());
         self.shared = shared;
         self.shared_ready = true;
@@ -189,6 +245,7 @@ impl Residency {
     }
 
     fn upload_arrived(&mut self, renderer: &mut dyn RenderBackend) {
+        self.arrived.sort_unstable_by_key(|data| !self.wanted.contains(&data.index));
         let take = self.arrived.len().min(UPLOADS_PER_FRAME);
         for data in self.arrived.drain(..take).collect::<Vec<_>>() {
             if !matches!(self.tiles.get(&data.index), Some(TileState::Requested)) {
@@ -202,12 +259,16 @@ impl Residency {
                 object.key = keys::tile(data.index, index);
             }
             self.props.add_tile(data.index, &mut placed);
+            resources.reflection_placed = place_reflections(&data, &resources, &self.shared);
+            for (index, reflected) in resources.reflection_placed.iter_mut().enumerate() {
+                reflected.bind_player(&placed, keys::tile(data.index, index | (1 << 31)));
+            }
             self.unresolved += unresolved;
             let packs = data.collision.iter().map(|p| p.section).collect();
             for pack in data.collision {
                 self.collision.insert(pack);
             }
-            self.tiles.insert(data.index, TileState::Resident { resources, placed, packs });
+            self.tiles.insert(data.index, TileState::Resident { resources: Box::new(resources), placed, packs });
             self.visual_revision = self.visual_revision.wrapping_add(1);
         }
     }
@@ -223,7 +284,15 @@ impl Residency {
             self.previous.clear();
         }
         let wanted: HashSet<usize> = self.wanted.iter().copied().collect();
-        let unwanted: Vec<usize> = self.tiles.keys().copied().filter(|i| !wanted.contains(i)).collect();
+        // Only the bounded support selection can retain extra geometry. Previous visits
+        // must not accumulate every tile inside the larger hysteresis region.
+        let unwanted: Vec<usize> = self
+            .tiles
+            .keys()
+            .copied()
+            .filter(|i| !wanted.contains(i))
+            .filter(|i| !self.shadow_wanted.contains(i))
+            .collect();
         for i in unwanted {
             if let Some(TileState::Resident { resources, packs, .. }) = self.tiles.remove(&i) {
                 self.visual_revision = self.visual_revision.wrapping_add(1);
@@ -245,6 +314,7 @@ impl Residency {
             self.tiles.insert(i, TileState::Requested);
             self.streamer.request(i);
         }
+        self.request_shadow_support();
     }
 
     fn wanted_resident(&self) -> bool {
@@ -277,6 +347,20 @@ impl Residency {
         self.shared_placed.iter().chain(tiles)
     }
 
+    /// Only the authored road view's placements, including instances hidden from the player.
+    /// Their meshes/materials have exactly the owning section's resident lifetime.
+    pub(super) fn reflection_placed(&self) -> impl Iterator<Item = &ReflectionPlaced> {
+        self.shared.reflection_placed.iter().chain(
+            self.tiles
+                .values()
+                .filter_map(|state| match state {
+                    TileState::Resident { resources, .. } => Some(resources.reflection_placed.iter()),
+                    _ => None,
+                })
+                .flatten(),
+        )
+    }
+
     pub fn placed(&self) -> impl Iterator<Item = &Placed> {
         let drawn = |i: &usize| self.drawn.contains(i) || self.previous.contains(i);
         let tiles = self.tiles.iter().filter(move |(i, _)| drawn(i)).flat_map(|(_, s)| match s {
@@ -293,7 +377,10 @@ impl Residency {
 
     /// Whether the shared sets and every tile the current zone needs are resident.
     pub fn complete(&self) -> bool {
-        self.shared_ready && self.zones.name().is_some() && self.arrived.is_empty() && self.wanted_resident()
+        self.shared_ready
+            && self.zones.name().is_some()
+            && self.arrived.iter().all(|data| !self.wanted.contains(&data.index))
+            && self.wanted_resident()
     }
 
     /// Keep driving while distant scenery loads. Actual local collision packs must be resident;

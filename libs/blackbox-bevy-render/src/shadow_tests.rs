@@ -271,6 +271,7 @@ fn glossy_sun_is_shadowed_while_fill_and_reflections_remain() {
     let mut rig = blackbox_gfx::LightingRig {
         lights: [blackbox_gfx::DirectionalLight::new(-frame.light_dir, Vec3::splat(0.25)); 3],
         ambient: Vec3::splat(0.05),
+        ..Default::default()
     };
     backend.set_lighting_rig(&rig);
     let off = capture(&mut backend, &frame, &scene);

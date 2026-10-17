@@ -18,6 +18,7 @@ impl GraphicsLab {
         self.options = RenderExperiments {
             freeze_sun: self.options.freeze_sun,
             lighting_debug: self.options.lighting_debug,
+            original_world_materials: self.options.original_world_materials,
             ..preset_options(preset)
         };
     }
@@ -92,12 +93,17 @@ pub(super) fn restore_graphics(settings: &mut Settings, snapshot: &Settings) {
     restore_appearance(settings, snapshot);
     settings.render_scale = snapshot.render_scale;
     settings.upscaler = snapshot.upscaler;
+    settings.upscale_sharpness = snapshot.upscale_sharpness;
+    settings.upscale_quality = snapshot.upscale_quality;
     settings.ray_tracing = snapshot.ray_tracing;
     settings.tire_smoke = snapshot.tire_smoke;
     settings.skid_marks = snapshot.skid_marks;
     settings.smoke_quality = snapshot.smoke_quality;
     settings.collision_sparks = snapshot.collision_sparks;
+    settings.spark_style = snapshot.spark_style;
     settings.speed_trails = snapshot.speed_trails;
+    settings.speed_trail_style = snapshot.speed_trail_style;
+    settings.exhaust_flames = snapshot.exhaust_flames;
 }
 
 pub(super) fn restore_appearance(settings: &mut Settings, snapshot: &Settings) {
@@ -106,6 +112,9 @@ pub(super) fn restore_appearance(settings: &mut Settings, snapshot: &Settings) {
     settings.car_shading = snapshot.car_shading;
     settings.shadows = snapshot.shadows;
     settings.reflections = snapshot.reflections;
+    settings.texture_filtering = snapshot.texture_filtering;
+    settings.road_reflections = snapshot.road_reflections;
+    settings.road_reflection_resolution = snapshot.road_reflection_resolution;
     settings.ao = snapshot.ao;
     settings.ao_intensity = snapshot.ao_intensity;
     settings.ao_compare = snapshot.ao_compare;

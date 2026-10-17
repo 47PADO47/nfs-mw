@@ -12,9 +12,13 @@ fn build(
     device: &wgpu::Device,
     settings: &PostSettings,
     profile: Option<&super::treatment::Profile>,
+    hdr: bool,
 ) -> Vec<Box<dyn PostPass>> {
     let mut passes: Vec<Box<dyn PostPass>> = Vec::new();
     for effect in settings.effects() {
+        if hdr && effect == PostEffect::Tonemap {
+            continue;
+        }
         match effect {
             PostEffect::SceneTreatment => {
                 if settings.colour_treatment <= 0.0 || profile.is_none() {
@@ -35,13 +39,25 @@ fn build(
 }
 
 impl PostChain {
-    /// Profile changes invalidate the effect list even when the user settings stay the same.
-    pub(super) fn set_treatment(&mut self, device: &wgpu::Device, profile: Option<super::treatment::Profile>) {
-        self.profile = profile;
-        let fresh = build(device, &self.settings, self.profile.as_ref());
+    pub(super) fn rebuild_effects(&mut self, device: &wgpu::Device) {
+        let fresh = build(device, &self.settings, self.profile.as_ref(), self.display.is_some());
         let count = fresh.len();
         self.passes.splice(..self.effect_count, fresh);
         self.effect_count = count;
+        for pass in &mut self.passes {
+            pass.set_display(self.display);
+        }
+    }
+    /// Profile changes invalidate the effect list even when the user settings stay the same.
+    pub(super) fn set_treatment(&mut self, device: &wgpu::Device, profile: Option<super::treatment::Profile>) {
+        self.profile = profile;
+        let fresh = build(device, &self.settings, self.profile.as_ref(), self.display.is_some());
+        let count = fresh.len();
+        self.passes.splice(..self.effect_count, fresh);
+        self.effect_count = count;
+        for pass in &mut self.passes {
+            pass.set_display(self.display);
+        }
     }
 
     /// Replace the effect passes at the front of the chain with those `settings` ask for. Returns
@@ -51,11 +67,14 @@ impl PostChain {
         if settings == self.settings {
             return false;
         }
-        let fresh = build(device, &settings, self.profile.as_ref());
+        let fresh = build(device, &settings, self.profile.as_ref(), self.display.is_some());
         let count = fresh.len();
         self.passes.splice(..self.effect_count, fresh);
         self.effect_count = count;
         self.settings = settings;
+        for pass in &mut self.passes {
+            pass.set_display(self.display);
+        }
         true
     }
 

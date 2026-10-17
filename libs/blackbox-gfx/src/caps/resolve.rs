@@ -73,6 +73,16 @@ impl Resolved {
 pub fn resolve(requested: &GraphicsSettings, caps: &Capabilities) -> Resolved {
     let requested = requested.sanitized();
     let mut out = Resolved { effective: requested, downgrades: Vec::new(), notes: Vec::new() };
+    let requested_filter = requested.texture_filtering;
+    out.effective.texture_filtering = requested_filter.supported(caps.max_texture_anisotropy);
+    if requested_filter != out.effective.texture_filtering {
+        out.downgrade(
+            Setting::TextureFiltering,
+            requested_filter,
+            out.effective.texture_filtering,
+            format!("{} supports at most {}x texture anisotropy", caps.renderer, caps.max_texture_anisotropy),
+        );
+    }
     tonemap(&mut out, caps);
     bloom(&mut out, caps);
     if !caps.scene_treatment && out.effective.post.colour_treatment > 0.0 {

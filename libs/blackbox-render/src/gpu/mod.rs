@@ -5,9 +5,13 @@ pub(crate) mod ao;
 mod backend_impl;
 mod capture;
 mod contact;
+mod display;
 mod effects;
+mod filtering;
 mod frame;
 mod glossy;
+#[cfg(test)]
+mod hdr_tests;
 #[cfg(test)]
 mod headless_tests;
 mod init;
@@ -15,16 +19,19 @@ mod instances;
 #[cfg(test)]
 mod lean_tests;
 mod meshes;
+mod normal;
 mod output;
 #[cfg(test)]
 mod parity;
 mod pipelines;
 mod post;
+mod projected;
 #[cfg(test)]
 mod reflection_tests;
 mod reflections;
 mod resources;
 mod shadows;
+mod sky;
 mod slots;
 mod spatial_aa;
 mod surface;
@@ -35,6 +42,9 @@ mod textures;
 mod timing;
 mod ui;
 mod upscale;
+mod window;
+#[cfg(test)]
+mod world_material_tests;
 
 pub use adapters::available_apis;
 
@@ -44,6 +54,8 @@ use crate::{RenderError, RendererOptions, clamp_render_scale, scaled_size};
 use targets::{HDR_FORMAT, SceneInputs, SceneTargets};
 
 pub struct Renderer {
+    adapter: wgpu::Adapter,
+    display: display::Display,
     output: output::Output,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -62,6 +74,7 @@ pub struct Renderer {
     hdr_format: wgpu::TextureFormat,
     post: post::PostChain,
     reflections: Option<reflections::ReflectionCapture>,
+    projected: Option<projected::ProjectedCapture>,
     experiments: blackbox_gfx::RenderExperiments,
     experiment_stats: blackbox_gfx::ExperimentStats,
     shadows: Option<shadows::Shadows>,
@@ -78,11 +91,15 @@ pub struct Renderer {
     pipelines: pipelines::Pipelines,
     /// Texture bind groups. Slot 0 is the white fallback.
     textures: slots::Slots<wgpu::BindGroup>,
+    texture_views: std::collections::HashMap<usize, wgpu::TextureView>,
     meshes: slots::Slots<meshes::GpuMesh>,
     instances: instances::InstanceBuffer,
     effects: effects::Effects,
     /// Created by the first glossy call, so a renderer that never shades anything glossy pays nothing.
     glossy: Option<glossy::Glossy>,
+    sky: Option<sky::Sky>,
+    normal: Option<normal::Normal>,
+    window: Option<window::Window>,
     ui: ui::Ui,
     /// Texture slot -> slot drawn in its place (animated textures).
     redirects: std::collections::HashMap<usize, usize>,
@@ -126,7 +143,7 @@ impl Renderer {
         format!("{} ({:?})", self.adapter_info.name, self.adapter_info.backend)
     }
 
-    /// Whether DXT (BC1–3) textures can be uploaded without CPU decoding.
+    /// Whether DXT (BC1â€“3) textures can be uploaded without CPU decoding.
     pub fn supports_bc(&self) -> bool {
         self.supports_bc
     }
@@ -138,6 +155,7 @@ impl Renderer {
             return;
         }
         self.output.resize(&self.device, (width, height));
+        self.refresh_display(true);
         self.refresh_targets();
     }
 
@@ -168,8 +186,8 @@ impl Renderer {
         self.output.size()
     }
 
-    /// Whether the scene is drawn in a 16-bit float HDR format. Only bloom and tone mapping ask for it;
-    /// otherwise the scene is drawn in the surface's format.
+    /// Whether the scene uses a 16-bit float target (effects or HDR output).
+    /// This alone does not establish HDR presentation; use [`Self::display_status`].
     pub fn is_hdr(&self) -> bool {
         self.targets.color_format() == HDR_FORMAT
     }
@@ -193,7 +211,7 @@ impl Renderer {
             output,
             render: scaled_size(output, self.render_scale),
             passes: self.post.has_passes(),
-            hdr: self.post.effect_settings().needs_hdr(),
+            hdr: self.post.effect_settings().needs_hdr() || self.post.display.is_some(),
             surface_format: self.output.format(),
             hdr_format: self.hdr_format,
         })

@@ -1,8 +1,12 @@
 //! F8 graphics lab: canonical previews, explicit persistence and reversible comparisons.
+mod display;
 mod environment;
+mod lighting;
 mod presets;
 mod profiles;
 mod quality;
+mod roads;
+mod saved;
 mod view;
 
 use crate::{
@@ -22,8 +26,10 @@ pub struct GraphicsLab {
     startup_options: Option<RenderExperiments>,
     tab: profiles::Tab,
     save_requested: bool,
+    profile_path: Option<std::path::PathBuf>,
     message: Option<String>,
     caps: Option<blackbox_gfx::Capabilities>,
+    display: blackbox_gfx::DisplayStatus,
     startup_quality: Option<quality::Quality>,
     startup_style: Option<crate::settings::VisualStyle>,
     stats: ExperimentStats,
@@ -64,8 +70,10 @@ impl Default for GraphicsLab {
                 _ => profiles::Tab::Look,
             },
             save_requested: false,
+            profile_path: Settings::config_path(),
             message: None,
             caps: None,
+            display: Default::default(),
             options,
             startup_style: std::env::var("NFSMW_LAB_STYLE").ok().and_then(|s| s.parse().ok()),
             startup_quality: std::env::var("NFSMW_LAB_QUALITY").ok().as_deref().and_then(quality::Quality::parse),
@@ -82,6 +90,7 @@ impl Default for GraphicsLab {
 
 fn preset_options(name: &str) -> RenderExperiments {
     RenderExperiments {
+        original_world_materials: true,
         sun_shadows: matches!(name, "shadows" | "distance" | "detail" | "modern" | "max"),
         far_shadows: matches!(name, "distance" | "detail" | "modern" | "max"),
         contact_shadows: matches!(name, "detail" | "modern" | "max"),
@@ -185,6 +194,7 @@ fn apply(mut lab: ResMut<GraphicsLab>, settings: Res<Settings>, mut host: NonSen
     let Some(renderer) = host.renderer.as_mut() else { return };
     renderer.set_render_experiments(settings.appearance.lighting);
     lab.caps = Some(*renderer.capabilities());
+    lab.display = renderer.display_status();
     lab.stats = renderer.experiment_stats();
 }
 
@@ -217,8 +227,16 @@ pub fn show(ctx: &egui::Context, lab: &mut GraphicsLab, settings: &mut Settings,
     }
     if lab.save_requested {
         lab.save_requested = false;
-        lab.message = Some(match Settings::save(&settings.appearance_layer()) {
-            Ok(_) => "Profile saved. Normal launches will restore these settings.".into(),
+        let result =
+            lab.profile_path.as_deref().ok_or_else(|| anyhow::anyhow!("No settings folder")).and_then(|path| {
+                crate::settings::write_file(path, &settings.graphics_layer())?;
+                Ok(path.to_owned())
+            });
+        lab.message = Some(match result {
+            Ok(path) => {
+                log::info!("graphics profile saved to {}", path.display());
+                "Profile saved. Normal launches will restore these settings.".into()
+            }
             Err(error) => format!("Could not save profile: {error:#}"),
         });
     }

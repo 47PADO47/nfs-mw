@@ -18,8 +18,8 @@ struct Globals {
 
 const PI_F: f32 = 3.14159265358979;
 
-/// The atmospheric scattering fog (`docs/specs/time-of-day.md`): `colour·E + in-scattered`, with
-/// `E = exp(−(Br + Bm)·d)` and the in-scattered light for the angle `c` between the view ray and the sun.
+/// Atmospheric scattering: colour * E + in-scattered light.
+/// E = exp(-(Br + Bm) * d); c is the angle cosine between view ray and sun.
 fn scatter_fog(colour: vec3<f32>, world: vec3<f32>) -> vec3<f32> {
     let offset = world - globals.camera_pos.xyz;
     let d = length(offset);
@@ -40,13 +40,13 @@ fn scatter_fog(colour: vec3<f32>, world: vec3<f32>) -> vec3<f32> {
 struct Rig {
     to_light: array<vec4<f32>, 3>,
     color: array<vec4<f32>, 3>,
-    ambient: vec4<f32>,
+    ambient: vec4<f32>, // w = vertex-lit material specular scale
 };
 
 struct Material {
     diffuse_min: vec4<f32>,
     diffuse_range: vec4<f32>,
-    specular_min: vec4<f32>,
+    specular_min: vec4<f32>, // w = arithmetic family: custom0 / vertex-lit1 / shadowed2
     specular_range: vec4<f32>,
     // x = specular power, y = envmap min, z = envmap range, w = envmap power
     params: vec4<f32>,
@@ -58,6 +58,7 @@ struct Material {
 @group(2) @binding(0) var<uniform> rig: Rig;
 @group(2) @binding(1) var env_map: texture_cube<f32>;
 @group(2) @binding(2) var env_sampler: sampler;
+@group(2) @binding(4) var env_faces: texture_2d_array<f32>;
 struct Irradiance { coefficients: array<vec4<f32>, 18>, };
 @group(2) @binding(3) var<uniform> irradiance: Irradiance;
 
@@ -92,6 +93,13 @@ struct VsOut {
     @location(1) color: vec4<f32>,
     @location(2) uv: vec2<f32>,
     @location(3) world: vec3<f32>,
+    @location(4) original_diffuse: vec4<f32>,
+    @location(5) original_specular: vec4<f32>,
+    @location(6) original_reflection: vec3<f32>,
+    @location(7) original_eye: vec3<f32>,
+    @location(8) original_half: vec3<f32>,
+    @location(9) original_normal: vec3<f32>,
+    @location(10) original_light: vec3<f32>,
 };
 
 @vertex
@@ -104,6 +112,7 @@ fn vs_main(v: VsIn) -> VsOut {
     out.color = v.color_bgra.zyxw;
     out.uv = v.uv;
     out.world = world.xyz;
+    original_vertex(&out, v, model);
     return out;
 }
 
@@ -117,6 +126,7 @@ struct Shaded {
 
 fn shade(in: VsOut, receive_ao: bool) -> Shaded {
     let tex = textureSample(diffuse, diffuse_sampler, in.uv);
+    if material.specular_min.w > 0.5 { return original_pixel(in, tex); }
     let n = normalize(in.normal);
     let v = normalize(globals.camera_pos.xyz - in.world);
 
@@ -126,9 +136,12 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
     let occlusion = saturate(2.0 * in.color.r);
 
     let receiver = receiver_normal(in.world, n);
-    let visibility = direct_visibility(in.world, receiver, in.clip.xy);
+    // Screen masks and the main view's shadow/contact coverage do not describe captures.
+    let main_view = globals.fog_range.w < 0.5;
+    var visibility = 1.0;
+    if main_view { visibility = direct_visibility(in.world, receiver, in.clip.xy); }
     var ao = 1.0;
-    if receive_ao { ao = ambient_visibility(in.clip.xy); }
+    if receive_ao && main_view { ao = ambient_visibility(in.clip.xy); }
     var indirect = rig.ambient.xyz;
     for (var k = 1; k < 3; k++) {
         indirect += saturate(dot(n, rig.to_light[k].xyz) + 0.1) * rig.color[k].xyz;
@@ -168,7 +181,7 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
     out.texture_alpha = tex.a;
     out.alpha = tex.a * diff.a;
 
-    if shadow_data.debug.x > 0.5 {
+    if main_view && shadow_data.debug.x > 0.5 {
         out.rgb = lighting_debug_colour(in.world, receiver, in.clip.xy);
         return out;
     }
@@ -185,20 +198,96 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
 
 @fragment
 fn fs_opaque(in: VsOut) -> @location(0) vec4<f32> {
-    return vec4<f32>(shade(in, true).rgb, 1.0);
+    let c = shade(in, true);
+    return vec4<f32>(c.rgb, select(1.0, c.alpha, material.specular_min.w > 0.5));
 }
 
 @fragment
 fn fs_alpha_test(in: VsOut) -> @location(0) vec4<f32> {
     let c = shade(in, true);
-    if c.texture_alpha < 0.5 {
+    let alpha = select(c.texture_alpha, c.alpha, material.specular_min.w > 0.5);
+    if alpha < 0.5 {
         discard;
     }
-    return vec4<f32>(c.rgb, 1.0);
+    return vec4<f32>(c.rgb, select(1.0, c.alpha, material.specular_min.w > 0.5));
 }
 
 @fragment
 fn fs_blend(in: VsOut) -> @location(0) vec4<f32> {
     let c = shade(in, false);
     return vec4<f32>(c.rgb, c.alpha);
+}
+
+// Source behavior is specified before implementation in car-material-shading.md.
+fn safe_unit(v: vec3<f32>) -> vec3<f32> { return v / max(length(v), 1e-9); }
+fn original_vertex(out: ptr<function, VsOut>, v: VsIn, model: mat4x4<f32>) {
+    if material.specular_min.w < 0.5 { return; }
+    let local_from_world = transpose(mat3x3(model[0].xyz, model[1].xyz, model[2].xyz));
+    let n = v.normal;
+    let eye_position = local_from_world * (globals.camera_pos.xyz - model[3].xyz);
+    let eye = safe_unit(eye_position - v.position);
+    let first_light = local_from_world * rig.to_light[0].xyz;
+    let facing = max(dot(n, eye), 0.01);
+    let occlusion = clamp(2.0 * (*out).color.r, 0.0, 1.0);
+    var light = vec3<f32>(0.0);
+    for (var k = 0; k < 3; k++) {
+        light += clamp(dot(n, local_from_world * rig.to_light[k].xyz) + 0.1, 0.0, 1.0) * rig.color[k].xyz;
+    }
+    let diff = material.diffuse_min + material.diffuse_range * facing;
+    let spec_power = clamp(material.params.x, -128.0, 128.0);
+    let env_power = clamp(material.params.w, -128.0, 128.0);
+    let spec = (material.specular_min.xyz + material.specular_range.xyz * pow(facing, spec_power)) * rig.ambient.w;
+    let env = material.params.y + material.params.z * pow(facing, env_power);
+    (*out).original_diffuse = clamp(vec4(occlusion * light * diff.rgb, diff.a), vec4(0.0), vec4(1.0));
+    (*out).original_specular = clamp(vec4(occlusion * spec, occlusion * env), vec4(0.0), vec4(1.0));
+    (*out).original_reflection = (model * vec4(2.0 * facing * n - eye, 0.0)).xyz;
+    (*out).original_eye = eye;
+    (*out).original_half = safe_unit(eye + first_light);
+    (*out).original_normal = n;
+    (*out).original_light = first_light;
+}
+// D3D9 cube filtering clamps within one face; hardware cube filtering is seamless.
+fn original_environment(direction: vec3<f32>) -> vec3<f32> {
+    let a = abs(direction);
+    var face = 0;
+    var coordinate = vec2<f32>(-direction.z, -direction.y);
+    var major = a.x;
+    // Exact major-axis ties choose Z, then Y, then X.
+    if a.z >= a.x && a.z >= a.y {
+        major = a.z;
+        face = select(5, 4, direction.z >= 0.0);
+        coordinate = vec2(select(-direction.x, direction.x, direction.z >= 0.0), -direction.y);
+    } else if a.y >= a.x {
+        major = a.y;
+        face = select(3, 2, direction.y >= 0.0);
+        coordinate = vec2(direction.x, select(-direction.z, direction.z, direction.y >= 0.0));
+    } else {
+        face = select(1, 0, direction.x >= 0.0);
+        coordinate = vec2(select(direction.z, -direction.z, direction.x >= 0.0), -direction.y);
+    }
+    let uv = coordinate / max(major, 1e-9) * 0.5 + vec2(0.5);
+    return textureSampleLevel(env_faces, env_sampler, uv, face, 0.0).rgb;
+}
+fn original_pixel(in: VsOut, tex: vec4<f32>) -> Shaded {
+    let env = original_environment(in.original_reflection);
+    let diff = in.original_diffuse;
+    let spec = in.original_specular;
+    var highlight = 2.0 * pow(clamp(dot(in.original_normal, in.original_half), 0.0, 1.0), 8.0);
+    var environment_gain = 1.0;
+    var visibility = 1.0;
+    if material.specular_min.w > 1.5 && globals.fog_range.w < 1.5 {
+        let light = in.original_light;
+        let reflection = 2.0 * dot(in.original_normal, light) * in.original_normal - light;
+        highlight = 2.0 * pow(clamp(dot(reflection, in.original_eye), 0.0, 1.0), 16.0);
+        environment_gain = 0.5;
+        visibility = car_direct_visibility(in.world, receiver_normal(in.world, in.normal), in.clip.xy);
+    }
+    var out: Shaded;
+    let raw = (diff.rgb * tex.rgb + highlight * diff.a * spec.rgb * visibility) * visibility
+        + env * spec.a * diff.a * environment_gain;
+    out.rgb = clamp(raw,vec3(0.0),vec3(1.0));
+    if globals.camera_pos.w>1.5 { out.rgb=max(raw,vec3(0.0)); }
+    out.texture_alpha = tex.a;
+    out.alpha = clamp(tex.a * diff.a, 0.0, 1.0);
+    return out;
 }
