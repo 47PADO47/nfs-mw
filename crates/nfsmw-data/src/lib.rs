@@ -34,3 +34,4 @@ pub mod visual_treatment;
 pub mod world;
 
 pub use files::read_unwrapped;
+pub use files::{memo, shared_unwrapped};
