@@ -10,6 +10,36 @@ fn corrupt(input: usize, output: usize, detail: &'static str) -> Error {
     Error::Corrupt { kind: KIND, input, output, detail }
 }
 
+/// Append `length` bytes copied from `out[start..]`, LZ77 style.
+///
+/// Semantically this is the byte-by-byte loop `for i in 0..length { out.push(out[start + i]) }`:
+/// byte `k` of the copy is read after the first `k` copied bytes exist, so an overlapping copy
+/// (`distance < length`, with `distance = out.len() - start`) repeats the last `distance` bytes.
+///
+/// Speed-up: each step appends `out[start..start + n]` with `n <= out.len() - start`, so the
+/// source span never reads past what exists. Let `d` be the distance and `P(x)` the byte the
+/// reference loop produces at `x`. Every byte appended so far satisfies `P(x + d) == P(x)`
+/// for `x >= start`, so `P` is periodic with period `d`. The span `out.len() - start` starts at
+/// `d` and then doubles after each full step, so it is always a multiple of `d`. Appending
+/// `out[start..start + n]` at position `out.len()` therefore writes `P(start + k)` at
+/// `out.len() + k`, which is exactly what the reference loop writes there. The only partial
+/// step is the last one, which ends the copy. Precondition: `start < out.len()` when `length > 0`.
+fn copy_back(out: &mut Vec<u8>, start: usize, length: usize) {
+    debug_assert!(length == 0 || start < out.len());
+    let distance = out.len() - start;
+    if distance >= length {
+        // Non-overlapping: a single copy from already-final bytes.
+        out.extend_from_within(start..start + length);
+        return;
+    }
+    let mut remaining = length;
+    while remaining > 0 {
+        let n = remaining.min(out.len() - start);
+        out.extend_from_within(start..start + n);
+        remaining -= n;
+    }
+}
+
 /// Decompress a JDLZ blob (16-byte header followed by the LZ stream).
 pub fn decompress(data: &[u8]) -> Result<Vec<u8>> {
     let h = Header::parse(data, KIND)?;
@@ -52,11 +82,7 @@ pub fn decompress(data: &[u8]) -> Result<Vec<u8>> {
             let start =
                 out.len().checked_sub(distance).ok_or_else(|| corrupt(ip, out.len(), "back-reference before start"))?;
             let length = length.min(out_len - out.len());
-            // Byte by byte, so overlapping copies repeat the last `distance` bytes.
-            for i in 0..length {
-                let b = out[start + i];
-                out.push(b);
-            }
+            copy_back(&mut out, start, length);
         } else {
             let b = *data.get(ip).ok_or_else(|| corrupt(ip, out.len(), "literal past end"))?;
             out.push(b);
@@ -122,5 +148,53 @@ mod tests {
     fn truncated_stream_is_error() {
         let data = blob(&[0x00, 0x00, b'a'], 4);
         assert!(decompress(&data).is_err());
+    }
+
+    /// The original byte-by-byte copy, kept as the reference for `copy_back`.
+    fn copy_back_reference(out: &mut Vec<u8>, start: usize, length: usize) {
+        for i in 0..length {
+            let b = out[start + i];
+            out.push(b);
+        }
+    }
+
+    /// Minimal seeded xorshift64 so the tests stay deterministic without a new dependency.
+    struct XorShift(u64);
+
+    impl XorShift {
+        fn next_u64(&mut self) -> u64 {
+            let mut x = self.0;
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            self.0 = x;
+            x
+        }
+    }
+
+    #[test]
+    fn copy_back_matches_byte_by_byte_reference() {
+        let mut rng = XorShift(0x9E37_79B9_7F4A_7C15);
+        for distance in 1..=40usize {
+            for length in 1..=100usize {
+                let prefix_len = distance + (rng.next_u64() % 64) as usize;
+                let prefix: Vec<u8> = (0..prefix_len).map(|_| rng.next_u64() as u8).collect();
+                let start = prefix_len - distance;
+
+                let mut expected = prefix.clone();
+                copy_back_reference(&mut expected, start, length);
+                let mut actual = prefix;
+                copy_back(&mut actual, start, length);
+
+                assert_eq!(actual, expected, "distance {distance}, length {length}");
+            }
+        }
+    }
+
+    #[test]
+    fn copy_back_zero_length_is_noop() {
+        let mut out = b"abc".to_vec();
+        copy_back(&mut out, 0, 0);
+        assert_eq!(out, b"abc");
     }
 }
