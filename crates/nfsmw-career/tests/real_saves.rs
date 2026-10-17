@@ -41,8 +41,12 @@ fn real_profiles_round_trip_and_match_the_documented_values() {
         let mut rewritten = ProfileSave::parse(&file).unwrap();
         rewritten.set_settings(&settings).unwrap();
         rewritten.set_stable(&stable);
+        rewritten.set_history(&save.history().unwrap()).unwrap();
         assert_eq!(rewritten.to_bytes(), file, "{name}: parsed blocks written back");
 
+        let report = nfsmw_career::savefile::check_load(&file, save.default_stable_hash())
+            .unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert_eq!(report.blob, nfsmw_career::savefile::BlobStatus::Accepted, "{name}: the gameplay blob is taken");
         assert!(settings.gameplay_digest_ok(), "{name}: the gameplay blob MD5");
         assert!(settings.has_career(), "{name}: career started");
         assert!((1..=16).contains(&settings.stage), "{name}: stage {}", settings.stage);

@@ -6,14 +6,20 @@
   table), [specs/career-flow.md](../specs/career-flow.md) (new career defaults, safe house front end, saving), and for
   the `safehouse` module [specs/career-safehouse.md](../specs/career-safehouse.md),
   [specs/career-safehouse-2.md](../specs/career-safehouse-2.md) and section 4 of
-  [specs/career-scripts.md](../specs/career-scripts.md). Their own records:
+  [specs/career-scripts.md](../specs/career-scripts.md); for `rapsheet`
+  [specs/career-rapsheet.md](../specs/career-rapsheet.md) and [specs/career-rapsheet-2.md](../specs/career-rapsheet-2.md)
+  (with the corrected tables of career-economy-flows 5 and the verdict rule of career-text 6.2); for `savefile`
+  [specs/career-save-screens.md](../specs/career-save-screens.md) and
+  [specs/career-save-screens-2.md](../specs/career-save-screens-2.md); for `regions`
+  [specs/career-regions.md](../specs/career-regions.md). Their own records:
   [career-economy](career-economy.md), [career-phone](career-phone.md), [career-flow](career-flow.md),
-  [career-text](career-text.md), [career-safehouse](career-safehouse.md).
+  [career-text](career-text.md), [career-safehouse](career-safehouse.md), [career-rapsheet](career-rapsheet.md),
+  [career-save-screens](career-save-screens.md), [career-regions](career-regions.md).
 - **Sources read for this module:** the repository specs above and the repo's own `libs/save-store` (`digest::md5`). No
   decompiled code, no Ghidra session and no scratchpad dump were open while writing it (spec-first,
   [licensing.md](../licensing.md#spec-first)). The three development saves were opened read only for the optional test
   and for the CRC check; no save bytes are in the repository.
-- **Implemented:** 2026-10-17, from the specs only, in `crates/nfsmw-career` (second pass: the `safehouse` module).
+- **Implemented:** 2026-10-17, from the specs only, in `crates/nfsmw-career` (second pass: the `safehouse` module; third pass: `rapsheet`, `savefile` and `regions`).
 - **Checked against the game by:** nothing was run in the original. Checked against the three development saves
   (`NAME`, `mwo`, `stock`): every file parses, passes the container checksums, the profile MD5 and the gameplay blob
   MD5, and is rewritten byte for byte after the settings and the stable were parsed and written back
@@ -35,6 +41,13 @@
 | `safehouse::respawn`, `first_visit`, `resume` | safehouse 3.5, 3.6, 4, 5.3 (first visit); safehouse-2 6, 7.3, 7.4, 9 |
 | `safehouse::menu`, `stepper`, `autosave`, `phone` | safehouse 5.1, 5.3; career-flow 7.2, 8; career-phone 3.5 |
 | `safehouse::heat` | safehouse-2 8; economy-flows 4 |
+| `rapsheet::nav`, `session` | rapsheet 1 to 3; rapsheet-2 1.1, 3 |
+| `rapsheet::pages`, `rank`, `time` | rapsheet 1.4, 4 to 8; rapsheet-2 1.2 to 1.5; economy-flows 5.3 |
+| `rapsheet::history`, `card` | rapsheet-2 2 and 4; economy-flows 5.2 |
+| `savefile::autosave` | save-screens-2 8, 14; career-flow 8 |
+| `savefile::write`, `state` | save-screens 2, 5, 6; save-screens-2 10, 12 |
+| `savefile::load` | save-screens-2 9.3, 14; career-save 1 |
+| `regions` | regions 1 to 3, 6, 7, 9 |
 
 ## Choices where the specs are silent, ambiguous or marked unconfirmed
 
@@ -98,3 +111,33 @@ Not modelled in `safehouse`: the front-end request resolver of safehouse section
 pause menu path that clears event states (3.6), the marker choice screen, the region unlock screen, the rap sheet
 screens, the car-select flow, the world loader and the per-frame pursuit/results screen plumbing. No spec file was
 edited.
+
+## Rap sheet, save screens and regions: choices, corrections and gaps
+
+| Where | Choice | Why |
+|---|---|---|
+| `safehouse::autosave` | removed; the path re-exports `savefile::autosave` | the earlier model posted `EAutoSave` at race end, took a "profile loaded" and a manual-save input into the gate and treated `BossRace` as an exemption flag. The spec (save-screens-2 8) gives the gate order, the three triggers (roaming start, event start, pursuit evaded) and the one-shot skip |
+| `safehouse::menu::bindings` | `CAREER_DATA` is the career percentage, not the stage | career-safehouse 5.1 was corrected to point at rapsheet-2 section 4 |
+| `stable::Stable::fines_due` | live cars only, no sold-history part (and `fines_paid`) | rapsheet 1.4; the infraction counts keep their sold part. This corrects a pass-1 choice |
+| `rapsheet::history` | sums and the top-5 bounty compare as signed 32-bit; sums saturate | rank rule: "all comparisons are signed 32-bit"; the original wraps |
+| `rapsheet::history` | the stored-record count at block `+0xA0C` is not touched by `record` | the recording rule never names it; career-save 5 lists it (5 in one save, 97 in another). Left as found |
+| `rapsheet::history::case_id_text` | the caller supplies the 8 characters | the generator is random (alternating digit and capital letter, start unspecified) |
+| `rapsheet::pages::vehicle_rows` | uses `CarRecord::counts` and a career index below 25 | rapsheet 1.4 says "below 26" for a 25-slot table; index 25 would read past the table |
+| `rapsheet::pages::infraction_rows` | the swapped speeding labels are kept | rapsheet 5, unconfirmed whether intended |
+| `rapsheet::time::format_ticks` | default separators; the seconds case is not padded, the hour case uses a two-wide blank-padded hour | rapsheet-2 1.3 writes `SS.cc` and "blank instead of a leading zero" without examples; per-language separators are not in the spec |
+| `rapsheet::card` | `game` is summed in `f64` over the truncated bytes; a zero denominator gives 0 | the width of the original float and the zero case are not stated |
+| `rapsheet::rank` | the threshold tables are kept as defaults; the rank function takes any 15-long slice | the original reads them from `FE_ATTRIB`; a slice of another length gives 16 |
+| `rapsheet::session::EndGame` | a step past 4 opens nothing | the switch has five cases; where context bit 18 is cleared again is unknown |
+| `savefile::load::check_load` | a file longer than the sizes describe is refused as a bad container; a header whose total is not the file length is refused before any size check | not described by the spec; this follows the listed order and refuses the case the reader cannot read |
+| `savefile::load` | the default stable hash is a caller input | it depends on the installed car data (career-save 2.2) |
+| `savefile::state::manual_save_panels` | exposed as an enum list documented as reconstructed | save-screens 5: the prompt order was rebuilt from the library and not seen in game; no logic depends on it |
+| `savefile::write` | `WriteOutcome::resolve` reports an open failure, a cancelled overwrite, and nothing else | only a failed open is reported; a full disk or short write is ignored (a rewrite may choose a safer write, which the spec allows) |
+| `regions::gates` | the closed sets come from a fallback table; `gates_in_list` reads a `Barriers` list | regions 2: the rewrite should read the list so a modded bin works, and keep the table as a test |
+| `regions::gates::RegionGates` | models the trigger rules of 3.3, not the scenery instances, the road flags or the collision world | those need the world data; `group_state` and `instance_blocks` give the two pure rules |
+| `regions::unlock` | the leave is 600 FEng ticks at 1200 per second | regions 7.4; the sound ids other than the accept click are not named in the repo |
+
+Spec inconsistencies found (no spec file was edited): rapsheet 1.4 "career record index below 26" against 25 slots;
+rapsheet 1.4 "(the sold part wraps at 16 bits)" for the all-infractions total is not modelled (the crate sums in
+`u32`); regions section 0 and 9 say "stage 12 opens {11, 14, 15}" while gate 10 also **closes** at stage 12 (it is
+open at stages 16 to 13), which section 1.3 states and `regions::apply_stage` reports; career-flow 8 was already
+corrected for the autosave triggers, and no code comment still says "race end".

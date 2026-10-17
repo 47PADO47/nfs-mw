@@ -249,8 +249,8 @@ statistics block `+0xB44` (memory `profile + 0x9C24`): index 2 = police vehicles
 `RAP_SUMMARY_01` to `05` are five police summary lines, from "minor code infractions" (routine check) through major,
 chronic and gross, to "wanton disregard" (apprehend at all cost, heavy backup). The line is chosen by the total number of
 infractions (served plus unserved) against the array `[0, 100, 400, 800, 1000]` in the frontend collection
-`rapsheet_summary_strings`: the first threshold that is at least the total gives the line. Whether the printed index is
-that position or one more is **[unconfirmed]** (position 0 would give line 0, which does not exist, so one more is likely).
+`rapsheet_summary_strings`: the first threshold that is at least the total gives the line. The printed index is
+that position with 0 read as 1, or 5 when no threshold qualifies ([career-rapsheet.md](career-rapsheet.md) section 4).
 
 ### 6.3 Infraction names
 
@@ -330,5 +330,5 @@ strikes, which matches the strike decay of [career-economy.md](career-economy.md
 
 1. Whether any milestone collection references the ticket-count labels 10 to 18.
 2. The unresolved presets `0x363A1FEA` (Collector's Edition) and `0x34498EB2` (bit 18).
-3. The exact index printed by `RAP_SUMMARY_%.2d`.
+3. (Answered: [career-rapsheet.md](career-rapsheet.md) section 4.)
 4. Which FEng objects show `_LEADERBOARD` and `_CHALLENGE` (named by the labels, not traced).

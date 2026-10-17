@@ -3,7 +3,7 @@
 //! stored.
 
 use super::{CAREER_SLOTS, CareerRecord, Stable};
-use crate::economy::{FINES, InfractionMask};
+use crate::economy::{InfractionMask, fine_of_counters};
 
 /// Which of the two infraction counter sets to read.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -95,10 +95,26 @@ impl Stable {
         self.infraction_set_total(InfractionSet::Unserved) + self.infraction_set_total(InfractionSet::Served)
     }
 
-    /// The fine due for all unserved infractions of the stable (the rap sheet "fines due").
+    /// The fines due: the sum over the **live** cars of `fine(unserved counters)`. The sold history has no part in
+    /// it (`career-rapsheet.md` 1.4), unlike the infraction counts.
     pub fn fines_due(&self) -> u64 {
-        let totals = self.infraction_totals(InfractionSet::Unserved);
-        totals.iter().zip(FINES).map(|(&count, fine)| u64::from(count) * u64::from(fine)).sum()
+        self.live_records().map(|r| fine_of_counters(&r.unserved)).sum()
+    }
+
+    /// The fines paid: the sum over the live cars of `fine(served counters)` at today amounts, not the money
+    /// actually paid. No sold-history part.
+    pub fn fines_paid(&self) -> u64 {
+        self.live_records().map(|r| fine_of_counters(&r.served)).sum()
+    }
+
+    /// Live cars whose impound state is not 0 (states 2, 3 and 4 all count).
+    pub fn cars_impounded(&self) -> usize {
+        self.live_records().filter(|r| !r.is_free_to_drive()).count()
+    }
+
+    /// The number of live cars (the rap sheet "cars monitored").
+    pub fn cars_monitored(&self) -> usize {
+        self.live_records().count()
     }
 
     /// Number of live cars that can be driven (impound state 0).

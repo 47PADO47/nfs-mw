@@ -244,7 +244,7 @@ Items are created in this order (label hashes in the FE data; the English labels
 | 4 | Rap Sheet | settings flag bit 4 | sets context bit 9 (`0x200`), opens `RapSheetLogin.fng` |
 | 5 | Save | the memory-card layer is present | requests the save dialog (message `0x2251` through `0x00527940`, **[unconfirmed]**) |
 
-After the items the screen fills `CAREER_DATA` (the stage text), `BOUNTY_DATA` (sum of the bounty of the stable,
+After the items the screen fills `CAREER_DATA` (the career completion percentage, [career-rapsheet-2.md](career-rapsheet-2.md) section 4), `BOUNTY_DATA` (sum of the bounty of the stable,
 `0x00590500`) and `CASH_DATA` (settings cash). **[exe]**
 
 ### 5.2 Resume Free Roam
@@ -295,8 +295,9 @@ resumes at after the first-visit bio is **[unconfirmed]**: the counter is -1 whe
   [career-text.md](career-text.md) section 7.1. Picking a marker applies it through the reward routine and clears the
   queue entry. The exact selection rule beyond this is **[unconfirmed]**.
 - **Region unlock** (`SafehouseRegionUnlock.fng`, class at `0x0055B020`): a display screen. It starts an asynchronous
-  load of `Global\Rivals.bin` and builds the picture of the unlocked region. It changes no game state itself; the region
-  availability follows from the stage byte and the zone sets of the gameplay manager. **[exe]**
+  load of `Global\Rivals.bin` and shows one of its pictures (`RIVAL_13_BG` at stage 12, `RIVAL_09_BG` at stage 8). It
+  changes no game state itself; the region gates follow from the stage byte and the `Barriers` list of the bin
+  ([career-regions.md](career-regions.md)). **[exe]**
 - **Rap Sheet**: the item sets context bit 9 and pushes `RapSheetLogin.fng`; the family (`RapSheetMain`, `RapSheetRS`,
   `US`, `VD`, `CTS`, `TEP`, `PD`, `Rankings`) has constructors at `0x00570F60` to `0x005712C0`. The screens were not
   read beyond their registration, so what they show is **[unconfirmed]**.

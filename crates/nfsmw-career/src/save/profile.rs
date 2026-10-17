@@ -12,6 +12,7 @@ use super::layout::{DESCRIPTOR_LEN, FILE_LEN, HEADER_LEN, MAGIC, PROFILE_AT, PRO
 use super::layout::{header, profile};
 use crate::LayoutError;
 use crate::bytes::{put_u32, u32_at};
+use crate::rapsheet::PursuitHistory;
 use crate::settings::CareerSettings;
 use crate::stable::{STABLE_LEN, Stable};
 use save_store::digest::md5;
@@ -126,6 +127,12 @@ impl ProfileSave {
         Ok(save)
     }
 
+    /// Wraps file bytes whose length is already known to be right, without any other check. The caller (the load
+    /// path) does its own checks in the order of the original.
+    pub(crate) fn from_unchecked(bytes: Vec<u8>) -> ProfileSave {
+        ProfileSave { bytes }
+    }
+
     /// The file bytes as they are now (checksums as loaded, not recomputed).
     pub fn raw(&self) -> &[u8] {
         &self.bytes
@@ -197,6 +204,16 @@ impl ProfileSave {
     pub fn set_stable(&mut self, stable: &Stable) {
         let at = PROFILE_AT + profile::STABLE;
         self.bytes[at..at + STABLE_LEN].copy_from_slice(&stable.to_bytes());
+    }
+
+    /// The pursuit history (the statistics block at file `0xE88E`).
+    pub fn history(&self) -> Result<PursuitHistory, LayoutError> {
+        PursuitHistory::from_block(&self.profile_buffer()[profile::HISTORY..])
+    }
+
+    /// Writes the typed fields of the history over their bytes; the rest of the block is untouched.
+    pub fn set_history(&mut self, history: &PursuitHistory) -> Result<(), LayoutError> {
+        history.write_into(&mut self.bytes[PROFILE_AT + profile::HISTORY..])
     }
 
     /// The default stable hash stored at file `0x5A2D`. It depends on the installed car data and is never

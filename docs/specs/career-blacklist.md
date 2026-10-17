@@ -61,7 +61,7 @@ Fields (names read from the scripts and the code; four fields are still unnamed,
 | `SMSCellChallenge` | int | message id sent when the last challenge is passed (-1 = none) |
 | `CellChallengeRace` | key | race unlocked at that moment (bin 15 only: `1.2.2`) |
 | `EntryActivity` | key | activity run on entry (bin 16 only: drive to the safe house) |
-| `Barriers` | text[] | track barriers closed while this bin is current (section 6) |
+| `Barriers` | text[] | scenery groups (the `BARRIER_LOCKED_n` gate walls) switched on while this bin is current (section 6, [career-regions.md](career-regions.md)) |
 | unlock list (`0xBAF89280`) | key[] | `unlocks/upgrade_*` collections granted on entering the bin (section 5.2) |
 
 Per-bin values (collection names are the developers' names; the shown names and aliases are in the table of
@@ -318,7 +318,8 @@ introductions.
 
 ## 6. Regions
 
-The city opens in three steps, set by the barrier lists of the bins (collections `BARRIER_LOCKED_10`..`_15`):
+The city opens in three steps, set by the barrier lists of the bins (the scenery groups `BARRIER_LOCKED_10`..`_15`, six
+walls of `XO_TrackBarrierLocked_1` pieces; details in [career-regions.md](career-regions.md)):
 
 | CurrentBin | Barriers closed | Minimap file |
 |---|---|---|
