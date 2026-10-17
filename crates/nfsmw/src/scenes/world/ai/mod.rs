@@ -2,6 +2,7 @@
 //! network, spawned around the player and removed when they are far away.
 //! Specs: `docs/specs/ai-traffic.md`, `docs/specs/ai-traffic-spawning.md`.
 
+mod activation;
 mod car;
 mod collide;
 mod commands;
@@ -19,7 +20,9 @@ mod models;
 mod original_camera;
 mod pattern;
 mod police;
+mod policy;
 mod population;
+mod population_stats;
 mod pursuit;
 mod release;
 mod road_reflection;
@@ -56,9 +59,6 @@ pub use pattern::{Pattern, Patterns};
 pub use police::PlayerView;
 pub use population::{ModelRequest, PatrolPlan};
 pub use pursuit::{CopModel, Pursuit};
-
-/// The traffic manager runs twice a second.
-const MANAGER_PERIOD: f32 = 0.5;
 
 /// Where the player (or the free camera) is: traffic spawns ahead of it and stays near it.
 #[derive(Debug, Clone, Copy)]
@@ -113,6 +113,7 @@ pub struct TrafficWorld {
     alpha: f32,
     /// How many cars the manager keeps on the road.
     target: usize,
+    policy: crate::settings::TrafficPolicy,
     /// The share of them that are patrol cops, in percent.
     cop_share: u32,
     /// The patterns of the neighbourhoods, when the install has them, and their type timers.
@@ -127,6 +128,7 @@ pub struct TrafficWorld {
     /// Last applied appearance mode; live actors share these uploaded rigs.
     shading: Option<crate::settings::CarShading>,
     spawn_timer: f32,
+    population_stats: population_stats::PopulationStats,
     /// Seconds of simulation a screenshot run still has to run in batches (it has no frame time).
     warmup_left: f32,
     /// Simulated seconds since the last debug status line.
@@ -191,6 +193,7 @@ impl TrafficWorld {
             rng: SplitMix(0x6E66_736D_7721),
             alpha: 0.0,
             target: 0,
+            policy: Default::default(),
             cop_share: 0,
             patterns: None,
             timers: TypeTimers::default(),
@@ -199,6 +202,7 @@ impl TrafficWorld {
             known: HashSet::new(),
             shading: None,
             spawn_timer: 0.0,
+            population_stats: Default::default(),
             warmup_left: 0.0,
             log_timer: 0.0,
             breaker_areas: Vec::new(),
@@ -313,9 +317,12 @@ impl TrafficWorld {
     }
 
     pub fn instances(&self, out: &mut Vec<Instance>) {
+        self.instances_with_detail(None, out);
+    }
+    pub(super) fn instances_with_detail(&self, detail: Option<&super::drive::DetailView>, out: &mut Vec<Instance>) {
         let alpha = self.alpha;
         for car in &self.cars {
-            car.instances(alpha, out);
+            car.instances_with_detail(alpha, detail, out);
         }
         self.police.instances(out);
     }
@@ -333,7 +340,16 @@ impl TrafficWorld {
 
     /// One line per car for the `traffic status` command.
     pub fn status(&self, focus: Focus) -> String {
-        let mut lines = vec![format!("{} of {} cars; {}", self.cars.len(), self.target, self.pursuit_status())];
+        let mut lines = vec![self.population_status(focus), self.pursuit_status()];
+        lines.push(format!(
+            "range {}-{} m; unseen <= {} m / {} s; density {}%; {} occupied vehicle slots",
+            self.policy.spawn_min,
+            self.policy.spawn_max,
+            self.policy.retire_distance,
+            self.policy.offscreen_seconds,
+            self.policy.density_percent,
+            self.population_slots(focus)
+        ));
         for car in self.cars.iter().take(12) {
             let p = car.position();
             let c = car.controls();

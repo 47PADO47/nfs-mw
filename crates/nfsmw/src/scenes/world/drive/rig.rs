@@ -11,7 +11,11 @@ use nfsmw_data::car::{CarModel, TextureSwaps, WheelPose};
 use crate::scenes::car::materials::{CarMaterials, set_lighting};
 use crate::scenes::world::car_lights::CarLights;
 use crate::scenes::world::keys;
+#[cfg(test)]
+mod detail_tests;
+mod upload;
 use crate::settings::CarShading;
+use upload::{upload_parts, upload_solids};
 
 /// Where the car is and how its wheels sit, in the world.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -47,7 +51,9 @@ impl CarPose {
 struct Part {
     mesh: MeshHandle,
     lamps: [MeshHandle; 4],
-    placement: usize,
+    placement: nfsmw_data::car::Placement,
+    key: usize,
+    lod: usize,
 }
 
 /// Shared actors retain identity and physics while their uploaded appearance changes.
@@ -69,6 +75,7 @@ impl Appearance {
 }
 
 pub struct CarRig {
+    detail_radius: f32,
     /// Default instance identity; actors that share the uploaded rig supply their own identity.
     car: u32,
     model: CarModel,
@@ -105,6 +112,7 @@ impl CarRig {
         let lights = CarLights::for_model(&model);
         let flares = super::super::car_light_flares::CarLightFlares::upload(renderer, &model);
         Self {
+            detail_radius: super::car_detail::radius(&model),
             car,
             model,
             appearance: RefCell::new(Appearance { parts, meshes, materials, shading }),
@@ -131,7 +139,9 @@ impl CarRig {
         let replacements = appearance
             .parts
             .iter()
-            .filter_map(|old| parts.iter().find(|new| new.placement == old.placement).map(|new| (old.mesh, new.mesh)))
+            .filter_map(|old| {
+                parts.iter().find(|new| new.key == old.key && new.lod == old.lod).map(|new| (old.mesh, new.mesh))
+            })
             .collect();
         std::mem::replace(&mut *appearance, Appearance { parts, meshes, materials, shading }).release(renderer);
         replacements
@@ -179,7 +189,7 @@ impl CarRig {
         }
         let model = &self.model;
         let appearance = self.appearance.get_mut();
-        appearance.parts.retain(|p| !affected.contains(&model.placements[p.placement].solid));
+        appearance.parts.retain(|p| !affected.contains(&p.placement.solid));
         appearance.meshes.retain(|&(solid, mesh)| {
             if !affected.contains(&solid) {
                 return true;
@@ -257,12 +267,36 @@ impl CarRig {
         lamps: [bool; 2],
         out: &mut Vec<Instance>,
     ) {
+        self.instances_detail(pose, hidden, revealed, super::DrawOptions { car, lamps, detail: None }, out);
+    }
+
+    pub fn instances_detail(
+        &self,
+        pose: &CarPose,
+        hidden: Option<&std::collections::BTreeSet<usize>>,
+        revealed: &std::collections::BTreeSet<usize>,
+        draw: super::DrawOptions<'_>,
+        out: &mut Vec<Instance>,
+    ) {
+        let super::DrawOptions { car, lamps, detail } = draw;
+        let lod = detail.map_or(0, |view| {
+            super::car_detail::choose(
+                &self.model,
+                pose.position,
+                self.detail_radius * self.scale,
+                view,
+                car == keys::PLAYER_CAR,
+            )
+        });
         let state = usize::from(lamps[0]) | (usize::from(lamps[1]) << 1);
         let world = pose.transform() * Mat4::from_scale(Vec3::splat(self.scale));
         let posed: Option<[(Mat4, Mat4); 4]> =
             self.model.corners.as_ref().map(|c| std::array::from_fn(|i| c[i].posed(pose.wheels[i])));
         for part in &self.appearance.borrow().parts {
-            let placement = &self.model.placements[part.placement];
+            if part.lod != lod {
+                continue;
+            }
+            let placement = &part.placement;
             if hidden.is_some_and(|hidden| hidden.contains(&placement.slot)) {
                 continue;
             }
@@ -276,7 +310,7 @@ impl CarRig {
                 }
                 _ => placement.transform,
             };
-            out.push(Instance::keyed(part.lamps[state], world * local, keys::car_part(car, part.placement)));
+            out.push(Instance::keyed(part.lamps[state], world * local, keys::car_part(car, part.key)));
         }
     }
 
@@ -286,11 +320,11 @@ impl CarRig {
             .parts
             .iter()
             .filter_map(|part| {
-                let placement = &self.model.placements[part.placement];
-                (placement.slot == slot).then_some(Instance::keyed(
+                let placement = &part.placement;
+                (part.lod == 0 && placement.slot == slot).then_some(Instance::keyed(
                     part.mesh,
                     placement.transform,
-                    keys::car_part(self.car, part.placement),
+                    keys::car_part(self.car, part.key),
                 ))
             })
             .collect()
@@ -332,56 +366,6 @@ fn affected_solids(model: &CarModel, changed: &HashSet<u32>) -> HashSet<u32> {
         })
         .map(|(&hash, _)| hash)
         .collect()
-}
-
-/// Upload the placed solids of `model` with `shading`: the parts sorted by mesh (the renderer wants instances
-/// of one mesh together), every mesh uploaded and the car's materials.
-fn upload_parts(
-    renderer: &mut dyn RenderBackend,
-    model: &CarModel,
-    swaps: &TextureSwaps,
-    shading: CarShading,
-    to_sun: Vec3,
-) -> (Vec<Part>, Vec<(u32, MeshHandle)>, CarMaterials) {
-    let materials = CarMaterials::upload(renderer, model, shading, to_sun);
-    let (parts, meshes) = upload_solids(renderer, model, swaps, &materials, None);
-    (parts, meshes, materials)
-}
-
-/// Upload the placed solids of `model` drawn with `materials`: all of them, or only those in `only`. The parts
-/// are sorted by mesh, as the renderer wants instances of one mesh together.
-fn upload_solids(
-    renderer: &mut dyn RenderBackend,
-    model: &CarModel,
-    swaps: &TextureSwaps,
-    materials: &CarMaterials,
-    only: Option<&HashSet<u32>>,
-) -> (Vec<Part>, Vec<(u32, MeshHandle)>) {
-    let mut cache: HashMap<(u32, bool, u8), Option<MeshHandle>> = HashMap::new();
-    let variants: [_; 4] =
-        std::array::from_fn(|state| swaps.clone().with_lamp_state(state & 1 != 0, state & 2 != 0, &model.textures));
-    let mut parts = Vec::new();
-    for (placement, p) in model.placements.iter().enumerate() {
-        if only.is_some_and(|only| !only.contains(&p.solid)) {
-            continue;
-        }
-        let solid = &model.solids[&p.solid];
-        let relevant = solid.groups.iter().filter_map(|g| g.diffuse_texture(solid)).fold(0, |mask, hash| {
-            let head = variants[0].resolve_for(hash, p.left_brake) != variants[1].resolve_for(hash, p.left_brake);
-            let brake = variants[0].resolve_for(hash, p.left_brake) != variants[2].resolve_for(hash, p.left_brake);
-            mask | u8::from(head) | (u8::from(brake) << 1)
-        });
-        let lamps: [_; 4] = std::array::from_fn(|state| {
-            *cache.entry((p.solid, p.left_brake, state as u8 & relevant)).or_insert_with(|| {
-                let lookup = materials.for_placement(&variants[state], p.left_brake);
-                upload_solid(renderer, solid, &lookup, Shading::Lit)
-            })
-        });
-        let Some(mesh) = lamps[1] else { continue };
-        parts.push(Part { mesh, lamps: lamps.map(|m| m.unwrap_or(mesh)), placement });
-    }
-    parts.sort_by_key(|p| p.mesh);
-    (parts, cache.into_iter().filter_map(|((solid, _, _), mesh)| mesh.map(|m| (solid, m))).collect())
 }
 
 #[cfg(test)]

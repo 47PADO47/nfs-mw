@@ -29,7 +29,7 @@ pub(super) fn show(
                 ));
                 ui.weak("F8 / Esc to close");
             });
-            ui.small("Changes preview immediately. Save profile keeps graphics for the next launch.");
+            ui.small("Changes preview immediately. Save profile keeps graphics and traffic for the next launch.");
             profiles::header(ui, lab, settings);
             presets::show(ui, lab, settings);
             ui.separator();
@@ -44,6 +44,8 @@ pub(super) fn show(
                         appearance(ui, settings);
                     },
                     profiles::Tab::Lighting => lighting::show(ui, lab, settings),
+                    profiles::Tab::Detail => detail::show(ui, settings),
+                    profiles::Tab::Traffic => traffic::show(ui, settings, lab.traffic_status.as_deref()),
                     profiles::Tab::Materials => {
                         egui::ComboBox::from_label("Texture filtering").selected_text(settings.texture_filtering.label()).show_ui(ui, |ui| {
                             for filtering in crate::settings::TextureFiltering::ALL {

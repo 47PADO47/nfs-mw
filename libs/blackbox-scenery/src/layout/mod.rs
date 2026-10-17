@@ -63,6 +63,8 @@ pub struct LodRules {
     pub poly_threshold: u16,
     pub density_floor: f32,
     pub density_threshold: f32,
+    /// Minimum centre distance before density may select the coarse slot.
+    pub coarse_distance: f32,
     pub detailed_slot: usize,
     pub coarse_slot: usize,
 }

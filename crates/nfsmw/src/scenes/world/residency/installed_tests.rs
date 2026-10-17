@@ -9,6 +9,7 @@ mod lamps;
 mod materials;
 mod reflections;
 mod shadow_categories;
+mod traffic;
 
 fn open() -> (GameDir, WorldScene) {
     let path = std::env::var_os("NFSMW_GAME_DIR").expect("set NFSMW_GAME_DIR to run installed tests");

@@ -1,5 +1,27 @@
 # AI traffic
 
+## PC population correction and presets, 2026-10-17
+
+Read-only static analysis of PC executable SHA-256
+`80774c2e5d619b4f120b48d4462896fd504c263399d203a238769cffde1d253c`:
+spawn-point function `0x00437dc0`, collision gate `0x004109c0`, population
+gate `0x0041ebd0`, type-share selector `0x00426230` and pool lookup
+`0x00426380`. Direct file reads verify distance 350.0 at `0x00890540`, spread
+50.0 at `0x00890dd0`, squared centre clearance 90000.0 at `0x00890f90`,
+squared vehicle clearance 400.0 at `0x00890f8c` and population comparison
+against 20 at `0x0041ec13`. Both population and model-share budget use 20.
+The corresponding bounded code spans and constants are identical in a second
+installed PC image, SHA-256
+`bde12bdd158b7f861078ad4527f5a656f34c6068e4a2120f28044f92f0fa158c`.
+This corrects the assumption that the older GameCube values apply to PC.
+
+[Traffic presets](../specs/traffic-presets.md) records the implementation
+contract. Reference uses the observed PC placement/budget values. Deterministic
+timing, configurable retention, collision support and Extended are remake
+choices. No original code copied; no runtime mod patch audit or complete
+original-game route validation claimed. Xbox 360 presentation mods do not
+establish traffic simulation equivalence.
+
 Planned module: the traffic manager and the traffic driver of the AI crates (milestone 7). Engine-generic parts
 (pool, spawner, lane follower interfaces) belong in `libs/`; the Most Wanted tuning (patterns, car list, constants)
 comes from the data and per-game tables in `crates/`.
@@ -42,7 +64,7 @@ comes from the data and per-game tables in `crates/`.
   measurements (spawn distance and facing, per-type counts at each density, removal distance and time, the
   accident phase, honk timing).
 - **Known differences from the original:** the rewrite uses a deterministic 60 Hz world clock. Traffic thinks
-  every ten physics ticks, the manager runs every 0.5 simulated seconds, and models are cached without
+  every ten physics ticks, the manager runs every 1/30 simulated second, and models are cached without
   an inactive vehicle pool or the original four-second new-instance creation limit. Traffic uses the full
   vehicle engine/suspension and may optionally obey the rewrite's traffic lights. Points where the original
   looks like a bug and a conscious choice is needed: the accident phase counts thinks, not seconds;
@@ -61,6 +83,12 @@ passes accumulated elapsed frame time to its callback. The manager registers rat
 so its normal interval is approximately two rendered frames. The older interpretation of this as 0.5
 seconds, and of traffic's rate 0.1 as ten Hz, was incorrect. The existing simulation-LOD spec had the
 correct scheduler interpretation. Original task timing remains different from the rewrite's fixed clock.
+
+The 2026-10-17 placement correction replaces the remake's half-second manager interval with a bounded
+30 Hz simulation clock, one probe per activation. This corresponds to the original's nominal 60 FPS
+cadence; it does not reproduce frame-dependent behavior at every rendering rate. Synthetic checks cover
+render-independent batching and disabled-clock reset; installed population checks exercise the real
+manager, vehicle models, collision and retirement. Actor pooling and the new-instance timer remain gaps.
 
 The spawn clearance and accident follow-up uses the existing behavior specs. Synthetic regressions
 cover a 160 m probe snapping to a road endpoint only 140 m away, planar clearance on elevated roads,

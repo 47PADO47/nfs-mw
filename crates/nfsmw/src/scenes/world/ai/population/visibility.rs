@@ -24,6 +24,8 @@ pub struct Viewing {
     player: Vec3,
     /// The player's map position (x, y), for the rewrite's own horizontal rules.
     focus: [f32; 2],
+    pub retire_distance: f32,
+    pub grace: f32,
 }
 
 impl Viewing {
@@ -33,7 +35,14 @@ impl Viewing {
             Some(body) => space::to_render(body.position.to_array()),
             None => eye,
         };
-        Self { frustum: Frustum::from_view_proj(&camera.view_proj()), eye, player, focus: focus.position }
+        Self {
+            frustum: Frustum::from_view_proj(&camera.view_proj()),
+            eye,
+            player,
+            focus: focus.position,
+            retire_distance: super::DESPAWN_DISTANCE,
+            grace: 4.0,
+        }
     }
 
     /// Whether a sphere of `radius` (metres) around `centre` (render space) reaches the camera's view.

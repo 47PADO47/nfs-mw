@@ -1,4 +1,5 @@
 //! F8 graphics lab: canonical previews, explicit persistence and reversible comparisons.
+mod detail;
 mod display;
 mod environment;
 mod lighting;
@@ -7,6 +8,7 @@ mod profiles;
 mod quality;
 mod roads;
 mod saved;
+mod traffic;
 mod view;
 
 use crate::{
@@ -40,6 +42,7 @@ pub struct GraphicsLab {
     saved: Option<(RenderExperiments, Settings)>,
     environment: Option<crate::viewer::Environment>,
     environment_change: Option<crate::viewer::Environment>,
+    traffic_status: Option<String>,
 }
 
 impl Default for GraphicsLab {
@@ -65,6 +68,8 @@ impl Default for GraphicsLab {
             tab: match std::env::var("NFSMW_LAB_TAB").as_deref() {
                 Ok("lighting") => profiles::Tab::Lighting,
                 Ok("materials") => profiles::Tab::Materials,
+                Ok("detail") => profiles::Tab::Detail,
+                Ok("traffic") => profiles::Tab::Traffic,
                 Ok("effects") => profiles::Tab::Effects,
                 Ok("environment") => profiles::Tab::Environment,
                 Ok("diagnostics") => profiles::Tab::Diagnostics,
@@ -86,6 +91,7 @@ impl Default for GraphicsLab {
             saved: None,
             environment: None,
             environment_change: None,
+            traffic_status: None,
         }
     }
 }
@@ -208,6 +214,7 @@ pub fn show_world(
     scene: &mut dyn crate::viewer::Scene,
 ) {
     lab.environment = scene.environment();
+    lab.traffic_status = (lab.open && lab.tab == profiles::Tab::Traffic).then(|| scene.traffic_status()).flatten();
     show(ctx, lab, settings, metrics);
     if let Some(value) = lab.environment_change.take() {
         scene.set_environment(value);

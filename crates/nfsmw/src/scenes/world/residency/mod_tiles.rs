@@ -57,6 +57,7 @@ impl Residency {
             let events: Vec<StreamerEvent> = std::iter::from_fn(|| self.mod_streamers[k].poll()).collect();
             for event in events {
                 match event {
+                    StreamerEvent::Collision { .. } => {}
                     StreamerEvent::Loaded(mut data) => {
                         data.index = tile;
                         self.assemble_mod(&mut data, k);
@@ -90,6 +91,8 @@ impl Residency {
             self.collision.remove_ungridded(section);
             return;
         }
-        self.collision.remove(section);
+        if !self.traffic_owns_collision(section) {
+            self.collision.remove(section);
+        }
     }
 }

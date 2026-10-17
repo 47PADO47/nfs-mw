@@ -58,6 +58,7 @@ pub const MOST_WANTED: SceneryLayout = SceneryLayout {
         poly_threshold: 39,
         density_floor: 6.0,
         density_threshold: 8.7,
+        coarse_distance: 25.0,
         detailed_slot: 0,
         coarse_slot: 2,
     },

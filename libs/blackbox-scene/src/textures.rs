@@ -17,6 +17,24 @@ pub fn upload_texture_predecoded(
     t: &Texture,
     decoded: Option<&[u8]>,
 ) -> Option<TextureHandle> {
+    upload_texture_predecoded_mips(backend, t, decoded, 0)
+}
+
+/// Discard available top mips before allocation; this changes residency, not sampler bias.
+/// Predecoded pixels describe level zero and are used only when that level is retained.
+pub fn upload_texture_predecoded_mips(
+    backend: &mut dyn RenderBackend,
+    t: &Texture,
+    decoded: Option<&[u8]>,
+    discard: u32,
+) -> Option<TextureHandle> {
+    let count = (0..t.mip_levels.min(32)).take_while(|&level| t.mip(level).is_some()).count() as u32;
+    if count == 0 {
+        return None;
+    }
+    let first = discard.min(count - 1);
+    let width = (t.width >> first).max(1);
+    let height = (t.height >> first).max(1);
     let bc = match t.format {
         TpkFormat::Dxt1 => Some(PixelFormat::Bc1),
         TpkFormat::Dxt3 => Some(PixelFormat::Bc2),
@@ -25,21 +43,15 @@ pub fn upload_texture_predecoded(
     };
     match bc {
         // wgpu needs block-compressed textures to be a whole number of blocks (`needs_decode` checks that).
-        Some(format) if !t.needs_decode(backend.capabilities().compressed_bc) => {
-            let mips: Vec<&[u8]> = (0..t.mip_levels).map_while(|level| t.mip(level)).collect();
-            Some(backend.create_texture(&TextureDesc {
-                label: &t.name,
-                width: t.width,
-                height: t.height,
-                format,
-                mips,
-            }))
+        Some(format) if backend.capabilities().compressed_bc && width.is_multiple_of(4) && height.is_multiple_of(4) => {
+            let mips: Vec<&[u8]> = (first..count).map_while(|level| t.mip(level)).collect();
+            Some(backend.create_texture(&TextureDesc { label: &t.name, width, height, format, mips }))
         }
-        _ => match rgba8(t, decoded) {
+        _ => match rgba8_mip(t, decoded, first) {
             Some(rgba) => Some(backend.create_texture(&TextureDesc {
                 label: &t.name,
-                width: t.width,
-                height: t.height,
+                width,
+                height,
                 format: PixelFormat::Rgba8,
                 mips: vec![&rgba[..]],
             })),
@@ -52,11 +64,13 @@ pub fn upload_texture_predecoded(
 }
 
 /// The RGBA8 pixels of `t`: the loader's copy when there is one, else decoded here.
-fn rgba8<'a>(t: &Texture, decoded: Option<&'a [u8]>) -> Option<Cow<'a, [u8]>> {
-    if let Some(rgba) = decoded {
+fn rgba8_mip<'a>(t: &Texture, decoded: Option<&'a [u8]>, level: u32) -> Option<Cow<'a, [u8]>> {
+    if level == 0
+        && let Some(rgba) = decoded
+    {
         return Some(Cow::Borrowed(rgba));
     }
-    blackbox_tpk::decode_rgba8(t).map(Cow::Owned)
+    blackbox_tpk::decode_mip_rgba8(t, level).map(Cow::Owned)
 }
 
 /// How a texture's alpha should be drawn, from its `AlphaBlendType`

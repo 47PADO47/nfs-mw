@@ -116,6 +116,8 @@ pub fn store() -> Option<SaveStore> {
 pub fn partial_of(s: &Settings) -> Partial {
     let c = &s.controls;
     Partial {
+        traffic_policy: None,
+        detail: None,
         appearance: Some(s.appearance),
         deadzone_mode: Some(c.deadzone_mode),
         steering_deadzone: Some(c.steering_deadzone),

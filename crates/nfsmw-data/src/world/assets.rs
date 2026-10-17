@@ -148,6 +148,7 @@ impl SharedAssets {
             }
         }
         CarModel {
+            driving_lods: Default::default(),
             flare_profiles: Default::default(),
             window_tint_material: None,
             paintable: false,

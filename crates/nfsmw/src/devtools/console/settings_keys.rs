@@ -1,7 +1,16 @@
 //! The keys the console's `get` and `set` know, in the order `get` lists them.
 
 /// Every setting the console can show, by its key.
-pub(super) const KEYS: [&str; 79] = [
+pub(super) const KEYS: [&str; 88] = [
+    "traffic_preset",
+    "traffic_population",
+    "traffic_density",
+    "world_detail",
+    "car_geometry",
+    "geometry_range",
+    "visibility_range",
+    "highest_world",
+    "highest_player",
     "deadzone_mode",
     "steering_deadzone",
     "camera_deadzone",

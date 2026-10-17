@@ -138,6 +138,16 @@ impl Settings {
     }
     pub fn select_graphics_quality(&mut self, quality: Quality) {
         self.appearance.quality = quality;
+        self.detail.world = match quality {
+            Quality::Low => super::WorldDetail::Low,
+            Quality::Balanced => super::WorldDetail::High,
+            Quality::High => super::WorldDetail::Maximum,
+        };
+        self.detail.car = match (quality, self.appearance.style) {
+            (Quality::Low, _) => super::CarGeometry::Low,
+            (Quality::High, VisualStyle::Enhanced | VisualStyle::Custom) => super::CarGeometry::Highest,
+            _ => super::CarGeometry::High,
+        };
         self.graphics_preset = GraphicsPreset::Custom;
         let (size, range, reach, reflection, ao) = match quality {
             Quality::Low => (1024, 120.0, 0.25, ReflectionQuality::Low, AoQuality::Low),
@@ -190,6 +200,7 @@ impl Settings {
     /// Fields owned by graphics profiles, deliberately excluding world and gameplay preferences.
     pub fn appearance_layer(&self) -> Partial {
         Partial {
+            detail: Some(self.detail),
             appearance: Some(self.appearance),
             graphics_preset: Some(GraphicsPreset::Custom),
             car_shading: Some(self.car_shading),
@@ -210,9 +221,14 @@ impl Settings {
     }
 
     /// Complete F8 snapshot, including renderer requests that are currently downgraded.
-    /// Renderer/API, window, audio and gameplay preferences remain outside the preset.
+    /// Includes F8 traffic controls; renderer/API, window and audio remain outside the preset.
     pub fn graphics_layer(&self) -> Partial {
         Partial {
+            traffic_policy: Some(self.traffic_policy),
+            traffic: Some(self.traffic),
+            cop_share: Some(self.cop_share),
+            traffic_lights: Some(self.traffic_lights),
+            traffic_avoidance: Some(self.traffic_avoidance),
             reflection_cube_size: Some(self.reflection_cube_size),
             reflection_mirror_size: Some(self.reflection_mirror_size),
             reflection_pow2: Some(self.reflection_pow2),

@@ -1,4 +1,24 @@
 use super::*;
+
+#[test]
+fn f8_traffic_presets_round_trip_without_changing_audio_or_renderer() {
+    let mut settings = Settings::from(Partial::default());
+    settings.select_traffic_preset(crate::settings::TrafficPreset::Extended);
+    settings.select_population_preset(crate::settings::PopulationPreset::VeryHigh);
+    settings.traffic_policy.density_percent = 30;
+    let text = payload(&settings).unwrap();
+    let wanted = settings.graphics_layer();
+    settings.select_traffic_preset(crate::settings::TrafficPreset::Reference);
+    settings.traffic = 5;
+    settings.traffic_policy.density_percent = 100;
+    settings.master_volume = Percent(17);
+    restore(&mut settings, &text).unwrap();
+    assert_eq!(settings.graphics_layer(), wanted);
+    assert_eq!(settings.master_volume, Percent(17));
+    let before = settings;
+    assert!(restore(&mut settings, "[traffic_tuning]\nspawn_max='bad'").is_err());
+    assert_eq!(settings, before, "bad traffic payloads must not partially apply");
+}
 use crate::settings::PostAa;
 use crate::settings::{Partial, Percent, RenderScale, RendererKind, UpscaleMode};
 use blackbox_gfx::ExperimentStats;
@@ -30,6 +50,11 @@ fn saved_blackbox_profile_restores_complete_requests_and_preserves_runtime_prefe
     settings.fe_shadows.bias = 1.5;
     settings.motion_blur = false;
     settings.motion_blur_strength = 0.4;
+    settings.detail.world = crate::settings::WorldDetail::Medium;
+    settings.detail.car = crate::settings::CarGeometry::Low;
+    settings.detail.visibility_range = crate::settings::detail::DetailRange::Extended;
+    settings.detail.geometry_range = crate::settings::detail::DetailRange::Double;
+    settings.detail.highest_player = true;
     let text = payload(&settings).unwrap();
     let wanted = settings.graphics_layer();
     let expected_request = settings.graphics();
@@ -60,7 +85,7 @@ fn legacy_saved_profiles_leave_absent_controls_intact_and_invalid_profiles_do_no
     assert_eq!(settings.upscaler, UpscaleMode::Fsr1);
     assert_eq!(settings.post_aa, PostAa::Smaa);
     let before = settings;
-    for text in ["[appearance]\nversion=99", "profile_version=99", "broken=["] {
+    for text in ["[appearance]\nversion=99", "profile_version=99", "broken=[", "[detail]\nworld='bogus'"] {
         assert!(restore(&mut settings, text).is_err());
         assert_eq!(settings, before);
     }

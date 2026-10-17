@@ -1,5 +1,20 @@
 use super::*;
 
+#[test]
+fn traffic_range_cycles_in_video_and_persists_without_adding_player_rows() {
+    use crate::settings::TrafficPreset;
+    let mut settings = Settings::from(Partial::default());
+    let mut layer = Partial::default();
+    for expected in [TrafficPreset::Extended, TrafficPreset::Custom, TrafficPreset::Reference] {
+        assert!(Setting::TrafficPreset.step(&mut settings, &mut layer, true));
+        assert_eq!(settings.traffic_preset(), expected);
+        assert_eq!(Settings::from(layer).traffic_preset(), expected);
+    }
+    let caps = crate::settings::test_caps::native();
+    assert!(rows(Category::Video, &caps).iter().any(|r| r.setting == Setting::TrafficPreset));
+    assert!(!rows(Category::Player, &caps).iter().any(|r| r.setting == Setting::TrafficPreset));
+}
+
 fn defaults() -> Settings {
     Settings::from(Partial::default())
 }
@@ -47,7 +62,7 @@ fn toggles_flip_and_cycle_and_record_the_change() {
 #[test]
 fn every_category_has_rows() {
     assert_eq!(rows(Category::Audio, &crate::settings::test_caps::native()).len(), 5);
-    assert_eq!(rows(Category::Video, &crate::settings::test_caps::native()).len(), 45);
+    assert_eq!(rows(Category::Video, &crate::settings::test_caps::native()).len(), 48);
     assert_eq!(rows(Category::Gameplay, &crate::settings::test_caps::native()).len(), 6);
     assert_eq!(rows(Category::Player, &crate::settings::test_caps::native()).len(), 3);
     assert_eq!(rows(Category::Controls, &crate::settings::test_caps::native()).len(), 8);

@@ -92,6 +92,7 @@ impl WorldScene {
         };
         log::info!("camera starts at ({:.0}, {:.0}), {:.0} m above the ground", start[0], start[1], options.height);
         Ok(Self {
+            detail: Default::default(),
             garage: garage_catalog,
             garage_parts: None,
             garage_open: false,
@@ -161,6 +162,7 @@ impl WorldScene {
                 cop_share: crate::settings::Percent(0),
                 lights: false,
                 avoidance: false,
+                policy: Default::default(),
             },
             lamp_meshes: None,
             traffic_manual: None,

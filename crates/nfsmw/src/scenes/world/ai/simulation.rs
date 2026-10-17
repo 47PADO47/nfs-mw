@@ -7,7 +7,7 @@ use nfsmw_data::car::physics::SurfaceTable;
 
 use super::car::{AiCar, Ctx};
 use super::stop::Lights;
-use super::{Focus, MANAGER_PERIOD, TrafficWorld};
+use super::{Focus, TrafficWorld, activation};
 use crate::scenes::world::{drive::STEP, props::PropWorld};
 use crate::viewer::camera::Lens;
 
@@ -37,6 +37,7 @@ impl TrafficWorld {
         if let Some(player) = focus.body.as_ref() {
             self.cop_aims(player, &mut aims);
         }
+        self.population_stats.waiting_collision = 0;
         for (me, car) in self.cars.iter_mut().enumerate() {
             let position = glam::Vec3::from_array(super::super::space::to_physics(car.position()));
             let point = Vec2::new(position.x, position.z);
@@ -59,7 +60,11 @@ impl TrafficWorld {
                 aims: &aims,
                 lights,
             };
-            car.step(&mut ctx, collision, props, surfaces);
+            let ready = collision.resident_near(car.physics_position().to_array(), 30.0) != Some(false);
+            self.population_stats.waiting_collision += usize::from(!ready);
+            if ready {
+                car.step(&mut ctx, collision, props, surfaces);
+            }
             if car.take_wreck() {
                 self.police.record_wreck();
             }
@@ -100,10 +105,8 @@ impl TrafficWorld {
             log::info!("traffic after the screenshot warm-up: {}", self.status(focus));
         }
         self.recycle(STEP, focus, camera, props);
-        self.spawn_timer += STEP;
-        if self.spawn_timer >= MANAGER_PERIOD && self.target > 0 {
-            self.spawn_timer -= MANAGER_PERIOD;
-            self.manage(MANAGER_PERIOD, focus, collision, surfaces);
+        if activation::due(&mut self.spawn_timer, STEP, self.target > 0) {
+            self.manage(activation::PERIOD, focus, collision, surfaces);
         }
     }
 }

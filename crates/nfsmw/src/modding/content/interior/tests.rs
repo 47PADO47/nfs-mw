@@ -10,7 +10,7 @@ use crate::viewer::Environment;
 const TILE: usize = 40;
 
 fn traffic() -> TrafficSettings {
-    TrafficSettings { cars: 12, cop_share: Percent(5), lights: true, avoidance: true }
+    TrafficSettings { cars: 12, cop_share: Percent(5), lights: true, avoidance: true, ..Default::default() }
 }
 
 fn snapshot() -> Snapshot {

@@ -19,9 +19,13 @@ pub fn mip_level_size(format: PixelFormat, width: u32, height: u32, level: u32) 
 /// Decode mip level 0 to tightly packed RGBA8. `None` for unsupported formats or
 /// short data.
 pub fn decode_rgba8(t: &Texture) -> Option<Vec<u8>> {
-    let (w, h) = (t.width as usize, t.height as usize);
-    let size = mip_level_size(t.format, t.width, t.height, 0);
-    let data = t.data.get(..size)?;
+    decode_mip_rgba8(t, 0)
+}
+
+/// Decode one authored mip without copying the rest of the stored chain.
+pub fn decode_mip_rgba8(t: &Texture, level: u32) -> Option<Vec<u8>> {
+    let (w, h) = (t.width.checked_shr(level)?.max(1) as usize, t.height.checked_shr(level)?.max(1) as usize);
+    let data = t.mip(level)?;
     match t.format {
         PixelFormat::Dxt1 | PixelFormat::Dxt3 | PixelFormat::Dxt5 => {
             let mut px = vec![0u32; w * h];

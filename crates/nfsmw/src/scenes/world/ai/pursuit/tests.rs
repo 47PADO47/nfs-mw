@@ -144,6 +144,7 @@ fn cop_model(renderer: &mut NullBackend, name: &str, player: Performance) -> Cop
         reactions: None,
     };
     let model = CarModel {
+        driving_lods: Default::default(),
         flare_profiles: Default::default(),
         name: name.into(),
         window_tint_material: None,

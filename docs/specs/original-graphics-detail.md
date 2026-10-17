@@ -1,6 +1,7 @@
 # Original PC graphics detail controls
 
-Status: read-only static research; this does not add sliders. See
+Status: static behavior research. Partial controls now follow this contract;
+projection, pack exemptions and complete car usage rules remain unverified. See
 [provenance](../provenance/original-graphics-detail.md) and the
 [current implementation comparison](../graphics-detail.md).
 

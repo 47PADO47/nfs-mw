@@ -11,6 +11,8 @@ mod ecar;
 pub mod exhaust;
 mod folders;
 pub mod lights;
+mod lods;
+pub use lods::{DrivingLods, LodAssembly};
 pub mod mods;
 mod paint;
 mod parts;
@@ -45,6 +47,7 @@ use crate::read_unwrapped;
 
 /// A car ready to draw: solids placed in car space (+x forward, +y left, +z up).
 pub struct CarModel {
+    pub driving_lods: DrivingLods,
     pub flare_profiles: lights::FlareProfiles,
     /// Car folder.
     pub name: String,
@@ -167,7 +170,14 @@ fn load_with(
     };
     let mut pool: HashMap<u32, Arc<Solid>> = own.into_iter().map(|s| (s.name_hash, Arc::new(s))).collect();
     let mut shared_sources = HashMap::new();
-    let wanted: Vec<u32> = slots[..slot::MODELS].iter().flatten().filter_map(|p| t.parts.model_hash(p, lod)).collect();
+    let levels: Vec<usize> = match driver && lod == 0 {
+        true => (0..5).collect(),
+        false => vec![lod],
+    };
+    let wanted: Vec<u32> = levels
+        .iter()
+        .flat_map(|&level| slots[..slot::MODELS].iter().flatten().filter_map(move |p| t.parts.model_hash(p, level)))
+        .collect();
     if wanted.iter().any(|h| !pool.contains_key(h)) {
         // Only the wanted names are taken: the car's own solids win, then the first shared folder that has the name.
         let shared = folders::shared_solids(dir)?;
@@ -187,7 +197,13 @@ fn load_with(
     }
     let (placements, corners) = assemble::assemble(t, &slots, &pool, setup.as_ref(), lod, driver);
     customization::validate_placements(customization, &placements)?;
-    let used: HashSet<u32> = placements.iter().map(|p| p.solid).collect();
+    let extra = match driver && lod == 0 {
+        true => lods::assemble(t, &slots, &pool, setup.as_ref()),
+        false => Vec::new(),
+    };
+    let driving_lods = DrivingLods { traffic: car_type.usage_type == 2, levels: extra };
+    let used: HashSet<u32> =
+        placements.iter().chain(driving_lods.levels.iter().flat_map(|l| &l.placements)).map(|p| p.solid).collect();
     pool.retain(|h, _| used.contains(h));
     let shared_folders: HashSet<_> =
         shared_sources.into_iter().filter(|(h, _)| used.contains(h)).map(|(_, folder)| folder).collect();
@@ -217,6 +233,7 @@ fn load_with(
         paint.as_ref().map_or("none".into(), |p| format!("{} {}", p.name, p.hex())),
     );
     Ok(CarModel {
+        driving_lods,
         flare_profiles,
         name: car.to_owned(),
         car_type: Some(car_type.type_name.clone()),
@@ -272,6 +289,7 @@ fn unassembled(dir: &GameDir, car: &str, solids: Vec<Solid>, options: &LoadOptio
     let textures = textures::load(dir, car, &wanted_textures(solids.values(), &swaps))?;
     let flare_profiles = lights::FlareProfiles::default();
     Ok(CarModel {
+        driving_lods: Default::default(),
         flare_profiles,
         name: car.to_owned(),
         car_type: None,

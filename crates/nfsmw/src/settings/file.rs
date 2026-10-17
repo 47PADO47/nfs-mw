@@ -44,6 +44,8 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         }
     };
     Partial {
+        traffic_policy: table.get("traffic_tuning").and_then(|v| super::TrafficPolicy::read(v, origin)),
+        detail: table.get("detail").and_then(|v| super::DetailSettings::read(v, origin)),
         appearance: table.get("appearance").and_then(|v| super::Appearance::read(v, origin)),
         always_rain: None,
         rain_amount: None,

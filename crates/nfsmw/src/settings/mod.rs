@@ -19,6 +19,7 @@ mod controls;
 mod controls_tests;
 pub mod custom_fonts;
 pub mod custom_music;
+pub mod detail;
 #[cfg(test)]
 mod discord_tests;
 pub mod eatrax;
@@ -34,6 +35,7 @@ mod fe_shadows_tests;
 pub(crate) mod file;
 #[cfg(test)]
 mod filtering_tests;
+pub use detail::{CarGeometry, DetailSettings, WorldDetail};
 mod graphics;
 mod graphics_preset;
 #[cfg(test)]
@@ -82,6 +84,8 @@ pub(crate) mod test_caps;
 #[cfg(test)]
 mod tire_tests;
 mod traffic_avoidance;
+pub mod traffic_policy;
+pub use traffic_policy::{PopulationPreset, TrafficPolicy, TrafficPreset};
 mod transmission;
 #[cfg(test)]
 mod treatment_tests;
@@ -128,8 +132,8 @@ pub use write::write as write_file;
 
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
-/// Computer-driven cars kept on the road by default (the original keeps fewer than 10 vehicles active).
-pub const DEFAULT_TRAFFIC: u32 = 10;
+/// Active vehicle budget of the installed PC reference, including the player and police.
+pub const DEFAULT_TRAFFIC: u32 = 20;
 /// The default share of those cars that are patrol cops: 5 percent, one in twenty.
 pub const DEFAULT_COP_SHARE: Percent = Percent(5);
 /// Whether traffic stops at red lights by default. The original game has no traffic lights: this is a rewrite
@@ -156,7 +160,7 @@ pub const DEFAULT_SHOW_HUD_ON_LOOK_BACK: bool = false;
 /// The settings the world's traffic follows, told to the scene together so that it can see any of them change.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct TrafficSettings {
-    /// Cars kept on the road (0: none).
+    /// Active vehicle budget including player, police and trailers (0 stops new traffic).
     pub cars: u32,
     /// Share of them that are patrol cops, in percent.
     pub cop_share: Percent,
@@ -164,17 +168,26 @@ pub struct TrafficSettings {
     pub lights: bool,
     /// Whether they go round a car that blocks their lane (`traffic_avoidance`).
     pub avoidance: bool,
+    pub policy: TrafficPolicy,
 }
 
 impl From<&Settings> for TrafficSettings {
     fn from(s: &Settings) -> Self {
-        Self { cars: s.traffic, cop_share: s.cop_share, lights: s.traffic_lights, avoidance: s.traffic_avoidance }
+        Self {
+            cars: s.traffic,
+            cop_share: s.cop_share,
+            lights: s.traffic_lights,
+            avoidance: s.traffic_avoidance,
+            policy: s.traffic_policy,
+        }
     }
 }
 
 /// The resolved settings.
 #[derive(bevy_ecs::resource::Resource, Debug, Clone, Copy, PartialEq)]
 pub struct Settings {
+    pub traffic_policy: TrafficPolicy,
+    pub detail: DetailSettings,
     pub appearance: Appearance,
     pub controls: Controls,
     pub backend: GraphicsApi,
@@ -208,7 +221,7 @@ pub struct Settings {
     pub graphics_preset: GraphicsPreset,
     /// How cars are shaded: glossy (default) or the single-light shading of everything else.
     pub car_shading: CarShading,
-    /// How many computer-driven cars the world keeps on the road around you (0 turns traffic off).
+    /// Active vehicle budget, including player, police and trailers (0 stops new traffic).
     pub traffic: u32,
     /// Of those cars, the share that are patrol cops, in percent.
     pub cop_share: Percent,
@@ -320,6 +333,8 @@ impl From<Partial> for Settings {
         let requested = p.graphics_preset.unwrap_or_default();
         let p = p.or(requested.layer());
         let mut settings = Self {
+            traffic_policy: p.traffic_policy.unwrap_or_default().sanitized(),
+            detail: p.detail.unwrap_or_default(),
             appearance: p.appearance.unwrap_or_default(),
             graphics_preset: requested,
             controls: Controls {
@@ -351,7 +366,7 @@ impl From<Partial> for Settings {
             radio: p.radio.unwrap_or(true),
             skip_intro: p.skip_intro.unwrap_or(false),
             car_shading: p.car_shading.unwrap_or_default(),
-            traffic: p.traffic.unwrap_or(DEFAULT_TRAFFIC),
+            traffic: p.traffic.unwrap_or(DEFAULT_TRAFFIC).min(64),
             cop_share: p.cop_share.unwrap_or(DEFAULT_COP_SHARE),
             always_rain: p.always_rain.unwrap_or(DEFAULT_ALWAYS_RAIN),
             rain_amount: p.rain_amount.unwrap_or(DEFAULT_RAIN_AMOUNT),

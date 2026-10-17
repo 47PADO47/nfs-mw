@@ -103,6 +103,10 @@ impl Scene for WorldScene {
         Some(self.environment_state())
     }
 
+    fn traffic_status(&self) -> Option<String> {
+        self.traffic.as_ref().map(|traffic| traffic.population_status(self.traffic_focus()))
+    }
+
     fn set_environment(&mut self, value: crate::viewer::Environment) {
         self.configure_environment(value);
     }
@@ -115,6 +119,10 @@ impl Scene for WorldScene {
         self.drive.is_some()
     }
 
+    fn set_detail(&mut self, detail: crate::settings::DetailSettings) {
+        self.detail.configure(detail);
+        self.residency.capture_texture_detail(detail.world.mip_discard());
+    }
     fn set_car_shading(&mut self, shading: crate::settings::CarShading) {
         self.car_shading = shading;
     }

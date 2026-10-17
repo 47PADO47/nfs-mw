@@ -19,6 +19,8 @@ pub enum GraphicsSetting {
     Quality,
     Preset,
     CarShading,
+    WorldDetail,
+    CarGeometry,
     VisualTreatment,
     Reflections,
     RoadReflections,
@@ -39,12 +41,14 @@ pub enum GraphicsSetting {
 }
 
 impl GraphicsSetting {
-    pub const ALL: [Self; 22] = [
+    pub const ALL: [Self; 24] = [
         Self::Hdr,
         Self::Style,
         Self::Quality,
         Self::Preset,
         Self::CarShading,
+        Self::WorldDetail,
+        Self::CarGeometry,
         Self::VisualTreatment,
         Self::TextureFiltering,
         Self::Reflections,
@@ -82,7 +86,14 @@ impl GraphicsSetting {
             | Self::MirrorSize
             | Self::MirrorTint => caps.local_reflections,
             Self::AmbientOcclusion | Self::AoIntensity | Self::AoComparison => caps.ambient_occlusion,
-            Self::Hdr | Self::Style | Self::Quality | Self::Preset | Self::CarShading | Self::TextureFiltering => true,
+            Self::Hdr
+            | Self::Style
+            | Self::Quality
+            | Self::Preset
+            | Self::CarShading
+            | Self::TextureFiltering
+            | Self::WorldDetail
+            | Self::CarGeometry => true,
         }
     }
 
@@ -101,6 +112,8 @@ impl GraphicsSetting {
             | Self::Quality
             | Self::Preset
             | Self::CarShading
+            | Self::WorldDetail
+            | Self::CarGeometry
             | Self::VisualTreatment
             | Self::AmbientOcclusion
             | Self::Shadows
@@ -116,6 +129,8 @@ impl GraphicsSetting {
             Self::Quality => "Graphics Quality",
             Self::Preset => "Graphics Preset",
             Self::CarShading => "Car Shading",
+            Self::WorldDetail => "World Level of Detail",
+            Self::CarGeometry => "Car Geometry Detail",
             Self::VisualTreatment => "Visual Treatment (Experimental)",
             Self::Reflections => "Car Reflections",
             Self::RoadReflections => "Road Reflection Detail",
@@ -195,6 +210,8 @@ impl GraphicsSetting {
                 Self::ReflectionContent => content_label(s.reflection_extra.content),
                 Self::ReflectionDistance => distance_label(s.reflection_extra.distance),
                 Self::CarShading => s.car_shading.label(),
+                Self::WorldDetail => s.detail.world.label(),
+                Self::CarGeometry => s.detail.car.label(),
                 Self::RoadReflections => s.road_reflections.label(),
                 Self::Shadows => match (s.appearance.lighting.sun_shadows, s.appearance.lighting.shadow_resolution) {
                     (false, _) => "Off",
@@ -311,6 +328,14 @@ impl GraphicsSetting {
             Self::ReflectionDistance => {
                 s.reflection_extra.distance = cycle(&ReflectionDistance::ALL, s.reflection_extra.distance, forward);
                 changed.reflection_distance = Some(s.reflection_extra.distance);
+            }
+            Self::WorldDetail => {
+                s.detail.world = super::post_options::pick(&crate::settings::WorldDetail::ALL, s.detail.world, forward);
+                changed.detail = Some(s.detail);
+            }
+            Self::CarGeometry => {
+                s.detail.car = super::post_options::pick(&crate::settings::CarGeometry::ALL, s.detail.car, forward);
+                changed.detail = Some(s.detail);
             }
             Self::CarShading => {
                 s.car_shading = super::post_options::pick(&CarShading::ALL, s.car_shading, forward);

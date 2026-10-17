@@ -4,7 +4,9 @@
 
 mod access;
 mod breaker_camera;
+mod car_detail;
 mod clock;
+pub(super) use car_detail::{DetailView, DrawOptions};
 mod cracked;
 mod debug;
 mod effect_feed;
@@ -20,6 +22,7 @@ mod placement;
 #[cfg(test)]
 mod presentation_tests;
 mod release;
+mod render;
 mod rig;
 mod road_reflection;
 mod script;
@@ -410,21 +413,6 @@ impl Drive {
     /// Append the instances of the contact markers.
     pub fn marker_instances(&self, meshes: &MarkerMeshes, out: &mut Vec<blackbox_render::Instance>) {
         self.markers.instances(meshes, out);
-    }
-
-    /// Append the car's instances.
-    pub fn instances(&self, out: &mut Vec<blackbox_render::Instance>) {
-        if let Some(sim) = &self.sim {
-            let revealed = sim.events.as_ref().map(|e| e.revealed_slots()).unwrap_or_default();
-            self.rig.instances_lit(
-                super::keys::PLAYER_CAR,
-                &self.pose(),
-                sim.events.as_ref().map(|e| &e.hidden_slots),
-                &revealed,
-                [self.headlights, self.brake_lamp > 0.0],
-                out,
-            );
-        }
     }
 
     pub fn hud_state(&self) -> Option<crate::hud::HudState> {

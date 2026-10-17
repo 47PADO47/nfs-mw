@@ -69,6 +69,7 @@ impl Host {
         scene.set_smoke_quality(settings.smoke_quality);
         scene.set_rain(settings.always_rain, settings.rain_amount.amplitude());
         scene.set_world_tuning(settings.into());
+        scene.set_detail(settings.detail);
         scene.set_car_shading(settings.car_shading);
         scene.set_vehicle_effects(settings.collision_sparks, settings.speed_trails);
         scene.set_spark_style(settings.spark_style);

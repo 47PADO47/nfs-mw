@@ -54,7 +54,15 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
                                 | GraphicsSetting::AoComparison
                         ) && setting.shown(caps)
                     })
-                    .map(|setting| row(Setting::Graphics(setting), setting.title())),
+                    .flat_map(|setting| {
+                        [
+                            Some(row(Setting::Graphics(setting), setting.title())),
+                            (setting == GraphicsSetting::CarGeometry)
+                                .then(|| row(Setting::TrafficPreset, Title::Text("Traffic Range Preset"))),
+                        ]
+                        .into_iter()
+                        .flatten()
+                    }),
             )
             .chain([
                 row(Setting::TireSmoke, Title::Text("Tire Smoke")),

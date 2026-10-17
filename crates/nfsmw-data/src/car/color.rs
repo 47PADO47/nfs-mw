@@ -38,6 +38,7 @@ mod tests {
         let paint = Paint { name: "test".into(), rgb: [10, 20, 30], gloss: 42, light_material: Some(123) };
         let skin = paint.texture("TEST_SKIN1");
         CarModel {
+            driving_lods: Default::default(),
             flare_profiles: Default::default(),
             window_tint_material: None,
             name: "TEST".into(),

@@ -58,11 +58,25 @@ impl WorldScene {
         }
     }
 
+    pub(in crate::scenes::world) fn prepare_traffic_support(&mut self) {
+        let focus = self.traffic_focus();
+        let policy = self.traffic_setting.policy.sanitized();
+        let range = match self.traffic_wanted() > 0 && policy.density_percent > 0 {
+            true => policy.spawn_max as f32 + focus.speed.abs().min(200.0) + 100.0,
+            false => 0.0,
+        };
+        let actors = self.traffic.as_ref().map_or_else(Vec::new, |t| t.collision_anchors());
+        let ahead = (policy.spawn_min + policy.spawn_max) as f32 * 0.5 + focus.speed.max(0.0);
+        let spawn = [focus.position[0] + ahead * focus.heading.cos(), focus.position[1] + ahead * focus.heading.sin()];
+        self.residency.set_traffic_support(focus.position, spawn, range, actors);
+    }
+
     /// Apply settings and load requested models before any physics tick.
     pub(in crate::scenes::world) fn prepare_traffic(&mut self, renderer: &mut dyn RenderBackend) {
         let (wanted, share) = (self.traffic_wanted(), u32::from(self.traffic_setting.cop_share.0));
         let Some(traffic) = self.traffic.as_mut() else { return };
         traffic.configure(wanted, share);
+        traffic.set_policy(self.traffic_setting.policy);
         traffic.set_lights(self.traffic_setting.lights);
         traffic.set_avoidance(self.traffic_setting.avoidance);
         // The models the manager asks for are read on the loader's worker. A warm-up run (`traffic warmup`) waits for

@@ -46,6 +46,7 @@ impl WorldScene {
         let extent = (1.0 + tan_y * tan_y * (1.0 + renderer.aspect_ratio().powi(2))).sqrt();
         self.residency.set_shadow_sun(self.sun.to_sun());
         self.residency.set_shadow_receiver_extent(extent, lens.position.truncate().distance(glam::Vec2::new(x, y)));
+        self.prepare_traffic_support();
         self.residency.update(renderer, x, y);
         self.prepare_drive();
         let sim_dt = match self.garage_open {

@@ -1,5 +1,11 @@
 # Traffic spawning: density, patterns, spawn points, removal
 
+**PC correction (2026-10-17):** the GameCube values below are not all shared
+by the installed PC reference. PC uses a 300-400 m probe band, 300 m final
+clearance and a 20-vehicle population/share budget. See
+[traffic-presets.md](traffic-presets.md) for the current rewrite policy and
+the provenance record for direct PC checks. Other unconfirmed items remain open.
+
 How the original decides how many ordinary road cars exist, which models they are, where they appear and when
 they disappear. The driving of a spawned car is in [ai-traffic.md](ai-traffic.md); the world-side parts (lights,
 horns, scripted drag traffic) are in [ai-traffic-world.md](ai-traffic-world.md). The road graph, lane lookups and
@@ -378,9 +384,11 @@ a value (`trafha`, `semilog`); no source read uses any of them, and a header con
 is also unused **[verified, decomp]**. The real limits are the hard-coded ones above (10 active vehicles, 150 m).
 A rewrite may expose them as settings, but the originals are not tunable from data.
 
-**Rewrite timing:** the current manager runs every 0.5 simulated seconds on the shared physics clock,
+**Rewrite timing:** the current manager runs every 1/30 simulated second on the shared physics clock,
 and models are cached without an inactive vehicle pool. This differs from the original variable-frame
 scheduler and its four-second limit on creating a new vehicle instance; full population timing parity is pending.
+The fixed cadence matches the original's nominal two-frame interval at 60 FPS, with one placement probe
+per activation. See [traffic presets](traffic-presets.md) for the implementation bounds.
 
 ## 10. How to check it
 

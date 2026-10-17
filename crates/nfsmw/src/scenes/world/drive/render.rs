@@ -1,0 +1,29 @@
+//! Main-view and independent-pass car submission.
+use super::*;
+
+impl Drive {
+    /// Append the car's instances.
+    pub fn instances(&self, out: &mut Vec<blackbox_render::Instance>) {
+        self.instances_with_detail(None, out);
+    }
+    pub(in crate::scenes::world) fn instances_with_detail(
+        &self,
+        detail: Option<&DetailView>,
+        out: &mut Vec<blackbox_render::Instance>,
+    ) {
+        if let Some(sim) = &self.sim {
+            let revealed = sim.events.as_ref().map(|e| e.revealed_slots()).unwrap_or_default();
+            self.rig.instances_detail(
+                &self.pose(),
+                sim.events.as_ref().map(|e| &e.hidden_slots),
+                &revealed,
+                DrawOptions {
+                    car: crate::scenes::world::keys::PLAYER_CAR,
+                    lamps: [self.headlights, self.brake_lamp > 0.0],
+                    detail,
+                },
+                out,
+            );
+        }
+    }
+}

@@ -132,6 +132,7 @@ pub fn update_scene(
     host.traffic = crate::settings::TrafficSettings::from(&*settings);
     host.scene.set_traffic(host.traffic);
     host.scene.set_camera_mode(settings.camera_mode);
+    host.scene.set_detail(settings.detail);
     host.scene.set_road_reflections(settings.road_reflections, settings.road_reflection_resolution);
     host.rear_view_mirror = settings.rear_view_mirror;
     host.wheel = settings.wheel_options();

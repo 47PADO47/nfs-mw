@@ -6,6 +6,22 @@ fn defaults() -> Settings {
 }
 
 #[test]
+fn detail_commands_validate_ranges_and_share_menu_profile_values() {
+    let mut s = defaults();
+    set(&mut s, "world_detail", "medium").unwrap();
+    set(&mut s, "car_geometry", "high").unwrap();
+    set(&mut s, "geometry_range", "2x").unwrap();
+    set(&mut s, "visibility_range", "1.5x").unwrap();
+    set(&mut s, "highest_player", "on").unwrap();
+    assert_eq!(s.detail.world, crate::settings::WorldDetail::Medium);
+    assert_eq!(s.detail.geometry_range, crate::settings::detail::DetailRange::Double);
+    assert_eq!(get(&s, "car_geometry").unwrap(), "car_geometry = high");
+    let before = s;
+    assert!(set(&mut s, "geometry_range", "9x").is_err());
+    assert_eq!(s, before);
+}
+
+#[test]
 fn sets_and_reads_back() {
     let mut s = defaults();
     assert_eq!(set(&mut s, "fps", "60").unwrap(), "fps = 60");
@@ -259,4 +275,18 @@ fn the_front_end_shadow_keys_set_and_read_back() {
     assert!(set(&mut s, "fe_shadows_divider", "8").is_err());
     assert_eq!(s.fe_shadows.divider, 4, "a rejected value changes nothing");
     assert!(set(&mut s, "fe_shadows", "sometimes").is_err());
+}
+
+#[test]
+fn traffic_population_commands_preserve_independent_range_and_context() {
+    let mut s = defaults();
+    set(&mut s, "traffic_preset", "extended").unwrap();
+    set(&mut s, "traffic_density", "30").unwrap();
+    assert_eq!(set(&mut s, "traffic_population", "very-high").unwrap(), "traffic_population = very-high");
+    assert_eq!(s.traffic, 64);
+    assert_eq!(s.traffic_policy.density_percent, 30);
+    assert_eq!(s.traffic_preset(), crate::settings::TrafficPreset::Extended);
+    let before = s;
+    assert!(set(&mut s, "traffic_population", "bad").is_err());
+    assert_eq!(s, before);
 }

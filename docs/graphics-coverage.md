@@ -7,7 +7,7 @@ in `settings/appearance/registry.rs` supplies F8 Diagnostics.
 | Feature | Current implementation | Remaining original parity |
 | --- | --- | --- |
 | Models/textures | Installed original assets | Full material-specific rendering |
-| Geometry/texture detail | Adaptive scenery slots, fixed reference projection, full texture mips and car LOD A | Coherent original World LOD and dynamic car LOD; current High is not an exact original maximum |
+| Geometry/texture detail | Four world levels, authored variant filters, reduced mip allocation on next world load, independent extended ranges; cached adaptive car geometry and highest-detail overrides | PC projection calibration, texture pack exemptions, complete car usage/tire/part rules and extended near/far section coverage; see [detail controls](graphics-detail.md) |
 | World materials | Original common, normal, reflective and window families on native; selectable legacy fallback | Full projected caster/filter parity, remaining states and matched full scenes |
 | World normal maps | Original tangent-space normal/specular path on native | Bevy fallback, full projected filter parity, animated bindings and sampler states |
 | Car materials | Selectable original PC modern/shadowless arithmetic and gameplay/default frontend rigs on native; retained Custom Glossy | Complete projected shadow classification/filtering, reflection capture, skin composition and exact frontend context; Bevy custom shader fallback |

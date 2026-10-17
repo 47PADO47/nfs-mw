@@ -20,7 +20,7 @@ use visibility::Viewing;
 // The rewrite's own removal rules (spec §8 says the original has none of them). They apply only while the car is
 // unseen, so a visible car is never removed by them.
 /// Rewrite extension: an unseen car farther than this from the player (metres) is removed.
-const DESPAWN_DISTANCE: f32 = 350.0;
+const DESPAWN_DISTANCE: f32 = 650.0;
 /// Rewrite extension: an unseen car with no wheel on the ground for this long (seconds) fell off the map.
 const MAX_AIRBORNE: f32 = 4.0;
 /// Rewrite extension: an unseen car standing this long (seconds) is removed when it is more than
@@ -55,6 +55,7 @@ impl PatrolPlan {
 
 struct Cars<'a> {
     cars: &'a [super::AiCar],
+    models: &'a [super::TrafficModel],
     others: u32,
 }
 
@@ -66,12 +67,15 @@ impl Census for Cars<'_> {
     fn others(&self) -> u32 {
         self.others
     }
+    fn trailer_slots(&self, name: &str) -> u32 {
+        u32::from(self.models.iter().any(|m| m.name.eq_ignore_ascii_case(name) && m.trailer.is_some()))
+    }
 }
 
 impl TrafficWorld {
-    /// How many cars to keep on the road and what percent of them patrol as cops.
+    /// Active vehicle budget and chance that an ordinary activation is a patrol cop.
     pub fn configure(&mut self, cars: usize, cop_share_percent: u32) {
-        self.target = cars;
+        self.target = cars.min(64);
         self.cop_share = cop_share_percent.min(100);
     }
 
@@ -116,14 +120,10 @@ impl TrafficWorld {
         }
     }
 
-    fn chasing_cops(&self) -> u32 {
-        self.cars.iter().filter(|c| c.is_cop()).count() as u32
-    }
-
     /// One tick of the manager: follow the neighbourhood's pattern, advance the type timers and add at most
     /// one car if there is room for it.
     pub(super) fn manage(&mut self, tick: f32, focus: Focus, collision: &CollisionWorld, surfaces: &SurfaceTable) {
-        let density = manager::density(self.target > 0, self.pursuit.is_some());
+        let density = self.density();
         if density == 0.0 {
             return;
         }
@@ -139,10 +139,11 @@ impl TrafficWorld {
         if changed {
             self.start_pattern();
         }
-        self.timers.advance(tick, density);
+        if let Some(pattern) = self.patterns.as_ref().and_then(|p| p.current()) {
+            self.timers.advance_population(tick, density, &pattern.rules, self.policy.common_rate_percent);
+        }
 
-        let traffic = self.cars.iter().filter(|c| !c.is_cop()).count();
-        if traffic >= self.target {
+        if self.population_slots(focus) >= self.target {
             return;
         }
         if self.roll_patrol() {
@@ -150,8 +151,12 @@ impl TrafficWorld {
             return;
         }
         let Some(pattern) = self.patterns.as_ref().and_then(|p| p.current()).cloned() else { return };
-        let census = Cars { cars: &self.cars, others: 1 + self.chasing_cops() };
-        let Some(pick) = self.timers.next_type(&pattern.rules, self.target as u32, &census) else { return };
+        let census = Cars { cars: &self.cars, models: &self.models, others: self.other_slots(focus) as u32 };
+        let Some(pick) =
+            self.timers.next_population(&pattern.rules, self.target as u32, &census, self.policy.common_fill)
+        else {
+            return;
+        };
         let name = pattern.rules[pick].name.clone();
         let Some(model) = self.models.iter().position(|m| m.name.eq_ignore_ascii_case(&name)) else {
             self.request(ModelRequest::Traffic(name));
@@ -206,9 +211,11 @@ impl TrafficWorld {
     /// extra rules. A car with a detached part in view stays. A tractor that is gone stays while its trailer is
     /// not, and a trailer that came loose and is gone is dropped on its own.
     pub(super) fn recycle(&mut self, dt: f32, focus: Focus, camera: &Lens, props: &PropWorld) {
-        let density = manager::density(self.target > 0, self.pursuit.is_some());
+        let density = self.density();
         let limits = Limits { time: manager::offscreen_time(density), distance: manager::offscreen_distance(density) };
-        let view = Viewing::new(camera, focus);
+        let mut view = Viewing::new(camera, focus);
+        view.retire_distance = self.policy.retire_distance as f32;
+        view.grace = self.policy.offscreen_seconds as f32;
         self.cars.retain_mut(|car| {
             if car.is_cop() {
                 return car.is_finite();
@@ -218,9 +225,13 @@ impl TrafficWorld {
                 car.drop_trailer();
             }
             let parts = parts_seen(car, props, &view);
-            car.is_finite()
+            let keep = car.is_finite()
                 && (Vitals::of_car(car, parts).valid(&view, limits)
-                    || car.trailer().is_some_and(|t| Vitals::of_trailer(t).valid(&view, limits)))
+                    || car.trailer().is_some_and(|t| Vitals::of_trailer(t).valid(&view, limits)));
+            if !keep {
+                log::debug!("traffic retired: {} at {:?}; finite={}, unseen={:.1}s, distance={:.0}m, airborne={:.1}s, idle={:.1}s", car.name, car.position(), car.is_finite(), car.offscreen_time(), view.away(car.position()), car.airborne_time(), car.idle_time());
+            }
+            keep
         });
     }
 }
@@ -280,8 +291,8 @@ impl Vitals {
     /// Whether the car may stay. A visible detached part keeps it. A seen car always stays (its off-screen time is
     /// 0 after this tick's update). An unseen car is removed by the original's rule (unseen longer than
     /// `limits.time` and more than `limits.distance` away), or by the rewrite's extra rules: airborne, far beyond
-    /// 350 m, or stuck. A stuck car (blocked and standing for 60 s, `ai-traffic-obstacles.md` §10.4) has met the time
-    /// half of the rule, so it goes once it is also past `limits.distance`; it is never removed in view.
+    /// the selected maximum range, or stuck. Ordinary removal waits for the selected offscreen grace;
+    /// invalid/off-world recovery remains exceptional. Visible finite cars stay protected.
     fn valid(&self, view: &Viewing, limits: Limits) -> bool {
         if !self.finite {
             return false;
@@ -293,10 +304,11 @@ impl Vitals {
             return true;
         }
         let gone = self.airborne >= MAX_AIRBORNE
-            || view.away(self.position) >= DESPAWN_DISTANCE
-            || (self.idle > STUCK_TIME && view.away(self.position) > STUCK_DISTANCE);
-        let unseen_too_long =
-            (self.offscreen > limits.time || self.stuck) && view.distance(self.position) > limits.distance;
+            || (self.offscreen > view.grace && view.away(self.position) >= view.retire_distance)
+            || (self.offscreen > view.grace && self.idle > STUCK_TIME && view.away(self.position) > STUCK_DISTANCE);
+        let unseen_too_long = (self.offscreen > limits.time.max(view.grace)
+            || (self.stuck && self.offscreen > view.grace))
+            && view.distance(self.position) > limits.distance;
         !(gone || unseen_too_long)
     }
 }
@@ -352,7 +364,11 @@ mod tests {
     fn the_rewrite_rules_apply_only_while_unseen() {
         let view = Viewing::new(&camera_north(), free_focus());
         let behind_far = Vec3::new(0.0, -400.0, 0.0);
-        assert!(!car_at(behind_far, 0.5, 0.0).valid(&view, limits(1.0)), "unseen beyond 350 m");
+        assert!(
+            car_at(behind_far, 0.5, 0.0).valid(&view, limits(1.0)),
+            "new spawn range must survive a short look away"
+        );
+        assert!(!car_at(behind_far, 5.0, 0.0).valid(&view, limits(1.0)), "normal unseen time still recycles it");
         assert!(!car_at(behind_far, 0.5, 4.0).valid(&view, limits(1.0)), "unseen and airborne");
     }
 
@@ -376,7 +392,8 @@ mod tests {
         let stuck = |position: Vec3, offscreen: f32| Vitals { stuck: true, ..car_at(position, offscreen, 0.0) };
         let behind = Vec3::new(0.0, -50.0, 0.0);
         assert!(!view.sees(behind, CAR_RADIUS));
-        assert!(!stuck(behind, 0.5).valid(&view, limits(1.0)), "unseen, stuck and past 40 m: removable at once");
+        assert!(stuck(behind, 0.5).valid(&view, limits(1.0)), "stuck cars still receive offscreen grace");
+        assert!(!stuck(behind, 5.0).valid(&view, limits(1.0)), "stuck cars retire after grace");
         let near = Vec3::new(0.0, -10.0, 0.0);
         assert!(stuck(near, 0.5).valid(&view, limits(1.0)), "inside the distance rule it stays");
         let seen = Vec3::new(0.0, 50.0, 0.0);

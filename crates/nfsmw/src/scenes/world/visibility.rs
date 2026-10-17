@@ -51,7 +51,7 @@ pub fn collect_unsorted_with_shadows<'a>(
     shadow_distance: f32,
     out: &mut Vec<Instance>,
 ) {
-    collect_inner(placed, camera, rules, props, REFERENCE_HEIGHT, shadow_distance, out);
+    collect_inner(placed, camera, rules, props, (REFERENCE_HEIGHT, shadow_distance), None, out);
 }
 
 /// A small environment capture needs its own projected-size LOD, rather than the player's 480px rule.
@@ -64,7 +64,7 @@ pub fn collect_for_height<'a>(
     height: f32,
     out: &mut Vec<Instance>,
 ) {
-    collect_inner(placed, camera, rules, props, height, 0.0, out);
+    collect_inner(placed, camera, rules, props, (height, 0.0), None, out);
     out.sort_unstable_by_key(|i| i.mesh);
 }
 
@@ -88,13 +88,27 @@ pub(super) fn current_pose(p: &Placed, props: &PropWorld) -> Option<(Mat4, black
     Some(props.pose(p.prop_id).unwrap_or((p.transform, p.bounds)))
 }
 
+pub(super) fn collect_main<'a>(
+    placed: impl Iterator<Item = &'a Placed>,
+    camera: &Camera,
+    rules: &LodRules,
+    props: &PropWorld,
+    shadow_distance: f32,
+    detail: &mut super::detail::DetailState,
+    out: &mut Vec<Instance>,
+) {
+    detail.begin();
+    collect_inner(placed, camera, rules, props, (REFERENCE_HEIGHT, shadow_distance), Some(detail), out);
+    detail.finish();
+}
+
 fn collect_inner<'a>(
     placed: impl Iterator<Item = &'a Placed>,
     camera: &Camera,
     rules: &LodRules,
     props: &PropWorld,
-    height: f32,
-    shadow_distance: f32,
+    (height, shadow_distance): (f32, f32),
+    mut detail: Option<&mut super::detail::DetailState>,
     out: &mut Vec<Instance>,
 ) {
     let frustum = Frustum::from_view_proj(&camera.view_proj);
@@ -106,6 +120,9 @@ fn collect_inner<'a>(
     };
     out.clear();
     for p in placed {
+        if detail.as_ref().is_some_and(|d| !d.settings.world.admits(p.flags)) {
+            continue;
+        }
         let Some((transform, bounds)) = current_pose(p, props) else {
             continue;
         };
@@ -119,8 +136,15 @@ fn collect_inner<'a>(
         let slots = p.lods.map(|m| m.is_some());
         let position = transform.w_axis.truncate().to_array();
         // Keep the player's projected-size LOD for visible geometry. A shadow must not change it.
-        let visible_lod =
-            in_view.then(|| rules.choose(&view, position, p.radius, p.flags, slots, p.detailed)).flatten();
+        let visible_lod = in_view
+            .then(|| match detail.as_deref_mut() {
+                Some(detail) => detail.choose(p, position, &view, rules),
+                None => rules.choose(&view, position, p.radius, p.flags, slots, p.detailed),
+            })
+            .flatten();
+        if in_view && detail.is_some() && visible_lod.is_none() {
+            continue;
+        }
         let shadow_lod = || {
             if !caster {
                 return None;

@@ -1,5 +1,4 @@
-//! Which sections are loaded and drawn: the shared sets once, map tiles by the
-//! camera's zone (`docs/specs/visible-sections.md`).
+//! Section residency: shared sets once, map tiles by zone (`docs/specs/visible-sections.md`).
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
@@ -12,7 +11,10 @@ use super::keys;
 use super::props::PropWorld;
 use super::resident::{Placed, ReflectionPlaced, SectionResources, place, place_reflections};
 use super::zone::Zones;
+mod loading;
 mod shadow_support;
+mod texture_detail;
+mod traffic_support;
 use crate::modding::content::scenery::MapPack;
 
 #[cfg(test)]
@@ -42,6 +44,8 @@ enum TileState {
 }
 
 pub struct Residency {
+    texture_discard: Option<u32>,
+    traffic_support: traffic_support::TrafficSupport,
     sections: Vec<StreamingSection>,
     streamer: Streamer,
     shared_total: usize,
@@ -117,6 +121,8 @@ impl Residency {
             mod_packs.iter().map(|pack| Streamer::spawn(pack.path.clone(), vec![pack.section.clone()], 1)).collect();
         sections.extend(mod_packs.iter().map(|pack| pack.section.clone()));
         Self {
+            texture_discard: None,
+            traffic_support: Default::default(),
             shared_total: shared.len(),
             zones,
             sections,
@@ -170,6 +176,7 @@ impl Residency {
         } else {
             self.update_shadow_support(renderer, [x, y]);
         }
+        self.update_traffic_support();
         self.update_mod_wanted(x, y);
         self.upload_arrived(renderer);
         self.unload_unwanted(renderer);
@@ -224,30 +231,12 @@ impl Residency {
         self.receive_mod();
     }
 
-    fn handle(&mut self, event: StreamerEvent) {
-        match event {
-            StreamerEvent::Loaded(data) if !self.sections[data.index].is_spatial() => self.shared_pending.push(*data),
-            StreamerEvent::Loaded(data) => self.arrived.push_back(*data),
-            StreamerEvent::Failed { index, error } => {
-                log::error!("section {}: {error}", self.sections[index].name);
-                if self.sections[index].is_spatial() {
-                    self.tiles.insert(
-                        index,
-                        TileState::Resident { resources: Default::default(), placed: vec![], packs: vec![] },
-                    );
-                    return;
-                }
-                self.shared_total -= 1;
-            }
-        }
-    }
-
     fn finish_shared(&mut self, renderer: &mut dyn RenderBackend) {
         if self.shared_pending.len() < self.shared_total {
             return;
         }
         let pending = std::mem::take(&mut self.shared_pending);
-        let mut shared = SectionResources::default();
+        let mut shared = SectionResources::with_texture_detail(self.texture_discard.unwrap_or(0));
         for data in &pending {
             shared.upload_textures(renderer, data);
         }
@@ -309,7 +298,10 @@ impl Residency {
     }
 
     fn upload_tile(&mut self, renderer: &mut dyn RenderBackend, mut data: SectionData) {
-        let mut resources = SectionResources { anims: std::mem::take(&mut data.anims), ..Default::default() };
+        let mut resources = SectionResources {
+            anims: std::mem::take(&mut data.anims),
+            ..SectionResources::with_texture_detail(self.texture_discard.unwrap_or(0))
+        };
         resources.upload_textures(renderer, &data);
         resources.upload_meshes(renderer, &data, &self.shared);
         let (mut placed, unresolved) = place(&data, &resources, &self.shared, &self.catalog);
@@ -353,6 +345,7 @@ impl Residency {
             if let Some(TileState::Resident { resources, packs, .. }) = self.tiles.remove(&i) {
                 self.visual_revision = self.visual_revision.wrapping_add(1);
                 resources.release(renderer);
+                self.retain_traffic_collision(i, &packs);
                 self.props.remove_tile(i);
                 for section in packs {
                     self.remove_collision(section, i);
