@@ -71,7 +71,7 @@ fn check(backend: wgpu::Backends) {
     let rcas = RcasScale::new();
 
     // EASU alone: flat areas stay flat, the edge stays monotonic and never overshoots.
-    let mut passes = fsr1_passes(&gpu.device, &rcas, false);
+    let mut passes = fsr1_passes(&gpu.device, &rcas, false, None);
     assert_eq!(passes.iter().map(Fsr1Pass::name).collect::<Vec<_>>(), [FSR1_EASU]);
     let rows = upscale(&gpu, &mut passes);
     let first = &rows[0];
@@ -83,7 +83,7 @@ fn check(backend: wgpu::Backends) {
 
     // With RCAS the edge is sharper: it overshoots the two levels, and the flat areas are untouched.
     rcas.set_stops(0.0);
-    let mut passes = fsr1_passes(&gpu.device, &rcas, true);
+    let mut passes = fsr1_passes(&gpu.device, &rcas, true, None);
     assert_eq!(passes.iter().map(Fsr1Pass::stage).collect::<Vec<_>>(), [Fsr1Stage::Easu, Fsr1Stage::Rcas]);
     assert_eq!(passes[1].name(), FSR1_RCAS);
     let sharp = &upscale(&gpu, &mut passes)[0];

@@ -54,7 +54,7 @@ pub fn update_occluded_position(
     trail: &Trail,
     car: &Body,
     cursor: Vec3,
-    avoidables: &[Body],
+    avoidables: impl IntoIterator<Item = Body>,
     traffic: bool,
     vehicle_half_width: f32,
 ) -> Option<Occlusion> {

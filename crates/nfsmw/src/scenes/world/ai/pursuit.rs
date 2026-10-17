@@ -16,6 +16,7 @@ use super::car::{AiCar, Role, Start};
 use super::cop::{CopCar, CopState};
 use super::traffic::Cruise;
 use super::{Focus, TrafficModel, TrafficWorld};
+use crate::modding::cop_rows::without_models;
 use crate::scenes::world::drive::{CarRig, WorldGround};
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::space;
@@ -86,6 +87,13 @@ impl Pursuit {
         true
     }
 
+    /// Drops the wave's entries of the cop car `name`, whose model did not load: the wave does not wait on it. The rows
+    /// of every level go, as `begin_pursuit` drops them (`cop_rows::without_models`).
+    fn drop_model(&mut self, name: &str) {
+        let rows = std::mem::take(&mut self.rows);
+        self.rows = without_models(rows, &[name.to_owned()]);
+    }
+
     /// The car types of the wave at the current heat (without the helicopter) with how many of each.
     pub fn wave(&self) -> impl Iterator<Item = (&str, u32, u32)> {
         self.row().into_iter().flat_map(ground_cops).map(|c| (c.name.as_str(), c.count, c.chance))
@@ -104,9 +112,14 @@ impl Pursuit {
 impl TrafficWorld {
     /// Starts a chase at `heat` with the wave rows `rows` (one per level); `player` is how the player's car performs. The
     /// rows are the ones `ai/commands.rs` `begin_pursuit` prepared: the mods' waves applied, the cars of them loaded.
+    /// The cars of the support requests are asked for too, at every level, so they load while the chase waits for its
+    /// first support (a support car whose model is not in yet waits for it, `ai/support`).
     pub fn start_pursuit(&mut self, heat: u32, rows: Vec<HeatRow>, player: Performance) {
         self.pursuit = Some(Pursuit::new(heat, rows, player));
         self.police.begin(heat);
+        for name in super::support::support_models() {
+            self.request_cop(name);
+        }
     }
 
     /// Ends the chase without a result (the `pursuit off` command) and removes the cops.
@@ -129,6 +142,14 @@ impl TrafficWorld {
 
     pub fn has_cop_model(&self, name: &str) -> bool {
         self.cop_models.iter().any(|m| m.model.name.eq_ignore_ascii_case(name))
+    }
+
+    /// A cop car model did not load: a chase that is running drops the wave's entries of it (`Pursuit::drop_model`),
+    /// and the support requests that take it (`ai/support`).
+    pub(super) fn cop_model_failed(&mut self, name: &str) {
+        let Some(pursuit) = self.pursuit.as_mut() else { return };
+        pursuit.drop_model(name);
+        pursuit.support.model_failed(name);
     }
 
     pub fn has_helicopter_rig(&self) -> bool {
@@ -284,3 +305,6 @@ impl TrafficWorld {
         )
     }
 }
+
+#[cfg(test)]
+mod tests;

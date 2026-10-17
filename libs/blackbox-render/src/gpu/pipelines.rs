@@ -30,10 +30,13 @@ pub(super) struct Pipelines {
     glossy_layouts: Layouts,
     globals_layout: wgpu::BindGroupLayout,
     texture_layout: wgpu::BindGroupLayout,
-    /// Per target format, indexed by `index(blend, shading)`. A format gets its pipelines the first time
-    /// a scene is drawn into it, and a glossy pipeline only once glossy shading is in use.
-    sets: HashMap<wgpu::TextureFormat, Vec<Option<wgpu::RenderPipeline>>>,
+    /// Per target format and depth test (`(format, depth_prepared)`), indexed by `index(blend, shading)`. A format
+    /// gets its pipelines the first time a scene is drawn into it, and a glossy pipeline only once glossy shading
+    /// is in use. The depth-prepared set holds only the draws [`equal_depth`] allows; the rest use the plain set.
+    sets: HashMap<(wgpu::TextureFormat, bool), Vec<Option<wgpu::RenderPipeline>>>,
     format: wgpu::TextureFormat,
+    /// Used by every pipeline built later, as the pipelines are created per format and draw state.
+    cache: Option<wgpu::PipelineCache>,
 }
 
 /// A shader module and the pipeline layout it is used with.
@@ -46,6 +49,15 @@ fn index(blend: BlendMode, shading: Shading) -> usize {
     let b = BLEND_ORDER.iter().position(|&m| m == blend).unwrap_or(0);
     let s = SHADINGS.iter().position(|&m| m.same_pipeline(shading)).unwrap_or(0);
     b * SHADINGS.len() + s
+}
+
+/// Whether an opaque lit draw can test `Equal` against the camera prepass's depth. The prepass draws every opaque
+/// draw at the same clip position (`@invariant` in both shaders, the same model and view-projection), so a visible
+/// fragment has exactly the depth the prepass wrote. Glossy draws (the prepass skips those without their material),
+/// sky, blended and alpha-tested draws keep the plain test: the prepass does not always cover them, or it samples
+/// its cutout with another LOD bias than the colour pass.
+fn equal_depth(blend: BlendMode, shading: Shading) -> bool {
+    blend == BlendMode::Opaque && matches!(shading, Shading::Lit | Shading::Prelit)
 }
 
 const ADDITIVE: wgpu::BlendState = wgpu::BlendState {
@@ -62,7 +74,12 @@ pub(super) const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 4] =
 
 impl Pipelines {
     /// The pipelines for scenes drawn into `format`, except the glossy ones (see [`Self::use_format`]).
-    pub(super) fn new(device: &wgpu::Device, format: wgpu::TextureFormat, shared: &Shared) -> Self {
+    pub(super) fn new(
+        device: &wgpu::Device,
+        format: wgpu::TextureFormat,
+        shared: &Shared,
+        cache: Option<&wgpu::PipelineCache>,
+    ) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("scene shader"),
             source: wgpu::ShaderSource::Wgsl(
@@ -92,6 +109,7 @@ impl Pipelines {
             texture_layout: shared.bindings.texture_layout.clone(),
             sets: HashMap::new(),
             format,
+            cache: cache.cloned(),
         };
         pipelines.use_format(device, format, false);
         pipelines
@@ -104,21 +122,27 @@ impl Pipelines {
         if glossy && self.glossy.is_none() {
             self.glossy = Some(self.glossy_module(device));
         }
-        let mut set = self.sets.remove(&format).unwrap_or_else(|| vec![None; BLEND_ORDER.len() * SHADINGS.len()]);
-        for (blend, shading) in BLEND_ORDER.iter().flat_map(|&b| SHADINGS.iter().map(move |&s| (b, s))) {
-            let slot = &mut set[index(blend, shading)];
-            let wanted = glossy || !matches!(shading, Shading::Glossy(_));
-            if slot.is_none() && wanted {
-                *slot = Some(self.make(device, format, blend, shading));
+        for prepared in [false, true] {
+            let mut set =
+                self.sets.remove(&(format, prepared)).unwrap_or_else(|| vec![None; BLEND_ORDER.len() * SHADINGS.len()]);
+            for (blend, shading) in BLEND_ORDER.iter().flat_map(|&b| SHADINGS.iter().map(move |&s| (b, s))) {
+                let slot = &mut set[index(blend, shading)];
+                let wanted = match prepared {
+                    true => equal_depth(blend, shading),
+                    false => glossy || !matches!(shading, Shading::Glossy(_)),
+                };
+                if slot.is_none() && wanted {
+                    *slot = Some(self.make(device, format, blend, shading, prepared));
+                }
             }
+            self.sets.insert((format, prepared), set);
         }
-        self.sets.insert(format, set);
     }
 
-    /// How many pipelines exist for `format`.
+    /// How many plain pipelines exist for `format` (the depth-prepared variants are not counted).
     #[cfg(test)]
     pub(super) fn count(&self, format: wgpu::TextureFormat) -> usize {
-        self.sets.get(&format).map_or(0, |set| set.iter().flatten().count())
+        self.sets.get(&(format, false)).map_or(0, |set| set.iter().flatten().count())
     }
 
     /// Whether the glossy shader has been compiled.
@@ -152,12 +176,15 @@ impl Pipelines {
         Module { shader, layout }
     }
 
+    /// `prepared` builds the depth-prepared variant: `Equal` with no depth write. Only [`equal_depth`] draws
+    /// may be built that way, and only in a pass whose depth the camera prepass already filled.
     fn make(
         &self,
         device: &wgpu::Device,
         format: wgpu::TextureFormat,
         blend_mode: BlendMode,
         shading: Shading,
+        prepared: bool,
     ) -> wgpu::RenderPipeline {
         let vertex_layout = wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<Vertex>() as u64,
@@ -170,7 +197,15 @@ impl Pipelines {
             BlendMode::AlphaBlend => ("fs_blend", Some(wgpu::BlendState::ALPHA_BLENDING), false),
             BlendMode::Additive => ("fs_blend", Some(ADDITIVE), false),
         };
-        let label = format!("{blend_mode:?} {shading:?} {format:?}");
+        let label = match prepared {
+            true => format!("{blend_mode:?} {shading:?} {format:?} depth prepared"),
+            false => format!("{blend_mode:?} {shading:?} {format:?}"),
+        };
+        // The prepass wrote this depth with the same clip position, so the draw keeps it: no write needed.
+        let (depth_compare, depth_write) = match prepared {
+            true => (wgpu::CompareFunction::Equal, false),
+            false => (wgpu::CompareFunction::GreaterEqual, depth_write),
+        };
         let prelit = !matches!(shading, Shading::Lit | Shading::Glossy(_));
         let world_kind = match shading {
             Shading::World => 1.0,
@@ -208,8 +243,8 @@ impl Pipelines {
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: DEPTH_FORMAT,
                 depth_write_enabled: Some(depth_write),
-                // Reverse Z: near = 1, far = 0.
-                depth_compare: Some(wgpu::CompareFunction::GreaterEqual),
+                // Reverse Z: near = 1, far = 0. A prepared draw passes only where the prepass depth is its own.
+                depth_compare: Some(depth_compare),
                 stencil: Default::default(),
                 bias: Default::default(),
             }),
@@ -221,12 +256,27 @@ impl Pipelines {
                 targets: &[Some(wgpu::ColorTargetState { format, blend, write_mask: write_mask(format) })],
             }),
             multiview_mask: None,
-            cache: None,
+            cache: self.cache.as_ref(),
         })
     }
 
-    /// The pipeline for the current format, or `None` for glossy shading before it is in use.
-    pub(super) fn get(&self, blend: BlendMode, shading: Shading) -> Option<&wgpu::RenderPipeline> {
-        self.sets.get(&self.format)?.get(index(blend, shading))?.as_ref()
+    /// The pipeline for the current format, or `None` for glossy shading before it is in use. With
+    /// `depth_prepared` (the camera prepass filled this pass's depth) an [`equal_depth`] draw takes its
+    /// depth-prepared variant; every other draw keeps the plain one.
+    pub(super) fn get(
+        &self,
+        blend: BlendMode,
+        shading: Shading,
+        depth_prepared: bool,
+    ) -> Option<&wgpu::RenderPipeline> {
+        let i = index(blend, shading);
+        match depth_prepared {
+            true => self.slot(true, i).or_else(|| self.slot(false, i)),
+            false => self.slot(false, i),
+        }
+    }
+
+    fn slot(&self, prepared: bool, i: usize) -> Option<&wgpu::RenderPipeline> {
+        self.sets.get(&(self.format, prepared))?.get(i)?.as_ref()
     }
 }

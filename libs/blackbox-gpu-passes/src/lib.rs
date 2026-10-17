@@ -18,6 +18,7 @@ mod filter_tests;
 mod fsr1;
 #[cfg(test)]
 mod fsr1_tests;
+pub mod pipeline_cache;
 mod radial_blur;
 #[cfg(test)]
 mod radial_blur_tests;

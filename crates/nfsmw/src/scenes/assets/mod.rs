@@ -148,6 +148,7 @@ fn wheel_motion(clock: f32) -> (f32, f32) {
 
 impl Scene for AssetScene {
     fn close(&mut self, renderer: &mut dyn RenderBackend) {
+        // The viewer uploads nothing but its car, so the car frees all of it.
         self.car.close(renderer);
     }
 

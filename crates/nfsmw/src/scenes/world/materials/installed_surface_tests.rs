@@ -102,7 +102,7 @@ fn installed_original_road_and_donut_windows_resolve_materials_and_release() {
         .with_mesh_tracking()
         .with_texture_tracking();
     let mut shared = SectionResources::default();
-    shared.upload_texture_list(&mut renderer, &textures);
+    shared.upload_texture_list(&mut renderer, &textures, &[]);
     shared.upload_solid_list(&mut renderer, &models.solids, None, &SectionResources::default(), false);
     let mut local = SectionResources::default();
     local.upload_solid_list(&mut renderer, &tile.solids, None, &shared, false);

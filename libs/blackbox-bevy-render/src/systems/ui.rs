@@ -12,6 +12,7 @@ use blackbox_gfx::UiTexturePatch;
 use blackbox_gpu_passes::UiPass;
 
 use crate::ops::{BlackboxBridge, UiOp};
+use crate::pipeline_cache::PipelineCacheFile;
 
 /// Owns the pipeline, the UI textures and the reused vertex and index buffers, created once the device
 /// exists (the first frame a view runs after `upscaling`).
@@ -21,6 +22,7 @@ pub struct UiRender(Option<UiPass>);
 pub fn ui_pass(
     mut render: ResMut<UiRender>,
     bridge: Res<BlackboxBridge>,
+    pipeline_cache: Res<PipelineCacheFile>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
     view: ViewQuery<(&ExtractedCamera, &ViewTarget)>,
@@ -31,7 +33,7 @@ pub fn ui_pass(
     let Some(size) = camera.physical_target_size else { return };
     let format = target.out_texture_view_format().unwrap_or_else(|| target.main_texture_format());
 
-    let pass = render.0.get_or_insert_with(|| UiPass::new(device.wgpu_device()));
+    let pass = render.0.get_or_insert_with(|| UiPass::new(device.wgpu_device(), pipeline_cache.cache()));
 
     let (ops, layer) = {
         let mut shared = bridge.lock();

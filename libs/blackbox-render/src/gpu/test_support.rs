@@ -18,7 +18,7 @@ pub(super) fn test_api() -> Backend {
 
 pub(super) fn options() -> RendererOptions {
     let fallback = std::env::var("BLACKBOX_GPU_FALLBACK").is_ok_and(|v| !v.is_empty() && v != "0");
-    RendererOptions { backend: test_api(), vsync: false, force_fallback_adapter: fallback }
+    RendererOptions { backend: test_api(), vsync: false, force_fallback_adapter: fallback, pipeline_cache_dir: None }
 }
 
 /// A headless renderer of `size`, or `None` (with a note on stderr) when this machine has no adapter

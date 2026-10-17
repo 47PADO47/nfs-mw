@@ -22,8 +22,9 @@ pub(super) struct TonemapPass {
 }
 
 impl TonemapPass {
-    pub(super) fn new(device: &wgpu::Device, settings: &PostSettings) -> Self {
-        Self { filter: Filter::new(device, "tonemap", &tonemap_wgsl()), params: params(settings) }
+    pub(super) fn new(device: &wgpu::Device, settings: &PostSettings, cache: Option<&wgpu::PipelineCache>) -> Self {
+        let filter = Filter::new(device, "tonemap", &tonemap_wgsl()).with_pipeline_cache(cache.cloned());
+        Self { filter, params: params(settings) }
     }
 }
 

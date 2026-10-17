@@ -1,6 +1,6 @@
 use super::*;
 use crate::viewer::Scene;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 struct Events(Arc<Mutex<Vec<CommonEvent>>>);
 

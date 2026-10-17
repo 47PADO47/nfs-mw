@@ -58,14 +58,14 @@ fn check(backend: wgpu::Backends) {
     let (device, queue) = gpu(backend);
     let size = (32, 32);
 
-    // Everything off: the chain is the resolve pass alone and allocates no ping-pong image.
-    let mut chain = PostChain::new(&device);
-    assert_eq!(chain.names(), ["resolve"]);
+    // Everything off: no pass, only the output copy, which allocates no ping-pong image.
+    let mut chain = PostChain::new(&device, None);
+    assert!(chain.names().is_empty());
     assert!(!chain.has_passes());
     run(&device, &queue, &mut chain, size);
-    assert_eq!(chain.scratch_count(), 0, "a single pass reads the scene and writes the output");
+    assert_eq!(chain.scratch_count(), 0, "no pass: the copy reads the scene and writes the output");
     assert!(!chain.set_effects(&device, PostSettings::default()), "the defaults add nothing");
-    assert_eq!(chain.names(), ["resolve"]);
+    assert!(chain.names().is_empty());
 
     // Every effect: three render-size passes need both ping-pong images.
     let all = PostSettings {
@@ -79,20 +79,20 @@ fn check(backend: wgpu::Backends) {
     run(&device, &queue, &mut chain, size);
     assert_eq!(chain.scratch_count(), 2);
 
-    // Dropping to one effect frees the second image on the next frame, and dropping them all frees both.
+    // One effect writes the output directly, so the images of the removed passes are freed on the next frame.
     let fxaa = PostSettings { antialiasing: Antialiasing::Fxaa, ..PostSettings::default() };
     assert!(chain.set_effects(&device, fxaa));
     run(&device, &queue, &mut chain, size);
-    assert_eq!(chain.scratch_count(), 1);
+    assert_eq!(chain.scratch_count(), 0, "a single pass reads the scene and writes the output");
     assert!(chain.set_effects(&device, PostSettings::default()));
     run(&device, &queue, &mut chain, size);
-    assert_eq!(chain.names(), ["resolve"]);
+    assert!(chain.names().is_empty());
     assert_eq!(chain.scratch_count(), 0, "the images of removed passes do not linger");
 
     // The scene pipelines: a format gets its own set when first used, glossy ones only on request.
     let shared = Shared::new(&device);
     let (surface, hdr) = (wgpu::TextureFormat::Rgba8Unorm, HDR_FORMAT);
-    let mut pipelines = super::pipelines::Pipelines::new(&device, surface, &shared);
+    let mut pipelines = super::pipelines::Pipelines::new(&device, surface, &shared, None);
     assert_eq!(pipelines.count(surface), 28, "4 blend modes x lit, prelit, sky and four authored world families");
     assert_eq!(pipelines.count(hdr), 0, "the HDR set is not built until HDR is used");
     assert!(!pipelines.has_glossy(), "the glossy shader is not compiled");

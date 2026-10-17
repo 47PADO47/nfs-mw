@@ -59,11 +59,17 @@ impl Sky {
         }
     }
 
-    pub(super) fn prepare(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, format: wgpu::TextureFormat) {
+    pub(super) fn prepare(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        format: wgpu::TextureFormat,
+        cache: Option<&wgpu::PipelineCache>,
+    ) {
         self.pipelines.entry(format).or_insert_with(|| {
             [
-                pipeline::create(device, &self.shader, &self.layout, format, false),
-                pipeline::create(device, &self.shader, &self.layout, format, true),
+                pipeline::create(device, &self.shader, &self.layout, format, false, cache),
+                pipeline::create(device, &self.shader, &self.layout, format, true, cache),
             ]
         });
         let intensity = self.state.cloud_intensity.map(|x| match x.is_finite() {

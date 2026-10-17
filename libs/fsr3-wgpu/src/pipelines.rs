@@ -15,6 +15,7 @@ use wgpu::{
 use crate::{
     config::Fsr3Config,
     constants::CONSTANTS_SIZE,
+    formats::Intermediates,
     shaders::{OVERRIDE_NAMES, Pass, module_source},
 };
 
@@ -102,6 +103,7 @@ fn uniform_entry() -> BindGroupLayoutEntry {
 
 fn step(
     device: &Device,
+    cache: Option<&wgpu::PipelineCache>,
     module: &ShaderModule,
     entry_point: &str,
     slots: &[(u32, Slot)],
@@ -122,21 +124,22 @@ fn step(
         module,
         entry_point: Some(entry_point),
         compilation_options: PipelineCompilationOptions { constants, ..Default::default() },
-        cache: None,
+        cache,
     });
     Step { layout, pipeline }
 }
 
-fn module(device: &Device, pass: Pass, output_format: TextureFormat) -> ShaderModule {
+fn module(device: &Device, pass: Pass, output_format: TextureFormat, formats: Intermediates) -> ShaderModule {
     device.create_shader_module(ShaderModuleDescriptor {
         label: Some(pass.file_name()),
-        source: ShaderSource::Wgsl(module_source(pass, output_format).into()),
+        source: ShaderSource::Wgsl(module_source(pass, output_format, formats).into()),
     })
 }
 
 impl Pipelines {
-    pub fn new(device: &Device, config: &Fsr3Config) -> Self {
+    pub fn new(device: &Device, config: &Fsr3Config, formats: Intermediates) -> Self {
         let output = config.output_format;
+        let cache = config.pipeline_cache.as_ref();
         let flag = |on: bool| if on { 1.0 } else { 0.0 };
         // The values in the order of OVERRIDE_NAMES.
         let constants = |sharpen: bool| {
@@ -153,54 +156,64 @@ impl Pipelines {
         let plain = constants(false);
         let sharpen = constants(true);
         let r32 = TextureFormat::R32Float;
-        let rg32 = TextureFormat::Rg32Float;
         let rgba16 = TextureFormat::Rgba16Float;
 
-        let m = module(device, Pass::PrepareInputs, output);
+        let m = module(device, Pass::PrepareInputs, output, formats);
         let prepare_inputs = step(
             device,
+            cache,
             &m,
             "cs_main",
             &[
                 (1, Texture),
                 (2, Texture),
                 (3, Texture),
-                (4, StoreTexture(rg32)),
+                (4, StoreTexture(formats.pair)),
                 (5, StoreTexture(r32)),
                 (6, StoreTexture(r32)),
-                (7, StoreTexture(r32)),
+                (7, StoreTexture(formats.single)),
                 (8, BufferWrite),
             ],
             &plain,
         );
 
-        let m = module(device, Pass::LumaPyramid, output);
+        let m = module(device, Pass::LumaPyramid, output, formats);
         let luma_reduce = step(
             device,
+            cache,
             &m,
             "cs_reduce",
             &[(1, Texture), (2, Texture), (3, StoreTexture(r32)), (4, BufferWrite)],
             &plain,
         );
-        let luma_final = step(device, &m, "cs_final", &[(4, BufferWrite), (5, BufferWrite), (6, Texture)], &plain);
+        let luma_final =
+            step(device, cache, &m, "cs_final", &[(4, BufferWrite), (5, BufferWrite), (6, Texture)], &plain);
 
-        let m = module(device, Pass::ShadingChangePyramid, output);
+        let m = module(device, Pass::ShadingChangePyramid, output, formats);
         let shading_level0 = step(
             device,
+            cache,
             &m,
             "cs_level0",
-            &[(1, Texture), (2, Texture), (3, Texture), (4, BufferRead), (5, StoreTexture(rg32))],
+            &[(1, Texture), (2, Texture), (3, Texture), (4, BufferRead), (5, StoreTexture(formats.pair))],
             &plain,
         );
-        let shading_down = step(device, &m, "cs_down", &[(5, StoreTexture(rg32)), (6, Texture)], &plain);
+        let shading_down = step(device, cache, &m, "cs_down", &[(5, StoreTexture(formats.pair)), (6, Texture)], &plain);
 
-        let m = module(device, Pass::ShadingChange, output);
-        let shading_change =
-            step(device, &m, "cs_main", &[(1, Texture), (2, Texture), (3, Texture), (4, StoreTexture(r32))], &plain);
+        let m = module(device, Pass::ShadingChange, output, formats);
+        let shading_change = step(
+            device,
+            cache,
+            &m,
+            "cs_main",
+            &[(1, Texture), (2, Texture), (3, Texture), (4, StoreTexture(formats.single))],
+            &plain,
+        );
 
-        let m = module(device, Pass::PrepareReactivity, output);
+        let m = module(device, Pass::PrepareReactivity, output, formats);
         let prepare_reactivity = step(
             device,
+            cache,
             &m,
             "cs_main",
             &[
@@ -214,15 +227,16 @@ impl Pipelines {
                 (8, Texture),
                 (9, BufferRead),
                 (10, StoreTexture(rgba16)),
-                (11, StoreTexture(r32)),
-                (12, StoreTextureReadWrite(r32)),
+                (11, StoreTexture(formats.single)),
+                (12, StoreTextureReadWrite(formats.lock)),
             ],
             &plain,
         );
 
-        let m = module(device, Pass::LumaInstability, output);
+        let m = module(device, Pass::LumaInstability, output, formats);
         let luma_instability = step(
             device,
+            cache,
             &m,
             "cs_main",
             &[
@@ -232,12 +246,12 @@ impl Pipelines {
                 (4, Texture),
                 (5, BufferRead),
                 (6, StoreTexture(rgba16)),
-                (7, StoreTexture(r32)),
+                (7, StoreTexture(formats.single)),
             ],
             &plain,
         );
 
-        let m = module(device, Pass::Accumulate, output);
+        let m = module(device, Pass::Accumulate, output, formats);
         let accumulate_slots = [
             (1, Texture),
             (2, Texture),
@@ -249,13 +263,14 @@ impl Pipelines {
             (8, BufferRead),
             (9, StoreTexture(rgba16)),
             (10, StoreTexture(output)),
-            (11, StoreTextureReadWrite(r32)),
+            (11, StoreTextureReadWrite(formats.lock)),
         ];
-        let accumulate = step(device, &m, "cs_main", &accumulate_slots, &plain);
-        let accumulate_sharpen = step(device, &m, "cs_main", &accumulate_slots, &sharpen);
+        let accumulate = step(device, cache, &m, "cs_main", &accumulate_slots, &plain);
+        let accumulate_sharpen = step(device, cache, &m, "cs_main", &accumulate_slots, &sharpen);
 
-        let m = module(device, Pass::Rcas, output);
-        let rcas = step(device, &m, "cs_main", &[(1, Texture), (2, BufferRead), (3, StoreTexture(output))], &sharpen);
+        let m = module(device, Pass::Rcas, output, formats);
+        let rcas =
+            step(device, cache, &m, "cs_main", &[(1, Texture), (2, BufferRead), (3, StoreTexture(output))], &sharpen);
 
         Self {
             prepare_inputs,

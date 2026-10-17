@@ -46,6 +46,7 @@ pub(super) fn create(
     layout: &wgpu::PipelineLayout,
     format: wgpu::TextureFormat,
     blend: bool,
+    cache: Option<&wgpu::PipelineCache>,
 ) -> wgpu::RenderPipeline {
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("authored atmospheric sky"),
@@ -88,6 +89,6 @@ pub(super) fn create(
             })],
         }),
         multiview_mask: None,
-        cache: None,
+        cache,
     })
 }

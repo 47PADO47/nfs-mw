@@ -37,8 +37,8 @@ fn installed_road_reflection_slots_resolve_without_owning_extra_gpu_resources() 
     );
     scene.close(&mut renderer);
     scene.close(&mut renderer);
-    // Existing WorldScene::close releases registered materials but retains ordinary world
-    // meshes. Exercise their actual owners separately; the reflected feed owns no handles.
+    // WorldScene::close frees every resident tile, so the drain below finds nothing left; the reflected feed owns
+    // no handles of its own.
     for state in scene.residency.tiles.drain().map(|(_, state)| state) {
         if let super::super::TileState::Resident { resources, .. } = state {
             resources.release(&mut renderer);

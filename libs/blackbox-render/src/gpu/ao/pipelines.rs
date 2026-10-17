@@ -6,7 +6,7 @@ pub(super) struct Pipelines {
 }
 
 impl Pipelines {
-    pub fn new(device: &wgpu::Device) -> Self {
+    pub fn new(device: &wgpu::Device, cache: Option<&wgpu::PipelineCache>) -> Self {
         let sources = super::sources();
         let shaders = sources.map(|(label, source)| {
             device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -21,7 +21,7 @@ impl Pipelines {
                 module: &shaders[index],
                 entry_point: Some(entry),
                 compilation_options: Default::default(),
-                cache: None,
+                cache,
             })
         };
         Self {
@@ -50,7 +50,7 @@ impl Pipelines {
                 depth_stencil: None,
                 multisample: Default::default(),
                 multiview_mask: None,
-                cache: None,
+                cache,
             }),
         }
     }

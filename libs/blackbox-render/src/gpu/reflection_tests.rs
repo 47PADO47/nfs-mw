@@ -177,7 +177,12 @@ fn local_reflections_capture_all_axes_and_follow_quality_origin_and_off() {
     let _gpu = serial();
     let mut native = Renderer::headless(
         (SIZE[0], SIZE[1]),
-        RendererOptions { backend: GraphicsApi::Vulkan, vsync: false, force_fallback_adapter: false },
+        RendererOptions {
+            backend: GraphicsApi::Vulkan,
+            vsync: false,
+            force_fallback_adapter: false,
+            pipeline_cache_dir: None,
+        },
     )
     .expect("Vulkan adapter");
     exercise(&mut native);

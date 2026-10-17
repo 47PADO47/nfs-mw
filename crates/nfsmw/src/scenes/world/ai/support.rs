@@ -3,6 +3,7 @@
 //! [`session`] (the request's state, the placement, the timers) and [`spawn`] (one car on the road). The car model of each
 //! role is named here, not in the library (`blackbox_pursuit::support::Car`). Spec: `docs/specs/ai-pursuit-support.md`.
 
+use blackbox_pursuit::support::cars::{cars_for, leader};
 use blackbox_pursuit::support::{Car, Option_, Strategy};
 
 mod session;
@@ -65,6 +66,46 @@ pub fn car_model(car: Car) -> &'static str {
     }
 }
 
+/// The cop car models the support requests of a chase can take, at any heat level 1 to 10. A chase's heat moves both
+/// ways, so all of them are asked for when the chase starts. Each name once, in the order of the levels.
+pub fn support_models() -> Vec<&'static str> {
+    let mut names: Vec<&'static str> = Vec::new();
+    for level in 1..=10 {
+        for car in support_cars(level) {
+            let name = car_model(car);
+            if !names.contains(&name) {
+                names.push(name);
+            }
+        }
+    }
+    names
+}
+
+/// The cars the options of a heat level can take. A heavy option takes the big SUV when its big-SUV chance is above 0,
+/// and the small one when it is below 100. A leader option takes the cross car, and the V cars for each further car it
+/// takes. The heavy roadblock is built by its own code (`ai/roadblock.rs`), so it is left out.
+fn support_cars(level: u32) -> Vec<Car> {
+    let mut cars = Vec::new();
+    for option in heavy_options(level) {
+        if option.strategy == Strategy::HeavyRoadblock {
+            continue;
+        }
+        let big = big_suv_chance(level, option.strategy);
+        if big > 0.0 {
+            cars.push(Car::BigSuv);
+        }
+        if big < 100.0 {
+            cars.push(Car::Suv);
+        }
+    }
+    for (option, _, _) in leader_options(level) {
+        for index in 0..cars_for(option.strategy) {
+            cars.push(leader(index));
+        }
+    }
+    cars
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -114,5 +155,12 @@ mod tests {
         assert_eq!(car_model(Car::Suv), "copsuvl");
         assert_eq!(car_model(Car::Cross), "copcross");
         assert_eq!(car_model(Car::Hench), "copsporthench");
+    }
+
+    #[test]
+    fn the_support_models_are_the_suvs_and_cross_car_the_options_take() {
+        // Level 3's ram takes the small SUV, levels 4 to 7 the big one, level 5 on the cross car. The V cars are not
+        // taken by any option of the rows, and the roadblock is not a request.
+        assert_eq!(support_models(), vec!["copsuvl", "copsuv", "copcross"]);
     }
 }

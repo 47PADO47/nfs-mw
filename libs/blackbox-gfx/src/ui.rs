@@ -19,7 +19,7 @@ pub struct UiVertex {
 }
 
 /// Triangles drawn with one texture inside one clip rectangle.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct UiMesh {
     pub vertices: Vec<UiVertex>,
     /// Indices into `vertices`, three per triangle.
@@ -30,7 +30,7 @@ pub struct UiMesh {
 }
 
 /// Everything the UI draws in one frame.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct UiLayer {
     /// Pixels per point (the display's scale factor, times any user zoom).
     pub pixels_per_point: f32,

@@ -54,15 +54,55 @@ pub(super) fn written_extent(upscaled: bool, extent: Extent) -> Extent {
     }
 }
 
-/// Where a pass of size `new` goes in a chain whose passes write `extents` (the last is the resolve
-/// pass), when it is asked to run at `index`. An output-size pass goes right before the resolve pass
-/// whatever the index; a render-size pass goes at `index` but stays before the first output-size pass.
-pub(super) fn insert_index(extents: &[Extent], index: usize, new: Extent) -> usize {
-    let resolve = extents.len().saturating_sub(1);
-    if new == Extent::Output {
-        return resolve;
+/// Whether a fragment written straight into `format` is clamped to [0, 1] on the way, as the SDR resolve copy
+/// clamps it: true for the 8-bit normalised formats. A float target is not clamped, so it always takes the copy,
+/// whose HDR entry point passes the range through.
+pub(super) fn clamps_on_write(format: wgpu::TextureFormat) -> bool {
+    matches!(
+        format,
+        wgpu::TextureFormat::Rgba8Unorm
+            | wgpu::TextureFormat::Rgba8UnormSrgb
+            | wgpu::TextureFormat::Bgra8Unorm
+            | wgpu::TextureFormat::Bgra8UnormSrgb
+    )
+}
+
+/// Whether the output needs the resolve copy after the chain whose passes write `extents`. Without any pass the
+/// copy is the whole chain. A temporal upscaler last (`temporal_last`) keeps its copy (`post/fsr3.rs`). Any other
+/// last pass writes the output itself when that is exact: it is output-sized (an upscaler scales its own input), or
+/// it reads an image already the output size, and the output format clamps on write like the SDR copy does.
+/// `render` is the size of the scene, `output` the size of the output.
+pub(super) fn needs_resolve(
+    extents: &[Extent],
+    temporal_last: bool,
+    render: (u32, u32),
+    output: (u32, u32),
+    format: wgpu::TextureFormat,
+) -> bool {
+    let Some(last) = extents.last() else { return true };
+    if temporal_last || !clamps_on_write(format) {
+        return true;
     }
-    let first_output = extents.iter().position(|e| *e == Extent::Output).unwrap_or(resolve);
+    if *last == Extent::Output {
+        return false;
+    }
+    // The last pass reads what the one before it wrote: the output size once any pass has upscaled.
+    let upscaled = extents[..extents.len() - 1].contains(&Extent::Output);
+    let input = match upscaled {
+        true => output,
+        false => render,
+    };
+    input != output
+}
+
+/// Where a pass of size `new` goes in a chain whose passes write `extents`, when it is asked to run at
+/// `index`. An output-size pass goes last whatever the index; a render-size pass goes at `index` but stays
+/// before the first output-size pass.
+pub(super) fn insert_index(extents: &[Extent], index: usize, new: Extent) -> usize {
+    if new == Extent::Output {
+        return extents.len();
+    }
+    let first_output = extents.iter().position(|e| *e == Extent::Output).unwrap_or(extents.len());
     index.min(first_output)
 }
 
@@ -112,18 +152,34 @@ mod tests {
     }
 
     #[test]
-    fn inserted_passes_stay_before_resolve_and_output_passes_stay_last() {
+    fn inserted_passes_stay_before_output_passes_and_output_passes_stay_last() {
         use Extent::{Output, Render};
-        // Chain: [resolve].
-        assert_eq!(insert_index(&[Render], 0, Render), 0);
-        assert_eq!(insert_index(&[Render], 99, Render), 0, "before the resolve pass");
-        assert_eq!(insert_index(&[Render], 99, Output), 0);
-        // Chain: [bloom, upscale, resolve]: render-size passes cannot pass the upscaler.
+        // Chain: [].
+        assert_eq!(insert_index(&[], 99, Render), 0);
+        assert_eq!(insert_index(&[], 99, Output), 0);
+        // Chain: [bloom]: a render-size pass goes at its index, past the end included.
+        assert_eq!(insert_index(&[Render], 99, Render), 1);
+        // Chain: [bloom, upscale, effect]: render-size passes cannot pass the upscaler.
         let chain = [Render, Output, Render];
         assert_eq!(insert_index(&chain, 99, Render), 1);
         assert_eq!(insert_index(&chain, 2, Render), 1);
         assert_eq!(insert_index(&chain, 0, Render), 0);
-        assert_eq!(insert_index(&chain, 99, Output), 2, "a second output pass follows the first");
-        assert_eq!(insert_index(&chain, 0, Output), 2, "output passes ignore the index");
+        assert_eq!(insert_index(&chain, 99, Output), 3, "a second output pass goes last");
+        assert_eq!(insert_index(&chain, 0, Output), 3, "output passes ignore the index");
+    }
+
+    #[test]
+    fn the_copy_is_needed_only_when_the_last_pass_cannot_write_the_output() {
+        use Extent::{Output, Render};
+        let rgba = wgpu::TextureFormat::Rgba8UnormSrgb;
+        let (small, big) = ((4, 4), (8, 8));
+        assert!(needs_resolve(&[], false, small, small, rgba), "with no pass the copy is the whole chain");
+        assert!(!needs_resolve(&[Render], false, small, small, rgba), "same size: the pass writes the output");
+        assert!(needs_resolve(&[Render], false, small, big, rgba), "a render-size pass would be scaled by the copy");
+        assert!(!needs_resolve(&[Output], false, small, big, rgba), "an output-size pass scales its own input");
+        assert!(!needs_resolve(&[Render, Output, Render], false, small, big, rgba), "its input is output-sized");
+        assert!(needs_resolve(&[Output], true, small, big, rgba), "a temporal last pass keeps its copy");
+        let float = wgpu::TextureFormat::Rgba16Float;
+        assert!(needs_resolve(&[Render], false, small, small, float), "a float output takes the copy's HDR path");
     }
 }

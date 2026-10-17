@@ -99,8 +99,9 @@ the live selection, and **Restore startup** restores the initial graphics settin
 including whichever prototypes were enabled at startup. Gameplay settings are excluded from these restores.
 
 The same panel exposes existing car reflections, AO, tone mapping, bloom, AA and
-Visual Treatment. Native Vulkan/DX12 now support genuine **SMAA 1x**, using the
-MIT-licensed [smaa-rs](https://codeberg.org/fintelia/smaa-rs) dependency (0.21.0).
+Visual Treatment. Native Vulkan/DX12 now support genuine **SMAA 1x**, using `libs/blackbox-smaa`, our own WGSL
+port that follows the MIT-licensed [smaa-rs](https://codeberg.org/fintelia/smaa-rs) crate (0.21.0) and uses the
+pipeline cache.
 It detects edges, computes spatial blend weights and resolves the current frame
 before drawing the UI. It has no jitter, reprojection or frame-history input.
 OpenGL retains its existing FXAA fallback. Native TAA requests report their backend downgrade; temporal AA is not implemented there.

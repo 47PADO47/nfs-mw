@@ -13,6 +13,7 @@ fn build(
     settings: &PostSettings,
     profile: Option<&super::treatment::Profile>,
     hdr: bool,
+    cache: Option<&wgpu::PipelineCache>,
 ) -> Vec<Box<dyn PostPass>> {
     let mut passes: Vec<Box<dyn PostPass>> = Vec::new();
     for effect in settings.effects() {
@@ -28,30 +29,22 @@ fn build(
                     device,
                     settings,
                     profile.expect("profile checked above"),
+                    cache,
                 )))
             }
-            PostEffect::Bloom => passes.push(Box::new(BloomPass::new(device, settings))),
-            PostEffect::Fxaa => passes.push(Box::new(FxaaPass::new(device))),
-            PostEffect::Tonemap => passes.push(Box::new(TonemapPass::new(device, settings))),
+            PostEffect::Bloom => passes.push(Box::new(BloomPass::new(device, settings, cache))),
+            PostEffect::Fxaa => passes.push(Box::new(FxaaPass::new(device, cache))),
+            PostEffect::Tonemap => passes.push(Box::new(TonemapPass::new(device, settings, cache))),
         }
     }
     passes
 }
 
 impl PostChain {
+    /// Rebuild the effect passes at the front of the chain from the current settings and profile, then give
+    /// every pass the display mapping. Used when the effect list is invalid: a profile or a display change.
     pub(super) fn rebuild_effects(&mut self, device: &wgpu::Device) {
-        let fresh = build(device, &self.settings, self.profile.as_ref(), self.display.is_some());
-        let count = fresh.len();
-        self.passes.splice(..self.effect_count, fresh);
-        self.effect_count = count;
-        for pass in &mut self.passes {
-            pass.set_display(self.display);
-        }
-    }
-    /// Profile changes invalidate the effect list even when the user settings stay the same.
-    pub(super) fn set_treatment(&mut self, device: &wgpu::Device, profile: Option<super::treatment::Profile>) {
-        self.profile = profile;
-        let fresh = build(device, &self.settings, self.profile.as_ref(), self.display.is_some());
+        let fresh = build(device, &self.settings, self.profile.as_ref(), self.display.is_some(), self.cache.as_ref());
         let count = fresh.len();
         self.passes.splice(..self.effect_count, fresh);
         self.effect_count = count;
@@ -60,21 +53,21 @@ impl PostChain {
         }
     }
 
+    /// Profile changes invalidate the effect list even when the user settings stay the same.
+    pub(super) fn set_treatment(&mut self, device: &wgpu::Device, profile: Option<super::treatment::Profile>) {
+        self.profile = profile;
+        self.rebuild_effects(device);
+    }
+
     /// Replace the effect passes at the front of the chain with those `settings` ask for. Returns
-    /// whether anything changed. Other passes and the resolve pass stay.
+    /// whether anything changed. Other passes stay.
     pub(in crate::gpu) fn set_effects(&mut self, device: &wgpu::Device, settings: PostSettings) -> bool {
         let settings = settings.sanitized();
         if settings == self.settings {
             return false;
         }
-        let fresh = build(device, &settings, self.profile.as_ref(), self.display.is_some());
-        let count = fresh.len();
-        self.passes.splice(..self.effect_count, fresh);
-        self.effect_count = count;
         self.settings = settings;
-        for pass in &mut self.passes {
-            pass.set_display(self.display);
-        }
+        self.rebuild_effects(device);
         true
     }
 
@@ -99,7 +92,7 @@ impl Renderer {
     }
 
     /// Turn the post-process effects (bloom, tone mapping, FXAA) on or off and set their strength.
-    /// They run on the scene at the internal render size, before the final resolve; the UI is never
+    /// They run on the scene at the internal render size, before the output; the UI is never
     /// affected. The default [`PostSettings`] runs none, so the frame is the plain clamped scene.
     /// Values are clamped into their ranges; setting the current value again does nothing.
     pub fn set_post_effects(&mut self, settings: PostSettings) {

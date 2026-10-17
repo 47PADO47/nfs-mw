@@ -23,6 +23,7 @@ pub mod mesh;
 pub mod ops;
 #[cfg(test)]
 mod parity_tests;
+mod pipeline_cache;
 pub mod plugin;
 pub mod post;
 #[cfg(test)]

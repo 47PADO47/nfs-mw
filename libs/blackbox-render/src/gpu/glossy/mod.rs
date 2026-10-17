@@ -58,7 +58,12 @@ impl Glossy {
     pub(super) fn has_material(&self, handle: GlossyMaterialHandle) -> bool {
         self.materials.get(handle.raw()).is_some()
     }
-    pub(super) fn new(device: &wgpu::Device, queue: &wgpu::Queue, layouts: Layouts) -> Self {
+    pub(super) fn new(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        layouts: Layouts,
+        cache: Option<&wgpu::PipelineCache>,
+    ) -> Self {
         let rig = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("glossy rig"),
             contents: bytemuck::bytes_of(&RigUniform::new(&LightingRig::default())),
@@ -75,7 +80,7 @@ impl Glossy {
         });
         let faces = env::sky_faces(&SkyGradient::default(), SKY_FACE_SIZE);
         let (view, face_view) = environment_view(device, queue, SKY_FACE_SIZE, &faces.each_ref().map(Vec::as_slice));
-        let irradiance = irradiance::Irradiance::new(device);
+        let irradiance = irradiance::Irradiance::new(device, cache);
         let scene = scene_group(device, &layouts, &rig, &view, &face_view, &sampler, &irradiance.buffer);
         Self {
             layouts,
@@ -212,8 +217,9 @@ fn ensure<'a>(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     layouts: &Layouts,
+    cache: Option<&wgpu::PipelineCache>,
 ) -> &'a mut Glossy {
-    glossy.get_or_insert_with(|| Glossy::new(device, queue, layouts.clone()))
+    glossy.get_or_insert_with(|| Glossy::new(device, queue, layouts.clone(), cache))
 }
 
 impl Renderer {
@@ -246,7 +252,8 @@ impl Renderer {
     /// every frame the cars are drawn.
     pub fn set_lighting_rig(&mut self, rig: &LightingRig) {
         let brightness = self.graphics.vehicle_reflection_brightness.0;
-        let glossy = ensure(&mut self.glossy, &self.device, &self.queue, &self.shared.glossy);
+        let glossy =
+            ensure(&mut self.glossy, &self.device, &self.queue, &self.shared.glossy, self.pipeline_cache.as_ref());
         self.queue.write_buffer(&glossy.rig, 0, bytemuck::bytes_of(&RigUniform::new(rig)));
         glossy.sync_brightness(&self.queue, brightness);
     }
@@ -266,7 +273,8 @@ impl Renderer {
             log::warn!("environment faces are smaller than {size}x{size} RGBA8: keeping the old environment");
             return;
         }
-        let glossy = ensure(&mut self.glossy, &self.device, &self.queue, &self.shared.glossy);
+        let glossy =
+            ensure(&mut self.glossy, &self.device, &self.queue, &self.shared.glossy, self.pipeline_cache.as_ref());
         let (view, face_view) = environment_view(&self.device, &self.queue, size, &faces.map(|f| &f[..texel_bytes]));
         glossy.scene = scene_group(
             &self.device,
@@ -286,7 +294,8 @@ impl Renderer {
     /// Register a material for [`Shading::Glossy`](crate::Shading::Glossy) draws.
     pub fn create_glossy_material(&mut self, material: &GlossyMaterial) -> GlossyMaterialHandle {
         let brightness = self.graphics.vehicle_reflection_brightness.0;
-        let glossy = ensure(&mut self.glossy, &self.device, &self.queue, &self.shared.glossy);
+        let glossy =
+            ensure(&mut self.glossy, &self.device, &self.queue, &self.shared.glossy, self.pipeline_cache.as_ref());
         let buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("glossy material"),
             contents: bytemuck::bytes_of(&MaterialUniform::new(material, brightness)),

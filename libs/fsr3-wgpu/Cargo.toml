@@ -1,6 +1,6 @@
 [package]
 name = "fsr3-wgpu"
-description = "AMD FidelityFX Super Resolution 3.1 temporal upscaler ported to WGSL for wgpu (Vulkan, Direct3D 12): no subgroup operations, fp32."
+description = "AMD FidelityFX Super Resolution 3.1 temporal upscaler ported to WGSL for wgpu (Vulkan, Direct3D 12): no subgroup operations, 16-bit intermediates where the adapter stores them."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

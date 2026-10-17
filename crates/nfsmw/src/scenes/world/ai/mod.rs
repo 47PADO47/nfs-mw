@@ -21,6 +21,7 @@ mod pattern;
 mod police;
 mod population;
 mod pursuit;
+mod release;
 mod road_reflection;
 mod roadblock;
 mod scene;

@@ -96,9 +96,10 @@ impl Normal {
         queue: &wgpu::Queue,
         format: wgpu::TextureFormat,
         frame: &FrameParams,
+        cache: Option<&wgpu::PipelineCache>,
     ) {
         self.pipelines.entry(format).or_insert_with(|| {
-            BLEND_ORDER.map(|mode| pipeline::create(device, &self.shader, &self.layout, format, mode, true))
+            BLEND_ORDER.map(|mode| pipeline::create(device, &self.shader, &self.layout, format, mode, true, cache))
         });
         let specular = frame
             .surface_light

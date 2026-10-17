@@ -41,6 +41,7 @@ impl Renderer {
             // Nothing presents a headless frame, so let the device retire finished work itself.
             None => drop(self.device.poll(wgpu::PollType::Poll)),
         }
+        self.count_frame();
         Ok(true)
     }
 
@@ -204,18 +205,18 @@ impl Renderer {
         self.pipelines.use_format(&self.device, format, self.glossy.is_some());
         self.effects.use_format(&self.device, format);
         if let Some(sky) = &mut self.sky {
-            sky.prepare(&self.device, &self.queue, format);
+            sky.prepare(&self.device, &self.queue, format, self.pipeline_cache.as_ref());
         }
         if self.experiments.original_world_materials
             && !projected
             && let Some(normal) = &mut self.normal
         {
-            normal.prepare(&self.device, &self.queue, format, frame);
+            normal.prepare(&self.device, &self.queue, format, frame, self.pipeline_cache.as_ref());
         }
         if (self.experiments.original_world_materials || projected)
             && let Some(window) = &mut self.window
         {
-            window.prepare(&self.device, format);
+            window.prepare(&self.device, format, self.pipeline_cache.as_ref());
         }
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("scene"),
@@ -272,7 +273,7 @@ impl Renderer {
                 if reflection && !projected && matches!(shading, Shading::Glossy(_)) {
                     continue;
                 }
-                let Some(pipeline) = self.pipelines.get(mode, shading) else { continue };
+                let Some(pipeline) = self.pipelines.get(mode, shading, prepared_depth) else { continue };
                 pass.set_pipeline(pipeline);
                 if !matches!(shading, Shading::Glossy(_)) {
                     pass.set_bind_group(2, &self.shared.shadows.fallback, &[]);

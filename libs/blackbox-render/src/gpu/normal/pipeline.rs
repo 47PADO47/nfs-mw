@@ -52,6 +52,7 @@ pub(in crate::gpu) fn create(
     format: wgpu::TextureFormat,
     mode: BlendMode,
     tangent: bool,
+    cache: Option<&wgpu::PipelineCache>,
 ) -> wgpu::RenderPipeline {
     let (entry, blend, depth_write) = match mode {
         BlendMode::Opaque => ("fs_opaque", None, true),
@@ -110,6 +111,6 @@ pub(in crate::gpu) fn create(
             targets: &[Some(wgpu::ColorTargetState { format, blend, write_mask: write_mask(format) })],
         }),
         multiview_mask: None,
-        cache: None,
+        cache,
     })
 }

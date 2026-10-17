@@ -212,9 +212,11 @@ fn installed_original_road_and_glass_render_with_live_lighting_at_high_fps_dx12(
 
 fn installed_surface_run(api: blackbox_gfx::GraphicsApi) {
     let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR").expect("set NFSMW_GAME_DIR")).unwrap();
-    let mut renderer =
-        Renderer::headless(SIZE, RendererOptions { backend: api, vsync: false, force_fallback_adapter: false })
-            .expect("selected GPU API must be available");
+    let mut renderer = Renderer::headless(
+        SIZE,
+        RendererOptions { backend: api, vsync: false, force_fallback_adapter: false, pipeline_cache_dir: None },
+    )
+    .expect("selected GPU API must be available");
     let mut graphics = *renderer.graphics();
     graphics.post = Default::default();
     graphics.ao.quality = AoQuality::Off;
@@ -271,7 +273,7 @@ fn installed_surface_run(api: blackbox_gfx::GraphicsApi) {
     textures.retain(|t| needed.contains(&t.name_hash));
     assert!(needed.iter().all(|h| textures.iter().any(|t| t.name_hash == *h)));
     let mut shared = SectionResources::default();
-    shared.upload_texture_list(&mut renderer, &textures);
+    shared.upload_texture_list(&mut renderer, &textures, &[]);
     shared.upload_solid_list(&mut renderer, &shared_data.solids, None, &SectionResources::default(), false);
     let mut local = SectionResources::default();
     local.upload_solid_list(&mut renderer, &tile.solids, None, &shared, false);

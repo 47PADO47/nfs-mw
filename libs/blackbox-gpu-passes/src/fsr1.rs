@@ -93,16 +93,23 @@ pub struct Fsr1Pass {
     pipelines: HashMap<wgpu::TextureFormat, wgpu::RenderPipeline>,
     /// Bind groups per input view: the parameter buffer and the layout never change.
     bind_groups: BindCache<wgpu::TextureView, wgpu::BindGroup>,
+    /// Used by the pipelines built per output format.
+    cache: Option<wgpu::PipelineCache>,
 }
 
 /// The upscale pass, then the sharpening pass when `sharpen` is set.
-pub fn fsr1_passes(device: &wgpu::Device, rcas: &RcasScale, sharpen: bool) -> Vec<Fsr1Pass> {
+pub fn fsr1_passes(
+    device: &wgpu::Device,
+    rcas: &RcasScale,
+    sharpen: bool,
+    cache: Option<&wgpu::PipelineCache>,
+) -> Vec<Fsr1Pass> {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("fsr1"),
         source: wgpu::ShaderSource::Wgsl(include_str!("shaders/fsr1.wgsl").into()),
     });
     let stages: &[Fsr1Stage] = if sharpen { &[Fsr1Stage::Easu, Fsr1Stage::Rcas] } else { &[Fsr1Stage::Easu] };
-    stages.iter().map(|&stage| Fsr1Pass::new(device, &shader, stage, rcas)).collect()
+    stages.iter().map(|&stage| Fsr1Pass::new(device, &shader, stage, rcas, cache)).collect()
 }
 
 impl Fsr1Pass {
@@ -111,7 +118,13 @@ impl Fsr1Pass {
     pub fn set_hdr(&mut self, enabled: bool) {
         self.hdr = enabled;
     }
-    fn new(device: &wgpu::Device, shader: &wgpu::ShaderModule, stage: Fsr1Stage, rcas: &RcasScale) -> Self {
+    fn new(
+        device: &wgpu::Device,
+        shader: &wgpu::ShaderModule,
+        stage: Fsr1Stage,
+        rcas: &RcasScale,
+        cache: Option<&wgpu::PipelineCache>,
+    ) -> Self {
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some(stage.name()),
             entries: &[
@@ -158,6 +171,7 @@ impl Fsr1Pass {
             rcas: rcas.clone(),
             pipelines: HashMap::new(),
             bind_groups: BindCache::default(),
+            cache: cache.cloned(),
         }
     }
 }
@@ -165,6 +179,7 @@ impl Fsr1Pass {
 /// The pipeline of one stage writing `format`.
 fn build_pipeline(
     device: &wgpu::Device,
+    cache: Option<&wgpu::PipelineCache>,
     shader: &wgpu::ShaderModule,
     pipeline_layout: &wgpu::PipelineLayout,
     stage: Fsr1Stage,
@@ -189,7 +204,7 @@ fn build_pipeline(
             targets: &[Some(wgpu::ColorTargetState { format, blend: None, write_mask: wgpu::ColorWrites::ALL })],
         }),
         multiview_mask: None,
-        cache: None,
+        cache,
     })
 }
 
@@ -247,7 +262,14 @@ impl Fsr1Pass {
         });
         let name = self.stage.name();
         let pipeline = self.pipelines.entry(io.output_format).or_insert_with(|| {
-            build_pipeline(device, &self.shader, &self.pipeline_layout, self.stage, io.output_format)
+            build_pipeline(
+                device,
+                self.cache.as_ref(),
+                &self.shader,
+                &self.pipeline_layout,
+                self.stage,
+                io.output_format,
+            )
         });
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some(name),

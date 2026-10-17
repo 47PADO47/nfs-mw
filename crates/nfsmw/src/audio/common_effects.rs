@@ -3,8 +3,7 @@
 #[cfg(test)]
 mod tests;
 
-use blackbox_mixmap::{InputKey, MixMap, Mixer, ObjectRef};
-use std::sync::Arc;
+use blackbox_mixmap::{InputKey, Mixer, ObjectRef};
 
 use super::aems::{DelayedSampler, EffectModule};
 use super::{Audio, Group};
@@ -75,20 +74,17 @@ impl CommonPlayback {
             return false;
         }
         if self.mixer.is_none() {
-            let loaded = nfsmw_data::shared::map_output(&audio.dir)
-                .map_err(|error| error.to_string())
-                .and_then(|bytes| MixMap::parse(&bytes).map_err(|error| error.to_string()));
-            let map = match loaded {
+            let map = match crate::audio::mixer::mix_map(&audio.dir) {
                 Ok(map) => map,
                 Err(error) => {
-                    log::warn!("common sound mixer unavailable: {error}");
+                    log::warn!("common sound mixer unavailable: {error:#}");
                     self.unavailable = true;
                     return false;
                 }
             };
             let mut counts = [0; 13];
             counts[0] = 1;
-            let mut mixer = Mixer::new(Arc::new(map), &counts);
+            let mut mixer = Mixer::new(map, &counts);
             mixer.attach(OBJECT, true);
             for index in 0..4 {
                 mixer.set_input(InputKey::controller(0, 0, 0, index), 0);

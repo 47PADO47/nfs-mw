@@ -121,13 +121,24 @@ fn following_mass(car: &CarState) -> f32 {
     }
 }
 
+/// The other cars as a think reads them: every body of the step's snapshot (`simulation.rs`) except the thinking car
+/// `me`, in snapshot order, then the player. Nothing is copied; the snapshot is read in place.
+pub fn others<'a>(
+    bodies: &'a [(Body, bool)],
+    me: usize,
+    player: Option<Body>,
+) -> impl Iterator<Item = Body> + Clone + 'a {
+    bodies.iter().enumerate().filter(move |&(i, _)| i != me).map(|(_, b)| b.0).chain(player)
+}
+
 /// The traffic think: keep the cursor ahead of the car, find the steering point past other cars and pick
-/// a speed. `was_blocked` is the result of the previous think (a blocked car looks further ahead).
+/// a speed. `was_blocked` is the result of the previous think (a blocked car looks further ahead). `others` are
+/// the other cars as bodies (see [`others`]).
 pub fn think(
     net: &RoadNetwork,
     nav: &mut RoadNav,
     car: &CarState,
-    others: &[Body],
+    others: impl IntoIterator<Item = Body>,
     was_blocked: bool,
     rng: &mut impl RandomSource,
     cruise: &Cruise,
@@ -143,10 +154,11 @@ pub fn think(
     }
     // The other cars within the avoidable radius.
     let reach = look.max(2.0 * speed);
-    let near: Vec<Body> = others.iter().filter(|o| o.position.distance(car.body.position) < reach).copied().collect();
+    let position = car.body.position;
+    let near = others.into_iter().filter(move |o| o.position.distance(position) < reach);
     let occlusion = nav
         .trail()
-        .and_then(|trail| update_occluded_position(trail, &car.body, nav.position, &near, true, nav.half_width));
+        .and_then(|trail| update_occluded_position(trail, &car.body, nav.position, near, true, nav.half_width));
     let target = occlusion.as_ref().map_or(nav.position, |o| o.position);
     let blocked = occlusion.as_ref().is_some_and(|o| o.avoidable != 0);
     Think { target, speed: compute_speed(net, nav, car, occlusion.as_ref(), cruise), blocked }
@@ -268,7 +280,7 @@ mod tests {
         for car in [street, tractor] {
             let mut nav = lane_nav(&net, 0.1);
             for _ in 0..3 {
-                think(&net, &mut nav, &car, &[], false, &mut SplitMix(1), &Cruise::default());
+                think(&net, &mut nav, &car, [], false, &mut SplitMix(1), &Cruise::default());
             }
             assert_eq!(car.mass, 10_000.0);
             assert_eq!(sim.body().mass(), physical_mass);
@@ -289,7 +301,7 @@ mod tests {
         let net = straight_net();
         let mut nav = lane_nav(&net, 0.1);
         let car = car_at(40.0, STREET_SPEED);
-        let t = think(&net, &mut nav, &car, &[], false, &mut SplitMix(1), &Cruise::default());
+        let t = think(&net, &mut nav, &car, [], false, &mut SplitMix(1), &Cruise::default());
         assert_eq!(posted_speed(&net, &nav, &Cruise::default()), STREET_SPEED);
         assert_eq!(t.speed, STREET_SPEED);
         assert!(!t.blocked);
@@ -303,7 +315,7 @@ mod tests {
     fn a_standing_car_may_only_ask_for_a_little_more() {
         let net = straight_net();
         let mut nav = lane_nav(&net, 0.1);
-        let t = think(&net, &mut nav, &car_at(40.0, 10.0), &[], false, &mut SplitMix(1), &Cruise::default());
+        let t = think(&net, &mut nav, &car_at(40.0, 10.0), [], false, &mut SplitMix(1), &Cruise::default());
         assert!((t.speed - (10.0 + ACCELERATION_CAP * THINK_PERIOD)).abs() < 1e-5, "{}", t.speed);
     }
 
@@ -311,7 +323,7 @@ mod tests {
     fn a_stopped_car_on_a_free_road_pulls_away() {
         let net = straight_net();
         let mut nav = lane_nav(&net, 0.1);
-        let t = think(&net, &mut nav, &car_at(40.0, 0.0), &[], false, &mut SplitMix(1), &Cruise::default());
+        let t = think(&net, &mut nav, &car_at(40.0, 0.0), [], false, &mut SplitMix(1), &Cruise::default());
         assert!(t.speed >= CREEP_SPEED, "{}", t.speed);
     }
 
@@ -321,7 +333,7 @@ mod tests {
         let mut nav = lane_nav(&net, 0.1);
         nav.advance(&net, 1000.0, Vec3::ZERO, &mut SplitMix(1));
         assert!(nav.dead_end);
-        let t = think(&net, &mut nav, &car_at(399.0, 10.0), &[], false, &mut SplitMix(1), &Cruise::default());
+        let t = think(&net, &mut nav, &car_at(399.0, 10.0), [], false, &mut SplitMix(1), &Cruise::default());
         assert_eq!(t.speed, 0.0);
     }
 
@@ -339,7 +351,7 @@ mod tests {
         };
         let mut speeds = Vec::new();
         for _ in 0..3 {
-            let t = think(&net, &mut nav, &me, &[stopped], false, &mut SplitMix(1), &Cruise::default());
+            let t = think(&net, &mut nav, &me, [stopped], false, &mut SplitMix(1), &Cruise::default());
             speeds.push((t.speed, t.blocked));
         }
         let (speed, blocked) = speeds[2];
@@ -353,7 +365,7 @@ mod tests {
         let mut nav = lane_nav(&net, 0.1);
         let cruise = Cruise::patrol(22.0, 32.0);
         assert_eq!(posted_speed(&net, &nav, &cruise), 22.0);
-        let t = think(&net, &mut nav, &car_at(40.0, 10.0), &[], false, &mut SplitMix(1), &cruise);
+        let t = think(&net, &mut nav, &car_at(40.0, 10.0), [], false, &mut SplitMix(1), &cruise);
         assert_eq!(t.speed, 22.0, "no cap of speed plus 2 m/s per second");
         assert!(cruise.lateral_g > Cruise::default().lateral_g, "cops take bends harder");
     }
@@ -375,7 +387,7 @@ mod tests {
         let mut speeds = Vec::new();
         for _ in 0..thinks {
             let car = at_light(z, speed, line_z, light);
-            speed = think(&net, &mut nav, &car, &[], false, &mut SplitMix(1), &Cruise::default()).speed;
+            speed = think(&net, &mut nav, &car, [], false, &mut SplitMix(1), &Cruise::default()).speed;
             z += speed * THINK_PERIOD;
             speeds.push(speed);
         }
@@ -398,7 +410,7 @@ mod tests {
         let net = straight_net();
         let mut nav = lane_nav(&net, 0.1);
         let car = at_light(40.0, STREET_SPEED, 60.0, Light::Green);
-        let t = think(&net, &mut nav, &car, &[], false, &mut SplitMix(1), &Cruise::default());
+        let t = think(&net, &mut nav, &car, [], false, &mut SplitMix(1), &Cruise::default());
         assert_eq!(t.speed, STREET_SPEED);
         assert!(!t.blocked, "a light is not a car in the way");
     }
@@ -408,7 +420,7 @@ mod tests {
         // Past the line the lookup gives nothing and the car carries on at the posted speed.
         let net = straight_net();
         let mut nav = lane_nav(&net, 0.1);
-        let t = think(&net, &mut nav, &car_at(70.0, STREET_SPEED), &[], false, &mut SplitMix(1), &Cruise::default());
+        let t = think(&net, &mut nav, &car_at(70.0, STREET_SPEED), [], false, &mut SplitMix(1), &Cruise::default());
         assert_eq!(t.speed, STREET_SPEED);
     }
 
@@ -421,7 +433,7 @@ mod tests {
             &net,
             &mut nav,
             &at_light(60.0, 0.0, line, Light::Red),
-            &[],
+            [],
             false,
             &mut SplitMix(1),
             &Cruise::default(),
@@ -431,7 +443,7 @@ mod tests {
             &net,
             &mut nav,
             &at_light(60.0, 0.0, line, Light::Green),
-            &[],
+            [],
             false,
             &mut SplitMix(1),
             &Cruise::default(),
@@ -447,7 +459,7 @@ mod tests {
             &net,
             &mut nav,
             &at_light(40.0, 0.0, 70.0, Light::Red),
-            &[],
+            [],
             false,
             &mut SplitMix(1),
             &Cruise::default(),
@@ -460,10 +472,10 @@ mod tests {
         let net = straight_net();
         let mut nav = lane_nav(&net, 0.1);
         let close = at_light(40.0, STREET_SPEED, 40.0 + HALF_LENGTH + 4.0, Light::Amber);
-        let t = think(&net, &mut nav, &close, &[], false, &mut SplitMix(1), &Cruise::default());
+        let t = think(&net, &mut nav, &close, [], false, &mut SplitMix(1), &Cruise::default());
         assert_eq!(t.speed, STREET_SPEED);
         let far = at_light(40.0, STREET_SPEED, 40.0 + HALF_LENGTH + 20.0, Light::Amber);
-        let t = think(&net, &mut nav, &far, &[], false, &mut SplitMix(1), &Cruise::default());
+        let t = think(&net, &mut nav, &far, [], false, &mut SplitMix(1), &Cruise::default());
         assert!(t.speed < STREET_SPEED, "{}", t.speed);
     }
 
@@ -472,7 +484,7 @@ mod tests {
         let net = straight_net();
         let mut nav = lane_nav(&net, 0.1);
         let car = at_light(40.0, 10.0, 40.0 + HALF_LENGTH + 5.0, Light::Red);
-        let t = think(&net, &mut nav, &car, &[], false, &mut SplitMix(1), &Cruise::patrol(22.0, 32.0));
+        let t = think(&net, &mut nav, &car, [], false, &mut SplitMix(1), &Cruise::patrol(22.0, 32.0));
         assert!(t.speed < 10.0, "{}", t.speed);
     }
 }

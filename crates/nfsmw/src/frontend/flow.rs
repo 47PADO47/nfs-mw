@@ -109,7 +109,8 @@ pub struct Frontend {
     /// The sidebar's hand-over, when a viewer runs the front end over its own scene (`Start::Browse`).
     pub(super) browse: Option<Browse>,
     /// Whether the scene in the window is the menu backdrop. Its car is read from the install and uploaded once, when
-    /// it is built, so the menus that come up next keep it instead of building it again.
+    /// it is built, so the menus that come up next keep it instead of building it again. While free roam has the
+    /// window the backdrop is parked in the host (`Host::parked_menu`) and restored from there.
     menu_in_window: bool,
 }
 
@@ -170,8 +171,15 @@ impl Frontend {
         self.apply(commands, host, env);
     }
 
-    fn replace_scene(&mut self, host: &mut Host, scene: Box<dyn crate::viewer::Scene>) -> bool {
-        match host.replace_scene(scene) {
+    /// Puts `scene` in the window. With `park`, a menu backdrop being replaced is kept for the menus that come back
+    /// (`Host::replace_scene_parking_old`); any other scene is released.
+    fn replace_scene(&mut self, host: &mut Host, scene: Box<dyn crate::viewer::Scene>, park: bool) -> bool {
+        let parks_menu = park && self.menu_in_window;
+        let result = match parks_menu {
+            true => host.replace_scene_parking_old(scene),
+            false => host.replace_scene(scene),
+        };
+        match result {
             Ok(()) => {
                 self.menu_in_window = false;
                 true
@@ -183,13 +191,18 @@ impl Frontend {
         }
     }
 
-    /// Puts the menu backdrop in the window. A backdrop already there is kept: building one reads the car from the
-    /// install and uploads it (`MenuScene::init`, ~150-190 ms), which the menus that follow would only repeat.
+    /// Puts the menu backdrop in the window. A backdrop already there is kept, and so is one parked while free roam
+    /// had the window: building one reads the car from the install and uploads it (`MenuScene::init`, ~150-190 ms),
+    /// which the menus that follow would only repeat.
     fn show_backdrop(&mut self, host: &mut Host) {
         if self.menu_in_window {
             return;
         }
-        if !self.replace_scene(host, Box::new(MenuScene::new(Some(self.dir.clone())))) {
+        if host.restore_parked_menu() {
+            self.menu_in_window = true;
+            return;
+        }
+        if !self.replace_scene(host, Box::new(MenuScene::new(Some(self.dir.clone()))), false) {
             return;
         }
         self.menu_in_window = true;
@@ -210,7 +223,7 @@ impl Frontend {
                 let scene = crate::movie::MovieScene::open(&self.dir, name, 0.0);
                 match scene {
                     Ok(scene) => {
-                        self.replace_scene(host, Box::new(scene));
+                        self.replace_scene(host, Box::new(scene), false);
                     }
                     Err(e) => {
                         log::warn!("the boot movie {name} is skipped: {e:#}");
@@ -256,7 +269,8 @@ impl Frontend {
         self.paused.set(false);
         self.conceal.set(true);
         let scene = Pausable::new(Box::new(world), self.paused.clone()).with_conceal(self.conceal.clone());
-        if !self.replace_scene(host, Box::new(scene)) {
+        // The menu backdrop is parked, not freed: the menus that come back after the race reuse it.
+        if !self.replace_scene(host, Box::new(scene), true) {
             return;
         }
         self.stage = Stage::Loading;

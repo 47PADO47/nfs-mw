@@ -5,6 +5,8 @@
 
 use wgpu::TextureFormat;
 
+use crate::formats::Intermediates;
+
 /// The definitions shared by all passes.
 pub const COMMON: &str = include_str!("shaders/common.wgsl");
 
@@ -96,17 +98,32 @@ pub fn storage_format_name(format: TextureFormat) -> Option<&'static str> {
         TextureFormat::Rgba16Float => Some("rgba16float"),
         TextureFormat::Rgba32Float => Some("rgba32float"),
         TextureFormat::Rgba8Unorm => Some("rgba8unorm"),
+        TextureFormat::R16Float => Some("r16float"),
+        TextureFormat::Rg16Float => Some("rg16float"),
+        TextureFormat::R32Float => Some("r32float"),
+        TextureFormat::Rg32Float => Some("rg32float"),
         _ => None,
     }
 }
 
-/// The module source of a pass: the shared definitions, then the pass, with the output texture's
-/// storage format filled in.
-pub fn module_source(pass: Pass, output_format: TextureFormat) -> String {
-    let format = storage_format_name(output_format).unwrap_or("rgba16float");
-    let mut source = String::with_capacity(COMMON.len() + pass.source().len() + 1);
+/// The module source of a pass: the shared definitions, then the pass, with the storage formats filled in.
+///
+/// `OUTPUT_FORMAT` is the output texture; `PAIR_FORMAT`, `SINGLE_FORMAT` and `LOCK_FORMAT` are the
+/// intermediate images of [`Intermediates`]. The depth images are `r32float` in the sources.
+pub(crate) fn module_source(pass: Pass, output_format: TextureFormat, formats: Intermediates) -> String {
+    let body = pass
+        .source()
+        .replace("OUTPUT_FORMAT", name_of(output_format))
+        .replace("PAIR_FORMAT", name_of(formats.pair))
+        .replace("SINGLE_FORMAT", name_of(formats.single))
+        .replace("LOCK_FORMAT", name_of(formats.lock));
+    let mut source = String::with_capacity(COMMON.len() + body.len() + 1);
     source.push_str(COMMON);
     source.push('\n');
-    source.push_str(&pass.source().replace("OUTPUT_FORMAT", format));
+    source.push_str(&body);
     source
+}
+
+fn name_of(format: TextureFormat) -> &'static str {
+    storage_format_name(format).unwrap_or_else(|| panic!("{format:?} is not a storage format of the upscaler"))
 }

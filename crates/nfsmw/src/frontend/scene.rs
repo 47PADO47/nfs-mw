@@ -18,7 +18,7 @@ use crate::scenes::car::FLOOR_PART;
 use crate::scenes::car::shadows::{Part, shadowed};
 use crate::settings::CarShading;
 use crate::settings::fe_shadows;
-use crate::viewer::{Fullscreen, Scene};
+use crate::viewer::Scene;
 
 /// The car the menus show: the career-start M3 GTR, a preset of the `BMWM3GTRE46` car type with its livery and
 /// spoiler, as the original's menu shows it. [ours] The original shows it on a platform stage
@@ -72,16 +72,6 @@ pub(super) fn flat_frame() -> FrameParams {
 }
 
 impl Scene for MenuScene {
-    fn close(&mut self, renderer: &mut dyn RenderBackend) {
-        if let Some(mut car) = self.car.take() {
-            car.close(renderer);
-        }
-        if let Some(room) = self.room.take() {
-            room.destroy(renderer);
-        }
-        self.parts.clear();
-    }
-
     fn set_car_shading(&mut self, shading: CarShading) {
         self.shading = shading;
         if let Some(car) = &mut self.car {
@@ -127,6 +117,21 @@ impl Scene for MenuScene {
         self.car = Some(car);
         self.room = room;
         Ok(())
+    }
+
+    fn close(&mut self, renderer: &mut dyn RenderBackend) {
+        if let Some(mut car) = self.car.take() {
+            car.close(renderer);
+        }
+        if let Some(room) = self.room.take() {
+            room.destroy(renderer);
+        }
+        self.parts.clear();
+    }
+
+    fn reattached(&mut self, renderer: &mut dyn RenderBackend) {
+        let Some(car) = self.car.as_mut() else { return };
+        car.reshow(renderer);
     }
 
     fn update(&mut self, renderer: &mut dyn RenderBackend, _input: &ActionState, dt: f32) {

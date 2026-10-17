@@ -7,6 +7,8 @@
 //! the plugin is added to the `App` before `run()`, and the backend is created in a system once `RenderDevice`
 //! is in the main world (after the plugins' `finish`).
 
+use std::path::PathBuf;
+
 #[cfg(all(feature = "dlss", not(feature = "dlss-mock")))]
 use bevy_anti_alias::dlss::{
     DlssInitPlugin, DlssRayReconstructionSupported as RrSupport, DlssSuperResolutionSupported as DlssSupport,
@@ -29,13 +31,14 @@ use bevy_mesh::MeshPlugin;
 use bevy_pbr::{MaterialPlugin, PbrPlugin};
 use bevy_render::renderer::{RenderAdapter, RenderAdapterInfo, RenderDevice};
 use bevy_render::settings::{RenderCreation, WgpuSettings};
-use bevy_render::{ExtractSchedule, RenderApp, RenderPlugin};
+use bevy_render::{ExtractSchedule, Render, RenderApp, RenderPlugin, RenderStartup, RenderSystems};
 use blackbox_gfx::{BackendInfo, GraphicsApi, RtSupport};
 
 use crate::apply::{self, WorldState};
 use crate::facade::BevyBackend;
 use crate::material::BlackboxMaterial;
 use crate::ops::BlackboxBridge;
+use crate::pipeline_cache::{self, PipelineCacheFile};
 use crate::post;
 use crate::post::fsr1::{self, Fsr1Render};
 use crate::post::radial_blur::{self, RadialBlurRender};
@@ -54,7 +57,7 @@ struct DlssSupport;
 struct RrSupport;
 
 /// Adds the Black Box renderer to an `App` that already has the task pool, time and window plugins.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct BlackboxBevyRenderPlugin {
     /// The graphics API to ask wgpu for.
     pub api: GraphicsApi,
@@ -67,6 +70,9 @@ pub struct BlackboxBevyRenderPlugin {
     /// adapter has the features they need (`solari::install`); the setting is restart-required for that reason.
     /// Without the `ray-tracing` feature it does nothing but log.
     pub ray_tracing: bool,
+    /// The directory of the Vulkan pipeline cache for the passes this backend builds (`pipeline_cache.rs`), the same
+    /// file the native renderer keeps. `None` keeps no cache. Bevy's own pipelines are never cached (bevy_render 0.20).
+    pub pipeline_cache_dir: Option<PathBuf>,
 }
 
 impl Default for BlackboxBevyRenderPlugin {
@@ -76,6 +82,7 @@ impl Default for BlackboxBevyRenderPlugin {
             force_fallback_adapter: false,
             synchronous_pipeline_compilation: true,
             ray_tracing: false,
+            pipeline_cache_dir: None,
         }
     }
 }
@@ -187,11 +194,15 @@ impl Plugin for BlackboxBevyRenderPlugin {
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else { return };
         render_app
             .insert_resource(bridge)
+            .insert_resource(PipelineCacheFile::new(self.pipeline_cache_dir.clone()))
             .init_resource::<EffectsRender>()
             .init_resource::<UiRender>()
             .init_resource::<Fsr1Render>()
             .init_resource::<RadialBlurRender>()
             .init_resource::<effects::ExtractedWorld>()
+            // Opens the cache once the device exists; the passes built after it take the cache.
+            .add_systems(RenderStartup, pipeline_cache::open)
+            .add_systems(Render, pipeline_cache::count_frame.in_set(RenderSystems::Cleanup))
             .add_systems(ExtractSchedule, effects::extract_world)
             .add_systems(
                 Core3d,

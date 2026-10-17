@@ -27,13 +27,17 @@ pub struct MirrorOverlay {
 }
 
 impl MirrorOverlay {
-    /// Sets the frame's UI layer, and keeps it so the rear view can be captured without it.
     /// The HUD and UI layer as the presenter last made it, without the streaks.
     pub fn base_layer(&self) -> Option<&UiLayer> {
         self.layer.as_ref()
     }
 
+    /// Sets the frame's UI layer, and keeps it so the rear view can be captured without it. An unchanged layer is
+    /// not sent again: `StreakOverlay::show` runs after this in the frame and sends the layer the renderer draws.
     pub fn set_layer(&mut self, renderer: &mut dyn RenderBackend, layer: UiLayer) {
+        if self.layer.as_ref() == Some(&layer) {
+            return;
+        }
         renderer.set_ui_layer(layer.clone());
         self.layer = Some(layer);
     }
@@ -76,10 +80,13 @@ impl MirrorOverlay {
         let Some((params, instances)) = scene.rear_view(aspect) else { return };
         // The original's mirror far plane (192 m) is applied to the object origins, as the setting says.
         let instances = cull_instances(instances, params.camera_position, distance.mirror_far());
-        // The capture draws the UI like the screen does; the mirror shows the road, so the HUD is left out.
-        renderer.set_ui_layer(UiLayer::default());
+        // A backend whose view captures draw the UI needs it hidden, since the mirror shows only the road.
+        let hides_ui = !renderer.capabilities().view_capture_without_ui;
+        if hides_ui {
+            renderer.set_ui_layer(UiLayer::default());
+        }
         let started = renderer.request_view_capture(size, &params, &instances);
-        if let Some(layer) = &self.layer {
+        if let Some(layer) = self.layer.as_ref().filter(|_| hides_ui) {
             renderer.set_ui_layer(layer.clone());
         }
         match started {

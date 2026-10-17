@@ -15,7 +15,13 @@ pub fn create(
     display: &DisplayHandleWrapper,
     settings: &Settings,
 ) -> anyhow::Result<Box<dyn RenderBackend>> {
-    let options = RendererOptions { backend: settings.backend, vsync: settings.vsync, ..RendererOptions::default() };
+    // Only the Vulkan backend keeps a pipeline cache. It is derived data in the per-user cache folder, never shipped.
+    let options = RendererOptions {
+        backend: settings.backend,
+        vsync: settings.vsync,
+        pipeline_cache_dir: game_install::cache_dir(&nfsmw_data::game::SPEC).map(|dir| dir.join("pipelines")),
+        ..RendererOptions::default()
+    };
     // SAFETY: this runs in a system that takes `NonSendMut`, so it is on the main thread, which is
     // what `get_handle` requires.
     let handle = unsafe { raw.get_handle() };

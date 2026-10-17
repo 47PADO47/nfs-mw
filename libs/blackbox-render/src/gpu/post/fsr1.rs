@@ -1,6 +1,5 @@
 //! The FSR 1 passes (`blackbox-gpu-passes`) as links of the post chain. Both write the output size
-//! ([`Extent::Output`]), so they sit last in the chain, right before the resolve pass, which then copies
-//! the sharpened image exactly.
+//! ([`Extent::Output`]), so they sit last in the chain and the sharpened image is written to the output directly.
 
 use blackbox_gpu_passes::{Fsr1Io, Fsr1Pass};
 
@@ -11,8 +10,13 @@ pub(in crate::gpu) use blackbox_gpu_passes::{FSR1_EASU as EASU, FSR1_RCAS as RCA
 struct Fsr1(Fsr1Pass);
 
 /// The upscale pass, then the sharpening pass when `sharpen` is set.
-pub(in crate::gpu) fn passes(device: &wgpu::Device, rcas: &RcasScale, sharpen: bool) -> Vec<Box<dyn PostPass>> {
-    let passes = blackbox_gpu_passes::fsr1_passes(device, rcas, sharpen);
+pub(in crate::gpu) fn passes(
+    device: &wgpu::Device,
+    rcas: &RcasScale,
+    sharpen: bool,
+    cache: Option<&wgpu::PipelineCache>,
+) -> Vec<Box<dyn PostPass>> {
+    let passes = blackbox_gpu_passes::fsr1_passes(device, rcas, sharpen, cache);
     passes.into_iter().map(|pass| Box::new(Fsr1(pass)) as Box<dyn PostPass>).collect()
 }
 

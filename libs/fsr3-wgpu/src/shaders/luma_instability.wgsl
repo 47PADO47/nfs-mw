@@ -36,7 +36,7 @@
 @group(0) @binding(4) var previous_luma_history: texture_2d<f32>;
 @group(0) @binding(5) var<storage, read> frame_info: array<vec4<f32>>;
 @group(0) @binding(6) var out_luma_history: texture_storage_2d<rgba16float, write>;
-@group(0) @binding(7) var out_luma_instability: texture_storage_2d<r32float, write>;
+@group(0) @binding(7) var out_luma_instability: texture_storage_2d<SINGLE_FORMAT, write>;
 
 fn exposure() -> f32 {
     return frame_info[0].x;

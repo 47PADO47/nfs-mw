@@ -1,12 +1,11 @@
 //! Original breaker moment recordings; separate from common FX_UVES and music filtering.
 use super::super::radio::feeder::FileSource;
 use super::super::{Audio, Group, pcm, trace::Record, volume};
-use blackbox_mixmap::{InputKey, MixMap, Mixer, ObjectRef};
+use blackbox_mixmap::{InputKey, Mixer, ObjectRef};
 use ea_audio::speech::SpeechIndex;
 use kira::sound::static_sound::{StaticSoundData, StaticSoundHandle};
 use kira::{Tween, sound::PlaybackState};
 use nfsmw_data::sound::{MomentSound, moment_take};
-use std::sync::Arc;
 use std::time::Duration;
 
 const INDEX: &str = "SOUND/STREAMS/NISAudio.idx";
@@ -166,9 +165,8 @@ impl Audio {
         let path = self.dir.resolve(STREAM).ok_or("NISAudio.big missing")?;
         let file = FileSource::open(path).map_err(|e| e.to_string())?;
         let decoded = parsed.banks()[bank].decode(&file, take).map_err(|e| e.to_string())?;
-        let bytes = nfsmw_data::shared::map_output(&self.dir).map_err(|e| e.to_string())?;
-        let map = MixMap::parse(&bytes).map_err(|e| e.to_string())?;
-        let mut mixer = Mixer::new(Arc::new(map), &[1]);
+        let map = crate::audio::mixer::mix_map(&self.dir).map_err(|e| format!("{e:#}"))?;
+        let mut mixer = Mixer::new(map, &[1]);
         mixer.attach(OBJECT, true);
         feed_position(&mut mixer, self.speedbreaker.view);
         mixer.process(1.0 / 60.0);

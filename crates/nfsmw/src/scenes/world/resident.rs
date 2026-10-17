@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use blackbox_gfx::{BlendMode, InstanceKey, MeshDesc, MeshHandle, RenderBackend, Shading, TextureHandle, Vertex};
-use blackbox_scene::{Aabb, MaterialLookup, blend_mode, solid_mesh, upload_solid, upload_texture};
+use blackbox_scene::{Aabb, MaterialLookup, blend_mode, solid_mesh, upload_solid, upload_texture_predecoded};
 use blackbox_scenery::LodModel;
 use blackbox_solid::Solid;
 use glam::Mat4;
@@ -88,16 +88,23 @@ pub struct SectionResources {
 
 impl SectionResources {
     pub fn upload_textures(&mut self, renderer: &mut dyn RenderBackend, data: &SectionData) {
-        self.upload_texture_list(renderer, &data.textures);
+        self.upload_texture_list(renderer, &data.textures, &data.decoded);
     }
 
-    /// Upload textures whose hash is not resident yet.
-    pub fn upload_texture_list(&mut self, renderer: &mut dyn RenderBackend, textures: &[blackbox_tpk::Texture]) {
-        for t in textures {
+    /// Upload textures whose hash is not resident yet. `decoded` is, per texture, the RGBA8 a loader thread made
+    /// (`SectionData::decoded`); it is empty when none were made.
+    pub fn upload_texture_list(
+        &mut self,
+        renderer: &mut dyn RenderBackend,
+        textures: &[blackbox_tpk::Texture],
+        decoded: &[Option<Vec<u8>>],
+    ) {
+        for (i, t) in textures.iter().enumerate() {
             if self.materials.contains_key(&t.name_hash) {
                 continue;
             }
-            if let Some(handle) = upload_texture(renderer, t) {
+            let pixels = decoded.get(i).and_then(Option::as_deref);
+            if let Some(handle) = upload_texture_predecoded(renderer, t, pixels) {
                 self.materials.insert(t.name_hash, (handle, blend_mode(Some(t))));
             }
         }

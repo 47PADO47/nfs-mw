@@ -395,23 +395,20 @@ impl Rig {
         self.gpu.read_rgba32f(&self.reference, self.display)
     }
 
-    /// Reads an internal image of the upscaler as floats (`R32Float`, `Rg32Float` or `Rgba16Float`):
-    /// its size, the channels per pixel and the values.
+    /// Reads an internal image of the upscaler as floats (`R32Float`, `Rg32Float`, `R16Float`, `Rg16Float` or
+    /// `Rgba16Float`): its size, the channels per pixel and the values.
     pub fn read_debug(&self, which: DebugTexture) -> (UVec2, usize, Vec<f32>) {
         let texture = self.ctx.debug_texture(which).expect("a dispatched context");
         let size = UVec2::new(texture.width(), texture.height());
-        let (texel, channels) = match texture.format() {
-            wgpu::TextureFormat::R32Float => (4, 1),
-            wgpu::TextureFormat::Rg32Float => (8, 2),
-            wgpu::TextureFormat::Rgba16Float => (8, 4),
+        let (texel, channels, half) = match texture.format() {
+            wgpu::TextureFormat::R32Float => (4, 1, false),
+            wgpu::TextureFormat::Rg32Float => (8, 2, false),
+            wgpu::TextureFormat::R16Float => (2, 1, true),
+            wgpu::TextureFormat::Rg16Float => (4, 2, true),
+            wgpu::TextureFormat::Rgba16Float => (8, 4, true),
             other => panic!("unexpected debug format {other:?}"),
         };
         let bytes = self.gpu.read_bytes(texture, size, texel);
-        let values = if channels == 4 {
-            bytemuck::cast_slice::<u8, u16>(&bytes).iter().map(|h| super::decode_f16(*h)).collect()
-        } else {
-            bytemuck::cast_slice::<u8, f32>(&bytes).to_vec()
-        };
-        (size, channels, values)
+        (size, channels, super::floats(&bytes, half))
     }
 }

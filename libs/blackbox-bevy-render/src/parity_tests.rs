@@ -20,7 +20,12 @@ fn fallback() -> bool {
 }
 
 fn native(size: [u32; 2]) -> Option<Renderer> {
-    let options = RendererOptions { backend: GraphicsApi::Vulkan, vsync: false, force_fallback_adapter: fallback() };
+    let options = RendererOptions {
+        backend: GraphicsApi::Vulkan,
+        vsync: false,
+        force_fallback_adapter: fallback(),
+        pipeline_cache_dir: None,
+    };
     match Renderer::headless((size[0], size[1]), options) {
         Ok(renderer) => Some(renderer),
         Err(e) => {

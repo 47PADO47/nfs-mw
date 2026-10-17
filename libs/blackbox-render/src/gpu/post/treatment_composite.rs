@@ -43,10 +43,17 @@ pub(super) struct Composite {
     uniform: wgpu::Buffer,
     params: Parameters,
     pipelines: HashMap<wgpu::TextureFormat, wgpu::RenderPipeline>,
+    /// Used by the pipeline built per output format.
+    cache: Option<wgpu::PipelineCache>,
 }
 
 impl Composite {
-    pub(super) fn new(device: &wgpu::Device, settings: &PostSettings, profile: Option<&ColourTreatment>) -> Self {
+    pub(super) fn new(
+        device: &wgpu::Device,
+        settings: &PostSettings,
+        profile: Option<&ColourTreatment>,
+        cache: Option<&wgpu::PipelineCache>,
+    ) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("colour treatment composite"),
             source: wgpu::ShaderSource::Wgsl(SOURCE.into()),
@@ -93,9 +100,10 @@ impl Composite {
             min_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
+        let params = parameters(settings, profile);
         let uniform = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("colour treatment parameters"),
-            contents: bytemuck::bytes_of(&parameters(settings, profile)),
+            contents: bytemuck::bytes_of(&params),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
         Self {
@@ -104,11 +112,13 @@ impl Composite {
             pipeline_layout,
             sampler,
             uniform,
-            params: parameters(settings, profile),
+            params,
             pipelines: HashMap::new(),
+            cache: cache.cloned(),
         }
     }
 
+    /// Set the HDR flag (`tint.w`): with it the shader keeps positive scene values above 1 instead of clamping them.
     pub(super) fn set_hdr(&mut self, hdr: bool) {
         self.params.tint[3] = u8::from(hdr) as f32;
     }
@@ -160,7 +170,7 @@ impl Composite {
                     })],
                 }),
                 multiview_mask: None,
-                cache: None,
+                cache: self.cache.as_ref(),
             })
         });
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {

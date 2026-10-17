@@ -1,9 +1,14 @@
 //! Scene forwarding while menus conceal or pause the world.
 use super::*;
+use crate::viewer::Fullscreen;
 
 impl Scene for Pausable {
     fn close(&mut self, renderer: &mut dyn RenderBackend) {
         self.inner.close(renderer);
+    }
+
+    fn reattached(&mut self, renderer: &mut dyn RenderBackend) {
+        self.inner.reattached(renderer);
     }
 
     fn garage(&mut self) -> Option<&mut crate::garage::Model> {

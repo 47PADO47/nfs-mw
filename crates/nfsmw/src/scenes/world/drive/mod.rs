@@ -19,6 +19,7 @@ mod original_camera;
 mod placement;
 #[cfg(test)]
 mod presentation_tests;
+mod release;
 mod rig;
 mod road_reflection;
 mod script;

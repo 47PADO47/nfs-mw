@@ -32,6 +32,7 @@ default-members = [
     "libs/blackbox-render",
     "libs/blackbox-scene",
     "libs/blackbox-scenery",
+    "libs/blackbox-smaa",
     "libs/blackbox-solid",
     "libs/blackbox-streaming",
     "libs/blackbox-text",
@@ -85,6 +86,7 @@ blackbox-roads = { path = "libs/blackbox-roads" }
 blackbox-scene = { path = "libs/blackbox-scene" }
 blackbox-scenery = { path = "libs/blackbox-scenery" }
 blackbox-sequence = { path = "libs/blackbox-sequence" }
+blackbox-smaa = { path = "libs/blackbox-smaa" }
 blackbox-solid = { path = "libs/blackbox-solid" }
 blackbox-streaming = { path = "libs/blackbox-streaming" }
 blackbox-text = { path = "libs/blackbox-text" }

@@ -93,7 +93,7 @@ impl CopState {
         nav: &mut RoadNav,
         car: &CarState,
         target: &Target,
-        traffic: &[Body],
+        traffic: impl IntoIterator<Item = Body>,
     ) -> CopThink {
         let (net, index, rng) = (ctx.net, ctx.index, &mut *ctx.rng);
         let goal = target.aim.unwrap_or(target.body.position);

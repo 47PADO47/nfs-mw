@@ -4,10 +4,7 @@ use super::*;
 
 impl Scene for WorldScene {
     fn close(&mut self, renderer: &mut dyn RenderBackend) {
-        renderer.set_projected_reflection_scene(None);
-        self.wet_road.instances.clear();
-        self.residency.sky.release(renderer);
-        self.residency.release_normal_materials(renderer);
+        self.release_gpu(renderer);
     }
 
     fn garage(&mut self) -> Option<&mut crate::garage::Model> {
@@ -37,7 +34,7 @@ impl Scene for WorldScene {
         renderer.set_colour_treatment(self.colour_treatment.as_ref(), self.gain_map.as_ref());
         self.breaker_visuals.init(renderer);
         Self::note_radial_blur_support(renderer);
-        if let Some(PendingCar { name, model, script }) = self.pending_car.take() {
+        if let Some(open::PendingCar { name, model, script }) = self.pending_car.take() {
             self.start_driving(renderer, name, model, script)?;
         }
         Ok(())

@@ -18,8 +18,9 @@ struct DisplayPass {
     mapping: Mapping,
 }
 impl DisplayPass {
-    fn new(device: &wgpu::Device, mapping: Mapping) -> Self {
-        Self { filter: Filter::new(device, "PsychoV display", &source()), mapping }
+    fn new(device: &wgpu::Device, mapping: Mapping, cache: Option<&wgpu::PipelineCache>) -> Self {
+        let filter = Filter::new(device, "PsychoV display", &source()).with_pipeline_cache(cache.cloned());
+        Self { filter, mapping }
     }
     fn draw(&mut self, ctx: &PassContext<'_>, io: &PassIo<'_>, encoder: &mut wgpu::CommandEncoder, diagnostic: bool) {
         let m = self.mapping;
@@ -73,7 +74,8 @@ impl PostChain {
         if changed {
             self.remove("hdr-display");
             if let Some(v) = mapping {
-                self.passes.insert(self.passes.len() - 1, Box::new(DisplayPass::new(device, v)));
+                // The display pass writes the output itself and stays last; the resolve copy is not in `passes`.
+                self.passes.push(Box::new(DisplayPass::new(device, v, self.cache.as_ref())));
             }
             self.rebuild_effects(device);
         }

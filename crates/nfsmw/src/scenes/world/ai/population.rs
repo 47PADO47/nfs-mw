@@ -35,6 +35,8 @@ pub enum ModelRequest {
     Traffic(String),
     /// A cop car that patrols.
     Patrol(String),
+    /// A cop car a support request takes (`ai/support`).
+    Support(String),
 }
 
 /// The cop cars that patrol among the traffic and how fast they go.
@@ -95,9 +97,21 @@ impl TrafficWorld {
 
     fn request(&mut self, request: ModelRequest) {
         let name = match &request {
-            ModelRequest::Traffic(n) | ModelRequest::Patrol(n) => n.to_ascii_lowercase(),
+            ModelRequest::Traffic(n) | ModelRequest::Patrol(n) | ModelRequest::Support(n) => n.to_ascii_lowercase(),
         };
         if self.known.insert(name) {
+            self.requests.push(request);
+        }
+    }
+
+    /// Asks for the cop car `name` of a support request, unless it is loaded or already asked for. Unlike `request`, a
+    /// name that failed in an earlier chase is asked for again: each chase tries its own support models.
+    pub(super) fn request_cop(&mut self, name: &str) {
+        if self.has_cop_model(name) {
+            return;
+        }
+        let request = ModelRequest::Support(name.to_owned());
+        if !self.requests.contains(&request) {
             self.requests.push(request);
         }
     }

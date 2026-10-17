@@ -20,6 +20,7 @@ use blackbox_gpu_passes::{Effects, Globals, SoftDraw, WorldBindings};
 use crate::apply::WorldState;
 use crate::material::Params;
 use crate::ops::{BlackboxBridge, EffectCapacities};
+use crate::pipeline_cache::PipelineCacheFile;
 
 /// The texture map and fog/light parameters `WorldState` holds, extracted into the render world each
 /// frame (unlike effects and the UI layer, which read [`BlackboxBridge`] directly: these come from
@@ -50,10 +51,15 @@ struct Inner {
 }
 
 impl EffectsRender {
-    fn get_or_init(&mut self, device: &RenderDevice, format: wgpu::TextureFormat) -> &mut Inner {
+    fn get_or_init(
+        &mut self,
+        device: &RenderDevice,
+        format: wgpu::TextureFormat,
+        cache: Option<&wgpu::PipelineCache>,
+    ) -> &mut Inner {
         self.0.get_or_insert_with(|| {
             let bindings = WorldBindings::new(device.wgpu_device());
-            let effects = Effects::new(device.wgpu_device(), format, &bindings);
+            let effects = Effects::new(device.wgpu_device(), format, &bindings, cache);
             Inner { bindings, effects, textured: HashMap::new() }
         })
     }
@@ -100,6 +106,7 @@ fn globals_of(view: &ExtractedView, params: &Params, mip_bias: f32) -> Globals {
 pub fn effects_main_pass(
     mut render: ResMut<EffectsRender>,
     bridge: Res<BlackboxBridge>,
+    pipeline_cache: Res<PipelineCacheFile>,
     extracted: Res<ExtractedWorld>,
     images: Res<RenderAssets<GpuImage>>,
     device: Res<RenderDevice>,
@@ -115,7 +122,7 @@ pub fn effects_main_pass(
     };
     to_bevy_axes(&mut layer);
 
-    let inner = render.get_or_init(&device, format);
+    let inner = render.get_or_init(&device, format, pipeline_cache.cache());
     inner.effects.use_format(device.wgpu_device(), format);
 
     {

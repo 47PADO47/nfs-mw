@@ -64,6 +64,11 @@ pub struct Capabilities {
     pub projected_reflections: bool,
     pub ambient_occlusion: bool,
     pub soft_shadows: bool,
+    /// The backend draws sun shadows from the list given to `set_shadow_casters`, so the frame's instance list need
+    /// not carry off-screen casters.
+    pub separate_shadow_casters: bool,
+    /// `request_view_capture` never draws the UI layer, so a caller need not hide its UI around it.
+    pub view_capture_without_ui: bool,
     pub ray_tracing: RtSupport,
     /// Smallest and largest render scale. A temporal upscaler's quality mode must fit in it too.
     pub render_scale: (f32, f32),
@@ -92,6 +97,8 @@ impl Capabilities {
             projected_reflections: false,
             ambient_occlusion: false,
             soft_shadows: false,
+            separate_shadow_casters: false,
+            view_capture_without_ui: false,
             ray_tracing: RtSupport::None,
             render_scale: (1.0, 1.0),
             restart_required: RestartSet::empty(),

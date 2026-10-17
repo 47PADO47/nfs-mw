@@ -34,6 +34,14 @@ impl Texture {
         let size = mip_level_size(self.format, self.width, self.height, level);
         self.data.get(start..start + size)
     }
+
+    /// Whether the texture must be decoded to RGBA8 to be drawn: for every format but DXT, and for DXT on a
+    /// renderer without BC support or with a size that is not whole 4x4 blocks. Any other DXT texture is uploaded
+    /// as block-compressed data. The loader threads and the renderer's upload both use this rule.
+    pub fn needs_decode(&self, bc_supported: bool) -> bool {
+        let block_compressed = matches!(self.format, PixelFormat::Dxt1 | PixelFormat::Dxt3 | PixelFormat::Dxt5);
+        !(block_compressed && bc_supported && self.width.is_multiple_of(4) && self.height.is_multiple_of(4))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

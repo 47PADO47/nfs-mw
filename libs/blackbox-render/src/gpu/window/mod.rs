@@ -64,9 +64,14 @@ impl Window {
         Self { shader, layout, material_layout, materials: Slots::new(), pipelines: HashMap::new() }
     }
 
-    pub(super) fn prepare(&mut self, device: &wgpu::Device, format: wgpu::TextureFormat) {
+    pub(super) fn prepare(
+        &mut self,
+        device: &wgpu::Device,
+        format: wgpu::TextureFormat,
+        cache: Option<&wgpu::PipelineCache>,
+    ) {
         self.pipelines.entry(format).or_insert_with(|| {
-            BLEND_ORDER.map(|mode| pipeline::create(device, &self.shader, &self.layout, format, mode, false))
+            BLEND_ORDER.map(|mode| pipeline::create(device, &self.shader, &self.layout, format, mode, false, cache))
         });
     }
 

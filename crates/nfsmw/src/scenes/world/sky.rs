@@ -295,7 +295,7 @@ mod tests {
         let mut renderer =
             crate::app::test_backend::NullBackend::new(crate::settings::test_caps::native()).with_sky_tracking();
         let mut resources = SectionResources::default();
-        resources.upload_texture_list(&mut renderer, &globals.textures);
+        resources.upload_texture_list(&mut renderer, &globals.textures, &[]);
         let mut sky = Sky::upload(&mut renderer, &solids, &resources);
         assert!(sky.layers.is_some(), "installed shared model and global textures must create all native layers");
         assert_eq!(renderer.resources.lock().unwrap().meshes, 3);

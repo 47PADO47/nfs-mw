@@ -18,6 +18,7 @@ use crate::modding::content::scenery::MapPack;
 #[cfg(test)]
 mod installed_tests;
 mod mod_tiles;
+mod release;
 #[cfg(test)]
 mod shadow_tests;
 #[cfg(test)]
@@ -95,16 +96,6 @@ pub struct Residency {
 }
 
 impl Residency {
-    /// Release new registered materials on scene replacement as well as tile retirement.
-    pub(super) fn release_normal_materials(&mut self, renderer: &mut dyn RenderBackend) {
-        self.shared.release_normal_materials(renderer);
-        for tile in self.tiles.values_mut() {
-            if let TileState::Resident { resources, .. } = tile {
-                resources.release_normal_materials(renderer);
-            }
-        }
-    }
-
     pub fn new(
         mut sections: Vec<StreamingSection>,
         visible: VisibleSections,
@@ -166,6 +157,7 @@ impl Residency {
     /// Request, upload and drop sections for a camera at map position (x, y).
     pub fn update(&mut self, renderer: &mut dyn RenderBackend, x: f32, y: f32) {
         let _span = bevy_log::info_span!("world::residency").entered();
+        self.sync_bc_support(renderer);
         self.receive();
         if !self.shared_ready {
             self.finish_shared(renderer);
@@ -183,6 +175,16 @@ impl Residency {
         self.unload_unwanted(renderer);
         self.request_wanted();
         self.request_mod();
+    }
+
+    /// The loader threads decode the textures this renderer cannot draw block-compressed. The streamers are spawned
+    /// before a renderer exists, so the renderer's support is passed in here, every frame.
+    fn sync_bc_support(&self, renderer: &dyn RenderBackend) {
+        let supported = renderer.capabilities().compressed_bc;
+        self.streamer.set_bc_supported(supported);
+        for streamer in &self.mod_streamers {
+            streamer.set_bc_supported(supported);
+        }
     }
 
     fn switch_zone(&mut self, renderer: &dyn RenderBackend, x: f32, y: f32) {
@@ -250,7 +252,7 @@ impl Residency {
             shared.upload_textures(renderer, data);
         }
         let globals = std::mem::take(&mut self.globals);
-        shared.upload_texture_list(renderer, &globals.textures);
+        shared.upload_texture_list(renderer, &globals.textures, &[]);
         shared.anims.extend(globals.anims);
         shared.anims.extend(pending.iter().flat_map(|d| d.anims.iter().cloned()));
         let empty = SectionResources::default();

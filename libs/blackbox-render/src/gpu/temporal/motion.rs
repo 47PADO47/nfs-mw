@@ -42,7 +42,11 @@ pub(in crate::gpu) struct MotionPass {
 }
 
 impl MotionPass {
-    pub(in crate::gpu) fn new(device: &wgpu::Device, textures: &wgpu::BindGroupLayout) -> Self {
+    pub(in crate::gpu) fn new(
+        device: &wgpu::Device,
+        textures: &wgpu::BindGroupLayout,
+        cache: Option<&wgpu::PipelineCache>,
+    ) -> Self {
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("motion camera"),
             entries: &[wgpu::BindGroupLayoutEntry {
@@ -115,7 +119,7 @@ impl MotionPass {
                     })],
                 }),
                 multiview_mask: None,
-                cache: None,
+                cache,
             })
         };
         Self {

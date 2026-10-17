@@ -1558,6 +1558,7 @@ dependencies = [
  "blackbox-gfx",
  "bytemuck",
  "glam 0.34.1",
+ "log",
  "naga",
  "pollster",
  "wgpu",
@@ -1640,6 +1641,7 @@ dependencies = [
  "blackbox-gfx",
  "blackbox-gfx-testkit",
  "blackbox-gpu-passes",
+ "blackbox-smaa",
  "bytemuck",
  "fsr3-wgpu",
  "glam 0.34.1",
@@ -1648,7 +1650,6 @@ dependencies = [
  "naga",
  "pollster",
  "raw-window-handle",
- "smaa",
  "thiserror 2.0.21",
  "wgpu",
 ]
@@ -1689,6 +1690,16 @@ version = "0.1.0"
 dependencies = [
  "blackbox-carp",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "blackbox-smaa"
+version = "0.1.0"
+dependencies = [
+ "naga",
+ "pollster",
+ "smaa",
+ "wgpu",
 ]
 
 [[package]]

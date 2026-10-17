@@ -1,10 +1,11 @@
 //! The post-process chain: an ordered list of fullscreen passes between the HDR scene image and
 //! the output image. The UI is drawn after the chain, so it is never post-processed or upscaled.
 //!
-//! The chain always ends with the built-in [`resolve`] pass, which writes the output. The post
-//! effects (bloom, tone mapping, FXAA; see [`effects`]) sit at the front, and later passes
-//! (upscaling) are inserted before the resolve pass with [`PostChain::insert`]. Passes that write
-//! the output size (the spatial upscalers) are always kept after the ones that write the render size.
+//! The last pass writes the output image itself. The post effects (bloom, tone mapping, FXAA; see
+//! [`effects`]) sit at the front, and later passes (upscaling) are inserted with [`PostChain::insert`].
+//! Passes that write the output size (the spatial upscalers) are always kept after the ones that write
+//! the render size. Only when the last pass cannot do that exactly does the built-in [`resolve`] copy
+//! follow it (see [`plan::needs_resolve`]), and with no pass at all the copy is the whole chain.
 //!
 //! A temporal upscaler (FSR 3) is the exception: it runs first, on the scene as drawn, so bloom and tone
 //! mapping see the upscaled image and everything after it writes the output size. It is kept apart from the
@@ -120,9 +121,11 @@ impl Scratch {
 }
 
 pub(super) struct PostChain {
-    pub(in crate::gpu) display: Option<display::Mapping>,
-    /// Never empty: the last pass is the resolve pass.
+    /// The post effects and the other passes, in order. The output copy is not one of them. The final
+    /// display pass (see `display.rs`), when there is one, is the last of them.
     passes: Vec<Box<dyn PostPass>>,
+    /// The copy to the output, run after `passes` only when the last pass cannot write the output itself.
+    resolve: resolve::Resolve,
     /// The temporal upscaler, which runs before `passes` when the frame has temporal data.
     temporal: Option<Box<dyn PostPass>>,
     /// The ping-pong images, kept for two sizes so a frame at each view size reuses its own.
@@ -131,30 +134,36 @@ pub(super) struct PostChain {
     effect_count: usize,
     settings: crate::PostSettings,
     profile: Option<treatment::Profile>,
+    /// Used by the effect passes built when the settings or the profile change.
+    cache: Option<wgpu::PipelineCache>,
+    /// The display mapping (HDR output or SDR preview) the chain was given, if any. See `display.rs`.
+    pub(in crate::gpu) display: Option<display::Mapping>,
 }
 
 impl PostChain {
-    pub(super) fn new(device: &wgpu::Device) -> Self {
+    pub(super) fn new(device: &wgpu::Device, cache: Option<&wgpu::PipelineCache>) -> Self {
         Self {
+            passes: Vec::new(),
+            resolve: resolve::Resolve::new(device, cache),
             display: None,
-            passes: vec![Box::new(resolve::Resolve::new(device))],
             temporal: None,
             scratch: [SizedPair::new(), SizedPair::new()],
             effect_count: 0,
             settings: crate::PostSettings::default(),
             profile: None,
+            cache: cache.cloned(),
         }
     }
 
-    /// Insert `pass` so it runs at `index` among the passes (0 = first). Past-the-end indices put
-    /// it right before the resolve pass, which always stays last. The post effects stay in front of
-    /// every inserted pass, and a pass that writes the output size ignores the index and goes right
-    /// before the resolve pass, so it follows every render-size pass.
+    /// Insert `pass` so it runs at `index` among the passes (0 = first). Past-the-end indices put it at the
+    /// end, or right before the display pass when there is one, which always stays last. The post effects
+    /// stay in front of every inserted pass, and a pass that writes the output size ignores the index and
+    /// goes last (before the display pass), so it follows every render-size pass.
     pub(super) fn insert(&mut self, index: usize, mut pass: Box<dyn PostPass>) {
         pass.set_display(self.display);
         let extents: Vec<Extent> = self.passes.iter().map(|p| p.extent()).collect();
         let index = plan::insert_index(&extents, index.max(self.effect_count), pass.extent());
-        let last_scene = self.passes.iter().position(|p| p.name() == "hdr-display").unwrap_or(self.passes.len() - 1);
+        let last_scene = self.passes.iter().position(|p| p.name() == "hdr-display").unwrap_or(self.passes.len());
         self.passes.insert(index.min(last_scene), pass);
     }
 
@@ -163,21 +172,15 @@ impl PostChain {
         self.passes.iter().any(|p| p.name() == name)
     }
 
-    /// Remove every pass named `name` (never the resolve pass).
+    /// Remove every pass named `name`.
     pub(super) fn remove(&mut self, name: &str) {
-        let last = self.passes.len() - 1;
-        let mut index = 0;
-        self.passes.retain(|p| {
-            let keep = index == last || p.name() != name;
-            index += 1;
-            keep
-        });
+        self.passes.retain(|p| p.name() != name);
     }
 
-    /// Whether any pass runs besides the final resolve (post effects, upscalers). When none does, the
-    /// scene can be drawn straight into the output.
+    /// Whether any pass runs (post effects, upscalers). When none does, the scene can be drawn straight
+    /// into the output.
     pub(super) fn has_passes(&self) -> bool {
-        self.passes.len() > 1 || self.temporal.is_some()
+        !self.passes.is_empty() || self.temporal.is_some()
     }
 
     /// Put the temporal upscaler first in the chain, or take it out with `None`.
@@ -203,7 +206,7 @@ impl PostChain {
         self.scratch.iter().map(|images| images.len()).sum()
     }
 
-    /// The pass names in execution order.
+    /// The pass names in execution order, not counting the output copy (see [`PostChain::encode`]).
     pub(super) fn names(&self) -> Vec<&'static str> {
         self.temporal.iter().chain(self.passes.iter()).map(|p| p.name()).collect()
     }
@@ -226,26 +229,32 @@ impl PostChain {
             pass.encode_diagnostic(ctx, &io, encoder);
             return;
         }
-        self.passes.last_mut().expect("final resolve").encode(ctx, &io, encoder);
+        self.resolve.encode(ctx, &io, encoder);
     }
 
-    /// Record every pass. The last one writes `output`.
+    /// Record every pass. The last one writes `output`: the output copy follows the passes only when
+    /// [`plan::needs_resolve`] says the last pass cannot write it exactly.
     pub(super) fn encode(
         &mut self,
         ctx: &PassContext<'_>,
         encoder: &mut wgpu::CommandEncoder,
         output: (&wgpu::TextureView, wgpu::TextureFormat),
     ) {
-        let Self { passes, temporal, scratch, .. } = self;
+        let Self { passes, resolve, temporal, scratch, .. } = self;
         let scene = ctx.scene;
         // The temporal upscaler only runs on a frame that carries its inputs.
         let upscaler = temporal.as_mut().filter(|_| ctx.temporal.is_some() && scene.motion.is_some());
-        let mut chain: Vec<&mut dyn PostPass> = Vec::with_capacity(passes.len() + 1);
+        let temporal_last = upscaler.is_some() && passes.is_empty();
+        let mut chain: Vec<&mut dyn PostPass> = Vec::with_capacity(passes.len() + 2);
         if let Some(pass) = upscaler {
             chain.push(pass.as_mut());
         }
         for pass in passes.iter_mut() {
             chain.push(pass.as_mut());
+        }
+        let extents: Vec<Extent> = chain.iter().map(|pass| pass.extent()).collect();
+        if plan::needs_resolve(&extents, temporal_last, scene.size, ctx.output_size, output.1) {
+            chain.push(resolve as &mut dyn PostPass);
         }
         let steps = plan::plan(chain.len());
         // A chain that got shorter no longer needs its second (or any) ping-pong image.

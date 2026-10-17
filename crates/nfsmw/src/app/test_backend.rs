@@ -34,6 +34,8 @@ pub struct NullBackend {
     track_glossy: bool,
     next_glossy: usize,
     pub mesh_labels: std::collections::HashMap<MeshHandle, String>,
+    /// The live textures of a tracking backend, by handle, with their labels.
+    pub texture_labels: std::collections::HashMap<TextureHandle, String>,
     pub mesh_draws: std::collections::HashMap<MeshHandle, Vec<blackbox_gfx::DrawRange>>,
     pub mesh_tangents: std::collections::HashMap<MeshHandle, Vec<[f32; 4]>>,
     pub normal_descriptors:
@@ -70,6 +72,7 @@ impl NullBackend {
             track_glossy: false,
             next_glossy: 0,
             mesh_labels: Default::default(),
+            texture_labels: Default::default(),
             mesh_draws: Default::default(),
             mesh_tangents: Default::default(),
             normal_descriptors: Default::default(),
@@ -94,6 +97,7 @@ impl NullBackend {
         self
     }
 
+    /// Track the live meshes and textures (`mesh_labels`, `texture_labels`) instead of handing out dummy handles.
     pub fn with_mesh_tracking(mut self) -> Self {
         self.track_meshes = true;
         self
@@ -148,19 +152,21 @@ impl RenderBackend for NullBackend {
     fn set_projected_reflection_scene(&mut self, scene: Option<blackbox_gfx::ProjectedReflectionScene<'_>>) {
         self.projected = scene.map(|scene| (scene.frame, scene.size, scene.blur, scene.instances.to_vec()));
     }
-    fn create_texture(&mut self, _desc: &TextureDesc<'_>) -> TextureHandle {
-        if self.track_normal || self.track_textures {
-            let handle = TextureHandle::from_raw(self.next_texture);
-            self.next_texture += 1;
-            if self.track_textures {
-                self.textures.insert(handle);
-                self.resources.lock().unwrap().textures += 1;
-            }
-            return handle;
+    fn create_texture(&mut self, desc: &TextureDesc<'_>) -> TextureHandle {
+        if !self.track_meshes && !self.track_normal && !self.track_textures {
+            return TextureHandle::from_raw(0);
         }
-        TextureHandle::from_raw(0)
+        let handle = TextureHandle::from_raw(self.next_texture);
+        self.next_texture += 1;
+        self.texture_labels.insert(handle, desc.label.to_owned());
+        if self.track_textures {
+            self.textures.insert(handle);
+            self.resources.lock().unwrap().textures += 1;
+        }
+        handle
     }
     fn destroy_texture(&mut self, handle: TextureHandle) {
+        self.texture_labels.remove(&handle);
         if self.textures.remove(&handle) {
             let mut counts = self.resources.lock().unwrap();
             counts.textures -= 1;

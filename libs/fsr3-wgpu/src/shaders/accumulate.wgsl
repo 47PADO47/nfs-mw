@@ -29,11 +29,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 //
-// Changes from the original: only the fp32 reference path (the approximate Lanczos for the upsample
+// Changes from the original: only the reference path (the approximate Lanczos for the upsample
 // kernel and the sin-based one for the history), without the paired-16-bit Xbox variant; the history
 // taps repeat the edge texel instead of AMD's clamp to 1..size-2; the history and the new locks are
 // read with textureLoad; the history is clamped to the range of its 16-bit
-// storage; `OUTPUT_FORMAT` is replaced with the format of the output texture when the module is built.
+// storage; `OUTPUT_FORMAT` and `LOCK_FORMAT` are replaced with the formats of the output and the locks when the
+// module is built.
 
 @group(0) @binding(1) var input_color: texture_2d<f32>;
 @group(0) @binding(2) var input_motion_vectors: texture_2d<f32>;
@@ -45,7 +46,7 @@
 @group(0) @binding(8) var<storage, read> frame_info: array<vec4<f32>>;
 @group(0) @binding(9) var out_history: texture_storage_2d<rgba16float, write>;
 @group(0) @binding(10) var out_upscaled: texture_storage_2d<OUTPUT_FORMAT, write>;
-@group(0) @binding(11) var new_locks: texture_storage_2d<r32float, read_write>;
+@group(0) @binding(11) var new_locks: texture_storage_2d<LOCK_FORMAT, read_write>;
 
 const PI: f32 = 3.141592653589793;
 

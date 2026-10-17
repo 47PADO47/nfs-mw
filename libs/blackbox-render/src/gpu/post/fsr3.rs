@@ -25,9 +25,14 @@ pub(in crate::gpu) struct Fsr3Pass {
 
 impl Fsr3Pass {
     /// The upscaler's pipelines are built here, so choosing FSR 3 pays for them once, not on the first frame.
-    pub(in crate::gpu) fn new(device: &wgpu::Device) -> Result<Self, Fsr3Error> {
-        let context = Fsr3Context::new(device, Fsr3Config::new())?;
-        Ok(Self { context, output: None, copy: Resolve::new(device) })
+    pub(in crate::gpu) fn new(
+        device: &wgpu::Device,
+        adapter: &wgpu::Adapter,
+        cache: Option<&wgpu::PipelineCache>,
+    ) -> Result<Self, Fsr3Error> {
+        let config = Fsr3Config { pipeline_cache: cache.cloned(), ..Fsr3Config::new() };
+        let context = Fsr3Context::new_for_adapter(adapter, device, config)?;
+        Ok(Self { context, output: None, copy: Resolve::new(device, cache) })
     }
 
     /// The storage texture the upscaler writes, made again when the output size changes.

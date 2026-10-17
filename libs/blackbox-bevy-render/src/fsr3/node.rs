@@ -20,7 +20,7 @@ use bevy_render::camera::{ExtractedCamera, TemporalJitter};
 use bevy_render::render_resource::{
     Operations, PipelineCache, RenderPassColorAttachment, RenderPassDescriptor, SpecializedRenderPipelines, TextureView,
 };
-use bevy_render::renderer::{RenderContext, RenderDevice, RenderQueue, ViewQuery};
+use bevy_render::renderer::{RenderAdapter, RenderContext, RenderDevice, RenderQueue, ViewQuery};
 use bevy_render::view::{ExtractedView, ViewTarget};
 use bevy_render::{ExtractSchedule, Render, RenderSystems};
 use fsr3_wgpu::{Fsr3Config, Fsr3Context, Fsr3Inputs, Fsr3Outputs};
@@ -29,6 +29,7 @@ use glam::{UVec2, Vec2};
 use super::component::Fsr3Upscale;
 use super::sizes;
 use crate::ops::BlackboxBridge;
+use crate::pipeline_cache::PipelineCacheFile;
 use crate::systems::effects;
 
 /// The upscaler and its output, made on first use. Lives in the render world; the history is in `context`.
@@ -51,13 +52,21 @@ impl Fsr3Render {
     }
 
     /// The context and the output texture for a display of `display` pixels, made on first use. `None` when the
-    /// context cannot be made (an error is logged once).
-    fn parts(&mut self, device: &wgpu::Device, display: [u32; 2]) -> Option<(&mut Fsr3Context, wgpu::TextureView)> {
+    /// context cannot be made (an error is logged once). `adapter` must be the one `device` was made from; `cache` is
+    /// the pipeline cache the upscaler's compute pipelines are built with.
+    fn parts(
+        &mut self,
+        adapter: &wgpu::Adapter,
+        device: &wgpu::Device,
+        cache: Option<&wgpu::PipelineCache>,
+        display: [u32; 2],
+    ) -> Option<(&mut Fsr3Context, wgpu::TextureView)> {
         if self.unavailable {
             return None;
         }
         if self.context.is_none() {
-            match Fsr3Context::new(device, Fsr3Config::new()) {
+            let config = Fsr3Config { pipeline_cache: cache.cloned(), ..Fsr3Config::new() };
+            match Fsr3Context::new_for_adapter(adapter, device, config) {
                 Ok(context) => self.context = Some(context),
                 Err(error) => {
                     log::error!("fsr3: the upscaler could not be created: {error}");
@@ -116,7 +125,9 @@ pub fn prepare_jitter(
 pub fn fsr3_pass(
     mut render: ResMut<Fsr3Render>,
     bridge: Res<BlackboxBridge>,
+    pipeline_cache: Res<PipelineCacheFile>,
     device: Res<RenderDevice>,
+    adapter: Res<RenderAdapter>,
     queue: Res<RenderQueue>,
     blit: Res<BlitPipeline>,
     mut blits: ResMut<SpecializedRenderPipelines<BlitPipeline>>,
@@ -158,7 +169,8 @@ pub fn fsr3_pass(
     };
     let render_size = sizes::render_size(display, render_scale);
     let delta_time = render.tick(Instant::now());
-    let Some((context, output)) = render.parts(device.wgpu_device(), display) else { return };
+    let parts = render.parts(&adapter, device.wgpu_device(), pipeline_cache.cache(), display);
+    let Some((context, output)) = parts else { return };
 
     let inputs = Fsr3Inputs {
         color: target.main_texture_view(),

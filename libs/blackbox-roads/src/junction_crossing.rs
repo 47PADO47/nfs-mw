@@ -25,10 +25,10 @@ pub fn crossing_point(net: &RoadNetwork, controller: &SignalController, approach
 
 /// The seconds until the first car of `bodies` that is not going the same way as `heading` (a unit planar vector)
 /// reaches `point` at its closest approach. `None` when no such car is moving towards the point.
-pub fn earliest_oncoming(point: Vec3, heading: Vec2, bodies: &[Body]) -> Option<f32> {
+pub fn earliest_oncoming(point: Vec3, heading: Vec2, bodies: impl IntoIterator<Item = Body>) -> Option<f32> {
     let point = Vec2::new(point.x, point.z);
     bodies
-        .iter()
+        .into_iter()
         .filter(|body| body.forward.dot(heading) < SAME_WAY)
         .filter_map(|body| {
             let position = Vec2::new(body.position.x, body.position.z);
@@ -110,7 +110,7 @@ mod tests {
     fn an_oncoming_car_counts_with_the_time_to_reach_the_point() {
         // Heading east (+X). An opposing car 25 m east of the point, driving west at 10 m/s, is there in 2.5 s.
         let oncoming = car(Vec3::new(25.0, 0.0, 0.0), Vec3::new(-10.0, 0.0, 0.0), Vec2::NEG_X);
-        let t = earliest_oncoming(Vec3::ZERO, Vec2::X, &[oncoming]).expect("oncoming");
+        let t = earliest_oncoming(Vec3::ZERO, Vec2::X, [oncoming]).expect("oncoming");
         assert!((t - 2.5).abs() < 1e-4, "{t}");
     }
 
@@ -118,14 +118,14 @@ mod tests {
     fn a_car_going_the_same_way_is_behind_us_and_does_not_count() {
         // Ahead of us in our own direction, driving away is not a threat; behind us and closing is still ignored.
         let behind = car(Vec3::new(-30.0, 0.0, 0.0), Vec3::new(10.0, 0.0, 0.0), Vec2::X);
-        assert_eq!(earliest_oncoming(Vec3::ZERO, Vec2::X, &[behind]), None);
+        assert_eq!(earliest_oncoming(Vec3::ZERO, Vec2::X, [behind]), None);
     }
 
     #[test]
     fn a_car_crossing_at_a_right_angle_counts() {
         // A car from the south (-Z side) driving north at 10 m/s, 25 m from the point: it crosses in 2.5 s.
         let crossing = car(Vec3::new(0.0, 0.0, -25.0), Vec3::new(0.0, 0.0, 10.0), Vec2::Y);
-        let t = earliest_oncoming(Vec3::ZERO, Vec2::X, &[crossing]).expect("crossing car");
+        let t = earliest_oncoming(Vec3::ZERO, Vec2::X, [crossing]).expect("crossing car");
         assert!((t - 2.5).abs() < 1e-4, "{t}");
     }
 
@@ -133,14 +133,14 @@ mod tests {
     fn a_standing_car_and_a_car_moving_away_do_not_count() {
         let standing = car(Vec3::new(20.0, 0.0, 0.0), Vec3::ZERO, Vec2::NEG_X);
         let leaving = car(Vec3::new(20.0, 0.0, 0.0), Vec3::new(10.0, 0.0, 0.0), Vec2::X);
-        assert_eq!(earliest_oncoming(Vec3::ZERO, Vec2::X, &[standing, leaving]), None);
+        assert_eq!(earliest_oncoming(Vec3::ZERO, Vec2::X, [standing, leaving]), None);
     }
 
     #[test]
     fn the_earliest_of_several_oncoming_cars_is_the_one_that_counts() {
         let far = car(Vec3::new(40.0, 0.0, 0.0), Vec3::new(-10.0, 0.0, 0.0), Vec2::NEG_X);
         let near = car(Vec3::new(0.0, 0.0, 10.0), Vec3::new(0.0, 0.0, -10.0), Vec2::NEG_Y);
-        let t = earliest_oncoming(Vec3::ZERO, Vec2::X, &[far, near]).expect("two cars");
+        let t = earliest_oncoming(Vec3::ZERO, Vec2::X, [far, near]).expect("two cars");
         assert!((t - 1.0).abs() < 1e-4, "{t}");
     }
 }

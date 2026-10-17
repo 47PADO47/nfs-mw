@@ -50,7 +50,11 @@ impl Renderer {
             false => targets::Targets::new(&self.device, size),
         };
         let mut surfaces = self.surfaces.take().unwrap_or_else(|| Surfaces {
-            prepass: prepass::Prepass::new(&self.device, &self.shared.bindings.texture_layout),
+            prepass: prepass::Prepass::new(
+                &self.device,
+                &self.shared.bindings.texture_layout,
+                self.pipeline_cache.as_ref(),
+            ),
             targets: make_targets(),
         });
         if surfaces.targets.size != size {

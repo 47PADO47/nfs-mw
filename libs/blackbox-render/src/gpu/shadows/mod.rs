@@ -50,7 +50,12 @@ impl Renderer {
         if settings.sun_shadows && stats.supported {
             let bias = settings.shadow_projection.map_or([1.0, 1.0], |projection| projection.depth_bias);
             if self.shadows.as_ref().is_none_or(|shadows| shadows.bias != bias) {
-                self.shadows = Some(Shadows::new(&self.device, &self.shared.bindings.texture_layout, bias));
+                self.shadows = Some(Shadows::new(
+                    &self.device,
+                    &self.shared.bindings.texture_layout,
+                    bias,
+                    self.pipeline_cache.as_ref(),
+                ));
             }
             let shadows = self.shadows.as_mut().expect("prepared shadow pipelines");
             shadows.bounds.clear();

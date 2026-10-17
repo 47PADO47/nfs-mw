@@ -21,7 +21,9 @@ impl Renderer {
         }
         let Some(surfaces) = &self.surfaces else { return };
         let targets = &surfaces.targets;
-        let ao = self.ao.get_or_insert_with(|| AmbientOcclusion::new(&self.device, targets.size));
+        let ao = self
+            .ao
+            .get_or_insert_with(|| AmbientOcclusion::new(&self.device, targets.size, self.pipeline_cache.as_ref()));
         if ao.size != targets.size {
             ao.size = targets.size;
             ao.mask = super::super::surface::mask(&self.device, targets.size, "ambient visibility");

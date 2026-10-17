@@ -72,7 +72,7 @@ fn pixel(pixels: &[u8], x: u32, y: u32) -> [u8; 4] {
 fn check(backend: wgpu::Backends) {
     let _lock = serial();
     let gpu = Gpu::new(backend);
-    let mut pass = UiPass::new(&gpu.device);
+    let mut pass = UiPass::new(&gpu.device, None);
     let (white, checker) = (UiTextureId::from_raw(1), UiTextureId::from_raw(2));
     let patch = |id, size: [u32; 2], rgba: &'static [u8]| UiTexturePatch { id, offset: None, size, rgba };
     pass.update_texture(&gpu.device, &gpu.queue, &patch(white, [1, 1], &[255; 4])).unwrap();
@@ -125,7 +125,7 @@ fn check(backend: wgpu::Backends) {
 fn bad_patches_are_refused_and_change_nothing() {
     let _lock = serial();
     let gpu = Gpu::new(wgpu::Backends::VULKAN);
-    let mut pass = UiPass::new(&gpu.device);
+    let mut pass = UiPass::new(&gpu.device, None);
     let id = UiTextureId::from_raw(5);
     let patch = |offset, size: [u32; 2], rgba: &'static [u8]| UiTexturePatch { id, offset, size, rgba };
     let refused = pass.update_texture(&gpu.device, &gpu.queue, &patch(None, [2, 2], &[0; 4]));

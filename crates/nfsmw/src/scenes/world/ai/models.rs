@@ -104,6 +104,14 @@ pub(in crate::scenes::world) fn load_requested(
                 let job = Job::Cop(lookup(scene, &name));
                 ask(scene, Request::Cop(name), job);
             }
+            ModelRequest::Support(name) => {
+                // Loaded since it was asked for: a second copy would be installed beside the first.
+                if scene.traffic.as_ref().is_some_and(|t| t.has_cop_model(&name)) {
+                    continue;
+                }
+                let job = Job::Cop(lookup(scene, &name));
+                ask(scene, Request::Cop(name), job);
+            }
         }
     }
     pump(scene, renderer, blocking);
@@ -179,7 +187,7 @@ fn handle(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, done: Done) 
         (Request::Traffic(vehicle), Err(error)) => fail(scene, &vehicle, &error),
         (Request::Cop(name), Ok(Loaded::Cop(load))) => cop_arrived(scene, &name, *load),
         (Request::Cop(_), Ok(Loaded::CopExtras(load))) => install_cop(scene, renderer, *load),
-        (Request::Cop(name), Err(error)) => fail(scene, &name, &error),
+        (Request::Cop(name), Err(error)) => fail_cop(scene, &name, &error),
         (Request::Helicopter, Ok(Loaded::Helicopter(model))) => install_helicopter(scene, renderer, *model),
         (Request::Helicopter, Err(error)) => log::warn!("the police helicopter has no model: {error}"),
         _ => log::warn!("model loader: a result that does not match its request"),
@@ -191,6 +199,15 @@ fn fail(scene: &mut WorldScene, vehicle: &str, error: &str) {
     log::warn!("traffic: {vehicle}: {error}");
     if let Some(traffic) = scene.traffic.as_mut() {
         traffic.model_failed(vehicle);
+    }
+}
+
+/// A cop model that did not load: as `fail`, and a chase that is running drops the wave's entries of it, so the wave does
+/// not wait on a model that cannot load (what `begin_pursuit` does for the models that fail at the start).
+fn fail_cop(scene: &mut WorldScene, name: &str, error: &str) {
+    fail(scene, name, error);
+    if let Some(traffic) = scene.traffic.as_mut() {
+        traffic.cop_model_failed(name);
     }
 }
 
@@ -227,7 +244,7 @@ fn traffic_model(
 fn cop_arrived(scene: &mut WorldScene, name: &str, load: CopLoad) {
     match cop_job(scene, name, load) {
         Ok(job) => ask(scene, Request::Cop(name.to_owned()), job),
-        Err(error) => fail(scene, name, &error),
+        Err(error) => fail_cop(scene, name, &error),
     }
 }
 

@@ -1,7 +1,6 @@
 //! Shared real-time authored mode envelopes. Spec: `speedbreaker-audio.md`.
 use super::{Audio, trace::Record};
-use blackbox_mixmap::{EventOutput, InputKey, MixMap, Mixer};
-use std::sync::Arc;
+use blackbox_mixmap::{EventOutput, InputKey, Mixer};
 
 const MAP: &str = "SOUND/MIXMAPS/MAPOUTPUT.mxb";
 const EVENTS: [u8; 6] = [0, 2, 6, 7, 8, 11];
@@ -53,12 +52,10 @@ impl Audio {
             if !active {
                 return;
             }
-            let loaded = nfsmw_data::shared::map_output(&self.dir)
-                .map_err(|e| e.to_string())
-                .and_then(|bytes| MixMap::parse(&bytes).map_err(|e| e.to_string()));
-            let map = match loaded {
+            let map = match crate::audio::mixer::mix_map(&self.dir) {
                 Ok(map) => map,
                 Err(error) => {
+                    let error = format!("{error:#}");
                     self.speedbreaker.failed = true;
                     self.trace.record(Record {
                         event: "module_unavailable",
@@ -70,7 +67,7 @@ impl Audio {
                     return;
                 }
             };
-            let mut mixer = Mixer::new(Arc::new(map), &[1, 1]);
+            let mut mixer = Mixer::new(map, &[1, 1]);
             mixer.attach(blackbox_mixmap::ObjectRef { state: 0, instance: 0, object: 6 }, true);
             mixer.attach(blackbox_mixmap::ObjectRef { state: 1, instance: 0, object: 1 }, true);
             self.speedbreaker.mixer = Some(mixer);

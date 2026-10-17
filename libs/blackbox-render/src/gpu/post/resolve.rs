@@ -1,4 +1,6 @@
-//! The built-in last pass: HDR scene image to the output image with a plain clamp.
+//! The built-in copy of the chain's last image to the output with a plain clamp. It runs only when the last
+//! pass cannot write the output itself ([`super::plan::needs_resolve`]): with no pass at all it takes the scene
+//! to the output, and when the sizes differ it scales the image bilinearly.
 
 use std::collections::HashMap;
 
@@ -36,10 +38,12 @@ pub(super) struct Resolve {
     pipelines: HashMap<(Mode, wgpu::TextureFormat), wgpu::RenderPipeline>,
     /// Bind groups per input view: the sampler and the layout never change.
     bind_groups: BindCache<wgpu::TextureView, wgpu::BindGroup>,
+    /// Used by the pipelines built per mode and format.
+    cache: Option<wgpu::PipelineCache>,
 }
 
 impl Resolve {
-    pub(super) fn new(device: &wgpu::Device) -> Self {
+    pub(super) fn new(device: &wgpu::Device, cache: Option<&wgpu::PipelineCache>) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("resolve"),
             source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/resolve.wgsl").into()),
@@ -78,13 +82,22 @@ impl Resolve {
             min_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
-        Self { shader, layout, pipeline_layout, sampler, pipelines: HashMap::new(), bind_groups: BindCache::default() }
+        Self {
+            shader,
+            layout,
+            pipeline_layout,
+            sampler,
+            pipelines: HashMap::new(),
+            bind_groups: BindCache::default(),
+            cache: cache.cloned(),
+        }
     }
 }
 
 /// The pipeline of one mode writing `format`.
 fn build_pipeline(
     device: &wgpu::Device,
+    cache: Option<&wgpu::PipelineCache>,
     shader: &wgpu::ShaderModule,
     pipeline_layout: &wgpu::PipelineLayout,
     mode: Mode,
@@ -109,7 +122,7 @@ fn build_pipeline(
             targets: &[Some(wgpu::ColorTargetState { format, blend: None, write_mask: wgpu::ColorWrites::ALL })],
         }),
         multiview_mask: None,
-        cache: None,
+        cache,
     })
 }
 
@@ -136,10 +149,9 @@ impl PostPass for Resolve {
                 ],
             })
         });
-        let pipeline = self
-            .pipelines
-            .entry((mode, io.output_format))
-            .or_insert_with(|| build_pipeline(ctx.device, &self.shader, &self.pipeline_layout, mode, io.output_format));
+        let pipeline = self.pipelines.entry((mode, io.output_format)).or_insert_with(|| {
+            build_pipeline(ctx.device, self.cache.as_ref(), &self.shader, &self.pipeline_layout, mode, io.output_format)
+        });
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("resolve"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {

@@ -114,6 +114,12 @@ impl RadialBlur {
         }
     }
 
+    /// Build the pipelines with `cache` (see `wgpu::PipelineCache`); without one they compile from scratch.
+    pub fn with_pipeline_cache(mut self, cache: Option<wgpu::PipelineCache>) -> Self {
+        self.filter = self.filter.with_pipeline_cache(cache);
+        self
+    }
+
     /// Say that the input holds the image only in the top-left part of it (a scene drawn at a render scale into a
     /// texture of the output's size): the centre, the reach and the samples are then those of the image, not of the
     /// whole texture. The default is the whole texture.

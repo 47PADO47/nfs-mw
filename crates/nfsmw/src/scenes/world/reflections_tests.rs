@@ -11,7 +11,12 @@ fn streaming_refreshes_a_paused_low_quality_capture() {
     let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").expect("set NFSMW_GAME_DIR")).unwrap();
     let mut renderer = Renderer::headless(
         (64, 64),
-        RendererOptions { backend: blackbox_gfx::GraphicsApi::Vulkan, vsync: false, force_fallback_adapter: false },
+        RendererOptions {
+            backend: blackbox_gfx::GraphicsApi::Vulkan,
+            vsync: false,
+            force_fallback_adapter: false,
+            pipeline_cache_dir: None,
+        },
     )
     .unwrap();
     let mut graphics = *renderer.graphics();
@@ -84,14 +89,14 @@ fn streaming_refreshes_a_paused_low_quality_capture() {
     world.view = super::super::View::Fly;
     world.update_shadow_casters(&mut renderer);
     let identities = |world: &WorldScene| {
-        let mut ids: Vec<_> = world.shadow_casters.iter().map(|i| (i.mesh, i.key)).collect();
+        let mut ids: Vec<_> = world.shadow_feed.casters.iter().map(|i| (i.mesh, i.key)).collect();
         ids.sort_unstable();
         ids
     };
     let before = identities(&world);
     let overlays: std::collections::HashSet<_> =
         world.residency.shadow_placed().filter(|p| p.original_shadow).map(|p| p.key).collect();
-    assert!(world.shadow_casters.iter().all(|i| !overlays.contains(&i.key)), "authored overlays never cast");
+    assert!(world.shadow_feed.casters.iter().all(|i| !overlays.contains(&i.key)), "authored overlays never cast");
     world.camera.position += glam::Vec3::new(2.0, -2.0, 0.0);
     world.update_shadow_casters(&mut renderer);
     assert_eq!(identities(&world), before, "small camera movement preserves every resident caster silhouette");
@@ -107,7 +112,12 @@ fn live_environment_changes_lighting_and_invalidates_frozen_reflections() {
     let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").expect("set NFSMW_GAME_DIR")).unwrap();
     let mut renderer = Renderer::headless(
         (64, 64),
-        RendererOptions { backend: blackbox_gfx::GraphicsApi::Vulkan, vsync: false, force_fallback_adapter: false },
+        RendererOptions {
+            backend: blackbox_gfx::GraphicsApi::Vulkan,
+            vsync: false,
+            force_fallback_adapter: false,
+            pipeline_cache_dir: None,
+        },
     )
     .unwrap();
     let mut graphics = *renderer.graphics();

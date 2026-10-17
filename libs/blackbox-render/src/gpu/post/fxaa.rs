@@ -20,8 +20,9 @@ pub(super) struct FxaaPass {
 }
 
 impl FxaaPass {
-    pub(super) fn new(device: &wgpu::Device) -> Self {
-        Self { filter: Filter::new(device, "fxaa", &fxaa_wgsl()) }
+    pub(super) fn new(device: &wgpu::Device, cache: Option<&wgpu::PipelineCache>) -> Self {
+        let filter = Filter::new(device, "fxaa", &fxaa_wgsl()).with_pipeline_cache(cache.cloned());
+        Self { filter }
     }
 }
 

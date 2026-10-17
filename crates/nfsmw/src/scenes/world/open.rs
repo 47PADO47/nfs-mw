@@ -120,7 +120,7 @@ impl WorldScene {
             visible: Vec::new(),
             rear_visible: Vec::new(),
             shadow_quality: blackbox_gfx::ShadowQuality::Off,
-            shadow_casters: Vec::new(),
+            shadow_feed: Default::default(),
             original_shadows: true,
             original_sky: false,
             colour_treatment,
@@ -192,6 +192,13 @@ fn audio_environment(dir: &GameDir) -> Option<crate::audio::environment_context:
         .and_then(|bytes| crate::audio::environment_context::EnvironmentMap::read(&bytes))
         .map_err(|e| log::warn!("audio environment unavailable: {e:#}"))
         .ok()
+}
+
+/// A car waiting for the renderer to exist.
+pub(super) struct PendingCar {
+    pub(super) name: String,
+    pub(super) model: CarModel,
+    pub(super) script: Option<DriveScript>,
 }
 
 /// The player's car for `--drive`: its model and its driving script.

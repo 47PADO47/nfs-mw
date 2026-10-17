@@ -128,7 +128,7 @@ impl CarScene {
     }
 
     /// Free what the current car uploaded.
-    fn release(&mut self, renderer: &mut dyn RenderBackend) {
+    pub(crate) fn release(&mut self, renderer: &mut dyn RenderBackend) {
         for mesh in self.meshes.drain(..) {
             renderer.destroy_mesh(mesh);
         }
@@ -136,6 +136,13 @@ impl CarScene {
             materials.destroy(renderer);
         }
         self.instances.clear();
+    }
+
+    /// The car is in the window again after another scene had it: its light rig is put back (the other scene set
+    /// its own), and the next frame is a camera cut, so nothing is blended from the other scene's picture.
+    pub(crate) fn reshow(&mut self, renderer: &mut dyn RenderBackend) {
+        materials::set_lighting(renderer, self.shading, -LIGHT_DIR);
+        self.cut.arm();
     }
 
     /// Upload the car and its floor and list the instances.
@@ -208,7 +215,8 @@ fn bounds(model: &CarModel) -> Aabb {
 
 impl Scene for CarScene {
     fn close(&mut self, renderer: &mut dyn RenderBackend) {
-        self.release(renderer);
+        // The inherent helper, not this hook: method paths name it first.
+        CarScene::release(self, renderer);
     }
 
     fn title(&self) -> String {

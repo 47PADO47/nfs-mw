@@ -8,7 +8,8 @@ use crate::{context::Fsr3Context, resources::Resources};
 /// `COPY_SRC` and sampleable, and describe the last dispatch; their formats and meaning may change.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DebugTexture {
-    /// `Rg32Float` at render size: the motion vector of the nearest pixel of each 3x3 block, in uv.
+    /// `Rg32Float` (`Rg16Float` with 16-bit intermediates) at render size: the motion vector of the nearest
+    /// pixel of each 3x3 block, in uv.
     DilatedMotionVectors,
     /// `R32Float` at render size: the nearest depth of each 3x3 block, as in the depth input.
     DilatedDepth,
@@ -18,13 +19,13 @@ pub enum DebugTexture {
     FarthestDepthMip1,
     /// `Rgba16Float` at render size: reactive, disocclusion, shading change and accumulation.
     ReactiveMasks,
-    /// `R32Float` at half render size: the shading change estimate.
+    /// `R32Float` (`R16Float`) at half render size: the shading change estimate.
     ShadingChange,
-    /// `R32Float` at render size: the luma instability factor.
+    /// `R32Float` (`R16Float`) at render size: the luma instability factor.
     LumaInstability,
-    /// `R32Float` at render size: the frames of history, 0 to 1.
+    /// `R32Float` (`R16Float`) at render size: the frames of history, 0 to 1.
     Accumulation,
-    /// `R32Float` at render size: the luma of the colour input.
+    /// `R32Float` (`R16Float`) at render size: the luma of the colour input.
     Luma,
     /// `Rgba16Float` at output size: the accumulated image, in the alpha channel with its lock.
     History,

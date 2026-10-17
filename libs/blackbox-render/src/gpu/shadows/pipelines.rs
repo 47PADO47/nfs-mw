@@ -3,7 +3,12 @@ use crate::Vertex;
 use crate::gpu::{instances::INSTANCE_LAYOUT, pipelines::VERTEX_ATTRIBUTES};
 
 impl Shadows {
-    pub(super) fn new(device: &wgpu::Device, texture: &wgpu::BindGroupLayout, bias: [f32; 2]) -> Self {
+    pub(super) fn new(
+        device: &wgpu::Device,
+        texture: &wgpu::BindGroupLayout,
+        bias: [f32; 2],
+        cache: Option<&wgpu::PipelineCache>,
+    ) -> Self {
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("cascade matrix"),
             entries: &[wgpu::BindGroupLayoutEntry {
@@ -59,7 +64,7 @@ impl Shadows {
                     targets: &[],
                 }),
                 multiview_mask: None,
-                cache: None,
+                cache,
             })
         };
         let buffers: Vec<_> = (0..4)

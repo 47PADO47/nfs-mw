@@ -38,10 +38,13 @@ pub fn add_plugin(app: &mut App, api: GraphicsApi) {
         .world()
         .get_resource::<crate::settings::Settings>()
         .is_some_and(|settings| settings.ray_tracing != crate::settings::RayTracingLevel::Off);
+    // The same file as the native renderer (`native.rs`): the driver's compiled pipelines, derived data per user.
+    let pipeline_cache_dir = game_install::cache_dir(&nfsmw_data::game::SPEC).map(|dir| dir.join("pipelines-bevy"));
     app.add_plugins(blackbox_bevy_render::BlackboxBevyRenderPlugin {
         api,
         synchronous_pipeline_compilation: false,
         ray_tracing,
+        pipeline_cache_dir,
         ..Default::default()
     });
 }

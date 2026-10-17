@@ -80,8 +80,9 @@ pub(super) struct BloomPass {
 }
 
 impl BloomPass {
-    pub(super) fn new(device: &wgpu::Device, settings: &PostSettings) -> Self {
-        Self { filter: Filter::new(device, "bloom", &bloom_wgsl()), params: params(settings), chain: SizedPair::new() }
+    pub(super) fn new(device: &wgpu::Device, settings: &PostSettings, cache: Option<&wgpu::PipelineCache>) -> Self {
+        let filter = Filter::new(device, "bloom", &bloom_wgsl()).with_pipeline_cache(cache.cloned());
+        Self { filter, params: params(settings), chain: SizedPair::new() }
     }
 }
 

@@ -56,6 +56,7 @@ mod space;
 mod speed_trails;
 mod start;
 mod sun;
+mod teardown;
 mod update;
 mod vehicle_effects;
 mod visibility;
@@ -105,13 +106,6 @@ enum View {
     Chase,
 }
 
-/// A car waiting for the renderer to exist.
-struct PendingCar {
-    name: String,
-    model: CarModel,
-    script: Option<DriveScript>,
-}
-
 pub struct WorldScene {
     garage: crate::garage::Model,
     garage_parts: Option<nfsmw_data::car::customization::Inventory>,
@@ -133,7 +127,7 @@ pub struct WorldScene {
     visible: Vec<Instance>,
     /// What the rear-view mirror sees: the same world, without the player's car.
     rear_visible: Vec<Instance>,
-    shadow_casters: Vec<Instance>,
+    shadow_feed: shadow_feed::ShadowFeed,
     original_shadows: bool,
     original_sky: bool,
     colour_treatment: Option<blackbox_gfx::ColourTreatment>,
@@ -160,7 +154,7 @@ pub struct WorldScene {
     physics_clock: drive::FixedClock,
     speedbreaker_clock: drive::SpeedbreakerClock,
     view: View,
-    pending_car: Option<PendingCar>,
+    pending_car: Option<open::PendingCar>,
     drive: Option<Drive>,
     /// Computer-driven cars, when the track has a road network.
     traffic: Option<ai::TrafficWorld>,

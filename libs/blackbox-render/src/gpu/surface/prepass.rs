@@ -14,7 +14,11 @@ pub(super) struct Prepass {
 }
 
 impl Prepass {
-    pub(super) fn new(device: &wgpu::Device, textures: &wgpu::BindGroupLayout) -> Self {
+    pub(super) fn new(
+        device: &wgpu::Device,
+        textures: &wgpu::BindGroupLayout,
+        cache: Option<&wgpu::PipelineCache>,
+    ) -> Self {
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("contact camera matrix"),
             entries: &[wgpu::BindGroupLayoutEntry {
@@ -85,7 +89,7 @@ impl Prepass {
                     })],
                 }),
                 multiview_mask: None,
-                cache: None,
+                cache,
             })
         };
         Self {
