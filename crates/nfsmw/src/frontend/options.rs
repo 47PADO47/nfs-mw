@@ -60,6 +60,8 @@ pub enum Setting {
     UpscaleSharpness,
     /// A row a mod added to the Mods page (`bb.menus`), by its handle; its label, value and control come from the bridge.
     Mod(u64),
+    /// The on/off switch of a listed mod, by its position in the mod manager's list (`mod_options.rs`).
+    ModManaged(usize),
 }
 
 /// What a row's title shows.
@@ -302,7 +304,7 @@ impl Setting {
         let before = *s;
         match self {
             // A Mods row's value lives in its mod (`mod_options.rs`), not in the settings.
-            Setting::Mod(_) => return false,
+            Setting::Mod(_) | Setting::ModManaged(_) => return false,
             Setting::Input(setting) => return setting.step(s, changed, forward),
             Setting::Post(setting) => return setting.step(s, changed, forward),
             Setting::Graphics(setting) => return setting.step(s, changed, forward),

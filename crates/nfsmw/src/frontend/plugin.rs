@@ -156,12 +156,7 @@ fn update(
     let mut changed = std::mem::take(&mut fe.changed);
     // The screens work on a copy so the resource is only marked as changed when a setting really changed.
     let mut current = *settings;
-    let mut env = Env {
-        settings: &mut current,
-        changed: &mut changed,
-        caps,
-        mods: map.mods.as_deref().map(crate::modding::Mods::bridge),
-    };
+    let mut env = Env { settings: &mut current, changed: &mut changed, caps, mods: map.mods.as_deref() };
     fe.begin(host, &mut env);
     // The sidebar's pick is shown on the frame after it was clicked (its scene runs after this system).
     let picked = fe.browse.as_ref().and_then(Browse::take);

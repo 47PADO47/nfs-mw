@@ -86,8 +86,8 @@ pub struct Env<'a> {
     pub settings: &'a mut Settings,
     pub changed: &'a mut Partial,
     pub caps: Capabilities,
-    /// The mods' bridge while the mods run (`bb.menus` rows); `None` without mods.
-    pub mods: Option<&'a crate::modding::Bridge>,
+    /// The mods while they run: the Mods page's switches and rows (`bb.menus`); `None` without mods.
+    pub mods: Option<&'a crate::modding::Mods>,
 }
 
 /// What a screen can touch while it handles a message.
@@ -107,8 +107,8 @@ pub struct Cx<'a> {
     pub key_texts: &'a [[String; 2]],
     /// The world map's frame while the map is open (`world_map/screen`); `None` on every other screen.
     pub world_map: Option<&'a WorldMapFrame>,
-    /// The mods' bridge, for the Mods page's rows; `None` without mods.
-    pub mods: Option<&'a crate::modding::Bridge>,
+    /// The mods, for the Mods page's switches and rows; `None` without mods.
+    pub mods: Option<&'a crate::modding::Mods>,
     pub name: &'a str,
 }
 

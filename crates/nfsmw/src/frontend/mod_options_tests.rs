@@ -32,3 +32,27 @@ fn a_setting_that_is_not_a_mods_row_has_no_mod_view() {
     assert!(shown(None, Setting::Mod(1)).is_none(), "without mods there is nothing to show");
     assert!(shown(None, Setting::MasterVolume).is_none());
 }
+
+fn switch(id: &str, loaded: bool, enabled: bool) -> Switch {
+    Switch { id: id.into(), loaded, enabled }
+}
+
+#[test]
+fn a_switch_shows_its_mod_its_value_and_what_the_next_start_changes() {
+    let on = describe_switch(&switch("a.mod", true, true));
+    assert_eq!(on.label, "a.mod");
+    assert_eq!((on.control, on.data), (Control::Toggle, Data::Label(LABEL_ON)));
+    let unload = describe_switch(&switch("a.mod", true, false));
+    assert_eq!(unload.label, "a.mod (restart to unload)");
+    assert_eq!(unload.data, Data::Label(LABEL_OFF));
+    let load = describe_switch(&switch("b.mod", false, true));
+    assert_eq!(load.label, "b.mod (restart to load)");
+    assert_eq!(describe_switch(&switch("c.mod", false, false)).label, "c.mod", "refused and still off needs no note");
+}
+
+#[test]
+fn without_mods_there_are_no_switches_to_show_or_change() {
+    assert!(rows(None).is_empty());
+    assert!(shown(None, Setting::ModManaged(0)).is_none());
+    change(None, Setting::ModManaged(0), true);
+}
