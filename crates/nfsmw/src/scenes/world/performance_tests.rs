@@ -1,5 +1,7 @@
 //! Fixed real-asset snapshots, with GPU timestamps rather than a paced window's FPS.
 use super::*;
+#[path = "frame_cost_tests.rs"]
+mod frame_cost_tests;
 use blackbox_gfx::{Antialiasing, AoQuality, ReflectionQuality, RenderExperiments};
 use blackbox_render::{Renderer, RendererOptions};
 use std::{
