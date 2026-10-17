@@ -105,7 +105,9 @@ fn infraction_counts_use_mask_and_set() {
     assert_eq!(s.infraction_set_total(InfractionSet::Unserved), 1 + 2 + 4 + 3 + 10);
     assert_eq!(s.infraction_set_total(InfractionSet::Served), 6);
     assert_eq!(s.total_infractions(), 20 + 6);
-    assert_eq!(s.fines_due(), 4 * 150 + 12 * 350 + 4 * 75);
+    assert_eq!(s.fines_due(), 4 * 150 + 2 * 350 + 4 * 75, "live cars only: the sold history has no part");
+    assert_eq!(s.fines_paid(), 5 * 1000);
+    assert_eq!((s.cars_monitored(), s.cars_impounded()), (2, 0));
 }
 
 #[test]
