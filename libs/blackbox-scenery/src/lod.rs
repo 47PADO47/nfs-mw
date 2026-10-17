@@ -96,6 +96,10 @@ impl LodRules {
     }
 
     pub fn choose_with(&self, view: &LodView, object: LodObject, policy: LodPolicy) -> Option<usize> {
+        // Full detail relies on the caller's frustum/section culling, not projected-size rejection.
+        if policy.highest && !policy.coarse_only {
+            return [self.detailed_slot, self.coarse_slot].into_iter().find(|&slot| object.slots[slot]);
+        }
         let size = view.projected_size(object.position, object.radius + self.radius_pad);
         let visible = (size as f32 * policy.visibility_scale) as i32;
         if visible < self.min_size {
@@ -110,9 +114,6 @@ impl LodRules {
         }
         if policy.coarse_only {
             return object.slots[self.coarse_slot].then_some(self.coarse_slot);
-        }
-        if policy.highest {
-            return object.slots[self.detailed_slot].then_some(self.detailed_slot);
         }
         let score = match object.detailed {
             Some(m) if m.num_polys > self.poly_threshold => {

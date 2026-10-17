@@ -21,15 +21,24 @@ pub(super) fn show(ui: &mut egui::Ui, settings: &mut Settings) {
                 detail.highest_world = false;
             }
         }
+        if ui.button("Full scenery").clicked() {
+            detail.world = WorldDetail::Maximum;
+            detail.highest_world = true;
+        }
     });
-    select(ui, "Detailed mesh range", &mut detail.geometry_range, &DetailRange::ALL, DetailRange::label);
-    select(ui, "Small-object visibility", &mut detail.visibility_range, &DetailRange::ALL, DetailRange::label);
+    ui.add_enabled_ui(!detail.highest_world || detail.world.coarse(), |ui| {
+        select(ui, "Detailed mesh range", &mut detail.geometry_range, &DetailRange::ALL, DetailRange::label);
+        select(ui, "Small-object visibility", &mut detail.visibility_range, &DetailRange::ALL, DetailRange::label);
+    });
     ui.add_enabled_ui(!detail.world.coarse(), |ui| {
-        ui.checkbox(&mut detail.highest_world, "Highest visible world meshes (diagnostic)");
+        ui.checkbox(&mut detail.highest_world, "Keep scenery at highest detail");
     });
     if detail.highest_world && !detail.world.coarse() {
-        ui.small("Diagnostic: coarse-only scenery can disappear when its detailed slot is absent.");
+        ui.small("Full scenery disables mesh switching and small-object cutoffs. Coarse-only objects retain their authored mesh.");
     }
+    ui.small(
+        "Car detail changes do not control traffic spawning. Whole-car appearances use the separate population rules.",
+    );
     ui.small("Extensions affect the main view within authored map sections. Shadows, reflections and distant section coverage keep independent budgets.");
     ui.small("Original projection calibration and some per-usage car rules remain incomplete; these controls do not imply exact visual parity.");
     if ui.button("Reset detail").clicked() {

@@ -52,7 +52,9 @@ controls with a reason, and retain the user's stored values when changing modes.
 
 Video exposes World Level of Detail and Car Geometry Detail. F8's Detail tab
 adds independent detailed-mesh and small-object visibility ranges (1x/1.5x/2x),
-an eligible-highest-world diagnostic and a player-only highest-car override.
+Full scenery and a player-only highest-car override. Full scenery keeps the
+highest eligible mesh without projected-size rejection; coarse-only objects
+retain their authored coarse mesh. The 2x option still permits mesh transitions.
 The quick quality choices set world/car cost levels, retaining extension ranges.
 These remain remake quality budgets, not the original master preset writer.
 
@@ -62,6 +64,11 @@ quality uniformly. Sky, UI and cars retain full texture quality. Extensions
 preserve zone lists and authored variant eligibility; they do not draw every
 map section or change shadow/reflection budgets. Whole-map high-detail coverage
 remains a separate streaming project.
+
+Whole traffic cars appearing is a population issue: the manager can spawn on
+visible roads roughly 150--250 m ahead plus speed. Always-highest car geometry
+only removes mesh transitions. Visibility-aware population placement remains
+a separate improvement and may affect density on long open straights.
 
 Profiles store these choices in `[detail]` and preserve unknown keys. Console
 examples: `set world_detail maximum`, `set geometry_range 2x`,

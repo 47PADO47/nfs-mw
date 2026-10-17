@@ -10,9 +10,12 @@ This document specifies remake enhancements and integration, not additional orig
 - Geometry retention and small-object visibility have independent 1x/1.5x/2x
   projection multipliers. They affect the main view only; zone lists, shadow
   coverage and reflection budgets remain independent.
-- Highest-world is a diagnostic: choose slot zero where it exists, within
-  eligible visible scenery. Do not substitute arbitrary slots or draw hidden
-  variants. It does not mean loading the entire map.
+- Full scenery keeps slot zero throughout each eligible object's main-view
+  lifetime, falling back to its authored coarse slot only when slot zero is
+  absent. Bypass projected-size mesh and small-object rejection in this mode;
+  retain the caller's frustum culling, section residency and variant filters.
+  Do not substitute special-view slots or load the entire map. The saved
+  `highest_world` key remains compatible with the former diagnostic checkbox.
 - Extended geometry uses a ten-percent hysteresis band around the density
   threshold. The original 1x mode has no added hysteresis. State is per main
   view and stable instance identity; prune it as scenery leaves the view.
@@ -32,3 +35,10 @@ This document specifies remake enhancements and integration, not additional orig
 The fixed 480-line projection reference remains uncalibrated against the
 playable PC reference. No setting is labeled as complete original parity.
 Measure route frame times and streaming before selecting extended defaults.
+
+Traffic population is independent of mesh LOD. The current manager may create
+whole cars within its forward 150--250 m band (plus speed), including visible
+roads. It uses a camera-frustum keep-alive when recycling, but the spawn gate
+checks spacing rather than visibility. A future anti-pop policy needs to cover
+off-screen/occluded placement and straight-road population; merely enlarging
+mesh range or keeping car LOD A cannot prevent population appearances.

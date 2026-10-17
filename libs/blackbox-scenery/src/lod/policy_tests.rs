@@ -57,3 +57,18 @@ fn hysteresis_holds_either_side_only_inside_the_band() {
         Some(0)
     );
 }
+
+#[test]
+fn full_scenery_keeps_one_authored_mesh_without_projected_size_pop() {
+    let rules = &MOST_WANTED.lod;
+    let policy = LodPolicy { highest: true, ..Default::default() };
+    for distance in [25.0, 35.0, 80.0, 250.0, 2000.0] {
+        let obj = object(distance);
+        assert_eq!(rules.choose_with(&view(), obj, policy), Some(0));
+        let coarse_only = LodObject { slots: [false, true, true, true], ..obj };
+        assert_eq!(rules.choose_with(&view(), coarse_only, policy), Some(2));
+        let special_view_only = LodObject { slots: [false, true, false, true], ..obj };
+        assert_eq!(rules.choose_with(&view(), special_view_only, policy), None);
+    }
+    assert_eq!(rules.choose_with(&view(), object(2000.0), LodPolicy::default()), None);
+}
