@@ -97,6 +97,7 @@ fsr3-wgpu = { path = "libs/fsr3-wgpu" }
 game-install = { path = "libs/game-install" }
 save-store = { path = "libs/save-store" }
 # NFS:MW (crates/)
+nfsmw-career = { path = "crates/nfsmw-career" }
 nfsmw-data = { path = "crates/nfsmw-data" }
 nfsmw-modding = { path = "crates/nfsmw-modding" }
 
@@ -114,6 +115,7 @@ bevy_diagnostic = "=0.20.0"
 bevy_ecs = "=0.20.0"
 bevy_image = "=0.20.0"
 bevy_light = "=0.20.0"
+bevy_log = "=0.20.0"
 bevy_material = "=0.20.0"
 bevy_math = "=0.20.0"
 bevy_mesh = "=0.20.0"
@@ -138,10 +140,12 @@ directories = "6"
 discord-rich-presence = "=1.1.0"
 egui = "0.36"
 env_logger = "0.11"
+foldhash = "0.2.0"
 glam = { version = "0.34", features = ["bytemuck"] }
 kira = { version = "0.12", default-features = false, features = ["cpal"] }
 libloading = "0.8"
 log = "0.4"
+mimalloc = { version = "0.1", default-features = false }
 naga = { version = "30", default-features = false, features = ["wgsl-in"] }
 png = "0.18"
 pollster = "0.4"
@@ -173,16 +177,18 @@ all = { level = "warn", priority = -1 }
 opt-level = 1
 
 [profile.dev.package."*"]
-# Decompression and texture decoding are painfully slow unoptimised. Bevy's setup guide uses 3 for dependencies.
-opt-level = 3
+# Decompression and texture decoding are painfully slow unoptimised.
+opt-level = 2
 
-[profile.release]
-# Bevy setup guide: one codegen unit and thin LTO trade longer release builds for runtime speed.
-codegen-units = 1
-lto = "thin"
-
-[profile.wasm-release]
-# Web builds (Bevy setup guide). Size-optimised, inherits release. Unused until a wasm target exists.
+[profile.profiling]
+# Release codegen plus line tables, so Tracy, VTune, Superluminal and perf can name functions and source lines.
+# Same optimisation as release: only debug info is added, so timings stay representative.
 inherits = "release"
-opt-level = "s"
-strip = "debuginfo"
+debug = "line-tables-only"
+
+[profile.dist]
+# Shipped builds: fat LTO and one codegen unit for the last few percent of runtime. Much slower to build than release,
+# so use it for releases only, not for iteration.
+inherits = "release"
+lto = "fat"
+codegen-units = 1

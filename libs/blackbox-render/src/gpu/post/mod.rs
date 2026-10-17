@@ -11,6 +11,11 @@
 //! other passes ([`PostChain::set_temporal`]) and skipped for a frame that has no temporal data.
 
 mod bloom;
+pub(in crate::gpu) mod display;
+#[cfg(test)]
+mod display_tests;
+#[cfg(test)]
+mod display_vectors;
 #[cfg(test)]
 mod effect_tests;
 mod effects;
@@ -32,6 +37,7 @@ mod tonemap;
 mod treatment;
 mod treatment_composite;
 
+use super::sized::SizedPair;
 use super::targets::FrameTargets;
 use super::temporal::TemporalFrame;
 use plan::{Source, Target};
@@ -73,6 +79,7 @@ pub(super) struct PassIo<'a> {
 pub(super) trait PostPass {
     fn name(&self) -> &'static str;
     fn set_focus(&mut self, _settings: blackbox_gfx::FocusFilter) {}
+    fn set_display(&mut self, _mapping: Option<display::Mapping>) {}
 
     /// The size of the image this pass writes when it is not the last one.
     fn extent(&self) -> Extent {
@@ -80,15 +87,20 @@ pub(super) trait PostPass {
     }
 
     fn encode(&mut self, ctx: &PassContext<'_>, io: &PassIo<'_>, encoder: &mut wgpu::CommandEncoder);
+    fn encode_diagnostic(&mut self, ctx: &PassContext<'_>, io: &PassIo<'_>, encoder: &mut wgpu::CommandEncoder) {
+        self.encode(ctx, io, encoder);
+    }
 }
 
 /// A ping-pong image between two passes.
 struct Scratch {
     _texture: wgpu::Texture,
     view: wgpu::TextureView,
-    size: (u32, u32),
     format: wgpu::TextureFormat,
 }
+
+/// What a ping-pong image was made for: its size and format.
+type ScratchKey = ((u32, u32), wgpu::TextureFormat);
 
 impl Scratch {
     fn new(device: &wgpu::Device, size: (u32, u32), format: wgpu::TextureFormat) -> Self {
@@ -103,16 +115,18 @@ impl Scratch {
             view_formats: &[],
         });
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        Self { _texture: texture, view, size, format }
+        Self { _texture: texture, view, format }
     }
 }
 
 pub(super) struct PostChain {
+    pub(in crate::gpu) display: Option<display::Mapping>,
     /// Never empty: the last pass is the resolve pass.
     passes: Vec<Box<dyn PostPass>>,
     /// The temporal upscaler, which runs before `passes` when the frame has temporal data.
     temporal: Option<Box<dyn PostPass>>,
-    scratch: [Option<Scratch>; 2],
+    /// The ping-pong images, kept for two sizes so a frame at each view size reuses its own.
+    scratch: [SizedPair<ScratchKey, Scratch>; 2],
     /// How many passes at the front of `passes` are the post effects of `settings`.
     effect_count: usize,
     settings: crate::PostSettings,
@@ -122,9 +136,10 @@ pub(super) struct PostChain {
 impl PostChain {
     pub(super) fn new(device: &wgpu::Device) -> Self {
         Self {
+            display: None,
             passes: vec![Box::new(resolve::Resolve::new(device))],
             temporal: None,
-            scratch: [None, None],
+            scratch: [SizedPair::new(), SizedPair::new()],
             effect_count: 0,
             settings: crate::PostSettings::default(),
             profile: None,
@@ -135,10 +150,12 @@ impl PostChain {
     /// it right before the resolve pass, which always stays last. The post effects stay in front of
     /// every inserted pass, and a pass that writes the output size ignores the index and goes right
     /// before the resolve pass, so it follows every render-size pass.
-    pub(super) fn insert(&mut self, index: usize, pass: Box<dyn PostPass>) {
+    pub(super) fn insert(&mut self, index: usize, mut pass: Box<dyn PostPass>) {
+        pass.set_display(self.display);
         let extents: Vec<Extent> = self.passes.iter().map(|p| p.extent()).collect();
         let index = plan::insert_index(&extents, index.max(self.effect_count), pass.extent());
-        self.passes.insert(index, pass);
+        let last_scene = self.passes.iter().position(|p| p.name() == "hdr-display").unwrap_or(self.passes.len() - 1);
+        self.passes.insert(index.min(last_scene), pass);
     }
 
     /// Whether a pass named `name` is in the chain.
@@ -175,13 +192,15 @@ impl PostChain {
 
     /// Free the ping-pong images (they are recreated when a pass needs them).
     pub(super) fn release_scratch(&mut self) {
-        self.scratch = [None, None];
+        for images in &mut self.scratch {
+            images.clear();
+        }
     }
 
     /// How many ping-pong images are allocated.
     #[cfg(test)]
     pub(super) fn scratch_count(&self) -> usize {
-        self.scratch.iter().flatten().count()
+        self.scratch.iter().map(|images| images.len()).sum()
     }
 
     /// The pass names in execution order.
@@ -203,6 +222,10 @@ impl PostChain {
             output_format: output.1,
             output_size: ctx.output_size,
         };
+        if let Some(pass) = self.passes.iter_mut().find(|p| p.name() == "hdr-display") {
+            pass.encode_diagnostic(ctx, &io, encoder);
+            return;
+        }
         self.passes.last_mut().expect("final resolve").encode(ctx, &io, encoder);
     }
 
@@ -226,11 +249,13 @@ impl PostChain {
         }
         let steps = plan::plan(chain.len());
         // A chain that got shorter no longer needs its second (or any) ping-pong image.
-        for (slot, image) in scratch.iter_mut().enumerate() {
+        for (slot, images) in scratch.iter_mut().enumerate() {
             if !steps.iter().any(|step| step.target == Target::Scratch(slot)) {
-                *image = None;
+                images.clear();
             }
         }
+        // The key of the image each slot was last written with in this frame.
+        let mut written: [Option<ScratchKey>; 2] = [None, None];
         // Once a pass has upscaled, every pass after it writes the output size.
         let mut upscaled = false;
         for (pass, step) in chain.into_iter().zip(steps) {
@@ -239,19 +264,22 @@ impl PostChain {
                     Extent::Render => scene.size,
                     Extent::Output => ctx.output_size,
                 };
-                let stale = scratch[slot].as_ref().is_none_or(|s| s.size != size || s.format != scene.color_format);
-                if stale {
-                    scratch[slot] = Some(Scratch::new(ctx.device, size, scene.color_format));
-                }
+                let key = (size, scene.color_format);
+                scratch[slot].get_or_make(key, || Scratch::new(ctx.device, size, scene.color_format));
+                written[slot] = Some(key);
             }
             let (input, input_size) = match step.source {
                 Source::Scene => (&scene.color_view, scene.size),
-                Source::Scratch(slot) => scratch[slot].as_ref().map(|s| (&s.view, s.size)).expect("written earlier"),
+                Source::Scratch(slot) => {
+                    let key = written[slot].expect("written earlier");
+                    scratch[slot].get(key).map(|s| (&s.view, key.0)).expect("written earlier")
+                }
             };
             let (view, format, size) = match step.target {
                 Target::Output => (output.0, output.1, ctx.output_size),
                 Target::Scratch(slot) => {
-                    scratch[slot].as_ref().map(|s| (&s.view, s.format, s.size)).expect("created above")
+                    let key = written[slot].expect("created above");
+                    scratch[slot].get(key).map(|s| (&s.view, s.format, key.0)).expect("created above")
                 }
             };
             let io = PassIo { input, input_size, output: view, output_format: format, output_size: size };

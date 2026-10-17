@@ -21,7 +21,7 @@ impl WorldScene {
         let rules = &blackbox_scenery::layout::MOST_WANTED.lod;
         self.rear_visible.clear();
         let original = self.original_shadows;
-        visibility::collect_with_shadows(
+        visibility::collect_unsorted_with_shadows(
             self.residency.placed().filter(|p| original || !p.original_shadow),
             &cull,
             rules,
@@ -30,9 +30,19 @@ impl WorldScene {
             &mut self.rear_visible,
         );
         self.residency.props().fragment_instances(&mut self.rear_visible);
+        if self.original_sky {
+            self.residency.sky.place(
+                &self.residency.shared,
+                &mut self.rear_visible,
+                lens.position,
+                super::sky::View::Mirror,
+            );
+        }
         if let Some(traffic) = &self.traffic {
             traffic.instances(&mut self.rear_visible);
         }
+        // Every source has appended now: one sort puts the copies of each mesh together.
+        visibility::sort_by_mesh(&mut self.rear_visible);
         let fog_end = self.fog_distance;
         let params = FrameParams {
             view: lens.view,

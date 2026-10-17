@@ -31,3 +31,11 @@ fn fs_scaled(in: VsOut) -> @location(0) vec4<f32> {
     let c = textureSampleLevel(scene, samp, in.uv, 0.0);
     return vec4<f32>(clamp(c.rgb, vec3<f32>(0.0), vec3<f32>(1.0)), 1.0);
 }
+
+// scRGB preserves signed wide-gamut components and highlights above 80 nits.
+@fragment fn fs_copy_hdr(in: VsOut) -> @location(0) vec4<f32> {
+    return vec4(textureLoad(scene, vec2<i32>(in.clip.xy), 0).rgb, 1.0);
+}
+@fragment fn fs_scaled_hdr(in: VsOut) -> @location(0) vec4<f32> {
+    return vec4(textureSampleLevel(scene, samp, in.uv, 0.0).rgb, 1.0);
+}

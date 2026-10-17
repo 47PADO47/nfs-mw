@@ -6,6 +6,8 @@
 #[macro_use]
 mod names;
 
+pub mod appearance;
+pub use appearance::{Appearance, Quality as GraphicsQuality, VisualStyle};
 pub mod availability;
 pub mod bartender;
 mod camera_mode;
@@ -30,6 +32,8 @@ pub mod fe_shadows;
 #[cfg(test)]
 mod fe_shadows_tests;
 pub(crate) mod file;
+#[cfg(test)]
+mod filtering_tests;
 mod graphics;
 mod graphics_preset;
 #[cfg(test)]
@@ -61,6 +65,8 @@ pub mod reflection_res;
 #[cfg(test)]
 mod reflection_res_tests;
 mod renderer;
+mod road_reflections;
+pub use road_reflections::{RoadReflectionResolution, RoadReflections};
 #[cfg(test)]
 mod renderer_tests;
 mod smoke_quality;
@@ -95,7 +101,7 @@ use blackbox_gfx::GraphicsApi;
 
 pub use blackbox_gfx::ReflectionQuality;
 pub use blackbox_gfx::reflection::{MirrorTint, ReflectionSize};
-pub use blackbox_gfx::{AoQuality, ShadowQuality};
+pub use blackbox_gfx::{AoQuality, ShadowQuality, TextureFiltering};
 pub use camera_mode::CameraMode;
 pub use car_shading::CarShading;
 pub use controls::{Controls, Deadzone, DeadzoneMode, Sensitivity};
@@ -169,6 +175,7 @@ impl From<&Settings> for TrafficSettings {
 /// The resolved settings.
 #[derive(bevy_ecs::resource::Resource, Debug, Clone, Copy, PartialEq)]
 pub struct Settings {
+    pub appearance: Appearance,
     pub controls: Controls,
     pub backend: GraphicsApi,
     /// Who draws: the native `blackbox` renderer (default) or `bevy`; applies after a restart.
@@ -258,6 +265,9 @@ pub struct Settings {
     pub post_tonemap: PostTonemap,
     pub post_bloom: PostBloom,
     pub post_aa: PostAa,
+    pub texture_filtering: TextureFiltering,
+    pub road_reflections: RoadReflections,
+    pub road_reflection_resolution: RoadReflectionResolution,
     pub visual_treatment: VisualTreatment,
     pub reflections: ReflectionQuality,
     /// Car cube face size and rear-view mirror picture size: auto, a percentage of the base, or pixels.
@@ -310,6 +320,7 @@ impl From<Partial> for Settings {
         let requested = p.graphics_preset.unwrap_or_default();
         let p = p.or(requested.layer());
         let mut settings = Self {
+            appearance: p.appearance.unwrap_or_default(),
             graphics_preset: requested,
             controls: Controls {
                 deadzone_mode: p.deadzone_mode.unwrap_or_default(),
@@ -371,6 +382,9 @@ impl From<Partial> for Settings {
             post_tonemap: p.post_tonemap.unwrap_or_default(),
             post_bloom: p.post_bloom.unwrap_or_default(),
             post_aa: p.post_aa.unwrap_or_default(),
+            texture_filtering: p.texture_filtering.unwrap_or_default(),
+            road_reflections: p.road_reflections.unwrap_or_default(),
+            road_reflection_resolution: p.road_reflection_resolution.unwrap_or_default(),
             visual_treatment: p.visual_treatment.unwrap_or_default(),
             reflections: p.reflections.unwrap_or(ReflectionQuality::Medium),
             reflection_cube_size: p.reflection_cube_size.unwrap_or_default(),
@@ -447,54 +461,5 @@ impl Settings {
 #[cfg(test)]
 mod tests;
 
-/// The settings a running world reads each frame: the physics clock and the animation clock rates.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct WorldTuning {
-    pub game_speed: f32,
-    pub animation_speed: f32,
-    /// The player car's model scale, 0.25 to 4 (Extra Options `CarScale`).
-    pub car_scale: f32,
-    pub show_hud_on_look_back: bool,
-    /// Lift the engine's rev limiter (Extra Options `NoRevLimiter`).
-    pub no_rev_limiter: bool,
-    /// Show turn signals on cars while steering.
-    pub turn_signals: bool,
-    /// Draw the cop health bars (`Settings::cop_health_bars`).
-    pub cop_health_bars: bool,
-    /// The Speedbreaker tunables (`NFSMWSpeedFixerSettings.ini`).
-    pub speedbreaker: SpeedbreakerTuning,
-    /// The high-speed radial blur: on or off, and its strength.
-    pub motion_blur: MotionBlur,
-}
-
-impl Default for WorldTuning {
-    fn default() -> Self {
-        Self {
-            game_speed: DEFAULT_GAME_SPEED,
-            animation_speed: DEFAULT_ANIMATION_SPEED,
-            show_hud_on_look_back: DEFAULT_SHOW_HUD_ON_LOOK_BACK,
-            car_scale: DEFAULT_CAR_SCALE,
-            no_rev_limiter: DEFAULT_NO_REV_LIMITER,
-            turn_signals: false,
-            cop_health_bars: DEFAULT_COP_HEALTH_BARS,
-            speedbreaker: SpeedbreakerTuning::default(),
-            motion_blur: MotionBlur::default(),
-        }
-    }
-}
-
-impl From<&Settings> for WorldTuning {
-    fn from(s: &Settings) -> Self {
-        Self {
-            game_speed: s.game_speed,
-            animation_speed: s.animation_speed,
-            show_hud_on_look_back: s.show_hud_on_look_back,
-            car_scale: s.car_scale,
-            no_rev_limiter: s.no_rev_limiter,
-            turn_signals: s.turn_signals,
-            cop_health_bars: s.cop_health_bars,
-            speedbreaker: s.speedbreaker,
-            motion_blur: MotionBlur::from(s),
-        }
-    }
-}
+mod world_tuning;
+pub use world_tuning::WorldTuning;

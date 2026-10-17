@@ -3,7 +3,8 @@
 //! anti-aliasing and right before the final copy.
 //!
 //! The input is expected to be anti-aliased and display-referred (gamma-like, what the final copy writes
-//! to the surface); the shader clamps it to 0..1. The shader is in `shaders/fsr1.wgsl`.
+//! to the surface); SDR clamps it to 0..1. Optional HDR preconditioning compresses positive input
+//! reversibly around each stage instead. The shader is in `shaders/fsr1.wgsl`.
 //!
 //! From any render loop: build [`fsr1_passes`] once, then per frame call [`Fsr1Pass::encode`] on EASU
 //! (render-size image in, output-size image out) and, when the sharpening pass exists, on RCAS (that
@@ -12,6 +13,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
+
+use crate::bind_cache::BindCache;
 
 /// The name of the upscaling pass (for logs and pass lists).
 pub const FSR1_EASU: &str = "fsr1-easu";
@@ -80,6 +83,7 @@ struct Params {
 
 /// One FSR 1 stage with its pipeline cache and parameter buffer.
 pub struct Fsr1Pass {
+    hdr: bool,
     stage: Fsr1Stage,
     shader: wgpu::ShaderModule,
     layout: wgpu::BindGroupLayout,
@@ -87,6 +91,8 @@ pub struct Fsr1Pass {
     params: wgpu::Buffer,
     rcas: RcasScale,
     pipelines: HashMap<wgpu::TextureFormat, wgpu::RenderPipeline>,
+    /// Bind groups per input view: the parameter buffer and the layout never change.
+    bind_groups: BindCache<wgpu::TextureView, wgpu::BindGroup>,
 }
 
 /// The upscale pass, then the sharpening pass when `sharpen` is set.
@@ -100,6 +106,11 @@ pub fn fsr1_passes(device: &wgpu::Device, rcas: &RcasScale, sharpen: bool) -> Ve
 }
 
 impl Fsr1Pass {
+    /// Reversible HDR preconditioning for extended positive scene colours.
+    /// The normal SDR algorithm and fixtures are unchanged when disabled.
+    pub fn set_hdr(&mut self, enabled: bool) {
+        self.hdr = enabled;
+    }
     fn new(device: &wgpu::Device, shader: &wgpu::ShaderModule, stage: Fsr1Stage, rcas: &RcasScale) -> Self {
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some(stage.name()),
@@ -138,6 +149,7 @@ impl Fsr1Pass {
             mapped_at_creation: false,
         });
         Self {
+            hdr: false,
             stage,
             shader: shader.clone(),
             layout,
@@ -145,38 +157,40 @@ impl Fsr1Pass {
             params,
             rcas: rcas.clone(),
             pipelines: HashMap::new(),
+            bind_groups: BindCache::default(),
         }
     }
+}
 
-    fn pipeline(&mut self, device: &wgpu::Device, format: wgpu::TextureFormat) -> &wgpu::RenderPipeline {
-        self.pipelines.entry(format).or_insert_with(|| {
-            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some(self.stage.name()),
-                layout: Some(&self.pipeline_layout),
-                vertex: wgpu::VertexState {
-                    module: &self.shader,
-                    entry_point: Some("vs_main"),
-                    compilation_options: Default::default(),
-                    buffers: &[],
-                },
-                primitive: wgpu::PrimitiveState::default(),
-                depth_stencil: None,
-                multisample: Default::default(),
-                fragment: Some(wgpu::FragmentState {
-                    module: &self.shader,
-                    entry_point: Some(self.stage.entry()),
-                    compilation_options: Default::default(),
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format,
-                        blend: None,
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
-                }),
-                multiview_mask: None,
-                cache: None,
-            })
-        })
-    }
+/// The pipeline of one stage writing `format`.
+fn build_pipeline(
+    device: &wgpu::Device,
+    shader: &wgpu::ShaderModule,
+    pipeline_layout: &wgpu::PipelineLayout,
+    stage: Fsr1Stage,
+    format: wgpu::TextureFormat,
+) -> wgpu::RenderPipeline {
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some(stage.name()),
+        layout: Some(pipeline_layout),
+        vertex: wgpu::VertexState {
+            module: shader,
+            entry_point: Some("vs_main"),
+            compilation_options: Default::default(),
+            buffers: &[],
+        },
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: None,
+        multisample: Default::default(),
+        fragment: Some(wgpu::FragmentState {
+            module: shader,
+            entry_point: Some(stage.entry()),
+            compilation_options: Default::default(),
+            targets: &[Some(wgpu::ColorTargetState { format, blend: None, write_mask: wgpu::ColorWrites::ALL })],
+        }),
+        multiview_mask: None,
+        cache: None,
+    })
 }
 
 /// The images one FSR 1 stage reads and writes.
@@ -217,19 +231,24 @@ impl Fsr1Pass {
             out_size: [io.output_size.0 as f32, io.output_size.1 as f32],
             in_size: [io.input_size.0 as f32, io.input_size.1 as f32],
             rcas: self.rcas.get(),
-            pad: 0.0,
+            pad: u8::from(self.hdr) as f32,
         };
         queue.write_buffer(&self.params, 0, bytemuck::bytes_of(&params));
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some(self.stage.name()),
-            layout: &self.layout,
-            entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(io.input) },
-                wgpu::BindGroupEntry { binding: 1, resource: self.params.as_entire_binding() },
-            ],
+        // One input: the same view is the cache key twice.
+        let bind_group = self.bind_groups.get_or_insert_with(io.input, io.input, || {
+            device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some(self.stage.name()),
+                layout: &self.layout,
+                entries: &[
+                    wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(io.input) },
+                    wgpu::BindGroupEntry { binding: 1, resource: self.params.as_entire_binding() },
+                ],
+            })
         });
         let name = self.stage.name();
-        let pipeline = self.pipeline(device, io.output_format);
+        let pipeline = self.pipelines.entry(io.output_format).or_insert_with(|| {
+            build_pipeline(device, &self.shader, &self.pipeline_layout, self.stage, io.output_format)
+        });
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some(name),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -244,7 +263,7 @@ impl Fsr1Pass {
             multiview_mask: None,
         });
         pass.set_pipeline(pipeline);
-        pass.set_bind_group(0, &bind_group, &[]);
+        pass.set_bind_group(0, bind_group, &[]);
         pass.draw(0..3, 0..1);
     }
 }

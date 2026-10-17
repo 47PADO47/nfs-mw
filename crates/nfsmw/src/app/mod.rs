@@ -9,7 +9,7 @@ mod bench;
 mod cursor;
 mod graphics;
 mod host;
-mod mirror;
+pub(crate) mod mirror;
 pub mod pacing;
 pub(crate) mod render;
 mod screenshot;

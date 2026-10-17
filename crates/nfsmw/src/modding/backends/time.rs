@@ -73,7 +73,7 @@ pub fn apply(requests: Vec<ClockRequest>, scene: &mut dyn Scene) {
     if !moved {
         return;
     }
-    scene.set_environment(Environment { hour, seconds_per_hour: rate });
+    scene.set_environment(Environment { hour, seconds_per_hour: rate, ..env });
 }
 
 /// Whether the headlights are on at `hour`, by the game's default day-night curves (the world's clock uses them).

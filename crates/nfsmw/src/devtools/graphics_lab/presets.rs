@@ -4,9 +4,9 @@ use super::*;
 
 impl GraphicsLab {
     pub(super) fn remember_startup(&mut self, settings: &Settings) {
-        self.original.get_or_insert((self.options, *settings));
+        self.original.get_or_insert((settings.appearance.lighting, *settings));
     }
-    fn restore_startup(&mut self, settings: &mut Settings) {
+    pub(super) fn restore_startup(&mut self, settings: &mut Settings) {
         let Some((options, snapshot)) = self.original else { return };
         self.options = options;
         restore_graphics(settings, &snapshot);
@@ -18,6 +18,7 @@ impl GraphicsLab {
         self.options = RenderExperiments {
             freeze_sun: self.options.freeze_sun,
             lighting_debug: self.options.lighting_debug,
+            original_world_materials: self.options.original_world_materials,
             ..preset_options(preset)
         };
     }
@@ -59,21 +60,23 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
             lab.restore_startup(settings);
         }
     });
-    ui.horizontal_wrapped(|ui| {
-        ui.label("Experiments:");
-        for (name, preset) in [
-            ("Off", "baseline"),
-            ("Sky", "ambient"),
-            ("Sun", "shadows"),
-            ("Far", "distance"),
-            ("Detail", "detail"),
-            ("Coat", "modern"),
-        ] {
-            if ui.button(name).clicked() {
-                lab.experiment_preset(preset);
+    if lab.tab == profiles::Tab::Lighting {
+        ui.horizontal_wrapped(|ui| {
+            ui.label("Lighting presets:");
+            for (name, preset) in [
+                ("Off", "baseline"),
+                ("Sky", "ambient"),
+                ("Sun", "shadows"),
+                ("Far", "distance"),
+                ("Detail", "detail"),
+                ("Coat", "modern"),
+            ] {
+                if ui.button(name).clicked() {
+                    lab.experiment_preset(preset);
+                }
             }
-        }
-    });
+        });
+    }
     ui.horizontal_wrapped(|ui| {
         if ui.button("Store A").clicked() {
             lab.saved = Some((lab.options, *settings));
@@ -87,17 +90,39 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
 }
 
 pub(super) fn restore_graphics(settings: &mut Settings, snapshot: &Settings) {
-    settings.graphics_preset = snapshot.graphics_preset;
-    settings.car_shading = snapshot.car_shading;
+    restore_appearance(settings, snapshot);
+    settings.reflection_cube_size = snapshot.reflection_cube_size;
+    settings.reflection_mirror_size = snapshot.reflection_mirror_size;
+    settings.reflection_pow2 = snapshot.reflection_pow2;
+    settings.mirror_tint = snapshot.mirror_tint;
+    settings.reflection_extra = snapshot.reflection_extra;
+    settings.fe_shadows = snapshot.fe_shadows;
+    settings.motion_blur = snapshot.motion_blur;
+    settings.motion_blur_strength = snapshot.motion_blur_strength;
     settings.render_scale = snapshot.render_scale;
     settings.upscaler = snapshot.upscaler;
+    settings.upscale_sharpness = snapshot.upscale_sharpness;
+    settings.upscale_quality = snapshot.upscale_quality;
     settings.ray_tracing = snapshot.ray_tracing;
     settings.tire_smoke = snapshot.tire_smoke;
     settings.skid_marks = snapshot.skid_marks;
     settings.smoke_quality = snapshot.smoke_quality;
     settings.collision_sparks = snapshot.collision_sparks;
+    settings.spark_style = snapshot.spark_style;
     settings.speed_trails = snapshot.speed_trails;
+    settings.speed_trail_style = snapshot.speed_trail_style;
+    settings.exhaust_flames = snapshot.exhaust_flames;
+}
+
+pub(super) fn restore_appearance(settings: &mut Settings, snapshot: &Settings) {
+    settings.appearance = snapshot.appearance;
+    settings.graphics_preset = snapshot.graphics_preset;
+    settings.car_shading = snapshot.car_shading;
+    settings.shadows = snapshot.shadows;
     settings.reflections = snapshot.reflections;
+    settings.texture_filtering = snapshot.texture_filtering;
+    settings.road_reflections = snapshot.road_reflections;
+    settings.road_reflection_resolution = snapshot.road_reflection_resolution;
     settings.ao = snapshot.ao;
     settings.ao_intensity = snapshot.ao_intensity;
     settings.ao_compare = snapshot.ao_compare;

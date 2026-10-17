@@ -9,6 +9,7 @@ pub mod customization;
 pub mod damage;
 mod ecar;
 pub mod exhaust;
+mod folders;
 pub mod lights;
 pub mod mods;
 mod paint;
@@ -21,6 +22,7 @@ mod textures;
 mod wheels;
 
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 use anyhow::{Context, Result, bail};
 use blackbox_hash::bstring_hash;
@@ -55,6 +57,8 @@ pub struct CarModel {
     pub textures: HashMap<u32, Texture>,
     pub swaps: TextureSwaps,
     pub paint: Option<Paint>,
+    /// The selected stock/preset window tint's light material (original shading only).
+    pub window_tint_material: Option<u32>,
     /// The assembled body uses generated paint textures, rather than a fixed livery.
     pub paintable: bool,
     /// Shading constants of the car materials, by name hash (empty when the car tables are not read).
@@ -78,7 +82,7 @@ pub struct LoadOptions {
 
 /// Car folders that have a model.
 pub fn list(dir: &GameDir) -> Vec<String> {
-    dir.subdirectories("CARS").into_iter().filter(|car| dir.exists(&format!("CARS/{car}/GEOMETRY.BIN"))).collect()
+    folders::cars(dir)
 }
 
 /// The folder named `wanted`, ignoring case; failing that, the only folder that starts with it.
@@ -161,17 +165,19 @@ fn load_with(
         Some(name) => preset_parts(t, car_type, t.preset(name).with_context(|| format!("no preset named {name}"))?),
         None => customization::resolve(t, car_type, customization)?,
     };
-    let mut pool: HashMap<u32, Solid> = own.into_iter().map(|s| (s.name_hash, s)).collect();
+    let mut pool: HashMap<u32, Arc<Solid>> = own.into_iter().map(|s| (s.name_hash, Arc::new(s))).collect();
     let mut shared_sources = HashMap::new();
     let wanted: Vec<u32> = slots[..slot::MODELS].iter().flatten().filter_map(|p| t.parts.model_hash(p, lod)).collect();
     if wanted.iter().any(|h| !pool.contains_key(h)) {
-        for folder in dir.subdirectories("CARS").into_iter().filter(|f| is_shared_part_folder(f)) {
-            for s in read_solids(dir, &folder)? {
-                if let std::collections::hash_map::Entry::Vacant(entry) = pool.entry(s.name_hash) {
-                    shared_sources.insert(s.name_hash, folder.clone());
-                    entry.insert(s);
-                }
+        // Only the wanted names are taken: the car's own solids win, then the first shared folder that has the name.
+        let shared = folders::shared_solids(dir)?;
+        for &hash in &wanted {
+            if pool.contains_key(&hash) {
+                continue;
             }
+            let Some((folder, solid)) = shared.get(hash) else { continue };
+            shared_sources.insert(hash, folder.to_owned());
+            pool.insert(hash, Arc::clone(solid));
         }
     }
 
@@ -188,8 +194,10 @@ fn load_with(
 
     let swaps = TextureSwaps::for_car_type(&car_type.base_model_name, car_type.usage_type);
     let paint = slots[slot::BASE_PAINT].map(|p| Paint::of(t, &p));
+    let window_tint_material =
+        slots[slot::WINDOW_TINT].and_then(|part| t.parts.attribute(&part, "LIGHT_MATERIAL_NAME"));
     let flare_profiles = lights::FlareProfiles::read(&t.attributes);
-    let mut wanted = wanted_textures(&pool, &swaps);
+    let mut wanted = wanted_textures(pool.values().map(Arc::as_ref), &swaps);
     wanted.extend(flare_profiles.textures());
     wanted.extend(swaps.lamp_variants());
     let mut textures = textures::load_with_shared(dir, car, &wanted, &shared_folders)?;
@@ -212,11 +220,12 @@ fn load_with(
         flare_profiles,
         name: car.to_owned(),
         car_type: Some(car_type.type_name.clone()),
-        solids: pool,
+        solids: pool.into_iter().map(|(hash, solid)| (hash, Arc::unwrap_or_clone(solid))).collect(),
         placements,
         textures,
         swaps,
         paint,
+        window_tint_material,
         paintable: car_type.skinnable,
         light_materials: t.light_materials.iter().map(|m| (m.name_hash, m.clone())).collect(),
         floor_height: setup.as_ref().map_or(0.0, wheels::floor_height),
@@ -226,9 +235,8 @@ fn load_with(
 }
 
 /// Every texture the solids may draw: placeholders, their replacements and the left caliper.
-fn wanted_textures(solids: &HashMap<u32, Solid>, swaps: &TextureSwaps) -> HashSet<u32> {
+fn wanted_textures<'a>(solids: impl Iterator<Item = &'a Solid>, swaps: &TextureSwaps) -> HashSet<u32> {
     let mut wanted: HashSet<u32> = solids
-        .values()
         .flat_map(|s| s.groups.iter().filter_map(|g| g.diffuse_texture(s)))
         .flat_map(|h| [h, swaps.resolve(h)])
         .collect();
@@ -261,7 +269,7 @@ fn unassembled(dir: &GameDir, car: &str, solids: Vec<Solid>, options: &LoadOptio
         .keys()
         .map(|&solid| Placement { solid, transform: Mat4::IDENTITY, left_brake: false, slot: usize::MAX, corner: None })
         .collect();
-    let textures = textures::load(dir, car, &wanted_textures(&solids, &swaps))?;
+    let textures = textures::load(dir, car, &wanted_textures(solids.values(), &swaps))?;
     let flare_profiles = lights::FlareProfiles::default();
     Ok(CarModel {
         flare_profiles,
@@ -272,6 +280,7 @@ fn unassembled(dir: &GameDir, car: &str, solids: Vec<Solid>, options: &LoadOptio
         textures,
         swaps,
         paint: None,
+        window_tint_material: None,
         paintable: false,
         light_materials: HashMap::new(),
         floor_height: 0.0,

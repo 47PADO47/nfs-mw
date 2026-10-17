@@ -107,8 +107,10 @@ remaining clock, geometry, context and live-comparison limits.
 - [career-blacklist.md](career-blacklist.md): the 15 rival bins as state graphs, the challenge gate, races won, regions, the final race.
 - [career-milestones.md](career-milestones.md) and [career-milestones-data.md](career-milestones-data.md): the statistics, milestones and speed traps, their states and tables.
 - [career-flow.md](career-flow.md) and [career-car-lot.md](career-car-lot.md): new and resumed career, safe house, autosave, car lot and car rules.
+- [career-safehouse.md](career-safehouse.md) and [career-safehouse-2.md](career-safehouse-2.md): the native safe house (zones, engage, unload and reload, heat, the respawn marker).
 - [career-scripts.md](career-scripts.md) and [career-scripts-events.md](career-scripts-events.md): the compiled Lua state graphs (bins, prologue, boss races, final race, challenge ladder, speed traps).
 - [career-text.md](career-text.md) and [career-text-2.md](career-text-2.md): the language table side (rivals, labels, SMS ids, popups, shop unlock tiers).
+- [career-phone.md](career-phone.md): the phone: SMS inbox slots and states, delivery rules, call voice, who sends which id.
 - Layouts: [../formats/career-state.md](../formats/career-state.md) (memory) and [../formats/career-save.md](../formats/career-save.md) (file).
 
 ## Pursuit, traffic and the busted sequence

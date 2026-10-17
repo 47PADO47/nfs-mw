@@ -45,6 +45,8 @@ pub fn read_solid(pack: Chunk<'_>) -> Result<Solid> {
         markers: pack.child(ids::SOLID_MARKERS).map(|c| read_markers(c, &layout.marker)).unwrap_or_default(),
         vertex_buffers: Vec::new(),
         vertices: Vec::new(),
+        secondary_uvs: Vec::new(),
+        tangents: Vec::new(),
         indices: Vec::new(),
         groups: Vec::new(),
     };

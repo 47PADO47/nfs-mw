@@ -5,4 +5,5 @@
 use super::SolidLayout;
 use super::v16::V16;
 
-pub const V18: SolidLayout = SolidLayout { version: 0x18, used_by: "NFS: Most Wanted front-end stages", ..V16 };
+pub const V18: SolidLayout =
+    SolidLayout { version: 0x18, used_by: "NFS: Most Wanted front-end stages", tangent_effects: &[], ..V16 };

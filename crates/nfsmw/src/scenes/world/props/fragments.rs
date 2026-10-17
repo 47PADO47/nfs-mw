@@ -16,6 +16,20 @@ pub(super) struct FragmentVisual {
 }
 
 impl PropWorld {
+    /// Detached cargo keeps its physics pose while a shared car appearance is rebuilt.
+    pub fn remap_fragment_meshes(&mut self, replacements: &[(blackbox_gfx::MeshHandle, blackbox_gfx::MeshHandle)]) {
+        if replacements.is_empty() {
+            return;
+        }
+        for fragment in self.fragments.values_mut().filter(|fragment| !fragment.scenery) {
+            for instance in &mut fragment.instances {
+                if let Some((_, mesh)) = replacements.iter().find(|(old, _)| *old == instance.mesh) {
+                    instance.mesh = *mesh;
+                }
+            }
+        }
+    }
+
     #[cfg(test)]
     pub fn fragment_count(&self) -> usize {
         self.fragments.values().filter(|f| f.owner.strong_count() > 0).count()
@@ -64,6 +78,7 @@ impl PropWorld {
         };
         collider.original_bounds = collider.physics_bounds();
         self.colliders.insert(id, collider);
+        super::lifetime::track_lifetime(&mut self.live_lifetimes, id);
         self.fragments.insert(id, FragmentVisual { instances, owner, scenery });
         self.regrid(id);
         Some(id)

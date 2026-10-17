@@ -27,7 +27,10 @@ pub struct Scatter {
 /// distance fields (`+0x90` for the sky and `+0x94` for the fog, each scaled by 0.01) and `g` (`+0x9C`).
 pub fn scatter(sky: [f32; 3], haze: [f32; 3], sky_field: f32, fog_field: f32, g: f32) -> Scatter {
     let sky_dist = sky_field * 0.01 * DEPTH_RANGE + DEPTH_BASE;
-    let fog_dist = fog_field * 0.01 * DEPTH_RANGE + DEPTH_BASE;
+    let fog_dist = match fog_field > 0.0 {
+        true => fog_field * 0.01 * DEPTH_RANGE + DEPTH_BASE,
+        false => 0.0,
+    };
     Scatter { br: sky.map(|c| c * sky_dist), bm: haze.map(|c| c * fog_dist), g }
 }
 
@@ -106,5 +109,14 @@ mod tests {
         // The sky term at field 3.0: 0.03 · 0.0099 + 0.0001 = 0.000397.
         let s = scatter([1.0, 1.0, 1.0], [0.0; 3], 3.0, 0.0, 0.0);
         assert!((s.br[0] - 0.000397).abs() < 1e-7, "{}", s.br[0]);
+    }
+
+    #[test]
+    fn nonpositive_haze_scale_disables_haze_instead_of_adding_the_depth_base() {
+        for field in [-3.0, 0.0] {
+            let s = scatter([1.0; 3], [1.0; 3], 3.0, field, 0.0);
+            assert_eq!(s.bm, [0.0; 3]);
+            assert!(s.br.iter().all(|value| *value > 0.0));
+        }
     }
 }

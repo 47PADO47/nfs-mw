@@ -57,7 +57,7 @@ fn check(backend: wgpu::Backends) {
         }),
     );
     let flat = "return vec4<f32>(0.6, 0.4, 0.2, 1.0);";
-    for (grade, expected) in [(false, [0.6, 0.4, 0.2]), (true, [0.505, 0.32, 0.185])] {
+    for (grade, expected) in [(false, [0.6, 0.4, 0.2]), (true, [0.435, 0.32, 0.255])] {
         chain.set_effects(&gpu.device, settings(grade));
         for size in [(64, 64), (13, 7), (1, 1)] {
             let image = gpu.run(&mut chain, size, flat);
@@ -70,6 +70,22 @@ fn check(backend: wgpu::Backends) {
             assert_eq!(image, gpu.run(&mut chain, size, flat), "no frame history or animated noise");
         }
     }
+    let replacement = blackbox_gfx::ColourTreatmentOverride {
+        tint: [0.68, 0.62, 0.03],
+        desaturation: 0.8,
+        colour_intensity: 0.75,
+        black_intensity: 0.4,
+    };
+    chain.set_effects(&gpu.device, PostSettings { colour_treatment_override: Some(replacement), ..settings(true) });
+    let image = gpu.run(&mut chain, (16, 16), flat);
+    // Independent flat-profile equation: base=(.56,.4,.24), black=.76, colour=.15.
+    let expected = [byte(0.4868), byte(0.3412), byte(0.1833), 255];
+    assert!(image.iter().all(|&p| near(p, expected, 2)), "parameter replacements: {:?} vs {expected:?}", image[0]);
+    chain.set_effects(&gpu.device, settings(true));
+    assert!(
+        gpu.run(&mut chain, (16, 16), flat).iter().all(|&p| near(p, [111, 82, 65, 255], 2)),
+        "clearing replacements restores the unchanged authored profile"
+    );
     // A missing profile bypasses grading, and gain-map orientation follows the original UV flip.
     chain.set_treatment(&gpu.device, None);
     chain.set_effects(&gpu.device, settings(true));
@@ -84,7 +100,7 @@ fn check(backend: wgpu::Backends) {
     );
     chain.set_effects(&gpu.device, PostSettings::default());
     let gain = RgbaImage::new(1, 2, vec![0, 0, 64, 255, 0, 0, 192, 255]).unwrap();
-    let identity = ColourTreatment { desaturation: 0.0, black_intensity: 0.0, colour_intensity: 0.0, ..profile() };
+    let identity = ColourTreatment { desaturation: 1.0, black_intensity: 0.0, colour_intensity: 0.0, ..profile() };
     chain.set_treatment(
         &gpu.device,
         Some(treatment::Profile {
@@ -106,7 +122,49 @@ fn check(backend: wgpu::Backends) {
         }),
     );
     assert!(
-        gpu.run(&mut chain, (13, 7), flat).iter().all(|&p| near(p, [129, 82, 47, 255], 2)),
+        gpu.run(&mut chain, (13, 7), flat).iter().all(|&p| near(p, [111, 82, 65, 255], 2)),
         "grading also runs with non-HDR luminance targets"
     );
+    check_original_coefficients(&gpu, &mut chain);
+}
+
+/// Measured original PC program outputs, using only synthetic flat textures.
+/// Both black-only and combined original programs agree on the neutral rows.
+fn check_original_coefficients(gpu: &Gpu, chain: &mut PostChain) {
+    chain.set_treatment(
+        &gpu.device,
+        Some(treatment::Profile {
+            settings: profile(),
+            gain: treatment::gain_texture(&gpu.device, &gpu.queue, None),
+            luma_format: HDR_FORMAT,
+        }),
+    );
+    let cases = [
+        (0.0, [102, 102, 102, 255], [93, 87, 78, 255]),
+        (0.2, [112, 102, 92, 255], [101, 87, 70, 255]),
+        (0.8, [143, 102, 61, 255], [124, 87, 47, 255]),
+        (1.0, [153, 102, 51, 255], [132, 87, 39, 255]),
+    ];
+    for (coefficient, neutral, supplied_mod) in cases {
+        for (mod_parameters, expected) in [(false, neutral), (true, supplied_mod)] {
+            chain.set_effects(
+                &gpu.device,
+                PostSettings {
+                    colour_treatment_override: Some(blackbox_gfx::ColourTreatmentOverride {
+                        tint: [0.68, 0.62, 0.03],
+                        desaturation: coefficient,
+                        colour_intensity: if mod_parameters { 0.75 } else { 0.0 },
+                        black_intensity: if mod_parameters { 0.4 } else { 0.0 },
+                    }),
+                    ..settings(true)
+                },
+            );
+            let image = gpu.run(chain, (16, 16), "return vec4<f32>(0.6,0.4,0.2,1.0);");
+            assert!(
+                image.iter().all(|&p| near(p, expected, 2)),
+                "original coefficient={coefficient} mod_parameters={mod_parameters}: {:?} vs {expected:?}",
+                image[0]
+            );
+        }
+    }
 }

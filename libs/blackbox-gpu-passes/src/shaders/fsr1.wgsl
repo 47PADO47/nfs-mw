@@ -62,7 +62,14 @@ fn vs_main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4<f32> {
 fn load(p: vec2<i32>) -> vec3<f32> {
     let last = vec2<i32>(params.in_size) - vec2<i32>(1);
     let c = textureLoad(src, clamp(p, vec2<i32>(0), last), 0).rgb;
+    if params.pad>0.5 { let positive=max(c,vec3(0.0)); return positive/(vec3(1.0)+positive); }
     return clamp(c, vec3<f32>(0.0), vec3<f32>(1.0));
+}
+
+// Local HDR adapter: invert the monotonic preconditioning after each stage.
+fn restore_range(c:vec3<f32>)->vec3<f32> {
+    if params.pad>0.5 {return c/max(vec3(1e-5),vec3(1.0)-c);}
+    return c;
 }
 
 // Simplest multi-channel approximate luma possible (luma times 2).
@@ -200,7 +207,7 @@ fn fs_easu(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
 
     // Normalize and dering.
     let rgb = min(max4, max(min4, acc.rgb * (1.0 / acc.w)));
-    return vec4<f32>(rgb, 1.0);
+    return vec4<f32>(restore_range(rgb), 1.0);
 }
 
 // This is set at the limit of providing unnatural results for sharpening.
@@ -233,5 +240,5 @@ fn fs_rcas(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
 
     // Resolve.
     let rgb = (lobe * b + lobe * d + lobe * h + lobe * f + e) / (4.0 * lobe + 1.0);
-    return vec4<f32>(rgb, 1.0);
+    return vec4<f32>(restore_range(rgb), 1.0);
 }

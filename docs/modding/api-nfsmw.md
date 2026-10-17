@@ -201,9 +201,15 @@ returns it to active. Milestones are checked in free roam only. [career-mileston
 refuses an impounded car and the last car. [career-car-lot.md](../specs/career-car-lot.md).
 
 **Safe house and shops.** The safe house menu is Resume Free Roam, Blacklist, Car Select, Rap Sheet (once unlocked) and
-Save. No script resets heat or cops on entry, and no native heat reset was found; the sketch's "heat reset on entry" for
-`register_safehouse` and `set_safehouse_cools_heat` is a rewrite feature, not original behaviour. Autosave runs at
-free-roam start and after races. [career-flow.md](../specs/career-flow.md).
+Save. Nothing resets heat, cops or the pursuit on entering or leaving, in scripts or in native code: the whole world is
+unloaded when the front end opens and free roam builds a fresh cop manager. Heat survives in the driven car's career
+record (written as `min(heat, 5)` at unload, read as `max(1.0, record)` at spawn), so the sketch's "heat reset on entry"
+for `register_safehouse` and `set_safehouse_cools_heat` is a rewrite feature, not original behaviour. A safe house is a
+zone whose type string is `safehouse` (`carlot` and `customshop` are the other two); it needs no event and either no
+pursuit or one in cool-down, where engaging ends the pursuit first. The respawn point is a collection key stored in the
+script manager. Autosave runs at free-roam start and after races. SMS messages arrive only in free roam and sit in a
+150-slot inbox ([career-phone.md](../specs/career-phone.md)). [career-safehouse.md](../specs/career-safehouse.md),
+[career-flow.md](../specs/career-flow.md).
 
 **Differences to apply to the sketches above**
 

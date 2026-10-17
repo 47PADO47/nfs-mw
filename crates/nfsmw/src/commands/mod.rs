@@ -68,7 +68,7 @@ pub fn run(cli: Cli) -> Result<()> {
         }
         Command::Strings { filter } => {
             let dir = open_install(game_dir)?;
-            let data = nfsmw_data::read_unwrapped(&dir, "LANGUAGES/English.bin")?;
+            let data = nfsmw_data::shared::language(&dir)?;
             let table = blackbox_text::StringTable::from_file(&data)?;
             print!("{}", crate::frontend::dump::strings(&table, &filter));
             Ok(())

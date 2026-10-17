@@ -14,14 +14,17 @@ mod goal_aims;
 mod hitch;
 mod lamps;
 mod manager;
+mod model_loader;
 mod models;
 mod original_camera;
 mod pattern;
 mod police;
 mod population;
 mod pursuit;
+mod road_reflection;
 mod roadblock;
 mod scene;
+mod shading;
 pub(super) mod signal_props;
 mod simulation;
 mod spawn;
@@ -98,6 +101,8 @@ pub struct TrafficWorld {
     avoidance: bool,
     models: Vec<TrafficModel>,
     cop_models: Vec<CopModel>,
+    /// The worker that reads the car models the traffic asks for, made by its first request (`model_loader.rs`).
+    model_loader: Option<model_loader::ModelLoader>,
     /// The police helicopter's rig. It is not a car, so it has no `CarPhysics` (`models.rs`).
     helicopter_rig: Option<Rc<CarRig>>,
     pursuit: Option<Pursuit>,
@@ -118,6 +123,8 @@ pub struct TrafficWorld {
     requests: Vec<ModelRequest>,
     /// Names already asked for (loaded, loading or failed).
     known: HashSet<String>,
+    /// Last applied appearance mode; live actors share these uploaded rigs.
+    shading: Option<crate::settings::CarShading>,
     spawn_timer: f32,
     /// Seconds of simulation a screenshot run still has to run in batches (it has no frame time).
     warmup_left: f32,
@@ -142,6 +149,13 @@ pub struct TrafficWorld {
     strikes: collide::Strikes,
     /// The spike strips of the standing roadblocks, on the road plane (`spikes.rs`). Cleared when the chase ends.
     spikes: Vec<blackbox_pursuit::spikes::Strip>,
+    /// Per-step scratch, kept so a step does not allocate: every body as the others see it (`simulation.rs`).
+    bodies: Vec<(Body, bool)>,
+    /// The cops' aims of the step, by car index (`cop_aims.rs`).
+    aims: Vec<Option<Vec3>>,
+    /// The hits and close passes of the collision step (`collide.rs`).
+    hits: Vec<collide::Hit>,
+    passes: Vec<collide::Pass>,
 }
 
 impl TrafficWorld {
@@ -168,6 +182,7 @@ impl TrafficWorld {
             index,
             models: Vec::new(),
             cop_models: Vec::new(),
+            model_loader: None,
             helicopter_rig: None,
             pursuit: None,
             police: police::Police::default(),
@@ -181,6 +196,7 @@ impl TrafficWorld {
             patrol: None,
             requests: Vec::new(),
             known: HashSet::new(),
+            shading: None,
             spawn_timer: 0.0,
             warmup_left: 0.0,
             log_timer: 0.0,
@@ -194,6 +210,10 @@ impl TrafficWorld {
             sight_clock: 0.0,
             strikes: collide::Strikes::default(),
             spikes: Vec::new(),
+            bodies: Vec::new(),
+            aims: Vec::new(),
+            hits: Vec::new(),
+            passes: Vec::new(),
         }
     }
 
@@ -303,11 +323,6 @@ impl TrafficWorld {
     pub fn clear_cars(&mut self) {
         self.cars.clear();
         self.pursuit = None;
-    }
-
-    /// Puts requests the scene has not got to yet back.
-    pub fn requeue(&mut self, requests: Vec<ModelRequest>) {
-        self.requests.extend(requests);
     }
 
     /// Whether the manager is waiting for a model.

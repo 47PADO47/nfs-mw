@@ -49,6 +49,7 @@ impl std::fmt::Display for Percent {
 /// through to the next layer.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Partial {
+    pub appearance: Option<super::Appearance>,
     pub deadzone_mode: Option<super::DeadzoneMode>,
     pub steering_deadzone: Option<Deadzone>,
     pub camera_deadzone: Option<Deadzone>,
@@ -115,6 +116,9 @@ pub struct Partial {
     pub post_tonemap: Option<PostTonemap>,
     pub post_bloom: Option<PostBloom>,
     pub post_aa: Option<PostAa>,
+    pub texture_filtering: Option<super::TextureFiltering>,
+    pub road_reflections: Option<super::RoadReflections>,
+    pub road_reflection_resolution: Option<super::RoadReflectionResolution>,
     pub visual_treatment: Option<super::VisualTreatment>,
     pub reflections: Option<super::ReflectionQuality>,
     pub reflection_cube_size: Option<super::ReflectionSize>,
@@ -160,6 +164,7 @@ impl Partial {
     /// This layer, with `lower` filling the fields it leaves unset.
     pub fn or(self, lower: Partial) -> Partial {
         Partial {
+            appearance: self.appearance.or(lower.appearance),
             deadzone_mode: self.deadzone_mode.or(lower.deadzone_mode),
             steering_deadzone: self.steering_deadzone.or(lower.steering_deadzone),
             camera_deadzone: self.camera_deadzone.or(lower.camera_deadzone),
@@ -220,6 +225,9 @@ impl Partial {
             post_tonemap: self.post_tonemap.or(lower.post_tonemap),
             post_bloom: self.post_bloom.or(lower.post_bloom),
             post_aa: self.post_aa.or(lower.post_aa),
+            texture_filtering: self.texture_filtering.or(lower.texture_filtering),
+            road_reflections: self.road_reflections.or(lower.road_reflections),
+            road_reflection_resolution: self.road_reflection_resolution.or(lower.road_reflection_resolution),
             visual_treatment: self.visual_treatment.or(lower.visual_treatment),
             reflections: self.reflections.or(lower.reflections),
             reflection_cube_size: self.reflection_cube_size.or(lower.reflection_cube_size),

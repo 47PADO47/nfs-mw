@@ -8,7 +8,7 @@ use super::pipelines::{BLEND_ORDER, SHADINGS};
 use super::post::PassContext;
 use super::resources::Globals;
 use super::targets::SceneTargets;
-use crate::{FrameParams, Instance, RenderError, Shading};
+use crate::{DrawRange, FrameParams, Instance, RenderError, Shading};
 
 impl Renderer {
     /// Draw `instances` and present. Returns `Ok(false)` when the frame was skipped
@@ -17,6 +17,7 @@ impl Renderer {
     ///
     /// Instances of the same mesh should be adjacent: each run becomes one instanced draw per range.
     pub fn render(&mut self, frame: &FrameParams, instances: &[Instance]) -> Result<bool, RenderError> {
+        self.refresh_display(false);
         let (surface_texture, view) = match &self.output {
             Output::Window { surface, config } => {
                 let texture = match surface.get_current_texture() {
@@ -103,11 +104,13 @@ impl Renderer {
         if let Some(timing) = &mut self.timing {
             timing.stamp(encoder, 7);
         }
-        self.encode_scene_mode(encoder, targets, output, frame, instances, None);
+        self.encode_scene_mode(encoder, targets, output, frame, instances, false, None);
         self.encode_motion(encoder, targets, instances);
     }
 
-    /// Reflection views omit effects, AO and glossy draws (no reflective-object feedback).
+    /// Reflection views omit effects, AO and glossy draws (no reflective-object feedback). `reduced` views
+    /// (the rear-view mirror) take no shadows or AO in the shader, but keep effects and glossy draws.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn encode_scene_mode(
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
@@ -115,9 +118,11 @@ impl Renderer {
         output: &wgpu::TextureView,
         frame: &FrameParams,
         instances: &[Instance],
+        reduced: bool,
         capture: Option<&mut super::reflections::CaptureView>,
     ) {
         let reflection = capture.is_some();
+        let projected = capture.as_ref().is_some_and(|v| v.kind == super::reflections::CaptureKind::Projected);
         let [r, g, b] = frame.clear_color;
         let [fog_start, fog_end] = frame.fog_range();
         // A reflection, and a capture while a temporal upscaler is chosen, are drawn at their own size with no
@@ -130,7 +135,7 @@ impl Renderer {
             Some(s) => (
                 [s.rayleigh[0], s.rayleigh[1], s.rayleigh[2], 1.0],
                 [s.mie[0], s.mie[1], s.mie[2], s.g],
-                s.to_sun.normalize_or_zero().extend(0.0).to_array(),
+                s.to_sun.normalize_or_zero().extend(s.distance_scale).to_array(),
             ),
             None => ([0.0; 4], [0.0; 4], [0.0; 4]),
         };
@@ -146,15 +151,41 @@ impl Renderer {
                 false => self.world_to_clip(frame),
             }
             .to_cols_array_2d(),
-            camera_pos: frame.camera_position.extend(1.0).to_array(),
-            light_dir: frame.light_dir.normalize_or_zero().extend(0.0).to_array(),
-            fog_color: [r, g, b, 1.0],
-            fog_range: [fog_start, fog_end, mip_bias, u8::from(reflection) as f32],
+            // w is reserved for the HDR extension; reflection contracts stay SDR.
+            camera_pos: frame
+                .camera_position
+                .extend(match !reflection && self.post.display.is_some() {
+                    true => 2.0,
+                    false => 1.0,
+                })
+                .to_array(),
+            light_dir: frame
+                .light_dir
+                .normalize_or_zero()
+                .extend(u8::from(self.experiments.original_world_materials || projected) as f32)
+                .to_array(),
+            fog_color: [r, g, b, frame.surface_light.map_or(1.0, |s| s.ambient_alpha)],
+            fog_range: [
+                fog_start,
+                fog_end,
+                mip_bias,
+                match (projected, reflection || reduced) {
+                    (true, _) => 2.0,
+                    (_, true) => 1.0,
+                    _ => 0.0,
+                },
+            ],
             scatter_rayleigh,
             scatter_mie,
             to_sun,
             surface_ambient,
-            surface_diffuse,
+            surface_diffuse: [
+                surface_diffuse[0],
+                surface_diffuse[1],
+                surface_diffuse[2],
+                frame.scattering.map_or(1.0, |s| s.in_scatter_scale),
+            ],
+            camera_right: [frame.view.x_axis.x, frame.view.y_axis.x, frame.view.z_axis.x, 0.0],
         };
         let (uniform, bind_group, instance_buffer) = match capture {
             Some(view) => {
@@ -172,6 +203,20 @@ impl Renderer {
         let format = targets.color_format();
         self.pipelines.use_format(&self.device, format, self.glossy.is_some());
         self.effects.use_format(&self.device, format);
+        if let Some(sky) = &mut self.sky {
+            sky.prepare(&self.device, &self.queue, format);
+        }
+        if self.experiments.original_world_materials
+            && !projected
+            && let Some(normal) = &mut self.normal
+        {
+            normal.prepare(&self.device, &self.queue, format, frame);
+        }
+        if (self.experiments.original_world_materials || projected)
+            && let Some(window) = &mut self.window
+        {
+            window.prepare(&self.device, format);
+        }
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("scene"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -179,7 +224,10 @@ impl Renderer {
                 depth_slice: None,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color { r: r.into(), g: g.into(), b: b.into(), a: 1.0 }),
+                    load: wgpu::LoadOp::Clear(match projected {
+                        true => wgpu::Color::BLACK,
+                        false => wgpu::Color { r: r.into(), g: g.into(), b: b.into(), a: 1.0 },
+                    }),
                     store: wgpu::StoreOp::Store,
                 },
             })],
@@ -200,58 +248,86 @@ impl Renderer {
         });
         pass.set_bind_group(0, bind_group, &[]);
         pass.set_vertex_buffer(1, instance_buffer.slice(..));
+        if let Some(sky) = &self.sky {
+            sky.draw(&mut pass, format, &self.meshes, instances);
+        }
 
-        for (mode, shading) in BLEND_ORDER.iter().flat_map(|&b| SHADINGS.iter().map(move |&s| (b, s))) {
-            if reflection && matches!(shading, Shading::Glossy(_)) {
-                continue;
+        // Every instance run and draw was sorted into its pipeline's bucket up front. A draw is only skipped
+        // here when this view's rules (projected, reflection, original materials) exclude it.
+        self.draw_list.build(instances, &self.meshes, &self.redirects, &self.textures);
+        let original = self.experiments.original_world_materials;
+        for (mode_index, mode) in BLEND_ORDER.into_iter().enumerate() {
+            if original
+                && !projected
+                && let Some(normal) = &self.normal
+            {
+                normal.draw(&mut pass, format, mode, &self.meshes, instances, &self.shared.shadows.fallback);
             }
-            let Some(pipeline) = self.pipelines.get(mode, shading) else { continue };
-            pass.set_pipeline(pipeline);
-            if !matches!(shading, Shading::Glossy(_)) {
-                pass.set_bind_group(2, &self.shared.shadows.fallback, &[]);
+            if (original || projected)
+                && let Some(window) = &self.window
+            {
+                window.draw(&mut pass, format, mode, &self.meshes, instances, &self.shared.shadows.fallback);
             }
-            let glossy = match shading {
-                Shading::Glossy(_) => match &self.glossy {
-                    Some(glossy) => Some(glossy),
-                    None => continue,
-                },
-                _ => None,
-            };
-            if let Some(glossy) = glossy {
-                glossy.bind_scene(&mut pass);
-            }
-            let mut start = 0;
-            while start < instances.len() {
-                let mesh_handle = instances[start].mesh;
-                let end = start + instances[start..].iter().take_while(|i| i.mesh == mesh_handle).count();
-                if let Some(mesh) = self.meshes.get(mesh_handle.raw()) {
-                    let mut draws =
-                        mesh.draws.iter().filter(|d| d.blend == mode && d.shading.same_pipeline(shading)).peekable();
-                    if draws.peek().is_none() {
-                        start = end;
+            for (shading_index, shading) in SHADINGS.into_iter().enumerate() {
+                if reflection && !projected && matches!(shading, Shading::Glossy(_)) {
+                    continue;
+                }
+                let Some(pipeline) = self.pipelines.get(mode, shading) else { continue };
+                pass.set_pipeline(pipeline);
+                if !matches!(shading, Shading::Glossy(_)) {
+                    pass.set_bind_group(2, &self.shared.shadows.fallback, &[]);
+                }
+                let glossy = match shading {
+                    Shading::Glossy(_) => match &self.glossy {
+                        Some(glossy) => Some(glossy),
+                        None => continue,
+                    },
+                    _ => None,
+                };
+                if let Some(glossy) = glossy {
+                    glossy.bind_scene(&mut pass);
+                }
+                let slot = mode_index * SHADINGS.len() + shading_index;
+                let mut bound_mesh = None;
+                let mut bound_texture = None;
+                for &cmd in self.draw_list.bucket(slot) {
+                    let Some(mesh) = self.meshes.get(cmd.mesh) else { continue };
+                    let Some(d) = mesh.draws.get(cmd.draw as usize) else { continue };
+                    if !drawn_here(d, shading, projected, original) {
                         continue;
                     }
-                    pass.set_vertex_buffer(0, mesh.vertices.slice(..));
-                    pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint16);
-                    for d in draws {
-                        if let (Shading::Glossy(material), Some(glossy)) = (d.shading, glossy)
-                            && !glossy.bind_material(&mut pass, material)
-                        {
-                            continue;
-                        }
-                        let slot = d.texture.map(|t| self.redirects.get(&t.raw()).copied().unwrap_or(t.raw()));
-                        let texture = slot.and_then(|s| self.textures.get(s)).or(self.textures.get(0));
-                        if let Some(texture) = texture {
-                            pass.set_bind_group(1, texture, &[]);
-                            pass.draw_indexed(
-                                d.first_index..d.first_index + d.index_count,
-                                d.base_vertex,
-                                start as u32..end as u32,
-                            );
-                        }
+                    if let (Shading::Glossy(material), Some(glossy)) = (d.shading, glossy)
+                        && !glossy.bind_material(&mut pass, material)
+                    {
+                        continue;
                     }
+                    // A projected normal draw shows the capture's diffuse texture when it has one.
+                    let captured = match (projected, d.shading) {
+                        (true, Shading::WorldNormal(handle)) => {
+                            self.normal.as_ref().and_then(|n| n.capture_diffuse(handle))
+                        }
+                        _ => None,
+                    };
+                    let texture = match captured {
+                        Some(t) => self.redirects.get(&t.raw()).copied().unwrap_or(t.raw()),
+                        None => cmd.texture,
+                    };
+                    if bound_mesh != Some(cmd.mesh) {
+                        pass.set_vertex_buffer(0, mesh.vertices.slice(..));
+                        pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint16);
+                        bound_mesh = Some(cmd.mesh);
+                    }
+                    if bound_texture != Some(texture) {
+                        let Some(bind) = self.textures.get(texture).or(self.textures.get(0)) else { continue };
+                        pass.set_bind_group(1, bind, &[]);
+                        bound_texture = Some(texture);
+                    }
+                    pass.draw_indexed(
+                        d.first_index..d.first_index + d.index_count,
+                        d.base_vertex,
+                        cmd.instances.0..cmd.instances.1,
+                    );
                 }
-                start = end;
             }
         }
         if reflection
@@ -271,4 +347,17 @@ impl Renderer {
         };
         self.effects.draw_soft(&self.device, &self.queue, encoder, &soft);
     }
+}
+
+/// Whether this view draws `d` in the pipeline `shading`. The bucket holds the draws that share a pipeline with
+/// it; the rules here decide which of those (and which neighbours a view borrows) this view draws.
+fn drawn_here(d: &DrawRange, shading: Shading, projected: bool, original: bool) -> bool {
+    let own = d.shading.same_pipeline(shading) && !(projected && d.shading == Shading::World);
+    let projected_borrow =
+        projected && shading == Shading::WorldNoFog && matches!(d.shading, Shading::World | Shading::WorldNormal(_));
+    let prelit_borrow = !projected
+        && !original
+        && shading == Shading::Prelit
+        && matches!(d.shading, Shading::WorldNormal(_) | Shading::WorldWindow(_));
+    own || projected_borrow || prelit_borrow
 }

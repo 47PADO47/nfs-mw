@@ -34,13 +34,14 @@ enum Plan {
 }
 
 impl super::TrafficWorld {
-    /// The aim of every car this step, by car index; `None` is the player. A cop on a goal drives by the goal's step, which is
-    /// kept in the car (`car/goal_drive.rs`) for its think and its brake. The aims are in the map plane lifted to the
-    /// player's height.
-    pub(super) fn cop_aims(&self, player: &Body) -> Vec<Option<Vec3>> {
+    /// The aim of every car this step, by car index, into `out` (cleared first); `None` is the player. A cop on a goal drives
+    /// by the goal's step, which is kept in the car (`car/goal_drive.rs`) for its think and its brake. The aims are in the map
+    /// plane lifted to the player's height.
+    pub(super) fn cop_aims(&self, player: &Body, out: &mut Vec<Option<Vec3>>) {
         let tuning = goal_aims::tuning_for(self.police.level().unwrap_or(1));
         let plans = self.cop_plans(player);
-        let mut aims = vec![None; self.cars.len()];
+        out.clear();
+        out.resize(self.cars.len(), None);
         for (me, order) in plans.into_iter().enumerate() {
             let (aim, step) = match order {
                 Plan::Chase(aim) => (aim, None),
@@ -50,9 +51,8 @@ impl super::TrafficWorld {
                 },
             };
             self.cars[me].set_goal_drive(step);
-            aims[me] = aim.map(|a| Vec3::new(a.x, player.position.y, a.y));
+            out[me] = aim.map(|a| Vec3::new(a.x, player.position.y, a.y));
         }
-        aims
     }
 
     /// What each car is asked to drive this step, by car index. Only cops in a chase have one.

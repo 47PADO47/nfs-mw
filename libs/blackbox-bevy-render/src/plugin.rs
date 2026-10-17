@@ -27,7 +27,7 @@ use bevy_image::ImagePlugin;
 use bevy_light::LightPlugin;
 use bevy_mesh::MeshPlugin;
 use bevy_pbr::{MaterialPlugin, PbrPlugin};
-use bevy_render::renderer::{RenderAdapterInfo, RenderDevice};
+use bevy_render::renderer::{RenderAdapter, RenderAdapterInfo, RenderDevice};
 use bevy_render::settings::{RenderCreation, WgpuSettings};
 use bevy_render::{ExtractSchedule, RenderApp, RenderPlugin};
 use blackbox_gfx::{BackendInfo, GraphicsApi, RtSupport};
@@ -226,6 +226,7 @@ pub struct BackendFactory<'w> {
     bridge: Res<'w, BlackboxBridge>,
     device: Res<'w, RenderDevice>,
     adapter: Res<'w, RenderAdapterInfo>,
+    render_adapter: Res<'w, RenderAdapter>,
     /// Present when Bevy found DLSS Super Resolution on this machine (`DlssPlugin::finish`).
     dlss: Option<Res<'w, DlssSupport>>,
     /// Present when Bevy found DLSS Ray Reconstruction on this machine (the DLSS-RR denoiser for Solari).
@@ -235,7 +236,15 @@ pub struct BackendFactory<'w> {
 impl BackendFactory<'_> {
     /// The backend for a surface of `size` pixels. The world draws into the primary window.
     pub fn create(&self, size: [u32; 2]) -> BevyBackend {
-        backend_with_dlss(&self.bridge, &self.device, &self.adapter, size, self.dlss.is_some(), self.rr.is_some())
+        backend_with_dlss(
+            &self.bridge,
+            &self.device,
+            &self.adapter,
+            &self.render_adapter,
+            size,
+            self.dlss.is_some(),
+            self.rr.is_some(),
+        )
     }
 }
 
@@ -245,15 +254,17 @@ pub fn backend(
     bridge: &BlackboxBridge,
     device: &RenderDevice,
     adapter: &RenderAdapterInfo,
+    render_adapter: &RenderAdapter,
     size: [u32; 2],
 ) -> BevyBackend {
-    backend_with_dlss(bridge, device, adapter, size, false, false)
+    backend_with_dlss(bridge, device, adapter, render_adapter, size, false, false)
 }
 
 fn backend_with_dlss(
     bridge: &BlackboxBridge,
     device: &RenderDevice,
     adapter: &RenderAdapterInfo,
+    render_adapter: &RenderAdapter,
     size: [u32; 2],
     dlss_supported: bool,
     rr_supported: bool,
@@ -268,6 +279,9 @@ fn backend_with_dlss(
     };
     let ray_tracing = ray_tracing_of(device, rr_supported);
     let fsr3 = fsr3_of(device);
-    let caps = crate::caps::capabilities_with_ray_tracing(api, compressed_bc, dlss_supported, ray_tracing, fsr3);
+    let mut caps = crate::caps::capabilities_with_ray_tracing(api, compressed_bc, dlss_supported, ray_tracing, fsr3);
+    if !render_adapter.get_downlevel_capabilities().flags.contains(wgpu::DownlevelFlags::ANISOTROPIC_FILTERING) {
+        caps.max_texture_anisotropy = 1;
+    }
     BevyBackend::new(bridge.share(), info, caps, size)
 }

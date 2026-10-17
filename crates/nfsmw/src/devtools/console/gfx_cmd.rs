@@ -70,6 +70,7 @@ fn capability_lines(caps: &Capabilities) -> Vec<String> {
         format!("  ray tracing:   {ray_tracing}"),
         format!("  render scale:  {:.2} to {:.2}", caps.render_scale.0, caps.render_scale.1),
         format!("  BC textures:   {}", yes_no(caps.compressed_bc)),
+        format!("  max anisotropy: {}x", caps.max_texture_anisotropy),
         format!("  needs restart: {restart}"),
     ]
 }
@@ -87,6 +88,7 @@ fn value_of(setting: Setting, g: &GraphicsSettings) -> String {
         Setting::RayTracing => g.ray_tracing.name().to_owned(),
         Setting::ColourTreatment => g.post.colour_treatment.to_string(),
         Setting::Reflections => g.reflections.name().to_owned(),
+        Setting::TextureFiltering => g.texture_filtering.to_string(),
         Setting::Shadows => g.shadows.name().to_owned(),
         Setting::AmbientOcclusion => format!("{} {:.0}%", g.ao.quality, g.ao.intensity * 100.0),
     }

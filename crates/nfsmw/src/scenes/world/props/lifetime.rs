@@ -112,21 +112,34 @@ impl Lifetime {
     }
 }
 
+/// Records body `id` for the cleanup scan. Every activation goes through here, so the scan misses no live lifetime.
+pub(super) fn track_lifetime(live: &mut Vec<u32>, id: u32) {
+    let Err(at) = live.binary_search(&id) else {
+        return;
+    };
+    live.insert(at, id);
+}
+
 impl super::PropWorld {
     /// Cleanup observes the current physics camera, not interpolated render poses.
     pub fn update_lifetimes(&mut self, ground: &dyn blackbox_vehicle::Ground, view: glam::Mat4, dt: f32) {
+        let _span = bevy_log::info_span!("world::props_lifetimes").entered();
         let frustum = blackbox_scene::Frustum::from_view_proj(&view);
-        let mut ids: Vec<_> = self.colliders.keys().copied().collect();
-        ids.sort_unstable();
-        for id in ids {
+        // Only tracked bodies are visited, in ascending id order. Bodies that stay active are tracked again;
+        // the rest, including removed bodies, drop out. Both lists are reused across ticks.
+        let mut ids = std::mem::take(&mut self.lifetime_scratch);
+        ids.clear();
+        ids.extend_from_slice(&self.live_lifetimes);
+        self.live_lifetimes.clear();
+        for &id in &ids {
             let Some(c) = self.colliders.get_mut(&id) else {
                 continue;
             };
-            let visible = frustum.intersects(&c.pose(1.0).1);
-            let (Some(body), Some(spec)) = (&mut c.body, &c.shape.dynamics) else { continue };
-            if !body.lifetime.active {
+            if !c.body.as_ref().is_some_and(|b| b.lifetime.active) {
                 continue;
             }
+            let visible = frustum.intersects(&c.pose(1.0).1);
+            let (Some(body), Some(spec)) = (&mut c.body, &c.shape.dynamics) else { continue };
             let radius = body.rigid.radius();
             let top = body.rigid.position + glam::Vec3::Y * radius;
             let in_world = spec.allow_off_world || ground.hit(top, glam::Vec3::NEG_Y, 10000.0).is_some();
@@ -153,6 +166,11 @@ impl super::PropWorld {
                 }
             }
             self.regrid(id);
+            let active = self.colliders.get(&id).and_then(|c| c.body.as_ref()).is_some_and(|b| b.lifetime.active);
+            if active {
+                self.live_lifetimes.push(id);
+            }
         }
+        self.lifetime_scratch = ids;
     }
 }

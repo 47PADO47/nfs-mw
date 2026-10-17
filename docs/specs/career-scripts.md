@@ -78,13 +78,13 @@ wrappers at `0x008F6450`, the event constructors at `0x008F61C8` and the native 
 | `Game.ChallengeComplete(racer)` | marks the racer's race-status entry as challenge complete |
 | `Game.NotifyRaceFinished(racer)` | records the finish: best result, completed flag, cash, rewards, unlock list (blacklist spec 4.2) |
 | `Game.NotifyRacePlacement(race, racer, place)` | broadcasts `MNotifyRacePlacement` with `Activity`, `Racer`, `Placing` |
-| `Game.SetWorldHeat(n)` | sets the world heat object's value (`0x00612660`); meaning of the number **[unconfirmed]** |
+| `Game.SetWorldHeat(n)` | sets the live heat of the first player's car to `n` (`0x00612660`); the two script call sites use 1 and 5 **[exe]** |
 | `Game.SetHasRapSheet()` | career flag 0x10 |
 | `Game.DoSafeHouseIntro(marker)` | stores the respawn marker, sets CurrentBin to 16, opens the safe-house front end |
 | `Game.DoZoneMenuAction(zone)` | stores the respawn marker; zone `safehouse` opens `MainMenu_Sub.fng`, `carlot` opens `Car_Select.fng`, `customshop` opens `CustomizeMain.fng` |
 | `Game.EnterGateZone` / `ExitGateZone` | show or hide the "engage" prompt icon for the zone |
-| `EAddSMS(id)` | adds phone message `id` to the inbox |
-| `ECellCall(id)` | starts a phone call scene |
+| `EAddSMS(id)` | queues text message `id` for the inbox (ids 10 to 14, 95, 96 are delivered at once) |
+| `ECellCall(id)` | a phone call: voice line in five languages, a text message in the five text languages (career-phone.md 3.3); one argument only |
 
 ## 2. Inventory
 
@@ -142,8 +142,8 @@ otherwise); the loading code (`0x0062C2D0` loads the bin's instance when it is n
 ### 3.3 Phone messages and world heat per bin **[verified]**
 
 Per-bin copies fire at these points. "wins n" = the bin's native races-won counter equals n right after a first
-place (any first-place finish in the game triggers the check, so repeated wins at the same count may repeat the
-message **[unconfirmed]**). "challenges >= k" = native challenges-passed counter at least k, each message once
+place (any first-place finish in the game triggers the check, but a message already in the inbox is not sent again:
+career-phone.md 3.1). "challenges >= k" = native challenges-passed counter at least k, each message once
 (flags `DoneFirstSMS`, `DoneSecondSMS`, `DoneThirdSMS`).
 
 | Bin | Entry message | Race wins -> message | Challenges -> message | Rival unlocks |
@@ -165,8 +165,8 @@ message **[unconfirmed]**). "challenges >= k" = native challenges-passed counter
 | 1 | 89 | 4: 90, 6: 91 | none | 93 and 94 (script copy) |
 
 "Entry message" and "Rival unlocks" for bins 2..13 and 15 are the data fields `EntryCellCallID` and
-`SMSRivalChallenge`. Bin 13 also calls `SetHasRapSheet` when it starts. The message ids index the phone table, which
-was not read; the text and sender are therefore unknown. Bin 14 has no `EntryCellCallID` but its start copy queues
+`SMSRivalChallenge`. Bin 13 also calls `SetHasRapSheet` when it starts. The message ids are slots of the 150-slot inbox;
+sender, subject and delivery rules are in [career-phone.md](career-phone.md) and [career-text-2.md](career-text-2.md). Bin 14 has no `EntryCellCallID` but its start copy queues
 two fixed messages. The bin 16 prologue queues message 15 when the drive to the safe house starts and message 121
 after 120 s without arriving (section 6 of the events file).
 
@@ -174,13 +174,18 @@ after 120 s without arriving (section 6 of the events file).
 
 The three `menu_gate` collections (safe house with four zones, car lot, custom shop with eight) each run one graph:
 a zone trigger entered by the player raises `EnterGateZone` (shows the prompt) if menu gates are allowed (and for a
-safe house if safe-house engagement is allowed); leaving it raises `ExitGateZone`. The message `EnterSafehouse`
-(sent by the front end when the player confirms) calls `DoZoneMenuAction`: the respawn marker of the zone is stored
-(a second marker slot is stored for safe houses) and the menu opens: `MainMenu_Sub.fng`. If the gate has an intro
-NIS the graph plays it first and calls the menu action when it ends.
+safe house if safe-house engagement is allowed); leaving it raises `ExitGateZone`. The message `EnterSafehouse` is the
+native message `MEnterSafeHouse`, posted by the HUD engage component when the player presses the engage action in a
+`safehouse`, `carlot` or `customshop` zone, and by the post-pursuit results screen when it closes after the engage
+action ended a cooling-down pursuit; a native listener forwards it to the graph. The graph calls `DoZoneMenuAction`:
+the respawn marker of the zone is stored (a second marker slot is stored for safe houses) and the menu opens:
+`MainMenu_Sub.fng`. If the gate has an intro NIS the graph plays it first and calls the menu action when it ends.
 
-There is **no heat or cop reset in any script** on safe-house entry. Whether native code clears the pursuit on
-opening the menu is not part of the scripts and was not traced here. **[unconfirmed]**
+There is **no heat or cop reset in any script** on safe-house entry, and none in the native code either: the world is
+unloaded when the front end opens (cops, pursuit and traffic vanish with it), a pursuit in cool-down is first ended as
+evaded, and the player's heat is carried through the career car record (`min(heat, 5.0)` out, `max(1.0, record)` in).
+The native details are in [career-safehouse.md](career-safehouse.md) and [career-safehouse-2.md](career-safehouse-2.md)
+**[exe]**.
 
 ## 5. Answers to the earlier open questions
 

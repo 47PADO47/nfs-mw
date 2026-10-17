@@ -143,9 +143,30 @@ fn update(
     mut bindings: ResMut<Bindings>,
     mut clicking: Local<bool>,
     mut wheel: Local<f32>,
-    garage: Res<crate::garage::Overlay>,
+    overlays: (Res<crate::garage::Overlay>, ResMut<crate::devtools::GraphicsLab>, ResMut<crate::input::UiFocus>),
     mut map: MapParams,
 ) {
+    let (garage, mut lab, mut focus) = overlays;
+    if fe.graphics_requested {
+        fe.graphics_requested = false;
+        fe.latch = true;
+        lab.open_from_menu(&mut capture, &mut focus);
+    }
+    if lab.open {
+        if !fe.graphics_visible {
+            let mut pending = std::mem::take(&mut fe.changed);
+            fe.save_settings(&mut pending);
+            fe.changed = pending;
+        }
+        fe.graphics_visible = true;
+        *clicking = false;
+        *wheel = 0.0;
+        return;
+    }
+    if fe.graphics_visible {
+        fe.graphics_visible = false;
+        fe.latch = true;
+    }
     if garage.open || garage.had_input {
         *clicking = false;
         *wheel = 0.0;

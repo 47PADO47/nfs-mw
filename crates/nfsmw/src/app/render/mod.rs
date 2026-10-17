@@ -119,6 +119,7 @@ pub fn update_scene(
     mut settings: ResMut<Settings>,
     garage: Res<crate::garage::Overlay>,
 ) {
+    let _span = bevy_log::info_span!("render::scene_update").entered();
     let host = &mut *host;
     let Some(renderer) = host.renderer.as_mut() else { return };
     // The camera hotkey changes the setting in memory (not the config file); the scene follows it below.
@@ -131,6 +132,7 @@ pub fn update_scene(
     host.traffic = crate::settings::TrafficSettings::from(&*settings);
     host.scene.set_traffic(host.traffic);
     host.scene.set_camera_mode(settings.camera_mode);
+    host.scene.set_road_reflections(settings.road_reflections, settings.road_reflection_resolution);
     host.rear_view_mirror = settings.rear_view_mirror;
     host.wheel = settings.wheel_options();
     host.scene.set_wheel_options(host.wheel);
@@ -151,6 +153,7 @@ pub fn draw(
     window: Single<&Window, With<PrimaryWindow>>,
     time: Res<Time>,
 ) {
+    let _span = bevy_log::info_span!("render::draw").entered();
     let host = &mut *host;
     let Some(renderer) = host.renderer.as_mut() else { return };
     for patch in ui.patches.drain(..) {
@@ -170,6 +173,8 @@ pub fn draw(
     let strength = host.scene.speed_streaks();
     host.streaks.show(renderer.as_mut(), host.mirror.base_layer(), strength, size, time.elapsed_secs());
 
+    let aspect = renderer.aspect_ratio();
+    host.scene.prepare_frame(renderer.as_mut(), aspect);
     let (params, instances) = host.scene.frame(renderer.aspect_ratio());
     let result = if let Some(plan) = host.screenshot.as_mut() {
         host.frames += 1;
@@ -204,6 +209,7 @@ pub fn draw(
             }
         })
     } else {
+        let _span = bevy_log::info_span!("render::submit").entered();
         renderer.render(&params, instances).map(|_| host.frames += 1).map_err(Into::into)
     };
     if let Err(e) = result {

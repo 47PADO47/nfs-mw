@@ -44,6 +44,8 @@ pub struct Capabilities {
     pub api: GraphicsApi,
     /// Whether DXT (BC1 to BC3) textures upload without CPU decoding.
     pub compressed_bc: bool,
+    /// Largest effective scene-surface anisotropy; 1 means trilinear only.
+    pub max_texture_anisotropy: u16,
     /// Whether the scene can be drawn in an HDR format (bloom and tone mapping need it).
     pub hdr_targets: bool,
     pub antialiasing: AaSet,
@@ -59,6 +61,7 @@ pub struct Capabilities {
     pub frame_generation: bool,
     /// Scenery captures for local environment-map reflections.
     pub local_reflections: bool,
+    pub projected_reflections: bool,
     pub ambient_occlusion: bool,
     pub soft_shadows: bool,
     pub ray_tracing: RtSupport,
@@ -76,6 +79,7 @@ impl Capabilities {
             renderer,
             api,
             compressed_bc: false,
+            max_texture_anisotropy: 1,
             hdr_targets: false,
             antialiasing: AaSet::of(&[Antialiasing::Off]),
             upscalers: UpscalerSet::of(&[Upscaler::Off]),
@@ -85,6 +89,7 @@ impl Capabilities {
             radial_blur: false,
             frame_generation: false,
             local_reflections: false,
+            projected_reflections: false,
             ambient_occlusion: false,
             soft_shadows: false,
             ray_tracing: RtSupport::None,

@@ -101,11 +101,29 @@ fn ao_attenuates_ambient_but_preserves_direct_light_and_glossy_reflections() {
     let size = (320, 240);
     let Some(mut r) = test_support::headless(size) else { return };
     let (mut frame, instances) = scene_shading(&mut r, size, true, Shading::Lit);
-    frame.surface_light = Some(SurfaceLight { ambient: [0.0; 3], diffuse: [0.6; 3] });
+    frame.surface_light = Some(SurfaceLight {
+        shadow_strength: 1.0,
+        specular: [0.0; 3],
+        specular_power: 1.0,
+        reflection_scale: 0.0,
+        reflective_specular_scale: 1.0,
+        ambient_alpha: 1.0,
+        ambient: [0.0; 3],
+        diffuse: [0.6; 3],
+    });
     let direct = r.capture(size.0, size.1, &frame, &instances).unwrap();
     r.apply_graphics(&ao(AoQuality::High));
     assert_eq!(direct, r.capture(size.0, size.1, &frame, &instances).unwrap(), "AO leaves direct-only surfaces intact");
-    frame.surface_light = Some(SurfaceLight { ambient: [0.6; 3], diffuse: [0.0; 3] });
+    frame.surface_light = Some(SurfaceLight {
+        shadow_strength: 1.0,
+        specular: [0.0; 3],
+        specular_power: 1.0,
+        reflection_scale: 0.0,
+        reflective_specular_scale: 1.0,
+        ambient_alpha: 1.0,
+        ambient: [0.6; 3],
+        diffuse: [0.0; 3],
+    });
     let ambient_on = r.capture(size.0, size.1, &frame, &instances).unwrap();
     r.apply_graphics(&ao(AoQuality::Off));
     let ambient_off = r.capture(size.0, size.1, &frame, &instances).unwrap();
@@ -114,7 +132,11 @@ fn ao_attenuates_ambient_but_preserves_direct_light_and_glossy_reflections() {
         "ambient contacts darken"
     );
 
-    r.set_lighting_rig(&LightingRig { lights: [DirectionalLight::new(Vec3::Z, Vec3::ZERO); 3], ambient: Vec3::ZERO });
+    r.set_lighting_rig(&LightingRig {
+        lights: [DirectionalLight::new(Vec3::Z, Vec3::ZERO); 3],
+        ambient: Vec3::ZERO,
+        ..Default::default()
+    });
     let face = vec![80u8; 8 * 8 * 4];
     r.set_environment_faces(8, [&face; 6]);
     let material = r.create_glossy_material(&GlossyMaterial {

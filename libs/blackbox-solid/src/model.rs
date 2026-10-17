@@ -94,6 +94,10 @@ pub struct Solid {
     pub vertex_buffers: Vec<VertexBuffer>,
     /// Every vertex buffer decoded and concatenated, in buffer order.
     pub vertices: Vec<Vertex>,
+    /// Independent second UVs where established by the layout; primary UV otherwise.
+    pub secondary_uvs: Vec<[f32; 2]>,
+    /// Tangent xyz and handedness for verified declarations; zero for unknown layouts.
+    pub tangents: Vec<[f32; 4]>,
     pub indices: Vec<u16>,
     pub groups: Vec<ShadingGroup>,
 }

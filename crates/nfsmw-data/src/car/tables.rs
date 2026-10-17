@@ -1,13 +1,16 @@
 //! The car tables (`GLOBAL/GLOBALB.LZC`) and gameplay records (`GLOBAL/ATTRIBUTES.BIN`)
 //! that car assembly reads, loaded once.
 
+use std::ops::Deref;
+use std::sync::Arc;
+
 use anyhow::{Context, Result};
 use blackbox_attrib::Database;
 use blackbox_carparts::layout::{CarDataLayout, MOST_WANTED};
 use blackbox_carparts::{CarTypeInfo, LightMaterial, PartsDb, PresetRide, SlotTypes};
 use game_install::GameDir;
 
-use crate::read_unwrapped;
+use crate::{memo, shared};
 
 /// NFS: Most Wanted's car-table layout.
 pub const LAYOUT: &CarDataLayout = &MOST_WANTED;
@@ -45,35 +48,61 @@ pub mod slot {
     pub const VINYL_LAYER: usize = 77;
     pub const VINYL_COLOURS: RangeInclusive<usize> = 79..=82;
     pub const DECAL_TEXTURES: RangeInclusive<usize> = 83..=130;
+    pub const WINDOW_TINT: usize = 131;
     pub const HUD_COLOURS: RangeInclusive<usize> = 133..=135;
 }
 
-pub struct CarTables {
-    pub types: Vec<CarTypeInfo>,
+/// The car tables that the mod cars do not change, read and parsed once per session (see [`CarTables::load`]).
+pub struct StockTables {
+    /// The stock car types, in table order.
+    pub stock_types: Vec<CarTypeInfo>,
     pub parts: PartsDb,
     pub slot_types: SlotTypes,
     pub presets: Vec<PresetRide>,
     /// The shading constants of the car materials (`LightMaterials`).
     pub light_materials: Vec<LightMaterial>,
-    /// Gameplay database (class `ecar` places the wheels).
-    pub attributes: Database,
+    /// Gameplay database (class `ecar` places the wheels), the one `shared::attributes` holds.
+    pub attributes: Arc<Database>,
 }
 
-impl CarTables {
-    pub fn load(dir: &GameDir) -> Result<Self> {
-        let globalb = read_unwrapped(dir, "GLOBAL/GLOBALB.LZC")?;
-        let attributes = dir.read("GLOBAL/ATTRIBUTES.BIN")?;
-        // The stock car types first, so a stock folder always finds its own type; the mod cars follow (car/mods.rs).
-        let mut types = blackbox_carparts::read_car_types(&globalb, LAYOUT);
-        types.extend(super::mods::car_types());
+impl StockTables {
+    fn read(dir: &GameDir) -> Result<Self> {
+        let globalb = shared::globalb(dir)?;
         Ok(Self {
-            types,
+            stock_types: blackbox_carparts::read_car_types(&globalb, LAYOUT),
             parts: blackbox_carparts::read_parts_db(&globalb, LAYOUT).context("reading the parts database")?,
             slot_types: blackbox_carparts::read_slot_types(&globalb, LAYOUT),
             presets: blackbox_carparts::read_preset_rides(&globalb, LAYOUT),
             light_materials: blackbox_carparts::read_light_materials(&globalb, LAYOUT),
-            attributes: Database::open(&attributes).context("reading GLOBAL/ATTRIBUTES.BIN")?,
+            attributes: shared::attributes(dir)?,
         })
+    }
+}
+
+/// The car tables of one install: the stock tables (reached through [`Deref`]) and the car types, mod cars included.
+pub struct CarTables {
+    /// The stock car types first, so a stock folder always finds its own type; the mod cars follow (car/mods.rs).
+    pub types: Vec<CarTypeInfo>,
+    stock: Arc<StockTables>,
+}
+
+impl Deref for CarTables {
+    type Target = StockTables;
+
+    fn deref(&self) -> &StockTables {
+        &self.stock
+    }
+}
+
+impl CarTables {
+    /// The car tables of `dir`. The stock tables are read once per session, keyed on the two files they come from.
+    /// The car types are assembled on every call: the mod cars are sealed once at start-up, and a load made before
+    /// that must not fix the list for the rest of the session.
+    pub fn load(dir: &GameDir) -> Result<Self> {
+        let stock = memo(dir, &[shared::GLOBALB_FILE, shared::ATTRIBUTES_FILE], || StockTables::read(dir))?;
+        let mut types = stock.stock_types.clone();
+        types.extend(super::mods::car_types());
+        Ok(Self { types, stock })
     }
 
     /// The car type whose geometry lives in `CARS/<folder>/`, or whose type name is `folder`.

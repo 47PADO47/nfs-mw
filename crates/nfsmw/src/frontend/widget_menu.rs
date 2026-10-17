@@ -287,6 +287,10 @@ impl WidgetMenu {
         let arrows: Vec<ObjectRef> = [left, right].into_iter().flatten().collect();
         let arrow = cx.rt.object_at(&arrows, point);
         self.select(cx, self.top + slot);
+        if self.rows[self.selected].setting == options::Setting::AdvancedGraphics {
+            self.change(cx, true);
+            return true;
+        }
         if let Some(arrow) = arrow {
             self.change(cx, Some(arrow) == right);
         }
@@ -297,6 +301,10 @@ impl WidgetMenu {
     fn change(&mut self, cx: &mut Cx, forward: bool) {
         let Some(row) = self.rows.get(self.selected).copied() else { return };
         if self.leaving {
+            return;
+        }
+        if row.setting == options::Setting::AdvancedGraphics {
+            cx.send(Command::OpenGraphics);
             return;
         }
         if row.setting == options::Setting::Alias(AliasSetting::Save) {
@@ -402,6 +410,14 @@ impl ScreenLogic for WidgetMenu {
             PAD_LEFT => self.change(cx, false),
             PAD_RIGHT | BUTTON_PRESSED => self.change(cx, true),
             // The package runs its own leave animation for accept; back asks for the same one.
+            PAD_ACCEPT
+                if self
+                    .rows
+                    .get(self.selected)
+                    .is_some_and(|row| row.setting == options::Setting::AdvancedGraphics) =>
+            {
+                self.change(cx, true)
+            }
             PAD_ACCEPT => self.leaving = true,
             PAD_BACK => self.leave(cx),
             PAD_START if self.args.pause => cx.send(Command::Resume),

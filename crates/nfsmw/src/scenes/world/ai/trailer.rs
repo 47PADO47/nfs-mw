@@ -209,6 +209,16 @@ impl TrailerCar {
         );
     }
 
+    pub(in crate::scenes::world::ai) fn road_reflection_instances(
+        &self,
+        alpha: f32,
+        out: &mut Vec<blackbox_gfx::Instance>,
+    ) {
+        crate::scenes::world::wet_reflections::vehicles::append(self.pose(alpha).transform(), out, |out| {
+            self.instances(alpha, out);
+        });
+    }
+
     pub fn update_events(&mut self, props: &mut PropWorld, data: &nfsmw_data::car::physics::PhysicsData, view: Vec3) {
         crate::scenes::world::cargo::update(&mut self.sim, &self.rig, props, data, view);
     }

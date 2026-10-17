@@ -1,4 +1,4 @@
-//! The light rig cars are drawn with (docs/specs/car-assembly.md §8).
+//! Custom light rig; selectable original rigs are in `original_lighting`.
 //!
 //! The game's rig is four lights given as angles and colours, but no rig is stored in the
 //! install files read so far, so this builds three directional lights around the sun: the
@@ -26,6 +26,7 @@ pub fn rig(to_sun: Vec3) -> LightingRig {
             DirectionalLight::new(around(to_sun, BACK), BACK_COLOR),
         ],
         ambient: Vec3::ZERO,
+        material_specular_scale: 1.0,
     }
 }
 

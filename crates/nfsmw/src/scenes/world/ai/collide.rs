@@ -9,8 +9,6 @@ use crate::audio::traffic::{TrafficFrame, TrafficSound};
 use crate::scenes::world::drive::walls::Cast;
 use crate::scenes::world::drive::{CarSim, STEP};
 
-use super::car::AiCar;
-
 /// Eye height of a cop and of the player, in metres above the body's centre.
 const EYE: Vec3 = Vec3::new(0.0, 0.5, 0.0);
 /// A hit this close to the far end is the target itself, not an obstacle.
@@ -22,6 +20,8 @@ struct Part<'a> {
     owner: usize,
     /// Its car has a hitched trailer: the car and the trailer never collide with each other.
     coupled: bool,
+    /// The class of its car's driver, as the crash gate reads it.
+    class: DriverClass,
     sim: &'a mut CarSim,
 }
 
@@ -38,7 +38,7 @@ pub(super) enum DriverClass {
 /// A hit, remembered until the cars can be told: the car, the impulse (N s), where it touched (physics space), whether
 /// the player did it, how far the car is from the player (metres), and the class and speed (m/s) of the party that hit
 /// it.
-struct Hit {
+pub(super) struct Hit {
     owner: usize,
     impulse: f32,
     point: Vec3,
@@ -50,7 +50,7 @@ struct Hit {
 
 /// A close pass of the player past a traffic car: the car, the distance between their centres (m) and how fast the
 /// two are closing (m/s, the difference of their velocities).
-struct Pass {
+pub(super) struct Pass {
     owner: usize,
     distance: f32,
     relative_speed: f32,
@@ -87,19 +87,21 @@ impl TrafficWorld {
         }
         let events = self.events;
         let focus = player.as_deref().map(|p| p.body().position);
-        let classes: Vec<DriverClass> = self.cars.iter().map(AiCar::driver_class).collect();
         let far = |sim: &CarSim| focus.map_or(f32::INFINITY, |f| f.distance(sim.body().position));
         let mut parts: Vec<Part<'_>> = Vec::new();
         for (owner, car) in self.cars.iter_mut().enumerate() {
             let coupled = car.is_coupled();
+            let class = car.driver_class();
             let (tractor, trailer) = car.sims_mut();
-            parts.push(Part { owner, coupled, sim: tractor });
+            parts.push(Part { owner, coupled, class, sim: tractor });
             if let Some(sim) = trailer {
-                parts.push(Part { owner, coupled, sim });
+                parts.push(Part { owner, coupled, class, sim });
             }
         }
-        let mut hits = Vec::new();
-        let mut passes = Vec::new();
+        let mut hits = std::mem::take(&mut self.hits);
+        hits.clear();
+        let mut passes = std::mem::take(&mut self.passes);
+        passes.clear();
         for i in 0..parts.len() {
             let (head, tail) = parts.split_at_mut(i + 1);
             let part = &mut head[i];
@@ -152,7 +154,7 @@ impl TrafficWorld {
                         point: hit.point,
                         by_player: false,
                         from_camera: near_a,
-                        striker: classes[other.owner],
+                        striker: other.class,
                         speed: speed_b,
                     });
                     hits.push(Hit {
@@ -161,7 +163,7 @@ impl TrafficWorld {
                         point: hit.point,
                         by_player: false,
                         from_camera: near_b,
-                        striker: classes[part.owner],
+                        striker: part.class,
                         speed: speed_a,
                     });
                 }
@@ -173,7 +175,7 @@ impl TrafficWorld {
                 self.hit_timer = events.hit_memory;
             }
         }
-        for hit in hits {
+        for hit in hits.drain(..) {
             let first_damage = self.cars[hit.owner].on_hit(
                 hit.impulse,
                 hit.by_player,
@@ -184,6 +186,7 @@ impl TrafficWorld {
             );
             self.strikes.cop |= first_damage;
         }
+        self.hits = hits;
         for car in &mut self.cars {
             let distance = focus.map_or(f32::INFINITY, |f| f.distance(car.physics_position()));
             let Some(duration) = car.take_honk(distance) else { continue };
@@ -193,7 +196,7 @@ impl TrafficWorld {
             self.strikes.property |= player.take_prop_struck();
             self.spike_player(player);
         }
-        for pass in passes {
+        for pass in passes.drain(..) {
             let car = &mut self.cars[pass.owner];
             if pass.relative_speed > 10.0 && pass.distance < 10.0 && car.ready() {
                 car.sounded(events.cooldown);
@@ -203,6 +206,7 @@ impl TrafficWorld {
                 });
             }
         }
+        self.passes = passes;
         if let Some(player) = player.as_deref() {
             let body = player.body();
             use crate::scenes::world::space;

@@ -77,6 +77,8 @@ pub const DEFAULT_BLOOM_THRESHOLD: f32 = 0.8;
 pub struct PostSettings {
     /// Blend with a game-supplied colour profile (0 = off, 1 = full).
     pub colour_treatment: f32,
+    /// Optional parameter replacements; authored profile curves and gain are retained.
+    pub colour_treatment_override: Option<crate::ColourTreatmentOverride>,
     pub tonemap: Tonemap,
     /// Linear scale applied before the tone-mapping curve ([`MIN_EXPOSURE`]..=[`MAX_EXPOSURE`]; 1.0 is neutral).
     pub exposure: f32,
@@ -91,6 +93,7 @@ impl Default for PostSettings {
     fn default() -> Self {
         Self {
             colour_treatment: 0.0,
+            colour_treatment_override: None,
             tonemap: Tonemap::Off,
             exposure: 1.0,
             bloom_intensity: 0.0,
@@ -110,6 +113,7 @@ impl PostSettings {
         };
         Self {
             colour_treatment: pick(self.colour_treatment, 0.0, 0.0, 1.0),
+            colour_treatment_override: self.colour_treatment_override.filter(|value| value.is_valid()),
             exposure: pick(self.exposure, defaults.exposure, MIN_EXPOSURE, MAX_EXPOSURE),
             bloom_intensity: pick(self.bloom_intensity, defaults.bloom_intensity, 0.0, MAX_BLOOM_INTENSITY),
             bloom_threshold: pick(self.bloom_threshold, defaults.bloom_threshold, 0.0, MAX_BLOOM_THRESHOLD),

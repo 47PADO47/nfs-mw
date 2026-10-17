@@ -3,6 +3,8 @@
 //! All pure data and pure helpers. What a renderer can actually run is decided by
 //! [`resolve`](crate::resolve) against its [`Capabilities`](crate::Capabilities).
 
+pub mod filtering;
+pub use filtering::TextureFiltering;
 pub mod ao;
 pub use ao::{AoQuality, AoSettings};
 pub mod shadows;
@@ -27,12 +29,13 @@ pub use upscale::{
 /// Everything a user can ask of the renderer, in one value. This is what is *requested*; the
 /// renderer's capabilities decide what is *effective* (see [`resolve`](crate::resolve)).
 ///
-/// [`Default`] asks for nothing: no post effects, bilinear upscaling at native size, no ray tracing.
+/// [`Default`] preserves scene sampling at 8x, with no post effects, bilinear upscaling at native size and no ray tracing.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GraphicsSettings {
     /// Post effects, including the anti-aliasing method.
     pub post: PostSettings,
     pub reflections: crate::ReflectionQuality,
+    pub texture_filtering: TextureFiltering,
     /// Size of the car cube faces and the rear-view mirror picture, and power-of-two rounding of the faces.
     pub reflection_resolution: crate::reflection::ReflectionResolution,
     /// Multiplies the rear-view mirror picture; [`MirrorTint::NONE`](crate::MirrorTint::NONE) leaves it as captured.
@@ -62,6 +65,7 @@ impl Default for GraphicsSettings {
         Self {
             post: PostSettings::default(),
             reflections: crate::ReflectionQuality::Off,
+            texture_filtering: TextureFiltering::default(),
             reflection_resolution: crate::reflection::ReflectionResolution::default(),
             mirror_tint: crate::reflection::MirrorTint::NONE,
             reflection_distance: Default::default(),

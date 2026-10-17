@@ -17,6 +17,9 @@ pub(in crate::gpu) fn passes(device: &wgpu::Device, rcas: &RcasScale, sharpen: b
 }
 
 impl PostPass for Fsr1 {
+    fn set_display(&mut self, mapping: Option<super::display::Mapping>) {
+        self.0.set_hdr(mapping.is_some());
+    }
     fn name(&self) -> &'static str {
         self.0.name()
     }

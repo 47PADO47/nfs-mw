@@ -61,9 +61,9 @@ pub(super) fn obb_overlap(a: &Obb, b: &Obb) -> Option<(Vec3, f32)> {
             return None;
         }
     }
-    for i in 0..3 {
-        for j in 0..3 {
-            if !test(a.axes[i].cross(b.axes[j])) {
+    for axis_a in a.axes {
+        for axis_b in b.axes {
+            if !test(axis_a.cross(axis_b)) {
                 return None;
             }
         }

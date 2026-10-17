@@ -9,7 +9,6 @@
 
 use std::sync::OnceLock;
 
-use blackbox_attrib::Database;
 use blackbox_feng::ids::{
     PAD_ACCEPT, PAD_BACK, PAD_BUTTON0, PAD_DOWN, PAD_LEFT, PAD_LTRIGGER, PAD_RIGHT, PAD_RTRIGGER, PAD_UP,
 };
@@ -37,8 +36,7 @@ pub fn prime(dir: &GameDir) {
 }
 
 fn read_songs(dir: &GameDir) -> Result<Vec<Song>, String> {
-    let bytes = dir.read("GLOBAL/ATTRIBUTES.BIN").map_err(|e| format!("ATTRIBUTES.BIN: {e:#}"))?;
-    let db = Database::open(&bytes).map_err(|e| format!("ATTRIBUTES.BIN: {e}"))?;
+    let db = nfsmw_data::shared::attributes(dir).map_err(|e| format!("ATTRIBUTES.BIN: {e:#}"))?;
     Ok(nfsmw_data::music::songs(&db))
 }
 

@@ -149,6 +149,7 @@ impl SharedAssets {
         }
         CarModel {
             flare_profiles: Default::default(),
+            window_tint_material: None,
             paintable: false,
             name: asset.solid.name.clone(),
             car_type: None,

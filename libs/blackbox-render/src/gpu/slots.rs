@@ -36,6 +36,10 @@ impl<T> Slots<T> {
         self.items.get(index)?.as_ref()
     }
 
+    pub(super) fn get_mut(&mut self, index: usize) -> Option<&mut T> {
+        self.items.get_mut(index)?.as_mut()
+    }
+
     pub(super) fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
         self.items.iter_mut().filter_map(Option::as_mut)
     }

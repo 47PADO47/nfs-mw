@@ -51,6 +51,11 @@ pub trait RenderBackend {
     fn render_size(&self) -> [u32; 2];
 
     /// Session-only prototypes; unsupported renderers keep defaults.
+    /// SDR is retained by backends without explicit HDR presentation support.
+    fn set_display_settings(&mut self, _settings: crate::DisplaySettings) {}
+    fn display_status(&self) -> crate::DisplayStatus {
+        Default::default()
+    }
     fn set_render_experiments(&mut self, _options: crate::RenderExperiments) {}
     fn render_experiments(&self) -> crate::RenderExperiments {
         Default::default()
@@ -59,6 +64,25 @@ pub trait RenderBackend {
         Default::default()
     }
     fn set_shadow_casters(&mut self, _casters: Option<&[Instance]>) {}
+
+    /// `None` requests the caller's explicit legacy sky fallback on unsupported backends.
+    fn create_sky_material(&mut self, _desc: &crate::SkyMaterialDesc) -> Option<crate::SkyMaterialHandle> {
+        None
+    }
+    fn destroy_sky_material(&mut self, _handle: crate::SkyMaterialHandle) {}
+    fn set_sky_state(&mut self, _state: crate::SkyState) {}
+
+    /// Unsupported backends return `None`, requesting the caller's legacy fallback.
+    fn create_normal_material(&mut self, _desc: &crate::NormalMaterialDesc) -> Option<crate::NormalMaterialHandle> {
+        None
+    }
+    fn destroy_normal_material(&mut self, _handle: crate::NormalMaterialHandle) {}
+
+    /// Unsupported backends request an explicit legacy glass fallback.
+    fn create_window_material(&mut self, _desc: &crate::WindowMaterialDesc) -> Option<crate::WindowMaterialHandle> {
+        None
+    }
+    fn destroy_window_material(&mut self, _handle: crate::WindowMaterialHandle) {}
 
     // --- resources -------------------------------------------------------------------------------
 
@@ -97,6 +121,8 @@ pub trait RenderBackend {
     /// Capture local surroundings for glossy surfaces, or restore the supplied static environment.
     /// Backends without local captures keep their static environment.
     fn set_reflection_scene(&mut self, _scene: Option<crate::ReflectionScene<'_>>) {}
+    /// Refresh the independent projected surface image. Unsupported backends retain black.
+    fn set_projected_reflection_scene(&mut self, _scene: Option<crate::ProjectedReflectionScene<'_>>) {}
 
     // --- layers ----------------------------------------------------------------------------------
 
@@ -123,6 +149,18 @@ pub trait RenderBackend {
         frame: &FrameParams,
         instances: &[Instance],
     ) -> Result<CaptureId, RenderError>;
+
+    /// Start rendering a picture shown inside the game (a rear-view mirror) off-screen at `size`; poll it with
+    /// [`poll_capture`](Self::poll_capture). Unlike [`request_capture`](Self::request_capture) the backend may leave
+    /// out screen-space effects, shadows and the UI, and may finish it a few frames later. Defaults to a full capture.
+    fn request_view_capture(
+        &mut self,
+        size: [u32; 2],
+        frame: &FrameParams,
+        instances: &[Instance],
+    ) -> Result<CaptureId, RenderError> {
+        self.request_capture(size, frame, instances)
+    }
 
     /// The captured image once it is ready, `None` while the backend is still working. A backend
     /// that completes at once returns it on the first poll; others take a few frames. Each capture

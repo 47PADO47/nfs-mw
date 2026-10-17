@@ -57,10 +57,15 @@ Open the garage from gameplay, rather than the front end's pause menu.
   **Custom paint** apply live. Dragging the color picker reuses the loaded model
   instead of reading the geometry again.
 
-Selections are session-local. No original game assets or career save are
-modified. Restoring installed paint reloads the stock assembled model.
-Tuning profiles are also session-local and reset when changing cars. Career
-save integration and saved per-car profiles remain separate work.
+Selections apply to the current session. Expand **Saved presets**, enter a name
+and **Save preset** to retain the complete car, paint, model parts, performance
+packages and all three tuning profiles in `garage-presets.toml` beside the user
+config. Choose a saved name and **Load preset** to apply it immediately. Saving
+the same name replaces it. Presets survive car changes and application restarts;
+they do not load automatically at startup. Unavailable cars, stages and parts
+are rejected through the normal garage validation before replacing the rig.
+No original game assets or career save are modified. Restoring installed paint
+reloads the stock assembled model. Career save integration remains separate work.
 
 Speedbreaker toggles with **Left Ctrl**, the mouse **Back thumb button**, or
 **Xbox B / PlayStation Circle**. Wheel buttons and pedals can use the same
@@ -75,6 +80,6 @@ The driving model also includes documented handling corrections, but complete
 original driving parity requires reference driving comparisons across surfaces,
 cornering, jumps and contacts. See the vehicle and Speedbreaker specs for
 the implemented behavior and remaining comparison limits.
-Livery recoloring, vinyl compositing, saved per-car selections and controller
+Livery recoloring, vinyl compositing, automatic per-car selection recall and controller
 navigation within egui are also deferred. The existing camera modes have their
 existing behavior; this contribution does not establish camera parity.

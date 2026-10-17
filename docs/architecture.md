@@ -57,6 +57,7 @@ backends, multi-platform support and testing. The structure follows [vladtrc/iw4
 | Crate | Job |
 |---|---|
 | [`nfsmw-data`](../crates/nfsmw-data) | MW's `GameSpec`; car assembly (stock and preset parts, wheel and brake placement, paint, texture swaps); the world: streaming index, section parsing, a background section loader. Renderer-free. |
+| [`nfsmw-career`](../crates/nfsmw-career) | The career rules, spec-first and pure (no Bevy, no I/O): settings and flags, the car stable and its career records, the pursuit recorder, fines and impound strikes, the SMS inbox and delivery, the safe house flow (zones, engage, menu and sequence order, respawn marker, heat between worlds, Resume Free Roam), and the profile file glue (checksums, MD5, byte-exact in-place rewrite). Specs: [specs/career.md](specs/career.md). |
 | [`nfsmw`](../crates/nfsmw) | The binary: CLI (`commands/`), layered `settings/`, the Bevy `app/` (window, loop, render bridge, cursor, pacing, screenshots), the `input/` action layer, the `ui/` (the shared FEng host layer: packages, assets, presenter), the `hud/` (the in-game HUD), the `frontend/` (menus and the game flow), the `audio/` (sound output), the `viewer/` cameras and `Scene` trait, and the scenes (`scenes/car/`, `scenes/world/`). |
 | [`xtask`](../xtask) | `cargo xtask check` (leak check + file-size check), `install-hooks` |
 
@@ -190,7 +191,8 @@ TRACKS/STREAML2RA.BUN ─► loader threads (nfsmw-data::world::Streamer)
   The map is split into 435 2D zones (one per drivable section). The camera's zone names the tiles to
   load (its loading section's union of visible lists, or its own list) and the tiles to draw (its own
   visible list); nothing else is drawn, even when loaded. Tiles are requested drawn ones first, nearest
-  first, at most 8 in flight, on 2–6 worker threads; up to 2 are uploaded per frame. When the zone
+  first, at most 8 in flight, on 2–6 worker threads. The workers also convert the vertices. Uploads on the render
+  thread are limited to a byte budget per frame (8 MiB, at least one section per frame). When the zone
   changes, the previous zone's tiles stay drawn until the new zone's tiles are resident; then the tiles
   it no longer needs are released (GPU meshes and textures freed).
 - **Free camera:** the 66 zones outside the region's drivable list are places a car never reaches, with

@@ -20,9 +20,8 @@ pub(super) fn catalog(dir: &GameDir, physics: &PhysicsData) -> Result<Model> {
     let tables = CarTables::load(dir)?;
     let mut cars = Vec::new();
     let brands: Vec<_> = tables.types.iter().map(|car| car.manufacturer.clone()).collect();
-    let strings = nfsmw_data::read_unwrapped(dir, "LANGUAGES/English.bin")
-        .ok()
-        .and_then(|bytes| blackbox_text::StringTable::from_file(&bytes).ok());
+    let strings =
+        nfsmw_data::shared::language(dir).ok().and_then(|bytes| blackbox_text::StringTable::from_file(&bytes).ok());
     for folder in nfsmw_data::car::list(dir) {
         // Shared accessory folders have geometry but are not vehicle types.
         let Some(car_type) = tables.car_type_for_folder(&folder) else { continue };
@@ -79,7 +78,7 @@ impl WorldScene {
         }
         let mut catalog =
             self.garage_parts.as_ref().context("part inventory unavailable")?.catalog(&self.dir, folder)?;
-        let strings = nfsmw_data::read_unwrapped(&self.dir, "LANGUAGES/English.bin")
+        let strings = nfsmw_data::shared::language(&self.dir)
             .ok()
             .and_then(|bytes| blackbox_text::StringTable::from_file(&bytes).ok());
         for (index, choices) in catalog.choices.iter_mut().enumerate() {

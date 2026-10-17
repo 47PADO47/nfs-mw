@@ -5,6 +5,7 @@
 mod access;
 mod breaker_camera;
 mod clock;
+mod cracked;
 mod debug;
 mod effect_feed;
 mod fall;
@@ -19,6 +20,7 @@ mod placement;
 #[cfg(test)]
 mod presentation_tests;
 mod rig;
+mod road_reflection;
 mod script;
 pub(super) mod sight;
 mod sim;
@@ -114,6 +116,8 @@ pub struct Drive {
     pursuit: PursuitCamera,
     /// Console hits given before the car exists; applied when it is placed.
     queued_hits: Vec<(usize, u8, bool)>,
+    /// The cracked-glass zones shown on the car (see `cracked.rs`).
+    cracked: cracked::CrackedZones,
     /// The chase camera jumped to the car (it was placed on the road).
     cut: CameraCut,
     look: look::PendingLook,
@@ -184,6 +188,7 @@ impl Drive {
             chase: ChaseCamera::default(),
             pursuit: PursuitCamera::default(),
             queued_hits: Vec::new(),
+            cracked: cracked::CrackedZones::default(),
             cut: CameraCut::default(),
             look: look::PendingLook::default(),
             script: script.map(|script| ScriptRun { script, time: 0.0 }),
@@ -228,14 +233,6 @@ impl Drive {
     /// The player car's model scale (`CarScale`).
     pub fn set_car_scale(&mut self, scale: f32) {
         self.rig.set_scale(scale);
-    }
-
-    /// Show the cracked-glass texture on the windows the damage has cracked.
-    pub fn set_damaged_windows(&mut self, renderer: &mut dyn blackbox_gfx::RenderBackend, to_sun: Vec3) {
-        if let Some(sim) = self.sim.as_ref() {
-            let zones = sim.cracked_zones();
-            self.rig.set_cracked_zones(renderer, zones, to_sun);
-        }
     }
 
     /// Apply an impact to a zone (see `CarSim::inflict`).
@@ -429,7 +426,6 @@ impl Drive {
         }
     }
 
-    /// What the in-game HUD shows; `None` while there is no car yet.
     pub fn hud_state(&self) -> Option<crate::hud::HudState> {
         self.sim.as_ref()?;
         let t = &self.telemetry;

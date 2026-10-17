@@ -70,6 +70,8 @@ pub enum Command {
     QuitGame,
     /// Write the settings to the config file.
     SaveSettings,
+    /// Open the shared graphics editor over this menu.
+    OpenGraphics,
     /// Change one slot (0 primary, 1 secondary) of a control to the next key pressed (`controls_screen.rs`).
     Remap(Control, usize),
     /// Save the alias index with the default alias (`saves.rs`), and say so in an alert.

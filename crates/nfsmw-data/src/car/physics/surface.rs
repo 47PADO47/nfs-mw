@@ -143,7 +143,7 @@ mod tests {
     #[ignore = "needs the base-game install selected by NFSMW_GAME_DIR"]
     fn installed_camera_noise_preserves_each_surface_pair() {
         let dir = game_install::GameDir::open(std::env::var("NFSMW_GAME_DIR").unwrap()).unwrap();
-        let db = Database::open(&dir.read("GLOBAL/ATTRIBUTES.BIN").unwrap()).unwrap();
+        let db = crate::shared::attributes(&dir).unwrap();
         let table = SurfaceTable::from_database(&db);
         let mut count = 0;
         for surface in db.collections_of("simsurface") {

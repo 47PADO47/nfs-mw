@@ -33,6 +33,12 @@ pub(super) fn specialize(
         if shading == ShadingKind::Glossy {
             fragment.shader_defs.push("GLOSSY".into());
         }
+        if shading == ShadingKind::Tree {
+            fragment.shader_defs.push("TREE".into());
+        }
+        if shading == ShadingKind::WorldPrelit {
+            fragment.shader_defs.push("WORLD_PRELIT".into());
+        }
     }
     Ok(())
 }

@@ -46,6 +46,9 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | [traffic-interactions-audit.md](traffic-interactions-audit.md) | Traffic/cargo merge regressions, verified fixes, collision-placement findings and remaining parity work |
 | [world-interactions-todo.md](world-interactions-todo.md) | Deferred collision, cleanup, trailer and pursuit-breaker work with acceptance checks |
 | [testing.md](testing.md) | the kinds of tests, the real-install tests and how to run them |
+| [profiling.md](profiling.md) | Build profiles (`release`, `profiling`, `dist`) and the mimalloc allocator; the Tracy workflow is in [profiling-bevy.md](profiling-bevy.md) |
+| [performance-audit.md](performance-audit.md) | The 2026-10-17 performance audit: frame and load findings, the fixes, before and after numbers, the cache verdict, follow-ups |
+| [benchmarks/](benchmarks/) | Dated measurement reports: [Bevy vs native, 2026-10-10](benchmarks/2026-10-10-bevy-vs-native.md) and [performance sweep, 2026-10-17](benchmarks/2026-10-17-perf-sweep.md) |
 | [window-modes.md](window-modes.md) | Windowed, borderless and exclusive fullscreen, display selection, resolution and runtime switching |
 | [hud-layout.md](hud-layout.md) | PC widescreen, centered and Xbox-scaled HUD presets |
 | [upscaling.md](upscaling.md) | Render scale, bilinear and FSR 1 upscaling, the temporal upscalers and their quality modes, ReShade limits, seams for DLSS |
@@ -68,6 +71,7 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | [licensing.md](licensing.md) | Project license, what each source license allows, unlicensed repos, the spec-first process |
 | [ai-drivers.md](ai-drivers.md) | The AI drivers in the code: traffic and cops, which spec each layer follows, deliberate differences, what is open |
 | [specs/career.md](specs/career.md) | Career and progression overview: economy, blacklist, milestones, flow, car lot, save; the loop, what the rewrite needs and the open questions |
+| [provenance/career-core.md](provenance/career-core.md) | `crates/nfsmw-career`, the first career slice (settings, stable, economy, SMS inbox, profile file glue): what is covered, the choices made where the specs are silent, the known gaps |
 | [specs/](specs/README.md) | Behaviour specs written before implementing it from decompiled sources: [scenery visibility](specs/scenery-visibility.md), [scenery LOD](specs/scenery-lod.md), [visible sections](specs/visible-sections.md), [car assembly](specs/car-assembly.md), [FEng input](specs/feng-input.md), [front-end menus](specs/frontend-menus.md), [LAN server](specs/lan-server.md), and the designs [multiplayer](specs/multiplayer/README.md) (milestones 10 and 11) and [telemetry](specs/telemetry/README.md) (milestone 13), not built yet |
 | [provenance/](provenance/README.md) | Records for modules whose behaviour came from restricted sources |
 
@@ -173,3 +177,19 @@ contract has a companion provenance record and an explicit validation boundary.
 | What the subtractive / overbright blend types look like in the game | the effects in `speed.exe` |
 
 Camera audit coverage and remaining scene-validation boundaries: [original gameplay camera coverage](specs/original-camera-coverage.md).
+
+Graphics profiles and missing original-rendering coverage: [coverage ledger](graphics-coverage.md), [settings contract](specs/graphics-profiles.md).
+
+World rendering: [material routing](specs/world-material-routing.md),
+[normal maps](specs/world-normal-materials.md), [atmosphere](specs/world-atmosphere.md),
+[sky shading](specs/world-sky-shading.md).
+
+Road and glass: [reflective surfaces](specs/world-reflect-materials.md),
+[architectural windows](specs/world-window-materials.md),
+[projected wet-road captures](specs/wet-road-reflections.md).
+
+Car rendering: [original material families](specs/car-material-shading.md),
+[light rigs and authored specular scale](specs/car-lighting.md).
+
+Projected shadows: [camera and strength](specs/original-projected-shadows.md),
+[world surface receivers](specs/world-surface-shadow-receivers.md).

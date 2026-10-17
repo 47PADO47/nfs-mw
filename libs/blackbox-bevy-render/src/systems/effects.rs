@@ -90,6 +90,7 @@ fn globals_of(view: &ExtractedView, params: &Params, mip_bias: f32) -> Globals {
         to_sun: [0.0; 4],
         surface_ambient: [0.0; 4],
         surface_diffuse: [0.0; 4],
+        camera_right: [0.0; 4],
     }
 }
 

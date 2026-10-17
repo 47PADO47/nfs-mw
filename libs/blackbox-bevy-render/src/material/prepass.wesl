@@ -15,6 +15,21 @@ import bevy_pbr::prepass::bindings::previous_view_uniforms;
 @group(constants::MATERIAL_BIND_GROUP) @binding(1) var diffuse: texture_2d<f32>;
 @group(constants::MATERIAL_BIND_GROUP) @binding(2) var diffuse_sampler: sampler;
 
+// Prefix of the shared Scene storage buffer used by the colour pass.
+struct Params {
+    fog_color: vec4<f32>,
+    fog_range: vec4<f32>,
+    light_dir: vec4<f32>,
+    tone_map: vec4<f32>,
+    surface_ambient: vec4<f32>,
+    surface_diffuse: vec4<f32>,
+    scatter_rayleigh: vec4<f32>,
+    scatter_mie: vec4<f32>,
+    to_sun: vec4<f32>,
+    scenery: vec4<f32>,
+};
+@group(constants::MATERIAL_BIND_GROUP) @binding(0) var<storage, read> params: Params;
+
 struct Vertex {
     @builtin(instance_index) instance_index: u32,
     @location(0) position: vec3<f32>,
@@ -62,7 +77,18 @@ fn alpha_test(in: Output) {
         // The colour pass's texture alpha, sampled with the same mip bias, so the same texels survive.
         var alpha = textureSampleBias(diffuse, diffuse_sampler, in.uv, view.mip_bias).a;
         @if(!GLOSSY) {
-            alpha *= in.alpha;
+            var vertex_alpha = in.alpha;
+            @if(TREE) {
+                if params.scenery.x > 0.5 {
+                    vertex_alpha = 1.0;
+                }
+            }
+            @if(WORLD_PRELIT) {
+                if params.scenery.x > 0.5 {
+                    vertex_alpha *= 2.0;
+                }
+            }
+            alpha *= vertex_alpha;
         }
         if alpha < 0.5 {
             discard;

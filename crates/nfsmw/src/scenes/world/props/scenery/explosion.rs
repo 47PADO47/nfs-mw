@@ -52,16 +52,24 @@ impl PropWorld {
 
     pub(in super::super) fn advance_explosions(&mut self, dt: f32) {
         self.scenery.waves.retain(|w| !w.complete);
-        let mut stimuli = Vec::new();
+        let mut ids = std::mem::take(&mut self.scenery.sweep_ids);
+        let mut stimuli = std::mem::take(&mut self.scenery.sweep_stimuli);
+        ids.clear();
+        stimuli.clear();
+        let mut sorted = false;
         for wave in &mut self.scenery.waves {
             wave.radius = (wave.radius + wave.spec.speed * dt).min(wave.spec.radius);
             wave.complete = wave.radius >= wave.spec.radius;
             if wave.spec.exclude_smackables {
                 continue;
             }
-            let mut ids: Vec<_> = self.colliders.keys().copied().collect();
-            ids.sort_unstable();
-            for id in ids {
+            // Bodies do not come or go during the sweep, so the sorted id list is built once, when first needed.
+            if !sorted {
+                ids.extend(self.colliders.keys().copied());
+                ids.sort_unstable();
+                sorted = true;
+            }
+            for &id in &ids {
                 if (id == wave.source && !wave.spec.affect_this) || wave.bodies.contains(&id) {
                     continue;
                 }
@@ -81,15 +89,18 @@ impl PropWorld {
                     body.moved = true;
                 }
                 body.lifetime.activate(spec);
+                super::super::lifetime::track_lifetime(&mut self.live_lifetimes, id);
                 stimuli.push((id, vlt_hash("EXPLOSION")));
                 if wave.spec.damage {
                     stimuli.push((id, vlt_hash("EXPLOSION_DAMAGE")));
                 }
             }
         }
-        for (id, stimulus) in stimuli {
+        for (id, stimulus) in stimuli.drain(..) {
             self.enqueue(id, stimulus);
         }
+        self.scenery.sweep_ids = ids;
+        self.scenery.sweep_stimuli = stimuli;
     }
 
     pub fn vehicle_explosions(&mut self, body: &mut RigidBody, owner: &Rc<()>, player: bool, dt: f32) {

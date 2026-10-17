@@ -33,7 +33,7 @@ impl Zones {
         changed
     }
 
-    /// The current zone's name (`D14`), once there is one.
+    /// The current zone's name (`D14`), once there is one. Formats a new string on every call, so it is for logs.
     pub fn name(&self) -> Option<String> {
         self.current.map(Numbering::name)
     }

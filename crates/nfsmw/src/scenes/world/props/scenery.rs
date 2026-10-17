@@ -7,7 +7,7 @@ mod spawn;
 #[cfg(test)]
 mod tests;
 
-use super::super::events::{drain, queue};
+use super::super::events::{Effect, drain, queue};
 use super::PropWorld;
 use blackbox_attrib::vlt_hash;
 use blackbox_collision::BoundsSet;
@@ -19,7 +19,7 @@ use nfsmw_data::{
     car::physics::PhysicsData,
     world::{
         PropDynamics,
-        sequences::{Sequence, TAGS},
+        sequences::{Sequence, TAGS, WorldEvent},
     },
 };
 use std::{
@@ -148,6 +148,12 @@ pub(super) struct SceneryEvents {
     blasts: Vec<Vec3>,
     stops: Vec<StopArea>,
     common_sounds: Vec<crate::audio::CommonEvent>,
+    /// Scratch for one scenery tick: events waiting for dispatch, and one model's drained output.
+    ready: VecDeque<(u32, WorldEvent)>,
+    drained: Vec<Effect>,
+    /// Scratch for one explosion sweep: the sorted body ids and the stimuli the sweep queues.
+    sweep_ids: Vec<u32>,
+    sweep_stimuli: Vec<(u32, u32)>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -206,7 +212,8 @@ impl PropWorld {
     }
 
     pub fn update_scenery(&mut self, data: &PhysicsData) -> Vec<StopArea> {
-        let mut events = VecDeque::new();
+        let mut events = std::mem::take(&mut self.scenery.ready);
+        let mut out = std::mem::take(&mut self.scenery.drained);
         for (&id, model) in &mut self.scenery.models {
             model.initialize(data);
             let (Some(sequence), Some(player)) = (&model.sequence, &mut model.player) else {
@@ -215,7 +222,7 @@ impl PropWorld {
             if model.failed {
                 continue;
             }
-            let mut out = Vec::new();
+            out.clear();
             let result = player
                 .advance(&sequence.package, f64::from(super::super::drive::STEP))
                 .map_err(anyhow::Error::from)
@@ -224,7 +231,7 @@ impl PropWorld {
                 model.failed = true;
                 log::warn!("scenery {id}: {error:#}");
             }
-            events.extend(out.into_iter().map(|e| (id, e.event)));
+            events.extend(out.drain(..).map(|e| (id, e.event)));
         }
         let mut remaining = 4096;
         while !events.is_empty() || !self.scenery.pending.is_empty() {
@@ -251,7 +258,7 @@ impl PropWorld {
             let (Some(sequence), Some(player)) = (&model.sequence, &mut model.player) else {
                 continue;
             };
-            let mut out = Vec::new();
+            out.clear();
             let result = player
                 .stimulate(&sequence.package, stimulus.system, stimulus.stimulus, stimulus.mode, None)
                 .map_err(anyhow::Error::from)
@@ -260,8 +267,13 @@ impl PropWorld {
                 model.failed = true;
                 log::warn!("scenery {}: {error:#}", stimulus.id);
             }
-            events.extend(out.into_iter().map(|e| (stimulus.id, e.event)));
+            events.extend(out.drain(..).map(|e| (stimulus.id, e.event)));
         }
+        // A dispatch cap can leave events behind; they are dropped, as before, and the buffers are kept.
+        events.clear();
+        out.clear();
+        self.scenery.ready = events;
+        self.scenery.drained = out;
         std::mem::take(&mut self.scenery.stops)
     }
 }

@@ -65,3 +65,43 @@ fn vehicle_effects_retail_title_animation_matches_the_unmodified_asset() {
         );
     }
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn installed_advanced_graphics_action_opens_the_overlay_without_changing_settings() {
+    let dir = GameDir::open(std::path::PathBuf::from(std::env::var_os("NFSMW_GAME_DIR").unwrap())).unwrap();
+    let catalog = Catalog::load(&dir, &SCREEN_FILES);
+    let assets = UiAssets::load(&dir).unwrap();
+    for (name, pause) in [(screen::OPTIONS, false), (screen::PAUSE_OPTIONS, true)] {
+        let mut rt = Runtime::new();
+        let package = rt.load(catalog.find(name).unwrap().clone());
+        let mut settings = Settings::from(Partial::default());
+        let before = settings;
+        let (mut changed, mut commands, mut memory) = (Partial::default(), Vec::new(), HashMap::new());
+        let mut cx = Cx {
+            rt: &mut rt,
+            package,
+            assets: &assets,
+            settings: &mut settings,
+            changed: &mut changed,
+            caps: crate::settings::test_caps::native(),
+            commands: &mut commands,
+            memory: &mut memory,
+            key_texts: &[],
+            world_map: None,
+            mods: None,
+            name,
+        };
+        let mut menu =
+            WidgetMenu::new(Args { pause, category: super::super::logic::Category::Video, ..Default::default() });
+        menu.start(&mut cx);
+        menu.selected = menu.rows.iter().position(|row| row.setting == options::Setting::AdvancedGraphics).unwrap();
+        for message in [PAD_RIGHT, PAD_LEFT, BUTTON_PRESSED, PAD_ACCEPT] {
+            cx.commands.clear();
+            menu.message(&mut cx, message);
+            assert_eq!(*cx.commands, vec![Command::OpenGraphics]);
+            assert!(!menu.leaving, "opening graphics must retain the parent menu");
+            assert_eq!(*cx.settings, before);
+        }
+    }
+}

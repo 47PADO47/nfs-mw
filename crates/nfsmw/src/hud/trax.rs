@@ -87,9 +87,8 @@ impl TraxBinding {
     pub fn keep_text(&self, rt: &mut Runtime) {
         let (Some(text), Some(at)) = (self.text, self.shown_at) else { return };
         let t = at.elapsed().as_secs_f32();
-        if t >= HOLD_SECS {
-            return;
-        }
+        // Keep enforcing zero after expiry: the retained tree otherwise keeps
+        // the last nonzero fade frame when the package's own track stops.
         let alpha = (255.0 * fade(t)).round() as u8;
         rt.set_alpha(text, alpha);
     }
@@ -172,5 +171,45 @@ mod tests {
         assert_eq!(album_line(&card("Megadef", false)), "Megadef");
         assert_eq!(album_line(&card("Megadef", true)), "Megadef  PAUSED");
         assert_eq!(album_line(&card("", true)), "PAUSED");
+    }
+
+    #[test]
+    #[ignore = "needs the installed game"]
+    fn installed_trax_text_stays_hidden_after_pausing_and_expiring() {
+        use std::time::{Duration, Instant};
+
+        let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+        for fps in [30, 60, 144] {
+            let mut rt = Runtime::default();
+            let mut binding = load(&dir, &mut rt).expect("installed EA Trax package");
+            let mut card = Card {
+                title: "Test song".into(),
+                artist: "Test artist".into(),
+                album: "Test album".into(),
+                progress: "0:00 / 3:00".into(),
+                paused: false,
+            };
+            for serial in 1..=3 {
+                card.paused = serial == 2;
+                binding.apply(&mut rt, Some((&card, serial)));
+                for frame in 0..=8 * fps {
+                    let age = frame as f32 / fps as f32;
+                    rt.update(1.0 / fps as f32);
+                    binding.shown_at = Some(Instant::now() - Duration::from_secs_f32(age));
+                    binding.keep_text(&mut rt);
+                    let tree = rt.tree(binding.package());
+                    for object in [binding.title, binding.artist, binding.album] {
+                        let node = &tree.nodes[object.expect("installed text object").index];
+                        if frame == fps {
+                            assert!(node.world_colour[3] > 0, "announcement visible at {age}, {fps} fps");
+                        }
+                        if age < HOLD_SECS {
+                            continue;
+                        }
+                        assert_eq!(node.world_colour[3], 0, "expired text at {age}, {fps} fps, serial {serial}");
+                    }
+                }
+            }
+        }
     }
 }

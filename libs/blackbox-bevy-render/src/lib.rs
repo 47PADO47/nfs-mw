@@ -6,6 +6,9 @@
 //!
 //! See the README and `docs/bevy-backend.md` for the design.
 
+// wgpu's resource types nest deep enough that proving the render resources `Send + Sync` passes the default limit.
+#![recursion_limit = "256"]
+
 pub mod apply;
 pub mod axes;
 mod caps;
@@ -33,6 +36,8 @@ mod solari;
 mod stress_tests;
 pub mod systems;
 pub mod texture;
+#[cfg(test)]
+mod world_material_tests;
 
 pub use facade::BevyBackend;
 pub use harness::HeadlessBevy;

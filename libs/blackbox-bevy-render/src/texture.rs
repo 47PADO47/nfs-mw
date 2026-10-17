@@ -9,9 +9,6 @@ use bevy_image::{Image, ImageAddressMode, ImageFilterMode, ImageSampler, ImageSa
 use blackbox_gfx::{PixelFormat, TextureDesc};
 use wgpu::{Extent3d, TextureDimension, TextureFormat};
 
-/// Anisotropic filtering of the world textures, like the native sampler.
-const ANISOTROPY: u16 = 8;
-
 fn format_of(format: PixelFormat) -> (TextureFormat, u32, u32) {
     // (wgpu format, block edge in pixels, bytes per block)
     match format {
@@ -24,6 +21,10 @@ fn format_of(format: PixelFormat) -> (TextureFormat, u32, u32) {
 
 /// The repeating, trilinear, anisotropic sampler every world texture uses.
 pub fn world_sampler() -> ImageSampler {
+    world_sampler_for(blackbox_gfx::TextureFiltering::default())
+}
+
+pub fn world_sampler_for(filtering: blackbox_gfx::TextureFiltering) -> ImageSampler {
     ImageSampler::Descriptor(ImageSamplerDescriptor {
         address_mode_u: ImageAddressMode::Repeat,
         address_mode_v: ImageAddressMode::Repeat,
@@ -31,7 +32,7 @@ pub fn world_sampler() -> ImageSampler {
         mag_filter: ImageFilterMode::Linear,
         min_filter: ImageFilterMode::Linear,
         mipmap_filter: ImageFilterMode::Linear,
-        anisotropy_clamp: ANISOTROPY,
+        anisotropy_clamp: filtering.anisotropy(),
         ..ImageSamplerDescriptor::default()
     })
 }

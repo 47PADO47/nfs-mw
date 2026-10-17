@@ -1,6 +1,7 @@
 //! From slots to placed solids (docs/specs/car-assembly.md §2–5).
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use blackbox_carparts::Part;
 use blackbox_hash::bstring_hash;
@@ -52,13 +53,13 @@ fn drawn_in_body_frame(s: usize, slots: &Slots, driver: bool) -> bool {
 pub fn assemble(
     t: &CarTables,
     slots: &Slots,
-    solids: &HashMap<u32, Solid>,
+    solids: &HashMap<u32, Arc<Solid>>,
     setup: Option<&WheelSetup>,
     lod: usize,
     driver: bool,
 ) -> (Vec<Placement>, Option<[Corner; 4]>) {
     let model = |part: &Option<Part>| part.and_then(|p| t.parts.model_hash(&p, lod)).filter(|h| solids.contains_key(h));
-    let base = model(&slots[slot::BASE]).and_then(|h| solids.get(&h));
+    let base = model(&slots[slot::BASE]).and_then(|h| solids.get(&h)).map(Arc::as_ref);
     let mut out = Vec::new();
 
     for s in (0..slot::MODELS).filter(|&s| drawn_in_body_frame(s, slots, driver)) {

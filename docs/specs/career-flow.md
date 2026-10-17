@@ -13,8 +13,9 @@ saved state is in [career-save.md](../formats/career-save.md). The texts the scr
   install files or the saves. **[community]** taken from a community summary (the extra-options mod docs in this repo), not
   re-checked. **[unconfirmed]** a guess or an unused/undecoded path.
 - **Addresses** are `speed.exe` addresses. Ghidra auto names are only in the provenance file.
-- The Lua state-graph scripts in `gameplay.bin` (compiled Lua 5.0) hold a large part of the rules (heat reset, intro
-  scenes, unlock timing). They are not decoded, so every rule that lives there is marked.
+- The Lua state-graph scripts in `gameplay.bin` (compiled Lua 5.0) hold a large part of the rules (intro scenes, unlock
+  timing). They are decoded in [career-scripts.md](career-scripts.md); the native side of the safe house (entering,
+  leaving, heat, the respawn marker) is in [career-safehouse.md](career-safehouse.md).
 
 ## 0. Summary
 
@@ -118,7 +119,8 @@ restore screens instead. A failed load restores a snapshot of the profile that w
 
 Prologue events in `gameplay.bin` **[verified]**: `16_1_0_partial_dday`, `16_1_1_circuit`, `16_2_1_d_day_intro`,
 `16_2_2_sprint`, `16_2_3_sprint`. Stage 16 means "none of the 15 Blacklist rivals is the target yet". The code that lowers
-stage from 16 to 15 was not found (it is in the progress logic or the scripts) **[unconfirmed]**.
+stage from 16 to 15 is the rival bio screen of the first safe house visit, which posts the enter-bin event for bin 15
+([career-safehouse.md](career-safehouse.md) section 5.3) **[exe]**.
 
 **Starting cash** is 0 **[exe]**. Community: the first three races pay 30,000 in total **[community]**. When the new
 profile is created and a folder `NFS Underground 2` exists (the check lists the directory and needs more than two entries,
@@ -178,7 +180,7 @@ pause menu's "Jump to Safe House", and by the zone entry handler for `safehouse`
 | `SkipCareerIntro` | true when the debug flag is set, or settings flag bit 5 ("opening seen") is set |
 | `DoSafeHouseIntro(name)` | stores the hash of `career_start_<region>` in the manager's two start slots, sets the free-roam flag, sets stage to 16, opens the front end (request mode 2) |
 | `JumpToSafeHouse`, `JumpToCarLot` | open the front end as above |
-| `AllowEngageSafehouse` | reads a boolean of the manager (+0x2CF) |
+| `AllowEngageSafehouse` | reads a boolean of the manager (+0x2CF): no event underway and no pursuit, or a pursuit in cool-down; recomputed every frame ([career-safehouse.md](career-safehouse.md) 3.1) |
 | `SetHasRapSheet` | sets settings flag bit 4 |
 | `SetWorldHeat`, `PlayTutorial`, `IntroduceRival`, `Fade`, `ShowWinningPostRaceScreen` ... | other hooks, not covered here |
 
@@ -194,8 +196,10 @@ maps the position to engine axes as (-y, z, x). The exe looks the collection up 
 The safe house is a world marker (`zone_safehouse`, kind `safehouse`; 4 zones in the install, see
 [gameplay-races.md](../formats/gameplay-races.md) section 7). Driving into the gate fires the `menu_gate` state graph
 (`initial` -> handler `entersafehouse` -> `nis`) and the message `MEnterSafeHouse`, which the script layer receives. The
-script then runs the NIS and calls the request above. What the scripts do to heat, pursuit state and the car when the gate
-triggers is **not decoded**; no heat reset was found in `speed.exe`.
+script then runs the NIS and calls the request above. Neither the scripts nor the native code reset heat, the pursuit or
+the cops on entering: the world is unloaded, the car writes `min(heat, 5.0)` into its career record, and a pursuit in
+cool-down is first ended as evaded. The native chain (permission flags, the engage prompt, the message senders, the
+respawn marker) is in [career-safehouse.md](career-safehouse.md) sections 3 and 4 **[exe]**.
 
 ### 7.2 The menu **[exe + verified labels]**
 
@@ -219,9 +223,9 @@ safe house screens in the factory table are `SafehouseRaceSheet`, `SafehouseRiva
 When the front end opens with the "Blacklist sequence" flag, a stepper runs these screens in order:
 
 1. `SafeHouseRivalChallenge.fng`.
-2. `SafeHouseMarkers.fng` (choose the Get Out of Jail Free markers) - only if autosave is possible.
+2. `SafeHouseMarkers.fng` (the marker choice) - always.
 3. `SafeHouseRegionUnlock.fng` - only at stage 8 and 12.
-4. The memory-card autosave screen (`MC_Main.fng`) if autosave is possible.
+4. The memory-card autosave flow (`MC_Main.fng`, followed by the bio) if autosave is possible.
 5. `SafeHouseRivalBio.fng`.
 6. The rival's movie (`blacklist_<NN>` in `FEAnyMovie.fng`).
 7. At stage 15 the reputation overview, and settings flag bit 5 ("opening seen") is set; at stage 13, if the Rap Sheet is
@@ -238,8 +242,9 @@ The details of ranks and rivals are in the Blacklist specs; only the order is re
 - **Garage capacity**: 25 career records exist in the save; the game lets the player own at most **10** purchased cars
   (the extra-options mod's `PurchasedCarLimit` default). The add-car routine itself refuses past 25 **[exe]**.
 - **Saving**: section 8.
-- **Heat, pursuit cooldown, bounty payout**: not found in the C++ of the safe house screens. Bounty and impound rules
-  are in the economy and busted specs.
+- **Heat, pursuit cooldown, bounty payout**: none of the safe house screens changes them. Heat is copied between the live
+  car and the career record at the world unload and load ([career-safehouse-2.md](career-safehouse-2.md) section 8).
+  Bounty and impound rules are in the economy and busted specs.
 
 ## 8. Saving
 
@@ -266,7 +271,7 @@ The details of ranks and rivals are in the Blacklist specs; only the order is re
 | Bounty, cash, infractions, impound | the stable tail and the career records; cash spend in the shop checkout and the car lot; `AwardPlayerBounty` hook |
 | Blacklist, rivals | stage byte, node list, the arrival sequence, rival cars unlocked by stage (car lot file) |
 | Milestones | node list and the pending popup queue |
-| Pursuit / heat | per-car heat lives in the career record; resets of heat are in scripts |
+| Pursuit / heat | per-car heat lives in the career record; no reset on entering or leaving ([career-safehouse-2.md](career-safehouse-2.md) section 8) |
 | Frontend menus | screens and button labels |
 
 ## 10. Rewrite
@@ -277,8 +282,9 @@ section 2 and a safe house screen with the five buttons of section 7.2.
 
 ## Open questions
 
-1. What the scripts do on entering a safe house (heat, pursuit state, car repair).
-2. Where stage changes from 16 to 15 and from n to n-1 (the progress logic).
+1. (Answered.) Entering a safe house does nothing to heat, pursuit or cops in the scripts or the native code; the car is
+   rebuilt new from its record at the next world load ([career-safehouse.md](career-safehouse.md)).
+2. Where stage changes from n to n-1 after 15 (16 to 15 is the rival bio screen of the first visit).
 3. The exact set of conditions that block autosave.
 4. What the developer flags and the "bonus content" probes read.
 5. Whether the `0x0000801C` shell-folder id in the Underground 2 check is a documents folder or a different one.

@@ -80,7 +80,9 @@ the debug start (15) and `DoSafeHouseIntro` (16).
   `ShowWinningPostRaceScreen`, `ShowLosingPostRaceScreen`: bare returns.
 - `milestone_challenge`, `speedtrap_activity`, `speedtrap_challenge_engage`, `cell_engage`, `pursuit_zone`,
   `reputation_unlock`, `completion_unlock`: handlers exist, no instance in `gameplay.bin`.
-- `Game.SetWorldHeat` target interface (`0x004037E0`) not traced; the meaning of the values 1 and 5 is unknown.
-- The phone and message table behind `EAddSMS` / `ECellCall` ids was not read (text agent's files cover it).
+- `Game.SetWorldHeat` target interface (`0x004037E0`) is the heat interface of the player car (write slot `0x00409060`);
+  see [career-safehouse.md](career-safehouse.md). The two call sites use 1 and 5.
+- The phone and message table behind `EAddSMS` / `ECellCall` ids: read in the phone pass, see
+  [career-phone.md](../specs/career-phone.md) and [its provenance](career-phone.md).
 - Attributes still unnamed: `0xB39ED8C3`, `0x39509746`, `0x8CB01ABF`, `0xA4E6FCFD`, `0xE10FB7A3`, `0xA07AE814`,
   `0x1823B89E`, `0x8F186AC4`, `0xE8C24416` (the last four sit on `race_bin` and are zero or small floats).

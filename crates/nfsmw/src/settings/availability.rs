@@ -18,6 +18,15 @@ struct Asked {
 fn asked(key: &str, settings: &Settings, caps: &Capabilities) -> Option<Asked> {
     let g = settings.graphics();
     Some(match key {
+        "road_reflections" => Asked {
+            value: settings.road_reflections.to_string(),
+            possible: settings.road_reflections == super::RoadReflections::Off
+                || (caps.projected_reflections && settings.appearance.lighting.original_world_materials),
+            available: match caps.projected_reflections && settings.appearance.lighting.original_world_materials {
+                true => vec!["off", "world", "vehicles", "blurred"],
+                false => vec!["off"],
+            },
+        },
         "visual_treatment" => Asked {
             value: settings.visual_treatment.to_string(),
             possible: settings.visual_treatment == super::VisualTreatment::Off || caps.scene_treatment,
@@ -25,6 +34,15 @@ fn asked(key: &str, settings: &Settings, caps: &Capabilities) -> Option<Asked> {
                 true => vec!["off", "low", "high"],
                 false => vec!["off"],
             },
+        },
+        "texture_filtering" => Asked {
+            value: g.texture_filtering.to_string(),
+            possible: g.texture_filtering.anisotropy() <= caps.max_texture_anisotropy,
+            available: super::TextureFiltering::ALL
+                .iter()
+                .filter(|f| f.anisotropy() <= caps.max_texture_anisotropy)
+                .map(|f| f.name())
+                .collect(),
         },
         "post_aa" => Asked {
             value: g.post.antialiasing.name().to_owned(),

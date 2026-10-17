@@ -263,6 +263,11 @@ the game's story is a vinyl, not the base paint.
 
 ## 8. The car shader
 
+The selectable original PC modes supersede the initial shader approximation below:
+see [car material shading](car-material-shading.md) and [light delivery](car-lighting.md).
+Custom Glossy retains the approximation for existing preferences.
+
+
 All car groups use effect id 4 [verified on 6 car files; mapping to `IDI_CAR_FX` unconfirmed]. The
 shader's constants and math, read from the disassembly [verified as a reading of `IDI_CAR_FX`]:
 

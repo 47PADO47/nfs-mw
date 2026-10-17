@@ -7,7 +7,7 @@ use blackbox_gfx::{
 use blackbox_gfx_testkit::mesh::{MeshBuilder, prelit};
 use glam::{Mat4, Vec3};
 
-fn scene(renderer: &mut Renderer) -> (FrameParams, Vec<Instance>, Vec<Instance>) {
+pub(super) fn scene(renderer: &mut Renderer) -> (FrameParams, Vec<Instance>, Vec<Instance>) {
     let mut plane = MeshBuilder::new();
     plane.state(None, BlendMode::Opaque, Shading::Prelit);
     plane.flat_quad(
@@ -40,7 +40,7 @@ fn scene(renderer: &mut Renderer) -> (FrameParams, Vec<Instance>, Vec<Instance>)
     (frame, vec![Instance::new(ground, Mat4::IDENTITY)], vec![Instance::new(caster, Mat4::IDENTITY)])
 }
 
-fn dark_pixels(a: &[u8], b: &[u8]) -> usize {
+pub(super) fn dark_pixels(a: &[u8], b: &[u8]) -> usize {
     a.as_chunks::<4>().0.iter().zip(b.as_chunks::<4>().0).filter(|(a, b)| b[0].saturating_add(8) < a[0]).count()
 }
 
@@ -217,7 +217,16 @@ fn contact_rejects_unoccluded_walls_and_preserves_fog_and_ambient() {
     r.set_render_experiments(RenderExperiments { contact_shadows: true, ..Default::default() });
     assert_eq!(fog, r.capture(240, 160, &frame, &visible).unwrap(), "contact visibility cannot darken fog");
     frame.fog = None;
-    frame.surface_light = Some(blackbox_gfx::SurfaceLight { ambient: [0.6; 3], diffuse: [0.0; 3] });
+    frame.surface_light = Some(blackbox_gfx::SurfaceLight {
+        shadow_strength: 1.0,
+        specular: [0.0; 3],
+        specular_power: 1.0,
+        reflection_scale: 0.0,
+        reflective_specular_scale: 1.0,
+        ambient_alpha: 1.0,
+        ambient: [0.6; 3],
+        diffuse: [0.0; 3],
+    });
     let mut ambient = MeshBuilder::new();
     ambient.state(None, BlendMode::Opaque, Shading::Lit);
     ambient.flat_quad(
@@ -232,7 +241,16 @@ fn contact_rejects_unoccluded_walls_and_preserves_fog_and_ambient() {
     ambient.cuboid(Vec3::new(-1.0, -1.0, 0.0), Vec3::new(1.0, 1.0, 2.0), [200; 4]);
     let mesh = ambient.finish().upload(&mut r, "ambient-only receiver");
     let visible = [Instance::new(mesh, Mat4::IDENTITY)];
-    frame.surface_light = Some(blackbox_gfx::SurfaceLight { ambient: [0.2; 3], diffuse: [0.8; 3] });
+    frame.surface_light = Some(blackbox_gfx::SurfaceLight {
+        shadow_strength: 1.0,
+        specular: [0.0; 3],
+        specular_power: 1.0,
+        reflection_scale: 0.0,
+        reflective_specular_scale: 1.0,
+        ambient_alpha: 1.0,
+        ambient: [0.2; 3],
+        diffuse: [0.8; 3],
+    });
     r.set_render_experiments(Default::default());
     let direct = r.capture(240, 160, &frame, &visible).unwrap();
     r.set_render_experiments(RenderExperiments { contact_shadows: true, ..Default::default() });
@@ -240,7 +258,16 @@ fn contact_rejects_unoccluded_walls_and_preserves_fog_and_ambient() {
         dark_pixels(&direct, &r.capture(240, 160, &frame, &visible).unwrap()) > 3,
         "fixture actually receives contact visibility"
     );
-    frame.surface_light = Some(blackbox_gfx::SurfaceLight { ambient: [0.6; 3], diffuse: [0.0; 3] });
+    frame.surface_light = Some(blackbox_gfx::SurfaceLight {
+        shadow_strength: 1.0,
+        specular: [0.0; 3],
+        specular_power: 1.0,
+        reflection_scale: 0.0,
+        reflective_specular_scale: 1.0,
+        ambient_alpha: 1.0,
+        ambient: [0.6; 3],
+        diffuse: [0.0; 3],
+    });
     r.set_render_experiments(Default::default());
     let off = r.capture(240, 160, &frame, &visible).unwrap();
     r.set_render_experiments(RenderExperiments { contact_shadows: true, ..Default::default() });

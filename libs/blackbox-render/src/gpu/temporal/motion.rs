@@ -169,6 +169,8 @@ impl MotionPass {
         pass.set_bind_group(0, &self.group, &[]);
         pass.set_vertex_buffer(1, renderer.instances.buffer.slice(..));
         pass.set_vertex_buffer(2, previous.slice(..));
+        let mut bound_pipeline: Option<&wgpu::RenderPipeline> = None;
+        let mut bound_texture: Option<&wgpu::BindGroup> = None;
         let mut first = 0;
         while first < instances.len() {
             let mesh_handle = instances[first].mesh;
@@ -188,16 +190,23 @@ impl MotionPass {
                 {
                     continue;
                 }
-                pass.set_pipeline(match draw.blend {
+                let pipeline = match draw.blend {
                     BlendMode::AlphaTest if matches!(draw.shading, Shading::Glossy(_)) => &self.glossy_cutout,
                     BlendMode::AlphaTest => &self.cutout,
                     _ => &self.opaque,
-                });
+                };
+                if bound_pipeline.is_none_or(|bound| !std::ptr::eq(bound, pipeline)) {
+                    pass.set_pipeline(pipeline);
+                    bound_pipeline = Some(pipeline);
+                }
                 let slot = draw.texture.map(|t| renderer.redirects.get(&t.raw()).copied().unwrap_or(t.raw()));
                 let Some(texture) = slot.and_then(|s| renderer.textures.get(s)).or(renderer.textures.get(0)) else {
                     continue;
                 };
-                pass.set_bind_group(1, texture, &[]);
+                if bound_texture.is_none_or(|bound| !std::ptr::eq(bound, texture)) {
+                    pass.set_bind_group(1, texture, &[]);
+                    bound_texture = Some(texture);
+                }
                 pass.draw_indexed(
                     draw.first_index..draw.first_index + draw.index_count,
                     draw.base_vertex,

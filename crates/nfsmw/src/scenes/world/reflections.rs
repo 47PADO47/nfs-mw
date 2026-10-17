@@ -22,6 +22,7 @@ pub(super) struct CaptureStamp {
     origin: Vec3,
     scenery: u64,
     original_shadows: bool,
+    original_sky: bool,
     distance: ReflectionDistance,
     lod: ReflectionLod,
     content: ReflectionContent,
@@ -29,6 +30,7 @@ pub(super) struct CaptureStamp {
 
 impl WorldScene {
     pub(super) fn update_reflections(&mut self, renderer: &mut dyn RenderBackend) {
+        let _span = bevy_log::info_span!("world::reflections").entered();
         let graphics = *renderer.graphics();
         let quality = graphics.reflections;
         let Some(drive) = &self.drive else {
@@ -59,6 +61,7 @@ impl WorldScene {
                 && last.content == content
                 && last.scenery == scenery
                 && last.original_shadows == self.original_shadows
+                && last.original_sky == self.original_sky
                 && self.clock - last.seconds < interval
                 && last.origin.distance_squared(origin) < 4.0
         }) {
@@ -100,8 +103,10 @@ impl WorldScene {
                 .filter(|p| self.original_shadows || !p.original_shadow)
                 .filter(|p| within(origin, p.transform.w_axis.truncate(), far));
             let rules = &blackbox_scenery::layout::MOST_WANTED.lod;
+            // The traffic is appended after the scenery, so the face is sorted once after both (`collect_for_height`
+            // has no unsorted variant: its own sort is the one extra pass on that path).
             match lod.uses_main_view() {
-                true => visibility::collect_with_shadows(
+                true => visibility::collect_unsorted_with_shadows(
                     placed,
                     &camera,
                     rules,
@@ -125,6 +130,15 @@ impl WorldScene {
                 &Frustum::from_view_proj(&camera.view_proj),
                 &mut self.reflection_faces[face],
             );
+            if self.original_sky {
+                self.residency.sky.place(
+                    &self.residency.shared,
+                    &mut self.reflection_faces[face],
+                    origin,
+                    super::sky::View::Environment,
+                );
+            }
+            visibility::sort_by_mesh(&mut self.reflection_faces[face]);
         }
         renderer.set_reflection_scene(Some(ReflectionScene {
             origin,
@@ -138,6 +152,7 @@ impl WorldScene {
             origin,
             scenery,
             original_shadows: self.original_shadows,
+            original_sky: self.original_sky,
             distance,
             lod,
             content,
@@ -145,15 +160,14 @@ impl WorldScene {
     }
 }
 
-/// Adds the traffic cars whose origin is within the far limit and whose box meets the face's frustum, then keeps the
-/// list sorted by mesh as the scenery list is.
+/// Adds the traffic cars whose origin is within the far limit and whose box meets the face's frustum. The caller sorts
+/// the face by mesh after this.
 fn add_traffic(cars: &[Instance], origin: Vec3, far: Option<f32>, frustum: &Frustum, out: &mut Vec<Instance>) {
     let half = Vec3::splat(TRAFFIC_HALF_EXTENT);
     out.extend(cars.iter().copied().filter(|car| {
         let centre = car.transform.w_axis.truncate();
         within(origin, centre, far) && frustum.intersects(&Aabb { min: centre - half, max: centre + half })
     }));
-    out.sort_unstable_by_key(|i| i.mesh);
 }
 
 #[cfg(test)]

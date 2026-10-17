@@ -1,13 +1,14 @@
 //! The car as drawable parts, posed from the physics state each frame.
 
-use std::collections::HashMap;
+use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
 
 use blackbox_gfx::{Instance, MeshHandle, RenderBackend, Shading};
 use blackbox_scene::upload_solid;
 use glam::{Mat4, Quat, Vec3};
 use nfsmw_data::car::{CarModel, TextureSwaps, WheelPose};
 
-use crate::scenes::car::materials::CarMaterials;
+use crate::scenes::car::materials::{CarMaterials, set_lighting};
 use crate::scenes::world::car_lights::CarLights;
 use crate::scenes::world::keys;
 use crate::settings::CarShading;
@@ -49,15 +50,30 @@ struct Part {
     placement: usize,
 }
 
+/// Shared actors retain identity and physics while their uploaded appearance changes.
+struct Appearance {
+    parts: Vec<Part>,
+    /// Every uploaded mesh, with the solid (by name hash) it draws.
+    meshes: Vec<(u32, MeshHandle)>,
+    materials: CarMaterials,
+    shading: CarShading,
+}
+
+impl Appearance {
+    fn release(self, renderer: &mut dyn RenderBackend) {
+        for (_, mesh) in self.meshes {
+            renderer.destroy_mesh(mesh);
+        }
+        self.materials.destroy(renderer);
+    }
+}
+
 pub struct CarRig {
     /// Default instance identity; actors that share the uploaded rig supply their own identity.
     car: u32,
     model: CarModel,
     /// Sorted by mesh, as the renderer wants instances of one mesh together.
-    parts: Vec<Part>,
-    meshes: Vec<MeshHandle>,
-    materials: CarMaterials,
-    shading: CarShading,
+    appearance: RefCell<Appearance>,
     lights: CarLights,
     flares: super::super::car_light_flares::CarLightFlares,
     /// The model scale (`CarScale`); 1 is the original size. Only the body parts scale, not the lights.
@@ -70,12 +86,10 @@ impl CarRig {
     /// Reuse the loaded geometry while a color picker is dragged.
     pub fn recolor(&mut self, renderer: &mut dyn RenderBackend, rgb: [u8; 3], sun: Vec3) -> anyhow::Result<()> {
         self.model.set_body_color(rgb)?;
-        let (parts, meshes, materials) = upload_parts(renderer, &self.model, &self.swaps(), self.shading, sun);
-        for mesh in self.meshes.drain(..) {
-            renderer.destroy_mesh(mesh);
-        }
-        std::mem::replace(&mut self.materials, materials).destroy(renderer);
-        (self.parts, self.meshes) = (parts, meshes);
+        let shading = self.appearance.get_mut().shading;
+        let (parts, meshes, materials) = upload_parts(renderer, &self.model, &self.swaps(), shading, sun);
+        std::mem::replace(self.appearance.get_mut(), Appearance { parts, meshes, materials, shading })
+            .release(renderer);
         Ok(())
     }
     /// Upload `model` with `shading`, lit by a sun in direction `to_sun` from the car.
@@ -90,21 +104,37 @@ impl CarRig {
         let (parts, meshes, materials) = upload_parts(renderer, &model, &swaps, shading, to_sun);
         let lights = CarLights::for_model(&model);
         let flares = super::super::car_light_flares::CarLightFlares::upload(renderer, &model);
-        Self { car, model, parts, meshes, materials, shading, lights, flares, scale: 1.0, cracked_zones: Vec::new() }
+        Self {
+            car,
+            model,
+            appearance: RefCell::new(Appearance { parts, meshes, materials, shading }),
+            lights,
+            flares,
+            scale: 1.0,
+            cracked_zones: Vec::new(),
+        }
     }
 
     /// Upload the car again with `shading` when it differs from the one it has.
-    pub fn reshade(&mut self, renderer: &mut dyn RenderBackend, shading: CarShading, to_sun: Vec3) {
-        if shading == self.shading {
-            return;
-        }
-        for mesh in self.meshes.drain(..) {
-            renderer.destroy_mesh(mesh);
+    pub fn reshade(
+        &self,
+        renderer: &mut dyn RenderBackend,
+        shading: CarShading,
+        to_sun: Vec3,
+    ) -> Vec<(MeshHandle, MeshHandle)> {
+        if shading == self.appearance.borrow().shading {
+            return Vec::new();
         }
         let swaps = self.swaps();
         let (parts, meshes, materials) = upload_parts(renderer, &self.model, &swaps, shading, to_sun);
-        std::mem::replace(&mut self.materials, materials).destroy(renderer);
-        (self.parts, self.meshes, self.shading) = (parts, meshes, shading);
+        let mut appearance = self.appearance.borrow_mut();
+        let replacements = appearance
+            .parts
+            .iter()
+            .filter_map(|old| parts.iter().find(|new| new.placement == old.placement).map(|new| (old.mesh, new.mesh)))
+            .collect();
+        std::mem::replace(&mut *appearance, Appearance { parts, meshes, materials, shading }).release(renderer);
+        replacements
     }
 
     /// Scale the model about its origin (`CarScale`).
@@ -126,20 +156,41 @@ impl CarRig {
         self.model.swaps.clone().with_window_hashes(&hashes)
     }
 
-    /// Show the cracked-glass texture on the windows of these zones (see `zone_windows`). The car is
-    /// re-uploaded only when the set changes.
+    /// Show the cracked-glass texture on the windows of these zones (see `zone_windows`). Only the solids that
+    /// draw a window whose texture changed are uploaded again; the textures are all uploaded with the car.
     pub fn set_cracked_zones(&mut self, renderer: &mut dyn RenderBackend, zones: Vec<usize>, to_sun: Vec3) {
         if zones == self.cracked_zones {
             return;
         }
+        let before = self.swaps();
         self.cracked_zones = zones;
-        for mesh in self.meshes.drain(..) {
-            renderer.destroy_mesh(mesh);
+        let after = self.swaps();
+        let affected = affected_solids(&self.model, &changed_textures(&before, &after));
+        let shading = self.appearance.get_mut().shading;
+        set_lighting(renderer, shading, to_sun);
+        self.reupload_solids(renderer, &affected, &after);
+    }
+
+    /// Upload the solids in `affected` again with `swaps`: their parts and meshes are replaced, the rest of the
+    /// car is kept as it is.
+    fn reupload_solids(&mut self, renderer: &mut dyn RenderBackend, affected: &HashSet<u32>, swaps: &TextureSwaps) {
+        if affected.is_empty() {
+            return;
         }
-        let swaps = self.swaps();
-        let (parts, meshes, materials) = upload_parts(renderer, &self.model, &swaps, self.shading, to_sun);
-        std::mem::replace(&mut self.materials, materials).destroy(renderer);
-        (self.parts, self.meshes) = (parts, meshes);
+        let model = &self.model;
+        let appearance = self.appearance.get_mut();
+        appearance.parts.retain(|p| !affected.contains(&model.placements[p.placement].solid));
+        appearance.meshes.retain(|&(solid, mesh)| {
+            if !affected.contains(&solid) {
+                return true;
+            }
+            renderer.destroy_mesh(mesh);
+            false
+        });
+        let (parts, meshes) = upload_solids(renderer, model, swaps, &appearance.materials, Some(affected));
+        appearance.parts.extend(parts);
+        appearance.meshes.extend(meshes);
+        appearance.parts.sort_by_key(|p| p.mesh);
     }
 
     /// The lamps of the car, as glows.
@@ -157,10 +208,7 @@ impl CarRig {
     }
 
     pub fn release(self, renderer: &mut dyn RenderBackend) {
-        for mesh in self.meshes {
-            renderer.destroy_mesh(mesh);
-        }
-        self.materials.destroy(renderer);
+        self.appearance.into_inner().release(renderer);
         self.flares.release(renderer);
     }
 
@@ -213,7 +261,7 @@ impl CarRig {
         let world = pose.transform() * Mat4::from_scale(Vec3::splat(self.scale));
         let posed: Option<[(Mat4, Mat4); 4]> =
             self.model.corners.as_ref().map(|c| std::array::from_fn(|i| c[i].posed(pose.wheels[i])));
-        for part in &self.parts {
+        for part in &self.appearance.borrow().parts {
             let placement = &self.model.placements[part.placement];
             if hidden.is_some_and(|hidden| hidden.contains(&placement.slot)) {
                 continue;
@@ -233,7 +281,9 @@ impl CarRig {
     }
 
     pub fn fragment_instances(&self, slot: usize) -> Vec<Instance> {
-        self.parts
+        self.appearance
+            .borrow()
+            .parts
             .iter()
             .filter_map(|part| {
                 let placement = &self.model.placements[part.placement];
@@ -249,9 +299,39 @@ impl CarRig {
 
 impl super::Drive {
     /// Draw the car with `shading` from now on (it is uploaded again when that changes).
-    pub fn set_car_shading(&mut self, renderer: &mut dyn RenderBackend, shading: CarShading, to_sun: Vec3) {
-        self.rig.reshade(renderer, shading, to_sun);
+    pub fn set_car_shading(
+        &mut self,
+        renderer: &mut dyn RenderBackend,
+        shading: CarShading,
+        to_sun: Vec3,
+    ) -> Vec<(MeshHandle, MeshHandle)> {
+        self.rig.reshade(renderer, shading, to_sun)
     }
+}
+
+/// The texture hashes whose replacement differs between `before` and `after`: the window placeholders and
+/// window textures whose glass was cracked or repaired.
+fn changed_textures(before: &TextureSwaps, after: &TextureSwaps) -> HashSet<u32> {
+    before
+        .map
+        .keys()
+        .chain(after.map.keys())
+        .copied()
+        .filter(|&hash| before.resolve(hash) != after.resolve(hash))
+        .collect()
+}
+
+/// The solids (by name hash) with a group that draws one of the `changed` textures. Their meshes bake the
+/// texture each group draws, so they are the only meshes a change of replacement affects.
+fn affected_solids(model: &CarModel, changed: &HashSet<u32>) -> HashSet<u32> {
+    model
+        .solids
+        .iter()
+        .filter(|(_, solid)| {
+            solid.groups.iter().filter_map(|g| g.diffuse_texture(solid)).any(|hash| changed.contains(&hash))
+        })
+        .map(|(&hash, _)| hash)
+        .collect()
 }
 
 /// Upload the placed solids of `model` with `shading`: the parts sorted by mesh (the renderer wants instances
@@ -262,13 +342,29 @@ fn upload_parts(
     swaps: &TextureSwaps,
     shading: CarShading,
     to_sun: Vec3,
-) -> (Vec<Part>, Vec<MeshHandle>, CarMaterials) {
+) -> (Vec<Part>, Vec<(u32, MeshHandle)>, CarMaterials) {
     let materials = CarMaterials::upload(renderer, model, shading, to_sun);
+    let (parts, meshes) = upload_solids(renderer, model, swaps, &materials, None);
+    (parts, meshes, materials)
+}
+
+/// Upload the placed solids of `model` drawn with `materials`: all of them, or only those in `only`. The parts
+/// are sorted by mesh, as the renderer wants instances of one mesh together.
+fn upload_solids(
+    renderer: &mut dyn RenderBackend,
+    model: &CarModel,
+    swaps: &TextureSwaps,
+    materials: &CarMaterials,
+    only: Option<&HashSet<u32>>,
+) -> (Vec<Part>, Vec<(u32, MeshHandle)>) {
     let mut cache: HashMap<(u32, bool, u8), Option<MeshHandle>> = HashMap::new();
     let variants: [_; 4] =
         std::array::from_fn(|state| swaps.clone().with_lamp_state(state & 1 != 0, state & 2 != 0, &model.textures));
     let mut parts = Vec::new();
     for (placement, p) in model.placements.iter().enumerate() {
+        if only.is_some_and(|only| !only.contains(&p.solid)) {
+            continue;
+        }
         let solid = &model.solids[&p.solid];
         let relevant = solid.groups.iter().filter_map(|g| g.diffuse_texture(solid)).fold(0, |mask, hash| {
             let head = variants[0].resolve_for(hash, p.left_brake) != variants[1].resolve_for(hash, p.left_brake);
@@ -285,11 +381,13 @@ fn upload_parts(
         parts.push(Part { mesh, lamps: lamps.map(|m| m.unwrap_or(mesh)), placement });
     }
     parts.sort_by_key(|p| p.mesh);
-    (parts, cache.into_values().flatten().collect(), materials)
+    (parts, cache.into_iter().filter_map(|((solid, _, _), mesh)| mesh.map(|m| (solid, m))).collect())
 }
 
 #[cfg(test)]
 mod tests {
+    use blackbox_hash::bstring_hash;
+
     use super::*;
 
     fn pose(x: f32, yaw: f32) -> CarPose {
@@ -313,5 +411,15 @@ mod tests {
         let p = pose(3.0, std::f32::consts::FRAC_PI_2);
         let moved = p.transform().transform_point3(Vec3::X);
         assert!((moved - Vec3::new(3.0, 1.0, 0.0)).length() < 1e-5);
+    }
+
+    #[test]
+    fn cracking_a_window_changes_only_its_placeholder() {
+        let before = TextureSwaps::for_car("BMWM3GTR");
+        let after = before.clone().with_window_hashes(&[bstring_hash("WINDOW_REAR")]);
+        let changed = changed_textures(&before, &after);
+        assert_eq!(changed, HashSet::from([bstring_hash("WINDOW_REAR")]));
+        assert_eq!(changed_textures(&after, &before), changed, "repairing the window changes the same texture");
+        assert!(changed_textures(&after, &after).is_empty());
     }
 }

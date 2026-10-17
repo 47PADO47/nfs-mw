@@ -2,13 +2,18 @@
 
 use std::collections::HashMap;
 
-use blackbox_gfx::{BlendMode, InstanceKey, MeshHandle, RenderBackend, Shading, TextureHandle};
-use blackbox_scene::{Aabb, blend_mode, upload_solid, upload_texture};
+use blackbox_gfx::{BlendMode, InstanceKey, MeshDesc, MeshHandle, RenderBackend, Shading, TextureHandle, Vertex};
+use blackbox_scene::{Aabb, MaterialLookup, blend_mode, solid_mesh, upload_solid, upload_texture};
 use blackbox_scenery::LodModel;
 use blackbox_solid::Solid;
 use glam::Mat4;
 use nfsmw_data::world::{PropCatalog, PropShape, SectionData};
 use std::sync::Arc;
+mod reflections;
+mod shadow_policy;
+pub(super) use reflections::{ReflectionPlaced, place_reflections};
+#[cfg(test)]
+mod mesh_lifetime_tests;
 
 /// One placed scenery object: up to four LOD meshes, chosen per frame
 /// (`docs/specs/scenery-lod.md`).
@@ -31,6 +36,8 @@ pub struct Placed {
     pub key: InstanceKey,
     /// Authored shadow-only scenery, identified in this game's asset names.
     pub original_shadow: bool,
+    /// Physical sun occluder; independent of background colour placement.
+    pub casts_sun_shadow: bool,
     /// Original physics pose and stable identity, when this instance has a spawner.
     pub spawner: Option<blackbox_scenery::ObjectSpawner>,
     pub parts: Option<Arc<super::props::scenery::ModelParts>>,
@@ -56,6 +63,7 @@ impl Placed {
             prop_id: 0,
             key: InstanceKey::TRANSIENT,
             original_shadow: false,
+            casts_sun_shadow: true,
             spawner: None,
             parts: None,
             curve_lamp: None,
@@ -67,6 +75,11 @@ impl Placed {
 /// Textures and meshes of a section, by name hash.
 #[derive(Default)]
 pub struct SectionResources {
+    /// Authored road-view placements; never mixed into the player or shadow feed.
+    pub(super) reflection_placed: Vec<ReflectionPlaced>,
+    pub(super) normal_materials:
+        HashMap<(blackbox_gfx::NormalModel, [TextureHandle; 3]), blackbox_gfx::NormalMaterialHandle>,
+    pub(super) window_materials: HashMap<[TextureHandle; 2], blackbox_gfx::WindowMaterialHandle>,
     pub materials: HashMap<u32, (TextureHandle, BlendMode)>,
     pub meshes: HashMap<u32, (MeshHandle, LodModel, bool)>,
     /// Animated textures defined here; frames may live here or in the shared sets.
@@ -92,33 +105,55 @@ impl SectionResources {
 
     /// Upload solids, resolving textures here first and then in `fallback` (the shared sets).
     pub fn upload_meshes(&mut self, renderer: &mut dyn RenderBackend, data: &SectionData, fallback: &SectionResources) {
-        self.upload_solid_list(renderer, &data.solids, fallback, false);
+        self.upload_solid_list(renderer, &data.solids, Some(&data.solid_vertices), fallback, false);
     }
 
-    /// Upload solids, resolving textures here first and then in `fallback`. With `keep_existing`, a solid whose
-    /// name hash is already resident is skipped (the first upload wins, as the textures do).
+    /// Upload solids, resolving textures here first and then in `fallback`. `vertices` are the solids' renderer
+    /// vertices in the same order, built on the loader thread; without them each solid is converted here. With
+    /// `keep_existing`, a solid whose name hash is already resident is skipped (the first upload wins, as the
+    /// textures do).
     pub fn upload_solid_list(
         &mut self,
         renderer: &mut dyn RenderBackend,
         solids: &[Solid],
+        vertices: Option<&[Vec<Vertex>]>,
         fallback: &SectionResources,
         keep_existing: bool,
     ) {
+        debug_assert!(vertices.is_none_or(|v| v.len() == solids.len()));
         let lookup = |hash: u32| self.materials.get(&hash).or_else(|| fallback.materials.get(&hash)).copied();
         let mut meshes = Vec::new();
-        for solid in solids {
+        for (i, solid) in solids.iter().enumerate() {
             if keep_existing && self.meshes.contains_key(&solid.name_hash) {
                 continue;
             }
             if is_tunnel_shadow(&solid.name) {
                 continue;
             }
-            if let Some(mesh) = upload_solid(renderer, solid, &lookup, shading_for(&solid.name)) {
+            let mut normal_materials =
+                super::materials::normal_materials(renderer, solid, &lookup, &mut self.normal_materials);
+            let windows = super::materials::window_materials(renderer, solid, &lookup, &mut self.window_materials);
+            for (material, window) in normal_materials.iter_mut().zip(windows) {
+                if window.is_some() {
+                    *material = window;
+                }
+            }
+            let materials = super::materials::Lookup(&lookup, solid.name.starts_with("SKY"), normal_materials);
+            let shading = shading_for(&solid.name);
+            let mesh = match vertices {
+                Some(prepared) => upload_prepared(renderer, solid, &prepared[i], &materials, shading),
+                None => upload_solid(renderer, solid, &materials, shading),
+            };
+            if let Some(mesh) = mesh {
                 let lod = LodModel { num_polys: solid.num_polys, density: solid.density };
                 meshes.push((solid.name_hash, (mesh, lod, solid.name.starts_with("SHD_"))));
             }
         }
-        self.meshes.extend(meshes);
+        for (hash, mesh) in meshes {
+            if let Some(previous) = self.meshes.insert(hash, mesh) {
+                renderer.destroy_mesh(previous.0);
+            }
+        }
     }
 
     /// Show each animation's current frame (`seconds` since the scene started).
@@ -135,14 +170,52 @@ impl SectionResources {
         self.meshes.get(&hash).or_else(|| fallback.meshes.get(&hash)).map(|&(mesh, lod, _)| (mesh, lod))
     }
 
+    pub(super) fn release_normal_materials(&mut self, renderer: &mut dyn RenderBackend) {
+        for material in self.normal_materials.drain().map(|(_, handle)| handle) {
+            renderer.destroy_normal_material(material);
+        }
+        for material in self.window_materials.drain().map(|(_, handle)| handle) {
+            renderer.destroy_window_material(material);
+        }
+    }
+
     pub fn release(self, renderer: &mut dyn RenderBackend) {
         for (mesh, _, _) in self.meshes.into_values() {
             renderer.destroy_mesh(mesh);
+        }
+        for material in self.normal_materials.into_values() {
+            renderer.destroy_normal_material(material);
+        }
+        for material in self.window_materials.into_values() {
+            renderer.destroy_window_material(material);
         }
         for (texture, _) in self.materials.into_values() {
             renderer.destroy_texture(texture);
         }
     }
+}
+
+/// Upload a solid whose renderer vertices were built ahead of time. Only the draw ranges are made here, since
+/// they need the textures this thread has uploaded. Returns `None` for solids without geometry.
+fn upload_prepared(
+    renderer: &mut dyn RenderBackend,
+    solid: &Solid,
+    vertices: &[Vertex],
+    materials: &impl MaterialLookup,
+    shading: Shading,
+) -> Option<MeshHandle> {
+    if vertices.is_empty() || solid.indices.is_empty() {
+        return None;
+    }
+    let draws = solid_mesh(solid, materials, shading);
+    Some(renderer.create_mesh(&MeshDesc {
+        label: &solid.name,
+        vertices,
+        secondary_uvs: Some(&solid.secondary_uvs),
+        tangents: Some(&solid.tangents),
+        indices: &solid.indices,
+        draws,
+    }))
 }
 
 /// Sky domes (`SKYDOME`, `SKYDOME_XENON`, `SKY_SPECULAR`) are world-space models
@@ -170,15 +243,16 @@ pub fn place(
     shared: &SectionResources,
     props: &PropCatalog,
 ) -> (Vec<Placed>, usize) {
-    let mut placed = Vec::new();
+    let instances: usize = data.scenery.iter().map(|s| s.instances.len()).sum();
+    let mut placed = Vec::with_capacity(instances);
     let mut unresolved = 0;
-    let spawners: HashMap<_, _> = data.spawners.iter().map(|s| (s.override_index, s)).collect();
+    let mut spawners = HashMap::with_capacity(data.spawners.len());
+    spawners.extend(data.spawners.iter().map(|s| (s.override_index, s)));
     for section in &data.scenery {
-        let hooks: HashMap<_, _> = section
-            .override_hooks
-            .iter()
-            .map(|h| (usize::from(h.instance_index), u32::from(h.override_index)))
-            .collect();
+        let mut hooks = HashMap::with_capacity(section.override_hooks.len());
+        hooks.extend(
+            section.override_hooks.iter().map(|h| (usize::from(h.instance_index), u32::from(h.override_index))),
+        );
         for (instance, inst) in section.instances.iter().enumerate() {
             let Some(info) = section.info_of(inst) else { continue };
             let rules = &blackbox_scenery::layout::MOST_WANTED.visibility;
@@ -199,6 +273,7 @@ pub fn place(
                 log::debug!("no physics bounds/attributes for placed {}", info.name);
             }
             placed.push(Placed {
+                casts_sun_shadow: shadow_policy::casts_sun(&info.name),
                 original_shadow: info.name.starts_with("SHD_")
                     || resolved.iter().enumerate().filter(|(_, mesh)| mesh.is_some()).all(|(i, _)| {
                         own.meshes

@@ -39,6 +39,7 @@ mod tests {
         let skin = paint.texture("TEST_SKIN1");
         CarModel {
             flare_profiles: Default::default(),
+            window_tint_material: None,
             name: "TEST".into(),
             car_type: None,
             solids: HashMap::new(),

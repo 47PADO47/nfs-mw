@@ -1,5 +1,9 @@
 //! `nfsmw`: entry point of the NFS: Most Wanted rewrite.
 
+#[cfg(feature = "mimalloc")]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 mod app;
 mod audio;
 mod cli;
@@ -13,6 +17,7 @@ mod hud;
 mod input;
 mod modding;
 mod movie;
+mod preset_store;
 mod save_format;
 mod saves;
 mod scenes;

@@ -18,6 +18,7 @@ How the original's career works end to end, and where each part is written down.
 | [formats/career-state.md](../formats/career-state.md) | In-memory layout: profile, career settings, car stable, per-car career records, rap sheet sums, script manager tables, race records |
 | [formats/career-save.md](../formats/career-save.md) | The save file: header CRCs, block order and sizes, MD5, mapping of the editor offsets |
 | [career-flow.md](career-flow.md) | New and resumed career, front-end context bits, safe house menu, autosave |
+| [career-safehouse.md](career-safehouse.md), [career-safehouse-2.md](career-safehouse-2.md) | The native side of the safe house: zone kinds, engage rules, the request and world unload, the menu and its sequences, Resume Free Roam, the world reload, heat storage and writers, the respawn marker |
 | [career-car-lot.md](career-car-lot.md) | Car catalogue, prices, unlock by stage, buy and sell rules, rival cars |
 | [career-text.md](career-text.md), [career-text-2.md](career-text-2.md) | The language table: rivals, milestone labels, rap sheet, markers and popups, SMS ids, tips, shop unlock table |
 | [career-economy.md](career-economy.md), [career-economy-flows.md](career-economy-flows.md) | Bounty, infractions and their fines, cash, heat, rap sheet statistics, busted and the impound strikes |
@@ -66,7 +67,7 @@ How the original's career works end to end, and where each part is written down.
 |---|---|
 | The divisor read by the bounty award (5 in the file image, almost certainly 1 at run time) | [career-economy-flows.md](career-economy-flows.md); needs a runtime read |
 | What moves the stage on after bin 15 (no script and no exe path found; see the loop above) | [career-scripts.md](career-scripts.md) |
-| Native code on safe house entry beyond opening the menu (no script resets heat or cops); the meaning of the `SetWorldHeat` values; the phone table behind SMS and call ids | [career-scripts.md](career-scripts.md) |
+| The phone table behind SMS and call ids (the safe house entry itself is closed: no heat or cop reset, [career-safehouse.md](career-safehouse.md)) | [career-scripts.md](career-scripts.md) |
 | 12 of 30 statistic types have no producer in the exe; two milestone fields are never read | [career-milestones.md](career-milestones.md) |
 | Where "career completed at least once" is set; what "OPM" stands for (bin 20 is a developer test bin with no way in: [career-scripts-events.md](career-scripts-events.md); rival names are read: [career-text.md](career-text.md)) | [career-blacklist.md](career-blacklist.md) |
 | Meaning of the settings field at `+0x10`, flag bits 6 to 10, 12, 13 and the 8 extra rap sheet sums | [career-state.md](../formats/career-state.md) |

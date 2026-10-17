@@ -8,6 +8,7 @@
 //! See the README for the call sequence of each pass.
 
 mod batch;
+mod bind_cache;
 mod effects;
 #[cfg(test)]
 mod effects_tests;
@@ -35,6 +36,7 @@ mod world;
 pub mod test_support;
 
 pub use batch::Batch;
+pub use bind_cache::BindCache;
 
 /// The WGSL of the world effects (`vs_main` and the `fs_*` stages), for renderers that build their own
 /// effect pipelines. [`TexturedEffects`] and the renderer's effect pipelines use the same source.

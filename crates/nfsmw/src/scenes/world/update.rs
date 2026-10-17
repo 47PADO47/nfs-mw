@@ -2,12 +2,14 @@
 
 use blackbox_gfx::RenderBackend;
 
-use super::{View, WorldScene, ground, space};
+use super::{View, WorldScene, ground, sky, space};
 use crate::input::{Action, ActionState};
 
 impl WorldScene {
     /// Advance the scene by one frame: input, streaming, simulation, effects and captures.
     pub(super) fn update_frame(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
+        self.original_sky = renderer.render_experiments().original_world_materials;
+        let _span = bevy_log::info_span!("world::update").entered();
         self.shadow_quality = renderer.graphics().shadows;
         let idle = ActionState::default();
         let input = match self.garage_open {
@@ -18,8 +20,8 @@ impl WorldScene {
             true => 0.0,
             false => dt,
         };
+        self.update_car_shading(renderer);
         if let Some(drive) = self.drive.as_mut() {
-            drive.set_car_shading(renderer, self.car_shading, self.sun.to_sun());
             drive.set_damaged_windows(renderer, self.sun.to_sun());
             drive.set_car_scale(self.tuning.car_scale);
             drive.set_no_rev_limiter(self.tuning.no_rev_limiter);
@@ -39,6 +41,11 @@ impl WorldScene {
             log::info!("{}", self.toggle_view());
         }
         let [x, y] = self.focus();
+        let lens = self.gameplay_lens(renderer.aspect_ratio());
+        let tan_y = (lens.fov_y_degrees.to_radians() * 0.5).tan();
+        let extent = (1.0 + tan_y * tan_y * (1.0 + renderer.aspect_ratio().powi(2))).sqrt();
+        self.residency.set_shadow_sun(self.sun.to_sun());
+        self.residency.set_shadow_receiver_extent(extent, lens.position.truncate().distance(glam::Vec2::new(x, y)));
         self.residency.update(renderer, x, y);
         self.prepare_drive();
         let sim_dt = match self.garage_open {
@@ -48,7 +55,10 @@ impl WorldScene {
         self.update_entry(input, dt);
         self.feed_focus(renderer, sim_dt);
         self.rain.update(sim_dt, camera);
+        self.wet_road.step(dt, self.rain.intensity() > 0.0);
+        self.update_atmosphere(sim_dt);
         self.clock += sim_dt * self.tuning.animation_speed;
+        renderer.set_sky_state(sky::state(self.atmosphere.intensity(), self.clock));
 
         self.update_day(sim_dt, renderer.render_experiments().freeze_sun);
 
