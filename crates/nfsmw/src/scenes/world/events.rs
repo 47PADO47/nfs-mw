@@ -15,7 +15,7 @@ use blackbox_attrib::vlt_hash;
 use blackbox_damage::Damage;
 use blackbox_sequence::{Player, QueueMode};
 use glam::Vec3;
-use nfsmw_data::car::damage::{PUNCTURE_SEVERITY, ZONE_HAS_GLASS, ZONE_WHEEL, revealed_overlays};
+use nfsmw_data::car::damage::{ZONE_HAS_GLASS, revealed_overlays};
 use nfsmw_data::car::physics::{CarEventSpec, DAMAGE_ZONES};
 use nfsmw_data::world::sequences::{TAGS, WorldEvent};
 
@@ -118,12 +118,6 @@ impl VehicleEvents {
             }
             let level = (hit.force / self.spec.strength * self.spec.visual_scale[zone]).clamp(0.0, 6.0) as usize;
             log::debug!("vehicle damage {}: force {:.1}, impact level {level}", DAMAGE_ZONES[zone], hit.force);
-            if level >= PUNCTURE_SEVERITY
-                && let Some(wheel) = ZONE_WHEEL[zone]
-                && self.damage.puncture(wheel)
-            {
-                log::info!("tire {wheel} punctured by a hit on {}", DAMAGE_ZONES[zone]);
-            }
             if self.damage.impact(zone, level as u8, ZONE_HAS_GLASS[zone]) {
                 log::info!("vehicle damage {} now {:?}", DAMAGE_ZONES[zone], self.damage.zone(zone));
             }

@@ -436,11 +436,6 @@ impl CarSim {
         };
         let changed = events.damage.impact(zone, severity, glazed);
         log::info!("damage: zone {zone} severity {severity}, changed {changed}, now {:?}", events.damage.zone(zone));
-        if usize::from(severity) >= nfsmw_data::car::damage::PUNCTURE_SEVERITY
-            && let Some(wheel) = nfsmw_data::car::damage::ZONE_WHEEL.get(zone).copied().flatten()
-        {
-            events.damage.puncture(wheel);
-        }
         changed
     }
 
