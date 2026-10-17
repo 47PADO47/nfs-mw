@@ -11,5 +11,6 @@ fn aces(x: vec3<f32>) -> vec3<f32> {
 @fragment
 fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let c = textureLoad(src, vec2<i32>(in.clip.xy), 0);
-    return vec4<f32>(aces(max(c.rgb, vec3<f32>(0.0)) * params.a.x), c.a);
+    // This pass can be the final output; scene alpha must not make presentation translucent.
+    return vec4<f32>(aces(max(c.rgb, vec3<f32>(0.0)) * params.a.x), 1.0);
 }
