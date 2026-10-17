@@ -40,6 +40,9 @@ mod timing;
 mod ui;
 mod upscale;
 
+mod view_capture;
+#[cfg(test)]
+mod view_capture_tests;
 pub use adapters::available_apis;
 
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
@@ -61,6 +64,8 @@ pub struct Renderer {
     /// Finished captures nobody has polled for yet.
     captures: capture::Captures,
     /// What the scene is drawn into: the surface itself, or an offscreen image at the internal render size.
+    /// The rear-view mirror's off-screen picture and its readback, kept for the next capture of the same size.
+    view_capture: Option<view_capture::ViewCapture>,
     targets: SceneTargets,
     /// The format of the offscreen image when a pass needs HDR: `Rgba16Float`, or the surface format.
     hdr_format: wgpu::TextureFormat,

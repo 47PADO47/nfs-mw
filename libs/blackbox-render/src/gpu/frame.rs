@@ -4,7 +4,6 @@
 use super::Renderer;
 use super::effects::SoftDraw;
 use super::output::Output;
-use super::pipelines::{BLEND_ORDER, SHADINGS};
 use super::post::PassContext;
 use super::resources::Globals;
 use super::targets::SceneTargets;
@@ -103,11 +102,13 @@ impl Renderer {
         if let Some(timing) = &mut self.timing {
             timing.stamp(encoder, 7);
         }
-        self.encode_scene_mode(encoder, targets, output, frame, instances, None);
+        self.encode_scene_mode(encoder, targets, output, frame, instances, false, None);
         self.encode_motion(encoder, targets, instances);
     }
 
-    /// Reflection views omit effects, AO and glossy draws (no reflective-object feedback).
+    /// Reflection views omit effects, AO and glossy draws (no reflective-object feedback). `reduced` views
+    /// (the rear-view mirror) take no shadows or AO in the shader, but keep effects and glossy draws.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn encode_scene_mode(
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
@@ -116,6 +117,7 @@ impl Renderer {
         frame: &FrameParams,
         instances: &[Instance],
         capture: Option<&mut super::reflections::CaptureView>,
+        reduced: bool,
     ) {
         let reflection = capture.is_some();
         let [r, g, b] = frame.clear_color;
@@ -149,7 +151,7 @@ impl Renderer {
             camera_pos: frame.camera_position.extend(1.0).to_array(),
             light_dir: frame.light_dir.normalize_or_zero().extend(0.0).to_array(),
             fog_color: [r, g, b, 1.0],
-            fog_range: [fog_start, fog_end, mip_bias, u8::from(reflection) as f32],
+            fog_range: [fog_start, fog_end, mip_bias, u8::from(reflection || reduced) as f32],
             scatter_rayleigh,
             scatter_mie,
             to_sun,

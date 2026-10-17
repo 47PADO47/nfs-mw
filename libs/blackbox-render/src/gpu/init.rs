@@ -197,6 +197,7 @@ fn assemble(output: Output, adapter: &wgpu::Adapter, device: wgpu::Device, queue
         caps,
         graphics: GraphicsSettings::default(),
         captures: capture::Captures::default(),
+        view_capture: None,
         targets,
         hdr_format,
         post,
