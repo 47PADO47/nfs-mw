@@ -77,6 +77,7 @@ pub(super) fn header(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Se
             ui.colored_label(egui::Color32::YELLOW, format!("{}: {}", downgrade.setting, downgrade.reason));
         }
     }
+    saved::show(ui, lab, settings);
 }
 fn reset(lab: &mut GraphicsLab, settings: &mut Settings) {
     let mut defaults = *settings;

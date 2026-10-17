@@ -12,6 +12,7 @@ mod gui;
 mod hud;
 mod input;
 mod movie;
+mod preset_store;
 mod save_format;
 mod saves;
 mod scenes;

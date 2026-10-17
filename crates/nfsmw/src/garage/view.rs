@@ -33,6 +33,7 @@ pub fn show(ctx: &egui::Context, open: &mut bool, model: &mut Model, settings: &
                     ui.weak("F6 / Esc to close");
                 });
             });
+            super::presets::show(ui, model);
             ui.separator();
             let height = (ui.available_height() - 36.0).max(260.0);
             if model.preview {
