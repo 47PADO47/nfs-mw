@@ -6,9 +6,18 @@ use crate::info::InfoRecord;
 use crate::layout::PackLayout;
 use crate::{Error, Result, Texture, TexturePack};
 
-pub(super) fn read(file: &[u8], entries: Chunk<'_>, layout: &'static PackLayout, out: &mut TexturePack) {
+pub(super) fn read(
+    file: &[u8],
+    entries: Chunk<'_>,
+    layout: &'static PackLayout,
+    keep: &impl Fn(u32) -> bool,
+    out: &mut TexturePack,
+) {
     for e in entries.payload.chunks_exact(layout.entry_len) {
         let hash = u32::from_le_bytes(e[0..4].try_into().unwrap());
+        if !keep(hash) {
+            continue;
+        }
         match read_compressed_texture(file, e, layout) {
             Ok(t) => out.textures.push(t),
             Err(why) => out.failed.push((hash, why.to_string())),

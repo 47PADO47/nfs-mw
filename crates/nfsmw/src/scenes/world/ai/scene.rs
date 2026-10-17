@@ -65,9 +65,10 @@ impl WorldScene {
         traffic.configure(wanted, share);
         traffic.set_lights(self.traffic_setting.lights);
         traffic.set_avoidance(self.traffic_setting.avoidance);
-        if traffic.wants_models() && self.residency.complete() {
-            load_requested(self, renderer);
-        }
+        // The models the manager asks for are read on the loader's worker. A warm-up run (`traffic warmup`) waits for
+        // them in the frame they are asked for, so it sees the same cars every time; a playing scene does not wait.
+        let (submit, blocking) = (self.residency.complete() && traffic.wants_models(), !traffic.settled());
+        load_requested(self, renderer, submit, blocking);
         if self.traffic_setting.lights && self.lamp_meshes.is_none() {
             self.lamp_meshes = Some(LampMeshes::upload(renderer));
         }

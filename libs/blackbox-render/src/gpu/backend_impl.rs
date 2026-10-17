@@ -175,8 +175,21 @@ impl RenderBackend for Renderer {
         self.begin_capture(size, frame, instances)
     }
 
+    /// Reduced and not waited for: the picture is read back on a later frame (see `begin_view_capture`).
+    fn request_view_capture(
+        &mut self,
+        size: [u32; 2],
+        frame: &FrameParams,
+        instances: &[Instance],
+    ) -> Result<CaptureId, RenderError> {
+        self.begin_view_capture(size, frame, instances)
+    }
+
     fn poll_capture(&mut self, id: CaptureId) -> Option<Result<RgbaImage, RenderError>> {
-        self.take_capture(id).map(Ok)
+        if let Some(image) = self.take_capture(id) {
+            return Some(Ok(image));
+        }
+        self.poll_view_capture(id.raw())
     }
 
     fn stats(&self) -> RenderStats {

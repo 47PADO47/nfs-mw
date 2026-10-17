@@ -24,7 +24,7 @@ Evidence tags in this file: [verified], [decomp], [community], [unconfirmed]. Se
 | # | Feature | Original (speed.exe) | Port default | Backends | Main target |
 |---|---|---|---|---|---|
 | 1 | Car environment cube size | 256 px faces when the car env option is on, 16 px when off [decomp] | medium = 128 | native only (bevy `local_reflections` is false) | `libs/blackbox-gfx/src/reflection.rs`, `libs/blackbox-render/src/gpu/reflections.rs` |
-| 2 | Rear mirror size | 256 x 256 [verified bytes] | 384 x 131 (fixed) | native; bevy has `request_capture` (mirror use not checked) | `crates/nfsmw/src/app/mirror.rs` |
+| 2 | Rear mirror size | 256 x 256 [verified bytes] | 384 x 131 (fixed) | native (`request_view_capture`); bevy falls back to a full `request_capture` (mirror use not checked) | `crates/nfsmw/src/app/mirror.rs` |
 | 3 | Wet-road reflection | 320 x 240 target, enabled by the road option [decomp] | not implemented | native (new pass) | new `libs/blackbox-render/src/gpu/road_reflection.rs` (proposed) |
 | 4 | Front-end car cube | same cube routine as car env, size unconfirmed [unconfirmed] | not implemented | native | `crates/nfsmw/src/frontend/` (proposed) |
 | 5 | Auto size and power-of-two rounding | none (sizes are fixed) | off | native | `libs/blackbox-gfx/src/reflection/size.rs` (proposed) |
@@ -95,8 +95,9 @@ The port's own quality enum sets the car capture size: off 0, low 64, medium 128
   `mirror.rs`. The bezel aspect stays fixed, so the scale changes detail, not shape. Auto rule: height = output
   height / 6, width = height x (384 / 131), then the section 5 rules.
 - **Console and menu.** `reflection_mirror_scale`; row "Mirror Reflection Size".
-- **Backends.** The mirror is a HUD texture fed by `request_capture`. The native backend supports it. Bevy has a
-  `request_capture` (`libs/blackbox-bevy-render/src/facade.rs`), but whether the mirror works there is
+- **Backends.** The mirror is a HUD texture fed by `request_view_capture`. The native backend has its own reduced,
+  non-blocking path. Bevy does not override it, so it falls back to a full `request_capture`
+  (`libs/blackbox-gfx/src/backend.rs`). Whether the mirror works there is
   **[unconfirmed]**. Gate the row with `caps` once checked.
 - **Target.** `crates/nfsmw/src/app/mirror.rs` (size and scale). The capture input is `scene.rear_view` in
   `crates/nfsmw/src/scenes/world/rear_view.rs`.
@@ -347,7 +348,7 @@ reflection key; road and front-end keys stay hidden until their pass exists.
 7. Restored items in section 8 are mod claims. Each needs an in-game comparison.
 8. The port's reflection mirror picture: the RVM mask and mirror shape are not part of this spec (see
    docs/specs/rear-view-mirror.md).
-9. Bevy mirror support: unchecked. Next lead: whether `request_capture` runs the mirror path in the Bevy harness.
+9. Bevy mirror support: unchecked. Next lead: whether `request_view_capture` runs the mirror path in the Bevy harness.
 
 ## 17. Port status
 

@@ -3,6 +3,10 @@ use std::sync::Arc;
 
 use crate::package::{ObjectData, ObjectKind, Package, Script, flags};
 
+/// Guid and name lookups, hit on the per-frame message and update paths. They are only looked up, never iterated,
+/// so a cheap hasher cannot change results; the fixed seed keeps runs deterministic.
+pub type FastMap<K, V> = HashMap<K, V, foldhash::fast::FixedState>;
+
 /// The live state of one object.
 #[derive(Clone, Debug)]
 pub struct ObjState {
@@ -29,8 +33,8 @@ pub struct ObjState {
 pub struct Running {
     pub def: Arc<Package>,
     pub objects: Vec<ObjState>,
-    pub by_guid: HashMap<u32, usize>,
-    pub by_name: HashMap<u32, usize>,
+    pub by_guid: FastMap<u32, usize>,
+    pub by_name: FastMap<u32, usize>,
     /// Depth-first order: the order objects are updated in.
     pub order: Vec<usize>,
     pub current_button: Option<usize>,
@@ -46,8 +50,8 @@ pub struct Running {
 
 impl Running {
     pub fn new(def: Arc<Package>) -> Self {
-        let mut by_guid = HashMap::new();
-        let mut by_name = HashMap::new();
+        let mut by_guid = FastMap::default();
+        let mut by_name = FastMap::default();
         for (i, o) in def.objects.iter().enumerate() {
             by_guid.entry(o.guid).or_insert(i);
             by_name.entry(o.name_hash).or_insert(i);

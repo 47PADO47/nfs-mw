@@ -1,9 +1,10 @@
 //! A set of loaded collision packs plus the grid that finds them: the engine's `WCollisionAssets`
 //! and `WCollisionMgr` in one value.
 
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 
-use crate::grid::Grid;
+use crate::grid::{Grid, InstanceRef};
 use crate::math::{Vec3, dot, sub};
 use crate::query::{cast_instance, prepare_segment};
 use crate::{CollisionPack, Hit, HitKind, RayOptions};
@@ -16,12 +17,15 @@ pub struct CollisionWorld {
     /// the grid's candidates, since no grid cell names them.
     ungridded: Vec<CollisionPack>,
     revision: u64,
+    /// The grid's candidate list of the last cast, kept so casts after warm-up do not allocate. A cast takes the
+    /// buffer out and puts it back, so a predicate that casts again never meets a live borrow.
+    candidates: RefCell<Vec<InstanceRef>>,
 }
 
 impl CollisionWorld {
     /// A world that picks candidates with `grid`, or tests every loaded instance without one.
     pub fn new(grid: Option<Grid>) -> Self {
-        Self { grid, packs: BTreeMap::new(), ungridded: Vec::new(), revision: 0 }
+        Self { grid, packs: BTreeMap::new(), ungridded: Vec::new(), revision: 0, candidates: RefCell::default() }
     }
 
     /// Adds (or replaces) a section's pack, applying the game's post-load exclusion flags.
@@ -73,6 +77,17 @@ impl CollisionWorld {
         self.revision
     }
 
+    /// Takes the candidate buffer out for a cast. Pair with [`Self::return_candidates`]; a cast that finds it
+    /// already taken (a predicate casting again) gets an empty buffer and allocates its own.
+    pub(crate) fn take_candidates(&self) -> Vec<InstanceRef> {
+        self.candidates.take()
+    }
+
+    /// Puts a buffer from [`Self::take_candidates`] back so the next cast reuses its capacity.
+    pub(crate) fn return_candidates(&self, refs: Vec<InstanceRef>) {
+        *self.candidates.borrow_mut() = refs;
+    }
+
     /// Whether every instance referenced by the grid near `point` has a resident pack.
     /// Includes all cells touched by the xz square, so missing adjacent collision is detected
     /// before a body crosses a cell edge. `None` means there is no grid to establish coverage.
@@ -119,11 +134,14 @@ impl CollisionWorld {
         };
         match &self.grid {
             Some(grid) => {
-                for r in grid.instances_along(seg.0, seg.1) {
+                let mut refs = self.candidates.take();
+                grid.instances_along_into(seg.0, seg.1, &mut refs);
+                for r in &refs {
                     if let Some(pack) = self.packs.get(&r.section()) {
                         test(pack, r.index());
                     }
                 }
+                *self.candidates.borrow_mut() = refs;
             }
             None => {
                 for pack in self.packs.values() {

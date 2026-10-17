@@ -10,6 +10,7 @@ pub(super) fn read(
     pack: Chunk<'_>,
     info: Chunk<'_>,
     layout: &'static PackLayout,
+    keep: &impl Fn(u32) -> bool,
     out: &mut TexturePack,
 ) -> Result<(), &'static str> {
     let infos = info.child(ids::TEXTURE_PACK_INFO_TEXTURES).ok_or("no TexturePackInfoTextures")?;
@@ -22,6 +23,9 @@ pub(super) fn read(
 
     for (raw, plat) in infos.payload.chunks_exact(layout.info.len).zip(plats.payload.chunks_exact(layout.plat_len)) {
         let rec = InfoRecord { raw, layout };
+        if !keep(rec.name_hash()) {
+            continue;
+        }
         let image = array.get(rec.image_placement()..rec.image_placement() + rec.image_size());
         let palette = if rec.palette_size() > 0 {
             array.get(rec.palette_placement()..rec.palette_placement() + rec.palette_size())

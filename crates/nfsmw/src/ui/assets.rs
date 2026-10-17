@@ -11,7 +11,8 @@ use blackbox_feng::{Font, Package, fe_hash_upper};
 use blackbox_text::StringTable;
 use blackbox_tpk::{Texture, decode_rgba8, read_texture_packs};
 use game_install::{GameDir, Provider};
-use nfsmw_data::read_unwrapped;
+use nfsmw_data::shared;
+use nfsmw_data::shared_unwrapped;
 
 use super::fonts::CustomFontSet;
 use super::fonts::tier::Tier;
@@ -129,7 +130,7 @@ impl UiAssets {
     pub fn load_with(dir: &GameDir, custom: CustomFontSet) -> Result<Self> {
         let mut fonts = HashMap::new();
         for rel in FONT_FILES {
-            let Ok(data) = read_unwrapped(dir, rel) else { continue };
+            let Ok(data) = shared_unwrapped(dir, rel) else { continue };
             for chunk in find_all(&data, FENG_FONT) {
                 match Font::parse(chunk.payload) {
                     Ok(font) => {
@@ -146,7 +147,7 @@ impl UiAssets {
         let mut stock: HashMap<u32, (u32, u32)> = HashMap::new();
         let mut textures: HashMap<u32, Texture> = HashMap::new();
         for rel in TEXTURE_FILES {
-            let Ok(data) = read_unwrapped(dir, rel) else { continue };
+            let Ok(data) = shared_unwrapped(dir, rel) else { continue };
             let from_install = matches!(dir.provider(rel), Some(Provider::Install));
             match read_texture_packs(&data) {
                 Ok(packs) => {
@@ -171,7 +172,7 @@ impl UiAssets {
             Err(e) => log::warn!("the minimap tiles do not read: {e:#}"),
         }
 
-        let strings = read_unwrapped(dir, "LANGUAGES/English.bin")
+        let strings = shared::language(dir)
             .ok()
             .and_then(|d| StringTable::from_file(&d).map_err(|e| log::warn!("English.bin: {e}")).ok());
 

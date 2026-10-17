@@ -146,6 +146,8 @@ impl Renderer {
             pass.set_scissor_rect(0, 0, settings.shadow_resolution, settings.shadow_resolution);
             pass.set_bind_group(0, &shadows.groups[cascade], &[]);
             pass.set_vertex_buffer(1, shadows.instances[cascade].buffer.slice(..));
+            let mut bound_pipeline: Option<&wgpu::RenderPipeline> = None;
+            let mut bound_texture: Option<&wgpu::BindGroup> = None;
             let mut first = 0;
             while first < selected.len() {
                 let mesh_handle = casters[selected[first]].mesh;
@@ -162,11 +164,17 @@ impl Renderer {
                         BlendMode::AlphaTest => &shadows.cutout,
                         _ => &shadows.opaque,
                     };
-                    pass.set_pipeline(pipeline);
+                    if bound_pipeline.is_none_or(|bound| !std::ptr::eq(bound, pipeline)) {
+                        pass.set_pipeline(pipeline);
+                        bound_pipeline = Some(pipeline);
+                    }
                     let slot = draw.texture.map(|t| self.redirects.get(&t.raw()).copied().unwrap_or(t.raw()));
                     let texture = slot.and_then(|s| self.textures.get(s)).or(self.textures.get(0));
                     let Some(texture) = texture else { continue };
-                    pass.set_bind_group(1, texture, &[]);
+                    if bound_texture.is_none_or(|bound| !std::ptr::eq(bound, texture)) {
+                        pass.set_bind_group(1, texture, &[]);
+                        bound_texture = Some(texture);
+                    }
                     pass.draw_indexed(
                         draw.first_index..draw.first_index + draw.index_count,
                         draw.base_vertex,

@@ -129,28 +129,39 @@ impl Grid {
 
     /// Non-empty cells whose square touches the xz projection of the segment `a`-`b`.
     pub fn nodes_along(&self, a: Vec3, b: Vec3) -> Vec<&GridNode> {
+        let mut out = Vec::new();
+        self.for_each_node_along(a, b, |node| out.push(node));
+        out
+    }
+
+    /// Calls `visit` for each cell [`Self::nodes_along`] lists, in the same order, without collecting them.
+    pub(crate) fn for_each_node_along<'a>(&'a self, a: Vec3, b: Vec3, mut visit: impl FnMut(&'a GridNode)) {
         let (r0, c0) = self.cell_of(a[0].min(b[0]), a[2].min(b[2]));
         let (r1, c1) = self.cell_of(a[0].max(b[0]), a[2].max(b[2]));
-        let mut out = Vec::new();
         for row in r0..=r1 {
             for col in c0..=c1 {
-                if let Some(node) = self.node(self.node_index(row, col))
-                    && self.segment_touches(a, b, row, col)
-                {
-                    out.push(node);
+                let Some(node) = self.node(self.node_index(row, col)) else { continue };
+                if self.segment_touches(a, b, row, col) {
+                    visit(node);
                 }
             }
         }
-        out
     }
 
     /// Distinct instance references in the cells along the segment.
     pub fn instances_along(&self, a: Vec3, b: Vec3) -> Vec<InstanceRef> {
-        let mut refs: Vec<InstanceRef> =
-            self.nodes_along(a, b).iter().flat_map(|n| n.instances.iter().copied()).collect();
-        refs.sort_unstable();
-        refs.dedup();
+        let mut refs = Vec::new();
+        self.instances_along_into(a, b, &mut refs);
         refs
+    }
+
+    /// [`Self::instances_along`] written into `out` (cleared first). A buffer kept across casts stops
+    /// allocating once it has grown to the largest candidate set.
+    pub(crate) fn instances_along_into(&self, a: Vec3, b: Vec3, out: &mut Vec<InstanceRef>) {
+        out.clear();
+        self.for_each_node_along(a, b, |node| out.extend_from_slice(&node.instances));
+        out.sort_unstable();
+        out.dedup();
     }
 
     /// Slab test of the segment against the cell square (xz).

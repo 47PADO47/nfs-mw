@@ -26,11 +26,14 @@ impl CollisionWorld {
         };
         match self.grid() {
             Some(grid) => {
-                for reference in grid.instances_along(segment.0, segment.1) {
+                let mut refs = self.take_candidates();
+                grid.instances_along_into(segment.0, segment.1, &mut refs);
+                for reference in &refs {
                     if let Some(pack) = self.pack(reference.section()) {
                         test(pack, reference.index());
                     }
                 }
+                self.return_candidates(refs);
             }
             None => {
                 for pack in self.packs() {

@@ -3,6 +3,7 @@
 use super::filter::{Blend, Draw, Filter, Params, filter_source};
 use super::treatment_composite::Composite;
 use super::{PassContext, PassIo, PostPass, Scratch};
+use crate::gpu::sized::SizedPair;
 use blackbox_gfx::{ColourTreatment, PostSettings, RgbaImage};
 
 pub(super) fn filter_wgsl() -> String {
@@ -47,7 +48,6 @@ pub(super) fn gain_texture(device: &wgpu::Device, queue: &wgpu::Queue, image: Op
 }
 
 struct Targets {
-    size: (u32, u32),
     luma: [Scratch; 2],
 }
 
@@ -57,7 +57,8 @@ pub(super) struct TreatmentPass {
     composite: Composite,
     gain: wgpu::TextureView,
     luma_format: wgpu::TextureFormat,
-    targets: Option<Targets>,
+    /// The quarter-size blur images, one set per scene size, so a frame at each view size keeps its own.
+    targets: SizedPair<((u32, u32), wgpu::TextureFormat), Targets>,
 }
 
 impl TreatmentPass {
@@ -70,7 +71,7 @@ impl TreatmentPass {
             composite: Composite::new(device, settings, Some(&profile.settings)),
             gain: profile.gain.clone(),
             luma_format: profile.luma_format,
-            targets: None,
+            targets: SizedPair::new(),
         }
     }
 
@@ -103,12 +104,11 @@ impl PostPass for TreatmentPass {
     }
 
     fn encode(&mut self, ctx: &PassContext<'_>, io: &PassIo<'_>, encoder: &mut wgpu::CommandEncoder) {
-        if self.targets.as_ref().is_none_or(|t| t.size != io.input_size) {
+        let luma_format = self.luma_format;
+        let targets = self.targets.get_or_make((io.input_size, luma_format), || {
             let quarter = ((io.input_size.0 / 4).max(1), (io.input_size.1 / 4).max(1));
-            let pair = || std::array::from_fn(|_| Scratch::new(ctx.device, quarter, self.luma_format));
-            self.targets = Some(Targets { size: io.input_size, luma: pair() });
-        }
-        let Some(targets) = &self.targets else { return };
+            Targets { luma: std::array::from_fn(|_| Scratch::new(ctx.device, quarter, luma_format)) }
+        });
         self.filter.set_params(ctx.queue, &self.params);
         Self::blur(&mut self.filter, ctx, io.input, &targets.luma, "fs_luma", encoder);
         self.composite.draw(ctx, io, [&targets.luma[0].view, &self.gain], encoder);

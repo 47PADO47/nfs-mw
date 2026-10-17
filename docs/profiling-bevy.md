@@ -29,6 +29,13 @@ To run something else, put the game arguments after `--`:
 cargo xtask run trace -- view-world --renderer bevy --drive SKYLINEZT --no-vsync
 ```
 
+The scene's phases are named spans (`bevy_log::info_span!`, entered for the length of their function), so Tracy
+shows them under the one `render::update_scene` system. The render path is `render::scene_update`, `render::draw`,
+`render::mirror` and `render::submit`. The world is `world::update` (with `world::residency`, `world::simulation`,
+`world::physics_step`, `world::traffic_step`, `world::props_step`, `world::props_lifetimes`, `world::shadow_feed`,
+`world::reflections`) and the visibility and frame building is `world::frame`. Outside a trace run no subscriber is
+installed, so the spans only cost a callsite check.
+
 ## The `SymInitialize` message
 
 Starting the trace build with `tracing-tracy` 0.11 (`tracy-client-sys` 0.29) printed the following. It has not been

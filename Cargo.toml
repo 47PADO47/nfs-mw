@@ -114,6 +114,7 @@ bevy_diagnostic = "=0.20.0"
 bevy_ecs = "=0.20.0"
 bevy_image = "=0.20.0"
 bevy_light = "=0.20.0"
+bevy_log = "=0.20.0"
 bevy_material = "=0.20.0"
 bevy_math = "=0.20.0"
 bevy_mesh = "=0.20.0"
@@ -138,10 +139,12 @@ directories = "6"
 discord-rich-presence = "=1.1.0"
 egui = "0.36"
 env_logger = "0.11"
+foldhash = "0.2.0"
 glam = { version = "0.34", features = ["bytemuck"] }
 kira = { version = "0.12", default-features = false, features = ["cpal"] }
 libloading = "0.8"
 log = "0.4"
+mimalloc = { version = "0.1", default-features = false }
 naga = { version = "30", default-features = false, features = ["wgsl-in"] }
 png = "0.18"
 pollster = "0.4"
@@ -175,3 +178,16 @@ opt-level = 1
 [profile.dev.package."*"]
 # Decompression and texture decoding are painfully slow unoptimised.
 opt-level = 2
+
+[profile.profiling]
+# Release codegen plus line tables, so Tracy, VTune, Superluminal and perf can name functions and source lines.
+# Same optimisation as release: only debug info is added, so timings stay representative.
+inherits = "release"
+debug = "line-tables-only"
+
+[profile.dist]
+# Shipped builds: fat LTO and one codegen unit for the last few percent of runtime. Much slower to build than release,
+# so use it for releases only, not for iteration.
+inherits = "release"
+lto = "fat"
+codegen-units = 1

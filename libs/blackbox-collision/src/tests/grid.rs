@@ -136,3 +136,48 @@ fn readiness_checks_adjacent_cells_without_waiting_for_distant_packs() {
     assert_eq!(CollisionWorld::default().resident_near([0.0; 3], 5.0), None);
     assert_eq!(world.resident_near([f32::NAN; 3], 5.0), Some(false));
 }
+
+#[test]
+fn reused_candidate_buffer_matches_fresh_ones_and_brute_force() {
+    // Every cell lists all three instances, so the grid path must dedup them and test the same set a
+    // world without a grid tests. The second pass reuses the buffers grown by the first.
+    let tile = article(&[ground_strip(0)], &[], &[ASPHALT]);
+    let placements = [
+        InstanceSpec::upright([-40.0, 0.0, -40.0], [4.0, 1.0, 4.0], 0),
+        InstanceSpec::upright([-10.0, 0.0, 30.0], [4.0, 1.0, 4.0], 0),
+        InstanceSpec::upright([20.0, 0.0, 100.0], [4.0, 1.0, 4.0], 0),
+    ];
+    let packed = pack(7, std::slice::from_ref(&tile), &placements);
+    let all: Vec<Vec<u8>> =
+        (0..12).map(|i| node(i, [&[7 << 16, (7 << 16) | 1, (7 << 16) | 2], &[], &[], &[]])).collect();
+    let mut grid_world = CollisionWorld::new(Some(Grid::parse(&grid_payload(&all)).unwrap()));
+    grid_world.insert(CollisionPack::parse(&packed).unwrap());
+    let mut brute = CollisionWorld::new(None);
+    brute.insert(CollisionPack::parse(&packed).unwrap());
+    let grid = grid_world.grid().unwrap();
+    let every = [InstanceRef(7 << 16), InstanceRef((7 << 16) | 1), InstanceRef((7 << 16) | 2)];
+    assert_eq!(grid.instances_along([-99.0, 0.0, -49.0], [99.0, 0.0, 149.0]), every);
+
+    let opts = RayOptions::default();
+    let segments = [
+        ([-40.0, 5.0, -40.0], [-40.0, -5.0, -40.0]),
+        ([-60.0, 2.0, -20.0], [-20.0, -2.0, -60.0]),
+        ([-10.0, 5.0, 30.0], [-10.0, -5.0, 30.0]),
+        ([-30.0, 3.0, 0.0], [10.0, -3.0, 60.0]),
+        ([20.0, 5.0, 100.0], [20.0, -5.0, 100.0]),
+        ([0.0, 5.0, 100.0], [40.0, -5.0, 100.0]),
+        ([-100.0, 5.0, -50.0], [100.0, 5.0, 150.0]),
+    ];
+    let mut buf = Vec::new();
+    let mut hits = 0;
+    for _ in 0..2 {
+        for (a, b) in segments {
+            grid.instances_along_into(a, b, &mut buf);
+            assert_eq!(buf, grid.instances_along(a, b));
+            let got = grid_world.ray_cast(a, b, &opts);
+            assert_eq!(got, brute.ray_cast(a, b, &opts));
+            hits += usize::from(got.is_some());
+        }
+    }
+    assert!(hits > 0, "the segments must actually hit the ground");
+}

@@ -5,6 +5,7 @@ pub(crate) mod ao;
 mod backend_impl;
 mod capture;
 mod contact;
+mod draw_list;
 mod effects;
 mod frame;
 mod glossy;
@@ -25,6 +26,7 @@ mod reflection_tests;
 mod reflections;
 mod resources;
 mod shadows;
+mod sized;
 mod slots;
 mod spatial_aa;
 mod surface;
@@ -38,6 +40,9 @@ mod textures;
 mod timing;
 mod ui;
 mod upscale;
+mod view_capture;
+#[cfg(test)]
+mod view_capture_tests;
 
 pub use adapters::available_apis;
 
@@ -59,6 +64,8 @@ pub struct Renderer {
     graphics: blackbox_gfx::GraphicsSettings,
     /// Finished captures nobody has polled for yet.
     captures: capture::Captures,
+    /// The rear-view mirror's off-screen picture and its readback, kept for the next capture of the same size.
+    view_capture: Option<view_capture::ViewCapture>,
     /// What the scene is drawn into: the surface itself, or an offscreen image at the internal render size.
     targets: SceneTargets,
     /// The format of the offscreen image when a pass needs HDR: `Rgba16Float`, or the surface format.
@@ -91,6 +98,8 @@ pub struct Renderer {
     ui: ui::Ui,
     /// Texture slot -> slot drawn in its place (animated textures).
     redirects: std::collections::HashMap<usize, usize>,
+    /// The colour pass's draws, bucketed by pipeline. Rebuilt by each scene pass; kept for its capacity.
+    draw_list: draw_list::DrawList,
 }
 
 impl Renderer {

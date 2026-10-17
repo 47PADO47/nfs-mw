@@ -142,10 +142,12 @@ fn fs_opaque(in: VsOut) -> @location(0) vec4<f32> {
 
 @fragment
 fn fs_alpha_test(in: VsOut) -> @location(0) vec4<f32> {
-    let c = shade(in, true);
-    if c.a < 0.5 {
+    // The same base alpha `shade` returns, so the cutoff runs before the lighting and shadow work.
+    let alpha = (textureSampleBias(diffuse, diffuse_sampler, in.uv, globals.fog_range.z) * in.color).a;
+    if alpha < 0.5 {
         discard;
     }
+    let c = shade(in, true);
     return vec4<f32>(c.rgb, 1.0);
 }
 

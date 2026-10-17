@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use blackbox_streaming::{StreamingSection, VisibleSections};
 use game_install::GameDir;
 
-use crate::read_unwrapped;
+use crate::shared_unwrapped;
 
 pub struct WorldIndex {
     pub track: String,
@@ -29,7 +29,7 @@ pub struct WorldIndex {
 impl WorldIndex {
     pub fn open(dir: &GameDir, track: &str) -> Result<Self> {
         let meta_file = format!("TRACKS/{track}.BUN");
-        let meta = read_unwrapped(dir, &meta_file)?;
+        let meta = shared_unwrapped(dir, &meta_file)?;
         let sections = blackbox_streaming::read_sections(&meta, &blackbox_streaming::layout::MOST_WANTED)
             .with_context(|| format!("reading the streaming index in {meta_file}"))?;
         let visible =

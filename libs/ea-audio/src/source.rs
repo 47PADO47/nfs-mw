@@ -35,7 +35,7 @@ impl ReadAt for [u8] {
 
 impl ReadAt for Vec<u8> {
     fn len(&self) -> u64 {
-        self.as_slice().len() as u64
+        Vec::len(self) as u64
     }
 
     fn read_at(&self, offset: u64, buf: &mut [u8]) -> usize {
