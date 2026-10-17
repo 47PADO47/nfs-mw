@@ -1,4 +1,5 @@
 //! F8 graphics lab: canonical previews, explicit persistence and reversible comparisons.
+mod detail;
 mod display;
 mod environment;
 mod lighting;
@@ -65,6 +66,7 @@ impl Default for GraphicsLab {
             tab: match std::env::var("NFSMW_LAB_TAB").as_deref() {
                 Ok("lighting") => profiles::Tab::Lighting,
                 Ok("materials") => profiles::Tab::Materials,
+                Ok("detail") => profiles::Tab::Detail,
                 Ok("effects") => profiles::Tab::Effects,
                 Ok("environment") => profiles::Tab::Environment,
                 Ok("diagnostics") => profiles::Tab::Diagnostics,

@@ -115,6 +115,10 @@ impl Scene for WorldScene {
         self.drive.is_some()
     }
 
+    fn set_detail(&mut self, detail: crate::settings::DetailSettings) {
+        self.detail.configure(detail);
+        self.residency.capture_texture_detail(detail.world.mip_discard());
+    }
     fn set_car_shading(&mut self, shading: crate::settings::CarShading) {
         self.car_shading = shading;
     }

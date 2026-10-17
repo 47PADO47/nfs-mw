@@ -19,6 +19,7 @@ mod controls;
 mod controls_tests;
 pub mod custom_fonts;
 pub mod custom_music;
+pub mod detail;
 #[cfg(test)]
 mod discord_tests;
 pub mod eatrax;
@@ -34,6 +35,7 @@ mod fe_shadows_tests;
 pub(crate) mod file;
 #[cfg(test)]
 mod filtering_tests;
+pub use detail::{CarGeometry, DetailSettings, WorldDetail};
 mod graphics;
 mod graphics_preset;
 #[cfg(test)]
@@ -175,6 +177,7 @@ impl From<&Settings> for TrafficSettings {
 /// The resolved settings.
 #[derive(bevy_ecs::resource::Resource, Debug, Clone, Copy, PartialEq)]
 pub struct Settings {
+    pub detail: DetailSettings,
     pub appearance: Appearance,
     pub controls: Controls,
     pub backend: GraphicsApi,
@@ -320,6 +323,7 @@ impl From<Partial> for Settings {
         let requested = p.graphics_preset.unwrap_or_default();
         let p = p.or(requested.layer());
         let mut settings = Self {
+            detail: p.detail.unwrap_or_default(),
             appearance: p.appearance.unwrap_or_default(),
             graphics_preset: requested,
             controls: Controls {

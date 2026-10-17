@@ -115,6 +115,7 @@ pub(super) fn restore_graphics(settings: &mut Settings, snapshot: &Settings) {
 }
 
 pub(super) fn restore_appearance(settings: &mut Settings, snapshot: &Settings) {
+    settings.detail = snapshot.detail;
     settings.appearance = snapshot.appearance;
     settings.graphics_preset = snapshot.graphics_preset;
     settings.car_shading = snapshot.car_shading;

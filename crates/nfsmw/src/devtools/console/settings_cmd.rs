@@ -17,6 +17,12 @@ use crate::settings::{
 /// The text for `get <key>`, or an error naming the valid keys.
 pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
     let value = match key {
+        "world_detail" => settings.detail.world.to_string(),
+        "car_geometry" => settings.detail.car.to_string(),
+        "geometry_range" => settings.detail.geometry_range.to_string(),
+        "visibility_range" => settings.detail.visibility_range.to_string(),
+        "highest_world" => on_off(settings.detail.highest_world).to_owned(),
+        "highest_player" => on_off(settings.detail.highest_player).to_owned(),
         "deadzone_mode" => settings.controls.deadzone_mode.to_string(),
         "steering_deadzone" => settings.controls.steering_deadzone.to_string(),
         "camera_deadzone" => settings.controls.camera_deadzone.to_string(),
@@ -108,6 +114,12 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         return set_without_value(settings, key);
     }
     match key {
+        "world_detail" => settings.detail.world = value.parse()?,
+        "car_geometry" => settings.detail.car = value.parse()?,
+        "geometry_range" => settings.detail.geometry_range = value.parse()?,
+        "visibility_range" => settings.detail.visibility_range = value.parse()?,
+        "highest_world" => settings.detail.highest_world = parse_bool(value)?,
+        "highest_player" => settings.detail.highest_player = parse_bool(value)?,
         "deadzone_mode" => settings.controls.deadzone_mode = value.parse()?,
         "steering_deadzone" => settings.controls.steering_deadzone = value.parse()?,
         "camera_deadzone" => settings.controls.camera_deadzone = value.parse()?,
@@ -197,6 +209,8 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
 /// The on/off settings, which `set <key>` flips.
 fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
     match key {
+        "highest_world" => Some(&mut settings.detail.highest_world),
+        "highest_player" => Some(&mut settings.detail.highest_player),
         "vsync" => Some(&mut settings.vsync),
         "invert_camera_y" => Some(&mut settings.controls.invert_camera_y),
         "hud" => Some(&mut settings.hud),
@@ -224,6 +238,9 @@ fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
 /// What a setting accepts, for the usage line.
 fn syntax(key: &str) -> Option<&'static str> {
     Some(match key {
+        "world_detail" => "<low|medium|high|maximum>",
+        "car_geometry" => "<low|high|highest>",
+        "geometry_range" | "visibility_range" => "<1x|1.5x|2x>",
         "deadzone_mode" => "<rescaled|cutoff>",
         "steering_deadzone" | "camera_deadzone" | "trigger_deadzone" => "<0-95>",
         "steering_sensitivity" | "camera_sensitivity" | "mouse_sensitivity" => "<1-400>",

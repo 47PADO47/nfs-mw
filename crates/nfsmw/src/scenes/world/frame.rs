@@ -16,18 +16,27 @@ impl WorldScene {
             fov_y_radians: lens.fov_y_degrees.to_radians(),
             light_dir: self.sun.direction().to_array(),
         };
+        let car_view = super::drive::DetailView {
+            view: blackbox_scenery::LodView {
+                position: cull.position,
+                forward: cull.forward,
+                pixel_scale: blackbox_scenery::LodView::pixel_scale_for(cull.fov_y_radians, 480.0),
+            },
+            settings: self.detail.settings,
+        };
         let rules = &blackbox_scenery::layout::MOST_WANTED.lod;
         let original = self.original_shadows;
         let caster_distance = match self.shadow_feed.fed {
             true => 0.0,
             false => self.shadow_quality.sampling().2,
         };
-        visibility::collect_unsorted_with_shadows(
+        visibility::collect_main(
             self.residency.placed().filter(|p| original || !p.original_shadow),
             &cull,
             rules,
             self.residency.props(),
             caster_distance,
+            &mut self.detail,
             &mut self.visible,
         );
         self.residency.props().fragment_instances(&mut self.visible);
@@ -37,13 +46,13 @@ impl WorldScene {
         if let Some(traffic) = &mut self.traffic {
             let placed = self.residency.placed().filter_map(super::ai::signal_props::candidate);
             traffic.update_signal_props(self.residency.visual_revision(), placed);
-            traffic.instances(&mut self.visible);
+            traffic.instances_with_detail(Some(&car_view), &mut self.visible);
             let lamps = self.lamp_meshes.as_ref().filter(|_| self.traffic_setting.lights);
             traffic.lamp_instances(lamps, lens.position, self.residency.props(), &mut self.visible);
         }
         if let Some(drive) = &self.drive {
             if render_player(self.view, self.camera_mode, drive.camera_looking_back(self.camera_mode)) {
-                drive.instances(&mut self.visible);
+                drive.instances_with_detail(Some(&car_view), &mut self.visible);
             }
             if let (true, Some(meshes)) = (self.markers_on, &self.marker_meshes) {
                 drive.marker_instances(meshes, &mut self.visible);

@@ -242,6 +242,7 @@ pub trait Scene {
     /// Apply the optional smoke presentation quality. Scenes without tires ignore it.
     fn set_smoke_quality(&mut self, _quality: crate::settings::SmokeQuality) {}
     /// Apply the car shading setting: the scene re-uploads its cars when it changes. Scenes without cars ignore it.
+    fn set_detail(&mut self, _detail: crate::settings::DetailSettings) {}
     fn set_car_shading(&mut self, _shading: crate::settings::CarShading) {}
     /// Rain on every track, and its amount (0 to 1). Scenes without a road ignore it.
     fn set_rain(&mut self, _always: bool, _amount: f32) {}

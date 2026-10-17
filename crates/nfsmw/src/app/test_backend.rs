@@ -36,6 +36,7 @@ pub struct NullBackend {
     pub mesh_labels: std::collections::HashMap<MeshHandle, String>,
     /// The live textures of a tracking backend, by handle, with their labels.
     pub texture_labels: std::collections::HashMap<TextureHandle, String>,
+    pub texture_sizes: std::collections::HashMap<TextureHandle, [u32; 3]>,
     pub mesh_draws: std::collections::HashMap<MeshHandle, Vec<blackbox_gfx::DrawRange>>,
     pub mesh_tangents: std::collections::HashMap<MeshHandle, Vec<[f32; 4]>>,
     pub normal_descriptors:
@@ -73,6 +74,7 @@ impl NullBackend {
             next_glossy: 0,
             mesh_labels: Default::default(),
             texture_labels: Default::default(),
+            texture_sizes: Default::default(),
             mesh_draws: Default::default(),
             mesh_tangents: Default::default(),
             normal_descriptors: Default::default(),
@@ -159,6 +161,7 @@ impl RenderBackend for NullBackend {
         let handle = TextureHandle::from_raw(self.next_texture);
         self.next_texture += 1;
         self.texture_labels.insert(handle, desc.label.to_owned());
+        self.texture_sizes.insert(handle, [desc.width, desc.height, desc.mips.len() as u32]);
         if self.track_textures {
             self.textures.insert(handle);
             self.resources.lock().unwrap().textures += 1;
@@ -167,6 +170,7 @@ impl RenderBackend for NullBackend {
     }
     fn destroy_texture(&mut self, handle: TextureHandle) {
         self.texture_labels.remove(&handle);
+        self.texture_sizes.remove(&handle);
         if self.textures.remove(&handle) {
             let mut counts = self.resources.lock().unwrap();
             counts.textures -= 1;

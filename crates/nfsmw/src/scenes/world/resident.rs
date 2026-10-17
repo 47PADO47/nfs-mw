@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use blackbox_gfx::{BlendMode, InstanceKey, MeshDesc, MeshHandle, RenderBackend, Shading, TextureHandle, Vertex};
-use blackbox_scene::{Aabb, MaterialLookup, blend_mode, solid_mesh, upload_solid, upload_texture_predecoded};
+use blackbox_scene::{Aabb, MaterialLookup, blend_mode, solid_mesh, upload_solid, upload_texture_predecoded_mips};
 use blackbox_scenery::LodModel;
 use blackbox_solid::Solid;
 use glam::Mat4;
@@ -75,6 +75,7 @@ impl Placed {
 /// Textures and meshes of a section, by name hash.
 #[derive(Default)]
 pub struct SectionResources {
+    pub(super) texture_discard: u32,
     /// Authored road-view placements; never mixed into the player or shadow feed.
     pub(super) reflection_placed: Vec<ReflectionPlaced>,
     pub(super) normal_materials:
@@ -87,6 +88,10 @@ pub struct SectionResources {
 }
 
 impl SectionResources {
+    pub(super) fn with_texture_detail(texture_discard: u32) -> Self {
+        Self { texture_discard, ..Default::default() }
+    }
+
     pub fn upload_textures(&mut self, renderer: &mut dyn RenderBackend, data: &SectionData) {
         self.upload_texture_list(renderer, &data.textures, &data.decoded);
     }
@@ -104,7 +109,11 @@ impl SectionResources {
                 continue;
             }
             let pixels = decoded.get(i).and_then(Option::as_deref);
-            if let Some(handle) = upload_texture_predecoded(renderer, t, pixels) {
+            let discard = match t.name.starts_with("SKY") {
+                true => 0,
+                false => self.texture_discard,
+            };
+            if let Some(handle) = upload_texture_predecoded_mips(renderer, t, pixels, discard) {
                 self.materials.insert(t.name_hash, (handle, blend_mode(Some(t))));
             }
         }

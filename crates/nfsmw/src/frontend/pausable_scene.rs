@@ -233,6 +233,9 @@ impl Scene for Pausable {
         self.effects_dirty = true;
     }
 
+    fn set_detail(&mut self, detail: crate::settings::DetailSettings) {
+        self.inner.set_detail(detail);
+    }
     fn set_car_shading(&mut self, shading: crate::settings::CarShading) {
         self.inner.set_car_shading(shading);
         self.effects_dirty = true;

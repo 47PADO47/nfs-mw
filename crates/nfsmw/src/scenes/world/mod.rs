@@ -11,6 +11,7 @@ mod cargo;
 mod commands;
 mod damage_marks;
 mod day;
+mod detail;
 mod drive;
 mod drive_input;
 mod effects;
@@ -107,6 +108,7 @@ enum View {
 }
 
 pub struct WorldScene {
+    detail: detail::DetailState,
     garage: crate::garage::Model,
     garage_parts: Option<nfsmw_data::car::customization::Inventory>,
     garage_open: bool,

@@ -1,5 +1,4 @@
-//! Which sections are loaded and drawn: the shared sets once, map tiles by the
-//! camera's zone (`docs/specs/visible-sections.md`).
+//! Section residency: shared sets once, map tiles by zone (`docs/specs/visible-sections.md`).
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
@@ -13,6 +12,7 @@ use super::props::PropWorld;
 use super::resident::{Placed, ReflectionPlaced, SectionResources, place, place_reflections};
 use super::zone::Zones;
 mod shadow_support;
+mod texture_detail;
 use crate::modding::content::scenery::MapPack;
 
 #[cfg(test)]
@@ -42,6 +42,7 @@ enum TileState {
 }
 
 pub struct Residency {
+    texture_discard: Option<u32>,
     sections: Vec<StreamingSection>,
     streamer: Streamer,
     shared_total: usize,
@@ -117,6 +118,7 @@ impl Residency {
             mod_packs.iter().map(|pack| Streamer::spawn(pack.path.clone(), vec![pack.section.clone()], 1)).collect();
         sections.extend(mod_packs.iter().map(|pack| pack.section.clone()));
         Self {
+            texture_discard: None,
             shared_total: shared.len(),
             zones,
             sections,
@@ -247,7 +249,7 @@ impl Residency {
             return;
         }
         let pending = std::mem::take(&mut self.shared_pending);
-        let mut shared = SectionResources::default();
+        let mut shared = SectionResources::with_texture_detail(self.texture_discard.unwrap_or(0));
         for data in &pending {
             shared.upload_textures(renderer, data);
         }
@@ -309,7 +311,10 @@ impl Residency {
     }
 
     fn upload_tile(&mut self, renderer: &mut dyn RenderBackend, mut data: SectionData) {
-        let mut resources = SectionResources { anims: std::mem::take(&mut data.anims), ..Default::default() };
+        let mut resources = SectionResources {
+            anims: std::mem::take(&mut data.anims),
+            ..SectionResources::with_texture_detail(self.texture_discard.unwrap_or(0))
+        };
         resources.upload_textures(renderer, &data);
         resources.upload_meshes(renderer, &data, &self.shared);
         let (mut placed, unresolved) = place(&data, &resources, &self.shared, &self.catalog);

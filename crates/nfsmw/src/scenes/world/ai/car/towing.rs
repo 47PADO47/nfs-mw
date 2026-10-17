@@ -75,20 +75,37 @@ impl AiCar {
     }
 
     /// Appends the instances of the car and of its trailer.
+    #[cfg(test)]
     pub fn instances(&self, alpha: f32, out: &mut Vec<Instance>) {
-        self.body_instances(alpha, out);
+        self.instances_with_detail(alpha, None, out);
+    }
+    pub fn instances_with_detail(
+        &self,
+        alpha: f32,
+        detail: Option<&crate::scenes::world::drive::DetailView>,
+        out: &mut Vec<Instance>,
+    ) {
+        self.body_instances_with_detail(alpha, detail, out);
         if let Some(trailer) = &self.trailer {
-            trailer.instances(alpha, out);
+            trailer.instances_with_detail(alpha, detail, out);
         }
     }
 
     fn body_instances(&self, alpha: f32, out: &mut Vec<Instance>) {
+        self.body_instances_with_detail(alpha, None, out);
+    }
+    fn body_instances_with_detail(
+        &self,
+        alpha: f32,
+        detail: Option<&crate::scenes::world::drive::DetailView>,
+        out: &mut Vec<Instance>,
+    ) {
         let revealed = self.sim.events.as_ref().map(|e| e.revealed_slots()).unwrap_or_default();
-        self.rig.instances_for(
-            self.render_id,
+        self.rig.instances_detail(
             &self.pose(alpha),
             self.sim.events.as_ref().map(|e| &e.hidden_slots),
             &revealed,
+            crate::scenes::world::drive::DrawOptions { car: self.render_id, detail, ..Default::default() },
             out,
         );
     }

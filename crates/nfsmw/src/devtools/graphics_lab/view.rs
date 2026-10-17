@@ -44,6 +44,7 @@ pub(super) fn show(
                         appearance(ui, settings);
                     },
                     profiles::Tab::Lighting => lighting::show(ui, lab, settings),
+                    profiles::Tab::Detail => detail::show(ui, settings),
                     profiles::Tab::Materials => {
                         egui::ComboBox::from_label("Texture filtering").selected_text(settings.texture_filtering.label()).show_ui(ui, |ui| {
                             for filtering in crate::settings::TextureFiltering::ALL {

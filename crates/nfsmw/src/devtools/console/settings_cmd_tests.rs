@@ -6,6 +6,22 @@ fn defaults() -> Settings {
 }
 
 #[test]
+fn detail_commands_validate_ranges_and_share_menu_profile_values() {
+    let mut s = defaults();
+    set(&mut s, "world_detail", "medium").unwrap();
+    set(&mut s, "car_geometry", "high").unwrap();
+    set(&mut s, "geometry_range", "2x").unwrap();
+    set(&mut s, "visibility_range", "1.5x").unwrap();
+    set(&mut s, "highest_player", "on").unwrap();
+    assert_eq!(s.detail.world, crate::settings::WorldDetail::Medium);
+    assert_eq!(s.detail.geometry_range, crate::settings::detail::DetailRange::Double);
+    assert_eq!(get(&s, "car_geometry").unwrap(), "car_geometry = high");
+    let before = s;
+    assert!(set(&mut s, "geometry_range", "9x").is_err());
+    assert_eq!(s, before);
+}
+
+#[test]
 fn sets_and_reads_back() {
     let mut s = defaults();
     assert_eq!(set(&mut s, "fps", "60").unwrap(), "fps = 60");

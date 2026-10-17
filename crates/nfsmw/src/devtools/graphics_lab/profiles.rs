@@ -7,18 +7,27 @@ pub(super) enum Tab {
     Look,
     Lighting,
     Materials,
+    Detail,
     Effects,
     Environment,
     Diagnostics,
 }
 impl Tab {
-    pub(super) const ALL: [Self; 6] =
-        [Self::Look, Self::Lighting, Self::Materials, Self::Effects, Self::Environment, Self::Diagnostics];
+    pub(super) const ALL: [Self; 7] = [
+        Self::Look,
+        Self::Lighting,
+        Self::Materials,
+        Self::Detail,
+        Self::Effects,
+        Self::Environment,
+        Self::Diagnostics,
+    ];
     pub fn label(self) -> &'static str {
         match self {
             Self::Look => "Look",
             Self::Lighting => "Lighting",
             Self::Materials => "Materials",
+            Self::Detail => "Detail",
             Self::Effects => "Effects",
             Self::Environment => "Environment",
             Self::Diagnostics => "Diagnostics",
@@ -108,6 +117,9 @@ fn reset(lab: &mut GraphicsLab, settings: &mut Settings) {
             settings.road_reflections = defaults.road_reflections;
             settings.road_reflection_resolution = defaults.road_reflection_resolution;
             settings.car_shading = defaults.car_shading;
+        }
+        Tab::Detail => {
+            settings.detail = Default::default();
         }
         Tab::Effects => {
             settings.ao = defaults.ao;

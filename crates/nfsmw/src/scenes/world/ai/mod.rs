@@ -313,9 +313,12 @@ impl TrafficWorld {
     }
 
     pub fn instances(&self, out: &mut Vec<Instance>) {
+        self.instances_with_detail(None, out);
+    }
+    pub(super) fn instances_with_detail(&self, detail: Option<&super::drive::DetailView>, out: &mut Vec<Instance>) {
         let alpha = self.alpha;
         for car in &self.cars {
-            car.instances(alpha, out);
+            car.instances_with_detail(alpha, detail, out);
         }
         self.police.instances(out);
     }

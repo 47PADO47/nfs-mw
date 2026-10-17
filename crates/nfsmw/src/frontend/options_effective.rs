@@ -6,6 +6,9 @@ impl Setting {
     /// What the data string shows on a renderer with these capabilities: the value it actually runs, so a stored
     /// `taa` reads FXAA on a renderer that has no TAA.
     pub fn data_in(self, s: &Settings, caps: &Capabilities) -> Data {
+        if self == Setting::Graphics(GraphicsSetting::WorldDetail) {
+            return Data::Text(format!("{} (Textures: next world load)", s.detail.world.label()));
+        }
         if self == Setting::Renderer(RendererSetting::RayTracing) && !caps.ray_tracing.is_available() {
             return Data::Text("Unavailable".into());
         }
