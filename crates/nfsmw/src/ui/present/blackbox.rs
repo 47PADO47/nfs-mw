@@ -8,7 +8,7 @@ use blackbox_feng::{NodeKind, UiNode, UiTree, font::TextStyle};
 use blackbox_gfx::{UiLayer, UiMesh, UiTextureId, UiVertex};
 use glam::{Vec3, Vec4};
 
-use super::{Screen, mask};
+use super::{Screen, mask, repeat};
 use crate::gui::{OwnedPatch, UiOutput};
 use crate::ui::UiAssets;
 use crate::ui::assets::Image;
@@ -17,6 +17,8 @@ use crate::ui::assets::Image;
 const HUD_TEXTURE_BIT: u64 = 1 << 62;
 /// Ids of masked multi images (one slot each, rewritten when the mask turns) carry this bit too.
 const MASKED_TEXTURE_BIT: u64 = 1 << 61;
+/// A wrapped filter border is a different upload from the ordinary clamped texture.
+const REPEATED_TEXTURE_BIT: u64 = 1 << 60;
 /// Mask rotations are rebuilt at this resolution, in steps per degree.
 const MASK_STEPS_PER_DEGREE: f32 = 4.0;
 /// The rear-view mirror's picture, uploaded by the app (`app::mirror`). Drawn under the bezel.
@@ -61,6 +63,7 @@ pub struct BlackboxPresenter {
     /// Pictures and masks decoded for composing, by the texture that supplied them (the minimap composes four
     /// of them every frame).
     decoded: HashMap<u32, Image>,
+    repeated: HashMap<u32, ([u32; 2], bool)>,
 }
 
 fn id_of(hash: u32) -> UiTextureId {
@@ -184,6 +187,9 @@ impl BlackboxPresenter {
                         mirror_drawn = true;
                         mirror_picture(tree, &mut builder, scale, origin);
                     }
+                    if mask.is_none() && self.repeated(node, *texture, *uv, assets, out, &mut builder, scale, origin) {
+                        continue;
+                    }
                     let drawn = match mask {
                         Some(mask) => self.masked(node, (*texture, *mask), *mask_rotation, *mask_uv, assets, out),
                         None => self.ensure(*texture, assets, out),
@@ -223,6 +229,44 @@ impl BlackboxPresenter {
             Entry::Occupied(e) => Some(e.into_mut()),
             Entry::Vacant(e) => Some(e.insert(assets.image(key)?)),
         }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn repeated(
+        &mut self,
+        node: &UiNode,
+        texture: u32,
+        uv: [f32; 4],
+        assets: &UiAssets,
+        out: &mut UiOutput,
+        builder: &mut MeshBuilder,
+        scale: f32,
+        origin: [f32; 2],
+    ) -> bool {
+        let Some(tiles) = repeat::tiles(uv) else { return false };
+        let key = assets.resolve(texture);
+        let id = UiTextureId(HUD_TEXTURE_BIT | REPEATED_TEXTURE_BIT | u64::from(key));
+        let (size, additive) = match self.repeated.entry(key) {
+            Entry::Occupied(e) => *e.get(),
+            Entry::Vacant(e) => {
+                let Some(image) = assets.image(key) else { return false };
+                if image.width == 0 || image.height == 0 {
+                    return false;
+                }
+                let metadata = ([image.width, image.height], image.blend == 2);
+                send(id, repeat::pad(&image), out);
+                *e.insert(metadata)
+            }
+        };
+        let corner = |x, y| (node.world * Vec4::new(x - 0.5, y - 0.5, 0.0, 1.0)).truncate();
+        let colour = vertex_colour(node.world_colour, additive);
+        for tile in tiles {
+            let [x0, y0, x1, y1] = tile.rect;
+            let corners = [corner(x0, y0), corner(x1, y0), corner(x1, y1), corner(x0, y1)];
+            let [u0, v0, u1, v1] = repeat::padded_uv(tile.uv, size);
+            builder.quad(id, corners, [[u0, v0], [u1, v0], [u1, v1], [u0, v1]], colour, scale, origin);
+        }
+        true
     }
 
     /// The texture of a multi image: the picture through its mask, rebuilt into the node's own slot when the
