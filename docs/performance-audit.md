@@ -11,7 +11,8 @@ The native renderer ([ADR 0004](decisions/0004-swappable-renderers.md)) was meas
 The audit traced one native frame end to end and the load paths. It looked for work that repeated every frame, work
 that repeated for each car or each file, and work that ran on the frame thread but did not need to.
 
-The base for the "before" numbers is commit `c3d1a951`. The changes are the commits after it on `perf/sweep`.
+The "before" numbers are from the sweep's starting point, with only the benchmark tests added. The changes are the
+commits on `perf/sweep` after those tests.
 
 ## Findings and fixes
 

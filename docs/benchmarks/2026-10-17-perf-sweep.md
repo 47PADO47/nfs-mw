@@ -9,7 +9,10 @@ findings and fixes are in [performance-audit.md](../performance-audit.md). How t
 - Date: 2026-10-17.
 - Backend: headless Vulkan. Resolution 1920x1080.
 - Profile: `release`.
-- Before: commit `c3d1a951`. After: `perf/sweep` at `71c10e21` (system allocator), and the same code built with`n  the `mimalloc` feature, which `6fc27a87` then made the default.
+- Before: the sweep's starting point, with only the two benchmark tests added. After: the sweep with the system
+  allocator, and the same code built with the `mimalloc` feature, which the sweep then made the default.
+- The numbers were taken on a local `main` with a thin-LTO release profile. Rerun on the branch as merged, the
+  "after" numbers matched within run-to-run noise (5 cars 43.8 ms, city with mirror 0.932 ms).
 - Machine: AMD Ryzen 7 9800X3D, NVIDIA GeForce RTX 4070 SUPER (Vulkan, headless), Windows 10.
 - Frame cost: `cargo test --release -p nfsmw --bin nfsmw world_frame_costs -- --ignored --nocapture`.
 - Load timing: `cargo test --release -p nfsmw-data --test real_install load_timing -- --ignored --nocapture`, with
@@ -49,6 +52,5 @@ Release build, real install. Values in milliseconds unless the row says otherwis
 ## Limits
 
 - One sweep, one headless setup. The ranges are the spread of two runs, not a statistical result.
-- The "before" numbers are from commit `c3d1a951`. The mimalloc column adds the allocator change on top of the
-  "after" column.
+- The mimalloc column adds the allocator change on top of the "after" column.
 - The mirror-on rows measure the reduced view capture, not a full second frame.
