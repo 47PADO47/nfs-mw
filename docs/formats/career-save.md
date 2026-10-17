@@ -155,7 +155,7 @@ The fields are written in a different order from their memory order. `Set` is th
 | 0x429B | 2 | 0x26A | SMS counter | the next delivery sequence number |
 | 0x429D | 16 | 0x26C | profile serial text | built from `MW-%d-%.4sXXX` at the first career start |
 | 0x42AD | 4,804 | via manager | node state list | 4 + 300 x 16 bytes |
-| 0x5571 | 456 | global | hint / tip counters | 57 x 8 bytes |
+| 0x5571 | 456 | global | shop part-unlock tiers | 57 x 8 bytes |
 | 0x5739 | 756 | global | pending popup queue | 63 x 12 bytes |
 
 The flags word is identical in all three saves (`0x001DF7F3`), including the fresh `stock` profile, so the saves do not
@@ -172,8 +172,13 @@ event nodes (the game looks nodes up by the hash of ids like `16.1.0`). State fl
 save), 0x4, 0x14, 0xE, 0x1E, 0xD in a late one. Bit 1 (value 2) is tested when the list is saved to refresh a node
 **[exe]**; the other bits are **[unconfirmed]**. The two last dwords hold two floats or hashes only on a few entries.
 
-**Hint counters** **[exe]**: 57 entries `{?, u8 cooldown, u8 count, ...}`; a counter above 3 resets the entry. They drive which
-loading-screen hint is shown next **[unconfirmed]**. Zero in a fresh save.
+**Shop part-unlock table** **[exe + verified]**: 57 entries of 8 bytes, indexed by part category id (4 tires, 5 brakes,
+6 chassis, 7 transmission, 8 engine, 9 induction, 10 nitrous, 11 body kit, 12 spoiler, 13 rims, 14 hood, 15 roof scoop,
+17 gauges, 18 tint, 23 paint, 40 vinyls, 43 numbers, 44/46/48 decal slots, 50 decals). Each entry is two halves
+`{u8 unlocked tier, u8 new-badge tier or 0xFF, u8 views, u8 0}`; the first half is the career table, the second the table of
+the other modes. A fresh profile is all zero in `stock`, `{0,0xFF,0,0}{0,0xFF,2,0}` in `NAME`, and tiers at or near the
+maximum in `mwo`. The full reading is in [career-text-2.md](../specs/career-text-2.md) section 4. (An earlier version of
+this page called it "hint counters"; that was wrong.)
 
 **Pending popup queue** **[exe + verified]**: 63 entries `{u32 type, u32 value, u32 active}` of rewards and notices waiting
 to be shown after a race. Types seen in code: 1 to 0x10 shop part unlocks (brakes 1, engine 2, nitrous 3, induction 4,
@@ -192,13 +197,13 @@ Bits found by reading the code that tests or sets them. A bit not listed was not
 | 1 | 0x2 | set when the Underground 2 cash prompt is shown |
 | 4 | 0x10 | the Rap Sheet is unlocked (script hook `SetHasRapSheet`; adds the Rap Sheet button) |
 | 5 | 0x20 | the opening sequence has been seen (read by `SkipCareerIntro`; set when the rank 15 reputation screen is shown) |
-| 6, 7, 8, 9, 10 | 0x40 to 0x400 | set together by two routines, probably "tutorial / first-time hints seen" **[unconfirmed]** |
+| 6, 7, 8, 9, 10 | 0x40 to 0x400 | set together by two routines (probably one-time dialogs seen) **[unconfirmed]** |
 | 11 | 0x800 | cleared on every load |
 | 12 | 0x1000 | set in a screen routine that touches the stable, unknown |
 | 13 | 0x2000 | set by an availability routine, unknown |
-| 14 | 0x4000 | unlocks cars `0x2CF370F0` and `0x03A94520` (the E3 demo BMW preset); set on the Game Won path |
-| 15 | 0x8000 | unlocks car `0xCB6AAF2F` |
-| 16 | 0x10000 | unlocks car `0x2CF385B2` |
+| 14 | 0x4000 | unlocks the bonus cars `BONUS_C6R` (`0x2CF370F0`) and `E3_DEMO_BMW` (`0x03A94520`); also lifts the shop tier limits; set on the Game Won path |
+| 15 | 0x8000 | unlocks `BONUS_SL65` (`0xCB6AAF2F`) |
+| 16 | 0x10000 | unlocks `BONUS_GT2` (`0x2CF385B2`) |
 | 17 | 0x20000 | bonus-content popup already queued |
 | 18 | 0x40000 | unlocks car `0x34498EB2`; set from a bonus-content probe |
 | 20 | 0x100000 | the scripted E3 demo BMW has been given (set by the add-car routine for preset `0x03A94520`) |
@@ -213,10 +218,10 @@ The stable is copied as one 0x8CC8-byte block, so file and memory layouts are th
 | 0x0FA0 | 75 x 0x198 | customization records (section 4.2) |
 | 0x8728 | 25 x 0x38 | FECareerRecord table (section 4.3) |
 | 0x8CA0 | 4 | **bounty base** (see the tail below) |
-| 0x8CA4 | 2 | u16 counter A |
-| 0x8CA6 | 2 | u16 counter B |
-| 0x8CA8 | 16 | u16 x 8, infraction set 1 |
-| 0x8CB8 | 16 | u16 x 8, infraction set 2 |
+| 0x8CA4 | 2 | u16 times-evaded base |
+| 0x8CA6 | 2 | u16 times-busted base |
+| 0x8CA8 | 16 | u16 x 8, unserved infractions by type |
+| 0x8CB8 | 16 | u16 x 8, served infractions by type |
 
 **Map to the editor offsets in `saves.md`** **[verified]**: money 0x4039 is settings +0x0C; name 0x5A31 is the profile name;
 cars 0xE2ED = 0x5BC5 + 0x8728, the start of the career records (the editor's "cars" are the 25 career records, not the
@@ -225,7 +230,8 @@ cars 0xE2ED = 0x5BC5 + 0x8728, the start of the career records (the editor's "ca
 
 The tail values are the totals of cars that are no longer in the garage. The game's totals add the live per-car values
 (the sum over the owned career records, visited through a small visitor) to these bases **[exe]**. In the three saves the
-bounty base is 0, 0 and 43,116,691, counter A 0, 0, 111 (`mwo` is a heavily played save).
+bounty base is 0, 0 and 43,116,691 and the evaded base 0, 0, 111 (`mwo` is a heavily played save). The Rap Sheet
+summary reads them ([career-text.md](../specs/career-text.md) 6.1).
 
 ### 4.1 FECarRecord, 0x14 bytes, 200 slots
 
@@ -238,8 +244,9 @@ bounty base is 0, 0 and 43,116,691, counter A 0, 0, 111 (`mwo` is a heavily play
 | 0x10 | 1 | index of the customization record, 0xFF = none |
 | 0x11 | 1 | index of the career record, 0xFF = none |
 
-Flags, low half **[exe]**: 0x1 on sale in the car lot, 0x2 owned career car, 0x4 quick-race custom car ("My Cars"), 0x8 an
-unlockable preset ride (the 14 rival cars and the bonus cars), 0x10 an ordinary preset ride, 0x20 not for sale / hidden,
+Flags, low half **[exe]**: 0x1 on sale in the car lot (tab "Stock"), 0x2 owned career car (tab "Career"), 0x4 quick-race custom car
+("My Cars"), 0x8 an unlockable preset ride (tab "Bonus": the 14 rival cars and the bonus cars), 0x10 an ordinary preset ride (tab
+"Preset"), 0x20 not for sale (debug tab); the tab names are the `CARLIST_*` labels of [career-text.md](../specs/career-text.md) 5.2,
 0x40 marks a car as not counted (used in the owned-car count). High half: 0x10000 North America, 0x20000 Europe,
 0x40000 Japan, 0x80000 the "vehicles" root class; the owned cars carry all four (0xF0000). The saves show a few
 combinations the creation code would not produce (class 0x80000 together with 0x1), so the creation rule is not complete
@@ -276,7 +283,7 @@ Named "high scores" in `saves.md`; it is the career statistics and the Rap Sheet
 | 0x000..0xA0B | | zero in the three saves (not read by the code found) |
 | 0xA0C | 4 | number of stored pursuit records (5 in `NAME`, 97 in `mwo`) |
 | 0xA2C | 5 x 0x38 | the five most recent pursuit records. File 0xF2BA is the first one **[community + verified]** |
-| 0xB44..0xBD7 | | lifetime counters, with the ten category totals read by the Rap Sheet at the offsets 0xB4C, 0xB50, 0xB5C, 0xBB4, 0xBB8, 0xBBC, 0xBC0, 0xBC4, 0xBC8, 0xBCC/0xBD0 |
+| 0xB44..0xBD7 | 37 x 4 | lifetime counters (memory `profile + 0x9C24`, a u32 array); index 2 (+0xB4C) police vehicles damaged, 3 (+0xB50) immobilized, 7 (+0xB60) cost to state; the Rap Sheet ranking code reads the ten category totals at +0xB4C, +0xB50, +0xB5C, +0xBB4, +0xBB8, +0xBBC, +0xBC0, +0xBC4, +0xBC8 and +0xBCC/+0xBD0 |
 
 A pursuit record starts with 8 text bytes (an id of the form `MW-<n>...`), then a u32, then a car key, then the pursuit's
 numbers (cost to state, bounty, cops, helicopters, infractions, duration). The ten categories are pursuit length, cops

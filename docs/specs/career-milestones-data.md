@@ -44,7 +44,7 @@ Field hashes are explained in section 1 of the main file.
 | `reckless_ticket` | 1 | no | - | none found |
 | `opponents_damaged` | 1 | no | - | none found |
 
-Label meanings (own wording): 0 spike strips dodged, 1 pursuit time, 2 evade within a time, 3 bounty in one pursuit,
+Label meanings (own wording; the texts are read in [career-text.md](career-text.md) section 3): 0 spike strips dodged, 1 pursuit time, 2 evade within a time, 3 bounty in one pursuit,
 4 consecutive evaded pursuits (no milestone uses it), 5 cost to state, 6 roadblocks dodged, 7 cops tagged ("trade
 paint"), 8 infractions, 9 speed trap speed (used by the speed traps, not by a milestone collection).
 
