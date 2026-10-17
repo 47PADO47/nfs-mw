@@ -4,11 +4,24 @@ use super::*;
 
 impl WorldScene {
     pub fn open(dir: &GameDir, options: Options) -> Result<Self> {
-        let index = WorldIndex::open(dir, DEFAULT_TRACK)?;
-        let audio_environment = nfsmw_data::read_unwrapped(dir, &format!("TRACKS/{DEFAULT_TRACK}.BUN"))
-            .and_then(|bytes| crate::audio::environment_context::EnvironmentMap::read(&bytes))
-            .map_err(|e| log::warn!("audio environment unavailable: {e:#}"))
-            .ok();
+        let drive = options.drive;
+        // These loads need nothing another one produces, so they run at once. Every thread is joined before
+        // any result is used, and errors are reported in the order the steps used to run.
+        let (index, audio_environment, physics, globals, car, gameplay) = std::thread::scope(|s| {
+            let index = s.spawn(|| WorldIndex::open(dir, DEFAULT_TRACK));
+            let audio = s.spawn(|| audio_environment(dir));
+            let physics = s.spawn(|| PhysicsData::load(dir));
+            let globals = s.spawn(|| load_global_textures(dir));
+            let car = s.spawn(move || drive.map(|d| load_pending_car(dir, d)).transpose());
+            let gameplay = s.spawn(|| nfsmw_data::gameplay::load(dir));
+            (joined(index), joined(audio), joined(physics), joined(globals), joined(car), joined(gameplay))
+        });
+        let index = index?;
+        let mut physics = physics?;
+        physics.set_sequences(index.sequences.clone());
+        let globals = globals?;
+        let stream = dir.resolve(&index.stream_file).with_context(|| format!("{} is missing", index.stream_file))?;
+        let pending_car = car?;
         if let Some(environment) = &audio_environment {
             log::info!(
                 "audio environment: map {}, zones {}",
@@ -16,15 +29,12 @@ impl WorldScene {
                 environment.zones_available()
             );
         }
-        let mut physics = PhysicsData::load(dir)?;
-        physics.set_sequences(index.sequences.clone());
         let colour_treatment = nfsmw_data::visual_treatment::midday(physics.database());
         let time_of_day = nfsmw_data::time_of_day::load(physics.database());
         let camera_views = nfsmw_data::camera::load(physics.database());
         if colour_treatment.is_none() {
             log::warn!("midday visual treatment is missing or invalid; grading disabled");
         }
-        let globals = load_global_textures(dir)?;
         let gain_map = nfsmw_data::visual_treatment::gain_map(&globals.textures);
         let breaker_visuals = breaker_visuals::Presentation::new(
             nfsmw_data::visual_treatment::speedbreaker::load(physics.database()),
@@ -44,13 +54,29 @@ impl WorldScene {
         let props = PropCatalog::new(index.prop_bounds.clone(), physics.database())
             .with_hierarchies(index.model_hierarchies.clone());
         log::info!("{} props have collision bounds", props.len());
-        let stream = dir.resolve(&index.stream_file).with_context(|| format!("{} is missing", index.stream_file))?;
-        // The mods' map packs take residency indices after the install's sections; their interiors refer to them by those.
+        // The mods' map packs take residency indices after the install's sections; their interiors refer to them
+        // by those.
         let installed: std::collections::HashSet<i16> = index.sections.iter().map(|s| s.number).collect();
         let first_pack = index.sections.len();
-        let map_packs = crate::modding::content::scenery::packs(dir, crate::modding::content::mod_dirs(), &installed);
-        let interiors =
-            crate::modding::content::interior::load(crate::modding::content::mod_dirs(), &map_packs, first_pack);
+        // The garage catalog reads the physics, sequences included, so it waits for `set_sequences` above. The mod
+        // packs need neither and are read on this thread while the catalog is built.
+        let (garage_catalog, map_packs, interiors) = std::thread::scope(|s| {
+            let garage_catalog = s.spawn(|| garage::catalog(dir, &physics));
+            let map_packs =
+                crate::modding::content::scenery::packs(dir, crate::modding::content::mod_dirs(), &installed);
+            let interiors =
+                crate::modding::content::interior::load(crate::modding::content::mod_dirs(), &map_packs, first_pack);
+            (joined(garage_catalog), map_packs, interiors)
+        });
+        let garage_catalog = garage_catalog?;
+        let (map_blips, entry_zones) = match gameplay {
+            Ok(data) => (super::hud::static_blips(&data), entry_zones::EntryZones::from_data(&data)),
+            Err(e) => {
+                log::warn!("race and interior blips and entry zones are off: {e:#}");
+                (Vec::new(), entry_zones::EntryZones::default())
+            }
+        };
+        let entry_zones = entry_zones.with_interiors(interiors);
         let threads = std::thread::available_parallelism().map_or(4, |n| n.get().clamp(2, 6));
         let streamer = Streamer::spawn(stream.to_path_buf(), index.sections.clone(), threads);
         let start = options.at.unwrap_or_else(|| index.centre());
@@ -61,24 +87,8 @@ impl WorldScene {
             speed: 40.0,
         };
         log::info!("camera starts at ({:.0}, {:.0}), {:.0} m above the ground", start[0], start[1], options.height);
-        let pending_car = options
-            .drive
-            .map(|d| {
-                let (name, model) = load_car(dir, &d.car)?;
-                let script = d.script.as_deref().map(DriveScript::parse).transpose().map_err(anyhow::Error::msg)?;
-                Ok::<_, anyhow::Error>(PendingCar { name, model, script })
-            })
-            .transpose()?;
-        let (map_blips, entry_zones) = match nfsmw_data::gameplay::load(dir) {
-            Ok(data) => (super::hud::static_blips(&data), entry_zones::EntryZones::from_data(&data)),
-            Err(e) => {
-                log::warn!("race and interior blips and entry zones are off: {e:#}");
-                (Vec::new(), entry_zones::EntryZones::default())
-            }
-        };
-        let entry_zones = entry_zones.with_interiors(interiors);
         Ok(Self {
-            garage: garage::catalog(dir, &physics)?,
+            garage: garage_catalog,
             garage_parts: None,
             garage_open: false,
             audio_environment,
@@ -167,4 +177,24 @@ impl WorldScene {
             cop_health: Default::default(),
         })
     }
+}
+
+/// The audio environment of the track, or `None` (with a warning) when it cannot be read.
+fn audio_environment(dir: &GameDir) -> Option<crate::audio::environment_context::EnvironmentMap> {
+    nfsmw_data::shared_unwrapped(dir, &format!("TRACKS/{DEFAULT_TRACK}.BUN"))
+        .and_then(|bytes| crate::audio::environment_context::EnvironmentMap::read(&bytes))
+        .map_err(|e| log::warn!("audio environment unavailable: {e:#}"))
+        .ok()
+}
+
+/// The player's car for `--drive`: its model and its driving script.
+fn load_pending_car(dir: &GameDir, d: DriveOptions) -> Result<PendingCar> {
+    let (name, model) = load_car(dir, &d.car)?;
+    let script = d.script.as_deref().map(DriveScript::parse).transpose().map_err(anyhow::Error::msg)?;
+    Ok(PendingCar { name, model, script })
+}
+
+/// The result of a scoped load. A panic on its thread is raised again here, as it would be on this thread.
+fn joined<T>(handle: std::thread::ScopedJoinHandle<'_, T>) -> T {
+    handle.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic))
 }
