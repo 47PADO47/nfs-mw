@@ -11,6 +11,7 @@ use std::sync::atomic::{AtomicU8, Ordering};
 
 use super::Renderer;
 use super::capture::{is_bgra, pack_rgba};
+use super::output::{HEADLESS_FORMAT, Output};
 use super::targets::{ScenePlan, SceneTargets};
 use crate::{FrameParams, Instance, RenderError};
 use blackbox_gfx::{CaptureId, RgbaImage};
@@ -97,13 +98,25 @@ impl Renderer {
         if self.view_capture.as_ref().is_some_and(|capture| capture.pending.is_some()) {
             return Err(RenderError::Device("a view capture is still in flight".into()));
         }
-        let format = self.output.format();
-        let plan = self.scene_plan((width, height), false);
+        // UI pictures have an RGBA8 SDR contract even when the main window uses float HDR.
+        let mapping = self.post.display;
+        if mapping.is_some() {
+            self.post.set_display(
+                &self.device,
+                Some(super::post::display::Mapping { peak: 1.0, white: 80.0, linear: false }),
+            );
+        }
+        let format = HEADLESS_FORMAT;
+        let plan = self.scene_plan_for_format((width, height), false, format);
         let cached = self
             .view_capture
             .take()
             .filter(|c| c.size == (width, height) && c.format == format && c.scene.matches(&plan));
         let mut capture = cached.unwrap_or_else(|| ViewCapture::new(&self.device, (width, height), format, &plan));
+        let output = std::mem::replace(
+            &mut self.output,
+            Output::Texture { texture: capture.texture.clone(), size: (width, height) },
+        );
 
         let id = self.captures.next_id();
         self.update_irradiance();
@@ -127,6 +140,8 @@ impl Renderer {
         );
         self.queue.submit([encoder.finish()]);
         self.end_temporal();
+        self.output = output;
+        self.post.set_display(&self.device, mapping);
 
         let state = Arc::new(AtomicU8::new(WAITING));
         let on_map = Arc::clone(&state);
