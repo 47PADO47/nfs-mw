@@ -41,6 +41,7 @@ fn real_profiles_round_trip_and_match_the_documented_values() {
         let mut rewritten = ProfileSave::parse(&file).unwrap();
         rewritten.set_settings(&settings).unwrap();
         rewritten.set_stable(&stable);
+        rewritten.set_history(&save.history().unwrap()).unwrap();
         assert_eq!(rewritten.to_bytes(), file, "{name}: parsed blocks written back");
 
         assert!(settings.gameplay_digest_ok(), "{name}: the gameplay blob MD5");

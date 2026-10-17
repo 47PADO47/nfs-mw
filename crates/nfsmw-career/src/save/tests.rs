@@ -183,3 +183,22 @@ fn a_wrong_profile_or_descriptor_checksum_is_accepted_and_repaired_on_write() {
 fn a_profile_buffer_of_the_wrong_size_is_refused() {
     assert!(ProfileSave::from_profile_buffer(&[0; 10]).is_err());
 }
+
+#[test]
+fn the_history_block_is_read_and_written_in_place() {
+    use crate::rapsheet::{PursuitStats, case_id_text};
+    let built = synthetic_save();
+    let mut save = ProfileSave::parse(built.raw()).unwrap();
+    let mut history = crate::rapsheet::PursuitHistory::default();
+    let stats = PursuitStats { car_key: 7, bounty: 900, ticks: 8000, cops_involved: 4, ..PursuitStats::default() };
+    history.record(&stats, false, case_id_text(b"1A2B3C4D"));
+    save.set_history(&history).unwrap();
+    let out = ProfileSave::parse(&save.to_bytes()).unwrap();
+    let again = out.history().unwrap();
+    assert_eq!(again.sums[0], history.sums[0]);
+    assert_eq!(again.top[0].bounty, 900);
+    // file offsets: the sums are at 0xE88E + 0xB44, the top 5 at 0xE88E + 0xA2C, the last car key at 0xE88E + 0xBD4.
+    let file = out.raw();
+    assert_eq!(&file[0xE88E + 0xA2C..0xE88E + 0xA2C + 3], b"MW-");
+    assert_eq!(u32::from_le_bytes(file[0xE88E + 0xBD4..0xE88E + 0xBD8].try_into().unwrap()), 7);
+}

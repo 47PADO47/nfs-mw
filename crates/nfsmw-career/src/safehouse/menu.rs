@@ -66,21 +66,22 @@ impl MenuItem {
     }
 }
 
-/// The three text bindings the screen fills after the items: `CAREER_DATA` (the stage), `BOUNTY_DATA` (the total
-/// bounty of the stable) and `CASH_DATA` (the cash).
+/// The three text bindings the screen fills after the items: `CAREER_DATA` (the career completion percentage of
+/// [`crate::rapsheet::ProfileCard`], not the stage), `BOUNTY_DATA` (the total bounty of the stable) and `CASH_DATA`
+/// (the cash).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MenuBindings {
-    /// The stage text value.
-    pub stage: u8,
+    /// The career completion percent (`%d` followed by the percent sign).
+    pub career_percent: u8,
     /// The stable total bounty.
     pub bounty: u64,
     /// The cash.
     pub cash: u32,
 }
 
-/// Fills the three bindings.
-pub fn bindings(settings: &CareerSettings, stable: &crate::stable::Stable) -> MenuBindings {
-    MenuBindings { stage: settings.stage, bounty: stable.total_bounty(), cash: settings.cash }
+/// Fills the three bindings; `career_percent` comes from [`crate::rapsheet::ProfileCard::compute`].
+pub fn bindings(settings: &CareerSettings, stable: &crate::stable::Stable, career_percent: u8) -> MenuBindings {
+    MenuBindings { career_percent, bounty: stable.total_bounty(), cash: settings.cash }
 }
 
 #[cfg(test)]
@@ -123,7 +124,7 @@ mod tests {
     }
 
     #[test]
-    fn the_bindings_show_stage_bounty_and_cash() {
+    fn the_bindings_show_the_career_percent_bounty_and_cash() {
         let mut s = CareerSettings::new_career();
         s.stage = 12;
         s.cash = 9_000;
@@ -131,6 +132,6 @@ mod tests {
         stable.cars[0] = CarRecord { handle: 1, flags: 0xF_0002, career_index: 0, ..CarRecord::free() };
         stable.careers[0] = CareerRecord { bounty: 777, ..CareerRecord::new(0) };
         stable.sold.bounty = 1_000;
-        assert_eq!(bindings(&s, &stable), MenuBindings { stage: 12, bounty: 1_777, cash: 9_000 });
+        assert_eq!(bindings(&s, &stable, 37), MenuBindings { career_percent: 37, bounty: 1_777, cash: 9_000 });
     }
 }

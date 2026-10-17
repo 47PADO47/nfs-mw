@@ -52,6 +52,8 @@ pub mod profile {
     pub const STABLE: usize = 0x5BA1;
     /// The "career completed at least once" byte (file `0xE88D`).
     pub const COMPLETED_ONCE: usize = 0xE869;
+    /// The statistics / pursuit history block (file `0xE88E`, memory `profile + 0x90E0`).
+    pub const HISTORY: usize = 0xE86A;
     /// The MD5 at the end of the buffer (file `0xF85C`).
     pub const MD5: usize = 0xF838;
     /// Length of the MD5.
@@ -78,5 +80,7 @@ mod tests {
         assert_eq!(profile::MD5 + PROFILE_AT, 0xF85C);
         assert_eq!(profile::MD5 + profile::MD5_LEN, PROFILE_LEN);
         assert_eq!(profile::STABLE + crate::stable::STABLE_LEN, profile::COMPLETED_ONCE);
+        assert_eq!(profile::HISTORY + PROFILE_AT, 0xE88E);
+        assert_eq!(profile::COMPLETED_ONCE + 1, profile::HISTORY);
     }
 }
