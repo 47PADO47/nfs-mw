@@ -14,6 +14,7 @@ pub mod economy;
 mod error;
 pub mod phone;
 pub mod rapsheet;
+pub mod regions;
 pub mod safehouse;
 pub mod save;
 pub mod savefile;
