@@ -203,6 +203,8 @@ every song turns up within 2N picks [confirmed by the Rust tests of the rule, in
   (`,`); the chyron with the artist, title and album comes up when a song starts, pauses or resumes. It is the original
   `EA_TRAX.fng` screen by default (`radio_hud = ea_trax`), with its text faded in and out over the six-second timer (the screen's own fade track is not driven yet),
   or the rewrite's own card (`radio_hud = custom`, `hud/radio.rs`).
+  The host keeps the text group's alpha at zero after expiry; stopping the fade
+  updates at six seconds can retain a faint final frame in the package tree.
 - After a pursuit ends, licensed music resumes after a delay of 40 s [inferred].
 - Music volume 0 stops the licensed music; the front-end and in-game music volumes are separate settings.
 
