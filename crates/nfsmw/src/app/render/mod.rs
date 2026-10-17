@@ -119,6 +119,7 @@ pub fn update_scene(
     mut settings: ResMut<Settings>,
     garage: Res<crate::garage::Overlay>,
 ) {
+    let _span = bevy_log::info_span!("render::scene_update").entered();
     let host = &mut *host;
     let Some(renderer) = host.renderer.as_mut() else { return };
     // The camera hotkey changes the setting in memory (not the config file); the scene follows it below.
@@ -151,6 +152,7 @@ pub fn draw(
     window: Single<&Window, With<PrimaryWindow>>,
     time: Res<Time>,
 ) {
+    let _span = bevy_log::info_span!("render::draw").entered();
     let host = &mut *host;
     let Some(renderer) = host.renderer.as_mut() else { return };
     for patch in ui.patches.drain(..) {
@@ -204,6 +206,7 @@ pub fn draw(
             }
         })
     } else {
+        let _span = bevy_log::info_span!("render::submit").entered();
         renderer.render(&params, instances).map(|_| host.frames += 1).map_err(Into::into)
     };
     if let Err(e) = result {

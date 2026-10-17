@@ -123,6 +123,7 @@ impl super::PropWorld {
                 continue;
             };
             let visible = frustum.intersects(&c.pose(1.0).1);
+        let _span = bevy_log::info_span!("world::props_lifetimes").entered();
             let (Some(body), Some(spec)) = (&mut c.body, &c.shape.dynamics) else { continue };
             if !body.lifetime.active {
                 continue;

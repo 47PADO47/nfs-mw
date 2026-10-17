@@ -40,6 +40,7 @@ impl MirrorOverlay {
         let tint = renderer.graphics().mirror_tint;
         let distance = renderer.graphics().reflection_distance;
         if !self.uploaded {
+        let _span = bevy_log::info_span!("render::mirror").entered();
             // Until the first capture the bezel's picture is clear, so the frame shows the glass only.
             renderer.update_ui_texture(&UiTexturePatch {
                 id: MIRROR_TEXTURE,

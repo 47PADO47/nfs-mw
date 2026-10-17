@@ -295,6 +295,7 @@ impl PropWorld {
             let bounds = self.colliders[&id].physics_bounds();
             for other in self.candidates(&bounds) {
                 if id == other {
+        let _span = bevy_log::info_span!("world::props_step").entered();
                     continue;
                 }
                 pairs.insert((id.min(other), id.max(other)));

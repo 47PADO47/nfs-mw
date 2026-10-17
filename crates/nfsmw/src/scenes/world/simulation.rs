@@ -26,6 +26,7 @@ fn pursuit_feed(traffic: &ai::TrafficWorld, player: Vec3) -> PursuitFeed {
 
 impl WorldScene {
     pub(super) fn update_simulation(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) -> f32 {
+        let _span = bevy_log::info_span!("world::simulation").entered();
         self.prepare_traffic(renderer);
         let speedbreaker = self.tuning.speedbreaker;
         self.speedbreaker_clock.set_dilation(speedbreaker.dilation);
@@ -149,6 +150,7 @@ impl WorldScene {
 
     /// Every moving car integrates before pair contacts, and every pose is captured after those contacts.
     fn physics_step(&mut self, driving: bool, look: (f32, f32)) {
+        let _span = bevy_log::info_span!("world::physics_step").entered();
         let focus = self.traffic_focus();
         let camera = self.simulation_lens(self.physics_aspect);
         let event_view = camera.position;
@@ -162,6 +164,7 @@ impl WorldScene {
             _ => None,
         };
         if let Some(traffic) = self.traffic.as_mut() {
+            let _span = bevy_log::info_span!("world::traffic_step").entered();
             traffic.step(focus, collision, props, surfaces);
             let player = self.drive.as_mut().filter(|_| player_step.is_some()).and_then(|d| d.sim_mut());
             traffic.collide(player);

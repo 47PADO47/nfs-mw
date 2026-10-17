@@ -29,6 +29,7 @@ pub(super) struct CaptureStamp {
 
 impl WorldScene {
     pub(super) fn update_reflections(&mut self, renderer: &mut dyn RenderBackend) {
+        let _span = bevy_log::info_span!("world::reflections").entered();
         let graphics = *renderer.graphics();
         let quality = graphics.reflections;
         let Some(drive) = &self.drive else {

@@ -5,6 +5,7 @@ use blackbox_gfx::{Instance, RenderBackend};
 impl WorldScene {
     pub(super) fn update_shadow_casters(&mut self, renderer: &mut dyn RenderBackend) {
         let settings = renderer.render_experiments();
+        let _span = bevy_log::info_span!("world::shadow_feed").entered();
         if settings.sun_shadows || settings.contact_shadows || settings.car_skylight {
             renderer.set_lighting_rig(&crate::scenes::car::lighting::rig(self.sun.to_sun()));
         }

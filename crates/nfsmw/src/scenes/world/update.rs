@@ -8,6 +8,7 @@ use crate::input::{Action, ActionState};
 impl WorldScene {
     /// Advance the scene by one frame: input, streaming, simulation, effects and captures.
     pub(super) fn update_frame(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
+        let _span = bevy_log::info_span!("world::update").entered();
         self.shadow_quality = renderer.graphics().shadows;
         let idle = ActionState::default();
         let input = match self.garage_open {

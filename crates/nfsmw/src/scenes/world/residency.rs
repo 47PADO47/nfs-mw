@@ -137,6 +137,7 @@ impl Residency {
         self.update_mod_wanted(x, y);
         self.upload_arrived(renderer);
         self.unload_unwanted(renderer);
+        let _span = bevy_log::info_span!("world::residency").entered();
         self.request_wanted();
         self.request_mod();
     }
