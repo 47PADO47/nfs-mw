@@ -19,6 +19,7 @@ use blackbox_gfx::{fsr1_active, rcas_stops};
 use blackbox_gpu_passes::{Fsr1Io, Fsr1Pass, RcasScale, fsr1_passes};
 
 use crate::ops::BlackboxBridge;
+use crate::pipeline_cache::PipelineCacheFile;
 
 /// The pipelines and the scratch texture EASU's output needs when RCAS also runs, created once the
 /// device exists and rebuilt only when sharpening turns on or off (the pass count changes).
@@ -44,10 +45,10 @@ struct Scratch {
 }
 
 impl Fsr1Render {
-    fn get_or_init(&mut self, device: &wgpu::Device, sharpen: bool) -> &mut Inner {
+    fn get_or_init(&mut self, device: &wgpu::Device, sharpen: bool, cache: Option<&wgpu::PipelineCache>) -> &mut Inner {
         let stale = !matches!(&self.inner, Some(inner) if inner.passes.len() == usize::from(sharpen) + 1);
         if stale {
-            self.inner = Some(Inner { passes: fsr1_passes(device, &self.rcas, sharpen, None), scratch: None });
+            self.inner = Some(Inner { passes: fsr1_passes(device, &self.rcas, sharpen, cache), scratch: None });
         }
         self.inner.as_mut().expect("just set")
     }
@@ -90,6 +91,7 @@ impl Inner {
 pub fn fsr1_pass(
     mut render: ResMut<Fsr1Render>,
     bridge: Res<BlackboxBridge>,
+    pipeline_cache: Res<PipelineCacheFile>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
     view: ViewQuery<(&ExtractedCamera, &ViewTarget)>,
@@ -122,7 +124,7 @@ pub fn fsr1_pass(
     }
     let sharpen = stops.is_some();
     let device = device.wgpu_device();
-    let inner = render.get_or_init(device, sharpen);
+    let inner = render.get_or_init(device, sharpen, pipeline_cache.cache());
 
     if !sharpen {
         let io = Fsr1Io {

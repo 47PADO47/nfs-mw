@@ -3,7 +3,7 @@
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 use super::output::Output;
-use super::{Renderer, capture, instances, pipeline_cache, pipelines, post, resources, slots::Slots, targets};
+use super::{Renderer, capture, instances, pipelines, post, resources, slots::Slots, targets};
 use crate::caps::native_capabilities;
 use crate::{Backend, DEFAULT_RENDER_SCALE, PixelFormat, RenderError, RendererOptions, TextureDesc};
 use blackbox_gfx::{BackendInfo, GraphicsApi, GraphicsSettings};
@@ -54,7 +54,8 @@ where
     config.present_mode = if options.vsync { wgpu::PresentMode::AutoVsync } else { wgpu::PresentMode::AutoNoVsync };
     surface.configure(&device, &config);
 
-    let cache = pipeline_cache::open(&device, &adapter.get_info(), options.pipeline_cache_dir.as_deref());
+    let info = adapter.get_info();
+    let cache = blackbox_gpu_passes::pipeline_cache::open(&device, &info, options.pipeline_cache_dir.as_deref());
     Ok(assemble(Output::Window { surface, config }, &adapter, device, queue, cache))
 }
 
@@ -64,7 +65,8 @@ pub(super) fn create_headless(size: (u32, u32), options: RendererOptions) -> Res
     let instance = wgpu::Instance::new(desc);
     let adapter = request_adapter(&instance, None, &options)?;
     let (device, queue) = request_device(&adapter)?;
-    let cache = pipeline_cache::open(&device, &adapter.get_info(), options.pipeline_cache_dir.as_deref());
+    let info = adapter.get_info();
+    let cache = blackbox_gpu_passes::pipeline_cache::open(&device, &info, options.pipeline_cache_dir.as_deref());
     let output = Output::texture(&device, size);
     Ok(assemble(output, &adapter, device, queue, cache))
 }

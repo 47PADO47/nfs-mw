@@ -181,6 +181,7 @@ back; only the *effective* value changes, and the rows show that (a stored `taa`
 
 The native renderer keeps the driver's compiled pipelines in a file, so the next start compiles fewer of them and
 the first use of an effect or a car shader hitches less (see [low-end.md](low-end.md), "Start-up and first use").
+The Bevy backend keeps its own file for the passes it builds (see "Bevy backend" below).
 
 - **Where:** per user, in `<local data dir>/nfsmw/cache/pipelines/`: `%LOCALAPPDATA%\nfsmw\data\cache\pipelines\`
   on Windows, `~/.local/share/nfsmw/cache/pipelines/` on Linux. `BLACKBOX_PROFILE_DIR` moves it to
@@ -196,6 +197,15 @@ the first use of an effect or a car shader hitches less (see [low-end.md](low-en
   sync it (see [licensing.md](licensing.md)): it belongs to one GPU and one driver.
 - **For developers:** `RendererOptions::pipeline_cache_dir` names the directory. Tools and tests pass `None`, which
   keeps no cache. `Renderer::save_pipeline_cache` saves on demand.
+- **Bevy backend:** the passes it builds for itself take the cache too: the world effects, the UI layer, FSR 1, the
+  radial blur and FSR 3 (`blackbox_gpu_passes::pipeline_cache` is the one copy of the code). It keeps its own file in
+  `<local data dir>/nfsmw/cache/pipelines-bevy/` (`BlackboxBevyRenderPlugin::pipeline_cache_dir`), so the two renderers
+  never overwrite each other's pipelines. It saves after its 300th frame and when the render world is dropped at exit.
+- **SMAA on the blackbox renderer:** SMAA 1x is our own WGSL port in `libs/blackbox-smaa` (MIT-style, from
+  [iryoku/smaa](https://github.com/iryoku/smaa), with the `smaa` crate 0.21.0 as the reference). Its three passes take
+  the same cache, so they are not compiled from scratch on each start.
+- **Not cached on the Bevy side:** Bevy's own pipelines (materials, meshes, lights, and the post-processing Bevy
+  builds itself). bevy_render 0.20 creates them with `cache: None`, so the backend cannot cache them from here.
 
 ## Checking it
 

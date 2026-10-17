@@ -15,6 +15,7 @@ use bevy_render::view::ViewTarget;
 use blackbox_gpu_passes::{RadialBlur, RadialBlurIo, RadialBlurSettings};
 
 use crate::ops::BlackboxBridge;
+use crate::pipeline_cache::PipelineCacheFile;
 
 /// The pass, created the first time a frame asks for the blur.
 #[derive(Resource, Default)]
@@ -29,6 +30,7 @@ fn filled_part(out_size: (u32, u32), render_scale: f32) -> [f32; 2] {
 pub fn radial_blur_pass(
     mut render: ResMut<RadialBlurRender>,
     bridge: Res<BlackboxBridge>,
+    pipeline_cache: Res<PipelineCacheFile>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
     view: ViewQuery<(&ExtractedCamera, &ViewTarget)>,
@@ -44,7 +46,8 @@ pub fn radial_blur_pass(
     let (camera, target) = view.into_inner();
     let Some(size) = camera.physical_target_size else { return };
     let device = device.wgpu_device();
-    let pass = render.0.get_or_insert_with(|| RadialBlur::new(device));
+    let pass =
+        render.0.get_or_insert_with(|| RadialBlur::new(device).with_pipeline_cache(pipeline_cache.cache().cloned()));
     pass.set(RadialBlurSettings { strength: focus.radial_blur, centre: focus.radial_centre, ..pass.settings() });
     pass.set_content_scale(filled_part((size.x, size.y), render_scale));
     // The write swaps the view's two main textures: what the pass reads is the finished frame, what it writes becomes it.

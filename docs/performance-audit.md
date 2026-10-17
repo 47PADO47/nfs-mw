@@ -112,7 +112,6 @@ change.
 
 - Support SUVs (`copsuv`, `copsuvl`, `copcross`) are never requested by the pursuit support path. This was already the
   case before the sweep.
-- SMAA's own pipelines do not use the pipeline cache. SMAA is an external crate.
 - Bevy's pipelines are not touched by the pipeline cache.
 - Streamed sections requested before the first residency update still decode on the main thread on non-BC GPUs.
 
