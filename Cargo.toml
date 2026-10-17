@@ -173,5 +173,16 @@ all = { level = "warn", priority = -1 }
 opt-level = 1
 
 [profile.dev.package."*"]
-# Decompression and texture decoding are painfully slow unoptimised.
-opt-level = 2
+# Decompression and texture decoding are painfully slow unoptimised. Bevy's setup guide uses 3 for dependencies.
+opt-level = 3
+
+[profile.release]
+# Bevy setup guide: one codegen unit and thin LTO trade longer release builds for runtime speed.
+codegen-units = 1
+lto = "thin"
+
+[profile.wasm-release]
+# Web builds (Bevy setup guide). Size-optimised, inherits release. Unused until a wasm target exists.
+inherits = "release"
+opt-level = "s"
+strip = "debuginfo"
