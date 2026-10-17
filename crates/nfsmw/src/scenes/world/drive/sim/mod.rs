@@ -415,16 +415,12 @@ impl CarSim {
         CarPose { position: space::to_render(origin.to_array()), rotation: Quat::from_mat3(&cols), wheels }
     }
 
-    /// The zones whose glass is cracked.
-    pub fn cracked_zones(&self) -> Vec<usize> {
-        let Some(events) = self.events.as_ref() else { return Vec::new() };
-        let mut out = Vec::new();
-        for zone in 0..events.damage.zone_count() {
-            if events.damage.zone(zone).glass > 0 {
-                out.push(zone);
-            }
-        }
-        out
+    /// Fill `out` with the zones whose glass is cracked, in order. `out` is cleared first and keeps its capacity,
+    /// so a caller that reuses it allocates nothing per frame.
+    pub fn cracked_zones_into(&self, out: &mut Vec<usize>) {
+        out.clear();
+        let Some(events) = self.events.as_ref() else { return };
+        out.extend((0..events.damage.zone_count()).filter(|&zone| events.damage.zone(zone).glass > 0));
     }
 
     /// Apply an impact to a zone, as if the car was hit (the `damage` console command). Returns whether it changed.
