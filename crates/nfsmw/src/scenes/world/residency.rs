@@ -138,6 +138,7 @@ impl Residency {
     /// Request, upload and drop sections for a camera at map position (x, y).
     pub fn update(&mut self, renderer: &mut dyn RenderBackend, x: f32, y: f32) {
         let _span = bevy_log::info_span!("world::residency").entered();
+        self.sync_bc_support(renderer);
         self.receive();
         if !self.shared_ready {
             self.finish_shared(renderer);
@@ -153,6 +154,16 @@ impl Residency {
         self.unload_unwanted(renderer);
         self.request_wanted();
         self.request_mod();
+    }
+
+    /// The loader threads decode the textures this renderer cannot draw block-compressed. The streamers are spawned
+    /// before a renderer exists, so the renderer's support is passed in here, every frame.
+    fn sync_bc_support(&self, renderer: &dyn RenderBackend) {
+        let supported = renderer.capabilities().compressed_bc;
+        self.streamer.set_bc_supported(supported);
+        for streamer in &self.mod_streamers {
+            streamer.set_bc_supported(supported);
+        }
     }
 
     fn switch_zone(&mut self, x: f32, y: f32) {

@@ -2,6 +2,7 @@
 //! sections on request; the caller polls for results each frame.
 
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex};
 
@@ -18,26 +19,36 @@ pub struct Streamer {
     requests: Option<Sender<usize>>,
     results: Receiver<StreamerEvent>,
     workers: Vec<std::thread::JoinHandle<()>>,
+    /// Whether the renderer draws block-compressed textures; read by the workers for each section they load.
+    bc_supported: Arc<AtomicBool>,
 }
 
 impl Streamer {
-    /// Start `threads` workers reading from `stream_path`.
+    /// Start `threads` workers reading from `stream_path`. Until [`Streamer::set_bc_supported`] says otherwise,
+    /// the workers assume block-compressed textures can be drawn as they are.
     pub fn spawn(stream_path: PathBuf, sections: Vec<StreamingSection>, threads: usize) -> Self {
         let (req_tx, req_rx) = channel::<usize>();
         let (res_tx, res_rx) = channel();
         let req_rx = Arc::new(Mutex::new(req_rx));
         let sections = Arc::new(sections);
+        let bc_supported = Arc::new(AtomicBool::new(true));
         let workers = (0..threads.max(1))
             .map(|n| {
-                let (req_rx, res_tx, sections, path) =
-                    (req_rx.clone(), res_tx.clone(), sections.clone(), stream_path.clone());
+                let (req_rx, res_tx, sections, path, bc) =
+                    (req_rx.clone(), res_tx.clone(), sections.clone(), stream_path.clone(), bc_supported.clone());
                 std::thread::Builder::new()
                     .name(format!("section-loader-{n}"))
-                    .spawn(move || worker(&path, &sections, &req_rx, &res_tx))
+                    .spawn(move || worker(&path, &sections, &req_rx, &res_tx, &bc))
                     .expect("spawning a section loader thread")
             })
             .collect();
-        Self { requests: Some(req_tx), results: res_rx, workers }
+        Self { requests: Some(req_tx), results: res_rx, workers, bc_supported }
+    }
+
+    /// Tell the workers whether the renderer draws block-compressed textures. Sections loaded after this decode the
+    /// textures the renderer needs decoded (`SectionData::decode_for_upload`); the render thread checks the same rule.
+    pub fn set_bc_supported(&self, supported: bool) {
+        self.bc_supported.store(supported, Ordering::Relaxed);
     }
 
     pub fn request(&self, index: usize) {
@@ -66,6 +77,7 @@ fn worker(
     sections: &[StreamingSection],
     requests: &Mutex<Receiver<usize>>,
     results: &Sender<StreamerEvent>,
+    bc_supported: &AtomicBool,
 ) {
     let mut file = match std::fs::File::open(path) {
         Ok(f) => f,
@@ -78,7 +90,10 @@ fn worker(
         let next = requests.lock().map(|rx| rx.recv());
         let Ok(Ok(index)) = next else { return };
         let event = match sections.get(index).map(|s| load_section(&mut file, index, s)) {
-            Some(Ok(data)) => StreamerEvent::Loaded(Box::new(data)),
+            Some(Ok(mut data)) => {
+                data.decode_for_upload(bc_supported.load(Ordering::Relaxed));
+                StreamerEvent::Loaded(Box::new(data))
+            }
             Some(Err(e)) => StreamerEvent::Failed { index, error: format!("{e:#}") },
             None => StreamerEvent::Failed { index, error: "no such section".into() },
         };

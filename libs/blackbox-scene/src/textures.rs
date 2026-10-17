@@ -1,10 +1,22 @@
 //! Texture upload: DXT straight to the GPU when possible, else decoded to RGBA8.
 
+use std::borrow::Cow;
+
 use blackbox_gfx::{BlendMode, PixelFormat, RenderBackend, TextureDesc, TextureHandle};
 use blackbox_tpk::{AlphaUsage, PixelFormat as TpkFormat, Texture};
 
 /// Upload `t`, or `None` (with a warning) for formats that can't be decoded yet.
 pub fn upload_texture(backend: &mut dyn RenderBackend, t: &Texture) -> Option<TextureHandle> {
+    upload_texture_predecoded(backend, t, None)
+}
+
+/// Upload `t` like [`upload_texture`]. `decoded` is the RGBA8 of `t` when a loader thread already decoded it
+/// (`SectionData::decode_for_upload`, the same rule as `Texture::needs_decode`), so the render thread only copies it.
+pub fn upload_texture_predecoded(
+    backend: &mut dyn RenderBackend,
+    t: &Texture,
+    decoded: Option<&[u8]>,
+) -> Option<TextureHandle> {
     let bc = match t.format {
         TpkFormat::Dxt1 => Some(PixelFormat::Bc1),
         TpkFormat::Dxt3 => Some(PixelFormat::Bc2),
@@ -12,10 +24,8 @@ pub fn upload_texture(backend: &mut dyn RenderBackend, t: &Texture) -> Option<Te
         _ => None,
     };
     match bc {
-        // wgpu needs block-compressed textures to be a whole number of blocks.
-        Some(format)
-            if backend.capabilities().compressed_bc && t.width.is_multiple_of(4) && t.height.is_multiple_of(4) =>
-        {
+        // wgpu needs block-compressed textures to be a whole number of blocks (`needs_decode` checks that).
+        Some(format) if !t.needs_decode(backend.capabilities().compressed_bc) => {
             let mips: Vec<&[u8]> = (0..t.mip_levels).map_while(|level| t.mip(level)).collect();
             Some(backend.create_texture(&TextureDesc {
                 label: &t.name,
@@ -25,13 +35,13 @@ pub fn upload_texture(backend: &mut dyn RenderBackend, t: &Texture) -> Option<Te
                 mips,
             }))
         }
-        _ => match blackbox_tpk::decode_rgba8(t) {
+        _ => match rgba8(t, decoded) {
             Some(rgba) => Some(backend.create_texture(&TextureDesc {
                 label: &t.name,
                 width: t.width,
                 height: t.height,
                 format: PixelFormat::Rgba8,
-                mips: vec![&rgba],
+                mips: vec![&rgba[..]],
             })),
             None => {
                 log::warn!("{}: {:?} {}x{} is not supported yet", t.name, t.format, t.width, t.height);
@@ -39,6 +49,14 @@ pub fn upload_texture(backend: &mut dyn RenderBackend, t: &Texture) -> Option<Te
             }
         },
     }
+}
+
+/// The RGBA8 pixels of `t`: the loader's copy when there is one, else decoded here.
+fn rgba8<'a>(t: &Texture, decoded: Option<&'a [u8]>) -> Option<Cow<'a, [u8]>> {
+    if let Some(rgba) = decoded {
+        return Some(Cow::Borrowed(rgba));
+    }
+    blackbox_tpk::decode_rgba8(t).map(Cow::Owned)
 }
 
 /// How a texture's alpha should be drawn, from its `AlphaBlendType`

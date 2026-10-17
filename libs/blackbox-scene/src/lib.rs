@@ -11,4 +11,4 @@ mod textures;
 pub use aabb::Aabb;
 pub use frustum::Frustum;
 pub use meshes::{MaterialLookup, solid_mesh, upload_solid};
-pub use textures::{blend_mode, upload_texture};
+pub use textures::{blend_mode, upload_texture, upload_texture_predecoded};
