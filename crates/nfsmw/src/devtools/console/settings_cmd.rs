@@ -18,6 +18,7 @@ use crate::settings::{
 pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
     let value = match key {
         "traffic_preset" => settings.traffic_preset().to_string(),
+        "traffic_population" => settings.population_preset().to_string(),
         "traffic_density" => settings.traffic_policy.density_percent.to_string(),
         "world_detail" => settings.detail.world.to_string(),
         "car_geometry" => settings.detail.car.to_string(),
@@ -117,6 +118,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
     }
     match key {
         "traffic_preset" => settings.select_traffic_preset(value.parse()?),
+        "traffic_population" => settings.select_population_preset(value.parse()?),
         "traffic_density" => settings.traffic_policy.density_percent = value.parse::<Percent>()?.0,
         "world_detail" => settings.detail.world = value.parse()?,
         "car_geometry" => settings.detail.car = value.parse()?,
@@ -243,6 +245,7 @@ fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
 fn syntax(key: &str) -> Option<&'static str> {
     Some(match key {
         "traffic_preset" => "<reference|extended|custom>",
+        "traffic_population" => "<normal|high|very-high|custom>",
         "traffic_density" => "<0-100>",
         "world_detail" => "<low|medium|high|maximum>",
         "car_geometry" => "<low|high|highest>",

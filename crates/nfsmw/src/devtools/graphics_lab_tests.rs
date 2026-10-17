@@ -14,6 +14,18 @@ fn traffic_tab_previews_range_and_density_independently_and_reset_restores_defau
     click(&ctx, &mut lab, &mut settings, "Reference");
     assert_eq!(settings.traffic_policy.density_percent, 30);
     assert_eq!(settings.traffic, 28);
+    click(&ctx, &mut lab, &mut settings, "Very High");
+    assert_eq!(settings.population_preset(), crate::settings::PopulationPreset::VeryHigh);
+    assert_eq!(settings.traffic_preset(), crate::settings::TrafficPreset::Reference);
+    assert_eq!(settings.traffic_policy.density_percent, 30);
+    click(&ctx, &mut lab, &mut settings, "Store A");
+    click(&ctx, &mut lab, &mut settings, "High");
+    assert_eq!(settings.population_preset(), crate::settings::PopulationPreset::High);
+    click(&ctx, &mut lab, &mut settings, "Extended");
+    assert_eq!(settings.population_preset(), crate::settings::PopulationPreset::High);
+    click(&ctx, &mut lab, &mut settings, "Swap A/B");
+    assert_eq!(settings.population_preset(), crate::settings::PopulationPreset::VeryHigh);
+    assert_eq!(settings.traffic_preset(), crate::settings::TrafficPreset::Reference);
     click(&ctx, &mut lab, &mut settings, "Reset section");
     assert_eq!(settings.traffic, crate::settings::DEFAULT_TRAFFIC);
     assert_eq!(settings.traffic_policy, crate::settings::TrafficPolicy::default());

@@ -276,3 +276,17 @@ fn the_front_end_shadow_keys_set_and_read_back() {
     assert_eq!(s.fe_shadows.divider, 4, "a rejected value changes nothing");
     assert!(set(&mut s, "fe_shadows", "sometimes").is_err());
 }
+
+#[test]
+fn traffic_population_commands_preserve_independent_range_and_context() {
+    let mut s = defaults();
+    set(&mut s, "traffic_preset", "extended").unwrap();
+    set(&mut s, "traffic_density", "30").unwrap();
+    assert_eq!(set(&mut s, "traffic_population", "very-high").unwrap(), "traffic_population = very-high");
+    assert_eq!(s.traffic, 64);
+    assert_eq!(s.traffic_policy.density_percent, 30);
+    assert_eq!(s.traffic_preset(), crate::settings::TrafficPreset::Extended);
+    let before = s;
+    assert!(set(&mut s, "traffic_population", "bad").is_err());
+    assert_eq!(s, before);
+}

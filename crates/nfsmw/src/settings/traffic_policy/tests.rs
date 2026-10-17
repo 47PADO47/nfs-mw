@@ -28,9 +28,12 @@ fn unsafe_ranges_cannot_overlap_retirement_or_escape_bounds() {
         offscreen_seconds: 0,
         density_percent: 255,
         custom: true,
+        common_fill: true,
+        common_rate_percent: u16::MAX,
     }
     .sanitized();
     assert_eq!((policy.spawn_min, policy.spawn_max), (1200, 1250));
+    assert_eq!(policy.common_rate_percent, 300);
     assert_eq!((policy.retire_distance, policy.offscreen_seconds, policy.density_percent), (1450, 4, 100));
     assert_eq!(TrafficPolicy::default().density(0.75), 0.75);
     assert_eq!(TrafficPolicy { density_percent: 50, ..Default::default() }.density(0.75), 0.375);
@@ -48,4 +51,31 @@ fn range_presets_preserve_density_and_budget_for_overlay_testing() {
         assert_eq!(settings.traffic, 7);
         assert_eq!(settings.traffic_policy.density_percent, 30);
     }
+}
+
+#[test]
+fn population_presets_round_trip_and_preserve_range_density_and_patrols() {
+    let mut settings = Settings::from(Partial::default());
+    settings.select_traffic_preset(TrafficPreset::Extended);
+    settings.traffic_policy.density_percent = 30;
+    let patrols = settings.cop_share;
+    for preset in [PopulationPreset::Normal, PopulationPreset::High, PopulationPreset::VeryHigh] {
+        settings.select_population_preset(preset);
+        assert_eq!(settings.population_preset(), preset);
+        assert_eq!(settings.traffic_preset(), TrafficPreset::Extended);
+        assert_eq!(settings.traffic_policy.density_percent, 30);
+        assert_eq!(settings.cop_share, patrols);
+        let text = write::merge("", &settings.graphics_layer()).unwrap();
+        let restored = Settings::from(file::parse(&text, "test"));
+        assert_eq!(restored.population_preset(), preset);
+        assert_eq!(restored.traffic_policy, settings.traffic_policy);
+        settings.select_traffic_preset(TrafficPreset::Reference);
+        assert_eq!(settings.population_preset(), preset);
+        settings.select_traffic_preset(TrafficPreset::Extended);
+    }
+    settings.traffic = 7;
+    assert_eq!(settings.population_preset(), PopulationPreset::Custom);
+    settings.select_population_preset(PopulationPreset::Custom);
+    assert_eq!(settings.traffic, 7);
+    assert_eq!(settings.traffic_policy.sanitized().common_rate_percent, 200);
 }

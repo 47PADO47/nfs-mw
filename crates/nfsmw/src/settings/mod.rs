@@ -85,7 +85,7 @@ pub(crate) mod test_caps;
 mod tire_tests;
 mod traffic_avoidance;
 pub mod traffic_policy;
-pub use traffic_policy::{TrafficPolicy, TrafficPreset};
+pub use traffic_policy::{PopulationPreset, TrafficPolicy, TrafficPreset};
 mod transmission;
 #[cfg(test)]
 mod treatment_tests;

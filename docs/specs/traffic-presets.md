@@ -53,6 +53,29 @@ Original frame-dependent timing, inactive actor reuse and the
 four-second new-instance timer remain timing-parity gaps. No startup or live
 preset change flushes existing traffic. Lower budgets drain through recycling.
 
+## Custom population presets
+
+F8 has a separate population selector: Normal uses a 20-slot budget and native
+model shares/timers; High uses 40 slots, common-slot filling and 150% common
+replenishment; Very High uses 64 slots, filling and 200% replenishment.
+These are custom population enhancements, not original density settings.
+Selecting a population preset preserves range, context density and patrol options.
+Selecting a range preset preserves population tuning. Advanced budget, common
+filling and replenishment controls identify other combinations as Custom.
+Save/load, named F8 presets and A/B preserve all these fields. Older profiles
+get native filling/timers and retain their explicit actor budget.
+
+Filling treats unrestricted models' positive shares as relative weights (a zero
+share has weight 100). Reserve limited models' native quota and missing trailer
+slots first, then distribute remaining common slots by largest remainders.
+Duplicate model names share one quota; any hard limit remains binding.
+Limited models retain their original timers, maximum instances and share limits.
+Common replenishment scales only unrestricted model timers, bounded to 100-300%.
+Context density, pursuit scaling, grounding, spacing and the total actor budget
+still apply. Zero context density stops new traffic in every preset. Existing
+cars recycle naturally; presets do not immediately fill or flush the world.
+Population presets cannot guarantee a count on every road or during pursuits.
+
 ## Placement and retirement
 
 Sample the wedge within +/-45 degrees around the focus direction. Add the

@@ -55,6 +55,7 @@ impl PatrolPlan {
 
 struct Cars<'a> {
     cars: &'a [super::AiCar],
+    models: &'a [super::TrafficModel],
     others: u32,
 }
 
@@ -65,6 +66,9 @@ impl Census for Cars<'_> {
 
     fn others(&self) -> u32 {
         self.others
+    }
+    fn trailer_slots(&self, name: &str) -> u32 {
+        u32::from(self.models.iter().any(|m| m.name.eq_ignore_ascii_case(name) && m.trailer.is_some()))
     }
 }
 
@@ -135,7 +139,9 @@ impl TrafficWorld {
         if changed {
             self.start_pattern();
         }
-        self.timers.advance(tick, density);
+        if let Some(pattern) = self.patterns.as_ref().and_then(|p| p.current()) {
+            self.timers.advance_population(tick, density, &pattern.rules, self.policy.common_rate_percent);
+        }
 
         if self.population_slots(focus) >= self.target {
             return;
@@ -145,8 +151,12 @@ impl TrafficWorld {
             return;
         }
         let Some(pattern) = self.patterns.as_ref().and_then(|p| p.current()).cloned() else { return };
-        let census = Cars { cars: &self.cars, others: self.other_slots(focus) as u32 };
-        let Some(pick) = self.timers.next_type(&pattern.rules, self.target as u32, &census) else { return };
+        let census = Cars { cars: &self.cars, models: &self.models, others: self.other_slots(focus) as u32 };
+        let Some(pick) =
+            self.timers.next_population(&pattern.rules, self.target as u32, &census, self.policy.common_fill)
+        else {
+            return;
+        };
         let name = pattern.rules[pick].name.clone();
         let Some(model) = self.models.iter().position(|m| m.name.eq_ignore_ascii_case(&name)) else {
             self.request(ModelRequest::Traffic(name));

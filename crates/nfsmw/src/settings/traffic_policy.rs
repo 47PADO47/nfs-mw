@@ -23,6 +23,30 @@ impl TrafficPreset {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PopulationPreset {
+    Normal,
+    High,
+    VeryHigh,
+    Custom,
+}
+names!(
+    PopulationPreset,
+    "normal, high, very-high or custom",
+    [(Self::Normal, "normal"), (Self::High, "high"), (Self::VeryHigh, "very-high"), (Self::Custom, "custom")]
+);
+impl PopulationPreset {
+    pub const ALL: [Self; 4] = [Self::Normal, Self::High, Self::VeryHigh, Self::Custom];
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Normal => "Normal",
+            Self::High => "High",
+            Self::VeryHigh => "Very High",
+            Self::Custom => "Custom population",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TrafficPolicy {
@@ -32,6 +56,8 @@ pub struct TrafficPolicy {
     pub retire_distance: u32,
     pub offscreen_seconds: u32,
     pub density_percent: u8,
+    pub common_fill: bool,
+    pub common_rate_percent: u16,
 }
 impl Default for TrafficPolicy {
     fn default() -> Self {
@@ -42,6 +68,8 @@ impl Default for TrafficPolicy {
             retire_distance: 650,
             offscreen_seconds: 4,
             density_percent: 100,
+            common_fill: false,
+            common_rate_percent: 100,
         }
     }
 }
@@ -54,7 +82,12 @@ impl TrafficPolicy {
             retire_distance: 1000,
             offscreen_seconds: 8,
             density_percent: 100,
+            common_fill: false,
+            common_rate_percent: 100,
         }
+    }
+    pub fn range_only(self) -> Self {
+        Self { density_percent: 100, common_fill: false, common_rate_percent: 100, ..self }
     }
     pub fn sanitized(self) -> Self {
         let spawn_min = self.spawn_min.clamp(150, 1200);
@@ -66,6 +99,8 @@ impl TrafficPolicy {
             retire_distance: self.retire_distance.clamp(spawn_max + 200, 2400),
             offscreen_seconds: self.offscreen_seconds.clamp(4, 30),
             density_percent: self.density_percent.min(100),
+            common_fill: self.common_fill,
+            common_rate_percent: self.common_rate_percent.clamp(100, 300),
         }
     }
     pub fn density(self, context: f32) -> f32 {
@@ -89,8 +124,28 @@ impl TrafficPolicy {
 }
 
 impl super::Settings {
+    pub fn population_preset(&self) -> PopulationPreset {
+        let p = self.traffic_policy;
+        match (self.traffic, p.common_fill, p.common_rate_percent) {
+            (20, false, 100) => PopulationPreset::Normal,
+            (40, true, 150) => PopulationPreset::High,
+            (64, true, 200) => PopulationPreset::VeryHigh,
+            _ => PopulationPreset::Custom,
+        }
+    }
+    pub fn select_population_preset(&mut self, preset: PopulationPreset) {
+        let (budget, fill, rate) = match preset {
+            PopulationPreset::Normal => (20, false, 100),
+            PopulationPreset::High => (40, true, 150),
+            PopulationPreset::VeryHigh => (64, true, 200),
+            PopulationPreset::Custom => return,
+        };
+        self.traffic = budget;
+        self.traffic_policy.common_fill = fill;
+        self.traffic_policy.common_rate_percent = rate;
+    }
     pub fn traffic_preset(&self) -> TrafficPreset {
-        let p = TrafficPolicy { density_percent: 100, ..self.traffic_policy };
+        let p = self.traffic_policy.range_only();
         match p {
             p if p == TrafficPolicy::default() => TrafficPreset::Reference,
             p if p == TrafficPolicy::extended() => TrafficPreset::Extended,
@@ -98,7 +153,7 @@ impl super::Settings {
         }
     }
     pub fn select_traffic_preset(&mut self, preset: TrafficPreset) {
-        let density = self.traffic_policy.density_percent;
+        let saved = self.traffic_policy;
         match preset {
             TrafficPreset::Reference => {
                 self.traffic_policy = TrafficPolicy::default();
@@ -108,7 +163,9 @@ impl super::Settings {
             }
             TrafficPreset::Custom => self.traffic_policy.custom = true,
         }
-        self.traffic_policy.density_percent = density;
+        self.traffic_policy.density_percent = saved.density_percent;
+        self.traffic_policy.common_fill = saved.common_fill;
+        self.traffic_policy.common_rate_percent = saved.common_rate_percent;
     }
 }
 

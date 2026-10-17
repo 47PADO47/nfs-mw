@@ -4,7 +4,7 @@ use super::*;
 fn f8_traffic_presets_round_trip_without_changing_audio_or_renderer() {
     let mut settings = Settings::from(Partial::default());
     settings.select_traffic_preset(crate::settings::TrafficPreset::Extended);
-    settings.traffic = 28;
+    settings.select_population_preset(crate::settings::PopulationPreset::VeryHigh);
     settings.traffic_policy.density_percent = 30;
     let text = payload(&settings).unwrap();
     let wanted = settings.graphics_layer();

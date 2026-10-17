@@ -4,6 +4,8 @@
 
 use blackbox_roads::RandomSource;
 
+mod shares;
+
 /// The density tables, indexed by `density` over `[0, 1]` in 11 equal steps (§2).
 const SPAWN_RATE: [f32; 11] = [0.0, 0.05, 0.1, 0.125, 0.2, 0.4, 0.6, 1.0, 3.0, 5.0, 8.0];
 const OFFSCREEN_DISTANCE: [f32; 11] = [130.0, 120.0, 110.0, 100.0, 90.0, 80.0, 70.0, 60.0, 55.0, 45.0, 40.0];
@@ -52,6 +54,10 @@ pub trait Census {
     fn active(&self, name: &str) -> u32;
     /// Vehicles that are not traffic cars (the player, cops).
     fn others(&self) -> u32;
+    /// Additional slots needed by a newly activated model (a trailer).
+    fn trailer_slots(&self, _name: &str) -> u32 {
+        0
+    }
 }
 
 /// The type timers and the round-robin cursor.
@@ -79,10 +85,26 @@ impl TypeTimers {
         }
     }
 
+    pub fn advance_population(&mut self, dt: f32, density: f32, rules: &[Rule], rate_percent: u16) {
+        self.advance(dt, density);
+        let extra = dt * spawn_rate(density) * (f32::from(rate_percent.clamp(100, 300)) / 100.0 - 1.0);
+        for (timer, rule) in self.timers.iter_mut().zip(rules) {
+            if !shares::limited(rules, &rule.name) {
+                *timer += extra;
+            }
+        }
+    }
+
     /// The index of the next type to spawn, looking at each record at most once starting at the cursor.
     /// `slots` is how many traffic cars the world has room for.
+    #[cfg(test)]
     pub fn next_type(&mut self, rules: &[Rule], slots: u32, census: &impl Census) -> Option<usize> {
+        self.next_population(rules, slots, census, false)
+    }
+
+    pub fn next_population(&mut self, rules: &[Rule], slots: u32, census: &impl Census, fill: bool) -> Option<usize> {
         let n = rules.len().min(MAX_RECORDS).min(self.timers.len());
+        let quotas = fill.then(|| shares::quotas(&rules[..n], slots, census));
         if n == 0 {
             return None;
         }
@@ -94,7 +116,10 @@ impl TypeTimers {
             let free = slots.saturating_sub(census.others());
             let eligible = rule.rate > 0.0 && self.timers[at] > rule.rate;
             let within_max = rule.max_instances == 0 || count < rule.max_instances;
-            let within_share = rule.percent == 0 || count < (free * rule.percent / 100).max(1);
+            let within_share = match &quotas {
+                Some(quotas) => count < quotas[at],
+                None => rule.percent == 0 || count < (free * rule.percent / 100).max(1),
+            };
             if eligible && within_max && within_share {
                 return Some(at);
             }
@@ -105,7 +130,7 @@ impl TypeTimers {
     /// A car of `name` was spawned: every record of that model starts waiting again.
     pub fn spawned(&mut self, rules: &[Rule], name: &str) {
         for (timer, rule) in self.timers.iter_mut().zip(rules) {
-            if rule.name == name {
+            if rule.name.eq_ignore_ascii_case(name) {
                 *timer = 0.0;
             }
         }
@@ -135,7 +160,7 @@ mod tests {
 
     impl Census for Cars {
         fn active(&self, name: &str) -> u32 {
-            self.0.iter().find(|c| c.0 == name).map_or(0, |c| c.1)
+            self.0.iter().find(|c| c.0.eq_ignore_ascii_case(name)).map_or(0, |c| c.1)
         }
         fn others(&self) -> u32 {
             self.1
@@ -201,6 +226,20 @@ mod tests {
         let mut timers = TypeTimers { timers: vec![9.0; 3], cursor: 0 };
         timers.spawned(&rules, "a");
         assert_eq!(timers.timers, vec![0.0, 9.0, 0.0]);
+    }
+
+    #[test]
+    fn custom_replenishment_only_accelerates_common_models_and_respects_zero_density() {
+        let rules = [rule("sedan", 3.0, 0, 40), rule("truck", 60.0, 1, 10), rule("TRUCK", 10.0, 0, 10)];
+        let mut timers = TypeTimers { timers: vec![0.0; 3], cursor: 0 };
+        timers.advance_population(1.0, 1.0, &rules, 200);
+        assert_eq!(timers.timers, vec![16.0, 8.0, 8.0]);
+        timers.advance_population(5.0, 0.0, &rules, 300);
+        assert_eq!(timers.timers, vec![16.0, 8.0, 8.0]);
+        let census = Cars(vec![("truck", 1)], 1);
+        timers.advance_population(100.0, 1.0, &rules, 200);
+        assert_eq!(timers.next_population(&rules, 40, &census, true), Some(0));
+        assert_eq!(timers.next_population(&rules, 40, &census, true), Some(0));
     }
 
     #[test]
