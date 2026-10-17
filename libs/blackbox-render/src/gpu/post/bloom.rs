@@ -4,6 +4,7 @@
 use super::filter::{Blend, Draw, Filter, Params, bloom_wgsl};
 use super::{PassContext, PassIo, PostPass};
 use crate::PostSettings;
+use crate::gpu::sized::SizedPair;
 
 /// The most half-size images in the chain.
 const MAX_LEVELS: usize = 6;
@@ -45,8 +46,6 @@ struct Level {
 
 /// The half-size images, for one scene size and format.
 struct Chain {
-    scene_size: (u32, u32),
-    format: wgpu::TextureFormat,
     levels: Vec<Level>,
 }
 
@@ -69,19 +68,20 @@ impl Chain {
                 Level { _texture: texture, view }
             })
             .collect();
-        Self { scene_size, format, levels }
+        Self { levels }
     }
 }
 
 pub(super) struct BloomPass {
     filter: Filter,
     params: Params,
-    chain: Option<Chain>,
+    /// One chain per scene size and format, so a frame at each view size keeps its own.
+    chain: SizedPair<((u32, u32), wgpu::TextureFormat), Chain>,
 }
 
 impl BloomPass {
     pub(super) fn new(device: &wgpu::Device, settings: &PostSettings) -> Self {
-        Self { filter: Filter::new(device, "bloom", &bloom_wgsl()), params: params(settings), chain: None }
+        Self { filter: Filter::new(device, "bloom", &bloom_wgsl()), params: params(settings), chain: SizedPair::new() }
     }
 }
 
@@ -92,12 +92,8 @@ impl PostPass for BloomPass {
 
     fn encode(&mut self, ctx: &PassContext<'_>, io: &PassIo<'_>, encoder: &mut wgpu::CommandEncoder) {
         let format = ctx.scene.color_format;
-        let stale = self.chain.as_ref().is_none_or(|c| c.scene_size != io.input_size || c.format != format);
-        if stale {
-            self.chain = Some(Chain::new(ctx.device, io.input_size, format));
-        }
         let Self { filter, params, chain } = self;
-        let Some(chain) = chain.as_ref() else { return };
+        let chain = chain.get_or_make((io.input_size, format), || Chain::new(ctx.device, io.input_size, format));
         filter.set_params(ctx.queue, params);
         let levels = &chain.levels;
         let mut draw = |entry, src, target: &wgpu::TextureView, blend| {

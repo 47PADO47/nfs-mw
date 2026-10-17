@@ -26,6 +26,7 @@ mod reflections;
 mod resources;
 mod shadows;
 mod slots;
+mod sized;
 mod spatial_aa;
 mod surface;
 mod targets;
