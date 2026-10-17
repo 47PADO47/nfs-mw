@@ -56,6 +56,7 @@ impl Session {
     }
 
     /// The pending or active request of the chase, if there is one.
+    #[cfg(test)]
     pub fn order(&self) -> Option<&Order> {
         self.order.as_ref()
     }
@@ -84,6 +85,24 @@ impl Session {
 }
 
 impl TrafficWorld {
+    /// An already active support order still expires while the ordinary cops search; no pending offensive cars spawn.
+    pub(in crate::scenes::world::ai) fn age_search_support(&mut self, dt: f32) {
+        let Some(pursuit) = self.pursuit.as_mut() else { return };
+        let session = &mut pursuit.support;
+        session.delay.tick(dt);
+        let Some(mut order) = session.order else { return };
+        if !order.is_active() {
+            return;
+        }
+        if !order.tick(dt) {
+            session.order = Some(order);
+            return;
+        }
+        let serial = session.serial;
+        session.order = None;
+        self.release_support(serial);
+    }
+
     /// Hands a request from the roll to the chase. Returns whether it was taken (no request of the chase is under way).
     pub fn ask_support(&mut self, request: Request) -> bool {
         self.pursuit.as_mut().is_some_and(|pursuit| pursuit.support.request(request))

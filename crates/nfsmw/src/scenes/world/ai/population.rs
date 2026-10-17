@@ -44,12 +44,28 @@ pub enum ModelRequest {
 pub struct PatrolPlan {
     pub cars: Vec<String>,
     pub cruise: Cruise,
+    pub search_cruise: Cruise,
+    pub levels: Vec<nfsmw_data::pursuit::HeatRow>,
 }
 
 impl PatrolPlan {
-    /// The search-mode speeds are given in miles per hour.
+    /// Search-mode speeds are distinct from the normal patrol action's 35/55 mph targets.
     pub fn new(cars: Vec<String>, city_mph: f32, highway_mph: f32) -> Self {
-        Self { cars, cruise: Cruise::patrol(city_mph * MPH, highway_mph * MPH) }
+        Self {
+            cars,
+            cruise: Cruise::patrol(35.0 * MPH, 55.0 * MPH),
+            search_cruise: Cruise::patrol(city_mph * MPH, highway_mph * MPH),
+            levels: Vec::new(),
+        }
+    }
+
+    fn cars_at(&self, heat: u32) -> Vec<String> {
+        let Some(row) = self.levels.get(heat.saturating_sub(1) as usize) else { return self.cars.clone() };
+        nfsmw_data::pursuit::ground_cops(row).map(|cop| cop.name.clone()).collect()
+    }
+
+    fn limit(&self, heat: u32) -> usize {
+        self.levels.get(heat.saturating_sub(1) as usize).map_or(1, |row| row.patrol_cars as usize)
     }
 }
 
@@ -73,7 +89,15 @@ impl Census for Cars<'_> {
 }
 
 impl TrafficWorld {
-    /// Active vehicle budget and chance that an ordinary activation is a patrol cop.
+    pub(super) fn patrol_enabled(&self) -> bool {
+        self.cop_share > 0 && self.patrol.is_some()
+    }
+
+    pub(super) fn search_cruise(&self) -> Cruise {
+        self.patrol.as_ref().map_or(Cruise::patrol(35.0 * MPH, 55.0 * MPH), |p| p.search_cruise)
+    }
+
+    /// Active vehicle budget and the legacy patrol switch (zero disables police patrols).
     pub fn configure(&mut self, cars: usize, cop_share_percent: u32) {
         self.target = cars.min(64);
         self.cop_share = cop_share_percent.min(100);
@@ -123,6 +147,9 @@ impl TrafficWorld {
     /// One tick of the manager: follow the neighbourhood's pattern, advance the type timers and add at most
     /// one car if there is room for it.
     pub(super) fn manage(&mut self, tick: f32, focus: Focus, collision: &CollisionWorld, surfaces: &SurfaceTable) {
+        if self.needs_patrol() && self.spawn_patrol(focus, collision, surfaces) {
+            return;
+        }
         let density = self.density();
         if density == 0.0 {
             return;
@@ -144,10 +171,6 @@ impl TrafficWorld {
         }
 
         if self.population_slots(focus) >= self.target {
-            return;
-        }
-        if self.roll_patrol() {
-            self.spawn_patrol(focus, collision, surfaces);
             return;
         }
         let Some(pattern) = self.patterns.as_ref().and_then(|p| p.current()).cloned() else { return };
@@ -178,32 +201,41 @@ impl TrafficWorld {
         }
     }
 
-    /// Whether the next car is a patrol cop: one in `cop_share` percent.
-    fn roll_patrol(&mut self) -> bool {
+    /// A separate patrol budget, bounded by the installed heat row. A full traffic population cannot starve it.
+    fn needs_patrol(&mut self) -> bool {
         let Some(plan) = self.patrol.as_ref().filter(|p| !p.cars.is_empty()) else { return false };
         if self.cop_share == 0 {
             return false;
         }
-        let cars = plan.cars.clone();
+        if self.pursuit.is_some() || !self.police.can_begin() {
+            return false;
+        }
+        let heat = self.police.patrol_heat();
+        let limit = plan.limit(heat);
+        if self.cars.iter().filter(|car| car.is_patrol() && !car.is_wrecked()).count() >= limit {
+            return false;
+        }
+        let cars = plan.cars_at(heat);
         for name in cars {
             if !self.cop_models.iter().any(|m| m.model.name.eq_ignore_ascii_case(&name)) {
                 self.request(ModelRequest::Patrol(name));
             }
         }
-        self.rng.next_f32() * 100.0 < self.cop_share as f32 && !self.cop_models.is_empty()
+        !self.cop_models.is_empty()
     }
 
-    fn spawn_patrol(&mut self, focus: Focus, collision: &CollisionWorld, surfaces: &SurfaceTable) {
-        let Some(plan) = self.patrol.as_ref() else { return };
+    fn spawn_patrol(&mut self, focus: Focus, collision: &CollisionWorld, surfaces: &SurfaceTable) -> bool {
+        let Some(plan) = self.patrol.as_ref() else { return false };
+        let cars = plan.cars_at(self.police.patrol_heat());
         let candidates: Vec<usize> = (0..self.cop_models.len())
-            .filter(|&i| plan.cars.iter().any(|n| n.eq_ignore_ascii_case(&self.cop_models[i].model.name)))
+            .filter(|&i| cars.iter().any(|n| n.eq_ignore_ascii_case(&self.cop_models[i].model.name)))
             .collect();
         if candidates.is_empty() {
-            return;
+            return false;
         }
         let cruise = plan.cruise;
         let i = candidates[self.rng.index(candidates.len())];
-        self.spawn_one(Pick::Patrol(i), cruise, focus, collision, surfaces);
+        self.spawn_one(Pick::Patrol(i), cruise, focus, collision, surfaces)
     }
 
     /// Follows which parts of the cars the camera sees, then removes the cars that are gone for good (spec §8):
@@ -427,9 +459,11 @@ mod tests {
     }
 
     #[test]
-    fn the_patrol_speeds_are_converted_from_mph() {
+    fn patrol_uses_normal_traffic_speeds_and_search_keeps_its_installed_speeds() {
         let plan = PatrolPlan::new(vec!["copmidsize".into()], 50.0, 71.0);
-        assert!((plan.cruise.street - 22.352).abs() < 1e-2);
+        assert!((plan.cruise.street - 35.0 * MPH).abs() < 1e-5);
+        assert!((plan.cruise.highway - 55.0 * MPH).abs() < 1e-5);
+        assert!((plan.search_cruise.street - 22.352).abs() < 1e-2);
         assert!(plan.cruise.highway > plan.cruise.street);
         assert!(!plan.cruise.limit_acceleration);
     }

@@ -86,6 +86,11 @@ impl CopState {
         }
     }
 
+    /// A return from lane search starts a fresh pursuit path and speed governor at the existing car's speed.
+    pub fn resume_chase(&mut self, speed: f32) {
+        *self = Self::new(self.car, self.player, speed);
+    }
+
     /// The think of the race action in pursuit mode.
     pub fn think<R: RandomSource>(
         &mut self,

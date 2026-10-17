@@ -69,6 +69,9 @@ fn cop_sample(is_cop: bool, key: u32, position: Vec3, damage: f32, destroyed: bo
 }
 
 impl AiCar {
+    pub fn is_damaged_cop(&self) -> bool {
+        self.is_police() && self.damage.as_ref().is_some_and(|d| d.wreck.damage() > 0.0)
+    }
     /// A hit of `impulse` N s at `point` (physics space), from `from_camera` metres away from the player: the traffic
     /// shock, the accident of a hit by a human, cop or racer, and a cop's damage. `striker` and `speed` (m/s) are the
     /// class and the speed of the party that hit the car; the player's speed is the one the world sets. Returns whether

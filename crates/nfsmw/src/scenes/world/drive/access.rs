@@ -1,10 +1,47 @@
 //! The car's physics for code that is not about the player, such as hits between cars.
 
-use glam::Vec3;
+use glam::{Vec2, Vec3};
 
 use super::{CarSim, Drive};
+use crate::scenes::world::space;
 
 impl Drive {
+    /// Current physical coordinates for police; visual interpolation and model pivots stay in rendering.
+    fn sensing_pose(&self) -> (Vec3, Vec3) {
+        if let Some(sim) = self.sim.as_ref() {
+            let body = sim.driver_view();
+            return (body.position, body.forward);
+        }
+        (
+            Vec3::from_array(space::to_physics(self.current.position)),
+            Vec3::from_array(space::to_physics(self.current.rotation * Vec3::X)),
+        )
+    }
+
+    pub fn player_view(&self) -> crate::scenes::world::ai::PlayerView {
+        let (position, forward) = self.sensing_pose();
+        crate::scenes::world::ai::PlayerView {
+            position: space::to_render(position.to_array()),
+            forward: space::to_render(forward.to_array()),
+            speed: self.speed(),
+            nitrous: self.telemetry.nitrous_burn(),
+            throttle: self.frame_input.throttle,
+        }
+    }
+
+    pub(in crate::scenes::world) fn ai_body(&self) -> blackbox_roads::Body {
+        let (position, forward) = self.sensing_pose();
+        let velocity = self.sim.as_ref().map_or(forward * self.speed(), CarSim::velocity);
+        let (half_width, half_length) = self.half_extents();
+        blackbox_roads::Body {
+            position,
+            velocity,
+            forward: Vec2::new(forward.x, forward.z).normalize_or_zero(),
+            half_width,
+            half_length,
+        }
+    }
+
     pub fn update_events(
         &mut self,
         props: &mut crate::scenes::world::props::PropWorld,

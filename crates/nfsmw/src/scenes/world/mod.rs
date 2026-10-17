@@ -9,7 +9,6 @@ mod car_lights;
 mod car_loader;
 mod cargo;
 mod commands;
-mod damage_marks;
 mod day;
 mod detail;
 mod drive;

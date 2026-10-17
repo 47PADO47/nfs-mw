@@ -68,7 +68,7 @@ fn installed_garage_customization_preserves_driving_state_and_rejects_incompatib
     let pose = drive.pose();
     let speed = drive.speed();
     assert!(speed.abs() > 3.0, "probe must actually be driving: speed {speed}, pose {pose:?}");
-    let damage = drive.damage_quads().len();
+    let damage = drive.test_damage();
     let telemetry = drive.hud_state().unwrap();
     for category in Part::ALL {
         let choice = catalog.choices[category as usize].last().expect("Cobalt supports each category");
@@ -87,7 +87,7 @@ fn installed_garage_customization_preserves_driving_state_and_rejects_incompatib
     assert!(drive.test_model().solids.values().all(|s| s.name != "COBALTSS_KIT00_FRONT_TIRE_A"));
     assert_eq!(drive.pose(), pose);
     assert_eq!(drive.speed(), speed);
-    assert_eq!(drive.damage_quads().len(), damage);
+    assert_eq!(drive.test_damage(), damage);
     assert_eq!(drive.performance, selection.performance);
     assert_eq!(drive.tuning, selection.tuning);
     let after = drive.hud_state().unwrap();

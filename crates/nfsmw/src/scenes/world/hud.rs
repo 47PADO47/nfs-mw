@@ -43,14 +43,35 @@ impl WorldScene {
         if let Some(state) = hud.as_mut() {
             if let Some(traffic) = self.traffic.as_ref() {
                 traffic.map_blips(&mut state.blips);
-                // The radar's green laser shows while cops chase the player.
-                state.cop_nearby = traffic.is_pursuing();
+                let mut meter = 0.0;
+                if let Some(drive) = &self.drive {
+                    let player = drive.player_view();
+                    state.radar = traffic.radar(player.position, player.forward);
+                    meter = traffic.pursuit_meter(player.position, player.speed);
+                }
+                state.cop_nearby = state.radar.is_some();
+                state.vehicle_heat = traffic.vehicle_heat();
+                state.cops_engaged = traffic.cops_engaged();
+                state.cops_damaged = traffic.cops_damaged();
                 let wrecked = traffic.cops_destroyed();
                 // The bar is the escape's cool-down meter: it fills while the cops are out of sight and drains when
                 // they see the player again (`docs/specs/ai-pursuit.md` section 6).
-                state.pursuit = traffic
-                    .pursuit_feed()
-                    .map(|feed| PursuitHud { evade: traffic.evade_level(), ..pursuit_hud(feed, wrecked) });
+                state.pursuit = traffic.pursuit_feed().map(|feed| PursuitHud {
+                    evade: traffic.evade_level(),
+                    busted: meter,
+                    cooldown: traffic.cooldown_shown(),
+                    ..pursuit_hud(feed, wrecked)
+                });
+                if traffic.arrest_active() {
+                    state.pursuit = Some(PursuitHud {
+                        secs: traffic.pursuit_time(),
+                        evade: 0.0,
+                        cops_destroyed: wrecked,
+                        busted: 1.0,
+                        cooldown: false,
+                    });
+                    state.radar = None;
+                }
                 state.busted = traffic.busted_meter();
                 state.busted_overlay = traffic.busted_overlay();
             }

@@ -7,7 +7,7 @@
 //! pushed out and reacts through the rigid body's impulse routine with the car's wall friction and
 //! restitution.
 
-use blackbox_collision::{BARRIER_TWO_SIDED, CollisionWorld, GROUP_EXCLUSION, HitKind, RayOptions};
+use blackbox_collision::{BARRIER_TWO_SIDED, CollisionWorld, HitKind, RayOptions};
 use blackbox_vehicle::Vehicle;
 use blackbox_vehicle::rigid_body::{ContactParams, PlaneContact};
 use glam::{Mat3, Vec3};
@@ -132,11 +132,6 @@ pub fn world_cast_with_mask(collision: &CollisionWorld, exclusion: u16) -> impl 
         };
         Some(Hit { point: Vec3::from(hit.point), normal: Vec3::from(hit.normal), prop: None, info: Some(info) })
     }
-}
-
-/// Existing visibility queries keep their own exclusion policy, independently of body collision.
-pub fn world_cast(collision: &CollisionWorld) -> impl Fn(Vec3, Vec3) -> Option<Hit> + '_ {
-    world_cast_with_mask(collision, u16::from(GROUP_EXCLUSION))
 }
 
 /// Reject floors and rear-facing one-way barriers before they can hide a valid wall farther along

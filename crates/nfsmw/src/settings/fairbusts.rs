@@ -9,7 +9,7 @@
 //!   (90 m) and skips the gate, so the instant bust of stock returns.
 //! - `ResetBustMultiplier`: the flashing fill rate, 0 to 64 (stock 4.0).
 //!
-//! Rules: a missing file is the default (enabled, normal reach); a malformed switch or number is its default; a number
+//! Rules: a missing file is the stock default (disabled); a malformed switch or number is its default; a number
 //! outside its range is clamped. Each is logged.
 
 use std::path::Path;
@@ -61,7 +61,7 @@ impl ResetPenalty {
 
 impl Default for FairBustsSettings {
     fn default() -> Self {
-        Self { enabled: true, reset_auto_bust: false, reset_bust_multiplier: DEFAULT_MULTIPLIER }
+        Self { enabled: false, reset_auto_bust: false, reset_bust_multiplier: DEFAULT_MULTIPLIER }
     }
 }
 

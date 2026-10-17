@@ -1,11 +1,9 @@
 //! The world scene's side of the traffic: where it spawns around, which settings it follows and when it runs.
 
 use blackbox_gfx::RenderBackend;
-use blackbox_roads::Body;
-use glam::{Vec2, Vec3};
 
 use super::{Focus, LampMeshes, load_requested};
-use crate::scenes::world::{View, WorldScene, space};
+use crate::scenes::world::{View, WorldScene};
 use crate::settings::TrafficSettings;
 
 impl WorldScene {
@@ -14,16 +12,7 @@ impl WorldScene {
         match (&self.drive, self.view) {
             (Some(drive), View::Chase) => {
                 let (p, heading, speed) = (drive.position(), drive.heading(), drive.speed());
-                // Physics space: the heading's direction and the car's velocity along it.
-                let [fx, _, fz] = space::to_physics(Vec3::new(heading.cos(), heading.sin(), 0.0));
-                let (half_width, half_length) = drive.half_extents();
-                let body = Body {
-                    position: Vec3::from(space::to_physics(p)),
-                    velocity: Vec3::new(fx * speed, 0.0, fz * speed),
-                    forward: Vec2::new(fx, fz),
-                    half_width,
-                    half_length,
-                };
+                let body = drive.ai_body();
                 Focus { position: [p.x, p.y], heading, speed, body: Some(body) }
             }
             _ => Focus {

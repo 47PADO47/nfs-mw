@@ -40,12 +40,14 @@ pub fn build_patterns(db: &Database, zones: Option<TrackZones>) -> Option<Patter
     Some(Patterns::new(list, Box::new(locate)))
 }
 
-/// The patrol cops: the cars of the first heat level's wave, at the search-mode speeds.
+/// Patrol models follow retained heat; normal patrol and pursuit-search speeds stay distinct.
 pub fn patrol_plan(db: &Database) -> Option<PatrolPlan> {
     let row = heat_row(db, PATROL_HEAT)?;
     let cars: Vec<String> = ground_cops(&row).map(|c| c.name.clone()).collect();
     let (city, highway) = patrol_speeds_mph(db);
-    Some(PatrolPlan::new(cars, city, highway))
+    let mut plan = PatrolPlan::new(cars, city, highway);
+    plan.levels = nfsmw_data::pursuit::heat_rows(db);
+    Some(plan)
 }
 
 impl TrafficWorld {
