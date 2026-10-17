@@ -294,13 +294,14 @@ impl Radio {
     /// for the music to be audible.
     #[cfg(test)]
     pub fn update(&mut self, driving: bool, audible: bool, music: &mut impl Player) {
-        self.update_held(driving, false, audible, music);
+        self.update_held(driving, false, false, audible, music);
     }
 
     /// `update`, with `held`: a pursuit has the songs' place for now (its music plays instead). That is not the game
     /// ending, so the play list and the history stay. The song on the air stops, unless the player paused it: a held
-    /// paused song stays where it is and goes on only when the player resumes it.
-    pub fn update_held(&mut self, driving: bool, held: bool, audible: bool, music: &mut impl Player) {
+    /// paused song stays where it is and goes on only when the player resumes it. `menus` is true while the main
+    /// menu is up: the radio plays there too, from the front-end list.
+    pub fn update_held(&mut self, driving: bool, menus: bool, held: bool, audible: bool, music: &mut impl Player) {
         if driving != self.driving {
             self.driving = driving;
             self.manual = false;
@@ -311,7 +312,7 @@ impl Radio {
         if self.playing.as_ref().is_some_and(|p| p.handle.finished()) {
             self.stop();
         }
-        if !(self.enabled && (driving || self.manual)) {
+        if !(self.enabled && (driving || menus || self.manual)) {
             return self.stop();
         }
         if held {
