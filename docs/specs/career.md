@@ -23,6 +23,9 @@ How the original's career works end to end, and where each part is written down.
 | [career-text.md](career-text.md), [career-text-2.md](career-text-2.md) | The language table: rivals, milestone labels, rap sheet, markers and popups, SMS ids, tips, shop unlock table |
 | [career-economy.md](career-economy.md), [career-economy-flows.md](career-economy-flows.md) | Bounty, infractions and their fines, cash, heat, rap sheet statistics, busted and the impound strikes |
 | [career-scripts.md](career-scripts.md), [career-scripts-events.md](career-scripts-events.md) | The compiled Lua state graphs: runtime model, hooks, bin graphs, per-bin SMS and world heat, prologue chain, boss races, final race, challenge ladder, speed traps, OPM |
+| [career-rapsheet.md](career-rapsheet.md), [career-rapsheet-2.md](career-rapsheet-2.md) | The rap sheet screens: gate, login, tabs, rank thresholds, summary line, pursuit history, end game |
+| [career-save-screens.md](career-save-screens.md), [career-save-screens-2.md](career-save-screens-2.md) | Manual save, autosave gate and triggers, the file write order, load checks and messages |
+| [career-regions.md](career-regions.md) | Closed regions as barrier gate groups per stage, the region unlock screen, map variants |
 | [career-blacklist.md](career-blacklist.md) | The 15 rival bins as state graphs, the challenge gate, races won, regions, the final race |
 | [career-milestones.md](career-milestones.md), [career-milestones-data.md](career-milestones-data.md) | The 30 statistics, 55 milestones and 39 speed traps, states, banking, the tables per bin |
 
