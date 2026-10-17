@@ -2,6 +2,7 @@
 //! post-process chain then writes to the surface, then the UI over it.
 
 use super::Renderer;
+use super::draw_list::combinations;
 use super::effects::SoftDraw;
 use super::output::Output;
 use super::post::PassContext;
@@ -116,8 +117,8 @@ impl Renderer {
         output: &wgpu::TextureView,
         frame: &FrameParams,
         instances: &[Instance],
-        capture: Option<&mut super::reflections::CaptureView>,
         reduced: bool,
+        capture: Option<&mut super::reflections::CaptureView>,
     ) {
         let reflection = capture.is_some();
         let [r, g, b] = frame.clear_color;
@@ -203,7 +204,10 @@ impl Renderer {
         pass.set_bind_group(0, bind_group, &[]);
         pass.set_vertex_buffer(1, instance_buffer.slice(..));
 
-        for (mode, shading) in BLEND_ORDER.iter().flat_map(|&b| SHADINGS.iter().map(move |&s| (b, s))) {
+        // Every instance run and draw was sorted into its pipeline's bucket up front, in the order this loop
+        // used to walk them. A vertex or index buffer and a texture are only rebound when they change.
+        self.draw_list.build(instances, &self.meshes, &self.redirects, &self.textures);
+        for (slot, (mode, shading)) in combinations().enumerate() {
             if reflection && matches!(shading, Shading::Glossy(_)) {
                 continue;
             }
@@ -222,38 +226,31 @@ impl Renderer {
             if let Some(glossy) = glossy {
                 glossy.bind_scene(&mut pass);
             }
-            let mut start = 0;
-            while start < instances.len() {
-                let mesh_handle = instances[start].mesh;
-                let end = start + instances[start..].iter().take_while(|i| i.mesh == mesh_handle).count();
-                if let Some(mesh) = self.meshes.get(mesh_handle.raw()) {
-                    let mut draws =
-                        mesh.draws.iter().filter(|d| d.blend == mode && d.shading.same_pipeline(shading)).peekable();
-                    if draws.peek().is_none() {
-                        start = end;
-                        continue;
-                    }
+            let mut bound_mesh = None;
+            let mut bound_texture = None;
+            for &cmd in self.draw_list.bucket(slot) {
+                let Some(mesh) = self.meshes.get(cmd.mesh) else { continue };
+                let Some(d) = mesh.draws.get(cmd.draw as usize) else { continue };
+                if let (Shading::Glossy(material), Some(glossy)) = (d.shading, glossy)
+                    && !glossy.bind_material(&mut pass, material)
+                {
+                    continue;
+                }
+                if bound_mesh != Some(cmd.mesh) {
                     pass.set_vertex_buffer(0, mesh.vertices.slice(..));
                     pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint16);
-                    for d in draws {
-                        if let (Shading::Glossy(material), Some(glossy)) = (d.shading, glossy)
-                            && !glossy.bind_material(&mut pass, material)
-                        {
-                            continue;
-                        }
-                        let slot = d.texture.map(|t| self.redirects.get(&t.raw()).copied().unwrap_or(t.raw()));
-                        let texture = slot.and_then(|s| self.textures.get(s)).or(self.textures.get(0));
-                        if let Some(texture) = texture {
-                            pass.set_bind_group(1, texture, &[]);
-                            pass.draw_indexed(
-                                d.first_index..d.first_index + d.index_count,
-                                d.base_vertex,
-                                start as u32..end as u32,
-                            );
-                        }
-                    }
+                    bound_mesh = Some(cmd.mesh);
                 }
-                start = end;
+                if bound_texture != Some(cmd.texture) {
+                    let Some(texture) = self.textures.get(cmd.texture) else { continue };
+                    pass.set_bind_group(1, texture, &[]);
+                    bound_texture = Some(cmd.texture);
+                }
+                pass.draw_indexed(
+                    d.first_index..d.first_index + d.index_count,
+                    d.base_vertex,
+                    cmd.instances.0..cmd.instances.1,
+                );
             }
         }
         if reflection

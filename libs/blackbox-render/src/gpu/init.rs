@@ -224,6 +224,7 @@ fn assemble(output: Output, adapter: &wgpu::Adapter, device: wgpu::Device, queue
         glossy: None,
         ui,
         redirects: Default::default(),
+        draw_list: Default::default(),
     };
     let white = [255u8; 4];
     renderer.create_texture(&TextureDesc {
