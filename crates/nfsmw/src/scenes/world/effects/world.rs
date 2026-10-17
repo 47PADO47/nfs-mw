@@ -28,6 +28,14 @@ impl WorldScene {
         let (pose, bounds) = drive.spark_body();
         drive.vehicle_effects.set_body(pose, bounds);
         let (lamps, flares, lamp_frame, lamp_state) = drive.lamp_source();
+        let trails_visible = self.view == View::Chase
+            && crate::viewer::camera::original::renders_car(
+                self.camera_mode,
+                drive.camera_looking_back(self.camera_mode),
+            );
+        if !trails_visible {
+            drive.tail_trails.clear();
+        }
         let damage = drive.damage_quads();
         let layer = drive.effects.build(position, forward);
         if self.view == View::Chase {
@@ -35,18 +43,16 @@ impl WorldScene {
         }
         drive.vehicle_effects.geometry(position, forward, matches!(self.view, View::Chase), &mut layer.streaks);
         drive.vehicle_effects.glows(position, forward, &mut layer.glows);
-        flares.draw(
-            &lamps,
-            lamp_frame,
-            lamp_state,
-            super::super::car_light_flares::FlareView {
-                camera: position,
-                forward,
-                fov_degrees: fov,
-                height: renderer.surface_size()[1],
-            },
-            &mut layer.textured,
-        );
+        let flare_view = super::super::car_light_flares::FlareView {
+            camera: position,
+            forward,
+            fov_degrees: fov,
+            height: renderer.surface_size()[1],
+        };
+        flares.draw(&lamps, lamp_frame, lamp_state, flare_view, &mut layer.textured);
+        if trails_visible {
+            flares.draw_trails(&lamps, &drive.tail_trails, lamp_frame, lamp_state, flare_view, &mut layer.textured);
+        }
         for mark in damage {
             let colour = match mark.mark {
                 Mark::Scuff => SCUFF_COLOUR,

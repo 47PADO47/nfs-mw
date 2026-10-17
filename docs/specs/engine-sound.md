@@ -361,7 +361,8 @@ implementation use "open" and apply the low-pass later **[decomp]**.
 ## 7. Redlining
 
 When `EngRPM > 9800` (sound scale, that is `rpm_pct` above 0.978) and no shift is active (and the car is not
-an AI racer), the engine enters the redline state **[decomp]**:
+an AI racer), the engine enters the redline state **[decomp]**. The PC build additionally excludes the
+highest gear; see [PC redline eligibility](engine-sound-pc-redline.md) **[verified, static PC disassembly]**:
 
 ```
 t = clamp(gear id, 1, 5)                                  # RedLineDelayPerGear

@@ -1,11 +1,18 @@
 # Exhaust flames
 
-Flames at the car's tail pipes: for a moment after a gear change on an upgraded engine, and as a short
-backfire each time the engine sound's sputter pops after you lift off the throttle. While the nitrous burns the
-pipes flame blue instead, for as long as it burns (the same flame with its red and blue swapped).
+Flames at the car's tail pipes while nitrous burns, for a moment after a gear change on an upgraded engine,
+and as a short backfire each time the engine sound's sputter pops after you lift off the throttle.
 Everything is read from your own install at run time (the pipe markers of the car, its particle group and the
 flame textures); nothing of the game is stored in this repository. How the original does it, and what the
 rewrite decided for itself, is in the [spec](specs/exhaust-flames.md).
+
+Engaged nitrous also draws the PC taillight smear: 24 extra sets of the installed
+brake flares over three historical car poses. It retains normal brake brightness
+and centre-lamp state, stops immediately on release or depletion, and is independent
+of Exhaust Flames and experimental Speed Trails. History uses the shared 60 Hz
+simulation clock for consistent length across display rates; the stock PC history
+advances per rendered view. See the [nitrous presentation spec](specs/nitrous-light-trails.md)
+for the original algorithm, timing choice and remaining visual-parity limits.
 
 ## Switching it on and off
 
@@ -24,17 +31,20 @@ CLI: `nfsmw play --exhaust-flames` or `--no-exhaust-flames`. Environment: `NFSMW
 F12 console: `set exhaust_flames off` (also `exhaust_flames off`, and `set exhaust_flames` flips it).
 The usual order applies: command line, then environment, then the config file, then the default.
 
+The existing blue nitrous tint from main is retained: it swaps red and blue
+of each particle. This is a host approximation, not a measured original-game colour.
+
 ## When it flames
 
 | Trigger | What you see | Needs |
 |---|---|---|
-| The nitrous burns | The same flame in blue, without a break, in place of the two below | a car with nitrous |
+| Engaged nitrous | The car's installed NOS particle group at full intensity until release or depletion | nitrous actually burning; holding the key with an empty tank does nothing |
 | Gear change (up or down) above 10 m/s | The full flame for 0.06 to 0.3 s (the car's own pitch time) | an upgraded engine, or a car whose engine cannot be upgraded |
 | A sputter pop with the throttle released | A half-strength flame for 0.06 s per pop | the sound running (not `--no-sound`) |
 
-The engine upgrade level will come from the career; until then it is 0, so cars with upgradable engines
-show the gear-change flame only after `exhaust-flames engine 1` in the F12 console. The backfire does not depend
-on it. The backfire follows the pops the sample layer's sputter module plays
+The engine upgrade level follows the installed garage performance package; `exhaust-flames engine 1`
+can override it for diagnostics. Nitrous and backfire do not depend on that level. The backfire follows
+the pops the sample layer's sputter module plays
 ([engine sound](specs/engine-sound-aems.md)): about five over a couple of seconds after a lift-off at high
 revs, none at a steady throttle. A pop with the pedal down is not shown. The original draws no flame for
 the sputters; this link is the rewrite's own. Cars with no pipe markers (some cop and service vehicles) show

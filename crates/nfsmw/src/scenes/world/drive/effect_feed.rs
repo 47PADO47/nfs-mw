@@ -14,6 +14,7 @@ impl Drive {
 
     /// Age parked effects without emitting. Completed screenshot batches stay deterministic.
     pub fn age_effects(&mut self, dt: f32) {
+        self.tail_trails.clear();
         self.effects.disconnect();
         self.vehicle_effects.disconnect();
         self.flames.disconnect();
@@ -34,5 +35,22 @@ impl Drive {
 
 /// What the flames need of the car after a physics step.
 pub(super) fn car_state(pose: &CarPose, t: &Telemetry, velocity: Vec3, throttle: f32) -> CarState {
-    CarState { to_world: pose.transform(), velocity, gear: t.gear, throttle, nitrous: t.nitrous_burn() > 0.0 }
+    CarState { to_world: pose.transform(), velocity, gear: t.gear, throttle, nitrous: t.nos_burning }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn visual_engagement_uses_physics_burning_instead_of_available_nitrous() {
+        let pose = CarPose { position: Vec3::ZERO, rotation: glam::Quat::IDENTITY, wheels: [Default::default(); 4] };
+        let mut telemetry = Telemetry { has_nos: true, nos: 1.0, ..Default::default() };
+        assert!(!car_state(&pose, &telemetry, Vec3::X, 1.0).nitrous);
+        telemetry.nos_burning = true;
+        assert!(car_state(&pose, &telemetry, Vec3::X, 1.0).nitrous);
+        telemetry.nos = 0.0;
+        telemetry.nos_burning = false;
+        assert!(!car_state(&pose, &telemetry, Vec3::X, 1.0).nitrous);
+    }
 }

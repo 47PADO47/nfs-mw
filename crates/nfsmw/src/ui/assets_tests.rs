@@ -134,3 +134,59 @@ fn the_verified_table_rows_match_the_install_and_stock_fonts_keep_their_size() {
         );
     }
 }
+
+#[test]
+fn repeating_images_keep_their_extent_and_cache_a_separate_wrapped_texture() {
+    let assets = UiAssets {
+        fonts: HashMap::new(),
+        textures: HashMap::from([(1, texture(1, [[255; 4], [128; 4], [64; 4]], 1))]),
+        aliases: HashMap::new(),
+        font_native: HashMap::new(),
+        custom: CustomFontSet::default(),
+        input_atlas: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
+        discord_mark: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
+        strings: None,
+    };
+    let mut repeating = node(0, None);
+    let NodeKind::Image { uv, .. } = &mut repeating.kind else { unreachable!() };
+    *uv = [0.0, 0.0, 2.5, 1.5];
+    let tree = UiTree { nodes: vec![repeating, node(1, None)], draw_order: vec![0, 1] };
+    let screen = Screen { width: 640.0, height: 480.0, pixels_per_point: 1.0 };
+    let mut presenter = BlackboxPresenter::default();
+    let mut out = UiOutput::default();
+    presenter.present(&tree, &assets, screen, &mut out);
+    assert_eq!(out.patches.len(), 2);
+    assert_ne!(out.patches[0].id, out.patches[1].id);
+    assert_eq!(out.patches[0].size, [5, 3], "one wrapped texel on each side");
+    assert_eq!(out.patches[1].size, [3, 1], "ordinary atlas sampling stays unchanged");
+    let meshes = &out.layer.as_ref().unwrap().meshes;
+    assert_eq!(meshes.len(), 2);
+    assert_eq!(meshes[0].vertices.len(), 24, "six fractional tiles");
+    assert_eq!(meshes[1].vertices.len(), 4);
+    for (axis, centre) in [(0, 320.0), (1, 240.0)] {
+        let lo = meshes[0].vertices.iter().map(|v| v.position[axis]).reduce(f32::min).unwrap();
+        let hi = meshes[0].vertices.iter().map(|v| v.position[axis]).reduce(f32::max).unwrap();
+        assert_eq!([lo, hi], [centre - 0.5, centre + 0.5]);
+    }
+    let mut cached = UiOutput::default();
+    presenter.present(&tree, &assets, screen, &mut cached);
+    assert!(cached.patches.is_empty());
+}
+
+#[test]
+#[ignore = "requires installed PC menu packages; set NFSMW_GAME_DIR"]
+fn dialog_and_main_menu_stripes_author_repeating_uvs() {
+    let path = std::env::var("NFSMW_GAME_DIR").expect("set NFSMW_GAME_DIR");
+    let dir = GameDir::open(path).unwrap();
+    let catalog = crate::ui::Catalog::load(&dir, &crate::ui::SCREEN_FILES);
+    for (name, guid, expected) in [
+        ("Dialog.fng", 0x000f_70a9, [0.0, 0.0, 16.8125, 6.1875]),
+        ("MainMenu.fng", 0x000e_a550, [0.0, 0.0, 8.90625, 1.0]),
+    ] {
+        let package = catalog.find(name).unwrap();
+        let object = package.objects.iter().find(|o| o.guid == guid).unwrap();
+        assert_eq!(object.data.uv(), expected, "{name}");
+        let resource = &package.resources[object.resource.unwrap()];
+        assert_eq!(resource.handle, fe_hash_upper("BASESTRIPE"));
+    }
+}

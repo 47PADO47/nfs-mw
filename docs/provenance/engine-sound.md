@@ -92,6 +92,23 @@ bank mappings. The original nitrous bank-zero rule remains unchanged. Synthetic
 tests cover this selector boundary; an ignored installed test resolves and
 decodes the sound sets selected by stock and upgraded packages.
 
+## PC highest-gear limiter eligibility (2026-10-17)
+
+The [PC redline supplement](../specs/engine-sound-pc-redline.md) was written
+before implementation from bounded disassembly of the identified PC v1.3
+executable (SHA-256 recorded in that spec). The public PC symbol map from
+dbalatoni13/nfsmw identifies `SFXCTL_Engine::UpdateRedlining` and the
+`EAX_CarState` constructor. The former compares the current gear to the sound
+state's highest gear before entering redline; the latter initializes it to
+the transmission ratio array length minus one. This PC condition is absent
+from the earlier GameCube reference used by the Rust implementation.
+
+No original code was copied. The implementation adds transmission telemetry
+and preserves the existing lower-gear limiter threshold, fades and missing-bank
+fallback. Synthetic tests check eligibility and shifts; an ignored installed
+test checks the fully upgraded Lotus with real engine recordings. A controlled
+listening comparison at 366 km/h remains unverified.
+
 ## Open questions
 
 Tracked for the implementer; see "Open questions" at the end of each spec: update rate of the control code

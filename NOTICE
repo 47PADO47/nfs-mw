@@ -162,6 +162,8 @@ Engines, viewers and hook projects
   berkayylmao/NFSPluginSDK — BSD-3-Clause. gaycoderprincess/nya-common-nfsmw — MPL-2.0.
   ThirteenAG/WidescreenFixesPack — MIT (registry key, camera, aspect-aware HUD placement).
     https://github.com/ThirteenAG/WidescreenFixesPack — reference only; no code copied.
+    NOS trail frame-rate normalization was also read as a reference; see
+    docs/provenance/nitrous-light-trails.md for the independently written effect.
     Original gameplay camera widescreen projection equations follow the official
     Rendering.ixx FixFOV=1/Scaling=0 behavior at commit
     708f7528fb8b54c79d4ac3c6071ea7ccc01ae162; independently written Rust adapter.
