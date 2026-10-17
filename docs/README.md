@@ -71,6 +71,7 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | [licensing.md](licensing.md) | Project license, what each source license allows, unlicensed repos, the spec-first process |
 | [ai-drivers.md](ai-drivers.md) | The AI drivers in the code: traffic and cops, which spec each layer follows, deliberate differences, what is open |
 | [specs/career.md](specs/career.md) | Career and progression overview: economy, blacklist, milestones, flow, car lot, save; the loop, what the rewrite needs and the open questions |
+| [provenance/career-core.md](provenance/career-core.md) | `crates/nfsmw-career`, the first career slice (settings, stable, economy, SMS inbox, profile file glue): what is covered, the choices made where the specs are silent, the known gaps |
 | [specs/](specs/README.md) | Behaviour specs written before implementing it from decompiled sources: [scenery visibility](specs/scenery-visibility.md), [scenery LOD](specs/scenery-lod.md), [visible sections](specs/visible-sections.md), [car assembly](specs/car-assembly.md), [FEng input](specs/feng-input.md), [front-end menus](specs/frontend-menus.md), [LAN server](specs/lan-server.md), and the designs [multiplayer](specs/multiplayer/README.md) (milestones 10 and 11) and [telemetry](specs/telemetry/README.md) (milestone 13), not built yet |
 | [provenance/](provenance/README.md) | Records for modules whose behaviour came from restricted sources |
 
