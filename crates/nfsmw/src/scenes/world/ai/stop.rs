@@ -89,7 +89,8 @@ pub fn find(
 /// green line waits, as at a red light, while an oncoming car will reach the junction's crossing point within
 /// [`blackbox_roads::WAIT_FOR_GAP`] seconds, and goes after [`blackbox_roads::GIVE_UP_AFTER`] seconds of waiting. Only a
 /// car that has not passed the line is held. `crossing` is the car's own wait; it resets whenever the rule does not
-/// hold the car. `others` are the other cars and the player, as bodies; `dt` is the time since the last decision.
+/// hold the car. `others` are the other cars and the player, as bodies (see `traffic::others`); `dt` is the time since
+/// the last decision.
 pub fn yield_to_oncoming(
     lights: &Lights<'_>,
     net: &RoadNetwork,
@@ -97,7 +98,7 @@ pub fn yield_to_oncoming(
     approach: usize,
     crossing: &mut Crossing,
     dt: f32,
-    others: &[Body],
+    others: impl IntoIterator<Item = Body>,
 ) -> StopLine {
     let holds_green = stop.light == Light::Green && stop.distance >= 0.0;
     if !holds_green {
@@ -306,7 +307,7 @@ mod tests {
         assert_eq!(stop.light, Light::Green);
         let lights = Lights { controller: &controller, time: 0.0 };
         let mut crossing = Crossing::default();
-        let held = yield_to_oncoming(&lights, &net, stop, 0, &mut crossing, 0.1, &[oncoming()]);
+        let held = yield_to_oncoming(&lights, &net, stop, 0, &mut crossing, 0.1, [oncoming()]);
         assert_eq!(held.light, Light::Red, "held like a red light");
         assert!(held.is_holding());
         assert!(held.speed_limit(10.0, MASS).is_some(), "it brakes to the line");
@@ -318,14 +319,10 @@ mod tests {
         let (controller, stop) = green_line(&net, -60.0, 0.0);
         let lights = Lights { controller: &controller, time: 0.0 };
         let mut crossing = Crossing::default();
-        let free = yield_to_oncoming(&lights, &net, stop, 0, &mut crossing, 0.1, &[]);
+        let free = yield_to_oncoming(&lights, &net, stop, 0, &mut crossing, 0.1, []);
         assert_eq!(free, stop);
         let far = Body { position: Vec3::new(80.0, 0.0, 0.0), ..oncoming() };
-        assert_eq!(
-            yield_to_oncoming(&lights, &net, stop, 0, &mut crossing, 0.1, &[far]),
-            stop,
-            "4 s away is no threat"
-        );
+        assert_eq!(yield_to_oncoming(&lights, &net, stop, 0, &mut crossing, 0.1, [far]), stop, "4 s away is no threat");
     }
 
     #[test]
@@ -335,7 +332,7 @@ mod tests {
         let lights = Lights { controller: &controller, time: 0.0 };
         let mut crossing = Crossing::default();
         let mut waits = 0;
-        while yield_to_oncoming(&lights, &net, stop, 0, &mut crossing, 0.5, &[oncoming()]).light == Light::Red {
+        while yield_to_oncoming(&lights, &net, stop, 0, &mut crossing, 0.5, [oncoming()]).light == Light::Red {
             waits += 1;
         }
         assert_eq!(waits, 16, "8 s at 0.5 s a think, then it goes");
@@ -348,10 +345,10 @@ mod tests {
         assert_eq!(red.light, Light::Red);
         let lights = Lights { controller: &controller, time: 17.5 };
         let mut crossing = Crossing { waited: 3.0 };
-        assert_eq!(yield_to_oncoming(&lights, &net, red, 0, &mut crossing, 0.1, &[oncoming()]), red);
+        assert_eq!(yield_to_oncoming(&lights, &net, red, 0, &mut crossing, 0.1, [oncoming()]), red);
         assert_eq!(crossing, Crossing::default(), "the wait resets when the gate does not hold the car");
         let past = StopLine { distance: -0.5, ..green_line(&net, -60.0, 0.0).1 };
         let lights = Lights { controller: &controller, time: 0.0 };
-        assert_eq!(yield_to_oncoming(&lights, &net, past, 0, &mut crossing, 0.1, &[oncoming()]), past);
+        assert_eq!(yield_to_oncoming(&lights, &net, past, 0, &mut crossing, 0.1, [oncoming()]), past);
     }
 }

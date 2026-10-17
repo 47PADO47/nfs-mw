@@ -50,7 +50,7 @@ fn the_trail_is_a_ring() {
 fn nothing_in_the_way_means_steering_at_the_cursor() {
     let (_, nav) = cursor_ahead();
     let car = body(Vec3::new(2.0, 0.0, 0.0), Vec2::Y, 10.0);
-    let o = update_occluded_position(nav.trail().unwrap(), &car, nav.position, &[], true, 0.9).unwrap();
+    let o = update_occluded_position(nav.trail().unwrap(), &car, nav.position, [], true, 0.9).unwrap();
     assert!(!o.occluded());
     assert!(o.position.distance(nav.position) < 1e-4);
     assert!((o.out_of_bounds - (0.9 - 0.5)).abs() < 0.2, "centred in the lane: {}", o.out_of_bounds);
@@ -60,7 +60,7 @@ fn nothing_in_the_way_means_steering_at_the_cursor() {
 fn a_car_off_the_corridor_reports_it() {
     let (_, nav) = cursor_ahead();
     let car = body(Vec3::new(5.0, 0.0, 0.0), Vec2::Y, 10.0);
-    let o = update_occluded_position(nav.trail().unwrap(), &car, nav.position, &[], true, 0.9).unwrap();
+    let o = update_occluded_position(nav.trail().unwrap(), &car, nav.position, [], true, 0.9).unwrap();
     assert!(o.out_of_bounds > 3.0, "{}", o.out_of_bounds);
 }
 
@@ -70,7 +70,7 @@ fn a_car_ahead_cuts_the_corridor_and_names_its_speed() {
     let me = body(Vec3::new(2.0, 0.0, 0.0), Vec2::Y, 10.0);
     // Another car stopped in the lane 15 m ahead.
     let other = body(Vec3::new(2.0, 0.0, 15.0), Vec2::Y, 0.0);
-    let o = update_occluded_position(nav.trail().unwrap(), &me, nav.position, &[other], true, 0.9).unwrap();
+    let o = update_occluded_position(nav.trail().unwrap(), &me, nav.position, [other], true, 0.9).unwrap();
     assert_ne!(o.avoidable, 0, "the stopped car blocks the view: {o:?}");
     assert!(!o.from_behind);
     assert_eq!(o.trail_speed, 0.0);
@@ -85,6 +85,6 @@ fn a_car_far_to_the_side_is_ignored() {
     let (_, nav) = cursor_ahead();
     let me = body(Vec3::new(2.0, 0.0, 0.0), Vec2::Y, 10.0);
     let other = body(Vec3::new(40.0, 0.0, 15.0), Vec2::Y, 0.0);
-    let o = update_occluded_position(nav.trail().unwrap(), &me, nav.position, &[other], true, 0.9).unwrap();
+    let o = update_occluded_position(nav.trail().unwrap(), &me, nav.position, [other], true, 0.9).unwrap();
     assert!(!o.occluded());
 }

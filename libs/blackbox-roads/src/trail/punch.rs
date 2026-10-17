@@ -60,7 +60,7 @@ fn approach_time(rel: Vec2, vel: Vec2) -> f32 {
 pub fn punch_avoidables(
     cookies: &mut [Cookie],
     me: &Body,
-    avoidables: &[Body],
+    avoidables: impl IntoIterator<Item = Body>,
     traffic: bool,
     vehicle_half_width: f32,
 ) -> Option<Blocker> {
@@ -74,7 +74,7 @@ pub fn punch_avoidables(
     let my_speed = xz(me.velocity).length();
     let mut blocker: Option<(f32, Blocker)> = None;
 
-    for a in avoidables.iter().take(32) {
+    for a in avoidables.into_iter().take(32) {
         if (a.position.y - first.centre.y).abs() > MAX_HEIGHT_DIFF {
             continue;
         }

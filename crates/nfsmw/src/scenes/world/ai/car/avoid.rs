@@ -59,7 +59,7 @@ impl Avoid {
         lights: Option<Lights<'_>>,
         stop: Option<StopLine>,
         approach: Option<usize>,
-        others: &[Body],
+        others: impl IntoIterator<Item = Body>,
     ) -> Option<StopLine> {
         if !self.enabled {
             return stop;
@@ -79,7 +79,7 @@ impl Avoid {
         index: &SegmentIndex,
         nav: &mut RoadNav,
         body: &Body,
-        others: &[Body],
+        others: impl IntoIterator<Item = Body, IntoIter: Clone>,
         blocked: bool,
     ) {
         if !self.enabled {
@@ -98,10 +98,10 @@ impl Avoid {
             self.change = LaneChange::new(nav.lane);
         }
         let right = right_of(nav.forward);
-        let relative = relative_to(others, body, nav, forward, right);
+        let relative = relative_to(others, body, nav.position, forward, right);
         let lateral_of = |lane: usize| lane_lateral(&profile, lane) - lane_lateral(&profile, nav.lane);
         let half_width = |lane: usize| profile.zones.get(lane).map_or(0.0, |z| z.width * 0.5) + body.half_width;
-        let clear = |lane: usize| lane_clear(&relative, lateral_of(lane), half_width(lane), speed);
+        let clear = |lane: usize| lane_clear(relative.clone(), lateral_of(lane), half_width(lane), speed);
         let situation =
             Situation { blocked, may_change: self.blocked.may_change_lane(speed), speed, metres: speed * THINK_PERIOD };
         let Command::Move(lane) = self.change.update(situation, adjacent_lanes(&lanes, nav.lane), clear) else {
@@ -143,16 +143,19 @@ impl AiCar {
     }
 }
 
-/// Every other car, placed against the car's direction and the navigator's lane line.
-fn relative_to(others: &[Body], body: &Body, nav: &RoadNav, forward: Vec3, right: Vec3) -> Vec<Other> {
-    others
-        .iter()
-        .map(|other| Other {
-            along: (other.position - body.position).dot(forward),
-            lateral: (other.position - nav.position).dot(right),
-            along_speed: other.velocity.dot(forward),
-        })
-        .collect()
+/// Every other car, placed against the car's direction and the navigator's lane line, as the iterator is read.
+fn relative_to(
+    others: impl IntoIterator<Item = Body, IntoIter: Clone>,
+    body: &Body,
+    lane_line: Vec3,
+    forward: Vec3,
+    right: Vec3,
+) -> impl Iterator<Item = Other> + Clone {
+    others.into_iter().map(move |other| Other {
+        along: (other.position - body.position).dot(forward),
+        lateral: (other.position - lane_line).dot(right),
+        along_speed: other.velocity.dot(forward),
+    })
 }
 
 /// The lateral offset of a traffic lane from the centre line, right of travel.
@@ -220,11 +223,11 @@ mod tests {
         let (me, blocker) = (car_at(10.0, 2.0), stopped_at(30.0));
         let mut avoid = enabled();
         for _ in 0..10 {
-            avoid.before_think(&net, &index, &mut nav, &me, &[blocker], true);
+            avoid.before_think(&net, &index, &mut nav, &me, [blocker], true);
         }
         assert_eq!(nav.lane, 1, "not yet: about 1.7 s blocked");
         for _ in 0..10 {
-            avoid.before_think(&net, &index, &mut nav, &me, &[blocker], true);
+            avoid.before_think(&net, &index, &mut nav, &me, [blocker], true);
         }
         assert_eq!(nav.lane, 2, "moved over after about 3 s");
         // The steering target starts at the car, not at the new lane, so there is no step.
@@ -242,7 +245,7 @@ mod tests {
         let (me, blocker) = (car_at(10.0, 2.0), stopped_at(30.0));
         let mut avoid = Avoid::default();
         for _ in 0..40 {
-            avoid.before_think(&net, &index, &mut nav, &me, &[blocker], true);
+            avoid.before_think(&net, &index, &mut nav, &me, [blocker], true);
         }
         assert_eq!(nav.lane, 1);
         assert_eq!(avoid.steer_offset(&nav, me.position), Vec3::ZERO);
@@ -255,7 +258,7 @@ mod tests {
         let mut nav = navigator(&net);
         let mut avoid = enabled();
         for _ in 0..40 {
-            avoid.before_think(&net, &index, &mut nav, &car_at(10.0, 2.0), &[], false);
+            avoid.before_think(&net, &index, &mut nav, &car_at(10.0, 2.0), [], false);
         }
         assert_eq!(nav.lane, 1);
     }
@@ -267,7 +270,7 @@ mod tests {
         let mut nav = navigator(&net);
         let mut avoid = enabled();
         for _ in 0..40 {
-            avoid.before_think(&net, &index, &mut nav, &car_at(10.0, 9.0), &[stopped_at(40.0)], true);
+            avoid.before_think(&net, &index, &mut nav, &car_at(10.0, 9.0), [stopped_at(40.0)], true);
         }
         assert_eq!(nav.lane, 1, "above 5 m/s it does not move over");
     }
@@ -306,8 +309,8 @@ mod tests {
         let line = StopLine { distance: 5.0, light: blackbox_roads::Light::Green };
         let controller = blackbox_roads::SignalController::new(&net);
         let lights = Lights { controller: &controller, time: 0.0 };
-        assert_eq!(avoid.yield_at(&net, Some(lights), Some(line), Some(0), &[]), Some(line));
-        assert_eq!(avoid.yield_at(&net, None, None, None, &[]), None);
+        assert_eq!(avoid.yield_at(&net, Some(lights), Some(line), Some(0), []), Some(line));
+        assert_eq!(avoid.yield_at(&net, None, None, None, []), None);
     }
 
     #[test]
@@ -319,7 +322,7 @@ mod tests {
         let beside = Body { position: Vec3::new(6.0, 0.0, 14.0), ..stopped_at(14.0) };
         let mut avoid = enabled();
         for _ in 0..40 {
-            avoid.before_think(&net, &index, &mut nav, &me, &[blocker, beside], true);
+            avoid.before_think(&net, &index, &mut nav, &me, [blocker, beside], true);
         }
         assert_eq!(nav.lane, 1, "the lane next to it is not clear");
     }

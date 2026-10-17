@@ -23,9 +23,9 @@ pub struct Other {
 /// A car in the gap blocks the lane unless it is moving away from the car: a car ahead that is slower than the
 /// car does not block, and a car behind that is faster does not either. The gap runs from [`BEHIND`] metres back
 /// to [`AHEAD_SECONDS`] × speed + [`AHEAD_EXTRA`] metres ahead.
-pub fn lane_clear(others: &[Other], lane_lateral: f32, half_width: f32, speed: f32) -> bool {
+pub fn lane_clear(others: impl IntoIterator<Item = Other>, lane_lateral: f32, half_width: f32, speed: f32) -> bool {
     let speed = speed.abs();
-    others.iter().all(|other| !in_gap(other, lane_lateral, half_width, speed))
+    others.into_iter().all(|other| !in_gap(&other, lane_lateral, half_width, speed))
 }
 
 fn in_gap(other: &Other, lane_lateral: f32, half_width: f32, speed: f32) -> bool {
@@ -64,32 +64,32 @@ mod tests {
     #[test]
     fn a_car_in_the_target_lane_within_the_gap_blocks_it() {
         let speed = 2.0;
-        assert!(!lane_clear(&[other(15.0, LANE, 0.0)], LANE, HALF, speed), "ahead, stopped");
-        assert!(!lane_clear(&[other(-8.0, LANE, 5.0)], LANE, HALF, speed), "behind, closing");
+        assert!(!lane_clear([other(15.0, LANE, 0.0)], LANE, HALF, speed), "ahead, stopped");
+        assert!(!lane_clear([other(-8.0, LANE, 5.0)], LANE, HALF, speed), "behind, closing");
     }
 
     #[test]
     fn the_gap_runs_ten_metres_back_and_two_seconds_plus_fifteen_ahead() {
         let speed = 2.0;
         let reach = AHEAD_SECONDS * speed + AHEAD_EXTRA;
-        assert!(lane_clear(&[other(-BEHIND - 0.5, LANE, 5.0)], LANE, HALF, speed), "just past the back of the gap");
-        assert!(lane_clear(&[other(reach + 0.5, LANE, 0.0)], LANE, HALF, speed), "just past the front of the gap");
-        assert!(!lane_clear(&[other(-BEHIND + 0.5, LANE, 5.0)], LANE, HALF, speed), "inside the back of the gap");
-        assert!(!lane_clear(&[other(reach - 0.5, LANE, 0.0)], LANE, HALF, speed), "inside the front of the gap");
+        assert!(lane_clear([other(-BEHIND - 0.5, LANE, 5.0)], LANE, HALF, speed), "just past the back of the gap");
+        assert!(lane_clear([other(reach + 0.5, LANE, 0.0)], LANE, HALF, speed), "just past the front of the gap");
+        assert!(!lane_clear([other(-BEHIND + 0.5, LANE, 5.0)], LANE, HALF, speed), "inside the back of the gap");
+        assert!(!lane_clear([other(reach - 0.5, LANE, 0.0)], LANE, HALF, speed), "inside the front of the gap");
     }
 
     #[test]
     fn a_car_outside_the_target_lane_does_not_block_it() {
         let speed = 2.0;
-        assert!(lane_clear(&[other(5.0, 0.0, 0.0)], LANE, HALF, speed), "still in its own lane");
-        assert!(lane_clear(&[other(5.0, LANE + HALF + 0.1, 0.0)], LANE, HALF, speed), "beyond the lane");
+        assert!(lane_clear([other(5.0, 0.0, 0.0)], LANE, HALF, speed), "still in its own lane");
+        assert!(lane_clear([other(5.0, LANE + HALF + 0.1, 0.0)], LANE, HALF, speed), "beyond the lane");
     }
 
     #[test]
     fn a_car_pulling_away_ahead_or_falling_back_behind_is_no_obstacle() {
         let speed = 3.0;
-        assert!(lane_clear(&[other(10.0, LANE, 8.0)], LANE, HALF, speed), "ahead and faster");
-        assert!(lane_clear(&[other(-5.0, LANE, 1.0)], LANE, HALF, speed), "behind and slower");
+        assert!(lane_clear([other(10.0, LANE, 8.0)], LANE, HALF, speed), "ahead and faster");
+        assert!(lane_clear([other(-5.0, LANE, 1.0)], LANE, HALF, speed), "behind and slower");
     }
 
     #[test]

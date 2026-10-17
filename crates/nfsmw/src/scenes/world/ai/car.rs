@@ -125,9 +125,6 @@ pub struct AiCar {
     avoid: avoid::Avoid,
     /// The player car's speed (m/s) at the last physics step: the crash gate of `hits.rs` reads it.
     player_speed: f32,
-    /// The bodies a think reads as the others: every other car (a cop's think takes only the non-cops) and then the
-    /// player. Rebuilt in place each think, so the buffer is reused rather than allocated.
-    others: Vec<Body>,
 }
 
 impl AiCar {
@@ -203,7 +200,6 @@ impl AiCar {
             support: None,
             avoid: avoid::Avoid::default(),
             player_speed: 0.0,
-            others: Vec::new(),
         })
     }
 
@@ -349,13 +345,30 @@ impl AiCar {
                 state.stop =
                     ctx.lights.and_then(|l| stop::find(&l, ctx.net, &self.nav, &state.body, &mut self.stop_memory));
                 self.waiting = state.stop.is_some_and(|s| s.is_holding());
-                self.others.clear();
-                self.others.extend(ctx.bodies.iter().enumerate().filter(|&(i, _)| i != ctx.me).map(|(_, b)| b.0));
-                self.others.extend(ctx.player);
-                self.avoid.before_think(ctx.net, ctx.index, &mut self.nav, &state.body, &self.others, self.blocked);
-                state.stop = self.avoid.yield_at(ctx.net, ctx.lights, state.stop, self.stop_memory, &self.others);
-                let think =
-                    traffic::think(ctx.net, &mut self.nav, &state, &self.others, self.blocked, ctx.rng, &self.cruise);
+                self.avoid.before_think(
+                    ctx.net,
+                    ctx.index,
+                    &mut self.nav,
+                    &state.body,
+                    traffic::others(ctx.bodies, ctx.me, ctx.player),
+                    self.blocked,
+                );
+                state.stop = self.avoid.yield_at(
+                    ctx.net,
+                    ctx.lights,
+                    state.stop,
+                    self.stop_memory,
+                    traffic::others(ctx.bodies, ctx.me, ctx.player),
+                );
+                let think = traffic::think(
+                    ctx.net,
+                    &mut self.nav,
+                    &state,
+                    traffic::others(ctx.bodies, ctx.me, ctx.player),
+                    self.blocked,
+                    ctx.rng,
+                    &self.cruise,
+                );
                 self.target = think.target;
                 self.speed = think.speed;
                 self.blocked = think.blocked;
@@ -365,10 +378,9 @@ impl AiCar {
                     self.speed = 0.0;
                     return;
                 };
-                self.others.clear();
-                self.others.extend(
-                    ctx.bodies.iter().enumerate().filter(|&(i, (_, is_cop))| i != ctx.me && !is_cop).map(|(_, b)| b.0),
-                );
+                let (bodies, me) = (ctx.bodies, ctx.me);
+                let others =
+                    bodies.iter().enumerate().filter(move |&(i, (_, is_cop))| i != me && !is_cop).map(|(_, b)| b.0);
                 let pressing = self.controls.gas >= 0.5;
                 let stuck = cop.stuck.update(
                     cop::THINK_PERIOD,
@@ -388,7 +400,7 @@ impl AiCar {
                     shift(&mut self.sim, Some(gear));
                 }
                 let aim = support_drive::aim(self.support, &player, ctx.aims.get(ctx.me).copied().flatten());
-                let think = cop.think(ctx, &mut self.nav, &state, &Target { body: player, aim }, &self.others);
+                let think = cop.think(ctx, &mut self.nav, &state, &Target { body: player, aim }, others);
                 self.target = think.target;
                 self.think_goal(aim, state.body.position, think.speed);
                 self.support_drive(&player);
