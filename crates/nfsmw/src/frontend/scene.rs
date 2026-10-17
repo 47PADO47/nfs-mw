@@ -91,6 +91,21 @@ impl Scene for MenuScene {
         Ok(())
     }
 
+    fn release(&mut self, renderer: &mut dyn RenderBackend) {
+        if let Some(mut car) = self.car.take() {
+            car.release(renderer);
+        }
+        if let Some(room) = self.room.take() {
+            room.destroy(renderer);
+        }
+        self.parts.clear();
+    }
+
+    fn reattached(&mut self, renderer: &mut dyn RenderBackend) {
+        let Some(car) = self.car.as_mut() else { return };
+        car.reshow(renderer);
+    }
+
     fn update(&mut self, renderer: &mut dyn RenderBackend, _input: &ActionState, dt: f32) {
         let Some(car) = &mut self.car else { return };
         car.turn((TURN_RATE * dt).to_radians());
@@ -201,6 +216,14 @@ impl Scene for Pausable {
 
     fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
         self.inner.init(renderer)
+    }
+
+    fn release(&mut self, renderer: &mut dyn RenderBackend) {
+        self.inner.release(renderer);
+    }
+
+    fn reattached(&mut self, renderer: &mut dyn RenderBackend) {
+        self.inner.reattached(renderer);
     }
 
     fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {

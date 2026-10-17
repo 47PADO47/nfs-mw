@@ -124,6 +124,11 @@ pub trait Scene {
     fn title(&self) -> String;
     /// Upload the initial resources.
     fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()>;
+    /// Free this scene's GPU resources before it is dropped. The host calls it when the scene leaves the window,
+    /// unless the scene is parked for reuse.
+    fn release(&mut self, _renderer: &mut dyn RenderBackend) {}
+    /// The scene is put back in the window after another scene had it: re-apply the renderer state it relies on.
+    fn reattached(&mut self, _renderer: &mut dyn RenderBackend) {}
     /// Advance by `dt` seconds: camera, streaming, uploads.
     fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32);
     /// The frame to draw. Instances of the same mesh should be adjacent.

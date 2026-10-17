@@ -155,6 +155,11 @@ impl Scene for AssetScene {
         self.car.init(renderer)
     }
 
+    fn release(&mut self, renderer: &mut dyn RenderBackend) {
+        // The viewer uploads nothing but its car, so the car frees all of it.
+        self.car.release(renderer);
+    }
+
     fn set_car_shading(&mut self, shading: CarShading) {
         self.car.set_car_shading(shading);
     }

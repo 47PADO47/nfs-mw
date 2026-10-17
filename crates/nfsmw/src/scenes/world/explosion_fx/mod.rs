@@ -98,6 +98,17 @@ impl ExplosionFx {
         }
     }
 
+    /// Free the textures. The effect stays off afterwards.
+    pub fn release(&mut self, renderer: &mut dyn RenderBackend) {
+        self.queued.clear();
+        self.blasts.clear();
+        if let Load::Ready(set) = std::mem::replace(&mut self.load, Load::Missing) {
+            for (texture, _) in set.textures {
+                renderer.destroy_texture(texture);
+            }
+        }
+    }
+
     /// Upload the effect's textures once; with no art (or no effect in the install) it stays off.
     pub fn load(&mut self, renderer: &mut dyn RenderBackend, dir: &GameDir, db: &Database) {
         if !matches!(self.load, Load::Unloaded) {

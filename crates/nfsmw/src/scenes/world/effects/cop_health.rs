@@ -43,6 +43,13 @@ impl CopHealthBars {
         let vertices = vertices(&self.bars, &BarParams::default());
         out.push(TexturedEffect { texture, blend: BlendMode::AlphaBlend, vertices });
     }
+
+    /// Free the white texture, if the bars have drawn with it.
+    pub fn release(&mut self, renderer: &mut dyn RenderBackend) {
+        if let Some(texture) = self.texture.take() {
+            renderer.destroy_texture(texture);
+        }
+    }
 }
 
 /// The vertices of the bars' quads, in the bars' order (back to front) and each bar's draw order (border, lag, fill).

@@ -187,6 +187,13 @@ fn audio_environment(dir: &GameDir) -> Option<crate::audio::environment_context:
         .ok()
 }
 
+/// A car waiting for the renderer to exist.
+pub(super) struct PendingCar {
+    pub(super) name: String,
+    pub(super) model: CarModel,
+    pub(super) script: Option<DriveScript>,
+}
+
 /// The player's car for `--drive`: its model and its driving script.
 fn load_pending_car(dir: &GameDir, d: DriveOptions) -> Result<PendingCar> {
     let (name, model) = load_car(dir, &d.car)?;

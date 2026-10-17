@@ -75,6 +75,13 @@ impl MarkerMeshes {
     pub fn upload(renderer: &mut dyn RenderBackend) -> Self {
         Self { meshes: KINDS.map(|kind| upload_box(renderer, "contact marker", kind.colour())) }
     }
+
+    /// Free the meshes.
+    pub fn release(self, renderer: &mut dyn RenderBackend) {
+        for mesh in self.meshes {
+            renderer.destroy_mesh(mesh);
+        }
+    }
 }
 
 /// Uploads a pre-lit box of one colour (B G R A, 0x80 is full brightness) from the origin along +x, 1 m long and

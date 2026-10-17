@@ -219,7 +219,7 @@ impl Residency {
             shared.upload_textures(renderer, data);
         }
         let globals = std::mem::take(&mut self.globals);
-        shared.upload_texture_list(renderer, &globals.textures);
+        shared.upload_texture_list(renderer, &globals.textures, &[]);
         shared.anims.extend(globals.anims);
         shared.anims.extend(pending.iter().flat_map(|d| d.anims.iter().cloned()));
         let empty = SectionResources::default();
@@ -406,6 +406,16 @@ impl Residency {
     /// Collision and props together, the props mutable (cars knock them over).
     pub fn world_parts(&mut self) -> (&CollisionWorld, &mut PropWorld) {
         (&self.collision, &mut self.props)
+    }
+
+    /// Free the GPU resources of the shared sets and of every resident tile.
+    pub fn release(&mut self, renderer: &mut dyn RenderBackend) {
+        std::mem::take(&mut self.shared).release(renderer);
+        for (_, state) in self.tiles.drain() {
+            if let TileState::Resident { resources, .. } = state {
+                resources.release(renderer);
+            }
+        }
     }
 
     /// The current zone, e.g. `D14`.

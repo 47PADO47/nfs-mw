@@ -61,6 +61,13 @@ impl CopLightSet {
         }
         (!templates.is_empty()).then(|| Rc::new(Self { textures, templates }))
     }
+
+    /// Free the textures.
+    pub fn release(self, renderer: &mut dyn RenderBackend) {
+        for (texture, _) in self.textures {
+            renderer.destroy_texture(texture);
+        }
+    }
 }
 
 /// One car's light bars: its emitters, one per template of the set.

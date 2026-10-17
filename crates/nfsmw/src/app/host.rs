@@ -14,6 +14,9 @@ use crate::viewer::Scene;
 
 pub struct Host {
     pub scene: Box<dyn Scene>,
+    /// The menu backdrop, kept initialised while free roam has the window, so the menus that come back reuse it
+    /// (see [`Host::replace_scene_parking_old`] and [`Host::restore_parked_menu`]).
+    pub parked_menu: Option<Box<dyn Scene>>,
     /// Counts the scenes put in the window, so a scene's sound can be stopped when it goes.
     pub scene_changes: u32,
     pub screenshot: Option<super::screenshot::Plan>,
@@ -73,6 +76,7 @@ impl Host {
         scene.set_exhaust_flames(settings.exhaust_flames);
         Self {
             scene,
+            parked_menu: None,
             scene_changes: 0,
             screenshot,
             renderer: None,
@@ -112,8 +116,87 @@ impl Host {
     }
 
     /// Puts another scene in the window: it is initialised with the renderer, and in a screenshot run it is given
-    /// the time to load.
-    pub fn replace_scene(&mut self, mut scene: Box<dyn Scene>) -> anyhow::Result<()> {
+    /// the time to load. The scene it replaces is released.
+    pub fn replace_scene(&mut self, scene: Box<dyn Scene>) -> anyhow::Result<()> {
+        let mut old = self.install(scene)?;
+        self.release_scene(old.as_mut());
+        Ok(())
+    }
+
+    /// Like [`Host::replace_scene`], but the scene it replaces is parked for [`Host::restore_parked_menu`] instead of
+    /// released. Only one scene is parked: a menu parked before is released now.
+    pub fn replace_scene_parking_old(&mut self, scene: Box<dyn Scene>) -> anyhow::Result<()> {
+        let old = self.install(scene)?;
+        let stale = self.parked_menu.replace(old);
+        if let Some(mut stale) = stale {
+            self.release_scene(stale.as_mut());
+        }
+        Ok(())
+    }
+
+    /// Puts the parked menu back in the window in place of the scene there, which is released. The menu keeps the
+    /// resources it was built with, so it is not initialised again; it is told it is back on screen (`Scene::reattached`).
+    /// Returns `false`, with nothing changed, when no menu is parked.
+    pub fn restore_parked_menu(&mut self) -> bool {
+        let Some(mut menu) = self.parked_menu.take() else { return false };
+        self.apply_scene_settings(menu.as_mut());
+        self.apply_driving_settings(menu.as_mut());
+        let Some(renderer) = self.renderer.as_mut() else {
+            self.parked_menu = Some(menu);
+            return false;
+        };
+        renderer.set_colour_treatment(None, None);
+        renderer.set_focus_mask(None);
+        renderer.set_reflection_scene(None);
+        let mut old = std::mem::replace(&mut self.scene, menu);
+        self.scene_changes += 1;
+        old.release(renderer.as_mut());
+        self.scene.reattached(renderer.as_mut());
+        true
+    }
+
+    /// Initialises `scene` and puts it in the window. Returns the scene it replaced, which the caller releases or
+    /// parks. On error the window keeps its scene.
+    fn install(&mut self, mut scene: Box<dyn Scene>) -> anyhow::Result<Box<dyn Scene>> {
+        self.apply_scene_settings(scene.as_mut());
+        self.init_scene(scene.as_mut())?;
+        self.apply_driving_settings(scene.as_mut());
+        self.wait_for_screenshot(scene.as_mut());
+        self.scene_changes += 1;
+        Ok(std::mem::replace(&mut self.scene, scene))
+    }
+
+    /// Resets the renderer for a new scene and lets the scene upload its resources. A scene that fails to upload
+    /// frees what it got.
+    fn init_scene(&mut self, scene: &mut dyn Scene) -> anyhow::Result<()> {
+        let renderer = self.renderer.as_mut().ok_or_else(|| anyhow::anyhow!("the renderer is not ready"))?;
+        renderer.set_colour_treatment(None, None);
+        renderer.set_focus_mask(None);
+        // A local environment belongs to the old scene; menus and viewers must not inherit its capture.
+        renderer.set_reflection_scene(None);
+        if let Err(e) = scene.init(renderer.as_mut()) {
+            scene.release(renderer.as_mut());
+            return Err(e);
+        }
+        Ok(())
+    }
+
+    fn wait_for_screenshot(&mut self, scene: &mut dyn Scene) {
+        if self.screenshot.is_none() {
+            return;
+        }
+        let Some(renderer) = self.renderer.as_mut() else { return };
+        super::screenshot::wait_ready(scene, renderer.as_mut());
+    }
+
+    /// Frees what a scene leaving the window uploaded.
+    fn release_scene(&mut self, scene: &mut dyn Scene) {
+        let Some(renderer) = self.renderer.as_mut() else { return };
+        scene.release(renderer.as_mut());
+    }
+
+    /// The settings every scene is given before its init, as the host holds them now.
+    fn apply_scene_settings(&self, scene: &mut dyn Scene) {
         scene.set_tire_effects(self.tire_effects[0], self.tire_effects[1]);
         scene.set_smoke_quality(self.smoke_quality);
         scene.set_rain(self.rain.0, self.rain.1);
@@ -123,21 +206,14 @@ impl Host {
         scene.set_spark_style(self.spark_style);
         scene.set_speed_trail_style(self.speed_trail_style);
         scene.set_exhaust_flames(self.exhaust_flames);
-        let renderer = self.renderer.as_mut().ok_or_else(|| anyhow::anyhow!("the renderer is not ready"))?;
-        renderer.set_colour_treatment(None, None);
-        // A local environment belongs to the old scene; menus and viewers must not inherit its capture.
-        renderer.set_reflection_scene(None);
-        scene.init(renderer.as_mut())?;
+    }
+
+    /// The driving settings every scene is given after its init, as the host holds them now.
+    fn apply_driving_settings(&self, scene: &mut dyn Scene) {
         scene.set_transmission(self.transmission);
         scene.set_camera_mode(self.camera_mode);
         scene.set_wheel_options(self.wheel);
         scene.set_traffic(self.traffic);
-        if self.screenshot.is_some() {
-            super::screenshot::wait_ready(scene.as_mut(), renderer.as_mut());
-        }
-        self.scene = scene;
-        self.scene_changes += 1;
-        Ok(())
     }
 
     /// Give the renderer the graphics settings (once per change).
@@ -209,3 +285,7 @@ impl ErrorSlot {
         self.0.lock().unwrap_or_else(|e| e.into_inner()).take()
     }
 }
+
+#[cfg(test)]
+#[path = "host_tests.rs"]
+mod tests;

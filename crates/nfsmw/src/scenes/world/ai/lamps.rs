@@ -64,6 +64,13 @@ impl LampMeshes {
         }
     }
 
+    /// Free the meshes.
+    pub fn release(self, renderer: &mut dyn RenderBackend) {
+        for mesh in [self.green, self.amber, self.red, self.post, self.bar] {
+            renderer.destroy_mesh(mesh);
+        }
+    }
+
     fn lamp(&self, light: Light) -> MeshHandle {
         match light {
             Light::Green => self.green,

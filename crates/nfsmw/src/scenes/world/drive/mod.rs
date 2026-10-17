@@ -19,6 +19,7 @@ mod original_camera;
 mod placement;
 #[cfg(test)]
 mod presentation_tests;
+mod release;
 mod rig;
 mod script;
 pub(super) mod sight;

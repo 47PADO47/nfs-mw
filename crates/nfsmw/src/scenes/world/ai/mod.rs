@@ -21,6 +21,7 @@ mod pattern;
 mod police;
 mod population;
 mod pursuit;
+mod release;
 mod roadblock;
 mod scene;
 pub(super) mod signal_props;

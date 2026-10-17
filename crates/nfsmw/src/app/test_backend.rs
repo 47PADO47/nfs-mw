@@ -12,8 +12,11 @@ pub struct NullBackend {
     caps: Capabilities,
     settings: GraphicsSettings,
     pub mesh_labels: std::collections::HashMap<MeshHandle, String>,
+    /// The live textures of a tracking backend, by handle, with their labels.
+    pub texture_labels: std::collections::HashMap<TextureHandle, String>,
     track_meshes: bool,
     next_mesh: usize,
+    next_texture: usize,
 }
 
 impl NullBackend {
@@ -25,11 +28,14 @@ impl NullBackend {
             caps,
             settings: GraphicsSettings::default(),
             mesh_labels: Default::default(),
+            texture_labels: Default::default(),
             track_meshes: false,
             next_mesh: 0,
+            next_texture: 0,
         }
     }
 
+    /// Track the live meshes and textures (`mesh_labels`, `texture_labels`) instead of handing out dummy handles.
     pub fn with_mesh_tracking(mut self) -> Self {
         self.track_meshes = true;
         self
@@ -59,10 +65,18 @@ impl RenderBackend for NullBackend {
     fn render_size(&self) -> [u32; 2] {
         [1280, 720]
     }
-    fn create_texture(&mut self, _desc: &TextureDesc<'_>) -> TextureHandle {
-        TextureHandle::from_raw(0)
+    fn create_texture(&mut self, desc: &TextureDesc<'_>) -> TextureHandle {
+        if !self.track_meshes {
+            return TextureHandle::from_raw(0);
+        }
+        let handle = TextureHandle::from_raw(self.next_texture);
+        self.next_texture += 1;
+        self.texture_labels.insert(handle, desc.label.to_owned());
+        handle
     }
-    fn destroy_texture(&mut self, _handle: TextureHandle) {}
+    fn destroy_texture(&mut self, handle: TextureHandle) {
+        self.texture_labels.remove(&handle);
+    }
     fn redirect_texture(&mut self, _from: TextureHandle, _to: Option<TextureHandle>) {}
     fn create_mesh(&mut self, desc: &MeshDesc<'_>) -> MeshHandle {
         if !self.track_meshes {

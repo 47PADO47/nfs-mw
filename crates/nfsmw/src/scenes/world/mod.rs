@@ -52,6 +52,7 @@ mod space;
 mod speed_trails;
 mod start;
 mod sun;
+mod teardown;
 mod update;
 mod vehicle_effects;
 mod visibility;
@@ -100,13 +101,6 @@ enum View {
     Chase,
 }
 
-/// A car waiting for the renderer to exist.
-struct PendingCar {
-    name: String,
-    model: CarModel,
-    script: Option<DriveScript>,
-}
-
 pub struct WorldScene {
     garage: crate::garage::Model,
     garage_parts: Option<nfsmw_data::car::customization::Inventory>,
@@ -152,7 +146,7 @@ pub struct WorldScene {
     physics_clock: drive::FixedClock,
     speedbreaker_clock: drive::SpeedbreakerClock,
     view: View,
-    pending_car: Option<PendingCar>,
+    pending_car: Option<open::PendingCar>,
     drive: Option<Drive>,
     /// Computer-driven cars, when the track has a road network.
     traffic: Option<ai::TrafficWorld>,
@@ -236,10 +230,14 @@ impl Scene for WorldScene {
         renderer.set_colour_treatment(self.colour_treatment.as_ref(), self.gain_map.as_ref());
         self.breaker_visuals.init(renderer);
         Self::note_radial_blur_support(renderer);
-        if let Some(PendingCar { name, model, script }) = self.pending_car.take() {
+        if let Some(open::PendingCar { name, model, script }) = self.pending_car.take() {
             self.start_driving(renderer, name, model, script)?;
         }
         Ok(())
+    }
+
+    fn release(&mut self, renderer: &mut dyn RenderBackend) {
+        self.release_gpu(renderer);
     }
 
     fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
