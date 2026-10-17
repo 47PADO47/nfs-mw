@@ -106,10 +106,15 @@ pub struct Frontend {
     pub(super) remap: Option<(Control, usize)>,
     /// The sidebar's hand-over, when a viewer runs the front end over its own scene (`Start::Browse`).
     pub(super) browse: Option<Browse>,
+    /// Whether the scene in the window is the menu backdrop. Its car is read from the install and uploaded once, when
+    /// it is built, so the menus that come up next keep it instead of building it again.
+    menu_in_window: bool,
 }
 
 impl Frontend {
     pub fn new(screens: Screens, dir: GameDir, start: Start, script: Option<UiScript>) -> Self {
+        // `run_front_end` starts over a built `MenuScene` (`app/render`); a viewer starts over its own scene.
+        let menu_in_window = !matches!(start, Start::Browse(_));
         Self {
             screens,
             dir,
@@ -127,6 +132,7 @@ impl Frontend {
             last_mask: 0,
             remap: None,
             browse: None,
+            menu_in_window,
         }
     }
 
@@ -141,7 +147,7 @@ impl Frontend {
             }
             Start::Menu => self.show_menu(host, env),
             Start::Screen(name, args) => {
-                self.replace_scene(host, Box::new(MenuScene::new(Some(self.dir.clone()))));
+                self.show_backdrop(host);
                 let commands = self.screens.open(&name, args, true, env);
                 self.apply(commands, host, env);
                 self.stage = Stage::Menus;
@@ -162,12 +168,27 @@ impl Frontend {
 
     fn replace_scene(&mut self, host: &mut Host, scene: Box<dyn crate::viewer::Scene>) -> bool {
         match host.replace_scene(scene) {
-            Ok(()) => true,
+            Ok(()) => {
+                self.menu_in_window = false;
+                true
+            }
             Err(e) => {
                 log::error!("cannot change the scene: {e:#}");
                 false
             }
         }
+    }
+
+    /// Puts the menu backdrop in the window. A backdrop already there is kept: building one reads the car from the
+    /// install and uploads it (`MenuScene::init`, ~150-190 ms), which the menus that follow would only repeat.
+    fn show_backdrop(&mut self, host: &mut Host) {
+        if self.menu_in_window {
+            return;
+        }
+        if !self.replace_scene(host, Box::new(MenuScene::new(Some(self.dir.clone())))) {
+            return;
+        }
+        self.menu_in_window = true;
     }
 
     /// Goes on in the boot flow; after the last step the main menu.
@@ -194,7 +215,7 @@ impl Frontend {
                 }
             }
             Boot::Splash => {
-                self.replace_scene(host, Box::new(MenuScene::new(Some(self.dir.clone()))));
+                self.show_backdrop(host);
                 // Like the original (`eIsWidescreen`): the wide package for any window wider than 4:3.
                 let wide = host.renderer.as_ref().is_none_or(|r| r.aspect_ratio() > WIDE_ASPECT);
                 let commands = self.screens.open(if wide { SPLASH_WIDE } else { SPLASH }, Args::default(), true, env);
@@ -209,7 +230,7 @@ impl Frontend {
         self.latch = true;
         self.paused.set(false);
         self.screens.clear();
-        self.replace_scene(host, Box::new(MenuScene::new(Some(self.dir.clone()))));
+        self.show_backdrop(host);
         let commands = self.screens.open(MAIN_MENU, Args::default(), true, env);
         self.stage = Stage::Menus;
         self.apply(commands, host, env);
