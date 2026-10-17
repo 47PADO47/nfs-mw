@@ -44,6 +44,7 @@ pub struct FrontendPlugin {
 impl Plugin for FrontendPlugin {
     fn build(&self, app: &mut App) {
         super::jukebox::prime(&self.dir);
+        super::credits::prime(&self.dir);
         let Some(assets) = crate::ui::ensure(app, &self.dir) else { return };
         let catalog = Catalog::load(&self.dir, &SCREEN_FILES);
         let screens = Screens::new(catalog, assets);
