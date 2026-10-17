@@ -3,7 +3,9 @@
 
 use std::collections::HashMap;
 
-use super::{Block, ControlNode, EventNode, Graph, InputKey, InputSource, Mixer, ObjectRef, SpatialNode, Src, SubNode};
+use super::{
+    Block, ControlNode, EventNode, FastMap, Graph, InputKey, InputSource, Mixer, ObjectRef, SpatialNode, Src, SubNode,
+};
 use crate::id::{SourceId, SourceKind};
 use crate::map::{EnvelopeKind, MixMap, State};
 use crate::shape::{UNITY, q15_from_db};
@@ -27,8 +29,8 @@ struct Builder<'a> {
     map: &'a MixMap,
     refs: Vec<u8>,
     lookup: HashMap<(Cat, u8, u8, u8), usize>,
-    input_index: HashMap<InputKey, usize>,
-    block_index: HashMap<ObjectRef, usize>,
+    input_index: FastMap<InputKey, usize>,
+    block_index: FastMap<ObjectRef, usize>,
     blocks: Vec<Block>,
 }
 
@@ -43,8 +45,8 @@ pub(super) fn build(map: &MixMap, instances: &[u8]) -> Mixer {
         map,
         refs,
         lookup: HashMap::new(),
-        input_index: HashMap::new(),
-        block_index: HashMap::new(),
+        input_index: FastMap::default(),
+        block_index: FastMap::default(),
         blocks: Vec::new(),
     };
     b.register();
@@ -167,10 +169,10 @@ impl<'a> Builder<'a> {
             subs: Vec::new(),
             masters: Vec::new(),
             blocks: Vec::new(),
-            input_index: HashMap::new(),
-            block_index: HashMap::new(),
-            event_index: HashMap::new(),
-            event_overrides: HashMap::new(),
+            input_index: FastMap::default(),
+            block_index: FastMap::default(),
+            event_index: FastMap::default(),
+            event_overrides: FastMap::default(),
             camera: 0,
         };
         for (s, inst, state) in self.instances() {

@@ -17,6 +17,10 @@ use crate::shape::pitch_ratio;
 
 pub use self::build::MAX_INSTANCES;
 
+/// Lookup maps on the per-block path. They are only ever looked up, never iterated, so a cheap hasher cannot change
+/// results; the fixed seed keeps runs deterministic.
+pub(crate) type FastMap<K, V> = HashMap<K, V, foldhash::fast::FixedState>;
+
 /// Where an element reads a value from, resolved once when the mixer is built.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Src {
@@ -173,10 +177,10 @@ pub struct Mixer {
     pub(crate) subs: Vec<SubNode>,
     pub(crate) masters: Vec<MasterNode>,
     pub(crate) blocks: Vec<Block>,
-    input_index: HashMap<InputKey, usize>,
-    block_index: HashMap<ObjectRef, usize>,
-    event_index: HashMap<(u8, u8, u8), usize>,
-    event_overrides: HashMap<usize, EventOutput>,
+    input_index: FastMap<InputKey, usize>,
+    block_index: FastMap<ObjectRef, usize>,
+    event_index: FastMap<(u8, u8, u8), usize>,
+    event_overrides: FastMap<usize, EventOutput>,
     camera: u8,
 }
 
