@@ -77,6 +77,7 @@ fn masked_and_unmasked_presenter_uploads_apply_alpha_coverage_once() {
             custom: CustomFontSet::default(),
             input_atlas: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
             discord_mark: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
+            mod_mark: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
             strings: None,
         };
         let tree = UiTree { nodes: vec![node(0, None), node(1, Some(2))], draw_order: vec![0, 1] };
@@ -145,6 +146,7 @@ fn repeating_images_keep_their_extent_and_cache_a_separate_wrapped_texture() {
         custom: CustomFontSet::default(),
         input_atlas: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
         discord_mark: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
+        mod_mark: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
         strings: None,
     };
     let mut repeating = node(0, None);

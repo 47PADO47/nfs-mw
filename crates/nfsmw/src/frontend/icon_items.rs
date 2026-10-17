@@ -90,9 +90,9 @@ pub fn icons(kind: Kind) -> Vec<Icon> {
             list.push(icon(Id::Controls, 0xA04A_7B26, 0x04DC_6DB5, true));
             list.push(icon(Id::ControlOptions, crate::ui::input_icons::ATLAS, 0, true));
             list.push(icon(Id::Category(Category::Discord), crate::ui::discord_icon::TEXTURE, 0, true));
-            // The Mods page is listed only when a mod has rows (`bb.menus`); its icon has no picture, so the title names it.
+            // The Mods page is listed when a mod is listed (`mod_options.rs`) or has rows (`bb.menus`). Its picture is the mod manager's.
             if mods {
-                list.push(icon(Id::Category(Category::Mods), 0, 0, true));
+                list.push(icon(Id::Category(Category::Mods), crate::ui::mod_icon::TEXTURE, 0, true));
             }
             if !pause {
                 list.push(icon(Id::EaTrax, 0xC52C_CBF6, 0xDCFB_6B36, true));
@@ -163,6 +163,7 @@ mod tests {
             let with = icons(Kind::Categories { pause, mods: true });
             let mods = with.iter().find(|i| i.id == Id::Category(Category::Mods)).expect("the Mods category icon");
             assert!(mods.enabled);
+            assert_eq!(mods.texture, crate::ui::mod_icon::TEXTURE, "the mod manager's own picture");
             assert_eq!(with.len(), without.len() + 1);
         }
     }
