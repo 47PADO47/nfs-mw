@@ -59,7 +59,7 @@ impl CarMixer {
     /// Reads the map from the install. `dual` says the car plays the two-loop engine (object 2), else the
     /// single one (object 1).
     pub fn load(dir: &GameDir, dual: bool) -> Result<Self, String> {
-        let bytes = dir.read(MAP).map_err(|e| format!("{MAP}: {e:#}"))?;
+        let bytes = nfsmw_data::shared::map_output(dir).map_err(|e| format!("{MAP}: {e:#}"))?;
         let map = MixMap::parse(&bytes).map_err(|e| format!("{MAP}: {e}"))?;
         Ok(Self::new(Arc::new(map), dual))
     }

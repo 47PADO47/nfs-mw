@@ -53,9 +53,7 @@ impl Audio {
             if !active {
                 return;
             }
-            let loaded = self
-                .dir
-                .read(MAP)
+            let loaded = nfsmw_data::shared::map_output(&self.dir)
                 .map_err(|e| e.to_string())
                 .and_then(|bytes| MixMap::parse(&bytes).map_err(|e| e.to_string()));
             let map = match loaded {

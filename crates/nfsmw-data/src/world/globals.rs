@@ -7,7 +7,7 @@ use blackbox_solid::Solid;
 use blackbox_tpk::{Texture, TextureAnim};
 use game_install::GameDir;
 
-use crate::read_unwrapped;
+use crate::shared_unwrapped;
 
 /// Searched in order; a texture already found is not replaced.
 pub const GLOBAL_TEXTURE_FILES: &[&str] = &["GLOBAL/INGAMEA.BUN", "GLOBAL/GLOBALB.LZC", "GLOBAL/INGAMEB.BUN"];
@@ -29,7 +29,7 @@ pub struct GlobalTextures {
 pub fn load_global_textures(dir: &GameDir) -> Result<GlobalTextures> {
     let mut out = GlobalTextures::default();
     for rel in GLOBAL_TEXTURE_FILES.iter().filter(|rel| dir.exists(rel)) {
-        let file = read_unwrapped(dir, rel)?;
+        let file = shared_unwrapped(dir, rel)?;
         for pack in blackbox_tpk::read_texture_packs(&file).with_context(|| format!("texture packs in {rel}"))? {
             out.textures.extend(pack.textures);
         }

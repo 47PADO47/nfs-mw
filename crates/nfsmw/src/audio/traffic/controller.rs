@@ -41,9 +41,9 @@ impl TrafficAudio {
             return true;
         }
         let result = (|| {
-            let bytes = audio.dir.read("SOUND/MIXMAPS/MAPOUTPUT.mxb").map_err(|e| e.to_string())?;
+            let bytes = nfsmw_data::shared::map_output(&audio.dir).map_err(|e| e.to_string())?;
             let map = MixMap::parse(&bytes).map_err(|e| e.to_string())?;
-            let bytes = audio.dir.read("GLOBAL/InGameB.bun").map_err(|e| e.to_string())?;
+            let bytes = nfsmw_data::shared::ingame_b(&audio.dir).map_err(|e| e.to_string())?;
             self.stitches = whoosh_stitches(&bytes);
             self.map = Some(Arc::new(map));
             Ok::<_, String>(())

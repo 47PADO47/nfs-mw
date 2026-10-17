@@ -25,6 +25,7 @@ pub mod gameplay;
 pub mod minimap;
 pub mod music;
 pub mod pursuit;
+pub mod shared;
 pub mod sound;
 pub mod speech;
 pub mod time_of_day;
