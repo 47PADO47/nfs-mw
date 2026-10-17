@@ -1,2 +1,19 @@
 [alias]
 xtask = "run --quiet --package xtask --"
+
+# Bevy setup guide, fast compiles (Windows MSVC). rust-lld ships with rustup and links much faster than link.exe.
+# -Zshare-generics needs nightly (rust-toolchain.toml).
+[target.x86_64-pc-windows-msvc]
+linker = "rust-lld.exe"
+rustflags = ["-Zshare-generics=y"]
+
+# Bevy setup guide, fast compiles: Cranelift compiles faster than LLVM. Dev builds of our own crates only;
+# dependencies stay on LLVM. Ship release builds with LLVM (the release profile does not set this).
+[unstable]
+codegen-backend = true
+
+[profile.dev]
+codegen-backend = "cranelift"
+
+[profile.dev.package."*"]
+codegen-backend = "llvm"
