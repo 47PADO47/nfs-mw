@@ -2,6 +2,8 @@
 #[cfg(test)]
 mod coverage_tests;
 mod fit;
+#[cfg(test)]
+mod foliage_tests;
 pub(in crate::gpu) mod maps;
 mod pipelines;
 mod projected;

@@ -7,6 +7,7 @@ pub(super) struct Prepass {
     opaque: wgpu::RenderPipeline,
     cutout: wgpu::RenderPipeline,
     glossy_cutout: wgpu::RenderPipeline,
+    tree_cutout: wgpu::RenderPipeline,
     prelit_cutout: wgpu::RenderPipeline,
     matrix: wgpu::Buffer,
     group: wgpu::BindGroup,
@@ -91,6 +92,7 @@ impl Prepass {
             opaque: make("fs_opaque"),
             cutout: make("fs_cutout"),
             glossy_cutout: make("fs_glossy_cutout"),
+            tree_cutout: make("fs_tree_cutout"),
             prelit_cutout: make("fs_prelit_cutout"),
             matrix,
             group,
@@ -157,6 +159,11 @@ impl Prepass {
                     pass.set_pipeline(match draw.blend {
                         BlendMode::AlphaTest if renderer.reflective_surface(draw.shading) => &self.opaque,
                         BlendMode::AlphaTest if matches!(draw.shading, Shading::Glossy(_)) => &self.glossy_cutout,
+                        BlendMode::AlphaTest
+                            if renderer.experiments.original_world_materials && draw.shading == Shading::Tree =>
+                        {
+                            &self.tree_cutout
+                        }
                         BlendMode::AlphaTest
                             if renderer.experiments.original_world_materials
                                 && matches!(draw.shading, Shading::WorldWindow(_)) =>
