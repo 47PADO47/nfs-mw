@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use super::input::DriveInput;
 use super::rig::CarPose;
-use super::walls::{self, ContactKind, Impact};
+use super::walls::{self, ContactKind, Impact, WallContact};
 use crate::scenes::world::effects::{self, Contact};
 use crate::scenes::world::events::{OtherBody, VehicleEvents};
 use crate::scenes::world::object_geometry::{BodyGeometryFrame, BodyPose};
@@ -98,6 +98,8 @@ pub struct CarSim {
     prop_struck: bool,
     pending_sound_contacts: Vec<crate::audio::CarContact>,
     sound_identity: u64,
+    /// The wall contacts of the last step, kept so the step does not allocate (`walls::resolve_into`).
+    wall_scratch: Vec<WallContact>,
 }
 
 /// A vector from physics space to render space axes: `(x, y, z) -> (z, -x, y)`.
@@ -146,6 +148,7 @@ impl CarSim {
             wheel_ground: Default::default(),
             pending_sound_contacts: Vec::new(),
             sound_identity: next_sound_identity(),
+            wall_scratch: Vec::new(),
         }
     }
 
@@ -238,11 +241,12 @@ impl CarSim {
                 let mut objects = Impact::default();
                 props.collide_vehicle(&mut self.vehicle, frame, &mut objects);
                 let wall_exclusion = self.terrain_exclusion();
-                let mut impact = walls::resolve(
+                let mut impact = walls::resolve_into(
                     &mut self.vehicle,
                     &walls::world_cast_with_mask(collision, wall_exclusion),
                     &walls::world_props(props),
                     &self.walls,
+                    &mut self.wall_scratch,
                 );
                 impact.impulse = impact.impulse.max(objects.impulse);
                 impact.contacts.extend(objects.contacts);

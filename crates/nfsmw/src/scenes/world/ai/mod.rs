@@ -145,6 +145,13 @@ pub struct TrafficWorld {
     strikes: collide::Strikes,
     /// The spike strips of the standing roadblocks, on the road plane (`spikes.rs`). Cleared when the chase ends.
     spikes: Vec<blackbox_pursuit::spikes::Strip>,
+    /// Per-step scratch, kept so a step does not allocate: every body as the others see it (`simulation.rs`).
+    bodies: Vec<(Body, bool)>,
+    /// The cops' aims of the step, by car index (`cop_aims.rs`).
+    aims: Vec<Option<Vec3>>,
+    /// The hits and close passes of the collision step (`collide.rs`).
+    hits: Vec<collide::Hit>,
+    passes: Vec<collide::Pass>,
 }
 
 impl TrafficWorld {
@@ -171,6 +178,7 @@ impl TrafficWorld {
             index,
             models: Vec::new(),
             cop_models: Vec::new(),
+            model_loader: None,
             helicopter_rig: None,
             pursuit: None,
             police: police::Police::default(),
@@ -178,7 +186,6 @@ impl TrafficWorld {
             rng: SplitMix(0x6E66_736D_7721),
             alpha: 0.0,
             target: 0,
-            model_loader: None,
             cop_share: 0,
             patterns: None,
             timers: TypeTimers::default(),
@@ -198,6 +205,10 @@ impl TrafficWorld {
             sight_clock: 0.0,
             strikes: collide::Strikes::default(),
             spikes: Vec::new(),
+            bodies: Vec::new(),
+            aims: Vec::new(),
+            hits: Vec::new(),
+            passes: Vec::new(),
         }
     }
 
