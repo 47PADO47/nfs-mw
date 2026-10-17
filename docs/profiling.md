@@ -17,11 +17,13 @@ The root `Cargo.toml` defines these profiles. Pick by what you are measuring.
 ## Allocator: `mimalloc` feature
 
 `nfsmw` can use [mimalloc](https://crates.io/crates/mimalloc) (MIT) as its global allocator. It is behind the
-`mimalloc` cargo feature and is off by default. Enable it to A/B the allocator against the system one:
+`mimalloc` cargo feature, which is on by default: in the headless world frame cost benchmark (`world_frame_costs`) it
+took 3-5 % less CPU per frame than the system allocator in every scene, with and without the mirror. Build without it
+to compare against the system allocator (this also drops the default renderers, so add back the ones you want):
 
 ```bash
-cargo build --release --features nfsmw/mimalloc
+cargo build --release -p nfsmw --no-default-features --features renderer-bevy,fsr3
 ```
 
-The allocator is set in `crates/nfsmw/src/main.rs` with `#[global_allocator]`. Compare the same scene with and
-without the feature under the same profile before changing the default.
+The allocator is set in `crates/nfsmw/src/main.rs` with `#[global_allocator]`. It needs a C compiler (it builds
+the mimalloc C sources), so a target without one builds with the feature left out.

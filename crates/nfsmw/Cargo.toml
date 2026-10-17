@@ -76,11 +76,12 @@ toml.workspace = true
 wgpu.workspace = true
 
 [features]
-# mimalloc as the global allocator (src/main.rs). Off by default until measured; `--features nfsmw/mimalloc` enables it.
+# mimalloc as the global allocator (src/main.rs): 3-5 % less CPU per frame than the system allocator in the world frame cost
+# benchmark (docs/profiling.md). Needs a C compiler; `--no-default-features` leaves it out.
 mimalloc = ["dep:mimalloc"]
 # The Bevy renderer and the FSR 3 upscaler are in the default build. `--no-default-features` leaves them out: the game
 # is then the native renderer alone (FSR 1 is its best upscaler) and never compiles bevy_render.
-default = ["renderer-bevy", "fsr3"]
+default = ["renderer-bevy", "fsr3", "mimalloc"]
 # The Bevy renderer (docs/renderers.md, docs/bevy-backend.md).
 renderer-bevy = ["dep:blackbox-bevy-render"]
 # Tracy profiling of the Bevy renderer (docs/bevy-backend.md). Implies renderer-bevy.
