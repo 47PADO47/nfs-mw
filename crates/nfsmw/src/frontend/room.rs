@@ -49,7 +49,8 @@ impl Room {
         let mut meshes = Vec::new();
         let mut instances = Vec::new();
         for solid in &solids {
-            let Some(mesh) = upload_solid(renderer, solid, &materials, Shading::Lit) else { continue };
+            // The stage is pre-lit world geometry (its vertex colours carry the light), as the world's scenery is.
+            let Some(mesh) = upload_solid(renderer, solid, &materials, Shading::Prelit) else { continue };
             meshes.push(mesh);
             let key = InstanceKey::new(ROOM_ID, instances.len() as u32);
             instances.push(Instance::keyed(mesh, Mat4::IDENTITY, key));
