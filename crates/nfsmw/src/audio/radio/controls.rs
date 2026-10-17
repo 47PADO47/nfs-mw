@@ -23,6 +23,13 @@ const HISTORY_LIMIT: usize = 32;
 const RESTART_AFTER: f32 = 3.0;
 
 impl Radio {
+    pub(super) fn transport_available(&self) -> Result<(), String> {
+        if self.held {
+            return Err("EA Trax is held for pursuit music; controls return when songs resume".into());
+        }
+        Ok(())
+    }
+
     /// Do what `control` asks, with `music` to start songs on. Returns what to tell the player.
     pub fn apply(&mut self, control: Control, music: &mut impl Player) -> Result<String, String> {
         match control {
@@ -44,6 +51,7 @@ impl Radio {
 
     /// Hold the song on the air where it is.
     pub fn pause(&mut self) -> Result<String, String> {
+        self.transport_available()?;
         if !self.enabled {
             return Err("the radio is off (radio on)".into());
         }
@@ -59,6 +67,7 @@ impl Radio {
 
     /// Let a paused song go on.
     pub fn resume(&mut self) -> Result<String, String> {
+        self.transport_available()?;
         let Some(playing) = &self.playing else { return Err("no song is on the air".into()) };
         if !self.paused {
             return Ok("is not paused".into());
@@ -71,6 +80,7 @@ impl Radio {
 
     /// Pause, resume, or (with no song on the air) start one now.
     pub fn toggle(&mut self, music: &mut impl Player) -> Result<String, String> {
+        self.transport_available()?;
         if !self.enabled {
             return Err("the radio is off (radio on)".into());
         }
@@ -86,6 +96,7 @@ impl Radio {
     /// Go back to the song before the one on the air; when this one has played for a while (or nothing is before
     /// it), start it again. Returns the title.
     pub fn previous(&mut self, music: &mut impl Player) -> Result<String, String> {
+        self.transport_available()?;
         if !self.enabled {
             return Err("the radio is off (radio on)".into());
         }

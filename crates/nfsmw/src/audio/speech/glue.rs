@@ -92,20 +92,6 @@ impl Audio {
         Ok(self.speech()?.request(event, speaker))
     }
 
-    /// Ask for the speech event with this name (case does not matter), if the tables have one.
-    pub fn say_named(&mut self, name: &str, speaker: u16) -> Result<Outcome, String> {
-        if self.speech.volume <= super::AUDIBLE {
-            return Ok(Outcome::Muted);
-        }
-        let id = self
-            .speech()?
-            .dispatcher()
-            .find(name)
-            .map(|e| e.id)
-            .ok_or_else(|| format!("no speech event named {name:?}"))?;
-        self.say(id, speaker)
-    }
-
     /// The state of the pursuit the speech rules look at: the wanted level, the player's speed in miles per hour
     /// and how long the pursuit has lasted. Set every frame by the chase (see `chase.rs`).
     pub fn set_speech_context(&mut self, heat: i32, player_mph: f32, pursuit_secs: f32) {

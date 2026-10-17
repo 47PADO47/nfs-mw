@@ -58,6 +58,7 @@ pub fn command(audio: &mut Audio, args: &[&str]) -> Result<String, String> {
 impl Radio {
     /// `radio play <n>`: start song `n` now.
     pub(super) fn play_now(&mut self, n: usize, music: &mut impl Player) -> Result<String, String> {
+        self.transport_available()?;
         if n >= self.songs.len() {
             return Err(format!("there are {} songs (radio list)", self.songs.len()));
         }
