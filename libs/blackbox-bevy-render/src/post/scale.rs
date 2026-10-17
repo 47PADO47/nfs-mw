@@ -2,7 +2,9 @@
 //! that actually makes the main pass draw smaller than the surface.
 
 use bevy_camera::MainPassResolutionOverride;
+use bevy_core_pipeline::prepass::MotionVectorPrepass;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::query::Has;
 use bevy_ecs::system::{Commands, Res};
 use bevy_render::camera::ExtractedCamera;
 use bevy_render::renderer::ViewQuery;
@@ -11,12 +13,13 @@ use blackbox_gfx::{Antialiasing, scaled_size, suggested_temporal_texture_lod_bia
 use crate::ops::BlackboxBridge;
 
 /// The texture LOD bias that keeps mip selection matched to the render scale: one mip sharper while a
-/// temporal method (today, only [`Antialiasing::Taa`]) accumulates samples over time, the plain spatial
+/// temporal anti-aliasing method ([`Antialiasing::Taa`]) accumulates samples over time, the plain spatial
 /// bias otherwise. `libs/blackbox-gfx` computes both curves; this just picks between them.
 ///
-/// A temporal *upscaler* (FSR 3/4, DLSS) would use the same temporal curve, but none of them are offered
-/// by this renderer yet (`caps.rs`), so [`Upscaler::is_temporal`](blackbox_gfx::Upscaler::is_temporal)
-/// never matters here today. The day one lands, pass its `effective.upscaler` in here too.
+/// This takes only the anti-aliasing. A temporal *upscaler* (FSR 3, DLSS; see
+/// [`Upscaler::is_temporal`](blackbox_gfx::Upscaler::is_temporal)) needs the same temporal curve, and the
+/// caller applies that rule: `facade.rs` `mip_bias` checks the upscaler first and only then calls this.
+/// Callers that build a bias for a temporal upscaler must do the same, or the texture detail is wrong.
 pub fn mip_bias(antialiasing: Antialiasing, render_scale: f32) -> f32 {
     match antialiasing {
         Antialiasing::Taa => suggested_temporal_texture_lod_bias(render_scale),
@@ -46,16 +49,30 @@ pub fn render_size(target: [u32; 2], render_scale: f32) -> Option<(u32, u32)> {
 /// (before this fix) measured a softer-looking but **wrongly framed** image, not just a blurrier one:
 /// EASU was upscaling a render that was never actually downscaled, from the wrong assumed input size.
 /// Scheduled in `Core3dSystems::Prepass`, before the main pass whose size it controls.
+///
+/// On the real DLSS build this stays out of the way while DLSS is the upscaler: Bevy's `prepare_dlss` sets the
+/// override from the SDK's render resolution, and removing it here would undo that. Capture cameras draw at their
+/// own full size on that path too (they never run DLSS, see `apply/capture.rs`), so they are not shrunk here either.
+/// The `dlss-mock` build keeps using the render scale, since its DLSS request is TAA plus FSR 1.
 pub fn apply_resolution_override(
     bridge: Res<BlackboxBridge>,
-    view: ViewQuery<(Entity, &ExtractedCamera)>,
+    view: ViewQuery<(Entity, &ExtractedCamera, Has<MotionVectorPrepass>)>,
     mut commands: Commands,
 ) {
-    let (entity, camera) = view.into_inner();
+    let (entity, camera, temporal) = view.into_inner();
     let Some(target) = camera.physical_target_size else { return };
-    let render_scale = bridge.lock().settings.render_scale;
+    let settings = bridge.lock().settings;
+    #[cfg(all(feature = "dlss", not(feature = "dlss-mock")))]
+    if settings.upscaler == blackbox_gfx::Upscaler::Dlss {
+        return;
+    }
+    // FSR 3 upscales only the cameras it was set up on (`fsr3::set` gives them the motion-vector prepass, which
+    // no other camera on this path has). A capture draws at its own size, as it does on DLSS.
+    if settings.upscaler == blackbox_gfx::Upscaler::Fsr3 && !temporal {
+        return;
+    }
     let mut entity = commands.entity(entity);
-    match render_size([target.x, target.y], render_scale) {
+    match render_size([target.x, target.y], settings.render_scale) {
         Some((w, h)) => entity.insert(MainPassResolutionOverride(bevy_math::UVec2::new(w, h))),
         None => entity.remove::<MainPassResolutionOverride>(),
     };

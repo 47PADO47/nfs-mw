@@ -11,8 +11,8 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use bevy_ecs::resource::Resource;
 use bevy_image::Image;
 use blackbox_gfx::{
-    CaptureId, DEFAULT_UPSCALE_SHARPNESS, EffectLayer, FrameParams, GlossyMaterialHandle, Instance, MeshHandle,
-    PostSettings, RenderError, RgbaImage, TextureHandle, UiLayer, UiTextureId, Upscaler,
+    CaptureId, DEFAULT_UPSCALE_SHARPNESS, EffectLayer, FocusFilter, FrameParams, GlossyMaterialHandle, Instance,
+    MeshHandle, PostSettings, RenderError, RgbaImage, TextureHandle, UiLayer, UiTextureId, Upscaler,
 };
 
 use crate::material::{GlossyUniform, RigUniform};
@@ -127,6 +127,8 @@ pub struct Shared {
     pub surface: [u32; 2],
     /// The latest effect layer, drawn every frame until replaced again.
     pub effects: EffectLayer,
+    /// The latest screen effects the scene asked for (the radial blur), kept until replaced again.
+    pub focus: FocusFilter,
     /// UI texture changes, drained by the render world in the order they were made.
     pub ui_ops: Vec<UiOp>,
     /// The latest UI layer, drawn every frame until replaced again.

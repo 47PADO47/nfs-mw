@@ -22,6 +22,9 @@ and its banks.
   layer cannot replace the engine at the limiter. The surviving loops keep their normal level; losing a
   replacement during redlining uses the normal release fade. The tachometer still bounces. A usable layer
   retains the original 15% engine / 85% sample takeover.
+- **Highest gear.** Supply `CarInput::top_gear` with the installed transmission's highest gear ID to
+  exclude it from limiter-sample entry. Unknown telemetry retains the earlier eligibility. Lower gears,
+  neutral, the RPM threshold and the replacement fades remain unchanged.
 - **Host responsibilities:** running the sample (AEMS) layer and sputters, applying mixer-map levels and
   playing the generated sounds. This library only produces their control values.
 

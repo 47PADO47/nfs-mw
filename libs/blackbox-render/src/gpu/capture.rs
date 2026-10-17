@@ -86,7 +86,7 @@ impl Renderer {
             view_formats: &[],
         });
         let view = target.create_view(&wgpu::TextureViewDescriptor::default());
-        let scene = SceneTargets::new(&self.device, &self.scene_plan((width, height)));
+        let scene = SceneTargets::new(&self.device, &self.scene_plan((width, height), false));
         self.submit_frame(Some(&scene), &view, (width, height), frame, instances);
         let result = self.read_texture_bytes(&target, (width, height));
         self.output = old_output;
@@ -138,7 +138,7 @@ impl Renderer {
         let super::output::Output::Texture { texture, .. } = &self.output else { unreachable!() };
         let target = texture.clone();
         let view = target.create_view(&Default::default());
-        let scene = SceneTargets::new(&self.device, &self.scene_plan((width, height)));
+        let scene = SceneTargets::new(&self.device, &self.scene_plan((width, height), false));
         self.submit_frame(Some(&scene), &view, (width, height), frame, instances);
         let result = self.read_raw_texture(&target, (width, height), 8).map(|bytes| {
             bytes

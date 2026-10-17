@@ -90,7 +90,7 @@ impl ProjectedCapture {
         view.kind = CaptureKind::Projected;
         Self {
             size,
-            scene: SceneTargets::Offscreen(FrameTargets::new(device, FORMAT, (size[0], size[1]))),
+            scene: SceneTargets::Offscreen(Box::new(FrameTargets::new(device, FORMAT, (size[0], size[1])))),
             view,
             blur: None,
         }

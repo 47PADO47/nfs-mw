@@ -255,6 +255,8 @@ fn render_surface(
             reflective_specular_scale: 1.0,
         }),
         camera_cut: true,
+
+        shadow_tuning: None,
     };
     renderer.render(&frame, &[Instance::new(mesh, Mat4::IDENTITY)]).unwrap();
     renderer.destroy_mesh(mesh);

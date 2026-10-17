@@ -65,6 +65,8 @@ fn foliage_contact_plane_does_not_create_self_shadows_during_camera_motion() {
                 shadow_strength: 1.0,
             }),
             camera_cut: false,
+
+            shadow_tuning: None,
         };
         let settings = RenderExperiments {
             original_world_materials: true,

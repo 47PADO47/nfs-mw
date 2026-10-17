@@ -1,6 +1,6 @@
 //! The renderer rows of the Video options (docs/renderers.md): which renderer, the graphics API it uses, the
-//! temporal upscalers' quality mode, and ray tracing. The last two only exist on a renderer that offers them (a
-//! menu row has no greyed-out state, so the row is left out instead).
+//! temporal upscalers' quality mode, and ray tracing. The quality mode only exists on a renderer that offers a
+//! temporal upscaler, and is left out otherwise. Ray tracing is always listed: a renderer without it dims the row.
 
 use std::sync::OnceLock;
 
@@ -8,13 +8,16 @@ use blackbox_gfx::{Capabilities, GraphicsApi, Upscaler};
 
 use super::options::{Data, Title};
 use super::post_options::pick;
-use crate::settings::{Partial, RayTracingLevel, RendererKind, Settings, UpscaleQuality};
+use crate::settings::{Partial, RayTracingLevel, RendererKind, Settings, UpscaleMode, UpscaleQuality};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RendererSetting {
     Renderer,
     GraphicsApi,
     UpscaleQuality,
+    /// Frame generation, for the temporal upscalers. Nothing stores a value yet: the row is dimmed and reads
+    /// "Unavailable" until a renderer reports `Capabilities::frame_generation`.
+    FrameGeneration,
     RayTracing,
 }
 
@@ -24,17 +27,18 @@ impl RendererSetting {
             Self::Renderer => "Renderer (After Restart)",
             Self::GraphicsApi => "Graphics API (After Restart)",
             Self::UpscaleQuality => "Upscale Quality",
+            Self::FrameGeneration => "Frame Generation",
             Self::RayTracing => "Ray Tracing",
         })
     }
 
     /// Whether the renderer has this row at all. The renderer and graphics API choices are always there: they
-    /// take effect after a restart, so the renderer that is running cannot show them as unavailable.
+    /// take effect after a restart, so the renderer that is running cannot show them as unavailable. Ray tracing
+    /// is always there too, dimmed when the renderer cannot run it (`Setting::enabled_in`).
     pub fn shown(self, caps: &Capabilities) -> bool {
         match self {
-            Self::Renderer | Self::GraphicsApi => true,
-            Self::UpscaleQuality => caps.upscalers.iter().any(Upscaler::is_temporal),
-            Self::RayTracing => caps.ray_tracing.is_available(),
+            Self::Renderer | Self::GraphicsApi | Self::RayTracing => true,
+            Self::UpscaleQuality | Self::FrameGeneration => caps.upscalers.iter().any(Upscaler::is_temporal),
         }
     }
 
@@ -53,12 +57,15 @@ impl RendererSetting {
                 },
                 Self::UpscaleQuality => match s.upscale_quality {
                     UpscaleQuality::Auto => "Auto",
+                    // DLSS at the output size is DLAA: it anti-aliases and does not upscale.
+                    UpscaleQuality::Native if s.upscaler == UpscaleMode::Dlss => "DLAA",
                     UpscaleQuality::Native => "Native",
                     UpscaleQuality::Quality => "Quality",
                     UpscaleQuality::Balanced => "Balanced",
                     UpscaleQuality::Performance => "Performance",
                     UpscaleQuality::UltraPerformance => "Ultra Performance",
                 },
+                Self::FrameGeneration => "Off",
                 Self::RayTracing => match s.ray_tracing {
                     RayTracingLevel::Off => "Off",
                     RayTracingLevel::Low => "Low",
@@ -95,6 +102,7 @@ impl RendererSetting {
                 s.upscale_quality = pick(&all, s.upscale_quality, forward);
                 changed.upscale_quality = Some(s.upscale_quality);
             }
+            Self::FrameGeneration => {}
             Self::RayTracing => {
                 let all = [RayTracingLevel::Off, RayTracingLevel::Low, RayTracingLevel::Medium, RayTracingLevel::High];
                 s.ray_tracing = pick(&all, s.ray_tracing, forward);

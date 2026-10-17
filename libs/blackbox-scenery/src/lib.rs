@@ -4,6 +4,9 @@
 //!
 //! The records have no version field, so the caller picks the [`layout`] for its game.
 
+pub mod build;
+#[cfg(test)]
+mod build_tests;
 mod error;
 mod hierarchy;
 mod info;

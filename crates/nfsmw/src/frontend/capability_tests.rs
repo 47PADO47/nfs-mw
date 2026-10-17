@@ -24,12 +24,21 @@ fn text(s: &'static str) -> Title {
 }
 
 #[test]
-fn the_native_renderer_hides_ray_tracing_and_the_quality_mode_but_has_the_renderer_row() {
-    let video = titles(Category::Video, &test_caps::native());
-    assert_eq!(video.len(), 30);
-    for hidden in ["Ray Tracing", "Upscale Quality"] {
+fn the_native_renderer_hides_the_quality_mode_and_dims_ray_tracing() {
+    let native = test_caps::native();
+    let video = titles(Category::Video, &native);
+    assert_eq!(video.len(), 45);
+    for hidden in ["Upscale Quality", "Front-End Shadows"] {
         assert!(!video.contains(&text(hidden)), "{hidden} needs a renderer that offers it");
     }
+    let rt = Setting::Renderer(RendererSetting::RayTracing);
+    assert!(video.contains(&text("Ray Tracing")), "ray tracing is listed on every renderer");
+    assert!(!rt.enabled_in(&defaults(), &native), "but it is dimmed where it cannot run");
+    assert_eq!(rt.data_in(&defaults(), &native), Data::Text("Unavailable".into()));
+    let (mut s, mut c) = (defaults(), Partial::default());
+    assert!(!rt.advance(&mut s, &mut c, true, &native), "and it does not change");
+    assert_eq!(c, Partial::default());
+    assert!(rt.enabled_in(&defaults(), &test_caps::full()), "a renderer with ray tracing lets it change");
     assert_eq!(
         video[1..3],
         [text("Renderer (After Restart)"), text("Graphics API (After Restart)")],
@@ -40,7 +49,7 @@ fn the_native_renderer_hides_ray_tracing_and_the_quality_mode_but_has_the_render
     assert_eq!(video[7], text("Advanced Graphics"));
     assert!(video.contains(&text("Enhanced Sun Shadows")));
     assert_eq!(titles(Category::Audio, &test_caps::native()).len(), 5);
-    assert_eq!(titles(Category::Gameplay, &test_caps::native()).len(), 5);
+    assert_eq!(titles(Category::Gameplay, &test_caps::native()).len(), 6);
     assert_eq!(titles(Category::Player, &test_caps::native()).len(), 3);
     assert_eq!(titles(Category::Discord, &test_caps::native()).len(), 2, "the Discord toggles have their own category");
 }
@@ -48,13 +57,30 @@ fn the_native_renderer_hides_ray_tracing_and_the_quality_mode_but_has_the_render
 #[test]
 fn a_full_renderer_has_every_row_next_to_the_setting_it_belongs_with() {
     let video = titles(Category::Video, &test_caps::full());
-    assert_eq!(video.len(), 32);
+    assert_eq!(video.len(), 48);
     let at =
         |name: &'static str| video.iter().position(|t| *t == text(name)).unwrap_or_else(|| panic!("no {name} row"));
+    assert_eq!(
+        at("Front-End Shadows"),
+        at("Enhanced Sun Shadows") + 1,
+        "the front-end row sits beside the shadows row"
+    );
     assert_eq!(at("Upscale Quality"), at("Upscaler") + 1);
-    assert_eq!(at("Ray Tracing"), at("Bloom") + 1);
-    assert_eq!(at("Road Reflection Detail"), at("Car Reflections") + 1);
-    assert_eq!(at("Enhanced Sun Shadows"), at("Road Reflection Detail") + 1);
+    assert_eq!(at("HD Fonts"), at("Custom Fonts") + 1, "the HD content rows follow the custom fonts row");
+    assert_eq!(at("HD Movies"), at("HD Fonts") + 2);
+    assert_eq!(at("Ray Tracing"), at("Motion Blur Strength") + 1, "ray tracing follows the post-processing rows");
+    assert_eq!(
+        at("Car Reflection Size"),
+        at("Road Reflection Detail") + 1,
+        "the HD reflection rows follow the reflection row"
+    );
+    assert_eq!(at("Enhanced Sun Shadows"), at("Mirror Tint") + 1);
+    assert_eq!(at("Vehicle Reflection Brightness"), at("Power-of-Two Cube Size") + 1, "beside the cube rows");
+    assert_eq!(
+        at("Mirror Reflection Size"),
+        at("Reflection Distance") + 1,
+        "the reach row sits beside the mirror size"
+    );
     assert_eq!(at("Renderer (After Restart)"), 1);
     assert_eq!(at("Graphics API (After Restart)"), 2);
     assert_eq!(titles(Category::Audio, &test_caps::full()).len(), 5, "only the Video screen has them");
@@ -81,12 +107,52 @@ fn the_upscaler_row_cycles_only_what_the_native_renderer_runs() {
 }
 
 #[test]
+fn a_native_renderer_with_fsr3_cycles_it_and_shows_the_quality_mode() {
+    let caps = test_caps::native_fsr3();
+    let video = titles(Category::Video, &caps);
+    assert!(video.contains(&text("Upscale Quality")), "a temporal upscaler brings its quality row");
+    let (mut s, mut c) = (defaults(), Partial::default());
+    for name in ["FSR 3", "Off", "Bilinear", "FSR 1"] {
+        assert!(Setting::Upscaler.advance(&mut s, &mut c, true, &caps));
+        assert_eq!(Setting::Upscaler.data_in(&s, &caps), Data::Text(name.into()));
+    }
+    Setting::Upscaler.advance(&mut s, &mut c, false, &caps);
+    assert_eq!(s.upscaler, UpscaleMode::Bilinear, "left from FSR 1 goes back one");
+    s.upscaler = UpscaleMode::Fsr3;
+    assert!(Setting::Renderer(RendererSetting::UpscaleQuality).enabled_in(&s, &caps));
+    assert!(!Setting::Post(PostSetting::Aa).enabled_in(&s, &caps), "FSR 3 does its own anti-aliasing");
+}
+
+#[test]
 fn the_upscaler_row_cycles_all_six_on_a_full_renderer() {
     let (mut s, mut c, caps) = (defaults(), Partial::default(), test_caps::full());
     for name in ["FSR 3", "FSR 4", "DLSS", "Off", "Bilinear", "FSR 1"] {
         Setting::Upscaler.advance(&mut s, &mut c, true, &caps);
         assert_eq!(Setting::Upscaler.data_in(&s, &caps), Data::Text(name.into()));
     }
+}
+
+#[test]
+fn a_dlss_renderer_shows_the_temporal_rows_and_cycles_only_what_it_runs() {
+    let dlss = blackbox_gfx::Capabilities::mock_dlss("bevy", blackbox_gfx::GraphicsApi::Vulkan);
+    let video = titles(Category::Video, &dlss);
+    assert!(video.contains(&text("Upscale Quality")) && video.contains(&text("Ray Tracing")));
+    let (mut s, mut c) = (defaults(), Partial::default());
+    let mut seen = Vec::new();
+    for _ in 0..4 {
+        Setting::Upscaler.advance(&mut s, &mut c, true, &dlss);
+        seen.push(Setting::Upscaler.data_in(&s, &dlss));
+    }
+    assert_eq!(
+        seen,
+        [
+            Data::Text("DLSS".into()),
+            Data::Text("Off".into()),
+            Data::Text("Bilinear".into()),
+            Data::Text("FSR 1".into())
+        ],
+        "FSR 3 and FSR 4 are skipped: the DLSS mock's caps do not list them"
+    );
 }
 
 #[test]
@@ -123,7 +189,10 @@ fn a_value_stored_for_another_renderer_shows_as_what_runs_and_moves_to_a_value_t
     let aa = Setting::Post(PostSetting::Aa);
     assert_eq!(aa.data_in(&stored, &native), Data::Text("FXAA".into()));
     assert_eq!(Setting::Upscaler.data_in(&stored, &native), Data::Text("FSR 1".into()));
-    assert_eq!(Setting::Renderer(RendererSetting::RayTracing).data_in(&stored, &native), Data::Text("Off".into()));
+    assert_eq!(
+        Setting::Renderer(RendererSetting::RayTracing).data_in(&stored, &native),
+        Data::Text("Unavailable".into())
+    );
     assert!(!aa.offered(&stored, &native) && !Setting::Upscaler.offered(&stored, &native));
     let (mut s, mut c) = (stored, Partial::default());
     aa.advance(&mut s, &mut c, true, &native);
@@ -151,7 +220,7 @@ fn the_renderer_rows_cycle_and_record_only_their_own_change() {
     let quality = Setting::Renderer(RendererSetting::UpscaleQuality);
     s.upscaler = UpscaleMode::Dlss;
     assert_eq!(quality.data_in(&s, &full), Data::Text("Quality".into()));
-    for name in ["Balanced", "Performance", "Ultra Performance", "Auto", "Native", "Quality"] {
+    for name in ["Balanced", "Performance", "Ultra Performance", "Auto", "DLAA", "Quality"] {
         quality.advance(&mut s, &mut c, true, &full);
         assert_eq!(quality.data_in(&s, &full), Data::Text(name.into()));
     }
@@ -280,4 +349,41 @@ fn filtering_restart_label_follows_the_running_backend_not_the_saved_renderer_re
     assert_eq!(row.data_in(&requested_native, &bevy), Data::Text("Anisotropic 16x (Restart)".into()));
     let weak = blackbox_gfx::Capabilities { max_texture_anisotropy: 1, ..test_caps::native() };
     assert_eq!(row.data_in(&stored, &weak), Data::Text("Trilinear".into()));
+}
+
+#[test]
+fn the_temporal_upscalers_have_sharpening_frame_generation_and_dlaa_rows() {
+    let sharpening = Setting::UpscaleSharpness;
+    let frame_generation = Setting::Renderer(RendererSetting::FrameGeneration);
+    let quality = Setting::Renderer(RendererSetting::UpscaleQuality);
+
+    // Without a temporal upscaler there is no frame generation row; with one, the order is quality, sharpening,
+    // frame generation.
+    assert!(!titles(Category::Video, &test_caps::native()).contains(&text("Frame Generation")));
+    let full = test_caps::full();
+    let video = titles(Category::Video, &full);
+    let at = |name: &'static str| video.iter().position(|t| *t == text(name)).unwrap_or_else(|| panic!("no {name}"));
+    assert_eq!((at("Sharpening"), at("Frame Generation")), (at("Upscale Quality") + 1, at("Upscale Quality") + 2));
+
+    // FSR 3 sharpens, so the row is live for it as for FSR 1; DLSS has no sharpening pass of its own.
+    let mut s = Settings { upscaler: UpscaleMode::Fsr3, ..defaults() };
+    assert!(sharpening.enabled_in(&s, &full));
+    s.upscaler = UpscaleMode::Dlss;
+    assert!(!sharpening.enabled_in(&s, &full));
+
+    // No renderer has frame generation yet: the row is dimmed, reads Unavailable and changes nothing.
+    let mut c = Partial::default();
+    assert!(!frame_generation.enabled_in(&s, &full));
+    assert_eq!(frame_generation.data_in(&s, &full), Data::Text("Unavailable".into()));
+    assert!(!frame_generation.advance(&mut s, &mut c, true, &full));
+    assert_eq!(c, Partial::default());
+
+    // DLSS at the output size is DLAA.
+    s.upscale_quality = UpscaleQuality::Native;
+    assert_eq!(quality.data_in(&s, &full), Data::Text("DLAA".into()));
+    s.upscaler = UpscaleMode::Fsr3;
+    assert_eq!(quality.data_in(&s, &full), Data::Text("Native".into()));
+    s.upscaler = UpscaleMode::Dlss;
+    s.upscale_quality = UpscaleQuality::Quality;
+    assert_eq!(quality.data_in(&s, &full), Data::Text("Quality".into()));
 }

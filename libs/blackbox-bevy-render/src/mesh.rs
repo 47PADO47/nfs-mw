@@ -22,6 +22,24 @@ pub struct RangeData {
     pub shading: Shading,
     /// Bounds of the vertices the range uses (game axes).
     pub aabb: Aabb,
+    /// The average vertex colour, in the games' gamma bytes (see [`average_colour`]).
+    pub colour: [u8; 3],
+}
+
+/// The average of vertex colours in the games' BGRA byte order, as RGB gamma bytes (the shader multiplies these
+/// in gamma space). White when there are no vertices. Rounded to the nearest byte.
+pub fn average_colour(colors: &[[u8; 4]]) -> [u8; 3] {
+    let count = colors.len() as u64;
+    if count == 0 {
+        return [255; 3];
+    }
+    let mut sums = [0u64; 3];
+    for &[b, g, r, _] in colors {
+        sums[0] += u64::from(r);
+        sums[1] += u64::from(g);
+        sums[2] += u64::from(b);
+    }
+    sums.map(|sum| ((sum + count / 2) / count) as u8)
 }
 
 /// Every non-empty, valid draw range of `desc` as its own mesh. Ranges whose indices point outside the vertex
@@ -94,10 +112,11 @@ fn build(desc: &MeshDesc<'_>, resolved: &[usize], range: &DrawRange) -> RangeDat
     mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
     mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
     mesh.insert_attribute(Mesh::ATTRIBUTE_UV_1, secondary_uvs);
+    let aabb = Aabb::from_min_max(min.into(), max.into());
+    let colour = average_colour(&colors);
     mesh.insert_attribute(ATTRIBUTE_COLOR_BGRA, VertexAttributeValues::Unorm8x4(colors));
     mesh.insert_indices(indices);
-    let aabb = Aabb::from_min_max(min.into(), max.into());
-    RangeData { mesh, texture: range.texture, blend: range.blend, shading: range.shading, aabb }
+    RangeData { mesh, texture: range.texture, blend: range.blend, shading: range.shading, aabb, colour }
 }
 
 #[cfg(test)]
@@ -122,6 +141,15 @@ mod tests {
 
     fn desc<'a>(vertices: &'a [Vertex], indices: &'a [u16], draws: Vec<DrawRange>) -> MeshDesc<'a> {
         MeshDesc { secondary_uvs: None, tangents: None, label: "test", vertices, indices, draws }
+    }
+
+    #[test]
+    fn the_average_colour_is_the_rounded_mean_in_rgb_order() {
+        // Stored BGRA: [B, G, R, A]. Reading the red channel from the wrong byte would swap the first and last values.
+        assert_eq!(average_colour(&[[0, 0, 200, 255]]), [200, 0, 0]);
+        assert_eq!(average_colour(&[[10, 20, 30, 255], [30, 40, 50, 255]]), [40, 30, 20]);
+        assert_eq!(average_colour(&[[0, 0, 0, 0], [0, 0, 1, 0]]), [1, 0, 0], "0.5 rounds up");
+        assert_eq!(average_colour(&[]), [255; 3], "no vertices is white");
     }
 
     fn u16_indices(mesh: &Mesh) -> Vec<u16> {

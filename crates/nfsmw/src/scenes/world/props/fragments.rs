@@ -4,7 +4,7 @@ use std::{rc::Weak, sync::Arc};
 
 use blackbox_render::Instance;
 use blackbox_scene::Aabb;
-use glam::Mat4;
+use glam::{Mat4, Vec3};
 use nfsmw_data::world::{PropDynamics, PropKind, PropShape};
 
 use super::{Collider, PropWorld, body::PropBody};
@@ -94,6 +94,18 @@ impl PropWorld {
             }
             out.extend(fragment.instances.iter().map(|i| Instance::new(i.mesh, world * i.transform)));
         }
+    }
+
+    /// Bounding spheres (render space: centre and radius, metres) of the detached parts that `owner` released and
+    /// that still exist. A part lives while its owner does (`owner` is the weak handle the car holds).
+    pub fn fragment_spheres(&self, owner: &Weak<()>) -> Vec<(Vec3, f32)> {
+        self.fragments
+            .iter()
+            .filter(|(_, fragment)| fragment.owner.strong_count() > 0 && fragment.owner.ptr_eq(owner))
+            .filter_map(|(&id, _)| self.pose(id))
+            .filter(|(_, bounds)| !bounds.is_empty())
+            .map(|(_, bounds)| (bounds.center(), (bounds.max - bounds.min).length() * 0.5))
+            .collect()
     }
 
     pub(super) fn remove_orphaned_fragments(&mut self) {

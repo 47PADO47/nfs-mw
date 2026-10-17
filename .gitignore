@@ -42,6 +42,11 @@
 !/xtask/Cargo.toml
 !/xtask/src/**/*.rs
 
+# Example mods (ADR 0005 section 8): manifests and sources only; a built library is never committed
+!/examples/**/Cargo.toml
+!/examples/**/*.rs
+!/examples/**/mod.toml
+
 # Documentation (Markdown only)
 !/docs/**/*.md
 

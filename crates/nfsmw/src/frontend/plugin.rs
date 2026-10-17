@@ -43,6 +43,7 @@ pub struct FrontendPlugin {
 
 impl Plugin for FrontendPlugin {
     fn build(&self, app: &mut App) {
+        super::jukebox::prime(&self.dir);
         let Some(assets) = crate::ui::ensure(app, &self.dir) else { return };
         let catalog = Catalog::load(&self.dir, &SCREEN_FILES);
         let screens = Screens::new(catalog, assets);
@@ -118,6 +119,8 @@ fn press_at(fe: &mut Frontend, point: Vec2, bindings: &Bindings, device: InputDe
 struct MapParams<'w> {
     overlay: ResMut<'w, WorldMapOverlay>,
     mouse: Res<'w, ButtonInput<MouseButton>>,
+    /// The mods, for the rows of the options' Mods page (`bb.menus`); absent without mods.
+    mods: Option<NonSend<'w, crate::modding::Mods>>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -170,7 +173,12 @@ fn update(
     let mut changed = std::mem::take(&mut fe.changed);
     // The screens work on a copy so the resource is only marked as changed when a setting really changed.
     let mut current = *settings;
-    let mut env = Env { settings: &mut current, changed: &mut changed, caps };
+    let mut env = Env {
+        settings: &mut current,
+        changed: &mut changed,
+        caps,
+        mods: map.mods.as_deref().map(crate::modding::Mods::bridge),
+    };
     fe.begin(host, &mut env);
     // The sidebar's pick is shown on the frame after it was clicked (its scene runs after this system).
     let picked = fe.browse.as_ref().and_then(Browse::take);
@@ -262,6 +270,7 @@ fn update(
         // Nothing pauses or skips the loading screen: the pad only drives its animation (mask 0 below).
         Stage::Loading => fe.loading_frame(dt, host, &mut env),
         Stage::Playing => {
+            fe.poll_bust(host, &mut env);
             let scripted_start = mask & pad::START != 0 && fe.last_mask & pad::START == 0;
             let pause = input.disconnected
                 || (!console_had_it

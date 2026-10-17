@@ -60,7 +60,8 @@ pub enum Stage {
 }
 
 use super::confirm::{Alert, AlertLogic};
-use super::ids::screen::{DIALOG, LOADING, MAIN_MENU, PAUSE_MENU, SPLASH, SPLASH_WIDE, WORLD_MAP};
+use super::ids::screen::{DIALOG, INFRACTIONS, LOADING, MAIN_MENU, PAUSE_MENU, SPLASH, SPLASH_WIDE, WORLD_MAP};
+use super::infractions::{InfractionsLogic, Ticket};
 use crate::ui::Text;
 
 /// Windows wider than this (width over height) get the widescreen title screen; 4:3 is 1.33.
@@ -266,6 +267,32 @@ impl Frontend {
         self.apply(commands, host, env);
     }
 
+    /// Opens the bust's ticket when the world's bust sequence reaches it (free roam, driving). The ticket is up over the
+    /// frozen game, as the pause menu is: the stage is `Paused`, so the screens take the pad and the mouse, and the world
+    /// does not run until the payment resumes it.
+    pub(super) fn poll_bust(&mut self, host: &mut Host, env: &mut Env) {
+        if self.stage != Stage::Playing {
+            return;
+        }
+        let Some(lines) = host.scene.take_bust_ticket() else { return };
+        log::info!("busted: the ticket is up ({} infractions)", lines.len());
+        self.latch = true;
+        self.paused.set(true);
+        self.stage = Stage::Paused;
+        let ticket = Ticket { lines, markers: 0 };
+        let commands = self.screens.open_with(INFRACTIONS, Box::new(InfractionsLogic::new(ticket)), true, env);
+        self.apply(commands, host, env);
+    }
+
+    /// The payment on the ticket: the bust takes it (and the game goes on driving) or refuses it (the ticket stays).
+    fn pay_bust(&mut self, marker: bool, host: &mut Host) {
+        if !host.scene.pay_bust(marker) {
+            return;
+        }
+        log::info!("busted: paid with {}", if marker { "a marker" } else { "cash" });
+        self.resume();
+    }
+
     /// Opens the world map over the frozen game: its screen is the package `WorldMapMain.fng`, with the map's logic.
     pub(super) fn open_map(&mut self, logic: Box<dyn ScreenLogic>, host: &mut Host, env: &mut Env) {
         self.latch = true;
@@ -308,6 +335,7 @@ impl Frontend {
                 }
                 Command::SaveAlias => self.save_alias(host, env),
                 Command::LoadAlias => self.load_alias(host, env),
+                Command::PayBust { marker } => self.pay_bust(marker, host),
                 Command::Switch(..) | Command::Push(..) | Command::Pop | Command::Confirm(_) | Command::Alert(_) => {}
             }
         }

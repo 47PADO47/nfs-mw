@@ -10,6 +10,7 @@ use super::car::{AiCar, Ctx};
 use super::stop::Lights;
 use super::{Focus, MANAGER_PERIOD, TrafficWorld};
 use crate::scenes::world::{drive::STEP, props::PropWorld};
+use crate::viewer::camera::Lens;
 
 impl TrafficWorld {
     pub fn breaker_stops(&mut self, areas: Vec<super::super::props::scenery::StopArea>) {
@@ -41,6 +42,8 @@ impl TrafficWorld {
                             && breaker::inside(Vec2::new(area.position.x, area.position.z), area.radius, point)
                     }));
             car.set_breaker_stop(stop);
+            car.set_avoidance(self.avoidance);
+            car.set_player_speed(focus.body.map_or(0.0, |b| b.velocity.length()));
             let mut ctx = Ctx {
                 net: &self.network,
                 index: &self.index,
@@ -64,8 +67,17 @@ impl TrafficWorld {
         self.breaker_areas.retain(|a| a.duration > 0.0);
     }
 
-    /// Commit contact poses and advance every gameplay timer by exactly one tick.
-    pub fn finish_step(&mut self, focus: Focus, collision: &CollisionWorld, surfaces: &SurfaceTable) {
+    /// Commit contact poses and advance every gameplay timer by exactly one tick. `camera` is the lens the
+    /// player sees the traffic through (the simulation camera), which decides what counts as seen; `props` holds
+    /// the detached parts of the cars.
+    pub fn finish_step(
+        &mut self,
+        focus: Focus,
+        camera: &Lens,
+        props: &PropWorld,
+        collision: &CollisionWorld,
+        surfaces: &SurfaceTable,
+    ) {
         for car in &mut self.cars {
             car.sync_contacts();
         }
@@ -80,7 +92,7 @@ impl TrafficWorld {
         if finishing {
             log::info!("traffic after the screenshot warm-up: {}", self.status(focus));
         }
-        self.recycle(STEP, focus);
+        self.recycle(STEP, focus, camera, props);
         self.spawn_timer += STEP;
         if self.spawn_timer >= MANAGER_PERIOD && self.target > 0 {
             self.spawn_timer -= MANAGER_PERIOD;

@@ -49,6 +49,12 @@ impl WorldScene {
             .with_hierarchies(index.model_hierarchies.clone());
         log::info!("{} props have collision bounds", props.len());
         let stream = dir.resolve(&index.stream_file).with_context(|| format!("{} is missing", index.stream_file))?;
+        // The mods' map packs take residency indices after the install's sections; their interiors refer to them by those.
+        let installed: std::collections::HashSet<i16> = index.sections.iter().map(|s| s.number).collect();
+        let first_pack = index.sections.len();
+        let map_packs = crate::modding::content::scenery::packs(dir, crate::modding::content::mod_dirs(), &installed);
+        let interiors =
+            crate::modding::content::interior::load(crate::modding::content::mod_dirs(), &map_packs, first_pack);
         let threads = std::thread::available_parallelism().map_or(4, |n| n.get().clamp(2, 6));
         let streamer = Streamer::spawn(stream.to_path_buf(), index.sections.clone(), threads);
         let start = options.at.unwrap_or_else(|| index.centre());
@@ -74,17 +80,27 @@ impl WorldScene {
                 (Vec::new(), entry_zones::EntryZones::default())
             }
         };
+        let entry_zones = entry_zones.with_interiors(interiors);
         Ok(Self {
             garage: garage::catalog(dir, &physics)?,
             garage_parts: None,
             garage_open: false,
             audio_environment,
             common_sounds: Vec::new(),
+            rotor_previous: None,
             sound_speedbreaker_active: false,
             dir: dir.clone(),
             track: index.track.clone(),
             camera,
-            residency: Residency::new(index.sections, index.visible, streamer, globals, index.collision_grid, props),
+            residency: Residency::new(
+                index.sections,
+                index.visible,
+                streamer,
+                globals,
+                index.collision_grid,
+                props,
+                map_packs,
+            ),
             start,
             start_height: options.height,
             // The car is placed on a road, not the camera on the ground.
@@ -123,11 +139,18 @@ impl WorldScene {
             drive: None,
             traffic,
             map_blips,
-            entry: entry::Entry { zones: entry_zones, popup: Default::default() },
+            mod_blips: Vec::new(),
+            entry: entry::Entry {
+                zones: entry_zones,
+                popup: Default::default(),
+                interior: Default::default(),
+                current: None,
+            },
             traffic_setting: crate::settings::TrafficSettings {
                 cars: 0,
                 cop_share: crate::settings::Percent(0),
                 lights: false,
+                avoidance: false,
             },
             lamp_meshes: None,
             traffic_manual: None,
@@ -148,6 +171,7 @@ impl WorldScene {
             cut: CameraCut::default(),
             waiting_since: None,
             camera_mode: CameraMode::default(),
+            cop_health: Default::default(),
         })
     }
 }

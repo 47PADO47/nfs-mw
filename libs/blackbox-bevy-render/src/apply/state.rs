@@ -8,7 +8,7 @@ use bevy_ecs::resource::Resource;
 use bevy_image::Image;
 use bevy_mesh::Mesh;
 
-use crate::material::{BlackboxMaterial, BlendKind, GlossyUniform, Params, RigUniform, ShadingKind};
+use crate::material::{BlackboxMaterial, BlendKind, GlossyUniform, Params, RigUniform, SceneUniform, ShadingKind};
 
 /// One draw range of a registered mesh, ready to give an entity.
 pub struct RangeEntry {
@@ -20,6 +20,9 @@ pub struct RangeEntry {
     pub shading: ShadingKind,
     /// The glossy material number, when `shading` is [`ShadingKind::Glossy`].
     pub glossy: Option<usize>,
+    /// The average vertex colour (gamma bytes). The Solari stand-in uses it as its base colour, since the traced
+    /// mesh has lost the vertex colour itself.
+    pub colour: [u8; 3],
 }
 
 /// A registered mesh: one Bevy mesh per draw range.
@@ -85,17 +88,16 @@ pub struct WorldState {
     pub redirects: HashMap<usize, usize>,
     pub meshes: HashMap<usize, MeshEntry>,
     pub materials: MaterialCache,
-    /// The parameters every material currently holds.
+    /// The fog and light last written to the scene buffer, also what the effect layers draw with.
     pub params: Option<Params>,
     /// Every registered glossy material's shading constants, keyed by its number.
     pub glossy: HashMap<usize, GlossyUniform>,
-    /// The lighting rig every glossy material currently reads.
+    /// The lighting rig the scene buffer holds or is about to.
     pub rig: RigUniform,
-    /// The environment reflection every glossy material currently reads.
+    /// The environment reflection every glossy material reads.
     pub environment: Option<Handle<Image>>,
-    /// The `(rig, environment)` every glossy material currently holds, so re-syncing can be skipped
-    /// once nothing has changed.
-    pub rig_environment_applied: Option<(RigUniform, Option<Handle<Image>>)>,
+    /// What the scene buffer holds, so writing it can be skipped while nothing changes.
+    pub scene: Option<SceneUniform>,
     pub pool: HashMap<PoolKey, Placed>,
     pub screen: Option<ScreenCamera>,
     pub capture: Option<super::capture::ActiveCapture>,

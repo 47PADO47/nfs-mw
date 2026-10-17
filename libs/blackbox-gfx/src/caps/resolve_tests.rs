@@ -340,3 +340,87 @@ fn filtering_downlevels_without_changing_the_saved_request_and_tracks_restart() 
     let restart = Capabilities { restart_required: RestartSet::of(&[Setting::TextureFiltering]), ..full };
     assert!(restart.restart_needed(&GraphicsSettings::default(), &requested).contains(Setting::TextureFiltering));
 }
+
+fn mock() -> Capabilities {
+    Capabilities::mock_dlss("bevy", GraphicsApi::Vulkan)
+}
+
+#[test]
+fn dlss_runs_at_every_quality_mode_size_on_the_mock() {
+    for quality in UpscaleQuality::ALL {
+        let request = GraphicsSettings { upscale_quality: quality, ..ask(Upscaler::Dlss) };
+        let r = resolve(&request, &mock());
+        assert!(r.is_exact(), "{quality:?}: {:?}", r.downgrades);
+        assert_eq!((r.effective.upscaler, r.effective.render_scale), (Upscaler::Dlss, quality.render_scale()));
+    }
+}
+
+#[test]
+fn the_full_dlss_request_is_exact_on_the_mock() {
+    let request = GraphicsSettings {
+        upscaler: Upscaler::Dlss,
+        upscale_quality: UpscaleQuality::Balanced,
+        ray_tracing: RayTracing::Medium,
+        ..GraphicsSettings::default()
+    };
+    let r = resolve(&request, &mock());
+    assert!(r.is_exact() && r.notes.is_empty(), "{:?} {:?}", r.downgrades, r.notes);
+    let expected = GraphicsSettings { render_scale: UpscaleQuality::Balanced.render_scale(), ..request };
+    assert_eq!(r.effective, expected, "the quality mode sets the render size");
+}
+
+#[test]
+fn dlss_falls_back_through_fsr3_fsr1_and_bilinear_to_off() {
+    let mut caps = Capabilities { upscalers: UpscalerSet::all(), ..mock() };
+    caps.upscalers.remove(Upscaler::Dlss);
+    assert_eq!(resolve(&ask(Upscaler::Dlss), &caps).effective.upscaler, Upscaler::Fsr3);
+    caps.upscalers.remove(Upscaler::Fsr3);
+    assert_eq!(resolve(&ask(Upscaler::Dlss), &caps).effective.upscaler, Upscaler::Fsr1);
+    caps.upscalers.remove(Upscaler::Fsr1);
+    assert_eq!(resolve(&ask(Upscaler::Dlss), &caps).effective.upscaler, Upscaler::Bilinear);
+    caps.upscalers.remove(Upscaler::Bilinear);
+    let r = resolve(&ask(Upscaler::Dlss), &caps);
+    assert_eq!(r.effective.upscaler, Upscaler::Off);
+    let d = r.downgrade_of(Setting::Upscaler).expect("a downgrade");
+    assert_eq!((d.requested.as_str(), d.effective.as_str()), ("dlss", "off"));
+    assert!(d.reason.contains("bevy") && d.reason.contains("vulkan"), "{}", d.reason);
+}
+
+#[test]
+fn a_build_without_dlss_downgrades_with_a_reason_and_keeps_taa() {
+    let mut caps = mock();
+    caps.upscalers.remove(Upscaler::Dlss);
+    let r = resolve(&with_aa(Antialiasing::Taa, Upscaler::Dlss), &caps);
+    assert_eq!((r.effective.upscaler, r.effective.post.antialiasing), (Upscaler::Fsr1, Antialiasing::Taa));
+    let d = r.downgrade_of(Setting::Upscaler).expect("a downgrade");
+    assert_eq!((d.requested.as_str(), d.effective.as_str()), ("dlss", "fsr1"));
+    assert!(r.downgrade_of(Setting::Antialiasing).is_none(), "fsr1 is spatial, so TAA stays");
+}
+
+#[test]
+fn dlss_replaces_taa_on_the_mock() {
+    let r = resolve(&with_aa(Antialiasing::Taa, Upscaler::Dlss), &mock());
+    assert_eq!((r.effective.upscaler, r.effective.post.antialiasing), (Upscaler::Dlss, Antialiasing::Off));
+    let d = r.downgrade_of(Setting::Antialiasing).expect("the replaced anti-aliasing");
+    assert!(d.reason.contains("dlss"), "{}", d.reason);
+}
+
+#[test]
+fn ray_tracing_on_the_mock_keeps_dlss_rr_and_loses_it_without_ray_queries() {
+    let request = GraphicsSettings { ray_tracing: RayTracing::High, ..ask(Upscaler::Dlss) };
+    let r = resolve(&request, &mock());
+    assert!(r.is_exact() && r.notes.is_empty(), "{:?} {:?}", r.downgrades, r.notes);
+    assert_eq!(r.effective.ray_tracing, RayTracing::High);
+
+    let mut caps = mock();
+    caps.ray_tracing = RtSupport::Available { denoiser: None };
+    let r = resolve(&request, &caps);
+    assert_eq!(r.effective.ray_tracing, RayTracing::High, "kept without a denoiser");
+    assert_eq!(r.notes.len(), 1);
+
+    caps.ray_tracing = RtSupport::None;
+    let r = resolve(&request, &caps);
+    assert_eq!(r.effective.ray_tracing, RayTracing::Off);
+    let d = r.downgrade_of(Setting::RayTracing).expect("a downgrade");
+    assert_eq!((d.requested.as_str(), d.effective.as_str()), ("high", "off"));
+}

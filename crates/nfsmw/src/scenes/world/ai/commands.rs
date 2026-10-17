@@ -6,6 +6,7 @@ use nfsmw_data::pursuit::{ground_cops, heat_row, heat_rows, wave_names};
 
 use super::models::{load_cop_models, load_helicopter_model};
 use super::traffic_events::{Sighting, starts_pursuit};
+use crate::modding::cop_rows::{with_heat_overrides, without_models};
 use crate::scenes::world::WorldScene;
 
 /// The heat of the patrol cops: the first wave (`data.rs`). A patrol cop chases at this heat.
@@ -86,12 +87,15 @@ fn begin_pursuit(
     player: Performance,
 ) -> Result<String, String> {
     let db = scene.physics.database();
-    let start = heat_row(db, heat).ok_or("no cop table for that heat")?;
-    // The chase re-reads its wave at every heat level it climbs to, so the cop models of all levels load now.
-    let rows = heat_rows(db);
+    heat_row(db, heat).ok_or("no cop table for that heat")?;
+    // The chase re-reads its wave at every heat level it climbs to, so the cop models of all levels load now. The waves
+    // the mods set take the install's rows here, so the cars they name load too.
+    let rows = with_heat_overrides(heat_rows(db));
     let names = wave_names(&rows);
-    load_cop_models(scene, renderer, &names)?;
-    let start_names: Vec<&str> = ground_cops(&start).map(|c| c.name.as_str()).collect();
+    let missing = load_wave_models(scene, renderer, &names);
+    let rows = without_models(rows, &missing);
+    let start_names: Vec<String> =
+        rows.get((heat.max(1) - 1) as usize).into_iter().flat_map(ground_cops).map(|c| c.name.clone()).collect();
     // The helicopter is not a car of the wave: it is only drawn, so it loads a rig and no physics. A model that fails
     // to load leaves the helicopter out of the picture.
     if let Err(e) = load_helicopter_model(scene, renderer) {
@@ -100,6 +104,18 @@ fn begin_pursuit(
     let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
     traffic.start_pursuit(heat, rows, player);
     Ok(format!("pursuit at heat {heat}: {}", start_names.join(", ")))
+}
+
+/// Loads the cop model of each name in `names` on its own, so one that fails does not stop the others. Returns the names
+/// that did not load: the wave leaves their entries out (`cop_rows::without_models`), with a warning for each.
+fn load_wave_models(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, names: &[String]) -> Vec<String> {
+    let mut missing = Vec::new();
+    for name in names {
+        let Err(e) = load_cop_models(scene, renderer, std::slice::from_ref(name)) else { continue };
+        log::warn!("pursuit: the cop car {name} did not load, its wave entries are skipped: {e}");
+        missing.push(name.clone());
+    }
+    missing
 }
 
 /// The speeding trigger (`docs/specs/traffic-sound-events.md` §3.3): while no chase is on, a patrol cop that sees the
@@ -119,6 +135,25 @@ pub(in crate::scenes::world) fn speeding_pursuit(scene: &mut WorldScene, rendere
     match begin_pursuit(scene, renderer, PATROL_HEAT, player) {
         Ok(line) => log::info!("speeding: {line}"),
         Err(e) => log::warn!("speeding: no chase: {e}"),
+    }
+}
+
+/// `signals props|synthetic on|off`: the traffic lights of the signalled approaches, matched to the real traffic-light
+/// props of the map or not. `synthetic on` also draws the synthetic post and bar of every approach (a debug aid).
+pub(in crate::scenes::world) fn signals_command(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
+    const USAGE: &str = "usage: signals props|synthetic on|off";
+    let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
+    match args {
+        [] | ["props"] => Ok(traffic.signal_props_status()),
+        ["synthetic", "on"] => {
+            traffic.set_synthetic_posts(true);
+            Ok("synthetic posts drawn for every approach".into())
+        }
+        ["synthetic", "off"] => {
+            traffic.set_synthetic_posts(false);
+            Ok("synthetic posts only where no real light matches".into())
+        }
+        _ => Err(USAGE.into()),
     }
 }
 

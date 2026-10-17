@@ -57,7 +57,9 @@ impl super::super::TrafficWorld {
     }
 
     pub fn update_police(&mut self, dt: f32, player: &PlayerView, clear: &dyn Fn(Vec3, Vec3) -> bool) {
+        self.apply_mod_requests();
         let pursuing = self.is_pursuing();
+        self.police.tick_bust(dt);
         let level = self.police.level().unwrap_or(1);
         let at = Vec3::from_array(space::to_physics(player.position));
         let strikes = self.take_strikes();
@@ -88,8 +90,10 @@ impl super::super::TrafficWorld {
         // Busted first: a busted frame does not tick the escape. `is_busted` stays set until the next chase.
         let busted = self.police.tick_busted(dt, pursuing, bust);
         let evaded = self.police.update_in_world(dt, pursuing, player, sensed, clear);
+        self.publish_to_mods();
         if busted {
             log::info!("the player is busted: the pursuit ends");
+            self.police.start_bust(self.rng.next_f32());
             self.end_pursuit(EndReason::Busted);
             return;
         }
@@ -112,6 +116,10 @@ impl super::super::TrafficWorld {
 
     /// The end-of-pursuit card, while a chase ended busted or evaded. `None` otherwise.
     pub fn pursuit_end_card(&self) -> Option<PursuitEndCard> {
+        // A free-roam bust shows its ticket instead of the card (`busted/flow.rs`).
+        if self.police.bust.replaces_end_card() {
+            return None;
+        }
         let reason = self.police.end_reason();
         if reason == EndReason::None {
             return None;
@@ -195,6 +203,11 @@ impl super::super::TrafficWorld {
     /// The extra field of view the high-speed effects add (degrees).
     pub fn fov_kick(&self) -> f32 {
         self.police.effects().fov_kick_deg
+    }
+
+    /// The radial blur the high-speed effects add, 0 to 1, from the screen centre (`FocusFilter::radial_blur`).
+    pub fn radial_blur(&self) -> f32 {
+        self.police.effects().blur
     }
 
     /// The helicopter's minimap blip, while it flies.

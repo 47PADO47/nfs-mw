@@ -13,6 +13,8 @@ pub(super) mod soft;
 #[cfg(test)]
 mod tests;
 pub(in crate::audio) mod timeline;
+#[cfg(test)]
+mod top_gear_tests;
 
 use blackbox_aems::{Instance, ModuleBank};
 use blackbox_carsound::EngineOutput;
@@ -28,6 +30,9 @@ use super::mixer::Levels;
 const TICK_MS: f32 = 1000.0 / 60.0;
 /// Most ticks run in one frame; excess elapsed time remains owed.
 const MAX_TICKS: u32 = 4;
+/// What the sputter's voices are multiplied by on top of the map's makeup. The authored pops sit 18 dB under the
+/// engine and were not heard over it, so the rewrite raises them (about 9.5 dB). Not in the original.
+const SPUTTER_LOUDNESS: f32 = 3.0;
 /// The `car id` the sputter is told it belongs to (it only tells its output object apart).
 const SPUTTER_ID: u32 = 1;
 
@@ -251,7 +256,11 @@ impl AemsLayer {
                 self.engine = None;
             }
             if let Some(part) = self.sputter.as_mut()
-                && !part.tick(sampler, &words[params::CAR_PARAMS..params::CAR_PARAMS + params::SPUTTER_PARAMS], makeup)
+                && !part.tick(
+                    sampler,
+                    &words[params::CAR_PARAMS..params::CAR_PARAMS + params::SPUTTER_PARAMS],
+                    makeup * SPUTTER_LOUDNESS,
+                )
             {
                 self.sputter = None;
             }

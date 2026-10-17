@@ -1,5 +1,6 @@
 //! What a renderer can do, and how a request is mapped onto it.
 
+mod presets;
 mod resolve;
 #[cfg(test)]
 mod resolve_tests;
@@ -53,6 +54,11 @@ pub struct Capabilities {
     pub bloom: bool,
     /// Display-space colour grading.
     pub scene_treatment: bool,
+    /// The speed and pursuit radial blur ([`FocusFilter::radial_blur`](crate::FocusFilter)).
+    pub radial_blur: bool,
+    /// Frame generation (DLSS or FSR 3 interpolating frames). No renderer has it yet; the menu row reads
+    /// "Unavailable" until one reports it.
+    pub frame_generation: bool,
     /// Scenery captures for local environment-map reflections.
     pub local_reflections: bool,
     pub projected_reflections: bool,
@@ -80,6 +86,8 @@ impl Capabilities {
             tonemaps: TonemapSet::of(&[Tonemap::Off]),
             bloom: false,
             scene_treatment: false,
+            radial_blur: false,
+            frame_generation: false,
             local_reflections: false,
             projected_reflections: false,
             ambient_occlusion: false,

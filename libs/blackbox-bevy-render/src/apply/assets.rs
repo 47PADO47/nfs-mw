@@ -5,10 +5,11 @@ use bevy_ecs::system::ResMut;
 use bevy_ecs::system::SystemParam;
 use bevy_image::Image;
 use bevy_mesh::Mesh;
+use bevy_render::storage::ShaderBuffer;
 
 use super::redirects;
 use super::state::{MaterialKey, MeshEntry, RangeEntry, WorldState};
-use crate::material::{BlackboxMaterial, BlendKind, Params, ShadingKind};
+use crate::material::{BlackboxMaterial, BlendKind, Params, SCENE_BUFFER, SceneUniform, ShadingKind, scene};
 use crate::ops::Op;
 
 /// The asset stores the apply system writes.
@@ -17,6 +18,7 @@ pub struct Stores<'w> {
     pub images: ResMut<'w, Assets<Image>>,
     pub meshes: ResMut<'w, Assets<Mesh>>,
     pub materials: ResMut<'w, Assets<BlackboxMaterial>>,
+    pub buffers: ResMut<'w, Assets<ShaderBuffer>>,
 }
 
 /// Apply one resource op.
@@ -40,6 +42,7 @@ pub fn apply_op(state: &mut WorldState, stores: &mut Stores, op: Op) {
                         blackbox_gfx::Shading::Glossy(handle) => Some(handle.raw()),
                         _ => None,
                     },
+                    colour: range.colour,
                 })
                 .collect();
             state.meshes.insert(handle.raw(), MeshEntry { ranges });
@@ -54,8 +57,21 @@ pub fn apply_op(state: &mut WorldState, stores: &mut Stores, op: Op) {
             state.glossy.remove(&handle.raw());
         }
         Op::SetLightingRig(rig) => state.rig = rig,
-        Op::SetEnvironment(image) => {
-            state.environment = Some(stores.images.add(*image));
+        Op::SetEnvironment(image) => set_environment(state, stores, *image),
+    }
+}
+
+/// Make `image` the environment of every glossy material, now and for the ones made later. The only per-material
+/// data a scene still changes, and only when the caller sets a new environment.
+fn set_environment(state: &mut WorldState, stores: &mut Stores, image: Image) {
+    let environment = stores.images.add(image);
+    state.environment = Some(environment.clone());
+    for (key, handle) in &state.materials.by_key {
+        if key.shading != ShadingKind::Glossy {
+            continue;
+        }
+        if let Some(mut material) = stores.materials.get_mut(handle) {
+            material.environment = Some(environment.clone());
         }
     }
 }
@@ -87,10 +103,9 @@ pub fn material_for(
     let image = texture.and_then(|t| state.textures.get(&redirects::resolve(state, t)).cloned());
     let glossy_params = glossy.and_then(|h| state.glossy.get(&h).copied()).unwrap_or_default();
     let handle = stores.materials.add(BlackboxMaterial {
-        params: state.params.unwrap_or_default(),
+        scene: SCENE_BUFFER,
         texture: image,
         glossy: glossy_params,
-        rig: state.rig,
         environment: state.environment.clone(),
         shading,
         blend,
@@ -102,33 +117,17 @@ pub fn material_for(
     handle
 }
 
-/// Give every material the new fog and light, once, when the frame's differ from what they hold.
-pub fn sync_params(state: &mut WorldState, stores: &mut Stores, wanted: Params) {
-    if state.params == Some(wanted) {
+/// Write the frame's fog, light and the lighting rig into the buffer every material reads, when they differ from
+/// what it holds. The materials themselves are not touched.
+pub fn sync_scene(state: &mut WorldState, stores: &mut Stores, wanted: Params) {
+    let scene = SceneUniform { params: wanted, rig: state.rig };
+    if state.scene == Some(scene) {
         return;
     }
+    state.scene = Some(scene);
     state.params = Some(wanted);
-    for handle in state.materials.by_key.values() {
-        if let Some(mut material) = stores.materials.get_mut(handle) {
-            material.params = wanted;
-        }
-    }
+    scene::write(&mut stores.buffers, &scene);
 }
 
-/// Give every glossy material the current lighting rig and environment, once, when either changed.
-pub fn sync_rig_environment(state: &mut WorldState, stores: &mut Stores) {
-    let wanted = (state.rig, state.environment.clone());
-    if state.rig_environment_applied == Some(wanted.clone()) {
-        return;
-    }
-    state.rig_environment_applied = Some(wanted.clone());
-    for (key, handle) in &state.materials.by_key {
-        if key.shading != ShadingKind::Glossy {
-            continue;
-        }
-        if let Some(mut material) = stores.materials.get_mut(handle) {
-            material.rig = wanted.0;
-            material.environment = wanted.1.clone();
-        }
-    }
-}
+#[cfg(test)]
+mod tests;

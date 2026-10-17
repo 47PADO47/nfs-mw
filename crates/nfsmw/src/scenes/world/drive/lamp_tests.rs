@@ -11,6 +11,56 @@ use nfsmw_data::car::{LoadOptions, WheelPose};
 
 #[test]
 #[ignore = "requires an installed game"]
+fn installed_elise_nitrous_trails_use_only_authored_brake_flares_and_current_brake_state() {
+    use crate::scenes::world::tail_light_trails::TailLightTrails;
+    let dir = game_install::GameDir::open(std::env::var("NFSMW_GAME_DIR").unwrap()).unwrap();
+    let model =
+        nfsmw_data::car::load(&dir, "ELISE", &LoadOptions { lod: 'A', all_parts: false, preset: None }).unwrap();
+    let lights = CarLights::for_model(&model);
+    let tail_count = lights.lamps().iter().filter(|l| l.kind == Kind::Tail).count();
+    let centre_count = lights.lamps().iter().filter(|l| l.kind == Kind::CentreBrake).count();
+    assert!(tail_count >= 2);
+    let mut renderer = NullBackend::new(Capabilities::baseline("null", GraphicsApi::Vulkan));
+    let flares = crate::scenes::world::car_light_flares::CarLightFlares::upload(&mut renderer, &model);
+    let mut history = TailLightTrails::default();
+    for i in 0..3 {
+        history.step(glam::Mat4::from_translation(Vec3::X * i as f32 * 0.1), true, 20.0);
+    }
+    let view = FlareView { camera: -Vec3::X * 8.0 + Vec3::Z, forward: Vec3::X, fov_degrees: 70.0, height: 1080 };
+    let mut coast = Vec::new();
+    flares.draw_trails(&lights, &history, glam::Mat4::IDENTITY, LampState::default(), view, &mut coast);
+    assert_eq!(coast.len(), model.flare_profiles.brake.len());
+    assert_eq!(coast.iter().map(|b| b.vertices.len()).sum::<usize>(), 24 * tail_count * 6);
+    let mut braking = Vec::new();
+    flares.draw_trails(
+        &lights,
+        &history,
+        glam::Mat4::IDENTITY,
+        LampState { brake: 1.0, ..Default::default() },
+        view,
+        &mut braking,
+    );
+    assert_eq!(braking.iter().map(|b| b.vertices.len()).sum::<usize>(), 24 * (tail_count + centre_count) * 6);
+    assert!(braking[0].vertices[0].color[3] >= coast[0].vertices[0].color[3]);
+    let mut front = Vec::new();
+    flares.draw_trails(
+        &lights,
+        &history,
+        glam::Mat4::IDENTITY,
+        LampState { headlights: true, ..Default::default() },
+        FlareView { camera: Vec3::X * 8.0 + Vec3::Z, forward: -Vec3::X, ..view },
+        &mut front,
+    );
+    assert!(front.is_empty(), "headlights and rear-facing brake markers cannot produce front trails");
+    history.step(glam::Mat4::IDENTITY, false, 20.0);
+    let mut released = Vec::new();
+    flares.draw_trails(&lights, &history, glam::Mat4::IDENTITY, LampState::default(), view, &mut released);
+    assert!(released.is_empty());
+    flares.release(&mut renderer);
+}
+
+#[test]
+#[ignore = "requires an installed game"]
 fn installed_player_lamp_states_select_cached_meshes_and_respect_marker_facing() {
     let dir = game_install::GameDir::open(std::env::var("NFSMW_GAME_DIR").unwrap()).unwrap();
     let options = LoadOptions { lod: 'A', all_parts: false, preset: None };

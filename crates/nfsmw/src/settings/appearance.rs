@@ -213,6 +213,17 @@ impl Settings {
     /// Renderer/API, window, audio and gameplay preferences remain outside the preset.
     pub fn graphics_layer(&self) -> Partial {
         Partial {
+            reflection_cube_size: Some(self.reflection_cube_size),
+            reflection_mirror_size: Some(self.reflection_mirror_size),
+            reflection_pow2: Some(self.reflection_pow2),
+            mirror_tint: Some(self.mirror_tint),
+            reflection_distance: Some(self.reflection_extra.distance),
+            reflection_lod: Some(self.reflection_extra.lod),
+            reflection_content: Some(self.reflection_extra.content),
+            vehicle_reflection_brightness: Some(self.reflection_extra.brightness),
+            fe_shadows: self.fe_shadows.into(),
+            motion_blur: Some(self.motion_blur),
+            motion_blur_strength: Some(self.motion_blur_strength),
             render_scale: Some(self.render_scale),
             upscaler: Some(self.upscaler),
             upscale_sharpness: Some(self.upscale_sharpness),

@@ -6,6 +6,9 @@ use std::str::FromStr;
 use super::settings_keys::KEYS;
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
+use crate::settings::custom_fonts;
+use crate::settings::fe_shadows;
+use crate::settings::hd_content;
 use crate::settings::{
     CameraMode, HudLayout, MinimapMode, Percent, PostAa, PostBloom, PostTonemap, RadioHudStyle, RenderScale,
     RendererKind, Settings, Transmission, parse_bool,
@@ -44,6 +47,8 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "traffic" => settings.traffic.to_string(),
         "cop_share" => settings.cop_share.to_string(),
         "traffic_lights" => on_off(settings.traffic_lights).to_owned(),
+        "traffic_avoidance" => on_off(settings.traffic_avoidance).to_owned(),
+        "cop_health_bars" => on_off(settings.cop_health_bars).to_owned(),
         "smoke_quality" => settings.smoke_quality.to_string(),
         "skid_marks" => on_off(settings.skid_marks).to_owned(),
         "collision_sparks" => on_off(settings.collision_sparks).to_owned(),
@@ -59,11 +64,24 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "radio_hud" | "radio-hud" => settings.radio_hud.to_string(),
         "manual_clutch" => on_off(settings.manual_clutch).to_owned(),
         "h_shifter" => on_off(settings.h_shifter).to_owned(),
+        key if hd_content::is_key(key) => hd_content::get(&settings.hd_content, key),
+        key if custom_fonts::is_key(key) => custom_fonts::get(&settings.custom_fonts, key),
+        key if fe_shadows::is_key(key) => fe_shadows::get(&settings.fe_shadows, key),
+        "motion_blur" => on_off(settings.motion_blur).to_owned(),
+        "motion_blur_strength" => settings.motion_blur_strength.to_string(),
         "post_tonemap" => settings.post_tonemap.to_string(),
         "post_bloom" => settings.post_bloom.to_string(),
         "post_aa" => settings.post_aa.to_string(),
         "visual_treatment" => settings.visual_treatment.to_string(),
         "reflections" => settings.reflections.to_string(),
+        "reflection_cube_size" => settings.reflection_cube_size.to_string(),
+        "reflection_mirror_size" => settings.reflection_mirror_size.to_string(),
+        "reflection_pow2" => on_off(settings.reflection_pow2).to_owned(),
+        "mirror_tint" => settings.mirror_tint.to_string(),
+        "reflection_distance" => settings.reflection_extra.distance.to_string(),
+        "reflection_lod" => settings.reflection_extra.lod.to_string(),
+        "reflection_content" => settings.reflection_extra.content.to_string(),
+        "vehicle_reflection_brightness" => settings.reflection_extra.brightness.to_string(),
         "shadows" => settings.shadows.to_string(),
         "ao" => settings.ao.to_string(),
         "ao_intensity" => settings.ao_intensity.to_string(),
@@ -121,6 +139,8 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         }
         "cop_share" => settings.cop_share = Percent::from_str(value)?,
         "traffic_lights" => settings.traffic_lights = parse_bool(value)?,
+        "traffic_avoidance" => settings.traffic_avoidance = parse_bool(value)?,
+        "cop_health_bars" => settings.cop_health_bars = parse_bool(value)?,
         "smoke_quality" => settings.smoke_quality = value.parse()?,
         "skid_marks" => settings.skid_marks = parse_bool(value)?,
         "collision_sparks" => settings.collision_sparks = parse_bool(value)?,
@@ -136,11 +156,21 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "radio_hud" | "radio-hud" => settings.radio_hud = RadioHudStyle::from_str(value)?,
         "manual_clutch" => settings.manual_clutch = parse_bool(value)?,
         "h_shifter" => settings.h_shifter = parse_bool(value)?,
+        "motion_blur" => settings.motion_blur = parse_bool(value)?,
+        "motion_blur_strength" => settings.motion_blur_strength = crate::settings::motion_blur::parse_strength(value)?,
         "post_tonemap" => settings.post_tonemap = PostTonemap::from_str(value)?,
         "post_bloom" => settings.post_bloom = PostBloom::from_str(value)?,
         "post_aa" => settings.post_aa = PostAa::from_str(value)?,
         "visual_treatment" => settings.visual_treatment = value.parse()?,
         "reflections" => settings.reflections = value.parse()?,
+        "reflection_cube_size" => settings.reflection_cube_size = value.parse()?,
+        "reflection_mirror_size" => settings.reflection_mirror_size = value.parse()?,
+        "reflection_pow2" => settings.reflection_pow2 = parse_bool(value)?,
+        "mirror_tint" => settings.mirror_tint = value.parse()?,
+        "reflection_distance" => settings.reflection_extra.distance = value.parse()?,
+        "reflection_lod" => settings.reflection_extra.lod = value.parse()?,
+        "reflection_content" => settings.reflection_extra.content = value.parse()?,
+        "vehicle_reflection_brightness" => settings.reflection_extra.brightness = value.parse()?,
         "shadows" => settings.shadows = value.parse()?,
         "ao" => settings.ao = value.parse()?,
         "ao_intensity" => settings.ao_intensity = value.parse()?,
@@ -150,6 +180,9 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "upscale_sharpness" => settings.upscale_sharpness = Percent::from_str(value)?,
         "upscale_quality" => settings.upscale_quality = value.parse()?,
         "ray_tracing" => settings.ray_tracing = value.parse()?,
+        key if hd_content::is_key(key) => hd_content::set(&mut settings.hd_content, key, value)?,
+        key if custom_fonts::is_key(key) => custom_fonts::set(&mut settings.custom_fonts, key, value)?,
+        key if fe_shadows::is_key(key) => fe_shadows::set(&mut settings.fe_shadows, key, value)?,
         "backend" => return Err("the graphics backend cannot change while running; restart with --backend".into()),
         other => return Err(unknown(other)),
     }
@@ -168,6 +201,7 @@ fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
         "invert_camera_y" => Some(&mut settings.controls.invert_camera_y),
         "hud" => Some(&mut settings.hud),
         "tire_smoke" => Some(&mut settings.tire_smoke),
+        "reflection_pow2" => Some(&mut settings.reflection_pow2),
         "skid_marks" => Some(&mut settings.skid_marks),
         "collision_sparks" => Some(&mut settings.collision_sparks),
         "speed_trails" => Some(&mut settings.speed_trails),
@@ -176,9 +210,14 @@ fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
         "radio" => Some(&mut settings.radio),
         "manual_clutch" => Some(&mut settings.manual_clutch),
         "h_shifter" => Some(&mut settings.h_shifter),
+        "motion_blur" => Some(&mut settings.motion_blur),
         "ao_compare" => Some(&mut settings.ao_compare),
         "traffic_lights" => Some(&mut settings.traffic_lights),
-        _ => None,
+        "traffic_avoidance" => Some(&mut settings.traffic_avoidance),
+        "cop_health_bars" => Some(&mut settings.cop_health_bars),
+        key if custom_fonts::is_key(key) => custom_fonts::flag(&mut settings.custom_fonts, key),
+        key if fe_shadows::is_key(key) => fe_shadows::flag(&mut settings.fe_shadows, key),
+        _ => hd_content::flag(&mut settings.hd_content, key),
     }
 }
 
@@ -193,6 +232,8 @@ fn syntax(key: &str) -> Option<&'static str> {
         "readout" | "show_readout" => "<off|minimal|full>",
         "window_mode" => "<windowed|borderless|exclusive>",
         "renderer" => "<blackbox|bevy>",
+        "fe_shadows_bias" => "<0.25-4>",
+        "fe_shadows_divider" => "<1|2|4>",
         "monitor" => "<current|primary|index>",
         "resolution" => "<WIDTHxHEIGHT|native>",
         "volume" | "master_volume" | "music_volume" | "sfx_volume" | "engine_volume" | "speech_volume" => "<0-100>",
@@ -211,6 +252,12 @@ fn syntax(key: &str) -> Option<&'static str> {
         "post_aa" => "<off|fxaa|smaa|taa>",
         "visual_treatment" => "<off|low|high>",
         "reflections" => "<off|low|medium|high>",
+        "reflection_cube_size" | "reflection_mirror_size" => "<auto|25%-400%|pixels>",
+        "mirror_tint" => "<off|on|#rrggbb|r g b>",
+        "reflection_distance" => "<unlimited|original>",
+        "reflection_lod" => "<capture|view>",
+        "reflection_content" => "<original|restored>",
+        "vehicle_reflection_brightness" => "<0%-300%>",
         "shadows" => "<off|low|medium|high>",
         "ao" => "<off|low|medium|high>",
         "ao_intensity" => "<0-100>",
@@ -221,6 +268,7 @@ fn syntax(key: &str) -> Option<&'static str> {
         "ray_tracing" => "<off|low|medium|high>",
         "traffic" => "<cars, 0 = off>",
         "cop_share" => "<0-100>",
+        "motion_blur_strength" => "<0-2>",
         _ => return None,
     })
 }
@@ -248,214 +296,5 @@ fn unknown(key: &str) -> String {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::settings::Partial;
-
-    fn defaults() -> Settings {
-        Settings::from(Partial::default())
-    }
-
-    #[test]
-    fn sets_and_reads_back() {
-        let mut s = defaults();
-        assert_eq!(set(&mut s, "fps", "60").unwrap(), "fps = 60");
-        assert_eq!(set(&mut s, "vsync", "off").unwrap(), "vsync = off");
-        assert_eq!(set(&mut s, "metrics", "advanced").unwrap(), "metrics = advanced");
-        assert_eq!(set(&mut s, "readout", "full").unwrap(), "readout = full");
-        assert!(!s.vsync);
-        assert_eq!(s.show_metrics, ShowMetrics::Advanced);
-        assert_eq!(s.show_readout, ShowReadout::Full);
-        assert_eq!(set(&mut s, "fps", "unlocked").unwrap(), "fps = unlocked");
-    }
-
-    #[test]
-    fn window_preferences_can_change_and_invalid_values_do_not_mutate_them() {
-        let mut s = defaults();
-        assert_eq!(set(&mut s, "window_mode", "exclusive").unwrap(), "window_mode = exclusive");
-        assert_eq!(set(&mut s, "monitor", "0").unwrap(), "monitor = 0");
-        assert_eq!(set(&mut s, "resolution", "1920x1080").unwrap(), "resolution = 1920x1080");
-        let before = s;
-        assert!(set(&mut s, "window_mode", "bad").is_err());
-        assert!(set(&mut s, "monitor", "-1").is_err());
-        assert!(set(&mut s, "resolution", "0x0").is_err());
-        assert_eq!(s, before);
-    }
-
-    #[test]
-    fn the_speech_volume_is_set_like_the_other_volumes() {
-        let mut s = defaults();
-        assert_eq!(set(&mut s, "speech_volume", "35").unwrap(), "speech_volume = 35");
-        assert_eq!(s.speech_volume.0, 35);
-        assert_eq!(get(&s, "speech_volume").unwrap(), "speech_volume = 35");
-        assert!(set(&mut s, "speech_volume", "").unwrap_err().starts_with("usage: set speech_volume <0-100>"));
-    }
-
-    #[test]
-    fn the_transmission_is_set_by_name() {
-        let mut s = defaults();
-        assert_eq!(get(&s, "transmission").unwrap(), "transmission = automatic");
-        assert_eq!(set(&mut s, "transmission", "manual").unwrap(), "transmission = manual");
-        assert_eq!(s.transmission, Transmission::Manual);
-        assert!(set(&mut s, "transmission", "sport").is_err());
-        assert_eq!(s.transmission, Transmission::Manual);
-    }
-
-    #[test]
-    fn the_wheel_switches_start_off_and_can_be_set_or_flipped() {
-        let mut s = defaults();
-        assert_eq!(get(&s, "manual_clutch").unwrap(), "manual_clutch = off");
-        assert_eq!(get(&s, "h_shifter").unwrap(), "h_shifter = off");
-        assert_eq!(set(&mut s, "manual_clutch", "on").unwrap(), "manual_clutch = on");
-        assert_eq!(set(&mut s, "h_shifter", "").unwrap(), "h_shifter = on");
-        assert!(s.wheel_options().manual_clutch && s.wheel_options().h_shifter);
-        assert!(set(&mut s, "manual_clutch", "pedal").is_err());
-        assert!(s.manual_clutch, "a bad value leaves the setting alone");
-        assert!(get_all(&s).contains("h_shifter = on"));
-    }
-
-    #[test]
-    fn set_without_a_value_flips_a_switch_and_explains_anything_else() {
-        let mut s = defaults();
-        assert_eq!(set(&mut s, "vsync", "").unwrap(), "vsync = off");
-        assert_eq!(set(&mut s, "vsync", "").unwrap(), "vsync = on");
-        assert_eq!(set(&mut s, "radio", "").unwrap(), "radio = off");
-        assert!(!s.radio);
-        let before = s;
-        assert_eq!(set(&mut s, "fps", "").unwrap_err(), "usage: set fps <unlocked|number> (now unlocked)");
-        assert_eq!(set(&mut s, "metrics", "").unwrap_err(), "usage: set metrics <off|basic|advanced> (now off)");
-        assert!(set(&mut s, "volume", "").unwrap_err().starts_with("usage: set volume <0-100> (now 80)"));
-        assert!(set(&mut s, "backend", "").unwrap_err().contains("restart"));
-        assert!(set(&mut s, "bass", "").unwrap_err().contains("unknown setting"));
-        assert_eq!(s, before);
-    }
-
-    #[test]
-    fn every_setting_has_a_switch_or_a_syntax() {
-        let mut s = defaults();
-        for key in KEYS.into_iter().filter(|k| *k != "backend") {
-            let answer = set(&mut s, key, "");
-            assert!(answer.is_ok() || answer.unwrap_err().starts_with("usage: set "), "{key}");
-        }
-    }
-
-    #[test]
-    fn the_renderer_is_set_by_name_and_applies_after_a_restart() {
-        let mut s = defaults();
-        assert_eq!(get(&s, "renderer").unwrap(), "renderer = blackbox");
-        assert_eq!(set(&mut s, "renderer", "bevy").unwrap(), "renderer = bevy (applies after restart)");
-        assert_eq!(s.renderer, RendererKind::Bevy);
-        assert_eq!(get(&s, "renderer").unwrap(), "renderer = bevy");
-        let before = s;
-        assert!(set(&mut s, "renderer", "wgpu").unwrap_err().contains("expected blackbox or bevy"));
-        assert_eq!(s, before);
-        assert_eq!(set(&mut s, "renderer", "").unwrap_err(), "usage: set renderer <blackbox|bevy> (now bevy)");
-    }
-
-    #[test]
-    fn upscale_quality_and_ray_tracing_are_set_by_name_and_validated() {
-        let mut s = defaults();
-        assert_eq!(get(&s, "upscale_quality").unwrap(), "upscale_quality = quality");
-        assert_eq!(get(&s, "ray_tracing").unwrap(), "ray_tracing = off");
-        assert_eq!(set(&mut s, "upscale_quality", "ultra_performance").unwrap(), "upscale_quality = ultra_performance");
-        assert_eq!(set(&mut s, "ray_tracing", "high").unwrap(), "ray_tracing = high");
-        let before = s;
-        assert!(set(&mut s, "upscale_quality", "extreme").unwrap_err().contains("expected auto, native"));
-        assert!(set(&mut s, "ray_tracing", "path").unwrap_err().contains("expected off, low, medium or high"));
-        assert_eq!(s, before);
-        assert_eq!(
-            set(&mut s, "ray_tracing", "").unwrap_err(),
-            "usage: set ray_tracing <off|low|medium|high> (now high)"
-        );
-    }
-
-    #[test]
-    fn the_minimap_mode_is_set_by_name() {
-        let mut s = defaults();
-        assert_eq!(get(&s, "minimap").unwrap(), "minimap = fixed");
-        assert_eq!(set(&mut s, "minimap", "rotating").unwrap(), "minimap = rotating");
-        assert_eq!(s.minimap, MinimapMode::Rotating);
-        assert!(set(&mut s, "minimap", "zoomed").is_err());
-        assert_eq!(s.minimap, MinimapMode::Rotating);
-    }
-
-    #[test]
-    fn the_upscaling_settings_are_set_by_name_and_validated() {
-        let mut s = defaults();
-        assert_eq!(get(&s, "render_scale").unwrap(), "render_scale = 100");
-        assert_eq!(get(&s, "upscaler").unwrap(), "upscaler = fsr1");
-        assert_eq!(get(&s, "upscale_sharpness").unwrap(), "upscale_sharpness = 80");
-        assert_eq!(set(&mut s, "render_scale", "67%").unwrap(), "render_scale = 67");
-        assert_eq!(set(&mut s, "upscaler", "bilinear").unwrap(), "upscaler = bilinear");
-        assert_eq!(set(&mut s, "upscale_sharpness", "25").unwrap(), "upscale_sharpness = 25");
-        let before = s;
-        assert!(set(&mut s, "render_scale", "10").is_err());
-        assert!(set(&mut s, "upscaler", "xess").is_err());
-        assert!(set(&mut s, "upscale_sharpness", "101").is_err());
-        assert_eq!(s, before);
-        assert_eq!(set(&mut s, "render_scale", "").unwrap_err(), "usage: set render_scale <50-200> (now 67)");
-    }
-
-    #[test]
-    fn a_preset_sets_its_keys_and_changing_one_makes_it_custom() {
-        let mut s = defaults();
-        assert_eq!(get(&s, "graphics_preset").unwrap(), "graphics_preset = custom");
-        assert_eq!(set(&mut s, "graphics_preset", "low").unwrap(), "graphics_preset = low");
-        assert_eq!(get(&s, "car_shading").unwrap(), "car_shading = simple");
-        assert_eq!(get(&s, "render_scale").unwrap(), "render_scale = 75");
-        assert_eq!(get(&s, "upscaler").unwrap(), "upscaler = bilinear");
-        assert_eq!(set(&mut s, "post_bloom", "low").unwrap(), "post_bloom = low");
-        assert_eq!(get(&s, "graphics_preset").unwrap(), "graphics_preset = custom");
-        assert_eq!(get(&s, "car_shading").unwrap(), "car_shading = simple", "the rest stays");
-        assert!(set(&mut s, "graphics_preset", "extreme").is_err());
-        assert_eq!(
-            set(&mut s, "graphics_preset", "").unwrap_err(),
-            "usage: set graphics_preset <custom|low|medium|high|ultra> (now custom)"
-        );
-        assert_eq!(set(&mut s, "car_shading", "glossy").unwrap(), "car_shading = glossy");
-    }
-
-    #[test]
-    fn bad_values_and_keys_leave_settings_alone() {
-        let mut s = defaults();
-        assert!(set(&mut s, "fps", "fast").is_err());
-        assert!(set(&mut s, "vsync", "maybe").is_err());
-        assert!(set(&mut s, "backend", "gl").unwrap_err().contains("restart"));
-        assert!(set(&mut s, "volume", "loud").is_err());
-        assert!(set(&mut s, "bass", "11").unwrap_err().contains("unknown setting"));
-        assert_eq!(s, defaults());
-    }
-
-    #[test]
-    fn the_traffic_lights_can_be_read_set_and_flipped() {
-        let mut s = defaults();
-        assert_eq!(get(&s, "traffic_lights").unwrap(), "traffic_lights = on");
-        assert_eq!(set(&mut s, "traffic_lights", "off").unwrap(), "traffic_lights = off");
-        assert!(!s.traffic_lights);
-        assert_eq!(set(&mut s, "traffic_lights", "").unwrap(), "traffic_lights = on");
-        assert!(set(&mut s, "traffic_lights", "red").is_err());
-        assert!(s.traffic_lights);
-    }
-
-    #[test]
-    fn get_all_lists_every_key() {
-        let text = get_all(&defaults());
-        assert_eq!(text.lines().count(), KEYS.len());
-        assert!(text.contains("vsync = on"));
-    }
-
-    #[test]
-    fn control_changes_are_validated_and_invalid_edit_is_atomic() {
-        let mut s = defaults();
-        set(&mut s, "steering_deadzone", "10").unwrap();
-        set(&mut s, "camera_sensitivity", "200").unwrap();
-        set(&mut s, "invert_camera_y", "").unwrap();
-        assert_eq!(get(&s, "steering_deadzone").unwrap(), "steering_deadzone = 10");
-        assert_eq!(get(&s, "camera_sensitivity").unwrap(), "camera_sensitivity = 200");
-        assert!(s.controls.invert_camera_y);
-        let before = s;
-        assert!(set(&mut s, "trigger_deadzone", "100").is_err());
-        assert!(set(&mut s, "mouse_sensitivity", "0").is_err());
-        assert_eq!(s, before);
-    }
-}
+#[path = "settings_cmd_tests.rs"]
+mod tests;

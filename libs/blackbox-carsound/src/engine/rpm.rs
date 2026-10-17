@@ -261,7 +261,10 @@ impl EngineCtl {
         if !tuning.redline_enabled {
             return;
         }
-        if !self.redlining && !shift.active() && self.rpm > REDLINE_RPM {
+        // The PC build excludes the installed highest gear from limiter-sample entry.
+        // Spec: engine-sound-pc-redline.md; lower gears retain the original takeover.
+        let top_gear = ctx.top_gear == Some(ctx.physics.gear);
+        if !self.redlining && !top_gear && !shift.active() && self.rpm > REDLINE_RPM {
             self.redlining = true;
             self.bounce_up = true;
             self.visual_offset = 0.0;

@@ -1,6 +1,7 @@
 //! A single 60 Hz timeline for the player, traffic, object contacts and world timers.
 
 use blackbox_gfx::RenderBackend;
+use blackbox_pursuit::health_bar::{Frame, Gates};
 
 use glam::Vec3;
 
@@ -101,6 +102,19 @@ impl WorldScene {
                     }
                 }
             }
+            // The cop health bars step on the same clock as the police, after its tick (`effects/cop_health.rs`). The
+            // traffic reads the chase gate itself, so `pursuing` here is not used.
+            let camera = self.simulation_lens(self.physics_aspect);
+            let frame = Frame {
+                camera_pos: camera.position,
+                camera_forward: camera.forward,
+                gates: Gates {
+                    pursuing: false,
+                    shot_running: self.drive.as_ref().is_some_and(|drive| drive.pursuit_shot_running()),
+                    hud_visible: self.hud_shown(),
+                },
+            };
+            self.cop_health.step(self.traffic.as_ref(), frame, steps as f32 * STEP);
         }
         // A loading pause holds the last displayed phase instead of jumping ahead and rewinding.
         let alpha = match batch || dt == 0.0 {
@@ -136,7 +150,8 @@ impl WorldScene {
     /// Every moving car integrates before pair contacts, and every pose is captured after those contacts.
     fn physics_step(&mut self, driving: bool, look: (f32, f32)) {
         let focus = self.traffic_focus();
-        let event_view = self.simulation_lens(self.physics_aspect).position;
+        let camera = self.simulation_lens(self.physics_aspect);
+        let event_view = camera.position;
         let (collision, props) = self.residency.world_parts();
         let surfaces = &self.physics.surfaces;
         props.step(&super::drive::WorldGround { collision, surfaces }, STEP);
@@ -151,7 +166,7 @@ impl WorldScene {
             let player = self.drive.as_mut().filter(|_| player_step.is_some()).and_then(|d| d.sim_mut());
             traffic.collide(player);
             traffic.update_events(props, &self.physics, event_view);
-            traffic.finish_step(focus, collision, surfaces);
+            traffic.finish_step(focus, &camera, props, collision, surfaces);
         }
         if let (Some(drive), Some(step)) = (self.drive.as_mut(), player_step) {
             drive.update_events(props, &self.physics, event_view);

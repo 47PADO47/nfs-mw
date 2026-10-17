@@ -7,6 +7,7 @@ use glam::Vec3;
 use nfsmw_data::gameplay::{ActivityKind, GameplayData};
 
 use super::space;
+use crate::modding::content::interior::ModInterior;
 
 /// The radius of a race's entry sphere, metres. The data gives no size for a race start. The interior zones are 6 or
 /// 7 m, so this uses 6 m **[unconfirmed]**.
@@ -42,10 +43,12 @@ pub struct Zone {
     pub radius: f32,
 }
 
-/// Every entry zone of the world, in data order.
+/// Every entry zone of the world, in data order, and the mods' interiors (their own zones, tested after the stock ones).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct EntryZones {
     pub(super) zones: Vec<Zone>,
+    /// The mods' interiors: each has an entry zone in render space (`ModInterior::entry`).
+    pub(super) interiors: Vec<ModInterior>,
 }
 
 impl EntryZones {
@@ -63,7 +66,18 @@ impl EntryZones {
         let races = data.races.iter().filter_map(|race| race.start.map(|start| (race, start))).map(|(race, start)| {
             Zone { kind: ZoneKind::Race, name: race.name.clone(), centre: render(start.position), radius: RACE_RADIUS }
         });
-        Self { zones: interiors.chain(races).collect() }
+        Self { zones: interiors.chain(races).collect(), interiors: Vec::new() }
+    }
+
+    /// The same zones with the mods' interiors added.
+    pub fn with_interiors(mut self, interiors: Vec<ModInterior>) -> Self {
+        self.interiors = interiors;
+        self
+    }
+
+    /// The mod interior whose entry zone holds `point`, if any: the first in load order.
+    pub fn entered_interior(&self, point: Vec3) -> Option<usize> {
+        self.interiors.iter().position(|interior| interior.entry.contains(point.to_array()))
     }
 
     /// The zone the point is inside, if any: the one whose centre is nearest when zones overlap.

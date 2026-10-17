@@ -107,7 +107,11 @@ impl Prepass {
         frame: &FrameParams,
         instances: &[Instance],
     ) {
-        renderer.queue.write_buffer(&self.matrix, 0, bytemuck::cast_slice(&frame.view_proj().to_cols_array()));
+        renderer.queue.write_buffer(
+            &self.matrix,
+            0,
+            bytemuck::cast_slice(&renderer.world_to_clip(frame).to_cols_array()),
+        );
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("contact depth normal prepass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {

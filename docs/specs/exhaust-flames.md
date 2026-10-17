@@ -427,9 +427,8 @@ Everything in this section is the rewrite's own design **[decision]** unless it 
 - `crates/nfsmw/src/scenes/world/exhaust/` owns the trigger (section 2), the pipes (section 3) and the per-frame
   step at the 60 Hz physics rate. The gear change is read from the physics' gear: a change between two forward
   gears (or into one) counts as an up-shift or down-shift event.
-- The career's installed engine level does not exist yet: it defaults to **0** and the console command
-  `exhaust-flames engine <n>` sets it, so cars with upgradable engines show the shift flame only after
-  `exhaust-flames engine 1` (or higher).
+- The installed garage engine package supplies the ordinary engine level. The console command
+  `exhaust-flames engine <n>` overrides it until the package next changes.
 - The miss-shift smoke (drag races) is not drawn; there are no drag races yet.
 
 ### 8.2 The setting
@@ -452,8 +451,9 @@ Everything in this section is the rewrite's own design **[decision]** unless it 
 
 A pipe flames, in this order of strength, when:
 
-1. **The nitrous is not flamed.** The original's nitrous effect differs from the one used here; it is left for later
-   and the group is not played while the nitrous burns.
+1. **Nitrous is engaged:** the installed `NOSEffect` group at full intensity (section 2), independently of engine
+   upgrades. The physics' burning flag drives this, so a rejected request or an empty tank cannot light it.
+   The existing host blue tint swaps red and blue; its colour is not established by the PC evidence.
 2. **A gear-change blow-off runs** on an engine that allows it: the group at full intensity (section 2).
 3. **A sputter pops while the driver is off the throttle** (the *lift-off backfire*): the group at intensity 0.5 for
    `BACKFIRE_SECONDS` (0.06 s, about the life of one fire particle) after each pop.

@@ -1,10 +1,17 @@
 //! Capability-aware values shown by menu rows. Stored requests stay intact.
 use super::*;
+use blackbox_gfx::Capabilities;
 
 impl Setting {
     /// What the data string shows on a renderer with these capabilities: the value it actually runs, so a stored
     /// `taa` reads FXAA on a renderer that has no TAA.
     pub fn data_in(self, s: &Settings, caps: &Capabilities) -> Data {
+        if self == Setting::Renderer(RendererSetting::RayTracing) && !caps.ray_tracing.is_available() {
+            return Data::Text("Unavailable".into());
+        }
+        if self == Setting::Renderer(RendererSetting::FrameGeneration) && !caps.frame_generation {
+            return Data::Text("Unavailable".into());
+        }
         if matches!(self, Setting::Graphics(GraphicsSetting::Style | GraphicsSetting::Quality)) {
             return self.data(s);
         }

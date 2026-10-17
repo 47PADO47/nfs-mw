@@ -17,7 +17,7 @@ fn the_video_screen_groups_spatial_upscaling_after_the_profile_controls() {
             Title::Text("Advanced Graphics"),
             Title::Text("Render Scale"),
             Title::Text("Upscaler"),
-            Title::Text("Upscale Sharpness")
+            Title::Text("Sharpening")
         ],
         "resolution controls sit together before scene effects"
     );
@@ -73,15 +73,14 @@ fn the_upscaler_row_cycles_both_ways_and_records_only_itself() {
 }
 
 #[test]
-fn sharpness_is_a_slider_in_steps_of_ten() {
+fn sharpening_is_off_medium_or_high() {
     let (mut s, mut c) = (defaults(), Partial::default());
-    assert_eq!(Setting::UpscaleSharpness.control(&s), Control::Slider(80));
-    assert!(Setting::UpscaleSharpness.step(&mut s, &mut c, true));
-    assert!(Setting::UpscaleSharpness.step(&mut s, &mut c, true));
-    assert!(!Setting::UpscaleSharpness.step(&mut s, &mut c, true), "100 is the end");
-    assert_eq!(c.upscale_sharpness, Some(Percent(100)));
-    for _ in 0..12 {
-        Setting::UpscaleSharpness.step(&mut s, &mut c, false);
+    assert_eq!(Setting::UpscaleSharpness.control(&s), Control::Toggle);
+    assert_eq!(Setting::UpscaleSharpness.data(&s), Data::Text("High".into()), "the default 80 reads High");
+    for (name, percent) in [("Off", 0), ("Medium", 50), ("High", 80)] {
+        assert!(Setting::UpscaleSharpness.step(&mut s, &mut c, true));
+        assert_eq!(Setting::UpscaleSharpness.data(&s), Data::Text(name.into()));
+        assert_eq!(s.upscale_sharpness, Percent(percent));
     }
-    assert_eq!(s.upscale_sharpness, Percent(0));
+    assert_eq!(c.upscale_sharpness, Some(Percent(80)));
 }

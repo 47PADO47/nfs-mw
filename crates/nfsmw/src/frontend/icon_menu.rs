@@ -18,9 +18,10 @@ use blackbox_feng::ids::{BUTTON_PRESSED, PAD_BACK, PAD_LEFT, PAD_RIGHT, PAD_STAR
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
     Main,
-    /// The option categories; opened from the pause menu when `pause` is set.
+    /// The option categories; opened from the pause menu when `pause` is set. `mods` adds the Mods page (a mod has rows).
     Categories {
         pause: bool,
+        mods: bool,
     },
     Pause,
 }
@@ -70,7 +71,7 @@ pub struct IconMenu {
 
 impl IconMenu {
     pub fn new(kind: Kind, args: Args) -> Self {
-        let colours = if matches!(kind, Kind::Main | Kind::Categories { pause: false }) { WHITE } else { ORANGE };
+        let colours = if matches!(kind, Kind::Main | Kind::Categories { pause: false, .. }) { WHITE } else { ORANGE };
         Self {
             kind,
             args,
@@ -94,7 +95,7 @@ impl IconMenu {
     }
 
     fn pause(&self) -> bool {
-        matches!(self.kind, Kind::Categories { pause: true } | Kind::Pause)
+        matches!(self.kind, Kind::Categories { pause: true, .. } | Kind::Pause)
     }
 
     /// The strip: a book end, the icons, a book end.
@@ -178,6 +179,7 @@ impl IconMenu {
         let text = match self.icons[i].id {
             Id::ControlOptions => Some("Control Options"),
             Id::Category(Category::Discord) => Some("Discord"),
+            Id::Category(Category::Mods) => Some("Mods"),
             _ => None,
         };
         for hash in [ids::ICON_TITLE, ids::ICON_TITLE_SHADOW] {
@@ -242,6 +244,7 @@ impl IconMenu {
             }
             (Kind::Categories { .. }, Pending::Pressed(Id::Category(category))) => self.open_options(cx, category),
             (Kind::Categories { .. }, Pending::Pressed(Id::Controls)) => self.open_controls(cx),
+            (Kind::Categories { .. }, Pending::Pressed(Id::EaTrax)) => self.open_jukebox(cx),
             (Kind::Categories { .. }, Pending::Pressed(Id::ControlOptions)) => {
                 self.open_options(cx, Category::Controls)
             }
@@ -272,6 +275,11 @@ impl IconMenu {
     fn open_controls(&self, cx: &mut Cx) {
         let name = if self.pause() { screen::PAUSE_CONTROLS } else { screen::CONTROLS };
         cx.send(Command::Switch(name.into(), Args { options: true, ..self.args }));
+    }
+
+    /// The EA Trax jukebox (`jukebox.rs`), which goes back to these categories when it is left.
+    fn open_jukebox(&self, cx: &mut Cx) {
+        cx.send(Command::Switch(screen::EA_TRAX_JUKEBOX.into(), Args { options: true, ..self.args }));
     }
 
     /// Writes where each icon is, how big and how opaque, from the scroll value and the clock.
@@ -346,8 +354,8 @@ impl ScreenLogic for IconMenu {
                 cx.hide(ids::NAME_GROUP, true);
                 cx.hide(ids::GAME_STATS_GROUP, true);
             }
-            Kind::Categories { pause: false } => cx.label_group(ids::TITLE_GROUP, 0x4ECA_678C),
-            Kind::Categories { pause: true } => cx.label_group(ids::PAUSE_HEADER, 0x1D7B_B6C9),
+            Kind::Categories { pause: false, .. } => cx.label_group(ids::TITLE_GROUP, 0x4ECA_678C),
+            Kind::Categories { pause: true, .. } => cx.label_group(ids::PAUSE_HEADER, 0x1D7B_B6C9),
             Kind::Pause => cx.label_group(ids::PAUSE_HEADER, 0x6C83_9FBE),
         }
         let remembered = cx.memory.get(&self.memory_key(cx)).copied().unwrap_or(0);
@@ -401,11 +409,11 @@ impl ScreenLogic for IconMenu {
             ids::QUIT_CLICKED if self.kind == Kind::Main => cx.send(Command::QuitGame),
             PAD_BACK => match self.kind {
                 Kind::Main => {}
-                Kind::Categories { pause: false } => {
+                Kind::Categories { pause: false, .. } => {
                     self.pending = Some(Pending::Back);
                     self.reacts = false;
                 }
-                Kind::Categories { pause: true } | Kind::Pause => self.leave_by_script(cx, Pending::Back),
+                Kind::Categories { pause: true, .. } | Kind::Pause => self.leave_by_script(cx, Pending::Back),
             },
             PAD_START => {
                 if self.pause() {

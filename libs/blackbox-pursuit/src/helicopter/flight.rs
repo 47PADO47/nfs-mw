@@ -21,13 +21,35 @@ impl Default for Specs {
     }
 }
 
-/// The acceleration limit: `min(80, 0.6 v + 30)`, or 80 when braking hard.
+/// The acceleration limit: `min(80, 0.6 v + 30)`, or 80 when braking hard. [decomp]: 0.6 pool, 80 pool
+///, 30 pool.
 pub fn max_acceleration(speed: f32, max_decel: bool) -> f32 {
     if max_decel {
         return 80.0;
     }
     (speed * 0.6 + 30.0).min(80.0)
 }
+
+/// Desired acceleration is this many times the velocity error (`Chopper_Ratio`, a 0.5 s response). [decomp] 2, pool.
+const RESPONSE_RATIO: f32 = 2.0;
+/// Scale of the acceleration read back as lean (`meas_local *= 0.2`, the memoryless low-pass of spec Q2). [decomp]
+const LEAN_LOW_PASS: f32 = 0.2;
+/// Pitch lean per m/s^2 of forward-back acceleration: `9 / 80` of `pitch_ang`. [decomp] 9 pool, 80 the divisor.
+const PITCH_LEAN: f32 = 9.0 / 80.0;
+/// Roll lean per m/s^2 of side acceleration: `12 / 80` of `roll_ang`. [decomp] 12 pool, 80 the divisor.
+const ROLL_LEAN: f32 = 12.0 / 80.0;
+/// Limit of the pitch and roll lean, in turns (36 degrees). [decomp] 0.1, pool.
+const LEAN_LIMIT: f32 = 0.1;
+/// Gain of the climb-pitch term (`meas_local.y * 0.035`, above 15 m/s with a rising velocity). [unconfirmed]: spec value, not
+/// found in the pool.
+const CLIMB_PITCH: f32 = 0.035;
+/// Yaw rate per radian of heading error (`cross * 8`). [decomp] 8, pool.
+const YAW_GAIN: f32 = 8.0;
+/// Limit of the yaw rate, rad/s. [unconfirmed]: spec value, not found in the pool.
+const YAW_LIMIT: f32 = 1.3;
+/// Angular velocity smoothing: `(new + 7 old) / 8`. [decomp] 7 pool, 0.125 pool.
+const ANGULAR_OLD: f32 = 7.0;
+const ANGULAR_SMOOTH: f32 = 0.125;
 
 /// The helicopter as a body: where it is, how it moves and which way it points.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -67,8 +89,12 @@ impl Chopper {
         let speed = self.velocity.length();
         let limit = max_acceleration(speed, max_decel);
         let dv = desired - self.velocity;
-        let required = dv.length() * 2.0;
-        let accel = if required > 1.0 && (required > limit || max_decel) { dv * (limit / required) } else { dv * 2.0 };
+        let required = dv.length() * RESPONSE_RATIO;
+        let accel = if required > 1.0 && (required > limit || max_decel) {
+            dv * (limit / required)
+        } else {
+            dv * RESPONSE_RATIO
+        };
         let measured = self.measured_acceleration(dt);
         self.velocity += accel * dt;
         self.position += self.velocity * dt;
@@ -87,20 +113,19 @@ impl Chopper {
     /// Leans the body into the acceleration and turns it to face `facing`, with the 8-step smoothing of the spec.
     fn attitude(&mut self, measured: Vec3, facing: Vec3, specs: &Specs, dt: f32) {
         let inverse = self.orientation.inverse();
-        let local = inverse * measured * 0.2;
+        let local = inverse * measured * LEAN_LOW_PASS;
         let speed = self.velocity.length();
 
-        let mut pitch = -(local.z * 9.0 / 80.0) * specs.pitch_ang;
+        let mut pitch = -(local.z * PITCH_LEAN) * specs.pitch_ang;
         if local.y > 0.0 && speed > 15.0 && self.velocity.y > 0.0 {
-            pitch += local.y * 0.035;
+            pitch += local.y * CLIMB_PITCH;
         }
-        let pitch = pitch.clamp(-0.1, 0.1);
+        let pitch = pitch.clamp(-LEAN_LIMIT, LEAN_LIMIT);
         let forward = self.forward();
         let ideal_forward = Vec3::new(forward.x, (std::f32::consts::TAU * pitch).sin(), forward.z);
         let torque_x = (inverse * ideal_forward.cross(forward)).x;
 
-        let mut roll = -(local.x * 12.0 / 80.0) * specs.roll_ang;
-        roll = roll.clamp(-0.1, 0.1);
+        let roll = (-(local.x * ROLL_LEAN) * specs.roll_ang).clamp(-LEAN_LIMIT, LEAN_LIMIT);
         let right = self.orientation * Vec3::NEG_Z;
         let ideal_right = Vec3::new(right.x, (std::f32::consts::TAU * roll).sin(), right.z);
         let torque_z = (inverse * ideal_right.cross(right)).z;
@@ -110,7 +135,7 @@ impl Chopper {
         raw.z = (-torque_z * specs.roll_align).clamp(-1.0, 1.0);
         raw.y = yaw_rate(facing, forward);
 
-        self.angular = (raw + 7.0 * self.angular) * 0.125;
+        self.angular = (raw + ANGULAR_OLD * self.angular) * ANGULAR_SMOOTH;
         let turn = Quat::from_scaled_axis(self.angular * dt);
         self.orientation = (turn * self.orientation).normalize();
     }
@@ -120,7 +145,7 @@ impl Chopper {
 fn yaw_rate(facing: Vec3, forward: Vec3) -> f32 {
     let ideal = Vec3::new(facing.x, 0.0, facing.z).normalize_or_zero();
     let actual = Vec3::new(forward.x, 0.0, forward.z).normalize_or_zero();
-    (-ideal.cross(actual).y * 8.0).clamp(-1.3, 1.3)
+    (-ideal.cross(actual).y * YAW_GAIN).clamp(-YAW_LIMIT, YAW_LIMIT)
 }
 
 /// `v` shortened to `max` if it is longer.

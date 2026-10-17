@@ -6,22 +6,65 @@
 //! listed are hidden at once and despawned after [`GRACE_FRAMES`], so tiles that flicker at the edge of view
 //! do not churn entities.
 
+use bevy_asset::{Assets, Handle};
 use bevy_camera::visibility::Visibility;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::system::{Commands, Query};
+use bevy_ecs::resource::Resource;
+use bevy_ecs::system::{Commands, Query, ResMut, SystemParam};
 use bevy_math::Affine3A;
 use bevy_mesh::Mesh3d;
-use bevy_pbr::MeshMaterial3d;
+use bevy_pbr::{MeshMaterial3d, StandardMaterial};
 use bevy_transform::components::GlobalTransform;
 use blackbox_gfx::Instance;
+use std::collections::HashMap;
 
-use crate::material::BlackboxMaterial;
+use crate::material::{BlackboxMaterial, BlendKind, ShadingKind};
+use crate::ops::Op;
 
 use super::assets::{Stores, material_for};
+#[cfg(feature = "ray-tracing")]
+use super::redirects;
 use super::state::{GRACE_FRAMES, Placed, PoolKey, WorldState};
 
 /// The components the pool changes on entities that already exist.
 pub type PlacedQuery<'w, 's> = Query<'w, 's, (&'static mut GlobalTransform, &'static mut Visibility)>;
+
+/// A stand-in's key: its texture number (`None` for the white texture) and its quantised colour (see `solari.rs`).
+pub type StandInKey = (Option<usize>, [u8; 3]);
+
+/// The Solari stand-ins by [`StandInKey`] (see `solari.rs`). The resource exists only when Solari was added at
+/// startup, so its presence is what turns the stand-in path on.
+#[derive(Resource, Default)]
+pub struct StandInCache(pub HashMap<StandInKey, Handle<StandardMaterial>>);
+
+/// What the stand-in path needs, borrowed for one tick: the material store and the cache.
+pub struct StandIns<'a> {
+    pub standard: &'a mut Assets<StandardMaterial>,
+    pub cache: &'a mut StandInCache,
+}
+
+/// What the apply system writes to the pool: the placed entities, and, when Solari is on, the stand-in stores.
+#[derive(SystemParam)]
+pub struct Surfaces<'w, 's> {
+    pub placed: PlacedQuery<'w, 's>,
+    pub standard: ResMut<'w, Assets<StandardMaterial>>,
+    pub cache: Option<ResMut<'w, StandInCache>>,
+}
+
+/// Solari needs its meshes prepared before they are added; without it the op passes through unchanged.
+#[cfg(feature = "ray-tracing")]
+pub fn prepare_op(op: Op, solari: bool) -> Op {
+    match solari {
+        true => crate::solari::prepare_op(op),
+        false => op,
+    }
+}
+
+/// Without Solari there is nothing to prepare.
+#[cfg(not(feature = "ray-tracing"))]
+pub fn prepare_op(op: Op, _solari: bool) -> Op {
+    op
+}
 
 fn global_transform(m: glam::Mat4) -> GlobalTransform {
     let bevy = bevy_math::Mat4::from_cols_array(&crate::axes::model(m).to_cols_array());
@@ -35,6 +78,7 @@ pub fn sync(
     commands: &mut Commands,
     placed: &mut PlacedQuery,
     instances: &[Instance],
+    mut stand_ins: Option<&mut StandIns>,
 ) {
     state.epoch += 1;
     let epoch = state.epoch;
@@ -55,9 +99,9 @@ pub fn sync(
             Some(entry) if entry.mesh == mesh => update(state, placed, key, instance, epoch),
             Some(_) => {
                 despawn(state, commands, key);
-                spawn(state, stores, commands, key, instance, epoch);
+                spawn(state, stores, commands, key, instance, epoch, stand_ins.as_deref_mut());
             }
-            None => spawn(state, stores, commands, key, instance, epoch),
+            None => spawn(state, stores, commands, key, instance, epoch, stand_ins.as_deref_mut()),
         }
     }
     sweep(state, commands, placed, epoch);
@@ -120,6 +164,43 @@ fn update(state: &mut WorldState, placed: &mut PlacedQuery, key: PoolKey, instan
     }
 }
 
+/// What draws one draw range: the Blackbox material, or a Solari stand-in while ray tracing is on.
+enum Surface {
+    Blackbox(Handle<BlackboxMaterial>),
+    #[cfg(feature = "ray-tracing")]
+    Solari(Handle<StandardMaterial>),
+}
+
+/// What one draw range is drawn with, from its registered range.
+struct Draw {
+    texture: Option<usize>,
+    blend: BlendKind,
+    shading: ShadingKind,
+    glossy: Option<usize>,
+    /// Read by the Solari stand-in only.
+    #[cfg_attr(not(feature = "ray-tracing"), allow(dead_code))]
+    colour: [u8; 3],
+}
+
+/// The surface of a draw. An opaque, non-sky draw becomes a stand-in when Solari is on (`solari.rs`).
+#[cfg(feature = "ray-tracing")]
+fn surface_for(state: &mut WorldState, stores: &mut Stores, stand_ins: Option<&mut StandIns>, draw: &Draw) -> Surface {
+    if let Some(stand_ins) = stand_ins {
+        let key = draw.texture.map(|t| redirects::resolve(state, t));
+        let image = key.and_then(|k| state.textures.get(&k).cloned());
+        if let Some(material) = crate::solari::stand_in(stand_ins, image, key, draw.colour, draw.blend, draw.shading) {
+            return Surface::Solari(material);
+        }
+    }
+    Surface::Blackbox(material_for(state, stores, draw.texture, draw.blend, draw.shading, draw.glossy))
+}
+
+/// Without Solari every draw uses the Blackbox material.
+#[cfg(not(feature = "ray-tracing"))]
+fn surface_for(state: &mut WorldState, stores: &mut Stores, _stand_ins: Option<&mut StandIns>, draw: &Draw) -> Surface {
+    Surface::Blackbox(material_for(state, stores, draw.texture, draw.blend, draw.shading, draw.glossy))
+}
+
 fn spawn(
     state: &mut WorldState,
     stores: &mut Stores,
@@ -127,27 +208,47 @@ fn spawn(
     key: PoolKey,
     instance: &Instance,
     epoch: u64,
+    mut stand_ins: Option<&mut StandIns>,
 ) {
     let mesh = instance.mesh.raw();
     let transform = global_transform(instance.transform);
     let ranges: Vec<_> = state.meshes[&mesh]
         .ranges
         .iter()
-        .map(|r| (r.mesh.clone(), r.aabb, r.texture, r.blend, r.shading, r.glossy))
+        .map(|r| {
+            let draw =
+                Draw { texture: r.texture, blend: r.blend, shading: r.shading, glossy: r.glossy, colour: r.colour };
+            (r.mesh.clone(), r.aabb, draw)
+        })
         .collect();
     let mut entities: Vec<Entity> = Vec::with_capacity(ranges.len());
     let mut batches = Vec::with_capacity(ranges.len());
-    for (bevy_mesh, aabb, texture, blend, shading, glossy) in ranges {
-        let material = material_for(state, stores, texture, blend, shading, glossy);
+    for (bevy_mesh, aabb, draw) in ranges {
+        let surface = surface_for(state, stores, stand_ins.as_deref_mut(), &draw);
+        let shading = draw.shading;
+        let blend = draw.blend;
         let mesh_id = bevy_mesh.id();
-        let material_id = material.id();
-        let entity =
-            commands.spawn((Mesh3d(bevy_mesh), MeshMaterial3d(material), aabb, transform, Visibility::Visible)).id();
-        if !super::shadows::casts(shading, blend) {
+        let (entity, batch) = match surface {
+            Surface::Blackbox(material) => {
+                let material_id = material.id();
+                let entity = commands
+                    .spawn((Mesh3d(bevy_mesh), MeshMaterial3d(material), aabb, transform, Visibility::Visible))
+                    .id();
+                (entity, Some((mesh_id, material_id)))
+            }
+            #[cfg(feature = "ray-tracing")]
+            Surface::Solari(material) => {
+                (crate::solari::spawn_stand_in(commands, bevy_mesh, material, aabb, transform), None)
+            }
+        };
+        if !super::shadows::casts(shading, blend) || !instance.shadow.cast {
             commands.entity(entity).insert(bevy_light::NotShadowCaster);
         }
+        if !instance.shadow.receive {
+            commands.entity(entity).insert(bevy_light::NotShadowReceiver);
+        }
         entities.push(entity);
-        batches.push((mesh_id, material_id));
+        batches.extend(batch);
     }
     state.pool.insert(
         key,

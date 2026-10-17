@@ -55,3 +55,89 @@ test) would live in `libs/`; the Most Wanted specifics (the `pursuitlevels` tabl
   inside a race event, so it still uses `heattable`.
 - **Not done:** surplus removal when heat falls or a type is over its count; heat growth rate is unchanged (`TIME_PER_LEVEL` in `police.rs`
   is bin-independent and does not apply the career `ScaleEscalationPerBucket`).
+
+## Support vehicles: ram SUVs and cross cars (D1)
+
+- **Spec:** [../specs/ai-pursuit-support.md](../specs/ai-pursuit-support.md). Roll and gates: [../specs/ai-pursuit-formations.md](../specs/ai-pursuit-formations.md) section 6.
+- **Binary:** speed.exe (PC), Ghidra program `/speed.exe`, image base `0x400000`. Decompiled code and assembly were read in
+  the Ghidra MCP, not copied into the repo.
+
+### Addresses
+
+| What | Address | Note |
+|---|---|---|
+| Support executor (per pursuit, per tick) | `FUN_0043e770` | calls the acquire and place pairs; state 1 = pending, 2 = active |
+| Cop manager tick | `FUN_0043e8d0` | walks the pursuit list, calls the executor, spawns waves, pursuit creation |
+| Heavy acquisition (strategies 1 to 4) | `FUN_0041f130` | `copsuv` / `copsuvl` roll at `0041f1b0`..`0041f1c3`; ram timer `0x40400000` (3.0) at `0041f256` |
+| Heavy placement | `FUN_0041f2e0` | `400 - 60 - 10k`; direction negated at the placement call |
+| Cross acquisition (strategies 5 to 7) | `FUN_0041f480` | names `copcross`, `copsporthench`; goal `AIGoalPursuit`; pursuit offsets table |
+| Cross placement | `FUN_0041f650` | `-(150 + 10k)`; state and duration set at the end |
+| Spawn search (point at a signed distance on the cop road) | `FUN_0041eed0` | tries; distance window flag |
+| Spawn validity | `FUN_00419fc0` | 5, 15, 40 thresholds (unit unsettled); no-cop-spawn zone query |
+| Car finder (pool reuse or new car) | `FUN_0041ecd0` | name in a register, read from the disassembly |
+| Roadblock builder (also used by the chase) | `FUN_0043dd30` | `AIRoadBlock`; sawhorse and spike-belt parts |
+| Goal constructor `AIGoalHeadOnRam` | `FUN_0043bd10` | action list; in-position `(0,0,-3)`; vtable `PTR_FUN_00892cd8` |
+| Goal factory wrapper | `FUN_0043d780` | `new` of the goal, calls the constructor |
+| Action creator `AIActionHeadOnRam` | `FUN_00421480` | registration node: hash `0x90d748`, creator `0x90d74c`, list head `0x90d8ec` |
+| Action constructor (score 0.1) | `FUN_00421360` | primary vtable `PTR_FUN_008913b8`; secondary `PTR_LAB_008913b0` |
+| Action start (speed cap) | `FUN_004214f0` | `min(26.82, desired)` for a just-placed car |
+| Action update (intercept, 100 km/h, `DoDriving(7)`) | `FUN_00421560` | vtable slot 7 |
+| Intercept formula | `FUN_00418200` | the tactics spec's `Ram` |
+| Pursuit constructor | `FUN_00442d00` | the two `AIPursuit` tasks (0.25 s, 1.0 s); starting values |
+| Name hash | `FUN_005cc240` | used for every goal, action, car and message name |
+| Random percent source | `FUN_00627320` (on `FUN_006ed200`) | `(r * 100) >> 16` |
+
+Strings and data: `AIGoalHeadOnRam` `0x89091c`, `AIActionHeadOnRam` `0x892cc4`, `copsuv` `0x891238`, `copsuvl` `0x891230`,
+`copcross` `0x891240`, `copheli` `0x8915dc`, `Request` `0x891228`, `Created` `0x892ee8`, `ReqDenied` `0x892edb`, `AIRoadBlock`
+`0x892ecc`, `MReqRoadBlock` `0x890c80`, `MReqBackup` `0x890c90`. Goal name table: `0x8eb1b0` onward (pointers to the goal
+name strings, indexed by the strategy). Float constants: `0x8eb1a8` = 150.0, `0x8eb1ac` = 400.0, `0x8eb1a0` = 225.0,
+`0x8eb1a4` = 300.0 (the last two not used in the support code read).
+
+### Method
+
+1. Searched the strings for the goal and action names, then xrefs to the strings. The `DATA` xrefs on the goal names
+   led to the name tables (`0x8eb1b0`) and to the goal constructor's caller; the `AIActionHeadOnRam` string led to the
+   action creator through a static initializer.
+2. Followed the goal factory to the executor (`FUN_0043e770`) by its callers, and read its three branches.
+3. Read the executor's callees (acquire, place, search, check, finder) one by one, then the call-site register for the
+   name of each car from the disassembly.
+4. Read the action's constructor and vtable; the update slot is 7.
+5. Decoded the float constants by hand from `read_memory` hex (`0x41DE38E4` = 27.78; `0x3dcccccd` = 0.1).
+
+### Lessons
+
+- The decompiler drops arguments that a `__fastcall` or `__thiscall` call passes in a register or through a vtable
+  slot. Two cases here: the car name in `FUN_0041f130` (the `EDX`-style push at `0041f1cc`) and the goal name passed to
+  the vtable slot `+0x84`. Read `disassemble_function` at the call site before trusting a decompiled call's arguments.
+- A static initializer that does `push "name"; call hash; mov [global], eax; mov eax, [list]; ...; mov [node], imm32; ...`
+  is a factory registration. The creator is the `imm32`. Find the initializer through the `DATA` xref of the name string.
+- The `DATA` xref on a string is often an initializer's `push`, not a table: check the bytes after the xref before
+  reading it as data.
+- Hand-decode float constants from the hex with the mantissa bits. A quick decimal estimate was off by 0.02 for 27.78;
+  the careful decode matched 27.7778.
+- The 16-byte stride in a constant table can hide a `vec3` layout: `(x, 0, z)` entries at `0x0`, `0x10`, `0x20` read
+  as `(0,0,-20)`, `(-4,0,-24)`, `(4,0,-24)`, which the decompile printed as a run of locals.
+- Some vtable labels do not hold the methods. For the pursuit (`PTR_FUN_008928ec`) the bytes after the label are string
+  data, so the label is not the interface the executor calls with slot `+0x44`. Resolve the subobject first.
+- `get_function_call_graph` on a big manager function returns more than 100 edges; ask for a depth of 1 or use the
+  decompile instead.
+
+### Dead ends
+
+- **"Leader" goal.** No `AIGoalLeader` or any leader goal exists: the string search for `Leader` returns only
+  leaderboard and HUD strings. The cross car is an ordinary `AIGoalPursuit` with a pursuit offset. Followers are not
+  directed to it.
+- **`pursuitsupport` as a string.** Not in the binary: AttribSys names are hashed. Found the support tables by their
+  consumers instead (the option's fields at `+0x00`, `+0x08`, `+0x0c`).
+- **Pursuit support request timer.** The countdown and the reset were not found: the executor calls the pursuit through
+  an interface (slot `+0x44`) whose vtable label holds string data. Not resolved; see the spec's open question Q1.
+- **Pool budget check** (`manager+0x54`, slot `+4`): called, not traced.
+- **Roadblock return value.** The executor and the manager read `FUN_0043dd30`'s return in opposite senses (spec Q3).
+
+### Next leads
+
+- Pursuit interface subobject for slot `+0x44` and its update (the timer and reset).
+- The caller of `FUN_0041f130` that drops a denied request (spec Q2).
+- The spawn manager constructor for its `+4` and `+8` distances (spec Q5).
+- The action vtable slots 2 to 6 (attempt, start, finish) for the ram action.
+- `FUN_00413320` (desired speed) and `FUN_00418200` (intercept).

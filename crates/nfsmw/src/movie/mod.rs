@@ -13,6 +13,7 @@ use glam::{Mat4, Vec3};
 use crate::app::{FrameSet, Host};
 use crate::gui::{OwnedPatch, UiOutput};
 use crate::input::ActionState;
+use crate::settings::hd_content;
 use crate::viewer::{Fit, Fullscreen, Scene};
 use player::{Movie, Step};
 
@@ -27,15 +28,27 @@ const PICTURE_ROWS: f32 = 512.0;
 const LOGO_ASPECT: f32 = 900.0 / 480.0;
 
 /// What to show of a movie file's frames and how: the film without its baked-in bars, stretched over the window.
-fn framing(file: &str, size: [u32; 2]) -> ([f32; 4], Fit) {
+/// With `hd_fmv` every film is framed by the stock 1024 x 512 rule, whatever its size: the bars are at the same
+/// fractions of any size, so the same rows show the film (`docs/specs/hd-content-support.md`, section 4).
+fn framing(file: &str, size: [u32; 2], hd_fmv: bool) -> ([f32; 4], Fit) {
     let whole = [0.0, 0.0, 1.0, 1.0];
     if file.to_ascii_lowercase().starts_with("ealogo") {
         return (whole, Fit::Contain(LOGO_ASPECT));
     }
-    if size[1] != PICTURE_ROWS as u32 {
+    if !hd_fmv && size[1] != PICTURE_ROWS as u32 {
         return (whole, Fit::Contain(size[0] as f32 / size[1] as f32));
     }
     ([0.0, FILM_ROWS[0] / PICTURE_ROWS, 1.0, FILM_ROWS[1] / PICTURE_ROWS], Fit::Fill)
+}
+
+/// The on-screen rectangle `(x, y, width, height)` of a picture with `fit` in a `w` by `h` window, centred.
+fn fit_rect(fit: Fit, w: f32, h: f32) -> (f32, f32, f32, f32) {
+    let (width, height) = match fit {
+        Fit::Fill => (w, h),
+        Fit::Contain(aspect) if w / h > aspect => (h * aspect, h),
+        Fit::Contain(aspect) => (w, w / aspect),
+    };
+    ((w - width) * 0.5, (h - height) * 0.5, width, height)
 }
 
 /// The movie named `name` (`ealogo`, `blacklist_03`, or the full file name), by prefix and any case.
@@ -134,6 +147,7 @@ impl Scene for MovieScene {
             surface_light: None,
             // Nothing 3D is drawn, so there is no camera to follow from frame to frame.
             camera_cut: true,
+            shadow_tuning: None,
         };
         (params, &[])
     }
@@ -145,7 +159,7 @@ impl Scene for MovieScene {
         }
         self.shown = true;
         let size = self.movie.size();
-        let (view, fit) = framing(&self.name, size);
+        let (view, fit) = framing(&self.name, size, hd_content::active().fmv);
         Some(Fullscreen { size, view, fit, rgba })
     }
 
@@ -185,12 +199,7 @@ fn present(
         out.patches.push(OwnedPatch { id: PICTURE, offset: None, size: picture.size, rgba });
     }
     let (w, h) = (window.width(), window.height());
-    let (width, height) = match picture.fit {
-        Fit::Fill => (w, h),
-        Fit::Contain(aspect) if w / h > aspect => (h * aspect, h),
-        Fit::Contain(aspect) => (w, w / aspect),
-    };
-    let (x0, y0) = ((w - width) * 0.5, (h - height) * 0.5);
+    let (x0, y0, width, height) = fit_rect(picture.fit, w, h);
     let [u0, v0, u1, v1] = picture.view;
     let corner = |dx: f32, dy: f32| UiVertex {
         position: [x0 + dx * width, y0 + dy * height],
@@ -214,11 +223,44 @@ mod tests {
 
     #[test]
     fn films_lose_their_baked_bars_and_fill_the_window_but_the_logo_keeps_its_shape() {
-        let (view, fit) = framing("psa_english_ntsc.vp6", [1024, 512]);
+        let (view, fit) = framing("psa_english_ntsc.vp6", [1024, 512], false);
         assert_eq!((view, fit), ([0.0, 0.125, 1.0, 0.875], Fit::Fill));
-        assert_eq!(framing("EALOGO_english_ntsc.vp6", [1024, 512]), ([0.0, 0.0, 1.0, 1.0], Fit::Contain(LOGO_ASPECT)));
-        let (view, fit) = framing("odd.vp6", [640, 480]);
+        assert_eq!(
+            framing("EALOGO_english_ntsc.vp6", [1024, 512], false),
+            ([0.0, 0.0, 1.0, 1.0], Fit::Contain(LOGO_ASPECT))
+        );
+        let (view, fit) = framing("odd.vp6", [640, 480], false);
         assert_eq!((view, fit), ([0.0, 0.0, 1.0, 1.0], Fit::Contain(640.0 / 480.0)));
+    }
+
+    #[test]
+    fn hd_movies_are_framed_like_the_stock_film_at_any_size() {
+        let stock = framing("psa_english_ntsc.vp6", [1024, 512], true);
+        assert_eq!(stock, ([0.0, 0.125, 1.0, 0.875], Fit::Fill));
+        assert_eq!(framing("psa_english_ntsc.vp6", [2048, 1024], true), stock);
+        assert_eq!(framing("psa_english_ntsc.vp6", [1280, 720], true), stock);
+        assert_eq!(framing("odd.vp6", [640, 480], true), stock);
+        let logo = ([0.0, 0.0, 1.0, 1.0], Fit::Contain(LOGO_ASPECT));
+        assert_eq!(framing("EALOGO_english_ntsc.vp6", [2048, 1024], true), logo);
+        assert_eq!(framing("EALOGO_english_ntsc.vp6", [1024, 512], false), logo);
+    }
+
+    #[test]
+    fn the_hd_film_lands_on_the_same_window_rect_as_the_stock_film() {
+        let stock = framing("psa.vp6", [1024, 512], true);
+        for size in [[2048, 1024], [1280, 720], [1024, 512]] {
+            let (_, fit) = framing("psa.vp6", size, true);
+            assert_eq!(fit_rect(fit, 1000.0, 1000.0), fit_rect(stock.1, 1000.0, 1000.0), "{size:?}");
+        }
+        assert_eq!(fit_rect(stock.1, 1000.0, 1000.0), (0.0, 0.0, 1000.0, 1000.0));
+    }
+
+    #[test]
+    fn a_stock_size_film_without_the_option_keeps_its_own_aspect_in_the_window() {
+        let (_, fit) = framing("odd.vp6", [1280, 720], false);
+        let (x, y, width, height) = fit_rect(fit, 1000.0, 1000.0);
+        assert!(x.abs() < 1e-3 && (width - 1000.0).abs() < 1e-3, "{x} {width}");
+        assert!((height - 562.5).abs() < 1e-2 && (y - 218.75).abs() < 1e-2, "{y} {height}");
     }
 
     /// With the install (`NFSMW_GAME_DIR`): a movie opens, its sound is as long as its picture, stepping the clock

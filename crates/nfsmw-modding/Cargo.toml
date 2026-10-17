@@ -1,0 +1,22 @@
+[package]
+name = "nfsmw-modding"
+description = "NFS: Most Wanted extension of the mod API: the nfsmw.* tables, the SDK wrappers and the host builders."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+default = ["abi"]
+abi = []
+# What a mod links: the safe wrappers and the event decoder. Needs only the generic SDK.
+sdk = ["abi", "blackbox-modding/sdk"]
+# What the game links: the backend traits and the table builders. Mirrors `blackbox-modding`'s `host` feature.
+host = ["abi", "blackbox-modding/host"]
+
+[dependencies]
+blackbox-modding.workspace = true
+
+[lints]
+workspace = true

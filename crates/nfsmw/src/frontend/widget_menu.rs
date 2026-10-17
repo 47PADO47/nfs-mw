@@ -9,6 +9,7 @@ use glam::{Vec2, Vec3};
 use super::alias_options::AliasSetting;
 use super::ids::{self, screen};
 use super::logic::{Args, Command, Cx, ScreenLogic};
+use super::mod_options;
 use super::options::{self, Control, Data, Row, Title};
 use super::widget_layout::{Layout, RowObjects};
 
@@ -126,11 +127,12 @@ impl WidgetMenu {
     /// Writes the title, the value and the slider of a row from the settings.
     fn draw_row(&self, cx: &mut Cx, index: usize, slot: usize) {
         let (Some(row), Some(r)) = (self.rows.get(index), self.objects.get(slot)) else { return };
-        match row.title {
-            Title::Label(label) => cx.rt.set_label(r.name, label),
-            Title::Text(text) => cx.rt.set_text(r.name, text),
+        match (mod_options::shown(cx.mods, row.setting), row.title) {
+            (Some(shown), _) => cx.rt.set_text(r.name, &shown.label),
+            (None, Title::Label(label)) => cx.rt.set_label(r.name, label),
+            (None, Title::Text(text)) => cx.rt.set_text(r.name, text),
         }
-        let control = row.setting.control(cx.settings);
+        let control = control_of(cx, row.setting);
         let slider = matches!(control, Control::Slider(_));
         for o in [r.data, r.left, r.right].into_iter().flatten() {
             // A slider row has no data string; its arrows stay.
@@ -145,7 +147,7 @@ impl WidgetMenu {
         match control {
             Control::Toggle => {
                 let Some(data) = r.data else { return };
-                match row.setting.data_in(cx.settings, &cx.caps) {
+                match data_of(cx, row.setting) {
                     Data::Label(label) => cx.rt.set_label(data, label),
                     Data::Text(text) => cx.rt.set_text(data, text),
                 }
@@ -313,6 +315,11 @@ impl WidgetMenu {
             cx.send(Command::LoadAlias);
             return;
         }
+        if let options::Setting::Mod(_) = row.setting {
+            mod_options::change(cx.mods, row.setting, forward);
+            self.draw_visible(cx);
+            return;
+        }
         row.setting.advance(cx.settings, cx.changed, forward, &cx.caps);
         self.draw_visible(cx);
     }
@@ -341,9 +348,22 @@ impl WidgetMenu {
 /// The group whose scripts `POS1` .. `POSn` move the cursor to a row slot (its name is only known as a hash).
 const CURSOR: u32 = 0x0674_5352;
 
+/// The control of a row: a Mods row's from the bridge, any other row's from the settings.
+fn control_of(cx: &Cx<'_>, setting: options::Setting) -> Control {
+    mod_options::shown(cx.mods, setting).map_or_else(|| setting.control(&*cx.settings), |shown| shown.control)
+}
+
+/// The data of a row: a Mods row's from the bridge, any other row's from the settings.
+fn data_of(cx: &Cx<'_>, setting: options::Setting) -> Data {
+    mod_options::shown(cx.mods, setting).map_or_else(|| setting.data_in(&*cx.settings, &cx.caps), |shown| shown.data)
+}
+
 impl ScreenLogic for WidgetMenu {
     fn start(&mut self, cx: &mut Cx) {
-        self.rows = options::rows(self.args.category, &cx.caps);
+        self.rows = match self.args.category {
+            super::logic::Category::Mods => mod_options::rows(cx.mods),
+            category => options::rows(category, &cx.caps),
+        };
         self.find_rows(cx);
         // Packages supply reusable screen slots, not one object for every logical setting.
         self.on_screen = self.on_screen.min(self.objects.len());
@@ -362,7 +382,7 @@ impl ScreenLogic for WidgetMenu {
             (super::logic::Category::Player, true) => 0xD9DC_2F12,
             // The original's profile manager title ("alias manager", docs/specs/save-alias-manager.md, section 1).
             (super::logic::Category::AliasManager, _) => 0x1B76_F2CE,
-            (super::logic::Category::Controls | super::logic::Category::Discord, _) => 0,
+            (super::logic::Category::Controls | super::logic::Category::Discord | super::logic::Category::Mods, _) => 0,
         };
         cx.label_group(ids::HEADER_TEXT, title);
         if self.args.category == super::logic::Category::Player
@@ -374,6 +394,7 @@ impl ScreenLogic for WidgetMenu {
             // The Controls icon opens the key list; this list is the Control Options item.
             super::logic::Category::Controls => cx.text_group(ids::HEADER_TEXT, "Control Options"),
             super::logic::Category::Discord => cx.text_group(ids::HEADER_TEXT, "Discord"),
+            super::logic::Category::Mods => cx.text_group(ids::HEADER_TEXT, "Mods"),
             _ => {}
         }
         self.layout_rows(cx);
@@ -424,7 +445,7 @@ impl ScreenLogic for WidgetMenu {
             let slot = index - first;
             self.place(cx, slot);
             let (Some(row), Some(r)) = (self.rows.get(index), self.objects.get(slot)) else { continue };
-            if let Control::Slider(percent) = row.setting.control(cx.settings) {
+            if let Control::Slider(percent) = control_of(cx, row.setting) {
                 self.draw_slider(cx, r, f32::from(percent) / 100.0);
             }
             // The package's scripts reset the title's alpha, so a disabled row is dimmed every frame.

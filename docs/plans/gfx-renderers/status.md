@@ -1,5 +1,10 @@
 # Status and handoff (2026-10-09)
 
+**Update 2026-10-16:** [ADR 0004](../../decisions/0004-swappable-renderers.md) is accepted by the project owner.
+It was proposed on 2026-10-09. The ADR now also states the DLSS target (the newest DLSS 4.x Super Resolution and Ray
+Reconstruction transformer preset in the SDK bundled with `dlss_wgpu` 6.0.0; the exact preset is unconfirmed).
+DLSS 5 and frame generation stay out of scope and are tracked as a follow-up.
+
 Where the swappable-renderers plan stands, what changed from the plan while building it, and what is left for a
 machine with the right hardware (an NVIDIA RTX PC). The rest of the plan is unchanged; section numbers (`§N`)
 refer to it. Everything here was built and tested on an Intel Iris Xe laptop (Vulkan, Mesa); no NVIDIA, AMD or
@@ -12,7 +17,7 @@ All branches are in one GitHub stack (stack #23, draft PRs, each based on the pr
 | Plan PR | Branch | GitHub | State |
 |---|---|---|---|
 | (milestone 8) render pipeline, car shader, post-processing, FSR 1, ADR 0003, ReShade docs, low-end options | `feat/m8-render-pipeline` ... `feat/m8-low-end-options` | #17 to #22, #30 | done, draft |
-| 1 | `docs/gfx-adr-0004` | #32 | done: ADR 0004 (proposed) and this plan |
+| 1 | `docs/gfx-adr-0004` | #32 | done: ADR 0004 (accepted 2026-10-16) and this plan |
 | 2 | `build/bevy-0.20-final` | #33 | done: pins `=0.20.0`, workspace MSRV stays 1.95 |
 | 3 | `feat/gfx-interface` | #34 | done: `libs/blackbox-gfx` |
 | 4 | `feat/gfx-native-backend` | #35 | done: `impl RenderBackend for Renderer`, headless, testkit, digests |
@@ -23,9 +28,10 @@ All branches are in one GitHub stack (stack #23, draft PRs, each based on the pr
 | 9 | `feat/gfx-bevy-scene` | | done: glossy shading, the lighting rig and environment, texture redirects, the effect layer, the UI layer; see §3a |
 | 10 | `feat/gfx-bevy-post` | | done: bloom, tone mapping, FXAA, SMAA, TAA, render scale, FSR 1; see §3b |
 | 11 | `feat/gfx-bevy-dlss` | | **not started**, needs the NVIDIA PC |
-| 12 | `feat/gfx-bevy-solari` | | **not started**, needs the NVIDIA PC |
+| 12 | `feat/gfx-bevy-solari` | | **done on the RTX card**: startup gate, caps, stand-ins, cameras, sun, camera-cut reset, game wiring; the stand-in look is white (open, §3d) |
 | 13a | `feat/gfx-fsr3-core` | #41 | done: `libs/fsr3-wgpu`, not used by a renderer yet |
-| 13b | `feat/gfx-fsr3` | | **not started** |
+| 13b | `feat/gfx-fsr3` | | **wired, verified on the RTX card**: `fsr3` feature in `blackbox-bevy-render` (`src/fsr3/`), caps offer FSR 3 when the device can run it; the world material now writes depth and motion vectors (section 3e), so the moving-camera picture follows the native one; quality vs AMD not measured |
+| 13c | `feat/native-fsr3` | | **written, not yet run**: FSR 3 on the native renderer (`blackbox-render`): its own jitter, a motion-vector pass with per-instance history, the upscale first in the post chain, caps from the device limits; GPU tests are written and have not been run; see [upscaling.md](../../upscaling.md#fsr-3-on-the-native-renderer) |
 | 14 | `feat/gfx-bevy-fsr4` | | **not started**, experimental, needs an RX 7000/9000 tester |
 
 The status PR itself is the top of the stack (see the PR list on GitHub). Not part of the stack: exhaust flames (#31, against `main`).
@@ -167,6 +173,148 @@ and the "real city" flyover table never drives a car (no `--drive`) while the ci
 scenery never request `Shading::Glossy` (`crates/nfsmw/src/scenes/world/resident.rs` only ever asks for
 `Prelit`/`Sky`), so neither table ever touched a glossy material in the first place.
 
+## 3d. PR 12: Solari ray tracing (works on the RTX card; the look is a stand-in)
+
+Code in `libs/blackbox-bevy-render/src/solari.rs` (tests in `solari/tests.rs`), behind `ray-tracing`, with hooks in
+`plugin.rs`, `apply/instances.rs`, `apply/mod.rs` and the caps in `caps.rs`. The game turns it on through
+`crates/nfsmw/src/app/render/bevy.rs` (`add_plugin` reads the resolved `ray_tracing` setting).
+
+What it does:
+
+- **Startup gate.** `BlackboxBevyRenderPlugin::ray_tracing` (default off). `solari::install` adds `SolariPlugins` only
+  when that is set and the adapter reports the five features Solari needs. Otherwise it logs a warning and the
+  lighting stays rasterised. Deliberate deviation from the brief: the plugins are added only when requested, not
+  whenever the feature is compiled. Solari's build turns `DefaultOpaqueRendererMethod` to deferred, so the Blackbox
+  materials would move to the deferred path in every build. `install` sets it back to forward. The setting is
+  restart-required.
+- **Caps.** `RtSupport::Available` when the device has the Solari features (`solari::support`), with
+  `denoiser: Some(DlssRr)` only in the `dlss` build when Bevy's `DlssRayReconstructionSupported` resource exists.
+  Otherwise `None`.
+- **Stand-ins.** Each opaque, non-sky draw becomes an entity with `Mesh3d` and `RaytracingMesh3d` on the same mesh,
+  and a `MeshMaterial3d<StandardMaterial>`, one per texture number and quantised colour (16 steps per channel). A lit
+  stand-in keeps the texture and takes the range's average vertex colour as its base colour. A pre-lit stand-in is
+  emitted instead (see Look). The stand-in uses `OpaqueRendererMethod::Deferred`. Alpha-tested, blended and additive
+  draws keep the Blackbox material and are not traced (Solari 0.20 has no alpha masks). Sky stays on the Blackbox
+  material.
+- **Meshes.** Only the ranges a stand-in draws are prepared, as they are added: `Indices::U32`, tangents, the
+  ray-tracing flag, and the vertex colour removed. Solari builds a BLAS only for a mesh whose attributes are exactly
+  POSITION, NORMAL, UV_0 and TANGENT (`is_mesh_raytracing_compatible`), and a Blackbox range always carries the colour.
+  This has to happen before the add, because Bevy drops a `RENDER_WORLD` mesh from the main world once it is extracted.
+- **Light.** A shadowless sun (`lux::AMBIENT_DAYLIGHT`, a guess to tune) follows the frame's light direction. There is
+  no sky or environment light yet, so unlit parts are dark.
+- **Cameras.** Every `Camera3d` gets `SolariLighting`, the deferred, depth and motion prepasses and `Hdr`. Its main
+  texture gets `STORAGE_BINDING` (Solari writes it from a compute shader). `Camera` already requires a default
+  `CameraMainTextureUsages` without that flag, so the flag is set when missing, not inserted only when absent.
+- **Camera cuts.** `note_camera_cut` reads the frame's `camera_cut` before `apply` takes the frame away, and
+  `solari::reset_on_cut` sets `SolariLighting::reset` on a cut, the way `post/taa.rs` resets TAA. Bevy clears `reset`
+  itself at extraction.
+- **Captures** are lit by Solari too. `apply/capture.rs` removes the temporal parts only in the `dlss` build, and
+  `sync_cameras` puts back the prepasses Solari needs after `apply`, so a capture keeps them.
+- **DLSS-RR.** `sync_denoiser` (the `dlss` build only) inserts `Dlss<DlssRayReconstructionFeature>` on every window
+  camera (`RenderTarget::Window`) once Bevy reports Ray Reconstruction. Capture cameras (`RenderTarget::Image`) are
+  skipped, as `apply/capture.rs` requires. Not compiled here: the DLSS SDK is not installed. It is not yet reconciled
+  with the DLSS super resolution component `dlss/sdk.rs` adds on the same camera.
+
+**Root cause of the clear-colour picture (fixed).** Solari's lighting node needs the scene bind group, which needs a
+TLAS, which needs a BLAS per instance. No BLAS was built for any Blackbox range, because each carried
+`ATTRIBUTE_COLOR_BGRA` and Solari accepts only the four attributes above. So `live_count` stayed 0, the scene bind
+group was `None`, and `solari_lighting` returned early. Solari's extract also inserts `SkipDeferredLighting` on the
+camera, so Bevy's own deferred lighting did not draw either. Only the clear colour was left. The forward stand-in drew
+because raster needs no BLAS. The fix is the mesh preparation above.
+
+**Second bug, found on the way (fixed).** `sync_cameras` used `insert_if_new` for `CameraMainTextureUsages`, but
+`Camera` already requires the default, so the storage flag was never added. Solari then failed bind group creation
+with a validation error on the capture target.
+
+Game wiring: `add_plugin` passes `ray_tracing` from `Settings::ray_tracing` (anything but `off`). The setting
+is read when the App is built, so a change takes effect on the next start.
+
+Look (fixed, approximation): a traced mesh has exactly four attributes, so Solari reads no per-vertex colour, and a
+stand-in drew white. The colour now travels with the range: `mesh::build` computes the average vertex colour
+(`average_colour`, gamma bytes, BGRA read as RGB) at AddMesh, into `RangeData::colour` and then `RangeEntry::colour`
+(`apply/state.rs`, `apply/assets.rs`). The stand-in's base colour is that average, quantised to 16 steps per channel
+(`solari::quantise`), so the material cache is keyed by (texture number, quantised colour). The Blackbox shader
+multiplies texture by vertex colour in gamma space, so a lit stand-in keeps the texture and multiplies by the colour
+the same way (base colour x texture). Pre-lit draws have no direct light in the Blackbox shader, so the stand-in has
+base black and emission = quantised colour x 2, clamped (the pre-lit gain), in linear light. The sun adds nothing on
+top. The emission scale is not calibrated against the sun: the approximation is the rule, not a measured match.
+
+Measured (RTX 4070 SUPER, Vulkan, `solari_starts_and_draws_a_capture_on_a_ray_tracing_gpu`, a lit cuboid authored
+[200, 120, 80]): the picture shows the cuboid in its authored orange, with three shaded faces. The most populated
+non-background colour bin (16 steps) averages to [195, 117, 88] over 6185 px. The test asserts a worst channel
+difference of at most 12: the blue offset of 8 is the quantisation (80 moves to 88), and the red and green offsets (5
+and 3) are the sun's lighting on that face. The top face is brighter: its bin averages to [255, 185, 140] over 2750 px.
+
+Verified (RTX 4070 SUPER, Vulkan):
+
+- `cargo test -p blackbox-bevy-render --features ray-tracing --lib`: 62 pass, 24 ignored. Without the feature: 52
+  pass, 23 ignored. New CPU tests cover the four-attribute set, that only stand-in ranges lose the colour, and the
+  camera-cut reset.
+- `cargo test -p blackbox-bevy-render --features ray-tracing --lib solari -- --include-ignored --nocapture`: the GPU
+  test passes with no validation errors. Its PNG (`solari_cuboid.png` under the temp dir) shows the lit cuboid on the
+  clear colour. The test now asserts more than two distinct colours.
+- `cargo clippy -p blackbox-bevy-render -- -D warnings` and with `--features ray-tracing` (lib and tests): clean.
+  rustfmt is clean for `solari.rs`, `solari/tests.rs` and `nfsmw` `app/render/bevy.rs`.
+- `cargo check -p nfsmw --features ray-tracing` fails in files this change does not touch (`saves.rs`: a missing
+  `mods` field; `scenes/world/effects/world.rs`: a missing `cop_health_bars` field). No error is reported in `bevy.rs`.
+
+Also verified in the same pass: `cargo test -p blackbox-bevy-render --lib` (default: 54 pass, 25 ignored) and with
+`--features ray-tracing` (66 pass, 26 ignored); `cargo clippy -p blackbox-bevy-render --all-targets -- -D warnings`
+with and without `ray-tracing`: clean; rustfmt clean for the files this pass touched. CPU tests: `average_colour`
+(RGB order, rounding, empty), the quantisation and cache keying (a near colour reuses, another bucket is another
+material), and the lit versus pre-lit material shape.
+
+Not verified: the pre-lit emission on the GPU (only its material values are tested; the GPU test draws a lit
+cuboid); the emission scale against the sun; DLSS-RR (no SDK; the `sync_denoiser` window-camera filter is written but
+not compiled, the `dlss` cfg is off here); DX12; the sun's intensity; whether hidden stand-ins are still traced; the
+`nfsmw` build (blocked by the errors above).
+
+Next leads: a GPU check of a pre-lit cuboid and calibrating its emission against a lit one; check hidden stand-ins;
+tune the sun; compile the `dlss` build on a machine with the SDK.
+
+## 3e. PR 13b: the world's prepass and motion vectors (FSR 3, TAA)
+
+Until this fix the world material had no prepass (`enable_prepass` false). The motion-vector and depth textures
+existed but stayed zero, so FSR 3 reprojected a moving camera with no motion, and a flip of the motion sign changed
+nothing.
+
+- **Material** (`libs/blackbox-bevy-render/src/material/`): `enable_prepass` is true. `prepass.wesl` (replaces
+  `shadow.wesl`, `prepass.rs` replaces `shadow.rs`) serves the camera's depth prepass, its motion-vector prepass and the
+  shadow maps. It transforms like the colour pass (the jittered clip position, so depth matches). Motion vectors are
+  Bevy's convention: this frame's unjittered clip position minus last frame's (`previous_view_uniforms`, the previous
+  model matrix), halved and V-flipped. Alpha-tested draws discard with the colour pass's texture alpha, sampled with the
+  same mip bias. Blended and additive draws are not queued in any prepass (Bevy queues opaque and alpha-mask only). The
+  material stays forward (Solari sets the default opaque method to forward), so no deferred prepass reaches it.
+- **Previous transforms**: nothing to add. Bevy's `update_mesh_previous_global_transforms` gives every `Mesh3d` entity a
+  `PreviousGlobalTransform`, and `apply/instances.rs` writes `GlobalTransform` only on a move, so `instances.rs` is
+  unchanged.
+- **Mip bias** (`facade.rs`): a temporal upscaler (FSR 3, DLSS) takes the temporal curve, as TAA does.
+- **Tests**: `material/prepass_tests.rs` (GPU, ignored): a still scene writes zero motion vectors, a moving box and a
+  moving camera write some. The motion texture has no `COPY_SRC`, so the render world blits it into a readable image.
+  The `fsr3::gpu_tests` moving-camera test is a measurement (it prints; it does not gate).
+
+Harness lesson: a pose set between updates (outside `App::update`) is seen by `PreUpdate` as this frame's pose, so
+the previous view equals the current one and motion is zero. Set the camera in `PostUpdate` (as `apply::apply` does)
+and request a readback before the frame it should read: the copy happens in that update, and a readback requested
+after a frame reads a later, still one.
+
+Moving-camera numbers, FSR 3 against native (same camera slide, 30 frames, 160x90, RTX 4070 SUPER, Vulkan; mean and
+p99 of the 0-255 sample difference):
+
+| Motion | FSR 3 Quality vs native | FSR 3 native ratio vs native |
+|---|---|---|
+| prepass off (before) | mean 10.84, p99 89 | mean 8.40, p99 79 |
+| prepass on, motion sign as written | mean 6.53, p99 65 | mean 3.49, p99 43 |
+| prepass on, motion sign flipped (experiment) | mean 8.31, p99 74 | mean 5.18, p99 54 |
+
+The sign flip changes the output and the written sign is the better match, so the motion vectors now reach the
+upscaler. The numbers in the previous agent's notes (7.7 / p99 72, and 4.5) are not in the repo; the "before" row is
+this harness's measurement with the prepass off. Quality against AMD's output is still not measured.
+
+Next leads: check the moving-camera picture by eye on the RTX card (`view-world` at `--upscaler fsr3`); the
+stand-in comment in `post/scale.rs` and the "not yet right" paragraph in `docs/upscaling.md` still describe the old
+state (outside this PR's files).
+
 ## 4. Handoff: building the remaining PRs
 
 Start from the stack tip (`feat/gfx-bevy-spike`, or this docs branch which sits on it). Every commit must pass
@@ -201,7 +349,8 @@ Notes that save time:
 ## 5. Open owner decisions
 
 Answered: Solari is out of milestone 8 (a gated later spike), DLSS bundling is deferred, DLSS 5 is not reachable.
-Still open: accept ADR 0004 and the `libs/` rule change; reword the ADR 0003 trigger; the preset deviations in §2;
+ADR 0004 and the `libs/` rule change were accepted on 2026-10-16.
+Still open: reword the ADR 0003 trigger; the preset deviations in §2;
 raise the workspace MSRV or keep the Bevy crate on 1.97.1 only; whether releases include `renderer-bevy`; bundling
 the DLSS and FSR 4 DLLs; an FSR 4 tester or cutting PR 14; the ray-tracing look (pre-lit vertex colours as albedo
 darkening, whole city or only nearby tiles); `exhaust_flames` default (on in #31).

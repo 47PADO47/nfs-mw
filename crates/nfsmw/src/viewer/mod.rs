@@ -6,6 +6,7 @@ pub mod camera;
 use anyhow::Result;
 use blackbox_gfx::{FrameParams, Instance, RenderBackend};
 
+use crate::hud::MapBlip;
 use crate::input::ActionState;
 
 /// How a [`Fullscreen`] picture meets the window.
@@ -30,11 +31,82 @@ pub struct Fullscreen {
 mod environment;
 pub use environment::{Environment, SunMode};
 
+/// The player's car at one moment, in render space (x forward, y left, z up; metres and seconds).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PlayerCar {
+    pub position: [f32; 3],
+    pub velocity: [f32; 3],
+    /// Heading, radians from +x towards +y.
+    pub heading: f32,
+    /// Speed along the car, m/s (negative in reverse).
+    pub speed: f32,
+    pub rpm: f32,
+    /// -1 reverse, 0 neutral, 1.. forward gears.
+    pub gear: i32,
+    /// Nitrous left, 0 to 1; 0 without the part.
+    pub nos: f32,
+    /// Damage, 0 to 1 of the zones' levels.
+    pub damage: f32,
+}
+
+/// The camera the player looks through, and the gameplay view it is in.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CameraReadout {
+    pub mode: crate::settings::CameraMode,
+    pub position: [f32; 3],
+    /// Unit length.
+    pub forward: [f32; 3],
+    /// Vertical field of view, degrees.
+    pub fov: f32,
+}
+
+/// The track and the district the scene is in.
+#[derive(Debug, Clone, PartialEq)]
+pub struct WorldInfo {
+    pub track: String,
+    /// The district at the player, `None` where the install names none.
+    pub section: Option<String>,
+}
+
 pub trait Scene {
     fn environment(&self) -> Option<Environment> {
         None
     }
     fn set_environment(&mut self, _value: Environment) {}
+    /// Whether a mod has held the hour (`bb.time` freeze). Scenes without a clock report false.
+    fn time_held(&self) -> bool {
+        false
+    }
+    fn set_time_held(&mut self, _held: bool) {}
+    /// The minimap blips the mods placed (`bb.map`), merged into the scene's own. Scenes without a minimap ignore them.
+    fn set_mod_blips(&mut self, _blips: &[MapBlip]) {}
+    /// The player's car, as the mods read it (`bb.vehicles`). `None` where no car is driven. Takes `&mut` because the
+    /// car's physics is reached through the drive.
+    fn player_car(&mut self) -> Option<PlayerCar> {
+        None
+    }
+    /// The gameplay camera, as the mods read it (`bb.camera`). `None` where the scene has no camera of its own.
+    fn camera_readout(&self) -> Option<CameraReadout> {
+        None
+    }
+    /// The track and the district of the scene (`bb.world`). `None` where no world is loaded.
+    fn world_info(&self) -> Option<WorldInfo> {
+        None
+    }
+    /// Move the player's car to the road nearest `at`, facing `heading`. Returns whether there was a car to move.
+    fn move_player(&mut self, _at: [f32; 2], _heading: f32) -> bool {
+        false
+    }
+    /// Repair the player's car. Returns whether there was a car to repair.
+    fn repair_player(&mut self) -> bool {
+        false
+    }
+    /// Keep `cars` computer-driven cars on the road, `cop_share` percent of them patrol cops.
+    fn set_traffic_density(&mut self, _cars: u32, _cop_share: u8) {}
+    /// Put a traffic car on the road at `at` (x, y), facing `heading`. Returns whether a car was placed.
+    fn spawn_traffic_at(&mut self, _at: [f32; 2], _heading: f32) -> bool {
+        false
+    }
 
     /// Installed car choices for the runtime garage; scenes without driving return None.
     fn garage(&mut self) -> Option<&mut crate::garage::Model> {
@@ -78,6 +150,11 @@ pub trait Scene {
     /// Start timing once resources are ready, even while a scripted route is still moving.
     fn benchmark_ready(&self) -> bool {
         self.ready()
+    }
+    /// Whether the radio plays while this scene is shown without a car (the main menu's backdrop). Driving scenes
+    /// leave it off: the radio plays there only while a car is driven.
+    fn radio_on_menus(&self) -> bool {
+        false
     }
     /// Mouse look: hide and hold the cursor so mouse motion always turns the camera.
     /// Esc releases the cursor and a click captures it again.
@@ -131,6 +208,15 @@ pub trait Scene {
     fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {
         None
     }
+    /// The bust sequence's infractions ticket, once, when the front end should show it (`(infraction, fine)` lines);
+    /// `None` otherwise.
+    fn take_bust_ticket(&mut self) -> Option<Vec<(blackbox_pursuit::Infraction, u32)>> {
+        None
+    }
+    /// The player pays the bust's fines on the ticket (`marker`: with a marker). `true` when the bust took the payment.
+    fn pay_bust(&mut self, _marker: bool) -> bool {
+        false
+    }
     /// The game is on but frozen (the pause menu is up): there is no car sound, yet the game is still being
     /// played, so the radio goes on.
     fn paused(&self) -> bool {
@@ -168,6 +254,10 @@ pub trait Scene {
     /// The one-shot sounds the traffic cars asked for since the last call (horns, near-miss whooshes).
     fn take_traffic_sounds(&mut self) -> Vec<crate::audio::traffic::TrafficSound> {
         Vec::new()
+    }
+    /// The police helicopter's rotor for this frame (`dt` seconds since the last one), or `None` without one.
+    fn rotor_frame(&mut self, _dt: f32) -> Option<crate::audio::HeliFrame> {
+        None
     }
     /// How many explosions (petrol-station blasts) started since the last call; each one plays its sound.
     fn take_explosions(&mut self) -> u32 {

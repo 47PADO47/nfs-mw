@@ -62,11 +62,16 @@ impl PostChain {
             m.width > 0 && m.height > 0 && m.rgba.len() as u64 == u64::from(m.width) * u64::from(m.height) * 4
         });
         if let Some(mask) = mask {
-            self.insert(self.effect_count, Box::new(FocusPass::new(device, queue, mask)));
+            // After the radial blur when that is in the chain, so the mask adds to the blurred frame.
+            let index = self.effect_count + usize::from(self.has(super::radial_blur::NAME));
+            self.insert(index, Box::new(FocusPass::new(device, queue, mask)));
         }
     }
 
-    pub(in crate::gpu) fn set_focus_filter(&mut self, settings: FocusFilter) {
+    /// Apply the scene's screen effects: the radial blur comes into the chain while its strength is above zero,
+    /// and every pass takes the settings.
+    pub(in crate::gpu) fn set_focus_filter(&mut self, device: &wgpu::Device, settings: FocusFilter) {
+        self.set_radial_blur(device, settings.sanitized().radial_blur > 0.0);
         for pass in &mut self.passes {
             pass.set_focus(settings);
         }

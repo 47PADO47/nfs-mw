@@ -3,9 +3,14 @@
 use blackbox_gfx::Capabilities;
 
 use super::options::{Data, Title};
+use crate::settings::reflection_extra::{content_label, cycle, distance_label, lod_label, step_brightness};
+use crate::settings::reflection_res::{size_label, step_size, step_tint, tint_label};
 use crate::settings::{
     AoQuality, CarShading, GraphicsPreset, Partial, Percent, ReflectionQuality, Settings, VisualTreatment,
 };
+use blackbox_gfx::reflection::content::ReflectionContent;
+use blackbox_gfx::reflection::distance::ReflectionDistance;
+use blackbox_gfx::reflection::lod::ReflectionLod;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GraphicsSetting {
@@ -18,14 +23,23 @@ pub enum GraphicsSetting {
     Reflections,
     RoadReflections,
     TextureFiltering,
+    CubeSize,
+    Pow2,
+    VehicleBrightness,
+    ReflectionDetail,
+    ReflectionContent,
+    ReflectionDistance,
+    MirrorSize,
+    MirrorTint,
     Shadows,
+    FeShadows,
     AmbientOcclusion,
     AoIntensity,
     AoComparison,
 }
 
 impl GraphicsSetting {
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 22] = [
         Self::Hdr,
         Self::Style,
         Self::Quality,
@@ -35,7 +49,16 @@ impl GraphicsSetting {
         Self::TextureFiltering,
         Self::Reflections,
         Self::RoadReflections,
+        Self::CubeSize,
+        Self::Pow2,
+        Self::VehicleBrightness,
+        Self::ReflectionDetail,
+        Self::ReflectionContent,
+        Self::ReflectionDistance,
+        Self::MirrorSize,
+        Self::MirrorTint,
         Self::Shadows,
+        Self::FeShadows,
         Self::AmbientOcclusion,
         Self::AoIntensity,
         Self::AoComparison,
@@ -49,6 +72,15 @@ impl GraphicsSetting {
             Self::VisualTreatment => caps.scene_treatment,
             Self::Reflections => caps.local_reflections,
             Self::RoadReflections => caps.projected_reflections,
+            Self::FeShadows => caps.soft_shadows,
+            Self::CubeSize
+            | Self::Pow2
+            | Self::VehicleBrightness
+            | Self::ReflectionDetail
+            | Self::ReflectionContent
+            | Self::ReflectionDistance
+            | Self::MirrorSize
+            | Self::MirrorTint => caps.local_reflections,
             Self::AmbientOcclusion | Self::AoIntensity | Self::AoComparison => caps.ambient_occlusion,
             Self::Hdr | Self::Style | Self::Quality | Self::Preset | Self::CarShading | Self::TextureFiltering => true,
         }
@@ -59,6 +91,11 @@ impl GraphicsSetting {
             Self::Reflections => s.car_shading != CarShading::Simple,
             Self::RoadReflections => s.appearance.lighting.original_world_materials,
             Self::AoIntensity | Self::AoComparison => s.ao != AoQuality::Off,
+            Self::CubeSize | Self::Pow2 | Self::ReflectionDetail | Self::ReflectionContent => {
+                s.car_shading != CarShading::Simple && s.reflections != ReflectionQuality::Off
+            }
+            Self::VehicleBrightness => s.car_shading != CarShading::Simple,
+            Self::ReflectionDistance | Self::MirrorSize | Self::MirrorTint => true,
             Self::Style
             | Self::Hdr
             | Self::Quality
@@ -67,7 +104,8 @@ impl GraphicsSetting {
             | Self::VisualTreatment
             | Self::AmbientOcclusion
             | Self::Shadows
-            | Self::TextureFiltering => true,
+            | Self::TextureFiltering
+            | Self::FeShadows => true,
         }
     }
 
@@ -83,6 +121,15 @@ impl GraphicsSetting {
             Self::RoadReflections => "Road Reflection Detail",
             Self::TextureFiltering => "Texture Filtering",
             Self::Shadows => "Enhanced Sun Shadows",
+            Self::CubeSize => "Car Reflection Size",
+            Self::Pow2 => "Power-of-Two Cube Size",
+            Self::VehicleBrightness => "Vehicle Reflection Brightness",
+            Self::ReflectionDetail => "Reflection Detail",
+            Self::ReflectionContent => "Reflection Content",
+            Self::ReflectionDistance => "Reflection Distance",
+            Self::MirrorSize => "Mirror Reflection Size",
+            Self::MirrorTint => "Mirror Tint",
+            Self::FeShadows => "Front-End Shadows",
             Self::AmbientOcclusion => "Ambient Occlusion (Experimental)",
             Self::AoIntensity => "AO Intensity",
             Self::AoComparison => "AO Comparison",
@@ -100,6 +147,15 @@ impl GraphicsSetting {
         }
         if self == Self::AoIntensity {
             return Data::Text(format!("{}%", s.ao_intensity.0));
+        }
+        if self == Self::CubeSize {
+            return Data::Text(size_label(s.reflection_cube_size));
+        }
+        if self == Self::MirrorSize {
+            return Data::Text(size_label(s.reflection_mirror_size));
+        }
+        if self == Self::VehicleBrightness {
+            return Data::Text(s.reflection_extra.brightness.to_string());
         }
         Data::Text(
             match self {
@@ -129,6 +185,15 @@ impl GraphicsSetting {
                     ReflectionQuality::Medium => "Medium",
                     ReflectionQuality::High => "High",
                 },
+                Self::CubeSize | Self::MirrorSize | Self::VehicleBrightness => unreachable!("labelled above"),
+                Self::Pow2 => match s.reflection_pow2 {
+                    true => "On",
+                    false => "Off",
+                },
+                Self::MirrorTint => tint_label(s.mirror_tint),
+                Self::ReflectionDetail => lod_label(s.reflection_extra.lod),
+                Self::ReflectionContent => content_label(s.reflection_extra.content),
+                Self::ReflectionDistance => distance_label(s.reflection_extra.distance),
                 Self::CarShading => s.car_shading.label(),
                 Self::RoadReflections => s.road_reflections.label(),
                 Self::Shadows => match (s.appearance.lighting.sun_shadows, s.appearance.lighting.shadow_resolution) {
@@ -136,6 +201,10 @@ impl GraphicsSetting {
                     (true, 0..=1024) => "Low",
                     (true, 1025..=2048) => "Medium",
                     (true, _) => "High",
+                },
+                Self::FeShadows => match s.fe_shadows.enabled {
+                    true => "On",
+                    false => "Off",
                 },
                 Self::AmbientOcclusion => match s.ao {
                     AoQuality::Off => "Off",
@@ -211,6 +280,38 @@ impl GraphicsSetting {
                     super::post_options::pick(&crate::settings::RoadReflections::ALL, s.road_reflections, forward);
                 changed.road_reflections = Some(s.road_reflections);
             }
+            Self::CubeSize => {
+                s.reflection_cube_size = step_size(s.reflection_cube_size, forward);
+                changed.reflection_cube_size = Some(s.reflection_cube_size);
+            }
+            Self::MirrorSize => {
+                s.reflection_mirror_size = step_size(s.reflection_mirror_size, forward);
+                changed.reflection_mirror_size = Some(s.reflection_mirror_size);
+            }
+            Self::Pow2 => {
+                s.reflection_pow2 = !s.reflection_pow2;
+                changed.reflection_pow2 = Some(s.reflection_pow2);
+            }
+            Self::MirrorTint => {
+                s.mirror_tint = step_tint(s.mirror_tint);
+                changed.mirror_tint = Some(s.mirror_tint);
+            }
+            Self::VehicleBrightness => {
+                s.reflection_extra.brightness = step_brightness(s.reflection_extra.brightness, forward);
+                changed.vehicle_reflection_brightness = Some(s.reflection_extra.brightness);
+            }
+            Self::ReflectionDetail => {
+                s.reflection_extra.lod = cycle(&ReflectionLod::ALL, s.reflection_extra.lod, forward);
+                changed.reflection_lod = Some(s.reflection_extra.lod);
+            }
+            Self::ReflectionContent => {
+                s.reflection_extra.content = cycle(&ReflectionContent::ALL, s.reflection_extra.content, forward);
+                changed.reflection_content = Some(s.reflection_extra.content);
+            }
+            Self::ReflectionDistance => {
+                s.reflection_extra.distance = cycle(&ReflectionDistance::ALL, s.reflection_extra.distance, forward);
+                changed.reflection_distance = Some(s.reflection_extra.distance);
+            }
             Self::CarShading => {
                 s.car_shading = super::post_options::pick(&CarShading::ALL, s.car_shading, forward);
                 changed.car_shading = Some(s.car_shading);
@@ -228,6 +329,10 @@ impl GraphicsSetting {
                 s.appearance.lighting.shadow_distance = range;
                 changed.appearance = Some(s.appearance);
                 changed.shadows = Some(s.shadows);
+            }
+            Self::FeShadows => {
+                s.fe_shadows.enabled = !s.fe_shadows.enabled;
+                changed.fe_shadows.enabled = Some(s.fe_shadows.enabled);
             }
             Self::AmbientOcclusion => {
                 let at = AoQuality::ALL.iter().position(|q| *q == s.ao).unwrap_or(0);
@@ -255,114 +360,5 @@ impl GraphicsSetting {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::super::options::Setting;
-    use super::*;
-
-    #[test]
-    fn shadows_are_shown_only_on_supported_renderers_and_record_changes() {
-        let mut s = Settings::from(Partial::default());
-        let mut changed = Partial::default();
-        assert!(GraphicsSetting::Shadows.shown(&crate::settings::test_caps::native()));
-        assert!(GraphicsSetting::Shadows.shown(&crate::settings::test_caps::full()));
-        assert!(GraphicsSetting::Shadows.step(&mut s, &mut changed, true));
-        assert_eq!(s.shadows, crate::settings::ShadowQuality::Low);
-        assert_eq!(changed.shadows, Some(crate::settings::ShadowQuality::Low));
-    }
-
-    #[test]
-    fn ao_rows_cycle_clamp_and_persist_independently() {
-        let (mut s, mut changed) = (Settings::from(Partial::default()), Partial::default());
-        for quality in [AoQuality::Low, AoQuality::Medium, AoQuality::High, AoQuality::Off] {
-            GraphicsSetting::AmbientOcclusion.step(&mut s, &mut changed, true);
-            assert_eq!((s.ao, changed.ao), (quality, Some(quality)));
-        }
-        GraphicsSetting::AmbientOcclusion.step(&mut s, &mut changed, false);
-        assert_eq!(s.ao, AoQuality::High);
-        for _ in 0..12 {
-            GraphicsSetting::AoIntensity.step(&mut s, &mut changed, true);
-        }
-        assert_eq!(
-            Setting::Graphics(GraphicsSetting::AoIntensity).control(&s),
-            super::super::options::Control::Slider(100)
-        );
-        assert!(!GraphicsSetting::AoIntensity.step(&mut s, &mut changed, true));
-        for _ in 0..12 {
-            GraphicsSetting::AoIntensity.step(&mut s, &mut changed, false);
-        }
-        assert_eq!(changed.ao_intensity, Some(Percent(0)));
-        GraphicsSetting::AoComparison.step(&mut s, &mut changed, true);
-        assert_eq!((s.ao_compare, changed.ao_compare), (true, Some(true)));
-    }
-
-    #[test]
-    fn the_preset_row_applies_a_preset_and_records_all_its_keys() {
-        let mut s = Settings::from(Partial::default());
-        let mut changed = Partial::default();
-        assert_eq!(GraphicsSetting::Preset.data(&s), Data::Text("Custom".into()));
-        assert!(GraphicsSetting::Preset.step(&mut s, &mut changed, true));
-        assert_eq!(GraphicsSetting::Preset.data(&s), Data::Text("Low".into()));
-        assert_eq!((s.car_shading, s.render_scale.percent()), (CarShading::Simple, 75));
-        assert_eq!(
-            (changed.graphics_preset, changed.car_shading),
-            (Some(GraphicsPreset::Low), Some(CarShading::Simple))
-        );
-        assert!(changed.render_scale.is_some() && changed.post_aa.is_some());
-        assert!(GraphicsSetting::Preset.step(&mut s, &mut changed, false));
-        assert_eq!(s.graphics_preset, GraphicsPreset::Custom);
-        assert_eq!(s.car_shading, CarShading::Simple, "custom keeps what the last preset set");
-    }
-
-    #[test]
-    fn car_shading_toggles_and_records_only_its_change() {
-        let mut s = Settings::from(Partial::default());
-        let mut changed = Partial::default();
-        assert_eq!(GraphicsSetting::CarShading.data(&s), Data::Text("Custom Glossy".into()));
-        assert!(GraphicsSetting::CarShading.step(&mut s, &mut changed, true));
-        assert_eq!(GraphicsSetting::CarShading.data(&s), Data::Text("Original PC".into()));
-        assert_eq!(changed, Partial { car_shading: Some(CarShading::Original), ..Partial::default() });
-        assert!(GraphicsSetting::Reflections.enabled(&s));
-        assert!(GraphicsSetting::CarShading.step(&mut s, &mut changed, false));
-        assert_eq!(s.car_shading, CarShading::Glossy);
-    }
-
-    #[test]
-    fn changing_a_covered_setting_after_a_preset_makes_the_row_custom() {
-        let (mut s, mut changes) = (Settings::from(Partial::default()), Partial::default());
-        s.apply_preset(GraphicsPreset::High);
-        Setting::TireSmoke.step(&mut s, &mut changes, true);
-        assert_eq!(s.graphics_preset, GraphicsPreset::Custom);
-        assert_eq!(changes.graphics_preset, Some(GraphicsPreset::Custom));
-        let mut changes = Partial::default();
-        s.apply_preset(GraphicsPreset::Low);
-        Setting::Vsync.step(&mut s, &mut changes, true);
-        assert_eq!((s.graphics_preset, changes.graphics_preset), (GraphicsPreset::Low, None), "unrelated rows keep it");
-    }
-}
-
-#[cfg(test)]
-mod shared_profile_tests {
-    use super::*;
-    use crate::settings::{GraphicsQuality, VisualStyle};
-    #[test]
-    fn normal_menu_style_quality_and_shadows_update_the_shared_request() {
-        let caps = crate::settings::test_caps::native();
-        let mut s = Settings::from(Partial::default());
-        let mut changes = Partial::default();
-        assert!(GraphicsSetting::Style.step(&mut s, &mut changes, true));
-        assert_eq!(s.visual_style(), VisualStyle::OriginalPc);
-        assert_eq!(changes.appearance, Some(s.appearance));
-        let art = (s.post_aa, s.post_tonemap, s.visual_treatment);
-        assert!(GraphicsSetting::Quality.step(&mut s, &mut changes, true));
-        assert_eq!(s.appearance.quality, GraphicsQuality::Low);
-        assert_eq!((s.post_aa, s.post_tonemap, s.visual_treatment), art);
-        assert!(super::super::options::Setting::Graphics(GraphicsSetting::Shadows).advance(
-            &mut s,
-            &mut changes,
-            true,
-            &caps
-        ));
-        assert!(s.appearance.lighting.sun_shadows, "native shadows must reach the active experiment channel");
-        assert_eq!(s.visual_style(), VisualStyle::Custom);
-    }
-}
+#[path = "graphics_options_tests.rs"]
+mod tests;

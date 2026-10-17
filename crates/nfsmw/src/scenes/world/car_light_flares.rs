@@ -19,6 +19,7 @@ pub struct CarLightFlares {
     textures: Vec<TextureHandle>,
 }
 
+#[derive(Clone, Copy)]
 pub struct FlareView {
     pub camera: Vec3,
     pub forward: Vec3,
@@ -66,55 +67,85 @@ impl CarLightFlares {
         view: FlareView,
         out: &mut Vec<TexturedEffect>,
     ) {
+        self.draw_frames(lamps, std::iter::once(world), state, view, false, out);
+    }
+
+    /// The PC NOS effect repeats ordinary brake flares at historical car positions.
+    pub fn draw_trails(
+        &self,
+        lamps: &CarLights,
+        history: &super::tail_light_trails::TailLightTrails,
+        world: Mat4,
+        state: LampState,
+        view: FlareView,
+        out: &mut Vec<TexturedEffect>,
+    ) {
+        self.draw_frames(lamps, history.anchored(world), state, view, true, out);
+    }
+
+    fn draw_frames(
+        &self,
+        lamps: &CarLights,
+        frames: impl Iterator<Item = Mat4> + Clone,
+        state: LampState,
+        view: FlareView,
+        tails_only: bool,
+        out: &mut Vec<TexturedEffect>,
+    ) {
         let FlareView { camera, forward, fov_degrees, height } = view;
         let Some(focal) = focal_scale(height, fov_degrees) else { return };
         let right = forward.cross(Vec3::Z).normalize_or(Vec3::Y);
         let up = right.cross(forward).normalize_or(Vec3::Z);
         for profile in &self.profiles {
+            if tails_only && profile.kind != Kind::Tail {
+                continue;
+            }
             let mut vertices = Vec::new();
-            for lamp in lamps.lamps() {
-                let kind = match lamp.kind {
-                    Kind::CentreBrake => Kind::Tail,
-                    other => other,
-                };
-                if kind != profile.kind {
-                    continue;
-                }
-                let intensity = match lamp.kind {
-                    Kind::Head => u8::from(state.headlights) as f32,
-                    Kind::Tail => {
-                        if state.brake > 0.0 {
-                            1.0
-                        } else {
-                            0.5
-                        }
+            for world in frames.clone() {
+                for lamp in lamps.lamps() {
+                    let kind = match lamp.kind {
+                        Kind::CentreBrake => Kind::Tail,
+                        other => other,
+                    };
+                    if kind != profile.kind {
+                        continue;
                     }
-                    Kind::CentreBrake => u8::from(state.brake > 0.0) as f32,
-                    Kind::Reverse => u8::from(state.reverse) as f32,
-                    _ => 0.0,
-                };
-                let at = world.transform_point3(lamp.at);
-                let to_eye = camera - at;
-                let depth = (-to_eye).dot(forward);
-                if depth <= 0.3 || !depth.is_finite() {
-                    continue;
+                    let intensity = match lamp.kind {
+                        Kind::Head => u8::from(state.headlights) as f32,
+                        Kind::Tail => {
+                            if state.brake > 0.0 {
+                                1.0
+                            } else {
+                                0.5
+                            }
+                        }
+                        Kind::CentreBrake => u8::from(state.brake > 0.0) as f32,
+                        Kind::Reverse => u8::from(state.reverse) as f32,
+                        _ => 0.0,
+                    };
+                    let at = world.transform_point3(lamp.at);
+                    let to_eye = camera - at;
+                    let depth = (-to_eye).dot(forward);
+                    if depth <= 0.3 || !depth.is_finite() {
+                        continue;
+                    }
+                    let facing =
+                        world.transform_vector3(lamp.direction).normalize_or_zero().dot(to_eye.normalize_or_zero());
+                    let Some((radius, color)) =
+                        appearance(&profile.spec, intensity, facing, depth / focal, to_eye.length_squared())
+                    else {
+                        continue;
+                    };
+                    let at = at + to_eye.normalize_or_zero() * profile.spec.z_bias;
+                    let x = right * radius;
+                    let y = up * radius;
+                    EffectLayer::particle_quad(
+                        &mut vertices,
+                        [at - x + y, at + x + y, at + x - y, at - x - y],
+                        color,
+                        [0.0; 2],
+                    );
                 }
-                let facing =
-                    world.transform_vector3(lamp.direction).normalize_or_zero().dot(to_eye.normalize_or_zero());
-                let Some((radius, color)) =
-                    appearance(&profile.spec, intensity, facing, depth / focal, to_eye.length_squared())
-                else {
-                    continue;
-                };
-                let at = at + to_eye.normalize_or_zero() * profile.spec.z_bias;
-                let x = right * radius;
-                let y = up * radius;
-                EffectLayer::particle_quad(
-                    &mut vertices,
-                    [at - x + y, at + x + y, at + x - y, at - x - y],
-                    color,
-                    [0.0; 2],
-                );
             }
             if !vertices.is_empty() {
                 out.push(TexturedEffect { texture: profile.texture, blend: BlendMode::Additive, vertices });

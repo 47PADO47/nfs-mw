@@ -1,3 +1,4 @@
+//! Tests of the option screens' rows (the logic is in `widget_menu.rs`).
 use super::*;
 use blackbox_feng::Runtime;
 use game_install::GameDir;
@@ -43,6 +44,7 @@ fn vehicle_effects_retail_title_animation_matches_the_unmodified_asset() {
             memory: &mut memory,
             key_texts: &[],
             world_map: None,
+            mods: None,
             name,
         };
         menu.find_rows(&mut cx);
@@ -87,6 +89,7 @@ fn installed_advanced_graphics_action_opens_the_overlay_without_changing_setting
             memory: &mut memory,
             key_texts: &[],
             world_map: None,
+            mods: None,
             name,
         };
         let mut menu =

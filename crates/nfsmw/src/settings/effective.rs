@@ -32,6 +32,7 @@ impl Settings {
                 false => super::RoadReflections::Off,
             },
             shadows: run.shadows,
+            fe_shadows: self.fe_shadows.on_renderer(caps.soft_shadows),
             ao: run.ao.quality,
             ..*self
         }

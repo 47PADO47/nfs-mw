@@ -1,4 +1,5 @@
 //! Category layout for the option screens.
+use super::hd_options::HdSetting;
 use super::{LABEL_TRANSMISSION, Row, Setting, Title, row};
 use crate::frontend::alias_options::AliasSetting;
 use crate::frontend::graphics_options::GraphicsSetting;
@@ -8,8 +9,9 @@ use crate::frontend::post_options::PostSetting;
 use crate::frontend::renderer_options::RendererSetting;
 use blackbox_gfx::Capabilities;
 
-/// The rows of a category on a renderer with these capabilities. A row the renderer cannot do (ray tracing, the
-/// temporal upscalers' quality mode) is left out; dependencies of supported options can still be dimmed.
+/// The rows of a category on a renderer with these capabilities. A row the renderer cannot do (the temporal
+/// upscalers' quality mode) is left out; ray tracing is always listed, dimmed and reading "Unavailable" on a
+/// renderer without it, so that the player can see it exists. Dependencies of supported options can be dimmed too.
 pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
     let renderer_row = |setting: RendererSetting| row(Setting::Renderer(setting), setting.title());
     let offered = |setting: RendererSetting| setting.shown(caps).then(|| renderer_row(setting));
@@ -35,9 +37,10 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
                 row(Setting::Upscaler, Title::Text("Upscaler")),
             ])
             .chain(offered(RendererSetting::UpscaleQuality))
-            .chain([row(Setting::UpscaleSharpness, Title::Text("Upscale Sharpness"))])
+            .chain([row(Setting::UpscaleSharpness, Title::Text("Sharpening"))])
+            .chain(offered(RendererSetting::FrameGeneration))
             .chain(PostSetting::ALL.into_iter().map(|setting| row(Setting::Post(setting), setting.title())))
-            .chain(offered(RendererSetting::RayTracing))
+            .chain([renderer_row(RendererSetting::RayTracing)])
             .chain(
                 GraphicsSetting::ALL
                     .into_iter()
@@ -61,6 +64,10 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
                 row(Setting::SpeedTrails, Title::Text("Speed Trails (Experimental)")),
                 row(Setting::SpeedTrailStyle, Title::Text("Speed Trail Style")),
                 row(Setting::ExhaustFlames, Title::Text("Exhaust Flames")),
+                row(Setting::CustomFonts, Title::Text("Custom Fonts")),
+                row(Setting::Hd(HdSetting::Fonts), HdSetting::Fonts.title()),
+                row(Setting::Hd(HdSetting::Cursor), HdSetting::Cursor.title()),
+                row(Setting::Hd(HdSetting::Movies), HdSetting::Movies.title()),
                 row(Setting::Metrics, Title::Text("Performance Overlay")),
             ])
             .collect(),
@@ -70,6 +77,7 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
             row(Setting::Minimap, Title::Text("Minimap")),
             row(Setting::RearViewMirror, Title::Text("Rear-View Mirror")),
             row(Setting::TurnSignals, Title::Text("Turn Signals")),
+            row(Setting::CopHealthBars, Title::Text("Cop Health Bars")),
         ],
         Category::Player => vec![
             row(Setting::Transmission, Title::Label(LABEL_TRANSMISSION)),
@@ -83,6 +91,8 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
             .into_iter()
             .map(|setting| row(Setting::Alias(setting), Title::Text(setting.title())))
             .collect(),
+        // The rows of the Mods page are the mods' own (`bb.menus`), read from the bridge by `widget_menu.rs`.
+        Category::Mods => Vec::new(),
         // The Discord Rich Presence toggles (`discord/`); the time played is dimmed while Discord is off.
         Category::Discord => vec![
             row(Setting::Discord, Title::Text("Discord Rich Presence")),

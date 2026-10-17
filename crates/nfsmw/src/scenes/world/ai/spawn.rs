@@ -98,14 +98,87 @@ impl TrafficWorld {
     }
 }
 
-/// Checks the final lane position, after the random probe has been projected onto the road.
+impl TrafficWorld {
+    /// Puts a traffic car on the road at the map position `at` (x, y), facing `heading` (radians from +X): a random loaded
+    /// traffic model, on the nearest lane that can take a car, with the spacing from the other cars that the manager uses.
+    /// This is the mods' spawn (`bb.vehicles` `spawn_traffic`). The manager keeps its cars out of view; a mod asked for this
+    /// point, so a point nearer than [`MIN_FOCUS_GAP`] to `focus` is allowed, and logged as one that may pop into view.
+    /// Returns whether the car stands: `false` while no traffic model is loaded or the road has no place for it.
+    pub fn spawn_traffic_at(
+        &mut self,
+        at: [f32; 2],
+        heading: f32,
+        focus: Focus,
+        collision: &CollisionWorld,
+        surfaces: &SurfaceTable,
+    ) -> bool {
+        if self.models.is_empty() {
+            return false;
+        }
+        let distance = (at[0] - focus.position[0]).hypot(at[1] - focus.position[1]);
+        if distance < MIN_FOCUS_GAP {
+            log::warn!(
+                "traffic at ({:.0}, {:.0}) is {distance:.0} m from the player: it may pop into view",
+                at[0],
+                at[1]
+            );
+        }
+        let index = self.rng.index(self.models.len());
+        let physics_at = Vec3::from(space::to_physics(Vec3::new(at[0], at[1], 0.0)));
+        let dir = Vec3::from(space::to_physics(Vec3::new(heading.cos(), heading.sin(), 0.0)));
+        let mut nav = RoadNav::new(NavKind::Direction, LaneType::Racing, SegmentFilter::default());
+        if !nav.init_at_point(&self.network, &self.index, physics_at, dir, false)
+            || !nav.can_traffic_spawn(&self.network, &mut self.rng)
+        {
+            return false;
+        }
+        let model = &self.models[index];
+        let length = model.trailer.as_ref().map_or(0.0, |t| 2.0 * t.physics.spec.dimension.z);
+        let others = self.cars.iter().map(|c| (c.physics_position(), c.trailer_length()));
+        if !clear_of_cars(nav.position, length, others) {
+            return false;
+        }
+        let render = space::to_render(nav.position.to_array());
+        let facing = space::to_render(nav.forward.to_array());
+        let spawn = Spawn { position: render, heading: facing.y.atan2(facing.x) };
+        nav.half_width = model.physics.spec.dimension.x;
+        nav.enable_trail(&self.network);
+        nav.advance_with_lookahead(&self.network, START_LOOK_AHEAD, Vec3::ZERO, START_LOOK_AHEAD, &mut self.rng);
+        let cruise = Cruise::default();
+        let start = Start {
+            stagger: (self.rng.next_f32() * 10.0) as u32,
+            speed: START_SPEED_FACTOR * cruise.street.min(cruise.highway),
+            cruise,
+            patrol: false,
+        };
+        let Some(car) = AiCar::place(model, Role::Traffic, nav, spawn, start, &WorldGround { collision, surfaces })
+        else {
+            return false;
+        };
+        log::info!("traffic: {} at ({:.0}, {:.0}), asked for by a mod", car.name, render.x, render.y);
+        self.cars.push(car);
+        true
+    }
+}
+
+/// The distance on the ground between two points (the height is not used).
+fn planar_distance(a: Vec3, b: Vec3) -> f32 {
+    (a.x - b.x).hypot(a.z - b.z)
+}
+
+/// The spacing from the other cars: a trailer adds half its length to the distance, on either side.
+fn clear_of_cars(position: Vec3, length: f32, others: impl Iterator<Item = (Vec3, f32)>) -> bool {
+    !others.into_iter().any(|(other, trailer)| planar_distance(position, other) < MIN_GAP + 0.5 * (length + trailer))
+}
+
+/// Checks the final lane position, after the random probe has been projected onto the road: it is not in the view of the
+/// player, and it keeps the spacing from the other cars.
 fn clear_spawn(position: Vec3, focus: Focus, length: f32, others: impl Iterator<Item = (Vec3, f32)>) -> bool {
     let centre = Vec3::from(space::to_physics(Vec3::new(focus.position[0], focus.position[1], 0.0)));
-    let planar_distance = |other: Vec3| (position.x - other.x).hypot(position.z - other.z);
-    if planar_distance(centre) < MIN_FOCUS_GAP {
+    if planar_distance(position, centre) < MIN_FOCUS_GAP {
         return false;
     }
-    !others.into_iter().any(|(other, trailer)| planar_distance(other) < MIN_GAP + 0.5 * (length + trailer))
+    clear_of_cars(position, length, others)
 }
 
 #[cfg(test)]

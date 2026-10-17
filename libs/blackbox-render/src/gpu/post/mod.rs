@@ -4,7 +4,11 @@
 //! The chain always ends with the built-in [`resolve`] pass, which writes the output. The post
 //! effects (bloom, tone mapping, FXAA; see [`effects`]) sit at the front, and later passes
 //! (upscaling) are inserted before the resolve pass with [`PostChain::insert`]. Passes that write
-//! the output size (the upscalers) are always kept after the ones that write the render size.
+//! the output size (the spatial upscalers) are always kept after the ones that write the render size.
+//!
+//! A temporal upscaler (FSR 3) is the exception: it runs first, on the scene as drawn, so bloom and tone
+//! mapping see the upscaled image and everything after it writes the output size. It is kept apart from the
+//! other passes ([`PostChain::set_temporal`]) and skipped for a frame that has no temporal data.
 
 mod bloom;
 pub(in crate::gpu) mod display;
@@ -20,8 +24,12 @@ mod focus;
 mod fsr1;
 #[cfg(test)]
 mod fsr1_tests;
+mod fsr3;
 mod fxaa;
 mod plan;
+mod radial_blur;
+#[cfg(test)]
+mod radial_blur_tests;
 mod resolve;
 #[cfg(test)]
 mod tests;
@@ -30,9 +38,11 @@ mod treatment;
 mod treatment_composite;
 
 use super::targets::FrameTargets;
+use super::temporal::TemporalFrame;
 use plan::{Source, Target};
 
 pub(super) use fsr1::{EASU as FSR1_EASU, RCAS as FSR1_RCAS, RcasScale, passes as fsr1_passes};
+pub(super) use fsr3::Fsr3Pass;
 
 /// How big the image a pass writes is, when it does not write the final output.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -52,6 +62,8 @@ pub(super) struct PassContext<'a> {
     /// texture), both at the render size. The same for every pass of the frame, whatever its input.
     pub scene: &'a FrameTargets,
     pub output_size: (u32, u32),
+    /// The jitter and matrices of the frame when a temporal upscaler works on it, else `None`.
+    pub temporal: Option<&'a TemporalFrame>,
 }
 
 /// The image a pass reads and the one it writes.
@@ -108,6 +120,8 @@ pub(super) struct PostChain {
     pub(in crate::gpu) display: Option<display::Mapping>,
     /// Never empty: the last pass is the resolve pass.
     passes: Vec<Box<dyn PostPass>>,
+    /// The temporal upscaler, which runs before `passes` when the frame has temporal data.
+    temporal: Option<Box<dyn PostPass>>,
     scratch: [Option<Scratch>; 2],
     /// How many passes at the front of `passes` are the post effects of `settings`.
     effect_count: usize,
@@ -120,6 +134,7 @@ impl PostChain {
         Self {
             display: None,
             passes: vec![Box::new(resolve::Resolve::new(device))],
+            temporal: None,
             scratch: [None, None],
             effect_count: 0,
             settings: crate::PostSettings::default(),
@@ -158,7 +173,17 @@ impl PostChain {
     /// Whether any pass runs besides the final resolve (post effects, upscalers). When none does, the
     /// scene can be drawn straight into the output.
     pub(super) fn has_passes(&self) -> bool {
-        self.passes.len() > 1
+        self.passes.len() > 1 || self.temporal.is_some()
+    }
+
+    /// Put the temporal upscaler first in the chain, or take it out with `None`.
+    pub(super) fn set_temporal(&mut self, pass: Option<Box<dyn PostPass>>) {
+        self.temporal = pass;
+    }
+
+    /// Whether a temporal upscaler is in the chain.
+    pub(super) fn has_temporal(&self) -> bool {
+        self.temporal.is_some()
     }
 
     /// Free the ping-pong images (they are recreated when a pass needs them).
@@ -174,7 +199,7 @@ impl PostChain {
 
     /// The pass names in execution order.
     pub(super) fn names(&self) -> Vec<&'static str> {
-        self.passes.iter().map(|p| p.name()).collect()
+        self.temporal.iter().chain(self.passes.iter()).map(|p| p.name()).collect()
     }
 
     /// Surface diagnostics bypass grading/effects without changing saved or requested settings.
@@ -205,18 +230,29 @@ impl PostChain {
         encoder: &mut wgpu::CommandEncoder,
         output: (&wgpu::TextureView, wgpu::TextureFormat),
     ) {
-        let Self { passes, scratch, .. } = self;
-        let steps = plan::plan(passes.len());
+        let Self { passes, temporal, scratch, .. } = self;
         let scene = ctx.scene;
+        // The temporal upscaler only runs on a frame that carries its inputs.
+        let upscaler = temporal.as_mut().filter(|_| ctx.temporal.is_some() && scene.motion.is_some());
+        let mut chain: Vec<&mut dyn PostPass> = Vec::with_capacity(passes.len() + 1);
+        if let Some(pass) = upscaler {
+            chain.push(pass.as_mut());
+        }
+        for pass in passes.iter_mut() {
+            chain.push(pass.as_mut());
+        }
+        let steps = plan::plan(chain.len());
         // A chain that got shorter no longer needs its second (or any) ping-pong image.
         for (slot, image) in scratch.iter_mut().enumerate() {
             if !steps.iter().any(|step| step.target == Target::Scratch(slot)) {
                 *image = None;
             }
         }
-        for (pass, step) in passes.iter_mut().zip(steps) {
+        // Once a pass has upscaled, every pass after it writes the output size.
+        let mut upscaled = false;
+        for (pass, step) in chain.into_iter().zip(steps) {
             if let Target::Scratch(slot) = step.target {
-                let size = match pass.extent() {
+                let size = match plan::written_extent(upscaled, pass.extent()) {
                     Extent::Render => scene.size,
                     Extent::Output => ctx.output_size,
                 };
@@ -237,6 +273,7 @@ impl PostChain {
             };
             let io = PassIo { input, input_size, output: view, output_format: format, output_size: size };
             pass.encode(ctx, &io, encoder);
+            upscaled |= pass.extent() == Extent::Output;
         }
     }
 }

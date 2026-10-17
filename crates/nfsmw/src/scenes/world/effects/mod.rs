@@ -1,6 +1,7 @@
 //! The tire visual layer, consuming existing physics intensities (spec: tire-effects.md).
 
 mod contacts;
+pub(super) mod cop_health;
 mod entry_marks;
 #[cfg(test)]
 mod ground_tests;

@@ -13,6 +13,8 @@ pub enum Command {
     Gfx,
     /// Every key, button and stick binding.
     Keys,
+    /// The mods the game loaded or refused.
+    Mods,
     Bindings {
         name: String,
         args: Vec<String>,
@@ -36,7 +38,7 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 45] = [
+pub const BUILT_IN: [(&str, &str); 66] = [
     ("bind <action> <input>", "replace one device family's action assignments; keys lists action names"),
     ("addbind <action> <input>", "add another physical input to an action"),
     ("unbind <action> [keyboard|mouse|gamepad|all]", "remove action assignments"),
@@ -56,6 +58,7 @@ pub const BUILT_IN: [(&str, &str); 45] = [
     ("monitors", "list available monitors and their indices"),
     ("gfx", "show the renderer, graphics API, capabilities and requested vs effective graphics settings"),
     ("keys", "list every key, button and stick binding"),
+    ("mods", "list the mods: id, version and state, then the ones refused and why"),
     ("graphics_preset <custom|low|medium|high|ultra>", "set the graphics settings a preset stands for"),
     (
         "car_shading <simple|glossy|original|original-unshadowed>",
@@ -71,9 +74,23 @@ pub const BUILT_IN: [(&str, &str); 45] = [
     ),
     ("ray_tracing <off|low|medium|high>", "ray-traced lighting (bevy renderer; off to on needs a restart)"),
     ("post_aa <off|fxaa|smaa|taa>", "anti-aliasing of the 3D scene (smaa, taa: bevy renderer)"),
+    ("motion_blur <on|off>", "motion blur at high speed"),
+    ("motion_blur_strength <0-2>", "strength of the high-speed motion blur; 1 is the default"),
     ("visual_treatment <off|low|high>", "installed midday colour look (native renderer)"),
     ("reflections <off|low|medium|high>", "local car reflections; off restores the static sky"),
+    ("reflection_cube_size <auto|25%-400%|pixels>", "size of the car reflection capture"),
+    ("reflection_pow2 <on|off>", "round the car reflection capture to a power-of-two size"),
+    ("reflection_mirror_size <auto|25%-400%|pixels>", "size of the mirror reflection picture"),
+    ("mirror_tint <off|on|#rrggbb|r g b>", "tint of the mirror reflection: none, the stock tint or a colour"),
+    ("reflection_distance <unlimited|original>", "how far the reflections reach"),
+    ("reflection_lod <capture|view>", "reflection detail: the capture or the main view"),
+    ("reflection_content <original|restored>", "the content the reflections show"),
+    ("vehicle_reflection_brightness <0%-300%>", "brightness of the car's glossy reflections"),
     ("shadows <off|low|medium|high>", "dynamic soft sun shadows (Bevy renderer)"),
+    ("fe_shadows <on|off>", "sun shadows in the menu backdrop (Bevy renderer; off matches the original)"),
+    ("fe_shadows_cars <on|off>", "the car casts and takes the menu's sun shadows"),
+    ("fe_shadows_bias <0.25-4>", "bias multiplier of the menu's sun shadows"),
+    ("fe_shadows_divider <1|2|4>", "divides the menu's shadow map edge"),
     ("ao <off|low|medium|high>", "experimental contact occlusion; off releases its resources"),
     ("ao_intensity <0-100>", "contact occlusion strength"),
     ("ao_compare <on|off>", "same-frame comparison: left off, right on"),
@@ -82,6 +99,12 @@ pub const BUILT_IN: [(&str, &str); 45] = [
     ("speed_trails <on|off>", "change experimental high-speed effect"),
     ("speed_trail_style <streaks|car>", "choose the high-speed effect: view streaks or the car only"),
     ("exhaust_flames <on|off>", "change the tail-pipe flames (shift blow-off, lift-off backfire)"),
+    ("cop_health_bars <on|off>", "health bars above the police cars"),
+    ("traffic_avoidance <on|off>", "traffic moves over to the next lane past a stopped car, when the gap is clear"),
+    ("custom_fonts <on|off>", "FEng fonts from the custom fonts folder (off matches the original)"),
+    ("hd_fonts <on|off>", "HD font glyphs keep the stock texture's layout"),
+    ("hd_cursor <on|off>", "the pointer's hotspot follows an HD cursor texture"),
+    ("hd_fmv <on|off>", "film movies keep the stock 1024 x 512 framing"),
     ("volume <0-100>", "master volume (same as set volume)"),
     ("sound [bank [index]]", "list the sounds of a bank (IG_GLOBAL/Siren_MB.abk) or play one"),
     ("engine <car> [percent] | off", "hold a car's engine sound at a share of its RPM range"),
@@ -147,6 +170,7 @@ pub fn parse(line: &str) -> Result<Option<Command>, String> {
         "monitors" => Command::Monitors,
         "gfx" => Command::Gfx,
         "keys" | "bindings" | "controls" => Command::Keys,
+        "mods" => Command::Mods,
         "get" => match args.as_slice() {
             [] => Command::Get(None),
             [key] => Command::Get(Some((*key).to_owned())),
@@ -224,6 +248,7 @@ mod tests {
         assert_eq!(ok("get"), Command::Get(None));
         assert_eq!(ok("get fps"), Command::Get(Some("fps".into())));
         assert_eq!(ok("set Vsync off"), Command::Set { key: "vsync".into(), value: "off".into() });
+        assert_eq!(ok("mods"), Command::Mods);
     }
 
     #[test]
@@ -278,8 +303,25 @@ mod tests {
     #[test]
     fn completion() {
         let scene = [("car <folder>", "change the car"), ("cars", "list the cars")];
-        assert_eq!(complete("c", &scene), ["car", "car_shading", "cars", "clear", "collision_sparks"]);
-        assert_eq!(complete("re", &scene), ["reflections", "renderer", "resolution"]);
+        assert_eq!(
+            complete("c", &scene),
+            ["car", "car_shading", "cars", "clear", "collision_sparks", "cop_health_bars", "custom_fonts"]
+        );
+        assert_eq!(
+            complete("re", &scene),
+            [
+                "reflection_content",
+                "reflection_cube_size",
+                "reflection_distance",
+                "reflection_lod",
+                "reflection_mirror_size",
+                "reflection_pow2",
+                "reflections",
+                "renderer",
+                "resolution"
+            ]
+        );
+        assert_eq!(complete("hd_", &scene), ["hd_cursor", "hd_fmv", "hd_fonts"]);
         assert_eq!(complete("vo", &scene), ["volume"]);
         assert!(complete("zzz", &scene).is_empty());
     }

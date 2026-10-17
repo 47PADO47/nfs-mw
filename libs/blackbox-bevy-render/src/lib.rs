@@ -9,7 +9,11 @@
 pub mod apply;
 pub mod axes;
 mod caps;
+#[cfg(any(feature = "dlss", feature = "dlss-mock"))]
+mod dlss;
 pub mod facade;
+#[cfg(feature = "fsr3")]
+mod fsr3;
 pub mod harness;
 pub mod material;
 pub mod mesh;
@@ -23,6 +27,8 @@ mod post_tests;
 pub mod probe;
 #[cfg(test)]
 mod shadow_tests;
+#[cfg(feature = "ray-tracing")]
+mod solari;
 #[cfg(test)]
 mod stress_tests;
 pub mod systems;

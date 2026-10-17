@@ -50,6 +50,8 @@ impl PhysicsData {
     /// The physics of car type `type_name` (e.g. `BMWM3GTR`). A vehicle without bounds of its own (the
     /// semi tractor variants `semib`, `semicon`, ...) has the bounds of the nearest ancestor that has them.
     pub fn car(&self, type_name: &str) -> Result<CarPhysics> {
+        // A mod car names its clone's physics record (car/mods.rs); any other name is unchanged.
+        let type_name = crate::car::mods::physics_name(type_name);
         let (bounds, source) = self
             .lineage(type_name)
             .into_iter()

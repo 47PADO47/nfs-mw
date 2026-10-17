@@ -19,6 +19,16 @@ impl Settings {
                 }
                 _ => self.shadows,
             },
+            reflection_resolution: blackbox_gfx::reflection::ReflectionResolution {
+                cube: self.reflection_cube_size,
+                mirror: self.reflection_mirror_size,
+                pow2: self.reflection_pow2,
+            },
+            mirror_tint: self.mirror_tint,
+            reflection_distance: self.reflection_extra.distance,
+            reflection_lod: self.reflection_extra.lod,
+            reflection_content: self.reflection_extra.content,
+            vehicle_reflection_brightness: self.reflection_extra.brightness,
             post: post_effects(self),
             upscaler: self.upscaler.upscaler(),
             render_scale: self.render_scale.factor(),

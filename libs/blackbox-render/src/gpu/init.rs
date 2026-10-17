@@ -92,15 +92,22 @@ fn request_device(adapter: &wgpu::Adapter) -> Result<(wgpu::Device, wgpu::Queue)
     }
     let mut limits = wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits());
     if adapter.get_downlevel_capabilities().flags.contains(wgpu::DownlevelFlags::COMPUTE_SHADERS) {
-        // Only the small compute limits the optional AO pass needs; retain the GL fallback.
-        limits.max_compute_workgroup_size_x = 8;
-        limits.max_compute_workgroup_size_y = 8;
-        limits.max_compute_workgroup_size_z = 1;
-        limits.max_compute_invocations_per_workgroup = 64;
+        // The compute limits the optional AO pass and the FSR 3 upscaler need, as far as the adapter has them.
+        // Retains the GL fallback, which asks for what it has and so reports no FSR 3.
+        let have = adapter.limits();
+        let want = temporal_limits();
+        limits.max_compute_workgroup_size_x = have.max_compute_workgroup_size_x.min(want.max_compute_workgroup_size_x);
+        limits.max_compute_workgroup_size_y = have.max_compute_workgroup_size_y.min(want.max_compute_workgroup_size_y);
+        limits.max_compute_workgroup_size_z = have.max_compute_workgroup_size_z.min(want.max_compute_workgroup_size_z);
+        limits.max_compute_invocations_per_workgroup =
+            have.max_compute_invocations_per_workgroup.min(want.max_compute_invocations_per_workgroup);
         limits.max_compute_workgroups_per_dimension = 65535;
-        limits.max_storage_textures_per_shader_stage = 1;
-        limits.max_storage_buffers_per_shader_stage = adapter.limits().max_storage_buffers_per_shader_stage.min(1);
-        limits.max_storage_buffer_binding_size = adapter.limits().max_storage_buffer_binding_size.min(288);
+        limits.max_storage_textures_per_shader_stage =
+            have.max_storage_textures_per_shader_stage.min(want.max_storage_textures_per_shader_stage);
+        limits.max_storage_buffers_per_shader_stage =
+            have.max_storage_buffers_per_shader_stage.min(want.max_storage_buffers_per_shader_stage);
+        limits.max_storage_buffer_binding_size =
+            have.max_storage_buffer_binding_size.min(want.max_storage_buffer_binding_size);
     }
     pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
         label: Some("blackbox-render device"),
@@ -109,6 +116,31 @@ fn request_device(adapter: &wgpu::Adapter) -> Result<(wgpu::Device, wgpu::Queue)
         ..Default::default()
     }))
     .map_err(|e| RenderError::Device(e.to_string()))
+}
+
+/// The compute limits FSR 3 runs within: wgpu's defaults for storage bindings and a 256-thread workgroup (the
+/// luma pyramid's reduction). The AO pass needs less of the same.
+fn temporal_limits() -> wgpu::Limits {
+    let mut limits = wgpu::Limits::downlevel_webgl2_defaults();
+    limits.max_compute_workgroup_size_x = 256;
+    limits.max_compute_workgroup_size_y = 8;
+    limits.max_compute_workgroup_size_z = 1;
+    limits.max_compute_invocations_per_workgroup = 256;
+    limits.max_storage_textures_per_shader_stage = 4;
+    limits.max_storage_buffers_per_shader_stage = 8;
+    limits.max_storage_buffer_binding_size = wgpu::Limits::default().max_storage_buffer_binding_size;
+    limits
+}
+
+/// Whether a device with `limits` can run the FSR 3 upscaler: its passes bind four storage textures and eight
+/// storage buffers, and reduce in a workgroup of 256 threads.
+fn supports_temporal(limits: &wgpu::Limits) -> bool {
+    let need = temporal_limits();
+    limits.max_storage_textures_per_shader_stage >= need.max_storage_textures_per_shader_stage
+        && limits.max_storage_buffers_per_shader_stage >= need.max_storage_buffers_per_shader_stage
+        && limits.max_compute_workgroup_size_x >= need.max_compute_workgroup_size_x
+        && limits.max_compute_workgroup_size_y >= need.max_compute_workgroup_size_y
+        && limits.max_compute_invocations_per_workgroup >= need.max_compute_invocations_per_workgroup
 }
 
 /// Build the renderer around a ready device and output.
@@ -126,6 +158,7 @@ fn assemble(output: Output, adapter: &wgpu::Adapter, device: wgpu::Device, queue
         render: size,
         passes: false,
         hdr: false,
+        temporal: false,
         surface_format: format,
         hdr_format,
     });
@@ -149,6 +182,8 @@ fn assemble(output: Output, adapter: &wgpu::Adapter, device: wgpu::Device, queue
         supports_bc,
         hdr_format == targets::HDR_FORMAT,
         device.limits().max_compute_invocations_per_workgroup >= 64,
+        // The scene is drawn in HDR, the upscaler writes Rgba16Float storage, and Vulkan or DirectX runs it.
+        api != GraphicsApi::Gl && hdr_format == targets::HDR_FORMAT && supports_temporal(&device.limits()),
     );
 
     if !adapter.get_downlevel_capabilities().flags.contains(wgpu::DownlevelFlags::ANISOTROPIC_FILTERING) {
@@ -185,6 +220,7 @@ fn assemble(output: Output, adapter: &wgpu::Adapter, device: wgpu::Device, queue
         timing,
         render_scale: DEFAULT_RENDER_SCALE,
         upscale: Default::default(),
+        temporal: Default::default(),
         shared,
         pipelines,
         textures: Slots::new(),

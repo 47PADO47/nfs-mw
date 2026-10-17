@@ -14,7 +14,7 @@ use nfsmw_data::music::{Playability, Song};
 
 use super::super::feeder::Started;
 use super::super::stream::{StreamData, StreamHandle};
-use super::super::{Backend, Control, Mode, Player, Radio};
+use super::super::{Backend, Control, Entry, Mode, Player, Radio};
 
 const RATE: u32 = 1000;
 /// Frames in every fake song, so it lasts one second.
@@ -27,7 +27,7 @@ fn song(name: &str, event: u32, playability: Playability) -> Song {
 }
 
 /// A (FE), B (IG), C (AL), D (IG) and E (IG, not in the map).
-fn songs() -> Vec<Song> {
+pub(super) fn songs() -> Vec<Song> {
     use Playability::*;
     vec![
         song("A", 1, FrontEnd),
@@ -66,8 +66,8 @@ impl Backend for Fake {
 
 /// Plays into nothing; `run` advances the sounds the way the mixer would.
 #[derive(Default)]
-struct Mixer {
-    sounds: Vec<Box<dyn Sound>>,
+pub(super) struct Mixer {
+    pub(super) sounds: Vec<Box<dyn Sound>>,
 }
 
 impl Player for Mixer {
@@ -79,7 +79,7 @@ impl Player for Mixer {
 }
 
 impl Mixer {
-    fn run(&mut self, frames: usize) {
+    pub(super) fn run(&mut self, frames: usize) {
         let info = MockInfoBuilder::new().build();
         for sound in &mut self.sounds {
             let mut out = vec![Frame::ZERO; frames];
@@ -89,13 +89,13 @@ impl Mixer {
     }
 }
 
-fn radio() -> (Radio, Mixer, Arc<AtomicUsize>) {
+pub(super) fn radio() -> (Radio, Mixer, Arc<AtomicUsize>) {
     let fake = Fake::default();
     let opened = fake.opened.clone();
     (Radio::new(songs(), Box::new(fake)), Mixer::default(), opened)
 }
 
-fn title(radio: &Radio) -> Option<&str> {
+pub(super) fn title(radio: &Radio) -> Option<&str> {
     radio.now.as_ref().map(|n| n.title.as_str())
 }
 
@@ -172,10 +172,10 @@ fn a_paused_song_stays_paused_through_a_pursuit_and_goes_on_only_when_resumed() 
     radio.update(true, true, &mut mixer);
     radio.pause().unwrap();
     // A pursuit takes the songs' place: the held radio neither starts a song nor drops the paused one.
-    radio.update_held(true, true, true, &mut mixer);
-    radio.update_held(true, true, true, &mut mixer);
+    radio.update_held(true, false, true, true, &mut mixer);
+    radio.update_held(true, false, true, true, &mut mixer);
     assert_eq!((title(&radio), paused(&radio)), (Some("B"), true));
-    radio.update_held(true, false, true, &mut mixer);
+    radio.update_held(true, false, false, true, &mut mixer);
     assert_eq!((title(&radio), paused(&radio), opened.load(Ordering::Relaxed)), (Some("B"), true, 1));
     assert_eq!(radio.resume().unwrap(), "resumed");
     assert!(!paused(&radio));
@@ -185,9 +185,9 @@ fn a_paused_song_stays_paused_through_a_pursuit_and_goes_on_only_when_resumed() 
 fn a_pursuit_stops_a_playing_song_and_the_next_one_starts_after_it() {
     let (mut radio, mut mixer, _) = radio();
     radio.update(true, true, &mut mixer);
-    radio.update_held(true, true, true, &mut mixer);
+    radio.update_held(true, false, true, true, &mut mixer);
     assert_eq!(title(&radio), None);
-    radio.update_held(true, false, true, &mut mixer);
+    radio.update_held(true, false, false, true, &mut mixer);
     assert_eq!(title(&radio), Some("C"));
 }
 
@@ -453,7 +453,7 @@ fn a_chosen_song_is_part_of_the_history_and_cuts_off_what_the_player_went_back_o
     radio.skip(&mut mixer).unwrap();
     radio.previous(&mut mixer).unwrap();
     radio.play_now(3, &mut mixer).unwrap();
-    assert_eq!(radio.history, [1, 2, 3]);
+    assert_eq!(radio.history, [Entry::Song(1), Entry::Song(2), Entry::Song(3)]);
     assert_eq!(radio.previous(&mut mixer).unwrap(), "C");
     assert_eq!(radio.skip(&mut mixer).unwrap(), "D");
 }

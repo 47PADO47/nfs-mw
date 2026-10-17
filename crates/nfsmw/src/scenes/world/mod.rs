@@ -1,5 +1,4 @@
 //! The streamed city: a free-fly camera, or a car to drive with a chase camera.
-
 mod ai;
 mod breaker_visuals;
 mod camera_choice;
@@ -30,8 +29,11 @@ mod hud;
 mod keys;
 mod lighting;
 mod materials;
+mod mod_hooks;
+mod tail_light_trails;
 use car_loader::load_car;
 mod focus;
+mod focus_feed;
 mod object_geometry;
 mod open;
 #[cfg(test)]
@@ -43,6 +45,7 @@ mod reflections;
 mod residency;
 mod resident;
 mod road;
+mod rotor;
 mod scene;
 mod shadow_feed;
 mod sign_lamps;
@@ -53,6 +56,7 @@ mod space;
 mod speed_trails;
 mod start;
 mod sun;
+mod update;
 mod vehicle_effects;
 mod visibility;
 mod wet_reflections;
@@ -66,7 +70,7 @@ use nfsmw_data::car::CarModel;
 use nfsmw_data::car::physics::PhysicsData;
 use nfsmw_data::world::{DEFAULT_TRACK, PropCatalog, Streamer, WorldIndex, load_global_textures};
 
-use crate::input::{Action, ActionState};
+use crate::input::ActionState;
 use crate::settings::CameraMode;
 use crate::viewer::Scene;
 use crate::viewer::camera::{CameraCut, FlyCamera};
@@ -160,9 +164,13 @@ pub struct WorldScene {
     drive: Option<Drive>,
     /// Computer-driven cars, when the track has a road network.
     traffic: Option<ai::TrafficWorld>,
+    /// The police helicopter's position at the last rotor frame, for its velocity (`rotor_frame`).
+    rotor_previous: Option<Vec3>,
     /// Minimap blips that do not come from the traffic: the race starts and the interiors, made once at open
     /// (`hud::static_blips`). Nothing clears this list, so a later addition stays until it is removed here.
     pub map_blips: Vec<crate::hud::MapBlip>,
+    /// Minimap blips the mods placed (`bb.map`), set each frame by the mods' systems and merged after `map_blips`.
+    pub mod_blips: Vec<crate::hud::MapBlip>,
     /// The entry zones (auto shops, safe houses, race starts) and the interact card (`entry.rs`).
     entry: entry::Entry,
     /// The `traffic`, `cop_share` settings as last told, and a count typed in the console that replaces them.
@@ -196,6 +204,8 @@ pub struct WorldScene {
     waiting_since: Option<std::time::Instant>,
     /// The gameplay camera the setting picked; only used while driving.
     camera_mode: CameraMode,
+    /// The cop health bars: their state, the bars of the last step and their texture (`effects/cop_health.rs`).
+    cop_health: effects::cop_health::CopHealthBars,
 }
 
 /// Leaving the free camera more than this far (metres) from the car brings the car to the camera.

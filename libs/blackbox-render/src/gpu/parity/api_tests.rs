@@ -22,7 +22,12 @@ fn the_native_capabilities_are_the_frozen_set() {
     let caps = *renderer.capabilities();
     assert_eq!(caps.renderer, "blackbox");
     assert_eq!(caps.antialiasing, AaSet::of(&[Antialiasing::Off, Antialiasing::Fxaa, Antialiasing::Smaa]));
-    assert_eq!(caps.upscalers, UpscalerSet::of(&[Upscaler::Off, Upscaler::Bilinear, Upscaler::Fsr1]));
+    // FSR 3 comes with a device that has the storage limits it runs within; nothing else is added.
+    let mut upscalers = UpscalerSet::of(&[Upscaler::Off, Upscaler::Bilinear, Upscaler::Fsr1]);
+    if caps.upscalers.contains(Upscaler::Fsr3) {
+        upscalers.insert(Upscaler::Fsr3);
+    }
+    assert_eq!(caps.upscalers, upscalers);
     assert_eq!(caps.tonemaps, TonemapSet::all());
     assert!(caps.bloom);
     assert_eq!(caps.ray_tracing, RtSupport::None);
@@ -92,22 +97,27 @@ fn what_the_renderer_lacks_is_downgraded_reported_and_applied() {
         ray_tracing: RayTracing::High,
         ..GraphicsSettings::default()
     };
+    // DLSS falls back to FSR 3 where the device can run it (which does its own anti-aliasing, so TAA is dropped
+    // for that reason), else to FSR 1 (and TAA to FXAA, because the renderer lacks it).
+    let temporal = renderer.capabilities().upscalers.contains(Upscaler::Fsr3);
     let resolved = renderer.apply_graphics(&wanted);
     assert!(!resolved.is_exact());
     for setting in [Setting::Upscaler, Setting::Antialiasing, Setting::RayTracing] {
         let downgrade = resolved.downgrade_of(setting).unwrap_or_else(|| panic!("{setting} is downgraded"));
-        assert!(downgrade.reason.contains("blackbox"), "{downgrade}");
+        let by_temporal = temporal && setting == Setting::Antialiasing;
+        assert_eq!(downgrade.reason.contains("blackbox"), !by_temporal, "{downgrade}");
     }
     let effective = resolved.effective;
-    assert_eq!(
-        (effective.upscaler, effective.post.antialiasing, effective.ray_tracing),
-        (Upscaler::Fsr1, Antialiasing::Fxaa, RayTracing::Off)
-    );
+    let expected = match temporal {
+        true => (Upscaler::Fsr3, Antialiasing::Off, RayTracing::Off),
+        false => (Upscaler::Fsr1, Antialiasing::Fxaa, RayTracing::Off),
+    };
+    assert_eq!((effective.upscaler, effective.post.antialiasing, effective.ray_tracing), expected);
     // The quality mode of the requested temporal upscaler decided the scale; the renderer runs what was left.
     assert_eq!(effective.render_scale, UpscaleQuality::Quality.render_scale());
     assert_eq!(renderer.graphics(), &effective);
-    assert_eq!(renderer.upscaler(), Upscaler::Fsr1);
-    assert_eq!(renderer.post_effects().antialiasing, Antialiasing::Fxaa);
+    assert_eq!(renderer.upscaler(), expected.0);
+    assert_eq!(renderer.post_effects().antialiasing, expected.1);
     assert_eq!(renderer.render_scale(), effective.render_scale);
 
     // Resolving what was effective changes nothing.

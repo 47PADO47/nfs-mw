@@ -64,6 +64,20 @@ pub fn begin(
     // A capture camera is spawned fresh every time, so its very first `set_post` is also the only one:
     // bring it to the effective settings at once rather than drawing a frame or more of defaults first.
     camera::set_post(commands, camera, settings);
+    // A capture never runs DLSS. Bevy's `Dlss` (bevy_anti_alias 0.20.0, `prepare_dlss`) needs `TemporalJitter`, both
+    // prepasses and `Hdr`, makes its own SDK context for each camera size, and keeps temporal history across frames.
+    // A capture is a small target of its own size, read back after a few frames and then despawned, so that history
+    // never settles and every capture would build a context. It stays at full size with no DLSS and no temporal parts.
+    // `set_post` already drops the temporal parts (`resolve` turns TAA off for a temporal upscaler); this makes it
+    // explicit on the real DLSS build, whatever the screen camera carries.
+    #[cfg(all(feature = "dlss", not(feature = "dlss-mock")))]
+    commands.entity(camera).remove::<(
+        bevy_anti_alias::dlss::Dlss,
+        bevy_anti_alias::taa::TemporalAntiAliasing,
+        bevy_core_pipeline::prepass::DepthPrepass,
+        bevy_core_pipeline::prepass::MotionVectorPrepass,
+        bevy_render::camera::TemporalJitter,
+    )>();
     let warmup = match settings.post.antialiasing {
         blackbox_gfx::Antialiasing::Taa => TAA_WARMUP_FRAMES,
         _ => WARMUP_FRAMES,

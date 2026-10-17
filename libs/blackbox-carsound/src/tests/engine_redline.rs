@@ -4,6 +4,47 @@ use super::common::{hold, input, tuning};
 use crate::{EngineMixer, TICK_SECONDS};
 
 #[test]
+fn highest_gear_keeps_the_engine_layers_at_full_rpm() {
+    let mut mixer = EngineMixer::new(&tuning());
+    let mut no_takeover = mixer.clone();
+    no_takeover.set_redline_sample_available(false);
+    let telemetry = crate::CarInput { top_gear: Some(6), speed: 366.0 / 3.6, ..input(1.0, 1.0, 6) };
+    for _ in 0..600 {
+        let out = mixer.update(TICK_SECONDS, &telemetry);
+        assert!(!out.redlining);
+        assert_eq!(out.redline_sample_volume, 0.0);
+        assert_eq!(out, no_takeover.update(TICK_SECONDS, &telemetry));
+    }
+}
+
+#[test]
+fn supplying_the_highest_gear_preserves_lower_gear_and_neutral_output() {
+    for gear in [crate::GEAR_NEUTRAL, crate::GEAR_FIRST, 5] {
+        let mut old = EngineMixer::new(&tuning());
+        let mut installed = old.clone();
+        for tick in 0..600 {
+            let rpm = if tick < 60 { 0.9 } else { 1.0 };
+            let telemetry = input(rpm, 1.0, gear);
+            let informed = crate::CarInput { top_gear: Some(6), ..telemetry };
+            assert_eq!(old.update(TICK_SECONDS, &telemetry), installed.update(TICK_SECONDS, &informed));
+        }
+        assert!(installed.update(TICK_SECONDS, &input(1.0, 1.0, gear)).redlining);
+    }
+}
+
+#[test]
+fn shifting_into_highest_gear_releases_the_lower_gear_takeover() {
+    let mut mixer = EngineMixer::new(&tuning());
+    let lower = crate::CarInput { top_gear: Some(6), ..input(1.0, 1.0, 5) };
+    assert!(hold(&mut mixer, 4.0, lower).last().unwrap().redlining);
+    let highest = crate::CarInput { top_gear: Some(6), ..input(1.0, 1.0, 6) };
+    let settled = *hold(&mut mixer, 5.0, highest).last().unwrap();
+    assert!(!settled.redlining);
+    assert_eq!(settled.redline_sample_volume, 0.0);
+    assert!(settled.accel_volume > 0.5);
+}
+
+#[test]
 fn unavailable_sample_layer_keeps_the_loops_and_tachometer_running() {
     let mut healthy = EngineMixer::new(&tuning());
     let mut missing = healthy.clone();

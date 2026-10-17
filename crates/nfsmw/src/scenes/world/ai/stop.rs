@@ -3,8 +3,10 @@
 //! obstacle that stands at the stop line of the road the car is on.
 //! Signals: `blackbox_roads::SignalController`.
 
-use blackbox_roads::{Body, Light, RoadNav, RoadNetwork, SignalController};
-use glam::Vec2;
+use blackbox_roads::{
+    Body, Crossing, Gate, Light, RoadNav, RoadNetwork, SignalController, crossing_point, earliest_oncoming,
+};
+use glam::{Vec2, Vec3};
 
 use super::traffic::stopping_distance;
 
@@ -81,6 +83,43 @@ pub fn find(
         .min_by(|a, b| a.1.total_cmp(&b.1));
     *remembered = found.map(|(i, _)| i);
     found.map(|(i, distance)| StopLine { distance, light: controller.state(i, lights.time) })
+}
+
+/// The oncoming-gap rule of a turning car (`docs/specs/ai-traffic-obstacles.md` §10.2, a rewrite extension). A car at a
+/// green line waits, as at a red light, while an oncoming car will reach the junction's crossing point within
+/// [`blackbox_roads::WAIT_FOR_GAP`] seconds, and goes after [`blackbox_roads::GIVE_UP_AFTER`] seconds of waiting. Only a
+/// car that has not passed the line is held. `crossing` is the car's own wait; it resets whenever the rule does not
+/// hold the car. `others` are the other cars and the player, as bodies; `dt` is the time since the last decision.
+pub fn yield_to_oncoming(
+    lights: &Lights<'_>,
+    net: &RoadNetwork,
+    stop: StopLine,
+    approach: usize,
+    crossing: &mut Crossing,
+    dt: f32,
+    others: &[Body],
+) -> StopLine {
+    let holds_green = stop.light == Light::Green && stop.distance >= 0.0;
+    if !holds_green {
+        *crossing = Crossing::default();
+        return stop;
+    }
+    let Some(point) = crossing_point(net, lights.controller, approach) else {
+        *crossing = Crossing::default();
+        return stop;
+    };
+    let heading = approach_heading(lights.controller, approach);
+    let gate = crossing.update(dt, earliest_oncoming(point, heading, others));
+    match gate {
+        Gate::Wait => StopLine { light: Light::Red, ..stop },
+        Gate::Go => stop,
+    }
+}
+
+/// The horizontal unit heading of a signalled approach, as the planar vector `(x, z)`.
+fn approach_heading(controller: &SignalController, approach: usize) -> Vec2 {
+    let heading: Vec3 = controller.approaches()[approach].heading;
+    Vec2::new(heading.x, heading.z)
 }
 
 #[cfg(test)]
@@ -237,5 +276,82 @@ mod tests {
         let need = stopping_distance(speed, MASS);
         assert!(line(need + 1.0, Light::Amber).speed_limit(speed, MASS).is_some());
         assert_eq!(line(need - 1.0, Light::Amber).speed_limit(speed, MASS), None);
+    }
+    /// An oncoming car on the east arm, driving west at 10 m/s, 25 m east of the junction's middle: it reaches the
+    /// crossing point of the test junction in 2.5 s, which is inside the 3 s threshold.
+    fn oncoming() -> Body {
+        Body {
+            position: Vec3::new(25.0, 0.0, 0.0),
+            velocity: Vec3::new(-10.0, 0.0, 0.0),
+            forward: Vec2::NEG_X,
+            half_width: 0.9,
+            half_length: HALF_LENGTH,
+        }
+    }
+
+    /// The west approach's green line for a car at `x`, with the signals of `net` at `time`.
+    fn green_line(net: &RoadNetwork, x: f32, time: f32) -> (SignalController, StopLine) {
+        let controller = SignalController::new(net);
+        let mut nav = RoadNav::traffic();
+        nav.place(net, 0, 1, 1, 0.5);
+        let stop = find(&Lights { controller: &controller, time }, net, &nav, &eastbound(x), &mut None)
+            .expect("a stop line ahead");
+        (controller, stop)
+    }
+
+    #[test]
+    fn a_car_at_a_green_line_waits_for_an_oncoming_car_that_is_close() {
+        let net = t_junction();
+        let (controller, stop) = green_line(&net, -60.0, 0.0);
+        assert_eq!(stop.light, Light::Green);
+        let lights = Lights { controller: &controller, time: 0.0 };
+        let mut crossing = Crossing::default();
+        let held = yield_to_oncoming(&lights, &net, stop, 0, &mut crossing, 0.1, &[oncoming()]);
+        assert_eq!(held.light, Light::Red, "held like a red light");
+        assert!(held.is_holding());
+        assert!(held.speed_limit(10.0, MASS).is_some(), "it brakes to the line");
+    }
+
+    #[test]
+    fn a_car_at_a_green_line_goes_when_nothing_is_oncoming() {
+        let net = t_junction();
+        let (controller, stop) = green_line(&net, -60.0, 0.0);
+        let lights = Lights { controller: &controller, time: 0.0 };
+        let mut crossing = Crossing::default();
+        let free = yield_to_oncoming(&lights, &net, stop, 0, &mut crossing, 0.1, &[]);
+        assert_eq!(free, stop);
+        let far = Body { position: Vec3::new(80.0, 0.0, 0.0), ..oncoming() };
+        assert_eq!(
+            yield_to_oncoming(&lights, &net, stop, 0, &mut crossing, 0.1, &[far]),
+            stop,
+            "4 s away is no threat"
+        );
+    }
+
+    #[test]
+    fn a_car_that_has_waited_eight_seconds_goes_anyway() {
+        let net = t_junction();
+        let (controller, stop) = green_line(&net, -60.0, 0.0);
+        let lights = Lights { controller: &controller, time: 0.0 };
+        let mut crossing = Crossing::default();
+        let mut waits = 0;
+        while yield_to_oncoming(&lights, &net, stop, 0, &mut crossing, 0.5, &[oncoming()]).light == Light::Red {
+            waits += 1;
+        }
+        assert_eq!(waits, 16, "8 s at 0.5 s a think, then it goes");
+    }
+
+    #[test]
+    fn a_red_light_or_a_car_past_the_line_is_not_changed_by_the_gate() {
+        let net = t_junction();
+        let (controller, red) = green_line(&net, -60.0, 17.5);
+        assert_eq!(red.light, Light::Red);
+        let lights = Lights { controller: &controller, time: 17.5 };
+        let mut crossing = Crossing { waited: 3.0 };
+        assert_eq!(yield_to_oncoming(&lights, &net, red, 0, &mut crossing, 0.1, &[oncoming()]), red);
+        assert_eq!(crossing, Crossing::default(), "the wait resets when the gate does not hold the car");
+        let past = StopLine { distance: -0.5, ..green_line(&net, -60.0, 0.0).1 };
+        let lights = Lights { controller: &controller, time: 0.0 };
+        assert_eq!(yield_to_oncoming(&lights, &net, past, 0, &mut crossing, 0.1, &[oncoming()]), past);
     }
 }

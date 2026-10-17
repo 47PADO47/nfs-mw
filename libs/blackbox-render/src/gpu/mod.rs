@@ -36,6 +36,9 @@ mod slots;
 mod spatial_aa;
 mod surface;
 mod targets;
+mod temporal;
+#[cfg(test)]
+mod temporal_tests;
 #[cfg(test)]
 mod test_support;
 mod textures;
@@ -87,6 +90,8 @@ pub struct Renderer {
     timing: Option<timing::Timing>,
     render_scale: f32,
     upscale: upscale::Upscale,
+    /// The jitter, motion vectors and history of the temporal upscaler (FSR 3).
+    temporal: temporal::Temporal,
     shared: resources::Shared,
     pipelines: pipelines::Pipelines,
     /// Texture bind groups. Slot 0 is the white fallback.
@@ -206,12 +211,20 @@ impl Renderer {
     }
 
     /// Where a scene for an `output`-sized image is drawn, given the render scale and the passes in the chain.
-    fn scene_plan(&self, output: (u32, u32)) -> targets::ScenePlan {
+    /// `onscreen` is false for a capture, which a temporal upscaler cannot work on (no history): it is drawn at
+    /// the output size and goes through the other passes alone.
+    fn scene_plan(&self, output: (u32, u32), onscreen: bool) -> targets::ScenePlan {
+        let temporal = self.post.has_temporal() && onscreen;
+        let render = match self.post.has_temporal() && !onscreen {
+            true => output,
+            false => scaled_size(output, self.render_scale),
+        };
         targets::plan_scene(&SceneInputs {
             output,
-            render: scaled_size(output, self.render_scale),
+            render,
             passes: self.post.has_passes(),
             hdr: self.post.effect_settings().needs_hdr() || self.post.display.is_some(),
+            temporal,
             surface_format: self.output.format(),
             hdr_format: self.hdr_format,
         })
@@ -220,7 +233,7 @@ impl Renderer {
     /// Recreate the scene targets when the surface size, the render scale or the passes in the chain
     /// ask for different ones, and free the post chain's images when the scene goes straight to the surface.
     fn refresh_targets(&mut self) {
-        let plan = self.scene_plan(self.surface_size());
+        let plan = self.scene_plan(self.surface_size(), true);
         if self.targets.matches(&plan) {
             return;
         }

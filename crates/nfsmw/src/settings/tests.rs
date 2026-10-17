@@ -49,6 +49,21 @@ fn traffic_is_on_by_default_with_one_cop_in_twenty() {
 }
 
 #[test]
+fn cop_health_bars_are_off_by_default_and_come_from_every_layer() {
+    assert!(!Settings::from(Partial::default()).cop_health_bars);
+    assert!(!WorldTuning::from(&Settings::from(Partial::default())).cop_health_bars);
+    const { assert!(!DEFAULT_COP_HEALTH_BARS) };
+    let cli = Partial { cop_health_bars: Some(false), ..Partial::default() };
+    let env = env::read(|n| (n == env::COP_HEALTH_BARS).then(|| "on".to_owned()));
+    let file = file::parse("cop_health_bars = true\n", "test");
+    assert!(!Settings::from(cli.or(env).or(file)).cop_health_bars, "the command line wins");
+    assert!(Settings::from(Partial::default().or(env).or(file)).cop_health_bars, "the environment over the file");
+    assert!(Settings::from(Partial::default().or(file)).cop_health_bars);
+    assert_eq!(file::parse("cop_health_bars = 3", "test").cop_health_bars, None);
+    assert!(!WorldTuning::from(&Settings::from(cli.or(env).or(file))).cop_health_bars);
+}
+
+#[test]
 fn traffic_lights_are_on_by_default_and_come_from_every_layer() {
     assert!(Settings::from(Partial::default()).traffic_lights);
     const { assert!(DEFAULT_TRAFFIC_LIGHTS) };

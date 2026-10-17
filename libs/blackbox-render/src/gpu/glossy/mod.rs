@@ -38,12 +38,16 @@ pub(super) struct Glossy {
     irradiance: irradiance::Irradiance,
     /// Group 3 per material.
     materials: Slots<Material>,
+    /// The vehicle reflection brightness the material blocks were last packed with.
+    brightness: f32,
 }
 
 struct Material {
     original: bool,
     buffer: wgpu::Buffer,
     group: wgpu::BindGroup,
+    /// The material as registered, so its block can be packed again when the brightness changes.
+    source: GlossyMaterial,
 }
 
 impl Glossy {
@@ -83,6 +87,7 @@ impl Glossy {
             static_environment: view,
             irradiance,
             materials: Slots::new(),
+            brightness: 1.0,
         }
     }
 
@@ -116,6 +121,18 @@ impl Glossy {
         };
         pass.set_bind_group(3, &group.group, &[]);
         true
+    }
+
+    /// Packs every material block again when the vehicle brightness changes. A no-op when it has not.
+    pub(super) fn sync_brightness(&mut self, queue: &wgpu::Queue, brightness: f32) {
+        if self.brightness == brightness {
+            return;
+        }
+        self.brightness = brightness;
+        for material in self.materials.iter_mut() {
+            let block = MaterialUniform::new(&material.source, brightness);
+            queue.write_buffer(&material.buffer, 0, bytemuck::bytes_of(&block));
+        }
     }
 
     pub(super) fn rebind_shadows(&mut self, device: &wgpu::Device, maps: &super::shadows::maps::Maps) {
@@ -225,9 +242,13 @@ impl Renderer {
     }
 
     /// Set the lights every glossy draw is lit by, from the next frame on.
+    /// The vehicle reflection brightness of the requested settings is applied here too, since the lighting is set
+    /// every frame the cars are drawn.
     pub fn set_lighting_rig(&mut self, rig: &LightingRig) {
+        let brightness = self.graphics.vehicle_reflection_brightness.0;
         let glossy = ensure(&mut self.glossy, &self.device, &self.queue, &self.shared.glossy);
         self.queue.write_buffer(&glossy.rig, 0, bytemuck::bytes_of(&RigUniform::new(rig)));
+        glossy.sync_brightness(&self.queue, brightness);
     }
 
     /// Reflect a generated sky in glossy surfaces (the default).
@@ -264,15 +285,17 @@ impl Renderer {
 
     /// Register a material for [`Shading::Glossy`](crate::Shading::Glossy) draws.
     pub fn create_glossy_material(&mut self, material: &GlossyMaterial) -> GlossyMaterialHandle {
+        let brightness = self.graphics.vehicle_reflection_brightness.0;
         let glossy = ensure(&mut self.glossy, &self.device, &self.queue, &self.shared.glossy);
         let buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("glossy material"),
-            contents: bytemuck::bytes_of(&MaterialUniform::new(material)),
+            contents: bytemuck::bytes_of(&MaterialUniform::new(material, brightness)),
             usage: wgpu::BufferUsages::UNIFORM,
         });
         let group = self.shared.shadows.material_group(&self.device, &glossy.layouts.material, &buffer);
         GlossyMaterialHandle::from_raw(glossy.materials.insert(Material {
             original: material.model != blackbox_gfx::GlossyModel::Custom,
+            source: *material,
             buffer,
             group,
         }))

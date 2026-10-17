@@ -53,8 +53,12 @@ fn hud_layout_main_and_pause_rows_show_cycle_and_request_saving() {
         let catalog = Catalog::load(&dir, &SCREEN_FILES);
         let mut screens = Screens::new(catalog, assets.clone());
         let (mut settings, mut changes) = (Settings::from(Partial::default()), Partial::default());
-        let mut env =
-            Env { settings: &mut settings, changed: &mut changes, caps: crate::settings::test_caps::native() };
+        let mut env = Env {
+            settings: &mut settings,
+            changed: &mut changes,
+            caps: crate::settings::test_caps::native(),
+            mods: None,
+        };
         screens.open(name, Args { pause, category: Category::Gameplay, ..Args::default() }, true, &mut env);
         run(&mut screens, &mut env, 0, 60);
         run(&mut screens, &mut env, pad::RIGHT, 3);

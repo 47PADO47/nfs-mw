@@ -54,7 +54,13 @@ impl Renderer {
         size: (u32, u32),
     ) {
         let Some(scene) = targets.unwrap_or(&self.targets).offscreen() else { return };
-        let ctx = PassContext { device: &self.device, queue: &self.queue, scene, output_size: size };
+        let ctx = PassContext {
+            device: &self.device,
+            queue: &self.queue,
+            scene,
+            output_size: size,
+            temporal: self.temporal.current(),
+        };
         if self.experiments.lighting_debug != blackbox_gfx::LightingDebug::Off
             && self.info.api != blackbox_gfx::GraphicsApi::Gl
         {
@@ -99,6 +105,7 @@ impl Renderer {
             timing.stamp(encoder, 7);
         }
         self.encode_scene_mode(encoder, targets, output, frame, instances, None);
+        self.encode_motion(encoder, targets, instances);
     }
 
     /// Captures omit screen effects/AO. Cube views omit cars; projected views use
@@ -116,7 +123,9 @@ impl Renderer {
         let projected = capture.as_ref().is_some_and(|v| v.kind == super::reflections::CaptureKind::Projected);
         let [r, g, b] = frame.clear_color;
         let [fog_start, fog_end] = frame.fog_range();
-        let mip_bias = match reflection {
+        // A reflection, and a capture while a temporal upscaler is chosen, are drawn at their own size with no
+        // upscale after, so the bias that matches texel density to the output would only sharpen them too much.
+        let mip_bias = match reflection || (targets.is_some() && self.post.has_temporal()) {
             true => 0.0,
             false => self.upscale.texture_lod_bias,
         };
@@ -135,7 +144,11 @@ impl Renderer {
             None => ([0.0; 4], [0.0; 4]),
         };
         let globals = Globals {
-            view_proj: frame.view_proj().to_cols_array_2d(),
+            view_proj: match reflection {
+                true => frame.view_proj(),
+                false => self.world_to_clip(frame),
+            }
+            .to_cols_array_2d(),
             // w is reserved for the HDR extension; reflection contracts stay SDR.
             camera_pos: frame
                 .camera_position
@@ -336,7 +349,7 @@ impl Renderer {
             target,
             depth,
             globals: &self.shared.bindings.globals_bind_group,
-            inverse_view_proj: frame.view_proj().inverse(),
+            inverse_view_proj: self.world_to_clip(frame).inverse(),
         };
         self.effects.draw_soft(&self.device, &self.queue, encoder, &soft);
     }

@@ -9,6 +9,9 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use toml::{Table, Value};
 
+use super::custom_fonts;
+use super::fe_shadows;
+use super::hd_content;
 use super::partial::Partial;
 
 /// The text of the file after `changes` are applied to the table in `existing` (empty text is an empty file).
@@ -106,6 +109,12 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.traffic_lights {
         put("traffic_lights", Value::Boolean(v));
     }
+    if let Some(v) = changes.traffic_avoidance {
+        put("traffic_avoidance", Value::Boolean(v));
+    }
+    if let Some(v) = changes.cop_health_bars {
+        put("cop_health_bars", Value::Boolean(v));
+    }
     if let Some(v) = changes.skid_marks {
         put("skid_marks", Value::Boolean(v));
     }
@@ -172,6 +181,30 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.reflections {
         put("reflections", Value::String(v.to_string()));
     }
+    if let Some(v) = changes.reflection_cube_size {
+        put("reflection_cube_size", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.reflection_mirror_size {
+        put("reflection_mirror_size", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.reflection_pow2 {
+        put("reflection_pow2", Value::Boolean(v));
+    }
+    if let Some(v) = changes.mirror_tint {
+        put("mirror_tint", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.reflection_distance {
+        put("reflection_distance", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.reflection_lod {
+        put("reflection_lod", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.reflection_content {
+        put("reflection_content", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.vehicle_reflection_brightness {
+        put("vehicle_reflection_brightness", Value::String(v.to_string()));
+    }
     if let Some(v) = changes.shadows {
         put("shadows", Value::String(v.to_string()));
     }
@@ -223,6 +256,15 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.h_shifter {
         put("h_shifter", Value::Boolean(v));
     }
+    if let Some(v) = changes.motion_blur {
+        put("motion_blur", Value::Boolean(v));
+    }
+    if let Some(v) = changes.motion_blur_strength {
+        put("motion_blur_strength", Value::Float(f64::from(v)));
+    }
+    fe_shadows::put_into(&changes.fe_shadows, &mut put);
+    hd_content::merge_into(&mut table, &changes.hd_content);
+    custom_fonts::merge_into(&mut table, &changes.custom_fonts);
     toml::to_string(&table).context("serializing the config file")
 }
 
@@ -330,6 +372,7 @@ mod tests {
             hud: Some(false),
             radio: Some(false),
             traffic_lights: Some(false),
+            cop_health_bars: Some(true),
             transmission: Some(crate::settings::Transmission::Manual),
             minimap: Some(crate::settings::MinimapMode::Rotating),
             paddle_up: Some(5),

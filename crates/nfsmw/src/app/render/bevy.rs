@@ -30,12 +30,18 @@ pub fn probe(_api: GraphicsApi) -> Result<(), String> {
     Err("this build has no bevy renderer".to_owned())
 }
 
-/// Join the renderer to the game's `App` (before `run`). Only called once the probe passed.
+/// Join the renderer to the game's `App` (before `run`). Only called once the probe passed. Ray tracing follows the
+/// resolved `ray_tracing` setting, which `run` inserts as `Settings` before it calls this (restart-required).
 #[cfg(feature = "renderer-bevy")]
 pub fn add_plugin(app: &mut App, api: GraphicsApi) {
+    let ray_tracing = app
+        .world()
+        .get_resource::<crate::settings::Settings>()
+        .is_some_and(|settings| settings.ray_tracing != crate::settings::RayTracingLevel::Off);
     app.add_plugins(blackbox_bevy_render::BlackboxBevyRenderPlugin {
         api,
         synchronous_pipeline_compilation: false,
+        ray_tracing,
         ..Default::default()
     });
 }

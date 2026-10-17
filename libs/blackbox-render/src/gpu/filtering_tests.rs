@@ -46,6 +46,8 @@ fn frame() -> FrameParams {
         fog: None,
         scattering: None,
         camera_cut: false,
+
+        shadow_tuning: None,
         surface_light: Some(SurfaceLight {
             ambient: [0.3; 3],
             ambient_alpha: 1.0,

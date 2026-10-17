@@ -1,14 +1,40 @@
 //! What the Bevy renderer can run. PR 9 drew the world path (glossy shading, redirects, the effect and UI
-//! layers); PR 10 adds bloom, tone mapping, FXAA, SMAA, TAA and the FSR 1 pass. Temporal upscalers and ray
-//! tracing still arrive with later PRs.
+//! layers); PR 10 adds bloom, tone mapping, FXAA, SMAA, TAA and the FSR 1 pass; PR 11 adds DLSS Super Resolution
+//! (`dlss.rs`, offered only where Bevy supports it, or always on `dlss-mock`); PR 12 reports ray tracing from the
+//! device's features (`solari.rs`); PR 13b offers FSR 3 on an `fsr3` build when the device can run it (`fsr3.rs`).
+//! FSR 4 still arrives with a later PR.
 
 use blackbox_gfx::{
     AaSet, Antialiasing, Capabilities, GraphicsApi, MIN_RENDER_SCALE, RestartSet, RtSupport, Setting, Tonemap,
     TonemapSet, Upscaler, UpscalerSet,
 };
 
-/// The capabilities on `api`; `compressed_bc` comes from the device.
+/// The capabilities on `api` without DLSS, for tests; the factory uses [`capabilities_with_dlss`].
+#[cfg(test)]
 pub fn capabilities(api: GraphicsApi, compressed_bc: bool) -> Capabilities {
+    capabilities_with_dlss(api, compressed_bc, false)
+}
+
+/// The capabilities on `api`. `dlss_supported` is whether Bevy found DLSS Super Resolution on this machine; the
+/// `dlss-mock` build offers DLSS regardless. No ray tracing and no FSR 3. The factory uses
+/// [`capabilities_with_ray_tracing`].
+#[cfg(test)]
+pub fn capabilities_with_dlss(api: GraphicsApi, compressed_bc: bool, dlss_supported: bool) -> Capabilities {
+    capabilities_with_ray_tracing(api, compressed_bc, dlss_supported, RtSupport::None, false)
+}
+
+/// The capabilities on `api` with `ray_tracing` as the device reports it (see `solari::support`), and FSR 3 offered
+/// when `fsr3_supported` (`fsr3::support`, only ever true in an `fsr3` build).
+pub fn capabilities_with_ray_tracing(
+    api: GraphicsApi,
+    compressed_bc: bool,
+    dlss_supported: bool,
+    ray_tracing: RtSupport,
+    fsr3_supported: bool,
+) -> Capabilities {
+    let mut upscalers = UpscalerSet::of(&[Upscaler::Off, Upscaler::Bilinear, Upscaler::Fsr1]);
+    offer_dlss(&mut upscalers, dlss_supported);
+    offer_fsr3(&mut upscalers, fsr3_supported);
     Capabilities {
         renderer: "bevy",
         api,
@@ -17,15 +43,18 @@ pub fn capabilities(api: GraphicsApi, compressed_bc: bool) -> Capabilities {
         // Bloom and tone mapping need an `Hdr` camera (`PostSettings::needs_hdr`); set only when either runs.
         hdr_targets: true,
         antialiasing: AaSet::of(&[Antialiasing::Off, Antialiasing::Fxaa, Antialiasing::Smaa, Antialiasing::Taa]),
-        upscalers: UpscalerSet::of(&[Upscaler::Off, Upscaler::Bilinear, Upscaler::Fsr1]),
+        upscalers,
         tonemaps: TonemapSet::of(&[Tonemap::Off, Tonemap::Aces]),
         bloom: true,
         scene_treatment: false,
+        // The speed and pursuit blur is a post pass here too (`post::radial_blur`).
+        radial_blur: true,
+        frame_generation: false,
         local_reflections: false,
         projected_reflections: false,
         ambient_occlusion: false,
         soft_shadows: !matches!(api, GraphicsApi::Gl),
-        ray_tracing: RtSupport::None,
+        ray_tracing,
         // Rendering above the surface size is not wired up.
         render_scale: (MIN_RENDER_SCALE, 1.0),
         // Texture samplers are fixed before render-only image uploads; ray tracing also needs a new device.
@@ -33,10 +62,43 @@ pub fn capabilities(api: GraphicsApi, compressed_bc: bool) -> Capabilities {
     }
 }
 
+#[cfg(any(feature = "dlss", feature = "dlss-mock"))]
+fn offer_dlss(upscalers: &mut UpscalerSet, supported: bool) {
+    crate::dlss::offer(upscalers, supported);
+}
+
+/// Builds without DLSS offer nothing extra.
+#[cfg(not(any(feature = "dlss", feature = "dlss-mock")))]
+fn offer_dlss(_upscalers: &mut UpscalerSet, _supported: bool) {}
+
+/// FSR 3 is offered when the build has it and the device can run it (`fsr3::support`).
+#[cfg(feature = "fsr3")]
+fn offer_fsr3(upscalers: &mut UpscalerSet, supported: bool) {
+    crate::fsr3::offer(upscalers, supported);
+}
+
+/// Builds without FSR 3 offer nothing extra.
+#[cfg(not(feature = "fsr3"))]
+fn offer_fsr3(_upscalers: &mut UpscalerSet, _supported: bool) {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use blackbox_gfx::{GraphicsSettings, PostSettings, RayTracing, resolve};
+    use blackbox_gfx::{Denoiser, GraphicsSettings, PostSettings, RayTracing, resolve};
+
+    #[test]
+    fn ray_tracing_is_reported_as_the_device_offers_it() {
+        let offered = RtSupport::Available { denoiser: Some(Denoiser::DlssRr) };
+        let caps = capabilities_with_ray_tracing(GraphicsApi::Vulkan, true, false, offered, false);
+        assert_eq!(caps.ray_tracing, offered);
+        // The default constructors never offer it: nothing said the device has the features.
+        assert_eq!(capabilities(GraphicsApi::Vulkan, true).ray_tracing, RtSupport::None);
+        assert_eq!(
+            capabilities_with_ray_tracing(GraphicsApi::Vulkan, true, false, offered, false).ray_tracing,
+            offered
+        );
+        assert_eq!(capabilities_with_dlss(GraphicsApi::Vulkan, true, true).ray_tracing, RtSupport::None);
+    }
 
     #[test]
     fn pr10_offers_every_post_effect_but_no_ray_tracing_or_temporal_upscaler() {
@@ -46,7 +108,12 @@ mod tests {
             caps.antialiasing,
             AaSet::of(&[Antialiasing::Off, Antialiasing::Fxaa, Antialiasing::Smaa, Antialiasing::Taa])
         );
-        assert_eq!(caps.upscalers, UpscalerSet::of(&[Upscaler::Off, Upscaler::Bilinear, Upscaler::Fsr1]));
+        // The `dlss-mock` build also offers DLSS (`dlss::offer`); no build offers it without a supporting GPU here.
+        let mut upscalers = UpscalerSet::of(&[Upscaler::Off, Upscaler::Bilinear, Upscaler::Fsr1]);
+        if cfg!(feature = "dlss-mock") {
+            upscalers.insert(Upscaler::Dlss);
+        }
+        assert_eq!(caps.upscalers, upscalers);
         assert_eq!(caps.tonemaps, TonemapSet::of(&[Tonemap::Off, Tonemap::Aces]));
         assert!(caps.bloom && caps.hdr_targets);
         assert!(!caps.ray_tracing.is_available());
@@ -65,8 +132,9 @@ mod tests {
             ..GraphicsSettings::default()
         };
         let resolved = resolve(&wanted, &caps);
-        // FSR 3 is not offered yet, so it falls back along the chain to FSR 1, the next best spatial
-        // upscaler this renderer now has; TAA and ACES are both offered too and go straight through.
+        // These caps do not offer FSR 3 (only the device-checked factory path does, see `capabilities_with_ray_tracing`),
+        // so it falls back along the chain to FSR 1, the next best upscaler this renderer has; TAA and ACES are both
+        // offered too and go straight through.
         assert_eq!(resolved.effective.upscaler, Upscaler::Fsr1);
         assert_eq!(resolved.effective.post.tonemap, Tonemap::Aces);
         assert_eq!(resolved.effective.post.antialiasing, Antialiasing::Taa);

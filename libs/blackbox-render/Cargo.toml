@@ -11,6 +11,7 @@ publish.workspace = true
 blackbox-gfx.workspace = true
 blackbox-gpu-passes.workspace = true
 bytemuck.workspace = true
+fsr3-wgpu.workspace = true
 glam.workspace = true
 log.workspace = true
 half = "2.7.1"

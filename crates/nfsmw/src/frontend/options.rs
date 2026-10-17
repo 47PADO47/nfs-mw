@@ -13,12 +13,10 @@ use super::post_options::PostSetting;
 use super::renderer_options::RendererSetting;
 use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
-use crate::settings::availability;
 use crate::settings::{
     CameraMode, HudLayout, MinimapMode, Partial, Percent, RadioHudStyle, Settings, SmokeQuality, Transmission,
     UpscaleMode, WindowMode,
 };
-use blackbox_gfx::Capabilities;
 
 /// A setting a row edits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -40,7 +38,9 @@ pub enum Setting {
     SpeedTrails,
     SpeedTrailStyle,
     ExhaustFlames,
+    CustomFonts,
     TurnSignals,
+    CopHealthBars,
     RearViewMirror,
     SmokeQuality,
     Transmission,
@@ -49,6 +49,7 @@ pub enum Setting {
     DiscordTimePlayed,
     Input(InputSetting),
     Alias(AliasSetting),
+    Hd(hd_options::HdSetting),
     Post(PostSetting),
     Graphics(GraphicsSetting),
     Renderer(RendererSetting),
@@ -58,6 +59,8 @@ pub enum Setting {
     RenderScale,
     Upscaler,
     UpscaleSharpness,
+    /// A row a mod added to the Mods page (`bb.menus`), by its handle; its label, value and control come from the bridge.
+    Mod(u64),
 }
 
 /// What a row's title shows.
@@ -97,6 +100,12 @@ const fn row(setting: Setting, title: Title) -> Row {
 mod category_rows;
 pub use category_rows::rows;
 
+#[path = "hd_options.rs"]
+mod hd_options;
+
+#[path = "options_caps.rs"]
+mod caps_rows;
+
 #[path = "options_steps.rs"]
 mod steps;
 use steps::{cycle, next_scale, nudge};
@@ -131,7 +140,6 @@ fn percent_of(s: &Settings, setting: Setting) -> Option<Percent> {
         Setting::EngineVolume => s.engine_volume,
         Setting::MusicVolume => s.music_volume,
         Setting::SpeechVolume => s.speech_volume,
-        Setting::UpscaleSharpness => s.upscale_sharpness,
         Setting::Graphics(GraphicsSetting::AoIntensity) => s.ao_intensity,
         _ => return None,
     })
@@ -154,19 +162,11 @@ impl Setting {
             // The time played is part of the Discord presence, so it is dimmed while that is off.
             Setting::DiscordTimePlayed => s.discord,
             Setting::RenderScale => matches!(s.upscaler, UpscaleMode::Bilinear | UpscaleMode::Fsr1),
-            Setting::UpscaleSharpness => s.upscaler == UpscaleMode::Fsr1,
+            // The upscalers that sharpen: FSR 1 (its RCAS pass) and FSR 3 (the RCAS of its own pipeline).
+            Setting::UpscaleSharpness => matches!(s.upscaler, UpscaleMode::Fsr1 | UpscaleMode::Fsr3),
             Setting::Renderer(RendererSetting::UpscaleQuality) => s.upscaler.upscaler().is_temporal(),
             _ => true,
         }
-    }
-
-    /// Dependency checks use the running renderer's values, keeping stored preferences intact.
-    pub fn enabled_in(self, s: &Settings, caps: &Capabilities) -> bool {
-        if self == Setting::RenderScale {
-            // Even a temporal request falling back to FSR 1 takes its size from Upscale Quality.
-            return self.enabled(s);
-        }
-        self.enabled(&s.effective(caps))
     }
 
     /// What the data string shows for a toggle.
@@ -178,6 +178,8 @@ impl Setting {
             Setting::Post(setting) => setting.data(s),
             Setting::Graphics(setting) => setting.data(s),
             Setting::Renderer(setting) => setting.data(s),
+            Setting::UpscaleSharpness => Data::Text(steps::sharpening_name(s.upscale_sharpness).to_owned()),
+            Setting::Hd(setting) => setting.data(s),
             Setting::HudLayout => Data::Text(
                 match s.hud_layout {
                     HudLayout::Pc => "PC",
@@ -222,7 +224,9 @@ impl Setting {
             Setting::SpeedTrails => on_off(s.speed_trails),
             Setting::SpeedTrailStyle => Data::Text(s.speed_trail_style.label().into()),
             Setting::ExhaustFlames => on_off(s.exhaust_flames),
+            Setting::CustomFonts => on_off(s.custom_fonts.enabled),
             Setting::TurnSignals => on_off(s.turn_signals),
+            Setting::CopHealthBars => on_off(s.cop_health_bars),
             Setting::RearViewMirror => on_off(s.rear_view_mirror),
             Setting::Discord => on_off(s.discord),
             Setting::DiscordTimePlayed => on_off(s.discord_time_played),
@@ -275,54 +279,6 @@ impl Setting {
         }
     }
 
-    /// The config key of a setting a renderer may not be able to run.
-    fn key(self) -> Option<&'static str> {
-        match self {
-            Setting::Graphics(GraphicsSetting::VisualTreatment) => Some("visual_treatment"),
-            Setting::Graphics(GraphicsSetting::Reflections) => Some("reflections"),
-            Setting::Graphics(GraphicsSetting::RoadReflections) => Some("road_reflections"),
-            Setting::Graphics(GraphicsSetting::TextureFiltering) => Some("texture_filtering"),
-            Setting::Graphics(GraphicsSetting::Shadows) => Some("shadows"),
-            Setting::Graphics(GraphicsSetting::AmbientOcclusion) => Some("ao"),
-            Setting::Upscaler => Some("upscaler"),
-            Setting::Post(PostSetting::Aa) => Some("post_aa"),
-            Setting::Post(PostSetting::Tonemap) => Some("post_tonemap"),
-            Setting::Post(PostSetting::Bloom) => Some("post_bloom"),
-            Setting::Renderer(RendererSetting::RayTracing) => Some("ray_tracing"),
-            _ => None,
-        }
-    }
-
-    /// Whether the renderer can run the setting's current value.
-    pub fn offered(self, s: &Settings, caps: &Capabilities) -> bool {
-        if self == Setting::Graphics(GraphicsSetting::Shadows)
-            && caps.renderer == "blackbox"
-            && caps.api != blackbox_gfx::GraphicsApi::Gl
-        {
-            return true;
-        }
-        self.key().is_none_or(|key| availability::is_offered(key, s, caps))
-    }
-
-    /// [`step`](Self::step), skipping the values the renderer cannot run, so a toggle only cycles through what
-    /// works. A stored value the renderer cannot run (set for another renderer) moves to the next one it can.
-    pub fn advance(self, s: &mut Settings, changed: &mut Partial, forward: bool, caps: &Capabilities) -> bool {
-        if !self.enabled_in(s, caps) {
-            return false;
-        }
-        let before = *s;
-        for _ in 0..MAX_VALUES {
-            self.step_value(s, changed, forward);
-            if s.settle_preset() {
-                changed.graphics_preset = Some(crate::settings::GraphicsPreset::Custom);
-            }
-            if self.offered(s, caps) {
-                break;
-            }
-        }
-        before != *s
-    }
-
     /// Moves the setting one step (`forward`: right, else left) and records the change for the config file.
     /// Returns whether the value changed (a slider at its end does not).
     #[cfg(test)]
@@ -348,24 +304,17 @@ impl Setting {
                 $c.$field = Some($s.$field);
             }};
         }
-        if let Setting::Input(setting) = self {
-            return setting.step(s, changed, forward);
-        }
-        if let Setting::Post(setting) = self {
-            return setting.step(s, changed, forward);
-        }
-        if let Setting::Graphics(setting) = self {
-            return setting.step(s, changed, forward);
-        }
-        if let Setting::Renderer(setting) = self {
-            return setting.step(s, changed, forward);
-        }
         let before = *s;
         match self {
-            Setting::Input(_) | Setting::Alias(_) | Setting::Post(_) | Setting::Graphics(_) | Setting::Renderer(_) => {
-                unreachable!("input, alias, post, graphics and renderer settings are handled above")
-            }
             Setting::AdvancedGraphics => return false,
+            // A Mods row's value lives in its mod (`mod_options.rs`), not in the settings.
+            Setting::Mod(_) => return false,
+            Setting::Input(setting) => return setting.step(s, changed, forward),
+            Setting::Post(setting) => return setting.step(s, changed, forward),
+            Setting::Graphics(setting) => return setting.step(s, changed, forward),
+            Setting::Renderer(setting) => return setting.step(s, changed, forward),
+            Setting::Hd(setting) => return setting.step(s, changed, forward),
+            Setting::Alias(_) => unreachable!("alias rows never reach the settings step"),
             Setting::HudLayout => {
                 let layouts = [HudLayout::Pc, HudLayout::Classic, HudLayout::Xbox360];
                 let at = layouts.iter().position(|layout| *layout == s.hud_layout).unwrap_or(0);
@@ -394,7 +343,7 @@ impl Setting {
                 changed.upscaler = Some(s.upscaler);
             }
             Setting::UpscaleSharpness => {
-                s.upscale_sharpness = nudge(s.upscale_sharpness, forward);
+                s.upscale_sharpness = steps::next_sharpening(s.upscale_sharpness, forward);
                 changed.upscale_sharpness = Some(s.upscale_sharpness);
             }
             Setting::MasterVolume => {
@@ -445,7 +394,12 @@ impl Setting {
                 changed.speed_trail_style = Some(s.speed_trail_style);
             }
             Setting::ExhaustFlames => toggle!(s, changed, exhaust_flames),
+            Setting::CustomFonts => {
+                s.custom_fonts.enabled = !s.custom_fonts.enabled;
+                changed.custom_fonts.enabled = Some(s.custom_fonts.enabled);
+            }
             Setting::TurnSignals => toggle!(s, changed, turn_signals),
+            Setting::CopHealthBars => toggle!(s, changed, cop_health_bars),
             Setting::RearViewMirror => toggle!(s, changed, rear_view_mirror),
             Setting::Discord => toggle!(s, changed, discord),
             Setting::DiscordTimePlayed => toggle!(s, changed, discord_time_played),

@@ -16,6 +16,8 @@ fn frame(colour: [f32; 3]) -> FrameParams {
         scattering: None,
         surface_light: None,
         camera_cut: false,
+
+        shadow_tuning: None,
     }
 }
 fn hdr(r: &mut super::Renderer) {
@@ -129,6 +131,39 @@ fn hdr_ui_preserves_additive_colour_and_coverage_without_occluding_the_scene() {
         assert!((pixel[0] - expected).abs() < 0.005, "{texture:?}/{vertex:?}: {pixel:?}, expected {expected}");
         assert!(pixel.iter().all(|value| value.is_finite()));
     }
+}
+
+#[test]
+#[ignore = "requires a real GPU"]
+fn temporal_upscaling_keeps_hdr_highlights_and_display_mapping_after_capture() {
+    use blackbox_gfx::{GraphicsSettings, RenderBackend, UpscaleQuality};
+    let _serial = test_support::serial();
+    let mut r = test_support::headless((64, 32)).expect("HDR temporal adapter");
+    assert!(r.capabilities().upscalers.contains(Upscaler::Fsr3));
+    r.output = super::output::Output::texture_format(&r.device, (64, 32), wgpu::TextureFormat::Rgba16Float);
+    hdr(&mut r);
+    r.apply_graphics(&GraphicsSettings {
+        upscaler: Upscaler::Fsr3,
+        upscale_quality: UpscaleQuality::Quality,
+        ..Default::default()
+    });
+    let mut bright = frame([16.0; 3]);
+    bright.projection = Projection::PerspectiveInfiniteReverse { fov_y: 1.0, aspect: 2.0, near: 0.1 };
+    for _ in 0..8 {
+        r.render(&bright, &[]).unwrap();
+    }
+    assert_eq!(r.post_passes(), ["fsr3", "hdr-display", "resolve"]);
+    let super::output::Output::Texture { texture, .. } = &r.output else { unreachable!() };
+    let pixels = r.read_raw_texture(texture, (64, 32), 8).unwrap();
+    for pixel in pixels.as_chunks::<8>().0 {
+        let red = half::f16::from_le_bytes([pixel[0], pixel[1]]).to_f32();
+        assert!((12.0..=12.5).contains(&red), "temporal reconstruction clipped the HDR peak: {red}");
+    }
+    let mapping = r.post.display;
+    r.capture(32, 16, &bright, &[]).unwrap();
+    assert_eq!(r.post.display, mapping);
+    assert_eq!(r.post_passes(), ["fsr3", "hdr-display", "resolve"]);
+    r.render(&bright, &[]).unwrap();
 }
 
 #[test]

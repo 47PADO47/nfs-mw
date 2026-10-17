@@ -2,8 +2,10 @@
 //! Format: `docs/formats/frontend.md#fonts-fengfont-decomp--verified`.
 
 mod layout;
+mod native_size;
 
 pub use layout::{GlyphQuad, TextLayout, TextStyle};
+pub use native_size::uv_size;
 
 use crate::error::{Error, Result};
 use crate::hash::fe_hash_upper;

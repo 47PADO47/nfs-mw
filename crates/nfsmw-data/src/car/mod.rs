@@ -10,6 +10,7 @@ pub mod damage;
 mod ecar;
 pub mod exhaust;
 pub mod lights;
+pub mod mods;
 mod paint;
 mod parts;
 pub mod physics;

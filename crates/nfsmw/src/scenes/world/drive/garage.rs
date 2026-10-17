@@ -63,6 +63,7 @@ impl Drive {
         std::mem::replace(&mut self.rig, rig).release(renderer);
         // The flames were read from the old model's pipes; the next frame reads the new ones.
         self.flames.unload();
+        self.tail_trails.clear();
         self.set_damaged_windows(renderer, sun);
     }
 }

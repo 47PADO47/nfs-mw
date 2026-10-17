@@ -13,7 +13,7 @@ use crate::app::window::WindowModes;
 use crate::audio::Audio;
 use crate::devtools::logbuf;
 use crate::input::Bindings;
-use crate::settings::{RendererKind, Settings, availability};
+use crate::settings::{RendererKind, Settings, WorldTuning, availability};
 
 /// Run the lines typed since last frame and print what they say.
 #[allow(clippy::too_many_arguments)]
@@ -26,6 +26,7 @@ pub fn execute(
     mut window: Single<&mut Window, With<PrimaryWindow>>,
     (modes, mut bindings): (Res<WindowModes>, ResMut<Bindings>),
     mut exit: MessageWriter<AppExit>,
+    mods: Option<NonSend<crate::modding::Mods>>,
 ) {
     let host = &mut *host;
     console.scene_commands = host.scene.commands();
@@ -53,6 +54,13 @@ pub fn execute(
         let result = match parse::parse(&line) {
             Ok(None) => continue,
             Ok(Some(Command::Keys)) => Ok(bindings.describe()),
+            Ok(Some(Command::Mods)) => Ok(crate::modding::listing(mods.as_deref())),
+            Ok(Some(Command::Help)) => Ok(help(host.scene.commands(), &crate::modding::help_entries(mods.as_deref()))),
+            // A mod command is consulted after the built-ins and before the scene's own commands.
+            Ok(Some(Command::Scene { name, args })) if crate::modding::has_command(mods.as_deref(), &name) => {
+                let args: Vec<&str> = args.iter().map(String::as_str).collect();
+                crate::modding::run_command(mods.as_deref(), &name, &args)
+            }
             Ok(Some(Command::Bindings { name, args })) => {
                 crate::input::commands::run(&mut bindings, &settings, &name, &args)
             }
@@ -79,7 +87,7 @@ fn run(
     exit: &mut MessageWriter<AppExit>,
 ) -> Result<String, String> {
     match command {
-        Command::Help => Ok(help(host.scene.commands())),
+        Command::Help => Err("help is answered by the console before commands run".into()),
         Command::Clear => {
             logbuf::clear();
             Ok(String::new())
@@ -94,6 +102,7 @@ fn run(
         Command::Monitors => Ok(modes.monitors.clone()),
         Command::Gfx => gfx(settings, host),
         Command::Keys => Err("keys is answered by the console before commands run".into()),
+        Command::Mods => Err("mods is answered by the console before commands run".into()),
         Command::Bindings { .. } => Err("bindings are answered by the console before commands run".into()),
         Command::Set { key, value } => set_live(settings, host, &key, &value),
         Command::Resolution { width, height } => {
@@ -174,14 +183,24 @@ pub(super) fn gfx(settings: &Settings, host: &mut Host) -> Result<String, String
     Ok(gfx_cmd::report(settings, renderer.info(), renderer.capabilities(), resolved, crate::app::BEVY_COMPILED))
 }
 
-fn help(scene: &[(&str, &str)]) -> String {
-    let width = BUILT_IN.iter().chain(scene).map(|(usage, _)| usage.len()).max().unwrap_or(0);
+/// The lines of `help`: the built-in commands, then the scene's and the mods' (usage, description) pairs.
+fn help(scene: &[(&str, &str)], mods: &[(String, String)]) -> String {
+    let others: Vec<(&str, &str)> =
+        scene.iter().copied().chain(mods.iter().map(|(usage, what)| (usage.as_str(), what.as_str()))).collect();
+    let width = BUILT_IN.iter().chain(&others).map(|(usage, _)| usage.len()).max().unwrap_or(0);
     BUILT_IN
         .iter()
-        .chain(scene)
+        .chain(&others)
         .map(|(usage, what)| format!("  {usage:<width$}  {what}"))
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+impl Console {
+    /// Queue lines for the next frames, as `--exec` does. The mods' `bb.commands.run` uses this.
+    pub(crate) fn queue_lines(&mut self, lines: Vec<String>) {
+        self.pending.extend(lines);
+    }
 }
 
 /// Push changed settings into the parts that hold them: the frame limiter and the swapchain.
@@ -192,6 +211,7 @@ pub fn sync_settings(settings: Res<Settings>, mut host: NonSendMut<Host>, mut ap
     {
         host.set_rain(settings.always_rain, settings.rain_amount.amplitude());
     }
+    host.set_world_tuning(WorldTuning::from(&*settings));
     if applied.as_ref().is_none_or(|before| before.spark_style != settings.spark_style) {
         host.set_spark_style(settings.spark_style);
     }
@@ -239,9 +259,11 @@ mod tests {
 
     #[test]
     fn help_lists_built_in_and_scene_commands_aligned() {
-        let text = help(&[("car <folder>", "change the car")]);
+        let mods = [("bump".to_owned(), "bump the day (mod example.bump)".to_owned())];
+        let text = help(&[("car <folder>", "change the car")], &mods);
         assert!(text.contains("quit"));
         assert!(text.contains("car <folder>"));
+        assert!(text.contains("bump the day (mod example.bump)"));
         let scene = [("car <folder>", "change the car")];
         let columns: Vec<usize> = BUILT_IN
             .iter()

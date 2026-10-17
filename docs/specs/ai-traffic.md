@@ -9,6 +9,8 @@ navigator are in [ai-road-network.md](ai-road-network.md), the look-ahead trail 
 [ai-driver-control.md](ai-driver-control.md). Provenance: [provenance/ai-traffic.md](../provenance/ai-traffic.md).
 For the tag meanings, see [evidence tags](../README.md#evidence-tags).
 
+Cars in the way (lane, overtake, stuck and crash behaviour, and the stopping-distance conflict): [ai-traffic-obstacles.md](ai-traffic-obstacles.md).
+
 - **Sources read:** [dbalatoni13/nfsmw](https://github.com/dbalatoni13/nfsmw) (CC0-1.0, decompiled; GameCube
   build), under `src/Speed/Indep/Src`: `AI/Actions/AIActionTraffic.cpp`, `AI/Common/AIVehicleTraffic.cpp`,
   `AI/Common/AIVehicle.cpp`, `AI/Common/AIGoal.cpp`, `AI/AIVehicle.h`, `AI/Activities/AvoidableManager.cpp`,

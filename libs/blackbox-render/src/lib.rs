@@ -28,7 +28,7 @@ pub use blackbox_gfx::{
     MeshDesc, MeshHandle, ParseBackendError, ParseGraphicsApiError, PixelFormat, PostEffect, PostSettings, RenderError,
     Shading, SkyGradient, TextureDesc, TextureHandle, TexturedEffect, Tonemap, UiLayer, UiMesh, UiTextureId,
     UiTexturePatch, UiVertex, Upscaler, Vertex, clamp_render_scale, clamp_texture_lod_bias, clamp_upscale_sharpness,
-    scaled_size, suggested_texture_lod_bias,
+    scaled_size, suggested_temporal_texture_lod_bias, suggested_texture_lod_bias,
 };
 pub use gpu::{Renderer, available_apis};
 pub use options::RendererOptions;

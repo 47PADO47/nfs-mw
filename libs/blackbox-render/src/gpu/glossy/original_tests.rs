@@ -228,6 +228,8 @@ impl Scene {
             scattering: None,
             surface_light: None,
             camera_cut: false,
+
+            shadow_tuning: None,
         };
         Self { mesh, material, texture, frame, model: fixture.model }
     }

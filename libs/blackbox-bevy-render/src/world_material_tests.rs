@@ -35,6 +35,7 @@ fn frame() -> FrameParams {
             diffuse: [0.3, 0.2, 0.1],
         }),
         camera_cut: false,
+        shadow_tuning: None,
     }
 }
 

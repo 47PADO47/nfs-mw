@@ -177,6 +177,8 @@ fn capture(renderer: &mut Renderer, f: &Fixture, blend: BlendMode) -> RgbaImage 
             reflective_specular_scale: 1.0,
         }),
         camera_cut: false,
+
+        shadow_tuning: None,
     };
     renderer.render(&frame, &[Instance::new(mesh, Mat4::IDENTITY)]).unwrap();
     let image = renderer.read_output().expect("headless output").unwrap();

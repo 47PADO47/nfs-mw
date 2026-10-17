@@ -44,6 +44,16 @@ pub(super) fn plan(pass_count: usize) -> Vec<Step> {
         .collect()
 }
 
+/// The size a pass that is not last writes: its own `extent`, except that once a pass has upscaled (`upscaled`)
+/// every pass after it writes the output size too. Spatial upscalers sit last, so for them this is the pass's own
+/// extent; a temporal upscaler sits first and the effects that follow it run on the upscaled image.
+pub(super) fn written_extent(upscaled: bool, extent: Extent) -> Extent {
+    match upscaled {
+        true => Extent::Output,
+        false => extent,
+    }
+}
+
 /// Where a pass of size `new` goes in a chain whose passes write `extents` (the last is the resolve
 /// pass), when it is asked to run at `index`. An output-size pass goes right before the resolve pass
 /// whatever the index; a render-size pass goes at `index` but stays before the first output-size pass.
@@ -91,6 +101,14 @@ mod tests {
                 assert_eq!(steps[i + 1].source, Source::Scratch(written));
             }
         }
+    }
+
+    #[test]
+    fn passes_after_an_upscale_write_the_output_size() {
+        assert_eq!(written_extent(false, Extent::Render), Extent::Render);
+        assert_eq!(written_extent(false, Extent::Output), Extent::Output);
+        assert_eq!(written_extent(true, Extent::Render), Extent::Output);
+        assert_eq!(written_extent(true, Extent::Output), Extent::Output);
     }
 
     #[test]

@@ -7,7 +7,7 @@ they apply after restarting. Unsupported renderer features remain hidden.
 
 Controls stay selectable when their parent is off, but are dimmed and ignore
 adjustment. Smoke Quality requires Tire Smoke. Render Scale requires spatial
-upscaling; Upscale Sharpness requires FSR 1. Temporal upscalers own resolution and
+upscaling; Sharpening (Off, Medium, High) requires FSR 1 or FSR 3. Temporal upscalers own resolution and
 anti-aliasing, so they enable Upscale Quality and disable those manual controls.
 The active renderer's resolved settings determine availability: a saved DLSS
 preference falling back to FSR 1 permits manual anti-aliasing and sharpness.

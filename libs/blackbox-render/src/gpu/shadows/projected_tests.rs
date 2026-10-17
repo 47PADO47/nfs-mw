@@ -13,6 +13,8 @@ fn frame(eye: Vec3, sun: Vec3) -> FrameParams {
         scattering: None,
         surface_light: None,
         camera_cut: false,
+
+        shadow_tuning: None,
     }
 }
 

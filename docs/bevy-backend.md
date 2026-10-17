@@ -2,7 +2,7 @@
 
 `libs/blackbox-bevy-render` is an optional renderer for the games that implements the same
 [`RenderBackend`](../libs/blackbox-gfx) trait as the native `blackbox-render`. It runs inside the game's own
-Bevy `App`, behind the `renderer-bevy` cargo feature of `nfsmw` (off by default), and is chosen with the
+Bevy `App`, behind the `renderer-bevy` cargo feature of `nfsmw` (on by default; `--no-default-features` leaves it out), and is chosen with the
 [`renderer`](renderers.md) setting. This page is for developers: how it works, how it was measured, what is
 missing. The decision it feeds is in [ADR 0004](decisions/0004-swappable-renderers.md).
 
@@ -10,8 +10,8 @@ missing. The decision it feeds is in [ADR 0004](decisions/0004-swappable-rendere
 blending, sky, headless capture) has glossy shading, the lighting rig and environment, texture redirects,
 the world effect layer and the UI layer (PR 9), and now bloom, tone mapping, FXAA, SMAA, TAA (jitter,
 motion vectors, `camera_cut`), the render scale and FSR 1 (PR 10); see "PR 9" and "PR 10" below. Temporal
-upscalers (FSR 3/4, DLSS) and ray tracing still belong to later PRs; the facade accepts those calls, logs
-once that they are ignored, and draws nothing for them.
+upscalers (FSR 3/4) still belong to later PRs; ray tracing (PR 12, Solari, `solari.rs`) is startup-gated, see
+status.md section 3d. The facade logs once that other calls are ignored, and draws nothing for them.
 
 ```sh
 cargo run --release -p nfsmw --features renderer-bevy -- view-world --renderer bevy
@@ -93,11 +93,14 @@ blended layers, is off by up to about 12 levels for that reason. See the results
   `FOG`, `GLOSSY`) by `Opaque`, `AlphaTest` (`Mask(0.5)`, discard in the shader), `AlphaBlend` and
   `Additive` (the exact native blend states, colour written only so captures stay opaque). Culling is off,
   as native. The camera prepass is off; optional shadow depth handles opaque and alpha-tested materials
-  (see [soft shadows](soft-shadows.md)). The uniform holds the fog colour and range
-  and the light direction; it is rewritten on all materials only when a frame's values differ from the
-  last. The native texture LOD bias rides on the camera's `MipBias` (read as `view.mip_bias`). Every
-  material also carries the glossy uniform, the lighting rig and the environment cube map (unused unless
-  the shading is `Glossy`): cheap enough, and keeps one material type instead of two.
+  (see [soft shadows](soft-shadows.md)). The scene's fog, light direction, tone-map flag and glossy lighting rig
+  are not in the material: they live in one shared `ShaderBuffer` (`material/scene.rs`), bound by every material as
+  a read-only storage buffer (binding 0) and rewritten only when a frame's values differ from the last. Its size
+  never changes, so Bevy writes the same GPU buffer in place and touches no material, bind group or entity; the
+  day-night clock changes the values every frame, and copying them into the materials rebuilt every one. The native texture LOD bias rides on the camera's `MipBias` (read as `view.mip_bias`). A
+  material keeps only the texture, the glossy constants (own uniform) and the environment cube map (unused unless
+  the shading is `Glossy`; updated on the glossy materials only when the caller sets a new one): plain per-material
+  data, so it can later be made `#[bindless]`.
 - **`redirect_texture`:** a `HashMap<usize, usize>` in `WorldState`, consulted when a draw becomes a
   material; existing materials keyed on the redirected number are repointed in place, not respawned. See
   "PR 9" for the lighting rig, the environment and the effect and UI layers.
@@ -455,7 +458,7 @@ is allocated when off", `docs/plans/gfx-renderers/upscalers-settings.md` §5): n
   are wrong (their shared shaders only branch on `is_srgb`, not "linear HDR") — not caught by the PR 10
   tests, which use testkit scenes without an effect or UI layer. A follow-up needs a third entry-point
   variant in `blackbox-gpu-passes` for a linear, non-sRGB target.
-- Temporal upscalers (FSR 3/4) and DLSS, which need PR 11, 13b and the DLSS SDK; ray tracing needs PR 12.
+- Temporal upscalers (FSR 3/4) need PR 13b; DLSS needs the DLSS SDK (PR 11); Solari (PR 12) lights opaque world stand-ins on an RTX card; untextured stand-ins draw white because traced meshes carry no vertex colour (status.md section 3d).
 - No hitch measurement for tile streaming, and the frame-time/CPU/memory table above is still Iris Xe
   only; PR 9 was functionally verified (testkit parity, a driving screenshot, the main menu) on an NVIDIA
   RTX 4070 SUPER over Vulkan, but the benchmark was not repeated there; PR 10's own testing was GPU-test
@@ -476,11 +479,10 @@ is allocated when off", `docs/plans/gfx-renderers/upscalers-settings.md` §5): n
   `detailed_particles`, and that scene's digests are pinned for the native renderer (changing it needs
   regenerating those on the recorded hardware, which this session doesn't have) — a gap for the next PR
   that actually turns detailed particles on (`smoke-quality high`).
-- **MSRV:** `cargo +1.95.0 check -p nfsmw --features renderer-bevy` **fails**: Bevy 0.20's WESL stack (`wesl`,
-  `wesl-core`, `wesl-macros`, `wgsl-parse`, `wgsl-types` 0.6) requires rustc 1.97.1. The default build
-  (`cargo +1.95.0 check -p nfsmw`) still passes. So only `blackbox-bevy-render` declares
-  `rust-version = "1.97.1"`; the workspace stays on 1.95 because nothing else depends on the crate. Whether to
-  raise the whole workspace is an owner decision (it would be needed to check `--workspace` on 1.95).
+- **MSRV:** Bevy 0.20's WESL stack (`wesl`, `wesl-core`, `wesl-macros`, `wgsl-parse`, `wgsl-types` 0.6) requires
+  rustc 1.97.1. `nfsmw` builds the Bevy renderer by default now, so it declares `rust-version = "1.97.1"` too; the
+  workspace stays on 1.95 for the other crates, and `cargo +1.95.0 check -p nfsmw --no-default-features` is the
+  build without the renderer.
 - **Compile time and binary size deltas:** measured above.
 - **How Bevy gets the existing window:** it does not need to be given one; see "The window".
 

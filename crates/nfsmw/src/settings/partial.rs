@@ -2,6 +2,8 @@
 
 use blackbox_gfx::GraphicsApi;
 
+use super::custom_fonts::CustomFontsLayer;
+use super::hd_content::HdContentLayer;
 use super::{
     CameraMode, CarShading, Deadzone, GraphicsPreset, HudLayout, MinimapMode, Monitor, PostAa, PostBloom, PostTonemap,
     RadioHudStyle, RenderScale, RendererKind, Resolution, Sensitivity, SmokeQuality, Transmission, UpscaleMode,
@@ -90,6 +92,8 @@ pub struct Partial {
     /// `ShowHUDOnLookBack`: keep the HUD up while looking back.
     pub show_hud_on_look_back: Option<bool>,
     pub traffic_lights: Option<bool>,
+    pub traffic_avoidance: Option<bool>,
+    pub cop_health_bars: Option<bool>,
     pub smoke_quality: Option<SmokeQuality>,
     pub skid_marks: Option<bool>,
     pub collision_sparks: Option<bool>,
@@ -102,6 +106,8 @@ pub struct Partial {
     pub rear_view_mirror: Option<bool>,
     pub discord: Option<bool>,
     pub discord_time_played: Option<bool>,
+    /// Which mods may load (`mods`).
+    pub mods: Option<super::mods::ModsMode>,
     pub transmission: Option<Transmission>,
     pub camera_mode: Option<CameraMode>,
     pub minimap: Option<MinimapMode>,
@@ -115,6 +121,18 @@ pub struct Partial {
     pub road_reflection_resolution: Option<super::RoadReflectionResolution>,
     pub visual_treatment: Option<super::VisualTreatment>,
     pub reflections: Option<super::ReflectionQuality>,
+    pub reflection_cube_size: Option<super::ReflectionSize>,
+    pub reflection_mirror_size: Option<super::ReflectionSize>,
+    pub reflection_pow2: Option<bool>,
+    pub mirror_tint: Option<super::MirrorTint>,
+    /// How far the reflection captures reach (`reflection_distance`).
+    pub reflection_distance: Option<blackbox_gfx::reflection::distance::ReflectionDistance>,
+    /// The car cube's scenery detail: its own face or the main view's (`reflection_lod`).
+    pub reflection_lod: Option<blackbox_gfx::reflection::lod::ReflectionLod>,
+    /// What the car cube adds to the scenery (`reflection_content`).
+    pub reflection_content: Option<blackbox_gfx::reflection::content::ReflectionContent>,
+    /// The vehicles' environment reflection brightness, a factor (`vehicle_reflection_brightness`).
+    pub vehicle_reflection_brightness: Option<blackbox_gfx::reflection::brightness::VehicleBrightness>,
     pub shadows: Option<super::ShadowQuality>,
     pub ao: Option<super::AoQuality>,
     pub ao_intensity: Option<Percent>,
@@ -130,6 +148,16 @@ pub struct Partial {
     pub paddle_down: Option<u32>,
     pub manual_clutch: Option<bool>,
     pub h_shifter: Option<bool>,
+    /// The high-speed radial blur on or off (`motion_blur`).
+    pub motion_blur: Option<bool>,
+    /// The radial blur's strength multiplier, 0 to 2 (`motion_blur_strength`).
+    pub motion_blur_strength: Option<f32>,
+    /// The HD content options (`[hd_content]`).
+    pub hd_content: HdContentLayer,
+    /// The custom fonts (`[custom_fonts]`).
+    pub custom_fonts: CustomFontsLayer,
+    /// The front-end shadows (`fe_shadows*`).
+    pub fe_shadows: super::fe_shadows::FeShadowsLayer,
 }
 
 impl Partial {
@@ -175,6 +203,8 @@ impl Partial {
             no_rev_limiter: self.no_rev_limiter.or(lower.no_rev_limiter),
             show_hud_on_look_back: self.show_hud_on_look_back.or(lower.show_hud_on_look_back),
             traffic_lights: self.traffic_lights.or(lower.traffic_lights),
+            traffic_avoidance: self.traffic_avoidance.or(lower.traffic_avoidance),
+            cop_health_bars: self.cop_health_bars.or(lower.cop_health_bars),
             smoke_quality: self.smoke_quality.or(lower.smoke_quality),
             skid_marks: self.skid_marks.or(lower.skid_marks),
             collision_sparks: self.collision_sparks.or(lower.collision_sparks),
@@ -186,6 +216,7 @@ impl Partial {
             rear_view_mirror: self.rear_view_mirror.or(lower.rear_view_mirror),
             discord: self.discord.or(lower.discord),
             discord_time_played: self.discord_time_played.or(lower.discord_time_played),
+            mods: self.mods.or(lower.mods),
             transmission: self.transmission.or(lower.transmission),
             camera_mode: self.camera_mode.or(lower.camera_mode),
             minimap: self.minimap.or(lower.minimap),
@@ -199,6 +230,14 @@ impl Partial {
             road_reflection_resolution: self.road_reflection_resolution.or(lower.road_reflection_resolution),
             visual_treatment: self.visual_treatment.or(lower.visual_treatment),
             reflections: self.reflections.or(lower.reflections),
+            reflection_cube_size: self.reflection_cube_size.or(lower.reflection_cube_size),
+            reflection_mirror_size: self.reflection_mirror_size.or(lower.reflection_mirror_size),
+            reflection_pow2: self.reflection_pow2.or(lower.reflection_pow2),
+            mirror_tint: self.mirror_tint.or(lower.mirror_tint),
+            reflection_distance: self.reflection_distance.or(lower.reflection_distance),
+            reflection_lod: self.reflection_lod.or(lower.reflection_lod),
+            reflection_content: self.reflection_content.or(lower.reflection_content),
+            vehicle_reflection_brightness: self.vehicle_reflection_brightness.or(lower.vehicle_reflection_brightness),
             shadows: self.shadows.or(lower.shadows),
             ao: self.ao.or(lower.ao),
             ao_intensity: self.ao_intensity.or(lower.ao_intensity),
@@ -213,6 +252,11 @@ impl Partial {
             paddle_down: self.paddle_down.or(lower.paddle_down),
             manual_clutch: self.manual_clutch.or(lower.manual_clutch),
             h_shifter: self.h_shifter.or(lower.h_shifter),
+            motion_blur: self.motion_blur.or(lower.motion_blur),
+            motion_blur_strength: self.motion_blur_strength.or(lower.motion_blur_strength),
+            hd_content: self.hd_content.or(lower.hd_content),
+            custom_fonts: self.custom_fonts.or(lower.custom_fonts),
+            fe_shadows: self.fe_shadows.or(lower.fe_shadows),
         }
     }
 }

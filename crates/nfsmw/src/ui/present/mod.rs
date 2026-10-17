@@ -7,6 +7,7 @@
 
 pub mod blackbox;
 mod mask;
+mod repeat;
 
 pub use blackbox::BlackboxPresenter;
 

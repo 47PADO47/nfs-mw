@@ -8,13 +8,11 @@
 use std::collections::BTreeSet;
 use std::rc::Rc;
 
-use super::support;
 use blackbox_pursuit::formation::finisher::{Event, Finisher};
 use blackbox_pursuit::formation::slots::assign;
 use blackbox_pursuit::formation::{Formation, Picker};
 use blackbox_pursuit::helicopter::Helicopter;
 use blackbox_pursuit::rules::{self, Contact};
-use blackbox_pursuit::support::Strategy;
 use blackbox_pursuit::{Busted, Cooldown, EndReason, Heat, Infraction, InfractionLog};
 use blackbox_render::Instance;
 use blackbox_roads::{HeliSheet, RandomSource, SegmentFilter, TrackZone, closest_segment, to_zone_space};
@@ -25,6 +23,7 @@ use super::traffic_events::SPEEDING_MPS;
 use crate::scenes::world::drive::{CarPose, CarRig};
 use crate::scenes::world::space;
 use crate::settings::bartender::BartenderSettings;
+use crate::settings::extra_options;
 use crate::settings::fairbusts::{FairBustsSettings, ResetPenalty};
 use crate::settings::helicopter::HeliSettings;
 
@@ -60,7 +59,7 @@ pub struct PlayerView {
     pub forward: Vec3,
     /// Speed along the car, m/s (negative in reverse).
     pub speed: f32,
-    /// Nitrous left, 0 to 1 (0 without the part).
+    /// Nitrous burning, 0 to 1 (0 while it does not burn and without the part).
     pub nitrous: f32,
     /// The throttle held this frame, 0 to 1. A hit with the throttle down counts as deliberate (a proxy: the install's
     /// rule is not read yet).
@@ -146,6 +145,11 @@ pub struct Police {
     roadblock_requested: bool,
     /// A roadblock of this chase stands (a heavy roadblock is then not rolled again).
     roadblock_standing: bool,
+    /// A ram or leader request was rolled and waits for the chase to take it (`take_support_request`).
+    support_requested: Option<blackbox_pursuit::support::Request>,
+    /// The heat the priority check of the leader options was last run for, and whether it has run (once per heat).
+    priority_heat: u32,
+    priority_done: bool,
     /// The HIDDEN track zones of the track (`TRACK_PATH_ZONES`, kind 8).
     hidden_zones: Vec<TrackZone>,
     /// The TUNNEL track zones of the track (kind `TUNNEL_ZONE`), read once per track.
@@ -156,6 +160,8 @@ pub struct Police {
     busted: Busted,
     /// The cop cars wrecked in this chase (`IncNumCopsDestroyed`); reset when a chase starts, kept after it ends.
     cops_destroyed: u32,
+    /// The bust sequence after the meter fills (`police/busted/flow.rs`); reset when a chase starts.
+    bust: busted::BustFlow,
 }
 
 impl Default for Police {
@@ -163,6 +169,7 @@ impl Default for Police {
         Self {
             heat: None,
             infractions: InfractionLog::default(),
+            bust: busted::BustFlow::default(),
             heli: None,
             heli_settings: HeliSettings::default(),
             settings: BartenderSettings::default(),
@@ -186,6 +193,9 @@ impl Default for Police {
             support_timer: SUPPORT_CHECK,
             roadblock_requested: false,
             roadblock_standing: false,
+            support_requested: None,
+            priority_heat: 0,
+            priority_done: false,
             hidden_zones: Vec::new(),
             tunnel_zones: Vec::new(),
             heli_sheet: None,
@@ -216,12 +226,14 @@ impl Police {
     /// A chase starts at `level`: the heat is at least the base and at least `level`, the infraction log empties and
     /// the helicopter's first join is set.
     pub fn begin(&mut self, level: u32) {
-        let mut heat = Heat::new(1.0, 10.0);
+        let bounds = extra_options::active().heat_bounds().unwrap_or_default();
+        let mut heat = Heat::new(bounds.min, bounds.max);
         heat.begin();
         heat.raise_to(self.carried_heat);
         heat.raise_to(level as f32);
         self.heat = Some(heat);
         self.infractions.clear();
+        self.bust.reset();
         self.heli_wait = FIRST_JOIN;
         self.seen = true;
         self.cooldown = Cooldown::default();
@@ -231,6 +243,9 @@ impl Police {
         self.support_timer = SUPPORT_CHECK;
         self.roadblock_requested = false;
         self.roadblock_standing = false;
+        self.support_requested = None;
+        self.priority_heat = 0;
+        self.priority_done = false;
         self.busted.reset();
         self.reset_blink = 0.0;
         self.cops_destroyed = 0;
@@ -355,28 +370,6 @@ impl Police {
         evaded
     }
 
-    /// The support check (spec section 6): every `SUPPORT_CHECK` seconds, after the level's minimum delay, while the
-    /// cops see the player, the heavy options of the level are rolled. A roadblock roll is recorded for the world to place;
-    /// the other strategies are logged (their cars are not built).
-    fn tick_support(&mut self, dt: f32, seen: bool, level: u32, random: f32) {
-        self.pursuit_time += dt;
-        self.support_timer -= dt;
-        if self.support_timer > 0.0 || self.pursuit_time < support::minimum_delay(level) {
-            return;
-        }
-        self.support_timer = SUPPORT_CHECK;
-        if !seen {
-            return;
-        }
-        let roll =
-            blackbox_pursuit::support::roll(&support::heavy_options(level), &[], random, self.roadblock_standing);
-        match roll.map(|r| r.strategy) {
-            Some(Strategy::HeavyRoadblock) => self.roadblock_requested = true,
-            Some(other) => log::info!("support: {other:?} rolled (not built)"),
-            None => {}
-        }
-    }
-
     /// Whether a roadblock was asked for since the last call (the world places it).
     pub fn take_roadblock_request(&mut self) -> bool {
         std::mem::take(&mut self.roadblock_requested)
@@ -430,8 +423,12 @@ impl Police {
 
     /// The offences of this frame: speeding, and losing the cops (resisting arrest).
     fn record_infractions(&mut self, player: &PlayerView, sensed: Sensed) {
-        if rules::speeding(player.speed, SPEEDING_MPS) {
+        let limits = extra_options::active();
+        if rules::speeding(player.speed, limits.speeding_limit().unwrap_or(SPEEDING_MPS)) {
             self.infractions.record(Infraction::Speeding, &self.settings.fines);
+        }
+        if limits.reckless_limit().is_some_and(|limit| rules::speeding(player.speed, limit)) {
+            self.infractions.record(Infraction::RecklessDriving, &self.settings.fines);
         }
         if rules::off_road(sensed.on_road, sensed.seen, sensed.nearest_cop) {
             self.infractions.record(Infraction::OffRoad, &self.settings.fines);
@@ -475,7 +472,9 @@ mod busted;
 mod escape;
 mod heli;
 mod helpers;
+mod mod_feed;
 mod original_camera;
+mod roll;
 mod world;
 
 use helpers::{horizontal, render_rotation};

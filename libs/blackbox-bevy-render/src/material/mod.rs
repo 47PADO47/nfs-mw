@@ -6,8 +6,9 @@
 
 pub(crate) mod color;
 pub mod glossy;
-mod shadow;
-use shadow::{shader as shadow_shader, specialize as specialize_shadow};
+mod prepass;
+pub mod scene;
+use prepass::{shader as prepass_shader, specialize as specialize_prepass};
 
 use bevy_asset::{Asset, Handle};
 use bevy_image::Image;
@@ -19,11 +20,13 @@ use bevy_render::render_resource::{
     AsBindGroup, BlendComponent, BlendFactor, BlendOperation, BlendState, ColorWrites, RenderPipelineDescriptor,
     ShaderType, SpecializedMeshPipelineError,
 };
+use bevy_render::storage::ShaderBuffer;
 use bevy_shader::ShaderRef;
 use blackbox_gfx::{BlendMode, FrameParams, Shading};
 
 use crate::mesh::ATTRIBUTE_COLOR_BGRA;
 pub use glossy::{GlossyUniform, RigUniform};
+pub use scene::{SCENE_BUFFER, SceneUniform};
 
 /// The shading models the material is specialised for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -86,8 +89,8 @@ impl From<BlendMode> for BlendKind {
     }
 }
 
-/// What the shader reads besides the texture: constant for a scene, so every material of a scene holds the
-/// same copy and the copies are rewritten only when the frame's fog or light changes.
+/// The frame's fog and light, the first half of [`SceneUniform`]: shared by every material through
+/// [`SCENE_BUFFER`], rewritten whenever a frame's values differ from the last.
 #[derive(Debug, Clone, Copy, PartialEq, ShaderType)]
 pub struct Params {
     /// Fog colour (the frame's clear colour), gamma space.
@@ -186,17 +189,15 @@ impl From<&BlackboxMaterial> for BlackboxKey {
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
 #[bind_group_data(BlackboxKey)]
 pub struct BlackboxMaterial {
-    #[uniform(0)]
-    pub params: Params,
+    /// The scene's fog, light and lighting rig, shared by every material; see `scene.rs`.
+    #[storage(0, read_only)]
+    pub scene: Handle<ShaderBuffer>,
     #[texture(1)]
     #[sampler(2)]
     pub texture: Option<Handle<Image>>,
     /// This material's own shading constants, when it is [`ShadingKind::Glossy`]; unused otherwise.
     #[uniform(3)]
     pub glossy: GlossyUniform,
-    /// The lighting rig every glossy material shares, re-synced like `params` whenever it changes.
-    #[uniform(4)]
-    pub rig: RigUniform,
     #[texture(5, dimension = "cube")]
     #[sampler(6)]
     pub environment: Option<Handle<Image>>,
@@ -217,7 +218,7 @@ const ADDITIVE: BlendState = BlendState {
 /// Loads the material's shader (embedded in this crate) and keeps it loaded. Called once by the plugin.
 pub(crate) fn load_shaders(app: &mut bevy_app::App) {
     bevy_shader::load_shader_library!(app, "blackbox.wesl");
-    bevy_shader::load_shader_library!(app, "shadow.wesl");
+    bevy_shader::load_shader_library!(app, "prepass.wesl");
 }
 
 fn shader() -> ShaderRef {
@@ -244,8 +245,10 @@ impl Material for BlackboxMaterial {
         }
     }
 
+    /// Depth and motion vectors for the camera's prepasses (FSR 3, DLSS and TAA need them) and for shadow maps.
+    /// Only opaque and alpha-tested draws are queued; blended and additive ones never reach a prepass.
     fn enable_prepass() -> bool {
-        false
+        true
     }
 
     fn enable_shadows() -> bool {
@@ -253,11 +256,11 @@ impl Material for BlackboxMaterial {
     }
 
     fn prepass_vertex_shader() -> ShaderRef {
-        shadow_shader()
+        prepass_shader()
     }
 
     fn prepass_fragment_shader() -> ShaderRef {
-        shadow_shader()
+        prepass_shader()
     }
 
     fn specialize(
@@ -268,7 +271,7 @@ impl Material for BlackboxMaterial {
     ) -> Result<(), SpecializedMeshPipelineError> {
         let BlackboxKey { shading, blend } = key.bind_group_data;
         if descriptor.vertex.shader_defs.iter().any(|def| def == &"PREPASS_PIPELINE".into()) {
-            return specialize_shadow(descriptor, layout, shading, blend);
+            return specialize_prepass(descriptor, layout, shading, blend);
         }
         descriptor.vertex.buffers = vec![layout.0.get_layout(&[
             Mesh::ATTRIBUTE_POSITION.at_shader_location(0),
@@ -325,6 +328,9 @@ impl Material for BlackboxMaterial {
 }
 
 #[cfg(test)]
+mod prepass_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use blackbox_gfx::{Fog, Projection};
@@ -341,6 +347,7 @@ mod tests {
             scattering: None,
             surface_light: None,
             camera_cut: false,
+            shadow_tuning: None,
         }
     }
 
@@ -382,10 +389,9 @@ mod tests {
     #[test]
     fn the_key_is_the_shading_and_the_blend() {
         let material = BlackboxMaterial {
-            params: Params::default(),
+            scene: SCENE_BUFFER,
             texture: None,
             glossy: GlossyUniform::default(),
-            rig: RigUniform::default(),
             environment: None,
             shading: ShadingKind::Sky,
             blend: BlendKind::Additive,

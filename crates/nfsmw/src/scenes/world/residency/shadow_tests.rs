@@ -228,11 +228,13 @@ fn fixture() -> (Residency, NullBackend) {
         GlobalTextures::default(),
         None,
         PropCatalog::new(vec![], &blackbox_attrib::Database::new()),
+        Vec::new(),
     );
     residency.shared_ready = true;
     for i in 0..3 {
         let at = Vec3::from_array([residency.sections[i].center[0], 0.0, 0.0]);
         let placed = Placed {
+            signal: None,
             lods: [Some(MeshHandle::from_raw(i)); 4],
             detailed: None,
             transform: Mat4::from_translation(at),

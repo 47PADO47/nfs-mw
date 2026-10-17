@@ -4,6 +4,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use super::{PassContext, PassIo, PostChain, PostPass};
 use crate::gpu::targets::{FrameTargets, HDR_FORMAT};
+use crate::gpu::temporal::TemporalFrame;
 
 const OUTPUT_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 
@@ -49,8 +50,23 @@ impl Gpu {
         color: wgpu::Color,
         out: (u32, u32),
     ) -> Vec<[u8; 4]> {
+        self.run_with(chain, size, color, out, None)
+    }
+
+    /// Like [`Self::run`], on a frame that carries `temporal` data (and a motion-vector image) or not.
+    pub(super) fn run_with(
+        &self,
+        chain: &mut PostChain,
+        size: (u32, u32),
+        color: wgpu::Color,
+        out: (u32, u32),
+        temporal: Option<&TemporalFrame>,
+    ) -> Vec<[u8; 4]> {
         let device = &self.device;
-        let scene = FrameTargets::new(device, HDR_FORMAT, size);
+        let scene = match temporal {
+            Some(_) => FrameTargets::with_motion(device, HDR_FORMAT, size),
+            None => FrameTargets::new(device, HDR_FORMAT, size),
+        };
         let target = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("post test output"),
             size: wgpu::Extent3d { width: out.0, height: out.1, depth_or_array_layers: 1 },
@@ -76,7 +92,7 @@ impl Gpu {
             occlusion_query_set: None,
             multiview_mask: None,
         }));
-        let ctx = PassContext { device, queue: &self.queue, scene: &scene, output_size: out };
+        let ctx = PassContext { device, queue: &self.queue, scene: &scene, output_size: out, temporal };
         chain.encode(&ctx, &mut encoder, (&view, OUTPUT_FORMAT));
         let row = (out.0 * 4).next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
         let readback = device.create_buffer(&wgpu::BufferDescriptor {
@@ -197,4 +213,70 @@ fn check(backend: wgpu::Backends) {
         chained.iter().all(|&p| near(p, [0, 128, 0, 255])),
         "the last inserted pass feeds the resolve: {chained:?}"
     );
+}
+
+/// The name of a pass, the size of its input and the size of its output.
+type Seen = Vec<(&'static str, (u32, u32), (u32, u32))>;
+
+/// Records the sizes of the images it is given, and writes a constant.
+struct Sizes {
+    seen: Rc<RefCell<Seen>>,
+    name: &'static str,
+    extent: super::Extent,
+}
+
+impl PostPass for Sizes {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
+    fn extent(&self) -> super::Extent {
+        self.extent
+    }
+
+    fn encode(&mut self, ctx: &PassContext<'_>, io: &PassIo<'_>, encoder: &mut wgpu::CommandEncoder) {
+        self.seen.borrow_mut().push((self.name, io.input_size, io.output_size));
+        Constant { colour: wgpu::Color::GREEN, log: Rc::default(), name: self.name }.encode(ctx, io, encoder);
+    }
+}
+
+fn temporal_frame() -> TemporalFrame {
+    TemporalFrame {
+        jitter: glam::Vec2::ZERO,
+        jitter_matrix: glam::Mat4::IDENTITY,
+        unjittered: glam::Mat4::IDENTITY,
+        previous: glam::Mat4::IDENTITY,
+        near: 0.1,
+        fov_y: 1.0,
+        reset: true,
+        delta_time: 0.0,
+        sharpness: None,
+    }
+}
+
+#[test]
+#[ignore = "needs a Vulkan GPU"]
+fn a_temporal_upscaler_runs_first_and_the_effects_after_it_write_the_output_size() {
+    let _gpu = crate::gpu::test_support::serial();
+    let gpu = Gpu::new(wgpu::Backends::VULKAN);
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let pass = |name, extent| Box::new(Sizes { seen: seen.clone(), name, extent }) as Box<dyn PostPass>;
+    let mut chain = PostChain::new(&gpu.device);
+    chain.insert(0, pass("effect", super::Extent::Render));
+    chain.set_temporal(Some(pass("upscale", super::Extent::Output)));
+    assert!(chain.has_temporal() && chain.has_passes());
+    assert_eq!(chain.names(), ["upscale", "effect", "resolve"]);
+
+    // With temporal data the upscaler reads the render-size scene and the effect works on the output size.
+    gpu.run_with(&mut chain, (4, 4), wgpu::Color::BLACK, (8, 8), Some(&temporal_frame()));
+    assert_eq!(*seen.borrow(), [("upscale", (4, 4), (8, 8)), ("effect", (8, 8), (8, 8))]);
+
+    // Without it (a capture, a 2D frame) the upscaler is skipped and the effect works on the scene as drawn.
+    seen.borrow_mut().clear();
+    gpu.run_with(&mut chain, (4, 4), wgpu::Color::BLACK, (8, 8), None);
+    assert_eq!(*seen.borrow(), [("effect", (4, 4), (4, 4))]);
+
+    chain.set_temporal(None);
+    assert!(!chain.has_temporal());
+    assert_eq!(chain.names(), ["effect", "resolve"]);
 }

@@ -8,6 +8,11 @@
   `Generated/AttribSys/Classes/emittergroup_hash.h`. The installed game's own data (`attributes.bin`, the car
   solids, the particle texture pack) was read with the repository's readers to fill in the values.
 - **Implemented:** 2026-10-09, from the spec only (decompiled code not open while writing the Rust).
+  On 2026-10-17 the missing engaged-nitrous telemetry was connected to the existing
+  NOS emitter group, following spec section 2. Nitrous overrides transient triggers
+  at intensity 1, independently of engine upgrades; release stops births and lets
+  existing particles expire. Synthetic tests cover sustained burn, release,
+  disable and parked effects. Final-pixel parity remains unverified.
 - **Checked against the game by:** unit tests of the trigger, the shift timer, the spawn and update rules; real-install
   tests of the data (groups, markers, textures); a rendered capture of the flame. No side-by-side capture of the
   original game was available, so colours, size and the look of the flame are unverified against it.

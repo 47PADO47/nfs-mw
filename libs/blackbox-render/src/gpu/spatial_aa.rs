@@ -18,6 +18,7 @@ impl Renderer {
         instances: &[Instance],
     ) {
         self.update_irradiance();
+        self.begin_temporal(scene.is_none(), frame);
         let device = self.device.clone();
         let queue = self.queue.clone();
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("frame") });
@@ -36,6 +37,7 @@ impl Renderer {
                 timing.submitted();
             }
             self.smaa = None;
+            self.end_temporal();
             return;
         }
         let format = self.output.format();
@@ -64,5 +66,6 @@ impl Renderer {
         if let Some(timing) = &mut self.timing {
             timing.submitted();
         }
+        self.end_temporal();
     }
 }

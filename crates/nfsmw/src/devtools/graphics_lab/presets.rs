@@ -91,6 +91,14 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
 
 pub(super) fn restore_graphics(settings: &mut Settings, snapshot: &Settings) {
     restore_appearance(settings, snapshot);
+    settings.reflection_cube_size = snapshot.reflection_cube_size;
+    settings.reflection_mirror_size = snapshot.reflection_mirror_size;
+    settings.reflection_pow2 = snapshot.reflection_pow2;
+    settings.mirror_tint = snapshot.mirror_tint;
+    settings.reflection_extra = snapshot.reflection_extra;
+    settings.fe_shadows = snapshot.fe_shadows;
+    settings.motion_blur = snapshot.motion_blur;
+    settings.motion_blur_strength = snapshot.motion_blur_strength;
     settings.render_scale = snapshot.render_scale;
     settings.upscaler = snapshot.upscaler;
     settings.upscale_sharpness = snapshot.upscale_sharpness;

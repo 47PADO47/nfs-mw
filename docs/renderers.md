@@ -8,8 +8,9 @@ Two things decide how the game is drawn, and they are separate settings:
   row **Graphics API (After Restart)** cycles only through the APIs this PC has a GPU for (`auto` is always there),
   and the Bevy renderer skips `gl`.
 
-The Bevy renderer is a **spike**: it draws the world (meshes, textures, fog, alpha test, blending, sky) and
-nothing else yet, and it only exists in builds made with `--features renderer-bevy`. The settings, menu rows
+The Bevy renderer is a **spike**: it draws the world (meshes, textures, fog, alpha test, blending, sky), the post
+chain (bloom, tone mapping, FXAA, SMAA, TAA, FSR 1), and the temporal and ray-traced options its build includes
+(`fsr3`, `dlss` or `dlss-mock`, `ray-tracing`). It is in the default build, with FSR 3; `--no-default-features` leaves both out. The settings, menu rows
 and checks described here work the same way for either renderer. What it draws, how it was measured and what
 is missing: [bevy-backend.md](bevy-backend.md). The design is in
 [the plan](plans/gfx-renderers/README.md) and [ADR 0004](decisions/0004-swappable-renderers.md).
@@ -46,29 +47,30 @@ row at the bottom of the Video options (in the main menu and the pause menu). Th
 after a restart**; the console and the menu say so.
 
 If you ask for `bevy` and this build does not have it (it needs the `renderer-bevy` cargo feature, which
-is off by default), or this PC has no usable Vulkan or Direct3D 12 adapter (the Bevy renderer has no
+is on by default, so only a `--no-default-features` build lacks it), or this PC has no usable Vulkan or Direct3D 12 adapter (the Bevy renderer has no
 OpenGL), the game logs why and starts `blackbox` instead. It never fails to start because of the
 setting.
 
 ## What each renderer can do
 
-| Feature | `blackbox` | `bevy` (planned) |
+| Feature | `blackbox` | `bevy` |
 |---|---|---|
 | Upscalers `off`, `bilinear`, `fsr1` | yes | yes |
 | Anti-aliasing `fxaa` | yes | yes |
 | Bloom, tone mapping `aces` | yes | yes |
 | Anti-aliasing `smaa` | yes (Vulkan, DX12) | yes |
 | Anti-aliasing `taa` | no | yes (Vulkan and DX12) |
-| Upscaler `fsr3` (temporal, any GPU) | no | yes (Vulkan, DX12) |
-| Upscaler `fsr4` (experimental) | no | DX12, Radeon RX 7000 and 9000 only |
-| Upscaler `dlss` | no | Vulkan, NVIDIA RTX only |
-| `ray_tracing` | no | GPUs with ray queries; noisy without DLSS Ray Reconstruction |
+| Upscaler `fsr3` (temporal, any GPU) | yes (Vulkan, DX12; a device with 4 storage textures and 8 storage buffers per stage) | yes (Vulkan, DX12; `fsr3` build) |
+| Upscaler `fsr4` (experimental) | no | not built yet (no tester) |
+| Upscaler `dlss` | no | Vulkan, NVIDIA RTX only (`dlss` build; `dlss-mock` runs it as TAA plus FSR 1) |
+| `ray_tracing` | no | GPUs with ray queries (Solari, `ray-tracing` build; works on RTX, the look is a stand-in); noisy without DLSS Ray Reconstruction |
 | Graphics APIs | Vulkan, DX12, OpenGL | Vulkan, DX12 |
 
 `blackbox` supports OpenGL and low-end PCs. Native Vulkan/DX12 also offer spatial SMAA
 and the optional [graphics lab prototypes](graphics-lab.md).
-`dlss` needs the NVIDIA DLSS SDK at build time, so it is a separate build option. `fsr4` has no
-tester yet. Frame generation and DLSS 5 are not planned.
+`dlss` needs the NVIDIA DLSS SDK at build time, so it is a separate build option. `dlss-mock` builds without
+the SDK. `fsr4` has no tester yet. Frame generation and DLSS 5 are not planned.
+Status of each: [upscaling.md](upscaling.md#status) and [status.md](plans/gfx-renderers/status.md).
 
 ## The settings
 
@@ -120,16 +122,16 @@ a warning and the next layer decides.
 A preset is a set of *requests*. What a renderer runs is decided afterwards from what it can do, so
 **`ultra` on `blackbox` is `high`**: the `taa` and `medium` ray tracing it asks for are downgraded (to
 `fxaa` and `off`) with a log line. `ultra` asks for no temporal upscaler on purpose: `dlss` versus `fsr3`
-depends on your GPU, and asking for either would make the native renderer draw at two thirds
-resolution. Choose a temporal upscaler yourself.
+depends on your GPU, and asking for either would make the renderer draw at two thirds resolution.
+Choose a temporal upscaler yourself.
 
 ## When a renderer cannot do what you asked
 
 The settings are what you *request*; the renderer maps them onto what it can run:
 
 - A missing upscaler falls back along `fsr4 > fsr3 > fsr1 > bilinear > off` and `dlss > fsr3 > fsr1 >
-  bilinear > off`. A temporal upscaler requested on `blackbox` therefore runs as `fsr1` at the render
-  size of its quality mode (`dlss` at `quality` is `fsr1` at 67 %).
+  bilinear > off`. `dlss` or `fsr4` requested on `blackbox` therefore runs as `fsr3` on a device that can
+  (else as `fsr1`), at the render size of its quality mode (`dlss` at `quality` is `fsr3` at 67 %).
 - A temporal upscaler turns `post_aa` off (it does its own anti-aliasing). A missing `taa` or `smaa`
   becomes `fxaa`, then `off`.
 - Ray tracing the renderer lacks is `off`; without a denoiser it is allowed but noisy.

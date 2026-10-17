@@ -64,6 +64,7 @@ impl WorldScene {
         let Some(traffic) = self.traffic.as_mut() else { return };
         traffic.configure(wanted, share);
         traffic.set_lights(self.traffic_setting.lights);
+        traffic.set_avoidance(self.traffic_setting.avoidance);
         if traffic.wants_models() && self.residency.complete() {
             load_requested(self, renderer);
         }

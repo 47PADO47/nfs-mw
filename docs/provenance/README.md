@@ -51,6 +51,18 @@ a record. Process: [licensing.md § Spec-first](../licensing.md#spec-first).
 | [Weather](weather.md) | [specs/weather.md](../specs/weather.md) | `speed.exe` (original PC build) decompiled and disassembled in Ghidra; name-hash scan of the install's data files |
 | [Day-night clock](day-night-clock.md) | [specs/time-of-day.md](../specs/time-of-day.md) | `speed.exe` (original PC build) disassembled in Ghidra for the clock counter writer and the sun integrator; the day-night key names from the repository's note of the behaviour (no mod code) |
 | [World map screen](world-map-ghidra.md) | [specs/world-map.md](../specs/world-map.md) | `speed.exe` decompiled in Ghidra (the world map controller and its screen), read-only |
+| [AI pursuit goals](ai-pursuit-goals.md) | [specs/ai-pursuit-goals.md](../specs/ai-pursuit-goals.md) | `speed.exe` goal factory and constructors (Ghidra, read only); attribute names checked with a scratch lookup2 script |
+| [Traffic and obstacles](ai-traffic-obstacles.md) | [specs/ai-traffic-obstacles.md](../specs/ai-traffic-obstacles.md) | `speed.exe` traffic driving action, its vtable, speed and stopping tables (Ghidra, read only; no function created in the project) |
+| [Busted sequence](busted-sequence.md) | [specs/busted-sequence.md](../specs/busted-sequence.md) | `speed.exe` arrest handler, scene chooser, registrations and FEng message names (Ghidra, read only); install screen data (read only) |
+| [Cop health bars](cop-health-bars.md) | [specs/cop-health-bars.md](../specs/cop-health-bars.md) | MWHealthbars reference page (community, values only; no licence); the port's wreck model (own code). No Ghidra session |
+| [Custom fonts](custom-fonts.md) | [specs/custom-fonts.md](../specs/custom-fonts.md) | NFS_CustomFont reference page (MIT; feature list only); `speed.exe` font loader, glyph draw, baseline table (Ghidra, read only); install texture data (read only) |
+| [Front-end shadows](fe-shadows.md) | [specs/fe-shadows.md](../specs/fe-shadows.md) | `speed.exe` game-flow global, render states and registry settings (Ghidra, read only) |
+| [HD content support](hd-content-support.md) | [specs/hd-content-support.md](../specs/hd-content-support.md) | NFS HD Content Support reference page (GPL-3.0; facts only); `speed.exe` glyph, texture, cursor and movie code (Ghidra, read only) |
+| [HD reflections](hd-reflections.md) | [specs/hd-reflections.md](../specs/hd-reflections.md) | NFS HD Reflections and NFSMWHDReflections reference pages (GPL-3.0; facts only); `speed.exe` initial data and option writer (Ghidra, read only) |
+| [LAN client path](lan-client.md) | [specs/lan-server.md](../specs/lan-server.md) (client path section) | `speed.exe` LAN client tag table and message handlers (Ghidra, read only; two functions created in the project, program not saved) |
+| [EA Trax jukebox](eatrax-jukebox.md) | [specs/eatrax-jukebox.md](../specs/eatrax-jukebox.md) | `speed.exe` EA Trax playlist builder, song pick and profile song table (Ghidra; functions created in the project) |
+| [Mod world content](mod-world-content.md) | [specs/mod-world-content.md](../specs/mod-world-content.md) | `speed.exe` chunk loaders, dispatcher and car-part name builder (Ghidra, read only); installed world data (read only) |
+| [Vehicle decompilation audit](vehicle-decomp-audit.md) | [specs/vehicle-decomp-audit.md](../specs/vehicle-decomp-audit.md) | PC vehicle decompilation (no licence; summaries only, no source text kept); `speed.exe` byte searches for the range and rate tables (Ghidra) |
 
 Audio extensions: [power effects](car-audio-power-effects.md),
 [authored traffic](authored-traffic-audio.md), [common events](common-audio-events.md),

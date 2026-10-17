@@ -45,3 +45,10 @@ The game side is `crates/nfsmw/src/hud/`.
   generic runtime; fractional carry preserves elapsed time at high FPS.
   Original conversion truncates each frame, so carrying fractions is an
   intentional correction rather than a claim of identical rounding.
+- **Image repetition (2026-10-17):** [spec](../specs/feng-image-repeat.md) written
+  before implementation from installed dialog/menu UV rectangles, the shared
+  sampler and the CC0 `RenderImage`/`FEImage` interface. The presenter now uses
+  bounded subdivision and wrapped filter borders for ordinary images outside
+  the unit UV square. Tests cover phase, direction, filtering borders, geometry
+  and upload reuse; installed tests identify both affected stripes. Original
+  PC pixel parity and unknown addressing flags have not been verified.

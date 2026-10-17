@@ -17,6 +17,9 @@ mod filter_tests;
 mod fsr1;
 #[cfg(test)]
 mod fsr1_tests;
+mod radial_blur;
+#[cfg(test)]
+mod radial_blur_tests;
 #[cfg(test)]
 mod shader_tests;
 #[cfg(test)]
@@ -41,6 +44,7 @@ pub use effects::{Effects, SoftDraw};
 pub use filter::{Blend, Draw, Filter, POST_COMMON_WGSL, Params, filter_source};
 pub const REFLECTION_STORE_WGSL: &str = include_str!("shaders/reflection_store.wgsl");
 pub use fsr1::{FSR1_EASU, FSR1_RCAS, Fsr1Io, Fsr1Pass, Fsr1Stage, RcasScale, fsr1_passes};
+pub use radial_blur::{RADIAL_MAX_TAPS, RadialBlur, RadialBlurIo, RadialBlurSettings};
 pub use soft_particles::SoftParticles;
 pub use textured_effects::TexturedEffects;
 pub use ui::{UiPass, UiTextureError};

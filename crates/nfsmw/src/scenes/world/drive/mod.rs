@@ -94,6 +94,7 @@ pub struct Drive {
     pub headlights: bool,
     pub vehicle_effects: VehicleEffects,
     pub flames: ExhaustFlames,
+    pub tail_trails: super::tail_light_trails::TailLightTrails,
     rig: CarRig,
     physics: CarPhysics,
     sim: Option<CarSim>,
@@ -165,6 +166,7 @@ impl Drive {
             headlights: true,
             vehicle_effects: VehicleEffects::new(visuals),
             flames: ExhaustFlames::default(),
+            tail_trails: Default::default(),
             performance: Default::default(),
             tuning: Default::default(),
             tunings: Default::default(),
@@ -326,10 +328,10 @@ impl Drive {
         self.sim.as_ref().map_or(self.current, CarSim::pose)
     }
 
-    /// The car as the police and the high-speed effects see it. Nitrous is 0 without the part.
+    /// The car as the police and the high-speed effects see it. Nitrous is 1 while it burns, else 0.
     pub fn player_view(&self) -> crate::scenes::world::ai::PlayerView {
         let forward = self.pose().rotation * Vec3::X;
-        let nitrous = if self.telemetry.has_nos { self.telemetry.nos } else { 0.0 };
+        let nitrous = self.telemetry.nitrous_burn();
         crate::scenes::world::ai::PlayerView {
             position: self.pose().position,
             forward,
@@ -363,6 +365,16 @@ impl Drive {
     /// Whether the camera is looking back at the car.
     pub fn looking_back(&self) -> bool {
         self.chase.looking_back()
+    }
+
+    /// Whether a caught pan or an arrest framing is running this tick (`PursuitCamera::shot_running`).
+    pub fn pursuit_shot_running(&self) -> bool {
+        self.pursuit.shot_running()
+    }
+
+    /// Whether a car is simulated, which is when the HUD has a state (`hud_state`).
+    pub fn has_sim(&self) -> bool {
+        self.sim.is_some()
     }
 
     /// Advances the pursuit camera's caught pan and arrest framing by `dt` of simulated time, with the chase's feed.
@@ -418,7 +430,6 @@ impl Drive {
         }
     }
 
-    /// What the in-game HUD shows; `None` while there is no car yet.
     pub fn hud_state(&self) -> Option<crate::hud::HudState> {
         self.sim.as_ref()?;
         let t = &self.telemetry;

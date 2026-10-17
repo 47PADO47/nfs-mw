@@ -9,6 +9,7 @@ use game_install::GameDir;
 
 use super::bind::HudBinding;
 use super::blip_styles;
+use super::busted_overlay::{BustedOverlay, OVERLAY_PACKAGE};
 use super::minimap::MinimapBinding;
 use super::radio::RadioHud;
 use super::state::{HudState, MapPosition};
@@ -38,6 +39,8 @@ struct Hud {
     viewport: HudViewport,
     /// The original EA Trax chyron, when the install has it.
     trax: Option<TraxBinding>,
+    /// The busted overlay, when the install has it (`busted_overlay.rs`).
+    overlay: Option<BustedOverlay>,
 }
 
 impl Plugin for HudPlugin {
@@ -67,7 +70,8 @@ impl Plugin for HudPlugin {
         }
         let viewport = HudViewport::new(&runtime.tree(package), &binding.blip_icon_hashes());
         let trax = trax::load(&self.dir, &mut runtime);
-        app.insert_resource(Hud { runtime, package, binding, viewport, trax })
+        let overlay = catalog.find(OVERLAY_PACKAGE).cloned().map(BustedOverlay::new);
+        app.insert_resource(Hud { runtime, package, binding, viewport, trax, overlay })
             .insert_resource(self.initial.clone())
             .add_systems(Update, sync.in_set(FrameSet::SceneUpdate))
             .add_systems(Update, present.in_set(FrameSet::Hud));
@@ -76,9 +80,13 @@ impl Plugin for HudPlugin {
 
 /// Take the state the scene wants shown. A scene without telemetry leaves the idle HUD (`--hud` in a viewer).
 /// The minimap setting decides whether the scene's map position is shown and how the picture is turned.
-fn sync(host: NonSend<Host>, settings: Res<Settings>, mut state: ResMut<HudState>) {
+fn sync(host: NonSend<Host>, settings: Res<Settings>, mut state: ResMut<HudState>, mut hud: ResMut<Hud>) {
     if let Some(s) = host.scene.hud_state() {
         *state = s;
+    }
+    let hud = &mut *hud;
+    if let Some(overlay) = hud.overlay.as_mut() {
+        overlay.set_shown(&mut hud.runtime, state.busted_overlay);
     }
     let orientation = settings.minimap.orientation();
     state.minimap = state.minimap.zip(orientation).map(|(at, orientation)| MapPosition { orientation, ..at });
@@ -124,4 +132,8 @@ fn present(
     let mut tree = hud.runtime.tree(hud.package);
     hud.viewport.apply(&mut tree, screen, settings.hud_layout);
     presenter.0.present(&tree, &assets.0, screen, &mut out);
+    // The busted overlay goes over the HUD. It is drawn in the frame's full screen, not the HUD's viewport.
+    if let Some(overlay) = hud.overlay.as_ref().and_then(|overlay| overlay.tree(&hud.runtime)) {
+        presenter.0.present(&overlay, &assets.0, screen, &mut out);
+    }
 }

@@ -120,6 +120,39 @@ pub struct ViewArgs {
     /// Surface filtering: trilinear, 8x or 16x [env NFSMW_TEXTURE_FILTERING; config texture_filtering; default 8x].
     #[arg(long)]
     pub texture_filtering: Option<crate::settings::TextureFiltering>,
+    /// Car cube face size: auto, a percentage of the quality's face (25% to 400%) or pixels [env NFSMW_REFLECTION_CUBE_SIZE;
+    /// config `reflection_cube_size`; default 100%].
+    #[arg(long, value_name = "auto|25%-400%|px")]
+    pub reflection_cube_size: Option<crate::settings::ReflectionSize>,
+    /// Rear-view mirror picture size, the same forms as the cube face; the width keeps the bezel's shape
+    /// [env NFSMW_REFLECTION_MIRROR_SIZE; config `reflection_mirror_size`; default 100%].
+    #[arg(long, value_name = "auto|25%-400%|px")]
+    pub reflection_mirror_size: Option<crate::settings::ReflectionSize>,
+    /// Round car cube faces down to a power of two [env NFSMW_REFLECTION_POW2; config `reflection_pow2`; default off].
+    #[arg(long, conflicts_with = "no_reflection_pow2")]
+    pub reflection_pow2: bool,
+    /// Do not round car cube faces to a power of two.
+    #[arg(long)]
+    pub no_reflection_pow2: bool,
+    /// Mirror tint: off, on (the stock tint), #rrggbb or r,g,b [env NFSMW_MIRROR_TINT; config `mirror_tint`; default off].
+    #[arg(long, value_name = "off|on|#rrggbb")]
+    pub mirror_tint: Option<crate::settings::MirrorTint>,
+    /// Reach of the car cube and the mirror: unlimited, or original (100 m and 192 m) [env NFSMW_REFLECTION_DISTANCE;
+    /// config `reflection_distance`; default unlimited].
+    #[arg(long, value_name = "unlimited|original")]
+    pub reflection_distance: Option<blackbox_gfx::reflection::distance::ReflectionDistance>,
+    /// Scenery detail of the car cube: its own face (capture) or the main view's rule (view) [env NFSMW_REFLECTION_LOD;
+    /// config `reflection_lod`; default capture].
+    #[arg(long, value_name = "capture|view")]
+    pub reflection_lod: Option<blackbox_gfx::reflection::lod::ReflectionLod>,
+    /// What the car cube adds: original, or restored (traffic cars) [env NFSMW_REFLECTION_CONTENT; config
+    /// `reflection_content`; default original].
+    #[arg(long, value_name = "original|restored")]
+    pub reflection_content: Option<blackbox_gfx::reflection::content::ReflectionContent>,
+    /// Environment reflection of the vehicles, a percentage from 0 to 300 [env NFSMW_VEHICLE_REFLECTION_BRIGHTNESS;
+    /// config `vehicle_reflection_brightness`; default 100%].
+    #[arg(long, value_name = "0%-300%")]
+    pub vehicle_reflection_brightness: Option<blackbox_gfx::reflection::brightness::VehicleBrightness>,
     /// Smoke presentation: standard or high [env NFSMW_SMOKE_QUALITY; config `smoke_quality`; default standard].
     #[arg(long, value_name = "standard|high")]
     pub smoke_quality: Option<crate::settings::SmokeQuality>,
@@ -128,8 +161,8 @@ pub struct ViewArgs {
     #[arg(long, value_name = "50-200")]
     pub render_scale: Option<crate::settings::RenderScale>,
     /// How the scene is scaled up: fsr1 (FidelityFX Super Resolution 1), bilinear, or off (the render scale is
-    /// ignored); fsr3, fsr4 and dlss are temporal upscalers of the bevy renderer and run as fsr1 without it
-    /// [env NFSMW_UPSCALER; config `upscaler`; default fsr1].
+    /// ignored); fsr3 is temporal and runs on both renderers, fsr4 and dlss only on the bevy renderer; a renderer
+    /// without the one asked for runs the next best [env NFSMW_UPSCALER; config `upscaler`; default fsr1].
     #[arg(long, value_name = "off|bilinear|fsr1|fsr3|fsr4|dlss")]
     pub upscaler: Option<crate::settings::UpscaleMode>,
     /// FSR 1 sharpening, 0 (off) to 100 [env NFSMW_UPSCALE_SHARPNESS; config `upscale_sharpness`; default 80].
@@ -168,6 +201,29 @@ pub struct ViewArgs {
     /// Traffic ignores junctions, as in the original game.
     #[arg(long)]
     pub no_traffic_lights: bool,
+    /// Draw a health bar above each cop car that chases you (a rewrite extension: the original shows none)
+    /// [env NFSMW_COP_HEALTH_BARS; config `cop_health_bars`; default off].
+    #[arg(long, conflicts_with = "no_cop_health_bars")]
+    pub cop_health_bars: bool,
+    /// Draw no cop health bars.
+    #[arg(long)]
+    pub no_cop_health_bars: bool,
+    /// Draw the high-speed radial blur [env NFSMW_MOTION_BLUR; config `motion_blur`; default on].
+    #[arg(long, conflicts_with = "no_motion_blur")]
+    pub motion_blur: bool,
+    /// Draw no high-speed radial blur.
+    #[arg(long)]
+    pub no_motion_blur: bool,
+    /// The high-speed radial blur's strength, 0 to 2; 1 is the curve as it is
+    /// [env NFSMW_MOTION_BLUR_STRENGTH; config `motion_blur_strength`; default 1].
+    #[arg(long, value_name = "0-2")]
+    pub motion_blur_strength: Option<f32>,
+    #[command(flatten)]
+    pub hd_content: crate::settings::hd_content::HdContentArgs,
+    #[command(flatten)]
+    pub custom_fonts: crate::settings::custom_fonts::CustomFontsArgs,
+    #[command(flatten)]
+    pub fe_shadows: crate::settings::fe_shadows::FeShadowsArgs,
     /// Enable skid marks [env NFSMW_SKID_MARKS; config `skid_marks`; default on].
     #[arg(long, conflicts_with = "no_skid_marks")]
     pub skid_marks: bool,
@@ -249,6 +305,15 @@ pub struct ViewArgs {
     /// reference screenshots; a nitrous or boost value shows that gauge).
     #[arg(long, hide = true, value_name = "SPEED,RPM,MAX_RPM,GEAR[,NOS[,PSI[,BREAKER[,ACTIVE]]]]", value_parser = parse_hud_demo, allow_hyphen_values = true)]
     pub hud_demo: Option<crate::hud::HudState>,
+    /// Load no mods, native ones included: the same as `mods = off` (ADR 0005 section 6) [env NFSMW_MODS].
+    #[arg(long)]
+    pub no_mods: bool,
+    /// A developer run: mods load from copies in the cache, so a rebuilt library can replace the original.
+    #[arg(long)]
+    pub mod_dev: bool,
+    /// A second folder of mods to load, besides the mods folder in the config directory.
+    #[arg(long, value_name = "PATH")]
+    pub mods_dir: Option<PathBuf>,
 }
 
 impl ViewArgs {
@@ -270,6 +335,7 @@ impl ViewArgs {
             // A screenshot run has no sound unless the radio is asked for: the radio's songs drive the chyron.
             audio: (!self.no_sound && (self.screenshot.is_none() || self.radio)).then(|| dir.clone()),
             frontend: None,
+            mods: None,
         }
     }
 
@@ -295,11 +361,25 @@ impl ViewArgs {
             car_shading: self.car_shading,
             reflections: self.reflections,
             texture_filtering: self.texture_filtering,
+            reflection_cube_size: self.reflection_cube_size,
+            reflection_mirror_size: self.reflection_mirror_size,
+            reflection_pow2: switch(self.reflection_pow2, self.no_reflection_pow2),
+            mirror_tint: self.mirror_tint,
+            reflection_distance: self.reflection_distance,
+            reflection_lod: self.reflection_lod,
+            reflection_content: self.reflection_content,
+            vehicle_reflection_brightness: self.vehicle_reflection_brightness,
             smoke_quality: self.smoke_quality,
             radio: switch(self.radio, self.no_radio),
             traffic: if self.no_traffic { Some(0) } else { self.traffic },
             cop_share: self.cop_share,
             traffic_lights: switch(self.traffic_lights, self.no_traffic_lights),
+            cop_health_bars: switch(self.cop_health_bars, self.no_cop_health_bars),
+            motion_blur: switch(self.motion_blur, self.no_motion_blur),
+            motion_blur_strength: self.motion_blur_strength,
+            hd_content: self.hd_content.layer(),
+            custom_fonts: self.custom_fonts.layer(),
+            fe_shadows: self.fe_shadows.layer(),
             skid_marks: switch(self.skid_marks, self.no_skid_marks),
             collision_sparks: switch(self.collision_sparks, self.no_collision_sparks),
             spark_style: self.spark_style,
@@ -308,6 +388,7 @@ impl ViewArgs {
             rear_view_mirror: switch(self.rear_view_mirror, self.no_rear_view_mirror),
             discord: switch(self.discord, self.no_discord),
             discord_time_played: switch(self.discord_time_played, self.no_discord_time_played),
+            mods: self.no_mods.then_some(crate::settings::mods::ModsMode::Off),
             transmission: self.transmission,
             camera_mode: self.camera_mode,
             post_tonemap: self.post_tonemap,
