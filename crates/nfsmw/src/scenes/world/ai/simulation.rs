@@ -7,7 +7,7 @@ use nfsmw_data::car::physics::SurfaceTable;
 
 use super::car::{AiCar, Ctx};
 use super::stop::Lights;
-use super::{Focus, MANAGER_PERIOD, TrafficWorld};
+use super::{Focus, TrafficWorld, activation};
 use crate::scenes::world::{drive::STEP, props::PropWorld};
 use crate::viewer::camera::Lens;
 
@@ -105,10 +105,8 @@ impl TrafficWorld {
             log::info!("traffic after the screenshot warm-up: {}", self.status(focus));
         }
         self.recycle(STEP, focus, camera, props);
-        self.spawn_timer += STEP;
-        if self.spawn_timer >= MANAGER_PERIOD && self.target > 0 {
-            self.spawn_timer -= MANAGER_PERIOD;
-            self.manage(MANAGER_PERIOD, focus, collision, surfaces);
+        if activation::due(&mut self.spawn_timer, STEP, self.target > 0) {
+            self.manage(activation::PERIOD, focus, collision, surfaces);
         }
     }
 }

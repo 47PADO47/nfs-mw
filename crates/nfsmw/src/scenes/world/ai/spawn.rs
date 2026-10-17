@@ -26,9 +26,6 @@ const START_LOOK_AHEAD: f32 = 30.0;
 const START_SPEED_FACTOR: f32 = 0.75;
 /// A standing player always gets oncoming traffic; at this speed (m/s) half of it comes the same way.
 const SAME_WAY_SPEED: f32 = 50.0;
-/// Road projection can miss a legal lane; a failed probe must not consume the whole activation interval.
-const PROBES_PER_ACTIVATION: usize = 4;
-
 /// Which car to put on the road.
 #[derive(Debug, Clone, Copy)]
 pub enum Pick {
@@ -48,22 +45,17 @@ impl TrafficWorld {
         collision: &CollisionWorld,
         surfaces: &SurfaceTable,
     ) -> bool {
-        for _ in 0..PROBES_PER_ACTIVATION {
-            self.population_stats.attempts += 1;
-            match self.try_spawn_one(pick, cruise, focus, collision, surfaces) {
-                Ok(()) => {
-                    self.population_stats.spawned += 1;
-                    return true;
-                }
-                Err(reason) => {
-                    self.population_stats.rejected[reason as usize] += 1;
-                    if matches!(reason, Rejection::Budget) {
-                        return false;
-                    }
-                }
+        self.population_stats.attempts += 1;
+        match self.try_spawn_one(pick, cruise, focus, collision, surfaces) {
+            Ok(()) => {
+                self.population_stats.spawned += 1;
+                true
+            }
+            Err(reason) => {
+                self.population_stats.rejected[reason as usize] += 1;
+                false
             }
         }
-        false
     }
 
     fn try_spawn_one(
@@ -85,7 +77,7 @@ impl TrafficWorld {
         let distance = self.policy.spawn_min as f32
             + rng.next_f32() * (self.policy.spawn_max - self.policy.spawn_min) as f32
             + projected.max(0.0);
-        let at = Vec3::new(focus.position[0] + distance * angle.cos(), focus.position[1] + distance * angle.sin(), 0.0);
+        let at = probe_point(focus, distance, angle);
         let oncoming = rng.next_f32() <= 1.0 - 0.5 * (projected / SAME_WAY_SPEED).clamp(0.0, 1.0);
         let dir = match oncoming {
             true => angle + std::f32::consts::PI,
@@ -205,6 +197,15 @@ impl TrafficWorld {
 /// The distance on the ground between two points (the height is not used).
 fn planar_distance(a: Vec3, b: Vec3) -> f32 {
     (a.x - b.x).hypot(a.z - b.z)
+}
+
+/// Preserve the driven centre's elevation when projecting onto a sloping road's 3D curve.
+fn probe_point(focus: Focus, distance: f32, angle: f32) -> Vec3 {
+    Vec3::new(
+        focus.position[0] + distance * angle.cos(),
+        focus.position[1] + distance * angle.sin(),
+        focus.body.map_or(0.0, |body| body.position.y),
+    )
 }
 
 /// The spacing from the other cars: a trailer adds half its length to the distance, on either side.

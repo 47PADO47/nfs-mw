@@ -2,6 +2,7 @@
 //! network, spawned around the player and removed when they are far away.
 //! Specs: `docs/specs/ai-traffic.md`, `docs/specs/ai-traffic-spawning.md`.
 
+mod activation;
 mod car;
 mod collide;
 mod commands;
@@ -58,9 +59,6 @@ pub use pattern::{Pattern, Patterns};
 pub use police::PlayerView;
 pub use population::{ModelRequest, PatrolPlan};
 pub use pursuit::{CopModel, Pursuit};
-
-/// The traffic manager runs twice a second.
-const MANAGER_PERIOD: f32 = 0.5;
 
 /// Where the player (or the free camera) is: traffic spawns ahead of it and stays near it.
 #[derive(Debug, Clone, Copy)]

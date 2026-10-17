@@ -41,11 +41,15 @@ its factor. Zero density stops new spawns without deleting visible actors.
 Race-specific density/route plumbing remains incomplete in the world adapter;
 presets do not manufacture a fixed race traffic setting.
 
-Keep deterministic 0.5 simulated-second activations and cached models. Each
-activation tries up to four random probes, stopping at the first valid car;
-failed lane/ground probes must not consume another full activation interval.
-This is a bounded remake scheduler correction, not original timing parity.
-Original frame-scheduled attempts, inactive actor reuse and the
+Use a deterministic 30 Hz simulated-time activation clock and cached models.
+Each activation tries one random probe, so failed lane/ground searches wait
+at most another 1/30 second while the manager is eligible. The previous
+half-second clock, even with four retries, could starve traffic on highways.
+The original registration runs roughly every two rendered frames; 30 Hz
+matches that cadence at 60 FPS while keeping simulation independent of the
+actual rendering rate. This is not a verified high-FPS original schedule.
+Disabled traffic resets the clock rather than accumulating a catch-up burst.
+Original frame-dependent timing, inactive actor reuse and the
 four-second new-instance timer remain timing-parity gaps. No startup or live
 preset change flushes existing traffic. Lower budgets drain through recycling.
 
@@ -53,7 +57,10 @@ preset change flushes existing traffic. Lower budgets drain through recycling.
 
 Sample the wedge within +/-45 degrees around the focus direction. Add the
 positive component of focus velocity projected onto that direction to the
-probe distance. Apply oncoming probability to this same projection. After
+probe distance. Preserve the driven centre's elevation for the road's 3D
+closest-point search; flattening it to sea level biases sloping-road projection.
+The free-camera focus still lacks a supplied elevation and retains its zero-height fallback.
+Apply oncoming probability to this same projection. After
 road projection, reject missing support, excessive snapping, final positions
 inside the configured minimum and overlapping vehicles, including trailer
 spacing. Explicit mod summons retain their deliberate near-player behavior.

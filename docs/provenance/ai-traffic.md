@@ -64,7 +64,7 @@ comes from the data and per-game tables in `crates/`.
   measurements (spawn distance and facing, per-type counts at each density, removal distance and time, the
   accident phase, honk timing).
 - **Known differences from the original:** the rewrite uses a deterministic 60 Hz world clock. Traffic thinks
-  every ten physics ticks, the manager runs every 0.5 simulated seconds, and models are cached without
+  every ten physics ticks, the manager runs every 1/30 simulated second, and models are cached without
   an inactive vehicle pool or the original four-second new-instance creation limit. Traffic uses the full
   vehicle engine/suspension and may optionally obey the rewrite's traffic lights. Points where the original
   looks like a bug and a conscious choice is needed: the accident phase counts thinks, not seconds;
@@ -83,6 +83,12 @@ passes accumulated elapsed frame time to its callback. The manager registers rat
 so its normal interval is approximately two rendered frames. The older interpretation of this as 0.5
 seconds, and of traffic's rate 0.1 as ten Hz, was incorrect. The existing simulation-LOD spec had the
 correct scheduler interpretation. Original task timing remains different from the rewrite's fixed clock.
+
+The 2026-10-17 placement correction replaces the remake's half-second manager interval with a bounded
+30 Hz simulation clock, one probe per activation. This corresponds to the original's nominal 60 FPS
+cadence; it does not reproduce frame-dependent behavior at every rendering rate. Synthetic checks cover
+render-independent batching and disabled-clock reset; installed population checks exercise the real
+manager, vehicle models, collision and retirement. Actor pooling and the new-instance timer remain gaps.
 
 The spawn clearance and accident follow-up uses the existing behavior specs. Synthetic regressions
 cover a 160 m probe snapping to a road endpoint only 140 m away, planar clearance on elevated roads,

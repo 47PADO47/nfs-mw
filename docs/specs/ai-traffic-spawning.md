@@ -384,9 +384,11 @@ a value (`trafha`, `semilog`); no source read uses any of them, and a header con
 is also unused **[verified, decomp]**. The real limits are the hard-coded ones above (10 active vehicles, 150 m).
 A rewrite may expose them as settings, but the originals are not tunable from data.
 
-**Rewrite timing:** the current manager runs every 0.5 simulated seconds on the shared physics clock,
+**Rewrite timing:** the current manager runs every 1/30 simulated second on the shared physics clock,
 and models are cached without an inactive vehicle pool. This differs from the original variable-frame
 scheduler and its four-second limit on creating a new vehicle instance; full population timing parity is pending.
+The fixed cadence matches the original's nominal two-frame interval at 60 FPS, with one placement probe
+per activation. See [traffic presets](traffic-presets.md) for the implementation bounds.
 
 ## 10. How to check it
 
