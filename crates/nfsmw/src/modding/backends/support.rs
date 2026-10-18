@@ -186,6 +186,15 @@ impl ValueStore for MemoryStore {
         }
     }
 
+    fn saved_text(&self, owner: &str, name: &str) -> Option<String> {
+        let values = self.values.borrow();
+        let (_, _, value) = values.iter().rev().find(|(known, row, _)| known == owner && row == name)?;
+        match value {
+            toml::Value::String(text) => Some(text.clone()),
+            _ => None,
+        }
+    }
+
     fn save(&self, owner: &str, name: &str, value: toml::Value) -> Result<(), String> {
         self.values.borrow_mut().push((owner.to_owned(), name.to_owned(), value));
         Ok(())
@@ -196,6 +205,10 @@ impl ValueStore for MemoryStore {
 impl<T: ValueStore + ?Sized> ValueStore for Rc<T> {
     fn saved(&self, owner: &str, name: &str) -> Option<f32> {
         (**self).saved(owner, name)
+    }
+
+    fn saved_text(&self, owner: &str, name: &str) -> Option<String> {
+        (**self).saved_text(owner, name)
     }
 
     fn save(&self, owner: &str, name: &str, value: toml::Value) -> Result<(), String> {
