@@ -119,7 +119,7 @@ fn race_style(kind: RaceType) -> Option<&'static str> {
     }
 }
 
-/// An auto shop, car lot or safe house. Its icon does not turn, so the heading points along the minimap's x axis.
+/// An auto shop, car lot or safe house: a fixed blip, so its icon turns with the player's arrow.
 fn interior_blip(marker: &ActivityMarker) -> MapBlip {
     let style = match marker.kind {
         ActivityKind::AutoShop => AUTO_SHOP,
@@ -132,7 +132,7 @@ fn interior_blip(marker: &ActivityMarker) -> MapBlip {
 /// A stored position (physics space, see `gameplay`) as a map blip in render space.
 fn map_blip(style: &'static str, position: Vec3) -> MapBlip {
     let at = space::to_render(position.to_array());
-    MapBlip { style, position: [at.x, at.y], active: false }
+    MapBlip { style, position: [at.x, at.y], active: false, heading: None }
 }
 
 #[cfg(test)]

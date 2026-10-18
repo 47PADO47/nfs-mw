@@ -60,6 +60,18 @@ collision and original swept-box parity are unverified. See
 [pursuit-free-roam](pursuit-free-roam.md) and
 [pursuit-system](../pursuit-system.md). Run-flat data remains unread. `repair`
 resets tire state.
+## Traffic and cop cars (rewrite choice, not reverse-engineered this pass)
+
+An impact on a traffic or cop car now feeds its own `VehicleEvents` damage model (`scenes/world/ai/car/hits.rs`
+`dent`): the hit is taken at its contact point, relative to the car centre, with its impulse as the force. The contact
+normal is not carried by the hit, so it is taken as the contact direction. Impacts below `MIN_CLOSING` are ignored.
+The visible result is the same corner overlay the player car shows. Basis: the existing damage model and zone table;
+the retail per-car feed for AI cars was not re-read in Ghidra for this change.
+
+Not shown yet for AI cars: the engine exposed behind a broken front, and tire smoke or engine smoke after heavy
+damage. Cracked windows are not drawn on AI cars either.
+
+
 ## Not done
 
 - **Scraped paint texture.** The procedural overlay is removed; original paint scuff rendering remains missing.

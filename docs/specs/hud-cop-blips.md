@@ -18,7 +18,7 @@ cop case. The icon images and their names are in [../formats/minimap.md](../form
 - The icon is white in normal driving and flashes blue and red during a pursuit. **[user]**
 - The icon is the car arrow, not a dot: its texture is `Minimap_Icon_Car.tga`, the same arrow as the player's
   `PLAYERCARINDICATOR` (14 x 16, package colour `0xffebebeb`). Probed in `HUD_SingleRace.fng`, `MMICON_COPCAR_0` and
-  `_1`. **[package]** Like every blip it turns with the player's arrow, not its own heading (`hud-minimap.md` section 7).
+  `_1`. **[package]** A cop is a moving blip: it points along the car's nose, not the player's arrow (`hud-minimap.md` section 7).
 - A car is drawn only while the minimap view covers it: inside the disc, never pinned to the rim, pursuing or not.
   The rewrite once pinned a pursuing car to the rim; the user asked for that to stop. The original's behaviour here
   has not been checked. (Section 8.)

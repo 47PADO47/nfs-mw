@@ -242,6 +242,12 @@ impl AiCar {
         self.current.position
     }
 
+    /// Where the car's nose points, in render space (x and y), for the minimap.
+    pub fn heading(&self) -> [f32; 2] {
+        let nose = self.current.rotation * Vec3::X;
+        [nose.x, nose.y]
+    }
+
     /// Advance the light bars by one tick, at the car's frame.
     pub fn step_lights(&mut self) {
         if !self.emergency_lights() {

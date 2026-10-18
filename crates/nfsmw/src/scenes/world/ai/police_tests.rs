@@ -123,7 +123,7 @@ fn the_blip_is_where_the_helicopter_is_in_render_space() {
     police.heli_wait = 0.0;
     police.try_join(&view(5.0));
     let heli = police.heli.expect("joined");
-    let [x, y] = police.helicopter_blip().expect("flying");
+    let ([x, y], _) = police.helicopter_blip().expect("flying");
     let physics = space::to_physics(Vec3::new(x, y, 0.0));
     assert!((physics[2] - heli.body.position.z).abs() < 1e-3, "round trip through render space");
 }

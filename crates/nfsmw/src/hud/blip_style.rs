@@ -10,6 +10,9 @@ pub struct MapBlip {
     pub position: [f32; 2],
     /// The condition the style reads as its state: the cop style flashes while this is set.
     pub active: bool,
+    /// Where a moving thing (a car, a helicopter) is pointing, in the same space. `None` for a fixed one (a race, an
+    /// interior): its icon turns with the player's arrow instead.
+    pub heading: Option<[f32; 2]>,
 }
 
 /// When a blip of a style is drawn at all.

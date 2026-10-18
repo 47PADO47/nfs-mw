@@ -102,8 +102,9 @@ impl BlipBinding {
             let Some(look) = look_of(style, blip, tick) else {
                 continue;
             };
-            // Every blip turns with the player's arrow, whatever way it is heading.
-            let placed = minimap.blip(&view, at.orientation, blip.position, at.heading);
+            // A fixed blip turns with the player's arrow. A moving one points the way it is going.
+            let direction = blip.heading.unwrap_or(at.heading);
+            let placed = minimap.blip(&view, at.orientation, blip.position, direction);
             if !drawn_in(style.visibility(blip), placed.inside) {
                 continue;
             }
