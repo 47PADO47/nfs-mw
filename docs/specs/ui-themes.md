@@ -13,8 +13,9 @@ trade-offs are in [ADR 0008](../decisions/0008-ui-themes.md). This spec gives th
   [feng-runtime.md](feng-runtime.md), [frontend-menus.md](frontend-menus.md), [hud-viewport.md](hud-viewport.md).
 - **Data inputs:** none new. The Original theme reads the same FEng packages and HUD and menu state as today.
   No game data and no decompiled code is used in this spec.
-- **Status:** design. The component model (`libs/blackbox-ui`) and the MW slot catalogue and theme scaffolding
-  (`crates/nfsmw/src/ui/theme/`, T6) are built. Nothing draws through them yet. Items marked **open** are not decided
+- **Status:** design. The component model (`libs/blackbox-ui`), the MW slot catalogue and theme scaffolding
+  (`crates/nfsmw/src/ui/theme/`, T6) and the Original HUD adapters (`original/`, T7) are built. Nothing draws through
+  them yet: the live path is unchanged until T12 wires the frame cell into the HUD plugin. Items marked **open** are not decided
   (section 14).
 
 ## 1. What a theme controls
@@ -149,7 +150,7 @@ the T1 draft are resolved here.
 | `GearIndicator` (3) | Object `3rdPersonGear`, inside the tachometer group. Text and shift-time alpha set in `HudBinding::tachometer`. **Confirmed** (was `?`) |
 | `Minimap` (4) | `hud/minimap.rs` (`GROUP`, `BACKING`, `ARROW`), shown by `hud/elements.rs`, placed by `hud/viewport.rs` ([hud-minimap.md](hud-minimap.md)) |
 | `Blips` (5) | `hud/blips.rs`; styles from `hud/blip_style.rs` and `hud/blip_styles.rs` |
-| `PursuitMeter` (6) | `hud/pursuit_meter.rs` (meter guid `0x7B422BA3`, cool-down guid `0x84A226EC`). The pursuit board (timer and cops count, groups `0xDE89E070` and `0xE0B1430B`) is bound in `HudBinding::pursuit`. **Open for T7:** whether the board is part of this slot |
+| `PursuitMeter` (6) | `hud/pursuit_meter.rs` (meter guid `0x7B422BA3`, cool-down guid `0x84A226EC`). The pursuit board (timer and cops count, groups `0xDE89E070` and `0xE0B1430B`) is bound in `HudBinding::pursuit`. **Decided (T7):** the board is part of this slot (section 8, slot map) |
 | `Nitrous` (7) | Group guid `0x87C38E97`, bar guid `0xEDFB6D37` (`nos_bar`), icon guid `0x27DDF583` (`nos_icon`, scripts `SCRIPT_NOS_BURNING` and `SCRIPT_NOS_READY`). Bound by `HudBinding::nitrous`. **Confirmed** (was `?`) |
 | `Turbo` (8) | Group `TURBO_GROUP` (`hud/elements.rs`), needle `3rdperson_TurboDial`. Bound by `HudBinding::turbo`. **Confirmed** (was `?`) |
 | `Speedbreaker` (9) | `hud/speedbreaker.rs`: icon `SPEEDBREAKER_METER_ICON_GROUP`, group `Speedbreaker_Meter_Group`, mask `Speedbreaker_Meter_Multi_Image`, linear group guid `0x82D60021`, bar guid `0x1FDAF669`. **Confirmed** (was `?`) |
@@ -246,9 +247,10 @@ original game (see [hud-viewport.md](hud-viewport.md) and [frontend-menus.md](fr
 show the tree is unchanged before and after each slot is wrapped (the digest tests in
 `libs/blackbox-render/src/gpu/parity/digests/`).
 
-### Adapter design: emitting the FEng subtree (note for T7 and T8, not built)
+### Adapter design: emitting the FEng subtree (HUD built in T7; menus owed to T8)
 
-The T6 scaffolding leaves `OriginalTheme::element` returning `None`. The adapters follow this design:
+The HUD adapters are built (T7, `crates/nfsmw/src/ui/theme/original/`). The menu adapters return `None` until T8.
+The design:
 
 1. **One producer.** The owning plugin (`hud/plugin.rs`, `frontend/plugin.rs`) advances its package (scripts,
    messages) and calls `Runtime::tree()` once per frame, as it does today. Adapters only read. They never run a
@@ -256,11 +258,19 @@ The T6 scaffolding leaves `OriginalTheme::element` returning `None`. The adapter
 2. **One adapter per slot, over one FEng subtree.** A slot's objects are a root group and its children (section 6).
    The adapter's subtree is the nodes of that frame's `UiTree` under the root. Node indices belong to one tree, so the
    adapter copies its nodes and remaps each `parent` into the index space of its own `DrawList`.
-3. **How the frame's nodes reach `build`. Open for T7.** `build(&self)` takes no runtime (section 3, decision 2 in the
-   plan), and `LayoutCx` carries only the skin and the clock, so neither can hand over the tree. Recommended: the
-   adapter holds a shared cell (for example `Rc<RefCell<Vec<UiNode>>>`, stored NonSend) that the plugin fills right
-   after `Runtime::tree()`, and `build` copies from it. Any other route changes the `Component` contract, so T7 decides
-   this before it writes the first adapter.
+3. **How the frame's nodes reach `build`. Decided (T7).** `build(&self)` takes no runtime (section 3, decision 2 in the
+   plan), and `LayoutCx` carries only the skin and the clock, so neither can hand over the tree. The route is a shared
+   **frame cell**, `FrameCell` (`original/frame.rs`): one `Option<Arc<UiTree>>` per package (`FengSource::{Hud, Chyron,
+   BustedOverlay}`), behind an `Arc<Mutex<..>>`. The plugin fills it with `FrameCell::set` once per frame; `clear`
+   empties a package that is not drawn. The adapters read it in `build`, so an adapter resolved once keeps reading the
+   current frame.
+   - **Why `Arc<Mutex>` and not `Rc<RefCell>`.** `Theme` is `Send + Sync` (`blackbox_ui::Theme`), and `OriginalTheme`
+     holds the cell, so the cell must be thread-safe. The lock is taken once per adapter per build. A poisoned lock is
+     read through (`PoisonError::into_inner`): each write replaces a whole slot, so the data stays valid.
+   - **What the plugin stores.** The tree as the presenter gets it: `hud.viewport.apply` applied for the HUD, and
+     `trax.place` for the chyron. Adapters then copy the placed `world` transforms as they are.
+   - **Who fills it.** `UiThemes::frame()` gives the plugin its clone (T12). T7 defines `set`/`clear` and does not call
+     them, so the live path is unchanged.
 4. **One composed tree.** The presenter sees one `UiTree`. The plugin composes the slot subtrees in the FEng node
    order, so `draw_order` matches today's, and calls `hud.viewport.apply` once on the composed tree, not per slot
    (section 5, [hud-viewport.md](hud-viewport.md)). Pixel parity is checked with the digest tests.
@@ -270,9 +280,71 @@ The T6 scaffolding leaves `OriginalTheme::element` returning `None`. The adapter
 6. **Stateful pieces stay put.** Per-frame state that a component owns (fade timers, needle easing) moves into
    `layout(&mut self, ..)` only where it needs no FEng data. Anything that needs the package stays in the plugin.
 
-**Check owed (T7 or T8).** `Themes::new` in `libs/blackbox-ui` checks only that the floor's id is `Original`. It does
-not check that the floor fills every slot, which section 7 asks for. Once the Original theme fills slots, add a test
-that `OriginalTheme::element` returns `Some` for every `ElementId::ALL` entry, and add the check to the constructor.
+**Check owed (T8).** `Themes::new` in `libs/blackbox-ui` checks only that the floor's id is `Original`. It does not check
+that the floor fills every slot, which section 7 asks for. T7 fills the HUD slots only. The test
+`every_hud_slot_has_an_adapter_and_the_menu_slots_do_not_yet` (`original/tests.rs`) pins that state, and T8 changes it
+to "every slot is `Some`". T8 also adds the check to the constructor.
+
+### What T7 built (HUD adapters)
+
+- **`FengSubtree`** (`original/subtree.rs`), an `impl Component`. It holds the cell, a `FengSource`, and a scope:
+  `under(frame, source, roots, excluded)` for an element's root groups, or `package(frame, source)` for a whole package
+  (the chyron and the overlay). `layout` is a no-op. `build` copies the nodes of its scope from the cell's tree for its
+  source and does nothing when that source is empty.
+- **Copy rules.** A node is in scope when walking up from it (itself included) meets a root name before an excluded
+  name. The walk is by name hash (`UiNode::name_hash`), so the rule does not depend on how the tree was built. A root
+  that is absent, or not `visible`, takes its subtree with it, so nothing is emitted. Nodes keep the tree's order (the
+  package's object order, parents first). `parent` is remapped into the draw list's index space, starting at
+  `out.len()`, so several adapters can append to one list. A root's parent lies outside its subtree, so the root gets
+  `parent: None`. `index` is kept: it stays the package object index, not the list position.
+- **Draw order.** The adapter does not sort. The composer calls `DrawList::into_tree`, a stable sort by `z`. Because
+  the nodes come in object order, a single slot's draw order equals FEng's `draw_order` restricted to that slot (tested).
+  Across slots, ties in `z` keep the composer's insertion order. To match FEng exactly, the composer should append the
+  slots in object-index order, or sort by `index` before `into_tree`. T12 decides which.
+- **Root lists** (`hud/roots.rs`). Each list is the same list `hud/elements.rs::Layout::update` uses for the element,
+  so an adapter emits exactly what the HUD shows for it. All of them are name hashes (`Runtime::find`). The T6 table
+  says "guid" for the group identities. That is wrong for every entry except the tachometer's fill (`0x456E`, a guid,
+  not used as a root). `elements.rs` and `bind.rs` look the others up by name.
+
+### Slot to adapter map (`original/hud_slots.rs`)
+
+| Slot | Source | Roots (name hashes) | Excluded |
+|---|---|---|---|
+| `Tachometer` | Hud | `TACHOMETER` (`0x5164D4EA`) | the gear (`3rdPersonGear`) |
+| `Speedometer` | Hud | `SPEEDOMETER` (`0x941FFF09`) | none |
+| `GearIndicator` | Hud | `3rdPersonGear` | none |
+| `Minimap` | Hud | `TRACK_MAP`, `TRACKMAPTARGETRING`, `PLAYERCARINDICATOR` | the blip icons |
+| `Blips` | Hud | every blip pool icon (`hud/roots.rs::blip_icons`) | none |
+| `PursuitMeter` | Hud | `PURSUIT_BOARD` (`0xDE89E070`, `0x7B422BA3`), `PURSUIT_COPS` (`0xE0B1430B`), `COOLDOWN` (`0x84A226EC`) | none |
+| `Nitrous` | Hud | `NITROUS` (`0x87C38E97`, `0xEDFB6D37`) | none |
+| `Turbo` | Hud | `TURBO_GROUP` | none |
+| `Speedbreaker` | Hud | `SPEEDBREAKER_METER_ICON_GROUP`, `Speedbreaker_Meter_Group`, `Speedbreaker_Meter_Multi_Image`, `0x82D60021` | none |
+| `RadioCard` | Chyron | whole package (`EA_TRAX.fng`) | none |
+| `BustedOverlay` | BustedOverlay | whole package (`BUSTED_OVERLAY.fng`) | none |
+
+Menu slots (raw 20 and up) return `None`. T8 adds them.
+
+**Decisions** (each one keeps every HUD node in at most one slot):
+
+- **Gear inside the tachometer.** The tachometer excludes the gear's subtree, and the gear slot emits it. Replacing the
+  tachometer keeps the gear unless the gear is replaced too.
+- **Blips inside the minimap.** `elements.rs` hides every object that is not under one of its roots, and the blip pool
+  is shown. So the blip icons sit under a minimap root (`TRACK_MAP`, most likely, or one of the other two). The minimap
+  excludes them, and the blips slot emits them. The exclusion holds wherever they sit under those roots.
+- **Pursuit board in `PursuitMeter`.** The board (`PURSUIT_BOARD`, timer and cops count) and the meter and cool-down
+  bar are one slot. They are bound together, and show only during a chase. A split would add a slot with no consumer.
+  The bounty row is in neither the catalogue nor this slot, unless it sits under the board group. Not checked.
+- **Radar cool-down.** The cool-down bar (`0x84A226EC`) sits inside the radar's group in the package, but it is a root
+  of `PursuitMeter`. Its membership is decided by its own root, so it is not lost.
+- **Not in any slot (owed to T12).** The rear-view mirror (`0x9EE06631`, `0x7FAC287B`), the police radar and its laser
+  (`0x839E7D77`, `0x062743F5`, `0x6CCBBBF1`), the heat arcs (`0xC46A80A9`), and the bounty row. No adapter emits them,
+  so a composed HUD built from the slots alone loses them. T12 must either give each one a slot (with a consumer) or
+  have the composer emit what no slot claims. This is the largest open point for T12.
+- **Unchecked assumption.** Only the gear is known to sit inside another slot's root (the tachometer). Every other root
+  is taken as a sibling. T12 should verify this on the real package with a check that no node is claimed twice.
+
+**Ghidra was not used.** Every identity above was already pinned by the Rust code (`elements.rs`, `bind.rs`,
+`speedbreaker.rs`, `minimap.rs`), so no new original-game fact was needed.
 
 ## 9. The Custom theme: native components
 
@@ -384,6 +456,7 @@ These are not decided. The parent task (or the owner) decides them before the ma
    intended. Before T10.
 7. **Remastered in the menu.** Whether the Remastered row is shown before a Remastered theme exists, since it looks
    like Original until then. Before T10.
-8. **Busted overlay and career screens.** Resolved (T6): confirmed in section 6. Still open for T7: whether the pursuit
-   board belongs to `PursuitMeter`, and the adapter route for per-frame nodes (section 8, point 3).
+8. **Busted overlay and career screens.** Resolved (T6): confirmed in section 6. Resolved (T7): the pursuit board belongs
+   to `PursuitMeter`, and the per-frame route is the frame cell (section 8, point 3). Open for T12: the unclaimed HUD
+   nodes (mirror, radar, laser, heat arcs), which need slots or a composer rule (section 8, slot map).
 9. **Milestone number.** The work has no milestone number in the plan. Set it when the subtasks are scheduled.
