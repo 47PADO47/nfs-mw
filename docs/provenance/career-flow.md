@@ -124,3 +124,31 @@ Corrections and additions found by the format work are listed at the end.
 5. "high scores" is the career statistics block; the "pursuit records" at 0xF2BA are the five most recent pursuits.
 6. `TheCareerSettings` is not a small struct: it holds the 0x4000-byte gameplay blob, cash, current car, stage, flags,
    the SMS table, the node list, hint counters and the popup queue (23,033 bytes).
+
+## Profile serial (2026-10-18)
+
+Method: Ghidra MCP on `/speed.exe` (the project also has `/New Traces/pydbg/speed.exe`, so the program path was passed
+in full). Format string xref search (`search_strings` then an inline script over `getReferencesTo`), disassembly and
+decompile of the callers, then xrefs and reads of the RNG state.
+
+| Item | Address | Note |
+|---|---|---|
+| Format string `MW-%d-%.4sXXX` | `0x008A1058` | only xref: `0x005A3981` (DATA) |
+| New-career init (serial built here) | `FUN_005A3950` / `0x005A3950` | callers `FUN_00562FF0`, `FUN_00563380` |
+| RNG draw `draw(n)` | `FUN_0045DA30` / `0x0045DA30` | state `0x008EC4E0`, xorshift step, returns `s mod n` |
+| Float RNG draw | `FUN_0045DA70` / `0x0045DA70` | same state update, 32 callers |
+| Static initial RNG state | `0x008EC4E0` | file bytes `78 56 34 12` = `0x12345678` |
+| Other state writers | `FUN_00661490` `0x00661490`, `FUN_006617E0` `0x006617E0` | copy from/to stream (playback) |
+| Printf engine, buffer size 13 | `FUN_004647E0` / `FUN_00462A80` | 12 chars + NUL |
+| Uppercase pass | `FUN_00460F50` / `0x00460F50` | `a`..`z` to `A`..`Z` |
+| Game object global | `0x0091CF90` | built by `FUN_005992E0`, allocated in `FUN_005ABAD0` |
+| Letters source (block ptr) | `[0x0091CF90] + 0x10` | 0x9CB8-byte block from `FUN_005992E0` |
+
+Result: the `0x19B3` argument is the RNG range (6579), not a seed; number = draw + 1069 (range 1069..7647); the output is
+truncated to 12 characters, so `XXX` only shows when fewer than 4 letters are present.
+
+Open or unverified:
+- The four letters: the code that writes offset 0 of the 0x9CB8 block was not found. Runtime read needed.
+- The RNG state at career start: the static start value is `0x12345678`, but every earlier draw in the process changes it.
+  The serial is reproducible only by replaying those draws. No time-based reseed was found in the write sites.
+- Whether the 16-byte save field at `0x26C` is zeroed beyond the 13 bytes written here (not checked in the save).
