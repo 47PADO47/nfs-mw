@@ -20,6 +20,15 @@ fn stock_selection_glow_has_alpha_coverage_despite_white_rgb() {
 }
 
 #[test]
+fn rival_pictures_load_from_rivals_bin() {
+    let Some(path) = std::env::var_os("NFSMW_GAME_DIR") else { return };
+    let dir = GameDir::open(path).unwrap();
+    let assets = UiAssets::load(&dir).unwrap();
+    let picture = assets.texture(fe_hash_upper("RIVAL_04_BG")).expect("RIVAL_04_BG from GLOBAL/RIVALS.BIN");
+    assert_eq!((picture.width, picture.height), (512, 512));
+}
+
+#[test]
 #[ignore = "needs the installed game"]
 fn installed_minimap_roads_preserve_additive_colour_for_hdr_ui() {
     let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();

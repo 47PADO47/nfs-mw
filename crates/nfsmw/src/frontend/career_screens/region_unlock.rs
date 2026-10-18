@@ -98,8 +98,7 @@ impl RegionUnlockLogic {
 }
 
 /// Sets the region's text and background picture. The background is named `RIVAL_<key>_BG`; its texture comes from
-/// `Global\Rivals.tpk`, which the front end does not register yet, so until it does the picture stays as the package
-/// has it (spec 8).
+/// `GLOBAL/RIVALS.BIN`, which the UI assets load (`ui::assets`, spec 8).
 fn show(cx: &mut Cx, picture: RegionPicture) {
     if let Some(label) = cx.object(LABEL) {
         cx.label(label, picture.label_hash);
