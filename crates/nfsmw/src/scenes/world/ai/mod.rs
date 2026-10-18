@@ -236,6 +236,16 @@ impl TrafficWorld {
         self.pursuit.is_some()
     }
 
+    /// The heat of the chase, 0 with none.
+    pub fn heat_value(&self) -> f32 {
+        self.police.heat_value()
+    }
+
+    /// The escape's status: the chase, the cool-down, or evaded.
+    pub fn cooldown_status(&self) -> blackbox_pursuit::CooldownStatus {
+        self.police.cooldown_status()
+    }
+
     /// What a patrol cop knows about the player at `heat`, as of the last collision step.
     pub fn sighting(&self, heat: u32) -> traffic_events::Sighting {
         traffic_events::Sighting {

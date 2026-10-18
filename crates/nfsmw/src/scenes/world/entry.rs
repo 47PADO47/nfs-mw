@@ -8,6 +8,7 @@
 
 use glam::Vec3;
 
+use super::career::RaceEntry;
 use super::entry_zones::{EntryZones, Zone, ZoneKind};
 use super::road::Spawn;
 use super::{View, WorldScene};
@@ -71,7 +72,17 @@ impl WorldScene {
         let zone = self.entered_zone().map(|zone| (zone.kind, zone.name.clone()));
         let prompt = zone.as_ref().map(|(kind, _)| prompt_for(*kind));
         if let (true, Some((kind, name))) = (enter_wanted(input, &self.entry.popup, zone.is_some()), zone.as_ref()) {
-            enter_stub(&mut self.entry.popup, *kind, name);
+            let race = match kind {
+                ZoneKind::Race => self.career_enter_race(name),
+                ZoneKind::AutoShop | ZoneKind::SafeHouse => RaceEntry::NotCareer,
+            };
+            let locked = race == RaceEntry::Locked;
+            if locked {
+                flash_locked(&mut self.entry.popup, name);
+            }
+            if !locked && !self.career_enter_zone(*kind, name) {
+                enter_stub(&mut self.entry.popup, *kind, name);
+            }
         }
         self.entry.popup.set_target(prompt);
         self.entry.popup.update(dt);
@@ -249,6 +260,14 @@ fn enter_stub(popup: &mut InteractPopup, kind: ZoneKind, name: &str) {
     log::info!("entering {} {name} (stub: the destination is not built yet)", kind.label());
     let placeholder = Prompt { title: format!("Entering {}", kind.label()), line: "Not built yet".to_string() };
     popup.flash(placeholder, PLACEHOLDER_SECS);
+}
+
+/// The card for a race the career has not opened yet. The Blacklist has not reached its bin, or its rival is still
+/// locked (`career-blacklist.md` section 2). The original's label is not in the spec; this one is a stand-in.
+fn flash_locked(popup: &mut InteractPopup, name: &str) {
+    log::info!("career: race {name} is locked");
+    let card = Prompt { title: "Race locked".to_string(), line: "Not open yet".to_string() };
+    popup.flash(card, PLACEHOLDER_SECS);
 }
 
 /// Upper-case the first letter of a label.
