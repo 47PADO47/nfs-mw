@@ -160,6 +160,8 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         ao: field(&table, origin, "ao", |v| super::AoQuality::from_str(text_of(v)?)),
         ao_intensity: field(&table, origin, "ao_intensity", percent),
         ao_compare: field(&table, origin, "ao_compare", boolean),
+        ao_depth_mips: field(&table, origin, "ao_depth_mips", boolean),
+        ao_method: field(&table, origin, "ao_method", |v| super::AoMethod::from_str(text_of(v)?)),
         render_scale: field(&table, origin, "render_scale", |v| match v {
             Value::Integer(n) => RenderScale::from_str(&n.to_string()),
             Value::Float(f) => RenderScale::from_str(&format!("{f:?}")),

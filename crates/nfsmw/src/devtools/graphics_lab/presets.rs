@@ -12,7 +12,15 @@ impl GraphicsLab {
         restore_graphics(settings, &snapshot);
     }
     fn select_quality(&mut self, quality: Quality, settings: &mut Settings) {
+        let requested = settings.renderer;
+        if let Some(caps) = self.caps {
+            settings.renderer = match caps.renderer {
+                "blackbox" => crate::settings::RendererKind::Blackbox,
+                _ => crate::settings::RendererKind::Bevy,
+            };
+        }
         self.options = RenderExperiments { freeze_sun: self.options.freeze_sun, ..quality.apply(settings) };
+        settings.renderer = requested;
     }
     fn experiment_preset(&mut self, preset: &str) {
         self.options = RenderExperiments {
@@ -30,13 +38,25 @@ pub(super) fn hotkeys(
     mut settings: ResMut<Settings>,
     gui: Option<Res<crate::gui::Gui>>,
 ) {
-    if !lab.open || gui.is_some_and(|gui| gui.ctx.egui_wants_keyboard_input()) {
+    if !lab.open {
+        return;
+    }
+    if (keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight)) && keys.just_pressed(KeyCode::KeyS) {
+        lab.save_requested = true;
+    }
+    if gui.is_some_and(|gui| gui.ctx.egui_wants_keyboard_input()) {
         return;
     }
     lab.remember_startup(&settings);
-    for (key, preset) in
-        [(KeyCode::Digit1, Quality::Low), (KeyCode::Digit2, Quality::Balanced), (KeyCode::Digit3, Quality::High)]
-    {
+    for (key, preset) in [
+        (KeyCode::Digit1, Quality::Low),
+        (KeyCode::Digit2, Quality::Balanced),
+        (KeyCode::Digit3, Quality::High),
+        (KeyCode::Digit4, Quality::VeryHigh),
+    ] {
+        if preset == Quality::VeryHigh && !super::view::blackbox(&lab, &settings) {
+            continue;
+        }
         if keys.just_pressed(key) {
             lab.select_quality(preset, &mut settings);
         }
@@ -48,44 +68,71 @@ pub(super) fn hotkeys(
 
 pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Settings) {
     ui.horizontal_wrapped(|ui| {
-        ui.label("Quick quality:");
-        for (label, preset) in
-            [("Low · 1", Quality::Low), ("Balanced · 2", Quality::Balanced), ("High · 3", Quality::High)]
-        {
-            if ui.button(label).clicked() {
+        ui.label("Quality preset:");
+        for (label, preset) in [
+            ("Low · 1", Quality::Low),
+            ("Balanced · 2", Quality::Balanced),
+            ("High · 3", Quality::High),
+            ("Very High · 4", Quality::VeryHigh),
+        ] {
+            if preset == Quality::VeryHigh && !super::view::blackbox(lab, settings) {
+                continue;
+            }
+            let native = super::view::blackbox(lab, settings);
+            let mut expected = *settings;
+            expected.select_graphics_quality(preset);
+            if ui
+                .selectable_label(*settings == expected, label)
+                .on_hover_text(match (native, preset) {
+                    (false, _) => "Bevy shadow, AO and reflection budget. 16× filtering retained; Black Box experiments stay unchanged.",
+                    (true, Quality::Low) => "1K sun maps, low AO/reflection budget. 16× filtering retained.",
+                    (true, Quality::Balanced) => {
+                        "4K near detail / 2K distant maps, medium AO and reflections. 16× filtering retained."
+                    }
+                    (true, Quality::High) => {
+                        "Wide 4K cascades, dense sun filtering, high AO and reflections. Recommended starting point."
+                    }
+                    (true, Quality::VeryHigh) => {
+                        "8K detail / 4K distant maps (640 MiB atlas). Higher shadow cost; same look and AO as High."
+                    }
+                })
+                .clicked()
+            {
                 lab.select_quality(preset, settings);
             }
         }
+    });
+    ui.collapsing("Compare / experiments", |ui| {
         if ui.button("Restore startup · 0").clicked() {
             lab.restore_startup(settings);
         }
-    });
-    if lab.tab == profiles::Tab::Lighting {
-        ui.horizontal_wrapped(|ui| {
-            ui.label("Lighting presets:");
-            for (name, preset) in [
-                ("Off", "baseline"),
-                ("Sky", "ambient"),
-                ("Sun", "shadows"),
-                ("Far", "distance"),
-                ("Detail", "detail"),
-                ("Coat", "modern"),
-            ] {
-                if ui.button(name).clicked() {
-                    lab.experiment_preset(preset);
+        if lab.tab == profiles::Tab::Lighting && super::view::blackbox(lab, settings) {
+            ui.horizontal_wrapped(|ui| {
+                ui.label("Lighting presets:");
+                for (name, preset) in [
+                    ("Off", "baseline"),
+                    ("Sky", "ambient"),
+                    ("Sun", "shadows"),
+                    ("Far", "distance"),
+                    ("Detail", "detail"),
+                    ("Coat", "modern"),
+                ] {
+                    if ui.button(name).clicked() {
+                        lab.experiment_preset(preset);
+                    }
                 }
+            });
+        }
+        ui.horizontal_wrapped(|ui| {
+            if ui.button("Store A").clicked() {
+                lab.saved = Some((lab.options, *settings));
+            }
+            if ui.add_enabled(lab.saved.is_some(), egui::Button::new("Swap A/B")).clicked() {
+                let (options, snapshot) = lab.saved.replace((lab.options, *settings)).expect("enabled saved state");
+                lab.options = options;
+                restore_graphics(settings, &snapshot);
             }
         });
-    }
-    ui.horizontal_wrapped(|ui| {
-        if ui.button("Store A").clicked() {
-            lab.saved = Some((lab.options, *settings));
-        }
-        if ui.add_enabled(lab.saved.is_some(), egui::Button::new("Swap A/B")).clicked() {
-            let (options, snapshot) = lab.saved.replace((lab.options, *settings)).expect("enabled saved state");
-            lab.options = options;
-            restore_graphics(settings, &snapshot);
-        }
     });
 }
 
@@ -132,6 +179,8 @@ pub(super) fn restore_appearance(settings: &mut Settings, snapshot: &Settings) {
     settings.ao = snapshot.ao;
     settings.ao_intensity = snapshot.ao_intensity;
     settings.ao_compare = snapshot.ao_compare;
+    settings.ao_depth_mips = snapshot.ao_depth_mips;
+    settings.ao_method = snapshot.ao_method;
     settings.post_tonemap = snapshot.post_tonemap;
     settings.post_bloom = snapshot.post_bloom;
     settings.post_aa = snapshot.post_aa;

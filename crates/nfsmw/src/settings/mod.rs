@@ -105,7 +105,7 @@ use blackbox_gfx::GraphicsApi;
 
 pub use blackbox_gfx::ReflectionQuality;
 pub use blackbox_gfx::reflection::{MirrorTint, ReflectionSize};
-pub use blackbox_gfx::{AoQuality, ShadowQuality, TextureFiltering};
+pub use blackbox_gfx::{AoMethod, AoQuality, ShadowQuality, TextureFiltering};
 pub use camera_mode::CameraMode;
 pub use car_shading::CarShading;
 pub use controls::{Controls, Deadzone, DeadzoneMode, Sensitivity};
@@ -296,6 +296,8 @@ pub struct Settings {
     pub ao: AoQuality,
     pub ao_intensity: Percent,
     pub ao_compare: bool,
+    pub ao_depth_mips: bool,
+    pub ao_method: AoMethod,
     /// The 3D scene's size in percent of the output size per axis, and the filter that scales it back up.
     pub render_scale: RenderScale,
     pub upscaler: UpscaleMode,
@@ -409,8 +411,10 @@ impl From<Partial> for Settings {
             reflection_extra: reflection_extra::ReflectionExtra::from_partial(&p),
             shadows: p.shadows.unwrap_or_default(),
             ao: p.ao.unwrap_or_default(),
-            ao_intensity: p.ao_intensity.unwrap_or(Percent(75)),
+            ao_intensity: p.ao_intensity.unwrap_or(Percent(80)),
             ao_compare: p.ao_compare.unwrap_or(false),
+            ao_depth_mips: p.ao_depth_mips.unwrap_or(false),
+            ao_method: p.ao_method.unwrap_or(AoMethod::XeGtao),
             render_scale: p.render_scale.unwrap_or_default(),
             upscaler: p.upscaler.unwrap_or_default(),
             upscale_sharpness: p.upscale_sharpness.unwrap_or(Percent(80)),

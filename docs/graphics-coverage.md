@@ -91,7 +91,7 @@ Original PC selects the regular programmable PC car material family. F8 Material
 and Video > Car Shading also expose the original shadowless family, whose highlight
 and reflection equations differ. Quality changes preserve that selection. Custom
 Glossy and Simple remain available; existing preferences are not silently migrated.
-Save profile keeps the choice. `--car-shading original` and
+Save for startup keeps the choice. `--car-shading original` and
 `--car-shading original-unshadowed` select the same paths for viewers.
 
 The native renderer evaluates original material ramps and light sums per vertex,

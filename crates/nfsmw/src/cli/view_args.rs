@@ -294,6 +294,12 @@ pub struct ViewArgs {
     /// Compare AO in the same frame: left off, right on [env NFSMW_AO_COMPARE].
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     pub ao_compare: Option<bool>,
+    /// Use the depth-prefiltered AO horizon sampler [env NFSMW_AO_DEPTH_MIPS].
+    #[arg(long, value_parser = crate::settings::parse_bool)]
+    pub ao_depth_mips: Option<bool>,
+    /// AO estimator [env NFSMW_AO_METHOD; default gtao].
+    #[arg(long, value_name = "gtao|ssao|xegtao")]
+    pub ao_method: Option<crate::settings::AoMethod>,
     /// Who changes gear: automatic or manual (Q/E, the bumpers or the wheel paddles shift)
     /// [env NFSMW_TRANSMISSION; config `transmission`; default automatic].
     #[arg(long, value_name = "automatic|manual")]
@@ -399,6 +405,8 @@ impl ViewArgs {
             ao: self.ao,
             ao_intensity: self.ao_intensity,
             ao_compare: self.ao_compare,
+            ao_depth_mips: self.ao_depth_mips,
+            ao_method: self.ao_method,
             render_scale: self.render_scale,
             upscaler: self.upscaler,
             upscale_sharpness: self.upscale_sharpness,

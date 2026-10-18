@@ -2,6 +2,8 @@
 use super::*;
 #[path = "frame_cost_tests.rs"]
 mod frame_cost_tests;
+#[path = "shadow_cost_tests.rs"]
+mod shadow_cost_tests;
 use blackbox_gfx::{Antialiasing, AoQuality, ReflectionQuality, RenderExperiments};
 use blackbox_render::{Renderer, RendererOptions};
 use std::{
