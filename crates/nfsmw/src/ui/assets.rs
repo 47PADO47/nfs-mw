@@ -47,8 +47,8 @@ const ALIASES: [(&str, &str); 6] = [
 ];
 
 /// The stock sizes of the font textures, by font name: the built-in table of `docs/specs/hd-content-support.md`, section
-/// 2.2. Used only for a font whose texture is loaded but has no stock copy in the install's packs (so a replacement).
-/// The rows for `font_mw_body`, `font_mw_title` and `font_mw_custom_numbers` agree with the install.
+/// 2.2. It is the first source of a font's native size (see [`native_size`]). The rows for `font_mw_body`,
+/// `font_mw_title` and `font_mw_custom_numbers` agree with the unmodified install.
 const FONT_TABLE: [(&str, (u32, u32)); 6] = [
     ("font_mw_body", (256, 256)),
     ("font_mw_title", (512, 512)),
@@ -63,10 +63,14 @@ fn table_size(font_hash: u32) -> Option<(u32, u32)> {
     FONT_TABLE.iter().find(|(name, _)| fe_hash_upper(name) == font_hash).map(|(_, size)| *size)
 }
 
-/// A font texture's native size: the stock texture's size when the install has one, else the table's. `None` when
-/// neither knows it.
+/// A font texture's native size: the table's when it names the font (the stock sizes, checked against the game), else
+/// the install's stock copy. `None` when neither knows it.
+///
+/// The table comes first because a mod can replace the stock texture inside the install itself (an HD `FONT_MW_BODY`
+/// of 2048 x 2048 sits in the modded `GLOBALA.BUN` where the stock one is 256 x 256). The glyph layout is in stock
+/// pixels, so an install copy read here would take the HD size and every glyph would sample the wrong place.
 pub fn native_size(stock: Option<(u32, u32)>, table: Option<(u32, u32)>) -> Option<(u32, u32)> {
-    stock.or(table)
+    table.or(stock)
 }
 
 /// The native size of each font's texture (see [`native_size`]). The table is consulted only when the texture is
@@ -80,7 +84,16 @@ fn native_font_sizes(
         .values()
         .filter_map(|font| {
             let table = textures.contains_key(&font.texture_hash).then(|| table_size(font.hash)).flatten();
-            let size = native_size(stock.get(&font.texture_hash).copied(), table)?;
+            let stock = stock.get(&font.texture_hash).copied();
+            if let (Some(t), Some(s)) = (table, stock)
+                && t != s
+            {
+                log::warn!(
+                    "font {:#x}: the install's texture is {s:?}, the stock size is {t:?}; using {t:?}",
+                    font.hash
+                );
+            }
+            let size = native_size(stock, table)?;
             Some((font.texture_hash, size))
         })
         .collect()
