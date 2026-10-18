@@ -11,14 +11,14 @@ use super::manifest::InterfaceVersion;
 use super::offer::InterfaceOffer;
 use super::table::{
     Attached, AudioBackend, CameraBackend, CommandsBackend, HudBackend, InputBackend, MapBackend, MenusBackend,
-    TimeBackend, VehiclesBackend, WorldBackend, attach_audio, attach_camera, attach_commands, attach_hud, attach_input,
-    attach_map, attach_menus, attach_time, attach_vehicles, attach_world,
+    TimeBackend, UiBackend, VehiclesBackend, WorldBackend, attach_audio, attach_camera, attach_commands, attach_hud,
+    attach_input, attach_map, attach_menus, attach_time, attach_ui, attach_vehicles, attach_world,
 };
 use crate::abi::{
     IFACE_AUDIO, IFACE_AUDIO_VERSION, IFACE_CAMERA, IFACE_CAMERA_VERSION, IFACE_COMMANDS, IFACE_COMMANDS_VERSION,
     IFACE_HUD, IFACE_HUD_VERSION, IFACE_INPUT, IFACE_INPUT_VERSION, IFACE_MAP, IFACE_MAP_VERSION, IFACE_MENUS,
-    IFACE_MENUS_VERSION, IFACE_TIME, IFACE_TIME_VERSION, IFACE_VEHICLES, IFACE_VEHICLES_VERSION, IFACE_WORLD,
-    IFACE_WORLD_VERSION,
+    IFACE_MENUS_VERSION, IFACE_TIME, IFACE_TIME_VERSION, IFACE_UI, IFACE_UI_VERSION, IFACE_VEHICLES,
+    IFACE_VEHICLES_VERSION, IFACE_WORLD, IFACE_WORLD_VERSION,
 };
 
 /// What a provider knows when it builds the table of one mod: the mod's id.
@@ -89,6 +89,12 @@ impl InterfaceRegistry {
     pub fn add_menus(&mut self, backend: Rc<dyn MenusBackend>) -> &mut Self {
         let build: Build = Box::new(move |ctx: &HostCtx<'_>| attach_menus(backend.clone(), ctx.owner()));
         self.push(IFACE_MENUS, IFACE_MENUS_VERSION, build)
+    }
+
+    /// Offer `bb.ui`, implemented by `backend`.
+    pub fn add_ui(&mut self, backend: Rc<dyn UiBackend>) -> &mut Self {
+        let build: Build = Box::new(move |ctx: &HostCtx<'_>| attach_ui(backend.clone(), ctx.owner()));
+        self.push(IFACE_UI, IFACE_UI_VERSION, build)
     }
 
     /// Offer `bb.vehicles`, implemented by `backend`.
