@@ -7,6 +7,7 @@ mod camera_original;
 mod car_light_flares;
 mod car_lights;
 mod car_loader;
+mod career;
 mod cargo;
 mod commands;
 mod day;
@@ -47,6 +48,7 @@ mod resident;
 mod road;
 mod rotor;
 mod scene;
+mod scenery_groups;
 mod shadow_feed;
 mod sign_lamps;
 mod simulation;
@@ -166,6 +168,10 @@ pub struct WorldScene {
     pub map_blips: Vec<crate::hud::MapBlip>,
     /// Minimap blips the mods placed (`bb.map`), set each frame by the mods' systems and merged after `map_blips`.
     pub mod_blips: Vec<crate::hud::MapBlip>,
+    /// The career being played, if any, and what it asks of the front end (`career/`).
+    career: career::WorldCareer,
+    /// The scenery groups switched on (`scenery_groups.rs`); the career opens and closes the region gates through it.
+    scenery_groups: scenery_groups::SceneryGroups,
     /// The entry zones (auto shops, safe houses, race starts) and the interact card (`entry.rs`).
     entry: entry::Entry,
     /// The `traffic`, `cop_share` settings as last told, and a count typed in the console that replaces them.

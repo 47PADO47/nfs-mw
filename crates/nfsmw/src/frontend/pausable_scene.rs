@@ -230,6 +230,13 @@ impl Scene for Pausable {
         self.inner.pay_bust(marker)
     }
 
+    fn take_career_request(&mut self) -> Option<crate::career::CareerRequest> {
+        if self.concealed() {
+            return None;
+        }
+        self.inner.take_career_request()
+    }
+
     fn paused(&self) -> bool {
         self.paused.get() || self.inner.paused()
     }

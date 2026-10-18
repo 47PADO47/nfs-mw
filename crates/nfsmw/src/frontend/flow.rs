@@ -274,13 +274,14 @@ impl Frontend {
         self.latch = true;
         self.screens.clear();
         log::info!("starting free roam");
-        let world = match WorldScene::open(&self.dir, free_roam_options()) {
+        let mut world = match WorldScene::open(&self.dir, free_roam_options()) {
             Ok(w) => w,
             Err(e) => {
                 log::error!("cannot start free roam: {e:#}");
                 return;
             }
         };
+        world.set_career(self.career.clone(), self.profiles.clone());
         self.paused.set(false);
         self.conceal.set(true);
         let scene = Pausable::new(Box::new(world), self.paused.clone()).with_conceal(self.conceal.clone());
@@ -329,7 +330,8 @@ impl Frontend {
         self.latch = true;
         self.paused.set(true);
         self.stage = Stage::Paused;
-        let ticket = Ticket { lines, markers: 0 };
+        let career_ticket = self.career.with(|career| Ticket::with_career(&lines, career));
+        let ticket = career_ticket.unwrap_or(Ticket { lines, ..Ticket::default() });
         let commands = self.screens.open_with(INFRACTIONS, Box::new(InfractionsLogic::new(ticket)), true, env);
         self.apply(commands, host, env);
     }

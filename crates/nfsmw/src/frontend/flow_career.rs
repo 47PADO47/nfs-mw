@@ -2,7 +2,7 @@
 //! (`career-flow.md` sections 2 to 4). The start itself is `career::start_or_resume`.
 
 use crate::app::Host;
-use crate::career::start_or_resume;
+use crate::career::{CareerRequest, start_or_resume};
 use crate::frontend::confirm::{Alert, AlertLogic};
 use crate::frontend::ids::screen::DIALOG;
 use crate::frontend::logic::Env;
@@ -25,6 +25,17 @@ impl Frontend {
         log::info!("career: playing {}", career.alias);
         self.career.set(career);
         self.start_free_roam(host, env);
+    }
+
+    /// Carries out what the career in the world asks for (`career::CareerRequest`), while driving. Each request is
+    /// handled by the milestone that builds its screen; until then it is logged and dropped.
+    pub(in crate::frontend) fn poll_career(&mut self, host: &mut Host, _env: &mut Env) {
+        let Some(request) = host.scene.take_career_request() else { return };
+        if let CareerRequest::SafeHouse { zone } = &request {
+            log::info!("career: safe house {zone}: no menu yet, free roam goes on");
+            return;
+        }
+        log::info!("career: {request:?} (no screen yet)");
     }
 
     /// Shows why the career could not start, over the main menu.

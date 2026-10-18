@@ -305,7 +305,10 @@ impl Scene for WorldScene {
         self.traffic.as_mut()?.take_bust_ticket()
     }
     fn pay_bust(&mut self, marker: bool) -> bool {
-        self.traffic.as_mut().is_some_and(|traffic| traffic.pay_bust(marker))
+        self.career_pay_bust(marker)
+    }
+    fn take_career_request(&mut self) -> Option<crate::career::CareerRequest> {
+        self.career.requests.pop_front()
     }
     fn rotor_frame(&mut self, dt: f32) -> Option<crate::audio::HeliFrame> {
         self.rotor_frame_now(dt)

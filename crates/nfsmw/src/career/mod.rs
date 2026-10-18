@@ -21,10 +21,22 @@ mod state;
 
 use std::sync::{Arc, Mutex, MutexGuard};
 
-pub use data::CareerData;
+pub use autosave::{AutosaveInputs, handle_autosave};
+pub use data::{CareerData, event_id};
 pub use io::ProfileDir;
 pub use start::start_or_resume;
 pub use state::Career;
+
+/// What the career in the world asks the front end to do, taken once with `Scene::take_career_request`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CareerRequest {
+    /// The player engaged a safe house: the world is left for its menu (`career-safehouse.md`).
+    SafeHouse { zone: String },
+    /// The player engaged a car lot: the car lot screen opens (`career-car-lot.md`).
+    CarLot { zone: String },
+    /// A stage that closes fewer gates was reached: the region unlock screen is due (`career-regions.md` section 6).
+    RegionUnlock { stage: u8 },
+}
 
 /// The career being played, shared by the front end, the world scene and the mod backend. Empty outside career
 /// mode (quick race, free roam from the command line).

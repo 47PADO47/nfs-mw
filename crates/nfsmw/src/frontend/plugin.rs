@@ -39,6 +39,8 @@ pub struct FrontendPlugin {
     pub script: Option<UiScript>,
     /// The sidebar that picks the screens, for `feng-viewer` (`Start::Browse`).
     pub browse: Option<Browse>,
+    /// The career being played: the same handle the HUD and the world hold.
+    pub career: crate::career::CareerHandle,
 }
 
 impl Plugin for FrontendPlugin {
@@ -50,6 +52,7 @@ impl Plugin for FrontendPlugin {
         let screens = Screens::new(catalog, assets);
         let mut frontend = Frontend::new(screens, self.dir.clone(), self.start.clone(), self.script.clone());
         frontend.browse = self.browse.clone();
+        frontend.career = self.career.clone();
         app.insert_resource(frontend)
             .init_resource::<WorldMapOverlay>()
             .init_resource::<Assets<Image>>()
@@ -270,6 +273,7 @@ fn update(
         Stage::Loading => fe.loading_frame(dt, host, &mut env),
         Stage::Playing => {
             fe.poll_bust(host, &mut env);
+            fe.poll_career(host, &mut env);
             let scripted_start = mask & pad::START != 0 && fe.last_mask & pad::START == 0;
             let pause = input.disconnected
                 || (!console_had_it
