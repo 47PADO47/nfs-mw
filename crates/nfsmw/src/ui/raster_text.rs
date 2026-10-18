@@ -63,6 +63,6 @@ mod tests {
     fn a_string_rasterises_with_coverage() {
         let image = super::render("186").expect("the bundled font loads");
         assert!(image.width > 0 && image.height > 0);
-        assert!(image.rgba.chunks_exact(4).any(|px| px[3] > 200), "some glyph pixel is solid");
+        assert!(image.rgba.as_chunks::<4>().0.iter().any(|px| px[3] > 200), "some glyph pixel is solid");
     }
 }
