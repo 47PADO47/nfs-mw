@@ -1,14 +1,15 @@
 //! The recordings: `copspeech.big` and its index, read with positioned reads (the file is 190 MB).
 //!
-//! A phrase of the speech database (an event number) is recorded by several speakers, several takes each. Only
-//! phrases that have banks of their own can be said as they are; the events that are sentences built from several
-//! phrases need the rules of `copspeech.evt`, which are not read yet (spec `docs/specs/speech.md` §5).
+//! A phrase of the speech database (an event number) is recorded by several speakers, several takes each. A phrase
+//! with banks of its own is said as it is. An event with no banks is a sentence: `copspeech.evt` names the phrases it
+//! says, and they are joined in file order (the parameter tests that choose variants are not read yet; spec
+//! `docs/specs/speech.md` §5).
 
 use std::collections::{HashMap, VecDeque};
 use std::fs::File;
 use std::path::Path;
 
-use ea_audio::speech::{SpeechBank, SpeechIndex};
+use ea_audio::speech::{Sentences, SpeechBank, SpeechIndex};
 use ea_audio::{Pcm, ReadAt};
 
 use super::random::Rng;
@@ -69,18 +70,57 @@ impl ReadAt for FileSource {
 /// The install's `copspeech.idx` and `copspeech.big`.
 pub struct Files {
     index: SpeechIndex,
+    sentences: Sentences,
     big: FileSource,
     /// The takes said last, per bank, newest first.
     recent: HashMap<u32, VecDeque<usize>>,
     rng: Rng,
 }
 
+/// How deep a sentence may name sentences (a phrase of a phrase): the database's own nesting is shallow.
+const MAX_NESTING: usize = 4;
+
 impl Files {
-    pub fn open(index: &[u8], big: &Path, rng: Rng) -> Result<Self, String> {
+    pub fn open(index: &[u8], evt: &[u8], big: &Path, rng: Rng) -> Result<Self, String> {
         let index = SpeechIndex::parse(index).map_err(|e| format!("copspeech.idx: {e}"))?;
+        let sentences = Sentences::parse(evt).map_err(|e| format!("copspeech.evt: {e}"))?;
         let big = FileSource::open(big).map_err(|e| format!("{}: {e}", big.display()))?;
-        Ok(Self { index, big, recent: HashMap::new(), rng })
+        Ok(Self { index, sentences, big, recent: HashMap::new(), rng })
     }
+
+    /// Takes the phrases of `event` into `parts`: a phrase with banks gives one take, a sentence gives the takes of
+    /// its phrases. Phrases with no recording are skipped. Returns how many takes were added.
+    fn gather(&mut self, event: u32, speaker: u16, depth: usize, parts: &mut Vec<Pcm>) -> usize {
+        let Ok(wanted) = u16::try_from(event) else { return 0 };
+        let banks: Vec<&SpeechBank> = self.index.banks_for(wanted).collect();
+        if !banks.is_empty() {
+            let Some(bank) = choose_bank(&banks, speaker, &mut self.rng) else { return 0 };
+            let recent = self.recent.entry(bank.number).or_default();
+            let take = choose_take(bank.header.takes(), recent, &mut self.rng);
+            let Ok(pcm) = bank.decode(&self.big, take) else { return 0 };
+            parts.push(pcm);
+            return 1;
+        }
+        if depth >= MAX_NESTING {
+            return 0;
+        }
+        let phrases = self.sentences.phrases(wanted).to_vec();
+        phrases.into_iter().map(|phrase| self.gather(phrase as u32, speaker, depth + 1, parts)).sum()
+    }
+}
+
+/// The takes of a sentence, one after another. They must share a sample rate and channel count.
+fn join(parts: Vec<Pcm>) -> Result<Pcm, String> {
+    let mut parts = parts.into_iter();
+    let mut out = parts.next().ok_or("no take")?;
+    for part in parts {
+        if part.sample_rate != out.sample_rate || part.channels != out.channels {
+            return Err("the phrases of a sentence differ in format".into());
+        }
+        out.samples.extend(part.samples);
+    }
+    out.loop_range = None;
+    Ok(out)
 }
 
 /// Choose among the banks of a phrase: the ones the speaker recorded, else any.
@@ -113,13 +153,11 @@ impl Lines for Files {
     }
 
     fn take(&mut self, event: u32, speaker: u16) -> Result<Pcm, String> {
-        let wanted = u16::try_from(event).map_err(|_| format!("event {event} is not a phrase"))?;
-        let banks: Vec<&SpeechBank> = self.index.banks_for(wanted).collect();
-        let none = || format!("event {event} is a sentence built from several phrases: its rules are not read yet");
-        let bank = choose_bank(&banks, speaker, &mut self.rng).ok_or_else(none)?;
-        let recent = self.recent.entry(bank.number).or_default();
-        let take = choose_take(bank.header.takes(), recent, &mut self.rng);
-        bank.decode(&self.big, take).map_err(|e| format!("event {event}: {e}"))
+        let mut parts = Vec::new();
+        if self.gather(event, speaker, 0, &mut parts) == 0 {
+            return Err(format!("event {event} has no recording, and no phrase of it does"));
+        }
+        join(parts)
     }
 
     fn bank_take(&self, bank: usize, take: usize) -> Result<Pcm, String> {

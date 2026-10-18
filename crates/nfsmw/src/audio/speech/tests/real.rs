@@ -20,6 +20,7 @@ fn load() -> Option<(Vec<SpeechEvent>, Dispatcher, Files)> {
     let list = events(&db);
     let files = Files::open(
         &dir.read("SOUND/SPEECH/copspeech.idx").unwrap(),
+        &dir.read("SOUND/SPEECH/copspeech.evt").unwrap(),
         dir.resolve("SOUND/SPEECH/copspeech.big").unwrap(),
         Rng::new(1),
     )
@@ -97,4 +98,23 @@ fn the_dispatcher_says_recorded_events_and_drops_sentences_without_rules() {
     println!("{:?}", voice.said);
     // `acknowledge` follows one of four other events and none was said, so it keeps waiting for its turn.
     assert_eq!(dispatcher.waiting(), 1);
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_pursuit_lines_are_said_as_sentences() {
+    let Some((_, _, mut files)) = load() else { return };
+    // The pursuit cues of the chase (`chase/cues.rs`): sentences with no banks of their own, which are joined from
+    // their phrases. Each must come out with audio.
+    for (name, id) in [
+        ("setup_initpursuit", 61),
+        ("lostvisual", 106),
+        ("regainvisual", 107),
+        ("lostsuspect", 108),
+        ("disptimeexpired", 180),
+    ] {
+        let pcm = files.take(id, 0).unwrap_or_else(|e| panic!("{name} (SpeechID {id}): {e}"));
+        println!("{name}: {:.2} s", pcm.frames() as f32 / pcm.sample_rate as f32);
+        assert!(pcm.frames() > 0, "{name} is silent");
+    }
 }

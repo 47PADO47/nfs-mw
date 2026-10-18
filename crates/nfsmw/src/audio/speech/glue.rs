@@ -29,6 +29,7 @@ impl Default for SpeechSlot {
 /// The recordings and their index, relative to the install.
 const INDEX: &str = "SOUND/SPEECH/copspeech.idx";
 const BIG: &str = "SOUND/SPEECH/copspeech.big";
+const EVT: &str = "SOUND/SPEECH/copspeech.evt";
 
 impl Audio {
     /// Speech, loading it the first time (the events from the attribute database, the recordings from the install).
@@ -57,8 +58,9 @@ impl Audio {
         }
         let tune = nfsmw_data::speech::tune(&db);
         let index = self.dir.read(INDEX).map_err(|e| format!("{INDEX}: {e}"))?;
+        let evt = self.dir.read(EVT).map_err(|e| format!("{EVT}: {e}"))?;
         let big = self.dir.resolve(BIG).ok_or_else(|| format!("{BIG} is not in the install"))?;
-        let files = Files::open(&index, big, Rng::from_clock())?;
+        let files = Files::open(&index, &evt, big, Rng::from_clock())?;
         let track = match self.output.as_mut() {
             Some(out) => Some(out.manager.add_sub_track(TrackBuilder::new()).map_err(|e| e.to_string())?),
             None => None,
