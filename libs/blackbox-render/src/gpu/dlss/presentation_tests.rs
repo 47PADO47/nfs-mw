@@ -72,6 +72,9 @@ pub(super) fn exercise(
             let before_rendered = renderer.frame_performance().rendered_frames;
             let mut saw_generated_present = false;
             for index in 0..32 {
+                // HDR swapchain transitions can return focus to another desktop window.
+                // The SDK intentionally suppresses interpolation without a focused test window.
+                window.visible();
                 window.pump();
                 renderer.begin_latency_frame(LatencySettings {
                     reflex: ReflexMode::Off,

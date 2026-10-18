@@ -195,7 +195,8 @@ impl Renderer {
                 self.device
                     .create_texture(&wgpu::TextureDescriptor {
                         label: Some("DLSS-G UI coverage including additive elements"),
-                        format: wgpu::TextureFormat::R8Unorm,
+                        // SDK 2.14.16 Vulkan getFormat() maps R16_SFLOAT but not R8_UNORM.
+                        format: wgpu::TextureFormat::R16Float,
                         ..desc
                     })
                     .create_view(&Default::default()),

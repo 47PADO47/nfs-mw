@@ -94,10 +94,11 @@ HDR tone mapping and UI blending remain in linear BT.709 scRGB, including scene
 white, UI white and peak calibration. A final composition pass converts BT.709
 to BT.2020 primaries and encodes absolute nits with SMPTE ST 2084 PQ. It writes
 the real frame and HUDless resource as RGB10. UI colour blending uses RGBA16F;
-an independent R8 coverage target is tagged for generation alongside the final
-and HUDless resources. No scene-dependent PQ colour term is passed as an
-independently interpolated UI layer. Signed/out-of-gamut components are clipped
-at the HDR10 boundary.
+an independent R16F coverage target is tagged for generation alongside the final
+and HUDless resources. Streamline 2.14.16's Vulkan native-to-generic format
+conversion supports R16_SFLOAT but omits R8_UNORM, so the single-channel mask
+uses FP16 rather than R8. Coverage remains in [0, 1] without PQ encoding or
+UI-white scaling. Signed/out-of-gamut components are clipped at the HDR10 boundary.
 Menus retain HDR10 while generation is requested, avoiding output mode switches
 on pause. SDR PNG and linear scRGB captures retain their independent formats.
 The output follows the [Microsoft Advanced Color contract](https://learn.microsoft.com/en-us/windows/win32/direct3darticles/high-dynamic-range)

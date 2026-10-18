@@ -218,7 +218,7 @@ fn additive_hud_over_translucent_panel_keeps_coverage_independent_of_hdr_white()
         };
         let color = texture(format);
         let reference = texture(format);
-        let mask = texture(wgpu::TextureFormat::R8Unorm);
+        let mask = texture(wgpu::TextureFormat::R16Float);
         let views = [&color, &reference, &mask].map(|t| t.create_view(&Default::default()));
         let mut encoder = gpu.device.create_command_encoder(&Default::default());
         for view in &views {
@@ -242,13 +242,13 @@ fn additive_hud_over_translucent_panel_keeps_coverage_independent_of_hdr_white()
         pass.encode_with_coverage(&gpu.device, &gpu.queue, &mut encoder, &views[0], &views[2], (4, 4));
         pass.encode(&gpu.device, &gpu.queue, &mut encoder, &views[1], format, (4, 4));
         gpu.queue.submit([encoder.finish()]);
-        let coverage = read(&gpu, &mask, 1);
-        assert_eq!(
-            &coverage[..4],
-            &[255, 255, 160, 255],
-            "additive glyphs must not inherit the panel's 64/255 alpha; white={white:?}"
-        );
-        assert_eq!(&coverage[12..], &[0; 4], "clipped/outside HUD remains uncovered");
+        let coverage: Vec<_> =
+            read(&gpu, &mask, 2).as_chunks::<2>().0.iter().map(|v| half::f16::from_le_bytes(*v).to_f32()).collect();
+        assert_eq!(&coverage[..2], &[1.0, 1.0], "additive glyphs must not inherit panel alpha; white={white:?}");
+        let edge = 64.0 / 255.0 + 128.0 / 255.0 * (1.0 - 64.0 / 255.0);
+        assert!((coverage[2] - edge).abs() < 0.001, "preserve soft glyph coverage");
+        assert_eq!(coverage[3], 1.0, "black opaque UI still covers the scene");
+        assert_eq!(&coverage[12..], &[0.0; 4], "clipped/outside HUD remains uncovered");
         let bytes = match white {
             Some(_) => 8,
             None => 4,

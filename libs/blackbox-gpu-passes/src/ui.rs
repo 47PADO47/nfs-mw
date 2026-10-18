@@ -178,7 +178,7 @@ impl UiPass {
         })];
         if coverage {
             targets.push(Some(wgpu::ColorTargetState {
-                format: wgpu::TextureFormat::R8Unorm,
+                format: wgpu::TextureFormat::R16Float,
                 blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
                 write_mask: wgpu::ColorWrites::RED,
             }));
@@ -309,7 +309,7 @@ impl UiPass {
         self.encode_targets(device, queue, encoder, (target, None), format, size);
     }
 
-    /// Draw colour and an independent R8 UI coverage mask in one pass. Clear both targets first.
+    /// Draw colour and an independent R16F UI coverage mask in one pass. Clear both targets first.
     /// Coverage includes additive elements before overlaps, HDR conversion and white calibration.
     pub fn encode_with_coverage(
         &mut self,
