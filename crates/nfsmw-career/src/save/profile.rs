@@ -114,6 +114,29 @@ impl ProfileSave {
                 got: buffer.len(),
             }));
         }
+        Ok(ProfileSave::wrap(buffer))
+    }
+
+    /// A blank profile for a new career named `alias` (`docs/formats/career-save.md` sections 1 and 2). The settings
+    /// are [`CareerSettings::new_career`] (stage 16, cash 0, career-started flag), the stable is [`Stable::empty`], the
+    /// statistics block is zero and the name is `alias` (cut to 32 bytes).
+    ///
+    /// Left as zero, on purpose: the gameplay blob (so the milestone block has no records yet and the save's header
+    /// counts are 0), the default stable hash at `0x5A2D` (it depends on the installed car data; the caller must set
+    /// it before the original can load the file), and the serial and the SMS labels (see [`CareerSettings::new_career`]).
+    pub fn new_blank(alias: &str) -> Result<ProfileSave, SaveError> {
+        let mut buffer = vec![0u8; PROFILE_LEN];
+        CareerSettings::new_career().write_into_profile(&mut buffer)?;
+        let stable = Stable::empty().to_bytes();
+        buffer[profile::STABLE..profile::STABLE + STABLE_LEN].copy_from_slice(&stable);
+        let name = alias.as_bytes();
+        let n = name.len().min(profile::NAME_LEN);
+        buffer[profile::NAME..profile::NAME + n].copy_from_slice(&name[..n]);
+        Ok(ProfileSave::wrap(&buffer))
+    }
+
+    /// Wraps a profile buffer of [`PROFILE_LEN`] bytes (the caller checked the length) in a fresh, sealed container.
+    fn wrap(buffer: &[u8]) -> ProfileSave {
         let mut bytes = vec![0u8; FILE_LEN];
         put_u32(&mut bytes, 0, MAGIC);
         put_u32(&mut bytes, header::TOTAL_SIZE, FILE_LEN as u32);
@@ -124,7 +147,7 @@ impl ProfileSave {
         bytes[PROFILE_AT..].copy_from_slice(buffer);
         let mut save = ProfileSave { bytes };
         save.seal();
-        Ok(save)
+        save
     }
 
     /// Wraps file bytes whose length is already known to be right, without any other check. The caller (the load

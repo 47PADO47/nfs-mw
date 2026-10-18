@@ -180,6 +180,27 @@ fn a_wrong_profile_or_descriptor_checksum_is_accepted_and_repaired_on_write() {
 }
 
 #[test]
+fn a_blank_profile_is_a_consistent_new_career() {
+    let save = ProfileSave::new_blank("mwo").unwrap();
+    assert_eq!(save.raw().len(), 0xF86C);
+    assert!(save.integrity().all_ok());
+    assert_eq!(save.alias(), "mwo");
+    let settings = save.settings().unwrap();
+    assert_eq!((settings.stage, settings.cash, settings.flags), (16, 0, Flags::CAREER_STARTED));
+    assert!(settings.has_career());
+    assert_eq!(save.stable().unwrap().total_bounty(), 0);
+    assert!(!save.career_completed_once());
+    assert_eq!(ProfileSave::parse(save.raw()).unwrap(), save);
+}
+
+#[test]
+fn a_blank_profile_keeps_only_the_first_32_name_bytes() {
+    let long = "x".repeat(40);
+    let save = ProfileSave::new_blank(&long).unwrap();
+    assert_eq!(save.alias(), "x".repeat(32));
+}
+
+#[test]
 fn a_profile_buffer_of_the_wrong_size_is_refused() {
     assert!(ProfileSave::from_profile_buffer(&[0; 10]).is_err());
 }
