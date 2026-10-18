@@ -9,7 +9,8 @@ Status: **partly built**. `bb.commands`, `bb.input`, `bb.time`, `bb.map` and `bb
 chase). The game interaction interfaces are partly built: `bb.vehicles` (the player's car: state, teleport, repair),
 `bb.hud` (a centred message), `bb.camera` (read and the gameplay views) and `bb.world` (track, district, rain, traffic)
 work; `bb.audio` is offered but every play is unsupported until sound names are looked up; traffic spawn at a point is
-unsupported. The status of each row is in [api-world.md](api-world.md#game-interaction). `nfsmw.career`
+unsupported. `bb.ui` 1.0 registers named UI themes whose slots a mod redraws with panels, text and images; the registry
+builds them, but the live game draws them only after the presenter wiring (see [api-ui.md](api-ui.md)). The status of each row is in [api-world.md](api-world.md#game-interaction). `nfsmw.career`
 and `nfsmw.races` are offered with no state, so a mod can detect them. The four interior events (`INTERIOR_ENTERING`,
 `INTERIOR_ENTERED`, `INTERIOR_EXITING`, `INTERIOR_EXITED`, ABI 14 to 17) are sent for a mod interior; the interior's key
 in them is open until the world names it. Content mods also work: cars and music files declared in a mod's `cars/` folder and `[music]` table (see
@@ -23,6 +24,7 @@ when the module is new.
 |---|---|
 | [api.md](api.md) | How to read the catalogue, shared types, lifecycle, events, commands, hotkeys and abilities, time of day |
 | [api-world.md](api-world.md) | Map blips and the world map, menus, game interaction (vehicles, player, HUD, audio, camera, world) |
+| [api-ui.md](api-ui.md) | UI themes (`bb.ui`): named themes, the slot numbers, the draw primitives, the SDK |
 | [api-content.md](api-content.md) | The VFS overlay, content registries (cars, cop waves, music, fonts, scenery, interiors), settings storage |
 | [api-nfsmw.md](api-nfsmw.md) | The NFS:MW-only extension: career, heat and pursuit, cop tables, race events |
 | [examples.md](examples.md) | Four example mods (hotkey, fast clock, car and music pack, bounty hunter), with layout, manifest, build and install |

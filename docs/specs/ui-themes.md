@@ -416,23 +416,34 @@ Built in T10. `enum UiStyle { Original, Custom, Remastered }`, default `Original
 
 ## 12. The `bb.ui` mod hook
 
-Mirrors `bb.menus` and `bb.hud` ([ADR 0005](../decisions/0005-native-mod-plugins.md), section 2 and section 8).
+Mirrors `bb.menus` ([ADR 0005](../decisions/0005-native-mod-plugins.md), sections 2 and 8). Delivered in T11 as
+`bb.ui` 1.0. The catalogue for mod authors is [api-ui.md](../modding/api-ui.md).
 
-- Interface id `bb.ui`, version `1.0` (draft). A backend trait in `libs/blackbox-modding/src/host/table/` (name
-  chosen in T11) and an `add_ui` port in `crates/nfsmw/src/modding/backends/`.
-- **Proposed operations** (not final): register a theme (returns a theme handle); override a slot of a theme with a
-  component (by handle); list the slot ids and their names; read the active `UiStyle`.
-- Slot ids and their names are part of the ABI. Ids are `u32` constants that are never reused, and names are
-  UTF-8 strings. A mod that asks for an unknown slot gets an error, not a silent no-op.
-- A mod theme is selectable as a style once it is registered. How it appears in `UiStyle` is **open** (section 14).
-
-**Components across the C ABI.** A mod cannot pass a `Box<dyn Component>`: ADR 0005 allows only `#[repr(C)]` data
-and `extern "C"` functions across the boundary. The mod must describe its component tree through host calls that
-return handles, and the host wraps those handles in `Component` values. The exact call set is **open**, and it is
-the largest open point of the hook.
-
-Tests follow `crates/nfsmw/src/modding/backends/menus_tests.rs`: a fake host registers a theme, overrides one
-slot, and checks that `resolve` returns the mod component for that slot and Original for the rest.
+- **Layers.** Host table `libs/blackbox-modding/src/host/table/ui.rs` (trait `UiBackend`, the primitive checks), ABI
+  `libs/blackbox-modding/src/abi/iface/ui.rs` (`BbUi`, `BbUiPrim`), SDK `libs/blackbox-modding/src/sdk/ui.rs`, game port
+  `crates/nfsmw/src/modding/backends/ui.rs` (`UiPort`, `theme_id`), mod themes `crates/nfsmw/src/ui/theme/modded/`.
+- **Operations.** `register_theme(name, display)` returns a handle; `set_slot(theme, slot, prims)` gives a slot a draw spec
+  (a second call replaces the first); `unregister_theme(theme)`. Themes a mod leaves registered are removed when it unloads.
+- **Declarative, not components.** The C ABI cannot carry a `Box<dyn Component>`. A slot is a flat list of up to 64
+  primitives, and the host builds them from its base components: `Panel` (fill colour, optional texture), `Text` (font,
+  string, colour, justification) and `Image` (texture, uv). `Gauge` is owed. Colours are inline RGBA, not skin keys, so a
+  mod cannot reach the game's skin. Fonts and textures are resource names, hashed as the packs name them.
+- **Slots.** Only the catalogue (section 6, `ElementId`) can be overridden. A slot number outside it is refused. The
+  numbers are ABI and never reused (`element.rs`).
+- **Ids.** A mod theme's `ThemeId::Mod(n)` is a 32-bit FNV-1a of `owner/name`, so it is the same in every run. A
+  collision is refused.
+- **Resolution.** `ModTheme` implements `blackbox_ui::Theme`. `element(slot)` builds a `ModSlot` (its own skin, one
+  component per primitive) for a named slot, and `None` otherwise, so the registry falls back to Original.
+- **Sync.** `sync_mod_themes` copies `Mods::ui_themes()` into `UiThemes` every frame. An unchanged set is one comparison.
+  A changed set rebuilds the registry, keeps the Original and Custom themes, and drops a chosen mod theme that is gone.
+- **Selection.** `UiThemes::select_mod(id)` makes a mod theme active until `clear_mod()`; `select(style)` (the per-frame
+  sync) keeps the mod choice. `UiStyle` stays a closed enum (question 3). Owed: the options row or `ui_style_mod` key that
+  calls `select_mod`.
+- **Not yet drawn.** The presenter reads the registry in T12. Until then a mod theme resolves but the live game does not
+  draw it.
+- **Tests:** `host/table/ui_tests.rs` (the table: shape checks, lifecycle, offer), `sdk/ffi/ui_tests.rs` (the SDK round trip),
+  `modding/backends/ui_tests.rs` (the port: register, override, build, fallback, names and ids), and
+  `ui/theme/modded/tests.rs` (primitives, fallback, select and clear).
 
 ## 13. Testing and verification
 
@@ -456,8 +467,7 @@ These are not decided. The parent task (or the owner) decides them before the ma
    `crates/nfsmw/src/ui/theme/element.rs` (section 6).
 2. **Mutable state in components.** `build(&self)` cannot advance FEng scripts (section 3). Choose between state in
    `layout(&mut self)` and a separate `update(&mut self, dt)`. Before T2.
-3. **Mod themes in `UiStyle`.** The plan names `UiStyle::Mod(id)`. The settings pattern (closed enum, `ALL`, cycle
-   in the options row, `names!`) does not fit a dynamic variant. Choose a cycle and a serial form, or keep mod
-   themes out of `UiStyle` and select them another way. Before T10 and T11.
-4. **Components across the ABI.** The declarative handle-based call set for the mod hook (section 12). Before T11.
+3. **Mod themes in `UiStyle`.** Resolved (T11): mod themes stay out of the closed `UiStyle` enum and are selected with
+   `UiThemes::select_mod` (section 12). The options row or `ui_style_mod` key that calls it is owed.
+4. **Components across the ABI.** Resolved (T11): a declarative primitive list, not handles (section 12).
 5. **Live switch or restart.** Resolved (T10): live. `sync_active_theme` selects the theme every frame (section 11).
