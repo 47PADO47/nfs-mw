@@ -1,11 +1,11 @@
 //! The Original theme: the look the game shipped with. It is the floor of the registry, so it must eventually fill every
 //! slot in [`ElementId`](super::ElementId).
 //!
-//! Status (T8): every slot is filled, so the floor is complete. The HUD slots are [`FengSubtree`] adapters that emit the
-//! FEng subtree of their element from the HUD package (or the chyron and busted overlay packages) as the plugin last
-//! stored it in the HUD cell. The menu and career slots are [`menu::MenuTree`] adapters that emit the whole tree of
-//! their screen as the plugin last stored it in the menu cell. Nothing resolves a slot in the live path yet (T12), so
-//! the game still draws exactly as before.
+//! Status (T12): every slot is filled, and the presenters resolve them every frame through the composer
+//! (`ui/theme/compose.rs`). The HUD slots are [`FengSubtree`] adapters that emit the FEng subtree of their element from
+//! the HUD package (or the chyron and busted overlay packages) as the plugin last stored it in the HUD cell. The menu and
+//! career slots are [`menu::MenuTree`] adapters that emit the whole tree of their screen as the plugin last stored it in
+//! the menu cell. The HUD nodes no slot takes are appended by [`emit_unclaimed`].
 //!
 //! The design is in `docs/specs/ui-themes.md` section 8 (HUD) and `docs/specs/ui-themes-menus.md` (menus):
 //!
@@ -26,10 +26,10 @@ mod subtree;
 #[cfg(test)]
 mod tests;
 
-pub use frame::FrameCell;
-// The HUD plugin names the packages it fills with this in T12.
-#[allow(unused_imports)]
-pub use frame::FengSource;
+pub use frame::{FengSource, FrameCell};
+#[cfg(test)]
+pub(crate) use hud_slots::claim_counts;
+pub(crate) use hud_slots::{HUD_SLOTS, emit_unclaimed};
 
 use blackbox_ui::{BuildCx, Component, SlotId, Theme, ThemeId};
 

@@ -4,18 +4,21 @@
 //! The engine-generic part (components, `Theme`, `Themes`, the resolver) is `libs/blackbox-ui`. This module
 //! decides which game element is which slot and which theme fills it. Design: `docs/specs/ui-themes.md`.
 //!
-//! Status (T10): [`UiThemes`] is inserted at start-up. The Original theme fills every slot in the catalogue (HUD in T7,
-//! menus and career screens in T8), and [`build_themes`] checks that. The Custom theme fills the radio card (T9).
-//! The active theme follows `settings.ui_style` each frame ([`sync_active_theme`], T10). Its components read the cells
-//! ([`UiThemes::frame`], [`UiThemes::radio`]), but nothing resolves a slot in the live path yet. The presenter wiring
-//! comes in T12, so the game draws exactly as it did before this module existed.
+//! Status (T12): [`UiThemes`] is inserted at start-up, and the HUD and menu presenters resolve every slot through the
+//! composer ([`compose`]). The Original theme fills every slot in the catalogue, and [`build_themes`] checks that. The
+//! Custom theme fills the radio card (T9). The active theme follows `settings.ui_style` each frame
+//! ([`sync_active_theme`]), and a mod theme follows the mods' registrations ([`sync_mod_themes`]).
 //!
 //! - [`element`]: the [`ElementId`] catalogue with its explicit numbers.
+//! - [`compose`]: builds each presented layer from the slots its theme resolves (`docs/specs/ui-themes-compose.md`).
 //! - [`original`]: the floor theme. It fills every slot: HUD adapters (T7) and menu adapters (T8).
 //! - [`custom`]: the rewrite's own theme. It fills the radio card (T9) and returns `None` for the rest.
 //! - [`modded`]: the themes the mods register through `bb.ui`. A mod theme is selected with [`UiThemes::select_mod`]; the
 //!   style setting does not choose it (`docs/specs/ui-themes.md` section 12).
 
+mod compose;
+#[cfg(test)]
+mod compose_tests;
 pub mod custom;
 mod element;
 pub mod modded;
@@ -23,10 +26,12 @@ pub mod original;
 #[cfg(test)]
 mod tests;
 
+pub use compose::{hud_layer, slot_layer};
+
 pub use element::ElementId;
 
 use bevy_ecs::prelude::*;
-use blackbox_ui::{BuildCx, Component, Skin, Theme, ThemeError, ThemeId, Themes};
+use blackbox_ui::{BuildCx, Component, DrawList, LayoutCx, Rect, Skin, Theme, ThemeError, ThemeId, Themes};
 
 use crate::settings::{Settings, UiStyle};
 use custom::{CustomTheme, RadioFeedCell};
@@ -43,7 +48,7 @@ pub fn theme_of(style: UiStyle) -> ThemeId {
 }
 
 /// Keeps the active theme in step with `settings.ui_style`, every frame, so an options-menu change takes effect on
-/// the next frame (`docs/specs/ui-themes.md` section 14, question 5). Selecting a theme draws nothing new until T12.
+/// the next frame (`docs/specs/ui-themes.md` section 14, question 5).
 pub fn sync_active_theme(settings: Res<Settings>, mut themes: ResMut<UiThemes>) {
     // `bypass_change_detection`: the registry is selected every frame, so it should not look changed every frame.
     themes.bypass_change_detection().select(settings.ui_style);
@@ -84,16 +89,14 @@ fn check_floor_fills_every_slot(frame: &FrameCell) {
 }
 
 /// The skin the themes hand to their components: the Custom card's colours and font (T9). The Original adapters read no
-/// skin key yet, so the card's keys sit alone in it. Textures and metrics for the Original look come with T12.
+/// skin key yet, so the card's keys sit alone in it.
 pub fn default_skin() -> Skin {
     custom::card_skin()
 }
 
-/// The theme registry, the skin and the cells, as one Bevy resource. The HUD and the menus will resolve their slots
-/// through it in T12.
+/// The theme registry, the skin and the cells, as one Bevy resource. The HUD and the menus resolve their slots through it
+/// each frame (the composer, `compose.rs`).
 #[derive(Resource)]
-// wired into present in T12: nothing resolves a slot before then, so `resolve`, `frame`, `radio` and the fields look unused.
-#[allow(dead_code)]
 pub struct UiThemes {
     themes: Themes,
     skin: Skin,
@@ -178,25 +181,32 @@ impl UiThemes {
     }
 
     /// The component for `slot` from the active theme, falling back to Original.
-    // wired into present in T12: the presenter calls this for every HUD and menu slot.
-    #[allow(dead_code)]
     pub fn resolve(&self, slot: ElementId) -> Box<dyn Component> {
         self.themes.resolve(slot.slot(), &BuildCx::new(&self.skin))
     }
 
+    /// The theme whose component draws `slot` now: the active theme's when it provides the slot, else Original's.
+    /// `None` when no theme provides it. The HUD presenter reads this for the RadioCard slot, to choose the chyron.
+    pub fn provided_by(&self, slot: ElementId) -> Option<ThemeId> {
+        self.themes.provider(slot.slot(), &BuildCx::new(&self.skin))
+    }
+
+    /// Resolves `slot` and draws it into `out`: the component is laid out at the screen's bounds, at `time_s` on the
+    /// host clock, then built. A component that draws nothing adds no node.
+    pub(crate) fn build_slot(&self, slot: ElementId, time_s: f32, out: &mut DrawList) {
+        let mut component = self.resolve(slot);
+        component.layout(&LayoutCx::new(&self.skin, time_s), Rect::SCREEN);
+        component.build(out);
+    }
+
     /// The frame cells the Original adapters read: the HUD trees and the menu trees. The HUD and frontend plugins keep
-    /// this clone and call `set` / `set_menu` on it once per frame, after `Runtime::tree` (T12). Until then the cells are
-    /// empty and the adapters draw nothing.
-    // wired into the HUD and frontend plugins in T12.
-    #[allow(dead_code)]
+    /// this clone and call `set` / `set_menu` on it once per frame, after `Runtime::tree`.
     pub fn frame(&self) -> FrameCell {
         self.frame.clone()
     }
 
     /// The radio feed the Custom card reads. The HUD plugin keeps this clone and calls `set` on it once per frame, after
-    /// `radio::update` (T12). Until then the card draws nothing.
-    // wired into the HUD plugin in T12.
-    #[allow(dead_code)]
+    /// `radio::update`.
     pub fn radio(&self) -> RadioFeedCell {
         self.radio.clone()
     }

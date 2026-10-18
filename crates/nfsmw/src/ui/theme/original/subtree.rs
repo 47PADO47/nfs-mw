@@ -46,16 +46,15 @@ pub struct FengSubtree {
 }
 
 impl FengSubtree {
-    /// The subtree under each of `roots`, in `source`'s tree, leaving out the subtrees under `excluded`.
-    ///
-    /// If a name is in both lists, the excluded one wins: a node under it belongs to another element.
-    pub fn under(frame: &FrameCell, source: FengSource, roots: Vec<u32>, excluded: Vec<u32>) -> Self {
-        Self { frame: frame.clone(), source, scope: Scope::Under { roots, excluded } }
-    }
-
     /// Every node of `source`'s package: the chyron and the busted overlay, which have no element root of their own.
     pub fn package(frame: &FrameCell, source: FengSource) -> Self {
         Self { frame: frame.clone(), source, scope: Scope::Package }
+    }
+
+    /// The subtree under the roots of `scope`, in `source`'s tree (the HUD slots pass the roots of their element). A name
+    /// in both the roots and the excluded names counts as excluded: a node under it belongs to another element.
+    pub(super) fn with_scope(frame: &FrameCell, source: FengSource, scope: Scope) -> Self {
+        Self { frame: frame.clone(), source, scope }
     }
 }
 
@@ -95,7 +94,7 @@ pub(super) fn emit(tree: &UiTree, scope: &Scope, out: &mut DrawList) {
 }
 
 /// Which positions of `tree` `scope` takes.
-fn keep_flags(tree: &UiTree, by_index: &HashMap<usize, usize>, scope: &Scope) -> Vec<bool> {
+pub(super) fn keep_flags(tree: &UiTree, by_index: &HashMap<usize, usize>, scope: &Scope) -> Vec<bool> {
     match scope {
         Scope::Package => vec![true; tree.nodes.len()],
         Scope::Under { roots, excluded } => (0..tree.nodes.len())

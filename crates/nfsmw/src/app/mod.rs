@@ -166,7 +166,7 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
     .insert_resource(window::WindowModes::new(screenshot.is_some()))
     .insert_resource(Bindings::load(settings))
     .insert_resource(error.clone())
-    // The theme registry (`ui/theme`). Nothing resolves a slot yet: the presenter reads it from T12.
+    // The theme registry (`ui/theme`). The HUD and menu presenters resolve their slots through it (`ui/theme/compose.rs`).
     .insert_resource(crate::ui::theme::UiThemes::build())
     .insert_non_send(Host::new(scene, settings, plan).with_bench(bench_seconds))
     .configure_sets(

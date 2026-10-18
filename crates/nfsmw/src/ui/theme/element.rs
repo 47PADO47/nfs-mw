@@ -12,19 +12,21 @@
 
 use blackbox_ui::SlotId;
 
+impl ElementId {
+    /// Whether the slot is a menu or career screen (raw 20 and up), which the menu cell feeds, rather than a HUD slot.
+    pub const fn is_menu(self) -> bool {
+        self.raw() >= 20
+    }
+}
+
 /// Declares the enum with one explicit number per variant, and the const tables built from the same list.
-///
-/// `#[allow(dead_code)]`: the slots are read only by the Original and Custom adapters (T7 to T9) and by
-/// `UiThemes::resolve`, which is wired into the presenter in T12. Until then nothing in the game calls them.
 macro_rules! catalogue {
     ($( $variant:ident = $id:literal ),+ $(,)?) => {
-        #[allow(dead_code)] // read by the theme adapters (T7 to T9) and the presenter wiring (T12)
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
         pub enum ElementId {
             $( $variant, )+
         }
 
-        #[allow(dead_code)] // read by the theme adapters (T7 to T9) and the presenter wiring (T12)
         impl ElementId {
             /// Every slot, in catalogue order.
             pub const ALL: &'static [ElementId] = &[ $( ElementId::$variant, )+ ];

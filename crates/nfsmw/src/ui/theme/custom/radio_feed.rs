@@ -42,8 +42,6 @@ impl RadioFeedCell {
     /// Copies this frame's radio state into the cell: the card on the air, its age, and the anchor for `screen` under
     /// `layout`. Call it once per frame after `radio::update` (the same `RadioHud`), with the window's `Screen` and
     /// the settings' `hud_layout`. Replaces the previous frame's copy.
-    // wired into the HUD plugin in T12: until then nothing fills the cell and the Custom card draws nothing.
-    #[allow(dead_code)]
     pub(crate) fn set(&self, hud: &RadioHud, screen: Screen, layout: HudLayout) {
         let feed = RadioFeed { card: hud.song().cloned(), age: hud.age(), anchor: anchor(screen, layout) };
         *self.lock() = feed;

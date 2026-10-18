@@ -1,5 +1,6 @@
 //! Which logic runs which package (the original `ScreenFactoryData`, docs/specs/frontend-menus.md section 1).
 
+use super::career_screens::rap_sheet;
 use super::confirm::{Alert, AlertLogic};
 use super::controls_screen::ControlsLogic;
 use super::credits::CreditsLogic;
@@ -12,6 +13,7 @@ use super::track_options::TrackOptions;
 use super::track_select::TrackSelect;
 use super::widget_menu::WidgetMenu;
 use crate::ui::Text;
+use crate::ui::theme::ElementId;
 
 /// The logic for the package called `name` (its file name, any case). A package without logic of its own runs
 /// as it is.
@@ -61,3 +63,62 @@ pub fn make(name: &str, args: Args, mod_rows: bool) -> Box<dyn ScreenLogic> {
     }
     Box::new(Plain)
 }
+
+/// The menu slot the package called `name` is drawn for, or `None` when no slot takes it (dialogs, notices, the splash,
+/// the controls, the credits, the jukebox). It tests the same names and `Args` as [`make`], in the same order, so a
+/// package is never drawn by two slots. The screen's logic does not matter: a career screen with no career still has
+/// its slot (`docs/specs/ui-themes-menus.md`, section 3).
+pub fn slot_for(name: &str, args: &Args) -> Option<ElementId> {
+    let name = name.to_ascii_lowercase();
+    let is = |file: &str| name == file.to_ascii_lowercase();
+    if is(screen::MAIN_MENU) {
+        return Some(ElementId::MainMenu);
+    }
+    if is(screen::MAIN_MENU_SUB) && args.safehouse {
+        return Some(ElementId::SafeHouseMenu);
+    }
+    if let Some(slot) = career_slot(&name) {
+        return Some(slot);
+    }
+    if is(screen::MAIN_MENU_SUB) {
+        return Some(ElementId::Categories);
+    }
+    if is(screen::PAUSE_MENU) {
+        return Some(if args.options { ElementId::Categories } else { ElementId::PauseMenu });
+    }
+    if is(screen::OPTIONS) || is(screen::PAUSE_OPTIONS) {
+        return Some(ElementId::OptionTable);
+    }
+    if is(screen::TRACK_SELECT) {
+        return Some(ElementId::TrackSelect);
+    }
+    None
+}
+
+/// The slot of a career screen, by its lower-case file name.
+fn career_slot(name: &str) -> Option<ElementId> {
+    let is = |file: &str| name == file.to_ascii_lowercase();
+    if is(screen::SAFE_HOUSE_RIVAL_CHALLENGE) || is(screen::SAFE_HOUSE_RIVAL_BIO) {
+        return Some(ElementId::Blacklist);
+    }
+    if is(screen::CAR_SELECT) {
+        return Some(ElementId::CarLot);
+    }
+    if rap_sheet::is_rap_sheet_screen(name) {
+        return Some(ElementId::RapSheet);
+    }
+    if is(screen::SAFEHOUSE_REGION_UNLOCK) {
+        return Some(ElementId::RegionUnlock);
+    }
+    if is(screen::MC_MAIN) || is(screen::MC_LIST) {
+        return Some(ElementId::MemoryCard);
+    }
+    if is(screen::SMS_MAILBOXES) || is(screen::SMS_MESSAGE) {
+        return Some(ElementId::Sms);
+    }
+    None
+}
+
+#[cfg(test)]
+#[path = "factory_tests.rs"]
+mod tests;

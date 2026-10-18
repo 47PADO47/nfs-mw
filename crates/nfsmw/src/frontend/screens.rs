@@ -14,12 +14,21 @@ use super::factory;
 use super::ids::screen::DIALOG;
 use super::logic::{Args, Command, Cx, Env, ScreenLogic};
 use super::world_map::WorldMapFrame;
+use crate::ui::theme::ElementId;
 use crate::ui::{Catalog, UiAssets};
 
 struct Screen {
     id: PackageId,
     name: String,
     logic: Box<dyn ScreenLogic>,
+    /// The menu slot the screen is drawn for, or `None` when no slot takes it (dialogs, notices). Set once, in `open`.
+    slot: Option<ElementId>,
+}
+
+/// One stack screen's tree for the frame, with the menu slot it is drawn for.
+pub struct Presented {
+    pub tree: UiTree,
+    pub slot: Option<ElementId>,
 }
 
 pub struct Screens {
@@ -79,14 +88,22 @@ impl Screens {
     /// screen queues while starting are returned.
     pub fn open(&mut self, name: &str, args: Args, replace: bool, env: &mut Env) -> Vec<Command> {
         let mod_rows = env.mods.is_some_and(crate::modding::Mods::has_mods_page);
-        self.open_with(name, factory::make(name, args, mod_rows), replace, env)
+        let slot = factory::slot_for(name, &args);
+        let logic = factory::make(name, args, mod_rows);
+        self.open_as(name, logic, slot, replace, env)
     }
 
-    /// Like [`Self::open`], with the logic already chosen (a confirmation dialog carries its question).
-    pub fn open_with(
+    /// Like [`Self::open`], with the logic already chosen (a confirmation dialog carries its question). Such a screen
+    /// has no menu slot.
+    pub fn open_with(&mut self, name: &str, logic: Box<dyn ScreenLogic>, replace: bool, env: &mut Env) -> Vec<Command> {
+        self.open_as(name, logic, None, replace, env)
+    }
+
+    fn open_as(
         &mut self,
         name: &str,
         mut logic: Box<dyn ScreenLogic>,
+        slot: Option<ElementId>,
         replace: bool,
         env: &mut Env,
     ) -> Vec<Command> {
@@ -119,7 +136,7 @@ impl Screens {
             name: &file_name,
         };
         logic.start(&mut cx);
-        self.stack.push(Screen { id, name: file_name, logic });
+        self.stack.push(Screen { id, name: file_name, logic, slot });
         self.await_release = true;
         self.give_control();
         commands
@@ -266,12 +283,20 @@ impl Screens {
         self.stack.iter().map(|s| self.runtime.tree(s.id)).collect()
     }
 
-    pub fn presented_trees(&self, bindings: &crate::input::Bindings, device: crate::input::InputDevice) -> Vec<UiTree> {
+    /// The trees to draw this frame, lowest first, each with its menu slot. The decorated trees are what the presenter
+    /// gets, so the menu cell (`ui/theme/original/frame.rs`) holds the same ones.
+    pub fn presented(&self, bindings: &crate::input::Bindings, device: crate::input::InputDevice) -> Vec<Presented> {
         let mut trees = self.trees();
         for (tree, screen) in trees.iter_mut().zip(&self.stack) {
             super::prompts::decorate(tree, &screen.name, bindings, device, &self.assets);
         }
-        trees
+        trees.into_iter().zip(&self.stack).map(|(tree, screen)| Presented { tree, slot: screen.slot }).collect()
+    }
+
+    /// The trees alone, lowest first (the tests read them; the presenter takes [`Self::presented`]).
+    #[cfg(test)]
+    pub fn presented_trees(&self, bindings: &crate::input::Bindings, device: crate::input::InputDevice) -> Vec<UiTree> {
+        self.presented(bindings, device).into_iter().map(|presented| presented.tree).collect()
     }
 
     /// Posts a message straight to an object of the top screen (a mouse click, a hot key).

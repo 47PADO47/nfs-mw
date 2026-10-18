@@ -1,5 +1,5 @@
 //! Tests for the Original menu adapters (`original/menu.rs`). Synthetic menu trees go through the menu cell, the way the
-//! frontend plugin will fill it (T12). No game data and no GPU are needed.
+//! frontend plugin fills it. No game data and no GPU are needed.
 
 use std::sync::Arc;
 

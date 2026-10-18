@@ -70,17 +70,13 @@ impl FrameCell {
     ///
     /// The plugin calls this once per frame, after `Runtime::tree` and after the same transforms the presenter gets
     /// (the HUD viewport for `Hud`, the chyron placement for `Chyron`). The adapters then copy what the presenter
-    /// would draw. Wiring is T12; T7 only defines the setter.
-    // wired into the HUD plugin in T12: until then nothing fills the cell.
-    #[allow(dead_code)]
+    /// would draw.
     pub(crate) fn set(&self, source: FengSource, tree: UiTree) {
         self.slots()[source.index()] = Some(Arc::new(tree));
     }
 
     /// Empties `source` for this frame, for a package that is not drawn now (the chyron is off, the overlay is
     /// hidden). Its adapters then emit nothing.
-    // wired into the HUD plugin in T12, with `set`.
-    #[allow(dead_code)]
     pub(crate) fn clear(&self, source: FengSource) {
         self.slots()[source.index()] = None;
     }
@@ -89,16 +85,12 @@ impl FrameCell {
     /// as the presenter gets it (prompts decorated). Replaces the tree the slot had.
     ///
     /// The frontend plugin calls this once per frame for each screen on the stack that maps to the slot, and calls
-    /// [`Self::clear_menu`] for every other menu slot (`docs/specs/ui-themes-menus.md`, section 3). Wiring is T12.
-    // wired into the frontend plugin in T12: until then nothing fills the menu cell.
-    #[allow(dead_code)]
+    /// [`Self::clear_menu`] for every other menu slot (`docs/specs/ui-themes-menus.md`, section 3).
     pub(crate) fn set_menu(&self, slot: SlotId, tree: Arc<UiTree>) {
         self.menus_lock().insert(slot, tree);
     }
 
     /// Empties the menu slot `slot` for this frame. Its adapter then emits nothing.
-    // wired into the frontend plugin in T12, with `set_menu`.
-    #[allow(dead_code)]
     pub(crate) fn clear_menu(&self, slot: SlotId) {
         self.menus_lock().remove(&slot);
     }
