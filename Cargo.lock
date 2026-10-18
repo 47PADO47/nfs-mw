@@ -1743,6 +1743,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "blackbox-ui"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "blackbox-vehicle"
 version = "0.1.0"
 dependencies = [

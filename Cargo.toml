@@ -37,6 +37,7 @@ default-members = [
     "libs/blackbox-streaming",
     "libs/blackbox-text",
     "libs/blackbox-tpk",
+    "libs/blackbox-ui",
     "libs/blackbox-vehicle",
     "libs/ini-tuning",
     "libs/ea-audio",
