@@ -1,6 +1,6 @@
 # 0008 — Themeable UI: one component system, switched by `UiStyle`
 
-- **Status:** proposed (2026-10-18). Not yet accepted by the owner.
+- **Status:** accepted (2026-10-18). Built through T12; the GPU parity checks are owed (see the compose spec).
 - **Milestone:** cross-cutting. Touches 5 (the HUD), 6 (the menus) and 12 (the mod hook). The work is split into
   subtasks T1 to T12 in the plan (`C:\Users\PADO\.claude\plans\i-want-you-to-serialized-lantern.md`, section
   "Subtask breakdown").
@@ -110,12 +110,21 @@ existing presenter draws it.**
    the boundary. A `Box<dyn Component>` cannot cross. A mod would have to describe its component tree through
    host calls that return handles, and the host would wrap them in `Component`. This is the largest open design
    point of the mod hook.
-5. **Live switch or restart.** The plan says the options row cycles `UiStyle`, but it does not say whether the
-   change takes effect at once. Re-resolving slots mid-game is possible; the spec does not assume it.
+5. **Live switch or restart.** Answered (T10, T12): the theme is resolved every frame, so a change takes effect on the
+   next frame with no restart.
 6. **Default.** The plan sets `UiStyle` to `Original`. `VisualStyle` defaults to `Custom`
    (`crates/nfsmw/src/settings/appearance.rs`). The different default is intended, but the owner should confirm it.
 7. **Milestone number.** The plan does not give this work a milestone number. The header lists the milestones it
    touches.
+
+## Outcome (T12)
+
+- The HUD and the menus draw through the composer (`ui/theme/compose.rs`, [ui-themes-compose.md](../specs/ui-themes-compose.md)).
+  The presenter is unchanged, and the egui radio path is gone. Under Original the composed trees equal the trees the
+  plugins store, node for node and in draw order, except that a slot root keeps no parent link. Synthetic tests prove this.
+- Owed, each on the machine that can run it: the 256 by 144 digest parity and the `--ui-style custom` screenshot (a GPU),
+  the real-package "no node claimed twice" check (game data), the Mods-page selector row, a `Gauge` primitive for mods,
+  and the decision whether a mod's HUD follows the viewport.
 
 ## Could not verify
 

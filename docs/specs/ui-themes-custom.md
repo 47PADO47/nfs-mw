@@ -8,8 +8,9 @@ Custom theme fills today (`ElementId::RadioCard`, number 10). The contract it si
   placement math it reuses), `devtools/mod.rs` (the egui call site), `libs/blackbox-ui/src/components/` (`Panel`,
   `Stack`, `Text`), and the Original cells (`ui/theme/original/frame.rs`) for the shared-cell pattern.
 - **Data inputs:** none new. The card shows the song on the air from `Audio::now_playing()`, as before.
-- **Status:** built (T9). The component and its feed are in place and tested. The card draws only once T12 fills
-  the feed and presents the Custom theme. Until then the game draws no radio card in either style.
+- **Status:** built (T9) and wired (T12). The HUD plugin fills the feed each frame and the composer draws the card
+  when the Custom theme resolves `RadioCard` ([ui-themes-compose.md](ui-themes-compose.md) section 5). Under Original the
+  EA Trax chyron draws the slot as before.
 
 ## 1. What the card is
 
@@ -47,7 +48,7 @@ The card reads a shared cell, `RadioFeedCell` (`custom/radio_feed.rs`), the same
 - The cell is `Arc<Mutex<..>>`, so it is `Send + Sync` as `Theme` requires. A poisoned lock is still a whole feed.
 - `UiThemes::radio()` returns the clone the plugin keeps.
 
-**For T12:** the HUD plugin calls `ui_themes.radio().set(&radio_hud, screen, settings.hud_layout)` once per frame,
+**Wired (T12):** the HUD plugin calls `themes.radio().set(&radio_hud, screen, settings.hud_layout)` once per frame,
 after `radio::update` has run, using the same `Screen` the presenter gets. It needs no clock. The card's timing comes
 from `RadioHud::age`, which `radio::update` advances by the frame delta.
 
@@ -111,13 +112,12 @@ Runs: `cargo test -p blackbox-ui` (67 and 1 passed); `cargo test --bin nfsmw ui:
 `cargo test --bin nfsmw hud::radio` (4 passed). The devtools tests were not run, as their GPU tests crash at
 baseline.
 
-## 7. For T12
+## 7. Wiring (T12)
 
-- Call `RadioFeedCell::set` each frame, as in section 2. Do not apply the HUD viewport to the card's nodes. The
-  card places itself from the same `parameters`.
-- The card is the `RadioCard` slot's component. The composer draws it when the Custom theme is active. Under
-  Original the EA Trax chyron draws the card, as before.
-- Watch the presenter draw order: the card's `z` is the default 1, and the background is built before the text, so
-  the text draws on top at equal depth.
-- End-to-end check: `--ui-style custom` shows the card through the presenter, not egui, and every other element
-  looks like Original (`ui-themes.md` section 13).
+- `RadioFeedCell::set` runs each frame the HUD draws, as in section 2. The HUD viewport is not applied to the card's
+  nodes; the card places itself from the same `parameters`.
+- The card is the `RadioCard` slot's component, in its own layer before the HUD. Under Original the EA Trax chyron
+  draws the slot, as before.
+- The card's `z` is the default 1, and the background is built before the text, so the text draws on top at equal
+  depth. The composer sorts by `index`, and the card's nodes keep their build order (stable sort, equal indices).
+- Owed: the end-to-end screenshot with `--ui-style custom` on a GPU machine (`ui-themes-compose.md` section 7).

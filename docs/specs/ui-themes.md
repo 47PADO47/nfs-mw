@@ -17,8 +17,8 @@ trade-offs are in [ADR 0008](../decisions/0008-ui-themes.md). This spec gives th
   (`crates/nfsmw/src/ui/theme/`, T6), the Original HUD adapters (`original/`, T7) and the Original menu adapters and
   menu cell (T8, [ui-themes-menus.md](ui-themes-menus.md)) and the Custom `RadioCard` with the egui radio retired (T9,
   [ui-themes-custom.md](ui-themes-custom.md)) are built. Every catalogue slot has an Original adapter.
-  Nothing draws through them yet: the live path is unchanged until T12 wires the cells into the HUD and frontend
-  plugins. Items marked **open** are not decided (section 14).
+  Since T12 the HUD and menu presenters draw through the registry (the composer, [ui-themes-compose.md](ui-themes-compose.md)).
+  Items marked **open** are not decided (section 14).
 
 ## 1. What a theme controls
 
@@ -274,8 +274,8 @@ design:
      read through (`PoisonError::into_inner`): each write replaces a whole slot, so the data stays valid.
    - **What the plugin stores.** The tree as the presenter gets it: `hud.viewport.apply` applied for the HUD, and
      `trax.place` for the chyron. Adapters then copy the placed `world` transforms as they are.
-   - **Who fills it.** `UiThemes::frame()` gives the plugin its clone (T12). T7 defines `set`/`clear` and does not call
-     them, so the live path is unchanged.
+   - **Who fills it.** `UiThemes::frame()` gives the plugin its clone. The HUD and frontend plugins fill it each frame
+     (T12, [ui-themes-compose.md](ui-themes-compose.md) section 2).
 4. **One composed tree.** The presenter sees one `UiTree`. The plugin composes the slot subtrees in the FEng node
    order, so `draw_order` matches today's, and calls `hud.viewport.apply` once on the composed tree, not per slot
    (section 5, [hud-viewport.md](hud-viewport.md)). Pixel parity is checked with the digest tests.
@@ -304,7 +304,8 @@ cannot know the catalogue (section 7). `build_themes` asserts it at start-up, an
 - **Draw order.** The adapter does not sort. The composer calls `DrawList::into_tree`, a stable sort by `z`. Because
   the nodes come in object order, a single slot's draw order equals FEng's `draw_order` restricted to that slot (tested).
   Across slots, ties in `z` keep the composer's insertion order. To match FEng exactly, the composer should append the
-  slots in object-index order, or sort by `index` before `into_tree`. T12 decides which.
+  slots in object-index order, or sort by `index` before `into_tree`. Decided (T12): sort by `index`
+  (`DrawList::sort_by_index`), because the tachometer nests the gear.
 - **Root lists** (`hud/roots.rs`). Each list is the same list `hud/elements.rs::Layout::update` uses for the element,
   so an adapter emits exactly what the HUD shows for it. All of them are name hashes (`Runtime::find`). The T6 table
   says "guid" for the group identities. That is wrong for every entry except the tachometer's fill (`0x456E`, a guid,
@@ -341,12 +342,12 @@ Menu and career slots (raw 20 and up) are not in this table. Their adapters, the
   The bounty row is in neither the catalogue nor this slot, unless it sits under the board group. Not checked.
 - **Radar cool-down.** The cool-down bar (`0x84A226EC`) sits inside the radar's group in the package, but it is a root
   of `PursuitMeter`. Its membership is decided by its own root, so it is not lost.
-- **Not in any slot (owed to T12).** The rear-view mirror (`0x9EE06631`, `0x7FAC287B`), the police radar and its laser
-  (`0x839E7D77`, `0x062743F5`, `0x6CCBBBF1`), the heat arcs (`0xC46A80A9`), and the bounty row. No adapter emits them,
-  so a composed HUD built from the slots alone loses them. T12 must either give each one a slot (with a consumer) or
-  have the composer emit what no slot claims. This is the largest open point for T12.
-- **Unchecked assumption.** Only the gear is known to sit inside another slot's root (the tachometer). Every other root
-  is taken as a sibling. T12 should verify this on the real package with a check that no node is claimed twice.
+- **Not in any slot (decided in T12).** The rear-view mirror (`0x9EE06631`, `0x7FAC287B`), the police radar and its laser
+  (`0x839E7D77`, `0x062743F5`, `0x6CCBBBF1`), the heat arcs (`0xC46A80A9`), and the bounty row. No slot takes them, so the
+  composer appends every node no slot claims (`hud_slots::emit_unclaimed`). No new slot is needed yet.
+- **Unchecked assumption.** Only the gear is known to sit inside another slot's root (the tachometer), and the blip icons
+  sit under the minimap. The synthetic tests check that no node is claimed twice. The real-package check is owed
+  ([ui-themes-compose.md](ui-themes-compose.md) section 7).
 
 **Ghidra was not used.** Every identity above was already pinned by the Rust code (`elements.rs`, `bind.rs`,
 `speedbreaker.rs`, `minimap.rs`), so no new original-game fact was needed.
@@ -407,9 +408,9 @@ Built in T10. `enum UiStyle { Original, Custom, Remastered }`, default `Original
 - **Live switch.** `ui::theme::sync_active_theme` runs in `FrameSet::Prepare` every frame and calls
   `UiThemes::select(settings.ui_style)`. An options change takes effect on the next frame, with no restart.
   `theme_of` maps `UiStyle` to `ThemeId`. `Remastered` has no registered theme yet, so `select` leaves Original
-  active. Selecting a theme changes no drawing until T12 resolves slots in present.
-- **Chyron gate (live build).** `hud/plugin.rs` shows the EA Trax chyron when `ui_style != Custom`, so Original and
-  Remastered keep the chyron. T12 replaces this with per-theme radio gating.
+  active. The HUD and menu presenters resolve the slots each frame (T12).
+- **Chyron gate.** `hud/plugin.rs` shows the EA Trax chyron only where the `RadioCard` slot resolves to Original
+  (`UiThemes::provided_by`), so Custom's card replaces it and a mod theme that does not name the slot keeps it (T12).
 - **Tests:** `settings/ui_style_tests.rs` (defaults, tokens, the three layers, legacy mapping, write, CLI),
   `settings/ui_style.rs` and `settings/radio_hud.rs` unit tests, `frontend/ui_style_tests.rs` (row title, the cycle and
   labels), `ui/theme/tests.rs` (`theme_of`, `select` fallback, the sync system).
@@ -439,8 +440,8 @@ Mirrors `bb.menus` ([ADR 0005](../decisions/0005-native-mod-plugins.md), section
 - **Selection.** `UiThemes::select_mod(id)` makes a mod theme active until `clear_mod()`; `select(style)` (the per-frame
   sync) keeps the mod choice. `UiStyle` stays a closed enum (question 3). Owed: the options row or `ui_style_mod` key that
   calls `select_mod`.
-- **Not yet drawn.** The presenter reads the registry in T12. Until then a mod theme resolves but the live game does not
-  draw it.
+- **Drawn.** The presenter reads the registry through the composer (T12). A mod theme that is selected draws its slots;
+  the selector is still owed.
 - **Tests:** `host/table/ui_tests.rs` (the table: shape checks, lifecycle, offer), `sdk/ffi/ui_tests.rs` (the SDK round trip),
   `modding/backends/ui_tests.rs` (the port: register, override, build, fallback, names and ids), and
   `ui/theme/modded/tests.rs` (primitives, fallback, select and clear).

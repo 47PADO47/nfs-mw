@@ -1,4 +1,4 @@
-# UI themes: the menu cell, the menu adapters and the T12 fill map
+# UI themes: the menu cell, the menu adapters and the fill map (T8, wired in T12)
 
 The menu half of the Original theme, from [ui-themes.md](ui-themes.md) section 8. It covers what T8 built (the menu
 cell and one adapter per menu and career slot), the mapping from a produced menu tree to its slot that T12's frontend
@@ -6,7 +6,7 @@ plugin must implement, and the open points T12 owes. Sources read: `crates/nfsmw
 `frontend/career_screens/{mod,blacklist,car_lot,rap_sheet/mod,region_unlock,save,sms,safehouse_menu}.rs`,
 `crates/nfsmw/src/ui/theme/original/`. No game data and no decompiled code.
 
-- **Status:** built (T8) and tested with synthetic trees. Nothing fills the menu cell in the live path yet. T12 wires it.
+- **Status:** built (T8) and tested with synthetic trees. The frontend plugin fills the menu cell each frame (T12, section 4; [ui-themes-compose.md](ui-themes-compose.md)).
 
 ## 1. What T8 built
 
@@ -15,7 +15,7 @@ plugin must implement, and the open points T12 owes. Sources read: `crates/nfsmw
   - `set_menu(&self, slot: SlotId, tree: Arc<UiTree>)`: stores the slot's tree for this frame, replacing the old one.
   - `clear_menu(&self, slot: SlotId)`: empties the slot for this frame.
   - `get_menu(&self, slot: SlotId)`: read by the adapters (`pub(super)`).
-  - Setter visibility is `pub(crate)` with `#[allow(dead_code)]`, until T12 calls them.
+  - Setter visibility is `pub(crate)`. The frontend plugin calls them each frame.
 - **Menu adapter.** `MenuTree` (`original/menu.rs`) is a `Component` that holds the cell and a slot. `build` copies the
   whole tree of that slot with the HUD adapters' `emit` and `Scope::Package`: every node, in the tree's order, `index`
   kept, `parent` remapped into the draw list. `layout` does nothing. The adapter runs no script, reads no input and
@@ -77,31 +77,31 @@ The first matching row wins. "Name" is the package file name, any case.
   `Credits.fng`, `EA_Trax_Jukebox.fng`, `WorldMapMain.fng`, `Infractions.fng`, `WS_Loading.fng`, and the splash
   packages. They get no slot (ui-themes.md section 6), so the cell never holds their trees.
 
-## 4. Fill procedure for T12 (frontend plugin)
+## 4. Fill procedure (frontend plugin, as built in T12)
 
-Run in `frontend/plugin.rs::present`, from the same `presented_trees` call that the present loop already makes, so the
-cell holds exactly what is drawn. Do not call `Runtime::tree` a second time.
+Run in `frontend/plugin.rs::present`. One call to `Screens::presented` per frame gives the trees, lowest first, each with
+its slot. The cell holds exactly what is drawn. `Runtime::tree` is not called a second time.
 
-1. Take the trees, lowest first, zipped with the stack's screens.
-2. For each screen whose slot `S` is known (section 5): `cell.set_menu(S, Arc::new(tree))`.
-3. For each menu slot not set in step 2: `cell.clear_menu(S)`. Skipping this leaves a stale tree on the next frame.
-4. Keep the cell clone from `UiThemes::frame()`. Nothing else changes: `ScreenLogic`, `Cx`, `Command`, the stack and the
-   input path stay as they are. Interaction stays native (the adapter draws only).
+1. Clear every menu slot: `cell.clear_menu(S)` for each `ElementId` with `is_menu()`. Skipping this leaves a stale tree.
+2. Walk the screens from the top. For the first screen on a slot `S`: `cell.set_menu(S, Arc::new(tree))`, and draw
+   `slot_layer(themes, S)`, the composed layer. Any other screen draws its own tree.
+3. Each screen is one presenter call, in the order the presenter always drew them (top first). Nothing else changes:
+   `ScreenLogic`, `Cx`, `Command`, the stack and the input path stay as they are. Interaction stays native.
 
 ## 5. Slot bookkeeping T12 must add
 
 `Screens::open` is the only place `Args` are known. `Screen` holds `id`, `name` and `logic` only, so the slot is lost
-after `open`. T12 adds `slot: Option<SlotId>` to `Screen` (in `frontend/screens.rs`) and sets it in `open` from a new
-`factory::slot_for(name, &args)` that mirrors the table in section 3. `open_with` (dialogs, alerts) sets `None`, since
+after `open`. T12 adds the slot to `Screen` (in `frontend/screens.rs`) and sets it in `open` from a new
+`factory::slot_for(name, &args)` that mirrors the table in section 3. The field is `Option<ElementId>` (the catalogue
+type; its `.slot()` is the `SlotId` the cell keys by), so no conversion is needed where the slot is read. `open_with` (dialogs, alerts) sets `None`, since
 they have no menu slot. `pop` and the stack commands need no change.
 
 ## 6. Open points for T12
 
-- **Two stacked screens on one slot.** The cell holds one tree per slot. Two stack screens can map to one slot (for
-  example two option tables), and only one tree fits. Recommended: the topmost screen wins the slot; the presenter keeps
-  drawing every screen natively, so nothing is lost until a theme overrides the slot. Decide before wiring Custom.
+- **Two stacked screens on one slot. Decided (T12):** the topmost screen wins the slot. A screen under it on the same
+  slot draws its own tree, as it always did, so a theme overriding that slot changes only the topmost screen.
 - **Parity.** The Original menu path draws the same tree the presenter draws, so pixels should match. The digest or
-  offscreen check for a menu screen (`UiScript`, `--ui-script`) is owed to T12 (ui-themes.md section 13).
+  offscreen check for a menu screen (`UiScript`, `--ui-script`) is owed on a GPU machine (ui-themes-compose.md section 7).
 - **Clearing** (section 4, step 3) is the easiest thing to miss, and the failure is silent.
 
 ## 7. Tests (T8)
