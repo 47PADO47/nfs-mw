@@ -129,9 +129,11 @@ fn masked_and_unmasked_presenter_uploads_apply_alpha_coverage_once() {
 }
 
 #[test]
-fn a_stock_size_beats_the_table_and_the_table_fills_the_gap() {
-    assert_eq!(native_size(Some((256, 256)), Some((128, 64))), Some((256, 256)));
+fn the_table_beats_an_install_copy_that_a_mod_replaced_and_the_install_fills_the_gap() {
+    // A modded install holds a 2048 x 2048 FONT_MW_BODY where the stock texture is 256 x 256.
+    assert_eq!(native_size(Some((2048, 2048)), Some((256, 256))), Some((256, 256)));
     assert_eq!(native_size(None, Some((128, 64))), Some((128, 64)));
+    assert_eq!(native_size(Some((64, 64)), None), Some((64, 64)));
     assert_eq!(native_size(None, None), None);
 }
 
