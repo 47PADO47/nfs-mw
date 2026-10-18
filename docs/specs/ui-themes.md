@@ -380,24 +380,24 @@ The example needs only `Panel`, `Stack`, `Row`, `Text` and `Image`. No new base 
 
 ## 11. The `UiStyle` setting
 
-Built in T10. `enum UiStyle { Original, Custom, Remastered }`, default `Original`
-(`crates/nfsmw/src/settings/ui_style.rs`).
+Built in T10. `enum UiStyle { Original, Custom, OriginalGold, Remastered }`, default `Original`
+(`crates/nfsmw/src/settings/ui_style.rs`). `OriginalGold` and the Bevy palette of `Custom` are token themes (section 15).
 
 - Modelled on `VisualStyle` (`crates/nfsmw/src/settings/appearance.rs`): kebab-case serde, `names!` for the strict
-  `FromStr` and `Display`, `ALL`, `label()`. The serialised names are `original`, `custom` and `remastered`.
-  Labels: `Original`, `Custom`, `Remastered (incomplete)`. `VisualStyle` defaults to `Custom`; `UiStyle` defaults to
+  `FromStr` and `Display`, `ALL`, `label()`. The serialised names are `original`, `custom`, `original-gold` and
+  `remastered`. Labels: `Original`, `Bevy` (the `custom` value), `Original (gold)`, `Remastered (incomplete)`. `VisualStyle` defaults to `Custom`; `UiStyle` defaults to
   `Original`, because the UI look and the graphics look are separate choices (decision 6).
 - **Layers**, each read like the other settings (CLI over env over file over default):
 
 | Layer | Where | Key |
 |---|---|---|
-| TOML | `settings/file.rs` | `ui_style = 'original' \| 'custom' \| 'remastered'` |
+| TOML | `settings/file.rs` | `ui_style = 'original' \| 'custom' \| 'original-gold' \| 'remastered'` |
 | Env | `settings/env.rs` (`UI_STYLE`) | `NFSMW_UI_STYLE` |
 | CLI | `cli/view_args.rs` | `--ui-style original\|custom\|remastered` |
 | Partial | `settings/partial.rs` | `ui_style: Option<UiStyle>` |
 | Write | `settings/write.rs` | writes `ui_style` only |
 | Console | `devtools/console/settings_cmd.rs`, `settings_keys.rs`, `parse.rs` | `set ui_style <value>` |
-| Options | `frontend/options.rs`, `options_rows.rs` | row "UI style" cycles the three values |
+| Options | `frontend/options.rs`, `options_rows.rs` | row "UI style" cycles the four values |
 
 - **Legacy `radio_hud` (deprecated, read only).** The old key `radio_hud` (`ea_trax` or `custom`, see
   `settings/radio_hud.rs`) still loads. `ea_trax` maps to `Original`, `custom` maps to `Custom`. The mapping is per
@@ -417,6 +417,7 @@ Built in T10. `enum UiStyle { Original, Custom, Remastered }`, default `Original
 
 ## 12. The `bb.ui` mod hook
 
+Tokens were added in `bb.ui` 1.1 (`set_tokens`, section 15).
 Mirrors `bb.menus` ([ADR 0005](../decisions/0005-native-mod-plugins.md), sections 2 and 8). Delivered in T11 as
 `bb.ui` 1.0. The catalogue for mod authors is [api-ui.md](../modding/api-ui.md).
 
@@ -489,3 +490,7 @@ These are not decided. The parent task (or the owner) decides them before the ma
    (T13).
 4. **Components across the ABI.** Resolved (T11): a declarative primitive list, not handles (section 12).
 5. **Live switch or restart.** Resolved (T10): live. `sync_active_theme` selects the theme every frame (section 11).
+
+## 15. Theme tokens
+
+The token model (colours, radius, padding, and how the registry merges them) is in [ui-themes-tokens.md](ui-themes-tokens.md).
