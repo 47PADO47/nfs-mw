@@ -77,6 +77,8 @@ serde.workspace = true
 symphonia.workspace = true
 toml.workspace = true
 wgpu.workspace = true
+ab_glyph = "0.2.32"
+epaint_default_fonts = "0.36.2"
 
 [features]
 native-dlss = ["blackbox-render/streamline"]

@@ -11,7 +11,7 @@
 //! The egui card sized its box to the longest line. This one has a fixed width, and the presenter squeezes a longer
 //! line into it.
 
-use blackbox_ui::{Component, DrawList, LayoutCx, Panel, Rect, Stack, StackAxis, Text};
+use blackbox_ui::{Component, DrawList, LayoutCx, Panel, Rect, Stack, StackAxis, Text, token_keys};
 
 use super::radio_feed::{RadioFeed, RadioFeedCell};
 use super::radio_placement::Anchor;
@@ -71,7 +71,7 @@ impl Body {
         }
         let skin = faded(cx.skin, opacity);
         let local = LayoutCx::new(&skin, cx.time_s);
-        let place = Frame::at(feed.anchor);
+        let place = Frame::at(feed.anchor, cx.skin.metric(token_keys::PADDING).unwrap_or(PAD));
         let mut background = Panel::new(keys::BACKGROUND);
         background.layout(&local, place.outer);
         let s = feed.anchor.scale;
@@ -92,9 +92,9 @@ struct Frame {
 }
 
 impl Frame {
-    fn at(anchor: Anchor) -> Self {
+    fn at(anchor: Anchor, padding: f32) -> Self {
         let s = anchor.scale;
-        let pad = PAD * s;
+        let pad = padding * s;
         let width = TEXT_WIDTH * s;
         let height = 3.0 * LINE * s;
         let (left, top) = (anchor.left, anchor.top);

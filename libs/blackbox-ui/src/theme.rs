@@ -6,13 +6,12 @@ use crate::slot::SlotId;
 use crate::tokens::Tokens;
 
 /// Which theme a component comes from. `Original` is the floor every other theme falls back to.
-/// `Custom` (the Bevy palette), `OriginalGold` and `Remastered` are the built-in alternatives; `Mod(n)` is a theme a mod
+/// `Custom` and `Remastered` are the built-in alternatives; `Mod(n)` is a theme a mod
 /// registered.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ThemeId {
     Original,
     Custom,
-    OriginalGold,
     Remastered,
     Mod(u32),
 }

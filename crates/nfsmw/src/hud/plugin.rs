@@ -163,6 +163,8 @@ fn present(
     let frame = themes.frame();
     // The card places itself from the HUD layout, so it takes the feed, not the viewport.
     themes.radio().set(&radio, screen, settings.hud_layout);
+    // The Custom speedometer and tachometer read the drive state the same way.
+    themes.drive().set(&state, screen);
     match (chyron_shown, hud.trax.as_ref()) {
         (true, Some(trax)) => {
             let mut chyron = hud.runtime.tree(trax.package());
