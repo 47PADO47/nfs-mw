@@ -112,3 +112,34 @@ only. Image base `0x00400000`; program `/speed.exe` (Black Edition PC v1.3).
 - Whether the time-of-day object (`DAT_009b392c`) is rebuilt per world was not followed.
 - The two numeric tables reset by `FUN_007652f0` (`DAT_009b38c0`, `DAT_009b38c8`) were not identified.
 - Cheat Engine was not used (no running game).
+
+## 2026-10-18: open-time messages of the rival and memory-card screens
+
+Research for [career-safehouse-2.md](../specs/career-safehouse-2.md) section 11 (why `SafeHouseRivalChallenge.fng`,
+`SafehouseRivalBio.fng` and `MC_Main.fng` draw nothing in the port). Ghidra on `speed.exe`, plus `nfsmw dump-screen` and
+`nfsmw view-screen` (no cargo run). Hashes of the names were computed with `bstring_hash`.
+
+| Role | Ghidra name | Address | Notes |
+|---|---|---|---|
+| Post to package by name | `FUN_00516be0` | `0x00516BE0` | looks up the package (`FUN_00516af0`), queues via `FUN_005b7780` (`0x005B7780`) |
+| Rival Bio constructor | `FUN_00561320` | `0x00561320` | posts `0xAF922178` at `0x00561414`, `0x0B21A45F` at `0x005613F7` |
+| Rival Challenge wrapper | `FUN_00561260` | `0x00561260` | vtable `0x0089D7B8`; caller `FUN_00571380` |
+| Rival Challenge widget init | `FUN_00551A20` | `0x00551A20` | `0x34297CB0` at `0x00551BED`, `0x0B21A45F` at `0x00551C32`, `0xAF922178` at `0x00551C59`, `0xB4C144B1` at `0x00551C47` |
+| Rival Challenge opener | `FUN_00623F80` | `0x00623F80` | name `0x0089AFFC`; sets context `0x20000` on the `LAB_0062404C` branch; caller `FUN_0062FEC0` |
+| Rival-list populate | `FUN_0052EE50` | `0x0052EE50` | posts `0xB4C144B1` at `0x0052F380`; callers `FUN_00551070`, `FUN_00551420`; strings `RIVAL_CHALLENGE_ACTIVATED` / `_DEACTIVATED` |
+| MC_Main opener | `FUN_00527940` | `0x00527940` | name `0x0089AFBC`; `InGame_MC_Main.fng` at `0x00897380` |
+| MC screen init | `FUN_00543BE0`, `FUN_00543CC0`, `FUN_0054FB00`, `FUN_00543F90` | `0x00543BE0`, `0x00543CC0`, `0x0054FB00`, `0x00543F90` | post `0xC0F2AE7C` (`0x00543C6F`, `0x00543D66`, `0x0054FBED`, `0x005441CF`) then `INITIALIZE_SCREEN` (`0x71FD0F10`), guarded by `+0x74` |
+| Hash builder for the text | `FUN_005AF1C0` | `0x005AF1C0` | takes the text `INITIALIZE_SCREEN`; not decompiled |
+| MC leave handler | `FUN_00564070` | `0x00564070` | posts `0x4F3559B5` at `0x0056414C` on `0x54B3AC6C`, opens `MC_List.fng` |
+| Screen table | data | `0x008F322C` (Rival screens), `0x008F4890` (MC) | references the name strings |
+
+Dump facts (`nfsmw dump-screen`): the rival content groups `0x1162D4` (Challenge), `0x116316` (Bio), `0x10CF79` and
+`0x116248` (Challenge) have start flags `0x40000008`; the port's visibility test reads only that definition flag
+(`libs/blackbox-feng/src/tree/mod.rs`, about line 112). `MC_Main` root objects have no `0x8` flag.
+
+Port check: `0xB21A45F`, `0xAF922178`, `0xC0F2AE7C` and `INITIALIZE_SCREEN` (`0x71FD0F10`) do not appear in `crates/` or
+`libs/`. The port never posts the MC pair.
+
+Open: the meaning of flag `0x8` at runtime (the exe's runtime bit at object `+0x1C`, bit 0, is the probable hidden bit,
+not verified), the start value of the colour track of script `0x5079C8F8`, what script `0xE9091FE0` changes, the meaning
+of context bit 17, and the two helpers `0x007A1FA0` / `0x007A1FD0`.

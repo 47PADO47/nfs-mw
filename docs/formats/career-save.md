@@ -220,7 +220,7 @@ The fields are written in a different order from their memory order. `Set` is th
 | 0x429D | 16 | 0x26C | profile serial text | built from `MW-%d-%.4sXXX` at the first career start |
 | 0x42AD | 4,804 | via manager | node state list | 4 + 300 x 16 bytes |
 | 0x5571 | 456 | global | shop part-unlock tiers | 57 x 8 bytes |
-| 0x5739 | 756 | global | pending popup queue | 63 x 12 bytes |
+| 0x5739 | 756 | global | marker and unlock inventory (memory `0x0091D928`) | 63 x 12 bytes `{u32 type, u32 aux, u32 flag}` |
 
 The flags word is identical in all three saves (`0x001DF7F3`), including the fresh `stock` profile, so the saves do not
 show which bit means what. Meanings come from the code (section 3.3).
@@ -246,12 +246,13 @@ the other modes. A fresh profile is all zero in `stock`, `{0,0xFF,0,0}{0,0xFF,2,
 maximum in `mwo`. The full reading is in [career-text-2.md](../specs/career-text-2.md) section 4. (An earlier version of
 this page called it "hint counters"; that was wrong.)
 
-**Pending popup queue** **[exe + verified]**: 63 entries `{u32 type, u32 value, u32 active}` of rewards and notices waiting
-to be shown after a race. Types seen in code: 1 to 0x10 shop part unlocks (brakes 1, engine 2, nitrous 3, induction 4,
-chassis 5, tires 6, transmission 7, body kit 8, hood 9, spoiler 10, rims 11, roof scoop 12, hud 13, vinyls 14, decals 15,
-paint 16), 0x11 a Get Out of Jail Free marker, 0x12 a car won (pink slip), 0x13 cash, 0x14 an impound box added,
-0x15 a car released from impound; 0x14 and 0x15 are also used as plain notices. Empty in the fresh saves, 90 non-zero dwords
-in `mwo`. A second, unsaved queue of 6 entries sits behind it in memory.
+**Marker and unlock inventory** **[exe + verified]**: 63 slots `{u32 type, u32 aux, u32 flag}` at memory `0x0091D928`, saved
+and loaded as one 756-byte block (the loader copies 0xBD dwords). A slot is free when `type` is 0 and active when `flag` is 1.
+Types: 1 to 0x10 shop part unlocks (brakes 1, engine 2, nitrous 3, induction 4, chassis 5, tires 6, transmission 7, body kit 8,
+hood 9, spoiler 10, rims 11, roof scoop 12, hud 13, vinyls 14, decals 15, paint 16), 0x11 Get Out of Jail Free, 0x14 Extra
+Impound Strike, 0x15 Impound Release. Pink slips (0x12) and cash (0x13) are not stored here. `mwo`: 45 active slots, all part
+unlocks, no markers. `NAME` and `stock`: empty. The earlier label "pending popup queue" was wrong: the popup queue is a separate,
+unsaved 6-slot table at `0x0091DC1C` (count `0x0091DC64`). Details and functions: [career-economy-flows.md](../specs/career-economy-flows.md) 6.5.
 
 ### 3.3 Flags word (settings + 4) **[exe]**
 

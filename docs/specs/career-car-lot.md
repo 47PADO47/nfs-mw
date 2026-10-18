@@ -169,7 +169,54 @@ wired yet. The limits (10 purchased cars, 25 records, 20 customs) are values in 
 ## Open questions
 
 1. The manufacturer index order and the use of the other `frontend` fields (the seven float stat bars, the part-info
-   array).
+   array). Stat bars partly answered 2026-10-18, still open for the value source:
+   - [exe][verified] Three bar groups in `Car_Select.fng`, each a Multi-Textured Image with `LED_main.tga` segments:
+     TOP SPEED = group `0xF1737`, ACCELERATION = `0xF172F`, HANDLING = `0xF173F`. Each group has two `LED_main` strips
+     (width 160 px, uv 0 to 5.0, plus a shorter first strip: 80 px / uv 2.5 for TOP SPEED, 40 px / uv 1.25 for
+     ACCELERATION, 120 px / uv 3.75 for HANDLING) and one `LED_DELTA` tick. Strip uv width is the fill unit, 5.0 = full
+     160 px strip.
+   - [exe][verified] Update messages: `0x26C9925F` drives TOP SPEED (script `0x5079C8F8`), `0x0B9A1B40` drives
+     ACCELERATION, `0x06FE3A05` drives HANDLING. `0x97BDB465` (screen start) plays script `0x033113AC` on all three.
+   - [exe][verified] Labels: `0x89B304` "TOPSPEED", `0x89B310` "ACCELERATION", `0x89B2F8` "HANDLING" (the exe's
+     string table; the `.fng` shows "TOP SPEED" with a space).
+   - [exe][verified] Setup function at `0x007B4D70` (called from the screen constructor `0x007C2BA0`, call site
+     `0x007C2EBE`) sets each bar's object with the constants 1.0, 5.0 and 160.0 and the three label strings. It takes
+     no per-car value itself.
+   - [exe][verified] Per-car refresh: `0x007B8F10` (called from `0x007BE3F0`, data ref at `0x008B7F34`). It reads the
+     car's values through a getter `0x007AF220` (arguments: a mode index; the car is reached from the global at
+     `0x009B9EC4`, the player/career object at `0x0091CF90`). The getter returns one of three floats of a record
+     (mode 0, 1, 2 select the first, second, third float; any other mode returns a constant at `0x00890968`). The bar
+     code also passes the constants 1.0 and 160.0 and the labels. The record is the car's attribute data, so the
+     values are per-car. Field name, hash and class of the record are not yet resolved.
+   - [exe][verified] Segment setter `0x007AFF10`: stores a value with a min and max (two float clamps), then builds
+     10 child elements (loop 0 to 9, names from a format string at `0x008B79EC`). So each bar has 10 segments. Its
+     callers are `0x007B4D70` (the screen setup), `0x007BB3E0`, `0x007B0C30` and `0x007B12B0`.
+   - [exe][verified] Car key: `0x004E4EA0` opens the `pvehicle` collection (class hash `0x4A97EC8F`, checked against
+     `docs/formats/attributes.md`) at the car's key hash, through `0x00455FD0`. `0x005814E0` looks the key up in a
+     table of 200 entries (key hash, then a byte index at +0x10, index below 76). The record is at
+     `this + index * 0x198 + 0xFA0 + 0x118`, a 408-byte block per car. `0x0067F800` copies seven fields of it.
+   - [exe][verified] Weight table, seven rows of (x, y, z) floats at `0x008F8928 + 12 i`, i = 0..6:
+     i0 (0.25, 1.5, 0.25); i1 (0.0, 0.5, 0.0); i2 (0.25, 1.0, 0.2); i3 (1.0, 0.0, 0.75); i4 (0.5, 0.0, 1.0);
+     i5 (0.25, 0.0, 1.25); i6 (0.25, 0.0, 1.5).
+   - [exe][verified] Part value `p_i` (`0x00677F80`): `p_i = installed_i / max_i`, where `installed_i` is `0x00672D30`
+     and `max_i` is `0x00672E80`. It is 0 when `max_i` is 0, and 1 when the two are equal. The seven indices match the
+     seven performance categories (repo order Tires, Brakes, Chassis, Transmission, Engine, Induction, Nitrous; the
+     exe's index-to-category map is not verified).
+   - [exe][verified] Blend `0x0067C570` (out = x, y, z): `raw_j = sum_i w_ij p_i / sum_i w_ij` for j in x, y, z (skipped
+     when the sum is under 1e-6). A second term uses the flag word from `0x00454810(hash 0xCDC136E8)`, a 7-bit mask
+     `M`: `m_j = sum_{i in M} w_ij / sum_i w_ij`. Then `out_y = min(1, (1 + 0.33 m_y) raw_y)` and `out_z` the same with
+     `m_z`, and `out_j = (m_j - 0.33 m_j^2) out_j + 0.33 m_j^2` (closed form, the locals start at 0). The x path
+     also uses two values from `0x00679660` and `0x006796C0`, not yet named. So each bar value is a fraction in
+     [0, 1] before those extra terms.
+   - [exe][verified] `0x007AF220` returns x, y or z by mode (0, 1, 2); other modes return 0.0.
+   - [exe][verified] Bar object constructor `0x007AFF10` (called from `0x007B4D70` on the object at `this + 0x88`,
+     with lo = 1.0, hi = 5.0, current and target = 1.0): it stores lo, hi, current and target, each clamped into
+     [lo, hi], and builds ten `HEAT_BASE_LED_%d` child ids. It does not set the lit count.
+   - [unresolved] Still open: the lit-segment rule (the update that reads the current value, not the constructor);
+     which bar object (`+0xD8`, `+0x11C`, `+0x160`, `+0x1D4`, `+0x218`, `+0x25C`) maps to which label and axis; the
+     name and meaning of flag hash `0xCDC136E8`; the two bool getters `0x00679660` and `0x006796C0`; and the category
+     index to exe index map. The three value messages (`0x26C9925F`, `0x0B9A1B40`, `0x06FE3A05`) are FEng-table
+     driven, with no code xref.
 2. Whether the car lot lists locked cars with a lock icon or hides them in the retail UI.
 3. Where the per-car "tab" filter of the Car Select screen (six tabs) maps to class bits.
 4. How the default stable decides the flag combinations seen in saves (`career-save.md` open question 3).
