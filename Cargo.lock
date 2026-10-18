@@ -3808,6 +3808,7 @@ dependencies = [
  "kira",
  "log",
  "mimalloc",
+ "nfsmw-career",
  "nfsmw-data",
  "nfsmw-modding",
  "png",

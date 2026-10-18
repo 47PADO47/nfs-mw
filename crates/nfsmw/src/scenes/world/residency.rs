@@ -21,6 +21,7 @@ use crate::modding::content::scenery::MapPack;
 mod installed_tests;
 mod mod_tiles;
 mod release;
+mod scenery_groups;
 #[cfg(test)]
 mod shadow_tests;
 #[cfg(test)]
@@ -83,6 +84,9 @@ pub struct Residency {
     /// The props of the resident tiles, and which of them are knocked over.
     props: PropWorld,
     catalog: PropCatalog,
+    /// The scenery group of each override index that has one (`WorldIndex::override_groups`), so hidden grouped
+    /// instances are kept for the career gates.
+    override_groups: std::collections::HashMap<u16, u16>,
     /// Changes when the scenery available to a view changes, including while the clock is paused.
     visual_revision: u64,
     /// The first residency index of a mod's map pack: the install's sections come before it.
@@ -149,6 +153,7 @@ impl Residency {
             collision: CollisionWorld::new(collision_grid),
             props: PropWorld::default(),
             catalog,
+            override_groups: Default::default(),
             visual_revision: 0,
             mod_base,
             mod_packs,
@@ -257,7 +262,7 @@ impl Residency {
             &shared,
         );
         for data in &pending {
-            let (placed, unresolved) = place(data, &shared, &empty, &self.catalog);
+            let (placed, unresolved) = place(data, &shared, &empty, &self.catalog, &self.override_groups);
             let mut reflected = place_reflections(data, &shared, &empty);
             for reflected in &mut reflected {
                 reflected.player_index = reflected.player_index.map(|i| i + self.shared_placed.len());
@@ -304,7 +309,7 @@ impl Residency {
         };
         resources.upload_textures(renderer, &data);
         resources.upload_meshes(renderer, &data, &self.shared);
-        let (mut placed, unresolved) = place(&data, &resources, &self.shared, &self.catalog);
+        let (mut placed, unresolved) = place(&data, &resources, &self.shared, &self.catalog, &self.override_groups);
         for (index, object) in placed.iter_mut().enumerate() {
             object.key = keys::tile(data.index, index);
         }
@@ -394,7 +399,7 @@ impl Residency {
                 _ => None,
             })
             .flatten();
-        self.shared_placed.iter().chain(tiles)
+        self.shared_placed.iter().chain(tiles).filter(|p| self.group_shown(p))
     }
 
     /// Only the authored road view's placements, including instances hidden from the player.
@@ -419,7 +424,7 @@ impl Residency {
             TileState::Resident { placed, .. } => placed.as_slice(),
             TileState::Requested => &[],
         });
-        self.shared_placed.iter().chain(tiles)
+        self.shared_placed.iter().chain(tiles).filter(|p| self.group_shown(p))
     }
 
     /// Invalidates cached environment captures after streaming or a visibility-set change.
@@ -465,6 +470,8 @@ impl Residency {
         &self.collision
     }
 
+    /// Switches scenery group `group` in or out of the collision world. The collision world is built once and never
+    /// replaced, so the group stays set across section loads and unloads.
     /// The props of the resident tiles.
     pub fn props(&self) -> &PropWorld {
         &self.props

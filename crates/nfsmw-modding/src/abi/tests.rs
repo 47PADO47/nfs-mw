@@ -10,7 +10,7 @@ fn ids_versions_and_limits_are_locked() {
     assert_eq!(IFACE_PURSUIT, "nfsmw.pursuit");
     assert_eq!(IFACE_CAREER, "nfsmw.career");
     assert_eq!(IFACE_RACES, "nfsmw.races");
-    assert_eq!([IFACE_PURSUIT_VERSION, IFACE_CAREER_VERSION, IFACE_RACES_VERSION], [(0, 1), (0, 1), (0, 1)]);
+    assert_eq!([IFACE_PURSUIT_VERSION, IFACE_CAREER_VERSION, IFACE_RACES_VERSION], [(0, 1), (0, 2), (0, 1)]);
     assert_eq!([MW_HEAT_LEVELS, MW_MAX_COPS_PER_ROW, MW_MAX_CHECKPOINTS], [10, 64, 256]);
 }
 

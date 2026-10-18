@@ -39,6 +39,8 @@ pub struct FrontendPlugin {
     pub script: Option<UiScript>,
     /// The sidebar that picks the screens, for `feng-viewer` (`Start::Browse`).
     pub browse: Option<Browse>,
+    /// The career being played: the same handle the HUD and the world hold.
+    pub career: crate::career::CareerHandle,
 }
 
 impl Plugin for FrontendPlugin {
@@ -50,6 +52,7 @@ impl Plugin for FrontendPlugin {
         let screens = Screens::new(catalog, assets);
         let mut frontend = Frontend::new(screens, self.dir.clone(), self.start.clone(), self.script.clone());
         frontend.browse = self.browse.clone();
+        frontend.career = self.career.clone();
         app.insert_resource(frontend)
             .init_resource::<WorldMapOverlay>()
             .init_resource::<Assets<Image>>()
@@ -143,10 +146,10 @@ fn update(
     mut bindings: ResMut<Bindings>,
     mut clicking: Local<bool>,
     mut wheel: Local<f32>,
-    overlays: (Res<crate::garage::Overlay>, ResMut<crate::devtools::GraphicsLab>, ResMut<crate::input::UiFocus>),
+    overlays: (ResMut<crate::garage::Overlay>, ResMut<crate::devtools::GraphicsLab>, ResMut<crate::input::UiFocus>),
     mut map: MapParams,
 ) {
-    let (garage, mut lab, mut focus) = overlays;
+    let (mut garage, mut lab, mut focus) = overlays;
     if fe.graphics_requested {
         fe.graphics_requested = false;
         fe.latch = true;
@@ -270,6 +273,12 @@ fn update(
         Stage::Loading => fe.loading_frame(dt, host, &mut env),
         Stage::Playing => {
             fe.poll_bust(host, &mut env);
+            fe.poll_career(host, &mut env);
+            // An auto shop asks the garage to open on the next frame (`cursor.rs` opens it, as the start request does).
+            if std::mem::take(&mut fe.auto_shop_requested) {
+                garage.start_tab = crate::garage::OptionsTab::Performance;
+                garage.start_requested = true;
+            }
             let scripted_start = mask & pad::START != 0 && fe.last_mask & pad::START == 0;
             let pause = input.disconnected
                 || (!console_had_it

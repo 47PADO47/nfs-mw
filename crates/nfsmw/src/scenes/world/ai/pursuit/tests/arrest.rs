@@ -26,12 +26,12 @@ fn a_bust_keeps_stopped_cops_until_payment_then_releases_the_terminal_state() {
     let controls = world.cars[0].controls();
     assert_eq!((controls.gas, controls.brake, controls.handbrake, controls.steer), (0.0, 1.0, 1.0, 0.0));
     assert!(!controls.nos);
-    assert!(!world.pay_bust(false), "payment cannot skip the hold");
+    assert!(!world.pay_bust(false, 0), "payment cannot skip the hold");
     world.update_police(3.1, &view, &|_, _| true);
     assert!(world.take_bust_ticket().is_some(), "the no-NIS fallback reaches the ticket after3s");
-    assert!(!world.pay_bust(true), "an unavailable marker keeps the ticket active");
+    assert!(!world.pay_bust(true, 0), "an unavailable marker keeps the ticket active");
     assert!(world.arrest_active());
-    assert!(world.pay_bust(false));
+    assert!(world.pay_bust(false, 0));
     assert!(!world.arrest_active() && !world.is_busted());
     assert_eq!(world.busted_meter(), 0.0);
     assert!(world.cars.is_empty(), "the declared free-roam fallback clears its retained units");

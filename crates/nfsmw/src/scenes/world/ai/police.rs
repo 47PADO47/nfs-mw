@@ -160,8 +160,8 @@ pub struct Police {
     heli_sheet: Option<HeliSheet>,
     /// The busted timer of the chase (`blackbox_pursuit::Busted`); reset when a chase starts, kept after it ends.
     busted: Busted,
-    /// The cop cars wrecked in this chase (`IncNumCopsDestroyed`); reset when a chase starts, kept after it ends.
-    cops_destroyed: u32,
+    /// The chase's rep points, cost to state and wrecks (`rep.rs`); reset when a chase starts, kept after it ends.
+    rep: rep::RepState,
     /// The bust sequence after the meter fills (`police/busted/flow.rs`); reset when a chase starts.
     bust: busted::BustFlow,
 }
@@ -203,7 +203,7 @@ impl Default for Police {
             tunnel_zones: Vec::new(),
             heli_sheet: None,
             busted: Busted::default(),
-            cops_destroyed: 0,
+            rep: rep::RepState::default(),
         }
     }
 }
@@ -224,6 +224,11 @@ impl Police {
     /// The reset penalty in force (FairBusts, or the stock penalty when it is disabled).
     pub fn reset_penalty(&self) -> ResetPenalty {
         self.reset_penalty
+    }
+
+    /// The heat the car carries into the next chase (the career's record of the car, set by the career at each start).
+    pub fn set_carried_heat(&mut self, heat: f32) {
+        self.carried_heat = heat;
     }
 
     /// A chase starts at `level`: the heat is at least the base and at least `level`, the infraction log empties and
@@ -251,25 +256,11 @@ impl Police {
         self.priority_done = false;
         self.busted.reset();
         self.reset_blink = 0.0;
-        self.cops_destroyed = 0;
+        self.rep.reset();
         self.last_formation = None;
         self.last_level = 0;
         self.formations = Picker::new();
         self.finisher = Finisher::default();
-    }
-
-    /// A cop car was wrecked. Only a chase counts it. The rep points of the wreck (`RepPointsForDestroying[heat]`,
-    /// `docs/specs/ai-pursuit-heat.md`) are not paid yet: the economy is not built, so this is the hook they go in.
-    pub fn record_wreck(&mut self) {
-        if self.heat.is_none() {
-            return;
-        }
-        self.cops_destroyed += 1;
-    }
-
-    /// The cop cars wrecked in the chase.
-    pub fn cops_destroyed(&self) -> u32 {
-        self.cops_destroyed
     }
 
     /// The chase is over with `reason`: the helicopter, if any, leaves. The reason and the counts stay for the summary.
@@ -392,6 +383,7 @@ impl Police {
     /// The world placed the roadblock: the chase does not roll another heavy roadblock.
     pub fn roadblock_placed(&mut self) {
         self.roadblock_standing = true;
+        self.on_roadblock();
     }
 
     /// A roadblock of this chase stands.
@@ -489,6 +481,7 @@ mod helpers;
 mod mod_feed;
 mod original_camera;
 mod patrol;
+mod rep;
 mod roll;
 mod world;
 

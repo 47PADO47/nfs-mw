@@ -6,16 +6,18 @@ use bevy_time::Time;
 use bevy_window::{PrimaryWindow, Window};
 use blackbox_feng::{PackageId, Runtime};
 use game_install::GameDir;
+use nfsmw_career::regions::MapVariant;
 
 use super::bind::HudBinding;
 use super::blip_styles;
 use super::busted_overlay::{BustedOverlay, OVERLAY_PACKAGE};
-use super::minimap::MinimapBinding;
+use super::minimap::{MinimapBinding, usable_variant, variant_for_stage};
 use super::radio::RadioHud;
 use super::state::{HudState, MapPosition};
 use super::trax::{self, TraxBinding};
 use super::viewport::HudViewport;
 use crate::app::{FrameSet, Host};
+use crate::career::CareerHandle;
 use crate::gui::UiOutput;
 use crate::settings::{RadioHudStyle, Settings};
 use crate::ui::present::Screen;
@@ -29,6 +31,9 @@ pub struct HudPlugin {
     pub dir: GameDir,
     /// What the HUD shows until a scene provides its own state.
     pub initial: HudState,
+    /// The career the minimap's map variant follows (the same handle the front end and the world hold). Empty outside
+    /// career mode, where the full map shows.
+    pub career: CareerHandle,
 }
 
 #[derive(Resource)]
@@ -37,6 +42,8 @@ struct Hud {
     package: PackageId,
     binding: HudBinding,
     viewport: HudViewport,
+    /// The map variants whose tiles are loaded: the minimap switches only among these (`minimap::usable_variant`).
+    map_variants: Vec<MapVariant>,
     /// The original EA Trax chyron, when the install has it.
     trax: Option<TraxBinding>,
     /// The busted overlay, when the install has it (`busted_overlay.rs`).
@@ -63,6 +70,12 @@ impl Plugin for HudPlugin {
         }
         let package = runtime.load(package);
         let minimap = MinimapBinding::open_city(&runtime, package, &self.dir, &assets);
+        // The full map is the one `open_city` opened; the other two variants count when their tiles open too.
+        let map_variants: Vec<MapVariant> = [MapVariant::Unlock1, MapVariant::Unlock2]
+            .into_iter()
+            .filter(|v| MinimapBinding::open_variant(&runtime, package, &self.dir, &assets, *v).is_some())
+            .chain(minimap.is_some().then_some(MapVariant::Full))
+            .collect();
         let mut binding = HudBinding::new(&mut runtime, package).with_minimap(minimap);
         // Before the viewport: its icons take the minimap's side with the others.
         for style in blip_styles::map_icon_styles() {
@@ -71,7 +84,8 @@ impl Plugin for HudPlugin {
         let viewport = HudViewport::new(&runtime.tree(package), &binding.blip_icon_hashes());
         let trax = trax::load(&self.dir, &mut runtime);
         let overlay = catalog.find(OVERLAY_PACKAGE).cloned().map(BustedOverlay::new);
-        app.insert_resource(Hud { runtime, package, binding, viewport, trax, overlay })
+        app.insert_resource(Hud { runtime, package, binding, viewport, map_variants, trax, overlay })
+            .insert_non_send(self.career.clone())
             .insert_resource(self.initial.clone())
             .add_systems(Update, sync.in_set(FrameSet::SceneUpdate))
             .add_systems(Update, present.in_set(FrameSet::Hud));
@@ -79,12 +93,24 @@ impl Plugin for HudPlugin {
 }
 
 /// Take the state the scene wants shown. A scene without telemetry leaves the idle HUD (`--hud` in a viewer).
-/// The minimap setting decides whether the scene's map position is shown and how the picture is turned.
-fn sync(host: NonSend<Host>, settings: Res<Settings>, mut state: ResMut<HudState>, mut hud: ResMut<Hud>) {
+/// The minimap setting decides whether the scene's map position is shown and how the picture is turned. The career
+/// stage decides which map the minimap shows.
+fn sync(
+    host: NonSend<Host>,
+    career: NonSend<CareerHandle>,
+    settings: Res<Settings>,
+    mut state: ResMut<HudState>,
+    mut hud: ResMut<Hud>,
+) {
     if let Some(s) = host.scene.hud_state() {
         *state = s;
     }
     let hud = &mut *hud;
+    let wanted = variant_for_stage(career.with(|c| c.stage()));
+    let variant = usable_variant(wanted, |v| hud.map_variants.contains(&v));
+    if let Some(minimap) = hud.binding.minimap_mut() {
+        minimap.set_variant(variant);
+    }
     if let Some(overlay) = hud.overlay.as_mut() {
         overlay.set_shown(&mut hud.runtime, state.busted_overlay);
     }

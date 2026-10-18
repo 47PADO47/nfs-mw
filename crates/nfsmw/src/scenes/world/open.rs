@@ -16,7 +16,8 @@ impl WorldScene {
             let gameplay = s.spawn(|| nfsmw_data::gameplay::load(dir));
             (joined(index), joined(audio), joined(physics), joined(globals), joined(car), joined(gameplay))
         });
-        let index = index?;
+        let mut index = index?;
+        let override_groups = std::mem::take(&mut index.override_groups);
         let mut physics = physics?;
         physics.set_sequences(index.sequences.clone());
         let globals = globals?;
@@ -103,15 +104,19 @@ impl WorldScene {
             dir: dir.clone(),
             track: index.track.clone(),
             camera,
-            residency: Residency::new(
-                index.sections,
-                index.visible,
-                streamer,
-                globals,
-                index.collision_grid,
-                props,
-                map_packs,
-            ),
+            residency: {
+                let mut residency = Residency::new(
+                    index.sections,
+                    index.visible,
+                    streamer,
+                    globals,
+                    index.collision_grid,
+                    props,
+                    map_packs,
+                );
+                residency.set_override_groups(override_groups);
+                residency
+            },
             start,
             start_height: options.height,
             // The car is placed on a road, not the camera on the ground.
@@ -151,6 +156,8 @@ impl WorldScene {
             traffic,
             map_blips,
             mod_blips: Vec::new(),
+            career: Default::default(),
+            scenery_groups: Default::default(),
             entry: entry::Entry {
                 zones: entry_zones,
                 popup: Default::default(),

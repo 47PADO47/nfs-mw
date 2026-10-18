@@ -68,8 +68,8 @@ pub struct BbMilestone {
 pub struct BbMilestoneDef {
     /// Bytes the mod filled in.
     pub size: u32,
-    /// Cash paid when the milestone completes.
-    pub reward_cash: u32,
+    /// Bounty (rep points, not cash) paid when the milestone completes.
+    pub reward_bounty: u32,
     /// Progress needed.
     pub goal: f32,
     /// The registry key, `modid:name`.

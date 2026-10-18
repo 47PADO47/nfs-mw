@@ -12,7 +12,7 @@ pub mod unlock;
 
 pub use gates::{
     BarrierEntry, GateChange, GateSet, RegionGates, apply_stage, challenge_gates, closed_gates, gate_number,
-    gates_in_list, group_state, instance_blocks, parse_barrier_entry,
+    gates_in_list, group_of, group_state, instance_blocks, parse_barrier_entry,
 };
 pub use map::{MapVariant, quick_race_region_matches, region_index};
 pub use unlock::{RegionPicture, UnlockEvent, UnlockInput, UnlockScreen, UnlockState, region_unlock_screen};

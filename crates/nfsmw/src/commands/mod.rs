@@ -21,7 +21,13 @@ fn run_front_end(
 ) -> Result<()> {
     let script = script.map(crate::frontend::UiScript::parse).transpose().map_err(anyhow::Error::msg)?;
     let mut options = view.run_options(dir, true).with_mods(mods);
-    options.frontend = Some(crate::frontend::FrontendPlugin { dir: dir.clone(), start, script, browse: None });
+    options.frontend = Some(crate::frontend::FrontendPlugin {
+        dir: dir.clone(),
+        start,
+        script,
+        browse: None,
+        career: crate::career::CareerHandle::shared(),
+    });
     crate::app::run(
         Box::new(crate::frontend::MenuScene::new(Some(dir.clone()))),
         &Settings::load(view.settings_layer()),
@@ -106,7 +112,10 @@ pub fn run(cli: Cli) -> Result<()> {
             if crate::ui::Catalog::load(&dir, &crate::ui::SCREEN_FILES).find(&name).is_none() {
                 anyhow::bail!("no screen {name:?} in the install (try list-screens)");
             }
-            let start = crate::frontend::Start::Screen(name, crate::frontend::Args { pause, options, category });
+            let start = crate::frontend::Start::Screen(
+                name,
+                crate::frontend::Args { pause, options, category, ..Default::default() },
+            );
             let settle = view.screenshot.is_some().then_some("wait 2");
             run_front_end(&dir, mods, start, ui_script.as_deref().or(settle), &view)
         }
@@ -117,8 +126,13 @@ pub fn run(cli: Cli) -> Result<()> {
             // A screenshot waits for the screen to settle, as view-screen's does.
             let settle = view.screenshot.is_some().then_some("wait 2");
             let script = settle.map(crate::frontend::UiScript::parse).transpose().map_err(anyhow::Error::msg)?;
-            let plugin =
-                crate::frontend::FrontendPlugin { dir: dir.clone(), start, script, browse: Some(scene.browse()) };
+            let plugin = crate::frontend::FrontendPlugin {
+                dir: dir.clone(),
+                start,
+                script,
+                browse: Some(scene.browse()),
+                career: crate::career::CareerHandle::shared(),
+            };
             let mut options = view.run_options(&dir, true).with_mods(mods);
             options.frontend = Some(plugin);
             crate::app::run(Box::new(scene), &Settings::load(view.settings_layer()), options)

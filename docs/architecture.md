@@ -57,7 +57,7 @@ backends, multi-platform support and testing. The structure follows [vladtrc/iw4
 | Crate | Job |
 |---|---|
 | [`nfsmw-data`](../crates/nfsmw-data) | MW's `GameSpec`; car assembly (stock and preset parts, wheel and brake placement, paint, texture swaps); the world: streaming index, section parsing, a background section loader. Renderer-free. |
-| [`nfsmw-career`](../crates/nfsmw-career) | The career rules, spec-first and pure (no Bevy, no I/O): settings and flags, the car stable and its career records, the pursuit recorder, fines and impound strikes, the SMS inbox and delivery, the safe house flow (zones, engage, menu and sequence order, respawn marker, heat between worlds, Resume Free Roam), the rap sheet (ranks, pursuit history, page numbers, profile card), the save screens (autosave gate, load checks, write plan), the closed regions and the region unlock screen, and the profile file glue (checksums, MD5, byte-exact in-place rewrite). Specs: [specs/career.md](specs/career.md). |
+| [`nfsmw-career`](../crates/nfsmw-career) | The career rules, spec-first and pure (no Bevy, no I/O): settings and flags, the car stable and its career records, the pursuit recorder, fines and impound strikes, the SMS inbox and delivery, the safe house flow (zones, engage, menu and sequence order, respawn marker, heat between worlds, Resume Free Roam), the rap sheet (ranks, pursuit history, page numbers, profile card), the save screens (autosave gate, load checks, write plan), the milestones (goals per bin, speed traps, the milestone save block), the Blacklist (bin state graphs, rival gate, race-result glue), the car lot (catalogue, purchase and sale checks), the new career setup and its serial, the closed regions and the region unlock screen, and the profile file glue (checksums, MD5, byte-exact in-place rewrite). Specs: [specs/career.md](specs/career.md). The install readers of its tables are in `nfsmw-data` (`gameplay/bins`, `gameplay/milestones`, `gameplay/races`, the rank thresholds, the car lot and the heat factors); the run-time side is `crates/nfsmw/src/career` (the profile being played, profile files, start or resume, autosave), `scenes/world/career` and `frontend/career_screens`: [provenance/career-runtime.md](provenance/career-runtime.md). |
 | [`nfsmw`](../crates/nfsmw) | The binary: CLI (`commands/`), layered `settings/`, the Bevy `app/` (window, loop, render bridge, cursor, pacing, screenshots), the `input/` action layer, the `ui/` (the shared FEng host layer: packages, assets, presenter), the `hud/` (the in-game HUD), the `frontend/` (menus and the game flow), the `audio/` (sound output), the `viewer/` cameras and `Scene` trait, and the scenes (`scenes/car/`, `scenes/world/`). |
 | [`xtask`](../xtask) | `cargo xtask check` (leak check + file-size check), `install-hooks` |
 
@@ -366,7 +366,9 @@ The menus are the install's own FEng screens run by the same runtime and drawn b
 - **Flow.** `Frontend` (a Bevy resource, driven in `FrameSet::Frontend`) decides what the window shows: the boot
   movies (`ealogo`, `psa` through the movie scene), the title screen, the main menu over an empty backdrop,
   free roam (the world scene, wrapped in `Pausable` so Escape or Start freezes it under the pause menu) and the
-  way back. Career and Quick Race both start free roam: there is no career yet.
+  way back. Career starts or resumes a profile (`career::start_or_resume`) and then starts free roam with it. The
+  safe house menu, the car lot and the region unlock screen open over the frozen world when the world asks for them
+  (`poll_career`). Quick Race starts nothing yet: there is no race engine, and the `StartFreeRoam` command has no sender.
 - **Input.** The `Menu*` actions of the input layer (arrows or WASD or the D-pad, Enter or Space or A, Escape or B,
   Start or P, Q on the main menu) become a pad mask for the runtime, which sends the engine's messages and moves the
   focus by geometry. `--ui-script` replaces input and clock for screenshots and tests.
@@ -379,7 +381,9 @@ overlay and the HUD apply at once) and record the change; the config file layer 
 (`--category`, `--pause`, `--options`, `--ui-script`, `--screenshot`); `list-screens`, `dump-screen NAME` and
 `strings TEXT|0xHASH` read the install's screens and language table.
 
-- Gaps: the screens besides these (career, quick race, customisation, online, dialogs, the keyboard) are not run; no
+- Career screens: the safe house menu, the Blacklist, the rap sheet, the save screens, the car lot, the region unlock
+  and the SMS inbox are run from the career code ([provenance/career-runtime.md](provenance/career-runtime.md)).
+- Gaps: the screens besides these (quick race, customisation, online, dialogs, the keyboard) are not run; no
   confirmation dialogs (changes apply at once and stay); no mouse; no 3D backdrop behind the menus; the
   widescreen title screen is not used; the attract movie and its timeout are not played; the sounds the
   screens send are ignored; the original's player, controller and credits categories are not shown.

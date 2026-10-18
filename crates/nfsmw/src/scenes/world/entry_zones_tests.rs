@@ -23,11 +23,12 @@ fn race(name: &str, start: Option<Placement>) -> Race {
         start,
         finish: None,
         checkpoints: Vec::new(),
+        barriers: Vec::new(),
     }
 }
 
 fn data(races: Vec<Race>, markers: Vec<ActivityMarker>) -> GameplayData {
-    GameplayData { races, triggers: Vec::new(), markers }
+    GameplayData { races, markers, ..Default::default() }
 }
 
 #[test]
@@ -61,6 +62,17 @@ fn the_car_in_a_zone_is_the_one_whose_centre_is_nearest() {
     assert_eq!(zones.entered(inside_both).map(|z| z.kind), Some(ZoneKind::SafeHouse));
     assert_eq!(zones.entered(Vec3::new(-8.0, 0.0, 0.0)).map(|z| z.kind), Some(ZoneKind::AutoShop));
     assert!(zones.entered(Vec3::new(40.0, 0.0, 0.0)).is_none());
+}
+
+#[test]
+fn a_car_lot_marker_is_an_entry_zone_of_its_own_kind() {
+    let zones =
+        EntryZones::from_data(&data(Vec::new(), vec![marker(ActivityKind::CarLot, stored([20.0, 0.0, 0.0]), 7.0)]));
+    assert_eq!(zones.zones.len(), 1);
+    assert_eq!(zones.zones[0].kind, ZoneKind::CarLot);
+    assert_eq!(zones.zones[0].radius, 7.0);
+    assert_eq!(zones.zones[0].kind.label(), "car lot");
+    assert_eq!(zones.entered(Vec3::new(21.0, 0.0, 0.0)).map(|z| z.kind), Some(ZoneKind::CarLot));
 }
 
 #[test]

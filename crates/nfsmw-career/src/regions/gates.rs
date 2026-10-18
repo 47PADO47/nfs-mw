@@ -165,6 +165,11 @@ pub const fn instance_blocks(group_number: u16, state: u8) -> bool {
 pub const GATES: [(u8, u16, u8); 6] =
     [(10, 624, 3), (11, 389, 5), (12, 356, 7), (13, 200, 5), (14, 495, 7), (15, 496, 5)];
 
+/// The scenery group number of gate `gate` (10 to 15), from [`GATES`].
+pub fn group_of(gate: u8) -> Option<u16> {
+    GATES.iter().find(|(number, _, _)| *number == gate).map(|(_, group, _)| *group)
+}
+
 /// The gates a challenge series race lists for its duration, whatever the stage: challenges 01 to 05 the five
 /// north-west gates, challenges 06 to 15 gates {10, 12, 13}. Other numbers list none.
 pub const fn challenge_gates(challenge: u8) -> GateSet {

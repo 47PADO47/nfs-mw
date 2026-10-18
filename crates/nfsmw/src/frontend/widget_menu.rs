@@ -6,7 +6,6 @@ use blackbox_feng::ids::{BUTTON_PRESSED, PAD_ACCEPT, PAD_BACK, PAD_DOWN, PAD_LEF
 use blackbox_feng::{ObjectRef, Runtime, fe_hash_upper};
 use glam::{Vec2, Vec3};
 
-use super::alias_options::AliasSetting;
 use super::ids::{self, screen};
 use super::logic::{Args, Command, Cx, ScreenLogic};
 use super::mod_options;
@@ -307,12 +306,10 @@ impl WidgetMenu {
             cx.send(Command::OpenGraphics);
             return;
         }
-        if row.setting == options::Setting::Alias(AliasSetting::Save) {
-            cx.send(Command::SaveAlias);
-            return;
-        }
-        if row.setting == options::Setting::Alias(AliasSetting::Load) {
-            cx.send(Command::LoadAlias);
+        if let options::Setting::Alias(alias) = row.setting {
+            for command in alias.commands() {
+                cx.send(command);
+            }
             return;
         }
         if let options::Setting::Mod(_) | options::Setting::ModManaged(_) = row.setting {

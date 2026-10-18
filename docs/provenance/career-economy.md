@@ -122,3 +122,70 @@ Open questions are listed in [career-economy-flows.md](../specs/career-economy-f
 - Scratch tools used (not in the repo): a Rust program over `libs/blackbox-attrib` and `libs/blackbox-text` to dump
   collections, fields and Lua bytecode blobs; a Python linear-sweep disassembler (capstone) over the file bytes; a
   scanner that finds `E8`/`E9` calls to an address.
+
+## Car Select stat bars (2026-10-18)
+
+Question: what fills the TOP SPEED / ACCELERATION / HANDLING bars in `Car_Select.fng` (spec
+[career-car-lot.md](../specs/career-car-lot.md) open question 1). Partial answer only.
+
+- **Sources**: `speed.exe` 1.3 read-only Ghidra (strings, `disassemble_function`), a byte scan of the install's
+  `speed.exe` for immediates and E8 call sites, `nfsmw dump-screen Car_Select.fng` output (read only).
+- **Verified**: bar groups `0xF1737` / `0xF172F` / `0xF173F` as above; messages `0x26C9925F`, `0x0B9A1B40`,
+  `0x06FE3A05` and the start message `0x97BDB465`; label strings at `0x89B2F8`, `0x89B304`, `0x89B310`; setup function
+  at `0x007B4D70` with constants only (1.0, 5.0, 160.0).
+- **Second pass (orchestrator request, same day)**: xrefs now callable. Per-car refresh `0x007B8F10` (caller
+  `0x007BE3F0`) reads a car record through getter `0x007AF220`, which returns one of three floats by mode index
+  (0, 1, 2) and a constant otherwise. The per-car loop uses the modes 0 to 6, which fits the "seven floats" in the spec.
+  Segment setter `0x007AFF10` clamps a value to min and max and builds 10 child elements per bar. Callers listed in the
+  spec.
+- **Third pass**: `0x004E4EA0` opens the `pvehicle` class (`0x4A97EC8F`, `docs/formats/attributes.md`) by car key.
+  `0x005814E0` searches a 200-entry key table and returns a 408-byte per-car block (index < 76). `0x0067C570` blends
+  seven parts (weights table `0x008F8930`, part values from `0x00677F80`, flags hash `0xCDC136E8`) into three floats
+  clamped to [0, 1]. `0x007AF220` picks one by mode 0/1/2. `0x007AFF10` takes min and max and builds ten
+  `HEAT_BASE_LED_%d` segments. Format strings: `DETAIL_TEXT_LINE%d`, `PERFORMANCE_DETAILS_ICON%d`.
+- **Fourth pass (2026-10-18, final)**: weights are seven (x, y, z) rows at `0x008F8928 + 12 i` (the first read at
+  `0x008F8930` was off by two floats, corrected). `p_i = installed_i / max_i` via `0x00672D30` / `0x00672E80`
+  (`0x00677F80`). `0x0067C570` computes `raw_j = sum_i w_ij p_i / sum_i w_ij` for x, y, z, plus a mask term from
+  flag hash `0xCDC136E8` (`0x00454810`), with clamp and smoothing as written in the spec. `0x007AFF10` is the bar
+  constructor (lo, hi, current, target clamped into [lo, hi]; ten `HEAT_BASE_LED_%d` children), not the lit-count
+  rule. The constructor call in `0x007B4D70` uses lo 1.0, hi 5.0 on the object at `+0x88`.
+- **Still open**: the lit-segment rule, the bar-object to label and axis map, the name of hash `0xCDC136E8`, the two
+  getters `0x00679660` / `0x006796C0`, and the category index map. No Rust crate is touched; the repo's category
+  order is used only as a guess.
+- **Status**: UNRESOLVED (partial). Next: `0x00672D30`, `0x00672E80` (what installed and max count are), the bar
+  update function that reads the current value, and the hash name.
+- **Not found**: the per-car value source, the seven-float layout, the formula and the range. Message hashes are not
+  immediates in the exe (no direct `push` of them), so their handlers are reached through FEng, not by code search.
+- **Tools gap**: Ghidra xref tools (`get_xrefs_to`) were not callable in this session.
+- **Status**: UNRESOLVED. Next: find the car-select object writer and the handler scripts.
+- **Fifth pass (2026-10-18, pass 5, Ghidra on `speed.exe`, no Rust touched)**: the per-car base is answered. Getters
+  `0x00679660` (lo) and `0x006796C0` (hi) read a global list at `0x0092C4E8` keyed by car hash; the list is built by
+  `0x00683EB0` over the `pvehicle` class from the part simulation `0x00678CE0`, normalized to [0, 1]. Blend `0x0067C570`
+  is the formula in `specs/career-car-lot.md` open question 1. Correction: `0x007AFF10` (lo 1, hi 5, `HEAT_BASE_LED_%d`) is
+  the HEAT_METER builder, not the car-lot bar; car-lot bars are `PREVIEWBAR` objects (vtable `0x0089B098`, setter slot
+  +0x28 `0x0056CE30`). Axes: TOPSPEED = x (mode 0), HANDLING = y, ACCELERATION = z. Bar offsets: `0x007B4D70` sets +0xD8
+  ACCELERATION, +0x11C TOPSPEED, +0x160 HANDLING; the refresh `0x007B8F10` labels +0x25C TOPSPEED. Category index: `0x205`
+  tires 0, `0x206` brakes 1, `0x203` chassis 2, `0x202` transmission 3, `0x201` engine 4, `0x207` induction 5 (checked by
+  `0x007AFAE0`), `0x204` nitrous 6 (names beyond induction [unconfirmed]).
+- **Status**: UNRESOLVED (partial). Open: the lit-segment rule (in the FEng script, not the exe), which of the two blends
+  (selected car or player) fills the bar and which drives the tick, why `hi` and `lo` coincide unless `0x0067F800` changes
+  the car, and the name of hash `0xCDC136E8`.
+
+## Markers and the reward inventory (2026-10-18)
+
+Question: where the markers (0x11, 0x14, 0x15) live. Answer and evidence are in
+[career-economy-flows.md](../specs/career-economy-flows.md) 6.5 and [career-save.md](../formats/career-save.md) 3.2.
+
+- Inventory: `0x0091d928`, 63 x 12 bytes `{type, aux, flag}`, saved at file `0x5739` (756 bytes). Writers and readers:
+  `FUN_00576c50` (add), `FUN_00576c90` (remove), `FUN_00576f10` (count). Save `FUN_0057f7b0`, load `FUN_005ac950`.
+- Popup queue: separate 6 x 12 bytes at `0x0091dc1c`, count `0x0091dc64`, not saved. Producer `FUN_00576b80`. Consumer not
+  found.
+- Reward kinds: name table at `0x008f5480`, lookup `FUN_00577590`, applied by `FUN_005a62d0` (caller `0x0062aa90`, undefined
+  in Ghidra; flag from `FUN_005fbe00`, meaning not checked).
+- Undefined in Ghidra (read by linear disassembly, not defined): `0x005a15b0` (infractions messages), `0x007ad490` (car select
+  messages), `0x0062aa90` (reward caller), `0x008866b0` (reset), `0x007b3dd3` (generic add from a list). Start addresses checked
+  by the `8B 44 24 04 3D ...` prologue scan and the `ret`/`int3` boundary.
+- Scratch tools (not in the repo, `python -I`, read-only): a PE section mapper, a byte-pattern and `E8`/`E9` call scanner,
+  and a parser for the 0x5739 block of the three saves. Save files were read only; no save bytes are copied.
+- Dead end: the Ghidra decompile index does not list `0x005a15b0`, `0x007ad490`, `0x0062aa90`, `0x008866b0`; `force_decompile`
+  fails on them and `disassemble_function` only works where a function boundary is known.

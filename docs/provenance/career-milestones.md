@@ -154,3 +154,26 @@ owns each handler was not decoded. The rival check enters `rival_unlocked` only 
 - The cop manager functions around `0x00411070` and `0x00443BF0`: define them in a scratch Ghidra copy to read virtual call
   targets (`+0x8c`, `+0x18`, `+0x134`).
 - The 8-slot block and the 64-byte flag set of the save block.
+
+## 2026-10-18: gameplay blob offsets (save routines)
+
+Goal: the offsets that the spec's section 7 listed in order without numbers. Result is in
+[career-save.md](../formats/career-save.md) section 3.1a; the spec rules did not change.
+
+- **Routines read:** save `0x005F7410` (writer), load `0x005F81D0` (reader), slot block `0x005E4C40`, statistic nodes
+  `0x005EDCB0`, bin counter block `0x005E35D0`. All in `/speed.exe`. Ghidra had two `speed.exe` programs open, so calls
+  need the program path `/speed.exe`.
+- **Saves read:** `NAME\NAME`, `mwo\mwo`, `stock\stock` (read only) with a throwaway parser under the session scratch
+  directory, outside the repo. Blob at file 0x34. The MD5 over blob bytes 0x10 to 0x3FFF matched in all three saves.
+- **Hash port:** the engine name hash from `libs/blackbox-hash` was reimplemented in the throwaway script only.
+- **Checks passed:** tag `Game`, version 8; header counts 2/17, 8, 30, 55, 39, 512, 164, 0; milestone and speed trap
+  structure as in the save doc; the used part ends where the older text said (0xC64 and 0xD54).
+- **Corrected:** header 0x34 is the bin counter block size, not a zone block; 0x38 is the bounty-jump key count.
+- **Conflict left open:** bounty-jump list location in the manager (spec 2.1 says +0xB4, the writer reads +0x2A8 and
+  +0x2AC). No effect on the saves (K = 0).
+- **Not resolved:** the two object keys in the saves do not equal the name hashes of `race_bin_15` and `speedtraps`. The
+  byte names of the object records are unknown. The meaning of bin id field `0x6CE23062` (values up to 21) is open.
+  Milestone type keys were checked only against the statistic node keys, not against `MilestoneName` hashes.
+
+Next leads: find the hash of the object keys (maybe a seed or a different name form); decode field `0x6CE23062` in
+the bin view; write a check of milestone type keys against the names in `gameplay.bin`.

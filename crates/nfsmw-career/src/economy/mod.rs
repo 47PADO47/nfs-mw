@@ -5,13 +5,15 @@
 //! - [`pursuit`]: what a finished player pursuit writes into the car record (flows section 2).
 //! - [`infractions_screen`]: the bust screen: pay with cash or a marker, the strike limit, the release (6.1, 6.2).
 //! - [`cash`]: race-win cash, sale proceeds and the bounty award hook (sections 3.4 and 7).
+//! - [`markers`]: the held markers (Get Out of Jail Free, Extra Impound Strike, Impound Release) in their table (6.5).
 //!
-//! Left out on purpose: the profile pursuit history and rankings (flows section 5), the heat factors (they need
-//! the `pursuitlevels` data) and the marker inventory (the callers say whether a marker is held and remove it).
+//! Left out on purpose: the profile pursuit history and rankings (flows section 5) and the heat factors (they need
+//! the `pursuitlevels` data).
 
 pub mod cash;
 pub mod infraction;
 pub mod infractions_screen;
+pub mod markers;
 pub mod pursuit;
 
 pub use cash::{AWARD_BOUNTY_DIVISOR, RaceWin, award_player_bounty, award_race_win, race_win_cash, sale_proceeds};

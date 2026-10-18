@@ -1,17 +1,21 @@
 //! The infractions screen (`Infractions.fng`): the ticket the player gets after a bust in free roam, with the fines due
 //! and the two ways to pay (`docs/specs/busted-sequence.md` sections 6.3 and 7). The flow opens it with the chase's
 //! [`Ticket`] (`Screens::open_with`). A payment sends `Command::PayBust`; the bust takes it and the game goes back to
-//! free roam. The port has no career state yet: the unserved infractions read 0, the cash is not shown, and the marker
-//! count is the caller's.
+//! free roam. In career mode the ticket also shows the car's unserved infractions and fines; the cash is held on the
+//! ticket but its text object is not known yet, so it is not drawn. The marker count is the career's Get Out of Jail
+//! markers.
 
 use blackbox_feng::ids::{PAD_LEFT, PAD_RIGHT};
 use blackbox_pursuit::Infraction;
+use nfsmw_career::economy::fine_of_counters;
+use nfsmw_career::economy::markers::MarkerKind;
 
 use super::ids::INIT_COMPLETE;
 use super::logic::{Command, Cx, ScreenLogic};
+use crate::career::Career;
 
 /// Objects of `Infractions.fng` by name hash (its dump, `nfsmw dump-screen`). The ticket's values: this chase's infraction
-/// count and fines, the unserved count and fines (0 in the port), and the total due.
+/// count and fines, the unserved count and fines (0 outside career mode), and the total due.
 const VIOLATION: u32 = 0x72ec_6e9c;
 const PURSUIT_COUNT: u32 = 0xb967_f64d;
 const PURSUIT_FINES: u32 = 0xbd66_334a;
@@ -31,18 +35,54 @@ const PRESSED: [u32; 2] = [0x9120_409e, 0xb597_1bf1];
 /// The alpha a disabled text is capped at (the option rows use the same value).
 const DISABLED_ALPHA: u8 = 110;
 
-/// The chase's bill: each infraction with its fine (in HUD order) and the markers the player has.
+/// The chase's bill: each infraction with its fine (in HUD order) and the markers the player has. In career mode it also
+/// carries the car's unserved infractions and their fines, and the cash; outside career mode those read 0 and `None`.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Ticket {
     pub lines: Vec<(Infraction, u32)>,
-    /// Markers in stock. The port has no career state, so the caller passes 0 until it does.
+    /// Markers in stock. The marker inventory is not kept yet, so the career passes 0 (`career-economy-flows.md` 6.5).
     pub markers: u32,
+    /// The car's unserved infractions, counted (every kind's count, not the kinds).
+    pub unserved_count: u32,
+    /// The fine of the car's unserved infractions, saturating.
+    pub unserved_fines: u32,
+    /// The cash in hand; `None` outside career mode.
+    pub cash: Option<u32>,
 }
 
 impl Ticket {
+    /// The ticket of a bust in career mode: the chase's lines, the current car's unserved infractions and fines, and the
+    /// cash. A car with no career record owes nothing.
+    pub fn with_career(lines: &[(Infraction, u32)], career: &Career) -> Ticket {
+        let settings = &career.settings;
+        let (unserved_count, unserved_fines) = match career.stable.career_for_handle(settings.car_handle) {
+            Some(record) => {
+                let fines = u32::try_from(fine_of_counters(&record.unserved)).unwrap_or(u32::MAX);
+                (record.unserved_total(), fines)
+            }
+            None => (0, 0),
+        };
+        Ticket {
+            lines: lines.to_vec(),
+            markers: career.markers.count(MarkerKind::JailFree),
+            unserved_count,
+            unserved_fines,
+            cash: Some(settings.cash),
+        }
+    }
+
     /// The fines of every line, saturating.
     pub fn fines(&self) -> u32 {
         self.lines.iter().fold(0u32, |sum, (_, fine)| sum.saturating_add(*fine))
+    }
+
+    /// The total on the bill: in career mode the unserved fines (what cash pays, the chase's included once recorded),
+    /// otherwise the chase's fines.
+    pub fn total_due(&self) -> u32 {
+        match self.cash {
+            Some(_) => self.unserved_fines,
+            None => self.fines(),
+        }
     }
 
     /// The line on the ticket that names the offences: "Violation: Speeding, Racing", or "Violation: none".
@@ -98,9 +138,9 @@ impl InfractionsLogic {
         set_text(cx, VIOLATION, &self.ticket.violation_text());
         set_text(cx, PURSUIT_COUNT, &count);
         set_text(cx, PURSUIT_FINES, &fines);
-        set_text(cx, UNSERVED_COUNT, "0");
-        set_text(cx, UNSERVED_FINES, "0");
-        set_text(cx, TOTAL, &fines);
+        set_text(cx, UNSERVED_COUNT, &self.ticket.unserved_count.to_string());
+        set_text(cx, UNSERVED_FINES, &money(self.ticket.unserved_fines));
+        set_text(cx, TOTAL, &money(self.ticket.total_due()));
     }
 
     /// Moves the focus to Marker, when the player has one.
@@ -185,9 +225,20 @@ mod tests {
 
     #[test]
     fn the_ticket_totals_its_lines_and_names_them() {
-        let ticket = Ticket { lines: vec![(Infraction::Speeding, 150), (Infraction::OffRoad, 75)], markers: 0 };
+        let lines = vec![(Infraction::Speeding, 150), (Infraction::OffRoad, 75)];
+        let ticket = Ticket { lines, ..Ticket::default() };
         assert_eq!(ticket.fines(), 225);
         assert_eq!(ticket.violation_text(), "Violation: Speeding, Off road");
+    }
+
+    #[test]
+    fn career_ticket_bills_the_unserved_fines_and_the_cash() {
+        let lines = [(Infraction::Speeding, 150)];
+        let ticket = Ticket { unserved_count: 3, unserved_fines: 1_250, cash: Some(4_000), ..Ticket::default() };
+        assert_eq!(ticket.total_due(), 1_250, "cash pays the unserved fines");
+        assert_eq!(ticket.fines(), 0, "the chase has no lines here");
+        let plain = Ticket { lines: lines.to_vec(), unserved_fines: 9, ..Ticket::default() };
+        assert_eq!(plain.total_due(), 150, "outside career mode the bill is the chase's fines");
     }
 
     #[test]

@@ -6,11 +6,18 @@
 //! [`to_world`], `world = (-y, z, x)`. Headings are kept in degrees as stored; [`world_heading`] gives the unit
 //! vector.
 
+mod bins;
 mod markers;
+mod milestones;
 mod races;
 mod triggers;
 
+pub use bins::{Bin, bins};
 pub use markers::{ActivityKind, ActivityMarker};
+pub use milestones::{
+    Milestone, MilestoneType, RivalRequirements, SpeedTrap, milestone_types, milestones, rival_requirements,
+    speed_traps,
+};
 pub use races::{Placement, Race, RaceType};
 pub use triggers::BoxTrigger;
 
@@ -36,6 +43,14 @@ pub struct GameplayData {
     pub triggers: Vec<BoxTrigger>,
     /// The auto shop and safe house zones, in database order.
     pub markers: Vec<ActivityMarker>,
+    /// The career Blacklist bins, sorted by bin number.
+    pub bins: Vec<Bin>,
+    /// The 55 pursuit milestones, sorted by bin then name.
+    pub milestones: Vec<Milestone>,
+    /// The 39 speed traps, sorted by bin then name.
+    pub speed_traps: Vec<SpeedTrap>,
+    /// The 30 milestone statistic types (from `attributes.bin`, which [`load`] puts in the database).
+    pub milestone_types: Vec<MilestoneType>,
 }
 
 impl GameplayData {
@@ -46,7 +61,15 @@ impl GameplayData {
 
     /// Read a database that holds `attributes.bin` and `gameplay.bin` (see [`load`]).
     pub fn from_database(db: &Database) -> Self {
-        Self { races: races::races(db), triggers: triggers::triggers(db), markers: markers::markers(db) }
+        Self {
+            races: races::races(db),
+            triggers: triggers::triggers(db),
+            markers: markers::markers(db),
+            bins: bins::bins(db),
+            milestones: milestones::milestones(db),
+            speed_traps: milestones::speed_traps(db),
+            milestone_types: milestones::milestone_types(db),
+        }
     }
 }
 

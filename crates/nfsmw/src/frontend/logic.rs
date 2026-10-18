@@ -36,11 +36,13 @@ pub struct Args {
     /// The option categories instead of the screen's usual content (the pause menu shows them in the same package).
     pub options: bool,
     pub category: Category,
+    /// Opened in the career's safe house (the safe house menu and the screens it opens; `career-safehouse-2.md`).
+    pub safehouse: bool,
 }
 
 impl Default for Args {
     fn default() -> Self {
-        Self { pause: false, options: false, category: Category::Audio }
+        Self { pause: false, options: false, category: Category::Audio, safehouse: false }
     }
 }
 
@@ -56,8 +58,11 @@ pub enum Command {
     /// Show a notice with one answer on top of the current screen (`confirm.rs`).
     #[allow(dead_code)] // no screen raises one yet
     Alert(Alert),
-    /// Leave the menus and drive.
+    /// Leave the menus and drive, outside career mode.
+    #[allow(dead_code)] // nothing sends it since Career starts a career; Quick Race will
     StartFreeRoam,
+    /// Career on the main menu: resume the latest profile or start a new career, then drive with it (`flow_career.rs`).
+    StartCareer,
     /// Close the pause menu and go on driving.
     Resume,
     /// Pay the bust's fines on the infractions ticket, with a marker or with cash. The bust takes it (`flow.rs`); the
@@ -80,6 +85,16 @@ pub enum Command {
     LoadAlias,
     /// The boot flow goes on to its next step.
     NextBootStep,
+    /// Save the career being played to its profile (`MC_Main.fng`, `flow_save.rs`).
+    CareerSave,
+    /// Load the profile of this alias and play it (`flow_save.rs`).
+    CareerLoad(String),
+    /// Make a new career profile under this alias and play it (`flow_save.rs`).
+    CareerNew(String),
+    /// Delete the profile of this alias (`flow_save.rs`).
+    CareerDelete(String),
+    /// Buy or sell a car on the car lot, after its confirmation (`career_screens/car_lot.rs`).
+    CarLot(super::career_screens::car_lot::CarLotAction),
 }
 
 /// The settings, the part of them the menus changed since they were last saved, and what the renderer can do
@@ -134,6 +149,13 @@ impl Cx<'_> {
     /// The object with this GUID in the screen's package.
     pub fn guid(&self, guid: u32) -> Option<ObjectRef> {
         self.rt.find_guid(self.package, guid)
+    }
+
+    /// Sets the texture rectangle `[u0, v0, u1, v1]` of the image with this GUID (a bar's LED strip). Nothing when the
+    /// screen has no such object.
+    pub fn set_uv(&mut self, guid: u32, uv: [f32; 4]) {
+        let Some(object) = self.guid(guid) else { return };
+        self.rt.set_uv(object, uv);
     }
 
     /// The object with this name hash in the screen's package.

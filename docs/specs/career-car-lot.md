@@ -160,14 +160,36 @@ the screen code); career cars are not editable there. The count of such cars is 
 
 ## 8. Rewrite
 
-Needed for the rewrite: a car catalogue with price, unlock rank, class and for-sale flag per car (available from
-`FE_ATTRIB.bin` through `blackbox-attrib`), the purchase/sale checks of sections 3 and 4, and the stage-based availability
-of section 6. The limits (10 purchased cars, 25 records, 20 customs) can be configuration values.
+Built in `crates/nfsmw-career::carlot`: the catalogue and stage-based availability (`catalogue`, sections 1, 2 and 6), the
+purchase and sale checks (`purchase`, `sale`, sections 3 and 4), and the garage limits as `Limits::SPEC`. The car
+catalogue is read by `nfsmw-data::career_cars`. The choices and gaps are in
+[provenance/career-core.md](../provenance/career-core.md). The purchase and sale flows that call these checks are not
+wired yet. The limits (10 purchased cars, 25 records, 20 customs) are values in `Limits`, not screen literals.
 
 ## Open questions
 
-1. The manufacturer index order and the use of the other `frontend` fields (the seven float stat bars, the part-info
-   array).
+1. The manufacturer index order and the part-info array of the `frontend` record. The stat bars are answered in part (pass 5, 2026-10-18); the lit-segment rule is still open.
+   - [exe][verified] Three bar groups in `Car_Select.fng`: TOP SPEED = group `0xF1737`, ACCELERATION = `0xF172F`, HANDLING = `0xF173F`. Each is a Multi-Textured Image of `LED_main.tga` strips (160 px, uv 0 to 5.0) plus one `LED_DELTA` tick. The shorter first strips (80 / 40 / 120 px) are fixed in the .fng.
+   - [exe][verified] Update messages: `0x26C9925F` (TOP SPEED, script `0x5079C8F8`), `0x0B9A1B40` (ACCELERATION), `0x06FE3A05` (HANDLING). Screen start `0x97BDB465` plays `0x033113AC` on all three. Labels: `0x89B304` "TOPSPEED", `0x89B310` "ACCELERATION", `0x89B2F8` "HANDLING".
+   - [exe] Two different bar classes exist. **Correction to pass 4:** the 10-segment builder `0x007AFF10` (`HEAT_BASE_LED_%d`, lo 1.0, hi 5.0) is called only for `HEAT_METER` objects (from `0x007B0C30`, `0x007B12B0`, `0x007BB3E0`, and `0x007B4D70` at +0x88). The car-lot bars are not built by it. The `[1, 5]` range in the spec does not apply to them.
+   - [exe] Car-lot bars are `PREVIEWBAR` objects: vtable `0x0089B098`, child names `PREVIEWBAR_%s` (`0x0057F440`). Their method at vtable slot +0x28 (`0x0056CE30`) forwards to slots +0x0C and +0x2C. The refresh `0x007B8F10` runs from `0x007BE3F0`, whose object (vtable `0x008B7F24`) holds the bars at +0x1D4, +0x218 and +0x25C.
+   - [exe] Bar object to label (see 2.1 below for the axis): `0x007B4D70` sets +0xD8 = ACCELERATION, +0x11C = TOPSPEED, +0x160 = HANDLING, each with width 160.0. In the `0x007B8F10` refresh, +0x25C is labelled TOPSPEED. +0x1D4 and +0x218 are ACCELERATION and HANDLING in an order not yet decoded. Which screen owns the `0x007B4D70` object is [unconfirmed].
+   - [unresolved] The lit-segment rule: the code that turns a value into lit LED strips is not in the exe. The value messages are FEng-table driven. The next step is the `Car_Select.fng` script dump (`nfsmw dump-screen`) for the `LED_main` uv scale.
+   - [unresolved] The name of flag hash `0xCDC136E8` (seven-bit mask read by `0x0067C570`) and of the part hash set in `0x00678CE0` (`0xF1F5FBC7`, `0xC92A0142`, `0x07A7A3E5`, `0xAFA210F0`, `0xBD38D1CA`, `0x36350867`, `0xB1669F64`, `0xAACBE2E7`).
+   - [exe] Manufacturer index order: not touched in pass 5; still open.
+
+   **Pass 5 (2026-10-18): per-car stat source and blend.**
+   - [exe] Two getters `0x00679660` (lo) and `0x006796C0` (hi). Each takes the car and an out vec3 (x, y, z). Both find the car's key (`0x00452430`; alt key `0x004546A0` when flag bit 0 is set at +0x10), then walk the global list at `0x0092C4E8`. A node with key at +0x2C gives lo = +0x14, +0x18, +0x1C and hi = +0x20, +0x24, +0x28. No node: return false. So the per-car base term **is** in the list; it applies to all three axes, not only x.
+   - [exe] The list is built by `0x00683EB0` over every `pvehicle` record (class `0x4A97EC8F`). Per car, `0x00678CE0` simulates the car from its parts and returns three floats: time to 44.703 m/s (100 mph), a top-speed value, and a handling value (a lerp of attribute range `0xAACBE2E7` [0..1] by the y-weight column). Population min and max normalize each to [0, 1]. Mapping into the node: lo.x = norm(top speed), lo.y = norm(handling), lo.z = 1 - norm(time to 100 mph). So a stock car gets a non-zero base unless it is the population minimum.
+   - [exe] hi is taken from a second pass over the cars that pass `0x0067F950`; that routine writes each category's max (`0x00672E80`) into the car through `0x0067F800`, then re-simulates. Interpretation: hi = all categories at max, lo = as-is. The `0x0067F800` side effect is not decoded.
+   - [exe] Blend `0x0067C570(car, out)`. Per axis j in x, y, z: `raw_j = sum_i w_ji p_i / sum_i w_ji` over seven categories, with `p_i = installed_i / max_i` (`0x00677F80`), and `w` the rows at `0x008F8928 + 12 i`. Mask `m_j = sum_{i in M} w_ji / sum_i w_ji`, `M` = bits of hash `0xCDC136E8`. Then `hi'_j = hi_j + (1 - hi_j) m_j`, `lo'_j = lo_j + (hi'_j - lo_j) 0.33 m_j`, `out_j = lo'_j + (hi'_j - lo'_j) min(1, (1 + 0.33 m_j) raw_j)`. Skipped sums under 1e-6 are not used. Output in [0, 1].
+   - [exe] Consequence: a car with no upgrades (all `p_i = 0`) shows `lo'`, not zero. The bar is never empty for a stock car. The `[1, 5]` mapping is not in this path.
+   - [exe] Getter `0x007AF220(this, mode)` returns out.x (mode 0), out.y (1), out.z (2), and 0.0 otherwise. Its car comes from `*(this + 4)` (the selected car handle). So mode 0 is x (TOP SPEED), 1 is y (HANDLING), 2 is z (ACCELERATION).
+   - [exe] Axis map from the `0x00678CE0` outputs: x = top speed, y = handling, z = 1 - time to 100 mph. Together with the `0x007AF220` modes: TOPSPEED = x, HANDLING = y, ACCELERATION = z.
+   - [exe][unresolved] `0x007B8F10` builds two blends per bar: one for the selected car (`DAT_009B9EC4`) and one for the player's car (`DAT_009B9EC8`). Which one drives the fill and which the `LED_DELTA` tick is not decided from the decompile (the float arguments are lost). The per-bar value passes to FEng through the PREVIEWBAR method, so the arguments need the disassembly.
+   - [exe] Category index (exe index to category). The switch in `0x007B8F10` maps the upgrade id in `[this + 0x148]` (`0x201` to `0x207`) to index: `0x205` = 0 (tires), `0x206` = 1 (brakes), `0x203` = 2 (chassis), `0x202` = 3 (transmission), `0x201` = 4 (engine), `0x207` = 5 (induction), `0x204` = 6 (nitrous). Index 5 = induction is [exe]: `0x007AFAE0` tests category 5 on the car, and only id `0x207` uses that test. Names for the other ids follow the repo order and are [unconfirmed]. The category strings are in the exe at `0x008A0D08` to `0x008A0D40`.
+   - **Status: UNRESOLVED (partial).** Answered: the per-car lo and hi source, the blend, the axis map, the category index. Open: the lit rule (FEng side), the fill-versus-delta choice, why lo and hi would differ (see the `0x0067F800` side effect), the hash `0xCDC136E8`.
+
 2. Whether the car lot lists locked cars with a lock icon or hides them in the retail UI.
 3. Where the per-car "tab" filter of the Car Select screen (six tabs) maps to class bits.
 4. How the default stable decides the flag combinations seen in saves (`career-save.md` open question 3).

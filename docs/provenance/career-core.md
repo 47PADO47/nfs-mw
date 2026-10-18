@@ -11,7 +11,11 @@
   (with the corrected tables of career-economy-flows 5 and the verdict rule of career-text 6.2); for `savefile`
   [specs/career-save-screens.md](../specs/career-save-screens.md) and
   [specs/career-save-screens-2.md](../specs/career-save-screens-2.md); for `regions`
-  [specs/career-regions.md](../specs/career-regions.md). Their own records:
+  [specs/career-regions.md](../specs/career-regions.md); for `milestones` [specs/career-milestones.md](../specs/career-milestones.md)
+  and [specs/career-milestones-data.md](../specs/career-milestones-data.md); for `blacklist`
+  [specs/career-blacklist.md](../specs/career-blacklist.md) and sections 3 and 5 of
+  [specs/career-scripts.md](../specs/career-scripts.md); for `carlot` [specs/career-car-lot.md](../specs/career-car-lot.md).
+  Their own records:
   [career-economy](career-economy.md), [career-phone](career-phone.md), [career-flow](career-flow.md),
   [career-text](career-text.md), [career-safehouse](career-safehouse.md), [career-rapsheet](career-rapsheet.md),
   [career-save-screens](career-save-screens.md), [career-regions](career-regions.md).
@@ -19,7 +23,7 @@
   decompiled code, no Ghidra session and no scratchpad dump were open while writing it (spec-first,
   [licensing.md](../licensing.md#spec-first)). The three development saves were opened read only for the optional test
   and for the CRC check; no save bytes are in the repository.
-- **Implemented:** 2026-10-17, from the specs only, in `crates/nfsmw-career` (second pass: the `safehouse` module; third pass: `rapsheet`, `savefile` and `regions`).
+- **Implemented:** 2026-10-17, from the specs only, in `crates/nfsmw-career` (second pass: the `safehouse` module; third pass: `rapsheet`, `savefile` and `regions`). Fourth pass, 2026-10-18: `milestones`, `blacklist`, `carlot`, `settings::new_career` and `save::milestones_block`, with the `nfsmw-data` readers they use (see the last section).
 - **Checked against the game by:** nothing was run in the original. Checked against the three development saves
   (`NAME`, `mwo`, `stock`): every file parses, passes the container checksums, the profile MD5 and the gameplay blob
   MD5, and is rewritten byte for byte after the settings and the stable were parsed and written back
@@ -48,6 +52,26 @@
 | `savefile::write`, `state` | save-screens 2, 5, 6; save-screens-2 10, 12 |
 | `savefile::load` | save-screens-2 9.3, 14; career-save 1 |
 | `regions` | regions 1 to 3, 6, 7, 9 |
+| `milestones::stat` | milestones 2.2, 3.3, 3.5; milestones-data table 1 |
+| `milestones::state` | milestones 2.3, 3.2, 8 |
+| `milestones::set` | milestones 3.2 to 3.6, 3.8 (the milestone part) |
+| `milestones::speedtrap` | milestones 1.3, 2.4, 3.7, 3.8; milestones-data table 3; scripts-events 7.2 |
+| `blacklist` (`Blacklist`, bin walk, events) | blacklist 2 to 5, 7; scripts 3 and 5 |
+| `blacklist::bin` | blacklist 2.1 to 2.6, 1 (side bins); scripts 3.2 |
+| `blacklist::gate` | blacklist 2.5, 3.1, 3.3 |
+| `blacklist::results` | blacklist 4.2, 5.2, 5.4, 6, 7.1; economy-flows 7; scripts-events 6.2, 7.2 |
+| `carlot::catalogue` | car-lot 1, 2, 6 |
+| `carlot::purchase` | car-lot 1, 3 |
+| `carlot::sale` | car-lot 4 |
+| `carlot` (`owned_count`, `custom_count`, `Limits`) | car-lot 3.2, 8 |
+| `settings::new_career` | career-flow 3.1; career-save 3.2, 3.3 |
+| `save::milestones_block` | milestones 7; career-save 3.1, 3.2 (raw block, decoded parts only) |
+| `nfsmw-data::gameplay::bins` | blacklist 1, 8 |
+| `nfsmw-data::gameplay::milestones` | milestones 1, milestones-data |
+| `nfsmw-data::career_cars` | car-lot 1, 2, 8 |
+| `nfsmw-data::rank_thresholds` | rapsheet-2 1.2, 1.5; economy-flows 5.3 |
+| `nfsmw-data::pursuit::career_heat` | economy-flows 4; milestones 3.3 |
+| `nfsmw-data::gameplay::races` (`barriers`) | regions 2 |
 
 ## Choices where the specs are silent, ambiguous or marked unconfirmed
 
@@ -69,15 +93,16 @@ Each is also a doc comment at the code. Nothing here is a new game constant.
 | `SmsInbox::open_message` | does nothing for a slot that is not listed (state 0 or invalid id) | the spec sets state 4 unconditionally but the screen cannot reach such a slot |
 | `SmsInbox::delete` | keeps the sequence number | the spec only sets the state to 0 |
 | `phone::process_cell_call` | the "already open" check of the text-language branch is left to the caller | the overlay state is not part of the inbox |
-| New career | the serial stays empty and the gameplay blob zeroed | the serial generator (seed `0x19B3`) is not specified; the blob is the progress slice's job |
+| New career | the gameplay blob is left as the progress slice's job; the serial is generated (see the last section) | `settings::new_career` now builds the serial from the seeded generator; the blob is not built here |
 | `save::ProfileSave::parse` | refuses a wrong length, magic, size, type id, header checksum or MD5; accepts a wrong descriptor or profile checksum | career-save 1: only the first group is checked by the loader. `to_bytes` rewrites all four |
 
 ## Known differences from the original and gaps
 
-- **Left out on purpose:** milestones, the Blacklist graphs, races, the screens, the gameplay-blob contents, the node
-  list, the shop unlock table and the popup queue (kept as raw bytes), the customization records (raw bytes), the
-  profile pursuit history and the rap sheet rankings, the heat factors (they need `pursuitlevels`), the marker
-  inventory (callers say whether a marker is held and remove it), the car lot flows (buy, sell, add car), and the
+- **Left out on purpose:** race records and the race event graphs (the bin walk and the gate are in `blacklist`), the
+  screens, the gameplay-blob contents except the milestone block, the node list, the shop unlock table and the popup
+  queue (kept as raw bytes), the customization records (raw bytes), the profile pursuit history and the rap sheet
+  rankings, the heat factors (they need `pursuitlevels`), the marker inventory (callers say whether a marker is held
+  and remove it), the car lot's add-car step (`carlot` has the purchase and sale checks), and the
   pending SMS list inside the gameplay blob (the queue lives in memory).
 - **Default stable hash:** kept as stored, never computed. It depends on the installed car data, so a save written by
   the rewrite loads in the original only for the same car set (career-save 2.2 and 7).
@@ -141,3 +166,53 @@ rapsheet 1.4 "(the sold part wraps at 16 bits)" for the all-infractions total is
 `u32`); regions section 0 and 9 say "stage 12 opens {11, 14, 15}" while gate 10 also **closes** at stage 12 (it is
 open at stages 16 to 13), which section 1.3 states and `regions::apply_stage` reports; career-flow 8 was already
 corrected for the autosave triggers, and no code comment still says "race end".
+
+## Milestones, Blacklist, car lot and new career: choices and gaps
+
+Each choice is also a doc comment at the code (`**[unconfirmed]**` or the module docs).
+
+| Where | Choice | Why | Spec section |
+|---|---|---|---|
+| `milestones::set` | the pursuit summary holds at most `PURSUIT_SUMMARY_MAX` keys; past the cap a milestone still goes to stake and is only left off the list | the spec gives no cap | milestones 3.2 to 3.6 |
+| `milestones::set` | the summary is kept after a bust | the spec only says it is emptied at the start of a pursuit | milestones 3.2 to 3.6 |
+| `milestones::set` | banking is not gated by play mode; the debug-only forced bit is not modelled | the spec gates only the threshold test; in a challenge race the test never runs | milestones 3.5 |
+| `milestones::set::pay_banked` | the bounty goes through `award_player_bounty` with divisor 1 | the economy divisor (see `economy::AWARD_BOUNTY_DIVISOR`) | milestones 3.6, 9 |
+| `milestones::state` | only the threshold is modelled; the goal and step ladder are not used | no code of the exe reads them | milestones 1.2 |
+| `milestones::speedtrap` | a trap with no threshold in the data uses 88 km/h; with no bounty, 100 | the spec gives the values but not the code path that uses them | scripts-events 7.2 |
+| `milestones::speedtrap::SpeedTrap::is_active` | a crossing can complete a trap when it is armed and not done | the body of `IsActiveSpeedTrap` is not shown; this matches the completion routine | milestones 3.7 |
+| `blacklist::Blacklist::advance` | when bin N reaches `done` while it is the current bin, bin N-1 is entered; bin 1 stays current | the spec has no rule for `CurrentBin` after a rival is beaten | blacklist 5.3; scripts 5.1 |
+| `blacklist` (walk) | a bin that is `done` on entry does not advance the walk again | not stated | blacklist 2, 5.3 |
+| `blacklist` (counters) | races, challenges and bounty are counted from the records; entering a bin does not reset them | section 2.3 resets the script copies only | blacklist 4.3, 2.3 |
+| `blacklist` (gate) | bounty going down does not lock an unlocked rival | the spec is silent | blacklist 3.2 |
+| `blacklist::FINAL_RACE_EVENT` | `1.8.1` is the event that sets `CAREER_COMPLETE` | the flag is tied to the post-race return, not the race itself | blacklist 7.1 |
+| `blacklist::results` | race cash is paid on a first place only | economy-flows 7 says "placed first"; blacklist 4.2 step 4 says "on every finish" | economy-flows 7 |
+| `blacklist::results::EventResult::challenge_series_complete` | the caller computes it (every race of bin 19 done except `19.8.31` and the optional ones) | the unlock lists belong to each race record, which the caller owns | blacklist 7.1 |
+| `blacklist::results` | the region screen is reported, not shown; the caller shows it at the safe-house arrival | the spec puts the screen on the arrival stepper | regions 7.1 |
+| `blacklist::bin` (`Opm`) | the side bin's name "OPM" is not expanded | the spec does not give it | blacklist 1 (notes) |
+| `carlot::catalogue::LotCar` | the price is read as `i32` and clamped to 0 by the caller; a class value the game does not produce is never offered | the game's compare with a negative price is not checked | car-lot 1 |
+| `carlot::purchase` | the handle of a bought car is supplied by the caller | not stated whether the lot's handle or a new one is used | car-lot 3 |
+| `carlot::purchase` | `NotOffered` and `Locked` are refusals | the spec shows the car as not for sale or greyed out but names no refusal | car-lot 1 |
+| `carlot::purchase::buy` | the flag word gets `CLASS_MASK` and `FLAG_OWNED` | the stable writes owned cars this way; the spec names only the class bit | car-lot 3 |
+| `carlot::purchase::buy` | the prologue's plain confirm (stage 16) uses `Delivery::Deliver` | the only choice that leaves the current car alone | car-lot 3 |
+| `carlot::purchase::buy` | the customization index is the caller's; preset parts are not built | the customization slots are raw bytes in this crate | car-lot 3 |
+| `carlot::purchase::buy` | two checks are added after the spec's three: a free career record (25) and a free car slot (200) | a full table cannot take the car | car-lot 3 |
+| `carlot::sale::sell` | the place and stage checks and the price lookup run before the spec's refusals | the spec lists refusals only | car-lot 4 |
+| `carlot::sale::sell` | the sold car's career record is cleared in the same step | no record is left pointing at nothing | car-lot 4 |
+| `carlot::sale::replacement_current` | the new current car is the first free car in slot order | the spec says only that the screen re-reads the current car | car-lot 4 |
+| `carlot` (`FLAG_MARKED`, `0x40`) | a marked car is left out of the owned count; what the mark means is unknown | the spec says only that the count skips it | car-lot 3.2 |
+| `settings::new_career::SerialRng::draw` | with `n == 0` the state is left as it is | the spec says only that `n = 0` returns 0 | career-flow 3.1 |
+| `settings::new_career::format_serial` | the bytes after the letters are zero | the save field is 16 bytes; the original may leave them as they were | career-save 3.2, 3.3 |
+| `settings::new_career::generate_serial` | the four letters come from the caller | their source is open in the spec | career-flow 3.1 |
+| `nfsmw-data::gameplay::milestones` | `unconfirmed_goal`, `unconfirmed_step` and `unconfirmed_field` are read and not used | no code reads them; the field names are unknown | milestones 1.2, 9 |
+| `nfsmw-data::rank_thresholds` | the threshold array is read by field key `0xF9A7D5F7` as the spec gives it | the field name is not in the specs | rapsheet-2 1.2 |
+| `nfsmw-data::pursuit::career_heat` | `milestone_factor` (0.93) is read; its pairing with the milestone moment is not used | the spec does not pair it and no caller was found | economy-flows 4; milestones 3.3 |
+
+Gaps in the new modules:
+
+- `save::milestones_block`: the count fields at `0x18..0x34` and the start offset of each array after `0x80` are not
+  decoded, so the block is kept raw and records are read and written at caller-given offsets (milestones 7).
+- `blacklist`: the transient states of a bin (`initial`, `unlock_races`, `introduce_rival`, `check_rival`) run inside
+  the entering call and are not stored; the `initial` wait of bin 16 is not modelled.
+- `blacklist` and `carlot`: race results, pursuit results and the flows that call `buy` and `sell` are the caller's.
+  `carlot::catalogue::state_at` gives the stage-based availability only.
+- `milestones`: the milestone heat adjustment is not applied here (`safehouse::heat` takes the factor as a parameter).

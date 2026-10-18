@@ -234,10 +234,58 @@ check; the strings table also has `SB_GAME_OVER` which mentions cash, so another
 No code deletes a car because of busts; impound is the only loss. A car in state not 0 cannot be sold
 (`CS_NO_DELETE_IMPOUNDED_CAR`). **[exe]**
 
-### 6.5 Markers **[exe]**
+### 6.5 Markers **[exe + verified]**
 
-Marker inventory entries are `{type, aux, flag}`; the types seen are `0x11` Get Out of Jail Free, `0x14` Extra
-Impound Strike, `0x15` Impound Release. Rewards of kind `0x13` are cash (section 7), kind `0x12` a marker/unlock.
+Markers and part unlocks share one inventory: a 63-slot table at `0x0091d928`, 12 bytes per slot `{u32 type, u32 aux,
+u32 flag}`. A slot is free when `type == 0` and active when `flag == 1`. The earlier reading of this table as a "popup
+queue" was wrong; the popup queue is a separate 6-slot table (last paragraph of this section). **[exe]**
+
+| Role | Function | Behaviour **[exe]** |
+|---|---|---|
+| Add | `FUN_00576c50` | first free slot gets `{type, aux, 1}`; no duplicate check |
+| Count | `FUN_00576f10` | number of active slots with the given type and aux; type 0xE with aux 0 matches any aux |
+| Remove | `FUN_00576c90` | first matching active slot: `type = 0`, `flag = 0`; aux is kept |
+
+Marker kinds: `0x11` Get Out of Jail Free (`out_of_jail_free`), `0x14` Extra Impound Strike (`add_impound_box`), `0x15`
+Impound Release (`release_car_from_impound`). Kind `0x12` pink slip is a car, applied at once, not stored here. Kind
+`0x13` `cash_bonus` adds cash at once and is not stored. Kinds come from a 12-byte name table at `0x008f5480`
+(`{category name ptr, item name ptr or NULL, kind}`), searched by `FUN_00577590`. **[exe]**
+
+**Who adds.** Reward apply `FUN_005a62d0` puts a non-cash, non-car kind into the table with `FUN_00576c50(0x91d928, kind,
+0)` when its flag argument is non-zero; with flag 0 it queues instead (below). Its caller at `0x0062aa90` (undefined in
+Ghidra) passes flag 0 only when the race status object exists and `FUN_005fbe00` on its event returns true, else 1.
+Part unlock type 2 (engine) is granted once by `FUN_005a3950`, `FUN_005acb70`, `FUN_005ab450`, `FUN_0057f530`, gated by
+profile flag `0x20000`. The infractions first-visit grant (6.1) writes inline in `FUN_0058cef0`, not through the add
+function. **[exe]**
+
+**Who counts.** Impound screen `FUN_007a34f0` counts `0x15`. Car select `FUN_007ada50` counts `0x14` and `0x15` as enable
+tests only. The infractions constructor counts `0x11` into `this+0x3c` to enable the marker button. No number is shown:
+no "you have N" string for markers was found (strings search: marker, jail, impound). **[exe]** Whether any screen prints
+a count is **[unconfirmed]**.
+
+**Who consumes (pay with a marker).**
+- Infractions, use marker: `FUN_00576c90(0x91d928, 0x11, 0)` at `0x005a16be` (handler `0x005a15b0`, undefined in Ghidra).
+- Release by marker: car select message handler `0x007ad490` (undefined in Ghidra), `FUN_00576c90(0x91d928, 0x15, 0)` at
+  `0x007ad5b6`.
+- Extra Impound Strike: same handler, `FUN_00576c90(0x91d928, 0x14, 0)` at `0x007ad4c5`. **[exe]**
+
+**Popup queue (separate).** Six 12-byte slots at `0x0091dc1c` (table + 0x2F4), count at `0x0091dc64` (+0x33C). Not saved.
+Producer: `FUN_00576b80`, reached from reward apply with flag 0 (rewards earned during a race event). Consumer:
+**UNRESOLVED**. No absolute reference to it exists; reads go through the table base, and the offset scan gave candidates
+(`0x0056032e`, `0x00560367`, `0x005627ca`, `0x0075d4b0`, `0x00760d9d`, `0x00772e07`) that were not checked. Resets:
+`FUN_00576bd0` zeroes the queue; `FUN_005ab9c0` zeroes the queue and the 63 slots; the function at `0x008866b0` zeroes
+both. **[exe]**
+
+**Save.** The 63-slot table is one 756-byte block at file offset `0x5739`. `FUN_0057f7b0` writes it; `FUN_005ac950` reads it
+back into `0x0091d928` (0xBD dwords). Checked in the saves: `mwo` has 45 active slots, all part unlocks (types 1 to 7:
+brakes 5, engine 5, nitrous 5, induction 5, chassis 5, tires 8, transmission 12) and **no marker slots**; `stock` and
+`NAME` are empty. **[exe + verified]**
+
+**Why `mwo` has no markers.** The 4-marker grant in 6.1 runs only when profile flag `0x1000` (profile `+0xAC`, settings
+`+4`) is clear. That bit is set in all three saves (flags word `0x001DF7F3`), so the grant cannot run in these saves. The
+saves do not show whether `mwo` ever held a marker. **[verified]**
+
+Consumer of the 6-slot queue, and which rewards carry kinds `0x11`, `0x14`, `0x15`: **[unconfirmed]**.
 
 ## 7. Cash
 

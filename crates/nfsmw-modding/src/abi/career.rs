@@ -1,7 +1,7 @@
-//! `nfsmw.career` 0.1: cash, bounty, the rap sheet, the blacklist, milestones, the garage, safe houses and shops.
+//! `nfsmw.career` 0.2: cash, bounty, the rap sheet, the blacklist, milestones, the garage, safe houses and shops.
 //!
-//! The port has no career state yet (the career lands in milestone 7, ADR 0005 section 8). Every slot is in the table now,
-//! so the layout is fixed, and the host answers `BB_ERR_UNSUPPORTED` until the career exists. Field lists and the stat
+//! Every slot is in the table, so the layout is fixed. The game answers the slots its career has
+//! (`crates/nfsmw/src/modding/backends/career.rs`) and `BB_ERR_UNSUPPORTED` for the rest. Field lists and the stat
 //! numbers are [unconfirmed] against the career spec. Slots that write state are marked write (W) in the catalogue.
 
 use core::ffi::c_void;

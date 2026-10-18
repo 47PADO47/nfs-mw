@@ -1,7 +1,8 @@
-//! The pursuit tables of the attribute database: which cop cars chase at each heat level.
-//! Spec: `docs/specs/ai-pursuit-heat.md` (§1, §2.1, §2.2, §2.7).
+//! The pursuit tables of the attribute database: which cop cars chase at each heat level, and the heat values the
+//! career uses (factors and growth per career bin).
+//! Spec: `docs/specs/ai-pursuit-heat.md` (§1, §2.1, §2.2, §2.3, §2.7, §3.2), `docs/specs/career-safehouse.md` heat.
 
-use blackbox_attrib::{Database, Value, vlt_hash};
+use blackbox_attrib::{CollectionRef, Database, Value, vlt_hash};
 
 /// Heat levels with their own row.
 pub const HEAT_LEVELS: u32 = 10;
@@ -42,6 +43,15 @@ pub fn heat_row(db: &Database, heat: u32) -> Option<HeatRow> {
     Some(row)
 }
 
+/// The `pursuitlevels` collection of heat level `heat` (1…10, clamped) in the escalation table `table`
+/// (`heattable` or `racetable`), from the `default` collection of `pursuitescalation`.
+fn level_collection<'a>(db: &'a Database, table: &str, heat: u32) -> Option<CollectionRef<'a>> {
+    let level = heat.clamp(1, HEAT_LEVELS) as usize - 1;
+    let escalation = db.collections_of("pursuitescalation").find(|c| c.name() == Some("default"))?;
+    let Value::Array(rows) = escalation.get(table)? else { return None };
+    db.resolve(rows.get(level)?.as_ref_spec()?)
+}
+
 /// The row for heat level `heat` (1…10) while racing a race event (`racetable`).
 pub fn race_heat_row(db: &Database, heat: u32) -> Option<HeatRow> {
     heat_row_in(db, "racetable", heat)
@@ -70,10 +80,7 @@ pub fn wave_names(rows: &[HeatRow]) -> Vec<String> {
 
 /// The row of `heat` in the escalation table `table` (`heattable` or `racetable`).
 fn heat_row_in(db: &Database, table: &str, heat: u32) -> Option<HeatRow> {
-    let level = heat.clamp(1, HEAT_LEVELS) as usize - 1;
-    let escalation = db.collections_of("pursuitescalation").find(|c| c.name() == Some("default"))?;
-    let Value::Array(rows) = escalation.get(table)? else { return None };
-    let row = db.resolve(rows.get(level)?.as_ref_spec()?)?;
+    let row = level_collection(db, table, heat)?;
     let names: Vec<(u32, String)> = db
         .collections_of("pvehicle")
         .filter_map(|c| c.name().filter(|n| n.starts_with("cop")).map(|n| (vlt_hash(n), n.to_owned())))
@@ -147,9 +154,166 @@ pub fn ai_vehicle(db: &Database, car: &str) -> AiVehicle {
     }
 }
 
+/// Career bins of the heat growth (`ScaleEscalationPerBucket` has one value per bin).
+pub const CAREER_BINS: usize = 15;
+/// The largest bin index: the bin of a challenge race, and the cap of `min(current_bin, 14)`.
+pub const LAST_CAREER_BIN: u32 = 14;
+
+/// The heat growth of one heat level: the base seconds to climb a level and the multiplier of each career bin.
+/// Spec: `docs/specs/ai-pursuit-heat.md` 2.3 and 3.2.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HeatGrowth {
+    /// `TimePerHeatLevel`, seconds.
+    pub time_per_heat_level: f32,
+    /// `ScaleEscalationPerBucket`, index = career bin 0 to 14.
+    pub scale_per_bucket: [f32; CAREER_BINS],
+}
+
+impl HeatGrowth {
+    /// Seconds to climb one heat level in career bin `bin`: `TimePerHeatLevel * ScaleEscalationPerBucket[bin]`.
+    /// Bins past 14 use 14 (`min(current_bin, 14)`); a challenge race passes 14.
+    pub fn seconds_for_bin(&self, bin: u32) -> f32 {
+        self.time_per_heat_level * self.scale_per_bucket[bin.min(LAST_CAREER_BIN) as usize]
+    }
+}
+
+/// The `pursuitlevels` values the career heat uses (`docs/specs/ai-pursuit-heat.md` 2.3 and 3, and
+/// `docs/specs/career-safehouse.md` heat section).
+#[derive(Debug, Clone, PartialEq)]
+pub struct CareerHeat {
+    /// `EvadeSuccessHeatAdjust` of `default` (0.95): every car of the stable, on an evade.
+    pub evade_factor: Option<f32>,
+    /// `EventWinHeatAdjust` of `default` (0.94): every car of the stable, on a career race win.
+    pub race_win_factor: Option<f32>,
+    /// `MilestoneCompleteHeatAdjust` of `default` (0.93): every car of the stable, on a milestone.
+    /// **[unconfirmed]** the pairing of this factor with the milestone moment (spec 3.3).
+    pub milestone_factor: Option<f32>,
+    /// The growth of heat level `n` at index `n - 1`; None for a level whose row lacks a value.
+    pub growth: [Option<HeatGrowth>; HEAT_LEVELS as usize],
+}
+
+/// The career heat values, or None when `pursuitlevels/default` is not in the database.
+pub fn career_heat(db: &Database) -> Option<CareerHeat> {
+    let defaults = db.collection("pursuitlevels", "default")?;
+    Some(CareerHeat {
+        evade_factor: defaults.get_f32("EvadeSuccessHeatAdjust"),
+        race_win_factor: defaults.get_f32("EventWinHeatAdjust"),
+        milestone_factor: defaults.get_f32("MilestoneCompleteHeatAdjust"),
+        growth: std::array::from_fn(|index| heat_growth(db, index as u32 + 1)),
+    })
+}
+
+/// The growth of heat level `heat` (1…10) from its `heattable` row; None when the row lacks a value or the bin
+/// array does not hold 15 numbers.
+fn heat_growth(db: &Database, heat: u32) -> Option<HeatGrowth> {
+    let row = level_collection(db, "heattable", heat)?;
+    let time_per_heat_level = row.get_f32("TimePerHeatLevel")?;
+    let values = row.get("ScaleEscalationPerBucket")?.as_array()?;
+    let scale: Vec<f32> = values.iter().map(Value::as_f32).collect::<Option<_>>()?;
+    Some(HeatGrowth { time_per_heat_level, scale_per_bucket: scale.try_into().ok()? })
+}
+
+/// The rep rates of one heat level: the `pursuitlevels` row's `RepPointsPerMinute` and `DestroyCopBonusTime`
+/// (`docs/specs/ai-pursuit-heat.md` sections 2.4 and 5.1).
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct RepRates {
+    /// `RepPointsPerMinute`: the normal rep points of each 10 s step of chase while the cops see the player. The name
+    /// says minute; the code steps every 10 s, so the spec takes the field as the points per step.
+    pub per_ten_seconds: u32,
+    /// `DestroyCopBonusTime`, seconds: the window in which a further cop kill raises the destruction multiplier.
+    pub destroy_bonus_secs: f32,
+}
+
+/// The rep rates and destruction points a chase reads, from the attribute database ([`rep_table`]).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct RepTable {
+    /// The rates of heat level `n` at index `n - 1`.
+    pub rates: Vec<RepRates>,
+    /// Each cop car type (lower case name) with the destruction points of heat level `n` at index `n - 1`
+    /// (`RepPointsForDestroying` of its `aivehicle` record).
+    pub destroy: Vec<(String, Vec<u32>)>,
+}
+
+impl RepTable {
+    /// The rates of heat level `level` (clamped to 1…10); the zero rates when the table lacks the level.
+    pub fn rate(&self, level: u32) -> RepRates {
+        let index = level.clamp(1, HEAT_LEVELS) as usize - 1;
+        self.rates.get(index).copied().unwrap_or_default()
+    }
+
+    /// The destruction points of cop car `car` wrecked at heat level `level` (clamped); 0 for a car the table lacks.
+    pub fn destroy_points(&self, car: &str, level: u32) -> u32 {
+        let index = level.clamp(1, HEAT_LEVELS) as usize - 1;
+        let row = self.destroy.iter().find(|(name, _)| name.eq_ignore_ascii_case(car));
+        row.and_then(|(_, points)| points.get(index)).copied().unwrap_or(0)
+    }
+}
+
+/// The rep rates of heat level `heat` (1…10) from its `pursuitlevels` row. None when the row is not in the database.
+pub fn rep_rates(db: &Database, heat: u32) -> Option<RepRates> {
+    let row = level_collection(db, "heattable", heat)?;
+    Some(RepRates {
+        per_ten_seconds: row.get_i32("RepPointsPerMinute").unwrap_or(0).max(0) as u32,
+        destroy_bonus_secs: row.get_f32("DestroyCopBonusTime").unwrap_or(0.0),
+    })
+}
+
+/// The destruction points of cop car type `car` wrecked at heat `heat` (1…10): `RepPointsForDestroying` of its
+/// `aivehicle` record, at index `heat - 1`. None when the record or the value is missing.
+pub fn destroy_rep_points(db: &Database, car: &str, heat: u32) -> Option<u32> {
+    let record = db.collection("pvehicle", &car.to_ascii_lowercase())?.follow("aivehicle")?;
+    let index = heat.clamp(1, HEAT_LEVELS) as usize - 1;
+    let points = record.get("RepPointsForDestroying")?.as_array()?.get(index)?.as_f32()?;
+    Some(points.max(0.0) as u32)
+}
+
+/// The rep tables of the install: the rates of every heat level and the destruction points of every cop car type.
+pub fn rep_table(db: &Database) -> RepTable {
+    let rates = (1..=HEAT_LEVELS).map(|heat| rep_rates(db, heat).unwrap_or_default()).collect();
+    let destroy = cop_car_names(db)
+        .into_iter()
+        .map(|name| {
+            let points = (1..=HEAT_LEVELS).map(|heat| destroy_rep_points(db, &name, heat).unwrap_or(0)).collect();
+            (name, points)
+        })
+        .collect();
+    RepTable { rates, destroy }
+}
+
+/// The names of the cop car types: the `pvehicle` collections whose name starts with `cop`.
+fn cop_car_names(db: &Database) -> Vec<String> {
+    db.collections_of("pvehicle").filter_map(|c| c.name().filter(|n| n.starts_with("cop")).map(str::to_owned)).collect()
+}
+
+#[cfg(test)]
+#[path = "pursuit_rep_tests.rs"]
+mod rep_tests;
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The level 1 bins of the install: 120 s for bins 0 to 10, then 180, 240, 360 and 600 s (bins 11 to 14).
+    const LEVEL_ONE_SCALE: [f32; CAREER_BINS] =
+        [120., 120., 120., 120., 120., 120., 120., 120., 120., 120., 120., 180., 240., 360., 600.];
+
+    #[test]
+    fn a_level_one_climb_takes_600_seconds_in_the_last_two_bins() {
+        let growth = HeatGrowth { time_per_heat_level: 1.0, scale_per_bucket: LEVEL_ONE_SCALE };
+        assert_eq!(growth.seconds_for_bin(14), 600.0);
+        assert_eq!(growth.seconds_for_bin(13), 360.0);
+        assert_eq!(growth.seconds_for_bin(12), 240.0);
+        assert_eq!(growth.seconds_for_bin(11), 180.0);
+        assert_eq!(growth.seconds_for_bin(10), 120.0);
+        assert_eq!(growth.seconds_for_bin(0), 120.0);
+    }
+
+    #[test]
+    fn a_bin_past_fourteen_uses_fourteen() {
+        let growth = HeatGrowth { time_per_heat_level: 2.0, scale_per_bucket: LEVEL_ONE_SCALE };
+        assert_eq!(growth.seconds_for_bin(15), growth.seconds_for_bin(14));
+        assert_eq!(growth.seconds_for_bin(u32::MAX), 1200.0);
+    }
 
     fn cop(name: &str, count: u32) -> CopRecord {
         CopRecord { name: name.to_owned(), count, chance: 100 }

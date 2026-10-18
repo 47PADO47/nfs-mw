@@ -109,7 +109,8 @@ restore screens instead. A failed load restores a snapshot of the profile that w
 2. The current car of the profile and the quick-race selection slot for the current race type are both set to the hash
    of the preset `M3GTRCAREERSTART` (`0x38A3C42C`). That preset is slot 0 / slot 30 of the stable
    ([career-save.md](../formats/career-save.md) section 4.1).
-3. A profile serial text `MW-<n>-<4 letters>XXX` is generated (random seed `0x19B3`).
+3. A profile serial text is generated: `MW-<number>-<up to 4 letters>`, 12 characters in practice. `0x19B3` is the
+   RNG range, not a seed. See section 3.1 **[exe]**.
 4. The settings flags get the "career started" bit; if the bonus-content probe says so, a popup of type 2 is queued and
    flag bit 17 is set.
 5. The front-end context is set to career (`0x1`).
@@ -130,6 +131,59 @@ in the folder named by a shell-folder id `0x801C`), a dialog is shown and **+10,
 **Developer flags** (set only by an unreached debug boot menu; all 0 in retail): `0x00926124` unlock everything,
 `0x00926125/6` skip the prologue (stage 15, add the E3 demo BMW and a second preset car), `0x00926127` show hidden vehicles
 in the stable, `0x00926129` include the start car in the default stable **[exe, unconfirmed whether reachable]**.
+
+### 3.1 Profile serial **[exe]**
+
+Generated inside the new-career init (`FUN_005A3950`, speed.exe `0x005A3950`; called from `FUN_00562FF0` and
+`FUN_00563380`). It runs once per new career, after the seed-free steps above.
+
+**Random source.** The game has one global generator, state `s` at `0x008EC4E0`, drawn by `FUN_0045DA30`
+(`0x0045DA30`, 23 instructions). A draw with range `n` (n = 0 returns 0) does:
+
+```
+r = s mod n                 # r is the result, taken from the old state
+u = s XOR 0x1D872B41
+t = u XOR (u >> 5)
+s = (t << 27) XOR t XOR u   # new state
+return r
+```
+
+This is an xorshift-style mix with one XOR constant, not an LCG. There is no multiplier.
+The state is read and written only by this draw, by the float draw `FUN_0045DA70` (`0x0045DA70`, used for effects and
+other non-serial randomness, same update) and by the save/restore and playback code (`FUN_00661490`, `FUN_006617E0`).
+The static initial value at `0x008EC4E0` is `0x12345678` **[exe]**. No time or tick read was found in the serial path.
+The state at career start therefore depends on how many draws happened earlier in the process, not on the clock.
+Playback/recording mode (`FUN_00660100`) can replace the draw with recorded values; a retail career start does not use it.
+
+**The number `%d`.** One draw with `n = 0x19B3` (6579) and the result is offset by `0x42D` (1069):
+
+- `number = draw(6579) + 1069`, so the range is **1069 to 7647**, always four digits.
+
+**The letters `%.4s`.** The argument is the value of `[game + 0x10]`, where `game` is the global at `0x0091CF90`
+(a 0xB78-byte object built by `FUN_005992E0`, allocated in `FUN_005ABAD0`). That value is the pointer to a 0x9CB8-byte
+block (allocated in `FUN_005992E0`). `%.4s` reads up to four bytes from the start of that block.
+- Not yet confirmed: the constructor path (`FUN_005796A0`, `FUN_005902E0`) does not write offset 0 of that block in the
+  code read here. So the four bytes are either written by a later routine or are unset heap memory. This is **open**.
+  Check at runtime (read the block after profile creation) before the implementer relies on the letters.
+- The string is not a random letter set. No `rand` call in this function feeds the letters.
+
+**Formatting and storage.** The format is `"MW-%d-%.4sXXX"` (string at `0x008A1058`; only xref is `0x005A3981`).
+It goes through `FUN_004647E0` into the printf engine `FUN_00462A80` with **buffer size 13**. The engine drops output
+past 12 characters and writes a NUL at index 12. The `XXX` tail is therefore almost always cut:
+
+- Output is at most 12 characters: `MW-` (3) + number (4) + `-` (1) + letters (up to 4). The tail `XXX` only shows when
+  the letters are shorter than 4 characters. Examples: 4 letters gives `MW-NNNN-LLLL`; 2 letters gives `MW-NNNN-LLXX`;
+  0 letters gives `MW-NNNN-XXX`.
+- After formatting, `FUN_00460F50` (`0x00460F50`) uppercases every `a`..`z` in the buffer up to the NUL.
+- Stored at profile `+0x26C` (save field 0x26C, see [career-save.md](../formats/career-save.md) section 3.2). The code
+  writes 13 bytes: up to 12 characters and a NUL. The save field may be 16 bytes; bytes 13..15 are not written here.
+
+**Not involved in the serial:** `FUN_0057FB50` (`0x0057FB50`) runs just before the draw and stores its result at profile
+`+0x00`, but the draw overwrites `EAX`, so the serial does not use it.
+
+Implementer summary: draw `n = 6579` from the state (xorshift step above), add 1069, format `MW-<number>-` plus the
+first four letters of the profile string, uppercase, cut to 12 characters. Open items: the source of the four letters
+(see above) and the start-of-process RNG state, which must be reproduced by replaying the draws made before career start.
 
 ## 4. Resume career **[exe]**
 
@@ -278,9 +332,10 @@ The details of ranks and rivals are in the Blacklist specs; only the order is re
 
 ## 10. Rewrite
 
-The rewrite has no career state yet. Needed first: the settings struct and the stable of
-[career-save.md](../formats/career-save.md), the context word of section 1 as an enum, the new/resume decision of
-section 2 and a safe house screen with the five buttons of section 7.2.
+The rewrite has career state in `crates/nfsmw-career`: the settings struct and the stable of
+[career-save.md](../formats/career-save.md), the front-end context word (section 1, as bits of `FrontEndContext`), the
+new career setup (section 3), the safe house flow (sections 5 and 7) and the save screens. The safe house screen with
+the five buttons of section 7.2 is not built yet; see [provenance/career-core.md](../provenance/career-core.md).
 
 ## Open questions
 

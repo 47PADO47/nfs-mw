@@ -213,7 +213,8 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
         render::add_bevy_plugin(&mut app, settings.backend);
     }
     if let Some(dir) = hud {
-        app.add_plugins(crate::hud::HudPlugin { dir, initial: hud_demo.unwrap_or_default() });
+        let career = frontend.as_ref().map(|plugin| plugin.career.clone()).unwrap_or_default();
+        app.add_plugins(crate::hud::HudPlugin { dir, initial: hud_demo.unwrap_or_default(), career });
     }
     if let Some(dir) = audio {
         app.add_plugins(crate::audio::AudioPlugin { dir });

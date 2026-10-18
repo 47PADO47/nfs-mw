@@ -110,15 +110,15 @@ pub struct MilestoneDef {
     pub name: String,
     /// Progress needed.
     pub goal: f32,
-    /// Cash paid on completion.
-    pub reward_cash: u32,
+    /// Bounty (rep points, not cash) paid on completion.
+    pub reward_bounty: u32,
 }
 
 impl MilestoneDef {
     pub(crate) fn to_abi(&self) -> ModResult<BbMilestoneDef> {
         Ok(BbMilestoneDef {
             size: size_of::<BbMilestoneDef>() as u32,
-            reward_cash: self.reward_cash,
+            reward_bounty: self.reward_bounty,
             goal: self.goal,
             key: name_abi(&self.key)?,
             name: name_abi(&self.name)?,

@@ -27,6 +27,7 @@ pub fn colour(kind: ZoneKind) -> [u8; 3] {
     match kind {
         ZoneKind::AutoShop => [255, 176, 0],
         ZoneKind::SafeHouse => [64, 200, 255],
+        ZoneKind::CarLot => [120, 255, 120],
         ZoneKind::Race => [255, 255, 255],
     }
 }

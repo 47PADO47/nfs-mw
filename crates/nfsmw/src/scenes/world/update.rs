@@ -54,6 +54,7 @@ impl WorldScene {
             false => self.update_simulation(renderer, input, dt),
         };
         self.update_entry(input, dt);
+        self.update_career(dt);
         self.feed_focus(renderer, sim_dt);
         self.rain.update(sim_dt, camera);
         self.wet_road.step(dt, self.rain.intensity() > 0.0);

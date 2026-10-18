@@ -18,7 +18,7 @@ fn installed_panorama_retains_colour_geometry_without_becoming_a_sun_caster() {
     let mut own = SectionResources::default();
     let shared = SectionResources::default();
     own.upload_meshes(&mut renderer, &data, &shared);
-    let (placed, _) = place(&data, &own, &shared, &scene.residency.catalog);
+    let (placed, _) = place(&data, &own, &shared, &scene.residency.catalog, &Default::default());
     let panorama = data
         .scenery
         .iter()

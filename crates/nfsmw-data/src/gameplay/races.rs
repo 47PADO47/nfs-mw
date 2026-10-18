@@ -1,6 +1,6 @@
 //! The race events: a non-template collection with a `racestart`. Spec: `docs/formats/gameplay-races.md` sections 1-3.
 
-use blackbox_attrib::{CollectionRef, Database};
+use blackbox_attrib::{CollectionRef, Database, Value};
 
 use super::{collection, instances, key_array, key_field, name_of, placement, text};
 
@@ -81,6 +81,9 @@ pub struct Race {
     pub finish: Option<u32>,
     /// `Checkpoint[]`: the keys of the checkpoints in running order, each a [`super::BoxTrigger`].
     pub checkpoints: Vec<u32>,
+    /// `Barriers[]`: the track-path barrier names this race enables, as written (a leading `*` is kept, and
+    /// entries are not trimmed). Spec: `docs/specs/career-regions.md` section 3.4. The career crate parses them.
+    pub barriers: Vec<String>,
 }
 
 /// The races of a database, in database order. Empty when the database has no `gameplay` class.
@@ -102,7 +105,18 @@ fn race(db: &Database, c: CollectionRef<'_>) -> Option<Race> {
         start: collection(db, start_key).map(placement),
         finish: key_field(c, "racefinish"),
         checkpoints: key_array(c, "Checkpoint"),
+        barriers: text_items(c.get("Barriers")),
     })
+}
+
+/// The text items of a text array field, in order, as written. A scalar text is a one-item list; null or
+/// non-text items are skipped; a missing field is an empty list.
+fn text_items(value: Option<&Value>) -> Vec<String> {
+    match value {
+        Some(Value::Array(items)) => items.iter().filter_map(Value::as_str).map(str::to_owned).collect(),
+        Some(value) => value.as_str().map(str::to_owned).into_iter().collect(),
+        None => Vec::new(),
+    }
 }
 
 #[cfg(test)]
@@ -137,5 +151,24 @@ mod tests {
             let t = RaceType::from_icon(icon).unwrap();
             assert_eq!(t as u8 as usize, i, "{icon}");
         }
+    }
+
+    #[test]
+    fn barrier_items_keep_the_star_and_skip_non_text() {
+        let list = Value::Array(vec![
+            Value::Text(Some("*BARRIER_SPLINE_3".to_owned())),
+            Value::Text(None),
+            Value::Text(Some("SCENERY_GROUP_DOOR".to_owned())),
+            Value::Int32(7),
+        ]);
+        assert_eq!(text_items(Some(&list)), vec!["*BARRIER_SPLINE_3", "SCENERY_GROUP_DOOR"]);
+    }
+
+    #[test]
+    fn barrier_items_of_a_scalar_or_missing_field() {
+        let scalar = Value::Text(Some("BARRIER_LOCKED_12".to_owned()));
+        assert_eq!(text_items(Some(&scalar)), vec!["BARRIER_LOCKED_12"]);
+        assert!(text_items(None).is_empty());
+        assert!(text_items(Some(&Value::Array(Vec::new()))).is_empty());
     }
 }

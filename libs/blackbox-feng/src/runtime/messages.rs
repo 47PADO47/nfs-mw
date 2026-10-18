@@ -173,6 +173,16 @@ impl Runtime {
         self.run_responses(package, Some(index), &list.responses);
     }
 
+    /// Reveals an object that starts hidden once a script it owns is set on it (the content groups of the
+    /// career screens). A script the object does not have reveals nothing.
+    fn reveal_on_set_script(&mut self, package: PackageId, index: usize, id: u32) {
+        let Some(p) = self.running_mut(package) else { return };
+        let Some(o) = p.objects.get_mut(index) else { return };
+        if o.scripts.iter().any(|s| s.id == id) {
+            o.hidden = false;
+        }
+    }
+
     /// Runs a response list in order, with if/else/end-if skipping.
     fn run_responses(&mut self, package: PackageId, object: Option<usize>, responses: &[Response]) {
         let mut i = 0;
@@ -181,7 +191,9 @@ impl Runtime {
             match r.kind {
                 ResponseKind::SetScript => {
                     if let Some(o) = object {
-                        self.set_script(package, o, r.param.number());
+                        let id = r.param.number();
+                        self.set_script(package, o, id);
+                        self.reveal_on_set_script(package, o, id);
                     }
                 }
                 ResponseKind::PostToFEng => {

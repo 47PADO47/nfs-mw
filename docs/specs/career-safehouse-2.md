@@ -278,3 +278,96 @@ Minimum model: `respawn_home: Key` (+0x108), `respawn_safehouse: Key` (+0x10C), 
 3. The exact start of the Blacklist stepper after the first-visit bio (the navigation code that advances the counter).
 4. Whether the time-of-day index survives a world reload.
 5. The remaining individual launch buttons that set a pending node from the front end.
+
+## 11. Showing the three content packages: the open-time messages
+
+`SafeHouseRivalChallenge.fng`, `SafehouseRivalBio.fng` and `MC_Main.fng` are drawn only after the native screen code has
+posted a few messages to them. Nothing in their packages shows them by itself. The port posts none of the trigger
+messages named below except as noted. Addresses are `speed.exe`; hashes are the engine name hash (`bstring_hash`, seed
+`0xFFFFFFFF`, `h = h * 33 + byte`), so `0x71FD0F10` is the hash of the text `INITIALIZE_SCREEN`.
+
+Sending: a native "post to package" call (`0x00516BE0`) looks up the package by file name and queues one message for it
+(`0x005B7780`, delivered later by the frame loop). Its hash argument is the value that the package's responses list.
+
+### 11.1 Rival Bio (`SafehouseRivalBio.fng`)
+
+Constructor `0x00561320` (vtable `0x0089F0A8`, registered in `0x005713E0`). Reads the context bit 17 (`0x20000` in the
+context word at `DAT_0091CF90 + 300`) and the career stage. In order **[exe]**:
+
+1. Bit 17 clear: post `0xAF922178` to the bio package (`0x00561414`). If the screen was not opened in "entry" mode
+   (`+0x2C == 0`), also run the two calls `0x007A1FA0` / `0x007A1FD0` **[unconfirmed]** (sound or fade helper).
+2. Bit 17 set: call `0x007A2920`; if the career stage (profile byte `+0xB0`) is 16, create the enter-bin event
+   (`0x0062C2D0`, bin = stage - 1; the first-visit step of [career-safehouse.md](career-safehouse.md)); store the stage in
+   `DAT_0091CA3C`; post `0x0B21A45F` to the bio package (`0x005613F7`).
+
+### 11.2 Rival Challenge (`SafeHouseRivalChallenge.fng`)
+
+Opener `0x00623F80` (name string at `0x0089AFFC`; the caller `0x0062FEC0`). It sets context bit 17 (`0x20000`) on the
+branch that does not match the screen's own name (`LAB_0062404C`); the meaning of that bit is **[unconfirmed]** beyond
+the branch selection below. Constructor chain: `0x00561260` (vtable `0x0089D7B8`) calls `0x00551A20`.
+
+`0x00551A20` (the widget init) posts, in order **[exe]**:
+
+- when the screen mode flags `+0x2C` and `+0x2D` are both set: post `0x34297CB0` only (`0x00551BED`);
+- otherwise, bit 17 clear: post `0xAF922178` (`0x00551C59`);
+- otherwise, bit 17 set: post `0x0B21A45F` (`0x00551C32`) then `0xB4C144B1` (`0x00551C47`).
+
+`0xB4C144B1` is also posted by the rival-list populate routine `0x0052EE50` (`0x0052F380`), which first posts
+`RIVAL_CHALLENGE_ACTIVATED` or `RIVAL_CHALLENGE_DEACTIVATED` (hashes `0x4D2F7D33` / `0x393E8FDC`, computed from the
+text; the posting sites are in the same routine) **[exe for the posts, verified hash formula]**.
+
+### 11.3 MC_Main (`MC_Main.fng`, `InGame_MC_Main.fng` in game)
+
+Opened by `0x00527940` (opener; its string is at `0x0089AFBC`). The screen init helpers `0x00543BE0`, `0x00543CC0`,
+`0x0054FB00` and `0x00543F90` post the same pair once per screen, guarded by the per-screen byte `+0x74` (set to 1 by the
+first post, so a screen posts it once) **[exe]**:
+
+1. post `0xC0F2AE7C` to the package (`0x00543C6F`, `0x00543D66`, `0x005441CF`, `0x0054FBED`);
+2. post `INITIALIZE_SCREEN` = `0x71FD0F10` (the call `0x005AF1C0` builds the hash from the text; the same post follows
+   each `0xC0F2AE7C` in those four routines).
+
+The leave handler `0x00564070` posts `0x4F3559B5` (at `0x0056414C`) when its back message `0x54B3AC6C` arrives, then opens
+`MC_List.fng`. That is a leave action, not an open trigger.
+
+### 11.4 What each package responds with (dump)
+
+| Package | Object | Start flags | Responds to | Effect **[exe, from the dump]** |
+|---|---|---|---|---|
+| Rival Challenge | group `0x1162D4` (the content, "Continue") | `0x40000008` | `0x0B21A45F` | runs zero-length script `0xE9091FE0` (colour and position tracks) |
+| Rival Challenge | groups `0x10CF79`, `0x116248` | `0x40000008` | `0xAF922178` | reveal scripts **[unconfirmed]** (responses not read in full) |
+| Rival Challenge | image `0x104698` and others | `0x40000000` | `0xAF922178`, `0x5FF45174`, `0x0B21A45F` | zero-length script `0x44C97E21` / `0x4FE40AE8`, then fade scripts |
+| Rival Bio | group `0x116316` | `0x40000008` | `0x8BBAB3ED` | content reveal (group of the bio panel) |
+| Rival Bio | group `0x104BCB`, `0x1107D1`, `0x1107E5` | `0x40000000` | `0xAF922178`, `0x0B21A45F` | scripts that run the reveal |
+| MC_Main | group `0xF7C20` (flags `0x40000000`, z 1000) | `0x40000000` | `0x4F3559B5`, `0xC0F2AE7C` | script `0x5079C8F8` (colour track, length 200) **[fade-in: unconfirmed]** |
+| MC_Main | image `0xF7078` (BasePoly, alpha 180) and groups `0xF7CF5`, `0xF7CFB`, `0xFA262` | `0x40000000` | `INITIALIZE_SCREEN` `0x71FD0F10` | script `0x5079C8F8` (colour track, length 300 / 900) **[fade-in: unconfirmed]** |
+
+So the content of `MC_Main` is alpha-faded in by `INITIALIZE_SCREEN`, not hidden by a flag. The two rival packages have
+their content groups marked hidden by flag `0x8` at start.
+
+### 11.5 Why the port draws nothing **[verified from the port source; the original's meaning of the flag is unconfirmed]**
+
+- Visibility in `libs/blackbox-feng/src/tree/mod.rs` (about line 112) is `parent visible && alpha != 0 && !state.hidden &&
+  definition flags & 8 == 0`. The definition flag is read from the file and never changes. A group that starts with
+  `0x8` therefore stays hidden in the port whatever its scripts or messages do. The rival content groups `0x1162D4`,
+  `0x116316`, `0x10CF79` and `0x116248` are exactly this case. Posting `0x0B21A45F` / `0xAF922178` changes nothing, which
+  matches the observation in [career-runtime.md](../provenance/career-runtime.md). **Open:** whether the original's reveal
+  script clears the flag `0x8` at runtime or only the alpha (the object's runtime flag word at `+0x1C` bit 0 is the likely
+  hidden bit: the update routines `0x0052EE50` clear it with `0x2400000` marks, unless bit `0x40` is set, which is what
+  the `0x40000040` roots do). Not decided here.
+- `MC_Main` has no `0x8` flags. Its content starts at its file alpha, but its colour tracks only run
+  after `INITIALIZE_SCREEN` / `0xC0F2AE7C`. The port posts neither (no matches in `crates/` or `libs/`). The most likely
+  cause of the blank screen is therefore the missing `INITIALIZE_SCREEN` post, **[unconfirmed]** until the start value of
+  the fade track is read.
+
+### 11.6 What to post, in order (the port's trigger list)
+
+- `MC_Main.fng`: when it opens, post `0xC0F2AE7C`, then `0x71FD0F10` (`INITIALIZE_SCREEN`), once.
+- `SafehouseRivalBio.fng`: in the bit-17-clear case post `0xAF922178`; in the bit-17-set case post `0x0B21A45F`, once,
+  at construction (after the stage check of 11.1).
+- `SafeHouseRivalChallenge.fng`: as 11.2, in the same order.
+- Then fix the static flag `0x8` test for these groups (11.5). Until that is decided, the groups stay hidden even with the
+  messages.
+
+Evidence: [exe] for every address above (Ghidra on `speed.exe`); [verified] for the dump flags and responses
+(`nfsmw dump-screen`) and for the port's visibility test. Hashes of the text names are computed with the project's
+`bstring_hash` (`libs/blackbox-hash`), not read from the exe.

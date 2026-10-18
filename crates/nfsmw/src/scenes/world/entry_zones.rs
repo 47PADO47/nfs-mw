@@ -18,6 +18,7 @@ pub const RACE_RADIUS: f32 = 6.0;
 pub enum ZoneKind {
     AutoShop,
     SafeHouse,
+    CarLot,
     Race,
 }
 
@@ -27,6 +28,7 @@ impl ZoneKind {
         match self {
             Self::AutoShop => "auto shop",
             Self::SafeHouse => "safe house",
+            Self::CarLot => "car lot",
             Self::Race => "race",
         }
     }
@@ -54,14 +56,13 @@ pub struct EntryZones {
 impl EntryZones {
     /// The zones of the loaded gameplay data: the auto shops and safe houses, then the race starts.
     pub fn from_data(data: &GameplayData) -> Self {
-        // Car lots are not entered yet: their zones are not entry zones (the stub is for shops and safe houses).
-        let interiors = data.markers.iter().filter_map(|m| {
+        let interiors = data.markers.iter().map(|m| {
             let kind = match m.kind {
                 ActivityKind::AutoShop => ZoneKind::AutoShop,
                 ActivityKind::SafeHouse => ZoneKind::SafeHouse,
-                ActivityKind::CarLot => return None,
+                ActivityKind::CarLot => ZoneKind::CarLot,
             };
-            Some(Zone { kind, name: m.name.clone(), centre: render(m.position), radius: m.radius })
+            Zone { kind, name: m.name.clone(), centre: render(m.position), radius: m.radius }
         });
         let races = data.races.iter().filter_map(|race| race.start.map(|start| (race, start))).map(|(race, start)| {
             Zone { kind: ZoneKind::Race, name: race.name.clone(), centre: render(start.position), radius: RACE_RADIUS }

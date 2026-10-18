@@ -41,7 +41,7 @@ Stage::Boot(..) ──► Stage::Menus ──► Stage::Playing ⇄ Stage::Pause
 | `Boot` | Queue of `Boot` items: `ealogo` movie, `psa` movie (has a `bypass` flag), then the `Splash` screen | Movies play through the movie scene (`movie/`, `blackbox-movie`). |
 | `Menus` | Main menu (`IconMenu`), option categories, `WidgetMenu` rows | Run as the game's own FEng screens. |
 | `Loading` | The original `WS_Loading.fng` screen over an empty window while free roam streams in | The world is built and updated but hidden and silent until `Scene::ready()`; then `Playing`. See [specs/loading-screen.md](specs/loading-screen.md). |
-| `Playing` | Free roam: the world scene, with the HUD | Career goes here today. |
+| `Playing` | Free roam: the world scene, with the HUD | Career runs here (see [Career flow](#career-flow)). |
 | `Paused` | Pause menu over the world | The world is wrapped in `Pausable`, so it freezes. Escape or Start opens it. |
 
 Your sequence (video, splash, main menu, world) is exactly `Boot` → `Menus` → `Playing`.
@@ -64,8 +64,29 @@ The menus are the install's own FEng screen files, not Bevy UI and not a web-sty
 renderer). The config file is written when a screen is left (`settings/write.rs`), and it keeps `game_dir`
 and unknown keys.
 
-**Not run yet:** career, quick race, customisation, online, dialogs and the keyboard screens. No
+**Not run yet:** quick race, customisation, online, dialogs and the keyboard screens. The career screens are run
+(see [Career flow](#career-flow)). No
 confirmation dialogs, no mouse, no 3D backdrop behind the menus.
+
+## Career flow
+
+Career on the main menu starts or resumes a profile, then goes to free roam with it ([career-flow](specs/career-flow.md)
+sections 2 to 4; code in `crates/nfsmw/src/career/start.rs` and `frontend/flow_career.rs`).
+
+1. **Career** (main menu) calls `career::start_or_resume`. The latest profile is loaded when its career has started;
+   otherwise a new career is made on the default alias. A failure stays on the main menu and shows an alert.
+2. The career being played is set, the world is given it, and the game goes to `Playing` (free roam) in career mode.
+   Outside career mode nothing of the career runs.
+3. **Safe house request.** A safe house entry in the world asks for the safe house menu. The world is frozen and the
+   menu (`MainMenu_Sub` in safe house mode) opens over it. Its items are Resume, Blacklist, Car Select, Rap Sheet and
+   Save.
+4. **Resume** in the safe house menu leaves the menu and restarts free roam (`SetRoaming`). That restart asks for the
+   roaming-start autosave. Other resumes (the pause menu, the bust ticket) do not.
+5. The car lot (`Car_Select`), the region unlock screen and the rap sheet open over the frozen world the same way when
+   the world asks for them. Confirmed car lot purchases and sales are applied to the career; a refusal shows an alert.
+
+Autosave runs at three points: roaming start, event start and pursuit evaded
+([career-save-screens-2](specs/career-save-screens-2.md) section 8).
 
 ## Scenes
 
@@ -145,6 +166,6 @@ nfsmw play --skip-boot                                       # the flow from the
 ## Open items
 
 - Confirm in code that the Bevy renderer skips the HUD and menu layers (documented, not checked).
-- Career still goes to free roam. Quick Race opens the track list (`Track_Select.fng`) and then the track options
+- Quick Race opens the track list (`Track_Select.fng`) and then the track options
   (`Track_Options.fng`); accepting there starts nothing yet, since there is no race engine.
 - Full list of unrun screens: [specs/frontend-menus.md](specs/frontend-menus.md).

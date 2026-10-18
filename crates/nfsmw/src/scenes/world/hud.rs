@@ -75,6 +75,7 @@ impl WorldScene {
                 state.busted = traffic.busted_meter();
                 state.busted_overlay = traffic.busted_overlay();
             }
+            self.career.hud.apply(state);
             state.blips.extend_from_slice(&self.map_blips);
             state.blips.extend_from_slice(&self.mod_blips);
         }
@@ -150,11 +151,12 @@ mod tests {
             start,
             finish: None,
             checkpoints: Vec::new(),
+            barriers: Vec::new(),
         }
     }
 
     fn data(races: Vec<Race>, markers: Vec<ActivityMarker>) -> GameplayData {
-        GameplayData { races, triggers: Vec::new(), markers }
+        GameplayData { races, markers, ..Default::default() }
     }
 
     #[test]

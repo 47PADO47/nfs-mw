@@ -69,7 +69,7 @@ fn the_block_ends_exactly_where_the_next_profile_block_starts() {
             + 16
             + NODE_LIST_LEN
             + SHOP_UNLOCK_LEN
-            + POPUP_QUEUE_LEN,
+            + INVENTORY_LEN,
         SETTINGS_BLOCK_LEN
     );
 }

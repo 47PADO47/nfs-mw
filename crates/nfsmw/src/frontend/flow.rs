@@ -13,9 +13,16 @@ use super::scene::{ConcealFlag, MenuScene, Pausable, PauseFlag};
 use super::screens::Screens;
 use super::script::UiScript;
 use crate::app::Host;
+use crate::career::{CareerHandle, ProfileDir};
 use crate::input::Control;
 use crate::scenes::world::{DEFAULT_CAR, DriveOptions, Options, WorldScene};
 use crate::settings::{Partial, Settings};
+
+// Career on the main menu: starting or resuming a career (`start_career`).
+#[path = "flow_career.rs"]
+mod flow_career;
+#[path = "flow_save.rs"]
+mod flow_save;
 
 /// Where the front end starts.
 #[derive(Clone, Debug, PartialEq)]
@@ -112,6 +119,15 @@ pub struct Frontend {
     /// it is built, so the menus that come up next keep it instead of building it again. While free roam has the
     /// window the backdrop is parked in the host (`Host::parked_menu`) and restored from there.
     menu_in_window: bool,
+    /// The career being played, empty outside career mode (quick race, free roam from the command line).
+    pub(super) career: CareerHandle,
+    /// The profile folder careers are saved in. `None` when there is no per-user folder. Screenshot runs use a temp
+    /// folder instead (`begin`), so they never write the player's profiles.
+    pub(super) profiles: Option<ProfileDir>,
+    /// The safe house menu is up over the frozen world: leaving it restarts free roam (`flow_career.rs`).
+    pub(super) in_safe_house: bool,
+    /// An auto shop was engaged in career mode: the update system asks the garage to open (`poll_career`).
+    pub(in crate::frontend) auto_shop_requested: bool,
 }
 
 impl Frontend {
@@ -138,6 +154,10 @@ impl Frontend {
             remap: None,
             browse: None,
             menu_in_window,
+            career: CareerHandle::default(),
+            profiles: ProfileDir::default_dir(),
+            in_safe_house: false,
+            auto_shop_requested: false,
         }
     }
 
@@ -145,6 +165,9 @@ impl Frontend {
     pub(super) fn begin(&mut self, host: &mut Host, env: &mut Env) {
         let Some(start) = self.start.take() else { return };
         self.save = host.screenshot.is_none();
+        if host.screenshot.is_some() {
+            self.profiles = Some(ProfileDir::new(std::env::temp_dir().join("nfsmw-career-screenshot")));
+        }
         match start {
             Start::Boot => {
                 self.boot = BOOT.into();
@@ -259,13 +282,14 @@ impl Frontend {
         self.latch = true;
         self.screens.clear();
         log::info!("starting free roam");
-        let world = match WorldScene::open(&self.dir, free_roam_options()) {
+        let mut world = match WorldScene::open(&self.dir, free_roam_options()) {
             Ok(w) => w,
             Err(e) => {
                 log::error!("cannot start free roam: {e:#}");
                 return;
             }
         };
+        world.set_career(self.career.clone(), self.profiles.clone());
         self.paused.set(false);
         self.conceal.set(true);
         let scene = Pausable::new(Box::new(world), self.paused.clone()).with_conceal(self.conceal.clone());
@@ -314,7 +338,8 @@ impl Frontend {
         self.latch = true;
         self.paused.set(true);
         self.stage = Stage::Paused;
-        let ticket = Ticket { lines, markers: 0 };
+        let career_ticket = self.career.with(|career| Ticket::with_career(&lines, career));
+        let ticket = career_ticket.unwrap_or(Ticket { lines, ..Ticket::default() });
         let commands = self.screens.open_with(INFRACTIONS, Box::new(InfractionsLogic::new(ticket)), true, env);
         self.apply(commands, host, env);
     }
@@ -348,9 +373,14 @@ impl Frontend {
     pub(super) fn apply(&mut self, commands: Vec<Command>, host: &mut Host, env: &mut Env) {
         for command in commands {
             match command {
-                Command::StartFreeRoam => self.start_free_roam(host, env),
+                Command::StartFreeRoam => {
+                    self.career.clear();
+                    self.start_free_roam(host, env);
+                }
+                Command::StartCareer => self.start_career(host, env),
                 Command::Resume => {
                     self.save_settings(env.changed);
+                    self.leave_safe_house();
                     self.resume();
                 }
                 Command::QuitToMenu => {
@@ -362,6 +392,11 @@ impl Frontend {
                     self.quit = true;
                 }
                 Command::NextBootStep => self.next_boot(host, env),
+                Command::CareerSave => self.career_save(host, env),
+                Command::CareerLoad(alias) => self.career_load(&alias, host, env),
+                Command::CareerNew(alias) => self.career_new(&alias, host, env),
+                Command::CareerDelete(alias) => self.career_delete(&alias, host, env),
+                Command::CarLot(action) => self.car_lot_action(action, host, env),
                 Command::SaveSettings => self.save_settings(env.changed),
                 Command::OpenGraphics => self.graphics_requested = true,
                 Command::Remap(control, slot) => {

@@ -9,6 +9,7 @@ mod pools;
 mod tests;
 
 use blackbox_feng::{ObjectRef, resource_handle};
+use nfsmw_career::regions::MapVariant;
 
 use super::control::{format_metres, icon_name, style_name, tint_of};
 use super::{Camera, Filter, PlacedBlip, WorldMapFrame, distance_metres, layout};
@@ -31,9 +32,11 @@ const EMPTY: &str = "No blips of this type on the map.";
 const PROMPT_TITLE: &str = "Activate GPS?";
 const PROMPT_HINT: &str = "Enter: yes   Esc: no";
 
-/// The map's screen logic. It keeps no state of its own: the frontend hands it the frame each tick.
-#[derive(Default)]
-pub struct WorldMapLogic;
+/// The map's screen logic. It keeps no state of its own: the frontend hands it the frame each tick. The variant is the
+/// career stage's map (`MapVariant::of_stage`, or the full map outside career mode), chosen when the map opens.
+pub struct WorldMapLogic {
+    pub variant: MapVariant,
+}
 
 impl ScreenLogic for WorldMapLogic {
     fn message(&mut self, _cx: &mut Cx, _message: u32) {}
@@ -42,21 +45,31 @@ impl ScreenLogic for WorldMapLogic {
         let Some(frame) = cx.world_map else { return };
         let session = &frame.session;
         let drawn = place::assign(&frame.blips, session.filter);
-        draw_picture(cx, session.camera, session.filter);
+        draw_picture(cx, session.camera, session.filter, self.variant);
         draw_blips(cx, frame, &drawn);
         draw_list(cx, frame);
         draw_cursor_and_card(cx, frame);
     }
 }
 
-/// The part of the picture the view shows (the picture's texture crop). The tab and the zoom readout are written here
-/// too.
-fn draw_picture(cx: &mut Cx, camera: Camera, filter: Filter) {
+/// The part of the picture the view shows (the picture's texture crop) and the variant's texture of it. The tab and
+/// the zoom readout are written here too.
+fn draw_picture(cx: &mut Cx, camera: Camera, filter: Filter, variant: MapVariant) {
     if let Some(o) = cx.guid(pools::PICTURE) {
         cx.rt.set_uv(o, camera.uv());
+        set_picture_texture(cx, o, variant);
     }
     set_text(cx, pools::ZOOM, &format!("Zoom x{:.1}", camera.zoom()));
     set_text(cx, pools::TAB, &filter.label().to_uppercase());
+}
+
+/// The picture's texture is the variant's world map texture. Without it in the install the package keeps its own.
+fn set_picture_texture(cx: &mut Cx, o: ObjectRef, variant: MapVariant) {
+    let key = resource_handle(variant.world_map_texture());
+    if cx.assets.texture(key).is_none() {
+        return;
+    }
+    cx.rt.set_texture(o, key);
 }
 
 /// Every pool object is parked first; the blips that are drawn and inside the view are then placed on the picture.

@@ -1,6 +1,6 @@
-//! `nfsmw.career` on the host side: the backend trait and the builder. The career has no state in the port yet, so every
-//! method has a default body that answers `BB_ERR_UNSUPPORTED`. A game that implements the career overrides the methods it
-//! has, and the others keep answering unsupported.
+//! `nfsmw.career` on the host side: the backend trait and the builder. Every method has a default body that answers
+//! `BB_ERR_UNSUPPORTED`. A game that implements the career overrides the methods it has, and the others keep answering
+//! unsupported.
 
 mod table;
 

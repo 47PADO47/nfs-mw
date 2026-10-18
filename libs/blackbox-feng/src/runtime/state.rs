@@ -24,9 +24,12 @@ pub struct ObjState {
     pub label: u32,
     /// Texture hash set by the host (replaces the resource).
     pub texture: Option<u32>,
-    /// Hidden by the host.
+    /// Hidden: set by the host, or at load by the start-hidden definition flag until a script is set on the object.
     pub hidden: bool,
 }
+
+/// Definition flag of an object that starts hidden (bit 3 of its flags word). A script set on the object clears it.
+pub const START_HIDDEN: u32 = 1 << 3;
 
 /// A package being run.
 #[derive(Clone, Debug)]
@@ -88,7 +91,7 @@ impl Running {
                     text: None,
                     label: o.string.as_ref().map_or(0, |s| s.label),
                     texture: None,
-                    hidden: false,
+                    hidden: o.flags & START_HIDDEN != 0,
                 }
             })
             .collect();

@@ -4,12 +4,18 @@
 //!
 //! The block is packed without padding. [`CareerSettings::from_block_bytes`] and
 //! [`CareerSettings::to_block_bytes`] are exact inverses: the gameplay-state blob, the node list, the shop
-//! unlock table and the popup queue are not decoded yet and travel as raw bytes.
+//! unlock table are not decoded yet and travel as raw bytes. The marker inventory is decoded by
+//! [`crate::economy::markers`].
 
 mod flags;
+mod new_career;
 mod sms;
 
 pub use flags::Flags;
+pub use new_career::{
+    NewCareer, SERIAL_NUMBER_OFFSET, SERIAL_NUMBER_RANGE, SERIAL_TEXT_MAX, SerialRng, format_serial, generate_serial,
+    new_career_with,
+};
 pub use sms::{SMS_INVALID_ID, SMS_SLOTS, SMS_TABLE_LEN, SmsInbox, SmsSlot, SmsState};
 
 use crate::LayoutError;
@@ -26,8 +32,9 @@ pub const GAMEPLAY_BLOB_LEN: usize = 0x4000;
 pub const NODE_LIST_LEN: usize = 4_804;
 /// Size of the shop part-unlock table (57 entries of 8 bytes).
 pub const SHOP_UNLOCK_LEN: usize = 456;
-/// Size of the pending popup queue (63 entries of 12 bytes).
-pub const POPUP_QUEUE_LEN: usize = 756;
+/// Size of the marker and part-unlock inventory (63 entries of 12 bytes, `career-economy-flows.md` 6.5). This is not
+/// the popup queue, which is a separate table that is not saved.
+pub const INVENTORY_LEN: usize = 756;
 
 /// Block offsets of the packed fields (file offset minus `0x34`).
 mod at {
@@ -41,7 +48,7 @@ mod at {
     pub const SERIAL: usize = 0x4269;
     pub const NODES: usize = 0x4279;
     pub const SHOP: usize = 0x553D;
-    pub const POPUPS: usize = 0x5705;
+    pub const INVENTORY: usize = 0x5705;
 }
 
 /// The handle of the preset car `M3GTRCAREERSTART`, the car of a new career (`career-flow.md` section 3).
@@ -81,8 +88,9 @@ pub struct CareerSettings {
     pub node_states: Box<[u8; NODE_LIST_LEN]>,
     /// The shop part-unlock tiers, raw.
     pub shop_unlocks: Box<[u8; SHOP_UNLOCK_LEN]>,
-    /// The pending popup queue, raw.
-    pub popups: Box<[u8; POPUP_QUEUE_LEN]>,
+    /// The marker and part-unlock inventory at file `0x5739`, raw: 63 entries of `{u32 type, u32 aux, u32 flag}`.
+    /// Decode it with [`crate::economy::markers::MarkerInventory::from_table`]. Not the popup queue.
+    pub inventory: Box<[u8; INVENTORY_LEN]>,
 }
 
 impl CareerSettings {
@@ -93,7 +101,7 @@ impl CareerSettings {
     /// missing with 0xFF, which needs the install's language table; call
     /// [`SmsInbox::invalidate_missing`] on `sms` for that. The serial is left empty (the original draws it from a
     /// generator seeded with `0x19B3`; use [`CareerSettings::set_serial`]). The gameplay blob, node list, shop
-    /// table and popup queue start zeroed: the gameplay blob is the progress slice's to build, and the original
+    /// table and inventory start zeroed: the gameplay blob is the progress slice's to build, and the original
     /// cannot load a zeroed one.
     pub fn new_career() -> CareerSettings {
         CareerSettings {
@@ -107,7 +115,7 @@ impl CareerSettings {
             gameplay_blob: Box::new([0; GAMEPLAY_BLOB_LEN]),
             node_states: Box::new([0; NODE_LIST_LEN]),
             shop_unlocks: Box::new([0; SHOP_UNLOCK_LEN]),
-            popups: Box::new([0; POPUP_QUEUE_LEN]),
+            inventory: Box::new([0; INVENTORY_LEN]),
         }
     }
 
@@ -128,7 +136,7 @@ impl CareerSettings {
             gameplay_blob: Box::new(array_at(block, 0)),
             node_states: Box::new(array_at(block, at::NODES)),
             shop_unlocks: Box::new(array_at(block, at::SHOP)),
-            popups: Box::new(array_at(block, at::POPUPS)),
+            inventory: Box::new(array_at(block, at::INVENTORY)),
         })
     }
 
@@ -152,7 +160,7 @@ impl CareerSettings {
         block[at::SERIAL..at::SERIAL + 16].copy_from_slice(&self.serial);
         block[at::NODES..at::NODES + NODE_LIST_LEN].copy_from_slice(&self.node_states[..]);
         block[at::SHOP..at::SHOP + SHOP_UNLOCK_LEN].copy_from_slice(&self.shop_unlocks[..]);
-        block[at::POPUPS..at::POPUPS + POPUP_QUEUE_LEN].copy_from_slice(&self.popups[..]);
+        block[at::INVENTORY..at::INVENTORY + INVENTORY_LEN].copy_from_slice(&self.inventory[..]);
         block
     }
 

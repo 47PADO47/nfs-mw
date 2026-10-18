@@ -229,6 +229,10 @@ pub trait Scene {
     fn pay_bust(&mut self, _marker: bool) -> bool {
         false
     }
+    /// What the career asks the front end to do (open the safe house, say), once; `None` outside career mode.
+    fn take_career_request(&mut self) -> Option<crate::career::CareerRequest> {
+        None
+    }
     /// The game is on but frozen (the pause menu is up): there is no car sound, yet the game is still being
     /// played, so the radio goes on.
     fn paused(&self) -> bool {

@@ -4,6 +4,7 @@ use super::*;
 use crate::hash::fe_hash_upper;
 use crate::package::synth::*;
 use crate::package::word;
+use crate::runtime::state::START_HIDDEN;
 
 const FADEIN: u32 = 0x5b0d9106;
 const HIDE: u32 = 0x0016a259;
@@ -339,4 +340,33 @@ fn rotation_binding_composes_into_the_tree() {
     let n = &tree.nodes[0];
     let q = Quat::from_rotation_z(std::f32::consts::FRAC_PI_2);
     assert!((n.local_rotation.dot(q).abs() - 1.0).abs() < 1e-5);
+}
+
+#[test]
+fn start_hidden_object_shows_once_a_script_is_set_on_it() {
+    // Definition flag 8 hides the object at load. A response that sets its script reveals it. A script the
+    // object does not own reveals nothing.
+    const SHOW: u32 = 0x5a0c_1f2e;
+    const OTHER: u32 = 0x5a0c_1f2f;
+    let mut panel = Obj::image(1, fe_hash_upper("Panel"));
+    panel.position = [0.0, 0.0, 1.0];
+    panel.flags = START_HIDDEN;
+    let show = ScriptSpec { id: SHOW, length: 0, flags: 0, chain: None, tracks: vec![], events: vec![] };
+    panel.scripts.push(show.build());
+    panel.responses = responses(&[(0x30, vec![(0, SHOW, 0)]), (0x31, vec![(0, OTHER, 0)])]);
+    let (mut rt, id) = load(&package("Start.fng", &[], &[panel], &[], &[(0x30, vec![1]), (0x31, vec![1])]));
+    let o = rt.find(id, fe_hash_upper("Panel")).unwrap();
+    rt.update(1.0 / 60.0);
+    assert!(rt.object(o).unwrap().hidden);
+    assert!(rt.tree(id).draw_order.is_empty(), "a start-hidden object does not draw");
+
+    rt.post(id, 0x31, None);
+    rt.update(1.0 / 60.0);
+    assert!(rt.object(o).unwrap().hidden, "a script the object does not own keeps it hidden");
+
+    rt.post(id, 0x30, None);
+    rt.update(1.0 / 60.0);
+    assert_eq!(rt.script_of(o), Some(SHOW));
+    assert!(!rt.object(o).unwrap().hidden);
+    assert_eq!(rt.tree(id).draw_order, vec![0]);
 }

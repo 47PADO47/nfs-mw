@@ -14,6 +14,8 @@ pub const SCENERY_OVERRIDE_HOOKS: u32 = 0x0003_4106;
 /// Placed physics objects (`docs/formats/prop-spawners.md`).
 pub const SMOKEABLE_SPAWNERS: u32 = 0x0003_4027;
 pub const SCENERY_PRECULLER_INFOS: u32 = 0x0003_4107;
+/// `SceneryGroups`: scenery instances switched on and off together, such as the race gates (`docs/specs/career-regions.md` section 1.2).
+pub const SCENERY_GROUPS: u32 = 0x0003_4109;
 /// `VisibleSectionManager`: zones and what each one loads and draws.
 pub const VISIBLE_SECTION_MANAGER: u32 = 0x8003_4150;
 pub const VISIBLE_SECTION_MANAGER_INFO: u32 = 0x0003_4151;
