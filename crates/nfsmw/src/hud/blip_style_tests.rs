@@ -26,7 +26,7 @@ impl BlipStyle for Beacon {
 }
 
 fn blip(style: &'static str, active: bool) -> MapBlip {
-    MapBlip { style, position: [0.0, 0.0], active }
+    MapBlip { style, position: [0.0, 0.0], active, heading: None }
 }
 
 #[test]
@@ -126,7 +126,7 @@ fn a_zone_gated_blip_is_drawn_only_inside_the_circle() {
 
 #[test]
 fn nearest_only_picks_the_closest_blip_of_the_style() {
-    let at = |style: &'static str, x: f32| MapBlip { style, position: [x, 0.0], active: false };
+    let at = |style: &'static str, x: f32| MapBlip { style, position: [x, 0.0], active: false, heading: None };
     let blips = [at(blip_styles::CAR_LOT, 50.0), at(blip_styles::AUTO_SHOP, 1.0), at(blip_styles::CAR_LOT, 8.0)];
     assert_eq!(nearest_blip(&blips, blip_styles::CAR_LOT, [0.0, 0.0]), Some(2));
     assert_eq!(nearest_blip(&blips, blip_styles::AUTO_SHOP, [0.0, 0.0]), Some(1));

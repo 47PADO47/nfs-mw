@@ -293,6 +293,7 @@ impl TrafficWorld {
                 style: crate::hud::COP,
                 position: [at.x, at.y],
                 active: pursuing && !car.is_patrol(),
+                heading: Some(car.heading()),
             });
         }
     }

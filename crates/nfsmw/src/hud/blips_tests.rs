@@ -84,15 +84,19 @@ fn on_the_map(blips: Vec<MapBlip>) -> HudState {
 }
 
 fn race_start(at: [f32; 2]) -> MapBlip {
-    MapBlip { style: RACE_SPRINT, position: at, active: false }
+    MapBlip { style: RACE_SPRINT, position: at, active: false, heading: None }
 }
 
 #[test]
 fn a_blip_past_the_rim_stays_registered_to_the_minimap_at_wide_aspects() {
     let (mut rt, id, mut binding) = setup_with_map_icons();
     // A safe house 900 m east of the player: always eligible, so it is pinned to the edge of the disc.
-    let state =
-        on_the_map(vec![MapBlip { style: SAFE_HOUSE, position: [PLAYER[0] + 900.0, PLAYER[1]], active: false }]);
+    let state = on_the_map(vec![MapBlip {
+        style: SAFE_HOUSE,
+        position: [PLAYER[0] + 900.0, PLAYER[1]],
+        active: false,
+        heading: None,
+    }]);
     binding.apply(&mut rt, &state);
     let before = rt.tree(id);
     let unshifted = offset_from_centre(&before, SAFE_HOUSE_ICON);
@@ -134,7 +138,7 @@ fn a_race_start_far_off_the_disc_takes_no_icon() {
 }
 
 fn cop(at: [f32; 2], active: bool) -> MapBlip {
-    MapBlip { style: COP, position: at, active }
+    MapBlip { style: COP, position: at, active, heading: None }
 }
 
 #[test]
@@ -184,11 +188,36 @@ fn a_tinted_blip_keeps_its_fade() {
     let (mut rt, id, mut binding) = setup_with_map_icons();
     binding.apply(
         &mut rt,
-        &on_the_map(vec![MapBlip { style: SAFE_HOUSE, position: [PLAYER[0] + 1440.0, PLAYER[1]], active: false }]),
+        &on_the_map(vec![MapBlip {
+            style: SAFE_HOUSE,
+            position: [PLAYER[0] + 1440.0, PLAYER[1]],
+            active: false,
+            heading: None,
+        }]),
     );
     let object = rt.find(id, fe_hash_upper(SAFE_HOUSE_ICON)).expect("the safe house icon");
     let alpha = rt.alpha(object).expect("the object's alpha");
     assert!((120..=123).contains(&alpha), "{alpha}");
+}
+
+/// The icon's turn on the screen, in degrees, from the rotation the binding gave its object.
+fn icon_angle(rt: &Runtime, id: PackageId, icon: &str) -> f32 {
+    let object = rt.find(id, fe_hash_upper(icon)).expect("the icon");
+    let x = rt.object(object).expect("the icon's state").data.rotation() * Vec3::X;
+    x.y.atan2(x.x).to_degrees()
+}
+
+#[test]
+fn a_fixed_blip_turns_with_the_arrow_and_a_moving_one_points_its_own_way() {
+    // The player faces north, so a fixed blip is upright. A car facing east is turned a quarter turn.
+    let (mut rt, id, mut binding) = setup();
+    let ahead = [PLAYER[0] + 50.0, PLAYER[1]];
+    binding.apply(&mut rt, &on_the_map(vec![cop(ahead, false)]));
+    assert!(icon_angle(&rt, id, COP_ICON).abs() < 1.0, "a fixed blip is upright on a north-facing arrow");
+    let moving = MapBlip { heading: Some([1.0, 0.0]), ..cop(ahead, false) };
+    binding.apply(&mut rt, &on_the_map(vec![moving]));
+    let turn = icon_angle(&rt, id, COP_ICON).abs();
+    assert!((turn - 90.0).abs() < 1.0, "a car facing east is turned a quarter: {turn}");
 }
 
 fn cop_colour(rt: &Runtime, id: PackageId) -> [u8; 4] {

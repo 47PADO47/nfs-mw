@@ -21,7 +21,7 @@ fn a_blip_takes_a_game_style_and_reaches_the_minimap() {
     let (bridge, port) = port();
     let handle = port.add("example.a", &spec(COP, 5.0, true)).unwrap();
     assert_ne!(handle, 0);
-    assert_eq!(minimap_blips(&bridge), vec![MapBlip { style: COP, position: [5.0, 2.0], active: true }]);
+    assert_eq!(minimap_blips(&bridge), vec![MapBlip { style: COP, position: [5.0, 2.0], active: true, heading: None }]);
 }
 
 #[test]
@@ -36,7 +36,10 @@ fn update_moves_an_owned_blip_and_refuses_another_mods() {
     let (bridge, port) = port();
     let handle = port.add("example.a", &spec(COP, 5.0, false)).unwrap();
     port.update("example.a", handle, &spec(RACE_SPRINT, 9.0, true)).unwrap();
-    assert_eq!(minimap_blips(&bridge), vec![MapBlip { style: RACE_SPRINT, position: [9.0, 2.0], active: true }]);
+    assert_eq!(
+        minimap_blips(&bridge),
+        vec![MapBlip { style: RACE_SPRINT, position: [9.0, 2.0], active: true, heading: None }]
+    );
     assert_eq!(port.update("example.b", handle, &spec(COP, 0.0, false)), Err(BB_ERR_NOT_FOUND));
 }
 
