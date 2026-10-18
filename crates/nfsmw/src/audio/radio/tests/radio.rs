@@ -72,7 +72,7 @@ pub(super) struct Mixer {
 
 impl Player for Mixer {
     fn play(&mut self, data: StreamData) -> Result<StreamHandle, String> {
-        let (sound, handle) = data.into_sound().map_err(|e| e.to_string())?;
+        let Ok((sound, handle)) = data.into_sound();
         self.sounds.push(sound);
         Ok(handle)
     }
