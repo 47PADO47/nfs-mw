@@ -32,7 +32,7 @@ impl Renderer {
         target: &wgpu::TextureView,
         size: (u32, u32),
     ) {
-        let format = self.output.format();
+        let format = target.texture().format();
         self.ui.encode(&self.device, &self.queue, encoder, target, format, size);
     }
 }

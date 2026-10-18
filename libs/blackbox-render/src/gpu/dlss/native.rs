@@ -127,6 +127,11 @@ pub(super) fn image(view: &wgpu::TextureView, output: bool) -> Option<Image> {
             vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
             vk::ImageUsageFlags::COLOR_ATTACHMENT | vk::ImageUsageFlags::SAMPLED | vk::ImageUsageFlags::TRANSFER_SRC,
         ),
+        (wgpu::TextureFormat::Rgb10a2Unorm, _) => (
+            vk::Format::A2B10G10R10_UNORM_PACK32,
+            vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+            vk::ImageUsageFlags::COLOR_ATTACHMENT | vk::ImageUsageFlags::SAMPLED | vk::ImageUsageFlags::TRANSFER_SRC,
+        ),
         (wgpu::TextureFormat::Rgba8Unorm, _) => (
             vk::Format::R8G8B8A8_UNORM,
             vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,

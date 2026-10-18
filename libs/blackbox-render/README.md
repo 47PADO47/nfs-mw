@@ -217,5 +217,6 @@ without it.
 
 Optional Windows/Vulkan `streamline` builds support native DLSS SR/DLAA, Reflex and
 DLSS Frame Generation with a separate UI color/alpha buffer for recomposition.
+HDR generation selects HDR10 output while retaining linear tone mapping and UI blending.
 The SDK owns Vulkan interposition; runtime binaries are supplied separately.
 See [native DLSS](../../docs/native-dlss.md) for setup, requirements and limitations.

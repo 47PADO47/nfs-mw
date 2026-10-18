@@ -30,9 +30,10 @@ the executable, or set `STREAMLINE_PLUGIN_DIR` to their absolute directory:
 
 The loader checks the interposer's Authenticode signature and NVIDIA signer.
 Streamline validates its plugins. Logs go to the temporary directory's
-`blackbox-streamline` subdirectory. The loader and plugin code remain resident
-through thread/process exit, including after Streamline shutdown and Vulkan
-destruction. A process gets one Streamline device session. Additional or recreated
+`blackbox-streamline` subdirectory. The loader and plugins with thread-exit callbacks
+remain resident through process exit. DLSS-G unloads in SDK dependency order before
+the common compute interface is destroyed, releasing its static resource caches.
+A process gets one Streamline device session. Additional or recreated
 renderers use the existing upscaler fallback; restart the application to enable
 DLSS after a renderer has been destroyed. Window resizing retains the renderer
 and supports DLSS normally.
@@ -55,10 +56,11 @@ options. CLI equivalents are `--reflex off|on|boost` and
 Hardware Accelerated GPU Scheduling support before these controls become available.
 Dynamic Multi Frame Generation is not exposed because the SDK limits it to D3D12.
 
-Vulkan generation requires VSync off, including driver overrides, and HDR off.
-Streamline 2.14.16 does not support FP16/scRGB frame generation. The current native
-HDR path uses scRGB, so generation suspends while HDR is active; an HDR10 output
-path is future work. Reflex and SR/DLAA remain available with HDR.
+Vulkan generation requires VSync off, including driver overrides.
+HDR generation automatically selects a 10-bit BT.2100 PQ/HDR10 swapchain,
+because Streamline 2.14.16 does not support FP16/scRGB frame generation.
+If the surface lacks HDR10 support, HDR retains scRGB and generation suspends
+with an explanatory display status. Turning generation off restores scRGB HDR.
 Use DLSS or
 FSR 3 for temporal depth/motion inputs; choose Native DLSS quality for DLAA.
 Generation runs during focused, unpaused gameplay and stops for menus, captures,
@@ -79,6 +81,19 @@ renderer's real-frame composition. Moving HUD elements
 still require visual checks. The implementation follows NVIDIA's
 [Frame Generation](https://github.com/NVIDIA-RTX/Streamline/blob/v2.14.16/docs/ProgrammingGuideDLSS_G.md)
 and [Reflex](https://github.com/NVIDIA-RTX/Streamline/blob/v2.14.16/docs/ProgrammingGuideReflex.md) guides.
+
+HDR tone mapping and UI blending remain in linear BT.709 scRGB, including scene
+white, UI white and peak calibration. A final composition pass converts BT.709
+to BT.2020 primaries and encodes absolute nits with SMPTE ST 2084 PQ. It writes
+the real frame and HUDless resource as RGB10, while the separate UI resource
+uses RGBA16F PQ color/alpha to preserve translucent coverage. The UI term is
+compensated for nonlinear PQ so recomposing it over the tagged scene reproduces
+the real frame. Signed/out-of-gamut components are clipped at the HDR10 boundary.
+Menus retain HDR10 while generation is requested, avoiding output mode switches
+on pause. SDR PNG and linear scRGB captures retain their independent formats.
+The output follows the [Microsoft Advanced Color contract](https://learn.microsoft.com/en-us/windows/win32/direct3darticles/high-dynamic-range)
+and wgpu's `SurfaceColorSpace::Bt2100Pq` contract. Mastering metadata is not set;
+the swapchain signals PQ/BT.2020 and existing calibration controls set luminance.
 
 ## Integration
 
@@ -113,8 +128,10 @@ With the feature and runtime installed, this explicit test requires an RTX
 adapter and fails when the runtime is absent. It counts successful real SDK
 evaluations through all modes and DLAA, real presentation, resizing, capture and
 runtime-failure fallback. It also checks Reflex marker cadence in all three modes,
-actual generated presentation at each supported multiplier, VSync/menu suspension,
-and separate UI composition pixels. Generation tests briefly activate their window:
+actual generated presentation at each supported multiplier in SDR and supported HDR10,
+VSync/menu suspension, capture isolation and separate SDR/HDR UI composition pixels.
+HDR pixel checks cover absolute luminance, gamut conversion and alpha precision.
+Generation tests briefly activate their window:
 the SDK intentionally suppresses interpolation in an unfocused window.
 A fallback image cannot pass the evaluation counter:
 

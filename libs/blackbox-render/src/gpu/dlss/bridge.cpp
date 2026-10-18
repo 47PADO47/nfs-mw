@@ -45,12 +45,15 @@ static void retain_plugin_code() {
     entry.dwSize = sizeof(entry);
     if (Module32FirstW(snapshot, &entry)) {
         do {
+            // DLSS-G's static caches own common compute resources. Let slShutdown unload it
+            // in dependency order, before sl.common tears down the compute interface.
+            if (wcscmp(entry.szModule, L"sl.dlss_g.dll") == 0
+                || wcsstr(entry.szExePath, L"sl_dlss_g_override_")) continue;
             bool plugin = wcsncmp(entry.szModule, L"sl.", 3) == 0
                 || wcsstr(entry.szExePath, L"\\sl_common_override_")
                 || wcsstr(entry.szExePath, L"\\sl_dlss_override_")
                 || wcsstr(entry.szExePath, L"\\sl_pcl_override_")
-                || wcsstr(entry.szExePath, L"\\sl_reflex_override_")
-                || wcsstr(entry.szExePath, L"\\sl_dlss_g_override_");
+                || wcsstr(entry.szExePath, L"\\sl_reflex_override_");
             if (!plugin) continue;
             HMODULE retained{};
             GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,

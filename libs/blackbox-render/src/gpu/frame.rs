@@ -84,10 +84,10 @@ impl Renderer {
         if self.experiments.lighting_debug != blackbox_gfx::LightingDebug::Off
             && self.info.api != blackbox_gfx::GraphicsApi::Gl
         {
-            self.post.encode_diagnostic(&ctx, encoder, (output, self.output.format()));
+            self.post.encode_diagnostic(&ctx, encoder, (output, output.texture().format()));
             return;
         }
-        self.post.encode(&ctx, encoder, (output, self.output.format()));
+        self.post.encode(&ctx, encoder, (output, output.texture().format()));
     }
 
     /// Record the scene into the colour and depth of `targets` (default: the window's): the offscreen

@@ -51,7 +51,7 @@ impl Renderer {
             self.end_temporal();
             return;
         }
-        let format = self.output.format();
+        let format = scene_output.texture().format();
         let cache = self.pipeline_cache.as_ref();
         let mut aa = self.smaa.take().filter(|aa| aa.format == format).unwrap_or_else(|| SpatialAa {
             target: blackbox_smaa::SmaaTarget::new_cached(

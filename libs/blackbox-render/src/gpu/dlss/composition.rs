@@ -24,9 +24,22 @@ impl Composite {
             bind_group_layouts: &[Some(&layout)],
             immediate_size: 0,
         });
+        let hdr10 = format == wgpu::TextureFormat::Rgb10a2Unorm;
+        let formats = match hdr10 {
+            true => vec![format, wgpu::TextureFormat::Rgba16Float, format],
+            false => vec![format, format],
+        };
+        let targets: Vec<_> = formats
+            .into_iter()
+            .map(|format| Some(wgpu::ColorTargetState { format, blend: None, write_mask: wgpu::ColorWrites::ALL }))
+            .collect();
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("DLSS-G UI recomposition"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/fg_composition.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(
+                [include_str!("../../shaders/fg_composition.wgsl"), include_str!("../../shaders/fg_hdr10.wgsl")]
+                    .concat()
+                    .into(),
+            ),
         });
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("DLSS-G composition"),
@@ -39,11 +52,8 @@ impl Composite {
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
-                entry_point: Some("fs_main"),
-                targets: &[
-                    Some(wgpu::ColorTargetState { format, blend: None, write_mask: wgpu::ColorWrites::ALL }),
-                    Some(wgpu::ColorTargetState { format, blend: None, write_mask: wgpu::ColorWrites::ALL }),
-                ],
+                entry_point: Some(if hdr10 { "fs_hdr10" } else { "fs_main" }),
+                targets: &targets,
                 compilation_options: Default::default(),
             }),
             primitive: Default::default(),
@@ -61,8 +71,7 @@ impl Composite {
         encoder: &mut wgpu::CommandEncoder,
         scene: &wgpu::TextureView,
         raw_ui: &wgpu::TextureView,
-        output: &wgpu::TextureView,
-        ui: &wgpu::TextureView,
+        outputs: &[&wgpu::TextureView],
     ) {
         let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("DLSS-G scene and UI inputs"),
@@ -72,17 +81,20 @@ impl Composite {
                 wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(raw_ui) },
             ],
         });
-        let attachments = [output, ui].map(|view| {
-            Some(wgpu::RenderPassColorAttachment {
-                view,
-                depth_slice: None,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                    store: wgpu::StoreOp::Store,
-                },
+        let attachments: Vec<_> = outputs
+            .iter()
+            .map(|view| {
+                Some(wgpu::RenderPassColorAttachment {
+                    view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })
             })
-        });
+            .collect();
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("DLSS-G scene/UI composition"),
             color_attachments: &attachments,

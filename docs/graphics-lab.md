@@ -33,7 +33,8 @@ Video includes API (after restart), window mode, monitor, resolution, VSync, fra
 limit, performance overlay, upscaler, temporal quality (Native selects DLAA with
 DLSS), spatial render scale and sharpening. Native Streamline builds also expose
 Reflex Off/On/Boost and hardware-supported frame-generation multipliers. Generation
-requires HDR off, VSync off and DLSS/FSR 3; the UI is submitted separately for recomposition.
+requires VSync off and DLSS/FSR 3; HDR automatically uses HDR10, with the UI
+submitted separately for recomposition.
 Only supported upscalers are offered;
 unavailable stored requests are retained and their fallback is shown.
 Materials includes cubemap/mirror sizes, power-of-two faces, capture detail,

@@ -112,7 +112,12 @@ impl RenderBackend for Renderer {
     fn begin_latency_frame(&mut self, settings: blackbox_gfx::LatencySettings) -> bool {
         #[cfg(all(windows, feature = "streamline"))]
         if self.dlss.is_some() {
-            return self.presentation.begin(settings);
+            let output_changed = (self.presentation.request.generated_frames > 0) != (settings.generated_frames > 0);
+            let pacing = self.presentation.begin(settings);
+            if output_changed {
+                self.refresh_display(true);
+            }
+            return pacing;
         }
         let _ = settings;
         false

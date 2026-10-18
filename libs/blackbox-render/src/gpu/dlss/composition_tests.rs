@@ -26,8 +26,7 @@ fn separate_ui_preserves_scene_alpha_and_additive_composition() {
         &mut encoder,
         &scene.create_view(&Default::default()),
         &raw.create_view(&Default::default()),
-        &output.create_view(&Default::default()),
-        &ui.create_view(&Default::default()),
+        &[&output.create_view(&Default::default()), &ui.create_view(&Default::default())],
     );
     let final_pixels = gpu.finish(encoder, &output);
     let encoder = gpu.device.create_command_encoder(&Default::default());
@@ -44,4 +43,122 @@ fn separate_ui_preserves_scene_alpha_and_additive_composition() {
             assert!((recomposed - f32::from(final_pixels[pixel * 4 + channel])).abs() <= 1.1);
         }
     }
+}
+
+#[test]
+#[ignore = "requires a Vulkan adapter"]
+fn hdr10_preserves_absolute_luminance_gamut_and_separate_ui_alpha() {
+    let _serial = serial();
+    let gpu = Gpu::new(wgpu::Backends::VULKAN);
+    let texture = |format| {
+        gpu.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("HDR10 composition fixture"),
+            size: wgpu::Extent3d { width: 4, height: 4, depth_or_array_layers: 1 },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        })
+    };
+    let scene = texture(wgpu::TextureFormat::Rgba16Float);
+    let raw = texture(wgpu::TextureFormat::Rgba16Float);
+    let output = texture(wgpu::TextureFormat::Rgb10a2Unorm);
+    let ui = texture(wgpu::TextureFormat::Rgba16Float);
+    let hudless = texture(wgpu::TextureFormat::Rgb10a2Unorm);
+    let mut background = Vec::new();
+    let mut foreground = Vec::new();
+    for y in 0..4 {
+        for nits in [0.0, 80.0, 203.0, 1000.0] {
+            background.extend([nits / 80.0, nits / 80.0, nits / 80.0, 1.0]);
+            foreground.extend(match y {
+                0 => [0.0; 4],
+                1 => [203.0 / 80.0, 0.0, 0.0, 1.0], // calibrated red UI white
+                2 => [203.0 / 80.0 * 0.25, 0.0, 0.0, 0.25],
+                _ => [0.5, 0.0, 0.0, 0.0], // additive overlay
+            });
+        }
+    }
+    for (target, pixels) in [(&scene, background), (&raw, foreground)] {
+        let bytes: Vec<_> = pixels.into_iter().flat_map(|v| half::f16::from_f32(v).to_le_bytes()).collect();
+        gpu.queue.write_texture(
+            target.as_image_copy(),
+            &bytes,
+            wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(32), rows_per_image: Some(4) },
+            target.size(),
+        );
+    }
+    let mut encoder = gpu.device.create_command_encoder(&Default::default());
+    super::composition::Composite::new(&gpu.device, wgpu::TextureFormat::Rgb10a2Unorm).encode(
+        &gpu.device,
+        &mut encoder,
+        &scene.create_view(&Default::default()),
+        &raw.create_view(&Default::default()),
+        &[
+            &output.create_view(&Default::default()),
+            &ui.create_view(&Default::default()),
+            &hudless.create_view(&Default::default()),
+        ],
+    );
+    gpu.queue.submit([encoder.finish()]);
+    let final_bytes = read(&gpu, &output, 4);
+    let hudless_bytes = read(&gpu, &hudless, 4);
+    let ui_bytes = read(&gpu, &ui, 8);
+    let unpack = |bytes: &[u8], pixel: usize, channel: usize| {
+        let packed = u32::from_le_bytes(bytes[pixel * 4..][..4].try_into().unwrap());
+        ((packed >> (channel * 10)) & 1023) as f64 / 1023.0
+    };
+    // ST 2084 reference values, independent of the shader implementation.
+    for (pixel, expected) in [0.0, 0.485857, 0.580689, 0.751827].into_iter().enumerate() {
+        assert!((unpack(&final_bytes, pixel, 0) - expected).abs() < 1.0 / 1023.0);
+        assert_eq!(&ui_bytes[pixel * 8..][..8], &[0; 8], "empty HUD has no alpha or RGB");
+    }
+    for pixel in 0..16 {
+        let layer: [f64; 4] = std::array::from_fn(|channel| {
+            let offset = pixel * 8 + channel * 2;
+            f64::from(half::f16::from_le_bytes(ui_bytes[offset..][..2].try_into().unwrap()).to_f32())
+        });
+        if pixel / 4 == 2 {
+            assert!((layer[3] - 0.25).abs() < 0.001, "UI alpha is not 2-bit");
+        }
+        for (channel, value) in layer[..3].iter().enumerate() {
+            let recomposed = value + (1.0 - layer[3]) * unpack(&hudless_bytes, pixel, channel);
+            assert!((recomposed - unpack(&final_bytes, pixel, channel)).abs() < 2.0 / 1023.0);
+        }
+    }
+    // Opaque 203-nit BT.709 red must be converted to the BT.2020 primaries, not merely PQ encoded.
+    for (channel, coefficient) in [0.6274039, 0.0690973, 0.0163914].into_iter().enumerate() {
+        let p = unpack(&final_bytes, 4, channel).powf(32.0 / 2523.0);
+        let nits =
+            ((p - 3424.0 / 4096.0).max(0.0) / (2413.0 / 128.0 - 2392.0 / 128.0 * p)).powf(16384.0 / 2610.0) * 10000.0;
+        assert!((nits - 203.0 * coefficient).abs() < 1.0);
+    }
+}
+
+fn read(gpu: &Gpu, texture: &wgpu::Texture, bytes_per_pixel: u32) -> Vec<u8> {
+    let buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("HDR fixture readback"),
+        size: 256 * 4,
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        mapped_at_creation: false,
+    });
+    let mut encoder = gpu.device.create_command_encoder(&Default::default());
+    encoder.copy_texture_to_buffer(
+        texture.as_image_copy(),
+        wgpu::TexelCopyBufferInfo {
+            buffer: &buffer,
+            layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(256), rows_per_image: Some(4) },
+        },
+        texture.size(),
+    );
+    gpu.queue.submit([encoder.finish()]);
+    let slice = buffer.slice(..);
+    slice.map_async(wgpu::MapMode::Read, |_| {});
+    gpu.device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+    let mapped = slice.get_mapped_range().unwrap();
+    (0..4).flat_map(|y| mapped[y * 256..][..4 * bytes_per_pixel as usize].iter().copied()).collect()
 }

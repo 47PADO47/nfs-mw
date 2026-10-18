@@ -86,10 +86,10 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &GraphicsLab, settings: &mut Settings
         .into_iter()
         .filter(|mode| mode.0 <= lab.latency.max_generated_frames)
         .collect();
-    ui.add_enabled_ui(lab.latency.max_generated_frames > 0 && !settings.vsync && !lab.display.active, |ui| {
+    ui.add_enabled_ui(lab.latency.max_generated_frames > 0 && !settings.vsync, |ui| {
         choice(ui, "Frame generation", &mut settings.frame_generation, &modes);
     });
-    ui.small("Frame generation requires HDR off, VSync off and DLSS/FSR 3. Reflex On is enforced while generation is requested. Native DLSS quality uses DLAA.");
+    ui.small("Frame generation requires VSync off and DLSS/FSR 3. HDR uses HDR10 output. Reflex On is enforced while generation is requested. Native DLSS quality uses DLAA.");
     ui.small(lab.latency.note);
     if lab.latency.generation_active {
         ui.small(format!("Frame generation active; last SDK sample: {} frames actually presented. FPS above measures rendered frames.", lab.latency.presented_frames));

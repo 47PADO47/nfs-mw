@@ -23,6 +23,7 @@ pub(in crate::gpu) struct Presentation {
     pub status: LatencyStatus,
     pub request: LatencySettings,
     hudless: Option<wgpu::TextureView>,
+    encoded_scene: Option<wgpu::TextureView>,
     raw_ui: Option<wgpu::TextureView>,
     ui: Option<wgpu::TextureView>,
     copy: Option<Composite>,
@@ -104,6 +105,7 @@ impl Presentation {
         unsafe { bb_sl_suspend() };
         let _ = device.poll(wgpu::PollType::wait_indefinitely());
         self.hudless = None;
+        self.encoded_scene = None;
         self.raw_ui = None;
         self.ui = None;
         self.copy = None;
@@ -131,7 +133,7 @@ impl Renderer {
         if !allowed {
             self.presentation.disable();
             self.presentation.status.note =
-                "Frame generation inactive: needs gameplay, HDR off, VSync off, supported size and DLSS/FSR 3.";
+                "Frame generation inactive: needs gameplay, VSync off, SDR/HDR10 output and DLSS/FSR 3.";
             return;
         }
         let result = unsafe { bb_sl_generation(request.generated_frames, config.width, config.height) };
@@ -147,11 +149,12 @@ impl Renderer {
     }
 
     pub(in crate::gpu) fn generation_target(&mut self, onscreen: bool) -> Option<wgpu::TextureView> {
-        if !onscreen || !self.presentation.status.generation_active {
+        let hdr10 = self.output.format() == wgpu::TextureFormat::Rgb10a2Unorm;
+        if !onscreen || (!self.presentation.status.generation_active && !hdr10) {
             return None;
         }
         let size = self.surface_size();
-        let format = self.output.format();
+        let format = if hdr10 { wgpu::TextureFormat::Rgba16Float } else { self.output.format() };
         let matches = self.presentation.hudless.as_ref().is_some_and(|v| {
             v.texture().width() == size.0 && v.texture().height() == size.1 && v.texture().format() == format
         });
@@ -183,6 +186,14 @@ impl Renderer {
             };
             self.presentation.raw_ui = Some(self.device.create_texture(&desc).create_view(&Default::default()));
             self.presentation.ui = Some(self.device.create_texture(&desc).create_view(&Default::default()));
+            self.presentation.encoded_scene = hdr10.then(|| {
+                let desc = wgpu::TextureDescriptor {
+                    label: Some("DLSS-G HDR10 HUDless PQ color"),
+                    format: wgpu::TextureFormat::Rgb10a2Unorm,
+                    ..desc
+                };
+                self.device.create_texture(&desc).create_view(&Default::default())
+            });
             self.presentation.copy = None;
         }
         self.presentation.hudless.clone()
@@ -216,7 +227,13 @@ impl Renderer {
         }
         self.encode_ui(encoder, &raw_ui, self.surface_size());
         let copy = self.presentation.copy.get_or_insert_with(|| Composite::new(&self.device, self.output.format()));
-        copy.encode(&self.device, encoder, hudless, &raw_ui, output, &ui);
+        let encoded_scene = self.presentation.encoded_scene.clone();
+        let mut outputs = vec![output, &ui];
+        outputs.extend(encoded_scene.as_ref());
+        copy.encode(&self.device, encoder, hudless, &raw_ui, &outputs);
+        if !self.presentation.status.generation_active {
+            return;
+        }
         let Some(scene) = self.targets.offscreen() else {
             self.presentation.disable();
             return;
@@ -229,7 +246,7 @@ impl Renderer {
             self.presentation.disable();
             return;
         };
-        let views = [&scene.depth_view, &motion.view, hudless, &ui];
+        let views = [&scene.depth_view, &motion.view, encoded_scene.as_ref().unwrap_or(hudless), &ui];
         encoder.transition_resources(
             std::iter::empty(),
             views.into_iter().map(|view| wgpu::TextureTransition {
