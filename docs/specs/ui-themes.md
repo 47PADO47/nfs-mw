@@ -14,9 +14,10 @@ trade-offs are in [ADR 0008](../decisions/0008-ui-themes.md). This spec gives th
 - **Data inputs:** none new. The Original theme reads the same FEng packages and HUD and menu state as today.
   No game data and no decompiled code is used in this spec.
 - **Status:** design. The component model (`libs/blackbox-ui`), the MW slot catalogue and theme scaffolding
-  (`crates/nfsmw/src/ui/theme/`, T6) and the Original HUD adapters (`original/`, T7) are built. Nothing draws through
-  them yet: the live path is unchanged until T12 wires the frame cell into the HUD plugin. Items marked **open** are not decided
-  (section 14).
+  (`crates/nfsmw/src/ui/theme/`, T6), the Original HUD adapters (`original/`, T7) and the Original menu adapters and
+  menu cell (T8, [ui-themes-menus.md](ui-themes-menus.md)) are built. Every catalogue slot has an Original adapter.
+  Nothing draws through them yet: the live path is unchanged until T12 wires the cells into the HUD and frontend
+  plugins. Items marked **open** are not decided (section 14).
 
 ## 1. What a theme controls
 
@@ -214,9 +215,11 @@ impl Themes {
 
 Rules:
 
-- `Themes::new` refuses to build when the Original theme does not fill every slot. A unit test runs the same
-  check, so the `expect` is a checked invariant, not a hope. (**Design choice**: the check could return an error
-  instead; the choice is small and is left to T2.)
+- The Original theme must fill every slot. `Themes::new` in `libs/blackbox-ui` cannot check this: it does not know the
+  MW catalogue, so it only checks the floor's id. The check lives MW-side (T8): `ui::theme::build_themes` asserts it at
+  start-up, and `original/tests.rs::every_slot_has_an_original_adapter` runs it for every `ElementId::ALL` entry. So the
+  `expect` in `resolve` is a checked invariant, not a hope. (**Design choice**: a generic check that returns an error
+  instead of a panic could be added to `blackbox-ui`; left as is.)
 - The active theme is chosen from `UiStyle` (section 11). A mod theme is registered with `Themes` and selected the
   same way.
 - `resolve` is called when a slot is built, not for every frame's draw calls. A theme returning `None` costs one
@@ -247,10 +250,11 @@ original game (see [hud-viewport.md](hud-viewport.md) and [frontend-menus.md](fr
 show the tree is unchanged before and after each slot is wrapped (the digest tests in
 `libs/blackbox-render/src/gpu/parity/digests/`).
 
-### Adapter design: emitting the FEng subtree (HUD built in T7; menus owed to T8)
+### Adapter design: emitting the FEng subtree (HUD built in T7; menus in T8)
 
-The HUD adapters are built (T7, `crates/nfsmw/src/ui/theme/original/`). The menu adapters return `None` until T8.
-The design:
+The HUD adapters are built (T7, `crates/nfsmw/src/ui/theme/original/`). The menu adapters are built too (T8): they emit
+the whole tree of their screen from a second cell, the menu cell (see [ui-themes-menus.md](ui-themes-menus.md)). The
+design:
 
 1. **One producer.** The owning plugin (`hud/plugin.rs`, `frontend/plugin.rs`) advances its package (scripts,
    messages) and calls `Runtime::tree()` once per frame, as it does today. Adapters only read. They never run a
@@ -280,10 +284,9 @@ The design:
 6. **Stateful pieces stay put.** Per-frame state that a component owns (fade timers, needle easing) moves into
    `layout(&mut self, ..)` only where it needs no FEng data. Anything that needs the package stays in the plugin.
 
-**Check owed (T8).** `Themes::new` in `libs/blackbox-ui` checks only that the floor's id is `Original`. It does not check
-that the floor fills every slot, which section 7 asks for. T7 fills the HUD slots only. The test
-`every_hud_slot_has_an_adapter_and_the_menu_slots_do_not_yet` (`original/tests.rs`) pins that state, and T8 changes it
-to "every slot is `Some`". T8 also adds the check to the constructor.
+**Check (done in T8).** The floor fills every slot. The check is MW-side, because `Themes::new` in `libs/blackbox-ui`
+cannot know the catalogue (section 7). `build_themes` asserts it at start-up, and `every_slot_has_an_original_adapter`
+(`original/tests.rs`) tests it for every slot. The T7 test that pinned "menus are `None`" was flipped to this.
 
 ### What T7 built (HUD adapters)
 
@@ -322,7 +325,8 @@ to "every slot is `Some`". T8 also adds the check to the constructor.
 | `RadioCard` | Chyron | whole package (`EA_TRAX.fng`) | none |
 | `BustedOverlay` | BustedOverlay | whole package (`BUSTED_OVERLAY.fng`) | none |
 
-Menu slots (raw 20 and up) return `None`. T8 adds them.
+Menu and career slots (raw 20 and up) are not in this table. Their adapters, the menu cell and the T12 fill map are in
+[ui-themes-menus.md](ui-themes-menus.md).
 
 **Decisions** (each one keeps every HUD node in at most one slot):
 
