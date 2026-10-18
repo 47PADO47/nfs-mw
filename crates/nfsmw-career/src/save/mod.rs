@@ -11,6 +11,7 @@
 
 pub mod crc;
 pub mod layout;
+pub mod milestones_block;
 mod profile;
 
 pub use profile::{Integrity, ProfileSave, SaveError};

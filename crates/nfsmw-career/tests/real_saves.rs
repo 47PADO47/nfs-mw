@@ -7,6 +7,7 @@
 use nfsmw_career::phone::InboxTab;
 use nfsmw_career::save::ProfileSave;
 use nfsmw_career::save::layout::FILE_LEN;
+use nfsmw_career::save::milestones_block::MilestoneBlock;
 use nfsmw_career::settings::Flags;
 use std::path::{Path, PathBuf};
 
@@ -89,6 +90,12 @@ fn real_profiles_round_trip_and_match_the_documented_values() {
                 assert_eq!((settings.sms.counter, stable.sold.bounty), (0, 0));
             }
         }
+        let block = MilestoneBlock::from_bytes(&settings.gameplay_blob[..]).unwrap();
+        let milestones = block.milestones().unwrap();
+        let traps = block.speed_traps().unwrap();
+        assert_eq!((milestones.len(), traps.len()), (55, 39), "{name}: milestone and speed trap counts");
+        let expected_state = if name == "mwo" { 4 } else { 1 };
+        assert!(milestones.iter().all(|m| m.state_byte == expected_state), "{name}: milestone states");
         println!(
             "{name}: ok (stage {}, cash {}, total bounty {})",
             settings.stage,
