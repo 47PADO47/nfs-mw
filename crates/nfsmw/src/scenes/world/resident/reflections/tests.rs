@@ -20,7 +20,8 @@ fn reflection_only_placements_keep_all_slots_without_entering_normal_or_prop_fee
         own.meshes.insert(i, (MeshHandle::from_raw(i as usize), LodModel { num_polys: 1, density: 1.0 }, false));
     }
     let catalog = PropCatalog::new(vec![], &blackbox_attrib::Database::new());
-    let (mut player, unresolved) = super::super::place(&data, &own, &SectionResources::default(), &catalog);
+    let (mut player, unresolved) =
+        super::super::place(&data, &own, &SectionResources::default(), &catalog, &Default::default());
     assert_eq!(unresolved, 0);
     assert_eq!(player.len(), 3);
     let mut reflected = place_reflections(&data, &own, &SectionResources::default());

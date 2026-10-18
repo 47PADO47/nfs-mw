@@ -283,7 +283,7 @@ fn installed_struck_traffic_and_street_poles_release_moving_meshes() {
         let mut own = SectionResources::default();
         own.upload_textures(&mut renderer, &section);
         own.upload_meshes(&mut renderer, &section, &shared);
-        let (placed, _) = place(&section, &own, &shared, &catalog);
+        let (placed, _) = place(&section, &own, &shared, &catalog, &Default::default());
         let target = placed
             .into_iter()
             .find(|p| p.spawner.is_some_and(|s| s.unique_id == unique_id))

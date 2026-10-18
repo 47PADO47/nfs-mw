@@ -35,6 +35,7 @@ impl WorldScene {
             &cull,
             rules,
             self.residency.props(),
+            &self.scenery_groups,
             caster_distance,
             &mut self.detail,
             &mut self.visible,

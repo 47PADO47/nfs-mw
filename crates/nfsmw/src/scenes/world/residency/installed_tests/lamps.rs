@@ -60,7 +60,7 @@ fn installed_gray_point_lamps_need_a_spawner_to_have_a_prop_body() {
     let mut own = SectionResources::default();
     own.upload_textures(&mut renderer, &data);
     own.upload_meshes(&mut renderer, &data, &shared);
-    let (mut placed, _) = place(&data, &own, &shared, &catalog);
+    let (mut placed, _) = place(&data, &own, &shared, &catalog, &Default::default());
     for &at in &static_positions {
         let p = placed
             .iter()

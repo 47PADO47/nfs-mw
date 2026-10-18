@@ -10,6 +10,7 @@ use glam::Mat4;
 
 use super::props::PropWorld;
 use super::resident::Placed;
+use super::scenery_groups::SceneryGroups;
 
 /// Screen height the LOD thresholds are tuned for (`docs/specs/scenery-lod.md`).
 const REFERENCE_HEIGHT: f32 = 480.0;
@@ -51,7 +52,7 @@ pub fn collect_unsorted_with_shadows<'a>(
     shadow_distance: f32,
     out: &mut Vec<Instance>,
 ) {
-    collect_inner(placed, camera, rules, props, (REFERENCE_HEIGHT, shadow_distance), None, out);
+    collect_inner(placed, camera, rules, props, None, (REFERENCE_HEIGHT, shadow_distance), None, out);
 }
 
 /// A small environment capture needs its own projected-size LOD, rather than the player's 480px rule.
@@ -64,7 +65,7 @@ pub fn collect_for_height<'a>(
     height: f32,
     out: &mut Vec<Instance>,
 ) {
-    collect_inner(placed, camera, rules, props, (height, 0.0), None, out);
+    collect_inner(placed, camera, rules, props, None, (height, 0.0), None, out);
     out.sort_unstable_by_key(|i| i.mesh);
 }
 
@@ -88,25 +89,31 @@ pub(super) fn current_pose(p: &Placed, props: &PropWorld) -> Option<(Mat4, black
     Some(props.pose(p.prop_id).unwrap_or((p.transform, p.bounds)))
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn collect_main<'a>(
     placed: impl Iterator<Item = &'a Placed>,
     camera: &Camera,
     rules: &LodRules,
     props: &PropWorld,
+    groups: &SceneryGroups,
     shadow_distance: f32,
     detail: &mut super::detail::DetailState,
     out: &mut Vec<Instance>,
 ) {
     detail.begin();
-    collect_inner(placed, camera, rules, props, (REFERENCE_HEIGHT, shadow_distance), Some(detail), out);
+    collect_inner(placed, camera, rules, props, Some(groups), (REFERENCE_HEIGHT, shadow_distance), Some(detail), out);
     detail.finish();
 }
 
+/// `groups` decides which grouped instances are drawn. `None` draws none of them, the rule for the callers that do not
+/// read the group set yet.
+#[allow(clippy::too_many_arguments)]
 fn collect_inner<'a>(
     placed: impl Iterator<Item = &'a Placed>,
     camera: &Camera,
     rules: &LodRules,
     props: &PropWorld,
+    groups: Option<&SceneryGroups>,
     (height, shadow_distance): (f32, f32),
     mut detail: Option<&mut super::detail::DetailState>,
     out: &mut Vec<Instance>,
@@ -120,6 +127,9 @@ fn collect_inner<'a>(
     };
     out.clear();
     for p in placed {
+        if p.group != 0 && !groups.is_some_and(|groups| groups.admits(p.group)) {
+            continue;
+        }
         if detail.as_ref().is_some_and(|d| !d.settings.world.admits(p.flags)) {
             continue;
         }
@@ -204,6 +214,7 @@ mod tests {
             bounds: Aabb::new([-2.0, -22.0, -2.0], [2.0, -18.0, 2.0]),
             radius: 2.0,
             flags: 0,
+            group: 0,
             prop: None,
             prop_id: 0,
             key: InstanceKey::new(1, 1),

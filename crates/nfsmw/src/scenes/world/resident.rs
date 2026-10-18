@@ -13,6 +13,8 @@ mod reflections;
 mod shadow_policy;
 pub(super) use reflections::{ReflectionPlaced, place_reflections};
 #[cfg(test)]
+mod group_tests;
+#[cfg(test)]
 mod mesh_lifetime_tests;
 
 /// One placed scenery object: up to four LOD meshes, chosen per frame
@@ -28,6 +30,9 @@ pub struct Placed {
     /// `SceneryInfo::radius`.
     pub radius: f32,
     pub flags: u32,
+    /// The scenery group that hides this instance, or 0. A grouped instance is kept while hidden and drawn only
+    /// once its group is enabled (`visibility.rs`).
+    pub group: u16,
     /// The collision of this scenery object, if the track has bounds for it.
     pub prop: Option<Arc<PropShape>>,
     /// The id the prop world gave it (0 until the tile is registered).
@@ -53,6 +58,7 @@ impl Placed {
     pub fn prop_only(transform: Mat4, shape: Arc<PropShape>) -> Self {
         let at = transform.transform_point3(glam::Vec3::ZERO);
         Self {
+            group: 0,
             lods: [None; 4],
             detailed: None,
             transform,
@@ -251,13 +257,28 @@ fn is_tunnel_shadow(solid_name: &str) -> bool {
     solid_name.starts_with("SHADOW_")
 }
 
+/// The scenery group that keeps a hidden instance: its group when `hidden` and a group lists its override, else 0.
+/// A visible instance is never tagged, so a group only brings back what it hides.
+fn hidden_group(hidden: bool, override_index: Option<u32>, groups: &HashMap<u16, u16>) -> u16 {
+    if !hidden {
+        return 0;
+    }
+    override_index
+        .and_then(|index| u16::try_from(index).ok())
+        .and_then(|index| groups.get(&index).copied())
+        .unwrap_or(0)
+}
+
 /// Turn a section's scenery into placed meshes, dropping instances the player
-/// view excludes (`docs/specs/scenery-visibility.md`).
+/// view excludes (`docs/specs/scenery-visibility.md`). An instance the player view
+/// excludes but a scenery group lists is kept, tagged with the group's number.
+/// `groups` maps a global override index to its group number (`WorldIndex::override_groups`).
 pub fn place(
     data: &SectionData,
     own: &SectionResources,
     shared: &SectionResources,
     props: &PropCatalog,
+    groups: &HashMap<u16, u16>,
 ) -> (Vec<Placed>, usize) {
     let instances: usize = data.scenery.iter().map(|s| s.instances.len()).sum();
     let mut placed = Vec::with_capacity(instances);
@@ -272,7 +293,9 @@ pub fn place(
         for (instance, inst) in section.instances.iter().enumerate() {
             let Some(info) = section.info_of(inst) else { continue };
             let rules = &blackbox_scenery::layout::MOST_WANTED.visibility;
-            if !inst.visible_in(rules.player_view, rules) || SKIPPED_MODELS.contains(&info.name.as_str()) {
+            let hidden = !inst.visible_in(rules.player_view, rules);
+            let group = hidden_group(hidden, hooks.get(&instance).copied(), groups);
+            if (hidden && group == 0) || SKIPPED_MODELS.contains(&info.name.as_str()) {
                 continue;
             }
             let resolved: Vec<_> =
@@ -303,6 +326,7 @@ pub fn place(
                 bounds: Aabb::new(inst.bbox_min, inst.bbox_max),
                 radius: info.radius,
                 flags: inst.exclude_flags,
+                group,
                 prop,
                 prop_id: 0,
                 key: InstanceKey::TRANSIENT,

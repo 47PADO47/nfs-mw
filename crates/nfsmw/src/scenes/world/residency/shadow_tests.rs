@@ -234,6 +234,7 @@ pub(super) fn fixture() -> (Residency, NullBackend) {
     for i in 0..3 {
         let at = Vec3::from_array([residency.sections[i].center[0], 0.0, 0.0]);
         let placed = Placed {
+            group: 0,
             signal: None,
             lods: [Some(MeshHandle::from_raw(i)); 4],
             detailed: None,
