@@ -28,6 +28,12 @@ impl Fade {
         self.leaving = true;
     }
 
+    /// Back to full size, for a menu that stays on screen after its package began to leave (a question answered No).
+    pub fn restore(&mut self) {
+        self.leaving = false;
+        self.value = 1.0;
+    }
+
     pub fn update(&mut self, dt: f32) {
         let step = dt.max(0.0) * 60.0 / FADE_FRAMES;
         if self.leaving {
@@ -138,6 +144,19 @@ mod tests {
             fade.update(1.0);
             assert_eq!(fade.value(), 0.0, "the hidden row must not reappear before the package switches");
         }
+    }
+
+    #[test]
+    fn a_row_that_started_to_leave_comes_back_when_its_question_is_answered_no() {
+        let mut fade = Fade::default();
+        fade.update(1.0);
+        fade.leave();
+        fade.update(1.0);
+        assert_eq!(fade.value(), 0.0);
+        fade.restore();
+        assert_eq!(fade.value(), 1.0);
+        fade.update(1.0);
+        assert_eq!(fade.value(), 1.0, "no longer leaving: it stays full");
     }
 
     #[test]

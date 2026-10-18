@@ -234,6 +234,9 @@ pub trait ScreenLogic: Send + Sync {
     /// Called once after the package is loaded.
     fn start(&mut self, _cx: &mut Cx) {}
 
+    /// Called when the screen above it closes and this one is on top again.
+    fn resume(&mut self, _cx: &mut Cx) {}
+
     /// A message the package sent to the game.
     fn message(&mut self, cx: &mut Cx, message: u32);
 

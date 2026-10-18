@@ -329,6 +329,12 @@ impl IconMenu {
 }
 
 impl ScreenLogic for IconMenu {
+    fn resume(&mut self, _cx: &mut Cx) {
+        // Quit starts the package's leave animation before the question opens; answering No keeps this menu, so
+        // its icons come back to full size.
+        self.fade.restore();
+    }
+
     fn start(&mut self, cx: &mut Cx) {
         // Pause's glow INIT retains its idle colour; the event handler starts its entrance fade later.
         // Keep it transparent until that fade takes over, just like the incoming icons and brackets.

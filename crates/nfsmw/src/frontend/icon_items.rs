@@ -61,17 +61,16 @@ pub fn icons(kind: Kind) -> Vec<Icon> {
         // Alias Manager (the original's profile manager, which it adds only when the memory card is enabled) opens
         // the save and load rows (`alias_options.rs`).
         // Online and LAN are not in this build's original main menu; the user asked for them, so they are listed
-        // without a screen (docs/specs/frontend-menus.md, 2.1). The main menu has eleven objects, so the row
-        // windows over them (`icon_window.rs`).
+        // without a screen, with the install's own pictures (`Main_Icon_Online`, `Main_Icon_LAN`;
+        // docs/specs/frontend-menus.md, 2.1). The main menu has eleven objects, so the row windows over them
+        // (`icon_window.rs`).
         Kind::Main => vec![
             icon(Id::Career, 0x0370_4F3D, 0x5815_A2B5, true),
             icon(Id::Challenge, 0x9A96_2438, 0xCC8C_B746, false),
             icon(Id::QuickRace, 0x4E6F_BB02, 0x5402_0A7A, true),
             icon(Id::MyCars, 0xB0C4_6023, 0x1AFD_5BE6, false),
-            // The texture of the option list's Online entry; the label is the one it shows ("Online Options").
-            icon(Id::Online, 0x5A5E_5137, 0x7D34_7E05, false),
-            // The main menu's LAN label. No picture for it is recorded, so the icon is blank.
-            icon(Id::LanPlay, 0, 0x03F6_F2BF, false),
+            icon(Id::Online, 0x2056_3D30, 0x74FB_90A8, false),
+            icon(Id::LanPlay, 0xD13A_2E66, 0x4D78_216D, false),
             icon(Id::AliasManager, 0x6B30_3856, 0xBCB1_8F38, true),
             icon(Id::Options, 0x3058_FE37, 0x19A8_C0AF, true),
         ],
@@ -193,10 +192,10 @@ mod tests {
     fn lan_and_online_are_listed_dimmed() {
         let main = icons(Kind::Main);
         let online = main.iter().find(|i| i.id == Id::Online).expect("Online");
-        assert_eq!((online.texture, online.name), (0x5A5E_5137, 0x7D34_7E05));
+        assert_eq!((online.texture, online.name), (0x2056_3D30, 0x74FB_90A8), "Main_Icon_Online, the label Online");
         assert!(!online.enabled);
         let lan = main.iter().find(|i| i.id == Id::LanPlay).expect("LAN");
-        assert_eq!(lan.name, 0x03F6_F2BF, "the LAN main-menu label");
+        assert_eq!((lan.texture, lan.name), (0xD13A_2E66, 0x4D78_216D), "Main_Icon_LAN, the label lan");
         assert!(!lan.enabled);
     }
 }
