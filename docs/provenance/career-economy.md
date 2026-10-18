@@ -158,6 +158,18 @@ Question: what fills the TOP SPEED / ACCELERATION / HANDLING bars in `Car_Select
   immediates in the exe (no direct `push` of them), so their handlers are reached through FEng, not by code search.
 - **Tools gap**: Ghidra xref tools (`get_xrefs_to`) were not callable in this session.
 - **Status**: UNRESOLVED. Next: find the car-select object writer and the handler scripts.
+- **Fifth pass (2026-10-18, pass 5, Ghidra on `speed.exe`, no Rust touched)**: the per-car base is answered. Getters
+  `0x00679660` (lo) and `0x006796C0` (hi) read a global list at `0x0092C4E8` keyed by car hash; the list is built by
+  `0x00683EB0` over the `pvehicle` class from the part simulation `0x00678CE0`, normalized to [0, 1]. Blend `0x0067C570`
+  is the formula in `specs/career-car-lot.md` open question 1. Correction: `0x007AFF10` (lo 1, hi 5, `HEAT_BASE_LED_%d`) is
+  the HEAT_METER builder, not the car-lot bar; car-lot bars are `PREVIEWBAR` objects (vtable `0x0089B098`, setter slot
+  +0x28 `0x0056CE30`). Axes: TOPSPEED = x (mode 0), HANDLING = y, ACCELERATION = z. Bar offsets: `0x007B4D70` sets +0xD8
+  ACCELERATION, +0x11C TOPSPEED, +0x160 HANDLING; the refresh `0x007B8F10` labels +0x25C TOPSPEED. Category index: `0x205`
+  tires 0, `0x206` brakes 1, `0x203` chassis 2, `0x202` transmission 3, `0x201` engine 4, `0x207` induction 5 (checked by
+  `0x007AFAE0`), `0x204` nitrous 6 (names beyond induction [unconfirmed]).
+- **Status**: UNRESOLVED (partial). Open: the lit-segment rule (in the FEng script, not the exe), which of the two blends
+  (selected car or player) fills the bar and which drives the tick, why `hi` and `lo` coincide unless `0x0067F800` changes
+  the car, and the name of hash `0xCDC136E8`.
 
 ## Markers and the reward inventory (2026-10-18)
 
