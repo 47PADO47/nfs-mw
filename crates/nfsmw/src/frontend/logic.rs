@@ -56,8 +56,11 @@ pub enum Command {
     /// Show a notice with one answer on top of the current screen (`confirm.rs`).
     #[allow(dead_code)] // no screen raises one yet
     Alert(Alert),
-    /// Leave the menus and drive.
+    /// Leave the menus and drive, outside career mode.
+    #[allow(dead_code)] // nothing sends it since Career starts a career; Quick Race will
     StartFreeRoam,
+    /// Career on the main menu: resume the latest profile or start a new career, then drive with it (`flow_career.rs`).
+    StartCareer,
     /// Close the pause menu and go on driving.
     Resume,
     /// Pay the bust's fines on the infractions ticket, with a marker or with cash. The bust takes it (`flow.rs`); the

@@ -13,9 +13,14 @@ use super::scene::{ConcealFlag, MenuScene, Pausable, PauseFlag};
 use super::screens::Screens;
 use super::script::UiScript;
 use crate::app::Host;
+use crate::career::{CareerHandle, ProfileDir};
 use crate::input::Control;
 use crate::scenes::world::{DEFAULT_CAR, DriveOptions, Options, WorldScene};
 use crate::settings::{Partial, Settings};
+
+// Career on the main menu: starting or resuming a career (`start_career`).
+#[path = "flow_career.rs"]
+mod flow_career;
 
 /// Where the front end starts.
 #[derive(Clone, Debug, PartialEq)]
@@ -112,6 +117,11 @@ pub struct Frontend {
     /// it is built, so the menus that come up next keep it instead of building it again. While free roam has the
     /// window the backdrop is parked in the host (`Host::parked_menu`) and restored from there.
     menu_in_window: bool,
+    /// The career being played, empty outside career mode (quick race, free roam from the command line).
+    pub(super) career: CareerHandle,
+    /// The profile folder careers are saved in. `None` when there is no per-user folder. Screenshot runs use a temp
+    /// folder instead (`begin`), so they never write the player's profiles.
+    pub(super) profiles: Option<ProfileDir>,
 }
 
 impl Frontend {
@@ -138,6 +148,8 @@ impl Frontend {
             remap: None,
             browse: None,
             menu_in_window,
+            career: CareerHandle::default(),
+            profiles: ProfileDir::default_dir(),
         }
     }
 
@@ -145,6 +157,9 @@ impl Frontend {
     pub(super) fn begin(&mut self, host: &mut Host, env: &mut Env) {
         let Some(start) = self.start.take() else { return };
         self.save = host.screenshot.is_none();
+        if host.screenshot.is_some() {
+            self.profiles = Some(ProfileDir::new(std::env::temp_dir().join("nfsmw-career-screenshot")));
+        }
         match start {
             Start::Boot => {
                 self.boot = BOOT.into();
@@ -348,7 +363,11 @@ impl Frontend {
     pub(super) fn apply(&mut self, commands: Vec<Command>, host: &mut Host, env: &mut Env) {
         for command in commands {
             match command {
-                Command::StartFreeRoam => self.start_free_roam(host, env),
+                Command::StartFreeRoam => {
+                    self.career.clear();
+                    self.start_free_roam(host, env);
+                }
+                Command::StartCareer => self.start_career(host, env),
                 Command::Resume => {
                     self.save_settings(env.changed);
                     self.resume();

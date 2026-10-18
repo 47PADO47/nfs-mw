@@ -223,12 +223,12 @@ fn down_from_to(h: &mut Harness, category: Category, from: super::options::Setti
 }
 
 #[test]
-fn the_main_menu_starts_free_roam_from_career() {
+fn the_main_menu_starts_a_career_from_career() {
     let Some(mut h) = Harness::open(screen::MAIN_MENU, Args::default()) else { return };
     h.wait(1.0);
     h.press(pad::ACCEPT);
     h.wait(1.5);
-    assert!(h.said(&Command::StartFreeRoam), "career: {:?}", h.commands);
+    assert!(h.said(&Command::StartCareer), "career: {:?}", h.commands);
 }
 
 #[test]
