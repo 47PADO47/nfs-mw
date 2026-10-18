@@ -74,7 +74,7 @@ impl WorldScene {
         if let (true, Some((kind, name))) = (enter_wanted(input, &self.entry.popup, zone.is_some()), zone.as_ref()) {
             let race = match kind {
                 ZoneKind::Race => self.career_enter_race(name),
-                ZoneKind::AutoShop | ZoneKind::SafeHouse => RaceEntry::NotCareer,
+                ZoneKind::AutoShop | ZoneKind::SafeHouse | ZoneKind::CarLot => RaceEntry::NotCareer,
             };
             let locked = race == RaceEntry::Locked;
             if locked {

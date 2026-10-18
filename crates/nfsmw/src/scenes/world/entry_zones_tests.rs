@@ -65,6 +65,17 @@ fn the_car_in_a_zone_is_the_one_whose_centre_is_nearest() {
 }
 
 #[test]
+fn a_car_lot_marker_is_an_entry_zone_of_its_own_kind() {
+    let zones =
+        EntryZones::from_data(&data(Vec::new(), vec![marker(ActivityKind::CarLot, stored([20.0, 0.0, 0.0]), 7.0)]));
+    assert_eq!(zones.zones.len(), 1);
+    assert_eq!(zones.zones[0].kind, ZoneKind::CarLot);
+    assert_eq!(zones.zones[0].radius, 7.0);
+    assert_eq!(zones.zones[0].kind.label(), "car lot");
+    assert_eq!(zones.entered(Vec3::new(21.0, 0.0, 0.0)).map(|z| z.kind), Some(ZoneKind::CarLot));
+}
+
+#[test]
 fn the_zones_are_the_interiors_then_the_race_starts() {
     let start = Placement { position: stored([100.0, 0.0, 0.0]), heading_deg: 0.0 };
     let zones = EntryZones::from_data(&data(

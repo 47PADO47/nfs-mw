@@ -1,8 +1,6 @@
 //! Safe house entry in career mode (`docs/specs/career-safehouse.md`, `docs/specs/career-safehouse-2.md`). The rules are in
 //! `nfsmw_career::safehouse`: this file gathers the world's facts (is a chase running, is its cool-down meter shown, the
 //! driven car's heat), asks the rules, and applies the answer to the world and the career.
-//!
-//! Car lots are not entered from the world yet: their zones (`ZoneType carlot`) are not entry zones (`entry_zones.rs`).
 
 use blackbox_pursuit::{CooldownStatus, EndReason};
 use nfsmw_career::safehouse::EntryPermissions;
@@ -25,6 +23,7 @@ impl WorldScene {
         }
         match kind {
             ZoneKind::SafeHouse => self.career_enter_safe_house(name),
+            ZoneKind::CarLot => self.career_enter_car_lot(name),
             // A custom shop (`ZoneType customshop`) has no career request yet, and a race is not the career's.
             ZoneKind::AutoShop | ZoneKind::Race => false,
         }
@@ -57,6 +56,13 @@ impl WorldScene {
         }
         self.career.requests.push_back(CareerRequest::SafeHouse { zone: name.to_owned() });
         log::info!("career: entering safe house {name} (cool-down evade: {cool_down})");
+        true
+    }
+
+    /// A car lot entry: the car lot screen is asked for. No pursuit rule applies to it, so the chase is left alone.
+    fn career_enter_car_lot(&mut self, name: &str) -> bool {
+        self.career.requests.push_back(CareerRequest::CarLot { zone: name.to_owned() });
+        log::info!("career: entering car lot {name}");
         true
     }
 
