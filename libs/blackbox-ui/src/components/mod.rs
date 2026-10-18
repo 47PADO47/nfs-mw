@@ -8,13 +8,19 @@
 mod gauge;
 mod image;
 mod panel;
+mod row;
 mod stack;
+mod switch;
+mod table;
 mod text;
 
 pub use gauge::Gauge;
 pub use image::Image;
 pub use panel::Panel;
+pub use row::Row;
 pub use stack::{Stack, StackAxis};
+pub use switch::Switch;
+pub use table::Table;
 pub use text::{Text, justify};
 
 use glam::{Mat4, Vec3};
