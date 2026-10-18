@@ -19,6 +19,9 @@ use blackbox_text::label_hash;
 use nfsmw_career::blacklist::{BinRecord, BinState, Blacklist, Counters, rival_gate_open};
 use nfsmw_career::settings::{FIRST_RIVAL_STAGE, Flags};
 
+use super::{
+    RIVAL_BIO_CONTENT, RIVAL_CONTENT_START, RIVAL_LIST_READY, RIVAL_OPENED_CAREER, RIVAL_OPENED_PLAIN, post_opening,
+};
 use crate::career::CareerHandle;
 use crate::frontend::confirm::Alert;
 use crate::frontend::ids::screen;
@@ -221,6 +224,7 @@ impl ChallengeLogic {
 
 impl ScreenLogic for ChallengeLogic {
     fn start(&mut self, cx: &mut Cx) {
+        post_opening(cx, &[RIVAL_OPENED_CAREER, RIVAL_LIST_READY, RIVAL_CONTENT_START]);
         if let Some(bin) = current_bin() {
             self.selected = start_bin(bin);
         }
@@ -262,6 +266,7 @@ impl BioLogic {
 
 impl ScreenLogic for BioLogic {
     fn start(&mut self, cx: &mut Cx) {
+        post_opening(cx, &[RIVAL_OPENED_PLAIN, RIVAL_OPENED_CAREER, RIVAL_BIO_CONTENT]);
         if let Some(bin) = current_bin() {
             self.bin = start_bin(bin);
         }
