@@ -26,7 +26,7 @@ impl BlipStyle for Beacon {
 }
 
 fn blip(style: &'static str, active: bool) -> MapBlip {
-    MapBlip { style, position: [0.0, 0.0], heading: [1.0, 0.0], active }
+    MapBlip { style, position: [0.0, 0.0], active }
 }
 
 #[test]
@@ -54,9 +54,9 @@ fn a_custom_blip_has_a_pool_of_one_icon() {
 }
 
 #[test]
-fn a_cop_outside_a_pursuit_is_gated_to_the_view_and_a_pursuing_one_is_always_shown() {
+fn a_cop_is_gated_to_the_view_whether_or_not_it_is_pursuing() {
     assert_eq!(Cop.visibility(&blip(COP, false)), Visibility::InZone);
-    assert_eq!(Cop.visibility(&blip(COP, true)), Visibility::Always);
+    assert_eq!(Cop.visibility(&blip(COP, true)), Visibility::InZone);
 }
 
 #[test]
@@ -126,7 +126,7 @@ fn a_zone_gated_blip_is_drawn_only_inside_the_circle() {
 
 #[test]
 fn nearest_only_picks_the_closest_blip_of_the_style() {
-    let at = |style: &'static str, x: f32| MapBlip { style, position: [x, 0.0], heading: [1.0, 0.0], active: false };
+    let at = |style: &'static str, x: f32| MapBlip { style, position: [x, 0.0], active: false };
     let blips = [at(blip_styles::CAR_LOT, 50.0), at(blip_styles::AUTO_SHOP, 1.0), at(blip_styles::CAR_LOT, 8.0)];
     assert_eq!(nearest_blip(&blips, blip_styles::CAR_LOT, [0.0, 0.0]), Some(2));
     assert_eq!(nearest_blip(&blips, blip_styles::AUTO_SHOP, [0.0, 0.0]), Some(1));

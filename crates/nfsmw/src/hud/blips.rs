@@ -97,7 +97,8 @@ impl BlipBinding {
             let Some(look) = look_of(style, blip, tick) else {
                 continue;
             };
-            let placed = minimap.blip(&view, at.orientation, blip.position, blip.heading);
+            // Every blip turns with the player's arrow, whatever way it is heading.
+            let placed = minimap.blip(&view, at.orientation, blip.position, at.heading);
             if !drawn_in(style.visibility(blip), placed.inside) {
                 continue;
             }
@@ -114,10 +115,11 @@ impl BlipBinding {
             rt.set_hidden(o, false);
             rt.set_position_xy(o, centre[0] + placed.offset[0], centre[1] + placed.offset[1]);
             rt.set_rotation_z(o, (placed.rotation + look.spin).to_radians());
-            rt.set_alpha(o, (alpha * 255.0) as u8);
+            // The colour's alpha would overwrite the fade, so the colour goes first and the fade last.
             if let Some(colour) = colour_to_apply(&look, style.fallback_colour(), slot.package) {
                 rt.set_colour_rgba(o, colour);
             }
+            rt.set_alpha(o, (alpha * 255.0) as u8);
         }
     }
 

@@ -332,11 +332,10 @@ impl Police {
     }
 
     /// The helicopter's place on the minimap in render space, and its heading, while it flies.
-    pub fn helicopter_blip(&self) -> Option<([f32; 2], [f32; 2])> {
+    pub fn helicopter_blip(&self) -> Option<[f32; 2]> {
         let heli = self.heli.as_ref()?;
         let at = space::to_render(heli.body.position.to_array());
-        let forward = space::to_render(heli.body.forward().to_array());
-        Some(([at.x, at.y], [forward.x, forward.y]))
+        Some([at.x, at.y])
     }
 
     /// Advances the police by `dt` seconds. `pursuing` is a chase on; `sensed` is what the world saw this frame.

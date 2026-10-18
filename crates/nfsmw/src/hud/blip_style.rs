@@ -8,8 +8,6 @@ pub struct MapBlip {
     /// The style's [`BlipStyle::name`]. A blip whose style is not registered is not drawn.
     pub style: &'static str,
     pub position: [f32; 2],
-    /// Any length; the icon points along it.
-    pub heading: [f32; 2],
     /// The condition the style reads as its state: the cop style flashes while this is set.
     pub active: bool,
 }

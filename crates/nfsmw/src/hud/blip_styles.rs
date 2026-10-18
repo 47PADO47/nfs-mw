@@ -35,8 +35,8 @@ pub const AUTO_SHOP_TINT: [u8; 4] = [0xff, 0xed, 0x00, 0xff];
 pub const CAR_LOT_TINT: [u8; 4] = [0x00, 0x00, 0xff, 0xff];
 pub const SAFE_HOUSE_TINT: [u8; 4] = [0x00, 0xff, 0x00, 0xff];
 
-/// A police car: the car arrow, turned to its heading, with a light bar that cycles blue, grey and red while `active`
-/// (a pursuit). A pursuing car is always on the map. The others show only inside the minimap's view.
+/// A police car: the car arrow, with a light bar that cycles blue, grey and red while `active` (a pursuit). Cops show
+/// only inside the minimap's view, pursuing or not: never pinned to the rim.
 pub struct Cop;
 
 impl BlipStyle for Cop {
@@ -48,10 +48,7 @@ impl BlipStyle for Cop {
         (0..cop_blip::ICON_COUNT).map(cop_blip::icon_name).collect()
     }
 
-    fn visibility(&self, blip: &MapBlip) -> Visibility {
-        if blip.active {
-            return Visibility::Always;
-        }
+    fn visibility(&self, _blip: &MapBlip) -> Visibility {
         Visibility::InZone
     }
 

@@ -289,11 +289,9 @@ impl TrafficWorld {
         self.helicopter_blips(pursuing, out);
         for car in self.cars.iter().filter(|c| c.is_live_police()) {
             let at = car.position();
-            let forward = car.pose(1.0).rotation * Vec3::X;
             out.push(crate::hud::MapBlip {
                 style: crate::hud::COP,
                 position: [at.x, at.y],
-                heading: [forward.x, forward.y],
                 active: pursuing && !car.is_patrol(),
             });
         }
