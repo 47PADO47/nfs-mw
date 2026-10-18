@@ -97,7 +97,11 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
         }
         Category::AliasManager => AliasSetting::ALL
             .into_iter()
-            .map(|setting| row(Setting::Alias(setting), Title::Text(setting.title())))
+            .map(|setting| match setting {
+                // `START_NEW_CAREER`, "Start New Career"; the other rows have no label in the table.
+                AliasSetting::NewCareer => row(Setting::Alias(setting), Title::Label(0x17E1_8F87)),
+                _ => row(Setting::Alias(setting), Title::Text(setting.title())),
+            })
             .collect(),
         // The rows of the Mods page are the mods' own (`bb.menus`), read from the bridge by `widget_menu.rs`.
         Category::Mods => Vec::new(),

@@ -80,6 +80,7 @@ fn a_page_holds_eight_rows_and_the_selection_picks_it() {
 #[test]
 fn the_title_says_load_or_delete() {
     assert_eq!(title_label(ListMode::Load), 0x0018_ECFF);
+    assert_eq!(title_label(ListMode::Delete), 0x56B0_0632, "the DELETE label, \"Delete\"");
     assert_ne!(title_label(ListMode::Delete), title_label(ListMode::Load));
 }
 

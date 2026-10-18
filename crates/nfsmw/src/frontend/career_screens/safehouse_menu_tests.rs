@@ -66,7 +66,7 @@ fn an_icon_maps_back_to_its_item_and_other_icons_map_to_none() {
 
 #[test]
 fn the_totals_show_the_bounty_and_the_cash_with_commas() {
-    assert_eq!(money_text(1_777), "$1,777");
-    assert_eq!(money_text(0), "$0");
-    assert_eq!(money_text(u64::MAX), format!("${}", money(u32::MAX)));
+    assert_eq!(money_text(1_777), "1,777");
+    assert_eq!(money_text(0), "0");
+    assert_eq!(money_text(u64::MAX), money(u32::MAX));
 }

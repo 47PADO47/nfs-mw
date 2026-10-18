@@ -24,11 +24,11 @@ use crate::ui::Text;
 /// the spec says nine, and `option_name_9` is not in the package.
 pub const ROWS: usize = 8;
 
-/// The list's title text object (guid `0xF6B4E`, the string "load"). Its label is the verb: `0x18ECFF` ("Load") or the
-/// delete label. The delete label is a guess among three "Delete" strings in the table; see [`title_label`].
+/// The list's title text object (guid `0xF6B4E`, the string "load"). Its label is the verb: `0x18ECFF` ("Load", the name
+/// LOAD) or `0x56B00632` ("Delete", the name DELETE: the name hashes to the key and the table holds that text).
 const TITLE: u32 = 0x000F_6B4E;
 const TITLE_LOAD: u32 = 0x0018_ECFF;
-const TITLE_DELETE: u32 = 0x99A5_3F16;
+const TITLE_DELETE: u32 = 0x56B0_0632;
 
 /// The prompt's objects (`MC_Main.fng`, by guid from the dump). The question is the "Generic Message" string. The two
 /// button texts are "Button 1" (right, No) and "Button 2" (centre, Yes); "Button 3" and its button (left) are hidden.

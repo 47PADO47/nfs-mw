@@ -23,7 +23,9 @@ pub enum AliasSetting {
 impl AliasSetting {
     pub const ALL: [Self; 5] = [Self::Save, Self::Load, Self::LoadCareer, Self::DeleteCareer, Self::NewCareer];
 
-    /// The row's title. The career rows' titles are plain text: the spec gives no language label for them.
+    /// The row's title as plain text. `Load Career`, `Delete Career` and `Save Alias`/`Load Alias` have no language label
+    /// in the dumps (no table text matches). `New Career` does: `START_NEW_CAREER` (`0x17E18F87`, "Start New Career"),
+    /// which the caller should show as `Title::Label` once `options_rows.rs` takes a label here.
     pub fn title(self) -> &'static str {
         match self {
             Self::Save => "Save Alias",

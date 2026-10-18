@@ -54,7 +54,7 @@ impl ScreenLogic for SafeHouseMenu {
         // The career completion percentage (`CAREER_DATA`) is left as the package has it: it needs the rap sheet's
         // counts, which no builder in the career code produces yet.
         set_text(cx, BOUNTY_DATA, &money_text(self.totals.bounty));
-        set_text(cx, CASH_DATA, &format!("${}", money(self.totals.cash)));
+        set_text(cx, CASH_DATA, &money(self.totals.cash));
     }
 
     fn resume(&mut self, cx: &mut Cx) {
@@ -116,9 +116,10 @@ fn command_for(target: MenuTarget, args: Args) -> Command {
     }
 }
 
-/// The bounty as the menu shows it: a dollar sign and the amount with commas.
+/// The bounty as the menu shows it: the amount with commas, no currency sign (the label format is `%$d`, career-rapsheet-2
+/// section 4; the sign is not in the label's text).
 fn money_text(bounty: u64) -> String {
-    format!("${}", money(u32::try_from(bounty).unwrap_or(u32::MAX)))
+    money(u32::try_from(bounty).unwrap_or(u32::MAX))
 }
 
 /// Sets a text object's string, if the package has it.
