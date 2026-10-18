@@ -149,3 +149,44 @@ fn a_mod_theme_reports_the_right_rectangle_for_its_primitives() {
     assert_eq!((node.world.w_axis.x, node.world.w_axis.y), (12.0, -8.0));
     assert_eq!((node.world.x_axis.x, node.world.y_axis.y), (40.0, 20.0));
 }
+
+#[test]
+fn the_mods_page_choice_selects_a_mod_theme_and_none_gives_it_up() {
+    let mut themes = UiThemes::build();
+    themes.set_mod_themes(vec![minimap_theme()]);
+    themes.set_mod_choice(Some(MOD));
+    assert_eq!(themes.themes.active(), MOD, "the chosen mod theme is active");
+    themes.select(UiStyle::Custom);
+    assert_eq!(themes.themes.active(), MOD, "the style sync keeps the chosen mod theme");
+    themes.set_mod_choice(None);
+    assert_eq!(themes.themes.active(), ThemeId::Custom, "no choice: the style decides again");
+}
+
+#[test]
+fn a_choice_for_an_unregistered_theme_is_given_up_until_the_theme_registers() {
+    let mut themes = UiThemes::build();
+    themes.set_mod_choice(Some(MOD));
+    assert_eq!(themes.themes.active(), ThemeId::Original, "no mod registered it, so the style decides");
+    themes.set_mod_themes(vec![minimap_theme()]);
+    themes.set_mod_choice(Some(MOD));
+    assert_eq!(themes.themes.active(), MOD, "the saved choice selects the theme once it registers");
+}
+
+#[test]
+fn the_style_sync_system_keeps_a_mod_choice_from_the_bridge() {
+    use crate::settings::{Partial, Settings};
+    use bevy_ecs::system::RunSystemOnce;
+    let mut world = bevy_ecs::world::World::new();
+    world.insert_resource(Settings::from(Partial { ui_style: Some(UiStyle::Custom), ..Partial::default() }));
+    let mut themes = UiThemes::build();
+    themes.set_mod_themes(vec![minimap_theme()]);
+    themes.set_mod_choice(Some(MOD));
+    world.insert_resource(themes);
+    world.run_system_once(crate::ui::theme::sync_active_theme).expect("the sync system runs");
+    assert_eq!(world.resource::<UiThemes>().themes.active(), MOD, "the per-frame style sync leaves the mod choice");
+}
+
+#[test]
+fn a_mod_theme_shows_its_display_text_on_the_mods_page() {
+    assert_eq!(minimap_theme().display(), "Night drive");
+}

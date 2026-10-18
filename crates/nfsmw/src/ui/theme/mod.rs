@@ -13,8 +13,9 @@
 //! - [`compose`]: builds each presented layer from the slots its theme resolves (`docs/specs/ui-themes-compose.md`).
 //! - [`original`]: the floor theme. It fills every slot: HUD adapters (T7) and menu adapters (T8).
 //! - [`custom`]: the rewrite's own theme. It fills the radio card (T9) and returns `None` for the rest.
-//! - [`modded`]: the themes the mods register through `bb.ui`. A mod theme is selected with [`UiThemes::select_mod`]; the
-//!   style setting does not choose it (`docs/specs/ui-themes.md` section 12).
+//! - [`modded`]: the themes the mods register through `bb.ui`. A mod theme is selected with [`UiThemes::select_mod`], by the
+//!   Mods page's theme choice through [`UiThemes::set_mod_choice`]; the style setting does not choose it
+//!   (`docs/specs/ui-themes.md` section 12).
 
 mod compose;
 #[cfg(test)]
@@ -48,19 +49,23 @@ pub fn theme_of(style: UiStyle) -> ThemeId {
 }
 
 /// Keeps the active theme in step with `settings.ui_style`, every frame, so an options-menu change takes effect on
-/// the next frame (`docs/specs/ui-themes.md` section 14, question 5).
+/// the next frame (`docs/specs/ui-themes.md` section 14, question 5). A chosen mod theme is kept: [`UiThemes::select`]
+/// leaves it active until the choice is cleared.
 pub fn sync_active_theme(settings: Res<Settings>, mut themes: ResMut<UiThemes>) {
     // `bypass_change_detection`: the registry is selected every frame, so it should not look changed every frame.
     themes.bypass_change_detection().select(settings.ui_style);
 }
 
-/// Keeps the mod themes in step with the mods' registrations, every frame. The mods are a non-send resource, so the
-/// system takes them as `NonSend`. A set that has not changed costs one comparison.
+/// Keeps the mod themes and the player's mod theme choice in step with the mods, every frame. The mods are a non-send
+/// resource, so the system takes them as `NonSend`. A set that has not changed costs one comparison. The choice is made
+/// on the Mods page (`frontend/mod_options.rs`) and kept by the bridge; [`sync_active_theme`] does not undo it.
 pub fn sync_mod_themes(mods: Option<NonSend<crate::modding::Mods>>, mut themes: ResMut<UiThemes>) {
     let Some(mods) = mods else {
         return;
     };
-    themes.bypass_change_detection().set_mod_themes(mods.ui_themes());
+    let themes = themes.bypass_change_detection();
+    themes.set_mod_themes(mods.ui_themes());
+    themes.set_mod_choice(mods.ui_theme_choice());
 }
 
 /// Builds the registry: Original as the floor, Custom registered beside it, Original active. The Original theme reads
@@ -104,7 +109,7 @@ pub struct UiThemes {
     radio: RadioFeedCell,
     /// The style the settings chose. A chosen mod theme wins over it.
     style: UiStyle,
-    /// The mod theme the player chose with [`UiThemes::select_mod`], or `None` to follow `style`.
+    /// The mod theme the player chose (see [`UiThemes::set_mod_choice`]), or `None` to follow `style`.
     mod_choice: Option<ThemeId>,
     /// The themes the mods registered, as the registry holds them (rebuilt into `themes` when they change).
     mods: Vec<ModTheme>,
@@ -134,8 +139,6 @@ impl UiThemes {
     }
 
     /// Makes the mod theme `id` active, until [`UiThemes::clear_mod`]. Refuses an id no mod registered.
-    // Called by the Mods page's theme choice, which comes with the settings row (owed); the tests call it now.
-    #[allow(dead_code)]
     pub fn select_mod(&mut self, id: ThemeId) -> Result<(), ThemeError> {
         if !self.mods.iter().any(|theme| theme.id() == id) {
             return Err(ThemeError::Unknown(id));
@@ -146,10 +149,21 @@ impl UiThemes {
     }
 
     /// Gives up the mod theme chosen with [`UiThemes::select_mod`]: the style decides again.
-    #[allow(dead_code)]
     pub fn clear_mod(&mut self) {
         self.mod_choice = None;
         self.apply();
+    }
+
+    /// Sets the mod theme choice from the bridge (`None` for the built-in style), once per frame. A choice whose theme is
+    /// not registered is given up, so the style decides until the theme registers again; the saved choice then selects it.
+    pub fn set_mod_choice(&mut self, choice: Option<ThemeId>) {
+        let Some(id) = choice else {
+            self.clear_mod();
+            return;
+        };
+        if self.select_mod(id).is_err() {
+            self.clear_mod();
+        }
     }
 
     /// Replaces the mod themes with `mods`. An unchanged set costs one comparison. A changed set rebuilds the registry

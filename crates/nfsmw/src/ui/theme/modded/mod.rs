@@ -22,8 +22,6 @@ use blackbox_ui::{BuildCx, Component, SlotId, Theme, ThemeId};
 pub struct ModTheme {
     id: ThemeId,
     name: String,
-    // Read by the Mods page's theme choice, which comes with the settings row (owed; docs/specs/ui-themes.md section 12).
-    #[allow(dead_code)]
     display: String,
     slots: Vec<(SlotId, Vec<UiPrim>)>,
 }
@@ -37,6 +35,11 @@ impl ModTheme {
     /// The theme's name, unique among the theme's mod.
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    /// The text the Mods page shows for the theme.
+    pub fn display(&self) -> &str {
+        &self.display
     }
 
     /// Give `slot` the draw spec `prims`, replacing the spec it had.
