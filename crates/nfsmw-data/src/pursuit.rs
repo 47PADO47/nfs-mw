@@ -213,6 +213,82 @@ fn heat_growth(db: &Database, heat: u32) -> Option<HeatGrowth> {
     Some(HeatGrowth { time_per_heat_level, scale_per_bucket: scale.try_into().ok()? })
 }
 
+/// The rep rates of one heat level: the `pursuitlevels` row's `RepPointsPerMinute` and `DestroyCopBonusTime`
+/// (`docs/specs/ai-pursuit-heat.md` sections 2.4 and 5.1).
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct RepRates {
+    /// `RepPointsPerMinute`: the normal rep points of each 10 s step of chase while the cops see the player. The name
+    /// says minute; the code steps every 10 s, so the spec takes the field as the points per step.
+    pub per_ten_seconds: u32,
+    /// `DestroyCopBonusTime`, seconds: the window in which a further cop kill raises the destruction multiplier.
+    pub destroy_bonus_secs: f32,
+}
+
+/// The rep rates and destruction points a chase reads, from the attribute database ([`rep_table`]).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct RepTable {
+    /// The rates of heat level `n` at index `n - 1`.
+    pub rates: Vec<RepRates>,
+    /// Each cop car type (lower case name) with the destruction points of heat level `n` at index `n - 1`
+    /// (`RepPointsForDestroying` of its `aivehicle` record).
+    pub destroy: Vec<(String, Vec<u32>)>,
+}
+
+impl RepTable {
+    /// The rates of heat level `level` (clamped to 1…10); the zero rates when the table lacks the level.
+    pub fn rate(&self, level: u32) -> RepRates {
+        let index = level.clamp(1, HEAT_LEVELS) as usize - 1;
+        self.rates.get(index).copied().unwrap_or_default()
+    }
+
+    /// The destruction points of cop car `car` wrecked at heat level `level` (clamped); 0 for a car the table lacks.
+    pub fn destroy_points(&self, car: &str, level: u32) -> u32 {
+        let index = level.clamp(1, HEAT_LEVELS) as usize - 1;
+        let row = self.destroy.iter().find(|(name, _)| name.eq_ignore_ascii_case(car));
+        row.and_then(|(_, points)| points.get(index)).copied().unwrap_or(0)
+    }
+}
+
+/// The rep rates of heat level `heat` (1…10) from its `pursuitlevels` row. None when the row is not in the database.
+pub fn rep_rates(db: &Database, heat: u32) -> Option<RepRates> {
+    let row = level_collection(db, "heattable", heat)?;
+    Some(RepRates {
+        per_ten_seconds: row.get_i32("RepPointsPerMinute").unwrap_or(0).max(0) as u32,
+        destroy_bonus_secs: row.get_f32("DestroyCopBonusTime").unwrap_or(0.0),
+    })
+}
+
+/// The destruction points of cop car type `car` wrecked at heat `heat` (1…10): `RepPointsForDestroying` of its
+/// `aivehicle` record, at index `heat - 1`. None when the record or the value is missing.
+pub fn destroy_rep_points(db: &Database, car: &str, heat: u32) -> Option<u32> {
+    let record = db.collection("pvehicle", &car.to_ascii_lowercase())?.follow("aivehicle")?;
+    let index = heat.clamp(1, HEAT_LEVELS) as usize - 1;
+    let points = record.get("RepPointsForDestroying")?.as_array()?.get(index)?.as_f32()?;
+    Some(points.max(0.0) as u32)
+}
+
+/// The rep tables of the install: the rates of every heat level and the destruction points of every cop car type.
+pub fn rep_table(db: &Database) -> RepTable {
+    let rates = (1..=HEAT_LEVELS).map(|heat| rep_rates(db, heat).unwrap_or_default()).collect();
+    let destroy = cop_car_names(db)
+        .into_iter()
+        .map(|name| {
+            let points = (1..=HEAT_LEVELS).map(|heat| destroy_rep_points(db, &name, heat).unwrap_or(0)).collect();
+            (name, points)
+        })
+        .collect();
+    RepTable { rates, destroy }
+}
+
+/// The names of the cop car types: the `pvehicle` collections whose name starts with `cop`.
+fn cop_car_names(db: &Database) -> Vec<String> {
+    db.collections_of("pvehicle").filter_map(|c| c.name().filter(|n| n.starts_with("cop")).map(str::to_owned)).collect()
+}
+
+#[cfg(test)]
+#[path = "pursuit_rep_tests.rs"]
+mod rep_tests;
+
 #[cfg(test)]
 mod tests {
     use super::*;

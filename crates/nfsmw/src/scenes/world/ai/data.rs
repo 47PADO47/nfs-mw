@@ -67,5 +67,6 @@ impl TrafficWorld {
         if let Some(plan) = patrol_plan(db) {
             self.set_patrol(plan);
         }
+        self.police.set_rep_table(nfsmw_data::pursuit::rep_table(db));
     }
 }

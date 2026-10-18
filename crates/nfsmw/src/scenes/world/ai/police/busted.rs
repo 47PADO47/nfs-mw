@@ -141,14 +141,22 @@ impl super::super::TrafficWorld {
         Some(report.lines.iter().map(|line| (line.infraction, line.fine)).collect())
     }
 
-    /// The player pays the bust's fines (`marker`: with a marker). `true` when the bust took the payment.
-    pub fn pay_bust(&mut self, marker: bool) -> bool {
+    /// The infractions of the chase that is being paid for, in HUD order (the ticket's lines). Read before the payment.
+    pub fn bust_infractions(&self) -> Vec<Infraction> {
+        self.police.infractions().iter().collect()
+    }
+
+    /// The player pays the bust's fines (`marker`: with a marker). `markers` is the Get Out of Jail Free stock; a
+    /// marker needs one. `true` when the bust took the payment. A cash payment sets the heat to 1.0; a marker leaves
+    /// it (`career-economy-flows.md` 6.1).
+    pub fn pay_bust(&mut self, marker: bool, markers: u32) -> bool {
         let payment = if marker { Payment::Marker } else { Payment::Cash };
-        // The port has no career state, so no markers are in stock.
-        if self.police.bust.pay(payment, 0).is_err() {
+        if self.police.bust.pay(payment, markers).is_err() {
             return false;
         }
-        self.police.carried_heat = 1.0;
+        if !marker {
+            self.police.carried_heat = 1.0;
+        }
         self.police.busted.reset();
         self.police.cooldown = Cooldown::default();
         self.police.reset_blink = 0.0;

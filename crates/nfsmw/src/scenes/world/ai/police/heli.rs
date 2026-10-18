@@ -84,5 +84,6 @@ impl Police {
             + Vec3::new(0.0, SPAWN_HEIGHT, 0.0);
         let heading = body.forward.z.atan2(body.forward.x);
         self.heli = Some(Helicopter::spawn(behind, heading, tuning));
+        self.on_helicopter();
     }
 }

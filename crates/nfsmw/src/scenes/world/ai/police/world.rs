@@ -88,6 +88,7 @@ impl super::super::TrafficWorld {
             flashing: self.police.flashing(),
         };
         self.police.set_rig(self.helicopter_rig.clone());
+        self.police.note_cops_damaged(self.cops_damaged());
         // Busted first: a busted frame does not tick the escape. `is_busted` stays set until the next chase.
         let busted = self.police.tick_busted(dt, pursuing, bust);
         let evaded = self.police.update_in_world(dt, pursuing, player, sensed, clear);
@@ -163,9 +164,39 @@ impl super::super::TrafficWorld {
             .is_some_and(|hit| horizontal(hit.point - at).length() <= ROAD_EDGE)
     }
 
+    /// The heat the car carries into the next chase (see `Police::set_carried_heat`).
+    pub fn set_carried_heat(&mut self, heat: f32) {
+        self.police.set_carried_heat(heat);
+    }
+
+    /// The infraction log of the chase; kept after it ends until the next chase begins.
+    pub fn infractions(&self) -> &InfractionLog {
+        self.police.infractions()
+    }
+
     /// The cop cars wrecked in the chase, for the pursuit board.
     pub fn cops_destroyed(&self) -> u32 {
         self.police.cops_destroyed()
+    }
+
+    /// The rep points of the chase so far (normal plus destruction): the pending bounty.
+    pub fn rep_points(&self) -> u32 {
+        self.police.rep_points()
+    }
+
+    /// The normal rep points of the chase so far (the time in sight).
+    pub fn rep_normal_points(&self) -> u32 {
+        self.police.rep_normal_points()
+    }
+
+    /// The destruction rep points of the chase so far.
+    pub fn rep_destroyed_points(&self) -> u32 {
+        self.police.rep_destroyed_points()
+    }
+
+    /// The cost to state of the chase so far.
+    pub fn cost_to_state(&self) -> u32 {
+        self.police.cost_to_state()
     }
 
     /// The chase as the audio and the speech read it each frame; `None` with no chase on.

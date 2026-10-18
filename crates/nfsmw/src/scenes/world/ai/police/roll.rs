@@ -11,7 +11,9 @@ use super::{Police, SUPPORT_CHECK};
 impl Police {
     /// The support check: after the minimum delay, the roll of this check, then the request it made.
     pub(super) fn tick_support(&mut self, dt: f32, seen: bool, level: u32, random: f32) {
+        let before = self.pursuit_time;
         self.pursuit_time += dt;
+        self.tick_rep(before, dt, seen, level);
         self.support_timer -= dt;
         if self.support_timer > 0.0 || self.pursuit_time < support::minimum_delay(level) {
             return;

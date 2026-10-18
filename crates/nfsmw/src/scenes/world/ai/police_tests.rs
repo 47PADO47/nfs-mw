@@ -40,11 +40,11 @@ fn a_chase_starts_at_its_level_and_clears_the_log() {
 #[test]
 fn only_a_chase_counts_the_cops_it_wrecks_and_each_chase_starts_at_zero() {
     let mut police = Police::default();
-    police.record_wreck();
+    police.record_wreck("copmidsize");
     assert_eq!(police.cops_destroyed(), 0, "a wreck outside a chase is not counted");
     police.begin(3);
-    police.record_wreck();
-    police.record_wreck();
+    police.record_wreck("copmidsize");
+    police.record_wreck("copmidsize");
     assert_eq!(police.cops_destroyed(), 2);
     police.end(EndReason::None);
     assert_eq!(police.cops_destroyed(), 2, "the count stays after the chase, for the summary");
