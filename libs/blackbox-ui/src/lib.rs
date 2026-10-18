@@ -35,6 +35,7 @@
 //! ```
 
 mod component;
+mod components;
 mod context;
 mod draw;
 mod geom;
@@ -46,6 +47,7 @@ mod themes;
 mod tree;
 
 pub use component::{Component, Empty};
+pub use components::{DEFAULT_Z, Gauge, Image, Panel, Stack, StackAxis, Text, justify};
 pub use context::{BuildCx, EventCx, LayoutCx};
 pub use draw::DrawList;
 pub use geom::Rect;
