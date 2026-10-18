@@ -157,6 +157,7 @@ pub fn draw(
     let _span = bevy_log::info_span!("render::draw").entered();
     let host = &mut *host;
     let Some(renderer) = host.renderer.as_mut() else { return };
+    renderer.end_latency_simulation();
     for patch in ui.patches.drain(..) {
         renderer.update_ui_texture(&patch.as_patch());
     }

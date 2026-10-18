@@ -129,6 +129,8 @@ pub fn partial_of(s: &Settings) -> Partial {
         invert_camera_y: Some(c.invert_camera_y),
         backend: Some(s.backend),
         renderer: Some(s.renderer),
+        reflex: Some(s.reflex),
+        frame_generation: Some(s.frame_generation),
         vsync: Some(s.vsync),
         max_fps: Some(s.max_fps),
         show_metrics: Some(s.show_metrics),

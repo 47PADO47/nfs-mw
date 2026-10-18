@@ -142,6 +142,8 @@ pub(super) fn restore_graphics(settings: &mut Settings, snapshot: &Settings) {
     settings.window_mode = snapshot.window_mode;
     settings.monitor = snapshot.monitor;
     settings.resolution = snapshot.resolution;
+    settings.reflex = snapshot.reflex;
+    settings.frame_generation = snapshot.frame_generation;
     settings.vsync = snapshot.vsync;
     settings.max_fps = snapshot.max_fps;
     settings.show_metrics = snapshot.show_metrics;

@@ -15,6 +15,10 @@ use super::host::Host;
 pub struct MaxFps(Option<u32>);
 
 impl MaxFps {
+    pub fn microseconds(self) -> u32 {
+        self.0.map_or(0, |fps| (1_000_000 / fps.max(1)).max(1))
+    }
+
     fn interval(self) -> Option<Duration> {
         self.0.map(|fps| Duration::from_secs_f64(1.0 / f64::from(fps)))
     }
@@ -89,7 +93,9 @@ pub fn end_of_frame(
         window.title = format!("{} - {} - {fps:.0} fps{status}", host.scene.title(), renderer.info().summary());
         (host.title_timer, host.frames) = (Instant::now(), 0);
     }
-    host.limiter.wait();
+    if !host.latency_pacing {
+        host.limiter.wait();
+    }
 }
 
 #[cfg(test)]

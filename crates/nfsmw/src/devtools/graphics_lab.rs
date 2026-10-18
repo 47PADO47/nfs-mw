@@ -41,6 +41,7 @@ pub struct GraphicsLab {
     message: Option<String>,
     caps: Option<blackbox_gfx::Capabilities>,
     display: blackbox_gfx::DisplayStatus,
+    latency: blackbox_gfx::LatencyStatus,
     startup_quality: Option<quality::Quality>,
     startup_style: Option<crate::settings::VisualStyle>,
     stats: ExperimentStats,
@@ -93,6 +94,7 @@ impl Default for GraphicsLab {
             message: None,
             caps: None,
             display: Default::default(),
+            latency: Default::default(),
             options,
             startup_style: std::env::var("NFSMW_LAB_STYLE").ok().and_then(|s| s.parse().ok()),
             startup_quality: std::env::var("NFSMW_LAB_QUALITY").ok().as_deref().and_then(quality::Quality::parse),
@@ -215,6 +217,7 @@ fn apply(mut lab: ResMut<GraphicsLab>, settings: Res<Settings>, mut host: NonSen
     renderer.set_render_experiments(settings.appearance.lighting);
     lab.caps = Some(*renderer.capabilities());
     lab.display = renderer.display_status();
+    lab.latency = renderer.latency_status();
     lab.stats = renderer.experiment_stats();
 }
 

@@ -9,6 +9,7 @@ mod bench;
 mod cursor;
 mod graphics;
 mod host;
+mod latency;
 pub(crate) mod mirror;
 pub mod pacing;
 pub(crate) mod render;
@@ -201,6 +202,8 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
     .add_systems(Update, crate::settings::custom_fonts::publish.in_set(FrameSet::Prepare))
     .add_systems(Update, crate::settings::fe_shadows::publish.in_set(FrameSet::Prepare))
     .add_systems(Update, render::draw.in_set(FrameSet::Draw))
+    .add_systems(bevy_app::First, latency::begin.before(bevy_time::TimeSystems))
+    .add_systems(bevy_app::PreUpdate, latency::input.after(bevy_input::InputSystems))
     .add_systems(Last, pacing::end_of_frame);
     if bench_seconds.is_some() {
         // An unfocused window would otherwise be updated at 60 Hz, and the numbers would be the cap's.

@@ -29,6 +29,7 @@ pub struct Host {
     /// The window size the renderer was last resized to.
     pub size: (u32, u32),
     pub limiter: FrameLimiter,
+    pub latency_pacing: bool,
     pub title_timer: Instant,
     pub frames: u32,
     /// `--bench-seconds`: measures frame times and exits.
@@ -85,6 +86,7 @@ impl Host {
             pending_capture: None,
             size: (0, 0),
             limiter: FrameLimiter::new(settings.max_fps),
+            latency_pacing: false,
             title_timer: Instant::now(),
             frames: 0,
             bench: None,

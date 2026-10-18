@@ -278,6 +278,8 @@ impl Settings {
             window_mode: Some(self.window_mode),
             monitor: Some(self.monitor),
             resolution: Some(self.resolution),
+            reflex: Some(self.reflex),
+            frame_generation: Some(self.frame_generation),
             vsync: Some(self.vsync),
             max_fps: Some(self.max_fps),
             show_metrics: Some(self.show_metrics),

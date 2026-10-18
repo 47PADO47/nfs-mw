@@ -31,7 +31,10 @@ preserves requested values even when the active renderer uses a fallback.
 Detail and Traffic controls are shared by both renderers and included in saved snapshots.
 Video includes API (after restart), window mode, monitor, resolution, VSync, frame
 limit, performance overlay, upscaler, temporal quality (Native selects DLAA with
-DLSS), spatial render scale and sharpening. Only supported upscalers are offered;
+DLSS), spatial render scale and sharpening. Native Streamline builds also expose
+Reflex Off/On/Boost and hardware-supported frame-generation multipliers. Generation
+requires HDR off, VSync off and DLSS/FSR 3; the UI is submitted separately for recomposition.
+Only supported upscalers are offered;
 unavailable stored requests are retained and their fallback is shown.
 Materials includes cubemap/mirror sizes, power-of-two faces, capture detail,
 content, distance, reflection brightness and mirror tint. Effects also exposes

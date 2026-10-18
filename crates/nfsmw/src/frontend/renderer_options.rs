@@ -15,8 +15,7 @@ pub enum RendererSetting {
     Renderer,
     GraphicsApi,
     UpscaleQuality,
-    /// Frame generation, for the temporal upscalers. Nothing stores a value yet: the row is dimmed and reads
-    /// "Unavailable" until a renderer reports `Capabilities::frame_generation`.
+    /// Frame generation for temporal upscalers; unavailable until the active renderer supports it.
     FrameGeneration,
     RayTracing,
 }
@@ -65,7 +64,9 @@ impl RendererSetting {
                     UpscaleQuality::Performance => "Performance",
                     UpscaleQuality::UltraPerformance => "Ultra Performance",
                 },
-                Self::FrameGeneration => "Off",
+                Self::FrameGeneration => {
+                    return Data::Text(s.frame_generation.to_string());
+                }
                 Self::RayTracing => match s.ray_tracing {
                     RayTracingLevel::Off => "Off",
                     RayTracingLevel::Low => "Low",
@@ -102,7 +103,14 @@ impl RendererSetting {
                 s.upscale_quality = pick(&all, s.upscale_quality, forward);
                 changed.upscale_quality = Some(s.upscale_quality);
             }
-            Self::FrameGeneration => {}
+            Self::FrameGeneration => {
+                s.frame_generation = pick(
+                    &[crate::settings::FrameGeneration(0), crate::settings::FrameGeneration(1)],
+                    s.frame_generation,
+                    forward,
+                );
+                changed.frame_generation = Some(s.frame_generation);
+            }
             Self::RayTracing => {
                 let all = [RayTracingLevel::Off, RayTracingLevel::Low, RayTracingLevel::Medium, RayTracingLevel::High];
                 s.ray_tracing = pick(&all, s.ray_tracing, forward);
