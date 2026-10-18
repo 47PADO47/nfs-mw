@@ -160,9 +160,11 @@ the screen code); career cars are not editable there. The count of such cars is 
 
 ## 8. Rewrite
 
-Needed for the rewrite: a car catalogue with price, unlock rank, class and for-sale flag per car (available from
-`FE_ATTRIB.bin` through `blackbox-attrib`), the purchase/sale checks of sections 3 and 4, and the stage-based availability
-of section 6. The limits (10 purchased cars, 25 records, 20 customs) can be configuration values.
+Built in `crates/nfsmw-career::carlot`: the catalogue and stage-based availability (`catalogue`, sections 1, 2 and 6), the
+purchase and sale checks (`purchase`, `sale`, sections 3 and 4), and the garage limits as `Limits::SPEC`. The car
+catalogue is read by `nfsmw-data::career_cars`. The choices and gaps are in
+[provenance/career-core.md](../provenance/career-core.md). The purchase and sale flows that call these checks are not
+wired yet. The limits (10 purchased cars, 25 records, 20 customs) are values in `Limits`, not screen literals.
 
 ## Open questions
 

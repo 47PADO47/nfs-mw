@@ -207,7 +207,8 @@ record (written as `min(heat, 5)` at unload, read as `max(1.0, record)` at spawn
 for `register_safehouse` and `set_safehouse_cools_heat` is a rewrite feature, not original behaviour. A safe house is a
 zone whose type string is `safehouse` (`carlot` and `customshop` are the other two); it needs no event and either no
 pursuit or one in cool-down, where engaging ends the pursuit first. The respawn point is a collection key stored in the
-script manager. Autosave runs at free-roam start and after races. SMS messages arrive only in free roam and sit in a
+script manager. Autosave runs at three points: free-roam start, event start, and pursuit evaded
+([career-save-screens-2.md](../specs/career-save-screens-2.md) section 8). SMS messages arrive only in free roam and sit in a
 150-slot inbox ([career-phone.md](../specs/career-phone.md)). [career-safehouse.md](../specs/career-safehouse.md),
 [career-flow.md](../specs/career-flow.md).
 

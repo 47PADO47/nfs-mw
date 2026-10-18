@@ -396,10 +396,12 @@ unlock state is not separate. The details of the unrelated parts are not decoded
 
 ## 8. The rewrite today
 
-No milestone state exists in the rewrite yet; only the data files are readable and the native mod API has placeholders
-(`BbMilestone` with progress and goal, `BbMilestoneDef` with `reward_cash` and goal, in
-`crates/nfsmw-modding/src/abi/career_records.rs`). Two things to align when it is built: the original pays **bounty
-(rep points), not cash**, and the original threshold is one number (not a progress/goal pair with a ladder).
+The milestone state exists in `crates/nfsmw-career::milestones` (statistics, the four states, the bin transitions, the
+speed traps in `milestones::speedtrap`, and the save block records in `save::milestones_block`); the data readers are in
+`nfsmw-data`. The choices are in [provenance/career-core.md](../provenance/career-core.md). **Still open:** the native mod
+API placeholder still pays cash (`BbMilestone` with progress and goal, `BbMilestoneDef` with `reward_cash` and goal, in
+`crates/nfsmw-modding/src/abi/career_records.rs`). The original pays **bounty (rep points), not cash**, and its threshold
+is one number (not a progress/goal pair with a ladder). The ABI must move to the bounty and the single threshold.
 
 ## 9. Open questions
 

@@ -332,9 +332,10 @@ The details of ranks and rivals are in the Blacklist specs; only the order is re
 
 ## 10. Rewrite
 
-The rewrite has no career state yet. Needed first: the settings struct and the stable of
-[career-save.md](../formats/career-save.md), the context word of section 1 as an enum, the new/resume decision of
-section 2 and a safe house screen with the five buttons of section 7.2.
+The rewrite has career state in `crates/nfsmw-career`: the settings struct and the stable of
+[career-save.md](../formats/career-save.md), the front-end context word (section 1, as bits of `FrontEndContext`), the
+new career setup (section 3), the safe house flow (sections 5 and 7) and the save screens. The safe house screen with
+the five buttons of section 7.2 is not built yet; see [provenance/career-core.md](../provenance/career-core.md).
 
 ## Open questions
 

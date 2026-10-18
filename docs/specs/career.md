@@ -1,7 +1,9 @@
 # Career and progression: overview
 
-How the original's career works end to end, and where each part is written down. The rewrite has no career state yet
-(free roam only, see [../app-flow.md](../app-flow.md)); these pages are the specs the career work will be built from.
+How the original's career works end to end, and where each part is written down. The rewrite has the career rules in `crates/nfsmw-career`
+(pure logic, no I/O: settings and stable, safe house, rap sheet, save screens, regions, milestones, Blacklist, car lot,
+new career); [provenance/career-core.md](../provenance/career-core.md) lists what each module models. The app runs free
+roam only (see [../app-flow.md](../app-flow.md)); these pages are the specs the career code follows.
 
 - **Sources:** `speed.exe` (Black Edition PC v1.3, image base `0x00400000`) through the Ghidra MCP, the install's
   `GLOBAL/gameplay.bin` and `FE_ATTRIB.bin`, and the three saves on the development machine (read only). Each page lists
@@ -50,8 +52,9 @@ How the original's career works end to end, and where each part is written down.
    found**, in the exe or in any script: the only callers are the first safe house visit and an unused event and script
    wrapper. A rewrite should enter bin N-1 when bin N reaches done (our choice, [unconfirmed]). **[exe, open]**
 9. Winning event `1.8.1` sets the career-complete flag, unlocks every rival challenge and shows the game-won screen. **[exe]**
-10. The safe house saves, changes cars, shows the rap sheet and starts the next challenge; autosave runs at free-roam start
-    and after races. **[exe]**
+10. The safe house saves, changes cars, shows the rap sheet and starts the next challenge; autosave runs at three points:
+    free-roam start, event start, and pursuit evaded ([career-save-screens-2.md](career-save-screens-2.md) section 8).
+    **[exe]**
 
 ## What the rewrite needs first
 
@@ -61,7 +64,8 @@ How the original's career works end to end, and where each part is written down.
    queries; its field lists marked [unconfirmed] should be checked against these pages (for example milestones pay
    **bounty** in the original, not cash).
 2. The pursuit-end recorder, with the order in [career-economy-flows.md](career-economy-flows.md).
-3. The milestone tracker and the bin state machine, driven by the install's own `gameplay.bin` data.
+3. The milestone tracker and the bin state machine: both exist in `nfsmw-career` (`milestones`, `blacklist`), fed by the
+   install's own `gameplay.bin` data. What remains is wiring them to the races, the pursuit end and the save.
 4. The safe house screens and the car lot on top of the existing front end.
 
 ## Open questions (all pages)
