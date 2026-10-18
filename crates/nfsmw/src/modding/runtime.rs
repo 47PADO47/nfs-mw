@@ -9,8 +9,10 @@ use std::rc::Rc;
 use bevy_input::keyboard::KeyCode;
 use blackbox_modding::abi::{BB_EVENT_FRAME_START, BB_EVENT_MOD_UNLOADING, BB_EVENT_SCENE_TICK, BbEvent};
 use blackbox_modding::host::{DispatchReport, HostOffer, ModRuntime, ModSummary, Policy, Rejected, RunMode};
+use blackbox_ui::ThemeId;
 
 use super::backends::menus::any_row as has_menu_rows;
+use super::backends::ui::{any_theme as has_ui_themes, choice as theme_choice};
 use super::backends::{Bridge, Interfaces, commands};
 use super::events::{frame_start_payload, interior_payload, scene_tick_payload, unloading_payload};
 use super::manager::ModManager;
@@ -49,9 +51,10 @@ impl Mods {
         &self.manager
     }
 
-    /// Whether the Mods page has anything to show: a listed mod, or a row a mod registered (`bb.menus`).
+    /// Whether the Mods page has anything to show: a listed mod, a row a mod registered (`bb.menus`), or a theme a mod
+    /// registered (`bb.ui`), which the page offers a choice of.
     pub fn has_mods_page(&self) -> bool {
-        !self.manager.is_empty() || has_menu_rows(&self.bridge)
+        !self.manager.is_empty() || has_menu_rows(&self.bridge) || has_ui_themes(&self.bridge)
     }
 
     /// The loaded mods, in load order.
@@ -72,6 +75,11 @@ impl Mods {
     /// The themes the mods registered with `bb.ui`, as the theme registry holds them.
     pub fn ui_themes(&self) -> Vec<crate::ui::theme::modded::ModTheme> {
         super::backends::ui::themes(&self.bridge)
+    }
+
+    /// The mod theme the player chose on the Mods page, or `None` for the built-in style.
+    pub fn ui_theme_choice(&self) -> Option<ThemeId> {
+        theme_choice(&self.bridge)
     }
 
     /// Copy the scene's clock, car, camera and track in, before the mods run this frame. The scene is mutable because

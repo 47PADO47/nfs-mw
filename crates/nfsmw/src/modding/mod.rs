@@ -30,6 +30,9 @@ mod hello_tests;
 mod tests;
 
 pub use backends::menus::{RowInfo, change as change_menu_row, rows as menu_rows};
+pub use backends::ui::{
+    any_theme as has_ui_themes, chosen_display as ui_theme_display, step_choice as step_ui_theme_choice,
+};
 pub use console::{has_command, help_entries, listing, run_command};
 pub use open::open_install;
 pub use plugin::ModsPlugin;

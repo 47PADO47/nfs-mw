@@ -6,11 +6,13 @@ use std::rc::Rc;
 use blackbox_modding::abi::{BB_ERR_ARG, BB_ERR_EXISTS, BB_ERR_NOT_FOUND, IFACE_UI};
 use blackbox_modding::host::{UiBackend, UiPrim, UiRect, UiThemeSpec};
 use blackbox_ui::{BuildCx, Component, DrawList, LayoutCx, NodeKind, Rect, Skin, Theme, ThemeId, justify};
+use toml::Value;
 
 use super::bridge::Bridge;
 use super::interfaces;
+use super::menu_store::ValueStore;
 use super::support::MemoryStore;
-use super::ui::{UiPort, theme_id, themes};
+use super::ui::{UiPort, any_theme, choice, chosen_display, step_choice, theme_id, themes};
 use crate::ui::theme::ElementId;
 
 fn setup() -> (Rc<Bridge>, UiPort) {
@@ -132,4 +134,64 @@ fn the_game_offers_bb_ui() {
     let game = interfaces();
     let offered: Vec<String> = game.registry.offers().into_iter().map(|offer| offer.id).collect();
     assert!(offered.iter().any(|id| id == IFACE_UI), "bb.ui is among the offers: {offered:?}");
+}
+
+/// A bridge whose saved values the test can read: the store is shared between the bridge and the test.
+fn shared_setup() -> (Rc<MemoryStore>, Rc<Bridge>, UiPort) {
+    let store = Rc::new(MemoryStore::default());
+    let bridge = Rc::new(Bridge::with_store(Box::new(store.clone())));
+    (store, bridge.clone(), UiPort(bridge))
+}
+
+#[test]
+fn the_theme_choice_steps_through_the_built_in_style_and_each_mod_theme() {
+    let (store, bridge, port) = shared_setup();
+    port.register_theme("example.a", &spec("night", "Night drive")).expect("a registers");
+    port.register_theme("example.b", &spec("day", "Day drive")).expect("b registers");
+    let night = theme_id("example.a", "night");
+    let day = theme_id("example.b", "day");
+    assert!(any_theme(&bridge));
+    assert_eq!(choice(&bridge), None, "the built-in style is chosen at first");
+    assert_eq!(chosen_display(&bridge), None);
+
+    step_choice(&bridge, true);
+    assert_eq!((choice(&bridge), chosen_display(&bridge).as_deref()), (Some(night), Some("Night drive")));
+    assert_eq!(store.saved_text("nfsmw", "ui_style_mod").as_deref(), Some("example.a/night"), "the choice is saved");
+
+    step_choice(&bridge, true);
+    assert_eq!(choice(&bridge), Some(day));
+    step_choice(&bridge, true);
+    assert_eq!(choice(&bridge), None, "forward past the last mod theme is the built-in style");
+    assert_eq!(store.saved_text("nfsmw", "ui_style_mod").as_deref(), Some(""), "the built-in choice is saved as empty");
+    step_choice(&bridge, false);
+    assert_eq!(choice(&bridge), Some(day), "back from the built-in style is the last mod theme");
+}
+
+#[test]
+fn a_saved_choice_selects_its_theme_again_when_the_theme_registers() {
+    let (store, bridge, port) = shared_setup();
+    store.save("nfsmw", "ui_style_mod", Value::String("example.a/night".into())).expect("saved");
+    port.register_theme("example.b", &spec("day", "Day drive")).expect("b registers");
+    assert_eq!(choice(&bridge), None, "another theme does not match the saved choice");
+    port.register_theme("example.a", &spec("night", "Night drive")).expect("a registers");
+    assert_eq!(choice(&bridge), Some(theme_id("example.a", "night")), "the saved theme is selected again");
+    assert_eq!(chosen_display(&bridge).as_deref(), Some("Night drive"));
+}
+
+#[test]
+fn a_saved_choice_for_an_absent_theme_leaves_the_built_in_style() {
+    let (store, bridge, port) = shared_setup();
+    store.save("nfsmw", "ui_style_mod", Value::String("example.z/gone".into())).expect("saved");
+    port.register_theme("example.a", &spec("night", "Night drive")).expect("a registers");
+    assert_eq!(choice(&bridge), None);
+    assert_eq!(chosen_display(&bridge), None);
+    assert!(any_theme(&bridge), "the theme row is still offered");
+}
+
+#[test]
+fn the_built_in_choice_saved_as_empty_is_not_reselected() {
+    let (store, bridge, port) = shared_setup();
+    store.save("nfsmw", "ui_style_mod", Value::String(String::new())).expect("saved");
+    port.register_theme("example.a", &spec("night", "Night drive")).expect("a registers");
+    assert_eq!(choice(&bridge), None, "an empty saved choice is the built-in style");
 }
