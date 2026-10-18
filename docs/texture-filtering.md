@@ -3,8 +3,9 @@
 Texture filtering is a separate scene-surface quality preference: Trilinear,
 Anisotropic 8x (the default), or Anisotropic 16x. Select it in Video options or
 F8 Materials. F8 Save for startup preserves it; startup restore, saved profile load
-and A/B comparison also include it. Visual styles and quality presets preserve
-this independent choice. Config uses `texture_filtering = "anisotropic-16x"`;
+and A/B comparison also include it. Appearance quality presets select 16x at every
+level; filtering remains independently editable afterward. Legacy graphics presets
+preserve a manually selected filter. Config uses `texture_filtering = "anisotropic-16x"`;
 `NFSMW_TEXTURE_FILTERING` and `--texture-filtering` accept the same names, or
 `8x` / `16x`.
 

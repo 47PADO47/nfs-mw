@@ -33,7 +33,9 @@ Treatment, glossy cars and modern lighting. Custom preserves manual choices.
 A modified baseline displays Custom while retaining its base for quality changes.
 
 Quality Low/Balanced/High/Very High owns map size/range, filtering cost, reflection budget
-and AO budget. It does not change tint, treatment strength, AA or tone mapping.
+and AO budget. Black Box High/Very High select XeGTAO at 80% with depth prefiltering
+when AO is enabled, and preserve deliberately disabled AO. Every level selects
+16x anisotropic filtering. Quality does not change tint, treatment strength, AA or tone mapping.
 Style selection is explicit. Environment time/rain, audio, camera, frame cap,
 resolution and controls are outside style/quality ownership.
 
@@ -42,8 +44,8 @@ surface debug are session diagnostics and are not serialized. Malformed or
 future schemas produce a diagnostic and preserve legacy settings. Writes keep
 unrelated config keys. F8 Save for startup writes the complete graphics request,
 including scaling, upscaling and effect preferences; environment overrides are
-excluded. Renderer/API, window and gameplay settings are not restored by graphics
-load. Legacy documents leave missing fields at their current values. Named
+excluded. Shared Detail and Traffic settings are part of F8 snapshots. Renderer/API,
+window, audio and other gameplay settings are not restored by graphics load. Legacy documents leave missing fields at their current values. Named
 snapshots live in a separate versioned user file, support explicit replacement,
 and retain unsupported renderer requests. Invalid/future files are not overwritten.
 Revert restores the startup
