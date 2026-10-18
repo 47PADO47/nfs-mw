@@ -36,11 +36,13 @@ pub struct Args {
     /// The option categories instead of the screen's usual content (the pause menu shows them in the same package).
     pub options: bool,
     pub category: Category,
+    /// Opened in the career's safe house (the safe house menu and the screens it opens; `career-safehouse-2.md`).
+    pub safehouse: bool,
 }
 
 impl Default for Args {
     fn default() -> Self {
-        Self { pause: false, options: false, category: Category::Audio }
+        Self { pause: false, options: false, category: Category::Audio, safehouse: false }
     }
 }
 
@@ -83,6 +85,17 @@ pub enum Command {
     LoadAlias,
     /// The boot flow goes on to its next step.
     NextBootStep,
+    /// Save the career being played to its profile (`MC_Main.fng`, `flow_save.rs`).
+    CareerSave,
+    /// Load the profile of this alias and play it (`flow_save.rs`).
+    CareerLoad(String),
+    /// Make a new career profile under this alias and play it (`flow_save.rs`).
+    #[allow(dead_code)] // the alias manager will send it (save-alias-manager.md)
+    CareerNew(String),
+    /// Delete the profile of this alias (`flow_save.rs`).
+    CareerDelete(String),
+    /// Buy or sell a car on the car lot, after its confirmation (`career_screens/car_lot.rs`).
+    CarLot(super::career_screens::car_lot::CarLotAction),
 }
 
 /// The settings, the part of them the menus changed since they were last saved, and what the renderer can do

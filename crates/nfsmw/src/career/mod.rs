@@ -44,6 +44,13 @@ pub enum CareerRequest {
 pub struct CareerHandle(Arc<Mutex<Option<Career>>>);
 
 impl CareerHandle {
+    /// The process's career handle. The screens are built by name with no constructor data (`frontend::factory`), so
+    /// they reach the career through this one handle, which the front end, the HUD and the world also hold.
+    pub fn shared() -> CareerHandle {
+        static SHARED: std::sync::OnceLock<CareerHandle> = std::sync::OnceLock::new();
+        SHARED.get_or_init(CareerHandle::default).clone()
+    }
+
     /// Starts playing `career`, replacing the one before.
     pub fn set(&self, career: Career) {
         *self.lock() = Some(career);

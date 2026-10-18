@@ -4,6 +4,7 @@
 
 mod alias_options;
 mod browse;
+mod career_screens;
 mod confirm;
 mod controls_layout;
 mod controls_screen;

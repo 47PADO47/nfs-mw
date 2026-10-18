@@ -24,6 +24,12 @@ pub fn make(name: &str, args: Args, mod_rows: bool) -> Box<dyn ScreenLogic> {
     if is(screen::MAIN_MENU) {
         return Box::new(IconMenu::new(Kind::Main, args));
     }
+    if is(screen::MAIN_MENU_SUB) && args.safehouse {
+        return super::career_screens::safehouse_menu::make(args);
+    }
+    if let Some(logic) = super::career_screens::make(&name, args) {
+        return logic;
+    }
     if is(screen::MAIN_MENU_SUB) {
         return Box::new(IconMenu::new(Kind::Categories { pause: false, mods: mod_rows }, args));
     }

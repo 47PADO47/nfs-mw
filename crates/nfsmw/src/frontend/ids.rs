@@ -30,6 +30,22 @@ pub mod screen {
     pub const EA_TRAX_JUKEBOX: &str = "EA_Trax_Jukebox.fng";
     /// The credits roll (`credits.rs`), opened from the option categories.
     pub const CREDITS: &str = "Credits.fng";
+    /// The career screens (`docs/specs/career-*.md`).
+    pub const SAFE_HOUSE_RIVAL_CHALLENGE: &str = "SafeHouseRivalChallenge.fng";
+    pub const SAFE_HOUSE_RIVAL_BIO: &str = "SafeHouseRivalBio.fng";
+    pub const SAFEHOUSE_REGION_UNLOCK: &str = "SafehouseRegionUnlock.fng";
+    pub const RAP_SHEET_LOGIN: &str = "RapSheetLogin.fng";
+    pub const RAP_SHEET_MAIN: &str = "RapSheetMain.fng";
+    pub const RAP_SHEET_US: &str = "RapSheetUS.fng";
+    pub const RAP_SHEET_VD: &str = "RapSheetVD.fng";
+    pub const RAP_SHEET_CTS: &str = "RapSheetCTS.fng";
+    pub const RAP_SHEET_RANKINGS: &str = "RapSheetRankings.fng";
+    pub const RAP_SHEET_RANKINGS_DETAIL: &str = "RapSheetRankingsDetail.fng";
+    pub const MC_MAIN: &str = "MC_Main.fng";
+    pub const MC_LIST: &str = "MC_List.fng";
+    pub const CAR_SELECT: &str = "Car_Select.fng";
+    pub const SMS_MAILBOXES: &str = "SMS_Mailboxes.fng";
+    pub const SMS_MESSAGE: &str = "SMS_Message.fng";
 }
 
 // Messages.

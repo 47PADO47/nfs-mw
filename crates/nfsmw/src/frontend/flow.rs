@@ -21,6 +21,8 @@ use crate::settings::{Partial, Settings};
 // Career on the main menu: starting or resuming a career (`start_career`).
 #[path = "flow_career.rs"]
 mod flow_career;
+#[path = "flow_save.rs"]
+mod flow_save;
 
 /// Where the front end starts.
 #[derive(Clone, Debug, PartialEq)]
@@ -122,6 +124,8 @@ pub struct Frontend {
     /// The profile folder careers are saved in. `None` when there is no per-user folder. Screenshot runs use a temp
     /// folder instead (`begin`), so they never write the player's profiles.
     pub(super) profiles: Option<ProfileDir>,
+    /// The safe house menu is up over the frozen world: leaving it restarts free roam (`flow_career.rs`).
+    pub(super) in_safe_house: bool,
 }
 
 impl Frontend {
@@ -150,6 +154,7 @@ impl Frontend {
             menu_in_window,
             career: CareerHandle::default(),
             profiles: ProfileDir::default_dir(),
+            in_safe_house: false,
         }
     }
 
@@ -372,6 +377,7 @@ impl Frontend {
                 Command::StartCareer => self.start_career(host, env),
                 Command::Resume => {
                     self.save_settings(env.changed);
+                    self.leave_safe_house();
                     self.resume();
                 }
                 Command::QuitToMenu => {
@@ -383,6 +389,11 @@ impl Frontend {
                     self.quit = true;
                 }
                 Command::NextBootStep => self.next_boot(host, env),
+                Command::CareerSave => self.career_save(host, env),
+                Command::CareerLoad(alias) => self.career_load(&alias, host, env),
+                Command::CareerNew(alias) => self.career_new(&alias, host, env),
+                Command::CareerDelete(alias) => self.career_delete(&alias, host, env),
+                Command::CarLot(action) => self.car_lot_action(action, host, env),
                 Command::SaveSettings => self.save_settings(env.changed),
                 Command::OpenGraphics => self.graphics_requested = true,
                 Command::Remap(control, slot) => {

@@ -26,7 +26,7 @@ fn run_front_end(
         start,
         script,
         browse: None,
-        career: Default::default(),
+        career: crate::career::CareerHandle::shared(),
     });
     crate::app::run(
         Box::new(crate::frontend::MenuScene::new(Some(dir.clone()))),
@@ -112,7 +112,10 @@ pub fn run(cli: Cli) -> Result<()> {
             if crate::ui::Catalog::load(&dir, &crate::ui::SCREEN_FILES).find(&name).is_none() {
                 anyhow::bail!("no screen {name:?} in the install (try list-screens)");
             }
-            let start = crate::frontend::Start::Screen(name, crate::frontend::Args { pause, options, category });
+            let start = crate::frontend::Start::Screen(
+                name,
+                crate::frontend::Args { pause, options, category, ..Default::default() },
+            );
             let settle = view.screenshot.is_some().then_some("wait 2");
             run_front_end(&dir, mods, start, ui_script.as_deref().or(settle), &view)
         }
@@ -128,7 +131,7 @@ pub fn run(cli: Cli) -> Result<()> {
                 start,
                 script,
                 browse: Some(scene.browse()),
-                career: Default::default(),
+                career: crate::career::CareerHandle::shared(),
             };
             let mut options = view.run_options(&dir, true).with_mods(mods);
             options.frontend = Some(plugin);
