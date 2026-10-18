@@ -151,6 +151,13 @@ impl Cx<'_> {
         self.rt.find_guid(self.package, guid)
     }
 
+    /// Sets the texture rectangle `[u0, v0, u1, v1]` of the image with this GUID (a bar's LED strip). Nothing when the
+    /// screen has no such object.
+    pub fn set_uv(&mut self, guid: u32, uv: [f32; 4]) {
+        let Some(object) = self.guid(guid) else { return };
+        self.rt.set_uv(object, uv);
+    }
+
     /// The object with this name hash in the screen's package.
     pub fn object(&self, name_hash: u32) -> Option<ObjectRef> {
         self.rt.find(self.package, name_hash)

@@ -10,6 +10,7 @@
 pub mod catalogue;
 pub mod purchase;
 pub mod sale;
+pub mod stats;
 #[cfg(test)]
 mod tests;
 

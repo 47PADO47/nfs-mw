@@ -12,11 +12,14 @@
 
 use anyhow::{Context, Result};
 use blackbox_attrib::{Database, vlt_hash};
+use blackbox_vehicle::performance::measure_with_integration;
 use game_install::GameDir;
 use nfsmw_career::blacklist::BinDef;
+use nfsmw_career::carlot::stats::{CarStats, SPEED_100_MPH, time_to_speed};
 use nfsmw_career::carlot::{LotCar, LotClass};
 use nfsmw_career::milestones::speedtrap::{self, SpeedTrapDef};
 use nfsmw_career::milestones::{MilestoneDef, StatType};
+use nfsmw_data::car::physics::PhysicsData;
 use nfsmw_data::career_cars::{self, CarClass, CatalogueCar};
 use nfsmw_data::gameplay::{self, GameplayData};
 use nfsmw_data::pursuit::{self, CareerHeat};
@@ -38,6 +41,9 @@ pub struct CareerData {
     pub traps: Vec<SpeedTrapDef>,
     /// The car lot's cars, in the reader's order.
     pub cars: Vec<LotCar>,
+    /// The stat bars' raw stats of each car, parallel to `cars`. `None` when the car's physics cannot be read (and
+    /// everywhere the tables are built without an install, see [`CareerData::from_parts`]).
+    pub stats: Vec<Option<CarStats>>,
     /// The cop heat values. `None` when `pursuitlevels/default` is missing from the attribute database.
     pub heat: Option<CareerHeat>,
     /// The rap sheet thresholds. `None` when a ranking table is missing or malformed.
@@ -58,7 +64,9 @@ impl CareerData {
         let cars = career_cars::catalogue(&frontend);
         let heat = pursuit::career_heat(&attributes);
         let ranks = rank_thresholds::rank_thresholds(&frontend);
-        Ok(CareerData::from_parts(gameplay, &cars, heat, ranks))
+        let mut data = CareerData::from_parts(gameplay, &cars, heat, ranks);
+        data.stats = lot_stats(dir, &data.cars);
+        Ok(data)
     }
 
     /// Build the tables from data already read. Pure: no install is touched, so tests can pass synthetic inputs.
@@ -71,9 +79,30 @@ impl CareerData {
         let bins = gameplay.bins.iter().filter_map(|bin| blacklist_bin(&gameplay, bin)).collect();
         let milestones = gameplay.milestones.iter().filter_map(milestone_def).collect();
         let traps = gameplay.speed_traps.iter().filter_map(trap_def).collect();
-        let cars = cars.iter().filter_map(lot_car).collect();
-        CareerData { bins, milestones, traps, cars, heat, ranks, gameplay }
+        let cars: Vec<LotCar> = cars.iter().filter_map(lot_car).collect();
+        let stats = vec![None; cars.len()];
+        CareerData { bins, milestones, traps, cars, stats, heat, ranks, gameplay }
     }
+}
+
+/// The stat bars' raw stats of each lot car, parallel to `cars`. The physics are read once for the whole lot. A car
+/// whose physics cannot be read has `None`; when the physics as a whole cannot load, every car does.
+///
+/// Each car is at stock (no upgrades): `PhysicsData::car` is the stock spec, not `car_with_performance`. **[unconfirmed]**
+/// the lot car's `name` is taken as the physics type name (the `pvehicle` collection of the same name).
+fn lot_stats(dir: &GameDir, cars: &[LotCar]) -> Vec<Option<CarStats>> {
+    let Ok(physics) = PhysicsData::load(dir) else { return vec![None; cars.len()] };
+    cars.iter().map(|car| car_stats(&physics, &car.name)).collect()
+}
+
+/// One car's stats from the repo's estimator. **[unconfirmed]** the estimator (`blackbox_vehicle::performance`) is the
+/// repo's own measurement, not the game's simulation: top speed is its top speed, time to 100 mph is integrated from its
+/// acceleration table, and handling is its start grip. `None` when the car's physics cannot be read.
+fn car_stats(physics: &PhysicsData, name: &str) -> Option<CarStats> {
+    let car = physics.car(name).ok()?;
+    let performance = measure_with_integration(&car.spec, car.tire_integration);
+    let time_to_100 = time_to_speed(SPEED_100_MPH, performance.top_speed, |speed| performance.acceleration_at(speed));
+    Some(CarStats { top_speed: performance.top_speed, handling: performance.start_grip, time_to_100 })
 }
 
 /// The attribute database with `GLOBAL/FE_ATTRIB.bin` added: the `frontend` collections of the car lot and the rap

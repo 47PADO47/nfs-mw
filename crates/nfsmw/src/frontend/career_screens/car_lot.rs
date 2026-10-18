@@ -13,6 +13,7 @@
 use blackbox_feng::ids::{PAD_ACCEPT, PAD_BACK, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_UP};
 use blackbox_text::label_hash;
 use nfsmw_career::carlot::sale::MAX_SALE_STAGE;
+use nfsmw_career::carlot::stats::{self, CarStats};
 use nfsmw_career::carlot::{self, Delivery, Limits, LotCar, LotState, PurchaseError, PurchasePrompt, SaleError};
 use nfsmw_career::economy::sale_proceeds;
 use nfsmw_career::settings::CareerSettings;
@@ -36,9 +37,80 @@ const SELL_BUTTON: u32 = 0x0010_5E06;
 const ACCEPT: u32 = 0x000E_2B7E;
 const TAB_TITLE: u32 = 0x000F_18D7;
 
-/// The language table labels the tab titles and the Accept label show (`Car Lot`, `My Cars`, `Buy Car`, `Accept`).
+/// One LED strip of a stat bar: its image GUID, its centre x inside the bar's group, its size in pixels and its uv width.
+/// The strips are `LED_main.tga` at 32 pixels per uv unit (`[exe][verified]`, `Car_Select.fng`). Both strips of a bar
+/// start at the same left edge (x = -60), so the shorter first strip overlays the start of the full one.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Strip {
+    pub guid: u32,
+    pub centre_x: f32,
+    pub width: f32,
+    pub uv_width: f32,
+}
+
+/// The strips of the TOP SPEED bar (group `0xF1737`), the HANDLING bar (`0xF173F`) and the ACCELERATION bar (`0xF172F`).
+const TOP_SPEED_STRIPS: [Strip; 2] = [
+    Strip { guid: 0x000F_1738, centre_x: -20.0, width: 80.0, uv_width: 2.5 },
+    Strip { guid: 0x000F_1739, centre_x: 20.0, width: 160.0, uv_width: 5.0 },
+];
+const HANDLING_STRIPS: [Strip; 2] = [
+    Strip { guid: 0x000F_1740, centre_x: 0.0, width: 120.0, uv_width: 3.75 },
+    Strip { guid: 0x000F_1741, centre_x: 20.0, width: 160.0, uv_width: 5.0 },
+];
+const ACCELERATION_STRIPS: [Strip; 2] = [
+    Strip { guid: 0x000F_1730, centre_x: -40.0, width: 40.0, uv_width: 1.25 },
+    Strip { guid: 0x000F_1731, centre_x: 20.0, width: 160.0, uv_width: 5.0 },
+];
+
+/// What one strip shows for a fraction: its lit uv (the `u1` of its texture rectangle), its new width and centre x, and
+/// whether it is shown at all.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct StripFill {
+    pub guid: u32,
+    pub lit_uv: f32,
+    pub width: f32,
+    pub centre_x: f32,
+    pub shown: bool,
+}
+
+/// Splits a bar's fraction over its strips. The bar is as wide as its widest strip (`total` uv); the lit part is
+/// `fraction * total` uv from the left edge, and every strip lights that part up to its own uv width (the strips share
+/// the left edge). A lit strip keeps its pixels per uv and its left edge, so its width and centre move with the lit part.
+/// A strip with nothing lit is hidden.
+pub fn strip_fills(fraction: f32, strips: &[Strip]) -> Vec<StripFill> {
+    let total = strips.iter().map(|strip| strip.uv_width).fold(0.0, f32::max);
+    let lit_total = fraction.clamp(0.0, 1.0) * total;
+    strips.iter().map(|strip| strip_fill(lit_total, strip)).collect()
+}
+
+fn strip_fill(lit_total: f32, strip: &Strip) -> StripFill {
+    let lit_uv = lit_total.clamp(0.0, strip.uv_width);
+    let width = lit_uv * strip.width / strip.uv_width;
+    let left = strip.centre_x - strip.width / 2.0;
+    StripFill { guid: strip.guid, lit_uv, width, centre_x: left + width / 2.0, shown: lit_uv > 0.0 }
+}
+
+/// Draws one bar: each strip's uv rectangle, width and position for `fraction`.
+fn set_bar(cx: &mut Cx, strips: &[Strip; 2], fraction: f32) {
+    for fill in strip_fills(fraction, strips) {
+        let Some(object) = cx.guid(fill.guid) else { continue };
+        cx.rt.set_hidden(object, !fill.shown);
+        if !fill.shown {
+            continue;
+        }
+        cx.set_uv(fill.guid, [0.0, 0.0, fill.lit_uv, 1.0]);
+        let Some(size) = cx.rt.size(object) else { continue };
+        cx.rt.set_size_xy(object, fill.width, size.y);
+        let Some(position) = cx.rt.position(object) else { continue };
+        cx.rt.set_position_xy(object, fill.centre_x, position.y);
+    }
+}
+
+/// The language table labels the tab titles and the Accept label show (`Car Lot`, `Career`, `Buy Car`, `Accept`).
+/// The owned tab shows `Career` (`0x5415C3F1`, the label the package's own header object carries). `My Cars`
+/// (`MAIN_CUSTOMIZE`, `0x1AFD5BE6`) is the quick-race garage, not the career's owned cars (career-car-lot.md section 7).
 const LOT_TITLE: u32 = 0xB9D7_1959;
-const OWNED_TITLE: u32 = 0x1AFD_5BE6;
+const OWNED_TITLE: u32 = 0x5415_C3F1;
 const BUY_LABEL: u32 = 0x7010_BBF2;
 const ACCEPT_LABEL: u32 = 0x2B65_A216;
 
@@ -158,6 +230,23 @@ fn owned_items(stable: &Stable, cars: &[LotCar]) -> Vec<Item> {
             })
         })
         .collect()
+}
+
+/// The three bar fractions of a row, `[TOP SPEED, HANDLING, ACCELERATION]`, from the car's stats among the lot's
+/// (`stats::bar_fractions`). Empty bars for no row, a car the lot does not name, or a car with no stats.
+fn shown_fractions(career: &Career, item: Option<&Item>) -> [f32; 3] {
+    let Some(item) = item else { return [0.0; 3] };
+    let key = match item.key {
+        Key::Lot(key) => key,
+        Key::Owned(handle) => {
+            let Some(record) = career.stable.cars.iter().find(|car| car.handle == handle) else { return [0.0; 3] };
+            record.frontend_key
+        }
+    };
+    let Some(index) = career.data.cars.iter().position(|car| car.frontend_key == key) else { return [0.0; 3] };
+    let Some(car) = career.data.stats.get(index).copied().flatten() else { return [0.0; 3] };
+    let population: Vec<CarStats> = career.data.stats.iter().flatten().copied().collect();
+    stats::bar_fractions(&car, &population)
 }
 
 /// The answer to Accept on row `cursor` of `tab`: nothing when the row is greyed or missing, else the notice or the
@@ -325,6 +414,10 @@ impl CarLotLogic {
             Tab::Owned => ACCEPT_LABEL,
         };
         set_label(cx, ACCEPT, accept);
+        let fractions = CareerHandle::shared().with(|career| shown_fractions(career, row)).unwrap_or([0.0; 3]);
+        set_bar(cx, &TOP_SPEED_STRIPS, fractions[0]);
+        set_bar(cx, &HANDLING_STRIPS, fractions[1]);
+        set_bar(cx, &ACCELERATION_STRIPS, fractions[2]);
     }
 
     /// Moves the shown car one step through the tab's list (`forward` is the next car).

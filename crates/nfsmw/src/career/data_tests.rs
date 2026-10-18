@@ -238,6 +238,18 @@ fn a_car_without_name_rank_or_class_is_skipped_and_a_negative_price_is_zero() {
 }
 
 #[test]
+fn the_stats_are_parallel_to_the_cars_and_empty_without_an_install() {
+    let cars = [
+        car(1, Some("a"), 100, Some(2), Some(CarClass::Japan)),
+        car(2, None, 100, Some(2), Some(CarClass::Japan)),
+        car(3, Some("c"), 100, Some(2), Some(CarClass::Europe)),
+    ];
+    let data = CareerData::from_parts(GameplayData::default(), &cars, None, None);
+    assert_eq!(data.cars.len(), 2);
+    assert_eq!(data.stats, vec![None, None], "no physics read without an install");
+}
+
+#[test]
 fn heat_and_ranks_pass_through_and_stay_none_when_missing() {
     let with = CareerData::from_parts(GameplayData::default(), &[], Some(heat()), Some(ranks()));
     assert_eq!(with.heat.as_ref().and_then(|h| h.evade_factor), Some(0.95));
