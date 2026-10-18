@@ -53,13 +53,13 @@ fn cash_and_a_milestone_definition_round_trip() {
     assert_eq!(*backend.reasons.borrow(), vec!["-50:fine".to_owned()]);
 
     let def =
-        MilestoneDef { key: "example.mod:first".to_owned(), name: "First".to_owned(), goal: 2.5, reward_cash: 100 };
+        MilestoneDef { key: "example.mod:first".to_owned(), name: "First".to_owned(), goal: 2.5, reward_bounty: 100 };
     assert_eq!(career.register_milestone(&def), Ok(7));
     let seen: BbMilestoneDef = backend.milestone_defs.borrow()[0];
     assert_eq!(seen.size as usize, size_of::<BbMilestoneDef>());
     assert_eq!(seen.name.text(), Some("First"));
     assert_eq!(seen.key.text(), Some("example.mod:first"));
-    assert_eq!((seen.goal, seen.reward_cash), (2.5, 100));
+    assert_eq!((seen.goal, seen.reward_bounty), (2.5, 100));
 }
 
 #[test]
@@ -69,7 +69,7 @@ fn a_name_longer_than_the_host_takes_is_refused_before_the_call() {
     let table = career_table(backend.clone(), "example.mod");
     let career = career_of(table.header());
 
-    let def = MilestoneDef { key: "k".to_owned(), name: "x".repeat(200), goal: 1.0, reward_cash: 0 };
+    let def = MilestoneDef { key: "k".to_owned(), name: "x".repeat(200), goal: 1.0, reward_bounty: 0 };
     assert_eq!(career.register_milestone(&def), Err(Error::Arg));
     assert!(backend.milestone_defs.borrow().is_empty());
 }
