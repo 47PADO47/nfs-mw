@@ -24,6 +24,7 @@ fn installed_chase_radio_ids_resolve_and_queue() {
         Cue::HeliLost,
         Cue::HeliSpotted,
         Cue::CopDown,
+        Cue::Escaped,
     ];
     let requests = std::iter::once((OPENING_LINE, OPENING_ID)).chain(cues.map(|cue| (cue_line(cue), cue_id(cue))));
     for (label, id) in requests {

@@ -2,6 +2,8 @@
 
 use super::cue_line;
 use super::cues::{Cue, Cues, HEAT_JUMP_AFTER_SECS, NO_CONTACT_SECS};
+use blackbox_pursuit::EndReason;
+
 use crate::audio::PursuitFeed;
 use crate::audio::speech::random::Rng;
 
@@ -218,4 +220,14 @@ fn each_cue_line_is_an_event_of_the_install() {
         assert!(events.iter().any(|e| e.name == name), "{name} is not in the install");
     }
     assert!(events.iter().any(|e| e.name == super::OPENING_LINE), "the opening line is not in the install");
+}
+
+#[test]
+fn the_escape_line_is_said_once_per_evaded_end_and_re_armed_by_a_chase() {
+    let mut c = Cues::new(Rng::new(1));
+    assert_eq!(c.escape(false, EndReason::Busted), None, "a bust is not an escape");
+    assert_eq!(c.escape(false, EndReason::Evaded), Some(Cue::Escaped));
+    assert_eq!(c.escape(false, EndReason::Evaded), None, "said once per end");
+    assert_eq!(c.escape(true, EndReason::Evaded), None, "a running chase says nothing");
+    assert_eq!(c.escape(false, EndReason::Evaded), Some(Cue::Escaped), "the next end is said too");
 }
