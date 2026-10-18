@@ -83,7 +83,9 @@ known (likely the pursuit ring or the GPS target pulse). **[open]**
 ## 6. Timing
 
 The colour counter moves once per call of `FUN_0051f6c0`. The caller is a per-frame virtual dispatch that has not
-been traced, so the rate is not known. The rewrite uses one step per HUD update as a placeholder. **[open]**
+been traced, so the rate is not known. The rewrite moves the colour counter once per `TICK_SECONDS` (0.1 s) of frame time, not once per frame. Stepping per frame
+ran the eight-step cycle at about 7.5 Hz, which blended into a flicker rather than a light bar. The 0.1 s rate is a
+choice, not a measured value. **[open]**
 
 ## 7. Open questions
 

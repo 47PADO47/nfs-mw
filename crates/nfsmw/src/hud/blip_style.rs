@@ -38,6 +38,9 @@ impl BlipLook {
     pub const PLAIN: BlipLook = BlipLook { colour: None, alpha: 1.0, spin: 0.0 };
 }
 
+/// One look tick, in seconds. A look that changes with the tick (the light bar) moves at this rate, whatever the frame rate.
+pub const TICK_SECONDS: f32 = 0.1;
+
 /// What a kind of blip is. Implement it for a custom blip; register it with the HUD binding.
 pub trait BlipStyle: Send + Sync {
     /// Unique; a [`MapBlip`] names its style with it.

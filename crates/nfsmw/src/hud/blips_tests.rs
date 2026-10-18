@@ -190,3 +190,23 @@ fn a_tinted_blip_keeps_its_fade() {
     let alpha = rt.alpha(object).expect("the object's alpha");
     assert!((120..=123).contains(&alpha), "{alpha}");
 }
+
+fn cop_colour(rt: &Runtime, id: PackageId) -> [u8; 4] {
+    let h = fe_hash_upper(COP_ICON);
+    rt.tree(id).nodes.iter().find(|n| n.name_hash == h).expect("the cop icon").world_colour
+}
+
+#[test]
+fn the_light_bar_moves_with_time_not_with_frames() {
+    let (mut rt, id, mut binding) = setup();
+    let state = on_the_map(vec![cop([PLAYER[0] + 50.0, PLAYER[1]], true)]);
+    // Frames alone do not move it: six frames at tick 0 are still blue.
+    for _ in 0..6 {
+        binding.apply(&mut rt, &state);
+    }
+    assert_eq!(cop_colour(&rt, id), [0, 0, 255, 255]);
+    // 0.25 s is tick 2, the third step: grey.
+    binding.advance_blips(0.25);
+    binding.apply(&mut rt, &state);
+    assert_eq!(cop_colour(&rt, id), [204, 204, 204, 255]);
+}
