@@ -1,9 +1,12 @@
 //! Segment queries against one instance. Spec: `docs/formats/collision.md` ("Query semantics").
 
+use std::collections::BTreeSet;
+
 use crate::math::{
     Vec3, cross, dot, lerp, normalize, scale, segment_point_dist_sq, segment_point_dist_sq_xz, segment_segment_xz,
     segment_triangle, sub,
 };
+use crate::pack::GROUP_EXCLUSION;
 use crate::{Article, Instance};
 
 /// Segments shorter than this are lengthened to it, as the game does.
@@ -19,7 +22,7 @@ pub struct RayOptions {
     /// Skip anything whose flags share a bit with this mask: instances (runtime flags), strips
     /// (strip flags), triangles and barriers (surface flags). 0 skips nothing.
     pub exclude: u32,
-    /// Skip instances that belong to a scenery group (`group != 0`).
+    /// Skip instances that belong to a scenery group (`group != 0`) unless the world has that group enabled.
     pub skip_groups: bool,
 }
 
@@ -86,10 +89,17 @@ pub(crate) fn cast_instance(
     article: &Article,
     (a, b): (Vec3, Vec3),
     opts: &RayOptions,
+    groups: &BTreeSet<u16>,
     identity: (u32, usize),
     accept: &mut impl FnMut(&Hit) -> bool,
 ) -> Option<Hit> {
-    if u32::from(inst.flags) & opts.exclude != 0 || (opts.skip_groups && inst.group != 0) {
+    // An enabled group is in the world: its baked group-exclusion bits (on the instance and its barriers) do not apply.
+    let group_on = inst.group != 0 && groups.contains(&inst.group);
+    if opts.skip_groups && inst.group != 0 && !group_on {
+        return None;
+    }
+    let exclude = if group_on { opts.exclude & !u32::from(GROUP_EXCLUSION) } else { opts.exclude };
+    if u32::from(inst.flags) & exclude != 0 {
         return None;
     }
     // Broad phase: the instance circle in xz, and its height band when it is upright.
@@ -158,7 +168,7 @@ pub(crate) fn cast_instance(
     }
     if opts.barriers {
         for bar in &article.barriers {
-            if u32::from(bar.flags) & opts.exclude != 0 {
+            if u32::from(bar.flags) & exclude != 0 {
                 continue;
             }
             if let Some(t) = segment_segment_xz(la, lb, bar.p0, bar.p1) {

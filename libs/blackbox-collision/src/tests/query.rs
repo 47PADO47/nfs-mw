@@ -1,5 +1,5 @@
 use super::synth::*;
-use crate::{BARRIER_TWO_SIDED, CollisionPack, CollisionWorld, HitKind, RayOptions};
+use crate::{BARRIER_TWO_SIDED, CollisionPack, CollisionWorld, GROUP_EXCLUSION, HitKind, RayOptions};
 
 const ASPHALT: u32 = 0x19DB_2F1E;
 const GRASS: u32 = 0x772F_B736;
@@ -130,4 +130,57 @@ fn skip_groups_ignores_scenery_groups() {
     assert!(w.ground(101.0, 201.0, 20.0, -20.0).is_some());
     let opts = RayOptions { skip_groups: true, ..RayOptions::default() };
     assert!(w.ray_cast([101.0, 20.0, 201.0], [101.0, -20.0, 201.0], &opts).is_none());
+}
+
+/// A wall in scenery group `group`. Its article has no strips, so the instance and its barrier get the baked bits.
+fn grouped_wall(group: u16) -> CollisionWorld {
+    let wall = article(
+        &[],
+        &[BarrierSpec { p0: [4.0, -1.0, -4.0], p1: [4.0, 3.0, 4.0], surface: 0, flags: 0x02 }],
+        &[ASPHALT],
+    );
+    let mut inst = InstanceSpec::upright([100.0, 6.0, 200.0], [4.0, 3.0, 4.0], 0);
+    inst.group = group;
+    let mut w = CollisionWorld::new(None);
+    w.insert(CollisionPack::parse(&pack(3, &[wall], &[inst])).unwrap());
+    w
+}
+
+/// The options a career gate's queries use: skip groups, and exclude the baked group-exclusion bits.
+fn gate_opts() -> RayOptions {
+    RayOptions { skip_groups: true, exclude: u32::from(GROUP_EXCLUSION), ..RayOptions::default() }
+}
+
+#[test]
+fn closed_group_blocks_nothing_and_open_group_blocks() {
+    let mut w = grouped_wall(9);
+    let (from, to) = ([90.0, 6.0, 200.0], [110.0, 6.0, 200.0]);
+    assert!(w.ray_cast(from, to, &gate_opts()).is_none());
+    w.set_group_enabled(9, true);
+    let hit = w.ray_cast(from, to, &gate_opts()).expect("the open gate's wall");
+    assert_eq!(hit.kind, HitKind::Barrier);
+    assert!((hit.point[0] - 104.0).abs() < 1e-4);
+    w.set_group_enabled(9, false);
+    assert!(w.ray_cast(from, to, &gate_opts()).is_none());
+}
+
+#[test]
+fn other_groups_and_group_zero_stay_closed() {
+    let mut w = grouped_wall(9);
+    w.set_group_enabled(7, true);
+    w.set_group_enabled(0, true);
+    assert!(w.ray_cast([90.0, 6.0, 200.0], [110.0, 6.0, 200.0], &gate_opts()).is_none());
+    assert!(w.group_enabled(7) && w.group_enabled(0) && !w.group_enabled(9));
+}
+
+#[test]
+fn open_group_ground_is_hit_under_gate_options() {
+    let mut inst = InstanceSpec::upright([100.0, 5.0, 200.0], [4.0, 1.0, 4.0], 0);
+    inst.group = 9;
+    let mut w = CollisionWorld::new(None);
+    w.insert(CollisionPack::parse(&pack(1, &[article(&[ground_strip(0)], &[], &[ASPHALT])], &[inst])).unwrap());
+    let (from, to) = ([101.0, 20.0, 201.0], [101.0, -20.0, 201.0]);
+    assert!(w.ray_cast(from, to, &gate_opts()).is_none());
+    w.set_group_enabled(9, true);
+    assert!(w.ray_cast(from, to, &gate_opts()).is_some());
 }

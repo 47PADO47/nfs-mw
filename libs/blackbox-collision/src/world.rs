@@ -2,7 +2,7 @@
 //! and `WCollisionMgr` in one value.
 
 use std::cell::RefCell;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::grid::{Grid, InstanceRef};
 use crate::math::{Vec3, dot, sub};
@@ -20,12 +20,36 @@ pub struct CollisionWorld {
     /// The grid's candidate list of the last cast, kept so casts after warm-up do not allocate. A cast takes the
     /// buffer out and puts it back, so a predicate that casts again never meets a live borrow.
     candidates: RefCell<Vec<InstanceRef>>,
+    /// Scenery groups (`group != 0`) that are in the world: their instances collide when a query skips groups
+    /// ([`RayOptions::skip_groups`]). Kept here so it survives packs being inserted and removed.
+    enabled_groups: BTreeSet<u16>,
 }
 
 impl CollisionWorld {
     /// A world that picks candidates with `grid`, or tests every loaded instance without one.
     pub fn new(grid: Option<Grid>) -> Self {
-        Self { grid, packs: BTreeMap::new(), ungridded: Vec::new(), revision: 0, candidates: RefCell::default() }
+        Self {
+            grid,
+            packs: BTreeMap::new(),
+            ungridded: Vec::new(),
+            revision: 0,
+            candidates: RefCell::default(),
+            enabled_groups: BTreeSet::new(),
+        }
+    }
+
+    /// Switches scenery group `group` in or out of the world. While it is in, queries that skip groups test its
+    /// instances and ignore their baked group-exclusion bits; while it is out they are skipped. Group 0 is not a group.
+    pub fn set_group_enabled(&mut self, group: u16, enabled: bool) {
+        let changed = if enabled { self.enabled_groups.insert(group) } else { self.enabled_groups.remove(&group) };
+        if changed {
+            self.revision = self.revision.wrapping_add(1);
+        }
+    }
+
+    /// Whether scenery group `group` is in the world (see [`Self::set_group_enabled`]).
+    pub fn group_enabled(&self, group: u16) -> bool {
+        self.enabled_groups.contains(&group)
     }
 
     /// Adds (or replaces) a section's pack, applying the game's post-load exclusion flags.
@@ -124,9 +148,10 @@ impl CollisionWorld {
     ) -> Option<Hit> {
         let seg = prepare_segment(from, to)?;
         let mut best: Option<Hit> = None;
+        let groups = &self.enabled_groups;
         let mut test = |pack: &CollisionPack, index: usize| {
             let (Some(inst), Some(article)) = (pack.instances.get(index), pack.article_of(index)) else { return };
-            if let Some(hit) = cast_instance(inst, article, seg, opts, (pack.section, index), &mut accept)
+            if let Some(hit) = cast_instance(inst, article, seg, opts, groups, (pack.section, index), &mut accept)
                 && best.as_ref().is_none_or(|b| closer(&hit, b, seg.0))
             {
                 best = Some(hit);
