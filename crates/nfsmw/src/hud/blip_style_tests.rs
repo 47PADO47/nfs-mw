@@ -66,7 +66,7 @@ fn the_cop_flashes_only_while_active() {
     assert_eq!(idle, Some([255, 255, 255, 255]));
     let flashing: Vec<Option<[u8; 4]>> = (0..8).map(|t| look_of(&Cop, &blip(COP, true), t).unwrap().colour).collect();
     assert_eq!(flashing[0], Some([0, 0, 255, 255]));
-    assert_eq!(flashing[4], Some([160, 0, 0, 255]));
+    assert_eq!(flashing[2], Some([160, 0, 0, 255]));
 }
 
 #[test]

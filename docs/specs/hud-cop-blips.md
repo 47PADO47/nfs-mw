@@ -62,9 +62,9 @@ element's colour from a counter `+0x38` that runs 1..8 and wraps to 1. **[binary
 | Counter | Colour (as stored) | Shade |
 |---|---|---|
 | 1, 2 | `0xff0000ff` | blue |
-| 3, 4 | `0xffcccccc` | light grey |
-| 5, 6 | `0xffa00000` | red |
-| 7, 8 | `0xffcccccc` | light grey |
+| 3, 4 | `0xffa00000` | red |
+| 5, 6 | `0xff0000ff` | blue |
+| 7, 8 | `0xffa00000` | red |
 
 The values are read as ARGB, so `0xff0000ff` is pure blue and `0xffa00000` is a dark red. The byte order is
 **[inferred]** (the colour object is built by `FUN_005b2d50`, not yet read). The pattern is blue, grey, red, grey:
