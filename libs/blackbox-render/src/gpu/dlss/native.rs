@@ -107,6 +107,11 @@ pub(super) fn image(view: &wgpu::TextureView, output: bool) -> Option<Image> {
             vk::ImageLayout::DEPTH_STENCIL_READ_ONLY_OPTIMAL,
             vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT | vk::ImageUsageFlags::SAMPLED,
         ),
+        (wgpu::TextureFormat::R8Unorm, false) => (
+            vk::Format::R8_UNORM,
+            vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+            vk::ImageUsageFlags::COLOR_ATTACHMENT | vk::ImageUsageFlags::SAMPLED | vk::ImageUsageFlags::TRANSFER_SRC,
+        ),
         (wgpu::TextureFormat::Rg16Float, _) => (
             vk::Format::R16G16_SFLOAT,
             vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,

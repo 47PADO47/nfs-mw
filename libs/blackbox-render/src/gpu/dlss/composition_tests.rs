@@ -162,3 +162,101 @@ fn read(gpu: &Gpu, texture: &wgpu::Texture, bytes_per_pixel: u32) -> Vec<u8> {
     let mapped = slice.get_mapped_range().unwrap();
     (0..4).flat_map(|y| mapped[y * 256..][..4 * bytes_per_pixel as usize].iter().copied()).collect()
 }
+
+#[test]
+#[ignore = "requires a Vulkan adapter"]
+fn additive_hud_over_translucent_panel_keeps_coverage_independent_of_hdr_white() {
+    use blackbox_gfx::{UiLayer, UiMesh, UiTextureId, UiTexturePatch, UiVertex};
+    let _serial = serial();
+    let gpu = Gpu::new(wgpu::Backends::VULKAN);
+    let mut pass = blackbox_gpu_passes::UiPass::new(&gpu.device, None);
+    for (id, rgba) in [(1, [255; 4]), (2, [255, 255, 255, 0])] {
+        pass.update_texture(
+            &gpu.device,
+            &gpu.queue,
+            &UiTexturePatch { id: UiTextureId::from_raw(id), offset: None, size: [1, 1], rgba: &rgba },
+        )
+        .unwrap();
+    }
+    let quad = |x0: f32, x1: f32, color_rgba, texture| UiMesh {
+        texture: UiTextureId::from_raw(texture),
+        clip: [0.0, 0.0, 4.0, 3.0],
+        vertices: [[x0, 0.0], [x1, 0.0], [x1, 4.0], [x0, 4.0]]
+            .into_iter()
+            .map(|position| UiVertex { position, uv: [0.5; 2], color_rgba })
+            .collect(),
+        indices: vec![0, 1, 2, 0, 2, 3],
+    };
+    let layer = UiLayer {
+        pixels_per_point: 1.0,
+        meshes: vec![
+            quad(0.0, 3.0, [0, 0, 0, 64], 1),      // translucent pursuit-panel backing
+            quad(0.0, 1.0, [255, 255, 255, 0], 1), // additive vertex colour
+            quad(1.0, 2.0, [255; 4], 2),           // additive texture alpha (authored HUD path)
+            quad(2.0, 3.0, [128, 128, 128, 0], 1), // antialiased glyph edge
+            quad(3.0, 4.0, [0, 0, 0, 255], 1),     // black opaque UI still has coverage
+        ],
+    };
+    pass.set_layer(layer.clone());
+    let texture = |format| {
+        gpu.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("additive HUD coverage regression"),
+            size: wgpu::Extent3d { width: 4, height: 4, depth_or_array_layers: 1 },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        })
+    };
+    for white in [None, Some(16.0), Some(203.0), Some(500.0)] {
+        pass.set_hdr_white(white);
+        let format = match white {
+            Some(_) => wgpu::TextureFormat::Rgba16Float,
+            None => wgpu::TextureFormat::Rgba8Unorm,
+        };
+        let color = texture(format);
+        let reference = texture(format);
+        let mask = texture(wgpu::TextureFormat::R8Unorm);
+        let views = [&color, &reference, &mask].map(|t| t.create_view(&Default::default()));
+        let mut encoder = gpu.device.create_command_encoder(&Default::default());
+        for view in &views {
+            let _clear = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("clear coverage fixture"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+        }
+        pass.encode_with_coverage(&gpu.device, &gpu.queue, &mut encoder, &views[0], &views[2], (4, 4));
+        pass.encode(&gpu.device, &gpu.queue, &mut encoder, &views[1], format, (4, 4));
+        gpu.queue.submit([encoder.finish()]);
+        let coverage = read(&gpu, &mask, 1);
+        assert_eq!(
+            &coverage[..4],
+            &[255, 255, 160, 255],
+            "additive glyphs must not inherit the panel's 64/255 alpha; white={white:?}"
+        );
+        assert_eq!(&coverage[12..], &[0; 4], "clipped/outside HUD remains uncovered");
+        let bytes = match white {
+            Some(_) => 8,
+            None => 4,
+        };
+        assert_eq!(
+            read(&gpu, &color, bytes),
+            read(&gpu, &reference, bytes),
+            "coverage must not alter real-frame UI blending"
+        );
+    }
+}

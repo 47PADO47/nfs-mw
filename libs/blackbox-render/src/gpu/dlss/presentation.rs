@@ -25,6 +25,7 @@ pub(in crate::gpu) struct Presentation {
     hudless: Option<wgpu::TextureView>,
     encoded_scene: Option<wgpu::TextureView>,
     raw_ui: Option<wgpu::TextureView>,
+    coverage: Option<wgpu::TextureView>,
     ui: Option<wgpu::TextureView>,
     copy: Option<Composite>,
     token_open: bool,
@@ -110,6 +111,7 @@ impl Presentation {
         self.hudless = None;
         self.encoded_scene = None;
         self.raw_ui = None;
+        self.coverage = None;
         self.ui = None;
         self.copy = None;
     }
@@ -189,6 +191,15 @@ impl Renderer {
             };
             self.presentation.raw_ui = Some(self.device.create_texture(&desc).create_view(&Default::default()));
             self.presentation.ui = Some(self.device.create_texture(&desc).create_view(&Default::default()));
+            self.presentation.coverage = Some(
+                self.device
+                    .create_texture(&wgpu::TextureDescriptor {
+                        label: Some("DLSS-G UI coverage including additive elements"),
+                        format: wgpu::TextureFormat::R8Unorm,
+                        ..desc
+                    })
+                    .create_view(&Default::default()),
+            );
             self.presentation.encoded_scene = hdr10.then(|| {
                 let desc = wgpu::TextureDescriptor {
                     label: Some("DLSS-G HDR10 HUDless PQ color"),
@@ -210,11 +221,12 @@ impl Renderer {
     ) {
         let raw_ui = self.presentation.raw_ui.as_ref().expect("UI target accompanies HUDless").clone();
         let ui = self.presentation.ui.as_ref().expect("UI composition target").clone();
-        {
+        let coverage = self.presentation.coverage.as_ref().expect("UI coverage target").clone();
+        for view in [&raw_ui, &coverage] {
             let _clear = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Clear separate UI"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &raw_ui,
+                    view,
                     depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
@@ -228,7 +240,7 @@ impl Renderer {
                 multiview_mask: None,
             });
         }
-        self.encode_ui(encoder, &raw_ui, self.surface_size());
+        self.ui.encode_with_coverage(&self.device, &self.queue, encoder, &raw_ui, &coverage, self.surface_size());
         let copy = self.presentation.copy.get_or_insert_with(|| Composite::new(&self.device, self.output.format()));
         let encoded_scene = self.presentation.encoded_scene.clone();
         let mut outputs = vec![output, &ui];
@@ -249,7 +261,7 @@ impl Renderer {
             self.presentation.disable();
             return;
         };
-        let views = [&scene.depth_view, &motion.view, encoded_scene.as_ref().unwrap_or(hudless), &ui];
+        let views = [&scene.depth_view, &motion.view, encoded_scene.as_ref().unwrap_or(hudless), &coverage];
         encoder.transition_resources(
             std::iter::empty(),
             views.into_iter().map(|view| wgpu::TextureTransition {
@@ -259,7 +271,9 @@ impl Renderer {
             }),
         );
         let Some(images) = views.map(|v| native::image(v, false)).into_iter().collect::<Option<Vec<_>>>() else {
+            self.presentation.failed = true;
             self.presentation.disable();
+            self.presentation.status.note = "Frame generation stopped: a tagged resource format is unsupported.";
             return;
         };
         let constants = native::frame_data(frame, 0);
@@ -270,6 +284,7 @@ impl Renderer {
             log::error!("DLSS-G resource tagging failed ({result})");
             self.presentation.failed = true;
             self.presentation.disable();
+            self.presentation.status.note = "Frame generation stopped after resource tagging failed; restart to retry.";
         }
     }
 }

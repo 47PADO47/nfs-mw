@@ -113,7 +113,7 @@ extern "C" int bb_sl_tag_generation(const Image* images, const Frame* frame) {
     auto result = common_constants(images, frame);
     if (result != sl::Result::eOk) return static_cast<int>(result);
     sl::Resource resources[4];
-    sl::BufferType types[] = {sl::kBufferTypeDepth, sl::kBufferTypeMotionVectors, sl::kBufferTypeHUDLessColor, sl::kBufferTypeUIColorAndAlpha};
+    sl::BufferType types[] = {sl::kBufferTypeDepth, sl::kBufferTypeMotionVectors, sl::kBufferTypeHUDLessColor, sl::kBufferTypeUIAlpha};
     sl::ResourceTag tags[4];
     for (uint32_t i = 0; i < 4; ++i) {
         const auto& image = images[i];

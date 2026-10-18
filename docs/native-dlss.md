@@ -77,11 +77,15 @@ simulation, submission, present, SR and generation. The in-game frame limit is
 passed to Reflex instead of running a second software limiter.
 
 The post-processed scene is rendered into a full-resolution HUDless target.
-The HUD and debug UI render into a separate transparent color/alpha target;
-`kBufferTypeHUDLessColor` and `kBufferTypeUIColorAndAlpha` are tagged through
+The HUD and debug UI render into a separate transparent color target;
+`kBufferTypeHUDLessColor` and a separate `kBufferTypeUIAlpha` mask are tagged through
 present with `enableUserInterfaceRecomposition` enabled. Thus the UI is recomposed
-over generated scene frames. Premultiplied alpha and additive UI retain the
-renderer's real-frame composition. Moving HUD elements
+over generated scene frames. Coverage is accumulated per UI draw before HDR
+conversion, independently of colour blending: additive glyphs over translucent
+panels must not inherit only the panel opacity. Additive coverage uses the
+maximum premultiplied gamma RGB channel; ordinary UI uses its alpha. It is
+independent of HDR UI-white calibration. Premultiplied alpha and additive UI
+retain the renderer's real-frame composition. Moving HUD elements
 still require visual checks. The implementation follows NVIDIA's
 [Frame Generation](https://github.com/NVIDIA-RTX/Streamline/blob/v2.14.16/docs/ProgrammingGuideDLSS_G.md)
 and [Reflex](https://github.com/NVIDIA-RTX/Streamline/blob/v2.14.16/docs/ProgrammingGuideReflex.md) guides.
@@ -89,10 +93,11 @@ and [Reflex](https://github.com/NVIDIA-RTX/Streamline/blob/v2.14.16/docs/Program
 HDR tone mapping and UI blending remain in linear BT.709 scRGB, including scene
 white, UI white and peak calibration. A final composition pass converts BT.709
 to BT.2020 primaries and encodes absolute nits with SMPTE ST 2084 PQ. It writes
-the real frame and HUDless resource as RGB10, while the separate UI resource
-uses RGBA16F PQ color/alpha to preserve translucent coverage. The UI term is
-compensated for nonlinear PQ so recomposing it over the tagged scene reproduces
-the real frame. Signed/out-of-gamut components are clipped at the HDR10 boundary.
+the real frame and HUDless resource as RGB10. UI colour blending uses RGBA16F;
+an independent R8 coverage target is tagged for generation alongside the final
+and HUDless resources. No scene-dependent PQ colour term is passed as an
+independently interpolated UI layer. Signed/out-of-gamut components are clipped
+at the HDR10 boundary.
 Menus retain HDR10 while generation is requested, avoiding output mode switches
 on pause. SDR PNG and linear scRGB captures retain their independent formats.
 The output follows the [Microsoft Advanced Color contract](https://learn.microsoft.com/en-us/windows/win32/direct3darticles/high-dynamic-range)
