@@ -100,3 +100,70 @@ fn queue_bin_messages_skips_what_the_inbox_already_has() {
     assert_eq!(phone.queue_bin_messages(&mut inbox, &[30, 31]), 1);
     assert_eq!(phone.queue.pending(), &[31]);
 }
+
+/// A Blacklist snapshot with `current` as the current bin and the bins in `bins` unlocked.
+fn at(current: u8, bins: &[u8]) -> BinSnapshot {
+    let unlocked = bins.iter().fold(0u16, |mask, &bin| mask | (1u16 << bin));
+    BinSnapshot { current, unlocked }
+}
+
+#[test]
+fn the_first_frame_of_a_career_queues_nothing() {
+    assert!(due_bin_messages(None, at(14, &[])).is_empty());
+}
+
+#[test]
+fn entering_bin_14_queues_its_two_entry_messages() {
+    assert_eq!(due_bin_messages(Some(at(15, &[])), at(14, &[])), vec![125, 126]);
+}
+
+#[test]
+fn entering_several_bins_at_once_queues_each_entry_from_the_top_down() {
+    assert_eq!(due_bin_messages(Some(at(15, &[])), at(13, &[])), vec![125, 126, 30]);
+}
+
+#[test]
+fn entering_bin_15_from_the_prologue_queues_nothing() {
+    assert!(due_bin_messages(Some(at(16, &[])), at(15, &[])).is_empty());
+}
+
+#[test]
+fn an_unlocked_rival_queues_its_message_once() {
+    assert_eq!(due_bin_messages(Some(at(14, &[])), at(14, &[14])), vec![29]);
+    assert!(due_bin_messages(Some(at(14, &[14])), at(14, &[14])).is_empty());
+}
+
+#[test]
+fn an_unchanged_frame_queues_nothing() {
+    assert!(due_bin_messages(Some(at(13, &[15])), at(13, &[15])).is_empty());
+}
+
+#[test]
+fn a_rival_unlocked_in_the_same_frame_as_the_entry_queues_both() {
+    assert_eq!(due_bin_messages(Some(at(15, &[])), at(14, &[14])), vec![125, 126, 29]);
+}
+
+#[test]
+fn rival_unlocked_counts_the_unlocked_and_done_states_only() {
+    assert!(rival_is_unlocked(Some(BinState::RivalUnlocked)));
+    assert!(rival_is_unlocked(Some(BinState::Done)));
+    assert!(!rival_is_unlocked(Some(BinState::RivalLocked)));
+    assert!(!rival_is_unlocked(None));
+}
+
+#[test]
+fn note_bins_queues_each_change_once_and_skips_the_first_frame() {
+    let mut phone = PhoneState::default();
+    let mut inbox = inbox();
+    phone.note_bins(&mut inbox, at(15, &[]));
+    assert!(phone.queue.pending().is_empty(), "the first frame records the state only");
+
+    phone.note_bins(&mut inbox, at(14, &[]));
+    assert_eq!(phone.queue.pending(), &[125, 126]);
+
+    phone.note_bins(&mut inbox, at(14, &[]));
+    assert_eq!(phone.queue.pending(), &[125, 126], "an unchanged frame queues nothing new");
+
+    phone.note_bins(&mut inbox, at(14, &[14]));
+    assert_eq!(phone.queue.pending(), &[125, 126, 29]);
+}

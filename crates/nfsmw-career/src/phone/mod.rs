@@ -7,15 +7,18 @@
 //!   request.
 //! - [`inbox`]: the two-tab list ordering and the open, replay and delete actions on [`crate::settings::SmsInbox`].
 //! - [`voice`]: the `(group, line)` selector of a call id.
+//! - [`bins`]: the messages each Blacklist bin sends, by moment ([`bin_messages`]).
 //!
 //! The slot table itself is part of [`crate::settings::CareerSettings`] (`sms`); a [`PhoneQueue`] is the runtime
 //! list that waits for a free moment.
 
+pub mod bins;
 pub mod ids;
 pub mod inbox;
 pub mod queue;
 pub mod voice;
 
+pub use bins::{BinMoment, bin_messages};
 pub use ids::{
     FIRST_DRIVE_SMS, IMPOUND_RELEASE_SMS, SENDERS, Sender, from_label_for, is_immediate, is_known, is_story, label_for,
     sender_of, subject_label_for,

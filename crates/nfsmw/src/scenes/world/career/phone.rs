@@ -4,8 +4,10 @@
 //! ([`PhoneState::queue_bin_messages`]), and `EAddSMS` goes through [`PhoneState::add_sms`]. Once a frame the queue
 //! is flushed into the career's inbox when [`FlushContext::can_show`] holds, and a notice goes on the interact card.
 
+use nfsmw_career::blacklist::{BinState, Blacklist};
 use nfsmw_career::phone::{
-    AddOutcome, CellCallOutcome, CellCallRequest, FlushContext, FlushOutcome, Language, PhoneQueue, process_cell_call,
+    AddOutcome, BinMoment, CellCallOutcome, CellCallRequest, FlushContext, FlushOutcome, Language, PhoneQueue,
+    bin_messages, process_cell_call,
 };
 use nfsmw_career::settings::SmsInbox;
 
@@ -14,6 +16,9 @@ use crate::scenes::world::WorldScene;
 
 /// How long the delivery notice holds the interact card, in seconds.
 const NOTICE_SECS: f32 = 3.0;
+
+/// The bins the Blacklist has (1 to 15). Bin 16 is the prologue and has no rival.
+const LAST_RIVAL_BIN: u8 = 15;
 
 /// The phone's state between frames.
 pub(in crate::scenes::world) struct PhoneState {
@@ -24,12 +29,60 @@ pub(in crate::scenes::world) struct PhoneState {
     /// The kind of the running game's language: text languages show a call as a message, voice languages speak it.
     /// Not read from the install yet, so it stays at voice.
     language: Language,
+    /// The Blacklist as the last frame saw it. `None` until the first frame of the career: that frame only records
+    /// the state, so a career loaded mid-progress does not replay the messages of the bins it has already passed.
+    seen: Option<BinSnapshot>,
 }
 
 impl Default for PhoneState {
     fn default() -> Self {
-        PhoneState { queue: PhoneQueue::new(), calls: Vec::new(), language: Language::Voice }
+        PhoneState { queue: PhoneQueue::new(), calls: Vec::new(), language: Language::Voice, seen: None }
     }
+}
+
+/// The Blacklist facts the bin messages depend on: the current bin, and which bins have their rival unlocked.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(in crate::scenes::world) struct BinSnapshot {
+    /// `CurrentBin`.
+    pub current: u8,
+    /// Bit `n` is set when bin `n`'s rival is unlocked. A bin at `done` counts: `done` follows `rival_unlocked`.
+    pub unlocked: u16,
+}
+
+/// Reads the bin facts of the Blacklist.
+pub(super) fn bin_snapshot(blacklist: &Blacklist) -> BinSnapshot {
+    let mut unlocked = 0u16;
+    for number in 1..=LAST_RIVAL_BIN {
+        let state = blacklist.bin(number).and_then(|record| record.state);
+        if rival_is_unlocked(state) {
+            unlocked |= 1 << number;
+        }
+    }
+    BinSnapshot { current: blacklist.current_bin(), unlocked }
+}
+
+/// Whether a bin's state has its rival unlocked: `rival_unlocked`, or `done` after it.
+fn rival_is_unlocked(state: Option<BinState>) -> bool {
+    matches!(state, Some(BinState::RivalUnlocked | BinState::Done))
+}
+
+/// The messages that became due between two frames: the entry message of each bin entered (from the one above the
+/// seen bin down to the current one, the order the Blacklist enters them), then the rival message of each rival
+/// that unlocked. Nothing is due on the first frame (`seen` is `None`).
+pub(super) fn due_bin_messages(seen: Option<BinSnapshot>, now: BinSnapshot) -> Vec<u32> {
+    let Some(seen) = seen else { return Vec::new() };
+    let mut ids = Vec::new();
+    for bin in (now.current..seen.current).rev() {
+        ids.extend_from_slice(bin_messages(bin, BinMoment::Entry));
+    }
+    for bin in 1..=LAST_RIVAL_BIN {
+        let bit = 1u16 << bin;
+        let newly_unlocked = now.unlocked & bit != 0 && seen.unlocked & bit == 0;
+        if newly_unlocked {
+            ids.extend_from_slice(bin_messages(bin, BinMoment::RivalUnlock));
+        }
+    }
+    ids
 }
 
 /// The world facts the flush test reads, gathered once a frame.
@@ -77,11 +130,16 @@ impl PhoneState {
     }
 
     /// Queues the messages of a bin: its entry message and the ones its wins and challenges send. The ids come from
-    /// the bin data (`BinDef` does not carry them yet). Returns how many were newly queued; a message already
-    /// pending, delivered or read is skipped.
-    #[allow(dead_code)] // called by the blacklist glue when a bin is entered, not wired yet
+    /// [`bin_messages`]. Returns how many were newly queued; a message already pending, delivered or read is skipped.
     pub fn queue_bin_messages(&mut self, inbox: &mut SmsInbox, ids: &[u32]) -> usize {
         ids.iter().filter(|&&id| self.add_sms(inbox, id) == AddOutcome::Queued).count()
+    }
+
+    /// Queues the messages that became due since the last frame (see [`due_bin_messages`]) and records `now` as seen.
+    pub fn note_bins(&mut self, inbox: &mut SmsInbox, now: BinSnapshot) {
+        let due = due_bin_messages(self.seen, now);
+        self.seen = Some(now);
+        self.queue_bin_messages(inbox, &due);
     }
 
     /// The per-frame flush. Does nothing while the queue is empty or the world does not allow it.
@@ -96,14 +154,17 @@ impl PhoneState {
 }
 
 impl WorldScene {
-    /// Flushes the phone queue into the career's inbox when free roam allows it, and raises the notice of what
-    /// arrived. Calls waiting from the immediate ids are processed first.
+    /// Queues the bin messages that came due (a bin entered or a rival unlocked since the last frame), then flushes
+    /// the phone queue into the career's inbox when free roam allows it, and raises the notice of what arrived.
+    /// Calls waiting from the immediate ids are processed first.
     pub(super) fn career_phone(&mut self, _dt: f32) {
         let facts = self.phone_facts();
         let ctx = flush_context(&facts);
         let phone = &mut self.career.phone;
         let flushed = self.career.handle.with(|career| {
+            let now = bin_snapshot(&career.blacklist);
             let inbox = &mut career.settings.sms;
+            phone.note_bins(inbox, now);
             for call in phone.take_calls() {
                 // Ids from the calls are small positive numbers, so the `i32` cast is exact.
                 let outcome = process_cell_call(inbox, call.id as i32, phone.language, ctx.overlay_allowed);
