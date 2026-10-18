@@ -109,7 +109,7 @@ impl Runtime {
             let colour = data.colour_rgba();
             let world_colour = mul_colour(ctx_colour, colour);
             let z = ctx.transform_point3(pivot + pos).z;
-            let visible = parent_visible && colour[3] != 0 && !state.hidden && def_obj.flags & 8 == 0;
+            let visible = parent_visible && colour[3] != 0 && !state.hidden;
 
             let resource = def_obj.resource.and_then(|r| def.resources.get(r));
             let kind = match def_obj.kind {
