@@ -7,7 +7,7 @@ trade-offs are in [ADR 0008](../decisions/0008-ui-themes.md). This spec gives th
 - **Sources read:** this repository only: `libs/blackbox-feng/src/tree/mod.rs`, `crates/nfsmw/src/ui/present/`,
   `crates/nfsmw/src/hud/` (plugin, state, bind, minimap, pursuit_meter, blips, blip_style, radio, trax,
   busted_overlay, viewport), `crates/nfsmw/src/frontend/` (screens, icon_menu, widget_menu, options,
-  options_rows), `crates/nfsmw/src/settings/` (radio_hud, appearance, file, env, partial, write),
+  options_rows), `crates/nfsmw/src/settings/` (ui_style, radio_hud, appearance, file, env, partial, write),
   `crates/nfsmw/src/devtools/mod.rs`, [ADR 0002](../decisions/0002-ui-presentation.md),
   [ADR 0004](../decisions/0004-swappable-renderers.md), [ADR 0005](../decisions/0005-native-mod-plugins.md),
   [feng-runtime.md](feng-runtime.md), [frontend-menus.md](frontend-menus.md), [hud-viewport.md](hud-viewport.md).
@@ -379,36 +379,40 @@ The example needs only `Panel`, `Stack`, `Row`, `Text` and `Image`. No new base 
 
 ## 11. The `UiStyle` setting
 
-```rust
-pub enum UiStyle { Original, Custom, Remastered }   // default Original
-```
+Built in T10. `enum UiStyle { Original, Custom, Remastered }`, default `Original`
+(`crates/nfsmw/src/settings/ui_style.rs`).
 
-- Modelled on `VisualStyle` (`crates/nfsmw/src/settings/appearance.rs`: `names!`, `ALL`, `label()`). Note that
-  `VisualStyle` defaults to `Custom`; `UiStyle` defaults to `Original` (section 14).
-- **Folds in `radio_hud`.** The old enum is `RadioHudStyle { EaTrax, Custom }` (`crates/nfsmw/src/settings/radio_hud.rs`),
-  its values written as `ea_trax` or `custom`. The key still reads (`ea_trax`, `ea-trax`, `eatrax` and `custom`
-  are all accepted, as today): `custom` maps to `UiStyle::Custom`, `ea_trax` maps to `UiStyle::Original`. The
-  `radio_hud` key is marked deprecated; it is written no more.
-- **Serialised form.** Proposed: `original`, `custom`, `remastered`, with the underscore and hyphen forms both
-  accepted on read, as `RadioHudStyle::from_str` does.
+- Modelled on `VisualStyle` (`crates/nfsmw/src/settings/appearance.rs`): kebab-case serde, `names!` for the strict
+  `FromStr` and `Display`, `ALL`, `label()`. The serialised names are `original`, `custom` and `remastered`.
+  Labels: `Original`, `Custom`, `Remastered (incomplete)`. `VisualStyle` defaults to `Custom`; `UiStyle` defaults to
+  `Original`, because the UI look and the graphics look are separate choices (decision 6).
+- **Layers**, each read like the other settings (CLI over env over file over default):
 
-Layers, each read the same way as the other settings (CLI over env over TOML over defaults):
-
-| Layer | File | Change |
+| Layer | Where | Key |
 |---|---|---|
-| TOML | `settings/file.rs` | new `ui_style` key; `radio_hud` read for back-compat |
-| Env | `settings/env.rs` | `NFSMW_UI_STYLE` (new constant beside `RADIO_HUD = "NFSMW_RADIO_HUD"`, which is kept) |
-| CLI | `cli/view_args.rs` | `--ui-style` (new); `--radio-hud` kept (it sets `UiStyle` too) |
-| Partial | `settings/partial.rs` | `ui_style: Option<UiStyle>` merged like `radio_hud` |
-| Write | `settings/write.rs` | writes `ui_style`; stops writing `radio_hud` |
-| Console | `devtools/console/settings_cmd.rs`, `settings_keys.rs`, `parse.rs` | `ui_style` key; `radio_hud` kept as an alias |
-| Options | `frontend/options.rs`, `frontend/options_rows.rs` | `Setting::UiStyle` cycles `[Original, Custom, Remastered]` in place of `Setting::RadioHud` (the cycle at options.rs around line 328) |
+| TOML | `settings/file.rs` | `ui_style = 'original' \| 'custom' \| 'remastered'` |
+| Env | `settings/env.rs` (`UI_STYLE`) | `NFSMW_UI_STYLE` |
+| CLI | `cli/view_args.rs` | `--ui-style original\|custom\|remastered` |
+| Partial | `settings/partial.rs` | `ui_style: Option<UiStyle>` |
+| Write | `settings/write.rs` | writes `ui_style` only |
+| Console | `devtools/console/settings_cmd.rs`, `settings_keys.rs`, `parse.rs` | `set ui_style <value>` |
+| Options | `frontend/options.rs`, `options_rows.rs` | row "UI style" cycles the three values |
 
-The existing tests in `crates/nfsmw/src/frontend/radio_hud_tests.rs` move to a `UiStyle` test with the same
-cases: default, cycle, and the `radio_hud` round trip.
-
-The change in the options row is visible: "Radio HUD" becomes "UI style". Whether the switch takes effect at once
-or after a restart is **open** (section 14).
+- **Legacy `radio_hud` (deprecated, read only).** The old key `radio_hud` (`ea_trax` or `custom`, see
+  `settings/radio_hud.rs`) still loads. `ea_trax` maps to `Original`, `custom` maps to `Custom`. The mapping is per
+  layer: a layer that sets `ui_style` ignores its own `radio_hud`. The same applies to env `NFSMW_RADIO_HUD`, CLI
+  `--radio-hud` (`--ui-style` wins if both are given) and the console alias `radio_hud`/`radio-hud`. Nothing writes
+  the key any more. A file that still has it keeps it, and the new key takes priority.
+  `RadioHudStyle` stays as the parser for that legacy value. It is no longer a settings field.
+- **Live switch.** `ui::theme::sync_active_theme` runs in `FrameSet::Prepare` every frame and calls
+  `UiThemes::select(settings.ui_style)`. An options change takes effect on the next frame, with no restart.
+  `theme_of` maps `UiStyle` to `ThemeId`. `Remastered` has no registered theme yet, so `select` leaves Original
+  active. Selecting a theme changes no drawing until T12 resolves slots in present.
+- **Chyron gate (live build).** `hud/plugin.rs` shows the EA Trax chyron when `ui_style != Custom`, so Original and
+  Remastered keep the chyron. T12 replaces this with per-theme radio gating.
+- **Tests:** `settings/ui_style_tests.rs` (defaults, tokens, the three layers, legacy mapping, write, CLI),
+  `settings/ui_style.rs` and `settings/radio_hud.rs` unit tests, `frontend/ui_style_tests.rs` (row title, the cycle and
+  labels), `ui/theme/tests.rs` (`theme_of`, `select` fallback, the sync system).
 
 ## 12. The `bb.ui` mod hook
 
@@ -456,13 +460,4 @@ These are not decided. The parent task (or the owner) decides them before the ma
    in the options row, `names!`) does not fit a dynamic variant. Choose a cycle and a serial form, or keep mod
    themes out of `UiStyle` and select them another way. Before T10 and T11.
 4. **Components across the ABI.** The declarative handle-based call set for the mod hook (section 12). Before T11.
-5. **Live switch or restart.** Whether changing `UiStyle` re-resolves slots at once or applies at the next start.
-   Before T10.
-6. **Default.** `UiStyle` defaults to `Original`; `VisualStyle` defaults to `Custom`. Confirm the difference is
-   intended. Before T10.
-7. **Remastered in the menu.** Whether the Remastered row is shown before a Remastered theme exists, since it looks
-   like Original until then. Before T10.
-8. **Busted overlay and career screens.** Resolved (T6): confirmed in section 6. Resolved (T7): the pursuit board belongs
-   to `PursuitMeter`, and the per-frame route is the frame cell (section 8, point 3). Open for T12: the unclaimed HUD
-   nodes (mirror, radar, laser, heat arcs), which need slots or a composer rule (section 8, slot map).
-9. **Milestone number.** The work has no milestone number in the plan. Set it when the subtasks are scheduled.
+5. **Live switch or restart.** Resolved (T10): live. `sync_active_theme` selects the theme every frame (section 11).

@@ -29,7 +29,7 @@ existing presenter draws it.**
 1. **A dedicated `UiStyle` setting**, `enum UiStyle { Original, Custom, Remastered }`, default `Original`. It is
    independent of the graphics `VisualStyle` (`crates/nfsmw/src/settings/appearance.rs`), because the look of
    the UI and the look of the graphics are separate choices. `radio_hud` is folded into it: the old key still
-   reads (`custom` maps to `UiStyle::Custom`, `ea_trax` to `UiStyle::Original`) and is marked deprecated.
+   reads (`custom` maps to `UiStyle::Custom`, `ea_trax` to `UiStyle::Original`), is deprecated, and nothing writes it.
 2. **A new engine-generic crate, `libs/blackbox-ui`** (Bevy-free, no NFS:MW names). It holds:
    - the neutral draw tree (`UiTree`, `UiNode`, `NodeKind`), moved out of `libs/blackbox-feng/src/tree/mod.rs`
      and re-exported from `blackbox-feng` so existing paths still compile;

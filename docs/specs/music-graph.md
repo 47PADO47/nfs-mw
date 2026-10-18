@@ -201,8 +201,8 @@ every song turns up within 2N picks [confirmed by the Rust tests of the rule, in
   songs played lets "previous" go back (a song played for more than 3 s starts over instead) and "next" go forward
   through the history before the play list picks. Keys: `radio_toggle` (M), `radio_next` (`.`), `radio_previous`
   (`,`); the chyron with the artist, title and album comes up when a song starts, pauses or resumes. It is the original
-  `EA_TRAX.fng` screen by default (`radio_hud = ea_trax`), with its text faded in and out over the six-second timer (the screen's own fade track is not driven yet),
-  or the rewrite's own card (`radio_hud = custom`, `hud/radio.rs`).
+  `EA_TRAX.fng` screen by default (`ui_style = original`; the legacy `radio_hud = ea_trax` still reads as that), with its text faded in and out over the six-second timer (the screen's own fade track is not driven yet),
+  or the rewrite's own card (`ui_style = custom`, legacy `radio_hud = custom`, `hud/radio.rs`).
   The host keeps the text group's alpha at zero after expiry; stopping the fade
   updates at six seconds can retain a faint final frame in the package tree.
 - After a pursuit ends, licensed music resumes after a delay of 40 s [inferred].

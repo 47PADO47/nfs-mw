@@ -81,7 +81,7 @@ text. A scale of 1 leaves every existing node unchanged, and the existing tests 
 ## 5. What T9 removed
 
 - `crates/nfsmw/src/devtools/mod.rs`: the `radio` and `hud` system parameters, and the block that drew
-  `crate::hud::show_radio` when `settings.radio_hud == RadioHudStyle::Custom`. Nothing else in `run_ui` changed. The
+  `crate::hud::show_radio` when `settings.radio_hud == RadioHudStyle::Custom` (T10 renamed the check to `settings.ui_style == UiStyle::Custom`). Nothing else in `run_ui` changed. The
   scene panels, the metrics overlay, the console and the graphics lab are drawn as before, with the same arguments.
 - `crates/nfsmw/src/hud/radio.rs`: `show` and its egui imports, `placement`, the timing constants, and the
   time-filtered accessors `RadioHud::card()` and `opacity()`. Their timing moved to `radio_card.rs`, and the
