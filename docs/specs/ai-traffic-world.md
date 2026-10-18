@@ -203,8 +203,8 @@ type has an "is parked car" query. Neither is in the sources read, so parked car
 
 ## 9. Signals on real props
 
-Status: built and drawn. The matching runs when the scenery changes; the lamps on the matched heads and the synthetic
-markers for the rest are drawn. Code: `world/ai/signal_props.rs` (names, heads, matching, state),
+Status: built and drawn. The matching runs when the scenery changes; the lamps on the matched heads are drawn. An
+approach with no matched prop shows no light (the synthetic posts were removed). Code: `world/ai/signal_props.rs` (names, heads, matching, state),
 `world/ai/lamps.rs` (drawing), `world/resident.rs` (the head of each placed light).
 
 - **Which props.** Placed scenery named `XO_TrafficLightA`, `C` or `D` (poles), `XO_TrafficLightB` (pole with an arm
@@ -222,8 +222,7 @@ markers for the rest are drawn. Code: `world/ai/signal_props.rs` (names, heads, 
   `visual_revision` changes. Each approach gets at most one light; a mast arm may serve several approaches of one
   direction group. A light is matched once per build, so a light that drives out of range drops its match at the next build.
 - **Knocked props.** A knocked-over prop is hidden (`PropWorld::hidden`). While it is hidden, the matched approach draws
-  nothing: neither the head lamp nor the synthetic post. It is drawn again when the prop stands again. Knock-over does
+  nothing: the head lamp is not drawn. It is drawn again when the prop stands again. Knock-over does
   not change `visual_revision`, so the check runs at draw time. The cars still obey the signal while its pole is down.
-- **Drawing.** A matched approach shows its state colour (box and glow) at the lamp head and drops the stop-line bar.
-  Unmatched approaches keep the synthetic post, lamp and bar. Console: `signals props` prints the approach counts;
-  `signals synthetic on|off` draws the synthetic marker for every approach as a debug aid.
+- **Drawing.** A matched approach shows its state colour (box and glow) at the lamp head. Unmatched approaches show no
+  light and no stop-line bar. Console: `signals props` prints the approach counts.
