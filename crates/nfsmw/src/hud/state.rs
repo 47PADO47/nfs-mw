@@ -68,6 +68,9 @@ pub struct HudState {
     /// The busted overlay (`BUSTED_OVERLAY.fng`) is up: the surveillance-camera look after the arrest shot. The world sets
     /// it while the bust sequence shows the overlay (`scenes/world/ai/police/busted/flow.rs`).
     pub busted_overlay: bool,
+    /// Career mode is on: the bounty row's number, the car's banked bounty plus the chase's pending points. `None`
+    /// outside career mode, where the bounty row and the heat meter stay hidden.
+    pub career_bounty: Option<u32>,
 }
 
 impl Default for HudState {
@@ -80,6 +83,7 @@ impl Default for HudState {
             visible: true,
             busted: 0.0,
             busted_overlay: false,
+            career_bounty: None,
             speed: 0.0,
             use_mph: false,
             rpm: 0.0,

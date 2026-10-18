@@ -1,8 +1,8 @@
 //! Which parts of the HUD package are shown. The package holds every element of the in-game HUD; the game turns
 //! each on or off by feature. Here an element is on when the state it shows exists in this build: the speedometer
 //! and the tachometer always, the nitrous and turbo gauges when the car has the hardware, the pursuit board and its
-//! cool-down bar during a chase. The race timers and the heat meter stay hidden until their state is bound; the
-//! minimap shows when the scene has a map position for it.
+//! cool-down bar during a chase, the bounty row in career mode. The race timers and the heat arcs stay hidden until
+//! their state is bound; the minimap shows when the scene has a map position for it.
 
 use blackbox_feng::{ObjectRef, PackageId, Runtime, fe_hash_upper};
 
@@ -27,10 +27,12 @@ const PURSUIT_COPS: [u32; 1] = [0xe0b1_430b];
 /// The cool-down bar (`Cooldown_Meter_Group`): its track and fill. It sits inside the radar's group in the package,
 /// so [`Layout::update`] decides it on its own flag. Shown once the player has started to get away.
 const COOLDOWN: [u32; 1] = [0x84a2_26ec];
-/// Parts of the package with no state bound yet, held hidden whatever the feature: the heat arcs,
-/// the bounty row (no bounty in the pursuit feed), and the cool-down bar's "HIDING"
-/// group and car icon (the hiding timer is not in the feed).
-const HELD_HIDDEN: [u32; 5] = [0x8628_24c9, 0x4b2c_be1b, 0x8674_e6d4, 0x60b4_5523, 0x3807_4901];
+/// The bounty row: the career feeds it, so it shows in career mode only and is held hidden elsewhere.
+const BOUNTY_ROW: [u32; 1] = [0x8674_e6d4];
+/// Parts of the package with no state bound yet, held hidden whatever the feature: the heat arcs (their
+/// mask-to-heat mapping is not bound), and the cool-down bar's "HIDING" group and car icon (the hiding timer is not
+/// in the feed).
+const HELD_HIDDEN: [u32; 4] = [0x8628_24c9, 0x4b2c_be1b, 0x60b4_5523, 0x3807_4901];
 
 /// What the layout shows this frame, one flag per feature.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -45,6 +47,8 @@ pub struct Shown {
     pub mirror: bool,
     pub pursuit: bool,
     pub cooldown: bool,
+    /// Career mode: the bounty row shows.
+    pub career: bool,
 }
 
 /// The elements and where they sit in the package.
@@ -68,6 +72,8 @@ pub struct Layout {
     pursuit_cops: Vec<usize>,
     cooldown: Vec<usize>,
     held: Vec<usize>,
+    /// The bounty row: shown in career mode only.
+    bounty_row: Vec<usize>,
     applied: Option<Shown>,
 }
 
@@ -106,6 +112,7 @@ impl Layout {
             pursuit_cops: find(&PURSUIT_COPS),
             cooldown: find(&COOLDOWN),
             held: find(&HELD_HIDDEN),
+            bounty_row: find(&BOUNTY_ROW),
             applied: None,
         }
     }
@@ -128,6 +135,9 @@ impl Layout {
         }
         if want.heat {
             roots.extend(&self.heat);
+        }
+        if want.career {
+            roots.extend(&self.bounty_row);
         }
         if want.nitrous {
             roots.extend(&self.nitrous);
@@ -167,7 +177,8 @@ impl Layout {
         }
         // The parts without a bound feed stay hidden under whatever shows around them.
         for (i, slot) in shown.iter_mut().enumerate() {
-            if self.is_under_any(i, &self.held) {
+            let held = self.is_under_any(i, &self.held) || (!want.career && self.is_under_any(i, &self.bounty_row));
+            if held {
                 *slot = false;
             }
         }
