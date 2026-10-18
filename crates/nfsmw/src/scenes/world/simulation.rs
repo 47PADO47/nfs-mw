@@ -155,6 +155,7 @@ impl WorldScene {
         let _span = bevy_log::info_span!("world::physics_step").entered();
         let focus = self.traffic_focus();
         let camera = self.simulation_lens(self.physics_aspect);
+        let shown = self.gameplay_lens(self.physics_aspect);
         let event_view = camera.position;
         let (collision, props) = self.residency.world_parts();
         let surfaces = &self.physics.surfaces;
@@ -171,7 +172,7 @@ impl WorldScene {
             let player = self.drive.as_mut().filter(|_| player_step.is_some()).and_then(|d| d.sim_mut());
             traffic.collide(player);
             traffic.update_events(props, &self.physics, event_view);
-            traffic.finish_step(focus, &camera, props, collision, surfaces);
+            traffic.finish_step(focus, &camera, &shown, props, collision, surfaces);
         }
         if let (Some(drive), Some(step)) = (self.drive.as_mut(), player_step) {
             drive.update_events(props, &self.physics, event_view);

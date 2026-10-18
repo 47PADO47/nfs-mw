@@ -93,6 +93,7 @@ impl TrafficWorld {
         &mut self,
         focus: Focus,
         camera: &Lens,
+        shown: &Lens,
         props: &PropWorld,
         collision: &CollisionWorld,
         surfaces: &SurfaceTable,
@@ -117,7 +118,7 @@ impl TrafficWorld {
         if finishing {
             log::info!("traffic after the screenshot warm-up: {}", self.status(focus));
         }
-        self.recycle(STEP, focus, camera, props);
+        self.recycle(STEP, focus, camera, shown, props);
         let enabled = self.target > 0 || self.patrol_enabled();
         if activation::due(&mut self.spawn_timer, STEP, enabled) {
             self.manage(activation::PERIOD, focus, collision, surfaces);
