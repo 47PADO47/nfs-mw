@@ -88,6 +88,7 @@ impl Shadows {
             })
             .collect();
         Self {
+            grid: super::grid::Grid::default(),
             bias,
             opaque: make("fs_opaque"),
             cutout: make("fs_cutout"),

@@ -182,7 +182,13 @@ fn surface_debug_views_are_spatial_and_restore_the_lit_scene() {
     let mut settings = RenderExperiments { sun_shadows: true, world_ambient: true, ..Default::default() };
     r.set_render_experiments(settings);
     let original = capture(&mut r, &frame, &ground);
-    for view in [LightingDebug::SunVisibility, LightingDebug::AmbientVisibility, LightingDebug::Cascades] {
+    for view in [
+        LightingDebug::SunVisibility,
+        LightingDebug::AmbientVisibility,
+        LightingDebug::Cascades,
+        LightingDebug::ShadowBlockers,
+        LightingDebug::ShadowPenumbra,
+    ] {
         settings.lighting_debug = view;
         r.set_render_experiments(settings);
         let image = capture(&mut r, &frame, &ground);
@@ -193,10 +199,12 @@ fn surface_debug_views_are_spatial_and_restore_the_lit_scene() {
             continue;
         }
         assert!(image.as_chunks::<4>().0.iter().all(|p| p[0] == p[1] && p[1] == p[2]));
-        assert!(
-            image.as_chunks::<4>().0.iter().filter(|p| p[0] > 253).count() > 200,
-            "debug white bypasses colour effects"
-        );
+        if matches!(view, LightingDebug::SunVisibility | LightingDebug::AmbientVisibility) {
+            assert!(
+                image.as_chunks::<4>().0.iter().filter(|p| p[0] > 253).count() > 200,
+                "debug white bypasses colour effects"
+            );
+        }
         assert_eq!(r.graphics().post.tonemap, Tonemap::Aces, "debug does not change the selected effects");
     }
     settings.lighting_debug = LightingDebug::Off;

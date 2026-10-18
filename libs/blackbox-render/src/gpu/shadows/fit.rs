@@ -1,4 +1,4 @@
-//! Stable enclosing spheres and texel snapping; no previous-frame transforms or image history.
+//! Stable enclosing spheres and local-pivot texel snapping; no image history.
 
 use blackbox_gfx::{FrameParams, Projection, RenderExperiments};
 use glam::{Mat4, Vec3};
@@ -21,6 +21,7 @@ pub(super) struct Params {
     pub world: [f32; 4],
     pub debug: [f32; 4],
     pub projected: [f32; 4],
+    pub resolutions: [f32; 4],
 }
 
 pub(super) struct Fit {
@@ -28,7 +29,17 @@ pub(super) struct Fit {
     pub count: usize,
 }
 
-pub(super) fn fit(frame: &FrameParams, settings: RenderExperiments, casters: &[(usize, Vec3, f32)]) -> Option<Fit> {
+#[cfg(test)]
+fn fit(frame: &FrameParams, settings: RenderExperiments, casters: &[(usize, Vec3, f32)]) -> Option<Fit> {
+    fit_with_grid(frame, settings, casters, &mut super::grid::Grid::default())
+}
+
+pub(super) fn fit_with_grid(
+    frame: &FrameParams,
+    settings: RenderExperiments,
+    casters: &[(usize, Vec3, f32)],
+    grid: &mut super::grid::Grid,
+) -> Option<Fit> {
     let Projection::PerspectiveInfiniteReverse { fov_y, aspect, near } = frame.projection else { return None };
     let settings = settings.sanitized();
     let inverse = frame.view.inverse();
@@ -41,8 +52,20 @@ pub(super) fn fit(frame: &FrameParams, settings: RenderExperiments, casters: &[(
         false => Vec3::new(-sun.x * sun.y / (1.0 + sun.z), 1.0 - sun.y * sun.y / (1.0 + sun.z), -sun.y),
     };
     let light_rotation = glam::camera::rh::view::look_at_mat4(Vec3::ZERO, -sun, up);
+    let rebase = grid.follow(frame.camera_position);
     let distance = settings.shadow_distance;
-    let splits = [distance * 0.08, distance * 0.28, distance, settings.caster_distance()];
+    let near_share = match settings.near_shadow_focus {
+        true => 0.04,
+        false => 0.08,
+    };
+    let mut splits = [distance * near_share, distance * 0.28, distance, settings.caster_distance()];
+    let mut resolutions = [settings.shadow_resolution as f32; 4];
+    let mut overlap = 0.8;
+    if settings.wide_shadow_detail {
+        splits = [distance * 0.16, distance * 0.42, distance, settings.caster_distance()];
+        resolutions[..2].fill(settings.shadow_detail_resolution as f32);
+        overlap = 0.65;
+    }
     let count = match settings.far_shadows {
         true => 4,
         false => 3,
@@ -54,7 +77,7 @@ pub(super) fn fit(frame: &FrameParams, settings: RenderExperiments, casters: &[(
     for i in 0..count {
         let start = match i {
             0 => near,
-            _ => splits[i - 1] * 0.8,
+            _ => splits[i - 1] * overlap,
         };
         let end = splits[i];
         // Minimum enclosing sphere of the symmetric near/far rectangles, independent of orientation.
@@ -64,16 +87,11 @@ pub(super) fn fit(frame: &FrameParams, settings: RenderExperiments, casters: &[(
         let radius = (end * end * k + (end - center_z).powi(2)).sqrt();
         let radius = (radius * 16.0).ceil() / 16.0;
         // Include half-texel snapping and the largest blocker/filter footprint at the map boundary.
-        let size = settings.shadow_resolution as f32;
+        let size = resolutions[i];
         let radius = radius * size / (size - 32.0);
         let center = inverse.transform_point3(center_view);
-        let texel = 2.0 * radius / settings.shadow_resolution as f32;
-        let light_center = light_rotation.transform_point3(center);
-        let snapped = Vec3::new(
-            (light_center.x / texel).round() * texel,
-            (light_center.y / texel).round() * texel,
-            (light_center.z / texel).round() * texel,
-        );
+        let texel = 2.0 * radius / size;
+        let snapped = grid.snap(light_rotation, center, texel, i, rebase);
         // Preserve stable XY density; expand only depth for upstream resident casters.
         let margin = radius + 180.0;
         let (bottom, top) = depth_bounds(light_rotation, snapped, radius, margin, casters);
@@ -102,13 +120,19 @@ pub(super) fn fit(frame: &FrameParams, settings: RenderExperiments, casters: &[(
             sun: sun.extend(0.0).to_array(),
             texels,
             depth_spans,
-            softness: [settings.sun_angle.to_radians().tan(), u8::from(settings.soft_shadows) as f32, 0.0, 0.0],
+            softness: [
+                settings.sun_angle.to_radians().tan(),
+                u8::from(settings.soft_shadows) as f32,
+                u8::from(settings.dense_shadow_filter) as f32,
+                u8::from(settings.wide_shadow_detail) as f32,
+            ],
             contact: [0.0; 4],
             ambient: [0.0; 4],
             environment: [0.0; 4],
             world: [0.0; 4],
             debug: [0.0; 4],
             projected: [0.0; 4],
+            resolutions,
         },
         count,
     })
@@ -206,6 +230,26 @@ mod tests {
     }
 
     #[test]
+    fn wide_detail_overrides_tight_focus_and_retains_distant_coverage() {
+        let settings = RenderExperiments {
+            sun_shadows: true,
+            far_shadows: true,
+            shadow_distance: 320.0,
+            wide_shadow_detail: true,
+            near_shadow_focus: true,
+            shadow_resolution: 4096,
+            shadow_detail_resolution: 8192,
+            ..Default::default()
+        };
+        let fit = fit(&frame(Vec3::new(0.3, -0.2, 1.0)), settings, &[]).unwrap();
+        assert_eq!(fit.params.resolutions, [8192.0, 8192.0, 4096.0, 4096.0]);
+        assert!((fit.params.splits[0] * 0.65 - 33.28).abs() < 0.001);
+        assert!((fit.params.splits[1] - 134.4).abs() < 0.001);
+        assert_eq!(fit.params.splits[3], 960.0);
+        assert!(fit.params.texels[1] / fit.params.texels[0] < 3.0, "avoid the focused layout's sevenfold density step");
+    }
+
+    #[test]
     fn camera_frusta_remain_inside_the_filter_guard_band() {
         let eye = Vec3::new(3.0, -10.0, 5.0);
         for aspect in [1.5, 2.0] {
@@ -221,13 +265,24 @@ mod tests {
                 camera_cut: false,
                 shadow_tuning: None,
             };
-            for resolution in [512, 4096] {
+            for (resolution, focus, wide) in [
+                (512, false, false),
+                (4096, false, false),
+                (4096, true, false),
+                (8192, false, false),
+                (8192, true, false),
+                (512, false, true),
+                (4096, true, true),
+            ] {
                 let fit = fit(
                     &frame,
                     RenderExperiments {
                         sun_shadows: true,
                         far_shadows: true,
                         shadow_resolution: resolution,
+                        near_shadow_focus: focus,
+                        wide_shadow_detail: wide,
+                        shadow_detail_resolution: resolution * 2,
                         ..Default::default()
                     },
                     &[],
@@ -237,6 +292,7 @@ mod tests {
                     let matrix = Mat4::from_cols_array(&fit.params.matrices[i]);
                     let start = match i {
                         0 => 0.1,
+                        _ if wide => fit.params.splits[i - 1] * 0.65,
                         _ => fit.params.splits[i - 1] * 0.8,
                     };
                     for z in [start, fit.params.splits[i]] {
@@ -248,7 +304,7 @@ mod tests {
                                     -z,
                                 ));
                                 let p = matrix.transform_point3(world);
-                                let limit = 1.0 - 24.0 / resolution as f32;
+                                let limit = 1.0 - 24.0 / fit.params.resolutions[i];
                                 assert!(p.x.abs() <= limit && p.y.abs() <= limit, "cascade {i} filter coverage: {p:?}");
                                 assert!((0.0..=1.0).contains(&p.z));
                             }

@@ -12,8 +12,37 @@ XY footprint, rather than clipping everything beyond a fixed upstream allowance.
 Depth endpoints are quantised in world space; caster order and frame time do not
 affect them. Additional depth does not reduce XY texel density. The daylight
 basis is continuous through the former near-zenith axis switch.
+The custom grid rotates around a persistent local camera pivot rather than city
+world zero. This avoids rapidly changing rounding phase at large world coordinates
+as the sun moves. After 128 units of camera travel it rebases, preserving each
+cascade's current texel phase. It retains texel snapping for camera motion and
+does not accumulate visibility or blend previous shadow images. Original projected
+shadows keep their separate fitting path.
 Only nonempty opaque/cutout non-sky draws contribute caster bounds. Sky and
 transparent-only meshes cannot inflate the fitted depth span or its physical bias.
+
+Directional PCSS now searches a fixed twelve-texel footprint, covering the bounded
+eight-texel penumbra within the cascade padding. Its footprint no longer changes
+when the fitted depth origin moves for upstream casters. This retains sixteen
+nearest-depth blocker reads and the existing spatial tent filter. It is a bounded
+quality budget rather than a finite area light located at the shadow near plane.
+F8 Lighting exposes blocker count (0–16) and filter radius (0–8 texels) diagnostic
+views; `NFSMW_LAB_DEBUG=blockers|penumbra` selects them at startup. Original projected
+shadows stay separate and report zero for these cascade-only diagnostics. Fixed
+PCF remains selectable by disabling contact hardening.
+
+F8 Lighting also offers an opt-in **Dense penumbra filter**, saved with the lighting
+profile and A/B snapshots. The sparse 5-by-5 filter spreads taps apart as PCSS grows
+its footprint, leaving gaps at wide radii. The dense alternative pairs adjacent
+texel weights into bilinear comparisons and integrates a complete separable tent.
+It uses up to 81 comparisons at an eight-texel radius, versus the reference's 25.
+It leaves radii up to two texels identical and smoothly hands over between two and
+three texels. Wider edges use a different tent profile; compare edge width as well
+as patterning. It adds no random rotation, frame seed or temporal history, and
+does not alter blocker search, cascade fitting or the original projected path.
+It is disabled by default because its benefit and GPU cost depend on penumbra size.
+An isolated one-texel caster regression checks removal of holes, live off/on/off
+round trips, unchanged narrow filters and continuity at the handoff endpoints.
 
 Regressions orbit the camera and translate it around a receiver whose occluder
 is behind the camera and beyond the old depth limit, with PCSS on and off.
@@ -65,3 +94,52 @@ Solari uses opaque world stand-ins and explicitly omits alpha-masked foliage,
 so it does not replace the original-material native rendering path or establish
 original lighting parity. Reuse that optional backend when evaluating ray tracing
 after integration instead of building a second experimental RT stack here.
+# Shadow density comparisons
+
+F8 Lighting offers 8192 maps as an optional density experiment. Four Depth32F
+cascade layers consume 1024 MiB at 8192, versus 256 MiB at 4096. The renderer clamps
+the request to the device's texture-dimension limit. Raster bandwidth and cache
+pressure can increase; compare the GPU sun timing in milliseconds while driving.
+
+**Focus nearest cascade** instead halves the first split (8% to 4% of Near range).
+At range 320, it ends at 12.8 units instead of 25.6. This approximately doubles
+nearest-cascade linear density without increasing map allocation. Later cascades
+retain their ending distances, but the second starts earlier. The camera can cross
+the near transition sooner; inspect that transition as well as the car contact.
+
+Both controls preserve continuous sun motion and remain independent of PCSS and
+screen-space contact detail. They do not remove all raster aliasing from moving
+light. Filter width is in shadow texels: double it when doubling linear density
+to compare a similar world-space footprint. PCSS's eight-texel maximum also covers
+a smaller world-space area at higher density. Dense penumbra filtering remains
+separately selectable. Existing defaults and saved values are preserved.
+
+## Wider detail coverage
+
+**Wide-detail cascades** is an independent alternative to tight near focus. It
+overrides the legacy focus split while enabled. The first two splits use 16% and
+42% of Near range rather than the focused layout's 4% and 28%. At range 320 this
+gives endpoints 51.2 and 134.4. Each overlap begins at 65% of its ending distance;
+the first transition therefore spans 33.28 to 51.2 camera-depth units instead of
+10.24 to 12.8. These are view-depth intervals, not circles around the car.
+
+The first two depth layers have their own **Detail map resolution**. The regular
+Map resolution controls the two distant layers. Separate texture arrays allocate
+only those sizes: two 8192 maps plus two 4096 maps consume 640 MiB, versus 1024 MiB
+for four 8192 maps. Equal 4096 settings consume 256 MiB. The detail resolution is
+never lower than the distant resolution, and both respect the device limit.
+Existing layouts retain their original single array allocation; the original PC
+projected path stays separate. No temporal history or noise is added.
+
+In this mode Filter width and the PCSS penumbra limit use the nearest cascade's
+world-space texel size, converting that footprint to each sampled map. This
+avoids deliberately increasing filter softness at each split. It cannot recover
+detail lost to a coarse raster grid. PCSS blocker search remains a fixed 12-texel
+pattern in each map, so different blocker estimates can still affect overlaps.
+Adjacent maps are sampled together only inside an overlap, preserving the
+existing blended result while avoiding the second sample elsewhere.
+
+This is a quality/cost experiment, not a claim of seamless or shimmer-free
+shadows. Moving-sun stability, foliage and driving views need separate checks.
+The mixed-resolution routing and continuous overlap weights have GPU probes;
+frustum coverage includes both ends of every overlap and both texture sizes.
