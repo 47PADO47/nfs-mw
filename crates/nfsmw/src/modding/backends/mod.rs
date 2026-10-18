@@ -1,6 +1,6 @@
 //! The game's side of the interfaces a mod can ask for: the generic ones (`bb.commands`, `bb.input`, `bb.time`, `bb.map`,
 //! `bb.menus`, and `bb.vehicles`, `bb.hud`, `bb.camera`, `bb.audio`, `bb.world`) and the three `nfsmw.*` ones (`nfsmw.pursuit`,
-//! and `nfsmw.career` and `nfsmw.races` with no state behind them yet).
+//! `nfsmw.career` over the career being played, and `nfsmw.races` with no state behind it yet).
 //!
 //! Each interface has a backend trait in `blackbox-modding` or `nfsmw-modding` and a port here that implements it. A call
 //! from a mod runs on the main thread, inside a mod callback, and reads or writes the [`Bridge`]: the per-frame context
@@ -11,6 +11,7 @@
 mod audio;
 mod bridge;
 mod camera;
+mod career;
 pub mod commands;
 mod hud;
 mod input;
@@ -27,6 +28,8 @@ mod world;
 mod bridge_tests;
 #[cfg(test)]
 mod camera_tests;
+#[cfg(test)]
+mod career_tests;
 #[cfg(test)]
 mod commands_tests;
 #[cfg(test)]
@@ -78,13 +81,14 @@ pub fn interfaces() -> Interfaces {
         .add_audio(Rc::new(audio::AudioPort))
         .add_world(Rc::new(world::WorldPort(bridge.clone())));
     let pursuit_bridge = bridge.clone();
+    let career_handle = crate::career::CareerHandle::shared();
     registry
         .add_provider(IFACE_PURSUIT, IFACE_PURSUIT_VERSION, move |ctx| {
             let table = pursuit_table(Rc::new(nfsmw_pursuit::PursuitPort(pursuit_bridge.clone())), ctx.owner());
             Attached::from_owned(IFACE_PURSUIT, IFACE_PURSUIT_VERSION, table.header(), Box::new(table))
         })
-        .add_provider(IFACE_CAREER, IFACE_CAREER_VERSION, |ctx| {
-            let table = career_table(Rc::new(unsupported::Unsupported), ctx.owner());
+        .add_provider(IFACE_CAREER, IFACE_CAREER_VERSION, move |ctx| {
+            let table = career_table(Rc::new(career::CareerPort::new(career_handle.clone())), ctx.owner());
             Attached::from_owned(IFACE_CAREER, IFACE_CAREER_VERSION, table.header(), Box::new(table))
         })
         .add_provider(IFACE_RACES, IFACE_RACES_VERSION, |ctx| {

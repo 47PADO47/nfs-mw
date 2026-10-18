@@ -11,7 +11,7 @@ pub const IFACE_PURSUIT_VERSION: (u16, u16) = (0, 1);
 /// Id of the career interface: cash, bounty, rap sheet, blacklist, milestones, garage, safe houses and shops.
 pub const IFACE_CAREER: &str = "nfsmw.career";
 /// The version the host implements for [`IFACE_CAREER`], as `(major, minor)`.
-pub const IFACE_CAREER_VERSION: (u16, u16) = (0, 1);
+pub const IFACE_CAREER_VERSION: (u16, u16) = (0, 2);
 
 /// Id of the race interface: the race list, starts and custom races.
 pub const IFACE_RACES: &str = "nfsmw.races";

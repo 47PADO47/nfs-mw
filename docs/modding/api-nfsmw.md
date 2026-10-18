@@ -11,22 +11,24 @@ including the cop tables: `cop_table_get` reads a wave (a wave a mod set first, 
 `ATTRIBUTES.BIN` once the layers are in place) and `cop_table_set` keeps a wave for the session. A set wave takes effect
 on the next chase that starts; a chase that is running keeps its rows. The chase loads the cop car of every name in the
 waves it uses, the mods' cars too, before the first wave; a car that does not load is logged and its entries are left out
-of that chase. `nfsmw.career` and
-`nfsmw.races` are offered with no state behind them, so every call answers `BB_ERR_UNSUPPORTED` and a mod can detect
-them. The roadblocks, spikes, the helicopter calls and the rest of the pursuit tables are not wired yet. The
-**career** (bounty, rap sheet, blacklist, milestones, cash, shops, safe houses) has no runtime state yet; the
-tables below are the contract the career work will implement. The original's career is now specified
+of that chase. `nfsmw.races` is offered with no state behind it, so every call answers `BB_ERR_UNSUPPORTED` and a mod
+can detect it. The roadblocks, spikes, the helicopter calls and the rest of the pursuit tables are not wired yet. The
+**career** (cash, bounty, rap sheet, blacklist, milestones, stage, garage, current car) runs over the career being
+played: a call outside career mode answers `BB_ERR_NOT_READY`. The calls with no state behind them (safe houses, shops,
+giving and taking cars, saving, milestone registration) still answer `BB_ERR_UNSUPPORTED`; see [Career](#career-nfsmwcareer).
+The original's career is now specified
 ([specs/career.md](../specs/career.md)); the rules a backend must follow, and where the original differs from the
 sketches below, are in [Original career rules](#original-career-rules). The wire layout is unchanged.
 
 | Interface | Version | Contents |
 |---|---|---|
 | `nfsmw.pursuit` | 0.1 | pursuit state, heat, cops, support, cop tables |
-| `nfsmw.career` | 0.1 | cash, bounty, rap sheet, blacklist, milestones, safe houses, shops |
+| `nfsmw.career` | 0.2 | cash, bounty, rap sheet, blacklist, milestones, stage, garage, current car (safe houses and shops not yet) |
 | `nfsmw.races` | 0.1 | race events: list, start, control, custom races |
 
-The wire numbers and the status of each entry in 0.1 are in [Wire numbers and status](#wire-numbers-and-status-01)
-below. An entry that is not listed there is not in 0.1; it is appended in a later minor once the game can do it.
+The wire numbers and the status of each entry are in [Wire numbers and status](#wire-numbers-and-status-01)
+below (pursuit and races at 0.1, career at 0.2). An entry that is not listed there is not in its interface's version; it
+is appended in a later minor once the game can do it.
 
 ## Pursuit and heat (`nfsmw.pursuit`)
 
@@ -126,6 +128,19 @@ cars, and the safe houses and shops they unlock. Storage is the save file (`save
 `libs/save-store`); the data it reads is in `nfsmw-data/src/gameplay/`. The stat list, the milestone ids and the
 rival table are fixed by the original: see [Original career rules](#original-career-rules).
 
+**Status at 0.2.** The game implements the calls marked **yes** in the [wire table](#career-nfsmwcareer-02). The backend
+is `crates/nfsmw/src/modding/backends/career.rs`, over the career being played (`CareerHandle::shared()`). Where the
+sketch below differs from the code:
+
+- Bounty is the total over the stable (sold base plus every live car). `bounty_add` and `bounty_set` change the current
+  car's career record, so `bounty_set` answers `BB_ERR_ARG` for a total below the other cars' share.
+- Rivals are the bins 1 to 15, rank = bin number. `rival_at` lists rank 1 first. A rival's car is handle 0 and its name
+  is `Rank N`, since the bin data has neither **[unconfirmed]**.
+- Milestone ids are 1 based positions in the career's list. `milestone_complete` pays the milestone's bounty to the
+  current car. `milestone_progress` is not offered: a career milestone's progress is the game's statistic.
+- Outside career mode every call answers `BB_ERR_NOT_READY`. A call that needs a driven car, with none, answers
+  `BB_ERR_NOT_FOUND`.
+
 | Entry | Signature sketch | Scope | Implemented in |
 |---|---|---|---|
 | Cash | `career.cash() -> i64`, `add_cash(delta: i64, reason: &str)` **W**, `set_cash(i64)` **W** | MW | career module (new), `saves.rs` |
@@ -137,7 +152,7 @@ rival table are fixed by the original: see [Original career rules](#original-car
 | Unlock rival | `career.set_rival_locked(rank, locked: bool)` **W** | MW | same |
 | Milestones | `career.milestones() -> Vec<Milestone { id, name, progress: f32, goal: f32, done: bool }>` | MW | same |
 | Complete milestone | `career.complete_milestone(MilestoneId)` **W** | MW | same |
-| Register milestone | `career.register_milestone(MilestoneDef { key, name, goal: f32, reward_cash: u32 }) -> Result<MilestoneId>`, `career.milestone_progress(MilestoneId, f32)`; mod-owned milestones are saved in the mod's slot data | MW | same, `libs/save-store` |
+| Register milestone | `career.register_milestone(MilestoneDef { key, name, goal: f32, reward_bounty: u32 }) -> Result<MilestoneId>`, where `reward_bounty` is the bounty (rep points, not cash) paid on completion, `career.milestone_progress(MilestoneId, f32)`; mod-owned milestones are saved in the mod's slot data | MW | same, `libs/save-store` |
 | Current stage | `career.stage() -> u8` (the blacklist/story stage) | MW | same |
 | Owned cars | `career.garage() -> Vec<OwnedCar { car: CarId, paint, parts, performance }>` | MW | `garage/mod.rs` (`Model`), `garage/parts.rs`, `performance.rs` |
 | Give or take car | `career.give_car(CarId) -> Result<()>` **W**, `career.remove_car(CarId)` **W** | MW | `garage/`, `saves.rs` |
@@ -216,7 +231,7 @@ script manager. Autosave runs at three points: free-roam start, event start, and
 
 | Sketch | Original | Action |
 |---|---|---|
-| `MilestoneDef.reward_cash` | milestones pay bounty | keep the field for mod milestones, document it as cash; the 55 built-in milestones report their bounty through `BountyChanged` |
+| `MilestoneDef.reward_cash` | milestones pay bounty | renamed to `MilestoneDef.reward_bounty` (`BbMilestoneDef.reward_bounty`, same `u32` at the same offset; 0.1 kept, nothing shipped yet); the threshold stays the one `goal: f32`; the 55 built-in milestones report their bounty through `BountyChanged` |
 | `Rival.rank` 1..15 and `stage() -> u8` | bin number, 16 = prologue | allow 16 in `stage()`; ranks stay 1..15 |
 | `Rival.defeated`, `locked` | derived from the bin graph state | compute, do not store |
 | `RapSheet.infractions: [u32; 8]` | two sets of 8 (unserved, served) | report the sum; add the unserved set later |
@@ -254,12 +269,12 @@ the table is the plan.
 Code: `crates/nfsmw-modding` (`abi`, `host`, `sdk`). Each table is `#[repr(C)]` and starts with `head: BbIface` and `ctx`.
 Its functions are `Option<fn>` slots, so the `n`th function (0 based) sits at byte `16 + 8 n`. Every record and payload
 starts with `size`, the bytes its writer filled in. Functions take `ctx` first and return a `BbStatus`; the statuses are
-the `BB_ERR_*` of `blackbox-modding`. The three interfaces are all at 0.1. That is an interface version, not an ABI version.
+the `BB_ERR_*` of `blackbox-modding`. Pursuit and races are at 0.1, career at 0.2. Those are interface versions, not the ABI version.
 
 | Interface | Id | Version | Table size (bytes) |
 |---|---|---|---|
 | Pursuit | `nfsmw.pursuit` | 0.1 | 88 |
-| Career | `nfsmw.career` | 0.1 | 328 |
+| Career | `nfsmw.career` | 0.2 | 328 |
 | Races | `nfsmw.races` | 0.1 | 104 |
 
 Limits the host checks: heat levels `1..=10`; at most 64 cop records in one wave; at most 256 checkpoints in one race.
@@ -303,55 +318,57 @@ as vehicles, spawn and dismiss cop, support, roadblock, spikes, the helicopter c
 bounty in the chase, the dev toggle, formations, patrol speeds, the AI profile, and adding or removing one cop or the
 helicopter in a wave. In 0.1 a mod sets the whole wave with `cop_table_set`.
 
-### Career (`nfsmw.career` 0.1)
+### Career (`nfsmw.career` 0.2)
 
-The career has no state in the port yet, so every slot answers `BB_ERR_UNSUPPORTED`. The layout is fixed now. The stat
-numbers of `rap_sheet_set_stat` and `rap_sheet_add_stat` follow the original's rap sheet index (below); the field lists
-of `BbRapSheet`, `BbRival` and `BbMilestone` are checked against the specs when the state lands.
+**Changelog.** 0.2: the career has state. The 19 slots marked supported answer; the rest answer `BB_ERR_UNSUPPORTED`.
+The milestone reward is bounty, not cash: `BbMilestoneDef.reward_bounty` (the same `u32` at the same offset as 0.1's
+field, which nothing shipped with). The layout is unchanged. Outside career mode every slot answers `BB_ERR_NOT_READY`.
+The stat numbers of `rap_sheet_set_stat` and `rap_sheet_add_stat` follow the original's rap sheet index (below); the field
+lists of `BbRapSheet`, `BbRival` and `BbMilestone` are [unconfirmed] against the specs.
 
-| Offset | Slot | Arguments after `ctx` | Writes | SDK |
-|---|---|---|---|---|
-| 16 | `cash_get` | `out: *mut i64` | no | `cash()` |
-| 24 | `cash_add` | `delta: i64, reason: BbStr` | yes | `add_cash(delta, reason)` |
-| 32 | `cash_set` | `value: i64` | yes | `set_cash(value)` |
-| 40 | `bounty_get` | `out: *mut u64` | no | `bounty()` |
-| 48 | `bounty_add` | `delta: u64` | yes | `add_bounty(delta)` |
-| 56 | `bounty_set` | `value: u64` | yes | `set_bounty(value)` |
-| 64 | `rap_sheet_get` | `out: *mut BbRapSheet` [unconfirmed fields] | no | `rap_sheet()` |
-| 72 | `rap_sheet_set_stat` | `stat: u32, value: u64` | yes | `set_stat(stat, value)` |
-| 80 | `rap_sheet_add_stat` | `stat: u32, delta: u64` | yes | `add_stat(stat, delta)` |
-| 88 | `rival_count` | `out: *mut u32` | no | `blacklist()` (count, then `rival_at`) |
-| 96 | `rival_at` | `index: u32, out: *mut BbRival` | no | `blacklist()` |
-| 104 | `rival_defeat` | `rank: u32` | yes | `defeat_rival(rank)` |
-| 112 | `rival_set_locked` | `rank: u32, locked: u8` | yes | `set_rival_locked(rank, locked)` |
-| 120 | `milestone_count` | `out: *mut u32` | no | `milestones()` |
-| 128 | `milestone_at` | `index: u32, out: *mut BbMilestone` | no | `milestones()` |
-| 136 | `milestone_complete` | `id: u32` | yes | `complete_milestone(id)` |
-| 144 | `milestone_register` | `def: *const BbMilestoneDef, out_id: *mut u32` | yes | `register_milestone(&def)` |
-| 152 | `milestone_progress` | `id: u32, progress: f32` | yes | `set_milestone_progress(id, progress)` |
-| 160 | `stage_get` | `out: *mut u32` | no | `stage()` |
-| 168 | `garage_count` | `out: *mut u32` | no | `garage()` |
-| 176 | `garage_at` | `index: u32, out: *mut BbOwnedCar` | no | `garage()` |
-| 184 | `give_car` | `car: u64` | yes | `give_car(car)` |
-| 192 | `remove_car` | `car: u64` | yes | `remove_car(car)` |
-| 200 | `current_car_get` | `out: *mut u64` (0 for none) | no | `current_car()` |
-| 208 | `current_car_set` | `car: u64` | yes | `set_current_car(car)` |
-| 216 | `save` | none | no | `save()` |
-| 224 | `slot_get` | `out: *mut u32` (0 for none) | no | `slot()` |
-| 232 | `safehouse_count` | `out: *mut u32` | no | `safehouses()` |
-| 240 | `safehouse_at` | `index: u32, out: *mut BbSafehouse` | no | `safehouses()` |
-| 248 | `safehouse_set_unlocked` | `id: u32, unlocked: u8` | yes | `set_safehouse_unlocked(id, unlocked)` |
-| 256 | `safehouse_register` | `interior: u64, out_id: *mut u32` | yes | `register_safehouse(interior)` |
-| 264 | `safehouse_set_cools_heat` | `on: u8` | yes | `set_safehouse_cools_heat(on)` |
-| 272 | `shop_count` | `out: *mut u32` | no | `shops()` |
-| 280 | `shop_at` | `index: u32, out: *mut BbShop` | no | `shops()` |
-| 288 | `shop_stock_count` | `shop: u32, out: *mut u32` | no | `shop_stock(shop)` |
-| 296 | `shop_stock_at` | `shop: u32, index: u32, out: *mut BbShopItem` | no | `shop_stock(shop)` |
-| 304 | `shop_add_item` | `shop: u32, def: *const BbShopItemDef, out_id: *mut u32` | yes | `shop_add_item(shop, &def)` |
-| 312 | `shop_remove_item` | `shop: u32, item: u32` | yes | `shop_remove_item(shop, item)` |
-| 320 | `shop_set_price` | `shop: u32, item: u32, cash: u32` | yes | `set_price(shop, item, cash)` |
+| Offset | Slot | Arguments after `ctx` | Writes | Status | SDK |
+|---|---|---|---|---|---|
+| 16 | `cash_get` | `out: *mut i64` | no | supported | `cash()` |
+| 24 | `cash_add` | `delta: i64, reason: BbStr` | yes | supported | `add_cash(delta, reason)` |
+| 32 | `cash_set` | `value: i64` | yes | supported | `set_cash(value)` |
+| 40 | `bounty_get` | `out: *mut u64` | no | supported | `bounty()` |
+| 48 | `bounty_add` | `delta: u64` | yes | supported | `add_bounty(delta)` |
+| 56 | `bounty_set` | `value: u64` | yes | supported | `set_bounty(value)` |
+| 64 | `rap_sheet_get` | `out: *mut BbRapSheet` [unconfirmed fields] | no | supported | `rap_sheet()` |
+| 72 | `rap_sheet_set_stat` | `stat: u32, value: u64` | yes | supported | `set_stat(stat, value)` |
+| 80 | `rap_sheet_add_stat` | `stat: u32, delta: u64` | yes | supported | `add_stat(stat, delta)` |
+| 88 | `rival_count` | `out: *mut u32` | no | supported | `blacklist()` (count, then `rival_at`) |
+| 96 | `rival_at` | `index: u32, out: *mut BbRival` | no | supported | `blacklist()` |
+| 104 | `rival_defeat` | `rank: u32` | yes | unsupported | `defeat_rival(rank)` |
+| 112 | `rival_set_locked` | `rank: u32, locked: u8` | yes | unsupported | `set_rival_locked(rank, locked)` |
+| 120 | `milestone_count` | `out: *mut u32` | no | supported | `milestones()` |
+| 128 | `milestone_at` | `index: u32, out: *mut BbMilestone` | no | supported | `milestones()` |
+| 136 | `milestone_complete` | `id: u32` | yes | supported | `complete_milestone(id)` |
+| 144 | `milestone_register` | `def: *const BbMilestoneDef, out_id: *mut u32` | yes | unsupported | `register_milestone(&def)` |
+| 152 | `milestone_progress` | `id: u32, progress: f32` | yes | unsupported | `set_milestone_progress(id, progress)` |
+| 160 | `stage_get` | `out: *mut u32` | no | supported | `stage()` |
+| 168 | `garage_count` | `out: *mut u32` | no | supported | `garage()` |
+| 176 | `garage_at` | `index: u32, out: *mut BbOwnedCar` | no | supported | `garage()` |
+| 184 | `give_car` | `car: u64` | yes | unsupported | `give_car(car)` |
+| 192 | `remove_car` | `car: u64` | yes | unsupported | `remove_car(car)` |
+| 200 | `current_car_get` | `out: *mut u64` (0 for none) | no | supported | `current_car()` |
+| 208 | `current_car_set` | `car: u64` | yes | supported | `set_current_car(car)` |
+| 216 | `save` | none | no | unsupported | `save()` |
+| 224 | `slot_get` | `out: *mut u32` (0 for none) | no | unsupported | `slot()` |
+| 232 | `safehouse_count` | `out: *mut u32` | no | unsupported | `safehouses()` |
+| 240 | `safehouse_at` | `index: u32, out: *mut BbSafehouse` | no | unsupported | `safehouses()` |
+| 248 | `safehouse_set_unlocked` | `id: u32, unlocked: u8` | yes | unsupported | `set_safehouse_unlocked(id, unlocked)` |
+| 256 | `safehouse_register` | `interior: u64, out_id: *mut u32` | yes | unsupported | `register_safehouse(interior)` |
+| 264 | `safehouse_set_cools_heat` | `on: u8` | yes | unsupported | `set_safehouse_cools_heat(on)` |
+| 272 | `shop_count` | `out: *mut u32` | no | unsupported | `shops()` |
+| 280 | `shop_at` | `index: u32, out: *mut BbShop` | no | unsupported | `shops()` |
+| 288 | `shop_stock_count` | `shop: u32, out: *mut u32` | no | unsupported | `shop_stock(shop)` |
+| 296 | `shop_stock_at` | `shop: u32, index: u32, out: *mut BbShopItem` | no | unsupported | `shop_stock(shop)` |
+| 304 | `shop_add_item` | `shop: u32, def: *const BbShopItemDef, out_id: *mut u32` | yes | unsupported | `shop_add_item(shop, &def)` |
+| 312 | `shop_remove_item` | `shop: u32, item: u32` | yes | unsupported | `shop_remove_item(shop, item)` |
+| 320 | `shop_set_price` | `shop: u32, item: u32, cash: u32` | yes | unsupported | `set_price(shop, item, cash)` |
 
-Not in 0.1: the career events (`BountyChanged`, `CashChanged`, `MilestoneCompleted`, the blacklist, safe-house and shop
+Not in 0.2: the career events (`BountyChanged`, `CashChanged`, `MilestoneCompleted`, the blacklist, safe-house and shop
 events, the save events) and the cancelable purchase request.
 
 ### Races (`nfsmw.races` 0.1)
@@ -416,4 +433,4 @@ When the events go out, and what they carry in the game:
   Open: the mod-car path is covered by tests of the selection only; no run has yet spawned a mod's cop car.
 - **Data.** `nfsmw-modding` does not depend on `nfsmw-data`, so the install stack stays out of mods. The game converts
   `nfsmw_data::pursuit::HeatRow` into `BbHeatRow` and `BbCopRecord` in its facade.
-- **Career and races.** Offered, with no state. Their tables are the contract the career and race work implements.
+- **Career and races.** Career is at 0.2 with state behind 19 of its slots (see Career). Races are offered with no state; their table is the contract the race work implements.
