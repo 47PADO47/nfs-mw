@@ -13,6 +13,7 @@ pub(crate) mod prompts;
 mod shared;
 mod strings;
 mod text;
+pub mod theme;
 
 pub use assets::UiAssets;
 pub use catalog::{Catalog, SCREEN_FILES};

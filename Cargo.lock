@@ -3801,6 +3801,7 @@ dependencies = [
  "blackbox-streaming",
  "blackbox-text",
  "blackbox-tpk",
+ "blackbox-ui",
  "blackbox-vehicle",
  "clap",
  "discord-rich-presence",

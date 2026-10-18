@@ -53,6 +53,7 @@ blackbox-sequence.workspace = true
 blackbox-streaming.workspace = true
 blackbox-text.workspace = true
 blackbox-tpk.workspace = true
+blackbox-ui.workspace = true
 blackbox-vehicle.workspace = true
 clap.workspace = true
 ea-audio.workspace = true
