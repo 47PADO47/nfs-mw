@@ -174,8 +174,8 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.hud_layout {
         put("hud_layout", Value::String(v.to_string()));
     }
-    if let Some(v) = changes.radio_hud {
-        put("radio_hud", Value::String(v.to_string()));
+    if let Some(v) = changes.ui_style {
+        put("ui_style", Value::String(v.to_string()));
     }
     if let Some(v) = changes.post_tonemap {
         put("post_tonemap", Value::String(v.to_string()));

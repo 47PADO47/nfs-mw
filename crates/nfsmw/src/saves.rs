@@ -183,7 +183,7 @@ pub fn partial_of(s: &Settings) -> Partial {
         camera_mode: Some(s.camera_mode),
         minimap: Some(s.minimap),
         hud_layout: Some(s.hud_layout),
-        radio_hud: Some(s.radio_hud),
+        ui_style: Some(s.ui_style),
         post_tonemap: Some(s.post_tonemap),
         post_bloom: Some(s.post_bloom),
         post_aa: Some(s.post_aa),

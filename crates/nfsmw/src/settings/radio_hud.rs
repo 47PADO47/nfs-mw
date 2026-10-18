@@ -1,14 +1,17 @@
-//! How the radio announces the song on the HUD: the original EA Trax chyron, or the card this build draws itself.
-//! The chyron is the package `EA_TRAX.fng` (`docs/specs/music-graph.md` section 7); the card is `hud/radio.rs`.
+//! The legacy `radio_hud` key, read for back-compat only. It is folded into [`UiStyle`](super::UiStyle): `ea_trax` is
+//! `Original` and `custom` is `Custom`. Nothing writes this key any more, and a layer that also sets `ui_style` ignores it.
+//! Specs: `docs/specs/ui-themes.md` section 11, `docs/specs/music-graph.md` section 7.
 
-use std::{fmt, str::FromStr};
+use std::str::FromStr;
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+use super::UiStyle;
+
+/// The two values the old key accepted. Kept so an existing config file still loads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RadioHudStyle {
-    /// The disc and tab of the original EA Trax screen, animated by the game's own scripts.
-    #[default]
+    /// The original EA Trax chyron. Maps to `UiStyle::Original`.
     EaTrax,
-    /// The rewrite's text card: title, artist and album with the time, drawn in egui.
+    /// The rewrite's card. Maps to `UiStyle::Custom`.
     Custom,
 }
 
@@ -24,12 +27,12 @@ impl FromStr for RadioHudStyle {
     }
 }
 
-impl fmt::Display for RadioHudStyle {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::EaTrax => "ea_trax",
-            Self::Custom => "custom",
-        })
+impl From<RadioHudStyle> for UiStyle {
+    fn from(style: RadioHudStyle) -> Self {
+        match style {
+            RadioHudStyle::EaTrax => Self::Original,
+            RadioHudStyle::Custom => Self::Custom,
+        }
     }
 }
 
@@ -38,12 +41,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_style_round_trips_and_defaults_to_the_original() {
-        assert_eq!(RadioHudStyle::default(), RadioHudStyle::EaTrax);
-        for style in [RadioHudStyle::EaTrax, RadioHudStyle::Custom] {
-            assert_eq!(style.to_string().parse::<RadioHudStyle>(), Ok(style));
-        }
+    fn the_legacy_values_parse_and_map_onto_the_ui_style() {
         assert_eq!("EA-Trax".parse::<RadioHudStyle>(), Ok(RadioHudStyle::EaTrax));
+        assert_eq!("ea_trax".parse::<RadioHudStyle>(), Ok(RadioHudStyle::EaTrax));
+        assert_eq!("custom".parse::<RadioHudStyle>(), Ok(RadioHudStyle::Custom));
         assert!("chyron".parse::<RadioHudStyle>().is_err());
+        assert_eq!(UiStyle::from(RadioHudStyle::EaTrax), UiStyle::Original);
+        assert_eq!(UiStyle::from(RadioHudStyle::Custom), UiStyle::Custom);
     }
 }

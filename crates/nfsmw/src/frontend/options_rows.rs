@@ -81,7 +81,7 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
             .collect(),
         Category::Gameplay => vec![
             row(Setting::HudLayout, Title::Text("HUD Layout")),
-            row(Setting::RadioHud, Title::Text("Radio HUD")),
+            row(Setting::UiStyle, Title::Text("UI style")),
             row(Setting::Minimap, Title::Text("Minimap")),
             row(Setting::RearViewMirror, Title::Text("Rear-View Mirror")),
             row(Setting::TurnSignals, Title::Text("Turn Signals")),

@@ -19,7 +19,7 @@ use super::viewport::HudViewport;
 use crate::app::{FrameSet, Host};
 use crate::career::CareerHandle;
 use crate::gui::UiOutput;
-use crate::settings::{RadioHudStyle, Settings};
+use crate::settings::{Settings, UiStyle};
 use crate::ui::present::Screen;
 use crate::ui::{Catalog, Presenter, SharedAssets};
 
@@ -134,7 +134,9 @@ fn present(
         return;
     }
     let hud = &mut *hud;
-    let ea_trax = settings.radio_hud == RadioHudStyle::EaTrax;
+    // The chyron is the original look: shown in Original and Remastered, not in Custom. Per-theme radio gating comes
+    // from the resolver in T12 (`docs/specs/ui-themes.md`).
+    let ea_trax = settings.ui_style != UiStyle::Custom;
     hud.binding.set_mirror_shown(settings.rear_view_mirror);
     hud.binding.advance_mirror_fade(time.delta_secs());
     hud.binding.advance_blips(time.delta_secs());
