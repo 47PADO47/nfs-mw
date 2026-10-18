@@ -47,6 +47,11 @@ macro_rules! catalogue {
             pub const fn slot(self) -> SlotId {
                 SlotId::new(self.raw())
             }
+
+            /// The element a registry slot id names, or `None` for an id this catalogue does not list.
+            pub fn from_slot(slot: SlotId) -> Option<Self> {
+                Self::ALL.iter().copied().find(|element| element.slot() == slot)
+            }
         }
     };
 }

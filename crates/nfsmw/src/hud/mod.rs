@@ -42,6 +42,8 @@ mod pursuit_end;
 mod pursuit_tests;
 mod radar;
 mod radio;
+/// The FEng roots of each HUD element, for the Original theme's adapters (`ui/theme/original`).
+pub(crate) mod roots;
 mod skin;
 mod speedbreaker;
 mod state;
