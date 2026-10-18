@@ -23,11 +23,12 @@ fn race(name: &str, start: Option<Placement>) -> Race {
         start,
         finish: None,
         checkpoints: Vec::new(),
+        barriers: Vec::new(),
     }
 }
 
 fn data(races: Vec<Race>, markers: Vec<ActivityMarker>) -> GameplayData {
-    GameplayData { races, triggers: Vec::new(), markers }
+    GameplayData { races, markers, ..Default::default() }
 }
 
 #[test]
