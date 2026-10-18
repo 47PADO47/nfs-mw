@@ -136,10 +136,10 @@ fn a_chase_that_ends_forgets_its_lost_sight() {
 
 #[test]
 fn each_cue_names_its_speech_event() {
-    assert_eq!(cue_line(Cue::Lost), "lostvisual");
-    assert_eq!(cue_line(Cue::Regained), "regainvisual");
-    assert_eq!(cue_line(Cue::HeatJump), "heatjump");
-    assert_eq!(cue_line(Cue::TimeExpired), "disptimeexpired");
+    assert_eq!(cue_line(Cue::Lost), "anytimeevents_lostvisual");
+    assert_eq!(cue_line(Cue::Regained), "anytimeevents_regainvisual");
+    assert_eq!(cue_line(Cue::HeatJump), "anytimeevents_heatjump");
+    assert_eq!(cue_line(Cue::TimeExpired), "anytimeevents_disptimeexpired");
 }
 
 /// A feed with the evade time given, for the time-expired edge.
@@ -191,4 +191,31 @@ fn a_regained_sight_rearms_the_time_expired_line_for_the_next_lost_spell() {
         }
     }
     assert_eq!(count, 2, "one per lost spell");
+}
+
+/// Every line the chase asks for is an event of the install's attribute database.
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn each_cue_line_is_an_event_of_the_install() {
+    let Some(dir) = std::env::var_os("NFSMW_GAME_DIR") else { return };
+    let dir = game_install::GameDir::open(std::path::PathBuf::from(dir)).unwrap();
+    let db = blackbox_attrib::Database::open(&dir.read("GLOBAL/ATTRIBUTES.BIN").unwrap()).unwrap();
+    let events = nfsmw_data::speech::events(&db);
+    let lines = [
+        Cue::Lost,
+        Cue::Regained,
+        Cue::HeatJump,
+        Cue::TimeExpired,
+        Cue::Rain,
+        Cue::RoadblockCalled,
+        Cue::BeenHit,
+        Cue::HeliLost,
+        Cue::HeliSpotted,
+        Cue::CopDown,
+    ];
+    for cue in lines {
+        let name = cue_line(cue);
+        assert!(events.iter().any(|e| e.name == name), "{name} is not in the install");
+    }
+    assert!(events.iter().any(|e| e.name == super::OPENING_LINE), "the opening line is not in the install");
 }

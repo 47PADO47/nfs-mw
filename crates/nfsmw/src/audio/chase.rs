@@ -43,21 +43,22 @@ use super::{Audio, MusicInput, PursuitFeed};
 /// `docs/specs/ai-pursuit-speech-events.md`), whose collection is named `setup_initpursuit` in the data.
 const OPENING_LINE: &str = "setup_initpursuit";
 
-/// The speech event of each cue, by its collection name (numbers in `docs/specs/ai-pursuit-speech-events.md`):
-/// `lostvisual` is 106, `regainvisual` 107, `heatjump` 220, `disptimeexpired` 180, `weatherreport` 219, `callforrb` 76,
-/// `collisionworld` 98, `helilostvisual` 169, `spotted` 214, `unitdisabled` 164.
+/// The speech event of each cue, by the name the attribute database gives it: the group of its collection, an
+/// underscore, then the collection name (groups in `docs/specs/ai-pursuit-speech-events.md`). `lostvisual` is 106,
+/// `regainvisual` 107, `heatjump` 220, `disptimeexpired` 180, `weatherreport` 219, `callforrb` 76, `collisionworld` 98,
+/// `helilostvisual` 169, `spotted` 214, `unitdisabled` 164.
 fn cue_line(cue: Cue) -> &'static str {
     match cue {
-        Cue::Lost => "lostvisual",
-        Cue::Regained => "regainvisual",
-        Cue::HeatJump => "heatjump",
-        Cue::TimeExpired => "disptimeexpired",
-        Cue::Rain => "weatherreport",
-        Cue::RoadblockCalled => "callforrb",
-        Cue::BeenHit => "collisionworld",
-        Cue::HeliLost => "helilostvisual",
-        Cue::HeliSpotted => "spotted",
-        Cue::CopDown => "unitdisabled",
+        Cue::Lost => "anytimeevents_lostvisual",
+        Cue::Regained => "anytimeevents_regainvisual",
+        Cue::HeatJump => "anytimeevents_heatjump",
+        Cue::TimeExpired => "anytimeevents_disptimeexpired",
+        Cue::Rain => "anytimeevents_weatherreport",
+        Cue::RoadblockCalled => "staticroadblock_callforrb",
+        Cue::BeenHit => "anytimeevents_collisionworld",
+        Cue::HeliLost => "helispecific_helilostvisual",
+        Cue::HeliSpotted => "anytimeevents_spotted",
+        Cue::CopDown => "anytimeevents_unitdisabled",
     }
 }
 
