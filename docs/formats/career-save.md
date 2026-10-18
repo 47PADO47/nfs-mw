@@ -116,8 +116,8 @@ after the used part is zero (the used part ends at 0xC64 to 0xD54 in the three s
 | 0x28 | 4 | count of 20-byte entries B, 39 |
 | 0x2C | 4 | unused, 0 |
 | 0x30 | 4 | number of bits in the bitfield, 0x200 |
-| 0x34 | 4 | size of the zone block, 164 |
-| 0x38 | 4 | count of the trailing dword list, 0 in all three saves |
+| 0x34 | 4 | byte size of the bin counter block, 164 (corrected, see 3.1a) |
+| 0x38 | 4 | count of bounty-jump keys (4 bytes each), 0 in all three saves (corrected, see 3.1a) |
 | 0x3C..0x7F | | unused |
 
 After the 0x80-byte header, in this order (every part after the objects starts on a 16-byte boundary):
@@ -127,15 +127,79 @@ After the 0x80-byte header, in this order (every part after the objects starts o
    two objects every fresh save has, 129 and 20 bytes), and `race_bin_01`, `race_bin_03` and others in `mwo`
    **[verified]**. So these are per-bin / per-activity state snapshots **[unconfirmed meaning of the bytes]**.
 2. **8 slots of 0x20 bytes**: two dwords, one byte, then up to 19 text bytes **[exe]**.
-3. **30 entries of 0x10 bytes** (four dwords each) from a list in the manager.
+3. **30 statistic nodes of 0x10 bytes** (four dwords each) from the manager's statistics map.
 4. **A: 55 entries of 20 bytes**, **B: 39 entries of 20 bytes**: two fixed tables of 20-byte records. Their meaning is not decoded.
 5. **Bitfield**, 0x200 bits = 64 bytes (one bit per tracked flag).
-6. **Zone block**, 164 bytes: a u32 count (20) then 20 records of `{u16 value of the zone field `0x6CE23062`, u16 4, u32 value}`.
-   The field is the one `gameplay-races.md` notes on the safe house, car lot and shop zones **[exe]**.
-7. **Dword list**, count from header +0x38.
+6. **Bin counter block**, 164 bytes: a u32 count (20) then 20 records of `{u16 bin id, u16 4, u32 value}` (3.1a). The bin id
+   is read from field `0x6CE23062` of each bin view. Its values are 1 to 21 in the saves, so the "zone" label in
+   `gameplay-races.md` is not confirmed **[exe + verified]**.
+7. **Bounty-jump keys**, count from header +0x38 (3.1a).
 8. **Career-start pair**: one u32 at the next aligned address, another u32 16 bytes later. They are the spawn-point
    collection hashes `DoSafeHouseIntro` sets (see [career-flow.md](../specs/career-flow.md) section 6) **[exe]**.
    Values seen: a plausible hash in two saves, small numbers in the third **[unconfirmed]**.
+
+### 3.1a Offsets and record layouts **[exe + verified]**
+
+The save routine `0x005F7410` writes this blob and the load routine `0x005F81D0` reads it back with the same layout. The
+helpers that write the parts are `0x005E4C40` (slot block), `0x005EDCB0` (statistic nodes) and `0x005E35D0` (bin counter
+block). Offsets below are blob offsets (file offset = blob offset + 0x34). `align16(x)` = `(x + 15) & ~15`.
+
+Header counts (all verified; the three saves give N = 2, 2, 17):
+
+| Name | Blob offset | Value in all saves | Meaning |
+|---|---|---|---|
+| N | 0x18 | 2 (`NAME`, `stock`), 17 (`mwo`) | number of object records after 0x80 |
+| S | 0x1C | 8 | slot count |
+| E | 0x20 | 30 | statistic node count |
+| M | 0x24 | 55 | milestone entry count |
+| T | 0x28 | 39 | speed trap entry count |
+| - | 0x2C | 0 | never written by the save routine |
+| B | 0x30 | 512 | flag bit count (64 bytes) |
+| C | 0x34 | 164 | byte size of the bin counter block |
+| K | 0x38 | 0 | bounty-jump key count |
+
+Parts after the header, in file order. Each start follows from the previous part and the counts:
+
+| Part | Start (blob) | Size | `NAME`/`stock` | `mwo` |
+|---|---|---|---|---|
+| object records | 0x80 | each `8 + size`, stride `(size + 0x17) & ~0xF` | 129 B and 20 B, ends 0x130 | 17 records, ends 0x210 |
+| slot block | S0 = align16(end of object records) | S x 0x20 | 0x130 | 0x210 |
+| statistic nodes | S0 + 0x20 S | E x 0x10 | 0x230 | 0x310 |
+| milestone entries | S0 + 0x20 S + 0x10 E | M x 0x14 | 0x410 | 0x4F0 |
+| speed trap entries | align16(milestones + 0x14 M) | T x 0x14 | 0x860 | 0x940 |
+| flag bitfield | align16(speed traps + 0x14 T) | B / 8 | 0xB70 | 0xC50 |
+| bin counter block | bitfield + B / 8 | C | 0xBB0 | 0xC90 |
+| bounty-jump keys | align16(bin counter block + C) | 4 K | 0xC60 | 0xD40 |
+| two references | align16(bounty keys + 4 K) and that + 0x10 | 4 bytes each | 0xC60 | 0xD40 |
+
+Used part ends at the first reference + 4 (`NAME`, `stock`, where the second reference is 0) or at the second reference + 4
+(`mwo`). The rest of the 0x4000 bytes is zero.
+
+Record layouts:
+
+- **Object record**: u32 key, u32 size, `size` bytes. The save writes them in manager list order; the load reads N records.
+  The spec's name "script state records" is probably these; not confirmed.
+- **Slot (0x20 bytes)**: u32 at +0, one byte at +4, u32 at +8, 19 bytes of text from +0xC. Matches 3.1 item 2.
+- **Statistic node (0x10 bytes)**: u32 key, f32 current, f32 best, u32 flags. Keys: 30 distinct per save.
+- **Milestone entry (0x14 bytes)** and **speed trap entry (0x14 bytes)**: as spec section 2.3 and 2.4. Checked in the saves:
+  milestone state is 1 in `NAME` and `stock` and 4 in `mwo`; the 55 leaf keys are distinct; the 55 type keys reduce to 8
+  distinct values, all of which are statistic node keys. Trap flags are 0 in `NAME` and `stock`, 5 (unlocked, done) in
+  `mwo`; the 39 keys are distinct; bins run 1 to 15. Completed entries hold the value in +0x10 (for example 59.0 for a
+  threshold of 35.0 in `mwo`).
+- **Bin counter block**: u32 count (the bin view count, 20 in every save), then per bin `{u16 bin id, u16 4, u32 value}`.
+  The value is the low u16 completed milestones and traps and the high u16 completed events (`mwo` shows 7 and 7 for
+  one bin).
+- **Bitfield**: 64 bytes copied as a block from the manager.
+
+Corrections to 3.1 items 6 and 7 and the header table: the 164-byte block at 0x34 is the bin counter block, not a
+zone block, and the 4 bytes at 0x38 count bounty-jump keys. Spec `career-milestones.md` section 2.1 places the bounty-jump
+list at manager +0xB4 and +0xB8. The save routine reads a list head at +0x2A8 and a count at +0x2AC. This conflict is
+not resolved; all saves have K = 0, so the file layout is not affected. The key copy loop steps two entries at a time, so
+a non-zero K needs a check before use.
+
+Object keys: the spec and the previous text say the two fresh-save objects are `race_bin_15` and `speedtraps`. The keys in
+the saves (0x0F481601 and 0x49511906) do not match the engine-wide name hash of those names (`libs/blackbox-hash`).
+That claim is **[unconfirmed]**. The parser does not need the names: it reads the sizes.
 
 The blob is the persistent form of the Blacklist, milestone and event progress. Its byte-level meaning is for the
 progress specs; this page only fixes the frame so a reader can skip or copy it as a unit.
