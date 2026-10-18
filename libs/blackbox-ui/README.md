@@ -5,9 +5,9 @@ Bevy, no game data, no game names. A host builds a tree of components, lays it o
 builds a flat draw list, and draws it. A theme registry decides which component fills each overridable
 slot, and falls back to the Original theme when the active theme has no component for a slot.
 
-This crate is the skeleton. It has the component trait, the support types, the slot names, the theme
-registry and its fallback. Concrete elements (HUD parts, menus, the base components `Panel`, `Stack`,
-`Text`, `Gauge`, `Table`, `Row`, `Switch`) come in later steps.
+The crate has the component trait, the support types, the slot names, the theme registry and its fallback,
+and the first five base components (`Panel`, `Stack`, `Text`, `Image`, `Gauge`). Still to come: `Table`,
+`Row` and `Switch` (task T5), and the concrete elements (HUD parts, menus), which live in the game crate.
 
 Design decision: `docs/decisions/0008-ui-themes.md`.
 
@@ -36,6 +36,45 @@ Design decision: `docs/decisions/0008-ui-themes.md`.
   release. A host translates device events into these.
 - **`Empty`** is a component with no size and no output. The resolver returns it only if no theme,
   not even Original, provides a slot.
+
+## Base components
+
+The base components are generic building blocks in `src/components/`, one file each. Each one lays out
+inside the `Rect` it is given, caches what `build` needs in `layout`, and reads colours, fonts, textures
+and metrics from the `Skin`. Each builds nodes with `world`, `colour`, `world_colour`, `z` and `visible = true`.
+
+- **Placement.** `Rect::world(z)` is the shared helper. It gives the world transform of the unit quad
+  (which spans -0.5 to 0.5) scaled to the rectangle's size and moved to its centre. Image nodes use it.
+  `DEFAULT_Z` (1.0) is the depth a component draws at unless its builder sets one. Larger `z` is farther.
+  Among equal `z`, the later node draws on top.
+- **`Panel::new(colour_key)`** fills its rectangle with a skin colour (opaque white if the skin lacks the
+  key). `.textured(texture_key)` adds a skin texture. It emits one `Image` node. With no texture the node's
+  texture is 0 (none).
+- **`Stack::new(StackAxis::Row | Column)`** splits its bounds equally along its axis, with a gap between
+  neighbours. `.with_gap(f)` sets a fixed gap. `.with_gap_metric(key)` reads the gap from a skin metric,
+  which wins when the skin has it. `.with_child(c)` adds a child (any `Component`). `child_rects()` returns
+  each child's rectangle after layout. A stack emits no node of its own. Input: a pointer event goes to the
+  child under it, and a pad event goes to the first child that consumes it.
+- **`Text::new(font_key, text)`** emits one `Text` node with the skin font (0 if missing). The colour
+  comes from the skin key `"text"`, or from `.with_colour_key(key)`. `.with_justification(flags)` takes the
+  `justify` flags, the same bits as the FEng text style: `H_CENTRE` (1), `H_RIGHT` (2), `V_CENTRE` (4),
+  `V_BOTTOM` (8), `WRAP` (0x10). `H_RIGHT` wins over `H_CENTRE`, and `V_BOTTOM` over `V_CENTRE`. Without
+  a flag the origin is the top-left corner (smallest `y`). `max_width` is the rectangle width. `set_text`
+  changes the string without a new layout.
+- **`Image::new(texture_key)`** emits one `Image` node over the whole rectangle. `.with_uv([u0, v0, u1, v1])`
+  picks part of the texture, and `.with_tint(rgba)` sets the colour. The rectangle sets the on-screen size.
+- **`Gauge::new(base_key, fill_key)`** is the tachometer mechanic, generalised. It emits one `Image` node for
+  the dial (`texture` = base). The fill texture is the mask (`mask` = fill; `mask` is `None` if the skin lacks
+  it). Its pivot and angle go in `mask_rotation`: `[pivot_x, pivot_y, angle_deg]`, with the pivot defaulting
+  to `[0.5, 0.5]`. `mask_uv` is the whole texture. The mapping is `angle_deg = fraction * sweep_deg`, and
+  `sweep_deg` defaults to 360. `set_fraction(f)` clamps `f` to 0..=1 (NaN gives 0), and `build` reads it, so
+  no relayout is needed. `.with_needle(key)` adds a second `Image` node: the needle texture over the whole
+  rectangle, turned about the rectangle's centre by the same angle. Its rotation is
+  `Quat::from_rotation_z(angle)`. The sign convention is not yet checked against the presenter (see the
+  T7/T12 screenshots).
+
+Each component has unit tests that build it into a `DrawList` and check the node count, the `NodeKind`,
+the placement and the field values. The shared test helpers are in `src/components/mod.rs` (`testing`).
 
 ## Slots and themes
 

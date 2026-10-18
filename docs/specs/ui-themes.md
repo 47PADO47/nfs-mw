@@ -98,22 +98,28 @@ value type, copied, not shared.
 
 ## 5. Base components
 
-These are generic, implemented once in `blackbox-ui` and emit `UiNode`s through `DrawList`. Each has a unit test
-for layout and for the nodes it builds (task T4 for the first five, T5 for the last three).
+These are generic, implemented once in `blackbox-ui` (`src/components/`, one file each) and emit `UiNode`s through
+`DrawList`. Each has unit tests for layout and for the nodes it builds. The first five are built (T4). The last
+three are T5 and not yet built.
 
 | Component | Purpose | Emits | Used by (examples) |
 |---|---|---|---|
-| `Panel` | A background rectangle with an optional border; sizes its children | `Group` plus `Image` | cards, overlays |
-| `Stack` | Lays children in a row or a column with spacing | `Group` | any list |
-| `Text` | One string in one font, with justification and max width | `Text` | labels, values |
-| `Image` | One textured quad over a UV rectangle, optional mask | `Image` | icons, backdrops |
-| `Gauge` | A dial or bar filled by a mask rotation or a mask window | `Image` with `mask` | tachometer, speed bar |
+| `Panel` | A solid or textured rectangle, colour from the skin. No border yet | one `Image` (texture 0 when untextured) | cards, overlays |
+| `Stack` | Lays children in a row or a column, equal shares with a gap (fixed, or a skin metric) | nothing itself; each child builds its own | any list |
+| `Text` | One string in one skin font, with justification flags (FEng bits) and a max width | one `Text` | labels, values |
+| `Image` | One textured quad over a UV rectangle, filling its rectangle, with a tint | one `Image` | icons, backdrops |
+| `Gauge` | A dial with a rotating mask fill and an optional needle | one `Image` with `mask` (plus one needle `Image`) | tachometer, speed bar |
 | `Table` | Rows and columns of cells, with a selected row | `Group` of `Row`s | option tables, lists |
 | `Row` | One table row: label, value, optional arrows | `Group`, `Text`, `Image` | option rows |
 | `Switch` | A control that cycles through values (on/off, arrow cycle) | `Group`, `Text`, `Image` | settings toggles |
 
-`Gauge` is the generalised form of the tachometer mechanic. The mask fields of `NodeKind::Image` already carry
-what it needs; no new node kind is added.
+`Gauge` is the generalised form of the tachometer mechanic. Its fraction (0..1) maps to the mask angle as
+`mask_rotation = [pivot_x, pivot_y, fraction * sweep_deg]`, with `sweep_deg` 360 by default. The mask fields of
+`NodeKind::Image` already carry what it needs; no new node kind is added. The needle, when present, is a second
+`Image` node turned by the same angle. Its sign convention is still to be checked against the presenter.
+
+Shared helper: `Rect::world(z)` gives the world transform of the unit quad (spanning -0.5 to 0.5) scaled to the
+rectangle and centred on it. Components draw at `z` = `DEFAULT_Z` (1.0) unless set; larger `z` is farther.
 
 ## 6. Element slots
 
@@ -296,7 +302,8 @@ slot, and checks that `resolve` returns the mod component for that slot and Orig
 
 - **`blackbox-ui` unit tests:** the resolver fallback (an empty theme falls back to Original for every slot; an
   override wins for its slot only; `Themes::new` refuses an incomplete Original).
-- **Base components:** layout and built nodes for each of the eight components (T4, T5).
+- **Base components:** layout and built nodes for each of the eight components (T4 for the first five, built;
+  T5 for the last three).
 - **Original parity:** the HUD and front-end suites (`crates/nfsmw/src/hud/*_tests.rs`, `frontend/*_tests.rs`)
   stay green; `--ui-style original` offscreen screenshots match the pre-change output; the 256 by 144 digests hold.
 - **Custom:** `--ui-style custom` draws the radio card through the presenter, not egui, and every other element
