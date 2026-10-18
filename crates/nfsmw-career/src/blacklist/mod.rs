@@ -41,15 +41,19 @@ pub const FINAL_RACE_EVENT: &str = "1.8.1";
 pub const CHALLENGE_SERIES_LAST_RACE: &str = "19.8.69";
 
 /// Why [`Blacklist::new`] refused its input.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum BlacklistError {
     /// No definition for this bin. Bins 1 to 15 are all needed.
+    #[error("no definition for Blacklist bin {0}")]
     MissingBin(u8),
     /// Two definitions for this bin.
+    #[error("two definitions for Blacklist bin {0}")]
     DuplicateBin(u8),
     /// A definition for a number outside 1 to 15.
+    #[error("Blacklist bin {0} is outside 1 to 15")]
     BadBin(u8),
     /// A stage outside 1 to 16.
+    #[error("career stage {0} is outside 1 to 16")]
     BadStage(u8),
 }
 
