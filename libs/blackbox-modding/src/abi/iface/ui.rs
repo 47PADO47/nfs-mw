@@ -60,6 +60,29 @@ pub type BbUiSetSlotFn =
 /// `unregister_theme`: remove a theme and every slot it overrides.
 pub type BbUiUnregisterThemeFn = unsafe extern "C" fn(ctx: *mut c_void, theme: u64) -> BbStatus;
 
+/// A theme's tokens as the mod sends them: five colours (`[r, g, b, a]`) and two shape values in FEng units. The game
+/// draws the Custom components of a theme that declares tokens with them (docs/modding/api-ui.md).
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct BbUiTokens {
+    /// The main text and digits.
+    pub primary: [u8; 4],
+    /// The accent, such as a warning colour.
+    pub secondary: [u8; 4],
+    /// The fill of a panel.
+    pub background: [u8; 4],
+    /// Rules, tracks and the empty part of a gauge.
+    pub border: [u8; 4],
+    /// Labels and secondary text.
+    pub muted: [u8; 4],
+    /// The corner radius of a panel, in FEng units.
+    pub radius: f32,
+    /// The space between a panel's edge and its content, in FEng units.
+    pub padding: f32,
+}
+/// `set_tokens`: the tokens of theme `theme`. A second call replaces the first.
+pub type BbUiSetTokensFn = unsafe extern "C" fn(ctx: *mut c_void, theme: u64, tokens: *const BbUiTokens) -> BbStatus;
+
 /// The `bb.ui` table. Field order is part of the ABI; new fields are appended.
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -74,4 +97,6 @@ pub struct BbUi {
     pub set_slot: Option<BbUiSetSlotFn>,
     /// Remove a theme.
     pub unregister_theme: Option<BbUiUnregisterThemeFn>,
+    /// Declare a theme's tokens (added in `bb.ui` 1.1).
+    pub set_tokens: Option<BbUiSetTokensFn>,
 }

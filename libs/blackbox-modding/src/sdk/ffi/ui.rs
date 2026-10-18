@@ -7,9 +7,9 @@ use core::ptr::null_mut;
 use super::{read_or, status_result};
 use crate::abi::{
     BB_UI_IMAGE, BB_UI_PANEL, BB_UI_TEXT, BbStr, BbUi, BbUiPrim, BbUiRegisterThemeFn, BbUiSetSlotFn,
-    BbUiUnregisterThemeFn,
+    BbUiSetTokensFn, BbUiTokens, BbUiUnregisterThemeFn,
 };
-use crate::sdk::ui::{Prim, Rect};
+use crate::sdk::ui::{Prim, Rect, Tokens};
 use crate::sdk::{Error, Interface, ModResult, UiThemeId};
 
 /// The function pointers of one `bb.ui` table, read once.
@@ -19,6 +19,7 @@ pub(crate) struct UiFns {
     register_theme: Option<BbUiRegisterThemeFn>,
     set_slot: Option<BbUiSetSlotFn>,
     unregister_theme: Option<BbUiUnregisterThemeFn>,
+    set_tokens: Option<BbUiSetTokensFn>,
 }
 
 /// Read the `bb.ui` table the host offered.
@@ -30,6 +31,7 @@ pub(crate) fn read(iface: Interface) -> UiFns {
             register_theme: read_or(&iface, offset_of!(BbUi, register_theme), None),
             set_slot: read_or(&iface, offset_of!(BbUi, set_slot), None),
             unregister_theme: read_or(&iface, offset_of!(BbUi, unregister_theme), None),
+            set_tokens: read_or(&iface, offset_of!(BbUi, set_tokens), None),
         }
     }
 }
@@ -50,6 +52,23 @@ pub(crate) fn set_slot(fns: &UiFns, theme: UiThemeId, slot: u32, prims: &[Prim<'
     let abi: Vec<BbUiPrim> = prims.iter().map(to_abi).collect();
     // SAFETY: `abi` holds `len` primitives whose strings borrow from `prims`, both valid for this call.
     status_result(unsafe { set(fns.ctx, theme.raw(), slot, abi.as_ptr(), abi.len() as u64) })
+}
+
+/// Declare the tokens of `theme`. A host older than `bb.ui` 1.1 has no `set_tokens`, and the call is refused as
+/// unsupported.
+pub(crate) fn set_tokens(fns: &UiFns, theme: UiThemeId, tokens: &Tokens) -> ModResult<()> {
+    let set = fns.set_tokens.ok_or(Error::Unsupported)?;
+    let abi = BbUiTokens {
+        primary: tokens.primary,
+        secondary: tokens.secondary,
+        background: tokens.background,
+        border: tokens.border,
+        muted: tokens.muted,
+        radius: tokens.radius,
+        padding: tokens.padding,
+    };
+    // SAFETY: `abi` is valid for one read for this call, and the table is valid while the mod is loaded.
+    status_result(unsafe { set(fns.ctx, theme.raw(), &abi) })
 }
 
 /// Remove a theme this mod registered.

@@ -35,7 +35,8 @@ pub use menus::{
 };
 pub use time::{BbTime, BbTimeFreezeFn, BbTimeGetFn, BbTimeOfDay, BbTimeSetDayLengthFn, BbTimeSetHourFn};
 pub use ui::{
-    BB_UI_IMAGE, BB_UI_PANEL, BB_UI_TEXT, BbUi, BbUiPrim, BbUiRegisterThemeFn, BbUiSetSlotFn, BbUiUnregisterThemeFn,
+    BB_UI_IMAGE, BB_UI_PANEL, BB_UI_TEXT, BbUi, BbUiPrim, BbUiRegisterThemeFn, BbUiSetSlotFn, BbUiSetTokensFn,
+    BbUiTokens, BbUiUnregisterThemeFn,
 };
 pub use vehicles::{
     BbVec3, BbVehicleRepairFn, BbVehicleSpawnTrafficFn, BbVehicleState, BbVehicleStateFn, BbVehicleTeleportFn,
@@ -104,7 +105,7 @@ pub const IFACE_AUDIO_VERSION: (u16, u16) = (1, 0);
 /// Id of the UI interface: named themes a mod registers, and the draw specs of their slots.
 pub const IFACE_UI: &str = "bb.ui";
 /// The version the host implements for [`IFACE_UI`], as `(major, minor)`.
-pub const IFACE_UI_VERSION: (u16, u16) = (1, 0);
+pub const IFACE_UI_VERSION: (u16, u16) = (1, 1);
 
 /// Id of the world interface: the track, the district, the rain and the traffic.
 pub const IFACE_WORLD: &str = "bb.world";

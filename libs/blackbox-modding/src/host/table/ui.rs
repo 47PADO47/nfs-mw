@@ -11,7 +11,7 @@ use std::rc::Rc;
 use super::BackendResult;
 use super::slot::{Attached, Slot, guard, name_of, slot_of, text_within};
 use crate::abi::{
-    BB_ERR_ARG, BB_UI_IMAGE, BB_UI_PANEL, BB_UI_TEXT, BbIface, BbStatus, BbStr, BbUi, BbUiPrim, IFACE_UI,
+    BB_ERR_ARG, BB_UI_IMAGE, BB_UI_PANEL, BB_UI_TEXT, BbIface, BbStatus, BbStr, BbUi, BbUiPrim, BbUiTokens, IFACE_UI,
     IFACE_UI_VERSION, MAX_MESSAGE_BYTES, MAX_NAME_BYTES,
 };
 
@@ -50,6 +50,19 @@ pub struct UiThemeSpec<'a> {
     pub display: &'a str,
 }
 
+/// A theme's tokens as the mod declares them: five colours (`[r, g, b, a]`) and two shape values in FEng units. The game
+/// reads them into the theme's skin (`docs/modding/api-ui.md`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct UiTokens {
+    pub primary: [u8; 4],
+    pub secondary: [u8; 4],
+    pub background: [u8; 4],
+    pub border: [u8; 4],
+    pub muted: [u8; 4],
+    pub radius: f32,
+    pub padding: f32,
+}
+
 /// What the game implements for `bb.ui`. `owner` is the id of the mod that made the call.
 pub trait UiBackend {
     /// Add a theme. Returns its handle.
@@ -58,6 +71,8 @@ pub trait UiBackend {
     fn set_slot(&self, owner: &str, theme: u64, slot: u32, prims: &[UiPrim]) -> BackendResult<()>;
     /// Remove a theme and the slots it overrides.
     fn unregister_theme(&self, owner: &str, theme: u64) -> BackendResult<()>;
+    /// Declare the tokens of a theme. A second call replaces the first.
+    fn set_tokens(&self, owner: &str, theme: u64, tokens: &UiTokens) -> BackendResult<()>;
 }
 
 /// Build the `bb.ui` table for `owner`, backed by `backend`.
@@ -69,6 +84,7 @@ pub(crate) fn attach(backend: Rc<dyn UiBackend>, owner: &str) -> Attached {
         register_theme: Some(register_theme),
         set_slot: Some(set_slot),
         unregister_theme: Some(unregister_theme),
+        set_tokens: Some(set_tokens),
     });
     let kept = slot.clone();
     let release = Box::new(move || {
@@ -201,6 +217,29 @@ unsafe extern "C" fn set_slot(
         // SAFETY: the mod's list is valid for the call (see `read_prims`).
         let list = unsafe { read_prims(prims, count) }?;
         slot.backend.set_slot(&slot.owner, theme, slot_no, &list)
+    })
+}
+
+/// `set_tokens`: the tokens of one theme. A value that is not finite, or a negative shape value, is refused.
+unsafe extern "C" fn set_tokens(ctx: *mut c_void, theme: u64, tokens: *const BbUiTokens) -> BbStatus {
+    guard(|| {
+        // SAFETY: `ctx` is this table's slot (see `slot_of`).
+        let slot = unsafe { slot_of::<dyn UiBackend>(ctx)? };
+        if tokens.is_null() {
+            return Err(BB_ERR_ARG);
+        }
+        // SAFETY: the mod's struct is valid for one read for the call (it is the caller's, see the ABI).
+        let tokens = unsafe { tokens.read() };
+        let tokens = UiTokens {
+            primary: tokens.primary,
+            secondary: tokens.secondary,
+            background: tokens.background,
+            border: tokens.border,
+            muted: tokens.muted,
+            radius: size(tokens.radius)?,
+            padding: size(tokens.padding)?,
+        };
+        slot.backend.set_tokens(&slot.owner, theme, &tokens)
     })
 }
 

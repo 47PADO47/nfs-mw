@@ -26,7 +26,7 @@ fn ids_and_versions_are_locked() {
         [(1, 0); 5]
     );
     assert_eq!(IFACE_UI, "bb.ui");
-    assert_eq!(IFACE_UI_VERSION, (1, 0));
+    assert_eq!(IFACE_UI_VERSION, (1, 1));
 }
 
 #[test]
@@ -40,11 +40,12 @@ fn ui_table_and_prim() {
     assert_eq!(offset_of!(BbUiPrim, font), 48);
     assert_eq!(offset_of!(BbUiPrim, texture), 64);
     assert_eq!(offset_of!(BbUiPrim, text), 80);
-    assert_eq!(size_of::<BbUi>(), 40);
+    assert_eq!(size_of::<BbUi>(), 48);
     assert_eq!(offset_of!(BbUi, ctx), 8);
     assert_eq!(offset_of!(BbUi, register_theme), 16);
     assert_eq!(offset_of!(BbUi, set_slot), 24);
     assert_eq!(offset_of!(BbUi, unregister_theme), 32);
+    assert_eq!(offset_of!(BbUi, set_tokens), 40);
     assert_eq!([BB_UI_PANEL, BB_UI_TEXT, BB_UI_IMAGE], [0, 1, 2]);
 }
 

@@ -7,7 +7,7 @@ use std::mem::size_of;
 use std::ptr;
 use std::rc::Rc;
 
-use super::ui::{MAX_PRIMITIVES, UiBackend, UiPrim, UiRect, UiThemeSpec};
+use super::ui::{MAX_PRIMITIVES, UiBackend, UiPrim, UiRect, UiThemeSpec, UiTokens};
 use super::{Attached, attach_ui};
 use crate::abi::*;
 use crate::host::BackendResult;
@@ -31,6 +31,7 @@ struct FakeUi {
     themes: RefCell<Vec<(u64, StoredTheme)>>,
     slots: RefCell<Vec<(u64, u32, Vec<UiPrim>)>>,
     removed: RefCell<Vec<u64>>,
+    tokens: RefCell<Vec<(u64, UiTokens)>>,
 }
 
 impl UiBackend for FakeUi {
@@ -48,6 +49,11 @@ impl UiBackend for FakeUi {
 
     fn unregister_theme(&self, _owner: &str, theme: u64) -> BackendResult<()> {
         self.removed.borrow_mut().push(theme);
+        Ok(())
+    }
+
+    fn set_tokens(&self, _owner: &str, theme: u64, tokens: &UiTokens) -> BackendResult<()> {
+        self.tokens.borrow_mut().push((theme, *tokens));
         Ok(())
     }
 }
