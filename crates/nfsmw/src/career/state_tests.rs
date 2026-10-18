@@ -1,6 +1,10 @@
 use super::*;
 use crate::career::CareerData;
 use nfsmw_career::blacklist::BinDef;
+use nfsmw_career::economy::PursuitResult;
+use nfsmw_career::economy::markers::MarkerKind;
+use nfsmw_career::milestones::speedtrap::SpeedTrapDef;
+use nfsmw_career::milestones::{MilestoneDef, MilestoneState, StatType};
 use nfsmw_career::settings::NewCareer;
 use std::sync::Arc;
 
@@ -27,6 +31,47 @@ fn data() -> Arc<CareerData> {
         ranks: Default::default(),
         gameplay: Default::default(),
     })
+}
+
+/// The career table with one milestone and one speed trap, both in bin 1.
+fn data_with_progress() -> Arc<CareerData> {
+    Arc::new(CareerData {
+        bins: (1..=15).map(bin).collect(),
+        milestones: vec![MilestoneDef {
+            key: 0x1234,
+            bin: 1,
+            stat: StatType::PursuitLength,
+            threshold: 10.0,
+            bounty: 500,
+        }],
+        traps: vec![SpeedTrapDef { key: 0x5678, bin: 1, index: 1, threshold_kmh: 120, bounty: 300 }],
+        cars: Vec::new(),
+        heat: Default::default(),
+        ranks: Default::default(),
+        gameplay: Default::default(),
+    })
+}
+
+#[test]
+fn a_new_careers_progress_survives_a_save_and_load() {
+    let mut career = Career::new("mwo", data_with_progress(), &NewCareer::default()).unwrap();
+    career.milestones.enter_bin(1);
+    career.milestones.update_stat(StatType::PursuitLength, 20.0, true);
+    career.milestones.on_pursuit_end(&PursuitResult::default(), true, 0.0, 0);
+    assert_eq!(career.milestones.state_of(0x1234), Some(MilestoneState::Complete));
+    let bytes = career.profile_bytes();
+    let back = Career::from_profile_bytes("mwo", &bytes, data_with_progress()).unwrap();
+    assert_eq!(back.milestones.state_of(0x1234), Some(MilestoneState::Complete));
+    assert!(back.milestones.milestones()[0].value.is_some());
+}
+
+#[test]
+fn a_new_career_has_its_milestone_block_laid_out() {
+    let mut career = Career::new("mwo", data_with_progress(), &NewCareer::default()).unwrap();
+    let bytes = career.profile_bytes();
+    let back = Career::from_profile_bytes("mwo", &bytes, data_with_progress()).unwrap();
+    assert_eq!(back.milestones.state_of(0x1234), Some(MilestoneState::Locked));
+    assert!(!back.traps[0].done());
 }
 
 #[test]
@@ -62,4 +107,22 @@ fn a_bad_profile_file_is_refused() {
     let mut bytes = Career::new("mwo", data(), &NewCareer::default()).unwrap().profile_bytes();
     bytes[0] = b'X';
     assert!(Career::from_profile_bytes("mwo", &bytes, data()).is_err());
+}
+
+#[test]
+fn a_new_career_holds_no_markers() {
+    let career = Career::new("mwo", data(), &NewCareer::default()).unwrap();
+    assert_eq!(career.markers.count(MarkerKind::JailFree), 0);
+}
+
+#[test]
+fn held_markers_are_saved_with_the_profile_and_read_back() {
+    let mut career = Career::new("mwo", data(), &NewCareer::default()).unwrap();
+    career.markers.add(MarkerKind::JailFree, 4);
+    career.markers.add(MarkerKind::ImpoundRelease, 1);
+    let bytes = career.profile_bytes();
+    let back = Career::from_profile_bytes("mwo", &bytes, data()).unwrap();
+    assert_eq!(back.markers.count(MarkerKind::JailFree), 4);
+    assert_eq!(back.markers.count(MarkerKind::ImpoundRelease), 1);
+    assert_eq!(back.markers, career.markers);
 }

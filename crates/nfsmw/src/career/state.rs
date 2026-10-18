@@ -13,11 +13,12 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use nfsmw_career::blacklist::Blacklist;
+use nfsmw_career::economy::markers::MarkerInventory;
 use nfsmw_career::milestones::speedtrap::SpeedTrap;
 use nfsmw_career::milestones::{Milestone, MilestoneSet, STAT_COUNT, StatValue};
 use nfsmw_career::rapsheet::PursuitHistory;
 use nfsmw_career::save::ProfileSave;
-use nfsmw_career::save::milestones_block::MilestoneBlock;
+use nfsmw_career::save::milestones_block::{ArrayError, BinCounter, MilestoneBlock, MilestoneEntry, SpeedTrapEntry};
 use nfsmw_career::savefile::AutosaveManager;
 use nfsmw_career::settings::{CareerSettings, NewCareer, new_career_with};
 use nfsmw_career::stable::Stable;
@@ -41,6 +42,9 @@ pub struct Career {
     pub milestones: MilestoneSet,
     /// The speed traps, one per [`CareerData::traps`] entry.
     pub traps: Vec<SpeedTrap>,
+    /// The markers held: Get Out of Jail Free, Extra Impound Strike, Impound Release. Kept in the popup table of the
+    /// settings, which [`Career::profile_bytes`] writes back.
+    pub markers: MarkerInventory,
     /// The autosave gate.
     pub autosave: AutosaveManager,
     /// The career tables read from the install.
@@ -53,10 +57,13 @@ impl Career {
     /// A new career named `alias`: the settings of `opts` ([`new_career_with`]), an empty stable and history, a
     /// Blacklist at stage 16 and every milestone and speed trap locked.
     pub fn new(alias: &str, data: Arc<CareerData>, opts: &NewCareer) -> Result<Career> {
-        let settings = new_career_with(opts);
+        let mut settings = new_career_with(opts);
         let blacklist = Blacklist::new(data.bins.clone(), settings.stage).context("building the Blacklist")?;
         let (milestones, traps) = fresh_progress(&data);
+        let markers = MarkerInventory::empty();
         let profile = ProfileSave::new_blank(alias).context("building the blank profile")?;
+        let block = new_block(&data).context("laying out the new career's milestone block")?;
+        block.write_into(&mut settings.gameplay_blob[..]).context("storing the milestone block")?;
         Ok(Career {
             alias: alias.to_string(),
             settings,
@@ -65,6 +72,7 @@ impl Career {
             blacklist,
             milestones,
             traps,
+            markers,
             autosave: AutosaveManager::default(),
             data,
             profile,
@@ -84,6 +92,7 @@ impl Career {
         // The Blacklist re-checks its rival gates against the bounty; the entries it returns are not replayed here.
         let _ = blacklist.bounty_changed(total);
         let (milestones, traps) = restored_progress(&settings, &data).unwrap_or_else(|| fresh_progress(&data));
+        let markers = MarkerInventory::from_table(&settings.popups[..]).context("reading the marker inventory")?;
         Ok(Career {
             alias: alias.to_string(),
             settings,
@@ -92,6 +101,7 @@ impl Career {
             blacklist,
             milestones,
             traps,
+            markers,
             autosave: AutosaveManager::default(),
             data,
             profile,
@@ -108,6 +118,7 @@ impl Career {
         if let Err(e) = self.write_progress() {
             log::warn!("career progress not written to the milestone block: {e:#}");
         }
+        self.settings.popups[..].copy_from_slice(&self.markers.to_table());
         if let Err(e) = self.profile.set_settings(&self.settings) {
             log::warn!("career settings not written to the profile: {e}");
         }
@@ -173,6 +184,17 @@ impl Career {
         block.write_into(&mut self.settings.gameplay_blob[..])?;
         Ok(())
     }
+}
+
+/// The milestone block of a new career: every milestone and speed trap locked, nothing banked, one bin counter per
+/// Blacklist bin. The statistic node keys and the milestone type keys are not in [`CareerData`], so they are `0`
+/// (unconfirmed; see [`MilestoneBlock::new_career`]).
+fn new_block(data: &CareerData) -> Result<MilestoneBlock, ArrayError> {
+    let milestones: Vec<MilestoneEntry> =
+        data.milestones.iter().map(|&def| MilestoneEntry::new_locked(def, 0)).collect();
+    let traps: Vec<SpeedTrapEntry> = data.traps.iter().map(|&def| SpeedTrapEntry::new_locked(def)).collect();
+    let bins: Vec<BinCounter> = data.bins.iter().map(|bin| BinCounter::new_career(u16::from(bin.number))).collect();
+    MilestoneBlock::new_career(&milestones, &traps, &bins)
 }
 
 /// The milestones and speed traps of a new career: all locked, none banked (`career-milestones.md` section 7).
