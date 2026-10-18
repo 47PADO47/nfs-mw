@@ -100,3 +100,39 @@ fn custom_can_be_made_active_and_resolves_every_slot() {
         component.build(&mut out);
     }
 }
+
+#[test]
+fn ui_style_maps_onto_its_theme_id() {
+    use crate::settings::UiStyle;
+    assert_eq!(super::theme_of(UiStyle::Original), ThemeId::Original);
+    assert_eq!(super::theme_of(UiStyle::Custom), ThemeId::Custom);
+    assert_eq!(super::theme_of(UiStyle::Remastered), ThemeId::Remastered);
+}
+
+#[test]
+fn select_follows_the_style_and_keeps_original_for_an_unregistered_theme() {
+    use crate::settings::UiStyle;
+    let mut themes = super::UiThemes::build();
+    assert_eq!(themes.themes.active(), ThemeId::Original);
+    themes.select(UiStyle::Custom);
+    assert_eq!(themes.themes.active(), ThemeId::Custom);
+    themes.select(UiStyle::Remastered);
+    assert_eq!(themes.themes.active(), ThemeId::Original, "Remastered is not registered yet");
+    themes.select(UiStyle::Custom);
+    themes.select(UiStyle::Original);
+    assert_eq!(themes.themes.active(), ThemeId::Original);
+}
+
+#[test]
+fn sync_system_selects_the_theme_of_the_current_settings() {
+    use crate::settings::{Partial, Settings, UiStyle};
+    use bevy_ecs::system::RunSystemOnce;
+    let mut world = bevy_ecs::world::World::new();
+    world.insert_resource(Settings::from(Partial { ui_style: Some(UiStyle::Custom), ..Partial::default() }));
+    world.insert_resource(super::UiThemes::build());
+    world.run_system_once(super::sync_active_theme).expect("the sync system runs");
+    assert_eq!(world.resource::<super::UiThemes>().themes.active(), ThemeId::Custom);
+    world.resource_mut::<Settings>().ui_style = UiStyle::Original;
+    world.run_system_once(super::sync_active_theme).expect("the sync system runs");
+    assert_eq!(world.resource::<super::UiThemes>().themes.active(), ThemeId::Original);
+}

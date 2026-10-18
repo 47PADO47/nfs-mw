@@ -4,10 +4,11 @@
 //! The engine-generic part (components, `Theme`, `Themes`, the resolver) is `libs/blackbox-ui`. This module
 //! decides which game element is which slot and which theme fills it. Design: `docs/specs/ui-themes.md`.
 //!
-//! Status (T9): [`UiThemes`] is inserted at start-up. The Original theme fills every slot in the catalogue (HUD in T7,
+//! Status (T10): [`UiThemes`] is inserted at start-up. The Original theme fills every slot in the catalogue (HUD in T7,
 //! menus and career screens in T8), and [`build_themes`] checks that. The Custom theme fills the radio card (T9).
-//! Its components read the cells ([`UiThemes::frame`], [`UiThemes::radio`]), but nothing resolves a slot in the live
-//! path yet. The presenter wiring comes in T12, so the game draws exactly as it did before this module existed.
+//! The active theme follows `settings.ui_style` each frame ([`sync_active_theme`], T10). Its components read the cells
+//! ([`UiThemes::frame`], [`UiThemes::radio`]), but nothing resolves a slot in the live path yet. The presenter wiring
+//! comes in T12, so the game draws exactly as it did before this module existed.
 //!
 //! - [`element`]: the [`ElementId`] catalogue with its explicit numbers.
 //! - [`original`]: the floor theme. It fills every slot: HUD adapters (T7) and menu adapters (T8).
@@ -22,10 +23,27 @@ mod tests;
 pub use element::ElementId;
 
 use bevy_ecs::prelude::*;
-use blackbox_ui::{BuildCx, Component, Skin, Themes};
+use blackbox_ui::{BuildCx, Component, Skin, ThemeId, Themes};
 
+use crate::settings::{Settings, UiStyle};
 use custom::{CustomTheme, RadioFeedCell};
 use original::{FrameCell, OriginalTheme};
+
+/// The theme a UI style selects. `Remastered` has no theme yet: [`UiThemes::select`] then keeps Original active.
+pub fn theme_of(style: UiStyle) -> ThemeId {
+    match style {
+        UiStyle::Original => ThemeId::Original,
+        UiStyle::Custom => ThemeId::Custom,
+        UiStyle::Remastered => ThemeId::Remastered,
+    }
+}
+
+/// Keeps the active theme in step with `settings.ui_style`, every frame, so an options-menu change takes effect on
+/// the next frame (`docs/specs/ui-themes.md` section 14, question 5). Selecting a theme draws nothing new until T12.
+pub fn sync_active_theme(settings: Res<Settings>, mut themes: ResMut<UiThemes>) {
+    // `bypass_change_detection`: the registry is selected every frame, so it should not look changed every frame.
+    themes.bypass_change_detection().select(settings.ui_style);
+}
 
 /// Builds the registry: Original as the floor, Custom registered beside it, Original active. The Original theme reads
 /// its trees from `frame`, and the Custom theme its radio card from `radio`. The caller keeps a clone of each so it can
@@ -76,6 +94,15 @@ impl UiThemes {
         let frame = FrameCell::new();
         let radio = RadioFeedCell::new();
         Self { themes: build_themes(frame.clone(), radio.clone()), skin: default_skin(), frame, radio }
+    }
+
+    /// Makes the theme for `style` active. A theme that is not registered (Remastered, for now) leaves Original active,
+    /// so the registry never names a theme that nothing can fill.
+    pub fn select(&mut self, style: UiStyle) {
+        if self.themes.set_active(theme_of(style)).is_ok() {
+            return;
+        }
+        self.themes.set_active(ThemeId::Original).expect("the Original theme is always registered");
     }
 
     /// The component for `slot` from the active theme, falling back to Original.
