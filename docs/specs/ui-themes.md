@@ -1,0 +1,324 @@
+# UI themes: component model, slots and the theme switch
+
+Design of the themeable UI: one component system that draws the HUD and the menus, a `UiStyle` setting that
+selects a theme, and an Original floor that every theme falls back to. The architecture decision and its
+trade-offs are in [ADR 0008](../decisions/0008-ui-themes.md). This spec gives the contracts the code must meet.
+
+- **Sources read:** this repository only: `libs/blackbox-feng/src/tree/mod.rs`, `crates/nfsmw/src/ui/present/`,
+  `crates/nfsmw/src/hud/` (plugin, state, bind, minimap, pursuit_meter, blips, blip_style, radio, trax,
+  busted_overlay, viewport), `crates/nfsmw/src/frontend/` (screens, icon_menu, widget_menu, options,
+  options_rows), `crates/nfsmw/src/settings/` (radio_hud, appearance, file, env, partial, write),
+  `crates/nfsmw/src/devtools/mod.rs`, [ADR 0002](../decisions/0002-ui-presentation.md),
+  [ADR 0004](../decisions/0004-swappable-renderers.md), [ADR 0005](../decisions/0005-native-mod-plugins.md),
+  [feng-runtime.md](feng-runtime.md), [frontend-menus.md](frontend-menus.md), [hud-viewport.md](hud-viewport.md).
+- **Data inputs:** none new. The Original theme reads the same FEng packages and HUD and menu state as today.
+  No game data and no decompiled code is used in this spec.
+- **Status:** design. Nothing here is built yet. Items marked **open** are not decided (section 14).
+
+## 1. What a theme controls
+
+A theme chooses the look of a set of **slots**. A slot is one replaceable element: a gauge, the minimap, the
+radio card, a menu screen, an option table. For each slot a theme either returns a component that draws it,
+or returns nothing. When it returns nothing, the Original theme draws the slot.
+
+A theme does not own the data. Game code still speaks `HudState` and the screen logic traits. It never names
+FEng, the presenter or a theme. Themes read the same state the Original code reads.
+
+## 2. The neutral draw tree
+
+The tree is the only output a theme produces. It exists today in `libs/blackbox-feng/src/tree/mod.rs` and moves
+to `libs/blackbox-ui` (task T3). `blackbox-feng` re-exports the three types so existing paths still compile.
+
+```rust
+pub struct UiTree { pub nodes: Vec<UiNode>, pub draw_order: Vec<usize> }
+pub struct UiNode {
+    pub index: usize, pub guid: u32, pub name_hash: u32, pub parent: Option<usize>,
+    pub kind: NodeKind, pub text: Option<String>,
+    pub local_position: Vec3, pub position: Vec3, pub local_pivot: Vec3, pub local_rotation: Quat,
+    pub size: Vec3, pub colour: [u8; 4], pub world_colour: [u8; 4], pub world: Mat4,
+    pub z: f32, pub visible: bool, pub clip: Option<[f32; 4]>,
+}
+pub enum NodeKind {
+    Group,
+    Image { texture: u32, uv: [f32; 4], mask: Option<u32>, mask_rotation: [f32; 3], mask_uv: [f32; 4] },
+    Text { font: u32, justification: u32, leading: i32, max_width: i32 },
+    Other,
+}
+```
+
+Rules for the tree, which every producer keeps:
+
+- `draw_order` lists the visible drawable nodes, farthest first. Later entries draw on top. The order is stable.
+- `world` is the full transform. A presenter does not multiply parents.
+- `world_colour` is the colour after parent tinting. Producers set it; the presenter does not re-derive it.
+- `Image` with a `mask` is a gauge or a sweep: the game turns `mask_rotation` to fill it. `Gauge` (section 5)
+  emits this form, so the tachometer mechanic is one primitive.
+- `texture` and `font` are keys into the asset packs (`UiAssets`), not file names.
+
+The presenter (`crates/nfsmw/src/ui/present/blackbox.rs`) consumes a `UiTree` and nothing else. It is not changed
+by this design.
+
+## 3. The `Component` trait and `DrawList`
+
+```rust
+pub trait Component {
+    fn layout(&mut self, cx: &LayoutCx, bounds: Rect);
+    fn build(&self, out: &mut DrawList);
+    fn handle(&mut self, _cx: &mut EventCx, _ev: &InputEvent) -> bool { false }
+}
+```
+
+- `layout` places children inside `bounds`. Units are the FEng space: 640 by 480, origin at the centre, as in
+  [feng-runtime.md](feng-runtime.md). Components never apply the HUD viewport themselves. `hud/plugin.rs`
+  already calls `hud.viewport.apply(&mut tree, screen, settings.hud_layout)` after the tree is built (see
+  [hud-viewport.md](hud-viewport.md)); a component tree goes through the same call.
+- `build` appends the nodes for the current state. It emits `UiNode`s with parent links and `draw_order` entries.
+- `handle` returns `true` when the component used the event. The default ignores events.
+- `DrawList` wraps the growing `Vec<UiNode>` and the draw order. It hands out node indices and fills `parent`.
+  It does not own the tree; the caller turns it into a `UiTree`.
+- `Rect`, `LayoutCx`, `EventCx` and `InputEvent` are small generic types in `blackbox-ui`. `InputEvent` is
+  a neutral event, not the FEng message type (see [feng-input.md](feng-input.md) for the FEng side).
+
+**Open: state updates.** `build(&self)` cannot advance a FEng runtime, because its scripts and messages need
+`&mut`. The Original adapters (section 8) must advance their packages once per frame. This spec proposes that
+state advances in `layout` (which takes `&mut self`) or in a separate per-frame `update(&mut self, dt)`.
+Section 14 records it. Until it is settled, no component may rely on `build` changing state.
+
+## 4. `Style` and `Skin`
+
+A `Skin` is a bag of values a theme provides to base components: colours, font keys, texture keys and metrics
+(spacing, row height, gauge pivot). Base components read the skin, so one `Row` looks different under a different
+theme with no new code. A component never hard-codes a colour that a skin could supply.
+
+`Style` is the per-component choice made from the skin (for example "the highlighted row"). It is a small
+value type, copied, not shared.
+
+## 5. Base components
+
+These are generic, implemented once in `blackbox-ui` and emit `UiNode`s through `DrawList`. Each has a unit test
+for layout and for the nodes it builds (task T4 for the first five, T5 for the last three).
+
+| Component | Purpose | Emits | Used by (examples) |
+|---|---|---|---|
+| `Panel` | A background rectangle with an optional border; sizes its children | `Group` plus `Image` | cards, overlays |
+| `Stack` | Lays children in a row or a column with spacing | `Group` | any list |
+| `Text` | One string in one font, with justification and max width | `Text` | labels, values |
+| `Image` | One textured quad over a UV rectangle, optional mask | `Image` | icons, backdrops |
+| `Gauge` | A dial or bar filled by a mask rotation or a mask window | `Image` with `mask` | tachometer, speed bar |
+| `Table` | Rows and columns of cells, with a selected row | `Group` of `Row`s | option tables, lists |
+| `Row` | One table row: label, value, optional arrows | `Group`, `Text`, `Image` | option rows |
+| `Switch` | A control that cycles through values (on/off, arrow cycle) | `Group`, `Text`, `Image` | settings toggles |
+
+`Gauge` is the generalised form of the tachometer mechanic. The mask fields of `NodeKind::Image` already carry
+what it needs; no new node kind is added.
+
+## 6. Element slots
+
+A slot is one replaceable element. Slot ids are stable, never reused, and small (see section 12 for the mod
+side). The table lists the candidate catalogue from the plan. "Original code today" is where the Original theme
+draws the slot now; entries marked **?** are not yet confirmed in the code and are to be checked in the task
+named.
+
+**HUD (state-fed):**
+
+| Slot | Original code today |
+|---|---|
+| `Tachometer` | HUD package (`HUD_SingleRace.fng`), gauge objects fed by `hud/bind.rs` from `hud/state.rs` |
+| `Speedometer` | same package and binding as `Tachometer` |
+| `GearIndicator` | `hud/bind.rs` (**?** object names, T7) |
+| `Minimap` | `hud/minimap.rs`, placed by `hud/viewport.rs` (see [hud-minimap.md](hud-minimap.md)) |
+| `Blips` | `hud/blips.rs`, styles from `hud/blip_style.rs` |
+| `PursuitMeter` | `hud/pursuit_meter.rs` |
+| `Nitrous`, `Turbo`, `Speedbreaker` | HUD package objects bound in `hud/bind.rs` (**?** T7) |
+| `RadioCard` | Original: the EA Trax chyron from `hud/trax.rs` (package `EA_TRAX.fng`). Custom: `hud/radio.rs` card |
+| `BustedOverlay` | `hud/busted_overlay.rs` |
+
+**Front end (screen-fed, backed by the existing `ScreenLogic` contract):**
+
+| Slot | Original code today |
+|---|---|
+| `MainMenu` | `frontend/screens.rs`, `frontend/icon_menu.rs` |
+| `Categories` | `frontend/icon_menu.rs`, `frontend/options.rs` (**?** T8) |
+| `PauseMenu` | `frontend/screens.rs` (`Pause_Main` icon menu) (**?** T8) |
+| `OptionTable` | `frontend/options_rows.rs`, `frontend/widget_menu.rs` |
+| `TrackSelect` | **?** quick race screens (T8) |
+| `SafeHouseMenu` | **?** (T8) |
+| career screens | `crates/nfsmw/src/career` and [provenance/career-runtime.md](../provenance/career-runtime.md) (**?** T8) |
+
+The list is a starting point. Each slot needs a consumer before it is added. A slot with no theme that overrides
+it and no test is a sign it should not exist yet.
+
+**Slot kinds.** HUD slots receive a snapshot of `HudState` through `BuildCx`. Front-end slots receive the screen's
+data through the same `ScreenLogic` values the Original code reads today. Neither kind exposes FEng types.
+
+**Where `ElementId` lives.** The plan's sketch lists the MW names inside the enum in `blackbox-ui`. That conflicts
+with [AGENTS.md](../../AGENTS.md) ("no NFS:MW-specific names in `libs/`"). The working assumption of this spec:
+`blackbox-ui` defines a generic slot id (a `u32` newtype plus a static name table), and `crates/nfsmw` defines the
+MW slot enum and the mapping to those ids. This is **open**; see section 14.
+
+## 7. `Theme`, `Themes` and the `resolve` fallback
+
+```rust
+pub trait Theme {
+    fn id(&self) -> ThemeId;                       // Original | Custom | Remastered | Mod(u32)
+    fn element(&self, slot: ElementId, cx: &BuildCx) -> Option<Box<dyn Component>>;
+}
+
+pub struct Themes { active: ThemeRef, original: ThemeRef }   // original is always present
+
+impl Themes {
+    pub fn resolve(&self, slot: ElementId, cx: &BuildCx) -> Box<dyn Component> {
+        if let Some(component) = self.active.element(slot, cx) {
+            return component;
+        }
+        self.original.element(slot, cx).expect("Original fills every slot (checked at start-up)")
+    }
+}
+```
+
+Rules:
+
+- `Themes::new` refuses to build when the Original theme does not fill every slot. A unit test runs the same
+  check, so the `expect` is a checked invariant, not a hope. (**Design choice**: the check could return an error
+  instead; the choice is small and is left to T2.)
+- The active theme is chosen from `UiStyle` (section 11). A mod theme is registered with `Themes` and selected the
+  same way.
+- `resolve` is called when a slot is built, not for every frame's draw calls. A theme returning `None` costs one
+  lookup.
+- `ThemeId::Remastered` is a valid active theme with no overrides. Every slot resolves to Original. The option
+  row shows it, but the look is Original until a Remastered theme exists. **Open:** whether to show it at all
+  before then (section 14).
+- `BuildCx` is a read-only view: the current `HudState` snapshot, the settings subset the components need, the
+  screen size and the asset handles. It holds no FEng types and no renderer handle.
+
+The shape copies `BlipStyle` (`crates/nfsmw/src/hud/blip_style.rs`: a named trait with defaults, registered at
+run time) and the mod `InterfaceRegistry` (`libs/blackbox-modding/src/host/registry.rs`: ports keyed by id).
+
+## 8. The Original theme: delegation, not re-authoring
+
+The Original theme implements every slot. Each implementation is an **adapter** over code that already exists:
+
+- **HUD adapters** own the existing HUD runtime for their objects. They do not run a second copy of the package
+  scripts. A `Tachometer` adapter reads the same `HudBinding` values the current `bind` sends, and writes the
+  same node data the current `HudViewport` reads. Output is the existing `UiTree` for those objects.
+- **Front-end adapters** wrap `ScreenLogic`, `WidgetMenu`, `IconMenu` and `options_rows`. The FEng package runs as
+  today; the adapter reports the tree of its own package to the presenter.
+- The adapter is what makes the Original look pixel-identical: the same packages, the same scripts, the same
+  viewport math, the same draw order.
+
+**Constraint.** The adapters must not change the FEng object tree or the viewport math. Those already match the
+original game (see [hud-viewport.md](hud-viewport.md) and [frontend-menus.md](frontend-menus.md)). Tests must
+show the tree is unchanged before and after each slot is wrapped (the digest tests in
+`libs/blackbox-render/src/gpu/parity/digests/`).
+
+## 9. The Custom theme: native components
+
+`Custom` implements `RadioCard` and returns `None` for every other slot. The card is today's `hud/radio.rs`
+(title, artist, album and time) re-expressed with `Panel`, `Text` and `Stack`, emitting neutral nodes. It goes
+through the same presenter and the same `hud.viewport.apply` call as the chyron. Nothing is drawn in egui.
+
+When the card moves to the presenter, the egui branch in `crates/nfsmw/src/devtools/mod.rs` (the
+`settings.radio_hud == RadioHudStyle::Custom` check and the call to `crate::hud::show_radio`) is removed. Task
+T9 checks that metrics and console overlays do not depend on that branch.
+
+## 10. Remastered: extension point and worked example
+
+`Remastered` is an enum variant and a documented extension point. It is not implemented in this milestone.
+
+Worked design note, to show the component set is enough. The example is a fullscreen minimap:
+
+- The **original map** is drawn fullscreen behind everything, as a `Panel` with an `Image` child that uses the
+  existing map tiles (`hud/minimap.rs`, [hud-minimap.md](hud-minimap.md)).
+- The **legend** sits on the right, as a `Stack` of `Row`s, each `Text` plus `Image` (the blip icons from
+  `hud/blip_style.rs`).
+- The `Minimap` slot in the Remastered theme returns that `Panel`. The Blips slot can still return `None`, so the
+  original blips draw on the new map, or it can return a component of its own.
+
+The example needs only `Panel`, `Stack`, `Row`, `Text` and `Image`. No new base component and no new node kind.
+
+## 11. The `UiStyle` setting
+
+```rust
+pub enum UiStyle { Original, Custom, Remastered }   // default Original
+```
+
+- Modelled on `VisualStyle` (`crates/nfsmw/src/settings/appearance.rs`: `names!`, `ALL`, `label()`). Note that
+  `VisualStyle` defaults to `Custom`; `UiStyle` defaults to `Original` (section 14).
+- **Folds in `radio_hud`.** The old enum is `RadioHudStyle { EaTrax, Custom }` (`crates/nfsmw/src/settings/radio_hud.rs`),
+  its values written as `ea_trax` or `custom`. The key still reads (`ea_trax`, `ea-trax`, `eatrax` and `custom`
+  are all accepted, as today): `custom` maps to `UiStyle::Custom`, `ea_trax` maps to `UiStyle::Original`. The
+  `radio_hud` key is marked deprecated; it is written no more.
+- **Serialised form.** Proposed: `original`, `custom`, `remastered`, with the underscore and hyphen forms both
+  accepted on read, as `RadioHudStyle::from_str` does.
+
+Layers, each read the same way as the other settings (CLI over env over TOML over defaults):
+
+| Layer | File | Change |
+|---|---|---|
+| TOML | `settings/file.rs` | new `ui_style` key; `radio_hud` read for back-compat |
+| Env | `settings/env.rs` | `NFSMW_UI_STYLE` (new constant beside `RADIO_HUD = "NFSMW_RADIO_HUD"`, which is kept) |
+| CLI | `cli/view_args.rs` | `--ui-style` (new); `--radio-hud` kept (it sets `UiStyle` too) |
+| Partial | `settings/partial.rs` | `ui_style: Option<UiStyle>` merged like `radio_hud` |
+| Write | `settings/write.rs` | writes `ui_style`; stops writing `radio_hud` |
+| Console | `devtools/console/settings_cmd.rs`, `settings_keys.rs`, `parse.rs` | `ui_style` key; `radio_hud` kept as an alias |
+| Options | `frontend/options.rs`, `frontend/options_rows.rs` | `Setting::UiStyle` cycles `[Original, Custom, Remastered]` in place of `Setting::RadioHud` (the cycle at options.rs around line 328) |
+
+The existing tests in `crates/nfsmw/src/frontend/radio_hud_tests.rs` move to a `UiStyle` test with the same
+cases: default, cycle, and the `radio_hud` round trip.
+
+The change in the options row is visible: "Radio HUD" becomes "UI style". Whether the switch takes effect at once
+or after a restart is **open** (section 14).
+
+## 12. The `bb.ui` mod hook
+
+Mirrors `bb.menus` and `bb.hud` ([ADR 0005](../decisions/0005-native-mod-plugins.md), section 2 and section 8).
+
+- Interface id `bb.ui`, version `1.0` (draft). A backend trait in `libs/blackbox-modding/src/host/table/` (name
+  chosen in T11) and an `add_ui` port in `crates/nfsmw/src/modding/backends/`.
+- **Proposed operations** (not final): register a theme (returns a theme handle); override a slot of a theme with a
+  component (by handle); list the slot ids and their names; read the active `UiStyle`.
+- Slot ids and their names are part of the ABI. Ids are `u32` constants that are never reused, and names are
+  UTF-8 strings. A mod that asks for an unknown slot gets an error, not a silent no-op.
+- A mod theme is selectable as a style once it is registered. How it appears in `UiStyle` is **open** (section 14).
+
+**Components across the C ABI.** A mod cannot pass a `Box<dyn Component>`: ADR 0005 allows only `#[repr(C)]` data
+and `extern "C"` functions across the boundary. The mod must describe its component tree through host calls that
+return handles, and the host wraps those handles in `Component` values. The exact call set is **open**, and it is
+the largest open point of the hook.
+
+Tests follow `crates/nfsmw/src/modding/backends/menus_tests.rs`: a fake host registers a theme, overrides one
+slot, and checks that `resolve` returns the mod component for that slot and Original for the rest.
+
+## 13. Testing and verification
+
+- **`blackbox-ui` unit tests:** the resolver fallback (an empty theme falls back to Original for every slot; an
+  override wins for its slot only; `Themes::new` refuses an incomplete Original).
+- **Base components:** layout and built nodes for each of the eight components (T4, T5).
+- **Original parity:** the HUD and front-end suites (`crates/nfsmw/src/hud/*_tests.rs`, `frontend/*_tests.rs`)
+  stay green; `--ui-style original` offscreen screenshots match the pre-change output; the 256 by 144 digests hold.
+- **Custom:** `--ui-style custom` draws the radio card through the presenter, not egui, and every other element
+  looks like Original. Switching back restores the chyron. An old config with `radio_hud = custom` still selects
+  Custom.
+- **Settings:** `ui_style` parse and merge round trips, the `radio_hud` alias, the options cycle.
+- **Mod hook:** registration and slot override through the fake host; an unknown slot is an error.
+
+## 14. Open questions
+
+These are not decided. The parent task (or the owner) decides them before the matching subtask starts.
+
+1. **`ElementId` ownership.** The plan's sketch puts MW names in `blackbox-ui`. [AGENTS.md](../../AGENTS.md) forbids
+   that. Working assumption in section 6: generic slot id in `libs`, MW enum in `crates/nfsmw`. Confirm before T2.
+2. **Mutable state in components.** `build(&self)` cannot advance FEng scripts (section 3). Choose between state in
+   `layout(&mut self)` and a separate `update(&mut self, dt)`. Before T2.
+3. **Mod themes in `UiStyle`.** The plan names `UiStyle::Mod(id)`. The settings pattern (closed enum, `ALL`, cycle
+   in the options row, `names!`) does not fit a dynamic variant. Choose a cycle and a serial form, or keep mod
+   themes out of `UiStyle` and select them another way. Before T10 and T11.
+4. **Components across the ABI.** The declarative handle-based call set for the mod hook (section 12). Before T11.
+5. **Live switch or restart.** Whether changing `UiStyle` re-resolves slots at once or applies at the next start.
+   Before T10.
+6. **Default.** `UiStyle` defaults to `Original`; `VisualStyle` defaults to `Custom`. Confirm the difference is
+   intended. Before T10.
+7. **Remastered in the menu.** Whether the Remastered row is shown before a Remastered theme exists, since it looks
+   like Original until then. Before T10.
+8. **Busted overlay and career screens.** Their Original code is marked **?** in section 6. T7 and T8 confirm them.
+9. **Milestone number.** The work has no milestone number in the plan. Set it when the subtasks are scheduled.

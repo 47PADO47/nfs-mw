@@ -46,6 +46,8 @@ textured sparks and contact glow separately from the experimental restoration.
 
 [Post-processing](post-processing.md) specifies the optional bloom, tone mapping and FXAA passes (new design).
 
+[UI themes](ui-themes.md) specifies the themeable HUD and menus: the component model, the neutral draw tree, the element slots, the Original fallback, the `UiStyle` setting and the `bb.ui` mod hook (new design, see [ADR 0008](../decisions/0008-ui-themes.md)).
+
 [Contrast-adaptive sharpening](cas-sharpening.md) specifies a CAS pass for native resolution, from AMD's MIT algorithm as read in a ReShade pack (new design; overlaps RCAS, see the spec).
 
 [Controller settings](controller-settings.md) specifies rewrite response options and saved rebinding.
