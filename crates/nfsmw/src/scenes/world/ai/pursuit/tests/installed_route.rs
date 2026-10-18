@@ -150,7 +150,7 @@ fn tick(
     let camera = Lens::look_at(position - forward * 8.0 + Vec3::Z * 3.0, position, 60.0, 0.1, 1.0);
     world.step(focus, collision, props, surfaces);
     world.collide(None);
-    world.finish_step(focus, &camera, props, collision, surfaces);
+    world.finish_step(focus, &camera, &camera, props, collision, surfaces);
     world.player_position = Some(body.position);
     let cast = crate::scenes::world::drive::sight::sight_cast(collision);
     world.update_sight(STEP, &cast);

@@ -242,10 +242,10 @@ impl TrafficWorld {
     /// unseen for longer than the density's time and farther than its distance, or, while unseen, the rewrite's
     /// extra rules. A car with a detached part in view stays. A tractor that is gone stays while its trailer is
     /// not, and a trailer that came loose and is gone is dropped on its own.
-    pub(super) fn recycle(&mut self, dt: f32, focus: Focus, camera: &Lens, props: &PropWorld) {
+    pub(super) fn recycle(&mut self, dt: f32, focus: Focus, camera: &Lens, shown: &Lens, props: &PropWorld) {
         let density = self.density();
         let limits = Limits { time: manager::offscreen_time(density), distance: manager::offscreen_distance(density) };
-        let mut view = Viewing::new(camera, focus);
+        let mut view = Viewing::new(camera, focus).also_shown_through(shown);
         view.retire_distance = self.policy.retire_distance as f32;
         view.grace = self.policy.offscreen_seconds as f32;
         self.cars.retain_mut(|car| {

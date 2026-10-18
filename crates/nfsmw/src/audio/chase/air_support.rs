@@ -71,7 +71,7 @@ impl AirSupport {
     /// kill-shot group may be the helicopter's kill line, not the cop-down one.
     pub fn allows(&self, cue: Cue) -> bool {
         match cue {
-            Cue::Lost | Cue::Regained | Cue::HeatJump => true,
+            Cue::Lost | Cue::Regained | Cue::HeatJump | Cue::Escaped => true,
             Cue::TimeExpired => self.search_pattern,
             Cue::Rain => self.weather_report,
             Cue::RoadblockCalled => self.roadblock_call,

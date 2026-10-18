@@ -41,7 +41,7 @@ fn installed_traffic_population_uses_live_manager_and_collision() {
             let eye = Vec3::new(focus.position[0], focus.position[1] - 8.0, 150.0);
             let lens = crate::viewer::camera::Lens::look_at(eye, eye + Vec3::Y, 60.0, 0.1, 16.0 / 9.0);
             world.step(focus, &collision, &mut props, &data.surfaces);
-            world.finish_step(focus, &lens, &props, &collision, &data.surfaces);
+            world.finish_step(focus, &lens, &lens, &props, &collision, &data.surfaces);
             if tick % 600 == 599 {
                 eprintln!("population {policy:?} t={}: {}", (tick + 1) / 60, world.status(focus));
             }
@@ -58,7 +58,7 @@ fn installed_traffic_population_uses_live_manager_and_collision() {
             let eye = Vec3::new(focus.position[0], focus.position[1] - 8.0, 150.0);
             let lens = crate::viewer::camera::Lens::look_at(eye, eye + Vec3::Y, 60.0, 0.1, 16.0 / 9.0);
             world.step(focus, &collision, &mut props, &data.surfaces);
-            world.finish_step(focus, &lens, &props, &collision, &data.surfaces);
+            world.finish_step(focus, &lens, &lens, &props, &collision, &data.surfaces);
         }
         assert_eq!(world.population_stats.spawned, activated, "live zero density must stop activations");
     }
@@ -97,7 +97,7 @@ fn installed_reference_and_extended_traffic_spawn_within_supported_bands() {
         assert_ne!(collision.resident_near(world.cars[0].physics_position().to_array(), 40.0), Some(false));
         let eye = Vec3::new(focus.position[0], focus.position[1], position.z + 3.0);
         let away = crate::viewer::camera::Lens::look_at(eye, eye - Vec3::Y, 60.0, 0.1, 1.0);
-        world.recycle(0.5, focus, &away, &PropWorld::default());
+        world.recycle(0.5, focus, &away, &away, &PropWorld::default());
         assert_eq!(world.cars.len(), 1, "new distant actor must survive a short look away");
         eprintln!("traffic band {}-{}: supported spawn {distance:.1} m", policy.spawn_min, policy.spawn_max);
     }
@@ -156,7 +156,7 @@ fn installed_traffic_population_presets_increase_sustained_highway_counts() {
         let mut count = 0usize;
         for tick in 0..3600 {
             world.step(focus, &collision, &mut props, &data.surfaces);
-            world.finish_step(focus, &lens, &props, &collision, &data.surfaces);
+            world.finish_step(focus, &lens, &lens, &props, &collision, &data.surfaces);
             assert!(world.population_slots(focus) <= settings.traffic as usize);
             for rule in rules.iter().filter(|r| r.max_instances > 0) {
                 let active = world.cars.iter().filter(|c| c.name.eq_ignore_ascii_case(&rule.name)).count();
@@ -174,7 +174,7 @@ fn installed_traffic_population_presets_increase_sustained_highway_counts() {
         world.set_policy(TrafficPolicy { density_percent: 0, ..settings.traffic_policy });
         for _ in 0..60 {
             world.step(focus, &collision, &mut props, &data.surfaces);
-            world.finish_step(focus, &lens, &props, &collision, &data.surfaces);
+            world.finish_step(focus, &lens, &lens, &props, &collision, &data.surfaces);
         }
         assert_eq!(spawned, world.population_stats.spawned);
     }

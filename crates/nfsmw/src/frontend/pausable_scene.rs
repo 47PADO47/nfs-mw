@@ -212,6 +212,13 @@ impl Scene for Pausable {
         self.inner.pursuit_feed()
     }
 
+    fn pursuit_ended(&self) -> blackbox_pursuit::EndReason {
+        if self.concealed() {
+            return blackbox_pursuit::EndReason::None;
+        }
+        self.inner.pursuit_ended()
+    }
+
     fn take_bust_ticket(&mut self) -> Option<Vec<(blackbox_pursuit::Infraction, u32)>> {
         if self.concealed() {
             return None;

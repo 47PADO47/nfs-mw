@@ -125,7 +125,7 @@ fn drive_car(
     // The chase of the world reaches the music and the speech; the pursuit music takes the songs' place while a chase
     // is on and for a while after it.
     let chase = host.scene.pursuit_feed();
-    audio.follow_chase(&mut music, chase.as_ref());
+    audio.follow_chase(&mut music, chase.as_ref(), host.scene.pursuit_ended());
     let songs_free = audio.update_interactive(&music.state(), driving, time.delta_secs());
     audio.update_radio(driving, host.scene.radio_on_menus(), !songs_free);
     if let Some(clip) = host.scene.take_clip()

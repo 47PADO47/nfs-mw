@@ -141,7 +141,7 @@ fn a_chase_that_ends_forgets_the_air_edges() {
 fn each_air_cue_names_its_speech_event() {
     assert_eq!(cue_line(Cue::Rain), "anytimeevents_weatherreport");
     assert_eq!(cue_line(Cue::RoadblockCalled), "staticroadblock_callforrb");
-    assert_eq!(cue_line(Cue::BeenHit), "anytimeevents_collisionworld");
+    assert_eq!(cue_line(Cue::BeenHit), "anytimeevents_collworld_spin");
     assert_eq!(cue_line(Cue::HeliLost), "helispecific_helilostvisual");
     assert_eq!(cue_line(Cue::HeliSpotted), "anytimeevents_spotted");
     assert_eq!(cue_line(Cue::CopDown), "anytimeevents_unitdisabled");

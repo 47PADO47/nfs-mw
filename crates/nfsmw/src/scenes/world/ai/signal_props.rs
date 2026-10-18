@@ -126,8 +126,6 @@ pub struct SignalLamps {
     lamps: Vec<Option<Lamp>>,
     /// Traffic-light props that were placed at the last build.
     candidates: usize,
-    /// Debug switch: draw the synthetic post and bar for every approach, matched or not.
-    pub synthetic_all: bool,
 }
 
 impl SignalLamps {
@@ -176,18 +174,13 @@ impl TrafficWorld {
         );
     }
 
-    pub fn set_synthetic_posts(&mut self, on: bool) {
-        self.signal_lamps.synthetic_all = on;
-    }
-
     /// One line for the `signals` command.
     pub fn signal_props_status(&self) -> String {
         let approaches = self.signals.approaches().len();
         let matched = self.signal_lamps.matched();
-        let synthetic = if self.signal_lamps.synthetic_all { "on" } else { "off" };
         format!(
-            "{approaches} signalled approaches: {matched} matched to a real light, {} with the synthetic post; \
-             {} traffic-light props placed; synthetic posts for all: {synthetic}",
+            "{approaches} signalled approaches: {matched} matched to a real light, {} with no light; \
+             {} traffic-light props placed",
             approaches - matched,
             self.signal_lamps.candidates
         )

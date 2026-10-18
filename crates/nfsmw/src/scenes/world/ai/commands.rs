@@ -142,21 +142,13 @@ pub(in crate::scenes::world) fn speeding_pursuit(scene: &mut WorldScene, rendere
     }
 }
 
-/// `signals props|synthetic on|off`: the traffic lights of the signalled approaches, matched to the real traffic-light
-/// props of the map or not. `synthetic on` also draws the synthetic post and bar of every approach (a debug aid).
+/// `signals [props]`: the traffic lights of the signalled approaches, matched to the real traffic-light props of the map
+/// or not. An approach with no matched prop shows no light.
 pub(in crate::scenes::world) fn signals_command(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
-    const USAGE: &str = "usage: signals props|synthetic on|off";
+    const USAGE: &str = "usage: signals [props]";
     let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
     match args {
         [] | ["props"] => Ok(traffic.signal_props_status()),
-        ["synthetic", "on"] => {
-            traffic.set_synthetic_posts(true);
-            Ok("synthetic posts drawn for every approach".into())
-        }
-        ["synthetic", "off"] => {
-            traffic.set_synthetic_posts(false);
-            Ok("synthetic posts only where no real light matches".into())
-        }
         _ => Err(USAGE.into()),
     }
 }

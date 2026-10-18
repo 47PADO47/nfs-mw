@@ -104,8 +104,7 @@ impl super::super::TrafficWorld {
         }
     }
 
-    /// How the last chase ended, for the camera (`EndReason::None` while one runs, and before any chase).
-    #[allow(dead_code)] // read by the camera (E8f), not built yet
+    /// How the last chase ended, for the camera and the speech (`EndReason::None` while one runs, and before any chase).
     pub fn end_reason(&self) -> EndReason {
         self.police.end_reason()
     }
