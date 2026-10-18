@@ -21,6 +21,7 @@
 
 mod arrays;
 mod layout;
+mod new;
 #[cfg(test)]
 mod tests;
 
